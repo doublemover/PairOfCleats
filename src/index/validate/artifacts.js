@@ -27,6 +27,7 @@ export const buildArtifactLists = (userConfig, postingsConfig, { profileId = nul
     'graph_relations',
     'risk_summaries',
     'risk_flows',
+    'risk_partial_flows',
     'risk_interprocedural_stats',
     'file_meta',
     'chunk_uid_map',

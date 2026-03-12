@@ -693,7 +693,8 @@ const riskFlowNotesSchema = {
     sanitizerPolicy: nullableString,
     hopCount: nullableNumber,
     sanitizerBarriersHit: nullableNumber,
-    capsHit: { type: 'array', items: { type: 'string' } }
+    capsHit: { type: 'array', items: { type: 'string' } },
+    terminalReason: nullableString
   },
   additionalProperties: false
 };
@@ -750,6 +751,75 @@ const riskFlowSummarySchema = {
   additionalProperties: false
 };
 
+const riskPartialBlockedExpansionSchema = {
+  type: 'object',
+  properties: {
+    targetChunkUid: nullableString,
+    reason: nullableString,
+    callSiteIds: { type: 'array', items: { type: 'string' } }
+  },
+  additionalProperties: false
+};
+
+const riskPartialFlowSummarySchema = {
+  type: 'object',
+  required: ['path'],
+  properties: {
+    rank: nullableNumber,
+    partialFlowId: nullableString,
+    source: riskSourceSinkSchema,
+    confidence: nullableNumber,
+    score: {
+      type: ['object', 'null'],
+      properties: {
+        seedRelevance: nullableNumber,
+        confidence: nullableNumber,
+        hopCount: nullableNumber
+      },
+      additionalProperties: false
+    },
+    frontier: {
+      type: ['object', 'null'],
+      properties: {
+        chunkUid: nullableString,
+        terminalReason: nullableString,
+        blockedExpansions: {
+          type: 'array',
+          items: riskPartialBlockedExpansionSchema
+        }
+      },
+      additionalProperties: false
+    },
+    path: {
+      type: 'object',
+      required: ['nodes'],
+      properties: {
+        nodes: { type: 'array', items: nodeRefSchema },
+        labels: { type: ['array', 'null'], items: { type: 'string' } },
+        stepCount: nullableNumber,
+        truncatedSteps: nullableNumber,
+        callSiteIdsByStep: { type: ['array', 'null'], items: { type: 'array', items: { type: 'string' } } }
+      },
+      additionalProperties: false
+    },
+    evidence: {
+      type: ['object', 'null'],
+      properties: {
+        callSitesByStep: {
+          type: ['array', 'null'],
+          items: {
+            type: 'array',
+            items: riskCallSiteEvidenceSchema
+          }
+        }
+      },
+      additionalProperties: false
+    },
+    notes: riskFlowNotesSchema
+  },
+  additionalProperties: false
+};
+
 const riskAnalysisStatusSchema = {
   type: ['object', 'null'],
   properties: {
@@ -766,12 +836,14 @@ const riskAnalysisStatusSchema = {
         stats: nullableString,
         summaries: nullableString,
         flows: nullableString,
+        partialFlows: nullableString,
         callSites: nullableString
       },
       additionalProperties: false
     },
     degradedReasons: { type: 'array', items: { type: 'string' } },
     flowsEmitted: nullableNumber,
+    partialFlowsEmitted: nullableNumber,
     uniqueCallSitesReferenced: nullableNumber,
     capsHit: { type: 'array', items: { type: 'string' } }
   },
@@ -811,6 +883,9 @@ const riskCapsSchema = {
     maxCallSitesPerStep: nullableNumber,
     maxBytes: nullableNumber,
     maxTokens: nullableNumber,
+    maxPartialFlows: nullableNumber,
+    maxPartialBytes: nullableNumber,
+    maxPartialTokens: nullableNumber,
     maxCallSiteExcerptBytes: nullableNumber,
     maxCallSiteExcerptTokens: nullableNumber,
     hits: { type: 'array', items: { type: 'string' } },
@@ -820,11 +895,16 @@ const riskCapsSchema = {
         candidateFlows: nullableNumber,
         selectedFlows: nullableNumber,
         omittedFlows: nullableNumber,
+        candidatePartialFlows: nullableNumber,
+        selectedPartialFlows: nullableNumber,
+        omittedPartialFlows: nullableNumber,
         emittedSteps: nullableNumber,
         omittedSteps: nullableNumber,
         omittedCallSites: nullableNumber,
         bytes: nullableNumber,
         tokens: nullableNumber,
+        partialBytes: nullableNumber,
+        partialTokens: nullableNumber,
         truncatedCallSiteExcerpts: nullableNumber,
         truncatedCallSiteExcerptBytes: nullableNumber,
         truncatedCallSiteExcerptTokens: nullableNumber
@@ -869,6 +949,7 @@ const riskProvenanceSchema = {
         stats: nullableString,
         summaries: nullableString,
         flows: nullableString,
+        partialFlows: nullableString,
         callSites: nullableString
       },
       additionalProperties: false
@@ -879,6 +960,7 @@ const riskProvenanceSchema = {
         stats: { type: ['object', 'null'], additionalProperties: true },
         summaries: { type: ['object', 'null'], additionalProperties: true },
         flows: { type: ['object', 'null'], additionalProperties: true },
+        partialFlows: { type: ['object', 'null'], additionalProperties: true },
         callSites: { type: ['object', 'null'], additionalProperties: true }
       },
       additionalProperties: false
@@ -894,6 +976,7 @@ const riskStatsSchema = {
     reason: nullableString,
     summaryOnly: { type: ['boolean', 'null'] },
     flowsEmitted: nullableNumber,
+    partialFlowsEmitted: nullableNumber,
     summariesEmitted: nullableNumber,
     uniqueCallSitesReferenced: nullableNumber,
     capsHit: { type: 'array', items: { type: 'string' } },
@@ -957,6 +1040,8 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
         truncation: { type: ['array', 'null'], items: truncationRecordSchema },
         provenance: riskProvenanceSchema,
         flows: { type: 'array', items: riskFlowSummarySchema }
+        ,
+        partialFlows: { type: 'array', items: riskPartialFlowSummarySchema }
       },
       additionalProperties: false
     },

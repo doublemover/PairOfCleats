@@ -83,6 +83,7 @@ export const summarizeRiskStats = (stats) => ({
   reason: stats?.reason || null,
   summaryOnly: stats?.effectiveConfig?.summaryOnly === true,
   flowsEmitted: Number.isFinite(stats?.counts?.flowsEmitted) ? stats.counts.flowsEmitted : null,
+  partialFlowsEmitted: Number.isFinite(stats?.counts?.partialFlowsEmitted) ? stats.counts.partialFlowsEmitted : null,
   summariesEmitted: Number.isFinite(stats?.counts?.summariesEmitted) ? stats.counts.summariesEmitted : null,
   uniqueCallSitesReferenced: Number.isFinite(stats?.counts?.uniqueCallSitesReferenced)
     ? stats.counts.uniqueCallSitesReferenced
@@ -91,6 +92,19 @@ export const summarizeRiskStats = (stats) => ({
   callSiteSampling: stats?.callSiteSampling || null,
   effectiveConfig: stats?.effectiveConfig || null
 });
+
+const normalizeExplainStats = (stats) => {
+  if (!stats || typeof stats !== 'object') return null;
+  if (
+    Number.isFinite(stats.flowsEmitted)
+    || Number.isFinite(stats.partialFlowsEmitted)
+    || Number.isFinite(stats.summariesEmitted)
+    || Number.isFinite(stats.uniqueCallSitesReferenced)
+  ) {
+    return stats;
+  }
+  return summarizeRiskStats(stats);
+};
 
 const normalizeExplainSubject = (subject) => {
   if (!subject || typeof subject !== 'object') return null;
@@ -142,6 +156,50 @@ const normalizeExplainFlow = (flow) => {
   };
 };
 
+const normalizeExplainPartialFlow = (flow) => {
+  if (!flow || typeof flow !== 'object') return null;
+  const evidence = flow?.evidence && typeof flow.evidence === 'object' ? flow.evidence : null;
+  return {
+    partialFlowId: flow.partialFlowId || null,
+    confidence: Number.isFinite(flow.confidence) ? flow.confidence : null,
+    source: flow.source || null,
+    frontier: flow.frontier && typeof flow.frontier === 'object'
+      ? {
+        chunkUid: flow.frontier.chunkUid || null,
+        terminalReason: flow.frontier.terminalReason || null,
+        blockedExpansions: Array.isArray(flow.frontier.blockedExpansions)
+          ? flow.frontier.blockedExpansions.map((entry) => ({
+            targetChunkUid: entry?.targetChunkUid || null,
+            reason: entry?.reason || null,
+            callSiteIds: Array.isArray(entry?.callSiteIds) ? entry.callSiteIds.filter(Boolean) : []
+          }))
+          : []
+      }
+      : null,
+    path: normalizeExplainPath(flow.path, evidence),
+    evidence: evidence && Array.isArray(evidence.callSitesByStep)
+      ? {
+        callSitesByStep: evidence.callSitesByStep.map((step) => Array.isArray(step)
+          ? step.map((entry) => ({
+            callSiteId: entry?.callSiteId || null,
+            details: entry?.details || null
+          }))
+          : [])
+      }
+      : null,
+    notes: flow?.notes && typeof flow.notes === 'object'
+      ? {
+        strictness: flow.notes.strictness || null,
+        sanitizerPolicy: flow.notes.sanitizerPolicy || null,
+        hopCount: Number.isFinite(flow.notes.hopCount) ? flow.notes.hopCount : null,
+        sanitizerBarriersHit: Number.isFinite(flow.notes.sanitizerBarriersHit) ? flow.notes.sanitizerBarriersHit : null,
+        capsHit: Array.isArray(flow.notes.capsHit) ? flow.notes.capsHit.slice() : [],
+        terminalReason: flow.notes.terminalReason || null
+      }
+      : null
+  };
+};
+
 export const buildRiskExplanationModel = ({
   subject = null,
   summary = null,
@@ -152,7 +210,8 @@ export const buildRiskExplanationModel = ({
   caps = null,
   truncation = null,
   filters = null,
-  flows = []
+  flows = [],
+  partialFlows = []
 } = {}) => ({
   subject: normalizeExplainSubject(subject),
   summary: summary && typeof summary === 'object' ? summary : null,
@@ -163,7 +222,8 @@ export const buildRiskExplanationModel = ({
   caps: caps && typeof caps === 'object' ? caps : null,
   truncation: Array.isArray(truncation) ? truncation.slice() : [],
   filters: normalizeExplainFilters(filters),
-  flows: Array.isArray(flows) ? flows.map(normalizeExplainFlow).filter(Boolean) : []
+  flows: Array.isArray(flows) ? flows.map(normalizeExplainFlow).filter(Boolean) : [],
+  partialFlows: Array.isArray(partialFlows) ? partialFlows.map(normalizeExplainPartialFlow).filter(Boolean) : []
 });
 
 export const buildRiskExplanationModelFromStandalone = ({
@@ -172,11 +232,12 @@ export const buildRiskExplanationModelFromStandalone = ({
   stats = null,
   provenance = null,
   filters = null,
-  flows = []
+  flows = [],
+  partialFlows = []
 } = {}) => buildRiskExplanationModel({
   subject: chunk,
   summary: normalizeRiskSummary(summary, flows),
-  stats: summarizeRiskStats(stats),
+  stats: normalizeExplainStats(stats),
   provenance: provenance || stats?.provenance || null,
   analysisStatus: stats && typeof stats === 'object'
     ? {
@@ -188,18 +249,20 @@ export const buildRiskExplanationModelFromStandalone = ({
     }
     : null,
   filters,
-  flows
+  flows,
+  partialFlows
 });
 
 export const buildRiskExplanationModelFromRiskSlice = (risk, { subject = null, filters = null } = {}) => buildRiskExplanationModel({
   subject,
   summary: risk?.summary || null,
-  stats: risk?.stats || null,
+  stats: normalizeExplainStats(risk?.stats || null),
   provenance: risk?.provenance || null,
   analysisStatus: risk?.analysisStatus || null,
   anchor: risk?.anchor || null,
   caps: risk?.caps || null,
   truncation: risk?.truncation || [],
   filters: filters || risk?.filters || null,
-  flows: risk?.flows || []
+  flows: risk?.flows || [],
+  partialFlows: risk?.partialFlows || []
 });

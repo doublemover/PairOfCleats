@@ -85,6 +85,7 @@ const SHARDED_META_ARTIFACT_KEY_MAP = [
   ['call_sites_meta', 'call_sites'],
   ['risk_summaries_meta', 'risk_summaries'],
   ['risk_flows_meta', 'risk_flows'],
+  ['risk_partial_flows_meta', 'risk_partial_flows'],
   ['repo_map_meta', 'repo_map'],
   ['graph_relations_meta', 'graph_relations']
 ];

@@ -13,6 +13,7 @@ import {
 } from '../shared/risk-explain.js';
 import {
   filterRiskFlows,
+  filterRiskPartialFlows,
   materializeRiskFilters,
   normalizeRiskFilters,
   validateRiskFilters
@@ -175,11 +176,14 @@ const resolvePrimaryRef = (seedRef, chunk) => {
 
 const CONTEXT_PACK_MAX_RISK_FLOWS = 5;
 const CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW = 8;
+const CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS = 5;
 const CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP = 3;
 const CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_BYTES = 192;
 const CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_TOKENS = 24;
 const CONTEXT_PACK_MAX_RISK_BYTES = 24 * 1024;
 const CONTEXT_PACK_MAX_RISK_TOKENS = 2048;
+const CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES = 16 * 1024;
+const CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS = 1024;
 
 const buildRiskArtifactStatus = ({ presence, required = false, loadFailed = false }) => {
   if (loadFailed) return 'load_failed';
@@ -220,6 +224,7 @@ const normalizeRiskArtifactRefs = (stats) => {
     stats: artifacts.stats || null,
     summaries: artifacts.summaries || artifacts.riskSummaries || null,
     flows: artifacts.flows || artifacts.riskFlows || null,
+    partialFlows: artifacts.partialFlows || artifacts.riskPartialFlows || null,
     callSites: artifacts.callSites || null
   };
   return Object.values(refs).some(Boolean) ? refs : null;
@@ -289,6 +294,7 @@ const resolveRiskSeedRelevance = (flow, riskAnchor) => {
   }
   if (anchorKind === 'sink') {
     if (flow?.sink?.chunkUid === anchorChunkUid) return 3;
+    if (flow?.frontier?.chunkUid === anchorChunkUid) return 3;
     if (flow?.source?.chunkUid === anchorChunkUid) return 2;
   }
   if (anchorKind === 'path') {
@@ -297,7 +303,11 @@ const resolveRiskSeedRelevance = (flow, riskAnchor) => {
     if (flow?.source?.chunkUid === anchorChunkUid || flow?.sink?.chunkUid === anchorChunkUid) return 1;
     return 0;
   }
-  if (flow?.source?.chunkUid === anchorChunkUid || flow?.sink?.chunkUid === anchorChunkUid) return 2;
+  if (
+    flow?.source?.chunkUid === anchorChunkUid
+    || flow?.sink?.chunkUid === anchorChunkUid
+    || flow?.frontier?.chunkUid === anchorChunkUid
+  ) return 2;
   const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
   return chunkUids.includes(anchorChunkUid) ? 1 : 0;
 };
@@ -318,6 +328,23 @@ const rankRiskFlows = (flows, riskAnchor) => Array.from(Array.isArray(flows) ? f
     if (a.score.confidence !== b.score.confidence) return b.score.confidence - a.score.confidence;
     if (a.score.hopCount !== b.score.hopCount) return a.score.hopCount - b.score.hopCount;
     return compareStrings(a.flow?.flowId || '', b.flow?.flowId || '');
+  })
+  .map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+const rankPartialRiskFlows = (flows, riskAnchor) => Array.from(Array.isArray(flows) ? flows : [])
+  .map((flow) => ({
+    flow,
+    score: {
+      seedRelevance: resolveRiskSeedRelevance(flow, riskAnchor),
+      confidence: Number.isFinite(flow?.confidence) ? flow.confidence : -1,
+      hopCount: Number.isFinite(flow?.notes?.hopCount) ? flow.notes.hopCount : Number.MAX_SAFE_INTEGER
+    }
+  }))
+  .sort((a, b) => {
+    if (a.score.seedRelevance !== b.score.seedRelevance) return b.score.seedRelevance - a.score.seedRelevance;
+    if (a.score.confidence !== b.score.confidence) return b.score.confidence - a.score.confidence;
+    if (a.score.hopCount !== b.score.hopCount) return a.score.hopCount - b.score.hopCount;
+    return compareStrings(a.flow?.partialFlowId || '', b.flow?.partialFlowId || '');
   })
   .map((entry, index) => ({ ...entry, rank: index + 1 }));
 
@@ -532,22 +559,30 @@ const hydrateRiskCallSiteDetails = ({ row, repoRoot }) => {
 const buildRiskCaps = ({ stats, counts, hits }) => ({
   maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
   maxStepsPerFlow: CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW,
+  maxPartialFlows: CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
   maxCallSitesPerStep: CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP,
   maxCallSiteExcerptBytes: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_BYTES,
   maxCallSiteExcerptTokens: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_TOKENS,
   maxBytes: CONTEXT_PACK_MAX_RISK_BYTES,
   maxTokens: CONTEXT_PACK_MAX_RISK_TOKENS,
+  maxPartialBytes: CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES,
+  maxPartialTokens: CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS,
   configured: stats?.effectiveConfig?.caps || null,
   observed: {
     candidateFlows: counts.candidateFlows,
     selectedFlows: counts.selectedFlows,
     omittedFlows: counts.omittedFlows,
+    candidatePartialFlows: counts.candidatePartialFlows,
+    selectedPartialFlows: counts.selectedPartialFlows,
+    omittedPartialFlows: counts.omittedPartialFlows,
     emittedSteps: counts.emittedSteps,
     omittedSteps: counts.omittedSteps,
     omittedCallSites: counts.omittedCallSites,
     truncatedCallSiteExcerpts: counts.truncatedCallSiteExcerpts,
     bytes: counts.bytes,
-    tokens: counts.tokens
+    tokens: counts.tokens,
+    partialBytes: counts.partialBytes,
+    partialTokens: counts.partialTokens
   },
   hits: Array.from(hits)
 });
@@ -563,6 +598,7 @@ const buildRiskAnalysisStatus = ({ status, reason, degraded, summaryOnly, code =
   artifactStatus,
   degradedReasons,
   flowsEmitted: stats?.flowsEmitted ?? null,
+  partialFlowsEmitted: stats?.partialFlowsEmitted ?? null,
   uniqueCallSitesReferenced: stats?.uniqueCallSitesReferenced ?? null,
   capsHit: Array.from(new Set([...(Array.isArray(stats?.capsHit) ? stats.capsHit : []), ...(Array.isArray(caps?.hits) ? caps.hits : [])]))
 });
@@ -573,6 +609,7 @@ const buildRiskSlice = ({
   seedRef,
   primaryChunk,
   chunkIndex,
+  includeRiskPartialFlows = false,
   riskFilters = null,
   indexSignature = null,
   indexCompatKey = null,
@@ -612,6 +649,7 @@ const buildRiskSlice = ({
         alternates: []
       },
       flows: [],
+      partialFlows: [],
       filters: riskFilterState,
       summary: null,
       stats: null,
@@ -657,6 +695,7 @@ const buildRiskSlice = ({
         alternates: []
       },
       flows: [],
+      partialFlows: [],
       filters: riskFilterState,
       summary: null,
       stats: null,
@@ -696,6 +735,11 @@ const buildRiskSlice = ({
     maxBytes: MAX_JSON_BYTES,
     strict: true
   });
+  const partialFlowsPresence = resolveArtifactPresence(indexDir, 'risk_partial_flows', {
+    manifest,
+    maxBytes: MAX_JSON_BYTES,
+    strict: true
+  });
   const callSitesPresence = resolveArtifactPresence(indexDir, 'call_sites', {
     manifest,
     maxBytes: MAX_JSON_BYTES,
@@ -707,6 +751,7 @@ const buildRiskSlice = ({
   let statsLoadFailed = false;
   let summariesLoadFailed = false;
   let flowsLoadFailed = false;
+  let partialFlowsLoadFailed = false;
   let callSitesLoadFailed = false;
   const riskTruncation = [];
   if (statsMissing && summariesMissing) {
@@ -714,6 +759,7 @@ const buildRiskSlice = ({
       stats: buildRiskArtifactStatus({ presence: statsPresence, required: true }),
       summaries: buildRiskArtifactStatus({ presence: summariesPresence, required: true }),
       flows: buildRiskArtifactStatus({ presence: flowsPresence, required: false }),
+      partialFlows: buildRiskArtifactStatus({ presence: partialFlowsPresence, required: false }),
       callSites: buildRiskArtifactStatus({ presence: callSitesPresence, required: false })
     };
     warnings.push({
@@ -732,6 +778,7 @@ const buildRiskSlice = ({
         alternates: []
       },
       flows: [],
+      partialFlows: [],
       filters: riskFilterState,
       summary: null,
       stats: null,
@@ -815,6 +862,11 @@ const buildRiskSlice = ({
       required: !(summaryOnly || stats?.status === 'disabled'),
       loadFailed: flowsLoadFailed
     }),
+    partialFlows: buildRiskArtifactStatus({
+      presence: partialFlowsPresence,
+      required: includeRiskPartialFlows && !(summaryOnly || stats?.status === 'disabled'),
+      loadFailed: partialFlowsLoadFailed
+    }),
     callSites: buildRiskArtifactStatus({ presence: callSitesPresence, required: false, loadFailed: callSitesLoadFailed })
   };
   const baseStatus = stats?.status === 'disabled'
@@ -832,11 +884,16 @@ const buildRiskSlice = ({
         candidateFlows: 0,
         selectedFlows: 0,
         omittedFlows: 0,
+        candidatePartialFlows: 0,
+        selectedPartialFlows: 0,
+        omittedPartialFlows: 0,
         emittedSteps: 0,
         omittedSteps: 0,
         omittedCallSites: 0,
         bytes: 0,
-        tokens: 0
+        tokens: 0,
+        partialBytes: 0,
+        partialTokens: 0
       },
       hits: new Set(Array.isArray(stats?.capsHit) ? stats.capsHit : [])
     });
@@ -852,6 +909,7 @@ const buildRiskSlice = ({
         alternates: []
       },
       flows: [],
+      partialFlows: [],
       summary: normalizeRiskSummary(summary, []),
       stats: summarizeRiskStats(stats),
       analysisStatus: buildRiskAnalysisStatus({
@@ -881,11 +939,16 @@ const buildRiskSlice = ({
         candidateFlows: 0,
         selectedFlows: 0,
         omittedFlows: 0,
+        candidatePartialFlows: 0,
+        selectedPartialFlows: 0,
+        omittedPartialFlows: 0,
         emittedSteps: 0,
         omittedSteps: 0,
         omittedCallSites: 0,
         bytes: 0,
-        tokens: 0
+        tokens: 0,
+        partialBytes: 0,
+        partialTokens: 0
       },
       hits: new Set(Array.isArray(stats?.capsHit) ? stats.capsHit : [])
     });
@@ -901,6 +964,7 @@ const buildRiskSlice = ({
         alternates: []
       },
       flows: [],
+      partialFlows: [],
       summary: normalizeRiskSummary(summary, []),
       stats: summarizeRiskStats(stats),
       analysisStatus: buildRiskAnalysisStatus({
@@ -925,8 +989,12 @@ const buildRiskSlice = ({
 
   let degraded = false;
   let flows = [];
+  let partialFlows = [];
   const riskCandidateChunkUids = new Set(riskSeedContext.candidates.map((entry) => entry.chunkUid).filter(Boolean));
   const flowsMissing = flowsPresence.format === 'missing' || flowsPresence.missingMeta || flowsPresence.missingPaths.length > 0;
+  const partialFlowsMissing = partialFlowsPresence.format === 'missing'
+    || partialFlowsPresence.missingMeta
+    || partialFlowsPresence.missingPaths.length > 0;
   const callSitesMissing = callSitesPresence.format === 'missing' || callSitesPresence.missingMeta || callSitesPresence.missingPaths.length > 0;
   if (!flowsMissing) {
     try {
@@ -966,6 +1034,46 @@ const buildRiskSlice = ({
     degraded = true;
   }
 
+  if (includeRiskPartialFlows) {
+    if (!partialFlowsMissing) {
+      try {
+        const partialRows = loadJsonArrayArtifactSync(indexDir, 'risk_partial_flows', {
+          manifest,
+          maxBytes: MAX_JSON_BYTES,
+          strict: true
+        });
+        const relevantPartialFlows = Array.isArray(partialRows)
+          ? partialRows.filter((flow) => {
+            const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
+            if (flow?.source?.chunkUid && riskCandidateChunkUids.has(flow.source.chunkUid)) return true;
+            if (flow?.frontier?.chunkUid && riskCandidateChunkUids.has(flow.frontier.chunkUid)) return true;
+            return chunkUids.some((chunkUid) => riskCandidateChunkUids.has(chunkUid));
+          })
+          : [];
+        partialFlows = filterRiskPartialFlows(relevantPartialFlows, riskFilters);
+      } catch (err) {
+        partialFlowsLoadFailed = true;
+        const failureClass = classifyRiskLoadFailure(err);
+        warnings.push({
+          code: failureClass === 'timed_out'
+            ? 'RISK_PARTIAL_FLOWS_TIMED_OUT'
+            : failureClass === 'schema_invalid'
+              ? 'RISK_PARTIAL_FLOWS_SCHEMA_INVALID'
+              : 'RISK_PARTIAL_FLOWS_LOAD_FAILED',
+          message: 'Risk partial flows artifact could not be loaded.',
+          data: { error: err?.message || String(err) }
+        });
+        degraded = true;
+      }
+    } else if (stats?.counts?.partialFlowsEmitted > 0) {
+      warnings.push({
+        code: 'RISK_PARTIAL_FLOWS_MISSING',
+        message: 'Risk stats report emitted partial flows, but the risk_partial_flows artifact is missing.'
+      });
+      degraded = true;
+    }
+  }
+
   const preAnchorRankedFlows = rankRiskFlows(flows, null);
   const resolvedAnchor = resolveRiskAnchor({
     rankedFlows: preAnchorRankedFlows,
@@ -991,17 +1099,23 @@ const buildRiskSlice = ({
   const rankedFlows = rankRiskFlows(flows, selectedAnchor);
   const referencedCallSiteIds = new Set();
   const selectedRawFlows = [];
+  const selectedRawPartialFlows = [];
   const riskCapHits = new Set(Array.isArray(stats?.capsHit) ? stats.capsHit : []);
   let emittedBytes = 0;
   let emittedTokens = 0;
+  let partialBytes = 0;
+  let partialTokens = 0;
   let emittedSteps = 0;
   let omittedSteps = 0;
   let omittedCallSites = 0;
   let truncatedCallSiteExcerptBytes = 0;
   let truncatedCallSiteExcerptTokens = 0;
   let omittedFlows = 0;
+  let omittedPartialFlows = 0;
   let maxFlowTruncationRecorded = false;
   let budgetTruncationRecorded = false;
+  let maxPartialFlowTruncationRecorded = false;
+  let partialBudgetTruncationRecorded = false;
 
   for (const entry of rankedFlows) {
     if (selectedRawFlows.length >= CONTEXT_PACK_MAX_RISK_FLOWS) {
@@ -1172,6 +1286,140 @@ const buildRiskSlice = ({
     selectedRawFlows.push(candidate);
   }
 
+  const rankedPartialFlows = rankPartialRiskFlows(partialFlows, selectedAnchor);
+  for (const entry of rankedPartialFlows) {
+    if (selectedRawPartialFlows.length >= CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS) {
+      omittedPartialFlows += 1;
+      if (!maxPartialFlowTruncationRecorded) {
+        const record = {
+          scope: 'risk',
+          cap: 'maxFlows',
+          limit: CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
+          observed: rankedPartialFlows.length,
+          omitted: rankedPartialFlows.length - CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
+          note: 'Partial risk flows truncated for composite context pack.'
+        };
+        truncation.push(record);
+        riskTruncation.push(record);
+        maxPartialFlowTruncationRecorded = true;
+      }
+      riskCapHits.add('maxPartialFlows');
+      continue;
+    }
+    const flow = entry.flow;
+    const rawSteps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
+    const limitedSteps = rawSteps.slice(0, CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW);
+    const normalizedStepIds = limitedSteps.map((ids) => {
+      const sourceIds = Array.isArray(ids) ? ids : [];
+      const limitedIds = sourceIds.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP);
+      for (const callSiteId of limitedIds) {
+        if (callSiteId) referencedCallSiteIds.add(callSiteId);
+      }
+      return limitedIds;
+    });
+    for (const blocked of Array.isArray(flow?.frontier?.blockedExpansions) ? flow.frontier.blockedExpansions : []) {
+      for (const callSiteId of Array.isArray(blocked?.callSiteIds) ? blocked.callSiteIds : []) {
+        if (callSiteId) referencedCallSiteIds.add(callSiteId);
+      }
+    }
+    const candidate = {
+      rank: entry.rank,
+      partialFlowId: flow?.partialFlowId || null,
+      source: flow?.source && typeof flow.source === 'object'
+        ? {
+          chunkUid: flow.source.chunkUid || null,
+          ruleId: flow.source.ruleId || null,
+          ruleName: flow.source.ruleName || null,
+          ruleType: flow.source.ruleType || null,
+          category: flow.source.category || null,
+          severity: flow.source.severity || null,
+          confidence: Number.isFinite(flow.source.confidence) ? flow.source.confidence : null
+        }
+        : null,
+      confidence: Number.isFinite(flow?.confidence) ? flow.confidence : null,
+      score: {
+        seedRelevance: entry.score.seedRelevance,
+        confidence: Number.isFinite(entry.score.confidence) ? entry.score.confidence : null,
+        hopCount: Number.isFinite(flow?.notes?.hopCount) ? flow.notes.hopCount : null
+      },
+      frontier: {
+        chunkUid: flow?.frontier?.chunkUid || null,
+        terminalReason: flow?.frontier?.terminalReason || null,
+        blockedExpansions: Array.isArray(flow?.frontier?.blockedExpansions)
+          ? flow.frontier.blockedExpansions.map((blocked) => ({
+            targetChunkUid: blocked?.targetChunkUid || null,
+            reason: blocked?.reason || null,
+            callSiteIds: Array.isArray(blocked?.callSiteIds) ? blocked.callSiteIds.filter(Boolean) : []
+          }))
+          : []
+      },
+      path: {
+        nodes: normalizeRiskPathNodes(flow),
+        stepCount: rawSteps.length,
+        truncatedSteps: rawSteps.length - limitedSteps.length,
+        callSiteIdsByStep: normalizedStepIds
+      },
+      evidence: {
+        callSitesByStep: normalizedStepIds.map((ids) => ids.map((callSiteId) => ({
+          callSiteId,
+          details: null
+        })))
+      },
+      notes: flow?.notes && typeof flow.notes === 'object'
+        ? {
+          strictness: flow.notes.strictness || null,
+          sanitizerPolicy: flow.notes.sanitizerPolicy || null,
+          hopCount: Number.isFinite(flow.notes.hopCount) ? flow.notes.hopCount : null,
+          sanitizerBarriersHit: Number.isFinite(flow.notes.sanitizerBarriersHit)
+            ? flow.notes.sanitizerBarriersHit
+            : null,
+          capsHit: Array.isArray(flow.notes.capsHit) ? flow.notes.capsHit.slice() : [],
+          terminalReason: flow.notes.terminalReason || flow?.frontier?.terminalReason || null
+        }
+        : null
+    };
+
+    const candidateBytes = estimateRiskByteSize(candidate);
+    const candidateTokens = estimateRiskTokenCount(candidate);
+    if ((partialBytes + candidateBytes) > CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES
+      || (partialTokens + candidateTokens) > CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS) {
+      omittedPartialFlows += 1;
+      if (!partialBudgetTruncationRecorded) {
+        if ((partialBytes + candidateBytes) > CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES) {
+          const record = {
+            scope: 'risk',
+            cap: 'maxRiskBytes',
+            limit: CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES,
+            observed: partialBytes + candidateBytes,
+            omitted: candidateBytes,
+            note: 'Partial risk flow budget hit the total serialized byte cap.'
+          };
+          truncation.push(record);
+          riskTruncation.push(record);
+          riskCapHits.add('maxPartialBytes');
+        }
+        if ((partialTokens + candidateTokens) > CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS) {
+          const record = {
+            scope: 'risk',
+            cap: 'maxRiskTokens',
+            limit: CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS,
+            observed: partialTokens + candidateTokens,
+            omitted: candidateTokens,
+            note: 'Partial risk flow budget hit the total token cap.'
+          };
+          truncation.push(record);
+          riskTruncation.push(record);
+          riskCapHits.add('maxPartialTokens');
+        }
+        partialBudgetTruncationRecorded = true;
+      }
+      continue;
+    }
+    partialBytes += candidateBytes;
+    partialTokens += candidateTokens;
+    selectedRawPartialFlows.push(candidate);
+  }
+
   const callSiteById = new Map();
   if (referencedCallSiteIds.size > 0 && !callSitesMissing) {
     try {
@@ -1259,6 +1507,16 @@ const buildRiskSlice = ({
       })))
     }
   }));
+  const normalizedPartialFlows = selectedRawPartialFlows.map((flow) => ({
+    ...flow,
+    evidence: {
+      ...flow.evidence,
+      callSitesByStep: flow.evidence.callSitesByStep.map((step) => step.map((entry) => ({
+        ...entry,
+        details: callSiteById.get(entry.callSiteId) || null
+      })))
+    }
+  }));
 
   const status = degraded ? 'degraded' : baseStatus;
   const resolvedArtifactStatus = {
@@ -1267,6 +1525,11 @@ const buildRiskSlice = ({
       presence: flowsPresence,
       required: !(summaryOnly || stats?.status === 'disabled'),
       loadFailed: flowsLoadFailed
+    }),
+    partialFlows: buildRiskArtifactStatus({
+      presence: partialFlowsPresence,
+      required: includeRiskPartialFlows && !(summaryOnly || stats?.status === 'disabled'),
+      loadFailed: partialFlowsLoadFailed
     }),
     callSites: buildRiskArtifactStatus({
       presence: callSitesPresence,
@@ -1281,12 +1544,17 @@ const buildRiskSlice = ({
       candidateFlows: rankedFlows.length,
       selectedFlows: normalizedFlows.length,
       omittedFlows,
+      candidatePartialFlows: rankedPartialFlows.length,
+      selectedPartialFlows: normalizedPartialFlows.length,
+      omittedPartialFlows,
       emittedSteps,
       omittedSteps,
       omittedCallSites,
       truncatedCallSiteExcerpts: truncatedCallSiteExcerptBytes + truncatedCallSiteExcerptTokens,
       bytes: emittedBytes,
-      tokens: emittedTokens
+      tokens: emittedTokens,
+      partialBytes,
+      partialTokens
     },
     hits: riskCapHits
   });
@@ -1294,11 +1562,17 @@ const buildRiskSlice = ({
     .filter((entry) => typeof entry?.code === 'string' && entry.code.startsWith('RISK_'))
     .map((entry) => entry.code);
   let statusCode = 'ok';
-  if (degradedReasons.some((entry) => entry.endsWith('_TIMED_OUT'))) {
+  if (stats?.status === 'timed_out') {
+    statusCode = 'timed_out';
+  } else if (degradedReasons.some((entry) => entry.endsWith('_TIMED_OUT'))) {
     statusCode = 'timed_out';
   } else if (degradedReasons.some((entry) => entry.endsWith('_SCHEMA_INVALID'))) {
     statusCode = 'schema_invalid';
-  } else if (degradedReasons.includes('RISK_CALL_SITES_MISSING') || degradedReasons.includes('RISK_FLOWS_MISSING')) {
+  } else if (
+    degradedReasons.includes('RISK_CALL_SITES_MISSING')
+    || degradedReasons.includes('RISK_FLOWS_MISSING')
+    || degradedReasons.includes('RISK_PARTIAL_FLOWS_MISSING')
+  ) {
     statusCode = 'missing';
   } else if (degraded) {
     statusCode = 'degraded';
@@ -1314,6 +1588,7 @@ const buildRiskSlice = ({
     anchor: selectedAnchor,
     filters: riskFilterState,
     flows: normalizedFlows,
+    partialFlows: normalizedPartialFlows,
     summary: normalizedSummary,
     stats: summarizeRiskStats(stats),
     analysisStatus: buildRiskAnalysisStatus({
@@ -1653,6 +1928,7 @@ export const assembleCompositeContextPack = ({
   includeGraph = true,
   includeTypes = false,
   includeRisk = false,
+  includeRiskPartialFlows = false,
   riskStrict = false,
   riskFilters = null,
   includeImports = true,
@@ -1756,6 +2032,7 @@ export const assembleCompositeContextPack = ({
       seedRef,
       primaryChunk,
       chunkIndex: resolvedChunkIndex,
+      includeRiskPartialFlows,
       riskFilters: normalizedRiskFilters,
       indexSignature,
       indexCompatKey,

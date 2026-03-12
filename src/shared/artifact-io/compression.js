@@ -94,6 +94,7 @@ const DEFAULT_COLD_ARTIFACTS = Object.freeze([
   'repo_map',
   'risk_summaries',
   'risk_flows',
+  'risk_partial_flows',
   'call_sites',
   'graph_relations',
   'graph_relations_meta',

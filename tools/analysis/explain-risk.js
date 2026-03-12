@@ -16,6 +16,7 @@ import {
 } from '../../src/retrieval/output/risk-explain.js';
 import {
   filterRiskFlows,
+  filterRiskPartialFlows,
   normalizeRiskFilters,
   validateRiskFilters
 } from '../../src/shared/risk-filters.js';
@@ -24,6 +25,8 @@ const RISK_EXPLAIN_OPTIONS = Object.freeze({
   index: { type: 'string' },
   chunk: { type: 'string' },
   max: { type: 'number', default: 20 },
+  includePartialFlows: { type: 'boolean', default: false },
+  maxPartialFlows: { type: 'number', default: 20 },
   rule: { type: 'string' },
   category: { type: 'string' },
   severity: { type: 'string' },
@@ -52,7 +55,9 @@ export async function buildRiskExplainPayload({
   indexDir,
   chunkUid,
   max = 20,
-  filters = null
+  filters = null,
+  includePartialFlows = false,
+  maxPartialFlows = 20
 }) {
   const manifest = loadPiecesManifest(indexDir, { strict: true });
   const chunkMeta = await loadChunkMeta(indexDir, { manifest, strict: true });
@@ -89,6 +94,7 @@ export async function buildRiskExplainPayload({
 
   const riskSummaries = await safeLoadArray('risk_summaries');
   const riskFlows = await safeLoadArray('risk_flows');
+  const riskPartialFlows = includePartialFlows ? await safeLoadArray('risk_partial_flows') : null;
   const callSites = await safeLoadArray('call_sites');
   const stats = await safeLoadObject('risk_interprocedural_stats');
 
@@ -127,6 +133,7 @@ export async function buildRiskExplainPayload({
 
   const maxFlows = Number.isFinite(max) ? Math.max(1, Math.floor(max)) : 20;
   const limitedFlows = matchingFlows.slice(0, maxFlows);
+  const maxPartials = Number.isFinite(maxPartialFlows) ? Math.max(1, Math.floor(maxPartialFlows)) : 20;
 
   const formatChunkLabel = (uid) => {
     const entry = chunkByUid.get(uid) || null;
@@ -162,6 +169,46 @@ export async function buildRiskExplainPayload({
     };
   };
 
+  const partialFlows = Array.isArray(riskPartialFlows) ? riskPartialFlows : [];
+  const relevantPartialFlows = filterRiskPartialFlows(partialFlows.filter((flow) => {
+    const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
+    return flow?.source?.chunkUid === chunkUid
+      || flow?.frontier?.chunkUid === chunkUid
+      || chunkUids.includes(chunkUid);
+  }), filters);
+  relevantPartialFlows.sort((a, b) => {
+    const confA = Number.isFinite(a?.confidence) ? a.confidence : -1;
+    const confB = Number.isFinite(b?.confidence) ? b.confidence : -1;
+    if (confA !== confB) return confB - confA;
+    const idA = a?.partialFlowId || '';
+    const idB = b?.partialFlowId || '';
+    return idA.localeCompare(idB);
+  });
+
+  const buildPartialFlowPayload = (flow) => {
+    const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
+    const stepIds = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
+    const callSitesByStep = stepIds.map((ids) => (ids || []).map((id) => ({
+      callSiteId: id,
+      details: callSiteById.get(id) || null
+    })));
+    return {
+      partialFlowId: flow?.partialFlowId || null,
+      confidence: flow?.confidence ?? null,
+      source: flow?.source || null,
+      frontier: flow?.frontier || null,
+      notes: flow?.notes || null,
+      path: {
+        nodes: chunkUids.map((uid) => ({ type: 'chunk', chunkUid: uid })),
+        labels: chunkUids.map((uid) => formatChunkLabel(uid)),
+        callSiteIdsByStep: stepIds
+      },
+      evidence: {
+        callSitesByStep
+      }
+    };
+  };
+
   return {
     chunk: {
       chunkUid,
@@ -172,14 +219,21 @@ export async function buildRiskExplainPayload({
     summary,
     stats: stats || null,
     filters,
-    flows: limitedFlows.map(buildFlowPayload)
+    flows: limitedFlows.map(buildFlowPayload),
+    partialFlows: includePartialFlows
+      ? relevantPartialFlows.slice(0, maxPartials).map(buildPartialFlowPayload)
+      : []
   };
 }
 
 export async function runRiskExplainCli(rawArgs = process.argv.slice(2)) {
   const argv = createCli({
     scriptName: 'risk explain',
-    options: RISK_EXPLAIN_OPTIONS
+    options: RISK_EXPLAIN_OPTIONS,
+    aliases: {
+      'include-partial-flows': 'includePartialFlows',
+      'max-partial-flows': 'maxPartialFlows'
+    }
   }).parse(rawArgs);
 
   const indexArg = argv.index ? String(argv.index) : '';
@@ -206,10 +260,13 @@ export async function runRiskExplainCli(rawArgs = process.argv.slice(2)) {
     indexDir,
     chunkUid: chunkArg,
     max: argv.max,
-    filters
+    filters,
+    includePartialFlows: argv.includePartialFlows === true,
+    maxPartialFlows: argv.maxPartialFlows
   });
   const explanationModel = buildRiskExplanationModelFromStandalone(output);
   const maxItems = Number.isFinite(argv.max) ? Math.max(1, Math.floor(argv.max)) : 20;
+  const maxPartialItems = Number.isFinite(argv.maxPartialFlows) ? Math.max(1, Math.floor(argv.maxPartialFlows)) : 20;
 
   if (argv.json) {
     console.log(JSON.stringify({
@@ -217,13 +274,14 @@ export async function runRiskExplainCli(rawArgs = process.argv.slice(2)) {
       rendered: renderRiskExplanationJson(explanationModel, {
         title: 'Risk Explain',
         maxFlows: maxItems,
-        maxEvidencePerFlow: maxItems
+        maxEvidencePerFlow: maxItems,
+        maxPartialFlows: maxPartialItems
       })
     }, null, 2));
     return { ok: true, payload: output };
   }
 
-  if (!output.flows.length) {
+  if (!output.flows.length && !output.partialFlows.length) {
     console.log('No interprocedural flows found for this chunk.');
     return { ok: true, payload: output };
   }
@@ -233,7 +291,8 @@ export async function runRiskExplainCli(rawArgs = process.argv.slice(2)) {
     includeSubject: true,
     includeFilters: true,
     maxFlows: maxItems,
-    maxEvidencePerFlow: maxItems
+    maxEvidencePerFlow: maxItems,
+    maxPartialFlows: maxPartialItems
   }));
   return { ok: true, payload: output };
 }

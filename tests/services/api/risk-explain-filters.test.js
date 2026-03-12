@@ -17,13 +17,15 @@ const { fixtureRoot, codeDir, env } = await ensureFixtureIndex({
 });
 
 const flows = await loadJsonArrayArtifact(codeDir, 'risk_flows', { strict: false }).catch(() => []);
-if (!Array.isArray(flows) || flows.length === 0) {
+const partialFlows = await loadJsonArrayArtifact(codeDir, 'risk_partial_flows', { strict: false }).catch(() => []);
+if ((!Array.isArray(flows) || flows.length === 0) && (!Array.isArray(partialFlows) || partialFlows.length === 0)) {
   console.log('risk flows unavailable; skipping API risk explain test.');
   process.exit(0);
 }
 
-const flow = flows[0];
-const chunkUid = flow?.source?.chunkUid || flow?.sink?.chunkUid;
+const flow = Array.isArray(flows) && flows.length ? flows[0] : null;
+const partialFlow = Array.isArray(partialFlows) && partialFlows.length ? partialFlows[0] : null;
+const chunkUid = flow?.source?.chunkUid || flow?.sink?.chunkUid || partialFlow?.source?.chunkUid || partialFlow?.frontier?.chunkUid;
 assert.ok(chunkUid, 'expected flow to include a chunkUid');
 
 await withTemporaryEnv(env, async () => {
@@ -45,17 +47,20 @@ await withTemporaryEnv(env, async () => {
         repoPath: fixtureRoot,
         chunk: chunkUid,
         max: 5,
+        includePartialFlows: true,
+        maxPartialFlows: 2,
         filters: {
-          flowId: flow.flowId,
-          sourceRule: flow.source?.ruleId,
-          sinkRule: flow.sink?.ruleId
+          flowId: flow?.flowId,
+          sourceRule: flow?.source?.ruleId,
+          sinkRule: flow?.sink?.ruleId
         }
       })
     });
     assert.equal(response.status, 200, 'expected filtered risk explain request to succeed');
     const payload = await response.json();
     assert.equal(payload.ok, true);
-    assert.deepEqual(payload.result?.flows?.map((entry) => entry.flowId), [flow.flowId]);
+    assert.deepEqual(payload.result?.flows?.map((entry) => entry.flowId), flow ? [flow.flowId] : []);
+    assert.deepEqual(payload.result?.partialFlows, [], 'expected no partial flows in simple fixture');
     assert.deepEqual(payload.result?.filters, {
       rule: [],
       category: [],
@@ -63,9 +68,9 @@ await withTemporaryEnv(env, async () => {
       tag: [],
       source: [],
       sink: [],
-      sourceRule: [flow.source?.ruleId],
-      sinkRule: [flow.sink?.ruleId],
-      flowId: [flow.flowId]
+      sourceRule: flow?.source?.ruleId ? [flow.source.ruleId] : [],
+      sinkRule: flow?.sink?.ruleId ? [flow.sink.ruleId] : [],
+      flowId: flow?.flowId ? [flow.flowId] : []
     });
 
     const invalidResponse = await fetch(`http://127.0.0.1:${port}/analysis/risk-explain`, {
@@ -74,6 +79,7 @@ await withTemporaryEnv(env, async () => {
       body: JSON.stringify({
         repoPath: fixtureRoot,
         chunk: chunkUid,
+        includePartialFlows: true,
         filters: { severity: 'urgent' }
       })
     });

@@ -181,6 +181,8 @@ const riskExplainSchema = {
     repo: { type: 'string' },
     chunk: { type: 'string', minLength: 1 },
     max: { type: 'integer', minimum: 1 },
+    includePartialFlows: { type: 'boolean' },
+    maxPartialFlows: { type: 'integer', minimum: 1 },
     filters: riskFiltersSchema
   }
 };

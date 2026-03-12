@@ -72,6 +72,46 @@ const payload = {
         }
       }
     ],
+    partialFlows: Array.from({ length: 5 }, (_, index) => ({
+      partialFlowId: `partial-${String.fromCharCode(97 + index)}`,
+      confidence: 0.61 + (index * 0.01),
+      source: { ruleId: 'SRC', chunkUid: 'chunk-risk' },
+      frontier: {
+        chunkUid: index === 4 ? 'chunk-tail' : 'chunk-mid',
+        terminalReason: 'maxDepth',
+        blockedExpansions: [
+          {
+            reason: 'maxEdgeExpansions',
+            targetChunkUid: 'chunk-sink',
+            callSiteIds: ['cs-1']
+          }
+        ]
+      },
+      path: {
+        nodes: [
+          { type: 'chunk', chunkUid: 'chunk-risk' },
+          { type: 'chunk', chunkUid: index === 4 ? 'chunk-tail' : 'chunk-mid' }
+        ],
+        callSiteIdsByStep: [['cs-1']]
+      },
+      evidence: {
+        callSitesByStep: [[{
+          callSiteId: 'cs-1',
+          details: {
+            file: 'src/app.ts',
+            startLine: 14,
+            startCol: 3,
+            calleeNormalized: 'query',
+            args: ['req.body']
+          }
+        }]]
+      },
+      notes: {
+        terminalReason: 'maxDepth',
+        hopCount: 1,
+        capsHit: ['maxDepth']
+      }
+    })),
     truncation: [{ cap: 'maxFlows', limit: 5, observed: 6, omitted: 1 }],
     analysisStatus: {
       status: 'ok',
@@ -88,6 +128,8 @@ assert.match(markdown, /Primary/);
 assert.match(markdown, /Provenance: source=repo-range, hash=sha1:excerpt, bytes=16/);
 assert.match(markdown, /Risk/);
 assert.match(markdown, /summary: sources 1, sinks 1, sanitizers 0, localFlows 1/);
+assert.match(markdown, /Partial Risk Flows/);
+assert.match(markdown, /partial-e/);
 assert.match(markdown, /Truncation\n- maxBytes limit=2048 observed=4096 omitted=2048/);
 assert.match(markdown, /Warnings\n- PACK_WARN: warning emitted/);
 
@@ -96,6 +138,11 @@ assert.deepEqual(jsonPayload.rendered.truncation, payload.truncation);
 assert.deepEqual(jsonPayload.rendered.warnings, payload.warnings);
 assert.equal(jsonPayload.rendered.risk.flowSelection.totalFlows, 1);
 assert.equal(jsonPayload.rendered.risk.flows[0].flowId, 'flow-a');
+assert.equal(jsonPayload.rendered.risk.partialFlowSelection.totalPartialFlows, 5);
+assert.equal(jsonPayload.rendered.risk.partialFlowSelection.shownPartialFlows, 5);
+assert.equal(jsonPayload.rendered.risk.partialFlowSelection.maxPartialFlows, 5);
+assert.equal(jsonPayload.rendered.risk.partialFlows.length, 5);
+assert.equal(jsonPayload.rendered.risk.partialFlows[4].partialFlowId, 'partial-e');
 assert.equal(jsonPayload.rendered.risk.filters.sourceRule[0], 'SRC');
 assert.equal(jsonPayload.rendered.sarif.runs[0].automationDetails.id, 'context-pack');
 assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.packWarnings[0].code, 'PACK_WARN');

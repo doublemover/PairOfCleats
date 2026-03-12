@@ -83,6 +83,16 @@ const toolSchemaSnapshot = getToolDefs(DEFAULT_MODEL_ID).map((tool) => ({
     : [],
   properties: Object.keys(tool.inputSchema?.properties || {}).sort()
 }));
+const riskExplainTool = getToolDefs(DEFAULT_MODEL_ID).find((tool) => tool.name === 'risk_explain');
+if (!riskExplainTool) {
+  throw new Error('risk_explain tool missing from MCP tool defs.');
+}
+if (!('includePartialFlows' in (riskExplainTool.inputSchema?.properties || {}))) {
+  throw new Error('risk_explain tool schema missing includePartialFlows.');
+}
+if (!('maxPartialFlows' in (riskExplainTool.inputSchema?.properties || {}))) {
+  throw new Error('risk_explain tool schema missing maxPartialFlows.');
+}
 const toolCatalog = getToolCatalog(DEFAULT_MODEL_ID);
 if (!toolCatalog.schemaVersion) {
   throw new Error('MCP schemaVersion missing from tool catalog.');

@@ -106,6 +106,45 @@ const flowRow = {
   }
 };
 
+const partialFlowRow = {
+  schemaVersion: 1,
+  partialFlowId: 'sha1:5555555555555555555555555555555555555555',
+  source: {
+    chunkUid: 'chunk-risk',
+    ruleId: 'source.req.body',
+    ruleName: 'req.body',
+    ruleType: 'source',
+    category: 'input',
+    severity: 'low',
+    confidence: 0.6,
+    tags: ['input', 'request']
+  },
+  frontier: {
+    chunkUid: 'chunk-risk-sink',
+    terminalReason: 'maxDepth',
+    blockedExpansions: [
+      {
+        targetChunkUid: 'chunk-risk-sink',
+        reason: 'maxEdgeExpansions',
+        callSiteIds: ['cs-1']
+      }
+    ]
+  },
+  path: {
+    chunkUids: ['chunk-risk', 'chunk-risk-sink'],
+    callSiteIdsByStep: [['cs-1']]
+  },
+  confidence: 0.64,
+  notes: {
+    strictness: 'conservative',
+    sanitizerPolicy: 'terminate',
+    hopCount: 1,
+    sanitizerBarriersHit: 0,
+    capsHit: ['maxDepth'],
+    terminalReason: 'maxDepth'
+  }
+};
+
 const callSiteRow = {
   callSiteId: 'cs-1',
   callerChunkUid: 'chunk-risk',
@@ -309,8 +348,10 @@ const buildPack = async ({
   stats = null,
   summaries = null,
   flows = null,
+  partialFlows = null,
   callSites = null,
-  riskFilters = null
+  riskFilters = null,
+  includeRiskPartialFlows = false
 }) => {
   const indexDir = path.join(tempRoot, name, 'index-code');
   await fs.rm(indexDir, { recursive: true, force: true });
@@ -328,6 +369,10 @@ const buildPack = async ({
     await writeJsonl(path.join(indexDir, 'risk_flows.jsonl'), flows);
     pieces.push({ name: 'risk_flows', path: 'risk_flows.jsonl', format: 'jsonl' });
   }
+  if (partialFlows) {
+    await writeJsonl(path.join(indexDir, 'risk_partial_flows.jsonl'), partialFlows);
+    pieces.push({ name: 'risk_partial_flows', path: 'risk_partial_flows.jsonl', format: 'jsonl' });
+  }
   if (callSites) {
     await writeJsonl(path.join(indexDir, 'call_sites.jsonl'), callSites);
     pieces.push({ name: 'call_sites', path: 'call_sites.jsonl', format: 'jsonl' });
@@ -343,6 +388,7 @@ const buildPack = async ({
     includeGraph: false,
     includeTypes: false,
     includeRisk: true,
+    includeRiskPartialFlows,
     riskFilters,
     includeImports: false,
     includeUsages: false,
@@ -366,6 +412,7 @@ assert.deepEqual(
     stats: 'present',
     summaries: 'present',
     flows: 'present',
+    partialFlows: 'not_required',
     callSites: 'present'
   }
 );
@@ -378,6 +425,7 @@ assert.equal(fullPack.risk?.provenance?.effectiveConfigFingerprint, 'sha1:config
 assert.equal(fullPack.risk?.provenance?.artifactRefs?.stats?.entrypoint, 'risk_interprocedural_stats.json');
 assert.equal(fullPack.risk?.provenance?.artifactRefs?.summaries?.entrypoint, 'risk_summaries.jsonl');
 assert.equal(fullPack.risk?.provenance?.artifactRefs?.flows?.entrypoint, 'risk_flows.jsonl');
+assert.equal(fullPack.risk?.provenance?.artifactRefs?.partialFlows, null);
 assert.equal(fullPack.risk?.provenance?.artifactRefs?.callSites?.entrypoint, 'call_sites.jsonl');
 assert.equal(fullPack.risk?.caps?.maxFlows, 5);
 assert.equal(fullPack.risk?.caps?.maxCallSitesPerStep, 3);
@@ -438,7 +486,7 @@ const summaryOnlyPack = await buildPack({
   stats: {
     ...baseStats,
     effectiveConfig: { ...baseStats.effectiveConfig, summaryOnly: true },
-    counts: { flowsEmitted: 0, uniqueCallSitesReferenced: 0 }
+    counts: { ...baseStats.counts, flowsEmitted: 0, partialFlowsEmitted: 0, uniqueCallSitesReferenced: 0 }
   },
   summaries: [summaryRow]
 });
@@ -472,6 +520,7 @@ assert.deepEqual(
     stats: 'missing',
     summaries: 'missing',
     flows: 'not_required',
+    partialFlows: 'not_required',
     callSites: 'not_required'
   }
 );
@@ -486,7 +535,48 @@ const degradedPack = await buildPack({
 assert.equal(degradedPack.risk?.status, 'degraded');
 assert.equal(degradedPack.risk?.degraded, true);
 assert.equal(degradedPack.risk?.analysisStatus?.artifactStatus?.callSites, 'missing');
+assert.equal(degradedPack.risk?.analysisStatus?.artifactStatus?.partialFlows, 'not_required');
 assert.ok(degradedPack.warnings?.some((entry) => entry?.code === 'RISK_CALL_SITES_MISSING'), 'expected degraded call-site warning');
+
+const partialPack = await buildPack({
+  name: 'partial',
+  stats: {
+    ...baseStats,
+    counts: {
+      ...baseStats.counts,
+      partialFlowsEmitted: 1
+    },
+    artifacts: {
+      ...baseStats.artifacts,
+      partialFlows: {
+        name: 'risk_partial_flows',
+        format: 'jsonl',
+        sharded: false,
+        entrypoint: 'risk_partial_flows.jsonl',
+        totalEntries: 1
+      }
+    }
+  },
+  summaries: [summaryRow],
+  flows: [flowRow],
+  partialFlows: [partialFlowRow],
+  callSites: [callSiteRow],
+  includeRiskPartialFlows: true
+});
+assert.equal(partialPack.risk?.analysisStatus?.artifactStatus?.partialFlows, 'present');
+assert.equal(partialPack.risk?.provenance?.artifactRefs?.partialFlows?.entrypoint, 'risk_partial_flows.jsonl');
+assert.equal(partialPack.risk?.partialFlows?.length, 1);
+assert.equal(partialPack.risk?.partialFlows?.[0]?.partialFlowId, partialFlowRow.partialFlowId);
+assert.equal(partialPack.risk?.partialFlows?.[0]?.frontier?.terminalReason, 'maxDepth');
+assert.equal(partialPack.risk?.partialFlows?.[0]?.notes?.terminalReason, 'maxDepth');
+assert.equal(partialPack.risk?.partialFlows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.callSiteId, 'cs-1');
+assert.equal(partialPack.risk?.analysisStatus?.partialFlowsEmitted, 1);
+assert.ok(validateCompositeContextPack(partialPack).ok, 'expected partial risk slice to validate');
+const partialRendered = renderCompositeContextPack(partialPack);
+assert.ok(partialRendered.includes('Partial Risk Flows'), 'expected rendered partial flow section');
+const partialRenderedJson = renderCompositeContextPackJson(partialPack);
+assert.equal(partialRenderedJson.rendered?.risk?.partialFlowSelection?.totalPartialFlows, 1);
+assert.equal(partialRenderedJson.rendered?.risk?.partialFlows?.[0]?.partialFlowId, partialFlowRow.partialFlowId);
 
 const cappedPack = await buildPack({
   name: 'capped',

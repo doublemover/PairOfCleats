@@ -44,6 +44,13 @@ assert.deepEqual(minimalSarif.runs[0].properties.pairOfCleats.flowSelection, {
   maxFlows: 1,
   maxEvidencePerFlow: 2
 });
+assert.deepEqual(minimalSarif.runs[0].properties.pairOfCleats.partialFlowSelection, {
+  totalPartialFlows: 0,
+  shownPartialFlows: 0,
+  omittedPartialFlows: 0,
+  maxPartialFlows: 3,
+  maxEvidencePerFlow: 2
+});
 
 const fullModel = buildRiskExplanationModelFromStandalone({
   chunk: {
@@ -57,6 +64,36 @@ const fullModel = buildRiskExplanationModelFromStandalone({
     ruleBundle: { version: '1.0.0', fingerprint: 'sha1:bundle' },
     effectiveConfigFingerprint: 'sha1:config'
   },
+  partialFlows: [
+    {
+      partialFlowId: 'partial-a',
+      confidence: 0.72,
+      source: { ruleId: 'SRC', chunkUid: 'chunk-full' },
+      frontier: {
+        chunkUid: 'chunk-mid',
+        terminalReason: 'maxDepth',
+        blockedExpansions: [
+          {
+            reason: 'maxEdgeExpansions',
+            targetChunkUid: 'chunk-sink',
+            callSiteIds: ['cs-1']
+          }
+        ]
+      },
+      path: {
+        nodes: [
+          { type: 'chunk', chunkUid: 'chunk-full' },
+          { type: 'chunk', chunkUid: 'chunk-mid' }
+        ],
+        callSiteIdsByStep: [['cs-1']]
+      },
+      notes: {
+        terminalReason: 'maxDepth',
+        hopCount: 1,
+        capsHit: ['maxDepth']
+      }
+    }
+  ],
   flows: [
     {
       flowId: 'flow-full',
@@ -97,6 +134,9 @@ assert.equal(fullSarif.runs[0].results[0].properties.pairOfCleats.confidence, 0.
 assert.equal(fullSarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].location.physicalLocation.artifactLocation.uri, 'src/full.js');
 assert.equal(fullSarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].location.physicalLocation.region.startLine, 18);
 assert.match(fullSarif.runs[0].results[0].message.text, /injection \| SRC -> SNK/);
+assert.equal(fullSarif.runs[0].properties.pairOfCleats.partialFlowSelection.totalPartialFlows, 1);
+assert.equal(fullSarif.runs[0].properties.pairOfCleats.partialFlows[0].partialFlowId, 'partial-a');
+assert.equal(fullSarif.runs[0].properties.pairOfCleats.partialFlows[0].frontier.chunkUid, 'chunk-mid');
 
 const cappedModel = buildRiskExplanationModelFromRiskSlice({
   truncation: [{ cap: 'maxFlows', limit: 1, observed: 2, omitted: 1 }],

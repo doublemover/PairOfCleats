@@ -379,6 +379,7 @@ export async function writeIndexArtifacts(input) {
     'repo_map',
     'risk_summaries',
     'risk_flows',
+    'risk_partial_flows',
     'call_sites',
     'graph_relations',
     'graph_relations_meta',
@@ -2668,6 +2669,7 @@ export async function writeIndexArtifacts(input) {
     : null;
   const riskSummariesCompression = resolveShardCompression('risk_summaries');
   const riskFlowsCompression = resolveShardCompression('risk_flows');
+  const riskPartialFlowsCompression = resolveShardCompression('risk_partial_flows');
   if (mode === 'code' && state?.riskInterproceduralStats) {
     enqueueRiskInterproceduralArtifacts({
       state,
@@ -2675,7 +2677,7 @@ export async function writeIndexArtifacts(input) {
       maxJsonBytes,
       log,
       compression: riskSummariesCompression,
-      flowsCompression: riskFlowsCompression,
+      flowsCompression: riskPartialFlowsCompression || riskFlowsCompression,
       gzipOptions: compressionGzipOptions,
       emitArtifacts: riskInterproceduralEmitArtifacts || 'jsonl',
       enqueueWrite,

@@ -18,13 +18,15 @@ const { root, codeDir, env } = await ensureFixtureIndex({
 });
 
 const flows = await loadJsonArrayArtifact(codeDir, 'risk_flows', { strict: false }).catch(() => []);
-if (!Array.isArray(flows) || flows.length === 0) {
+const partialFlows = await loadJsonArrayArtifact(codeDir, 'risk_partial_flows', { strict: false }).catch(() => []);
+if ((!Array.isArray(flows) || flows.length === 0) && (!Array.isArray(partialFlows) || partialFlows.length === 0)) {
   console.log('risk flows unavailable; skipping risk explain CLI test.');
   process.exit(0);
 }
 
-const flow = flows[0];
-const chunkUid = flow?.source?.chunkUid || flow?.sink?.chunkUid;
+const flow = Array.isArray(flows) && flows.length ? flows[0] : null;
+const partialFlow = Array.isArray(partialFlows) && partialFlows.length ? partialFlows[0] : null;
+const chunkUid = flow?.source?.chunkUid || flow?.sink?.chunkUid || partialFlow?.source?.chunkUid || partialFlow?.frontier?.chunkUid;
 assert.ok(chunkUid, 'expected flow to include a chunkUid');
 
 const binPath = path.join(root, 'bin', 'pairofcleats.js');
@@ -53,13 +55,17 @@ assert.ok(filteredOutput.includes(flow.flowId), 'expected filtered output to inc
 
 const jsonResult = spawnSync(
   process.execPath,
-  [binPath, 'risk', 'explain', '--index', codeDir, '--chunk', chunkUid, '--max', '1', '--json'],
+  [binPath, 'risk', 'explain', '--index', codeDir, '--chunk', chunkUid, '--max', '1', '--json', '--includePartialFlows', '--maxPartialFlows', '2'],
   { encoding: 'utf8', env }
 );
 assert.equal(jsonResult.status, 0, 'expected JSON risk explain run to succeed');
 const jsonPayload = JSON.parse(getCombinedOutput(jsonResult, { trim: true }));
 assert.equal(jsonPayload.rendered.flowSelection.totalFlows, 1, 'expected rendered JSON risk summary');
-assert.equal(jsonPayload.rendered.sarif.runs[0].results[0].properties.pairOfCleats.flowId, flow.flowId, 'expected SARIF export to preserve flowId');
+assert.equal(jsonPayload.rendered.partialFlowSelection.totalPartialFlows, 0, 'expected no partial flows in simple fixture');
+assert.deepEqual(jsonPayload.rendered.partialFlows, [], 'expected empty partial flows array in simple fixture');
+if (flow) {
+  assert.equal(jsonPayload.rendered.sarif.runs[0].results[0].properties.pairOfCleats.flowId, flow.flowId, 'expected SARIF export to preserve flowId');
+}
 
 const emptyResult = spawnSync(
   process.execPath,

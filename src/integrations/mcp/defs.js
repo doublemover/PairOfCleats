@@ -1,6 +1,6 @@
 import { getToolVersion } from '../../shared/dict-utils.js';
 
-export const MCP_SCHEMA_VERSION = '1.2.0';
+export const MCP_SCHEMA_VERSION = '1.3.0';
 
 /**
  * Build MCP tool definitions for the server.
@@ -120,6 +120,8 @@ export function getToolDefs(defaultModelId) {
           repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
           chunk: { type: 'string', description: 'Chunk UID to explain.' },
           max: { type: 'number', description: 'Maximum number of flows to return.' },
+          includePartialFlows: { type: 'boolean', description: 'Include partial frontier flows when full flows are capped or incomplete.' },
+          maxPartialFlows: { type: 'number', description: 'Maximum number of partial flows to return.' },
           filters: {
             type: 'object',
             properties: {

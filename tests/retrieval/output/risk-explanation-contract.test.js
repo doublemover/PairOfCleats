@@ -43,17 +43,19 @@ assert.deepEqual(minimalJson.flowSelection, {
   maxFlows: 1,
   maxEvidencePerFlow: 2
 });
+assert.deepEqual(minimalJson.partialFlowSelection, {
+  totalPartialFlows: 0,
+  shownPartialFlows: 0,
+  omittedPartialFlows: 0,
+  maxPartialFlows: 3,
+  maxEvidencePerFlow: 2
+});
 assert.deepEqual(minimalJson.flows, []);
+assert.deepEqual(minimalJson.partialFlows, []);
 assert.equal(minimalJson.summary?.totals?.sources, 0);
 assert.match(renderRiskExplanation(minimalModel, { maxFlows: 1, maxEvidencePerFlow: 2 }), /Risk Flows\n- \(none\)/);
 
-const fullModel = buildRiskExplanationModelFromStandalone({
-  chunk: {
-    chunkUid: 'chunk-full',
-    file: 'src/full.js',
-    name: 'full',
-    kind: 'function'
-  },
+const fullModel = buildRiskExplanationModelFromRiskSlice({
   summary: {
     totals: {
       sources: 1,
@@ -67,9 +69,23 @@ const fullModel = buildRiskExplanationModelFromStandalone({
   stats: {
     status: 'ok',
     flowsEmitted: 1,
+    partialFlowsEmitted: 2,
     summariesEmitted: 1,
     uniqueCallSitesReferenced: 1,
     capsHit: []
+  },
+  analysisStatus: {
+    status: 'ok',
+    code: 'ok'
+  },
+  caps: {
+    maxFlows: 3,
+    maxPartialFlows: 5,
+    maxBytes: 512,
+    maxTokens: 128,
+    maxPartialBytes: 100,
+    maxPartialTokens: 50,
+    hits: []
   },
   provenance: {
     generatedAt: '2026-03-12T00:00:00.000Z',
@@ -101,19 +117,84 @@ const fullModel = buildRiskExplanationModelFromStandalone({
         }]]
       }
     }
+  ],
+  partialFlows: [
+    {
+      partialFlowId: 'partial-a',
+      confidence: 0.72,
+      source: { ruleId: 'SRC', chunkUid: 'chunk-full' },
+      frontier: {
+        chunkUid: 'chunk-mid',
+        terminalReason: 'maxDepth',
+        blockedExpansions: [
+          {
+            reason: 'maxEdgeExpansions',
+            targetChunkUid: 'chunk-sink',
+            callSiteIds: ['cs-1']
+          }
+        ]
+      },
+      path: {
+        labels: ['chunk:src', 'chunk:mid'],
+        callSiteIdsByStep: [['cs-1']]
+      },
+      evidence: {
+        callSitesByStep: [[{
+          callSiteId: 'cs-1',
+          details: {
+            file: 'src/full.js',
+            startLine: 18,
+            startCol: 4,
+            calleeNormalized: 'query',
+            args: ['req.body'],
+            excerpt: 'query(req.body)'
+          }
+        }]]
+      },
+      notes: {
+        hopCount: 1,
+        terminalReason: 'maxDepth',
+        capsHit: ['maxDepth']
+      }
+    }
   ]
+}, {
+  subject: {
+    chunkUid: 'chunk-full',
+    file: 'src/full.js',
+    name: 'full',
+    kind: 'function'
+  }
 });
 
-const fullJson = renderRiskExplanationJson(fullModel, { title: 'Risk Explain', maxFlows: 3, maxEvidencePerFlow: 2 });
+const fullJson = renderRiskExplanationJson(fullModel, {
+  title: 'Risk Explain',
+  maxFlows: 3,
+  maxPartialFlows: 5,
+  maxEvidencePerFlow: 2
+});
 assert.equal(fullJson.flows[0].flowId, 'flow-full');
 assert.equal(fullJson.flows[0].steps[0].step, 1);
 assert.deepEqual(fullJson.flows[0].steps[0].evidence, ['src/full.js:18:4 query(req.body)']);
 assert.equal(fullJson.sarif.runs[0].results[0].partialFingerprints.pairOfCleatsFlowId, 'flow-full');
 assert.equal(fullJson.sarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].location.physicalLocation.artifactLocation.uri, 'src/full.js');
-const fullMarkdown = renderRiskExplanation(fullModel, { maxFlows: 3, maxEvidencePerFlow: 2 });
+assert.equal(fullJson.partialFlowSelection.totalPartialFlows, 1);
+assert.equal(fullJson.partialFlows[0].partialFlowId, 'partial-a');
+assert.equal(fullJson.partialFlows[0].terminalReason, 'maxDepth');
+assert.equal(fullJson.partialFlows[0].frontierChunkUid, 'chunk-mid');
+assert.deepEqual(fullJson.partialFlows[0].steps[0].evidence, ['src/full.js:18:4 query(req.body)']);
+const fullMarkdown = renderRiskExplanation(fullModel, {
+  maxFlows: 3,
+  maxPartialFlows: 5,
+  maxEvidencePerFlow: 2
+});
 assert.match(fullMarkdown, /summary: sources 1, sinks 1, sanitizers 0, localFlows 1/);
+assert.match(fullMarkdown, /interprocedural: status ok, flows 1, partial flows 2, summaries 1, call sites 1/);
+assert.match(fullMarkdown, /pack caps: maxFlows 3, maxPartialFlows 5, maxBytes 512, maxTokens 128, maxPartialBytes 100, maxPartialTokens 50/);
 assert.match(fullMarkdown, /provenance: generated 2026-03-12T00:00:00.000Z, rules 1.0.0 sha1:bundle, config sha1:config/);
 assert.match(fullMarkdown, /step 1: src\/full.js:18:4 query\(req.body\)/);
+assert.match(fullMarkdown, /Partial Risk Flows/);
+assert.match(fullMarkdown, /partial-a/);
 
 const cappedModel = buildRiskExplanationModelFromRiskSlice({
   summary: {

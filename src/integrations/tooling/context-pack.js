@@ -35,6 +35,7 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
       includeGraph: { type: 'boolean', default: true },
       includeTypes: { type: 'boolean', default: false },
       includeRisk: { type: 'boolean', default: false },
+      includeRiskPartialFlows: { type: 'boolean', default: false },
       strictRisk: { type: 'boolean', default: false },
       rule: { type: 'string' },
       category: { type: 'string' },
@@ -122,6 +123,7 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
       includeGraph: argv.includeGraph !== false,
       includeTypes: argv.includeTypes === true,
       includeRisk: argv.includeRisk === true,
+      includeRiskPartialFlows: argv.includeRiskPartialFlows === true,
       riskStrict: argv.strictRisk === true,
       riskFilters: {
         rule: argv.rule,

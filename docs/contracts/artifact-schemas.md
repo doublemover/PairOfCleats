@@ -20,7 +20,7 @@ Artifacts written as `*.jsonl.parts/` must include `*.meta.json` with:
 - `totalRecords`, `totalBytes`, `maxPartRecords`, `maxPartBytes`, `targetMaxBytes`
 - `parts`: `{ path, records, bytes, checksum? }[]`
 
-Sharded meta is defined for: `chunk_meta_meta`, `chunk_uid_map_meta`, `vfs_manifest_meta`, `vfs_path_map_meta`, `file_relations_meta`, `symbols_meta`, `symbol_occurrences_meta`, `symbol_edges_meta`, `call_sites_meta`, `risk_summaries_meta`, `risk_flows_meta`, `repo_map_meta`, and `graph_relations_meta`.
+Sharded meta is defined for: `chunk_meta_meta`, `chunk_uid_map_meta`, `vfs_manifest_meta`, `vfs_path_map_meta`, `file_relations_meta`, `symbols_meta`, `symbol_occurrences_meta`, `symbol_edges_meta`, `call_sites_meta`, `risk_summaries_meta`, `risk_flows_meta`, `risk_partial_flows_meta`, `repo_map_meta`, and `graph_relations_meta`.
 
 ## Artifact registry
 
@@ -52,6 +52,7 @@ Machine-readable index:
   `targetCandidates`, `snippetHash`.
 - `risk_summaries` (array/JSONL): entries require `schemaVersion`, `chunkUid`, `file`, `signals`, `totals`, `truncated`. Optional: `languageId`, `symbol`, `taintHints`.
 - `risk_flows` (array/JSONL): entries require `schemaVersion`, `flowId`, `source`, `sink`, `path`, `confidence`, `notes`.
+- `risk_partial_flows` (array/JSONL): entries require `schemaVersion`, `partialFlowId`, `source`, `frontier`, `path`, `confidence`, `notes`.
 - `risk_interprocedural_stats` (object): requires `schemaVersion`, `generatedAt`, `mode`, `status`, `effectiveConfig`, `counts`, `callSiteSampling`, `capsHit`, `timingMs`. Optional: `reason`, `artifacts`, `droppedRecords`.
 - `token_postings` (object): requires `vocab`, `postings`, `docLengths`. Optional: `avgDocLen`, `totalDocs`.
 - `token_postings_meta` (object): requires `format`, `shardSize`, `vocabCount`, `parts`. Optional: `avgDocLen`, `totalDocs`, `compression`, `docLengths`, `extensions`.

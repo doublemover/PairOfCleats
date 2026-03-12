@@ -82,6 +82,7 @@ const compositeContextPack = {
       reason: null,
       summaryOnly: false,
       flowsEmitted: 1,
+      partialFlowsEmitted: 1,
       summariesEmitted: 1,
       uniqueCallSitesReferenced: 1,
       capsHit: [],
@@ -105,20 +106,26 @@ const compositeContextPack = {
         stats: 'present',
         summaries: 'present',
         flows: 'present',
+        partialFlows: 'present',
         callSites: 'present'
       },
       degradedReasons: []
     },
     caps: {
       maxFlows: 5,
+      maxPartialFlows: 3,
       maxStepsPerFlow: 8,
       maxCallSitesPerStep: 3,
       maxBytes: 24576,
       maxTokens: 2048,
+      maxPartialBytes: 4096,
+      maxPartialTokens: 512,
       hits: [],
       observed: {
         candidateFlows: 1,
         selectedFlows: 1,
+        selectedPartialFlows: 1,
+        omittedPartialFlows: 0,
         omittedFlows: 0,
         emittedSteps: 1,
         omittedSteps: 0,
@@ -173,6 +180,13 @@ const compositeContextPack = {
           entrypoint: 'risk_flows.jsonl',
           totalEntries: 1
         },
+        partialFlows: {
+          name: 'risk_partial_flows',
+          format: 'jsonl',
+          sharded: false,
+          entrypoint: 'risk_partial_flows.jsonl',
+          totalEntries: 1
+        },
         callSites: {
           name: 'call_sites',
           format: 'jsonl',
@@ -223,6 +237,41 @@ const compositeContextPack = {
           severity: 4,
           confidence: 0.8,
           hopCount: 1
+        }
+      }
+    ],
+    partialFlows: [
+      {
+        partialFlowId: 'sha1:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+        source: {
+          chunkUid: 'chunk-1',
+          ruleId: 'source.req.body',
+          ruleName: 'req.body',
+          ruleType: 'source',
+          category: 'input',
+          severity: null,
+          confidence: 0.6
+        },
+        frontier: {
+          chunkUid: 'chunk-2',
+          terminalReason: 'maxDepth',
+          blockedExpansions: []
+        },
+        path: {
+          nodes: [
+            { type: 'chunk', chunkUid: 'chunk-1' },
+            { type: 'chunk', chunkUid: 'chunk-2' }
+          ],
+          callSiteIdsByStep: [[]]
+        },
+        confidence: 0.7,
+        notes: {
+          strictness: 'conservative',
+          sanitizerPolicy: 'terminate',
+          hopCount: 1,
+          sanitizerBarriersHit: 0,
+          terminalReason: 'maxDepth',
+          capsHit: ['maxDepth']
         }
       }
     ],

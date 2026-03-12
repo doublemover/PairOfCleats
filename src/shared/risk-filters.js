@@ -142,3 +142,39 @@ export const filterRiskFlows = (flows, filters) => {
   if (!filters) return flows.slice();
   return flows.filter((flow) => matchesRiskFilters(flow, filters));
 };
+
+export const matchesRiskPartialFilters = (flow, filters) => {
+  if (!filters) return true;
+  const ruleSet = new Set(filters.rule || []);
+  const categorySet = new Set(filters.category || []);
+  const severitySet = new Set(filters.severity || []);
+  const tagSet = new Set(filters.tag || []);
+  const sourceSet = new Set(filters.source || []);
+  const sinkSet = new Set(filters.sink || []);
+  const sourceRuleSet = new Set(filters.sourceRule || []);
+  const sinkRuleSet = new Set(filters.sinkRule || []);
+  const flowIdSet = new Set(filters.flowId || []);
+
+  if (flowIdSet.size && !flowIdSet.has(flow?.partialFlowId || '')) return false;
+  if (sourceSet.size && !includesAny(sourceSet, collectEndpointLabels(flow?.source))) return false;
+  if (sinkSet.size) {
+    const frontierLabels = [
+      flow?.frontier?.chunkUid || '',
+      flow?.frontier?.terminalReason || ''
+    ].filter(Boolean);
+    if (!includesAny(sinkSet, frontierLabels)) return false;
+  }
+  if (sourceRuleSet.size && !sourceRuleSet.has(flow?.source?.ruleId || '')) return false;
+  if (sinkRuleSet.size) return false;
+  if (ruleSet.size && !includesAny(ruleSet, [flow?.source?.ruleId || ''])) return false;
+  if (categorySet.size && !includesAny(categorySet, [flow?.source?.category || ''])) return false;
+  if (severitySet.size && !includesAny(severitySet, [String(flow?.source?.severity || '').toLowerCase()])) return false;
+  if (tagSet.size && !includesAny(tagSet, Array.isArray(flow?.source?.tags) ? flow.source.tags : [])) return false;
+  return true;
+};
+
+export const filterRiskPartialFlows = (flows, filters) => {
+  if (!Array.isArray(flows) || !flows.length) return [];
+  if (!filters) return flows.slice();
+  return flows.filter((flow) => matchesRiskPartialFilters(flow, filters));
+};

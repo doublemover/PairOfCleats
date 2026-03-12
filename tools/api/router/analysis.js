@@ -48,7 +48,9 @@ export async function handleRiskExplainRoute({
       indexDir,
       chunkUid: String(payload.chunk),
       max: payload.max,
-      filters
+      filters,
+      includePartialFlows: payload.includePartialFlows === true,
+      maxPartialFlows: payload.maxPartialFlows
     });
     sendJson(res, 200, { ok: true, result }, corsHeaders || {});
     return true;

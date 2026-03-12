@@ -1,4 +1,4 @@
-export const ARTIFACT_SURFACE_VERSION = '0.0.1';
+export const ARTIFACT_SURFACE_VERSION = '0.0.2';
 export const SHARDED_JSONL_META_SCHEMA_VERSION = '0.0.1';
 
 const SEMVER_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;

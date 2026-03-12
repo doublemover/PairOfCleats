@@ -1,5 +1,5 @@
 {
-  "schemaHash": "aa0f12a71a528b460df2d11dc3c2b1133b154184",
+  "schemaHash": "b6c83cb9c4ab8d95605f38c61a30d14892f2d595",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -941,7 +941,47 @@
       "optionalFields": [
         "artifacts",
         "droppedRecords",
+        "provenance",
         "reason"
+      ]
+    },
+    {
+      "artifact": "risk_partial_flows",
+      "schemaVersion": {
+        "type": "integer"
+      },
+      "requiredFields": [
+        "confidence",
+        "frontier",
+        "notes",
+        "partialFlowId",
+        "path",
+        "schemaVersion",
+        "source"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "risk_partial_flows_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
       ]
     },
     {

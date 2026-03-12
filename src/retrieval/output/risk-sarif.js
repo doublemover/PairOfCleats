@@ -160,14 +160,45 @@ const buildFlowResult = (flow, index, { uriBaseId = DEFAULT_URI_BASE_ID, maxEvid
   return result;
 };
 
+const buildPartialFlowCompanion = (partialFlows, { maxPartialFlows = 3, maxEvidencePerFlow = 3 } = {}) => {
+  const list = Array.isArray(partialFlows) ? partialFlows : [];
+  const limited = list.slice(0, maxPartialFlows).map((flow) => ({
+    partialFlowId: flow?.partialFlowId || null,
+    confidence: Number.isFinite(flow?.confidence) ? flow.confidence : null,
+    source: flow?.source || null,
+    frontier: flow?.frontier || null,
+    path: flow?.path || null,
+    notes: flow?.notes || null,
+    blockedExpansions: Array.isArray(flow?.frontier?.blockedExpansions)
+      ? flow.frontier.blockedExpansions.slice(0, maxEvidencePerFlow).map((entry) => ({
+        targetChunkUid: entry?.targetChunkUid || null,
+        reason: entry?.reason || null,
+        callSiteIds: Array.isArray(entry?.callSiteIds) ? entry.callSiteIds.filter(Boolean) : []
+      }))
+      : []
+  }));
+  return {
+    partialFlowSelection: {
+      totalPartialFlows: list.length,
+      shownPartialFlows: limited.length,
+      omittedPartialFlows: Math.max(0, list.length - limited.length),
+      maxPartialFlows,
+      maxEvidencePerFlow
+    },
+    partialFlows: limited
+  };
+};
+
 export const renderRiskExplanationSarif = (model, {
   uriBaseId = DEFAULT_URI_BASE_ID,
   maxFlows = 3,
+  maxPartialFlows = 3,
   maxEvidencePerFlow = 3,
   automationId = 'risk-explain',
   origin = 'risk-explain'
 } = {}) => {
   const flows = Array.isArray(model?.flows) ? model.flows.slice(0, maxFlows) : [];
+  const partialCompanion = buildPartialFlowCompanion(model?.partialFlows, { maxPartialFlows, maxEvidencePerFlow });
   return {
     $schema: SARIF_SCHEMA_URL,
     version: SARIF_VERSION,
@@ -205,7 +236,9 @@ export const renderRiskExplanationSarif = (model, {
             omittedFlows: Math.max(0, (Array.isArray(model?.flows) ? model.flows.length : 0) - flows.length),
             maxFlows,
             maxEvidencePerFlow
-          }
+          },
+          partialFlowSelection: partialCompanion.partialFlowSelection,
+          partialFlows: partialCompanion.partialFlows
         }
       },
       results: flows.map((flow, index) => buildFlowResult(flow, index, { uriBaseId, maxEvidencePerFlow }))

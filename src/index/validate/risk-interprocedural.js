@@ -30,6 +30,7 @@ export const validateRiskInterproceduralArtifacts = async ({
   }
   if (strict && emitArtifacts && enabled && !summaryOnly) {
     checkPresence('risk_flows', { required: true });
+    checkPresence('risk_partial_flows', { required: true });
     checkPresence('call_sites', { required: true });
   }
   if (strict) {
@@ -41,9 +42,10 @@ export const validateRiskInterproceduralArtifacts = async ({
     validateSchema(report, mode, 'risk_interprocedural_stats', stats, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
     if (stats.status === 'timed_out') {
       const flowsEmitted = Number(stats.counts?.flowsEmitted || 0);
+      const partialFlowsEmitted = Number(stats.counts?.partialFlowsEmitted || 0);
       const uniqueCallSites = Number(stats.counts?.uniqueCallSitesReferenced || 0);
-      if (flowsEmitted !== 0 || uniqueCallSites !== 0) {
-        addIssue(report, mode, 'risk interprocedural stats timed_out but flows were emitted');
+      if (flowsEmitted < 0 || partialFlowsEmitted < 0 || uniqueCallSites < 0) {
+        addIssue(report, mode, 'risk interprocedural stats timed_out reported invalid negative counters');
       }
     }
   }
@@ -100,11 +102,11 @@ export const validateRiskInterproceduralArtifacts = async ({
     }
   }
 
-  const shouldValidateFlows = !summaryOnly && stats?.status === 'ok';
-  if (!shouldValidateFlows) return;
+  const shouldValidateDetailedFlows = !summaryOnly && stats?.status === 'ok';
+  const shouldValidatePartialFlows = !summaryOnly && stats?.status !== 'disabled';
 
   let callSiteIds = null;
-  if (shouldLoadOptional('call_sites')) {
+  if ((shouldValidateDetailedFlows || shouldValidatePartialFlows) && shouldLoadOptional('call_sites')) {
     try {
       const callSites = await loadJsonArrayArtifact(dir, 'call_sites', { manifest, strict });
       callSiteIds = new Set(callSites.map((row) => row?.callSiteId).filter(Boolean));
@@ -116,7 +118,7 @@ export const validateRiskInterproceduralArtifacts = async ({
     }
   }
 
-  if (shouldLoadOptional('risk_flows')) {
+  if (shouldValidateDetailedFlows && shouldLoadOptional('risk_flows')) {
     try {
       const flows = await loadJsonArrayArtifact(dir, 'risk_flows', { manifest, strict });
       validateSchema(report, mode, 'risk_flows', flows, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
@@ -169,6 +171,63 @@ export const validateRiskInterproceduralArtifacts = async ({
       }
     } catch (err) {
       addIssue(report, mode, `risk_flows load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
+    }
+  }
+
+  if (shouldValidatePartialFlows && shouldLoadOptional('risk_partial_flows')) {
+    try {
+      const partialFlows = await loadJsonArrayArtifact(dir, 'risk_partial_flows', { manifest, strict });
+      validateSchema(report, mode, 'risk_partial_flows', partialFlows, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+      if (stats?.counts?.partialFlowsEmitted !== undefined && partialFlows.length !== stats.counts.partialFlowsEmitted) {
+        addIssue(report, mode, `risk_partial_flows count mismatch (${partialFlows.length} != ${stats.counts.partialFlowsEmitted})`, 'Rebuild index artifacts for this mode.');
+      }
+      for (const flow of partialFlows) {
+        const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
+        if (chunkUids.length < 1) {
+          addIssue(report, mode, 'risk_partial_flows path.chunkUids must have at least 1 entry', 'Rebuild index artifacts for this mode.');
+          break;
+        }
+        const expectedSteps = Math.max(0, chunkUids.length - 1);
+        const steps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
+        if (steps.length !== expectedSteps) {
+          addIssue(report, mode, 'risk_partial_flows path.callSiteIdsByStep length mismatch', 'Rebuild index artifacts for this mode.');
+          break;
+        }
+        if (flow?.source?.chunkUid && flow.source.chunkUid !== chunkUids[0]) {
+          addIssue(report, mode, 'risk_partial_flows path start does not match source chunkUid', 'Rebuild index artifacts for this mode.');
+          break;
+        }
+        if (flow?.frontier?.chunkUid && flow.frontier.chunkUid !== chunkUids[chunkUids.length - 1]) {
+          addIssue(report, mode, 'risk_partial_flows path end does not match frontier chunkUid', 'Rebuild index artifacts for this mode.');
+          break;
+        }
+        for (const uid of chunkUids) {
+          if (uid && knownChunkUids && !knownChunkUids.has(uid)) {
+            addIssue(report, mode, `risk_partial_flows references unknown chunkUid ${uid}`, 'Rebuild index artifacts for this mode.');
+            break;
+          }
+        }
+        if (callSiteIds) {
+          for (const step of steps) {
+            for (const callSiteId of toArray(step)) {
+              if (callSiteId && !callSiteIds.has(callSiteId)) {
+                addIssue(report, mode, `risk_partial_flows references missing callSiteId ${callSiteId}`, 'Rebuild index artifacts for this mode.');
+                break;
+              }
+            }
+          }
+          for (const blocked of toArray(flow?.frontier?.blockedExpansions)) {
+            for (const callSiteId of toArray(blocked?.callSiteIds)) {
+              if (callSiteId && !callSiteIds.has(callSiteId)) {
+                addIssue(report, mode, `risk_partial_flows references missing blocked callSiteId ${callSiteId}`, 'Rebuild index artifacts for this mode.');
+                break;
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      addIssue(report, mode, `risk_partial_flows load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
     }
   }
 };

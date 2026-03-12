@@ -32,7 +32,9 @@ export async function runRiskExplain(args = {}, context = {}) {
     indexDir,
     chunkUid,
     max: args.max,
-    filters
+    filters,
+    includePartialFlows: args.includePartialFlows === true,
+    maxPartialFlows: args.maxPartialFlows
   });
   if (typeof context.progress === 'function') {
     context.progress({ phase: 'done', message: 'Risk explanation ready.' });

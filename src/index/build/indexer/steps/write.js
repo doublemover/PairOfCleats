@@ -123,6 +123,7 @@ export const writeIndexArtifactsForMode = async ({
         summaryTimingMs: state.riskSummaryTimingMs
       });
       state.riskFlows = result.flowRows || [];
+      state.riskPartialFlows = result.partialFlowRows || [];
       state.riskInterproceduralStats = result.stats || null;
       state.riskFlowCallSiteIds = result.callSiteIdsReferenced || null;
       if (state.riskSummaryStats?.summariesDroppedBySize) {
@@ -143,6 +144,7 @@ export const writeIndexArtifactsForMode = async ({
         ? Math.max(1, Math.floor(Number(runtime.riskInterproceduralConfig.caps.maxCallSitesPerEdge)))
         : null;
       state.riskFlows = [];
+      state.riskPartialFlows = [];
       state.riskFlowCallSiteIds = null;
       state.riskInterproceduralStats = {
         schemaVersion: 1,
@@ -157,6 +159,7 @@ export const writeIndexArtifactsForMode = async ({
           sourceRoots: 0,
           resolvedEdges: 0,
           flowsEmitted: 0,
+          partialFlowsEmitted: 0,
           risksWithFlows: 0,
           uniqueCallSitesReferenced: 0
         },

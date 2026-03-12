@@ -2,6 +2,10 @@ import { buildRiskExplanationModelFromRiskSlice, renderRiskExplanation, renderRi
 import { renderGraphContextPack } from './graph-context-pack.js';
 import { renderCompositeContextPackSarif } from './risk-sarif.js';
 
+const CONTEXT_PACK_MAX_RISK_FLOWS = 5;
+const CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS = 5;
+const CONTEXT_PACK_MAX_RISK_EVIDENCE = 3;
+
 const renderPrimary = (primary) => {
   const lines = [];
   lines.push('Primary');
@@ -57,7 +61,9 @@ const renderRisk = (risk) => {
     includeSubject: false,
     includeAnchor: false,
     includeFilters: true,
-    maxFlows: 5
+    maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
+    maxPartialFlows: CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
+    maxEvidencePerFlow: CONTEXT_PACK_MAX_RISK_EVIDENCE
   });
 };
 
@@ -98,13 +104,15 @@ export const renderCompositeContextPackJson = (payload) => ({
     risk: payload?.risk
       ? renderRiskExplanationJson(buildRiskExplanationModelFromRiskSlice(payload.risk), {
         title: 'Risk',
-        maxFlows: 5,
-        maxEvidencePerFlow: 3
+        maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
+        maxPartialFlows: CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
+        maxEvidencePerFlow: CONTEXT_PACK_MAX_RISK_EVIDENCE
       })
       : null,
     sarif: renderCompositeContextPackSarif(payload, {
-      maxFlows: 5,
-      maxEvidencePerFlow: 3
+      maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
+      maxPartialFlows: CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
+      maxEvidencePerFlow: CONTEXT_PACK_MAX_RISK_EVIDENCE
     }),
     truncation: Array.isArray(payload?.truncation) ? payload.truncation.slice() : [],
     warnings: Array.isArray(payload?.warnings) ? payload.warnings.slice() : []

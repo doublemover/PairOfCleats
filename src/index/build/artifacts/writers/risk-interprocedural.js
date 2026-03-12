@@ -132,11 +132,13 @@ export const enqueueRiskInterproceduralArtifacts = ({
     : null;
   const summaries = Array.isArray(state?.riskSummaries) ? state.riskSummaries : [];
   const flows = Array.isArray(state?.riskFlows) ? state.riskFlows : [];
+  const partialFlows = Array.isArray(state?.riskPartialFlows) ? state.riskPartialFlows : [];
   const allowArtifacts = emitArtifacts !== 'none';
-  const flowsExpected = stats?.status === 'ok' && stats?.effectiveConfig?.summaryOnly !== true;
+  const flowsExpected = stats?.effectiveConfig?.summaryOnly !== true && stats?.status !== 'disabled';
 
   let summariesRef = null;
   let flowsRef = null;
+  let partialFlowsRef = null;
   if (allowArtifacts) {
     summariesRef = writeJsonlArtifact({
       name: 'risk_summaries',
@@ -155,6 +157,19 @@ export const enqueueRiskInterproceduralArtifacts = ({
       flowsRef = writeJsonlArtifact({
         name: 'risk_flows',
         rows: flows,
+        outDir,
+        maxJsonBytes,
+        compression: flowsCompression || compression,
+        gzipOptions,
+        enqueueWrite,
+        addPieceFile,
+        formatArtifactLabel,
+        log,
+        forceEmpty: true
+      });
+      partialFlowsRef = writeJsonlArtifact({
+        name: 'risk_partial_flows',
+        rows: partialFlows,
         outDir,
         maxJsonBytes,
         compression: flowsCompression || compression,
@@ -185,6 +200,7 @@ export const enqueueRiskInterproceduralArtifacts = ({
           statsRef,
           summariesRef,
           flowsRef,
+          partialFlowsRef,
           callSitesRef
         })
       };
@@ -200,5 +216,10 @@ export const enqueueRiskInterproceduralArtifacts = ({
     addPieceFile({ type: 'risk', name: 'risk_interprocedural_stats', format: 'json' }, statsPath);
   }
 
-  return { summariesRef, flowsRef, stats: finalStats?.finalStats || null };
+  return {
+    summariesRef,
+    flowsRef,
+    partialFlowsRef,
+    stats: finalStats?.finalStats || null
+  };
 };

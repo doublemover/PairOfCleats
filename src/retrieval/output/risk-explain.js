@@ -69,6 +69,50 @@ const collectCallSiteStepEvidence = (flow, maxEvidencePerFlow) => {
   }).filter(Boolean);
 };
 
+const buildPartialFlowNarrativeList = (
+  partialFlows,
+  {
+    heading = 'Partial Risk Flows',
+    maxPartialFlows = 3,
+    maxEvidencePerFlow = 3
+  } = {}
+) => {
+  const list = Array.isArray(partialFlows) ? partialFlows : [];
+  const limited = list.slice(0, maxPartialFlows);
+  return {
+    heading,
+    totalPartialFlows: list.length,
+    shownPartialFlows: limited.length,
+    omittedPartialFlows: Math.max(0, list.length - limited.length),
+    maxPartialFlows,
+    maxEvidencePerFlow,
+    partialFlows: limited.map((flow) => {
+      const confidence = Number.isFinite(flow?.confidence) ? flow.confidence : null;
+      const path = formatPath(flow?.path) || null;
+      const stepEvidence = collectCallSiteStepEvidence(flow, maxEvidencePerFlow);
+      return {
+        partialFlowId: flow?.partialFlowId || 'partial-flow',
+        confidence,
+        confidenceLabel: Number.isFinite(confidence) ? confidence.toFixed(2) : 'n/a',
+        terminalReason: flow?.frontier?.terminalReason || flow?.notes?.terminalReason || null,
+        frontierChunkUid: flow?.frontier?.chunkUid || null,
+        blockedExpansions: Array.isArray(flow?.frontier?.blockedExpansions)
+          ? flow.frontier.blockedExpansions.slice(0, maxEvidencePerFlow).map((entry) => ({
+            targetChunkUid: entry?.targetChunkUid || null,
+            reason: entry?.reason || null,
+            callSiteIds: Array.isArray(entry?.callSiteIds) ? entry.callSiteIds.filter(Boolean) : []
+          }))
+          : [],
+        path,
+        steps: stepEvidence.map((step) => ({
+          step: step.index + 1,
+          evidence: step.rendered.slice()
+        }))
+      };
+    })
+  };
+};
+
 export const renderRiskExplain = (
   flows,
   {
@@ -155,7 +199,8 @@ export const renderRiskExplanationJson = (
   {
     title = 'Risk Explain',
     maxFlows = 3,
-    maxEvidencePerFlow = 3
+    maxEvidencePerFlow = 3,
+    maxPartialFlows = 3
   } = {}
 ) => ({
   title,
@@ -175,8 +220,16 @@ export const renderRiskExplanationJson = (
     maxFlows,
     maxEvidencePerFlow
   },
+  partialFlowSelection: {
+    totalPartialFlows: Array.isArray(model?.partialFlows) ? model.partialFlows.length : 0,
+    shownPartialFlows: Math.min(Array.isArray(model?.partialFlows) ? model.partialFlows.length : 0, maxPartialFlows),
+    omittedPartialFlows: Math.max(0, (Array.isArray(model?.partialFlows) ? model.partialFlows.length : 0) - maxPartialFlows),
+    maxPartialFlows,
+    maxEvidencePerFlow
+  },
   flows: buildRiskFlowNarrativeList(model?.flows || [], { maxFlows, maxEvidencePerFlow }).flows,
-  sarif: renderRiskExplanationSarif(model, { maxFlows, maxEvidencePerFlow })
+  partialFlows: buildPartialFlowNarrativeList(model?.partialFlows || [], { maxPartialFlows, maxEvidencePerFlow }).partialFlows,
+  sarif: renderRiskExplanationSarif(model, { maxFlows, maxPartialFlows, maxEvidencePerFlow })
 });
 
 const renderAnalysisStatus = (model, lines) => {
@@ -222,6 +275,7 @@ const renderStats = (model, lines) => {
   const extras = [];
   if (stats.status) extras.push(`status ${stats.status}`);
   if (stats.flowsEmitted != null) extras.push(`flows ${stats.flowsEmitted}`);
+  if (stats.partialFlowsEmitted != null) extras.push(`partial flows ${stats.partialFlowsEmitted}`);
   if (stats.summariesEmitted != null) extras.push(`summaries ${stats.summariesEmitted}`);
   if (stats.uniqueCallSitesReferenced != null) extras.push(`call sites ${stats.uniqueCallSitesReferenced}`);
   if (Array.isArray(stats.capsHit) && stats.capsHit.length) extras.push(`caps ${stats.capsHit.join(', ')}`);
@@ -291,10 +345,13 @@ const renderCaps = (model, lines) => {
   if (!caps || typeof caps !== 'object') return;
   const capParts = [];
   if (caps.maxFlows != null) capParts.push(`maxFlows ${caps.maxFlows}`);
+  if (caps.maxPartialFlows != null) capParts.push(`maxPartialFlows ${caps.maxPartialFlows}`);
   if (caps.maxStepsPerFlow != null) capParts.push(`maxStepsPerFlow ${caps.maxStepsPerFlow}`);
   if (caps.maxCallSitesPerStep != null) capParts.push(`maxCallSitesPerStep ${caps.maxCallSitesPerStep}`);
   if (caps.maxBytes != null) capParts.push(`maxBytes ${caps.maxBytes}`);
   if (caps.maxTokens != null) capParts.push(`maxTokens ${caps.maxTokens}`);
+  if (caps.maxPartialBytes != null) capParts.push(`maxPartialBytes ${caps.maxPartialBytes}`);
+  if (caps.maxPartialTokens != null) capParts.push(`maxPartialTokens ${caps.maxPartialTokens}`);
   if (capParts.length) lines.push(`- pack caps: ${capParts.join(', ')}`);
   if (Array.isArray(caps.hits) && caps.hits.length) {
     lines.push(`- cap hits: ${caps.hits.join(', ')}`);
@@ -304,6 +361,37 @@ const renderCaps = (model, lines) => {
 const renderTruncation = (model, lines) => {
   if (!Array.isArray(model?.truncation) || !model.truncation.length) return;
   lines.push(`- truncation: ${model.truncation.map((entry) => entry.cap).join(', ')}`);
+};
+
+const renderPartialNarrativeMarkdown = (narrative) => {
+  const lines = [];
+  lines.push(narrative.heading || 'Partial Risk Flows');
+  if (!Array.isArray(narrative?.partialFlows) || narrative.partialFlows.length === 0) {
+    lines.push('- (none)');
+    return lines.join('\n');
+  }
+  for (const flow of narrative.partialFlows) {
+    const suffix = flow?.terminalReason ? ` ${flow.terminalReason}` : '';
+    lines.push(`- [${flow.confidenceLabel || 'n/a'}] ${flow.partialFlowId || 'partial-flow'}${suffix}`);
+    if (flow?.frontierChunkUid) {
+      lines.push(`  frontier: ${flow.frontierChunkUid}`);
+    }
+    if (flow?.path) {
+      lines.push(`  path: ${flow.path}`);
+    }
+    for (const blocked of Array.isArray(flow?.blockedExpansions) ? flow.blockedExpansions : []) {
+      const target = blocked?.targetChunkUid ? ` -> ${blocked.targetChunkUid}` : '';
+      const ids = Array.isArray(blocked?.callSiteIds) && blocked.callSiteIds.length ? ` [${blocked.callSiteIds.join(', ')}]` : '';
+      lines.push(`  blocked: ${blocked?.reason || 'blocked'}${target}${ids}`);
+    }
+    for (const step of Array.isArray(flow?.steps) ? flow.steps : []) {
+      lines.push(`  step ${step.step}: ${Array.isArray(step.evidence) ? step.evidence.join('; ') : ''}`);
+    }
+  }
+  if (narrative.omittedPartialFlows > 0) {
+    lines.push(`- truncation: omitted ${narrative.omittedPartialFlows} additional partial flow(s) after maxPartialFlows=${narrative.maxPartialFlows}`);
+  }
+  return lines.join('\n');
 };
 
 export const renderRiskExplanation = (
@@ -320,13 +408,15 @@ export const renderRiskExplanation = (
     includeTruncation = true,
     includeFilters = true,
     maxFlows = 3,
-    maxEvidencePerFlow = 3
+    maxEvidencePerFlow = 3,
+    maxPartialFlows = 3
   } = {}
 ) => {
   const narrative = renderRiskExplanationJson(model, {
     title,
     maxFlows,
-    maxEvidencePerFlow
+    maxEvidencePerFlow,
+    maxPartialFlows
   });
   const lines = [];
   if (title) {
@@ -354,6 +444,14 @@ export const renderRiskExplanation = (
     ...narrative.flowSelection,
     flows: narrative.flows
   }));
+  if (Array.isArray(narrative.partialFlows) && narrative.partialFlows.length) {
+    lines.push('');
+    lines.push(renderPartialNarrativeMarkdown({
+      heading: 'Partial Risk Flows',
+      ...narrative.partialFlowSelection,
+      partialFlows: narrative.partialFlows
+    }));
+  }
   return lines.join('\n');
 };
 

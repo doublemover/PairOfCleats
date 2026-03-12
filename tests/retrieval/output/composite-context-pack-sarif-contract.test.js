@@ -53,6 +53,35 @@ const payload = {
         }
       }
     ],
+    partialFlows: [
+      {
+        partialFlowId: 'partial-a',
+        confidence: 0.61,
+        source: { ruleId: 'SRC', chunkUid: 'chunk-risk' },
+        frontier: {
+          chunkUid: 'chunk-mid',
+          terminalReason: 'maxDepth',
+          blockedExpansions: [
+            {
+              reason: 'maxEdgeExpansions',
+              targetChunkUid: 'chunk-sink',
+              callSiteIds: ['cs-1']
+            }
+          ]
+        },
+        path: {
+          nodes: [
+            { type: 'chunk', chunkUid: 'chunk-risk' },
+            { type: 'chunk', chunkUid: 'chunk-mid' }
+          ]
+        },
+        notes: {
+          terminalReason: 'maxDepth',
+          hopCount: 1,
+          capsHit: ['maxDepth']
+        }
+      }
+    ],
     truncation: [{ cap: 'maxFlows', limit: 5, observed: 6, omitted: 1 }],
     analysisStatus: {
       status: 'ok',
@@ -76,5 +105,7 @@ assert.deepEqual(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.prov
 assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.packProvenance, null);
 assert.deepEqual(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.packTruncation, payload.truncation);
 assert.equal(jsonPayload.rendered.sarif.runs[0].results[0].properties.pairOfCleats.flowId, 'flow-a');
+assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.partialFlowSelection.totalPartialFlows, 1);
+assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.partialFlows[0].partialFlowId, 'partial-a');
 
 console.log('composite context pack sarif contract test passed');

@@ -173,6 +173,56 @@ const riskFlowRow = {
   additionalProperties: true
 };
 
+const riskPartialFlowBlockedExpansion = {
+  type: 'object',
+  required: ['reason'],
+  properties: {
+    targetChunkUid: nullableString,
+    reason: { type: 'string' },
+    callSiteIds: { type: 'array', items: { type: 'string' } }
+  },
+  additionalProperties: true
+};
+
+const riskPartialFlowRow = {
+  type: 'object',
+  required: ['schemaVersion', 'partialFlowId', 'source', 'frontier', 'path', 'confidence', 'notes'],
+  properties: {
+    schemaVersion: posInt,
+    partialFlowId: { type: 'string', pattern: '^sha1:[0-9a-f]{40}$' },
+    source: riskFlowRow.properties.source,
+    frontier: {
+      type: 'object',
+      required: ['chunkUid', 'terminalReason', 'blockedExpansions'],
+      properties: {
+        chunkUid: { type: 'string' },
+        terminalReason: { type: 'string' },
+        blockedExpansions: {
+          type: 'array',
+          items: riskPartialFlowBlockedExpansion
+        }
+      },
+      additionalProperties: true
+    },
+    path: riskFlowRow.properties.path,
+    confidence: { type: 'number' },
+    notes: {
+      type: 'object',
+      required: ['strictness', 'sanitizerPolicy', 'hopCount', 'sanitizerBarriersHit', 'capsHit', 'terminalReason'],
+      properties: {
+        strictness: { type: 'string' },
+        sanitizerPolicy: { type: 'string' },
+        hopCount: intId,
+        sanitizerBarriersHit: intId,
+        capsHit: { type: 'array', items: { type: 'string' } },
+        terminalReason: { type: 'string' }
+      },
+      additionalProperties: true
+    }
+  },
+  additionalProperties: true
+};
+
 const riskInterproceduralStats = {
   type: 'object',
   required: [
@@ -229,6 +279,10 @@ export const RISK_ARTIFACT_SCHEMA_DEFS = {
   risk_flows: {
     type: 'array',
     items: riskFlowRow
+  },
+  risk_partial_flows: {
+    type: 'array',
+    items: riskPartialFlowRow
   },
   risk_interprocedural_stats: riskInterproceduralStats
 };
