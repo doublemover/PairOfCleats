@@ -4,6 +4,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
 const { readSearchOptions, buildSearchArgs, collectSearchHits } = require('./search-contract.js');
+const {
+  DEFAULT_MAX_BUFFER_BYTES,
+  createChunkAccumulator,
+  resolveConfiguredCli,
+  parseSearchPayload,
+  summarizeProcessFailure,
+  openSearchHit
+} = require('./runtime.js');
 
 const DEFAULT_EDITOR_CONFIG_CONTRACT = Object.freeze({
   schemaVersion: 1,
@@ -193,20 +201,6 @@ function getExtensionConfiguration() {
 }
 
 /**
- * Resolve a configured path relative to repo root when not absolute.
- *
- * @param {string|null} repoRoot
- * @param {string} rawPath
- * @returns {string}
- */
-function resolveConfigPath(repoRoot, rawPath) {
-  if (!rawPath) return '';
-  if (path.isAbsolute(rawPath) && fs.existsSync(rawPath)) return rawPath;
-  if (repoRoot) return path.join(repoRoot, rawPath);
-  return rawPath;
-}
-
-/**
  * Check whether one directory matches any repository root marker.
  *
  * @param {string} candidatePath
@@ -259,23 +253,20 @@ function resolveCli(repoRoot, config) {
   const extraArgs = normalizeStringArray(config.get(VSCODE_SETTINGS.cliArgsKey));
 
   if (configuredPath) {
-    const resolvedPath = resolveConfigPath(repoRoot, configuredPath);
-    if (resolvedPath && fs.existsSync(resolvedPath)) {
-      if (resolvedPath.toLowerCase().endsWith(CLI_JS_EXTENSION)) {
-        return { command: process.execPath, argsPrefix: [resolvedPath, ...extraArgs] };
-      }
-      return { command: resolvedPath, argsPrefix: extraArgs };
-    }
+    return resolveConfiguredCli(repoRoot, configuredPath, extraArgs, {
+      command: CLI_DEFAULT_COMMAND,
+      jsExtension: CLI_JS_EXTENSION
+    });
   }
 
   if (repoRoot) {
     const localCli = path.join(repoRoot, ...CLI_REPO_ENTRYPOINT_PARTS);
     if (fs.existsSync(localCli)) {
-      return { command: process.execPath, argsPrefix: [localCli] };
+      return { ok: true, command: process.execPath, argsPrefix: [localCli] };
     }
   }
 
-  return { command: CLI_DEFAULT_COMMAND, argsPrefix: extraArgs };
+  return { ok: true, command: CLI_DEFAULT_COMMAND, argsPrefix: extraArgs };
 }
 
 /**
@@ -326,11 +317,20 @@ async function runSearch() {
   if (!query || !query.trim()) return;
 
   const config = getExtensionConfiguration();
-  const { command, argsPrefix } = resolveCli(repoRoot, config);
+  const cliResolution = resolveCli(repoRoot, config);
+  if (!cliResolution.ok) {
+    vscode.window.showErrorMessage(cliResolution.message);
+    getOutputChannel().appendLine(cliResolution.detail || cliResolution.message);
+    return;
+  }
+  const { command, argsPrefix } = cliResolution;
   const searchOptions = readSearchOptions(config, VSCODE_SETTINGS);
   const args = [...argsPrefix, ...buildSearchArgs(query.trim(), repoRoot, searchOptions)];
   const env = buildSpawnEnv(config);
   const searchTimeoutMs = 60000;
+  const output = getOutputChannel();
+  output.appendLine(`[search] command=${command}`);
+  output.appendLine(`[search] args=${JSON.stringify(args)}`);
 
   await vscode.window.withProgress(
     {
@@ -349,45 +349,33 @@ async function runSearch() {
         shell: false,
         windowsHide: true
       });
-      const maxBufferBytes = 20 * 1024 * 1024;
-      const stdoutChunks = [];
-      const stderrChunks = [];
-      let stdoutBytes = 0;
-      let stderrBytes = 0;
+      const stdoutAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
+      const stderrAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
       let timedOut = false;
       const timeout = setTimeout(() => {
         timedOut = true;
+        output.appendLine(`[search] timeout after ${searchTimeoutMs}ms`);
         try {
           child.kill('SIGKILL');
         } catch {}
       }, searchTimeoutMs);
       timeout.unref?.();
       const cancelSub = token.onCancellationRequested(() => {
+        output.appendLine('[search] cancellation requested');
         try {
           child.kill('SIGKILL');
         } catch {}
       });
-      const pushChunk = (bucket, sizeRef, chunk) => {
-        if (!chunk) return sizeRef;
-        const value = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
-        const nextSize = sizeRef + value.length;
-        if (nextSize > maxBufferBytes) {
-          const remaining = maxBufferBytes - sizeRef;
-          if (remaining > 0) bucket.push(value.subarray(0, remaining));
-          return maxBufferBytes;
-        }
-        bucket.push(value);
-        return nextSize;
-      };
       child.stdout?.on('data', (chunk) => {
-        stdoutBytes = pushChunk(stdoutChunks, stdoutBytes, chunk);
+        stdoutAccumulator.push(chunk);
       });
       child.stderr?.on('data', (chunk) => {
-        stderrBytes = pushChunk(stderrChunks, stderrBytes, chunk);
+        stderrAccumulator.push(chunk);
       });
       child.once('error', (error) => {
         clearTimeout(timeout);
         cancelSub.dispose();
+        output.appendLine(`[search] spawn error=${error?.message || error}`);
         vscode.window.showErrorMessage(`PairOfCleats search failed: ${error?.message || error}`);
         resolve();
       });
@@ -395,31 +383,45 @@ async function runSearch() {
         clearTimeout(timeout);
         cancelSub.dispose();
         if (token.isCancellationRequested) {
+          output.appendLine('[search] cancelled by user');
+          vscode.window.showInformationMessage('PairOfCleats search was cancelled.');
           resolve();
           return;
         }
-        if (timedOut) {
-          vscode.window.showErrorMessage(`PairOfCleats search timed out after ${searchTimeoutMs}ms.`);
+        const stdout = stdoutAccumulator.text();
+        const stderr = stderrAccumulator.text();
+        const processFailure = summarizeProcessFailure({
+          code,
+          timedOut,
+          cancelled: false,
+          stderr,
+          stdout,
+          stdoutTruncated: stdoutAccumulator.truncated(),
+          stderrTruncated: stderrAccumulator.truncated(),
+          timeoutMs: searchTimeoutMs
+        });
+        if (processFailure) {
+          output.appendLine(`[search] failure kind=${processFailure.kind}`);
+          if (processFailure.detail) output.appendLine(processFailure.detail);
+          vscode.window.showErrorMessage(processFailure.message);
           resolve();
           return;
         }
-        const stdout = Buffer.concat(stdoutChunks).toString('utf8');
-        const stderr = Buffer.concat(stderrChunks).toString('utf8');
-        if (code !== 0) {
-          const message = String(stderr || `exit ${code}`);
-          vscode.window.showErrorMessage(`PairOfCleats search failed: ${message}`);
-          resolve();
-          return;
+        if (stderrAccumulator.truncated()) {
+          output.appendLine('[search] stderr output was truncated');
         }
 
-        let payload = null;
-        try {
-          payload = JSON.parse(stdout || '{}');
-        } catch (err) {
-          vscode.window.showErrorMessage(`PairOfCleats search returned invalid JSON: ${err.message}`);
+        const parsed = parseSearchPayload(stdout, {
+          stdoutTruncated: stdoutAccumulator.truncated()
+        });
+        if (!parsed.ok) {
+          output.appendLine(`[search] parse failure kind=${parsed.kind}`);
+          if (parsed.detail) output.appendLine(parsed.detail);
+          vscode.window.showErrorMessage(parsed.message);
           resolve();
           return;
         }
+        const payload = parsed.payload;
 
         const hits = collectSearchHits(payload);
 
@@ -455,17 +457,13 @@ async function runSearch() {
         }
 
         const selected = selection.hit;
-        const filePath = path.isAbsolute(selected.file)
-          ? selected.file
-          : path.join(repoRoot, selected.file);
-        const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-        const editor = await vscode.window.showTextDocument(document, { preview: true });
-        if (Number.isFinite(selected.startLine) && selected.startLine > 0) {
-          const line = Math.max(0, Number(selected.startLine) - 1);
-          const pos = new vscode.Position(line, 0);
-          const range = new vscode.Range(pos, pos);
-          editor.selection = new vscode.Selection(pos, pos);
-          editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
+        const openResult = await openSearchHit(vscode, repoRoot, selected);
+        if (!openResult.ok) {
+          output.appendLine(`[search] open failure path=${openResult.filePath}`);
+          output.appendLine(openResult.detail);
+          vscode.window.showErrorMessage(openResult.message);
+          resolve();
+          return;
         }
 
         resolve();
@@ -492,6 +490,15 @@ function activate(context) {
  */
 function deactivate() {}
 
+let outputChannel = null;
+
+function getOutputChannel() {
+  if (!outputChannel) {
+    outputChannel = vscode.window.createOutputChannel('PairOfCleats');
+  }
+  return outputChannel;
+}
+
 module.exports = {
   activate,
   deactivate,
@@ -499,6 +506,8 @@ module.exports = {
     VSCODE_SETTINGS,
     readSearchOptions,
     buildSearchArgs,
-    collectSearchHits
+    collectSearchHits,
+    getOutputChannel,
+    openSearchHit
   }
 };

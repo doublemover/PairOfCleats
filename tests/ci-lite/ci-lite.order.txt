@@ -23,6 +23,7 @@ retrieval/context-expansion/shuffled-chunkmeta
 retrieval/output/clean-context-fences
 tooling/lsp/runtime-config-resolution
 tooling/vscode/extension
+tooling/vscode/runtime
 tooling/vscode/search-arg-mapping
 tooling/vscode/search-result-sections
 indexing/postings/queue-metrics
