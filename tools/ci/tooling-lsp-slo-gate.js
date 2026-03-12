@@ -112,7 +112,7 @@ const createSampleFromHandshake = (provider, handshake) => {
       successCount: handshake.ok === true ? 1 : 0,
       failureCount: handshake.ok === true ? 0 : 1,
       timeoutCount: timedOut ? 1 : 0,
-      fatalFailureCount: handshake.ok === true ? 0 : 1,
+      fatalFailureCount: handshake.ok === true || timedOut ? 0 : 1,
       probeWorkspace: null
     }
   };
@@ -175,7 +175,7 @@ const probeProviderSamples = async ({
       successCount: successfulAttempts.length,
       failureCount: Math.max(0, attempts.length - successfulAttempts.length),
       timeoutCount: attempts.filter((attempt) => isTimeoutLikeError(attempt)).length,
-      fatalFailureCount: attempts.filter((attempt) => attempt?.ok !== true).length,
+      fatalFailureCount: attempts.filter((attempt) => attempt?.ok !== true && !isTimeoutLikeError(attempt)).length,
       probeWorkspace
     }
   };
