@@ -102,6 +102,72 @@ try {
   assert.ok(harness.openedDocuments.some((entry) => String(entry.uri?.fsPath || '').endsWith('.json')), 'expected json document open');
   assert.equal(harness.infoMessages.pop(), 'PairOfCleats: Context Pack completed.');
 
+  const relativeSeed = harness.extension._test.resolveRepoRelativePathSeed(activeFile, {
+    repoRoot
+  });
+  assert.equal(relativeSeed, 'src/app.ts');
+
+  harness.openedDocuments.length = 0;
+  harness.executeCommandCalls.length = 0;
+  harness.fakeVscode.workspace.openTextDocument = async () => {
+    throw new Error('json preview open failed');
+  };
+  harness.queuedResults.push({
+    code: 0,
+    stdout: JSON.stringify({
+      primary: {
+        ref: { type: 'file', path: 'src/app.ts' },
+        file: 'src/app.ts',
+        excerpt: 'export function greet() { return 1; }'
+      },
+      graph: { summary: { counts: { nodes: 1, edges: 0 } } },
+      indexDir: 'index-code'
+    })
+  });
+  const contextPackSpec = harness.extension._test.OPERATOR_COMMAND_SPECS.find((entry) => entry.id === 'pairofcleats.contextPack');
+  await harness.extension._test.executeOperatorWorkflow(
+    contextPackSpec,
+    { repoRoot, repoLabel: 'repo' },
+    {
+      command: process.execPath,
+      args: [
+        path.join(repoRoot, 'bin', 'pairofcleats.js'),
+        '--trace',
+        'context-pack',
+        '--json',
+        '--repo',
+        repoRoot,
+        '--seed',
+        'file:src/app.ts',
+        '--hops',
+        '1',
+        '--includeRisk',
+        '--includeTypes'
+      ],
+      inputContext: { seed: 'file:src/app.ts' }
+    }
+  );
+
+  assert.deepEqual(harness.spawnCalls.at(-1)?.args, [
+    path.join(repoRoot, 'bin', 'pairofcleats.js'),
+    '--trace',
+    'context-pack',
+    '--json',
+    '--repo',
+    repoRoot,
+    '--seed',
+    'file:src/app.ts',
+    '--hops',
+    '1',
+    '--includeRisk',
+    '--includeTypes'
+  ]);
+  assert.equal(harness.infoMessages.pop(), 'PairOfCleats: Context Pack completed.');
+  assert.ok(
+    harness.outputEvents.some((entry) => entry.kind === 'append' && /failed to present operator payload/i.test(entry.line)),
+    'expected fail-open payload presentation warning'
+  );
+
   harness.quickPickQueue.push((items) => items.find((item) => item.label === 'Active file'));
   harness.inputQueue.push('file:src/app.ts');
   harness.inputQueue.push('3');
@@ -130,7 +196,7 @@ try {
 
   await harness.runCommand('pairofcleats.riskExplain');
 
-  assert.deepEqual(harness.spawnCalls[1].args, [
+  assert.deepEqual(harness.spawnCalls.at(-2)?.args, [
     path.join(repoRoot, 'bin', 'pairofcleats.js'),
     '--trace',
     'context-pack',
@@ -143,7 +209,7 @@ try {
     '0',
     '--includeRisk'
   ]);
-  assert.deepEqual(harness.spawnCalls[2].args, [
+  assert.deepEqual(harness.spawnCalls.at(-1)?.args, [
     path.join(repoRoot, 'bin', 'pairofcleats.js'),
     '--trace',
     'risk',

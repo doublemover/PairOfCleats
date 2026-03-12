@@ -2,9 +2,12 @@ const vscode = require('vscode');
 const cp = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
-const { pathToFileURL } = require('node:url');
 const { EventEmitter: NodeEventEmitter } = require('node:events');
 const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
+const {
+  renderCompositeContextPack,
+  renderRiskExplain
+} = require('./analysis-renderers.js');
 const {
   readSearchOptions,
   buildSearchArgs,
@@ -691,6 +694,14 @@ async function resolveRepoContext({ pathHint = null, preferSelectedRepo = true, 
   const activeCandidate = !pathHint
     ? candidates.find((candidate) => candidate.source === 'active-editor') || null
     : null;
+  if (
+    allowRemote
+    && activeCandidate
+    && activeCandidate.workspaceUri?.scheme
+    && activeCandidate.workspaceUri.scheme !== 'file'
+  ) {
+    return { ok: true, ...activeCandidate, source: 'active-editor' };
+  }
   if (pathHintCandidate) {
     return { ok: true, ...pathHintCandidate, source: 'path-hint' };
   }
@@ -1730,6 +1741,17 @@ function looksLikeRepoRelativePathCandidate(value, repoContext) {
   return true;
 }
 
+function resolveRepoRelativePathSeed(value, repoContext) {
+  const text = String(value || '').trim();
+  if (!looksLikeRepoRelativePathCandidate(text, repoContext)) return '';
+  const resolved = path.isAbsolute(text)
+    ? path.resolve(text)
+    : path.resolve(repoContext.repoRoot, text);
+  const relative = path.relative(repoContext.repoRoot, resolved);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return '';
+  return toPosixPath(relative);
+}
+
 function buildSeedRefCandidates(repoContext) {
   const candidates = [];
   const seen = new Set();
@@ -1746,7 +1768,10 @@ function buildSeedRefCandidates(repoContext) {
     } else if (looksLikeChunkUid(selection)) {
       pushCandidate(selection.startsWith('chunk:') ? selection : `chunk:${selection}`, 'Active selection', selection);
     } else if (looksLikeRepoRelativePathCandidate(selection, repoContext)) {
-      pushCandidate(`file:${toPosixPath(selection)}`, 'Active selection', selection);
+      const relativeSeedPath = resolveRepoRelativePathSeed(selection, repoContext);
+      if (relativeSeedPath) {
+        pushCandidate(`file:${relativeSeedPath}`, 'Active selection', selection);
+      }
     }
   }
   const symbol = getSymbolSearchQuery();
@@ -1976,19 +2001,6 @@ async function promptContextPackInput(repoContext) {
   };
 }
 
-async function loadAnalysisRenderers() {
-  if (!loadAnalysisRenderers.promise) {
-    loadAnalysisRenderers.promise = Promise.all([
-      import(pathToFileURL(path.join(__dirname, '..', '..', 'src', 'retrieval', 'output', 'composite-context-pack.js')).href),
-      import(pathToFileURL(path.join(__dirname, '..', '..', 'src', 'retrieval', 'output', 'risk-explain.js')).href)
-    ]).then(([contextPackModule, riskExplainModule]) => ({
-      renderCompositeContextPack: contextPackModule.renderCompositeContextPack,
-      renderRiskExplain: riskExplainModule.renderRiskExplain
-    }));
-  }
-  return loadAnalysisRenderers.promise;
-}
-
 function sanitizeExportName(value, fallback = 'export') {
   const sanitized = String(value || '')
     .trim()
@@ -2032,14 +2044,12 @@ function renderRiskExplainMarkdownDocument(payload, renderRiskExplain) {
 
 async function buildOperatorPresentation(spec, payload, inputContext) {
   if (spec.id === 'pairofcleats.contextPack') {
-    const { renderCompositeContextPack } = await loadAnalysisRenderers();
     return {
       markdown: renderCompositeContextPack(payload),
       json: JSON.stringify(payload, null, 2)
     };
   }
   if (spec.id === 'pairofcleats.riskExplain') {
-    const { renderRiskExplain } = await loadAnalysisRenderers();
     return {
       markdown: renderRiskExplainMarkdownDocument(payload, renderRiskExplain),
       json: JSON.stringify(payload, null, 2)
@@ -3165,8 +3175,16 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
   appendOutputLines(output, summarizeOperatorPayload(spec, result.payload));
   output.appendLine('- raw-json:');
   appendJsonBlock(output, result.payload);
-  await maybeOpenOperatorArtifacts(spec, result.payload, repoContext, output);
-  await presentOperatorPayload(spec, result.payload, repoContext, invocation.inputContext || null, output);
+  try {
+    await maybeOpenOperatorArtifacts(spec, result.payload, repoContext, output);
+  } catch (err) {
+    output.appendLine(`- warning: failed to open operator artifacts: ${err?.message || err}`);
+  }
+  try {
+    await presentOperatorPayload(spec, result.payload, repoContext, invocation.inputContext || null, output);
+  } catch (err) {
+    output.appendLine(`- warning: failed to present operator payload: ${err?.message || err}`);
+  }
   output.show?.(true);
   const summaryLines = summarizeOperatorPayload(spec, result.payload);
   await finishWorkflowSession(session.sessionId, {
@@ -4049,6 +4067,7 @@ module.exports = {
     resolveExecutionMode,
     resolveRepoContext,
     resolvePassiveRepoContext,
+    resolveRepoRelativePathSeed,
     runOperatorCommand,
     executeOperatorWorkflow,
     runSavedSearchInvocation,

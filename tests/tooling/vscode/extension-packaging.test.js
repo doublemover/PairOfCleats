@@ -32,6 +32,7 @@ const paths = Array.isArray(manifest.entries) ? manifest.entries.map((entry) => 
 const requiredEntries = [
   'extension/package.json',
   'extension/extension.js',
+  'extension/analysis-renderers.js',
   'extension/README.md',
   'extension/walkthroughs/first-search.md',
   'extension/walkthroughs/operations.md'

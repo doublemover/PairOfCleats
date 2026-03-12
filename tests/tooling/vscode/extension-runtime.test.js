@@ -110,6 +110,23 @@ assert.equal(persistedSelectedContext.ok, true);
 assert.equal(persistedSelectedContext.repoRoot, otherWorkspace.root);
 assert.equal(persistedSelectedContext.source, 'selected-repo');
 
+persistedHarness.setWorkspaceFolders([
+  { name: 'local', path: workspace.root },
+  {
+    name: 'remote',
+    uri: { scheme: 'vscode-remote', fsPath: '/workspace/remote', path: '/workspace/remote' }
+  }
+]);
+persistedHarness.setActiveEditor({
+  document: {
+    uri: { scheme: 'vscode-remote', fsPath: '/workspace/remote/src/app.ts', path: '/workspace/remote/src/app.ts' }
+  }
+});
+const remotePreferredContext = await persistedHarness.extension._test.resolveRepoContext({ allowRemote: true });
+assert.equal(remotePreferredContext.ok, true);
+assert.equal(remotePreferredContext.source, 'active-editor');
+assert.equal(remotePreferredContext.workspaceUri.scheme, 'vscode-remote');
+
 const remoteFolder = {
   name: 'remote',
   uri: { scheme: 'vscode-remote', fsPath: '/workspace/repo', path: '/workspace/repo' }
