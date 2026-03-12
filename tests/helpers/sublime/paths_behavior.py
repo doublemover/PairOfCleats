@@ -54,6 +54,31 @@ class PathsBehaviorTests(unittest.TestCase):
             self.assertEqual(chosen['root'], os.path.abspath(repo_b))
             self.assertIn('Using selected repo', chosen['reason'])
 
+    def test_strict_resolution_with_external_hint_keeps_repo_choices(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_a = os.path.join(tmp, 'repo-a')
+            repo_b = os.path.join(tmp, 'repo-b')
+            outside = os.path.join(tmp, 'outside', 'file.txt')
+            os.makedirs(os.path.join(repo_a, '.git'))
+            os.makedirs(os.path.join(repo_b, '.git'))
+            os.makedirs(os.path.dirname(outside))
+            with open(outside, 'w', encoding='utf-8') as handle:
+                handle.write('outside\n')
+            self.window.set_folders([repo_a, repo_b])
+            chosen = {}
+            self.paths.resolve_repo_root_interactive(
+                self.window,
+                lambda root, reason: chosen.update({'root': root, 'reason': reason}),
+                path_hint=outside,
+                allow_fallback=False,
+                prompt='PairOfCleats repo',
+            )
+            self.assertIsNotNone(self.window.quick_panel_items)
+            self.assertEqual(len(self.window.quick_panel_items), 2)
+            self.window.quick_panel_callback(0)
+            self.assertEqual(chosen['root'], os.path.abspath(repo_a))
+            self.assertIn('Using selected repo', chosen['reason'])
+
     def test_strict_resolution_fails_closed_without_repo(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder = os.path.join(tmp, 'workspace')

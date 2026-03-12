@@ -141,6 +141,31 @@ class SearchBehaviorTests(unittest.TestCase):
         self.assertIn('7', self.runner_calls[0]['args'])
         self.assertIsNotNone(self.window.quick_panel_items)
 
+    def test_symbol_lookup_ignores_temporal_defaults(self):
+        self.search.config.get_settings = lambda _window: {
+            'index_mode_default': 'both',
+            'search_backend_default': '',
+            'search_limit': 25,
+            'search_ann_default': True,
+            'search_allow_sparse_fallback': True,
+            'search_as_of_default': 'snap:baseline',
+            'search_snapshot_default': 'snap-123',
+            'search_filter_default': '',
+            'search_advanced_defaults': {},
+            'open_results_in': 'quick_panel',
+            'results_buffer_threshold': 50,
+            'history_limit': 25,
+            'api_server_url': 'http://127.0.0.1:7464',
+            'api_timeout_ms': 5000,
+            'api_execution_mode': 'prefer',
+        }
+        self.search.api_client.search_json = self._search_json_success
+        self.search.api_client.run_async = self._run_api_immediate
+        self.search._execute_symbol_lookup(self.window, 'buildWidget', lambda _hits, _repo_root, _resolved: None)
+        self.assertEqual(len(self.api_calls), 1)
+        self.assertIsNone(self.api_calls[0]['as_of'])
+        self.assertIsNone(self.api_calls[0]['snapshot'])
+
     def test_require_api_blocks_unsupported_explain(self):
         self.search.config.get_settings = lambda _window: {
             'index_mode_default': 'both',

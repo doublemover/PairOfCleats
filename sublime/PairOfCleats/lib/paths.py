@@ -127,7 +127,7 @@ def _describe_repo_root(window, path_hint=None, allow_fallback=True):
         return {
             'selected_root': None,
             'reason': 'Repo root not found for the requested path. Choose a repo folder with .pairofcleats.json or .git.',
-            'repo_roots': [],
+            'repo_roots': repo_roots,
         }
     if len(repo_roots) == 1:
         return {'selected_root': repo_roots[0]['root'], 'reason': None, 'repo_roots': repo_roots}
@@ -143,7 +143,7 @@ def _describe_repo_root(window, path_hint=None, allow_fallback=True):
             return {
                 'selected_root': None,
                 'reason': 'Repo root not found for the requested path. Choose a repo folder with .pairofcleats.json or .git.',
-                'repo_roots': [],
+                'repo_roots': repo_roots,
             }
         if folders:
             return {

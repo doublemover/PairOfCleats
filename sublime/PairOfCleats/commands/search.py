@@ -498,7 +498,12 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
         ui.show_error(message)
         return
 
-    resolved = _resolve_defaults(settings, {'mode': 'code', 'limit': limit})
+    resolved = _resolve_defaults(settings, {
+        'mode': 'code',
+        'limit': limit,
+        'as_of': '',
+        'snapshot': '',
+    })
     execution = config.resolve_execution_mode(settings, 'search-symbol')
     if execution.get('error'):
         ui.show_error(execution['error'])

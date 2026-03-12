@@ -1004,7 +1004,7 @@ class PairOfCleatsImpactCommand(sublime_plugin.WindowCommand):
         )
 
     def _execute(self, seed, changed, direction, depth, export_json, out_path):
-        context = _resolve_cli_context(self.window, workflow='suggest-tests')
+        context = _resolve_cli_context(self.window, workflow='impact')
         if not context:
             return
         repo_root = context['repo_root']

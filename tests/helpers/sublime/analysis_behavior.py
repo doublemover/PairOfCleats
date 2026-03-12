@@ -36,6 +36,7 @@ class AnalysisBehaviorTests(unittest.TestCase):
         self.view.set_window(self.window)
         self.window.set_active_view(self.view)
         self.runner_calls = []
+        self.validation_calls = []
         self._originals = {
             'get_settings': self.analysis.config.get_settings,
             'validate_settings': self.analysis.config.validate_settings,
@@ -49,7 +50,7 @@ class AnalysisBehaviorTests(unittest.TestCase):
             'api_server_url': '',
             'api_timeout_ms': 5000,
         }
-        self.analysis.config.validate_settings = lambda _settings, _repo_root, workflow=None: []
+        self.analysis.config.validate_settings = self._validate_settings
         self.analysis.paths.resolve_repo_root = (
             lambda _window, return_reason=True, path_hint=None, allow_fallback=True: (self.fixture_repo, None)
             if return_reason else self.fixture_repo
@@ -162,6 +163,7 @@ class AnalysisBehaviorTests(unittest.TestCase):
         )
         opened = self.window.opened_files[-1]['path'].replace('\\', '/')
         self.assertIn('src/util.js', opened)
+        self.assertIn('impact', self.validation_calls)
 
         self.analysis.PairOfCleatsSuggestTestsCommand(self.window).run(
             changed=['src/index.js'],
@@ -177,6 +179,7 @@ class AnalysisBehaviorTests(unittest.TestCase):
             action='copy_path',
         )
         self.assertTrue(self.sublime.clipboard.replace('\\', '/').endswith('tests/app.test.js'))
+        self.assertIn('suggest-tests', self.validation_calls)
 
     def test_workspace_commands_render_and_reopen(self):
         workspace_path = os.path.join(self.fixture_repo, '.pairofcleats-workspace.jsonc')
@@ -316,6 +319,10 @@ class AnalysisBehaviorTests(unittest.TestCase):
         payload = self._payload_for_args(args)
         if on_done:
             on_done(_FakeResult(payload))
+
+    def _validate_settings(self, _settings, _repo_root, workflow=None):
+        self.validation_calls.append(workflow)
+        return []
 
     def _payload_for_args(self, args):
         args = list(args or [])
