@@ -55,9 +55,36 @@ class RunnerBehaviorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0)
             self.assertIsNone(result.error)
             self.assertEqual(result.payload, {'ok': True, 'value': 7})
+            self.assertEqual(result.state, 'done')
             self.assertIn('warning on stderr', result.output)
+            self.assertIn('warning on stderr', result.stderr)
             panel = self.window.panels['pairofcleats-test']
             self.assertIn('warning on stderr', panel.appended)
+
+    def test_capture_json_reports_parse_failure_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = os.path.join(tmp, 'emit_invalid_json.py')
+            with open(script_path, 'w', encoding='utf-8') as handle:
+                handle.write('import sys\nsys.stdout.write("{invalid json}")\n')
+
+            result_holder = {}
+            done = threading.Event()
+
+            self.runner.run_process(
+                sys.executable,
+                [script_path],
+                window=self.window,
+                capture_json=True,
+                stream_output=False,
+                on_done=lambda result: (result_holder.update({'result': result}), done.set()),
+            )
+
+            self.assertTrue(done.wait(5), 'runner did not complete in time')
+            result = result_holder['result']
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(result.state, 'parse_failed')
+            self.assertIsNone(result.payload)
+            self.assertIn('Failed to parse JSON output', result.error)
 
     def test_cancel_terminates_running_process_and_updates_progress(self):
         proc = _FakeLongRunningProcess(wait_seconds=0.2)
@@ -74,6 +101,7 @@ class RunnerBehaviorTests(unittest.TestCase):
         handle.cancel()
         self.assertTrue(done.wait(5), 'cancelled runner did not complete in time')
         self.assertEqual(proc.terminated, 1)
+        self.assertEqual(proc.killed, 0)
         panel = self.window.panels[self.tasks.TASK_PANEL]
         self.assertIn('[cancelled] pairofcleats search', panel.appended.lower())
 
@@ -113,6 +141,58 @@ class RunnerBehaviorTests(unittest.TestCase):
         show_panel_commands = [entry for entry in self.window.commands if entry['name'] == 'show_panel']
         self.assertEqual(show_panel_commands, [])
 
+    def test_timeout_terminates_running_process_and_sets_state(self):
+        proc = _FakeLongRunningProcess(wait_seconds=0.2)
+        result_holder = {}
+        done = threading.Event()
+        self.runner.run_process(
+            'fake-command',
+            [],
+            window=self.window,
+            title='PairOfCleats search',
+            stream_output=False,
+            timeout_ms=20,
+            spawn_process=lambda *args, **kwargs: proc,
+            on_done=lambda result: (result_holder.update({'result': result}), done.set()),
+        )
+        self.assertTrue(done.wait(5), 'timed out runner did not complete in time')
+        result = result_holder['result']
+        self.assertEqual(result.state, 'timed_out')
+        self.assertTrue(result.timed_out)
+        self.assertEqual(proc.terminated, 1)
+        self.assertIn('timed out', result.error.lower())
+
+    def test_output_cap_truncates_stdout_stderr_and_combined_output(self):
+        proc = _FakeImmediateProcess(
+            stdout_text=('x' * 200) + '\n',
+            stderr_text=('y' * 200) + '\n',
+            returncode=0,
+        )
+        result_holder = {}
+        done = threading.Event()
+        self.runner.run_process(
+            'fake-command',
+            [],
+            window=self.window,
+            title='PairOfCleats search',
+            capture_json=False,
+            stream_output=True,
+            panel_name='pairofcleats-test',
+            output_cap_chars=80,
+            spawn_process=lambda *args, **kwargs: proc,
+            on_done=lambda result: (result_holder.update({'result': result}), done.set()),
+        )
+        self.assertTrue(done.wait(5), 'runner did not complete in time')
+        result = result_holder['result']
+        self.assertTrue(result.truncated)
+        self.assertTrue(result.stdout_truncated)
+        self.assertTrue(result.stderr_truncated)
+        self.assertIn('[output truncated]', result.output)
+        self.assertIn('[output truncated]', result.stdout)
+        self.assertIn('[output truncated]', result.stderr)
+        panel = self.window.panels['pairofcleats-test']
+        self.assertIn('[output truncated]', panel.appended)
+
 
 class _FakeLongRunningProcess:
     def __init__(self, wait_seconds=0.1):
@@ -139,6 +219,27 @@ class _FakeLongRunningProcess:
     def kill(self):
         self.killed += 1
         self.returncode = -9
+
+
+class _FakeImmediateProcess:
+    def __init__(self, stdout_text='', stderr_text='', returncode=0):
+        self.stdout = io.StringIO(stdout_text)
+        self.stderr = io.StringIO(stderr_text)
+        self.returncode = returncode
+        self.terminated = 0
+        self.killed = 0
+
+    def poll(self):
+        return self.returncode
+
+    def wait(self):
+        return self.returncode
+
+    def terminate(self):
+        self.terminated += 1
+
+    def kill(self):
+        self.killed += 1
 
 
 if __name__ == '__main__':
