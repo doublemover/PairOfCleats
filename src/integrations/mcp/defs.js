@@ -112,6 +112,33 @@ export function getToolDefs(defaultModelId) {
       }
     },
     {
+      name: 'risk_explain',
+      description: 'Explain interprocedural risk flows for a chunk in the current code index.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+          chunk: { type: 'string', description: 'Chunk UID to explain.' },
+          max: { type: 'number', description: 'Maximum number of flows to return.' },
+          filters: {
+            type: 'object',
+            properties: {
+              rule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              category: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              severity: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              tag: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              source: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              sink: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              flowId: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              sourceRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              sinkRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] }
+            }
+          }
+        },
+        required: ['chunk']
+      }
+    },
+    {
       name: 'search_workspace',
       description: 'Run federated search across repos from a workspace configuration.',
       inputSchema: {

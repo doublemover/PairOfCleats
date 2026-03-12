@@ -42,4 +42,21 @@ const output = getCombinedOutput(result, { trim: true });
 assert.ok(output.includes(flow.flowId), 'expected output to include flowId');
 assert.ok(output.includes('src/index.js'), 'expected output to include fixture file path');
 
+const filteredResult = spawnSync(
+  process.execPath,
+  [binPath, 'risk', 'explain', '--index', codeDir, '--chunk', chunkUid, '--max', '5', '--flow-id', flow.flowId],
+  { encoding: 'utf8', env }
+);
+assert.equal(filteredResult.status, 0, 'expected filtered risk explain run to succeed');
+const filteredOutput = getCombinedOutput(filteredResult, { trim: true });
+assert.ok(filteredOutput.includes(flow.flowId), 'expected filtered output to include requested flow');
+
+const emptyResult = spawnSync(
+  process.execPath,
+  [binPath, 'risk', 'explain', '--index', codeDir, '--chunk', chunkUid, '--max', '5', '--flow-id', 'sha1:missing'],
+  { encoding: 'utf8', env }
+);
+assert.equal(emptyResult.status, 0, 'expected empty filtered risk explain run to succeed');
+assert.match(getCombinedOutput(emptyResult, { trim: true }), /No interprocedural flows found/, 'expected empty filtered result message');
+
 console.log('risk explain CLI test passed');

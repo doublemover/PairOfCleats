@@ -5,7 +5,7 @@ import { getCapabilities } from '../../src/shared/capabilities.js';
 import { runFederatedSearch } from '../../src/retrieval/federation/coordinator.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { resolveFederationCacheRoot } from '../../src/workspace/manifest.js';
-import { createFederatedSearchValidator, createSearchValidator } from './validation.js';
+import { createFederatedSearchValidator, createRiskExplainValidator, createSearchValidator } from './validation.js';
 import { sendError, sendJson } from './response.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import { getToolVersion, isWithinRoot, toRealPathSync } from '../shared/dict-utils.js';
@@ -17,6 +17,7 @@ import { createCorsResolver } from './router/cors.js';
 import { createRepoResolver } from './router/paths.js';
 import { handleIndexDiffsRoute } from './router/index-diffs.js';
 import { handleIndexSnapshotsRoute } from './router/index-snapshots.js';
+import { handleRiskExplainRoute } from './router/analysis.js';
 import { buildSearchParams, buildSearchPayloadFromQuery, isNoIndexError } from './router/search.js';
 
 const API_EDITOR_CAPABILITIES = Object.freeze({
@@ -57,6 +58,7 @@ export const createApiRouter = ({
   const toolVersion = getToolVersion() || '0.0.0';
   const validateSearchPayload = createSearchValidator();
   const validateFederatedPayload = createFederatedSearchValidator();
+  const validateRiskExplainPayload = createRiskExplainValidator();
   const { resolveCorsHeaders } = createCorsResolver(cors);
   const { isAuthorized } = createAuthGuard(auth);
   const { parseJsonBody } = createBodyParser({ maxBodyBytes });
@@ -209,6 +211,18 @@ export const createApiRouter = ({
             error: err?.message || String(err)
           }, corsHeaders || {});
         }
+        return;
+      }
+
+      if (requestUrl.pathname === '/analysis/risk-explain' && req.method === 'POST') {
+        await handleRiskExplainRoute({
+          req,
+          res,
+          corsHeaders,
+          parseJsonBody,
+          resolveRepo,
+          validateRiskExplainPayload
+        });
         return;
       }
 

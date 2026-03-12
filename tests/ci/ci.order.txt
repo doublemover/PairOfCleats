@@ -66,6 +66,7 @@ retrieval/filters/ext-path
 retrieval/filters/behavioral
 retrieval/filters/file-and-token/punctuation-tokenization
 services/api/router-smoke
+services/api/risk-explain-filters
 services/api/federated-search-per-repo-top-zero
 tooling/lsp/pyright-preflight-workspace-scan-outlier
 indexing/cache/workspace-concurrency-limits
@@ -89,6 +90,7 @@ tooling/lsp/type-definition-timeout-adaptive
 services/api/federated-search-workspaceid-validation
 indexing/watch/shutdown
 services/api/no-index
+services/mcp/risk-explain
 indexing/watch/atomicity
 tooling/config-inventory/report-format
 indexing/watch/backend-selection

@@ -43,7 +43,7 @@ const renderRisk = (risk) => {
   return renderRiskExplanation(model, {
     title: 'Risk',
     includeSubject: false,
-    includeFilters: false,
+    includeFilters: true,
     maxFlows: 5
   });
 };

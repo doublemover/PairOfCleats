@@ -11,6 +11,11 @@ import {
   normalizeRiskSummary,
   summarizeRiskStats
 } from '../shared/risk-explain.js';
+import {
+  filterRiskFlows,
+  normalizeRiskFilters,
+  validateRiskFilters
+} from '../shared/risk-filters.js';
 import { buildGraphContextPack } from '../graph/context-pack.js';
 import { compareStrings } from '../shared/sort.js';
 import { isRelativePathEscape, readFileRangeSync } from '../shared/files.js';
@@ -567,6 +572,7 @@ const buildRiskSlice = ({
   seedRef,
   primaryChunk,
   chunkIndex,
+  riskFilters = null,
   indexSignature = null,
   indexCompatKey = null,
   warnings,
@@ -848,6 +854,7 @@ const buildRiskSlice = ({
       }),
       caps: riskCaps,
       truncation: [],
+      filters: riskFilters,
       provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus, indexSignature, indexCompatKey }),
       degraded: false
     };
@@ -896,6 +903,7 @@ const buildRiskSlice = ({
       }),
       caps: riskCaps,
       truncation: [],
+      filters: riskFilters,
       provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus, indexSignature, indexCompatKey }),
       degraded: false
     };
@@ -913,7 +921,7 @@ const buildRiskSlice = ({
         maxBytes: MAX_JSON_BYTES,
         strict: true
       });
-      flows = Array.isArray(flowRows)
+      const relevantFlows = Array.isArray(flowRows)
         ? flowRows.filter((flow) => {
           const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
           if (flow?.source?.chunkUid && riskCandidateChunkUids.has(flow.source.chunkUid)) return true;
@@ -921,6 +929,7 @@ const buildRiskSlice = ({
           return chunkUids.some((chunkUid) => riskCandidateChunkUids.has(chunkUid));
         })
         : [];
+      flows = filterRiskFlows(relevantFlows, riskFilters);
     } catch (err) {
       flowsLoadFailed = true;
       const failureClass = classifyRiskLoadFailure(err);
@@ -1289,6 +1298,7 @@ const buildRiskSlice = ({
     status,
     reason: degraded ? 'partial-artifacts' : (stats?.reason || null),
     anchor: selectedAnchor,
+    filters: riskFilters,
     flows: normalizedFlows,
     summary: normalizedSummary,
     stats: summarizeRiskStats(stats),
@@ -1630,6 +1640,7 @@ export const assembleCompositeContextPack = ({
   includeTypes = false,
   includeRisk = false,
   riskStrict = false,
+  riskFilters = null,
   includeImports = true,
   includeUsages = true,
   includeCallersCallees = true,
@@ -1651,6 +1662,13 @@ export const assembleCompositeContextPack = ({
   const warnings = [];
   const truncation = [];
   const seedRef = resolveSeedRef(seed);
+  const normalizedRiskFilters = normalizeRiskFilters(riskFilters);
+  const riskFilterValidation = validateRiskFilters(normalizedRiskFilters);
+  if (!riskFilterValidation.ok) {
+    const error = new Error(`Invalid risk filters: ${riskFilterValidation.errors.join('; ')}`);
+    error.code = 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID';
+    throw error;
+  }
   const resolvedChunkIndex = chunkIndex || buildChunkIndex(chunkMeta);
   const primaryChunk = resolveChunkBySeed(seedRef, resolvedChunkIndex, warnings);
   const primaryRef = resolvePrimaryRef(seedRef, primaryChunk);
@@ -1724,6 +1742,7 @@ export const assembleCompositeContextPack = ({
       seedRef,
       primaryChunk,
       chunkIndex: resolvedChunkIndex,
+      riskFilters: normalizedRiskFilters,
       indexSignature,
       indexCompatKey,
       warnings,

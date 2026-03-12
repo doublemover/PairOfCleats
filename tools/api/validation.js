@@ -153,6 +153,38 @@ const federatedSearchSchema = {
   }
 };
 
+const riskFiltersSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    rule: stringListSchema,
+    category: stringListSchema,
+    severity: stringListSchema,
+    tag: stringListSchema,
+    source: stringListSchema,
+    sink: stringListSchema,
+    flowId: stringListSchema,
+    flow_id: stringListSchema,
+    sourceRule: stringListSchema,
+    source_rule: stringListSchema,
+    sinkRule: stringListSchema,
+    sink_rule: stringListSchema
+  }
+};
+
+const riskExplainSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['chunk'],
+  properties: {
+    repoPath: { type: 'string' },
+    repo: { type: 'string' },
+    chunk: { type: 'string', minLength: 1 },
+    max: { type: 'integer', minimum: 1 },
+    filters: riskFiltersSchema
+  }
+};
+
 const formatValidationErrors = (errors = []) => errors.map((err) => {
   const path = err.instancePath || '#';
   if (err.keyword === 'additionalProperties') {
@@ -181,5 +213,15 @@ export const createFederatedSearchValidator = () => {
     const valid = validateFederatedSearch(payload);
     if (valid) return { ok: true };
     return { ok: false, errors: formatValidationErrors(validateFederatedSearch.errors || []) };
+  };
+};
+
+export const createRiskExplainValidator = () => {
+  const ajv = createAjv({ allErrors: false, strict: false });
+  const validateRiskExplain = compileSchema(ajv, riskExplainSchema);
+  return (payload) => {
+    const valid = validateRiskExplain(payload);
+    if (valid) return { ok: true };
+    return { ok: false, errors: formatValidationErrors(validateRiskExplain.errors || []) };
   };
 };

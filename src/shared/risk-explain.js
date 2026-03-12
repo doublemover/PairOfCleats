@@ -1,4 +1,5 @@
 import { compareStrings } from './sort.js';
+import { normalizeRiskFilters } from './risk-filters.js';
 
 export const summarizeRiskCategories = (summary) => {
   const counts = new Map();
@@ -102,11 +103,7 @@ const normalizeExplainSubject = (subject) => {
 };
 
 const normalizeExplainFilters = (filters) => {
-  if (!filters || typeof filters !== 'object') return null;
-  const sourceRule = filters.sourceRule || filters.source_rule || null;
-  const sinkRule = filters.sinkRule || filters.sink_rule || null;
-  if (!sourceRule && !sinkRule) return null;
-  return { sourceRule, sinkRule };
+  return normalizeRiskFilters(filters);
 };
 
 const normalizeExplainPath = (pathValue, evidence = null) => {
@@ -202,6 +199,6 @@ export const buildRiskExplanationModelFromRiskSlice = (risk, { subject = null, f
   anchor: risk?.anchor || null,
   caps: risk?.caps || null,
   truncation: risk?.truncation || [],
-  filters,
+  filters: filters || risk?.filters || null,
   flows: risk?.flows || []
 });

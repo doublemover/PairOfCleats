@@ -660,6 +660,20 @@ const riskSourceSinkSchema = {
   additionalProperties: false
 };
 
+const riskFiltersSchema = {
+  type: ['object', 'null'],
+  properties: {
+    rule: { type: 'array', items: { type: 'string' } },
+    category: { type: 'array', items: { type: 'string' } },
+    severity: { type: 'array', items: { type: 'string' } },
+    tag: { type: 'array', items: { type: 'string' } },
+    sourceRule: { type: 'array', items: { type: 'string' } },
+    sinkRule: { type: 'array', items: { type: 'string' } },
+    flowId: { type: 'array', items: { type: 'string' } }
+  },
+  additionalProperties: false
+};
+
 const riskCallSiteEvidenceSchema = {
   type: 'object',
   required: ['callSiteId', 'details'],
@@ -933,6 +947,7 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
         reason: nullableString,
         degraded: { type: ['boolean', 'null'] },
         anchor: riskAnchorSchema,
+        filters: riskFiltersSchema,
         summary: riskSummarySchema,
         stats: riskStatsSchema,
         analysisStatus: riskAnalysisStatusSchema,

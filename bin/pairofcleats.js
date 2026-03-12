@@ -778,8 +778,8 @@ function resolveCommand(primary, rest) {
     if (sub === 'explain') {
       validateArgs(
         rest,
-        ['index', 'chunk', 'max', 'source-rule', 'sink-rule', 'json'],
-        ['index', 'chunk', 'max', 'source-rule', 'sink-rule']
+        ['index', 'chunk', 'max', 'rule', 'category', 'severity', 'tag', 'source', 'sink', 'flow-id', 'source-rule', 'sink-rule', 'json'],
+        ['index', 'chunk', 'max', 'rule', 'category', 'severity', 'tag', 'source', 'sink', 'flow-id', 'source-rule', 'sink-rule']
       );
       return { script: 'tools/analysis/explain-risk.js', extraArgs: [], args: rest };
     }

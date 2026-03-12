@@ -304,7 +304,14 @@ const writeManifest = async (indexDir, pieces) => {
   });
 };
 
-const buildPack = async ({ name, stats = null, summaries = null, flows = null, callSites = null }) => {
+const buildPack = async ({
+  name,
+  stats = null,
+  summaries = null,
+  flows = null,
+  callSites = null,
+  riskFilters = null
+}) => {
   const indexDir = path.join(tempRoot, name, 'index-code');
   await fs.rm(indexDir, { recursive: true, force: true });
   await fs.mkdir(indexDir, { recursive: true });
@@ -336,6 +343,7 @@ const buildPack = async ({ name, stats = null, summaries = null, flows = null, c
     includeGraph: false,
     includeTypes: false,
     includeRisk: true,
+    riskFilters,
     includeImports: false,
     includeUsages: false,
     includeCallersCallees: false
@@ -523,5 +531,50 @@ const longExcerptPack = await buildPack({
 assert.equal(longExcerptPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerptTruncated, true, 'expected long call-site excerpt to truncate');
 assert.ok(longExcerptPack.risk?.caps?.hits?.includes('maxCallSiteExcerptBytes'), 'expected call-site excerpt byte cap hit');
 assert.ok(longExcerptPack.risk?.truncation?.some((entry) => entry.cap === 'maxCallSiteExcerptBytes'), 'expected call-site excerpt truncation record');
+
+const filteredPack = await buildPack({
+  name: 'filtered',
+  stats: baseStats,
+  summaries: [summaryRow],
+  flows: [flowRow, rankedPathOnlyFlow],
+  callSites: [callSiteRow],
+  riskFilters: {
+    flowId: flowRow.flowId,
+    severity: 'high',
+    sourceRule: 'source.req.body',
+    sinkRule: 'sink.sql.query'
+  }
+});
+assert.deepEqual(filteredPack.risk?.filters, {
+  rule: [],
+  category: [],
+  severity: ['high'],
+  tag: [],
+  source: [],
+  sink: [],
+  sourceRule: ['source.req.body'],
+  sinkRule: ['sink.sql.query'],
+  flowId: [flowRow.flowId]
+});
+assert.deepEqual(filteredPack.risk?.flows?.map((flow) => flow.flowId), [flowRow.flowId], 'expected risk filters to narrow emitted flows');
+
+assert.throws(
+  () => assembleCompositeContextPack({
+    seed: { type: 'chunk', chunkUid: 'chunk-risk' },
+    chunkMeta,
+    repoRoot,
+    indexDir: path.join(tempRoot, 'full', 'index-code'),
+    indexCompatKey: 'compat-test',
+    now: fixedNow,
+    includeGraph: false,
+    includeTypes: false,
+    includeRisk: true,
+    riskFilters: { severity: 'urgent' },
+    includeImports: false,
+    includeUsages: false,
+    includeCallersCallees: false
+  }),
+  /Invalid risk filters/
+);
 
 console.log('context pack risk assembly test passed');
