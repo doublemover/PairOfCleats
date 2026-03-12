@@ -349,8 +349,8 @@ const createSearchWorker = ({
 
   const terminateChild = (targetChild, signal = 'SIGTERM') => {
     const pid = Number(targetChild?.pid);
-    if (!Number.isFinite(pid)) return;
-    void killProcessTree(pid, {
+    if (!Number.isFinite(pid)) return Promise.resolve();
+    return killProcessTree(pid, {
       signal,
       forceSignal: signal === 'SIGKILL' ? undefined : 'SIGKILL',
       graceMs: 250,
@@ -522,8 +522,8 @@ const createSearchWorker = ({
       } catch {
         finish();
       }
-      timeout = setTimeout(() => {
-        terminateChild(targetChild, 'SIGTERM');
+      timeout = setTimeout(async () => {
+        await terminateChild(targetChild, 'SIGTERM');
         finish();
       }, Math.max(250, Math.floor(shutdownTimeoutMs)));
       timeout.unref?.();

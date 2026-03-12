@@ -249,6 +249,51 @@ await queuedClosePool.close();
 await queuedRunAAssertion;
 await queuedRunBAssertion;
 
+const stubbornShutdownScriptPath = path.join(tempRoot, 'stubborn-shutdown-worker.js');
+await fs.writeFile(stubbornShutdownScriptPath, [
+  "if (typeof process.send !== 'function') process.exit(2);",
+  "let activeTimer = null;",
+  "process.on('SIGTERM', () => {",
+  "  setTimeout(() => process.exit(0), 150);",
+  "});",
+  "process.on('message', (message) => {",
+  "  if (message?.type === 'shutdown') return;",
+  "  if (message?.type !== 'run') return;",
+  "  const id = Number(message.id);",
+  "  process.send({ type: 'run-start', id, elapsedMs: 0 });",
+  "  activeTimer = setTimeout(() => {",
+  "    process.send({ type: 'run-heartbeat', id, elapsedMs: 500, rssBytes: 16 * 1024 * 1024 });",
+  "  }, 500);",
+  "});"
+].join('\n'), 'utf8');
+
+const stubbornEvents = [];
+const stubbornPool = createSearchWorkerPool({
+  size: 1,
+  env: { ...process.env },
+  workerScriptPath: stubbornShutdownScriptPath,
+  heartbeatMs: 20,
+  stallWarnMs: 1000,
+  stallTimeoutMs: 2000,
+  onEvent: (event) => stubbornEvents.push(event)
+});
+const stubbornRun = stubbornPool.run(['--slow'], { backend: 'sqlite', query: 'stubborn close' });
+const stubbornRunAssertion = assert.rejects(
+  () => stubbornRun,
+  (error) => error?.code === 'ERR_QUERY_WORKER_CLOSED'
+);
+await new Promise((resolve) => setTimeout(resolve, 40));
+const stubbornPid = stubbornEvents.find((event) => event?.type === 'run-start')?.pid ?? null;
+await stubbornPool.close();
+await stubbornRunAssertion;
+if (Number.isFinite(stubbornPid)) {
+  assert.throws(
+    () => process.kill(stubbornPid, 0),
+    /ESRCH|EPERM/,
+    'expected pool close to wait for forced worker shutdown before resolving'
+  );
+}
+
 const staleExitScriptPath = path.join(tempRoot, 'stale-exit-worker.js');
 const staleExitMarkerPath = path.join(tempRoot, 'stale-exit-marker.txt');
 await fs.writeFile(staleExitScriptPath, [
