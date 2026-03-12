@@ -549,7 +549,9 @@ export const createSourcekitProvider = () => ({
       invalidateProbeCacheOnInitializeFailure({
         checks: result?.checks,
         providerId: 'sourcekit',
-        command: resolvedCmd
+        command: resolvedCmd,
+        args: resolvedArgs,
+        toolingConfig: ctx?.toolingConfig || null
       });
 
       logHoverMetrics(log, result.hoverMetrics);

@@ -781,7 +781,9 @@ const createConfiguredLspProvider = (server) => {
     invalidateProbeCacheOnInitializeFailure({
       checks: resultChecks,
       providerId: server.id || providerId,
-      command: resolvedCmd
+      command: resolvedCmd,
+      args: resolvedArgs,
+      toolingConfig: ctx?.toolingConfig || null
     });
     if (server.rustSuppressProcMacroDiagnostics) {
       const suppression = applyRustProcMacroSuppression(diagnosticsByChunkUid);

@@ -19,7 +19,7 @@ const tempRoot = await createLspProviderTempRepo({
 });
 const fixtureJdtlsCmd = resolveLspFixtureCommand('jdtls', { repoRoot: root });
 const workspaceDataDir = path.join(tempRoot, '.jdtls-workspace');
-const workspaceLockPath = path.join(workspaceDataDir, '.workspace.bootstrap.lock.json');
+const workspaceLockPath = path.join(workspaceDataDir, '.workspace.runtime.lock.json');
 const lock = await acquireFileLock({
   lockPath: workspaceLockPath,
   waitMs: 0,

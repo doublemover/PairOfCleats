@@ -30,6 +30,10 @@ const resolveWorkspaceBootstrapLockPath = (workspaceDataDir) => (
   path.join(String(workspaceDataDir || ''), '.workspace.bootstrap.lock.json')
 );
 
+const resolveWorkspaceRuntimeLockPath = (workspaceDataDir) => (
+  path.join(String(workspaceDataDir || ''), '.workspace.runtime.lock.json')
+);
+
 const resolveLaunchArgValue = (args, flag) => {
   const normalized = Array.isArray(args) ? args.map((entry) => String(entry || '')) : [];
   const index = normalized.findIndex((entry) => entry === flag);
@@ -226,8 +230,33 @@ export const createJdtlsProvider = () => createDedicatedLspProvider({
         await fsPromises.mkdir(workspaceDataDir, { recursive: true });
       } catch {}
     }
+    const runtimeLock = await acquireFileLock({
+      lockPath: resolveWorkspaceRuntimeLockPath(workspaceDataDir),
+      waitMs: 0,
+      pollMs: 25,
+      staleMs: 5 * 60 * 1000,
+      signal: ctx?.abortSignal || null,
+      metadata: { scope: 'jdtls-workspace-runtime' },
+      forceStaleCleanup: true
+    });
+    if (!runtimeLock) {
+      return {
+        skip: true,
+        checks: [{
+          name: 'jdtls_workspace_lock_unavailable',
+          status: 'warn',
+          message: 'jdtls workspace runtime lock unavailable; skipping dedicated provider.'
+        }]
+      };
+    }
     return {
-      args: ensureWorkspaceDataArg(commandProfile.resolved.args || requested.args, workspaceDataDir)
+      args: ensureWorkspaceDataArg(commandProfile.resolved.args || requested.args, workspaceDataDir),
+      collectOptions: {
+        sessionPoolingEnabled: false
+      },
+      cleanup: async () => {
+        await releaseFileLockOrThrow(runtimeLock);
+      }
     };
   }
 });

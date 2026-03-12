@@ -732,7 +732,9 @@ export const createClangdProvider = () => ({
     invalidateProbeCacheOnInitializeFailure({
       checks: result?.checks,
       providerId: 'clangd',
-      command: resolvedCmd
+      command: resolvedCmd,
+      args: resolvedArgs,
+      toolingConfig: ctx?.toolingConfig || null
     });
     return {
       provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },

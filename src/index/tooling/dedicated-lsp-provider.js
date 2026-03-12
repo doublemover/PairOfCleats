@@ -190,10 +190,14 @@ const shouldBlockProviderFromPreflight = (preflight) => {
  *   }) => Promise<{
  *     args?: string[],
  *     checks?: Array<{name: string, status: string, message: string}>,
+ *     skip?: boolean,
+ *     cleanup?: (() => Promise<void> | void) | null,
  *     collectOptions?: Record<string, unknown>
  *   } | null> | {
  *     args?: string[],
  *     checks?: Array<{name: string, status: string, message: string}>,
+ *     skip?: boolean,
+ *     cleanup?: (() => Promise<void> | void) | null,
  *     collectOptions?: Record<string, unknown>
  *   } | null
  * }} descriptor
@@ -281,6 +285,7 @@ export const createDedicatedLspProvider = (descriptor) => {
 
       let resolvedArgs = runtimeCommand.args;
       let collectOptions = {};
+      let collectCleanup = null;
       if (typeof descriptor.prepareCollect === 'function') {
         const prepared = await descriptor.prepareCollect({
           ctx,
@@ -291,6 +296,12 @@ export const createDedicatedLspProvider = (descriptor) => {
         });
         if (Array.isArray(prepared?.args)) resolvedArgs = prepared.args;
         if (Array.isArray(prepared?.checks) && prepared.checks.length) checks.push(...prepared.checks);
+        if (prepared?.skip === true) {
+          return buildBaseResult(providerRef, checks);
+        }
+        if (typeof prepared?.cleanup === 'function') {
+          collectCleanup = prepared.cleanup;
+        }
         if (prepared?.collectOptions && typeof prepared.collectOptions === 'object') {
           collectOptions = { ...prepared.collectOptions };
         }
@@ -308,33 +319,42 @@ export const createDedicatedLspProvider = (descriptor) => {
         ? config.initializationOptions
         : null;
 
-      const result = await collectLspTypes({
-        ...runtimeConfig,
-        rootDir: ctx.repoRoot,
-        documents: docs,
-        targets,
-        abortSignal: ctx?.abortSignal || null,
-        log: getLogger(ctx),
-        providerId: descriptor.id,
-        cmd: resolvedCmd,
-        args: resolvedArgs,
-        parseSignature: descriptor.parseSignature,
-        strict: ctx?.strict !== false,
-        vfsRoot: ctx?.buildRoot || ctx.repoRoot,
-        vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
-        vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
-        vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
-        indexDir: ctx?.buildRoot || null,
-        cacheRoot: ctx?.cache?.dir || null,
-        initializationOptions,
-        captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
-        ...collectOptions
-      });
-      invalidateProbeCacheOnInitializeFailure({
-        checks: result?.checks,
-        providerId: descriptor.id,
-        command: resolvedCmd
-      });
+      let result;
+      try {
+        result = await collectLspTypes({
+          ...runtimeConfig,
+          rootDir: ctx.repoRoot,
+          documents: docs,
+          targets,
+          abortSignal: ctx?.abortSignal || null,
+          log: getLogger(ctx),
+          providerId: descriptor.id,
+          cmd: resolvedCmd,
+          args: resolvedArgs,
+          parseSignature: descriptor.parseSignature,
+          strict: ctx?.strict !== false,
+          vfsRoot: ctx?.buildRoot || ctx.repoRoot,
+          vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
+          vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
+          vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
+          indexDir: ctx?.buildRoot || null,
+          cacheRoot: ctx?.cache?.dir || null,
+          initializationOptions,
+          captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
+          ...collectOptions
+        });
+        invalidateProbeCacheOnInitializeFailure({
+          checks: result?.checks,
+          providerId: descriptor.id,
+          command: resolvedCmd,
+          args: resolvedArgs,
+          toolingConfig: ctx?.toolingConfig || null
+        });
+      } finally {
+        if (typeof collectCleanup === 'function') {
+          await Promise.resolve(collectCleanup());
+        }
+      }
 
       return {
         provider: providerRef,

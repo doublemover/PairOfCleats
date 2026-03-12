@@ -402,7 +402,9 @@ export const createPyrightProvider = () => ({
     invalidateProbeCacheOnInitializeFailure({
       checks: result?.checks,
       providerId: 'pyright',
-      command: resolvedCmd
+      command: resolvedCmd,
+      args: resolvedArgs,
+      toolingConfig: ctx?.toolingConfig || null
     });
     return {
       provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },

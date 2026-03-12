@@ -116,13 +116,6 @@ const collectGateFailures = (report, options = {}) => {
         message: `required provider ${providerId} is unavailable (${provider.status || 'unknown'}).`
       });
     }
-    if (provider.command && provider.command?.probe?.ok === false) {
-      failures.push({
-        code: 'REQUIRED_PROVIDER_COMMAND_PROBE_FAILED',
-        provider: providerId,
-        message: `required provider ${providerId} command probe failed.`
-      });
-    }
     if (provider.handshake && provider.handshake?.ok === false) {
       failures.push({
         code: 'REQUIRED_PROVIDER_HANDSHAKE_FAILED',

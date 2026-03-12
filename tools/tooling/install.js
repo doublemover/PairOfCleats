@@ -4,7 +4,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
 import { resolveEnvPath } from '../../src/shared/env-path.js';
 import path from 'node:path';
-import { probeCommand, runCommand } from '../shared/cli-utils.js';
+import { exitLikeCommandResult, probeCommand, runCommand } from '../shared/cli-utils.js';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
 import { splitPathEntries } from '../../src/index/tooling/binary-utils.js';
 import { getToolingConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
@@ -175,14 +175,7 @@ for (const action of actions) {
   };
   const result = runInstallCommand(command, action.args, spawnOpts);
   if (typeof result.signal === 'string' && result.signal.trim()) {
-    results.push({
-      id: action.id,
-      status: 'failed',
-      exitCode: 1,
-      error: `terminated by signal ${result.signal}`,
-      docs: action.docs
-    });
-    continue;
+    exitLikeCommandResult({ status: null, signal: result.signal });
   }
   if (result.ok !== true) {
     const exitCode = Number.isInteger(result.status) ? Number(result.status) : 1;
