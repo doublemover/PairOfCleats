@@ -58,6 +58,8 @@
     "onCommand:pairofcleats.architectureCheck",
     "onCommand:pairofcleats.impact",
     "onCommand:pairofcleats.suggestTests",
+    "onCommand:pairofcleats.contextPack",
+    "onCommand:pairofcleats.riskExplain",
     "onCommand:pairofcleats.workspaceManifest",
     "onCommand:pairofcleats.workspaceStatus",
     "onCommand:pairofcleats.workspaceBuild",
@@ -179,6 +181,14 @@
         "title": "PairOfCleats: Suggest Tests"
       },
       {
+        "command": "pairofcleats.contextPack",
+        "title": "PairOfCleats: Context Pack"
+      },
+      {
+        "command": "pairofcleats.riskExplain",
+        "title": "PairOfCleats: Risk Explain"
+      },
+      {
         "command": "pairofcleats.workspaceManifest",
         "title": "PairOfCleats: Workspace Manifest"
       },
@@ -294,6 +304,14 @@
           "when": "workbenchState != empty"
         },
         {
+          "command": "pairofcleats.contextPack",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.riskExplain",
+          "when": "workbenchState != empty"
+        },
+        {
           "command": "pairofcleats.indexBuild",
           "when": "workbenchState != empty"
         },
@@ -357,6 +375,16 @@
           "command": "pairofcleats.explainSearch",
           "when": "editorTextFocus",
           "group": "navigation@12"
+        },
+        {
+          "command": "pairofcleats.contextPack",
+          "when": "editorTextFocus",
+          "group": "navigation@13"
+        },
+        {
+          "command": "pairofcleats.riskExplain",
+          "when": "editorTextFocus",
+          "group": "navigation@14"
         }
       ],
       "view/title": [

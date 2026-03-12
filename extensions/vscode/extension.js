@@ -2,6 +2,7 @@ const vscode = require('vscode');
 const cp = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { EventEmitter: NodeEventEmitter } = require('node:events');
 const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
 const {
@@ -1706,6 +1707,123 @@ function getSymbolSearchQuery() {
   return String(document.getText(range) || '').trim();
 }
 
+function looksLikeSeedRef(value) {
+  return /^(chunk|symbol|file):/i.test(String(value || '').trim());
+}
+
+function looksLikeChunkUid(value) {
+  const text = String(value || '').trim();
+  if (!text || /\s/.test(text)) return false;
+  return /^ck[\w:-]+$/i.test(text) || /^chunk:[\w:-]+$/i.test(text);
+}
+
+function looksLikeRepoRelativePathCandidate(value, repoContext) {
+  const text = String(value || '').trim();
+  if (!text || /\s/.test(text)) return false;
+  if (!repoContext?.repoRoot) return false;
+  if (!(text.includes('/') || text.includes('\\') || text.includes('.'))) return false;
+  const resolved = path.isAbsolute(text)
+    ? path.resolve(text)
+    : path.resolve(repoContext.repoRoot, text);
+  const relative = path.relative(repoContext.repoRoot, resolved);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return false;
+  return true;
+}
+
+function buildSeedRefCandidates(repoContext) {
+  const candidates = [];
+  const seen = new Set();
+  const pushCandidate = (seed, label, description) => {
+    const normalized = String(seed || '').trim();
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    candidates.push({ seed: normalized, label, description });
+  };
+  const selection = getSelectionSearchQuery();
+  if (selection) {
+    if (looksLikeSeedRef(selection)) {
+      pushCandidate(selection, 'Active selection', selection);
+    } else if (looksLikeChunkUid(selection)) {
+      pushCandidate(selection.startsWith('chunk:') ? selection : `chunk:${selection}`, 'Active selection', selection);
+    } else if (looksLikeRepoRelativePathCandidate(selection, repoContext)) {
+      pushCandidate(`file:${toPosixPath(selection)}`, 'Active selection', selection);
+    }
+  }
+  const symbol = getSymbolSearchQuery();
+  if (symbol) {
+    pushCandidate(
+      looksLikeSeedRef(symbol) ? symbol : `symbol:${symbol}`,
+      'Symbol under cursor',
+      symbol
+    );
+  }
+  const activeFile = resolveRelativeActiveFile(repoContext);
+  if (activeFile) {
+    pushCandidate(`file:${activeFile}`, 'Active file', activeFile);
+  }
+  return candidates;
+}
+
+async function promptSeedRefInput(repoContext, {
+  title,
+  prompt,
+  placeHolder
+} = {}) {
+  const candidates = buildSeedRefCandidates(repoContext);
+  let defaultValue = candidates[0]?.seed || '';
+  if (candidates.length > 1 && typeof vscode.window.showQuickPick === 'function') {
+    const selection = await vscode.window.showQuickPick(
+      [
+        ...candidates.map((candidate) => ({
+          label: candidate.label,
+          description: candidate.description,
+          seed: candidate.seed
+        })),
+        {
+          label: 'Custom seed',
+          description: 'Enter a chunk:/symbol:/file: seed manually',
+          seed: null
+        }
+      ],
+      {
+        title,
+        placeHolder: 'Choose editor context or enter a custom seed'
+      }
+    );
+    if (selection === undefined) return null;
+    if (selection?.seed) {
+      defaultValue = selection.seed;
+    } else if (selection?.seed === null) {
+      defaultValue = '';
+    }
+  }
+  const value = await promptTextInput({
+    title,
+    prompt,
+    placeHolder,
+    value: defaultValue
+  });
+  return value || null;
+}
+
+async function promptPresentationMode(title) {
+  if (typeof vscode.window.showQuickPick !== 'function') return 'both';
+  const selection = await vscode.window.showQuickPick(
+    [
+      { label: 'Open Markdown + JSON', value: 'both' },
+      { label: 'Open Markdown', value: 'markdown' },
+      { label: 'Open JSON', value: 'json' },
+      { label: 'Export only', value: 'export' }
+    ],
+    {
+      title,
+      placeHolder: 'Choose how PairOfCleats should present the result'
+    }
+  );
+  if (!selection) return null;
+  return selection.value;
+}
+
 async function promptRulesPath(repoContext) {
   const defaultValue = fs.existsSync(path.join(repoContext.repoRoot, 'architecture.rules.json'))
     ? path.join(repoContext.repoRoot, 'architecture.rules.json')
@@ -1833,6 +1951,224 @@ async function promptSuggestTestsInput(repoContext) {
   return {
     changed,
     maxSuggestions
+  };
+}
+
+async function promptContextPackInput(repoContext) {
+  const seed = await promptSeedRefInput(repoContext, {
+    title: 'PairOfCleats context pack seed',
+    prompt: 'Context-pack seed ref',
+    placeHolder: 'e.g. symbol:AuthToken or file:src/app.ts'
+  });
+  if (!seed) return null;
+  const hops = await promptPositiveInteger({
+    prompt: 'Context-pack traversal depth',
+    value: 2,
+    placeHolder: '2'
+  });
+  if (!hops) return null;
+  const presentationMode = await promptPresentationMode('PairOfCleats context pack presentation');
+  if (!presentationMode) return null;
+  return {
+    seed,
+    hops,
+    presentationMode
+  };
+}
+
+async function loadAnalysisRenderers() {
+  if (!loadAnalysisRenderers.promise) {
+    loadAnalysisRenderers.promise = Promise.all([
+      import(pathToFileURL(path.join(__dirname, '..', '..', 'src', 'retrieval', 'output', 'composite-context-pack.js')).href),
+      import(pathToFileURL(path.join(__dirname, '..', '..', 'src', 'retrieval', 'output', 'risk-explain.js')).href)
+    ]).then(([contextPackModule, riskExplainModule]) => ({
+      renderCompositeContextPack: contextPackModule.renderCompositeContextPack,
+      renderRiskExplain: riskExplainModule.renderRiskExplain
+    }));
+  }
+  return loadAnalysisRenderers.promise;
+}
+
+function sanitizeExportName(value, fallback = 'export') {
+  const sanitized = String(value || '')
+    .trim()
+    .replace(/[^a-z0-9._-]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 96);
+  return sanitized || fallback;
+}
+
+function buildPresentationExportBase(spec, payload, inputContext) {
+  const primaryFile = sanitizeExportName(payload?.primary?.file || '', '');
+  const chunkFile = sanitizeExportName(payload?.chunk?.file || '', '');
+  const seedValue = sanitizeExportName(inputContext?.seed || '', '');
+  const chunkValue = sanitizeExportName(inputContext?.chunkUid || '', '');
+  const base = [primaryFile, chunkFile, seedValue, chunkValue].find(Boolean)
+    || sanitizeExportName(spec.id.split('.').pop(), 'artifact');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  return `${stamp}-${base}`;
+}
+
+function ensureOperatorExportDir(repoRoot, spec) {
+  const dir = path.join(repoRoot, '.pairofcleats', 'vscode', 'exports', sanitizeExportName(spec.id.split('.').pop(), 'operator'));
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function renderRiskExplainMarkdownDocument(payload, renderRiskExplain) {
+  const lines = [
+    '# PairOfCleats Risk Explain',
+    '',
+    `- chunkUid: ${payload?.chunk?.chunkUid || 'unknown'}`,
+    `- file: ${payload?.chunk?.file || 'unknown'}`,
+    `- symbol: ${payload?.chunk?.name || 'n/a'}`,
+    `- kind: ${payload?.chunk?.kind || 'n/a'}`,
+    `- flows: ${Array.isArray(payload?.flows) ? payload.flows.length : 0}`,
+    ''
+  ];
+  lines.push(renderRiskExplain(payload?.flows || [], { maxFlows: Math.max(3, Math.min(10, Array.isArray(payload?.flows) ? payload.flows.length : 3)) }));
+  return lines.join('\n');
+}
+
+async function buildOperatorPresentation(spec, payload, inputContext) {
+  if (spec.id === 'pairofcleats.contextPack') {
+    const { renderCompositeContextPack } = await loadAnalysisRenderers();
+    return {
+      markdown: renderCompositeContextPack(payload),
+      json: JSON.stringify(payload, null, 2)
+    };
+  }
+  if (spec.id === 'pairofcleats.riskExplain') {
+    const { renderRiskExplain } = await loadAnalysisRenderers();
+    return {
+      markdown: renderRiskExplainMarkdownDocument(payload, renderRiskExplain),
+      json: JSON.stringify(payload, null, 2)
+    };
+  }
+  return null;
+}
+
+async function openPresentationDocument(filePath, languageHint = null) {
+  const fileUri = vscode.Uri.file(filePath);
+  if (languageHint === 'markdown' && typeof vscode.commands?.executeCommand === 'function') {
+    try {
+      await vscode.commands.executeCommand('markdown.showPreviewToSide', fileUri);
+      return;
+    } catch {}
+  }
+  const document = await vscode.workspace.openTextDocument(fileUri);
+  await vscode.window.showTextDocument(document);
+}
+
+async function presentOperatorPayload(spec, payload, repoContext, inputContext, output) {
+  const presentationMode = inputContext?.presentationMode || 'both';
+  if (presentationMode === 'output') return null;
+  const rendered = await buildOperatorPresentation(spec, payload, inputContext);
+  if (!rendered) return null;
+  const exportDir = ensureOperatorExportDir(repoContext.repoRoot, spec);
+  const baseName = buildPresentationExportBase(spec, payload, inputContext);
+  const jsonPath = path.join(exportDir, `${baseName}.json`);
+  const markdownPath = path.join(exportDir, `${baseName}.md`);
+  fs.writeFileSync(jsonPath, rendered.json, 'utf8');
+  fs.writeFileSync(markdownPath, rendered.markdown, 'utf8');
+  output.appendLine(`- exported markdown: ${markdownPath}`);
+  output.appendLine(`- exported json: ${jsonPath}`);
+  if (presentationMode === 'markdown' || presentationMode === 'both') {
+    await openPresentationDocument(markdownPath, 'markdown');
+  }
+  if (presentationMode === 'json' || presentationMode === 'both') {
+    await openPresentationDocument(jsonPath, 'json');
+  }
+  return { jsonPath, markdownPath };
+}
+
+async function resolveRiskExplainSeedContext({ repoContext, cliResolution, seed, output }) {
+  const resolutionSpec = {
+    title: 'PairOfCleats: Risk Seed Resolution',
+    progressTitle: 'PairOfCleats risk seed resolution',
+    timeoutMs: 2 * 60 * 1000
+  };
+  const args = [
+    ...cliResolution.argsPrefix,
+    'context-pack',
+    '--json',
+    '--repo',
+    repoContext.repoRoot,
+    '--seed',
+    seed,
+    '--hops',
+    '0',
+    '--includeRisk'
+  ];
+  const result = await runBufferedJsonCommand({
+    spec: resolutionSpec,
+    repoRoot: repoContext.repoRoot,
+    command: cliResolution.command,
+    args,
+    env: buildSpawnEnv(getExtensionConfiguration()),
+    output
+  });
+  if (!result.ok || !result.payload) {
+    return {
+      ok: false,
+      message: result.message || 'PairOfCleats could not resolve the selected risk seed.',
+      detail: result.detail || null
+    };
+  }
+  const chunkUid = String(
+    result.payload?.risk?.anchor?.chunkUid
+    || result.payload?.primary?.ref?.chunkUid
+    || result.payload?.risk?.summary?.chunkUid
+    || ''
+  ).trim();
+  if (!chunkUid) {
+    return {
+      ok: false,
+      message: 'PairOfCleats could not resolve a risk anchor chunk for the selected seed.',
+      detail: 'Try selecting a more specific file, chunk, or symbol seed.'
+    };
+  }
+  const relativeIndexDir = String(result.payload?.indexDir || '').trim();
+  const indexDir = relativeIndexDir
+    ? path.resolve(repoContext.repoRoot, relativeIndexDir)
+    : path.join(repoContext.repoRoot, 'index-code');
+  return {
+    ok: true,
+    chunkUid,
+    indexDir
+  };
+}
+
+async function promptRiskExplainInput(repoContext, { cliResolution, output }) {
+  const seed = await promptSeedRefInput(repoContext, {
+    title: 'PairOfCleats risk explain seed',
+    prompt: 'Risk-explain seed ref',
+    placeHolder: 'e.g. chunk:ck123, symbol:AuthToken, or file:src/app.ts'
+  });
+  if (!seed) return null;
+  const maxFlows = await promptPositiveInteger({
+    prompt: 'Maximum risk flows',
+    value: 5,
+    placeHolder: '5'
+  });
+  if (!maxFlows) return null;
+  const presentationMode = await promptPresentationMode('PairOfCleats risk explain presentation');
+  if (!presentationMode) return null;
+  const resolved = seed.startsWith('chunk:')
+    ? { ok: true, chunkUid: seed.slice('chunk:'.length).trim(), indexDir: path.join(repoContext.repoRoot, 'index-code') }
+    : await resolveRiskExplainSeedContext({ repoContext, cliResolution, seed, output });
+  if (!resolved.ok) {
+    if (resolved.detail) output.appendLine(resolved.detail);
+    output.show?.(true);
+    vscode.window.showErrorMessage(resolved.message);
+    return null;
+  }
+  return {
+    seed,
+    chunkUid: resolved.chunkUid,
+    indexDir: resolved.indexDir,
+    maxFlows,
+    presentationMode
   };
 }
 
@@ -1991,6 +2327,54 @@ const OPERATOR_COMMAND_SPECS = Object.freeze([
       }
       return args;
     }
+  },
+  {
+    id: 'pairofcleats.contextPack',
+    title: 'PairOfCleats: Context Pack',
+    progressTitle: 'PairOfCleats context pack',
+    timeoutMs: 2 * 60 * 1000,
+    invocation: 'cli',
+    cliArgs: ['context-pack'],
+    async resolveInput(repoContext) {
+      return promptContextPackInput(repoContext);
+    },
+    buildArgs(repoRoot, inputContext) {
+      return [
+        '--json',
+        '--repo',
+        repoRoot,
+        '--seed',
+        inputContext.seed,
+        '--hops',
+        String(inputContext.hops),
+        '--includeRisk',
+        '--includeTypes'
+      ];
+    },
+    disableNavigationArtifacts: true
+  },
+  {
+    id: 'pairofcleats.riskExplain',
+    title: 'PairOfCleats: Risk Explain',
+    progressTitle: 'PairOfCleats risk explain',
+    timeoutMs: 2 * 60 * 1000,
+    invocation: 'cli',
+    cliArgs: ['risk', 'explain'],
+    async resolveInput(repoContext, { cliResolution, output }) {
+      return promptRiskExplainInput(repoContext, { cliResolution, output });
+    },
+    buildArgs(_repoRoot, inputContext) {
+      return [
+        '--json',
+        '--index',
+        inputContext.indexDir,
+        '--chunk',
+        inputContext.chunkUid,
+        '--max',
+        String(inputContext.maxFlows)
+      ];
+    },
+    disableNavigationArtifacts: true
   },
   {
     id: 'pairofcleats.workspaceManifest',
@@ -2163,13 +2547,15 @@ function resolveOperatorInvocation(spec, repoContext, cliResolution, inputContex
     return {
       ok: true,
       command: process.execPath,
-      args: [scriptPath, ...extraArgs]
+      args: [scriptPath, ...extraArgs],
+      inputContext
     };
   }
   return {
     ok: true,
     command: cliResolution.command,
-    args: [...cliResolution.argsPrefix, ...spec.cliArgs, ...extraArgs]
+    args: [...cliResolution.argsPrefix, ...spec.cliArgs, ...extraArgs],
+    inputContext
   };
 }
 
@@ -2350,6 +2736,33 @@ function summarizeSuggestTestsPayload(payload) {
   ];
 }
 
+function summarizeContextPackPayload(payload) {
+  const graphCounts = payload?.graph?.summary?.counts || payload?.graph?.counts || {};
+  const typeFacts = Array.isArray(payload?.types?.facts) ? payload.types.facts.length : 0;
+  const riskFlows = Array.isArray(payload?.risk?.flows) ? payload.risk.flows.length : 0;
+  return [
+    `- primary file: ${payload?.primary?.file || 'unknown'}`,
+    `- seed type: ${payload?.primary?.ref?.type || 'unknown'}`,
+    `- graph nodes: ${graphCounts.nodes ?? 0}`,
+    `- graph edges: ${graphCounts.edges ?? 0}`,
+    `- type facts: ${typeFacts}`,
+    `- risk flows: ${riskFlows}`
+  ];
+}
+
+function summarizeRiskExplainPayload(payload) {
+  const filters = payload?.filters || {};
+  const flows = Array.isArray(payload?.flows) ? payload.flows.length : 0;
+  return [
+    `- chunkUid: ${payload?.chunk?.chunkUid || 'unknown'}`,
+    `- file: ${payload?.chunk?.file || 'unknown'}`,
+    `- symbol: ${payload?.chunk?.name || 'n/a'}`,
+    `- flows: ${flows}`,
+    `- source rule: ${filters.sourceRule || 'n/a'}`,
+    `- sink rule: ${filters.sinkRule || 'n/a'}`
+  ];
+}
+
 function summarizeWorkspaceManifestPayload(payload) {
   return [
     `- workspace: ${payload?.workspacePath || 'unknown'}`,
@@ -2402,6 +2815,7 @@ function createNavigationTarget(filePath, label, description) {
 }
 
 function collectOperatorNavigationTargets(spec, payload) {
+  if (spec.disableNavigationArtifacts) return [];
   const targets = [];
   switch (spec.id) {
     case 'pairofcleats.architectureCheck': {
@@ -2496,6 +2910,10 @@ function summarizeOperatorPayload(spec, payload) {
       return summarizeImpactPayload(payload);
     case 'pairofcleats.suggestTests':
       return summarizeSuggestTestsPayload(payload);
+    case 'pairofcleats.contextPack':
+      return summarizeContextPackPayload(payload);
+    case 'pairofcleats.riskExplain':
+      return summarizeRiskExplainPayload(payload);
     case 'pairofcleats.workspaceManifest':
       return summarizeWorkspaceManifestPayload(payload);
     case 'pairofcleats.workspaceStatus':
@@ -2748,6 +3166,7 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
   output.appendLine('- raw-json:');
   appendJsonBlock(output, result.payload);
   await maybeOpenOperatorArtifacts(spec, result.payload, repoContext, output);
+  await presentOperatorPayload(spec, result.payload, repoContext, invocation.inputContext || null, output);
   output.show?.(true);
   const summaryLines = summarizeOperatorPayload(spec, result.payload);
   await finishWorkflowSession(session.sessionId, {
@@ -2787,8 +3206,16 @@ async function runOperatorCommand(spec) {
   }
   const { repoRoot } = repoContext;
   const cliResolution = resolveCli(repoRoot, config);
+  if (spec.invocation !== 'script' && !cliResolution.ok) {
+    const output = getOutputChannel();
+    output.appendLine(cliResolution.detail || cliResolution.message);
+    output.show?.(true);
+    vscode.window.showErrorMessage(cliResolution.message);
+    return;
+  }
+  const output = getOutputChannel();
   const inputContext = typeof spec.resolveInput === 'function'
-    ? await spec.resolveInput(repoContext)
+    ? await spec.resolveInput(repoContext, { cliResolution, config, output, execution })
     : undefined;
   if (inputContext === null) {
     return;
@@ -2813,13 +3240,6 @@ async function runOperatorCommand(spec) {
     output.appendLine(invocation.detail || invocation.message);
     output.show?.(true);
     vscode.window.showErrorMessage(invocation.message);
-    return;
-  }
-  if (spec.invocation !== 'script' && !cliResolution.ok) {
-    const output = getOutputChannel();
-    output.appendLine(cliResolution.detail || cliResolution.message);
-    output.show?.(true);
-    vscode.window.showErrorMessage(cliResolution.message);
     return;
   }
   await executeOperatorWorkflow(spec, repoContext, invocation);

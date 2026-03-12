@@ -67,6 +67,8 @@ const expectedCommands = new Map([
   ['pairofcleats.architectureCheck', 'PairOfCleats: Architecture Check'],
   ['pairofcleats.impact', 'PairOfCleats: Impact Analysis'],
   ['pairofcleats.suggestTests', 'PairOfCleats: Suggest Tests'],
+  ['pairofcleats.contextPack', 'PairOfCleats: Context Pack'],
+  ['pairofcleats.riskExplain', 'PairOfCleats: Risk Explain'],
   ['pairofcleats.workspaceManifest', 'PairOfCleats: Workspace Manifest'],
   ['pairofcleats.workspaceStatus', 'PairOfCleats: Workspace Status'],
   ['pairofcleats.workspaceBuild', 'PairOfCleats: Workspace Build'],
@@ -125,6 +127,8 @@ const requireCommandPaletteWhen = new Map([
   ['pairofcleats.repeatLastSearch', 'workbenchState != empty'],
   ['pairofcleats.reopenLastResults', 'workbenchState != empty'],
   ['pairofcleats.openIndexDirectory', 'workbenchState != empty'],
+  ['pairofcleats.contextPack', 'workbenchState != empty'],
+  ['pairofcleats.riskExplain', 'workbenchState != empty'],
   ['pairofcleats.indexBuild', 'workbenchState != empty'],
   ['pairofcleats.indexWatchStart', 'workbenchState != empty'],
   ['pairofcleats.indexWatchStop', 'workbenchState != empty'],
@@ -154,7 +158,9 @@ for (const [commandId, expectedWhen] of requireCommandPaletteWhen.entries()) {
 const requireEditorContextWhen = new Map([
   ['pairofcleats.searchSelection', 'editorTextFocus && editorHasSelection'],
   ['pairofcleats.searchSymbolUnderCursor', 'editorTextFocus'],
-  ['pairofcleats.explainSearch', 'editorTextFocus']
+  ['pairofcleats.explainSearch', 'editorTextFocus'],
+  ['pairofcleats.contextPack', 'editorTextFocus'],
+  ['pairofcleats.riskExplain', 'editorTextFocus']
 ]);
 
 for (const [commandId, expectedWhen] of requireEditorContextWhen.entries()) {
