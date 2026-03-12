@@ -24,7 +24,10 @@
     "onCommand:pairofcleats.workspaceManifest",
     "onCommand:pairofcleats.workspaceStatus",
     "onCommand:pairofcleats.workspaceBuild",
-    "onCommand:pairofcleats.workspaceCatalog"
+    "onCommand:pairofcleats.workspaceCatalog",
+    "onCommand:pairofcleats.showWorkflowStatus",
+    "onCommand:pairofcleats.rerunLastWorkflow",
+    "onCommand:pairofcleats.showRecentWorkflows"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -84,6 +87,18 @@
       {
         "command": "pairofcleats.workspaceCatalog",
         "title": "PairOfCleats: Workspace Catalog"
+      },
+      {
+        "command": "pairofcleats.showWorkflowStatus",
+        "title": "PairOfCleats: Workflow Status"
+      },
+      {
+        "command": "pairofcleats.rerunLastWorkflow",
+        "title": "PairOfCleats: Rerun Last Workflow"
+      },
+      {
+        "command": "pairofcleats.showRecentWorkflows",
+        "title": "PairOfCleats: Recent Workflows"
       }
     ],
     "configuration": {

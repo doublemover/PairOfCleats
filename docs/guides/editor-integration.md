@@ -52,6 +52,9 @@ The bundled VS Code extension lives in `extensions/vscode` and defines:
 - `PairOfCleats: Workspace Status`
 - `PairOfCleats: Workspace Build`
 - `PairOfCleats: Workspace Catalog`
+- `PairOfCleats: Workflow Status`
+- `PairOfCleats: Rerun Last Workflow`
+- `PairOfCleats: Recent Workflows`
 
 Settings:
 
@@ -90,6 +93,7 @@ Operational command behavior:
 - impact uses `pairofcleats impact --json --repo <repo> ...` with prompted seed/changed inputs
 - suggest-tests uses `pairofcleats suggest-tests --json --repo <repo> ...` with prompted changed paths
 - workspace commands use `pairofcleats workspace manifest|status|build|catalog --json --workspace <path>`
+- long-running workflow commands persist session metadata in workspace state, drive a status bar item keyed to the active repo context, and expose rerun/recent-workflow commands without requiring a second task runner stack
 - command output is summarized in the `PairOfCleats` output channel with the raw JSON payload appended below the summary
 
 ## Sublime package

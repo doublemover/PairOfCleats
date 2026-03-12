@@ -37,7 +37,10 @@ const expectedCommands = new Map([
   ['pairofcleats.workspaceManifest', 'PairOfCleats: Workspace Manifest'],
   ['pairofcleats.workspaceStatus', 'PairOfCleats: Workspace Status'],
   ['pairofcleats.workspaceBuild', 'PairOfCleats: Workspace Build'],
-  ['pairofcleats.workspaceCatalog', 'PairOfCleats: Workspace Catalog']
+  ['pairofcleats.workspaceCatalog', 'PairOfCleats: Workspace Catalog'],
+  ['pairofcleats.showWorkflowStatus', 'PairOfCleats: Workflow Status'],
+  ['pairofcleats.rerunLastWorkflow', 'PairOfCleats: Rerun Last Workflow'],
+  ['pairofcleats.showRecentWorkflows', 'PairOfCleats: Recent Workflows']
 ]);
 for (const commandId of expectedCommands.keys()) {
   if (!activationEvents.has(`onCommand:${commandId}`)) {

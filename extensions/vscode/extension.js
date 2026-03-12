@@ -147,6 +147,8 @@ const CLI_JS_EXTENSION = String(readContract(
   ['cli', 'jsEntrypointExtension'],
   DEFAULT_EDITOR_CONFIG_CONTRACT.cli.jsEntrypointExtension
 )).toLowerCase();
+const WORKFLOW_SESSION_STORAGE_KEY = 'pairofcleats.workflowSessions';
+const MAX_WORKFLOW_SESSIONS = 20;
 
 const REPO_MARKERS_RAW = readContract(['repoRoot', 'markers'], DEFAULT_EDITOR_CONFIG_CONTRACT.repoRoot.markers);
 const REPO_MARKERS = Array.isArray(REPO_MARKERS_RAW)
@@ -352,6 +354,290 @@ function buildSpawnEnv(config) {
     }
   }
   return env;
+}
+
+function formatRepoLabel(repoRoot) {
+  const normalized = String(repoRoot || '').trim();
+  if (!normalized) return 'no repo';
+  return path.basename(normalized) || normalized;
+}
+
+function buildRepoSnapshot(repoContext) {
+  if (!repoContext?.repoRoot) return null;
+  return {
+    repoRoot: repoContext.repoRoot,
+    repoLabel: formatRepoLabel(repoContext.repoRoot),
+    workspacePath: repoContext?.workspaceFolder?.uri?.fsPath || repoContext.repoRoot
+  };
+}
+
+function normalizeWorkflowSession(rawSession) {
+  if (!rawSession || typeof rawSession !== 'object') return null;
+  const sessionId = String(rawSession.sessionId || '').trim();
+  const commandId = String(rawSession.commandId || '').trim();
+  const title = String(rawSession.title || '').trim();
+  const repoRoot = String(rawSession.repoRoot || '').trim();
+  if (!sessionId || !commandId || !title || !repoRoot) return null;
+  const status = new Set(['running', 'succeeded', 'failed', 'cancelled', 'interrupted']).has(rawSession.status)
+    ? rawSession.status
+    : 'failed';
+  const invocation = rawSession.invocation && typeof rawSession.invocation === 'object'
+    ? {
+      kind: String(rawSession.invocation.kind || 'operator'),
+      command: String(rawSession.invocation.command || '').trim(),
+      args: Array.isArray(rawSession.invocation.args) ? rawSession.invocation.args.map((value) => String(value)) : [],
+      timeoutMs: Number.isFinite(rawSession.invocation.timeoutMs) ? rawSession.invocation.timeoutMs : 60000
+    }
+    : null;
+  return {
+    sessionId,
+    commandId,
+    title,
+    repoRoot,
+    repoLabel: formatRepoLabel(repoRoot),
+    status,
+    startedAt: String(rawSession.startedAt || ''),
+    finishedAt: rawSession.finishedAt ? String(rawSession.finishedAt) : null,
+    summaryLine: rawSession.summaryLine ? String(rawSession.summaryLine) : '',
+    outputHint: rawSession.outputHint ? String(rawSession.outputHint) : '',
+    invocation
+  };
+}
+
+function normalizeWorkflowSessions(rawSessions) {
+  return Array.isArray(rawSessions)
+    ? rawSessions.map((entry) => normalizeWorkflowSession(entry)).filter(Boolean).slice(0, MAX_WORKFLOW_SESSIONS)
+    : [];
+}
+
+function readWorkspaceState(key, fallback) {
+  return extensionContext?.workspaceState?.get?.(key, fallback) ?? fallback;
+}
+
+async function writeWorkspaceState(key, value) {
+  if (typeof extensionContext?.workspaceState?.update !== 'function') return;
+  await extensionContext.workspaceState.update(key, value);
+}
+
+async function persistWorkflowSessions() {
+  workflowSessions = workflowSessions.slice(0, MAX_WORKFLOW_SESSIONS);
+  await writeWorkspaceState(WORKFLOW_SESSION_STORAGE_KEY, workflowSessions);
+}
+
+function getMostRecentWorkflowSession() {
+  return workflowSessions[0] || null;
+}
+
+function getMostRecentRunningWorkflowSession() {
+  return workflowSessions.find((session) => session.status === 'running') || null;
+}
+
+function resolvePassiveRepoContext() {
+  const folders = vscode.workspace.workspaceFolders;
+  if (!folders || !folders.length) {
+    return { ok: false, kind: 'no-workspace', repoLabel: 'no repo' };
+  }
+  const activeUri = vscode.window.activeTextEditor?.document?.uri || null;
+  const activeFolder = activeUri && typeof vscode.workspace.getWorkspaceFolder === 'function'
+    ? vscode.workspace.getWorkspaceFolder(activeUri)
+    : null;
+  let selectedFolder = activeFolder || null;
+  if (!selectedFolder && lastWorkflowRepoSnapshot?.workspacePath) {
+    selectedFolder = folders.find((folder) => folder?.uri?.fsPath === lastWorkflowRepoSnapshot.workspacePath) || null;
+  }
+  if (!selectedFolder && folders.length === 1) {
+    selectedFolder = folders[0];
+  }
+  if (!selectedFolder) {
+    return {
+      ok: false,
+      kind: 'ambiguous-workspace',
+      repoLabel: `${folders.length} workspaces`
+    };
+  }
+  const repoRoot = VSCODE_REPO_WALKUP
+    ? (findRepoRoot(selectedFolder.uri?.fsPath || '') || selectedFolder.uri?.fsPath || '')
+    : (selectedFolder.uri?.fsPath || '');
+  if (!repoRoot) {
+    return { ok: false, kind: 'unsupported-workspace', repoLabel: 'no repo' };
+  }
+  return {
+    ok: true,
+    repoRoot,
+    repoLabel: formatRepoLabel(repoRoot),
+    workspaceFolder: selectedFolder
+  };
+}
+
+function updateWorkflowStatusBar() {
+  if (!workflowStatusBar) return;
+  const runningSession = getMostRecentRunningWorkflowSession();
+  const passiveRepo = resolvePassiveRepoContext();
+  if (runningSession) {
+    workflowStatusBar.text = `PairOfCleats: ${runningSession.repoLabel} • ${runningSession.title.replace(/^PairOfCleats:\s*/, '')}`;
+    workflowStatusBar.tooltip = `${runningSession.title}\n${runningSession.repoRoot}\nStatus: running`;
+  } else if (passiveRepo.ok) {
+    const lastSession = getMostRecentWorkflowSession();
+    const suffix = lastSession && lastSession.repoRoot === passiveRepo.repoRoot && lastSession.status !== 'running'
+      ? ` • ${lastSession.status}`
+      : '';
+    workflowStatusBar.text = `PairOfCleats: ${passiveRepo.repoLabel}${suffix}`;
+    workflowStatusBar.tooltip = `${passiveRepo.repoRoot}${suffix ? `\nLast workflow: ${lastSession.title} (${lastSession.status})` : ''}`;
+  } else {
+    workflowStatusBar.text = `PairOfCleats: ${passiveRepo.repoLabel || 'no repo'}`;
+    workflowStatusBar.tooltip = 'Open a repository workspace or focus an editor to establish PairOfCleats repo context.';
+  }
+  workflowStatusBar.command = 'pairofcleats.showWorkflowStatus';
+  workflowStatusBar.show?.();
+}
+
+async function restoreWorkflowSessions() {
+  workflowSessions = normalizeWorkflowSessions(readWorkspaceState(WORKFLOW_SESSION_STORAGE_KEY, []));
+  let changed = false;
+  for (const session of workflowSessions) {
+    if (session.status !== 'running') continue;
+    session.status = 'interrupted';
+    session.finishedAt = new Date().toISOString();
+    session.summaryLine = session.summaryLine || 'VS Code session ended before the workflow completed.';
+    changed = true;
+  }
+  if (changed) {
+    await persistWorkflowSessions();
+  }
+  updateWorkflowStatusBar();
+}
+
+function noteRepoContext(repoContext) {
+  lastWorkflowRepoSnapshot = buildRepoSnapshot(repoContext);
+  updateWorkflowStatusBar();
+}
+
+async function beginWorkflowSession(spec, repoContext, invocation) {
+  noteRepoContext(repoContext);
+  const session = {
+    sessionId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    commandId: spec.id,
+    title: spec.title,
+    repoRoot: repoContext.repoRoot,
+    repoLabel: formatRepoLabel(repoContext.repoRoot),
+    status: 'running',
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    summaryLine: '',
+    outputHint: 'PairOfCleats output',
+    invocation: invocation
+      ? {
+        kind: 'operator',
+        command: invocation.command,
+        args: invocation.args.map((value) => String(value)),
+        timeoutMs: spec.timeoutMs
+      }
+      : null
+  };
+  workflowSessions = [session, ...workflowSessions.filter((entry) => entry.sessionId !== session.sessionId)].slice(0, MAX_WORKFLOW_SESSIONS);
+  await persistWorkflowSessions();
+  updateWorkflowStatusBar();
+  return session;
+}
+
+async function finishWorkflowSession(sessionId, patch) {
+  const session = workflowSessions.find((entry) => entry.sessionId === sessionId);
+  if (!session) return;
+  if (patch.status) session.status = patch.status;
+  if (patch.summaryLine !== undefined) session.summaryLine = patch.summaryLine || '';
+  if (patch.outputHint !== undefined) session.outputHint = patch.outputHint || '';
+  session.finishedAt = new Date().toISOString();
+  await persistWorkflowSessions();
+  updateWorkflowStatusBar();
+}
+
+async function rerunWorkflowSession(session) {
+  if (!session?.invocation?.command || !Array.isArray(session?.invocation?.args)) {
+    vscode.window.showErrorMessage('PairOfCleats cannot rerun that workflow because its invocation was not preserved.');
+    return;
+  }
+  const spec = OPERATOR_COMMANDS_BY_ID.get(session.commandId) || {
+    id: session.commandId,
+    title: session.title,
+    progressTitle: session.title,
+    timeoutMs: session.invocation.timeoutMs || 60000
+  };
+  const repoContext = {
+    ok: true,
+    repoRoot: session.repoRoot,
+    workspaceFolder: { uri: vscode.Uri.file(session.repoRoot) }
+  };
+  return executeOperatorWorkflow(spec, repoContext, {
+    command: session.invocation.command,
+    args: session.invocation.args.slice()
+  });
+}
+
+async function showRecentWorkflows() {
+  const sessions = workflowSessions.slice(0, 10);
+  if (!sessions.length || typeof vscode.window.showQuickPick !== 'function') {
+    vscode.window.showInformationMessage('PairOfCleats has no recent workflows to show.');
+    return;
+  }
+  const selection = await vscode.window.showQuickPick(
+    sessions.map((session) => ({
+      label: `${session.title} (${session.status})`,
+      description: session.repoLabel,
+      detail: session.summaryLine || session.finishedAt || session.startedAt,
+      session
+    })),
+    {
+      title: 'PairOfCleats recent workflows',
+      placeHolder: 'Select a workflow to rerun'
+    }
+  );
+  if (!selection?.session) return;
+  await rerunWorkflowSession(selection.session);
+}
+
+async function showWorkflowStatus() {
+  const items = [
+    {
+      label: 'Reopen PairOfCleats output',
+      description: 'Show the output channel',
+      action: 'output'
+    }
+  ];
+  if (getMostRecentWorkflowSession()) {
+    items.push({
+      label: 'Rerun last workflow',
+      description: getMostRecentWorkflowSession().title,
+      action: 'rerun-last'
+    });
+    items.push({
+      label: 'Show recent workflows',
+      description: `${Math.min(workflowSessions.length, 10)} saved session(s)`,
+      action: 'recent'
+    });
+  }
+  const selection = typeof vscode.window.showQuickPick === 'function'
+    ? await vscode.window.showQuickPick(items, {
+      title: 'PairOfCleats workflow status',
+      placeHolder: 'Choose an action'
+    })
+    : null;
+  if (!selection) return;
+  if (selection.action === 'output') {
+    getOutputChannel().show?.(true);
+    return;
+  }
+  if (selection.action === 'rerun-last') {
+    const session = getMostRecentWorkflowSession();
+    if (!session) {
+      vscode.window.showInformationMessage('PairOfCleats has no workflow to rerun.');
+      return;
+    }
+    await rerunWorkflowSession(session);
+    return;
+  }
+  if (selection.action === 'recent') {
+    await showRecentWorkflows();
+  }
 }
 
 function toPosixPath(value) {
@@ -1210,6 +1496,54 @@ async function runBufferedJsonCommand({
   );
 }
 
+async function executeOperatorWorkflow(spec, repoContext, invocation) {
+  const { repoRoot } = repoContext;
+  const config = getExtensionConfiguration();
+  const env = buildSpawnEnv(config);
+  const output = getOutputChannel();
+  output.appendLine('');
+  output.appendLine(`=== ${spec.title} ===`);
+  output.appendLine(`[command] command=${invocation.command}`);
+  output.appendLine(`[command] args=${JSON.stringify(invocation.args)}`);
+  const session = await beginWorkflowSession(spec, repoContext, invocation);
+  const result = await runBufferedJsonCommand({
+    spec,
+    repoRoot,
+    command: invocation.command,
+    args: invocation.args,
+    env,
+    output
+  });
+  if (!result.payload) {
+    if (result.detail) output.appendLine(result.detail);
+    output.show?.(true);
+    await finishWorkflowSession(session.sessionId, {
+      status: result.kind === 'cancelled' ? 'cancelled' : 'failed',
+      summaryLine: result.message
+    });
+    const show = result.kind === 'cancelled'
+      ? vscode.window.showInformationMessage
+      : vscode.window.showErrorMessage;
+    show(result.message);
+    return;
+  }
+  appendOutputLines(output, summarizeOperatorPayload(spec, result.payload));
+  output.appendLine('- raw-json:');
+  appendJsonBlock(output, result.payload);
+  await maybeOpenOperatorArtifacts(spec, result.payload, repoContext, output);
+  output.show?.(true);
+  const summaryLines = summarizeOperatorPayload(spec, result.payload);
+  await finishWorkflowSession(session.sessionId, {
+    status: result.ok ? 'succeeded' : 'failed',
+    summaryLine: summaryLines[0] || `${spec.title} ${result.ok ? 'completed' : 'reported issues'}.`
+  });
+  if (result.ok) {
+    vscode.window.showInformationMessage(`${spec.title} completed.`);
+    return;
+  }
+  vscode.window.showErrorMessage(`${spec.title} reported issues. See PairOfCleats output for details.`);
+}
+
 async function runOperatorCommand(spec) {
   const repoContext = await resolveRepoContext();
   if (!repoContext.ok) {
@@ -1247,40 +1581,7 @@ async function runOperatorCommand(spec) {
     vscode.window.showErrorMessage(invocation.message);
     return;
   }
-  const { command, args } = invocation;
-  const env = buildSpawnEnv(config);
-  const output = getOutputChannel();
-  output.appendLine('');
-  output.appendLine(`=== ${spec.title} ===`);
-  output.appendLine(`[command] command=${command}`);
-  output.appendLine(`[command] args=${JSON.stringify(args)}`);
-  const result = await runBufferedJsonCommand({
-    spec,
-    repoRoot,
-    command,
-    args,
-    env,
-    output
-  });
-  if (!result.payload) {
-    if (result.detail) output.appendLine(result.detail);
-    output.show?.(true);
-    const show = result.kind === 'cancelled'
-      ? vscode.window.showInformationMessage
-      : vscode.window.showErrorMessage;
-    show(result.message);
-    return;
-  }
-  appendOutputLines(output, summarizeOperatorPayload(spec, result.payload));
-  output.appendLine('- raw-json:');
-  appendJsonBlock(output, result.payload);
-  await maybeOpenOperatorArtifacts(spec, result.payload, repoContext, output);
-  output.show?.(true);
-  if (result.ok) {
-    vscode.window.showInformationMessage(`${spec.title} completed.`);
-    return;
-  }
-  vscode.window.showErrorMessage(`${spec.title} reported issues. See PairOfCleats output for details.`);
+  await executeOperatorWorkflow(spec, repoContext, invocation);
 }
 
 /**
@@ -1478,12 +1779,44 @@ async function runSearch() {
  * @returns {void}
  */
 function activate(context) {
+  extensionContext = context;
+  workflowSessions = normalizeWorkflowSessions(readWorkspaceState(WORKFLOW_SESSION_STORAGE_KEY, []));
+  workflowStatusBar = typeof vscode.window.createStatusBarItem === 'function'
+    ? vscode.window.createStatusBarItem(vscode.StatusBarAlignment?.Left ?? 0, 100)
+    : null;
+  if (workflowStatusBar) {
+    workflowStatusBar.command = 'pairofcleats.showWorkflowStatus';
+    workflowStatusBar.show?.();
+    context.subscriptions.push(workflowStatusBar);
+  }
   const searchCommand = vscode.commands.registerCommand('pairofcleats.search', runSearch);
   context.subscriptions.push(searchCommand);
+  const workflowStatusCommand = vscode.commands.registerCommand('pairofcleats.showWorkflowStatus', showWorkflowStatus);
+  const rerunLastWorkflowCommand = vscode.commands.registerCommand('pairofcleats.rerunLastWorkflow', async () => {
+    const session = getMostRecentWorkflowSession();
+    if (!session) {
+      vscode.window.showInformationMessage('PairOfCleats has no workflow to rerun.');
+      return;
+    }
+    await rerunWorkflowSession(session);
+  });
+  const recentWorkflowCommand = vscode.commands.registerCommand('pairofcleats.showRecentWorkflows', showRecentWorkflows);
+  context.subscriptions.push(workflowStatusCommand, rerunLastWorkflowCommand, recentWorkflowCommand);
   for (const spec of OPERATOR_COMMAND_SPECS) {
     const command = vscode.commands.registerCommand(spec.id, () => runOperatorCommand(spec));
     context.subscriptions.push(command);
   }
+  if (typeof vscode.window.onDidChangeActiveTextEditor === 'function') {
+    context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(() => {
+      updateWorkflowStatusBar();
+    }));
+  }
+  if (typeof vscode.workspace.onDidChangeWorkspaceFolders === 'function') {
+    context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      updateWorkflowStatusBar();
+    }));
+  }
+  void restoreWorkflowSessions();
 }
 
 /**
@@ -1494,6 +1827,10 @@ function activate(context) {
 function deactivate() {}
 
 let outputChannel = null;
+let extensionContext = null;
+let workflowSessions = [];
+let workflowStatusBar = null;
+let lastWorkflowRepoSnapshot = null;
 
 function getOutputChannel() {
   if (!outputChannel) {
@@ -1514,8 +1851,13 @@ module.exports = {
     openSearchHit,
     resolveCli,
     resolveRepoContext,
+    resolvePassiveRepoContext,
     runOperatorCommand,
+    executeOperatorWorkflow,
     runSearch,
+    showWorkflowStatus,
+    showRecentWorkflows,
+    rerunWorkflowSession,
     OPERATOR_COMMAND_SPECS
   }
 };
