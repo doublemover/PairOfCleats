@@ -17,8 +17,14 @@ const args = buildSearchArgs('needle', '/repo', {
   lang: 'javascript',
   ext: '.js',
   type: 'Function',
+  asOf: 'snap:latest',
+  filter: 'lang:javascript',
+  author: 'Jane Doe',
+  modifiedAfter: '2025-01-01',
+  modifiedSince: '30',
+  churn: '10',
   caseSensitive: true,
-  extraArgs: ['--as-of', 'latest']
+  extraArgs: ['--risk', 'high']
 });
 
 assert.deepEqual(args, [
@@ -43,17 +49,34 @@ assert.deepEqual(args, [
   '.js',
   '--type',
   'Function',
+  '--as-of',
+  'snap:latest',
+  '--filter',
+  'lang:javascript',
+  '--author',
+  'Jane Doe',
+  '--modified-after',
+  '2025-01-01',
+  '--modified-since',
+  '30',
+  '--churn',
+  '10',
   '--case',
   '--explain',
   '--repo',
   '/repo',
-  '--as-of',
-  'latest',
+  '--risk',
+  'high',
   '--',
   'needle'
 ]);
 
 const defaultArgs = buildSearchArgs('alpha', null, {});
 assert.deepEqual(defaultArgs, ['search', '--json', '--top', '25', '--', 'alpha']);
+
+assert.throws(
+  () => buildSearchArgs('alpha', '/repo', { asOf: 'snap:current', snapshot: 'snap-123' }),
+  /searchAsOf and searchSnapshot/i
+);
 
 console.log('vscode search arg mapping test passed');

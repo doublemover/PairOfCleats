@@ -22,6 +22,13 @@ function readSearchOptions(config, settings) {
     lang: normalizeStringSetting(config.get(settings.langKey)),
     ext: normalizeStringSetting(config.get(settings.extKey)),
     type: normalizeStringSetting(config.get(settings.typeKey)),
+    asOf: normalizeStringSetting(config.get(settings.asOfKey)),
+    snapshot: normalizeStringSetting(config.get(settings.snapshotKey)),
+    filter: normalizeStringSetting(config.get(settings.filterKey)),
+    author: normalizeStringSetting(config.get(settings.authorKey)),
+    modifiedAfter: normalizeStringSetting(config.get(settings.modifiedAfterKey)),
+    modifiedSince: normalizeStringSetting(config.get(settings.modifiedSinceKey)),
+    churn: normalizeStringSetting(config.get(settings.churnKey)),
     caseSensitive: config.get(settings.caseSensitiveKey) === true,
     extraArgs: normalizeStringArray(config.get(settings.extraSearchArgsKey))
   };
@@ -41,10 +48,21 @@ function buildSearchArgs(query, repoRoot, options = {}) {
   const lang = normalizeStringSetting(options.lang);
   const ext = normalizeStringSetting(options.ext);
   const type = normalizeStringSetting(options.type);
+  const asOf = normalizeStringSetting(options.asOf);
+  const snapshot = normalizeStringSetting(options.snapshot);
+  const filter = normalizeStringSetting(options.filter);
+  const author = normalizeStringSetting(options.author);
+  const modifiedAfter = normalizeStringSetting(options.modifiedAfter);
+  const modifiedSince = normalizeStringSetting(options.modifiedSince);
+  const churn = normalizeStringSetting(options.churn);
   const contextLines = Number.isFinite(Number(options.contextLines))
     ? Math.max(0, Number(options.contextLines))
     : 0;
   const extraArgs = normalizeStringArray(options.extraArgs);
+
+  if (asOf && snapshot) {
+    throw new Error('PairOfCleats VS Code search cannot set both searchAsOf and searchSnapshot.');
+  }
 
   if (mode && mode !== 'both') args.push('--mode', mode);
   if (backend) args.push('--backend', backend);
@@ -55,6 +73,13 @@ function buildSearchArgs(query, repoRoot, options = {}) {
   if (lang) args.push('--lang', lang);
   if (ext) args.push('--ext', ext);
   if (type) args.push('--type', type);
+  if (asOf) args.push('--as-of', asOf);
+  else if (snapshot) args.push('--snapshot', snapshot);
+  if (filter) args.push('--filter', filter);
+  if (author) args.push('--author', author);
+  if (modifiedAfter) args.push('--modified-after', modifiedAfter);
+  if (modifiedSince) args.push('--modified-since', modifiedSince);
+  if (churn) args.push('--churn', churn);
   if (options.caseSensitive) args.push('--case');
   if (options.explain) args.push('--explain');
   if (repoRoot) args.push('--repo', repoRoot);

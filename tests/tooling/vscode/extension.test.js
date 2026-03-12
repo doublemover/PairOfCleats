@@ -248,6 +248,13 @@ const keyMap = {
   langKey: 'pairofcleats',
   extKey: 'pairofcleats',
   typeKey: 'pairofcleats',
+  asOfKey: 'pairofcleats',
+  snapshotKey: 'pairofcleats',
+  filterKey: 'pairofcleats',
+  authorKey: 'pairofcleats',
+  modifiedAfterKey: 'pairofcleats',
+  modifiedSinceKey: 'pairofcleats',
+  churnKey: 'pairofcleats',
   caseSensitiveKey: 'pairofcleats',
   envKey: 'pairofcleats',
   extraSearchArgsKey: 'pairofcleats'

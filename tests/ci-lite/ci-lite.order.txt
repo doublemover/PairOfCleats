@@ -36,6 +36,7 @@ tooling/vscode/runtime
 tooling/vscode/results-explorer-runtime
 tooling/vscode/search-entrypoints-runtime
 tooling/vscode/search-arg-mapping
+tooling/vscode/search-contract-options
 tooling/vscode/search-result-sections
 indexing/postings/queue-metrics
 lang/registry/collector-utils-comment-aware

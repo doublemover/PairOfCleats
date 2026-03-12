@@ -89,11 +89,18 @@ Settings:
 - `pairofcleats.searchLang`
 - `pairofcleats.searchExt`
 - `pairofcleats.searchType`
+- `pairofcleats.searchAsOf`
+- `pairofcleats.searchSnapshot`
+- `pairofcleats.searchFilter`
+- `pairofcleats.searchAuthor`
+- `pairofcleats.searchModifiedAfter`
+- `pairofcleats.searchModifiedSince`
+- `pairofcleats.searchChurn`
 - `pairofcleats.searchCaseSensitive`
 - `pairofcleats.env`
 - `pairofcleats.extraSearchArgs`
 
-The VS Code search command forwards these common search flags directly instead of forcing normal workflows through `extraSearchArgs`.
+The VS Code search command forwards these common search flags directly instead of forcing normal workflows through `extraSearchArgs`. `pairofcleats.searchAsOf` and `pairofcleats.searchSnapshot` are mutually exclusive; if both are set, the extension fails closed with an explicit configuration error.
 
 Repo targeting behavior:
 

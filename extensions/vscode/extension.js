@@ -47,6 +47,13 @@ const DEFAULT_EDITOR_CONFIG_CONTRACT = Object.freeze({
       langKey: 'searchLang',
       extKey: 'searchExt',
       typeKey: 'searchType',
+      asOfKey: 'searchAsOf',
+      snapshotKey: 'searchSnapshot',
+      filterKey: 'searchFilter',
+      authorKey: 'searchAuthor',
+      modifiedAfterKey: 'searchModifiedAfter',
+      modifiedSinceKey: 'searchModifiedSince',
+      churnKey: 'searchChurn',
       caseSensitiveKey: 'searchCaseSensitive',
       envKey: 'env'
     },
@@ -128,6 +135,19 @@ const VSCODE_SETTINGS = Object.freeze({
   langKey: String(readContract(['settings', 'vscode', 'langKey'], DEFAULT_VSCODE_SETTINGS.langKey)),
   extKey: String(readContract(['settings', 'vscode', 'extKey'], DEFAULT_VSCODE_SETTINGS.extKey)),
   typeKey: String(readContract(['settings', 'vscode', 'typeKey'], DEFAULT_VSCODE_SETTINGS.typeKey)),
+  asOfKey: String(readContract(['settings', 'vscode', 'asOfKey'], DEFAULT_VSCODE_SETTINGS.asOfKey)),
+  snapshotKey: String(readContract(['settings', 'vscode', 'snapshotKey'], DEFAULT_VSCODE_SETTINGS.snapshotKey)),
+  filterKey: String(readContract(['settings', 'vscode', 'filterKey'], DEFAULT_VSCODE_SETTINGS.filterKey)),
+  authorKey: String(readContract(['settings', 'vscode', 'authorKey'], DEFAULT_VSCODE_SETTINGS.authorKey)),
+  modifiedAfterKey: String(readContract(
+    ['settings', 'vscode', 'modifiedAfterKey'],
+    DEFAULT_VSCODE_SETTINGS.modifiedAfterKey
+  )),
+  modifiedSinceKey: String(readContract(
+    ['settings', 'vscode', 'modifiedSinceKey'],
+    DEFAULT_VSCODE_SETTINGS.modifiedSinceKey
+  )),
+  churnKey: String(readContract(['settings', 'vscode', 'churnKey'], DEFAULT_VSCODE_SETTINGS.churnKey)),
   caseSensitiveKey: String(readContract(
     ['settings', 'vscode', 'caseSensitiveKey'],
     DEFAULT_VSCODE_SETTINGS.caseSensitiveKey
@@ -2482,7 +2502,18 @@ async function executeSearchCommand({
     ...readSearchOptions(config, VSCODE_SETTINGS),
     explain
   };
-  const args = [...argsPrefix, ...buildSearchArgs(resolvedQuery, repoRoot, searchOptions)];
+  let searchArgs;
+  try {
+    searchArgs = buildSearchArgs(resolvedQuery, repoRoot, searchOptions);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'PairOfCleats search configuration is invalid.';
+    const output = getOutputChannel();
+    output.appendLine(`[search] invalid options: ${message}`);
+    output.show?.(true);
+    vscode.window.showErrorMessage(message);
+    return;
+  }
+  const args = [...argsPrefix, ...searchArgs];
   const env = buildSpawnEnv(config);
   const searchTimeoutMs = 60000;
   const output = getOutputChannel();

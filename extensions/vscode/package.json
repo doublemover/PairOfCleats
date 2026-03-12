@@ -481,6 +481,41 @@
           "default": "",
           "description": "Optional symbol/type filter (`--type`)."
         },
+        "pairofcleats.searchAsOf": {
+          "type": "string",
+          "default": "",
+          "description": "Optional as-of index reference (`--as-of`). Mutually exclusive with searchSnapshot."
+        },
+        "pairofcleats.searchSnapshot": {
+          "type": "string",
+          "default": "",
+          "description": "Optional snapshot ID compatibility alias (`--snapshot`). Mutually exclusive with searchAsOf."
+        },
+        "pairofcleats.searchFilter": {
+          "type": "string",
+          "default": "",
+          "description": "Optional structured filter expression (`--filter`)."
+        },
+        "pairofcleats.searchAuthor": {
+          "type": "string",
+          "default": "",
+          "description": "Optional git author filter (`--author`)."
+        },
+        "pairofcleats.searchModifiedAfter": {
+          "type": "string",
+          "default": "",
+          "description": "Optional modified-after filter (`--modified-after`)."
+        },
+        "pairofcleats.searchModifiedSince": {
+          "type": "string",
+          "default": "",
+          "description": "Optional modified-since filter (`--modified-since`)."
+        },
+        "pairofcleats.searchChurn": {
+          "type": "string",
+          "default": "",
+          "description": "Optional churn threshold filter (`--churn`)."
+        },
         "pairofcleats.searchCaseSensitive": {
           "type": "boolean",
           "default": false,

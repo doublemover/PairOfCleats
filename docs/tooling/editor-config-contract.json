@@ -33,6 +33,13 @@
       "langKey": "searchLang",
       "extKey": "searchExt",
       "typeKey": "searchType",
+      "asOfKey": "searchAsOf",
+      "snapshotKey": "searchSnapshot",
+      "filterKey": "searchFilter",
+      "authorKey": "searchAuthor",
+      "modifiedAfterKey": "searchModifiedAfter",
+      "modifiedSinceKey": "searchModifiedSince",
+      "churnKey": "searchChurn",
       "caseSensitiveKey": "searchCaseSensitive",
       "envKey": "env"
     },
