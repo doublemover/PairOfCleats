@@ -97,6 +97,12 @@ DEFAULT_SETTINGS = {
     'search_backend_default': '',
     'search_limit': 25,
     'search_prompt_options': False,
+    'search_ann_default': None,
+    'search_allow_sparse_fallback': False,
+    'search_as_of_default': '',
+    'search_snapshot_default': '',
+    'search_filter_default': '',
+    'search_advanced_defaults': {},
     'history_limit': 25,
     'api_server_url': '',
     'api_timeout_ms': 5000,
@@ -138,10 +144,18 @@ SETTING_GROUPS = (
         'pairofcleats_path',
         'node_path',
         'index_mode_default',
+        'history_limit',
+    )),
+    ('Search', (
         'search_backend_default',
         'search_limit',
         'search_prompt_options',
-        'history_limit',
+        'search_ann_default',
+        'search_allow_sparse_fallback',
+        'search_as_of_default',
+        'search_snapshot_default',
+        'search_filter_default',
+        'search_advanced_defaults',
     )),
     ('API', (
         'api_server_url',
@@ -198,6 +212,44 @@ VALID_MAP_TYPES = {'combined', 'imports', 'calls', 'usages', 'dataflow'}
 VALID_MAP_FORMATS = {'json', 'dot', 'svg', 'html', 'html-iso'}
 VALID_MAP_COLLAPSE = {'none', 'file', 'dir'}
 VALID_MAP_MODES = {'code', 'prose'}
+VALID_SEARCH_ADVANCED_KEYS = {
+    'filter',
+    'type',
+    'author',
+    'import',
+    'calls',
+    'uses',
+    'signature',
+    'param',
+    'inferred_type',
+    'return_type',
+    'risk',
+    'risk_tag',
+    'risk_source',
+    'risk_sink',
+    'risk_category',
+    'risk_flow',
+    'chunk_author',
+    'modified_after',
+    'modified_since',
+    'visibility',
+    'extends',
+    'lang',
+    'branch',
+    'case',
+    'case_file',
+    'case_tokens',
+    'lint',
+    'async',
+    'generator',
+    'returns',
+    'path',
+    'file',
+    'ext',
+}
+VALID_SEARCH_ADVANCED_LIST_KEYS = {'path', 'file', 'ext'}
+VALID_SEARCH_ADVANCED_BOOL_KEYS = {'case', 'case_file', 'case_tokens', 'lint', 'async', 'generator', 'returns'}
+VALID_SEARCH_ADVANCED_INT_KEYS = {'modified_since'}
 
 
 def prime_settings():
@@ -292,6 +344,59 @@ def validate_settings(settings, repo_root=None):
         errors.append(
             'search_backend_default must be one of: memory, sqlite, sqlite-fts, lmdb.'
         )
+
+    ann_default = settings.get('search_ann_default')
+    if ann_default is not None and not isinstance(ann_default, bool):
+        errors.append('search_ann_default must be true, false, or null.')
+
+    if settings.get('search_allow_sparse_fallback') not in (True, False):
+        errors.append('search_allow_sparse_fallback must be true or false.')
+
+    as_of_default = settings.get('search_as_of_default')
+    if as_of_default not in (None, '') and not isinstance(as_of_default, str):
+        errors.append('search_as_of_default must be a string when set.')
+
+    snapshot_default = settings.get('search_snapshot_default')
+    if snapshot_default not in (None, '') and not isinstance(snapshot_default, str):
+        errors.append('search_snapshot_default must be a string when set.')
+
+    if as_of_default and snapshot_default:
+        errors.append('search_as_of_default and search_snapshot_default cannot both be set.')
+
+    filter_default = settings.get('search_filter_default')
+    if filter_default not in (None, '') and not isinstance(filter_default, str):
+        errors.append('search_filter_default must be a string when set.')
+
+    advanced_defaults = settings.get('search_advanced_defaults')
+    if advanced_defaults not in (None, {}) and not isinstance(advanced_defaults, dict):
+        errors.append('search_advanced_defaults must be a JSON object (dictionary).')
+    elif isinstance(advanced_defaults, dict):
+        unknown = sorted(key for key in advanced_defaults.keys() if key not in VALID_SEARCH_ADVANCED_KEYS)
+        if unknown:
+            errors.append(
+                'search_advanced_defaults contains unsupported keys: {0}.'.format(', '.join(unknown))
+            )
+        for key, value in advanced_defaults.items():
+            if key in VALID_SEARCH_ADVANCED_LIST_KEYS:
+                if isinstance(value, str):
+                    continue
+                if isinstance(value, list) and all(isinstance(entry, str) and entry for entry in value):
+                    continue
+                errors.append('search_advanced_defaults.{0} must be a string or list of strings.'.format(key))
+                continue
+            if key in VALID_SEARCH_ADVANCED_BOOL_KEYS:
+                if isinstance(value, bool):
+                    continue
+                errors.append('search_advanced_defaults.{0} must be true or false.'.format(key))
+                continue
+            if key in VALID_SEARCH_ADVANCED_INT_KEYS:
+                if isinstance(value, int) and value >= 0:
+                    continue
+                errors.append('search_advanced_defaults.{0} must be an integer 0 or higher.'.format(key))
+                continue
+            if isinstance(value, str) and value:
+                continue
+            errors.append('search_advanced_defaults.{0} must be a non-empty string.'.format(key))
 
     target = settings.get('open_results_in')
     if target and target not in VALID_OPEN_TARGETS:

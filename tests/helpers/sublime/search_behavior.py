@@ -67,6 +67,16 @@ class SearchBehaviorTests(unittest.TestCase):
             'index_mode_default': 'both',
             'search_backend_default': '',
             'search_limit': 25,
+            'search_ann_default': True,
+            'search_allow_sparse_fallback': True,
+            'search_as_of_default': 'snap:baseline',
+            'search_snapshot_default': '',
+            'search_filter_default': 'lang:go',
+            'search_advanced_defaults': {
+                'ext': ['.go'],
+                'path': ['src/**'],
+                'branch': 'main',
+            },
             'open_results_in': 'quick_panel',
             'results_buffer_threshold': 50,
             'history_limit': 25,
@@ -82,6 +92,14 @@ class SearchBehaviorTests(unittest.TestCase):
 
         self.assertEqual(len(self.api_calls), 1)
         self.assertEqual(len(self.runner_calls), 0)
+        self.assertEqual(self.api_calls[0]['ann'], True)
+        self.assertEqual(self.api_calls[0]['allow_sparse_fallback'], True)
+        self.assertEqual(self.api_calls[0]['as_of'], 'snap:baseline')
+        self.assertEqual(self.api_calls[0]['snapshot'], None)
+        self.assertEqual(self.api_calls[0]['advanced']['filter'], 'lang:go')
+        self.assertEqual(self.api_calls[0]['advanced']['ext'], ['.go'])
+        self.assertEqual(self.api_calls[0]['advanced']['path'], ['src/**'])
+        self.assertEqual(self.api_calls[0]['advanced']['branch'], 'main')
         self.assertIsNotNone(self.window.quick_panel_items)
         self.assertIn('PairOfCleats search', self.window.panels['pairofcleats-progress'].appended)
         session = self.results_state.get_last_results(self.window)
@@ -92,6 +110,15 @@ class SearchBehaviorTests(unittest.TestCase):
             'index_mode_default': 'both',
             'search_backend_default': '',
             'search_limit': 25,
+            'search_ann_default': False,
+            'search_allow_sparse_fallback': False,
+            'search_as_of_default': '',
+            'search_snapshot_default': 'snap-123',
+            'search_filter_default': '',
+            'search_advanced_defaults': {
+                'lang': 'python',
+                'modified_since': 7,
+            },
             'open_results_in': 'quick_panel',
             'results_buffer_threshold': 50,
             'history_limit': 25,
@@ -105,6 +132,13 @@ class SearchBehaviorTests(unittest.TestCase):
         self.search._execute_search(self.window, 'return', {'mode': 'code', 'limit': 5}, explain=False)
 
         self.assertEqual(len(self.runner_calls), 1)
+        self.assertIn('--no-ann', self.runner_calls[0]['args'])
+        self.assertIn('--snapshot', self.runner_calls[0]['args'])
+        self.assertIn('snap-123', self.runner_calls[0]['args'])
+        self.assertIn('--lang', self.runner_calls[0]['args'])
+        self.assertIn('python', self.runner_calls[0]['args'])
+        self.assertIn('--modified-since', self.runner_calls[0]['args'])
+        self.assertIn('7', self.runner_calls[0]['args'])
         self.assertIsNotNone(self.window.quick_panel_items)
 
     def test_require_api_blocks_unsupported_explain(self):
@@ -126,7 +160,20 @@ class SearchBehaviorTests(unittest.TestCase):
         self.assertIn('API mode is not supported for search explain.', self.sublime.last_error)
         self.assertEqual(len(self.runner_calls), 0)
 
-    def _search_json_success(self, base_url, repo_root, settings, query, mode, backend=None, limit=None):
+    def _search_json_success(
+            self,
+            base_url,
+            repo_root,
+            settings,
+            query,
+            mode,
+            backend=None,
+            limit=None,
+            ann=None,
+            allow_sparse_fallback=False,
+            as_of=None,
+            snapshot=None,
+            advanced=None):
         self.api_calls.append({
             'base_url': base_url,
             'repo_root': repo_root,
@@ -134,6 +181,11 @@ class SearchBehaviorTests(unittest.TestCase):
             'mode': mode,
             'backend': backend,
             'limit': limit,
+            'ann': ann,
+            'allow_sparse_fallback': allow_sparse_fallback,
+            'as_of': as_of,
+            'snapshot': snapshot,
+            'advanced': advanced or {},
         })
         return ({
             'ok': True,
@@ -161,6 +213,7 @@ class SearchBehaviorTests(unittest.TestCase):
         self.runner_calls.append({
             'cwd': cwd,
             'title': title,
+            'args': list(_args),
         })
         payload = {
             'ok': True,

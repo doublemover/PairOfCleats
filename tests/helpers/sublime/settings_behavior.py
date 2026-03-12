@@ -35,6 +35,16 @@ class SettingsBehaviorTests(unittest.TestCase):
             'progress_panel_on_start': 'sometimes',
             'progress_watchdog_ms': 0,
             'search_prompt_options': 'yes',
+            'search_ann_default': 'yes',
+            'search_allow_sparse_fallback': 'yes',
+            'search_as_of_default': 12,
+            'search_snapshot_default': 34,
+            'search_filter_default': True,
+            'search_advanced_defaults': {
+                'unknown': 'value',
+                'modified_since': -1,
+                'case': 'yes',
+            },
             'map_stream_output': 'true',
             'map_show_report_panel': 'sometimes',
             'index_watch_scope': 'workspace',
@@ -46,9 +56,26 @@ class SettingsBehaviorTests(unittest.TestCase):
         self.assertIn('progress_panel_on_start must be true or false.', errors)
         self.assertIn('progress_watchdog_ms must be 1 or higher.', errors)
         self.assertIn('search_prompt_options must be true or false.', errors)
+        self.assertIn('search_ann_default must be true, false, or null.', errors)
+        self.assertIn('search_allow_sparse_fallback must be true or false.', errors)
+        self.assertIn('search_as_of_default must be a string when set.', errors)
+        self.assertIn('search_snapshot_default must be a string when set.', errors)
+        self.assertIn('search_filter_default must be a string when set.', errors)
+        self.assertIn('search_advanced_defaults contains unsupported keys: unknown.', errors)
+        self.assertIn('search_advanced_defaults.modified_since must be an integer 0 or higher.', errors)
+        self.assertIn('search_advanced_defaults.case must be true or false.', errors)
         self.assertIn('map_stream_output must be true or false.', errors)
         self.assertIn('map_show_report_panel must be true, false, or null.', errors)
         self.assertIn('index_watch_scope must be repo or folder.', errors)
+
+    def test_validate_settings_rejects_conflicting_search_temporal_defaults(self):
+        settings = self.config.get_settings(None)
+        settings.update({
+            'search_as_of_default': 'snap:one',
+            'search_snapshot_default': 'snap-two',
+        })
+        errors = self.config.validate_settings(settings, repo_root='C:/repo')
+        self.assertIn('search_as_of_default and search_snapshot_default cannot both be set.', errors)
 
     def test_validate_settings_requires_server_url_for_api_modes(self):
         settings = self.config.get_settings(None)
@@ -106,6 +133,12 @@ class SettingsBehaviorTests(unittest.TestCase):
         override = payload['settings']['pairofcleats']
         self.assertEqual(override['api_server_url'], 'http://127.0.0.1:7464')
         self.assertEqual(override['api_execution_mode'], 'cli')
+        self.assertIn('search_ann_default', override)
+        self.assertIn('search_allow_sparse_fallback', override)
+        self.assertIn('search_as_of_default', override)
+        self.assertIn('search_snapshot_default', override)
+        self.assertIn('search_filter_default', override)
+        self.assertIn('search_advanced_defaults', override)
         self.assertIn('progress_panel_on_start', override)
         self.assertIn('progress_watchdog_ms', override)
         self.assertIn('map_stream_output', override)
@@ -131,6 +164,7 @@ class SettingsBehaviorTests(unittest.TestCase):
         text = panel.appended
         self.assertIn('Merge semantics:', text)
         self.assertIn('API:', text)
+        self.assertIn('Search:', text)
         self.assertIn('Output:', text)
         self.assertIn('Watch:', text)
         self.assertIn('Map:', text)

@@ -166,7 +166,21 @@ def run_async(request_fn, on_done, on_progress=None):
     return handle
 
 
-def search_json(base_url, repo_root, settings, query, mode, backend=None, limit=None):
+def search_json(
+        base_url,
+        repo_root,
+        settings,
+        query,
+        mode,
+        backend=None,
+        limit=None,
+        ann=None,
+        allow_sparse_fallback=False,
+        as_of=None,
+        snapshot=None,
+        advanced=None):
+    from . import search as search_lib
+
     base_url = normalize_base_url(base_url)
     if not base_url:
         raise RuntimeError('api_server_url is not set')
@@ -175,16 +189,18 @@ def search_json(base_url, repo_root, settings, query, mode, backend=None, limit=
     if not isinstance(timeout_ms, int) or timeout_ms <= 0:
         timeout_ms = 5000
 
-    payload = {
-        'repo': repo_root,
-        'query': query,
-        'mode': mode or 'both',
-        'output': 'compact-json',
-    }
-    if backend:
-        payload['backend'] = backend
-    if isinstance(limit, int) and limit > 0:
-        payload['top'] = limit
+    payload = search_lib.build_search_payload(
+        query,
+        repo_root=repo_root,
+        mode=mode,
+        backend=backend,
+        limit=limit,
+        ann=ann,
+        allow_sparse_fallback=allow_sparse_fallback,
+        as_of=as_of,
+        snapshot=snapshot,
+        advanced=advanced,
+    )
 
     body, headers = request_json(
         build_url(base_url, '/search'),

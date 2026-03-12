@@ -28,10 +28,31 @@ def _resolve_defaults(settings, overrides=None):
     mode = overrides.get('mode') or settings.get('index_mode_default') or 'both'
     backend = overrides.get('backend') or settings.get('search_backend_default') or ''
     limit = overrides.get('limit') or settings.get('search_limit') or 25
+    ann = overrides['ann'] if 'ann' in overrides else settings.get('search_ann_default')
+    allow_sparse_fallback = overrides.get('allow_sparse_fallback')
+    if allow_sparse_fallback is None:
+        allow_sparse_fallback = bool(settings.get('search_allow_sparse_fallback'))
+    as_of = overrides.get('as_of')
+    snapshot = overrides.get('snapshot')
+    if as_of is None and snapshot is None:
+        as_of = settings.get('search_as_of_default') or ''
+        snapshot = settings.get('search_snapshot_default') or ''
+    filter_value = overrides.get('filter')
+    advanced = search_lib.normalize_advanced_search_defaults(settings.get('search_advanced_defaults'))
+    if filter_value is None:
+        filter_value = settings.get('search_filter_default') or ''
+    if filter_value:
+        advanced['filter'] = str(filter_value)
+    advanced.update(search_lib.normalize_advanced_search_defaults(overrides.get('advanced')))
     return {
         'mode': mode,
         'backend': backend,
-        'limit': limit
+        'limit': limit,
+        'ann': ann if isinstance(ann, bool) else None,
+        'allow_sparse_fallback': bool(allow_sparse_fallback),
+        'as_of': as_of or '',
+        'snapshot': snapshot or '',
+        'advanced': advanced,
     }
 
 
@@ -101,9 +122,103 @@ def _prompt_backend(window, options, on_done):
             on_done(options)
             return
         options['backend'] = backend_choices[index][0]
-        _prompt_limit(window, options, on_done)
+        _prompt_ann(window, options, on_done)
 
     window.show_quick_panel(labels, on_backend_select, selected_index=current_index)
+
+
+def _prompt_ann(window, options, on_done):
+    ann_choices = [
+        (None, 'ann: default'),
+        (True, 'ann: on'),
+        (False, 'ann: off'),
+    ]
+    current = options.get('ann')
+    current_index = 0
+    for idx, (value, _) in enumerate(ann_choices):
+        if value is current:
+            current_index = idx
+            break
+
+    def on_ann_select(index):
+        if index < 0:
+            on_done(options)
+            return
+        options['ann'] = ann_choices[index][0]
+        _prompt_temporal(window, options, on_done)
+
+    window.show_quick_panel(
+        [label for _, label in ann_choices],
+        on_ann_select,
+        selected_index=current_index,
+    )
+
+
+def _prompt_temporal(window, options, on_done):
+    current_as_of = options.get('as_of') or ''
+    current_snapshot = options.get('snapshot') or ''
+    items = []
+    actions = []
+
+    def add_action(label, callback):
+        items.append(label)
+        actions.append(callback)
+
+    add_action('search current index', lambda: _set_temporal(options, '', '', on_done, window))
+    if current_as_of:
+        add_action('as-of: {0}'.format(current_as_of), lambda: _set_temporal(options, current_as_of, '', on_done, window))
+    if current_snapshot:
+        add_action('snapshot: {0}'.format(current_snapshot), lambda: _set_temporal(options, '', current_snapshot, on_done, window))
+    add_action('as-of: custom', lambda: _prompt_as_of(window, options, on_done))
+    add_action('snapshot: custom', lambda: _prompt_snapshot(window, options, on_done))
+
+    def on_temporal_select(index):
+        if index < 0:
+            on_done(options)
+            return
+        actions[index]()
+
+    window.show_quick_panel(items, on_temporal_select, selected_index=0)
+
+
+def _set_temporal(options, as_of_value, snapshot_value, on_done, window):
+    options['as_of'] = as_of_value
+    options['snapshot'] = snapshot_value
+    _prompt_limit(window, options, on_done)
+
+
+def _prompt_as_of(window, options, on_done):
+    current = options.get('as_of') or ''
+
+    def on_done_input(value):
+        options['as_of'] = value.strip()
+        options['snapshot'] = ''
+        _prompt_limit(window, options, on_done)
+
+    window.show_input_panel(
+        'PairOfCleats as-of selector',
+        current,
+        on_done_input,
+        None,
+        None,
+    )
+
+
+def _prompt_snapshot(window, options, on_done):
+    current = options.get('snapshot') or ''
+
+    def on_done_input(value):
+        options['snapshot'] = value.strip()
+        options['as_of'] = ''
+        _prompt_limit(window, options, on_done)
+
+    window.show_input_panel(
+        'PairOfCleats snapshot id',
+        current,
+        on_done_input,
+        None,
+        None,
+    )
 
 
 def _prompt_limit(window, options, on_done):
@@ -284,6 +399,11 @@ def _execute_search(window, query, overrides=None, explain=False):
                 resolved.get('mode'),
                 backend=resolved.get('backend') or None,
                 limit=resolved.get('limit'),
+                ann=resolved.get('ann'),
+                allow_sparse_fallback=resolved.get('allow_sparse_fallback'),
+                as_of=resolved.get('as_of') or None,
+                snapshot=resolved.get('snapshot') or None,
+                advanced=resolved.get('advanced'),
             ),
             on_api_done,
             on_progress=lambda message: tasks.note_progress(window, task, details=message),
@@ -310,6 +430,12 @@ def _execute_search_cli(window, query, repo_root, settings, resolved, explain, o
         backend=resolved.get('backend') or None,
         limit=resolved.get('limit'),
         explain=explain
+        ,
+        ann=resolved.get('ann'),
+        allow_sparse_fallback=resolved.get('allow_sparse_fallback'),
+        as_of=resolved.get('as_of') or None,
+        snapshot=resolved.get('snapshot') or None,
+        advanced=resolved.get('advanced'),
     )
     cli = paths.resolve_cli(settings, repo_root)
     command = cli['command']
@@ -402,6 +528,11 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
                 'code',
                 backend=resolved.get('backend') or None,
                 limit=resolved.get('limit'),
+                ann=resolved.get('ann'),
+                allow_sparse_fallback=resolved.get('allow_sparse_fallback'),
+                as_of=resolved.get('as_of') or None,
+                snapshot=resolved.get('snapshot') or None,
+                advanced=resolved.get('advanced'),
             ),
             on_api_done,
             on_progress=lambda message: tasks.note_progress(window, task, details=message),
@@ -419,6 +550,11 @@ def _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, tit
         backend=resolved.get('backend') or None,
         limit=resolved.get('limit'),
         explain=False,
+        ann=resolved.get('ann'),
+        allow_sparse_fallback=resolved.get('allow_sparse_fallback'),
+        as_of=resolved.get('as_of') or None,
+        snapshot=resolved.get('snapshot') or None,
+        advanced=resolved.get('advanced'),
     )
     cli = paths.resolve_cli(settings, repo_root)
     command = cli['command']
