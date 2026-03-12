@@ -5,6 +5,7 @@ from ..lib import config
 from ..lib import history
 from ..lib import paths
 from ..lib import results
+from ..lib import results_state
 from ..lib import runner
 from ..lib import search as search_lib
 from ..lib import ui
@@ -211,8 +212,21 @@ def _execute_search(window, query, overrides=None, explain=False):
         history.record_query(window, query, resolved, history_limit)
 
         if explain:
-            text = results.format_explain_text(hits)
-            ui.write_output_panel(window, results.RESULTS_PANEL, text)
+            session = results.build_session(
+                query,
+                resolved,
+                repo_root,
+                hits,
+                'output_panel',
+                explain=True,
+            )
+            results_state.record_last_explain(window, session)
+            results.open_output_panel(
+                window,
+                session.get('text') or results.format_explain_text(hits),
+                explain=True,
+                session=session,
+            )
             return
 
         if not hits:
@@ -220,13 +234,21 @@ def _execute_search(window, query, overrides=None, explain=False):
             return
 
         target = _resolve_results_target(settings, len(hits))
+        session = results.build_session(query, resolved, repo_root, hits, target)
+        results_state.record_last_results(window, session)
         if target == 'output_panel':
-            text = results.format_results_text(hits)
-            ui.write_output_panel(window, results.RESULTS_PANEL, text)
+            results.open_output_panel(
+                window,
+                session.get('text') or results.format_results_text(hits),
+                session=session,
+            )
             return
         if target == 'new_tab':
-            text = results.format_results_text(hits)
-            results.open_results_view(window, text)
+            results.open_results_view(
+                window,
+                session.get('text') or results.format_results_text(hits),
+                session=session,
+            )
             return
 
         items = [results.format_quick_panel_item(hit) for hit in hits]
@@ -423,3 +445,100 @@ class PairOfCleatsExplainSearchCommand(sublime_plugin.WindowCommand):
             _execute_search(self.window, value, explain=True)
 
         _prompt_query(self.window, '', on_query)
+
+
+class PairOfCleatsReopenLastResultsCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
+    def run(self):
+        session = results_state.get_last_results(self.window)
+        if not session:
+            ui.show_status('PairOfCleats: no previous results to reopen.')
+            return
+        results.reopen_session(self.window, session)
+
+
+class PairOfCleatsReopenLastExplainCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
+    def run(self):
+        session = results_state.get_last_explain(self.window)
+        if not session:
+            ui.show_status('PairOfCleats: no previous explain output to reopen.')
+            return
+        results.reopen_session(self.window, session)
+
+
+class PairOfCleatsResultActionsCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
+    def run(self, source='results', hit_index=None, action=None):
+        session = _load_action_session(self.window, source)
+        if not session:
+            ui.show_status('PairOfCleats: no stored results for actions.')
+            return
+        hits = results.collect_hits_from_session(session)
+        if not hits:
+            ui.show_status('PairOfCleats: stored results have no hits.')
+            return
+        if isinstance(hit_index, int) and 0 <= hit_index < len(hits):
+            _run_result_action(self.window, session, hits[hit_index], action)
+            return
+
+        items = [results.format_quick_panel_item(hit) for hit in hits]
+
+        def on_hit(index):
+            if index < 0:
+                return
+            hit = hits[index]
+            _show_result_action_choices(self.window, session, hit)
+
+        self.window.show_quick_panel(items, on_hit)
+
+
+def _load_action_session(window, source):
+    if source == 'explain':
+        return results_state.get_last_explain(window)
+    return results_state.get_last_results(window)
+
+
+def _show_result_action_choices(window, session, hit):
+    items = results.format_hit_action_items(hit)
+
+    def on_action(index):
+        if index < 0:
+            return
+        action = results.HIT_ACTIONS[index][0]
+        _run_result_action(window, session, hit, action)
+
+    window.show_quick_panel(items, on_action)
+
+
+def _run_result_action(window, session, hit, action):
+    repo_root = session.get('repoRoot')
+    options = session.get('options')
+
+    def rerun(query):
+        _search_with_query(window, query, overrides=options)
+
+    outcome = results.apply_hit_action(
+        window,
+        hit,
+        repo_root=repo_root,
+        action=action or 'open',
+        rerun=rerun,
+    )
+    if action == 'copy_path' and outcome:
+        ui.show_status('PairOfCleats: copied path.')

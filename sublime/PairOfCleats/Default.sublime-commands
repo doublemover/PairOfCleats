@@ -36,6 +36,18 @@
     "command": "pair_of_cleats_explain_search"
   },
   {
+    "caption": "PairOfCleats: Reopen Last Results",
+    "command": "pair_of_cleats_reopen_last_results"
+  },
+  {
+    "caption": "PairOfCleats: Reopen Last Explain",
+    "command": "pair_of_cleats_reopen_last_explain"
+  },
+  {
+    "caption": "PairOfCleats: Result Actions",
+    "command": "pair_of_cleats_result_actions"
+  },
+  {
     "caption": "PairOfCleats: Index Build (Code)",
     "command": "pair_of_cleats_index_build_code"
   },
