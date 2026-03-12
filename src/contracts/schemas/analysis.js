@@ -741,6 +741,8 @@ const riskAnalysisStatusSchema = {
     reason: nullableString,
     degraded: { type: ['boolean', 'null'] },
     summaryOnly: { type: ['boolean', 'null'] },
+    code: nullableString,
+    strictFailure: { type: ['boolean', 'null'] },
     artifactStatus: {
       type: ['object', 'null'],
       properties: {
@@ -755,6 +757,31 @@ const riskAnalysisStatusSchema = {
     flowsEmitted: nullableNumber,
     uniqueCallSitesReferenced: nullableNumber,
     capsHit: { type: 'array', items: { type: 'string' } }
+  },
+  additionalProperties: false
+};
+
+const riskAnchorSchema = {
+  type: ['object', 'null'],
+  properties: {
+    kind: nullableString,
+    chunkUid: nullableString,
+    ref: { type: ['object', 'null'], additionalProperties: true },
+    flowId: nullableString,
+    alternateCount: nullableNumber,
+    alternates: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          kind: nullableString,
+          chunkUid: nullableString,
+          ref: { type: ['object', 'null'], additionalProperties: true },
+          flowId: nullableString
+        },
+        additionalProperties: false
+      }
+    }
   },
   additionalProperties: false
 };
@@ -870,6 +897,7 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
         },
         reason: nullableString,
         degraded: { type: ['boolean', 'null'] },
+        anchor: riskAnchorSchema,
         summary: riskSummarySchema,
         stats: riskStatsSchema,
         analysisStatus: riskAnalysisStatusSchema,

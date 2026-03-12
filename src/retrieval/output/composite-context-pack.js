@@ -46,6 +46,18 @@ const renderRisk = (risk) => {
     lines.push(`- status: ${risk.status}${risk.reason ? ` (${risk.reason})` : ''}`);
   }
   const analysisStatus = risk?.analysisStatus || null;
+  if (analysisStatus?.code) {
+    lines.push(`- analysis code: ${analysisStatus.code}${analysisStatus.strictFailure ? ' [strict-failure]' : ''}`);
+  }
+  if (risk?.anchor?.kind) {
+    const anchorParts = [risk.anchor.kind];
+    if (risk.anchor.chunkUid) anchorParts.push(risk.anchor.chunkUid);
+    if (risk.anchor.flowId) anchorParts.push(`flow ${risk.anchor.flowId}`);
+    lines.push(`- anchor: ${anchorParts.join(' | ')}`);
+    if (Array.isArray(risk.anchor.alternates) && risk.anchor.alternates.length) {
+      lines.push(`- alternate anchors: ${risk.anchor.alternates.map((entry) => `${entry.kind}:${entry.chunkUid || 'unknown'}`).join(', ')}`);
+    }
+  }
   if (analysisStatus?.artifactStatus) {
     const parts = Object.entries(analysisStatus.artifactStatus)
       .filter(([, value]) => typeof value === 'string' && value)

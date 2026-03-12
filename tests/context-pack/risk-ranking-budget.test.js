@@ -252,6 +252,6 @@ assert.equal(pack.risk?.summary?.previewFlowIds?.[0], flows[0].flowId, 'expected
 assert.equal(pack.risk?.flows?.[1]?.path?.truncatedSteps > 0, true, 'expected path steps to truncate');
 assert.equal(pack.risk?.flows?.[1]?.path?.callSiteIdsByStep?.[0]?.length, 3, 'expected call-site evidence per step to truncate');
 assert.equal(pack.risk?.flows?.[0]?.rank, 2, 'expected emitted flow to retain original rank after higher-ranked omission');
-assert.equal(pack.risk?.flows?.[0]?.score?.seedRelevance, 2, 'expected direct flow seed relevance score');
+assert.equal(pack.risk?.flows?.[0]?.score?.seedRelevance, 3, 'expected direct flow seed relevance score');
 
 console.log('context pack risk ranking and budget test passed');

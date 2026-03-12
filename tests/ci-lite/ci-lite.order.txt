@@ -344,6 +344,7 @@ graph/store-csr-artifact-load
 indexing/scm/jj-changed-files-parse
 retrieval/context-pack/assembly
 context-pack/risk-assembly
+context-pack/risk-seed-anchoring
 shared/merge/spill-contract
 storage/sqlite/cache
 retrieval/pipeline/filter-compiled-reuse
@@ -1101,3 +1102,4 @@ indexing/workers/worker-pool-lifecycle-destroy-during-restart
 
 
 context-pack/risk-ranking-budget
+context-pack/risk-strict-status
