@@ -46,7 +46,17 @@ Settings:
 - `pairofcleats.searchBackend`
 - `pairofcleats.searchAnn`
 - `pairofcleats.maxResults`
+- `pairofcleats.searchContextLines`
+- `pairofcleats.searchFile`
+- `pairofcleats.searchPath`
+- `pairofcleats.searchLang`
+- `pairofcleats.searchExt`
+- `pairofcleats.searchType`
+- `pairofcleats.searchCaseSensitive`
+- `pairofcleats.env`
 - `pairofcleats.extraSearchArgs`
+
+The VS Code search command forwards these common search flags directly instead of forcing normal workflows through `extraSearchArgs`.
 
 ## Sublime package
 

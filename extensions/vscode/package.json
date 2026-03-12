@@ -43,6 +43,7 @@
           "enum": [
             "code",
             "prose",
+            "extracted-prose",
             "both",
             "records",
             "all"
@@ -52,7 +53,16 @@
         "pairofcleats.searchBackend": {
           "type": "string",
           "default": "",
-          "description": "Optional backend override (e.g., sqlite, sqlite-fts). Leave empty for default."
+          "enum": [
+            "",
+            "auto",
+            "memory",
+            "sqlite",
+            "sqlite-fts",
+            "lmdb",
+            "tantivy"
+          ],
+          "description": "Optional backend override. Leave empty for default backend selection."
         },
         "pairofcleats.searchAnn": {
           "type": "boolean",
@@ -64,6 +74,54 @@
           "default": 25,
           "minimum": 1,
           "description": "Maximum results to fetch."
+        },
+        "pairofcleats.searchContextLines": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Optional context lines (`--context`). Set to 0 to omit."
+        },
+        "pairofcleats.searchFile": {
+          "type": "string",
+          "default": "",
+          "description": "Optional exact or partial file filter (`--file`)."
+        },
+        "pairofcleats.searchPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path prefix filter (`--path`)."
+        },
+        "pairofcleats.searchLang": {
+          "type": "string",
+          "default": "",
+          "description": "Optional language filter (`--lang`)."
+        },
+        "pairofcleats.searchExt": {
+          "type": "string",
+          "default": "",
+          "description": "Optional extension filter (`--ext`)."
+        },
+        "pairofcleats.searchType": {
+          "type": "string",
+          "default": "",
+          "description": "Optional symbol/type filter (`--type`)."
+        },
+        "pairofcleats.searchCaseSensitive": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable case-sensitive matching (`--case`)."
+        },
+        "pairofcleats.env": {
+          "type": "object",
+          "default": {},
+          "description": "Extra environment variables merged into CLI subprocesses.",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
         },
         "pairofcleats.extraSearchArgs": {
           "type": "array",

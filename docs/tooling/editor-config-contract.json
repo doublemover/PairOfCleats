@@ -27,6 +27,13 @@
       "backendKey": "searchBackend",
       "annKey": "searchAnn",
       "maxResultsKey": "maxResults",
+      "contextLinesKey": "searchContextLines",
+      "fileKey": "searchFile",
+      "pathKey": "searchPath",
+      "langKey": "searchLang",
+      "extKey": "searchExt",
+      "typeKey": "searchType",
+      "caseSensitiveKey": "searchCaseSensitive",
       "envKey": "env"
     },
     "sublime": {

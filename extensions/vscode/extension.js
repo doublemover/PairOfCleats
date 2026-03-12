@@ -3,6 +3,7 @@ const cp = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
+const { readSearchOptions, buildSearchArgs, collectSearchHits } = require('./search-contract.js');
 
 const DEFAULT_EDITOR_CONFIG_CONTRACT = Object.freeze({
   schemaVersion: 1,
@@ -30,6 +31,13 @@ const DEFAULT_EDITOR_CONFIG_CONTRACT = Object.freeze({
       backendKey: 'searchBackend',
       annKey: 'searchAnn',
       maxResultsKey: 'maxResults',
+      contextLinesKey: 'searchContextLines',
+      fileKey: 'searchFile',
+      pathKey: 'searchPath',
+      langKey: 'searchLang',
+      extKey: 'searchExt',
+      typeKey: 'searchType',
+      caseSensitiveKey: 'searchCaseSensitive',
       envKey: 'env'
     },
     sublime: {
@@ -101,6 +109,19 @@ const VSCODE_SETTINGS = Object.freeze({
   backendKey: String(readContract(['settings', 'vscode', 'backendKey'], DEFAULT_VSCODE_SETTINGS.backendKey)),
   annKey: String(readContract(['settings', 'vscode', 'annKey'], DEFAULT_VSCODE_SETTINGS.annKey)),
   maxResultsKey: String(readContract(['settings', 'vscode', 'maxResultsKey'], DEFAULT_VSCODE_SETTINGS.maxResultsKey)),
+  contextLinesKey: String(readContract(
+    ['settings', 'vscode', 'contextLinesKey'],
+    DEFAULT_VSCODE_SETTINGS.contextLinesKey
+  )),
+  fileKey: String(readContract(['settings', 'vscode', 'fileKey'], DEFAULT_VSCODE_SETTINGS.fileKey)),
+  pathKey: String(readContract(['settings', 'vscode', 'pathKey'], DEFAULT_VSCODE_SETTINGS.pathKey)),
+  langKey: String(readContract(['settings', 'vscode', 'langKey'], DEFAULT_VSCODE_SETTINGS.langKey)),
+  extKey: String(readContract(['settings', 'vscode', 'extKey'], DEFAULT_VSCODE_SETTINGS.extKey)),
+  typeKey: String(readContract(['settings', 'vscode', 'typeKey'], DEFAULT_VSCODE_SETTINGS.typeKey)),
+  caseSensitiveKey: String(readContract(
+    ['settings', 'vscode', 'caseSensitiveKey'],
+    DEFAULT_VSCODE_SETTINGS.caseSensitiveKey
+  )),
   envKey: String(readContract(['settings', 'vscode', 'envKey'], DEFAULT_VSCODE_SETTINGS.envKey))
 });
 
@@ -258,33 +279,6 @@ function resolveCli(repoRoot, config) {
 }
 
 /**
- * Build search CLI args from extension settings and query input.
- *
- * @param {string} query
- * @param {string|null} repoRoot
- * @param {import('vscode').WorkspaceConfiguration} config
- * @returns {string[]}
- */
-function buildArgs(query, repoRoot, config) {
-  const mode = String(config.get(VSCODE_SETTINGS.modeKey) || 'both');
-  const backend = String(config.get(VSCODE_SETTINGS.backendKey) || '').trim();
-  const annEnabled = config.get(VSCODE_SETTINGS.annKey) !== false;
-  const maxResults = Number.isFinite(Number(config.get(VSCODE_SETTINGS.maxResultsKey)))
-    ? Math.max(1, Number(config.get(VSCODE_SETTINGS.maxResultsKey)))
-    : 25;
-  const extra = normalizeStringArray(config.get(VSCODE_SETTINGS.extraSearchArgsKey));
-
-  const args = ['search', '--json', '--top', String(maxResults)];
-  if (mode && mode !== 'both') args.push('--mode', mode);
-  if (backend) args.push('--backend', backend);
-  if (!annEnabled) args.push('--no-ann');
-  if (repoRoot) args.push('--repo', repoRoot);
-  args.push(...extra);
-  args.push('--', query);
-  return args;
-}
-
-/**
  * Build child-process env from configured merge order (`process` + settings).
  *
  * @param {import('vscode').WorkspaceConfiguration} config
@@ -333,7 +327,8 @@ async function runSearch() {
 
   const config = getExtensionConfiguration();
   const { command, argsPrefix } = resolveCli(repoRoot, config);
-  const args = [...argsPrefix, ...buildArgs(query.trim(), repoRoot, config)];
+  const searchOptions = readSearchOptions(config, VSCODE_SETTINGS);
+  const args = [...argsPrefix, ...buildSearchArgs(query.trim(), repoRoot, searchOptions)];
   const env = buildSpawnEnv(config);
   const searchTimeoutMs = 60000;
 
@@ -426,20 +421,7 @@ async function runSearch() {
           return;
         }
 
-        const hits = [];
-        const pushHits = (items, kind) => {
-          if (!Array.isArray(items)) return;
-          items.forEach((hit) => {
-            if (!hit || !hit.file) return;
-            hits.push({
-              ...hit,
-              section: kind
-            });
-          });
-        };
-        pushHits(payload.code, 'code');
-        pushHits(payload.prose, 'prose');
-        pushHits(payload.records, 'records');
+        const hits = collectSearchHits(payload);
 
         if (!hits.length) {
           vscode.window.showInformationMessage('PairOfCleats: no results.');
@@ -512,5 +494,11 @@ function deactivate() {}
 
 module.exports = {
   activate,
-  deactivate
+  deactivate,
+  _test: {
+    VSCODE_SETTINGS,
+    readSearchOptions,
+    buildSearchArgs,
+    collectSearchHits
+  }
 };
