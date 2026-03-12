@@ -186,6 +186,14 @@
     "args": { "source": "workspace_catalog" }
   },
   {
+    "caption": "PairOfCleats: Show Progress",
+    "command": "pair_of_cleats_show_progress"
+  },
+  {
+    "caption": "PairOfCleats: Cancel Active Task",
+    "command": "pair_of_cleats_cancel_active_task"
+  },
+  {
     "caption": "PairOfCleats: Architecture Check Actions",
     "command": "pair_of_cleats_analysis_actions",
     "args": { "source": "architecture_check" }

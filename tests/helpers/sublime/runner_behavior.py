@@ -1,9 +1,11 @@
 import importlib
 import json
 import os
+import io
 import sys
 import tempfile
 import threading
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -21,6 +23,8 @@ class RunnerBehaviorTests(unittest.TestCase):
         self.sublime.reset()
         self.window = FakeWindow()
         self.sublime.set_active_window(self.window)
+        self.tasks = importlib.import_module('PairOfCleats.lib.tasks')
+        self.tasks.clear_all()
 
     def test_capture_json_parses_stdout_and_preserves_stderr_output(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -53,6 +57,69 @@ class RunnerBehaviorTests(unittest.TestCase):
             self.assertIn('warning on stderr', result.output)
             panel = self.window.panels['pairofcleats-test']
             self.assertIn('warning on stderr', panel.appended)
+
+    def test_cancel_terminates_running_process_and_updates_progress(self):
+        proc = _FakeLongRunningProcess(wait_seconds=0.2)
+        done = threading.Event()
+        handle = self.runner.run_process(
+            'fake-command',
+            [],
+            window=self.window,
+            title='PairOfCleats search',
+            stream_output=False,
+            spawn_process=lambda *args, **kwargs: proc,
+            on_done=lambda result: done.set(),
+        )
+        handle.cancel()
+        self.assertTrue(done.wait(5), 'cancelled runner did not complete in time')
+        self.assertEqual(proc.terminated, 1)
+        panel = self.window.panels[self.tasks.TASK_PANEL]
+        self.assertIn('[cancelled] pairofcleats search', panel.appended.lower())
+
+    def test_watchdog_marks_silent_long_running_process(self):
+        proc = _FakeLongRunningProcess(wait_seconds=0.08)
+        done = threading.Event()
+        self.runner.run_process(
+            'fake-command',
+            [],
+            window=self.window,
+            title='PairOfCleats map',
+            stream_output=False,
+            watchdog_ms=20,
+            spawn_process=lambda *args, **kwargs: proc,
+            on_done=lambda result: done.set(),
+        )
+        self.assertTrue(done.wait(5), 'silent runner did not complete in time')
+        panel = self.window.panels[self.tasks.TASK_PANEL]
+        self.assertIn('watchdog:', panel.appended)
+        self.assertTrue(any('still running' in message.lower() for message in self.sublime.status_history))
+
+
+class _FakeLongRunningProcess:
+    def __init__(self, wait_seconds=0.1):
+        self.stdout = io.StringIO('')
+        self.stderr = io.StringIO('')
+        self.returncode = None
+        self.terminated = 0
+        self.killed = 0
+        self._wait_seconds = wait_seconds
+
+    def poll(self):
+        return self.returncode
+
+    def wait(self):
+        time.sleep(self._wait_seconds)
+        if self.returncode is None:
+            self.returncode = 0
+        return self.returncode
+
+    def terminate(self):
+        self.terminated += 1
+        self.returncode = -15
+
+    def kill(self):
+        self.killed += 1
+        self.returncode = -9
 
 
 if __name__ == '__main__':

@@ -213,6 +213,7 @@ def install_fake_modules():
         Region = FakeRegion
         clipboard = ''
         last_status = ''
+        status_history = []
         last_error = ''
         _settings_files = {}
         _active_window = None
@@ -236,6 +237,7 @@ def install_fake_modules():
         @staticmethod
         def status_message(message):
             FakeSublimeModule.last_status = message
+            FakeSublimeModule.status_history.append(message)
 
         @staticmethod
         def error_message(message):
@@ -253,6 +255,7 @@ def install_fake_modules():
         def reset():
             FakeSublimeModule.clipboard = ''
             FakeSublimeModule.last_status = ''
+            FakeSublimeModule.status_history = []
             FakeSublimeModule.last_error = ''
             FakeSublimeModule._settings_files = {}
             FakeSublimeModule._active_window = None

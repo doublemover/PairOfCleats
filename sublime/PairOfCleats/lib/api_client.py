@@ -13,6 +13,18 @@ class ApiResult(object):
         self.error = error
 
 
+class ApiHandle(object):
+    def __init__(self, thread):
+        self.thread = thread
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+
+    def is_cancelled(self):
+        return self._cancelled
+
+
 def normalize_base_url(value):
     if not value:
         return ''
@@ -123,25 +135,35 @@ def _write_json(path_value, payload):
         json.dump(payload, handle, indent=2, sort_keys=True)
 
 
-def run_async(request_fn, on_done):
+def run_async(request_fn, on_done, on_progress=None):
     import sublime
+    handle = ApiHandle(None)
 
     def worker():
         try:
+            if callable(on_progress):
+                on_progress('Request started.')
             response = request_fn()
+            if handle.is_cancelled():
+                return
             if isinstance(response, tuple) and len(response) == 2:
                 payload, headers = response
             else:
                 payload, headers = response, {}
             result = ApiResult(payload=payload, headers=headers)
         except Exception as exc:
+            if handle.is_cancelled():
+                return
             result = ApiResult(error=str(exc))
+        if handle.is_cancelled():
+            return
         sublime.set_timeout(lambda: on_done(result), 0)
 
     thread = threading.Thread(target=worker)
     thread.daemon = True
     thread.start()
-    return thread
+    handle.thread = thread
+    return handle
 
 
 def search_json(base_url, repo_root, settings, query, mode, backend=None, limit=None):

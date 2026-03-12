@@ -83,6 +83,7 @@ class SearchBehaviorTests(unittest.TestCase):
         self.assertEqual(len(self.api_calls), 1)
         self.assertEqual(len(self.runner_calls), 0)
         self.assertIsNotNone(self.window.quick_panel_items)
+        self.assertIn('PairOfCleats search', self.window.panels['pairofcleats-progress'].appended)
         session = self.results_state.get_last_results(self.window)
         self.assertEqual(session['query'], 'return')
 
@@ -143,12 +144,16 @@ class SearchBehaviorTests(unittest.TestCase):
             }],
         }, {})
 
-    def _run_api_immediate(self, request_fn, on_done):
+    def _run_api_immediate(self, request_fn, on_done, on_progress=None):
+        if callable(on_progress):
+            on_progress('Request started.')
         payload, headers = request_fn()
         on_done(self.search.api_client.ApiResult(payload=payload, headers=headers))
         return None
 
-    def _run_api_error(self, _request_fn, on_done):
+    def _run_api_error(self, _request_fn, on_done, on_progress=None):
+        if callable(on_progress):
+            on_progress('Request started.')
         on_done(self.search.api_client.ApiResult(error='api down'))
         return None
 

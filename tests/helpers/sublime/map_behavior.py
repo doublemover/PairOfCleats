@@ -176,8 +176,9 @@ class MapBehaviorTests(unittest.TestCase):
             'summary': {'counts': {'files': 1, 'members': 1, 'edges': 0}},
             'warnings': [],
         })
-        self.map_commands.api_client.run_async = lambda request_fn, on_done: on_done(
-            self.map_commands.api_client.ApiResult(payload=request_fn())
+        self.map_commands.api_client.run_async = lambda request_fn, on_done, on_progress=None: (
+            on_progress('Request started.') if callable(on_progress) else None,
+            on_done(self.map_commands.api_client.ApiResult(payload=request_fn()))
         )
 
         self.map_commands._dispatch_map(self.window, 'repo', '')
@@ -185,6 +186,7 @@ class MapBehaviorTests(unittest.TestCase):
         state = self.map_state.get_last_map(self.window)
         self.assertEqual(state['source'], 'api')
         self.assertEqual(self.opened_urls, ['https://example.test/map'])
+        self.assertIn('PairOfCleats map', self.window.panels['pairofcleats-progress'].appended)
 
 
 if __name__ == '__main__':

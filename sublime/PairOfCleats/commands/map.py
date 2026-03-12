@@ -13,6 +13,7 @@ from ..lib import map_state
 from ..lib import paths
 from ..lib import results
 from ..lib import runner
+from ..lib import tasks
 from ..lib import ui
 
 MAP_TYPE_CHOICES = [
@@ -279,15 +280,26 @@ def _dispatch_map(window, scope, focus, map_type=None, map_format=None, path_hin
 
     if execution.get('mode') == 'api':
         ui.show_status('PairOfCleats: generating map via API...')
+        task = tasks.start_task(
+            window,
+            'PairOfCleats map',
+            kind='map',
+            repo_root=repo_root,
+            cancellable=False,
+            details='Generating map via API...',
+            show_panel=True,
+        )
 
         def on_api_done(result):
             if result.error:
+                tasks.complete_task(window, task, status='failed', details=result.error)
                 if execution.get('allow_fallback'):
                     ui.show_status('PairOfCleats: API map failed; falling back to CLI.')
                     _dispatch_map_cli(window, repo_root, settings, scope, focus, map_type, map_format, output_path, model_path, node_list_path, handle_payload)
                     return
                 ui.show_error(result.error)
                 return
+            tasks.complete_task(window, task, status='done', details='Map completed via API.')
             handle_payload(_ApiProcessResult(result.payload))
 
         api_client.run_async(
@@ -304,6 +316,7 @@ def _dispatch_map(window, scope, focus, map_type=None, map_format=None, path_hin
                 node_list_path,
             ),
             on_api_done,
+            on_progress=lambda message: tasks.note_progress(window, task, details=message),
         )
         return
 

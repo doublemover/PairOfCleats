@@ -9,6 +9,7 @@ from ..lib import results
 from ..lib import results_state
 from ..lib import runner
 from ..lib import search as search_lib
+from ..lib import tasks
 from ..lib import ui
 
 LIMIT_CHOICES = [10, 25, 50, 100, 200]
@@ -252,15 +253,26 @@ def _execute_search(window, query, overrides=None, explain=False):
 
     if execution.get('mode') == 'api':
         ui.show_status('PairOfCleats: searching via API...')
+        task = tasks.start_task(
+            window,
+            'PairOfCleats search',
+            kind='search',
+            repo_root=repo_root,
+            cancellable=False,
+            details='Searching via API...',
+            show_panel=True,
+        )
 
         def on_api_done(result):
             if result.error:
+                tasks.complete_task(window, task, status='failed', details=result.error)
                 if execution.get('allow_fallback'):
                     ui.show_status('PairOfCleats: API search failed; falling back to CLI.')
                     _execute_search_cli(window, query, repo_root, settings, resolved, explain, handle_payload)
                     return
                 ui.show_error(result.error)
                 return
+            tasks.complete_task(window, task, status='done', details='Search completed via API.')
             handle_payload(_ApiProcessResult(result.payload))
 
         api_client.run_async(
@@ -274,6 +286,7 @@ def _execute_search(window, query, overrides=None, explain=False):
                 limit=resolved.get('limit'),
             ),
             on_api_done,
+            on_progress=lambda message: tasks.note_progress(window, task, details=message),
         )
         return
 
@@ -360,13 +373,24 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
         on_hits(hits, repo_root, resolved)
 
     if execution.get('mode') == 'api':
+        task = tasks.start_task(
+            window,
+            title,
+            kind='search',
+            repo_root=repo_root,
+            cancellable=False,
+            details='Symbol lookup via API...',
+            show_panel=True,
+        )
         def on_api_done(result):
             if result.error:
+                tasks.complete_task(window, task, status='failed', details=result.error)
                 if execution.get('allow_fallback'):
                     _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done)
                     return
                 ui.show_error(result.error)
                 return
+            tasks.complete_task(window, task, status='done', details='Symbol lookup completed via API.')
             on_done(_ApiProcessResult(result.payload))
 
         api_client.run_async(
@@ -380,6 +404,7 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
                 limit=resolved.get('limit'),
             ),
             on_api_done,
+            on_progress=lambda message: tasks.note_progress(window, task, details=message),
         )
         return
 

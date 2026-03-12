@@ -15,7 +15,7 @@ def show_status(message):
         print(message)
 
 
-def write_output_panel(window, name, text):
+def write_output_panel(window, name, text, show_panel=True):
     if window is None:
         window = sublime.active_window()
     if window is None:
@@ -31,5 +31,6 @@ def write_output_panel(window, name, text):
         'scroll_to_end': False
     })
     panel.set_read_only(True)
-    window.run_command('show_panel', {'panel': 'output.{0}'.format(name)})
+    if show_panel:
+        window.run_command('show_panel', {'panel': 'output.{0}'.format(name)})
     return panel
