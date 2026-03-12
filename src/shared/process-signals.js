@@ -23,7 +23,6 @@ export function attachCleanupSignalHandlers({
   const events = Array.isArray(signals) && signals.length > 0
     ? signals
     : ['SIGINT', 'SIGTERM', ...(process.platform === 'win32' ? ['SIGBREAK'] : [])];
-  const listenerCounts = new Map(events.map((event) => [event, process.listenerCount(event)]));
   const handlers = [];
   let detached = false;
   const emitSignal = typeof reemitSignal === 'function'
@@ -40,18 +39,19 @@ export function attachCleanupSignalHandlers({
   };
 
   for (const event of events) {
-    const hadExternalListeners = (listenerCounts.get(event) || 0) > 0;
     const handler = () => {
+      const shouldReemit = preserveDefaultTermination
+        && !process.rawListeners(event).some((entry) => entry !== handler && entry?.listener !== handler);
       try {
         cleanup?.(event);
       } finally {
         detach();
-        if (preserveDefaultTermination && !hadExternalListeners) {
+        if (shouldReemit) {
           emitSignal(event);
         }
       }
     };
-    process.once(event, handler);
+    process.prependOnceListener(event, handler);
     handlers.push({ event, handler });
   }
 
