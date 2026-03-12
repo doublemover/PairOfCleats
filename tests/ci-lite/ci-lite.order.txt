@@ -414,6 +414,7 @@ shared/subprocess/capture-bounds
 indexing/map/chunkuid-join
 shared/merge/comparator-adopters
 storage/sqlite/build-vocab
+storage/sqlite/bundle-loader-worker
 shared/runtime/uv-threadpool-env
 indexing/scm/build-state-repo-provenance
 retrieval/graph/context-pack-seed-indexing
@@ -984,6 +985,7 @@ indexing/file-processor/effective-language-drives-docmeta
 indexing/tree-sitter/scheduler-native-determinism
 runner/harness/cwd-independence
 indexing/scm/build-runtime-timeout-policy
+indexing/scm/file-meta-snapshot-churn-optin-contract
 tooling/doctor/runtime-requirements-csharp-dedicated
 tooling/ingest/lsif/ingest
 tooling/lsp/elixir-provider-mix-lock-missing-preflight
@@ -1002,6 +1004,7 @@ tooling/ingest/gtags/ingest
 tooling/lsp/fd-pressure-backoff-contract
 tooling/lsp/bychunkuid-keying
 indexing/embeddings/embedding-batch-autotune
+indexing/embeddings/stage3-manifest-failure-guard
 tooling/lsp/configured-provider-lua-workspace-library
 tooling/lsp/configured-provider-rust-proc-macro-suppression-policy-preflight
 tooling/lsp/type-definition-fallback
@@ -1043,14 +1046,18 @@ tooling/lsp/configured-provider-go-rust-signature-parsing
 tooling/lsp/configured-provider-rust-workspace-metadata-preflight-timeout-override
 tooling/lsp/configured-provider-go-workspace-module-preflight-timeout
 indexing/watch/lock-backoff
+indexing/ignore/ignore-file-overrides
+indexing/imports/import-scan-budget-cache-key
 tooling/doctor/gating-reasons
 tooling/lsp/elixir-provider-initialize-stall-fail-open
 perf/bench/language-log-closeout
+perf/bench/language-report-master-dedupe
 perf/bench/query-runtime
 perf/bench/language-timeout-profile
 perf/bench/language-process-idle-timeout
 perf/bench/language-process-idle-activity-probe
 shared/lifecycle/registry-unref-promise-drain
+shared/bundle-io-patch-append
 indexing/embeddings/embedding-batcher-unref-timer
 perf/bench/repo-timeout-propagation
 indexing/watch/debounce
@@ -1066,6 +1073,7 @@ indexing/extracted-prose/low-yield-history-family-priors
 indexing/stage1/barrier-keepalive
 indexing/runtime/runtime-teardown-order
 indexing/ordering/ordered-appender-retry-reset
+tooling/install/tooling-signal-exit
 indexing/extracted-prose/low-yield-history-doclike-reinforcement
 indexing/extracted-prose/low-yield-history-unsampled-doclike-family
 indexing/extracted-prose/low-yield-unsampled-doclike-family-expansion
