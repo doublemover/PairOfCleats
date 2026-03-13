@@ -43,7 +43,20 @@ const PUBLIC_CLI_FLAGS = new Set([
   'reason',
   'stage'
 ]);
-const KNOWN_CONFIG_KEYS = new Set();
+const KNOWN_CONFIG_KEYS = new Set([
+  'indexing.riskInterprocedural.caps.maxBlockedExpansionsPerPartial',
+  'indexing.riskInterprocedural.caps.maxPartialFlows',
+  'indexing.riskInterprocedural.semantics',
+  'indexing.riskInterprocedural.semantics[].frameworks',
+  'indexing.riskInterprocedural.semantics[].fromArgs',
+  'indexing.riskInterprocedural.semantics[].id',
+  'indexing.riskInterprocedural.semantics[].kind',
+  'indexing.riskInterprocedural.semantics[].languages',
+  'indexing.riskInterprocedural.semantics[].name',
+  'indexing.riskInterprocedural.semantics[].patterns',
+  'indexing.riskInterprocedural.semantics[].taintHints',
+  'indexing.riskInterprocedural.semantics[].toParams'
+]);
 const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_ANN_BACKEND',
   'PAIROFCLEATS_API_TOKEN',
@@ -308,11 +321,15 @@ export const buildInventory = async (options = {}) => {
   const existingKnownConfigLeafKeys = Array.isArray(existingInventory?.allowlists?.knownConfigKeys)
     ? existingInventory.allowlists.knownConfigKeys.filter((entry) => typeof entry === 'string' && entry.trim())
     : [];
-  const knownConfigLeafKeys = KNOWN_CONFIG_KEYS.size
-    ? Array.from(KNOWN_CONFIG_KEYS)
-    : (existingKnownConfigLeafKeys.length
-      ? existingKnownConfigLeafKeys
-      : (checkBudget ? [] : configLeafEntries.map((entry) => entry.path)));
+  const knownConfigLeafKeys = [
+    ...new Set([
+      ...existingKnownConfigLeafKeys,
+      ...Array.from(KNOWN_CONFIG_KEYS),
+      ...((!existingKnownConfigLeafKeys.length && !KNOWN_CONFIG_KEYS.size && !checkBudget)
+        ? configLeafEntries.map((entry) => entry.path)
+        : [])
+    ])
+  ];
   const publicConfigLeafKeys = configLeafEntries
     .filter((entry) => PUBLIC_CONFIG_KEYS.has(entry.path))
     .map((entry) => entry.path)

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-12T18:03:35.050Z",
+  "generatedAt": "2026-03-13T02:50:52.903Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -283,15 +283,27 @@
       "indexing.postings.phraseSource",
       "indexing.postings.tokenClassification",
       "indexing.profile",
+      "indexing.riskInterprocedural.caps.maxBlockedExpansionsPerPartial",
       "indexing.riskInterprocedural.caps.maxCallSitesPerEdge",
       "indexing.riskInterprocedural.caps.maxDepth",
       "indexing.riskInterprocedural.caps.maxEdgeExpansions",
       "indexing.riskInterprocedural.caps.maxMs",
+      "indexing.riskInterprocedural.caps.maxPartialFlows",
       "indexing.riskInterprocedural.caps.maxPathsPerPair",
       "indexing.riskInterprocedural.caps.maxTotalFlows",
       "indexing.riskInterprocedural.emitArtifacts",
       "indexing.riskInterprocedural.enabled",
       "indexing.riskInterprocedural.sanitizerPolicy",
+      "indexing.riskInterprocedural.semantics",
+      "indexing.riskInterprocedural.semantics[].frameworks",
+      "indexing.riskInterprocedural.semantics[].fromArgs",
+      "indexing.riskInterprocedural.semantics[].id",
+      "indexing.riskInterprocedural.semantics[].kind",
+      "indexing.riskInterprocedural.semantics[].languages",
+      "indexing.riskInterprocedural.semantics[].name",
+      "indexing.riskInterprocedural.semantics[].patterns",
+      "indexing.riskInterprocedural.semantics[].taintHints",
+      "indexing.riskInterprocedural.semantics[].toParams",
       "indexing.riskInterprocedural.strictness",
       "indexing.riskInterprocedural.summaryOnly",
       "indexing.scheduler.cpuTokens",
@@ -454,8 +466,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 308,
-    "leafKeys": 250,
+    "totalKeys": 321,
+    "leafKeys": 262,
     "topLevel": [
       {
         "key": "cache",
@@ -463,7 +475,7 @@
       },
       {
         "key": "indexing",
-        "count": 155
+        "count": 168
       },
       {
         "key": "mcp",
@@ -1084,6 +1096,11 @@
       "enum": null
     },
     {
+      "path": "indexing.riskInterprocedural.caps.maxBlockedExpansionsPerPartial",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "indexing.riskInterprocedural.caps.maxCallSitesPerEdge",
       "type": "number",
       "enum": null
@@ -1101,6 +1118,11 @@
     {
       "path": "indexing.riskInterprocedural.caps.maxMs",
       "type": "number|null",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.caps.maxPartialFlows",
+      "type": "number",
       "enum": null
     },
     {
@@ -1134,6 +1156,67 @@
         "terminate",
         "weaken"
       ]
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[]",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].frameworks",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].fromArgs",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].id",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].kind",
+      "type": "string",
+      "enum": [
+        "wrapper",
+        "propagator",
+        "builder",
+        "callback",
+        "asyncHandoff"
+      ]
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].languages",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].name",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].patterns",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].taintHints",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].toParams",
+      "type": "array",
+      "enum": null
     },
     {
       "path": "indexing.riskInterprocedural.strictness",
@@ -3548,7 +3631,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 397,
+    "totalFlags": 403,
     "publicFlags": [
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -3605,6 +3688,7 @@
       "cache-dir",
       "cache-root",
       "caps",
+      "category",
       "cert-dir",
       "changed",
       "changedFile",
@@ -3672,6 +3756,7 @@
       "finding",
       "fixture",
       "fixtures",
+      "flow-id",
       "flowMode",
       "focus",
       "force",
@@ -3703,6 +3788,7 @@
       "includeMinhash",
       "includePaths",
       "includeRisk",
+      "includeRiskPartialFlows",
       "includeTypes",
       "includeUsages",
       "incremental",
@@ -3876,9 +3962,11 @@
       "seed",
       "segmentBytes",
       "segments",
+      "severity",
       "sha256",
       "shard-count",
       "shard-index",
+      "sink",
       "sink-rule",
       "size",
       "skip-artifacts",
@@ -3910,6 +3998,7 @@
       "stub-embeddings",
       "symbols",
       "table",
+      "tag",
       "target",
       "targets",
       "testPattern",
@@ -4048,6 +4137,8 @@
       {
         "file": "src/integrations/tooling/context-pack.js",
         "flags": [
+          "category",
+          "flow-id",
           "format",
           "hops",
           "includeCallersCallees",
@@ -4055,6 +4146,7 @@
           "includeImports",
           "includePaths",
           "includeRisk",
+          "includeRiskPartialFlows",
           "includeTypes",
           "includeUsages",
           "json",
@@ -4070,8 +4162,15 @@
           "maxWallClockMs",
           "maxWorkUnits",
           "repo",
+          "rule",
           "seed",
-          "strictRisk"
+          "severity",
+          "sink",
+          "sink-rule",
+          "source",
+          "source-rule",
+          "strictRisk",
+          "tag"
         ]
       },
       {
@@ -4523,17 +4622,6 @@
           "retries",
           "shard-count",
           "shard-index"
-        ]
-      },
-      {
-        "file": "tools/analysis/explain-risk.js",
-        "flags": [
-          "chunk",
-          "index",
-          "json",
-          "max",
-          "sink-rule",
-          "source-rule"
         ]
       },
       {
@@ -5744,7 +5832,7 @@
     "duplicated": [
       {
         "flag": "json",
-        "count": 65,
+        "count": 64,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -5754,7 +5842,6 @@
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js",
           "tests/tooling/fixtures/fixture-eval.test.js",
-          "tools/analysis/explain-risk.js",
           "tools/analysis/structural-search.js",
           "tools/bench/dict-seg.js",
           "tools/bench/embeddings/model-bakeoff.js",
@@ -6371,17 +6458,6 @@
         ]
       },
       {
-        "flag": "index",
-        "count": 5,
-        "files": [
-          "tools/analysis/explain-risk.js",
-          "tools/bench/graph-caps-harness.js",
-          "tools/bench/graph/context-pack-latency.js",
-          "tools/bench/graph/neighborhood-index-dir.js",
-          "tools/bench/graph/store-lazy-load.js"
-        ]
-      },
-      {
         "flag": "max-edges",
         "count": 5,
         "files": [
@@ -6573,6 +6649,16 @@
         ]
       },
       {
+        "flag": "index",
+        "count": 4,
+        "files": [
+          "tools/bench/graph-caps-harness.js",
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-index-dir.js",
+          "tools/bench/graph/store-lazy-load.js"
+        ]
+      },
+      {
         "flag": "languages",
         "count": 4,
         "files": [
@@ -6725,15 +6811,6 @@
           "tests/runner/all.js",
           "tests/tooling/script-coverage/script-coverage.runner.js",
           "tools/ci/run-suite.js"
-        ]
-      },
-      {
-        "flag": "max",
-        "count": 3,
-        "files": [
-          "src/integrations/tooling/suggest-tests.js",
-          "tools/analysis/explain-risk.js",
-          "tools/bench/vfs/cdc-segmentation.js"
         ]
       },
       {
@@ -6932,14 +7009,6 @@
         "files": [
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js"
-        ]
-      },
-      {
-        "flag": "chunk",
-        "count": 2,
-        "files": [
-          "tools/analysis/explain-risk.js",
-          "tools/bench/vfs/cdc-segmentation.js"
         ]
       },
       {
@@ -7151,6 +7220,14 @@
         ]
       },
       {
+        "flag": "max",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/suggest-tests.js",
+          "tools/bench/vfs/cdc-segmentation.js"
+        ]
+      },
+      {
         "flag": "meta",
         "count": 2,
         "files": [
@@ -7255,6 +7332,14 @@
         ]
       },
       {
+        "flag": "rule",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "tools/analysis/structural-search.js"
+        ]
+      },
+      {
         "flag": "search",
         "count": 2,
         "files": [
@@ -7308,6 +7393,14 @@
         "files": [
           "tools/setup/bootstrap.js",
           "tools/setup/setup.js"
+        ]
+      },
+      {
+        "flag": "source",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "tools/triage/ingest.js"
         ]
       },
       {
@@ -7414,6 +7507,7 @@
       "tests/lang/registry/import-entries.test.js",
       "tests/perf/bench/run.test.js",
       "tests/tooling/signature-parse/shared-splitter.test.js",
+      "tools/analysis/explain-risk.js",
       "tools/api/server.js",
       "tools/bench/language-matrix.js",
       "tools/bench/language/cli.js",
