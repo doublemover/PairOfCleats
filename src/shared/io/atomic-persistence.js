@@ -24,6 +24,7 @@ const REPLACE_FILE_RENAME_RETRY_ATTEMPTS = 10;
 const REPLACE_FILE_RENAME_BASE_DELAY_MS = 20;
 const REPLACE_DIR_RENAME_ATTEMPTS = 10;
 const REPLACE_DIR_RENAME_BASE_DELAY_MS = 20;
+const REPLACE_COMMITTED_FINAL_GRACE_MS = 5_000;
 const LONG_PATH_PREFIX = '\\\\?\\';
 const RETRYABLE_FILE_RENAME_CODES = new Set([
   'EEXIST',
@@ -69,6 +70,16 @@ const waitForPath = async (targetPath, { attempts = 3, baseDelayMs = 10 } = {}) 
     }
   }
   return false;
+};
+
+const hasRecentlyCommittedFinalPath = (targetPath, graceMs = REPLACE_COMMITTED_FINAL_GRACE_MS) => {
+  try {
+    const stat = fsSync.statSync(targetPath);
+    const cutoff = Date.now() - Math.max(0, Number(graceMs) || 0);
+    return Number.isFinite(stat.mtimeMs) && stat.mtimeMs >= cutoff;
+  } catch {
+    return false;
+  }
 };
 
 const syncParentDirectory = async (targetPath) => {
@@ -385,7 +396,9 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   let backupCreatedForReplace = false;
   const commitSucceeded = () => {
     if (!fsSync.existsSync(finalPath)) return false;
-    if (!backupCreatedForReplace) return true;
+    if (!backupCreatedForReplace) {
+      return finalExistedAtStart === false || hasRecentlyCommittedFinalPath(finalPath);
+    }
     return !fsSync.existsSync(backupPath);
   };
   const restoreBackup = async () => {
@@ -557,11 +570,14 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
       throw err;
     }
   }
+  const finalExistedAtStart = finalExists;
   let backupAvailable = false;
   let backupCreatedForReplace = false;
   const commitSucceeded = () => {
     if (!fsSync.existsSync(finalPath)) return false;
-    if (!backupCreatedForReplace) return true;
+    if (!backupCreatedForReplace) {
+      return finalExistedAtStart === false || hasRecentlyCommittedFinalPath(finalPath);
+    }
     return !fsSync.existsSync(backupPath);
   };
   if (!fsSync.existsSync(tempPath)) {
