@@ -93,6 +93,13 @@ if (!('includePartialFlows' in (riskExplainTool.inputSchema?.properties || {})))
 if (!('maxPartialFlows' in (riskExplainTool.inputSchema?.properties || {}))) {
   throw new Error('risk_explain tool schema missing maxPartialFlows.');
 }
+const contextPackTool = getToolDefs(DEFAULT_MODEL_ID).find((tool) => tool.name === 'context_pack');
+if (!contextPackTool) {
+  throw new Error('context_pack tool missing from MCP tool defs.');
+}
+if (!('filters' in (contextPackTool.inputSchema?.properties || {}))) {
+  throw new Error('context_pack tool schema missing filters.');
+}
 const toolCatalog = getToolCatalog(DEFAULT_MODEL_ID);
 if (!toolCatalog.schemaVersion) {
   throw new Error('MCP schemaVersion missing from tool catalog.');

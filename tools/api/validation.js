@@ -187,6 +187,39 @@ const riskExplainSchema = {
   }
 };
 
+const contextPackSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['seed', 'hops'],
+  properties: {
+    repoPath: { type: 'string' },
+    repo: { type: 'string' },
+    seed: { type: 'string', minLength: 1 },
+    hops: { type: 'integer', minimum: 0 },
+    includeGraph: { type: 'boolean' },
+    includeTypes: { type: 'boolean' },
+    includeRisk: { type: 'boolean' },
+    includeRiskPartialFlows: { type: 'boolean' },
+    strictRisk: { type: 'boolean' },
+    includeImports: { type: 'boolean' },
+    includeUsages: { type: 'boolean' },
+    includeCallersCallees: { type: 'boolean' },
+    includePaths: { type: 'boolean' },
+    maxBytes: { type: 'integer', minimum: 0 },
+    maxTokens: { type: 'integer', minimum: 0 },
+    maxTypeEntries: { type: 'integer', minimum: 0 },
+    maxDepth: { type: 'integer', minimum: 0 },
+    maxFanoutPerNode: { type: 'integer', minimum: 0 },
+    maxNodes: { type: 'integer', minimum: 0 },
+    maxEdges: { type: 'integer', minimum: 0 },
+    maxPaths: { type: 'integer', minimum: 0 },
+    maxCandidates: { type: 'integer', minimum: 0 },
+    maxWorkUnits: { type: 'integer', minimum: 0 },
+    maxWallClockMs: { type: 'integer', minimum: 0 },
+    filters: riskFiltersSchema
+  }
+};
+
 const formatValidationErrors = (errors = []) => errors.map((err) => {
   const path = err.instancePath || '#';
   if (err.keyword === 'additionalProperties') {
@@ -225,5 +258,15 @@ export const createRiskExplainValidator = () => {
     const valid = validateRiskExplain(payload);
     if (valid) return { ok: true };
     return { ok: false, errors: formatValidationErrors(validateRiskExplain.errors || []) };
+  };
+};
+
+export const createContextPackValidator = () => {
+  const ajv = createAjv({ allErrors: false, strict: false });
+  const validateContextPack = compileSchema(ajv, contextPackSchema);
+  return (payload) => {
+    const valid = validateContextPack(payload);
+    if (valid) return { ok: true };
+    return { ok: false, errors: formatValidationErrors(validateContextPack.errors || []) };
   };
 };

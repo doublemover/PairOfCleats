@@ -367,6 +367,7 @@ indexing/scm/jj-changed-files-parse
 retrieval/context-pack/assembly
 context-pack/risk-assembly
 context-pack/risk-seed-anchoring
+context-pack/risk-filters-parity
 shared/merge/spill-contract
 storage/sqlite/cache
 retrieval/pipeline/filter-compiled-reuse
@@ -1126,6 +1127,7 @@ indexing/runtime/runtime-teardown-order
 indexing/ordering/ordered-appender-retry-reset
 tooling/install/tooling-signal-exit
 tooling/install/tooling-resolve-preferred-enabled-fallback
+tooling/analysis-wrapper-exit-propagation
 tooling/vscode/windows-cmd
 tooling/lsp/windows-wrapper-argv-forwarding
 ci/tooling-lsp-slo-gate-attempt-ratios
