@@ -4,6 +4,50 @@ import {
 } from '../../shared/risk-explain.js';
 import { renderRiskExplanationSarif } from './risk-sarif.js';
 
+export const RISK_EXPLANATION_SURFACE_OPTIONS = Object.freeze({
+  standalone: Object.freeze({
+    title: 'Risk Explain',
+    includeSubject: true,
+    includeAnalysisStatus: true,
+    includeSummary: true,
+    includeStats: true,
+    includeProvenance: true,
+    includeAnchor: true,
+    includeCaps: true,
+    includeTruncation: true,
+    includeFilters: true,
+    maxFlows: 20,
+    maxEvidencePerFlow: 20,
+    maxPartialFlows: 20
+  }),
+  contextPack: Object.freeze({
+    title: 'Risk',
+    includeSubject: false,
+    includeAnalysisStatus: true,
+    includeSummary: true,
+    includeStats: true,
+    includeProvenance: true,
+    includeAnchor: false,
+    includeCaps: true,
+    includeTruncation: true,
+    includeFilters: true,
+    maxFlows: 5,
+    maxEvidencePerFlow: 3,
+    maxPartialFlows: 5
+  })
+});
+
+export const getRiskExplanationSurfaceOptions = (surface = 'standalone', overrides = {}) => {
+  const defaults = RISK_EXPLANATION_SURFACE_OPTIONS[surface];
+  if (!defaults) {
+    throw new Error(`Unknown risk explanation surface: ${surface}`);
+  }
+  return {
+    ...defaults,
+    ...overrides
+  };
+};
+
 const formatNodeRef = (ref) => {
   if (!ref || typeof ref !== 'object') return 'unknown';
   if (ref.type === 'chunk') return `chunk:${ref.chunkUid}`;
@@ -522,6 +566,52 @@ export const renderRiskExplanation = (
   }
   return lines.join('\n');
 };
+
+export const buildRiskExplanationPresentation = (
+  model,
+  {
+    surface = 'standalone',
+    ...overrides
+  } = {}
+) => {
+  const options = getRiskExplanationSurfaceOptions(surface, overrides);
+  return {
+    model,
+    options,
+    markdown: renderRiskExplanation(model, options),
+    json: renderRiskExplanationJson(model, options)
+  };
+};
+
+export const buildRiskExplanationPresentationFromStandalone = (
+  payload,
+  {
+    surface = 'standalone',
+    ...overrides
+  } = {}
+) => buildRiskExplanationPresentation(
+  buildRiskExplanationModelFromStandalone(payload),
+  {
+    surface,
+    ...overrides
+  }
+);
+
+export const buildRiskExplanationPresentationFromRiskSlice = (
+  risk,
+  {
+    surface = 'contextPack',
+    subject = null,
+    filters = null,
+    ...overrides
+  } = {}
+) => buildRiskExplanationPresentation(
+  buildRiskExplanationModelFromRiskSlice(risk, { subject, filters }),
+  {
+    surface,
+    ...overrides
+  }
+);
 
 export {
   buildRiskExplanationModelFromRiskSlice,

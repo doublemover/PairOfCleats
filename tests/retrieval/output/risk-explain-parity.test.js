@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 
+import { buildRiskExplanationPresentationFromRiskSlice } from '../../../src/retrieval/output/risk-explain.js';
 import { renderCompositeContextPack } from '../../../src/retrieval/output/composite-context-pack.js';
 import { renderRiskExplain } from '../../../src/retrieval/output/risk-explain.js';
 
@@ -66,9 +67,22 @@ const contextPack = {
 };
 
 const expectedFlowSection = renderRiskExplain(cliFlows, { maxFlows: 1, maxEvidencePerFlow: 3 });
+const expectedRiskSection = buildRiskExplanationPresentationFromRiskSlice(
+  contextPack.risk,
+  {
+    surface: 'contextPack',
+    subject: {
+      chunkUid: 'chunk-a',
+      file: 'src/app.js',
+      name: null,
+      kind: null
+    }
+  }
+).markdown;
 const compositeOutput = renderCompositeContextPack(contextPack);
 
 assert(compositeOutput.includes(expectedFlowSection), 'expected context-pack risk section to share flow explanation rendering');
+assert(compositeOutput.includes(expectedRiskSection), 'expected context-pack risk section to reuse shared context-pack presentation');
 assert(compositeOutput.includes('src/app.js:27:5 dangerousSink(req.body)'), 'expected detailed call site evidence');
 
 console.log('risk explain parity test passed');

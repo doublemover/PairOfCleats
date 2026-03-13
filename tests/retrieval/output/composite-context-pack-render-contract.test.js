@@ -168,6 +168,8 @@ assert.match(markdown, /Warnings\n- PACK_WARN: warning emitted/);
 const jsonPayload = renderCompositeContextPackJson(payload);
 assert.deepEqual(jsonPayload.rendered.truncation, payload.truncation);
 assert.deepEqual(jsonPayload.rendered.warnings, payload.warnings);
+assert.equal(jsonPayload.rendered.risk.subject.chunkUid, 'chunk-risk');
+assert.equal(jsonPayload.rendered.risk.subject.file, 'src/app.ts');
 assert.equal(jsonPayload.rendered.risk.flowSelection.totalFlows, 1);
 assert.equal(jsonPayload.rendered.risk.flows[0].flowId, 'flow-a');
 assert.equal(jsonPayload.rendered.risk.flows[0].steps[0].watchWindow.calleeNormalized, 'query');

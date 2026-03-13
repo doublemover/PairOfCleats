@@ -1,10 +1,9 @@
-import { buildRiskExplanationModelFromRiskSlice, renderRiskExplanation, renderRiskExplanationJson } from './risk-explain.js';
+import {
+  buildRiskExplanationPresentationFromRiskSlice,
+  getRiskExplanationSurfaceOptions
+} from './risk-explain.js';
 import { renderGraphContextPack } from './graph-context-pack.js';
 import { renderCompositeContextPackSarif } from './risk-sarif.js';
-
-const CONTEXT_PACK_MAX_RISK_FLOWS = 5;
-const CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS = 5;
-const CONTEXT_PACK_MAX_RISK_EVIDENCE = 3;
 
 const renderPrimary = (primary) => {
   const lines = [];
@@ -51,20 +50,65 @@ const renderTypes = (types) => {
   return lines;
 };
 
-const renderRisk = (risk) => {
-  if (!risk) {
+const resolveRiskSubject = (payload) => {
+  const risk = payload?.risk && typeof payload.risk === 'object' ? payload.risk : null;
+  const primary = payload?.primary && typeof payload.primary === 'object' ? payload.primary : null;
+  const ref = primary?.ref && typeof primary.ref === 'object' ? primary.ref : null;
+  const summary = risk?.summary && typeof risk.summary === 'object' ? risk.summary : null;
+  const symbol = summary?.symbol && typeof summary.symbol === 'object' ? summary.symbol : null;
+  const chunkUid = ref?.type === 'chunk'
+    ? ref.chunkUid || summary?.chunkUid || null
+    : summary?.chunkUid || null;
+  const file = primary?.file || summary?.file || null;
+  const name = symbol?.name || null;
+  const kind = symbol?.kind || null;
+  if (!chunkUid && !file && !name && !kind) {
+    return null;
+  }
+  return {
+    chunkUid,
+    file,
+    name,
+    kind
+  };
+};
+
+const buildContextPackRiskPresentation = (payload) => {
+  if (!payload?.risk) {
+    return null;
+  }
+  return buildRiskExplanationPresentationFromRiskSlice(
+    payload.risk,
+    {
+      surface: 'contextPack',
+      subject: resolveRiskSubject(payload)
+    }
+  );
+};
+
+const renderRisk = (payload) => {
+  const presentation = buildContextPackRiskPresentation(payload);
+  if (!presentation) {
     return 'Risk\n- (none)';
   }
-  const model = buildRiskExplanationModelFromRiskSlice(risk);
-  return renderRiskExplanation(model, {
-    title: 'Risk',
-    includeSubject: false,
-    includeAnchor: false,
-    includeFilters: true,
-    maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
-    maxPartialFlows: CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
-    maxEvidencePerFlow: CONTEXT_PACK_MAX_RISK_EVIDENCE
-  });
+  return presentation.markdown;
+};
+
+const renderRiskJson = (payload) => {
+  const presentation = buildContextPackRiskPresentation(payload);
+  return presentation?.json || null;
+};
+
+const renderRiskSarif = (payload) => {
+  const options = getRiskExplanationSurfaceOptions('contextPack');
+  return renderCompositeContextPackSarif(payload, options);
+};
+
+const renderRiskSection = (payload) => {
+  if (!payload?.risk) {
+    return 'Risk\n- (none)';
+  }
+  return renderRisk(payload);
 };
 
 const renderListSection = (title, items, renderItem) => {
@@ -101,19 +145,8 @@ const renderWarnings = (payload) => renderListSection(
 export const renderCompositeContextPackJson = (payload) => ({
   ...payload,
   rendered: {
-    risk: payload?.risk
-      ? renderRiskExplanationJson(buildRiskExplanationModelFromRiskSlice(payload.risk), {
-        title: 'Risk',
-        maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
-        maxPartialFlows: CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
-        maxEvidencePerFlow: CONTEXT_PACK_MAX_RISK_EVIDENCE
-      })
-      : null,
-    sarif: renderCompositeContextPackSarif(payload, {
-      maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
-      maxPartialFlows: CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
-      maxEvidencePerFlow: CONTEXT_PACK_MAX_RISK_EVIDENCE
-    }),
+    risk: renderRiskJson(payload),
+    sarif: renderRiskSarif(payload),
     truncation: Array.isArray(payload?.truncation) ? payload.truncation.slice() : [],
     warnings: Array.isArray(payload?.warnings) ? payload.warnings.slice() : []
   }
@@ -129,7 +162,7 @@ export const renderCompositeContextPack = (payload) => {
     sections.push(renderTypes(payload.types).join('\n'));
   }
   if (payload?.risk) {
-    sections.push(renderRisk(payload.risk));
+    sections.push(renderRiskSection(payload));
   }
   sections.push(renderTruncation(payload));
   sections.push(renderWarnings(payload));
