@@ -49,9 +49,51 @@ const normalizeCollectorHint = (value) => {
   };
 };
 
+const IMPORT_SCAN_FINGERPRINT_OMIT_TOP_LEVEL_KEYS = new Set([
+  'rootDir',
+  'astDataflowEnabled',
+  'controlFlowEnabled',
+  'skipUnknownLanguages',
+  'skipOnParseError',
+  'embeddingBatchMultipliers',
+  'chunking',
+  'tokenization',
+  'pythonAst',
+  'kotlin',
+  'treeSitter',
+  'yamlChunking',
+  'lexicon',
+  'log',
+  'collectorDiagnostics',
+  'onCollectorDiagnostic',
+  'collectorNow',
+  'shards'
+]);
+
+const sanitizeImportScanLanguageOptions = (value, pathSegments = []) => {
+  if (value === undefined) return undefined;
+  if (Array.isArray(value)) {
+    return value.map((entry) => sanitizeImportScanLanguageOptions(entry, pathSegments));
+  }
+  if (!value || typeof value !== 'object' || value.constructor !== Object) {
+    return value;
+  }
+  const output = {};
+  for (const key of Object.keys(value)) {
+    if (pathSegments.length === 0 && IMPORT_SCAN_FINGERPRINT_OMIT_TOP_LEVEL_KEYS.has(key)) {
+      continue;
+    }
+    const normalized = sanitizeImportScanLanguageOptions(value[key], [...pathSegments, key]);
+    if (normalized !== undefined) {
+      output[key] = normalized;
+    }
+  }
+  return output;
+};
+
 const buildImportScanFingerprint = ({ languageOptions, mode }) => sha1(stableStringifyForSignature({
   mode: typeof mode === 'string' ? mode : 'code',
-  languageOptions: canonicalizeForSignature(languageOptions || null)
+  languageOptions: canonicalizeForSignature(sanitizeImportScanLanguageOptions(languageOptions || null))
 }));
 
 const normalizeForClassifier = (value) => (

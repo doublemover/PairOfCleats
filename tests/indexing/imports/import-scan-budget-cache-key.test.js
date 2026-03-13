@@ -127,4 +127,39 @@ assert.deepEqual(
   'expected stale cached imports to be ignored and rebuilt from source scanning'
 );
 
+const runtimeVariant = await scanImports({
+  files: [{ abs: filePath, rel: relKey, stat }],
+  root: repoRoot,
+  mode: 'code',
+  languageOptions: {
+    collectorScanBudget: {
+      maxChars: 128
+    },
+    rootDir: path.join(tempRoot, 'other-root'),
+    treeSitter: {
+      enabled: true,
+      cachePersistentDir: path.join(tempRoot, 'other-cache'),
+      scheduler: {
+        transport: 'disk',
+        sharedCache: true
+      }
+    },
+    shards: {
+      enabled: true,
+      maxWorkers: 1
+    },
+    log() {}
+  },
+  importConcurrency: 1,
+  incrementalState: {
+    enabled: false
+  },
+  readCachedImportsFn: readCachedImports
+});
+assert.equal(
+  runtimeVariant.importScanFingerprint,
+  scanResult.importScanFingerprint,
+  'expected runtime-only language options to be ignored by the import-scan fingerprint'
+);
+
 console.log('import scan budget cache key test passed');
