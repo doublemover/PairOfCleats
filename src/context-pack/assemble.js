@@ -1689,8 +1689,8 @@ const readFilePrefix = (filePath, maxBytes) => {
   }
 };
 
-const readFileRangeCached = (filePath, start, end) => {
-  const key = `${filePath}|${getFileCacheFingerprint(filePath)}|${start}|${end}`;
+const readFileRangeCached = (filePath, start, end, cacheScope) => {
+  const key = `${filePath}|${cacheScope}|${start}|${end}`;
   const cached = getCachedValue(fileRangeCache, key);
   if (cached != null) return cached;
   const buffer = readFileRangeSync(filePath, start, end);
@@ -1699,11 +1699,11 @@ const readFileRangeCached = (filePath, start, end) => {
   return text;
 };
 
-const prefetchFileRanges = (ranges) => {
+const prefetchFileRanges = (ranges, cacheScope) => {
   if (!Array.isArray(ranges) || !ranges.length) return;
   for (const range of ranges) {
     if (!range?.filePath) continue;
-    const key = `${range.filePath}|${getFileCacheFingerprint(range.filePath)}|${range.start}|${range.end}`;
+    const key = `${range.filePath}|${cacheScope}|${range.start}|${range.end}`;
     if (fileRangeCache.has(key)) continue;
     try {
       const buffer = readFileRangeSync(range.filePath, range.start, range.end);
@@ -1752,13 +1752,15 @@ const resolveExcerpt = ({
   start,
   end,
   maxBytes,
-  maxTokens
+  maxTokens,
+  indexSignature = null
 }) => {
+  const cacheScope = indexSignature || getFileCacheFingerprint(filePath);
   const cacheKeyInfo = buildLocalCacheKey({
     namespace: 'context-pack-excerpt',
     payload: {
       filePath,
-      fileFingerprint: getFileCacheFingerprint(filePath),
+      cacheScope,
       start: start ?? null,
       end: end ?? null,
       maxBytes: maxBytes ?? null,
@@ -1773,8 +1775,8 @@ const resolveExcerpt = ({
     const readEnd = safeMaxBytes
       ? Math.min(end, start + safeMaxBytes + UTF8_TRUNCATION_DETECTION_SLACK_BYTES)
       : end;
-    prefetchFileRanges([{ filePath, start, end: readEnd }]);
-    text = readFileRangeCached(filePath, start, readEnd);
+    prefetchFileRanges([{ filePath, start, end: readEnd }], cacheScope);
+    text = readFileRangeCached(filePath, start, readEnd, cacheScope);
   } else {
     text = readFilePrefix(filePath, normalizeOptionalNumber(maxBytes));
   }
@@ -1794,7 +1796,7 @@ const resolveExcerpt = ({
   return payload;
 };
 
-const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, warnings }) => {
+const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, indexSignature, warnings }) => {
   if (!chunk) {
     warnings.push({ code: 'MISSING_PRIMARY', message: 'Primary chunk not found for seed.' });
     return { excerpt: '', excerptHash: null, file: null, range: null, truncated: false };
@@ -1818,7 +1820,8 @@ const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, warnings })
         start: Number.isFinite(chunk.start) ? chunk.start : null,
         end: Number.isFinite(chunk.end) ? chunk.end : null,
         maxBytes: maxBytesNum,
-        maxTokens: maxTokensNum
+        maxTokens: maxTokensNum,
+        indexSignature
       });
       excerpt = resolvedExcerpt.excerpt || '';
       truncated = resolvedExcerpt.truncated;
@@ -1980,6 +1983,7 @@ export const assembleCompositeContextPack = ({
     repoRoot,
     maxBytes,
     maxTokens,
+    indexSignature,
     warnings
   });
   primary.file = excerptPayload.file;

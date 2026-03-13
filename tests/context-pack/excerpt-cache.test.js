@@ -50,4 +50,22 @@ const second = assembleCompositeContextPack({
 });
 
 assert.strictEqual(second.primary.excerpt, first.primary.excerpt);
+
+const third = assembleCompositeContextPack({
+  seed: { type: 'chunk', chunkUid: 'chunk-g' },
+  chunkMeta,
+  repoRoot,
+  indexSignature: 'test-updated',
+  maxTokens: 2,
+  includeGraph: false,
+  includeTypes: false,
+  includeRisk: false,
+  includeImports: false,
+  includeUsages: false,
+  includeCallersCallees: false,
+  includePaths: false,
+  depth: 0
+});
+
+assert.strictEqual(third.primary.excerpt, 'delta epsilon');
 console.log('context pack excerpt cache test passed');
