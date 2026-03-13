@@ -158,10 +158,6 @@ tooling/doctor/scm-none-annotate-disabled
 tooling/doctor/emits-report
 indexing/extracted-prose/core
 storage/sqlite/incremental/bundle-coverage-metadata-fallback
-storage/sqlite/incremental/bundle-partial-chunk-fallback
-storage/sqlite/incremental/bundle-partial-embeddings-fallback
-storage/sqlite/incremental/bundle-count-mismatch-fallback
-storage/sqlite/incremental/bundle-embeddings-stage3-refresh
 indexing/extracted-prose/low-yield-history-warmup-reduction
 indexing/extracted-prose/low-yield-history-disable
 lang/contracts/misc-buildfiles

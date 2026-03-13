@@ -2,6 +2,10 @@ indexing/imports/replay-perf-budget
 retrieval/pipeline/ann-lazy-import
 retrieval/pipeline/index-loader-lazy
 indexing/artifacts/chunk-meta-trim-strict
+storage/sqlite/incremental/bundle-partial-chunk-fallback
+storage/sqlite/incremental/bundle-partial-embeddings-fallback
+storage/sqlite/incremental/bundle-count-mismatch-fallback
+storage/sqlite/incremental/bundle-embeddings-stage3-refresh
 tooling/fixtures/prewarm-shared-indexes
 cli/search/startup-checkpoints-order
 services/api/search-validation
