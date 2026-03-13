@@ -129,7 +129,12 @@ const normalizeExplainPath = (pathValue, evidence = null) => {
   return {
     nodes: Array.isArray(pathValue?.nodes) ? pathValue.nodes.slice() : [],
     labels: Array.isArray(pathValue?.labels) ? pathValue.labels.slice() : [],
-    callSiteIdsByStep: rawStepIds.map((step) => (Array.isArray(step) ? step.filter(Boolean) : []))
+    callSiteIdsByStep: rawStepIds.map((step) => (Array.isArray(step) ? step.filter(Boolean) : [])),
+    watchByStep: Array.isArray(pathValue?.watchByStep)
+      ? pathValue.watchByStep
+        .slice(0, rawStepIds.length || undefined)
+        .map((entry) => (entry && typeof entry === 'object' ? { ...entry } : null))
+      : []
   };
 };
 

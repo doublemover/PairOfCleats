@@ -60,6 +60,7 @@ await withTemporaryEnv(env, async () => {
     const payload = await response.json();
     assert.equal(payload.ok, true);
     assert.deepEqual(payload.result?.flows?.map((entry) => entry.flowId), flow ? [flow.flowId] : []);
+    assert.ok(payload.result?.flows?.[0]?.path?.watchByStep?.[0], 'expected API risk explain to preserve watch window state');
     assert.deepEqual(payload.result?.partialFlows, [], 'expected no partial flows in simple fixture');
     assert.deepEqual(payload.result?.filters, {
       rule: [],

@@ -85,7 +85,21 @@ const fullModel = buildRiskExplanationModelFromStandalone({
           { type: 'chunk', chunkUid: 'chunk-full' },
           { type: 'chunk', chunkUid: 'chunk-mid' }
         ],
-        callSiteIdsByStep: [['cs-1']]
+        callSiteIdsByStep: [['cs-1']],
+        watchByStep: [{
+          taintIn: ['req.body'],
+          taintOut: ['input'],
+          propagatedArgIndices: [0],
+          boundParams: ['input'],
+          calleeNormalized: 'query',
+          sanitizerPolicy: 'terminate',
+          sanitizerBarrierApplied: false,
+          sanitizerBarriersBefore: 0,
+          sanitizerBarriersAfter: 0,
+          confidenceBefore: 0.6,
+          confidenceAfter: 0.51,
+          confidenceDelta: -0.09
+        }]
       },
       notes: {
         terminalReason: 'maxDepth',
@@ -106,7 +120,21 @@ const fullModel = buildRiskExplanationModelFromStandalone({
           { type: 'chunk', chunkUid: 'chunk-full' },
           { type: 'chunk', chunkUid: 'chunk-sink' }
         ],
-        callSiteIdsByStep: [['cs-1']]
+        callSiteIdsByStep: [['cs-1']],
+        watchByStep: [{
+          taintIn: ['req.body'],
+          taintOut: ['input'],
+          propagatedArgIndices: [0],
+          boundParams: ['input'],
+          calleeNormalized: 'query',
+          sanitizerPolicy: 'terminate',
+          sanitizerBarrierApplied: false,
+          sanitizerBarriersBefore: 0,
+          sanitizerBarriersAfter: 0,
+          confidenceBefore: 0.6,
+          confidenceAfter: 0.51,
+          confidenceDelta: -0.09
+        }]
       },
       evidence: {
         callSitesByStep: [[{
@@ -133,10 +161,12 @@ assert.equal(fullSarif.runs[0].results[0].properties.pairOfCleats.flowId, 'flow-
 assert.equal(fullSarif.runs[0].results[0].properties.pairOfCleats.confidence, 0.91);
 assert.equal(fullSarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].location.physicalLocation.artifactLocation.uri, 'src/full.js');
 assert.equal(fullSarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].location.physicalLocation.region.startLine, 18);
+assert.equal(fullSarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].properties.pairOfCleats.watchWindow.calleeNormalized, 'query');
 assert.match(fullSarif.runs[0].results[0].message.text, /injection \| SRC -> SNK/);
 assert.equal(fullSarif.runs[0].properties.pairOfCleats.partialFlowSelection.totalPartialFlows, 1);
 assert.equal(fullSarif.runs[0].properties.pairOfCleats.partialFlows[0].partialFlowId, 'partial-a');
 assert.equal(fullSarif.runs[0].properties.pairOfCleats.partialFlows[0].frontier.chunkUid, 'chunk-mid');
+assert.equal(fullSarif.runs[0].properties.pairOfCleats.partialFlows[0].path.watchByStep[0].calleeNormalized, 'query');
 
 const cappedModel = buildRiskExplanationModelFromRiskSlice({
   truncation: [{ cap: 'maxFlows', limit: 1, observed: 2, omitted: 1 }],

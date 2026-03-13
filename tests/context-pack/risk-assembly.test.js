@@ -94,7 +94,21 @@ const flowRow = {
   },
   path: {
     chunkUids: ['chunk-risk', 'chunk-risk-sink'],
-    callSiteIdsByStep: [['cs-1']]
+    callSiteIdsByStep: [['cs-1']],
+    watchByStep: [{
+      taintIn: ['req.body'],
+      taintOut: ['input'],
+      propagatedArgIndices: [0],
+      boundParams: ['input'],
+      calleeNormalized: 'query',
+      sanitizerPolicy: 'terminate',
+      sanitizerBarrierApplied: false,
+      sanitizerBarriersBefore: 0,
+      sanitizerBarriersAfter: 0,
+      confidenceBefore: 0.6,
+      confidenceAfter: 0.51,
+      confidenceDelta: -0.09
+    }]
   },
   confidence: 0.88,
   notes: {
@@ -132,7 +146,21 @@ const partialFlowRow = {
   },
   path: {
     chunkUids: ['chunk-risk', 'chunk-risk-sink'],
-    callSiteIdsByStep: [['cs-1']]
+    callSiteIdsByStep: [['cs-1']],
+    watchByStep: [{
+      taintIn: ['req.body'],
+      taintOut: ['input'],
+      propagatedArgIndices: [0],
+      boundParams: ['input'],
+      calleeNormalized: 'query',
+      sanitizerPolicy: 'terminate',
+      sanitizerBarrierApplied: false,
+      sanitizerBarriersBefore: 0,
+      sanitizerBarriersAfter: 0,
+      confidenceBefore: 0.6,
+      confidenceAfter: 0.51,
+      confidenceDelta: -0.09
+    }]
   },
   confidence: 0.64,
   notes: {
@@ -178,7 +206,21 @@ const rankedPathOnlyFlow = {
   },
   path: {
     chunkUids: ['chunk-helper', 'chunk-risk', 'chunk-helper-sink'],
-    callSiteIdsByStep: [['cs-1']]
+    callSiteIdsByStep: [['cs-1']],
+    watchByStep: [{
+      taintIn: ['req.body'],
+      taintOut: ['input'],
+      propagatedArgIndices: [0],
+      boundParams: ['input'],
+      calleeNormalized: 'query',
+      sanitizerPolicy: 'terminate',
+      sanitizerBarrierApplied: false,
+      sanitizerBarriersBefore: 0,
+      sanitizerBarriersAfter: 0,
+      confidenceBefore: 0.6,
+      confidenceAfter: 0.51,
+      confidenceDelta: -0.09
+    }]
   },
   confidence: 0.95,
   notes: {
@@ -202,7 +244,21 @@ const truncatedEvidenceFlow = {
       ['cs-10'],
       ['cs-11'],
       ['cs-12']
-    ]
+    ],
+    watchByStep: Array.from({ length: 9 }, (_, index) => ({
+      taintIn: ['req.body'],
+      taintOut: ['value'],
+      propagatedArgIndices: [0],
+      boundParams: ['value'],
+      calleeNormalized: `callee-${index + 1}`,
+      sanitizerPolicy: 'terminate',
+      sanitizerBarrierApplied: false,
+      sanitizerBarriersBefore: 0,
+      sanitizerBarriersAfter: 0,
+      confidenceBefore: 0.6,
+      confidenceAfter: 0.51,
+      confidenceDelta: -0.09
+    }))
   },
   confidence: 0.87,
   notes: {
@@ -434,6 +490,8 @@ assert.equal(fullPack.risk?.flows?.[0]?.source?.ruleId, 'source.req.body');
 assert.equal(fullPack.risk?.flows?.[0]?.sink?.ruleId, 'sink.sql.query');
 assert.equal(fullPack.risk?.flows?.[0]?.notes?.hopCount, 1);
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.callSiteId, 'cs-1');
+assert.equal(fullPack.risk?.flows?.[0]?.path?.watchByStep?.[0]?.calleeNormalized, 'query');
+assert.deepEqual(fullPack.risk?.flows?.[0]?.path?.watchByStep?.[0]?.boundParams, ['input']);
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerpt, 'query(input)');
 assert.match(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerptHash || '', /^sha1:/);
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.provenance?.excerptSource, 'repo-range');
@@ -569,6 +627,7 @@ assert.equal(partialPack.risk?.partialFlows?.length, 1);
 assert.equal(partialPack.risk?.partialFlows?.[0]?.partialFlowId, partialFlowRow.partialFlowId);
 assert.equal(partialPack.risk?.partialFlows?.[0]?.frontier?.terminalReason, 'maxDepth');
 assert.equal(partialPack.risk?.partialFlows?.[0]?.notes?.terminalReason, 'maxDepth');
+assert.equal(partialPack.risk?.partialFlows?.[0]?.path?.watchByStep?.[0]?.calleeNormalized, 'query');
 assert.equal(partialPack.risk?.partialFlows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.callSiteId, 'cs-1');
 assert.equal(partialPack.risk?.analysisStatus?.partialFlowsEmitted, 1);
 assert.ok(validateCompositeContextPack(partialPack).ok, 'expected partial risk slice to validate');
@@ -606,6 +665,7 @@ assert.equal(cappedPack.risk?.flows?.[0]?.rank, 2, 'expected selected flow to re
 assert.equal(cappedPack.risk?.flows?.[2]?.score?.seedRelevance, 1, 'expected path-only flow to rank below direct source flow');
 assert.equal(cappedPack.risk?.flows?.[1]?.path?.truncatedSteps, 1, 'expected step cap truncation');
 assert.equal(cappedPack.risk?.flows?.[1]?.evidence?.callSitesByStep?.[0]?.length, 3, 'expected call-site cap truncation');
+assert.equal(cappedPack.risk?.flows?.[1]?.path?.watchByStep?.length, 8, 'expected watch windows to truncate with path steps');
 assert.ok(Array.isArray(cappedPack.risk?.caps?.hits) && cappedPack.risk.caps.hits.includes('maxRiskBytes'), 'expected byte-budget cap hit');
 assert.ok(cappedPack.risk.caps.hits.includes('maxStepsPerFlow'), 'expected step cap hit');
 assert.ok(cappedPack.risk.caps.hits.includes('maxCallSitesPerStep'), 'expected call-site cap hit');

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { ensureFixtureIndex } from '../../../helpers/fixture-index.js';
+import { loadJsonArrayArtifactSync, MAX_JSON_BYTES } from '../../../../src/shared/artifact-io.js';
 
 applyTestEnv();
 
@@ -60,6 +61,30 @@ if (fs.existsSync(partialFlowsMeta)) {
     assert.ok(rel, 'risk_partial_flows part path missing');
     assert.ok(fs.existsSync(path.join(codeDir, rel)), `risk_partial_flows part missing: ${rel}`);
   }
+}
+
+const firstJsonlRow = (base) => {
+  try {
+    const rows = loadJsonArrayArtifactSync(codeDir, base, {
+      maxBytes: MAX_JSON_BYTES,
+      strict: true
+    });
+    return Array.isArray(rows) && rows.length ? rows[0] : null;
+  } catch {
+    return null;
+  }
+};
+
+const firstFlow = firstJsonlRow('risk_flows');
+if (firstFlow) {
+  assert.ok(Array.isArray(firstFlow?.path?.watchByStep), 'risk_flows path.watchByStep missing');
+  assert.equal(firstFlow.path.watchByStep.length, firstFlow.path.callSiteIdsByStep.length, 'risk_flows watchByStep length mismatch');
+}
+
+const firstPartialFlow = firstJsonlRow('risk_partial_flows');
+if (firstPartialFlow) {
+  assert.ok(Array.isArray(firstPartialFlow?.path?.watchByStep), 'risk_partial_flows path.watchByStep missing');
+  assert.equal(firstPartialFlow.path.watchByStep.length, firstPartialFlow.path.callSiteIdsByStep.length, 'risk_partial_flows watchByStep length mismatch');
 }
 
 console.log('risk interprocedural artifacts written test passed');

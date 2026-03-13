@@ -163,7 +163,21 @@ const makeFlow = ({
   },
   path: {
     chunkUids: pathIds,
-    callSiteIdsByStep
+    callSiteIdsByStep,
+    watchByStep: callSiteIdsByStep.map((_, index) => ({
+      taintIn: ['req.body'],
+      taintOut: ['input'],
+      propagatedArgIndices: [0],
+      boundParams: ['input'],
+      calleeNormalized: `callee${index + 1}`,
+      sanitizerPolicy: 'terminate',
+      sanitizerBarrierApplied: false,
+      sanitizerBarriersBefore: 0,
+      sanitizerBarriersAfter: 0,
+      confidenceBefore: 0.6,
+      confidenceAfter: 0.51,
+      confidenceDelta: -0.09
+    }))
   },
   confidence,
   notes: {
@@ -251,6 +265,8 @@ assert.ok(
 assert.equal(pack.risk?.summary?.previewFlowIds?.[0], flows[0].flowId, 'expected previewFlowIds to follow ranked order');
 assert.equal(pack.risk?.flows?.[1]?.path?.truncatedSteps > 0, true, 'expected path steps to truncate');
 assert.equal(pack.risk?.flows?.[1]?.path?.callSiteIdsByStep?.[0]?.length, 3, 'expected call-site evidence per step to truncate');
+assert.equal(pack.risk?.flows?.[1]?.path?.watchByStep?.length, 8, 'expected watch windows to truncate with the path budget');
+assert.equal(pack.risk?.flows?.[0]?.path?.watchByStep?.[0]?.calleeNormalized, 'callee1');
 assert.equal(pack.risk?.flows?.[0]?.rank, 2, 'expected emitted flow to retain original rank after higher-ranked omission');
 assert.equal(pack.risk?.flows?.[0]?.score?.seedRelevance, 3, 'expected direct flow seed relevance score');
 

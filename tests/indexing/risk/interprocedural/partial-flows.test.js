@@ -13,6 +13,8 @@ assert.equal(maxDepthResult.flowRows.length, 1, 'expected full flow to still be 
 assert.equal(maxDepthResult.partialFlowRows.length, 1, 'expected one partial flow from the depth cap');
 assert.equal(maxDepthResult.partialFlowRows[0]?.frontier?.terminalReason, 'maxDepth');
 assert.deepEqual(maxDepthResult.partialFlowRows[0]?.path?.chunkUids, ['uid-source', 'uid-sink']);
+assert.deepEqual(maxDepthResult.partialFlowRows[0]?.path?.watchByStep?.[0]?.boundParams, []);
+assert.equal(maxDepthResult.partialFlowRows[0]?.path?.watchByStep?.[0]?.calleeNormalized, 'sink');
 assert.equal(maxDepthResult.partialFlowRows[0]?.notes?.terminalReason, 'maxDepth');
 assert.ok(
   Array.isArray(maxDepthResult.partialFlowRows[0]?.notes?.capsHit)
@@ -29,6 +31,7 @@ assert.equal(blockedExpansionResult.status, 'ok');
 assert.equal(blockedExpansionResult.flowRows.length, 1, 'expected the direct flow to be emitted');
 assert.equal(blockedExpansionResult.partialFlowRows.length, 1, 'expected one blocked partial flow');
 assert.equal(blockedExpansionResult.partialFlowRows[0]?.frontier?.terminalReason, 'noCallees');
+assert.equal(blockedExpansionResult.partialFlowRows[0]?.path?.watchByStep?.length, 1);
 assert.deepEqual(
   blockedExpansionResult.partialFlowRows[0]?.frontier?.blockedExpansions,
   [],
@@ -44,6 +47,7 @@ assert.equal(timedOutResult.status, 'timed_out');
 assert.equal(timedOutResult.flowRows.length, 0, 'timeout should not emit full flows');
 assert.equal(timedOutResult.partialFlowRows.length, 1, 'timeout should emit one retained partial frontier');
 assert.equal(timedOutResult.partialFlowRows[0]?.frontier?.terminalReason, 'maxMs');
+assert.equal(timedOutResult.partialFlowRows[0]?.path?.watchByStep?.length, 0, 'timeout before expansion should not synthesize watch steps');
 assert.ok(
   Array.isArray(timedOutResult.partialFlowRows[0]?.notes?.capsHit)
   && timedOutResult.partialFlowRows[0].notes.capsHit.includes('maxMs'),

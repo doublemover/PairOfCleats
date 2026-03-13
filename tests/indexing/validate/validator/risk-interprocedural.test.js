@@ -181,7 +181,21 @@ const riskFlows = [
     },
     path: {
       chunkUids: ['uid-source', 'uid-sink'],
-      callSiteIdsByStep: [[callSiteId]]
+      callSiteIdsByStep: [[callSiteId]],
+      watchByStep: [{
+        taintIn: ['req.body'],
+        taintOut: [],
+        propagatedArgIndices: [],
+        boundParams: [],
+        calleeNormalized: 'sink',
+        sanitizerPolicy: 'terminate',
+        sanitizerBarrierApplied: false,
+        sanitizerBarriersBefore: 0,
+        sanitizerBarriersAfter: 0,
+        confidenceBefore: 0.6,
+        confidenceAfter: 0.51,
+        confidenceDelta: -0.09
+      }]
     },
     confidence: 0.5,
     notes: {
@@ -221,7 +235,21 @@ const riskPartialFlows = [
     },
     path: {
       chunkUids: ['uid-source', 'uid-sink'],
-      callSiteIdsByStep: [[callSiteId]]
+      callSiteIdsByStep: [[callSiteId]],
+      watchByStep: [{
+        taintIn: ['req.body'],
+        taintOut: [],
+        propagatedArgIndices: [],
+        boundParams: [],
+        calleeNormalized: 'sink',
+        sanitizerPolicy: 'terminate',
+        sanitizerBarrierApplied: false,
+        sanitizerBarriersBefore: 0,
+        sanitizerBarriersAfter: 0,
+        confidenceBefore: 0.6,
+        confidenceAfter: 0.51,
+        confidenceDelta: -0.09
+      }]
     },
     confidence: 0.45,
     notes: {
@@ -352,5 +380,24 @@ report = await validateIndexArtifacts({
 });
 assert.ok(!report.ok, 'expected validation to fail with bad blocked partial callSiteId');
 assert.ok(report.issues.some((issue) => issue.includes('blocked callSiteId')), 'expected blocked partial callSiteId issue');
+
+await writeJsonl(path.join(indexDir, 'risk_partial_flows.jsonl'), [{
+  ...riskPartialFlows[0],
+  path: {
+    ...riskPartialFlows[0].path,
+    watchByStep: []
+  }
+}]);
+report = await validateIndexArtifacts({
+  root: repoRoot,
+  indexRoot,
+  modes: ['code'],
+  userConfig: defaultUserConfig,
+  strict: true,
+  sqliteEnabled: false,
+  lmdbEnabled: false
+});
+assert.ok(!report.ok, 'expected validation to fail with watchByStep length mismatch');
+assert.ok(report.issues.some((issue) => issue.includes('watchByStep length mismatch')), 'expected watchByStep mismatch issue');
 
 console.log('risk interprocedural validator test passed');

@@ -134,8 +134,17 @@ export const validateRiskInterproceduralArtifacts = async ({
         }
         const expectedSteps = chunkUids.length - 1;
         const steps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
+        const watchSteps = Array.isArray(flow?.path?.watchByStep) ? flow.path.watchByStep : [];
         if (steps.length !== expectedSteps) {
           addIssue(report, mode, 'risk_flows path.callSiteIdsByStep length mismatch', 'Rebuild index artifacts for this mode.');
+          break;
+        }
+        if (watchSteps.length !== expectedSteps) {
+          addIssue(report, mode, 'risk_flows path.watchByStep length mismatch', 'Rebuild index artifacts for this mode.');
+          break;
+        }
+        if (watchSteps.some((entry) => !entry || typeof entry !== 'object' || Array.isArray(entry))) {
+          addIssue(report, mode, 'risk_flows path.watchByStep must contain objects', 'Rebuild index artifacts for this mode.');
           break;
         }
         if (flow?.source?.chunkUid && flow.source.chunkUid !== chunkUids[0]) {
@@ -189,8 +198,17 @@ export const validateRiskInterproceduralArtifacts = async ({
         }
         const expectedSteps = Math.max(0, chunkUids.length - 1);
         const steps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
+        const watchSteps = Array.isArray(flow?.path?.watchByStep) ? flow.path.watchByStep : [];
         if (steps.length !== expectedSteps) {
           addIssue(report, mode, 'risk_partial_flows path.callSiteIdsByStep length mismatch', 'Rebuild index artifacts for this mode.');
+          break;
+        }
+        if (watchSteps.length !== expectedSteps) {
+          addIssue(report, mode, 'risk_partial_flows path.watchByStep length mismatch', 'Rebuild index artifacts for this mode.');
+          break;
+        }
+        if (watchSteps.some((entry) => !entry || typeof entry !== 'object' || Array.isArray(entry))) {
+          addIssue(report, mode, 'risk_partial_flows path.watchByStep must contain objects', 'Rebuild index artifacts for this mode.');
           break;
         }
         if (flow?.source?.chunkUid && flow.source.chunkUid !== chunkUids[0]) {

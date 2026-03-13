@@ -84,7 +84,9 @@ export const sampleCallSitesForEdge = (callDetails, {
       : null;
     output.push({
       callSiteId: entry.callSiteId,
-      args
+      args,
+      calleeNormalized: entry.calleeNormalized || null,
+      calleeRaw: entry.calleeRaw || null
     });
   }
   return output;

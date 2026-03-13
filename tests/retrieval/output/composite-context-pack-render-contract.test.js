@@ -56,7 +56,21 @@ const payload = {
           nodes: [
             { type: 'chunk', chunkUid: 'chunk-risk' },
             { type: 'chunk', chunkUid: 'chunk-sink' }
-          ]
+          ],
+          watchByStep: [{
+            taintIn: ['req.body'],
+            taintOut: ['input'],
+            propagatedArgIndices: [0],
+            boundParams: ['input'],
+            calleeNormalized: 'query',
+            sanitizerPolicy: 'terminate',
+            sanitizerBarrierApplied: false,
+            sanitizerBarriersBefore: 0,
+            sanitizerBarriersAfter: 0,
+            confidenceBefore: 0.6,
+            confidenceAfter: 0.51,
+            confidenceDelta: -0.09
+          }]
         },
         evidence: {
           callSitesByStep: [[{
@@ -92,7 +106,21 @@ const payload = {
           { type: 'chunk', chunkUid: 'chunk-risk' },
           { type: 'chunk', chunkUid: index === 4 ? 'chunk-tail' : 'chunk-mid' }
         ],
-        callSiteIdsByStep: [['cs-1']]
+        callSiteIdsByStep: [['cs-1']],
+        watchByStep: [{
+          taintIn: ['req.body'],
+          taintOut: ['input'],
+          propagatedArgIndices: [0],
+          boundParams: ['input'],
+          calleeNormalized: 'query',
+          sanitizerPolicy: 'terminate',
+          sanitizerBarrierApplied: false,
+          sanitizerBarriersBefore: 0,
+          sanitizerBarriersAfter: 0,
+          confidenceBefore: 0.6,
+          confidenceAfter: 0.51,
+          confidenceDelta: -0.09
+        }]
       },
       evidence: {
         callSitesByStep: [[{
@@ -138,11 +166,13 @@ assert.deepEqual(jsonPayload.rendered.truncation, payload.truncation);
 assert.deepEqual(jsonPayload.rendered.warnings, payload.warnings);
 assert.equal(jsonPayload.rendered.risk.flowSelection.totalFlows, 1);
 assert.equal(jsonPayload.rendered.risk.flows[0].flowId, 'flow-a');
+assert.equal(jsonPayload.rendered.risk.flows[0].steps[0].watchWindow.calleeNormalized, 'query');
 assert.equal(jsonPayload.rendered.risk.partialFlowSelection.totalPartialFlows, 5);
 assert.equal(jsonPayload.rendered.risk.partialFlowSelection.shownPartialFlows, 5);
 assert.equal(jsonPayload.rendered.risk.partialFlowSelection.maxPartialFlows, 5);
 assert.equal(jsonPayload.rendered.risk.partialFlows.length, 5);
 assert.equal(jsonPayload.rendered.risk.partialFlows[4].partialFlowId, 'partial-e');
+assert.equal(jsonPayload.rendered.risk.partialFlows[0].steps[0].watchWindow.calleeNormalized, 'query');
 assert.equal(jsonPayload.rendered.risk.filters.sourceRule[0], 'SRC');
 assert.equal(jsonPayload.rendered.sarif.runs[0].automationDetails.id, 'context-pack');
 assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.packWarnings[0].code, 'PACK_WARN');

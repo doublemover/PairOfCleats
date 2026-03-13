@@ -41,6 +41,7 @@ await withTemporaryEnv(env, async () => {
     }
   });
   assert.deepEqual(result.flows?.map((entry) => entry.flowId), flow ? [flow.flowId] : []);
+  assert.ok(result.flows?.[0]?.path?.watchByStep?.[0], 'expected MCP risk explain to preserve watch window state');
   assert.deepEqual(result.partialFlows, [], 'expected no partial flows in simple fixture');
   assert.deepEqual(result.filters, {
     rule: [],

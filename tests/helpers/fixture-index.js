@@ -45,7 +45,7 @@ const ensureDir = async (dir) => {
 
 const FIXTURE_MODES = new Set(['code', 'prose', 'extracted-prose', 'records']);
 const DEFAULT_REQUIRED_MODES = Object.freeze(['code', 'prose', 'extracted-prose']);
-const FIXTURE_HEALTH_VERSION = 2;
+const FIXTURE_HEALTH_VERSION = 3;
 
 const resolveCacheName = (baseName, { cacheScope = 'isolated' } = {}) => {
   const MAX_CACHE_NAME_LENGTH = 64;
@@ -190,6 +190,23 @@ const hasRiskTags = (codeDir) => {
   }
 };
 
+const hasRiskWatchByStep = (codeDir) => {
+  try {
+    const flowRows = loadJsonArrayArtifactSync(codeDir, 'risk_flows', {
+      maxBytes: MAX_JSON_BYTES,
+      strict: false
+    });
+    if (!Array.isArray(flowRows) || flowRows.length === 0) return false;
+    return flowRows.every((entry) => {
+      const callSiteSteps = Array.isArray(entry?.path?.callSiteIdsByStep) ? entry.path.callSiteIdsByStep : [];
+      const watchSteps = Array.isArray(entry?.path?.watchByStep) ? entry.path.watchByStep : null;
+      return Array.isArray(watchSteps) && watchSteps.length === callSiteSteps.length;
+    });
+  } catch {
+    return false;
+  }
+};
+
 const hasMissingSqlDialectMetadata = async (codeDir) => {
   try {
     const chunkMeta = await loadChunkMeta(codeDir, { strict: false });
@@ -294,7 +311,7 @@ const readFixtureHealthStamp = async (stampPath) => {
  * Persist/merge fixture health stamp used to skip unnecessary rebuilds.
  *
  * @param {string} stampPath
- * @param {{requiredModes:string[],compatibilityKeyByMode:Record<string,string|null>,hasRiskTags:boolean}} input
+ * @param {{requiredModes:string[],compatibilityKeyByMode:Record<string,string|null>,hasRiskTags:boolean,hasRiskWatchByStep?:boolean}} input
  * @returns {Promise<void>}
  */
 const writeFixtureHealthStamp = async (
@@ -303,6 +320,7 @@ const writeFixtureHealthStamp = async (
     requiredModes,
     compatibilityKeyByMode,
     hasRiskTags,
+    hasRiskWatchByStep,
     hasSqlDialectMetadata
   }
 ) => {
@@ -319,6 +337,7 @@ const writeFixtureHealthStamp = async (
     modes: mergedModes,
     compatibilityKeyByMode: mergedCompatibility,
     hasRiskTags: Boolean(existing?.hasRiskTags || hasRiskTags),
+    hasRiskWatchByStep: Boolean(existing?.hasRiskWatchByStep || hasRiskWatchByStep),
     hasSqlDialectMetadata: Boolean(hasSqlDialectMetadata)
   };
   await fsPromises.writeFile(stampPath, JSON.stringify(payload), 'utf8');
@@ -328,7 +347,7 @@ const writeFixtureHealthStamp = async (
  * Check whether an existing health stamp satisfies current requirements.
  *
  * @param {object|null} stamp
- * @param {{requiredModes:string[],requireRiskTags:boolean,compatibilityKeyByMode:Record<string,string|null>}} input
+ * @param {{requiredModes:string[],requireRiskTags:boolean,requireRiskWatchByStep?:boolean,compatibilityKeyByMode:Record<string,string|null>}} input
  * @returns {boolean}
  */
 const canUseFixtureHealthStamp = (
@@ -336,6 +355,7 @@ const canUseFixtureHealthStamp = (
   {
     requiredModes,
     requireRiskTags,
+    requireRiskWatchByStep,
     requireSqlDialectMetadata,
     compatibilityKeyByMode
   }
@@ -345,6 +365,7 @@ const canUseFixtureHealthStamp = (
   const stampModes = new Set(Array.isArray(stamp.modes) ? stamp.modes : []);
   if (requiredModes.some((mode) => !stampModes.has(mode))) return false;
   if (requireRiskTags && stamp.hasRiskTags !== true) return false;
+  if (requireRiskWatchByStep && stamp.hasRiskWatchByStep !== true) return false;
   if (requireSqlDialectMetadata && stamp.hasSqlDialectMetadata !== true) return false;
   const stampedKeys = stamp.compatibilityKeyByMode || {};
   for (const mode of requiredModes) {
@@ -397,6 +418,7 @@ export const ensureFixtureIndex = async ({
   const normalizedCacheScope = normalizeTestCacheScope(cacheScope, { defaultScope: 'isolated' });
   const normalizedRequiredModes = normalizeRequiredModes(requiredModes);
   const requireCodeRiskTags = requireRiskTags && normalizedRequiredModes.includes('code');
+  const requireCodeRiskWatchByStep = requireCodeRiskTags;
   const fixtureRootRaw = path.join(ROOT, 'tests', 'fixtures', fixtureName);
   const fixtureRoot = toRealPathSync(fixtureRootRaw);
   const cacheRoot = resolveTestCachePath(ROOT, resolveCacheName(cacheName, { cacheScope: normalizedCacheScope }));
@@ -433,12 +455,14 @@ export const ensureFixtureIndex = async ({
     if (canUseFixtureHealthStamp(healthStamp, {
       requiredModes: normalizedRequiredModes,
       requireRiskTags: requireCodeRiskTags,
+      requireRiskWatchByStep: requireCodeRiskWatchByStep,
       requireSqlDialectMetadata,
       compatibilityKeyByMode: compatibility.keyByMode
     })) {
       return {
         modeDirs,
         needsRiskTags: false,
+        missingRiskWatchByStep: false,
         missingSqlDialects: false,
         missingChunkUids: false,
         compatibleIndexes,
@@ -446,6 +470,7 @@ export const ensureFixtureIndex = async ({
       };
     }
     const needsRiskTags = requireCodeRiskTags && !hasRiskTags(modeDirs.code);
+    const missingRiskWatchByStep = requireCodeRiskWatchByStep && !hasRiskWatchByStep(modeDirs.code);
     const missingSqlDialects = requireSqlDialectMetadata
       ? await hasMissingSqlDialectMetadata(modeDirs.code)
       : false;
@@ -453,17 +478,19 @@ export const ensureFixtureIndex = async ({
       modeDirs,
       requiredModes: normalizedRequiredModes
     });
-    if (!needsRiskTags && !missingChunkUids && !missingSqlDialects) {
+    if (!needsRiskTags && !missingRiskWatchByStep && !missingChunkUids && !missingSqlDialects) {
       await writeFixtureHealthStamp(healthStampPath, {
         requiredModes: normalizedRequiredModes,
         compatibilityKeyByMode: compatibility.keyByMode,
         hasRiskTags: requireCodeRiskTags,
+        hasRiskWatchByStep: requireCodeRiskWatchByStep,
         hasSqlDialectMetadata: !missingSqlDialects
       });
     }
     return {
       modeDirs,
       needsRiskTags,
+      missingRiskWatchByStep,
       missingSqlDialects,
       missingChunkUids,
       compatibleIndexes,
@@ -473,6 +500,7 @@ export const ensureFixtureIndex = async ({
   const needsBuild = (state) => (
     !state.compatibleIndexes
     || state.needsRiskTags
+    || state.missingRiskWatchByStep
     || state.missingChunkUids
     || state.missingSqlDialects
   );

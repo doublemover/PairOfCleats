@@ -101,7 +101,21 @@ const fullModel = buildRiskExplanationModelFromRiskSlice({
       sink: { ruleId: 'SNK' },
       path: {
         labels: ['chunk:src', 'chunk:sink'],
-        callSiteIdsByStep: [['cs-1']]
+        callSiteIdsByStep: [['cs-1']],
+        watchByStep: [{
+          taintIn: ['req.body'],
+          taintOut: ['input'],
+          propagatedArgIndices: [0],
+          boundParams: ['input'],
+          calleeNormalized: 'query',
+          sanitizerPolicy: 'terminate',
+          sanitizerBarrierApplied: false,
+          sanitizerBarriersBefore: 0,
+          sanitizerBarriersAfter: 0,
+          confidenceBefore: 0.6,
+          confidenceAfter: 0.51,
+          confidenceDelta: -0.09
+        }]
       },
       evidence: {
         callSitesByStep: [[{
@@ -136,7 +150,21 @@ const fullModel = buildRiskExplanationModelFromRiskSlice({
       },
       path: {
         labels: ['chunk:src', 'chunk:mid'],
-        callSiteIdsByStep: [['cs-1']]
+        callSiteIdsByStep: [['cs-1']],
+        watchByStep: [{
+          taintIn: ['req.body'],
+          taintOut: ['input'],
+          propagatedArgIndices: [0],
+          boundParams: ['input'],
+          calleeNormalized: 'query',
+          sanitizerPolicy: 'terminate',
+          sanitizerBarrierApplied: false,
+          sanitizerBarriersBefore: 0,
+          sanitizerBarriersAfter: 0,
+          confidenceBefore: 0.6,
+          confidenceAfter: 0.51,
+          confidenceDelta: -0.09
+        }]
       },
       evidence: {
         callSitesByStep: [[{
@@ -176,13 +204,17 @@ const fullJson = renderRiskExplanationJson(fullModel, {
 assert.equal(fullJson.flows[0].flowId, 'flow-full');
 assert.equal(fullJson.flows[0].steps[0].step, 1);
 assert.deepEqual(fullJson.flows[0].steps[0].evidence, ['src/full.js:18:4 query(req.body)']);
+assert.equal(fullJson.flows[0].steps[0].watchWindow?.calleeNormalized, 'query');
+assert.deepEqual(fullJson.flows[0].steps[0].watchWindow?.boundParams, ['input']);
 assert.equal(fullJson.sarif.runs[0].results[0].partialFingerprints.pairOfCleatsFlowId, 'flow-full');
 assert.equal(fullJson.sarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].location.physicalLocation.artifactLocation.uri, 'src/full.js');
+assert.equal(fullJson.sarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].properties.pairOfCleats.watchWindow.calleeNormalized, 'query');
 assert.equal(fullJson.partialFlowSelection.totalPartialFlows, 1);
 assert.equal(fullJson.partialFlows[0].partialFlowId, 'partial-a');
 assert.equal(fullJson.partialFlows[0].terminalReason, 'maxDepth');
 assert.equal(fullJson.partialFlows[0].frontierChunkUid, 'chunk-mid');
 assert.deepEqual(fullJson.partialFlows[0].steps[0].evidence, ['src/full.js:18:4 query(req.body)']);
+assert.equal(fullJson.partialFlows[0].steps[0].watchWindow?.calleeNormalized, 'query');
 const fullMarkdown = renderRiskExplanation(fullModel, {
   maxFlows: 3,
   maxPartialFlows: 5,
@@ -193,6 +225,7 @@ assert.match(fullMarkdown, /interprocedural: status ok, flows 1, partial flows 2
 assert.match(fullMarkdown, /pack caps: maxFlows 3, maxPartialFlows 5, maxBytes 512, maxTokens 128, maxPartialBytes 100, maxPartialTokens 50/);
 assert.match(fullMarkdown, /provenance: generated 2026-03-12T00:00:00.000Z, rules 1.0.0 sha1:bundle, config sha1:config/);
 assert.match(fullMarkdown, /step 1: src\/full.js:18:4 query\(req.body\)/);
+assert.match(fullMarkdown, /watch: taint req.body -> input; params input; callee query; confidence 0.6000 -> 0.5100/);
 assert.match(fullMarkdown, /Partial Risk Flows/);
 assert.match(fullMarkdown, /partial-a/);
 

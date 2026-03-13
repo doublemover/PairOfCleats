@@ -5,6 +5,8 @@ import { containsIdentifier, matchRulePatterns, SEVERITY_RANK } from '../risk/sh
 
 const ROW_SCHEMA_VERSION = 1;
 const MAX_FLOW_ROW_BYTES = 32 * 1024;
+const MAX_WATCH_IDENTIFIERS_PER_STEP = 6;
+const MAX_WATCH_BINDINGS_PER_STEP = 4;
 
 const sortByKey = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -19,6 +21,19 @@ const buildPartialFlowId = ({ sourceChunkUid, sourceRuleId, frontierChunkUid, te
 };
 
 const sanitizeIdentifier = (value) => (value == null ? '' : String(value));
+const uniqueSortedStrings = (values, limit = null) => {
+  const items = Array.from(new Set(toArray(values).map((entry) => String(entry || '').trim()).filter(Boolean))).sort();
+  return Number.isFinite(limit) ? items.slice(0, limit) : items;
+};
+
+const uniqueSortedIndices = (values, limit = null) => {
+  const items = Array.from(new Set(toArray(values)
+    .map((entry) => Number(entry))
+    .filter((entry) => Number.isFinite(entry) && entry >= 0)
+    .map((entry) => Math.floor(entry))))
+    .sort((a, b) => a - b);
+  return Number.isFinite(limit) ? items.slice(0, limit) : items;
+};
 
 const buildSummaryMap = (summaries) => {
   if (summaries && typeof summaries.get === 'function') return summaries;
@@ -144,17 +159,95 @@ const flowConfidence = ({ source, sink, hopCount, sanitizerBarriersHit, sanitize
   return Math.max(0.05, Math.min(1, score));
 };
 
+const propagationConfidence = ({ sourceConfidence, hopCount, sanitizerBarriersHit, sanitizerPolicy }) => {
+  const base = Number.isFinite(sourceConfidence) ? sourceConfidence : 0.5;
+  let score = base;
+  score *= 0.85 ** Math.max(0, hopCount);
+  if (sanitizerPolicy === 'weaken' && sanitizerBarriersHit > 0) {
+    score *= 0.9 ** sanitizerBarriersHit;
+  }
+  return Math.max(0.05, Math.min(1, score));
+};
+
+const roundConfidence = (value) => (Number.isFinite(value) ? Number(value.toFixed(4)) : null);
+
+const compactWatchByStep = (watchByStep, identifierLimit = 2, bindingLimit = 2) => toArray(watchByStep).map((entry) => ({
+  ...entry,
+  taintIn: toArray(entry?.taintIn).slice(0, identifierLimit),
+  taintOut: toArray(entry?.taintOut).slice(0, identifierLimit),
+  propagatedArgIndices: toArray(entry?.propagatedArgIndices).slice(0, bindingLimit),
+  boundParams: toArray(entry?.boundParams).slice(0, bindingLimit)
+}));
+
+const buildWatchStep = ({
+  state,
+  nextTaint,
+  taintedArgIndices,
+  paramNames,
+  details,
+  hasSanitizers,
+  sanitizerPolicy
+}) => {
+  const normalizedArgIndices = uniqueSortedIndices(taintedArgIndices, MAX_WATCH_BINDINGS_PER_STEP);
+  const boundParams = uniqueSortedStrings(
+    normalizedArgIndices
+      .map((index) => (Array.isArray(paramNames) ? paramNames[index] : null))
+      .filter(Boolean),
+    MAX_WATCH_BINDINGS_PER_STEP
+  );
+  const taintIn = uniqueSortedStrings(state?.taintList, MAX_WATCH_IDENTIFIERS_PER_STEP);
+  const taintOut = uniqueSortedStrings(nextTaint, MAX_WATCH_IDENTIFIERS_PER_STEP);
+  const barrierApplied = sanitizerPolicy === 'weaken' && hasSanitizers;
+  const barriersBefore = Number.isFinite(state?.sanitizerBarriersHit) ? state.sanitizerBarriersHit : 0;
+  const barriersAfter = barriersBefore + (barrierApplied ? 1 : 0);
+  const sourceConfidence = state?.rootSource?.source?.confidence;
+  const confidenceBefore = propagationConfidence({
+    sourceConfidence,
+    hopCount: Math.max(0, toArray(state?.pathChunkUids).length - 1),
+    sanitizerBarriersHit: barriersBefore,
+    sanitizerPolicy
+  });
+  const confidenceAfter = propagationConfidence({
+    sourceConfidence,
+    hopCount: Math.max(0, toArray(state?.pathChunkUids).length),
+    sanitizerBarriersHit: barriersAfter,
+    sanitizerPolicy
+  });
+  const calleeNormalized = uniqueSortedStrings(
+    toArray(details).map((detail) => detail?.calleeNormalized || detail?.calleeRaw || null),
+    1
+  )[0] || null;
+  return {
+    taintIn,
+    taintOut,
+    propagatedArgIndices: normalizedArgIndices,
+    boundParams,
+    calleeNormalized,
+    sanitizerPolicy: sanitizerPolicy || null,
+    sanitizerBarrierApplied: barrierApplied,
+    sanitizerBarriersBefore: barriersBefore,
+    sanitizerBarriersAfter: barriersAfter,
+    confidenceBefore: roundConfidence(confidenceBefore),
+    confidenceAfter: roundConfidence(confidenceAfter),
+    confidenceDelta: roundConfidence(confidenceAfter - confidenceBefore)
+  };
+};
+
 const measureRowBytes = (row) => Buffer.byteLength(JSON.stringify(row), 'utf8');
 
 const trimFlowRow = (row) => {
   if (measureRowBytes(row) <= MAX_FLOW_ROW_BYTES) return row;
   const trimmed = { ...row, path: { ...row.path } };
+  trimmed.path.watchByStep = compactWatchByStep(trimmed.path.watchByStep);
+  if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
   trimmed.path.callSiteIdsByStep = toArray(trimmed.path.callSiteIdsByStep).map((list) => {
     if (!Array.isArray(list) || !list.length) return [];
     return [list[0]];
   });
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
   trimmed.path.callSiteIdsByStep = toArray(trimmed.path.callSiteIdsByStep).map(() => []);
+  if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
+  trimmed.path.watchByStep = [];
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
   return null;
 };
@@ -174,6 +267,8 @@ const trimPartialFlowRow = (row) => {
         : []
     }
   };
+  trimmed.path.watchByStep = compactWatchByStep(trimmed.path.watchByStep);
+  if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
   trimmed.path.callSiteIdsByStep = toArray(trimmed.path.callSiteIdsByStep).map((list) => {
     if (!Array.isArray(list) || !list.length) return [];
     return [list[0]];
@@ -182,6 +277,8 @@ const trimPartialFlowRow = (row) => {
   trimmed.frontier.blockedExpansions = [];
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
   trimmed.path.callSiteIdsByStep = toArray(trimmed.path.callSiteIdsByStep).map(() => []);
+  if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
+  trimmed.path.watchByStep = [];
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
   return null;
 };
@@ -386,7 +483,8 @@ export const computeInterproceduralRisk = ({
       },
       path: {
         chunkUids: state.pathChunkUids.slice(),
-        callSiteIdsByStep: state.callSiteIdsByStep.map((list) => (Array.isArray(list) ? list.slice() : []))
+        callSiteIdsByStep: state.callSiteIdsByStep.map((list) => (Array.isArray(list) ? list.slice() : [])),
+        watchByStep: toArray(state.watchByStep).map((entry) => ({ ...entry }))
       },
       confidence: Math.max(
         0.05,
@@ -435,6 +533,7 @@ export const computeInterproceduralRisk = ({
       rootSource: root,
       pathChunkUids: [root.chunkUid],
       callSiteIdsByStep: [],
+      watchByStep: [],
       depth: 0,
       sanitizerBarriersHit: 0,
       taintList,
@@ -501,7 +600,8 @@ export const computeInterproceduralRisk = ({
           },
           path: {
             chunkUids: state.pathChunkUids.slice(),
-            callSiteIdsByStep: state.callSiteIdsByStep.map((list) => (Array.isArray(list) ? list.slice() : []))
+            callSiteIdsByStep: state.callSiteIdsByStep.map((list) => (Array.isArray(list) ? list.slice() : [])),
+            watchByStep: toArray(state.watchByStep).map((entry) => ({ ...entry }))
           },
           confidence: flowConfidence({
             source: state.rootSource.source,
@@ -656,12 +756,22 @@ export const computeInterproceduralRisk = ({
         maxCallSitesPerEdge: caps.maxCallSitesPerEdge
       });
       const callSiteIds = sampled.map((entry) => entry.callSiteId).filter(Boolean);
+      const watchStep = buildWatchStep({
+        state,
+        nextTaint,
+        taintedArgIndices,
+        paramNames,
+        details: sampled,
+        hasSanitizers,
+        sanitizerPolicy
+      });
 
       queue.push({
         chunkUid: calleeUid,
         rootSource: state.rootSource,
         pathChunkUids: [...state.pathChunkUids, calleeUid],
         callSiteIdsByStep: [...state.callSiteIdsByStep, callSiteIds],
+        watchByStep: [...toArray(state.watchByStep), watchStep],
         depth: nextDepth,
         sanitizerBarriersHit: state.sanitizerBarriersHit + (sanitizerPolicy === 'weaken' && hasSanitizers ? 1 : 0),
         taintList: nextTaint,

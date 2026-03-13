@@ -37,7 +37,21 @@ const payload = {
           nodes: [
             { type: 'chunk', chunkUid: 'chunk-risk' },
             { type: 'chunk', chunkUid: 'chunk-sink' }
-          ]
+          ],
+          watchByStep: [{
+            taintIn: ['req.body'],
+            taintOut: ['input'],
+            propagatedArgIndices: [0],
+            boundParams: ['input'],
+            calleeNormalized: 'query',
+            sanitizerPolicy: 'terminate',
+            sanitizerBarrierApplied: false,
+            sanitizerBarriersBefore: 0,
+            sanitizerBarriersAfter: 0,
+            confidenceBefore: 0.6,
+            confidenceAfter: 0.51,
+            confidenceDelta: -0.09
+          }]
         },
         evidence: {
           callSitesByStep: [[{
@@ -73,7 +87,21 @@ const payload = {
           nodes: [
             { type: 'chunk', chunkUid: 'chunk-risk' },
             { type: 'chunk', chunkUid: 'chunk-mid' }
-          ]
+          ],
+          watchByStep: [{
+            taintIn: ['req.body'],
+            taintOut: ['input'],
+            propagatedArgIndices: [0],
+            boundParams: ['input'],
+            calleeNormalized: 'query',
+            sanitizerPolicy: 'terminate',
+            sanitizerBarrierApplied: false,
+            sanitizerBarriersBefore: 0,
+            sanitizerBarriersAfter: 0,
+            confidenceBefore: 0.6,
+            confidenceAfter: 0.51,
+            confidenceDelta: -0.09
+          }]
         },
         notes: {
           terminalReason: 'maxDepth',
@@ -105,7 +133,9 @@ assert.deepEqual(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.prov
 assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.packProvenance, null);
 assert.deepEqual(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.packTruncation, payload.truncation);
 assert.equal(jsonPayload.rendered.sarif.runs[0].results[0].properties.pairOfCleats.flowId, 'flow-a');
+assert.equal(jsonPayload.rendered.sarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].properties.pairOfCleats.watchWindow.calleeNormalized, 'query');
 assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.partialFlowSelection.totalPartialFlows, 1);
 assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.partialFlows[0].partialFlowId, 'partial-a');
+assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.partialFlows[0].path.watchByStep[0].calleeNormalized, 'query');
 
 console.log('composite context pack sarif contract test passed');

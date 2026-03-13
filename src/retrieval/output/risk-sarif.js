@@ -60,15 +60,29 @@ const collectFlowSteps = (flow, maxEvidencePerFlow) => {
       ? flow.callSitesByStep
       : [];
   const rawIds = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
-  const count = Math.max(evidenceSteps.length, rawIds.length);
+  const rawWatchSteps = Array.isArray(flow?.path?.watchByStep) ? flow.path.watchByStep : [];
+  const count = Math.max(evidenceSteps.length, rawIds.length, rawWatchSteps.length);
   const locations = [];
   for (let index = 0; index < count; index += 1) {
     const evidence = Array.isArray(evidenceSteps[index]) ? evidenceSteps[index] : [];
     const ids = Array.isArray(rawIds[index]) ? rawIds[index] : [];
+    const watchWindow = rawWatchSteps[index] || null;
     const limited = evidence.length
       ? evidence.slice(0, maxEvidencePerFlow)
       : ids.slice(0, maxEvidencePerFlow).map((callSiteId) => ({ callSiteId }));
-    if (!limited.length) continue;
+    if (!limited.length && !watchWindow) continue;
+    if (!limited.length) {
+      locations.push({
+        step: index + 1,
+        ordinal: locations.length + 1,
+        evidenceIndex: 0,
+        callSiteId: null,
+        details: null,
+        watchWindow,
+        message: `risk flow step ${index + 1}`
+      });
+      continue;
+    }
     limited.forEach((entry, entryIndex) => {
       locations.push({
         step: index + 1,
@@ -76,11 +90,32 @@ const collectFlowSteps = (flow, maxEvidencePerFlow) => {
         evidenceIndex: entryIndex,
         callSiteId: entry?.callSiteId || ids[entryIndex] || null,
         details: entry?.details || null,
+        watchWindow,
         message: formatSarifStepMessage(entry?.details || null, entry?.callSiteId || ids[entryIndex] || null)
       });
     });
   }
   return locations;
+};
+
+const normalizeWatchWindow = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  return {
+    taintIn: Array.isArray(entry.taintIn) ? entry.taintIn.filter(Boolean) : [],
+    taintOut: Array.isArray(entry.taintOut) ? entry.taintOut.filter(Boolean) : [],
+    propagatedArgIndices: Array.isArray(entry.propagatedArgIndices)
+      ? entry.propagatedArgIndices.filter((value) => Number.isFinite(value))
+      : [],
+    boundParams: Array.isArray(entry.boundParams) ? entry.boundParams.filter(Boolean) : [],
+    calleeNormalized: entry.calleeNormalized || null,
+    sanitizerPolicy: entry.sanitizerPolicy || null,
+    sanitizerBarrierApplied: entry.sanitizerBarrierApplied === true,
+    sanitizerBarriersBefore: Number.isFinite(entry.sanitizerBarriersBefore) ? entry.sanitizerBarriersBefore : null,
+    sanitizerBarriersAfter: Number.isFinite(entry.sanitizerBarriersAfter) ? entry.sanitizerBarriersAfter : null,
+    confidenceBefore: Number.isFinite(entry.confidenceBefore) ? entry.confidenceBefore : null,
+    confidenceAfter: Number.isFinite(entry.confidenceAfter) ? entry.confidenceAfter : null,
+    confidenceDelta: Number.isFinite(entry.confidenceDelta) ? entry.confidenceDelta : null
+  };
 };
 
 const buildThreadFlowLocation = (flowStep, { uriBaseId = DEFAULT_URI_BASE_ID } = {}) => {
@@ -91,7 +126,8 @@ const buildThreadFlowLocation = (flowStep, { uriBaseId = DEFAULT_URI_BASE_ID } =
       pairOfCleats: {
         callSiteId: flowStep.callSiteId || null,
         evidenceIndex: flowStep.evidenceIndex,
-        step: flowStep.step
+        step: flowStep.step,
+        watchWindow: normalizeWatchWindow(flowStep.watchWindow)
       }
     }
   };

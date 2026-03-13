@@ -220,7 +220,21 @@ const compositeContextPack = {
         },
         path: {
           nodes: [{ type: 'chunk', chunkUid: 'chunk-1' }],
-          truncatedSteps: 0
+          truncatedSteps: 0,
+          watchByStep: [{
+            taintIn: ['req.body'],
+            taintOut: ['input'],
+            propagatedArgIndices: [0],
+            boundParams: ['input'],
+            calleeNormalized: 'query',
+            sanitizerPolicy: 'terminate',
+            sanitizerBarrierApplied: false,
+            sanitizerBarriersBefore: 0,
+            sanitizerBarriersAfter: 0,
+            confidenceBefore: 0.6,
+            confidenceAfter: 0.51,
+            confidenceDelta: -0.09
+          }]
         },
         evidence: {
           callSitesByStep: []
@@ -262,7 +276,21 @@ const compositeContextPack = {
             { type: 'chunk', chunkUid: 'chunk-1' },
             { type: 'chunk', chunkUid: 'chunk-2' }
           ],
-          callSiteIdsByStep: [[]]
+          callSiteIdsByStep: [[]],
+          watchByStep: [{
+            taintIn: ['req.body'],
+            taintOut: ['input'],
+            propagatedArgIndices: [0],
+            boundParams: ['input'],
+            calleeNormalized: 'query',
+            sanitizerPolicy: 'terminate',
+            sanitizerBarrierApplied: false,
+            sanitizerBarriersBefore: 0,
+            sanitizerBarriersAfter: 0,
+            confidenceBefore: 0.6,
+            confidenceAfter: 0.51,
+            confidenceDelta: -0.09
+          }]
         },
         confidence: 0.7,
         notes: {

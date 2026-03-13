@@ -1156,6 +1156,7 @@ const buildRiskSlice = ({
       riskTruncation.push(record);
     }
 
+    const rawWatchSteps = Array.isArray(flow?.path?.watchByStep) ? flow.path.watchByStep : [];
     const normalizedStepIds = limitedSteps.map((ids) => {
       const sourceIds = Array.isArray(ids) ? ids : [];
       const limitedIds = sourceIds.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP);
@@ -1218,7 +1219,8 @@ const buildRiskSlice = ({
         nodes: normalizeRiskPathNodes(flow),
         stepCount: rawSteps.length,
         truncatedSteps: rawSteps.length - limitedSteps.length,
-        callSiteIdsByStep: normalizedStepIds
+        callSiteIdsByStep: normalizedStepIds,
+        watchByStep: rawWatchSteps.slice(0, limitedSteps.length).map((entry) => (entry && typeof entry === 'object' ? { ...entry } : null))
       },
       evidence: {
         sourceRuleId: flow?.source?.ruleId || null,
@@ -1309,6 +1311,7 @@ const buildRiskSlice = ({
     const flow = entry.flow;
     const rawSteps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
     const limitedSteps = rawSteps.slice(0, CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW);
+    const rawWatchSteps = Array.isArray(flow?.path?.watchByStep) ? flow.path.watchByStep : [];
     const normalizedStepIds = limitedSteps.map((ids) => {
       const sourceIds = Array.isArray(ids) ? ids : [];
       const limitedIds = sourceIds.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP);
@@ -1357,7 +1360,8 @@ const buildRiskSlice = ({
         nodes: normalizeRiskPathNodes(flow),
         stepCount: rawSteps.length,
         truncatedSteps: rawSteps.length - limitedSteps.length,
-        callSiteIdsByStep: normalizedStepIds
+        callSiteIdsByStep: normalizedStepIds,
+        watchByStep: rawWatchSteps.slice(0, limitedSteps.length).map((entry) => (entry && typeof entry === 'object' ? { ...entry } : null))
       },
       evidence: {
         callSitesByStep: normalizedStepIds.map((ids) => ids.map((callSiteId) => ({

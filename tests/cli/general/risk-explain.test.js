@@ -61,10 +61,24 @@ const jsonResult = spawnSync(
 assert.equal(jsonResult.status, 0, 'expected JSON risk explain run to succeed');
 const jsonPayload = JSON.parse(getCombinedOutput(jsonResult, { trim: true }));
 assert.equal(jsonPayload.rendered.flowSelection.totalFlows, 1, 'expected rendered JSON risk summary');
-assert.equal(jsonPayload.rendered.partialFlowSelection.totalPartialFlows, 0, 'expected no partial flows in simple fixture');
-assert.deepEqual(jsonPayload.rendered.partialFlows, [], 'expected empty partial flows array in simple fixture');
+assert.equal(
+  jsonPayload.rendered.partialFlowSelection.totalPartialFlows,
+  partialFlow ? 1 : 0,
+  'expected rendered partial flow count to match fixture flows'
+);
+assert.equal(
+  Array.isArray(jsonPayload.rendered.partialFlows) ? jsonPayload.rendered.partialFlows.length : 0,
+  partialFlow ? 1 : 0,
+  'expected rendered partial flows array to match fixture flows'
+);
 if (flow) {
+  assert.ok(jsonPayload.rendered.flows?.[0]?.steps?.[0]?.watchWindow, 'expected rendered flow step watch window');
+  assert.ok(jsonPayload.flows?.[0]?.path?.watchByStep?.[0], 'expected raw flow path watch window');
   assert.equal(jsonPayload.rendered.sarif.runs[0].results[0].properties.pairOfCleats.flowId, flow.flowId, 'expected SARIF export to preserve flowId');
+}
+if (partialFlow) {
+  assert.ok(jsonPayload.rendered.partialFlows?.[0]?.steps?.[0]?.watchWindow, 'expected rendered partial flow step watch window');
+  assert.ok(jsonPayload.partialFlows?.[0]?.path?.watchByStep?.[0], 'expected raw partial flow path watch window');
 }
 
 const emptyResult = spawnSync(

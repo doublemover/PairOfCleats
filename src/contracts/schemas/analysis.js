@@ -727,7 +727,28 @@ const riskFlowSummarySchema = {
         nodes: { type: 'array', items: nodeRefSchema },
         stepCount: nullableNumber,
         truncatedSteps: nullableNumber,
-        callSiteIdsByStep: { type: ['array', 'null'], items: { type: 'array', items: { type: 'string' } } }
+        callSiteIdsByStep: { type: ['array', 'null'], items: { type: 'array', items: { type: 'string' } } },
+        watchByStep: {
+          type: ['array', 'null'],
+          items: {
+            type: 'object',
+            properties: {
+              taintIn: { type: 'array', items: { type: 'string' } },
+              taintOut: { type: 'array', items: { type: 'string' } },
+              propagatedArgIndices: { type: 'array', items: nullableNumber },
+              boundParams: { type: 'array', items: { type: 'string' } },
+              calleeNormalized: nullableString,
+              sanitizerPolicy: nullableString,
+              sanitizerBarrierApplied: { type: ['boolean', 'null'] },
+              sanitizerBarriersBefore: nullableNumber,
+              sanitizerBarriersAfter: nullableNumber,
+              confidenceBefore: nullableNumber,
+              confidenceAfter: nullableNumber,
+              confidenceDelta: nullableNumber
+            },
+            additionalProperties: false
+          }
+        }
       },
       additionalProperties: false
     },
@@ -798,7 +819,28 @@ const riskPartialFlowSummarySchema = {
         labels: { type: ['array', 'null'], items: { type: 'string' } },
         stepCount: nullableNumber,
         truncatedSteps: nullableNumber,
-        callSiteIdsByStep: { type: ['array', 'null'], items: { type: 'array', items: { type: 'string' } } }
+        callSiteIdsByStep: { type: ['array', 'null'], items: { type: 'array', items: { type: 'string' } } },
+        watchByStep: {
+          type: ['array', 'null'],
+          items: {
+            type: 'object',
+            properties: {
+              taintIn: { type: 'array', items: { type: 'string' } },
+              taintOut: { type: 'array', items: { type: 'string' } },
+              propagatedArgIndices: { type: 'array', items: nullableNumber },
+              boundParams: { type: 'array', items: { type: 'string' } },
+              calleeNormalized: nullableString,
+              sanitizerPolicy: nullableString,
+              sanitizerBarrierApplied: { type: ['boolean', 'null'] },
+              sanitizerBarriersBefore: nullableNumber,
+              sanitizerBarriersAfter: nullableNumber,
+              confidenceBefore: nullableNumber,
+              confidenceAfter: nullableNumber,
+              confidenceDelta: nullableNumber
+            },
+            additionalProperties: false
+          }
+        }
       },
       additionalProperties: false
     },

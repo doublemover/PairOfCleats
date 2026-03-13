@@ -147,6 +147,7 @@ export async function buildRiskExplainPayload({
   const buildFlowPayload = (flow) => {
     const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
     const stepIds = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
+    const watchByStep = Array.isArray(flow?.path?.watchByStep) ? flow.path.watchByStep : [];
     const callSitesByStep = stepIds.map((ids) => (ids || []).map((id) => ({
       callSiteId: id,
       details: callSiteById.get(id) || null
@@ -161,7 +162,8 @@ export async function buildRiskExplainPayload({
       path: {
         nodes: chunkUids.map((uid) => ({ type: 'chunk', chunkUid: uid })),
         labels: chunkUids.map((uid) => formatChunkLabel(uid)),
-        callSiteIdsByStep: stepIds
+        callSiteIdsByStep: stepIds,
+        watchByStep: watchByStep.slice(0, stepIds.length).map((entry) => (entry && typeof entry === 'object' ? { ...entry } : null))
       },
       evidence: {
         callSitesByStep
@@ -188,6 +190,7 @@ export async function buildRiskExplainPayload({
   const buildPartialFlowPayload = (flow) => {
     const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
     const stepIds = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
+    const watchByStep = Array.isArray(flow?.path?.watchByStep) ? flow.path.watchByStep : [];
     const callSitesByStep = stepIds.map((ids) => (ids || []).map((id) => ({
       callSiteId: id,
       details: callSiteById.get(id) || null
@@ -201,7 +204,8 @@ export async function buildRiskExplainPayload({
       path: {
         nodes: chunkUids.map((uid) => ({ type: 'chunk', chunkUid: uid })),
         labels: chunkUids.map((uid) => formatChunkLabel(uid)),
-        callSiteIdsByStep: stepIds
+        callSiteIdsByStep: stepIds,
+        watchByStep: watchByStep.slice(0, stepIds.length).map((entry) => (entry && typeof entry === 'object' ? { ...entry } : null))
       },
       evidence: {
         callSitesByStep

@@ -2,6 +2,39 @@ const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
 const posInt = { type: 'integer', minimum: 1 };
 
+const riskFlowWatchStep = {
+  type: 'object',
+  required: [
+    'taintIn',
+    'taintOut',
+    'propagatedArgIndices',
+    'boundParams',
+    'calleeNormalized',
+    'sanitizerPolicy',
+    'sanitizerBarrierApplied',
+    'sanitizerBarriersBefore',
+    'sanitizerBarriersAfter',
+    'confidenceBefore',
+    'confidenceAfter',
+    'confidenceDelta'
+  ],
+  properties: {
+    taintIn: { type: 'array', items: { type: 'string' } },
+    taintOut: { type: 'array', items: { type: 'string' } },
+    propagatedArgIndices: { type: 'array', items: intId },
+    boundParams: { type: 'array', items: { type: 'string' } },
+    calleeNormalized: nullableString,
+    sanitizerPolicy: nullableString,
+    sanitizerBarrierApplied: { type: 'boolean' },
+    sanitizerBarriersBefore: intId,
+    sanitizerBarriersAfter: intId,
+    confidenceBefore: { type: ['number', 'null'] },
+    confidenceAfter: { type: ['number', 'null'] },
+    confidenceDelta: { type: ['number', 'null'] }
+  },
+  additionalProperties: false
+};
+
 const evidenceRef = {
   type: 'object',
   required: ['file', 'startLine', 'startCol', 'endLine', 'endCol', 'snippetHash'],
@@ -146,12 +179,16 @@ const riskFlowRow = {
     },
     path: {
       type: 'object',
-      required: ['chunkUids', 'callSiteIdsByStep'],
+      required: ['chunkUids', 'callSiteIdsByStep', 'watchByStep'],
       properties: {
         chunkUids: { type: 'array', items: { type: 'string' } },
         callSiteIdsByStep: {
           type: 'array',
           items: { type: 'array', items: { type: 'string' } }
+        },
+        watchByStep: {
+          type: 'array',
+          items: riskFlowWatchStep
         }
       },
       additionalProperties: true
