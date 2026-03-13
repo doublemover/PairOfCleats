@@ -1,6 +1,48 @@
 const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
 const posInt = { type: 'integer', minimum: 1 };
+const riskWatchSemanticKinds = ['wrapper', 'propagator', 'builder', 'callback', 'asyncHandoff'];
+const riskWatchSemanticsSchema = {
+  semanticIds: { type: 'array', items: { type: 'string' } },
+  semanticKinds: {
+    type: 'array',
+    items: { enum: riskWatchSemanticKinds }
+  }
+};
+
+const riskFlowWatchStep = {
+  type: 'object',
+  required: [
+    'taintIn',
+    'taintOut',
+    'propagatedArgIndices',
+    'boundParams',
+    'calleeNormalized',
+    'sanitizerPolicy',
+    'sanitizerBarrierApplied',
+    'sanitizerBarriersBefore',
+    'sanitizerBarriersAfter',
+    'confidenceBefore',
+    'confidenceAfter',
+    'confidenceDelta'
+  ],
+  properties: {
+    taintIn: { type: 'array', items: { type: 'string' } },
+    taintOut: { type: 'array', items: { type: 'string' } },
+    propagatedArgIndices: { type: 'array', items: intId },
+    boundParams: { type: 'array', items: { type: 'string' } },
+    calleeNormalized: nullableString,
+    ...riskWatchSemanticsSchema,
+    sanitizerPolicy: nullableString,
+    sanitizerBarrierApplied: { type: 'boolean' },
+    sanitizerBarriersBefore: intId,
+    sanitizerBarriersAfter: intId,
+    confidenceBefore: { type: ['number', 'null'] },
+    confidenceAfter: { type: ['number', 'null'] },
+    confidenceDelta: { type: ['number', 'null'] }
+  },
+  additionalProperties: false
+};
 
 const evidenceRef = {
   type: 'object',
@@ -146,12 +188,16 @@ const riskFlowRow = {
     },
     path: {
       type: 'object',
-      required: ['chunkUids', 'callSiteIdsByStep'],
+      required: ['chunkUids', 'callSiteIdsByStep', 'watchByStep'],
       properties: {
         chunkUids: { type: 'array', items: { type: 'string' } },
         callSiteIdsByStep: {
           type: 'array',
           items: { type: 'array', items: { type: 'string' } }
+        },
+        watchByStep: {
+          type: 'array',
+          items: riskFlowWatchStep
         }
       },
       additionalProperties: true
@@ -166,6 +212,56 @@ const riskFlowRow = {
         hopCount: intId,
         sanitizerBarriersHit: intId,
         capsHit: { type: 'array', items: { type: 'string' } }
+      },
+      additionalProperties: true
+    }
+  },
+  additionalProperties: true
+};
+
+const riskPartialFlowBlockedExpansion = {
+  type: 'object',
+  required: ['reason'],
+  properties: {
+    targetChunkUid: nullableString,
+    reason: { type: 'string' },
+    callSiteIds: { type: 'array', items: { type: 'string' } }
+  },
+  additionalProperties: true
+};
+
+const riskPartialFlowRow = {
+  type: 'object',
+  required: ['schemaVersion', 'partialFlowId', 'source', 'frontier', 'path', 'confidence', 'notes'],
+  properties: {
+    schemaVersion: posInt,
+    partialFlowId: { type: 'string', pattern: '^sha1:[0-9a-f]{40}$' },
+    source: riskFlowRow.properties.source,
+    frontier: {
+      type: 'object',
+      required: ['chunkUid', 'terminalReason', 'blockedExpansions'],
+      properties: {
+        chunkUid: { type: 'string' },
+        terminalReason: { type: 'string' },
+        blockedExpansions: {
+          type: 'array',
+          items: riskPartialFlowBlockedExpansion
+        }
+      },
+      additionalProperties: true
+    },
+    path: riskFlowRow.properties.path,
+    confidence: { type: 'number' },
+    notes: {
+      type: 'object',
+      required: ['strictness', 'sanitizerPolicy', 'hopCount', 'sanitizerBarriersHit', 'capsHit', 'terminalReason'],
+      properties: {
+        strictness: { type: 'string' },
+        sanitizerPolicy: { type: 'string' },
+        hopCount: intId,
+        sanitizerBarriersHit: intId,
+        capsHit: { type: 'array', items: { type: 'string' } },
+        terminalReason: { type: 'string' }
       },
       additionalProperties: true
     }
@@ -193,6 +289,24 @@ const riskInterproceduralStats = {
     status: { type: 'string' },
     reason: nullableString,
     effectiveConfig: { type: 'object', additionalProperties: true },
+    provenance: {
+      type: ['object', 'null'],
+      properties: {
+        indexSignature: nullableString,
+        indexCompatKey: nullableString,
+        ruleBundle: {
+          type: ['object', 'null'],
+          properties: {
+            version: nullableString,
+            fingerprint: nullableString,
+            provenance: { type: ['object', 'null'], additionalProperties: true }
+          },
+          additionalProperties: false
+        },
+        effectiveConfigFingerprint: nullableString
+      },
+      additionalProperties: false
+    },
     counts: { type: 'object', additionalProperties: true },
     callSiteSampling: { type: 'object', additionalProperties: true },
     capsHit: { type: 'array', items: { type: 'string' } },
@@ -211,6 +325,10 @@ export const RISK_ARTIFACT_SCHEMA_DEFS = {
   risk_flows: {
     type: 'array',
     items: riskFlowRow
+  },
+  risk_partial_flows: {
+    type: 'array',
+    items: riskPartialFlowRow
   },
   risk_interprocedural_stats: riskInterproceduralStats
 };

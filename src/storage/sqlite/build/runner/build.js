@@ -2,6 +2,7 @@ import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { resolveSqliteIngestPlan } from '../index.js';
+import { resolveManifestBundleNames } from '../../../../shared/bundle-io.js';
 
 const SQLITE_DEFAULT_PAGE_SIZE = 4096;
 
@@ -139,9 +140,11 @@ const estimateBundleAverageBytes = (bundleDir, manifestFiles) => {
   if (!bundleDir || !manifestFiles || typeof manifestFiles !== 'object') return 0;
   const sampleNames = [];
   for (const entry of Object.values(manifestFiles)) {
-    const bundleName = typeof entry?.bundle === 'string' ? entry.bundle : '';
-    if (!bundleName || sampleNames.includes(bundleName)) continue;
-    sampleNames.push(bundleName);
+    for (const bundleName of resolveManifestBundleNames(entry)) {
+      if (!bundleName || sampleNames.includes(bundleName)) continue;
+      sampleNames.push(bundleName);
+      if (sampleNames.length >= 32) break;
+    }
     if (sampleNames.length >= 32) break;
   }
   if (!sampleNames.length) return 0;

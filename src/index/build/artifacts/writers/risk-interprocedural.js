@@ -132,11 +132,13 @@ export const enqueueRiskInterproceduralArtifacts = ({
     : null;
   const summaries = Array.isArray(state?.riskSummaries) ? state.riskSummaries : [];
   const flows = Array.isArray(state?.riskFlows) ? state.riskFlows : [];
+  const partialFlows = Array.isArray(state?.riskPartialFlows) ? state.riskPartialFlows : [];
   const allowArtifacts = emitArtifacts !== 'none';
-  const flowsExpected = stats?.status === 'ok' && stats?.effectiveConfig?.summaryOnly !== true;
+  const flowsExpected = stats?.effectiveConfig?.summaryOnly !== true && stats?.status !== 'disabled';
 
   let summariesRef = null;
   let flowsRef = null;
+  let partialFlowsRef = null;
   if (allowArtifacts) {
     summariesRef = writeJsonlArtifact({
       name: 'risk_summaries',
@@ -165,26 +167,59 @@ export const enqueueRiskInterproceduralArtifacts = ({
         log,
         forceEmpty: true
       });
+      partialFlowsRef = writeJsonlArtifact({
+        name: 'risk_partial_flows',
+        rows: partialFlows,
+        outDir,
+        maxJsonBytes,
+        compression: flowsCompression || compression,
+        gzipOptions,
+        enqueueWrite,
+        addPieceFile,
+        formatArtifactLabel,
+        log,
+        forceEmpty: true
+      });
     }
   }
 
   const finalStats = stats
-    ? buildRiskInterproceduralStats({
-      stats,
-      summariesRef,
-      flowsRef,
-      callSitesRef
-    })
+    ? (() => {
+      const statsPath = path.join(outDir, 'risk_interprocedural_stats.json');
+      const statsRef = buildRiskInterproceduralArtifactRef({
+        name: 'risk_interprocedural_stats',
+        format: 'json',
+        sharded: false,
+        entrypoint: formatArtifactLabel(statsPath),
+        totalEntries: 1
+      });
+      return {
+        statsPath,
+        finalStats: buildRiskInterproceduralStats({
+          stats,
+          statsRef,
+          summariesRef,
+          flowsRef,
+          partialFlowsRef,
+          callSitesRef
+        })
+      };
+    })()
     : null;
 
-  if (finalStats) {
-    const statsPath = path.join(outDir, 'risk_interprocedural_stats.json');
+  if (finalStats?.finalStats) {
+    const { statsPath } = finalStats;
     enqueueWrite(
       formatArtifactLabel(statsPath),
-      () => writeJsonObjectFile(statsPath, { fields: finalStats, atomic: true })
+      () => writeJsonObjectFile(statsPath, { fields: finalStats.finalStats, atomic: true })
     );
     addPieceFile({ type: 'risk', name: 'risk_interprocedural_stats', format: 'json' }, statsPath);
   }
 
-  return { summariesRef, flowsRef, stats: finalStats };
+  return {
+    summariesRef,
+    flowsRef,
+    partialFlowsRef,
+    stats: finalStats?.finalStats || null
+  };
 };

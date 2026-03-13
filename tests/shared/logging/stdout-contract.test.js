@@ -8,7 +8,7 @@ const root = process.cwd();
 const binPath = path.join(root, 'bin', 'pairofcleats.js');
 
 const result = spawnSubprocessSync(process.execPath, [binPath, 'version'], {
-  env: { ...process.env },
+  env: applyTestEnv({ syncProcess: false }),
   captureStdout: true,
   captureStderr: true,
   outputMode: 'string',

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { warmupNativeTreeSitterParsers } from '../../../lang/tree-sitter/native-runtime.js';
+import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { toStringArray } from '../../../shared/iterables.js';
 import { getTreeSitterSchedulerCrashInjectionTokens } from '../../../shared/env.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
@@ -238,15 +239,11 @@ const main = async () => {
   }
   if (profileOutPath) {
     await fs.mkdir(path.dirname(profileOutPath), { recursive: true });
-    await fs.writeFile(
-      profileOutPath,
-      JSON.stringify({
-        schemaVersion: '1.0.0',
-        generatedAt: new Date().toISOString(),
-        rows: profileRows
-      }),
-      'utf8'
-    );
+    await atomicWriteJson(profileOutPath, {
+      schemaVersion: '1.0.0',
+      generatedAt: new Date().toISOString(),
+      rows: profileRows
+    }, { newline: false });
   }
 };
 

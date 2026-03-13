@@ -93,6 +93,10 @@ Response:
 - Backwards-compatible additions require a **minor** bump; editorial clarifications are **patch** bumps.
 - Canonical snapshot: `docs/contracts/mcp-tools.schema.json` (validated by `src/integrations/mcp/validate.js`).
 
+`risk_explain` tool notes:
+- `includePartialFlows` requests bounded partial frontier flows alongside full interprocedural flows.
+- `maxPartialFlows` caps the number of partial flows returned in the MCP payload.
+
 ### Initialize response shape
 - `initialize` returns an object that must validate against `docs/contracts/mcp-initialize.schema.json`.
 - Required keys: `protocolVersion`, `serverInfo`, `capabilities`, `schemaVersion`, `toolVersion`.

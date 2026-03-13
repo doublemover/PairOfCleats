@@ -64,8 +64,18 @@ export const formatEmbedStats = (stats) => {
   if (Number.isFinite(stats.filesTotal)) {
     const withEmbeddings = Number.isFinite(stats.filesWithEmbeddings) ? stats.filesWithEmbeddings : 0;
     const totalFiles = Number.isFinite(stats.filesTotal) ? stats.filesTotal : 0;
+    const filesWithChunks = Number.isFinite(stats.filesWithChunks) ? stats.filesWithChunks : totalFiles;
     const missing = Number.isFinite(stats.filesMissingEmbeddings) ? stats.filesMissingEmbeddings : 0;
-    parts.push(`files ${withEmbeddings}/${totalFiles} (missing ${missing})`);
+    const partial = Number.isFinite(stats.filesPartiallyMissingEmbeddings)
+      ? stats.filesPartiallyMissingEmbeddings
+      : 0;
+    parts.push(
+      `files ${withEmbeddings}/${filesWithChunks} chunked ` +
+      `(${totalFiles} total, missing ${missing}, partial ${partial})`
+    );
+  }
+  if (Number.isFinite(stats.missingChunks)) {
+    parts.push(`missingChunks=${Math.max(0, Number(stats.missingChunks) || 0)}`);
   }
   if (Array.isArray(stats.sampleMissingFiles) && stats.sampleMissingFiles.length) {
     parts.push(`sample missing: ${stats.sampleMissingFiles.join(', ')}`);
@@ -109,6 +119,23 @@ export const formatBundleManifest = (manifest) => {
   if (manifest.bundleEmbeddingMode) parts.push(`bundleEmbeddingMode=${manifest.bundleEmbeddingMode}`);
   if (manifest.bundleEmbeddingIdentityKey) {
     parts.push(`bundleEmbeddingIdentityKey=${manifest.bundleEmbeddingIdentityKey}`);
+  }
+  if (manifest.bundleEmbeddingCoverageComplete !== undefined) {
+    parts.push(`bundleEmbeddingCoverageComplete=${manifest.bundleEmbeddingCoverageComplete}`);
+  }
+  if (
+    manifest.bundleEmbeddingCoverageEligible !== undefined
+    || manifest.bundleEmbeddingCoverageCovered !== undefined
+  ) {
+    parts.push(
+      `bundleEmbeddingCoverage=${Number(manifest.bundleEmbeddingCoverageCovered) || 0}/${Number(manifest.bundleEmbeddingCoverageEligible) || 0}`
+    );
+  }
+  if (manifest.bundleEmbeddingCoverageMissingFiles !== undefined) {
+    parts.push(`bundleEmbeddingCoverageMissingFiles=${Number(manifest.bundleEmbeddingCoverageMissingFiles) || 0}`);
+  }
+  if (manifest.bundleEmbeddingCoverageMissingChunks !== undefined) {
+    parts.push(`bundleEmbeddingCoverageMissingChunks=${Number(manifest.bundleEmbeddingCoverageMissingChunks) || 0}`);
   }
   return parts.length ? parts.join(', ') : null;
 };

@@ -13,12 +13,12 @@ export const buildCoreActions = ({ root, runNode }) => [
   },
   {
     label: 'vector-extension-sanitize-test',
-    run: () => runNode('vector-extension-sanitize-test', path.join(root, 'tests', 'storage', 'vector-extension', 'vector-extension-sanitize.test.js')),
+    run: () => runNode('vector-extension-sanitize-test', path.join(root, 'tests', 'storage', 'vector-extension', 'sanitize.test.js')),
     covers: ['vector-extension-sanitize-test']
   },
   {
     label: 'vector-extension-missing-test',
-    run: () => runNode('vector-extension-missing-test', path.join(root, 'tests', 'storage', 'vector-extension', 'vector-extension-missing.test.js')),
+    run: () => runNode('vector-extension-missing-test', path.join(root, 'tests', 'storage', 'vector-extension', 'missing.test.js')),
     covers: ['vector-extension-missing-test']
   },
   {
@@ -28,7 +28,7 @@ export const buildCoreActions = ({ root, runNode }) => [
   },
   {
     label: 'safe-regex-engine-test',
-    run: () => runNode('safe-regex-engine-test', path.join(root, 'tests', 'shared', 'safe-regex', 'safe-regex-engine.test.js')),
+    run: () => runNode('safe-regex-engine-test', path.join(root, 'tests', 'shared', 'safe-regex', 'engine.test.js')),
     covers: ['safe-regex-engine-test']
   },
   {
@@ -38,7 +38,7 @@ export const buildCoreActions = ({ root, runNode }) => [
   },
   {
     label: 'tooling-install-test',
-    run: () => runNode('tooling-install-test', path.join(root, 'tests', 'tooling', 'install', 'tooling-install.test.js')),
+    run: () => runNode('tooling-install-test', path.join(root, 'tests', 'tooling', 'install', 'tooling.test.js')),
     covers: ['tooling-install', 'tooling-install-test']
   },
   {
@@ -48,7 +48,7 @@ export const buildCoreActions = ({ root, runNode }) => [
   },
   {
     label: 'clean-artifacts-test',
-    run: () => runNode('clean-artifacts-test', path.join(root, 'tests', 'indexing', 'artifacts', 'clean-artifacts.test.js')),
+    run: () => runNode('clean-artifacts-test', path.join(root, 'tests', 'indexing', 'artifacts', 'clean.test.js')),
     covers: ['clean-artifacts', 'clean-artifacts-test']
   },
   {

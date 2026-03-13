@@ -13,42 +13,42 @@ export const buildIndexingActions = ({ root, runNode }) => [
   },
   {
     label: 'chunking-guardrails-test',
-    run: () => runNode('chunking-guardrails-test', path.join(root, 'tests', 'indexing', 'chunking', 'chunking-guardrails.test.js')),
+    run: () => runNode('chunking-guardrails-test', path.join(root, 'tests', 'indexing', 'chunking', 'guardrails.test.js')),
     covers: ['chunking-guardrails-test']
   },
   {
     label: 'code-map-basic-test',
-    run: () => runNode('code-map-basic-test', path.join(root, 'tests', 'indexing', 'map', 'code-map-basic.test.js')),
+    run: () => runNode('code-map-basic-test', path.join(root, 'tests', 'indexing', 'map', 'code-basic.test.js')),
     covers: ['code-map-basic-test']
   },
   {
     label: 'code-map-dot-test',
-    run: () => runNode('code-map-dot-test', path.join(root, 'tests', 'indexing', 'map', 'code-map-dot.test.js')),
+    run: () => runNode('code-map-dot-test', path.join(root, 'tests', 'indexing', 'map', 'code-dot.test.js')),
     covers: ['code-map-dot-test']
   },
   {
     label: 'code-map-graphviz-fallback-test',
-    run: () => runNode('code-map-graphviz-fallback-test', path.join(root, 'tests', 'indexing', 'map', 'code-map-graphviz-fallback.test.js')),
+    run: () => runNode('code-map-graphviz-fallback-test', path.join(root, 'tests', 'indexing', 'map', 'code-graphviz-fallback.test.js')),
     covers: ['code-map-graphviz-fallback-test']
   },
   {
     label: 'code-map-determinism-test',
-    run: () => runNode('code-map-determinism-test', path.join(root, 'tests', 'indexing', 'map', 'code-map-determinism.test.js')),
+    run: () => runNode('code-map-determinism-test', path.join(root, 'tests', 'indexing', 'map', 'code-determinism.test.js')),
     covers: ['code-map-determinism-test']
   },
   {
     label: 'code-map-guardrails-test',
-    run: () => runNode('code-map-guardrails-test', path.join(root, 'tests', 'indexing', 'map', 'code-map-guardrails.test.js')),
+    run: () => runNode('code-map-guardrails-test', path.join(root, 'tests', 'indexing', 'map', 'code-guardrails.test.js')),
     covers: ['code-map-guardrails-test']
   },
   {
     label: 'code-map-performance-test',
-    run: () => runNode('code-map-performance-test', path.join(root, 'tests', 'indexing', 'map', 'code-map-performance.test.js')),
+    run: () => runNode('code-map-performance-test', path.join(root, 'tests', 'indexing', 'map', 'code-performance.test.js')),
     covers: ['code-map-performance-test']
   },
   {
     label: 'e2e-smoke-test',
-    run: () => runNode('e2e-smoke-test', path.join(root, 'tests', 'smoke', 'e2e-smoke.test.js')),
+    run: () => runNode('e2e-smoke-test', path.join(root, 'tests', 'smoke', 'e2e.test.js')),
     covers: ['e2e-smoke-test']
   },
   {
@@ -58,7 +58,7 @@ export const buildIndexingActions = ({ root, runNode }) => [
   },
   {
     label: 'incremental-manifest-test',
-    run: () => runNode('incremental-manifest-test', path.join(root, 'tests', 'indexing', 'incremental', 'incremental-manifest.test.js')),
+    run: () => runNode('incremental-manifest-test', path.join(root, 'tests', 'indexing', 'incremental', 'manifest.test.js')),
     covers: ['incremental-manifest-test']
   },
   {
@@ -78,7 +78,7 @@ export const buildIndexingActions = ({ root, runNode }) => [
   },
   {
     label: 'chunking-limits-test',
-    run: () => runNode('chunking-limits-test', path.join(root, 'tests', 'indexing', 'chunking', 'chunking-limits.test.js')),
+    run: () => runNode('chunking-limits-test', path.join(root, 'tests', 'indexing', 'chunking', 'limits.test.js')),
     covers: ['chunking-limits-test']
   },
   {
@@ -93,12 +93,12 @@ export const buildIndexingActions = ({ root, runNode }) => [
   },
   {
     label: 'prose-skip-imports-test',
-    run: () => runNode('prose-skip-imports-test', path.join(root, 'tests', 'indexing', 'imports', 'prose-skip-imports.test.js')),
+    run: () => runNode('prose-skip-imports-test', path.join(root, 'tests', 'indexing', 'imports', 'prose-skip.test.js')),
     covers: ['prose-skip-imports-test']
   },
   {
     label: 'extracted-prose-test',
-    run: () => runNode('extracted-prose-test', path.join(root, 'tests', 'indexing', 'extracted-prose', 'extracted-prose.test.js')),
+    run: () => runNode('extracted-prose-test', path.join(root, 'tests', 'indexing', 'extracted-prose', 'core.test.js')),
     covers: ['extracted-prose-test']
   },
   {
@@ -113,7 +113,7 @@ export const buildIndexingActions = ({ root, runNode }) => [
   },
   {
     label: 'git-blame-range-test',
-    run: () => runNode('git-blame-range-test', path.join(root, 'tests', 'indexing', 'git', 'git-blame-range.test.js')),
+    run: () => runNode('git-blame-range-test', path.join(root, 'tests', 'indexing', 'git', 'blame-range.test.js')),
     covers: ['git-blame-range-test']
   },
   {
@@ -128,12 +128,12 @@ export const buildIndexingActions = ({ root, runNode }) => [
   },
   {
     label: 'encoding-hash-test',
-    run: () => runNode('encoding-hash-test', path.join(root, 'tests', 'shared', 'encoding', 'encoding-hash.test.js')),
+    run: () => runNode('encoding-hash-test', path.join(root, 'tests', 'shared', 'encoding', 'hash.test.js')),
     covers: ['encoding-hash-test']
   },
   {
     label: 'encoding-matrix-test',
-    run: () => runNode('encoding-matrix-test', path.join(root, 'tests', 'shared', 'encoding', 'encoding-matrix.test.js')),
+    run: () => runNode('encoding-matrix-test', path.join(root, 'tests', 'shared', 'encoding', 'matrix.test.js')),
     covers: ['encoding-matrix-test']
   },
   {
@@ -168,32 +168,32 @@ export const buildIndexingActions = ({ root, runNode }) => [
   },
   {
     label: 'encoding-fallback-test',
-    run: () => runNode('encoding-fallback-test', path.join(root, 'tests', 'shared', 'encoding', 'encoding-fallback.test.js')),
+    run: () => runNode('encoding-fallback-test', path.join(root, 'tests', 'shared', 'encoding', 'fallback.test.js')),
     covers: ['encoding-fallback-test']
   },
   {
     label: 'incremental-tokenization-cache-test',
-    run: () => runNode('incremental-tokenization-cache-test', path.join(root, 'tests', 'indexing', 'incremental', 'incremental-tokenization-cache.test.js')),
+    run: () => runNode('incremental-tokenization-cache-test', path.join(root, 'tests', 'indexing', 'incremental', 'tokenization-cache.test.js')),
     covers: ['incremental-tokenization-cache-test']
   },
   {
     label: 'tokenization-buffering-test',
-    run: () => runNode('tokenization-buffering-test', path.join(root, 'tests', 'indexing', 'tokenization', 'tokenization-buffering.test.js')),
+    run: () => runNode('tokenization-buffering-test', path.join(root, 'tests', 'indexing', 'tokenization', 'buffering.test.js')),
     covers: ['tokenization-buffering-test']
   },
   {
     label: 'postings-quantize-test',
-    run: () => runNode('postings-quantize-test', path.join(root, 'tests', 'indexing', 'postings', 'postings-quantize.test.js')),
+    run: () => runNode('postings-quantize-test', path.join(root, 'tests', 'indexing', 'postings', 'quantize.test.js')),
     covers: ['postings-quantize-test']
   },
   {
     label: 'incremental-cache-signature-test',
-    run: () => runNode('incremental-cache-signature-test', path.join(root, 'tests', 'indexing', 'incremental', 'incremental-cache-signature.test.js')),
+    run: () => runNode('incremental-cache-signature-test', path.join(root, 'tests', 'indexing', 'incremental', 'cache-signature.test.js')),
     covers: ['incremental-cache-signature-test']
   },
   {
     label: 'incremental-reuse-test',
-    run: () => runNode('incremental-reuse-test', path.join(root, 'tests', 'indexing', 'incremental', 'incremental-reuse.test.js')),
+    run: () => runNode('incremental-reuse-test', path.join(root, 'tests', 'indexing', 'incremental', 'reuse.test.js')),
     covers: ['incremental-reuse-test']
   },
   {
@@ -213,7 +213,7 @@ export const buildIndexingActions = ({ root, runNode }) => [
   },
   {
     label: 'preprocess-files-test',
-    run: () => runNode('preprocess-files-test', path.join(root, 'tests', 'indexing', 'preprocess', 'preprocess-files.test.js')),
+    run: () => runNode('preprocess-files-test', path.join(root, 'tests', 'indexing', 'preprocess', 'files.test.js')),
     covers: ['preprocess-files-test']
   },
   {
@@ -243,17 +243,17 @@ export const buildIndexingActions = ({ root, runNode }) => [
   },
   {
     label: 'indexer-signatures-test',
-    run: () => runNode('indexer-signatures-test', path.join(root, 'tests', 'indexer', 'signatures', 'signatures.test.js')),
+    run: () => runNode('indexer-signatures-test', path.join(root, 'tests', 'indexer', 'signatures', 'core.test.js')),
     covers: ['indexer-signatures-test']
   },
   {
     label: 'indexer-sort-determinism-test',
-    run: () => runNode('indexer-sort-determinism-test', path.join(root, 'tests', 'indexer', 'determinism', 'sort-determinism.test.js')),
+    run: () => runNode('indexer-sort-determinism-test', path.join(root, 'tests', 'indexer', 'determinism', 'sort.test.js')),
     covers: ['indexer-sort-determinism-test']
   },
   {
     label: 'indexer-incremental-plan-test',
-    run: () => runNode('indexer-incremental-plan-test', path.join(root, 'tests', 'indexer', 'incremental', 'incremental-plan.test.js')),
+    run: () => runNode('indexer-incremental-plan-test', path.join(root, 'tests', 'indexer', 'incremental', 'plan.test.js')),
     covers: ['indexer-incremental-plan-test']
   },
   {
@@ -278,12 +278,12 @@ export const buildIndexingActions = ({ root, runNode }) => [
   },
   {
     label: 'piece-assembly-test',
-    run: () => runNode('piece-assembly-test', path.join(root, 'tests', 'indexing', 'piece-assembly', 'piece-assembly.test.js')),
+    run: () => runNode('piece-assembly-test', path.join(root, 'tests', 'indexing', 'piece-assembly', 'core.test.js')),
     covers: ['piece-assembly-test']
   },
   {
     label: 'git-meta-test',
-    run: () => runNode('git-meta-test', path.join(root, 'tests', 'indexing', 'git', 'git-meta.test.js')),
+    run: () => runNode('git-meta-test', path.join(root, 'tests', 'indexing', 'git', 'meta.test.js')),
     covers: ['git-meta-test']
   },
   {
@@ -293,7 +293,7 @@ export const buildIndexingActions = ({ root, runNode }) => [
   },
   {
     label: 'json-stream-test',
-    run: () => runNode('json-stream-test', path.join(root, 'tests', 'shared', 'json-stream', 'json-stream.test.js')),
+    run: () => runNode('json-stream-test', path.join(root, 'tests', 'shared', 'json-stream', 'codec-contract.test.js')),
     covers: ['json-stream-test']
   }
 ];

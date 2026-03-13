@@ -25,6 +25,7 @@ export const createQueuedAppendWriter = ({
   let writeChain = Promise.resolve();
   let acceptingWrites = true;
   let closePromise = null;
+  let closed = false;
 
   const reportError = (stage, err) => {
     if (typeof onError !== 'function') return;
@@ -34,6 +35,7 @@ export const createQueuedAppendWriter = ({
   };
 
   const ensureHandle = () => {
+    if (closed || closePromise) return Promise.resolve(null);
     if (handlePromise) return handlePromise;
     handlePromise = (async () => {
       try {
@@ -51,12 +53,13 @@ export const createQueuedAppendWriter = ({
   };
 
   const enqueue = (text) => {
-    if (!acceptingWrites || typeof text !== 'string' || text.length === 0) {
+    if (!acceptingWrites || closed || closePromise || typeof text !== 'string' || text.length === 0) {
       return Promise.resolve();
     }
     writeChain = writeChain.then(async () => {
+      if (closed || closePromise) return;
       const handle = await ensureHandle();
-      if (!handle) return;
+      if (!handle || closed) return;
       try {
         await handle.write(text);
       } catch (err) {
@@ -68,9 +71,14 @@ export const createQueuedAppendWriter = ({
 
   const flush = async () => {
     await writeChain;
+    if (closed) return;
+    if (closePromise) {
+      await closePromise;
+      return;
+    }
     if (!syncOnFlush || !handlePromise) return;
     const handle = await handlePromise;
-    if (!handle) return;
+    if (!handle || closed) return;
     try {
       await handle.sync();
     } catch (err) {
@@ -82,14 +90,35 @@ export const createQueuedAppendWriter = ({
     if (closePromise) return closePromise;
     acceptingWrites = false;
     closePromise = (async () => {
-      await flush();
-      if (!handlePromise) return;
-      const handle = await handlePromise;
-      if (!handle) return;
+      await writeChain;
+      const localHandlePromise = handlePromise;
+      if (!localHandlePromise) {
+        closed = true;
+        handlePromise = null;
+        return;
+      }
+      const handle = await localHandlePromise;
+      if (!handle) {
+        closed = true;
+        handlePromise = null;
+        return;
+      }
       try {
-        await handle.close();
-      } catch (err) {
-        reportError('close', err);
+        if (syncOnFlush) {
+          try {
+            await handle.sync();
+          } catch (err) {
+            reportError('flush', err);
+          }
+        }
+        try {
+          await handle.close();
+        } catch (err) {
+          reportError('close', err);
+        }
+      } finally {
+        closed = true;
+        handlePromise = null;
       }
     })();
     await closePromise;

@@ -7,13 +7,16 @@ import {
   loadMinhashSignatures,
   loadMinhashSignatureRows
 } from '../../../src/shared/artifact-io/loaders.js';
-import {
-  prepareArtifactIoTestDir,
-  writePiecesManifest
-} from '../../helpers/artifact-io-fixture.js';
+import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 
 const root = process.cwd();
-const testRoot = await prepareArtifactIoTestDir('minhash-checksum-validation', { root });
+const testRoot = path.join(
+  root,
+  '.testLogs',
+  'minhash-checksum-validation',
+  `${process.pid}-${Date.now()}`
+);
+await fs.mkdir(path.join(testRoot, 'pieces'), { recursive: true });
 
 const buildPackedFixture = async (dir, { tamper = false } = {}) => {
   await fs.mkdir(dir, { recursive: true });

@@ -337,6 +337,7 @@ export const resolveActiveSeqWindows = (
  *   getState:(seq:number)=>number,
  *   assertLegalTransition:(seq:number,nextState:number)=>void,
  *   transition:(seq:number,nextState:number,input?:{ownerId?:number,reasonCode?:number,nowMs?:number})=>number,
+ *   resetNonTerminal:(seq:number)=>number,
  *   heartbeat:(seq:number,ownerId:number,nowMs?:number)=>boolean,
  *   reclaimExpiredLeases:(nowMs?:number)=>number[],
  *   snapshot:()=>object,
@@ -398,6 +399,24 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
     return states[slot];
   };
 
+  const advanceNextCommitSeq = (cursor = counters.nextCommitSeq) => {
+    if (!orderedSeqs.length) return 0;
+    let normalizedCursor = Number(cursor);
+    if (!Number.isFinite(normalizedCursor)) normalizedCursor = orderedSeqs[0];
+    normalizedCursor = Math.floor(normalizedCursor);
+    if (normalizedCursor < startSeq) normalizedCursor = startSeq;
+    let slot = normalizedCursor - startSeq;
+    if (slot < 0) slot = 0;
+    while (slot < states.length) {
+      const stateCode = states[slot];
+      if (stateCode !== STAGE1_SEQ_STATE.UNUSED && stateCode !== STAGE1_SEQ_STATE.COMMITTED) {
+        return startSeq + slot;
+      }
+      slot += 1;
+    }
+    return endSeq + 1;
+  };
+
   const assertLegalTransition = (seq, nextState) => {
     const slot = toSlot(seq);
     if (slot < 0) {
@@ -409,6 +428,7 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
       || (prior === STAGE1_SEQ_STATE.DISPATCHED && nextState === STAGE1_SEQ_STATE.IN_FLIGHT)
       || (prior === STAGE1_SEQ_STATE.IN_FLIGHT && TERMINAL_STATE_SET.has(nextState))
       || (prior === STAGE1_SEQ_STATE.DISPATCHED && nextState === STAGE1_SEQ_STATE.TERMINAL_CANCEL)
+      || (prior === STAGE1_SEQ_STATE.DISPATCHED && nextState === STAGE1_SEQ_STATE.TERMINAL_FAIL)
       || (prior === STAGE1_SEQ_STATE.TERMINAL_FAIL && nextState === STAGE1_SEQ_STATE.DISPATCHED)
       || (TERMINAL_STATE_SET.has(prior) && nextState === STAGE1_SEQ_STATE.COMMITTED)
     );
@@ -459,13 +479,36 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
       terminalReason[slot] = Math.floor(Number(reasonCode) || 0);
     } else if (nextState === STAGE1_SEQ_STATE.COMMITTED) {
       counters.committedCount += 1;
-      const normalizedSeq = Math.floor(Number(seq));
-      if (normalizedSeq === counters.nextCommitSeq) {
-        counters.nextCommitSeq += 1;
-      }
+      counters.nextCommitSeq = advanceNextCommitSeq(counters.nextCommitSeq);
     }
 
     return nextState;
+  };
+
+  const resetNonTerminal = (seq) => {
+    const slot = toSlot(seq);
+    if (slot < 0) return STAGE1_SEQ_STATE.UNUSED;
+    const prior = states[slot];
+    if (
+      prior === STAGE1_SEQ_STATE.UNUSED
+      || prior === STAGE1_SEQ_STATE.UNSEEN
+      || prior === STAGE1_SEQ_STATE.COMMITTED
+      || TERMINAL_STATE_SET.has(prior)
+    ) {
+      return prior;
+    }
+    if (prior === STAGE1_SEQ_STATE.DISPATCHED) {
+      counters.dispatchedCount = Math.max(0, counters.dispatchedCount - 1);
+    }
+    if (prior === STAGE1_SEQ_STATE.IN_FLIGHT) {
+      counters.inFlightCount = Math.max(0, counters.inFlightCount - 1);
+    }
+    states[slot] = STAGE1_SEQ_STATE.UNSEEN;
+    leaseOwner[slot] = 0;
+    leaseHeartbeat[slot] = 0;
+    terminalReason[slot] = 0;
+    counters.nextCommitSeq = Math.min(counters.nextCommitSeq, startSeq + slot);
+    return prior;
   };
 
   const heartbeat = (seq, ownerId, nowMs = Date.now()) => {
@@ -478,17 +521,29 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
     return true;
   };
 
-  const reclaimExpiredLeases = (nowMs = Date.now()) => {
+  const reclaimExpiredLeases = (
+    nowMs = Date.now(),
+    {
+      includeDispatched = false,
+      dispatchedGraceMs = leaseExpiryMs * 3
+    } = {}
+  ) => {
     const reclaimed = [];
     const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+    const resolvedDispatchedGraceMs = clampPositiveIntOr(dispatchedGraceMs, leaseExpiryMs * 3);
     for (let slot = 0; slot < states.length; slot += 1) {
-      if (states[slot] !== STAGE1_SEQ_STATE.IN_FLIGHT) continue;
+      const stateCode = states[slot];
+      if (stateCode !== STAGE1_SEQ_STATE.IN_FLIGHT && stateCode !== STAGE1_SEQ_STATE.DISPATCHED) continue;
       const lastBeat = Number(leaseHeartbeat[slot]) || 0;
       if (lastBeat <= 0) continue;
-      if ((now - lastBeat) < leaseExpiryMs) continue;
+      const graceMs = stateCode === STAGE1_SEQ_STATE.DISPATCHED
+        ? resolvedDispatchedGraceMs
+        : leaseExpiryMs;
+      if (stateCode === STAGE1_SEQ_STATE.DISPATCHED && includeDispatched !== true) continue;
+      if ((now - lastBeat) < graceMs) continue;
       const seq = startSeq + slot;
       transition(seq, STAGE1_SEQ_STATE.TERMINAL_FAIL, {
-        reasonCode: 910,
+        reasonCode: stateCode === STAGE1_SEQ_STATE.DISPATCHED ? 911 : 910,
         nowMs: now
       });
       reclaimed.push(seq);
@@ -506,6 +561,12 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
     dispatchedCount: counters.dispatchedCount,
     nextCommitSeq: counters.nextCommitSeq
   });
+
+  const getTerminalReason = (seq) => {
+    const slot = toSlot(seq);
+    if (slot < 0) return 0;
+    return Math.floor(Number(terminalReason[slot]) || 0);
+  };
 
   const assertCompletion = () => {
     if (counters.totalSeqCount !== counters.terminalCount) {
@@ -544,7 +605,10 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
     getState,
     assertLegalTransition,
     transition,
+    resetNonTerminal,
     heartbeat,
+    advanceNextCommitSeq,
+    getTerminalReason,
     reclaimExpiredLeases,
     snapshot,
     assertCompletion

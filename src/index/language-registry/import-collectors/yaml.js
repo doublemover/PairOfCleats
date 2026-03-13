@@ -1,5 +1,6 @@
 import {
-  isPseudoImportToken,
+  addCollectorImport,
+  createCollectorBudgetContext,
   lineHasAnyInsensitive,
   shouldScanLine,
   stripInlineCommentAware
@@ -15,12 +16,13 @@ const REFERENCE_KEY_TOKENS = new Set([
   '$ref',
   'schema'
 ]);
-
-const addImport = (imports, value) => {
-  const token = String(value || '').trim();
-  if (!token || isPseudoImportToken(token)) return;
-  imports.add(token);
-};
+const YAML_SCAN_BUDGET = Object.freeze({
+  maxChars: 786432,
+  maxLines: 20000,
+  maxMatches: 8192,
+  maxTokens: 4096,
+  maxMs: 30
+});
 
 const normalizeScalar = (value) => String(value || '')
   .trim()
@@ -38,9 +40,16 @@ const collectInlineList = (value) => {
     .filter(Boolean);
 };
 
-export const collectYamlImports = (text) => {
+export const collectYamlImports = (text, options = {}) => {
   const imports = new Set();
-  const lines = String(text || '').split('\n');
+  const budgetContext = createCollectorBudgetContext({
+    text,
+    options,
+    collectorId: 'yaml',
+    defaults: YAML_SCAN_BUDGET
+  });
+  const { scanBudget } = budgetContext;
+  const lines = String(budgetContext.source || '').split('\n');
   const precheck = (value) => lineHasAnyInsensitive(value, [
     ':',
     'include',
@@ -51,44 +60,55 @@ export const collectYamlImports = (text) => {
   ]);
 
   let listKeyIndent = -1;
-  for (const rawLine of lines) {
-    const line = stripInlineCommentAware(rawLine, {
-      markers: ['#'],
-      requireWhitespaceBefore: true
-    });
-    const trimmed = line.trim();
-    const isListContinuation = listKeyIndent >= 0 && /^-\s+/.test(trimmed);
-    if (!shouldScanLine(rawLine, precheck) && !isListContinuation) continue;
-    if (!trimmed) continue;
+  try {
+    for (const rawLine of lines) {
+      if (scanBudget.exhausted || !scanBudget.consumeTime()) break;
+      const line = stripInlineCommentAware(rawLine, {
+        markers: ['#'],
+        requireWhitespaceBefore: true
+      });
+      const trimmed = line.trim();
+      const isListContinuation = listKeyIndent >= 0 && /^-\s+/.test(trimmed);
+      if (!shouldScanLine(rawLine, precheck) && !isListContinuation) continue;
+      if (!scanBudget.consumeLine()) break;
+      if (!trimmed) continue;
 
-    const indent = line.length - line.trimStart().length;
-    const listMatch = trimmed.match(/^-+\s*(.+)$/);
-    if (listMatch && listKeyIndent >= 0 && indent >= listKeyIndent) {
-      const value = normalizeScalar(listMatch[1]);
-      if (value) addImport(imports, value);
-      continue;
-    }
-    if (listKeyIndent >= 0 && indent <= listKeyIndent) {
-      listKeyIndent = -1;
-    }
+      const indent = line.length - line.trimStart().length;
+      const listMatch = trimmed.match(/^-+\s*(.+)$/);
+      if (listMatch && listKeyIndent >= 0 && indent >= listKeyIndent) {
+        if (!scanBudget.consumeMatch()) break;
+        const value = normalizeScalar(listMatch[1]);
+        if (value && !scanBudget.consumeToken()) break;
+        if (value) addCollectorImport(imports, value);
+        continue;
+      }
+      if (listKeyIndent >= 0 && indent <= listKeyIndent) {
+        listKeyIndent = -1;
+      }
 
-    const keyValueMatch = line.match(/^\s*(['"]?[^'"#:]+['"]?)\s*:\s*(.*)$/);
-    if (!keyValueMatch) continue;
-    const key = normalizeScalar(keyValueMatch[1]).toLowerCase();
-    const value = String(keyValueMatch[2] || '').trim();
-    if (!REFERENCE_KEY_TOKENS.has(key)) continue;
+      const keyValueMatch = line.match(/^\s*(['"]?[^'"#:]+['"]?)\s*:\s*(.*)$/);
+      if (!keyValueMatch) continue;
+      if (!scanBudget.consumeMatch()) break;
+      const key = normalizeScalar(keyValueMatch[1]).toLowerCase();
+      const value = String(keyValueMatch[2] || '').trim();
+      if (!REFERENCE_KEY_TOKENS.has(key)) continue;
 
-    if (!value) {
-      listKeyIndent = indent;
-      continue;
+      if (!value) {
+        listKeyIndent = indent;
+        continue;
+      }
+      for (const item of collectInlineList(value)) {
+        if (!scanBudget.consumeToken()) break;
+        addCollectorImport(imports, item);
+      }
+      const scalarValue = normalizeScalar(value);
+      if (scalarValue && !value.startsWith('[') && !/^[*&][A-Za-z0-9_.-]+$/.test(scalarValue)) {
+        if (!scanBudget.consumeToken()) break;
+        addCollectorImport(imports, scalarValue);
+      }
     }
-    for (const item of collectInlineList(value)) {
-      addImport(imports, item);
-    }
-    const scalarValue = normalizeScalar(value);
-    if (scalarValue && !value.startsWith('[') && !/^[*&][A-Za-z0-9_.-]+$/.test(scalarValue)) {
-      addImport(imports, scalarValue);
-    }
+  } finally {
+    budgetContext.finalize();
   }
   return Array.from(imports);
 };

@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';
+import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
 import { retainCrashArtifacts } from '../../../src/index/build/crash-log.js';
 import { isInside, isRootPath } from '../../shared/path-utils.js';
 import { ensureRepoBenchmarkReady, tryMirrorClone } from '../language/repos.js';
@@ -199,7 +201,19 @@ export const createRepoLifecycle = ({
         return;
       }
       if (!fs.existsSync(resolvedRepoCacheRoot)) return;
-      await fsPromises.rm(resolvedRepoCacheRoot, { recursive: true, force: true });
+      const removal = await runWithTimeout(
+        () => removePathWithRetry(resolvedRepoCacheRoot),
+        {
+          timeoutMs: 15000,
+          errorFactory: () => createTimeoutError({
+            code: 'ERR_BENCH_CACHE_CLEANUP_TIMEOUT',
+            message: `Repo cache cleanup timed out for ${repoLabel}.`
+          })
+        }
+      );
+      if (!removal?.ok) {
+        throw removal?.error || new Error(`Failed to clean repo cache for ${repoLabel}.`);
+      }
       appendLog(`[cache] cleaned ${repoLabel}.`);
     } catch (err) {
       appendLog(`[cache] cleanup failed for ${repoLabel}: ${err?.message || err}`, 'warn');

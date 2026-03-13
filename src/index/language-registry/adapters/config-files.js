@@ -10,7 +10,7 @@ const createExtensionMatcher = (extensions) => (ext) => extensions.has(ext);
 const INI_EXTS = new Set(['.ini', '.cfg', '.conf']);
 const JSON_EXTS = new Set(['.json']);
 const TOML_EXTS = new Set(['.toml']);
-const XML_EXTS = new Set(['.xml']);
+const XML_EXTS = new Set(['.xml', '.props', '.targets', '.csproj', '.config', '.projitems']);
 const YAML_EXTS = new Set(['.yaml', '.yml']);
 
 export const createConfigDataAdapter = ({ id, match, collectImports = () => [] }) => ({

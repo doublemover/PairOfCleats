@@ -82,4 +82,5 @@ jobs:
             .testLogs/**
             .diagnostics/**
           if-no-files-found: ignore
+          include-hidden-files: true
           compression-level: 0

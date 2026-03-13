@@ -2,10 +2,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../../shared/json-stream.js';
 import { TOKEN_ID_META } from '../../../shared/token-id.js';
-import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
+import { atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { DEFAULT_PACKED_BLOCK_SIZE, encodePackedOffsets, packTfPostings } from '../../../shared/packed-postings.js';
 import { encodeVarint64List } from '../../../shared/artifact-io/varint.js';
-import { encodeBinaryRowFrames } from '../../../shared/artifact-io/binary-columnar.js';
+import { writeBinaryRowFrames } from '../../../shared/artifact-io/binary-columnar.js';
 import { removePathWithRetry } from '../../../shared/io/remove-path-with-retry.js';
 import { estimatePostingsBytes, formatBytes } from './helpers.js';
 
@@ -188,12 +188,8 @@ export async function enqueueTokenPostingsArtifacts({
           blockSize: DEFAULT_PACKED_BLOCK_SIZE
         });
         const offsetsBuffer = encodePackedOffsets(packed.offsets);
-        const packedTemp = createTempPath(packedPath);
-        const offsetsTemp = createTempPath(offsetsPath);
-        await fs.writeFile(packedTemp, packed.buffer);
-        await fs.writeFile(offsetsTemp, offsetsBuffer);
-        await replaceFile(packedTemp, packedPath);
-        await replaceFile(offsetsTemp, offsetsPath);
+        await atomicWriteText(packedPath, packed.buffer, { newline: false });
+        await atomicWriteText(offsetsPath, offsetsBuffer, { newline: false });
         await writeJsonObjectFile(metaPath, {
           fields: {
             avgDocLen: postings.avgDocLen,
@@ -325,24 +321,24 @@ export async function enqueueTokenPostingsArtifacts({
   const binaryOffsetsPath = path.join(outDir, 'token_postings.binary-columnar.offsets.bin');
   const binaryLengthsPath = path.join(outDir, 'token_postings.binary-columnar.lengths.varint');
   const binaryMetaPath = path.join(outDir, 'token_postings.binary-columnar.meta.json');
+  const binaryTaskLabel = 'token_postings.binary-columnar.bundle';
   if (tokenPostingsBinaryColumnar) {
     enqueueWrite(
-      formatArtifactLabel(binaryMetaPath),
-      async () => {
-        const rowPayloads = new Array(postings.tokenVocab.length);
-        for (let i = 0; i < postings.tokenVocab.length; i += 1) {
-          rowPayloads[i] = encodePostingPairs(postings.tokenPostingsList[i]);
-        }
-        const frames = encodeBinaryRowFrames(rowPayloads);
-        const dataTemp = createTempPath(binaryDataPath);
-        const offsetsTemp = createTempPath(binaryOffsetsPath);
-        const lengthsTemp = createTempPath(binaryLengthsPath);
-        await fs.writeFile(dataTemp, frames.dataBuffer);
-        await fs.writeFile(offsetsTemp, frames.offsetsBuffer);
-        await fs.writeFile(lengthsTemp, frames.lengthsBuffer);
-        await replaceFile(dataTemp, binaryDataPath);
-        await replaceFile(offsetsTemp, binaryOffsetsPath);
-        await replaceFile(lengthsTemp, binaryLengthsPath);
+      binaryTaskLabel,
+      async ({ setPhase } = {}) => {
+        setPhase?.('materialize:token-postings-binary-columnar');
+        const rowPayloads = (async function* postingRows() {
+          for (let i = 0; i < postings.tokenVocab.length; i += 1) {
+            yield encodePostingPairs(postings.tokenPostingsList[i]);
+          }
+        })();
+        const frames = await writeBinaryRowFrames({
+          rowBuffers: rowPayloads,
+          dataPath: binaryDataPath,
+          offsetsPath: binaryOffsetsPath,
+          lengthsPath: binaryLengthsPath
+        });
+        setPhase?.('publish:token-postings-binary-meta');
         await writeJsonObjectFile(binaryMetaPath, {
           fields: {
             format: 'binary-columnar-v1',
@@ -361,6 +357,12 @@ export async function enqueueTokenPostingsArtifacts({
           },
           atomic: true
         });
+        return {
+          bytes: Number.isFinite(Number(frames?.totalBytes)) ? Number(frames.totalBytes) : null,
+          serializationMs: null,
+          diskMs: null,
+          directFdStreaming: true
+        };
       }
     );
     addPieceFile({

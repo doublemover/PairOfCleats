@@ -17,6 +17,8 @@ const cases = [
       assert.equal(flow.sink.chunkUid, 'uid-sink');
       assert.equal(flow.path.chunkUids.length, 2);
       assert.equal(flow.path.callSiteIdsByStep.length, 1);
+      assert.equal(flow.path.watchByStep.length, 1);
+      assert.equal(flow.path.watchByStep[0].calleeNormalized, 'sink');
       assert.ok(Array.isArray(flow.path.callSiteIdsByStep[0]));
       assert.ok(flow.flowId.startsWith('sha1:'), 'flowId should be sha1');
       const expectedConfidence = Math.max(0.05, Math.min(1, Math.sqrt(0.6 * 0.8) * 0.85));

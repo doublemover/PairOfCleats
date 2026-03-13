@@ -6,13 +6,15 @@ import path from 'node:path';
 import { pruneCacheIndex, resolveCacheEntryPath } from '../../../tools/build/embeddings/cache.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
+
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'embeddings-cache-pruning');
 const cacheDir = path.join(tempRoot, 'files');
 const shardDir = path.join(cacheDir, 'shards');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(shardDir, { recursive: true });
 
 const shardA = 'shard-00000.bin';

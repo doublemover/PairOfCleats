@@ -1,6 +1,18 @@
 import { createTimeoutError, runWithTimeout } from '../../shared/promise-timeout.js';
 
 export const DEFAULT_BUILD_CLEANUP_TIMEOUT_MS = 30_000;
+const pendingCleanupOperations = new Set();
+
+const trackPendingCleanupOperation = (promise) => {
+  if (!promise || typeof promise.then !== 'function') return promise;
+  pendingCleanupOperations.add(promise);
+  promise.finally(() => {
+    pendingCleanupOperations.delete(promise);
+  }).catch(() => {});
+  return promise;
+};
+
+export const __getPendingBuildCleanupOperationCountForTests = () => pendingCleanupOperations.size;
 
 const coerceOptionalNonNegativeInt = (value) => {
   // Treat nullish/empty/boolean inputs as "unset" so layered defaults can win.
@@ -42,7 +54,7 @@ export const resolveBuildCleanupTimeoutMs = (...values) => {
  *   onTimeout?:(err:Error)=>Promise<void>|void,
  *   swallowTimeout?:boolean
  * }} [input]
- * @returns {Promise<{skipped:boolean,timedOut:boolean,elapsedMs:number,error?:Error}>}
+ * @returns {Promise<{skipped:boolean,timedOut:boolean,elapsedMs:number,pending?:boolean,error?:Error}>}
  */
 export const runBuildCleanupWithTimeout = async ({
   label = 'cleanup',
@@ -57,17 +69,25 @@ export const runBuildCleanupWithTimeout = async ({
   }
   const resolvedTimeoutMs = resolveBuildCleanupTimeoutMs(timeoutMs);
   const startedAtMs = Date.now();
+  let cleanupOperation = null;
+  const runCleanup = () => {
+    if (!cleanupOperation) {
+      cleanupOperation = trackPendingCleanupOperation(Promise.resolve().then(() => cleanup()));
+    }
+    return cleanupOperation;
+  };
   if (!Number.isFinite(resolvedTimeoutMs) || resolvedTimeoutMs <= 0) {
-    await cleanup();
+    await runCleanup();
     return {
       skipped: false,
       timedOut: false,
-      elapsedMs: Math.max(0, Date.now() - startedAtMs)
+      elapsedMs: Math.max(0, Date.now() - startedAtMs),
+      pending: false
     };
   }
   try {
     await runWithTimeout(
-      () => cleanup(),
+      runCleanup,
       {
         timeoutMs: resolvedTimeoutMs,
         errorFactory: () => createTimeoutError({
@@ -84,14 +104,19 @@ export const runBuildCleanupWithTimeout = async ({
     return {
       skipped: false,
       timedOut: false,
-      elapsedMs: Math.max(0, Date.now() - startedAtMs)
+      elapsedMs: Math.max(0, Date.now() - startedAtMs),
+      pending: false
     };
   } catch (error) {
     if (error?.code !== 'BUILD_CLEANUP_TIMEOUT') throw error;
     const elapsedMs = Math.max(0, Date.now() - startedAtMs);
+    const pending = Boolean(cleanupOperation) && pendingCleanupOperations.has(cleanupOperation);
     if (typeof log === 'function') {
       try {
-        log(`[cleanup] ${label} timed out after ${resolvedTimeoutMs}ms; continuing.`);
+        log(
+          `[cleanup] ${label} timed out after ${resolvedTimeoutMs}ms; continuing.` +
+          `${pending ? ' Cleanup is still pending in background.' : ''}`
+        );
       } catch {}
     }
     if (typeof onTimeout === 'function') {
@@ -104,6 +129,7 @@ export const runBuildCleanupWithTimeout = async ({
       skipped: false,
       timedOut: true,
       elapsedMs,
+      pending,
       error
     };
   }

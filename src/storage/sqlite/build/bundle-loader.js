@@ -2,7 +2,12 @@ import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import Piscina from 'piscina';
-import { readBundleFile } from '../../../shared/bundle-io.js';
+import {
+  readBundleFile,
+  resolveManifestBundleNamesResult
+} from '../../../shared/bundle-io.js';
+import { destroyPiscinaPool } from '../../../shared/piscina-cleanup.js';
+import { createTimeoutError, runWithTimeout } from '../../../shared/promise-timeout.js';
 
 const buildWorkerExecArgv = () => process.execArgv.filter((arg) => (
   typeof arg === 'string'
@@ -40,16 +45,40 @@ const resolveWorkerResourceLimits = (maxWorkers) => {
 };
 
 export const createBundleLoader = ({ bundleThreads, workerPath }) => {
+  const bundleTaskTimeoutMs = 30_000;
   const useWorkers = Number.isFinite(bundleThreads) && bundleThreads > 1 && Boolean(workerPath);
   const pool = useWorkers && workerPath
     ? new Piscina({
       filename: workerPath,
       maxThreads: bundleThreads,
       execArgv: buildWorkerExecArgv(),
+      taskTimeout: bundleTaskTimeoutMs,
       resourceLimits: resolveWorkerResourceLimits(bundleThreads)
     })
     : null;
   let workerAvailable = Boolean(pool);
+  let workerPoolDestroyed = false;
+  let destroyPromise = null;
+
+  const destroyWorkerPool = async () => {
+    if (!pool) return;
+    if (destroyPromise) return destroyPromise;
+    workerPoolDestroyed = true;
+    workerAvailable = false;
+    destroyPromise = (async () => {
+      try {
+        await destroyPiscinaPool(pool, {
+          label: 'sqlite.bundle-loader.worker-pool'
+        });
+      } catch {}
+    })();
+    return destroyPromise;
+  };
+
+  const disableWorkerPool = async () => {
+    if (!pool || workerPoolDestroyed) return;
+    await destroyWorkerPool();
+  };
 
   const loadBundleDirect = async (bundlePath, file) => {
     const result = await readBundleFile(bundlePath);
@@ -60,41 +89,61 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
         reason: `bundle read failed (${bundlePath}): ${result.reason || 'invalid bundle'}`
       };
     }
-    return { file, ok: true, bundle: result.bundle };
+    return { file, ok: true, bundleShards: [result.bundle] };
   };
 
   const loadBundle = async ({ bundleDir, entry, file }) => {
-    const bundleName = entry?.bundle;
-    if (!bundleName) {
-      return { file, ok: false, reason: 'missing bundle entry' };
+    const bundleNameResult = resolveManifestBundleNamesResult(entry);
+    const bundleNames = bundleNameResult.names;
+    if (!bundleNames.length) {
+      return {
+        file,
+        ok: false,
+        reason: bundleNameResult.reason || 'missing bundle entries'
+      };
     }
-    const bundlePath = path.join(bundleDir, bundleName);
-    if (!fsSync.existsSync(bundlePath)) {
-      return { file, ok: false, reason: `bundle file missing (${bundlePath})` };
-    }
-    try {
-      if (pool && workerAvailable) {
-        try {
-          const result = await pool.run({ bundlePath });
-          if (!result?.ok) {
-            const reason = result?.reason || 'invalid bundle';
-            return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${reason}` };
-          }
-          return { file, ok: true, bundle: result.bundle };
-        } catch {
-          workerAvailable = false;
-        }
+    const loadedShards = [];
+    for (let shardIndex = 0; shardIndex < bundleNames.length; shardIndex += 1) {
+      const bundlePath = path.join(bundleDir, bundleNames[shardIndex]);
+      if (!fsSync.existsSync(bundlePath)) {
+        return { file, ok: false, reason: `bundle file missing (${bundlePath})` };
       }
-      return await loadBundleDirect(bundlePath, file);
-    } catch (err) {
-      return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${err?.message || err}` };
+      try {
+        if (pool && workerAvailable) {
+          try {
+            const result = await runWithTimeout(
+              () => pool.run({ bundlePath }),
+              {
+                timeoutMs: bundleTaskTimeoutMs,
+                errorFactory: () => createTimeoutError({
+                  message: `bundle worker timed out (${bundlePath}) after ${bundleTaskTimeoutMs}ms`,
+                  code: 'SQLITE_BUNDLE_WORKER_TIMEOUT',
+                  retryable: false
+                })
+              }
+            );
+            if (!result?.ok) {
+              const reason = result?.reason || 'invalid bundle';
+              return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${reason}` };
+            }
+            loadedShards.push(result.bundle);
+            continue;
+          } catch {
+            await disableWorkerPool();
+          }
+        }
+        const loaded = await loadBundleDirect(bundlePath, file);
+        if (!loaded.ok) return loaded;
+        loadedShards.push(...loaded.bundleShards);
+      } catch (err) {
+        return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${err?.message || err}` };
+      }
     }
+    return { file, ok: true, bundleShards: loadedShards };
   };
 
   const close = async () => {
-    if (pool) {
-      await pool.destroy();
-    }
+    await destroyWorkerPool();
   };
 
   return { loadBundle, close, useWorkers };

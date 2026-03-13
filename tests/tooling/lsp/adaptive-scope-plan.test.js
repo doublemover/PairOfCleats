@@ -1,0 +1,183 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+
+import { __resolveAdaptiveLspScopePlanForTests } from '../../../src/integrations/tooling/providers/lsp.js';
+
+const buildDoc = (index) => ({
+  virtualPath: `.poc-vfs/src/doc-${String(index).padStart(4, '0')}.py#seg:doc-${index}.py`,
+  languageId: 'python',
+  text: `def fn_${index}():\n    return ${index}\n`
+});
+
+const buildClangdDoc = (index) => ({
+  virtualPath: `.poc-vfs/src/doc-${String(index).padStart(4, '0')}.cc#seg:doc-${index}.cc`,
+  languageId: 'cpp',
+  text: `int fn_${index}() {\n  return ${index};\n}\n`
+});
+
+const docs = Array.from({ length: 500 }, (_, index) => buildDoc(index));
+const targetsByPath = new Map(
+  docs.map((doc, index) => [
+    doc.virtualPath,
+    Array.from({ length: index < 32 ? 4 : 1 }, (_, targetIndex) => ({ id: `${index}:${targetIndex}` }))
+  ])
+);
+
+const cappedPlan = __resolveAdaptiveLspScopePlanForTests({
+  providerId: 'pyright',
+  docs,
+  targetsByPath,
+  documentSymbolConcurrency: 4,
+  hoverMaxPerFile: null
+});
+assert.equal(cappedPlan.docLimitApplied, true, 'expected pyright profile to cap large document sets');
+assert.equal(cappedPlan.selectedDocs, 192, 'expected pyright baseline cap to apply');
+assert.equal(cappedPlan.hoverMaxPerFile, 3, 'expected capped plan to tighten hover budget to degraded cap');
+assert.match(String(cappedPlan.reason || ''), /doc-cap/, 'expected capped scope reason to be recorded');
+const retainedHotDocs = cappedPlan.documents.filter((doc) => String(doc.virtualPath).includes('doc-000'));
+assert.ok(retainedHotDocs.length >= 8, 'expected high-target documents to survive the initial cap');
+
+const degradedPlan = __resolveAdaptiveLspScopePlanForTests({
+  providerId: 'pyright',
+  docs,
+  targetsByPath,
+  documentSymbolConcurrency: 4,
+  clientMetrics: {
+    byMethod: {
+      'textDocument/documentSymbol': {
+        timedOut: 3,
+        latencyMs: { p95: 3000 }
+      }
+    }
+  },
+  hoverMaxPerFile: 20
+});
+assert.equal(degradedPlan.degraded, true, 'expected repeated documentSymbol timeout pressure to degrade scope');
+assert.equal(degradedPlan.selectedDocs, 96, 'expected degraded pyright cap to apply');
+assert.equal(degradedPlan.hoverMaxPerFile, 3, 'expected degraded plan to clamp hover max-per-file');
+assert.match(String(degradedPlan.reason || ''), /degraded-doc-cap/, 'expected degraded scope reason to be recorded');
+
+const uncappedPlan = __resolveAdaptiveLspScopePlanForTests({
+  providerId: 'clangd',
+  docs: Array.from({ length: 20 }, (_, index) => buildClangdDoc(index)),
+  targetsByPath: new Map(
+    Array.from({ length: 20 }, (_, index) => [
+      buildClangdDoc(index).virtualPath,
+      [{ id: `${index}:0` }]
+    ])
+  ),
+  hoverMaxPerFile: 3
+});
+assert.equal(uncappedPlan.docLimitApplied, false, 'expected small clangd inputs to avoid adaptive capping');
+assert.equal(uncappedPlan.selectedDocs, 20, 'expected uncapped provider to keep all docs');
+assert.equal(uncappedPlan.hoverMaxPerFile, 3, 'expected explicit hover max-per-file to pass through unchanged');
+
+const targetHeavyDocs = Array.from({ length: 60 }, (_, index) => buildClangdDoc(index));
+const targetHeavyTargetsByPath = new Map(
+  targetHeavyDocs.map((doc, index) => [
+    doc.virtualPath,
+    Array.from({ length: 20 }, (_, targetIndex) => ({ id: `${index}:${targetIndex}` }))
+  ])
+);
+const targetCappedPlan = __resolveAdaptiveLspScopePlanForTests({
+  providerId: 'clangd',
+  docs: targetHeavyDocs,
+  targetsByPath: targetHeavyTargetsByPath,
+  hoverMaxPerFile: null
+});
+assert.equal(targetCappedPlan.docLimitApplied, false, 'expected target-heavy clangd input to avoid doc-count capping');
+assert.equal(targetCappedPlan.targetLimitApplied, true, 'expected clangd profile to cap by target count');
+assert.equal(targetCappedPlan.selectedTargets <= 256, true, 'expected clangd target cap to bound selected targets');
+assert.match(String(targetCappedPlan.reason || ''), /target-cap/, 'expected target cap reason to be recorded');
+
+const goMixedDocs = [
+  {
+    virtualPath: '.poc-vfs/go.mod',
+    languageId: 'go',
+    text: 'module example.com/demo\n'
+  },
+  {
+    virtualPath: '.poc-vfs/src/main.go',
+    languageId: 'go',
+    text: 'package main\nfunc main() {}\n'
+  }
+];
+const goMixedTargetsByPath = new Map([
+  [goMixedDocs[0].virtualPath, [{ id: 'module-target' }]],
+  [goMixedDocs[1].virtualPath, [{ id: 'source-target' }]]
+]);
+const goMixedPlan = __resolveAdaptiveLspScopePlanForTests({
+  providerId: 'gopls',
+  docs: goMixedDocs,
+  targetsByPath: goMixedTargetsByPath
+});
+assert.equal(goMixedPlan.totalDocs, 1, 'expected path policy to drop non-source go documents before adaptive planning');
+assert.equal(goMixedPlan.selectedDocs, 1, 'expected only .go file to remain selectable');
+
+const lowValueOnlyDocs = [
+  {
+    virtualPath: '.poc-vfs/tests/unit/example_test.go',
+    languageId: 'go',
+    text: 'package unit\nfunc TestExample(t *testing.T) {}\n'
+  },
+  {
+    virtualPath: '.poc-vfs/examples/demo/example.go',
+    languageId: 'go',
+    text: 'package main\nfunc main() {}\n'
+  }
+];
+const lowValueOnlyTargetsByPath = new Map(
+  lowValueOnlyDocs.map((doc, index) => [doc.virtualPath, [{ id: `low:${index}` }]])
+);
+const lowValueOnlyPlan = __resolveAdaptiveLspScopePlanForTests({
+  providerId: 'gopls',
+  docs: lowValueOnlyDocs,
+  targetsByPath: lowValueOnlyTargetsByPath
+});
+assert.equal(lowValueOnlyPlan.totalDocs, 0, 'expected low-value only Go docs to be skipped before documentSymbol work');
+assert.equal(lowValueOnlyPlan.selectedDocs, 0, 'expected no docs selected when only low-value paths remain');
+assert.equal(
+  lowValueOnlyPlan.skippedByDocumentSymbolPolicy,
+  2,
+  'expected low-value docs to be counted separately from extension/path skips'
+);
+assert.match(String(lowValueOnlyPlan.reason || ''), /document-symbol-path-policy/, 'expected no-work reason to reflect documentSymbol path policy');
+
+const lowValueOnlyClangdDocs = [
+  {
+    virtualPath: '.poc-vfs/third_party/fmt/test/format-test.cc',
+    languageId: 'cpp',
+    text: 'int main() { return 0; }\n'
+  },
+  {
+    virtualPath: '.poc-vfs/vendor/demo/lib.cc',
+    languageId: 'cpp',
+    text: 'int lib() { return 1; }\n'
+  }
+];
+const lowValueOnlyClangdTargetsByPath = new Map(
+  lowValueOnlyClangdDocs.map((doc, index) => [doc.virtualPath, [{ id: `clangd-low:${index}` }]])
+);
+const lowValueOnlyClangdPlan = __resolveAdaptiveLspScopePlanForTests({
+  providerId: 'clangd',
+  docs: lowValueOnlyClangdDocs,
+  targetsByPath: lowValueOnlyClangdTargetsByPath
+});
+assert.equal(lowValueOnlyClangdPlan.selectedDocs, 0, 'expected low-value clangd docs to be skipped before documentSymbol work');
+assert.equal(lowValueOnlyClangdPlan.skippedByDocumentSymbolPolicy, 2, 'expected clangd low-value docs to be counted');
+assert.match(String(lowValueOnlyClangdPlan.reason || ''), /document-symbol-path-policy/, 'expected clangd no-work reason to reflect path policy');
+
+const untargetedDocsPlan = __resolveAdaptiveLspScopePlanForTests({
+  providerId: 'pyright',
+  docs: [{
+    virtualPath: '.poc-vfs/src/no-target.py',
+    languageId: 'python',
+    text: 'def fn():\n    return 1\n'
+  }],
+  targetsByPath: new Map()
+});
+assert.equal(untargetedDocsPlan.selectedDocs, 0, 'expected untargeted docs to be dropped before documentSymbol work');
+assert.equal(untargetedDocsPlan.skippedByMissingTargets, 1, 'expected untargeted docs to be counted separately');
+assert.match(String(untargetedDocsPlan.reason || ''), /no-targets/, 'expected untargeted no-work reason to be recorded');
+
+console.log('LSP adaptive scope plan test passed');

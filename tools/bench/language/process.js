@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { composeAbortSignals } from '../../../src/shared/abort.js';
 import { killProcessTree as killPidTree } from '../../../src/shared/kill-tree.js';
+import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
 import { createProgressLineDecoder } from '../../../src/shared/cli/progress-stream.js';
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
 import { exitLikeCommandResult } from '../../shared/cli-utils.js';
@@ -27,6 +29,11 @@ const QUEUE_DELAY_HOTSPOT_MS = 250;
 const QUEUE_DEPTH_HOTSPOT = 3;
 const HEARTBEAT_STALL_THRESHOLD_MS = 30 * 1000;
 const MAX_PROGRESS_SAMPLES = 240;
+const TELEMETRY_FLUSH_TIMEOUT_MS = 5000;
+const DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS = 5000;
+const PROCESS_ACTIVITY_PROBE_TIMEOUT_MS = 1500;
+const PROCESS_ACTIVITY_CPU_DELTA_MS = 100;
+const PROCESS_ACTIVITY_RSS_DELTA_BYTES = 4 * 1024 * 1024;
 
 const PARSER_CRASH_PATTERNS = Object.freeze([
   /\bparser\b[\s\S]{0,80}\b(?:crash|crashed|fatal|abort|aborted)\b/i,
@@ -114,6 +121,136 @@ const percentile = (values, ratio) => {
 
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
 
+const parseCpuDurationMs = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  const daySplit = text.split('-');
+  let days = 0;
+  let timeText = text;
+  if (daySplit.length === 2) {
+    days = Number.parseInt(daySplit[0], 10);
+    timeText = daySplit[1] || '';
+    if (!Number.isFinite(days) || days < 0) return null;
+  }
+  const parts = timeText.split(':').map((entry) => Number.parseInt(entry, 10));
+  if (!parts.every((entry) => Number.isFinite(entry) && entry >= 0)) return null;
+  if (parts.length === 2) {
+    const [minutes, seconds] = parts;
+    return ((days * 24 * 60 * 60) + (minutes * 60) + seconds) * 1000;
+  }
+  if (parts.length === 3) {
+    const [hours, minutes, seconds] = parts;
+    return ((days * 24 * 60 * 60) + (hours * 60 * 60) + (minutes * 60) + seconds) * 1000;
+  }
+  return null;
+};
+
+const parseWindowsTasklistActivity = (stdout, pid) => {
+  const output = String(stdout || '').trim();
+  if (!output || /INFO:\s+No tasks are running/i.test(output)) return { alive: false, pid };
+  const line = output.split(/\r?\n/)[0] || '';
+  const parts = line.split('","').map((part) => part.replace(/^"|"$/g, ''));
+  const parsedPid = Number(parts[1] || '');
+  if (!Number.isFinite(parsedPid) || parsedPid !== pid) return { alive: false, pid };
+  const rssKbText = String(parts[4] || '').replace(/[^0-9]/g, '');
+  return {
+    alive: true,
+    pid,
+    cpuMs: parseCpuDurationMs(parts[7]),
+    rssBytes: Number.isFinite(Number(rssKbText)) ? Number(rssKbText) * 1024 : null
+  };
+};
+
+const parseWindowsProcessProbeActivity = (stdout, pid) => {
+  const output = String(stdout || '').trim();
+  if (!output) return { alive: false, pid };
+  const line = output.split(/\r?\n/).map((entry) => entry.trim()).find(Boolean) || '';
+  if (!line) return { alive: false, pid };
+  const [pidText = '', cpuSecondsText = '', rssBytesText = ''] = line.split(',').map((entry) => entry.trim());
+  const parsedPid = Number(pidText);
+  if (!Number.isFinite(parsedPid) || parsedPid !== pid) return { alive: false, pid };
+  const cpuSeconds = Number(cpuSecondsText);
+  const rssBytes = Number(rssBytesText);
+  return {
+    alive: true,
+    pid,
+    cpuMs: Number.isFinite(cpuSeconds) && cpuSeconds >= 0 ? cpuSeconds * 1000 : null,
+    rssBytes: Number.isFinite(rssBytes) && rssBytes >= 0 ? rssBytes : null
+  };
+};
+
+const parsePosixPsActivity = (stdout, pid) => {
+  const output = String(stdout || '').trim();
+  if (!output) return { alive: false, pid };
+  const line = output.split(/\r?\n/).map((entry) => entry.trim()).find(Boolean) || '';
+  if (!line) return { alive: false, pid };
+  const match = line.match(/^(?<time>\S+)\s+(?<rss>\d+)$/);
+  if (!match) return { alive: true, pid, cpuMs: null, rssBytes: null };
+  return {
+    alive: true,
+    pid,
+    cpuMs: parseCpuDurationMs(match.groups?.time),
+    rssBytes: Number.isFinite(Number(match.groups?.rss)) ? Number(match.groups.rss) * 1024 : null
+  };
+};
+
+const sampleChildProcessActivity = async (pid) => {
+  const numericPid = Number(pid);
+  if (!Number.isFinite(numericPid) || numericPid <= 0) return null;
+  try {
+    if (process.platform === 'win32') {
+      const powerShellScript = [
+        `$process = Get-Process -Id ${numericPid} -ErrorAction SilentlyContinue`,
+        'if ($null -eq $process) { exit 3 }',
+        '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+        'Write-Output ("{0},{1},{2}" -f $process.Id, $process.CPU, $process.WorkingSet64)'
+      ].join('; ');
+      const processResult = await spawnSubprocess(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', powerShellScript],
+        {
+          outputEncoding: 'utf8',
+          windowsHide: true,
+          timeoutMs: PROCESS_ACTIVITY_PROBE_TIMEOUT_MS,
+          rejectOnNonZeroExit: false,
+          cleanupOnParentExit: false
+        }
+      ).catch(() => null);
+      if (!processResult?.error && Number(processResult?.exitCode) === 0) {
+        const parsed = parseWindowsProcessProbeActivity(processResult.stdout, numericPid);
+        if (parsed?.alive === true) return parsed;
+      }
+      const fallback = await spawnSubprocess(
+        'tasklist',
+        ['/FI', `PID eq ${numericPid}`, '/FO', 'CSV', '/NH', '/V'],
+        {
+          outputEncoding: 'utf8',
+          windowsHide: true,
+          timeoutMs: PROCESS_ACTIVITY_PROBE_TIMEOUT_MS,
+          rejectOnNonZeroExit: false,
+          cleanupOnParentExit: false
+        }
+      ).catch(() => null);
+      if (!fallback || Number(fallback.exitCode) !== 0) return null;
+      return parseWindowsTasklistActivity(fallback.stdout, numericPid);
+    }
+    const result = await spawnSubprocess(
+      'ps',
+      ['-o', 'time=', '-o', 'rss=', '-p', String(numericPid)],
+      {
+        outputEncoding: 'utf8',
+        timeoutMs: PROCESS_ACTIVITY_PROBE_TIMEOUT_MS,
+        rejectOnNonZeroExit: false,
+        cleanupOnParentExit: false
+      }
+    ).catch(() => null);
+    if (!result || Number(result.exitCode) !== 0) return null;
+    return parsePosixPsActivity(result.stdout, numericPid);
+  } catch {
+    return null;
+  }
+};
+
 const formatCompactDuration = (value) => {
   if (!Number.isFinite(value)) return 'n/a';
   if (value < 1000) return `${Math.round(value)}ms`;
@@ -163,7 +300,15 @@ const resolveInFlightCount = ({ message, event }) => {
   return null;
 };
 
-const appendJsonLineQueued = (queueByPath, filePath, payload) => {
+const recordTelemetryWriteFailure = (failureState, filePath, error) => {
+  if (!(failureState instanceof Map) || !filePath) return;
+  const current = failureState.get(filePath) || { count: 0, lastMessage: null };
+  current.count += 1;
+  current.lastMessage = error?.message || String(error);
+  failureState.set(filePath, current);
+};
+
+const appendJsonLineQueued = (queueByPath, failureState, filePath, payload) => {
   if (!(queueByPath instanceof Map)) return;
   if (!filePath) return;
   const prior = queueByPath.get(filePath) || Promise.resolve();
@@ -173,17 +318,21 @@ const appendJsonLineQueued = (queueByPath, filePath, payload) => {
       await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
       await fsPromises.appendFile(filePath, `${JSON.stringify(payload)}\n`, 'utf8');
     })
-    .catch(() => {});
+    .catch((error) => {
+      recordTelemetryWriteFailure(failureState, filePath, error);
+    });
   queueByPath.set(filePath, next);
 };
 
-const flushQueuedJsonLines = async (queueByPath) => {
+const flushQueuedJsonLines = async (queueByPath, failureState) => {
   if (!(queueByPath instanceof Map) || queueByPath.size === 0) return;
   const pendingWrites = Array.from(queueByPath.values());
   const flushBatchSize = 32;
   for (let i = 0; i < pendingWrites.length; i += flushBatchSize) {
     const batch = pendingWrites.slice(i, i + flushBatchSize);
-    await Promise.all(batch.map((pending) => pending.catch(() => {})));
+    await Promise.all(batch.map((pending) => pending.catch((error) => {
+      recordTelemetryWriteFailure(failureState, '<flush>', error);
+    })));
   }
 };
 
@@ -232,17 +381,28 @@ export const createProcessRunner = ({
   logHistory,
   logPath,
   getLogPaths,
-  onProgressEvent
+  onProgressEvent,
+  sampleProcessActivity = sampleChildProcessActivity
 }) => {
   let activeChild = null;
   let activeLabel = '';
   let exitLogged = false;
   const interactiveDiagnostics = new Map();
   const ACTIVE_CHILD_SHUTDOWN_WAIT_MS = 15000;
+  const processActivityState = {
+    childPid: null,
+    baseline: null,
+    probePromise: null,
+    probeWarmupGranted: false
+  };
 
   const setActiveChild = (child, label) => {
     activeChild = child;
     activeLabel = label;
+    processActivityState.childPid = Number(child?.pid);
+    processActivityState.baseline = null;
+    processActivityState.probePromise = null;
+    processActivityState.probeWarmupGranted = false;
   };
 
   const clearActiveChild = (childOrPid = null) => {
@@ -255,7 +415,47 @@ export const createProcessRunner = ({
     if (!Number.isFinite(targetPid) || Number(activeChild.pid) === targetPid || activeChild === childOrPid) {
       activeChild = null;
       activeLabel = '';
+      processActivityState.childPid = null;
+      processActivityState.baseline = null;
+      processActivityState.probePromise = null;
+      processActivityState.probeWarmupGranted = false;
     }
+  };
+
+  const probeActiveChildActivity = async () => {
+    const pid = Number(activeChild?.pid ?? processActivityState.childPid);
+    if (!Number.isFinite(pid) || pid <= 0) return { kind: 'unavailable', pid: null };
+    if (processActivityState.probePromise) return processActivityState.probePromise;
+    const probePromise = Promise.resolve().then(async () => {
+      const sample = typeof sampleProcessActivity === 'function'
+        ? await Promise.resolve(sampleProcessActivity(pid))
+        : null;
+      if (!sample || sample.alive !== true) return { kind: 'unavailable', pid };
+      const prior = processActivityState.baseline;
+      processActivityState.baseline = sample;
+      if (!prior) return { kind: 'baseline', pid, sample };
+      const cpuDeltaMs = Number(sample.cpuMs) - Number(prior.cpuMs);
+      if (Number.isFinite(cpuDeltaMs) && cpuDeltaMs >= PROCESS_ACTIVITY_CPU_DELTA_MS) {
+        return { kind: 'activity', pid, source: 'process-cpu', text: `pid=${pid} cpu+${Math.round(cpuDeltaMs)}ms`, sample };
+      }
+      const rssDeltaBytes = Math.abs(Number(sample.rssBytes) - Number(prior.rssBytes));
+      if (Number.isFinite(rssDeltaBytes) && rssDeltaBytes >= PROCESS_ACTIVITY_RSS_DELTA_BYTES) {
+        return {
+          kind: 'activity',
+          pid,
+          source: 'process-memory',
+          text: `pid=${pid} rssΔ=${Math.round(rssDeltaBytes / (1024 * 1024))}MiB`,
+          sample
+        };
+      }
+      return { kind: 'idle', pid, sample };
+    }).finally(() => {
+      if (processActivityState.probePromise === probePromise) {
+        processActivityState.probePromise = null;
+      }
+    });
+    processActivityState.probePromise = probePromise;
+    return probePromise;
   };
 
   const killProcessTree = (pid) => {
@@ -409,12 +609,84 @@ export const createProcessRunner = ({
   };
 
   const runProcess = async (label, cmd, args, options = {}) => {
-    const { continueOnError = false, ...spawnOptionsRest } = options;
+    const { continueOnError = false, idleTimeoutMs = 0, ...spawnOptionsRest } = options;
     const spawnOptions = {
       ...spawnOptionsRest,
       stdio: ['ignore', 'pipe', 'pipe'],
       rejectOnNonZeroExit: false
     };
+    const resolvedIdleTimeoutMs = Number.isFinite(Number(idleTimeoutMs))
+      ? Math.max(0, Math.floor(Number(idleTimeoutMs)))
+      : 0;
+    const idleWatchdogPollMs = resolvedIdleTimeoutMs > 0
+      ? Math.max(250, Math.min(DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS, Math.floor(resolvedIdleTimeoutMs / 4) || 250))
+      : 0;
+    const idleAbortController = resolvedIdleTimeoutMs > 0 ? new AbortController() : null;
+    const spawnSignal = idleAbortController
+      ? composeAbortSignals(spawnOptions.signal, idleAbortController.signal)
+      : spawnOptions.signal;
+    let lastActivityAtMs = Date.now();
+    let lastActivitySource = 'spawn';
+    let lastActivityText = label;
+    let idleWatchdog = null;
+    let idleTimeoutTriggered = false;
+    let idleWatchdogProbeInFlight = false;
+
+    const markActivity = ({ source = 'output', text = '' } = {}) => {
+      lastActivityAtMs = Date.now();
+      lastActivitySource = String(source || 'output');
+      lastActivityText = truncateForDisplay(text || label, 140) || label;
+    };
+
+    const cleanupIdleWatchdog = () => {
+      if (idleWatchdog) {
+        clearInterval(idleWatchdog);
+        idleWatchdog = null;
+      }
+    };
+
+    if (idleAbortController && idleWatchdogPollMs > 0) {
+      idleWatchdog = setInterval(async () => {
+        if (idleTimeoutTriggered || idleAbortController.signal.aborted) return;
+        if (idleWatchdogProbeInFlight) return;
+        const idleMs = Date.now() - lastActivityAtMs;
+        if (idleMs < resolvedIdleTimeoutMs) return;
+        idleWatchdogProbeInFlight = true;
+        try {
+          const probe = await probeActiveChildActivity();
+          if (probe?.kind === 'activity') {
+            markActivity({ source: probe.source, text: probe.text });
+            return;
+          }
+          if (probe?.kind === 'baseline' && !processActivityState.probeWarmupGranted) {
+            processActivityState.probeWarmupGranted = true;
+            return;
+          }
+          await new Promise((resolve) => setImmediate(resolve));
+          const refreshedIdleMs = Date.now() - lastActivityAtMs;
+          if (refreshedIdleMs < resolvedIdleTimeoutMs) {
+            return;
+          }
+        } finally {
+          idleWatchdogProbeInFlight = false;
+        }
+        idleTimeoutTriggered = true;
+        const error = new Error(
+          `Bench subprocess idle timeout after ${resolvedIdleTimeoutMs}ms (last activity: ${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''}).`
+        );
+        error.code = 'ERR_BENCH_IDLE_TIMEOUT';
+        error.idleTimeoutMs = resolvedIdleTimeoutMs;
+        error.lastActivityAtMs = lastActivityAtMs;
+        error.lastActivitySource = lastActivitySource;
+        error.lastActivityText = lastActivityText;
+        try {
+          idleAbortController.abort(error);
+        } catch {
+          idleAbortController.abort();
+        }
+      }, idleWatchdogPollMs);
+      idleWatchdog.unref?.();
+    }
     const diagnosticStreams = Array.from(
       new Set(resolveLogPaths().map(resolveDiagnosticsStreamPath).filter(Boolean))
     );
@@ -423,6 +695,7 @@ export const createProcessRunner = ({
     );
     const schedulerEvents = [];
     const telemetryWriteQueues = new Map();
+    const telemetryWriteFailures = new Map();
     let diagnosticEventCount = 0;
     const diagnosticCountByType = new Map();
     const diagnosticCountById = new Map();
@@ -447,6 +720,33 @@ export const createProcessRunner = ({
       lastEmitMs: 0
     };
 
+    const flushTelemetryWrites = async (reason = 'flush') => {
+      try {
+        await runWithTimeout(
+          () => flushQueuedJsonLines(telemetryWriteQueues, telemetryWriteFailures),
+          {
+            timeoutMs: TELEMETRY_FLUSH_TIMEOUT_MS,
+            errorFactory: () => createTimeoutError({
+              code: 'ERR_BENCH_TELEMETRY_FLUSH_TIMEOUT',
+              message: `Bench telemetry flush timed out during ${reason}.`
+            })
+          }
+        );
+      } catch (error) {
+        appendLog(
+          `[bench] telemetry flush did not settle during ${reason}: ${error?.message || String(error)}`,
+          'warn'
+        );
+      }
+      if (telemetryWriteFailures.size > 0) {
+        const summary = Array.from(telemetryWriteFailures.entries())
+          .map(([filePath, info]) => `${path.basename(filePath)} x${info.count}${info.lastMessage ? ` (${info.lastMessage})` : ''}`)
+          .join('; ');
+        appendLog(`[bench] telemetry stream write failures during ${reason}: ${summary}`, 'warn');
+        telemetryWriteFailures.clear();
+      }
+    };
+
     const buildDiagnosticsSummary = () => ({
       schemaVersion: BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
       streamPaths: diagnosticStreams,
@@ -455,6 +755,9 @@ export const createProcessRunner = ({
       countsByType: Object.fromEntries(
         Array.from(diagnosticCountByType.entries())
           .sort(([left], [right]) => String(left).localeCompare(String(right)))
+      ),
+      telemetryWriteFailures: Object.fromEntries(
+        Array.from(telemetryWriteFailures.entries()).map(([filePath, info]) => [filePath, info.count])
       )
     });
 
@@ -595,7 +898,7 @@ export const createProcessRunner = ({
         stallEvents: snapshot.stallEvents
       };
       for (const filePath of progressConfidenceStreams) {
-        appendJsonLineQueued(telemetryWriteQueues, filePath, payload);
+        appendJsonLineQueued(telemetryWriteQueues, telemetryWriteFailures, filePath, payload);
       }
 
       if (!interactive) return;
@@ -719,7 +1022,7 @@ export const createProcessRunner = ({
         taskId: toText(taskId) || null
       };
       for (const filePath of diagnosticStreams) {
-        appendJsonLineQueued(telemetryWriteQueues, filePath, payload);
+        appendJsonLineQueued(telemetryWriteQueues, telemetryWriteFailures, filePath, payload);
       }
       maybeEmitInteractiveDiagnostic({ eventType, eventId, message: payload.message });
       if (eventType === 'queue_delay_hotspot' || eventType === 'artifact_tail_stall') {
@@ -765,6 +1068,14 @@ export const createProcessRunner = ({
     const handleLine = ({ line, event = null, source = 'stream' }) => {
       const textLine = String(line || '');
       const parsedEvent = event || (textLine ? parseProgressEventLine(textLine, { strict: true }) : null);
+      if (parsedEvent) {
+        markActivity({
+          source: parsedEvent.event || 'progress-event',
+          text: parsedEvent.message || parsedEvent.taskId || parsedEvent.name || textLine
+        });
+      } else if (textLine.trim()) {
+        markActivity({ source, text: textLine });
+      }
       inspectDiagnostic({ line: textLine, event: parsedEvent, source });
       if (parsedEvent) {
         pushSchedulerEvent({
@@ -804,10 +1115,12 @@ export const createProcessRunner = ({
     try {
       const result = await spawnSubprocess(cmd, args, {
         ...spawnOptions,
+        signal: spawnSignal,
         onSpawn: (child) => setActiveChild(child, label),
         onStdout: (chunk) => stdoutDecoder.push(chunk),
         onStderr: (chunk) => stderrDecoder.push(chunk)
       });
+      cleanupIdleWatchdog();
       stdoutDecoder.flush();
       stderrDecoder.flush();
       const code = result.exitCode;
@@ -823,7 +1136,7 @@ export const createProcessRunner = ({
         interactive: false
       });
       if (code === 0) {
-        await flushQueuedJsonLines(telemetryWriteQueues);
+        await flushTelemetryWrites('success-exit');
         return {
           ok: true,
           schedulerEvents: getSchedulerEvents(),
@@ -844,11 +1157,11 @@ export const createProcessRunner = ({
         writeLog('[hint] Enable Windows long paths and set `git config --global core.longpaths true` or use a shorter --root path.');
       }
       if (!continueOnError) {
-        await flushQueuedJsonLines(telemetryWriteQueues);
+        await flushTelemetryWrites('failure-exit');
         logExit('failure', code ?? 1);
         exitLikeCommandResult({ status: code, signal });
       }
-      await flushQueuedJsonLines(telemetryWriteQueues);
+      await flushTelemetryWrites('failure-return');
       return {
         ok: false,
         code: code ?? 1,
@@ -858,6 +1171,7 @@ export const createProcessRunner = ({
         progressConfidence: buildProgressConfidenceSummary()
       };
     } catch (err) {
+      cleanupIdleWatchdog();
       stdoutDecoder.flush();
       stderrDecoder.flush();
       const message = err?.message || err;
@@ -870,7 +1184,16 @@ export const createProcessRunner = ({
       writeLog(`[error] ${label} spawn failed: ${message}`);
       clearActiveChild(err?.result?.pid ?? null);
       appendLog(`[run] failed: ${label}`);
-      if (err?.code === 'SUBPROCESS_TIMEOUT') {
+      const idleTimeoutFailure = idleTimeoutTriggered
+        || err?.code === 'ERR_BENCH_IDLE_TIMEOUT'
+        || spawnSignal?.reason?.code === 'ERR_BENCH_IDLE_TIMEOUT'
+        || idleAbortController?.signal?.reason?.code === 'ERR_BENCH_IDLE_TIMEOUT';
+      if (idleTimeoutFailure) {
+        appendLog(
+          `[run] idle timeout: ${label} (no activity for ${resolvedIdleTimeoutMs}ms; last=${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''})`,
+          'warn'
+        );
+      } else if (err?.code === 'SUBPROCESS_TIMEOUT') {
         appendLog(`[run] timeout: ${label} (${message})`, 'warn');
       }
       emitLogPaths('[error]');
@@ -880,7 +1203,7 @@ export const createProcessRunner = ({
         logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));   
       }
       if (!continueOnError) {
-        await flushQueuedJsonLines(telemetryWriteQueues);
+        await flushTelemetryWrites('spawn-error-exit');
         logExit('failure', failureStatus ?? 1);
         exitLikeCommandResult({ status: failureStatus, signal: failureSignal });
       }
@@ -890,14 +1213,24 @@ export const createProcessRunner = ({
         force: true,
         interactive: false
       });
-      await flushQueuedJsonLines(telemetryWriteQueues);
+      await flushTelemetryWrites('spawn-error-return');
       return {
         ok: false,
         code: failureStatus ?? 1,
         signal: failureSignal,
         schedulerEvents: getSchedulerEvents(),
         diagnostics: buildDiagnosticsSummary(),
-        progressConfidence: buildProgressConfidenceSummary()
+        progressConfidence: buildProgressConfidenceSummary(),
+        ...(idleTimeoutFailure
+          ? {
+            timeoutKind: 'idle',
+            lastActivity: {
+              source: lastActivitySource,
+              message: lastActivityText,
+              atMs: lastActivityAtMs
+            }
+          }
+          : {})
       };
     }
   };

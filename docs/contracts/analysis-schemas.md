@@ -104,6 +104,7 @@ Schema: `COMPOSITE_CONTEXT_PACK_SCHEMA`
 Purpose:
 - A bounded package intended for LLM/tooling consumption:
   - primary excerpt + optional graph/types/risk slices.
+  - risk slices may include full flows and bounded partial frontier flows when propagation is capped or incomplete.
 
 Minimum fields:
 - `version`
@@ -115,6 +116,17 @@ Minimum fields:
 - optional `risk`
 - optional `truncation[]`
 - optional `warnings[]`
+
+Risk slice notes:
+- `risk.partialFlows[]` is optional and carries bounded frontier-flow summaries for incomplete or capped interprocedural analysis.
+- `risk.analysisStatus.artifactStatus.partialFlows` records whether the partial-flow artifact was present, missing, or not required.
+- `risk.analysisStatus.partialFlowsEmitted` and `risk.stats.partialFlowsEmitted` track emitted partial-flow counts when available.
+- `risk.caps.maxPartialFlows`, `risk.caps.maxPartialBytes`, and `risk.caps.maxPartialTokens` describe partial-flow budgeting.
+
+Standards export boundary:
+- The native composite context pack JSON remains authoritative and is what `COMPOSITE_CONTEXT_PACK_SCHEMA` validates.
+- Standards-friendly interchange is emitted as a derived companion under `rendered.sarif` when a pack is rendered to JSON.
+- `rendered.sarif` is SARIF-compatible export data derived from the bounded native risk slice; it is not itself part of the native pack schema contract.
 
 ### API contracts report
 
@@ -171,5 +183,4 @@ Minimum fields:
 
 - Schemas allow `additionalProperties` so fields may be extended; only documented keys are relied upon by core logic.
 - Any schema change that affects `compatibilityKey` inputs is a hard break for mixing indexes.
-
 

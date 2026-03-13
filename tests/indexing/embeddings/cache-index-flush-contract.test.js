@@ -7,6 +7,8 @@ import { flushCacheIndexIfNeeded } from '../../../tools/build/embeddings/cache-f
 import { acquireFileLock } from '../../../src/shared/locks/file-lock.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
+
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'embeddings-cache-index-flush-contract');
@@ -49,7 +51,7 @@ const buildIndex = ({ hits, lastAccessAt }) => ({
   }
 });
 
-await fs.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fs.mkdir(cacheDir, { recursive: true });
 
 const onDisk = buildIndex({ hits: 5, lastAccessAt: '2026-02-10T00:00:05.000Z' });

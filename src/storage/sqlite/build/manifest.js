@@ -1,5 +1,6 @@
 import { normalizeFilePath } from '../utils.js';
 import { toArray } from '../../../shared/iterables.js';
+import { resolveManifestBundleNamesResult } from '../../../shared/bundle-io.js';
 
 export function getFileManifest(db, mode) {
   const rows = db.prepare('SELECT file, hash, mtimeMs, size FROM file_manifest WHERE mode = ?')
@@ -121,6 +122,10 @@ export function validateIncrementalManifest(manifest) {
     }
     if (hasSize && !Number.isFinite(entry.size)) {
       errors.push(`manifest entry size invalid for ${file}`);
+    }
+    const bundleNameResult = resolveManifestBundleNamesResult(entry);
+    if (!bundleNameResult.names.length) {
+      errors.push(`manifest entry bundles invalid for ${file}: ${bundleNameResult.reason || 'unknown reason'}`);
     }
   }
   return { ok: errors.length === 0, errors };

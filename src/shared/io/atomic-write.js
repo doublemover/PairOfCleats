@@ -1,17 +1,14 @@
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createTempPath } from '../json-stream/atomic.js';
+import { createTempPath, replaceFile, replaceFileSync } from './atomic-persistence.js';
 import { joinPathSafe, normalizePathForPlatform } from '../path-normalize.js';
 
-const RENAME_RETRY_CODES = new Set(['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV']);
 const DIR_SYNC_UNSUPPORTED_CODES = new Set(['EINVAL', 'ENOTSUP', 'EPERM', 'EISDIR', 'EBADF', 'EMFILE', 'ENFILE']);
 const OPEN_RETRY_CODES = new Set(['EMFILE', 'ENFILE']);
 const OPEN_RETRY_ATTEMPTS = 10;
 const OPEN_RETRY_BASE_DELAY_MS = 10;
-const RENAME_RETRY_ATTEMPTS = 12;
-const RENAME_RETRY_BASE_DELAY_MS = 8;
-const RENAME_RETRY_MAX_DELAY_MS = 250;
+let exdevRenameFallbackCount = 0;
 
 const toNonNegativeInt = (value, fallback) => {
   const parsed = Number(value);
@@ -46,7 +43,6 @@ const removeTempPathSync = (tempPath) => {
 };
 
 const sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
-const shouldRetryRenameWithTargetRemoval = (code) => code === 'EEXIST' || code === 'ENOTEMPTY';
 
 /**
  * Retry transient descriptor exhaustion (EMFILE/ENFILE) when creating temp files.
@@ -84,85 +80,6 @@ const syncParentDirectory = async (targetPath) => {
       try { await dirHandle.close(); } catch {}
     }
   }
-};
-
-const renameTempFile = async (tempPath, targetPath) => {
-  let lastError = null;
-  for (let attempt = 0; attempt < RENAME_RETRY_ATTEMPTS; attempt += 1) {
-    try {
-      await fs.rename(tempPath, targetPath);
-      return;
-    } catch (err) {
-      lastError = err;
-      if (!RENAME_RETRY_CODES.has(err?.code)) {
-        throw err;
-      }
-      if (err?.code === 'EXDEV') {
-        // Cross-device rename cannot succeed; copy + remove preserves atomic
-        // write semantics for temp paths that live on fallback volumes.
-        await fs.copyFile(tempPath, targetPath);
-        await fs.rm(tempPath, { force: true });
-        return;
-      }
-      if (shouldRetryRenameWithTargetRemoval(err?.code)) {
-        try {
-          await fs.rm(targetPath, { force: true });
-        } catch {}
-      }
-      if (attempt >= RENAME_RETRY_ATTEMPTS - 1) break;
-      const delayMs = Math.min(
-        RENAME_RETRY_MAX_DELAY_MS,
-        RENAME_RETRY_BASE_DELAY_MS * (2 ** attempt)
-      );
-      await sleep(delayMs);
-    }
-  }
-  if (lastError && RENAME_RETRY_CODES.has(lastError?.code)) {
-    if (!shouldRetryRenameWithTargetRemoval(lastError?.code)) {
-      try {
-        await fs.rm(targetPath, { force: true });
-      } catch {}
-    }
-    await fs.rename(tempPath, targetPath);
-    return;
-  }
-  throw lastError;
-};
-
-const renameTempFileSync = (tempPath, targetPath) => {
-  let lastError = null;
-  for (let attempt = 0; attempt < RENAME_RETRY_ATTEMPTS; attempt += 1) {
-    try {
-      fsSync.renameSync(tempPath, targetPath);
-      return;
-    } catch (err) {
-      lastError = err;
-      if (!RENAME_RETRY_CODES.has(err?.code)) {
-        throw err;
-      }
-      if (err?.code === 'EXDEV') {
-        fsSync.copyFileSync(tempPath, targetPath);
-        fsSync.rmSync(tempPath, { force: true });
-        return;
-      }
-      if (shouldRetryRenameWithTargetRemoval(err?.code)) {
-        try {
-          fsSync.rmSync(targetPath, { force: true });
-        } catch {}
-      }
-      if (attempt >= RENAME_RETRY_ATTEMPTS - 1) break;
-    }
-  }
-  if (lastError && RENAME_RETRY_CODES.has(lastError?.code)) {
-    if (!shouldRetryRenameWithTargetRemoval(lastError?.code)) {
-      try {
-        fsSync.rmSync(targetPath, { force: true });
-      } catch {}
-    }
-    fsSync.renameSync(tempPath, targetPath);
-    return;
-  }
-  throw lastError;
 };
 
 /**
@@ -211,7 +128,12 @@ const writeAtomicPayload = async (targetPath, payload, {
     await handle.sync();
     await handle.close();
     handle = null;
-    await renameTempFile(tempPath, safeTargetPath);
+    await replaceFile(tempPath, safeTargetPath, {
+      keepBackup: false,
+      onExdevFallback: () => {
+        exdevRenameFallbackCount += 1;
+      }
+    });
     await syncParentDirectory(safeTargetPath);
     return safeTargetPath;
   } catch (err) {
@@ -286,7 +208,12 @@ const writeAtomicPayloadSync = (targetPath, payload, {
     }
     fsSync.closeSync(fd);
     fd = null;
-    renameTempFileSync(tempPath, safeTargetPath);
+    replaceFileSync(tempPath, safeTargetPath, {
+      keepBackup: false,
+      onExdevFallback: () => {
+        exdevRenameFallbackCount += 1;
+      }
+    });
     if (durable !== false) {
       syncParentDirectorySync(safeTargetPath);
     }
@@ -412,4 +339,12 @@ export const atomicWriteJsonSync = (targetPath, value, options = {}) => {
     newline ? `${payload}\n` : payload,
     options
   );
+};
+
+export const getAtomicWriteRuntimeMetrics = () => ({
+  exdevRenameFallbackCount
+});
+
+export const resetAtomicWriteRuntimeMetricsForTests = () => {
+  exdevRenameFallbackCount = 0;
 };

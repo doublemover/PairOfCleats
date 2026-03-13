@@ -99,23 +99,81 @@ export const createTreeSitterSchedulerLookup = ({
   });
   const stats = {
     readerEvictions: 0,
-    transientFdRetries: 0
+    transientFdRetries: 0,
+    readerCloseFailures: 0,
+    forcedReaderCloseFailures: 0
   };
   const pageRefCounts = new Map();
   const consumedIndexEntries = new WeakSet();
   const consumedVirtualPathFallback = new Set();
   const readersByManifestPath = new Map();
   let readerUseTick = 0;
+  let closing = false;
   let closed = false;
   let closePromise = null;
+  let closeError = null;
   const segmentMetaByGrammarKey = new Map(); // grammarKey -> Promise<Map<number, object>|null>
   const pageIndexByGrammarKey = new Map(); // grammarKey -> Promise<Map<number, object>|null>
 
   const throwIfLookupClosing = () => {
-    if (!closed && !closePromise) return;
-    const err = new Error('Tree-sitter scheduler lookup is closed.');
+    if (!closed && !closing && !closePromise && !closeError) return;
+    const err = new Error(
+      closeError
+        ? `Tree-sitter scheduler lookup is unavailable: ${closeError.message}`
+        : (closed ? 'Tree-sitter scheduler lookup is closed.' : 'Tree-sitter scheduler lookup is closing.')
+    );
     err.code = 'ERR_TREE_SITTER_LOOKUP_CLOSED';
+    if (closeError) {
+      err.cause = closeError;
+      err.closeErrorCode = closeError.code || null;
+    }
     throw err;
+  };
+
+  const buildReaderEntryCloseTelemetry = (entry) => {
+    const readerStats = typeof entry?.reader?.stats === 'function'
+      ? entry.reader.stats()
+      : null;
+    return {
+      key: String(entry?.key || '<unknown>'),
+      inUseCount: Number(entry?.inUseCount || 0),
+      closeRequested: entry?.closeRequested === true,
+      closing: Boolean(entry?.closingPromise),
+      pendingCloseOperations: Number(readerStats?.pendingCloseOperations || 0),
+      readerClosed: readerStats?.closed === true
+    };
+  };
+
+  const formatReaderEntryCloseTelemetry = (entry) => {
+    const telemetry = buildReaderEntryCloseTelemetry(entry);
+    return `${telemetry.key}[inUse=${telemetry.inUseCount},closeRequested=${telemetry.closeRequested === true ? 1 : 0},closing=${telemetry.closing === true ? 1 : 0},pendingClose=${telemetry.pendingCloseOperations},readerClosed=${telemetry.readerClosed === true ? 1 : 0}]`;
+  };
+
+  const createLookupReaderCloseError = (code, message, entries = []) => {
+    const err = new Error(message);
+    err.code = code;
+    err.entries = entries.map((entry) => buildReaderEntryCloseTelemetry(entry));
+    return err;
+  };
+
+  const finalizeReaderEntryClose = (entry, closeOutcome, { recordEviction = false } = {}) => {
+    if (!entry || typeof entry !== 'object') {
+      return { ok: true, closed: false, error: null };
+    }
+    if (closeOutcome?.ok) {
+      if (readersByManifestPath.get(entry.key) === entry) {
+        readersByManifestPath.delete(entry.key);
+      }
+      if (recordEviction && entry.evictionRecorded !== true) {
+        stats.readerEvictions += 1;
+        entry.evictionRecorded = true;
+      }
+      entry.closeRequested = false;
+      entry.closeFinalized = true;
+      return { ok: true, closed: true, error: null };
+    }
+    entry.closeRequested = true;
+    return { ok: false, closed: false, error: closeOutcome?.error || null };
   };
 
   const isTransientFdError = (err) => {
@@ -182,35 +240,48 @@ export const createTreeSitterSchedulerLookup = ({
    */
   const closeReaderEntry = async (entry, { recordEviction = false } = {}) => {
     if (!entry || typeof entry !== 'object') return;
+    if (entry.closeFinalized) {
+      return { ok: true, closed: true, error: null };
+    }
     if (entry.closingPromise) {
-      await runBuildCleanupWithTimeout({
-        label: `tree-sitter-lookup.reader-close.inflight:${entry.key}`,
-        cleanup: () => entry.closingPromise,
-        timeoutMs: readerCloseStepTimeoutMs,
-        log
-      });
-      return;
+      const closeOutcome = await entry.closingPromise;
+      return finalizeReaderEntryClose(entry, closeOutcome, { recordEviction });
     }
     if (entry.inUseCount > 0) {
       entry.closeRequested = true;
-      return;
+      return { ok: true, closed: false, deferred: true, error: null };
     }
-    readersByManifestPath.delete(entry.key);
-    if (recordEviction) stats.readerEvictions += 1;
-    entry.closeRequested = false;
+    entry.closeRequested = true;
     const reader = entry.reader;
     entry.closingPromise = (async () => {
+      let closeError = null;
       try {
-        await runBuildCleanupWithTimeout({
+        const closeResult = await runBuildCleanupWithTimeout({
           label: `tree-sitter-lookup.reader-close:${entry.key}`,
           cleanup: () => reader.close(),
           timeoutMs: readerCloseStepTimeoutMs,
           log
         });
-      } catch {}
+        if (closeResult?.timedOut) {
+          closeError = closeResult.error || new Error(
+            `[cleanup] tree-sitter-lookup.reader-close timed out: ${entry.key}`
+          );
+        }
+      } catch (error) {
+        closeError = error;
+      }
+      if (closeError) {
+        stats.readerCloseFailures += 1;
+        if (typeof log === 'function') {
+          log(`[tree-sitter:schedule] reader close failed: ${entry.key} (${closeError?.message || closeError})`);
+        }
+        return { ok: false, error: closeError };
+      }
+      return { ok: true, error: null };
     })();
     try {
-      await entry.closingPromise;
+      const closeOutcome = await entry.closingPromise;
+      return finalizeReaderEntryClose(entry, closeOutcome, { recordEviction });
     } finally {
       entry.closingPromise = null;
     }
@@ -228,40 +299,94 @@ export const createTreeSitterSchedulerLookup = ({
         }
       }
       if (!oldestIdle) break;
-      await closeReaderEntry(oldestIdle, { recordEviction: true });
+      const closeResult = await closeReaderEntry(oldestIdle, { recordEviction: true });
+      if (closeResult?.ok === false) {
+        const error = createLookupReaderCloseError(
+          'ERR_TREE_SITTER_LOOKUP_READER_EVICT_TIMEOUT',
+          `[tree-sitter:schedule] idle reader eviction failed for ${formatReaderEntryCloseTelemetry(oldestIdle)}: ${closeResult?.error?.message || 'unknown close failure'}`,
+          [oldestIdle]
+        );
+        closeError = error;
+        if (typeof log === 'function') {
+          log(error.message);
+        }
+        throw error;
+      }
     }
   };
 
-  const markDeferredReaderEviction = (excludeKey = null) => {
+  const markDeferredReaderEviction = () => {
     if (readersByManifestPath.size <= maxReaderCount) return;
-    let oldestActive = null;
-    for (const entry of readersByManifestPath.values()) {
-      if (entry.key === excludeKey) continue;
-      if (entry.closeRequested) continue;
-      if (entry.inUseCount <= 0) continue;
-      if (!oldestActive || entry.lastUsedTick < oldestActive.lastUsedTick) {
-        oldestActive = entry;
-      }
-    }
-    if (oldestActive) {
-      oldestActive.closeRequested = true;
-    }
+    // Keep the reader cap as a best-effort bound. Retiring active readers
+    // introduces a race where new leases can observe a closing reader entry.
+    // We instead let active readers drain naturally and evict only once they
+    // become idle in the lease-finalizer path.
   };
 
   const getReaderEntryForManifest = async (manifestPath, format = 'jsonl') => {
     throwIfLookupClosing();
     const key = `${manifestPath}|${format}`;
-    const existing = readersByManifestPath.get(key);
-    if (existing) {
+    while (true) {
+      const existing = readersByManifestPath.get(key);
+      if (!existing) break;
+      if (existing.closingPromise) {
+        await existing.closingPromise;
+        throwIfLookupClosing();
+        await Promise.resolve();
+        continue;
+      }
+      if (existing.closeRequested && existing.inUseCount <= 0) {
+        const closeResult = await closeReaderEntry(existing);
+        if (closeResult?.ok === false) {
+          const error = createLookupReaderCloseError(
+            'ERR_TREE_SITTER_LOOKUP_READER_CLOSE_TIMEOUT',
+            `[tree-sitter:schedule] poisoned reader close remained pending: ${formatReaderEntryCloseTelemetry(existing)}`,
+            [existing]
+          );
+          closeError = error;
+          if (typeof log === 'function') {
+            log(error.message);
+          }
+          throw error;
+        }
+        throwIfLookupClosing();
+        continue;
+      }
       existing.lastUsedTick = ++readerUseTick;
       return existing;
     }
     await evictIdleReadersIfNeeded();
-    const secondCheck = readersByManifestPath.get(key);
-    if (secondCheck) {
+    throwIfLookupClosing();
+    while (true) {
+      const secondCheck = readersByManifestPath.get(key);
+      if (!secondCheck) break;
+      if (secondCheck.closingPromise) {
+        await secondCheck.closingPromise;
+        throwIfLookupClosing();
+        await Promise.resolve();
+        continue;
+      }
+      if (secondCheck.closeRequested && secondCheck.inUseCount <= 0) {
+        const closeResult = await closeReaderEntry(secondCheck);
+        if (closeResult?.ok === false) {
+          const error = createLookupReaderCloseError(
+            'ERR_TREE_SITTER_LOOKUP_READER_CLOSE_TIMEOUT',
+            `[tree-sitter:schedule] reader remained pending during second lookup check: ${formatReaderEntryCloseTelemetry(secondCheck)}`,
+            [secondCheck]
+          );
+          closeError = error;
+          if (typeof log === 'function') {
+            log(error.message);
+          }
+          throw error;
+        }
+        throwIfLookupClosing();
+        continue;
+      }
       secondCheck.lastUsedTick = ++readerUseTick;
       return secondCheck;
     }
+    throwIfLookupClosing();
     const reader = createVfsManifestOffsetReader({
       manifestPath,
       parseRowBuffer: format === 'binary-v1' ? parseBinaryJsonRowBuffer : undefined,
@@ -274,11 +399,13 @@ export const createTreeSitterSchedulerLookup = ({
       lastUsedTick: ++readerUseTick,
       inUseCount: 0,
       closeRequested: false,
-      closingPromise: null
+      closingPromise: null,
+      closeFinalized: false,
+      evictionRecorded: false
     };
     readersByManifestPath.set(key, created);
     if (readersByManifestPath.size > maxReaderCount) {
-      markDeferredReaderEviction(key);
+      markDeferredReaderEviction();
     }
     return created;
   };
@@ -310,10 +437,12 @@ export const createTreeSitterSchedulerLookup = ({
    */
   const close = async () => {
     if (closed) return;
+    if (closeError) throw closeError;
     if (closePromise) {
       await closePromise;
       return;
     }
+    closing = true;
     closePromise = (async () => {
       const closeDeadlineMs = Date.now() + readerForceCloseAfterMs;
       while (readersByManifestPath.size > 0) {
@@ -322,18 +451,17 @@ export const createTreeSitterSchedulerLookup = ({
         if (readersByManifestPath.size <= 0) break;
         if (Date.now() >= closeDeadlineMs) {
           const pendingEntries = Array.from(readersByManifestPath.values());
-          readersByManifestPath.clear();
-          await Promise.all(pendingEntries.map(async (entry) => {
-            try {
-              await runBuildCleanupWithTimeout({
-                label: `tree-sitter-lookup.reader-close.force:${entry.key}`,
-                cleanup: () => entry.reader.close(),
-                timeoutMs: readerCloseStepTimeoutMs,
-                log
-              });
-            } catch {}
-          }));
-          break;
+          const error = createLookupReaderCloseError(
+            'ERR_TREE_SITTER_LOOKUP_CLOSE_TIMEOUT',
+            `[tree-sitter:schedule] lookup close timed out after ${readerForceCloseAfterMs}ms with ${pendingEntries.length} reader(s): ` +
+            pendingEntries.slice(0, 5).map((entry) => formatReaderEntryCloseTelemetry(entry)).join(', '),
+            pendingEntries
+          );
+          closeError = error;
+          if (typeof log === 'function') {
+            log(error.message);
+          }
+          throw error;
         }
         await sleep(10);
       }
@@ -344,10 +472,15 @@ export const createTreeSitterSchedulerLookup = ({
       pageRowsCache.clear();
       pageRefCounts.clear();
       consumedVirtualPathFallback.clear();
+      closeError = null;
+      closing = false;
       closed = true;
     })();
     try {
       await closePromise;
+    } catch (error) {
+      closeError = error;
+      throw error;
     } finally {
       closePromise = null;
     }
@@ -805,9 +938,21 @@ export const createTreeSitterSchedulerLookup = ({
       ...stats,
       indexEntries: index.size,
       openReaders: readersByManifestPath.size,
+      activeReaders: Array.from(readersByManifestPath.values()).filter((entry) => Number(entry?.inUseCount || 0) > 0).length,
+      closeRequestedReaders: Array.from(readersByManifestPath.values()).filter((entry) => entry?.closeRequested === true).length,
+      closingReaders: Array.from(readersByManifestPath.values()).filter((entry) => Boolean(entry?.closingPromise)).length,
+      pendingCloseOperations: Array.from(readersByManifestPath.values()).reduce((total, entry) => {
+        const readerStats = typeof entry?.reader?.stats === 'function'
+          ? entry.reader.stats()
+          : null;
+        return total + Math.max(0, Number(readerStats?.pendingCloseOperations || 0));
+      }, 0),
+      closing,
       maxOpenReaders: maxReaderCount,
       closeTimeoutMs: readerCloseTimeoutMs,
       forceCloseAfterMs: readerForceCloseAfterMs,
+      closeErrorCode: closeError?.code || null,
+      closeErrorMessage: closeError?.message || null,
       cacheEntries: rowCache.size(),
       pageCacheEntries: pageRowsCache.size(),
       missEntries: missCache.size(),

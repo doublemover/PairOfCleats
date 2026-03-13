@@ -1,5 +1,5 @@
 import fsSync from 'node:fs';
-import { readBundleFile } from '../../../../shared/bundle-io.js';
+import { readBundleFile, resolveManifestBundleNames } from '../../../../shared/bundle-io.js';
 import { toArray } from '../../../../shared/iterables.js';
 import { joinPathSafe } from '../../../../shared/path-normalize.js';
 import {
@@ -22,6 +22,29 @@ const addArrayValues = (target, values) => {
   for (const value of list) {
     target.add(value);
   }
+};
+
+const mergeBundleShards = (shards) => {
+  if (!Array.isArray(shards) || !shards.length) return null;
+  let merged = null;
+  for (const shard of shards) {
+    if (!shard || typeof shard !== 'object') return null;
+    const chunks = Array.isArray(shard.chunks) ? shard.chunks : null;
+    if (!chunks) return null;
+    if (!merged) {
+      merged = {
+        ...shard,
+        chunks: [...chunks]
+      };
+      continue;
+    }
+    merged.chunks.push(...chunks);
+    if (!merged.fileRelations && shard.fileRelations) merged.fileRelations = shard.fileRelations;
+    if (!Array.isArray(merged.vfsManifestRows) && Array.isArray(shard.vfsManifestRows)) {
+      merged.vfsManifestRows = shard.vfsManifestRows;
+    }
+  }
+  return merged;
 };
 
 /**
@@ -122,22 +145,29 @@ export const loadBundlesAndCollectState = async ({ changed, bundleDir }) => {
     const fileKey = record.file;
     const normalizedFile = record.normalized;
     const entry = record.entry;
-    const bundleName = entry?.bundle;
-    if (!bundleName) {
+    const bundleNames = resolveManifestBundleNames(entry);
+    if (!bundleNames.length) {
       return { ok: false, reason: `missing bundle for ${fileKey}` };
     }
-    const bundlePath = joinPathSafe(bundleDir, [bundleName]);
-    if (!bundlePath) {
-      return { ok: false, reason: `invalid bundle path for ${fileKey}` };
+    const loadedShards = [];
+    for (const bundleName of bundleNames) {
+      const bundlePath = joinPathSafe(bundleDir, [bundleName]);
+      if (!bundlePath) {
+        return { ok: false, reason: `invalid bundle path for ${fileKey}` };
+      }
+      if (!fsSync.existsSync(bundlePath)) {
+        return { ok: false, reason: `bundle missing for ${fileKey}` };
+      }
+      const result = await readBundleFile(bundlePath);
+      if (!result.ok) {
+        return { ok: false, reason: `invalid bundle for ${fileKey}` };
+      }
+      loadedShards.push(result.bundle);
     }
-    if (!fsSync.existsSync(bundlePath)) {
-      return { ok: false, reason: `bundle missing for ${fileKey}` };
-    }
-    const result = await readBundleFile(bundlePath);
-    if (!result.ok) {
+    const bundle = mergeBundleShards(loadedShards);
+    if (!bundle) {
       return { ok: false, reason: `invalid bundle for ${fileKey}` };
     }
-    const bundle = result.bundle;
     bundles.set(normalizedFile, { bundle, entry, fileKey, normalizedFile });
     for (const chunk of toArray(bundle?.chunks)) {
       addArrayValues(tokenValues, chunk?.tokens);

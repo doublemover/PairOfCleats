@@ -3,7 +3,7 @@ import path from 'node:path';
 import {
   normalizeBundleFormat,
   readBundleFile,
-  resolveBundleFilename,
+  resolveManifestBundleNames,
   resolveBundleFormatFromName
 } from '../../../src/shared/bundle-io.js';
 import { sha1 } from '../../../src/shared/hash.js';
@@ -31,29 +31,45 @@ export const buildChunksFromBundles = async (bundleDir, manifestFiles, bundleFor
   let maxChunkId = -1;
   let total = 0;
   for (const [relPath, entry] of Object.entries(manifestFiles || {})) {
-    const bundleName = entry?.bundle || resolveBundleFilename(relPath, resolvedBundleFormat);
-    const bundlePath = path.join(bundleDir, bundleName);
-    if (!fsSync.existsSync(bundlePath)) continue;
-    let bundle;
-    try {
-      const result = await readBundleFile(bundlePath, {
-        format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
-      });
-      if (!result.ok) continue;
-      bundle = result.bundle;
-    } catch {
+    const bundleNames = resolveManifestBundleNames(entry);
+    if (!bundleNames.length) continue;
+    const shardBundles = [];
+    let shardLoadFailed = false;
+    for (const bundleName of bundleNames) {
+      const bundlePath = path.join(bundleDir, bundleName);
+      if (!fsSync.existsSync(bundlePath)) {
+        shardLoadFailed = true;
+        break;
+      }
+      try {
+        const result = await readBundleFile(bundlePath, {
+          format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
+        });
+        if (!result.ok) {
+          shardLoadFailed = true;
+          break;
+        }
+        shardBundles.push(result.bundle);
+      } catch {
+        shardLoadFailed = true;
+        break;
+      }
+    }
+    if (shardLoadFailed || !shardBundles.length) {
       continue;
     }
-    const filePath = bundle?.file || relPath;
-    const chunks = Array.isArray(bundle?.chunks) ? bundle.chunks : [];
-    if (!chunks.length) continue;
+    const firstBundle = shardBundles[0];
+    const filePath = firstBundle?.file || relPath;
     const list = chunksByFile.get(filePath) || [];
-    for (const chunk of chunks) {
-      if (!chunk) continue;
-      const id = Number.isFinite(chunk.id) ? chunk.id : null;
-      if (Number.isFinite(id) && id > maxChunkId) maxChunkId = id;
-      list.push({ index: Number.isFinite(id) ? id : null, chunk });
-      total += 1;
+    for (const bundle of shardBundles) {
+      const chunks = Array.isArray(bundle?.chunks) ? bundle.chunks : [];
+      for (const chunk of chunks) {
+        if (!chunk) continue;
+        const id = Number.isFinite(chunk.id) ? chunk.id : null;
+        if (Number.isFinite(id) && id > maxChunkId) maxChunkId = id;
+        list.push({ index: Number.isFinite(id) ? id : null, chunk });
+        total += 1;
+      }
     }
     chunksByFile.set(filePath, list);
   }

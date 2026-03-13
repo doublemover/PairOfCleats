@@ -26,10 +26,10 @@ await Promise.all([
 ]);
 
 const statePath = resolveBuildStatePath(buildRoot);
+const progressPath = path.join(buildRoot, 'build_state.progress.json');
 const state = JSON.parse(await fs.readFile(statePath, 'utf8'));
 let progress = state.progress;
 if (!progress?.code) {
-  const progressPath = path.join(buildRoot, 'build_state.progress.json');
   try {
     progress = JSON.parse(await fs.readFile(progressPath, 'utf8'));
   } catch {}
@@ -39,5 +39,15 @@ assert.ok(progress?.code, 'expected progress update to persist');
 assert.ok(state.phases?.processing, 'expected phase update to persist');
 assert.equal(state.currentPhase, 'processing', 'expected currentPhase to be set');
 assert.ok(!Object.prototype.hasOwnProperty.call(state, 'phase'), 'unexpected legacy phase field');
+
+await fs.rm(statePath, { force: true });
+await markBuildPhase(buildRoot, 'processing', 'running');
+const rewrittenState = JSON.parse(await fs.readFile(statePath, 'utf8'));
+assert.ok(rewrittenState.phases?.processing, 'expected identical phase patch to recreate missing build_state.json');
+
+await fs.rm(progressPath, { force: true });
+await updateBuildState(buildRoot, { progress: { code: { processedFiles: 5, totalFiles: 10 } } });
+const rewrittenProgress = JSON.parse(await fs.readFile(progressPath, 'utf8'));
+assert.equal(rewrittenProgress?.code?.processedFiles, 5, 'expected identical progress patch to recreate missing progress sidecar');
 
 console.log('build state tests passed');

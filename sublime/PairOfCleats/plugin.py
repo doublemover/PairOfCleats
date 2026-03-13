@@ -2,9 +2,13 @@ import sublime
 import sublime_plugin
 
 from .lib import config
+from .lib import tasks
 from .lib import watch
+from .commands import analysis as _analysis_commands
 from .commands import index as _index_commands
 from .commands import map as _map_commands
+from .commands import operator as _operator_commands
+from .commands import runtime as _runtime_commands
 from .commands import search as _search_commands
 from .commands import settings as _settings_commands
 from .commands import validate as _validate_commands
@@ -17,17 +21,19 @@ def plugin_loaded():
 
 
 def plugin_unloaded():
-    watch.stop_all()
+    watch.stop_all(reason='plugin_unload')
+    tasks.clear_all()
 
 
 class PairOfCleatsWindowListener(sublime_plugin.EventListener):
     def on_window_command(self, window, command_name, args):
         if command_name == 'close_window':
-            watch.stop(window)
+            watch.stop(window, reason='window_close')
 
     def on_post_window_command(self, window, command_name, args):
         if command_name == 'close_window':
-            watch.stop(window)
+            watch.stop(window, reason='window_close')
 
     def on_exit(self):
-        watch.stop_all()
+        watch.stop_all(reason='app_exit')
+        tasks.clear_all()

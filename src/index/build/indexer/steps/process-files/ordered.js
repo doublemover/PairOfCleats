@@ -1,4 +1,6 @@
+import { awaitWithKeepalive } from '../../../../../shared/promise-keepalive.js';
 import { createTimeoutError, runWithTimeout } from '../../../../../shared/promise-timeout.js';
+import { composeAbortSignals } from '../../../../../shared/abort.js';
 import { createSeqLedger, STAGE1_SEQ_STATE } from './ordering.js';
 
 const TERMINAL_SUCCESS = STAGE1_SEQ_STATE.TERMINAL_SUCCESS;
@@ -119,8 +121,20 @@ export const replayCommitJournal = (records = [], { expectedSeqs = [] } = {}) =>
     : Array.from(committed).sort((a, b) => a - b);
   const first = expected.length ? expected[0] : 0;
   let nextCommitSeq = first;
-  while (committed.has(nextCommitSeq)) {
-    nextCommitSeq += 1;
+  if (expected.length) {
+    const expectedSet = new Set(expected);
+    const upperBound = expected[expected.length - 1];
+    let cursor = expected[0];
+    while (cursor <= upperBound) {
+      if (expectedSet.has(cursor) && !committed.has(cursor)) {
+        nextCommitSeq = cursor;
+        break;
+      }
+      cursor += 1;
+      if (cursor > upperBound) {
+        nextCommitSeq = upperBound + 1;
+      }
+    }
   }
 
   return {
@@ -148,6 +162,7 @@ export const replayCommitJournal = (records = [], { expectedSeqs = [] } = {}) =>
  *   cancel:(orderIndex:number,reasonCode?:number)=>Promise<void>,
  *   noteDispatched:(orderIndex:number,ownerId?:number)=>void,
  *   noteInFlight:(orderIndex:number,ownerId?:number)=>void,
+ *   resetForRetry:(orderIndices?:number[])=>number,
  *   heartbeat:(orderIndex:number,ownerId:number)=>boolean,
  *   reclaimExpiredLeases:()=>number[],
  *   peekNextIndex:()=>number,
@@ -182,9 +197,14 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     : null;
 
   const expectedSeqs = ensureExpectedSeqs(options);
+  const leaseTimeoutMs = coercePositiveIntOr(options.leaseTimeoutMs, 60000);
+  const dispatchLeaseTimeoutMs = coercePositiveIntOr(
+    options.dispatchLeaseTimeoutMs,
+    Math.max(leaseTimeoutMs * 3, leaseTimeoutMs + 60000)
+  );
   const seqLedger = createSeqLedger({
     expectedSeqs,
-    leaseTimeoutMs: coercePositiveIntOr(options.leaseTimeoutMs, 60000)
+    leaseTimeoutMs
   });
 
   const envelopeBySeq = new Map();
@@ -317,6 +337,8 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       maxPendingEmergencyFactor,
       maxPendingBytes,
       commitLagHard,
+      leaseTimeoutMs,
+      dispatchLeaseTimeoutMs,
       flushActive: flushActiveStartedAt > 0
         ? {
           orderIndex: flushActiveSeq,
@@ -418,7 +440,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       return Promise.resolve();
     }
 
-    return new Promise((resolve, reject) => {
+    return awaitWithKeepalive(new Promise((resolve, reject) => {
       const waiter = {
         resolve,
         reject,
@@ -485,7 +507,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       }
 
       capacityWaiters.push(waiter);
-    });
+    }));
   };
 
   const transitionToTerminal = (seq, terminalState, { ownerId = 0, reasonCode = 0 } = {}) => {
@@ -541,14 +563,14 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const applyEnvelope = async (envelope, phase = 'ordered_commit') => {
     if (!envelope || envelope.terminalState !== TERMINAL_SUCCESS || !envelope.result) return;
     const orderIndex = envelope.seq;
-    const apply = () => handleFileResult(envelope.result, state, envelope.shardMeta, {
-      signal: flushAbortSignal,
+    const apply = (signal = flushAbortSignal) => handleFileResult(envelope.result, state, envelope.shardMeta, {
+      signal,
       orderIndex,
       phase
     });
     if (flushTimeoutMs > 0) {
       await runWithTimeout(
-        () => apply(),
+        (timeoutSignal) => apply(composeAbortSignals(flushAbortSignal, timeoutSignal)),
         {
           timeoutMs: flushTimeoutMs,
           signal: flushAbortSignal,
@@ -661,7 +683,14 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     if (!Number.isFinite(seq)) {
       return Promise.reject(new Error(`Invalid ordered seq value: ${seq}`));
     }
+    if (aborted) {
+      return Promise.reject(abortError || new Error('Ordered appender aborted.'));
+    }
     const normalizedSeq = Math.floor(seq);
+    const existingState = seqLedger.getState(normalizedSeq);
+    if (existingState === COMMITTED) {
+      return Promise.resolve();
+    }
     if (normalizedSeq > maxSeenSeq) maxSeenSeq = normalizedSeq;
 
     const envelope = ensureEnvelope(normalizedSeq);
@@ -729,15 +758,40 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
 
   const heartbeat = (orderIndex, ownerId) => seqLedger.heartbeat(Math.floor(Number(orderIndex)), ownerId, Date.now());
 
+  const resetForRetry = (orderIndices = []) => {
+    if (!Array.isArray(orderIndices) || orderIndices.length === 0) return 0;
+    let resetCount = 0;
+    for (const value of orderIndices) {
+      const seq = Math.floor(Number(value));
+      if (!Number.isFinite(seq)) continue;
+      const envelope = envelopeBySeq.get(seq) || null;
+      if (envelope && envelope.terminalState == null) {
+        releaseEnvelope(seq);
+      }
+      const prior = seqLedger.resetNonTerminal(seq);
+      if (prior === STAGE1_SEQ_STATE.DISPATCHED || prior === STAGE1_SEQ_STATE.IN_FLIGHT) {
+        resetCount += 1;
+      }
+    }
+    if (resetCount > 0) {
+      resolveCapacityWaiters();
+    }
+    return resetCount;
+  };
+
   const reclaimExpiredLeases = () => {
-    const reclaimed = seqLedger.reclaimExpiredLeases(Date.now());
+    const reclaimed = seqLedger.reclaimExpiredLeases(Date.now(), {
+      includeDispatched: true,
+      dispatchedGraceMs: dispatchLeaseTimeoutMs
+    });
     if (reclaimed.length) {
       for (const seq of reclaimed) {
+        const reclaimedReasonCode = Number(seqLedger.getTerminalReason?.(seq)) || 910;
         appendJournal({
           seq,
           recordType: 'terminal',
           terminalOutcome: 'fail',
-          reasonCode: 910
+          reasonCode: reclaimedReasonCode
         });
       }
       drain().catch(() => {});
@@ -749,6 +803,22 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     if (aborted) return;
     aborted = true;
     abortError = err instanceof Error ? err : new Error(String(err || 'Ordered appender aborted.'));
+    for (let seq = seqLedger.startSeq; seq <= seqLedger.endSeq; seq += 1) {
+      const stateCode = seqLedger.getState(seq);
+      if (
+        stateCode === STAGE1_SEQ_STATE.UNUSED
+        || stateCode === STAGE1_SEQ_STATE.COMMITTED
+        || TERMINAL_SET.has(stateCode)
+      ) {
+        continue;
+      }
+      try {
+        transitionToTerminal(seq, TERMINAL_CANCEL, {
+          ownerId: 0,
+          reasonCode: 2
+        });
+      } catch {}
+    }
     while (capacityWaiters.length) {
       settleWaiter(capacityWaiters.shift(), (entry) => entry.reject(abortError));
     }
@@ -800,6 +870,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     },
     noteDispatched,
     noteInFlight,
+    resetForRetry,
     heartbeat,
     reclaimExpiredLeases,
     peekNextIndex() {

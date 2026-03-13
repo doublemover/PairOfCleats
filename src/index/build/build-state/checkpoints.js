@@ -3,6 +3,7 @@ import path from 'node:path';
 import { atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { sha1 } from '../../../shared/hash.js';
 import { compareStrings } from '../../../shared/sort.js';
+import { readJsonFileSafe } from '../../../shared/files.js';
 import {
   STAGE_CHECKPOINTS_SIDECAR_VERSION,
   STAGE_CHECKPOINTS_INDEX_BASENAME,
@@ -10,6 +11,7 @@ import {
 } from '../stage-checkpoints/sidecar.js';
 
 const LEGACY_STATE_CHECKPOINTS_FILE = 'build_state.stage-checkpoints.json';
+const CHECKPOINT_JSON_MAX_BYTES = 16 * 1024 * 1024;
 
 const isObjectLike = (value) => (
   Boolean(value) && typeof value === 'object'
@@ -21,14 +23,28 @@ const resolveCheckpointModePath = (buildRoot, mode) => (
   path.join(buildRoot, buildStageCheckpointModeBasename(mode))
 );
 
-const readJsonFile = async (filePath) => {
-  try {
-    const parsed = JSON.parse(await fs.readFile(filePath, 'utf8'));
-    if (!isObjectLike(parsed)) return null;
-    return parsed;
-  } catch {
+const resolveSafeCheckpointRelativePath = (mode, relPath) => {
+  if (typeof relPath !== 'string' || !relPath.trim()) return null;
+  if (path.isAbsolute(relPath)) return null;
+  const normalized = path.normalize(relPath);
+  if (
+    normalized.startsWith('..')
+    || normalized.includes(`..${path.sep}`)
+    || path.basename(normalized) !== normalized
+  ) {
     return null;
   }
+  const expected = buildStageCheckpointModeBasename(mode);
+  return normalized === expected ? normalized : null;
+};
+
+const readJsonFile = async (filePath) => {
+  const parsed = await readJsonFileSafe(filePath, {
+    fallback: null,
+    maxBytes: CHECKPOINT_JSON_MAX_BYTES
+  });
+  if (!isObjectLike(parsed)) return null;
+  return parsed;
 };
 
 const readFingerprint = async (filePath) => {
@@ -39,6 +55,13 @@ const readFingerprint = async (filePath) => {
     return null;
   }
 };
+
+const fingerprintsMatch = (left, right) => (
+  !!left
+  && !!right
+  && Number(left.size) === Number(right.size)
+  && Number(left.mtimeMs) === Number(right.mtimeMs)
+);
 
 const hashJson = (value) => {
   if (value == null) return null;
@@ -92,7 +115,7 @@ const normalizeCheckpointIndex = (value) => {
   const normalizedModes = {};
   for (const [mode, descriptor] of Object.entries(modes)) {
     if (!descriptor || typeof descriptor !== 'object') continue;
-    const relPath = typeof descriptor.path === 'string' ? descriptor.path : null;
+    const relPath = resolveSafeCheckpointRelativePath(mode, descriptor.path);
     if (!relPath) continue;
     normalizedModes[mode] = {
       path: relPath,
@@ -136,7 +159,7 @@ export const loadCheckpointSlices = async (buildRoot) => {
     const modeKeys = Object.keys(index.modes).sort(compareStrings);
     for (const mode of modeKeys) {
       const descriptor = index.modes[mode];
-      const relPath = descriptor?.path || null;
+      const relPath = resolveSafeCheckpointRelativePath(mode, descriptor?.path);
       if (!relPath) continue;
       const modePath = path.join(buildRoot, relPath);
       const payload = await readJsonFile(modePath);
@@ -176,12 +199,17 @@ export const writeCheckpointSlices = async (buildRoot, {
     ? checkpointPatch
     : mergedCheckpoints;
   const modeKeys = Object.keys(modeSource || {}).sort(compareStrings);
+  if (!isObjectLike(cache.modeHashes)) {
+    cache.modeHashes = {};
+  }
+  if (!isObjectLike(cache.modeFingerprints)) {
+    cache.modeFingerprints = {};
+  }
   for (const mode of modeKeys) {
     const modePayload = mergedCheckpoints?.[mode];
     const descriptor = nextIndex.modes?.[mode] || null;
-    const indexedModePath = descriptor?.path
-      ? path.join(buildRoot, descriptor.path)
-      : null;
+    const indexedRelPath = resolveSafeCheckpointRelativePath(mode, descriptor?.path);
+    const indexedModePath = indexedRelPath ? path.join(buildRoot, indexedRelPath) : null;
     if (!modePayload || typeof modePayload !== 'object') {
       if (indexedModePath) {
         await fs.rm(indexedModePath, { force: true }).catch(() => {});
@@ -193,15 +221,29 @@ export const writeCheckpointSlices = async (buildRoot, {
       if (nextIndex.modes && mode in nextIndex.modes) {
         delete nextIndex.modes[mode];
       }
+      if (cache.modeHashes && mode in cache.modeHashes) {
+        delete cache.modeHashes[mode];
+      }
+      if (cache.modeFingerprints && mode in cache.modeFingerprints) {
+        delete cache.modeFingerprints[mode];
+      }
       continue;
     }
     const modePath = resolveCheckpointModePath(buildRoot, mode);
     const relPath = path.basename(modePath);
-    const jsonString = `${JSON.stringify(modePayload)}\n`;
-    const existingString = await fs.readFile(modePath, 'utf8').catch(() => null);
-    if (existingString !== jsonString) {
-      await atomicWriteText(modePath, jsonString);
+    const modeHash = hashJson(modePayload);
+    const priorModeHash = typeof cache.modeHashes[mode] === 'string'
+      ? cache.modeHashes[mode]
+      : null;
+    const currentFingerprint = await readFingerprint(modePath);
+    const priorFingerprint = isObjectLike(cache.modeFingerprints?.[mode])
+      ? cache.modeFingerprints[mode]
+      : null;
+    if (modeHash !== priorModeHash || !fingerprintsMatch(currentFingerprint, priorFingerprint)) {
+      await atomicWriteText(modePath, `${JSON.stringify(modePayload)}\n`);
     }
+    cache.modeFingerprints[mode] = await readFingerprint(modePath);
+    cache.modeHashes[mode] = modeHash;
     nextIndex.modes[mode] = {
       path: relPath,
       updatedAt: now

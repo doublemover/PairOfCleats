@@ -29,10 +29,7 @@ import { resolveNumaPinningPlan } from './pool/numa-plan.js';
 import { createWorkerPoolQueue } from './pool/queue.js';
 import { createWorkerPoolLifecycle } from './pool/lifecycle.js';
 import { createWorkerProcessCoordinator } from './pool/worker-coordination.js';
-import {
-  resolveBuildCleanupTimeoutMs,
-  runBuildCleanupWithTimeout
-} from '../cleanup-timeout.js';
+import { resolveBuildCleanupTimeoutMs } from '../cleanup-timeout.js';
 import {
   buildQuantizeRunPayload,
   normalizeCodeDictLanguages,
@@ -611,12 +608,7 @@ export async function createIndexerWorkerPool(input = {}) {
       },
       async destroy() {
         queueController.notifyThrottleWaiters();
-        await runBuildCleanupWithTimeout({
-          label: `worker-pool.${poolLabel}.lifecycle.destroy`,
-          cleanup: () => lifecycle.destroy(),
-          timeoutMs: resolvedCleanupTimeoutMs,
-          log
-        });
+        await lifecycle.destroy();
       }
     };
   } catch (err) {
@@ -634,8 +626,6 @@ export async function createIndexerWorkerPool(input = {}) {
  */
 export async function createIndexerWorkerPools(input = {}) {
   const baseConfig = input.config;
-  const cleanupTimeoutMs = resolveBuildCleanupTimeoutMs(baseConfig?.cleanupTimeoutMs);
-  const poolLabel = (label) => `worker-pools.${label}.destroy`;
   if (!baseConfig || baseConfig.enabled === false) {
     return { tokenizePool: null, quantizePool: null, destroy: async () => {} };
   }
@@ -643,11 +633,7 @@ export async function createIndexerWorkerPools(input = {}) {
     const pool = await createIndexerWorkerPool({ ...input, poolName: 'tokenize' });
     const destroy = async () => {
       if (pool?.destroy) {
-        await runBuildCleanupWithTimeout({
-          label: poolLabel('tokenize'),
-          cleanup: () => pool.destroy(),
-          timeoutMs: cleanupTimeoutMs
-        });
+        await pool.destroy();
       }
     };
     return { tokenizePool: pool, quantizePool: pool, destroy };
@@ -665,11 +651,7 @@ export async function createIndexerWorkerPools(input = {}) {
     const pool = await createIndexerWorkerPool({ ...input, poolName: 'tokenize' });
     const destroy = async () => {
       if (pool?.destroy) {
-        await runBuildCleanupWithTimeout({
-          label: poolLabel('tokenize'),
-          cleanup: () => pool.destroy(),
-          timeoutMs: cleanupTimeoutMs
-        });
+        await pool.destroy();
       }
     };
     return { tokenizePool: pool, quantizePool: pool, destroy };
@@ -696,18 +678,10 @@ export async function createIndexerWorkerPools(input = {}) {
   const finalQuantizePool = quantizePool || tokenizePool;
   const destroy = async () => {
     if (finalTokenizePool?.destroy) {
-      await runBuildCleanupWithTimeout({
-        label: poolLabel('tokenize'),
-        cleanup: () => finalTokenizePool.destroy(),
-        timeoutMs: cleanupTimeoutMs
-      });
+      await finalTokenizePool.destroy();
     }
     if (finalQuantizePool?.destroy && finalQuantizePool !== finalTokenizePool) {
-      await runBuildCleanupWithTimeout({
-        label: poolLabel('quantize'),
-        cleanup: () => finalQuantizePool.destroy(),
-        timeoutMs: cleanupTimeoutMs
-      });
+      await finalQuantizePool.destroy();
     }
   };
   return {

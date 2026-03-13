@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { rmDirRecursive } from './temp.js';
 import { resolveTestCacheDir } from './test-cache.js';
 import { applyTestEnv } from './test-env.js';
+import { formatCommandFailure } from './command-failure.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -55,8 +56,13 @@ export const getTriageContext = async ({ name }) => {
 export const runJson = (label, args, options = {}) => {
   const result = spawnSync(process.execPath, args, { encoding: 'utf8', ...options });
   if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
-    console.error(result.stderr || result.stdout || '');
+    const command = [process.execPath, ...(Array.isArray(args) ? args : [])].join(' ');
+    console.error(formatCommandFailure({
+      label,
+      command,
+      cwd: options?.cwd || process.cwd(),
+      result
+    }));
     process.exit(result.status ?? 1);
   }
   try {
@@ -70,7 +76,13 @@ export const runJson = (label, args, options = {}) => {
 export const run = (label, args, options = {}) => {
   const result = spawnSync(process.execPath, args, { stdio: 'inherit', ...options });
   if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
+    const command = [process.execPath, ...(Array.isArray(args) ? args : [])].join(' ');
+    console.error(formatCommandFailure({
+      label,
+      command,
+      cwd: options?.cwd || process.cwd(),
+      result
+    }));
     process.exit(result.status ?? 1);
   }
 };

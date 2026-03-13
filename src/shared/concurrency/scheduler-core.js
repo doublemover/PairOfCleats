@@ -14,7 +14,7 @@ import {
  * Create a build scheduler that coordinates CPU/IO/memory tokens across queues.
  * This is intentionally generic and can be wired into Stage1/2/4 and embeddings.
  * @param {{enabled?:boolean,lowResourceMode?:boolean,cpuTokens?:number,ioTokens?:number,memoryTokens?:number,starvationMs?:number,maxInFlightBytes?:number,queues?:Record<string,{priority?:number,maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number}>,traceMaxSamples?:number,queueDepthSnapshotMaxSamples?:number,traceIntervalMs?:number,queueDepthSnapshotIntervalMs?:number,queueDepthSnapshotsEnabled?:boolean,writeBackpressure?:{enabled?:boolean,writeQueue?:string,producerQueues?:string[],pendingThreshold?:number,pendingBytesThreshold?:number,oldestWaitMsThreshold?:number},requireSignals?:boolean,requiredSignalQueues?:string[]}} input
- * @returns {{schedule:(queueName:string,tokens?:{cpu?:number,io?:number,mem?:number,bytes?:number,signal?:AbortSignal|null}|AbortSignal|null,fn?:()=>Promise<any>)=>Promise<any>,stats:()=>any,shutdown:()=>void,setLimits:(limits:{cpuTokens?:number,ioTokens?:number,memoryTokens?:number})=>void,setTelemetryOptions:(options:{stage?:string,queueDepthSnapshotsEnabled?:boolean,queueDepthSnapshotIntervalMs?:number,traceIntervalMs?:number})=>void}}
+ * @returns {{schedule:(queueName:string,tokens?:{cpu?:number,io?:number,mem?:number,bytes?:number,signal?:AbortSignal|null}|AbortSignal|null,fn?:()=>Promise<any>)=>Promise<any>,stats:()=>any,shutdown:(input?:{awaitRunning?:boolean,timeoutMs?:number})=>Promise<void|Array<PromiseSettledResult<any>>>|void,setLimits:(limits:{cpuTokens?:number,ioTokens?:number,memoryTokens?:number})=>void,setTelemetryOptions:(options:{stage?:string,queueDepthSnapshotsEnabled?:boolean,queueDepthSnapshotIntervalMs?:number,traceIntervalMs?:number})=>void}}
  */
 export function createBuildScheduler(input = {}) {
   const enabled = input.enabled !== false;
@@ -810,6 +810,7 @@ export function createBuildScheduler(input = {}) {
   });
   let tokens = tokenState();
   let shuttingDown = false;
+  const runningTasks = new Set();
   let lastAdaptiveAt = 0;
   const adaptiveMinIntervalMs = Number.isFinite(Number(input.adaptiveIntervalMs))
     ? Math.max(50, Math.floor(Number(input.adaptiveIntervalMs)))
@@ -1340,8 +1341,10 @@ export function createBuildScheduler(input = {}) {
           queue.running -= 1;
           bumpSurfaceRunning(queue.surface, -1);
           release(queue, used);
+          runningTasks.delete(done);
           pump();
         });
+      runningTasks.add(done);
       void done;
     }
   };
@@ -1478,6 +1481,14 @@ export function createBuildScheduler(input = {}) {
     }
     queue.pendingBytes = Math.max(0, normalizeByteCount(queue.pendingBytes) - clearedBytes);
     return cleared.length;
+  };
+
+  const clearAllQueues = (reason = 'scheduler queue cleared') => {
+    let cleared = 0;
+    for (const queue of queueOrder) {
+      cleared += clearQueue(queue.name, reason);
+    }
+    return cleared;
   };
 
   const stats = () => {
@@ -1623,9 +1634,31 @@ export function createBuildScheduler(input = {}) {
     };
   };
 
-  const shutdown = () => {
+  const shutdown = ({
+    awaitRunning = false,
+    timeoutMs = 0
+  } = {}) => {
     shuttingDown = true;
     if (telemetryTimer) clearInterval(telemetryTimer);
+    clearAllQueues('scheduler shutdown');
+    if (!awaitRunning) return;
+    const pending = Array.from(runningTasks);
+    if (!pending.length) return;
+    const joined = Promise.allSettled(pending);
+    const resolvedTimeoutMs = Number.isFinite(Number(timeoutMs))
+      ? Math.max(0, Math.floor(Number(timeoutMs)))
+      : 0;
+    if (resolvedTimeoutMs <= 0) return joined;
+    let timeoutHandle = null;
+    const timeoutPromise = new Promise((resolve) => {
+      timeoutHandle = setTimeout(() => {
+        resolve();
+      }, resolvedTimeoutMs);
+    });
+    return Promise.race([joined, timeoutPromise])
+      .finally(() => {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+      });
   };
 
   const setLimits = (limits = {}) => {
@@ -1638,9 +1671,36 @@ export function createBuildScheduler(input = {}) {
     if (Number.isFinite(Number(limits.memoryTokens))) {
       memoryTokens = Math.max(1, Math.floor(Number(limits.memoryTokens)));
     }
+    baselineLimits.cpu = cpuTokens;
+    baselineLimits.io = ioTokens;
+    baselineLimits.mem = memoryTokens;
+    maxLimits.cpu = cpuTokens;
+    maxLimits.io = ioTokens;
+    maxLimits.mem = memoryTokens;
     tokens.cpu.total = cpuTokens;
     tokens.io.total = ioTokens;
     tokens.mem.total = memoryTokens;
+    for (const [surfaceName, surfaceState] of adaptiveSurfaceStates.entries()) {
+      if (!surfaceState || typeof surfaceState !== 'object') continue;
+      const bounds = resolveSurfaceDefaultBounds(surfaceName);
+      const boundedMax = Math.max(1, Number(bounds?.maxConcurrency) || 1);
+      const boundedMin = Math.max(
+        1,
+        Math.min(
+          Number(surfaceState.minConcurrency) || 1,
+          boundedMax
+        )
+      );
+      surfaceState.minConcurrency = boundedMin;
+      surfaceState.maxConcurrency = Math.max(
+        boundedMin,
+        Math.min(Number(surfaceState.maxConcurrency) || boundedMax, boundedMax)
+      );
+      surfaceState.currentConcurrency = Math.max(
+        surfaceState.minConcurrency,
+        Math.min(Number(surfaceState.currentConcurrency) || surfaceState.minConcurrency, surfaceState.maxConcurrency)
+      );
+    }
     captureSchedulingTrace({ reason: 'set-limits', force: true });
     pump();
   };

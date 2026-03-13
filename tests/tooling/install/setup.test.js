@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -30,7 +31,7 @@ const result = spawnSync(
   {
     cwd: fixtureRoot,
     encoding: 'utf8',
-    env: { ...process.env, PAIROFCLEATS_CACHE_ROOT: cacheRoot }
+    env: applyTestEnv({ syncProcess: false, cacheRoot })
   }
 );
 
@@ -64,7 +65,7 @@ const jsonResult = spawnSync(
   {
     cwd: fixtureRoot,
     encoding: 'utf8',
-    env: { ...process.env, PAIROFCLEATS_CACHE_ROOT: cacheRoot }
+    env: applyTestEnv({ syncProcess: false, cacheRoot })
   }
 );
 

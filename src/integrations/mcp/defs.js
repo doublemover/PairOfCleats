@@ -1,6 +1,6 @@
 import { getToolVersion } from '../../shared/dict-utils.js';
 
-export const MCP_SCHEMA_VERSION = '1.2.0';
+export const MCP_SCHEMA_VERSION = '1.3.0';
 
 /**
  * Build MCP tool definitions for the server.
@@ -109,6 +109,82 @@ export function getToolDefs(defaultModelId) {
           metaJson: { type: 'string', description: 'JSON metadata filters for records.' }
         },
         required: ['query']
+      }
+    },
+    {
+      name: 'context_pack',
+      description: 'Generate a composite context pack for a seed in the current code index.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+          seed: { type: 'string', description: 'Chunk/file/symbol seed reference.' },
+          hops: { type: 'number', description: 'Neighborhood depth.' },
+          includeGraph: { type: 'boolean' },
+          includeTypes: { type: 'boolean' },
+          includeRisk: { type: 'boolean' },
+          includeRiskPartialFlows: { type: 'boolean' },
+          strictRisk: { type: 'boolean' },
+          includeImports: { type: 'boolean' },
+          includeUsages: { type: 'boolean' },
+          includeCallersCallees: { type: 'boolean' },
+          includePaths: { type: 'boolean' },
+          maxBytes: { type: 'number' },
+          maxTokens: { type: 'number' },
+          maxTypeEntries: { type: 'number' },
+          maxDepth: { type: 'number' },
+          maxFanoutPerNode: { type: 'number' },
+          maxNodes: { type: 'number' },
+          maxEdges: { type: 'number' },
+          maxPaths: { type: 'number' },
+          maxCandidates: { type: 'number' },
+          maxWorkUnits: { type: 'number' },
+          maxWallClockMs: { type: 'number' },
+          filters: {
+            type: 'object',
+            properties: {
+              rule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              category: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              severity: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              tag: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              source: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              sink: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              flowId: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              sourceRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              sinkRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] }
+            }
+          }
+        },
+        required: ['seed', 'hops']
+      }
+    },
+    {
+      name: 'risk_explain',
+      description: 'Explain interprocedural risk flows for a chunk in the current code index.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+          chunk: { type: 'string', description: 'Chunk UID to explain.' },
+          max: { type: 'number', description: 'Maximum number of flows to return.' },
+          includePartialFlows: { type: 'boolean', description: 'Include partial frontier flows when full flows are capped or incomplete.' },
+          maxPartialFlows: { type: 'number', description: 'Maximum number of partial flows to return.' },
+          filters: {
+            type: 'object',
+            properties: {
+              rule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              category: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              severity: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              tag: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              source: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              sink: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              flowId: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              sourceRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              sinkRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] }
+            }
+          }
+        },
+        required: ['chunk']
       }
     },
     {

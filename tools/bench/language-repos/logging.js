@@ -1,7 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createQueuedAppendWriter } from '../../../src/shared/io/append-writer.js';
+import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
 
 const DEFAULT_LOG_HISTORY_LIMIT = 50;
+const DEFAULT_LOG_CLOSE_TIMEOUT_MS = 5000;
+const DEFAULT_LOG_FLUSH_INTERVAL_MS = 2000;
 
 /**
  * Detect disk-full diagnostics from subprocess output.
@@ -36,9 +40,11 @@ export const isDiskFullMessage = (line) => {
  * }} input
  * @returns {{
  *   initMasterLog:() => void,
- *   initRepoLog:(input:{label:string,tier?:string,repoPath:string,slug:string}) => (string|null),
- *   closeRepoLog:() => void,
- *   closeMasterLog:() => void,
+ *   initRepoLog:(input:{label:string,tier?:string,repoPath:string,slug:string}) => Promise<(string|null)>,
+ *   flushLogs:() => Promise<void>,
+ *   closeRepoLog:() => Promise<void>,
+ *   closeMasterLog:() => Promise<void>,
+ *   closeLogsSync:() => void,
  *   appendLog:(line:string,level?:'info'|'warn'|'error',meta?:object|null) => void,
  *   writeListLine:(line:string) => void,
  *   writeLog:(line:string) => void,
@@ -61,23 +67,97 @@ export const createBenchLogger = ({
   repoLogsEnabled,
   logHistoryLimit = DEFAULT_LOG_HISTORY_LIMIT
 }) => {
-  let masterLogStream = null;
-  let repoLogStream = null;
+  let masterLogWriter = null;
+  let repoLogWriter = null;
   let repoLogPath = null;
+  let flushTimer = null;
+  const pendingSyncWrites = new Map();
   const logsRoot = path.dirname(masterLogPath);
   const logHistory = [];
 
+  const createLogWriter = (filePath) => createQueuedAppendWriter({
+    filePath,
+    ensureDir: true,
+    syncOnFlush: false
+  });
+
+  const trackPendingWrite = (filePath, text, promise) => {
+    if (!filePath || typeof text !== 'string' || !promise?.finally) return promise;
+    const pending = pendingSyncWrites.get(filePath) || [];
+    pending.push(text);
+    pendingSyncWrites.set(filePath, pending);
+    return promise.finally(() => {
+      const current = pendingSyncWrites.get(filePath);
+      if (!Array.isArray(current) || !current.length) return;
+      const index = current.indexOf(text);
+      if (index >= 0) current.splice(index, 1);
+      if (!current.length) {
+        pendingSyncWrites.delete(filePath);
+      } else {
+        pendingSyncWrites.set(filePath, current);
+      }
+    });
+  };
+
+  const enqueueWriterText = (writer, filePath, text) => {
+    if (!writer?.enqueue || typeof text !== 'string') return;
+    void trackPendingWrite(filePath, text, writer.enqueue(text));
+  };
+
+  const clearFlushTimer = () => {
+    if (!flushTimer) return;
+    clearInterval(flushTimer);
+    flushTimer = null;
+  };
+
+  const ensureFlushTimer = () => {
+    if (flushTimer || (!masterLogWriter && !repoLogWriter)) return;
+    flushTimer = setInterval(() => {
+      void flushLogs();
+    }, DEFAULT_LOG_FLUSH_INTERVAL_MS);
+    flushTimer.unref?.();
+  };
+
+  const flushWriter = async (writer, reason) => {
+    if (!writer?.flush) return;
+    await runWithTimeout(
+      () => writer.flush(),
+      {
+        timeoutMs: DEFAULT_LOG_CLOSE_TIMEOUT_MS,
+        errorFactory: () => createTimeoutError({
+          code: 'ERR_BENCH_LOG_FLUSH_TIMEOUT',
+          message: `Bench log flush timed out during ${reason}.`
+        })
+      }
+    );
+  };
+
+  const closeWriter = async (writer, reason) => {
+    if (!writer?.close) return;
+    await runWithTimeout(
+      () => writer.close(),
+      {
+        timeoutMs: DEFAULT_LOG_CLOSE_TIMEOUT_MS,
+        errorFactory: () => createTimeoutError({
+          code: 'ERR_BENCH_LOG_CLOSE_TIMEOUT',
+          message: `Bench log close timed out during ${reason}.`
+        })
+      }
+    );
+  };
+
   const initMasterLog = () => {
-    if (masterLogStream) return;
+    if (masterLogWriter) return;
     fs.mkdirSync(logsRoot, { recursive: true });
-    masterLogStream = fs.createWriteStream(masterLogPath, { flags: 'a' });
-    masterLogStream.write(`\n=== Bench run ${new Date().toISOString()} ===\n`);
-    masterLogStream.write(`Config: ${configPath}\n`);
-    masterLogStream.write(`Repos: ${reposRoot}\n`);
-    masterLogStream.write(`Cache: ${cacheRoot}\n`);
-    masterLogStream.write(`Results: ${resultsRoot}\n`);
+    masterLogWriter = createLogWriter(masterLogPath);
+    ensureFlushTimer();
+    enqueueWriterText(masterLogWriter, masterLogPath, `\n=== Bench run ${new Date().toISOString()} ===\n`);
+    enqueueWriterText(masterLogWriter, masterLogPath, `Config: ${configPath}\n`);
+    enqueueWriterText(masterLogWriter, masterLogPath, `Repos: ${reposRoot}\n`);
+    enqueueWriterText(masterLogWriter, masterLogPath, `Cache: ${cacheRoot}\n`);
+    enqueueWriterText(masterLogWriter, masterLogPath, `Results: ${resultsRoot}\n`);
     if (repoLogsEnabled) {
-      masterLogStream.write(`Repo logs: ${logsRoot}\n`);
+      enqueueWriterText(masterLogWriter, masterLogPath, `Repo logs: ${logsRoot}\n`);
     }
   };
 
@@ -88,42 +168,100 @@ export const createBenchLogger = ({
    * @param {{label:string,tier?:string,repoPath:string,slug:string}} input
    * @returns {string|null}
    */
-  const initRepoLog = ({ label, tier, repoPath: repoDir, slug }) => {
+  const initRepoLog = async ({ label, tier, repoPath: repoDir, slug }) => {
     if (!repoLogsEnabled) return null;
-    try {
-      if (repoLogStream) repoLogStream.end();
-    } catch {}
-    repoLogStream = null;
+    await closeRepoLog();
     repoLogPath = path.join(logsRoot, `${runSuffix}-${slug}.log`);
     fs.mkdirSync(path.dirname(repoLogPath), { recursive: true });
-    repoLogStream = fs.createWriteStream(repoLogPath, { flags: 'a' });
-    repoLogStream.write(`\n=== Bench run ${new Date().toISOString()} ===\n`);
-    repoLogStream.write(`Target: ${label}${tier ? ` tier=${tier}` : ''}\n`);
-    repoLogStream.write(`Repo path: ${repoDir}\n`);
-    repoLogStream.write(`Config: ${configPath}\n`);
-    repoLogStream.write(`Cache: ${cacheRoot}\n`);
-    repoLogStream.write(`Results: ${resultsRoot}\n`);
-    repoLogStream.write(`Master log: ${masterLogPath}\n`);
+    repoLogWriter = createLogWriter(repoLogPath);
+    ensureFlushTimer();
+    const headerLines = [
+      `\n=== Bench run ${new Date().toISOString()} ===\n`,
+      `Target: ${label}${tier ? ` tier=${tier}` : ''}\n`,
+      `Repo path: ${repoDir}\n`,
+      `Config: ${configPath}\n`,
+      `Cache: ${cacheRoot}\n`,
+      `Results: ${resultsRoot}\n`,
+      `Master log: ${masterLogPath}\n`
+    ];
+    for (const line of headerLines) {
+      await trackPendingWrite(repoLogPath, line, repoLogWriter.enqueue(line));
+    }
     initMasterLog();
-    masterLogStream?.write(`[log] Repo log for ${label}: ${repoLogPath}\n`);
+    if (masterLogWriter) {
+      await trackPendingWrite(masterLogPath, `[log] Repo log for ${label}: ${repoLogPath}\n`, masterLogWriter.enqueue(`[log] Repo log for ${label}: ${repoLogPath}\n`));
+    }
     return repoLogPath;
   };
 
-  const closeRepoLog = () => {
-    if (!repoLogStream) return;
+  const handleLogOpSettled = (results, { reason = 'log-op', fatal = false } = {}) => {
+    const failures = Array.isArray(results)
+      ? results.filter((entry) => entry?.status === 'rejected').map((entry) => entry.reason)
+      : [];
+    if (!failures.length) return;
+    const message = `[log] ${reason} failed for ${failures.length} writer(s): ${failures.map((error) => error?.message || error).join('; ')}`;
+    logHistory.push(message);
+    while (logHistory.length > logHistoryLimit) logHistory.shift();
     try {
-      repoLogStream.end();
+      display?.warn?.(message);
     } catch {}
-    repoLogStream = null;
-    repoLogPath = null;
+    if (fatal) {
+      throw new AggregateError(failures, message);
+    }
   };
 
-  const closeMasterLog = () => {
-    if (!masterLogStream) return;
-    try {
-      masterLogStream.end();
-    } catch {}
-    masterLogStream = null;
+  const flushLogs = async () => {
+    const results = await Promise.allSettled([
+      flushWriter(masterLogWriter, 'periodic-master'),
+      flushWriter(repoLogWriter, 'periodic-repo')
+    ]);
+    handleLogOpSettled(results, { reason: 'periodic flush', fatal: false });
+  };
+
+  const closeRepoLog = async () => {
+    const writer = repoLogWriter;
+    repoLogWriter = null;
+    repoLogPath = null;
+    if (!writer) return;
+    const flushResults = await Promise.allSettled([
+      flushWriter(writer, 'repo-rotate')
+    ]);
+    handleLogOpSettled(flushResults, { reason: 'repo log flush', fatal: true });
+    const closeResults = await Promise.allSettled([
+      closeWriter(writer, 'repo-rotate')
+    ]);
+    handleLogOpSettled(closeResults, { reason: 'repo log close', fatal: true });
+    if (!repoLogWriter && !masterLogWriter) clearFlushTimer();
+  };
+
+  const closeMasterLog = async () => {
+    const writer = masterLogWriter;
+    masterLogWriter = null;
+    if (!writer) return;
+    const flushResults = await Promise.allSettled([
+      flushWriter(writer, 'master-close')
+    ]);
+    handleLogOpSettled(flushResults, { reason: 'master log flush', fatal: true });
+    const closeResults = await Promise.allSettled([
+      closeWriter(writer, 'master-close')
+    ]);
+    handleLogOpSettled(closeResults, { reason: 'master log close', fatal: true });
+    if (!repoLogWriter && !masterLogWriter) clearFlushTimer();
+  };
+
+  const closeLogsSync = () => {
+    clearFlushTimer();
+    for (const [filePath, pending] of pendingSyncWrites.entries()) {
+      if (!Array.isArray(pending) || !pending.length) continue;
+      try {
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        fs.appendFileSync(filePath, pending.join(''));
+      } catch {}
+    }
+    pendingSyncWrites.clear();
+    repoLogWriter = null;
+    repoLogPath = null;
+    masterLogWriter = null;
   };
 
   const appendToLogFileSync = (filePath, line) => {
@@ -135,9 +273,9 @@ export const createBenchLogger = ({
   };
 
   const writeLog = (line) => {
-    if (!masterLogStream) initMasterLog();
-    if (masterLogStream) masterLogStream.write(`${line}\n`);
-    if (repoLogStream) repoLogStream.write(`${line}\n`);
+    if (!masterLogWriter) initMasterLog();
+    if (masterLogWriter) enqueueWriterText(masterLogWriter, masterLogPath, `${line}\n`);
+    if (repoLogWriter && repoLogPath) enqueueWriterText(repoLogWriter, repoLogPath, `${line}\n`);
   };
 
   const writeLogSync = (line) => {
@@ -193,8 +331,10 @@ export const createBenchLogger = ({
   return {
     initMasterLog,
     initRepoLog,
+    flushLogs,
     closeRepoLog,
     closeMasterLog,
+    closeLogsSync,
     appendLog,
     writeListLine,
     writeLog,

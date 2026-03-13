@@ -6,8 +6,20 @@ import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js'
 TOOLING_PROVIDERS.clear();
 
 registerToolingProvider({
+  id: 'throws-provider',
+  version: '1.0.0',
+  priority: 1,
+  capabilities: { supportsVirtualDocuments: true, supportsSegmentRouting: true },
+  getConfigHash: () => 'throws-provider-hash',
+  async run() {
+    throw new Error('simulated provider failure');
+  }
+});
+
+registerToolingProvider({
   id: 'array-records',
   version: '1.0.0',
+  priority: 2,
   capabilities: { supportsVirtualDocuments: true, supportsSegmentRouting: true },
   getConfigHash: () => 'array-records-hash',
   async run() {
@@ -52,5 +64,17 @@ const result = await runToolingProviders({
 const merged = result.byChunkUid.get(chunkUid);
 assert.ok(merged, 'expected array tuple byChunkUid payload to resolve to actual chunkUid');
 assert.equal(merged.payload.returnType, 'number');
+assert.equal(
+  Array.isArray(result.degradedProviders)
+  && result.degradedProviders.some((entry) => entry?.providerId === 'throws-provider'),
+  true,
+  'expected thrown provider to be reported in degraded providers'
+);
+assert.equal(
+  Array.isArray(result.observations)
+  && result.observations.some((entry) => entry?.code === 'tooling_provider_execution_failed'),
+  true,
+  'expected provider execution failure observation'
+);
 
 console.log('tooling provider array-record payload test passed');

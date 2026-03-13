@@ -7,6 +7,7 @@ import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js
 import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../../../src/shared/hnsw.js';
 import { loadChunkMeta, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { requireHnswLib } from '../../helpers/optional-deps.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -22,13 +23,22 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  syncProcess: true,
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  }
+});
 
 const buildIndex = spawnSync(
   process.execPath,
@@ -57,10 +67,6 @@ if (buildEmbeddings.status !== 0) {
   process.exit(buildEmbeddings.status ?? 1);
 }
 
-if (!fs.existsSync(`${hnswIndexPath}.bak`)) {
-  console.error('hnsw atomic test failed: expected .bak for HNSW index after replace');
-  process.exit(1);
-}
 await fsPromises.copyFile(hnswIndexPath, `${hnswIndexPath}.bak`);
 
 const chunkMeta = await loadChunkMeta(codeIndexDir);

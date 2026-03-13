@@ -67,6 +67,16 @@ if (Object.keys(result.byChunkUid).length !== 0) {
   process.exit(1);
 }
 
+const checks = Array.isArray(result?.diagnostics?.checks) ? result.diagnostics.checks : [];
+if (!checks.some((check) => check?.name === 'clangd_compile_commands_missing')) {
+  console.error('clangd provider missing expected compile-commands preflight check.');
+  process.exit(1);
+}
+if (checks.some((check) => check?.name === 'clangd_command_unavailable')) {
+  console.error('clangd command-unavailable check should not be emitted when workspace preflight blocks first.');
+  process.exit(1);
+}
+
 if (!logs.some((entry) => entry.includes('compile_commands'))) {
   console.error('clangd provider missing expected compile_commands log message.');
   process.exit(1);

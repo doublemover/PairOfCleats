@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getBenchMirrorRefreshMs } from '../../src/shared/env.js';
+import { applyToolchainDaemonPolicyEnv } from '../../src/shared/toolchain-env.js';
 import { parseBenchLanguageArgs } from './language/cli.js';
 import { loadBenchConfig } from './language/config.js';
 import {
@@ -89,7 +90,7 @@ const {
 
 const mirrorCacheRoot = resolveMirrorCacheRoot({ reposRoot });
 const mirrorRefreshMs = resolveMirrorRefreshMs(getBenchMirrorRefreshMs());
-const baseEnv = { ...process.env };
+const baseEnv = applyToolchainDaemonPolicyEnv(process.env);
 const benchEnvironmentMetadata = buildBenchEnvironmentMetadata(baseEnv);
 const quietMode = argv.quiet === true || argv.json === true;
 const display = createToolDisplay({
@@ -123,6 +124,7 @@ const {
   initRepoLog,
   closeRepoLog,
   closeMasterLog,
+  closeLogsSync,
   appendLog,
   writeListLine,
   writeLog,
@@ -149,9 +151,9 @@ const processRunner = createProcessRunner({
   onProgressEvent: progressRuntime.handleProgressEvent
 });
 
-const closeLogs = () => {
-  closeRepoLog();
-  closeMasterLog();
+const closeLogs = async () => {
+  await closeRepoLog();
+  await closeMasterLog();
 };
 
 const reportFatal = (label, err) => {
@@ -215,7 +217,7 @@ const gracefulShutdown = ({
       }
     }
     processRunner.logExit(normalizedReason, exitCode);
-    closeLogs();
+    await closeLogs();
     display.close();
     process.exit(exitCode);
   })();
@@ -224,7 +226,7 @@ const gracefulShutdown = ({
 
 process.on('exit', (code) => {
   processRunner.logExit('exit', code);
-  closeLogs();
+  closeLogsSync();
 });
 process.on('SIGINT', () => {
   void gracefulShutdown({
@@ -471,15 +473,19 @@ const results = await runBenchExecutionLoop({
   backendList,
   lockMode,
   lockWaitMs,
-  lockStaleMs
+  lockStaleMs,
+  benchTimeoutMs
 });
+
+await closeLogs();
 
 const output = await buildReportOutput({
   configPath,
   cacheRoot,
   resultsRoot,
   results,
-  config
+  config,
+  runSuffix
 });
 if (usrGuardrailBenchmarks.length) {
   output.usrGuardrails = {
@@ -512,6 +518,7 @@ if (outputPath) {
 }
 
 if (argv.json) {
+  await closeLogs();
   display.close();
   console.log(JSON.stringify(output, null, 2));
 } else {
@@ -521,5 +528,6 @@ if (argv.json) {
       fileOnlyLine: `Summary written to ${outputPath}`
     });
   }
+  await closeLogs();
   display.close();
 }

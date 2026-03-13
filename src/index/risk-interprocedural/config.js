@@ -1,14 +1,22 @@
+import {
+  createRiskInterproceduralSemanticsDiagnostics,
+  normalizeRiskInterproceduralSemantics
+} from './semantics.js';
+
 const DEFAULT_CONFIG = {
   enabled: false,
   summaryOnly: false,
   strictness: 'conservative',
   sanitizerPolicy: 'terminate',
   emitArtifacts: 'jsonl',
+  semantics: [],
   caps: {
     maxDepth: 4,
     maxPathsPerPair: 3,
     maxTotalFlows: 5000,
+    maxPartialFlows: 256,
     maxCallSitesPerEdge: 3,
+    maxBlockedExpansionsPerPartial: 4,
     maxEdgeExpansions: 200000,
     maxMs: 2500
   }
@@ -44,7 +52,14 @@ const normalizeCaps = (rawCaps = {}) => {
     maxDepth: clampInt(rawCaps.maxDepth, 1, 20, DEFAULT_CONFIG.caps.maxDepth),
     maxPathsPerPair: clampInt(rawCaps.maxPathsPerPair, 1, 50, DEFAULT_CONFIG.caps.maxPathsPerPair),
     maxTotalFlows: clampInt(rawCaps.maxTotalFlows, 0, 1_000_000, DEFAULT_CONFIG.caps.maxTotalFlows),
+    maxPartialFlows: clampInt(rawCaps.maxPartialFlows, 0, 10_000, DEFAULT_CONFIG.caps.maxPartialFlows),
     maxCallSitesPerEdge: clampInt(rawCaps.maxCallSitesPerEdge, 1, 50, DEFAULT_CONFIG.caps.maxCallSitesPerEdge),
+    maxBlockedExpansionsPerPartial: clampInt(
+      rawCaps.maxBlockedExpansionsPerPartial,
+      0,
+      32,
+      DEFAULT_CONFIG.caps.maxBlockedExpansionsPerPartial
+    ),
     maxEdgeExpansions: clampInt(rawCaps.maxEdgeExpansions, 10_000, 10_000_000, DEFAULT_CONFIG.caps.maxEdgeExpansions),
     maxMs: DEFAULT_CONFIG.caps.maxMs
   };
@@ -60,11 +75,13 @@ const normalizeCaps = (rawCaps = {}) => {
 
 export const normalizeRiskInterproceduralConfig = (raw, { mode } = {}) => {
   const input = raw && typeof raw === 'object' ? raw : {};
+  const diagnostics = createRiskInterproceduralSemanticsDiagnostics();
   const enabled = input.enabled === true;
   const summaryOnly = input.summaryOnly === true;
   const strictness = normalizeStrictness(input.strictness);
   const sanitizerPolicy = normalizeSanitizerPolicy(input.sanitizerPolicy);
   const emitArtifacts = normalizeEmitArtifacts(input.emitArtifacts);
+  const semantics = normalizeRiskInterproceduralSemantics(input.semantics || [], { diagnostics });
   const caps = normalizeCaps(input.caps || {});
 
   const normalized = {
@@ -73,6 +90,10 @@ export const normalizeRiskInterproceduralConfig = (raw, { mode } = {}) => {
     strictness,
     sanitizerPolicy,
     emitArtifacts,
+    semantics,
+    diagnostics: {
+      warnings: diagnostics.warnings
+    },
     caps
   };
 

@@ -41,7 +41,273 @@ const compositeContextPack = {
   primary: {
     ref: seed,
     file: 'src/app.js',
-    excerpt: 'const alpha = 1;'
+    excerpt: 'const alpha = 1;',
+    excerptHash: 'sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  },
+  risk: {
+    version: 1,
+    status: 'ok',
+    reason: null,
+    anchor: {
+      kind: 'source',
+      chunkUid: 'chunk-1',
+      ref: seed,
+      alternateCount: 0,
+      alternates: []
+    },
+    summary: {
+      chunkUid: 'chunk-1',
+      file: 'src/app.js',
+      languageId: 'javascript',
+      symbol: null,
+      totals: {
+        sources: 1,
+        sinks: 1,
+        sanitizers: 0,
+        localFlows: 0
+      },
+      truncated: {
+        sources: false,
+        sinks: false,
+        sanitizers: false,
+        localFlows: false,
+        evidence: false
+      },
+      topCategories: [],
+      topTags: [],
+      previewFlowIds: ['sha1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb']
+    },
+    stats: {
+      status: 'ok',
+      reason: null,
+      summaryOnly: false,
+      flowsEmitted: 1,
+      partialFlowsEmitted: 1,
+      summariesEmitted: 1,
+      uniqueCallSitesReferenced: 1,
+      capsHit: [],
+      callSiteSampling: {
+        strategy: 'firstN'
+      },
+      effectiveConfig: {
+        enabled: true,
+        summaryOnly: false
+      }
+    },
+    analysisStatus: {
+      requested: true,
+      status: 'ok',
+      reason: null,
+      degraded: false,
+      summaryOnly: false,
+      code: 'ok',
+      strictFailure: false,
+      artifactStatus: {
+        stats: 'present',
+        summaries: 'present',
+        flows: 'present',
+        partialFlows: 'present',
+        callSites: 'present'
+      },
+      degradedReasons: []
+    },
+    caps: {
+      maxFlows: 5,
+      maxPartialFlows: 3,
+      maxStepsPerFlow: 8,
+      maxCallSitesPerStep: 3,
+      maxBytes: 24576,
+      maxTokens: 2048,
+      maxPartialBytes: 4096,
+      maxPartialTokens: 512,
+      hits: [],
+      observed: {
+        candidateFlows: 1,
+        selectedFlows: 1,
+        selectedPartialFlows: 1,
+        omittedPartialFlows: 0,
+        omittedFlows: 0,
+        emittedSteps: 1,
+        omittedSteps: 0,
+        omittedCallSites: 0,
+        bytes: 100,
+        tokens: 10
+      }
+    },
+    truncation: [],
+    provenance: {
+      manifestVersion: 2,
+      artifactSurfaceVersion: 'surface-test',
+      compatibilityKey: 'compat-0001',
+      indexSignature: 'sig-0001',
+      indexCompatKey: 'compat-0001',
+      mode: 'code',
+      generatedAt: '2026-02-01T00:00:00Z',
+      ruleBundle: {
+        version: '1.0.0',
+        fingerprint: 'sha1:cccccccccccccccccccccccccccccccccccccccc',
+        provenance: {
+          defaults: true,
+          sourcePath: null
+        }
+      },
+      effectiveConfigFingerprint: 'sha1:dddddddddddddddddddddddddddddddddddddddd',
+      artifacts: {
+        stats: 'present',
+        summaries: 'present',
+        flows: 'present',
+        callSites: 'present'
+      },
+      artifactRefs: {
+        stats: {
+          name: 'risk_interprocedural_stats',
+          format: 'json',
+          sharded: false,
+          entrypoint: 'risk_interprocedural_stats.json',
+          totalEntries: 1
+        },
+        summaries: {
+          name: 'risk_summaries',
+          format: 'jsonl',
+          sharded: false,
+          entrypoint: 'risk_summaries.jsonl',
+          totalEntries: 1
+        },
+        flows: {
+          name: 'risk_flows',
+          format: 'jsonl',
+          sharded: false,
+          entrypoint: 'risk_flows.jsonl',
+          totalEntries: 1
+        },
+        partialFlows: {
+          name: 'risk_partial_flows',
+          format: 'jsonl',
+          sharded: false,
+          entrypoint: 'risk_partial_flows.jsonl',
+          totalEntries: 1
+        },
+        callSites: {
+          name: 'call_sites',
+          format: 'jsonl',
+          sharded: false,
+          entrypoint: 'call_sites.jsonl',
+          totalEntries: 1
+        }
+      }
+    },
+    flows: [
+      {
+        flowId: 'sha1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        rank: 1,
+        source: {
+          chunkUid: 'chunk-1',
+          ruleId: 'source.req.body',
+          ruleName: 'req.body',
+          ruleType: 'source',
+          category: 'input',
+          severity: 'low',
+          confidence: 0.6
+        },
+        sink: {
+          chunkUid: 'chunk-2',
+          ruleId: 'sink.sql.query',
+          ruleName: 'sql.query',
+          ruleType: 'sink',
+          category: 'sql',
+          severity: 'high',
+          confidence: 0.9
+        },
+        path: {
+          nodes: [{ type: 'chunk', chunkUid: 'chunk-1' }],
+          truncatedSteps: 0,
+          watchByStep: [{
+            taintIn: ['req.body'],
+            taintOut: ['input'],
+            propagatedArgIndices: [0],
+            boundParams: ['input'],
+            calleeNormalized: 'query',
+            semanticIds: ['sem.callback.register-handler-payload'],
+            semanticKinds: ['callback'],
+            sanitizerPolicy: 'terminate',
+            sanitizerBarrierApplied: false,
+            sanitizerBarriersBefore: 0,
+            sanitizerBarriersAfter: 0,
+            confidenceBefore: 0.6,
+            confidenceAfter: 0.51,
+            confidenceDelta: -0.09
+          }]
+        },
+        evidence: {
+          callSitesByStep: []
+        },
+        confidence: 0.8,
+        notes: {
+          hopCount: 1,
+          strictness: 'conservative',
+          sanitizerPolicy: 'terminate',
+          sanitizerBarriersHit: 0
+        },
+        score: {
+          seedRelevance: 3,
+          severity: 4,
+          confidence: 0.8,
+          hopCount: 1
+        }
+      }
+    ],
+    partialFlows: [
+      {
+        partialFlowId: 'sha1:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+        source: {
+          chunkUid: 'chunk-1',
+          ruleId: 'source.req.body',
+          ruleName: 'req.body',
+          ruleType: 'source',
+          category: 'input',
+          severity: null,
+          confidence: 0.6
+        },
+        frontier: {
+          chunkUid: 'chunk-2',
+          terminalReason: 'maxDepth',
+          blockedExpansions: []
+        },
+        path: {
+          nodes: [
+            { type: 'chunk', chunkUid: 'chunk-1' },
+            { type: 'chunk', chunkUid: 'chunk-2' }
+          ],
+          callSiteIdsByStep: [[]],
+          watchByStep: [{
+            taintIn: ['req.body'],
+            taintOut: ['input'],
+            propagatedArgIndices: [0],
+            boundParams: ['input'],
+            calleeNormalized: 'query',
+            semanticIds: ['sem.callback.register-handler-payload'],
+            semanticKinds: ['callback'],
+            sanitizerPolicy: 'terminate',
+            sanitizerBarrierApplied: false,
+            sanitizerBarriersBefore: 0,
+            sanitizerBarriersAfter: 0,
+            confidenceBefore: 0.6,
+            confidenceAfter: 0.51,
+            confidenceDelta: -0.09
+          }]
+        },
+        confidence: 0.7,
+        notes: {
+          strictness: 'conservative',
+          sanitizerPolicy: 'terminate',
+          hopCount: 1,
+          sanitizerBarriersHit: 0,
+          terminalReason: 'maxDepth',
+          capsHit: ['maxDepth']
+        }
+      }
+    ],
+    degraded: false
   }
 };
 

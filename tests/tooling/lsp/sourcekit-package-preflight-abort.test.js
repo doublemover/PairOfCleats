@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 import { getToolingProvider } from '../../../src/index/tooling/provider-registry.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const tempRoot = resolveTestCachePath(root, 'sourcekit-package-preflight-abort');
-const fixtureBinDir = path.join(root, 'tests', 'fixtures', 'lsp', 'bin');
 const binDir = path.join(tempRoot, 'bin');
 const swiftCmdPath = path.join(binDir, 'swift.cmd');
 const swiftPosixPath = path.join(binDir, 'swift');
@@ -82,8 +82,10 @@ try {
   await fs.chmod(swiftPosixPath, 0o755);
 } catch {}
 
-const originalPath = process.env.PATH;
-process.env.PATH = [binDir, fixtureBinDir, path.dirname(process.execPath)].filter(Boolean).join(path.delimiter);
+const restorePath = prependLspTestPath({
+  repoRoot: root,
+  extraPrepend: [binDir, path.dirname(process.execPath)]
+});
 
 try {
   registerDefaultToolingProviders();
@@ -91,49 +93,50 @@ try {
   assert.ok(provider, 'expected sourcekit provider');
 
   const abortController = new AbortController();
-  setTimeout(() => abortController.abort(new Error('abort sourcekit preflight run')), 75);
+  const abortTimer = setTimeout(() => abortController.abort(new Error('abort sourcekit preflight run')), 75);
 
-  const ctx = {
-    repoRoot: tempRoot,
-    buildRoot: tempRoot,
-    toolingConfig: {},
-    logger: () => {},
-    strict: true,
-    abortSignal: abortController.signal
-  };
-  const document = {
-    virtualPath: 'src/one.swift',
-    effectiveExt: '.swift',
-    languageId: 'swift',
-    text: 'func alpha() -> Int { return 1 }\n',
-    docHash: 'doc-1',
-    containerPath: 'src/one.swift'
-  };
-  const target = {
-    virtualPath: 'src/one.swift',
-    languageId: 'swift',
-    chunkRef: {
-      chunkUid: 'ck:test:sourcekit:preflight-abort:1',
-      file: 'src/one.swift',
-      start: 0,
-      end: 12
-    }
-  };
+  try {
+    const ctx = {
+      repoRoot: tempRoot,
+      buildRoot: tempRoot,
+      toolingConfig: {},
+      logger: () => {},
+      strict: true,
+      abortSignal: abortController.signal
+    };
+    const document = {
+      virtualPath: 'src/one.swift',
+      effectiveExt: '.swift',
+      languageId: 'swift',
+      text: 'func alpha() -> Int { return 1 }\n',
+      docHash: 'doc-1',
+      containerPath: 'src/one.swift'
+    };
+    const target = {
+      virtualPath: 'src/one.swift',
+      languageId: 'swift',
+      chunkRef: {
+        chunkUid: 'ck:test:sourcekit:preflight-abort:1',
+        file: 'src/one.swift',
+        start: 0,
+        end: 12
+      }
+    };
 
-  const startedAtMs = Date.now();
-  await assert.rejects(
-    () => provider.run(ctx, { documents: [document], targets: [target] }),
-    (err) => err?.code === 'ABORT_ERR',
-    'expected sourcekit run to abort while preflight is in progress'
-  );
-  const elapsedMs = Date.now() - startedAtMs;
-  assert.ok(elapsedMs < 2000, `expected sourcekit preflight abort to short-circuit promptly (elapsed=${elapsedMs}ms)`);
-} finally {
-  if (originalPath == null) {
-    delete process.env.PATH;
-  } else {
-    process.env.PATH = originalPath;
+    const startedAtMs = Date.now();
+    await assert.rejects(
+      () => provider.run(ctx, { documents: [document], targets: [target] }),
+      (err) => err?.code === 'ABORT_ERR',
+      'expected sourcekit run to abort while preflight is in progress'
+    );
+    const elapsedMs = Date.now() - startedAtMs;
+    assert.ok(elapsedMs < 2000, `expected sourcekit preflight abort to short-circuit promptly (elapsed=${elapsedMs}ms)`);
+  } finally {
+    clearTimeout(abortTimer);
   }
+} finally {
+  await restorePath();
 }
 
 console.log('sourcekit package preflight abort test passed');
+

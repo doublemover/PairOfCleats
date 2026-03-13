@@ -27,12 +27,12 @@
       "match": [
         "^contracts/",
         "^benchmarks/regressions/",
-        "^backcompat/",
         "^diagnostics/diagnostics-transition-validation$",
         "^indexing/policy/",
         "^indexing/contracts/",
         "^tooling/api-contracts/",
-        "^ci/capability-gate\\.smoke$"
+        "^ci/capability-gate\\.smoke$",
+        "^ci/tooling-doctor-gate\\.smoke$"
       ]
     },
     { "lane": "ci-lite", "match": ["^ci-lite/"] },
@@ -97,42 +97,15 @@
         "(^|/)parity$",
         "(^|/)fixture-parity$",
         "(^|/)fixture-eval$",
-        "(^|/)incremental-tokenization-cache$",
         "(^|/)summary-report-parity-sqlite$",
         "(^|/)summary-report-parity-sqlite-fts$",
-        "(^|/)code-map-performance$",
         "(^|/)ann-parity$",
-        "(^|/)incremental-cache-signature$",
-        "(^|/)retrieval-strict-manifest-embeddings$",
-        "(^|/)hnsw-ann$",
-        "(^|/)code-map-guardrails$",
-        "(^|/)comment-join$",
-        "(^|/)chunkuid-determinism$",
-        "(^|/)eval-quality$",
-        "(^|/)fielded-bm25$",
-        "(^|/)artifact-size-guardrails$",
-        "(^|/)churn-filter$",
-        "(^|/)manifest-embeddings-pieces$",
-        "(^|/)hnsw-atomic$",
-        "(^|/)embeddings-cache-identity$",
-        "^tooling/triage/records-index-and-search$",
-        "(^|/)embeddings-dims-mismatch$",
-        "(^|/)repo-root$",
-        "(^|/)search-tie-order$",
-        "(^|/)subprocess-quoting$",
-        "(^|/)lancedb-ann$",
-        "(^|/)piece-assembly$",
-        "(^|/)query-cache$",
-        "(^|/)search-rrf$",
-        "(^|/)shard-merge$",
-        "^tooling/script-coverage/script-coverage-(core|storage|indexing|language|benchmarks|search|embeddings|services|fixtures|tools)$",
-        "^indexing/runtime/two-stage-state$"
+        "^tooling/script-coverage/script-coverage-(core|storage|indexing|language|benchmarks|search|embeddings|services|fixtures|tools)$"
       ]
     },
     {
       "tag": "long",
       "match": [
-        "^tooling/triage/context-pack$",
         "^services/mcp/tool-search-defaults-and-filters$"
       ]
     },

@@ -96,8 +96,8 @@ assert.deepEqual(
 );
 assert.deepEqual(
   relations.get('ci/monolithic-linux.sh')?.importLinks || [],
-  ['ci/utils.sh'],
-  'expected .ci path import to resolve from repo root'
+  ['.ci/utils.sh'],
+  'expected .ci path import to preserve repo-relative hidden directory'
 );
 assert.deepEqual(
   relations.get('clang/unittests/Frontend/PCHPreambleTest.cpp')?.importLinks || [],
@@ -120,8 +120,10 @@ assert.deepEqual(
 );
 assert.equal(
   (result?.graph?.warnings || []).length,
-  0,
-  'expected fixture-only unresolved imports to be suppressed'
+  1,
+  'expected fixture-only unresolved imports to remain visible while staying non-actionable'
 );
+assert.equal(result?.graph?.stats?.unresolvedActionable || 0, 0, 'expected no actionable unresolved warnings');
+assert.equal(result?.graph?.stats?.unresolvedSuppressed, 1, 'expected suppressed unresolved accounting');
 
 console.log('import resolution llvm fixture path test passed');

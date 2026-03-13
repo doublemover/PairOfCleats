@@ -1,6 +1,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { formatEtaSeconds } from '../../../src/shared/perf/eta.js';
+import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
 import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../../shared/dict-utils.js';
 import { checkIndexLock, formatLockDetail } from '../language/locks.js';
 import {
@@ -10,6 +11,7 @@ import {
   getRecommendedHeapMb,
   stripMaxOldSpaceFlag
 } from '../language/metrics.js';
+import { resolveBenchProcessTimeoutProfile } from '../language/timeout.js';
 import { needsIndexArtifacts, needsSqliteArtifacts } from '../language/repos.js';
 
 /**
@@ -331,7 +333,7 @@ const buildBenchArgs = ({
  *   quietMode:boolean,
  *   dryRun:boolean,
  *   repoLogsEnabled:boolean,
- *   initRepoLog:(input:{label:string,tier?:string,repoPath:string,slug:string}) => (string|null),
+ *   initRepoLog:(input:{label:string,tier?:string,repoPath:string,slug:string}) => Promise<(string|null)>,
  *   getRepoLogPath:() => (string|null),
  *   clearLogHistory:() => void,
  *   hasDiskFullMessageInHistory:() => boolean,
@@ -341,7 +343,8 @@ const buildBenchArgs = ({
  *   backendList:string[],
  *   lockMode:string,
  *   lockWaitMs:number,
- *   lockStaleMs:number
+ *   lockStaleMs:number,
+ *   benchTimeoutMs:number
  * }} input
  * @returns {Promise<object[]>}
  */
@@ -366,10 +369,14 @@ export const runBenchExecutionLoop = async ({
   backendList,
   lockMode,
   lockWaitMs,
-  lockStaleMs
+  lockStaleMs,
+  benchTimeoutMs
 }) => {
   const results = [];
   const benchScript = path.join(scriptRoot, 'tests', 'perf', 'bench', 'run.test.js');
+  const timeoutProfile = resolveBenchProcessTimeoutProfile({
+    repoTimeoutMs: benchTimeoutMs
+  });
   const heapArgRaw = argv['heap-mb'];
   const heapArg = Number.isFinite(Number(heapArgRaw)) ? Math.floor(Number(heapArgRaw)) : null;
   const heapRecommendation = getRecommendedHeapMb();
@@ -379,7 +386,7 @@ export const runBenchExecutionLoop = async ({
     ? stripMaxOldSpaceFlag(baseEnv.NODE_OPTIONS || '')
     : (baseEnv.NODE_OPTIONS || '');
   const baseNodeOptionsHasHeapFlag = baseNodeOptionsForRun.includes('--max-old-space-size');
-  const baseEnvForRepoRuntime = { ...baseEnv };
+  const baseEnvForRepoRuntime = applyToolchainDaemonPolicyEnv(baseEnv);
   if (typeof baseEnv.NODE_OPTIONS === 'string' || baseNodeOptionsForRun) {
     baseEnvForRepoRuntime.NODE_OPTIONS = baseNodeOptionsForRun;
   }
@@ -460,7 +467,7 @@ export const runBenchExecutionLoop = async ({
     // detection reflect only the currently executing repo.
     clearLogHistory();
     if (repoLogsEnabled) {
-      initRepoLog({
+      await initRepoLog({
         label: repoLabel,
         tier: tierLabel,
         repoPath,
@@ -654,13 +661,15 @@ export const runBenchExecutionLoop = async ({
       if (dryRun) {
         appendLog(`[dry-run] node ${benchArgs.join(' ')}`);
       } else {
-        const benchProcessEnv = { ...repoEnvBase };
+        const benchProcessEnv = applyToolchainDaemonPolicyEnv(repoEnvBase);
         if (!Object.prototype.hasOwnProperty.call(benchProcessEnv, 'PAIROFCLEATS_CRASH_LOG_ANNOUNCE')) {
           benchProcessEnv.PAIROFCLEATS_CRASH_LOG_ANNOUNCE = '0';
         }
         const benchResult = await processRunner.runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
           cwd: scriptRoot,
           env: benchProcessEnv,
+          timeoutMs: timeoutProfile.hardTimeoutMs,
+          idleTimeoutMs: timeoutProfile.idleTimeoutMs,
           continueOnError: true
         });
         if (!benchResult.ok) {

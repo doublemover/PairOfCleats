@@ -1,9 +1,11 @@
 import path from 'node:path';
 import {
   acquireFileLock,
+  releaseFileLockOrThrow,
   readLockInfo,
   removeLockFileSyncIfOwned
 } from '../../shared/locks/file-lock.js';
+import { attachCleanupSignalHandlers } from '../../shared/process-signals.js';
 import { runBuildCleanupWithTimeout } from './cleanup-timeout.js';
 
 const DEFAULT_STALE_MS = 30 * 60 * 1000;
@@ -59,35 +61,72 @@ export async function acquireIndexLock({
     }
     handlers.length = 0;
   };
+  // Keep library behavior non-authoritative for process lifetime: cleanup on
+  // process exit, but do not install signal handlers that force termination.
   registerHandler('exit', cleanupSync);
-  registerHandler('SIGINT', () => {
-    cleanupSync();
-    process.exit(130);
-  });
-  registerHandler('SIGTERM', () => {
-    cleanupSync();
-    process.exit(143);
-  });
-  if (process.platform === 'win32') {
-    registerHandler('SIGBREAK', () => {
-      cleanupSync();
-      process.exit(1);
-    });
-  }
 
-  return {
+  const publicLock = {
     lockPath,
+    payload: lock.payload,
+    signalCleaned: false,
+    _onSignalCleanup: () => {
+      if (released) return;
+      released = true;
+      publicLock.signalCleaned = true;
+      detachHandlers();
+    },
     release: async () => {
       if (!released) {
-        await runBuildCleanupWithTimeout({
-          label: 'index-lock.release',
-          cleanup: () => lock.release(),
-          log,
-          swallowTimeout: false
-        });
-        released = true;
+        if (publicLock.signalCleaned === true) {
+          released = true;
+        } else {
+          await runBuildCleanupWithTimeout({
+            label: 'index-lock.release',
+            cleanup: () => releaseFileLockOrThrow(lock),
+            log,
+            swallowTimeout: false
+          });
+          released = true;
+        }
       }
       detachHandlers();
+      return true;
     }
   };
+  return publicLock;
+}
+
+/**
+ * Attach deterministic signal cleanup for an owned index lock without making
+ * the low-level lock helper authoritative over process signal ownership.
+ *
+ * Callers that own process lifecycle can opt in so SIGINT/SIGTERM remove the
+ * current lock file synchronously before higher-level abort/exit handling runs.
+ *
+ * @param {{lockPath?:string,payload?:object}} lock
+ * @param {{signals?:string[]}} [options]
+ * @returns {() => void}
+ */
+export function attachIndexLockSignalCleanup(
+  lock,
+  {
+    signals = null,
+    preserveDefaultTermination = true,
+    reemitSignal = null
+  } = {}
+) {
+  if (!lock?.lockPath || !lock?.payload) return () => {};
+  const cleanupSync = () => {
+    const removed = removeLockFileSyncIfOwned(lock.lockPath, lock.payload);
+    if (removed) {
+      lock.signalCleaned = true;
+      lock._onSignalCleanup?.();
+    }
+  };
+  return attachCleanupSignalHandlers({
+    cleanup: cleanupSync,
+    signals,
+    preserveDefaultTermination,
+    reemitSignal
+  });
 }

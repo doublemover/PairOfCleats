@@ -44,6 +44,10 @@ export const mergeIndexInput = ({ input, dir, state, mergeState }) => {
     if (!Array.isArray(state.riskFlows)) state.riskFlows = [];
     state.riskFlows.push(...input.riskFlows);
   }
+  if (Array.isArray(input.riskPartialFlows) && input.riskPartialFlows.length) {
+    if (!Array.isArray(state.riskPartialFlows)) state.riskPartialFlows = [];
+    state.riskPartialFlows.push(...input.riskPartialFlows);
+  }
   if (
     input.riskInterproceduralStats
     && typeof input.riskInterproceduralStats === 'object'

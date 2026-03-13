@@ -3,8 +3,8 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { createCli } from '../../../src/shared/cli.js';
+import { spawnSubprocessSync } from '../../../src/shared/subprocess.js';
 import { formatStats, summarizeDurations, writeJsonWithDir } from '../micro/utils.js';
 import { createVfsColdStartCache, ensureVfsDiskDocument } from '../../../src/index/tooling/vfs.js';
 import { checksumString } from '../../../src/shared/hash.js';
@@ -81,7 +81,7 @@ function clampInt(value, min, fallback) {
 }
 
 function runSubprocess({ mode, rootDir, docs, docBytes, samples }) {
-  const result = spawnSync(
+  const result = spawnSubprocessSync(
     process.execPath,
     [
       path.resolve(process.argv[1]),
@@ -97,9 +97,17 @@ function runSubprocess({ mode, rootDir, docs, docBytes, samples }) {
       String(samples),
       '--json'
     ],
-    { encoding: 'utf8' }
+    {
+      outputEncoding: 'utf8',
+      captureStdout: true,
+      captureStderr: true,
+      outputMode: 'string',
+      rejectOnNonZeroExit: false,
+      killTree: true,
+      detached: process.platform !== 'win32'
+    }
   );
-  if (result.status !== 0) {
+  if (result.exitCode !== 0) {
     throw new Error(result.stderr || result.stdout || `cold-start-cache ${mode} failed`);
   }
   return JSON.parse(result.stdout);

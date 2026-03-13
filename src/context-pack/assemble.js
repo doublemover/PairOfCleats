@@ -7,14 +7,28 @@ import {
   normalizeOptionalNumber
 } from '../shared/limits.js';
 import { resolveProvenance } from '../shared/provenance.js';
+import {
+  normalizeRiskSummary,
+  summarizeRiskStats
+} from '../shared/risk-explain.js';
+import {
+  filterRiskFlows,
+  filterRiskPartialFlows,
+  materializeRiskFilters,
+  normalizeRiskFilters,
+  validateRiskFilters
+} from '../shared/risk-filters.js';
 import { buildGraphContextPack } from '../graph/context-pack.js';
 import { compareStrings } from '../shared/sort.js';
 import { isRelativePathEscape, readFileRangeSync } from '../shared/files.js';
 import { normalizePathForRepo } from '../shared/path-normalize.js';
 import {
   MAX_JSON_BYTES,
+  loadJsonArrayArtifactSync,
+  loadJsonObjectArtifactSync,
   loadJsonArrayArtifactRows,
-  loadPiecesManifest
+  loadPiecesManifest,
+  resolveArtifactPresence
 } from '../shared/artifact-io.js';
 
 const resolveSeedRef = (seed) => {
@@ -80,22 +94,10 @@ export const buildChunkIndex = (chunkMeta, { repoRoot = null } = {}) => {
 
 const resolveChunkBySeed = (seedRef, chunkIndex, warnings) => {
   if (!chunkIndex) return null;
-  const { byChunkUid, byFile, bySymbol, normalizePath } = chunkIndex;
-
-  const resolveFromNode = (node) => {
-    if (!node || typeof node !== 'object') return null;
-    if (node.type === 'chunk') return byChunkUid.get(node.chunkUid) || null;
-    if (node.type === 'file') {
-      const normalizedPath = normalizePath ? normalizePath(node.path) : node.path;
-      const list = (normalizedPath && byFile.get(normalizedPath)) || byFile.get(node.path) || [];
-      return list[0] || null;
-    }
-    if (node.type === 'symbol') return bySymbol.get(node.symbolId) || null;
-    return null;
-  };
+  const candidates = resolveChunkCandidatesBySeed(seedRef, chunkIndex);
 
   if (seedRef?.type) {
-    const chunk = resolveFromNode(seedRef);
+    const chunk = candidates[0]?.chunk || null;
     if (!chunk) {
       warnings.push({
         code: 'SEED_NOT_FOUND',
@@ -106,17 +108,61 @@ const resolveChunkBySeed = (seedRef, chunkIndex, warnings) => {
   }
 
   if (seedRef && 'status' in seedRef) {
-    const candidates = resolveSeedCandidates(seedRef);
-    for (const candidate of candidates) {
-      const chunk = resolveFromNode(candidate);
-      if (chunk) return chunk;
-    }
+    if (candidates[0]?.chunk) return candidates[0].chunk;
     warnings.push({
       code: 'SEED_UNRESOLVED',
       message: 'Seed reference envelope could not be resolved to a chunk.'
     });
   }
   return null;
+};
+
+const resolveChunkCandidatesBySeed = (seedRef, chunkIndex) => {
+  if (!seedRef || !chunkIndex) return [];
+  const { byChunkUid, byFile, bySymbol, normalizePath } = chunkIndex;
+  const resolved = [];
+  const seen = new Set();
+  const resolveFromNode = (node) => {
+    if (!node || typeof node !== 'object') return null;
+    if (node.type === 'chunk') return node.chunkUid ? [byChunkUid.get(node.chunkUid) || null] : [];
+    if (node.type === 'file') {
+      const normalizedPath = normalizePath ? normalizePath(node.path) : node.path;
+      const list = (normalizedPath && byFile.get(normalizedPath)) || byFile.get(node.path) || [];
+      return Array.isArray(list) ? list : [];
+    }
+    if (node.type === 'symbol') return node.symbolId ? [bySymbol.get(node.symbolId) || null] : [];
+    return [];
+  };
+  const pushResolved = (ref, chunk, candidateIndex = null) => {
+    if (!ref?.type || !chunk) return;
+    const chunkUid = chunk.chunkUid || chunk.metaV2?.chunkUid || null;
+    if (!chunkUid || seen.has(chunkUid)) return;
+    seen.add(chunkUid);
+    resolved.push({ ref, chunk, chunkUid, candidateIndex });
+  };
+  if (seedRef?.type) {
+    for (const chunk of resolveFromNode(seedRef)) {
+      pushResolved(seedRef, chunk, 0);
+    }
+    return resolved;
+  }
+  if (!('status' in seedRef)) return resolved;
+  const candidates = resolveSeedCandidates(seedRef);
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[index];
+    const ref = candidate?.chunkUid
+      ? { type: 'chunk', chunkUid: candidate.chunkUid }
+      : candidate?.path
+        ? { type: 'file', path: candidate.path }
+        : candidate?.symbolId
+          ? { type: 'symbol', symbolId: candidate.symbolId }
+          : null;
+    if (!ref) continue;
+    for (const chunk of resolveFromNode(ref)) {
+      pushResolved(ref, chunk, index);
+    }
+  }
+  return resolved;
 };
 
 const resolvePrimaryRef = (seedRef, chunk) => {
@@ -126,6 +172,1446 @@ const resolvePrimaryRef = (seedRef, chunk) => {
   }
   if (chunk?.file) return { type: 'file', path: chunk.file };
   return seedRef || null;
+};
+
+const CONTEXT_PACK_MAX_RISK_FLOWS = 5;
+const CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW = 8;
+const CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS = 5;
+const CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP = 3;
+const CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_BYTES = 192;
+const CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_TOKENS = 24;
+const CONTEXT_PACK_MAX_RISK_BYTES = 24 * 1024;
+const CONTEXT_PACK_MAX_RISK_TOKENS = 2048;
+const CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES = 16 * 1024;
+const CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS = 1024;
+
+const buildRiskArtifactStatus = ({ presence, required = false, loadFailed = false }) => {
+  if (loadFailed) return 'load_failed';
+  const missing = presence?.format === 'missing' || presence?.missingMeta || presence?.missingPaths?.length > 0;
+  if (missing) return required ? 'missing' : 'not_required';
+  return 'present';
+};
+
+export const classifyRiskLoadFailure = (err) => {
+  const code = typeof err?.code === 'string' ? err.code : '';
+  const message = typeof err?.message === 'string' ? err.message.toLowerCase() : '';
+  if (code === 'ETIMEDOUT'
+    || code === 'ERR_ARTIFACT_TIMEOUT'
+    || code === 'ERR_SUBPROCESS_TIMEOUT'
+    || message.includes('timed out')
+    || message.includes('timeout')) {
+    return 'timed_out';
+  }
+  if (code === 'ERR_ARTIFACT_INVALID'
+    || code === 'ERR_JSONL_INVALID'
+    || code === 'ERR_MANIFEST_INVALID'
+    || code === 'ERR_MANIFEST_INCOMPLETE'
+    || code === 'ERR_MANIFEST_ENTRY_MISSING'
+    || code === 'ERR_MANIFEST_SOURCE_AMBIGUOUS'
+    || message.includes('invalid json')
+    || message.includes('schema validation failed')
+    || message.includes('invalid columnar payload')
+    || message.includes('invalid json payload')) {
+    return 'schema_invalid';
+  }
+  return 'degraded';
+};
+
+const normalizeRiskArtifactRefs = (stats) => {
+  const artifacts = stats?.artifacts;
+  if (!artifacts || typeof artifacts !== 'object') return null;
+  const refs = {
+    stats: artifacts.stats || null,
+    summaries: artifacts.summaries || artifacts.riskSummaries || null,
+    flows: artifacts.flows || artifacts.riskFlows || null,
+    partialFlows: artifacts.partialFlows || artifacts.riskPartialFlows || null,
+    callSites: artifacts.callSites || null
+  };
+  return Object.values(refs).some(Boolean) ? refs : null;
+};
+
+const normalizeRiskRuleBundle = (stats) => {
+  const ruleBundle = stats?.provenance?.ruleBundle;
+  if (!ruleBundle || typeof ruleBundle !== 'object') return null;
+  return {
+    version: ruleBundle.version || null,
+    fingerprint: ruleBundle.fingerprint || null,
+    provenance: ruleBundle.provenance && typeof ruleBundle.provenance === 'object'
+      ? {
+        defaults: ruleBundle.provenance.defaults === true,
+        sourcePath: ruleBundle.provenance.sourcePath || null
+      }
+      : null
+  };
+};
+
+const normalizeRiskProvenance = ({
+  manifest,
+  stats,
+  artifactStatus,
+  indexSignature = null,
+  indexCompatKey = null
+}) => ({
+  manifestVersion: Number.isFinite(manifest?.version) ? manifest.version : null,
+  artifactSurfaceVersion: manifest?.artifactSurfaceVersion || null,
+  compatibilityKey: manifest?.compatibilityKey || indexCompatKey || null,
+  indexSignature: indexSignature || stats?.provenance?.indexSignature || null,
+  indexCompatKey: indexCompatKey || manifest?.compatibilityKey || stats?.provenance?.indexCompatKey || null,
+  mode: stats?.mode || null,
+  generatedAt: stats?.generatedAt || null,
+  ruleBundle: normalizeRiskRuleBundle(stats),
+  effectiveConfigFingerprint: stats?.provenance?.effectiveConfigFingerprint || null,
+  artifacts: artifactStatus,
+  artifactRefs: normalizeRiskArtifactRefs(stats)
+});
+
+const normalizeRiskPathNodes = (flow) => {
+  const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
+  return chunkUids.map((chunkUid) => ({ type: 'chunk', chunkUid }));
+};
+
+const RISK_SEVERITY_WEIGHT = Object.freeze({
+  critical: 5,
+  high: 4,
+  medium: 3,
+  moderate: 3,
+  low: 2,
+  info: 1
+});
+
+const resolveRiskSeverityWeight = (value) => {
+  const key = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return RISK_SEVERITY_WEIGHT[key] || 0;
+};
+
+const resolveRiskSeedRelevance = (flow, riskAnchor) => {
+  const anchorChunkUid = riskAnchor?.chunkUid || null;
+  const anchorKind = riskAnchor?.kind || null;
+  if (!anchorChunkUid) return 0;
+  if (anchorKind === 'source') {
+    if (flow?.source?.chunkUid === anchorChunkUid) return 3;
+    if (flow?.sink?.chunkUid === anchorChunkUid) return 2;
+  }
+  if (anchorKind === 'sink') {
+    if (flow?.sink?.chunkUid === anchorChunkUid) return 3;
+    if (flow?.frontier?.chunkUid === anchorChunkUid) return 3;
+    if (flow?.source?.chunkUid === anchorChunkUid) return 2;
+  }
+  if (anchorKind === 'path') {
+    const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
+    if (chunkUids.includes(anchorChunkUid)) return 2;
+    if (flow?.source?.chunkUid === anchorChunkUid || flow?.sink?.chunkUid === anchorChunkUid) return 1;
+    return 0;
+  }
+  if (
+    flow?.source?.chunkUid === anchorChunkUid
+    || flow?.sink?.chunkUid === anchorChunkUid
+    || flow?.frontier?.chunkUid === anchorChunkUid
+  ) return 2;
+  const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
+  return chunkUids.includes(anchorChunkUid) ? 1 : 0;
+};
+
+const rankRiskFlows = (flows, riskAnchor) => Array.from(Array.isArray(flows) ? flows : [])
+  .map((flow) => ({
+    flow,
+    score: {
+      seedRelevance: resolveRiskSeedRelevance(flow, riskAnchor),
+      severity: resolveRiskSeverityWeight(flow?.sink?.severity || flow?.source?.severity),
+      confidence: Number.isFinite(flow?.confidence) ? flow.confidence : -1,
+      hopCount: Number.isFinite(flow?.notes?.hopCount) ? flow.notes.hopCount : Number.MAX_SAFE_INTEGER
+    }
+  }))
+  .sort((a, b) => {
+    if (a.score.seedRelevance !== b.score.seedRelevance) return b.score.seedRelevance - a.score.seedRelevance;
+    if (a.score.severity !== b.score.severity) return b.score.severity - a.score.severity;
+    if (a.score.confidence !== b.score.confidence) return b.score.confidence - a.score.confidence;
+    if (a.score.hopCount !== b.score.hopCount) return a.score.hopCount - b.score.hopCount;
+    return compareStrings(a.flow?.flowId || '', b.flow?.flowId || '');
+  })
+  .map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+const rankPartialRiskFlows = (flows, riskAnchor) => Array.from(Array.isArray(flows) ? flows : [])
+  .map((flow) => ({
+    flow,
+    score: {
+      seedRelevance: resolveRiskSeedRelevance(flow, riskAnchor),
+      confidence: Number.isFinite(flow?.confidence) ? flow.confidence : -1,
+      hopCount: Number.isFinite(flow?.notes?.hopCount) ? flow.notes.hopCount : Number.MAX_SAFE_INTEGER
+    }
+  }))
+  .sort((a, b) => {
+    if (a.score.seedRelevance !== b.score.seedRelevance) return b.score.seedRelevance - a.score.seedRelevance;
+    if (a.score.confidence !== b.score.confidence) return b.score.confidence - a.score.confidence;
+    if (a.score.hopCount !== b.score.hopCount) return a.score.hopCount - b.score.hopCount;
+    return compareStrings(a.flow?.partialFlowId || '', b.flow?.partialFlowId || '');
+  })
+  .map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+const RISK_ANCHOR_KIND_ORDER = Object.freeze({
+  source: 0,
+  sink: 1,
+  path: 2,
+  unresolved: 3
+});
+
+const resolveRiskAnchorKindWeight = (kind) => {
+  if (kind === 'source' || kind === 'sink') return 3;
+  if (kind === 'path') return 2;
+  return 0;
+};
+
+const resolveRiskFlowAnchorKind = (flow, chunkUid) => {
+  if (!chunkUid) return null;
+  if (flow?.source?.chunkUid === chunkUid) return 'source';
+  if (flow?.sink?.chunkUid === chunkUid) return 'sink';
+  const pathChunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
+  return pathChunkUids.includes(chunkUid) ? 'path' : null;
+};
+
+const resolveRiskAnchor = ({ rankedFlows, riskSeedContext, warnings }) => {
+  const candidates = Array.isArray(riskSeedContext?.candidates) ? riskSeedContext.candidates : [];
+  if (!rankedFlows.length || !candidates.length) {
+    return {
+      selected: {
+        kind: 'unresolved',
+        chunkUid: riskSeedContext?.primaryChunkUid || null,
+        ref: riskSeedContext?.primaryRef || null,
+        flowId: null,
+        candidateIndex: null
+      },
+      alternates: []
+    };
+  }
+  const matches = [];
+  for (const candidate of candidates) {
+    for (const entry of rankedFlows) {
+      const kind = resolveRiskFlowAnchorKind(entry.flow, candidate.chunkUid);
+      if (!kind) continue;
+      matches.push({
+        kind,
+        chunkUid: candidate.chunkUid,
+        ref: candidate.ref,
+        flowId: entry.flow?.flowId || null,
+        candidateIndex: Number.isFinite(candidate.candidateIndex) ? candidate.candidateIndex : Number.MAX_SAFE_INTEGER,
+        score: entry.score
+      });
+    }
+  }
+  if (!matches.length) {
+    warnings.push({
+      code: 'RISK_ANCHOR_UNRESOLVED',
+      message: 'Risk flows were available, but none matched the resolved seed candidates.'
+    });
+    return {
+      selected: {
+        kind: 'unresolved',
+        chunkUid: riskSeedContext?.primaryChunkUid || candidates[0]?.chunkUid || null,
+        ref: riskSeedContext?.primaryRef || candidates[0]?.ref || null,
+        flowId: null,
+        candidateIndex: candidates[0]?.candidateIndex ?? null
+      },
+      alternates: []
+    };
+  }
+  matches.sort((a, b) => {
+    const kindWeightDelta = resolveRiskAnchorKindWeight(b.kind) - resolveRiskAnchorKindWeight(a.kind);
+    if (kindWeightDelta) return kindWeightDelta;
+    if (a.candidateIndex !== b.candidateIndex) return a.candidateIndex - b.candidateIndex;
+    const roleDelta = (RISK_ANCHOR_KIND_ORDER[a.kind] ?? Number.MAX_SAFE_INTEGER)
+      - (RISK_ANCHOR_KIND_ORDER[b.kind] ?? Number.MAX_SAFE_INTEGER);
+    if (roleDelta) return roleDelta;
+    if (a.score.severity !== b.score.severity) return b.score.severity - a.score.severity;
+    if (a.score.confidence !== b.score.confidence) return b.score.confidence - a.score.confidence;
+    if (a.score.hopCount !== b.score.hopCount) return a.score.hopCount - b.score.hopCount;
+    return compareStrings(a.flowId || '', b.flowId || '');
+  });
+  const selected = matches[0];
+  const alternates = matches.filter((entry, index) => {
+    if (index === 0) return false;
+    return entry.chunkUid !== selected.chunkUid || entry.kind !== selected.kind || entry.flowId !== selected.flowId;
+  });
+  if (alternates.length) {
+    warnings.push({
+      code: 'RISK_ANCHOR_ALTERNATES',
+      message: 'Risk seed anchoring resolved multiple candidates; using the strongest deterministic match.',
+      data: {
+        selected: {
+          kind: selected.kind,
+          chunkUid: selected.chunkUid,
+          flowId: selected.flowId
+        },
+        alternates: alternates.slice(0, 5).map((entry) => ({
+          kind: entry.kind,
+          chunkUid: entry.chunkUid,
+          flowId: entry.flowId
+        }))
+      }
+    });
+  }
+  return { selected, alternates };
+};
+
+const estimateRiskByteSize = (value) => Buffer.byteLength(JSON.stringify(value), 'utf8');
+
+const estimateRiskTokenCount = (value) => {
+  const serialized = JSON.stringify(value);
+  const matches = serialized.match(/[A-Za-z0-9_./:-]+/g);
+  return matches ? matches.length : 0;
+};
+
+const normalizeRiskCallSiteDetails = (row) => {
+  if (!row || typeof row !== 'object') return null;
+  return {
+    callSiteId: row.callSiteId || null,
+    file: row.file || null,
+    languageId: row.languageId || null,
+    startLine: Number.isFinite(row.startLine) ? row.startLine : null,
+    startCol: Number.isFinite(row.startCol) ? row.startCol : null,
+    endLine: Number.isFinite(row.endLine) ? row.endLine : null,
+    endCol: Number.isFinite(row.endCol) ? row.endCol : null,
+    calleeRaw: row.calleeRaw || null,
+    calleeNormalized: row.calleeNormalized || null,
+    args: Array.isArray(row.args) ? row.args.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP) : []
+  };
+};
+
+const resolveRiskCallSiteExcerpt = ({ row, repoRoot }) => {
+  if (!row?.file || !repoRoot) {
+    return {
+      excerpt: null,
+      excerptHash: null,
+      excerptTruncated: false,
+      excerptTruncation: { bytes: false, tokens: false },
+      provenance: { artifact: 'call_sites', excerptSource: 'unavailable' }
+    };
+  }
+  const filePath = path.resolve(repoRoot, row.file);
+  if (!isPathInsideRepo(repoRoot, filePath)) {
+    return {
+      excerpt: null,
+      excerptHash: null,
+      excerptTruncated: false,
+      excerptTruncation: { bytes: false, tokens: false },
+      provenance: { artifact: 'call_sites', excerptSource: 'outside-repo' }
+    };
+  }
+  if (!fs.existsSync(filePath)) {
+    return {
+      excerpt: null,
+      excerptHash: null,
+      excerptTruncated: false,
+      excerptTruncation: { bytes: false, tokens: false },
+      provenance: { artifact: 'call_sites', excerptSource: 'missing-file' }
+    };
+  }
+  if (!Number.isFinite(row.start) || !Number.isFinite(row.end) || row.end <= row.start) {
+    return {
+      excerpt: null,
+      excerptHash: null,
+      excerptTruncated: false,
+      excerptTruncation: { bytes: false, tokens: false },
+      provenance: { artifact: 'call_sites', excerptSource: 'missing-range' }
+    };
+  }
+  const resolvedExcerpt = resolveExcerpt({
+    filePath,
+    start: row.start,
+    end: row.end,
+    maxBytes: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_BYTES,
+    maxTokens: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_TOKENS
+  });
+  return {
+    excerpt: resolvedExcerpt.excerpt || null,
+    excerptHash: resolvedExcerpt.excerptHash || null,
+    excerptTruncated: resolvedExcerpt.truncated === true,
+    excerptTruncation: {
+      bytes: resolvedExcerpt.truncatedBytes === true,
+      tokens: resolvedExcerpt.truncatedTokens === true
+    },
+    provenance: {
+      artifact: 'call_sites',
+      excerptSource: 'repo-range',
+      maxBytes: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_BYTES,
+      maxTokens: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_TOKENS
+    }
+  };
+};
+
+const hydrateRiskCallSiteDetails = ({ row, repoRoot }) => {
+  const base = normalizeRiskCallSiteDetails(row);
+  if (!base) return { details: null, excerptTruncated: false };
+  const excerpt = resolveRiskCallSiteExcerpt({ row, repoRoot });
+  return {
+    details: {
+      ...base,
+      excerpt: excerpt.excerpt,
+      excerptHash: excerpt.excerptHash,
+      excerptTruncated: excerpt.excerptTruncated,
+      excerptTruncation: excerpt.excerptTruncation,
+      provenance: excerpt.provenance
+    },
+    excerptTruncated: excerpt.excerptTruncated,
+    excerptTruncation: excerpt.excerptTruncation
+  };
+};
+
+const buildRiskCaps = ({ stats, counts, hits }) => ({
+  maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
+  maxStepsPerFlow: CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW,
+  maxPartialFlows: CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
+  maxCallSitesPerStep: CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP,
+  maxCallSiteExcerptBytes: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_BYTES,
+  maxCallSiteExcerptTokens: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_TOKENS,
+  maxBytes: CONTEXT_PACK_MAX_RISK_BYTES,
+  maxTokens: CONTEXT_PACK_MAX_RISK_TOKENS,
+  maxPartialBytes: CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES,
+  maxPartialTokens: CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS,
+  configured: stats?.effectiveConfig?.caps || null,
+  observed: {
+    candidateFlows: counts.candidateFlows,
+    selectedFlows: counts.selectedFlows,
+    omittedFlows: counts.omittedFlows,
+    candidatePartialFlows: counts.candidatePartialFlows,
+    selectedPartialFlows: counts.selectedPartialFlows,
+    omittedPartialFlows: counts.omittedPartialFlows,
+    emittedSteps: counts.emittedSteps,
+    omittedSteps: counts.omittedSteps,
+    omittedCallSites: counts.omittedCallSites,
+    truncatedCallSiteExcerpts: counts.truncatedCallSiteExcerpts,
+    bytes: counts.bytes,
+    tokens: counts.tokens,
+    partialBytes: counts.partialBytes,
+    partialTokens: counts.partialTokens
+  },
+  hits: Array.from(hits)
+});
+
+const buildRiskAnalysisStatus = ({ status, reason, degraded, summaryOnly, code = 'ok', strictFailure = false, artifactStatus, stats, caps, degradedReasons }) => ({
+  requested: true,
+  status,
+  reason,
+  degraded,
+  summaryOnly,
+  code,
+  strictFailure,
+  artifactStatus,
+  degradedReasons,
+  flowsEmitted: stats?.flowsEmitted ?? null,
+  partialFlowsEmitted: stats?.partialFlowsEmitted ?? null,
+  uniqueCallSitesReferenced: stats?.uniqueCallSitesReferenced ?? null,
+  capsHit: Array.from(new Set([...(Array.isArray(stats?.capsHit) ? stats.capsHit : []), ...(Array.isArray(caps?.hits) ? caps.hits : [])]))
+});
+
+const buildRiskSlice = ({
+  indexDir,
+  repoRoot,
+  seedRef,
+  primaryChunk,
+  chunkIndex,
+  includeRiskPartialFlows = false,
+  riskFilters = null,
+  indexSignature = null,
+  indexCompatKey = null,
+  warnings,
+  truncation
+}) => {
+  const riskSeedContext = {
+    primaryChunkUid: primaryChunk?.chunkUid || primaryChunk?.metaV2?.chunkUid || null,
+    primaryRef: primaryChunk?.chunkUid || primaryChunk?.metaV2?.chunkUid
+      ? { type: 'chunk', chunkUid: primaryChunk.chunkUid || primaryChunk.metaV2?.chunkUid }
+      : (primaryChunk?.file ? { type: 'file', path: primaryChunk.file } : null),
+    candidates: resolveChunkCandidatesBySeed(seedRef, chunkIndex)
+  };
+  const riskFilterState = materializeRiskFilters(riskFilters);
+  if (!riskSeedContext.candidates.length && riskSeedContext.primaryChunkUid) {
+    riskSeedContext.candidates.push({
+      ref: riskSeedContext.primaryRef,
+      chunk: primaryChunk,
+      chunkUid: riskSeedContext.primaryChunkUid,
+      candidateIndex: 0
+    });
+  }
+  if (!indexDir || !riskSeedContext.candidates.length) {
+    warnings.push({
+      code: 'MISSING_RISK',
+      message: 'Risk slice unavailable because no index directory or risk seed anchor was resolved.'
+    });
+    return {
+      version: 1,
+      status: 'missing',
+      reason: 'no-index-or-risk-anchor',
+      anchor: {
+        kind: 'unresolved',
+        chunkUid: riskSeedContext.primaryChunkUid || null,
+        ref: riskSeedContext.primaryRef || null,
+        alternateCount: 0,
+        alternates: []
+      },
+      flows: [],
+      partialFlows: [],
+      filters: riskFilterState,
+      summary: null,
+      stats: null,
+      analysisStatus: {
+        requested: true,
+        status: 'missing',
+        reason: 'no-index-or-risk-anchor',
+        degraded: true,
+        summaryOnly: false,
+        code: 'missing',
+        strictFailure: true,
+        artifactStatus: null,
+        degradedReasons: ['missing-risk-anchor'],
+        flowsEmitted: null,
+        uniqueCallSitesReferenced: null,
+        capsHit: []
+      },
+      caps: null,
+      truncation: [],
+      provenance: normalizeRiskProvenance({ manifest: null, stats: null, artifactStatus: null, indexSignature, indexCompatKey }),
+      degraded: true
+    };
+  }
+
+  let manifest = null;
+  try {
+    manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
+  } catch (err) {
+    warnings.push({
+      code: 'MISSING_RISK',
+      message: 'Risk slice unavailable because pieces manifest could not be loaded.',
+      data: { error: err?.message || String(err) }
+    });
+    return {
+      version: 1,
+      status: 'missing',
+      reason: 'missing-manifest',
+      anchor: {
+        kind: 'unresolved',
+        chunkUid: riskSeedContext.primaryChunkUid || null,
+        ref: riskSeedContext.primaryRef || riskSeedContext.candidates[0]?.ref || null,
+        alternateCount: 0,
+        alternates: []
+      },
+      flows: [],
+      partialFlows: [],
+      filters: riskFilterState,
+      summary: null,
+      stats: null,
+      analysisStatus: {
+        requested: true,
+        status: 'missing',
+        reason: 'missing-manifest',
+        degraded: true,
+        summaryOnly: false,
+        code: 'missing',
+        strictFailure: true,
+        artifactStatus: null,
+        degradedReasons: ['missing-manifest'],
+        flowsEmitted: null,
+        uniqueCallSitesReferenced: null,
+        capsHit: []
+      },
+      caps: null,
+      truncation: [],
+      provenance: normalizeRiskProvenance({ manifest: null, stats: null, artifactStatus: null, indexSignature, indexCompatKey }),
+      degraded: true
+    };
+  }
+
+  const statsPresence = resolveArtifactPresence(indexDir, 'risk_interprocedural_stats', {
+    manifest,
+    maxBytes: MAX_JSON_BYTES,
+    strict: true
+  });
+  const summariesPresence = resolveArtifactPresence(indexDir, 'risk_summaries', {
+    manifest,
+    maxBytes: MAX_JSON_BYTES,
+    strict: true
+  });
+  const flowsPresence = resolveArtifactPresence(indexDir, 'risk_flows', {
+    manifest,
+    maxBytes: MAX_JSON_BYTES,
+    strict: true
+  });
+  const partialFlowsPresence = resolveArtifactPresence(indexDir, 'risk_partial_flows', {
+    manifest,
+    maxBytes: MAX_JSON_BYTES,
+    strict: true
+  });
+  const callSitesPresence = resolveArtifactPresence(indexDir, 'call_sites', {
+    manifest,
+    maxBytes: MAX_JSON_BYTES,
+    strict: true
+  });
+
+  const statsMissing = statsPresence.format === 'missing' || statsPresence.missingMeta || statsPresence.missingPaths.length > 0;
+  const summariesMissing = summariesPresence.format === 'missing' || summariesPresence.missingMeta || summariesPresence.missingPaths.length > 0;
+  let statsLoadFailed = false;
+  let summariesLoadFailed = false;
+  let flowsLoadFailed = false;
+  let partialFlowsLoadFailed = false;
+  let callSitesLoadFailed = false;
+  const riskTruncation = [];
+  if (statsMissing && summariesMissing) {
+    const artifactStatus = {
+      stats: buildRiskArtifactStatus({ presence: statsPresence, required: true }),
+      summaries: buildRiskArtifactStatus({ presence: summariesPresence, required: true }),
+      flows: buildRiskArtifactStatus({ presence: flowsPresence, required: false }),
+      partialFlows: buildRiskArtifactStatus({ presence: partialFlowsPresence, required: false }),
+      callSites: buildRiskArtifactStatus({ presence: callSitesPresence, required: false })
+    };
+    warnings.push({
+      code: 'MISSING_RISK',
+      message: 'Risk slice unavailable because interprocedural stats and summaries artifacts are missing.'
+    });
+    return {
+      version: 1,
+      status: 'missing',
+      reason: 'missing-risk-artifacts',
+      anchor: {
+        kind: 'unresolved',
+        chunkUid: riskSeedContext.primaryChunkUid || null,
+        ref: riskSeedContext.primaryRef || riskSeedContext.candidates[0]?.ref || null,
+        alternateCount: 0,
+        alternates: []
+      },
+      flows: [],
+      partialFlows: [],
+      filters: riskFilterState,
+      summary: null,
+      stats: null,
+      analysisStatus: {
+        requested: true,
+        status: 'missing',
+        reason: 'missing-risk-artifacts',
+        summaryOnly: false,
+        code: 'missing',
+        strictFailure: true,
+        artifactStatus,
+        degradedReasons: ['missing-risk-artifacts']
+      },
+      caps: null,
+      truncation: [],
+      provenance: normalizeRiskProvenance({ manifest, stats: null, artifactStatus, indexSignature, indexCompatKey }),
+      degraded: true
+    };
+  }
+
+  let stats = null;
+  if (!statsMissing) {
+    try {
+      stats = loadJsonObjectArtifactSync(indexDir, 'risk_interprocedural_stats', {
+        manifest,
+        maxBytes: MAX_JSON_BYTES,
+        strict: true
+      });
+    } catch (err) {
+      statsLoadFailed = true;
+      const failureClass = classifyRiskLoadFailure(err);
+      warnings.push({
+        code: failureClass === 'timed_out'
+          ? 'RISK_STATS_TIMED_OUT'
+          : failureClass === 'schema_invalid'
+            ? 'RISK_STATS_SCHEMA_INVALID'
+            : 'RISK_STATS_LOAD_FAILED',
+        message: 'Risk stats artifact could not be loaded.',
+        data: { error: err?.message || String(err) }
+      });
+    }
+  }
+
+  let summary = null;
+  let summaryRows = [];
+  if (!summariesMissing) {
+    try {
+      summaryRows = loadJsonArrayArtifactSync(indexDir, 'risk_summaries', {
+        manifest,
+        maxBytes: MAX_JSON_BYTES,
+        strict: true
+      });
+    } catch (err) {
+      summariesLoadFailed = true;
+      const failureClass = classifyRiskLoadFailure(err);
+      warnings.push({
+        code: failureClass === 'timed_out'
+          ? 'RISK_SUMMARIES_TIMED_OUT'
+          : failureClass === 'schema_invalid'
+            ? 'RISK_SUMMARIES_SCHEMA_INVALID'
+            : 'RISK_SUMMARIES_LOAD_FAILED',
+        message: 'Risk summaries artifact could not be loaded.',
+        data: { error: err?.message || String(err) }
+      });
+    }
+  }
+  const summaryRowsByChunkUid = new Map();
+  for (const row of Array.isArray(summaryRows) ? summaryRows : []) {
+    if (row?.chunkUid && !summaryRowsByChunkUid.has(row.chunkUid)) {
+      summaryRowsByChunkUid.set(row.chunkUid, row);
+    }
+  }
+  summary = summaryRowsByChunkUid.get(riskSeedContext.primaryChunkUid) || null;
+
+  const summaryOnly = stats?.effectiveConfig?.summaryOnly === true;
+  const baseArtifactStatus = {
+    stats: buildRiskArtifactStatus({ presence: statsPresence, required: true, loadFailed: statsLoadFailed }),
+    summaries: buildRiskArtifactStatus({ presence: summariesPresence, required: true, loadFailed: summariesLoadFailed }),
+    flows: buildRiskArtifactStatus({
+      presence: flowsPresence,
+      required: !(summaryOnly || stats?.status === 'disabled'),
+      loadFailed: flowsLoadFailed
+    }),
+    partialFlows: buildRiskArtifactStatus({
+      presence: partialFlowsPresence,
+      required: includeRiskPartialFlows && !(summaryOnly || stats?.status === 'disabled'),
+      loadFailed: partialFlowsLoadFailed
+    }),
+    callSites: buildRiskArtifactStatus({ presence: callSitesPresence, required: false, loadFailed: callSitesLoadFailed })
+  };
+  const baseStatus = stats?.status === 'disabled'
+    ? 'disabled'
+    : summaryOnly
+      ? 'summary_only'
+      : stats
+        ? 'ok'
+        : 'missing';
+
+  if (baseStatus === 'disabled') {
+    const riskCaps = buildRiskCaps({
+      stats,
+      counts: {
+        candidateFlows: 0,
+        selectedFlows: 0,
+        omittedFlows: 0,
+        candidatePartialFlows: 0,
+        selectedPartialFlows: 0,
+        omittedPartialFlows: 0,
+        emittedSteps: 0,
+        omittedSteps: 0,
+        omittedCallSites: 0,
+        bytes: 0,
+        tokens: 0,
+        partialBytes: 0,
+        partialTokens: 0
+      },
+      hits: new Set(Array.isArray(stats?.capsHit) ? stats.capsHit : [])
+    });
+    return {
+      version: 1,
+      status: 'disabled',
+      reason: stats?.reason || 'disabled',
+      anchor: {
+        kind: 'unresolved',
+        chunkUid: riskSeedContext.primaryChunkUid || null,
+        ref: riskSeedContext.primaryRef || riskSeedContext.candidates[0]?.ref || null,
+        alternateCount: 0,
+        alternates: []
+      },
+      flows: [],
+      partialFlows: [],
+      summary: normalizeRiskSummary(summary, []),
+      stats: summarizeRiskStats(stats),
+      analysisStatus: buildRiskAnalysisStatus({
+        status: 'disabled',
+        reason: stats?.reason || 'disabled',
+        degraded: false,
+        summaryOnly,
+        code: 'disabled',
+        strictFailure: true,
+        artifactStatus: baseArtifactStatus,
+        stats: summarizeRiskStats(stats),
+        caps: riskCaps,
+        degradedReasons: []
+      }),
+      caps: riskCaps,
+      truncation: [],
+      filters: riskFilterState,
+      provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus, indexSignature, indexCompatKey }),
+      degraded: false
+    };
+  }
+
+  if (baseStatus === 'summary_only') {
+    const riskCaps = buildRiskCaps({
+      stats,
+      counts: {
+        candidateFlows: 0,
+        selectedFlows: 0,
+        omittedFlows: 0,
+        candidatePartialFlows: 0,
+        selectedPartialFlows: 0,
+        omittedPartialFlows: 0,
+        emittedSteps: 0,
+        omittedSteps: 0,
+        omittedCallSites: 0,
+        bytes: 0,
+        tokens: 0,
+        partialBytes: 0,
+        partialTokens: 0
+      },
+      hits: new Set(Array.isArray(stats?.capsHit) ? stats.capsHit : [])
+    });
+    return {
+      version: 1,
+      status: 'summary_only',
+      reason: stats?.reason || null,
+      anchor: {
+        kind: 'unresolved',
+        chunkUid: riskSeedContext.primaryChunkUid || null,
+        ref: riskSeedContext.primaryRef || riskSeedContext.candidates[0]?.ref || null,
+        alternateCount: 0,
+        alternates: []
+      },
+      flows: [],
+      partialFlows: [],
+      summary: normalizeRiskSummary(summary, []),
+      stats: summarizeRiskStats(stats),
+      analysisStatus: buildRiskAnalysisStatus({
+        status: 'summary_only',
+        reason: stats?.reason || null,
+        degraded: false,
+        summaryOnly,
+        code: 'summary_only',
+        strictFailure: true,
+        artifactStatus: baseArtifactStatus,
+        stats: summarizeRiskStats(stats),
+        caps: riskCaps,
+        degradedReasons: []
+      }),
+      caps: riskCaps,
+      truncation: [],
+      filters: riskFilterState,
+      provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus, indexSignature, indexCompatKey }),
+      degraded: false
+    };
+  }
+
+  let degraded = false;
+  let flows = [];
+  let partialFlows = [];
+  const riskCandidateChunkUids = new Set(riskSeedContext.candidates.map((entry) => entry.chunkUid).filter(Boolean));
+  const flowsMissing = flowsPresence.format === 'missing' || flowsPresence.missingMeta || flowsPresence.missingPaths.length > 0;
+  const partialFlowsMissing = partialFlowsPresence.format === 'missing'
+    || partialFlowsPresence.missingMeta
+    || partialFlowsPresence.missingPaths.length > 0;
+  const callSitesMissing = callSitesPresence.format === 'missing' || callSitesPresence.missingMeta || callSitesPresence.missingPaths.length > 0;
+  if (!flowsMissing) {
+    try {
+      const flowRows = loadJsonArrayArtifactSync(indexDir, 'risk_flows', {
+        manifest,
+        maxBytes: MAX_JSON_BYTES,
+        strict: true
+      });
+      const relevantFlows = Array.isArray(flowRows)
+        ? flowRows.filter((flow) => {
+          const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
+          if (flow?.source?.chunkUid && riskCandidateChunkUids.has(flow.source.chunkUid)) return true;
+          if (flow?.sink?.chunkUid && riskCandidateChunkUids.has(flow.sink.chunkUid)) return true;
+          return chunkUids.some((chunkUid) => riskCandidateChunkUids.has(chunkUid));
+        })
+        : [];
+      flows = filterRiskFlows(relevantFlows, riskFilters);
+    } catch (err) {
+      flowsLoadFailed = true;
+      const failureClass = classifyRiskLoadFailure(err);
+      warnings.push({
+        code: failureClass === 'timed_out'
+          ? 'RISK_FLOWS_TIMED_OUT'
+          : failureClass === 'schema_invalid'
+            ? 'RISK_FLOWS_SCHEMA_INVALID'
+            : 'RISK_FLOWS_LOAD_FAILED',
+        message: 'Risk flows artifact could not be loaded.',
+        data: { error: err?.message || String(err) }
+      });
+      degraded = true;
+    }
+  } else if (stats?.counts?.flowsEmitted > 0) {
+    warnings.push({
+      code: 'RISK_FLOWS_MISSING',
+      message: 'Risk stats report emitted flows, but the risk_flows artifact is missing.'
+    });
+    degraded = true;
+  }
+
+  if (includeRiskPartialFlows) {
+    if (!partialFlowsMissing) {
+      try {
+        const partialRows = loadJsonArrayArtifactSync(indexDir, 'risk_partial_flows', {
+          manifest,
+          maxBytes: MAX_JSON_BYTES,
+          strict: true
+        });
+        const relevantPartialFlows = Array.isArray(partialRows)
+          ? partialRows.filter((flow) => {
+            const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
+            if (flow?.source?.chunkUid && riskCandidateChunkUids.has(flow.source.chunkUid)) return true;
+            if (flow?.frontier?.chunkUid && riskCandidateChunkUids.has(flow.frontier.chunkUid)) return true;
+            return chunkUids.some((chunkUid) => riskCandidateChunkUids.has(chunkUid));
+          })
+          : [];
+        partialFlows = filterRiskPartialFlows(relevantPartialFlows, riskFilters);
+      } catch (err) {
+        partialFlowsLoadFailed = true;
+        const failureClass = classifyRiskLoadFailure(err);
+        warnings.push({
+          code: failureClass === 'timed_out'
+            ? 'RISK_PARTIAL_FLOWS_TIMED_OUT'
+            : failureClass === 'schema_invalid'
+              ? 'RISK_PARTIAL_FLOWS_SCHEMA_INVALID'
+              : 'RISK_PARTIAL_FLOWS_LOAD_FAILED',
+          message: 'Risk partial flows artifact could not be loaded.',
+          data: { error: err?.message || String(err) }
+        });
+        degraded = true;
+      }
+    } else if (stats?.counts?.partialFlowsEmitted > 0) {
+      warnings.push({
+        code: 'RISK_PARTIAL_FLOWS_MISSING',
+        message: 'Risk stats report emitted partial flows, but the risk_partial_flows artifact is missing.'
+      });
+      degraded = true;
+    }
+  }
+
+  const preAnchorRankedFlows = rankRiskFlows(flows, null);
+  const resolvedAnchor = resolveRiskAnchor({
+    rankedFlows: preAnchorRankedFlows,
+    riskSeedContext,
+    warnings
+  });
+  const selectedAnchor = {
+    kind: resolvedAnchor.selected.kind,
+    chunkUid: resolvedAnchor.selected.chunkUid || null,
+    ref: resolvedAnchor.selected.ref || null,
+    flowId: resolvedAnchor.selected.flowId || null,
+    alternateCount: resolvedAnchor.alternates.length,
+    alternates: resolvedAnchor.alternates.slice(0, 5).map((entry) => ({
+      kind: entry.kind,
+      chunkUid: entry.chunkUid,
+      ref: entry.ref,
+      flowId: entry.flowId || null
+    }))
+  };
+  if (!summary && selectedAnchor.chunkUid) {
+    summary = summaryRowsByChunkUid.get(selectedAnchor.chunkUid) || null;
+  }
+  const rankedFlows = rankRiskFlows(flows, selectedAnchor);
+  const referencedCallSiteIds = new Set();
+  const selectedRawFlows = [];
+  const selectedRawPartialFlows = [];
+  const riskCapHits = new Set(Array.isArray(stats?.capsHit) ? stats.capsHit : []);
+  let emittedBytes = 0;
+  let emittedTokens = 0;
+  let partialBytes = 0;
+  let partialTokens = 0;
+  let emittedSteps = 0;
+  let omittedSteps = 0;
+  let omittedCallSites = 0;
+  let truncatedCallSiteExcerptBytes = 0;
+  let truncatedCallSiteExcerptTokens = 0;
+  let omittedFlows = 0;
+  let omittedPartialFlows = 0;
+  let maxFlowTruncationRecorded = false;
+  let budgetTruncationRecorded = false;
+  let maxPartialFlowTruncationRecorded = false;
+  let partialBudgetTruncationRecorded = false;
+
+  for (const entry of rankedFlows) {
+    if (selectedRawFlows.length >= CONTEXT_PACK_MAX_RISK_FLOWS) {
+      omittedFlows += 1;
+      if (!maxFlowTruncationRecorded) {
+        const record = {
+          scope: 'risk',
+          cap: 'maxFlows',
+          limit: CONTEXT_PACK_MAX_RISK_FLOWS,
+          observed: rankedFlows.length,
+          omitted: rankedFlows.length - CONTEXT_PACK_MAX_RISK_FLOWS,
+          note: 'Risk flows truncated for composite context pack.'
+        };
+        truncation.push(record);
+        riskTruncation.push(record);
+        maxFlowTruncationRecorded = true;
+      }
+      riskCapHits.add('maxFlows');
+      continue;
+    }
+
+    const flow = entry.flow;
+    const rawSteps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
+    const limitedSteps = rawSteps.slice(0, CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW);
+    if (rawSteps.length > limitedSteps.length) {
+      const omitted = rawSteps.length - limitedSteps.length;
+      omittedSteps += omitted;
+      riskCapHits.add('maxStepsPerFlow');
+      const record = {
+        scope: 'risk',
+        cap: 'maxStepsPerFlow',
+        limit: CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW,
+        observed: rawSteps.length,
+        omitted,
+        note: `Risk flow ${flow?.flowId || 'flow'} truncated to the configured step budget.`
+      };
+      truncation.push(record);
+      riskTruncation.push(record);
+    }
+
+    const rawWatchSteps = Array.isArray(flow?.path?.watchByStep) ? flow.path.watchByStep : [];
+    const normalizedStepIds = limitedSteps.map((ids) => {
+      const sourceIds = Array.isArray(ids) ? ids : [];
+      const limitedIds = sourceIds.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP);
+      if (sourceIds.length > limitedIds.length) {
+        const omitted = sourceIds.length - limitedIds.length;
+        omittedCallSites += omitted;
+        riskCapHits.add('maxCallSitesPerStep');
+        const record = {
+          scope: 'risk',
+          cap: 'maxCallSitesPerStep',
+          limit: CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP,
+          observed: sourceIds.length,
+          omitted,
+          note: `Risk flow ${flow?.flowId || 'flow'} truncated call-site evidence for one path step.`
+        };
+        truncation.push(record);
+        riskTruncation.push(record);
+      }
+      for (const callSiteId of limitedIds) {
+        if (callSiteId) referencedCallSiteIds.add(callSiteId);
+      }
+      return limitedIds;
+    });
+
+    const candidate = {
+      rank: entry.rank,
+      flowId: flow?.flowId || null,
+      source: flow?.source && typeof flow.source === 'object'
+        ? {
+          chunkUid: flow.source.chunkUid || null,
+          ruleId: flow.source.ruleId || null,
+          ruleName: flow.source.ruleName || null,
+          ruleType: flow.source.ruleType || null,
+          category: flow.source.category || null,
+          severity: flow.source.severity || null,
+          confidence: Number.isFinite(flow.source.confidence) ? flow.source.confidence : null
+        }
+        : null,
+      sink: flow?.sink && typeof flow.sink === 'object'
+        ? {
+          chunkUid: flow.sink.chunkUid || null,
+          ruleId: flow.sink.ruleId || null,
+          ruleName: flow.sink.ruleName || null,
+          ruleType: flow.sink.ruleType || null,
+          category: flow.sink.category || null,
+          severity: flow.sink.severity || null,
+          confidence: Number.isFinite(flow.sink.confidence) ? flow.sink.confidence : null
+        }
+        : null,
+      category: flow?.sink?.category || flow?.source?.category || null,
+      severity: flow?.sink?.severity || flow?.source?.severity || null,
+      confidence: Number.isFinite(flow?.confidence) ? flow.confidence : null,
+      score: {
+        seedRelevance: entry.score.seedRelevance,
+        severity: entry.score.severity,
+        confidence: Number.isFinite(entry.score.confidence) ? entry.score.confidence : null,
+        hopCount: Number.isFinite(flow?.notes?.hopCount) ? flow.notes.hopCount : null
+      },
+      path: {
+        nodes: normalizeRiskPathNodes(flow),
+        stepCount: rawSteps.length,
+        truncatedSteps: rawSteps.length - limitedSteps.length,
+        callSiteIdsByStep: normalizedStepIds,
+        watchByStep: rawWatchSteps.slice(0, limitedSteps.length).map((entry) => (entry && typeof entry === 'object' ? { ...entry } : null))
+      },
+      evidence: {
+        sourceRuleId: flow?.source?.ruleId || null,
+        sinkRuleId: flow?.sink?.ruleId || null,
+        callSitesByStep: normalizedStepIds.map((ids) => ids.map((callSiteId) => ({
+          callSiteId,
+          details: null
+        })))
+      },
+      notes: flow?.notes && typeof flow.notes === 'object'
+        ? {
+          strictness: flow.notes.strictness || null,
+          sanitizerPolicy: flow.notes.sanitizerPolicy || null,
+          hopCount: Number.isFinite(flow.notes.hopCount) ? flow.notes.hopCount : null,
+          sanitizerBarriersHit: Number.isFinite(flow.notes.sanitizerBarriersHit)
+            ? flow.notes.sanitizerBarriersHit
+            : null,
+          capsHit: Array.isArray(flow.notes.capsHit) ? flow.notes.capsHit.slice() : []
+        }
+        : null
+    };
+
+    const candidateBytes = estimateRiskByteSize(candidate);
+    const candidateTokens = estimateRiskTokenCount(candidate);
+    if ((emittedBytes + candidateBytes) > CONTEXT_PACK_MAX_RISK_BYTES
+      || (emittedTokens + candidateTokens) > CONTEXT_PACK_MAX_RISK_TOKENS) {
+      omittedFlows += 1;
+      if (!budgetTruncationRecorded) {
+        const byteOmitted = (emittedBytes + candidateBytes) > CONTEXT_PACK_MAX_RISK_BYTES;
+        const tokenOmitted = (emittedTokens + candidateTokens) > CONTEXT_PACK_MAX_RISK_TOKENS;
+        if (byteOmitted) {
+          const record = {
+            scope: 'risk',
+            cap: 'maxRiskBytes',
+            limit: CONTEXT_PACK_MAX_RISK_BYTES,
+            observed: emittedBytes + candidateBytes,
+            omitted: candidateBytes,
+            note: 'Risk flow budget hit the total serialized byte cap.'
+          };
+          truncation.push(record);
+          riskTruncation.push(record);
+          riskCapHits.add('maxRiskBytes');
+        }
+        if (tokenOmitted) {
+          const record = {
+            scope: 'risk',
+            cap: 'maxRiskTokens',
+            limit: CONTEXT_PACK_MAX_RISK_TOKENS,
+            observed: emittedTokens + candidateTokens,
+            omitted: candidateTokens,
+            note: 'Risk flow budget hit the total token cap.'
+          };
+          truncation.push(record);
+          riskTruncation.push(record);
+          riskCapHits.add('maxRiskTokens');
+        }
+        budgetTruncationRecorded = true;
+      }
+      continue;
+    }
+
+    emittedBytes += candidateBytes;
+    emittedTokens += candidateTokens;
+    emittedSteps += normalizedStepIds.length;
+    selectedRawFlows.push(candidate);
+  }
+
+  const rankedPartialFlows = rankPartialRiskFlows(partialFlows, selectedAnchor);
+  for (const entry of rankedPartialFlows) {
+    if (selectedRawPartialFlows.length >= CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS) {
+      omittedPartialFlows += 1;
+      if (!maxPartialFlowTruncationRecorded) {
+        const record = {
+          scope: 'risk',
+          cap: 'maxFlows',
+          limit: CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
+          observed: rankedPartialFlows.length,
+          omitted: rankedPartialFlows.length - CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
+          note: 'Partial risk flows truncated for composite context pack.'
+        };
+        truncation.push(record);
+        riskTruncation.push(record);
+        maxPartialFlowTruncationRecorded = true;
+      }
+      riskCapHits.add('maxPartialFlows');
+      continue;
+    }
+    const flow = entry.flow;
+    const rawSteps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
+    const limitedSteps = rawSteps.slice(0, CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW);
+    const rawWatchSteps = Array.isArray(flow?.path?.watchByStep) ? flow.path.watchByStep : [];
+    const normalizedStepIds = limitedSteps.map((ids) => {
+      const sourceIds = Array.isArray(ids) ? ids : [];
+      const limitedIds = sourceIds.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP);
+      for (const callSiteId of limitedIds) {
+        if (callSiteId) referencedCallSiteIds.add(callSiteId);
+      }
+      return limitedIds;
+    });
+    for (const blocked of Array.isArray(flow?.frontier?.blockedExpansions) ? flow.frontier.blockedExpansions : []) {
+      for (const callSiteId of Array.isArray(blocked?.callSiteIds) ? blocked.callSiteIds : []) {
+        if (callSiteId) referencedCallSiteIds.add(callSiteId);
+      }
+    }
+    const candidate = {
+      rank: entry.rank,
+      partialFlowId: flow?.partialFlowId || null,
+      source: flow?.source && typeof flow.source === 'object'
+        ? {
+          chunkUid: flow.source.chunkUid || null,
+          ruleId: flow.source.ruleId || null,
+          ruleName: flow.source.ruleName || null,
+          ruleType: flow.source.ruleType || null,
+          category: flow.source.category || null,
+          severity: flow.source.severity || null,
+          confidence: Number.isFinite(flow.source.confidence) ? flow.source.confidence : null
+        }
+        : null,
+      confidence: Number.isFinite(flow?.confidence) ? flow.confidence : null,
+      score: {
+        seedRelevance: entry.score.seedRelevance,
+        confidence: Number.isFinite(entry.score.confidence) ? entry.score.confidence : null,
+        hopCount: Number.isFinite(flow?.notes?.hopCount) ? flow.notes.hopCount : null
+      },
+      frontier: {
+        chunkUid: flow?.frontier?.chunkUid || null,
+        terminalReason: flow?.frontier?.terminalReason || null,
+        blockedExpansions: Array.isArray(flow?.frontier?.blockedExpansions)
+          ? flow.frontier.blockedExpansions.map((blocked) => ({
+            targetChunkUid: blocked?.targetChunkUid || null,
+            reason: blocked?.reason || null,
+            callSiteIds: Array.isArray(blocked?.callSiteIds) ? blocked.callSiteIds.filter(Boolean) : []
+          }))
+          : []
+      },
+      path: {
+        nodes: normalizeRiskPathNodes(flow),
+        stepCount: rawSteps.length,
+        truncatedSteps: rawSteps.length - limitedSteps.length,
+        callSiteIdsByStep: normalizedStepIds,
+        watchByStep: rawWatchSteps.slice(0, limitedSteps.length).map((entry) => (entry && typeof entry === 'object' ? { ...entry } : null))
+      },
+      evidence: {
+        callSitesByStep: normalizedStepIds.map((ids) => ids.map((callSiteId) => ({
+          callSiteId,
+          details: null
+        })))
+      },
+      notes: flow?.notes && typeof flow.notes === 'object'
+        ? {
+          strictness: flow.notes.strictness || null,
+          sanitizerPolicy: flow.notes.sanitizerPolicy || null,
+          hopCount: Number.isFinite(flow.notes.hopCount) ? flow.notes.hopCount : null,
+          sanitizerBarriersHit: Number.isFinite(flow.notes.sanitizerBarriersHit)
+            ? flow.notes.sanitizerBarriersHit
+            : null,
+          capsHit: Array.isArray(flow.notes.capsHit) ? flow.notes.capsHit.slice() : [],
+          terminalReason: flow.notes.terminalReason || flow?.frontier?.terminalReason || null
+        }
+        : null
+    };
+
+    const candidateBytes = estimateRiskByteSize(candidate);
+    const candidateTokens = estimateRiskTokenCount(candidate);
+    if ((partialBytes + candidateBytes) > CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES
+      || (partialTokens + candidateTokens) > CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS) {
+      omittedPartialFlows += 1;
+      if (!partialBudgetTruncationRecorded) {
+        if ((partialBytes + candidateBytes) > CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES) {
+          const record = {
+            scope: 'risk',
+            cap: 'maxRiskBytes',
+            limit: CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES,
+            observed: partialBytes + candidateBytes,
+            omitted: candidateBytes,
+            note: 'Partial risk flow budget hit the total serialized byte cap.'
+          };
+          truncation.push(record);
+          riskTruncation.push(record);
+          riskCapHits.add('maxPartialBytes');
+        }
+        if ((partialTokens + candidateTokens) > CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS) {
+          const record = {
+            scope: 'risk',
+            cap: 'maxRiskTokens',
+            limit: CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS,
+            observed: partialTokens + candidateTokens,
+            omitted: candidateTokens,
+            note: 'Partial risk flow budget hit the total token cap.'
+          };
+          truncation.push(record);
+          riskTruncation.push(record);
+          riskCapHits.add('maxPartialTokens');
+        }
+        partialBudgetTruncationRecorded = true;
+      }
+      continue;
+    }
+    partialBytes += candidateBytes;
+    partialTokens += candidateTokens;
+    selectedRawPartialFlows.push(candidate);
+  }
+
+  const callSiteById = new Map();
+  if (referencedCallSiteIds.size > 0 && !callSitesMissing) {
+    try {
+      const callSiteRows = loadJsonArrayArtifactSync(indexDir, 'call_sites', {
+        manifest,
+        maxBytes: MAX_JSON_BYTES,
+        strict: true
+      });
+      const relevantRows = Array.isArray(callSiteRows)
+        ? callSiteRows.filter((row) => row?.callSiteId && referencedCallSiteIds.has(row.callSiteId))
+        : [];
+      prefetchFileRanges(relevantRows
+        .filter((row) => row?.file && Number.isFinite(row.start) && Number.isFinite(row.end) && row.end > row.start)
+        .map((row) => ({
+          filePath: path.resolve(repoRoot, row.file),
+          start: row.start,
+          end: row.end
+        })));
+      for (const row of relevantRows) {
+        if (row?.callSiteId && referencedCallSiteIds.has(row.callSiteId)) {
+          const hydrated = hydrateRiskCallSiteDetails({ row, repoRoot });
+          if (hydrated.details) {
+            callSiteById.set(row.callSiteId, hydrated.details);
+          }
+          if (hydrated.excerptTruncation?.bytes) truncatedCallSiteExcerptBytes += 1;
+          if (hydrated.excerptTruncation?.tokens) truncatedCallSiteExcerptTokens += 1;
+        }
+      }
+    } catch (err) {
+      callSitesLoadFailed = true;
+      const failureClass = classifyRiskLoadFailure(err);
+      warnings.push({
+        code: failureClass === 'timed_out'
+          ? 'RISK_CALL_SITES_TIMED_OUT'
+          : failureClass === 'schema_invalid'
+            ? 'RISK_CALL_SITES_SCHEMA_INVALID'
+            : 'RISK_CALL_SITES_LOAD_FAILED',
+        message: 'Call-site evidence artifact could not be loaded for risk flows.',
+        data: { error: err?.message || String(err) }
+      });
+      degraded = true;
+    }
+  } else if (referencedCallSiteIds.size > 0 && callSitesMissing) {
+    warnings.push({
+      code: 'RISK_CALL_SITES_MISSING',
+      message: 'Risk flows reference call-site evidence, but the call_sites artifact is missing.'
+    });
+    degraded = true;
+  }
+
+  if (truncatedCallSiteExcerptBytes > 0) {
+    riskCapHits.add('maxCallSiteExcerptBytes');
+    const record = {
+      scope: 'risk',
+      cap: 'maxCallSiteExcerptBytes',
+      limit: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_BYTES,
+      observed: truncatedCallSiteExcerptBytes,
+      omitted: truncatedCallSiteExcerptBytes,
+      note: 'Risk call-site excerpts were truncated to the configured per-call-site byte budget.'
+    };
+    truncation.push(record);
+    riskTruncation.push(record);
+  }
+  if (truncatedCallSiteExcerptTokens > 0) {
+    riskCapHits.add('maxCallSiteExcerptTokens');
+    const record = {
+      scope: 'risk',
+      cap: 'maxCallSiteExcerptTokens',
+      limit: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_TOKENS,
+      observed: truncatedCallSiteExcerptTokens,
+      omitted: truncatedCallSiteExcerptTokens,
+      note: 'Risk call-site excerpts were truncated to the configured per-call-site token budget.'
+    };
+    truncation.push(record);
+    riskTruncation.push(record);
+  }
+
+  const normalizedFlows = selectedRawFlows.map((flow) => ({
+    ...flow,
+    evidence: {
+      ...flow.evidence,
+      callSitesByStep: flow.evidence.callSitesByStep.map((step) => step.map((entry) => ({
+        ...entry,
+        details: callSiteById.get(entry.callSiteId) || null
+      })))
+    }
+  }));
+  const normalizedPartialFlows = selectedRawPartialFlows.map((flow) => ({
+    ...flow,
+    evidence: {
+      ...flow.evidence,
+      callSitesByStep: flow.evidence.callSitesByStep.map((step) => step.map((entry) => ({
+        ...entry,
+        details: callSiteById.get(entry.callSiteId) || null
+      })))
+    }
+  }));
+
+  const status = degraded ? 'degraded' : baseStatus;
+  const resolvedArtifactStatus = {
+    ...baseArtifactStatus,
+    flows: buildRiskArtifactStatus({
+      presence: flowsPresence,
+      required: !(summaryOnly || stats?.status === 'disabled'),
+      loadFailed: flowsLoadFailed
+    }),
+    partialFlows: buildRiskArtifactStatus({
+      presence: partialFlowsPresence,
+      required: includeRiskPartialFlows && !(summaryOnly || stats?.status === 'disabled'),
+      loadFailed: partialFlowsLoadFailed
+    }),
+    callSites: buildRiskArtifactStatus({
+      presence: callSitesPresence,
+      required: referencedCallSiteIds.size > 0,
+      loadFailed: callSitesLoadFailed
+    })
+  };
+  const normalizedSummary = normalizeRiskSummary(summary, normalizedFlows);
+  const riskCaps = buildRiskCaps({
+    stats,
+    counts: {
+      candidateFlows: rankedFlows.length,
+      selectedFlows: normalizedFlows.length,
+      omittedFlows,
+      candidatePartialFlows: rankedPartialFlows.length,
+      selectedPartialFlows: normalizedPartialFlows.length,
+      omittedPartialFlows,
+      emittedSteps,
+      omittedSteps,
+      omittedCallSites,
+      truncatedCallSiteExcerpts: truncatedCallSiteExcerptBytes + truncatedCallSiteExcerptTokens,
+      bytes: emittedBytes,
+      tokens: emittedTokens,
+      partialBytes,
+      partialTokens
+    },
+    hits: riskCapHits
+  });
+  const degradedReasons = warnings
+    .filter((entry) => typeof entry?.code === 'string' && entry.code.startsWith('RISK_'))
+    .map((entry) => entry.code);
+  let statusCode = 'ok';
+  if (stats?.status === 'timed_out') {
+    statusCode = 'timed_out';
+  } else if (degradedReasons.some((entry) => entry.endsWith('_TIMED_OUT'))) {
+    statusCode = 'timed_out';
+  } else if (degradedReasons.some((entry) => entry.endsWith('_SCHEMA_INVALID'))) {
+    statusCode = 'schema_invalid';
+  } else if (
+    degradedReasons.includes('RISK_CALL_SITES_MISSING')
+    || degradedReasons.includes('RISK_FLOWS_MISSING')
+    || degradedReasons.includes('RISK_PARTIAL_FLOWS_MISSING')
+  ) {
+    statusCode = 'missing';
+  } else if (degraded) {
+    statusCode = 'degraded';
+  }
+  if (!degraded && (riskCaps.hits.length || riskTruncation.length)) {
+    statusCode = 'capped';
+  }
+  const strictFailure = statusCode !== 'ok';
+  return {
+    version: 1,
+    status,
+    reason: degraded ? 'partial-artifacts' : (stats?.reason || null),
+    anchor: selectedAnchor,
+    filters: riskFilterState,
+    flows: normalizedFlows,
+    partialFlows: normalizedPartialFlows,
+    summary: normalizedSummary,
+    stats: summarizeRiskStats(stats),
+    analysisStatus: buildRiskAnalysisStatus({
+      status,
+      reason: degraded ? 'partial-artifacts' : (stats?.reason || null),
+      degraded,
+      summaryOnly,
+      code: statusCode,
+      strictFailure,
+      artifactStatus: resolvedArtifactStatus,
+      stats: summarizeRiskStats(stats),
+      caps: riskCaps,
+      degradedReasons
+    }),
+    caps: riskCaps,
+    truncation: riskTruncation,
+    provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: resolvedArtifactStatus, indexSignature, indexCompatKey }),
+    degraded
+  };
 };
 
 const trimUtf8Buffer = (buffer) => {
@@ -150,6 +1636,7 @@ const trimUtf8Buffer = (buffer) => {
 const EXCERPT_CACHE_MAX = 128;
 const FILE_RANGE_CACHE_MAX = 64;
 const EXCERPT_HASH_CACHE_MAX = 256;
+const UTF8_TRUNCATION_DETECTION_SLACK_BYTES = 4;
 const excerptCache = new Map();
 const fileRangeCache = new Map();
 const excerptHashCache = new Map();
@@ -179,12 +1666,21 @@ const setCachedValue = (cache, key, value, maxSize) => {
   }
 };
 
+const getFileCacheFingerprint = (filePath) => {
+  try {
+    const stats = fs.statSync(filePath);
+    return `${stats.size}:${Number.isFinite(stats.mtimeMs) ? Math.trunc(stats.mtimeMs) : 0}`;
+  } catch {
+    return 'missing';
+  }
+};
+
 const readFilePrefix = (filePath, maxBytes) => {
   if (!Number.isFinite(maxBytes) || maxBytes <= 0) return '';
   let fd = null;
   try {
     fd = fs.openSync(filePath, 'r');
-    const buffer = Buffer.allocUnsafe(maxBytes);
+    const buffer = Buffer.allocUnsafe(maxBytes + UTF8_TRUNCATION_DETECTION_SLACK_BYTES);
     const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0);
     const slice = trimUtf8Buffer(buffer.subarray(0, bytesRead));
     return slice.toString('utf8');
@@ -193,8 +1689,8 @@ const readFilePrefix = (filePath, maxBytes) => {
   }
 };
 
-const readFileRangeCached = (filePath, start, end) => {
-  const key = `${filePath}|${start}|${end}`;
+const readFileRangeCached = (filePath, start, end, cacheScope) => {
+  const key = `${filePath}|${cacheScope}|${start}|${end}`;
   const cached = getCachedValue(fileRangeCache, key);
   if (cached != null) return cached;
   const buffer = readFileRangeSync(filePath, start, end);
@@ -203,11 +1699,11 @@ const readFileRangeCached = (filePath, start, end) => {
   return text;
 };
 
-const prefetchFileRanges = (ranges) => {
+const prefetchFileRanges = (ranges, cacheScope) => {
   if (!Array.isArray(ranges) || !ranges.length) return;
   for (const range of ranges) {
     if (!range?.filePath) continue;
-    const key = `${range.filePath}|${range.start}|${range.end}`;
+    const key = `${range.filePath}|${cacheScope}|${range.start}|${range.end}`;
     if (fileRangeCache.has(key)) continue;
     try {
       const buffer = readFileRangeSync(range.filePath, range.start, range.end);
@@ -229,12 +1725,15 @@ const isPathInsideRepo = (repoRoot, filePath) => {
 const sliceExcerpt = (text, maxBytes, maxTokens) => {
   let excerpt = text;
   let truncated = false;
+  let truncatedBytes = false;
+  let truncatedTokens = false;
   if (maxBytes != null && maxBytes > 0) {
     const buffer = Buffer.from(excerpt, 'utf8');
     if (buffer.length > maxBytes) {
       const safe = trimUtf8Buffer(buffer.subarray(0, maxBytes));
       excerpt = safe.toString('utf8');
       truncated = true;
+      truncatedBytes = true;
     }
   }
   if (maxTokens != null && maxTokens > 0) {
@@ -242,9 +1741,10 @@ const sliceExcerpt = (text, maxBytes, maxTokens) => {
     if (tokens.length > maxTokens) {
       excerpt = tokens.slice(0, maxTokens).join(' ');
       truncated = true;
+      truncatedTokens = true;
     }
   }
-  return { excerpt, truncated };
+  return { excerpt, truncated, truncatedBytes, truncatedTokens };
 };
 
 const resolveExcerpt = ({
@@ -252,12 +1752,15 @@ const resolveExcerpt = ({
   start,
   end,
   maxBytes,
-  maxTokens
+  maxTokens,
+  indexSignature = null
 }) => {
+  const cacheScope = indexSignature || getFileCacheFingerprint(filePath);
   const cacheKeyInfo = buildLocalCacheKey({
     namespace: 'context-pack-excerpt',
     payload: {
       filePath,
+      cacheScope,
       start: start ?? null,
       end: end ?? null,
       maxBytes: maxBytes ?? null,
@@ -269,14 +1772,16 @@ const resolveExcerpt = ({
   let text = '';
   if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
     const safeMaxBytes = normalizeOptionalNumber(maxBytes);
-    const readEnd = safeMaxBytes ? Math.min(end, start + safeMaxBytes) : end;
-    prefetchFileRanges([{ filePath, start, end: readEnd }]);
-    text = readFileRangeCached(filePath, start, readEnd);
+    const readEnd = safeMaxBytes
+      ? Math.min(end, start + safeMaxBytes + UTF8_TRUNCATION_DETECTION_SLACK_BYTES)
+      : end;
+    prefetchFileRanges([{ filePath, start, end: readEnd }], cacheScope);
+    text = readFileRangeCached(filePath, start, readEnd, cacheScope);
   } else {
     text = readFilePrefix(filePath, normalizeOptionalNumber(maxBytes));
   }
-  const { excerpt, truncated } = sliceExcerpt(text, maxBytes, maxTokens);
-  const excerptHash = excerpt ? sha1(excerpt) : null;
+  const { excerpt, truncated, truncatedBytes, truncatedTokens } = sliceExcerpt(text, maxBytes, maxTokens);
+  const excerptHash = excerpt ? `sha1:${sha1(excerpt)}` : null;
   let deduped = excerpt;
   if (excerptHash) {
     const cached = getCachedValue(excerptHashCache, excerptHash);
@@ -286,12 +1791,12 @@ const resolveExcerpt = ({
       setCachedValue(excerptHashCache, excerptHash, excerpt, EXCERPT_HASH_CACHE_MAX);
     }
   }
-  const payload = { excerpt: deduped, truncated, excerptHash };
+  const payload = { excerpt: deduped, truncated, excerptHash, truncatedBytes, truncatedTokens };
   setCachedValue(excerptCache, cacheKeyInfo.key, payload, EXCERPT_CACHE_MAX);
   return payload;
 };
 
-const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, warnings }) => {
+const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, indexSignature, warnings }) => {
   if (!chunk) {
     warnings.push({ code: 'MISSING_PRIMARY', message: 'Primary chunk not found for seed.' });
     return { excerpt: '', excerptHash: null, file: null, range: null, truncated: false };
@@ -315,7 +1820,8 @@ const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, warnings })
         start: Number.isFinite(chunk.start) ? chunk.start : null,
         end: Number.isFinite(chunk.end) ? chunk.end : null,
         maxBytes: maxBytesNum,
-        maxTokens: maxTokensNum
+        maxTokens: maxTokensNum,
+        indexSignature
       });
       excerpt = resolvedExcerpt.excerpt || '';
       truncated = resolvedExcerpt.truncated;
@@ -340,7 +1846,7 @@ const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, warnings })
     );
     excerpt = sliced;
     truncated = truncated || slicedTruncated;
-    excerptHash = excerpt ? sha1(excerpt) : null;
+    excerptHash = excerpt ? `sha1:${sha1(excerpt)}` : null;
   }
   if (truncated) {
     warnings.push({
@@ -429,6 +1935,9 @@ export const assembleCompositeContextPack = ({
   includeGraph = true,
   includeTypes = false,
   includeRisk = false,
+  includeRiskPartialFlows = false,
+  riskStrict = false,
+  riskFilters = null,
   includeImports = true,
   includeUsages = true,
   includeCallersCallees = true,
@@ -450,6 +1959,13 @@ export const assembleCompositeContextPack = ({
   const warnings = [];
   const truncation = [];
   const seedRef = resolveSeedRef(seed);
+  const normalizedRiskFilters = normalizeRiskFilters(riskFilters);
+  const riskFilterValidation = validateRiskFilters(normalizedRiskFilters);
+  if (!riskFilterValidation.ok) {
+    const error = new Error(`Invalid risk filters: ${riskFilterValidation.errors.join('; ')}`);
+    error.code = 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID';
+    throw error;
+  }
   const resolvedChunkIndex = chunkIndex || buildChunkIndex(chunkMeta);
   const primaryChunk = resolveChunkBySeed(seedRef, resolvedChunkIndex, warnings);
   const primaryRef = resolvePrimaryRef(seedRef, primaryChunk);
@@ -467,6 +1983,7 @@ export const assembleCompositeContextPack = ({
     repoRoot,
     maxBytes,
     maxTokens,
+    indexSignature,
     warnings
   });
   primary.file = excerptPayload.file;
@@ -517,11 +2034,29 @@ export const assembleCompositeContextPack = ({
 
   let risk = null;
   if (includeRisk) {
-    warnings.push({
-      code: 'MISSING_RISK',
-      message: 'Risk slice not available in this context pack.'
+    risk = buildRiskSlice({
+      indexDir,
+      repoRoot,
+      seedRef,
+      primaryChunk,
+      chunkIndex: resolvedChunkIndex,
+      includeRiskPartialFlows,
+      riskFilters: normalizedRiskFilters,
+      indexSignature,
+      indexCompatKey,
+      warnings,
+      truncation
     });
-    risk = { flows: [] };
+    if (riskStrict && risk?.analysisStatus?.strictFailure) {
+      const err = new Error(`Risk slice strict failure: ${risk.analysisStatus.code || risk.status || 'unknown'}`);
+      err.code = 'ERR_CONTEXT_PACK_RISK_STRICT';
+      err.risk = {
+        status: risk.status || null,
+        code: risk.analysisStatus.code || null,
+        reason: risk.reason || null
+      };
+      throw err;
+    }
   }
 
   const capsUsed = {
@@ -631,8 +2166,10 @@ const buildChunkUidMapSeedIndex = async ({
         byChunkUid.set(chunk.chunkUid, chunk);
       }
       const normalizedFile = normalizePathForRepo(chunk.file, repoRoot);
-      if (normalizedFile && !byFile.has(normalizedFile)) {
-        byFile.set(normalizedFile, chunk);
+      if (normalizedFile) {
+        const list = byFile.get(normalizedFile) || [];
+        list.push(chunk);
+        byFile.set(normalizedFile, list);
       }
     }
   } catch {
@@ -660,20 +2197,21 @@ const normalizeChunkUidMapRowAsChunk = (row) => {
   };
 };
 
-const resolveChunkUidMapSeedFromIndex = ({
+const resolveChunkUidMapSeedCandidatesFromIndex = ({
   seedIndex,
   seedRef,
   repoRoot
 } = {}) => {
-  if (!seedIndex || !seedRef) return null;
+  if (!seedIndex || !seedRef) return [];
   if (seedRef.type === 'chunk') {
-    return seedRef.chunkUid ? (seedIndex.byChunkUid.get(seedRef.chunkUid) || null) : null;
+    const chunk = seedRef.chunkUid ? (seedIndex.byChunkUid.get(seedRef.chunkUid) || null) : null;
+    return chunk ? [chunk] : [];
   }
   if (seedRef.type === 'file') {
     const normalizedSeedFile = normalizePathForRepo(seedRef.path, repoRoot);
-    return normalizedSeedFile ? (seedIndex.byFile.get(normalizedSeedFile) || null) : null;
+    return normalizedSeedFile ? (seedIndex.byFile.get(normalizedSeedFile) || []) : [];
   }
-  return null;
+  return [];
 };
 
 /**
@@ -709,16 +2247,22 @@ export const assembleCompositeContextPackStreaming = async ({
       repoRoot
     })
     : null;
-  let chunk = null;
+  const resolvedChunks = [];
+  const seenChunkUids = new Set();
   for (const candidate of candidates) {
-    chunk = resolveChunkUidMapSeedFromIndex({
+    const chunks = resolveChunkUidMapSeedCandidatesFromIndex({
       seedIndex,
       seedRef: candidate,
       repoRoot
     });
-    if (chunk) break;
+    for (const chunk of chunks) {
+      const chunkUid = chunk?.chunkUid || null;
+      if (!chunkUid || seenChunkUids.has(chunkUid)) continue;
+      seenChunkUids.add(chunkUid);
+      resolvedChunks.push(chunk);
+    }
   }
-  const chunkMetaResolved = chunk ? [chunk] : null;
+  const chunkMetaResolved = resolvedChunks.length ? resolvedChunks : null;
   const chunkIndexResolved = chunkMetaResolved ? buildChunkIndex(chunkMetaResolved, { repoRoot }) : null;
   const payload = assembleCompositeContextPack({
     seed,
@@ -728,12 +2272,12 @@ export const assembleCompositeContextPackStreaming = async ({
     indexDir,
     ...rest
   });
-  if (!chunk && payload && payload.warnings) {
+  if (!resolvedChunks.length && payload && payload.warnings) {
     payload.warnings.push({
       code: 'CHUNK_UID_MAP_MISS',
       message: 'chunk_uid_map could not resolve seed to chunk metadata; excerpt may be incomplete.'
     });
-  } else if (!chunk && payload) {
+  } else if (!resolvedChunks.length && payload) {
     payload.warnings = [{
       code: 'CHUNK_UID_MAP_MISS',
       message: 'chunk_uid_map could not resolve seed to chunk metadata; excerpt may be incomplete.'
@@ -744,7 +2288,7 @@ export const assembleCompositeContextPackStreaming = async ({
       strategy: 'chunk_uid_map_index',
       candidates: candidates.length,
       rowsIndexed: seedIndex?.rowsIndexed || 0,
-      hit: Boolean(chunk)
+      hit: resolvedChunks.length > 0
     };
   }
   return payload;

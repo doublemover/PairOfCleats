@@ -338,6 +338,7 @@ export const enqueueChunkMetaArtifacts = async ({
   const binaryOffsetsPath = path.join(outDir, 'chunk_meta.binary-columnar.offsets.bin');
   const binaryLengthsPath = path.join(outDir, 'chunk_meta.binary-columnar.lengths.varint');
   const binaryMetaPath = path.join(outDir, 'chunk_meta.binary-columnar.meta.json');
+  const binaryTaskLabel = 'chunk_meta.binary-columnar.bundle';
   const removeJsonlVariants = async () => removeArtifacts(
     buildJsonlVariantPaths({ outDir, baseName: 'chunk_meta', includeOffsets: true })
   );
@@ -822,8 +823,9 @@ export const enqueueChunkMetaArtifacts = async ({
       ? Math.max(0, Math.floor(Number(chunkMetaEstimatedJsonlBytes)))
       : null;
     enqueueWrite(
-      formatArtifactLabel(binaryMetaPath),
-      async () => {
+      binaryTaskLabel,
+      async ({ setPhase } = {}) => {
+        setPhase?.('materialize:chunk-meta-binary-columnar');
         const toAsyncIterable = (rows) => {
           if (rows && typeof rows[Symbol.asyncIterator] === 'function') return rows;
           return (async function* rowIterator() {
@@ -869,6 +871,7 @@ export const enqueueChunkMetaArtifacts = async ({
           offsetsPath: binaryOffsetsPath,
           lengthsPath: binaryLengthsPath
         });
+        setPhase?.('publish:chunk-meta-binary-meta');
         await writeJsonObjectFile(binaryMetaPath, {
           fields: {
             format: 'binary-columnar-v1',

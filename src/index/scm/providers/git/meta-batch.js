@@ -100,6 +100,59 @@ const parseGitMetaBatchOutput = ({ stdout, repoRoot }) => {
   return fileMetaByPath;
 };
 
+const parseGitMetaBatchChurnOutput = ({ stdout, repoRoot, fileMetaByPath }) => {
+  const targetIndex = fileMetaByPath && typeof fileMetaByPath === 'object'
+    ? fileMetaByPath
+    : Object.create(null);
+  const churnByPath = Object.create(null);
+  let seenInCommit = null;
+  for (const row of String(stdout || '').split(/\r?\n/)) {
+    const line = String(row || '').trim();
+    if (!line) continue;
+    if (line.startsWith(GIT_META_BATCH_FORMAT_PREFIX)) {
+      seenInCommit = new Set();
+      continue;
+    }
+    const parts = line.split('\t');
+    if (parts.length < 3) continue;
+    const added = parts[0] === '-' ? 0 : Number.parseInt(parts[0], 10);
+    const deleted = parts[1] === '-' ? 0 : Number.parseInt(parts[1], 10);
+    const fileKey = toRepoPosixPath(parts.slice(2).join('\t'), repoRoot);
+    if (!fileKey || !targetIndex[fileKey]) continue;
+    const entry = churnByPath[fileKey] || {
+      churn: 0,
+      churnAdded: 0,
+      churnDeleted: 0,
+      churnCommits: 0
+    };
+    if (Number.isFinite(added)) entry.churnAdded += added;
+    if (Number.isFinite(deleted)) entry.churnDeleted += deleted;
+    if (seenInCommit && !seenInCommit.has(fileKey)) {
+      seenInCommit.add(fileKey);
+      entry.churnCommits += 1;
+    }
+    entry.churn = entry.churnAdded + entry.churnDeleted;
+    churnByPath[fileKey] = entry;
+  }
+  return churnByPath;
+};
+
+const mergeGitMetaBatchChurn = ({ fileMetaByPath, churnByPath }) => {
+  if (!fileMetaByPath || typeof fileMetaByPath !== 'object') return fileMetaByPath;
+  for (const [fileKey, churnMeta] of Object.entries(churnByPath || {})) {
+    if (!fileKey || !churnMeta || typeof churnMeta !== 'object') continue;
+    const base = fileMetaByPath[fileKey] || createUnavailableFileMeta();
+    fileMetaByPath[fileKey] = {
+      ...base,
+      churn: Number.isFinite(Number(churnMeta.churn)) ? Number(churnMeta.churn) : null,
+      churnAdded: Number.isFinite(Number(churnMeta.churnAdded)) ? Number(churnMeta.churnAdded) : null,
+      churnDeleted: Number.isFinite(Number(churnMeta.churnDeleted)) ? Number(churnMeta.churnDeleted) : null,
+      churnCommits: Number.isFinite(Number(churnMeta.churnCommits)) ? Number(churnMeta.churnCommits) : null
+    };
+  }
+  return fileMetaByPath;
+};
+
 const normalizeRepoRootKey = (repoRoot) => {
   const resolved = path.resolve(String(repoRoot || process.cwd()));
   return process.platform === 'win32'
@@ -275,7 +328,13 @@ const registerHeatEntry = (heatByPath, filePosix, patch = {}) => {
   heatByPath.set(key, entry);
 };
 
-export const runGitMetaBatchFetch = async ({ repoRoot, filesPosix, timeoutMs, config }) => {
+export const runGitMetaBatchFetch = async ({
+  repoRoot,
+  filesPosix,
+  timeoutMs,
+  config,
+  includeChurn = false
+}) => {
   const normalizedFiles = toUniquePosixFiles(filesPosix, repoRoot);
   const diagnostics = createBatchDiagnostics();
   if (!normalizedFiles.length) {
@@ -437,6 +496,88 @@ export const runGitMetaBatchFetch = async ({ repoRoot, filesPosix, timeoutMs, co
         }
         if (result?.exitCode === 0) {
           parsedMetaByPath = parseGitMetaBatchOutput({ stdout: result.stdout, repoRoot });
+          if (includeChurn === true) {
+            let churnFailure = null;
+            for (let churnAttemptIndex = 0; churnAttemptIndex < timeoutPlan.length; churnAttemptIndex += 1) {
+              const churnTimeoutMs = timeoutPlan[churnAttemptIndex];
+              const churnArgs = [
+                '-C',
+                repoRoot,
+                'log',
+                '--date=iso-strict',
+                `--format=${GIT_META_BATCH_FORMAT_PREFIX}%H%x00%aI%x00%an`,
+                '--numstat'
+              ];
+              if (batchCommitLimit > 0) {
+                churnArgs.push('-n', String(batchCommitLimit));
+              }
+              churnArgs.push('--', ...chunk);
+              let churnResult = null;
+              try {
+                churnResult = await runGitTask(() => runScmCommand('git', churnArgs, {
+                  outputMode: 'string',
+                  captureStdout: true,
+                  captureStderr: true,
+                  rejectOnNonZeroExit: false,
+                  timeoutMs: churnTimeoutMs
+                }), {
+                  useQueue: config.maxConcurrentProcesses > 1,
+                  timeoutState: gitMetaTimeoutState
+                });
+              } catch (err) {
+                churnFailure = createGitMetaBatchFailure({ err });
+                if (churnFailure.timeoutLike) {
+                  diagnostics.timeoutCount += 1;
+                  for (const filePosix of chunk) {
+                    registerHeatEntry(heatByPath, filePosix, {
+                      timeout: true,
+                      timeoutMs: churnTimeoutMs
+                    });
+                  }
+                }
+                const canRetryChurn = churnFailure.timeoutLike && churnAttemptIndex < timeoutPlan.length - 1;
+                if (canRetryChurn) {
+                  diagnostics.timeoutRetries += 1;
+                  for (const filePosix of chunk) {
+                    registerHeatEntry(heatByPath, filePosix, { retry: true });
+                  }
+                  continue;
+                }
+                break;
+              }
+              if (churnResult?.exitCode === 0) {
+                mergeGitMetaBatchChurn({
+                  fileMetaByPath: parsedMetaByPath,
+                  churnByPath: parseGitMetaBatchChurnOutput({
+                    stdout: churnResult.stdout,
+                    repoRoot,
+                    fileMetaByPath: parsedMetaByPath
+                  })
+                });
+                churnFailure = null;
+                break;
+              }
+              churnFailure = createGitMetaBatchFailure({ result: churnResult });
+              if (churnFailure.timeoutLike) {
+                diagnostics.timeoutCount += 1;
+                for (const filePosix of chunk) {
+                  registerHeatEntry(heatByPath, filePosix, {
+                    timeout: true,
+                    timeoutMs: churnTimeoutMs
+                  });
+                }
+              }
+              const canRetryChurn = churnFailure.timeoutLike && churnAttemptIndex < timeoutPlan.length - 1;
+              if (canRetryChurn) {
+                diagnostics.timeoutRetries += 1;
+                for (const filePosix of chunk) {
+                  registerHeatEntry(heatByPath, filePosix, { retry: true });
+                }
+                continue;
+              }
+              break;
+            }
+          }
           for (const filePosix of chunk) {
             clearTimeoutState(filePosix);
           }

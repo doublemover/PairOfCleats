@@ -41,6 +41,10 @@
         "timeoutMs": { "type": "number" },
         "maxRetries": { "type": "number" },
         "circuitBreakerThreshold": { "type": "number" },
+        "lifecycle": {
+          "type": "object",
+          "additionalProperties": true
+        },
         "logDir": { "type": "string" },
         "enabledTools": {
           "anyOf": [
@@ -98,6 +102,13 @@
           "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
+            "timeoutMs": { "type": "number" },
+            "maxRetries": { "type": "number" },
+            "circuitBreakerThreshold": { "type": "number" },
+            "lifecycle": {
+              "type": "object",
+              "additionalProperties": true
+            },
             "servers": {
               "type": "array",
               "items": {
@@ -172,7 +183,39 @@
           "type": "object",
           "additionalProperties": true
         },
+        "gopls": {
+          "type": "object",
+          "additionalProperties": true
+        },
         "sourcekit": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "jdtls": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "csharp": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "solargraph": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "elixir": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "haskell": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "phpactor": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "dart": {
           "type": "object",
           "additionalProperties": true
         }
@@ -574,6 +617,25 @@
             "strictness": { "type": "string", "enum": ["conservative", "argAware"] },
             "emitArtifacts": { "type": "string", "enum": ["none", "jsonl", "off"] },
             "sanitizerPolicy": { "type": "string", "enum": ["terminate", "weaken"] },
+            "semantics": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "patterns"],
+                "properties": {
+                  "id": { "type": "string" },
+                  "kind": { "type": "string", "enum": ["wrapper", "propagator", "builder", "callback", "asyncHandoff"] },
+                  "name": { "type": "string" },
+                  "languages": { "type": "array", "items": { "type": "string" } },
+                  "frameworks": { "type": "array", "items": { "type": "string" } },
+                  "patterns": { "type": "array", "items": { "type": "string" } },
+                  "fromArgs": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+                  "toParams": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+                  "taintHints": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            },
             "caps": {
               "type": "object",
               "additionalProperties": false,
@@ -581,7 +643,9 @@
                 "maxDepth": { "type": "number" },
                 "maxPathsPerPair": { "type": "number" },
                 "maxTotalFlows": { "type": "number" },
+                "maxPartialFlows": { "type": "number" },
                 "maxCallSitesPerEdge": { "type": "number" },
+                "maxBlockedExpansionsPerPartial": { "type": "number" },
                 "maxEdgeExpansions": { "type": "number" },
                 "maxMs": { "type": ["number", "null"] }
               }

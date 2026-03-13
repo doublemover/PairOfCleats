@@ -5,10 +5,11 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
 import { createCli } from '../../../src/shared/cli.js';
-import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
+import { normalizeLegacyCacheRootPath, resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 import { getEnvConfig } from '../../../src/shared/env.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
+import { sleep } from '../../../src/shared/sleep.js';
 import { spawnSubprocess, spawnSubprocessSync } from '../../../src/shared/subprocess.js';
 import {
   resolveBakeoffFastPathDefaults,
@@ -30,6 +31,7 @@ import {
   toRealPathSync
 } from '../../shared/dict-utils.js';
 import { createToolDisplay } from '../../shared/cli-display.js';
+import { readJsonFileSyncSafe } from '../../shared/json-utils.js';
 
 const DEFAULT_BAKEOFF_MODELS = ['Xenova/bge-small-en-v1.5', 'Xenova/bge-base-en-v1.5'];
 const DEFAULT_BAKEOFF_BASELINE = 'Xenova/bge-base-en-v1.5';
@@ -195,11 +197,8 @@ const annOverride = argv['no-ann'] === true
   ? false
   : (argv.ann === true ? true : null);
 
-const cacheRootBase = argv['cache-root']
-  ? path.resolve(argv['cache-root'])
-  : (envConfig.cacheRoot
-    ? path.resolve(envConfig.cacheRoot)
-    : getCacheRoot());
+const cacheRootBaseInput = argv['cache-root'] || envConfig.cacheRoot || getCacheRoot();
+const cacheRootBase = normalizeLegacyCacheRootPath(cacheRootBaseInput) || path.resolve(cacheRootBaseInput);
 const checkpointOutPath = argv.checkpoint
   ? path.resolve(argv.checkpoint)
   : (argv.out
@@ -224,7 +223,6 @@ const modelCacheRoot = (modelId) => (
 const toFixedMs = (value) => Math.round(Number(value) || 0);
 
 const streamChildOutputToStderr = argv.json === true;
-const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const isIndexLockContentionMessage = (value) => (
   /index lock (held|unavailable)/i.test(String(value || ''))
 );
@@ -286,7 +284,7 @@ const runNodeWithLockRetry = async (
         `[bakeoff] ${label}: index lock contention, retrying (${attempt}/${maxAttempts}) in ${delayMs}ms`,
         { kind: 'status', stage: 'bakeoff' }
       );
-      await waitMs(delayMs);
+      await sleep(delayMs);
     }
   }
   throw new Error(`${label} failed after retries.`);
@@ -397,19 +395,15 @@ const resolveModelCurrentBuildRoot = (modelCacheRootPath) => {
   const repoCacheRoot = path.join(versionedRoot, 'repos', repoId);
   const repoCacheCanonical = toRealPathSync(repoCacheRoot);
   const currentPath = path.join(repoCacheRoot, 'builds', 'current.json');
-  if (!fs.existsSync(currentPath)) return null;
-  try {
-    const parsed = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
-    return resolveBakeoffCurrentBuildRoot({
-      repoCacheRoot,
-      currentState: parsed,
-      existsSync: fs.existsSync,
-      toCanonicalPath: toRealPathSync,
-      isWithinRoot
-    });
-  } catch {
-    return null;
-  }
+  const parsed = readJsonFileSyncSafe(currentPath, null);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  return resolveBakeoffCurrentBuildRoot({
+    repoCacheRoot,
+    currentState: parsed,
+    existsSync: fs.existsSync,
+    toCanonicalPath: toRealPathSync,
+    isWithinRoot
+  });
 };
 
 /**

@@ -25,6 +25,15 @@ assert.deepEqual(replayA.committedSeqs, expectedSeqs, 'expected replay to recove
 assert.equal(replayA.nextCommitSeq, 4, 'expected replay cursor at terminal seq tail');
 assert.deepEqual(replayB, replayA, 'expected replay idempotence under duplicate journal records');
 
+const sparseReplay = replayCommitJournal(
+  [
+    { seq: 10, recordType: 'terminal', terminalOutcome: 'success' },
+    { seq: 10, recordType: 'commit', terminalOutcome: 'success' }
+  ],
+  { expectedSeqs: [10, 20, 30] }
+);
+assert.equal(sparseReplay.nextCommitSeq, 20, 'expected sparse replay cursor to advance to next expected seq');
+
 assert.throws(
   () => replayCommitJournal(
     [

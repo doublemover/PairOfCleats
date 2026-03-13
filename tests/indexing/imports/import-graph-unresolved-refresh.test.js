@@ -5,6 +5,7 @@ import path from 'node:path';
 import { sha1 } from '../../../src/shared/hash.js';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
 import {
+  applyImportResolutionCacheFileSetDiffInvalidation,
   loadImportResolutionCache,
   saveImportResolutionCache,
   updateImportResolutionDiagnosticsCache
@@ -49,6 +50,30 @@ const incrementalState = {
 
 const runResolution = async (entries) => {
   const { cache, cachePath } = await loadImportResolutionCache({ incrementalState });
+  const cacheStats = {
+    files: 0,
+    filesHashed: 0,
+    filesReused: 0,
+    filesInvalidated: 0,
+    specs: 0,
+    specsReused: 0,
+    specsComputed: 0,
+    packageInvalidated: false,
+    fileSetInvalidated: false,
+    lookupReused: false,
+    lookupInvalidated: false,
+    invalidationReasons: Object.create(null),
+    fileSetDelta: { added: 0, removed: 0 },
+    filesNeighborhoodInvalidated: 0,
+    staleEdgeInvalidated: 0,
+    staleEdgeChecks: 0,
+    staleEdgeBudgetExhausted: false
+  };
+  applyImportResolutionCacheFileSetDiffInvalidation({
+    cache,
+    entries,
+    cacheStats
+  });
   const relations = new Map([['src/main.js', { imports: ['./missing'] }]]);
   const result = resolveImportLinks({
     root: tempRoot,
@@ -57,7 +82,8 @@ const runResolution = async (entries) => {
     fileRelations: relations,
     enableGraph: false,
     cache,
-    fileHashes
+    fileHashes,
+    cacheStats
   });
   const unresolvedSamples = enrichUnresolvedImportSamples(result.unresolvedSamples || []);
   const unresolvedTaxonomy = summarizeUnresolvedImportTaxonomy(unresolvedSamples);
@@ -69,7 +95,7 @@ const runResolution = async (entries) => {
   await saveImportResolutionCache({ cache, cachePath });
   return {
     relations,
-    cacheStats: result.cacheStats,
+    cacheStats,
     unresolvedTaxonomy,
     cacheDiagnostics
   };
@@ -85,9 +111,27 @@ assert.equal(firstLinks.length, 0, 'expected unresolved import to remain empty')
 assert.equal(first.unresolvedTaxonomy.total, 1, 'expected unresolved taxonomy total to capture unresolved import');
 assert.equal(first.cacheDiagnostics?.unresolvedTrend?.previous, null);
 assert.equal(first.cacheDiagnostics?.unresolvedTrend?.current?.total, 1);
+assert.equal(first.cacheDiagnostics?.unresolvedTrend?.current?.actionableRate, 1);
+assert.equal(first.cacheDiagnostics?.unresolvedTrend?.current?.parserArtifactRate, 0);
+assert.equal(first.cacheDiagnostics?.unresolvedTrend?.current?.resolverGapRate, 0);
+assert.equal(first.cacheDiagnostics?.unresolvedTrend?.deltaActionableRate, null);
+assert.equal(first.cacheDiagnostics?.unresolvedTrend?.deltaParserArtifactRate, null);
+assert.equal(first.cacheDiagnostics?.unresolvedTrend?.deltaResolverGapRate, null);
 assert.deepEqual(
-  Object.fromEntries(Object.entries(first.cacheDiagnostics?.unresolvedTrend?.current?.categories || {})),
+  Object.fromEntries(Object.entries(first.cacheDiagnostics?.unresolvedTrend?.current?.failureCauses || {})),
   { missing_file: 1 }
+);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(first.cacheDiagnostics?.unresolvedTrend?.current?.resolverStages || {})),
+  { filesystem_probe: 1 }
+);
+assert.deepEqual(
+  first.cacheDiagnostics?.unresolvedTrend?.current?.actionableHotspots || [],
+  [{ importer: 'src/main.js', count: 1 }]
+);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(first.cacheDiagnostics?.unresolvedTrend?.current?.actionableByLanguage || {})),
+  { js: 1 }
 );
 
 await writeFile('src/missing.js', 'export const ok = true;\n');
@@ -106,9 +150,31 @@ assert.equal(second.unresolvedTaxonomy.total, 0, 'expected unresolved taxonomy t
 assert.equal(second.cacheDiagnostics?.unresolvedTrend?.previous?.total, 1);
 assert.equal(second.cacheDiagnostics?.unresolvedTrend?.current?.total, 0);
 assert.equal(second.cacheDiagnostics?.unresolvedTrend?.deltaTotal, -1);
+assert.equal(second.cacheDiagnostics?.unresolvedTrend?.current?.actionableRate, 0);
+assert.equal(second.cacheDiagnostics?.unresolvedTrend?.current?.parserArtifactRate, 0);
+assert.equal(second.cacheDiagnostics?.unresolvedTrend?.current?.resolverGapRate, 0);
+assert.equal(second.cacheDiagnostics?.unresolvedTrend?.deltaActionableRate, -1);
+assert.equal(second.cacheDiagnostics?.unresolvedTrend?.deltaParserArtifactRate, 0);
+assert.equal(second.cacheDiagnostics?.unresolvedTrend?.deltaResolverGapRate, 0);
 assert.deepEqual(
-  Object.fromEntries(Object.entries(second.cacheDiagnostics?.unresolvedTrend?.deltaByCategory || {})),
+  Object.fromEntries(Object.entries(second.cacheDiagnostics?.unresolvedTrend?.deltaByFailureCause || {})),
   { missing_file: -1 }
+);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(second.cacheDiagnostics?.unresolvedTrend?.deltaByResolverStage || {})),
+  { filesystem_probe: -1 }
+);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(second.cacheDiagnostics?.unresolvedTrend?.deltaByActionableLanguage || {})),
+  { js: -1 }
+);
+assert.deepEqual(
+  second.cacheDiagnostics?.unresolvedTrend?.current?.actionableHotspots || [],
+  []
+);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(second.cacheDiagnostics?.unresolvedTrend?.current?.actionableByLanguage || {})),
+  {}
 );
 
 const { cache: persistedCache } = await loadImportResolutionCache({ incrementalState });

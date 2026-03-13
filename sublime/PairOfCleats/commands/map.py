@@ -1,7 +1,7 @@
 import json
 import os
 import webbrowser
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import sublime
 import sublime_plugin
@@ -31,12 +31,48 @@ MAP_FORMAT_CHOICES = [
 ]
 
 
-def _resolve_repo_root(window, path_hint=None):
-    return paths.resolve_repo_root(window, return_reason=True, path_hint=path_hint)
+def _resolve_repo_root(window, path_hint=None, allow_fallback=True):
+    return paths.resolve_repo_root(window, return_reason=True, path_hint=path_hint, allow_fallback=allow_fallback)
 
 
-def _has_repo_root(window, path_hint=None):
-    return paths.has_repo_root(window, path_hint=path_hint)
+def _has_repo_root(window, path_hint=None, allow_fallback=True):
+    return paths.has_repo_root(window, path_hint=path_hint, allow_fallback=allow_fallback)
+
+
+def _has_active_file(window):
+    view = window.active_view() if window else None
+    return bool(view and view.file_name())
+
+
+def _has_current_folder(window):
+    if window is None:
+        return False
+    view = window.active_view()
+    if view and view.file_name():
+        return True
+    return len(window.folders()) == 1
+
+
+def _has_map_state(window):
+    return map_state.get_last_map(window) is not None
+
+
+def _with_map_repo_root(window, on_resolved, path_hint=None):
+    def handle_repo_root(repo_root, reason):
+        if not repo_root:
+            ui.show_error('PairOfCleats: {0}'.format(reason))
+            return
+        if reason:
+            ui.show_status('PairOfCleats: {0}'.format(reason))
+        on_resolved(repo_root)
+
+    paths.resolve_repo_root_interactive(
+        window,
+        handle_repo_root,
+        path_hint=path_hint,
+        allow_fallback=False,
+        prompt='PairOfCleats repo for map',
+    )
 
 
 def _extract_selection(view):
@@ -73,16 +109,26 @@ def _relative_focus(repo_root, path_value):
 
 def _open_in_browser(path_value):
     if not path_value:
-        return
-    try:
-        resolved = os.path.abspath(path_value)
-        url = 'file:///{0}'.format(quote(resolved.replace('\\', '/')))
-    except Exception:
-        url = 'file:///{0}'.format(path_value.replace('\\', '/'))
+        return False
+    parsed = _parse_browser_target(path_value)
+    if parsed.get('url'):
+        url = parsed['url']
+    else:
+        local_path = parsed.get('path')
+        if not local_path or not os.path.exists(local_path):
+            ui.show_error('PairOfCleats: map output not found: {0}'.format(local_path or path_value))
+            return False
+        try:
+            resolved = os.path.abspath(local_path)
+            url = 'file:///{0}'.format(quote(resolved.replace('\\', '/')))
+        except Exception:
+            url = 'file:///{0}'.format(local_path.replace('\\', '/'))
     try:
         webbrowser.open_new_tab(url)
+        return True
     except Exception:
         ui.show_error('PairOfCleats: failed to open browser.')
+        return False
 
 
 def _render_report(payload):
@@ -91,15 +137,33 @@ def _render_report(payload):
         return '\n'.join(lines)
     summary = payload.get('summary') or {}
     counts = summary.get('counts') or {}
+    lines.append('source: {0}'.format(payload.get('source') or 'cli'))
+    lines.append('format: {0}'.format(payload.get('format') or 'unknown'))
+    repo = payload.get('repo') or ''
+    if repo:
+        lines.append('repo: {0}'.format(repo))
     lines.append('files: {0}'.format(counts.get('files') or 0))
     lines.append('members: {0}'.format(counts.get('members') or 0))
     lines.append('edges: {0}'.format(counts.get('edges') or 0))
+    if payload.get('outPath'):
+        lines.append('output: {0}'.format(payload.get('outPath')))
+    if payload.get('modelPath'):
+        lines.append('model: {0}'.format(payload.get('modelPath')))
+    if payload.get('nodeListPath'):
+        lines.append('nodes: {0}'.format(payload.get('nodeListPath')))
+    if payload.get('cacheKey'):
+        lines.append('cache: {0}'.format(payload.get('cacheKey')))
     warnings = payload.get('warnings') or []
     if warnings:
         lines.append('')
         lines.append('Warnings:')
         for warning in warnings:
             lines.append('- {0}'.format(warning))
+    lines.append('')
+    lines.append('Follow-up:')
+    lines.append('- PairOfCleats: Map Open Last Viewer')
+    lines.append('- PairOfCleats: Map Jump to Node')
+    lines.append('- PairOfCleats: Map Show Last Report')
     return '\n'.join(lines) + '\n'
 
 
@@ -121,6 +185,45 @@ def _offer_rebuild(window, warnings):
         ['Rebuild index with dataflow/control-flow enabled', 'Dismiss'],
         on_select
     )
+
+def _parse_browser_target(path_value):
+    try:
+        parsed = urlparse(str(path_value))
+    except Exception:
+        parsed = None
+    if parsed and parsed.scheme in ('http', 'https', 'file'):
+        return {'url': path_value, 'path': None}
+    return {'url': None, 'path': path_value}
+
+
+def _should_show_report_panel(settings, payload):
+    preference = settings.get('map_show_report_panel')
+    if preference is True:
+        return True
+    if preference is False:
+        return False
+    warnings = payload.get('warnings') or []
+    return bool(warnings)
+
+
+def _open_map_output(window, payload):
+    resolved_path = payload.get('outPath') or ''
+    resolved_format = payload.get('format') or ''
+    if not resolved_path:
+        ui.show_status('PairOfCleats: no map output to reopen.')
+        return False
+    if resolved_format in ('html', 'html-iso', 'svg'):
+        return _open_in_browser(resolved_path)
+    parsed = _parse_browser_target(resolved_path)
+    local_path = parsed.get('path')
+    if parsed.get('url'):
+        return _open_in_browser(resolved_path)
+    if not local_path or not os.path.exists(local_path):
+        ui.show_error('PairOfCleats: map output not found: {0}'.format(local_path or resolved_path))
+        return False
+    window.open_file(local_path)
+    return True
+
 
 def _prompt_map_type(window, settings, on_done):
     default_type = map_lib.resolve_map_type(settings)
@@ -156,16 +259,10 @@ def _prompt_map_format(window, settings, on_done):
     window.show_quick_panel(labels, on_select, selected_index=selected_index)
 
 
-def _dispatch_map(window, scope, focus, map_type=None, map_format=None, path_hint=None):
+def _dispatch_map(window, scope, focus, repo_root, map_type=None, map_format=None):
     settings = config.get_settings(window)
-    repo_root, reason = _resolve_repo_root(window, path_hint=path_hint)
-    if not repo_root:
-        ui.show_error('PairOfCleats: {0}'.format(reason))
-        return
-    if reason:
-        ui.show_status('PairOfCleats: {0}'.format(reason))
 
-    errors = config.validate_settings(settings, repo_root)
+    errors = config.validate_settings(settings, repo_root, workflow='map')
     if errors:
         message = 'PairOfCleats settings need attention:\n- {0}'.format(
             '\n- '.join(errors)
@@ -178,6 +275,42 @@ def _dispatch_map(window, scope, focus, map_type=None, map_format=None, path_hin
     output_path, model_path, node_list_path = map_lib.build_output_paths(
         repo_root, settings, scope, map_type, map_format
     )
+    execution = config.resolve_execution_mode(settings, 'map')
+    if execution.get('error'):
+        ui.show_error(execution['error'])
+        return
+
+    def handle_payload(result):
+        if result.returncode != 0:
+            message = result.output.strip() or 'PairOfCleats map failed.'
+            ui.show_error(message)
+            return
+        if result.error:
+            ui.show_error(result.error)
+            return
+        payload = result.payload
+        if not isinstance(payload, dict) or not payload.get('ok'):
+            ui.show_error('PairOfCleats map returned invalid JSON.')
+            return
+
+        resolved_payload = dict(payload)
+        resolved_payload.setdefault('repo', repo_root)
+        resolved_payload.setdefault('format', map_format)
+        resolved_payload.setdefault('outPath', output_path)
+        resolved_payload.setdefault('modelPath', model_path)
+        resolved_payload.setdefault('nodeListPath', node_list_path)
+        report_text = _render_report(resolved_payload)
+        map_state.record_last_map(window, resolved_payload, report_text=report_text)
+        if _should_show_report_panel(settings, resolved_payload):
+            ui.write_output_panel(window, 'pairofcleats-map', report_text)
+        _offer_rebuild(window, resolved_payload.get('warnings') or [])
+        _open_map_output(window, resolved_payload)
+
+    ui.show_status('PairOfCleats: generating map...')
+    _dispatch_map_cli(window, repo_root, settings, scope, focus, map_type, map_format, output_path, model_path, node_list_path, handle_payload)
+
+
+def _dispatch_map_cli(window, repo_root, settings, scope, focus, map_type, map_format, output_path, model_path, node_list_path, on_done):
     args = map_lib.build_map_args(
         repo_root,
         settings,
@@ -194,36 +327,6 @@ def _dispatch_map(window, scope, focus, map_type=None, map_format=None, path_hin
     command = cli['command']
     full_args = list(cli.get('args_prefix') or []) + args
     env = config.build_env(settings)
-
-    ui.show_status('PairOfCleats: generating map...')
-
-    def on_done(result):
-        if result.returncode != 0:
-            message = result.output.strip() or 'PairOfCleats map failed.'
-            ui.show_error(message)
-            return
-        if result.error:
-            ui.show_error(result.error)
-            return
-        payload = result.payload
-        if not isinstance(payload, dict) or not payload.get('ok'):
-            ui.show_error('PairOfCleats map returned invalid JSON.')
-            return
-
-        map_state.record_last_map(window, payload)
-        report_text = _render_report(payload)
-        if settings.get('map_show_report_panel'):
-            ui.write_output_panel(window, 'pairofcleats-map', report_text)
-        _offer_rebuild(window, payload.get('warnings') or [])
-
-        resolved_path = payload.get('outPath') or output_path
-        resolved_format = payload.get('format') or map_format
-
-        if resolved_format in ('html', 'html-iso', 'svg'):
-            _open_in_browser(resolved_path)
-        elif resolved_path:
-            window.open_file(resolved_path)
-
     runner.run_process(
         command,
         full_args,
@@ -240,24 +343,28 @@ def _dispatch_map(window, scope, focus, map_type=None, map_format=None, path_hin
 
 def _run_with_options(window, scope, focus, map_type=None, map_format=None, path_hint=None):
     settings = config.get_settings(window)
-    if not settings.get('map_prompt_options'):
-        _dispatch_map(window, scope, focus, map_type=map_type, map_format=map_format, path_hint=path_hint)
-        return
 
-    def after_type(selected_type):
-        def after_format(selected_format):
-            _dispatch_map(window, scope, focus, map_type=selected_type, map_format=selected_format, path_hint=path_hint)
-        _prompt_map_format(window, settings, after_format)
+    def on_repo_root(repo_root):
+        if not settings.get('map_prompt_options'):
+            _dispatch_map(window, scope, focus, repo_root, map_type=map_type, map_format=map_format)
+            return
 
-    _prompt_map_type(window, settings, after_type)
+        def after_type(selected_type):
+            def after_format(selected_format):
+                _dispatch_map(window, scope, focus, repo_root, map_type=selected_type, map_format=selected_format)
+            _prompt_map_format(window, settings, after_format)
+
+        _prompt_map_type(window, settings, after_type)
+
+    _with_map_repo_root(window, on_repo_root, path_hint=path_hint)
 
 
 class PairOfCleatsMapRepoCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_repo_root(self.window, allow_fallback=False)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         _run_with_options(self.window, 'repo', '', path_hint=None)
@@ -265,19 +372,22 @@ class PairOfCleatsMapRepoCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsMapCurrentFolderCommand(sublime_plugin.WindowCommand):        
     def is_enabled(self):
-        return True
+        return _has_current_folder(self.window)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         view = self.window.active_view()
         folder = None
         if view and view.file_name():
             folder = os.path.dirname(view.file_name())
-        if not folder and self.window.folders():
+        if not folder and len(self.window.folders()) == 1:
             folder = self.window.folders()[0]
-        repo_root, reason = _resolve_repo_root(self.window, path_hint=folder)
+        if not folder:
+            ui.show_error('PairOfCleats: current folder map requires an active file or a single open folder.')
+            return
+        repo_root, reason = _resolve_repo_root(self.window, path_hint=folder, allow_fallback=False)
         if not repo_root:
             ui.show_error('PairOfCleats: {0}'.format(reason))
             return
@@ -291,14 +401,14 @@ class PairOfCleatsMapCurrentFileCommand(sublime_plugin.WindowCommand):
         return bool(view and view.file_name())
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         view = self.window.active_view()
         if not view or not view.file_name():
             ui.show_status('PairOfCleats: no active file.')
             return
-        repo_root, reason = _resolve_repo_root(self.window, path_hint=view.file_name())
+        repo_root, reason = _resolve_repo_root(self.window, path_hint=view.file_name(), allow_fallback=False)
         if not repo_root:
             ui.show_error('PairOfCleats: {0}'.format(reason))
             return
@@ -308,10 +418,10 @@ class PairOfCleatsMapCurrentFileCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsMapSymbolUnderCursorCommand(sublime_plugin.TextCommand):
     def is_enabled(self):
-        return bool(self.view and self.view.file_name())
+        return bool(self.view and self.view.file_name() and _extract_symbol(self.view))
 
     def is_visible(self):
-        return True
+        return bool(self.view and self.view.file_name())
 
     def run(self, edit):
         symbol = _extract_symbol(self.view)
@@ -319,7 +429,7 @@ class PairOfCleatsMapSymbolUnderCursorCommand(sublime_plugin.TextCommand):
             ui.show_status('PairOfCleats: no symbol under cursor.')
             return
         file_name = self.view.file_name() if self.view else None
-        repo_root, reason = _resolve_repo_root(self.view.window(), path_hint=file_name)
+        repo_root, reason = _resolve_repo_root(self.view.window(), path_hint=file_name, allow_fallback=False)
         if not repo_root:
             ui.show_error('PairOfCleats: {0}'.format(reason))
             return
@@ -329,10 +439,10 @@ class PairOfCleatsMapSymbolUnderCursorCommand(sublime_plugin.TextCommand):
 
 class PairOfCleatsMapSelectionCommand(sublime_plugin.TextCommand):
     def is_enabled(self):
-        return bool(self.view)
+        return bool(self.view and _extract_selection(self.view).strip())
 
     def is_visible(self):
-        return True
+        return bool(self.view)
 
     def run(self, edit):
         selection = _extract_selection(self.view)
@@ -345,10 +455,14 @@ class PairOfCleatsMapSelectionCommand(sublime_plugin.TextCommand):
 
 class PairOfCleatsMapJumpToNodeCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        state = map_state.get_last_map(self.window)
+        if not state:
+            return False
+        node_list_path = state.get('nodeListPath')
+        return bool(node_list_path and os.path.exists(node_list_path))
 
     def is_visible(self):
-        return True
+        return _has_map_state(self.window)
 
     def run(self):
         state = map_state.get_last_map(self.window)
@@ -372,19 +486,27 @@ class PairOfCleatsMapJumpToNodeCommand(sublime_plugin.WindowCommand):
 
         items = []
         for node in nodes:
-            label = node.get('label') or node.get('id')
-            detail = node.get('file') or ''
-            items.append([label, detail])
+            label = node.get('label') or node.get('id') or '(unnamed node)'
+            file_label = node.get('file') or '(no file)'
+            start_line = node.get('startLine')
+            if isinstance(start_line, int) and start_line > 0:
+                file_label = '{0}:{1}'.format(file_label, start_line)
+            items.append([label, file_label])
 
-        repo_root, reason = _resolve_repo_root(self.window)
+        repo_root = state.get('repo')
         if not repo_root:
-            ui.show_error('PairOfCleats: {0}'.format(reason))
-            return
+            repo_root, reason = _resolve_repo_root(self.window, allow_fallback=False)
+            if not repo_root:
+                ui.show_error('PairOfCleats: {0}'.format(reason))
+                return
 
         def on_select(index):
             if index < 0:
                 return
             node = nodes[index]
+            if not node.get('file'):
+                ui.show_status('PairOfCleats: selected node has no source location.')
+                return
             hit = {
                 'file': node.get('file'),
                 'startLine': node.get('startLine'),
@@ -395,24 +517,36 @@ class PairOfCleatsMapJumpToNodeCommand(sublime_plugin.WindowCommand):
         self.window.show_quick_panel(items, on_select)
 
 
-class PairOfCleatsMapOpenLastViewerCommand(sublime_plugin.WindowCommand):       
+class PairOfCleatsMapOpenLastViewerCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        state = map_state.get_last_map(self.window)
+        if not state:
+            return False
+        return bool(state.get('outPath') or state.get('browserUrl'))
 
     def is_visible(self):
-        return True
+        return _has_map_state(self.window)
 
     def run(self):
         state = map_state.get_last_map(self.window)
         if not state:
             ui.show_status('PairOfCleats: no map history yet.')
             return
-        path_value = state.get('outPath')
-        if not path_value:
-            ui.show_status('PairOfCleats: no map output yet.')
+        _open_map_output(self.window, state)
+
+
+class PairOfCleatsMapShowLastReportCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return _has_map_state(self.window)
+
+    def is_visible(self):
+        return self.is_enabled()
+
+    def run(self):
+        state = map_state.get_last_map(self.window)
+        if not state:
+            ui.show_status('PairOfCleats: no map history yet.')
             return
-        format_value = state.get('format') or ''
-        if format_value in ('html', 'html-iso', 'svg'):
-            _open_in_browser(path_value)
-        else:
-            self.window.open_file(path_value)
+        report_text = state.get('reportText') or _render_report(state)
+        ui.write_output_panel(self.window, 'pairofcleats-map', report_text)
+        ui.show_status('PairOfCleats: showing last map report.')

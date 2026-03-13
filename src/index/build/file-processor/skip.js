@@ -1,7 +1,10 @@
 import path from 'node:path';
 import { pickMinLimit, resolveFileCaps } from './read.js';
 import { detectBinary, isMinifiedName, readFileSample } from '../file-scan.js';
-import { normalizeExtractedProseYieldProfilePrefilterConfig } from '../../chunking/formats/document-common.js';
+import {
+  isExtractedProseDocumentLikeExtension,
+  normalizeExtractedProseYieldProfilePrefilterConfig
+} from '../../chunking/formats/document-common.js';
 import {
   buildGeneratedPolicyConfig,
   buildGeneratedPolicyDowngradePayload,
@@ -18,7 +21,16 @@ const isGeneratedDocsetPath = (absPath) => {
   return false;
 };
 
-const EXTRACTED_PROSE_ALLOWED_EXTS = new Set([
+const EXTRACTED_PROSE_LOW_YIELD_PATHS = [
+  '/node_modules/',
+  '/vendor/',
+  '/dist/',
+  '/build/',
+  '/coverage/',
+  '/.git/'
+];
+const EXTRACTED_PROSE_MIN_BYTES = 256;
+const EXTRACTED_PROSE_YIELD_PROFILE_SKIP_EXT_ALLOWLIST = new Set([
   '.md',
   '.markdown',
   '.mdx',
@@ -33,16 +45,6 @@ const EXTRACTED_PROSE_ALLOWED_EXTS = new Set([
   '.htm',
   '.xml'
 ]);
-const EXTRACTED_PROSE_LOW_YIELD_PATHS = [
-  '/node_modules/',
-  '/vendor/',
-  '/dist/',
-  '/build/',
-  '/coverage/',
-  '/.git/'
-];
-const EXTRACTED_PROSE_MIN_BYTES = 256;
-const EXTRACTED_PROSE_YIELD_PROFILE_SKIP_EXT_ALLOWLIST = new Set(EXTRACTED_PROSE_ALLOWED_EXTS);
 const EXTRACTED_PROSE_YIELD_PROFILE_PATH_FAMILIES = Object.freeze([
   ['node_modules', '/node_modules/'],
   ['vendor', '/vendor/'],
@@ -150,7 +152,7 @@ export const resolveExtractedProsePrefilterDecision = ({
     };
   }
   if (codeLanguage) return null;
-  if (EXTRACTED_PROSE_ALLOWED_EXTS.has(normalizedExt)) return null;
+  if (isExtractedProseDocumentLikeExtension(normalizedExt)) return null;
   if (Number.isFinite(fileBytes) && fileBytes > 0 && fileBytes < minBytes) {
     return {
       reason: 'extracted-prose-prefilter',
@@ -159,7 +161,7 @@ export const resolveExtractedProsePrefilterDecision = ({
       minBytes
     };
   }
-  if (normalizedExt && !EXTRACTED_PROSE_ALLOWED_EXTS.has(normalizedExt)) {
+  if (normalizedExt && !isExtractedProseDocumentLikeExtension(normalizedExt)) {
     return {
       reason: 'extracted-prose-prefilter',
       prefilterClass: 'non-doc-extension',
@@ -305,6 +307,9 @@ export async function resolvePreReadSkip({
   if (extractedProsePrefilterSkip) {
     return extractedProsePrefilterSkip;
   }
+  if (isGeneratedDocsetPath(abs)) {
+    return { reason: 'generated-docset' };
+  }
   const scanState = fileEntry && typeof fileEntry === 'object' ? fileEntry.scan : null;
   const baselinePolicyDecision = isRecordEntry
     ? null
@@ -333,9 +338,6 @@ export async function resolvePreReadSkip({
       ...(resolvedReason === 'oversize' ? { stage: 'pre-read' } : {}),
       ...extra
     };
-  }
-  if (isGeneratedDocsetPath(abs)) {
-    return { reason: 'generated-docset' };
   }
   if (!isRecordEntry
     && !bypassBinaryMinifiedSkip

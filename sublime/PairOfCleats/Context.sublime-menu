@@ -1,0 +1,42 @@
+[
+  {
+    "caption": "PairOfCleats",
+    "children": [
+      {
+        "caption": "Search Selection",
+        "command": "pair_of_cleats_search_selection"
+      },
+      {
+        "caption": "Search Symbol Under Cursor",
+        "command": "pair_of_cleats_search_symbol_under_cursor"
+      },
+      {
+        "caption": "Go To Definition",
+        "command": "pair_of_cleats_goto_definition"
+      },
+      {
+        "caption": "Find References",
+        "command": "pair_of_cleats_find_references"
+      },
+      {
+        "caption": "Complete Symbol",
+        "command": "pair_of_cleats_complete_symbol"
+      },
+      {
+        "caption": "-"
+      },
+      {
+        "caption": "Map Current File",
+        "command": "pair_of_cleats_map_current_file"
+      },
+      {
+        "caption": "Map Symbol Under Cursor",
+        "command": "pair_of_cleats_map_symbol_under_cursor"
+      },
+      {
+        "caption": "Map Selection",
+        "command": "pair_of_cleats_map_selection"
+      }
+    ]
+  }
+]

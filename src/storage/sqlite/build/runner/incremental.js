@@ -1,6 +1,7 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { resolveRecordsIncrementalCapability } from '../imports.js';
+import { resolveManifestBundleNames } from '../../../../shared/bundle-io.js';
 
 const BUNDLE_INVENTORY_CACHE_LIMIT = 64;
 const bundleInventoryCache = new Map();
@@ -160,20 +161,30 @@ export const countMissingBundleFiles = (incrementalData, bundleNames = null) => 
   const useNames = bundleNames instanceof Set ? bundleNames : null;
   let missing = 0;
   for (const entry of Object.values(files)) {
-    const bundleName = entry?.bundle;
-    if (!bundleName || typeof bundleName !== 'string') {
+    const bundleNamesForEntry = resolveManifestBundleNames(entry);
+    if (!bundleNamesForEntry.length) {
       missing += 1;
       continue;
     }
-    const hasNestedPath = bundleName.includes('/') || bundleName.includes('\\');
-    if (useNames) {
-      if (!hasNestedPath) {
-        if (!useNames.has(normalizeBundleInventoryName(bundleName))) missing += 1;
-        continue;
+    let entryMissing = false;
+    for (const bundleName of bundleNamesForEntry) {
+      const hasNestedPath = bundleName.includes('/') || bundleName.includes('\\');
+      if (useNames) {
+        if (!hasNestedPath) {
+          if (!useNames.has(normalizeBundleInventoryName(bundleName))) {
+            entryMissing = true;
+            break;
+          }
+          continue;
+        }
+      }
+      const bundlePath = path.join(bundleDir, bundleName);
+      if (!fsSync.existsSync(bundlePath)) {
+        entryMissing = true;
+        break;
       }
     }
-    const bundlePath = path.join(bundleDir, bundleName);
-    if (!fsSync.existsSync(bundlePath)) {
+    if (entryMissing) {
       missing += 1;
     }
   }
@@ -210,6 +221,13 @@ export const resolveIncrementalInputPlan = ({
   denseArtifactsRequired
 }) => {
   const bundleManifest = incrementalData?.manifest || null;
+  const stageNote = bundleManifest?.bundleEmbeddingStage
+    ? ` (stage ${bundleManifest.bundleEmbeddingStage})`
+    : '';
+  const eligibleCoverageFiles = Number(bundleManifest?.bundleEmbeddingCoverageEligible);
+  const coveredCoverageFiles = Number(bundleManifest?.bundleEmbeddingCoverageCovered);
+  const missingCoverageFiles = Number(bundleManifest?.bundleEmbeddingCoverageMissingFiles);
+  const missingCoverageChunks = Number(bundleManifest?.bundleEmbeddingCoverageMissingChunks);
   const recordsIncrementalCapability = mode === 'records'
     ? resolveRecordsIncrementalCapability(bundleManifest)
     : { supported: true, explicit: false, reason: null };
@@ -228,11 +246,44 @@ export const resolveIncrementalInputPlan = ({
   }
   if (hasIncrementalBundles
     && denseArtifactsRequired
-    && bundleManifest?.bundleEmbeddings !== true) {
-    const stageNote = bundleManifest.bundleEmbeddingStage
-      ? ` (stage ${bundleManifest.bundleEmbeddingStage})`
+    && (
+      bundleManifest?.bundleEmbeddings !== true
+      || bundleManifest?.bundleEmbeddingCoverageComplete !== true
+      || (
+        Number.isFinite(eligibleCoverageFiles)
+        && Number.isFinite(coveredCoverageFiles)
+        && coveredCoverageFiles < eligibleCoverageFiles
+      )
+      || (
+        Number.isFinite(missingCoverageFiles)
+        && missingCoverageFiles > 0
+      )
+      || (
+        Number.isFinite(missingCoverageChunks)
+        && missingCoverageChunks > 0
+      )
+    )) {
+    const coverageDetails = [];
+    if (Number.isFinite(eligibleCoverageFiles) || Number.isFinite(coveredCoverageFiles)) {
+      coverageDetails.push(
+        `covered=${Number.isFinite(coveredCoverageFiles) ? coveredCoverageFiles : 0}/${Number.isFinite(eligibleCoverageFiles) ? eligibleCoverageFiles : 0}`
+      );
+    }
+    if (Number.isFinite(missingCoverageFiles) && missingCoverageFiles > 0) {
+      coverageDetails.push(`missingFiles=${missingCoverageFiles}`);
+    }
+    if (Number.isFinite(missingCoverageChunks) && missingCoverageChunks > 0) {
+      coverageDetails.push(`missingChunks=${missingCoverageChunks}`);
+    }
+    const coverageSuffix = coverageDetails.length
+      ? ` (${coverageDetails.join(', ')})`
       : '';
-    bundleSkipReason = `bundles omit embeddings${stageNote}`;
+    bundleSkipReason = bundleManifest?.bundleEmbeddings !== true
+      ? `bundles omit embeddings${stageNote}`
+      : `bundle embedding coverage inconsistent${stageNote}${coverageSuffix}`;
+    if (bundleManifest?.bundleEmbeddingCoverageComplete === false) {
+      bundleSkipReason = `bundles omit embeddings${stageNote}; coverage incomplete${coverageSuffix}`;
+    }
     hasIncrementalBundles = false;
   }
   if (missingBundleCount > 0) {

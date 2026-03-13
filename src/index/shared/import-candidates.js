@@ -23,6 +23,9 @@ export const resolveRelativeImportCandidates = (normalizedPath, extensions = [])
 
   const resolvedExtensions = normalizeExtensions(extensions);
   const candidates = [];
+  if (!hasTrailingSlash && trimmed !== '.') {
+    candidates.push(trimmed);
+  }
   for (const candidateExt of resolvedExtensions) {
     if (hasTrailingSlash) {
       candidates.push(path.posix.join(trimmed, `index${candidateExt}`));

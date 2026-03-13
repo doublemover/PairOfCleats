@@ -42,7 +42,8 @@ export async function assembleIndexPieces({
   try {
     const scmConfig = resolveScmConfig({
       indexingConfig: userConfig?.indexing || {},
-      analysisPolicy: userConfig?.analysisPolicy || null
+      analysisPolicy: userConfig?.analysisPolicy || null,
+      workload: 'batch'
     });
     setScmRuntimeConfig(scmConfig);
     const scmProviderSetting = scmConfig?.provider || 'auto';

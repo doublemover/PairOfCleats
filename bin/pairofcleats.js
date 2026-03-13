@@ -630,6 +630,20 @@ function resolveCommand(primary, rest) {
         'includeGraph',
         'includeTypes',
         'includeRisk',
+        'includeRiskPartialFlows',
+        'strictRisk',
+        'rule',
+        'category',
+        'severity',
+        'tag',
+        'source',
+        'sink',
+        'flowId',
+        'flow-id',
+        'sourceRule',
+        'source-rule',
+        'sinkRule',
+        'sink-rule',
         'includeImports',
         'includeUsages',
         'includeCallersCallees',
@@ -652,6 +666,18 @@ function resolveCommand(primary, rest) {
         'hops',
         'maxTokens',
         'maxBytes',
+        'rule',
+        'category',
+        'severity',
+        'tag',
+        'source',
+        'sink',
+        'flowId',
+        'flow-id',
+        'sourceRule',
+        'source-rule',
+        'sinkRule',
+        'sink-rule',
         'maxTypeEntries',
         'format',
         'maxDepth',
@@ -778,8 +804,8 @@ function resolveCommand(primary, rest) {
     if (sub === 'explain') {
       validateArgs(
         rest,
-        ['index', 'chunk', 'max', 'source-rule', 'sink-rule', 'json'],
-        ['index', 'chunk', 'max', 'source-rule', 'sink-rule']
+        ['index', 'chunk', 'max', 'rule', 'category', 'severity', 'tag', 'source', 'sink', 'flow-id', 'source-rule', 'sink-rule', 'json', 'includePartialFlows', 'maxPartialFlows', 'include-partial-flows', 'max-partial-flows'],
+        ['index', 'chunk', 'max', 'rule', 'category', 'severity', 'tag', 'source', 'sink', 'flow-id', 'source-rule', 'sink-rule', 'maxPartialFlows', 'max-partial-flows']
       );
       return { script: 'tools/analysis/explain-risk.js', extraArgs: [], args: rest };
     }

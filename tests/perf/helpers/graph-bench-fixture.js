@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import { writeJsonArrayFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -157,6 +158,7 @@ export const runGraphBenchCompare = ({
   iterations = 6,
   depth = 2
 }) => {
+  const env = applyTestEnv({ syncProcess: false });
   const result = spawnSync(process.execPath, [
     benchScript,
     '--mode',
@@ -169,7 +171,7 @@ export const runGraphBenchCompare = ({
     String(iterations),
     '--depth',
     String(depth)
-  ], { cwd: root, env: process.env, encoding: 'utf8' });
+  ], { cwd: root, env, encoding: 'utf8' });
 
   if (result.status !== 0) {
     const stdout = result.stdout || '';

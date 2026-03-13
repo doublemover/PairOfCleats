@@ -2,6 +2,7 @@ import {
   resolveBuildCleanupTimeoutMs,
   runBuildCleanupWithTimeout
 } from '../../cleanup-timeout.js';
+import { destroyPiscinaPool } from '../../../../shared/piscina-cleanup.js';
 
 /**
  * Manage worker-pool lifecycle, restart scheduling, and pressure-driven resize.
@@ -63,27 +64,63 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   let restartAtMs = 0;
   let restarting = null;
   let shutdownWhenIdle = false;
+  let shutdownPromise = null;
+  let destroyPromise = null;
+  let destroying = false;
   let pendingRestart = false;
+  let idleShutdownWaiters = [];
   let effectiveMaxWorkers = Math.max(1, Math.floor(Number(configuredMaxWorkers) || 1));
   let pressureDownscaleEvents = 0;
   let pressureUpscaleEvents = 0;
   let lastPressureDownscaleAtMs = 0;
   let lastPressureUpscaleAtMs = 0;
 
+  const settleIdleShutdownWaiters = (error = null) => {
+    if (!idleShutdownWaiters.length) return;
+    const waiters = idleShutdownWaiters;
+    idleShutdownWaiters = [];
+    for (const waiter of waiters) {
+      if (error) waiter.reject(error);
+      else waiter.resolve();
+    }
+  };
+
+  const waitForIdleShutdown = () => new Promise((resolve, reject) => {
+    idleShutdownWaiters.push({ resolve, reject });
+  });
+
   const shutdownPool = async () => {
     if (!pool) return;
-    try {
-      await runBuildCleanupWithTimeout({
-        label: `worker-pool.${poolLabel}.destroy`,
-        cleanup: () => pool.destroy(),
-        timeoutMs: resolvedCleanupTimeoutMs,
-        log
-      });
-    } catch (err) {
-      const detail = summarizeError(err);
-      log(`Worker pool shutdown failed: ${detail || 'unknown error'}`);
+    if (shutdownPromise) {
+      await shutdownPromise;
+      return;
     }
+    const currentPool = pool;
     pool = null;
+    shutdownPromise = (async () => {
+      let shutdownError = null;
+      try {
+        await runBuildCleanupWithTimeout({
+          label: `worker-pool.${poolLabel}.destroy`,
+          cleanup: () => destroyPiscinaPool(currentPool, {
+            label: `worker-pool.${poolLabel}`,
+            log,
+            destroyTimeoutMs: resolvedCleanupTimeoutMs
+          }),
+          timeoutMs: resolvedCleanupTimeoutMs + 6000,
+          log,
+          swallowTimeout: false
+        });
+      } catch (err) {
+        const detail = summarizeError(err);
+        log(`Worker pool shutdown failed: ${detail || 'unknown error'}`);
+        shutdownError = err;
+      } finally {
+        shutdownPromise = null;
+      }
+      if (shutdownError) throw shutdownError;
+    })();
+    await shutdownPromise;
   };
 
   const shutdownNowOrWhenIdle = async () => {
@@ -215,6 +252,10 @@ export const createWorkerPoolLifecycle = (input = {}) => {
    * @returns {Promise<boolean>}
    */
   const ensurePool = async () => {
+    if (destroying) {
+      pendingRestart = false;
+      return false;
+    }
     if (permanentlyDisabled) {
       pendingRestart = false;
       return false;
@@ -234,6 +275,11 @@ export const createWorkerPoolLifecycle = (input = {}) => {
       restarting = (async () => {
         try {
           await shutdownPool();
+          if (destroying || permanentlyDisabled) {
+            pendingRestart = false;
+            disabled = true;
+            return;
+          }
           pool = createPool(effectiveMaxWorkers);
           attachPoolListeners(pool);
           disabled = false;
@@ -257,8 +303,15 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     if (getActiveTasks() !== 0) return;
     if (shutdownWhenIdle) {
       shutdownWhenIdle = false;
-      await shutdownPool();
+      try {
+        await shutdownPool();
+        settleIdleShutdownWaiters();
+      } catch (error) {
+        settleIdleShutdownWaiters(error);
+        throw error;
+      }
     }
+    if (destroying) return;
     await maybeRestart();
   };
 
@@ -269,9 +322,31 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   };
 
   const destroy = async () => {
-    disabled = true;
-    restartAttempts = maxRestartAttempts + 1;
-    await shutdownPool();
+    if (!destroyPromise) {
+      destroyPromise = (async () => {
+        destroying = true;
+        permanentlyDisabled = true;
+        disabled = true;
+        pendingRestart = false;
+        restartAtMs = 0;
+        restartAttempts = maxRestartAttempts + 1;
+        try {
+          if (restarting) {
+            await restarting;
+          }
+          if (getActiveTasks() === 0) {
+            await shutdownPool();
+            settleIdleShutdownWaiters();
+            return;
+          }
+          shutdownWhenIdle = true;
+          await waitForIdleShutdown();
+        } finally {
+          destroying = false;
+        }
+      })();
+    }
+    await destroyPromise;
   };
 
   const pressureDownscaleStats = () => ({

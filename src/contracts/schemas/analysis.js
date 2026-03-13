@@ -1,6 +1,14 @@
 const nullableString = { type: ['string', 'null'] };
 const nullableNumber = { type: ['number', 'null'] };
 const semverString = { type: 'string', pattern: '^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$' };
+const riskWatchSemanticKinds = ['wrapper', 'propagator', 'builder', 'callback', 'asyncHandoff'];
+const riskWatchSemanticsSchema = {
+  semanticIds: { type: 'array', items: { type: 'string' } },
+  semanticKinds: {
+    type: 'array',
+    items: { enum: riskWatchSemanticKinds }
+  }
+};
 
 const typeEntry = {
   type: 'object',
@@ -208,6 +216,7 @@ export const RISK_RULES_BUNDLE_SCHEMA = {
   required: ['version', 'sources', 'sinks', 'sanitizers'],
   properties: {
     version: semverString,
+    fingerprint: nullableString,
     sources: { type: 'array', items: riskRuleSchema },
     sinks: { type: 'array', items: riskRuleSchema },
     sanitizers: { type: 'array', items: riskRuleSchema },
@@ -403,7 +412,12 @@ const truncationRecordSchema = {
         'maxViolations',
         'maxEdgesExamined',
         'maxSuggestions',
-        'maxSeeds'
+        'maxSeeds',
+        'maxFlows',
+        'maxStepsPerFlow',
+        'maxCallSitesPerStep',
+        'maxRiskBytes',
+        'maxRiskTokens'
       ]
     },
     limit: { anyOf: [{ type: 'number' }, { type: 'object' }] },
@@ -577,28 +591,451 @@ const typeFactSchema = {
   additionalProperties: true
 };
 
+const riskTopCategorySchema = {
+  type: 'object',
+  required: ['category', 'count'],
+  properties: {
+    category: { type: 'string' },
+    count: { type: 'number' }
+  },
+  additionalProperties: false
+};
+
+const riskTopTagSchema = {
+  type: 'object',
+  required: ['tag', 'count'],
+  properties: {
+    tag: { type: 'string' },
+    count: { type: 'number' }
+  },
+  additionalProperties: false
+};
+
+const riskSummarySchema = {
+  type: ['object', 'null'],
+  properties: {
+    chunkUid: nullableString,
+    file: nullableString,
+    languageId: nullableString,
+    symbol: {
+      type: ['object', 'null'],
+      properties: {
+        name: nullableString,
+        kind: nullableString,
+        signature: nullableString
+      },
+      additionalProperties: false
+    },
+    totals: {
+      type: ['object', 'null'],
+      properties: {
+        sources: nullableNumber,
+        sinks: nullableNumber,
+        sanitizers: nullableNumber,
+        localFlows: nullableNumber
+      },
+      additionalProperties: false
+    },
+    truncated: {
+      type: ['object', 'null'],
+      properties: {
+        sources: { type: ['boolean', 'null'] },
+        sinks: { type: ['boolean', 'null'] },
+        sanitizers: { type: ['boolean', 'null'] },
+        localFlows: { type: ['boolean', 'null'] },
+        evidence: { type: ['boolean', 'null'] }
+      },
+      additionalProperties: false
+    },
+    topCategories: { type: 'array', items: riskTopCategorySchema },
+    topTags: { type: 'array', items: riskTopTagSchema },
+    previewFlowIds: { type: 'array', items: { type: 'string' } }
+  },
+  additionalProperties: false
+};
+
+const riskSourceSinkSchema = {
+  type: ['object', 'null'],
+  properties: {
+    chunkUid: nullableString,
+    ruleId: nullableString,
+    ruleName: nullableString,
+    ruleType: nullableString,
+    category: nullableString,
+    severity: nullableString,
+    confidence: nullableNumber
+  },
+  additionalProperties: false
+};
+
+const riskFiltersSchema = {
+  type: ['object', 'null'],
+  properties: {
+    rule: { type: 'array', items: { type: 'string' } },
+    category: { type: 'array', items: { type: 'string' } },
+    severity: { type: 'array', items: { type: 'string' } },
+    tag: { type: 'array', items: { type: 'string' } },
+    source: { type: 'array', items: { type: 'string' } },
+    sink: { type: 'array', items: { type: 'string' } },
+    sourceRule: { type: 'array', items: { type: 'string' } },
+    sinkRule: { type: 'array', items: { type: 'string' } },
+    flowId: { type: 'array', items: { type: 'string' } }
+  },
+  additionalProperties: false
+};
+
+const riskCallSiteEvidenceSchema = {
+  type: 'object',
+  required: ['callSiteId', 'details'],
+  properties: {
+    callSiteId: nullableString,
+    details: { type: ['object', 'null'], additionalProperties: true }
+  },
+  additionalProperties: false
+};
+
+const riskFlowNotesSchema = {
+  type: ['object', 'null'],
+  properties: {
+    strictness: nullableString,
+    sanitizerPolicy: nullableString,
+    hopCount: nullableNumber,
+    sanitizerBarriersHit: nullableNumber,
+    capsHit: { type: 'array', items: { type: 'string' } },
+    terminalReason: nullableString
+  },
+  additionalProperties: false
+};
+
 const riskFlowSummarySchema = {
   type: 'object',
-  required: ['path'],
+  required: ['rank', 'path', 'score'],
   properties: {
+    rank: nullableNumber,
     flowId: nullableString,
-    sourceChunkUid: nullableString,
-    sinkChunkUid: nullableString,
+    source: riskSourceSinkSchema,
+    sink: riskSourceSinkSchema,
     category: nullableString,
     severity: nullableString,
     confidence: nullableNumber,
+    score: {
+      type: ['object', 'null'],
+      properties: {
+        seedRelevance: nullableNumber,
+        severity: nullableNumber,
+        confidence: nullableNumber,
+        hopCount: nullableNumber
+      },
+      additionalProperties: false
+    },
     path: {
       type: 'object',
       required: ['nodes'],
       properties: {
         nodes: { type: 'array', items: nodeRefSchema },
-        callSiteIdsByStep: { type: ['array', 'null'], items: { type: 'array', items: { type: 'string' } } }
+        stepCount: nullableNumber,
+        truncatedSteps: nullableNumber,
+        callSiteIdsByStep: { type: ['array', 'null'], items: { type: 'array', items: { type: 'string' } } },
+        watchByStep: {
+          type: ['array', 'null'],
+          items: {
+            type: 'object',
+            properties: {
+              taintIn: { type: 'array', items: { type: 'string' } },
+              taintOut: { type: 'array', items: { type: 'string' } },
+              propagatedArgIndices: { type: 'array', items: nullableNumber },
+              boundParams: { type: 'array', items: { type: 'string' } },
+              calleeNormalized: nullableString,
+              ...riskWatchSemanticsSchema,
+              sanitizerPolicy: nullableString,
+              sanitizerBarrierApplied: { type: ['boolean', 'null'] },
+              sanitizerBarriersBefore: nullableNumber,
+              sanitizerBarriersAfter: nullableNumber,
+              confidenceBefore: nullableNumber,
+              confidenceAfter: nullableNumber,
+              confidenceDelta: nullableNumber
+            },
+            additionalProperties: false
+          }
+        }
       },
-      additionalProperties: true
+      additionalProperties: false
     },
-    evidence: { type: ['object', 'null'] }
+    evidence: {
+      type: ['object', 'null'],
+      properties: {
+        sourceRuleId: nullableString,
+        sinkRuleId: nullableString,
+        callSitesByStep: {
+          type: ['array', 'null'],
+          items: {
+            type: 'array',
+            items: riskCallSiteEvidenceSchema
+          }
+        }
+      },
+      additionalProperties: false
+    },
+    notes: riskFlowNotesSchema
   },
-  additionalProperties: true
+  additionalProperties: false
+};
+
+const riskPartialBlockedExpansionSchema = {
+  type: 'object',
+  properties: {
+    targetChunkUid: nullableString,
+    reason: nullableString,
+    callSiteIds: { type: 'array', items: { type: 'string' } }
+  },
+  additionalProperties: false
+};
+
+const riskPartialFlowSummarySchema = {
+  type: 'object',
+  required: ['path'],
+  properties: {
+    rank: nullableNumber,
+    partialFlowId: nullableString,
+    source: riskSourceSinkSchema,
+    confidence: nullableNumber,
+    score: {
+      type: ['object', 'null'],
+      properties: {
+        seedRelevance: nullableNumber,
+        confidence: nullableNumber,
+        hopCount: nullableNumber
+      },
+      additionalProperties: false
+    },
+    frontier: {
+      type: ['object', 'null'],
+      properties: {
+        chunkUid: nullableString,
+        terminalReason: nullableString,
+        blockedExpansions: {
+          type: 'array',
+          items: riskPartialBlockedExpansionSchema
+        }
+      },
+      additionalProperties: false
+    },
+    path: {
+      type: 'object',
+      required: ['nodes'],
+      properties: {
+        nodes: { type: 'array', items: nodeRefSchema },
+        labels: { type: ['array', 'null'], items: { type: 'string' } },
+        stepCount: nullableNumber,
+        truncatedSteps: nullableNumber,
+        callSiteIdsByStep: { type: ['array', 'null'], items: { type: 'array', items: { type: 'string' } } },
+        watchByStep: {
+          type: ['array', 'null'],
+          items: {
+            type: 'object',
+            properties: {
+              taintIn: { type: 'array', items: { type: 'string' } },
+              taintOut: { type: 'array', items: { type: 'string' } },
+              propagatedArgIndices: { type: 'array', items: nullableNumber },
+              boundParams: { type: 'array', items: { type: 'string' } },
+              calleeNormalized: nullableString,
+              ...riskWatchSemanticsSchema,
+              sanitizerPolicy: nullableString,
+              sanitizerBarrierApplied: { type: ['boolean', 'null'] },
+              sanitizerBarriersBefore: nullableNumber,
+              sanitizerBarriersAfter: nullableNumber,
+              confidenceBefore: nullableNumber,
+              confidenceAfter: nullableNumber,
+              confidenceDelta: nullableNumber
+            },
+            additionalProperties: false
+          }
+        }
+      },
+      additionalProperties: false
+    },
+    evidence: {
+      type: ['object', 'null'],
+      properties: {
+        callSitesByStep: {
+          type: ['array', 'null'],
+          items: {
+            type: 'array',
+            items: riskCallSiteEvidenceSchema
+          }
+        }
+      },
+      additionalProperties: false
+    },
+    notes: riskFlowNotesSchema
+  },
+  additionalProperties: false
+};
+
+const riskAnalysisStatusSchema = {
+  type: ['object', 'null'],
+  properties: {
+    requested: { type: ['boolean', 'null'] },
+    status: nullableString,
+    reason: nullableString,
+    degraded: { type: ['boolean', 'null'] },
+    summaryOnly: { type: ['boolean', 'null'] },
+    code: nullableString,
+    strictFailure: { type: ['boolean', 'null'] },
+    artifactStatus: {
+      type: ['object', 'null'],
+      properties: {
+        stats: nullableString,
+        summaries: nullableString,
+        flows: nullableString,
+        partialFlows: nullableString,
+        callSites: nullableString
+      },
+      additionalProperties: false
+    },
+    degradedReasons: { type: 'array', items: { type: 'string' } },
+    flowsEmitted: nullableNumber,
+    partialFlowsEmitted: nullableNumber,
+    uniqueCallSitesReferenced: nullableNumber,
+    capsHit: { type: 'array', items: { type: 'string' } }
+  },
+  additionalProperties: false
+};
+
+const riskAnchorSchema = {
+  type: ['object', 'null'],
+  properties: {
+    kind: nullableString,
+    chunkUid: nullableString,
+    ref: { type: ['object', 'null'], additionalProperties: true },
+    flowId: nullableString,
+    alternateCount: nullableNumber,
+    alternates: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          kind: nullableString,
+          chunkUid: nullableString,
+          ref: { type: ['object', 'null'], additionalProperties: true },
+          flowId: nullableString
+        },
+        additionalProperties: false
+      }
+    }
+  },
+  additionalProperties: false
+};
+
+const riskCapsSchema = {
+  type: ['object', 'null'],
+  properties: {
+    maxFlows: nullableNumber,
+    maxStepsPerFlow: nullableNumber,
+    maxCallSitesPerStep: nullableNumber,
+    maxBytes: nullableNumber,
+    maxTokens: nullableNumber,
+    maxPartialFlows: nullableNumber,
+    maxPartialBytes: nullableNumber,
+    maxPartialTokens: nullableNumber,
+    maxCallSiteExcerptBytes: nullableNumber,
+    maxCallSiteExcerptTokens: nullableNumber,
+    hits: { type: 'array', items: { type: 'string' } },
+    observed: {
+      type: ['object', 'null'],
+      properties: {
+        candidateFlows: nullableNumber,
+        selectedFlows: nullableNumber,
+        omittedFlows: nullableNumber,
+        candidatePartialFlows: nullableNumber,
+        selectedPartialFlows: nullableNumber,
+        omittedPartialFlows: nullableNumber,
+        emittedSteps: nullableNumber,
+        omittedSteps: nullableNumber,
+        omittedCallSites: nullableNumber,
+        bytes: nullableNumber,
+        tokens: nullableNumber,
+        partialBytes: nullableNumber,
+        partialTokens: nullableNumber,
+        truncatedCallSiteExcerpts: nullableNumber,
+        truncatedCallSiteExcerptBytes: nullableNumber,
+        truncatedCallSiteExcerptTokens: nullableNumber
+      },
+      additionalProperties: false
+    },
+    configured: { type: ['object', 'null'], additionalProperties: true }
+  },
+  additionalProperties: false
+};
+
+const riskProvenanceSchema = {
+  type: ['object', 'null'],
+  properties: {
+    manifestVersion: nullableNumber,
+    artifactSurfaceVersion: nullableString,
+    compatibilityKey: nullableString,
+    indexSignature: nullableString,
+    indexCompatKey: nullableString,
+    mode: nullableString,
+    generatedAt: nullableString,
+    ruleBundle: {
+      type: ['object', 'null'],
+      properties: {
+        version: nullableString,
+        fingerprint: nullableString,
+        provenance: {
+          type: ['object', 'null'],
+          properties: {
+            defaults: { type: ['boolean', 'null'] },
+            sourcePath: nullableString
+          },
+          additionalProperties: false
+        }
+      },
+      additionalProperties: false
+    },
+    effectiveConfigFingerprint: nullableString,
+    artifacts: {
+      type: ['object', 'null'],
+      properties: {
+        stats: nullableString,
+        summaries: nullableString,
+        flows: nullableString,
+        partialFlows: nullableString,
+        callSites: nullableString
+      },
+      additionalProperties: false
+    },
+    artifactRefs: {
+      type: ['object', 'null'],
+      properties: {
+        stats: { type: ['object', 'null'], additionalProperties: true },
+        summaries: { type: ['object', 'null'], additionalProperties: true },
+        flows: { type: ['object', 'null'], additionalProperties: true },
+        partialFlows: { type: ['object', 'null'], additionalProperties: true },
+        callSites: { type: ['object', 'null'], additionalProperties: true }
+      },
+      additionalProperties: false
+    }
+  },
+  additionalProperties: false
+};
+
+const riskStatsSchema = {
+  type: ['object', 'null'],
+  properties: {
+    status: nullableString,
+    reason: nullableString,
+    summaryOnly: { type: ['boolean', 'null'] },
+    flowsEmitted: nullableNumber,
+    partialFlowsEmitted: nullableNumber,
+    summariesEmitted: nullableNumber,
+    uniqueCallSitesReferenced: nullableNumber,
+    capsHit: { type: 'array', items: { type: 'string' } },
+    callSiteSampling: { type: ['object', 'null'], additionalProperties: true },
+    effectiveConfig: { type: ['object', 'null'], additionalProperties: true }
+  },
+  additionalProperties: false
 };
 
 export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
@@ -639,9 +1076,26 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
     risk: {
       type: ['object', 'null'],
       properties: {
+        version: { type: ['integer', 'null'], minimum: 1 },
+        status: {
+          type: 'string',
+          enum: ['ok', 'disabled', 'missing', 'summary_only', 'degraded']
+        },
+        reason: nullableString,
+        degraded: { type: ['boolean', 'null'] },
+        anchor: riskAnchorSchema,
+        filters: riskFiltersSchema,
+        summary: riskSummarySchema,
+        stats: riskStatsSchema,
+        analysisStatus: riskAnalysisStatusSchema,
+        caps: riskCapsSchema,
+        truncation: { type: ['array', 'null'], items: truncationRecordSchema },
+        provenance: riskProvenanceSchema,
         flows: { type: 'array', items: riskFlowSummarySchema }
+        ,
+        partialFlows: { type: 'array', items: riskPartialFlowSummarySchema }
       },
-      additionalProperties: true
+      additionalProperties: false
     },
     truncation: { type: ['array', 'null'], items: truncationRecordSchema },
     warnings: { type: ['array', 'null'], items: warningRecordSchema },

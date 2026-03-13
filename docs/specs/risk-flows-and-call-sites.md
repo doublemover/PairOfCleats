@@ -9,6 +9,7 @@ These artifacts provide explainable, bounded evidence for **interprocedural** (c
 
 * `call_sites`: sampled call-site records keyed by `callSiteId`
 * `risk_flows`: interprocedural source->sink paths through the resolved call graph, with per-edge call-site references
+* `risk_partial_flows`: bounded frontier paths that terminated early because propagation timed out, hit caps, or stopped at unresolved frontiers
 
 They are designed to be:
 * deterministic under caps
@@ -19,6 +20,7 @@ They are designed to be:
 Logical artifact names:
 * `call_sites`
 * `risk_flows`
+* `risk_partial_flows`
 
 Each MUST be emitted in either single-file or sharded form as described in the summaries spec:
 * `<name>.jsonl` (or compressed)

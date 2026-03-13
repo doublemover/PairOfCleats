@@ -126,6 +126,7 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
     callSites: await loadJsonArrayArtifact(dir, 'call_sites', { manifest, strict }).catch(() => null),
     riskSummaries: await loadJsonArrayArtifact(dir, 'risk_summaries', { manifest, strict }).catch(() => null),
     riskFlows: await loadJsonArrayArtifact(dir, 'risk_flows', { manifest, strict }).catch(() => null),
+    riskPartialFlows: await loadJsonArrayArtifact(dir, 'risk_partial_flows', { manifest, strict }).catch(() => null),
     riskInterproceduralStats: readJsonOptional(dir, 'risk_interprocedural_stats.json'),
     indexState: readJsonOptional(dir, 'index_state.json'),
     fileInfoByPath,

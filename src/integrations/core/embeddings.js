@@ -40,7 +40,9 @@ export const resolveEmbeddingRuntime = ({ argv, userConfig, policy }) => {
     : normalizedEmbeddingMode;
   const policyEmbeddings = policy?.indexing?.embeddings?.enabled;
   const configEnabled = embeddingsConfig.enabled !== false;
-  const embeddingEnabled = (policyEmbeddings ?? configEnabled)
+  const explicitEmbeddingsRequested = baseStubEmbeddings
+    || (normalizedEmbeddingMode !== 'auto' && normalizedEmbeddingMode !== 'off');
+  const embeddingEnabled = (explicitEmbeddingsRequested ? configEnabled : (policyEmbeddings ?? configEnabled))
     && resolvedEmbeddingMode !== 'off';
   const embeddingService = embeddingEnabled
     && resolvedEmbeddingMode === 'service';

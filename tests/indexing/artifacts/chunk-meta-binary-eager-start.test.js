@@ -61,8 +61,8 @@ await enqueueChunkMetaArtifacts({
   stageCheckpoints: null
 });
 
-const binaryMetaWrite = queued.find((entry) => String(entry?.label || '').includes('chunk_meta.binary-columnar.meta.json'));
-assert.ok(binaryMetaWrite, 'expected binary-columnar write entry to be queued');
+const binaryMetaWrite = queued.find((entry) => String(entry?.label || '').includes('chunk_meta.binary-columnar.bundle'));
+assert.ok(binaryMetaWrite, 'expected binary-columnar bundle write entry to be queued');
 assert.equal(binaryMetaWrite.meta?.eagerStart, true, 'expected chunk_meta binary writer to eager-start');
 assert.equal(binaryMetaWrite.meta?.laneHint, 'massive', 'expected chunk_meta binary writer to use massive lane hint');
 

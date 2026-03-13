@@ -22,6 +22,8 @@ import {
   SCM_ANNOTATE_PYTHON_HEAVY_LINE_CUTOFF,
   SCM_ANNOTATE_PYTHON_MAX_BYTES,
   SCM_CHURN_MAX_BYTES,
+  SCM_META_BATCH_DEFAULT_TIMEOUT_MS,
+  SCM_META_DEFAULT_TIMEOUT_MS,
   SCM_META_FAST_TIMEOUT_EXTS,
   SCM_PYTHON_EXTS,
   isHeavyRelationsPath,
@@ -29,7 +31,7 @@ import {
   isScmFastPath,
   isScmTaskTimeoutError,
   resolveScmTaskDeadlineMs,
-  shouldForceScmTimeoutCaps,
+  resolveScmTimeoutCapPolicy,
   shouldSkipHeavyRelations
 } from './cpu/guardrails.js';
 import { mergePlannedSegmentsWithExtras } from './cpu/segment-planning.js';
@@ -39,6 +41,7 @@ import { buildLineIndex } from '../../../shared/lines.js';
 import { formatError } from './meta.js';
 import { processChunks } from './process-chunks.js';
 import { resolveChunkingFileRole } from '../../chunking/limits.js';
+import { isAbortError } from '../../../shared/abort.js';
 import { createTimeoutError, runWithTimeout } from '../../../shared/promise-timeout.js';
 
 /**
@@ -417,16 +420,17 @@ export const processFileCpu = async (context) => {
   const skipScmAnnotateForProseMode = mode === 'prose' && annotateConfig?.prose !== true;
   const skipScmAnnotateForExtractedProseMode = mode === 'extracted-prose'
     && annotateConfig?.extractedProse !== true;
-  const forceScmTimeoutCaps = shouldForceScmTimeoutCaps(relKey);
-  const enforceScmTimeoutCaps = forceScmTimeoutCaps || (
-    scmConfig?.allowSlowTimeouts !== true
-    && annotateConfig?.allowSlowTimeouts !== true
-  );
+  const scmTimeoutCapPolicy = resolveScmTimeoutCapPolicy({
+    relPath: relKey,
+    scmConfig,
+    annotateConfig
+  });
+  const enforceScmTimeoutCaps = scmTimeoutCapPolicy.enforceCaps;
   const metaTimeoutRaw = Number(scmConfig?.timeoutMs);
   const hasExplicitMetaTimeout = Number.isFinite(metaTimeoutRaw) && metaTimeoutRaw > 0;
   let metaTimeoutMs = hasExplicitMetaTimeout
     ? metaTimeoutRaw
-    : 2000;
+    : (scmTimeoutCapPolicy.batchFriendly ? SCM_META_BATCH_DEFAULT_TIMEOUT_MS : SCM_META_DEFAULT_TIMEOUT_MS);
   if (enforceScmTimeoutCaps) {
     const metaCapMs = scmFastPath || SCM_META_FAST_TIMEOUT_EXTS.has(normalizedExt) ? 250 : 750;
     metaTimeoutMs = Math.min(metaTimeoutMs, metaCapMs);
@@ -577,7 +581,7 @@ export const processFileCpu = async (context) => {
           }
         });
       } catch (error) {
-        if (isScmTaskTimeoutError(error)) {
+        if (isScmTaskTimeoutError(error) || isAbortError(error)) {
           scmMetaUnavailableReason = 'timeout';
         } else {
           throw error;
@@ -670,7 +674,7 @@ export const processFileCpu = async (context) => {
             }
           });
         } catch (error) {
-          if (isScmTaskTimeoutError(error)) {
+          if (isScmTaskTimeoutError(error) || isAbortError(error)) {
             lineAuthors = buildLineAuthors({ ok: false, reason: 'timeout' });
           } else {
             throw error;

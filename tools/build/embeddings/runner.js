@@ -44,7 +44,7 @@ import { formatEtaSeconds } from '../../../src/shared/perf/eta.js';
 import {
   normalizeBundleFormat,
   readBundleFile,
-  resolveBundleFilename,
+  resolveManifestBundleNames,
   resolveBundleFormatFromName,
   writeBundleFile
 } from '../../../src/shared/bundle-io.js';
@@ -113,8 +113,14 @@ import {
 } from './autotune-profile.js';
 import {
   normalizeExtractedProseLowYieldBailoutConfig,
-  selectDeterministicWarmupSample
 } from '../../../src/index/chunking/formats/document-common.js';
+import {
+  buildExtractedProseLowYieldBailoutState,
+  buildExtractedProseLowYieldHistory,
+  buildExtractedProseLowYieldBailoutSummary,
+  observeExtractedProseLowYieldSample
+} from '../../../src/index/build/indexer/steps/process-files/extracted-prose.js';
+import { sortEntriesByOrderIndex } from '../../../src/index/build/indexer/steps/process-files/ordering.js';
 import {
   createIncrementalChunkMappingIndex,
   createMappingFailureReasons,
@@ -143,6 +149,23 @@ const DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS = 32768;
 const DEFAULT_EMBEDDINGS_IN_FLIGHT_CLAIMS_MAX_ENTRIES = 200000;
 const DEFAULT_EMBEDDINGS_SQLITE_DENSE_WRITE_BATCH_SIZE = 256;
 const DEFAULT_EMBEDDINGS_ADAPTIVE_PARALLELISM_MULTIPLIER = 2;
+const EXTRACTED_PROSE_RUNTIME_STATE_DIR = 'runtime';
+const EXTRACTED_PROSE_YIELD_PROFILE_FILE = 'extracted-prose-yield-profile.json';
+
+const loadPersistedExtractedProseLowYieldHistory = async ({ repoCacheRoot, scheduleIo, warn = () => {} }) => {
+  if (typeof repoCacheRoot !== 'string' || !repoCacheRoot.trim()) return null;
+  const profilePath = path.join(repoCacheRoot, EXTRACTED_PROSE_RUNTIME_STATE_DIR, EXTRACTED_PROSE_YIELD_PROFILE_FILE);
+  try {
+    const loaded = await scheduleIo(() => fs.readFile(profilePath, 'utf8'));
+    const parsed = JSON.parse(loaded);
+    return buildExtractedProseLowYieldHistory(parsed?.entries?.['extracted-prose'] || null);
+  } catch (err) {
+    if (err?.code !== 'ENOENT') {
+      warn(`[embeddings] extracted-prose: failed to load persisted yield profile: ${err?.message || err}`);
+    }
+    return null;
+  }
+};
 const CHUNK_META_TOO_LARGE_BYTES_PATTERN = /\((\d+)\s*>\s*(\d+)\)/;
 
 /**
@@ -976,6 +999,7 @@ const shouldUseInlineHnswBuilders = ({ enabled, hnswIsolate, samplingActive }) =
  */
 const refreshIncrementalBundlesWithEmbeddings = async ({
   mode,
+  repoCacheRoot,
   incremental,
   chunksByFile,
   mergedVectors,
@@ -994,47 +1018,54 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
   const manifestFiles = manifest.files && typeof manifest.files === 'object'
     ? manifest.files
     : {};
-  const manifestEntries = Object.entries(manifestFiles)
-    .sort((left, right) => (left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0));
-  if (!manifestEntries.length) {
+  const orderedManifestEntries = sortEntriesByOrderIndex(
+    Object.entries(manifestFiles).map(([filePath, entry], index) => {
+      const normalizedFile = toPosix(filePath).trim();
+      return {
+        filePath,
+        normalizedFile,
+        entry,
+        rel: normalizedFile,
+        ext: path.posix.extname(normalizedFile).toLowerCase(),
+        orderIndex: Number.isFinite(Number(entry?.orderIndex))
+          ? Math.floor(Number(entry.orderIndex))
+          : index,
+        canonicalOrderIndex: Number.isFinite(Number(entry?.canonicalOrderIndex))
+          ? Math.floor(Number(entry.canonicalOrderIndex))
+          : null
+      };
+    })
+  );
+  if (!orderedManifestEntries.length) {
     return { attempted: 0, rewritten: 0, manifestWritten: false, completeCoverage: false };
   }
 
   const mappingIndex = createIncrementalChunkMappingIndex(chunksByFile);
 
   const resolvedBundleFormat = normalizeBundleFormat(manifest.bundleFormat);
-  const scanned = manifestEntries.length;
+  const scanned = orderedManifestEntries.length;
   const lowYieldConfig = normalizeExtractedProseLowYieldBailoutConfig(lowYieldBailout);
-  const lowYieldEnabled = mode === 'extracted-prose' && lowYieldConfig.enabled !== false;
-  const warmupWindowSize = lowYieldEnabled
-    ? Math.max(1, Math.min(scanned, Math.floor(lowYieldConfig.warmupWindowSize)))
-    : 0;
-  const warmupWindowEntries = lowYieldEnabled
-    ? manifestEntries.slice(0, warmupWindowSize)
-    : [];
-  const warmupSampleSize = lowYieldEnabled
-    ? Math.max(0, Math.min(warmupWindowEntries.length, Math.floor(lowYieldConfig.warmupSampleSize)))
-    : 0;
-  const sampledWarmupEntries = lowYieldEnabled
-    ? selectDeterministicWarmupSample({
-      values: warmupWindowEntries,
-      sampleSize: warmupSampleSize,
-      seed: lowYieldConfig.seed,
-      resolveKey: (entry) => entry?.[0] || ''
-    })
-    : [];
-  const sampledWarmupFiles = new Set(sampledWarmupEntries.map((entry) => toPosix(entry?.[0])));
-  const observedWarmupFiles = new Set();
-  let warmupObserved = 0;
-  let warmupMapped = 0;
-  let lowYieldDecisionMade = false;
-  let lowYieldBailoutTriggered = false;
+  const lowYieldHistory = mode === 'extracted-prose'
+    ? await loadPersistedExtractedProseLowYieldHistory({ repoCacheRoot, scheduleIo, warn })
+    : null;
+  const lowYieldState = buildExtractedProseLowYieldBailoutState({
+    mode,
+    runtime: {
+      indexingConfig: {
+        extractedProse: {
+          lowYieldBailout: lowYieldConfig
+        }
+      }
+    },
+    entries: orderedManifestEntries,
+    history: lowYieldHistory
+  });
   let lowYieldBailoutSkipped = 0;
-  let lowYieldBailoutSummary = null;
   let processedEntries = 0;
   let eligible = 0;
   let rewritten = 0;
   let covered = 0;
+  let rewriteFailures = 0;
   let skippedNoMapping = 0;
   let skippedNoMappingChunks = 0;
   const mappingFailureReasons = createMappingFailureReasons();
@@ -1044,69 +1075,72 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
   const refreshParallelism = coercePositiveIntMinOne(parallelism) || 1;
 
   /**
-   * Record warmup mapping yield for deterministic low-yield bailout sampling.
+   * Record bundle-refresh mapping yield using the shared extracted-prose
+   * bailout model so stage1 and stage3 make matching low-yield decisions.
    *
-   * @param {{normalizedFile:string,chunkMapping:any}} input
+   * @param {{record:object,chunkMapping:any}} input
    * @returns {void}
    */
-  const observeWarmupMapping = ({ normalizedFile, chunkMapping }) => {
-    if (!lowYieldEnabled || lowYieldDecisionMade || warmupSampleSize <= 0) return;
-    if (!sampledWarmupFiles.has(normalizedFile) || observedWarmupFiles.has(normalizedFile)) return;
-    observedWarmupFiles.add(normalizedFile);
-    warmupObserved += 1;
-    if (chunkMapping) warmupMapped += 1;
-    if (warmupObserved < warmupSampleSize) return;
-    lowYieldDecisionMade = true;
-    const observedYieldRatio = warmupObserved > 0 ? warmupMapped / warmupObserved : 0;
-    const minYieldedFiles = Math.min(
-      Math.max(1, Math.floor(Number(lowYieldConfig.minYieldedFiles) || 1)),
-      Math.max(1, warmupObserved)
-    );
-    lowYieldBailoutTriggered = observedYieldRatio < lowYieldConfig.minYieldRatio
-      && warmupMapped < minYieldedFiles;
-    lowYieldBailoutSummary = {
-      enabled: lowYieldEnabled,
-      triggered: lowYieldBailoutTriggered,
-      seed: lowYieldConfig.seed,
-      warmupWindowSize,
-      warmupSampleSize,
-      sampledFiles: warmupObserved,
-      sampledMappedFiles: warmupMapped,
-      observedYieldRatio,
-      minYieldRatio: lowYieldConfig.minYieldRatio,
-      minYieldedFiles
-    };
+  const observeWarmupMapping = ({ record, chunkMapping }) => {
+    if (!lowYieldState?.enabled) return;
+    const orderIndex = Number(record?.orderIndex);
+    const chunkCount = Array.isArray(chunkMapping?.fallbackIndices)
+      ? chunkMapping.fallbackIndices.length
+      : 0;
+    observeExtractedProseLowYieldSample({
+      bailout: lowYieldState,
+      orderIndex,
+      result: {
+        chunks: chunkCount > 0 ? new Array(chunkCount).fill(null) : []
+      }
+    });
   };
 
   /**
    * Refresh one manifest bundle entry against stage-3 vectors.
    *
-   * @param {[string, any]} manifestEntry
+   * @param {{filePath:string,normalizedFile:string,entry:any,orderIndex:number}} record
    * @param {{trackWarmup?:boolean}} [input]
    * @returns {Promise<void>}
    */
-  const processManifestEntry = async (manifestEntry, { trackWarmup = false } = {}) => {
-    const [filePath, entry] = manifestEntry;
+  const processManifestEntry = async (record, { trackWarmup = false } = {}) => {
+    const filePath = String(record?.filePath || '');
+    const normalizedFile = String(record?.normalizedFile || toPosix(filePath).trim());
+    const entry = record?.entry;
     processedEntries += 1;
-    const normalizedFile = toPosix(filePath).trim();
     const chunkMapping = resolveChunkFileMapping(mappingIndex, normalizedFile);
-    if (trackWarmup) observeWarmupMapping({ normalizedFile, chunkMapping });
-    const bundleName = entry?.bundle || resolveBundleFilename(filePath, resolvedBundleFormat);
-    const bundlePath = path.join(incremental.bundleDir, bundleName);
-    const bundleFormat = resolveBundleFormatFromName(bundleName, resolvedBundleFormat);
-    let existing = null;
-    try {
-      existing = await scheduleIo(() => readBundleFile(bundlePath, { format: bundleFormat }));
-    } catch {
-      existing = null;
-    }
-    if (!existing?.ok || !Array.isArray(existing.bundle?.chunks)) {
+    if (trackWarmup) observeWarmupMapping({ record, chunkMapping });
+    const bundleNames = resolveManifestBundleNames(entry);
+    if (!bundleNames.length) {
       skippedInvalidBundle += 1;
       return;
     }
+    const bundleShards = [];
+    for (const bundleName of bundleNames) {
+      const bundlePath = path.join(incremental.bundleDir, bundleName);
+      const bundleFormat = resolveBundleFormatFromName(bundleName, resolvedBundleFormat);
+      let existing = null;
+      try {
+        existing = await scheduleIo(() => readBundleFile(bundlePath, { format: bundleFormat }));
+      } catch {
+        existing = null;
+      }
+      if (!existing?.ok || !Array.isArray(existing.bundle?.chunks)) {
+        skippedInvalidBundle += 1;
+        return;
+      }
+      bundleShards.push({
+        bundlePath,
+        bundleFormat,
+        bundle: existing.bundle
+      });
+    }
 
-    const bundle = existing.bundle;
-    if (!bundle.chunks.length) {
+    const totalChunks = bundleShards.reduce(
+      (sum, shard) => sum + (Array.isArray(shard.bundle?.chunks) ? shard.bundle.chunks.length : 0),
+      0
+    );
+    if (!totalChunks) {
       skippedEmptyBundle += 1;
       return;
     }
@@ -1116,38 +1150,51 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     let fileCovered = true;
     let fileNoMappingCounted = false;
 
-    for (const chunk of bundle.chunks) {
-      if (!chunk || typeof chunk !== 'object') continue;
-      const mappingResult = resolveBundleChunkVectorIndex({
-        chunk,
-        normalizedFile,
-        fileMapping: chunkMapping,
-        mappingIndex,
-        fallbackState,
-        vectorCount: mergedVectors.length
-      });
-      const vectorIndex = mappingResult.vectorIndex;
-      const vector = vectorIndex != null ? mergedVectors[vectorIndex] : null;
-      const mappedButMissingVector = vectorIndex != null && !hasVectorPayload(vector);
-      if (hasVectorPayload(vector)) {
-        const quantized = toUint8Vector(vector);
-        if (quantized && !vectorsEqual(chunk.embedding_u8, quantized)) {
-          chunk.embedding_u8 = quantized;
+    for (const shard of bundleShards) {
+      const shardChunks = Array.isArray(shard.bundle?.chunks) ? shard.bundle.chunks : [];
+      for (const chunk of shardChunks) {
+        if (!chunk || typeof chunk !== 'object') continue;
+        const mappingResult = resolveBundleChunkVectorIndex({
+          chunk,
+          normalizedFile,
+          fileMapping: chunkMapping,
+          mappingIndex,
+          fallbackState,
+          vectorCount: mergedVectors.length
+        });
+        const vectorIndex = mappingResult.vectorIndex;
+        const vector = vectorIndex != null ? mergedVectors[vectorIndex] : null;
+        const mappedButMissingVector = vectorIndex != null && !hasVectorPayload(vector);
+        if (vectorIndex == null || mappedButMissingVector) {
+          if (chunk.embedding_u8 !== undefined) {
+            delete chunk.embedding_u8;
+            changed = true;
+          }
+          if (chunk.embedding !== undefined) {
+            delete chunk.embedding;
+            changed = true;
+          }
+        }
+        if (hasVectorPayload(vector)) {
+          const quantized = toUint8Vector(vector);
+          if (quantized && !vectorsEqual(chunk.embedding_u8, quantized)) {
+            chunk.embedding_u8 = quantized;
+            changed = true;
+          }
+        }
+        if (vectorIndex != null && chunk.embedding !== undefined) {
+          delete chunk.embedding;
           changed = true;
         }
-      }
-      if (chunk.embedding !== undefined) {
-        delete chunk.embedding;
-        changed = true;
-      }
-      if (!hasVectorPayload(chunk.embedding_u8)) {
-        fileCovered = false;
-        if (vectorIndex == null || mappedButMissingVector) {
-          skippedNoMappingChunks += 1;
-          recordMappingFailureReason(mappingFailureReasons, mappingResult.reason);
-          if (!fileNoMappingCounted) {
-            skippedNoMapping += 1;
-            fileNoMappingCounted = true;
+        if (!hasVectorPayload(chunk.embedding_u8)) {
+          fileCovered = false;
+          if (vectorIndex == null || mappedButMissingVector) {
+            skippedNoMappingChunks += 1;
+            recordMappingFailureReason(mappingFailureReasons, mappingResult.reason);
+            if (!fileNoMappingCounted) {
+              skippedNoMapping += 1;
+              fileNoMappingCounted = true;
+            }
           }
         }
       }
@@ -1158,33 +1205,36 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
       return;
     }
     try {
-      await scheduleIo(() => writeBundleFile({
-        bundlePath,
-        bundle,
-        format: bundleFormat
-      }));
+      for (const shard of bundleShards) {
+        await scheduleIo(() => writeBundleFile({
+          bundlePath: shard.bundlePath,
+          bundle: shard.bundle,
+          format: shard.bundleFormat
+        }));
+      }
       rewritten += 1;
       if (fileCovered) covered += 1;
     } catch (err) {
+      rewriteFailures += 1;
       warn(`[embeddings] ${mode}: failed to refresh bundle ${filePath}: ${err?.message || err}`);
     }
   };
 
   let nextEntryIndex = 0;
-  if (lowYieldEnabled && warmupSampleSize > 0) {
-    for (; nextEntryIndex < manifestEntries.length; nextEntryIndex += 1) {
-      await processManifestEntry(manifestEntries[nextEntryIndex], { trackWarmup: true });
-      if (lowYieldBailoutTriggered || lowYieldDecisionMade) {
+  if (lowYieldState?.enabled === true && Number(lowYieldState.warmupSampleSize) > 0) {
+    for (; nextEntryIndex < orderedManifestEntries.length; nextEntryIndex += 1) {
+      await processManifestEntry(orderedManifestEntries[nextEntryIndex], { trackWarmup: true });
+      if (lowYieldState.decisionMade === true) {
         nextEntryIndex += 1;
         break;
       }
     }
   }
 
-  const remainingEntries = lowYieldEnabled && warmupSampleSize > 0
-    ? manifestEntries.slice(nextEntryIndex)
-    : manifestEntries;
-  if (!lowYieldBailoutTriggered && remainingEntries.length) {
+  const remainingEntries = lowYieldState?.enabled === true && Number(lowYieldState.warmupSampleSize) > 0
+    ? orderedManifestEntries.slice(nextEntryIndex)
+    : orderedManifestEntries;
+  if (lowYieldState?.triggered !== true && remainingEntries.length) {
     if (refreshParallelism > 1 && remainingEntries.length > 1) {
       await runWithConcurrency(
         remainingEntries,
@@ -1199,25 +1249,39 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     }
   }
 
-  if (lowYieldBailoutTriggered) {
+  if (lowYieldState?.triggered === true) {
     lowYieldBailoutSkipped = Math.max(0, scanned - processedEntries);
+    lowYieldState.skippedFiles = lowYieldBailoutSkipped;
   }
+  const lowYieldBailoutSummary = buildExtractedProseLowYieldBailoutSummary(lowYieldState);
 
+  const missingFiles = Math.max(0, eligible - covered);
+  const missingChunks = Math.max(0, skippedNoMappingChunks);
   const completeCoverage = eligible > 0
-    ? covered === eligible
+    ? covered === eligible && missingChunks === 0
     : skippedInvalidBundle === 0;
   let manifestWritten = false;
-  if (completeCoverage) {
-    manifest.bundleEmbeddings = true;
-    manifest.bundleEmbeddingMode = embeddingMode || manifest.bundleEmbeddingMode || null;
-    manifest.bundleEmbeddingIdentityKey = embeddingIdentityKey || manifest.bundleEmbeddingIdentityKey || null;
+  if (rewriteFailures === 0) {
+    manifest.bundleEmbeddings = completeCoverage;
+    manifest.bundleEmbeddingMode = embeddingMode || null;
+    manifest.bundleEmbeddingIdentityKey = embeddingIdentityKey || null;
     manifest.bundleEmbeddingStage = 'stage3';
+    manifest.bundleEmbeddingCoverageEligible = eligible;
+    manifest.bundleEmbeddingCoverageCovered = covered;
+    manifest.bundleEmbeddingCoverageMissingFiles = missingFiles;
+    manifest.bundleEmbeddingCoverageMissingChunks = missingChunks;
+    manifest.bundleEmbeddingCoverageComplete = completeCoverage;
     manifestWritten = await scheduleIo(
       () => writeIncrementalManifest(incremental.manifestPath, manifest)
     );
     if (!manifestWritten) {
       warn(`[embeddings] ${mode}: failed to persist incremental manifest embedding metadata.`);
     }
+  } else {
+    warn(
+      `[embeddings] ${mode}: skipped manifest embedding coverage update after `
+      + `${rewriteFailures} bundle refresh failure${rewriteFailures === 1 ? '' : 's'}.`
+    );
   }
 
   if (scanned > 0) {
@@ -1230,18 +1294,20 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     if (skippedEmptyBundle > 0) skippedNotes.push(`empty=${skippedEmptyBundle}`);
     if (skippedInvalidBundle > 0) skippedNotes.push(`invalid=${skippedInvalidBundle}`);
     if (lowYieldBailoutSkipped > 0) skippedNotes.push(`lowYieldBailout=${lowYieldBailoutSkipped}`);
+    if (rewriteFailures > 0) skippedNotes.push(`rewriteFailures=${rewriteFailures}`);
     const skippedSuffix = skippedNotes.length ? ` (skipped ${skippedNotes.join(', ')})` : '';
     const coverageText = eligible > 0 ? `${covered}/${eligible}` : 'n/a';
     log(
       `[embeddings] ${mode}: refreshed ${rewritten}/${eligible} eligible incremental bundles; ` +
       `embedding coverage ${coverageText}${skippedSuffix}.`
     );
-    if (lowYieldBailoutTriggered) {
+    if (lowYieldState?.triggered === true) {
       const ratioPct = ((lowYieldBailoutSummary?.observedYieldRatio || 0) * 100).toFixed(1);
       warn(
-        `[embeddings] ${mode}: low-yield bailout engaged after ${warmupObserved} warmup files `
-          + `(mapped=${warmupMapped}, ratio=${ratioPct}%, `
-          + `threshold=${Math.round(lowYieldConfig.minYieldRatio * 100)}%); `
+        `[embeddings] ${mode}: low-yield bailout engaged after ${lowYieldBailoutSummary?.sampledFiles || 0} warmup files `
+          + `(yielded=${lowYieldBailoutSummary?.sampledYieldedFiles || 0}, `
+          + `chunks=${lowYieldBailoutSummary?.sampledChunkCount || 0}, ratio=${ratioPct}%, `
+          + `threshold=${Math.round((lowYieldBailoutSummary?.minYieldRatio || 0) * 100)}%); `
           + 'quality marker: reduced-extracted-prose-recall.'
       );
     }
@@ -1260,7 +1326,8 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     lowYieldBailoutSkipped,
     lowYieldBailout: lowYieldBailoutSummary,
     manifestWritten,
-    completeCoverage
+    completeCoverage,
+    rewriteFailures
   };
 };
 
@@ -2917,7 +2984,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           });
           if (force || perfStatusLine !== lastPerfStatusLine) {
             lastPerfStatusLine = perfStatusLine;
-            log(perfStatusLine);
+            log(perfStatusLine, { kind: 'status', stage: 'embeddings', mode });
           }
           const filesMessage = [
             `${processedFiles}/${sampledFileEntries.length} files`,
@@ -3860,6 +3927,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         bundleTask.set(0, 1, { message: 'refreshing incremental bundles' });
         const refreshedBundles = await refreshIncrementalBundlesWithEmbeddings({
           mode,
+          repoCacheRoot,
           incremental,
           chunksByFile: sampledChunksByFile,
           mergedVectors,
@@ -4211,11 +4279,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
         {
           const vectorSummary = `[embeddings] ${mode}: wrote ${totalChunks} vectors (dims=${finalDims}).`;
-          if (typeof display?.logLine === 'function') {
-            display.logLine(vectorSummary, { kind: 'status' });
-          } else {
-            log(vectorSummary);
-          }
+          log(vectorSummary, { kind: 'status', stage: 'embeddings', mode });
         }
         if (crossFileChunkDedupeEnabled) {
           log(

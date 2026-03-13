@@ -40,7 +40,13 @@ const env = applyTestEnv({
   embeddings: 'stub',
   testConfig: {
     indexing: {
-      scm: { provider: 'none' }
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
   }
 });
@@ -51,7 +57,9 @@ const buildResult = spawnSync(
     path.join(root, 'build_index.js'),
     '--stub-embeddings',
     '--stage',
-    'stage2',
+    'stage1',
+    '--mode',
+    'code',
     '--repo',
     repoRoot
   ],

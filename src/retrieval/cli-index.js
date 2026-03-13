@@ -353,7 +353,7 @@ export function requireIndexDir(root, mode, userConfig, options = {}) {
       : '';
     const message = `[search] ${mode} index not found at ${dir}. Run "pairofcleats index build${suffix}" (build-index) or "node build_index.js${suffix}".`;
     const emitOutput = options.emitOutput !== false;
-    const exitOnError = options.exitOnError !== false;
+    const exitOnError = options.exitOnError === true;
     if (emitOutput) console.error(message);
     if (exitOnError) process.exit(1);
     throw createError(ERROR_CODES.NO_INDEX, message);

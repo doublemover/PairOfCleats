@@ -88,10 +88,26 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     log
   });
   if (incrementalState?.manifest) {
-    incrementalState.manifest.bundleEmbeddings = runtime.embeddingEnabled === true;
-    incrementalState.manifest.bundleEmbeddingMode = runtime.embeddingMode || null;
-    incrementalState.manifest.bundleEmbeddingIdentityKey = runtime.embeddingIdentityKey || null;
-    incrementalState.manifest.bundleEmbeddingStage = runtime.stage || null;
+    if (incrementalState.manifest.bundleEmbeddings !== true) {
+      incrementalState.manifest.bundleEmbeddings = false;
+      incrementalState.manifest.bundleEmbeddingCoverageComplete = false;
+      incrementalState.manifest.bundleEmbeddingCoverageEligible = Math.max(
+        0,
+        Number(incrementalState.manifest.bundleEmbeddingCoverageEligible) || 0
+      );
+      incrementalState.manifest.bundleEmbeddingCoverageCovered = Math.max(
+        0,
+        Number(incrementalState.manifest.bundleEmbeddingCoverageCovered) || 0
+      );
+      incrementalState.manifest.bundleEmbeddingCoverageMissingFiles = Math.max(
+        0,
+        Number(incrementalState.manifest.bundleEmbeddingCoverageMissingFiles) || 0
+      );
+      incrementalState.manifest.bundleEmbeddingCoverageMissingChunks = Math.max(
+        0,
+        Number(incrementalState.manifest.bundleEmbeddingCoverageMissingChunks) || 0
+      );
+    }
     setRecordsIncrementalCapability(incrementalState.manifest, true);
   }
   const seenFiles = new Set();
@@ -234,6 +250,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     const manifestEntry = await writeIncrementalBundle({
       enabled: incrementalState.enabled,
       bundleDir: incrementalState.bundleDir,
+      manifest: incrementalState.manifest,
       relKey: recordFile,
       fileStat,
       fileHash: sha1(text),
@@ -241,6 +258,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       fileRelations: null,
       vfsManifestRows: null,
       bundleFormat: incrementalState.bundleFormat,
+      previousManifestEntry: incrementalState.manifest?.files?.[recordFile] || null,
       fileEncoding: 'utf8',
       fileEncodingFallback: false,
       fileEncodingConfidence: 1

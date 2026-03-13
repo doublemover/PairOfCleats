@@ -42,6 +42,101 @@ const VALIDATION_CRITICAL_ARTIFACT_PATTERNS = Object.freeze([
   /(^|\/)field_postings(?:\.|$)/,
   /(^|\/)pieces\/manifest\.json$/
 ]);
+const EXCLUSIVE_ARTIFACT_PUBLISHER_FAMILIES = Object.freeze([
+  { family: 'chunk-meta-binary-columnar', pattern: /(^|\/)chunk_meta\.binary-columnar(?:\.|$)/ },
+  { family: 'field-postings', pattern: /(^|\/)field_postings(?:\.|$)/ },
+  { family: 'token-postings', pattern: /(^|\/)token_postings(?:\.|$)/ }
+]);
+const HEAVY_ARTIFACT_LABEL_PATTERNS = Object.freeze([
+  /(^|\/)chunk_meta(?:\.|\/|$)/,
+  /(^|\/)field_tokens(?:\.|$)/,
+  /(^|\/)repo_map(?:\.|$)/,
+  /(^|\/)file_meta(?:\.|$)/,
+  /(^|\/)file_relations(?:\.|$)/,
+  /(^|\/)call_sites(?:\.|$)/,
+  /(^|\/)symbols(?:\.|$)/,
+  /(^|\/)symbol_occurrences(?:\.|$)/,
+  /(^|\/)symbol_edges(?:\.|$)/
+]);
+const LARGE_ARTIFACT_DISPATCH_BYTES = 128 * 1024 * 1024;
+const HUGE_ARTIFACT_EAGER_START_LIMIT_BYTES = 384 * 1024 * 1024;
+
+export const resolveArtifactWritePhaseClass = (phase) => {
+  const normalized = typeof phase === 'string' ? phase.trim().toLowerCase() : '';
+  if (!normalized) return 'unknown';
+  if (normalized.startsWith('materialize:')) return 'materialize';
+  if (normalized.startsWith('publish:')) return 'publish';
+  if (normalized.startsWith('prefetch')) return 'prefetch';
+  if (normalized.startsWith('write-')) return 'execute';
+  if (normalized.startsWith('write:')) return 'execute';
+  if (normalized.startsWith('closeout:')) return 'closeout';
+  return 'other';
+};
+
+export const resolveArtifactPhaseBudgetWeight = (phase) => {
+  const phaseClass = resolveArtifactWritePhaseClass(phase);
+  switch (phaseClass) {
+    case 'publish':
+      return 0.2;
+    case 'prefetch':
+      return 0.5;
+    case 'closeout':
+      return 0;
+    default:
+      return 1;
+  }
+};
+
+export const resolveArtifactBlockingState = (activeEntries = []) => {
+  let blockingCount = 0;
+  let blockingPhaseWeightedBytes = 0;
+  const blockingHugeFamilies = new Set();
+  let hasOversizeBlockingEntry = false;
+  return {
+    fromEntries(maxBytesInFlight = null) {
+      blockingCount = 0;
+      blockingPhaseWeightedBytes = 0;
+      blockingHugeFamilies.clear();
+      hasOversizeBlockingEntry = false;
+      for (const activeEntry of Array.isArray(activeEntries) ? activeEntries : []) {
+        if (!activeEntry || typeof activeEntry !== 'object') continue;
+        const activeFamily = resolveArtifactExclusivePublisherFamily(activeEntry.label);
+        const activeBytes = resolveArtifactEffectiveDispatchBytes(activeEntry);
+        const phaseWeight = resolveArtifactPhaseBudgetWeight(activeEntry.phase);
+        const phaseClass = resolveArtifactWritePhaseClass(activeEntry.phase);
+        if (phaseWeight > 0 && activeBytes > 0) {
+          blockingCount += 1;
+        }
+        if (
+          maxBytesInFlight != null
+          && phaseWeight > 0
+          && activeBytes > maxBytesInFlight
+          && phaseClass !== 'publish'
+          && phaseClass !== 'closeout'
+        ) {
+          hasOversizeBlockingEntry = true;
+        }
+        if (phaseWeight > 0 && (activeFamily || activeBytes >= LARGE_ARTIFACT_DISPATCH_BYTES)) {
+          blockingPhaseWeightedBytes += Math.floor(activeBytes * phaseWeight);
+        }
+        if (
+          activeFamily
+          && phaseClass !== 'publish'
+          && phaseClass !== 'closeout'
+          && phaseWeight > 0
+        ) {
+          blockingHugeFamilies.add(activeFamily);
+        }
+      }
+      return {
+        blockingCount,
+        blockingPhaseWeightedBytes,
+        blockingHugeFamilies,
+        hasOversizeBlockingEntry
+      };
+    }
+  };
+};
 
 /**
  * Resolve an upper percentile from sorted millisecond samples.
@@ -93,18 +188,6 @@ export const resolveArtifactWriteThroughputProfile = (perfProfile) => {
 };
 
 /**
- * Normalize filesystem write strategy mode selector.
- *
- * @param {unknown} value
- * @returns {'auto'|'ntfs'|'generic'}
- */
-const normalizeStrategyMode = (value) => {
-  const mode = typeof value === 'string' ? value.trim().toLowerCase() : 'auto';
-  if (mode === 'ntfs' || mode === 'generic' || mode === 'auto') return mode;
-  return 'auto';
-};
-
-/**
  * Coerce optional value to non-negative finite number.
  *
  * @param {unknown} value
@@ -114,6 +197,122 @@ const toNonNegativeNumberOrNull = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return null;
   return parsed;
+};
+
+export const resolveArtifactExclusivePublisherFamily = (label) => {
+  const normalized = String(label || '').replace(/\\/g, '/').toLowerCase();
+  if (!normalized) return null;
+  for (const entry of EXCLUSIVE_ARTIFACT_PUBLISHER_FAMILIES) {
+    entry.pattern.lastIndex = 0;
+    if (entry.pattern.test(normalized)) return entry.family;
+  }
+  return null;
+};
+
+export const resolveArtifactEffectiveDispatchBytes = (entry) => {
+  if (!entry || typeof entry !== 'object') return 0;
+  const estimatedBytes = toNonNegativeNumberOrNull(entry.estimatedBytes);
+  if (estimatedBytes != null && estimatedBytes > 0) return estimatedBytes;
+  if (resolveArtifactExclusivePublisherFamily(entry.label)) {
+    return HUGE_ARTIFACT_WRITE_BYTES;
+  }
+  const lane = typeof entry.lane === 'string' ? entry.lane.trim().toLowerCase() : '';
+  if (lane === 'massive') return HUGE_ARTIFACT_WRITE_BYTES;
+  if (lane === 'heavy') return LARGE_ARTIFACT_DISPATCH_BYTES;
+  const normalized = String(entry.label || '').replace(/\\/g, '/').toLowerCase();
+  if (!normalized) return 0;
+  for (const pattern of HEAVY_ARTIFACT_LABEL_PATTERNS) {
+    pattern.lastIndex = 0;
+    if (pattern.test(normalized)) return LARGE_ARTIFACT_DISPATCH_BYTES;
+  }
+  return 0;
+};
+
+export const resolveArtifactWriteBytesInFlightLimit = ({
+  throughputBytesPerSec = null,
+  writeConcurrency = 1
+} = {}) => {
+  const throughput = resolveOptionalPositiveNumber(throughputBytesPerSec, null);
+  const concurrency = Math.max(1, Math.floor(Number(writeConcurrency) || 1));
+  const throughputWindow = throughput
+    ? Math.max(LARGE_ARTIFACT_DISPATCH_BYTES, Math.floor(throughput * 6))
+    : (384 * 1024 * 1024);
+  const concurrencyAllowance = Math.max(LARGE_ARTIFACT_DISPATCH_BYTES, concurrency * (96 * 1024 * 1024));
+  return Math.max(LARGE_ARTIFACT_DISPATCH_BYTES, Math.min(HUGE_ARTIFACT_WRITE_BYTES, Math.max(throughputWindow, concurrencyAllowance)));
+};
+
+export const shouldEagerStartArtifactWrite = ({
+  entry,
+  maxBytesInFlight = null
+} = {}) => {
+  if (!entry || typeof entry !== 'object' || entry.eagerStart !== true) return false;
+  const entryBytes = resolveArtifactEffectiveDispatchBytes(entry);
+  const entryFamily = resolveArtifactExclusivePublisherFamily(entry.label);
+  if (entryBytes <= 0) return true;
+  if (maxBytesInFlight != null && entryBytes > maxBytesInFlight) {
+    return false;
+  }
+  if (
+    entryFamily
+    && entryBytes >= Math.min(
+      HUGE_ARTIFACT_EAGER_START_LIMIT_BYTES,
+      Math.max(LARGE_ARTIFACT_DISPATCH_BYTES, Math.floor((Number(maxBytesInFlight) || 0) / 2))
+    )
+  ) {
+    return false;
+  }
+  return true;
+};
+
+export const canDispatchArtifactWriteEntry = ({
+  entry,
+  activeEntries = [],
+  maxBytesInFlight = null
+} = {}) => {
+  if (!entry || typeof entry !== 'object') return false;
+  const entryBytes = resolveArtifactEffectiveDispatchBytes(entry);
+  const entryFamily = resolveArtifactExclusivePublisherFamily(entry.label);
+  const blockingState = resolveArtifactBlockingState(activeEntries).fromEntries(maxBytesInFlight);
+  if (entryFamily && blockingState.blockingHugeFamilies.has(entryFamily)) {
+    return false;
+  }
+  if (blockingState.hasOversizeBlockingEntry) {
+    return false;
+  }
+  if (
+    maxBytesInFlight != null
+    && entryBytes > maxBytesInFlight
+    && blockingState.blockingCount > 0
+  ) {
+    return false;
+  }
+  if (
+    maxBytesInFlight != null
+    && entryBytes > maxBytesInFlight
+    && blockingState.blockingCount === 0
+  ) {
+    return true;
+  }
+  if (
+    maxBytesInFlight != null
+    && (entryFamily || entryBytes >= LARGE_ARTIFACT_DISPATCH_BYTES)
+    && (blockingState.blockingPhaseWeightedBytes + entryBytes) > maxBytesInFlight
+  ) {
+    return false;
+  }
+  return true;
+};
+
+/**
+ * Normalize filesystem write strategy mode selector.
+ *
+ * @param {unknown} value
+ * @returns {'auto'|'ntfs'|'generic'}
+ */
+const normalizeStrategyMode = (value) => {
+  const mode = typeof value === 'string' ? value.trim().toLowerCase() : 'auto';
+  if (mode === 'ntfs' || mode === 'generic' || mode === 'auto') return mode;
+  return 'auto';
 };
 
 const resolveArtifactWriteSizeClass = (metric = {}) => {
@@ -199,12 +398,13 @@ const isMicroCoalescibleWrite = (entry, maxEntryBytes) => {
  * @param {number} [input.memoryPressureLowThreshold]
  * @param {number} [input.gcPressureHighThreshold]
  * @param {number} [input.gcPressureLowThreshold]
+ * @param {number} [input.nonWriteHighBytesThreshold]
  * @param {number} [input.writeQueuePendingThreshold]
  * @param {number} [input.writeQueueOldestWaitMsThreshold]
  * @param {number} [input.writeQueueWaitP95MsThreshold]
  * @param {() => number} [input.now]
  * @param {(event:{reason:string,from:number,to:number,pendingWrites:number,activeWrites:number,longestStallSec:number,memoryPressure:number|null,gcPressure:number|null,rssUtilization:number|null,schedulerWritePending:number|null,schedulerWriteOldestWaitMs:number|null,schedulerWriteWaitP95Ms:number|null,stallAttribution:string}) => void} [input.onChange]
- * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,longestStallSec?:number,memoryPressure?:number|null,gcPressure?:number|null,rssUtilization?:number|null,schedulerWritePending?:number|null,schedulerWriteOldestWaitMs?:number|null,schedulerWriteWaitP95Ms?:number|null})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
+ * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,activeWriteBytes?:number,longestStallSec?:number,memoryPressure?:number|null,gcPressure?:number|null,rssUtilization?:number|null,schedulerWritePending?:number|null,schedulerWriteOldestWaitMs?:number|null,schedulerWriteWaitP95Ms?:number|null})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
  */
 export const createAdaptiveWriteConcurrencyController = (input = {}) => {
   const maxConcurrency = clampWriteConcurrency(input.maxConcurrency, 1);
@@ -248,6 +448,9 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
   const gcPressureLowThreshold = Number.isFinite(Number(input.gcPressureLowThreshold))
     ? Math.max(0, Math.min(gcPressureHighThreshold, Number(input.gcPressureLowThreshold)))
     : 0.2;
+  const nonWriteHighBytesThreshold = Number.isFinite(Number(input.nonWriteHighBytesThreshold))
+    ? Math.max(LARGE_ARTIFACT_DISPATCH_BYTES, Math.floor(Number(input.nonWriteHighBytesThreshold)))
+    : HUGE_ARTIFACT_WRITE_BYTES;
   const writeQueuePendingThreshold = Number.isFinite(Number(input.writeQueuePendingThreshold))
     ? Math.max(1, Math.floor(Number(input.writeQueuePendingThreshold)))
     : 1;
@@ -259,9 +462,13 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
     : 750;
   const now = typeof input.now === 'function' ? input.now : () => Date.now();
   const onChange = typeof input.onChange === 'function' ? input.onChange : null;
+  const memoryPressureScaleDownConsecutive = Number.isFinite(Number(input.memoryPressureScaleDownConsecutive))
+    ? Math.max(1, Math.floor(Number(input.memoryPressureScaleDownConsecutive)))
+    : 2;
 
   let lastScaleUpAt = Number.NEGATIVE_INFINITY;
   let lastScaleDownAt = Number.NEGATIVE_INFINITY;
+  let consecutiveHighMemoryPressure = 0;
 
   const emitChange = (reason, from, to, snapshot) => {
     if (!onChange || from === to) return;
@@ -306,6 +513,9 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
     const schedulerWriteWaitP95Ms = Number.isFinite(Number(snapshot.schedulerWriteWaitP95Ms))
       ? Math.max(0, Math.floor(Number(snapshot.schedulerWriteWaitP95Ms)))
       : null;
+    const activeWriteBytes = Number.isFinite(Number(snapshot.activeWriteBytes))
+      ? Math.max(0, Math.floor(Number(snapshot.activeWriteBytes)))
+      : 0;
     const hasSchedulerWriteSignals = (
       schedulerWritePending != null
       || schedulerWriteOldestWaitMs != null
@@ -350,10 +560,26 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       && (gcPressure == null || gcPressure <= gcPressureLowThreshold)
       && (rssUtilization == null || rssUtilization <= memoryPressureLowThreshold)
     );
+    if (highMemoryPressure) {
+      consecutiveHighMemoryPressure += 1;
+    } else {
+      consecutiveHighMemoryPressure = 0;
+    }
+    const memoryPressureBackedByWriteLoad = (
+      attributedToWriteQueue
+      || pendingWrites > 0
+      || activeWrites >= currentConcurrency
+    );
 
     const canScaleDown = currentConcurrency > minConcurrency
       && (timestamp - lastScaleDownAt) >= scaleDownCooldownMs;
-    if (canScaleDown && highMemoryPressure) {
+    if (
+      canScaleDown
+      && highMemoryPressure
+      && consecutiveHighMemoryPressure >= memoryPressureScaleDownConsecutive
+      && memoryPressureBackedByWriteLoad
+      && !writeQueueIdleWithSignals
+    ) {
       currentConcurrency -= 1;
       lastScaleDownAt = timestamp;
       emitChange('memory-pressure', from, currentConcurrency, {
@@ -401,6 +627,28 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
     }
     if (
       canScaleDown
+      && longestStallSec >= stallScaleDownSeconds
+      && stallAttribution === 'non-write'
+      && activeWriteBytes >= nonWriteHighBytesThreshold
+    ) {
+      currentConcurrency = Math.max(minConcurrency, currentConcurrency - 1);
+      lastScaleDownAt = timestamp;
+      emitChange('non-write-stall', from, currentConcurrency, {
+        pendingWrites,
+        activeWrites,
+        longestStallSec,
+        memoryPressure,
+        gcPressure,
+        rssUtilization,
+        schedulerWritePending,
+        schedulerWriteOldestWaitMs,
+        schedulerWriteWaitP95Ms,
+        stallAttribution
+      });
+      return currentConcurrency;
+    }
+    if (
+      canScaleDown
       && pendingWrites <= 1
       && activeWrites < currentConcurrency
       && backlogPerSlot <= scaleDownBacklogPerSlot
@@ -430,6 +678,7 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       && pendingWrites > 0
       && backlogPerSlot >= scaleUpBacklogPerSlot
       && longestStallSec <= stallScaleUpGuardSeconds
+      && stallAttribution !== 'non-write'
     ) {
       currentConcurrency += 1;
       lastScaleUpAt = timestamp;
@@ -451,6 +700,7 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       && lowMemoryPressure
       && backlogPerSlot >= Math.max(0.75, scaleUpBacklogPerSlot * 0.6)
       && longestStallSec <= Math.max(1, stallScaleUpGuardSeconds * 0.75)
+      && stallAttribution !== 'non-write'
     ) {
       currentConcurrency += 1;
       lastScaleUpAt = timestamp;
@@ -638,19 +888,23 @@ export const summarizeArtifactLatencyClasses = (metrics) => {
  * then lane rank and enqueue sequence.
  *
  * @param {{ultraLight?:Array<object>,massive?:Array<object>,light?:Array<object>,heavy?:Array<object}} laneQueues
- * @param {{laneOrder?:Array<string>}} [options]
+ * @param {{laneOrder?:Array<string>,canSelect?:(entry:object,laneName:string)=>boolean}} [options]
  * @returns {{laneName:string,entry:object}|null}
  */
 export const selectTailWorkerWriteEntry = (laneQueues, options = {}) => {
   const laneOrder = Array.isArray(options?.laneOrder) && options.laneOrder.length
     ? options.laneOrder
     : ['massive', 'heavy', 'light', 'ultraLight'];
+  const canSelect = typeof options?.canSelect === 'function'
+    ? options.canSelect
+    : () => true;
   const compare = resolveTailWorkerComparator(laneOrder);
   let best = null;
   for (const laneName of laneOrder) {
     const queue = Array.isArray(laneQueues?.[laneName]) ? laneQueues[laneName] : null;
     if (!queue || !queue.length) continue;
     for (let index = 0; index < queue.length; index += 1) {
+      if (!canSelect(queue[index], laneName)) continue;
       const candidate = { laneName, index, entry: queue[index] };
       if (!best || compare(candidate, best) < 0) {
         best = candidate;

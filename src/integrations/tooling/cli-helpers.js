@@ -78,14 +78,15 @@ export const parseChangedInputs = ({ changed, changedFile }, repoRoot) => {
 /**
  * Emit CLI payload in selected format and return payload.
  *
- * @param {{format:'md'|'json',payload:any,renderMarkdown:(payload:any)=>string}} input
+ * @param {{format:'md'|'json',payload:any,renderMarkdown:(payload:any)=>string,renderJson?:(payload:any)=>any}} input
  * @returns {any}
  */
-export const emitCliOutput = ({ format, payload, renderMarkdown }) => {
+export const emitCliOutput = ({ format, payload, renderMarkdown, renderJson = null }) => {
   if (format === 'md') {
     console.log(renderMarkdown(payload));
   } else {
-    console.log(JSON.stringify(payload, null, 2));
+    const jsonPayload = typeof renderJson === 'function' ? renderJson(payload) : payload;
+    console.log(JSON.stringify(jsonPayload, null, 2));
   }
   return payload;
 };

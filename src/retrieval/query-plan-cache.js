@@ -4,6 +4,7 @@ import { incCacheEvent, incCacheEviction, setCacheSize } from '../shared/metrics
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { atomicWriteText } from '../shared/io/atomic-write.js';
 import { sortAndTrimEntriesByNewest } from './cache-trim.js';
+import { readJsonFileSyncSafe } from '../shared/files.js';
 import {
   QUERY_PLAN_SCHEMA_VERSION,
   QUERY_PARSER_VERSION,
@@ -15,6 +16,7 @@ const DEFAULT_QUERY_PLAN_CACHE_MAX_ENTRIES = 128;
 const DEFAULT_QUERY_PLAN_CACHE_TTL_MS = 10 * 60 * 1000;
 const QUERY_PLAN_DISK_CACHE_VERSION = 1;
 const DEFAULT_QUERY_PLAN_DISK_MAX_BYTES = 2 * 1024 * 1024;
+const DEFAULT_QUERY_PLAN_DISK_READ_MAX_BYTES = 8 * 1024 * 1024;
 const DISK_CACHE_PREFIX = `{"version":${QUERY_PLAN_DISK_CACHE_VERSION},"entries":[`;
 const DISK_CACHE_SUFFIX = ']}';
 const DISK_CACHE_WRAPPER_BYTES = Buffer.byteLength(`${DISK_CACHE_PREFIX}${DISK_CACHE_SUFFIX}`, 'utf8');
@@ -102,14 +104,23 @@ const hydrateQueryPlanEntry = (rawEntry, { configSignature, indexSignature } = {
   return validateQueryPlanEntry(entry, { configSignature, indexSignature }) ? entry : null;
 };
 
-const readDiskCache = (cachePath) => {
+const readDiskCache = (cachePath, maxReadBytes = DEFAULT_QUERY_PLAN_DISK_READ_MAX_BYTES) => {
   if (!cachePath || !fs.existsSync(cachePath)) return null;
-  try {
-    const raw = fs.readFileSync(cachePath, 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return null;
+  let readError = null;
+  const parsed = readJsonFileSyncSafe(cachePath, {
+    fallback: null,
+    maxBytes: maxReadBytes,
+    onError: (info) => {
+      if (!readError) readError = info?.error || new Error('query_plan_disk_cache_read_failed');
+    }
+  });
+  if (parsed != null) return parsed;
+  if (readError && readError?.code !== 'ENOENT') {
+    try {
+      fs.rmSync(cachePath, { force: true });
+    } catch {}
   }
+  return null;
 };
 
 const serializeDiskEntry = (entry) => {
@@ -202,7 +213,11 @@ export function createQueryPlanDiskCache({
 
   const load = () => {
     if (!cachePath) return 0;
-    const data = readDiskCache(cachePath);
+    const diskReadLimit = Math.max(
+      DEFAULT_QUERY_PLAN_DISK_READ_MAX_BYTES,
+      normalizeDiskLimit(maxBytes, DEFAULT_QUERY_PLAN_DISK_MAX_BYTES) * 4
+    );
+    const data = readDiskCache(cachePath, diskReadLimit);
     if (!data || data.version !== QUERY_PLAN_DISK_CACHE_VERSION || !Array.isArray(data.entries)) {
       return 0;
     }

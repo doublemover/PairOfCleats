@@ -227,7 +227,11 @@ export const createArtifactWriter = ({
       }
     }
     if (!resolvedMaxBytes || resolvedEstimatedBytes <= resolvedMaxBytes) {
-      enqueueJsonArray(base, items, { compressible: false, piece });
+      enqueueJsonArray(base, items, {
+        compressible: false,
+        piece,
+        estimatedBytes: resolvedEstimatedBytes
+      });
       return;
     }
     const preallocatePartBytes = jsonlPresizeEnabled && shapeHints.isLarge

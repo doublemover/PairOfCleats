@@ -30,22 +30,28 @@ await fsPromises.copyFile(
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  },
   testConfig: {
     indexing: {
       scm: { provider: 'none' },
       maxFileBytes: 200000,
       fileListSampleSize: 20,
-      treeSitter: { enabled: false }
+      treeSitter: { enabled: false },
+      typeInference: false,
+      typeInferenceCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
-  },
-  extraEnv: {
-    PAIROFCLEATS_WORKER_POOL: 'off'
   }
 });
 
 const buildResult = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage2', '--mode', 'code', '--repo', repoRoot],
+  [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage1', '--mode', 'code', '--repo', repoRoot],
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 if (buildResult.status !== 0) {

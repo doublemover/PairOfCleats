@@ -19818,7 +19818,7 @@ Branch-wide bug sweep across retrieval/CLI/cache, indexing runtime/build, langua
      Fix: include `.testLogs` in search roots (prefer latest run directory first).
 
 [x] 125. **[P2] Phase-22 gate script resolves test paths from invocation CWD, not repo root**  
-     Evidence: `tools/ci/run-phase22-gates.js`  
+     Evidence: `tools/ci/run-lsp-embeddings-gates.js`  
      Impact: invoking from non-root working directories breaks path resolution and falsely fails gate execution.  
      Fix: resolve tests from detected repo root and set subprocess cwd consistently.
 

@@ -42,6 +42,7 @@ const createBatcher = (embed, batchSize) => {
   let scheduled = false;
   let needsFlush = false;
   const size = Math.max(1, Math.floor(batchSize));
+  const maxQueueDepth = Math.max(4096, size * 64);
   const batchQueue = new PQueue({ concurrency: 1 });
 
   const flush = async () => {
@@ -96,6 +97,11 @@ const createBatcher = (embed, batchSize) => {
 
   const embedAll = async (texts) => {
     if (!texts.length) return [];
+    if (queue.length + texts.length > maxQueueDepth) {
+      throw new Error(
+        `[embeddings] batch queue overflow (queued=${queue.length}, incoming=${texts.length}, max=${maxQueueDepth}).`
+      );
+    }
     const promises = texts.map(
       (text) => new Promise((resolve, reject) => {
         queue.push({ text, resolve, reject });

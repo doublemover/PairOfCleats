@@ -36,6 +36,8 @@ import {
 } from './core.js';
 import { createBundleLoader } from './bundle-loader.js';
 
+const MAX_VOCAB_LOOKUP_CACHE_ENTRIES = 250000;
+
 /**
  * Build a sqlite database from incremental bundle files.
  * @param {object} params
@@ -56,6 +58,7 @@ import { createBundleLoader } from './bundle-loader.js';
  * @param {'prepared'|'multi-row'|'prepare-per-shard'} [params.statementStrategy]
  * @param {boolean} [params.buildPragmas]
  * @param {boolean} [params.optimize]
+ * @param {number} [params.vocabLookupCacheMaxEntries]
  * @param {object} [params.stats]
  * @returns {Promise<{count:number,denseCount:number,reason?:string,embedStats?:object,vectorAnn?:object}>}
  */
@@ -77,6 +80,7 @@ export async function buildDatabaseFromBundles({
   statementStrategy,
   buildPragmas,
   optimize,
+  vocabLookupCacheMaxEntries,
   stats
 }) {
   const log = (message, meta = null) => {
@@ -109,6 +113,10 @@ export async function buildDatabaseFromBundles({
     recordBatch,
     recordTable
   } = createBuildExecutionContext({ batchSize, inputBytes, statementStrategy, stats });
+  const maxVocabLookupEntries = Number.isFinite(Number(vocabLookupCacheMaxEntries))
+    && Number(vocabLookupCacheMaxEntries) > 0
+    ? Math.max(1, Math.floor(Number(vocabLookupCacheMaxEntries)))
+    : MAX_VOCAB_LOOKUP_CACHE_ENTRIES;
   const manifestFiles = incrementalData.manifest.files || {};
   const manifestLookup = createManifestLookup(manifestFiles);
   const manifestByNormalized = manifestLookup.map;
@@ -191,12 +199,18 @@ export async function buildDatabaseFromBundles({
       insertChargramVocabMany,
       insertChargramPostingMany
     } = createSqliteBuildInsertContext(db, { batchStats, resolvedStatementStrategy });
+    const selectTokenVocabId = db.prepare('SELECT token_id FROM token_vocab WHERE mode = ? AND token = ?');
+    const selectPhraseVocabId = db.prepare('SELECT phrase_id FROM phrase_vocab WHERE mode = ? AND ngram = ?');
+    const selectChargramVocabId = db.prepare('SELECT gram_id FROM chargram_vocab WHERE mode = ? AND gram = ?');
 
     beginSqliteBuildTransaction(db, batchStats);
 
     const tokenIdMap = new Map();
     const phraseIdMap = new Map();
     const chargramIdMap = new Map();
+    let tokenIdMapTrimmed = false;
+    let phraseIdMapTrimmed = false;
+    let chargramIdMapTrimmed = false;
     let nextTokenId = 0;
     let nextPhraseId = 0;
     let nextChargramId = 0;
@@ -300,6 +314,71 @@ export async function buildDatabaseFromBundles({
       flushBuffer(chargramVocabBuffer, insertChargramVocabMany, insertChargramVocab);
       flushBuffer(chargramPostingBuffer, insertChargramPostingMany, insertChargramPosting);
     };
+
+    const ensureMapCapacity = (map, {
+      warned,
+      label,
+      flushPending = null
+    }) => {
+      if (!(map instanceof Map)) return warned;
+      if (map.size < maxVocabLookupEntries) return warned;
+      if (typeof flushPending === 'function') flushPending();
+      map.clear();
+      if (!warned) {
+        warn(
+          `[sqlite] ${label} lookup cache reached ${maxVocabLookupEntries} entries; ` +
+          'clearing cache to cap memory.'
+        );
+      }
+      return true;
+    };
+    const cacheResolvedVocabId = ({
+      map,
+      value,
+      id,
+      label,
+      warned,
+      flushPending = null
+    }) => {
+      const nextWarned = ensureMapCapacity(map, {
+        warned,
+        label,
+        flushPending
+      });
+      map.set(value, id);
+      return nextWarned;
+    };
+    const resolvePersistedVocabId = ({
+      map,
+      value,
+      selectStmt,
+      label,
+      warned,
+      flushPending = null
+    }) => {
+      const cached = map.get(value);
+      if (cached !== undefined) {
+        return { id: cached, warned };
+      }
+      const persistedRow = selectStmt?.get(mode, value) || null;
+      const persistedId = Number(
+        persistedRow?.token_id
+          ?? persistedRow?.phrase_id
+          ?? persistedRow?.gram_id
+      );
+      if (!Number.isInteger(persistedId) || persistedId < 0) {
+        return { id: undefined, warned };
+      }
+      const nextWarned = cacheResolvedVocabId({
+        map,
+        value,
+        id: persistedId,
+        label,
+        warned,
+        flushPending
+      });
+      return { id: persistedId, warned: nextWarned };
+    };
     const reserveFallbackDocId = () => {
       while (assignedDocIds.has(nextDocId)) nextDocId += 1;
       const docId = nextDocId;
@@ -361,18 +440,37 @@ export async function buildDatabaseFromBundles({
           for (const [token, tf] of freq.entries()) {
             let tokenId = tokenIdMap.get(token);
             if (tokenId === undefined) {
-              tokenId = nextTokenId;
-              nextTokenId += 1;
-              tokenIdMap.set(token, tokenId);
-              if (insertTokenVocabMany) {
-                tokenVocabBuffer.push([mode, tokenId, token]);
-                if (tokenVocabBuffer.length >= insertTokenVocabMany.maxRows) {
-                  flushBuffer(tokenVocabBuffer, insertTokenVocabMany, insertTokenVocab);
+              const persisted = resolvePersistedVocabId({
+                map: tokenIdMap,
+                value: token,
+                selectStmt: selectTokenVocabId,
+                label: 'token vocab',
+                warned: tokenIdMapTrimmed,
+                flushPending: () => flushBuffer(tokenVocabBuffer, insertTokenVocabMany, insertTokenVocab)
+              });
+              tokenId = persisted.id;
+              tokenIdMapTrimmed = persisted.warned;
+              if (tokenId === undefined) {
+                tokenId = nextTokenId;
+                nextTokenId += 1;
+                tokenIdMapTrimmed = cacheResolvedVocabId({
+                  map: tokenIdMap,
+                  value: token,
+                  id: tokenId,
+                  label: 'token vocab',
+                  warned: tokenIdMapTrimmed,
+                  flushPending: () => flushBuffer(tokenVocabBuffer, insertTokenVocabMany, insertTokenVocab)
+                });
+                if (insertTokenVocabMany) {
+                  tokenVocabBuffer.push([mode, tokenId, token]);
+                  if (tokenVocabBuffer.length >= insertTokenVocabMany.maxRows) {
+                    flushBuffer(tokenVocabBuffer, insertTokenVocabMany, insertTokenVocab);
+                  }
+                } else {
+                  insertTokenVocab.run(mode, tokenId, token);
                 }
-              } else {
-                insertTokenVocab.run(mode, tokenId, token);
+                tokenVocabRows += 1;
               }
-              tokenVocabRows += 1;
             }
             if (insertTokenPostingMany) {
               tokenPostingBuffer.push([mode, tokenId, docId, tf]);
@@ -391,18 +489,37 @@ export async function buildDatabaseFromBundles({
           for (const ng of unique) {
             let phraseId = phraseIdMap.get(ng);
             if (phraseId === undefined) {
-              phraseId = nextPhraseId;
-              nextPhraseId += 1;
-              phraseIdMap.set(ng, phraseId);
-              if (insertPhraseVocabMany) {
-                phraseVocabBuffer.push([mode, phraseId, ng]);
-                if (phraseVocabBuffer.length >= insertPhraseVocabMany.maxRows) {
-                  flushBuffer(phraseVocabBuffer, insertPhraseVocabMany, insertPhraseVocab);
+              const persisted = resolvePersistedVocabId({
+                map: phraseIdMap,
+                value: ng,
+                selectStmt: selectPhraseVocabId,
+                label: 'phrase vocab',
+                warned: phraseIdMapTrimmed,
+                flushPending: () => flushBuffer(phraseVocabBuffer, insertPhraseVocabMany, insertPhraseVocab)
+              });
+              phraseId = persisted.id;
+              phraseIdMapTrimmed = persisted.warned;
+              if (phraseId === undefined) {
+                phraseId = nextPhraseId;
+                nextPhraseId += 1;
+                phraseIdMapTrimmed = cacheResolvedVocabId({
+                  map: phraseIdMap,
+                  value: ng,
+                  id: phraseId,
+                  label: 'phrase vocab',
+                  warned: phraseIdMapTrimmed,
+                  flushPending: () => flushBuffer(phraseVocabBuffer, insertPhraseVocabMany, insertPhraseVocab)
+                });
+                if (insertPhraseVocabMany) {
+                  phraseVocabBuffer.push([mode, phraseId, ng]);
+                  if (phraseVocabBuffer.length >= insertPhraseVocabMany.maxRows) {
+                    flushBuffer(phraseVocabBuffer, insertPhraseVocabMany, insertPhraseVocab);
+                  }
+                } else {
+                  insertPhraseVocab.run(mode, phraseId, ng);
                 }
-              } else {
-                insertPhraseVocab.run(mode, phraseId, ng);
+                phraseVocabRows += 1;
               }
-              phraseVocabRows += 1;
             }
             if (insertPhrasePostingMany) {
               phrasePostingBuffer.push([mode, phraseId, docId]);
@@ -421,18 +538,37 @@ export async function buildDatabaseFromBundles({
           for (const gram of unique) {
             let gramId = chargramIdMap.get(gram);
             if (gramId === undefined) {
-              gramId = nextChargramId;
-              nextChargramId += 1;
-              chargramIdMap.set(gram, gramId);
-              if (insertChargramVocabMany) {
-                chargramVocabBuffer.push([mode, gramId, gram]);
-                if (chargramVocabBuffer.length >= insertChargramVocabMany.maxRows) {
-                  flushBuffer(chargramVocabBuffer, insertChargramVocabMany, insertChargramVocab);
+              const persisted = resolvePersistedVocabId({
+                map: chargramIdMap,
+                value: gram,
+                selectStmt: selectChargramVocabId,
+                label: 'chargram vocab',
+                warned: chargramIdMapTrimmed,
+                flushPending: () => flushBuffer(chargramVocabBuffer, insertChargramVocabMany, insertChargramVocab)
+              });
+              gramId = persisted.id;
+              chargramIdMapTrimmed = persisted.warned;
+              if (gramId === undefined) {
+                gramId = nextChargramId;
+                nextChargramId += 1;
+                chargramIdMapTrimmed = cacheResolvedVocabId({
+                  map: chargramIdMap,
+                  value: gram,
+                  id: gramId,
+                  label: 'chargram vocab',
+                  warned: chargramIdMapTrimmed,
+                  flushPending: () => flushBuffer(chargramVocabBuffer, insertChargramVocabMany, insertChargramVocab)
+                });
+                if (insertChargramVocabMany) {
+                  chargramVocabBuffer.push([mode, gramId, gram]);
+                  if (chargramVocabBuffer.length >= insertChargramVocabMany.maxRows) {
+                    flushBuffer(chargramVocabBuffer, insertChargramVocabMany, insertChargramVocab);
+                  }
+                } else {
+                  insertChargramVocab.run(mode, gramId, gram);
                 }
-              } else {
-                insertChargramVocab.run(mode, gramId, gram);
+                chargramVocabRows += 1;
               }
-              chargramVocabRows += 1;
             }
             if (insertChargramPostingMany) {
               chargramPostingBuffer.push([mode, gramId, docId]);
@@ -552,7 +688,10 @@ export async function buildDatabaseFromBundles({
     };
 
     let count = 0;
-    let bundleFailure = null;
+    let successfulFiles = 0;
+    const bundleFailures = [];
+    let fatalBundleFailure = null;
+    let bundleFailureAbort = false;
     const maxInFlightBundles = useBundleWorkers
       ? Math.max(1, Math.min(totalFiles, Math.max(1, bundleThreads), 32))
       : 1;
@@ -566,24 +705,42 @@ export async function buildDatabaseFromBundles({
           file: record.file
         }));
         const results = await Promise.all(tasks);
-        const failure = results.find((result) => !result.ok);
-        if (failure) {
-          bundleFailure = `${failure.reason} for ${failure.file}`;
-          break;
-        }
         for (const result of results) {
-          try {
-            insertBundle(result.bundle, result.file);
-          } catch (err) {
-            bundleFailure = err?.message || 'bundle insert failed';
+          processedFiles += 1;
+          if (!result.ok) {
+            bundleFailures.push(`${result.reason} for ${result.file}`);
+            logBundleProgress(result.file, processedFiles === totalFiles);
+            bundleFailureAbort = true;
             break;
           }
-          const chunkCount = Array.isArray(result.bundle?.chunks) ? result.bundle.chunks.length : 0;
+          const shardBundles = Array.isArray(result.bundleShards) ? result.bundleShards : [];
+          if (!shardBundles.length) {
+            bundleFailures.push(`invalid bundle shards for ${result.file}`);
+            logBundleProgress(result.file, processedFiles === totalFiles);
+            bundleFailureAbort = true;
+            break;
+          }
+          let chunkCount = 0;
+          try {
+            for (const shardBundle of shardBundles) {
+              insertBundle(shardBundle, result.file);
+              chunkCount += Array.isArray(shardBundle?.chunks) ? shardBundle.chunks.length : 0;
+            }
+          } catch (err) {
+            const reason = `${err?.message || 'bundle insert failed'} for ${result.file}`;
+            bundleFailures.push(reason);
+            if (/dense vector dims mismatch/i.test(String(err?.message || ''))) {
+              fatalBundleFailure = reason;
+            }
+            logBundleProgress(result.file, processedFiles === totalFiles);
+            bundleFailureAbort = true;
+            break;
+          }
           count += chunkCount;
-          processedFiles += 1;
+          successfulFiles += 1;
           logBundleProgress(result.file, processedFiles === totalFiles);
         }
-        if (bundleFailure) break;
+        if (fatalBundleFailure || bundleFailureAbort) break;
       }
     } finally {
       await bundleLoader.close();
@@ -596,15 +753,28 @@ export async function buildDatabaseFromBundles({
       denseFloatChunks,
       denseU8Chunks,
       filesTotal: fileEmbeddingCounts.size,
+      filesWithChunks: 0,
       filesWithEmbeddings: 0,
       filesMissingEmbeddings: 0,
+      filesPartiallyMissingEmbeddings: 0,
+      missingChunks: 0,
       sampleMissingFiles: []
     };
     for (const [file, embedCount] of fileEmbeddingCounts.entries()) {
+      const chunkCount = Number(fileCounts.get(file) || 0);
+      if (chunkCount > 0) {
+        embedStats.filesWithChunks += 1;
+      }
       if (embedCount > 0) {
         embedStats.filesWithEmbeddings += 1;
-      } else {
+        if (chunkCount > embedCount) {
+          embedStats.filesPartiallyMissingEmbeddings += 1;
+          embedStats.missingChunks += Math.max(0, chunkCount - embedCount);
+          if (embedStats.sampleMissingFiles.length < 3) embedStats.sampleMissingFiles.push(file);
+        }
+      } else if (chunkCount > 0) {
         embedStats.filesMissingEmbeddings += 1;
+        embedStats.missingChunks += chunkCount;
         if (embedStats.sampleMissingFiles.length < 3) embedStats.sampleMissingFiles.push(file);
       }
     }
@@ -612,13 +782,60 @@ export async function buildDatabaseFromBundles({
       vectorAnnState.reason = 'no embeddings observed';
     }
 
-    if (bundleFailure) {
+    if (bundleFailures.length && emitOutput) {
+      warn(
+        `[sqlite] Bundle read failures for ${mode}: ${bundleFailures.length} file(s) ` +
+        `(loaded ${successfulFiles}/${totalFiles}).`
+      );
+      for (const failure of bundleFailures.slice(0, 3)) {
+        warn(`[sqlite] bundle failure ${mode}: ${failure}.`);
+      }
+    }
+
+    if (fatalBundleFailure) {
       if (emitOutput) {
-        warn(`[sqlite] Bundle build failed for ${mode}: ${bundleFailure}.`);
+        warn(`[sqlite] Bundle build failed for ${mode}: ${fatalBundleFailure}.`);
       }
       rollbackSqliteBuildTransaction(db, batchStats);
       emitDenseClampSummary();
-      return { count: 0, denseCount: 0, reason: bundleFailure, embedStats, vectorAnn: vectorAnnState };
+      return {
+        count: 0,
+        denseCount: 0,
+        reason: fatalBundleFailure,
+        embedStats,
+        vectorAnn: vectorAnnState
+      };
+    }
+
+    if (bundleFailures.length > 0) {
+      const reason = bundleFailures[0] || 'bundle read failures encountered';
+      if (emitOutput) {
+        warn(`[sqlite] Bundle build failed for ${mode}: ${reason}.`);
+      }
+      rollbackSqliteBuildTransaction(db, batchStats);
+      emitDenseClampSummary();
+      return {
+        count: 0,
+        denseCount: 0,
+        reason,
+        embedStats,
+        vectorAnn: vectorAnnState
+      };
+    }
+
+    if (successfulFiles <= 0) {
+      if (emitOutput) {
+        warn(`[sqlite] Bundle build failed for ${mode}: no readable bundles.`);
+      }
+      rollbackSqliteBuildTransaction(db, batchStats);
+      emitDenseClampSummary();
+      return {
+        count: 0,
+        denseCount: 0,
+        reason: bundleFailures[0] || 'no readable bundles',
+        embedStats,
+        vectorAnn: vectorAnnState
+      };
     }
     insertTokenStats.run(mode, totalDocs ? totalLen / totalDocs : 0, totalDocs);
     recordTable('token_stats', 1, 0);

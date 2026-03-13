@@ -141,7 +141,15 @@ const roi = buildCrossFileInferenceRoiMetrics({
     linkedCalls: 12,
     linkedUsages: 18,
     inferredReturns: 5,
-    riskFlows: 3
+    riskFlows: 3,
+    toolingProvidersExecuted: 4,
+    toolingProvidersContributed: 2,
+    toolingDegradedProviders: 1,
+    toolingDegradedWarnings: 3,
+    toolingDegradedErrors: 1,
+    toolingRequests: 20,
+    toolingRequestFailures: 4,
+    toolingRequestTimeouts: 2
   },
   budgetStats,
   durationMs: 87
@@ -151,5 +159,14 @@ assert.equal(roi.contributionSignal, 8);
 assert.ok(roi.retainedLinksAfterFiltering > 0, 'expected non-zero retained link count');
 assert.ok(roi.linkRetentionRate > 0, 'expected non-zero retention rate');
 assert.ok(roi.contributionPerAddedLink > 0, 'expected non-zero contribution per added link');
+assert.equal(roi.tooling.providersExecuted, 4, 'expected tooling providersExecuted in roi metrics');
+assert.equal(roi.tooling.providersContributed, 2, 'expected tooling providersContributed in roi metrics');
+assert.equal(roi.tooling.degradedProviders, 1, 'expected tooling degradedProviders in roi metrics');
+assert.equal(roi.tooling.requests, 20, 'expected tooling requests in roi metrics');
+assert.equal(roi.tooling.requestFailures, 4, 'expected tooling requestFailures in roi metrics');
+assert.equal(roi.tooling.requestTimeouts, 2, 'expected tooling requestTimeouts in roi metrics');
+assert.equal(roi.tooling.requestFailureRate, 0.2, 'expected tooling request failure rate');
+assert.equal(roi.tooling.requestTimeoutRate, 0.1, 'expected tooling request timeout rate');
+assert.equal(roi.tooling.degradedProviderRate, 0.25, 'expected tooling degraded provider rate');
 
 console.log('risk interprocedural summary-only status test passed');

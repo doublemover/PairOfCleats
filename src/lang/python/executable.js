@@ -1,5 +1,4 @@
-import { spawn } from 'node:child_process';
-import { registerChildProcessForCleanup } from '../../shared/subprocess.js';
+import { spawnSubprocess } from '../../shared/subprocess.js';
 
 const PYTHON_CANDIDATES = ['python', 'python3'];
 
@@ -8,35 +7,27 @@ let pythonWarned = false;
 let pythonCheckPromise = null;
 
 async function checkPythonCandidate(candidate) {
-  return new Promise((resolve) => {
-    const proc = spawn(candidate, ['-c', 'import sys; sys.stdout.write("ok")'], {
-      stdio: ['ignore', 'pipe', 'ignore']
-    });
-    const unregisterChild = registerChildProcessForCleanup(proc, {
-      killTree: true,
-      detached: false
-    });
-    let output = '';
-    let settled = false;
-    const finish = (ok) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      unregisterChild();
-      resolve(ok);
-    };
-    const timeout = setTimeout(() => {
-      try {
-        proc.kill();
-      } catch {}
-      finish(false);
-    }, 3000);
-    proc.stdout.on('data', (chunk) => {
-      output += chunk.toString();
-    });
-    proc.on('error', () => finish(false));
-    proc.on('close', (code) => finish(code === 0 && output.trim() === 'ok'));
-  });
+  try {
+    const result = await spawnSubprocess(
+      candidate,
+      ['-c', 'import sys; sys.stdout.write("ok")'],
+      {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        captureStdout: true,
+        captureStderr: false,
+        outputMode: 'string',
+        outputEncoding: 'utf8',
+        rejectOnNonZeroExit: false,
+        timeoutMs: 3000,
+        killTree: true,
+        detached: false,
+        name: 'python executable probe'
+      }
+    );
+    return result?.exitCode === 0 && String(result?.stdout || '').trim() === 'ok';
+  } catch {
+    return false;
+  }
 }
 
 export async function findPythonExecutable(log) {

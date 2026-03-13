@@ -40,6 +40,12 @@ const encodeUnsignedVarint64 = (value, output) => {
   output.push(Number(next));
 };
 
+export const encodeVarint64 = (value) => {
+  const output = [];
+  encodeUnsignedVarint64(value, output);
+  return Buffer.from(output);
+};
+
 export const encodeVarintDeltas = (values) => {
   if (!Array.isArray(values) || values.length === 0) {
     return Buffer.alloc(0);

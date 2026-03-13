@@ -1,6 +1,7 @@
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { treeSitterState } from './state.js';
+import { destroyPiscinaPool } from '../../shared/piscina-cleanup.js';
 
 const CPU_COUNT = os.cpus().length;
 
@@ -123,11 +124,18 @@ export const getTreeSitterWorkerPool = async (rawConfig, options = {}) => {
   const config = normalizeTreeSitterWorkerConfig(rawConfig);
   if (!config.enabled) return null;
   const signature = JSON.stringify(config);
+  const cleanupTimeoutMs = Number.isFinite(Number(options?.cleanupTimeoutMs))
+    ? Math.max(1000, Math.floor(Number(options.cleanupTimeoutMs)))
+    : 30000;
   if (treeSitterState.treeSitterWorkerPool && treeSitterState.treeSitterWorkerConfigSignature === signature) {
     return treeSitterState.treeSitterWorkerPool;
   }
   if (treeSitterState.treeSitterWorkerPool && treeSitterState.treeSitterWorkerPool.destroy) {
-    await treeSitterState.treeSitterWorkerPool.destroy();
+    await destroyPiscinaPool(treeSitterState.treeSitterWorkerPool, {
+      label: 'tree-sitter.worker-pool',
+      log: options?.log,
+      destroyTimeoutMs: cleanupTimeoutMs
+    });
     treeSitterState.treeSitterWorkerPool = null;
   }
   treeSitterState.treeSitterWorkerConfigSignature = signature;
@@ -166,10 +174,17 @@ export const getTreeSitterWorkerPool = async (rawConfig, options = {}) => {
   }
 };
 
-export const shutdownTreeSitterWorkerPool = async () => {
+export const shutdownTreeSitterWorkerPool = async (options = {}) => {
+  const cleanupTimeoutMs = Number.isFinite(Number(options?.cleanupTimeoutMs))
+    ? Math.max(1000, Math.floor(Number(options.cleanupTimeoutMs)))
+    : 30000;
   if (treeSitterState.treeSitterWorkerPool && treeSitterState.treeSitterWorkerPool.destroy) {
     try {
-      await treeSitterState.treeSitterWorkerPool.destroy();
+      await destroyPiscinaPool(treeSitterState.treeSitterWorkerPool, {
+        label: 'tree-sitter.worker-pool.shutdown',
+        log: options?.log,
+        destroyTimeoutMs: cleanupTimeoutMs
+      });
     } catch {
       // ignore destroy failures
     }

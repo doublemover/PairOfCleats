@@ -28,6 +28,7 @@ const JSON_ESCAPE_MAP = {
   r: '\r',
   t: '\t'
 };
+const JSON_TREE_SITTER_MAX_PRECHECK_DEPTH = 4096;
 
 const parseJsonString = (text, start) => {
   let i = start + 1;
@@ -109,11 +110,9 @@ const parseJsonLiteral = (text, start, literal) => (
     : null
 );
 
-const parseJsonValue = (text, start, topLevelKeys, collectTopLevelKeys) => {
+const parseJsonPrimitive = (text, start) => {
   const i = skipWhitespace(text, start);
   const ch = text[i];
-  if (ch === '{') return parseJsonObject(text, i, topLevelKeys, collectTopLevelKeys);
-  if (ch === '[') return parseJsonArray(text, i, topLevelKeys);
   if (ch === '"') {
     const parsed = parseJsonString(text, i);
     return parsed ? { end: parsed.end + 1, type: 'primitive' } : null;
@@ -125,67 +124,185 @@ const parseJsonValue = (text, start, topLevelKeys, collectTopLevelKeys) => {
   return null;
 };
 
-const parseJsonArray = (text, start, topLevelKeys) => {
-  let i = skipWhitespace(text, start + 1);
-  if (text[i] === ']') return { end: i + 1, type: 'array' };
-  while (i < text.length) {
-    const parsedValue = parseJsonValue(text, i, topLevelKeys, false);
-    if (!parsedValue) return null;
-    i = skipWhitespace(text, parsedValue.end);
-    if (text[i] === ',') {
-      i = skipWhitespace(text, i + 1);
+export const shouldBypassJsonTreeSitter = (text) => {
+  if (typeof text !== 'string' || !text.length) return false;
+  let depth = 0;
+  let inString = false;
+  let escaping = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escaping) {
+        escaping = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaping = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+      }
       continue;
     }
-    if (text[i] === ']') return { end: i + 1, type: 'array' };
-    return null;
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === '{' || ch === '[') {
+      depth += 1;
+      if (depth > JSON_TREE_SITTER_MAX_PRECHECK_DEPTH) return true;
+      continue;
+    }
+    if (ch === '}' || ch === ']') {
+      depth = Math.max(0, depth - 1);
+    }
   }
-  return null;
+  return false;
 };
 
 /**
- * Parse a JSON object and optionally collect top-level key offsets in one pass.
+ * Parse a JSON value and collect top-level object key offsets without recursive descent.
  *
- * This validates token structure without materializing the parsed object graph,
- * which keeps large config chunking linear in input size and memory.
+ * The fallback config chunker only needs token validity and stable top-level key
+ * boundaries. An explicit stack keeps the parser linear in input size while
+ * avoiding JS call-stack overflows on deeply nested JSON fixtures.
  *
  * @param {string} text
  * @param {number} start
  * @param {Array<{name:string,index:number}>} topLevelKeys
- * @param {boolean} collectTopLevelKeys
- * @returns {{end:number,type:'object'}|null}
+ * @returns {{end:number,type:'primitive'|'array'|'object'}|null}
  */
-const parseJsonObject = (text, start, topLevelKeys, collectTopLevelKeys) => {
-  let i = skipWhitespace(text, start + 1);
-  if (text[i] === '}') return { end: i + 1, type: 'object' };
-  while (i < text.length) {
-    if (text[i] !== '"') return null;
-    const keyIndex = i;
-    const parsedKey = parseJsonString(text, i);
-    if (!parsedKey) return null;
-    i = skipWhitespace(text, parsedKey.end + 1);
-    if (text[i] !== ':') return null;
-    i = skipWhitespace(text, i + 1);
-    if (collectTopLevelKeys) {
-      topLevelKeys.push({
-        name: parsedKey.value || 'section',
-        index: keyIndex
-      });
+const parseJsonValue = (text, start, topLevelKeys) => {
+  let i = skipWhitespace(text, start);
+  const rootChar = text[i];
+  if (rootChar !== '{' && rootChar !== '[') {
+    return parseJsonPrimitive(text, i);
+  }
+
+  const rootType = rootChar === '{' ? 'object' : 'array';
+  const stack = [{
+    type: rootType,
+    state: rootType === 'object' ? 'keyOrEnd' : 'valueOrEnd',
+    collectKeys: rootType === 'object',
+    allowEnd: true
+  }];
+  i += 1;
+
+  while (stack.length) {
+    const frame = stack[stack.length - 1];
+    i = skipWhitespace(text, i);
+
+    if (frame.type === 'object') {
+      if (frame.state === 'keyOrEnd') {
+        if (text[i] === '}' && frame.allowEnd) {
+          stack.pop();
+          i += 1;
+          continue;
+        }
+        if (text[i] !== '"') return null;
+        const keyIndex = i;
+        const parsedKey = parseJsonString(text, i);
+        if (!parsedKey) return null;
+        if (frame.collectKeys) {
+          topLevelKeys.push({
+            name: parsedKey.value || 'section',
+            index: keyIndex
+          });
+        }
+        frame.state = 'colon';
+        i = parsedKey.end + 1;
+        continue;
+      }
+      if (frame.state === 'colon') {
+        if (text[i] !== ':') return null;
+        frame.state = 'value';
+        i += 1;
+        continue;
+      }
+      if (frame.state === 'value') {
+        const ch = text[i];
+        if (ch === '{' || ch === '[') {
+          frame.state = 'commaOrEnd';
+          stack.push({
+            type: ch === '{' ? 'object' : 'array',
+            state: ch === '{' ? 'keyOrEnd' : 'valueOrEnd',
+            collectKeys: false
+          });
+          i += 1;
+          continue;
+        }
+        const parsed = parseJsonPrimitive(text, i);
+        if (!parsed) return null;
+        frame.state = 'commaOrEnd';
+        i = parsed.end;
+        continue;
+      }
+      if (frame.state === 'commaOrEnd') {
+        if (text[i] === ',') {
+          frame.state = 'keyOrEnd';
+          frame.allowEnd = false;
+          i += 1;
+          continue;
+        }
+        if (text[i] === '}') {
+          stack.pop();
+          i += 1;
+          continue;
+        }
+        return null;
+      }
+      return null;
     }
-    const parsedValue = parseJsonValue(text, i, topLevelKeys, false);
-    if (!parsedValue) return null;
-    i = skipWhitespace(text, parsedValue.end);
-    if (text[i] === ',') {
-      i = skipWhitespace(text, i + 1);
+
+    if (frame.state === 'valueOrEnd') {
+      if (text[i] === ']' && frame.allowEnd) {
+        stack.pop();
+        i += 1;
+        continue;
+      }
+      const ch = text[i];
+      if (ch === '{' || ch === '[') {
+        frame.state = 'commaOrEnd';
+        stack.push({
+          type: ch === '{' ? 'object' : 'array',
+          state: ch === '{' ? 'keyOrEnd' : 'valueOrEnd',
+          collectKeys: false
+        });
+        i += 1;
+        continue;
+      }
+      const parsed = parseJsonPrimitive(text, i);
+      if (!parsed) return null;
+      frame.state = 'commaOrEnd';
+      i = parsed.end;
       continue;
     }
-    if (text[i] === '}') return { end: i + 1, type: 'object' };
+    if (frame.state === 'commaOrEnd') {
+      if (text[i] === ',') {
+        frame.state = 'valueOrEnd';
+        frame.allowEnd = false;
+        i += 1;
+        continue;
+      }
+      if (text[i] === ']') {
+        stack.pop();
+        i += 1;
+        continue;
+      }
+      return null;
+    }
     return null;
   }
-  return null;
+
+  return { end: i, type: rootType };
 };
 
 export function chunkJson(text, context) {
-  if (context?.treeSitter?.configChunking === true) {
+  if (
+    context?.treeSitter?.configChunking === true
+    && shouldBypassJsonTreeSitter(text) !== true
+  ) {
     const treeChunks = buildTreeSitterChunks({
       text,
       languageId: 'json',
@@ -197,7 +314,7 @@ export function chunkJson(text, context) {
   const topLevelKeys = [];
   const start = findNextNonWhitespace(text, 0);
   if (start < 0) return null;
-  const parsed = parseJsonValue(text, start, topLevelKeys, true);
+  const parsed = parseJsonValue(text, start, topLevelKeys);
   if (!parsed) return null;
   if (findNextNonWhitespace(text, parsed.end) >= 0) return null;
   if (parsed.type !== 'object') {

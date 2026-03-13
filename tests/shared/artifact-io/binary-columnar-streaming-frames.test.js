@@ -75,4 +75,27 @@ const malformedWritten = await writeBinaryRowFrames({
 assert.equal(malformedWritten.count, 0, 'expected malformed sync rowBuffers payload to fail closed');
 assert.equal(malformedWritten.totalBytes, 0, 'expected malformed sync rowBuffers payload to produce no bytes');
 
+const asyncDataPath = path.join(tempRoot, 'chunk_meta-async.binary-columnar.bin');
+const asyncOffsetsPath = path.join(tempRoot, 'chunk_meta-async.binary-columnar.offsets.bin');
+const asyncLengthsPath = path.join(tempRoot, 'chunk_meta-async.binary-columnar.lengths.varint');
+const asyncWritten = await writeBinaryRowFrames({
+  rowBuffers: (async function* asyncRows() {
+    for (const row of rows) {
+      yield row;
+    }
+  })(),
+  dataPath: asyncDataPath,
+  offsetsPath: asyncOffsetsPath,
+  lengthsPath: asyncLengthsPath
+});
+assert.equal(asyncWritten.count, rows.length, 'expected async iterator row count to match');
+const [asyncDataBuffer, asyncOffsetsBuffer, asyncLengthsBuffer] = await Promise.all([
+  fs.readFile(asyncDataPath),
+  fs.readFile(asyncOffsetsPath),
+  fs.readFile(asyncLengthsPath)
+]);
+assert.equal(Buffer.compare(asyncDataBuffer, expected.dataBuffer), 0, 'async data frame payload mismatch');
+assert.deepEqual(decodeU64Offsets(asyncOffsetsBuffer), expected.offsets, 'async offset sidecar mismatch');
+assert.deepEqual(decodeBinaryRowFrameLengths(asyncLengthsBuffer), expected.lengths, 'async length sidecar mismatch');
+
 console.log('binary columnar streaming frames test passed');

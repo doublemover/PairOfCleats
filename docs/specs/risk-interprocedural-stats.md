@@ -51,6 +51,7 @@ Status guidelines:
       maxDepth: number,
       maxPathsPerPair: number,
       maxTotalFlows: number,
+      maxPartialFlows: number,
       maxCallSitesPerEdge: number,
       maxEdgeExpansions: number,
       maxMs: number | null
@@ -63,6 +64,7 @@ Status guidelines:
     sourceRoots: number,
     resolvedEdges: number,
     flowsEmitted: number,
+    partialFlowsEmitted: number,
     risksWithFlows: number, // unique sink ruleIds with flows
     uniqueCallSitesReferenced: number
   },
@@ -85,7 +87,8 @@ Status guidelines:
   artifacts: {
     riskSummaries?: ArtifactRef,
     callSites?: ArtifactRef,
-    riskFlows?: ArtifactRef
+    riskFlows?: ArtifactRef,
+    riskPartialFlows?: ArtifactRef
   },
 
   droppedRecords?: {

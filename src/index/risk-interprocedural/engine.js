@@ -2,9 +2,13 @@ import { sha1 } from '../../shared/hash.js';
 import { toArray } from '../../shared/iterables.js';
 import { edgeKey, sampleCallSitesForEdge } from './edges.js';
 import { containsIdentifier, matchRulePatterns, SEVERITY_RANK } from '../risk/shared.js';
+import { compileRiskInterproceduralSemantics } from './semantics.js';
 
 const ROW_SCHEMA_VERSION = 1;
 const MAX_FLOW_ROW_BYTES = 32 * 1024;
+const MAX_WATCH_IDENTIFIERS_PER_STEP = 6;
+const MAX_WATCH_BINDINGS_PER_STEP = 4;
+const MAX_WATCH_SEMANTICS_PER_STEP = 4;
 
 const sortByKey = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -13,7 +17,41 @@ const buildFlowId = ({ sourceChunkUid, sourceRuleId, sinkChunkUid, sinkRuleId, p
   return `sha1:${sha1(key)}`;
 };
 
+const buildPartialFlowId = ({ sourceChunkUid, sourceRuleId, frontierChunkUid, terminalReason, pathChunkUids }) => {
+  const key = `${sourceChunkUid}|${sourceRuleId}|${frontierChunkUid}|${terminalReason}|${toArray(pathChunkUids).join('>')}`;
+  return `sha1:${sha1(key)}`;
+};
+
 const sanitizeIdentifier = (value) => (value == null ? '' : String(value));
+const uniqueSortedStrings = (values, limit = null) => {
+  const items = Array.from(new Set(toArray(values).map((entry) => String(entry || '').trim()).filter(Boolean))).sort();
+  return Number.isFinite(limit) ? items.slice(0, limit) : items;
+};
+
+const uniqueSortedIndices = (values, limit = null) => {
+  const items = Array.from(new Set(toArray(values)
+    .map((entry) => Number(entry))
+    .filter((entry) => Number.isFinite(entry) && entry >= 0)
+    .map((entry) => Math.floor(entry))))
+    .sort((a, b) => a - b);
+  return Number.isFinite(limit) ? items.slice(0, limit) : items;
+};
+
+const normalizeChunkLanguage = (chunk) => (
+  chunk?.lang
+  || chunk?.segment?.languageId
+  || chunk?.containerLanguageId
+  || null
+);
+
+const normalizeFrameworkIds = (chunk) => {
+  const ids = [];
+  const frameworkProfile = chunk?.docmeta?.frameworkProfile;
+  if (typeof frameworkProfile?.id === 'string' && frameworkProfile.id.trim()) {
+    ids.push(frameworkProfile.id.trim());
+  }
+  return uniqueSortedStrings(ids);
+};
 
 const buildSummaryMap = (summaries) => {
   if (summaries && typeof summaries.get === 'function') return summaries;
@@ -139,11 +177,174 @@ const flowConfidence = ({ source, sink, hopCount, sanitizerBarriersHit, sanitize
   return Math.max(0.05, Math.min(1, score));
 };
 
+const propagationConfidence = ({ sourceConfidence, hopCount, sanitizerBarriersHit, sanitizerPolicy }) => {
+  const base = Number.isFinite(sourceConfidence) ? sourceConfidence : 0.5;
+  let score = base;
+  score *= 0.85 ** Math.max(0, hopCount);
+  if (sanitizerPolicy === 'weaken' && sanitizerBarriersHit > 0) {
+    score *= 0.9 ** sanitizerBarriersHit;
+  }
+  return Math.max(0.05, Math.min(1, score));
+};
+
+const roundConfidence = (value) => (Number.isFinite(value) ? Number(value.toFixed(4)) : null);
+
+const compactWatchByStep = (watchByStep, identifierLimit = 2, bindingLimit = 2) => toArray(watchByStep).map((entry) => ({
+  ...entry,
+  taintIn: toArray(entry?.taintIn).slice(0, identifierLimit),
+  taintOut: toArray(entry?.taintOut).slice(0, identifierLimit),
+  propagatedArgIndices: toArray(entry?.propagatedArgIndices).slice(0, bindingLimit),
+  boundParams: toArray(entry?.boundParams).slice(0, bindingLimit),
+  semanticIds: toArray(entry?.semanticIds).slice(0, MAX_WATCH_SEMANTICS_PER_STEP),
+  semanticKinds: toArray(entry?.semanticKinds).slice(0, MAX_WATCH_SEMANTICS_PER_STEP)
+}));
+
+const matchesCompiledPatterns = (text, patterns) => {
+  const value = typeof text === 'string' ? text : null;
+  if (!value) return false;
+  for (const pattern of toArray(patterns)) {
+    if (!pattern) continue;
+    try {
+      pattern.lastIndex = 0;
+      if (pattern.test(value)) return true;
+    } catch {
+      continue;
+    }
+  }
+  return false;
+};
+
+const resolveEdgeSemantics = ({ semantics, callerChunk, calleeChunk, details }) => {
+  const callerLanguage = normalizeChunkLanguage(callerChunk);
+  const calleeLanguage = normalizeChunkLanguage(calleeChunk);
+  const languages = uniqueSortedStrings([callerLanguage, calleeLanguage]);
+  const frameworks = uniqueSortedStrings([
+    ...normalizeFrameworkIds(callerChunk),
+    ...normalizeFrameworkIds(calleeChunk)
+  ]);
+  const calleeNames = uniqueSortedStrings([
+    calleeChunk?.name,
+    ...toArray(details).flatMap((detail) => [detail?.calleeNormalized, detail?.calleeRaw])
+  ]);
+  const matched = [];
+  for (const entry of toArray(semantics)) {
+    if (!entry) continue;
+    if (Array.isArray(entry.languages) && entry.languages.length) {
+      const entryLanguages = new Set(entry.languages.map((value) => String(value).toLowerCase()));
+      if (!languages.some((value) => entryLanguages.has(String(value).toLowerCase()))) continue;
+    }
+    if (Array.isArray(entry.frameworks) && entry.frameworks.length) {
+      const entryFrameworks = new Set(entry.frameworks.map((value) => String(value).toLowerCase()));
+      if (!frameworks.some((value) => entryFrameworks.has(String(value).toLowerCase()))) continue;
+    }
+    if (!calleeNames.some((value) => matchesCompiledPatterns(value, entry.compiledPatterns || entry.patterns))) continue;
+    matched.push(entry);
+  }
+  matched.sort((a, b) => sortByKey(a.id, b.id));
+  return matched;
+};
+
+const applyEdgeSemantics = ({ semantics, taintedArgIndices, paramNames, nextTaint }) => {
+  const taintedSet = new Set(uniqueSortedIndices(taintedArgIndices));
+  const augmentedTaint = new Set(toArray(nextTaint).filter(Boolean));
+  const applied = [];
+  for (const entry of toArray(semantics)) {
+    const fromArgs = Array.isArray(entry?.fromArgs) && entry.fromArgs.length
+      ? entry.fromArgs
+      : Array.from(taintedSet.values());
+    const triggered = fromArgs.some((value) => taintedSet.has(value));
+    if (!triggered) continue;
+    applied.push(entry);
+    for (const paramIndex of toArray(entry?.toParams)) {
+      const name = Array.isArray(paramNames) ? paramNames[paramIndex] : null;
+      if (name) augmentedTaint.add(name);
+    }
+    for (const hint of toArray(entry?.taintHints)) {
+      if (hint) augmentedTaint.add(hint);
+    }
+  }
+  return {
+    applied,
+    nextTaint: uniqueSortedStrings(Array.from(augmentedTaint.values()))
+  };
+};
+
+const buildWatchStep = ({
+  state,
+  nextTaint,
+  taintedArgIndices,
+  paramNames,
+  details,
+  hasSanitizers,
+  sanitizerPolicy,
+  semantics = []
+}) => {
+  const normalizedArgIndices = uniqueSortedIndices(taintedArgIndices, MAX_WATCH_BINDINGS_PER_STEP);
+  const boundParams = uniqueSortedStrings(
+    normalizedArgIndices
+      .map((index) => (Array.isArray(paramNames) ? paramNames[index] : null))
+      .filter(Boolean),
+    MAX_WATCH_BINDINGS_PER_STEP
+  );
+  const taintIn = uniqueSortedStrings(state?.taintList, MAX_WATCH_IDENTIFIERS_PER_STEP);
+  const taintOut = uniqueSortedStrings(nextTaint, MAX_WATCH_IDENTIFIERS_PER_STEP);
+  const barrierApplied = sanitizerPolicy === 'weaken' && hasSanitizers;
+  const barriersBefore = Number.isFinite(state?.sanitizerBarriersHit) ? state.sanitizerBarriersHit : 0;
+  const barriersAfter = barriersBefore + (barrierApplied ? 1 : 0);
+  const sourceConfidence = state?.rootSource?.source?.confidence;
+  const confidenceBefore = propagationConfidence({
+    sourceConfidence,
+    hopCount: Math.max(0, toArray(state?.pathChunkUids).length - 1),
+    sanitizerBarriersHit: barriersBefore,
+    sanitizerPolicy
+  });
+  const confidenceAfter = propagationConfidence({
+    sourceConfidence,
+    hopCount: Math.max(0, toArray(state?.pathChunkUids).length),
+    sanitizerBarriersHit: barriersAfter,
+    sanitizerPolicy
+  });
+  const calleeNormalized = uniqueSortedStrings(
+    toArray(details).map((detail) => detail?.calleeNormalized || detail?.calleeRaw || null),
+    1
+  )[0] || null;
+  return {
+    taintIn,
+    taintOut,
+    propagatedArgIndices: normalizedArgIndices,
+    boundParams,
+    calleeNormalized,
+    semanticIds: uniqueSortedStrings(toArray(semantics).map((entry) => entry?.id), MAX_WATCH_SEMANTICS_PER_STEP),
+    semanticKinds: uniqueSortedStrings(toArray(semantics).map((entry) => entry?.kind), MAX_WATCH_SEMANTICS_PER_STEP),
+    sanitizerPolicy: sanitizerPolicy || null,
+    sanitizerBarrierApplied: barrierApplied,
+    sanitizerBarriersBefore: barriersBefore,
+    sanitizerBarriersAfter: barriersAfter,
+    confidenceBefore: roundConfidence(confidenceBefore),
+    confidenceAfter: roundConfidence(confidenceAfter),
+    confidenceDelta: roundConfidence(confidenceAfter - confidenceBefore)
+  };
+};
+
+const serializeSemanticsForConfig = (semantics) => toArray(semantics).map((entry) => ({
+  id: typeof entry?.id === 'string' ? entry.id : null,
+  kind: typeof entry?.kind === 'string' ? entry.kind : null,
+  name: typeof entry?.name === 'string' ? entry.name : null,
+  languages: uniqueSortedStrings(entry?.languages || []),
+  frameworks: uniqueSortedStrings(entry?.frameworks || []),
+  patterns: uniqueSortedStrings(entry?.patterns || []),
+  fromArgs: uniqueSortedIndices(entry?.fromArgs || []),
+  toParams: uniqueSortedIndices(entry?.toParams || []),
+  taintHints: uniqueSortedStrings(entry?.taintHints || [])
+}));
+
 const measureRowBytes = (row) => Buffer.byteLength(JSON.stringify(row), 'utf8');
 
 const trimFlowRow = (row) => {
   if (measureRowBytes(row) <= MAX_FLOW_ROW_BYTES) return row;
   const trimmed = { ...row, path: { ...row.path } };
+  trimmed.path.watchByStep = compactWatchByStep(trimmed.path.watchByStep);
+  if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
   trimmed.path.callSiteIdsByStep = toArray(trimmed.path.callSiteIdsByStep).map((list) => {
     if (!Array.isArray(list) || !list.length) return [];
     return [list[0]];
@@ -151,12 +352,45 @@ const trimFlowRow = (row) => {
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
   trimmed.path.callSiteIdsByStep = toArray(trimmed.path.callSiteIdsByStep).map(() => []);
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
+  trimmed.path.watchByStep = [];
+  if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
   return null;
 };
 
-const buildArtifactRef = ({ name, sharded, entrypoint, totalEntries }) => ({
+const trimPartialFlowRow = (row) => {
+  if (measureRowBytes(row) <= MAX_FLOW_ROW_BYTES) return row;
+  const trimmed = {
+    ...row,
+    path: { ...row.path },
+    frontier: {
+      ...row.frontier,
+      blockedExpansions: Array.isArray(row?.frontier?.blockedExpansions)
+        ? row.frontier.blockedExpansions.map((entry) => ({
+          ...entry,
+          callSiteIds: Array.isArray(entry?.callSiteIds) && entry.callSiteIds.length ? [entry.callSiteIds[0]] : []
+        }))
+        : []
+    }
+  };
+  trimmed.path.watchByStep = compactWatchByStep(trimmed.path.watchByStep);
+  if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
+  trimmed.path.callSiteIdsByStep = toArray(trimmed.path.callSiteIdsByStep).map((list) => {
+    if (!Array.isArray(list) || !list.length) return [];
+    return [list[0]];
+  });
+  if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
+  trimmed.frontier.blockedExpansions = [];
+  if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
+  trimmed.path.callSiteIdsByStep = toArray(trimmed.path.callSiteIdsByStep).map(() => []);
+  if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
+  trimmed.path.watchByStep = [];
+  if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
+  return null;
+};
+
+const buildArtifactRef = ({ name, format = 'jsonl', sharded, entrypoint, totalEntries }) => ({
   name,
-  format: 'jsonl',
+  format,
   sharded: !!sharded,
   entrypoint,
   totalEntries
@@ -201,11 +435,14 @@ export const computeInterproceduralRisk = ({
       strictness,
       emitArtifacts: config.emitArtifacts || 'jsonl',
       sanitizerPolicy,
+      semantics: serializeSemanticsForConfig(config.semantics),
       caps: {
         maxDepth: caps.maxDepth ?? null,
         maxPathsPerPair: caps.maxPathsPerPair ?? null,
         maxTotalFlows: caps.maxTotalFlows ?? null,
+        maxPartialFlows: caps.maxPartialFlows ?? null,
         maxCallSitesPerEdge: caps.maxCallSitesPerEdge ?? null,
+        maxBlockedExpansionsPerPartial: caps.maxBlockedExpansionsPerPartial ?? null,
         maxEdgeExpansions: caps.maxEdgeExpansions ?? null,
         maxMs: caps.maxMs ?? null
       }
@@ -216,6 +453,7 @@ export const computeInterproceduralRisk = ({
       sourceRoots: 0,
       resolvedEdges: edgeKeys.size,
       flowsEmitted: 0,
+      partialFlowsEmitted: 0,
       risksWithFlows: 0,
       uniqueCallSitesReferenced: 0
     },
@@ -242,23 +480,31 @@ export const computeInterproceduralRisk = ({
       status: stats.status,
       summaryRows,
       flowRows: [],
+      partialFlowRows: [],
       stats,
       callSiteIdsReferenced: new Set()
     };
   }
 
   const flowRows = [];
+  const partialFlowRows = [];
+  const partialFlowIds = new Set();
   const callSiteIdsReferenced = new Set();
   const capsHit = new Set();
   const maxDepth = Number.isFinite(caps.maxDepth) ? Math.max(1, caps.maxDepth) : 1;
   const maxPathsPerPair = Number.isFinite(caps.maxPathsPerPair) ? Math.max(1, caps.maxPathsPerPair) : 1;
   const maxTotalFlows = Number.isFinite(caps.maxTotalFlows) ? Math.max(0, caps.maxTotalFlows) : null;
+  const maxPartialFlows = Number.isFinite(caps.maxPartialFlows) ? Math.max(0, caps.maxPartialFlows) : 0;
   const maxEdgeExpansions = Number.isFinite(caps.maxEdgeExpansions) ? Math.max(1, caps.maxEdgeExpansions) : 0;
+  const maxBlockedExpansionsPerPartial = Number.isFinite(caps.maxBlockedExpansionsPerPartial)
+    ? Math.max(0, caps.maxBlockedExpansionsPerPartial)
+    : 0;
   const maxMs = caps.maxMs === null ? null : (Number.isFinite(caps.maxMs) ? Math.max(1, caps.maxMs) : null);
 
   const sourceRules = Array.isArray(runtime?.riskConfig?.rules?.sources)
     ? runtime.riskConfig.rules.sources
     : [];
+  const semantics = compileRiskInterproceduralSemantics(runtime?.riskInterproceduralConfig?.semantics);
 
   const roots = [];
   for (const [chunkUid, summary] of summaryByUid.entries()) {
@@ -282,6 +528,7 @@ export const computeInterproceduralRisk = ({
     capsHit.add('maxTotalFlows');
     stats.status = 'ok';
     stats.counts.flowsEmitted = 0;
+    stats.counts.partialFlowsEmitted = 0;
     stats.counts.risksWithFlows = 0;
     stats.counts.uniqueCallSitesReferenced = 0;
     stats.capsHit = Array.from(capsHit);
@@ -291,10 +538,84 @@ export const computeInterproceduralRisk = ({
       status: stats.status,
       summaryRows,
       flowRows: [],
+      partialFlowRows: [],
       stats,
       callSiteIdsReferenced: new Set()
     };
   }
+
+  const buildBlockedExpansion = ({ targetChunkUid = null, reason, callSiteIds = [] } = {}) => ({
+    targetChunkUid: targetChunkUid || null,
+    reason,
+    callSiteIds: toArray(callSiteIds).filter(Boolean).slice(0, maxCallSitesPerEdge || undefined)
+  });
+
+  const appendPartialFlow = ({ state, terminalReason, blockedExpansions = [], terminalCaps = [] }) => {
+    if (!state || maxPartialFlows <= 0) return;
+    if (partialFlowRows.length >= maxPartialFlows) {
+      capsHit.add('maxPartialFlows');
+      return;
+    }
+    const partialFlowId = buildPartialFlowId({
+      sourceChunkUid: state.rootSource.chunkUid,
+      sourceRuleId: state.rootSource.source.ruleId,
+      frontierChunkUid: state.chunkUid,
+      terminalReason,
+      pathChunkUids: state.pathChunkUids
+    });
+    if (partialFlowIds.has(partialFlowId)) return;
+    partialFlowIds.add(partialFlowId);
+    const frontierCaps = Array.from(new Set([
+      ...toArray(capsHit),
+      ...toArray(terminalCaps)
+    ]));
+    const partialFlow = {
+      schemaVersion: ROW_SCHEMA_VERSION,
+      partialFlowId,
+      source: {
+        chunkUid: state.rootSource.chunkUid,
+        ruleId: state.rootSource.source.ruleId,
+        ruleName: state.rootSource.source.ruleName || state.rootSource.source.ruleId,
+        ruleType: 'source',
+        category: state.rootSource.source.category || null,
+        severity: null,
+        confidence: Number.isFinite(state.rootSource.source.confidence)
+          ? state.rootSource.source.confidence
+          : null
+      },
+      frontier: {
+        chunkUid: state.chunkUid,
+        terminalReason,
+        blockedExpansions: toArray(blockedExpansions).slice(0, maxBlockedExpansionsPerPartial || undefined)
+      },
+      path: {
+        chunkUids: state.pathChunkUids.slice(),
+        callSiteIdsByStep: state.callSiteIdsByStep.map((list) => (Array.isArray(list) ? list.slice() : [])),
+        watchByStep: toArray(state.watchByStep).map((entry) => ({ ...entry }))
+      },
+      confidence: Math.max(
+        0.05,
+        flowConfidence({
+          source: state.rootSource.source,
+          sink: state.rootSource.source,
+          hopCount: Math.max(0, state.pathChunkUids.length - 1),
+          sanitizerBarriersHit: state.sanitizerBarriersHit,
+          sanitizerPolicy
+        }) * 0.75
+      ),
+      notes: {
+        strictness,
+        sanitizerPolicy,
+        hopCount: Math.max(0, state.pathChunkUids.length - 1),
+        sanitizerBarriersHit: state.sanitizerBarriersHit,
+        capsHit: frontierCaps,
+        terminalReason
+      }
+    };
+    const trimmed = trimPartialFlowRow(partialFlow);
+    if (!trimmed) return;
+    partialFlowRows.push(trimmed);
+  };
 
   const queue = [];
   const visited = new Set();
@@ -319,6 +640,7 @@ export const computeInterproceduralRisk = ({
       rootSource: root,
       pathChunkUids: [root.chunkUid],
       callSiteIdsByStep: [],
+      watchByStep: [],
       depth: 0,
       sanitizerBarriersHit: 0,
       taintList,
@@ -385,7 +707,8 @@ export const computeInterproceduralRisk = ({
           },
           path: {
             chunkUids: state.pathChunkUids.slice(),
-            callSiteIdsByStep: state.callSiteIdsByStep.map((list) => (Array.isArray(list) ? list.slice() : []))
+            callSiteIdsByStep: state.callSiteIdsByStep.map((list) => (Array.isArray(list) ? list.slice() : [])),
+            watchByStep: toArray(state.watchByStep).map((entry) => ({ ...entry }))
           },
           confidence: flowConfidence({
             source: state.rootSource.source,
@@ -424,11 +747,21 @@ export const computeInterproceduralRisk = ({
 
     if (maxTotalFlows !== null && flowRows.length >= maxTotalFlows) {
       capsHit.add('maxTotalFlows');
+      appendPartialFlow({
+        state,
+        terminalReason: 'maxTotalFlows',
+        terminalCaps: ['maxTotalFlows']
+      });
       break;
     }
 
     if (state.depth >= maxDepth) {
       capsHit.add('maxDepth');
+      appendPartialFlow({
+        state,
+        terminalReason: 'maxDepth',
+        terminalCaps: ['maxDepth']
+      });
       continue;
     }
 
@@ -436,21 +769,45 @@ export const computeInterproceduralRisk = ({
       ? summary.signals.sanitizers.length > 0
       : false;
     if (sanitizerPolicy === 'terminate' && hasSanitizers) {
+      appendPartialFlow({
+        state,
+        terminalReason: 'sanitizerTerminated'
+      });
       continue;
     }
 
     const callees = calleesByCaller.get(state.chunkUid);
-    if (!callees || !callees.size) continue;
+    if (!callees || !callees.size) {
+      appendPartialFlow({
+        state,
+        terminalReason: 'noCallees'
+      });
+      continue;
+    }
     const calleeList = Array.from(callees).sort(sortByKey);
+    let expandedAny = false;
+    const blockedExpansions = [];
+    let hitExpansionCap = false;
     for (const calleeUid of calleeList) {
       if (maxEdgeExpansions && edgeExpansions >= maxEdgeExpansions) {
         capsHit.add('maxEdgeExpansions');
+        blockedExpansions.push(buildBlockedExpansion({
+          targetChunkUid: calleeUid,
+          reason: 'maxEdgeExpansions'
+        }));
+        hitExpansionCap = true;
         break;
       }
       edgeExpansions += 1;
       const detailMap = detailsByCaller.get(state.chunkUid);
       const details = detailMap ? detailMap.get(calleeUid) || [] : [];
-      if (!details.length) continue;
+      if (!details.length) {
+        blockedExpansions.push(buildBlockedExpansion({
+          targetChunkUid: calleeUid,
+          reason: 'noResolvedCallDetails'
+        }));
+        continue;
+      }
 
       let taintedArgIndices = [];
       if (strictness === 'argAware') {
@@ -465,6 +822,11 @@ export const computeInterproceduralRisk = ({
         }
         taintedArgIndices = Array.from(argSet.values()).sort((a, b) => a - b);
         if (!taintedArgIndices.length) {
+          blockedExpansions.push(buildBlockedExpansion({
+            targetChunkUid: calleeUid,
+            reason: 'untaintedArgs',
+            callSiteIds: details.map((detail) => detail?.callSiteId).filter(Boolean)
+          }));
           continue;
         }
       }
@@ -472,7 +834,14 @@ export const computeInterproceduralRisk = ({
       const calleeChunk = chunkByUid.get(calleeUid);
       const edgeParams = paramNamesByEdge.get(edgeKey(state.chunkUid, calleeUid)) || null;
       const paramNames = resolveParamNames({ edgeParamNames: edgeParams, calleeChunk });
+      const matchedSemantics = resolveEdgeSemantics({
+        semantics,
+        callerChunk: chunkByUid.get(state.chunkUid),
+        calleeChunk,
+        details
+      });
       const nextTaint = [];
+      let appliedSemantics = [];
       if (strictness === 'argAware') {
         if (paramNames.length) {
           for (const idx of taintedArgIndices) {
@@ -487,6 +856,17 @@ export const computeInterproceduralRisk = ({
         for (const name of calleeHints) {
           if (name) nextTaint.push(name);
         }
+        const semanticResult = applyEdgeSemantics({
+          semantics: matchedSemantics,
+          taintedArgIndices,
+          paramNames,
+          nextTaint
+        });
+        appliedSemantics = semanticResult.applied;
+        nextTaint.length = 0;
+        nextTaint.push(...semanticResult.nextTaint);
+      } else {
+        appliedSemantics = matchedSemantics;
       }
       const taintKey = strictness === 'argAware' ? buildTaintSetKey(nextTaint) : null;
       const nextDepth = state.depth + 1;
@@ -501,19 +881,46 @@ export const computeInterproceduralRisk = ({
         maxCallSitesPerEdge: caps.maxCallSitesPerEdge
       });
       const callSiteIds = sampled.map((entry) => entry.callSiteId).filter(Boolean);
+      const watchStep = buildWatchStep({
+        state,
+        nextTaint,
+        taintedArgIndices,
+        paramNames,
+        details: sampled,
+        hasSanitizers,
+        sanitizerPolicy,
+        semantics: appliedSemantics
+      });
 
       queue.push({
         chunkUid: calleeUid,
         rootSource: state.rootSource,
         pathChunkUids: [...state.pathChunkUids, calleeUid],
         callSiteIdsByStep: [...state.callSiteIdsByStep, callSiteIds],
+        watchByStep: [...toArray(state.watchByStep), watchStep],
         depth: nextDepth,
         sanitizerBarriersHit: state.sanitizerBarriersHit + (sanitizerPolicy === 'weaken' && hasSanitizers ? 1 : 0),
         taintList: nextTaint,
         taintKey
       });
+      expandedAny = true;
     }
-    if (capsHit.has('maxEdgeExpansions')) break;
+    if (hitExpansionCap) {
+      appendPartialFlow({
+        state,
+        terminalReason: 'maxEdgeExpansions',
+        blockedExpansions,
+        terminalCaps: ['maxEdgeExpansions']
+      });
+      break;
+    }
+    if (!expandedAny && blockedExpansions.length) {
+      appendPartialFlow({
+        state,
+        terminalReason: blockedExpansions[0]?.reason || 'blocked',
+        blockedExpansions
+      });
+    }
   }
 
   const propagationMs = Date.now() - start;
@@ -521,9 +928,17 @@ export const computeInterproceduralRisk = ({
   stats.timingMs.total = stats.timingMs.summaries + propagationMs + stats.timingMs.io;
 
   if (timedOut) {
+    for (const pendingState of queue.slice(queueIndex)) {
+      appendPartialFlow({
+        state: pendingState,
+        terminalReason: 'maxMs',
+        terminalCaps: ['maxMs']
+      });
+    }
     stats.status = 'timed_out';
     stats.reason = 'maxMs';
     stats.counts.flowsEmitted = 0;
+    stats.counts.partialFlowsEmitted = partialFlowRows.length;
     stats.counts.risksWithFlows = 0;
     stats.counts.uniqueCallSitesReferenced = 0;
     stats.capsHit = Array.from(capsHit);
@@ -531,6 +946,7 @@ export const computeInterproceduralRisk = ({
       status: stats.status,
       summaryRows,
       flowRows: [],
+      partialFlowRows,
       stats,
       callSiteIdsReferenced: new Set()
     };
@@ -557,6 +973,18 @@ export const computeInterproceduralRisk = ({
 
   stats.status = 'ok';
   stats.counts.flowsEmitted = flowRows.length;
+  partialFlowRows.sort((a, b) => {
+    const sourceCmp = sortByKey(a.source.chunkUid, b.source.chunkUid);
+    if (sourceCmp) return sourceCmp;
+    const frontierCmp = sortByKey(a.frontier.chunkUid, b.frontier.chunkUid);
+    if (frontierCmp) return frontierCmp;
+    const reasonCmp = sortByKey(a.frontier.terminalReason, b.frontier.terminalReason);
+    if (reasonCmp) return reasonCmp;
+    const pathCmp = sortByKey(a.path.chunkUids.join('\u0000'), b.path.chunkUids.join('\u0000'));
+    if (pathCmp) return pathCmp;
+    return sortByKey(a.partialFlowId, b.partialFlowId);
+  });
+  stats.counts.partialFlowsEmitted = partialFlowRows.length;
   stats.counts.risksWithFlows = riskIdSet.size;
   stats.counts.uniqueCallSitesReferenced = callSiteIdsReferenced.size;
   stats.capsHit = Array.from(capsHit);
@@ -565,25 +993,28 @@ export const computeInterproceduralRisk = ({
     status: stats.status,
     summaryRows,
     flowRows,
+    partialFlowRows,
     stats,
     callSiteIdsReferenced
   };
 };
 
-export const attachArtifactRefs = ({ stats, summariesRef, flowsRef, callSitesRef }) => {
+export const attachArtifactRefs = ({ stats, statsRef, summariesRef, flowsRef, partialFlowsRef, callSitesRef }) => {
   if (!stats || typeof stats !== 'object') return stats;
   const artifacts = stats.artifacts || {};
+  if (statsRef) artifacts.stats = statsRef;
   if (summariesRef) artifacts.riskSummaries = summariesRef;
   if (flowsRef) artifacts.riskFlows = flowsRef;
+  if (partialFlowsRef) artifacts.riskPartialFlows = partialFlowsRef;
   if (callSitesRef) artifacts.callSites = callSitesRef;
   stats.artifacts = artifacts;
   return stats;
 };
 
-export const buildRiskInterproceduralStats = ({ stats, summariesRef, flowsRef, callSitesRef }) => (
-  attachArtifactRefs({ stats, summariesRef, flowsRef, callSitesRef })
+export const buildRiskInterproceduralStats = ({ stats, statsRef, summariesRef, flowsRef, partialFlowsRef, callSitesRef }) => (
+  attachArtifactRefs({ stats, statsRef, summariesRef, flowsRef, partialFlowsRef, callSitesRef })
 );
 
-export const buildRiskInterproceduralArtifactRef = ({ name, sharded, entrypoint, totalEntries }) => (
-  buildArtifactRef({ name, sharded, entrypoint, totalEntries })
+export const buildRiskInterproceduralArtifactRef = ({ name, format = 'jsonl', sharded, entrypoint, totalEntries }) => (
+  buildArtifactRef({ name, format, sharded, entrypoint, totalEntries })
 );

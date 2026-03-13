@@ -1,5 +1,9 @@
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import {
+  isSyncCommandTimedOut,
+  runSyncCommandWithTimeout,
+  toSyncCommandExitCode
+} from '../../shared/subprocess.js';
 import { assertScmProvider, normalizeProviderName } from './provider.js';
 import { SCM_PROVIDER_NAMES } from './types.js';
 import { gitProvider } from './providers/git.js';
@@ -14,8 +18,21 @@ const PROVIDER_REGISTRY = Object.freeze({
 
 const canRun = (cmd, args = ['--version']) => {
   try {
-    const result = spawnSync(cmd, args, { encoding: 'utf8' });
-    return result.status === 0;
+    const result = runSyncCommandWithTimeout(cmd, args, {
+      stdio: 'ignore',
+      encoding: 'utf8',
+      timeoutMs: 5_000
+    });
+    if (toSyncCommandExitCode(result) === 0) return true;
+    if (!isSyncCommandTimedOut(result)) return false;
+    // CI runners can transiently stall on first process spawn; retry once with
+    // a wider timeout before classifying the command as unavailable.
+    const retryResult = runSyncCommandWithTimeout(cmd, args, {
+      stdio: 'ignore',
+      encoding: 'utf8',
+      timeoutMs: 10_000
+    });
+    return toSyncCommandExitCode(retryResult) === 0;
   } catch {
     return false;
   }
@@ -30,9 +47,18 @@ const detectProviderRoot = (providerImpl, startPath) => {
   return null;
 };
 
-export const resolveScmConfig = ({ indexingConfig = {}, analysisPolicy = null, benchRun = false } = {}) => {
+export const resolveScmConfig = ({
+  indexingConfig = {},
+  analysisPolicy = null,
+  benchRun = false,
+  workload = 'interactive'
+} = {}) => {
   const scmConfig = indexingConfig.scm || {};
   const annotateConfig = scmConfig.annotate || {};
+  const workloadRaw = typeof workload === 'string'
+    ? workload.trim().toLowerCase()
+    : '';
+  const normalizedWorkload = workloadRaw === 'interactive' ? 'interactive' : 'batch';
   let annotateEnabled = typeof annotateConfig.enabled === 'boolean' ? annotateConfig.enabled : null;
   if (annotateEnabled == null) {
     const policyBlame = analysisPolicy && typeof analysisPolicy === 'object'
@@ -48,12 +74,25 @@ export const resolveScmConfig = ({ indexingConfig = {}, analysisPolicy = null, b
       annotateEnabled = true;
     }
   }
-  return {
-    ...scmConfig,
-    annotate: {
-      ...annotateConfig,
-      enabled: annotateEnabled
+  const normalizedAnnotateConfig = {
+    ...annotateConfig,
+    enabled: annotateEnabled
+  };
+  if (normalizedWorkload === 'batch') {
+    if (normalizedAnnotateConfig.allowSlowTimeouts == null) {
+      normalizedAnnotateConfig.allowSlowTimeouts = true;
     }
+  }
+  const resolved = {
+    ...scmConfig,
+    annotate: normalizedAnnotateConfig
+  };
+  if (normalizedWorkload === 'batch' && resolved.allowSlowTimeouts == null) {
+    resolved.allowSlowTimeouts = true;
+  }
+  return {
+    ...resolved,
+    workload: normalizedWorkload
   };
 };
 

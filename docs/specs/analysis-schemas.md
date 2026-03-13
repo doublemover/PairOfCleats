@@ -103,6 +103,7 @@ Schema: `COMPOSITE_CONTEXT_PACK_SCHEMA`
 Purpose:
 - A bounded package intended for LLM/tooling consumption:
   - primary excerpt + optional graph/types/risk slices.
+  - risk slices may include full flows and bounded partial frontier flows when propagation is capped or incomplete.
 
 Minimum fields:
 - `version`
@@ -114,6 +115,12 @@ Minimum fields:
 - optional `risk`
 - optional `truncation[]`
 - optional `warnings[]`
+
+Risk slice notes:
+- `risk.partialFlows[]` is optional and carries bounded frontier-flow summaries for incomplete or capped interprocedural analysis.
+- `risk.analysisStatus.artifactStatus.partialFlows` records whether the partial-flow artifact was present, missing, or not required.
+- `risk.analysisStatus.partialFlowsEmitted` and `risk.stats.partialFlowsEmitted` track emitted partial-flow counts when available.
+- `risk.caps.maxPartialFlows`, `risk.caps.maxPartialBytes`, and `risk.caps.maxPartialTokens` describe partial-flow budgeting.
 
 ### API contracts report
 

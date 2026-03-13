@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { loadChunkMeta, MAX_JSON_BYTES, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 import { mergeConfig } from '../../../src/shared/config.js';
 import { getRepoId } from '../../shared/dict-utils.js';
+import { spawnSubprocessSync } from '../../../src/shared/subprocess.js';
 
 const parseArgs = () => {
   const out = {};
@@ -142,13 +142,16 @@ const runVariantOnce = async (key, runNumber, cacheRoot) => {
   ];
 
   const startedAt = performance.now();
-  const result = spawnSync(process.execPath, buildArgs, {
+  const result = spawnSubprocessSync(process.execPath, buildArgs, {
     env,
     cwd: repoRoot,
-    stdio: 'inherit'
+    stdio: 'inherit',
+    rejectOnNonZeroExit: false,
+    killTree: true,
+    detached: process.platform !== 'win32'
   });
-  if (result.status !== 0) {
-    throw new Error(`build_index failed for ${key} run ${runNumber} (exit=${result.status})`);
+  if (result.exitCode !== 0) {
+    throw new Error(`build_index failed for ${key} run ${runNumber} (exit=${result.exitCode})`);
   }
   const totalMs = performance.now() - startedAt;
   const chunkCount = await getCodeChunkCount(cacheRoot);

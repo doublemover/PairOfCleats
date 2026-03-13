@@ -39,4 +39,36 @@ const plans = selectToolingProviders({
 assert.equal(plans.length, 1, 'expected one provider plan');
 assert.equal(plans[0].provider.id, 'beta');
 
+registerToolingProvider({
+  id: 'typed',
+  version: '1.0.0',
+  capabilities: { supportsVirtualDocuments: true },
+  kinds: ['types'],
+  getConfigHash: () => 'typed',
+  async run() {
+    return { byChunkUid: {} };
+  }
+});
+registerToolingProvider({
+  id: 'untyped',
+  version: '1.0.0',
+  capabilities: { supportsVirtualDocuments: true },
+  getConfigHash: () => 'untyped',
+  async run() {
+    return { byChunkUid: {} };
+  }
+});
+
+const kindFilteredPlans = selectToolingProviders({
+  toolingConfig: { enabledTools: ['typed', 'untyped'] },
+  documents,
+  targets,
+  kinds: ['types']
+});
+assert.deepEqual(
+  kindFilteredPlans.map((plan) => plan.provider.id),
+  ['typed', 'untyped'],
+  'expected kind filter to preserve providers that omit optional kinds metadata'
+);
+
 console.log('tooling provider registry gating test passed');

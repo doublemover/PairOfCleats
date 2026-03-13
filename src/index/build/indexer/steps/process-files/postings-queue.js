@@ -1,5 +1,6 @@
 import v8 from 'node:v8';
 import { normalizePostingsPayloadMetadata } from '../../../postings-payload.js';
+import { awaitWithKeepalive } from '../../../../../shared/promise-keepalive.js';
 import {
   coerceClampedFraction,
   coerceNonNegativeInt,
@@ -228,7 +229,7 @@ export const createPostingsQueue = ({
     signal = null,
     timeoutMs = 0,
     reason = 'unknown'
-  } = {}) => new Promise((resolve, reject) => {
+  } = {}) => awaitWithKeepalive(new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(createBackpressureAbortError(signal));
       return;
@@ -272,7 +273,7 @@ export const createPostingsQueue = ({
         }));
       }, timeoutMs);
     }
-  });
+  }));
 
   const notifyWaiters = () => {
     if (!waiters.length) return;

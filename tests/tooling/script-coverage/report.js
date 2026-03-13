@@ -80,7 +80,7 @@ export const applyDefaultSkips = (state) => {
   state.markSkipped('bench-micro', 'benchmarks are long-running');
   state.markSkipped('compare-models', 'benchmark/perf evaluation');
   state.markSkipped('bench-language', 'benchmarks are long-running');
-  state.markSkipped('smoke:section1', 'smoke lanes are run manually');
+  state.markSkipped('smoke:api-core-health', 'smoke lanes are run manually');
   state.markSkipped('smoke:retrieval', 'smoke lanes are run manually');
   state.markSkipped('smoke:services', 'smoke lanes are run manually');
   state.markSkipped('smoke:workers', 'smoke lanes are run manually');

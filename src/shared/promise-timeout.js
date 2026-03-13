@@ -1,3 +1,5 @@
+import { createAbortError } from './abort.js';
+
 const toPositiveTimeoutMs = (value, fallbackMs = 0) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) {
@@ -42,6 +44,10 @@ export const runWithTimeout = async (operation, input = {}) => {
   const upstreamSignal = input?.signal && typeof input.signal === 'object'
     ? input.signal
     : null;
+  if (upstreamSignal?.aborted) {
+    const reasonText = String(upstreamSignal.reason?.message || upstreamSignal.reason || '').trim();
+    throw createAbortError(reasonText || 'Operation aborted');
+  }
   if (timeoutMs <= 0) {
     return Promise.resolve().then(() => operation(upstreamSignal));
   }
@@ -62,7 +68,25 @@ export const runWithTimeout = async (operation, input = {}) => {
     if (upstreamSignal.aborted) forwardAbort();
   }
   let timer = null;
+  let detachAbortListener = null;
   try {
+    const abortPromise = new Promise((_, reject) => {
+      if (!upstreamSignal || typeof upstreamSignal.addEventListener !== 'function') return;
+      const onAbort = () => {
+        const reasonText = String(upstreamSignal.reason?.message || upstreamSignal.reason || '').trim();
+        const abortError = createAbortError(reasonText || 'Operation aborted');
+        if (abortController && !timeoutSignal?.aborted) {
+          try {
+            abortController.abort(upstreamSignal.reason || abortError);
+          } catch {
+            abortController.abort();
+          }
+        }
+        reject(abortError);
+      };
+      upstreamSignal.addEventListener('abort', onAbort, { once: true });
+      detachAbortListener = () => upstreamSignal.removeEventListener('abort', onAbort);
+    });
     const timeoutPromise = new Promise((_, reject) => {
       timer = setTimeout(() => {
         const timeoutError = typeof input.errorFactory === 'function'
@@ -78,9 +102,14 @@ export const runWithTimeout = async (operation, input = {}) => {
         reject(timeoutError);
       }, timeoutMs);
     });
-    return await Promise.race([Promise.resolve().then(() => operation(timeoutSignal)), timeoutPromise]);
+    return await Promise.race([
+      Promise.resolve().then(() => operation(timeoutSignal)),
+      timeoutPromise,
+      abortPromise
+    ]);
   } finally {
     if (detachUpstream) detachUpstream();
+    if (detachAbortListener) detachAbortListener();
     if (timer) clearTimeout(timer);
   }
 };

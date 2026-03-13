@@ -48,6 +48,24 @@ const makeIndexState = (updatedAt) => {
   };
 };
 
+const computeStableHash = (indexState) => {
+  const stableState = { ...indexState };
+  delete stableState.generatedAt;
+  delete stableState.updatedAt;
+  return sha1(stableStringifyForSignature(stableState));
+};
+
+const readStableIndexStateHash = (indexStatePath) => {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(indexStatePath, 'utf8'));
+    const fields = parsed?.fields && typeof parsed.fields === 'object' ? parsed.fields : parsed;
+    if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return null;
+    return computeStableHash(fields);
+  } catch {
+    return null;
+  }
+};
+
 const writeBaseline = async (runRoot) => {
   const indexStatePath = path.join(runRoot, 'index_state.json');
   let bytes = 0;
@@ -76,16 +94,13 @@ const writeCurrent = async (runRoot) => {
   const start = performance.now();
   for (let i = 0; i < updates; i += 1) {
     const indexState = makeIndexState(new Date().toISOString());
-    const stableState = { ...indexState };
-    delete stableState.generatedAt;
-    delete stableState.updatedAt;
-    const stableHash = sha1(stableStringifyForSignature(stableState));
+    const stableHash = computeStableHash(indexState);
     let canSkip = false;
     if (fs.existsSync(metaPath) && fs.existsSync(indexStatePath)) {
       try {
         const metaRaw = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
         const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-        if (meta?.stableHash === stableHash) {
+        if (meta?.stableHash === stableHash && readStableIndexStateHash(indexStatePath) === stableHash) {
           canSkip = true;
         }
       } catch {}

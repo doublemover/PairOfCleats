@@ -17,6 +17,9 @@ const canRun = (cmd, args) => {
 };
 const DEFAULT_PREFLIGHT_TIMEOUT_MS = 120000;
 export const DEFAULT_MIRROR_TIMEOUT_MS = 30000;
+export const DEFAULT_MIRROR_CLONE_TIMEOUT_MS = 120000;
+export const DEFAULT_MIRROR_REFRESH_TIMEOUT_MS = 90000;
+export const DEFAULT_MIRROR_CHECKOUT_TIMEOUT_MS = 120000;
 export const DEFAULT_MIRROR_REFRESH_MS = 4 * 60 * 60 * 1000;
 
 export const buildNonInteractiveGitEnv = (baseEnv = process.env) => ({
@@ -81,7 +84,7 @@ const runGitCommand = (args, { timeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS, repoPat
   try {
     const result = gitCommandRunner('git', fullArgs, {
       encoding: 'utf8',
-      timeout: timeoutMs,
+      timeoutMs,
       env: buildNonInteractiveGitEnv()
     });
     return {
@@ -158,6 +161,14 @@ export const resolveMirrorRefreshMs = (value, fallback = DEFAULT_MIRROR_REFRESH_
   return fallback;
 };
 
+const resolveMirrorOperationTimeoutMs = (value, fallback) => {
+  if (value == null) return fallback;
+  if (typeof value === 'string' && value.trim().length === 0) return fallback;
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+  return fallback;
+};
+
 export const shouldRefreshMirror = ({ mirrorPath, refreshMs = DEFAULT_MIRROR_REFRESH_MS } = {}) => {
   if (!mirrorPath || !fs.existsSync(mirrorPath)) return true;
   const refreshWindowMs = resolveMirrorRefreshMs(refreshMs, DEFAULT_MIRROR_REFRESH_MS);
@@ -175,7 +186,8 @@ const ensureMirrorUpToDate = ({
   repo,
   mirrorPath,
   refreshMs = DEFAULT_MIRROR_REFRESH_MS,
-  timeoutMs = DEFAULT_MIRROR_TIMEOUT_MS
+  cloneTimeoutMs = DEFAULT_MIRROR_CLONE_TIMEOUT_MS,
+  refreshTimeoutMs = DEFAULT_MIRROR_REFRESH_TIMEOUT_MS
 }) => {
   if (!canRun('git', ['--version'])) {
     return { ok: false, reason: 'git unavailable', action: 'disabled', mirrorPath };
@@ -183,13 +195,13 @@ const ensureMirrorUpToDate = ({
   const remoteUrl = `https://github.com/${repo}.git`;
   const exists = fs.existsSync(mirrorPath);
   if (!exists) {
-    const cloneResult = runGit(['clone', '--mirror', remoteUrl, mirrorPath], { timeoutMs });
+    const cloneResult = runGit(['clone', '--mirror', remoteUrl, mirrorPath], { timeoutMs: cloneTimeoutMs });
     if (!cloneResult.ok) {
       const cloneTimedOut = cloneResult.timedOut === true || /\btimed out\b/i.test(firstOutputLine(cloneResult));
       return {
         ok: false,
         reason: cloneTimedOut
-          ? `mirror clone timed out after ${timeoutMs}ms`
+          ? `mirror clone timed out after ${cloneTimeoutMs}ms`
           : `mirror clone failed: ${firstOutputLine(cloneResult)}`,
         action: cloneTimedOut ? 'clone-timeout' : 'clone-failed',
         mirrorPath,
@@ -201,13 +213,13 @@ const ensureMirrorUpToDate = ({
   if (!shouldRefreshMirror({ mirrorPath, refreshMs })) {
     return { ok: true, action: 'reused', mirrorPath, remoteUrl };
   }
-  const refreshResult = runGit(['-C', mirrorPath, 'remote', 'update', '--prune'], { timeoutMs });
+  const refreshResult = runGit(['-C', mirrorPath, 'remote', 'update', '--prune'], { timeoutMs: refreshTimeoutMs });
   if (!refreshResult.ok) {
     const refreshTimedOut = refreshResult.timedOut === true || /\btimed out\b/i.test(firstOutputLine(refreshResult));
     return {
       ok: false,
       reason: refreshTimedOut
-        ? `mirror refresh timed out after ${timeoutMs}ms`
+        ? `mirror refresh timed out after ${refreshTimeoutMs}ms`
         : `mirror refresh failed: ${firstOutputLine(refreshResult)}`,
       action: refreshTimedOut ? 'refresh-timeout' : 'refresh-failed',
       mirrorPath,
@@ -222,7 +234,7 @@ export const tryMirrorClone = ({
   repoPath,
   mirrorCacheRoot,
   mirrorRefreshMs = DEFAULT_MIRROR_REFRESH_MS,
-  timeoutMs = DEFAULT_MIRROR_TIMEOUT_MS,
+  timeoutMs = null,
   onLog = null
 }) => {
   if (!repo || !repoPath || !mirrorCacheRoot) {
@@ -238,11 +250,15 @@ export const tryMirrorClone = ({
   }
   try {
     const mirrorPath = resolveMirrorRepoPath({ mirrorCacheRoot, repo });
+    const cloneTimeoutMs = resolveMirrorOperationTimeoutMs(timeoutMs, DEFAULT_MIRROR_CLONE_TIMEOUT_MS);
+    const refreshTimeoutMs = resolveMirrorOperationTimeoutMs(timeoutMs, DEFAULT_MIRROR_REFRESH_TIMEOUT_MS);
+    const checkoutTimeoutMs = resolveMirrorOperationTimeoutMs(timeoutMs, DEFAULT_MIRROR_CHECKOUT_TIMEOUT_MS);
     const mirrorStatus = ensureMirrorUpToDate({
       repo,
       mirrorPath,
       refreshMs: mirrorRefreshMs,
-      timeoutMs
+      cloneTimeoutMs,
+      refreshTimeoutMs
     });
     if (!mirrorStatus.ok) {
       return {
@@ -263,21 +279,23 @@ export const tryMirrorClone = ({
       'clone',
       mirrorPath,
       repoPath
-    ], { timeoutMs });
+    ], { timeoutMs: checkoutTimeoutMs });
     if (!cloneResult.ok) {
       const cloneTimedOut = cloneResult.timedOut === true || /\btimed out\b/i.test(firstOutputLine(cloneResult));
       return {
         attempted: true,
         ok: false,
         reason: cloneTimedOut
-          ? `mirror checkout timed out after ${timeoutMs}ms`
+          ? `mirror checkout timed out after ${checkoutTimeoutMs}ms`
           : `mirror checkout failed: ${firstOutputLine(cloneResult)}`,
         mirrorPath,
         mirrorAction: cloneTimedOut ? 'checkout-timeout' : 'checkout-failed'
       };
     }
     const remoteUrl = `https://github.com/${repo}.git`;
-    const remoteSetResult = runGit(['-C', repoPath, 'remote', 'set-url', 'origin', remoteUrl], { timeoutMs });
+    const remoteSetResult = runGit(['-C', repoPath, 'remote', 'set-url', 'origin', remoteUrl], {
+      timeoutMs: checkoutTimeoutMs
+    });
     if (!remoteSetResult.ok && typeof onLog === 'function') {
       onLog(
         `[clone] mirror clone succeeded but remote reset failed (${path.basename(repoPath)}): ${firstOutputLine(remoteSetResult)}`,
@@ -471,9 +489,11 @@ export const ensureRepoBenchmarkReady = ({
             return summary;
           }
           summary.submodules.updated = true;
+          const initialStateText = `initialMissing=${summary.submodules.initialMissing}, initialDirty=${summary.submodules.initialDirty}`;
+          const finalStateText = `missing=${summary.submodules.missing}, dirty=${summary.submodules.dirty}`;
           log(
             `[repo-preflight] submodules ready (${repoName}) ` +
-            `(missing=${summary.submodules.initialMissing}, dirty=${summary.submodules.initialDirty}).`
+            `(${finalStateText}; ${initialStateText}).`
           );
         }
       }
@@ -483,7 +503,7 @@ export const ensureRepoBenchmarkReady = ({
   if (pullLfs) {
     const lfsVersion = runCommand('git', ['lfs', 'version'], {
       encoding: 'utf8',
-      timeout: Math.min(preflightTimeoutMs, 15000)
+      timeoutMs: Math.min(preflightTimeoutMs, 15000)
     });
     if (lfsVersion.ok) {
       summary.lfs.supported = true;

@@ -58,14 +58,14 @@ await writeBundleFile({
 const manifest = {
   files: {
     'sample.txt': {
-      bundle: bundleName,
+      bundles: [bundleName],
       mtimeMs: 123,
       size: 5,
       hash: 'abc'
     },
-    'keep-1.txt': { bundle: bundleName, mtimeMs: 120, size: 1, hash: 'keep-1' },
-    'keep-2.txt': { bundle: bundleName, mtimeMs: 120, size: 1, hash: 'keep-2' },
-    'keep-3.txt': { bundle: bundleName, mtimeMs: 120, size: 1, hash: 'keep-3' }
+    'keep-1.txt': { bundles: [bundleName], mtimeMs: 120, size: 1, hash: 'keep-1' },
+    'keep-2.txt': { bundles: [bundleName], mtimeMs: 120, size: 1, hash: 'keep-2' },
+    'keep-3.txt': { bundles: [bundleName], mtimeMs: 120, size: 1, hash: 'keep-3' }
   }
 };
 

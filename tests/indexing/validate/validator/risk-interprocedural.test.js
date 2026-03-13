@@ -181,7 +181,23 @@ const riskFlows = [
     },
     path: {
       chunkUids: ['uid-source', 'uid-sink'],
-      callSiteIdsByStep: [[callSiteId]]
+      callSiteIdsByStep: [[callSiteId]],
+      watchByStep: [{
+        taintIn: ['req.body'],
+        taintOut: [],
+        propagatedArgIndices: [],
+        boundParams: [],
+        calleeNormalized: 'sink',
+        semanticIds: ['sem.callback.register-handler-payload'],
+        semanticKinds: ['callback'],
+        sanitizerPolicy: 'terminate',
+        sanitizerBarrierApplied: false,
+        sanitizerBarriersBefore: 0,
+        sanitizerBarriersAfter: 0,
+        confidenceBefore: 0.6,
+        confidenceAfter: 0.51,
+        confidenceDelta: -0.09
+      }]
     },
     confidence: 0.5,
     notes: {
@@ -190,6 +206,63 @@ const riskFlows = [
       hopCount: 1,
       sanitizerBarriersHit: 0,
       capsHit: []
+    }
+  }
+];
+
+const partialFlowId = `sha1:${sha1('uid-source|source.req.body|uid-sink|maxDepth|uid-source>uid-sink')}`;
+const riskPartialFlows = [
+  {
+    schemaVersion: 1,
+    partialFlowId,
+    source: {
+      chunkUid: 'uid-source',
+      ruleId: 'source.req.body',
+      ruleName: 'req.body',
+      ruleType: 'source',
+      category: 'input',
+      severity: null,
+      confidence: 0.6
+    },
+    frontier: {
+      chunkUid: 'uid-sink',
+      terminalReason: 'maxDepth',
+      blockedExpansions: [
+        {
+          targetChunkUid: 'uid-sink',
+          reason: 'maxEdgeExpansions',
+          callSiteIds: [callSiteId]
+        }
+      ]
+    },
+    path: {
+      chunkUids: ['uid-source', 'uid-sink'],
+      callSiteIdsByStep: [[callSiteId]],
+      watchByStep: [{
+        taintIn: ['req.body'],
+        taintOut: [],
+        propagatedArgIndices: [],
+        boundParams: [],
+        calleeNormalized: 'sink',
+        semanticIds: ['sem.callback.register-handler-payload'],
+        semanticKinds: ['callback'],
+        sanitizerPolicy: 'terminate',
+        sanitizerBarrierApplied: false,
+        sanitizerBarriersBefore: 0,
+        sanitizerBarriersAfter: 0,
+        confidenceBefore: 0.6,
+        confidenceAfter: 0.51,
+        confidenceDelta: -0.09
+      }]
+    },
+    confidence: 0.45,
+    notes: {
+      strictness: 'conservative',
+      sanitizerPolicy: 'terminate',
+      hopCount: 1,
+      sanitizerBarriersHit: 0,
+      capsHit: ['maxDepth'],
+      terminalReason: 'maxDepth'
     }
   }
 ];
@@ -221,6 +294,7 @@ const stats = {
     sourceRoots: 1,
     resolvedEdges: 1,
     flowsEmitted: 1,
+    partialFlowsEmitted: 1,
     risksWithFlows: 1,
     uniqueCallSitesReferenced: 1
   },
@@ -242,6 +316,7 @@ const writeJsonl = async (filePath, rows) => {
 await writeJsonl(path.join(indexDir, 'call_sites.jsonl'), callSites);
 await writeJsonl(path.join(indexDir, 'risk_summaries.jsonl'), riskSummaries);
 await writeJsonl(path.join(indexDir, 'risk_flows.jsonl'), riskFlows);
+await writeJsonl(path.join(indexDir, 'risk_partial_flows.jsonl'), riskPartialFlows);
 await fs.writeFile(path.join(indexDir, 'risk_interprocedural_stats.json'), JSON.stringify(stats, null, 2));
 await fs.writeFile(path.join(indexDir, 'chunk_uid_map.json'), JSON.stringify(chunkUidMap, null, 2));
 
@@ -251,6 +326,7 @@ await updatePiecesManifest(indexDir, (manifest) => {
     { type: 'chunks', name: 'chunk_uid_map', format: 'json', path: 'chunk_uid_map.json' },
     { type: 'risk', name: 'risk_summaries', format: 'jsonl', path: 'risk_summaries.jsonl' },
     { type: 'risk', name: 'risk_flows', format: 'jsonl', path: 'risk_flows.jsonl' },
+    { type: 'risk', name: 'risk_partial_flows', format: 'jsonl', path: 'risk_partial_flows.jsonl' },
     { type: 'risk', name: 'risk_interprocedural_stats', format: 'json', path: 'risk_interprocedural_stats.json' }
   );
 });
@@ -282,5 +358,50 @@ report = await validateIndexArtifacts({
 });
 assert.ok(!report.ok, 'expected validation to fail with bad callSiteId');
 assert.ok(report.issues.some((issue) => issue.includes('callSiteId')), 'expected callSiteId issue');
+
+await writeJsonl(path.join(indexDir, 'risk_flows.jsonl'), riskFlows);
+const corruptedPartials = riskPartialFlows.map((row) => ({
+  ...row,
+  frontier: {
+    ...row.frontier,
+    blockedExpansions: [
+      {
+        ...row.frontier.blockedExpansions[0],
+        callSiteIds: ['sha1:deadbeefdeadbeefdeadbeefdeadbeefdeadbeef']
+      }
+    ]
+  }
+}));
+await writeJsonl(path.join(indexDir, 'risk_partial_flows.jsonl'), corruptedPartials);
+report = await validateIndexArtifacts({
+  root: repoRoot,
+  indexRoot,
+  modes: ['code'],
+  userConfig: defaultUserConfig,
+  strict: true,
+  sqliteEnabled: false,
+  lmdbEnabled: false
+});
+assert.ok(!report.ok, 'expected validation to fail with bad blocked partial callSiteId');
+assert.ok(report.issues.some((issue) => issue.includes('blocked callSiteId')), 'expected blocked partial callSiteId issue');
+
+await writeJsonl(path.join(indexDir, 'risk_partial_flows.jsonl'), [{
+  ...riskPartialFlows[0],
+  path: {
+    ...riskPartialFlows[0].path,
+    watchByStep: []
+  }
+}]);
+report = await validateIndexArtifacts({
+  root: repoRoot,
+  indexRoot,
+  modes: ['code'],
+  userConfig: defaultUserConfig,
+  strict: true,
+  sqliteEnabled: false,
+  lmdbEnabled: false
+});
+assert.ok(!report.ok, 'expected validation to fail with watchByStep length mismatch');
+assert.ok(report.issues.some((issue) => issue.includes('watchByStep length mismatch')), 'expected watchByStep mismatch issue');
 
 console.log('risk interprocedural validator test passed');

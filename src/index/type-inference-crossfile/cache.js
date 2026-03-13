@@ -8,6 +8,7 @@ import { writeJsonObjectFile } from '../../shared/json-stream.js';
 export const CROSS_FILE_CACHE_SCHEMA_VERSION = 1;
 export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference';
 export const DEFAULT_CROSS_FILE_CACHE_MAX_BYTES = 8 * 1024 * 1024;
+export const DEFAULT_CROSS_FILE_CACHE_READ_MAX_BYTES = 12 * 1024 * 1024;
 
 const compareStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -50,6 +51,14 @@ const normalizeCacheStats = (cacheStats) => ({
   linkedUsages: Number(cacheStats?.linkedUsages) || 0,
   inferredReturns: Number(cacheStats?.inferredReturns) || 0,
   riskFlows: Number(cacheStats?.riskFlows) || 0,
+  toolingDegradedProviders: Number(cacheStats?.toolingDegradedProviders) || 0,
+  toolingDegradedWarnings: Number(cacheStats?.toolingDegradedWarnings) || 0,
+  toolingDegradedErrors: Number(cacheStats?.toolingDegradedErrors) || 0,
+  toolingProvidersExecuted: Number(cacheStats?.toolingProvidersExecuted) || 0,
+  toolingProvidersContributed: Number(cacheStats?.toolingProvidersContributed) || 0,
+  toolingRequests: Number(cacheStats?.toolingRequests) || 0,
+  toolingRequestFailures: Number(cacheStats?.toolingRequestFailures) || 0,
+  toolingRequestTimeouts: Number(cacheStats?.toolingRequestTimeouts) || 0,
   droppedCallLinks: Number(cacheStats?.droppedCallLinks) || 0,
   droppedCallSummaries: Number(cacheStats?.droppedCallSummaries) || 0,
   droppedUsageLinks: Number(cacheStats?.droppedUsageLinks) || 0,
@@ -125,7 +134,9 @@ export const buildCrossFileFingerprint = ({
   enableTypeInference,
   enableRiskCorrelation,
   useTooling,
-  fileRelations
+  fileRelations,
+  inferenceLite = false,
+  inferenceLiteHighSignalOnly = true
 }) => {
   const fileRelationSignatures = resolveFileRelationSignatures(fileRelations);
   const chunkSignatures = [];
@@ -161,6 +172,8 @@ export const buildCrossFileFingerprint = ({
     enableTypeInference: enableTypeInference === true,
     enableRiskCorrelation: enableRiskCorrelation === true,
     useTooling: useTooling === true,
+    inferenceLite: inferenceLite === true,
+    inferenceLiteHighSignalOnly: inferenceLiteHighSignalOnly !== false,
     chunks: chunkSignatures,
     fileRelations: fileRelationSignatures
   }));
@@ -170,10 +183,22 @@ export const readCrossFileInferenceCache = async ({
   cachePath,
   chunks,
   crossFileFingerprint,
-  log = () => {}
+  log = () => {},
+  maxReadBytes = DEFAULT_CROSS_FILE_CACHE_READ_MAX_BYTES
 }) => {
   if (!cachePath) return null;
   try {
+    if (Number.isFinite(maxReadBytes) && maxReadBytes > 0) {
+      const stat = await fs.stat(cachePath);
+      if (Number.isFinite(stat?.size) && stat.size > maxReadBytes) {
+        if (typeof log === 'function') {
+          log(
+            `[perf] cross-file cache read skipped: cache size ${stat.size} bytes exceeds max ${maxReadBytes} bytes.`
+          );
+        }
+        return null;
+      }
+    }
     const raw = await fs.readFile(cachePath, 'utf8');
     const cached = JSON.parse(raw);
     const cacheStats = cached?.stats && typeof cached.stats === 'object'
@@ -196,7 +221,14 @@ export const readCrossFileInferenceCache = async ({
         return normalizeCacheStats(cacheStats);
       }
     }
-  } catch {}
+  } catch (err) {
+    if (err?.code === 'ENOENT') {
+      return null;
+    }
+    if (typeof log === 'function') {
+      log(`[perf] cross-file cache read failed: ${err?.message || err}`);
+    }
+  }
   return null;
 };
 
@@ -271,7 +303,12 @@ export const writeCrossFileInferenceCache = async ({
         fingerprint: crossFileFingerprint,
         stats: normalizedStats
       },
-      arrays: { rows }
+      arrays: { rows },
+      atomic: true
     });
-  } catch {}
+  } catch (err) {
+    if (typeof log === 'function') {
+      log(`[perf] cross-file cache write failed: ${err?.message || err}`);
+    }
+  }
 };

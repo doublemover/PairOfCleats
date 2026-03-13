@@ -1,1 +1,1 @@
-conformance/language-shards/dynamic-languages/dynamic-languages-validation
+conformance/language-shards/dynamic-languages/validation

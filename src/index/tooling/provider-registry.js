@@ -116,15 +116,17 @@ export function selectToolingProviders({
     if (provider.enabled === false) continue;
 
     const providerKinds = normalizeKindSet(provider.kinds || []);
-    if (kindFilter.size && providerKinds.size) {
-      let matches = false;
-      for (const kind of kindFilter) {
-        if (providerKinds.has(kind)) {
-          matches = true;
-          break;
+    if (kindFilter.size) {
+      if (providerKinds.size) {
+        let matches = false;
+        for (const kind of kindFilter) {
+          if (providerKinds.has(kind)) {
+            matches = true;
+            break;
+          }
         }
+        if (!matches) continue;
       }
-      if (!matches) continue;
     }
 
     const languageSet = normalizeLanguageSet(provider.languages || []);

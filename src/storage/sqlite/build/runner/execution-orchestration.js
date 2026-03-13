@@ -36,6 +36,60 @@ import {
 import { createModeReporter } from './reporting-state-transitions.js';
 import { resolveModeSelectionPlan } from './selection-planning.js';
 
+const resolveBundleIntegrityFailureReason = ({
+  bundleResult,
+  denseArtifactsRequired,
+  expectedDenseCount,
+  expectedChunkCount
+}) => {
+  const explicitReason = typeof bundleResult?.reason === 'string'
+    ? bundleResult.reason.trim()
+    : '';
+  if (explicitReason) return explicitReason;
+  const observedChunkCount = Number(bundleResult?.count);
+  if (
+    Number.isFinite(Number(expectedChunkCount))
+    && Number(expectedChunkCount) >= 0
+    && Number.isFinite(observedChunkCount)
+    && observedChunkCount !== Number(expectedChunkCount)
+  ) {
+    return `bundle row count mismatch (${observedChunkCount} !== ${Number(expectedChunkCount)})`;
+  }
+  const observedDenseCount = Number(bundleResult?.denseCount);
+  if (
+    denseArtifactsRequired
+    && Number.isFinite(Number(expectedDenseCount))
+    && Number(expectedDenseCount) > 0
+  ) {
+    const embedStats = bundleResult?.embedStats || null;
+    const hasPartialDenseCoverage = (
+      Number(embedStats?.filesMissingEmbeddings || 0) > 0
+      || Number(embedStats?.filesPartiallyMissingEmbeddings || 0) > 0
+      || Number(embedStats?.missingChunks || 0) > 0
+      || (
+        Number.isFinite(Number(embedStats?.denseChunks))
+        && Number.isFinite(Number(embedStats?.totalChunks))
+        && Number(embedStats.totalChunks) > 0
+        && Number(embedStats.denseChunks) !== Number(embedStats.totalChunks)
+      )
+      || (
+        Number.isFinite(Number(embedStats?.filesWithChunks))
+        && Number.isFinite(Number(embedStats?.filesWithEmbeddings))
+        && Number(embedStats.filesWithChunks) > Number(embedStats.filesWithEmbeddings)
+      )
+    );
+    const missingDense = observedDenseCount === 0
+      || hasPartialDenseCoverage;
+    if (missingDense) {
+      return 'bundles missing embeddings';
+    }
+    if (Number.isFinite(observedDenseCount) && observedDenseCount !== Number(expectedDenseCount)) {
+      return `bundle dense count mismatch (${observedDenseCount} !== ${Number(expectedDenseCount)})`;
+    }
+  }
+  return '';
+};
+
 /**
  * Execute sqlite build orchestration for all selected modes.
  *
@@ -143,7 +197,7 @@ export const executeSqliteModeBuilds = async ({
           mode
         })
         : 0;
-      if (outputExists && existingRows === 0) {
+      if (!outputExists || existingRows === 0) {
         const zeroStateManifestPath = await writeSqliteZeroStateManifest({
           modeIndexDir,
           mode,
@@ -230,6 +284,10 @@ export const executeSqliteModeBuilds = async ({
         bundleSkipReason
       } = incrementalPlan;
       if (incrementalRequested && emitOutput && !hasIncrementalBundles) {
+        const manifestLine = formatBundleManifest(bundleManifest);
+        if (manifestLine) {
+          log(`[sqlite] bundle manifest ${mode}: ${manifestLine}.`);
+        }
         const skipMessage = bundleSkipReason
           ? `[sqlite] incremental bundles skipped for ${mode}: ${bundleSkipReason}; using artifacts.`
           : '[sqlite] incremental bundles unavailable; using artifacts.';
@@ -458,8 +516,12 @@ export const executeSqliteModeBuilds = async ({
           batchSize: activeBatchConfig,
           stats: sqliteStats
         });
-        const missingDense = denseArtifactsRequired && bundleResult?.denseCount === 0;
-        const bundleFailureReason = bundleResult?.reason || (missingDense ? 'bundles missing embeddings' : '');
+        const bundleFailureReason = resolveBundleIntegrityFailureReason({
+          bundleResult,
+          denseArtifactsRequired,
+          expectedDenseCount,
+          expectedChunkCount: modeChunkCountHint
+        });
         if (bundleFailureReason) {
           warn(`[sqlite] incremental bundle build failed for ${mode}: ${bundleFailureReason}; using artifacts.`);
           const embedLine = formatEmbedStats(bundleResult?.embedStats);
@@ -581,8 +643,17 @@ export const executeSqliteModeBuilds = async ({
       }
       const errorMessage = err?.message || String(err);
       await reporter.reportFailure({ errorMessage, err });
-      if (exitOnError) process.exit(1);
-      throw err;
+      if (err && typeof err === 'object') {
+        if (!err.code) err.code = 'ERR_SQLITE_MODE_BUILD_FAILED';
+        if (!Number.isFinite(Number(err.exitCode))) err.exitCode = 1;
+        err.exitOnError = exitOnError === true;
+        throw err;
+      }
+      const wrapped = new Error(errorMessage);
+      wrapped.code = 'ERR_SQLITE_MODE_BUILD_FAILED';
+      wrapped.exitCode = 1;
+      wrapped.exitOnError = exitOnError === true;
+      throw wrapped;
     } finally {
       await stageCheckpoints.flush();
       // buildDatabaseFromArtifacts/buildDatabaseFromBundles close their DB handles internally.

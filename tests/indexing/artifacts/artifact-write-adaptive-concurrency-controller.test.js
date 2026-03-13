@@ -42,13 +42,14 @@ assert.equal(
   controller.observe({
     pendingWrites: 3,
     activeWrites: 4,
+    activeWriteBytes: 128 * 1024 * 1024,
     longestStallSec: 14,
     schedulerWritePending: 0,
     schedulerWriteOldestWaitMs: 0,
     schedulerWriteWaitP95Ms: 0
   }),
   4,
-  'expected non-write stalls to avoid write-concurrency scale down'
+  'expected non-write stalls below the heavy-byte threshold to avoid write-concurrency scale down'
 );
 
 nowMs += 1;
@@ -56,12 +57,27 @@ assert.equal(
   controller.observe({
     pendingWrites: 3,
     activeWrites: 4,
+    activeWriteBytes: 900 * 1024 * 1024,
+    longestStallSec: 14,
+    schedulerWritePending: 0,
+    schedulerWriteOldestWaitMs: 0,
+    schedulerWriteWaitP95Ms: 0
+  }),
+  3,
+  'expected sustained non-write stalls with huge active bytes to scale concurrency down conservatively'
+);
+
+nowMs += 1;
+assert.equal(
+  controller.observe({
+    pendingWrites: 3,
+    activeWrites: 3,
     longestStallSec: 14,
     schedulerWritePending: 4,
     schedulerWriteOldestWaitMs: 2200,
     schedulerWriteWaitP95Ms: 1200
   }),
-  3,
+  2,
   'expected queue-attributed stalls to scale concurrency down'
 );
 
@@ -69,7 +85,7 @@ nowMs += 1;
 assert.equal(
   controller.observe({
     pendingWrites: 2,
-    activeWrites: 3,
+    activeWrites: 2,
     longestStallSec: 20,
     schedulerWritePending: 4,
     schedulerWriteOldestWaitMs: 2600,
@@ -148,8 +164,21 @@ assert.equal(
     gcPressure: 0.1,
     rssUtilization: 0.82
   }),
+  4,
+  'expected first high-memory sample to accumulate pressure before scaling down'
+);
+memoryNowMs += 1;
+assert.equal(
+  memoryController.observe({
+    pendingWrites: 4,
+    activeWrites: 4,
+    longestStallSec: 0,
+    memoryPressure: 0.95,
+    gcPressure: 0.1,
+    rssUtilization: 0.82
+  }),
   3,
-  'expected high memory pressure to scale concurrency down'
+  'expected sustained high memory pressure to scale concurrency down'
 );
 assert.equal(memoryEvents.at(-1)?.reason, 'memory-pressure', 'expected memory-pressure event reason');
 
@@ -158,6 +187,7 @@ assert.equal(
   memoryController.observe({
     pendingWrites: 3,
     activeWrites: 2,
+    activeWriteBytes: 64 * 1024 * 1024,
     longestStallSec: 0,
     memoryPressure: 0.42,
     gcPressure: 0.08,
@@ -167,6 +197,51 @@ assert.equal(
   'expected low pressure + backlog to restore concurrency'
 );
 assert.equal(memoryEvents.at(-1)?.reason, 'memory-headroom', 'expected memory-headroom event reason');
+
+let nonWriteMemoryNowMs = 0;
+const nonWriteMemoryController = createAdaptiveWriteConcurrencyController({
+  maxConcurrency: 6,
+  minConcurrency: 2,
+  initialConcurrency: 4,
+  scaleUpCooldownMs: 0,
+  scaleDownCooldownMs: 0,
+  now: () => nonWriteMemoryNowMs
+});
+
+nonWriteMemoryNowMs += 1;
+assert.equal(
+  nonWriteMemoryController.observe({
+    pendingWrites: 0,
+    activeWrites: 1,
+    activeWriteBytes: 64 * 1024 * 1024,
+    longestStallSec: 12,
+    memoryPressure: 0.96,
+    gcPressure: 0.12,
+    rssUtilization: 0.93,
+    schedulerWritePending: 0,
+    schedulerWriteOldestWaitMs: 0,
+    schedulerWriteWaitP95Ms: 0
+  }),
+  4,
+  'expected non-write idle pressure to avoid write-concurrency scale down'
+);
+nonWriteMemoryNowMs += 1;
+assert.equal(
+  nonWriteMemoryController.observe({
+    pendingWrites: 0,
+    activeWrites: 1,
+    activeWriteBytes: 64 * 1024 * 1024,
+    longestStallSec: 12,
+    memoryPressure: 0.97,
+    gcPressure: 0.15,
+    rssUtilization: 0.94,
+    schedulerWritePending: 0,
+    schedulerWriteOldestWaitMs: 0,
+    schedulerWriteWaitP95Ms: 0
+  }),
+  4,
+  'expected repeated idle pressure to remain non-attributable and leave concurrency unchanged'
+);
 
 let drainNowMs = 0;
 const drainController = createAdaptiveWriteConcurrencyController({
@@ -184,6 +259,7 @@ assert.equal(
   drainController.observe({
     pendingWrites: 1,
     activeWrites: 2,
+    activeWriteBytes: 64 * 1024 * 1024,
     longestStallSec: 0,
     schedulerWritePending: 0,
     schedulerWriteOldestWaitMs: 0,

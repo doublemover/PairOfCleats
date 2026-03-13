@@ -2,12 +2,15 @@ import fs from 'node:fs/promises';
 import { parseJsonlLine } from './jsonl.js';
 import { MAX_JSON_BYTES } from './constants.js';
 import { toJsonTooLargeError } from './limits.js';
+import { INTEGER_COERCE_MODE_STRICT, coercePositiveInt } from '../number-coerce.js';
 
 export const OFFSETS_FORMAT_VERSION = 1;
 export const OFFSETS_FORMAT = 'u64-le';
 export const OFFSETS_COMPRESSION = 'none';
 
 const OFFSET_BYTES = 8;
+const MAX_OFFSETS_SPAN_BYTES = 4 * 1024 * 1024;
+const JSONL_ROWS_AT_MAX_BATCH_BYTES = 8 * 1024 * 1024;
 const OFFSETS_VALIDATION_CACHE = new Map();
 const OFFSETS_VALIDATION_CACHE_MAX = 256;
 
@@ -54,6 +57,42 @@ const readOffsetValue = (buffer, index) => {
   return Number(value);
 };
 
+const createOffsetsInvalidError = (message) => {
+  const err = new Error(message);
+  err.code = 'ERR_OFFSETS_INVALID';
+  return err;
+};
+
+const assertOffsetsAligned = (size, offsetsPath) => {
+  if (size % OFFSET_BYTES !== 0) {
+    throw createOffsetsInvalidError(`Offsets sidecar misaligned: ${offsetsPath}`);
+  }
+};
+
+const resolveOffsetCountFromSize = (size, offsetsPath) => {
+  assertOffsetsAligned(size, offsetsPath);
+  return Math.floor(size / OFFSET_BYTES);
+};
+
+const assertExactRead = (bytesRead, expected, message) => {
+  if (bytesRead !== expected) {
+    throw createOffsetsInvalidError(message);
+  }
+};
+
+const resolveValidatedMaxBytes = (maxBytes, apiName) => {
+  if (typeof maxBytes !== 'number') {
+    const err = new Error(`${apiName} maxBytes must be a finite positive number.`);
+    err.code = 'ERR_INVALID_MAX_BYTES';
+    throw err;
+  }
+  const resolved = coercePositiveInt(maxBytes, { mode: INTEGER_COERCE_MODE_STRICT });
+  if (resolved != null) return resolved;
+  const err = new Error(`${apiName} maxBytes must be a finite positive number.`);
+  err.code = 'ERR_INVALID_MAX_BYTES';
+  throw err;
+};
+
 /**
  * Read an entire offsets sidecar into memory.
  * @param {string} offsetsPath
@@ -61,12 +100,22 @@ const readOffsetValue = (buffer, index) => {
  */
 export const readOffsetsFile = async (offsetsPath) => {
   const data = await fs.readFile(offsetsPath);
-  const count = Math.floor(data.length / OFFSET_BYTES);
+  const count = resolveOffsetCountFromSize(data.length, offsetsPath);
   const offsets = new Array(count);
   for (let i = 0; i < count; i += 1) {
     offsets[i] = readOffsetValue(data, i);
   }
   return offsets;
+};
+
+const readSingleOffsetAtWithHandle = async (handle, index) => {
+  const buffer = Buffer.allocUnsafe(OFFSET_BYTES);
+  const { bytesRead } = await handle.read(buffer, 0, OFFSET_BYTES, index * OFFSET_BYTES);
+  if (bytesRead === 0) return null;
+  if (bytesRead !== OFFSET_BYTES) {
+    throw createOffsetsInvalidError(`Offsets sidecar truncated at index ${index}`);
+  }
+  return readOffsetValue(buffer, 0);
 };
 
 const readOffsetsAtWithHandle = async (handle, indexes) => {
@@ -78,6 +127,12 @@ const readOffsetsAtWithHandle = async (handle, indexes) => {
   const maxIndex = sorted[sorted.length - 1];
   const spanCount = maxIndex - minIndex + 1;
   const spanBytes = spanCount * OFFSET_BYTES;
+  if (spanBytes > MAX_OFFSETS_SPAN_BYTES) {
+    for (const index of sorted) {
+      out.set(index, await readSingleOffsetAtWithHandle(handle, index));
+    }
+    return out;
+  }
   const spanBuffer = Buffer.allocUnsafe(spanBytes);
   const { bytesRead } = await handle.read(spanBuffer, 0, spanBytes, minIndex * OFFSET_BYTES);
   for (const index of sorted) {
@@ -144,10 +199,10 @@ export const resolveOffsetsCount = async (
 ) => {
   if (handle) {
     const { size } = await handle.stat();
-    return Math.floor(size / OFFSET_BYTES);
+    return resolveOffsetCountFromSize(size, offsetsPath);
   }
   const { size } = await fs.stat(offsetsPath);
-  return Math.floor(size / OFFSET_BYTES);
+  return resolveOffsetCountFromSize(size, offsetsPath);
 };
 
 /**
@@ -168,12 +223,7 @@ export const readJsonlRowAt = async (
     metrics = null
   } = {}
 ) => {
-  if (typeof maxBytes !== 'number' || !Number.isFinite(maxBytes) || maxBytes <= 0) {
-    const err = new Error('readJsonlRowAt maxBytes must be a finite positive number.');
-    err.code = 'ERR_INVALID_MAX_BYTES';
-    throw err;
-  }
-  const resolvedMaxBytes = Math.floor(maxBytes);
+  const resolvedMaxBytes = resolveValidatedMaxBytes(maxBytes, 'readJsonlRowAt');
   if (!Number.isFinite(index) || index < 0) return null;
   const [jsonlHandle, offsetsHandle] = await Promise.all([
     fs.open(jsonlPath, 'r'),
@@ -204,6 +254,7 @@ export const readJsonlRowAt = async (
     }
     const buffer = Buffer.allocUnsafe(length);
     const { bytesRead } = await jsonlHandle.read(buffer, 0, length, start);
+    assertExactRead(bytesRead, length, `JSONL row short read at index ${index} for ${jsonlPath}`);
     const line = buffer.slice(0, bytesRead).toString('utf8');
     if (metrics && typeof metrics === 'object') {
       const currentRead = Number.isFinite(metrics.bytesRead) ? metrics.bytesRead : 0;
@@ -235,13 +286,8 @@ export const readJsonlRowsAt = async (
     metrics = null
   } = {}
 ) => {
-  if (typeof maxBytes !== 'number' || !Number.isFinite(maxBytes) || maxBytes <= 0) {
-    const err = new Error('readJsonlRowsAt maxBytes must be a finite positive number.');
-    err.code = 'ERR_INVALID_MAX_BYTES';
-    throw err;
-  }
+  const resolvedMaxBytes = resolveValidatedMaxBytes(maxBytes, 'readJsonlRowsAt');
   if (!Array.isArray(indexes) || indexes.length === 0) return [];
-  const resolvedMaxBytes = Math.floor(maxBytes);
   const normalized = indexes.map((value) => (
     Number.isFinite(value) && value >= 0 ? Math.floor(value) : -1
   ));
@@ -262,9 +308,10 @@ export const readJsonlRowsAt = async (
       offsetsHandle.stat(),
       jsonlHandle.stat()
     ]);
-    const offsetCount = Math.floor(offsetsStat.size / OFFSET_BYTES);
+    const offsetCount = resolveOffsetCountFromSize(offsetsStat.size, offsetsPath);
     const offsetValues = await readOffsetsAtWithHandle(offsetsHandle, [...uniqueNeeded]);
     const rowByIndex = new Map();
+    const rowSpecs = [];
     for (const index of uniqueIndexes) {
       if (index >= offsetCount) {
         rowByIndex.set(index, null);
@@ -292,14 +339,53 @@ export const readJsonlRowsAt = async (
       if (length > resolvedMaxBytes) {
         throw toJsonTooLargeError(jsonlPath, length);
       }
+      rowSpecs.push({ index, start, end });
+    }
+    const ranges = [];
+    let currentRange = null;
+    for (const spec of rowSpecs) {
+      if (!currentRange) {
+        currentRange = {
+          start: spec.start,
+          end: spec.end,
+          rows: [spec]
+        };
+        continue;
+      }
+      const contiguous = spec.start === currentRange.end;
+      const mergedBytes = spec.end - currentRange.start;
+      if (contiguous && mergedBytes <= JSONL_ROWS_AT_MAX_BATCH_BYTES) {
+        currentRange.end = spec.end;
+        currentRange.rows.push(spec);
+        continue;
+      }
+      ranges.push(currentRange);
+      currentRange = {
+        start: spec.start,
+        end: spec.end,
+        rows: [spec]
+      };
+    }
+    if (currentRange) ranges.push(currentRange);
+    for (const range of ranges) {
+      const length = range.end - range.start;
+      if (length <= 0) continue;
       const buffer = Buffer.allocUnsafe(length);
-      const { bytesRead } = await jsonlHandle.read(buffer, 0, length, start);
-      const line = buffer.slice(0, bytesRead).toString('utf8');
+      const { bytesRead } = await jsonlHandle.read(buffer, 0, length, range.start);
+      assertExactRead(bytesRead, length, `JSONL row short read for ${jsonlPath}`);
       if (metrics && typeof metrics === 'object') {
         const currentRead = Number.isFinite(metrics.bytesRead) ? metrics.bytesRead : 0;
         metrics.bytesRead = currentRead + bytesRead;
       }
-      rowByIndex.set(index, parseJsonlLine(line, jsonlPath, index + 1, resolvedMaxBytes, requiredKeys));
+      for (const spec of range.rows) {
+        const start = spec.start - range.start;
+        const end = spec.end - range.start;
+        const line = buffer.slice(start, end).toString('utf8');
+        rowByIndex.set(
+          spec.index,
+          parseJsonlLine(line, jsonlPath, spec.index + 1, resolvedMaxBytes, requiredKeys)
+        );
+      }
     }
     if (metrics && typeof metrics === 'object') {
       const currentRows = Number.isFinite(metrics.rowsRead) ? metrics.rowsRead : 0;
@@ -327,26 +413,47 @@ export const validateOffsetsAgainstFile = async (jsonlPath, offsetsPath) => {
   if (getCachedOffsetsValidation(cacheKey, jsonlStat, offsetsStat)) {
     return true;
   }
+  const fileSize = Number(jsonlStat.size) || 0;
+  if (offsets.length && offsets[0] !== 0) {
+    throw createOffsetsInvalidError(`Offsets must start at zero for ${offsetsPath}`);
+  }
   let last = -1;
-  for (const offset of offsets) {
+  const boundaryPositions = [];
+  for (let i = 0; i < offsets.length; i += 1) {
+    const offset = offsets[i];
     if (!Number.isFinite(offset) || offset < 0) {
-      throw new Error(`Invalid offset value: ${offset}`);
+      throw createOffsetsInvalidError(`Invalid offset value: ${offset}`);
     }
     if (offset <= last) {
-      throw new Error(`Offsets not monotonic for ${offsetsPath}`);
+      throw createOffsetsInvalidError(`Offsets not monotonic for ${offsetsPath}`);
+    }
+    if (offset >= fileSize) {
+      throw createOffsetsInvalidError(`Offset exceeds file size for ${jsonlPath}`);
+    }
+    if (i > 0) {
+      boundaryPositions.push(offset - 1);
     }
     last = offset;
   }
-  if (offsets.length) {
-    if (last >= jsonlStat.size) {
-      throw new Error(`Offset exceeds file size for ${jsonlPath}`);
-    }
+  if (offsets.length && fileSize > 0) {
+    boundaryPositions.push(fileSize - 1);
     const handle = await fs.open(jsonlPath, 'r');
     try {
       const buffer = Buffer.allocUnsafe(1);
-      const { bytesRead } = await handle.read(buffer, 0, 1, jsonlStat.size - 1);
-      if (bytesRead === 1 && buffer[0] !== 0x0a) {
-        throw new Error(`JSONL missing trailing newline for ${jsonlPath}`);
+      for (let i = 0; i < boundaryPositions.length; i += 1) {
+        const position = boundaryPositions[i];
+        const { bytesRead } = await handle.read(buffer, 0, 1, position);
+        if (bytesRead !== 1) {
+          throw createOffsetsInvalidError(`JSONL boundary read failed for ${jsonlPath}`);
+        }
+        if (buffer[0] !== 0x0a) {
+          if (i === boundaryPositions.length - 1) {
+            throw createOffsetsInvalidError(`JSONL missing trailing newline for ${jsonlPath}`);
+          }
+          throw createOffsetsInvalidError(
+            `Offset boundary missing newline at byte ${position} for ${jsonlPath}`
+          );
+        }
       }
     } finally {
       await handle.close();

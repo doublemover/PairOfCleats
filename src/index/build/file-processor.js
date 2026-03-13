@@ -387,7 +387,12 @@ export function createFileProcessor(options) {
     };
     const runIo = ioQueue ? (fn) => ioQueue.add(fn, { signal }) : (fn) => fn();
     const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn, { signal }) : (fn) => fn();
-    const runEmbedding = embeddingQueue ? (fn) => embeddingQueue.add(fn, { signal }) : (fn) => fn();
+    // Keep embedding queue backpressure/concurrency controls active even when
+    // called from CPU work. Deadlock prevention is handled at scheduler-token
+    // configuration (embeddings queue avoids consuming CPU tokens).
+    const runEmbedding = embeddingQueue
+      ? (fn) => embeddingQueue.add(fn, { signal })
+      : (fn) => fn();
     const runProc = procQueue ? (fn) => procQueue.add(fn, { signal }) : (fn) => fn();
     throwIfAborted();
     const abs = typeof fileEntry === 'string' ? fileEntry : fileEntry.abs;      

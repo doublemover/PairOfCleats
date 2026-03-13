@@ -1,8 +1,28 @@
 import json
 import os
+import threading
 import urllib.parse
 import urllib.request
 import urllib.error
+
+
+class ApiResult(object):
+    def __init__(self, payload=None, headers=None, error=None):
+        self.payload = payload
+        self.headers = headers or {}
+        self.error = error
+
+
+class ApiHandle(object):
+    def __init__(self, thread):
+        self.thread = thread
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+
+    def is_cancelled(self):
+        return self._cancelled
 
 
 def normalize_base_url(value):
@@ -30,13 +50,26 @@ def build_url(base_url, path, params=None):
     return '{0}{1}'.format(base_url, path)
 
 
-def _open_url(url, timeout_ms=5000):
+def _encode_payload(payload):
+    if payload is None:
+        return None
+    if isinstance(payload, bytes):
+        return payload
+    return json.dumps(payload).encode('utf-8')
+
+
+def _open_url(url, timeout_ms=5000, method='GET', payload=None, headers=None):
     timeout = float(timeout_ms or 5000) / 1000.0
     if timeout <= 0:
         timeout = 5.0
+    request_headers = dict(headers or {})
+    data = _encode_payload(payload)
+    if data is not None and 'Content-Type' not in request_headers:
+        request_headers['Content-Type'] = 'application/json'
+    request = urllib.request.Request(url, data=data, headers=request_headers, method=method)
 
     try:
-        resp = urllib.request.urlopen(url, timeout=timeout)
+        resp = urllib.request.urlopen(request, timeout=timeout)
         try:
             status = resp.getcode() or 0
             headers = dict(resp.headers.items())
@@ -57,8 +90,8 @@ def _open_url(url, timeout_ms=5000):
         return status, headers, data
 
 
-def request_json(url, timeout_ms=5000):
-    status, headers, data = _open_url(url, timeout_ms=timeout_ms)
+def request_json(url, timeout_ms=5000, method='GET', payload=None, headers=None):
+    status, headers, data = _open_url(url, timeout_ms=timeout_ms, method=method, payload=payload, headers=headers)
     text = (data or b'').decode('utf-8', 'replace')
     if status < 200 or status >= 300:
         raise RuntimeError('API request failed ({0}): {1}'.format(status, text.strip() or url))
@@ -68,8 +101,8 @@ def request_json(url, timeout_ms=5000):
         raise RuntimeError('API returned invalid JSON: {0}'.format(exc))
 
 
-def request_text(url, timeout_ms=5000):
-    status, headers, data = _open_url(url, timeout_ms=timeout_ms)
+def request_text(url, timeout_ms=5000, method='GET', payload=None, headers=None):
+    status, headers, data = _open_url(url, timeout_ms=timeout_ms, method=method, payload=payload, headers=headers)
     text = (data or b'').decode('utf-8', 'replace')
     if status < 200 or status >= 300:
         raise RuntimeError('API request failed ({0}): {1}'.format(status, text.strip() or url))
@@ -102,17 +135,52 @@ def _write_json(path_value, payload):
         json.dump(payload, handle, indent=2, sort_keys=True)
 
 
-def generate_map_report(
+def run_async(request_fn, on_done, on_progress=None):
+    import sublime
+    handle = ApiHandle(None)
+
+    def worker():
+        try:
+            if callable(on_progress):
+                on_progress('Request started.')
+            response = request_fn()
+            if handle.is_cancelled():
+                return
+            if isinstance(response, tuple) and len(response) == 2:
+                payload, headers = response
+            else:
+                payload, headers = response, {}
+            result = ApiResult(payload=payload, headers=headers)
+        except Exception as exc:
+            if handle.is_cancelled():
+                return
+            result = ApiResult(error=str(exc))
+        if handle.is_cancelled():
+            return
+        sublime.set_timeout(lambda: on_done(result), 0)
+
+    thread = threading.Thread(target=worker)
+    thread.daemon = True
+    thread.start()
+    handle.thread = thread
+    return handle
+
+
+def search_json(
         base_url,
         repo_root,
         settings,
-        scope,
-        focus,
-        include,
-        map_format,
-        output_path,
-        model_path,
-        node_list_path):
+        query,
+        mode,
+        backend=None,
+        limit=None,
+        ann=None,
+        allow_sparse_fallback=False,
+        as_of=None,
+        snapshot=None,
+        advanced=None):
+    from . import search as search_lib
+
     base_url = normalize_base_url(base_url)
     if not base_url:
         raise RuntimeError('api_server_url is not set')
@@ -121,81 +189,74 @@ def generate_map_report(
     if not isinstance(timeout_ms, int) or timeout_ms <= 0:
         timeout_ms = 5000
 
-    params = {
-        'repo': repo_root,
-        'mode': settings.get('map_index_mode') or 'code',
-        'scope': scope,
-        'focus': focus,
-        'include': include,
-        'collapse': settings.get('map_collapse_default') or 'none'
-    }
+    payload = search_lib.build_search_payload(
+        query,
+        repo_root=repo_root,
+        mode=mode,
+        backend=backend,
+        limit=limit,
+        ann=ann,
+        allow_sparse_fallback=allow_sparse_fallback,
+        as_of=as_of,
+        snapshot=snapshot,
+        advanced=advanced,
+    )
 
-    if settings.get('map_only_exported'):
-        params['onlyExported'] = '1'
+    body, headers = request_json(
+        build_url(base_url, '/search'),
+        timeout_ms=timeout_ms,
+        method='POST',
+        payload=payload,
+    )
+    if not isinstance(body, dict) or body.get('ok') is False:
+        raise RuntimeError((body or {}).get('message') or 'API search failed.')
+    result = body.get('result')
+    if not isinstance(result, dict):
+        raise RuntimeError('API search returned invalid JSON.')
+    payload = dict(result)
+    payload.setdefault('ok', True)
+    return payload, headers
 
-    max_files = settings.get('map_max_files')
-    if isinstance(max_files, int) and max_files > 0:
-        params['maxFiles'] = str(max_files)
 
-    max_members = settings.get('map_max_members_per_file')
-    if isinstance(max_members, int) and max_members > 0:
-        params['maxMembersPerFile'] = str(max_members)
+def _resolve_timeout_ms(settings):
+    timeout_ms = settings.get('api_timeout_ms') if isinstance(settings, dict) else None
+    if not isinstance(timeout_ms, int) or timeout_ms <= 0:
+        timeout_ms = 5000
+    return timeout_ms
 
-    max_edges = settings.get('map_max_edges')
-    if isinstance(max_edges, int) and max_edges > 0:
-        params['maxEdges'] = str(max_edges)
 
-    if settings.get('map_top_k_by_degree') is True:
-        params['topKByDegree'] = '1'
+def health_json(base_url, settings):
+    base_url = normalize_base_url(base_url)
+    if not base_url:
+        raise RuntimeError('api_server_url is not set')
+    timeout_ms = _resolve_timeout_ms(settings)
+    body, headers = request_json(
+        build_url(base_url, '/health'),
+        timeout_ms=timeout_ms,
+    )
+    if not isinstance(body, dict) or body.get('ok') is False:
+        raise RuntimeError((body or {}).get('message') or 'API health request failed.')
+    payload = dict(body)
+    payload.setdefault('ok', True)
+    return payload, headers
 
-    open_uri = settings.get('map_open_uri_template')
-    if open_uri:
-        params['openUriTemplate'] = open_uri
 
-    three_url = settings.get('map_three_url')
-    if three_url:
-        params['threeUrl'] = three_url
+def status_json(base_url, repo_root, settings):
+    base_url = normalize_base_url(base_url)
+    if not base_url:
+        raise RuntimeError('api_server_url is not set')
+    timeout_ms = _resolve_timeout_ms(settings)
+    body, headers = request_json(
+        build_url(base_url, '/status', {'repo': repo_root}),
+        timeout_ms=timeout_ms,
+    )
+    if not isinstance(body, dict) or body.get('ok') is False:
+        raise RuntimeError((body or {}).get('message') or 'API status request failed.')
+    payload = body.get('status')
+    if not isinstance(payload, dict):
+        raise RuntimeError('API status returned invalid JSON.')
+    payload = dict(payload)
+    payload.setdefault('ok', True)
+    return payload, headers
 
-    # Viewer controls (only used by html-iso)
-    for setting_key, param_key in [
-            ('map_wasd_sensitivity', 'wasdSensitivity'),
-            ('map_wasd_acceleration', 'wasdAcceleration'),
-            ('map_wasd_max_speed', 'wasdMaxSpeed'),
-            ('map_wasd_drag', 'wasdDrag'),
-            ('map_zoom_sensitivity', 'zoomSensitivity')]:
-        value = settings.get(setting_key)
-        if isinstance(value, (int, float)):
-            params[param_key] = str(value)
 
-    model_url = build_url(base_url, '/map', dict(params, **{'format': 'json'}))
-    map_model, model_headers = request_json(model_url, timeout_ms=timeout_ms)
-    _write_json(model_path, map_model)
-
-    nodes_url = build_url(base_url, '/map/nodes', params)
-    node_list, _headers = request_json(nodes_url, timeout_ms=timeout_ms)
-    _write_json(node_list_path, node_list)
-
-    out_url = build_url(base_url, '/map', dict(params, **{'format': map_format}))
-    out_path = output_path
-
-    if map_format in ('json', 'dot'):
-        text, _headers = request_text(out_url, timeout_ms=timeout_ms)
-        _write_text(output_path, text)
-        out_path = output_path
-    else:
-        out_path = out_url
-
-    cache_key = model_headers.get('X-PairofCleats-Map-CacheKey') or ''
-
-    return {
-        'ok': True,
-        'source': 'api',
-        'repo': repo_root,
-        'format': map_format,
-        'outPath': out_path,
-        'modelPath': model_path,
-        'nodeListPath': node_list_path,
-        'cacheKey': cache_key,
-        'summary': map_model.get('summary') if isinstance(map_model, dict) else None,
-        'warnings': map_model.get('warnings') if isinstance(map_model, dict) else None
-    }

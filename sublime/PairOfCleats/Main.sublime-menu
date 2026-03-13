@@ -7,8 +7,130 @@
         "command": "pair_of_cleats_open_settings"
       },
       {
+        "caption": "PairOfCleats Project Settings",
+        "command": "pair_of_cleats_open_project_settings"
+      },
+      {
+        "caption": "PairOfCleats Project Settings Template",
+        "command": "pair_of_cleats_project_settings_template"
+      },
+      {
+        "caption": "PairOfCleats Show Effective Settings",
+        "command": "pair_of_cleats_show_effective_settings"
+      },
+      {
         "caption": "PairOfCleats Validate Settings",
         "command": "pair_of_cleats_validate_settings"
+      }
+    ]
+  },
+  {
+    "id": "tools",
+    "children": [
+      {
+        "caption": "PairOfCleats",
+        "children": [
+          {
+            "caption": "Search",
+            "command": "pair_of_cleats_search"
+          },
+          {
+            "caption": "Search Selection",
+            "command": "pair_of_cleats_search_selection"
+          },
+          {
+            "caption": "Go To Definition",
+            "command": "pair_of_cleats_goto_definition"
+          },
+          {
+            "caption": "Find References",
+            "command": "pair_of_cleats_find_references"
+          },
+          {
+            "caption": "Repeat Last Search",
+            "command": "pair_of_cleats_repeat_last_search"
+          },
+          {
+            "caption": "Reopen Last Results",
+            "command": "pair_of_cleats_reopen_last_results"
+          },
+          {
+            "caption": "-"
+          },
+          {
+            "caption": "Show Progress",
+            "command": "pair_of_cleats_show_progress"
+          },
+          {
+            "caption": "Cancel Active Task",
+            "command": "pair_of_cleats_cancel_active_task"
+          },
+          {
+            "caption": "-"
+          },
+          {
+            "caption": "Index Build (All)",
+            "command": "pair_of_cleats_index_build_all"
+          },
+          {
+            "caption": "Index Watch Start",
+            "command": "pair_of_cleats_index_watch_start"
+          },
+          {
+            "caption": "Index Watch Stop",
+            "command": "pair_of_cleats_index_watch_stop"
+          },
+          {
+            "caption": "Index Validate",
+            "command": "pair_of_cleats_index_validate"
+          },
+          {
+            "caption": "Open Index Directory",
+            "command": "pair_of_cleats_open_index_directory"
+          },
+          {
+            "caption": "-"
+          },
+          {
+            "caption": "Map Current File",
+            "command": "pair_of_cleats_map_current_file"
+          },
+          {
+            "caption": "Map Selection",
+            "command": "pair_of_cleats_map_selection"
+          },
+          {
+            "caption": "Map Jump to Node",
+            "command": "pair_of_cleats_map_jump_to_node"
+          },
+          {
+            "caption": "Map Show Last Report",
+            "command": "pair_of_cleats_map_show_last_report"
+          },
+          {
+            "caption": "-"
+          },
+          {
+            "caption": "Show Config Dump",
+            "command": "pair_of_cleats_show_config_dump"
+          },
+          {
+            "caption": "Tooling Doctor",
+            "command": "pair_of_cleats_tooling_doctor"
+          },
+          {
+            "caption": "Server Health",
+            "command": "pair_of_cleats_server_health"
+          },
+          {
+            "caption": "Server Status",
+            "command": "pair_of_cleats_server_status"
+          },
+          {
+            "caption": "Index Health",
+            "command": "pair_of_cleats_index_health"
+          }
+        ]
       }
     ]
   }

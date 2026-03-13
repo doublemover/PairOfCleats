@@ -4,8 +4,11 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { atomicWriteText } from './io/atomic-write.js';
 import { stableStringify } from './stable-json.js';
+import { readJsonFileSafe } from './files.js';
 
 const CAS_HASH_PATTERN = /^[a-f0-9]{64}$/;
+const CAS_JSON_MAX_BYTES = 2 * 1024 * 1024;
+const CAS_ENUM_CONCURRENCY = 16;
 
 const toIsoString = (value = Date.now()) => {
   if (typeof value === 'string' && value.trim()) {
@@ -53,13 +56,29 @@ const fileExists = (targetPath) => {
 
 const readJsonIfExists = async (targetPath) => {
   if (!fileExists(targetPath)) return null;
-  try {
-    const raw = await fsPromises.readFile(targetPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
-  }
+  const parsed = await readJsonFileSafe(targetPath, {
+    fallback: null,
+    maxBytes: CAS_JSON_MAX_BYTES
+  });
+  return parsed && typeof parsed === 'object' ? parsed : null;
+};
+
+const runWithConcurrency = async (items, maxConcurrency, worker) => {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return [];
+  const limit = Math.max(1, Math.floor(Number(maxConcurrency) || 1));
+  const output = new Array(list.length);
+  let nextIndex = 0;
+  const runWorker = async () => {
+    while (true) {
+      const current = nextIndex;
+      nextIndex += 1;
+      if (current >= list.length) return;
+      output[current] = await worker(list[current], current);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, list.length) }, () => runWorker()));
+  return output;
 };
 
 export const computeCasHash = (payload) => {
@@ -134,21 +153,38 @@ export const listCasObjectHashes = async (cacheRoot) => {
   if (!fileExists(objectsRoot)) return [];
   const out = [];
   const levelOne = await fsPromises.readdir(objectsRoot, { withFileTypes: true });
-  for (const one of levelOne) {
-    if (!one.isDirectory()) continue;
+  const levelOneDirs = levelOne.filter((entry) => entry.isDirectory());
+  const nestedHashes = await runWithConcurrency(levelOneDirs, CAS_ENUM_CONCURRENCY, async (one) => {
     const onePath = path.join(objectsRoot, one.name);
-    const levelTwo = await fsPromises.readdir(onePath, { withFileTypes: true });
-    for (const two of levelTwo) {
-      if (!two.isDirectory()) continue;
+    let levelTwo = [];
+    try {
+      levelTwo = await fsPromises.readdir(onePath, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+    const levelTwoDirs = levelTwo.filter((entry) => entry.isDirectory());
+    const perDir = await runWithConcurrency(levelTwoDirs, CAS_ENUM_CONCURRENCY, async (two) => {
       const twoPath = path.join(onePath, two.name);
-      const objects = await fsPromises.readdir(twoPath, { withFileTypes: true });
+      let objects = [];
+      try {
+        objects = await fsPromises.readdir(twoPath, { withFileTypes: true });
+      } catch {
+        return [];
+      }
+      const hashes = [];
       for (const objectEntry of objects) {
         if (!objectEntry.isFile()) continue;
         const hash = normalizeCasHash(objectEntry.name);
         if (!hash) continue;
-        out.push(hash);
+        hashes.push(hash);
       }
-    }
+      return hashes;
+    });
+    return perDir.flat();
+  });
+  for (const hashes of nestedHashes) {
+    if (!Array.isArray(hashes) || !hashes.length) continue;
+    out.push(...hashes);
   }
   out.sort((a, b) => a.localeCompare(b));
   return out;
@@ -169,14 +205,16 @@ export const readActiveCasLeases = async (cacheRoot, now = Date.now()) => {
   if (!fileExists(leasesRoot)) return new Set();
   const entries = await fsPromises.readdir(leasesRoot, { withFileTypes: true });
   const active = new Set();
-  for (const entry of entries) {
-    if (!entry.isFile()) continue;
-    if (!entry.name.endsWith('.json')) continue;
+  const leaseFiles = entries.filter((entry) => entry.isFile() && entry.name.endsWith('.json'));
+  const activeHashes = await runWithConcurrency(leaseFiles, CAS_ENUM_CONCURRENCY, async (entry) => {
     const hash = normalizeCasHash(entry.name.slice(0, -'.json'.length));
-    if (!hash) continue;
+    if (!hash) return null;
     const lease = await readJsonIfExists(path.join(leasesRoot, entry.name));
-    if (!isActiveLease(lease, nowMs)) continue;
-    active.add(hash);
+    if (!isActiveLease(lease, nowMs)) return null;
+    return hash;
+  });
+  for (const hash of activeHashes) {
+    if (hash) active.add(hash);
   }
   return active;
 };

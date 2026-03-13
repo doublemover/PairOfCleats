@@ -65,6 +65,56 @@ if (!fs.existsSync(path.join(sourceDir, 'extension.js'))) {
   console.error('VS Code package source missing extension.js.');
   process.exit(1);
 }
+const readmePath = path.join(sourceDir, 'README.md');
+if (!fs.existsSync(readmePath)) {
+  console.error('VS Code package source missing README.md.');
+  process.exit(1);
+}
+
+let packageManifest = null;
+try {
+  packageManifest = JSON.parse(fs.readFileSync(path.join(sourceDir, 'package.json'), 'utf8'));
+} catch (err) {
+  console.error(`VS Code package manifest is invalid JSON: ${err?.message || String(err)}`);
+  process.exit(1);
+}
+
+const requiredManifestFields = [
+  ['name', packageManifest.name],
+  ['displayName', packageManifest.displayName],
+  ['description', packageManifest.description],
+  ['version', packageManifest.version],
+  ['publisher', packageManifest.publisher],
+  ['homepage', packageManifest.homepage],
+  ['repository.url', packageManifest.repository?.url],
+  ['bugs.url', packageManifest.bugs?.url],
+  ['engines.vscode', packageManifest.engines?.vscode]
+];
+for (const [label, value] of requiredManifestFields) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    console.error(`VS Code package manifest missing required field ${label}.`);
+    process.exit(1);
+  }
+}
+if (packageManifest.capabilities?.virtualWorkspaces !== false) {
+  console.error('VS Code package manifest must declare capabilities.virtualWorkspaces=false.');
+  process.exit(1);
+}
+
+for (const walkthrough of packageManifest.contributes?.walkthroughs || []) {
+  for (const step of walkthrough.steps || []) {
+    const markdown = step?.media?.markdown;
+    if (typeof markdown !== 'string' || markdown.trim().length === 0) {
+      console.error(`VS Code walkthrough ${step?.id || '<unknown>'} missing markdown media.`);
+      process.exit(1);
+    }
+    const markdownPath = path.join(sourceDir, markdown);
+    if (!fs.existsSync(markdownPath)) {
+      console.error(`VS Code walkthrough markdown missing: ${markdown}`);
+      process.exit(1);
+    }
+  }
+}
 
 try {
   assertPinnedPackagingToolchain({ requireNpm: true });

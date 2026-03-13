@@ -41,27 +41,31 @@ try {
     enabled: true,
     log: null
   });
-  logger.updatePhase('scan:code');
+  try {
+    logger.updatePhase('scan:code');
 
-  const statePath = path.join(tempRoot, 'logs', 'index-crash-state.json');
-  let state = null;
-  for (let attempt = 0; attempt < 80; attempt += 1) {
-    try {
-      state = JSON.parse(await fs.readFile(statePath, 'utf8'));
-    } catch {
-      state = null;
+    const statePath = path.join(tempRoot, 'logs', 'index-crash-state.json');
+    let state = null;
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      try {
+        state = JSON.parse(await fs.readFile(statePath, 'utf8'));
+      } catch {
+        state = null;
+      }
+      if (state?.phase === 'scan:code') break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
     }
-    if (state?.phase === 'scan:code') break;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
 
-  assert.equal(blockedRenameAttempts, 8, 'expected EPERM contention path to be exercised');
-  assert.ok(state && state.phase === 'scan:code', 'expected crash state write to succeed after transient rename contention');
-  assert.equal(
-    warningLines.some((line) => line.includes('[crash-log] write crash state failed')),
-    false,
-    'expected transient rename contention to be absorbed without crash-state write warnings'
-  );
+    assert.equal(blockedRenameAttempts, 8, 'expected EPERM contention path to be exercised');
+    assert.ok(state && state.phase === 'scan:code', 'expected crash state write to succeed after transient rename contention');
+    assert.equal(
+      warningLines.some((line) => line.includes('[crash-log] write crash state failed')),
+      false,
+      'expected transient rename contention to be absorbed without crash-state write warnings'
+    );
+  } finally {
+    await logger.close?.();
+  }
 } finally {
   fsPromises.rename = originalRename;
   console.warn = originalWarn;

@@ -1,0 +1,35 @@
+{
+  "generatedAt": "2026-02-28T00:00:00.000Z",
+  "warnings": [
+    {
+      "importer": "src/main.ts",
+      "specifier": "./missing.ts",
+      "reason": "unresolved",
+      "resolutionState": "unresolved",
+      "reasonCode": "IMP_U_MISSING_FILE_RELATIVE",
+      "failureCause": "missing_file",
+      "disposition": "actionable",
+      "resolverStage": "filesystem_probe"
+    },
+    {
+      "importer": "src/build.bzl",
+      "specifier": "//pkg:missing.bzl",
+      "reason": "unresolved",
+      "resolutionState": "unresolved",
+      "reasonCode": "IMP_U_RESOLVER_GAP",
+      "failureCause": "resolver_gap",
+      "disposition": "suppress_gate",
+      "resolverStage": "language_resolver"
+    },
+    {
+      "importer": "tests/fixtures/suite.ts",
+      "specifier": "./fixture.ts",
+      "reason": "fixture",
+      "resolutionState": "unresolved",
+      "reasonCode": "IMP_U_FIXTURE_REFERENCE",
+      "failureCause": "parser_artifact",
+      "disposition": "suppress_live",
+      "resolverStage": "classify"
+    }
+  ]
+}

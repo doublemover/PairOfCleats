@@ -25,14 +25,18 @@ export const createUnavailableFileMeta = () => ({
   churnCommits: null
 });
 
+const normalizeFiniteMetaNumber = (value) => (
+  typeof value === 'number' && Number.isFinite(value) ? value : null
+);
+
 export const normalizeFileMeta = (value) => ({
   lastCommitId: typeof value?.lastCommitId === 'string' ? value.lastCommitId : null,
   lastModifiedAt: typeof value?.lastModifiedAt === 'string' ? value.lastModifiedAt : null,
   lastAuthor: typeof value?.lastAuthor === 'string' ? value.lastAuthor : null,
-  churn: Number.isFinite(Number(value?.churn)) ? Number(value.churn) : null,
-  churnAdded: Number.isFinite(Number(value?.churnAdded)) ? Number(value.churnAdded) : null,
-  churnDeleted: Number.isFinite(Number(value?.churnDeleted)) ? Number(value.churnDeleted) : null,
-  churnCommits: Number.isFinite(Number(value?.churnCommits)) ? Number(value.churnCommits) : null
+  churn: normalizeFiniteMetaNumber(value?.churn),
+  churnAdded: normalizeFiniteMetaNumber(value?.churnAdded),
+  churnDeleted: normalizeFiniteMetaNumber(value?.churnDeleted),
+  churnCommits: normalizeFiniteMetaNumber(value?.churnCommits)
 });
 
 const hasMetaIdentity = (meta) => Boolean(

@@ -32,6 +32,7 @@ import {
   resolveTimeout
 } from './runner/run-helpers.js';
 import { ensureTestingEnv } from './helpers/test-env.js';
+import { applyToolchainDaemonPolicyEnv } from '../src/shared/toolchain-env.js';
 import { runTests } from './runner/run-execution.js';
 import { summarizeResults } from './runner/run-results.js';
 import {
@@ -67,6 +68,7 @@ const REDO_EXIT_CODES = [3221226356, 3221225477];
 const DEFAULT_TIMEOUT_GRACE_MS = 2000;
 const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
 const ORDERED_LANES = new Set([
+  'gate',
   'ci-lite',
   'ci',
   'ci-long'
@@ -77,6 +79,7 @@ const INHERITED_PAIROFCLEATS_ENV_ALLOWLIST = new Set([
   'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY',
   'PAIROFCLEATS_TEST_LOG_SILENT',
   'PAIROFCLEATS_TEST_ALLOW_TIMEOUT_TARGET',
+  'PAIROFCLEATS_TEST_ALLOW_TIMEOUT_PASS_SIGNAL_TARGET',
   'PAIROFCLEATS_TEST_PID_FILE',
   'NODE_V8_COVERAGE'
 ]);
@@ -231,7 +234,7 @@ const main = async () => {
     const lane = normalized[0];
     return ORDERED_LANES.has(lane) ? lane : '';
   })();
-  if (requestedLanes.includes('ci-long') && !tagInclude.includes('long')) {
+  if (requestedLanes.includes('ci-long') && !orderedLane && !tagInclude.includes('long')) {
     tagInclude.push('long');
   }
 
@@ -510,7 +513,7 @@ const main = async () => {
     await writeLatestLogPointer({ root: ROOT, runLogDir });
   }
 
-  const baseEnv = { ...process.env };
+  const baseEnv = applyToolchainDaemonPolicyEnv(process.env);
   scrubInheritedPairOfCleatsEnv(baseEnv);
   ensureTestingEnv(baseEnv);
   if (!baseEnv.PAIROFCLEATS_CACHE_ROOT) {
@@ -768,15 +771,21 @@ const main = async () => {
     }
   }
 
-  const timeoutCount = finalResults.filter((result) => result.timedOut).length;
+  const timeoutResults = finalResults.filter((result) => result.timedOut);
+  const timeoutCount = timeoutResults.length;
+  const nonBlockingTimeouts = timeoutResults.filter((result) => String(result.timeoutClass || '') === 'timed_out_after_pass');
+  const blockingTimeouts = timeoutCount - nonBlockingTimeouts.length;
   const failCount = finalResults.filter((result) => result.status === 'failed' && !result.timedOut).length;
   const baseExitCode = argv['allow-timeouts']
     ? (failCount > 0 ? 1 : 0)
-    : (summary.failed > 0 ? 1 : 0);
+    : ((failCount > 0 || blockingTimeouts > 0) ? 1 : 0);
   const exitCode = perfBudgetViolations.length > 0
     ? 1
     : baseExitCode;
   process.exit(exitCode);
 };
 
-main();
+main().catch((error) => {
+  console.error(error?.stack || error?.message || String(error));
+  process.exit(1);
+});

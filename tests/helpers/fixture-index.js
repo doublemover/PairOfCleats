@@ -1,4 +1,4 @@
-import { applyTestEnv } from './test-env.js';
+import { applyTestEnv, withTemporaryEnv } from './test-env.js';
 
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -23,13 +23,19 @@ import {
 } from '../../src/shared/artifact-io.js';
 import { runSearchCli } from '../../src/retrieval/cli.js';
 import { buildSearchCliArgs } from '../../tools/shared/search-cli-harness.js';
-import { acquireFileLock } from '../../src/shared/locks/file-lock.js';
+import { formatCommandFailure, formatErroredCommandFailure } from './command-failure.js';
 
 import { rmDirRecursive } from './temp.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { runSqliteBuild } from './sqlite-builder.js';
+import { withDirectoryLock } from './directory-lock.js';
 
-import { resolveTestCachePath } from './test-cache.js';
+import {
+  normalizeTestCacheScope,
+  resolveDefaultTestBuildStage,
+  resolveDefaultTestCacheScope,
+  resolveTestCachePath
+} from './test-cache.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -39,16 +45,7 @@ const ensureDir = async (dir) => {
 
 const FIXTURE_MODES = new Set(['code', 'prose', 'extracted-prose', 'records']);
 const DEFAULT_REQUIRED_MODES = Object.freeze(['code', 'prose', 'extracted-prose']);
-const VALID_CACHE_SCOPES = new Set(['isolated', 'shared']);
-const FIXTURE_HEALTH_VERSION = 2;
-
-const normalizeCacheScope = (cacheScope) => {
-  const normalized = String(cacheScope || 'isolated').trim().toLowerCase();
-  if (!VALID_CACHE_SCOPES.has(normalized)) {
-    throw new Error(`Unsupported cacheScope: ${cacheScope}`);
-  }
-  return normalized;
-};
+const FIXTURE_HEALTH_VERSION = 3;
 
 const resolveCacheName = (baseName, { cacheScope = 'isolated' } = {}) => {
   const MAX_CACHE_NAME_LENGTH = 64;
@@ -102,44 +99,6 @@ const resolveBuildMode = (requiredModes) => {
   return null;
 };
 
-/**
- * Execute callback under directory-based cooperative lock.
- *
- * @template T
- * @param {string} lockDir
- * @param {() => Promise<T>} callback
- * @param {{pollMs?:number,staleMs?:number,maxWaitMs?:number}} [options]
- * @returns {Promise<T>}
- */
-const withDirectoryLock = async (
-  lockDir,
-  callback,
-  {
-    pollMs = 120,
-    staleMs = 15 * 60 * 1000,
-    maxWaitMs = 20 * 60 * 1000
-  } = {}
-) => {
-  const lockPath = `${lockDir}.json`;
-  const lock = await acquireFileLock({
-    lockPath,
-    waitMs: maxWaitMs,
-    pollMs,
-    staleMs,
-    timeoutBehavior: 'throw',
-    timeoutMessage: `Timed out waiting for fixture lock at ${lockDir}`,
-    forceStaleCleanup: false
-  });
-  if (!lock) {
-    throw new Error(`Timed out waiting for fixture lock at ${lockDir}`);
-  }
-  try {
-    return await callback();
-  } finally {
-    await lock.release({ force: false });
-  }
-};
-
 const normalizeRepoSlug = (repoRoot) => String(path.basename(path.resolve(repoRoot)) || 'repo')
   .toLowerCase()
   .replace(/[^a-z0-9]+/g, '-')
@@ -154,12 +113,24 @@ const getLegacyPrefixedRepoId = (repoRoot) => {
 };
 
 const DEFAULT_TEST_CONFIG = {
+  sqlite: {
+    use: false
+  },
   indexing: {
+    typeInference: false,
+    typeInferenceCrossFile: false,
+    riskAnalysis: false,
+    riskAnalysisCrossFile: false,
     embeddings: {
       enabled: false,
       mode: 'off',
       lancedb: { enabled: false },
       hnsw: { enabled: false }
+    }
+  },
+  tooling: {
+    lsp: {
+      enabled: false
     }
   }
 };
@@ -177,9 +148,17 @@ const mergeTestConfig = (rawOverride) => {
   }
 };
 
-const createFixtureEnv = (cacheRoot, overrides = {}) => {
+const createFixtureEnv = (cacheRoot, overrides = {}, { requireCodeRiskTags = false } = {}) => {
   const { PAIROFCLEATS_TEST_CONFIG: testConfigOverride, ...restOverrides } = overrides;
-  const mergedTestConfig = mergeTestConfig(testConfigOverride);
+  let mergedTestConfig = mergeTestConfig(testConfigOverride);
+  if (requireCodeRiskTags) {
+    mergedTestConfig = mergeConfig(mergedTestConfig, {
+      indexing: {
+        riskAnalysis: true,
+        riskAnalysisCrossFile: true
+      }
+    });
+  }
   return applyTestEnv({
     cacheRoot,
     embeddings: 'stub',
@@ -205,6 +184,23 @@ const hasRiskTags = (codeDir) => {
       if (Array.isArray(risk.tags) && risk.tags.length) return true;
       if (Array.isArray(risk.flows) && risk.flows.length) return true;
       return false;
+    });
+  } catch {
+    return false;
+  }
+};
+
+const hasRiskWatchByStep = (codeDir) => {
+  try {
+    const flowRows = loadJsonArrayArtifactSync(codeDir, 'risk_flows', {
+      maxBytes: MAX_JSON_BYTES,
+      strict: false
+    });
+    if (!Array.isArray(flowRows) || flowRows.length === 0) return false;
+    return flowRows.every((entry) => {
+      const callSiteSteps = Array.isArray(entry?.path?.callSiteIdsByStep) ? entry.path.callSiteIdsByStep : [];
+      const watchSteps = Array.isArray(entry?.path?.watchByStep) ? entry.path.watchByStep : null;
+      return Array.isArray(watchSteps) && watchSteps.length === callSiteSteps.length;
     });
   } catch {
     return false;
@@ -315,7 +311,7 @@ const readFixtureHealthStamp = async (stampPath) => {
  * Persist/merge fixture health stamp used to skip unnecessary rebuilds.
  *
  * @param {string} stampPath
- * @param {{requiredModes:string[],compatibilityKeyByMode:Record<string,string|null>,hasRiskTags:boolean}} input
+ * @param {{requiredModes:string[],compatibilityKeyByMode:Record<string,string|null>,hasRiskTags:boolean,hasRiskWatchByStep?:boolean}} input
  * @returns {Promise<void>}
  */
 const writeFixtureHealthStamp = async (
@@ -324,6 +320,7 @@ const writeFixtureHealthStamp = async (
     requiredModes,
     compatibilityKeyByMode,
     hasRiskTags,
+    hasRiskWatchByStep,
     hasSqlDialectMetadata
   }
 ) => {
@@ -340,6 +337,7 @@ const writeFixtureHealthStamp = async (
     modes: mergedModes,
     compatibilityKeyByMode: mergedCompatibility,
     hasRiskTags: Boolean(existing?.hasRiskTags || hasRiskTags),
+    hasRiskWatchByStep: Boolean(existing?.hasRiskWatchByStep || hasRiskWatchByStep),
     hasSqlDialectMetadata: Boolean(hasSqlDialectMetadata)
   };
   await fsPromises.writeFile(stampPath, JSON.stringify(payload), 'utf8');
@@ -349,7 +347,7 @@ const writeFixtureHealthStamp = async (
  * Check whether an existing health stamp satisfies current requirements.
  *
  * @param {object|null} stamp
- * @param {{requiredModes:string[],requireRiskTags:boolean,compatibilityKeyByMode:Record<string,string|null>}} input
+ * @param {{requiredModes:string[],requireRiskTags:boolean,requireRiskWatchByStep?:boolean,compatibilityKeyByMode:Record<string,string|null>}} input
  * @returns {boolean}
  */
 const canUseFixtureHealthStamp = (
@@ -357,6 +355,7 @@ const canUseFixtureHealthStamp = (
   {
     requiredModes,
     requireRiskTags,
+    requireRiskWatchByStep,
     requireSqlDialectMetadata,
     compatibilityKeyByMode
   }
@@ -366,6 +365,7 @@ const canUseFixtureHealthStamp = (
   const stampModes = new Set(Array.isArray(stamp.modes) ? stamp.modes : []);
   if (requiredModes.some((mode) => !stampModes.has(mode))) return false;
   if (requireRiskTags && stamp.hasRiskTags !== true) return false;
+  if (requireRiskWatchByStep && stamp.hasRiskWatchByStep !== true) return false;
   if (requireSqlDialectMetadata && stamp.hasSqlDialectMetadata !== true) return false;
   const stampedKeys = stamp.compatibilityKeyByMode || {};
   for (const mode of requiredModes) {
@@ -379,7 +379,13 @@ const canUseFixtureHealthStamp = (
 const run = (args, label, options) => {
   const result = spawnSync(process.execPath, args, options);
   if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
+    const command = [process.execPath, ...(Array.isArray(args) ? args : [])].join(' ');
+    console.error(formatCommandFailure({
+      label,
+      command,
+      cwd: options?.cwd || process.cwd(),
+      result
+    }));
     process.exit(result.status ?? 1);
   }
 };
@@ -404,17 +410,20 @@ export const ensureFixtureIndex = async ({
   cacheName = `fixture-${fixtureName}`,
   envOverrides = {},
   requireRiskTags = false,
-  cacheScope = 'isolated',
-  requiredModes
+  cacheScope = resolveDefaultTestCacheScope(),
+  requiredModes,
+  buildStage = resolveDefaultTestBuildStage()
 } = {}) => {
   if (!fixtureName) throw new Error('fixtureName is required');
-  const normalizedCacheScope = normalizeCacheScope(cacheScope);
+  const normalizedCacheScope = normalizeTestCacheScope(cacheScope, { defaultScope: 'isolated' });
   const normalizedRequiredModes = normalizeRequiredModes(requiredModes);
+  const requireCodeRiskTags = requireRiskTags && normalizedRequiredModes.includes('code');
+  const requireCodeRiskWatchByStep = requireCodeRiskTags;
   const fixtureRootRaw = path.join(ROOT, 'tests', 'fixtures', fixtureName);
   const fixtureRoot = toRealPathSync(fixtureRootRaw);
   const cacheRoot = resolveTestCachePath(ROOT, resolveCacheName(cacheName, { cacheScope: normalizedCacheScope }));
   await ensureDir(cacheRoot);
-  const env = createFixtureEnv(cacheRoot, envOverrides);
+  const env = createFixtureEnv(cacheRoot, envOverrides, { requireCodeRiskTags });
   const userConfig = loadUserConfig(fixtureRoot);
   const repoCacheRoot = getRepoCacheRoot(fixtureRoot, userConfig);
   const healthStampPath = path.join(repoCacheRoot, '.fixture-health.json');
@@ -431,7 +440,6 @@ export const ensureFixtureIndex = async ({
       requiredModes: normalizedRequiredModes
     });
     const compatibleIndexes = compatibility.compatible;
-    const requireCodeRiskTags = requireRiskTags && normalizedRequiredModes.includes('code');
     const requireSqlDialectMetadata = normalizedRequiredModes.includes('code');
     if (!compatibleIndexes) {
       return {
@@ -447,12 +455,14 @@ export const ensureFixtureIndex = async ({
     if (canUseFixtureHealthStamp(healthStamp, {
       requiredModes: normalizedRequiredModes,
       requireRiskTags: requireCodeRiskTags,
+      requireRiskWatchByStep: requireCodeRiskWatchByStep,
       requireSqlDialectMetadata,
       compatibilityKeyByMode: compatibility.keyByMode
     })) {
       return {
         modeDirs,
         needsRiskTags: false,
+        missingRiskWatchByStep: false,
         missingSqlDialects: false,
         missingChunkUids: false,
         compatibleIndexes,
@@ -460,6 +470,7 @@ export const ensureFixtureIndex = async ({
       };
     }
     const needsRiskTags = requireCodeRiskTags && !hasRiskTags(modeDirs.code);
+    const missingRiskWatchByStep = requireCodeRiskWatchByStep && !hasRiskWatchByStep(modeDirs.code);
     const missingSqlDialects = requireSqlDialectMetadata
       ? await hasMissingSqlDialectMetadata(modeDirs.code)
       : false;
@@ -467,17 +478,19 @@ export const ensureFixtureIndex = async ({
       modeDirs,
       requiredModes: normalizedRequiredModes
     });
-    if (!needsRiskTags && !missingChunkUids && !missingSqlDialects) {
+    if (!needsRiskTags && !missingRiskWatchByStep && !missingChunkUids && !missingSqlDialects) {
       await writeFixtureHealthStamp(healthStampPath, {
         requiredModes: normalizedRequiredModes,
         compatibilityKeyByMode: compatibility.keyByMode,
         hasRiskTags: requireCodeRiskTags,
+        hasRiskWatchByStep: requireCodeRiskWatchByStep,
         hasSqlDialectMetadata: !missingSqlDialects
       });
     }
     return {
       modeDirs,
       needsRiskTags,
+      missingRiskWatchByStep,
       missingSqlDialects,
       missingChunkUids,
       compatibleIndexes,
@@ -487,6 +500,7 @@ export const ensureFixtureIndex = async ({
   const needsBuild = (state) => (
     !state.compatibleIndexes
     || state.needsRiskTags
+    || state.missingRiskWatchByStep
     || state.missingChunkUids
     || state.missingSqlDialects
   );
@@ -513,6 +527,9 @@ export const ensureFixtureIndex = async ({
       await ensureDir(repoCacheRoot);
       const buildMode = resolveBuildMode(normalizedRequiredModes);
       const buildArgs = [path.join(ROOT, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot];
+      if (typeof buildStage === 'string' && buildStage.trim()) {
+        buildArgs.push('--stage', buildStage.trim());
+      }
       if (buildMode) {
         buildArgs.push('--mode', buildMode);
       }
@@ -604,45 +621,8 @@ export const loadFixtureIndexMeta = (fixtureRoot, userConfig) => {
 export const loadFixtureMetricsDir = (fixtureRoot, userConfig) =>
   getMetricsDir(fixtureRoot, userConfig);
 
-/**
- * Temporarily apply env overrides while executing async callback.
- *
- * @param {Record<string, string|number|boolean|undefined>|null} targetEnv
- * @param {() => Promise<unknown>} callback
- * @returns {Promise<unknown>}
- */
-const withTemporaryEnv = async (targetEnv, callback) => {
-  const restore = [];
-  if (targetEnv && typeof targetEnv === 'object') {
-    for (const [key, rawValue] of Object.entries(targetEnv)) {
-      const hadKey = Object.prototype.hasOwnProperty.call(process.env, key);
-      const previousValue = hadKey ? process.env[key] : undefined;
-      const nextValue = rawValue === undefined ? undefined : String(rawValue);
-      if (nextValue === undefined && previousValue === undefined) continue;
-      if (nextValue !== undefined && previousValue === nextValue) continue;
-      restore.push([key, previousValue]);
-      if (nextValue === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = nextValue;
-      }
-    }
-  }
-  try {
-    return await callback();
-  } finally {
-    for (let i = restore.length - 1; i >= 0; i -= 1) {
-      const [key, previousValue] = restore[i];
-      if (previousValue === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = previousValue;
-      }
-    }
-  }
-};
-
 export const fixtureIndexInternals = {
+  createFixtureEnv,
   withTemporaryEnv
 };
 
@@ -697,8 +677,13 @@ export const createInProcessSearchRunner = ({
       }
       return await withTemporaryEnv(env, async () => runSearchCli(rawArgs, runOptions));
     } catch (err) {
-      console.error('Failed: search');
-      if (err?.message) console.error(err.message);
+      const command = [path.join(root || ROOT, 'search.js'), ...rawArgs].join(' ');
+      console.error(formatErroredCommandFailure({
+        label: 'search',
+        command,
+        cwd: fixtureRoot,
+        error: err || {}
+      }));
       process.exit(1);
     }
   };
@@ -724,8 +709,24 @@ export const runSearch = ({
     { cwd: fixtureRoot, env, encoding: 'utf8' }
   );
   if (result.status !== 0) {
-    console.error('Failed: search');
-    if (result.stderr) console.error(result.stderr.trim());
+    const command = [
+      process.execPath,
+      path.join(root, 'search.js'),
+      query,
+      '--mode',
+      mode,
+      '--json',
+      '--no-ann',
+      '--repo',
+      fixtureRoot,
+      ...args
+    ].join(' ');
+    console.error(formatCommandFailure({
+      label: 'search',
+      command,
+      cwd: fixtureRoot,
+      result
+    }));
     process.exit(result.status ?? 1);
   }
   try {
@@ -735,5 +736,3 @@ export const runSearch = ({
     process.exit(1);
   }
 };
-
-

@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 
-import { decodeVarint64List, encodeVarint64List } from './varint.js';
+import { decodeVarint64List, encodeVarint64, encodeVarint64List } from './varint.js';
 import { toArray } from '../iterables.js';
+import { createTempPath, replaceFile } from '../io/atomic-persistence.js';
 
 const OFFSET_BYTES = 8;
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
@@ -120,6 +121,39 @@ const toAsyncIterable = (rows) => {
   })();
 };
 
+const writeAllToHandle = async (handle, payload, position) => {
+  let offset = 0;
+  while (offset < payload.length) {
+    const result = await handle.write(
+      payload,
+      offset,
+      payload.length - offset,
+      Number.isFinite(position) ? position + offset : null
+    );
+    const bytesWritten = Number(result?.bytesWritten || 0);
+    if (bytesWritten <= 0) {
+      const err = new Error('Failed to write full binary payload: zero-byte write.');
+      err.code = 'ERR_BINARY_COLUMNAR_SHORT_WRITE';
+      throw err;
+    }
+    offset += bytesWritten;
+  }
+};
+
+const removeTempPathIfPresent = async (targetPath) => {
+  if (!targetPath) return;
+  await fs.rm(targetPath, { force: true }).catch(() => {});
+};
+
+const replaceTempBinarySidecar = async (tempPath, targetPath) => {
+  try {
+    await replaceFile(tempPath, targetPath, { keepBackup: false });
+  } catch (error) {
+    await removeTempPathIfPresent(tempPath);
+    throw error;
+  }
+};
+
 /**
  * Stream row-frame payloads to disk while generating offset/length sidecars.
  * This avoids materializing a full in-memory data buffer for large artifacts.
@@ -139,33 +173,70 @@ export const writeBinaryRowFrames = async ({
     preallocateBytes ?? writeHints?.preallocateBytes,
     MAX_BINARY_COLUMNAR_PREALLOCATE_BYTES
   );
-  const offsets = [];
-  const lengths = [];
   let cursor = 0;
   let count = 0;
-  const handle = await fs.open(dataPath, 'w');
+  const tempDataPath = createTempPath(dataPath);
+  const tempOffsetsPath = createTempPath(offsetsPath);
+  const tempLengthsPath = createTempPath(lengthsPath);
+  const [dataHandle, offsetsHandle, lengthsHandle] = await Promise.all([
+    fs.open(tempDataPath, 'wx'),
+    fs.open(tempOffsetsPath, 'wx'),
+    fs.open(tempLengthsPath, 'wx')
+  ]);
+  let wrotePayload = false;
   try {
     if (resolvedPreallocateBytes > 0) {
-      await handle.truncate(resolvedPreallocateBytes);
+      await dataHandle.truncate(resolvedPreallocateBytes);
     }
     for await (const row of toAsyncIterable(rowBuffers)) {
       const payload = Buffer.isBuffer(row) ? row : Buffer.from(row || '');
-      offsets.push(cursor);
-      lengths.push(payload.length);
+      const rowOffset = cursor;
       cursor += payload.length;
       if (payload.length) {
-        await handle.write(payload);
+        await writeAllToHandle(dataHandle, payload, rowOffset);
       }
+      const offsetBuffer = Buffer.allocUnsafe(OFFSET_BYTES);
+      offsetBuffer.writeBigUInt64LE(BigInt(rowOffset));
+      await writeAllToHandle(offsetsHandle, offsetBuffer, null);
+      await writeAllToHandle(lengthsHandle, encodeVarint64(payload.length), null);
       count += 1;
     }
     if (resolvedPreallocateBytes > 0 && cursor !== resolvedPreallocateBytes) {
-      await handle.truncate(cursor);
+      await dataHandle.truncate(cursor);
     }
+    wrotePayload = true;
+    await Promise.all([
+      dataHandle.sync(),
+      offsetsHandle.sync(),
+      lengthsHandle.sync()
+    ]);
   } finally {
-    await handle.close();
+    await Promise.allSettled([
+      dataHandle.close(),
+      offsetsHandle.close(),
+      lengthsHandle.close()
+    ]);
   }
-  await fs.writeFile(offsetsPath, encodeU64Offsets(offsets));
-  await fs.writeFile(lengthsPath, encodeVarint64List(lengths));
+  if (!wrotePayload) {
+    await Promise.allSettled([
+      removeTempPathIfPresent(tempDataPath),
+      removeTempPathIfPresent(tempOffsetsPath),
+      removeTempPathIfPresent(tempLengthsPath)
+    ]);
+    throw new Error('Failed to materialize binary-columnar payload.');
+  }
+  try {
+    await replaceTempBinarySidecar(tempOffsetsPath, offsetsPath);
+    await replaceTempBinarySidecar(tempLengthsPath, lengthsPath);
+    await replaceTempBinarySidecar(tempDataPath, dataPath);
+  } catch (error) {
+    await Promise.allSettled([
+      removeTempPathIfPresent(tempDataPath),
+      removeTempPathIfPresent(tempOffsetsPath),
+      removeTempPathIfPresent(tempLengthsPath)
+    ]);
+    throw error;
+  }
   return {
     count,
     totalBytes: cursor,

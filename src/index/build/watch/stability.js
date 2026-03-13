@@ -15,7 +15,7 @@ export const waitForStableFile = async (absPath, { checks, intervalMs }) => {
     } catch {
       return false;
     }
-    const signature = `${stat.size}:${stat.mtimeMs}`;
+    const signature = `${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}:${Number(stat.ino || 0)}`;
     if (signature === lastSignature) {
       stableCount += 1;
     } else {

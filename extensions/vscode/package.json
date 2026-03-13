@@ -4,14 +4,78 @@
   "description": "Search repositories using the PairOfCleats CLI.",
   "version": "0.0.1",
   "publisher": "pairofcleats",
+  "homepage": "https://github.com/doublemover/PairOfCleats",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/doublemover/PairOfCleats.git"
+  },
+  "bugs": {
+    "url": "https://github.com/doublemover/PairOfCleats/issues"
+  },
+  "keywords": [
+    "code-search",
+    "semantic-search",
+    "indexing",
+    "retrieval",
+    "developer-tools"
+  ],
+  "markdown": "github",
   "engines": {
     "vscode": "^1.86.0"
   },
   "categories": [
     "Other"
   ],
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "activationEvents": [
-    "onCommand:pairofcleats.search"
+    "onCommand:pairofcleats.search",
+    "onCommand:pairofcleats.searchSelection",
+    "onCommand:pairofcleats.searchSymbolUnderCursor",
+    "onCommand:pairofcleats.selectRepo",
+    "onCommand:pairofcleats.clearSelectedRepo",
+    "onCommand:pairofcleats.repeatLastSearch",
+    "onCommand:pairofcleats.explainSearch",
+    "onCommand:pairofcleats.openIndexDirectory",
+    "onCommand:pairofcleats.indexBuild",
+    "onCommand:pairofcleats.indexWatchStart",
+    "onCommand:pairofcleats.indexWatchStop",
+    "onCommand:pairofcleats.indexValidate",
+    "onCommand:pairofcleats.serviceApiStart",
+    "onCommand:pairofcleats.serviceApiStop",
+    "onCommand:pairofcleats.serviceIndexerStart",
+    "onCommand:pairofcleats.serviceIndexerStop",
+    "onCommand:pairofcleats.setup",
+    "onCommand:pairofcleats.bootstrap",
+    "onCommand:pairofcleats.doctor",
+    "onCommand:pairofcleats.configDump",
+    "onCommand:pairofcleats.indexHealth",
+    "onCommand:pairofcleats.codeMap",
+    "onCommand:pairofcleats.architectureCheck",
+    "onCommand:pairofcleats.impact",
+    "onCommand:pairofcleats.suggestTests",
+    "onCommand:pairofcleats.contextPack",
+    "onCommand:pairofcleats.riskExplain",
+    "onCommand:pairofcleats.workspaceManifest",
+    "onCommand:pairofcleats.workspaceStatus",
+    "onCommand:pairofcleats.workspaceBuild",
+    "onCommand:pairofcleats.workspaceCatalog",
+    "onCommand:pairofcleats.showWorkflowStatus",
+    "onCommand:pairofcleats.rerunLastWorkflow",
+    "onCommand:pairofcleats.showRecentWorkflows",
+    "onCommand:pairofcleats.reopenLastResults",
+    "onCommand:pairofcleats.showSearchHistory",
+    "onCommand:pairofcleats.groupResultsBySection",
+    "onCommand:pairofcleats.groupResultsByFile",
+    "onCommand:pairofcleats.groupResultsByQuery",
+    "onCommand:pairofcleats.openResultHit",
+    "onCommand:pairofcleats.revealResultHit",
+    "onCommand:pairofcleats.copyResultPath",
+    "onCommand:pairofcleats.rerunResultSet"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -19,8 +83,365 @@
       {
         "command": "pairofcleats.search",
         "title": "PairOfCleats: Search"
+      },
+      {
+        "command": "pairofcleats.searchSelection",
+        "title": "PairOfCleats: Search Selection"
+      },
+      {
+        "command": "pairofcleats.searchSymbolUnderCursor",
+        "title": "PairOfCleats: Search Symbol Under Cursor"
+      },
+      {
+        "command": "pairofcleats.selectRepo",
+        "title": "PairOfCleats: Select Repository"
+      },
+      {
+        "command": "pairofcleats.clearSelectedRepo",
+        "title": "PairOfCleats: Clear Selected Repository"
+      },
+      {
+        "command": "pairofcleats.repeatLastSearch",
+        "title": "PairOfCleats: Repeat Last Search"
+      },
+      {
+        "command": "pairofcleats.explainSearch",
+        "title": "PairOfCleats: Explain Search"
+      },
+      {
+        "command": "pairofcleats.openIndexDirectory",
+        "title": "PairOfCleats: Open Index Directory"
+      },
+      {
+        "command": "pairofcleats.indexBuild",
+        "title": "PairOfCleats: Index Build"
+      },
+      {
+        "command": "pairofcleats.indexWatchStart",
+        "title": "PairOfCleats: Start Index Watch"
+      },
+      {
+        "command": "pairofcleats.indexWatchStop",
+        "title": "PairOfCleats: Stop Index Watch"
+      },
+      {
+        "command": "pairofcleats.indexValidate",
+        "title": "PairOfCleats: Index Validate"
+      },
+      {
+        "command": "pairofcleats.serviceApiStart",
+        "title": "PairOfCleats: Start Service API"
+      },
+      {
+        "command": "pairofcleats.serviceApiStop",
+        "title": "PairOfCleats: Stop Service API"
+      },
+      {
+        "command": "pairofcleats.serviceIndexerStart",
+        "title": "PairOfCleats: Start Service Indexer"
+      },
+      {
+        "command": "pairofcleats.serviceIndexerStop",
+        "title": "PairOfCleats: Stop Service Indexer"
+      },
+      {
+        "command": "pairofcleats.setup",
+        "title": "PairOfCleats: Setup"
+      },
+      {
+        "command": "pairofcleats.bootstrap",
+        "title": "PairOfCleats: Bootstrap"
+      },
+      {
+        "command": "pairofcleats.doctor",
+        "title": "PairOfCleats: Tooling Doctor"
+      },
+      {
+        "command": "pairofcleats.configDump",
+        "title": "PairOfCleats: Config Dump"
+      },
+      {
+        "command": "pairofcleats.indexHealth",
+        "title": "PairOfCleats: Index Health"
+      },
+      {
+        "command": "pairofcleats.codeMap",
+        "title": "PairOfCleats: Code Map"
+      },
+      {
+        "command": "pairofcleats.architectureCheck",
+        "title": "PairOfCleats: Architecture Check"
+      },
+      {
+        "command": "pairofcleats.impact",
+        "title": "PairOfCleats: Impact Analysis"
+      },
+      {
+        "command": "pairofcleats.suggestTests",
+        "title": "PairOfCleats: Suggest Tests"
+      },
+      {
+        "command": "pairofcleats.contextPack",
+        "title": "PairOfCleats: Context Pack"
+      },
+      {
+        "command": "pairofcleats.riskExplain",
+        "title": "PairOfCleats: Risk Explain"
+      },
+      {
+        "command": "pairofcleats.workspaceManifest",
+        "title": "PairOfCleats: Workspace Manifest"
+      },
+      {
+        "command": "pairofcleats.workspaceStatus",
+        "title": "PairOfCleats: Workspace Status"
+      },
+      {
+        "command": "pairofcleats.workspaceBuild",
+        "title": "PairOfCleats: Workspace Build"
+      },
+      {
+        "command": "pairofcleats.workspaceCatalog",
+        "title": "PairOfCleats: Workspace Catalog"
+      },
+      {
+        "command": "pairofcleats.showWorkflowStatus",
+        "title": "PairOfCleats: Workflow Status"
+      },
+      {
+        "command": "pairofcleats.rerunLastWorkflow",
+        "title": "PairOfCleats: Rerun Last Workflow"
+      },
+      {
+        "command": "pairofcleats.showRecentWorkflows",
+        "title": "PairOfCleats: Recent Workflows"
+      },
+      {
+        "command": "pairofcleats.reopenLastResults",
+        "title": "PairOfCleats: Reopen Last Results"
+      },
+      {
+        "command": "pairofcleats.showSearchHistory",
+        "title": "PairOfCleats: Search History"
+      },
+      {
+        "command": "pairofcleats.groupResultsBySection",
+        "title": "PairOfCleats: Group Results by Section"
+      },
+      {
+        "command": "pairofcleats.groupResultsByFile",
+        "title": "PairOfCleats: Group Results by File"
+      },
+      {
+        "command": "pairofcleats.groupResultsByQuery",
+        "title": "PairOfCleats: Group Results by Query"
+      },
+      {
+        "command": "pairofcleats.openResultHit",
+        "title": "PairOfCleats: Open Result Hit"
+      },
+      {
+        "command": "pairofcleats.revealResultHit",
+        "title": "PairOfCleats: Reveal Result Hit"
+      },
+      {
+        "command": "pairofcleats.copyResultPath",
+        "title": "PairOfCleats: Copy Result Path"
+      },
+      {
+        "command": "pairofcleats.rerunResultSet",
+        "title": "PairOfCleats: Rerun Result Set"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "pairofcleats.resultsExplorer",
+          "name": "PairOfCleats Results"
+        }
+      ]
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "pairofcleats.searchSelection",
+          "when": "editorTextFocus && editorHasSelection"
+        },
+        {
+          "command": "pairofcleats.searchSymbolUnderCursor",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "pairofcleats.selectRepo",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.clearSelectedRepo",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.search",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.explainSearch",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.showSearchHistory",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.repeatLastSearch",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.reopenLastResults",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.openIndexDirectory",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.contextPack",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.riskExplain",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.indexBuild",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.indexWatchStart",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.indexWatchStop",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.indexValidate",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.serviceApiStart",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.serviceApiStop",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.serviceIndexerStart",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.serviceIndexerStop",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.openResultHit",
+          "when": "false"
+        },
+        {
+          "command": "pairofcleats.revealResultHit",
+          "when": "false"
+        },
+        {
+          "command": "pairofcleats.copyResultPath",
+          "when": "false"
+        },
+        {
+          "command": "pairofcleats.rerunResultSet",
+          "when": "false"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "pairofcleats.searchSelection",
+          "when": "editorTextFocus && editorHasSelection",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pairofcleats.searchSymbolUnderCursor",
+          "when": "editorTextFocus",
+          "group": "navigation@11"
+        },
+        {
+          "command": "pairofcleats.explainSearch",
+          "when": "editorTextFocus",
+          "group": "navigation@12"
+        },
+        {
+          "command": "pairofcleats.contextPack",
+          "when": "editorTextFocus",
+          "group": "navigation@13"
+        },
+        {
+          "command": "pairofcleats.riskExplain",
+          "when": "editorTextFocus",
+          "group": "navigation@14"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "pairofcleats.search",
+          "when": "view == pairofcleats.resultsExplorer",
+          "group": "navigation@1"
+        },
+        {
+          "command": "pairofcleats.showSearchHistory",
+          "when": "view == pairofcleats.resultsExplorer",
+          "group": "navigation@2"
+        },
+        {
+          "command": "pairofcleats.reopenLastResults",
+          "when": "view == pairofcleats.resultsExplorer",
+          "group": "navigation@3"
+        },
+        {
+          "command": "pairofcleats.groupResultsBySection",
+          "when": "view == pairofcleats.resultsExplorer",
+          "group": "inline@1"
+        },
+        {
+          "command": "pairofcleats.groupResultsByFile",
+          "when": "view == pairofcleats.resultsExplorer",
+          "group": "inline@2"
+        },
+        {
+          "command": "pairofcleats.groupResultsByQuery",
+          "when": "view == pairofcleats.resultsExplorer",
+          "group": "inline@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "pairofcleats.openResultHit",
+          "when": "view == pairofcleats.resultsExplorer && viewItem == pairofcleats.resultHit",
+          "group": "inline@1"
+        },
+        {
+          "command": "pairofcleats.revealResultHit",
+          "when": "view == pairofcleats.resultsExplorer && viewItem == pairofcleats.resultHit",
+          "group": "inline@2"
+        },
+        {
+          "command": "pairofcleats.copyResultPath",
+          "when": "view == pairofcleats.resultsExplorer && viewItem == pairofcleats.resultHit",
+          "group": "inline@3"
+        },
+        {
+          "command": "pairofcleats.rerunResultSet",
+          "when": "view == pairofcleats.resultsExplorer && viewItem == pairofcleats.resultSet",
+          "group": "inline@1"
+        }
+      ]
+    },
     "configuration": {
       "title": "PairOfCleats",
       "properties": {
@@ -37,12 +458,34 @@
             "type": "string"
           }
         },
+        "pairofcleats.apiServerUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Optional PairOfCleats API base URL for API-backed workflows."
+        },
+        "pairofcleats.apiTimeoutMs": {
+          "type": "number",
+          "default": 5000,
+          "minimum": 1,
+          "description": "Timeout for PairOfCleats API requests in milliseconds."
+        },
+        "pairofcleats.apiExecutionMode": {
+          "type": "string",
+          "default": "cli",
+          "enum": [
+            "cli",
+            "prefer",
+            "require"
+          ],
+          "description": "Execution mode for workflows that support the PairOfCleats API."
+        },
         "pairofcleats.searchMode": {
           "type": "string",
           "default": "both",
           "enum": [
             "code",
             "prose",
+            "extracted-prose",
             "both",
             "records",
             "all"
@@ -52,7 +495,16 @@
         "pairofcleats.searchBackend": {
           "type": "string",
           "default": "",
-          "description": "Optional backend override (e.g., sqlite, sqlite-fts). Leave empty for default."
+          "enum": [
+            "",
+            "auto",
+            "memory",
+            "sqlite",
+            "sqlite-fts",
+            "lmdb",
+            "tantivy"
+          ],
+          "description": "Optional backend override. Leave empty for default backend selection."
         },
         "pairofcleats.searchAnn": {
           "type": "boolean",
@@ -65,6 +517,89 @@
           "minimum": 1,
           "description": "Maximum results to fetch."
         },
+        "pairofcleats.searchContextLines": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Optional context lines (`--context`). Set to 0 to omit."
+        },
+        "pairofcleats.searchFile": {
+          "type": "string",
+          "default": "",
+          "description": "Optional exact or partial file filter (`--file`)."
+        },
+        "pairofcleats.searchPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path prefix filter (`--path`)."
+        },
+        "pairofcleats.searchLang": {
+          "type": "string",
+          "default": "",
+          "description": "Optional language filter (`--lang`)."
+        },
+        "pairofcleats.searchExt": {
+          "type": "string",
+          "default": "",
+          "description": "Optional extension filter (`--ext`)."
+        },
+        "pairofcleats.searchType": {
+          "type": "string",
+          "default": "",
+          "description": "Optional symbol/type filter (`--type`)."
+        },
+        "pairofcleats.searchAsOf": {
+          "type": "string",
+          "default": "",
+          "description": "Optional as-of index reference (`--as-of`). Mutually exclusive with searchSnapshot."
+        },
+        "pairofcleats.searchSnapshot": {
+          "type": "string",
+          "default": "",
+          "description": "Optional snapshot ID compatibility alias (`--snapshot`). Mutually exclusive with searchAsOf."
+        },
+        "pairofcleats.searchFilter": {
+          "type": "string",
+          "default": "",
+          "description": "Optional structured filter expression (`--filter`)."
+        },
+        "pairofcleats.searchAuthor": {
+          "type": "string",
+          "default": "",
+          "description": "Optional git author filter (`--author`)."
+        },
+        "pairofcleats.searchModifiedAfter": {
+          "type": "string",
+          "default": "",
+          "description": "Optional modified-after filter (`--modified-after`)."
+        },
+        "pairofcleats.searchModifiedSince": {
+          "type": "string",
+          "default": "",
+          "description": "Optional modified-since filter (`--modified-since`)."
+        },
+        "pairofcleats.searchChurn": {
+          "type": "string",
+          "default": "",
+          "description": "Optional churn threshold filter (`--churn`)."
+        },
+        "pairofcleats.searchCaseSensitive": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable case-sensitive matching (`--case`)."
+        },
+        "pairofcleats.env": {
+          "type": "object",
+          "default": {},
+          "description": "Extra environment variables merged into CLI subprocesses.",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
         "pairofcleats.extraSearchArgs": {
           "type": "array",
           "default": [],
@@ -74,6 +609,51 @@
           }
         }
       }
-    }
+    },
+    "keybindings": [
+      {
+        "command": "pairofcleats.searchSelection",
+        "key": "ctrl+alt+f",
+        "mac": "cmd+alt+f",
+        "when": "editorTextFocus && editorHasSelection"
+      },
+      {
+        "command": "pairofcleats.searchSymbolUnderCursor",
+        "key": "ctrl+alt+.",
+        "mac": "cmd+alt+.",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "pairofcleats.repeatLastSearch",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r",
+        "when": "workbenchState != empty"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "pairofcleats.gettingStarted",
+        "title": "Get Started with PairOfCleats",
+        "description": "Run your first searches and operational workflows.",
+        "steps": [
+          {
+            "id": "pairofcleats.walkthrough.search",
+            "title": "Run a search",
+            "description": "Open the PairOfCleats command palette entries and run your first search.",
+            "media": {
+              "markdown": "walkthroughs/first-search.md"
+            }
+          },
+          {
+            "id": "pairofcleats.walkthrough.operations",
+            "title": "Build, watch, and validate",
+            "description": "Use the built-in operational commands to manage local PairOfCleats workflows.",
+            "media": {
+              "markdown": "walkthroughs/operations.md"
+            }
+          }
+        ]
+      }
+    ]
   }
 }

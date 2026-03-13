@@ -49,15 +49,25 @@ function assertEmptyChunkMeta(label, dir) {
   }
 }
 
+function assertZeroStateManifest(label, dir) {
+  const zeroStatePath = path.join(dir, 'pieces', 'sqlite-zero-state.json');
+  if (!fs.existsSync(zeroStatePath)) {
+    console.error(`Missing ${label} zero-state manifest at ${zeroStatePath}`);
+    process.exit(1);
+  }
+}
+
 assertEmptyChunkMeta('code', codeDir);
 assertEmptyChunkMeta('prose', proseDir);
+assertZeroStateManifest('code', codeDir);
+assertZeroStateManifest('prose', proseDir);
 
-if (!fs.existsSync(sqlitePaths.codePath)) {
-  console.error(`Missing sqlite code db at ${sqlitePaths.codePath}`);
+if (fs.existsSync(sqlitePaths.codePath)) {
+  console.error(`Expected no sqlite code db for zero-state fixture at ${sqlitePaths.codePath}`);
   process.exit(1);
 }
-if (!fs.existsSync(sqlitePaths.prosePath)) {
-  console.error(`Missing sqlite prose db at ${sqlitePaths.prosePath}`);
+if (fs.existsSync(sqlitePaths.prosePath)) {
+  console.error(`Expected no sqlite prose db for zero-state fixture at ${sqlitePaths.prosePath}`);
   process.exit(1);
 }
 

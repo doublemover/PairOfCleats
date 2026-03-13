@@ -1,4 +1,36 @@
 import { summarizeQueueDelayHistogram } from './write-strategy.js';
+import { resolveArtifactWritePhaseClass } from './write-strategy.js';
+
+const toPosix = (value) => String(value || '').replace(/\\/g, '/');
+const LARGE_STALL_THRESHOLD_BYTES = 128 * 1024 * 1024;
+const HUGE_STALL_THRESHOLD_BYTES = 768 * 1024 * 1024;
+
+export const resolveActiveWritePhaseLabel = (label, phaseHint = null) => {
+  const hinted = typeof phaseHint === 'string' ? phaseHint.trim() : '';
+  if (hinted) return hinted;
+  const normalized = toPosix(label).toLowerCase();
+  if (!normalized) return 'write:artifact';
+  if (normalized.startsWith('closeout/')) return `closeout:${normalized.slice('closeout/'.length)}`;
+  if (normalized.includes('pieces/manifest.json') || normalized.endsWith('manifest.json')) return 'write:manifest';
+  if (normalized.endsWith('.meta.json')) return 'write:meta';
+  if (normalized.includes('binary-columnar')) return 'write:binary-columnar';
+  if (normalized.endsWith('.bin') || normalized.endsWith('.varint')) return 'write:binary';
+  if (normalized.includes('.shards/') || normalized.includes('.parts/')) return 'write:sharded-part';
+  if (normalized.includes('chunk_meta')) return 'write:chunk-meta';
+  if (normalized.includes('repo_map')) return 'write:repo-map';
+  if (normalized.includes('field_postings')) return 'write:field-postings';
+  if (normalized.includes('token_postings')) return 'write:token-postings';
+  if (normalized.includes('file_meta')) return 'write:file-meta';
+  if (normalized.includes('file_relations')) return 'write:file-relations';
+  if (normalized.includes('call_sites')) return 'write:call-sites';
+  if (normalized.includes('dense_vectors')) return 'write:embeddings';
+  if (normalized.includes('minhash')) return 'write:minhash';
+  if (normalized.includes('filter_index')) return 'write:filter-index';
+  if (normalized.includes('index_state')) return 'write:index-state';
+  if (normalized.includes('determinism_report')) return 'write:determinism';
+  if (normalized.includes('metrics')) return 'write:metrics';
+  return 'write:artifact';
+};
 
 /**
  * Resolve readable stall-threshold level label for telemetry.
@@ -12,6 +44,24 @@ export const stallThresholdLevelName = (thresholdSec, index) => {
   if (thresholdSec >= 30) return 'critical';
   if (thresholdSec >= 10) return 'warning';
   return `level-${index + 1}`;
+};
+
+export const resolveArtifactWriteStallThresholds = ({
+  normalizedWriteStallThresholds,
+  estimatedBytes
+}) => {
+  const thresholds = Array.isArray(normalizedWriteStallThresholds)
+    ? normalizedWriteStallThresholds
+    : [];
+  const bytes = Number.isFinite(Number(estimatedBytes))
+    ? Math.max(0, Number(estimatedBytes))
+    : 0;
+  const scale = bytes >= HUGE_STALL_THRESHOLD_BYTES
+    ? 2
+    : bytes >= LARGE_STALL_THRESHOLD_BYTES
+      ? 1.5
+      : 1;
+  return thresholds.map((thresholdSec) => Math.max(1, Math.ceil(Number(thresholdSec) * scale)));
 };
 
 /**
@@ -50,12 +100,82 @@ export const recordArtifactMetricRow = ({
 };
 
 /**
+ * Build a stable snapshot of active artifact writes with phase/lane context.
+ *
+ * @param {{
+ *   activeWrites:Map<string, number>,
+ *   activeWriteBytes:Map<string, number>,
+ *   activeWriteMeta?:Map<string, object>|null,
+ *   limit?:number,
+ *   now?:number,
+ *   formatBytes?:(bytes:number)=>string
+ * }} input
+ * @returns {{
+ *   inflight:Array<{label:string,elapsedSec:number,estimatedBytes:number|null,phase:string,lane:string|null}>,
+ *   previewText:string,
+ *   phaseSummaryText:string,
+ *   phaseByLabel:Map<string,string>
+ * }}
+ */
+export const buildActiveWriteTelemetrySnapshot = ({
+  activeWrites,
+  activeWriteBytes,
+  activeWriteMeta = null,
+  limit = 3,
+  now = Date.now(),
+  formatBytes = (bytes) => `${bytes} B`
+}) => {
+  const entries = Array.from(activeWrites?.entries?.() || [])
+    .map(([label, startedAt]) => {
+      const meta = activeWriteMeta instanceof Map ? activeWriteMeta.get(label) : null;
+      const phase = resolveActiveWritePhaseLabel(label, meta?.phase);
+      return {
+        label,
+        elapsedSec: Math.max(1, Math.round((now - (Number(startedAt) || now)) / 1000)),
+        estimatedBytes: Number(activeWriteBytes?.get?.(label)) || null,
+        phase,
+        phaseClass: resolveArtifactWritePhaseClass(phase),
+        lane: typeof meta?.lane === 'string' && meta.lane.trim()
+          ? meta.lane.trim()
+          : null
+      };
+    })
+    .sort((left, right) => (
+      right.elapsedSec - left.elapsedSec
+      || left.label.localeCompare(right.label)
+    ));
+  const phaseCounts = new Map();
+  for (const entry of entries) {
+    phaseCounts.set(entry.phase, (phaseCounts.get(entry.phase) || 0) + 1);
+  }
+  const phaseByLabel = new Map(entries.map((entry) => [entry.label, entry.phase]));
+  const previewText = entries
+    .slice(0, Math.max(1, Math.floor(Number(limit) || 3)))
+    .map(({ label, elapsedSec, estimatedBytes, phase, lane }) => (
+      `${label} [${phase}${lane ? `:${lane}` : ''}]`
+      + ` (${elapsedSec}s${Number.isFinite(estimatedBytes) ? `, ~${formatBytes(estimatedBytes)}` : ''})`
+    ))
+    .join(', ');
+  const phaseSummaryText = Array.from(phaseCounts.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .map(([phase, count]) => `${phase}=${count}`)
+    .join(', ');
+  return {
+    inflight: entries,
+    previewText,
+    phaseSummaryText,
+    phaseByLabel
+  };
+};
+
+/**
  * Create heartbeat/stall controller for in-flight artifact writes.
  *
  * @param {{
  *   writeProgressHeartbeatMs:number,
  *   activeWrites:Map<string, number>,
- *   activeWriteBytes:Map<string, number>,
+  *   activeWriteBytes:Map<string, number>,
+ *   activeWriteMeta?:Map<string, object>|null,
  *   getCompletedWrites:()=>number,
  *   getTotalWrites:()=>number,
  *   normalizedWriteStallThresholds:number[],
@@ -69,6 +189,7 @@ export const createWriteHeartbeatController = ({
   writeProgressHeartbeatMs,
   activeWrites,
   activeWriteBytes,
+  activeWriteMeta = null,
   getCompletedWrites,
   getTotalWrites,
   normalizedWriteStallThresholds,
@@ -83,18 +204,22 @@ export const createWriteHeartbeatController = ({
     if (writeProgressHeartbeatMs <= 0 || writeHeartbeatTimer) return;
     writeHeartbeatTimer = setInterval(() => {
       if (!activeWrites.size || getCompletedWrites() >= getTotalWrites()) return;
-      const now = Date.now();
-      const inflight = Array.from(activeWrites.entries())
-        .map(([label, startedAt]) => ({
-          label,
-          elapsedSec: Math.max(1, Math.round((now - startedAt) / 1000)),
-          estimatedBytes: Number(activeWriteBytes.get(label)) || null
-        }))
-        .sort((a, b) => b.elapsedSec - a.elapsedSec);
+      const snapshot = buildActiveWriteTelemetrySnapshot({
+        activeWrites,
+        activeWriteBytes,
+        activeWriteMeta,
+        limit: 3,
+        formatBytes
+      });
+      const inflight = snapshot.inflight;
       for (const { label, elapsedSec, estimatedBytes } of inflight) {
         const alerts = writeStallAlerts.get(label) || new Set();
-        for (let thresholdIndex = 0; thresholdIndex < normalizedWriteStallThresholds.length; thresholdIndex += 1) {
-          const thresholdSec = normalizedWriteStallThresholds[thresholdIndex];
+        const resolvedThresholds = resolveArtifactWriteStallThresholds({
+          normalizedWriteStallThresholds,
+          estimatedBytes
+        });
+        for (let thresholdIndex = 0; thresholdIndex < resolvedThresholds.length; thresholdIndex += 1) {
+          const thresholdSec = resolvedThresholds[thresholdIndex];
           if (alerts.has(thresholdSec) || elapsedSec < thresholdSec) continue;
           alerts.add(thresholdSec);
           writeStallAlerts.set(label, alerts);
@@ -113,20 +238,16 @@ export const createWriteHeartbeatController = ({
                 elapsedSec,
                 thresholdSec,
                 level: levelName,
-                estimatedBytes
+                estimatedBytes,
+                phase: snapshot.phaseByLabel.get(label) || resolveActiveWritePhaseLabel(label)
               }
             });
           }
         }
       }
-      const preview = inflight.slice(0, 3)
-        .map(({ label, elapsedSec, estimatedBytes }) => (
-          `${label} (${elapsedSec}s${Number.isFinite(estimatedBytes) ? `, ~${formatBytes(estimatedBytes)}` : ''})`
-        ))
-        .join(', ');
       const suffix = inflight.length > 3 ? ` (+${inflight.length - 3} more)` : '';
       logLine(
-        `Writing index files ${getCompletedWrites()}/${getTotalWrites()} | in-flight: ${preview}${suffix}`,
+        `Writing index files ${getCompletedWrites()}/${getTotalWrites()} | in-flight: ${snapshot.previewText}${suffix}`,
         { kind: 'status' }
       );
     }, writeProgressHeartbeatMs);

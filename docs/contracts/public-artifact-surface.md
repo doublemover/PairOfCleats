@@ -1,10 +1,10 @@
-# Public Artifact Surface (0.0.1)
+# Public Artifact Surface (0.0.2)
 
 This document is the **canonical** contract for PairOfCleats public artifacts. It supersedes `docs/contracts/artifact-contract.md` for all contract decisions.
 
 ## Contract version
 
-- `artifactSurfaceVersion`: **0.0.1** (SemVer, hard-breaks only).
+- `artifactSurfaceVersion`: **0.0.2** (SemVer, hard-breaks only).
 - **No transition paths**: if `artifactSurfaceVersion` or required schema versions do not match the accepted ranges, readers **must fail closed**.
 
 ## Manifest-first discovery (required)
@@ -25,6 +25,11 @@ These artifacts define the public surface and must be present when referenced:
 ## Optional public artifacts (when enabled)
 
 - `call_sites` (jsonl or sharded jsonl) when relations are enabled.
+- Interprocedural risk artifacts when cross-file risk analysis is enabled:
+  - `risk_interprocedural_stats`
+  - `risk_summaries`
+  - `risk_flows`
+  - `risk_partial_flows`
 - `lexicon_relation_filter_report` (json) when lexicon relation filtering is enabled for code builds.
 - Embeddings and ANN artifacts (when embeddings are enabled):
   - `dense_vectors`, `dense_vectors_doc`, `dense_vectors_code`

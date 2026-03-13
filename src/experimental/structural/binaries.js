@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import {
+  DEFAULT_SYNC_COMMAND_TIMEOUT_MS,
+  runSyncCommandWithTimeout
+} from '../../shared/subprocess/sync-command.js';
 
 const isWindows = process.platform === 'win32';
 const binaryCache = new Map();
@@ -56,16 +59,30 @@ const runCommand = (resolved, args, options = {}) => {
   const command = resolved?.command || resolved;
   const argsPrefix = resolved?.argsPrefix || [];
   const effectiveArgs = [...argsPrefix, ...args];
+  const hasExplicitEncoding = Object.prototype.hasOwnProperty.call(options, 'encoding');
+  const encoding = hasExplicitEncoding ? options.encoding : 'utf8';
+  const timeoutMs = Object.prototype.hasOwnProperty.call(options, 'timeoutMs')
+    ? (Number.isFinite(Number(options?.timeoutMs))
+      ? Math.max(100, Math.floor(Number(options.timeoutMs)))
+      : null)
+    : null;
   if (isWindows && /\.(cmd|bat)$/i.test(command)) {
     const cmdLine = buildCmdLine(command, effectiveArgs);
     const wrapped = `"${cmdLine}"`;
-    return spawnSync('cmd.exe', ['/d', '/s', '/c', wrapped], {
+    return runSyncCommandWithTimeout('cmd.exe', ['/d', '/s', '/c', wrapped], {
       ...options,
+      encoding,
+      timeoutMs,
       shell: false,
       windowsVerbatimArguments: true
     });
   }
-  return spawnSync(command, effectiveArgs, { ...options, shell: false });
+  return runSyncCommandWithTimeout(command, effectiveArgs, {
+    ...options,
+    encoding,
+    timeoutMs,
+    shell: false
+  });
 };
 
 const findOnPath = (candidate) => {
@@ -151,13 +168,19 @@ export const resolveBinary = (engine) => {
     return output;
   }
   for (const candidate of candidates) {
-    const result = runCommand(candidate, ['--version'], { encoding: 'utf8' });
+    const result = runCommand(candidate, ['--version'], {
+      encoding: 'utf8',
+      timeoutMs: DEFAULT_SYNC_COMMAND_TIMEOUT_MS
+    });
     if (!result.error && result.status === 0) {
       const output = { command: candidate, argsPrefix: [], checkedPaths: [] };
       binaryCache.set(engine, { pathEnv, value: output });
       return output;
     }
-    const help = runCommand(candidate, ['--help'], { encoding: 'utf8' });
+    const help = runCommand(candidate, ['--help'], {
+      encoding: 'utf8',
+      timeoutMs: DEFAULT_SYNC_COMMAND_TIMEOUT_MS
+    });
     if (!help.error && help.status === 0) {
       const output = { command: candidate, argsPrefix: [], checkedPaths: [] };
       binaryCache.set(engine, { pathEnv, value: output });

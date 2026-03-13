@@ -8,11 +8,14 @@ def get_last_map(window):
     return None
 
 
-def record_last_map(window, payload):
+def record_last_map(window, payload, report_text=None):
     if window is None or not isinstance(payload, dict):
         return
     data, state = _load_state(window)
-    state['last_map'] = dict(payload)
+    entry = dict(payload)
+    if isinstance(report_text, str) and report_text:
+        entry['reportText'] = report_text
+    state['last_map'] = entry
     data['pairofcleats_state'] = state
     window.set_project_data(data)
 

@@ -2,13 +2,13 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { getRepoId } from '../../shared/dict-utils.js';
 import { loadChunkMeta, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 import { stableStringifyForSignature } from '../../../src/shared/stable-json.js';
 import { sha1 } from '../../../src/shared/hash.js';
+import { spawnSubprocessSync } from '../../../src/shared/subprocess.js';
 
 const parseArgs = () => {
   const out = {};
@@ -44,15 +44,21 @@ const safeRm = async (dir) => {
 };
 
 const runNodeScript = ({ scriptPath, args, env, cwd }) => {
-  const result = spawnSync(process.execPath, [scriptPath, ...args], {
+  const result = spawnSubprocessSync(process.execPath, [scriptPath, ...args], {
     cwd,
     env,
-    encoding: 'utf8'
+    outputEncoding: 'utf8',
+    captureStdout: true,
+    captureStderr: true,
+    outputMode: 'string',
+    rejectOnNonZeroExit: false,
+    killTree: true,
+    detached: process.platform !== 'win32'
   });
-  if (result.status === 0) return;
+  if (result.exitCode === 0) return;
   if (result.stdout) process.stderr.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
-  throw new Error(`Script failed: ${path.basename(scriptPath)} (${result.status ?? 'unknown'})`);
+  throw new Error(`Script failed: ${path.basename(scriptPath)} (${result.exitCode ?? 'unknown'})`);
 };
 
 const args = parseArgs();

@@ -84,6 +84,7 @@ export function createIndexState(options = {}) {
     riskSummaryStats: null,
     riskSummaryTimingMs: 0,
     riskFlows: [],
+    riskPartialFlows: [],
     riskInterproceduralStats: null,
     riskFlowCallSiteIds: null,
     skippedFiles: [],

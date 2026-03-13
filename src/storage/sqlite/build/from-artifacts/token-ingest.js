@@ -3,12 +3,71 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { buildTokenFrequency } from '../../build-helpers.js';
 import {
+  INTEGER_COERCE_MODE_STRICT,
+  coerceNonNegativeInt
+} from '../../../../shared/number-coerce.js';
+import {
   MAX_JSON_BYTES,
   loadTokenPostings,
   readJson,
   resolveTokenPostingsSources,
   normalizeTfPostingRows
 } from './sources.js';
+
+const SQLITE_TOKEN_CARDINALITY_ERROR_CODE = 'ERR_SQLITE_TOKEN_CARDINALITY';
+const MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES = 250000;
+
+const isCardinalityInvariantError = (error) => (
+  error?.code === SQLITE_TOKEN_CARDINALITY_ERROR_CODE
+  || String(error?.message || '').includes('cardinality invariant failed')
+);
+
+const coerceStrictNonNegativeIntOrNull = (value) => {
+  const parsed = coerceNonNegativeInt(value, { mode: INTEGER_COERCE_MODE_STRICT });
+  return Number.isSafeInteger(parsed) ? parsed : null;
+};
+
+const normalizeDocLengthsStrict = (docLengths, contextLabel) => {
+  if (!Array.isArray(docLengths)) return [];
+  const normalized = new Array(docLengths.length);
+  for (let i = 0; i < docLengths.length; i += 1) {
+    const parsed = coerceStrictNonNegativeIntOrNull(docLengths[i]);
+    if (parsed == null) {
+      const error = new Error(
+        `[sqlite] ${contextLabel} docLengths[${i}] must be a non-negative integer (received ${String(docLengths[i])}).`
+      );
+      error.code = SQLITE_TOKEN_CARDINALITY_ERROR_CODE;
+      throw error;
+    }
+    normalized[i] = parsed;
+  }
+  return normalized;
+};
+
+const assertTokenPostingsCardinalityInvariant = ({
+  vocab,
+  postings,
+  vocabIds,
+  contextLabel
+}) => {
+  const diagnostics = [];
+  const vocabCount = Array.isArray(vocab) ? vocab.length : 0;
+  const postingsCount = Array.isArray(postings) ? postings.length : 0;
+  const vocabIdsCount = Array.isArray(vocabIds) ? vocabIds.length : 0;
+  if (postingsCount !== vocabCount) {
+    diagnostics.push(`postings=${postingsCount} does not match vocab=${vocabCount}`);
+  }
+  if (vocabIdsCount > 0 && vocabIdsCount !== vocabCount) {
+    diagnostics.push(`vocabIds=${vocabIdsCount} does not match vocab=${vocabCount}`);
+  }
+  if (!diagnostics.length) return;
+  const error = new Error(
+    `[sqlite] ${contextLabel} cardinality invariant failed: ${diagnostics.join('; ')}`
+  );
+  error.code = SQLITE_TOKEN_CARDINALITY_ERROR_CODE;
+  error.diagnostics = diagnostics;
+  throw error;
+};
 
 /**
  * Create token/posting ingest helpers bound to sqlite statements and stats hooks.
@@ -36,12 +95,31 @@ export const createTokenIngestor = (ctx) => {
   let tokenMetaCache = null;
 
   const ingestTokenIndex = (tokenIndex, targetMode) => {
-    if (!tokenIndex?.vocab || !tokenIndex?.postings) return;
+    if (!Array.isArray(tokenIndex?.vocab) || !Array.isArray(tokenIndex?.postings)) return;
     const vocab = tokenIndex.vocab;
     const postings = tokenIndex.postings;
-    const docLengths = Array.isArray(tokenIndex.docLengths) ? tokenIndex.docLengths : [];
+    assertTokenPostingsCardinalityInvariant({
+      vocab,
+      postings,
+      vocabIds: Array.isArray(tokenIndex?.vocabIds) ? tokenIndex.vocabIds : [],
+      contextLabel: `token_postings (${targetMode})`
+    });
+    const docLengths = normalizeDocLengthsStrict(
+      Array.isArray(tokenIndex.docLengths) ? tokenIndex.docLengths : [],
+      `token_postings (${targetMode})`
+    );
     const avgDocLen = typeof tokenIndex.avgDocLen === 'number' ? tokenIndex.avgDocLen : null;
-    const totalDocs = typeof tokenIndex.totalDocs === 'number' ? tokenIndex.totalDocs : docLengths.length;
+    const totalDocs = tokenIndex.totalDocs == null
+      ? docLengths.length
+      : coerceStrictNonNegativeIntOrNull(tokenIndex.totalDocs);
+    if (tokenIndex.totalDocs != null && totalDocs == null) {
+      const error = new Error(
+        `[sqlite] token_postings (${targetMode}) totalDocs must be a non-negative integer ` +
+        `(received ${String(tokenIndex.totalDocs)}).`
+      );
+      error.code = SQLITE_TOKEN_CARDINALITY_ERROR_CODE;
+      throw error;
+    }
 
     const vocabStart = performance.now();
     if (insertTokenVocabMany) {
@@ -74,7 +152,11 @@ export const createTokenIngestor = (ctx) => {
     if (insertTokenPostingMany) {
       const rows = [];
       for (let tokenId = 0; tokenId < postings.length; tokenId += 1) {
-        const posting = normalizeTfPostingRows(postings[tokenId]);
+        const posting = normalizeTfPostingRows(postings[tokenId], {
+          mode: INTEGER_COERCE_MODE_STRICT,
+          rejectInvalid: true,
+          contextLabel: `token_postings (${targetMode}) tokenId=${tokenId}`
+        });
         for (const entry of posting) {
           if (!entry) continue;
           rows.push([targetMode, tokenId, entry[0], entry[1]]);
@@ -94,7 +176,11 @@ export const createTokenIngestor = (ctx) => {
       for (let start = 0; start < postings.length; start += resolvedBatchSize) {
         const end = Math.min(start + resolvedBatchSize, postings.length);
         for (let tokenId = start; tokenId < end; tokenId += 1) {
-          const posting = normalizeTfPostingRows(postings[tokenId]);
+          const posting = normalizeTfPostingRows(postings[tokenId], {
+            mode: INTEGER_COERCE_MODE_STRICT,
+            rejectInvalid: true,
+            contextLabel: `token_postings (${targetMode}) tokenId=${tokenId}`
+          });
           for (const entry of posting) {
             if (!entry) continue;
             insertTokenPosting.run(targetMode, tokenId, entry[0], entry[1]);
@@ -153,7 +239,8 @@ export const createTokenIngestor = (ctx) => {
         if (!tokenIndex?.vocab || !tokenIndex?.postings) return false;
         ingestTokenIndex(tokenIndex, targetMode);
         return true;
-      } catch {
+      } catch (error) {
+        if (isCardinalityInvariantError(error)) throw error;
         const loadWithLegacyManifest = (piece) => {
           try {
             const tokenIndex = loadTokenPostings(indexDir, {
@@ -164,7 +251,8 @@ export const createTokenIngestor = (ctx) => {
             if (!tokenIndex?.vocab || !tokenIndex?.postings) return false;
             ingestTokenIndex(tokenIndex, targetMode);
             return true;
-          } catch {
+          } catch (legacyError) {
+            if (isCardinalityInvariantError(legacyError)) throw legacyError;
             return false;
           }
         };
@@ -209,7 +297,8 @@ export const createTokenIngestor = (ctx) => {
         const tokenIndex = readJson(directPath);
         ingestTokenIndex(tokenIndex, targetMode);
         return true;
-      } catch {
+      } catch (error) {
+        if (isCardinalityInvariantError(error)) throw error;
         return tryManifestAwareLoad();
       }
     }
@@ -223,10 +312,22 @@ export const createTokenIngestor = (ctx) => {
         tokenMetaCache = readJson(sources.metaPath) || {};
         return tokenMetaCache;
       })();
-      const docLengths = Array.isArray(meta?.docLengths)
+      const docLengthsRaw = Array.isArray(meta?.docLengths)
         ? meta.docLengths
         : (Array.isArray(meta?.arrays?.docLengths) ? meta.arrays.docLengths : []);
-      const totalDocs = Number.isFinite(meta?.totalDocs) ? meta.totalDocs : docLengths.length;
+      const docLengths = normalizeDocLengthsStrict(docLengthsRaw, `token_postings shards (${targetMode})`);
+      const totalDocsRaw = meta?.totalDocs ?? meta?.fields?.totalDocs;
+      const totalDocs = totalDocsRaw == null
+        ? docLengths.length
+        : coerceStrictNonNegativeIntOrNull(totalDocsRaw);
+      if (totalDocsRaw != null && totalDocs == null) {
+        const error = new Error(
+          `[sqlite] token_postings shards (${targetMode}) totalDocs must be a non-negative integer ` +
+          `(received ${String(totalDocsRaw)}).`
+        );
+        error.code = SQLITE_TOKEN_CARDINALITY_ERROR_CODE;
+        throw error;
+      }
       const avgDocLen = Number.isFinite(meta?.avgDocLen)
         ? meta.avgDocLen
         : (Number.isFinite(meta?.fields?.avgDocLen) ? meta.fields.avgDocLen : (
@@ -286,12 +387,16 @@ export const createTokenIngestor = (ctx) => {
         const postings = Array.isArray(shard?.postings)
           ? shard.postings
           : (Array.isArray(shard?.arrays?.postings) ? shard.arrays.postings : []);
-        const postingCount = Math.min(postings.length, vocab.length);
-        if (postings.length > vocab.length) {
-          warn(
-            `[sqlite] token_postings shard has extra posting buckets (${postings.length} > ${vocab.length}); truncating extras.`
-          );
-        }
+        const shardLabel = `token_postings shard ${path.basename(shardPath)} (${targetMode})`;
+        assertTokenPostingsCardinalityInvariant({
+          vocab,
+          postings,
+          vocabIds: Array.isArray(shard?.vocabIds)
+            ? shard.vocabIds
+            : (Array.isArray(shard?.arrays?.vocabIds) ? shard.arrays.vocabIds : []),
+          contextLabel: shardLabel
+        });
+        const postingCount = postings.length;
         const insertTokenVocabStmt = perShardTokenVocabStmt || insertTokenVocab;
         const insertTokenPostingStmt = perShardTokenPostingStmt || insertTokenPosting;
         if (insertTokenVocabMany) {
@@ -321,8 +426,12 @@ export const createTokenIngestor = (ctx) => {
         if (insertTokenPostingMany) {
           const rows = [];
           for (let i = 0; i < postingCount; i += 1) {
-            const posting = normalizeTfPostingRows(postings[i]);
             const postingTokenId = tokenId + i;
+            const posting = normalizeTfPostingRows(postings[i], {
+              mode: INTEGER_COERCE_MODE_STRICT,
+              rejectInvalid: true,
+              contextLabel: `${shardLabel} tokenId=${postingTokenId}`
+            });
             for (const entry of posting) {
               if (!entry) continue;
               rows.push([targetMode, postingTokenId, entry[0], entry[1]]);
@@ -342,8 +451,12 @@ export const createTokenIngestor = (ctx) => {
           for (let start = 0; start < postingCount; start += resolvedBatchSize) {
             const end = Math.min(start + resolvedBatchSize, postingCount);
             for (let i = start; i < end; i += 1) {
-              const posting = normalizeTfPostingRows(postings[i]);
               const postingTokenId = tokenId + i;
+              const posting = normalizeTfPostingRows(postings[i], {
+                mode: INTEGER_COERCE_MODE_STRICT,
+                rejectInvalid: true,
+                contextLabel: `${shardLabel} tokenId=${postingTokenId}`
+              });
               for (const entry of posting) {
                 if (!entry) continue;
                 insertTokenPostingStmt.run(targetMode, postingTokenId, entry[0], entry[1]);
@@ -358,7 +471,11 @@ export const createTokenIngestor = (ctx) => {
       recordTable('token_vocab', vocabRows, performance.now() - vocabStart);
       recordTable('token_postings', postingRows, performance.now() - postingStart);
       return true;
-    } catch {
+    } catch (error) {
+      if (isCardinalityInvariantError(error)) {
+        warn(String(error?.message || '[sqlite] token_postings cardinality invariant failed'));
+        throw error;
+      }
       return tryManifestAwareLoad();
     }
   };
@@ -366,6 +483,7 @@ export const createTokenIngestor = (ctx) => {
   const ingestTokenIndexFromChunks = (chunks, targetMode) => {
     if (!Array.isArray(chunks) || !chunks.length) return;
     const tokenIdMap = new Map();
+    let tokenIdMapTrimmed = false;
     let nextTokenId = 0;
     let totalDocs = 0;
     let totalLen = 0;
@@ -393,6 +511,16 @@ export const createTokenIngestor = (ctx) => {
         for (const [token, tf] of freq.entries()) {
           let tokenId = tokenIdMap.get(token);
           if (tokenId === undefined) {
+            if (tokenIdMap.size >= MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES) {
+              tokenIdMap.clear();
+              if (!tokenIdMapTrimmed) {
+                warn(
+                  `[sqlite] token lookup cache reached ${MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES} entries; ` +
+                  'clearing cache to cap memory.'
+                );
+                tokenIdMapTrimmed = true;
+              }
+            }
             tokenId = nextTokenId;
             nextTokenId += 1;
             tokenIdMap.set(token, tokenId);
@@ -445,6 +573,7 @@ export const createTokenIngestor = (ctx) => {
       'SELECT id, tokens FROM chunks WHERE mode = ? AND id > ? ORDER BY id LIMIT ?'
     );
     const tokenIdMap = new Map();
+    let tokenIdMapTrimmed = false;
     let nextTokenId = 0;
     let totalDocs = 0;
     let totalLen = 0;
@@ -482,6 +611,16 @@ export const createTokenIngestor = (ctx) => {
         for (const [token, tf] of freq.entries()) {
           let tokenId = tokenIdMap.get(token);
           if (tokenId === undefined) {
+            if (tokenIdMap.size >= MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES) {
+              tokenIdMap.clear();
+              if (!tokenIdMapTrimmed) {
+                warn(
+                  `[sqlite] token lookup cache reached ${MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES} entries; ` +
+                  'clearing cache to cap memory.'
+                );
+                tokenIdMapTrimmed = true;
+              }
+            }
             tokenId = nextTokenId;
             nextTokenId += 1;
             tokenIdMap.set(token, tokenId);

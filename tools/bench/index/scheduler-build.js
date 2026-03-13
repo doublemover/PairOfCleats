@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { loadUserConfig, getIndexDir } from '../../shared/dict-utils.js';
 import { loadChunkMeta, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
 import { exitLikeChild } from '../../../src/tui/wrapper-exit.js';
+import { spawnSubprocessSync } from '../../../src/shared/subprocess.js';
 
 const parseArgs = () => {
   const out = {};
@@ -62,10 +62,17 @@ const runOnce = async (label, schedulerEnabled) => {
     '--quiet'
   ];
   const start = performance.now();
-  const result = spawnSync(process.execPath, args, { env, cwd: repoRoot, stdio: 'inherit' });
-  if (result.status !== 0) {
+  const result = spawnSubprocessSync(process.execPath, args, {
+    env,
+    cwd: repoRoot,
+    stdio: 'inherit',
+    rejectOnNonZeroExit: false,
+    killTree: true,
+    detached: process.platform !== 'win32'
+  });
+  if (result.exitCode !== 0) {
     console.error(`[bench] build_index failed for ${label}`);
-    exitLikeChild({ status: result.status, signal: result.signal });
+    exitLikeChild({ status: result.exitCode, signal: result.signal });
   }
   const totalMs = performance.now() - start;
   const userConfig = loadUserConfig(repoRoot);

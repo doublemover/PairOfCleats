@@ -1,5 +1,4 @@
 import fsSync from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { performance } from 'node:perf_hooks';
@@ -10,6 +9,7 @@ import { validateSqliteDatabase } from './validate.js';
 import { createInsertStatements } from './statements.js';
 import { createMultiRowInserter } from './multi-row.js';
 import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
+import { getCacheTempRoot } from '../../../shared/cache-roots.js';
 
 const normalizeStatementStrategy = (value) => {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -32,7 +32,7 @@ const toComparablePath = (value) => path.resolve(stripLongPathPrefix(value));
 const buildShortTempDbPath = (outPath) => {
   const hash = crypto.createHash('sha1').update(String(outPath || '')).digest('hex').slice(0, 20);
   const nonce = crypto.randomBytes(4).toString('hex');
-  return path.join(os.tmpdir(), 'pairofcleats-sqlite', `${hash}-${process.pid}-${nonce}.db`);
+  return path.join(getCacheTempRoot('sqlite-build'), `${hash}-${process.pid}-${nonce}.db`);
 };
 
 const isSqliteCantOpen = (err) => (
