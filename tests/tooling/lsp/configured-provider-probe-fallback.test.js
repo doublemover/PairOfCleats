@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
+import { __resetToolingCommandProbeCacheForTests } from '../../../src/index/tooling/command-resolver.js';
 import { resolveLspFixtureCommand } from '../../helpers/lsp-provider-fixture.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
@@ -13,7 +14,9 @@ const fixtureCommand = resolveLspFixtureCommand('probe-fail-lsp', { repoRoot: ro
 const docText = 'package main\nfunc Add(a int, b int) int { return a + b }\n';
 
 try {
+  __resetToolingCommandProbeCacheForTests();
   await fs.mkdir(tempRoot, { recursive: true });
+  await fs.writeFile(path.join(tempRoot, 'go.mod'), 'module example.com/probefallback\n\ngo 1.22\n', 'utf8');
 
   const result = await runToolingProviders({
     strict: true,
@@ -21,6 +24,9 @@ try {
     buildRoot: tempRoot,
     toolingConfig: {
       enabledTools: ['lsp-gopls'],
+      cache: {
+        enabled: false
+      },
       lsp: {
         enabled: true,
         servers: [{
@@ -87,5 +93,6 @@ try {
 
   console.log('configured provider probe fallback test passed');
 } finally {
+  __resetToolingCommandProbeCacheForTests();
   await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 }
