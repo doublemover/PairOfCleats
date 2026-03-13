@@ -49,6 +49,7 @@ tooling/install/download-extensions
 services/api/federated-search-redacts-paths
 retrieval/contracts/result-shape
 retrieval/context-pack/risk-assembly
+context-pack/risk-filters-parity
 retrieval/filters/types
 retrieval/federation/raw-args-query-forwarding
 tooling/lsp/protocol-malformed-initialize-fail-open

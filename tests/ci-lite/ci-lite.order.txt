@@ -367,7 +367,6 @@ indexing/scm/jj-changed-files-parse
 retrieval/context-pack/assembly
 context-pack/risk-assembly
 context-pack/risk-seed-anchoring
-context-pack/risk-filters-parity
 shared/merge/spill-contract
 storage/sqlite/cache
 retrieval/pipeline/filter-compiled-reuse
