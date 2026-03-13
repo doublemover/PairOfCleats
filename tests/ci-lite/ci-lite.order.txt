@@ -28,6 +28,7 @@ retrieval/output/clean-context-fences
 tooling/lsp/runtime-config-resolution
 tooling/vscode/extension
 tooling/vscode/extension-packaging
+tooling/vscode/extension-module-boundary
 tooling/vscode/package-archive-metadata
 tooling/vscode/package-determinism
 tooling/vscode/extension-runtime

@@ -1,1 +1,1 @@
-module.exports = require('../../src/shared/subprocess/windows-cmd-core.cjs');
+module.exports = require('./windows-cmd-core.cjs');
