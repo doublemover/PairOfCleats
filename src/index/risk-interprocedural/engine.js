@@ -2,11 +2,13 @@ import { sha1 } from '../../shared/hash.js';
 import { toArray } from '../../shared/iterables.js';
 import { edgeKey, sampleCallSitesForEdge } from './edges.js';
 import { containsIdentifier, matchRulePatterns, SEVERITY_RANK } from '../risk/shared.js';
+import { compileRiskInterproceduralSemantics } from './semantics.js';
 
 const ROW_SCHEMA_VERSION = 1;
 const MAX_FLOW_ROW_BYTES = 32 * 1024;
 const MAX_WATCH_IDENTIFIERS_PER_STEP = 6;
 const MAX_WATCH_BINDINGS_PER_STEP = 4;
+const MAX_WATCH_SEMANTICS_PER_STEP = 4;
 
 const sortByKey = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -33,6 +35,22 @@ const uniqueSortedIndices = (values, limit = null) => {
     .map((entry) => Math.floor(entry))))
     .sort((a, b) => a - b);
   return Number.isFinite(limit) ? items.slice(0, limit) : items;
+};
+
+const normalizeChunkLanguage = (chunk) => (
+  chunk?.lang
+  || chunk?.segment?.languageId
+  || chunk?.containerLanguageId
+  || null
+);
+
+const normalizeFrameworkIds = (chunk) => {
+  const ids = [];
+  const frameworkProfile = chunk?.docmeta?.frameworkProfile;
+  if (typeof frameworkProfile?.id === 'string' && frameworkProfile.id.trim()) {
+    ids.push(frameworkProfile.id.trim());
+  }
+  return uniqueSortedStrings(ids);
 };
 
 const buildSummaryMap = (summaries) => {
@@ -176,8 +194,80 @@ const compactWatchByStep = (watchByStep, identifierLimit = 2, bindingLimit = 2) 
   taintIn: toArray(entry?.taintIn).slice(0, identifierLimit),
   taintOut: toArray(entry?.taintOut).slice(0, identifierLimit),
   propagatedArgIndices: toArray(entry?.propagatedArgIndices).slice(0, bindingLimit),
-  boundParams: toArray(entry?.boundParams).slice(0, bindingLimit)
+  boundParams: toArray(entry?.boundParams).slice(0, bindingLimit),
+  semanticIds: toArray(entry?.semanticIds).slice(0, MAX_WATCH_SEMANTICS_PER_STEP),
+  semanticKinds: toArray(entry?.semanticKinds).slice(0, MAX_WATCH_SEMANTICS_PER_STEP)
 }));
+
+const matchesCompiledPatterns = (text, patterns) => {
+  const value = typeof text === 'string' ? text : null;
+  if (!value) return false;
+  for (const pattern of toArray(patterns)) {
+    if (!pattern) continue;
+    try {
+      pattern.lastIndex = 0;
+      if (pattern.test(value)) return true;
+    } catch {
+      continue;
+    }
+  }
+  return false;
+};
+
+const resolveEdgeSemantics = ({ semantics, callerChunk, calleeChunk, details }) => {
+  const callerLanguage = normalizeChunkLanguage(callerChunk);
+  const calleeLanguage = normalizeChunkLanguage(calleeChunk);
+  const languages = uniqueSortedStrings([callerLanguage, calleeLanguage]);
+  const frameworks = uniqueSortedStrings([
+    ...normalizeFrameworkIds(callerChunk),
+    ...normalizeFrameworkIds(calleeChunk)
+  ]);
+  const calleeNames = uniqueSortedStrings([
+    calleeChunk?.name,
+    ...toArray(details).flatMap((detail) => [detail?.calleeNormalized, detail?.calleeRaw])
+  ]);
+  const matched = [];
+  for (const entry of toArray(semantics)) {
+    if (!entry) continue;
+    if (Array.isArray(entry.languages) && entry.languages.length) {
+      const entryLanguages = new Set(entry.languages.map((value) => String(value).toLowerCase()));
+      if (!languages.some((value) => entryLanguages.has(String(value).toLowerCase()))) continue;
+    }
+    if (Array.isArray(entry.frameworks) && entry.frameworks.length) {
+      const entryFrameworks = new Set(entry.frameworks.map((value) => String(value).toLowerCase()));
+      if (!frameworks.some((value) => entryFrameworks.has(String(value).toLowerCase()))) continue;
+    }
+    if (!calleeNames.some((value) => matchesCompiledPatterns(value, entry.compiledPatterns || entry.patterns))) continue;
+    matched.push(entry);
+  }
+  matched.sort((a, b) => sortByKey(a.id, b.id));
+  return matched;
+};
+
+const applyEdgeSemantics = ({ semantics, taintedArgIndices, paramNames, nextTaint }) => {
+  const taintedSet = new Set(uniqueSortedIndices(taintedArgIndices));
+  const augmentedTaint = new Set(toArray(nextTaint).filter(Boolean));
+  const applied = [];
+  for (const entry of toArray(semantics)) {
+    const fromArgs = Array.isArray(entry?.fromArgs) && entry.fromArgs.length
+      ? entry.fromArgs
+      : Array.from(taintedSet.values());
+    const triggered = fromArgs.some((value) => taintedSet.has(value));
+    if (!triggered) continue;
+    applied.push(entry);
+    for (const paramIndex of toArray(entry?.toParams)) {
+      const name = Array.isArray(paramNames) ? paramNames[paramIndex] : null;
+      if (name) augmentedTaint.add(name);
+    }
+    for (const hint of toArray(entry?.taintHints)) {
+      if (hint) augmentedTaint.add(hint);
+    }
+  }
+  return {
+    applied,
+    nextTaint: uniqueSortedStrings(Array.from(augmentedTaint.values()))
+  };
+};
 
 const buildWatchStep = ({
   state,
@@ -186,7 +276,8 @@ const buildWatchStep = ({
   paramNames,
   details,
   hasSanitizers,
-  sanitizerPolicy
+  sanitizerPolicy,
+  semantics = []
 }) => {
   const normalizedArgIndices = uniqueSortedIndices(taintedArgIndices, MAX_WATCH_BINDINGS_PER_STEP);
   const boundParams = uniqueSortedStrings(
@@ -223,6 +314,8 @@ const buildWatchStep = ({
     propagatedArgIndices: normalizedArgIndices,
     boundParams,
     calleeNormalized,
+    semanticIds: uniqueSortedStrings(toArray(semantics).map((entry) => entry?.id), MAX_WATCH_SEMANTICS_PER_STEP),
+    semanticKinds: uniqueSortedStrings(toArray(semantics).map((entry) => entry?.kind), MAX_WATCH_SEMANTICS_PER_STEP),
     sanitizerPolicy: sanitizerPolicy || null,
     sanitizerBarrierApplied: barrierApplied,
     sanitizerBarriersBefore: barriersBefore,
@@ -232,6 +325,18 @@ const buildWatchStep = ({
     confidenceDelta: roundConfidence(confidenceAfter - confidenceBefore)
   };
 };
+
+const serializeSemanticsForConfig = (semantics) => toArray(semantics).map((entry) => ({
+  id: typeof entry?.id === 'string' ? entry.id : null,
+  kind: typeof entry?.kind === 'string' ? entry.kind : null,
+  name: typeof entry?.name === 'string' ? entry.name : null,
+  languages: uniqueSortedStrings(entry?.languages || []),
+  frameworks: uniqueSortedStrings(entry?.frameworks || []),
+  patterns: uniqueSortedStrings(entry?.patterns || []),
+  fromArgs: uniqueSortedIndices(entry?.fromArgs || []),
+  toParams: uniqueSortedIndices(entry?.toParams || []),
+  taintHints: uniqueSortedStrings(entry?.taintHints || [])
+}));
 
 const measureRowBytes = (row) => Buffer.byteLength(JSON.stringify(row), 'utf8');
 
@@ -330,6 +435,7 @@ export const computeInterproceduralRisk = ({
       strictness,
       emitArtifacts: config.emitArtifacts || 'jsonl',
       sanitizerPolicy,
+      semantics: serializeSemanticsForConfig(config.semantics),
       caps: {
         maxDepth: caps.maxDepth ?? null,
         maxPathsPerPair: caps.maxPathsPerPair ?? null,
@@ -398,6 +504,7 @@ export const computeInterproceduralRisk = ({
   const sourceRules = Array.isArray(runtime?.riskConfig?.rules?.sources)
     ? runtime.riskConfig.rules.sources
     : [];
+  const semantics = compileRiskInterproceduralSemantics(runtime?.riskInterproceduralConfig?.semantics);
 
   const roots = [];
   for (const [chunkUid, summary] of summaryByUid.entries()) {
@@ -727,7 +834,14 @@ export const computeInterproceduralRisk = ({
       const calleeChunk = chunkByUid.get(calleeUid);
       const edgeParams = paramNamesByEdge.get(edgeKey(state.chunkUid, calleeUid)) || null;
       const paramNames = resolveParamNames({ edgeParamNames: edgeParams, calleeChunk });
+      const matchedSemantics = resolveEdgeSemantics({
+        semantics,
+        callerChunk: chunkByUid.get(state.chunkUid),
+        calleeChunk,
+        details
+      });
       const nextTaint = [];
+      let appliedSemantics = [];
       if (strictness === 'argAware') {
         if (paramNames.length) {
           for (const idx of taintedArgIndices) {
@@ -742,6 +856,17 @@ export const computeInterproceduralRisk = ({
         for (const name of calleeHints) {
           if (name) nextTaint.push(name);
         }
+        const semanticResult = applyEdgeSemantics({
+          semantics: matchedSemantics,
+          taintedArgIndices,
+          paramNames,
+          nextTaint
+        });
+        appliedSemantics = semanticResult.applied;
+        nextTaint.length = 0;
+        nextTaint.push(...semanticResult.nextTaint);
+      } else {
+        appliedSemantics = matchedSemantics;
       }
       const taintKey = strictness === 'argAware' ? buildTaintSetKey(nextTaint) : null;
       const nextDepth = state.depth + 1;
@@ -763,7 +888,8 @@ export const computeInterproceduralRisk = ({
         paramNames,
         details: sampled,
         hasSanitizers,
-        sanitizerPolicy
+        sanitizerPolicy,
+        semantics: appliedSemantics
       });
 
       queue.push({

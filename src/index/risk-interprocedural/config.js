@@ -1,9 +1,15 @@
+import {
+  createRiskInterproceduralSemanticsDiagnostics,
+  normalizeRiskInterproceduralSemantics
+} from './semantics.js';
+
 const DEFAULT_CONFIG = {
   enabled: false,
   summaryOnly: false,
   strictness: 'conservative',
   sanitizerPolicy: 'terminate',
   emitArtifacts: 'jsonl',
+  semantics: [],
   caps: {
     maxDepth: 4,
     maxPathsPerPair: 3,
@@ -69,11 +75,13 @@ const normalizeCaps = (rawCaps = {}) => {
 
 export const normalizeRiskInterproceduralConfig = (raw, { mode } = {}) => {
   const input = raw && typeof raw === 'object' ? raw : {};
+  const diagnostics = createRiskInterproceduralSemanticsDiagnostics();
   const enabled = input.enabled === true;
   const summaryOnly = input.summaryOnly === true;
   const strictness = normalizeStrictness(input.strictness);
   const sanitizerPolicy = normalizeSanitizerPolicy(input.sanitizerPolicy);
   const emitArtifacts = normalizeEmitArtifacts(input.emitArtifacts);
+  const semantics = normalizeRiskInterproceduralSemantics(input.semantics || [], { diagnostics });
   const caps = normalizeCaps(input.caps || {});
 
   const normalized = {
@@ -82,6 +90,10 @@ export const normalizeRiskInterproceduralConfig = (raw, { mode } = {}) => {
     strictness,
     sanitizerPolicy,
     emitArtifacts,
+    semantics,
+    diagnostics: {
+      warnings: diagnostics.warnings
+    },
     caps
   };
 

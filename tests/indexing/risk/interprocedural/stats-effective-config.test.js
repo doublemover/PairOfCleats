@@ -10,6 +10,18 @@ const runtime = {
     strictness: 'conservative',
     emitArtifacts: 'jsonl',
     sanitizerPolicy: 'terminate',
+    semantics: [
+      {
+        id: 'sem.callback.register-handler-payload',
+        kind: 'callback',
+        name: 'register handler payload handoff',
+        frameworks: ['express'],
+        languages: ['javascript'],
+        patterns: ['\\bregisterHandler\\b'],
+        fromArgs: [1],
+        taintHints: ['payload']
+      }
+    ],
     caps: {}
   }
 };
@@ -25,6 +37,23 @@ assert.equal(
   result.stats?.effectiveConfig?.enabled,
   false,
   'effectiveConfig.enabled should reflect runtime gating'
+);
+assert.deepEqual(
+  result.stats?.effectiveConfig?.semantics,
+  [
+    {
+      id: 'sem.callback.register-handler-payload',
+      kind: 'callback',
+      name: 'register handler payload handoff',
+      frameworks: ['express'],
+      languages: ['javascript'],
+      patterns: ['\\bregisterHandler\\b'],
+      fromArgs: [1],
+      toParams: [],
+      taintHints: ['payload']
+    }
+  ],
+  'effectiveConfig should preserve semantics registry for provenance fingerprinting'
 );
 
 console.log('risk interprocedural stats effective config test passed');

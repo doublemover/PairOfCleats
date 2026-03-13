@@ -101,6 +101,8 @@ const flowRow = {
       propagatedArgIndices: [0],
       boundParams: ['input'],
       calleeNormalized: 'query',
+      semanticIds: ['sem.callback.register-handler-payload'],
+      semanticKinds: ['callback'],
       sanitizerPolicy: 'terminate',
       sanitizerBarrierApplied: false,
       sanitizerBarriersBefore: 0,
@@ -153,6 +155,8 @@ const partialFlowRow = {
       propagatedArgIndices: [0],
       boundParams: ['input'],
       calleeNormalized: 'query',
+      semanticIds: ['sem.callback.register-handler-payload'],
+      semanticKinds: ['callback'],
       sanitizerPolicy: 'terminate',
       sanitizerBarrierApplied: false,
       sanitizerBarriersBefore: 0,
@@ -492,6 +496,8 @@ assert.equal(fullPack.risk?.flows?.[0]?.notes?.hopCount, 1);
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.callSiteId, 'cs-1');
 assert.equal(fullPack.risk?.flows?.[0]?.path?.watchByStep?.[0]?.calleeNormalized, 'query');
 assert.deepEqual(fullPack.risk?.flows?.[0]?.path?.watchByStep?.[0]?.boundParams, ['input']);
+assert.deepEqual(fullPack.risk?.flows?.[0]?.path?.watchByStep?.[0]?.semanticIds, ['sem.callback.register-handler-payload']);
+assert.deepEqual(fullPack.risk?.flows?.[0]?.path?.watchByStep?.[0]?.semanticKinds, ['callback']);
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerpt, 'query(input)');
 assert.match(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerptHash || '', /^sha1:/);
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.provenance?.excerptSource, 'repo-range');
@@ -518,6 +524,7 @@ assert.ok(fullRendered.includes('top categories:'), 'expected rendered top categ
 assert.ok(fullRendered.includes('rules 1.0.0 sha1:rulebundle-risk-assembly'), 'expected rendered rule bundle provenance');
 assert.ok(fullRendered.includes('artifact refs:'), 'expected rendered artifact refs');
 assert.ok(fullRendered.includes('rules: source.req.body -> sink.sql.query'), 'expected rendered rules');
+assert.ok(fullRendered.includes('semantics sem.callback.register-handler-payload'), 'expected rendered semantics labels');
 const fullRenderedJson = renderCompositeContextPackJson(fullPack);
 assert.equal(fullRenderedJson.rendered?.sarif?.runs?.[0]?.results?.[0]?.properties?.pairOfCleats?.flowId, flowRow.flowId);
 assert.equal(

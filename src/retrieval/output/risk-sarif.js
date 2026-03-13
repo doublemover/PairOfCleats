@@ -108,6 +108,8 @@ const normalizeWatchWindow = (entry) => {
       : [],
     boundParams: Array.isArray(entry.boundParams) ? entry.boundParams.filter(Boolean) : [],
     calleeNormalized: entry.calleeNormalized || null,
+    semanticIds: Array.isArray(entry.semanticIds) ? entry.semanticIds.filter(Boolean) : [],
+    semanticKinds: Array.isArray(entry.semanticKinds) ? entry.semanticKinds.filter(Boolean) : [],
     sanitizerPolicy: entry.sanitizerPolicy || null,
     sanitizerBarrierApplied: entry.sanitizerBarrierApplied === true,
     sanitizerBarriersBefore: Number.isFinite(entry.sanitizerBarriersBefore) ? entry.sanitizerBarriersBefore : null,

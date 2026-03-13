@@ -1,6 +1,14 @@
 const nullableString = { type: ['string', 'null'] };
 const nullableNumber = { type: ['number', 'null'] };
 const semverString = { type: 'string', pattern: '^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$' };
+const riskWatchSemanticKinds = ['wrapper', 'propagator', 'builder', 'callback', 'asyncHandoff'];
+const riskWatchSemanticsSchema = {
+  semanticIds: { type: 'array', items: { type: 'string' } },
+  semanticKinds: {
+    type: 'array',
+    items: { enum: riskWatchSemanticKinds }
+  }
+};
 
 const typeEntry = {
   type: 'object',
@@ -738,6 +746,7 @@ const riskFlowSummarySchema = {
               propagatedArgIndices: { type: 'array', items: nullableNumber },
               boundParams: { type: 'array', items: { type: 'string' } },
               calleeNormalized: nullableString,
+              ...riskWatchSemanticsSchema,
               sanitizerPolicy: nullableString,
               sanitizerBarrierApplied: { type: ['boolean', 'null'] },
               sanitizerBarriersBefore: nullableNumber,
@@ -830,6 +839,7 @@ const riskPartialFlowSummarySchema = {
               propagatedArgIndices: { type: 'array', items: nullableNumber },
               boundParams: { type: 'array', items: { type: 'string' } },
               calleeNormalized: nullableString,
+              ...riskWatchSemanticsSchema,
               sanitizerPolicy: nullableString,
               sanitizerBarrierApplied: { type: ['boolean', 'null'] },
               sanitizerBarriersBefore: nullableNumber,

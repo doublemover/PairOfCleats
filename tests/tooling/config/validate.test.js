@@ -26,7 +26,21 @@ await fsPromises.writeFile(
     quality: 'balanced',
     threads: 4,
     tooling: { enabledTools: ['pyright', 'clangd'] },
-    indexing: { riskInterprocedural: { caps: { maxMs: null } } }
+    indexing: {
+      riskInterprocedural: {
+        caps: { maxMs: null },
+        semantics: [
+          {
+            kind: 'callback',
+            patterns: ['\\bregisterHandler\\b'],
+            languages: ['javascript'],
+            frameworks: ['express'],
+            fromArgs: [1],
+            taintHints: ['payload']
+          }
+        ]
+      }
+    }
   }, null, 2)
 );
 await fsPromises.writeFile(

@@ -44,6 +44,8 @@ const payload = {
             propagatedArgIndices: [0],
             boundParams: ['input'],
             calleeNormalized: 'query',
+            semanticIds: ['sem.callback.register-handler-payload'],
+            semanticKinds: ['callback'],
             sanitizerPolicy: 'terminate',
             sanitizerBarrierApplied: false,
             sanitizerBarriersBefore: 0,
@@ -94,6 +96,8 @@ const payload = {
             propagatedArgIndices: [0],
             boundParams: ['input'],
             calleeNormalized: 'query',
+            semanticIds: ['sem.callback.register-handler-payload'],
+            semanticKinds: ['callback'],
             sanitizerPolicy: 'terminate',
             sanitizerBarrierApplied: false,
             sanitizerBarriersBefore: 0,
@@ -134,8 +138,24 @@ assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.packProv
 assert.deepEqual(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.packTruncation, payload.truncation);
 assert.equal(jsonPayload.rendered.sarif.runs[0].results[0].properties.pairOfCleats.flowId, 'flow-a');
 assert.equal(jsonPayload.rendered.sarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].properties.pairOfCleats.watchWindow.calleeNormalized, 'query');
+assert.deepEqual(
+  jsonPayload.rendered.sarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].properties.pairOfCleats.watchWindow.semanticIds,
+  ['sem.callback.register-handler-payload']
+);
+assert.deepEqual(
+  jsonPayload.rendered.sarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].properties.pairOfCleats.watchWindow.semanticKinds,
+  ['callback']
+);
 assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.partialFlowSelection.totalPartialFlows, 1);
 assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.partialFlows[0].partialFlowId, 'partial-a');
 assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.partialFlows[0].path.watchByStep[0].calleeNormalized, 'query');
+assert.deepEqual(
+  jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.partialFlows[0].path.watchByStep[0].semanticIds,
+  ['sem.callback.register-handler-payload']
+);
+assert.deepEqual(
+  jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.partialFlows[0].path.watchByStep[0].semanticKinds,
+  ['callback']
+);
 
 console.log('composite context pack sarif contract test passed');

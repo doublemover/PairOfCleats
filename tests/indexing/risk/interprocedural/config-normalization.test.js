@@ -8,6 +8,7 @@ assert.equal(defaults.summaryOnly, false, 'default summaryOnly should be false')
 assert.equal(defaults.strictness, 'conservative');
 assert.equal(defaults.sanitizerPolicy, 'terminate');
 assert.equal(defaults.emitArtifacts, 'jsonl');
+assert.deepEqual(defaults.semantics, [], 'default semantics registry should be empty');
 assert.equal(defaults.caps.maxDepth, 4);
 assert.equal(defaults.caps.maxPathsPerPair, 3);
 
@@ -38,6 +39,41 @@ assert.equal(normalized.caps.maxTotalFlows, 0, 'maxTotalFlows should clamp to mi
 assert.equal(normalized.caps.maxCallSitesPerEdge, 50, 'maxCallSitesPerEdge should clamp to max');
 assert.equal(normalized.caps.maxEdgeExpansions, 10000, 'maxEdgeExpansions should clamp to min');
 assert.equal(normalized.caps.maxMs, null, 'maxMs should allow null');
+
+const semanticsConfig = normalizeRiskInterproceduralConfig({
+  enabled: true,
+  semantics: [
+    {
+      id: 'sem.callback.register-handler-payload',
+      kind: 'callback',
+      name: 'register handler payload handoff',
+      frameworks: ['express'],
+      languages: ['javascript'],
+      patterns: ['\\bregisterHandler\\b'],
+      fromArgs: [1],
+      taintHints: ['payload']
+    },
+    {
+      id: 'sem.invalid',
+      kind: 'unsupported',
+      patterns: ['\\bnope\\b']
+    }
+  ]
+}, { mode: 'code' });
+assert.equal(semanticsConfig.semantics.length, 1, 'expected supported semantics entry to be kept');
+assert.equal(semanticsConfig.semantics[0]?.kind, 'callback');
+assert.deepEqual(semanticsConfig.semantics[0]?.frameworks, ['express']);
+assert.deepEqual(semanticsConfig.semantics[0]?.fromArgs, [1]);
+assert.deepEqual(semanticsConfig.semantics[0]?.taintHints, ['payload']);
+assert.deepEqual(
+  semanticsConfig.semantics[0]?.patterns,
+  ['\\bregisterHandler\\b'],
+  'expected normalized config to retain plain semantics patterns for stable signatures'
+);
+assert.ok(
+  semanticsConfig.diagnostics?.warnings?.some((entry) => entry?.code === 'UNSUPPORTED_SEMANTICS_KIND'),
+  'expected unsupported semantics kinds to emit diagnostics'
+);
 
 const proseMode = normalizeRiskInterproceduralConfig({ enabled: true }, { mode: 'prose' });
 assert.equal(proseMode.enabled, false, 'non-code modes should disable interprocedural');

@@ -92,6 +92,8 @@ const fullModel = buildRiskExplanationModelFromStandalone({
           propagatedArgIndices: [0],
           boundParams: ['input'],
           calleeNormalized: 'query',
+          semanticIds: ['sem.callback.register-handler-payload'],
+          semanticKinds: ['callback'],
           sanitizerPolicy: 'terminate',
           sanitizerBarrierApplied: false,
           sanitizerBarriersBefore: 0,
@@ -127,6 +129,8 @@ const fullModel = buildRiskExplanationModelFromStandalone({
           propagatedArgIndices: [0],
           boundParams: ['input'],
           calleeNormalized: 'query',
+          semanticIds: ['sem.callback.register-handler-payload'],
+          semanticKinds: ['callback'],
           sanitizerPolicy: 'terminate',
           sanitizerBarrierApplied: false,
           sanitizerBarriersBefore: 0,
@@ -162,11 +166,27 @@ assert.equal(fullSarif.runs[0].results[0].properties.pairOfCleats.confidence, 0.
 assert.equal(fullSarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].location.physicalLocation.artifactLocation.uri, 'src/full.js');
 assert.equal(fullSarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].location.physicalLocation.region.startLine, 18);
 assert.equal(fullSarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].properties.pairOfCleats.watchWindow.calleeNormalized, 'query');
+assert.deepEqual(
+  fullSarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].properties.pairOfCleats.watchWindow.semanticIds,
+  ['sem.callback.register-handler-payload']
+);
+assert.deepEqual(
+  fullSarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].properties.pairOfCleats.watchWindow.semanticKinds,
+  ['callback']
+);
 assert.match(fullSarif.runs[0].results[0].message.text, /injection \| SRC -> SNK/);
 assert.equal(fullSarif.runs[0].properties.pairOfCleats.partialFlowSelection.totalPartialFlows, 1);
 assert.equal(fullSarif.runs[0].properties.pairOfCleats.partialFlows[0].partialFlowId, 'partial-a');
 assert.equal(fullSarif.runs[0].properties.pairOfCleats.partialFlows[0].frontier.chunkUid, 'chunk-mid');
 assert.equal(fullSarif.runs[0].properties.pairOfCleats.partialFlows[0].path.watchByStep[0].calleeNormalized, 'query');
+assert.deepEqual(
+  fullSarif.runs[0].properties.pairOfCleats.partialFlows[0].path.watchByStep[0].semanticIds,
+  ['sem.callback.register-handler-payload']
+);
+assert.deepEqual(
+  fullSarif.runs[0].properties.pairOfCleats.partialFlows[0].path.watchByStep[0].semanticKinds,
+  ['callback']
+);
 
 const cappedModel = buildRiskExplanationModelFromRiskSlice({
   truncation: [{ cap: 'maxFlows', limit: 1, observed: 2, omitted: 1 }],

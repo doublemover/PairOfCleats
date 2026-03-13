@@ -1,6 +1,14 @@
 const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
 const posInt = { type: 'integer', minimum: 1 };
+const riskWatchSemanticKinds = ['wrapper', 'propagator', 'builder', 'callback', 'asyncHandoff'];
+const riskWatchSemanticsSchema = {
+  semanticIds: { type: 'array', items: { type: 'string' } },
+  semanticKinds: {
+    type: 'array',
+    items: { enum: riskWatchSemanticKinds }
+  }
+};
 
 const riskFlowWatchStep = {
   type: 'object',
@@ -24,6 +32,7 @@ const riskFlowWatchStep = {
     propagatedArgIndices: { type: 'array', items: intId },
     boundParams: { type: 'array', items: { type: 'string' } },
     calleeNormalized: nullableString,
+    ...riskWatchSemanticsSchema,
     sanitizerPolicy: nullableString,
     sanitizerBarrierApplied: { type: 'boolean' },
     sanitizerBarriersBefore: intId,

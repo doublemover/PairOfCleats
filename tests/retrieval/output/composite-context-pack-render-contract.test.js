@@ -63,6 +63,8 @@ const payload = {
             propagatedArgIndices: [0],
             boundParams: ['input'],
             calleeNormalized: 'query',
+            semanticIds: ['sem.callback.register-handler-payload'],
+            semanticKinds: ['callback'],
             sanitizerPolicy: 'terminate',
             sanitizerBarrierApplied: false,
             sanitizerBarriersBefore: 0,
@@ -113,6 +115,8 @@ const payload = {
           propagatedArgIndices: [0],
           boundParams: ['input'],
           calleeNormalized: 'query',
+          semanticIds: ['sem.callback.register-handler-payload'],
+          semanticKinds: ['callback'],
           sanitizerPolicy: 'terminate',
           sanitizerBarrierApplied: false,
           sanitizerBarriersBefore: 0,
@@ -167,12 +171,16 @@ assert.deepEqual(jsonPayload.rendered.warnings, payload.warnings);
 assert.equal(jsonPayload.rendered.risk.flowSelection.totalFlows, 1);
 assert.equal(jsonPayload.rendered.risk.flows[0].flowId, 'flow-a');
 assert.equal(jsonPayload.rendered.risk.flows[0].steps[0].watchWindow.calleeNormalized, 'query');
+assert.deepEqual(jsonPayload.rendered.risk.flows[0].steps[0].watchWindow.semanticIds, ['sem.callback.register-handler-payload']);
+assert.deepEqual(jsonPayload.rendered.risk.flows[0].steps[0].watchWindow.semanticKinds, ['callback']);
 assert.equal(jsonPayload.rendered.risk.partialFlowSelection.totalPartialFlows, 5);
 assert.equal(jsonPayload.rendered.risk.partialFlowSelection.shownPartialFlows, 5);
 assert.equal(jsonPayload.rendered.risk.partialFlowSelection.maxPartialFlows, 5);
 assert.equal(jsonPayload.rendered.risk.partialFlows.length, 5);
 assert.equal(jsonPayload.rendered.risk.partialFlows[4].partialFlowId, 'partial-e');
 assert.equal(jsonPayload.rendered.risk.partialFlows[0].steps[0].watchWindow.calleeNormalized, 'query');
+assert.deepEqual(jsonPayload.rendered.risk.partialFlows[0].steps[0].watchWindow.semanticIds, ['sem.callback.register-handler-payload']);
+assert.deepEqual(jsonPayload.rendered.risk.partialFlows[0].steps[0].watchWindow.semanticKinds, ['callback']);
 assert.equal(jsonPayload.rendered.risk.filters.sourceRule[0], 'SRC');
 assert.equal(jsonPayload.rendered.sarif.runs[0].automationDetails.id, 'context-pack');
 assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.packWarnings[0].code, 'PACK_WARN');

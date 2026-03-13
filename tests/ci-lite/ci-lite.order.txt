@@ -376,6 +376,7 @@ tooling/docs/truth-table
 context-pack/seed-normalization
 indexing/build-state/build-truth-ledger-hash-alignment
 indexing/risk/interprocedural/stats-effective-config
+indexing/risk/interprocedural/framework-semantics
 retrieval/cache/index
 shared/artifact-io/jsonl-concurrency-order
 shared/encoding/metadata-plumbed-and-reused

@@ -79,6 +79,8 @@ const normalizeWatchWindow = (entry) => {
       : [],
     boundParams: Array.isArray(entry.boundParams) ? entry.boundParams.filter(Boolean) : [],
     calleeNormalized: entry.calleeNormalized || null,
+    semanticIds: Array.isArray(entry.semanticIds) ? entry.semanticIds.filter(Boolean) : [],
+    semanticKinds: Array.isArray(entry.semanticKinds) ? entry.semanticKinds.filter(Boolean) : [],
     sanitizerPolicy: entry.sanitizerPolicy || null,
     sanitizerBarrierApplied: entry.sanitizerBarrierApplied === true,
     sanitizerBarriersBefore: Number.isFinite(entry.sanitizerBarriersBefore) ? entry.sanitizerBarriersBefore : null,
@@ -121,6 +123,12 @@ const formatWatchWindowMarkdown = (watchWindow) => {
   }
   if (watchWindow.calleeNormalized) {
     parts.push(`callee ${watchWindow.calleeNormalized}`);
+  }
+  if (watchWindow.semanticIds.length || watchWindow.semanticKinds.length) {
+    const labels = watchWindow.semanticIds.length
+      ? watchWindow.semanticIds
+      : watchWindow.semanticKinds;
+    parts.push(`semantics ${labels.join(', ')}`);
   }
   if (watchWindow.sanitizerBarrierApplied) {
     parts.push(`sanitizer ${watchWindow.sanitizerBarriersBefore} -> ${watchWindow.sanitizerBarriersAfter}`);
