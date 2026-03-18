@@ -194,8 +194,7 @@ export const chunkWithScheduler = async ({
     }
 
     const segmentUid = segment.segmentUid || null;
-    const isFullFile = segment.start === 0 && segment.end === text.length;
-    if (!isFullFile && !segmentUid) {
+    if (!segmentUid) {
       logLine?.(
         '[tree-sitter:schedule] missing segmentUid for scheduled segment',
         {

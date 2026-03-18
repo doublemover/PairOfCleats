@@ -808,10 +808,17 @@ export const processFileCpu = async (context) => {
       || (segments || []).some((segment) => {
         if (!segment) return false;
         if (segment.segmentUid) return false;
+        if (mustUseTreeSitterScheduler) return true;
         return !(segment.start === 0 && segment.end === text.length);
       });
     if (needsSegmentUids) {
-      await assignSegmentUids({ text, segments, ext, mode });
+      await assignSegmentUids({
+        text,
+        segments,
+        ext,
+        mode,
+        includeBaseSegments: mustUseTreeSitterScheduler
+      });
     }
   } catch (err) {
     return failFile('parse-error', 'segment-uid', err);

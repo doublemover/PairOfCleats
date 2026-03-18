@@ -10,6 +10,7 @@ import { createJsonWriteStream, writeChunk } from '../../../shared/json-stream/s
 import { readTextFileWithHash } from '../../../shared/encoding.js';
 import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
 import { getNativeTreeSitterParser } from '../../../lang/tree-sitter/native-runtime.js';
+import { assertTreeSitterScheduledGroupsContract, assertTreeSitterScheduledJobContract } from './contracts.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 import {
   createTreeSitterFileVersionSignature,
@@ -261,6 +262,7 @@ export const executeTreeSitterSchedulerPlan = async ({
       stats: { grammarKeys: 0, jobs: 0 }
     };
   }
+  assertTreeSitterScheduledGroupsContract(groups, { phase: 'scheduler-executor:groups' });
 
   const treeSitterConfig = runtime?.languageOptions?.treeSitter || null;
   const schedulerConfig = treeSitterConfig?.scheduler || {};
@@ -414,14 +416,15 @@ export const executeTreeSitterSchedulerPlan = async ({
     try {
       for (const job of jobs) {
         throwIfAborted(abortSignal);
-        const virtualPath = job?.virtualPath || null;
-        const containerPath = job?.containerPath || null;
+        const identity = assertTreeSitterScheduledJobContract(job, { phase: 'scheduler-executor:job' });
+        const virtualPath = identity.virtualPath;
+        const containerPath = identity.containerPath;
         const containerExt = job?.containerExt || null;
-        const languageId = job?.languageId || null;
-        const segmentStart = Number(job?.segmentStart);
-        const segmentEnd = Number(job?.segmentEnd);
+        const languageId = identity.languageId;
+        const segmentStart = identity.segmentStart;
+        const segmentEnd = identity.segmentEnd;
         const segment = job?.segment || null;
-        const segmentUid = segment?.segmentUid || null;
+        const segmentUid = identity.segmentUid;
         const segmentExt = job?.effectiveExt || segment?.ext || containerExt || '';
         const embeddingContext = segment?.embeddingContext || segment?.meta?.embeddingContext || null;
         const expectedSignature = normalizeTreeSitterFileVersionSignature(job?.fileVersionSignature);
@@ -430,14 +433,6 @@ export const executeTreeSitterSchedulerPlan = async ({
             `[tree-sitter:schedule] stale-plan signature missing for ${containerPath}.`
           );
         }
-
-        if (!virtualPath || !containerPath || !languageId) {
-          throw new Error(`[tree-sitter:schedule] invalid job in ${grammarKey}: missing fields`);
-        }
-        if (!Number.isFinite(segmentStart) || !Number.isFinite(segmentEnd) || segmentEnd < segmentStart) {
-          throw new Error(`[tree-sitter:schedule] invalid segment range for ${containerPath}`);
-        }
-
         if (currentFile !== containerPath) {
           currentFile = containerPath;
           currentText = null;

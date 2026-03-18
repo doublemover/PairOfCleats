@@ -32,6 +32,7 @@ export const resolveTreeSitterSchedulerPaths = (indexDir) => {
     jobsDir,
     resultsDir,
     planPath: path.join(baseDir, 'plan.json'),
+    plannerFailureSnapshotPath: path.join(baseDir, 'planner-failure-snapshot.json'),
     jobPathForGrammarKey: (grammarKey) => path.join(jobsDir, `${sanitizeKey(grammarKey)}.jsonl`),
     resultsPathForGrammarKey: (grammarKey, format = 'jsonl') => (
       path.join(resultsDir, `${sanitizeKey(grammarKey)}${resolveResultsExt(format)}`)

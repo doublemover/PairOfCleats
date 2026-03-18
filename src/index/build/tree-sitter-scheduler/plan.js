@@ -57,6 +57,7 @@ import {
   buildLaneDiagnostics,
   buildPlanGroupArtifacts
 } from './plan/execution.js';
+import { assertTreeSitterScheduledGroupsContract, assertTreeSitterScheduledJobContract } from './contracts.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 const PLANNER_IO_CONCURRENCY_CAP = 32;
@@ -481,7 +482,13 @@ export const buildTreeSitterSchedulerPlan = async ({
           segmentsConfig: runtime.segmentsConfig,
           extraSegments: []
         });
-        await assignSegmentUids({ text, segments, ext, mode: effectiveMode });
+        await assignSegmentUids({
+          text,
+          segments,
+          ext,
+          mode: effectiveMode,
+          includeBaseSegments: true
+        });
       } catch (err) {
         const message = err?.message || String(err);
         if (skipOnParseError) {
@@ -540,7 +547,7 @@ export const buildTreeSitterSchedulerPlan = async ({
           : parseEstimate.estimatedParseCost;
 
         requiredLanguages.add(languageId);
-        jobs.push({
+        const job = {
           schemaVersion: '1.0.0',
           virtualPath,
           grammarKey,
@@ -558,7 +565,9 @@ export const buildTreeSitterSchedulerPlan = async ({
           estimatedParseCost,
           fileVersionSignature,
           segment
-        });
+        };
+        assertTreeSitterScheduledJobContract(job, { phase: 'scheduler-plan:job' });
+        jobs.push(job);
       }
       return { jobs, requiredLanguages: Array.from(requiredLanguages) };
     },
@@ -630,6 +639,7 @@ export const buildTreeSitterSchedulerPlan = async ({
     schedulerConfig,
     observedRowsPerSecByGrammar
   });
+  assertTreeSitterScheduledGroupsContract(groupList, { phase: 'scheduler-plan:groups' });
   const executionOrder = buildContinuousWaveExecutionOrder(groupList);
   const laneDiagnostics = buildLaneDiagnostics(groupList);
   const { finalGrammarKeys, groupMeta, totalJobs } = buildPlanGroupArtifacts(groupList);

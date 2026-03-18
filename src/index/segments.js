@@ -68,13 +68,19 @@ const buildSegmentLineIndex = (lineIndex, segmentStart, segmentEnd) => {
   return local;
 };
 
-export const assignSegmentUids = async ({ text, segments, ext, mode }) => {
+export const assignSegmentUids = async ({
+  text,
+  segments,
+  ext,
+  mode,
+  includeBaseSegments = false
+}) => {
   if (!text || !Array.isArray(segments) || !segments.length) return segments;
   const effectiveMode = mode === 'extracted-prose' ? 'prose' : mode;
   const baseSegmentType = resolveSegmentType(effectiveMode, ext);
   for (const segment of segments) {
     if (!segment || segment.segmentUid) continue;
-    if (isBaseSegment(segment, text.length, baseSegmentType)) continue;
+    if (!includeBaseSegments && isBaseSegment(segment, text.length, baseSegmentType)) continue;
     const segmentText = text.slice(segment.start, segment.end);
     const segmentUid = await computeSegmentUid({
       segmentText,

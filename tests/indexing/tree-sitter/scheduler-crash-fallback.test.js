@@ -96,6 +96,11 @@ try {
       'expected degraded virtual path checker'
     );
     const crashSummary = scheduler.getCrashSummary();
+    assert.equal(
+      crashSummary.failureClasses?.parser_crash,
+      1,
+      'expected parser crash classification count in crash summary'
+    );
     const degradedPerlVirtualPaths = crashSummary.degradedVirtualPaths.filter((virtualPath) => (
       virtualPath.includes('perl_advanced.pl') || virtualPath.includes('perl_sibling.pl')
     ));
@@ -105,7 +110,18 @@ try {
       `expected per-file degradation containment; got ${degradedPerlVirtualPaths.length} perl paths`
     );
     await fs.access(scheduler.crashForensicsBundlePath);
+    await fs.access(scheduler.plannerFailureSnapshotPath);
     await fs.access(path.join(repoCacheRoot, 'logs', 'index-crash-forensics-index.json'));
+    const plannerSnapshot = JSON.parse(await fs.readFile(scheduler.plannerFailureSnapshotPath, 'utf8'));
+    assert.ok(
+      Array.isArray(plannerSnapshot?.scheduledJobs) && plannerSnapshot.scheduledJobs.length > 0,
+      'expected planner snapshot to capture scheduled jobs for degraded run'
+    );
+    assert.equal(
+      plannerSnapshot?.failureSummary?.failureClasses?.parser_crash,
+      1,
+      'expected planner snapshot failure classes'
+    );
 
     const rel = path.relative(root, perlAbs);
     const relKey = rel.split(path.sep).join('/');

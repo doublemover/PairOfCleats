@@ -4,8 +4,10 @@ import { warmupNativeTreeSitterParsers } from '../../../lang/tree-sitter/native-
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { toStringArray } from '../../../shared/iterables.js';
 import { getTreeSitterSchedulerCrashInjectionTokens } from '../../../shared/env.js';
+import { assertTreeSitterScheduledGroupsContract } from './contracts.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 import { executeTreeSitterSchedulerPlan } from './executor.js';
+import { classifyTreeSitterSchedulerFailure } from './runner/failure-classification.js';
 
 const JSONL_LOAD_RETRY_ATTEMPTS = 8;
 const JSONL_LOAD_RETRY_BASE_DELAY_MS = 25;
@@ -182,6 +184,7 @@ const main = async () => {
       jobs
     });
   }
+  assertTreeSitterScheduledGroupsContract(groups, { phase: 'scheduler-subprocess:groups' });
 
   const runtime = {
     root: path.resolve(repoRoot),
@@ -249,12 +252,15 @@ const main = async () => {
 
 main().catch((err) => {
   const message = err?.message || String(err);
+  const classification = classifyTreeSitterSchedulerFailure({ error: err });
   const crashEvent = {
     schemaVersion: '1.0.0',
     stage: err?.stage || 'scheduler-subprocess',
     code: err?.code || null,
     message,
-    meta: err?.treeSitterSchedulerMeta || null
+    meta: err?.treeSitterSchedulerMeta || null,
+    failureClass: classification.failureClass,
+    fallbackConsequence: classification.fallbackConsequence
   };
   try {
     emitError(`${CRASH_EVENT_PREFIX}${JSON.stringify(crashEvent)}`);
