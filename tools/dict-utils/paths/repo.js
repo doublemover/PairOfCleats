@@ -3,7 +3,12 @@ import path from 'node:path';
 import { isAbsolutePathNative } from '../../../src/shared/files.js';
 import { findUpwards } from '../../../src/shared/fs/find-upwards.js';
 import { joinPathSafe } from '../../../src/shared/path-normalize.js';
-import { isWithinRoot, normalizeIdentityPath, toRealPathSync } from '../../../src/workspace/identity.js';
+import { toRealPathSync } from '../../../src/workspace/identity.js';
+import {
+  findLatestBuildRootWithIndexes,
+  hasModeIndexDir,
+  resolveCurrentBuildRoots
+} from '../../../src/shared/indexing/build-pointer.js';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { getCacheRoot, loadUserConfig } from '../config.js';
@@ -24,8 +29,6 @@ export const getLegacyRepoId = (repoRoot) => {
   const resolved = path.resolve(repoRoot);
   return crypto.createHash('sha1').update(resolved).digest('hex');
 };
-
-const sameIdentityPath = (left, right) => normalizeIdentityPath(left) === normalizeIdentityPath(right);
 
 /**
  * Resolve the repo root from a starting directory.
@@ -91,68 +94,6 @@ export function getBuildsRoot(repoRoot, userConfig = null) {
   return path.join(getRepoCacheRoot(repoRoot, userConfig), 'builds');
 }
 
-const DEFAULT_BUILD_MODES = ['code', 'prose', 'extracted-prose', 'records'];
-const MODE_ARTIFACT_MARKERS = [
-  path.join('pieces', 'manifest.json'),
-  'chunk_meta.json',
-  'chunk_meta.json.gz',
-  'chunk_meta.json.zst',
-  'chunk_meta.jsonl',
-  'chunk_meta.jsonl.gz',
-  'chunk_meta.jsonl.zst',
-  'chunk_meta.meta.json',
-  'chunk_meta.parts',
-  'chunk_meta.columnar.json',
-  'chunk_meta.binary-columnar.meta.json'
-];
-
-const hasModeArtifacts = (rootPath, mode) => {
-  const indexDir = path.join(rootPath, `index-${mode}`);
-  if (!fs.existsSync(indexDir)) return false;
-  for (const marker of MODE_ARTIFACT_MARKERS) {
-    if (fs.existsSync(path.join(indexDir, marker))) {
-      return true;
-    }
-  }
-  return false;
-};
-
-const hasModeIndexDir = (rootPath, mode = null) => {
-  if (!rootPath || !fs.existsSync(rootPath)) return false;
-  if (typeof mode === 'string' && mode.trim()) {
-    return hasModeArtifacts(rootPath, mode.trim());
-  }
-  for (const candidateMode of DEFAULT_BUILD_MODES) {
-    if (hasModeArtifacts(rootPath, candidateMode)) {
-      return true;
-    }
-  }
-  return false;
-};
-
-const findLatestBuildRootWithIndexes = (buildsRoot, mode = null) => {
-  if (!buildsRoot || !fs.existsSync(buildsRoot)) return null;
-  let entries = [];
-  try {
-    entries = fs.readdirSync(buildsRoot, { withFileTypes: true });
-  } catch {
-    return null;
-  }
-  const candidates = [];
-  for (const entry of entries) {
-    if (!entry?.isDirectory?.()) continue;
-    const candidateRoot = path.join(buildsRoot, entry.name);
-    if (!hasModeIndexDir(candidateRoot, mode)) continue;
-    let mtimeMs = 0;
-    try {
-      mtimeMs = Number(fs.statSync(candidateRoot).mtimeMs) || 0;
-    } catch {}
-    candidates.push({ root: candidateRoot, mtimeMs });
-  }
-  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
-  return candidates[0]?.root || null;
-};
-
 /**
  * Resolve current build metadata for a repo, if present.
  * @param {string} repoRoot
@@ -166,87 +107,17 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
   if (!fs.existsSync(currentPath)) return null;
   try {
     const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
-    const buildId = typeof data.buildId === 'string' ? data.buildId : null;
-    const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
-    const repoCacheResolved = toRealPathSync(repoCacheRoot);
-    const resolveRoot = (value) => {
-      if (typeof value !== 'string') return null;
-      const trimmed = value.trim();
-      if (!trimmed) return null;
-      const candidates = isAbsolutePathNative(trimmed)
-        ? [trimmed]
-        : [
-          path.join(repoCacheRoot, trimmed),
-          path.join(buildsRoot, trimmed)
-        ];
-      for (const candidate of candidates) {
-        const normalized = toRealPathSync(candidate);
-        if (isWithinRoot(normalized, repoCacheResolved)) {
-          return normalized;
-        }
-      }
-      return null;
-    };
-    let buildRoot = buildRootRaw
-      ? resolveRoot(buildRootRaw)
-      : (buildId ? path.join(buildsRoot, buildId) : null);
-    if (!buildRoot && buildId) {
-      const fromBuildId = resolveRoot(buildId);
-      if (fromBuildId) buildRoot = fromBuildId;
-    }
-    if (
-      buildId
-      && buildRoot
-      && sameIdentityPath(path.resolve(buildRoot), repoCacheResolved)
-    ) {
-      const buildIdRoot = path.join(buildsRoot, buildId);
-      if (fs.existsSync(buildIdRoot)) {
-        buildRoot = buildIdRoot;
-      }
-    }
-    const buildRoots = {};
-    if (data.buildRootsByMode && typeof data.buildRootsByMode === 'object' && !Array.isArray(data.buildRootsByMode)) {
-      for (const [mode, value] of Object.entries(data.buildRootsByMode)) {
-        if (typeof value !== 'string') continue;
-        const resolved = resolveRoot(value);
-        if (resolved) buildRoots[mode] = resolved;
-      }
-    } else if (data.buildRoots && typeof data.buildRoots === 'object' && !Array.isArray(data.buildRoots)) {
-      for (const [mode, value] of Object.entries(data.buildRoots)) {
-        if (typeof value !== 'string') continue;
-        const resolved = resolveRoot(value);
-        if (resolved) buildRoots[mode] = resolved;
-      }
-    } else if (buildRoot && Array.isArray(data.modes)) {
-      for (const mode of data.modes) {
-        if (typeof mode !== 'string') continue;
-        buildRoots[mode] = buildRoot;
-      }
-    }
     const preferredMode = typeof options.mode === 'string' ? options.mode : null;
-    const preferredRoot = preferredMode ? buildRoots[preferredMode] : null;
-    const firstExistingModeRoot = Object.values(buildRoots).find((candidate) => (
-      typeof candidate === 'string' && fs.existsSync(candidate)
-    )) || null;
-    let activeRoot = preferredRoot || buildRoot || firstExistingModeRoot || Object.values(buildRoots)[0] || null;
-    if ((!activeRoot || !fs.existsSync(activeRoot)) && buildId) {
-      const buildIdRoot = path.join(buildsRoot, buildId);
-      if (fs.existsSync(buildIdRoot)) {
-        activeRoot = buildIdRoot;
-      }
-    }
-    if (activeRoot && !hasModeIndexDir(activeRoot, preferredMode)) {
-      const buildIdRoot = buildId ? path.join(buildsRoot, buildId) : null;
-      if (buildIdRoot && hasModeIndexDir(buildIdRoot, preferredMode)) {
-        activeRoot = buildIdRoot;
-      } else {
-        const fallbackRoot = findLatestBuildRootWithIndexes(buildsRoot, preferredMode);
-        if (fallbackRoot) activeRoot = fallbackRoot;
-      }
-    }
-    if (buildRoot && !hasModeIndexDir(buildRoot, preferredMode) && hasModeIndexDir(activeRoot, preferredMode)) {
-      buildRoot = activeRoot;
-    }
+    const {
+      buildId,
+      buildRoot,
+      activeRoot,
+      buildRoots
+    } = resolveCurrentBuildRoots(data, {
+      repoCacheRoot,
+      buildsRoot,
+      preferredMode
+    });
     const resolvedBuildId = buildId || (activeRoot ? path.basename(activeRoot) : null);
     if (!resolvedBuildId || !activeRoot || !fs.existsSync(activeRoot)) return null;
     return {
@@ -277,80 +148,16 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
   if (fs.existsSync(currentPath)) {
     try {
       const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
-      const repoCacheResolved = toRealPathSync(repoCacheRoot);
-      const resolveRoot = (value) => {
-        if (typeof value !== 'string') return null;
-        const trimmed = value.trim();
-        if (!trimmed) return null;
-        const candidates = isAbsolutePathNative(trimmed)
-          ? [trimmed]
-          : [
-            path.join(repoCacheRoot, trimmed),
-            path.join(buildsRoot, trimmed)
-          ];
-        for (const candidate of candidates) {
-          const normalized = toRealPathSync(candidate);
-          if (isWithinRoot(normalized, repoCacheResolved)) {
-            return normalized;
-          }
-        }
-        return null;
-      };
-      const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
-      const buildId = typeof data.buildId === 'string' ? data.buildId : null;
-      let buildRoot = buildRootRaw
-        ? resolveRoot(buildRootRaw)
-        : (buildId ? path.join(buildsRoot, buildId) : null);
-      if (!buildRoot && buildId) {
-        const fromBuildId = resolveRoot(buildId);
-        if (fromBuildId) buildRoot = fromBuildId;
-      }
-      if (
-        buildId
-        && buildRoot
-        && sameIdentityPath(path.resolve(buildRoot), repoCacheResolved)
-      ) {
-        const buildIdRoot = path.join(buildsRoot, buildId);
-        if (fs.existsSync(buildIdRoot)) {
-          buildRoot = buildIdRoot;
-        }
-      }
-      const buildRoots = {};
-      if (data.buildRootsByMode && typeof data.buildRootsByMode === 'object' && !Array.isArray(data.buildRootsByMode)) {
-        for (const [mode, value] of Object.entries(data.buildRootsByMode)) {
-          if (typeof value !== 'string') continue;
-          buildRoots[mode] = resolveRoot(value);
-        }
-      } else if (data.buildRoots && typeof data.buildRoots === 'object' && !Array.isArray(data.buildRoots)) {
-        for (const [mode, value] of Object.entries(data.buildRoots)) {
-          if (typeof value !== 'string') continue;
-          buildRoots[mode] = resolveRoot(value);
-        }
-      } else if (buildRoot && Array.isArray(data.modes)) {
-        for (const mode of data.modes) {
-          if (typeof mode !== 'string') continue;
-          buildRoots[mode] = buildRoot;
-        }
-      }
       const preferredMode = typeof options.mode === 'string' ? options.mode : null;
+      const { buildRoot, activeRoot, buildRoots } = resolveCurrentBuildRoots(data, {
+        repoCacheRoot,
+        buildsRoot,
+        preferredMode
+      });
       const ensureExists = (value) => (value && fs.existsSync(value) ? value : null);
       let resolved = preferredMode ? ensureExists(buildRoots[preferredMode]) : null;
-      if (!resolved && !preferredMode) {
-        for (const mode of ['code', 'prose', 'extracted-prose', 'records']) {
-          resolved = ensureExists(buildRoots[mode]);
-          if (resolved) break;
-        }
-      }
       if (!resolved) resolved = ensureExists(buildRoot);
-      if (resolved && !hasModeIndexDir(resolved, preferredMode)) {
-        const buildIdRoot = buildId ? path.join(buildsRoot, buildId) : null;
-        if (buildIdRoot && hasModeIndexDir(buildIdRoot, preferredMode)) {
-          resolved = buildIdRoot;
-        } else {
-          const fallbackRoot = findLatestBuildRootWithIndexes(buildsRoot, preferredMode);
-          if (fallbackRoot) resolved = fallbackRoot;
-        }
-      }
+      if (!resolved) resolved = ensureExists(activeRoot);
       if (resolved) return resolved;
     } catch {}
   }

@@ -1,4 +1,5 @@
 import { isKnownResolverStage } from './reason-codes.js';
+import { normalizeNonNegativeSamples, resolveInterpolatedPercentile } from '../../../shared/perf/percentiles.js';
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -20,18 +21,6 @@ const toEntries = (stages) => (
     }))
 );
 
-const resolveQuantile = (sortedValues, percentile) => {
-  if (!Array.isArray(sortedValues) || sortedValues.length === 0) return null;
-  if (sortedValues.length === 1) return toNonNegativeMs(sortedValues[0]);
-  const clamped = Math.max(0, Math.min(1, Number(percentile) || 0));
-  const index = (sortedValues.length - 1) * clamped;
-  const lower = Math.floor(index);
-  const upper = Math.ceil(index);
-  if (lower === upper) return toNonNegativeMs(sortedValues[lower]);
-  const weight = index - lower;
-  return toNonNegativeMs((sortedValues[lower] * (1 - weight)) + (sortedValues[upper] * weight));
-};
-
 export const summarizeResolverPipelineStageElapsedPercentiles = (
   stageElapsedSamples,
   { percentiles = [0.5, 0.95, 0.99] } = {}
@@ -48,17 +37,18 @@ export const summarizeResolverPipelineStageElapsedPercentiles = (
   for (const [stage, rawSamples] of Object.entries(stageElapsedSamples || {})) {
     if (!isKnownResolverStage(stage)) continue;
     if (!Array.isArray(rawSamples) || rawSamples.length === 0) continue;
-    const samples = rawSamples
-      .map((value) => Number(value))
-      .filter((value) => Number.isFinite(value) && value >= 0)
-      .sort((a, b) => a - b);
+    const samples = normalizeNonNegativeSamples(rawSamples, { precision: 3, sort: true });
     if (samples.length === 0) continue;
     const entry = {
       samples: samples.length,
       max: toNonNegativeMs(samples[samples.length - 1])
     };
     for (const percentile of normalizedPercentiles) {
-      entry[toPercentileLabel(percentile)] = resolveQuantile(samples, percentile);
+      entry[toPercentileLabel(percentile)] = resolveInterpolatedPercentile(samples, percentile, {
+        sorted: true,
+        emptyValue: null,
+        precision: 3
+      });
     }
     output[stage] = entry;
   }

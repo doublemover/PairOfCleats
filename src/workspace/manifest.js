@@ -5,7 +5,11 @@ import { buildIndexSignature } from '../retrieval/index-cache.js';
 import { sha1 } from '../shared/hash.js';
 import { stableStringify } from '../shared/stable-json.js';
 import { atomicWriteText } from '../shared/io/atomic-write.js';
-import { isAbsolutePathNative, readJsonFileSafe } from '../shared/files.js';
+import { readJsonFileSafe } from '../shared/files.js';
+import {
+  resolveCacheScopedBuildIdRoot,
+  resolveCacheScopedBuildPointerRoot
+} from '../shared/indexing/build-pointer.js';
 import { validateWorkspaceManifest } from '../contracts/validators/workspace.js';
 import {
   getCacheRoot,
@@ -87,96 +91,6 @@ const modePath = (entry, mode) => (
   entry?.indexes && entry.indexes[mode] ? entry.indexes[mode] : null
 );
 
-/**
- * Canonicalize a filesystem path for boundary/prefix comparisons.
- *
- * Windows boundary checks are case-insensitive, so we lower-case canonical
- * paths to avoid false invalid-pointer rejections when path casing differs.
- *
- * @param {string} value
- * @returns {string}
- */
-const normalizePathBoundaryValue = (value) => {
-  const canonical = toRealPathSync(path.resolve(String(value || '')));
-  if (process.platform === 'win32') return canonical.toLowerCase();
-  return canonical;
-};
-
-/**
- * Check whether `candidate` is equal to or nested under `root`.
- *
- * Handles filesystem roots where `path.resolve(root)` may already include a
- * trailing separator (`/`, `C:\\`), avoiding false negatives from doubled
- * separators during prefix checks.
- *
- * @param {string} candidate
- * @param {string} root
- * @returns {boolean}
- */
-const isWithinBoundary = (candidate, root) => {
-  if (!candidate || !root) return false;
-  const boundary = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
-  return candidate === root || candidate.startsWith(boundary);
-};
-
-/**
- * Resolve a build pointer root only if it remains within the repo cache root.
- *
- * Supports both absolute pointers and relative pointers (resolved against
- * repo cache root and builds root). Returns null when the pointer escapes the
- * allowed repo cache boundary.
- *
- * @param {string} value
- * @param {string} repoCacheRoot
- * @param {string} buildsRoot
- * @returns {string|null}
- */
-const resolvePointerRoot = (value, repoCacheRoot, buildsRoot) => {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const repoCacheResolved = normalizePathBoundaryValue(repoCacheRoot);
-  const candidates = isAbsolutePathNative(trimmed)
-    ? [trimmed]
-    : [
-      path.join(repoCacheRoot, trimmed),
-      path.join(buildsRoot, trimmed)
-    ];
-  for (const candidate of candidates) {
-    const resolvedCandidate = path.resolve(candidate);
-    const normalized = normalizePathBoundaryValue(resolvedCandidate);
-    if (isWithinBoundary(normalized, repoCacheResolved)) {
-      return resolvedCandidate;
-    }
-  }
-  return null;
-};
-
-/**
- * Resolve a buildId pointer strictly under `<repoCacheRoot>/builds`.
- *
- * Unlike general buildRoot pointers, buildId fallback must not probe arbitrary
- * repo-cache-relative paths (`<repoCacheRoot>/<buildId>`). It is constrained to
- * the builds directory so malformed identifiers cannot redirect manifest reads.
- *
- * @param {string} buildId
- * @param {string} repoCacheRoot
- * @param {string} buildsRoot
- * @returns {string|null}
- */
-const resolveBuildIdRoot = (buildId, repoCacheRoot, buildsRoot) => {
-  const id = normalizeString(buildId);
-  if (!id) return null;
-  if (isAbsolutePathNative(id)) return null;
-  const candidate = path.resolve(buildsRoot, id);
-  const normalizedCandidate = normalizePathBoundaryValue(candidate);
-  const normalizedRepoCacheRoot = normalizePathBoundaryValue(repoCacheRoot);
-  const normalizedBuildsRoot = normalizePathBoundaryValue(buildsRoot);
-  const inRepoCache = isWithinBoundary(normalizedCandidate, normalizedRepoCacheRoot);
-  const inBuildsRoot = isWithinBoundary(normalizedCandidate, normalizedBuildsRoot);
-  if (!inRepoCache || !inBuildsRoot) return null;
-  return candidate;
-};
 
 const signatureFromStat = (stat) => (
   stat ? `${stat.size}:${stat.mtimeMs}` : null
@@ -297,7 +211,7 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
   // Reject malformed/escaped buildRoot pointers before resolver fallback can
   // substitute a local build directory for the same buildId.
   if (buildRootRaw) {
-    const resolvedBuildRoot = resolvePointerRoot(buildRootRaw, repoCacheRoot, buildsRoot);
+    const resolvedBuildRoot = resolveCacheScopedBuildPointerRoot(buildRootRaw, repoCacheRoot, buildsRoot);
     if (!resolvedBuildRoot) {
       return invalidatePointer(
         `Invalid build pointer at ${currentJsonPath}: buildRoot points outside repo cache (${buildRootRaw}).`
@@ -307,7 +221,7 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
   }
   let resolvedBuildIdRoot = null;
   if (!buildRootRaw && pointer.buildId) {
-    resolvedBuildIdRoot = resolveBuildIdRoot(pointer.buildId, repoCacheRoot, buildsRoot);
+    resolvedBuildIdRoot = resolveCacheScopedBuildIdRoot(pointer.buildId, repoCacheRoot, buildsRoot);
     if (!resolvedBuildIdRoot) {
       return invalidatePointer(
         `Invalid build pointer at ${currentJsonPath}: buildId points outside repo cache (${pointer.buildId}).`
@@ -319,7 +233,7 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
   if (currentInfo) {
     pointer.buildId = normalizeString(currentInfo.buildId) || pointer.buildId;
     if (currentInfo.buildRoot) {
-      const resolvedCurrentBuildRoot = resolvePointerRoot(currentInfo.buildRoot, repoCacheRoot, buildsRoot);
+      const resolvedCurrentBuildRoot = resolveCacheScopedBuildPointerRoot(currentInfo.buildRoot, repoCacheRoot, buildsRoot);
       if (!resolvedCurrentBuildRoot) {
         return invalidatePointer(
           `Invalid build pointer at ${currentJsonPath}: resolved buildRoot escaped repo cache (${currentInfo.buildRoot}).`
@@ -330,7 +244,7 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
     for (const [mode, rootValue] of Object.entries(ensureObject(currentInfo.buildRoots))) {
       const normalized = normalizeString(rootValue);
       if (!normalized) continue;
-      const resolved = resolvePointerRoot(normalized, repoCacheRoot, buildsRoot);
+      const resolved = resolveCacheScopedBuildPointerRoot(normalized, repoCacheRoot, buildsRoot);
       if (!resolved) continue;
       pointer.buildRoots[mode] = toRealPathSync(resolved);
     }
@@ -348,7 +262,7 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
 
   const buildRootsInput = ensureObject(data.buildRootsByMode?.constructor === Object ? data.buildRootsByMode : data.buildRoots);
   for (const [mode, value] of Object.entries(buildRootsInput)) {
-    const resolved = resolvePointerRoot(value, repoCacheRoot, buildsRoot);
+    const resolved = resolveCacheScopedBuildPointerRoot(value, repoCacheRoot, buildsRoot);
     if (!resolved) continue;
     pointer.buildRoots[mode] = toRealPathSync(resolved);
   }

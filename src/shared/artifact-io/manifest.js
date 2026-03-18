@@ -19,6 +19,7 @@ const warnedMissingManifest = new Set();
 const warnedNonStrictFallback = new Set();
 const warnedUnsafePaths = new Set();
 const manifestPieceIndexCache = new WeakMap();
+const DEFAULT_STRICT_MANIFEST_RETRY_DELAYS_MS = Object.freeze([25, 50]);
 
 export const CHUNK_META_PARTS_DIR = 'chunk_meta.parts';
 export const CHUNK_META_PART_PREFIX = 'chunk_meta.part-';
@@ -160,6 +161,71 @@ export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = tr
     writeCache(manifestPath, manifest);
   }
   return manifest;
+};
+
+export const resolvePiecesManifestReadPlan = ({
+  manifest = null,
+  maxBytes = MAX_JSON_BYTES,
+  strict = true,
+  retryDelaysMs = DEFAULT_STRICT_MANIFEST_RETRY_DELAYS_MS
+} = {}) => {
+  if (manifest && typeof manifest === 'object') {
+    return Object.freeze({
+      manifest,
+      maxBytes: resolveManifestMaxBytes(maxBytes, { strict }),
+      strict: Boolean(strict),
+      attempts: Object.freeze([]),
+      retryableCodes: Object.freeze([])
+    });
+  }
+  const strictMode = strict !== false;
+  const normalizedMaxBytes = resolveManifestMaxBytes(maxBytes, { strict: strictMode });
+  const delays = strictMode
+    ? (Array.isArray(retryDelaysMs) ? retryDelaysMs : [])
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value >= 0)
+      .map((value) => Math.floor(value))
+    : [];
+  const attempts = strictMode
+    ? [0, ...delays]
+    : [0];
+  return Object.freeze({
+    manifest: null,
+    maxBytes: normalizedMaxBytes,
+    strict: strictMode,
+    attempts: Object.freeze(attempts),
+    retryableCodes: Object.freeze(strictMode ? ['ERR_MANIFEST_MISSING'] : [])
+  });
+};
+
+export const loadPiecesManifestWithReadPlan = async (
+  dir,
+  options = {}
+) => {
+  const plan = resolvePiecesManifestReadPlan(options);
+  if (plan.manifest) return plan.manifest;
+  const readManifest = typeof options.readManifest === 'function'
+    ? options.readManifest
+    : loadPiecesManifest;
+  const sleepImpl = typeof options.sleep === 'function'
+    ? options.sleep
+    : ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  let lastError = null;
+  for (let attemptIndex = 0; attemptIndex < plan.attempts.length; attemptIndex += 1) {
+    if (attemptIndex > 0) {
+      await sleepImpl(plan.attempts[attemptIndex]);
+    }
+    try {
+      return readManifest(dir, { maxBytes: plan.maxBytes, strict: plan.strict });
+    } catch (error) {
+      lastError = error;
+      if (!plan.retryableCodes.includes(error?.code) || attemptIndex >= plan.attempts.length - 1) {
+        throw error;
+      }
+    }
+  }
+  if (lastError) throw lastError;
+  return null;
 };
 
 export const readCompatibilityKey = (dir, { maxBytes = MAX_JSON_BYTES, strict = true } = {}) => {

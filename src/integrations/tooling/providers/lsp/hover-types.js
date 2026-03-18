@@ -4,6 +4,7 @@ import { rangeToOffsets } from '../../lsp/positions.js';
 import { flattenSymbols } from '../../lsp/symbols.js';
 import { writeJsonObjectFile } from '../../../../shared/json-stream.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
+import { resolveNearestRankPercentile } from '../../../../shared/perf/percentiles.js';
 import { findTargetForOffsets } from './target-index.js';
 
 export const DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY = 4;
@@ -355,24 +356,14 @@ const createRequestBudgetController = (maxRequests) => {
   };
 };
 
-const percentile = (values, ratio) => {
-  if (!Array.isArray(values) || values.length === 0) return null;
-  const target = Number(ratio);
-  if (!Number.isFinite(target) || target <= 0) return Math.min(...values);
-  if (target >= 1) return Math.max(...values);
-  const sorted = values.slice().sort((a, b) => a - b);
-  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(target * sorted.length) - 1));
-  return sorted[index];
-};
-
 const summarizeLatencies = (values) => {
   if (!Array.isArray(values) || values.length === 0) {
     return { count: 0, p50Ms: null, p95Ms: null };
   }
   return {
     count: values.length,
-    p50Ms: percentile(values, 0.5),
-    p95Ms: percentile(values, 0.95)
+    p50Ms: resolveNearestRankPercentile(values, 0.5, { emptyValue: null }),
+    p95Ms: resolveNearestRankPercentile(values, 0.95, { emptyValue: null })
   };
 };
 

@@ -1,4 +1,5 @@
 import { clampWriteConcurrency } from './lane-policy.js';
+import { summarizeBoundedHistogram } from '../../../shared/perf/histogram.js';
 
 const LARGE_ARTIFACT_WRITE_BYTES = 256 * 1024 * 1024;
 const HUGE_ARTIFACT_WRITE_BYTES = 768 * 1024 * 1024;
@@ -136,21 +137,6 @@ export const resolveArtifactBlockingState = (activeEntries = []) => {
       };
     }
   };
-};
-
-/**
- * Resolve an upper percentile from sorted millisecond samples.
- *
- * @param {number[]} samples
- * @param {number} ratio
- * @returns {number}
- */
-const resolvePercentileMs = (samples, ratio) => {
-  if (!Array.isArray(samples) || !samples.length) return 0;
-  if (!Number.isFinite(ratio)) return samples[0];
-  const clampedRatio = Math.max(0, Math.min(1, ratio));
-  const index = Math.min(samples.length - 1, Math.max(0, Math.ceil(clampedRatio * samples.length) - 1));
-  return samples[index];
 };
 
 /**
@@ -751,44 +737,28 @@ export const resolveArtifactWriteMemTokens = (estimatedBytes) => {
  * @returns {object|null}
  */
 export const summarizeQueueDelayHistogram = (samples) => {
-  if (!Array.isArray(samples) || !samples.length) return null;
-  const normalized = samples
-    .map((entry) => Number(entry))
-    .filter((entry) => Number.isFinite(entry) && entry >= 0)
-    .map((entry) => Math.round(entry))
-    .sort((a, b) => a - b);
-  if (!normalized.length) return null;
-  const bucketCounts = new Array(ARTIFACT_QUEUE_DELAY_BUCKETS_MS.length).fill(0);
-  let overflowCount = 0;
-  for (const value of normalized) {
-    let bucketIndex = -1;
-    for (let index = 0; index < ARTIFACT_QUEUE_DELAY_BUCKETS_MS.length; index += 1) {
-      if (value <= ARTIFACT_QUEUE_DELAY_BUCKETS_MS[index]) {
-        bucketIndex = index;
-        break;
-      }
-    }
-    if (bucketIndex >= 0) bucketCounts[bucketIndex] += 1;
-    else overflowCount += 1;
-  }
-  const buckets = [];
-  for (let index = 0; index < ARTIFACT_QUEUE_DELAY_BUCKETS_MS.length; index += 1) {
-    const count = bucketCounts[index];
-    if (!count) continue;
-    buckets.push({
-      leMs: ARTIFACT_QUEUE_DELAY_BUCKETS_MS[index],
-      count
-    });
-  }
-  return {
+  const histogram = summarizeBoundedHistogram(samples, {
+    buckets: ARTIFACT_QUEUE_DELAY_BUCKETS_MS,
     unit: 'ms',
-    sampleCount: normalized.length,
-    minMs: normalized[0],
-    maxMs: normalized[normalized.length - 1],
-    p50Ms: resolvePercentileMs(normalized, 0.5),
-    p95Ms: resolvePercentileMs(normalized, 0.95),
-    buckets,
-    overflowCount
+    round: true,
+    percentiles: [
+      { ratio: 0.5, key: 'p50Ms' },
+      { ratio: 0.95, key: 'p95Ms' }
+    ]
+  });
+  if (!histogram) return null;
+  return {
+    unit: histogram.unit,
+    sampleCount: histogram.sampleCount,
+    minMs: histogram.min,
+    maxMs: histogram.max,
+    p50Ms: histogram.p50Ms,
+    p95Ms: histogram.p95Ms,
+    buckets: histogram.buckets.map((entry) => ({
+      leMs: entry.le,
+      count: entry.count
+    })),
+    overflowCount: histogram.overflowCount
   };
 };
 

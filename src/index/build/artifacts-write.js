@@ -3897,7 +3897,7 @@ export async function writeIndexArtifacts(input) {
     repoProvenance
   }));
   await runTrackedArtifactCloseout('artifact-publication', async () => writeArtifactPublicationRecord({
-    buildRoot,
+    buildRoot: buildRoot || path.resolve(outDir, '..'),
     outDir,
     mode,
     stage: indexState?.stage || null,

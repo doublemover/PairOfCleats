@@ -11,6 +11,7 @@ import { registerChildProcessForCleanup } from '../../../shared/subprocess.js';
 import { resolveWindowsCmdInvocation } from '../../../shared/subprocess/windows-cmd.js';
 import { killChildProcessTree, killChildProcessTreeSync } from '../../../shared/kill-tree.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
+import { resolveNearestRankPercentile } from '../../../shared/perf/percentiles.js';
 
 /**
  * Convert a local path to a file:// URI.
@@ -122,25 +123,14 @@ const pushLatencySample = (samples, value, cap = LATENCY_SAMPLE_CAP) => {
   return removedTotal;
 };
 
-const percentile = (samples, q) => {
-  if (!Array.isArray(samples) || !samples.length) return 0;
-  const sorted = samples.slice().sort((a, b) => a - b);
-  const target = Number(q);
-  if (!Number.isFinite(target) || target <= 0) return sorted[0];
-  if (target >= 1) return sorted[sorted.length - 1];
-  const rank = Math.ceil(target * sorted.length);
-  const idx = Math.max(0, Math.min(sorted.length - 1, rank - 1));
-  return sorted[idx];
-};
-
 const summarizeLatencies = (samples, totalMs, maxMs) => ({
   count: Array.isArray(samples) ? samples.length : 0,
   avg: Number.isFinite(totalMs) && Array.isArray(samples) && samples.length
     ? totalMs / samples.length
     : 0,
   max: Number.isFinite(maxMs) ? maxMs : 0,
-  p50: percentile(samples, 0.5),
-  p95: percentile(samples, 0.95)
+  p50: resolveNearestRankPercentile(samples, 0.5),
+  p95: resolveNearestRankPercentile(samples, 0.95)
 });
 
 /**
