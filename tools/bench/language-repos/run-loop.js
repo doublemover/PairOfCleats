@@ -658,6 +658,7 @@ export const runBenchExecutionLoop = async ({
       progressRuntime.update();
 
       let summary = null;
+      let benchResult = null;
       if (dryRun) {
         appendLog(`[dry-run] node ${benchArgs.join(' ')}`);
       } else {
@@ -665,7 +666,7 @@ export const runBenchExecutionLoop = async ({
         if (!Object.prototype.hasOwnProperty.call(benchProcessEnv, 'PAIROFCLEATS_CRASH_LOG_ANNOUNCE')) {
           benchProcessEnv.PAIROFCLEATS_CRASH_LOG_ANNOUNCE = '0';
         }
-        const benchResult = await processRunner.runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
+        benchResult = await processRunner.runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
           cwd: scriptRoot,
           env: benchProcessEnv,
           timeoutMs: timeoutProfile.hardTimeoutMs,
@@ -700,9 +701,23 @@ export const runBenchExecutionLoop = async ({
             failed: true,
             failureReason,
             failureCode: benchResult.code ?? null,
+            failureSignal: benchResult.signal ?? null,
+            timeoutKind: benchResult.timeoutKind || null,
+            lastActivity: benchResult.lastActivity || null,
             ...(crashRetention
-              ? { diagnostics: { crashRetention } }
-              : {})
+              ? {
+                diagnostics: {
+                  process: benchResult.diagnostics || null,
+                  progressConfidence: benchResult.progressConfidence || null,
+                  crashRetention
+                }
+              }
+              : {
+                diagnostics: {
+                  process: benchResult.diagnostics || null,
+                  progressConfidence: benchResult.progressConfidence || null
+                }
+              })
           });
           continue;
         }
@@ -739,9 +754,11 @@ export const runBenchExecutionLoop = async ({
             failed: true,
             failureReason: 'report',
             failureCode: null,
-            ...(crashRetention
-              ? { diagnostics: { crashRetention } }
-              : {})
+            diagnostics: {
+              process: benchResult.diagnostics || null,
+              progressConfidence: benchResult.progressConfidence || null,
+              ...(crashRetention ? { crashRetention } : {})
+            }
           });
           continue;
         }
@@ -749,7 +766,18 @@ export const runBenchExecutionLoop = async ({
 
       progressRuntime.completeRepo();
       appendLog(`[metrics] ${formatMetricSummary(summary)}`);
-      results.push({ ...task, repoPath, outFile, summary });
+      results.push({
+        ...task,
+        repoPath,
+        outFile,
+        summary,
+        diagnostics: benchResult
+          ? {
+            process: benchResult.diagnostics || null,
+            progressConfidence: benchResult.progressConfidence || null
+          }
+          : {}
+      });
     } finally {
       await lifecycle.cleanRepoCache({ repoCacheRoot, repoLabel });
     }

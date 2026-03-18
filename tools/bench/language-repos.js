@@ -75,6 +75,7 @@ const {
   reposRoot,
   cacheRoot,
   resultsRoot,
+  waiverFile,
   logPath: masterLogPath,
   cloneEnabled,
   dryRun,
@@ -447,8 +448,7 @@ const lifecycle = createRepoLifecycle({
   runDiagnosticsRoot,
   runSuffix,
   benchEnvironmentMetadata,
-  logHistory,
-  exitWithDisplay
+  logHistory
 });
 
 progressRuntime.setTotal(tasks.length);
@@ -485,7 +485,8 @@ const output = await buildReportOutput({
   resultsRoot,
   results,
   config,
-  runSuffix
+  runSuffix,
+  waiverFile
 });
 if (usrGuardrailBenchmarks.length) {
   output.usrGuardrails = {
@@ -509,6 +510,12 @@ if (!quietMode) {
   if (retainedCount > 0) {
     appendLog(`[diagnostics] retained crash bundles: ${retainedCount}`);
   }
+  if (output?.run?.aggregateResultClass) {
+    appendLog(
+      `[verdict] ${output.run.aggregateResultClass} `
+        + `(unwaived=${Number(output?.run?.issues?.unwaivedCount || 0)} waived=${Number(output?.run?.issues?.waivedCount || 0)})`
+    );
+  }
 }
 
 const outputPath = argv.out ? path.resolve(argv.out) : null;
@@ -531,3 +538,7 @@ if (argv.json) {
   await closeLogs();
   display.close();
 }
+
+process.exitCode = Number.isFinite(Number(output?.run?.exitCode))
+  ? Number(output.run.exitCode)
+  : 0;

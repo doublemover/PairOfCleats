@@ -58,8 +58,7 @@ export const ensureBenchConfig = async (repoPath, cacheRoot) => {
  *   runDiagnosticsRoot:string,
  *   runSuffix:string,
  *   benchEnvironmentMetadata:object,
- *   logHistory:string[],
- *   exitWithDisplay:(code:number) => void
+ *   logHistory:string[]
  * }} input
  * @returns {RepoLifecycle}
  */
@@ -78,8 +77,7 @@ export const createRepoLifecycle = ({
   runDiagnosticsRoot,
   runSuffix,
   benchEnvironmentMetadata,
-  logHistory,
-  exitWithDisplay
+  logHistory
 }) => {
   const resolvedCacheRoot = path.resolve(cacheRoot);
   const repoPresenceCache = new Map();
@@ -105,9 +103,12 @@ export const createRepoLifecycle = ({
   const ensureRepoPresent = async ({ task, repoPath, repoLabel }) => {
     if (hasRepoPath(repoPath)) return { ok: true };
     if (!cloneEnabled && !dryRun) {
-      display.error(`Missing repo ${task.repo} at ${repoPath}. Re-run with --clone.`);
-      exitWithDisplay(1);
-      return { ok: false };
+      display.error(`Missing repo ${task.repo} at ${repoPath}. Continuing without clone.`);
+      return {
+        ok: false,
+        failureCode: null,
+        schedulerEvents: []
+      };
     }
     if (dryRun || !cloneEnabled || !cloneTool) return { ok: true };
 

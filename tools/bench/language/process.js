@@ -1221,9 +1221,13 @@ export const createProcessRunner = ({
         schedulerEvents: getSchedulerEvents(),
         diagnostics: buildDiagnosticsSummary(),
         progressConfidence: buildProgressConfidenceSummary(),
+        ...((idleTimeoutFailure || err?.code === 'SUBPROCESS_TIMEOUT')
+          ? {
+            timeoutKind: idleTimeoutFailure ? 'idle' : 'hard'
+          }
+          : {}),
         ...(idleTimeoutFailure
           ? {
-            timeoutKind: 'idle',
             lastActivity: {
               source: lastActivitySource,
               message: lastActivityText,

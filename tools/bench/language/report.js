@@ -22,6 +22,7 @@ import {
   buildBenchDiagnosticSignature,
   normalizeBenchDiagnosticText
 } from './logging.js';
+import { evaluateBenchVerdict, loadBenchPolicy } from './verdict.js';
 
 const resolveCrashRetention = (entry) => {
   const direct = entry?.crashRetention && typeof entry.crashRetention === 'object'
@@ -1205,7 +1206,15 @@ const buildThroughputLedgerSummary = (tasks) => {
   };
 };
 
-export const buildReportOutput = async ({ configPath, cacheRoot, resultsRoot, results, config, runSuffix = null }) => {
+export const buildReportOutput = async ({
+  configPath,
+  cacheRoot,
+  resultsRoot,
+  results,
+  config,
+  runSuffix = null,
+  waiverFile = null
+}) => {
   const taskInputs = Array.isArray(results) ? results : [];
   const tasksWithTelemetry = await mapWithConcurrency(taskInputs, async (entry) => {
     const payload = await resolveTaskPayload(entry);
@@ -1258,12 +1267,15 @@ export const buildReportOutput = async ({ configPath, cacheRoot, resultsRoot, re
       .map(([language, payload]) => [language, payload?.summary?.stageTiming || null])
   );
   const remediation = buildRemediationSummary(tasks);
+  const policy = await loadBenchPolicy({ waiverFile });
+  const verdict = evaluateBenchVerdict({ tasks, policy });
   return {
     generatedAt: new Date().toISOString(),
     config: configPath,
     cacheRoot,
     resultsRoot,
-    tasks,
+    tasks: verdict.tasks,
+    run: verdict.run,
     diagnostics: {
       crashRetention,
       stream: diagnosticsStream,

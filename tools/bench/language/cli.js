@@ -61,6 +61,7 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
       root: { type: 'string' },
       'cache-root': { type: 'string' },
       'cache-suffix': { type: 'string' },
+      'waiver-file': { type: 'string' },
       results: { type: 'string' },
       log: { type: 'string' },
       language: { type: 'string' },
@@ -93,6 +94,7 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
   const cacheSuffix = cacheSuffixRaw || (cacheRun ? runSuffix : '');
   const cacheRoot = cacheSuffix ? path.resolve(cacheRootBase, cacheSuffix) : cacheRootBase;
   const resultsRoot = path.resolve(argv.results || path.join(scriptRoot, 'benchmarks', 'results'));
+  const waiverFile = argv['waiver-file'] ? path.resolve(argv['waiver-file']) : null;
   const logRoot = path.join(resultsRoot, 'logs', 'bench-language');
   const logPath = argv.log
     ? path.resolve(argv.log)
@@ -130,6 +132,7 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
     reposRoot,
     cacheRoot,
     resultsRoot,
+    waiverFile,
     logRoot,
     logPath,
     cloneEnabled,
