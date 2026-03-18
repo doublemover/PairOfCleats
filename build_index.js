@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseBuildArgs } from './src/index/build/args.js';
 import { buildIndex } from './src/integrations/core/index.js';
 import { createDisplay } from './src/shared/cli/display.js';
@@ -12,58 +13,9 @@ import { createAbortControllerWithHandlers, isAbortError } from './src/shared/ab
 import { setCacheRebuildEnv, setVerboseEnv } from './src/shared/env.js';
 import { getCurrentBuildInfo, getRepoCacheRoot, getToolVersion, loadUserConfig, resolveRepoRoot } from './tools/shared/dict-utils.js';
 
-const rawArgs = process.argv.slice(2);
-const { argv, modes } = parseBuildArgs(rawArgs);
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-if (argv['config-dump'] === true) {
-  const resolvedRoot = rootArg || resolveRepoRoot(process.cwd());
-  const userConfig = loadUserConfig(resolvedRoot);
-  const policy = await buildAutoPolicy({ repoRoot: resolvedRoot, config: userConfig });
-  const envelope = resolveRuntimeEnvelope({
-    argv,
-    rawArgv: rawArgs,
-    userConfig,
-    autoPolicy: policy,
-    env: process.env,
-    toolVersion: getToolVersion()
-  });
-  const output = argv.json === true ? JSON.stringify(envelope) : JSON.stringify(envelope, null, 2);
-  process.stdout.write(`${output}\n`);
-  process.exit(0);
-}
-if (argv.verbose === true) {
-  setVerboseEnv(true);
-}
-if (argv['cache-rebuild'] === true) {
-  setCacheRebuildEnv(true);
-}
-
-const display = createDisplay({
-  stream: process.stderr,
-  progressMode: argv.progress,
-  verbose: argv.verbose === true,
-  quiet: argv.quiet === true,
-  json: argv.json === true
-});
-const restoreHandlers = setProgressHandlers(display);
-const supportsColor = process.stderr.isTTY
-  && argv.json !== true
-  && argv.progress !== 'jsonl'
-  && argv.progress !== 'json';
-const DONE_LABEL = supportsColor
-  ? '\x1b[97m[\x1b[92mDONE\x1b[97m]\x1b[0m'
-  : '[DONE]';
-const writeLine = (line) => {
-  if (line === null || line === undefined) return;
-  if (argv.progress === 'jsonl') {
-    display.log(String(line));
-    return;
-  }
-  process.stderr.write(`${line}\n`);
-};
-const localAppData = process.env.LOCALAPPDATA || '';
 const normalizePath = (value) => String(value || '').replace(/\//g, path.sep);
-const formatPath = (value, maxLength = 120) => {
+
+const formatPath = (value, localAppData, maxLength = 120) => {
   if (!value) return '';
   let normalized = normalizePath(value);
   if (localAppData && normalized.toLowerCase().startsWith(localAppData.toLowerCase())) {
@@ -78,39 +30,97 @@ const formatPath = (value, maxLength = 120) => {
   const tail = remaining.slice(-tailLength);
   return `${head}...${tail}`;
 };
-let displayClosed = false;
-const closeDisplay = () => {
-  if (displayClosed) return;
-  if (typeof display.flush === 'function') {
-    display.flush();
+
+export const main = async ({
+  rawArgs = process.argv.slice(2),
+  rawArgv = process.argv,
+  cwd = process.cwd(),
+  env = process.env,
+  stdout = process.stdout,
+  stderr = process.stderr
+} = {}) => {
+  const { argv, modes } = parseBuildArgs(rawArgs);
+  const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+  if (argv['config-dump'] === true) {
+    const resolvedRoot = rootArg || resolveRepoRoot(cwd);
+    const userConfig = loadUserConfig(resolvedRoot);
+    const policy = await buildAutoPolicy({ repoRoot: resolvedRoot, config: userConfig });
+    const envelope = resolveRuntimeEnvelope({
+      argv,
+      rawArgv: rawArgs,
+      userConfig,
+      autoPolicy: policy,
+      env,
+      toolVersion: getToolVersion()
+    });
+    const output = argv.json === true ? JSON.stringify(envelope) : JSON.stringify(envelope, null, 2);
+    stdout.write(`${output}\n`);
+    return 0;
   }
-  restoreHandlers();
-  display.close();
-  displayClosed = true;
-};
-let result = null;
-const startedAt = Date.now();
-const resolvedRoot = rootArg || resolveRepoRoot(process.cwd());
-const repoCacheRoot = getRepoCacheRoot(resolvedRoot);
-const crashLogPath = repoCacheRoot
-  ? path.join(repoCacheRoot, 'logs', 'index-crash.log')
-  : null;
-const abortController = createAbortControllerWithHandlers();
-const handleSigint = () => abortController.abort('SIGINT');
-const handleSigterm = () => abortController.abort('SIGTERM');
-process.on('SIGINT', handleSigint);
-process.on('SIGTERM', handleSigterm);
-try {
-  result = await buildIndex(resolvedRoot, {
-    ...argv,
-    modes,
-    rawArgv: process.argv,
-    abortSignal: abortController.signal
+  if (argv.verbose === true) {
+    setVerboseEnv(true);
+  }
+  if (argv['cache-rebuild'] === true) {
+    setCacheRebuildEnv(true);
+  }
+
+  const display = createDisplay({
+    stream: stderr,
+    progressMode: argv.progress,
+    verbose: argv.verbose === true,
+    quiet: argv.quiet === true,
+    json: argv.json === true
   });
-  if (result?.stage3?.embeddings?.cancelled) {
-    closeDisplay();
-    writeLine('Index build cancelled during embeddings.');
-  } else {
+  const restoreHandlers = setProgressHandlers(display);
+  const supportsColor = stderr.isTTY
+    && argv.json !== true
+    && argv.progress !== 'jsonl'
+    && argv.progress !== 'json';
+  const doneLabel = supportsColor
+    ? '\x1b[97m[\x1b[92mDONE\x1b[97m]\x1b[0m'
+    : '[DONE]';
+  const writeLine = (line) => {
+    if (line === null || line === undefined) return;
+    if (argv.progress === 'jsonl') {
+      display.log(String(line));
+      return;
+    }
+    stderr.write(`${line}\n`);
+  };
+  const localAppData = env.LOCALAPPDATA || '';
+  let displayClosed = false;
+  const closeDisplay = () => {
+    if (displayClosed) return;
+    if (typeof display.flush === 'function') {
+      display.flush();
+    }
+    restoreHandlers();
+    display.close();
+    displayClosed = true;
+  };
+  const startedAt = Date.now();
+  const resolvedRoot = rootArg || resolveRepoRoot(cwd);
+  const repoCacheRoot = getRepoCacheRoot(resolvedRoot);
+  const crashLogPath = repoCacheRoot
+    ? path.join(repoCacheRoot, 'logs', 'index-crash.log')
+    : null;
+  const abortController = createAbortControllerWithHandlers();
+  const handleSigint = () => abortController.abort('SIGINT');
+  const handleSigterm = () => abortController.abort('SIGTERM');
+  process.on('SIGINT', handleSigint);
+  process.on('SIGTERM', handleSigterm);
+  try {
+    const result = await buildIndex(resolvedRoot, {
+      ...argv,
+      modes,
+      rawArgv,
+      abortSignal: abortController.signal
+    });
+    if (result?.stage3?.embeddings?.cancelled) {
+      closeDisplay();
+      writeLine('Index build cancelled during embeddings.');
+      return 0;
+    }
     const preprocessPath = repoCacheRoot
       ? path.join(repoCacheRoot, 'preprocess.json')
       : null;
@@ -120,12 +130,12 @@ try {
     try {
       if (preprocessPath && fs.existsSync(preprocessPath)) {
         const stats = JSON.parse(fs.readFileSync(preprocessPath, 'utf8'));
-        const modes = stats?.modes || {};
+        const modeStats = stats?.modes || {};
         const fmt = (value) => Number.isFinite(value) ? value.toLocaleString() : '0';
-        const code = modes.code || {};
-        const prose = modes.prose || {};
-        const extracted = modes['extracted-prose'] || {};
-        const records = modes.records || {};
+        const code = modeStats.code || {};
+        const prose = modeStats.prose || {};
+        const extracted = modeStats['extracted-prose'] || {};
+        const records = modeStats.records || {};
         const codeFiles = Number.isFinite(code.included) ? code.included : 0;
         const proseFiles = Number.isFinite(prose.included) ? prose.included : 0;
         const recordsFiles = Number.isFinite(records.included) ? records.included : 0;
@@ -156,26 +166,50 @@ try {
       }
     } catch {}
     closeDisplay();
-    writeLine(`${DONE_LABEL} ${summary}`);
+    writeLine(`${doneLabel} ${summary}`);
     for (const line of detailLines) {
       writeLine(line);
     }
-  }
-} catch (err) {
-  if (isAbortError(err)) {
-    display.error('Index build aborted.');
-  } else {
-    display.error(`Index build failed: ${err?.message || err}`);
-    if (argv.verbose === true && err?.stack) {
-      display.error(err.stack);
+    return 0;
+  } catch (err) {
+    if (isAbortError(err)) {
+      display.error('Index build aborted.');
+    } else {
+      display.error(`Index build failed: ${err?.message || err}`);
+      if (argv.verbose === true && err?.stack) {
+        display.error(err.stack);
+      }
     }
+    if (crashLogPath) {
+      display.error(`Crash log: ${formatPath(crashLogPath, localAppData)}`);
+    }
+    return 1;
+  } finally {
+    process.off('SIGINT', handleSigint);
+    process.off('SIGTERM', handleSigterm);
+    closeDisplay();
   }
-  if (crashLogPath) {
-    display.error(`Crash log: ${crashLogPath}`);
+};
+
+export const runCli = async (options = {}) => {
+  try {
+    const exitCode = await main(options);
+    process.exitCode = Number.isFinite(Number(exitCode)) ? Number(exitCode) : 0;
+    return process.exitCode;
+  } catch (error) {
+    const stderr = options?.stderr || process.stderr;
+    stderr.write(`Index build failed: ${error?.message || error}\n`);
+    process.exitCode = 1;
+    return 1;
   }
-  process.exitCode = 1;
-} finally {
-  process.off('SIGINT', handleSigint);
-  process.off('SIGTERM', handleSigterm);
-  closeDisplay();
+};
+
+const isDirectExecution = () => {
+  const executedPath = process.argv[1];
+  if (!executedPath) return false;
+  return import.meta.url === pathToFileURL(path.resolve(executedPath)).href;
+};
+
+if (isDirectExecution()) {
+  void runCli();
 }
