@@ -5,6 +5,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { seedPublishedArtifacts } from '../../helpers/artifact-publication.js';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 import { watchIndex } from '../../../src/index/build/watch.js';
 import { promoteBuild } from '../../../src/index/build/promotion.js';
@@ -72,6 +73,11 @@ const deps = {
   buildIndexForMode: async ({ runtime: runtimeRef }) => {
     events.push('build');
     await fs.mkdir(runtimeRef.buildRoot, { recursive: true });
+    await seedPublishedArtifacts({
+      buildRoot: runtimeRef.buildRoot,
+      mode: 'code',
+      buildId: path.basename(runtimeRef.buildRoot)
+    });
   },
   validateIndexArtifacts: async () => {
     events.push('validate');

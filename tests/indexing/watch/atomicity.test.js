@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { seedPublishedArtifacts } from '../../helpers/artifact-publication.js';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 import { watchIndex } from '../../../src/index/build/watch.js';
 import { promoteBuild } from '../../../src/index/build/promotion.js';
@@ -50,6 +51,7 @@ const runtime = {
 const buildsRoot = path.join(repoCacheRoot, 'builds');
 const prevRoot = path.join(buildsRoot, 'prev-build');
 await fs.mkdir(prevRoot, { recursive: true });
+await seedPublishedArtifacts({ buildRoot: prevRoot, mode: 'code', buildId: 'prev-build' });
 await promoteBuild({
   repoRoot,
   userConfig,

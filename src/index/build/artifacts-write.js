@@ -120,6 +120,7 @@ import {
   VECTOR_ONLY_SPARSE_PIECE_DENYLIST
 } from './artifacts/sparse-cleanup.js';
 import { packMinhashSignatures } from './artifacts/minhash-packed.js';
+import { writeArtifactPublicationRecord } from './artifact-publication.js';
 
 export {
   resolveArtifactWriteConcurrency,
@@ -902,6 +903,7 @@ export async function writeIndexArtifacts(input) {
     });
   }
   const cleanupActions = [];
+  let dropCommittedPiece = () => {};
   /**
    * Execute cleanup callbacks in bounded parallel batches.
    *
@@ -951,6 +953,9 @@ export async function writeIndexArtifacts(input) {
         recordCleanupAction({ targetPath, recursive, policy });
       }
       const removed = await removePathWithRetry(targetPath, { recursive, force: true });
+      if (removed?.ok) {
+        dropCommittedPiece(targetPath);
+      }
       if (!removed.ok && exists) {
         log(`[warn] [artifact-cleanup] failed to remove ${targetPath}: ${removed.error?.message || removed.error}`);
       }
@@ -1317,9 +1322,8 @@ export async function writeIndexArtifacts(input) {
    *
    * @param {string} filePath
    * @returns {string}
-   */
+  */
   const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
-  const pieceEntries = [];
   const pieceEntriesByPath = new Map();
   let mmapHotLayoutOrder = 0;
   /**
@@ -1340,7 +1344,7 @@ export async function writeIndexArtifacts(input) {
     return resolveArtifactTier(candidateName);
   };
   /**
-   * Register one written artifact file in the pieces manifest.
+   * Register one committed artifact file in the pieces manifest.
    *
    * @param {object} entry
    * @param {string} filePath
@@ -1377,12 +1381,34 @@ export async function writeIndexArtifacts(input) {
       layout: existingLayout,
       path: normalizedPath
     };
-    pieceEntries.push(normalizedEntry);
-    if (!pieceEntriesByPath.has(normalizedPath)) {
-      pieceEntriesByPath.set(normalizedPath, []);
-    }
-    pieceEntriesByPath.get(normalizedPath).push(normalizedEntry);
+    pieceEntriesByPath.set(normalizedPath, normalizedEntry);
   };
+  /**
+   * Remove one committed artifact file from the pieces manifest candidate set.
+   *
+   * @param {string} filePath
+   * @returns {void}
+   */
+  const removePieceFile = (filePath) => {
+    if (!filePath) return;
+    pieceEntriesByPath.delete(formatArtifactLabel(filePath));
+  };
+  dropCommittedPiece = removePieceFile;
+  /**
+   * List committed piece-manifest entries.
+   *
+   * @returns {object[]}
+   */
+  const listPieceEntries = () => Array.from(pieceEntriesByPath.values());
+  /**
+   * Check whether the provided artifact path is already committed.
+   *
+   * @param {string} filePath
+   * @returns {boolean}
+   */
+  const hasPieceFile = (filePath) => (
+    Boolean(filePath) && pieceEntriesByPath.has(formatArtifactLabel(filePath))
+  );
   /**
    * Attach incremental metadata updates to a tracked piece-manifest file row.
    *
@@ -1392,21 +1418,18 @@ export async function writeIndexArtifacts(input) {
    */
   const updatePieceMetadata = (piecePath, meta = {}) => {
     if (typeof piecePath !== 'string' || !piecePath) return;
-    const targets = pieceEntriesByPath.get(piecePath);
-    if (!Array.isArray(targets) || !targets.length) return;
+    const target = pieceEntriesByPath.get(piecePath);
+    if (!target || typeof target !== 'object') return;
     const bytes = Number(meta?.bytes);
     const checksumValue = typeof meta?.checksum === 'string' ? meta.checksum.trim().toLowerCase() : null;
     const checksumAlgo = typeof meta?.checksumAlgo === 'string' ? meta.checksumAlgo.trim().toLowerCase() : null;
-    for (const entry of targets) {
-      if (Number.isFinite(bytes) && bytes >= 0) entry.bytes = bytes;
-      if (checksumValue && checksumAlgo) {
-        entry.checksum = `${checksumAlgo}:${checksumValue}`;
-      } else if (typeof meta?.checksumHash === 'string' && meta.checksumHash.includes(':')) {
-        entry.checksum = meta.checksumHash.trim().toLowerCase();
-      }
+    if (Number.isFinite(bytes) && bytes >= 0) target.bytes = bytes;
+    if (checksumValue && checksumAlgo) {
+      target.checksum = `${checksumAlgo}:${checksumValue}`;
+    } else if (typeof meta?.checksumHash === 'string' && meta.checksumHash.includes(':')) {
+      target.checksum = meta.checksumHash.trim().toLowerCase();
     }
   };
-  addPieceFile({ type: 'stats', name: 'filelists', format: 'json' }, path.join(outDir, '.filelists.json'));
   /**
    * Emit periodic write-progress summary and stall diagnostics.
    *
@@ -1459,6 +1482,15 @@ export async function writeIndexArtifacts(input) {
       : null;
     const laneHint = typeof meta?.laneHint === 'string' ? meta.laneHint : null;
     const phaseHint = typeof meta?.phaseHint === 'string' ? meta.phaseHint : null;
+    const publishedPieces = Array.isArray(meta?.publishedPieces)
+      ? meta.publishedPieces
+        .filter((piece) => piece && typeof piece === 'object')
+        .map((piece) => ({
+          entry: piece.entry || null,
+          filePath: piece.filePath || null
+        }))
+      : [];
+    const onSuccess = typeof meta?.onSuccess === 'function' ? meta.onSuccess : null;
     const eagerStart = shouldEagerStartArtifactWrite({
       entry: {
         label,
@@ -1480,11 +1512,19 @@ export async function writeIndexArtifacts(input) {
           phase: resolveActiveWritePhaseLabel(label, phaseHint),
           lane: laneHint || null
         });
-        return job({
+        const result = await job({
           setPhase,
           label,
           estimatedBytes
         });
+        if (typeof onSuccess === 'function') {
+          await onSuccess(result);
+        }
+        for (const piece of publishedPieces) {
+          if (!piece?.entry || !piece?.filePath) continue;
+          addPieceFile(piece.entry, piece.filePath);
+        }
+        return result;
       }
       : job;
     let prefetched = null;
@@ -1612,9 +1652,14 @@ export async function writeIndexArtifacts(input) {
           fields: extractionReport,
           atomic: true
         });
+      },
+      {
+        publishedPieces: [{
+          entry: { type: 'stats', name: 'extraction_report', format: 'json' },
+          filePath: extractionReportPath
+        }]
       }
     );
-    addPieceFile({ type: 'stats', name: 'extraction_report', format: 'json' }, extractionReportPath);
   }
   const lexiconRelationFilterReport = tinyRepoMinimalArtifacts
     ? { files: [] }
@@ -1628,9 +1673,14 @@ export async function writeIndexArtifacts(input) {
           fields: lexiconRelationFilterReport,
           atomic: true
         });
+      },
+      {
+        publishedPieces: [{
+          entry: { type: 'stats', name: 'lexicon_relation_filter_report', format: 'json' },
+          filePath: lexiconReportPath
+        }]
       }
     );
-    addPieceFile({ type: 'stats', name: 'lexicon_relation_filter_report', format: 'json' }, lexiconReportPath);
     if (indexState && typeof indexState === 'object') {
       if (!indexState.extensions || typeof indexState.extensions !== 'object') {
         indexState.extensions = {};
@@ -1657,9 +1707,14 @@ export async function writeIndexArtifacts(input) {
           },
           atomic: true
         });
+      },
+      {
+        publishedPieces: [{
+          entry: { type: 'stats', name: 'boilerplate_catalog', format: 'json' },
+          filePath: boilerplateCatalogPath
+        }]
       }
     );
-    addPieceFile({ type: 'stats', name: 'boilerplate_catalog', format: 'json' }, boilerplateCatalogPath);
   }
   if (indexState && typeof indexState === 'object') {
     const indexStatePath = path.join(outDir, 'index_state.json');
@@ -1710,6 +1765,12 @@ export async function writeIndexArtifacts(input) {
           fields: determinismReport,
           atomic: true
         });
+      },
+      {
+        publishedPieces: [{
+          entry: { type: 'stats', name: 'determinism_report', format: 'json' },
+          filePath: determinismReportPath
+        }]
       }
     );
     if (!canSkipIndexState) {
@@ -1740,6 +1801,12 @@ export async function writeIndexArtifacts(input) {
             });
           }
           await writeIndexStateMeta(bytes);
+        },
+        {
+          publishedPieces: [{
+            entry: { type: 'stats', name: 'index_state', format: 'json' },
+            filePath: indexStatePath
+          }]
         }
       );
     } else {
@@ -1754,9 +1821,10 @@ export async function writeIndexArtifacts(input) {
           await writeIndexStateMeta(bytes);
         }
       );
+      if (await pathExists(indexStatePath)) {
+        addPieceFile({ type: 'stats', name: 'index_state', format: 'json' }, indexStatePath);
+      }
     }
-    addPieceFile({ type: 'stats', name: 'index_state', format: 'json' }, indexStatePath);
-    addPieceFile({ type: 'stats', name: 'determinism_report', format: 'json' }, determinismReportPath);
   }
   const { enqueueJsonObject, enqueueJsonArray, enqueueJsonArraySharded } = createArtifactWriter({
     outDir,
@@ -1788,11 +1856,13 @@ export async function writeIndexArtifacts(input) {
           fields: state.importResolutionGraph,
           atomic: true
         });
+      },
+      {
+        publishedPieces: [{
+          entry: { type: 'debug', name: 'import_resolution_graph', format: 'json' },
+          filePath: importGraphPath
+        }]
       }
-    );
-    addPieceFile(
-      { type: 'debug', name: 'import_resolution_graph', format: 'json' },
-      importGraphPath
     );
   }
   /**
@@ -1835,24 +1905,32 @@ export async function writeIndexArtifacts(input) {
           },
           atomic: true
         });
+      },
+      {
+        publishedPieces: [
+          {
+            entry: {
+              type: 'embeddings',
+              name: artifactName,
+              format: 'bin',
+              count: Array.isArray(vectors) ? vectors.length : 0,
+              dims: Number.isFinite(Number(dims)) ? Math.max(0, Math.floor(Number(dims))) : 0
+            },
+            filePath: binPath
+          },
+          {
+            entry: {
+              type: 'embeddings',
+              name: `${artifactName}_binary_meta`,
+              format: 'json',
+              count: Array.isArray(vectors) ? vectors.length : 0,
+              dims: Number.isFinite(Number(dims)) ? Math.max(0, Math.floor(Number(dims))) : 0
+            },
+            filePath: binMetaPath
+          }
+        ]
       }
     );
-    const count = Array.isArray(vectors) ? vectors.length : 0;
-    const rowWidth = Number.isFinite(Number(dims)) ? Math.max(0, Math.floor(Number(dims))) : 0;
-    addPieceFile({
-      type: 'embeddings',
-      name: artifactName,
-      format: 'bin',
-      count,
-      dims: rowWidth
-    }, binPath);
-    addPieceFile({
-      type: 'embeddings',
-      name: `${artifactName}_binary_meta`,
-      format: 'json',
-      count,
-      dims: rowWidth
-    }, binMetaPath);
   };
 
   const denseVectorsEnabled = postings.dims > 0 && postings.quantizedVectors.length;
@@ -1935,10 +2013,16 @@ export async function writeIndexArtifacts(input) {
             },
             atomic: true
           });
+        },
+        {
+          publishedPieces: [
+            {
+              entry: { type: 'chunks', name: 'file_meta', format: 'columnar', count: fileMeta.length },
+              filePath: columnarPath
+            }
+          ]
         }
       );
-      addPieceFile({ type: 'chunks', name: 'file_meta', format: 'columnar', count: fileMeta.length }, columnarPath);
-      addPieceFile({ type: 'chunks', name: 'file_meta_meta', format: 'json' }, fileMetaMetaPath);
     } else if (fileMetaUseJsonl) {
       enqueueWrite(
         formatArtifactLabel(path.join(outDir, 'file_meta.parts')),
@@ -2003,7 +2087,6 @@ export async function writeIndexArtifacts(input) {
           compression: fileMetaMeta?.compression || null
         }, absPath);
       }
-      addPieceFile({ type: 'chunks', name: 'file_meta_meta', format: 'json' }, fileMetaMetaPath);
     } else if (cachedFormat === 'columnar' && Array.isArray(fileMetaMeta?.parts)) {
       const part = fileMetaMeta.parts[0];
       const relPath = typeof part === 'string' ? part : part?.path;
@@ -2016,12 +2099,8 @@ export async function writeIndexArtifacts(input) {
           count: typeof part === 'object' && Number.isFinite(part.records) ? part.records : null
         }, absPath);
       }
-      addPieceFile({ type: 'chunks', name: 'file_meta_meta', format: 'json' }, fileMetaMetaPath);
     } else {
       addPieceFile({ type: 'chunks', name: 'file_meta', format: 'json', count: fileMeta.length }, path.join(outDir, 'file_meta.json'));
-      if (await pathExists(fileMetaMetaPath)) {
-        addPieceFile({ type: 'chunks', name: 'file_meta_meta', format: 'json' }, fileMetaMetaPath);
-      }
     }
   }
   if (denseVectorsEnabled) {
@@ -2230,15 +2309,25 @@ export async function writeIndexArtifacts(input) {
           },
           atomic: true
         });
+      },
+      {
+        publishedPieces: [
+          {
+            entry: {
+              type: 'postings',
+              name: 'minhash_signatures_packed',
+              format: 'bin',
+              count: packedMinhash.count
+            },
+            filePath: packedPath
+          },
+          {
+            entry: { type: 'postings', name: 'minhash_signatures_packed_meta', format: 'json' },
+            filePath: packedMetaPath
+          }
+        ]
       }
     );
-    addPieceFile({
-      type: 'postings',
-      name: 'minhash_signatures_packed',
-      format: 'bin',
-      count: packedMinhash.count
-    }, packedPath);
-    addPieceFile({ type: 'postings', name: 'minhash_signatures_packed_meta', format: 'json' }, packedMetaPath);
   } else {
     await removePackedMinhash({ outDir, removeArtifact });
   }
@@ -2364,14 +2453,20 @@ export async function writeIndexArtifacts(input) {
         enqueueWrite(
           part.relPath,
           () => writeFieldPostingsPartition(part),
-          { priority: 206, estimatedBytes: partEstimatedBytes }
+          {
+            priority: 206,
+            estimatedBytes: partEstimatedBytes,
+            publishedPieces: [{
+              entry: {
+                type: 'postings',
+                name: 'field_postings_shard',
+                format: 'json',
+                count: part.count
+              },
+              filePath: part.absPath
+            }]
+          }
         );
-        addPieceFile({
-          type: 'postings',
-          name: 'field_postings_shard',
-          format: 'json',
-          count: part.count
-        }, part.absPath);
       }
       enqueueWrite(
         formatArtifactLabel(shardsMetaPath),
@@ -2397,9 +2492,15 @@ export async function writeIndexArtifacts(input) {
             atomic: true
           });
         },
-        { priority: 207, estimatedBytes: Math.max(1024, partFiles.length * 128) }
+        {
+          priority: 207,
+          estimatedBytes: Math.max(1024, partFiles.length * 128),
+          publishedPieces: [{
+            entry: { type: 'postings', name: 'field_postings_shards_meta', format: 'json' },
+            filePath: shardsMetaPath
+          }]
+        }
       );
-      addPieceFile({ type: 'postings', name: 'field_postings_shards_meta', format: 'json' }, shardsMetaPath);
       if (typeof log === 'function') {
         log(
           `field_postings estimate ~${formatBytes(fieldPostingsEstimatedBytes)}; ` +
@@ -2472,10 +2573,13 @@ export async function writeIndexArtifacts(input) {
         writeLegacyFieldPostingsFromShards,
         {
           priority: 204,
-          estimatedBytes: fieldPostingsEstimatedBytes
+          estimatedBytes: fieldPostingsEstimatedBytes,
+          publishedPieces: [{
+            entry: { type: 'postings', name: 'field_postings' },
+            filePath: path.join(outDir, 'field_postings.json')
+          }]
         }
       );
-      addPieceFile({ type: 'postings', name: 'field_postings' }, path.join(outDir, 'field_postings.json'));
     } else {
       enqueueJsonObject('field_postings', { fields: { fields: fieldPostingsObject } }, {
         piece: { type: 'postings', name: 'field_postings' },
@@ -2545,32 +2649,46 @@ export async function writeIndexArtifacts(input) {
         },
         {
           priority: 223,
-          estimatedBytes: Math.max(fieldPostingsEstimatedBytes, fieldNames.length * 96)
+          estimatedBytes: Math.max(fieldPostingsEstimatedBytes, fieldNames.length * 96),
+          publishedPieces: [
+            {
+              entry: {
+                type: 'postings',
+                name: 'field_postings_binary_columnar',
+                format: 'binary-columnar',
+                count: fieldNames.length
+              },
+              filePath: fieldPostingsBinaryDataPath
+            },
+            {
+              entry: {
+                type: 'postings',
+                name: 'field_postings_binary_columnar_offsets',
+                format: 'binary',
+                count: fieldNames.length
+              },
+              filePath: fieldPostingsBinaryOffsetsPath
+            },
+            {
+              entry: {
+                type: 'postings',
+                name: 'field_postings_binary_columnar_lengths',
+                format: 'varint',
+                count: fieldNames.length
+              },
+              filePath: fieldPostingsBinaryLengthsPath
+            },
+            {
+              entry: {
+                type: 'postings',
+                name: 'field_postings_binary_columnar_meta',
+                format: 'json'
+              },
+              filePath: fieldPostingsBinaryMetaPath
+            }
+          ]
         }
       );
-      addPieceFile({
-        type: 'postings',
-        name: 'field_postings_binary_columnar',
-        format: 'binary-columnar',
-        count: fieldNames.length
-      }, fieldPostingsBinaryDataPath);
-      addPieceFile({
-        type: 'postings',
-        name: 'field_postings_binary_columnar_offsets',
-        format: 'binary',
-        count: fieldNames.length
-      }, fieldPostingsBinaryOffsetsPath);
-      addPieceFile({
-        type: 'postings',
-        name: 'field_postings_binary_columnar_lengths',
-        format: 'varint',
-        count: fieldNames.length
-      }, fieldPostingsBinaryLengthsPath);
-      addPieceFile({
-        type: 'postings',
-        name: 'field_postings_binary_columnar_meta',
-        format: 'json'
-      }, fieldPostingsBinaryMetaPath);
     } else {
       await runCleanupBatch([
         () => removeArtifact(fieldPostingsBinaryDataPath, { policy: 'format_cleanup' }),
@@ -3617,6 +3735,7 @@ export async function writeIndexArtifacts(input) {
     logLine('Writing index files (0 artifacts)...', { kind: 'status' });
     logLine('', { kind: 'status' });
   }
+  let pieceEntries = listPieceEntries();
   if (vectorOnlyProfile) {
     const deniedPieces = pieceEntries
       .filter((entry) => VECTOR_ONLY_SPARSE_PIECE_DENYLIST.has(String(entry?.name || '')))
@@ -3736,6 +3855,11 @@ export async function writeIndexArtifacts(input) {
     userConfig,
     log
   }));
+  const fileListsPath = path.join(outDir, '.filelists.json');
+  if (await pathExists(fileListsPath) && !hasPieceFile(fileListsPath)) {
+    addPieceFile({ type: 'stats', name: 'filelists', format: 'json' }, fileListsPath);
+  }
+  pieceEntries = listPieceEntries();
   await runTrackedArtifactCloseout('pieces-manifest', async () => writePiecesManifest({
     pieceEntries,
     outDir,
@@ -3771,5 +3895,16 @@ export async function writeIndexArtifacts(input) {
     compressionKeepRaw,
     documentExtractionEnabled,
     repoProvenance
+  }));
+  await runTrackedArtifactCloseout('artifact-publication', async () => writeArtifactPublicationRecord({
+    buildRoot,
+    outDir,
+    mode,
+    stage: indexState?.stage || null,
+    buildId: indexState?.buildId || null,
+    artifactSurfaceVersion: indexState?.artifactSurfaceVersion || null,
+    compatibilityKey: indexState?.compatibilityKey || null,
+    pieceEntries,
+    manifestPath: path.join(outDir, 'pieces', 'manifest.json')
   }));
 }

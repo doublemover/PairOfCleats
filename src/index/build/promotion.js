@@ -11,6 +11,7 @@ import { isAbsolutePathNative, readJsonFileSafe, toPosix } from '../../shared/fi
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
+import { assertArtifactPublicationReady } from './artifact-publication.js';
 
 const CURRENT_POINTER_MAX_BYTES = 512 * 1024;
 
@@ -87,6 +88,10 @@ export async function promoteBuild({
     }
   }
   const promotedModes = Array.isArray(modes) ? modes.filter((mode) => typeof mode === 'string') : [];
+  await assertArtifactPublicationReady({
+    buildRoot: resolvedBuildRoot,
+    modes: promotedModes
+  });
   const buildRootsByMode = { ...priorRoots };
   for (const mode of promotedModes) {
     buildRootsByMode[mode] = relativeRoot;

@@ -91,21 +91,23 @@ export const createArtifactWriter = ({
           checksumAlgo: 'sha1',
           atomic: true
         }),
-        { priority, estimatedBytes }
+        {
+          priority,
+          estimatedBytes,
+          publishedPieces: piece ? [{ entry: { ...piece, format: 'json', compression }, filePath: gzPath }] : []
+        }
       );
-      if (piece) {
-        addPieceFile({ ...piece, format: 'json', compression }, gzPath);
-      }
       if (keepRaw) {
         const rawPath = artifactPath(base, false);
         enqueueWrite(
           formatArtifactLabel(rawPath),
           () => writeJsonObjectFile(rawPath, { ...payload, checksumAlgo: 'sha1', atomic: true }),
-          { priority, estimatedBytes }
+          {
+            priority,
+            estimatedBytes,
+            publishedPieces: piece ? [{ entry: { ...piece, format: 'json' }, filePath: rawPath }] : []
+          }
         );
-        if (piece) {
-          addPieceFile({ ...piece, format: 'json' }, rawPath);
-        }
       }
       return;
     }
@@ -113,11 +115,12 @@ export const createArtifactWriter = ({
     enqueueWrite(
       formatArtifactLabel(rawPath),
       () => writeJsonObjectFile(rawPath, { ...payload, checksumAlgo: 'sha1', atomic: true }),
-      { priority, estimatedBytes }
+      {
+        priority,
+        estimatedBytes,
+        publishedPieces: piece ? [{ entry: { ...piece, format: 'json' }, filePath: rawPath }] : []
+      }
     );
-    if (piece) {
-      addPieceFile({ ...piece, format: 'json' }, rawPath);
-    }
   };
 
   const enqueueJsonArray = (
@@ -142,21 +145,23 @@ export const createArtifactWriter = ({
           checksumAlgo: 'sha1',
           atomic: true
         }),
-        { priority, estimatedBytes }
+        {
+          priority,
+          estimatedBytes,
+          publishedPieces: piece ? [{ entry: { ...piece, format: 'json', compression }, filePath: gzPath }] : []
+        }
       );
-      if (piece) {
-        addPieceFile({ ...piece, format: 'json', compression }, gzPath);
-      }
       if (keepRaw) {
         const rawPath = artifactPath(base, false);
         enqueueWrite(
           formatArtifactLabel(rawPath),
           () => writeJsonArrayFile(rawPath, items, { checksumAlgo: 'sha1', atomic: true }),
-          { priority, estimatedBytes }
+          {
+            priority,
+            estimatedBytes,
+            publishedPieces: piece ? [{ entry: { ...piece, format: 'json' }, filePath: rawPath }] : []
+          }
         );
-        if (piece) {
-          addPieceFile({ ...piece, format: 'json' }, rawPath);
-        }
       }
       return;
     }
@@ -164,11 +169,12 @@ export const createArtifactWriter = ({
     enqueueWrite(
       formatArtifactLabel(rawPath),
       () => writeJsonArrayFile(rawPath, items, { checksumAlgo: 'sha1', atomic: true }),
-      { priority, estimatedBytes }
+      {
+        priority,
+        estimatedBytes,
+        publishedPieces: piece ? [{ entry: { ...piece, format: 'json' }, filePath: rawPath }] : []
+      }
     );
-    if (piece) {
-      addPieceFile({ ...piece, format: 'json' }, rawPath);
-    }
   };
 
   const enqueueJsonArraySharded = (

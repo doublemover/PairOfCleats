@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { seedPublishedArtifacts } from '../../helpers/artifact-publication.js';
 import { promoteBuild } from '../../../src/index/build/promotion.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
@@ -18,6 +19,7 @@ const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
 const buildsRoot = path.join(repoCacheRoot, 'builds');
 const buildRoot = path.join(buildsRoot, 'build-ok');
 await fs.mkdir(buildRoot, { recursive: true });
+await seedPublishedArtifacts({ buildRoot, mode: 'code', buildId: 'build-ok' });
 
 await promoteBuild({
   repoRoot,

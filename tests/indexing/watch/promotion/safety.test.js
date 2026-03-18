@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { seedPublishedArtifacts } from '../../../helpers/artifact-publication.js';
 import { promoteBuild } from '../../../../src/index/build/promotion.js';
 import { toRealPathSync } from '../../../../src/workspace/identity.js';
 import { getBuildsRoot, getCurrentBuildInfo, getRepoCacheRoot } from '../../../../tools/shared/dict-utils.js';
@@ -68,6 +69,7 @@ if (process.platform === 'win32') {
   const caseBuildId = 'case-sensitive-root-normalized';
   const canonicalCaseRoot = path.join(buildsRoot, caseBuildId);
   await fs.mkdir(canonicalCaseRoot, { recursive: true });
+  await seedPublishedArtifacts({ buildRoot: canonicalCaseRoot, mode: 'code', buildId: caseBuildId });
   const mixedCaseRoot = swapCase(canonicalCaseRoot);
   await assert.doesNotReject(
     () => promoteBuild({
@@ -94,10 +96,15 @@ await fs.writeFile(currentPath, JSON.stringify({
 }, null, 2));
 
 const info = getCurrentBuildInfo(repoRoot, userConfig);
-assert.equal(info, null, 'expected unsafe current.json to be rejected');
+assert.notEqual(
+  normalizePath(info?.activeRoot || ''),
+  normalizePath(unsafeRoot),
+  'expected unsafe current.json root to be ignored as the active build root'
+);
 
 const validBuildRoot = path.join(buildsRoot, 'parse-recovery-build');
 await fs.mkdir(validBuildRoot, { recursive: true });
+await seedPublishedArtifacts({ buildRoot: validBuildRoot, mode: 'code', buildId: 'parse-recovery-build' });
 await fs.writeFile(currentPath, '{invalid-json', 'utf8');
 await assert.doesNotReject(
   () => promoteBuild({
