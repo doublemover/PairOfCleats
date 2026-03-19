@@ -18,100 +18,19 @@ import {
   scanJsonlStream
 } from './json/line-scan.js';
 import { createRowQueue } from './json/row-queue.js';
-import { tryRequire } from '../optional-deps.js';
+import {
+  canUseFallbackAfterPrimaryError,
+  captureFallbackReadError,
+  resolvePreferredReadError
+} from './json/fallback.js';
+import {
+  resolveJsonlReadPlan,
+  resolveOptionalZstd,
+  SMALL_JSONL_BYTES,
+  ZSTD_STREAM_THRESHOLD
+} from './json/read-plan.js';
 import { shouldAbortForHeap, shouldTreatAsTooLarge, toJsonTooLargeError } from './limits.js';
 import { hasArtifactReadObserver, recordArtifactRead } from './telemetry.js';
-
-let cachedZstd = null;
-let checkedZstd = false;
-const SMALL_JSONL_BYTES = 128 * 1024;
-const MEDIUM_JSONL_BYTES = 8 * 1024 * 1024;
-const JSONL_HIGH_WATERMARK_SMALL = 64 * 1024;
-const JSONL_HIGH_WATERMARK_MEDIUM = 256 * 1024;
-const JSONL_HIGH_WATERMARK_LARGE = 1024 * 1024;
-const ZSTD_STREAM_THRESHOLD = 8 * 1024 * 1024;
-
-/**
- * Resolve optional userland zstd bindings once and memoize the result.
- *
- * @returns {{decompress:(buffer:Buffer)=>Promise<Buffer|Uint8Array>}|null}
- */
-const resolveOptionalZstd = () => {
-  if (checkedZstd) return cachedZstd;
-  checkedZstd = true;
-  const result = tryRequire('@mongodb-js/zstd');
-  if (result.ok && typeof result.mod?.decompress === 'function') {
-    cachedZstd = result.mod;
-  }
-  return cachedZstd;
-};
-
-/**
- * Choose stream chunk sizes based on compressed/plain JSONL file size.
- *
- * @param {number} byteSize
- * @returns {{highWaterMark:number,chunkSize:number,smallFile:boolean}}
- */
-const resolveJsonlReadPlan = (byteSize) => {
-  if (byteSize <= SMALL_JSONL_BYTES) {
-    return { highWaterMark: JSONL_HIGH_WATERMARK_SMALL, chunkSize: JSONL_HIGH_WATERMARK_SMALL, smallFile: true };
-  }
-  if (byteSize <= MEDIUM_JSONL_BYTES) {
-    return { highWaterMark: JSONL_HIGH_WATERMARK_MEDIUM, chunkSize: JSONL_HIGH_WATERMARK_MEDIUM, smallFile: false };
-  }
-  return { highWaterMark: JSONL_HIGH_WATERMARK_LARGE, chunkSize: JSONL_HIGH_WATERMARK_LARGE, smallFile: false };
-};
-
-/**
- * Detect filesystem \"not found\" read errors for fallback routing.
- *
- * @param {unknown} err
- * @returns {boolean}
- */
-const isMissingReadError = (err) => (
-  err?.code === 'ENOENT' || err?.code === 'ENOTDIR'
-);
-
-/**
- * Decide whether fallback sources are allowed after primary failure.
- *
- * Strict mode only permits fallback when the primary artifact is missing.
- * Recovery mode permits fallback for any primary failure.
- *
- * @param {unknown} primaryErr
- * @param {boolean} recoveryFallback
- * @returns {boolean}
- */
-const canUseFallbackAfterPrimaryError = (primaryErr, recoveryFallback) => (
-  recoveryFallback === true || primaryErr == null || isMissingReadError(primaryErr)
-);
-
-/**
- * Capture the first non-missing fallback error so we can keep probing later
- * candidates, then throw a deterministic error if all candidates fail.
- *
- * @param {unknown} currentErr
- * @param {unknown} candidateErr
- * @returns {unknown}
- */
-const captureFallbackReadError = (currentErr, candidateErr) => {
-  if (currentErr) return currentErr;
-  if (isMissingReadError(candidateErr)) return null;
-  return candidateErr;
-};
-
-/**
- * Prefer non-missing primary failures (when fallback mode allows probing) and
- * otherwise surface the first non-missing fallback failure.
- *
- * @param {unknown} primaryErr
- * @param {unknown} fallbackErr
- * @returns {unknown}
- */
-const resolvePreferredReadError = (primaryErr, fallbackErr) => {
-  if (primaryErr && !isMissingReadError(primaryErr)) return primaryErr;
-  return fallbackErr || null;
-};
 
 /**
  * Read and parse a JSON artifact with compression and backup fallbacks.
@@ -560,14 +479,6 @@ export const readJsonLinesEach = async (
     throw primaryErr;
   }
   let fallbackErr = null;
-  if (allowFallback) {
-    const bakAttempt = await attemptTrackedRead(bakPath);
-    if (bakAttempt.ok) return;
-    if (bakAttempt.emitted > 0) {
-      throw bakAttempt.error;
-    }
-    fallbackErr = captureFallbackReadError(fallbackErr, bakAttempt.error);
-  }
   if (filePath.endsWith('.jsonl') && allowFallback) {
     const candidates = collectCompressedJsonlCandidates(filePath);
     if (candidates.length) {
@@ -580,6 +491,14 @@ export const readJsonLinesEach = async (
         fallbackErr = captureFallbackReadError(fallbackErr, candidateAttempt.error);
       }
     }
+  }
+  if (allowFallback) {
+    const bakAttempt = await attemptTrackedRead(bakPath);
+    if (bakAttempt.ok) return;
+    if (bakAttempt.emitted > 0) {
+      throw bakAttempt.error;
+    }
+    fallbackErr = captureFallbackReadError(fallbackErr, bakAttempt.error);
   }
   const preferredErr = resolvePreferredReadError(primaryErr, fallbackErr);
   if (preferredErr) throw preferredErr;
@@ -657,16 +576,15 @@ const readJsonLinesIteratorSingle = async function* (
         compression: detectCompression(targetPath),
         cleanup: true
       };
-      const fallbackCandidates = [
-        {
-          path: getBakPath(targetPath),
-          compression: detectCompression(getBakPath(targetPath)),
-          cleanup: false
-        }
-      ];
+      const fallbackCandidates = [];
       if (!hasRange && targetPath.endsWith('.jsonl')) {
         fallbackCandidates.push(...collectCompressedJsonlCandidates(targetPath));
       }
+      fallbackCandidates.push({
+        path: getBakPath(targetPath),
+        compression: detectCompression(getBakPath(targetPath)),
+        cleanup: false
+      });
       const sources = [primaryCandidate, ...fallbackCandidates];
       let primaryErr = null;
       let fallbackEnabled = true;
@@ -1221,13 +1139,6 @@ export const readJsonLinesArray = async (
     }
     const allowFallback = canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback);
     let fallbackErr = null;
-    if (allowFallback && fs.existsSync(bakPath)) {
-      try {
-        return await tryRead(bakPath);
-      } catch (err) {
-        fallbackErr = captureFallbackReadError(fallbackErr, err);
-      }
-    }
     if (targetPath.endsWith('.jsonl') && allowFallback) {
       const candidates = collectCompressedJsonlCandidates(targetPath);
       if (candidates.length) {
@@ -1238,6 +1149,13 @@ export const readJsonLinesArray = async (
             fallbackErr = captureFallbackReadError(fallbackErr, err);
           }
         }
+      }
+    }
+    if (allowFallback && fs.existsSync(bakPath)) {
+      try {
+        return await tryRead(bakPath);
+      } catch (err) {
+        fallbackErr = captureFallbackReadError(fallbackErr, err);
       }
     }
     const preferredErr = resolvePreferredReadError(primaryErr, fallbackErr);
@@ -1427,13 +1345,6 @@ export const readJsonLinesArraySync = (
   }
   const allowFallback = canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback);
   let fallbackErr = null;
-  if (allowFallback && fs.existsSync(bakPath)) {
-    try {
-      return tryRead(bakPath);
-    } catch (err) {
-      fallbackErr = captureFallbackReadError(fallbackErr, err);
-    }
-  }
   if (filePath.endsWith('.jsonl') && allowFallback) {
     const candidates = collectCompressedJsonlCandidates(filePath);
     if (candidates.length) {
@@ -1444,6 +1355,13 @@ export const readJsonLinesArraySync = (
           fallbackErr = captureFallbackReadError(fallbackErr, err);
         }
       }
+    }
+  }
+  if (allowFallback && fs.existsSync(bakPath)) {
+    try {
+      return tryRead(bakPath);
+    } catch (err) {
+      fallbackErr = captureFallbackReadError(fallbackErr, err);
     }
   }
   const preferredErr = resolvePreferredReadError(primaryErr, fallbackErr);
