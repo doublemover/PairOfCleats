@@ -127,6 +127,9 @@ const SEARCH_HISTORY_STORAGE_KEY = 'pairofcleats.searchHistory';
 const SEARCH_GROUP_MODE_STORAGE_KEY = 'pairofcleats.searchResultsGroupMode';
 const SEARCH_RESULTS_VIEW_ID = 'pairofcleats.resultsExplorer';
 const MAX_SEARCH_HISTORY = 20;
+const NAVIGATION_PROVIDER_TIMEOUT_MS = 5000;
+const NAVIGATION_RESULT_LIMIT = 25;
+const DOCUMENT_SYMBOL_LIMIT = 200;
 
 const REPO_MARKERS_RAW = readContract(['repoRoot', 'markers'], DEFAULT_EDITOR_CONFIG_CONTRACT.repoRoot.markers);
 const REPO_MARKERS = Array.isArray(REPO_MARKERS_RAW)
@@ -170,6 +173,7 @@ const WORKFLOW_TRANSPORTS = Object.freeze({
   'index-health': { label: 'index health', supportsCli: true, supportsApi: true }
 });
 const apiCapabilityCache = new Map();
+const navigationDegradationNotes = new Set();
 
 /**
  * Normalize settings values that are expected to be arrays of strings.
@@ -1636,6 +1640,241 @@ function getSymbolSearchQuery() {
   const range = document.getWordRangeAtPosition(position);
   if (!range || typeof document.getText !== 'function') return '';
   return String(document.getText(range) || '').trim();
+}
+
+function getDocumentFilePath(document) {
+  const uri = document?.uri;
+  if (!uri || uri.scheme !== 'file') return '';
+  return String(uri.fsPath || '').trim();
+}
+
+function getWordQueryAtPosition(document, position) {
+  if (!document || !position) return '';
+  if (typeof document.getWordRangeAtPosition === 'function' && typeof document.getText === 'function') {
+    const range = document.getWordRangeAtPosition(position);
+    if (range) return String(document.getText(range) || '').trim();
+  }
+  return '';
+}
+
+function noteNavigationDegraded(key, message, detail = null) {
+  if (!key || navigationDegradationNotes.has(key)) return;
+  navigationDegradationNotes.add(key);
+  const output = getOutputChannel();
+  output.appendLine(`[navigate] ${message}`);
+  if (detail) output.appendLine(detail);
+}
+
+function createRangeFromNavigationEntry(entry) {
+  if (!Number.isFinite(entry?.startLine) || entry.startLine <= 0) return null;
+  const startLine = Math.max(0, Number(entry.startLine) - 1);
+  const endLine = Number.isFinite(entry?.endLine) && entry.endLine > 0
+    ? Math.max(startLine, Number(entry.endLine) - 1)
+    : startLine;
+  const startCol = Number.isFinite(entry?.startCol) && entry.startCol > 0 ? Number(entry.startCol) - 1 : 0;
+  const endCol = Number.isFinite(entry?.endCol) && entry.endCol > 0 ? Math.max(startCol, Number(entry.endCol) - 1) : startCol;
+  return new vscode.Range(
+    new vscode.Position(startLine, startCol),
+    new vscode.Position(endLine, endCol)
+  );
+}
+
+function createNavigationLocation(repoContext, entry) {
+  const target = resolveValidatedHitTarget(vscode, repoContext, {
+    file: entry?.file || entry?.virtualPath || ''
+  });
+  if (!target.ok) return null;
+  const range = createRangeFromNavigationEntry(entry) || new vscode.Range(
+    new vscode.Position(0, 0),
+    new vscode.Position(0, 0)
+  );
+  return new vscode.Location(target.targetUri, range);
+}
+
+function mapNavigationSymbolKind(kind) {
+  const normalized = String(kind || '').trim().toLowerCase();
+  if (normalized.includes('class')) return vscode.SymbolKind.Class;
+  if (normalized.includes('interface')) return vscode.SymbolKind.Interface;
+  if (normalized.includes('enum')) return vscode.SymbolKind.Enum;
+  if (normalized.includes('method')) return vscode.SymbolKind.Method;
+  if (normalized.includes('function')) return vscode.SymbolKind.Function;
+  if (normalized.includes('property')) return vscode.SymbolKind.Property;
+  if (normalized.includes('field')) return vscode.SymbolKind.Field;
+  if (normalized.includes('module')) return vscode.SymbolKind.Module;
+  if (normalized.includes('namespace')) return vscode.SymbolKind.Namespace;
+  if (normalized.includes('variable')) return vscode.SymbolKind.Variable;
+  if (normalized.includes('constant')) return vscode.SymbolKind.Constant;
+  if (normalized.includes('struct')) return vscode.SymbolKind.Struct;
+  return vscode.SymbolKind.Object;
+}
+
+function createDocumentSymbol(entry) {
+  const range = createRangeFromNavigationEntry(entry) || new vscode.Range(
+    new vscode.Position(0, 0),
+    new vscode.Position(0, 0)
+  );
+  return new vscode.DocumentSymbol(
+    String(entry?.name || entry?.qualifiedName || 'symbol'),
+    String(entry?.qualifiedName || entry?.kind || ''),
+    mapNavigationSymbolKind(entry?.kind),
+    range,
+    range
+  );
+}
+
+async function runNavigationCommand({
+  kind,
+  repoContext,
+  query = '',
+  filePath = '',
+  limit = NAVIGATION_RESULT_LIMIT
+}) {
+  const config = getExtensionConfiguration();
+  const apiSettings = readApiSettings(config);
+  if (apiSettings.mode === 'require') {
+    noteNavigationDegraded(
+      'api-require',
+      'Native VS Code navigation is unavailable when pairofcleats.apiExecutionMode=require.',
+      'Definitions, references, and document symbols currently use the local CLI tooling navigate backend.'
+    );
+    return [];
+  }
+  const cliResolution = resolveCli(repoContext.repoRoot, config);
+  if (!cliResolution.ok) {
+    noteNavigationDegraded('cli-invalid', cliResolution.message, cliResolution.detail || null);
+    return [];
+  }
+  const { command, argsPrefix } = cliResolution;
+  const args = [
+    ...argsPrefix,
+    'tooling',
+    'navigate',
+    '--json',
+    '--repo',
+    repoContext.repoRoot,
+    '--kind',
+    kind,
+    '--top',
+    String(limit)
+  ];
+  if (filePath) args.push('--file', filePath);
+  if (query) args.push('--symbol', query);
+  const output = getOutputChannel();
+  const env = buildSpawnEnv(config);
+  const useShellWrapper = process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
+  const invocation = useShellWrapper
+    ? resolveWindowsCmdInvocation(command, args)
+    : { command, args };
+  const spawned = spawnBufferedProcess(cp, invocation.command, invocation.args, {
+    cwd: repoContext.repoRoot,
+    env: invocation.env ? { ...env, ...invocation.env } : env,
+    shell: false,
+    windowsHide: true
+  });
+  if (!spawned.ok) {
+    noteNavigationDegraded('spawn-error', summarizeSpawnFailure('PairOfCleats navigation', spawned.error).message);
+    return [];
+  }
+  const child = spawned.child;
+  const stdoutAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
+  const stderrAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
+  const result = await new Promise((resolve) => {
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      try {
+        child.kill('SIGKILL');
+      } catch {}
+    }, NAVIGATION_PROVIDER_TIMEOUT_MS);
+    timeout.unref?.();
+    child.stdout?.on('data', (chunk) => stdoutAccumulator.push(chunk));
+    child.stderr?.on('data', (chunk) => stderrAccumulator.push(chunk));
+    child.once('error', (error) => {
+      clearTimeout(timeout);
+      resolve({ ok: false, ...summarizeSpawnFailure('PairOfCleats navigation', error) });
+    });
+    child.once('close', (code) => {
+      clearTimeout(timeout);
+      const stdout = stdoutAccumulator.text();
+      const stderr = stderrAccumulator.text();
+      const processFailure = summarizeProcessFailure({
+        code,
+        timedOut,
+        cancelled: false,
+        stderr,
+        stdout,
+        stdoutTruncated: stdoutAccumulator.truncated(),
+        stderrTruncated: stderrAccumulator.truncated(),
+        timeoutMs: NAVIGATION_PROVIDER_TIMEOUT_MS
+      });
+      if (processFailure) {
+        resolve({ ok: false, ...processFailure });
+        return;
+      }
+      const parsed = parseJsonPayload(stdout, {
+        stdoutTruncated: stdoutAccumulator.truncated(),
+        label: 'PairOfCleats navigation'
+      });
+      if (!parsed.ok) {
+        resolve({ ok: false, kind: parsed.kind, message: parsed.message, detail: parsed.detail || stderr || null });
+        return;
+      }
+      resolve({ ok: true, payload: parsed.payload });
+    });
+  });
+  if (!result.ok) {
+    appendRuntimeFailure(output, '[navigate]', result);
+    return [];
+  }
+  if (result.payload?.ok === false) {
+    noteNavigationDegraded(`payload-${kind}`, result.payload.message || 'PairOfCleats navigation query failed.');
+    return [];
+  }
+  return Array.isArray(result.payload?.results) ? result.payload.results : [];
+}
+
+async function provideDefinitionsAtPosition(document, position) {
+  const query = getWordQueryAtPosition(document, position);
+  if (!query) return [];
+  const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
+  if (!repoContext.ok) return [];
+  const rows = await runNavigationCommand({
+    kind: 'definitions',
+    repoContext,
+    query,
+    filePath: getDocumentFilePath(document),
+    limit: NAVIGATION_RESULT_LIMIT
+  });
+  return rows.map((entry) => createNavigationLocation(repoContext, entry)).filter(Boolean);
+}
+
+async function provideReferencesAtPosition(document, position) {
+  const query = getWordQueryAtPosition(document, position);
+  if (!query) return [];
+  const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
+  if (!repoContext.ok) return [];
+  const rows = await runNavigationCommand({
+    kind: 'references',
+    repoContext,
+    query,
+    filePath: getDocumentFilePath(document),
+    limit: NAVIGATION_RESULT_LIMIT
+  });
+  return rows.map((entry) => createNavigationLocation(repoContext, entry)).filter(Boolean);
+}
+
+async function provideDocumentSymbolsForDocument(document) {
+  const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
+  if (!repoContext.ok) return [];
+  const filePath = getDocumentFilePath(document);
+  if (!filePath) return [];
+  const rows = await runNavigationCommand({
+    kind: 'document-symbols',
+    repoContext,
+    filePath,
+    limit: DOCUMENT_SYMBOL_LIMIT
+  });
+  return rows.map((entry) => createDocumentSymbol(entry));
 }
 
 function looksLikeSeedRef(value) {
@@ -3908,6 +4147,15 @@ function activate(context) {
   const revealResultHitCommand = vscode.commands.registerCommand('pairofcleats.revealResultHit', revealResultHitNode);
   const copyResultPathCommand = vscode.commands.registerCommand('pairofcleats.copyResultPath', copyResultHitPath);
   const rerunResultSetCommand = vscode.commands.registerCommand('pairofcleats.rerunResultSet', rerunResultSet);
+  const definitionProvider = typeof vscode.languages?.registerDefinitionProvider === 'function'
+    ? vscode.languages.registerDefinitionProvider({ scheme: 'file' }, { provideDefinition: provideDefinitionsAtPosition })
+    : null;
+  const referenceProvider = typeof vscode.languages?.registerReferenceProvider === 'function'
+    ? vscode.languages.registerReferenceProvider({ scheme: 'file' }, { provideReferences: provideReferencesAtPosition })
+    : null;
+  const documentSymbolProvider = typeof vscode.languages?.registerDocumentSymbolProvider === 'function'
+    ? vscode.languages.registerDocumentSymbolProvider({ scheme: 'file' }, { provideDocumentSymbols: provideDocumentSymbolsForDocument })
+    : null;
   context.subscriptions.push(
     workflowStatusCommand,
     rerunLastWorkflowCommand,
@@ -3922,6 +4170,9 @@ function activate(context) {
     copyResultPathCommand,
     rerunResultSetCommand
   );
+  if (definitionProvider) context.subscriptions.push(definitionProvider);
+  if (referenceProvider) context.subscriptions.push(referenceProvider);
+  if (documentSymbolProvider) context.subscriptions.push(documentSymbolProvider);
   for (const spec of OPERATOR_COMMAND_SPECS) {
     const command = vscode.commands.registerCommand(spec.id, () => runOperatorCommand(spec));
     context.subscriptions.push(command);
@@ -3994,6 +4245,9 @@ module.exports = {
     runSelectionSearch,
     runSymbolSearch,
     runExplainSearch,
+    provideDefinitionsAtPosition,
+    provideReferencesAtPosition,
+    provideDocumentSymbolsForDocument,
     selectRepo,
     clearSelectedRepo,
     showWorkflowStatus,

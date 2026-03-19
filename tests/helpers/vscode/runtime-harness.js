@@ -236,6 +236,9 @@ export function createVsCodeRuntimeHarness({
   const queuedFetchResults = [];
   const inputQueue = [];
   const quickPickQueue = [];
+  const definitionProviders = [];
+  const referenceProviders = [];
+  const documentSymbolProviders = [];
   const treeViews = [];
   const treeProviders = [];
   const statusBarItems = [];
@@ -365,6 +368,20 @@ export function createVsCodeRuntimeHarness({
         executeCommandCalls.push({ id, arg });
       }
     },
+    languages: {
+      registerDefinitionProvider(selector, provider) {
+        definitionProviders.push({ selector, provider });
+        return { dispose() {} };
+      },
+      registerReferenceProvider(selector, provider) {
+        referenceProviders.push({ selector, provider });
+        return { dispose() {} };
+      },
+      registerDocumentSymbolProvider(selector, provider) {
+        documentSymbolProviders.push({ selector, provider });
+        return { dispose() {} };
+      }
+    },
     env: {
       async openExternal(uri) {
         openExternalCalls.push(uri);
@@ -443,6 +460,37 @@ export function createVsCodeRuntimeHarness({
         this.end = end;
       }
     },
+    Location: class Location {
+      constructor(uri, range) {
+        this.uri = uri;
+        this.range = range;
+      }
+    },
+    DocumentSymbol: class DocumentSymbol {
+      constructor(name, detail, kind, range, selectionRange) {
+        this.name = name;
+        this.detail = detail;
+        this.kind = kind;
+        this.range = range;
+        this.selectionRange = selectionRange;
+        this.children = [];
+      }
+    },
+    SymbolKind: {
+      Module: 1,
+      Namespace: 2,
+      Class: 4,
+      Method: 5,
+      Property: 6,
+      Field: 7,
+      Enum: 9,
+      Interface: 10,
+      Function: 11,
+      Variable: 12,
+      Constant: 13,
+      Object: 18,
+      Struct: 22
+    },
     Selection: class Selection {
       constructor(start, end) {
         this.start = start;
@@ -489,6 +537,9 @@ export function createVsCodeRuntimeHarness({
     quickPickQueue,
     treeViews,
     treeProviders,
+    definitionProviders,
+    referenceProviders,
+    documentSymbolProviders,
     statusBarItems,
     openedDocuments,
     workspaceStateStore,

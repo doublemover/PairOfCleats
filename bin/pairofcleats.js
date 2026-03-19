@@ -762,7 +762,7 @@ function resolveCommand(primary, rest) {
   if (primary === 'tooling') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      failCli('tooling requires a subcommand: doctor', {
+      failCli('tooling requires a subcommand: doctor, navigate', {
         code: ERROR_CODES.INVALID_REQUEST,
         showHelp: true
       });
@@ -770,6 +770,10 @@ function resolveCommand(primary, rest) {
     if (sub === 'doctor') {
       validateArgs(rest, ['repo', 'json', 'strict', 'non-strict'], ['repo']);
       return { script: 'tools/tooling/doctor.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'navigate') {
+      validateArgs(rest, ['repo', 'kind', 'symbol', 'file', 'top', 'json'], ['repo', 'kind', 'symbol', 'file', 'top']);
+      return { script: 'tools/tooling/navigation.js', extraArgs: [], args: rest };
     }
     failCli(`Unknown tooling subcommand: ${sub}`, {
       code: ERROR_CODES.INVALID_REQUEST,
@@ -1054,6 +1058,7 @@ Dispatch:
 
 Tooling:
   tooling doctor          Inspect tooling availability and config
+  tooling navigate        Query indexed definitions, references, and document symbols
 
 Cache:
   cache clear             Remove cache data safely
