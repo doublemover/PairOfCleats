@@ -55,13 +55,18 @@ assert.equal(Object.getPrototypeOf(result.runtime.capabilities), null, 'expected
 assert.ok(result.runtime.capabilityGate && typeof result.runtime.capabilityGate === 'object', 'expected capability gate envelope');
 assert.equal(result.runtime.capabilities.documentSymbol, true, 'expected documentSymbol capability flag');
 assert.equal(result.runtime.capabilities.hover, true, 'expected hover capability flag');
+assert.equal(result.runtime.capabilities.semanticTokens, false, 'expected semanticTokens capability flag');
 assert.equal(result.runtime.capabilities.signatureHelp, false, 'expected signatureHelp capability flag');
+assert.equal(result.runtime.capabilities.inlayHints, false, 'expected inlayHints capability flag');
 assert.equal(result.runtime.capabilities.definition, false, 'expected definition capability flag');
 assert.equal(result.runtime.capabilities.typeDefinition, false, 'expected typeDefinition capability flag');
 assert.equal(result.runtime.capabilities.references, false, 'expected references capability flag');
 assert.equal(result.runtime.capabilityGate.effective.documentSymbol, true, 'expected effective documentSymbol gate');
 assert.equal(result.runtime.capabilityGate.effective.signatureHelp, false, 'expected effective signatureHelp gate');
-assert.deepEqual(result.runtime.capabilityGate.missing, ['definition', 'references', 'signatureHelp', 'typeDefinition']);
+assert.deepEqual(
+  result.runtime.capabilityGate.missing,
+  ['definition', 'inlayHints', 'references', 'semanticTokens', 'signatureHelp', 'typeDefinition']
+);
 assert.ok(result.runtime.lifecycle && typeof result.runtime.lifecycle === 'object', 'expected lifecycle metrics');
 assert.ok(result.runtime.guard && typeof result.runtime.guard === 'object', 'expected guard metrics');
 assert.ok(result.runtime.requests && typeof result.runtime.requests === 'object', 'expected request metrics');

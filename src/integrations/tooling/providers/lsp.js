@@ -433,7 +433,9 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
 const REQUEST_BUDGET_METHODS = Object.freeze({
   documentSymbol: 'textDocument/documentSymbol',
   hover: 'textDocument/hover',
+  semanticTokens: 'textDocument/semanticTokens/full',
   signatureHelp: 'textDocument/signatureHelp',
+  inlayHints: 'textDocument/inlayHint',
   definition: 'textDocument/definition',
   typeDefinition: 'textDocument/typeDefinition',
   references: 'textDocument/references'
@@ -442,7 +444,9 @@ const REQUEST_BUDGET_METHODS = Object.freeze({
 const REQUEST_BUDGET_WEIGHTS = Object.freeze({
   documentSymbol: 1,
   hover: 1,
+  semanticTokens: 0.8,
   signatureHelp: 1.1,
+  inlayHints: 0.9,
   definition: 1.4,
   typeDefinition: 1.5,
   references: 1.8
@@ -451,7 +455,9 @@ const REQUEST_BUDGET_WEIGHTS = Object.freeze({
 const REQUEST_BUDGET_P95_THRESHOLDS = Object.freeze({
   documentSymbol: 3000,
   hover: 1800,
+  semanticTokens: 2200,
   signatureHelp: 1800,
+  inlayHints: 1800,
   definition: 2200,
   typeDefinition: 2200,
   references: 2500
@@ -558,7 +564,9 @@ export const __resolveAdaptiveLspRequestBudgetPlanForTests = ({
   const baseByKind = {
     documentSymbol: selectedDocs,
     hover: Math.max(0, Math.min(selectedTargets || (selectedDocs * hoverMaxPerFile), selectedDocs * hoverMaxPerFile)),
+    semanticTokens: selectedDocs,
     signatureHelp: Math.ceil(selectedDocs * hoverMaxPerFile * 0.75),
+    inlayHints: Math.ceil(selectedDocs * hoverMaxPerFile * 0.75),
     definition: Math.ceil(selectedDocs * hoverMaxPerFile * 0.5),
     typeDefinition: Math.ceil(selectedDocs * hoverMaxPerFile * 0.35),
     references: Math.ceil(selectedDocs * hoverMaxPerFile * 0.25)
@@ -712,6 +720,8 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {object|null} [params.initializationOptions=null]
  * @param {string|null} [params.providerId=null]
  * @param {string|null} [params.providerVersion=null]
+ * @param {boolean} [params.semanticTokensEnabled=true]
+ * @param {boolean} [params.inlayHintsEnabled=true]
  * @param {string|null} [params.workspaceKey=null]
  * @param {number|null} [params.lifecycleRestartWindowMs=null]
  * @param {number|null} [params.lifecycleMaxRestartsPerWindow=null]
@@ -776,6 +786,8 @@ export async function collectLspTypes({
   initializationOptions = null,
   providerId = null,
   providerVersion = null,
+  semanticTokensEnabled = true,
+  inlayHintsEnabled = true,
   workspaceKey = null,
   lifecycleRestartWindowMs = null,
   lifecycleMaxRestartsPerWindow = null,
@@ -1102,15 +1114,17 @@ export async function collectLspTypes({
     let shouldShutdownClient = false;
     let capabilityMask = null;
     let effectiveHoverEnabled = hoverEnabled !== false;
+    let effectiveSemanticTokensEnabled = semanticTokensEnabled !== false;
     let effectiveSignatureHelpEnabled = signatureHelpEnabled !== false;
+    let effectiveInlayHintsEnabled = inlayHintsEnabled !== false;
     let effectiveDefinitionEnabled = definitionEnabled !== false;
     let effectiveTypeDefinitionEnabled = typeDefinitionEnabled !== false;
     let effectiveReferencesEnabled = referencesEnabled !== false;
     let skipSymbolCollection = false;
     let positionEncoding = 'utf-16';
+    let initializeResult = null;
     try {
       throwIfAborted(toolingAbortSignal);
-      let initializeResult = null;
       const mustInitialize = lease.shouldInitialize !== false;
       if (mustInitialize) {
         if (typeof lease.markInitializing === 'function') lease.markInitializing();
@@ -1147,7 +1161,9 @@ export async function collectLspTypes({
         capabilityMask,
         cmd,
         hoverEnabled,
+        semanticTokensEnabled,
         signatureHelpEnabled,
+        inlayHintsEnabled,
         definitionEnabled,
         typeDefinitionEnabled,
         referencesEnabled
@@ -1159,7 +1175,9 @@ export async function collectLspTypes({
         missing: capabilityGate.missing
       };
       effectiveHoverEnabled = capabilityGate.effective.hover;
+      effectiveSemanticTokensEnabled = capabilityGate.effective.semanticTokens;
       effectiveSignatureHelpEnabled = capabilityGate.effective.signatureHelp;
+      effectiveInlayHintsEnabled = capabilityGate.effective.inlayHints;
       effectiveDefinitionEnabled = capabilityGate.effective.definition;
       effectiveTypeDefinitionEnabled = capabilityGate.effective.typeDefinition;
       effectiveReferencesEnabled = capabilityGate.effective.references;
@@ -1301,7 +1319,9 @@ export async function collectLspTypes({
       const requestBudgetControllers = {
         documentSymbol: createBudgetController(requestBudgetPlan.byKind?.documentSymbol?.maxRequests),
         hover: createBudgetController(requestBudgetPlan.byKind?.hover?.maxRequests),
+        semanticTokens: createBudgetController(requestBudgetPlan.byKind?.semanticTokens?.maxRequests),
         signatureHelp: createBudgetController(requestBudgetPlan.byKind?.signatureHelp?.maxRequests),
+        inlayHints: createBudgetController(requestBudgetPlan.byKind?.inlayHints?.maxRequests),
         definition: createBudgetController(requestBudgetPlan.byKind?.definition?.maxRequests),
         typeDefinition: createBudgetController(requestBudgetPlan.byKind?.typeDefinition?.maxRequests),
         references: createBudgetController(requestBudgetPlan.byKind?.references?.maxRequests)
@@ -1429,7 +1449,9 @@ export async function collectLspTypes({
           byChunkUid,
           signatureParseCache,
           hoverEnabled: effectiveHoverEnabled,
+          semanticTokensEnabled: effectiveSemanticTokensEnabled,
           signatureHelpEnabled: effectiveSignatureHelpEnabled,
+          inlayHintsEnabled: effectiveInlayHintsEnabled,
           definitionEnabled: effectiveDefinitionEnabled,
           typeDefinitionEnabled: effectiveTypeDefinitionEnabled,
           referencesEnabled: effectiveReferencesEnabled,
@@ -1459,6 +1481,9 @@ export async function collectLspTypes({
             providerVersion: resolvedProviderVersion,
             workspaceKey: resolvedWorkspaceKey
           },
+          semanticTokensLegend: initializeResult?.capabilities?.semanticTokensProvider?.legend
+            || initializeResult?.capabilities?.textDocument?.semanticTokens?.legend
+            || null,
           hoverControl,
           hoverFileStats,
           hoverLatencyMs,

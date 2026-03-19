@@ -198,6 +198,13 @@ const symbolsByMode = {
     signatureHelpDetail: 'add',
     kind: 12
   },
+  'semantic-inlay': {
+    name: 'add',
+    detail: 'add',
+    hoverDetail: 'add',
+    signatureHelpDetail: 'add',
+    kind: 12
+  },
   'stall-references': {
     name: 'add',
     detail: 'add',
@@ -322,10 +329,32 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
     return {
       documentSymbolProvider: true,
       hoverProvider: true,
+      semanticTokensProvider: {
+        legend: {
+          tokenTypes: ['namespace', 'class', 'function', 'parameter', 'variable'],
+          tokenModifiers: ['declaration']
+        },
+        full: true
+      },
       signatureHelpProvider: true,
+      inlayHintProvider: true,
       definitionProvider: true,
       typeDefinitionProvider: true,
       referencesProvider: true
+    };
+  }
+  if (mode === 'semantic-inlay') {
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true,
+      semanticTokensProvider: {
+        legend: {
+          tokenTypes: ['namespace', 'class', 'function', 'parameter', 'variable'],
+          tokenModifiers: ['declaration']
+        },
+        full: true
+      },
+      inlayHintProvider: true
     };
   }
   if (mode === 'references-richer') {
@@ -443,6 +472,59 @@ const buildSymbol = (text) => {
 
 const respond = (id, result) => send({ jsonrpc: '2.0', id, result });
 const respondError = (id, message) => send({ jsonrpc: '2.0', id, error: { code: -32601, message } });
+
+const buildSemanticTokenData = (text) => {
+  const tokens = [];
+  const addToken = (needle, tokenType, { afterIndex = 0, length = null } = {}) => {
+    const idx = text.indexOf(needle, afterIndex);
+    if (idx < 0) return idx;
+    const start = lineColForIndex(text, idx);
+    tokens.push({
+      line: start.line,
+      character: start.character,
+      length: length || needle.length,
+      tokenType,
+      modifiers: 1
+    });
+    return idx;
+  };
+  const fnIdx = addToken('add', 2);
+  addToken('a', 3, { afterIndex: fnIdx >= 0 ? fnIdx + 3 : 0, length: 1 });
+  addToken('b', 3, { afterIndex: fnIdx >= 0 ? fnIdx + 5 : 0, length: 1 });
+  tokens.sort((left, right) => (
+    (left.line - right.line)
+    || (left.character - right.character)
+  ));
+  let lastLine = 0;
+  let lastChar = 0;
+  const encoded = [];
+  for (const token of tokens) {
+    const deltaLine = token.line - lastLine;
+    const deltaStart = deltaLine === 0
+      ? token.character - lastChar
+      : token.character;
+    encoded.push(deltaLine, deltaStart, token.length, token.tokenType, token.modifiers);
+    lastLine = token.line;
+    lastChar = token.character;
+  }
+  return encoded;
+};
+
+const buildInlayHints = (text) => {
+  const findPos = (needle, afterIndex = 0) => {
+    const idx = text.indexOf(needle, afterIndex);
+    return idx >= 0 ? { idx, pos: lineColForIndex(text, idx) } : null;
+  };
+  const fn = findPos('add');
+  const aPos = findPos('a', fn ? fn.idx + 3 : 0);
+  const bPos = findPos('b', aPos ? aPos.idx + 1 : 0);
+  const closeParen = findPos(')', fn ? fn.idx : 0);
+  return [
+    aPos ? { position: aPos.pos, kind: 1, label: 'a: integer' } : null,
+    bPos ? { position: bPos.pos, kind: 1, label: 'b: integer' } : null,
+    closeParen ? { position: closeParen.pos, kind: 1, label: '-> integer' } : null
+  ].filter(Boolean);
+};
 
 const handleRequest = (message) => {
   recordEvent('request', message);
@@ -571,6 +653,18 @@ const handleRequest = (message) => {
       activeSignature: 0,
       activeParameter: 0
     });
+    return;
+  }
+  if (method === 'textDocument/semanticTokens/full') {
+    const uri = params?.textDocument?.uri;
+    const text = documents.get(uri) || '';
+    respond(id, { data: buildSemanticTokenData(text) });
+    return;
+  }
+  if (method === 'textDocument/inlayHint') {
+    const uri = params?.textDocument?.uri;
+    const text = documents.get(uri) || '';
+    respond(id, buildInlayHints(text));
     return;
   }
   if (method === 'textDocument/definition') {

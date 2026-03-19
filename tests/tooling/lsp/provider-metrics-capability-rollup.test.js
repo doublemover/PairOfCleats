@@ -64,7 +64,9 @@ const result = await runToolingProviders({
 assert.equal(result.metrics?.capabilities?.providersWithCapabilitiesMask, 1, 'expected one provider capability mask');
 assert.equal(result.metrics?.capabilities?.documentSymbol, 1, 'expected documentSymbol capability rollup');
 assert.equal(result.metrics?.capabilities?.hover, 1, 'expected hover capability rollup');
+assert.equal(result.metrics?.capabilities?.semanticTokens, 1, 'expected semanticTokens capability rollup');
 assert.equal(result.metrics?.capabilities?.signatureHelp, 1, 'expected signatureHelp capability rollup');
+assert.equal(result.metrics?.capabilities?.inlayHints, 1, 'expected inlayHints capability rollup');
 assert.equal(result.metrics?.capabilities?.definition, 1, 'expected definition capability rollup');
 assert.equal(result.metrics?.capabilities?.typeDefinition, 1, 'expected typeDefinition capability rollup');
 assert.equal(result.metrics?.capabilities?.references, 1, 'expected references capability rollup');
@@ -73,6 +75,8 @@ const providerCapabilities = result.metrics?.providerRuntime?.['lsp-test']?.capa
 assert.equal(providerCapabilities?.definition, true, 'expected provider definition capability');
 assert.equal(providerCapabilities?.typeDefinition, true, 'expected provider typeDefinition capability');
 assert.equal(providerCapabilities?.references, true, 'expected provider references capability');
+assert.equal(providerCapabilities?.semanticTokens, true, 'expected provider semanticTokens capability');
+assert.equal(providerCapabilities?.inlayHints, true, 'expected provider inlayHints capability');
 assert.equal(
   Number.isFinite(Number(result.metrics?.providerRuntime?.['lsp-test']?.hover?.requested)),
   true,

@@ -64,6 +64,16 @@ assert.equal(
   true,
   'expected normalized param type list'
 );
+assert.equal(
+  capped.paramTypes.arg[0]?.originalText,
+  'T1',
+  'expected original type text preservation'
+);
+assert.equal(
+  typeof capped.paramTypes.arg[0]?.normalizedType,
+  'string',
+  'expected canonical type text on normalized entry'
+);
 assert.deepEqual(
   Object.keys(capped.paramTypes),
   ['arg', 'zed'],

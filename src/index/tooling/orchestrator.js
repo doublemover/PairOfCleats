@@ -596,6 +596,12 @@ const summarizeProviderRuntime = (runtime) => ({
     incompleteSymbols: coerceFiniteNumber(runtime?.hoverMetrics?.incompleteSymbols, 0) ?? 0,
     hoverTriggeredByIncomplete: coerceFiniteNumber(runtime?.hoverMetrics?.hoverTriggeredByIncomplete, 0) ?? 0,
     fallbackUsed: coerceFiniteNumber(runtime?.hoverMetrics?.fallbackUsed, 0) ?? 0,
+    semanticTokensRequested: coerceFiniteNumber(runtime?.hoverMetrics?.semanticTokensRequested, 0) ?? 0,
+    semanticTokensSucceeded: coerceFiniteNumber(runtime?.hoverMetrics?.semanticTokensSucceeded, 0) ?? 0,
+    semanticTokensTimedOut: coerceFiniteNumber(runtime?.hoverMetrics?.semanticTokensTimedOut, 0) ?? 0,
+    inlayHintsRequested: coerceFiniteNumber(runtime?.hoverMetrics?.inlayHintsRequested, 0) ?? 0,
+    inlayHintsSucceeded: coerceFiniteNumber(runtime?.hoverMetrics?.inlayHintsSucceeded, 0) ?? 0,
+    inlayHintsTimedOut: coerceFiniteNumber(runtime?.hoverMetrics?.inlayHintsTimedOut, 0) ?? 0,
     skippedByBudget: coerceFiniteNumber(runtime?.hoverMetrics?.skippedByBudget, 0) ?? 0,
     skippedByKind: coerceFiniteNumber(runtime?.hoverMetrics?.skippedByKind, 0) ?? 0,
     skippedByReturnSufficient: coerceFiniteNumber(runtime?.hoverMetrics?.skippedByReturnSufficient, 0) ?? 0,
@@ -715,7 +721,9 @@ const summarizeToolingMetrics = ({
     providersWithCapabilitiesMask: 0,
     documentSymbol: 0,
     hover: 0,
+    semanticTokens: 0,
     signatureHelp: 0,
+    inlayHints: 0,
     definition: 0,
     typeDefinition: 0,
     references: 0
@@ -725,9 +733,15 @@ const summarizeToolingMetrics = ({
     succeeded: 0,
     timedOut: 0,
     hoverTimedOut: 0,
+    semanticTokensRequested: 0,
+    semanticTokensSucceeded: 0,
+    semanticTokensTimedOut: 0,
     signatureHelpRequested: 0,
     signatureHelpSucceeded: 0,
     signatureHelpTimedOut: 0,
+    inlayHintsRequested: 0,
+    inlayHintsSucceeded: 0,
+    inlayHintsTimedOut: 0,
     definitionRequested: 0,
     definitionSucceeded: 0,
     definitionTimedOut: 0,
@@ -784,9 +798,15 @@ const summarizeToolingMetrics = ({
     hoverTotals.succeeded += runtime.hover.succeeded;
     hoverTotals.timedOut += runtime.hover.timedOut;
     hoverTotals.hoverTimedOut += runtime.hover.hoverTimedOut;
+    hoverTotals.semanticTokensRequested += runtime.hover.semanticTokensRequested;
+    hoverTotals.semanticTokensSucceeded += runtime.hover.semanticTokensSucceeded;
+    hoverTotals.semanticTokensTimedOut += runtime.hover.semanticTokensTimedOut;
     hoverTotals.signatureHelpRequested += runtime.hover.signatureHelpRequested;
     hoverTotals.signatureHelpSucceeded += runtime.hover.signatureHelpSucceeded;
     hoverTotals.signatureHelpTimedOut += runtime.hover.signatureHelpTimedOut;
+    hoverTotals.inlayHintsRequested += runtime.hover.inlayHintsRequested;
+    hoverTotals.inlayHintsSucceeded += runtime.hover.inlayHintsSucceeded;
+    hoverTotals.inlayHintsTimedOut += runtime.hover.inlayHintsTimedOut;
     hoverTotals.definitionRequested += runtime.hover.definitionRequested;
     hoverTotals.definitionSucceeded += runtime.hover.definitionSucceeded;
     hoverTotals.definitionTimedOut += runtime.hover.definitionTimedOut;
@@ -808,7 +828,9 @@ const summarizeToolingMetrics = ({
       runtime.hover.requested > 0
       || runtime.hover.timedOut > 0
       || runtime.hover.fallbackUsed > 0
+      || runtime.hover.semanticTokensRequested > 0
       || runtime.hover.signatureHelpRequested > 0
+      || runtime.hover.inlayHintsRequested > 0
       || runtime.hover.definitionRequested > 0
       || runtime.hover.typeDefinitionRequested > 0
       || runtime.hover.referencesRequested > 0
@@ -819,7 +841,9 @@ const summarizeToolingMetrics = ({
       capabilityTotals.providersWithCapabilitiesMask += 1;
       if (runtime.capabilities.documentSymbol === true) capabilityTotals.documentSymbol += 1;
       if (runtime.capabilities.hover === true) capabilityTotals.hover += 1;
+      if (runtime.capabilities.semanticTokens === true) capabilityTotals.semanticTokens += 1;
       if (runtime.capabilities.signatureHelp === true) capabilityTotals.signatureHelp += 1;
+      if (runtime.capabilities.inlayHints === true) capabilityTotals.inlayHints += 1;
       if (runtime.capabilities.definition === true) capabilityTotals.definition += 1;
       if (runtime.capabilities.typeDefinition === true) capabilityTotals.typeDefinition += 1;
       if (runtime.capabilities.references === true) capabilityTotals.references += 1;

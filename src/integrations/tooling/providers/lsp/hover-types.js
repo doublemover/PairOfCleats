@@ -5,6 +5,7 @@ import { flattenSymbols } from '../../lsp/symbols.js';
 import { writeJsonObjectFile } from '../../../../shared/json-stream.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { resolveNearestRankPercentile } from '../../../../shared/perf/percentiles.js';
+import { canonicalizeTypeText } from '../../../../shared/type-normalization.js';
 import {
   buildScopedSymbolId,
   buildSignatureKey,
@@ -12,6 +13,11 @@ import {
   buildSymbolKey
 } from '../../../../shared/identity.js';
 import { findTargetForOffsets } from './target-index.js';
+import {
+  decodeSemanticTokens,
+  findSemanticTokenAtPosition,
+  parseInlayHintSignalInfo
+} from './semantic-signals.js';
 
 export const DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY = 4;
 export const DEFAULT_HOVER_CONCURRENCY = 8;
@@ -555,9 +561,15 @@ const createHoverFileStats = () => ({
   succeeded: 0,
   sourceBootstrapUsed: 0,
   hoverTimedOut: 0,
+  semanticTokensRequested: 0,
+  semanticTokensSucceeded: 0,
+  semanticTokensTimedOut: 0,
   signatureHelpRequested: 0,
   signatureHelpSucceeded: 0,
   signatureHelpTimedOut: 0,
+  inlayHintsRequested: 0,
+  inlayHintsSucceeded: 0,
+  inlayHintsTimedOut: 0,
   definitionRequested: 0,
   definitionSucceeded: 0,
   definitionTimedOut: 0,
@@ -604,6 +616,7 @@ export const normalizeParamTypes = (paramTypes, options = {}) => {
   const defaultConfidence = Number.isFinite(configuredDefaultConfidence)
     ? Math.max(0, Math.min(1, configuredDefaultConfidence))
     : 0.7;
+  const languageId = String(options?.languageId || '').trim().toLowerCase() || null;
   const output = {};
   for (const [name, entries] of Object.entries(paramTypes)) {
     if (!name) continue;
@@ -611,18 +624,31 @@ export const normalizeParamTypes = (paramTypes, options = {}) => {
       const normalized = entries
         .map((entry) => (typeof entry === 'string' ? { type: entry } : entry))
         .filter((entry) => entry?.type)
-        .map((entry) => ({
-          type: normalizeTypeText(entry.type),
-          confidence: Number.isFinite(entry.confidence) ? entry.confidence : defaultConfidence,
-          source: entry.source || 'tooling'
-        }))
+        .map((entry) => {
+          const normalizedType = canonicalizeTypeText(entry.type, { languageId });
+          return {
+            type: normalizedType.displayText,
+            normalizedType: normalizedType.canonicalText,
+            originalText: normalizedType.originalText,
+            confidence: Number.isFinite(entry.confidence) ? entry.confidence : defaultConfidence,
+            source: entry.source || 'tooling'
+          };
+        })
         .filter((entry) => entry.type);
       if (normalized.length) output[name] = normalized;
       continue;
     }
     if (typeof entries === 'string') {
-      const type = normalizeTypeText(entries);
-      if (type) output[name] = [{ type, confidence: defaultConfidence, source: 'tooling' }];
+      const normalizedType = canonicalizeTypeText(entries, { languageId });
+      if (normalizedType.displayText) {
+        output[name] = [{
+          type: normalizedType.displayText,
+          normalizedType: normalizedType.canonicalText,
+          originalText: normalizedType.originalText,
+          confidence: defaultConfidence,
+          source: 'tooling'
+        }];
+      }
     }
   }
   return Object.keys(output).length ? output : null;
@@ -887,6 +913,17 @@ const mergeSignatureInfo = (base, next, options = {}) => {
   if (paramNames.length) merged.paramNames = paramNames;
   const mergedParamTypes = mergeParamTypesByQuality(preferred, alternate, paramNames);
   if (mergedParamTypes) merged.paramTypes = mergedParamTypes;
+  if (!merged.semanticClass && alternate?.semanticClass) {
+    merged.semanticClass = alternate.semanticClass;
+  }
+  if (!merged.semanticTokenType && alternate?.semanticTokenType) {
+    merged.semanticTokenType = alternate.semanticTokenType;
+  }
+  if ((!Array.isArray(merged.semanticTokenModifiers) || !merged.semanticTokenModifiers.length)
+    && Array.isArray(alternate?.semanticTokenModifiers)
+    && alternate.semanticTokenModifiers.length) {
+    merged.semanticTokenModifiers = alternate.semanticTokenModifiers.slice();
+  }
   return merged;
 };
 
@@ -929,6 +966,9 @@ const resolveEvidenceTier = (record) => {
   ) {
     return 'full';
   }
+  if (record?.inlayHintsSucceeded) {
+    return 'hinted';
+  }
   if (record?.sourceBootstrapUsed || record?.sourceFallbackUsed) {
     return 'heuristic';
   }
@@ -937,18 +977,21 @@ const resolveEvidenceTier = (record) => {
 
 const scoreEvidenceTier = (tier) => {
   if (tier === 'full') return 20;
+  if (tier === 'hinted') return 12;
   if (tier === 'inferred') return 8;
   return 0;
 };
 
 const defaultParamConfidenceForTier = (tier) => {
   if (tier === 'full') return 0.9;
+  if (tier === 'hinted') return 0.65;
   if (tier === 'inferred') return 0.75;
   return 0.6;
 };
 
 const resolveEvidenceConfidenceTier = (tier) => {
   if (tier === 'full') return 'high';
+  if (tier === 'hinted') return 'medium';
   if (tier === 'inferred') return 'medium';
   return 'low';
 };
@@ -991,7 +1034,7 @@ const scoreLspConfidence = ({
 }) => {
   let score = evidenceTier === 'full'
     ? 0.92
-    : (evidenceTier === 'inferred' ? 0.78 : 0.62);
+    : (evidenceTier === 'hinted' ? 0.72 : (evidenceTier === 'inferred' ? 0.78 : 0.62));
   if (completeness?.incomplete) {
     score -= completeness?.missingReturn && completeness?.missingParamTypes ? 0.3 : 0.18;
   }
@@ -1022,10 +1065,11 @@ const buildLspSymbolRef = ({
       || ''
   ).trim();
   const kindGroup = target?.symbolHint?.kind ?? symbol?.kind ?? 'other';
+  const semanticClass = String(record?.semanticClass || '').trim() || null;
   const symbolKey = buildSymbolKey({
     virtualPath,
     qualifiedName,
-    kindGroup
+    kindGroup: semanticClass || kindGroup
   });
   if (!symbolKey) return null;
   const signatureKey = buildSignatureKey({
@@ -1043,7 +1087,7 @@ const buildLspSymbolRef = ({
     symbolId: buildSymbolId({ scopedId, scheme: 'lsp' }),
     signatureKey,
     scopedId,
-    kind: kindGroup,
+    kind: semanticClass || kindGroup,
     qualifiedName,
     languageId: languageId || null,
     definingChunk: target?.chunkRef || null,
@@ -1073,7 +1117,8 @@ const buildLspProvenanceEntry = ({
   symbol: {
     name: record?.symbol?.name || record?.target?.symbolHint?.name || null,
     qualifiedName: record?.symbol?.fullName || record?.symbol?.name || record?.target?.symbolHint?.name || null,
-    kind: record?.symbol?.kind ?? record?.target?.symbolHint?.kind ?? null
+    kind: record?.symbol?.kind ?? record?.target?.symbolHint?.kind ?? null,
+    semanticClass: record?.semanticClass || null
   },
   stages: {
     documentSymbol: true,
@@ -1081,9 +1126,17 @@ const buildLspProvenanceEntry = ({
       requested: record?.hoverRequested === true,
       succeeded: record?.hoverSucceeded === true
     },
+    semanticTokens: {
+      requested: record?.semanticTokensRequested === true,
+      succeeded: record?.semanticTokensSucceeded === true
+    },
     signatureHelp: {
       requested: record?.signatureHelpRequested === true,
       succeeded: record?.signatureHelpSucceeded === true
+    },
+    inlayHints: {
+      requested: record?.inlayHintsRequested === true,
+      succeeded: record?.inlayHintsSucceeded === true
     },
     definition: {
       requested: record?.definitionRequested === true,
@@ -1128,9 +1181,15 @@ export const createEmptyHoverMetricsResult = () => ({
   succeeded: 0,
   sourceBootstrapUsed: 0,
   hoverTimedOut: 0,
+  semanticTokensRequested: 0,
+  semanticTokensSucceeded: 0,
+  semanticTokensTimedOut: 0,
   signatureHelpRequested: 0,
   signatureHelpSucceeded: 0,
   signatureHelpTimedOut: 0,
+  inlayHintsRequested: 0,
+  inlayHintsSucceeded: 0,
+  inlayHintsTimedOut: 0,
   definitionRequested: 0,
   definitionSucceeded: 0,
   definitionTimedOut: 0,
@@ -1170,9 +1229,15 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
       succeeded: stats.succeeded,
       sourceBootstrapUsed: stats.sourceBootstrapUsed,
       hoverTimedOut: stats.hoverTimedOut,
+      semanticTokensRequested: stats.semanticTokensRequested,
+      semanticTokensSucceeded: stats.semanticTokensSucceeded,
+      semanticTokensTimedOut: stats.semanticTokensTimedOut,
       signatureHelpRequested: stats.signatureHelpRequested,
       signatureHelpSucceeded: stats.signatureHelpSucceeded,
       signatureHelpTimedOut: stats.signatureHelpTimedOut,
+      inlayHintsRequested: stats.inlayHintsRequested,
+      inlayHintsSucceeded: stats.inlayHintsSucceeded,
+      inlayHintsTimedOut: stats.inlayHintsTimedOut,
       definitionRequested: stats.definitionRequested,
       definitionSucceeded: stats.definitionSucceeded,
       definitionTimedOut: stats.definitionTimedOut,
@@ -1206,9 +1271,15 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
     succeeded: hoverMetrics.succeeded,
     sourceBootstrapUsed: hoverMetrics.sourceBootstrapUsed,
     hoverTimedOut: hoverMetrics.hoverTimedOut,
+    semanticTokensRequested: hoverMetrics.semanticTokensRequested,
+    semanticTokensSucceeded: hoverMetrics.semanticTokensSucceeded,
+    semanticTokensTimedOut: hoverMetrics.semanticTokensTimedOut,
     signatureHelpRequested: hoverMetrics.signatureHelpRequested,
     signatureHelpSucceeded: hoverMetrics.signatureHelpSucceeded,
     signatureHelpTimedOut: hoverMetrics.signatureHelpTimedOut,
+    inlayHintsRequested: hoverMetrics.inlayHintsRequested,
+    inlayHintsSucceeded: hoverMetrics.inlayHintsSucceeded,
+    inlayHintsTimedOut: hoverMetrics.inlayHintsTimedOut,
     definitionRequested: hoverMetrics.definitionRequested,
     definitionSucceeded: hoverMetrics.definitionSucceeded,
     definitionTimedOut: hoverMetrics.definitionTimedOut,
@@ -1310,7 +1381,9 @@ const isTimeoutError = (err) => (
 
 const TIMEOUT_METRIC_KEY_BY_STAGE = Object.freeze({
   hover: 'hoverTimedOut',
+  semantic_tokens: 'semanticTokensTimedOut',
   signature_help: 'signatureHelpTimedOut',
+  inlay_hints: 'inlayHintsTimedOut',
   definition: 'definitionTimedOut',
   type_definition: 'typeDefinitionTimedOut',
   references: 'referencesTimedOut'
@@ -1405,6 +1478,8 @@ const buildFallbackReasonCodes = ({
   hoverSucceeded,
   signatureHelpRequested,
   signatureHelpSucceeded,
+  inlayHintsRequested,
+  inlayHintsSucceeded,
   definitionRequested,
   definitionSucceeded,
   typeDefinitionRequested,
@@ -1421,6 +1496,9 @@ const buildFallbackReasonCodes = ({
   if (!signatureHelpRequested) reasons.push('signature_help_not_requested');
   else if (!signatureHelpSucceeded) reasons.push('signature_help_unavailable_or_failed');
   else reasons.push('post_signature_help_still_incomplete');
+  if (!inlayHintsRequested) reasons.push('inlay_hints_not_requested');
+  else if (!inlayHintsSucceeded) reasons.push('inlay_hints_unavailable_or_failed');
+  else reasons.push('post_inlay_hints_still_incomplete');
   if (!definitionRequested) reasons.push('definition_not_requested');
   else if (!definitionSucceeded) reasons.push('definition_unavailable_or_failed');
   else reasons.push('post_definition_still_incomplete');
@@ -1470,7 +1548,9 @@ export const processDocumentTypes = async ({
   byChunkUid,
   signatureParseCache,
   hoverEnabled,
+  semanticTokensEnabled,
   signatureHelpEnabled,
+  inlayHintsEnabled,
   definitionEnabled,
   typeDefinitionEnabled,
   referencesEnabled,
@@ -1496,6 +1576,7 @@ export const processDocumentTypes = async ({
   markRequestCacheDirty,
   requestBudgetControllers = null,
   requestCacheContext = null,
+  semanticTokensLegend = null,
   hoverControl,
   documentSymbolControl = null,
   hoverFileStats,
@@ -1613,7 +1694,9 @@ export const processDocumentTypes = async ({
     if (openEntry && !openEntry.lineIndex) openEntry.lineIndex = lineIndex;
     const docText = openEntry?.text || doc.text || '';
     const hoverRequestByPosition = new Map();
+    let semanticTokensRequest = null;
     const signatureHelpRequestByPosition = new Map();
+    let inlayHintsRequest = null;
     const definitionRequestByPosition = new Map();
     const typeDefinitionRequestByPosition = new Map();
     const referencesRequestByPosition = new Map();
@@ -1622,7 +1705,9 @@ export const processDocumentTypes = async ({
       ? requestBudgetControllers
       : Object.create(null);
     const hoverBudget = budgetControllers.hover || createRequestBudgetController(resolvedHoverMaxPerFile);
+    const semanticTokensBudget = budgetControllers.semanticTokens || createRequestBudgetController(null);
     const signatureHelpBudget = budgetControllers.signatureHelp || createRequestBudgetController(null);
+    const inlayHintsBudget = budgetControllers.inlayHints || createRequestBudgetController(null);
     const definitionBudget = budgetControllers.definition || createRequestBudgetController(null);
     const typeDefinitionBudget = budgetControllers.typeDefinition || createRequestBudgetController(null);
     const referencesBudget = budgetControllers.references || createRequestBudgetController(null);
@@ -1630,7 +1715,8 @@ export const processDocumentTypes = async ({
     const requestCacheProviderVersion = requestCacheContext?.providerVersion || null;
     const requestCacheWorkspaceKey = requestCacheContext?.workspaceKey || null;
     const isSoftDeadlineExpired = () => (
-      Number.isFinite(Number(softDeadlineAt))
+      softDeadlineAt != null
+      && Number.isFinite(Number(softDeadlineAt))
       && Date.now() >= Number(softDeadlineAt)
     );
     const recordSoftDeadlineSkip = () => {
@@ -1687,6 +1773,14 @@ export const processDocumentTypes = async ({
         negative: true,
         ttlMs
       });
+    };
+    const resolveDocumentEndPosition = () => {
+      const lines = String(openEntry?.text || doc.text || '').split(/\r?\n/u);
+      const lastLineIndex = Math.max(0, lines.length - 1);
+      return {
+        line: lastLineIndex,
+        character: String(lines[lastLineIndex] || '').length
+      };
     };
 
     const requestHover = (symbol, position) => {
@@ -1758,6 +1852,53 @@ export const processDocumentTypes = async ({
       return promise;
     };
 
+    const requestSemanticTokens = () => {
+      throwIfAborted(abortSignal);
+      if (semanticTokensRequest) return semanticTokensRequest;
+      if (isSoftDeadlineExpired()) {
+        markSoftDeadlineReached();
+        recordSoftDeadlineSkip();
+        return Promise.resolve(null);
+      }
+      if (!reserveRequestBudget(semanticTokensBudget)) return Promise.resolve(null);
+      fileHoverStats.semanticTokensRequested += 1;
+      hoverMetrics.semanticTokensRequested += 1;
+      semanticTokensRequest = (async () => {
+        try {
+          throwIfAborted(abortSignal);
+          const payload = await hoverLimiter(() => runGuarded(
+            ({ timeoutMs: guardTimeout }) => client.request('textDocument/semanticTokens/full', {
+              textDocument: { uri }
+            }, { timeoutMs: guardTimeout }),
+            { label: 'semanticTokens', ...(resolvedHoverTimeout ? { timeoutOverride: resolvedHoverTimeout } : {}) }
+          ));
+          const decoded = decodeSemanticTokens({
+            data: payload?.data,
+            legend: semanticTokensLegend,
+            providerId: requestCacheProviderId
+          });
+          fileHoverStats.semanticTokensSucceeded += 1;
+          hoverMetrics.semanticTokensSucceeded += 1;
+          return decoded;
+        } catch (err) {
+          handleStageRequestError({
+            err,
+            cmd,
+            stageKey: 'semantic_tokens',
+            guard,
+            checks,
+            checkFlags,
+            fileHoverStats,
+            hoverMetrics,
+            hoverControl,
+            resolvedHoverDisableAfterTimeouts
+          });
+          return null;
+        }
+      })();
+      return semanticTokensRequest;
+    };
+
     const requestSignatureHelp = (symbol, position) => {
       throwIfAborted(abortSignal);
       const key = buildSymbolPositionCacheKey({
@@ -1827,6 +1968,53 @@ export const processDocumentTypes = async ({
       })();
       signatureHelpRequestByPosition.set(key, promise);
       return promise;
+    };
+
+    const requestInlayHints = () => {
+      throwIfAborted(abortSignal);
+      if (inlayHintsRequest) return inlayHintsRequest;
+      if (isSoftDeadlineExpired()) {
+        markSoftDeadlineReached();
+        recordSoftDeadlineSkip();
+        return Promise.resolve(null);
+      }
+      if (!reserveRequestBudget(inlayHintsBudget)) return Promise.resolve(null);
+      fileHoverStats.inlayHintsRequested += 1;
+      hoverMetrics.inlayHintsRequested += 1;
+      inlayHintsRequest = (async () => {
+        try {
+          throwIfAborted(abortSignal);
+          const payload = await hoverLimiter(() => runGuarded(
+            ({ timeoutMs: guardTimeout }) => client.request('textDocument/inlayHint', {
+              textDocument: { uri },
+              range: {
+                start: { line: 0, character: 0 },
+                end: resolveDocumentEndPosition()
+              }
+            }, { timeoutMs: guardTimeout }),
+            { label: 'inlayHints', ...(resolvedHoverTimeout ? { timeoutOverride: resolvedHoverTimeout } : {}) }
+          ));
+          const hints = Array.isArray(payload) ? payload : [];
+          fileHoverStats.inlayHintsSucceeded += 1;
+          hoverMetrics.inlayHintsSucceeded += 1;
+          return hints;
+        } catch (err) {
+          handleStageRequestError({
+            err,
+            cmd,
+            stageKey: 'inlay_hints',
+            guard,
+            checks,
+            checkFlags,
+            fileHoverStats,
+            hoverMetrics,
+            hoverControl,
+            resolvedHoverDisableAfterTimeouts
+          });
+          return null;
+        }
+      })();
+      return inlayHintsRequest;
     };
 
     const requestDefinition = (symbol, position) => {
@@ -2158,6 +2346,11 @@ export const processDocumentTypes = async ({
         target,
         info,
         sourceSignature,
+        semanticTokensEligible: (
+          semanticTokensEnabled
+          && interactiveAllowed
+          && position != null
+        ),
         hoverEligible: (
           hoverEnabled
           && interactiveAllowed
@@ -2170,6 +2363,12 @@ export const processDocumentTypes = async ({
           && interactiveAllowed
           && needsHover
           && symbolKindAllowed
+          && position != null
+        ),
+        inlayHintsEligible: (
+          inlayHintsEnabled
+          && interactiveAllowed
+          && needsHover
           && position != null
         ),
         definitionEligible: (
@@ -2197,16 +2396,21 @@ export const processDocumentTypes = async ({
           && position != null
           && !sourceSignature
         ),
+        semanticTokensRequested: false,
+        semanticTokensSucceeded: false,
         hoverRequested: false,
         hoverSucceeded: false,
         signatureHelpRequested: false,
         signatureHelpSucceeded: false,
+        inlayHintsRequested: false,
+        inlayHintsSucceeded: false,
         definitionRequested: false,
         definitionSucceeded: false,
         typeDefinitionRequested: false,
         typeDefinitionSucceeded: false,
         referencesRequested: false,
         referencesSucceeded: false,
+        semanticClass: String(info?.semanticClass || '').trim() || null,
         sourceBootstrapUsed: sourceBootstrapUsed === true,
         sourceFallbackUsed: false
       });
@@ -2277,6 +2481,29 @@ export const processDocumentTypes = async ({
       }).incomplete);
     };
 
+    if (semanticTokensEnabled !== false) {
+      const semanticEligibleRecords = symbolRecords.filter((record) => record?.semanticTokensEligible === true);
+      if (semanticEligibleRecords.length && !shouldSuppressAdditionalRequests()) {
+        const semanticTokens = await requestSemanticTokens();
+        if (Array.isArray(semanticTokens) && semanticTokens.length) {
+          for (const record of semanticEligibleRecords) {
+            record.semanticTokensRequested = true;
+            const token = findSemanticTokenAtPosition(semanticTokens, record.position);
+            if (!token?.semanticClass) continue;
+            record.semanticTokensSucceeded = true;
+            record.semanticClass = token.semanticClass;
+            record.info = mergeSignatureInfo(record.info, {
+              semanticClass: token.semanticClass,
+              semanticTokenType: token.tokenType || null,
+              semanticTokenModifiers: Array.isArray(token.tokenModifiers)
+                ? token.tokenModifiers.slice()
+                : []
+            }, { symbolKind: record?.symbol?.kind });
+          }
+        }
+      }
+    }
+
     await runStagePass({
       enabled: hoverEnabled !== false,
       eligibleFlag: 'hoverEligible',
@@ -2291,6 +2518,34 @@ export const processDocumentTypes = async ({
       requestedFlag: 'signatureHelpRequested',
       succeededFlag: 'signatureHelpSucceeded'
     });
+    if (inlayHintsEnabled !== false && unresolvedRecords.length) {
+      const inlayEligibleRecords = unresolvedRecords.filter((record) => record?.inlayHintsEligible === true);
+      if (inlayEligibleRecords.length && !shouldSuppressAdditionalRequests()) {
+        const inlayHints = await requestInlayHints();
+        if (Array.isArray(inlayHints)) {
+          for (const record of inlayEligibleRecords) {
+            record.inlayHintsRequested = true;
+            const hintInfo = parseInlayHintSignalInfo({
+              hints: inlayHints,
+              lineIndex,
+              text: docText,
+              targetRange: record?.target?.virtualRange || record?.target?.chunkRef?.range || null,
+              positionEncoding,
+              paramNames: normalizeParamNames(record?.info?.paramNames),
+              languageId
+            });
+            if (!hintInfo) continue;
+            record.inlayHintsSucceeded = hintInfo.hintCount > 0;
+            if (record.inlayHintsSucceeded) {
+              record.info = mergeSignatureInfo(record.info, hintInfo, { symbolKind: record?.symbol?.kind });
+            }
+          }
+          unresolvedRecords = unresolvedRecords.filter((record) => isIncompleteTypePayload(record?.info, {
+            symbolKind: record?.symbol?.kind
+          }).incomplete);
+        }
+      }
+    }
     await runStagePass({
       enabled: definitionEnabled !== false,
       eligibleFlag: 'definitionEligible',
@@ -2333,6 +2588,8 @@ export const processDocumentTypes = async ({
             hoverSucceeded: record.hoverSucceeded === true,
             signatureHelpRequested: record.signatureHelpRequested === true,
             signatureHelpSucceeded: record.signatureHelpSucceeded === true,
+            inlayHintsRequested: record.inlayHintsRequested === true,
+            inlayHintsSucceeded: record.inlayHintsSucceeded === true,
             definitionRequested: record.definitionRequested === true,
             definitionSucceeded: record.definitionSucceeded === true,
             typeDefinitionRequested: record.typeDefinitionRequested === true,
@@ -2354,7 +2611,7 @@ export const processDocumentTypes = async ({
       }
 
       const normalizedSignature = normalizeTypeText(info.signature);
-      let normalizedReturn = normalizeTypeText(info.returnType);
+      let normalizedReturn = canonicalizeTypeText(info.returnType, { languageId }).displayText;
       if (normalizedReturn === 'Void' && normalizedSignature?.includes('->')) {
         const arrowMatch = normalizedSignature.split('->').pop();
         const trimmed = arrowMatch ? arrowMatch.trim() : '';
@@ -2368,7 +2625,8 @@ export const processDocumentTypes = async ({
       const payload = {
         returnType: normalizedReturn,
         paramTypes: normalizeParamTypes(info.paramTypes, {
-          defaultConfidence: defaultParamConfidenceForTier(evidenceTier)
+          defaultConfidence: defaultParamConfidenceForTier(evidenceTier),
+          languageId
         }),
         signature: normalizedSignature
       };

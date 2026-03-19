@@ -9,7 +9,9 @@ const CAPABILITY_KEYS = Object.freeze([
   'signatureHelp',
   'definition',
   'typeDefinition',
-  'references'
+  'references',
+  'semanticTokens',
+  'inlayHints'
 ]);
 
 const createCapabilityRecord = () => {
@@ -28,7 +30,9 @@ const createCapabilityRecord = () => {
  *   signatureHelp:boolean,
  *   definition:boolean,
  *   typeDefinition:boolean,
- *   references:boolean
+ *   references:boolean,
+ *   semanticTokens:boolean,
+ *   inlayHints:boolean
  * }}
  */
 export const probeLspCapabilities = (initializeResult) => {
@@ -51,6 +55,11 @@ export const probeLspCapabilities = (initializeResult) => {
     || hasProviderCapability(textDocument?.typeDefinition);
   mask.references = hasProviderCapability(capabilities?.referencesProvider)
     || hasProviderCapability(textDocument?.references);
+  mask.semanticTokens = hasProviderCapability(capabilities?.semanticTokensProvider)
+    || hasProviderCapability(textDocument?.semanticTokens);
+  mask.inlayHints = hasProviderCapability(capabilities?.inlayHintProvider)
+    || hasProviderCapability(capabilities?.inlayHint)
+    || hasProviderCapability(textDocument?.inlayHint);
   return mask;
 };
 
@@ -61,7 +70,9 @@ export const buildLspCapabilityGate = ({
   signatureHelpEnabled = true,
   definitionEnabled = true,
   typeDefinitionEnabled = true,
-  referencesEnabled = true
+  referencesEnabled = true,
+  semanticTokensEnabled = true,
+  inlayHintsEnabled = true
 }) => {
   const command = String(cmd || 'LSP provider');
   const mask = capabilityMask && typeof capabilityMask === 'object'
@@ -74,6 +85,8 @@ export const buildLspCapabilityGate = ({
   requested.definition = definitionEnabled !== false;
   requested.typeDefinition = typeDefinitionEnabled !== false;
   requested.references = referencesEnabled !== false;
+  requested.semanticTokens = semanticTokensEnabled !== false;
+  requested.inlayHints = inlayHintsEnabled !== false;
 
   const effective = createCapabilityRecord();
   const missing = [];
@@ -116,6 +129,16 @@ export const buildLspCapabilityGate = ({
   effective.references = requested.references && mask.references;
   if (requested.references && !mask.references) {
     addMissing('references', 'info', `${command} does not advertise textDocument/references.`);
+  }
+
+  effective.semanticTokens = requested.semanticTokens && mask.semanticTokens;
+  if (requested.semanticTokens && !mask.semanticTokens) {
+    addMissing('semanticTokens', 'info', `${command} does not advertise textDocument/semanticTokens/full.`);
+  }
+
+  effective.inlayHints = requested.inlayHints && mask.inlayHints;
+  if (requested.inlayHints && !mask.inlayHints) {
+    addMissing('inlayHints', 'info', `${command} does not advertise textDocument/inlayHint.`);
   }
 
   return {

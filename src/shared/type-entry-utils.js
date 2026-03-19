@@ -1,3 +1,5 @@
+import { canonicalizeTypeText } from './type-normalization.js';
+
 const hasIterable = (value) => value != null && typeof value[Symbol.iterator] === 'function';
 
 /**
@@ -25,21 +27,25 @@ export const toTypeEntryCollection = (value) => {
  */
 export const normalizeTypeEntry = (entry) => {
   if (typeof entry === 'string') {
-    const type = entry.trim();
-    if (!type) return null;
+    const normalized = canonicalizeTypeText(entry);
+    if (!normalized.displayText) return null;
     return {
-      type,
+      type: normalized.displayText,
+      normalizedType: normalized.canonicalText,
+      originalText: normalized.originalText,
       source: null,
       confidence: null
     };
   }
   if (!entry || typeof entry !== 'object') return null;
   if (!entry.type) return null;
-  const type = String(entry.type).trim();
-  if (!type) return null;
+  const normalized = canonicalizeTypeText(entry.type, { languageId: entry.languageId || null });
+  if (!normalized.displayText) return null;
   const sourceValue = entry.source == null ? null : String(entry.source).trim();
   return {
-    type,
+    type: normalized.displayText,
+    normalizedType: normalized.canonicalText,
+    originalText: normalized.originalText,
     source: sourceValue || null,
     confidence: Number.isFinite(entry.confidence) ? entry.confidence : null
   };
@@ -60,7 +66,7 @@ export const mergeTypeEntries = (existing, incoming, options = {}) => {
   const addEntry = (entry) => {
     const normalized = normalizeTypeEntry(entry);
     if (!normalized) return;
-    const key = `${normalized.type}:${normalized.source || ''}`;
+    const key = `${normalized.normalizedType || normalized.type}:${normalized.source || ''}`;
     const prior = map.get(key);
     if (!prior) {
       map.set(key, normalized);

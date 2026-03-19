@@ -9,6 +9,8 @@ const resolved = resolveLspRuntimeConfig({
     maxRetries: 3,
     hoverEnabled: false,
     signatureHelpEnabled: false,
+    semanticTokensEnabled: false,
+    inlayHintsEnabled: false,
     hoverRequireMissingReturn: false,
     definitionEnabled: false,
     typeDefinitionEnabled: false,
@@ -67,6 +69,8 @@ assert.equal(resolved.hoverDisableAfterTimeouts, 2, 'expected provider hover tim
 assert.equal(resolved.signatureHelpConcurrency, 6, 'expected provider signatureHelp concurrency');
 assert.equal(resolved.hoverEnabled, false, 'expected provider hover enabled override');
 assert.equal(resolved.signatureHelpEnabled, false, 'expected provider signatureHelp enabled override');
+assert.equal(resolved.semanticTokensEnabled, false, 'expected provider semanticTokens enabled override');
+assert.equal(resolved.inlayHintsEnabled, false, 'expected provider inlayHints enabled override');
 assert.equal(resolved.definitionEnabled, false, 'expected provider definition enabled override');
 assert.equal(resolved.definitionConcurrency, 5, 'expected global definition concurrency fallback');
 assert.equal(resolved.typeDefinitionEnabled, false, 'expected provider typeDefinition enabled override');
@@ -105,6 +109,8 @@ assert.equal(defaultsOnly.hoverDisableAfterTimeouts, null, 'expected hover timeo
 assert.equal(defaultsOnly.signatureHelpConcurrency, null, 'expected signatureHelp concurrency to remain unset');
 assert.equal(defaultsOnly.hoverEnabled, null, 'expected hover enabled to remain unset');
 assert.equal(defaultsOnly.signatureHelpEnabled, null, 'expected signatureHelp enabled to remain unset');
+assert.equal(defaultsOnly.semanticTokensEnabled, null, 'expected semanticTokens enabled to remain unset');
+assert.equal(defaultsOnly.inlayHintsEnabled, null, 'expected inlayHints enabled to remain unset');
 assert.equal(defaultsOnly.definitionEnabled, null, 'expected definition enabled to remain unset');
 assert.equal(defaultsOnly.definitionConcurrency, null, 'expected definition concurrency to remain unset');
 assert.equal(defaultsOnly.typeDefinitionEnabled, null, 'expected typeDefinition enabled to remain unset');

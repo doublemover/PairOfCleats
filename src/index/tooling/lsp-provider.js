@@ -483,6 +483,12 @@ const normalizeServerConfig = (server, index) => {
   const referencesEnabled = typeof merged.referencesEnabled === 'boolean'
     ? merged.referencesEnabled
     : (typeof merged.references === 'boolean' ? merged.references : null);
+  const semanticTokensEnabled = typeof merged.semanticTokensEnabled === 'boolean'
+    ? merged.semanticTokensEnabled
+    : (typeof merged.semanticTokens === 'boolean' ? merged.semanticTokens : null);
+  const inlayHintsEnabled = typeof merged.inlayHintsEnabled === 'boolean'
+    ? merged.inlayHintsEnabled
+    : (typeof merged.inlayHints === 'boolean' ? merged.inlayHints : null);
   const hoverRequireMissingReturn = typeof merged.hoverRequireMissingReturn === 'boolean'
     ? merged.hoverRequireMissingReturn
     : null;
@@ -635,6 +641,8 @@ const normalizeServerConfig = (server, index) => {
     definitionEnabled,
     typeDefinitionEnabled,
     referencesEnabled,
+    semanticTokensEnabled,
+    inlayHintsEnabled,
     hoverRequireMissingReturn,
     hoverSymbolKinds,
     rustSuppressProcMacroDiagnostics,
