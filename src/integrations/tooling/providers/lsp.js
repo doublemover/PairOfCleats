@@ -18,13 +18,14 @@ import {
 import {
   DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY,
   DEFAULT_HOVER_CONCURRENCY,
-  DEFAULT_HOVER_CACHE_MAX_ENTRIES,
+  DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES,
+  LSP_REQUEST_CACHE_POLICY_VERSION,
   clampIntRange,
   createConcurrencyLimiter,
   createEmptyHoverMetricsResult,
-  loadHoverCache,
+  loadLspRequestCache,
   normalizeHoverKinds,
-  persistHoverCache,
+  persistLspRequestCache,
   processDocumentTypes,
   runWithConcurrency,
   summarizeHoverMetrics,
@@ -44,6 +45,7 @@ import { throwIfAborted } from '../../../shared/abort.js';
 import { coercePositiveInt } from '../../../shared/number-coerce.js';
 import { sleep } from '../../../shared/sleep.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
+import { sha1 } from '../../../shared/hash.js';
 
 /**
  * Parse positive integer configuration with fallback floor of 1.
@@ -428,6 +430,220 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
   };
 };
 
+const REQUEST_BUDGET_METHODS = Object.freeze({
+  documentSymbol: 'textDocument/documentSymbol',
+  hover: 'textDocument/hover',
+  signatureHelp: 'textDocument/signatureHelp',
+  definition: 'textDocument/definition',
+  typeDefinition: 'textDocument/typeDefinition',
+  references: 'textDocument/references'
+});
+
+const REQUEST_BUDGET_WEIGHTS = Object.freeze({
+  documentSymbol: 1,
+  hover: 1,
+  signatureHelp: 1.1,
+  definition: 1.4,
+  typeDefinition: 1.5,
+  references: 1.8
+});
+
+const REQUEST_BUDGET_P95_THRESHOLDS = Object.freeze({
+  documentSymbol: 3000,
+  hover: 1800,
+  signatureHelp: 1800,
+  definition: 2200,
+  typeDefinition: 2200,
+  references: 2500
+});
+
+const REQUEST_BUDGET_PROVIDER_WEIGHTS = Object.freeze({
+  pyright: 1.2,
+  gopls: 1.15,
+  clangd: 1,
+  sourcekit: 0.9,
+  'lua-language-server': 0.95,
+  'rust-analyzer': 1.05
+});
+
+const toNonNegativeInt = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
+};
+
+const createBudgetController = (maxRequests) => {
+  const cap = toFiniteInt(maxRequests, 0);
+  if (!Number.isFinite(cap) || cap < 0) {
+    return {
+      enabled: false,
+      maxRequests: null,
+      used: 0,
+      tryReserve() {
+        return true;
+      }
+    };
+  }
+  let used = 0;
+  return {
+    enabled: true,
+    maxRequests: cap,
+    get used() {
+      return used;
+    },
+    tryReserve() {
+      if (used >= cap) return false;
+      used += 1;
+      return true;
+    }
+  };
+};
+
+const createEmptyRequestCacheMetrics = (providerId = null) => ({
+  providerId: String(providerId || '').trim() || null,
+  hits: 0,
+  misses: 0,
+  memoryHits: 0,
+  persistedHits: 0,
+  negativeHits: 0,
+  writes: 0,
+  byKind: Object.create(null)
+});
+
+const summarizeRequestCacheMetrics = (metrics) => {
+  if (!metrics || typeof metrics !== 'object') {
+    return createEmptyRequestCacheMetrics(null);
+  }
+  const byKind = Object.create(null);
+  for (const [kind, value] of Object.entries(metrics.byKind || {})) {
+    byKind[kind] = {
+      hits: toNonNegativeInt(value?.hits),
+      misses: toNonNegativeInt(value?.misses),
+      memoryHits: toNonNegativeInt(value?.memoryHits),
+      persistedHits: toNonNegativeInt(value?.persistedHits),
+      negativeHits: toNonNegativeInt(value?.negativeHits),
+      writes: toNonNegativeInt(value?.writes)
+    };
+  }
+  return {
+    providerId: metrics.providerId || null,
+    hits: toNonNegativeInt(metrics.hits),
+    misses: toNonNegativeInt(metrics.misses),
+    memoryHits: toNonNegativeInt(metrics.memoryHits),
+    persistedHits: toNonNegativeInt(metrics.persistedHits),
+    negativeHits: toNonNegativeInt(metrics.negativeHits),
+    writes: toNonNegativeInt(metrics.writes),
+    byKind
+  };
+};
+
+export const __resolveAdaptiveLspRequestBudgetPlanForTests = ({
+  providerId,
+  selection,
+  clientMetrics = null,
+  lifecycleState = null,
+  guardState = null,
+  workspaceKey = null
+}) => {
+  const selectedDocs = toNonNegativeInt(selection?.selectedDocs);
+  const selectedTargets = toNonNegativeInt(selection?.selectedTargets);
+  const hoverMaxPerFile = Math.max(1, toNonNegativeInt(selection?.hoverMaxPerFile || 1));
+  const providerWeight = Number(REQUEST_BUDGET_PROVIDER_WEIGHTS[String(providerId || '').trim()]) || 1;
+  const methodMetrics = clientMetrics?.byMethod || {};
+  const lifecycle = lifecycleState && typeof lifecycleState === 'object' ? lifecycleState : {};
+  const guard = guardState && typeof guardState === 'object' ? guardState : {};
+  const workspaceCostCeiling = Math.max(
+    selectedDocs,
+    Math.floor((selectedTargets * 3 + selectedDocs * 2) * providerWeight)
+  );
+  const baseByKind = {
+    documentSymbol: selectedDocs,
+    hover: Math.max(0, Math.min(selectedTargets || (selectedDocs * hoverMaxPerFile), selectedDocs * hoverMaxPerFile)),
+    signatureHelp: Math.ceil(selectedDocs * hoverMaxPerFile * 0.75),
+    definition: Math.ceil(selectedDocs * hoverMaxPerFile * 0.5),
+    typeDefinition: Math.ceil(selectedDocs * hoverMaxPerFile * 0.35),
+    references: Math.ceil(selectedDocs * hoverMaxPerFile * 0.25)
+  };
+  const weightedCost = Object.entries(baseByKind).reduce(
+    (sum, [kind, value]) => sum + (Number(value || 0) * Number(REQUEST_BUDGET_WEIGHTS[kind] || 1)),
+    0
+  );
+  const scale = weightedCost > workspaceCostCeiling && weightedCost > 0
+    ? (workspaceCostCeiling / weightedCost)
+    : 1;
+  const byKind = Object.create(null);
+  let degraded = false;
+  const reasons = [];
+  for (const [kind, baseValueRaw] of Object.entries(baseByKind)) {
+    const baseValue = toNonNegativeInt(baseValueRaw);
+    const methodName = REQUEST_BUDGET_METHODS[kind];
+    const method = methodMetrics?.[methodName] || {};
+    const requests = Math.max(0, Number(method?.requests || 0));
+    const failures = Math.max(0, Number(method?.failed || 0));
+    const timedOut = Math.max(0, Number(method?.timedOut || 0));
+    const failureRate = requests > 0 ? (failures / requests) : 0;
+    const timeoutRate = requests > 0 ? (timedOut / requests) : 0;
+    const p95Ms = Math.max(0, Number(method?.latencyMs?.p95 || 0));
+    let multiplier = scale;
+    const reasonCodes = [];
+    if (timeoutRate >= 0.15 || timedOut >= 2) {
+      multiplier *= 0.5;
+      degraded = true;
+      reasonCodes.push('timeout_pressure');
+    }
+    if (failureRate >= 0.25 || failures >= 3) {
+      multiplier *= 0.65;
+      degraded = true;
+      reasonCodes.push('failure_pressure');
+    }
+    if (p95Ms >= Number(REQUEST_BUDGET_P95_THRESHOLDS[kind] || 0)) {
+      multiplier *= 0.8;
+      degraded = true;
+      reasonCodes.push('latency_pressure');
+    }
+    if (lifecycle?.fdPressureBackoffActive === true) {
+      multiplier *= 0.75;
+      degraded = true;
+      reasonCodes.push('fd_pressure_backoff');
+    }
+    if ((lifecycle?.crashLoopQuarantined === true) || Number(guard?.tripCount || 0) > 0) {
+      multiplier *= 0.5;
+      degraded = true;
+      reasonCodes.push('breaker_or_quarantine');
+    }
+    const forcedZero = lifecycle?.crashLoopQuarantined === true && kind !== 'documentSymbol';
+    const maxRequests = forcedZero
+      ? 0
+      : (
+        baseValue > 0
+          ? Math.max(1, Math.floor(baseValue * multiplier))
+          : 0
+      );
+    byKind[kind] = {
+      method: methodName,
+      maxRequests,
+      baseRequests: baseValue,
+      requests,
+      failures,
+      timedOut,
+      failureRate: Number(failureRate.toFixed(4)),
+      timeoutRate: Number(timeoutRate.toFixed(4)),
+      p95Ms,
+      reasonCodes
+    };
+    if (reasonCodes.length) reasons.push(`${kind}:${reasonCodes.join('+')}`);
+  }
+  return {
+    providerId: String(providerId || '').trim() || null,
+    workspaceKey: String(workspaceKey || '').trim() || null,
+    policyVersion: LSP_REQUEST_CACHE_POLICY_VERSION,
+    workspaceCostCeiling,
+    weightedCost: Number(weightedCost.toFixed(2)),
+    degraded,
+    reason: reasons.length ? reasons.join(',') : null,
+    byKind
+  };
+};
+
 export { resolveVfsIoBatching, ensureVirtualFilesBatch };
 
 /**
@@ -491,10 +707,11 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {number} [params.typeDefinitionConcurrency=8]
  * @param {number} [params.referencesConcurrency=8]
  * @param {number|null} [params.softDeadlineMs=null]
- * @param {number} [params.hoverCacheMaxEntries=50000]
+ * @param {number} [params.requestCacheMaxEntries=50000]
  * @param {(line:string)=>boolean|null} [params.stderrFilter=null]
  * @param {object|null} [params.initializationOptions=null]
  * @param {string|null} [params.providerId=null]
+ * @param {string|null} [params.providerVersion=null]
  * @param {string|null} [params.workspaceKey=null]
  * @param {number|null} [params.lifecycleRestartWindowMs=null]
  * @param {number|null} [params.lifecycleMaxRestartsPerWindow=null]
@@ -554,10 +771,11 @@ export async function collectLspTypes({
   typeDefinitionConcurrency = DEFAULT_HOVER_CONCURRENCY,
   referencesConcurrency = DEFAULT_HOVER_CONCURRENCY,
   softDeadlineMs = null,
-  hoverCacheMaxEntries = DEFAULT_HOVER_CACHE_MAX_ENTRIES,
+  requestCacheMaxEntries = DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES,
   stderrFilter = null,
   initializationOptions = null,
   providerId = null,
+  providerVersion = null,
   workspaceKey = null,
   lifecycleRestartWindowMs = null,
   lifecycleMaxRestartsPerWindow = null,
@@ -584,6 +802,7 @@ export async function collectLspTypes({
   const resolvedReferencesTimeout = resolvePositiveTimeout(referencesTimeoutMs) ?? resolvedTypeDefinitionTimeout;
   const resolvedDocumentSymbolTimeout = resolvePositiveTimeout(documentSymbolTimeoutMs);
   const resolvedProviderId = String(providerId || cmd || 'lsp');
+  const resolvedProviderVersion = String(providerVersion || '1.0.0').trim() || '1.0.0';
   const resolvedHoverMaxPerFile = toFiniteInt(hoverMaxPerFile, 0);
   const resolvedHoverDisableAfterTimeouts = toFiniteInt(hoverDisableAfterTimeouts, 1);
   const resolvedHoverKinds = normalizeHoverKinds(hoverSymbolKinds);
@@ -637,9 +856,9 @@ export async function collectLspTypes({
     16,
     { min: 1, max: 256 }
   );
-  const resolvedHoverCacheMaxEntries = clampIntRange(
-    hoverCacheMaxEntries,
-    DEFAULT_HOVER_CACHE_MAX_ENTRIES,
+  const resolvedRequestCacheMaxEntries = clampIntRange(
+    requestCacheMaxEntries,
+    DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES,
     { min: 1000, max: 200000 }
   );
 
@@ -651,7 +870,13 @@ export async function collectLspTypes({
     guard: null,
     requests: null
   };
-  const docs = Array.isArray(documents) ? documents : [];
+  const docs = Array.isArray(documents)
+    ? documents.map((doc) => ({
+      ...doc,
+      docHash: String(doc?.docHash || '').trim()
+        || sha1(`${String(doc?.virtualPath || '')}\0${String(doc?.text || '')}`)
+    }))
+    : [];
   const targetList = Array.isArray(targets) ? targets : [];
   if (!docs.length || !targetList.length) {
     runtime.selection = {
@@ -675,6 +900,7 @@ export async function collectLspTypes({
   throwIfAborted(toolingAbortSignal);
 
   const resolvedRoot = vfsRoot || rootDir;
+  const resolvedWorkspaceKey = String(workspaceKey || resolvedRoot || rootDir || '').trim() || null;
   const resolvedScheme = normalizeUriScheme(uriScheme);
   const resolvedBatching = resolveVfsIoBatching(vfsIoBatching);
 
@@ -765,7 +991,7 @@ export async function collectLspTypes({
     enabled: sessionPoolingEnabled !== false,
     repoRoot: rootDir,
     providerId: resolvedProviderId,
-    workspaceKey: workspaceKey || rootDir,
+    workspaceKey: resolvedWorkspaceKey || rootDir,
     cmd,
     args,
     cwd: rootDir,
@@ -998,11 +1224,13 @@ export async function collectLspTypes({
       const definitionLimiter = createConcurrencyLimiter(resolvedDefinitionConcurrency);
       const typeDefinitionLimiter = createConcurrencyLimiter(resolvedTypeDefinitionConcurrency);
       const referencesLimiter = createConcurrencyLimiter(resolvedReferencesConcurrency);
-      const hoverCacheState = await loadHoverCache(cacheRoot);
-      const hoverCacheEntries = hoverCacheState.entries;
-      let hoverCacheDirty = false;
-      const markHoverCacheDirty = () => {
-        hoverCacheDirty = true;
+      const requestCacheState = await loadLspRequestCache(cacheRoot);
+      const requestCacheEntries = requestCacheState.entries;
+      const requestCachePersistedKeys = requestCacheState.persistedKeys;
+      const requestCacheMetrics = createEmptyRequestCacheMetrics(resolvedProviderId);
+      let requestCacheDirty = false;
+      const markRequestCacheDirty = () => {
+        requestCacheDirty = true;
       };
       const adaptiveScopePlan = __resolveAdaptiveLspScopePlanForTests({
         providerId: resolvedProviderId,
@@ -1062,6 +1290,22 @@ export async function collectLspTypes({
         ])
       );
       const effectiveHoverMaxPerFile = adaptiveScopePlan.hoverMaxPerFile;
+      const requestBudgetPlan = __resolveAdaptiveLspRequestBudgetPlanForTests({
+        providerId: resolvedProviderId,
+        selection: adaptiveScopePlan,
+        clientMetrics: typeof client.getMetrics === 'function' ? client.getMetrics() : null,
+        lifecycleState: lifecycleHealth.getState(),
+        guardState: guard.getState ? guard.getState() : null,
+        workspaceKey: resolvedWorkspaceKey
+      });
+      const requestBudgetControllers = {
+        documentSymbol: createBudgetController(requestBudgetPlan.byKind?.documentSymbol?.maxRequests),
+        hover: createBudgetController(requestBudgetPlan.byKind?.hover?.maxRequests),
+        signatureHelp: createBudgetController(requestBudgetPlan.byKind?.signatureHelp?.maxRequests),
+        definition: createBudgetController(requestBudgetPlan.byKind?.definition?.maxRequests),
+        typeDefinition: createBudgetController(requestBudgetPlan.byKind?.typeDefinition?.maxRequests),
+        references: createBudgetController(requestBudgetPlan.byKind?.references?.maxRequests)
+      };
       runtime.selection = {
         providerId: resolvedProviderId,
         totalDocs: adaptiveScopePlan.totalDocs,
@@ -1080,6 +1324,8 @@ export async function collectLspTypes({
         skippedByMissingTargets: adaptiveScopePlan.skippedByMissingTargets,
         interactiveSuppressedDocs: adaptiveScopePlan.interactiveSuppressedDocs
       };
+      runtime.requestBudgets = requestBudgetPlan;
+      runtime.requestCache = summarizeRequestCacheMetrics(requestCacheMetrics);
       if (adaptiveScopePlan.skippedByPathPolicy > 0) {
         log(
           `[tooling] ${cmd} path policy skipped ${adaptiveScopePlan.skippedByPathPolicy}/${adaptiveScopePlan.sourceDocCount} `
@@ -1203,8 +1449,16 @@ export async function collectLspTypes({
           definitionLimiter,
           typeDefinitionLimiter,
           referencesLimiter,
-          hoverCacheEntries,
-          markHoverCacheDirty,
+          requestCacheEntries,
+          requestCachePersistedKeys,
+          requestCacheMetrics,
+          markRequestCacheDirty,
+          requestBudgetControllers,
+          requestCacheContext: {
+            providerId: resolvedProviderId,
+            providerVersion: resolvedProviderVersion,
+            workspaceKey: resolvedWorkspaceKey
+          },
           hoverControl,
           hoverFileStats,
           hoverLatencyMs,
@@ -1251,12 +1505,12 @@ export async function collectLspTypes({
         throwIfAborted(toolingAbortSignal);
       }
 
-      if (hoverCacheDirty) {
+      if (requestCacheDirty) {
         try {
-          await persistHoverCache({
-            cachePath: hoverCacheState.path,
-            entries: hoverCacheEntries,
-            maxEntries: resolvedHoverCacheMaxEntries
+          await persistLspRequestCache({
+            cachePath: requestCacheState.path,
+            entries: requestCacheEntries,
+            maxEntries: resolvedRequestCacheMaxEntries
           });
         } catch {}
       }
@@ -1289,6 +1543,7 @@ export async function collectLspTypes({
 
       const lifecycleState = lifecycleHealth.getState();
       refreshRuntimeState({ includeRequests: true });
+      runtime.requestCache = summarizeRequestCacheMetrics(requestCacheMetrics);
       if (lifecycleState.crashLoopTrips > 0 && !checkFlags.crashLoopQuarantined) {
         checkFlags.crashLoopQuarantined = true;
         checks.push({

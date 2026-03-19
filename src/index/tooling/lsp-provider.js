@@ -465,7 +465,7 @@ const normalizeServerConfig = (server, index) => {
   const definitionConcurrency = Number(merged.definitionConcurrency);
   const typeDefinitionConcurrency = Number(merged.typeDefinitionConcurrency);
   const referencesConcurrency = Number(merged.referencesConcurrency);
-  const hoverCacheMaxEntries = Number(merged.hoverCacheMaxEntries);
+  const requestCacheMaxEntries = Number(merged.requestCacheMaxEntries);
   const hoverMaxPerFile = Number(merged.hoverMaxPerFile);
   const hoverDisableAfterTimeouts = Number(merged.hoverDisableAfterTimeouts);
   const hoverEnabled = typeof merged.hoverEnabled === 'boolean'
@@ -621,8 +621,8 @@ const normalizeServerConfig = (server, index) => {
     referencesConcurrency: Number.isFinite(referencesConcurrency)
       ? Math.max(1, Math.floor(referencesConcurrency))
       : null,
-    hoverCacheMaxEntries: Number.isFinite(hoverCacheMaxEntries)
-      ? Math.max(1000, Math.floor(hoverCacheMaxEntries))
+    requestCacheMaxEntries: Number.isFinite(requestCacheMaxEntries)
+      ? Math.max(1000, Math.floor(requestCacheMaxEntries))
       : null,
     hoverMaxPerFile: Number.isFinite(hoverMaxPerFile)
       ? Math.max(0, Math.floor(hoverMaxPerFile))
@@ -765,7 +765,8 @@ const createConfiguredLspProvider = (server) => {
       cacheRoot: ctx?.cache?.dir || null,
       documentSymbolConcurrency: server.documentSymbolConcurrency,
       hoverConcurrency: server.hoverConcurrency,
-      hoverCacheMaxEntries: server.hoverCacheMaxEntries,
+      requestCacheMaxEntries: server.requestCacheMaxEntries,
+      providerVersion: server.version,
       adaptiveDocScope: server.adaptiveDocScope,
       adaptiveDegradedHint: preflightState === 'degraded',
       adaptiveReasonHint: preflightReasonCode,

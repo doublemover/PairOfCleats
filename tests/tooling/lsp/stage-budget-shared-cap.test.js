@@ -65,14 +65,24 @@ await withTemporaryEnv({ POC_LSP_TRACE: tracePath }, async () => {
   });
 });
 
-assert.equal(Number(result?.hoverMetrics?.requested || 0), 1, 'expected one hover request within shared cap');
-assert.equal(Number(result?.hoverMetrics?.signatureHelpRequested || 0), 0, 'expected later stage to be suppressed by shared request cap');
-assert.equal(Number(result?.hoverMetrics?.skippedByBudget || 0) >= 1, true, 'expected shared request budget suppression');
+assert.equal(Number(result?.hoverMetrics?.requested || 0), 1, 'expected one hover request');
+assert.equal(Number(result?.hoverMetrics?.signatureHelpRequested || 0), 1, 'expected separate signatureHelp budget to allow the later stage');
+assert.equal(Number(result?.hoverMetrics?.skippedByBudget || 0), 0, 'expected no shared-cap suppression after per-stage budget cutover');
+assert.equal(
+  Number(result?.runtime?.requestBudgets?.byKind?.hover?.maxRequests || 0) >= 1,
+  true,
+  'expected runtime request budget envelope for hover'
+);
+assert.equal(
+  Number(result?.runtime?.requestBudgets?.byKind?.signatureHelp?.maxRequests || 0) >= 1,
+  true,
+  'expected runtime request budget envelope for signatureHelp'
+);
 
 const events = await parseJsonLinesFile(tracePath);
 const hoverCalls = events.filter((entry) => entry.kind === 'request' && entry.method === 'textDocument/hover').length;
 const signatureHelpCalls = events.filter((entry) => entry.kind === 'request' && entry.method === 'textDocument/signatureHelp').length;
 assert.equal(hoverCalls, 1, 'expected one hover request trace');
-assert.equal(signatureHelpCalls, 0, 'expected no signatureHelp trace once shared cap is exhausted');
+assert.equal(signatureHelpCalls, 1, 'expected one signatureHelp trace under the per-stage budget plan');
 
 console.log('LSP stage budget shared cap test passed');

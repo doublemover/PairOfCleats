@@ -15,10 +15,11 @@ import { findTargetForOffsets } from './target-index.js';
 
 export const DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY = 4;
 export const DEFAULT_HOVER_CONCURRENCY = 8;
-export const DEFAULT_HOVER_CACHE_MAX_ENTRIES = 50000;
-const HOVER_CACHE_SCHEMA_VERSION = 2;
-const HOVER_CACHE_KEY_VERSION = 'v2';
-const HOVER_CACHE_MAX_READ_BYTES = 16 * 1024 * 1024;
+export const DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES = 50000;
+export const LSP_REQUEST_CACHE_POLICY_VERSION = 'rq1';
+const LSP_REQUEST_CACHE_SCHEMA_VERSION = 1;
+const LSP_REQUEST_CACHE_MAX_READ_BYTES = 16 * 1024 * 1024;
+const LSP_REQUEST_CACHE_NEGATIVE_TTL_MS = 30 * 1000;
 
 /**
  * Clamp numeric values to an integer range with fallback.
@@ -108,85 +109,137 @@ export const createConcurrencyLimiter = (concurrency) => {
   });
 };
 
-const resolveHoverCachePath = (cacheRoot) => {
+const resolveLspRequestCachePath = (cacheRoot) => {
   if (!cacheRoot) return null;
-  return path.join(cacheRoot, 'lsp', `hover-cache-v${HOVER_CACHE_SCHEMA_VERSION}.json`);
+  return path.join(cacheRoot, 'lsp', `request-cache-v${LSP_REQUEST_CACHE_SCHEMA_VERSION}.json`);
 };
 
-const emitHoverCacheWarning = (log, message) => {
+const emitLspRequestCacheWarning = (log, message) => {
   if (typeof log === 'function') {
     log(message);
     return;
   }
   try {
-    process.emitWarning(message, { code: 'LSP_HOVER_CACHE_WARNING' });
+    process.emitWarning(message, { code: 'LSP_REQUEST_CACHE_WARNING' });
   } catch {}
 };
 
+const normalizeRequestCacheProviderValue = (value) => String(value || '').trim().toLowerCase();
+
+const toFiniteTimestamp = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
+};
+
+const normalizeCachedRequestInfo = (info) => {
+  if (!info || typeof info !== 'object' || Array.isArray(info)) return null;
+  const signature = normalizeTypeText(info.signature);
+  const returnType = normalizeTypeText(info.returnType);
+  const paramNames = normalizeParamNames(info.paramNames);
+  const paramTypes = normalizeParamTypes(info.paramTypes, { defaultConfidence: 0.7 });
+  if (!signature && !returnType && !paramNames.length && !paramTypes) return null;
+  return {
+    ...(signature ? { signature } : {}),
+    ...(returnType ? { returnType } : {}),
+    ...(paramNames.length ? { paramNames } : {}),
+    ...(paramTypes ? { paramTypes } : {})
+  };
+};
+
+const normalizeRequestCacheEntry = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  const requestKind = String(entry.requestKind || '').trim().toLowerCase();
+  if (!requestKind) return null;
+  const negative = entry.negative === true;
+  const at = toFiniteTimestamp(entry.at);
+  const expiresAt = toFiniteTimestamp(entry.expiresAt);
+  const info = negative ? null : normalizeCachedRequestInfo(entry.info);
+  if (!negative && !info) return null;
+  return {
+    requestKind,
+    negative,
+    ...(info ? { info } : {}),
+    ...(at > 0 ? { at } : {}),
+    ...(expiresAt > 0 ? { expiresAt } : {})
+  };
+};
+
+const isExpiredRequestCacheEntry = (entry, now = Date.now()) => {
+  const expiresAt = toFiniteTimestamp(entry?.expiresAt);
+  return expiresAt > 0 && expiresAt <= now;
+};
+
 /**
- * Load persisted hover parse cache from disk.
+ * Load persisted LSP request cache from disk.
  * Invalid/missing cache files degrade to an empty cache.
  *
  * @param {string|null} cacheRoot
  * @param {{log?:(message:string)=>void}} [options]
- * @returns {Promise<{path:string|null,entries:Map<string,object>}>}
+ * @returns {Promise<{path:string|null,entries:Map<string,object>,persistedKeys:Set<string>}>}
  */
-export const loadHoverCache = async (cacheRoot, { log = null } = {}) => {
-  const cachePath = resolveHoverCachePath(cacheRoot);
-  if (!cachePath) return { path: null, entries: new Map() };
+export const loadLspRequestCache = async (cacheRoot, { log = null } = {}) => {
+  const cachePath = resolveLspRequestCachePath(cacheRoot);
+  if (!cachePath) return { path: null, entries: new Map(), persistedKeys: new Set() };
   try {
     const stat = await fs.stat(cachePath);
-    if (Number.isFinite(Number(stat?.size)) && Number(stat.size) > HOVER_CACHE_MAX_READ_BYTES) {
-      emitHoverCacheWarning(
+    if (Number.isFinite(Number(stat?.size)) && Number(stat.size) > LSP_REQUEST_CACHE_MAX_READ_BYTES) {
+      emitLspRequestCacheWarning(
         log,
-        `[tooling] hover cache oversized (${stat.size} bytes > ${HOVER_CACHE_MAX_READ_BYTES}); skipping cache load.`
+        `[tooling] LSP request cache oversized (${stat.size} bytes > ${LSP_REQUEST_CACHE_MAX_READ_BYTES}); skipping cache load.`
       );
-      return { path: cachePath, entries: new Map() };
+      return { path: cachePath, entries: new Map(), persistedKeys: new Set() };
     }
     const raw = await fs.readFile(cachePath, 'utf8');
     const parsed = JSON.parse(raw);
     const version = Number(parsed?.version);
-    if (Number.isFinite(version) && version !== HOVER_CACHE_SCHEMA_VERSION) {
-      return { path: cachePath, entries: new Map() };
+    if (Number.isFinite(version) && version !== LSP_REQUEST_CACHE_SCHEMA_VERSION) {
+      return { path: cachePath, entries: new Map(), persistedKeys: new Set() };
     }
     const rows = Array.isArray(parsed?.entries) ? parsed.entries : [];
     const entries = new Map();
+    const persistedKeys = new Set();
+    const now = Date.now();
     for (const row of rows) {
       if (!row || typeof row !== 'object') continue;
       if (typeof row.key !== 'string' || !row.key) continue;
-      if (!row.value || typeof row.value !== 'object') continue;
-      entries.set(row.key, row.value);
+      const value = normalizeRequestCacheEntry(row.value);
+      if (!value || isExpiredRequestCacheEntry(value, now)) continue;
+      entries.set(row.key, value);
+      persistedKeys.add(row.key);
     }
-    return { path: cachePath, entries };
+    return { path: cachePath, entries, persistedKeys };
   } catch (error) {
     if (error?.code !== 'ENOENT') {
-      emitHoverCacheWarning(
+      emitLspRequestCacheWarning(
         log,
-        `[tooling] hover cache load failed (${error?.code || 'ERR_HOVER_CACHE_LOAD'}): ${error?.message || error}`
+        `[tooling] LSP request cache load failed (${error?.code || 'ERR_REQUEST_CACHE_LOAD'}): ${error?.message || error}`
       );
     }
-    return { path: cachePath, entries: new Map() };
+    return { path: cachePath, entries: new Map(), persistedKeys: new Set() };
   }
 };
 
 /**
- * Persist hover cache entries with recency ordering and bounded size.
+ * Persist LSP request cache entries with recency ordering and bounded size.
  * @param {{cachePath:string|null,entries:Map<string,object>,maxEntries:number}} input
  * @returns {Promise<void>}
  */
-export const persistHoverCache = async ({ cachePath, entries, maxEntries }) => {
+export const persistLspRequestCache = async ({ cachePath, entries, maxEntries }) => {
   if (!cachePath || !(entries instanceof Map)) return;
-  const rows = Array.from(entries.entries()).map(([key, value]) => ({
-    key,
-    value
-  }));
+  const now = Date.now();
+  const rows = Array.from(entries.entries())
+    .map(([key, value]) => ({
+      key,
+      value: normalizeRequestCacheEntry(value)
+    }))
+    .filter((entry) => entry.value && !isExpiredRequestCacheEntry(entry.value, now));
   rows.sort((a, b) => Number(b?.value?.at || 0) - Number(a?.value?.at || 0));
-  const cap = clampIntRange(maxEntries, DEFAULT_HOVER_CACHE_MAX_ENTRIES, { min: 1000, max: 200000 });
+  const cap = clampIntRange(maxEntries, DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES, { min: 1000, max: 200000 });
   const limited = rows.length > cap ? rows.slice(0, cap) : rows;
   await writeJsonObjectFile(cachePath, {
     trailingNewline: false,
     fields: {
-      version: HOVER_CACHE_SCHEMA_VERSION,
+      version: LSP_REQUEST_CACHE_SCHEMA_VERSION,
       generatedAt: new Date().toISOString()
     },
     arrays: {
@@ -209,26 +262,39 @@ export const buildSymbolPositionCacheKey = ({ position }) => {
 };
 
 /**
- * Build deterministic cache key for one hover request tuple.
- * @param {{cmd:string,docHash:string,languageId:string,symbolName:string,symbolKind?:string|number|null,position:{line:number,character:number}}} input
+ * Build deterministic cache key for one request tuple.
+ * @param {{
+ *   providerId:string,
+ *   providerVersion?:string|null,
+ *   workspaceKey?:string|null,
+ *   docHash:string,
+ *   requestKind:string,
+ *   position:{line:number,character:number},
+ *   policyVersion?:string|null
+ * }} input
  * @returns {string|null}
  */
-export const buildHoverCacheKey = ({
-  cmd,
+export const buildLspRequestCacheKey = ({
+  providerId,
+  providerVersion = null,
+  workspaceKey = null,
   docHash,
-  languageId,
-  symbolName,
-  symbolKind = null,
-  position
+  requestKind,
+  position,
+  policyVersion = LSP_REQUEST_CACHE_POLICY_VERSION
 }) => {
   if (!docHash) return null;
-  const symbolPositionKey = buildSymbolPositionCacheKey({ position, symbolName, symbolKind });
+  const symbolPositionKey = buildSymbolPositionCacheKey({ position });
   if (!symbolPositionKey) return null;
+  const normalizedRequestKind = String(requestKind || '').trim().toLowerCase();
+  if (!normalizedRequestKind) return null;
   return [
-    HOVER_CACHE_KEY_VERSION,
-    String(cmd || '').trim(),
-    String(languageId || ''),
+    String(policyVersion || '').trim() || LSP_REQUEST_CACHE_POLICY_VERSION,
+    normalizeRequestCacheProviderValue(providerId),
+    String(providerVersion || '').trim(),
+    String(workspaceKey || '').trim(),
     String(docHash),
+    normalizedRequestKind,
     symbolPositionKey
   ].join('|');
 };
@@ -360,6 +426,117 @@ const createRequestBudgetController = (maxRequests) => {
       return true;
     }
   };
+};
+
+const createEmptyRequestCacheKindMetrics = () => ({
+  hits: 0,
+  misses: 0,
+  memoryHits: 0,
+  persistedHits: 0,
+  negativeHits: 0,
+  writes: 0
+});
+
+const ensureRequestCacheKindMetrics = (metrics, requestKind) => {
+  if (!metrics || typeof metrics !== 'object') return createEmptyRequestCacheKindMetrics();
+  const key = String(requestKind || '').trim().toLowerCase() || 'unknown';
+  if (!metrics.byKind || typeof metrics.byKind !== 'object') {
+    metrics.byKind = Object.create(null);
+  }
+  if (!metrics.byKind[key]) {
+    metrics.byKind[key] = createEmptyRequestCacheKindMetrics();
+  }
+  return metrics.byKind[key];
+};
+
+const noteRequestCacheMiss = (metrics, requestKind) => {
+  if (!metrics || typeof metrics !== 'object') return;
+  metrics.misses = Number(metrics.misses || 0) + 1;
+  const bucket = ensureRequestCacheKindMetrics(metrics, requestKind);
+  bucket.misses += 1;
+};
+
+const noteRequestCacheHit = (metrics, requestKind, { persisted = false, negative = false } = {}) => {
+  if (!metrics || typeof metrics !== 'object') return;
+  metrics.hits = Number(metrics.hits || 0) + 1;
+  const bucket = ensureRequestCacheKindMetrics(metrics, requestKind);
+  bucket.hits += 1;
+  if (persisted) {
+    metrics.persistedHits = Number(metrics.persistedHits || 0) + 1;
+    bucket.persistedHits += 1;
+  } else {
+    metrics.memoryHits = Number(metrics.memoryHits || 0) + 1;
+    bucket.memoryHits += 1;
+  }
+  if (negative) {
+    metrics.negativeHits = Number(metrics.negativeHits || 0) + 1;
+    bucket.negativeHits += 1;
+  }
+};
+
+const noteRequestCacheWrite = (metrics, requestKind) => {
+  if (!metrics || typeof metrics !== 'object') return;
+  metrics.writes = Number(metrics.writes || 0) + 1;
+  const bucket = ensureRequestCacheKindMetrics(metrics, requestKind);
+  bucket.writes += 1;
+};
+
+const readRequestCacheEntry = ({
+  requestCacheEntries,
+  requestCachePersistedKeys,
+  requestCacheMetrics,
+  cacheKey,
+  requestKind
+}) => {
+  if (!(requestCacheEntries instanceof Map) || !cacheKey) return null;
+  const entry = requestCacheEntries.get(cacheKey);
+  if (!entry) {
+    noteRequestCacheMiss(requestCacheMetrics, requestKind);
+    return null;
+  }
+  if (isExpiredRequestCacheEntry(entry)) {
+    requestCacheEntries.delete(cacheKey);
+    if (requestCachePersistedKeys instanceof Set) requestCachePersistedKeys.delete(cacheKey);
+    noteRequestCacheMiss(requestCacheMetrics, requestKind);
+    return null;
+  }
+  noteRequestCacheHit(requestCacheMetrics, requestKind, {
+    persisted: requestCachePersistedKeys instanceof Set && requestCachePersistedKeys.has(cacheKey),
+    negative: entry.negative === true
+  });
+  return entry;
+};
+
+const writeRequestCacheEntry = ({
+  requestCacheEntries,
+  requestCacheMetrics,
+  markRequestCacheDirty,
+  cacheKey,
+  requestKind,
+  info = null,
+  negative = false,
+  ttlMs = null
+}) => {
+  if (!(requestCacheEntries instanceof Map) || !cacheKey) return;
+  const now = Date.now();
+  const entry = {
+    requestKind: String(requestKind || '').trim().toLowerCase(),
+    negative: negative === true,
+    at: now,
+    ...(negative !== true && info ? { info: normalizeCachedRequestInfo(info) } : {}),
+    ...(negative === true ? {
+      expiresAt: now + (
+        Number.isFinite(Number(ttlMs)) && Number(ttlMs) > 0
+          ? Math.floor(Number(ttlMs))
+          : LSP_REQUEST_CACHE_NEGATIVE_TTL_MS
+      )
+    } : {})
+  };
+  if (!entry.requestKind) return;
+  if (entry.negative !== true && !entry.info) return;
+  requestCacheEntries.set(cacheKey, entry);
+  if (typeof markRequestCacheDirty === 'function') markRequestCacheDirty();
+  noteRequestCacheWrite(requestCacheMetrics, requestKind);
 };
 
 const summarizeLatencies = (values) => {
@@ -1313,8 +1490,12 @@ export const processDocumentTypes = async ({
   definitionLimiter,
   typeDefinitionLimiter,
   referencesLimiter,
-  hoverCacheEntries,
-  markHoverCacheDirty,
+  requestCacheEntries,
+  requestCachePersistedKeys,
+  requestCacheMetrics,
+  markRequestCacheDirty,
+  requestBudgetControllers = null,
+  requestCacheContext = null,
   hoverControl,
   documentSymbolControl = null,
   hoverFileStats,
@@ -1386,6 +1567,14 @@ export const processDocumentTypes = async ({
       });
       openedHere = true;
     }
+    const documentSymbolBudget = requestBudgetControllers?.documentSymbol || null;
+    if (
+      documentSymbolBudget
+      && typeof documentSymbolBudget.tryReserve === 'function'
+      && !documentSymbolBudget.tryReserve()
+    ) {
+      return { enrichedDelta: 0 };
+    }
     let symbols = null;
     try {
       symbols = await runGuarded(
@@ -1429,7 +1618,17 @@ export const processDocumentTypes = async ({
     const typeDefinitionRequestByPosition = new Map();
     const referencesRequestByPosition = new Map();
     const symbolRecords = [];
-    const requestBudget = createRequestBudgetController(resolvedHoverMaxPerFile);
+    const budgetControllers = requestBudgetControllers && typeof requestBudgetControllers === 'object'
+      ? requestBudgetControllers
+      : Object.create(null);
+    const hoverBudget = budgetControllers.hover || createRequestBudgetController(resolvedHoverMaxPerFile);
+    const signatureHelpBudget = budgetControllers.signatureHelp || createRequestBudgetController(null);
+    const definitionBudget = budgetControllers.definition || createRequestBudgetController(null);
+    const typeDefinitionBudget = budgetControllers.typeDefinition || createRequestBudgetController(null);
+    const referencesBudget = budgetControllers.references || createRequestBudgetController(null);
+    const requestCacheProviderId = requestCacheContext?.providerId || cmd;
+    const requestCacheProviderVersion = requestCacheContext?.providerVersion || null;
+    const requestCacheWorkspaceKey = requestCacheContext?.workspaceKey || null;
     const isSoftDeadlineExpired = () => (
       Number.isFinite(Number(softDeadlineAt))
       && Date.now() >= Number(softDeadlineAt)
@@ -1447,11 +1646,47 @@ export const processDocumentTypes = async ({
         softDeadlineAt
       });
     };
-    const reserveRequestBudget = () => {
-      if (requestBudget.tryReserve()) return true;
+    const reserveRequestBudget = (controller) => {
+      if (!controller || typeof controller.tryReserve !== 'function' || controller.tryReserve()) return true;
       fileHoverStats.skippedByBudget += 1;
       hoverMetrics.skippedByBudget += 1;
       return false;
+    };
+    const buildRequestCacheKeyForStage = (requestKind, position) => buildLspRequestCacheKey({
+      providerId: requestCacheProviderId,
+      providerVersion: requestCacheProviderVersion,
+      workspaceKey: requestCacheWorkspaceKey,
+      docHash: doc.docHash || null,
+      requestKind,
+      position
+    });
+    const tryReadRequestCache = (requestKind, position) => readRequestCacheEntry({
+      requestCacheEntries,
+      requestCachePersistedKeys,
+      requestCacheMetrics,
+      cacheKey: buildRequestCacheKeyForStage(requestKind, position),
+      requestKind
+    });
+    const writePositiveRequestCache = (requestKind, position, info) => {
+      writeRequestCacheEntry({
+        requestCacheEntries,
+        requestCacheMetrics,
+        markRequestCacheDirty,
+        cacheKey: buildRequestCacheKeyForStage(requestKind, position),
+        requestKind,
+        info
+      });
+    };
+    const writeNegativeRequestCache = (requestKind, position, ttlMs = null) => {
+      writeRequestCacheEntry({
+        requestCacheEntries,
+        requestCacheMetrics,
+        markRequestCacheDirty,
+        cacheKey: buildRequestCacheKeyForStage(requestKind, position),
+        requestKind,
+        negative: true,
+        ttlMs
+      });
     };
 
     const requestHover = (symbol, position) => {
@@ -1466,17 +1701,12 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget()) return Promise.resolve({ attempted: false, info: null });
-      const hoverCacheKey = buildHoverCacheKey({
-        cmd,
-        docHash: doc.docHash || null,
-        languageId,
-        symbolName: symbol?.name,
-        symbolKind: symbol?.kind,
-        position
-      });
-      const cachedHoverInfo = hoverCacheKey ? hoverCacheEntries.get(hoverCacheKey) : null;
+      if (!reserveRequestBudget(hoverBudget)) return Promise.resolve({ attempted: false, info: null });
+      const cachedHoverInfo = tryReadRequestCache('hover', position);
       const promise = (async () => {
+        if (cachedHoverInfo?.negative === true) {
+          return { attempted: false, info: null };
+        }
         if (cachedHoverInfo?.info) {
           return { attempted: true, info: cachedHoverInfo.info };
         }
@@ -1504,10 +1734,8 @@ export const processDocumentTypes = async ({
           hoverMetrics.succeeded += 1;
           const hoverText = normalizeHoverContents(hover?.contents);
           const hoverInfo = parseSignatureCached(hoverText, symbol?.name);
-          if (hoverCacheKey && hoverInfo) {
-            hoverCacheEntries.set(hoverCacheKey, { info: hoverInfo, at: Date.now() });
-            markHoverCacheDirty();
-          }
+          if (hoverInfo) writePositiveRequestCache('hover', position, hoverInfo);
+          else writeNegativeRequestCache('hover', position);
           return { attempted: true, info: hoverInfo };
         } catch (err) {
           const info = handleStageRequestError({
@@ -1522,6 +1750,7 @@ export const processDocumentTypes = async ({
             hoverControl,
             resolvedHoverDisableAfterTimeouts
           });
+          writeNegativeRequestCache('hover', position);
           return { attempted: true, info };
         }
       })();
@@ -1541,11 +1770,18 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget()) return Promise.resolve({ attempted: false, info: null });
+      if (!reserveRequestBudget(signatureHelpBudget)) return Promise.resolve({ attempted: false, info: null });
+      const cachedSignatureHelpInfo = tryReadRequestCache('signature_help', position);
       const runSignatureHelp = typeof signatureHelpLimiter === 'function'
         ? signatureHelpLimiter
         : hoverLimiter;
       const promise = (async () => {
+        if (cachedSignatureHelpInfo?.negative === true) {
+          return { attempted: false, info: null };
+        }
+        if (cachedSignatureHelpInfo?.info) {
+          return { attempted: true, info: cachedSignatureHelpInfo.info };
+        }
         const timeoutOverride = Number.isFinite(resolvedSignatureHelpTimeout)
           ? resolvedSignatureHelpTimeout
           : null;
@@ -1568,7 +1804,10 @@ export const processDocumentTypes = async ({
           fileHoverStats.signatureHelpSucceeded += 1;
           hoverMetrics.signatureHelpSucceeded += 1;
           const signatureText = extractSignatureHelpText(signatureHelp);
-          return { attempted: true, info: parseSignatureCached(signatureText, symbol?.name) };
+          const info = parseSignatureCached(signatureText, symbol?.name);
+          if (info) writePositiveRequestCache('signature_help', position, info);
+          else writeNegativeRequestCache('signature_help', position);
+          return { attempted: true, info };
         } catch (err) {
           const info = handleStageRequestError({
             err,
@@ -1582,6 +1821,7 @@ export const processDocumentTypes = async ({
             hoverControl,
             resolvedHoverDisableAfterTimeouts
           });
+          writeNegativeRequestCache('signature_help', position);
           return { attempted: true, info };
         }
       })();
@@ -1601,11 +1841,18 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget()) return Promise.resolve({ attempted: false, info: null });
+      if (!reserveRequestBudget(definitionBudget)) return Promise.resolve({ attempted: false, info: null });
+      const cachedDefinitionInfo = tryReadRequestCache('definition', position);
       const runDefinition = typeof definitionLimiter === 'function'
         ? definitionLimiter
         : hoverLimiter;
       const promise = (async () => {
+        if (cachedDefinitionInfo?.negative === true) {
+          return { attempted: false, info: null };
+        }
+        if (cachedDefinitionInfo?.info) {
+          return { attempted: true, info: cachedDefinitionInfo.info };
+        }
         const timeoutOverride = Number.isFinite(resolvedDefinitionTimeout)
           ? resolvedDefinitionTimeout
           : null;
@@ -1640,11 +1887,13 @@ export const processDocumentTypes = async ({
             }
             const info = parseSignatureCached(candidate, symbol?.name);
             if (info) {
+              writePositiveRequestCache('definition', position, info);
               fileHoverStats.definitionSucceeded += 1;
               hoverMetrics.definitionSucceeded += 1;
               return { attempted: true, info };
             }
           }
+          writeNegativeRequestCache('definition', position);
           return { attempted: true, info: null };
         } catch (err) {
           const info = handleStageRequestError({
@@ -1659,6 +1908,7 @@ export const processDocumentTypes = async ({
             hoverControl,
             resolvedHoverDisableAfterTimeouts
           });
+          writeNegativeRequestCache('definition', position);
           return { attempted: true, info };
         }
       })();
@@ -1678,11 +1928,18 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget()) return Promise.resolve({ attempted: false, info: null });
+      if (!reserveRequestBudget(typeDefinitionBudget)) return Promise.resolve({ attempted: false, info: null });
+      const cachedTypeDefinitionInfo = tryReadRequestCache('type_definition', position);
       const runTypeDefinition = typeof typeDefinitionLimiter === 'function'
         ? typeDefinitionLimiter
         : hoverLimiter;
       const promise = (async () => {
+        if (cachedTypeDefinitionInfo?.negative === true) {
+          return { attempted: false, info: null };
+        }
+        if (cachedTypeDefinitionInfo?.info) {
+          return { attempted: true, info: cachedTypeDefinitionInfo.info };
+        }
         const timeoutOverride = Number.isFinite(resolvedTypeDefinitionTimeout)
           ? resolvedTypeDefinitionTimeout
           : null;
@@ -1717,11 +1974,13 @@ export const processDocumentTypes = async ({
             }
             const info = parseSignatureCached(candidate, symbol?.name);
             if (info) {
+              writePositiveRequestCache('type_definition', position, info);
               fileHoverStats.typeDefinitionSucceeded += 1;
               hoverMetrics.typeDefinitionSucceeded += 1;
               return { attempted: true, info };
             }
           }
+          writeNegativeRequestCache('type_definition', position);
           return { attempted: true, info: null };
         } catch (err) {
           const info = handleStageRequestError({
@@ -1736,6 +1995,7 @@ export const processDocumentTypes = async ({
             hoverControl,
             resolvedHoverDisableAfterTimeouts
           });
+          writeNegativeRequestCache('type_definition', position);
           return { attempted: true, info };
         }
       })();
@@ -1755,11 +2015,18 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget()) return Promise.resolve({ attempted: false, info: null });
+      if (!reserveRequestBudget(referencesBudget)) return Promise.resolve({ attempted: false, info: null });
+      const cachedReferencesInfo = tryReadRequestCache('references', position);
       const runReferences = typeof referencesLimiter === 'function'
         ? referencesLimiter
         : hoverLimiter;
       const promise = (async () => {
+        if (cachedReferencesInfo?.negative === true) {
+          return { attempted: false, info: null };
+        }
+        if (cachedReferencesInfo?.info) {
+          return { attempted: true, info: cachedReferencesInfo.info };
+        }
         const timeoutOverride = Number.isFinite(resolvedReferencesTimeout)
           ? resolvedReferencesTimeout
           : null;
@@ -1795,11 +2062,13 @@ export const processDocumentTypes = async ({
             }
             const info = parseSignatureCached(candidate, symbol?.name);
             if (info) {
+              writePositiveRequestCache('references', position, info);
               fileHoverStats.referencesSucceeded += 1;
               hoverMetrics.referencesSucceeded += 1;
               return { attempted: true, info };
             }
           }
+          writeNegativeRequestCache('references', position);
           return { attempted: true, info: null };
         } catch (err) {
           const info = handleStageRequestError({
@@ -1814,6 +2083,7 @@ export const processDocumentTypes = async ({
             hoverControl,
             resolvedHoverDisableAfterTimeouts
           });
+          writeNegativeRequestCache('references', position);
           return { attempted: true, info };
         }
       })();
