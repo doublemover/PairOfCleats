@@ -6,6 +6,13 @@ import { log } from '../../../shared/progress.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { ensureQueueDir, enqueueJob } from '../../../shared/queue.js';
 import { isAbsolutePathNative, isRelativePathEscape } from '../../../shared/files.js';
+import {
+  resolveQueueAdmissionPolicy,
+  resolveQueueSloPolicy
+} from '../../../../tools/service/admission-policy.js';
+
+const DEFAULT_EMBEDDING_QUEUE_MAX_QUEUED = 10;
+const EMBEDDING_QUEUE_JOB_COST_UNITS = 4;
 
 /**
  * Enqueue stage3 embedding job for asynchronous embedding service processing.
@@ -33,8 +40,8 @@ export const enqueueEmbeddingJob = async ({
       ? path.resolve(runtime.embeddingQueue.dir)
       : path.join(getCacheRoot(), 'service', 'queue');
     const maxQueued = Number.isFinite(runtime.embeddingQueue?.maxQueued)
-      ? runtime.embeddingQueue.maxQueued
-      : 10;
+      ? Math.max(0, Math.floor(Number(runtime.embeddingQueue.maxQueued)))
+      : DEFAULT_EMBEDDING_QUEUE_MAX_QUEUED;
     const jobId = crypto.randomUUID();
     const repoRoot = runtime.root ? path.resolve(runtime.root) : null;
     const buildRoot = runtime.buildRoot ? path.resolve(runtime.buildRoot) : null;
@@ -57,6 +64,10 @@ export const enqueueEmbeddingJob = async ({
     }
     await ensureQueueDir(queueDir);
     throwIfAborted(abortSignal);
+    const queueConfig = {
+      maxQueued,
+      resourceBudgetUnits: Math.max(1, maxQueued + 1) * EMBEDDING_QUEUE_JOB_COST_UNITS
+    };
     const result = await enqueueJob(
       queueDir,
       {
@@ -74,10 +85,21 @@ export const enqueueEmbeddingJob = async ({
         repoProvenance: runtime.repoProvenance || null,
         embeddingIdentity: runtime.embeddingIdentity || null,
         embeddingIdentityKey: runtime.embeddingIdentityKey || null,
-        embeddingPayloadFormatVersion: 2
+        embeddingPayloadFormatVersion: 2,
+        idempotencyKey: `embq1:${jobId}`
       },
       maxQueued,
-      'embeddings'
+      'embeddings',
+      {
+        admissionPolicy: resolveQueueAdmissionPolicy({
+          queueName: 'embeddings',
+          queueConfig
+        }),
+        sloPolicy: resolveQueueSloPolicy({
+          queueName: 'embeddings',
+          queueConfig
+        })
+      }
     );
     if (!result.ok) {
       log('[embeddings] Queue full or unavailable; skipped enqueue.');

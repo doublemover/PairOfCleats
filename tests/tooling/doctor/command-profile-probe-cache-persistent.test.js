@@ -37,7 +37,7 @@ try {
     cmd: fixtureCmd,
     args: [],
     repoRoot: root,
-    toolingConfig: { dir: toolingDir }
+    toolingConfig: { dir: toolingDir, cache: { dir: toolingDir } }
   });
   assert.equal(first.probe.ok, true, 'expected initial probe success');
   assert.equal(first.probe.cached, false, 'expected initial probe cache miss');
@@ -51,7 +51,7 @@ try {
     cmd: fixtureCmd,
     args: [],
     repoRoot: root,
-    toolingConfig: { dir: toolingDir }
+    toolingConfig: { dir: toolingDir, cache: { dir: toolingDir } }
   });
   assert.equal(second.probe.ok, true, 'expected persistent cache probe success');
   assert.equal(second.probe.cached, true, 'expected persistent cache hit');

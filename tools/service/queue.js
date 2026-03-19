@@ -708,7 +708,9 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
   const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
     const queue = await loadQueue(dirPath, resolvedQueueName);
-    const idempotencyKey = buildQueueJobIdempotencyKey(job, resolvedQueueName || 'index');
+    const idempotencyKey = typeof job?.idempotencyKey === 'string' && job.idempotencyKey.trim()
+      ? job.idempotencyKey.trim()
+      : buildQueueJobIdempotencyKey(job, resolvedQueueName || 'index');
     if (options.forceDuplicate !== true) {
       const duplicate = findActiveDuplicateJob(queue.jobs, idempotencyKey);
       if (duplicate) {

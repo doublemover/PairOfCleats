@@ -32,7 +32,7 @@ const {
   resolveValidatedHitTarget,
   openSearchHit
 } = require('./runtime.js');
-const EDITOR_CONFIG_CONTRACT = Object.freeze(require('../../src/shared/editor-config-contract.json'));
+const EDITOR_CONFIG_CONTRACT = Object.freeze(require('./editor-config-contract.json'));
 const DEFAULT_EDITOR_CONFIG_CONTRACT = EDITOR_CONFIG_CONTRACT;
 const DEFAULT_VSCODE_SETTINGS = Object.freeze(DEFAULT_EDITOR_CONFIG_CONTRACT.settings.vscode);
 

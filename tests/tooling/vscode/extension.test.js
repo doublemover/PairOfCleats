@@ -10,10 +10,11 @@ const entryPath = path.join(extensionDir, 'extension.js');
 const packagingScriptPath = path.join(root, 'tools', 'package-vscode.js');
 const determinismSpecPath = path.join(root, 'docs', 'specs', 'editor-packaging-determinism.md');
 const contractPath = path.join(root, 'src', 'shared', 'editor-config-contract.json');
+const packagedContractPath = path.join(extensionDir, 'editor-config-contract.json');
 const guidePath = path.join(root, 'docs', 'guides', 'editor-integration.md');
 const sublimeConfigPath = path.join(root, 'sublime', 'PairOfCleats', 'lib', 'config.py');
 
-for (const target of [manifestPath, entryPath, packagingScriptPath, determinismSpecPath, contractPath, guidePath, sublimeConfigPath]) {
+for (const target of [manifestPath, entryPath, packagingScriptPath, determinismSpecPath, contractPath, packagedContractPath, guidePath, sublimeConfigPath]) {
   if (!fs.existsSync(target)) {
     console.error(`VS Code extension test missing required file: ${target}`);
     process.exit(1);
@@ -22,6 +23,7 @@ for (const target of [manifestPath, entryPath, packagingScriptPath, determinismS
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+const packagedContract = JSON.parse(fs.readFileSync(packagedContractPath, 'utf8'));
 const guide = fs.readFileSync(guidePath, 'utf8');
 const extensionSource = fs.readFileSync(entryPath, 'utf8');
 const sublimeConfigSource = fs.readFileSync(sublimeConfigPath, 'utf8');
@@ -32,6 +34,10 @@ if (extensionSource.includes('docs/tooling/editor-config-contract.json')) {
 }
 if (sublimeConfigSource.includes('docs/tooling/editor-config-contract.json')) {
   console.error('Sublime config must not load editor config contract from docs/tooling.');
+  process.exit(1);
+}
+if (JSON.stringify(packagedContract) !== JSON.stringify(contract)) {
+  console.error('VS Code packaged editor config contract drifted from src/shared/editor-config-contract.json.');
   process.exit(1);
 }
 

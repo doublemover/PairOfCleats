@@ -38,7 +38,7 @@ try {
     cmd: fixtureCmd,
     args: [],
     repoRoot: root,
-    toolingConfig: { dir: toolingDir }
+    toolingConfig: { dir: toolingDir, cache: { dir: toolingDir } }
   });
   assert.equal(first.probe.ok, true, 'expected initial probe success');
   assert.equal(first.probe.cached, false, 'expected initial probe cache miss');
@@ -52,7 +52,7 @@ try {
     cmd: fixtureCmd,
     args: [],
     repoRoot: root,
-    toolingConfig: { dir: toolingDir }
+    toolingConfig: { dir: toolingDir, cache: { dir: toolingDir } }
   });
   assert.equal(second.probe.ok, true, 'expected probe success after command rewrite');
   assert.equal(second.probe.cached, false, 'expected fingerprint change to bypass persistent cache');
