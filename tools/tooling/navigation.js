@@ -8,6 +8,8 @@ import { getIndexDir, getRepoRoot } from '../dict-utils/paths/repo.js';
 
 const DEFAULT_LIMIT = 25;
 const DEFAULT_SYMBOL_LIMIT = 200;
+const DEFAULT_COMPLETION_LIMIT = 40;
+const MIN_COMPLETION_QUERY_LENGTH = 2;
 
 const normalizeText = (value) => {
   if (value === null || value === undefined) return '';
@@ -134,6 +136,19 @@ const compareNavigationRows = (left, right) => {
   return normalizeText(left.name).localeCompare(normalizeText(right.name));
 };
 
+const scoreCompletionMatch = (row, { query, virtualPath }) => {
+  const normalizedQuery = normalizeLower(query);
+  const name = normalizeLower(row?.name);
+  const qualifiedName = normalizeLower(row?.qualifiedName);
+  let score = 0;
+  if (name === normalizedQuery) score += 10;
+  else if (name.startsWith(normalizedQuery)) score += 8;
+  else if (qualifiedName.endsWith(`.${normalizedQuery}`)) score += 6;
+  else if (qualifiedName.includes(normalizedQuery)) score += 4;
+  if (score > 0 && virtualPath && normalizeText(row?.virtualPath) === normalizeText(virtualPath)) score += 3;
+  return score;
+};
+
 const refMatchesSymbolIds = (ref, symbolIds, query) => {
   const exact = normalizeText(query);
   if (!ref || typeof ref !== 'object') return false;
@@ -164,7 +179,8 @@ export const queryNavigationData = async ({
   query = '',
   filePath = '',
   limit = DEFAULT_LIMIT,
-  symbolLimit = DEFAULT_SYMBOL_LIMIT
+  symbolLimit = DEFAULT_SYMBOL_LIMIT,
+  completionLimit = DEFAULT_COMPLETION_LIMIT
 }) => {
   const userConfig = loadUserConfig(repoRoot);
   const indexDir = getIndexDir(repoRoot, 'code', userConfig);
@@ -210,15 +226,36 @@ export const queryNavigationData = async ({
     return payload;
   }
 
+  const symbolRows = await readArtifact('symbols');
   const selectedSymbols = [];
   const wantedChunkUids = new Set();
-  const symbolRows = await readArtifact('symbols');
   if (normalizedKind === 'document-symbols') {
     for (const row of symbolRows) {
       if (!row || normalizeText(row.virtualPath) !== normalizedVirtualPath) continue;
       selectedSymbols.push(row);
       if (row.chunkUid) wantedChunkUids.add(String(row.chunkUid));
       if (selectedSymbols.length >= resolvedSymbolLimit) break;
+    }
+  } else if (normalizedKind === 'completions') {
+    if (normalizedQuery.length < MIN_COMPLETION_QUERY_LENGTH) {
+      payload.results = [];
+      return payload;
+    }
+    const scoredRows = [];
+    for (const row of symbolRows) {
+      if (!row) continue;
+      const score = scoreCompletionMatch(row, { query: normalizedQuery, virtualPath: normalizedVirtualPath });
+      if (score <= 0) continue;
+      scoredRows.push({
+        ...row,
+        score
+      });
+    }
+    scoredRows.sort(compareNavigationRows);
+    const resolvedCompletionLimit = toPositiveInt(completionLimit, DEFAULT_COMPLETION_LIMIT);
+    for (const row of scoredRows.slice(0, resolvedCompletionLimit * 4)) {
+      selectedSymbols.push(row);
+      if (row.chunkUid) wantedChunkUids.add(String(row.chunkUid));
     }
   } else {
     for (const row of symbolRows) {
@@ -260,6 +297,24 @@ export const queryNavigationData = async ({
       .filter((row) => row.file || row.virtualPath)
       .sort(compareNavigationRows)
       .slice(0, resolvedLimit);
+    return payload;
+  }
+
+  if (normalizedKind === 'completions') {
+    const resolvedCompletionLimit = toPositiveInt(completionLimit, DEFAULT_COMPLETION_LIMIT);
+    payload.results = selectedSymbols
+      .map((row) => ({
+        name: normalizeText(row.name),
+        qualifiedName: normalizeText(row.qualifiedName),
+        kind: normalizeText(row.kind || row.kindGroup),
+        file: normalizeText(row.file),
+        virtualPath: normalizeText(row.virtualPath),
+        chunkUid: normalizeText(row.chunkUid),
+        score: scoreCompletionMatch(row, { query: normalizedQuery, virtualPath: normalizedVirtualPath })
+      }))
+      .filter((row) => row.name && row.score > 0)
+      .sort(compareNavigationRows)
+      .slice(0, resolvedCompletionLimit);
     return payload;
   }
 
@@ -369,7 +424,7 @@ export const queryNavigationData = async ({
 
 const printUsage = () => {
   process.stderr.write(
-    'Usage: pairofcleats tooling navigate --kind <definitions|references|document-symbols> [--symbol <name>] [--file <path>] [--repo <root>] [--top N] [--json]\n'
+    'Usage: pairofcleats tooling navigate --kind <definitions|references|document-symbols|completions> [--symbol <name>] [--file <path>] [--repo <root>] [--top N] [--json]\n'
   );
 };
 
@@ -385,7 +440,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     printUsage();
     process.exit(1);
   }
-  if (normalizeText(kind).toLowerCase() !== 'document-symbols' && !normalizeText(query)) {
+  if (!['document-symbols'].includes(normalizeText(kind).toLowerCase()) && !normalizeText(query)) {
     printUsage();
     process.exit(1);
   }

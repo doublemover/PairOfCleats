@@ -239,6 +239,7 @@ export function createVsCodeRuntimeHarness({
   const definitionProviders = [];
   const referenceProviders = [];
   const documentSymbolProviders = [];
+  const completionProviders = [];
   const treeViews = [];
   const treeProviders = [];
   const statusBarItems = [];
@@ -380,6 +381,10 @@ export function createVsCodeRuntimeHarness({
       registerDocumentSymbolProvider(selector, provider) {
         documentSymbolProviders.push({ selector, provider });
         return { dispose() {} };
+      },
+      registerCompletionItemProvider(selector, provider, ...triggerCharacters) {
+        completionProviders.push({ selector, provider, triggerCharacters });
+        return { dispose() {} };
       }
     },
     env: {
@@ -476,6 +481,12 @@ export function createVsCodeRuntimeHarness({
         this.children = [];
       }
     },
+    CompletionItem: class CompletionItem {
+      constructor(label, kind) {
+        this.label = label;
+        this.kind = kind;
+      }
+    },
     SymbolKind: {
       Module: 1,
       Namespace: 2,
@@ -490,6 +501,30 @@ export function createVsCodeRuntimeHarness({
       Constant: 13,
       Object: 18,
       Struct: 22
+    },
+    CompletionItemKind: {
+      Text: 0,
+      Method: 1,
+      Function: 2,
+      Constructor: 3,
+      Field: 4,
+      Variable: 5,
+      Class: 6,
+      Interface: 7,
+      Module: 8,
+      Property: 9,
+      Unit: 10,
+      Value: 11,
+      Enum: 12,
+      Keyword: 13,
+      Snippet: 14,
+      Color: 15,
+      File: 16,
+      Reference: 17,
+      Folder: 18,
+      EnumMember: 19,
+      Constant: 20,
+      Struct: 21
     },
     Selection: class Selection {
       constructor(start, end) {
@@ -540,6 +575,7 @@ export function createVsCodeRuntimeHarness({
     definitionProviders,
     referenceProviders,
     documentSymbolProviders,
+    completionProviders,
     statusBarItems,
     openedDocuments,
     workspaceStateStore,

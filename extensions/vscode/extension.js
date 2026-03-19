@@ -130,6 +130,8 @@ const MAX_SEARCH_HISTORY = 20;
 const NAVIGATION_PROVIDER_TIMEOUT_MS = 5000;
 const NAVIGATION_RESULT_LIMIT = 25;
 const DOCUMENT_SYMBOL_LIMIT = 200;
+const COMPLETION_RESULT_LIMIT = 40;
+const MIN_COMPLETION_QUERY_LENGTH = 2;
 
 const REPO_MARKERS_RAW = readContract(['repoRoot', 'markers'], DEFAULT_EDITOR_CONFIG_CONTRACT.repoRoot.markers);
 const REPO_MARKERS = Array.isArray(REPO_MARKERS_RAW)
@@ -1657,6 +1659,18 @@ function getWordQueryAtPosition(document, position) {
   return '';
 }
 
+function getWordPrefixQueryAtPosition(document, position) {
+  if (!document || !position) return '';
+  if (typeof document.getWordRangeAtPosition !== 'function' || typeof document.getText !== 'function') return '';
+  const range = document.getWordRangeAtPosition(position);
+  if (!range) return '';
+  const fullText = String(document.getText(range) || '');
+  const startCharacter = Number.isFinite(range?.start?.character) ? Number(range.start.character) : 0;
+  const endCharacter = Number.isFinite(position?.character) ? Number(position.character) : startCharacter;
+  const prefixLength = Math.max(0, Math.min(fullText.length, endCharacter - startCharacter));
+  return fullText.slice(0, prefixLength || fullText.length).trim();
+}
+
 function noteNavigationDegraded(key, message, detail = null) {
   if (!key || navigationDegradationNotes.has(key)) return;
   navigationDegradationNotes.add(key);
@@ -1720,6 +1734,33 @@ function createDocumentSymbol(entry) {
     range,
     range
   );
+}
+
+function mapNavigationCompletionKind(kind) {
+  const normalized = String(kind || '').trim().toLowerCase();
+  if (normalized.includes('class')) return vscode.CompletionItemKind.Class;
+  if (normalized.includes('interface')) return vscode.CompletionItemKind.Interface;
+  if (normalized.includes('enum')) return vscode.CompletionItemKind.Enum;
+  if (normalized.includes('method')) return vscode.CompletionItemKind.Method;
+  if (normalized.includes('function')) return vscode.CompletionItemKind.Function;
+  if (normalized.includes('property')) return vscode.CompletionItemKind.Property;
+  if (normalized.includes('field')) return vscode.CompletionItemKind.Field;
+  if (normalized.includes('module')) return vscode.CompletionItemKind.Module;
+  if (normalized.includes('namespace')) return vscode.CompletionItemKind.Module;
+  if (normalized.includes('variable')) return vscode.CompletionItemKind.Variable;
+  if (normalized.includes('constant')) return vscode.CompletionItemKind.Constant;
+  if (normalized.includes('struct')) return vscode.CompletionItemKind.Struct;
+  return vscode.CompletionItemKind.Text;
+}
+
+function createCompletionItem(entry) {
+  const label = String(entry?.name || entry?.qualifiedName || '').trim();
+  if (!label) return null;
+  const item = new vscode.CompletionItem(label, mapNavigationCompletionKind(entry?.kind));
+  item.detail = String(entry?.qualifiedName || entry?.kind || '').trim();
+  item.sortText = `${String(9999 - Math.max(0, Number(entry?.score) || 0)).padStart(4, '0')}:${label}`;
+  item.filterText = String(entry?.qualifiedName || label).trim();
+  return item;
 }
 
 async function runNavigationCommand({
@@ -1875,6 +1916,21 @@ async function provideDocumentSymbolsForDocument(document) {
     limit: DOCUMENT_SYMBOL_LIMIT
   });
   return rows.map((entry) => createDocumentSymbol(entry));
+}
+
+async function provideCompletionItemsAtPosition(document, position) {
+  const query = getWordPrefixQueryAtPosition(document, position);
+  if (!query || query.length < MIN_COMPLETION_QUERY_LENGTH) return [];
+  const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
+  if (!repoContext.ok) return [];
+  const rows = await runNavigationCommand({
+    kind: 'completions',
+    repoContext,
+    query,
+    filePath: getDocumentFilePath(document),
+    limit: COMPLETION_RESULT_LIMIT
+  });
+  return rows.map((entry) => createCompletionItem(entry)).filter(Boolean);
 }
 
 function looksLikeSeedRef(value) {
@@ -4156,6 +4212,12 @@ function activate(context) {
   const documentSymbolProvider = typeof vscode.languages?.registerDocumentSymbolProvider === 'function'
     ? vscode.languages.registerDocumentSymbolProvider({ scheme: 'file' }, { provideDocumentSymbols: provideDocumentSymbolsForDocument })
     : null;
+  const completionProvider = typeof vscode.languages?.registerCompletionItemProvider === 'function'
+    ? vscode.languages.registerCompletionItemProvider(
+      { scheme: 'file' },
+      { provideCompletionItems: provideCompletionItemsAtPosition }
+    )
+    : null;
   context.subscriptions.push(
     workflowStatusCommand,
     rerunLastWorkflowCommand,
@@ -4173,6 +4235,7 @@ function activate(context) {
   if (definitionProvider) context.subscriptions.push(definitionProvider);
   if (referenceProvider) context.subscriptions.push(referenceProvider);
   if (documentSymbolProvider) context.subscriptions.push(documentSymbolProvider);
+  if (completionProvider) context.subscriptions.push(completionProvider);
   for (const spec of OPERATOR_COMMAND_SPECS) {
     const command = vscode.commands.registerCommand(spec.id, () => runOperatorCommand(spec));
     context.subscriptions.push(command);
@@ -4248,6 +4311,7 @@ module.exports = {
     provideDefinitionsAtPosition,
     provideReferencesAtPosition,
     provideDocumentSymbolsForDocument,
+    provideCompletionItemsAtPosition,
     selectRepo,
     clearSelectedRepo,
     showWorkflowStatus,

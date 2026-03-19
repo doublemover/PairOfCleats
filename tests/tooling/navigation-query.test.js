@@ -157,4 +157,16 @@ assert.equal(documentSymbols.results.length, 1);
 assert.equal(documentSymbols.results[0].name, 'WidgetBuilder');
 assert.equal(documentSymbols.results[0].virtualPath, 'src/defs.js');
 
+const completions = await queryNavigationData({
+  repoRoot,
+  kind: 'completions',
+  query: 'Wid',
+  filePath: path.join(srcDir, 'refs.js'),
+  limit: 10
+});
+assert.equal(completions.ok, true);
+assert.equal(completions.results.length, 1);
+assert.equal(completions.results[0].name, 'WidgetBuilder');
+assert.equal(completions.results[0].virtualPath, 'src/defs.js');
+
 console.log('navigation query test passed');
