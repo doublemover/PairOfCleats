@@ -354,6 +354,19 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
       referencesProvider: true
     };
   }
+  if (mode === 'stall-semantic-tokens') {
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true,
+      semanticTokensProvider: {
+        legend: {
+          tokenTypes: ['namespace', 'class', 'function', 'parameter', 'variable'],
+          tokenModifiers: ['declaration', 'definition', 'readonly']
+        },
+        full: true
+      }
+    };
+  }
   if (mode === 'semantic-inlay') {
     return {
       documentSymbolProvider: true,
@@ -704,6 +717,9 @@ const handleRequest = (message) => {
     return;
   }
   if (method === 'textDocument/semanticTokens/full') {
+    if (mode === 'stall-semantic-tokens') {
+      return;
+    }
     const uri = params?.textDocument?.uri;
     const text = documents.get(uri) || '';
     respond(id, { data: buildSemanticTokenData(text) });

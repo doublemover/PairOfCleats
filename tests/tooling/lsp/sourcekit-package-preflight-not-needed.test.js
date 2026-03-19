@@ -26,6 +26,9 @@ try {
 
     const output = await provider.run(ctx, { documents: [document], targets: [target] });
     assert.ok(output && typeof output.byChunkUid === 'object', 'expected sourcekit output');
+    assert.equal(output?.diagnostics?.preflight?.workspaceKind, 'package_managed_workspace');
+    assert.equal(output?.diagnostics?.preflight?.dependencyState, 'not_needed');
+    assert.equal(output?.diagnostics?.preflight?.preflightState, 'ready');
     const checks = Array.isArray(output?.diagnostics?.checks) ? output.diagnostics.checks : [];
     assert.equal(
       checks.some((check) => String(check?.name || '').startsWith('sourcekit_package_preflight_')),

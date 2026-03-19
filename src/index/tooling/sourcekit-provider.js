@@ -191,13 +191,17 @@ const formatLatency = (value) => (Number.isFinite(value) ? `${Math.round(value)}
 const logHoverMetrics = (log, metrics) => {
   if (!metrics || typeof metrics !== 'object') return;
   const requested = metrics.requested || 0;
-  const timedOut = metrics.timedOut || 0;
-  if (requested <= 0 && timedOut <= 0) return;
+  const timedOut = metrics.hoverTimedOut || 0;
+  const semanticTokensTimedOut = metrics.semanticTokensTimedOut || 0;
+  const signatureHelpTimedOut = metrics.signatureHelpTimedOut || 0;
+  if (requested <= 0 && timedOut <= 0 && semanticTokensTimedOut <= 0 && signatureHelpTimedOut <= 0) return;
   log(
     '[tooling] sourcekit hover metrics '
       + `requested=${requested} `
       + `succeeded=${metrics.succeeded || 0} `
       + `timedOut=${timedOut} `
+      + `semanticTokensTimedOut=${semanticTokensTimedOut} `
+      + `signatureHelpTimedOut=${signatureHelpTimedOut} `
       + `skippedByBudget=${metrics.skippedByBudget || 0} `
       + `skippedByKind=${metrics.skippedByKind || 0} `
       + `skippedByReturnSufficient=${metrics.skippedByReturnSufficient || 0} `
@@ -216,7 +220,9 @@ const logHoverMetrics = (log, metrics) => {
         + `${entry.virtualPath || '<unknown>'} `
         + `requested=${entry.requested || 0} `
         + `succeeded=${entry.succeeded || 0} `
-        + `timedOut=${entry.timedOut || 0} `
+        + `timedOut=${entry.hoverTimedOut || 0} `
+        + `semanticTokensTimedOut=${entry.semanticTokensTimedOut || 0} `
+        + `signatureHelpTimedOut=${entry.signatureHelpTimedOut || 0} `
         + `p50=${formatLatency(entry.p50Ms)} `
         + `p95=${formatLatency(entry.p95Ms)}`
     );
@@ -442,7 +448,18 @@ export const createSourcekitProvider = () => ({
       return {
         provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
-        diagnostics: appendDiagnosticChecks(null, checks)
+        diagnostics: appendDiagnosticChecks({
+          preflight: {
+            workspaceKind: preflight?.workspaceKind || null,
+            dependencyState: preflight?.dependencyState || null,
+            preflightState: preflight?.preflightState || null,
+            reasonCode: preflight?.reasonCode || null,
+            cached: preflight?.cached === true,
+            classificationDurationMs: Number(preflight?.classificationDurationMs) || 0,
+            resolveDurationMs: Number(preflight?.resolveDurationMs) || 0,
+            markerPath: preflight?.markerPath || null
+          }
+        }, checks)
       };
     }
     const requestedCommand = preflight?.requestedCommand && typeof preflight.requestedCommand === 'object'
@@ -556,7 +573,19 @@ export const createSourcekitProvider = () => ({
 
       logHoverMetrics(log, result.hoverMetrics);
       const diagnostics = appendDiagnosticChecks(
-        result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null,
+        {
+          ...(result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : {}),
+          preflight: {
+            workspaceKind: preflight?.workspaceKind || null,
+            dependencyState: preflight?.dependencyState || null,
+            preflightState: preflight?.preflightState || null,
+            reasonCode: preflight?.reasonCode || null,
+            cached: preflight?.cached === true,
+            classificationDurationMs: Number(preflight?.classificationDurationMs) || 0,
+            resolveDurationMs: Number(preflight?.resolveDurationMs) || 0,
+            markerPath: preflight?.markerPath || null
+          }
+        },
         [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
       );
       return {

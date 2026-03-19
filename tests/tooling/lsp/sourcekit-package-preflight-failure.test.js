@@ -33,6 +33,9 @@ try {
       checks.some((check) => check?.name === 'sourcekit_package_preflight_failed'),
       'expected sourcekit preflight failure check in diagnostics'
     );
+    assert.equal(output?.diagnostics?.preflight?.workspaceKind, 'package_managed_workspace');
+    assert.equal(output?.diagnostics?.preflight?.preflightState, 'blocked_dependency');
+    assert.equal(output?.diagnostics?.preflight?.reasonCode, 'sourcekit_blocked_dependency');
     assert.equal(
       logs.some((line) => line.includes('sourcekit skipped because package preflight did not complete safely')),
       true,
