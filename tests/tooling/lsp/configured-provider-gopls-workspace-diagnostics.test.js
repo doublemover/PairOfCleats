@@ -64,9 +64,9 @@ const result = await runToolingProviders({
 const checks = result.diagnostics?.['lsp-gopls']?.checks || [];
 assert.ok(Array.isArray(checks), 'expected diagnostics checks for configured gopls provider');
 assert.equal(
-  checks.some((check) => check?.name === 'gopls_workspace_model_missing'),
+  checks.some((check) => check?.name === 'go_workspace_blocked_missing_root'),
   true,
-  'expected missing go.mod/go.work warning when workspace markers are absent'
+  'expected partition-local missing-root warning when workspace markers are absent'
 );
 
 console.log('configured LSP gopls workspace diagnostics test passed');

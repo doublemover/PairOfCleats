@@ -1,5 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  buildGoWorkspacePartitionKey,
+  classifyGoWorkspacePartitionScope,
+  isGoWorkspaceProviderId
+} from './go-workspace-partitioning.js';
 import { findWorkspaceMarkersNearPaths } from './workspace-model.js';
 
 const normalizePolicy = (value) => (
@@ -88,8 +93,10 @@ const buildWorkspacePartitionSummary = ({
   unmatchedTargetCount: Array.isArray(unmatchedTargets) ? unmatchedTargets.length : 0,
   partitions: (Array.isArray(partitions) ? partitions : []).map((entry) => ({
     partitionKey: entry.partitionKey,
+    workspaceKey: entry.workspaceKey,
     rootRel: entry.rootRel,
     markerName: entry.markerName || null,
+    scope: entry.scope || null,
     documentCount: Array.isArray(entry.documents) ? entry.documents.length : 0,
     targetCount: Array.isArray(entry.targets) ? entry.targets.length : 0
   }))
@@ -260,6 +267,22 @@ export const resolveLspWorkspaceRouting = ({
   const partitions = Array.from(partitionByKey.values())
     .filter((entry) => Array.isArray(entry?.documents) && entry.documents.length && Array.isArray(entry?.targets) && entry.targets.length)
     .sort((left, right) => String(left.rootRel || '.').localeCompare(String(right.rootRel || '.')));
+
+  if (isGoWorkspaceProviderId(providerId)) {
+    for (const partition of partitions) {
+      const scope = classifyGoWorkspacePartitionScope({
+        documents: partition.documents,
+        targets: partition.targets
+      });
+      partition.scope = scope;
+      partition.workspaceKey = buildGoWorkspacePartitionKey({
+        repoRoot: normalizedRepoRoot,
+        rootRel: partition.rootRel,
+        markerName: partition.markerName || 'go.mod',
+        scope
+      });
+    }
+  }
 
   const checks = [];
   let state = 'ready';

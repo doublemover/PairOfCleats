@@ -64,6 +64,52 @@ export const runWorkspaceCommandPreflight = async ({
     : 5000;
   const prefix = String(reasonPrefix || '').trim().toLowerCase();
   const descriptor = String(label || 'workspace probe').trim() || 'workspace probe';
+  const buildCachedResult = (marker) => {
+    const state = String(marker?.state || 'ready').trim() || 'ready';
+    const check = marker?.check && typeof marker.check === 'object'
+      ? {
+        name: String(marker.check.name || '').trim() || `${prefix}_${state}`,
+        status: String(marker.check.status || '').trim() || (state === 'ready' ? 'info' : 'warn'),
+        message: String(marker.check.message || marker.message || '').trim()
+      }
+      : null;
+    const checks = Array.isArray(marker?.checks)
+      ? marker.checks
+        .filter((entry) => entry && typeof entry === 'object')
+        .map((entry) => ({
+          name: String(entry.name || '').trim() || null,
+          status: String(entry.status || '').trim() || null,
+          message: String(entry.message || '').trim() || ''
+        }))
+      : [];
+    return {
+      state,
+      reasonCode: String(marker?.reasonCode || '').trim() || null,
+      message: String(marker?.message || '').trim() || '',
+      check,
+      checks,
+      cached: true
+    };
+  };
+  const writeCacheMarker = async (payload = {}) => {
+    if (!cacheEnabled || !successFingerprint) return;
+    try {
+      await writeWorkspaceCommandPreflightCacheMarker({
+        repoRoot: successCache.repoRoot || ctx?.repoRoot || process.cwd(),
+        cacheRoot: successCache.cacheRoot || null,
+        namespace: successCache.namespace,
+        fingerprint: successFingerprint,
+        command,
+        args: commandArgs,
+        durationMs: payload.durationMs,
+        state: payload.state,
+        reasonCode: payload.reasonCode,
+        message: payload.message,
+        check: payload.check,
+        checks: payload.checks
+      });
+    } catch {}
+  };
   if (!command || !prefix) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
@@ -91,14 +137,11 @@ export const runWorkspaceCommandPreflight = async ({
         if (typeof log === 'function') {
           log(`[tooling] ${descriptor} preflight cache hit.`);
         }
-        return {
-          state: 'ready',
-          reasonCode: TOOLING_PREFLIGHT_REASON_CODES.CACHE_HIT,
-          message: '',
-          check: null,
-          checks: [],
-          cached: true
-        };
+        const cachedResult = buildCachedResult(cached.marker);
+        if (cachedResult.state === 'ready') {
+          cachedResult.reasonCode = TOOLING_PREFLIGHT_REASON_CODES.CACHE_HIT;
+        }
+        return cachedResult;
       }
     } catch {}
   }
@@ -118,26 +161,21 @@ export const runWorkspaceCommandPreflight = async ({
     });
     const exitCode = Number(result?.exitCode);
     if (Number.isFinite(exitCode) && exitCode === 0) {
-      if (cacheEnabled && successFingerprint) {
-        try {
-          await writeWorkspaceCommandPreflightCacheMarker({
-            repoRoot: successCache.repoRoot || ctx?.repoRoot || process.cwd(),
-            cacheRoot: successCache.cacheRoot || null,
-            namespace: successCache.namespace,
-            fingerprint: successFingerprint,
-            command,
-            args: commandArgs,
-            durationMs: result?.durationMs
-          });
-        } catch {}
-      }
+      await writeCacheMarker({
+        state: 'ready',
+        reasonCode: null,
+        message: '',
+        check: null,
+        checks: [],
+        durationMs: result?.durationMs
+      });
       return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
     }
     const summary = summarize(result?.stderr || result?.stdout);
     const message = summary
       ? `${descriptor} probe failed (exit ${Number.isFinite(exitCode) ? exitCode : 'unknown'}): ${summary}`
       : `${descriptor} probe failed (exit ${Number.isFinite(exitCode) ? exitCode : 'unknown'}).`;
-    return {
+    const failureResult = {
       state: 'degraded',
       reasonCode: `${prefix}_failed`,
       message,
@@ -148,13 +186,18 @@ export const runWorkspaceCommandPreflight = async ({
       },
       checks: []
     };
+    await writeCacheMarker({
+      ...failureResult,
+      durationMs: result?.durationMs
+    });
+    return failureResult;
   } catch (error) {
     if (error?.code === 'ABORT_ERR') {
       throw error;
     }
     if (error?.code === 'SUBPROCESS_TIMEOUT') {
       const message = `${descriptor} probe timed out after ${timeout}ms.`;
-      return {
+      const timeoutResult = {
         state: 'degraded',
         reasonCode: `${prefix}_timeout`,
         message,
@@ -165,9 +208,11 @@ export const runWorkspaceCommandPreflight = async ({
         },
         checks: []
       };
+      await writeCacheMarker(timeoutResult);
+      return timeoutResult;
     }
     const message = `${descriptor} probe error: ${summarize(error?.message || error) || 'unknown error'}`;
-    return {
+    const errorResult = {
       state: 'degraded',
       reasonCode: `${prefix}_error`,
       message,
@@ -178,5 +223,7 @@ export const runWorkspaceCommandPreflight = async ({
       },
       checks: []
     };
+    await writeCacheMarker(errorResult);
+    return errorResult;
   }
 };

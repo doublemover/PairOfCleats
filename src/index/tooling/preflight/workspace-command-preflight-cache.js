@@ -4,7 +4,7 @@ import path from 'node:path';
 import { readJsonFileSafe } from '../../../shared/files.js';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 
-const WORKSPACE_COMMAND_PREFLIGHT_CACHE_SCHEMA_VERSION = 1;
+const WORKSPACE_COMMAND_PREFLIGHT_CACHE_SCHEMA_VERSION = 2;
 const WORKSPACE_COMMAND_PREFLIGHT_MARKER_MAX_BYTES = 64 * 1024;
 
 const normalizeRepoHash = (repoRoot) => crypto
@@ -154,7 +154,12 @@ export const writeWorkspaceCommandPreflightCacheMarker = async ({
   fingerprint,
   command,
   args,
-  durationMs
+  durationMs,
+  state = 'ready',
+  reasonCode = null,
+  message = '',
+  check = null,
+  checks = []
 } = {}) => {
   const markerPath = resolveWorkspaceCommandPreflightMarkerPath({
     repoRoot,
@@ -170,6 +175,25 @@ export const writeWorkspaceCommandPreflightCacheMarker = async ({
       cmd: String(command || ''),
       args: Array.isArray(args) ? args.map((entry) => String(entry)) : []
     },
+    state: String(state || 'ready').trim() || 'ready',
+    reasonCode: String(reasonCode || '').trim() || null,
+    message: String(message || '').trim() || '',
+    check: check && typeof check === 'object'
+      ? {
+        name: String(check.name || '').trim() || null,
+        status: String(check.status || '').trim() || null,
+        message: String(check.message || '').trim() || ''
+      }
+      : null,
+    checks: Array.isArray(checks)
+      ? checks
+        .filter((entry) => entry && typeof entry === 'object')
+        .map((entry) => ({
+          name: String(entry.name || '').trim() || null,
+          status: String(entry.status || '').trim() || null,
+          message: String(entry.message || '').trim() || ''
+        }))
+      : [],
     durationMs: Number.isFinite(Number(durationMs))
       ? Math.max(0, Math.round(Number(durationMs)))
       : null

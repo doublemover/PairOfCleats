@@ -1,5 +1,9 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import {
+  buildGoWorkspacePartitionKey,
+  normalizeWorkspaceRootRel
+} from '../go-workspace-partitioning.js';
 import { runWorkspaceCommandPreflight } from './workspace-command-preflight.js';
 import { findWorkspaceMarkersNearPaths } from '../workspace-model.js';
 
@@ -99,6 +103,74 @@ const selectGoDocumentPaths = (documents) => (
       .filter(Boolean)
     : []
 );
+
+const classifyGoPathScope = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized.includes('/vendor/')) return 'vendor';
+  if (
+    normalized.includes('/gen/')
+    || normalized.includes('/generated/')
+    || normalized.endsWith('.pb.go')
+    || normalized.endsWith('.generated.go')
+  ) {
+    return 'generated';
+  }
+  return 'module';
+};
+
+const buildSelectedGoWorkspacePartitions = (repoRoot, selectedGoPaths) => {
+  const partitionByRoot = new Map();
+  const unmatchedPaths = [];
+  for (const selectedPath of Array.isArray(selectedGoPaths) ? selectedGoPaths : []) {
+    const matches = findWorkspaceMarkersNearPaths(repoRoot, [selectedPath], { exactNames: ['go.mod', 'go.work'] });
+    const match = matches.length > 0 ? matches[0] : null;
+    if (!match) {
+      unmatchedPaths.push(String(selectedPath));
+      continue;
+    }
+    const rootRel = normalizeWorkspaceRootRel(match.markerDirRel || '.');
+    const scope = classifyGoPathScope(selectedPath);
+    const workspaceKey = buildGoWorkspacePartitionKey({
+      repoRoot,
+      rootRel,
+      markerName: match.markerName || 'go.mod',
+      scope
+    });
+    const partition = partitionByRoot.get(rootRel) || {
+      rootRel,
+      rootDir: String(match.markerDirAbs || repoRoot),
+      markerName: String(match.markerName || '').trim() || 'go.mod',
+      workspaceKey,
+      scope,
+      selectedPaths: []
+    };
+    partition.selectedPaths.push(String(selectedPath));
+    partitionByRoot.set(rootRel, partition);
+  }
+  return {
+    partitions: Array.from(partitionByRoot.values())
+      .sort((left, right) => String(left.rootRel || '.').localeCompare(String(right.rootRel || '.'))),
+    unmatchedPaths
+  };
+};
+
+const formatPartitionList = (partitions) => (
+  (Array.isArray(partitions) ? partitions : [])
+    .map((entry) => String(entry?.rootRel || '.'))
+    .filter(Boolean)
+    .slice(0, 4)
+    .join(', ')
+);
+
+const toPartitionScopedCheck = (check, partition) => {
+  if (!check || typeof check !== 'object') return null;
+  const rootRel = String(partition?.rootRel || '.').trim() || '.';
+  const message = String(check.message || '').trim();
+  return {
+    ...check,
+    message: message ? `${message} [partition=${rootRel}]` : `[partition=${rootRel}]`
+  };
+};
 
 const countGoFilesForWarmup = (repoRoot, options) => {
   const minGoFiles = Number(options?.minGoFiles) || DEFAULT_WARMUP_MIN_GO_FILES;
@@ -261,100 +333,186 @@ export const resolveGoWorkspaceModulePreflight = async ({
   const selectedGoPaths = selectGoDocumentPaths(documents);
   const goModPath = path.join(repoRoot, 'go.mod');
   const goWorkPath = path.join(repoRoot, 'go.work');
-  const goSumPath = path.join(repoRoot, 'go.sum');
   const repoHasWorkspaceMarker = fsSync.existsSync(goModPath) || fsSync.existsSync(goWorkPath);
-  const selectedWorkspaceMatches = selectedGoPaths.length > 0
-    ? findWorkspaceMarkersNearPaths(repoRoot, selectedGoPaths, { exactNames: ['go.mod', 'go.work'] })
-    : [];
-  if (selectedGoPaths.length > 0) {
-    if (selectedWorkspaceMatches.length > 1) {
-      const sample = selectedWorkspaceMatches
-        .map((entry) => String(entry?.markerDirRel || '.'))
-        .filter(Boolean)
-        .slice(0, 4)
-        .join(', ');
-      const suffix = selectedWorkspaceMatches.length > 4
-        ? ` (+${selectedWorkspaceMatches.length - 4} more)`
-        : '';
-      const message = `go workspace markers found in multiple selected module roots (${sample}${suffix}); runtime will partition gopls sessions per module root.`;
-      return {
-        state: 'ready',
-        reasonCode: 'go_workspace_module_root_partitioned',
-        message,
-        check: {
-          name: 'go_workspace_module_root_partitioned',
-          status: 'info',
-          message
-        },
-        checks: []
-      };
-    }
-    if (selectedWorkspaceMatches.length === 0 && !repoHasWorkspaceMarker) {
-      const message = 'gopls workspace markers (go.mod/go.work) not found near selected Go documents.';
-      return {
-        state: 'blocked',
-        reasonCode: 'go_workspace_model_missing',
-        message,
-        check: {
-          name: 'go_workspace_model_missing',
-          status: 'warn',
-          message
-        },
-        checks: [],
-        blockProvider: true
-      };
-    }
+  const selectedWorkspace = buildSelectedGoWorkspacePartitions(repoRoot, selectedGoPaths);
+  let partitions = selectedWorkspace.partitions;
+  if (!partitions.length && repoHasWorkspaceMarker) {
+    partitions = [{
+      rootRel: '.',
+      rootDir: repoRoot,
+      markerName: fsSync.existsSync(goWorkPath) ? 'go.work' : 'go.mod',
+      workspaceKey: buildGoWorkspacePartitionKey({
+        repoRoot,
+        rootRel: '.',
+        markerName: fsSync.existsSync(goWorkPath) ? 'go.work' : 'go.mod',
+        scope: 'module'
+      }),
+      scope: 'module',
+      selectedPaths: selectedGoPaths.slice()
+    }];
   }
-  const selectedWorkspace = selectedWorkspaceMatches.length === 1
-    ? selectedWorkspaceMatches[0]
-    : null;
-  const workspaceRoot = selectedWorkspace?.markerDirAbs || repoRoot;
-  const workspaceGoModPath = path.join(workspaceRoot, 'go.mod');
-  const workspaceGoWorkPath = path.join(workspaceRoot, 'go.work');
-  const workspaceGoSumPath = path.join(workspaceRoot, 'go.sum');
-  if (!fsSync.existsSync(workspaceGoModPath) && !fsSync.existsSync(workspaceGoWorkPath)) {
+
+  if (selectedGoPaths.length > 0 && !partitions.length) {
+    const rootShape = resolveGoWorkspaceRootShapePreflight(repoRoot);
+    const reasonCode = repoHasWorkspaceMarker
+      ? 'go_workspace_blocked_incompatible_partition'
+      : (rootShape.reasonCode === 'go_workspace_module_root_ambiguous'
+        || rootShape.reasonCode === 'go_workspace_module_root_nested'
+        ? 'go_workspace_blocked_workspace_shape'
+        : 'go_workspace_blocked_missing_root');
+    const message = reasonCode === 'go_workspace_blocked_missing_root'
+      ? 'gopls workspace markers (go.mod/go.work) not found near selected Go documents.'
+      : (reasonCode === 'go_workspace_blocked_incompatible_partition'
+        ? 'selected Go documents do not resolve to a compatible gopls workspace partition.'
+        : 'gopls workspace shape is present but cannot be narrowed to a compatible partition for the selected documents.');
+    return {
+      state: 'blocked',
+      reasonCode,
+      message,
+      check: {
+        name: reasonCode,
+        status: 'warn',
+        message
+      },
+      checks: rootShape.check ? [rootShape.check] : [],
+      blockProvider: true
+    };
+  }
+
+  if (!partitions.length) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
-  if (!selectedWorkspace) {
-    const rootShape = resolveGoWorkspaceRootShapePreflight(repoRoot);
-    if (rootShape.state !== 'ready') {
-      return rootShape;
-    }
-  }
-  const watchedFiles = [workspaceGoModPath, workspaceGoWorkPath, workspaceGoSumPath];
 
   const command = resolveModuleCommand(server);
-  const modulePreflight = await runWorkspaceCommandPreflight({
-    ctx,
-    cwd: workspaceRoot,
-    cmd: command.cmd,
-    args: command.args,
-    timeoutMs: command.timeoutMs,
-    abortSignal,
-    reasonPrefix: 'go_workspace_module_probe',
-    label: 'go workspace module',
-    log: typeof ctx?.logger === 'function' ? ctx.logger : () => {},
-    successCache: {
-      repoRoot: workspaceRoot,
-      cacheRoot: ctx?.cache?.dir || null,
-      namespace: 'go-workspace-module',
-      watchedFiles,
-      extra: {
-        command: command.cmd,
-        args: command.args,
-        workspaceRoot: selectedWorkspace?.markerDirRel || '.'
+  const blockedPartitions = [];
+  const readyPartitions = [];
+  const checks = [];
+  let cachedPartitionCount = 0;
+  for (const partition of partitions) {
+    const workspaceRoot = partition.rootDir;
+    const workspaceGoModPath = path.join(workspaceRoot, 'go.mod');
+    const workspaceGoWorkPath = path.join(workspaceRoot, 'go.work');
+    const workspaceGoSumPath = path.join(workspaceRoot, 'go.sum');
+    const watchedFiles = [workspaceGoModPath, workspaceGoWorkPath, workspaceGoSumPath];
+    const modulePreflight = await runWorkspaceCommandPreflight({
+      ctx,
+      cwd: workspaceRoot,
+      cmd: command.cmd,
+      args: command.args,
+      timeoutMs: command.timeoutMs,
+      abortSignal,
+      reasonPrefix: 'go_workspace_module_probe',
+      label: 'go workspace module',
+      log: typeof ctx?.logger === 'function' ? ctx.logger : () => {},
+      successCache: {
+        repoRoot: workspaceRoot,
+        cacheRoot: ctx?.cache?.dir || null,
+        namespace: 'go-workspace-module',
+        watchedFiles,
+        extra: {
+          command: command.cmd,
+          args: command.args,
+          workspaceRoot: partition.rootRel,
+          workspaceKey: partition.workspaceKey
+        }
+      }
+    });
+    const partitionResult = modulePreflight.state === 'ready'
+      ? await resolveGoWorkspaceWarmupPreflight({
+        ctx,
+        server,
+        repoRoot: workspaceRoot,
+        abortSignal,
+        documents,
+        watchedFiles
+      })
+      : modulePreflight;
+    if (partitionResult.cached === true) cachedPartitionCount += 1;
+    if (partitionResult.check) {
+      checks.push(toPartitionScopedCheck(partitionResult.check, partition));
+    }
+    if (Array.isArray(partitionResult.checks)) {
+      for (const check of partitionResult.checks) {
+        const scoped = toPartitionScopedCheck(check, partition);
+        if (scoped) checks.push(scoped);
       }
     }
-  });
-  if (modulePreflight.state !== 'ready') {
-    return modulePreflight;
+    if (partitionResult.state === 'ready') {
+      readyPartitions.push(partition);
+    } else {
+      blockedPartitions.push({
+        partition,
+        result: partitionResult
+      });
+    }
   }
-  return await resolveGoWorkspaceWarmupPreflight({
-    ctx,
-    server,
-    repoRoot: workspaceRoot,
-    abortSignal,
-    documents,
-    watchedFiles
-  });
+
+  const blockedWorkspaceKeys = blockedPartitions.map((entry) => entry.partition.workspaceKey);
+  const blockedWorkspaceRoots = blockedPartitions.map((entry) => entry.partition.rootRel);
+  const cached = partitions.length > 0 && cachedPartitionCount === partitions.length;
+
+  if (!readyPartitions.length && blockedPartitions.length) {
+    const blockedMessage = `gopls blocked all selected workspace partitions (${formatPartitionList(blockedPartitions.map((entry) => entry.partition)) || 'none'}).`;
+    const reasonCode = 'go_workspace_blocked_workspace_shape';
+    return {
+      state: 'blocked',
+      reasonCode,
+      message: blockedMessage,
+      check: {
+        name: reasonCode,
+        status: 'warn',
+        message: blockedMessage
+      },
+      checks,
+      blockProvider: true,
+      cached,
+      blockedWorkspaceKeys,
+      blockedWorkspaceRoots
+    };
+  }
+
+  if (selectedWorkspace.unmatchedPaths.length || blockedPartitions.length) {
+    const message = `gopls achieved only partial repo coverage: ready=${readyPartitions.length}, blocked=${blockedPartitions.length}, unmatched=${selectedWorkspace.unmatchedPaths.length}.`;
+    return {
+      state: 'degraded',
+      reasonCode: 'go_workspace_partial_repo_coverage',
+      message,
+      check: {
+        name: 'go_workspace_partial_repo_coverage',
+        status: 'warn',
+        message
+      },
+      checks,
+      cached,
+      blockedWorkspaceKeys,
+      blockedWorkspaceRoots
+    };
+  }
+
+  if (partitions.length > 1) {
+    const sample = formatPartitionList(partitions);
+    const suffix = partitions.length > 4 ? ` (+${partitions.length - 4} more)` : '';
+    const message = `go workspace markers found in multiple selected module roots (${sample}${suffix}); runtime will partition gopls sessions per module root.`;
+    return {
+      state: 'ready',
+      reasonCode: 'go_workspace_module_root_partitioned',
+      message,
+      check: {
+        name: 'go_workspace_module_root_partitioned',
+        status: 'info',
+        message
+      },
+      checks,
+      cached
+    };
+  }
+
+  return {
+    state: 'ready',
+    reasonCode: null,
+    message: '',
+    check: null,
+    checks,
+    cached
+  };
 };

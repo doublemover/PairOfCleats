@@ -743,7 +743,9 @@ const createConfiguredLspProvider = (server) => {
     commandProfile,
     requestedCommand,
     preflightState = 'ready',
-    preflightReasonCode = null
+    preflightReasonCode = null,
+    blockedWorkspaceKeys = [],
+    blockedWorkspaceRoots = []
   }) => {
     const resolvedCmd = String(commandProfile?.resolved?.cmd || requestedCommand?.cmd || '').trim();
     const resolvedArgs = Array.isArray(commandProfile?.resolved?.args)
@@ -774,8 +776,23 @@ const createConfiguredLspProvider = (server) => {
       });
       if (workspaceLogLine) log(workspaceLogLine);
     }
+    const blockedKeySet = new Set(
+      Array.isArray(blockedWorkspaceKeys)
+        ? blockedWorkspaceKeys.map((entry) => String(entry || '').trim()).filter(Boolean)
+        : []
+    );
+    const blockedRootSet = new Set(
+      Array.isArray(blockedWorkspaceRoots)
+        ? blockedWorkspaceRoots.map((entry) => String(entry || '').trim()).filter(Boolean)
+        : []
+    );
+    const skippedBlockedPartitions = [];
     const partitionResults = [];
     for (const partition of workspaceRouting.partitions) {
+      if (blockedKeySet.has(String(partition.workspaceKey || '').trim()) || blockedRootSet.has(String(partition.rootRel || '').trim())) {
+        skippedBlockedPartitions.push(partition);
+        continue;
+      }
       partitionResults.push(await collectLspTypes({
         ...runtimeConfig,
         rootDir: ctx.repoRoot,
@@ -818,6 +835,19 @@ const createConfiguredLspProvider = (server) => {
       ...workspaceRouting.checks,
       ...(Array.isArray(result.checks) ? result.checks.slice() : [])
     ];
+    if (skippedBlockedPartitions.length > 0) {
+      const sample = skippedBlockedPartitions
+        .map((entry) => String(entry?.rootRel || '.'))
+        .filter(Boolean)
+        .slice(0, 4)
+        .join(', ');
+      const suffix = skippedBlockedPartitions.length > 4 ? ` (+${skippedBlockedPartitions.length - 4} more)` : '';
+      resultChecks.push({
+        name: `${providerId}_workspace_partition_blocked`,
+        status: 'warn',
+        message: `${providerId} skipped ${skippedBlockedPartitions.length} blocked workspace partition(s) (${sample}${suffix}).`
+      });
+    }
     invalidateProbeCacheOnInitializeFailure({
       checks: resultChecks,
       providerId: server.id || providerId,
@@ -930,6 +960,8 @@ const createConfiguredLspProvider = (server) => {
       let commandProfile = null;
       let preflightState = 'ready';
       let preflightReasonCode = null;
+      let blockedWorkspaceKeys = [];
+      let blockedWorkspaceRoots = [];
       if (typeof this.preflight === 'function') {
         const preflight = await awaitToolingProviderPreflight(ctx, {
           provider: this,
@@ -966,6 +998,8 @@ const createConfiguredLspProvider = (server) => {
         }
         preflightState = String(preflight?.state || 'ready');
         preflightReasonCode = preflight?.reasonCode || null;
+        blockedWorkspaceKeys = Array.isArray(preflight?.blockedWorkspaceKeys) ? preflight.blockedWorkspaceKeys : [];
+        blockedWorkspaceRoots = Array.isArray(preflight?.blockedWorkspaceRoots) ? preflight.blockedWorkspaceRoots : [];
       }
       const runtimeCommand = resolveRuntimeCommandFromPreflight({
         preflight: {
@@ -1006,7 +1040,9 @@ const createConfiguredLspProvider = (server) => {
         commandProfile: runtimeCommand.commandProfile,
         requestedCommand: runtimeCommand.requestedCommand,
         preflightState,
-        preflightReasonCode
+        preflightReasonCode,
+        blockedWorkspaceKeys,
+        blockedWorkspaceRoots
       });
     },
     preparePreflightInputs(ctx, inputs) {
@@ -1140,6 +1176,12 @@ const createConfiguredLspProvider = (server) => {
           message: environmentPreflight.message || '',
           cached: environmentPreflight.cached === true,
           ...(environmentPreflight?.blockProvider === true ? { blockProvider: true } : {}),
+          ...(Array.isArray(environmentPreflight?.blockedWorkspaceKeys)
+            ? { blockedWorkspaceKeys: environmentPreflight.blockedWorkspaceKeys.slice() }
+            : {}),
+          ...(Array.isArray(environmentPreflight?.blockedWorkspaceRoots)
+            ? { blockedWorkspaceRoots: environmentPreflight.blockedWorkspaceRoots.slice() }
+            : {}),
           ...(checks.length ? { checks } : {})
         };
       }
@@ -1211,6 +1253,12 @@ const createConfiguredLspProvider = (server) => {
         message: environmentPreflight.message || '',
         cached: environmentPreflight.cached === true,
         ...(environmentPreflight?.blockProvider === true ? { blockProvider: true } : {}),
+        ...(Array.isArray(environmentPreflight?.blockedWorkspaceKeys)
+          ? { blockedWorkspaceKeys: environmentPreflight.blockedWorkspaceKeys.slice() }
+          : {}),
+        ...(Array.isArray(environmentPreflight?.blockedWorkspaceRoots)
+          ? { blockedWorkspaceRoots: environmentPreflight.blockedWorkspaceRoots.slice() }
+          : {}),
         ...(checks.length ? { checks } : {})
       };
     }

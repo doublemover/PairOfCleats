@@ -75,13 +75,13 @@ const result = await runToolingProviders({
 const diagnostics = result.diagnostics?.['lsp-go-workspace-module-preflight-timeout'] || {};
 assert.equal(
   diagnostics?.preflight?.state,
-  'degraded',
-  'expected go workspace module timeout preflight degraded state'
+  'blocked',
+  'expected go workspace module timeout preflight blocked state when no healthy partition remains'
 );
 assert.equal(
   diagnostics?.preflight?.reasonCode,
-  'go_workspace_module_probe_timeout',
-  'expected go workspace module timeout preflight reason code'
+  'go_workspace_blocked_workspace_shape',
+  'expected go workspace module timeout preflight blocked workspace-shape reason code'
 );
 const checks = Array.isArray(diagnostics?.checks) ? diagnostics.checks : [];
 assert.equal(

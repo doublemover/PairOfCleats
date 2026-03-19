@@ -74,13 +74,13 @@ const result = await runToolingProviders({
 const diagnostics = result.diagnostics?.['lsp-go-workspace-module-preflight'] || {};
 assert.equal(
   diagnostics?.preflight?.state,
-  'degraded',
-  'expected go workspace module preflight degraded state'
+  'blocked',
+  'expected go workspace module preflight blocked state when no healthy partition remains'
 );
 assert.equal(
   diagnostics?.preflight?.reasonCode,
-  'go_workspace_module_probe_failed',
-  'expected go workspace module preflight failed reason code'
+  'go_workspace_blocked_workspace_shape',
+  'expected go workspace module preflight blocked workspace-shape reason code'
 );
 const checks = Array.isArray(diagnostics?.checks) ? diagnostics.checks : [];
 assert.equal(
