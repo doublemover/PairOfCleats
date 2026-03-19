@@ -68,18 +68,18 @@ const result = await runToolingProviders({
 const diagnostics = result.diagnostics?.['lsp-rust-metadata-preflight'] || {};
 assert.equal(
   diagnostics?.preflight?.state,
-  'degraded',
-  'expected rust workspace metadata preflight degraded state'
+  'blocked',
+  'expected rust workspace metadata preflight blocked state for an invalid manifest root'
 );
 assert.equal(
-  ['rust_workspace_metadata_failed', 'rust_workspace_metadata_error', 'rust_workspace_metadata_timeout']
+  ['rust_workspace_broken_manifest', 'rust_workspace_blocked_all_partitions']
     .includes(String(diagnostics?.preflight?.reasonCode || '')),
   true,
   'expected rust workspace metadata preflight reason code'
 );
 const checks = Array.isArray(diagnostics?.checks) ? diagnostics.checks : [];
 assert.equal(
-  checks.some((check) => String(check?.name || '').startsWith('rust_workspace_metadata_')),
+  checks.some((check) => ['rust_workspace_broken_manifest', 'rust_workspace_blocked_all_partitions'].includes(String(check?.name || ''))),
   true,
   'expected rust workspace metadata preflight warning check'
 );

@@ -436,6 +436,89 @@ const applyRustProcMacroSuppression = (diagnosticsByChunkUid) => {
   };
 };
 
+const createRustAnalyzerWorkspaceStderrFilter = () => {
+  const suppressedLines = new Map();
+  let suppressedCount = 0;
+
+  const classify = (line) => {
+    const text = String(line || '').trim();
+    if (!text) return null;
+    const lower = text.toLowerCase();
+    if (
+      lower.includes('failed to find a workspace root')
+      || lower.includes('fetchworkspaceerror')
+      || lower.includes('cargo locate-project')
+      || lower.includes('failed to load manifest')
+      || lower.includes('cargo metadata')
+    ) {
+      return lower.includes('rustlib')
+        || lower.includes('sysroot')
+        || lower.includes('/library/')
+        || lower.includes('\\library\\')
+        ? 'toolchain_noise'
+        : 'repo_invalidity';
+    }
+    return null;
+  };
+
+  return {
+    filter: (line) => {
+      const category = classify(line);
+      if (!category) return line;
+      const key = `${category}\0${String(line || '').trim()}`;
+      suppressedCount += 1;
+      const entry = suppressedLines.get(key) || {
+        category,
+        line: String(line || '').trim(),
+        count: 0
+      };
+      entry.count += 1;
+      suppressedLines.set(key, entry);
+      return null;
+    },
+    flush: (log) => {
+      if (!suppressedCount) return;
+      const counts = {
+        repo_invalidity: 0,
+        toolchain_noise: 0
+      };
+      for (const entry of suppressedLines.values()) {
+        counts[entry.category] += entry.count;
+      }
+      log(
+        `[tooling] rust-analyzer suppressed ${suppressedCount} duplicate workspace stderr line(s); `
+        + `repo-invalidity=${counts.repo_invalidity}, toolchain-noise=${counts.toolchain_noise}`
+      );
+    },
+    toChecks: () => {
+      if (!suppressedCount) return [];
+      const counts = {
+        repo_invalidity: 0,
+        toolchain_noise: 0
+      };
+      for (const entry of suppressedLines.values()) {
+        counts[entry.category] += entry.count;
+      }
+      const checks = [];
+      if (counts.repo_invalidity > 0) {
+        checks.push({
+          name: 'rust_workspace_repo_invalidity',
+          status: 'warn',
+          message: `rust-analyzer suppressed ${counts.repo_invalidity} duplicate workspace-invalidity stderr line(s) after partition classification.`
+        });
+      }
+      if (counts.toolchain_noise > 0) {
+        checks.push({
+          name: 'rust_workspace_toolchain_metadata_noise',
+          status: 'warn',
+          message: `rust-analyzer suppressed ${counts.toolchain_noise} duplicate toolchain or stdlib metadata stderr line(s).`
+        });
+      }
+      return checks;
+    }
+  };
+};
+
 const normalizeServerConfig = (server, index) => {
   if (!server || typeof server !== 'object') return null;
   const preset = resolveLspServerPreset(server);
@@ -793,40 +876,53 @@ const createConfiguredLspProvider = (server) => {
         skippedBlockedPartitions.push(partition);
         continue;
       }
-      partitionResults.push(await collectLspTypes({
-        ...runtimeConfig,
-        rootDir: ctx.repoRoot,
-        workspaceRootDir: partition.rootDir,
-        workspaceKey: partition.workspaceKey,
-        documents: partition.documents,
-        targets: partition.targets,
-        abortSignal: ctx?.abortSignal || null,
-        log,
-        providerId,
-        cmd: resolvedCmd,
-        args: resolvedArgs,
-        parseSignature: parseGenericSignature,
-        strict: ctx?.strict !== false,
-        vfsRoot: ctx?.buildRoot || ctx.repoRoot,
-        uriScheme: server.uriScheme || 'file',
-        vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
-        vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
-        vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
-        indexDir: ctx?.buildRoot || null,
-        cacheRoot: ctx?.cache?.dir || null,
-        documentSymbolConcurrency: server.documentSymbolConcurrency,
-        hoverConcurrency: server.hoverConcurrency,
-        requestCacheMaxEntries: server.requestCacheMaxEntries,
-        providerVersion: server.version,
-        adaptiveDocScope: server.adaptiveDocScope,
-        adaptiveDegradedHint: preflightState === 'degraded' || workspaceRouting.state === 'degraded',
-        adaptiveReasonHint: workspaceRouting.reasonCode || preflightReasonCode,
-        ...(Array.isArray(server.hoverSymbolKinds) && server.hoverSymbolKinds.length
-          ? { hoverSymbolKinds: server.hoverSymbolKinds }
-          : {}),
-        initializationOptions: server.initializationOptions,
-        captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(requestedKinds)
-      }));
+      const rustWorkspaceStderr = String(server?.id || '').trim().toLowerCase() === 'rust-analyzer'
+        ? createRustAnalyzerWorkspaceStderrFilter()
+        : null;
+      let partitionResult;
+      try {
+        partitionResult = await collectLspTypes({
+          ...runtimeConfig,
+          rootDir: ctx.repoRoot,
+          workspaceRootDir: partition.rootDir,
+          workspaceKey: partition.workspaceKey,
+          documents: partition.documents,
+          targets: partition.targets,
+          abortSignal: ctx?.abortSignal || null,
+          log,
+          providerId,
+          cmd: resolvedCmd,
+          args: resolvedArgs,
+          parseSignature: parseGenericSignature,
+          strict: ctx?.strict !== false,
+          vfsRoot: ctx?.buildRoot || ctx.repoRoot,
+          uriScheme: server.uriScheme || 'file',
+          vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
+          vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
+          vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
+          indexDir: ctx?.buildRoot || null,
+          cacheRoot: ctx?.cache?.dir || null,
+          documentSymbolConcurrency: server.documentSymbolConcurrency,
+          hoverConcurrency: server.hoverConcurrency,
+          requestCacheMaxEntries: server.requestCacheMaxEntries,
+          providerVersion: server.version,
+          adaptiveDocScope: server.adaptiveDocScope,
+          adaptiveDegradedHint: preflightState === 'degraded' || workspaceRouting.state === 'degraded',
+          adaptiveReasonHint: workspaceRouting.reasonCode || preflightReasonCode,
+          ...(Array.isArray(server.hoverSymbolKinds) && server.hoverSymbolKinds.length
+            ? { hoverSymbolKinds: server.hoverSymbolKinds }
+            : {}),
+          ...(rustWorkspaceStderr ? { stderrFilter: rustWorkspaceStderr.filter } : {}),
+          initializationOptions: server.initializationOptions,
+          captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(requestedKinds)
+        });
+      } finally {
+        if (rustWorkspaceStderr) {
+          rustWorkspaceStderr.flush(log);
+          preChecks.push(...rustWorkspaceStderr.toChecks());
+        }
+      }
+      partitionResults.push(partitionResult);
     }
     const result = mergeLspWorkspacePartitionResults(partitionResults, workspaceRouting.workspaceModel);
     let diagnosticsByChunkUid = result.diagnosticsByChunkUid;

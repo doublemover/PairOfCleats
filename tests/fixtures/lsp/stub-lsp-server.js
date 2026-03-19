@@ -101,6 +101,11 @@ const symbolsByMode = {
     detail: 'fn add(a: i32, b: i32) -> i32',
     kind: 12
   },
+  'rust-workspace-noise': {
+    name: 'add',
+    detail: 'fn add(a: i32, b: i32) -> i32',
+    kind: 12
+  },
   'rust-diagnostics-proc-macro': {
     name: 'add',
     detail: 'fn add(a: i32, b: i32) -> i32',
@@ -786,6 +791,11 @@ const handleNotification = (message) => {
         method: 'textDocument/publishDiagnostics',
         params: { uri, diagnostics: [rustProcMacroWarningDiagnostic, rustErrorDiagnostic] }
       });
+    } else if (uri && mode === 'rust-workspace-noise') {
+      process.stderr.write('rust-analyzer: failed to find a workspace root for examples/broken/Cargo.toml\n');
+      process.stderr.write('rust-analyzer: failed to find a workspace root for examples/broken/Cargo.toml\n');
+      process.stderr.write('rust-analyzer: cargo metadata failed for C:\\toolchains\\rustlib\\src\\rust\\library\\std\\Cargo.toml\n');
+      process.stderr.write('rust-analyzer: cargo metadata failed for C:\\toolchains\\rustlib\\src\\rust\\library\\std\\Cargo.toml\n');
     }
   } else if (message.method === 'textDocument/didClose') {
     const uri = message.params?.textDocument?.uri;

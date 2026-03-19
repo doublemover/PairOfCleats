@@ -5,6 +5,11 @@ import {
   classifyGoWorkspacePartitionScope,
   isGoWorkspaceProviderId
 } from './go-workspace-partitioning.js';
+import {
+  buildRustWorkspacePartitionKey,
+  isRustWorkspaceProviderId,
+  resolveRustWorkspacePartitionRole
+} from './rust-workspace-partitioning.js';
 import { findWorkspaceMarkersNearPaths } from './workspace-model.js';
 
 const normalizePolicy = (value) => (
@@ -280,6 +285,21 @@ export const resolveLspWorkspaceRouting = ({
         rootRel: partition.rootRel,
         markerName: partition.markerName || 'go.mod',
         scope
+      });
+    }
+  } else if (isRustWorkspaceProviderId(providerId)) {
+    for (const partition of partitions) {
+      const role = resolveRustWorkspacePartitionRole({
+        repoRoot: normalizedRepoRoot,
+        rootDir: partition.rootDir,
+        rootRel: partition.rootRel
+      });
+      partition.scope = role;
+      partition.workspaceKey = buildRustWorkspacePartitionKey({
+        repoRoot: normalizedRepoRoot,
+        rootRel: partition.rootRel,
+        markerName: partition.markerName || 'Cargo.toml',
+        role
       });
     }
   }
