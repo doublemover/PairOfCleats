@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 
 import { assembleCompositeContextPack } from '../../../src/context-pack/assemble.js';
+import { CONTEXT_PACK_RISK_CONTRACT_VERSION } from '../../../src/contracts/context-pack-risk-contract.js';
 import { validateCompositeContextPack } from '../../../src/contracts/validators/analysis.js';
 import { buildIndexSignature } from '../../../src/retrieval/index-cache.js';
 import {
@@ -58,6 +59,7 @@ const pack = assembleCompositeContextPack({
 });
 
 assert.equal(pack.risk?.status, 'ok', 'expected risk slice to assemble successfully');
+assert.equal(pack.risk?.contractVersion, CONTEXT_PACK_RISK_CONTRACT_VERSION, 'expected explicit risk contract version');
 assert.ok(Array.isArray(pack.risk?.flows) && pack.risk.flows.length > 0, 'expected interprocedural flows');
 assert.ok(
   typeof pack.primary?.excerptHash === 'string' && pack.primary.excerptHash.length > 0,

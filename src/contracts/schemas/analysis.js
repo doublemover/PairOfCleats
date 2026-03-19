@@ -1,3 +1,8 @@
+import {
+  CONTEXT_PACK_RISK_CONTRACT_VERSION,
+  CONTEXT_PACK_RISK_SCHEMA_VERSION
+} from '../context-pack-risk-contract.js';
+
 const nullableString = { type: ['string', 'null'] };
 const nullableNumber = { type: ['number', 'null'] };
 const semverString = { type: 'string', pattern: '^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$' };
@@ -1075,8 +1080,10 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
     },
     risk: {
       type: ['object', 'null'],
+      required: ['version', 'contractVersion'],
       properties: {
-        version: { type: ['integer', 'null'], minimum: 1 },
+        version: { type: ['integer', 'null'], const: CONTEXT_PACK_RISK_SCHEMA_VERSION },
+        contractVersion: { type: ['string', 'null'], const: CONTEXT_PACK_RISK_CONTRACT_VERSION },
         status: {
           type: 'string',
           enum: ['ok', 'disabled', 'missing', 'summary_only', 'degraded']

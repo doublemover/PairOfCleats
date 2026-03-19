@@ -10,6 +10,7 @@ import {
   ARCHITECTURE_REPORT_SCHEMA,
   SUGGEST_TESTS_SCHEMA
 } from '../schemas/analysis.js';
+import { validateContextPackRiskContractCompatibility } from '../context-pack-risk-contract.js';
 
 const ajv = createAjv({
   allErrors: true,
@@ -63,8 +64,13 @@ export function validateGraphImpact(payload) {
 }
 
 export function validateCompositeContextPack(payload) {
-  const ok = Boolean(COMPOSITE_CONTEXT_PACK_VALIDATOR(payload));
-  return { ok, errors: ok ? [] : formatErrors(COMPOSITE_CONTEXT_PACK_VALIDATOR) };
+  const schemaOk = Boolean(COMPOSITE_CONTEXT_PACK_VALIDATOR(payload));
+  const errors = schemaOk ? [] : formatErrors(COMPOSITE_CONTEXT_PACK_VALIDATOR);
+  const compatibility = validateContextPackRiskContractCompatibility(payload);
+  if (!compatibility.ok) {
+    errors.push(...compatibility.errors);
+  }
+  return { ok: errors.length === 0, errors };
 }
 
 export function validateApiContracts(payload) {

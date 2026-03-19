@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { assembleCompositeContextPack, classifyRiskLoadFailure } from '../../src/context-pack/assemble.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 
@@ -72,7 +73,7 @@ const writeManifest = async (indexDir, pieces) => {
   await writeJsonObjectFile(path.join(indexDir, 'pieces', 'manifest.json'), {
     fields: {
       version: 2,
-      artifactSurfaceVersion: 'test',
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       compatibilityKey: 'compat-strict',
       generatedAt: fixedNow(),
       mode: 'code',

@@ -8,6 +8,11 @@ import {
   validateArchitectureReport,
   validateSuggestTests
 } from '../../../src/contracts/validators/analysis.js';
+import {
+  CONTEXT_PACK_RISK_CONTRACT_VERSION,
+  CONTEXT_PACK_RISK_SCHEMA_VERSION
+} from '../../../src/contracts/context-pack-risk-contract.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 const provenance = {
   generatedAt: '2026-02-01T00:00:00Z',
@@ -45,7 +50,8 @@ const compositeContextPack = {
     excerptHash: 'sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   },
   risk: {
-    version: 1,
+    version: CONTEXT_PACK_RISK_SCHEMA_VERSION,
+    contractVersion: CONTEXT_PACK_RISK_CONTRACT_VERSION,
     status: 'ok',
     reason: null,
     anchor: {
@@ -137,7 +143,7 @@ const compositeContextPack = {
     truncation: [],
     provenance: {
       manifestVersion: 2,
-      artifactSurfaceVersion: 'surface-test',
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       compatibilityKey: 'compat-0001',
       indexSignature: 'sig-0001',
       indexCompatKey: 'compat-0001',

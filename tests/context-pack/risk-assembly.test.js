@@ -4,8 +4,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { assembleCompositeContextPack } from '../../src/context-pack/assemble.js';
+import { CONTEXT_PACK_RISK_CONTRACT_VERSION } from '../../src/contracts/context-pack-risk-contract.js';
 import { renderCompositeContextPack, renderCompositeContextPackJson } from '../../src/retrieval/output/composite-context-pack.js';
 import { validateCompositeContextPack } from '../../src/contracts/validators/analysis.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 
@@ -393,7 +395,7 @@ const writeManifest = async (indexDir, pieces) => {
   await writeJsonObjectFile(path.join(indexDir, 'pieces', 'manifest.json'), {
     fields: {
       version: 2,
-      artifactSurfaceVersion: 'test',
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       compatibilityKey: 'compat-test',
       generatedAt: fixedNow(),
       mode: 'code',
@@ -465,6 +467,7 @@ const fullPack = await buildPack({
 });
 assert.equal(fullPack.risk?.status, 'ok');
 assert.equal(fullPack.risk?.version, 1);
+assert.equal(fullPack.risk?.contractVersion, CONTEXT_PACK_RISK_CONTRACT_VERSION);
 assert.equal(fullPack.risk?.summary?.chunkUid, 'chunk-risk');
 assert.deepEqual(
   fullPack.risk?.analysisStatus?.artifactStatus,

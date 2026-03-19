@@ -31,6 +31,7 @@ import {
   loadPiecesManifest,
   resolveArtifactPresence
 } from '../shared/artifact-io.js';
+import { CONTEXT_PACK_RISK_CONTRACT_VERSION } from '../contracts/context-pack-risk-contract.js';
 
 const resolveSeedRef = (seed) => {
   if (!seed || typeof seed !== 'object') return null;
@@ -604,6 +605,11 @@ const buildRiskAnalysisStatus = ({ status, reason, degraded, summaryOnly, code =
   capsHit: Array.from(new Set([...(Array.isArray(stats?.capsHit) ? stats.capsHit : []), ...(Array.isArray(caps?.hits) ? caps.hits : [])]))
 });
 
+const withRiskContractVersion = (riskPayload) => ({
+  ...riskPayload,
+  contractVersion: CONTEXT_PACK_RISK_CONTRACT_VERSION
+});
+
 const buildRiskSlice = ({
   indexDir,
   repoRoot,
@@ -638,7 +644,7 @@ const buildRiskSlice = ({
       code: 'MISSING_RISK',
       message: 'Risk slice unavailable because no index directory or risk seed anchor was resolved.'
     });
-    return {
+    return withRiskContractVersion({
       version: 1,
       status: 'missing',
       reason: 'no-index-or-risk-anchor',
@@ -672,7 +678,7 @@ const buildRiskSlice = ({
       truncation: [],
       provenance: normalizeRiskProvenance({ manifest: null, stats: null, artifactStatus: null, indexSignature, indexCompatKey }),
       degraded: true
-    };
+    });
   }
 
   let manifest = null;
@@ -684,7 +690,7 @@ const buildRiskSlice = ({
       message: 'Risk slice unavailable because pieces manifest could not be loaded.',
       data: { error: err?.message || String(err) }
     });
-    return {
+    return withRiskContractVersion({
       version: 1,
       status: 'missing',
       reason: 'missing-manifest',
@@ -718,7 +724,7 @@ const buildRiskSlice = ({
       truncation: [],
       provenance: normalizeRiskProvenance({ manifest: null, stats: null, artifactStatus: null, indexSignature, indexCompatKey }),
       degraded: true
-    };
+    });
   }
 
   const statsPresence = resolveArtifactPresence(indexDir, 'risk_interprocedural_stats', {
@@ -767,7 +773,7 @@ const buildRiskSlice = ({
       code: 'MISSING_RISK',
       message: 'Risk slice unavailable because interprocedural stats and summaries artifacts are missing.'
     });
-    return {
+    return withRiskContractVersion({
       version: 1,
       status: 'missing',
       reason: 'missing-risk-artifacts',
@@ -797,7 +803,7 @@ const buildRiskSlice = ({
       truncation: [],
       provenance: normalizeRiskProvenance({ manifest, stats: null, artifactStatus, indexSignature, indexCompatKey }),
       degraded: true
-    };
+    });
   }
 
   let stats = null;
@@ -898,7 +904,7 @@ const buildRiskSlice = ({
       },
       hits: new Set(Array.isArray(stats?.capsHit) ? stats.capsHit : [])
     });
-    return {
+    return withRiskContractVersion({
       version: 1,
       status: 'disabled',
       reason: stats?.reason || 'disabled',
@@ -930,7 +936,7 @@ const buildRiskSlice = ({
       filters: riskFilterState,
       provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus, indexSignature, indexCompatKey }),
       degraded: false
-    };
+    });
   }
 
   if (baseStatus === 'summary_only') {
@@ -953,7 +959,7 @@ const buildRiskSlice = ({
       },
       hits: new Set(Array.isArray(stats?.capsHit) ? stats.capsHit : [])
     });
-    return {
+    return withRiskContractVersion({
       version: 1,
       status: 'summary_only',
       reason: stats?.reason || null,
@@ -985,7 +991,7 @@ const buildRiskSlice = ({
       filters: riskFilterState,
       provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus, indexSignature, indexCompatKey }),
       degraded: false
-    };
+    });
   }
 
   let degraded = false;
@@ -1593,7 +1599,7 @@ const buildRiskSlice = ({
     droppedFlows: omittedFlows,
     droppedPartialFlows: omittedPartialFlows
   });
-  return {
+  return withRiskContractVersion({
     version: 1,
     status,
     reason: degraded ? 'partial-artifacts' : (stats?.reason || null),
@@ -1619,7 +1625,7 @@ const buildRiskSlice = ({
     truncation: riskTruncation,
     provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: resolvedArtifactStatus, indexSignature, indexCompatKey }),
     degraded
-  };
+  });
 };
 
 const trimUtf8Buffer = (buffer) => {
