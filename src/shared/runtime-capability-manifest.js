@@ -101,6 +101,7 @@ const CLI_EXTRA_COMMAND_SPECS = freezeArray([
   { id: 'report.eval', commandPath: ['report', 'eval'], description: 'Run retrieval evaluation.', script: 'tools/eval/run.js' },
   { id: 'report.compare-models', commandPath: ['report', 'compare-models'], description: 'Compare embedding model results.', script: 'tools/reports/compare-models.js', flagSetId: 'bench' },
   { id: 'report.metrics', commandPath: ['report', 'metrics'], description: 'Render metrics dashboard artifacts.', script: 'tools/reports/metrics-dashboard.js' },
+  { id: 'report.diagnostics', commandPath: ['report', 'diagnostics'], description: 'Render risk and operational diagnostics reports.', script: 'tools/reports/diagnostics-report.js' },
   { id: 'tooling.doctor', commandPath: ['tooling', 'doctor'], description: 'Inspect tooling availability and configuration.', script: 'tools/tooling/doctor.js' },
   { id: 'config.dump', commandPath: ['config', 'dump'], description: 'Dump effective config plus runtime capability manifest.', script: 'tools/config/dump.js' },
   { id: 'graph-context', commandPath: ['graph-context'], description: 'Render graph-neighborhood context.', script: 'tools/analysis/graph-context.js' },
