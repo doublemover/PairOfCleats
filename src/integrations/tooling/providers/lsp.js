@@ -538,11 +538,12 @@ export const __resolveAdaptiveLspRequestBudgetPlanForTests = ({
       reasonCodes.push('breaker_or_quarantine');
     }
     const forcedZero = lifecycle?.crashLoopQuarantined === true && kind !== 'documentSymbol';
+    const minimumRequests = kind === 'documentSymbol' ? baseValue : (baseValue > 0 ? 1 : 0);
     const maxRequests = forcedZero
       ? 0
       : (
         baseValue > 0
-          ? Math.max(1, Math.floor(baseValue * multiplier))
+          ? Math.max(minimumRequests, Math.floor(baseValue * multiplier))
           : 0
       );
     byKind[kind] = {

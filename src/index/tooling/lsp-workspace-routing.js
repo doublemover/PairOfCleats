@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { findWorkspaceMarkersNearPaths } from './workspace-model.js';
 
@@ -12,6 +13,50 @@ const normalizeRelPath = (value) => {
     .replace(/\/+/g, '/')
     .replace(/\/$/, '');
   return normalized || '.';
+};
+
+const scanWorkspaceMarkerRoots = (repoRoot, markerOptions) => {
+  const rootAbs = String(repoRoot || process.cwd());
+  const candidatePaths = ['__workspace_probe__'];
+  try {
+    const rootEntries = fs.readdirSync(rootAbs, { withFileTypes: true });
+    for (const entry of rootEntries) {
+      if (!entry?.isDirectory?.()) continue;
+      const dirName = String(entry.name || '').trim();
+      if (!dirName) continue;
+      candidatePaths.push(`${dirName}/__workspace_probe__`);
+    }
+  } catch {
+    // Fall back to repo-root-only matching when the root cannot be listed.
+  }
+  return findWorkspaceMarkersNearPaths(rootAbs, candidatePaths, markerOptions);
+};
+
+const buildPartitionEntry = ({ partitionKey, rootRel, rootDir, markerName }) => ({
+  partitionKey,
+  workspaceKey: partitionKey,
+  rootRel,
+  rootDir,
+  markerName: String(markerName || '').trim() || null,
+  documents: [],
+  targets: []
+});
+
+const collectWorkspaceCandidatePaths = (doc, matchingTargets = []) => {
+  const candidatePaths = new Set();
+  const pushValue = (value) => {
+    const normalized = String(value || '').trim();
+    if (normalized) candidatePaths.add(normalized);
+  };
+  pushValue(doc?.virtualPath);
+  pushValue(doc?.path);
+  pushValue(doc?.containerPath);
+  pushValue(doc?.legacyVirtualPath);
+  for (const target of (Array.isArray(matchingTargets) ? matchingTargets : [])) {
+    pushValue(target?.virtualPath);
+    pushValue(target?.chunkRef?.file);
+  }
+  return Array.from(candidatePaths);
 };
 
 const samplePartitionRoots = (partitions) => (
@@ -99,11 +144,20 @@ export const resolveLspWorkspaceRouting = ({
   const partitionByKey = new Map();
   const partitionKeyByVirtualPath = new Map();
   const unmatchedDocuments = [];
+  const targetsByVirtualPath = new Map();
+  for (const target of targetList) {
+    const targetVirtualPath = String(target?.virtualPath || '').trim();
+    if (!targetVirtualPath) continue;
+    const list = targetsByVirtualPath.get(targetVirtualPath) || [];
+    list.push(target);
+    targetsByVirtualPath.set(targetVirtualPath, list);
+  }
 
   for (const doc of docs) {
     const virtualPath = String(doc?.virtualPath || '').trim();
     if (!virtualPath) continue;
-    const matches = findWorkspaceMarkersNearPaths(normalizedRepoRoot, [virtualPath], markerOptions);
+    const candidatePaths = collectWorkspaceCandidatePaths(doc, targetsByVirtualPath.get(virtualPath) || []);
+    const matches = findWorkspaceMarkersNearPaths(normalizedRepoRoot, candidatePaths, markerOptions);
     const match = matches.length > 0 ? matches[0] : null;
     if (!match) {
       if (requireWorkspaceModel) {
@@ -113,15 +167,12 @@ export const resolveLspWorkspaceRouting = ({
       const fallbackKey = '.';
       partitionKeyByVirtualPath.set(virtualPath, fallbackKey);
       if (!partitionByKey.has(fallbackKey)) {
-        partitionByKey.set(fallbackKey, {
+        partitionByKey.set(fallbackKey, buildPartitionEntry({
           partitionKey: fallbackKey,
-          workspaceKey: fallbackKey,
           rootRel: '.',
           rootDir: normalizedRepoRoot,
-          markerName: null,
-          documents: [],
-          targets: []
-        });
+          markerName: null
+        }));
       }
       partitionByKey.get(fallbackKey).documents.push(doc);
       continue;
@@ -130,15 +181,12 @@ export const resolveLspWorkspaceRouting = ({
     const partitionKey = rootRel;
     partitionKeyByVirtualPath.set(virtualPath, partitionKey);
     if (!partitionByKey.has(partitionKey)) {
-      partitionByKey.set(partitionKey, {
+      partitionByKey.set(partitionKey, buildPartitionEntry({
         partitionKey,
-        workspaceKey: partitionKey,
         rootRel,
         rootDir: String(match.markerDirAbs || normalizedRepoRoot),
-        markerName: String(match.markerName || '').trim() || null,
-        documents: [],
-        targets: []
-      });
+        markerName: match.markerName
+      }));
     }
     partitionByKey.get(partitionKey).documents.push(doc);
   }
@@ -152,15 +200,12 @@ export const resolveLspWorkspaceRouting = ({
         unmatchedTargets.push(target);
         continue;
       }
-      const fallback = partitionByKey.get('.') || {
+      const fallback = partitionByKey.get('.') || buildPartitionEntry({
         partitionKey: '.',
-        workspaceKey: '.',
         rootRel: '.',
         rootDir: normalizedRepoRoot,
-        markerName: null,
-        documents: [],
-        targets: []
-      };
+        markerName: null
+      });
       if (!partitionByKey.has('.')) partitionByKey.set('.', fallback);
       fallback.targets.push(target);
       continue;
@@ -171,6 +216,23 @@ export const resolveLspWorkspaceRouting = ({
       continue;
     }
     partition.targets.push(target);
+  }
+
+  if (!partitionByKey.size && requireWorkspaceModel && markerOptions) {
+    const uniqueRoots = scanWorkspaceMarkerRoots(normalizedRepoRoot, markerOptions);
+    if (uniqueRoots.length === 1 && docs.length && targetList.length) {
+      const match = uniqueRoots[0];
+      const rootRel = normalizeRelPath(match.markerDirRel || '.');
+      const fallbackPartition = buildPartitionEntry({
+        partitionKey: rootRel,
+        rootRel,
+        rootDir: String(match.markerDirAbs || normalizedRepoRoot),
+        markerName: match.markerName
+      });
+      fallbackPartition.documents.push(...docs);
+      fallbackPartition.targets.push(...targetList);
+      partitionByKey.set(rootRel, fallbackPartition);
+    }
   }
 
   const partitions = Array.from(partitionByKey.values())
@@ -188,6 +250,21 @@ export const resolveLspWorkspaceRouting = ({
       name: reasonCode,
       status: 'warn',
       message: `${providerId} workspace markers were not found for the selected documents.`
+    });
+  } else if (
+    requireWorkspaceModel
+    && unmatchedDocuments.length === docs.length
+    && unmatchedTargets.length === targetList.length
+    && partitions.length === 1
+    && docs.length > 0
+    && targetList.length > 0
+  ) {
+    state = 'degraded';
+    reasonCode = `${String(providerId || 'lsp')}_workspace_partition_assumed_root`;
+    checks.push({
+      name: reasonCode,
+      status: 'warn',
+      message: `${providerId} workspace routing selected a single deterministic workspace root without a direct path match for the requested documents.`
     });
   } else if (unmatchedDocuments.length || unmatchedTargets.length) {
     state = 'degraded';
