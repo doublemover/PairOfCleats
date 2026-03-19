@@ -1075,6 +1075,78 @@ const riskStatsSchema = {
   additionalProperties: false
 };
 
+const riskGuidanceSchema = {
+  type: ['object', 'null'],
+  properties: {
+    ranking: {
+      type: ['object', 'null'],
+      properties: {
+        callers: nullableString,
+        symbols: nullableString,
+        tests: nullableString
+      },
+      additionalProperties: false
+    },
+    caps: {
+      type: ['object', 'null'],
+      properties: {
+        maxCallers: nullableNumber,
+        maxSymbols: nullableNumber,
+        maxTests: nullableNumber,
+        hits: { type: 'array', items: { type: 'string' } }
+      },
+      additionalProperties: false
+    },
+    callers: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          chunkUid: nullableString,
+          file: nullableString,
+          name: nullableString,
+          kind: nullableString,
+          score: nullableNumber,
+          coveredTargets: { type: 'array', items: { type: 'string' } },
+          reason: nullableString
+        },
+        additionalProperties: false
+      }
+    },
+    symbols: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          symbolId: nullableString,
+          chunkUid: nullableString,
+          path: nullableString,
+          name: nullableString,
+          kind: nullableString,
+          score: nullableNumber,
+          coveredChunks: { type: 'array', items: { type: 'string' } },
+          reason: nullableString
+        },
+        additionalProperties: false
+      }
+    },
+    tests: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          testPath: nullableString,
+          score: nullableNumber,
+          reason: nullableString,
+          witnessPath: { type: ['object', 'null'], additionalProperties: true }
+        },
+        additionalProperties: false
+      }
+    }
+  },
+  additionalProperties: false
+};
+
 const riskDeltaSideSchema = {
   type: 'object',
   required: ['requestedRef', 'canonical', 'seedStatus', 'flows', 'partialFlows'],
@@ -1270,6 +1342,7 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
         anchor: riskAnchorSchema,
         filters: riskFiltersSchema,
         summary: riskSummarySchema,
+        guidance: riskGuidanceSchema,
         stats: riskStatsSchema,
         analysisStatus: riskAnalysisStatusSchema,
         caps: riskCapsSchema,

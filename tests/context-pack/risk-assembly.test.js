@@ -17,6 +17,10 @@ const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'context-pack-risk-assembly');
 const repoRoot = path.join(tempRoot, 'repo');
 const repoFile = path.join(repoRoot, 'src', 'file.js');
+const repoTestFile = path.join(repoRoot, 'tests', 'risky.test.js');
+const repoTestFileB = path.join(repoRoot, 'tests', 'risky-b.test.js');
+const repoTestFileC = path.join(repoRoot, 'tests', 'risky-c.test.js');
+const repoTestFileD = path.join(repoRoot, 'tests', 'risky-d.test.js');
 const fixedNow = () => '2026-03-12T00:00:00.000Z';
 const repoSourceText = 'export function risky(input) {\n  return query(input);\n}\n';
 const queryExcerptText = 'query(input)';
@@ -381,9 +385,144 @@ const chunkMeta = [
   }
 ];
 
+const graphIndex = {
+  graphRelations: {
+    importGraph: {
+      nodeCount: 2,
+      edgeCount: 1,
+      nodes: [
+        { id: 'tests/risky.test.js', file: 'tests/risky.test.js', out: ['src/file.js'], in: [] },
+        { id: 'src/file.js', file: 'src/file.js', out: [], in: ['tests/risky.test.js'] }
+      ]
+    }
+  },
+  callGraphIndex: new Map([
+    ['chunk-risk', { id: 'chunk-risk', file: 'src/file.js', name: 'risky', kind: 'function', in: ['chunk-caller'], out: ['chunk-risk-sink'] }],
+    ['chunk-risk-sink', { id: 'chunk-risk-sink', file: 'src/db.js', name: 'query', kind: 'function', in: ['chunk-caller'], out: [] }],
+    ['chunk-caller', { id: 'chunk-caller', file: 'src/controller.js', name: 'controller', kind: 'function', in: [], out: ['chunk-risk'] }]
+  ]),
+  symbolIndex: {
+    byChunk: new Map([
+      ['chunk-risk', [{
+        symbolId: 'sym:risky',
+        toRef: {
+          status: 'resolved',
+          resolved: {
+            symbolId: 'sym:risky',
+            chunkUid: 'chunk-risk',
+            path: 'src/file.js',
+            name: 'risky',
+            kind: 'function'
+          },
+          candidates: []
+        }
+      }]],
+      ['chunk-risk-sink', [{
+        symbolId: 'sym:query',
+        toRef: {
+          status: 'resolved',
+          resolved: {
+            symbolId: 'sym:query',
+            chunkUid: 'chunk-risk-sink',
+            path: 'src/db.js',
+            name: 'query',
+            kind: 'function'
+          },
+          candidates: []
+        }
+      }]]
+    ])
+  }
+};
+
+const cappedGraphIndex = {
+  graphRelations: {
+    importGraph: {
+      nodeCount: 5,
+      edgeCount: 4,
+      nodes: [
+        { id: 'tests/risky.test.js', file: 'tests/risky.test.js', out: ['src/file.js'], in: [] },
+        { id: 'tests/risky-b.test.js', file: 'tests/risky-b.test.js', out: ['src/file.js'], in: [] },
+        { id: 'tests/risky-c.test.js', file: 'tests/risky-c.test.js', out: ['src/file.js'], in: [] },
+        { id: 'tests/risky-d.test.js', file: 'tests/risky-d.test.js', out: ['src/file.js'], in: [] },
+        { id: 'src/file.js', file: 'src/file.js', out: [], in: ['tests/risky.test.js', 'tests/risky-b.test.js', 'tests/risky-c.test.js', 'tests/risky-d.test.js'] }
+      ]
+    }
+  },
+  callGraphIndex: new Map([
+    ['chunk-risk', { id: 'chunk-risk', file: 'src/file.js', name: 'risky', kind: 'function', in: ['chunk-caller-a', 'chunk-caller-b', 'chunk-caller-c', 'chunk-caller-d'], out: ['chunk-risk-sink'] }],
+    ['chunk-risk-sink', { id: 'chunk-risk-sink', file: 'src/db.js', name: 'query', kind: 'function', in: ['chunk-caller-a', 'chunk-caller-b'], out: [] }],
+    ['chunk-caller-a', { id: 'chunk-caller-a', file: 'src/controller-a.js', name: 'controllerA', kind: 'function', in: [], out: ['chunk-risk'] }],
+    ['chunk-caller-b', { id: 'chunk-caller-b', file: 'src/controller-b.js', name: 'controllerB', kind: 'function', in: [], out: ['chunk-risk'] }],
+    ['chunk-caller-c', { id: 'chunk-caller-c', file: 'src/controller-c.js', name: 'controllerC', kind: 'function', in: [], out: ['chunk-risk'] }],
+    ['chunk-caller-d', { id: 'chunk-caller-d', file: 'src/controller-d.js', name: 'controllerD', kind: 'function', in: [], out: ['chunk-risk'] }]
+  ]),
+  symbolIndex: {
+    byChunk: new Map([
+      ['chunk-risk', [
+        {
+          symbolId: 'sym:risky',
+          toRef: {
+            status: 'resolved',
+            resolved: { symbolId: 'sym:risky', chunkUid: 'chunk-risk', path: 'src/file.js', name: 'risky', kind: 'function' },
+            candidates: []
+          }
+        },
+        {
+          symbolId: 'sym:risky-helper-a',
+          toRef: {
+            status: 'resolved',
+            resolved: { symbolId: 'sym:risky-helper-a', chunkUid: 'chunk-risk', path: 'src/file.js', name: 'riskyHelperA', kind: 'function' },
+            candidates: []
+          }
+        },
+        {
+          symbolId: 'sym:risky-helper-b',
+          toRef: {
+            status: 'resolved',
+            resolved: { symbolId: 'sym:risky-helper-b', chunkUid: 'chunk-risk', path: 'src/file.js', name: 'riskyHelperB', kind: 'function' },
+            candidates: []
+          }
+        }
+      ]],
+      ['chunk-risk-sink', [
+        {
+          symbolId: 'sym:query',
+          toRef: {
+            status: 'resolved',
+            resolved: { symbolId: 'sym:query', chunkUid: 'chunk-risk-sink', path: 'src/db.js', name: 'query', kind: 'function' },
+            candidates: []
+          }
+        },
+        {
+          symbolId: 'sym:query-unsafe',
+          toRef: {
+            status: 'resolved',
+            resolved: { symbolId: 'sym:query-unsafe', chunkUid: 'chunk-risk-sink', path: 'src/db.js', name: 'queryUnsafe', kind: 'function' },
+            candidates: []
+          }
+        },
+        {
+          symbolId: 'sym:query-builder',
+          toRef: {
+            status: 'resolved',
+            resolved: { symbolId: 'sym:query-builder', chunkUid: 'chunk-risk-sink', path: 'src/db.js', name: 'queryBuilder', kind: 'function' },
+            candidates: []
+          }
+        }
+      ]]
+    ])
+  }
+};
+
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+await fs.mkdir(path.join(repoRoot, 'tests'), { recursive: true });
 await fs.writeFile(repoFile, repoSourceText, 'utf8');
+await fs.writeFile(repoTestFile, 'test(\'risky\', () => {});\n', 'utf8');
+await fs.writeFile(repoTestFileB, 'test(\'risky b\', () => {});\n', 'utf8');
+await fs.writeFile(repoTestFileC, 'test(\'risky c\', () => {});\n', 'utf8');
+await fs.writeFile(repoTestFileD, 'test(\'risky d\', () => {});\n', 'utf8');
 
 const writeJsonl = async (filePath, rows) => {
   const content = rows.map((row) => JSON.stringify(row)).join('\n');
@@ -413,7 +552,10 @@ const buildPack = async ({
   partialFlows = null,
   callSites = null,
   riskFilters = null,
-  includeRiskPartialFlows = false
+  includeRiskPartialFlows = false,
+  includeGraph = false,
+  includeCallersCallees = false,
+  graphIndexOverride = null
 }) => {
   const indexDir = path.join(tempRoot, name, 'index-code');
   await fs.rm(indexDir, { recursive: true, force: true });
@@ -445,16 +587,17 @@ const buildPack = async ({
     chunkMeta,
     repoRoot,
     indexDir,
+    graphIndex: graphIndexOverride,
     indexCompatKey: 'compat-test',
     now: fixedNow,
-    includeGraph: false,
+    includeGraph,
     includeTypes: false,
     includeRisk: true,
     includeRiskPartialFlows,
     riskFilters,
     includeImports: false,
     includeUsages: false,
-    includeCallersCallees: false
+    includeCallersCallees
   });
 };
 
@@ -463,7 +606,10 @@ const fullPack = await buildPack({
   stats: baseStats,
   summaries: [summaryRow],
   flows: [flowRow],
-  callSites: [callSiteRow]
+  callSites: [callSiteRow],
+  includeGraph: true,
+  includeCallersCallees: true,
+  graphIndexOverride: graphIndex
 });
 assert.equal(fullPack.risk?.status, 'ok');
 assert.equal(fullPack.risk?.version, 1);
@@ -511,6 +657,33 @@ assert.deepEqual(fullPack.risk?.flows?.[0]?.path?.watchByStep?.[0]?.semanticKind
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerpt, 'query(input)');
 assert.match(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerptHash || '', /^sha1:/);
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.provenance?.excerptSource, 'repo-range');
+assert.equal(fullPack.risk?.guidance?.callers?.[0]?.chunkUid, 'chunk-caller');
+assert.equal(fullPack.risk?.guidance?.symbols?.[0]?.symbolId, 'sym:query');
+assert.equal(fullPack.risk?.guidance?.tests?.[0]?.testPath, 'tests/risky.test.js');
+assert.match(fullPack.risk?.guidance?.ranking?.callers || '', /Direct inbound callers/i);
+assert.deepEqual(fullPack.risk?.guidance?.caps?.hits || [], []);
+const noGraphPack = await buildPack({
+  name: 'risk-ok-no-graph',
+  stats: baseStats,
+  summaries: [summaryRow],
+  flows: [flowRow],
+  callSites: [callSiteRow]
+});
+assert.equal(noGraphPack.risk?.guidance, null);
+const guidanceCappedPack = await buildPack({
+  name: 'risk-ok-guidance-capped',
+  stats: baseStats,
+  summaries: [summaryRow],
+  flows: [flowRow],
+  callSites: [callSiteRow],
+  includeGraph: true,
+  includeCallersCallees: true,
+  graphIndexOverride: cappedGraphIndex
+});
+assert.equal(guidanceCappedPack.risk?.guidance?.callers?.length, 3);
+assert.equal(guidanceCappedPack.risk?.guidance?.symbols?.length, 5);
+assert.equal(guidanceCappedPack.risk?.guidance?.tests?.length, 3);
+assert.deepEqual(guidanceCappedPack.risk?.guidance?.caps?.hits, ['maxCallers', 'maxSymbols', 'maxTests']);
 assert.deepEqual(
   fullPack.risk?.summary?.ruleRoles,
   {
