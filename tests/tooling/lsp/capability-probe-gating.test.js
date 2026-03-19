@@ -57,6 +57,11 @@ assert.equal(
   true,
   'expected hover capability warning check'
 );
+assert.deepEqual(
+  withNoHover.runtime?.capabilityGate?.missing,
+  ['definition', 'hover', 'references', 'signatureHelp', 'typeDefinition'],
+  'expected missing-capability list in runtime gate envelope'
+);
 
 const withoutDocumentSymbol = await collectLspTypes({
   rootDir: tempRoot,
@@ -86,6 +91,11 @@ assert.equal(
   withoutDocumentSymbol.runtime?.capabilities?.documentSymbol,
   false,
   'expected runtime capability mask to reflect missing documentSymbol support'
+);
+assert.equal(
+  withoutDocumentSymbol.runtime?.capabilityGate?.effective?.documentSymbol,
+  false,
+  'expected capability gate to disable documentSymbol'
 );
 
 console.log('LSP capability probe gating test passed');

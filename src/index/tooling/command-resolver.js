@@ -76,6 +76,45 @@ const summarizeProbeText = (value, maxChars = 400) => {
   return `${text.slice(0, Math.max(0, maxChars - 1)).trimEnd()}...`;
 };
 
+const extractProbeAttemptText = (attempt) => (
+  summarizeProbeText(attempt?.stdout || '')
+  || summarizeProbeText(attempt?.stderr || '')
+  || ''
+);
+
+const extractProbeVersionText = (attempts) => {
+  for (const attempt of Array.isArray(attempts) ? attempts : []) {
+    const firstArg = String(attempt?.args?.[0] || '').trim().toLowerCase();
+    if (!firstArg.includes('version')) continue;
+    if (Number(attempt?.exitCode) !== 0) continue;
+    const text = extractProbeAttemptText(attempt);
+    if (text) return text;
+  }
+  return null;
+};
+
+const summarizeProbeFailureReasons = (probe) => {
+  const reasons = new Set();
+  if (isProbeCommandDefinitelyMissing(probe)) reasons.add('missing-command');
+  for (const attempt of Array.isArray(probe?.attempted) ? probe.attempted : []) {
+    const errorCode = String(attempt?.errorCode || '').trim().toUpperCase();
+    const output = `${String(attempt?.stderr || '')} ${String(attempt?.stdout || '')}`.toLowerCase();
+    if (errorCode === 'SUBPROCESS_TIMEOUT' || output.includes('timed out') || output.includes('timeout')) {
+      reasons.add('timeout');
+      continue;
+    }
+    if (errorCode && errorCode !== 'ENOENT') {
+      reasons.add('spawn-error');
+      continue;
+    }
+    const exitCode = Number(attempt?.exitCode);
+    if (Number.isFinite(exitCode) && exitCode !== 0) {
+      reasons.add('non-zero-exit');
+    }
+  }
+  return Array.from(reasons).sort((left, right) => left.localeCompare(right));
+};
+
 const isPyrightProbeUsageError = (text) => {
   const normalized = String(text || '').toLowerCase();
   return normalized.includes('connection input stream is not set')
@@ -722,7 +761,11 @@ export const resolveToolingCommandProfile = (input) => {
       args: requestedArgs
     },
     resolved,
-    probe
+    probe: {
+      ...probe,
+      versionText: extractProbeVersionText(probe?.attempted),
+      failureReasons: summarizeProbeFailureReasons(probe)
+    }
   };
 };
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import {
+  createProviderPayloadRecord,
   MAX_PARAM_CANDIDATES,
   normalizeProviderPayload
 } from '../../../src/index/tooling/provider-output-contract.js';
@@ -11,7 +12,8 @@ const dropped = normalizeProviderPayload('not-an-object', {
   providerId: 'shape-contract',
   chunkUid: 'chunk-a'
 });
-assert.deepEqual(dropped, {}, 'expected non-object payloads to normalize to empty object');
+assert.deepEqual(dropped, createProviderPayloadRecord(), 'expected non-object payloads to normalize to empty object');
+assert.equal(Object.getPrototypeOf(dropped), null, 'expected normalized payload record to use null prototype');
 assert.equal(
   observations.some((entry) => entry?.code === 'tooling_payload_shape_invalid'),
   true,
@@ -44,6 +46,7 @@ const overflowingTypes = Array.from({ length: MAX_PARAM_CANDIDATES + 3 }, (_, id
 const cappedObs = [];
 const capped = normalizeProviderPayload({
   paramTypes: {
+    zed: [{ type: 'string', source: 'shape-contract' }],
     arg: overflowingTypes
   }
 }, {
@@ -60,6 +63,11 @@ assert.equal(
   Array.isArray(capped.paramTypes.arg),
   true,
   'expected normalized param type list'
+);
+assert.deepEqual(
+  Object.keys(capped.paramTypes),
+  ['arg', 'zed'],
+  'expected paramTypes keys to be ordered deterministically'
 );
 assert.equal(
   capped.paramTypes.arg.length,

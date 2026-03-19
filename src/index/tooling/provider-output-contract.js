@@ -7,6 +7,7 @@ import {
 export const MAX_PARAM_CANDIDATES = 5;
 
 export const createParamTypeMap = () => Object.create(null);
+export const createProviderPayloadRecord = () => Object.create(null);
 
 export const ensureParamTypeMap = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return createParamTypeMap();
@@ -67,10 +68,10 @@ export const normalizeProviderPayload = (payload, options = {}) => {
         context: { providerId, chunkUid, payloadType: typeof payload }
       });
     }
-    return {};
+    return createProviderPayloadRecord();
   }
 
-  const out = {};
+  const out = createProviderPayloadRecord();
   const returnType = normalizePayloadTextField(payload.returnType);
   if (returnType) out.returnType = returnType;
   const signature = normalizePayloadTextField(payload.signature);
@@ -88,7 +89,9 @@ export const normalizeProviderPayload = (payload, options = {}) => {
   }
 
   const paramTypes = createParamTypeMap();
-  for (const [name, rawTypes] of Object.entries(payload.paramTypes)) {
+  for (const [name, rawTypes] of Object.entries(payload.paramTypes).sort(([left], [right]) => (
+    String(left).localeCompare(String(right))
+  ))) {
     if (!name) continue;
     const incomingEntries = toTypeEntryCollection(rawTypes);
     if (!incomingEntries.length) continue;

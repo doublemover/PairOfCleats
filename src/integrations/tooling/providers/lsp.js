@@ -38,7 +38,7 @@ import {
   resolveVfsIoBatching
 } from './lsp/vfs-batching.js';
 import { classifyLspDocumentPathPolicy } from './lsp/path-policy.js';
-import { probeLspCapabilities } from './lsp/capabilities.js';
+import { buildLspCapabilityGate, probeLspCapabilities } from './lsp/capabilities.js';
 import { withLspSession } from './lsp/session-pool.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { coercePositiveInt } from '../../../shared/number-coerce.js';
@@ -803,6 +803,11 @@ export async function collectLspTypes({
         ? Number(lease.transportGeneration)
         : null
     };
+    runtime.capabilityGate = {
+      requested: Object.create(null),
+      effective: Object.create(null),
+      missing: []
+    };
 
     let detachAbortHandler = null;
     let abortKillPromise = null;
@@ -912,55 +917,30 @@ export async function collectLspTypes({
         runtime.positionEncoding = positionEncoding;
       }
       capabilityMask = probeLspCapabilities(initializeResult);
-      runtime.capabilities = capabilityMask;
-      effectiveHoverEnabled = effectiveHoverEnabled && capabilityMask.hover;
-      effectiveSignatureHelpEnabled = effectiveSignatureHelpEnabled && capabilityMask.signatureHelp;
-      effectiveDefinitionEnabled = effectiveDefinitionEnabled && capabilityMask.definition;
-      effectiveTypeDefinitionEnabled = effectiveTypeDefinitionEnabled && capabilityMask.typeDefinition;
-      effectiveReferencesEnabled = effectiveReferencesEnabled && capabilityMask.references;
-      if (!capabilityMask.documentSymbol) {
-        checks.push({
-          name: 'tooling_capability_missing_document_symbol',
-          status: 'warn',
-          message: `${cmd} does not advertise textDocument/documentSymbol; skipping LSP enrichment.`
-        });
-        skipSymbolCollection = true;
+      const capabilityGate = buildLspCapabilityGate({
+        capabilityMask,
+        cmd,
+        hoverEnabled,
+        signatureHelpEnabled,
+        definitionEnabled,
+        typeDefinitionEnabled,
+        referencesEnabled
+      });
+      runtime.capabilities = capabilityGate.capabilities;
+      runtime.capabilityGate = {
+        requested: capabilityGate.requested,
+        effective: capabilityGate.effective,
+        missing: capabilityGate.missing
+      };
+      effectiveHoverEnabled = capabilityGate.effective.hover;
+      effectiveSignatureHelpEnabled = capabilityGate.effective.signatureHelp;
+      effectiveDefinitionEnabled = capabilityGate.effective.definition;
+      effectiveTypeDefinitionEnabled = capabilityGate.effective.typeDefinition;
+      effectiveReferencesEnabled = capabilityGate.effective.references;
+      skipSymbolCollection = capabilityGate.skipSymbolCollection;
+      checks.push(...capabilityGate.checks);
+      if (skipSymbolCollection) {
         shouldShutdownClient = lease.pooled !== true;
-      }
-      if (hoverEnabled !== false && !capabilityMask.hover) {
-        checks.push({
-          name: 'tooling_capability_missing_hover',
-          status: 'warn',
-          message: `${cmd} does not advertise textDocument/hover; hover enrichment disabled.`
-        });
-      }
-      if (signatureHelpEnabled !== false && !capabilityMask.signatureHelp) {
-        checks.push({
-          name: 'tooling_capability_missing_signature_help',
-          status: 'info',
-          message: `${cmd} does not advertise textDocument/signatureHelp.`
-        });
-      }
-      if (definitionEnabled !== false && !capabilityMask.definition) {
-        checks.push({
-          name: 'tooling_capability_missing_definition',
-          status: 'info',
-          message: `${cmd} does not advertise textDocument/definition.`
-        });
-      }
-      if (typeDefinitionEnabled !== false && !capabilityMask.typeDefinition) {
-        checks.push({
-          name: 'tooling_capability_missing_type_definition',
-          status: 'info',
-          message: `${cmd} does not advertise textDocument/typeDefinition.`
-        });
-      }
-      if (referencesEnabled !== false && !capabilityMask.references) {
-        checks.push({
-          name: 'tooling_capability_missing_references',
-          status: 'info',
-          message: `${cmd} does not advertise textDocument/references.`
-        });
       }
       shouldShutdownClient = lease.pooled !== true;
     } catch (err) {

@@ -173,6 +173,17 @@ const writeReport = async (reportPath, report) => {
   });
 };
 
+const toStructuredFailureReasons = (checks) => (
+  (Array.isArray(checks) ? checks : [])
+    .filter((check) => check && (check.status === 'warn' || check.status === 'error'))
+    .map((check) => ({
+      code: String(check.name || 'unknown'),
+      status: String(check.status || 'warn'),
+      message: String(check.message || ''),
+      count: Number.isFinite(Number(check.count)) ? Number(check.count) : null
+    }))
+);
+
 export const runToolingDoctor = async (ctx, providerIds = null, options = {}) => {
   const repoRoot = ctx?.repoRoot || process.cwd();
   const buildRoot = ctx?.buildRoot || repoRoot;
@@ -608,6 +619,16 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
           const workspaceModelCheck = resolveWorkspaceModelCheckForCommand(commandToken);
           if (workspaceModelCheck) {
             const markerFound = hasWorkspaceMarker(repoRoot, workspaceModelCheck.markers);
+            providerReport.workspaceModel = {
+              id: workspaceModelCheck.id,
+              label: workspaceModelCheck.label,
+              markers: workspaceModelCheck.markers,
+              detected: markerFound,
+              status: markerFound ? 'ok' : 'warn',
+              message: markerFound
+                ? `${workspaceModelCheck.label} markers detected.`
+                : `${workspaceModelCheck.label} markers not found near repo root; startup may fail or degrade.`
+            };
             if (!markerFound) {
               addCheck({
                 name: `${providerId}-${workspaceModelCheck.id}`,
@@ -650,6 +671,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
 
     providerReport.status = summarizeStatus(providerErrors, providerWarnings);
     providerReport.available = providerAvailable;
+    providerReport.failureReasons = toStructuredFailureReasons(providerReport.checks);
     report.providers.push(providerReport);
     const providerElapsedMs = Math.max(0, Date.now() - providerStartMs);
     log(
