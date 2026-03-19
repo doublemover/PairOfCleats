@@ -40,6 +40,15 @@ await harness.extension._test.executeSearchCommand({ query: 'AuthToken' });
 assert.match(harness.errorMessages.shift(), /returned invalid JSON/i);
 assert.ok(harness.outputEvents.some((event) => event.kind === 'append' && /stderr detail/i.test(event.line)));
 
+harness.queuedResults.push({
+  code: 7,
+  stdout: '',
+  stderr: 'fatal search failure'
+});
+await harness.extension._test.executeSearchCommand({ query: 'AuthToken' });
+assert.equal(harness.errorMessages.shift(), 'PairOfCleats search failed (exit 7).');
+assert.ok(harness.outputEvents.some((event) => event.kind === 'append' && /fatal search failure/i.test(event.line)));
+
 harness.quickPickQueue.push((items) => items[0]);
 harness.fakeVscode.workspace.openTextDocument = async () => {
   throw new Error('cannot open selected hit');
