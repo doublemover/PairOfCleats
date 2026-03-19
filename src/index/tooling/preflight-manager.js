@@ -1,585 +1,53 @@
-import crypto from 'node:crypto';
 import {
-  terminateTrackedSubprocesses,
   withTrackedSubprocessSignalScope
 } from '../../shared/subprocess.js';
 import {
   createTimeoutError,
   runWithTimeout
 } from '../../shared/promise-timeout.js';
-import {
-  normalizePreflightPolicy,
-  normalizeProviderId,
-  PREFLIGHT_POLICY
-} from './provider-contract.js';
+import { PREFLIGHT_POLICY } from './provider-contract.js';
 import {
   TOOLING_PREFLIGHT_REASON_CODES,
   TOOLING_PREFLIGHT_STATES,
   buildToolingPreflightDiagnostic,
-  isValidToolingPreflightTransition,
   normalizeToolingPreflightResult
 } from './preflight/contract.js';
+import {
+  PREFLIGHT_CLASS,
+  resolvePreflightTimeoutMs,
+  resolveProviderPreflightClass,
+  resolveProviderPreflightPolicy
+} from './preflight/manager-config.js';
+import {
+  buildSchedulerMetricsSnapshot,
+  finalizeQueuedTaskAbort,
+  incrementClassMetric,
+  isPreflightTimeoutError,
+  normalizeAbortError,
+  removeQueuedTask,
+  resolveScheduler,
+  scheduleTask
+} from './preflight/manager-scheduler.js';
+import {
+  createManagedAbortBridge,
+  createWaveToken,
+  describeProvider,
+  resolveLogger,
+  resolvePreflightId,
+  resolvePreflightKey,
+  resolvePreflightOwnershipId,
+  resolveRequestedAbortSignal,
+  resolveSnapshotForKey,
+  resolveState,
+  setSnapshot,
+  cloneSnapshot
+} from './preflight/manager-state.js';
+import {
+  forceCleanupTrackedPreflightProcesses,
+  waitForPromisesWithTimeout
+} from './preflight/manager-teardown.js';
 
-const TOOLING_PREFLIGHT_STATE = Symbol.for('poc.tooling.preflight.state');
-
-const PREFLIGHT_CLASS = Object.freeze({
-  PROBE: 'probe',
-  WORKSPACE: 'workspace',
-  DEPENDENCY: 'dependency'
-});
-const PREFLIGHT_CLASS_SET = new Set(Object.values(PREFLIGHT_CLASS));
-const DEFAULT_PREFLIGHT_TIMEOUT_BY_CLASS_MS = Object.freeze({
-  [PREFLIGHT_CLASS.PROBE]: 5000,
-  [PREFLIGHT_CLASS.WORKSPACE]: 20000,
-  [PREFLIGHT_CLASS.DEPENDENCY]: 90000
-});
-const DEFAULT_PREFLIGHT_TIMEOUT_MS = 20000;
-const MIN_PREFLIGHT_TIMEOUT_MS = 250;
-const MAX_PREFLIGHT_TIMEOUT_MS = 15 * 60 * 1000;
-const DEFAULT_PREFLIGHT_MAX_CONCURRENCY = 4;
-const MIN_PREFLIGHT_MAX_CONCURRENCY = 1;
-const MAX_PREFLIGHT_MAX_CONCURRENCY = 16;
 const PREFLIGHT_TEARDOWN_SETTLE_TIMEOUT_MS = 1000;
-
-const clampInt = (value, fallback, min, max) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(min, Math.min(max, Math.floor(parsed)));
-};
-
-const toPositiveIntOrNull = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
-  const floored = Math.floor(parsed);
-  return floored > 0 ? floored : null;
-};
-
-const normalizePreflightClass = (value, fallback = PREFLIGHT_CLASS.PROBE) => {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (PREFLIGHT_CLASS_SET.has(normalized)) return normalized;
-  return fallback;
-};
-
-const normalizeOwnershipSegment = (value, fallback) => {
-  const normalized = String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-  return normalized || fallback;
-};
-
-const resolvePreflightOwnershipId = ({ providerId, preflightId, key }) => {
-  const providerSegment = normalizeOwnershipSegment(providerId, 'provider');
-  const preflightSegment = normalizeOwnershipSegment(preflightId, 'preflight');
-  const hash = crypto
-    .createHash('sha1')
-    .update(String(key || `${providerSegment}:${preflightSegment}`))
-    .digest('hex')
-    .slice(0, 12);
-  return `tooling-preflight:${providerSegment}:${preflightSegment}:${hash}`;
-};
-
-const resolveProviderPreflightClass = (provider) => {
-  const explicit = normalizePreflightClass(provider?.preflightClass || '', '');
-  if (explicit) return explicit;
-  const preflightId = String(provider?.preflightId || '').trim().toLowerCase();
-  if (preflightId.includes('dependency') || preflightId.includes('package') || preflightId.includes('bootstrap')) {
-    return PREFLIGHT_CLASS.DEPENDENCY;
-  }
-  if (preflightId.includes('workspace') || preflightId.includes('model')) {
-    return PREFLIGHT_CLASS.WORKSPACE;
-  }
-  if (preflightId.includes('probe')) {
-    return PREFLIGHT_CLASS.PROBE;
-  }
-  return PREFLIGHT_CLASS.PROBE;
-};
-
-const resolveProviderPreflightPolicy = (provider) => (
-  normalizePreflightPolicy(provider?.preflightPolicy, PREFLIGHT_POLICY.REQUIRED)
-);
-
-const resolveSchedulerConfig = (ctx) => {
-  const preflightConfig = ctx?.toolingConfig?.preflight && typeof ctx.toolingConfig.preflight === 'object'
-    ? ctx.toolingConfig.preflight
-    : {};
-  const maxConcurrency = clampInt(
-    preflightConfig.maxConcurrency,
-    DEFAULT_PREFLIGHT_MAX_CONCURRENCY,
-    MIN_PREFLIGHT_MAX_CONCURRENCY,
-    MAX_PREFLIGHT_MAX_CONCURRENCY
-  );
-  const timeoutByClassRaw = preflightConfig.timeoutMsByClass && typeof preflightConfig.timeoutMsByClass === 'object'
-    ? preflightConfig.timeoutMsByClass
-    : {};
-  const timeoutByClass = {
-    [PREFLIGHT_CLASS.PROBE]: toPositiveIntOrNull(timeoutByClassRaw[PREFLIGHT_CLASS.PROBE]),
-    [PREFLIGHT_CLASS.WORKSPACE]: toPositiveIntOrNull(timeoutByClassRaw[PREFLIGHT_CLASS.WORKSPACE]),
-    [PREFLIGHT_CLASS.DEPENDENCY]: toPositiveIntOrNull(timeoutByClassRaw[PREFLIGHT_CLASS.DEPENDENCY])
-  };
-  return {
-    maxConcurrency,
-    timeoutMs: toPositiveIntOrNull(preflightConfig.timeoutMs),
-    timeoutByClass
-  };
-};
-
-const resolvePreflightTimeoutMs = ({ ctx, provider, preflightClass }) => {
-  const config = resolveSchedulerConfig(ctx);
-  const providerTimeout = toPositiveIntOrNull(provider?.preflightTimeoutMs);
-  const classTimeout = toPositiveIntOrNull(config.timeoutByClass?.[preflightClass]);
-  const globalTimeout = toPositiveIntOrNull(config.timeoutMs);
-  const fallbackTimeout = toPositiveIntOrNull(DEFAULT_PREFLIGHT_TIMEOUT_BY_CLASS_MS[preflightClass])
-    || DEFAULT_PREFLIGHT_TIMEOUT_MS;
-  const resolved = providerTimeout || classTimeout || globalTimeout || fallbackTimeout;
-  return clampInt(
-    resolved,
-    fallbackTimeout,
-    MIN_PREFLIGHT_TIMEOUT_MS,
-    MAX_PREFLIGHT_TIMEOUT_MS
-  );
-};
-
-const createSchedulerMetrics = () => ({
-  scheduled: 0,
-  queued: 0,
-  dequeued: 0,
-  started: 0,
-  completed: 0,
-  timedOut: 0,
-  failed: 0,
-  queueDepthPeak: 0,
-  runningPeak: 0,
-  queueWaitMsTotal: 0,
-  queueWaitMsMax: 0,
-  queueWaitSamples: 0,
-  byClass: {
-    [PREFLIGHT_CLASS.PROBE]: {
-      scheduled: 0,
-      queued: 0,
-      dequeued: 0,
-      started: 0,
-      completed: 0,
-      timedOut: 0,
-      failed: 0
-    },
-    [PREFLIGHT_CLASS.WORKSPACE]: {
-      scheduled: 0,
-      queued: 0,
-      dequeued: 0,
-      started: 0,
-      completed: 0,
-      timedOut: 0,
-      failed: 0
-    },
-    [PREFLIGHT_CLASS.DEPENDENCY]: {
-      scheduled: 0,
-      queued: 0,
-      dequeued: 0,
-      started: 0,
-      completed: 0,
-      timedOut: 0,
-      failed: 0
-    }
-  }
-});
-
-const createState = () => ({
-  inFlight: new Map(),
-  completed: new Map(),
-  snapshots: new Map(),
-  scheduler: {
-    queue: [],
-    running: 0,
-    maxConcurrency: DEFAULT_PREFLIGHT_MAX_CONCURRENCY,
-    accepting: true,
-    metrics: createSchedulerMetrics()
-  }
-});
-
-const resolveState = (ctx) => {
-  if (!ctx || typeof ctx !== 'object') return createState();
-  if (!Object.prototype.hasOwnProperty.call(ctx, TOOLING_PREFLIGHT_STATE)) {
-    Object.defineProperty(ctx, TOOLING_PREFLIGHT_STATE, {
-      value: createState(),
-      enumerable: false,
-      configurable: false,
-      writable: false
-    });
-  }
-  return ctx[TOOLING_PREFLIGHT_STATE];
-};
-
-const resolvePreflightId = (provider) => {
-  const value = provider?.preflightId;
-  if (typeof value === 'string' && value.trim()) return value.trim();
-  return `${normalizeProviderId(provider?.id) || 'provider'}.preflight`;
-};
-
-const resolvePreflightKey = ({ provider, ctx, inputs }) => {
-  const providerId = normalizeProviderId(provider?.id) || 'provider';
-  const preflightId = resolvePreflightId(provider);
-  const root = String(ctx?.repoRoot || '');
-  const buildRoot = String(ctx?.buildRoot || '');
-  const configHash = typeof provider?.getConfigHash === 'function'
-    ? String(provider.getConfigHash(ctx) || '')
-    : '';
-  let customKey = '';
-  if (typeof provider?.getPreflightKey === 'function') {
-    customKey = String(provider.getPreflightKey(ctx, inputs) || '');
-  }
-  return `${providerId}::${preflightId}::${root}::${buildRoot}::${configHash}::${customKey}`;
-};
-
-const resolveLogger = (ctx) => (
-  typeof ctx?.logger === 'function'
-    ? ctx.logger
-    : () => {}
-);
-
-const describeProvider = (provider) => (
-  normalizeProviderId(provider?.id) || String(provider?.id || 'provider')
-);
-
-const createWaveToken = () => (
-  `wave-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
-);
-
-const cloneSnapshot = (snapshot) => (
-  snapshot && typeof snapshot === 'object'
-    ? {
-      ...snapshot,
-      diagnostic: snapshot.diagnostic && typeof snapshot.diagnostic === 'object'
-        ? { ...snapshot.diagnostic }
-        : null
-    }
-    : null
-);
-
-const setSnapshot = (state, key, payload = {}) => {
-  const prior = state.snapshots.get(key);
-  const fromState = prior?.state || TOOLING_PREFLIGHT_STATES.IDLE;
-  const nextState = payload?.state || prior?.state || TOOLING_PREFLIGHT_STATES.IDLE;
-  if (!isValidToolingPreflightTransition(fromState, nextState) && fromState !== nextState) {
-    return prior || null;
-  }
-  const next = {
-    ...prior,
-    ...payload,
-    state: nextState,
-    providerId: String(payload?.providerId || prior?.providerId || ''),
-    preflightId: String(payload?.preflightId || prior?.preflightId || ''),
-    key
-  };
-  const startedAtMs = Number.isFinite(next?.startedAtMs) ? next.startedAtMs : null;
-  const finishedAtMs = Number.isFinite(next?.finishedAtMs) ? next.finishedAtMs : null;
-  const durationMs = (
-    Number.isFinite(next?.durationMs)
-      ? next.durationMs
-      : (Number.isFinite(startedAtMs) && Number.isFinite(finishedAtMs)
-        ? Math.max(0, finishedAtMs - startedAtMs)
-        : null)
-  );
-  next.diagnostic = buildToolingPreflightDiagnostic({
-    providerId: next.providerId,
-    preflightId: next.preflightId,
-    state: next.state,
-    reasonCode: next.reasonCode,
-    message: next.message,
-    durationMs,
-    timedOut: next.timedOut === true,
-    cached: next.cached === true,
-    startedAtMs,
-    finishedAtMs
-  });
-  state.snapshots.set(key, next);
-  return next;
-};
-
-const resolveSnapshotForKey = (state, key) => {
-  const snapshot = state.snapshots.get(key);
-  if (snapshot) return cloneSnapshot(snapshot);
-  return null;
-};
-
-const isAbortSignalLike = (signal) => (
-  Boolean(signal)
-  && typeof signal.aborted === 'boolean'
-  && typeof signal.addEventListener === 'function'
-  && typeof signal.removeEventListener === 'function'
-);
-
-const resolveRequestedAbortSignal = (ctx, inputs) => {
-  if (isAbortSignalLike(inputs?.abortSignal)) return inputs.abortSignal;
-  if (isAbortSignalLike(ctx?.abortSignal)) return ctx.abortSignal;
-  return null;
-};
-
-const createManagedAbortBridge = (upstreamSignal) => {
-  if (typeof AbortController !== 'function') {
-    return {
-      signal: upstreamSignal || null,
-      cleanup: () => {},
-      abort: () => {}
-    };
-  }
-  const controller = new AbortController();
-  let detached = false;
-  const abortFromUpstream = () => {
-    if (controller.signal.aborted) return;
-    try {
-      controller.abort(upstreamSignal?.reason);
-    } catch {
-      controller.abort();
-    }
-  };
-  if (isAbortSignalLike(upstreamSignal)) {
-    if (upstreamSignal.aborted) {
-      abortFromUpstream();
-    } else {
-      upstreamSignal.addEventListener('abort', abortFromUpstream, { once: true });
-    }
-  }
-  const cleanup = () => {
-    if (detached) return;
-    detached = true;
-    if (isAbortSignalLike(upstreamSignal)) {
-      upstreamSignal.removeEventListener('abort', abortFromUpstream);
-    }
-  };
-  const abort = (reason) => {
-    if (!controller.signal.aborted) {
-      try {
-        controller.abort(reason);
-      } catch {
-        controller.abort();
-      }
-    }
-    cleanup();
-  };
-  return {
-    signal: controller.signal,
-    cleanup,
-    abort
-  };
-};
-
-const waitForPromisesWithTimeout = async (promises, timeoutMs) => {
-  if (!Array.isArray(promises) || promises.length === 0) {
-    return { timedOut: false, settled: [] };
-  }
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    const settled = await Promise.allSettled(promises);
-    return { timedOut: false, settled };
-  }
-  let timeoutHandle = null;
-  const timeoutPromise = new Promise((resolve) => {
-    timeoutHandle = setTimeout(() => resolve({ timedOut: true, settled: null }), timeoutMs);
-  });
-  const settledPromise = Promise.allSettled(promises)
-    .then((settled) => ({ timedOut: false, settled }));
-  try {
-    const raced = await Promise.race([settledPromise, timeoutPromise]);
-    if (raced?.timedOut === true) return { timedOut: true, settled: [] };
-    return { timedOut: false, settled: Array.isArray(raced?.settled) ? raced.settled : [] };
-  } finally {
-    if (timeoutHandle) clearTimeout(timeoutHandle);
-  }
-};
-
-const resolveScheduler = (state, ctx) => {
-  const scheduler = state.scheduler;
-  const config = resolveSchedulerConfig(ctx);
-  scheduler.maxConcurrency = config.maxConcurrency;
-  if (!scheduler.accepting && state.inFlight.size === 0 && scheduler.queue.length === 0) {
-    scheduler.accepting = true;
-  }
-  return scheduler;
-};
-
-const buildSchedulerMetricsSnapshot = (state, ctx) => {
-  const scheduler = resolveScheduler(state, ctx);
-  const metrics = scheduler.metrics;
-  return {
-    maxConcurrency: scheduler.maxConcurrency,
-    running: scheduler.running,
-    queued: scheduler.queue.length,
-    scheduled: metrics.scheduled,
-    started: metrics.started,
-    completed: metrics.completed,
-    queuedTotal: metrics.queued,
-    dequeued: metrics.dequeued,
-    queueDepthPeak: metrics.queueDepthPeak,
-    runningPeak: metrics.runningPeak,
-    queueWaitMsAvg: metrics.queueWaitSamples > 0
-      ? metrics.queueWaitMsTotal / metrics.queueWaitSamples
-      : 0,
-    queueWaitMsMax: metrics.queueWaitMsMax,
-    queueWaitSamples: metrics.queueWaitSamples,
-    timedOut: metrics.timedOut,
-    failed: metrics.failed,
-    byClass: {
-      [PREFLIGHT_CLASS.PROBE]: { ...(metrics.byClass?.[PREFLIGHT_CLASS.PROBE] || {}) },
-      [PREFLIGHT_CLASS.WORKSPACE]: { ...(metrics.byClass?.[PREFLIGHT_CLASS.WORKSPACE] || {}) },
-      [PREFLIGHT_CLASS.DEPENDENCY]: { ...(metrics.byClass?.[PREFLIGHT_CLASS.DEPENDENCY] || {}) }
-    }
-  };
-};
-
-const incrementClassMetric = (metrics, preflightClass, field) => {
-  const className = normalizePreflightClass(preflightClass, PREFLIGHT_CLASS.PROBE);
-  const bucket = metrics?.byClass?.[className];
-  if (!bucket || typeof bucket !== 'object') return;
-  bucket[field] = (Number(bucket[field]) || 0) + 1;
-};
-
-const createSchedulerClosedError = () => {
-  const error = new Error('tooling preflight scheduler is closed');
-  error.code = 'TOOLING_PREFLIGHT_SCHEDULER_CLOSED';
-  return error;
-};
-
-const normalizeAbortError = (reason) => {
-  if (reason instanceof Error) return reason;
-  if (typeof reason === 'string' && reason.trim()) return new Error(reason.trim());
-  return new Error('tooling preflight aborted');
-};
-
-const isPreflightTimeoutError = (error) => {
-  const code = String(error?.code || '').trim();
-  return code === 'TOOLING_PREFLIGHT_TIMEOUT' || code === 'ERR_TIMEOUT';
-};
-
-const removeQueuedTask = (scheduler, task) => {
-  const index = scheduler.queue.indexOf(task);
-  if (index < 0) return false;
-  scheduler.queue.splice(index, 1);
-  return true;
-};
-
-const finalizeQueuedTaskAbort = ({ state, task, error }) => {
-  if (task.settled) return;
-  task.settled = true;
-  setSnapshot(state, task.key, {
-    providerId: task.providerId,
-    preflightId: task.preflightId,
-    state: TOOLING_PREFLIGHT_STATES.FAILED,
-    reasonCode: TOOLING_PREFLIGHT_REASON_CODES.FAILED,
-    message: error?.message || 'preflight aborted before execution.',
-    startedAtMs: null,
-    finishedAtMs: Date.now(),
-    durationMs: 0,
-    cached: false,
-    timedOut: false,
-    preflightPolicy: task.preflightPolicy,
-    preflightClass: task.preflightClass,
-    preflightTimeoutMs: task.preflightTimeoutMs
-  });
-  state.completed.set(task.key, {
-    providerId: task.providerId,
-    preflightId: task.preflightId,
-    preflightPolicy: task.preflightPolicy,
-    waveToken: task.waveToken,
-    status: 'rejected',
-    state: TOOLING_PREFLIGHT_STATES.FAILED,
-    reasonCode: TOOLING_PREFLIGHT_REASON_CODES.FAILED,
-    message: error?.message || 'preflight aborted before execution.',
-    durationMs: 0,
-    startedAtMs: null,
-    finishedAtMs: Date.now(),
-    timedOut: false,
-    error,
-    diagnostic: buildToolingPreflightDiagnostic({
-      providerId: task.providerId,
-      preflightId: task.preflightId,
-      state: TOOLING_PREFLIGHT_STATES.FAILED,
-      reasonCode: TOOLING_PREFLIGHT_REASON_CODES.FAILED,
-      message: error?.message || 'preflight aborted before execution.',
-      durationMs: 0,
-      timedOut: false,
-      cached: false,
-      startedAtMs: null,
-      finishedAtMs: Date.now()
-    })
-  });
-  task.reject(error);
-};
-
-const runScheduledTask = ({ state, ctx, task, fromQueue = false }) => {
-  const scheduler = resolveScheduler(state, ctx);
-  const log = resolveLogger(ctx);
-  scheduler.running += 1;
-  scheduler.metrics.started += 1;
-  incrementClassMetric(scheduler.metrics, task.preflightClass, 'started');
-  scheduler.metrics.runningPeak = Math.max(scheduler.metrics.runningPeak, scheduler.running);
-
-  if (fromQueue && Number.isFinite(task.enqueuedAtMs)) {
-    const queueWaitMs = Math.max(0, Date.now() - task.enqueuedAtMs);
-    scheduler.metrics.queueWaitSamples += 1;
-    scheduler.metrics.queueWaitMsTotal += queueWaitMs;
-    scheduler.metrics.queueWaitMsMax = Math.max(scheduler.metrics.queueWaitMsMax, queueWaitMs);
-    log(
-      `[tooling] preflight:dequeued provider=${task.providerId} id=${task.preflightId} `
-      + `class=${task.preflightClass} waitMs=${queueWaitMs} running=${scheduler.running} cap=${scheduler.maxConcurrency}`
-    );
-  }
-
-  task.started = true;
-  Promise.resolve()
-    .then(() => task.execute())
-    .then((value) => {
-      if (task.settled) return;
-      task.settled = true;
-      task.resolve(value);
-    })
-    .catch((error) => {
-      if (task.settled) return;
-      task.settled = true;
-      task.reject(error);
-    })
-    .finally(() => {
-      scheduler.running = Math.max(0, scheduler.running - 1);
-      scheduler.metrics.completed += 1;
-      incrementClassMetric(scheduler.metrics, task.preflightClass, 'completed');
-      while (scheduler.running < scheduler.maxConcurrency && scheduler.queue.length > 0) {
-        const nextTask = scheduler.queue.shift();
-        if (!nextTask || nextTask.cancelled === true || nextTask.settled) continue;
-        scheduler.metrics.dequeued += 1;
-        incrementClassMetric(scheduler.metrics, nextTask.preflightClass, 'dequeued');
-        runScheduledTask({ state, ctx, task: nextTask, fromQueue: true });
-      }
-    });
-};
-
-const scheduleTask = ({ state, ctx, task }) => {
-  const scheduler = resolveScheduler(state, ctx);
-  const log = resolveLogger(ctx);
-  scheduler.metrics.scheduled += 1;
-  incrementClassMetric(scheduler.metrics, task.preflightClass, 'scheduled');
-
-  if (!scheduler.accepting) {
-    const error = createSchedulerClosedError();
-    finalizeQueuedTaskAbort({ state, task, error });
-    return;
-  }
-
-  if (scheduler.running < scheduler.maxConcurrency) {
-    runScheduledTask({ state, ctx, task, fromQueue: false });
-    return;
-  }
-
-  task.enqueuedAtMs = Date.now();
-  scheduler.queue.push(task);
-  scheduler.metrics.queued += 1;
-  incrementClassMetric(scheduler.metrics, task.preflightClass, 'queued');
-  scheduler.metrics.queueDepthPeak = Math.max(scheduler.metrics.queueDepthPeak, scheduler.queue.length);
-  log(
-    `[tooling] preflight:queued provider=${task.providerId} id=${task.preflightId} `
-    + `class=${task.preflightClass} depth=${scheduler.queue.length} running=${scheduler.running} cap=${scheduler.maxConcurrency}`
-  );
-};
 
 const startProviderPreflight = ({
   ctx,
@@ -1170,38 +638,7 @@ export const teardownToolingProviderPreflights = async (ctx, { timeoutMs = 5000 
       if (aborted > 0) {
         log(`[tooling] preflight:teardown_abort active=${aborted}`);
       }
-      const ownershipIds = [...new Set(
-        inFlightEntries
-          .map(([, entry]) => (typeof entry?.ownershipId === 'string' ? entry.ownershipId.trim() : ''))
-          .filter(Boolean)
-      )];
-      const forcedCleanup = {
-        ownershipIds: ownershipIds.length,
-        attempted: 0,
-        terminated: 0,
-        failures: 0
-      };
-      for (const ownershipId of ownershipIds) {
-        try {
-          const cleanup = await terminateTrackedSubprocesses({
-            reason: 'tooling_preflight_teardown_timeout',
-            force: true,
-            ownershipId
-          });
-          forcedCleanup.attempted += Number(cleanup?.attempted || 0);
-          forcedCleanup.terminated += Number(cleanup?.terminatedPids?.length || 0);
-          forcedCleanup.failures += Number(cleanup?.failures || 0);
-        } catch {
-          forcedCleanup.failures += 1;
-        }
-      }
-      if (forcedCleanup.attempted > 0 || forcedCleanup.failures > 0) {
-        log(
-          `[tooling] preflight:teardown_force_cleanup ownershipIds=${forcedCleanup.ownershipIds} `
-          + `attempted=${forcedCleanup.attempted} terminated=${forcedCleanup.terminated} `
-          + `failures=${forcedCleanup.failures}`
-        );
-      }
+      const forcedCleanup = await forceCleanupTrackedPreflightProcesses({ inFlightEntries, log });
       const settledAfterAbort = await waitForPromisesWithTimeout(promises, 1000);
       for (const [entryKey, entry] of inFlightEntries) {
         const entryPromise = entry?.promise;
@@ -1210,7 +647,7 @@ export const teardownToolingProviderPreflights = async (ctx, { timeoutMs = 5000 
         const providerId = String(entry?.providerId || '<unknown>');
         const preflightId = String(entry?.preflightId || '<unknown>');
         const preflightClass = String(entry?.preflightClass || PREFLIGHT_CLASS.PROBE);
-        const preflightPolicy = normalizePreflightPolicy(entry?.preflightPolicy, PREFLIGHT_POLICY.REQUIRED);
+        const preflightPolicy = entry?.preflightPolicy || PREFLIGHT_POLICY.REQUIRED;
         const startedAtMs = Number.isFinite(entry?.startedAtMs) ? entry.startedAtMs : null;
         const finishedAtMs = Date.now();
         const durationMs = Number.isFinite(startedAtMs)

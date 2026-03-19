@@ -12,6 +12,33 @@ import {
   CONFORMANCE_LEVELS,
   buildConformanceLaneByLevel
 } from './conformance-lanes.js';
+import {
+  OBSERVABILITY_METRIC_SELECTORS,
+  buildBatchObservabilityHotspotRows,
+  compareByOperator,
+  normalizeObservabilityLaneMetrics,
+  validateObservedNumber
+} from './usr-matrix/observability-helpers.js';
+import {
+  asStringArray,
+  equalStringSets,
+  findRiskOverlap,
+  normalizeObservedResultMap,
+  resolveObservedGatePass,
+  resolveObservedRedactionResult,
+  sortedStrings
+} from './usr-matrix/profile-helpers.js';
+import {
+  buildKnownCompensatingArtifacts,
+  normalizeReportScope,
+  toFixedDays,
+  toIsoDate
+} from './usr-matrix/report-shaping.js';
+import {
+  RUNTIME_CONFIG_LAYER_ORDER,
+  applyRuntimeOverride,
+  validateUnknownRuntimeKeys
+} from './usr-matrix/runtime-config.js';
 
 const ajv = createAjv({
   dialect: '2020',
@@ -19,12 +46,6 @@ const ajv = createAjv({
   allowUnionTypes: true,
   strict: true
 });
-
-const RUNTIME_CONFIG_LAYER_ORDER = Object.freeze([
-  { key: 'policyFile', label: 'policy-file' },
-  { key: 'env', label: 'env' },
-  { key: 'argv', label: 'argv' }
-]);
 
 const formatError = (error) => {
   const path = error.instancePath || '/';
@@ -36,116 +57,6 @@ const formatErrors = (validator) => (
   validator.errors ? validator.errors.map(formatError) : []
 );
 
-const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
-
-const toBoolean = (value) => {
-  if (typeof value === 'boolean') {
-    return { ok: true, value };
-  }
-  if (typeof value !== 'string') {
-    return { ok: false, error: 'expected boolean' };
-  }
-  const normalized = value.trim().toLowerCase();
-  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
-    return { ok: true, value: true };
-  }
-  if (['0', 'false', 'no', 'off'].includes(normalized)) {
-    return { ok: true, value: false };
-  }
-  return { ok: false, error: `invalid boolean literal: ${value}` };
-};
-
-const toInteger = (value) => {
-  if (typeof value === 'number') {
-    if (!Number.isInteger(value)) {
-      return { ok: false, error: `expected integer, received ${value}` };
-    }
-    return { ok: true, value };
-  }
-  if (typeof value !== 'string') {
-    return { ok: false, error: 'expected integer' };
-  }
-  const normalized = value.trim();
-  if (!/^-?\d+$/.test(normalized)) {
-    return { ok: false, error: `invalid integer literal: ${value}` };
-  }
-  return { ok: true, value: Number.parseInt(normalized, 10) };
-};
-
-const toEnum = (value) => {
-  if (typeof value !== 'string') {
-    return { ok: false, error: 'expected enum string' };
-  }
-  return { ok: true, value };
-};
-
-const coerceRuntimeConfigValue = (row, rawValue) => {
-  let coerced;
-  if (row.valueType === 'boolean') {
-    coerced = toBoolean(rawValue);
-  } else if (row.valueType === 'integer') {
-    coerced = toInteger(rawValue);
-  } else if (row.valueType === 'enum') {
-    coerced = toEnum(rawValue);
-  } else {
-    return { ok: false, error: `unsupported runtime config valueType: ${row.valueType}` };
-  }
-
-  if (!coerced.ok) {
-    return coerced;
-  }
-
-  if (row.valueType === 'integer') {
-    if (row.minValue != null && coerced.value < row.minValue) {
-      return { ok: false, error: `value ${coerced.value} below minValue ${row.minValue}` };
-    }
-    if (row.maxValue != null && coerced.value > row.maxValue) {
-      return { ok: false, error: `value ${coerced.value} above maxValue ${row.maxValue}` };
-    }
-  }
-
-  if (row.valueType === 'enum' && Array.isArray(row.allowedValues)) {
-    if (!row.allowedValues.includes(coerced.value)) {
-      return { ok: false, error: `value ${coerced.value} not in allowedValues` };
-    }
-  }
-
-  return coerced;
-};
-
-const validateUnknownRuntimeKeys = ({ sourceValues, sourceLabel, knownKeys, strictMode, errors, warnings }) => {
-  if (!sourceValues || typeof sourceValues !== 'object') {
-    return;
-  }
-  for (const key of Object.keys(sourceValues)) {
-    if (knownKeys.has(key)) {
-      continue;
-    }
-    const message = `unknown runtime config key at ${sourceLabel}: ${key}`;
-    if (strictMode) {
-      errors.push(message);
-    } else {
-      warnings.push(message);
-    }
-  }
-};
-
-const applyRuntimeOverride = ({ row, layerLabel, rawValue, strictMode, errors, warnings }) => {
-  const parsed = coerceRuntimeConfigValue(row, rawValue);
-  if (parsed.ok) {
-    return parsed;
-  }
-
-  const message = `invalid runtime config value for ${row.key} at ${layerLabel}: ${parsed.error}`;
-  const disallowInStrictMode = row.strictModeBehavior === 'disallow';
-  if (strictMode && disallowInStrictMode) {
-    errors.push(message);
-  } else {
-    warnings.push(message);
-  }
-
-  return { ok: false, error: parsed.error };
-};
 
 export const USR_MATRIX_VALIDATORS = Object.freeze(
   Object.fromEntries(
@@ -399,12 +310,6 @@ const normalizeFailureScenarioResults = (results) => {
 
   return new Map();
 };
-
-const asStringArray = (value) => (
-  Array.isArray(value)
-    ? value.filter((item) => typeof item === 'string')
-    : []
-);
 
 const validateScenarioCodeArrays = ({
   scenarioId,
@@ -1209,68 +1114,6 @@ export function buildUsrBenchmarkRegressionReport({
   };
 }
 
-const OBSERVABILITY_METRIC_SELECTORS = Object.freeze({
-  capability_downgrade_rate: (metrics) => metrics.capabilityDowngradeRate,
-  critical_diagnostic_count: (metrics) => metrics.criticalDiagnosticCount,
-  lane_duration_ms: (metrics) => metrics.durationMs,
-  lane_peak_memory_mb: (metrics) => metrics.peakMemoryMb,
-  redaction_failure_count: (metrics) => metrics.redactionFailureCount,
-  unknown_kind_rate: (metrics) => metrics.unknownKindRate,
-  unresolved_reference_rate: (metrics) => metrics.unresolvedRate
-});
-
-const compareByOperator = ({ left, operator, right }) => {
-  if (operator === '>') {
-    return left > right;
-  }
-  if (operator === '>=') {
-    return left >= right;
-  }
-  if (operator === '<') {
-    return left < right;
-  }
-  if (operator === '<=') {
-    return left <= right;
-  }
-  if (operator === '==') {
-    return left === right;
-  }
-  return false;
-};
-
-const normalizeObservabilityLaneMetrics = (observedLaneMetrics) => {
-  if (Array.isArray(observedLaneMetrics)) {
-    return new Map(
-      observedLaneMetrics
-        .filter((row) => row && typeof row === 'object' && typeof row.laneId === 'string')
-        .map((row) => [row.laneId, row])
-    );
-  }
-
-  if (observedLaneMetrics && typeof observedLaneMetrics === 'object') {
-    return new Map(
-      Object.entries(observedLaneMetrics)
-        .filter(([, value]) => value && typeof value === 'object')
-        .map(([laneId, value]) => [laneId, { laneId, ...value }])
-    );
-  }
-
-  return new Map();
-};
-
-const validateObservedNumber = ({ value, field, rowErrors, rowWarnings, blocking }) => {
-  if (Number.isFinite(value)) {
-    return true;
-  }
-  const message = `observed metric missing or non-numeric: ${field}`;
-  if (blocking) {
-    rowErrors.push(message);
-  } else {
-    rowWarnings.push(message);
-  }
-  return false;
-};
-
 export function evaluateUsrObservabilityRollup({
   sloBudgetsPayload,
   alertPoliciesPayload,
@@ -1492,52 +1335,7 @@ export function evaluateUsrObservabilityRollup({
     }
   }
 
-  const batchHotspotRows = sloRows
-    .filter((row) => row.profileScope === 'batch')
-    .map((row) => {
-      const observed = metricsByLane.get(row.laneId) || {};
-      const durationMs = Number.isFinite(observed.durationMs) ? observed.durationMs : null;
-      const peakMemoryMb = Number.isFinite(observed.peakMemoryMb) ? observed.peakMemoryMb : null;
-      const parserTimePerSegmentMs = Number.isFinite(observed.parserTimePerSegmentMs) ? observed.parserTimePerSegmentMs : null;
-      return {
-        rowType: 'batch-hotspot',
-        id: `hotspot::${row.laneId}`,
-        laneId: row.laneId,
-        scopeId: row.scopeId,
-        durationMs,
-        peakMemoryMb,
-        parserTimePerSegmentMs,
-        durationRank: null,
-        memoryRank: null,
-        parserTimeRank: null,
-        isDurationHotspot: false,
-        isMemoryHotspot: false,
-        isParserTimeHotspot: false,
-        blocking: false,
-        pass: true,
-        errors: Object.freeze([]),
-        warnings: Object.freeze([])
-      };
-    })
-    .sort((a, b) => a.laneId.localeCompare(b.laneId));
-
-  const assignRank = (key, rankKey, hotspotFlag) => {
-    const ranked = [...batchHotspotRows]
-      .filter((row) => Number.isFinite(row[key]))
-      .sort((a, b) => {
-        if (b[key] !== a[key]) return b[key] - a[key];
-        return a.laneId.localeCompare(b.laneId);
-      });
-
-    ranked.forEach((row, index) => {
-      row[rankKey] = index + 1;
-      row[hotspotFlag] = index < 3;
-    });
-  };
-
-  assignRank('durationMs', 'durationRank', 'isDurationHotspot');
-  assignRank('peakMemoryMb', 'memoryRank', 'isMemoryHotspot');
-  assignRank('parserTimePerSegmentMs', 'parserTimeRank', 'isParserTimeHotspot');
+  const batchHotspotRows = buildBatchObservabilityHotspotRows(sloRows, metricsByLane);
 
   rows.push(...batchHotspotRows.map((row) => ({
     ...row,
@@ -1632,73 +1430,6 @@ export function buildUsrObservabilityRollupReport({
     payload
   };
 }
-
-const normalizeObservedResultMap = (observedResults, keyField = 'id') => {
-  if (observedResults instanceof Map) {
-    return new Map(observedResults.entries());
-  }
-
-  if (Array.isArray(observedResults)) {
-    return new Map(
-      observedResults
-        .filter((row) => row && typeof row === 'object' && typeof row[keyField] === 'string')
-        .map((row) => [row[keyField], row])
-    );
-  }
-
-  if (observedResults && typeof observedResults === 'object') {
-    return new Map(Object.entries(observedResults));
-  }
-
-  return new Map();
-};
-
-const resolveObservedGatePass = (observed) => {
-  if (typeof observed === 'boolean') {
-    return observed;
-  }
-
-  if (observed && typeof observed === 'object') {
-    if (typeof observed.pass === 'boolean') {
-      return observed.pass;
-    }
-    if (typeof observed.status === 'string') {
-      return observed.status.toLowerCase() === 'pass';
-    }
-  }
-
-  return null;
-};
-
-const resolveObservedRedactionResult = (observed) => {
-  if (typeof observed === 'boolean') {
-    return {
-      pass: observed,
-      misses: observed ? 0 : null
-    };
-  }
-
-  if (observed && typeof observed === 'object') {
-    if (typeof observed.pass === 'boolean') {
-      return {
-        pass: observed.pass,
-        misses: Number.isFinite(observed.misses) ? observed.misses : null
-      };
-    }
-
-    if (Number.isFinite(observed.misses)) {
-      return {
-        pass: observed.misses <= 0,
-        misses: observed.misses
-      };
-    }
-  }
-
-  return {
-    pass: null,
-    misses: null
-  };
-};
 
 export function validateUsrSecurityGateControls({
   securityGatesPayload,
@@ -2298,17 +2029,6 @@ const BATCH_DEPENDENCIES = Object.freeze({
   B8: ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7']
 });
 
-const sortedStrings = (value) => [...asStringArray(value)].sort((left, right) => left.localeCompare(right));
-
-const equalStringSets = (left, right) => {
-  const leftSorted = sortedStrings(left);
-  const rightSorted = sortedStrings(right);
-  if (leftSorted.length !== rightSorted.length) {
-    return false;
-  }
-  return leftSorted.every((value, index) => value === rightSorted[index]);
-};
-
 export function validateUsrLanguageBatchShards({
   batchShardsPayload,
   languageProfilesPayload
@@ -2774,11 +2494,6 @@ export function validateUsrConformanceLevelCoverage({
     rows: Object.freeze(rows)
   };
 }
-
-const findRiskOverlap = (left, right) => {
-  const rightSet = new Set(asStringArray(right));
-  return asStringArray(left).filter((item) => rightSet.has(item));
-};
 
 export function validateUsrLanguageRiskProfileCoverage({
   languageProfilesPayload,
@@ -3620,15 +3335,6 @@ export function evaluateUsrOperationalReadiness({
  * Normalizes report scope values so builders always emit a valid scope envelope,
  * even when callers omit scope or pass partial scope objects.
  */
-const normalizeReportScope = (scope, fallbackScopeType = 'lane', fallbackScopeId = 'ci') => (
-  scope && typeof scope === 'object'
-    ? {
-      scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : fallbackScopeType,
-      scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : fallbackScopeId
-    }
-    : { scopeType: fallbackScopeType, scopeId: fallbackScopeId }
-);
-
 export function buildUsrOperationalReadinessValidationReport({
   operationalReadinessPolicyPayload,
   qualityGatesPayload,
@@ -4273,30 +3979,6 @@ const DISALLOWED_WAIVER_CLASSES = Object.freeze(new Set([
   'schema-hard-block-bypass'
 ]));
 
-const toIsoDate = (value) => {
-  if (typeof value !== 'string') {
-    return null;
-  }
-  const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp)) {
-    return null;
-  }
-  return new Date(timestamp);
-};
-
-const toFixedDays = (ms) => Number((ms / (24 * 60 * 60 * 1000)).toFixed(2));
-
-const buildKnownCompensatingArtifacts = ({ ownershipRows = [] } = {}) => {
-  const known = new Set(
-    Object.keys(USR_REPORT_SCHEMA_DEFS).map((artifactId) => `${artifactId}.json`)
-  );
-  for (const row of ownershipRows) {
-    for (const evidenceArtifact of asStringArray(row.evidenceArtifacts)) {
-      known.add(evidenceArtifact);
-    }
-  }
-  return known;
-};
 
 export function validateUsrWaiverPolicyControls({
   waiverPolicyPayload,
