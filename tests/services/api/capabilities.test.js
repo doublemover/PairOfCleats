@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { getCapabilities } from '../../../src/shared/capabilities.js';
+import { getApiWorkflowCapabilities, getRuntimeCapabilityManifest } from '../../../src/shared/runtime-capability-manifest.js';
 import { getToolVersion } from '../../../tools/shared/dict-utils.js';
 import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
 import { startApiServer } from '../../helpers/api-server.js';
@@ -20,6 +21,7 @@ const { fixtureRoot, env } = await ensureFixtureIndex({
 
 const expectedToolVersion = getToolVersion() || '0.0.0';
 const expectedRuntimeCapabilities = getCapabilities({ refresh: true });
+const expectedManifest = getRuntimeCapabilityManifest({ runtimeCapabilities: expectedRuntimeCapabilities });
 
 const { serverInfo, requestJson, stop } = await startApiServer({
   repoRoot: fixtureRoot,
@@ -41,15 +43,20 @@ try {
     name: 'PairOfCleats',
     version: expectedToolVersion
   }, 'api-server /capabilities serverInfo mismatch');
-  assert.deepEqual(capabilities.body?.capabilities, {
-    search: true,
-    'search-symbol': true,
-    'index-health': true
-  }, 'api-server /capabilities editor capability mask mismatch');
+  assert.deepEqual(
+    capabilities.body?.capabilities,
+    getApiWorkflowCapabilities({ runtimeCapabilities: expectedRuntimeCapabilities }),
+    'api-server /capabilities workflow capability mask mismatch'
+  );
   assert.deepEqual(
     capabilities.body?.runtimeCapabilities,
     expectedRuntimeCapabilities,
     'api-server /capabilities runtime capability payload mismatch'
+  );
+  assert.deepEqual(
+    capabilities.body?.runtimeManifest,
+    expectedManifest,
+    'api-server /capabilities runtime manifest mismatch'
   );
 } catch (err) {
   console.error(err?.message || err);

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getEditorCommandSpecs } from '../../../src/shared/runtime-capability-manifest.js';
 
 const root = process.cwd();
 const extensionDir = path.join(root, 'extensions', 'vscode');
@@ -41,51 +42,7 @@ if (manifest.capabilities?.virtualWorkspaces !== false) {
 }
 
 const activationEvents = new Set(manifest.activationEvents || []);
-const expectedCommands = new Map([
-  ['pairofcleats.search', 'PairOfCleats: Search'],
-  ['pairofcleats.searchSelection', 'PairOfCleats: Search Selection'],
-  ['pairofcleats.searchSymbolUnderCursor', 'PairOfCleats: Search Symbol Under Cursor'],
-  ['pairofcleats.selectRepo', 'PairOfCleats: Select Repository'],
-  ['pairofcleats.clearSelectedRepo', 'PairOfCleats: Clear Selected Repository'],
-  ['pairofcleats.repeatLastSearch', 'PairOfCleats: Repeat Last Search'],
-  ['pairofcleats.explainSearch', 'PairOfCleats: Explain Search'],
-  ['pairofcleats.openIndexDirectory', 'PairOfCleats: Open Index Directory'],
-  ['pairofcleats.indexBuild', 'PairOfCleats: Index Build'],
-  ['pairofcleats.indexWatchStart', 'PairOfCleats: Start Index Watch'],
-  ['pairofcleats.indexWatchStop', 'PairOfCleats: Stop Index Watch'],
-  ['pairofcleats.indexValidate', 'PairOfCleats: Index Validate'],
-  ['pairofcleats.serviceApiStart', 'PairOfCleats: Start Service API'],
-  ['pairofcleats.serviceApiStop', 'PairOfCleats: Stop Service API'],
-  ['pairofcleats.serviceIndexerStart', 'PairOfCleats: Start Service Indexer'],
-  ['pairofcleats.serviceIndexerStop', 'PairOfCleats: Stop Service Indexer'],
-  ['pairofcleats.setup', 'PairOfCleats: Setup'],
-  ['pairofcleats.bootstrap', 'PairOfCleats: Bootstrap'],
-  ['pairofcleats.doctor', 'PairOfCleats: Tooling Doctor'],
-  ['pairofcleats.configDump', 'PairOfCleats: Config Dump'],
-  ['pairofcleats.indexHealth', 'PairOfCleats: Index Health'],
-  ['pairofcleats.codeMap', 'PairOfCleats: Code Map'],
-  ['pairofcleats.architectureCheck', 'PairOfCleats: Architecture Check'],
-  ['pairofcleats.impact', 'PairOfCleats: Impact Analysis'],
-  ['pairofcleats.suggestTests', 'PairOfCleats: Suggest Tests'],
-  ['pairofcleats.contextPack', 'PairOfCleats: Context Pack'],
-  ['pairofcleats.riskExplain', 'PairOfCleats: Risk Explain'],
-  ['pairofcleats.workspaceManifest', 'PairOfCleats: Workspace Manifest'],
-  ['pairofcleats.workspaceStatus', 'PairOfCleats: Workspace Status'],
-  ['pairofcleats.workspaceBuild', 'PairOfCleats: Workspace Build'],
-  ['pairofcleats.workspaceCatalog', 'PairOfCleats: Workspace Catalog'],
-  ['pairofcleats.showWorkflowStatus', 'PairOfCleats: Workflow Status'],
-  ['pairofcleats.rerunLastWorkflow', 'PairOfCleats: Rerun Last Workflow'],
-  ['pairofcleats.showRecentWorkflows', 'PairOfCleats: Recent Workflows'],
-  ['pairofcleats.reopenLastResults', 'PairOfCleats: Reopen Last Results'],
-  ['pairofcleats.showSearchHistory', 'PairOfCleats: Search History'],
-  ['pairofcleats.groupResultsBySection', 'PairOfCleats: Group Results by Section'],
-  ['pairofcleats.groupResultsByFile', 'PairOfCleats: Group Results by File'],
-  ['pairofcleats.groupResultsByQuery', 'PairOfCleats: Group Results by Query'],
-  ['pairofcleats.openResultHit', 'PairOfCleats: Open Result Hit'],
-  ['pairofcleats.revealResultHit', 'PairOfCleats: Reveal Result Hit'],
-  ['pairofcleats.copyResultPath', 'PairOfCleats: Copy Result Path'],
-  ['pairofcleats.rerunResultSet', 'PairOfCleats: Rerun Result Set']
-]);
+const expectedCommands = new Map(getEditorCommandSpecs().map((entry) => [entry.id, entry.title]));
 for (const commandId of expectedCommands.keys()) {
   if (!activationEvents.has(`onCommand:${commandId}`)) {
     console.error(`VS Code extension activation event missing for ${commandId}.`);

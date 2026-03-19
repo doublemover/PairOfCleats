@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
 import { getEnvConfig } from '../../src/shared/env.js';
+import { getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
 import {
   getCacheRoot,
   getAutoPolicy,
@@ -23,6 +24,7 @@ const envConfig = getEnvConfig();
 const policy = await getAutoPolicy(repoRoot, userConfig);
 const cacheRoot = (userConfig.cache && userConfig.cache.root) || getCacheRoot();
 const capabilities = getCapabilities();
+const capabilityManifest = getRuntimeCapabilityManifest({ runtimeCapabilities: capabilities });
 const normalizeSelector = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
 const mcpModeConfig = normalizeSelector(userConfig?.mcp?.mode);
 const mcpModeEnv = normalizeSelector(envConfig.mcpMode);
@@ -39,7 +41,8 @@ const payload = {
       mode: mcpMode,
       modeSource: mcpModeSource,
       sdkAvailable: !!capabilities?.mcp?.sdk
-    }
+    },
+    capabilityManifest
   }
 };
 

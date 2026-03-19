@@ -91,7 +91,8 @@ export async function startMcpSdkServer({
   serverInfo,
   resolveToolTimeoutMs,
   queueMax,
-  capabilities
+  capabilities,
+  capabilityManifest
 }) {
   const {
     Server,
@@ -110,7 +111,8 @@ export async function startMcpSdkServer({
       pairofcleats: {
         schemaVersion: schemaVersion || null,
         toolVersion: toolVersion || null,
-        capabilities
+        capabilities,
+        manifest: capabilityManifest || null
       }
     };
   }
@@ -123,7 +125,8 @@ export async function startMcpSdkServer({
       serverInfo,
       schemaVersion,
       toolVersion,
-      capabilities
+      capabilities,
+      capabilityManifest
     }));
   }
 
@@ -195,10 +198,12 @@ export async function startMcpSdkServer({
 const entryUrl = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
 if (entryUrl && import.meta.url === entryUrl) {
   const capabilities = getCapabilities();
+  const { getRuntimeCapabilityManifest } = await import('../../src/shared/runtime-capability-manifest.js');
+  const capabilityManifest = getRuntimeCapabilityManifest({ runtimeCapabilities: capabilities });
   if (!capabilities.mcp.sdk) {
     console.error('[mcp] MCP SDK is not available. Install @modelcontextprotocol/sdk to use sdk mode.');
     process.exit(1);
   }
   const config = getMcpServerConfig();
-  await startMcpSdkServer({ ...config, capabilities });
+  await startMcpSdkServer({ ...config, capabilities, capabilityManifest });
 }

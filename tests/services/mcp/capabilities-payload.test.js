@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import assert from 'node:assert/strict';
 import { MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { getCapabilities } from '../../../src/shared/capabilities.js';
+import { getRuntimeCapabilityManifest } from '../../../src/shared/runtime-capability-manifest.js';
+import { DEFAULT_MODEL_ID } from '../../../tools/shared/dict-utils.js';
 import { startMcpServer } from '../../helpers/mcp-client.js';
 
 const caps = getCapabilities({ refresh: true });
+const expectedManifest = getRuntimeCapabilityManifest({ runtimeCapabilities: caps, defaultModelId: DEFAULT_MODEL_ID });
 const modes = ['legacy'];
 if (caps?.mcp?.sdk) modes.push('sdk');
 
@@ -39,6 +43,11 @@ for (const mode of modes) {
     if (!result.capabilities?.experimental?.pairofcleats?.capabilities) {
       throw new Error(`[${mode}] initialize missing capabilities payload.`);
     }
+    assert.deepEqual(
+      result.capabilities.experimental.pairofcleats.manifest,
+      expectedManifest,
+      `[${mode}] initialize manifest mismatch.`
+    );
 
     send({ jsonrpc: '2.0', id: 2, method: 'shutdown' });
     await readMessage();

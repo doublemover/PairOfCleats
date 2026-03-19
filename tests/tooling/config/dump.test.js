@@ -16,4 +16,7 @@ if (!payload.repoRoot) {
 if (!payload.derived || !payload.derived.cacheRoot) {
   throw new Error('config-dump did not include derived cacheRoot.');
 }
+if (!payload.derived?.capabilityManifest?.surfaces?.api?.workflowCapabilities?.search) {
+  throw new Error('config-dump did not include runtime capability manifest.');
+}
 console.log('Config dump test passed');

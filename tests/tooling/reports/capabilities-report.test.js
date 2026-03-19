@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { getCapabilities } from '../../../src/shared/capabilities.js';
+import { getRuntimeCapabilityManifest } from '../../../src/shared/runtime-capability-manifest.js';
 
 const caps = getCapabilities({ refresh: true });
+const manifest = getRuntimeCapabilityManifest({ runtimeCapabilities: caps });
 
 assert.ok(caps && typeof caps === 'object', 'capabilities should be an object');
 assert.equal(typeof caps.watcher?.chokidar, 'boolean', 'watcher.chokidar should be boolean');
@@ -19,5 +21,11 @@ assert.equal(typeof caps.mcp?.legacy, 'boolean', 'mcp.legacy should be boolean')
 assert.equal(typeof caps.mcp?.sdk, 'boolean', 'mcp.sdk should be boolean');
 assert.equal(typeof caps.externalBackends?.tantivy, 'boolean', 'externalBackends.tantivy should be boolean');
 assert.equal(typeof caps.externalBackends?.lancedb, 'boolean', 'externalBackends.lancedb should be boolean');
+assert.equal(manifest.manifestVersion, '1.0.0', 'manifest version mismatch');
+assert.deepEqual(manifest.runtimeCapabilities, caps, 'manifest runtime capabilities mismatch');
+assert.ok(manifest.surfaces?.mcp?.tools?.some((tool) => tool.name === 'search'), 'manifest should expose MCP search tool');
+assert.ok(manifest.surfaces?.editor?.vscode?.commands?.some((command) => command.id === 'pairofcleats.search'), 'manifest should expose VS Code search command');
+assert.equal(manifest.surfaces?.tui?.supervisor?.capabilities?.supportsFlowControl, true, 'manifest should expose TUI flow control capability');
+assert.ok(manifest.flags?.['index.build']?.flags?.some((flag) => flag.name === 'sqlite'), 'manifest should expose index.build flags');
 
 console.log('capabilities report tests passed');

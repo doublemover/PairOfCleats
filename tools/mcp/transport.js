@@ -13,7 +13,7 @@ import { withTimeout } from './runner.js';
 
 /**
  * Start the MCP stdio transport.
- * @param {{toolDefs:any,schemaVersion?:string,toolVersion?:string,serverInfo:{name:string,version:string},handleToolCall:Function,resolveToolTimeoutMs:Function,queueMax:number,maxBufferBytes?:number,capabilities?:object}} config
+ * @param {{toolDefs:any,schemaVersion?:string,toolVersion?:string,serverInfo:{name:string,version:string},handleToolCall:Function,resolveToolTimeoutMs:Function,queueMax:number,maxBufferBytes?:number,capabilities?:object,capabilityManifest?:object}} config
  */
 export const createMcpTransport = ({
   toolDefs,
@@ -24,7 +24,8 @@ export const createMcpTransport = ({
   resolveToolTimeoutMs,
   queueMax,
   maxBufferBytes,
-  capabilities
+  capabilities,
+  capabilityManifest
 }) => {
   let processing = false;
   const queue = [];
@@ -113,7 +114,8 @@ export const createMcpTransport = ({
         serverInfo,
         schemaVersion,
         toolVersion,
-        capabilities
+        capabilities,
+        capabilityManifest
       }));
       return;
     }

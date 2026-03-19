@@ -269,13 +269,17 @@ async function probeApiCapabilities(baseUrl, timeoutMs = DEFAULT_API_TIMEOUT_MS,
   const payload = response.payload && typeof response.payload === 'object'
     ? response.payload
     : {};
-  const capabilities = payload.capabilities && typeof payload.capabilities === 'object'
-    ? payload.capabilities
-    : {};
+  const manifest = payload.runtimeManifest && typeof payload.runtimeManifest === 'object'
+    ? payload.runtimeManifest
+    : null;
+  const capabilities = manifest?.surfaces?.api?.workflowCapabilities && typeof manifest.surfaces.api.workflowCapabilities === 'object'
+    ? manifest.surfaces.api.workflowCapabilities
+    : (payload.capabilities && typeof payload.capabilities === 'object' ? payload.capabilities : {});
   return {
     ok: true,
     payload,
-    capabilities
+    capabilities,
+    manifest
   };
 }
 

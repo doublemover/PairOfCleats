@@ -7,6 +7,7 @@ import {
   buildDeterministicZip,
   writeArchiveChecksums
 } from './tooling/archive-determinism.js';
+import { getEditorCommandSpecs } from '../src/shared/runtime-capability-manifest.js';
 
 const args = process.argv.slice(2);
 const hasFlag = (flag) => args.includes(flag);
@@ -99,6 +100,23 @@ for (const [label, value] of requiredManifestFields) {
 if (packageManifest.capabilities?.virtualWorkspaces !== false) {
   console.error('VS Code package manifest must declare capabilities.virtualWorkspaces=false.');
   process.exit(1);
+}
+const expectedEditorCommands = new Map(getEditorCommandSpecs().map((entry) => [entry.id, entry.title]));
+const activationEvents = new Set(packageManifest.activationEvents || []);
+for (const [commandId, title] of expectedEditorCommands.entries()) {
+  if (!activationEvents.has(`onCommand:${commandId}`)) {
+    console.error(`VS Code package manifest missing activation event for ${commandId}.`);
+    process.exit(1);
+  }
+  const command = (packageManifest.contributes?.commands || []).find((entry) => entry.command === commandId);
+  if (!command) {
+    console.error(`VS Code package manifest missing command ${commandId}.`);
+    process.exit(1);
+  }
+  if (command.title !== title) {
+    console.error(`VS Code package manifest title drifted for ${commandId}.`);
+    process.exit(1);
+  }
 }
 
 for (const walkthrough of packageManifest.contributes?.walkthroughs || []) {

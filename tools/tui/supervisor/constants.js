@@ -1,4 +1,5 @@
 import { PROGRESS_PROTOCOL } from '../../../src/shared/cli/progress-events.js';
+import { getTuiSupervisorCapabilities } from '../../../src/shared/runtime-capability-manifest.js';
 
 /** Protocol identifier for stdin request frames accepted by the supervisor. */
 export const SUPERVISOR_PROTOCOL = 'poc.tui@1';
@@ -35,11 +36,7 @@ export const CRITICAL_EVENTS = new Set([
  * `protocolVersion` intentionally mirrors the shared progress protocol version.
  */
 export const SUPERVISOR_CAPABILITIES = Object.freeze({
-  protocolVersion: PROGRESS_PROTOCOL,
-  supportsCancel: true,
-  supportsResultCapture: true,
-  supportsFlowControl: true,
-  supportsChunking: true
+  ...getTuiSupervisorCapabilities()
 });
 
 /** Watchdog timeout upper bound (1 hour). */

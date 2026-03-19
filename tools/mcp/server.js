@@ -2,6 +2,7 @@
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
+import { getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
 import { getMcpServerConfig } from './server-config.js';
 import { handleToolCall } from './tools.js';
 import { createMcpTransport } from './transport.js';
@@ -20,6 +21,7 @@ const argv = createCli({
 const { toolDefs, schemaVersion, toolVersion, serverInfo, queueMax, maxBufferBytes, resolveToolTimeoutMs, userConfig, envConfig } =
   getMcpServerConfig(argv.repo ? path.resolve(argv.repo) : null);
 const capabilities = getCapabilities();
+const capabilityManifest = getRuntimeCapabilityManifest({ runtimeCapabilities: capabilities });
 const normalizeMode = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
 const cliMode = normalizeMode(argv['mcp-mode'] ?? argv.mcpMode);
 const envMode = normalizeMode(envConfig.mcpMode);
@@ -47,7 +49,8 @@ if (resolvedMode === 'sdk') {
     resolveToolTimeoutMs,
     queueMax,
     maxBufferBytes,
-    capabilities
+    capabilities,
+    capabilityManifest
   });
 } else {
   const transport = createMcpTransport({
@@ -59,7 +62,8 @@ if (resolvedMode === 'sdk') {
     resolveToolTimeoutMs,
     queueMax,
     maxBufferBytes,
-    capabilities
+    capabilities,
+    capabilityManifest
   });
 
   transport.start();

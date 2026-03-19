@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { search, status } from '../../src/integrations/core/index.js';
 import { MCP_SCHEMA_VERSION } from '../../src/integrations/mcp/defs.js';
-import { getCapabilities } from '../../src/shared/capabilities.js';
 import { runFederatedSearch } from '../../src/retrieval/federation/coordinator.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { resolveFederationCacheRoot } from '../../src/workspace/manifest.js';
@@ -19,12 +18,7 @@ import { handleIndexDiffsRoute } from './router/index-diffs.js';
 import { handleIndexSnapshotsRoute } from './router/index-snapshots.js';
 import { handleContextPackRoute, handleRiskExplainRoute } from './router/analysis.js';
 import { buildSearchParams, buildSearchPayloadFromQuery, isNoIndexError } from './router/search.js';
-
-const API_EDITOR_CAPABILITIES = Object.freeze({
-  search: true,
-  'search-symbol': true,
-  'index-health': true
-});
+import { getApiWorkflowCapabilities, getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
 
 /**
  * Create an API router for the HTTP server.
@@ -183,6 +177,7 @@ export const createApiRouter = ({
       }
 
       if (requestUrl.pathname === '/capabilities' && req.method === 'GET') {
+        const runtimeManifest = getRuntimeCapabilityManifest();
         sendJson(res, 200, {
           ok: true,
           schemaVersion: MCP_SCHEMA_VERSION,
@@ -191,10 +186,9 @@ export const createApiRouter = ({
             name: 'PairOfCleats',
             version: toolVersion
           },
-          capabilities: {
-            ...API_EDITOR_CAPABILITIES
-          },
-          runtimeCapabilities: getCapabilities()
+          capabilities: getApiWorkflowCapabilities({ runtimeCapabilities: runtimeManifest.runtimeCapabilities }),
+          runtimeCapabilities: runtimeManifest.runtimeCapabilities,
+          runtimeManifest
         }, corsHeaders || {});
         return;
       }
