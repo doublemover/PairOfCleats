@@ -17,6 +17,7 @@ import {
 import { exitLikeCommandResult } from '../shared/cli-utils.js';
 import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './config.js';
 import {
+  describeQueueBackpressure,
   ensureQueueDir,
   enqueueJob,
   claimNextJob,
@@ -37,6 +38,7 @@ import { createJobCompletion } from './indexer-service/job-completion.js';
 import { createJobExecutor } from './indexer-service/job-executor.js';
 import { createQueueWorker } from './indexer-service/queue-worker.js';
 import { resolveQueueLeasePolicy } from './lease-policy.js';
+import { resolveQueueAdmissionPolicy } from './admission-policy.js';
 
 const argv = createCli({
   scriptName: 'indexer-service',
@@ -79,6 +81,11 @@ const daemonWorkerConfig = config.worker?.daemon && typeof config.worker.daemon 
   : {};
 const queueMaxRetries = Number.isFinite(queueConfig.maxRetries) ? queueConfig.maxRetries : null;
 const staleQueueMaxRetries = Number.isFinite(queueConfig.maxRetries) ? queueConfig.maxRetries : 2;
+const queueAdmissionPolicy = resolveQueueAdmissionPolicy({
+  queueName: resolvedQueueName || queueName,
+  queueConfig,
+  workerConfig
+});
 const embeddingWorkerConfig = config.embeddings?.worker || {};
 const embeddingMemoryMb = Number.isFinite(Number(embeddingWorkerConfig.maxMemoryMb))
   ? Math.max(128, Math.floor(Number(embeddingWorkerConfig.maxMemoryMb)))
@@ -331,9 +338,16 @@ const handleEnqueue = async () => {
     reason: argv.reason || null,
     stage: argv.stage || null,
     maxRetries: queueMaxRetries ?? null
-  }, queueConfig.maxQueued ?? null, queueName);
+  }, queueConfig.maxQueued ?? null, queueName, {
+    admissionPolicy: queueAdmissionPolicy
+  });
   if (!result.ok) {
-    exitWithCommandError(result.message || 'Failed to enqueue job.');
+    exitWithCommandError(result.message || 'Failed to enqueue job.', {
+      payload: {
+        code: result.code || null,
+        backpressure: result.backpressure || null
+      }
+    });
   }
   printPayload({
     ok: true,
@@ -352,7 +366,10 @@ const handleEnqueue = async () => {
 const handleStatus = async () => {
   const summary = await queueSummary(queueDir, resolvedQueueName);
   const quarantine = await quarantineSummary(queueDir, resolvedQueueName);
-  printPayload({ ok: true, queue: summary, quarantine, name: resolvedQueueName });
+  const backpressure = await describeQueueBackpressure(queueDir, resolvedQueueName, {
+    admissionPolicy: queueAdmissionPolicy
+  });
+  printPayload({ ok: true, queue: summary, quarantine, backpressure, name: resolvedQueueName });
 };
 
 const requireJobArg = (action) => {
@@ -426,6 +443,9 @@ const handlePurgeQuarantined = async () => {
 const handleSmoke = async () => {
   await ensureQueueDir(queueDir);
   const summary = await queueSummary(queueDir, resolvedQueueName);
+  const backpressure = await describeQueueBackpressure(queueDir, resolvedQueueName, {
+    admissionPolicy: queueAdmissionPolicy
+  });
   const canonicalCommand = `pairofcleats service indexer work --watch --config "${configPath}" --queue ${resolvedQueueName}`;
   const payload = {
     ok: true,
@@ -434,6 +454,7 @@ const handleSmoke = async () => {
     queueDir,
     queueName: resolvedQueueName,
     queueSummary: summary,
+    queueBackpressure: backpressure,
     requiredEnv: ['PAIROFCLEATS_CACHE_ROOT'],
     securityDefaults: {
       allowShell: config?.security?.allowShell === true,
@@ -476,6 +497,9 @@ const queueWorker = createQueueWorker({
   finalizeJobRun,
   buildDefaultRunResult,
   printPayload,
+  summarizeBackpressure: async () => await describeQueueBackpressure(queueDir, resolvedQueueName, {
+    admissionPolicy: queueAdmissionPolicy
+  }),
   resolveLeasePolicy: ({ job, queueName: activeQueueName }) => resolveQueueLeasePolicy({
     job,
     queueName: activeQueueName

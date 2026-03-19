@@ -7,7 +7,10 @@ export const DEFAULT_SERVICE_CONFIG = Object.freeze({
   repos: [],
   queue: {
     maxQueued: 20,
-    maxRetries: 2
+    maxRetries: 2,
+    maxRunning: 1,
+    maxTotal: 21,
+    resourceBudgetUnits: 4
   },
   worker: {
     concurrency: 1
@@ -15,7 +18,10 @@ export const DEFAULT_SERVICE_CONFIG = Object.freeze({
   embeddings: {
     queue: {
       maxQueued: 10,
-      maxRetries: 2
+      maxRetries: 2,
+      maxRunning: 1,
+      maxTotal: 11,
+      resourceBudgetUnits: 8
     },
     worker: {
       concurrency: 1,

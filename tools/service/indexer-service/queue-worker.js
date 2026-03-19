@@ -22,6 +22,7 @@ const STALE_SWEEP_MIN_INTERVAL_MS = 1000;
  *   finalizeJobRun:(input:{job:object,runResult:object,metrics:{processed:number,succeeded:number,failed:number,retried:number}})=>Promise<void>,
  *   buildDefaultRunResult:()=>{exitCode:number,executionMode:string,daemon:object|null},
  *   printPayload:(payload:object)=>void,
+ *   summarizeBackpressure?:()=>Promise<object|null>,
  *   resolveLeasePolicy?:(input:{job:object|null,queueName:string|null})=>{leaseMs:number,renewIntervalMs:number,progressIntervalMs:number,workloadClass:string,maxRenewalGapMs:number,maxConsecutiveRenewalFailures:number},
  *   jobHeartbeatIntervalMs?:number
  * }} input
@@ -45,6 +46,7 @@ export const createQueueWorker = ({
   finalizeJobRun,
   buildDefaultRunResult,
   printPayload,
+  summarizeBackpressure = async () => null,
   resolveLeasePolicy = () => ({
     leaseMs: 5 * 60 * 1000,
     renewIntervalMs: 30 * 1000,
@@ -221,10 +223,12 @@ export const createQueueWorker = ({
     });
     await Promise.all(workers);
     if (metrics.processed) {
+      const backpressure = await summarizeBackpressure();
       printPayload({
         ok: true,
         queue: resolvedQueueName,
         metrics,
+        ...(backpressure ? { backpressure } : {}),
         at: new Date().toISOString()
       });
     }

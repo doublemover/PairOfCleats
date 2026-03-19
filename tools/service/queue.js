@@ -11,6 +11,11 @@ import {
   loadQueueJournal,
   replayQueueJournal
 } from './queue-journal.js';
+import {
+  evaluateQueueBackpressure,
+  resolveEnqueueBackpressure,
+  resolveQueueAdmissionPolicy
+} from './admission-policy.js';
 
 const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
 const VALID_JOB_STATUSES = new Set(['queued', 'running', 'done', 'failed']);
@@ -564,8 +569,8 @@ const createQueuedJobRecord = (job, {
  * @param {object} job
  * @param {number|null} [maxQueued=null]
  * @param {string|null} [queueName=null]
- * @param {{forceDuplicate?:boolean}} [options={}]
- * @returns {Promise<{ok:boolean,job?:object,message?:string,duplicate?:boolean,replaySuppressed?:boolean,idempotencyKey?:string}>}
+ * @param {{forceDuplicate?:boolean,admissionPolicy?:object}} [options={}]
+ * @returns {Promise<{ok:boolean,job?:object,message?:string,duplicate?:boolean,replaySuppressed?:boolean,idempotencyKey?:string,code?:string,backpressure?:object}>}
  */
 export async function enqueueJob(dirPath, job, maxQueued = null, queueName = null, options = {}) {
   await ensureQueueDir(dirPath);
@@ -588,9 +593,38 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
         };
       }
     }
-    const queued = queue.jobs.filter((entry) => entry.status === 'queued');
-    if (Number.isFinite(maxQueued) && queued.length >= maxQueued) {
-      return { ok: false, message: 'Queue is full.' };
+    const admissionPolicy = options.admissionPolicy && typeof options.admissionPolicy === 'object'
+      ? options.admissionPolicy
+      : resolveQueueAdmissionPolicy({
+        queueName: resolvedQueueName || 'index',
+        queueConfig: {
+          maxQueued
+        }
+      });
+    const backpressureBlock = resolveEnqueueBackpressure({
+      jobs: queue.jobs,
+      job,
+      queueName: resolvedQueueName || 'index',
+      policy: admissionPolicy
+    });
+    if (backpressureBlock) {
+      return {
+        ok: false,
+        code: backpressureBlock.code,
+        message: backpressureBlock.message,
+        backpressure: {
+          ...evaluateQueueBackpressure({
+            jobs: queue.jobs,
+            queueName: resolvedQueueName || 'index',
+            policy: admissionPolicy
+          }),
+          policy: admissionPolicy,
+          projectedQueued: backpressureBlock.projectedQueued,
+          projectedTotal: backpressureBlock.projectedTotal,
+          projectedResourceUnits: backpressureBlock.projectedResourceUnits,
+          rejectReason: backpressureBlock.reason
+        }
+      };
     }
     const next = createQueuedJobRecord(job, {
       logsDir,
@@ -1170,6 +1204,25 @@ export async function readQueueJournal(dirPath, queueName = null) {
 
 export async function replayQueueStateFromJournal(dirPath, queueName = null) {
   return replayQueueJournal(await loadQueueJournal(dirPath, queueName));
+}
+
+export async function describeQueueBackpressure(dirPath, queueName = null, options = {}) {
+  const queue = await loadQueue(dirPath, queueName);
+  const policy = options.admissionPolicy && typeof options.admissionPolicy === 'object'
+    ? options.admissionPolicy
+    : resolveQueueAdmissionPolicy({
+      queueName: queueName || 'index',
+      queueConfig: options.queueConfig || {},
+      workerConfig: options.workerConfig || {}
+    });
+  return {
+    ...evaluateQueueBackpressure({
+      jobs: queue.jobs,
+      queueName: queueName || 'index',
+      policy
+    }),
+    policy
+  };
 }
 
 export async function queueSummary(dirPath, queueName = null) {
