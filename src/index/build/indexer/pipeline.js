@@ -3,7 +3,7 @@ import { getIndexDir, getMetricsDir } from '../../../shared/dict-utils.js';
 import { buildRecordsIndexForRepo } from '../../../integrations/triage/index-records.js';
 import { createCacheReporter, createLruCache, estimateFileTextBytes } from '../../../shared/cache.js';
 import { getEnvConfig } from '../../../shared/env.js';
-import { log, logLine, showProgress } from '../../../shared/progress.js';
+import { log, logLine } from '../../../shared/progress.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 import { createCrashLogger } from '../crash-log.js';
 import {
@@ -15,17 +15,9 @@ import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 import { createPerfProfile, loadPerfProfile } from '../perf-profile.js';
 import { createStageCheckpointRecorder } from '../stage-checkpoints.js';
 import { createIndexState } from '../state.js';
-import { enqueueEmbeddingJob } from './embedding-queue.js';
 import { resetTreeSitterStats } from '../../../lang/tree-sitter.js';
-import { writeSchedulerAutoTuneProfile } from '../runtime/scheduler-autotune-profile.js';
 import { formatHealthFailure, runIndexingHealthChecks } from '../../../shared/ops-health.js';
-import {
-  RESOURCE_GROWTH_THRESHOLDS,
-  RESOURCE_WARNING_CODES,
-  evaluateResourceGrowth,
-  formatResourceGrowthWarning,
-  readIndexArtifactBytes
-} from '../../../shared/ops-resource-visibility.js';
+import { readIndexArtifactBytes } from '../../../shared/ops-resource-visibility.js';
 import {
   buildFeatureSettings,
   resolveAnalysisFlags,
@@ -45,16 +37,12 @@ import {
   sanitizeRuntimeSnapshotForCheckpoint
 } from './pipeline/checkpoints.js';
 import { runPipelineStageOrchestrator } from './pipeline/orchestrator.js';
-
-const INDEX_STAGE_PLAN = Object.freeze([
-  Object.freeze({ id: 'discover', label: 'discovery' }),
-  Object.freeze({ id: 'imports', label: 'imports' }),
-  Object.freeze({ id: 'processing', label: 'processing' }),
-  Object.freeze({ id: 'relations', label: 'relations' }),
-  Object.freeze({ id: 'postings', label: 'postings' }),
-  Object.freeze({ id: 'write', label: 'write' })
-]);
-const HEAVY_UTILIZATION_STAGES = new Set(['processing', 'relations', 'postings', 'write']);
+import {
+  createPipelineStageAdvancer,
+  HEAVY_UTILIZATION_STAGES,
+  INDEX_STAGE_PLAN
+} from './pipeline/stage-sequencer.js';
+import { finalizePipelineModeRun } from './pipeline/finalize.js';
 const PROSE_FILE_TEXT_CACHE_MODES = new Set(['prose', 'extracted-prose']);
 const runtimeFileTextCaches = new WeakMap();
 
@@ -201,8 +189,6 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     });
     const seenFiles = new Set();
 
-    const stageTotal = INDEX_STAGE_PLAN.length;
-    let stageIndex = 0;
     const {
       getSchedulerStats,
       setSchedulerTelemetryStage,
@@ -240,27 +226,13 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       }
       throw err;
     };
-    /**
-   * Advance visible stage progress and retag scheduler telemetry.
-   *
-   * @param {{id:string,label:string}} stage
-   * @returns {void}
-   */
-    const advanceStage = (stage) => {
-      if (runtime?.overallProgress?.advance && stageIndex > 0) {
-        const prevStage = INDEX_STAGE_PLAN[stageIndex - 1];
-        runtime.overallProgress.advance({ message: `${mode} ${prevStage.label}` });
-      }
-      stageIndex += 1;
-      setSchedulerTelemetryStage(stage.id);
-      showProgress('Stage', stageIndex, stageTotal, {
-        taskId: `stage:${mode}`,
-        stage: stage.id,
-        mode,
-        message: stage.label,
-        scheduler: getSchedulerStats()
-      });
-    };
+    const advanceStage = createPipelineStageAdvancer({
+      mode,
+      runtime,
+      stagePlan: INDEX_STAGE_PLAN,
+      setSchedulerTelemetryStage,
+      getSchedulerStats
+    });
 
     const stageResult = await runPipelineStageOrchestrator({
       mode,
@@ -304,37 +276,20 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       await closeCrashLogger('reused');
       return;
     }
-    const indexSizeCurrentBytes = await readIndexArtifactBytes(outDir);
-    const indexGrowth = evaluateResourceGrowth({
-      baselineBytes: indexSizeBaselineBytes,
-      currentBytes: indexSizeCurrentBytes,
-      ratioThreshold: RESOURCE_GROWTH_THRESHOLDS.indexSizeRatio,
-      deltaThresholdBytes: RESOURCE_GROWTH_THRESHOLDS.indexSizeDeltaBytes
-    });
-    if (indexGrowth.abnormal) {
-      log(formatResourceGrowthWarning({
-        code: RESOURCE_WARNING_CODES.INDEX_SIZE_GROWTH_ABNORMAL,
-        component: 'indexing',
-        metric: `${mode}.artifact_bytes`,
-        growth: indexGrowth,
-        nextAction: 'Review indexing inputs or profile artifact bloat before release.'
-      }));
-    }
     throwIfAborted(effectiveAbortSignal);
-    if (runtimeRef?.overallProgress?.advance) {
-      const finalStage = INDEX_STAGE_PLAN[INDEX_STAGE_PLAN.length - 1];
-      runtimeRef.overallProgress.advance({ message: `${mode} ${finalStage.label}` });
-    }
-    await writeSchedulerAutoTuneProfile({
-      repoCacheRoot: runtimeRef.repoCacheRoot,
-      schedulerStats: getSchedulerStats(),
-      schedulerConfig: runtimeRef.schedulerConfig,
-      buildId: runtimeRef.buildId,
-      log
+    await finalizePipelineModeRun({
+      mode,
+      runtime,
+      runtimeRef,
+      outDir,
+      indexSizeBaselineBytes,
+      effectiveAbortSignal,
+      stagePlan: INDEX_STAGE_PLAN,
+      getSchedulerStats,
+      log,
+      cacheReporter,
+      crashLogger
     });
-    await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexDir: outDir, abortSignal: effectiveAbortSignal });
-    crashLogger.updatePhase('done');
-    cacheReporter.report();
   } finally {
     await closeCrashLogger('finalize');
   }
