@@ -1,64 +1,20 @@
-import path from 'node:path';
-import { spawnSubprocessSync } from '../../shared/subprocess.js';
-import { pathExists } from '../../shared/files.js';
-import {
-  hasIndexMetaAsync,
-  loadFileRelations,
-  loadIndexCached,
-  loadRepoMap,
-  resolveDenseVector,
-  warnPendingState
-} from './index-loader.js';
-import { loadIndex, requireIndexDir, resolveIndexDir } from '../cli-index.js';
+import { warnPendingState } from './index-loader.js';
 import { resolveModelIds } from './model-ids.js';
 import {
-  MAX_JSON_BYTES,
-  loadPiecesManifest,
-  readJsonFile,
-  readCompatibilityKey
-} from '../../shared/artifact-io.js';
-import { tryRequire } from '../../shared/optional-deps.js';
-import { normalizeTantivyConfig, resolveTantivyPaths } from '../../shared/tantivy.js';
-import { getRuntimeConfig, resolveRuntimeEnv, resolveToolRoot } from '../../../tools/shared/dict-utils.js';
-import {
   attachAnnAndGraphArtifacts,
-  attachDenseVectorLoader,
   isMissingManifestLikeError,
   validateEmbeddingIdentity
 } from './ann-backends.js';
-import { __testScmChunkAuthorHydration, hydrateChunkAuthorsForIndex } from './chunk-authors.js';
-import { EMPTY_INDEX } from './filter-index.js';
+import {
+  __testScmChunkAuthorHydration,
+  hydrateChunkAuthorIndexes
+} from './load-indexes/chunk-author-loader.js';
+import { createIndexBackendLoader } from './load-indexes/backend.js';
+import { applyFallbackIndexStates, hydrateLoadedIndexes } from './load-indexes/filter-loader.js';
+import { resolveSearchIndexMetadata } from './load-indexes/metadata.js';
 
 export { __testScmChunkAuthorHydration };
 
-/**
- * Load retrieval indexes across enabled modes and attach optional ANN/graph
- * side artifacts while enforcing cohort compatibility and embedding identity.
- *
- * Strict-vs-fallback behavior:
- * - In strict mode, required manifests and compatibility keys must exist and
- *   match across loaded modes (unless `allowUnsafeMix` is explicitly enabled).
- * - Optional extracted-prose joins are allowed to degrade to "disabled" when
- *   they are not directly requested and become incompatible or unavailable.
- * - When sqlite mode is active for extracted-prose, a sqlite load failure can
- *   fall back to cached artifact loading.
- *
- * Artifact invariants:
- * - All loaded modes must resolve to one embedding identity cohort unless
- *   unsafe mixing is explicitly allowed.
- * - ANN/graph side artifacts are only attached when required for downstream
- *   ranking, filtering, or context expansion.
- *
- * @param {object} input
- * @param {string} input.rootDir
- * @param {object} input.userConfig
- * @param {boolean} input.strict
- * @param {boolean} input.useSqlite
- * @param {boolean} input.useLmdb
- * @param {(mode:string, options:object) => any} input.loadIndexFromSqlite
- * @param {(mode:string, options:object) => any} input.loadIndexFromLmdb
- * @returns {Promise<object>}
- */
 export async function loadSearchIndexes({
   rootDir,
   userConfig,
@@ -98,166 +54,63 @@ export async function loadSearchIndexes({
   indexBaseRootByMode = null,
   explicitRef = false
 }) {
-  const sqliteLazyChunks = sqliteFtsRequested && !filtersActive;
-  const sqliteContextChunks = contextExpansionEnabled ? true : !sqliteLazyChunks;
-  const runtimeConfig = getRuntimeConfig(rootDir, userConfig);
-  const runtimeEnv = resolveRuntimeEnv(runtimeConfig, process.env);
-  const hasRequirements = requiredArtifacts && typeof requiredArtifacts.has === 'function';
-  const needsAnnArtifacts = hasRequirements ? requiredArtifacts.has('ann') : true;
-  const needsFilterIndex = hasRequirements ? requiredArtifacts.has('filterIndex') : true;
-  const needsFileRelations = hasRequirements ? requiredArtifacts.has('fileRelations') : true;
-  const needsRepoMap = hasRequirements ? requiredArtifacts.has('repoMap') : true;
-  const needsGraphRelations = hasRequirements
-    ? requiredArtifacts.has('graphRelations')
-    : (contextExpansionEnabled || graphRankingEnabled);
-  const needsChunkMetaCold = Boolean(
-    filtersActive
-    || contextExpansionEnabled
-    || graphRankingEnabled
-    || needsFilterIndex
-    || needsFileRelations
-  );
-  const lazyDenseVectorsEnabled = userConfig?.retrieval?.dense?.lazyLoad !== false;
-  const resolveOptions = {
+  const metadata = await resolveSearchIndexMetadata({
+    rootDir,
+    userConfig,
+    searchMode,
+    runProse,
+    runExtractedProse,
+    loadExtractedProse,
+    runCode,
+    runRecords,
+    useSqlite,
+    emitOutput,
+    exitOnError,
+    strict,
+    allowUnsafeMix,
+    indexMetaByMode,
     indexDirByMode,
     indexBaseRootByMode,
     explicitRef
-  };
-
-  const proseIndexDir = runProse ? resolveIndexDir(rootDir, 'prose', userConfig, resolveOptions) : null;
-  const codeIndexDir = runCode ? resolveIndexDir(rootDir, 'code', userConfig, resolveOptions) : null;
-  const proseDir = runProse && !useSqlite
-    ? requireIndexDir(rootDir, 'prose', userConfig, { emitOutput, exitOnError, resolveOptions })
-    : proseIndexDir;
-  const codeDir = runCode && !useSqlite
-    ? requireIndexDir(rootDir, 'code', userConfig, { emitOutput, exitOnError, resolveOptions })
-    : codeIndexDir;
-  const recordsDir = runRecords
-    ? requireIndexDir(rootDir, 'records', userConfig, { emitOutput, exitOnError, resolveOptions })
-    : null;
-
-  const resolvedTantivyConfig = normalizeTantivyConfig(tantivyConfig || userConfig.tantivy || {});
-  const tantivyRequired = backendLabel === 'tantivy' || backendForcedTantivy === true;
-  const tantivyEnabled = resolvedTantivyConfig.enabled || tantivyRequired;
-  if (tantivyRequired) {
-    const dep = tryRequire('tantivy');
-    if (!dep.ok) {
-      throw new Error('Tantivy backend requested but the optional "tantivy" module is not available.');
-    }
-  }
-
-  /**
-   * Resolve tantivy sidecar availability for one mode. Metadata parse failures
-   * are tolerated and treated as unavailable so strict caller paths decide how
-   * to enforce required availability.
-   *
-   * @param {string} mode
-   * @param {string|null} indexDir
-   * @returns {Promise<{dir:string|null,metaPath:string|null,meta:object|null,available:boolean}>}
-   */
-  const resolveTantivyAvailability = async (mode, indexDir) => {
-    if (!tantivyEnabled || !indexDir) {
-      return { dir: null, metaPath: null, meta: null, available: false };
-    }
-    const paths = resolveTantivyPaths(indexDir, mode, resolvedTantivyConfig);
-    let meta = null;
-    if (paths.metaPath && await pathExists(paths.metaPath)) {
-      try {
-        meta = readJsonFile(paths.metaPath, { maxBytes: MAX_JSON_BYTES });
-      } catch {}
-    }
-    const available = Boolean(meta && paths.dir && await pathExists(paths.dir));
-    return { ...paths, meta, available };
-  };
-
-  /**
-   * Ensure tantivy is available for a mode, optionally auto-building missing
-   * indexes when backend policy requires tantivy and auto-build is enabled.
-   *
-   * @param {string} mode
-   * @param {string|null} indexDir
-   * @returns {Promise<{dir:string|null,metaPath:string|null,meta:object|null,available:boolean}>}
-   */
-  const ensureTantivyIndex = async (mode, indexDir) => {
-    const availability = await resolveTantivyAvailability(mode, indexDir);
-    if (availability.available) return availability;
-    if (!tantivyRequired || !resolvedTantivyConfig.autoBuild) return availability;
-    const toolRoot = resolveToolRoot();
-    const scriptPath = path.join(toolRoot, 'tools', 'build/tantivy-index.js');
-    const result = spawnSubprocessSync(
-      process.execPath,
-      [scriptPath, '--mode', mode, '--repo', rootDir],
-      {
-        stdio: emitOutput ? 'inherit' : 'ignore',
-        rejectOnNonZeroExit: false,
-        env: runtimeEnv
-      }
-    );
-    if (result.exitCode !== 0) {
-      throw new Error(`Tantivy index build failed for mode=${mode}.`);
-    }
-    return resolveTantivyAvailability(mode, indexDir);
-  };
-
-  /**
-   * Local wrapper around shared index cache loading that preserves strict-mode
-   * parsing and mode-specific dense-vector selection.
-   *
-   * @param {string} dir
-   * @param {object} [options]
-   * @param {string|null} [mode]
-   * @returns {Promise<object>}
-   */
-  const loadIndexCachedLocal = async (dir, options = {}, mode = null) => loadIndexCached({
-    indexCache,
-    dir,
-    modelIdDefault,
-    fileChargramN,
-    includeHnsw: options.includeHnsw !== false,
-    includeDense: options.includeDense !== false,
-    includeMinhash: options.includeMinhash !== false,
-    includeFilterIndex: options.includeFilterIndex !== false,
-    includeFileRelations: options.includeFileRelations !== false,
-    includeRepoMap: options.includeRepoMap !== false,
-    includeChunkMetaCold: options.includeChunkMetaCold !== false,
-    hnswConfig,
-    denseVectorMode: resolvedDenseVectorMode,
-    loadIndex: (targetDir, loadOptions) => loadIndex(targetDir, {
-      ...loadOptions,
-      strict,
-      mode,
-      denseVectorMode: resolvedDenseVectorMode
-    })
   });
 
-  let extractedProseDir = null;
-  let resolvedRunExtractedProse = runExtractedProse;
-  let resolvedLoadExtractedProse = runExtractedProse || loadExtractedProse;
-  const indexMetaCacheByDir = new Map();
-  const initialMetaByMode = indexMetaByMode instanceof Map
-    ? indexMetaByMode
-    : null;
-  const hasIndexMetaCached = async (dir, mode = null) => {
-    if (!dir) return false;
-    if (mode && initialMetaByMode?.has(mode)) {
-      return initialMetaByMode.get(mode) === true;
-    }
-    if (indexMetaCacheByDir.has(dir)) return indexMetaCacheByDir.get(dir);
-    const value = await hasIndexMetaAsync(dir);
-    indexMetaCacheByDir.set(dir, value);
-    if (mode && initialMetaByMode) {
-      initialMetaByMode.set(mode, value);
-    }
-    return value;
-  };
+  let {
+    resolveOptions,
+    proseIndexDir,
+    codeIndexDir,
+    proseDir,
+    codeDir,
+    recordsDir,
+    extractedProseDir,
+    resolvedRunExtractedProse,
+    resolvedLoadExtractedProse
+  } = metadata;
 
-  /**
-   * Disable optional extracted-prose comment joins without affecting explicit
-   * extracted-prose search mode.
-   *
-   * @param {string|null} [reason]
-   * @returns {boolean} True when the optional path was disabled.
-   */
+  const backendLoader = createIndexBackendLoader({
+    rootDir,
+    userConfig,
+    useSqlite,
+    useLmdb,
+    emitOutput,
+    annActive,
+    filtersActive,
+    contextExpansionEnabled,
+    graphRankingEnabled,
+    sqliteFtsRequested,
+    backendLabel,
+    backendForcedTantivy,
+    indexCache,
+    modelIdDefault,
+    fileChargramN,
+    hnswConfig,
+    tantivyConfig,
+    strict,
+    resolvedDenseVectorMode,
+    requiredArtifacts,
+    loadIndexFromSqlite,
+    loadIndexFromLmdb
+  });
+
   const disableOptionalExtractedProse = (reason = null) => {
     if (!resolvedLoadExtractedProse || resolvedRunExtractedProse) return false;
     if (reason && emitOutput) {
@@ -267,177 +120,21 @@ export async function loadSearchIndexes({
     extractedProseDir = null;
     return true;
   };
-  if (resolvedLoadExtractedProse) {
-    if (resolvedRunExtractedProse && (searchMode === 'extracted-prose' || searchMode === 'default')) {
-      extractedProseDir = requireIndexDir(rootDir, 'extracted-prose', userConfig, {
-        emitOutput,
-        exitOnError,
-        resolveOptions
-      });
-    } else {
-      try {
-        extractedProseDir = resolveIndexDir(rootDir, 'extracted-prose', userConfig, resolveOptions);
-      } catch (error) {
-        if (error?.code !== 'NO_INDEX') throw error;
-        // Optional comment-join path: explicit as-of refs should not hard-fail when extracted-prose
-        // was not requested and is unavailable for the selected snapshot/build.
-        resolvedRunExtractedProse = false;
-        resolvedLoadExtractedProse = false;
-        extractedProseDir = null;
-      }
-      if (!await hasIndexMetaCached(extractedProseDir, 'extracted-prose')) {
-        if (resolvedRunExtractedProse && emitOutput) {
-          console.warn('[search] extracted-prose index not found; skipping.');
-        }
-        resolvedRunExtractedProse = false;
-        resolvedLoadExtractedProse = false;
-        extractedProseDir = null;
-      }
-    }
-  }
 
-  if (strict) {
-    const ensureManifest = (dir) => {
-      if (!dir) return;
-      loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict: true });
-    };
-    if (runCode) ensureManifest(codeDir);
-    if (runProse) ensureManifest(proseDir);
-    if (runRecords) ensureManifest(recordsDir);
-    if (resolvedRunExtractedProse && resolvedLoadExtractedProse) ensureManifest(extractedProseDir);
-  }
-
-  const includeExtractedProseInCompatibility = resolvedLoadExtractedProse;
-  const compatibilityTargetCandidates = [
-    runCode ? { mode: 'code', dir: codeDir } : null,
-    runProse ? { mode: 'prose', dir: proseDir } : null,
-    runRecords ? { mode: 'records', dir: recordsDir } : null,
-    includeExtractedProseInCompatibility ? { mode: 'extracted-prose', dir: extractedProseDir } : null
-  ].filter((entry) => entry && entry.dir);
-  const compatibilityChecks = await Promise.all(
-    compatibilityTargetCandidates.map(async (entry) => ({
-      entry,
-      hasMeta: await hasIndexMetaCached(entry.dir, entry.mode)
-    }))
-  );
-  const compatibilityTargets = compatibilityChecks
-    .filter((check) => check.hasMeta)
-    .map((check) => check.entry);
-  if (compatibilityTargets.length) {
-    const compatibilityResults = await Promise.all(
-      compatibilityTargets.map(async (entry) => {
-        const strictCompatibilityKey = strict && (entry.mode !== 'extracted-prose' || resolvedRunExtractedProse);
-        const { key } = readCompatibilityKey(entry.dir, {
-          maxBytes: MAX_JSON_BYTES,
-          strict: strictCompatibilityKey
-        });
-        return { mode: entry.mode, key };
-      })
-    );
-    const keys = new Map(compatibilityResults.map((entry) => [entry.mode, entry.key]));
-    let keysToValidate = keys;
-    const hasMixedCompatibilityKeys = (map) => (new Set(map.values())).size > 1;
-    if (hasMixedCompatibilityKeys(keysToValidate) && !resolvedRunExtractedProse && keysToValidate.has('extracted-prose')) {
-      const filtered = new Map(Array.from(keysToValidate.entries()).filter(([mode]) => mode !== 'extracted-prose'));
-      if (!hasMixedCompatibilityKeys(filtered)) {
-        if (emitOutput) {
-          console.warn('[search] extracted-prose index mismatch; skipping comment joins.');
-        }
-        resolvedLoadExtractedProse = false;
-        extractedProseDir = null;
-        keysToValidate = filtered;
-      }
-    }
-    if (hasMixedCompatibilityKeys(keysToValidate)) {
-      const details = Array.from(keysToValidate.entries())
-        .map(([mode, key]) => `- ${mode}: ${key}`)
-        .join('\n');
-      if (allowUnsafeMix === true) {
-        if (emitOutput) {
-          console.warn(
-            '[search] compatibilityKey mismatch overridden via --allow-unsafe-mix. ' +
-            'Results may combine incompatible index cohorts:\n' +
-            details
-          );
-        }
-      } else {
-        throw new Error(`Incompatible indexes detected (compatibilityKey mismatch):\n${details}`);
-      }
-    }
-  }
-
-  const denseArtifactsEnabled = needsAnnArtifacts && !lazyDenseVectorsEnabled;
-  const emptyIndex = () => ({ ...EMPTY_INDEX });
-  const baseBackendLoadOptions = {
-    includeDense: denseArtifactsEnabled,
-    includeMinhash: needsAnnArtifacts,
-    includeFilterIndex: needsFilterIndex
-  };
-  const sqliteBackendLoadOptions = {
-    ...baseBackendLoadOptions,
-    includeChunks: sqliteContextChunks
-  };
-  const lmdbBackendLoadOptions = {
-    ...baseBackendLoadOptions,
-    includeChunks: true
-  };
-  const cachedLoadOptions = {
-    ...baseBackendLoadOptions,
-    includeFileRelations: needsFileRelations,
-    includeRepoMap: needsRepoMap,
-    includeChunkMetaCold: needsChunkMetaCold,
-    includeHnsw: annActive
-  };
-  const loadCachedModeIndex = (mode, dir, modeLoadOptions = cachedLoadOptions) => (
-    loadIndexCachedLocal(dir, modeLoadOptions, mode)
-  );
-
-  /**
-   * Load one mode from the selected backend with optional sqlite-to-artifact
-   * fallback used for optional extracted-prose joins.
-   *
-   * @param {object} input
-   * @returns {Promise<object>}
-   */
-  const loadModeIndex = async ({
-    mode,
-    run,
-    dir,
-    backend = 'cached',
-    modeLoadOptions = cachedLoadOptions,
-    allowSqliteFallback = false
-  }) => {
-    if (!run) return emptyIndex();
-    if (backend === 'sqlite') {
-      if (allowSqliteFallback) {
-        try {
-          return loadIndexFromSqlite(mode, sqliteBackendLoadOptions);
-        } catch {
-          return loadCachedModeIndex(mode, dir, modeLoadOptions);
-        }
-      }
-      return loadIndexFromSqlite(mode, sqliteBackendLoadOptions);
-    }
-    if (backend === 'lmdb') {
-      return loadIndexFromLmdb(mode, lmdbBackendLoadOptions);
-    }
-    return loadCachedModeIndex(mode, dir, modeLoadOptions);
-  };
-
-  const primaryBackend = useSqlite ? 'sqlite' : (useLmdb ? 'lmdb' : 'cached');
-  const proseLoadPromise = loadModeIndex({
+  const primaryBackend = backendLoader.resolvePrimaryBackend();
+  const proseLoadPromise = backendLoader.loadModeIndex({
     mode: 'prose',
     run: runProse,
     dir: proseDir,
     backend: primaryBackend
   });
-  const codeLoadPromise = loadModeIndex({
+  const codeLoadPromise = backendLoader.loadModeIndex({
     mode: 'code',
     run: runCode,
     dir: codeDir,
     backend: primaryBackend
   });
-  const recordsLoadPromise = loadModeIndex({
+  const recordsLoadPromise = backendLoader.loadModeIndex({
     mode: 'records',
     run: runRecords,
     dir: recordsDir
@@ -445,11 +142,11 @@ export async function loadSearchIndexes({
   const extractedLoadPromise = resolvedLoadExtractedProse
     ? (async () => {
       const extractedCachedLoadOptions = {
-        ...cachedLoadOptions,
+        ...backendLoader.cachedLoadOptions,
         includeHnsw: annActive && resolvedRunExtractedProse
       };
       try {
-        return await loadModeIndex({
+        return await backendLoader.loadModeIndex({
           mode: 'extracted-prose',
           run: true,
           dir: extractedProseDir,
@@ -461,14 +158,15 @@ export async function loadSearchIndexes({
         if (!isMissingManifestLikeError(err) || !disableOptionalExtractedProse('optional extracted-prose artifacts unavailable')) {
           throw err;
         }
-        return emptyIndex();
+        return backendLoader.emptyIndex();
       }
     })()
-    : Promise.resolve(emptyIndex());
-  let idxProse = emptyIndex();
-  let idxExtractedProse = emptyIndex();
-  let idxCode = emptyIndex();
-  let idxRecords = emptyIndex();
+    : Promise.resolve(backendLoader.emptyIndex());
+
+  let idxProse = backendLoader.emptyIndex();
+  let idxExtractedProse = backendLoader.emptyIndex();
+  let idxCode = backendLoader.emptyIndex();
+  let idxRecords = backendLoader.emptyIndex();
   [idxProse, idxExtractedProse, idxCode, idxRecords] = await Promise.all([
     proseLoadPromise,
     extractedLoadPromise,
@@ -476,133 +174,65 @@ export async function loadSearchIndexes({
     recordsLoadPromise
   ]);
 
-  /**
-   * Reattach persisted index state when the loaded payload omitted state blobs
-   * (for example lightweight backend loaders).
-   *
-   * @param {object} idx
-   * @param {string} mode
-   * @returns {void}
-   */
-  const applyFallbackIndexState = (idx, mode) => {
-    if (!idx?.state && indexStates?.[mode]) {
-      idx.state = indexStates[mode];
-    }
-  };
-  applyFallbackIndexState(idxCode, 'code');
-  applyFallbackIndexState(idxProse, 'prose');
-  applyFallbackIndexState(idxExtractedProse, 'extracted-prose');
-  applyFallbackIndexState(idxRecords, 'records');
+  applyFallbackIndexStates({
+    idxCode,
+    idxProse,
+    idxExtractedProse,
+    idxRecords,
+    indexStates
+  });
 
   warnPendingState(idxCode, 'code', { emitOutput, useSqlite, annActive });
   warnPendingState(idxProse, 'prose', { emitOutput, useSqlite, annActive });
   warnPendingState(idxExtractedProse, 'extracted-prose', { emitOutput, useSqlite, annActive });
 
-  const relationLoadTasks = [];
-  const queueRelationLoad = ({ idx, mode, relation, loader }) => {
-    relationLoadTasks.push(
-      loader(rootDir, userConfig, mode, { resolveOptions })
-        .then((value) => {
-          idx[relation] = value;
-        })
-    );
-  };
+  await hydrateLoadedIndexes({
+    rootDir,
+    userConfig,
+    useSqlite,
+    useLmdb,
+    needsFileRelations: backendLoader.needsFileRelations,
+    needsRepoMap: backendLoader.needsRepoMap,
+    needsAnnArtifacts: backendLoader.needsAnnArtifacts,
+    lazyDenseVectorsEnabled: backendLoader.lazyDenseVectorsEnabled,
+    resolvedDenseVectorMode,
+    strict,
+    modelIdDefault,
+    codeIndexDir,
+    proseIndexDir,
+    extractedProseDir,
+    recordsDir,
+    idxCode,
+    idxProse,
+    idxExtractedProse,
+    idxRecords,
+    runCode,
+    runProse,
+    runRecords,
+    resolvedLoadExtractedProse,
+    resolveOptions
+  });
 
-  /**
-   * Normalize index payloads after load so downstream ranking can assume stable
-   * dense-vector and relation fields regardless of backend.
-   *
-   * @param {object} input
-   * @returns {void}
-   */
-  const hydrateLoadedIndex = ({
-    idx,
-    mode,
-    dir,
-    loadRelations = false
-  }) => {
-    idx.denseVec = resolveDenseVector(idx, mode, resolvedDenseVectorMode);
-    if (!idx.denseVec && idx?.state?.embeddings?.embeddingIdentity) {
-      idx.denseVec = { ...idx.state.embeddings.embeddingIdentity, vectors: null };
-    }
-    attachDenseVectorLoader({
-      idx,
-      mode,
-      dir,
-      needsAnnArtifacts,
-      lazyDenseVectorsEnabled,
-      resolvedDenseVectorMode,
-      strict,
-      modelIdDefault
-    });
-    idx.indexDir = dir;
-    if (loadRelations && needsFileRelations && !idx.fileRelations) {
-      queueRelationLoad({ idx, mode, relation: 'fileRelations', loader: loadFileRelations });
-    }
-    if (loadRelations && needsRepoMap && !idx.repoMap) {
-      queueRelationLoad({ idx, mode, relation: 'repoMap', loader: loadRepoMap });
-    }
-  };
-
-  if (runCode) {
-    hydrateLoadedIndex({
-      idx: idxCode,
-      mode: 'code',
-      dir: codeIndexDir,
-      loadRelations: useSqlite || useLmdb
-    });
-  }
-  if (runProse) {
-    hydrateLoadedIndex({
-      idx: idxProse,
-      mode: 'prose',
-      dir: proseIndexDir,
-      loadRelations: useSqlite || useLmdb
-    });
-  }
-  if (resolvedLoadExtractedProse) {
-    hydrateLoadedIndex({
-      idx: idxExtractedProse,
-      mode: 'extracted-prose',
-      dir: extractedProseDir,
-      loadRelations: true
-    });
-  }
-  if (runRecords) {
-    hydrateLoadedIndex({
-      idx: idxRecords,
-      mode: 'records',
-      dir: recordsDir
-    });
-  }
-  if (relationLoadTasks.length) {
-    await Promise.all(relationLoadTasks);
-  }
-
-  const scmHydrationTargets = [
-    runCode ? { idx: idxCode, mode: 'code' } : null,
-    runProse ? { idx: idxProse, mode: 'prose' } : null,
-    resolvedLoadExtractedProse ? { idx: idxExtractedProse, mode: 'extracted-prose' } : null,
-    runRecords ? { idx: idxRecords, mode: 'records' } : null
-  ].filter(Boolean);
-  if (scmHydrationTargets.length) {
-    await Promise.all(
-      scmHydrationTargets.map(({ idx, mode }) => hydrateChunkAuthorsForIndex({
-        idx,
-        mode,
-        rootDir,
-        userConfig,
-        fileChargramN,
-        filtersActive,
-        chunkAuthorFilterActive,
-        emitOutput
-      }))
-    );
-  }
+  await hydrateChunkAuthorIndexes({
+    idxCode,
+    idxProse,
+    idxExtractedProse,
+    idxRecords,
+    runCode,
+    runProse,
+    runRecords,
+    resolvedLoadExtractedProse,
+    rootDir,
+    userConfig,
+    fileChargramN,
+    filtersActive,
+    chunkAuthorFilterActive,
+    emitOutput
+  });
 
   await attachAnnAndGraphArtifacts({
-    needsGraphRelations,
-    needsAnnArtifacts,
+    needsGraphRelations: backendLoader.needsGraphRelations,
+    needsAnnArtifacts: backendLoader.needsAnnArtifacts,
     idxCode,
     idxProse,
     idxExtractedProse,
@@ -617,7 +247,7 @@ export async function loadSearchIndexes({
     emitOutput
   });
   validateEmbeddingIdentity({
-    needsAnnArtifacts,
+    needsAnnArtifacts: backendLoader.needsAnnArtifacts,
     runCode,
     runProse,
     resolvedLoadExtractedProse,
@@ -630,45 +260,22 @@ export async function loadSearchIndexes({
     emitOutput
   });
 
-  /**
-   * Attach tantivy availability metadata to a loaded mode index.
-   *
-   * @param {object|null} idx
-   * @param {string} mode
-   * @param {string|null} dir
-   * @returns {Promise<object|null>}
-   */
-  const attachTantivy = async (idx, mode, dir) => {
-    if (!idx || !dir || !tantivyEnabled) return null;
-    const availability = await ensureTantivyIndex(mode, dir);
-    idx.tantivy = {
-      dir: availability.dir,
-      metaPath: availability.metaPath,
-      meta: availability.meta,
-      available: availability.available
-    };
-    return idx.tantivy;
-  };
-
   await Promise.all([
-    attachTantivy(idxCode, 'code', codeIndexDir),
-    attachTantivy(idxProse, 'prose', proseIndexDir),
-    attachTantivy(idxExtractedProse, 'extracted-prose', extractedProseDir),
-    attachTantivy(idxRecords, 'records', recordsDir)
+    backendLoader.attachTantivy(idxCode, 'code', codeIndexDir),
+    backendLoader.attachTantivy(idxProse, 'prose', proseIndexDir),
+    backendLoader.attachTantivy(idxExtractedProse, 'extracted-prose', extractedProseDir),
+    backendLoader.attachTantivy(idxRecords, 'records', recordsDir)
   ]);
-
-  if (tantivyRequired) {
-    const missingModes = [];
-    if (runCode && !idxCode?.tantivy?.available) missingModes.push('code');
-    if (runProse && !idxProse?.tantivy?.available) missingModes.push('prose');
-    if (resolvedRunExtractedProse && !idxExtractedProse?.tantivy?.available) {
-      missingModes.push('extracted-prose');
-    }
-    if (runRecords && !idxRecords?.tantivy?.available) missingModes.push('records');
-    if (missingModes.length) {
-      throw new Error(`Tantivy index missing for mode(s): ${missingModes.join(', ')}.`);
-    }
-  }
+  backendLoader.assertRequiredTantivy({
+    runCode,
+    runProse,
+    runRecords,
+    resolvedRunExtractedProse,
+    idxCode,
+    idxProse,
+    idxExtractedProse,
+    idxRecords
+  });
 
   const hnswAnnState = {
     code: { available: Boolean(idxCode?.hnsw?.available) },
