@@ -23,7 +23,10 @@ const normalizePythonType = (value) => {
 };
 
 const normalizeLine = (value) => String(value || '')
+  .replace(/^\s*(?:>\s*)+/, '')
   .replace(/^\s*[-*]\s+/, '')
+  .replace(/^`+/, '')
+  .replace(/`+$/, '')
   .replace(/\s+/g, ' ')
   .trim();
 
@@ -43,7 +46,7 @@ const parenDelta = (value) => {
 
 const cleanSignatureCandidate = (value) => normalizeLine(value)
   .replace(/^\((?:function|method|class|property|variable|module)\)\s*/i, '')
-  .replace(/^\s*@\w+\s+/, '')
+  .replace(/^(?:@\w+(?:\([^)]*\))?\s+)+/i, '')
   .replace(/:\s*$/, '');
 
 const collectSignatureCandidates = (detail) => {

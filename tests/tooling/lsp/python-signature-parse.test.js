@@ -59,6 +59,22 @@ const cases = [
     detail: 'def reorder(a: int, /, b: str, *, c: bool) -> None:',
     returnType: 'None',
     params: { a: 'int', b: 'str', c: 'bool' }
+  },
+  {
+    detail: '> `def greet(name: str) -> str:`',
+    returnType: 'str',
+    params: { name: 'str' }
+  },
+  {
+    detail: [
+      '> ```python',
+      '> @cache(maxsize=128)',
+      '> @traced',
+      '> def greet(name: str) -> str:',
+      '> ```'
+    ].join('\n'),
+    returnType: 'str',
+    params: { name: 'str' }
   }
 ];
 
