@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getCacheRoot } from '../shared/dict-utils.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
+import { QUEUE_RETENTION_DEFAULTS } from './retention-policy.js';
 
 export const DEFAULT_SERVICE_CONFIG = Object.freeze({
   repos: [],
@@ -10,7 +11,10 @@ export const DEFAULT_SERVICE_CONFIG = Object.freeze({
     maxRetries: 2,
     maxRunning: 1,
     maxTotal: 21,
-    resourceBudgetUnits: 4
+    resourceBudgetUnits: 4,
+    retention: {
+      ...QUEUE_RETENTION_DEFAULTS
+    }
   },
   worker: {
     concurrency: 1
@@ -21,7 +25,10 @@ export const DEFAULT_SERVICE_CONFIG = Object.freeze({
       maxRetries: 2,
       maxRunning: 1,
       maxTotal: 11,
-      resourceBudgetUnits: 8
+      resourceBudgetUnits: 8,
+      retention: {
+        ...QUEUE_RETENTION_DEFAULTS
+      }
     },
     worker: {
       concurrency: 1,
@@ -54,7 +61,13 @@ export function loadServiceConfig(configPath) {
     ...payload,
     queue: {
       ...DEFAULT_SERVICE_CONFIG.queue,
-      ...(payload.queue && typeof payload.queue === 'object' ? payload.queue : {})
+      ...(payload.queue && typeof payload.queue === 'object' ? payload.queue : {}),
+      retention: {
+        ...DEFAULT_SERVICE_CONFIG.queue.retention,
+        ...(payload.queue?.retention && typeof payload.queue.retention === 'object'
+          ? payload.queue.retention
+          : {})
+      }
     },
     worker: {
       ...DEFAULT_SERVICE_CONFIG.worker,
@@ -67,7 +80,13 @@ export function loadServiceConfig(configPath) {
         ...DEFAULT_SERVICE_CONFIG.embeddings.queue,
         ...(payload.embeddings?.queue && typeof payload.embeddings.queue === 'object'
           ? payload.embeddings.queue
-          : {})
+          : {}),
+        retention: {
+          ...DEFAULT_SERVICE_CONFIG.embeddings.queue.retention,
+          ...(payload.embeddings?.queue?.retention && typeof payload.embeddings.queue.retention === 'object'
+            ? payload.embeddings.queue.retention
+            : {})
+        }
       },
       worker: {
         ...DEFAULT_SERVICE_CONFIG.embeddings.worker,

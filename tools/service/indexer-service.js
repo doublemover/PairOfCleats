@@ -17,6 +17,7 @@ import {
 import { exitLikeCommandResult } from '../shared/cli-utils.js';
 import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './config.js';
 import {
+  compactQueueState,
   describeQueueBackpressure,
   ensureQueueDir,
   enqueueJob,
@@ -39,6 +40,7 @@ import { createJobExecutor } from './indexer-service/job-executor.js';
 import { createQueueWorker } from './indexer-service/queue-worker.js';
 import { resolveQueueLeasePolicy } from './lease-policy.js';
 import { resolveQueueAdmissionPolicy } from './admission-policy.js';
+import { resolveQueueRetentionPolicy } from './retention-policy.js';
 
 const argv = createCli({
   scriptName: 'indexer-service',
@@ -85,6 +87,10 @@ const queueAdmissionPolicy = resolveQueueAdmissionPolicy({
   queueName: resolvedQueueName || queueName,
   queueConfig,
   workerConfig
+});
+const queueRetentionPolicy = resolveQueueRetentionPolicy({
+  queueName: resolvedQueueName || queueName,
+  queueConfig
 });
 const embeddingWorkerConfig = config.embeddings?.worker || {};
 const embeddingMemoryMb = Number.isFinite(Number(embeddingWorkerConfig.maxMemoryMb))
@@ -435,6 +441,13 @@ const handlePurgeQuarantined = async () => {
   });
 };
 
+const handleCompact = async () => {
+  const result = await compactQueueState(queueDir, resolvedQueueName, {
+    retentionPolicy: queueRetentionPolicy
+  });
+  printPayload(result);
+};
+
 /**
  * Emit smoke-test metadata that callers can use to validate worker bootstrap.
  *
@@ -562,13 +575,15 @@ try {
     await handleRetryQuarantined();
   } else if (command === 'purge-quarantined') {
     await handlePurgeQuarantined();
+  } else if (command === 'compact') {
+    await handleCompact();
   } else if (command === 'smoke') {
     await handleSmoke();
   } else if (command === 'serve') {
     await handleServe();
   } else {
     exitWithCommandError(
-      'Usage: indexer-service <sync|enqueue|work|status|quarantine|retry-quarantined|purge-quarantined|smoke|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]'
+      'Usage: indexer-service <sync|enqueue|work|status|quarantine|retry-quarantined|purge-quarantined|compact|smoke|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]'
     );
   }
 } catch (err) {

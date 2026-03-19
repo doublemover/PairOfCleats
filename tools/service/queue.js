@@ -9,13 +9,15 @@ import {
   appendQueueJournalEntries,
   createQueueJournalEntry,
   loadQueueJournal,
-  replayQueueJournal
+  replayQueueJournal,
+  saveQueueJournal
 } from './queue-journal.js';
 import {
   evaluateQueueBackpressure,
   resolveEnqueueBackpressure,
   resolveQueueAdmissionPolicy
 } from './admission-policy.js';
+import { resolveQueueRetentionPolicy } from './retention-policy.js';
 
 const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
 const VALID_JOB_STATUSES = new Set(['queued', 'running', 'done', 'failed']);
@@ -345,6 +347,117 @@ const ensureJobDirs = async (dirPath) => {
   await fs.mkdir(logsDir, { recursive: true });
   await fs.mkdir(reportsDir, { recursive: true });
   return { logsDir, reportsDir };
+};
+
+const sortJobsNewestFirst = (jobs, candidateFields = []) => [...jobs].sort((left, right) => {
+  const resolveTimestamp = (job) => {
+    for (const field of candidateFields) {
+      const parsed = Date.parse(job?.[field] || job?.quarantine?.[field] || '');
+      if (!Number.isNaN(parsed)) return parsed;
+    }
+    return 0;
+  };
+  const timeDelta = resolveTimestamp(right) - resolveTimestamp(left);
+  if (timeDelta !== 0) return timeDelta;
+  return String(right?.id || '').localeCompare(String(left?.id || ''));
+});
+
+const retainNewestJobs = (jobs, limit, candidateFields) => {
+  const sorted = sortJobsNewestFirst(jobs, candidateFields);
+  const keepIds = new Set(sorted.slice(0, limit).map((job) => job.id));
+  return {
+    retained: jobs.filter((job) => keepIds.has(job.id)),
+    removed: jobs.filter((job) => !keepIds.has(job.id))
+  };
+};
+
+const normalizePathValue = (value) => {
+  if (typeof value !== 'string' || value.trim().length === 0) return null;
+  return path.resolve(value);
+};
+
+const collectRetainedArtifactPaths = (jobs = []) => {
+  const keepLogs = new Set();
+  const keepReports = new Set();
+  for (const job of jobs) {
+    const logPath = normalizePathValue(job?.logPath);
+    const reportPath = normalizePathValue(job?.reportPath);
+    if (logPath) keepLogs.add(logPath);
+    if (reportPath) keepReports.add(reportPath);
+  }
+  return { keepLogs, keepReports };
+};
+
+const pruneDirectoryArtifacts = async (dirPath, keepSet) => {
+  const removed = [];
+  let entries = [];
+  try {
+    entries = await fs.readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return removed;
+  }
+  for (const entry of entries) {
+    if (!entry?.isFile?.()) continue;
+    const targetPath = path.join(dirPath, entry.name);
+    if (keepSet.has(path.resolve(targetPath))) continue;
+    try {
+      await fs.rm(targetPath, { force: true });
+      removed.push(targetPath);
+    } catch {}
+  }
+  return removed;
+};
+
+const buildCompactedJournalEntries = ({
+  retainedQueueJobs,
+  retainedQuarantineJobs,
+  removedQueueJobs,
+  removedQuarantineJobs,
+  queueName,
+  at,
+  retentionPolicy
+}) => {
+  const entries = [
+    createQueueJournalEntry({
+      eventType: 'compaction',
+      queueName,
+      target: 'queue',
+      at,
+      extra: {
+        retentionPolicy: {
+          doneJobs: retentionPolicy.doneJobs,
+          failedJobs: retentionPolicy.failedJobs,
+          quarantinedJobs: retentionPolicy.quarantinedJobs,
+          retriedQuarantinedJobs: retentionPolicy.retriedQuarantinedJobs
+        },
+        removed: {
+          queue: removedQueueJobs.map((job) => job.id),
+          quarantine: removedQuarantineJobs.map((job) => job.id)
+        }
+      }
+    })
+  ];
+  for (const job of sortJobsNewestFirst(retainedQueueJobs, ['finishedAt', 'startedAt', 'createdAt'])) {
+    entries.push(createQueueJournalEntry({
+      eventType: 'compaction-snapshot',
+      queueName,
+      target: 'queue',
+      job,
+      reason: 'queue-retained',
+      at
+    }));
+  }
+  for (const job of sortJobsNewestFirst(retainedQuarantineJobs, ['releasedAt', 'quarantinedAt', 'finishedAt', 'createdAt'])) {
+    entries.push(createQueueJournalEntry({
+      eventType: 'compaction-snapshot',
+      queueName,
+      target: 'quarantine',
+      job,
+      reason: 'quarantine-retained',
+      at
+    }));
+  }
+  return entries;
 };
 
 const createQueueJobId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
@@ -1194,6 +1307,121 @@ export async function purgeQuarantinedJobs(dirPath, queueName = null, options = 
     return {
       removed: before - quarantine.jobs.length,
       jobs: quarantine.jobs
+    };
+  });
+}
+
+export async function compactQueueState(dirPath, queueName = null, options = {}) {
+  const resolvedQueueName = resolveQueueName(queueName, null);
+  const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
+  return withLock(lockPath, async () => {
+    await ensureQueueDir(dirPath);
+    const { logsDir, reportsDir } = await ensureJobDirs(dirPath);
+    const queue = await loadQueue(dirPath, resolvedQueueName);
+    const quarantine = await loadQuarantine(dirPath, resolvedQueueName);
+    const retentionPolicy = options.retentionPolicy && typeof options.retentionPolicy === 'object'
+      ? options.retentionPolicy
+      : resolveQueueRetentionPolicy({
+        queueName: resolvedQueueName || 'index',
+        queueConfig: options.queueConfig || {}
+      });
+    const activeQueueJobs = queue.jobs.filter((job) => job.status === 'queued' || job.status === 'running');
+    const terminalDone = queue.jobs.filter((job) => job.status === 'done');
+    const terminalFailed = queue.jobs.filter((job) => job.status === 'failed');
+    const retainedDone = retainNewestJobs(terminalDone, retentionPolicy.doneJobs, ['finishedAt', 'createdAt']);
+    const retainedFailed = retainNewestJobs(terminalFailed, retentionPolicy.failedJobs, ['finishedAt', 'createdAt']);
+    const activeQuarantineJobs = quarantine.jobs.filter(
+      (job) => (job.quarantine?.state || 'quarantined') === 'quarantined'
+    );
+    const retriedQuarantineJobs = quarantine.jobs.filter(
+      (job) => (job.quarantine?.state || 'quarantined') === 'retried'
+    );
+    const retainedQuarantined = retainNewestJobs(
+      activeQuarantineJobs,
+      retentionPolicy.quarantinedJobs,
+      ['quarantinedAt', 'finishedAt', 'createdAt']
+    );
+    const retainedRetried = retainNewestJobs(
+      retriedQuarantineJobs,
+      retentionPolicy.retriedQuarantinedJobs,
+      ['releasedAt', 'quarantinedAt', 'finishedAt', 'createdAt']
+    );
+    const retainedQueueJobs = [
+      ...activeQueueJobs,
+      ...retainedDone.retained,
+      ...retainedFailed.retained
+    ];
+    const removedQueueJobs = [
+      ...retainedDone.removed,
+      ...retainedFailed.removed
+    ];
+    const retainedQuarantineJobs = [
+      ...retainedQuarantined.retained,
+      ...retainedRetried.retained
+    ];
+    const removedQuarantineJobs = [
+      ...retainedQuarantined.removed,
+      ...retainedRetried.removed
+    ];
+    const retainedArtifacts = collectRetainedArtifactPaths([
+      ...retainedQueueJobs,
+      ...retainedQuarantineJobs
+    ]);
+    const nowIso = new Date().toISOString();
+    await saveQueue(dirPath, { jobs: retainedQueueJobs }, resolvedQueueName);
+    await saveQuarantine(dirPath, { jobs: retainedQuarantineJobs }, resolvedQueueName);
+    if (retentionPolicy.rewriteJournal !== false) {
+      await saveQueueJournal(
+        dirPath,
+        resolvedQueueName,
+        buildCompactedJournalEntries({
+          retainedQueueJobs,
+          retainedQuarantineJobs,
+          removedQueueJobs,
+          removedQuarantineJobs,
+          queueName: resolvedQueueName || 'index',
+          at: nowIso,
+          retentionPolicy
+        })
+      );
+    }
+    const removedLogs = retentionPolicy.cleanupLogs === false
+      ? []
+      : await pruneDirectoryArtifacts(logsDir, retainedArtifacts.keepLogs);
+    const removedReports = retentionPolicy.cleanupReports === false
+      ? []
+      : await pruneDirectoryArtifacts(reportsDir, retainedArtifacts.keepReports);
+    return {
+      ok: true,
+      queueName: resolvedQueueName || 'index',
+      retentionPolicy,
+      retained: {
+        queue: retainedQueueJobs.length,
+        quarantine: retainedQuarantineJobs.length
+      },
+      removed: {
+        queue: removedQueueJobs.length,
+        quarantine: removedQuarantineJobs.length,
+        logs: removedLogs.length,
+        reports: removedReports.length
+      },
+      queue: {
+        active: activeQueueJobs.length,
+        doneRetained: retainedDone.retained.length,
+        failedRetained: retainedFailed.retained.length,
+        doneRemoved: retainedDone.removed.length,
+        failedRemoved: retainedFailed.removed.length
+      },
+      quarantine: {
+        quarantinedRetained: retainedQuarantined.retained.length,
+        retriedRetained: retainedRetried.retained.length,
+        quarantinedRemoved: retainedQuarantined.removed.length,
+        retriedRemoved: retainedRetried.removed.length
+      },
+      removedJobIds: {
+        queue: removedQueueJobs.map((job) => job.id),
+        quarantine: removedQuarantineJobs.map((job) => job.id)
+      }
     };
   });
 }

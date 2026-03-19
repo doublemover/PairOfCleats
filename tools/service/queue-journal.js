@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { atomicWriteText } from '../../src/shared/io/atomic-write.js';
 
 const normalizeQueueName = (value) => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -54,6 +55,15 @@ export async function appendQueueJournalEntries(dirPath, queueName = null, entri
   await fs.appendFile(journalPath, payload, 'utf8');
 }
 
+export async function saveQueueJournal(dirPath, queueName = null, entries = []) {
+  await fs.mkdir(dirPath, { recursive: true });
+  const journalPath = getQueueJournalPath(dirPath, queueName);
+  const payload = Array.isArray(entries) && entries.length
+    ? `${entries.map((entry) => JSON.stringify(entry)).join('\n')}\n`
+    : '';
+  await atomicWriteText(journalPath, payload, { newline: false });
+}
+
 export async function loadQueueJournal(dirPath, queueName = null) {
   const journalPath = getQueueJournalPath(dirPath, queueName);
   try {
@@ -78,6 +88,7 @@ export function replayQueueJournal(entries = []) {
       ? cloneJson(entry.snapshot)
       : null;
     if (entry?.target === 'purge') {
+      queueJobs.delete(jobId);
       quarantineJobs.delete(jobId);
       continue;
     }
