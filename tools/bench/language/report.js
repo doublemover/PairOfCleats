@@ -27,6 +27,10 @@ import {
   buildBenchMethodologyTaskId,
   buildBenchMetricTags
 } from './policy.js';
+import {
+  buildBenchOwnershipSummary,
+  buildBenchReuseSummary
+} from './ownership.js';
 
 const resolveCrashRetention = (entry) => {
   const direct = entry?.crashRetention && typeof entry.crashRetention === 'object'
@@ -1032,7 +1036,7 @@ const buildRemediationSummary = (tasks) => {
   };
 };
 
-export const summarizeResults = (items, { metricTags = null } = {}) => {
+export const summarizeResults = (items, { metricTags = null, methodology = null } = {}) => {
   const valid = items.filter((entry) => entry.summary);
   if (!valid.length) return null;
   const backendSet = new Set();
@@ -1089,6 +1093,10 @@ export const summarizeResults = (items, { metricTags = null } = {}) => {
     backends,
     latencyMsAvg,
     hitRate,
+    reuse: buildBenchReuseSummary({
+      tasks: valid,
+      methodology
+    }),
     resultCountAvg,
     memoryRssAvgMb,
     buildMs: Object.keys(buildMs).length ? buildMs : null,
@@ -1122,6 +1130,16 @@ export const printSummary = (
       if (!Number.isFinite(value)) continue;
       writeLine(`- build ${key} avg ${(value / 1000).toFixed(1)}s`);
     }
+  }
+  const reuse = summary.reuse || null;
+  if (Number.isFinite(reuse?.coldStart?.averageHitRate)) {
+    writeLine(`- reuse cold-start avg ${(reuse.coldStart.averageHitRate * 100).toFixed(1)}%`);
+  }
+  if (Number.isFinite(reuse?.intraRun?.averageHitRate)) {
+    writeLine(`- reuse intra-run avg ${(reuse.intraRun.averageHitRate * 100).toFixed(1)}%`);
+  }
+  if (Number.isFinite(reuse?.crossRun?.averageHitRate)) {
+    writeLine(`- reuse cross-run avg ${(reuse.crossRun.averageHitRate * 100).toFixed(1)}%`);
   }
 };
 
@@ -1231,15 +1249,17 @@ export const buildReportOutput = async ({
   const tasksWithTelemetry = await mapWithConcurrency(taskInputs, async (entry) => {
     const payload = await resolveTaskPayload(entry);
     const throughputLedger = resolveTaskThroughputLedger({ entry, payload });
+    const summary = entry?.summary || null;
+    const stageTimingProfile = entry?.stageTimingProfile || (summary
+      ? buildStageTimingProfileForTask({
+        repoPath: entry.repoPath,
+        summary
+      })
+      : null);
     return {
       ...entry,
       repoIdentity: resolveTaskRepoIdentity(entry, payload),
-      stageTimingProfile: entry?.summary
-        ? buildStageTimingProfileForTask({
-          repoPath: entry.repoPath,
-          summary: entry.summary
-        })
-        : null,
+      stageTimingProfile,
       throughputLedger,
       benchContext: {
         metricTags,
@@ -1258,10 +1278,10 @@ export const buildReportOutput = async ({
     groupedSummary[language] = {
       label: config[language]?.label || language,
       count: items.length,
-      summary: summarizeResults(items, { metricTags })
+      summary: summarizeResults(items, { metricTags, methodology })
     };
   }
-  const overallSummary = summarizeResults(tasks, { metricTags });
+  const overallSummary = summarizeResults(tasks, { metricTags, methodology });
   const crashRetention = buildCrashRetentionSummary(tasks);
   const streamOptions = { runSuffix };
   const diagnosticsStream = await buildDiagnosticsStreamSummary(resultsRoot, streamOptions);
@@ -1285,6 +1305,10 @@ export const buildReportOutput = async ({
   const remediation = buildRemediationSummary(tasks);
   const policy = await loadBenchPolicy({ waiverFile });
   const verdict = evaluateBenchVerdict({ tasks, policy });
+  const ownership = buildBenchOwnershipSummary({
+    tasks: verdict.tasks,
+    methodology
+  });
   return {
     generatedAt: new Date().toISOString(),
     config: configPath,
@@ -1299,6 +1323,7 @@ export const buildReportOutput = async ({
       progressConfidence,
       preflight
     },
+    ownership,
     throughputLedger,
     stageTiming: {
       schemaVersion: STAGE_TIMING_SCHEMA_VERSION,

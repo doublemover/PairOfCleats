@@ -6,19 +6,20 @@ import { buildBenchRunDiff } from '../../../tools/bench/language/diff.js';
 const before = {
   generatedAt: '2026-03-17T00:00:00.000Z',
   methodology: {
-    mode: 'warm',
-    cacheMode: 'warm',
+    mode: 'cold',
+    cacheMode: 'cold',
     toolingMode: 'disabled',
     corpusVersion: 'repos-a',
     policyVersion: 'bench-language-methodology-v1'
   },
   tasks: [
     {
-      language: 'javascript',
+      language: 'python',
       tier: 'small',
-      repo: 'org/js',
+      repo: 'org/py',
       summary: {
         hitRate: { memory: 0.9, sqlite: 0.8 },
+        memoryRss: { sqlite: { mean: 512 * 1024 * 1024 } },
         buildMs: { index: 100 }
       },
       taskStatus: {
@@ -47,11 +48,12 @@ const after = {
   },
   tasks: [
     {
-      language: 'javascript',
+      language: 'python',
       tier: 'small',
-      repo: 'org/js',
+      repo: 'org/py',
       summary: {
         hitRate: { memory: 0.5, sqlite: 0.4 },
+        memoryRss: { sqlite: { mean: 1024 * 1024 * 1024 } },
         buildMs: { index: 180 }
       },
       taskStatus: {
@@ -77,5 +79,12 @@ assert.equal(diff.byRepo[0]?.buildIndexMs?.delta, 80, 'expected build index delt
 assert.equal(diff.byRepo[0]?.timeoutCount?.after, 1, 'expected timeout count in after report');
 assert.equal(diff.byRepo[0]?.artifactTailStallCount?.delta, 2, 'expected artifact-tail-stall delta');
 assert.equal(diff.byRepo[0]?.cacheHitRate?.delta, -0.4, 'expected cache hit rate delta');
+assert.equal(diff.byRepo[0]?.coldStartHitRate?.delta, -0.4, 'expected cold-start hit rate delta');
+assert.equal(diff.byRepo[0]?.intraRunHitRate?.delta, -0.4, 'expected intra-run hit rate delta');
+assert.equal(diff.byRepo[0]?.crossRunHitRate?.delta, -0.4, 'expected cross-run hit rate delta');
+assert.equal(diff.byRepo[0]?.sqliteRssMb?.delta, 512, 'expected sqlite rss delta in MB');
+assert.equal(diff.ownership?.byFamily?.length, 1, 'expected ownership diff family row');
+assert.equal(diff.ownership?.byFamily?.[0]?.family, 'scripting', 'expected scripting family ownership row');
+assert.equal(diff.ownership?.topRegressions?.[0]?.family, 'scripting', 'expected scripting family regression');
 
 console.log('bench language run diff test passed');

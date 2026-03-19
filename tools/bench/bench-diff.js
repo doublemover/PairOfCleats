@@ -86,6 +86,22 @@ const main = async () => {
         + `| degradations ${row.degradationCount?.before ?? 'n/a'} -> ${row.degradationCount?.after ?? 'n/a'}`
       );
     }
+    const topOwnershipRegressions = Array.isArray(diff?.ownership?.topRegressions)
+      ? diff.ownership.topRegressions
+      : [];
+    if (topOwnershipRegressions.length) {
+      console.log('ownership hotspot regressions:');
+      for (const row of topOwnershipRegressions.slice(0, 5)) {
+        console.log(
+          `${row.family}: guardrails ${row.breachedGuardrails?.before ?? 'n/a'} -> ${row.breachedGuardrails?.after ?? 'n/a'} `
+          + `| buildIndex ${row.buildIndexMsAvg?.before ?? 'n/a'} -> ${row.buildIndexMsAvg?.after ?? 'n/a'} `
+          + `| sqliteRss ${row.sqliteAvgMb?.before ?? 'n/a'} -> ${row.sqliteAvgMb?.after ?? 'n/a'} `
+          + `| intra ${row.intraRunHitRate?.before ?? 'n/a'} -> ${row.intraRunHitRate?.after ?? 'n/a'} `
+          + `| cross ${row.crossRunHitRate?.before ?? 'n/a'} -> ${row.crossRunHitRate?.after ?? 'n/a'} `
+          + `| dominant ${row.dominantPhase?.before ?? 'n/a'} -> ${row.dominantPhase?.after ?? 'n/a'}`
+        );
+      }
+    }
     return;
   }
 

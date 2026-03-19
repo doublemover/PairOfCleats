@@ -1,4 +1,5 @@
 import fsPromises from 'node:fs/promises';
+import { buildBenchOwnershipDiff, buildBenchReuseFromSummary } from './ownership.js';
 
 export const BENCH_RUN_DIFF_SCHEMA_VERSION = 1;
 
@@ -20,8 +21,11 @@ const countByDiagnosticType = (entry, type) => {
   return Number.isFinite(nested) ? nested : 0;
 };
 
-const summarizeTask = (entry) => {
-  const hitRates = Object.values(entry?.summary?.hitRate || {});
+const summarizeTask = (entry, methodology = null) => {
+  const reuse = buildBenchReuseFromSummary({
+    summary: entry?.summary || null,
+    methodology
+  });
   return {
     buildIndexMs: toNumberOrNull(entry?.summary?.buildMs?.index),
     crashCount: entry?.taskStatus?.resultClass === 'crashed' ? 1 : 0,
@@ -30,7 +34,17 @@ const summarizeTask = (entry) => {
       ? entry.taskStatus.degradationClasses.length
       : 0,
     artifactTailStallCount: countByDiagnosticType(entry, 'artifact_tail_stall'),
-    cacheHitRate: average(hitRates)
+    cacheHitRate: reuse?.overall?.averageHitRate ?? null,
+    coldStartHitRate: reuse?.coldStart?.averageHitRate ?? null,
+    intraRunHitRate: reuse?.intraRun?.averageHitRate ?? null,
+    crossRunHitRate: reuse?.crossRun?.averageHitRate ?? null,
+    sqliteRssMb: average(
+      ['sqlite', 'sqlite-fts', 'fts']
+        .map((backend) => entry?.summary?.memoryRss?.[backend]?.mean)
+        .map(toNumberOrNull)
+        .filter(Number.isFinite)
+        .map((value) => value / (1024 * 1024))
+    )
   };
 };
 
@@ -62,8 +76,8 @@ const buildAggregateDelta = (beforeValue, afterValue) => {
   };
 };
 
-const summarizeLanguageGroup = (tasks) => {
-  const rows = (Array.isArray(tasks) ? tasks : []).map((entry) => summarizeTask(entry));
+const summarizeLanguageGroup = (tasks, methodology = null) => {
+  const rows = (Array.isArray(tasks) ? tasks : []).map((entry) => summarizeTask(entry, methodology));
   return {
     repoCount: rows.length,
     buildIndexMs: average(rows.map((row) => row.buildIndexMs)),
@@ -71,7 +85,11 @@ const summarizeLanguageGroup = (tasks) => {
     timeoutCount: rows.reduce((sum, row) => sum + row.timeoutCount, 0),
     degradationCount: rows.reduce((sum, row) => sum + row.degradationCount, 0),
     artifactTailStallCount: rows.reduce((sum, row) => sum + row.artifactTailStallCount, 0),
-    cacheHitRate: average(rows.map((row) => row.cacheHitRate))
+    cacheHitRate: average(rows.map((row) => row.cacheHitRate)),
+    coldStartHitRate: average(rows.map((row) => row.coldStartHitRate)),
+    intraRunHitRate: average(rows.map((row) => row.intraRunHitRate)),
+    crossRunHitRate: average(rows.map((row) => row.crossRunHitRate)),
+    sqliteRssMb: average(rows.map((row) => row.sqliteRssMb))
   };
 };
 
@@ -82,8 +100,8 @@ export const buildBenchRunDiff = ({ before, after }) => {
   const byRepo = taskKeys.map((key) => {
     const beforeEntry = beforeTaskMap.get(key) || null;
     const afterEntry = afterTaskMap.get(key) || null;
-    const beforeSummary = summarizeTask(beforeEntry);
-    const afterSummary = summarizeTask(afterEntry);
+    const beforeSummary = summarizeTask(beforeEntry, before?.methodology || null);
+    const afterSummary = summarizeTask(afterEntry, after?.methodology || null);
     return {
       taskKey: key,
       language: beforeEntry?.language || afterEntry?.language || null,
@@ -94,7 +112,11 @@ export const buildBenchRunDiff = ({ before, after }) => {
       timeoutCount: buildAggregateDelta(beforeSummary.timeoutCount, afterSummary.timeoutCount),
       degradationCount: buildAggregateDelta(beforeSummary.degradationCount, afterSummary.degradationCount),
       artifactTailStallCount: buildAggregateDelta(beforeSummary.artifactTailStallCount, afterSummary.artifactTailStallCount),
-      cacheHitRate: buildAggregateDelta(beforeSummary.cacheHitRate, afterSummary.cacheHitRate)
+      cacheHitRate: buildAggregateDelta(beforeSummary.cacheHitRate, afterSummary.cacheHitRate),
+      coldStartHitRate: buildAggregateDelta(beforeSummary.coldStartHitRate, afterSummary.coldStartHitRate),
+      intraRunHitRate: buildAggregateDelta(beforeSummary.intraRunHitRate, afterSummary.intraRunHitRate),
+      crossRunHitRate: buildAggregateDelta(beforeSummary.crossRunHitRate, afterSummary.crossRunHitRate),
+      sqliteRssMb: buildAggregateDelta(beforeSummary.sqliteRssMb, afterSummary.sqliteRssMb)
     };
   });
 
@@ -108,8 +130,8 @@ export const buildBenchRunDiff = ({ before, after }) => {
     .map((language) => {
       const beforeTasks = Array.from(beforeTaskMap.values()).filter((entry) => entry.language === language);
       const afterTasks = Array.from(afterTaskMap.values()).filter((entry) => entry.language === language);
-      const beforeSummary = summarizeLanguageGroup(beforeTasks);
-      const afterSummary = summarizeLanguageGroup(afterTasks);
+      const beforeSummary = summarizeLanguageGroup(beforeTasks, before?.methodology || null);
+      const afterSummary = summarizeLanguageGroup(afterTasks, after?.methodology || null);
       return {
         language,
         repoCount: buildAggregateDelta(beforeSummary.repoCount, afterSummary.repoCount),
@@ -118,7 +140,11 @@ export const buildBenchRunDiff = ({ before, after }) => {
         timeoutCount: buildAggregateDelta(beforeSummary.timeoutCount, afterSummary.timeoutCount),
         degradationCount: buildAggregateDelta(beforeSummary.degradationCount, afterSummary.degradationCount),
         artifactTailStallCount: buildAggregateDelta(beforeSummary.artifactTailStallCount, afterSummary.artifactTailStallCount),
-        cacheHitRate: buildAggregateDelta(beforeSummary.cacheHitRate, afterSummary.cacheHitRate)
+        cacheHitRate: buildAggregateDelta(beforeSummary.cacheHitRate, afterSummary.cacheHitRate),
+        coldStartHitRate: buildAggregateDelta(beforeSummary.coldStartHitRate, afterSummary.coldStartHitRate),
+        intraRunHitRate: buildAggregateDelta(beforeSummary.intraRunHitRate, afterSummary.intraRunHitRate),
+        crossRunHitRate: buildAggregateDelta(beforeSummary.crossRunHitRate, afterSummary.crossRunHitRate),
+        sqliteRssMb: buildAggregateDelta(beforeSummary.sqliteRssMb, afterSummary.sqliteRssMb)
       };
     });
 
@@ -133,6 +159,7 @@ export const buildBenchRunDiff = ({ before, after }) => {
       generatedAt: after?.generatedAt || null,
       methodology: after?.methodology || null
     },
+    ownership: buildBenchOwnershipDiff({ before, after }),
     byLanguage,
     byRepo
   };
