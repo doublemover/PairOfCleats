@@ -1066,7 +1066,9 @@ export async function collectLspTypes({
     }
 
     const refreshRuntimeState = ({ includeRequests = false } = {}) => {
-      runtime.lifecycle = lifecycleHealth.getState();
+      runtime.lifecycle = typeof lease.getReliabilityState === 'function'
+        ? lease.getReliabilityState()
+        : lifecycleHealth.getState();
       runtime.guard = guard.getState ? guard.getState() : null;
       if (includeRequests || runtime.requests == null) {
         runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
@@ -1637,6 +1639,18 @@ export async function collectLspTypes({
       return await runWithPooledSession();
     } catch (err) {
       const isSessionDesync = err?.code === LSP_SESSION_DESYNC_ERROR_CODE;
+      const isQuarantined = err?.code === 'TOOLING_QUARANTINED';
+      if (isQuarantined) {
+        runtime.lifecycle = err?.detail
+          ? { ...(runtime.lifecycle || {}), quarantine: err.detail }
+          : runtime.lifecycle;
+        checks.push({
+          name: 'tooling_provider_quarantined',
+          status: 'warn',
+          message: `${cmd} provider quarantine active${err?.detail?.remainingMs != null ? ` (${err.detail.remainingMs}ms remaining)` : ''}.`
+        });
+        return buildEmptyCollectResult(checks, runtime);
+      }
       if (!isSessionDesync) throw err;
       if (attemptedDesyncRecovery) {
         checkFlags.initializeFailed = true;

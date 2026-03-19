@@ -593,6 +593,10 @@ export function createLspClient(options) {
       onMessage: handleMessage,
       onError: (err) => {
         log(`[lsp] parse error: ${err.message}`);
+        emitLifecycleEvent({
+          kind: 'protocol_parse_error',
+          message: err?.message || String(err)
+        });
         killChildProcessTree(child, {
           killTree: true,
           detached: killTreeDetached,

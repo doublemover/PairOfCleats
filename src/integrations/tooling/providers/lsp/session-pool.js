@@ -22,6 +22,7 @@ const SESSION_STATE = Object.freeze({
 });
 
 const sessions = new Map();
+const sessionHealthRecords = new Map();
 const disposalBarriers = new Map();
 const creationBarriers = new Map();
 const sessionPoolMetrics = {
@@ -38,8 +39,17 @@ let beforeExitCleanupPromise = null;
 let drainSessionPoolPromise = null;
 const activeDisposals = new Set();
 const testHooks = {
-  disposeDelayMs: 0
+  disposeDelayMs: 0,
+  shortQuarantineMs: null,
+  extendedQuarantineMs: null
 };
+
+const DEFAULT_SHORT_QUARANTINE_MS = 15_000;
+const DEFAULT_EXTENDED_QUARANTINE_MS = 60_000;
+const QUARANTINE_LEVEL = Object.freeze({
+  SHORT: 'short',
+  EXTENDED: 'extended'
+});
 
 const toPositiveInt = (value, fallback, min = 1) => {
   const parsed = coercePositiveInt(value);
@@ -56,6 +66,154 @@ const toNonNegativeInt = (value, fallback) => {
 const normalizeArgs = (value) => (
   Array.isArray(value) ? value.map((entry) => String(entry)) : []
 );
+
+const resolveShortQuarantineMs = () => (
+  toPositiveInt(testHooks.shortQuarantineMs, DEFAULT_SHORT_QUARANTINE_MS, 100)
+);
+
+const resolveExtendedQuarantineMs = () => (
+  toPositiveInt(testHooks.extendedQuarantineMs, DEFAULT_EXTENDED_QUARANTINE_MS, 100)
+);
+
+const createSessionHealthRecord = () => ({
+  startupFailureCount: 0,
+  handshakeFailureCount: 0,
+  transportFailureCount: 0,
+  protocolParseFailureCount: 0,
+  timeoutFailureCount: 0,
+  quarantineLevel: null,
+  quarantineReasonCode: null,
+  quarantineUntil: 0,
+  quarantineTransitions: 0,
+  recoveryProbeActive: false,
+  recoveryProbeAttempts: 0,
+  recoveryProbeSuccesses: 0,
+  recoveryProbeFailures: 0,
+  lastRecoveryAt: null,
+  lastRecoveryResult: null,
+  lastFailureReasonCode: null
+});
+
+const getOrCreateSessionHealthRecord = (key) => {
+  const normalizedKey = String(key || '');
+  const existing = sessionHealthRecords.get(normalizedKey);
+  if (existing) return existing;
+  const next = createSessionHealthRecord();
+  sessionHealthRecords.set(normalizedKey, next);
+  return next;
+};
+
+const isQuarantineLevel = (value) => (
+  value === QUARANTINE_LEVEL.SHORT || value === QUARANTINE_LEVEL.EXTENDED
+);
+
+const resolveQuarantineState = (record) => {
+  const now = Date.now();
+  const active = Boolean(
+    record
+    && isQuarantineLevel(record.quarantineLevel)
+    && Number(record.quarantineUntil) > now
+  );
+  return {
+    level: isQuarantineLevel(record?.quarantineLevel) ? record.quarantineLevel : null,
+    active,
+    remainingMs: active ? Math.max(0, Number(record.quarantineUntil) - now) : 0,
+    reasonCode: record?.quarantineReasonCode || null,
+    recoveryProbeActive: record?.recoveryProbeActive === true,
+    recoveryProbeAttempts: Number(record?.recoveryProbeAttempts) || 0,
+    recoveryProbeSuccesses: Number(record?.recoveryProbeSuccesses) || 0,
+    recoveryProbeFailures: Number(record?.recoveryProbeFailures) || 0,
+    lastRecoveryAt: record?.lastRecoveryAt || null,
+    lastRecoveryResult: record?.lastRecoveryResult || null,
+    lastFailureReasonCode: record?.lastFailureReasonCode || null,
+    quarantineTransitions: Number(record?.quarantineTransitions) || 0
+  };
+};
+
+const armQuarantine = (record, level, reasonCode) => {
+  if (!record) return resolveQuarantineState(record);
+  const normalizedLevel = level === QUARANTINE_LEVEL.EXTENDED
+    ? QUARANTINE_LEVEL.EXTENDED
+    : QUARANTINE_LEVEL.SHORT;
+  const durationMs = normalizedLevel === QUARANTINE_LEVEL.EXTENDED
+    ? resolveExtendedQuarantineMs()
+    : resolveShortQuarantineMs();
+  const now = Date.now();
+  record.quarantineLevel = normalizedLevel;
+  record.quarantineReasonCode = String(reasonCode || 'tooling_quarantined');
+  record.quarantineUntil = Math.max(Number(record.quarantineUntil) || 0, now + durationMs);
+  record.quarantineTransitions = (Number(record.quarantineTransitions) || 0) + 1;
+  record.lastFailureReasonCode = record.quarantineReasonCode;
+  record.recoveryProbeActive = false;
+  return resolveQuarantineState(record);
+};
+
+const clearQuarantine = (record) => {
+  if (!record) return resolveQuarantineState(record);
+  record.quarantineLevel = null;
+  record.quarantineReasonCode = null;
+  record.quarantineUntil = 0;
+  record.recoveryProbeActive = false;
+  return resolveQuarantineState(record);
+};
+
+const beginRecoveryProbe = (record) => {
+  if (!record) return resolveQuarantineState(record);
+  record.recoveryProbeActive = true;
+  record.recoveryProbeAttempts = (Number(record.recoveryProbeAttempts) || 0) + 1;
+  return resolveQuarantineState(record);
+};
+
+const completeRecoveryProbe = (record, success, reasonCode = null) => {
+  if (!record) return resolveQuarantineState(record);
+  record.recoveryProbeActive = false;
+  record.lastRecoveryAt = new Date().toISOString();
+  record.lastRecoveryResult = success === true ? 'recovered' : 'failed';
+  if (success === true) {
+    record.recoveryProbeSuccesses = (Number(record.recoveryProbeSuccesses) || 0) + 1;
+    record.startupFailureCount = 0;
+    record.handshakeFailureCount = 0;
+    record.transportFailureCount = 0;
+    record.protocolParseFailureCount = 0;
+    record.timeoutFailureCount = 0;
+    return clearQuarantine(record);
+  }
+  record.recoveryProbeFailures = (Number(record.recoveryProbeFailures) || 0) + 1;
+  return armQuarantine(record, QUARANTINE_LEVEL.EXTENDED, reasonCode || record.lastFailureReasonCode || 'tooling_quarantined');
+};
+
+const resolveQuarantineForFailure = (reason, lifecycleState, record = null) => {
+  const normalizedReason = String(reason || 'tooling_quarantined').trim() || 'tooling_quarantined';
+  if (lifecycleState?.lastFailureCategory?.category === 'protocol_parse_failure') {
+    return { level: QUARANTINE_LEVEL.EXTENDED, reasonCode: 'protocol_parse_error' };
+  }
+  if (normalizedReason === 'protocol_parse_error') {
+    return { level: QUARANTINE_LEVEL.EXTENDED, reasonCode: normalizedReason };
+  }
+  if (normalizedReason === 'initialize_failed' || normalizedReason === 'initialize_state_desync') {
+    return { level: QUARANTINE_LEVEL.SHORT, reasonCode: normalizedReason };
+  }
+  if (normalizedReason === 'transport_failure' || normalizedReason === 'startup_failure') {
+    return {
+      level: Number(record?.transportFailureCount || record?.startupFailureCount || 0) >= 2
+        ? QUARANTINE_LEVEL.EXTENDED
+        : QUARANTINE_LEVEL.SHORT,
+      reasonCode: normalizedReason
+    };
+  }
+  if (normalizedReason === 'request_timeout') {
+    const timeoutRate = Number(lifecycleState?.requestTimeoutRatePerMinute) || 0;
+    const timeoutCount = Number(record?.timeoutFailureCount) || 0;
+    return {
+      level: timeoutCount >= 4 || timeoutRate >= 4 ? QUARANTINE_LEVEL.EXTENDED : QUARANTINE_LEVEL.SHORT,
+      reasonCode: normalizedReason
+    };
+  }
+  if ((Number(lifecycleState?.fdPressureDensityPerMinute) || 0) >= 4) {
+    return { level: QUARANTINE_LEVEL.SHORT, reasonCode: 'fd_pressure_density' };
+  }
+  return { level: QUARANTINE_LEVEL.SHORT, reasonCode: normalizedReason };
+};
 
 const emitPoolWarning = (log, message) => {
   if (typeof log === 'function') {
@@ -374,6 +532,9 @@ const markSessionReady = (session, initializeResult = null) => {
   session.initializedGeneration = session.transportGeneration;
   session.initializeResult = initializeResult ?? null;
   session.poisonReason = null;
+  if (session.lifecycleHealth && typeof session.lifecycleHealth.noteHandshakeSuccess === 'function') {
+    session.lifecycleHealth.noteHandshakeSuccess();
+  }
   session.state = SESSION_STATE.READY;
 };
 
@@ -382,6 +543,42 @@ const markSessionPoisoned = (session, reason = 'unknown') => {
   session.poisonReason = typeof reason === 'string' && reason.trim()
     ? reason.trim()
     : 'unknown';
+  if (session.lifecycleHealth) {
+    if ((session.poisonReason === 'initialize_failed' || session.poisonReason === 'initialize_state_desync')
+      && typeof session.lifecycleHealth.noteHandshakeFailure === 'function') {
+      session.lifecycleHealth.noteHandshakeFailure({ code: session.poisonReason, message: session.poisonReason });
+    }
+    if (session.poisonReason === 'request_timeout' && typeof session.lifecycleHealth.noteRequestTimeout === 'function') {
+      session.lifecycleHealth.noteRequestTimeout({ code: session.poisonReason, message: session.poisonReason });
+    }
+  }
+  if (session.healthRecord) {
+    const lifecycleState = session.lifecycleHealth?.getState ? session.lifecycleHealth.getState() : null;
+    if (lifecycleState?.lastFailureCategory?.category === 'protocol_parse_failure') {
+      session.healthRecord.protocolParseFailureCount = (Number(session.healthRecord.protocolParseFailureCount) || 0) + 1;
+    }
+    if (session.poisonReason === 'initialize_failed' || session.poisonReason === 'initialize_state_desync') {
+      session.healthRecord.handshakeFailureCount = (Number(session.healthRecord.handshakeFailureCount) || 0) + 1;
+    }
+    if (session.poisonReason === 'request_timeout') {
+      session.healthRecord.timeoutFailureCount = (Number(session.healthRecord.timeoutFailureCount) || 0) + 1;
+    }
+    if (session.poisonReason === 'transport_failure') {
+      session.healthRecord.transportFailureCount = (Number(session.healthRecord.transportFailureCount) || 0) + 1;
+      if ((Number(lifecycleState?.startupFailures) || 0) > 0) {
+        session.healthRecord.startupFailureCount = Math.max(
+          Number(session.healthRecord.startupFailureCount) || 0,
+          Number(lifecycleState.startupFailures) || 0
+        );
+      }
+    }
+    const quarantine = resolveQuarantineForFailure(session.poisonReason, lifecycleState, session.healthRecord);
+    if (session.healthRecord.recoveryProbeActive === true) {
+      completeRecoveryProbe(session.healthRecord, false, quarantine.reasonCode);
+    } else {
+      armQuarantine(session.healthRecord, quarantine.level, quarantine.reasonCode);
+    }
+  }
   session.state = SESSION_STATE.POISONED;
 };
 
@@ -398,6 +595,7 @@ const shouldInitializeSession = (session) => {
 const createSession = (options) => {
   const key = buildSessionKey(options);
   const now = Date.now();
+  const healthRecord = options.healthRecord || getOrCreateSessionHealthRecord(key);
   const lifecycleHealth = createToolingLifecycleHealth({
     name: options.lifecycleName || options.cmd,
     restartWindowMs: options.lifecycleRestartWindowMs,
@@ -466,6 +664,7 @@ const createSession = (options) => {
     lifecycleName: options.lifecycleName || options.cmd,
     handlers,
     options,
+    healthRecord,
     transportGeneration: 0,
     initializedGeneration: -1,
     initializeResult: null,
@@ -610,11 +809,22 @@ const ensureCleanupTimer = () => {
 
 const getOrCreateSession = async (options) => {
   const key = buildSessionKey(options);
+  const healthRecord = getOrCreateSessionHealthRecord(key);
   return await withSessionCreationBarrier(key, async () => {
     if (drainSessionPoolPromise) {
       await drainSessionPoolPromise.catch(() => {});
     }
     await awaitSessionDisposalBarrier(key);
+    const quarantineState = resolveQuarantineState(healthRecord);
+    if (quarantineState.active) {
+      const err = new Error(`LSP provider quarantined (${quarantineState.reasonCode || quarantineState.level || 'unknown'}).`);
+      err.code = 'TOOLING_QUARANTINED';
+      err.detail = quarantineState;
+      throw err;
+    }
+    if (quarantineState.level && quarantineState.active !== true && quarantineState.recoveryProbeActive !== true) {
+      beginRecoveryProbe(healthRecord);
+    }
     const now = Date.now();
     const existing = sessions.get(key);
     if (existing && !existing.disposed) {
@@ -642,7 +852,7 @@ const getOrCreateSession = async (options) => {
       maxEntries: options?.sessionPoolMaxEntries,
       protectedKey: key
     });
-    const next = createSession(options);
+    const next = createSession({ ...options, healthRecord });
     sessions.set(key, next);
     await evictIdleSessionsForCapacity({
       maxEntries: options?.sessionPoolMaxEntries,
@@ -840,8 +1050,9 @@ export const withLspSession = async (options, fn) => {
   const leaseMarkInitializing = () => {
     markSessionInitializing(session);
   };
+  let fnSucceeded = false;
   try {
-    return await fn({
+    const result = await fn({
       client: session.client,
       guard: session.guard,
       lifecycleHealth: session.lifecycleHealth,
@@ -855,10 +1066,16 @@ export const withLspSession = async (options, fn) => {
       initializationResult: session.initializeResult,
       shouldInitialize: shouldInitializeSession(session),
       isTransportRunning: isSessionTransportRunning(session),
+      getReliabilityState: () => ({
+        ...(session.lifecycleHealth?.getState ? session.lifecycleHealth.getState() : {}),
+        quarantine: resolveQuarantineState(session.healthRecord)
+      }),
       markInitializing: leaseMarkInitializing,
       markInitialized: leaseMarkInitialized,
       markPoisoned: leaseMarkPoisoned
     });
+    fnSucceeded = true;
+    return result;
   } finally {
     session.handlers.onNotification = null;
     session.handlers.onRequest = null;
@@ -867,6 +1084,9 @@ export const withLspSession = async (options, fn) => {
     let disposalPromise = null;
     session.activeCount = Math.max(0, session.activeCount - 1);
     session.lastUsedAt = Date.now();
+    if (fnSucceeded && session.healthRecord?.recoveryProbeActive === true && session.state !== SESSION_STATE.POISONED) {
+      completeRecoveryProbe(session.healthRecord, true);
+    }
     refreshSessionState(session);
     const activeSession = sessions.get(session.key);
     if (activeSession !== session && session.activeCount === 0) {
@@ -908,12 +1128,15 @@ export const __testLspSessionPool = {
   async reset() {
     const live = Array.from(sessions.values());
     killAllSessionsNow();
+    sessionHealthRecords.clear();
     for (const session of live) {
       await disposeSessionClient(session);
     }
     drainSessionPoolPromise = null;
     activeDisposals.clear();
     testHooks.disposeDelayMs = 0;
+    testHooks.shortQuarantineMs = null;
+    testHooks.extendedQuarantineMs = null;
     cleanupPassQueue = Promise.resolve();
     sessionPoolMetrics.cleanupPassFailures = 0;
     sessionPoolMetrics.disposalFailures = 0;
@@ -927,8 +1150,15 @@ export const __testLspSessionPool = {
   setDisposeDelayMs(value) {
     testHooks.disposeDelayMs = toNonNegativeInt(value, 0);
   },
+  setQuarantineDurations({ shortMs = null, extendedMs = null } = {}) {
+    testHooks.shortQuarantineMs = shortMs == null ? null : toPositiveInt(shortMs, DEFAULT_SHORT_QUARANTINE_MS, 100);
+    testHooks.extendedQuarantineMs = extendedMs == null ? null : toPositiveInt(extendedMs, DEFAULT_EXTENDED_QUARANTINE_MS, 100);
+  },
   getPendingDisposals() {
     return disposalBarriers.size;
+  },
+  getHealthRecordCount() {
+    return sessionHealthRecords.size;
   },
   getMetrics() {
     return {
@@ -938,5 +1168,8 @@ export const __testLspSessionPool = {
       queueBarrierFailures: Number(sessionPoolMetrics.queueBarrierFailures) || 0,
       maxSessionEvictions: Number(sessionPoolMetrics.maxSessionEvictions) || 0
     };
+  },
+  getHealthStateForKey(key) {
+    return resolveQuarantineState(sessionHealthRecords.get(String(key || '')));
   }
 };
