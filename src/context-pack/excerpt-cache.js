@@ -90,7 +90,7 @@ const readFileRangeCached = (filePath, start, end, cacheScope) => {
   return text;
 };
 
-const prefetchFileRanges = (ranges, cacheScope) => {
+export const prefetchFileRanges = (ranges, cacheScope) => {
   if (!Array.isArray(ranges) || !ranges.length) return;
   for (const range of ranges) {
     if (!range?.filePath) continue;
@@ -106,7 +106,7 @@ const prefetchFileRanges = (ranges, cacheScope) => {
   }
 };
 
-const isPathInsideRepo = (repoRoot, filePath) => {
+export const isPathInsideRepo = (repoRoot, filePath) => {
   const relative = path.relative(repoRoot, filePath);
   if (!relative) return true;
   if (isRelativePathEscape(relative)) return false;
@@ -138,7 +138,7 @@ const sliceExcerpt = (text, maxBytes, maxTokens) => {
   return { excerpt, truncated, truncatedBytes, truncatedTokens };
 };
 
-const resolveExcerpt = ({
+export const resolveExcerpt = ({
   filePath,
   start,
   end,

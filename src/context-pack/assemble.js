@@ -49,7 +49,10 @@ import {
 import {
   buildPrimaryExcerpt,
   clearContextPackCaches,
-  normalizeTypeFacts
+  isPathInsideRepo,
+  normalizeTypeFacts,
+  prefetchFileRanges,
+  resolveExcerpt
 } from './excerpt-cache.js';
 import {
   rankPartialRiskFlows,

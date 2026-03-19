@@ -150,16 +150,14 @@ function createTrackedStatusBarItem(statusBarItems) {
 function normalizeEditor(editor, decorationApplications) {
   if (!editor) return null;
   if (typeof editor.setDecorations === 'function') return editor;
-  return {
-    ...editor,
-    setDecorations(decorationType, decorations) {
-      decorationApplications.push({
-        editor: this,
-        decorationType,
-        decorations
-      });
-    }
+  editor.setDecorations = function setDecorations(decorationType, decorations) {
+    decorationApplications.push({
+      editor: this,
+      decorationType,
+      decorations
+    });
   };
+  return editor;
 }
 
 function createFakeFetch(fetchCalls, queuedFetchResults, implementation = null) {

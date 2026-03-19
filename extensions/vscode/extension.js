@@ -245,9 +245,9 @@ function readApiSettings(config) {
 }
 
 function readInlineSettings(config) {
-  const inlineHoverEnabled = config.get(VSCODE_SETTINGS.inlineHoverEnabledKey) !== false;
-  const inlineDiagnosticsEnabled = config.get(VSCODE_SETTINGS.inlineDiagnosticsEnabledKey) !== false;
-  const inlineDecorationsEnabled = config.get(VSCODE_SETTINGS.inlineDecorationsEnabledKey) !== false;
+  const inlineHoverEnabled = config.get(VSCODE_SETTINGS.inlineHoverEnabledKey) === true;
+  const inlineDiagnosticsEnabled = config.get(VSCODE_SETTINGS.inlineDiagnosticsEnabledKey) === true;
+  const inlineDecorationsEnabled = config.get(VSCODE_SETTINGS.inlineDecorationsEnabledKey) === true;
   const rawMaxItems = Number(config.get(VSCODE_SETTINGS.inlineMaxItemsKey));
   const maxItems = Number.isFinite(rawMaxItems) && rawMaxItems > 0
     ? Math.max(1, Math.floor(rawMaxItems))

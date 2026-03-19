@@ -299,6 +299,16 @@ const riskInterproceduralStats = {
           properties: {
             version: nullableString,
             fingerprint: nullableString,
+            roleModel: {
+              type: ['object', 'null'],
+              properties: {
+                version: nullableString,
+                directRoles: { type: 'array', items: { type: 'string' } },
+                propagatorLikeRoles: { type: 'array', items: { type: 'string' } },
+                propagatorLikeEncoding: nullableString
+              },
+              additionalProperties: false
+            },
             provenance: { type: ['object', 'null'], additionalProperties: true }
           },
           additionalProperties: false
