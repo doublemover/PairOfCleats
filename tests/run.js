@@ -225,7 +225,6 @@ const main = async () => {
 
   const isCiLiteOnly = requestedLanes.length === 1 && requestedLanes[0] === 'ci-lite';
   const isCiOnly = requestedLanes.length === 1 && requestedLanes[0] === 'ci';
-  const isCiLongOnly = requestedLanes.length === 1 && requestedLanes[0] === 'ci-long';
   const orderedLane = (() => {
     const normalized = requestedLanes.filter((lane) => lane && lane !== 'all');
     if (normalized.length !== 1) {
@@ -234,9 +233,6 @@ const main = async () => {
     const lane = normalized[0];
     return ORDERED_LANES.has(lane) ? lane : '';
   })();
-  if (requestedLanes.includes('ci-long') && !tagInclude.includes('long')) {
-    tagInclude.push('long');
-  }
 
   if (argv['list-lanes'] || argv['list-tags']) {
     const payload = {};
