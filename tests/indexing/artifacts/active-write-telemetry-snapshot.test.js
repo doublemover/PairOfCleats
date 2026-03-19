@@ -44,6 +44,28 @@ assert.equal(
   'job=1, prefetch-wait=1, scheduler-wait=1',
   'expected stable phase histogram summary'
 );
+assert.equal(snapshot.stallOwner, null, 'expected non-executing phases to avoid synthetic stall ownership');
+
+const closeoutSnapshot = buildActiveWriteTelemetrySnapshot({
+  activeWrites: new Map([
+    ['closeout/pieces-manifest', 1000],
+    ['chunk_meta.binary-columnar.bundle', 4000]
+  ]),
+  activeWriteBytes: new Map([
+    ['closeout/pieces-manifest', 0],
+    ['chunk_meta.binary-columnar.bundle', 1024]
+  ]),
+  activeWriteMeta: new Map([
+    ['closeout/pieces-manifest', { phase: 'closeout:pieces-manifest', lane: 'closeout' }],
+    ['chunk_meta.binary-columnar.bundle', { phase: 'materialize:chunk-meta-binary-columnar', lane: 'massive' }]
+  ]),
+  now: 8000
+});
+assert.equal(
+  closeoutSnapshot.stallOwner,
+  'closeout:pieces-manifest',
+  'expected closeout work to surface as the active stall owner before generic non-write attribution'
+);
 assert.equal(
   resolveActiveWritePhaseLabel('closeout/pieces-manifest'),
   'closeout:pieces-manifest',

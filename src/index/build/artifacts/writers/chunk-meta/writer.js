@@ -836,6 +836,7 @@ export const enqueueChunkMetaArtifacts = async ({
         };
         const fileTable = [];
         const fileRefByPath = new Map();
+        let serializationMs = 0;
         let sourceRows = Array.isArray(preparedColumnarHotRows)
           ? preparedColumnarHotRows
           : mapRows(chunkMetaIterator(0, chunkMetaCount, false), (entry) => projectHotEntry(entry));
@@ -862,7 +863,10 @@ export const enqueueChunkMetaArtifacts = async ({
               next.fileRef = fileRef;
               delete next.file;
             }
-            yield JSON.stringify(next);
+            const serializationStartedAt = Date.now();
+            const payload = JSON.stringify(next);
+            serializationMs += Math.max(0, Date.now() - serializationStartedAt);
+            yield payload;
           }
         })();
         const frames = await writeBinaryRowFrames({
@@ -871,8 +875,10 @@ export const enqueueChunkMetaArtifacts = async ({
           offsetsPath: binaryOffsetsPath,
           lengthsPath: binaryLengthsPath
         });
+        const framePhaseTimings = typeof frames?.phaseTimings === 'object' ? frames.phaseTimings : {};
         setPhase?.('publish:chunk-meta-binary-meta');
-        await writeJsonObjectFile(binaryMetaPath, {
+        const publishStartedAt = Date.now();
+        const metaWriteResult = await writeJsonObjectFile(binaryMetaPath, {
           fields: {
             format: 'binary-columnar-v1',
             rowEncoding: 'json-rows',
@@ -888,6 +894,27 @@ export const enqueueChunkMetaArtifacts = async ({
           },
           atomic: true
         });
+        const publishMs = (Number(framePhaseTimings.publishMs) || 0) + Math.max(0, Date.now() - publishStartedAt);
+        return {
+          bytes: Number.isFinite(Number(metaWriteResult?.bytes)) ? Number(metaWriteResult.bytes) : null,
+          checksum: typeof metaWriteResult?.checksum === 'string' ? metaWriteResult.checksum : null,
+          checksumAlgo: typeof metaWriteResult?.checksumAlgo === 'string' ? metaWriteResult.checksumAlgo : null,
+          serializationMs,
+          diskMs: (Number(framePhaseTimings.flushMs) || 0)
+            + (Number(framePhaseTimings.fsyncMs) || 0)
+            + publishMs,
+          phaseTimings: {
+            computeMs: 0,
+            serializationMs,
+            compressionMs: Number(framePhaseTimings.compressionMs) || 0,
+            flushMs: Number(framePhaseTimings.flushMs) || 0,
+            fsyncMs: Number(framePhaseTimings.fsyncMs) || 0,
+            publishMs,
+            manifestWaitMs: Number(framePhaseTimings.manifestWaitMs) || 0,
+            backpressureWaitMs: Number(framePhaseTimings.backpressureWaitMs) || 0
+          },
+          directFdStreaming: true
+        };
       },
       {
         // Start binary-columnar generation early so it overlaps other long

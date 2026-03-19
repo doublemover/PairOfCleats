@@ -175,6 +175,9 @@ export const writeBinaryRowFrames = async ({
   );
   let cursor = 0;
   let count = 0;
+  let flushMs = 0;
+  let fsyncMs = 0;
+  let publishMs = 0;
   const tempDataPath = createTempPath(dataPath);
   const tempOffsetsPath = createTempPath(offsetsPath);
   const tempLengthsPath = createTempPath(lengthsPath);
@@ -193,23 +196,31 @@ export const writeBinaryRowFrames = async ({
       const rowOffset = cursor;
       cursor += payload.length;
       if (payload.length) {
+        const payloadWriteStartedAt = Date.now();
         await writeAllToHandle(dataHandle, payload, rowOffset);
+        flushMs += Math.max(0, Date.now() - payloadWriteStartedAt);
       }
       const offsetBuffer = Buffer.allocUnsafe(OFFSET_BYTES);
       offsetBuffer.writeBigUInt64LE(BigInt(rowOffset));
+      const offsetWriteStartedAt = Date.now();
       await writeAllToHandle(offsetsHandle, offsetBuffer, null);
+      flushMs += Math.max(0, Date.now() - offsetWriteStartedAt);
+      const lengthWriteStartedAt = Date.now();
       await writeAllToHandle(lengthsHandle, encodeVarint64(payload.length), null);
+      flushMs += Math.max(0, Date.now() - lengthWriteStartedAt);
       count += 1;
     }
     if (resolvedPreallocateBytes > 0 && cursor !== resolvedPreallocateBytes) {
       await dataHandle.truncate(cursor);
     }
     wrotePayload = true;
+    const syncStartedAt = Date.now();
     await Promise.all([
       dataHandle.sync(),
       offsetsHandle.sync(),
       lengthsHandle.sync()
     ]);
+    fsyncMs += Math.max(0, Date.now() - syncStartedAt);
   } finally {
     await Promise.allSettled([
       dataHandle.close(),
@@ -226,9 +237,11 @@ export const writeBinaryRowFrames = async ({
     throw new Error('Failed to materialize binary-columnar payload.');
   }
   try {
+    const publishStartedAt = Date.now();
     await replaceTempBinarySidecar(tempOffsetsPath, offsetsPath);
     await replaceTempBinarySidecar(tempLengthsPath, lengthsPath);
     await replaceTempBinarySidecar(tempDataPath, dataPath);
+    publishMs += Math.max(0, Date.now() - publishStartedAt);
   } catch (error) {
     await Promise.allSettled([
       removeTempPathIfPresent(tempDataPath),
@@ -240,7 +253,17 @@ export const writeBinaryRowFrames = async ({
   return {
     count,
     totalBytes: cursor,
-    preallocatedBytes: resolvedPreallocateBytes
+    preallocatedBytes: resolvedPreallocateBytes,
+    phaseTimings: {
+      computeMs: 0,
+      serializationMs: 0,
+      compressionMs: 0,
+      flushMs,
+      fsyncMs,
+      publishMs,
+      manifestWaitMs: 0,
+      backpressureWaitMs: 0
+    }
   };
 };
 

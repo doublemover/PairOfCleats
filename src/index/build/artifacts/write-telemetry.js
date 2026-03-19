@@ -4,6 +4,23 @@ import { resolveArtifactWritePhaseClass } from './write-strategy.js';
 const toPosix = (value) => String(value || '').replace(/\\/g, '/');
 const LARGE_STALL_THRESHOLD_BYTES = 128 * 1024 * 1024;
 const HUGE_STALL_THRESHOLD_BYTES = 768 * 1024 * 1024;
+const ARTIFACT_PHASE_TIMING_KEYS = Object.freeze([
+  'computeMs',
+  'serializationMs',
+  'compressionMs',
+  'flushMs',
+  'fsyncMs',
+  'publishMs',
+  'manifestWaitMs',
+  'backpressureWaitMs',
+  'diskMs'
+]);
+
+const toNonNegativeNumberOrNull = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return parsed;
+};
 
 export const resolveActiveWritePhaseLabel = (label, phaseHint = null) => {
   const hinted = typeof phaseHint === 'string' ? phaseHint.trim() : '';
@@ -64,6 +81,56 @@ export const resolveArtifactWriteStallThresholds = ({
   return thresholds.map((thresholdSec) => Math.max(1, Math.ceil(Number(thresholdSec) * scale)));
 };
 
+export const normalizeArtifactPhaseTimings = (phaseTimings = null, fallback = {}) => {
+  const input = phaseTimings && typeof phaseTimings === 'object' ? phaseTimings : {};
+  const normalized = {
+    computeMs: toNonNegativeNumberOrNull(input.computeMs ?? input.materializeMs),
+    serializationMs: toNonNegativeNumberOrNull(input.serializationMs),
+    compressionMs: toNonNegativeNumberOrNull(input.compressionMs),
+    flushMs: toNonNegativeNumberOrNull(input.flushMs),
+    fsyncMs: toNonNegativeNumberOrNull(input.fsyncMs),
+    publishMs: toNonNegativeNumberOrNull(input.publishMs),
+    manifestWaitMs: toNonNegativeNumberOrNull(input.manifestWaitMs),
+    backpressureWaitMs: toNonNegativeNumberOrNull(input.backpressureWaitMs),
+    diskMs: toNonNegativeNumberOrNull(input.diskMs)
+  };
+  const fallbackSerializationMs = toNonNegativeNumberOrNull(fallback?.serializationMs);
+  if (normalized.serializationMs == null && fallbackSerializationMs != null) {
+    normalized.serializationMs = fallbackSerializationMs;
+  }
+  const derivedDiskMs = [normalized.flushMs, normalized.fsyncMs, normalized.publishMs]
+    .filter((value) => value != null)
+    .reduce((total, value) => total + value, 0);
+  const fallbackDiskMs = toNonNegativeNumberOrNull(fallback?.diskMs);
+  if (normalized.diskMs == null) {
+    if (derivedDiskMs > 0) {
+      normalized.diskMs = derivedDiskMs;
+    } else if (fallbackDiskMs != null) {
+      normalized.diskMs = fallbackDiskMs;
+    }
+  } else if (derivedDiskMs > 0) {
+    normalized.diskMs = Math.max(normalized.diskMs, derivedDiskMs);
+  }
+  if (normalized.diskMs == null && normalized.serializationMs != null && fallback?.durationMs != null) {
+    const durationMs = toNonNegativeNumberOrNull(fallback.durationMs);
+    if (durationMs != null) {
+      normalized.diskMs = Math.max(0, durationMs - normalized.serializationMs);
+    }
+  }
+  const hasAnyTiming = ARTIFACT_PHASE_TIMING_KEYS.some((key) => normalized[key] != null);
+  return hasAnyTiming ? normalized : null;
+};
+
+export const resolveActiveWriteStallOwner = (entries = []) => {
+  const list = Array.isArray(entries) ? entries : [];
+  const preferredPhaseClasses = ['closeout', 'publish', 'materialize', 'execute'];
+  for (const phaseClass of preferredPhaseClasses) {
+    const match = list.find((entry) => entry?.phaseClass === phaseClass && typeof entry?.phase === 'string');
+    if (match) return match.phase;
+  }
+  return null;
+};
+
 /**
  * Record one artifact write metric row and update queue-delay histograms.
  *
@@ -84,6 +151,17 @@ export const recordArtifactMetricRow = ({
   if (!label) return;
   const existing = artifactMetrics.get(label) || { path: label };
   const nextMetric = { ...existing, ...metric };
+  const normalizedPhaseTimings = normalizeArtifactPhaseTimings(metric?.phaseTimings, {
+    durationMs: metric?.durationMs,
+    serializationMs: metric?.serializationMs,
+    diskMs: metric?.diskMs
+  });
+  if (normalizedPhaseTimings) {
+    nextMetric.phaseTimings = normalizedPhaseTimings;
+    for (const key of ARTIFACT_PHASE_TIMING_KEYS) {
+      nextMetric[key] = normalizedPhaseTimings[key];
+    }
+  }
   const queueDelayMs = Number(metric?.queueDelayMs);
   if (Number.isFinite(queueDelayMs) && queueDelayMs >= 0) {
     const samples = artifactQueueDelaySamples.get(label) || [];
@@ -114,7 +192,8 @@ export const recordArtifactMetricRow = ({
  *   inflight:Array<{label:string,elapsedSec:number,estimatedBytes:number|null,phase:string,lane:string|null}>,
  *   previewText:string,
  *   phaseSummaryText:string,
- *   phaseByLabel:Map<string,string>
+ *   phaseByLabel:Map<string,string>,
+ *   stallOwner:string|null
  * }}
  */
 export const buildActiveWriteTelemetrySnapshot = ({
@@ -164,7 +243,8 @@ export const buildActiveWriteTelemetrySnapshot = ({
     inflight: entries,
     previewText,
     phaseSummaryText,
-    phaseByLabel
+    phaseByLabel,
+    stallOwner: resolveActiveWriteStallOwner(entries)
   };
 };
 

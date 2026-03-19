@@ -74,6 +74,31 @@ export const resolveArtifactWritePhaseClass = (phase) => {
   return 'other';
 };
 
+export const resolveArtifactWriteStallAttribution = ({
+  longestStallSec = 0,
+  attributedToWriteQueue = false,
+  hasSchedulerWriteSignals = false,
+  activeStallOwner = null
+} = {}) => {
+  if (!Number.isFinite(Number(longestStallSec)) || Number(longestStallSec) <= 0) return 'none';
+  if (attributedToWriteQueue) return 'write-queue';
+  if (typeof activeStallOwner === 'string' && activeStallOwner.trim()) {
+    return activeStallOwner.trim();
+  }
+  if (hasSchedulerWriteSignals) return 'non-write';
+  return 'unknown';
+};
+
+export const isNonQueueArtifactStallAttribution = (stallAttribution) => {
+  const normalized = typeof stallAttribution === 'string' ? stallAttribution.trim().toLowerCase() : '';
+  return Boolean(
+    normalized
+    && normalized !== 'none'
+    && normalized !== 'write-queue'
+    && normalized !== 'unknown'
+  );
+};
+
 export const resolveArtifactPhaseBudgetWeight = (phase) => {
   const phaseClass = resolveArtifactWritePhaseClass(phase);
   switch (phaseClass) {
@@ -390,7 +415,7 @@ const isMicroCoalescibleWrite = (entry, maxEntryBytes) => {
  * @param {number} [input.writeQueueWaitP95MsThreshold]
  * @param {() => number} [input.now]
  * @param {(event:{reason:string,from:number,to:number,pendingWrites:number,activeWrites:number,longestStallSec:number,memoryPressure:number|null,gcPressure:number|null,rssUtilization:number|null,schedulerWritePending:number|null,schedulerWriteOldestWaitMs:number|null,schedulerWriteWaitP95Ms:number|null,stallAttribution:string}) => void} [input.onChange]
- * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,activeWriteBytes?:number,longestStallSec?:number,memoryPressure?:number|null,gcPressure?:number|null,rssUtilization?:number|null,schedulerWritePending?:number|null,schedulerWriteOldestWaitMs?:number|null,schedulerWriteWaitP95Ms?:number|null})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
+ * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,activeWriteBytes?:number,longestStallSec?:number,memoryPressure?:number|null,gcPressure?:number|null,rssUtilization?:number|null,schedulerWritePending?:number|null,schedulerWriteOldestWaitMs?:number|null,schedulerWriteWaitP95Ms?:number|null,activeStallOwner?:string|null})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
  */
 export const createAdaptiveWriteConcurrencyController = (input = {}) => {
   const maxConcurrency = clampWriteConcurrency(input.maxConcurrency, 1);
@@ -502,6 +527,9 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
     const activeWriteBytes = Number.isFinite(Number(snapshot.activeWriteBytes))
       ? Math.max(0, Math.floor(Number(snapshot.activeWriteBytes)))
       : 0;
+    const activeStallOwner = typeof snapshot.activeStallOwner === 'string' && snapshot.activeStallOwner.trim()
+      ? snapshot.activeStallOwner.trim()
+      : null;
     const hasSchedulerWriteSignals = (
       schedulerWritePending != null
       || schedulerWriteOldestWaitMs != null
@@ -523,15 +551,12 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       && (schedulerWritePending == null || schedulerWritePending <= 0)
       && (schedulerWriteOldestWaitMs == null || schedulerWriteOldestWaitMs <= 0)
       && (schedulerWriteWaitP95Ms == null || schedulerWriteWaitP95Ms <= 1);
-    const stallAttribution = (
-      longestStallSec <= 0
-        ? 'none'
-        : (
-          attributedToWriteQueue
-            ? 'write-queue'
-            : (hasSchedulerWriteSignals ? 'non-write' : 'unknown')
-        )
-    );
+    const stallAttribution = resolveArtifactWriteStallAttribution({
+      longestStallSec,
+      attributedToWriteQueue,
+      hasSchedulerWriteSignals,
+      activeStallOwner
+    });
     const nowValue = now();
     const timestamp = Number.isFinite(Number(nowValue)) ? Number(nowValue) : Date.now();
     const backlogPerSlot = pendingWrites / Math.max(1, currentConcurrency);
@@ -586,7 +611,7 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       canScaleDown
       && pendingWrites > 0
       && longestStallSec >= stallScaleDownSeconds
-      && attributedToWriteQueue
+      && stallAttribution === 'write-queue'
     ) {
       const severeQueueStall = (
         schedulerWritePending != null
@@ -614,7 +639,7 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
     if (
       canScaleDown
       && longestStallSec >= stallScaleDownSeconds
-      && stallAttribution === 'non-write'
+      && isNonQueueArtifactStallAttribution(stallAttribution)
       && activeWriteBytes >= nonWriteHighBytesThreshold
     ) {
       currentConcurrency = Math.max(minConcurrency, currentConcurrency - 1);
@@ -664,7 +689,7 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       && pendingWrites > 0
       && backlogPerSlot >= scaleUpBacklogPerSlot
       && longestStallSec <= stallScaleUpGuardSeconds
-      && stallAttribution !== 'non-write'
+      && !isNonQueueArtifactStallAttribution(stallAttribution)
     ) {
       currentConcurrency += 1;
       lastScaleUpAt = timestamp;
@@ -686,7 +711,7 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       && lowMemoryPressure
       && backlogPerSlot >= Math.max(0.75, scaleUpBacklogPerSlot * 0.6)
       && longestStallSec <= Math.max(1, stallScaleUpGuardSeconds * 0.75)
-      && stallAttribution !== 'non-write'
+      && !isNonQueueArtifactStallAttribution(stallAttribution)
     ) {
       currentConcurrency += 1;
       lastScaleUpAt = timestamp;

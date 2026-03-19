@@ -7,7 +7,7 @@ import { MAX_JSON_BYTES, readJsonFile, loadJsonArrayArtifact } from '../../share
 import { resolveArtifactCompressionTier } from '../../shared/artifact-io/compression.js';
 import { toPosix } from '../../shared/files.js';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
-import { createJsonWriteStream, writeChunk } from '../../shared/json-stream/streams.js';
+import { createJsonWriteStream, writeChunk, writeChunkWithTiming } from '../../shared/json-stream/streams.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { ensureDiskSpace } from '../../shared/disk-space.js';
 import { writeDenseVectorBinaryFile } from '../../shared/dense-vector-artifacts.js';
@@ -2149,7 +2149,8 @@ export async function writeIndexArtifacts(input) {
       const writeFieldPostingsPartition = async (part) => {
         const startedAt = Date.now();
         let serializationMs = 0;
-        let diskMs = 0;
+        let flushMs = 0;
+        let backpressureWaitMs = 0;
         const {
           stream,
           done,
@@ -2158,9 +2159,9 @@ export async function writeIndexArtifacts(input) {
           checksumAlgo
         } = createJsonWriteStream(part.absPath, { atomic: true, checksumAlgo: 'sha1' });
         try {
-          let writeStart = Date.now();
-          await writeChunk(stream, '{"fields":{');
-          diskMs += Math.max(0, Date.now() - writeStart);
+          let chunkTiming = await writeChunkWithTiming(stream, '{"fields":{');
+          flushMs += chunkTiming.flushMs;
+          backpressureWaitMs += chunkTiming.backpressureWaitMs;
           let first = true;
           for (let index = part.start; index < part.end; index += 1) {
             const field = fieldNames[index];
@@ -2168,22 +2169,34 @@ export async function writeIndexArtifacts(input) {
             const serializeStart = Date.now();
             const row = `${first ? '' : ','}${JSON.stringify(field)}:${JSON.stringify(value)}`;
             serializationMs += Math.max(0, Date.now() - serializeStart);
-            writeStart = Date.now();
-            await writeChunk(stream, row);
-            diskMs += Math.max(0, Date.now() - writeStart);
+            chunkTiming = await writeChunkWithTiming(stream, row);
+            flushMs += chunkTiming.flushMs;
+            backpressureWaitMs += chunkTiming.backpressureWaitMs;
             first = false;
           }
-          writeStart = Date.now();
-          await writeChunk(stream, '}}\n');
+          chunkTiming = await writeChunkWithTiming(stream, '}}\n');
+          flushMs += chunkTiming.flushMs;
+          backpressureWaitMs += chunkTiming.backpressureWaitMs;
           stream.end();
+          const publishStartedAt = Date.now();
           await done;
-          diskMs += Math.max(0, Date.now() - writeStart);
+          const publishMs = Math.max(0, Date.now() - publishStartedAt);
           return {
             bytes: Number.isFinite(getBytesWritten?.()) ? getBytesWritten() : null,
             checksum: typeof getChecksum === 'function' ? getChecksum() : null,
             checksumAlgo: checksumAlgo || null,
             serializationMs,
-            diskMs,
+            diskMs: flushMs + publishMs,
+            phaseTimings: {
+              computeMs: 0,
+              serializationMs,
+              compressionMs: 0,
+              flushMs,
+              fsyncMs: 0,
+              publishMs,
+              manifestWaitMs: 0,
+              backpressureWaitMs
+            },
             directFdStreaming: true,
             durationMs: Math.max(0, Date.now() - startedAt)
           };
@@ -2266,7 +2279,8 @@ export async function writeIndexArtifacts(input) {
         const targetPath = path.join(outDir, 'field_postings.json');
         const startedAt = Date.now();
         let serializationMs = 0;
-        let diskMs = 0;
+        let flushMs = 0;
+        let backpressureWaitMs = 0;
         const {
           stream,
           done,
@@ -2275,9 +2289,9 @@ export async function writeIndexArtifacts(input) {
           checksumAlgo
         } = createJsonWriteStream(targetPath, { atomic: true, checksumAlgo: 'sha1' });
         try {
-          let writeStart = Date.now();
-          await writeChunk(stream, '{"fields":{');
-          diskMs += Math.max(0, Date.now() - writeStart);
+          let chunkTiming = await writeChunkWithTiming(stream, '{"fields":{');
+          flushMs += chunkTiming.flushMs;
+          backpressureWaitMs += chunkTiming.backpressureWaitMs;
           let first = true;
           for (const part of partFiles) {
             for (let index = part.start; index < part.end; index += 1) {
@@ -2286,23 +2300,35 @@ export async function writeIndexArtifacts(input) {
               const serializeStart = Date.now();
               const row = `${first ? '' : ','}${JSON.stringify(field)}:${JSON.stringify(value)}`;
               serializationMs += Math.max(0, Date.now() - serializeStart);
-              writeStart = Date.now();
-              await writeChunk(stream, row);
-              diskMs += Math.max(0, Date.now() - writeStart);
+              chunkTiming = await writeChunkWithTiming(stream, row);
+              flushMs += chunkTiming.flushMs;
+              backpressureWaitMs += chunkTiming.backpressureWaitMs;
               first = false;
             }
           }
-          writeStart = Date.now();
-          await writeChunk(stream, '}}\n');
+          chunkTiming = await writeChunkWithTiming(stream, '}}\n');
+          flushMs += chunkTiming.flushMs;
+          backpressureWaitMs += chunkTiming.backpressureWaitMs;
           stream.end();
+          const publishStartedAt = Date.now();
           await done;
-          diskMs += Math.max(0, Date.now() - writeStart);
+          const publishMs = Math.max(0, Date.now() - publishStartedAt);
           return {
             bytes: Number.isFinite(getBytesWritten?.()) ? getBytesWritten() : null,
             checksum: typeof getChecksum === 'function' ? getChecksum() : null,
             checksumAlgo: checksumAlgo || null,
             serializationMs,
-            diskMs,
+            diskMs: flushMs + publishMs,
+            phaseTimings: {
+              computeMs: 0,
+              serializationMs,
+              compressionMs: 0,
+              flushMs,
+              fsyncMs: 0,
+              publishMs,
+              manifestWaitMs: 0,
+              backpressureWaitMs
+            },
             directFdStreaming: true,
             durationMs: Math.max(0, Date.now() - startedAt)
           };
@@ -2344,13 +2370,16 @@ export async function writeIndexArtifacts(input) {
         fieldPostingsBinaryTaskLabel,
         async ({ setPhase } = {}) => {
           setPhase?.('materialize:field-postings-binary-columnar');
-          const serializationStartedAt = Date.now();
+          let serializationMs = 0;
           const rowPayloads = (async function* binaryRows() {
             for (const field of fieldNames) {
-              yield JSON.stringify({
+              const serializationStartedAt = Date.now();
+              const payload = JSON.stringify({
                 field,
                 postings: fieldPostingsObject[field]
               });
+              serializationMs += Math.max(0, Date.now() - serializationStartedAt);
+              yield payload;
             }
           })();
           const binaryWriteHints = resolveBinaryColumnarWriteHints({
@@ -2365,9 +2394,9 @@ export async function writeIndexArtifacts(input) {
             lengthsPath: fieldPostingsBinaryLengthsPath,
             writeHints: binaryWriteHints
           });
-          const serializationMs = Math.max(0, Date.now() - serializationStartedAt);
-          const diskStartedAt = Date.now();
+          const framePhaseTimings = typeof frames?.phaseTimings === 'object' ? frames.phaseTimings : {};
           setPhase?.('publish:field-postings-binary-meta');
+          const publishStartedAt = Date.now();
           const binaryMetaResult = await writeJsonObjectFile(fieldPostingsBinaryMetaPath, {
             fields: {
               format: 'binary-columnar-v1',
@@ -2382,12 +2411,25 @@ export async function writeIndexArtifacts(input) {
             checksumAlgo: 'sha1',
             atomic: true
           });
+          const publishMs = (Number(framePhaseTimings.publishMs) || 0) + Math.max(0, Date.now() - publishStartedAt);
           return {
             bytes: Number.isFinite(Number(binaryMetaResult?.bytes)) ? Number(binaryMetaResult.bytes) : null,
             checksum: typeof binaryMetaResult?.checksum === 'string' ? binaryMetaResult.checksum : null,
             checksumAlgo: typeof binaryMetaResult?.checksumAlgo === 'string' ? binaryMetaResult.checksumAlgo : null,
             serializationMs,
-            diskMs: Math.max(0, Date.now() - diskStartedAt),
+            diskMs: (Number(framePhaseTimings.flushMs) || 0)
+              + (Number(framePhaseTimings.fsyncMs) || 0)
+              + publishMs,
+            phaseTimings: {
+              computeMs: 0,
+              serializationMs,
+              compressionMs: Number(framePhaseTimings.compressionMs) || 0,
+              flushMs: Number(framePhaseTimings.flushMs) || 0,
+              fsyncMs: Number(framePhaseTimings.fsyncMs) || 0,
+              publishMs,
+              manifestWaitMs: Number(framePhaseTimings.manifestWaitMs) || 0,
+              backpressureWaitMs: Number(framePhaseTimings.backpressureWaitMs) || 0
+            },
             directFdStreaming: true
           };
         },

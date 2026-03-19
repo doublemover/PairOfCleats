@@ -139,6 +139,8 @@ export const dispatchArtifactWrites = async (input = {}) => {
       rescueState.longestStallSec >= adaptiveWriteStallScaleDownSeconds
       && !queueBackedUp
     );
+    const activeWriteSnapshot = getActiveWriteTelemetrySnapshot();
+    const activeStallOwner = activeWriteSnapshot.stallOwner || null;
     if (rescueState.active !== tailRescueActive) {
       tailRescueActive = rescueState.active;
       if (tailRescueActive) {
@@ -163,8 +165,8 @@ export const dispatchArtifactWrites = async (input = {}) => {
       const nowMs = Date.now();
       if ((nowMs - lastNonWriteStallLogAt) >= 10000) {
         lastNonWriteStallLogAt = nowMs;
-        const activeWriteSnapshot = getActiveWriteTelemetrySnapshot();
         const oldestInflight = activeWriteSnapshot.inflight[0] || null;
+        const stallAttribution = activeStallOwner || 'non-write';
         const phaseSuffix = activeWriteSnapshot.phaseSummaryText
           ? `, phases={${activeWriteSnapshot.phaseSummaryText}}`
           : '';
@@ -178,7 +180,7 @@ export const dispatchArtifactWrites = async (input = {}) => {
           ? `, hugeFamilies=${Array.from(hugeWriteState.families).sort().join('+')}, hugeBytes=${formatBytes(hugeWriteState.bytes)}`
           : '';
         logLine(
-          `[perf] artifact stall attribution: non-write ` +
+          `[perf] artifact stall attribution: ${stallAttribution} ` +
           `(active=${activeCount}, pendingWrites=${pendingWriteCount()}, ` +
           `writeQ.pending=${schedulerWritePending}, writeQ.oldest=${schedulerWriteOldestWaitMs}ms, ` +
           `writeQ.p95=${Number.isFinite(schedulerWriteWaitP95Ms) ? schedulerWriteWaitP95Ms : 'n/a'}ms` +
@@ -200,7 +202,8 @@ export const dispatchArtifactWrites = async (input = {}) => {
       rssUtilization: Number(memorySignals?.rssUtilization),
       schedulerWritePending,
       schedulerWriteOldestWaitMs,
-      schedulerWriteWaitP95Ms
+      schedulerWriteWaitP95Ms,
+      activeStallOwner
     });
   };
 
@@ -393,6 +396,9 @@ export const dispatchArtifactWrites = async (input = {}) => {
           throughputBytesPerSec,
           serializationMs,
           diskMs,
+          phaseTimings: writeResult?.phaseTimings && typeof writeResult.phaseTimings === 'object'
+            ? writeResult.phaseTimings
+            : null,
           directFdStreaming: writeResult?.directFdStreaming === true,
           tailRescueBoosted: rescueBoost === true,
           tailWorker: tailWorker === true,

@@ -97,9 +97,32 @@ export const waitForStreamEvent = async (stream, event, options = {}) => {
  * @returns {Promise<void>}
  */
 export const writeChunk = async (stream, chunk) => {
-  if (!stream.write(chunk)) {
-    await waitForStreamEvent(stream, 'drain', { label: 'writeChunk.drain' });
+  await writeChunkWithTiming(stream, chunk);
+};
+
+/**
+ * Write one chunk while exposing direct-write and backpressure wait timing.
+ *
+ * @param {import('node:stream').Writable} stream
+ * @param {string|Buffer|Uint8Array} chunk
+ * @returns {Promise<{flushMs:number,backpressureWaitMs:number}>}
+ */
+export const writeChunkWithTiming = async (stream, chunk) => {
+  const writeStartedAt = Date.now();
+  const accepted = stream.write(chunk);
+  const flushMs = Math.max(0, Date.now() - writeStartedAt);
+  if (accepted) {
+    return {
+      flushMs,
+      backpressureWaitMs: 0
+    };
   }
+  const waitStartedAt = Date.now();
+  await waitForStreamEvent(stream, 'drain', { label: 'writeChunk.drain' });
+  return {
+    flushMs,
+    backpressureWaitMs: Math.max(0, Date.now() - waitStartedAt)
+  };
 };
 
 /**
