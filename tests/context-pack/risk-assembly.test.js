@@ -484,6 +484,9 @@ assert.equal(fullPack.risk?.provenance?.indexSignature, 'sig-risk-assembly');
 assert.equal(fullPack.risk?.provenance?.indexCompatKey, 'compat-test');
 assert.equal(fullPack.risk?.provenance?.ruleBundle?.version, '1.0.0');
 assert.equal(fullPack.risk?.provenance?.ruleBundle?.fingerprint, 'sha1:rulebundle-risk-assembly');
+assert.equal(fullPack.risk?.provenance?.ruleBundle?.roleModel?.version, '1.0.0');
+assert.deepEqual(fullPack.risk?.provenance?.ruleBundle?.roleModel?.directRoles, ['source', 'sink', 'sanitizer']);
+assert.equal(fullPack.risk?.provenance?.ruleBundle?.roleModel?.propagatorLikeEncoding, 'watch-semantics');
 assert.equal(fullPack.risk?.provenance?.effectiveConfigFingerprint, 'sha1:config-risk-assembly');
 assert.equal(fullPack.risk?.provenance?.artifactRefs?.stats?.entrypoint, 'risk_interprocedural_stats.json');
 assert.equal(fullPack.risk?.provenance?.artifactRefs?.summaries?.entrypoint, 'risk_summaries.jsonl');
@@ -494,7 +497,11 @@ assert.equal(fullPack.risk?.caps?.maxFlows, 5);
 assert.equal(fullPack.risk?.caps?.maxCallSitesPerStep, 3);
 assert.equal(fullPack.risk?.flows?.length, 1);
 assert.equal(fullPack.risk?.flows?.[0]?.source?.ruleId, 'source.req.body');
+assert.equal(fullPack.risk?.flows?.[0]?.source?.ruleRole, 'source');
+assert.deepEqual(fullPack.risk?.flows?.[0]?.source?.tags, ['input', 'request']);
 assert.equal(fullPack.risk?.flows?.[0]?.sink?.ruleId, 'sink.sql.query');
+assert.equal(fullPack.risk?.flows?.[0]?.sink?.ruleRole, 'sink');
+assert.deepEqual(fullPack.risk?.flows?.[0]?.sink?.tags, ['sql', 'exec']);
 assert.equal(fullPack.risk?.flows?.[0]?.notes?.hopCount, 1);
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.callSiteId, 'cs-1');
 assert.equal(fullPack.risk?.flows?.[0]?.path?.watchByStep?.[0]?.calleeNormalized, 'query');
@@ -504,6 +511,20 @@ assert.deepEqual(fullPack.risk?.flows?.[0]?.path?.watchByStep?.[0]?.semanticKind
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerpt, 'query(input)');
 assert.match(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerptHash || '', /^sha1:/);
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.provenance?.excerptSource, 'repo-range');
+assert.deepEqual(
+  fullPack.risk?.summary?.ruleRoles,
+  {
+    sources: 1,
+    sinks: 1,
+    sanitizers: 0
+  }
+);
+assert.deepEqual(
+  fullPack.risk?.summary?.propagatorLikeRoles,
+  [
+    { role: 'callback', count: 1 }
+  ]
+);
 assert.deepEqual(
   fullPack.risk?.summary?.topCategories,
   [

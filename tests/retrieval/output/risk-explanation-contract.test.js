@@ -63,6 +63,12 @@ const fullModel = buildRiskExplanationModelFromRiskSlice({
       sanitizers: 0,
       localFlows: 1
     },
+    ruleRoles: {
+      sources: 1,
+      sinks: 1,
+      sanitizers: 0
+    },
+    propagatorLikeRoles: [{ role: 'callback', count: 1 }],
     topCategories: [{ category: 'injection', count: 1 }],
     topTags: [{ tag: 'sql', count: 1 }]
   },
@@ -89,7 +95,16 @@ const fullModel = buildRiskExplanationModelFromRiskSlice({
   },
   provenance: {
     generatedAt: '2026-03-12T00:00:00.000Z',
-    ruleBundle: { version: '1.0.0', fingerprint: 'sha1:bundle' },
+    ruleBundle: {
+      version: '1.0.0',
+      fingerprint: 'sha1:bundle',
+      roleModel: {
+        version: '1.0.0',
+        directRoles: ['source', 'sink', 'sanitizer'],
+        propagatorLikeRoles: ['propagator', 'wrapper', 'builder', 'callback', 'asyncHandoff'],
+        propagatorLikeEncoding: 'watch-semantics'
+      }
+    },
     effectiveConfigFingerprint: 'sha1:config'
   },
   flows: [
@@ -97,8 +112,8 @@ const fullModel = buildRiskExplanationModelFromRiskSlice({
       flowId: 'flow-full',
       confidence: 0.91,
       category: 'injection',
-      source: { ruleId: 'SRC' },
-      sink: { ruleId: 'SNK' },
+      source: { ruleId: 'SRC', ruleRole: 'source', tags: ['input', 'http'] },
+      sink: { ruleId: 'SNK', ruleRole: 'sink', tags: ['sql'] },
       path: {
         labels: ['chunk:src', 'chunk:sink'],
         callSiteIdsByStep: [['cs-1']],
@@ -206,6 +221,13 @@ const fullJson = renderRiskExplanationJson(fullModel, {
   maxEvidencePerFlow: 2
 });
 assert.equal(fullJson.flows[0].flowId, 'flow-full');
+assert.equal(fullJson.flows[0].source?.ruleRole, 'source');
+assert.deepEqual(fullJson.flows[0].source?.tags, ['input', 'http']);
+assert.equal(fullJson.flows[0].sink?.ruleRole, 'sink');
+assert.deepEqual(fullJson.flows[0].sink?.tags, ['sql']);
+assert.deepEqual(fullJson.summary?.ruleRoles, { sources: 1, sinks: 1, sanitizers: 0 });
+assert.deepEqual(fullJson.summary?.propagatorLikeRoles, [{ role: 'callback', count: 1 }]);
+assert.equal(fullJson.provenance?.ruleBundle?.roleModel?.propagatorLikeEncoding, 'watch-semantics');
 assert.equal(fullJson.flows[0].steps[0].step, 1);
 assert.deepEqual(fullJson.flows[0].steps[0].evidence, ['src/full.js:18:4 query(req.body)']);
 assert.equal(fullJson.flows[0].steps[0].watchWindow?.calleeNormalized, 'query');

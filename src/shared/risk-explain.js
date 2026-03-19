@@ -42,6 +42,23 @@ export const summarizeRiskTags = (summary) => {
     .sort((a, b) => (b.count - a.count) || compareStrings(a.tag, b.tag));
 };
 
+export const summarizeRiskPropagatorLikeRoles = (flows = []) => {
+  const counts = new Map();
+  for (const flow of Array.isArray(flows) ? flows : []) {
+    const watchSteps = Array.isArray(flow?.path?.watchByStep) ? flow.path.watchByStep : [];
+    for (const step of watchSteps) {
+      for (const role of Array.isArray(step?.semanticKinds) ? step.semanticKinds : []) {
+        const key = typeof role === 'string' && role.trim() ? role.trim() : null;
+        if (!key) continue;
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([role, count]) => ({ role, count }))
+    .sort((a, b) => (b.count - a.count) || compareStrings(a.role, b.role));
+};
+
 export const normalizeRiskSummary = (summary, flows = []) => {
   if (!summary || typeof summary !== 'object') return null;
   return {
@@ -72,6 +89,12 @@ export const normalizeRiskSummary = (summary, flows = []) => {
         evidence: summary.truncated.evidence === true
       }
       : null,
+    ruleRoles: {
+      sources: Number.isFinite(summary?.totals?.sources) ? summary.totals.sources : 0,
+      sinks: Number.isFinite(summary?.totals?.sinks) ? summary.totals.sinks : 0,
+      sanitizers: Number.isFinite(summary?.totals?.sanitizers) ? summary.totals.sanitizers : 0
+    },
+    propagatorLikeRoles: summarizeRiskPropagatorLikeRoles(flows),
     topCategories: summarizeRiskCategories(summary),
     topTags: summarizeRiskTags(summary),
     previewFlowIds: Array.isArray(flows) ? flows.map((flow) => flow?.flowId).filter(Boolean) : []

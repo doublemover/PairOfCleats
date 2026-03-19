@@ -37,12 +37,27 @@ const payload = {
         sanitizers: 0,
         localFlows: 1
       },
+      ruleRoles: {
+        sources: 1,
+        sinks: 1,
+        sanitizers: 0
+      },
+      propagatorLikeRoles: [{ role: 'callback', count: 1 }],
       topCategories: [{ category: 'injection', count: 1 }],
       topTags: []
     },
     provenance: {
       generatedAt: '2026-03-12T00:00:00.000Z',
-      ruleBundle: { version: '1.0.0', fingerprint: 'sha1:bundle' },
+      ruleBundle: {
+        version: '1.0.0',
+        fingerprint: 'sha1:bundle',
+        roleModel: {
+          version: '1.0.0',
+          directRoles: ['source', 'sink', 'sanitizer'],
+          propagatorLikeRoles: ['propagator', 'wrapper', 'builder', 'callback', 'asyncHandoff'],
+          propagatorLikeEncoding: 'watch-semantics'
+        }
+      },
       effectiveConfigFingerprint: 'sha1:config'
     },
     flows: [
@@ -50,8 +65,8 @@ const payload = {
         flowId: 'flow-a',
         confidence: 0.95,
         category: 'injection',
-        source: { ruleId: 'SRC' },
-        sink: { ruleId: 'SNK' },
+        source: { ruleId: 'SRC', ruleRole: 'source', tags: ['input', 'http'] },
+        sink: { ruleId: 'SNK', ruleRole: 'sink', tags: ['sql'] },
         path: {
           nodes: [
             { type: 'chunk', chunkUid: 'chunk-risk' },
@@ -170,8 +185,14 @@ assert.deepEqual(jsonPayload.rendered.truncation, payload.truncation);
 assert.deepEqual(jsonPayload.rendered.warnings, payload.warnings);
 assert.equal(jsonPayload.rendered.risk.subject.chunkUid, 'chunk-risk');
 assert.equal(jsonPayload.rendered.risk.subject.file, 'src/app.ts');
+assert.deepEqual(jsonPayload.rendered.risk.summary.ruleRoles, { sources: 1, sinks: 1, sanitizers: 0 });
+assert.deepEqual(jsonPayload.rendered.risk.summary.propagatorLikeRoles, [{ role: 'callback', count: 1 }]);
 assert.equal(jsonPayload.rendered.risk.flowSelection.totalFlows, 1);
 assert.equal(jsonPayload.rendered.risk.flows[0].flowId, 'flow-a');
+assert.equal(jsonPayload.rendered.risk.flows[0].source.ruleRole, 'source');
+assert.deepEqual(jsonPayload.rendered.risk.flows[0].source.tags, ['input', 'http']);
+assert.equal(jsonPayload.rendered.risk.flows[0].sink.ruleRole, 'sink');
+assert.deepEqual(jsonPayload.rendered.risk.flows[0].sink.tags, ['sql']);
 assert.equal(jsonPayload.rendered.risk.flows[0].steps[0].watchWindow.calleeNormalized, 'query');
 assert.deepEqual(jsonPayload.rendered.risk.flows[0].steps[0].watchWindow.semanticIds, ['sem.callback.register-handler-payload']);
 assert.deepEqual(jsonPayload.rendered.risk.flows[0].steps[0].watchWindow.semanticKinds, ['callback']);
@@ -185,6 +206,7 @@ assert.deepEqual(jsonPayload.rendered.risk.partialFlows[0].steps[0].watchWindow.
 assert.deepEqual(jsonPayload.rendered.risk.partialFlows[0].steps[0].watchWindow.semanticKinds, ['callback']);
 assert.equal(jsonPayload.rendered.risk.filters.sourceRule[0], 'SRC');
 assert.equal(jsonPayload.rendered.sarif.runs[0].automationDetails.id, 'context-pack');
+assert.equal(jsonPayload.rendered.risk.provenance.ruleBundle.roleModel.propagatorLikeEncoding, 'watch-semantics');
 assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.packWarnings[0].code, 'PACK_WARN');
 assert.equal(jsonPayload.rendered.sarif.runs[0].results[0].partialFingerprints.pairOfCleatsFlowId, 'flow-a');
 

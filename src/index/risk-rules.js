@@ -203,6 +203,13 @@ const DEFAULT_RULES = {
   ]
 };
 
+export const RISK_RULE_ROLE_MODEL = Object.freeze({
+  version: '1.0.0',
+  directRoles: Object.freeze(['source', 'sink', 'sanitizer']),
+  propagatorLikeRoles: Object.freeze(['propagator', 'wrapper', 'builder', 'callback', 'asyncHandoff']),
+  propagatorLikeEncoding: 'watch-semantics'
+});
+
 const normalizeRule = (rule, fallbackType) => {
   if (!rule || typeof rule !== 'object') return null;
   const name = typeof rule.name === 'string' ? rule.name.trim() : '';

@@ -652,6 +652,26 @@ const riskSummarySchema = {
       },
       additionalProperties: false
     },
+    ruleRoles: {
+      type: ['object', 'null'],
+      properties: {
+        sources: nullableNumber,
+        sinks: nullableNumber,
+        sanitizers: nullableNumber
+      },
+      additionalProperties: false
+    },
+    propagatorLikeRoles: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          role: nullableString,
+          count: nullableNumber
+        },
+        additionalProperties: false
+      }
+    },
     topCategories: { type: 'array', items: riskTopCategorySchema },
     topTags: { type: 'array', items: riskTopTagSchema },
     previewFlowIds: { type: 'array', items: { type: 'string' } }
@@ -666,9 +686,11 @@ const riskSourceSinkSchema = {
     ruleId: nullableString,
     ruleName: nullableString,
     ruleType: nullableString,
+    ruleRole: nullableString,
     category: nullableString,
     severity: nullableString,
-    confidence: nullableNumber
+    confidence: nullableNumber,
+    tags: { type: 'array', items: { type: 'string' } }
   },
   additionalProperties: false
 };
@@ -988,6 +1010,16 @@ const riskProvenanceSchema = {
       properties: {
         version: nullableString,
         fingerprint: nullableString,
+        roleModel: {
+          type: ['object', 'null'],
+          properties: {
+            version: nullableString,
+            directRoles: { type: 'array', items: { type: 'string' } },
+            propagatorLikeRoles: { type: 'array', items: { type: 'string' } },
+            propagatorLikeEncoding: nullableString
+          },
+          additionalProperties: false
+        },
         provenance: {
           type: ['object', 'null'],
           properties: {

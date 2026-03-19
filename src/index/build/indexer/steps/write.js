@@ -5,7 +5,7 @@ import {
   buildIndexProfileState,
 } from '../../../../contracts/index-profile.js';
 import { buildIndexStateArtifactsBlock } from '../../index-state-profile.js';
-import { serializeRiskRulesBundle } from '../../../risk-rules.js';
+import { RISK_RULE_ROLE_MODEL, serializeRiskRulesBundle } from '../../../risk-rules.js';
 import { finalizePerfProfile } from '../../perf-profile.js';
 import { finalizeMetaV2 } from '../../../metadata-v2.js';
 import { log } from '../../../../shared/progress.js';
@@ -39,7 +39,8 @@ const buildRiskStatsProvenance = ({ stats, riskRules, runtime }) => {
       ? {
         version: riskRules.version || null,
         fingerprint: riskRules.fingerprint || null,
-        provenance: riskRules.provenance || null
+        provenance: riskRules.provenance || null,
+        roleModel: RISK_RULE_ROLE_MODEL
       }
       : null,
     effectiveConfigFingerprint

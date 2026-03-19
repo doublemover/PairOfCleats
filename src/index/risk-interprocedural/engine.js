@@ -581,7 +581,8 @@ export const computeInterproceduralRisk = ({
         severity: null,
         confidence: Number.isFinite(state.rootSource.source.confidence)
           ? state.rootSource.source.confidence
-          : null
+          : null,
+        tags: Array.isArray(state.rootSource.source.tags) ? state.rootSource.source.tags.filter(Boolean) : []
       },
       frontier: {
         chunkUid: state.chunkUid,
@@ -694,7 +695,8 @@ export const computeInterproceduralRisk = ({
             severity: null,
             confidence: Number.isFinite(state.rootSource.source.confidence)
               ? state.rootSource.source.confidence
-              : null
+              : null,
+            tags: Array.isArray(state.rootSource.source.tags) ? state.rootSource.source.tags.filter(Boolean) : []
           },
           sink: {
             chunkUid: state.chunkUid,
@@ -703,7 +705,8 @@ export const computeInterproceduralRisk = ({
             ruleType: 'sink',
             category: sink.category || null,
             severity: sink.severity || null,
-            confidence: Number.isFinite(sink.confidence) ? sink.confidence : null
+            confidence: Number.isFinite(sink.confidence) ? sink.confidence : null,
+            tags: Array.isArray(sink.tags) ? sink.tags.filter(Boolean) : []
           },
           path: {
             chunkUids: state.pathChunkUids.slice(),

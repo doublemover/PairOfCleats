@@ -235,9 +235,25 @@ const normalizeRiskArtifactRefs = (stats) => {
 const normalizeRiskRuleBundle = (stats) => {
   const ruleBundle = stats?.provenance?.ruleBundle;
   if (!ruleBundle || typeof ruleBundle !== 'object') return null;
+  const roleModel = ruleBundle.roleModel && typeof ruleBundle.roleModel === 'object'
+    ? ruleBundle.roleModel
+    : {
+      version: '1.0.0',
+      directRoles: ['source', 'sink', 'sanitizer'],
+      propagatorLikeRoles: ['propagator', 'wrapper', 'builder', 'callback', 'asyncHandoff'],
+      propagatorLikeEncoding: 'watch-semantics'
+    };
   return {
     version: ruleBundle.version || null,
     fingerprint: ruleBundle.fingerprint || null,
+    roleModel: {
+      version: roleModel.version || null,
+      directRoles: Array.isArray(roleModel.directRoles) ? roleModel.directRoles.filter(Boolean) : [],
+      propagatorLikeRoles: Array.isArray(roleModel.propagatorLikeRoles)
+        ? roleModel.propagatorLikeRoles.filter(Boolean)
+        : [],
+      propagatorLikeEncoding: roleModel.propagatorLikeEncoding || null
+    },
     provenance: ruleBundle.provenance && typeof ruleBundle.provenance === 'object'
       ? {
         defaults: ruleBundle.provenance.defaults === true,
@@ -1197,9 +1213,11 @@ const buildRiskSlice = ({
           ruleId: flow.source.ruleId || null,
           ruleName: flow.source.ruleName || null,
           ruleType: flow.source.ruleType || null,
+          ruleRole: flow.source.ruleType || null,
           category: flow.source.category || null,
           severity: flow.source.severity || null,
-          confidence: Number.isFinite(flow.source.confidence) ? flow.source.confidence : null
+          confidence: Number.isFinite(flow.source.confidence) ? flow.source.confidence : null,
+          tags: Array.isArray(flow.source.tags) ? flow.source.tags.filter(Boolean) : []
         }
         : null,
       sink: flow?.sink && typeof flow.sink === 'object'
@@ -1208,9 +1226,11 @@ const buildRiskSlice = ({
           ruleId: flow.sink.ruleId || null,
           ruleName: flow.sink.ruleName || null,
           ruleType: flow.sink.ruleType || null,
+          ruleRole: flow.sink.ruleType || null,
           category: flow.sink.category || null,
           severity: flow.sink.severity || null,
-          confidence: Number.isFinite(flow.sink.confidence) ? flow.sink.confidence : null
+          confidence: Number.isFinite(flow.sink.confidence) ? flow.sink.confidence : null,
+          tags: Array.isArray(flow.sink.tags) ? flow.sink.tags.filter(Boolean) : []
         }
         : null,
       category: flow?.sink?.category || flow?.source?.category || null,
@@ -1341,9 +1361,11 @@ const buildRiskSlice = ({
           ruleId: flow.source.ruleId || null,
           ruleName: flow.source.ruleName || null,
           ruleType: flow.source.ruleType || null,
+          ruleRole: flow.source.ruleType || null,
           category: flow.source.category || null,
           severity: flow.source.severity || null,
-          confidence: Number.isFinite(flow.source.confidence) ? flow.source.confidence : null
+          confidence: Number.isFinite(flow.source.confidence) ? flow.source.confidence : null,
+          tags: Array.isArray(flow.source.tags) ? flow.source.tags.filter(Boolean) : []
         }
         : null,
       confidence: Number.isFinite(flow?.confidence) ? flow.confidence : null,

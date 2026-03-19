@@ -207,6 +207,14 @@ const buildPartialFlowNarrativeList = (
         partialFlowId: flow?.partialFlowId || 'partial-flow',
         confidence,
         confidenceLabel: Number.isFinite(confidence) ? confidence.toFixed(2) : 'n/a',
+        source: flow?.source && typeof flow.source === 'object'
+          ? {
+            ruleId: flow.source.ruleId || null,
+            ruleName: flow.source.ruleName || null,
+            ruleRole: flow.source.ruleRole || flow.source.ruleType || null,
+            tags: Array.isArray(flow.source.tags) ? flow.source.tags.filter(Boolean) : []
+          }
+          : null,
         terminalReason: flow?.frontier?.terminalReason || flow?.notes?.terminalReason || null,
         frontierChunkUid: flow?.frontier?.chunkUid || null,
         blockedExpansions: Array.isArray(flow?.frontier?.blockedExpansions)
@@ -264,6 +272,22 @@ const buildRiskFlowNarrativeList = (
         category: flow?.category || null,
         sourceRule,
         sinkRule,
+        source: flow?.source && typeof flow.source === 'object'
+          ? {
+            ruleId: flow.source.ruleId || null,
+            ruleName: flow.source.ruleName || null,
+            ruleRole: flow.source.ruleRole || flow.source.ruleType || null,
+            tags: Array.isArray(flow.source.tags) ? flow.source.tags.filter(Boolean) : []
+          }
+          : null,
+        sink: flow?.sink && typeof flow.sink === 'object'
+          ? {
+            ruleId: flow.sink.ruleId || null,
+            ruleName: flow.sink.ruleName || null,
+            ruleRole: flow.sink.ruleRole || flow.sink.ruleType || null,
+            tags: Array.isArray(flow.sink.tags) ? flow.sink.tags.filter(Boolean) : []
+          }
+          : null,
         path,
         steps: buildNarrativeSteps(flow, maxEvidencePerFlow)
       };
