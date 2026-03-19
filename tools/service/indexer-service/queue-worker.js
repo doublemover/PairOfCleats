@@ -48,6 +48,7 @@ export const createQueueWorker = ({
 }) => {
   let staleSweepPromise = null;
   let lastStaleSweepAtMs = 0;
+  const workerOwnerId = `queue-worker:${process.pid}:${Math.random().toString(16).slice(2, 10)}`;
 
   /**
    * Deduplicate concurrent stale-sweep scans across workers.
@@ -84,7 +85,10 @@ export const createQueueWorker = ({
       name: `indexer-service-job:${job.id}`
     });
     const heartbeat = setInterval(() => {
-      void touchJobHeartbeat(queueDir, job.id, resolvedQueueName);
+      void touchJobHeartbeat(queueDir, job.id, resolvedQueueName, {
+        ownerId: workerOwnerId,
+        expectedLeaseVersion: job?.lease?.version ?? null
+      });
     }, jobHeartbeatIntervalMs);
     jobLifecycle.registerTimer(heartbeat, { label: 'indexer-service-job-heartbeat' });
     const logPath = job.logPath || path.join(queueDir, 'logs', `${job.id}.log`);
@@ -104,7 +108,9 @@ export const createQueueWorker = ({
    */
   const processQueueOnce = async (metrics) => {
     await ensureStaleSweep();
-    const job = await claimNextJob(queueDir, resolvedQueueName);
+    const job = await claimNextJob(queueDir, resolvedQueueName, {
+      ownerId: workerOwnerId
+    });
     if (!job) return false;
     metrics.processed += 1;
     const { jobLifecycle, logPath } = startJobLifecycle(job);
@@ -133,11 +139,23 @@ export const createQueueWorker = ({
       metrics.failed += 1;
       return true;
     }
-    await finalizeJobRun({
-      job,
-      runResult: execution?.runResult || buildDefaultRunResult(),
-      metrics
-    });
+    try {
+      await finalizeJobRun({
+        job,
+        runResult: execution?.runResult || buildDefaultRunResult(),
+        metrics
+      });
+    } catch (err) {
+      if (
+        err?.code === 'QUEUE_LEASE_MISMATCH'
+        || err?.code === 'QUEUE_LEASE_VERSION_MISMATCH'
+        || err?.code === 'QUEUE_INVALID_TRANSITION'
+      ) {
+        console.error(`[indexer] job ${job.id} completion skipped: ${err.message}`);
+        return true;
+      }
+      throw err;
+    }
     return true;
   };
 

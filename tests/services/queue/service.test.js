@@ -40,7 +40,17 @@ if (!job || job.status !== 'running') {
   console.error('Expected queued job to transition to running');
   process.exit(1);
 }
-await completeJob(queueDir, job.id, 'failed', { exitCode: 1 }, 'index');
+await completeJob(
+  queueDir,
+  job.id,
+  'failed',
+  { exitCode: 1 },
+  'index',
+  {
+    ownerId: job.lease?.owner || null,
+    expectedLeaseVersion: job.lease?.version ?? null
+  }
+);
 
 const summaryAfter = await queueSummary(queueDir, 'index');
 if (summaryAfter.failed !== 1) {

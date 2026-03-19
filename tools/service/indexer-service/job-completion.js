@@ -30,7 +30,7 @@ const normalizeRunResult = (runResult) => {
  *   queueDir:string,
  *   resolvedQueueName:string|null,
  *   queueMaxRetries:number|null,
- *   completeJob:(dirPath:string,jobId:string,status:string,result:object,queueName?:string|null)=>Promise<unknown>
+ *   completeJob:(dirPath:string,jobId:string,status:string,result:object,queueName?:string|null,options?:object)=>Promise<unknown>
  * }} input
  * @returns {{
  *   completeNonRetriableFailure:(job:{id:string},error:string)=>Promise<void>,
@@ -47,7 +47,7 @@ export const createJobCompletion = ({
   /**
    * Complete a job immediately with a non-retriable failure.
    *
-   * @param {{id:string}} job
+   * @param {{id:string,lease?:{owner?:string|null,version?:number|null}}} job
    * @param {string} error
    * @returns {Promise<void>}
    */
@@ -62,7 +62,11 @@ export const createJobCompletion = ({
         error,
         executionMode: 'subprocess'
       },
-      resolvedQueueName
+      resolvedQueueName,
+      {
+        ownerId: job?.lease?.owner || null,
+        expectedLeaseVersion: job?.lease?.version ?? null
+      }
     );
   };
 
@@ -101,7 +105,11 @@ export const createJobCompletion = ({
           executionMode: normalized.executionMode,
           daemon: normalized.daemon
         },
-        resolvedQueueName
+        resolvedQueueName,
+        {
+          ownerId: job?.lease?.owner || null,
+          expectedLeaseVersion: job?.lease?.version ?? null
+        }
       );
       return;
     }
@@ -121,7 +129,11 @@ export const createJobCompletion = ({
         executionMode: normalized.executionMode,
         daemon: normalized.daemon
       },
-      resolvedQueueName
+      resolvedQueueName,
+      {
+        ownerId: job?.lease?.owner || null,
+        expectedLeaseVersion: job?.lease?.version ?? null
+      }
     );
   };
 
