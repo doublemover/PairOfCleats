@@ -19,6 +19,12 @@ import { handleIndexSnapshotsRoute } from './router/index-snapshots.js';
 import { handleContextPackRoute, handleRiskExplainRoute } from './router/analysis.js';
 import { buildSearchParams, buildSearchPayloadFromQuery, isNoIndexError } from './router/search.js';
 import { getApiWorkflowCapabilities, getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
+import {
+  attachObservability,
+  buildChildObservability,
+  buildObservabilityHeaders,
+  normalizeObservability
+} from '../../src/shared/observability.js';
 
 /**
  * Create an API router for the HTTP server.
@@ -145,6 +151,25 @@ export const createApiRouter = ({
     return workspaceConfig;
   };
 
+  const mergeResponseHeaders = (headers, observability = null) => ({
+    ...(headers || {}),
+    ...buildObservabilityHeaders(observability)
+  });
+
+  const createRequestObservability = (req, requestUrl, operation, context = {}) => normalizeObservability({
+    correlationId: req?.headers?.['x-correlation-id'] || null,
+    parentCorrelationId: req?.headers?.['x-parent-correlation-id'] || null,
+    requestId: req?.headers?.['x-request-id'] || null
+  }, {
+    surface: 'api',
+    operation,
+    context: {
+      method: req?.method || null,
+      path: requestUrl?.pathname || null,
+      ...context
+    }
+  });
+
 
 
 
@@ -210,10 +235,12 @@ export const createApiRouter = ({
       }
 
       if (requestUrl.pathname === '/analysis/risk-explain' && req.method === 'POST') {
+        const requestObservability = createRequestObservability(req, requestUrl, 'risk_explain');
         await handleRiskExplainRoute({
           req,
           res,
-          corsHeaders,
+          corsHeaders: mergeResponseHeaders(corsHeaders, requestObservability),
+          observability: requestObservability,
           parseJsonBody,
           resolveRepo,
           validateRiskExplainPayload
@@ -222,10 +249,12 @@ export const createApiRouter = ({
       }
 
       if (requestUrl.pathname === '/analysis/context-pack' && req.method === 'POST') {
+        const requestObservability = createRequestObservability(req, requestUrl, 'context_pack');
         await handleContextPackRoute({
           req,
           res,
-          corsHeaders,
+          corsHeaders: mergeResponseHeaders(corsHeaders, requestObservability),
+          observability: requestObservability,
           parseJsonBody,
           resolveRepo,
           validateContextPackPayload
@@ -405,6 +434,8 @@ export const createApiRouter = ({
       }
 
       if (requestUrl.pathname === '/search' && req.method === 'GET') {
+        const requestObservability = createRequestObservability(req, requestUrl, 'search');
+        const responseHeaders = mergeResponseHeaders(corsHeaders, requestObservability);
         const controller = new AbortController();
         const abortRequest = () => controller.abort();
         req.on('aborted', abortRequest);
@@ -414,14 +445,14 @@ export const createApiRouter = ({
         if (Array.isArray(queryErrors) && queryErrors.length) {
           sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
             errors: queryErrors
-          }, corsHeaders || {});
+          }, responseHeaders);
           return;
         }
         const validation = validateSearchPayload(payload);
         if (!validation.ok) {
           sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
             errors: validation.errors
-          }, corsHeaders || {});
+          }, responseHeaders);
           return;
         }
         let repoPath = '';
@@ -430,9 +461,16 @@ export const createApiRouter = ({
         } catch (err) {
           const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
           const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
-          sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
+          sendError(res, status, code, err?.message || 'Invalid repo path.', {}, responseHeaders);
           return;
         }
+        const searchObservability = buildChildObservability(requestObservability, {
+          surface: 'search',
+          operation: 'search',
+          context: {
+            repoRoot: repoPath
+          }
+        });
         const searchParams = buildSearchParams(repoPath, payload || {}, defaultOutput);
         if (!searchParams.ok) {
           sendError(
@@ -441,7 +479,7 @@ export const createApiRouter = ({
             ERROR_CODES.INVALID_REQUEST,
             searchParams.message || 'Invalid search payload.',
             {},
-            corsHeaders || {}
+            responseHeaders
           );
           return;
         }
@@ -455,15 +493,16 @@ export const createApiRouter = ({
             exitOnError: false,
             indexCache: caches.indexCache,
             sqliteCache: caches.sqliteCache,
-            signal: controller.signal
+            signal: controller.signal,
+            observability: searchObservability
           });
-          sendJson(res, 200, { ok: true, result: body }, corsHeaders || {});
+          sendJson(res, 200, attachObservability({ ok: true, result: body }, requestObservability), responseHeaders);
         } catch (err) {
           if (req.aborted || res.writableEnded || controller.signal.aborted) return;
           if (isNoIndexError(err)) {
             sendError(res, 409, ERROR_CODES.NO_INDEX, err?.message || 'Index not found.', {
               error: err?.message || String(err)
-            }, corsHeaders || {});
+            }, responseHeaders);
             return;
           }
           sendError(
@@ -472,14 +511,23 @@ export const createApiRouter = ({
             ERROR_CODES.INTERNAL,
             'Search failed.',
             { error: err?.message || String(err) },
-            corsHeaders || {}
+            responseHeaders
           );
         }
         return;
       }
 
       if (requestUrl.pathname === '/search/stream' && req.method === 'POST') {
-        const sse = createSseResponder(req, res, { headers: corsHeaders || {} });
+        const requestObservability = createRequestObservability(req, requestUrl, 'search_stream');
+        const responseHeaders = mergeResponseHeaders(corsHeaders, requestObservability);
+        const searchObservability = buildChildObservability(requestObservability, {
+          surface: 'search',
+          operation: 'search',
+          context: {
+            stream: true
+          }
+        });
+        const sse = createSseResponder(req, res, { headers: responseHeaders });
         const controller = new AbortController();
         const abortRequest = () => controller.abort();
         req.on('aborted', abortRequest);
@@ -498,7 +546,7 @@ export const createApiRouter = ({
             ERROR_CODES.INVALID_REQUEST,
             err?.message || 'Invalid request body.',
             {},
-            corsHeaders || {}
+            responseHeaders
           );
           return;
         }
@@ -507,7 +555,7 @@ export const createApiRouter = ({
         if (!validation.ok) {
           sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
             errors: validation.errors
-          }, corsHeaders || {});
+          }, responseHeaders);
           return;
         }
         let repoPath = '';
@@ -516,7 +564,7 @@ export const createApiRouter = ({
         } catch (err) {
           const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
           const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
-          sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
+          sendError(res, status, code, err?.message || 'Invalid repo path.', {}, responseHeaders);
           return;
         }
         const searchParams = buildSearchParams(repoPath, payload || {}, defaultOutput);
@@ -527,17 +575,17 @@ export const createApiRouter = ({
             ERROR_CODES.INVALID_REQUEST,
             searchParams.message || 'Invalid search payload.',
             {},
-            corsHeaders || {}
+            responseHeaders
           );
           return;
         }
         await sse.sendHeaders();
-        await sse.sendEvent('start', { ok: true });
-        await sse.sendEvent('progress', { ok: true, phase: 'search', message: 'Searching.' });
+        await sse.sendEvent('start', attachObservability({ ok: true }, requestObservability));
+        await sse.sendEvent('progress', attachObservability({ ok: true, phase: 'search', message: 'Searching.' }, requestObservability));
         const caches = getRepoCaches(repoPath);
         await refreshBuildPointer(caches);
         try {
-          await sse.sendEvent('progress', { ok: true, phase: 'search', message: 'Running search.' });
+          await sse.sendEvent('progress', attachObservability({ ok: true, phase: 'search', message: 'Running search.' }, requestObservability));
           const body = await search(repoPath, {
             args: searchParams.args,
             query: searchParams.query,
@@ -545,11 +593,12 @@ export const createApiRouter = ({
             exitOnError: false,
             indexCache: caches.indexCache,
             sqliteCache: caches.sqliteCache,
-            signal: controller.signal
+            signal: controller.signal,
+            observability: searchObservability
           });
           if (!sse.isClosed()) {
-            await sse.sendEvent('result', { ok: true, result: body });
-            await sse.sendEvent('done', { ok: true });
+            await sse.sendEvent('result', attachObservability({ ok: true, result: body }, requestObservability));
+            await sse.sendEvent('done', attachObservability({ ok: true }, requestObservability));
           }
         } catch (err) {
           if (controller.signal.aborted || sse.isClosed()) {
@@ -557,18 +606,20 @@ export const createApiRouter = ({
             return;
           }
           const isNoIndex = isNoIndexError(err);
-          await sse.sendEvent('error', {
+          await sse.sendEvent('error', attachObservability({
             ok: false,
             code: isNoIndex ? ERROR_CODES.NO_INDEX : ERROR_CODES.INTERNAL,
             message: err?.message || 'Search failed.'
-          });
-          await sse.sendEvent('done', { ok: false });
+          }, requestObservability));
+          await sse.sendEvent('done', attachObservability({ ok: false }, requestObservability));
         }
         sse.end();
         return;
       }
 
       if (requestUrl.pathname === '/search' && req.method === 'POST') {
+        const requestObservability = createRequestObservability(req, requestUrl, 'search');
+        const responseHeaders = mergeResponseHeaders(corsHeaders, requestObservability);
         const controller = new AbortController();
         const abortRequest = () => controller.abort();
         req.on('aborted', abortRequest);
@@ -587,7 +638,7 @@ export const createApiRouter = ({
             ERROR_CODES.INVALID_REQUEST,
             err?.message || 'Invalid request body.',
             {},
-            corsHeaders || {}
+            responseHeaders
           );
           return;
         }
@@ -595,7 +646,7 @@ export const createApiRouter = ({
         if (!validation.ok) {
           sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
             errors: validation.errors
-          }, corsHeaders || {});
+          }, responseHeaders);
           return;
         }
         let repoPath = '';
@@ -604,9 +655,16 @@ export const createApiRouter = ({
         } catch (err) {
           const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
           const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
-          sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
+          sendError(res, status, code, err?.message || 'Invalid repo path.', {}, responseHeaders);
           return;
         }
+        const searchObservability = buildChildObservability(requestObservability, {
+          surface: 'search',
+          operation: 'search',
+          context: {
+            repoRoot: repoPath
+          }
+        });
         const searchParams = buildSearchParams(repoPath, payload || {}, defaultOutput);
         if (!searchParams.ok) {
           sendError(
@@ -615,7 +673,7 @@ export const createApiRouter = ({
             ERROR_CODES.INVALID_REQUEST,
             searchParams.message || 'Invalid search payload.',
             {},
-            corsHeaders || {}
+            responseHeaders
           );
           return;
         }
@@ -629,15 +687,16 @@ export const createApiRouter = ({
             exitOnError: false,
             indexCache: caches.indexCache,
             sqliteCache: caches.sqliteCache,
-            signal: controller.signal
+            signal: controller.signal,
+            observability: searchObservability
           });
-          sendJson(res, 200, { ok: true, result: body }, corsHeaders || {});
+          sendJson(res, 200, attachObservability({ ok: true, result: body }, requestObservability), responseHeaders);
         } catch (err) {
           if (req.aborted || res.writableEnded) return;
           if (isNoIndexError(err)) {
             sendError(res, 409, ERROR_CODES.NO_INDEX, err?.message || 'Index not found.', {
               error: err?.message || String(err)
-            }, corsHeaders || {});
+            }, responseHeaders);
             return;
           }
           sendError(
@@ -646,7 +705,7 @@ export const createApiRouter = ({
             ERROR_CODES.INTERNAL,
             'Search failed.',
             { error: err?.message || String(err) },
-            corsHeaders || {}
+            responseHeaders
           );
         }
         return;

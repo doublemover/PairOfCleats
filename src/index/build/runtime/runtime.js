@@ -109,7 +109,14 @@ const isObject = (value) => Boolean(value) && typeof value === 'object' && !Arra
  * @param {{root:string,argv:object,rawArgv:string[]}} input
  * @returns {Promise<object>}
  */
-export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoot: indexRootOverride = null } = {}) {
+export async function createBuildRuntime({
+  root,
+  argv,
+  rawArgv,
+  policy,
+  indexRoot: indexRootOverride = null,
+  observability = null
+} = {}) {
   const initStartedAt = Date.now();
   /**
    * Emit a timed initialization step log entry.
@@ -522,7 +529,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     stage,
     root,
     logDestination,
-    logFormatOverride
+    logFormatOverride,
+    observability
   });
   const toolingConfig = getToolingConfig(root, userConfig);
   const toolingEnabled = toolingConfig.autoEnableOnDetect !== false;
@@ -1110,6 +1118,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       },
     buildId,
     buildRoot,
+    observability,
     profile,
     indexOptimizationProfile,
     recordsDir: triageConfig.recordsDir,

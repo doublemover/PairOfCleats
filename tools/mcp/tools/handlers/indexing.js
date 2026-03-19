@@ -4,6 +4,7 @@ import {
   buildIndex as coreBuildIndex,
   buildSqliteIndex as coreBuildSqliteIndex
 } from '../../../../src/integrations/core/index.js';
+import { attachObservability, buildChildObservability } from '../../../../src/shared/observability.js';
 import { clearRepoCaches, resolveRepoPath } from '../../repo.js';
 import { runToolWithProgress } from '../../runner.js';
 import { maybeRestoreArtifacts, resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
@@ -25,13 +26,22 @@ export async function buildIndex(args = {}, context = {}) {
   const buildSqlite = shouldUseSqlite;
   const useArtifacts = args.useArtifacts === true;
   const progress = typeof context.progress === 'function' ? context.progress : null;
+  const observability = buildChildObservability(context.observability, {
+    surface: 'build',
+    operation: 'build_index',
+    context: {
+      repoRoot: repoPath,
+      mode,
+      incremental
+    }
+  });
   const heartbeatIntervalMs = 15000;
   const withHeartbeat = async (label, fn) => {
     let timer = null;
     if (progress) {
-      progress({ message: label, phase: 'start' });
+      progress({ message: label, phase: 'start', observability });
       timer = setInterval(() => {
-        progress({ message: `${label} (working)`, phase: 'progress' });
+        progress({ message: `${label} (working)`, phase: 'progress', observability });
       }, heartbeatIntervalMs);
       timer.unref?.();
     }
@@ -55,7 +65,8 @@ export async function buildIndex(args = {}, context = {}) {
         incremental,
         'stub-embeddings': stubEmbeddings,
         sqlite: buildSqlite,
-        emitOutput: false
+        emitOutput: false,
+        observability
       })
     );
   }
@@ -72,18 +83,19 @@ export async function buildIndex(args = {}, context = {}) {
   if (progress) {
     progress({
       message: 'Index build complete.',
-      phase: 'done'
+      phase: 'done',
+      observability
     });
   }
   clearRepoCaches(repoPath);
 
-  return {
+  return attachObservability({
     repoPath,
     mode,
     sqlite: buildSqlite,
     incremental,
     restoredArtifacts
-  };
+  }, observability);
 }
 
 /**

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { atomicWriteText } from '../../src/shared/io/atomic-write.js';
+import { normalizeObservability } from '../../src/shared/observability.js';
 
 const normalizeQueueName = (value) => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -33,6 +34,16 @@ export function createQueueJournalEntry({
     target,
     queueName: queueName || job?.queueName || 'index',
     jobId: job?.id || null,
+    observability: job?.observability
+      ? normalizeObservability(job.observability, {
+        surface: 'service',
+        operation: eventType,
+        context: {
+          queueName: queueName || job?.queueName || 'index',
+          jobId: job?.id || null
+        }
+      })
+      : null,
     idempotencyKey: job?.idempotencyKey || null,
     reason: typeof reason === 'string' && reason.trim() ? reason.trim() : null,
     workerId: typeof workerId === 'string' && workerId.trim() ? workerId.trim() : null,

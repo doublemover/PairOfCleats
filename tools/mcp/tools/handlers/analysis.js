@@ -2,6 +2,7 @@ import { loadUserConfig } from '../../../shared/dict-utils.js';
 import { resolveIndexDir } from '../../../../src/retrieval/cli-index.js';
 import { hasIndexMeta } from '../../../../src/retrieval/cli/index-loader.js';
 import { createError, ERROR_CODES } from '../../../../src/shared/error-codes.js';
+import { attachObservability, buildChildObservability } from '../../../../src/shared/observability.js';
 import { normalizeRiskFilters, validateRiskFilters } from '../../../../src/shared/risk-filters.js';
 import { buildCompositeContextPackPayload } from '../../../../src/integrations/tooling/context-pack.js';
 import { buildRiskExplainPayload } from '../../../analysis/explain-risk.js';
@@ -26,8 +27,16 @@ export async function runRiskExplain(args = {}, context = {}) {
   if (!validation.ok) {
     throw createError(ERROR_CODES.INVALID_REQUEST, `Invalid risk filters: ${validation.errors.join('; ')}`);
   }
+  const observability = buildChildObservability(context.observability, {
+    surface: 'analysis',
+    operation: 'risk_explain',
+    context: {
+      repoRoot: repoPath,
+      chunkUid
+    }
+  });
   if (typeof context.progress === 'function') {
-    context.progress({ phase: 'start', message: 'Building risk explanation.' });
+    context.progress({ phase: 'start', message: 'Building risk explanation.', observability });
   }
   const result = await buildRiskExplainPayload({
     indexDir,
@@ -38,9 +47,9 @@ export async function runRiskExplain(args = {}, context = {}) {
     maxPartialFlows: args.maxPartialFlows
   });
   if (typeof context.progress === 'function') {
-    context.progress({ phase: 'done', message: 'Risk explanation ready.' });
+    context.progress({ phase: 'done', message: 'Risk explanation ready.', observability });
   }
-  return result;
+  return attachObservability(result, observability);
 }
 
 export async function runContextPack(args = {}, context = {}) {
@@ -48,8 +57,15 @@ export async function runContextPack(args = {}, context = {}) {
     throw createError(ERROR_CODES.CANCELLED, 'Request cancelled.');
   }
   const repoPath = resolveRepoPath(args.repoPath);
+  const observability = buildChildObservability(context.observability, {
+    surface: 'analysis',
+    operation: 'context_pack',
+    context: {
+      repoRoot: repoPath
+    }
+  });
   if (typeof context.progress === 'function') {
-    context.progress({ phase: 'start', message: 'Building context pack.' });
+    context.progress({ phase: 'start', message: 'Building context pack.', observability });
   }
   try {
     const result = await buildCompositeContextPackPayload({
@@ -79,9 +95,9 @@ export async function runContextPack(args = {}, context = {}) {
       maxWallClockMs: args.maxWallClockMs
     });
     if (typeof context.progress === 'function') {
-      context.progress({ phase: 'done', message: 'Context pack ready.' });
+      context.progress({ phase: 'done', message: 'Context pack ready.', observability });
     }
-    return result;
+    return attachObservability(result, observability);
   } catch (err) {
     if (err?.code === 'ERR_CONTEXT_PACK_INVALID_REQUEST' || err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID') {
       throw createError(ERROR_CODES.INVALID_REQUEST, err.message);

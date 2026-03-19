@@ -8,6 +8,7 @@ import { buildIndex } from './src/integrations/core/index.js';
 import { createDisplay } from './src/shared/cli/display.js';
 import { setProgressHandlers } from './src/shared/progress.js';
 import { buildAutoPolicy } from './src/shared/auto-policy.js';
+import { parseObservabilityContextEnv } from './src/shared/observability.js';
 import { resolveRuntimeEnvelope } from './src/shared/runtime-envelope.js';
 import { createAbortControllerWithHandlers, isAbortError } from './src/shared/abort.js';
 import { setCacheRebuildEnv, setVerboseEnv } from './src/shared/env.js';
@@ -100,6 +101,7 @@ export const main = async ({
   };
   const startedAt = Date.now();
   const resolvedRoot = rootArg || resolveRepoRoot(cwd);
+  const observability = parseObservabilityContextEnv(env);
   const repoCacheRoot = getRepoCacheRoot(resolvedRoot);
   const crashLogPath = repoCacheRoot
     ? path.join(repoCacheRoot, 'logs', 'index-crash.log')
@@ -114,7 +116,8 @@ export const main = async ({
       ...argv,
       modes,
       rawArgv,
-      abortSignal: abortController.signal
+      abortSignal: abortController.signal,
+      observability
     });
     if (result?.stage3?.embeddings?.cancelled) {
       closeDisplay();

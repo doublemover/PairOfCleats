@@ -223,14 +223,14 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       logLineFn: logLine
     });
     const updateBuildStateBestEffort = async (patch) => {
-      const outcome = await updateBuildStateOutcome(runtimeRef.buildRoot, patch, {
+      const outcome = await updateBuildStateOutcome(runtime.buildRoot, patch, {
         durabilityClass: BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT
       });
       if (outcome?.status !== 'timed_out') return outcome?.value ?? null;
       const timeoutMs = Number.isFinite(Number(outcome?.timeoutMs)) ? Math.floor(Number(outcome.timeoutMs)) : null;
       const err = new Error(
         `[build_state] patch wait timed out${timeoutMs != null ? ` after ${timeoutMs}ms` : ''} `
-      + `for ${runtimeRef.buildRoot}.`
+      + `for ${runtime.buildRoot}.`
       );
       err.code = 'ERR_BUILD_STATE_PATCH_TIMEOUT';
       err.buildState = outcome;

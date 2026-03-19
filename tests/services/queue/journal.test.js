@@ -32,7 +32,18 @@ const baseJob = {
   repoRoot: '/tmp/repo-journal',
   mode: 'code',
   reason: 'test',
-  stage: 'stage1'
+  stage: 'stage1',
+  observability: {
+    surface: 'service',
+    operation: 'queue_enqueue',
+    correlation: {
+      correlationId: 'queue-correlation-test',
+      requestId: 'queue-request-test'
+    },
+    context: {
+      repoRoot: '/tmp/repo-journal'
+    }
+  }
 };
 
 await enqueueJob(queueDir, { ...baseJob, id: 'job-retry' }, null, 'index');
@@ -82,6 +93,11 @@ assert.equal(journal.some((entry) => entry.eventType === 'claim'), true, 'expect
 assert.equal(journal.some((entry) => entry.eventType === 'heartbeat'), true, 'expected heartbeat events in the journal');
 assert.equal(journal.some((entry) => entry.eventType === 'retry-scheduled'), true, 'expected retry events in the journal');
 assert.equal(journal.some((entry) => entry.eventType === 'quarantine'), true, 'expected quarantine events in the journal');
+assert.equal(
+  journal.every((entry) => entry.observability?.correlation?.correlationId === 'queue-correlation-test'),
+  true,
+  'expected queue journal entries to preserve observability correlation'
+);
 
 const liveQueue = await loadQueue(queueDir, 'index');
 const liveQuarantine = await loadQuarantine(queueDir, 'index');

@@ -451,7 +451,8 @@ export const runSqliteStage = async ({
       argv: { ...argv, stage: 'stage4' },
       rawArgv,
       policy,
-      indexRoot: runtimeIndexRoot
+      indexRoot: runtimeIndexRoot,
+      observability: context?.observability || null
     });
     const scheduleSqlite = (fn) => (runtime?.scheduler?.schedule
       ? runtime.scheduler.schedule(
@@ -638,7 +639,13 @@ export const runStage = async (
   let result = null;
   try {
     throwIfAborted(effectiveAbortSignal);
-    runtime = await createBuildRuntime({ root, argv: stageArgv, rawArgv, policy });
+    runtime = await createBuildRuntime({
+      root,
+      argv: stageArgv,
+      rawArgv,
+      policy,
+      observability: context?.observability || null
+    });
     phaseStage = runtime.stage || phaseStage;
     runtime.featureMetrics = createFeatureMetrics({
       buildId: runtime.buildId,

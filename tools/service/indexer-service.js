@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { SERVICE_INDEXER_OPTIONS } from '../../src/shared/cli-options.js';
 import { getEnvConfig } from '../../src/shared/env.js';
+import { normalizeObservability } from '../../src/shared/observability.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
 import {
   resolveRepoRootArg,
@@ -372,14 +373,27 @@ const handleEnqueue = async () => {
   await ensureQueueDir(queueDir);
   const id = formatJobId();
   const mode = argv.mode || 'both';
+  const repoPath = resolveRepoPath(target, baseDir) || target.path;
+  const observability = normalizeObservability(null, {
+    surface: 'service',
+    operation: 'queue_enqueue',
+    context: {
+      queueName: resolvedQueueName || queueName,
+      jobId: id,
+      repoRoot: repoPath,
+      mode,
+      stage: argv.stage || null
+    }
+  });
   const result = await enqueueJob(queueDir, {
     id,
     createdAt: new Date().toISOString(),
-    repo: resolveRepoPath(target, baseDir) || target.path,
+    repo: repoPath,
     mode,
     reason: argv.reason || null,
     stage: argv.stage || null,
-    maxRetries: queueMaxRetries ?? null
+    maxRetries: queueMaxRetries ?? null,
+    observability
   }, queueConfig.maxQueued ?? null, queueName, {
     admissionPolicy: queueAdmissionPolicy,
     sloPolicy: queueOperationalEnvelope.slo
@@ -395,6 +409,7 @@ const handleEnqueue = async () => {
   printPayload({
     ok: true,
     job: result.job,
+    observability: result.job?.observability || null,
     duplicate: result.duplicate === true,
     replaySuppressed: result.replaySuppressed === true,
     idempotencyKey: result.idempotencyKey || result.job?.idempotencyKey || null,

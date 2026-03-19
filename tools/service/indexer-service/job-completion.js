@@ -21,6 +21,9 @@ const normalizeRunResult = (runResult) => {
   const replay = runResult?.replay && typeof runResult.replay === 'object'
     ? runResult.replay
     : null;
+  const observability = runResult?.observability && typeof runResult.observability === 'object'
+    ? runResult.observability
+    : null;
   return {
     exitCode,
     signal,
@@ -29,6 +32,7 @@ const normalizeRunResult = (runResult) => {
     cancelled,
     shutdownMode,
     replay,
+    observability,
     status: exitCode === 0 && !signal ? 'done' : 'failed'
   };
 };
@@ -75,7 +79,8 @@ export const createJobCompletion = ({
           exitCode: 1,
           signal: null,
           error,
-          executionMode: 'subprocess'
+          executionMode: 'subprocess',
+          observability: job?.observability || null
         },
         ownerId: job?.lease?.owner || null,
         expectedLeaseVersion: job?.lease?.version ?? null
@@ -117,7 +122,8 @@ export const createJobCompletion = ({
           daemon: normalized.daemon,
           cancelled: true,
           shutdownMode: normalized.shutdownMode || null,
-          replay: normalized.replay
+          replay: normalized.replay,
+          observability: normalized.observability
         },
         resolvedQueueName,
         {
@@ -142,7 +148,8 @@ export const createJobCompletion = ({
           error: normalizedError,
           executionMode: normalized.executionMode,
           daemon: normalized.daemon,
-          replay: normalized.replay
+          replay: normalized.replay,
+          observability: normalized.observability
         },
         resolvedQueueName,
         {
@@ -171,7 +178,8 @@ export const createJobCompletion = ({
             error: normalizedError,
             executionMode: normalized.executionMode,
             daemon: normalized.daemon,
-            replay: normalized.replay
+            replay: normalized.replay,
+            observability: normalized.observability
           },
           ownerId: job?.lease?.owner || null,
           expectedLeaseVersion: job?.lease?.version ?? null
@@ -189,7 +197,8 @@ export const createJobCompletion = ({
         error: normalizedError,
         executionMode: normalized.executionMode,
         daemon: normalized.daemon,
-        replay: normalized.replay
+        replay: normalized.replay,
+        observability: normalized.observability
       },
       resolvedQueueName,
       {

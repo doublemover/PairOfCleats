@@ -8,7 +8,8 @@ export const configureRuntimeLogger = ({
   stage,
   root,
   logDestination,
-  logFormatOverride
+  logFormatOverride,
+  observability = null
 }) => {
   const logFormatRaw = logFormatOverride || envConfig.logFormat || loggingConfig.format || 'text';
   const logFormat = ['text', 'json', 'pretty'].includes(logFormatRaw)
@@ -39,7 +40,12 @@ export const configureRuntimeLogger = ({
       buildId,
       stage: stage || null,
       configHash: configHash || null,
-      repoRoot: root
+      repoRoot: root,
+      correlationId: observability?.correlation?.correlationId || null,
+      parentCorrelationId: observability?.correlation?.parentCorrelationId || null,
+      requestId: observability?.correlation?.requestId || null,
+      surface: observability?.surface || null,
+      operation: observability?.operation || null
     }
   });
   return { logFormat: effectiveFormat, logLevel, ringMax, ringMaxBytes };

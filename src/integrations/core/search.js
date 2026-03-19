@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { runSearchCli } from '../../retrieval/cli.js';
 import { buildSearchArgs } from './args.js';
+import { attachObservability, normalizeObservability } from '../../shared/observability.js';
 
 /**
  * Execute a search for a repo.
@@ -12,10 +13,19 @@ export async function search(repoRoot, params = {}) {
   const rootOverride = repoRoot
     ? path.resolve(repoRoot)
     : (params.root ? path.resolve(params.root) : null);
+  const observability = normalizeObservability(params.observability, {
+    surface: 'search',
+    operation: 'search',
+    context: {
+      repoRoot: rootOverride || null,
+      query: typeof params.query === 'string' ? params.query : '',
+      output: params.output || null
+    }
+  });
   const rawArgs = Array.isArray(params.args) ? params.args.slice() : buildSearchArgs(params);
   const query = typeof params.query === 'string' ? params.query : '';
   if (query) rawArgs.push('--', query);
-  return runSearchCli(rawArgs, {
+  const result = await runSearchCli(rawArgs, {
     root: rootOverride || undefined,
     emitOutput: params.emitOutput === true,
     exitOnError: params.exitOnError === true,
@@ -24,4 +34,5 @@ export async function search(repoRoot, params = {}) {
     signal: params.signal || null,
     scoreMode: params.scoreMode ?? null
   });
+  return attachObservability(result, observability);
 }

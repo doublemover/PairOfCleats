@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url';
 import PQueue from 'p-queue';
 import { buildInitializeResult, formatToolError } from '../../src/integrations/mcp/protocol.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
+import { attachObservability, normalizeObservability } from '../../src/shared/observability.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
 import { tryImport } from '../../src/shared/optional-deps.js';
 import { withTimeout } from './runner.js';
@@ -57,7 +58,7 @@ const resolveSdkModules = async () => {
   };
 };
 
-const buildProgressSender = (server, token, tool) => {
+const buildProgressSender = (server, token, tool, observability = null) => {
   if (!token || typeof server?.sendNotification !== 'function') {
     return null;
   }
@@ -79,7 +80,8 @@ const buildProgressSender = (server, token, tool) => {
       message,
       stream: payload?.stream || 'info',
       phase: payload?.phase || 'progress',
-      ts: new Date().toISOString()
+      ts: new Date().toISOString(),
+      observability: payload?.observability || observability || null
     });
   };
 };
@@ -159,10 +161,27 @@ export async function startMcpSdkServer({
       const controller = new AbortController();
       let timedOut = false;
       const progressToken = request?.params?._meta?.progressToken || context?.progressToken;
-      const progress = buildProgressSender(server, progressToken, name);
+      const requestObservability = normalizeObservability({
+        correlationId: request?.params?._meta?.correlationId || null,
+        parentCorrelationId: request?.params?._meta?.parentCorrelationId || null,
+        requestId: request?.params?._meta?.requestId || context?.requestId || null
+      }, {
+        surface: 'mcp',
+        operation: name,
+        context: {
+          tool: name,
+          toolCallId: context?.requestId || null
+        }
+      });
+      const progress = buildProgressSender(server, progressToken, name, requestObservability);
       try {
         const result = await withTimeout(
-          handleToolCall(name, args, { progress, toolCallId: context?.requestId || null, signal: controller.signal }),
+          handleToolCall(name, args, {
+            progress,
+            toolCallId: context?.requestId || null,
+            signal: controller.signal,
+            observability: requestObservability
+          }),
           timeoutMs,
           {
             label: name,
@@ -179,7 +198,7 @@ export async function startMcpSdkServer({
           };
         }
         return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          content: [{ type: 'text', text: JSON.stringify(attachObservability(result, requestObservability), null, 2) }]
         };
       } catch (error) {
         const payload = formatToolError(error);

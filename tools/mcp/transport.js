@@ -8,6 +8,7 @@ import {
   sendResult
 } from '../../src/integrations/mcp/protocol.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
+import { attachObservability, normalizeObservability } from '../../src/shared/observability.js';
 import { logError } from '../../src/shared/progress.js';
 import { withTimeout } from './runner.js';
 
@@ -34,7 +35,7 @@ export const createMcpTransport = ({
   const progressState = new Map();
   const PROGRESS_THROTTLE_MS = 250;
 
-  const sendProgress = (id, tool, payload) => {
+  const sendProgress = (id, tool, payload, observability = null) => {
     if (id === null || id === undefined) return;
     const message = payload?.message ? String(payload.message) : '';
     if (!message) return;
@@ -50,7 +51,8 @@ export const createMcpTransport = ({
         message: nextMessage,
         stream: nextPayload?.stream || 'info',
         phase: nextPayload?.phase || 'progress',
-        ts: new Date().toISOString()
+        ts: new Date().toISOString(),
+        observability: nextPayload?.observability || observability || null
       });
       state.lastSent = Date.now();
       state.pending = null;
@@ -152,15 +154,32 @@ export const createMcpTransport = ({
       const timeoutMs = resolveToolTimeoutMs(name, args);
       try {
         const controller = new AbortController();
-        const entry = { controller, cancelled: false };
+        const requestObservability = normalizeObservability({
+          correlationId: params?._meta?.correlationId || null,
+          parentCorrelationId: params?._meta?.parentCorrelationId || null,
+          requestId: params?._meta?.requestId || idKey
+        }, {
+          surface: 'mcp',
+          operation: name,
+          context: {
+            tool: name,
+            toolCallId: idKey
+          }
+        });
+        const entry = { controller, cancelled: false, observability: requestObservability };
         inFlight.set(idKey, entry);
         let timedOut = false;
         const progress = (payload) => {
           if (timedOut) return;
-          sendProgress(id, name, payload);
+          sendProgress(id, name, payload, requestObservability);
         };
         const result = await withTimeout(
-          handleToolCall(name, args, { progress, toolCallId: id, signal: controller.signal }),
+          handleToolCall(name, args, {
+            progress,
+            toolCallId: id,
+            signal: controller.signal,
+            observability: requestObservability
+          }),
           timeoutMs,
           {
             label: name,
@@ -176,7 +195,7 @@ export const createMcpTransport = ({
           return;
         }
         sendResult(id, {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          content: [{ type: 'text', text: JSON.stringify(attachObservability(result, requestObservability), null, 2) }]
         });
       } catch (error) {
         const entry = inFlight.get(idKey);

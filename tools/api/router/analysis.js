@@ -3,6 +3,7 @@ import { resolveIndexDir } from '../../../src/retrieval/cli-index.js';
 import { hasIndexMeta } from '../../../src/retrieval/cli/index-loader.js';
 import { buildRiskExplainPayload } from '../../analysis/explain-risk.js';
 import { buildCompositeContextPackPayload } from '../../../src/integrations/tooling/context-pack.js';
+import { attachObservability, buildChildObservability } from '../../../src/shared/observability.js';
 import { normalizeRiskFilters, validateRiskFilters } from '../../../src/shared/risk-filters.js';
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { sendError, sendJson } from '../response.js';
@@ -11,6 +12,7 @@ export async function handleRiskExplainRoute({
   req,
   res,
   corsHeaders,
+  observability,
   parseJsonBody,
   resolveRepo,
   validateRiskExplainPayload
@@ -45,6 +47,14 @@ export async function handleRiskExplainRoute({
   }
 
   try {
+    const resultObservability = buildChildObservability(observability, {
+      surface: 'analysis',
+      operation: 'risk_explain',
+      context: {
+        repoRoot: repoPath,
+        chunkUid: String(payload.chunk)
+      }
+    });
     const result = await buildRiskExplainPayload({
       indexDir,
       chunkUid: String(payload.chunk),
@@ -53,7 +63,7 @@ export async function handleRiskExplainRoute({
       includePartialFlows: payload.includePartialFlows === true,
       maxPartialFlows: payload.maxPartialFlows
     });
-    sendJson(res, 200, { ok: true, result }, corsHeaders || {});
+    sendJson(res, 200, attachObservability({ ok: true, result }, resultObservability), corsHeaders || {});
     return true;
   } catch (err) {
     const message = err?.message || 'Failed to build risk explanation.';
@@ -68,6 +78,7 @@ export async function handleContextPackRoute({
   req,
   res,
   corsHeaders,
+  observability,
   parseJsonBody,
   resolveRepo,
   validateContextPackPayload
@@ -83,6 +94,13 @@ export async function handleContextPackRoute({
 
   const repoPath = await resolveRepo(payload.repoPath || payload.repo || '');
   try {
+    const resultObservability = buildChildObservability(observability, {
+      surface: 'analysis',
+      operation: 'context_pack',
+      context: {
+        repoRoot: repoPath
+      }
+    });
     const result = await buildCompositeContextPackPayload({
       repoRoot: repoPath,
       seed: payload.seed,
@@ -109,7 +127,7 @@ export async function handleContextPackRoute({
       maxWorkUnits: payload.maxWorkUnits,
       maxWallClockMs: payload.maxWallClockMs
     });
-    sendJson(res, 200, { ok: true, result }, corsHeaders || {});
+    sendJson(res, 200, attachObservability({ ok: true, result }, resultObservability), corsHeaders || {});
     return true;
   } catch (err) {
     const message = err?.message || 'Failed to build context pack.';

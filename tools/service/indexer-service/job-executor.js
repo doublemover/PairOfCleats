@@ -5,6 +5,10 @@ import path from 'node:path';
 import { parseBuildArgs } from '../../../src/index/build/args.js';
 import { buildIndex } from '../../../src/integrations/core/index.js';
 import { isAbsolutePathNative } from '../../../src/shared/files.js';
+import {
+  applyObservabilityContextEnv,
+  buildChildObservability
+} from '../../../src/shared/observability.js';
 import { collectEmbeddingReplayState, repairEmbeddingReplayState } from '../embedding-replay.js';
 import { buildEmbeddingsArgs, normalizeEmbeddingJob } from '../indexer-service-helpers.js';
 import { runLoggedSubprocess } from '../subprocess-log.js';
@@ -20,7 +24,8 @@ const buildDefaultRunResult = () => ({
   executionMode: 'subprocess',
   daemon: null,
   cancelled: false,
-  shutdownMode: null
+  shutdownMode: null,
+  observability: null
 });
 
 /**
@@ -107,7 +112,8 @@ export const createJobExecutor = ({
     stage,
     extraArgs = null,
     logPath = null,
-    abortSignal = null
+    abortSignal = null,
+    observability = null
   ) => {
     const buildPath = path.join(toolRoot, 'build_index.js');
     const args = [buildPath];
@@ -118,7 +124,10 @@ export const createJobExecutor = ({
       if (mode && mode !== 'both') args.push('--mode', mode);
       if (stage) args.push('--stage', stage);
     }
-    const runtimeEnv = resolveRepoRuntimeEnv(repoPath);
+    const runtimeEnv = applyObservabilityContextEnv(
+      resolveRepoRuntimeEnv(repoPath),
+      observability
+    );
     return spawnWithLog(args, runtimeEnv, logPath, abortSignal);
   };
 
@@ -227,7 +236,8 @@ export const createJobExecutor = ({
     extraArgs = null,
     logPath = null,
     daemonOptions = {},
-    abortSignal = null
+    abortSignal = null,
+    observability = null
   ) => {
     const rawArgs = resolveBuildIndexArgs(repoPath, mode, stage, extraArgs);
     const daemonDeterministic = daemonOptions?.deterministic !== false;
@@ -248,14 +258,15 @@ export const createJobExecutor = ({
       const { argv: parsedArgv } = parseBuildArgs(rawArgs);
       const buildArgv = sanitizeBuildArgv(parsedArgv);
       const resolvedRepo = buildArgv.repo || repoPath;
-      await buildIndex(resolvedRepo, {
+      const buildResult = await buildIndex(resolvedRepo, {
         ...buildArgv,
         rawArgv: rawArgs,
         abortSignal,
         daemonEnabled: true,
         daemonDeterministic,
         daemonSessionKey,
-        daemonHealth
+        daemonHealth,
+        observability
       });
       const durationMs = Math.max(0, Date.now() - startedAt);
       await appendDaemonLogLine(logPath, `[daemon] completed durationMs=${durationMs}`);
@@ -265,6 +276,7 @@ export const createJobExecutor = ({
         executionMode: 'daemon',
         cancelled: false,
         shutdownMode: null,
+        observability: buildResult?.observability || observability || null,
         daemon: {
           sessionKey: daemonSessionKey,
           deterministic: daemonDeterministic,
@@ -283,6 +295,7 @@ export const createJobExecutor = ({
         executionMode: 'daemon',
         cancelled,
         shutdownMode: cancelled ? 'force-stop' : null,
+        observability: observability || null,
         daemon: {
           sessionKey: daemonSessionKey,
           deterministic: daemonDeterministic,
@@ -388,6 +401,16 @@ export const createJobExecutor = ({
    * @returns {Promise<{handled:boolean,runResult:{exitCode:number,signal:string|null,executionMode:string,daemon:object|null,cancelled:boolean,shutdownMode:string|null}}>}
    */
   const executeIndexJob = async ({ job, jobLifecycle, logPath, abortSignal = null }) => {
+    const jobObservability = buildChildObservability(job?.observability || null, {
+      surface: 'build',
+      operation: 'build_index',
+      phase: job?.stage || null,
+      context: {
+        queueName: resolvedQueueName || 'index',
+        jobId: job?.id || null,
+        repoRoot: job?.repo || null
+      }
+    });
     if (serviceExecutionMode === 'daemon') {
       const runResult = await jobLifecycle.registerPromise(
         runBuildIndexDaemon(
@@ -402,14 +425,15 @@ export const createJobExecutor = ({
             sessionNamespace: daemonWorkerConfig.sessionNamespace || null,
             health: daemonWorkerConfig.health || null
           },
-          abortSignal
+          abortSignal,
+          jobObservability
         ),
         { label: 'indexer-service-run-index-daemon' }
       );
       return { handled: false, runResult };
     }
     const subprocessResult = await jobLifecycle.registerPromise(
-      runBuildIndexSubprocess(job.repo, job.mode, job.stage, job.args, logPath, abortSignal),
+      runBuildIndexSubprocess(job.repo, job.mode, job.stage, job.args, logPath, abortSignal, jobObservability),
       { label: 'indexer-service-run-index-subprocess' }
     );
     return {
@@ -420,7 +444,8 @@ export const createJobExecutor = ({
         executionMode: 'subprocess',
         daemon: null,
         cancelled: subprocessResult.cancelled === true,
-        shutdownMode: subprocessResult.cancelled ? 'force-stop' : null
+        shutdownMode: subprocessResult.cancelled ? 'force-stop' : null,
+        observability: jobObservability
       }
     };
   };

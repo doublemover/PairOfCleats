@@ -19,6 +19,7 @@ import {
   resolveQueueSloPolicy
 } from './admission-policy.js';
 import { resolveQueueRetentionPolicy } from './retention-policy.js';
+import { normalizeObservability } from '../../src/shared/observability.js';
 
 const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
 const VALID_JOB_STATUSES = new Set(['queued', 'running', 'done', 'failed']);
@@ -634,6 +635,17 @@ const createQueuedJobRecord = (job, {
     indexRoot: job.indexRoot || null,
     idempotencyKey,
     configHash: job.configHash || null,
+    observability: job.observability
+      ? normalizeObservability(job.observability, {
+        surface: 'service',
+        operation: 'queue_enqueue',
+        context: {
+          queueName: resolvedQueueName || 'index',
+          jobId: job.id,
+          repoRoot: job.repoRoot || job.repo || null
+        }
+      })
+      : null,
     repoProvenance: job.repoProvenance || null,
     embeddingIdentity: job.embeddingIdentity || null,
     embeddingIdentityKey: job.embeddingIdentityKey || null,
