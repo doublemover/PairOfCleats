@@ -3,9 +3,9 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { acquireFileLock } from '../../src/shared/locks/file-lock.js';
 import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
+import { resolveQueueLeasePolicy } from './lease-policy.js';
 
 const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
-const DEFAULT_LEASE_MS = 5 * 60 * 1000;
 const VALID_JOB_STATUSES = new Set(['queued', 'running', 'done', 'failed']);
 const ALLOWED_TRANSITIONS = Object.freeze({
   queued: new Set(['running']),
@@ -78,7 +78,12 @@ const normalizeLease = (job = {}) => {
       : null,
     lastOwner: typeof job?.lease?.lastOwner === 'string' && job.lease.lastOwner.trim()
       ? job.lease.lastOwner.trim()
-      : null
+      : null,
+    policy: resolveQueueLeasePolicy({
+      job,
+      queueName: job?.queueName || null,
+      overrides: job?.lease?.policy || null
+    })
   };
 };
 
@@ -116,6 +121,18 @@ const normalizeJobRecord = (job = {}) => {
     startedAt: normalizeIsoTimestamp(job?.startedAt || null),
     finishedAt: normalizeIsoTimestamp(job?.finishedAt || null),
     lastHeartbeatAt: normalizeIsoTimestamp(job?.lastHeartbeatAt || null),
+    progress: {
+      sequence: Number.isFinite(Number(job?.progress?.sequence))
+        ? Math.max(0, Math.trunc(Number(job.progress.sequence)))
+        : 0,
+      updatedAt: normalizeIsoTimestamp(job?.progress?.updatedAt || null),
+      kind: typeof job?.progress?.kind === 'string' && job.progress.kind.trim()
+        ? job.progress.kind.trim()
+        : null,
+      note: typeof job?.progress?.note === 'string' && job.progress.note.trim()
+        ? job.progress.note.trim()
+        : null
+    },
     lease: normalizeLease(job),
     transition: normalizeTransition(job, status)
   };
@@ -147,35 +164,40 @@ const recordTransition = (job, from, to, reason, at) => {
   };
 };
 
-const resolveLeaseDurationMs = (job, queueName = null, overrideMs = null) => {
-  const parsedOverride = Number(overrideMs);
-  if (Number.isFinite(parsedOverride) && parsedOverride > 0) {
-    return Math.max(1000, Math.trunc(parsedOverride));
+const resolveLeasePolicy = (job, queueName = null, options = {}) => resolveQueueLeasePolicy({
+  job,
+  queueName,
+  overrides: {
+    leaseMs: options.leaseMs,
+    renewIntervalMs: options.renewIntervalMs,
+    progressIntervalMs: options.progressIntervalMs
   }
-  const stage = typeof job?.stage === 'string' ? job.stage.toLowerCase() : '';
-  if (queueName === 'embeddings' || job?.reason === 'embeddings' || stage === 'stage3') {
-    return 15 * 60 * 1000;
-  }
-  if (stage === 'stage2') return 10 * 60 * 1000;
-  return DEFAULT_LEASE_MS;
-};
+});
 
 const setLease = (job, {
   ownerId,
-  leaseMs,
   at,
   queueName,
-  incrementVersion = false
+  incrementVersion = false,
+  leaseMs = null,
+  renewIntervalMs = null,
+  progressIntervalMs = null
 }) => {
   const lease = normalizeLease(job);
   const owner = normalizeLeaseOwner(ownerId);
+  const policy = resolveLeasePolicy(job, queueName, {
+    leaseMs,
+    renewIntervalMs,
+    progressIntervalMs
+  });
   lease.owner = owner;
   lease.version = incrementVersion ? lease.version + 1 : Math.max(1, lease.version);
   lease.acquiredAt = incrementVersion ? at : (lease.acquiredAt || at);
   lease.renewedAt = at;
-  lease.expiresAt = new Date(Date.parse(at) + resolveLeaseDurationMs(job, queueName, leaseMs)).toISOString();
+  lease.expiresAt = new Date(Date.parse(at) + policy.leaseMs).toISOString();
   lease.releasedAt = null;
   lease.releasedReason = null;
+  lease.policy = policy;
   job.lease = lease;
   return lease;
 };
@@ -216,6 +238,20 @@ const assertLeaseOwnership = (job, { ownerId = null, expectedLeaseVersion = null
   return lease;
 };
 
+const recordProgress = (job, { at, kind, note = null }) => {
+  const current = job?.progress && typeof job.progress === 'object'
+    ? job.progress
+    : { sequence: 0, updatedAt: null, kind: null, note: null };
+  job.progress = {
+    sequence: Number.isFinite(Number(current.sequence))
+      ? Math.max(0, Math.trunc(Number(current.sequence))) + 1
+      : 1,
+    updatedAt: at,
+    kind,
+    note
+  };
+};
+
 const isLeaseExpired = (job, nowMs, queueName = null) => {
   const leaseExpiresAt = Date.parse(job?.lease?.expiresAt || '');
   if (!Number.isNaN(leaseExpiresAt)) {
@@ -223,7 +259,7 @@ const isLeaseExpired = (job, nowMs, queueName = null) => {
   }
   const heartbeatAt = Date.parse(job?.lastHeartbeatAt || job?.startedAt || '');
   if (Number.isNaN(heartbeatAt)) return false;
-  return (nowMs - heartbeatAt) > resolveLeaseDurationMs(job, queueName);
+  return (nowMs - heartbeatAt) > resolveLeasePolicy(job, queueName).leaseMs;
 };
 
 export async function ensureQueueDir(dirPath) {
@@ -309,6 +345,7 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
       id: job.id,
       createdAt: job.createdAt,
       status: 'queued',
+      queueName: resolvedQueueName || 'index',
       repo: job.repo,
       repoRoot: job.repoRoot || job.repo || null,
       mode: job.mode,
@@ -330,6 +367,12 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
       maxRetries,
       nextEligibleAt: null,
       lastHeartbeatAt: null,
+      progress: {
+        sequence: 0,
+        updatedAt: null,
+        kind: null,
+        note: null
+      },
       lease: {
         owner: null,
         version: 0,
@@ -381,10 +424,13 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
     setLease(job, {
       ownerId: options.ownerId,
       leaseMs: options.leaseMs,
+      renewIntervalMs: options.renewIntervalMs,
+      progressIntervalMs: options.progressIntervalMs,
       at: nowIso,
       queueName,
       incrementVersion: true
     });
+    recordProgress(job, { at: nowIso, kind: 'claim', note: 'lease-acquired' });
     recordTransition(job, previousStatus, 'running', 'claim', nowIso);
     await saveQueue(dirPath, queue, queueName);
     return job;
@@ -431,6 +477,11 @@ export async function completeJob(dirPath, jobId, status, result, queueName = nu
     }
     job.lastHeartbeatAt = null;
     clearLease(job, nowIso, nextStatus === 'queued' ? 'retry' : 'complete');
+    recordProgress(job, {
+      at: nowIso,
+      kind: nextStatus === 'queued' ? 'retry' : 'complete',
+      note: nextStatus
+    });
     recordTransition(job, previousStatus, nextStatus, nextStatus === 'queued' ? 'retry' : 'complete', nowIso);
     await saveQueue(dirPath, queue, queueName);
     const reportPath = job.reportPath || path.join(reportsDir, `${job.id}.json`);
@@ -457,13 +508,30 @@ export async function touchJobHeartbeat(dirPath, jobId, queueName = null, option
       expectedLeaseVersion: options.expectedLeaseVersion
     });
     const nowIso = new Date().toISOString();
+    const lastHeartbeatMs = Date.parse(job.lastHeartbeatAt || '');
+    const minIntervalMs = Number(options.minIntervalMs);
+    if (
+      Number.isFinite(minIntervalMs)
+      && minIntervalMs > 0
+      && !Number.isNaN(lastHeartbeatMs)
+      && (Date.now() - lastHeartbeatMs) < Math.trunc(minIntervalMs)
+    ) {
+      return job;
+    }
     job.lastHeartbeatAt = nowIso;
     setLease(job, {
       ownerId: options.ownerId || job.lease?.owner,
       leaseMs: options.leaseMs,
+      renewIntervalMs: options.renewIntervalMs,
+      progressIntervalMs: options.progressIntervalMs,
       at: nowIso,
       queueName,
       incrementVersion: false
+    });
+    recordProgress(job, {
+      at: nowIso,
+      kind: options.progress?.kind || 'renewal',
+      note: options.progress?.note || null
     });
     await saveQueue(dirPath, queue, queueName);
     return job;
@@ -520,6 +588,7 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
         job.startedAt = null;
         job.finishedAt = null;
         clearLease(job, nowIso, 'lease-expired-retry');
+        recordProgress(job, { at: nowIso, kind: 'retry', note: 'lease-expired' });
         recordTransition(job, previousStatus, 'queued', 'lease-expired-retry', nowIso);
       } else {
         failed += 1;
@@ -529,6 +598,7 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
         job.nextEligibleAt = null;
         job.result = { error: 'lease expired before completion', attempts: nextAttempts };
         clearLease(job, nowIso, 'lease-expired-fail');
+        recordProgress(job, { at: nowIso, kind: 'failed', note: 'lease-expired' });
         recordTransition(job, previousStatus, 'failed', 'lease-expired-fail', nowIso);
       }
       job.lastHeartbeatAt = null;

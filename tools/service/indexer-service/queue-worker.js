@@ -22,6 +22,7 @@ const STALE_SWEEP_MIN_INTERVAL_MS = 1000;
  *   finalizeJobRun:(input:{job:object,runResult:object,metrics:{processed:number,succeeded:number,failed:number,retried:number}})=>Promise<void>,
  *   buildDefaultRunResult:()=>{exitCode:number,executionMode:string,daemon:object|null},
  *   printPayload:(payload:object)=>void,
+ *   resolveLeasePolicy?:(input:{job:object|null,queueName:string|null})=>{leaseMs:number,renewIntervalMs:number,progressIntervalMs:number,workloadClass:string,maxRenewalGapMs:number,maxConsecutiveRenewalFailures:number},
  *   jobHeartbeatIntervalMs?:number
  * }} input
  * @returns {{
@@ -44,6 +45,14 @@ export const createQueueWorker = ({
   finalizeJobRun,
   buildDefaultRunResult,
   printPayload,
+  resolveLeasePolicy = () => ({
+    leaseMs: 5 * 60 * 1000,
+    renewIntervalMs: 30 * 1000,
+    progressIntervalMs: 30 * 1000,
+    workloadClass: 'balanced',
+    maxRenewalGapMs: 60 * 1000,
+    maxConsecutiveRenewalFailures: 3
+  }),
   jobHeartbeatIntervalMs = 30000
 }) => {
   let staleSweepPromise = null;
@@ -84,12 +93,45 @@ export const createQueueWorker = ({
     const jobLifecycle = createLifecycleRegistry({
       name: `indexer-service-job:${job.id}`
     });
+    const leasePolicy = resolveLeasePolicy({ job, queueName: resolvedQueueName });
+    const renewalIntervalMs = Number.isFinite(Number(leasePolicy?.renewIntervalMs))
+      ? Math.max(250, Math.trunc(Number(leasePolicy.renewIntervalMs)))
+      : jobHeartbeatIntervalMs;
+    const renewalState = {
+      inFlight: false,
+      consecutiveFailures: 0,
+      lastSuccessAt: Date.now()
+    };
     const heartbeat = setInterval(() => {
+      if (renewalState.inFlight) return;
+      renewalState.inFlight = true;
       void touchJobHeartbeat(queueDir, job.id, resolvedQueueName, {
         ownerId: workerOwnerId,
-        expectedLeaseVersion: job?.lease?.version ?? null
+        expectedLeaseVersion: job?.lease?.version ?? null,
+        leaseMs: leasePolicy?.leaseMs ?? null,
+        renewIntervalMs: leasePolicy?.renewIntervalMs ?? null,
+        progressIntervalMs: leasePolicy?.progressIntervalMs ?? null,
+        minIntervalMs: renewalIntervalMs,
+        progress: {
+          kind: 'renewal',
+          note: `workload=${leasePolicy?.workloadClass || 'balanced'}`
+        }
+      }).then(() => {
+        renewalState.consecutiveFailures = 0;
+        renewalState.lastSuccessAt = Date.now();
+      }).catch((err) => {
+        renewalState.consecutiveFailures += 1;
+        const gapMs = Date.now() - renewalState.lastSuccessAt;
+        const failureLimit = Number.isFinite(Number(leasePolicy?.maxConsecutiveRenewalFailures))
+          ? Math.max(1, Math.trunc(Number(leasePolicy.maxConsecutiveRenewalFailures)))
+          : 3;
+        if (renewalState.consecutiveFailures <= failureLimit || gapMs >= (leasePolicy?.maxRenewalGapMs ?? renewalIntervalMs)) {
+          console.error(`[indexer] job ${job.id} lease renewal failed: ${err?.message || err}`);
+        }
+      }).finally(() => {
+        renewalState.inFlight = false;
       });
-    }, jobHeartbeatIntervalMs);
+    }, renewalIntervalMs);
     jobLifecycle.registerTimer(heartbeat, { label: 'indexer-service-job-heartbeat' });
     const logPath = job.logPath || path.join(queueDir, 'logs', `${job.id}.log`);
     const stopProgress = monitorBuildProgress
@@ -108,8 +150,12 @@ export const createQueueWorker = ({
    */
   const processQueueOnce = async (metrics) => {
     await ensureStaleSweep();
+    const queueLeasePolicy = resolveLeasePolicy({ job: null, queueName: resolvedQueueName });
     const job = await claimNextJob(queueDir, resolvedQueueName, {
-      ownerId: workerOwnerId
+      ownerId: workerOwnerId,
+      leaseMs: queueLeasePolicy?.leaseMs ?? null,
+      renewIntervalMs: queueLeasePolicy?.renewIntervalMs ?? null,
+      progressIntervalMs: queueLeasePolicy?.progressIntervalMs ?? null
     });
     if (!job) return false;
     metrics.processed += 1;

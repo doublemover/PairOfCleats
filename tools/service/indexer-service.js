@@ -31,6 +31,7 @@ import { startBuildProgressMonitor } from './indexer-service/progress-monitor.js
 import { createJobCompletion } from './indexer-service/job-completion.js';
 import { createJobExecutor } from './indexer-service/job-executor.js';
 import { createQueueWorker } from './indexer-service/queue-worker.js';
+import { resolveQueueLeasePolicy } from './lease-policy.js';
 
 const argv = createCli({
   scriptName: 'indexer-service',
@@ -399,6 +400,10 @@ const queueWorker = createQueueWorker({
   finalizeJobRun,
   buildDefaultRunResult,
   printPayload,
+  resolveLeasePolicy: ({ job, queueName: activeQueueName }) => resolveQueueLeasePolicy({
+    job,
+    queueName: activeQueueName
+  }),
   jobHeartbeatIntervalMs: JOB_HEARTBEAT_INTERVAL_MS
 });
 
