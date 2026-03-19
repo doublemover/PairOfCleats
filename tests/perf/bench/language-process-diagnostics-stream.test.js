@@ -40,6 +40,14 @@ const script = [
   "console.error('[scm] timeout while collecting git metadata');",
   "progress({ level: 'warn', stage: 'watchdog', taskId: 'stage:watchdog', message: '[tree-sitter:schedule] queue delay hotspot 1450ms' });",
   "console.log('artifact tail stalled for 32000ms while writing shard');",
+  "console.log('[tooling] preflight:start provider=gopls id=gopls.workspace-model class=workspace timeoutMs=20000');",
+  "console.log('[tooling] preflight:blocked provider=gopls id=gopls.workspace-model durationMs=87 state=blocked');",
+  "console.log('[tooling] request:timeout provider=pyright method=textDocument/documentSymbol stage=documentSymbol workspacePartition=. class=timeout');",
+  "console.log('[tooling] request:failed provider=sourcekit method=textDocument/semanticTokens/full stage=semantic_tokens workspacePartition=swift-package class=request_failed');",
+  "console.log('[tooling] pyright circuit breaker tripped.');",
+  "console.log('[tooling] pyright degraded mode active (fail-open).');",
+  "console.log('[tooling] pyright degraded mode cleared.');",
+  "console.log('[tooling] workspace:partition provider=gopls state=degraded reason=gopls_workspace_partition_incomplete workspacePartition=multiple partitionCount=2 unmatchedDocuments=1 unmatchedTargets=1');",
   "const fallback = JSON.stringify({ proto: 'poc.progress@2', event: 'log', ts: new Date().toISOString(), level: 'warn', stage: 'parse', taskId: 'stage:parse', message: 'using fallback parser for unsupported grammar' });",
   'console.log(fallback);',
   'console.log(fallback);',
@@ -60,7 +68,7 @@ assert.equal(
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
   'expected diagnostics schema version'
 );
-assert.equal(result.diagnostics.eventCount, 6, 'expected six diagnostic events including fallback duplicate');
+assert.equal(result.diagnostics.eventCount, 15, 'expected structured diagnostics to include tooling/runtime events');
 assert.equal(result.diagnostics.countsByType.fallback_used, 2, 'expected fallback duplicate count in full stream');
 
 for (const type of BENCH_DIAGNOSTIC_EVENT_TYPES) {
@@ -82,7 +90,7 @@ assert.equal(
 const streamLines = (await fsPromises.readFile(diagnosticsPath, 'utf8'))
   .split(/\r?\n/)
   .filter((line) => line.trim());
-assert.equal(streamLines.length, 6, 'expected full JSON event stream with all occurrences');
+assert.equal(streamLines.length, 15, 'expected full JSON event stream with all occurrences');
 
 const streamEvents = streamLines.map((line) => JSON.parse(line));
 const fallbackEvents = streamEvents.filter((entry) => entry.eventType === 'fallback_used');
@@ -97,6 +105,15 @@ assert.deepEqual(
   [1, 2],
   'expected fallback occurrence counter to increment'
 );
+const requestTimeoutEvent = streamEvents.find((entry) => entry.eventType === 'provider_request_timeout');
+assert.equal(requestTimeoutEvent?.providerId, 'pyright', 'expected provider correlation on request timeout');
+assert.equal(requestTimeoutEvent?.requestMethod, 'textDocument/documentSymbol', 'expected request method on timeout event');
+const preflightBlockedEvent = streamEvents.find((entry) => entry.eventType === 'provider_preflight_blocked');
+assert.equal(preflightBlockedEvent?.providerId, 'gopls', 'expected provider correlation on preflight blocked event');
+assert.equal(preflightBlockedEvent?.preflightState, 'blocked', 'expected blocked preflight state on stream event');
+const workspacePartitionEvent = streamEvents.find((entry) => entry.eventType === 'workspace_partition_decision');
+assert.equal(workspacePartitionEvent?.providerId, 'gopls', 'expected provider correlation on workspace routing event');
+assert.equal(workspacePartitionEvent?.workspacePartition, 'multiple', 'expected workspace partition identifier on routing event');
 for (const entry of streamEvents) {
   assert.match(entry.eventId, /^ub050:v1:[a-z_]+:[a-f0-9]{12}$/);
   assert.equal(entry.schemaVersion, BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION, 'expected schema version on stream entry');
@@ -106,17 +123,30 @@ const interactiveDiagnostics = captured
   .filter((line) => line.startsWith('[diagnostics]'))
   .map((line) => line.replace(/ub050:v1:[a-z_]+:[a-f0-9]{12}/g, '<eventId>'))
   .sort();
-assert.deepEqual(
-  interactiveDiagnostics,
-  [
-    '[diagnostics] artifact_tail_stall <eventId> artifact tail stalled for 32000ms while writing shard',
-    '[diagnostics] fallback_used <eventId> using fallback parser for unsupported grammar',
-    '[diagnostics] parser_crash <eventId> tree-sitter parser crash while parsing src/main.c',
-    '[diagnostics] queue_delay_hotspot <eventId> [tree-sitter:schedule] queue delay hotspot 1450ms',
-    '[diagnostics] scm_timeout <eventId> [scm] timeout while collecting git metadata'
-  ],
-  'expected concise interactive diagnostics snapshot (deduped)'
-);
+const expectedInteractivePrefixes = [
+  '[diagnostics] artifact_tail_stall <eventId> artifact tail stalled for 32000ms while writing shard',
+  '[diagnostics] fallback_used <eventId> using fallback parser for unsupported grammar',
+  '[diagnostics] parser_crash <eventId> tree-sitter parser crash while parsing src/main.c',
+  '[diagnostics] provider_circuit_breaker <eventId> [tooling] pyright circuit breaker tripped.',
+  '[diagnostics] provider_degraded_mode_cleared <eventId> [tooling] pyright degraded mode cleared.',
+  '[diagnostics] provider_degraded_mode_entered <eventId> [tooling] pyright degraded mode active (fail-open).',
+  '[diagnostics] provider_preflight_blocked <eventId> [tooling] preflight:blocked provider=gopls id=gopls.workspace-model durationMs=87 state=blocked',
+  '[diagnostics] provider_preflight_finish <eventId> [tooling] preflight:blocked provider=gopls id=gopls.workspace-model durationMs=87 state=blocked',
+  '[diagnostics] provider_preflight_start <eventId> [tooling] preflight:start provider=gopls id=gopls.workspace-model class=workspace timeoutMs=20000',
+  '[diagnostics] provider_request_failed <eventId> [tooling] request:failed provider=sourcekit method=textDocument/semanticTokens/full stage=semantic_tokens',
+  '[diagnostics] provider_request_timeout <eventId> [tooling] request:timeout provider=pyright method=textDocument/documentSymbol stage=documentSymbol',
+  '[diagnostics] queue_delay_hotspot <eventId> [tree-sitter:schedule] queue delay hotspot 1450ms',
+  '[diagnostics] scm_timeout <eventId> [scm] timeout while collecting git metadata',
+  '[diagnostics] workspace_partition_decision <eventId> [tooling] workspace:partition provider=gopls state=degraded reason=gopls_workspace_partition_incomplete'
+];
+assert.equal(interactiveDiagnostics.length, expectedInteractivePrefixes.length, 'expected one concise interactive line per unique diagnostic');
+for (const prefix of expectedInteractivePrefixes) {
+  assert.equal(
+    interactiveDiagnostics.some((line) => line.startsWith(prefix)),
+    true,
+    `expected interactive diagnostics to include prefix: ${prefix}`
+  );
+}
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 

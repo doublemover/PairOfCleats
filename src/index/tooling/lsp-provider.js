@@ -40,6 +40,7 @@ import { resolveRustWorkspaceMetadataPreflight } from './preflight/rust-workspac
 import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
 import { resolveLspStartupDocuments } from '../../integrations/tooling/providers/lsp/path-policy.js';
 import {
+  formatLspWorkspacePartitionLogLine,
   mergeLspWorkspacePartitionResults,
   resolveLspWorkspaceRouting
 } from './lsp-workspace-routing.js';
@@ -766,6 +767,13 @@ const createConfiguredLspProvider = (server) => {
       requireWorkspaceModel: server.requireWorkspaceModel !== false,
       workspaceModelPolicy: server.workspaceModelPolicy
     });
+    if (log) {
+      const workspaceLogLine = formatLspWorkspacePartitionLogLine({
+        providerId,
+        workspaceRouting
+      });
+      if (workspaceLogLine) log(workspaceLogLine);
+    }
     const partitionResults = [];
     for (const partition of workspaceRouting.partitions) {
       partitionResults.push(await collectLspTypes({

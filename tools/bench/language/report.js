@@ -16,10 +16,13 @@ import {
 } from './metrics.js';
 import {
   BENCH_DIAGNOSTIC_EVENT_TYPES,
+  BENCH_DIAGNOSTIC_MATERIAL_PARITY_EVENT_TYPES,
+  BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES,
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
   BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION,
   buildBenchDiagnosticEventId,
   buildBenchDiagnosticSignature,
+  createBenchDiagnosticClassifier,
   normalizeBenchDiagnosticText
 } from './logging.js';
 import { evaluateBenchVerdict, loadBenchPolicy } from './verdict.js';
@@ -246,6 +249,13 @@ const parseDiagnosticEventLine = (line) => {
       stage: parsed.stage || '',
       taskId: parsed.taskId || '',
       source: parsed.source || '',
+      providerId: parsed.providerId || '',
+      workspacePartition: parsed.workspacePartition || '',
+      requestMethod: parsed.requestMethod || '',
+      failureClass: parsed.failureClass || '',
+      preflightId: parsed.preflightId || '',
+      preflightClass: parsed.preflightClass || '',
+      preflightState: parsed.preflightState || '',
       message: normalizeBenchDiagnosticText(parsed.message || '', { maxLength: 220 })
     });
   const eventId = typeof parsed.eventId === 'string' && parsed.eventId.trim()
@@ -260,7 +270,28 @@ const parseDiagnosticEventLine = (line) => {
     eventId,
     signature,
     message,
-    label
+    label,
+    providerId: typeof parsed.providerId === 'string' && parsed.providerId.trim()
+      ? parsed.providerId.trim()
+      : null,
+    workspacePartition: typeof parsed.workspacePartition === 'string' && parsed.workspacePartition.trim()
+      ? parsed.workspacePartition.trim()
+      : null,
+    requestMethod: typeof parsed.requestMethod === 'string' && parsed.requestMethod.trim()
+      ? parsed.requestMethod.trim()
+      : null,
+    failureClass: typeof parsed.failureClass === 'string' && parsed.failureClass.trim()
+      ? parsed.failureClass.trim()
+      : null,
+    preflightId: typeof parsed.preflightId === 'string' && parsed.preflightId.trim()
+      ? parsed.preflightId.trim()
+      : null,
+    preflightClass: typeof parsed.preflightClass === 'string' && parsed.preflightClass.trim()
+      ? parsed.preflightClass.trim()
+      : null,
+    preflightState: typeof parsed.preflightState === 'string' && parsed.preflightState.trim()
+      ? parsed.preflightState.trim()
+      : null
   };
 };
 
@@ -387,6 +418,113 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
     required,
     unknownTypeCount,
     malformedLines
+  };
+};
+
+const buildDiagnosticsParitySummary = async (resultsRoot, diagnosticsStream, options = {}) => {
+  const files = await listBenchStreamFiles(resultsRoot, LOG_FILE_SUFFIX, options);
+  const orderedFiles = files
+    .slice()
+    .sort((left, right) => Number(isMasterBenchStreamFile(left)) - Number(isMasterBenchStreamFile(right))
+      || left.localeCompare(right));
+  const parityTypes = new Set(BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES);
+  const materialTypes = new Set(BENCH_DIAGNOSTIC_MATERIAL_PARITY_EVENT_TYPES);
+  const fallbackNegativePattern = /\b(?:no|without)\s+fallback\b|\bfallback\s+(?:disabled|off)\b/i;
+  const countsFromLogs = new Map();
+  const uniqueEventKeys = new Set();
+  const repoEventKeys = new Set();
+  let rawEventCount = 0;
+
+  for (const filePath of orderedFiles) {
+    let raw = '';
+    try {
+      raw = await fsPromises.readFile(filePath, 'utf8');
+    } catch {
+      continue;
+    }
+    const classifier = createBenchDiagnosticClassifier();
+    forEachNonEmptyLine(raw, (line) => {
+      const scope = resolveBenchStreamScope(filePath);
+      const masterFile = isMasterBenchStreamFile(filePath);
+      const signals = classifier.classify({ line, source: 'log' })
+        .filter((signal) => parityTypes.has(signal?.eventType));
+      if (
+        parityTypes.has('fallback_used')
+        && /\bfallback\b/i.test(line)
+        && !fallbackNegativePattern.test(line)
+      ) {
+        signals.push({
+          eventType: 'fallback_used',
+          message: line,
+          source: 'log'
+        });
+      }
+      for (const signal of signals) {
+        rawEventCount += 1;
+        const signature = buildBenchDiagnosticSignature({
+          eventType: signal.eventType,
+          stage: signal.stage || '',
+          taskId: signal.taskId || '',
+          source: signal.source || 'log',
+          providerId: signal.providerId || '',
+          workspacePartition: signal.workspacePartition || '',
+          requestMethod: signal.requestMethod || '',
+          failureClass: signal.failureClass || '',
+          preflightId: signal.preflightId || '',
+          preflightClass: signal.preflightClass || '',
+          preflightState: signal.preflightState || '',
+          message: normalizeBenchDiagnosticText(signal.message || '', { maxLength: 220 })
+        });
+        const eventId = buildBenchDiagnosticEventId({
+          eventType: signal.eventType,
+          signature
+        });
+        const scopedKey = buildSyntheticEventKey([
+          masterFile ? 'master' : scope,
+          eventId
+        ]);
+        if (masterFile && repoEventKeys.has(eventId)) continue;
+        if (uniqueEventKeys.has(scopedKey)) continue;
+        uniqueEventKeys.add(scopedKey);
+        if (!masterFile) repoEventKeys.add(eventId);
+        countsFromLogs.set(signal.eventType, (countsFromLogs.get(signal.eventType) || 0) + 1);
+      }
+    });
+  }
+
+  const streamCounts = diagnosticsStream?.countsByType && typeof diagnosticsStream.countsByType === 'object'
+    ? diagnosticsStream.countsByType
+    : {};
+  const mismatches = BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => {
+    const logCount = countsFromLogs.get(eventType) || 0;
+    const streamCount = Number(streamCounts[eventType]) || 0;
+    return {
+      eventType,
+      aggregateLogCount: logCount,
+      diagnosticsStreamCount: streamCount,
+      delta: streamCount - logCount,
+      material: materialTypes.has(eventType)
+    };
+  }).filter((entry) => entry.aggregateLogCount !== entry.diagnosticsStreamCount);
+
+  const materialMismatchCount = mismatches.filter((entry) => entry.material).length;
+
+  return {
+    schemaVersion: 1,
+    trackedTypes: BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.slice(),
+    materialTypes: BENCH_DIAGNOSTIC_MATERIAL_PARITY_EVENT_TYPES.slice(),
+    rawAggregateLogEventCount: rawEventCount,
+    aggregateLogEventCount: uniqueEventKeys.size,
+    countsFromLogs: Object.fromEntries(
+      BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => [eventType, countsFromLogs.get(eventType) || 0])
+    ),
+    countsFromDiagnosticsStream: Object.fromEntries(
+      BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => [eventType, Number(streamCounts[eventType]) || 0])
+    ),
+    mismatchCount: mismatches.length,
+    materialMismatchCount,
+    status: materialMismatchCount > 0 ? 'error' : (mismatches.length > 0 ? 'warn' : 'ok'),
+    mismatches
   };
 };
 
@@ -1285,6 +1423,7 @@ export const buildReportOutput = async ({
   const crashRetention = buildCrashRetentionSummary(tasks);
   const streamOptions = { runSuffix };
   const diagnosticsStream = await buildDiagnosticsStreamSummary(resultsRoot, streamOptions);
+  const diagnosticsParity = await buildDiagnosticsParitySummary(resultsRoot, diagnosticsStream, streamOptions);
   const progressConfidence = await buildProgressConfidenceSummary(resultsRoot, streamOptions);
   const preflight = await buildPreflightLogSummary(resultsRoot, streamOptions);
   const throughputLedger = buildThroughputLedgerSummary(tasks);
@@ -1320,6 +1459,7 @@ export const buildReportOutput = async ({
     diagnostics: {
       crashRetention,
       stream: diagnosticsStream,
+      parity: diagnosticsParity,
       progressConfidence,
       preflight
     },

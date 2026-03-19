@@ -74,6 +74,11 @@ const loadBenchReportSummary = async (reportPath) => {
       skipped: Number(run?.repoCounts?.skipped) || 0
     },
     retainedCrashBundleCount: Number(payload?.diagnostics?.crashRetention?.retainedCount) || 0,
+    diagnosticsParity: {
+      status: normalizeText(payload?.diagnostics?.parity?.status) || 'ok',
+      mismatchCount: Number(payload?.diagnostics?.parity?.mismatchCount) || 0,
+      materialMismatchCount: Number(payload?.diagnostics?.parity?.materialMismatchCount) || 0
+    },
     countsByResultClass: normalizeCountMap(run?.countsByResultClass),
     countsByDiagnosticType: normalizeCountMap(run?.countsByDiagnosticType),
     coreTiming: {
@@ -225,11 +230,23 @@ const validateFixArea = async (planPath, area, index) => {
   } catch (error) {
     failures.push(`controlSlice ${error?.message || String(error)}`);
   }
+  if ((controlSlice?.before?.diagnosticsParity?.materialMismatchCount || 0) > 0) {
+    failures.push('controlSlice beforeReport has material diagnostics parity mismatches');
+  }
+  if ((controlSlice?.after?.diagnosticsParity?.materialMismatchCount || 0) > 0) {
+    failures.push('controlSlice afterReport has material diagnostics parity mismatches');
+  }
   let fullCorpus = null;
   try {
     fullCorpus = await buildComparisonArtifact(planPath, area?.fullCorpus, 'fullCorpus');
   } catch (error) {
     failures.push(`fullCorpus ${error?.message || String(error)}`);
+  }
+  if ((fullCorpus?.before?.diagnosticsParity?.materialMismatchCount || 0) > 0) {
+    failures.push('fullCorpus beforeReport has material diagnostics parity mismatches');
+  }
+  if ((fullCorpus?.after?.diagnosticsParity?.materialMismatchCount || 0) > 0) {
+    failures.push('fullCorpus afterReport has material diagnostics parity mismatches');
   }
   const temporaryPolicySwitches = validateTemporaryPolicySwitches(area, failures);
   const cutover = validateCutover(area, failures);

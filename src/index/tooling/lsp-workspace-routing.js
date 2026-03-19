@@ -95,6 +95,28 @@ const buildWorkspacePartitionSummary = ({
   }))
 });
 
+export const formatLspWorkspacePartitionLogLine = ({
+  providerId,
+  workspaceRouting
+} = {}) => {
+  const routing = workspaceRouting && typeof workspaceRouting === 'object'
+    ? workspaceRouting
+    : null;
+  if (!routing) return '';
+  const partitions = Array.isArray(routing.partitions) ? routing.partitions : [];
+  const primaryPartition = partitions.length === 1
+    ? normalizeRelPath(partitions[0]?.rootRel || '.')
+    : (partitions.length > 1 ? 'multiple' : 'none');
+  return '[tooling] workspace:partition '
+    + `provider=${String(providerId || '').trim() || 'lsp'} `
+    + `state=${String(routing.state || 'unknown').trim() || 'unknown'} `
+    + `reason=${String(routing.reasonCode || 'none').trim() || 'none'} `
+    + `workspacePartition=${primaryPartition} `
+    + `partitionCount=${partitions.length} `
+    + `unmatchedDocuments=${Array.isArray(routing.unmatchedDocuments) ? routing.unmatchedDocuments.length : 0} `
+    + `unmatchedTargets=${Array.isArray(routing.unmatchedTargets) ? routing.unmatchedTargets.length : 0}`;
+};
+
 export const resolveLspWorkspaceRouting = ({
   repoRoot,
   providerId,

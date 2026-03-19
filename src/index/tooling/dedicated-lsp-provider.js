@@ -22,6 +22,7 @@ import {
 import { resolveRuntimeRequirementsPreflight } from './preflight/runtime-requirements-preflight.js';
 import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
 import {
+  formatLspWorkspacePartitionLogLine,
   mergeLspWorkspacePartitionResults,
   resolveLspWorkspaceRouting
 } from './lsp-workspace-routing.js';
@@ -334,6 +335,13 @@ export const createDedicatedLspProvider = (descriptor) => {
         requireWorkspaceModel: config.requireWorkspaceModel !== false,
         workspaceModelPolicy: 'block'
       });
+      const workspaceLogLine = formatLspWorkspacePartitionLogLine({
+        providerId: descriptor.id,
+        workspaceRouting
+      });
+      if (workspaceLogLine) {
+        getLogger(ctx)(workspaceLogLine);
+      }
 
       let result;
       try {

@@ -906,10 +906,49 @@ const TIMEOUT_METRIC_KEY_BY_STAGE = Object.freeze({
   type_definition: 'typeDefinitionTimedOut',
   references: 'referencesTimedOut'
 });
+const REQUEST_METHOD_BY_STAGE = Object.freeze({
+  documentsymbol: 'textDocument/documentSymbol',
+  hover: 'textDocument/hover',
+  semantic_tokens: 'textDocument/semanticTokens/full',
+  signature_help: 'textDocument/signatureHelp',
+  inlay_hints: 'textDocument/inlayHint',
+  definition: 'textDocument/definition',
+  type_definition: 'textDocument/typeDefinition',
+  references: 'textDocument/references'
+});
+
+const emitToolingRequestSignal = ({
+  log,
+  providerId,
+  requestMethod,
+  stageKey,
+  workspaceKey = null,
+  failureClass,
+  kind,
+  err
+}) => {
+  if (typeof log !== 'function') return;
+  const providerToken = String(providerId || '').trim() || 'lsp';
+  const methodToken = String(requestMethod || REQUEST_METHOD_BY_STAGE[String(stageKey || '').trim().toLowerCase()] || '').trim();
+  const kindToken = String(kind || '').trim().toLowerCase() === 'timeout' ? 'timeout' : 'failed';
+  const classToken = String(failureClass || kindToken).trim() || kindToken;
+  const workspaceToken = String(workspaceKey || '.').trim() || '.';
+  const message = String(err?.message || err || '').trim();
+  log(
+    `[tooling] request:${kindToken} provider=${providerToken} method=${methodToken || 'unknown'} `
+    + `stage=${String(stageKey || '').trim() || 'unknown'} `
+    + `workspacePartition=${workspaceToken} `
+    + `class=${classToken}`
+    + `${message ? ` error="${message.replace(/"/g, '\'')}"` : ''}`
+  );
+};
 
 const recordAdaptiveTimeout = ({
+  log,
+  providerId,
   cmd,
   stageKey,
+  workspaceKey = null,
   checks,
   checkFlags,
   fileHoverStats,
@@ -933,6 +972,15 @@ const recordAdaptiveTimeout = ({
       message: `${cmd} ${stageKey} requests timed out; adaptive suppression may be enabled.`
     });
   }
+  emitToolingRequestSignal({
+    log,
+    providerId,
+    requestMethod: REQUEST_METHOD_BY_STAGE[String(stageKey || '').trim().toLowerCase()] || null,
+    stageKey,
+    workspaceKey,
+    failureClass: 'timeout',
+    kind: 'timeout'
+  });
   if (Number.isFinite(resolvedHoverDisableAfterTimeouts)
     && fileHoverStats.timedOut >= resolvedHoverDisableAfterTimeouts
     && !fileHoverStats.disabledAdaptive) {
@@ -946,8 +994,11 @@ const recordAdaptiveTimeout = ({
 
 const handleStageRequestError = ({
   err,
+  log,
+  providerId,
   cmd,
   stageKey,
+  workspaceKey = null,
   guard,
   checks,
   checkFlags,
@@ -964,14 +1015,28 @@ const handleStageRequestError = ({
   }
   if (isTimeoutError(err)) {
     recordAdaptiveTimeout({
+      log,
+      providerId,
       cmd,
       stageKey,
+      workspaceKey,
       checks,
       checkFlags,
       fileHoverStats,
       hoverMetrics,
       hoverControl,
       resolvedHoverDisableAfterTimeouts
+    });
+  } else {
+    emitToolingRequestSignal({
+      log,
+      providerId,
+      requestMethod: REQUEST_METHOD_BY_STAGE[String(stageKey || '').trim().toLowerCase()] || null,
+      stageKey,
+      workspaceKey,
+      failureClass: err?.code || 'request_failed',
+      kind: 'failed',
+      err
     });
   }
   return null;
@@ -1151,6 +1216,16 @@ export const processDocumentTypes = async ({
       );
     } catch (err) {
       log(`[index] ${cmd} documentSymbol failed (${doc.virtualPath}): ${err?.message || err}`);
+      emitToolingRequestSignal({
+        log,
+        providerId: requestCacheProviderId,
+        requestMethod: 'textDocument/documentSymbol',
+        stageKey: 'documentSymbol',
+        workspaceKey: requestCacheWorkspaceKey,
+        failureClass: isTimeoutError(err) ? 'timeout' : (err?.code || 'request_failed'),
+        kind: isTimeoutError(err) ? 'timeout' : 'failed',
+        err
+      });
       if (documentSymbolControl && typeof documentSymbolControl === 'object') {
         documentSymbolControl.disabled = true;
       }
@@ -1314,8 +1389,11 @@ export const processDocumentTypes = async ({
         } catch (err) {
           const info = handleStageRequestError({
             err,
+            log,
+            providerId: requestCacheProviderId,
             cmd,
             stageKey: 'hover',
+            workspaceKey: requestCacheWorkspaceKey,
             guard,
             checks,
             checkFlags,
@@ -1363,8 +1441,11 @@ export const processDocumentTypes = async ({
         } catch (err) {
           handleStageRequestError({
             err,
+            log,
+            providerId: requestCacheProviderId,
             cmd,
             stageKey: 'semantic_tokens',
+            workspaceKey: requestCacheWorkspaceKey,
             guard,
             checks,
             checkFlags,
@@ -1432,8 +1513,11 @@ export const processDocumentTypes = async ({
         } catch (err) {
           const info = handleStageRequestError({
             err,
+            log,
+            providerId: requestCacheProviderId,
             cmd,
             stageKey: 'signature_help',
+            workspaceKey: requestCacheWorkspaceKey,
             guard,
             checks,
             checkFlags,
@@ -1481,8 +1565,11 @@ export const processDocumentTypes = async ({
         } catch (err) {
           handleStageRequestError({
             err,
+            log,
+            providerId: requestCacheProviderId,
             cmd,
             stageKey: 'inlay_hints',
+            workspaceKey: requestCacheWorkspaceKey,
             guard,
             checks,
             checkFlags,
@@ -1566,8 +1653,11 @@ export const processDocumentTypes = async ({
         } catch (err) {
           const info = handleStageRequestError({
             err,
+            log,
+            providerId: requestCacheProviderId,
             cmd,
             stageKey: 'definition',
+            workspaceKey: requestCacheWorkspaceKey,
             guard,
             checks,
             checkFlags,
@@ -1653,8 +1743,11 @@ export const processDocumentTypes = async ({
         } catch (err) {
           const info = handleStageRequestError({
             err,
+            log,
+            providerId: requestCacheProviderId,
             cmd,
             stageKey: 'type_definition',
+            workspaceKey: requestCacheWorkspaceKey,
             guard,
             checks,
             checkFlags,
@@ -1741,8 +1834,11 @@ export const processDocumentTypes = async ({
         } catch (err) {
           const info = handleStageRequestError({
             err,
+            log,
+            providerId: requestCacheProviderId,
             cmd,
             stageKey: 'references',
+            workspaceKey: requestCacheWorkspaceKey,
             guard,
             checks,
             checkFlags,

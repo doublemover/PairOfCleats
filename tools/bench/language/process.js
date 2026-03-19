@@ -18,6 +18,7 @@ import {
   formatBenchProgressConfidence,
   buildBenchDiagnosticEventId,
   buildBenchDiagnosticSignature,
+  createBenchDiagnosticClassifier,
   normalizeBenchDiagnosticText
 } from './logging.js';
 
@@ -361,7 +362,7 @@ const isQueueDelayHotspot = (message) => {
   return normalized.includes('queue delay');
 };
 
-const resolveDiagnosticType = (message, event = null) => {
+const resolveLegacyDiagnosticType = (message, event = null) => {
   const text = String(message || '');
   if (!text) return null;
   if (matchesAnyPattern(text, PARSER_CRASH_PATTERNS)) return 'parser_crash';
@@ -739,6 +740,7 @@ export const createProcessRunner = ({
     const progressConfidenceStreams = Array.from(
       new Set(resolveLogPaths().map(resolveProgressConfidenceStreamPath).filter(Boolean))
     );
+    const diagnosticClassifier = createBenchDiagnosticClassifier();
     const schedulerEvents = [];
     const telemetryWriteQueues = new Map();
     const telemetryWriteFailures = new Map();
@@ -1048,7 +1050,14 @@ export const createProcessRunner = ({
       source = 'stream',
       level = null,
       stage = null,
-      taskId = null
+      taskId = null,
+      providerId = null,
+      workspacePartition = null,
+      requestMethod = null,
+      failureClass = null,
+      preflightId = null,
+      preflightClass = null,
+      preflightState = null
     }) => {
       if (!eventType || !message) return;
       const signature = buildBenchDiagnosticSignature({
@@ -1056,7 +1065,14 @@ export const createProcessRunner = ({
         stage,
         taskId,
         source,
-        message: normalizeSignatureMessage(message)
+        message: normalizeSignatureMessage(message),
+        providerId,
+        workspacePartition,
+        requestMethod,
+        failureClass,
+        preflightId,
+        preflightClass,
+        preflightState
       });
       const eventId = buildBenchDiagnosticEventId({ eventType, signature });
       const occurrence = (diagnosticCountById.get(eventId) || 0) + 1;
@@ -1076,7 +1092,14 @@ export const createProcessRunner = ({
         message: truncateForDisplay(message, 400),
         level: toText(level) || null,
         stage: toText(stage) || null,
-        taskId: toText(taskId) || null
+        taskId: toText(taskId) || null,
+        providerId: toText(providerId) || null,
+        workspacePartition: toText(workspacePartition) || null,
+        requestMethod: toText(requestMethod) || null,
+        failureClass: toText(failureClass) || null,
+        preflightId: toText(preflightId) || null,
+        preflightClass: toText(preflightClass) || null,
+        preflightState: toText(preflightState) || null
       };
       for (const filePath of diagnosticStreams) {
         appendJsonLineQueued(telemetryWriteQueues, telemetryWriteFailures, filePath, payload);
@@ -1094,16 +1117,40 @@ export const createProcessRunner = ({
       const text = event && typeof event.message === 'string' && event.message.trim()
         ? event.message
         : line;
-      const eventType = resolveDiagnosticType(text, event);
-      if (!eventType) return;
-      emitDiagnostic({
-        eventType,
-        message: text,
-        source: event ? 'progress-event' : source,
-        level: event?.level || null,
-        stage: event?.stage || null,
-        taskId: event?.taskId || null
+      const eventSource = event ? 'progress-event' : source;
+      const legacyEventType = resolveLegacyDiagnosticType(text, event);
+      if (legacyEventType) {
+        emitDiagnostic({
+          eventType: legacyEventType,
+          message: text,
+          source: eventSource,
+          level: event?.level || null,
+          stage: event?.stage || null,
+          taskId: event?.taskId || null
+        });
+      }
+      const structuredSignals = diagnosticClassifier.classify({
+        line,
+        event,
+        source: eventSource
       });
+      for (const signal of structuredSignals) {
+        emitDiagnostic({
+          eventType: signal.eventType,
+          message: signal.message,
+          source: signal.source || eventSource,
+          level: signal.level ?? event?.level ?? null,
+          stage: signal.stage ?? event?.stage ?? null,
+          taskId: signal.taskId ?? event?.taskId ?? null,
+          providerId: signal.providerId || null,
+          workspacePartition: signal.workspacePartition || null,
+          requestMethod: signal.requestMethod || null,
+          failureClass: signal.failureClass || null,
+          preflightId: signal.preflightId || null,
+          preflightClass: signal.preflightClass || null,
+          preflightState: signal.preflightState || null
+        });
+      }
     };
 
     const pushSchedulerEvent = ({ message = '', source = 'stream', level = null, stage = null, taskId = null } = {}) => {

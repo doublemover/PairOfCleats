@@ -17,6 +17,8 @@ const writeReport = async (filePath, {
   retained,
   resultClasses = {},
   diagnosticTypes = {},
+  parityStatus = 'ok',
+  materialParityMismatches = 0,
   buildIndexMs,
   buildSqliteMs,
   queryWallMsPerSearch
@@ -38,6 +40,11 @@ const writeReport = async (filePath, {
     diagnostics: {
       crashRetention: {
         retainedCount: retained
+      },
+      parity: {
+        status: parityStatus,
+        mismatchCount: materialParityMismatches,
+        materialMismatchCount: materialParityMismatches
       }
     },
     overallSummary: {
@@ -202,6 +209,66 @@ try {
   const failingPayload = JSON.parse(await fs.readFile(jsonPath, 'utf8'));
   assert.equal(failingPayload?.status, 'error', `expected status=error, received ${String(failingPayload?.status)}`);
   assert.equal(Array.isArray(failingPayload?.failures) && failingPayload.failures.length >= 5, true, 'expected rollout gate failures');
+
+  const parityAfter = path.join(tempRoot, 'parity-after.json');
+  await writeReport(parityAfter, {
+    aggregateResultClass: 'passed_with_degradation',
+    failed: 1,
+    retained: 0,
+    parityStatus: 'error',
+    materialParityMismatches: 2,
+    resultClasses: { passed_with_degradation: 1 },
+    diagnosticTypes: { fallback_used: 1 },
+    buildIndexMs: 160,
+    buildSqliteMs: 250,
+    queryWallMsPerSearch: 10
+  });
+  const parityPlanPath = path.join(tempRoot, 'parity-plan.json');
+  await fs.writeFile(parityPlanPath, JSON.stringify({
+    schemaVersion: 1,
+    id: 'parity-rollout',
+    fixAreas: [
+      {
+        id: 'diagnostics-parity',
+        title: 'Diagnostics parity',
+        owner: 'bench-observability',
+        reproduction: {
+          id: 'diagnostics-parity-replay',
+          kind: 'replay',
+          test: 'tests/tooling/reports/bench-language-diagnostics-parity-report.test.js'
+        },
+        contracts: [
+          {
+            id: 'diagnostics-parity-report',
+            kind: 'test',
+            test: 'tests/tooling/reports/bench-language-diagnostics-parity-report.test.js'
+          }
+        ],
+        controlSlice: {
+          beforeReport: './control-before.json',
+          afterReport: './parity-after.json'
+        },
+        fullCorpus: {
+          beforeReport: './corpus-before.json',
+          afterReport: './corpus-after.json'
+        },
+        temporaryPolicySwitches: [],
+        cutover: {
+          hardCutover: true,
+          compatibilityPathsRemoved: true
+        }
+      }
+    ]
+  }, null, 2), 'utf8');
+
+  const parityResult = runGate(parityPlanPath, ['--enforce']);
+  assert.equal(parityResult.status, 3, `expected parity mismatch rollout gate exit 3, received ${parityResult.status}`);
+  const parityPayload = JSON.parse(await fs.readFile(jsonPath, 'utf8'));
+  assert.equal(
+    parityPayload?.failures?.some((entry) => String(entry?.message || '').includes('material diagnostics parity mismatches')),
+    true,
+    'expected parity mismatch failure to be surfaced by rollout gate'
+  );
 
   console.log('bench-language rollout gate smoke test passed');
 } finally {
