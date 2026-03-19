@@ -15,7 +15,8 @@ import {
 import {
   evaluateQueueBackpressure,
   resolveEnqueueBackpressure,
-  resolveQueueAdmissionPolicy
+  resolveQueueAdmissionPolicy,
+  resolveQueueSloPolicy
 } from './admission-policy.js';
 import { resolveQueueRetentionPolicy } from './retention-policy.js';
 
@@ -642,7 +643,7 @@ const createQueuedJobRecord = (job, {
     args: Array.isArray(job.args) && job.args.length ? job.args : null,
     attempts: 0,
     maxRetries,
-    nextEligibleAt: null,
+    nextEligibleAt: job.nextEligibleAt || null,
     lastHeartbeatAt: null,
     progress: {
       sequence: 0,
@@ -717,37 +718,64 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
           maxQueued
         }
       });
+    const sloPolicy = options.sloPolicy && typeof options.sloPolicy === 'object'
+      ? options.sloPolicy
+      : resolveQueueSloPolicy({
+        queueName: resolvedQueueName || 'index',
+        queueConfig: {
+          maxQueued
+        }
+      });
+    const currentBackpressure = evaluateQueueBackpressure({
+      jobs: queue.jobs,
+      queueName: resolvedQueueName || 'index',
+      policy: admissionPolicy,
+      sloPolicy
+    });
     const backpressureBlock = resolveEnqueueBackpressure({
       jobs: queue.jobs,
       job,
       queueName: resolvedQueueName || 'index',
-      policy: admissionPolicy
+      policy: admissionPolicy,
+      sloPolicy
     });
-    if (backpressureBlock) {
+    if (backpressureBlock?.action === 'reject') {
       return {
         ok: false,
         code: backpressureBlock.code,
         message: backpressureBlock.message,
         backpressure: {
-          ...evaluateQueueBackpressure({
-            jobs: queue.jobs,
-            queueName: resolvedQueueName || 'index',
-            policy: admissionPolicy
-          }),
+          ...currentBackpressure,
           policy: admissionPolicy,
+          sloPolicy,
           projectedQueued: backpressureBlock.projectedQueued,
           projectedTotal: backpressureBlock.projectedTotal,
           projectedResourceUnits: backpressureBlock.projectedResourceUnits,
-          rejectReason: backpressureBlock.reason
+          rejectReason: backpressureBlock.reason,
+          action: backpressureBlock.action,
+          jobTier: backpressureBlock.jobTier || null
         }
       };
     }
-    const next = createQueuedJobRecord(job, {
+    const queuedJob = {
+      ...job
+    };
+    if (backpressureBlock?.action === 'defer' && backpressureBlock.deferredUntil) {
+      queuedJob.nextEligibleAt = backpressureBlock.deferredUntil;
+    }
+    const next = createQueuedJobRecord(queuedJob, {
       logsDir,
       reportsDir,
       resolvedQueueName,
       idempotencyKey
     });
+    if (backpressureBlock?.action === 'defer') {
+      recordProgress(next, {
+        at: next.createdAt,
+        kind: 'defer',
+        note: backpressureBlock.reason
+      });
+    }
     queue.jobs.push(next);
     await appendQueueJournalEntries(dirPath, resolvedQueueName, [
       buildJournalEntry({
@@ -755,10 +783,49 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
         job: next,
         queueName: resolvedQueueName,
         reason: 'enqueue'
-      })
+      }),
+      ...(backpressureBlock?.action === 'defer'
+        ? [buildJournalEntry({
+          eventType: 'defer',
+          job: next,
+          queueName: resolvedQueueName,
+          reason: backpressureBlock.reason,
+          at: next.createdAt,
+          extra: {
+            deferredUntil: backpressureBlock.deferredUntil,
+            delayMs: backpressureBlock.delayMs,
+            jobTier: backpressureBlock.jobTier || null
+          }
+        })]
+        : [])
     ]);
     await saveQueue(dirPath, queue, resolvedQueueName);
-    return { ok: true, job: next, idempotencyKey };
+    return {
+      ok: true,
+      job: next,
+      idempotencyKey,
+      deferred: backpressureBlock?.action === 'defer',
+      backpressure: backpressureBlock
+        ? {
+          ...currentBackpressure,
+          policy: admissionPolicy,
+          sloPolicy,
+          action: backpressureBlock.action,
+          deferReason: backpressureBlock.reason,
+          delayMs: backpressureBlock.delayMs ?? null,
+          deferredUntil: backpressureBlock.deferredUntil ?? null,
+          jobTier: backpressureBlock.jobTier || null
+        }
+        : (currentBackpressure.slo?.state !== 'healthy'
+          ? {
+            ...currentBackpressure,
+            policy: admissionPolicy,
+            sloPolicy,
+            action: 'accept',
+            jobTier: null
+          }
+          : null)
+    };
   });
 }
 
@@ -1452,13 +1519,22 @@ export async function describeQueueBackpressure(dirPath, queueName = null, optio
       queueConfig: options.queueConfig || {},
       workerConfig: options.workerConfig || {}
     });
+  const sloPolicy = options.sloPolicy && typeof options.sloPolicy === 'object'
+    ? options.sloPolicy
+    : resolveQueueSloPolicy({
+      queueName: queueName || 'index',
+      queueConfig: options.queueConfig || {},
+      workerConfig: options.workerConfig || {}
+    });
   return {
     ...evaluateQueueBackpressure({
       jobs: queue.jobs,
       queueName: queueName || 'index',
-      policy
+      policy,
+      sloPolicy
     }),
-    policy
+    policy,
+    sloPolicy
   };
 }
 

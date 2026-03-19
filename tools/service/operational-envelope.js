@@ -1,4 +1,4 @@
-import { resolveQueueAdmissionPolicy } from './admission-policy.js';
+import { resolveQueueAdmissionPolicy, resolveQueueSloPolicy } from './admission-policy.js';
 import { resolveQueueLeasePolicy } from './lease-policy.js';
 
 const toNonNegativeIntOrNull = (value) => {
@@ -32,6 +32,11 @@ export function resolveQueueOperationalEnvelope({
       maxMemoryMb: admission.queueClass === 'embeddings' ? workerMemoryMb : null
     },
     admission,
+    slo: resolveQueueSloPolicy({
+      queueName: admission.queueName,
+      queueConfig,
+      workerConfig
+    }),
     lease: resolveQueueLeasePolicy({
       queueName: admission.queueName
     })

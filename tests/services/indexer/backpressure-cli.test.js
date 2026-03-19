@@ -53,5 +53,6 @@ assert.equal(status.status, 0, 'expected status command to succeed');
 const statusPayload = JSON.parse(status.stdout || '{}');
 assert.equal(statusPayload.backpressure?.state, 'saturated', 'expected status to surface queue backpressure state');
 assert.equal(statusPayload.backpressure?.reasons.includes('max_queued'), true, 'expected status to expose queue saturation reasons');
+assert.equal(typeof statusPayload.backpressure?.slo?.state, 'string', 'expected status to include queue SLO state');
 
 console.log('indexer service backpressure cli test passed');

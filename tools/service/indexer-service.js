@@ -371,7 +371,8 @@ const handleEnqueue = async () => {
     stage: argv.stage || null,
     maxRetries: queueMaxRetries ?? null
   }, queueConfig.maxQueued ?? null, queueName, {
-    admissionPolicy: queueAdmissionPolicy
+    admissionPolicy: queueAdmissionPolicy,
+    sloPolicy: queueOperationalEnvelope.slo
   });
   if (!result.ok) {
     exitWithCommandError(result.message || 'Failed to enqueue job.', {
@@ -386,7 +387,9 @@ const handleEnqueue = async () => {
     job: result.job,
     duplicate: result.duplicate === true,
     replaySuppressed: result.replaySuppressed === true,
-    idempotencyKey: result.idempotencyKey || result.job?.idempotencyKey || null
+    idempotencyKey: result.idempotencyKey || result.job?.idempotencyKey || null,
+    deferred: result.deferred === true,
+    backpressure: result.backpressure || null
   });
 };
 
@@ -399,7 +402,8 @@ const handleStatus = async () => {
   const summary = await queueSummary(queueDir, resolvedQueueName);
   const quarantine = await quarantineSummary(queueDir, resolvedQueueName);
   const backpressure = await describeQueueBackpressure(queueDir, resolvedQueueName, {
-    admissionPolicy: queueAdmissionPolicy
+    admissionPolicy: queueAdmissionPolicy,
+    sloPolicy: queueOperationalEnvelope.slo
   });
   const shutdown = await loadServiceShutdownState(queueDir, resolvedQueueName);
   printPayload({
@@ -511,7 +515,8 @@ const handleSmoke = async () => {
   await ensureQueueDir(queueDir);
   const summary = await queueSummary(queueDir, resolvedQueueName);
   const backpressure = await describeQueueBackpressure(queueDir, resolvedQueueName, {
-    admissionPolicy: queueAdmissionPolicy
+    admissionPolicy: queueAdmissionPolicy,
+    sloPolicy: queueOperationalEnvelope.slo
   });
   const canonicalCommand = `pairofcleats service indexer work --watch --config "${configPath}" --queue ${resolvedQueueName}`;
   const payload = {
@@ -567,7 +572,8 @@ const queueWorker = createQueueWorker({
   buildDefaultRunResult,
   printPayload,
   summarizeBackpressure: async () => await describeQueueBackpressure(queueDir, resolvedQueueName, {
-    admissionPolicy: queueAdmissionPolicy
+    admissionPolicy: queueAdmissionPolicy,
+    sloPolicy: queueOperationalEnvelope.slo
   }),
   describeOperationalEnvelope: async () => queueOperationalEnvelope,
   loadJobReplayState: isEmbeddingsQueue

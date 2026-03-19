@@ -48,7 +48,14 @@ const worker = createQueueWorker({
   },
   summarizeBackpressure: async () => ({
     state: 'congested',
-    reasons: ['max_running']
+    reasons: ['max_running'],
+    slo: {
+      state: 'degraded',
+      actions: {
+        enqueue: 'defer-heavy',
+        workerMode: 'priority-only'
+      }
+    }
   }),
   resolveLeasePolicy: () => ({
     leaseMs: 1000,
@@ -65,5 +72,7 @@ await worker.runBatch(1);
 assert.equal(payloads.length, 1, 'expected one worker batch payload');
 assert.equal(payloads[0].backpressure?.state, 'congested', 'expected worker metrics payload to include backpressure state');
 assert.equal(payloads[0].backpressure?.reasons.includes('max_running'), true, 'expected worker metrics payload to include reasons');
+assert.equal(payloads[0].backpressure?.slo?.state, 'degraded', 'expected worker metrics payload to include SLO state');
+assert.equal(payloads[0].backpressure?.slo?.actions?.workerMode, 'priority-only', 'expected worker metrics payload to expose priority-only mode');
 
 console.log('service queue worker backpressure metrics test passed');
