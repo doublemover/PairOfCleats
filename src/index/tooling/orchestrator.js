@@ -451,6 +451,23 @@ const mergePayload = (target, incoming, { observations, chunkUid } = {}) => {
   return target;
 };
 
+const cloneProvenanceValue = (value) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => cloneProvenanceValue(entry))
+      .filter((entry) => entry !== undefined);
+  }
+  if (!value || typeof value !== 'object') {
+    return value === undefined ? undefined : value;
+  }
+  const cloned = {};
+  for (const [key, entry] of Object.entries(value)) {
+    const next = cloneProvenanceValue(entry);
+    if (next !== undefined) cloned[key] = next;
+  }
+  return cloned;
+};
+
 const normalizeProvenanceList = (value, { providerId, providerVersion }) => {
   const raw = Array.isArray(value)
     ? value
@@ -460,10 +477,15 @@ const normalizeProvenanceList = (value, { providerId, providerVersion }) => {
     if (!entry || typeof entry !== 'object') continue;
     const provider = entry.provider ? String(entry.provider) : '';
     const version = entry.version ? String(entry.version) : '';
+    const extras = cloneProvenanceValue(entry) || {};
+    delete extras.provider;
+    delete extras.version;
+    delete extras.collectedAt;
     normalized.push({
       provider: provider || providerId,
       version: version || providerVersion,
-      collectedAt: entry.collectedAt || new Date().toISOString()
+      collectedAt: entry.collectedAt || new Date().toISOString(),
+      ...extras
     });
   }
   if (normalized.length) return normalized;

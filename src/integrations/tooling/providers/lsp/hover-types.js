@@ -5,6 +5,12 @@ import { flattenSymbols } from '../../lsp/symbols.js';
 import { writeJsonObjectFile } from '../../../../shared/json-stream.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { resolveNearestRankPercentile } from '../../../../shared/perf/percentiles.js';
+import {
+  buildScopedSymbolId,
+  buildSignatureKey,
+  buildSymbolId,
+  buildSymbolKey
+} from '../../../../shared/identity.js';
 import { findTargetForOffsets } from './target-index.js';
 
 export const DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY = 4;
@@ -763,6 +769,178 @@ const defaultParamConfidenceForTier = (tier) => {
   if (tier === 'inferred') return 0.75;
   return 0.6;
 };
+
+const resolveEvidenceConfidenceTier = (tier) => {
+  if (tier === 'full') return 'high';
+  if (tier === 'inferred') return 'medium';
+  return 'low';
+};
+
+const countParamTypeConflicts = (paramTypes) => {
+  if (!paramTypes || typeof paramTypes !== 'object' || Array.isArray(paramTypes)) return 0;
+  let conflicts = 0;
+  for (const entries of Object.values(paramTypes)) {
+    if (!Array.isArray(entries) || entries.length <= 1) continue;
+    const distinct = new Set(
+      entries
+        .map((entry) => normalizeTypeText(entry?.type))
+        .filter(Boolean)
+    );
+    if (distinct.size > 1) conflicts += 1;
+  }
+  return conflicts;
+};
+
+const resolveProviderStabilityTier = ({ fileHoverStats, hoverControl }) => {
+  if (hoverControl?.disabledGlobal || fileHoverStats?.disabledAdaptive) return 'degraded';
+  const timeoutCount = (
+    Number(fileHoverStats?.timedOut || 0)
+    + Number(fileHoverStats?.hoverTimedOut || 0)
+    + Number(fileHoverStats?.signatureHelpTimedOut || 0)
+    + Number(fileHoverStats?.definitionTimedOut || 0)
+    + Number(fileHoverStats?.typeDefinitionTimedOut || 0)
+    + Number(fileHoverStats?.referencesTimedOut || 0)
+  );
+  return timeoutCount > 0 ? 'degraded' : 'stable';
+};
+
+const scoreLspConfidence = ({
+  evidenceTier,
+  completeness,
+  conflictCount,
+  unresolvedRate,
+  stabilityTier,
+  sourceFallbackUsed
+}) => {
+  let score = evidenceTier === 'full'
+    ? 0.92
+    : (evidenceTier === 'inferred' ? 0.78 : 0.62);
+  if (completeness?.incomplete) {
+    score -= completeness?.missingReturn && completeness?.missingParamTypes ? 0.3 : 0.18;
+  }
+  score -= Math.min(0.15, Math.max(0, Number(conflictCount || 0)) * 0.05);
+  score -= Math.min(0.2, Math.max(0, Number(unresolvedRate || 0)) * 0.25);
+  if (stabilityTier !== 'stable') score -= 0.08;
+  if (sourceFallbackUsed) score -= 0.05;
+  const normalizedScore = Math.max(0.05, Math.min(0.99, Number(score.toFixed(2))));
+  const tier = normalizedScore >= 0.85
+    ? 'high'
+    : (normalizedScore >= 0.65 ? 'medium' : 'low');
+  return { score: normalizedScore, tier };
+};
+
+const buildLspSymbolRef = ({
+  record,
+  payload,
+  languageId,
+  evidenceConfidence
+}) => {
+  const target = record?.target || null;
+  const symbol = record?.symbol || null;
+  const virtualPath = String(target?.virtualPath || target?.chunkRef?.file || '').trim();
+  const qualifiedName = String(
+    symbol?.fullName
+      || symbol?.name
+      || target?.symbolHint?.name
+      || ''
+  ).trim();
+  const kindGroup = target?.symbolHint?.kind ?? symbol?.kind ?? 'other';
+  const symbolKey = buildSymbolKey({
+    virtualPath,
+    qualifiedName,
+    kindGroup
+  });
+  if (!symbolKey) return null;
+  const signatureKey = buildSignatureKey({
+    qualifiedName,
+    signature: payload?.signature || null
+  });
+  const scopedId = buildScopedSymbolId({
+    kindGroup: String(kindGroup || 'other'),
+    symbolKey,
+    signatureKey,
+    chunkUid: target?.chunkRef?.chunkUid || null
+  });
+  return {
+    symbolKey,
+    symbolId: buildSymbolId({ scopedId, scheme: 'lsp' }),
+    signatureKey,
+    scopedId,
+    kind: kindGroup,
+    qualifiedName,
+    languageId: languageId || null,
+    definingChunk: target?.chunkRef || null,
+    evidence: {
+      scheme: 'lsp',
+      confidence: evidenceConfidence?.tier || 'low'
+    }
+  };
+};
+
+const buildLspProvenanceEntry = ({
+  cmd,
+  record,
+  completeness,
+  detailScore,
+  candidateScore,
+  evidenceTier,
+  conflictCount,
+  unresolvedRate,
+  stabilityTier,
+  confidence
+}) => ({
+  provider: cmd,
+  version: '1.0.0',
+  collectedAt: new Date().toISOString(),
+  source: 'lsp',
+  symbol: {
+    name: record?.symbol?.name || record?.target?.symbolHint?.name || null,
+    qualifiedName: record?.symbol?.fullName || record?.symbol?.name || record?.target?.symbolHint?.name || null,
+    kind: record?.symbol?.kind ?? record?.target?.symbolHint?.kind ?? null
+  },
+  stages: {
+    documentSymbol: true,
+    hover: {
+      requested: record?.hoverRequested === true,
+      succeeded: record?.hoverSucceeded === true
+    },
+    signatureHelp: {
+      requested: record?.signatureHelpRequested === true,
+      succeeded: record?.signatureHelpSucceeded === true
+    },
+    definition: {
+      requested: record?.definitionRequested === true,
+      succeeded: record?.definitionSucceeded === true
+    },
+    typeDefinition: {
+      requested: record?.typeDefinitionRequested === true,
+      succeeded: record?.typeDefinitionSucceeded === true
+    },
+    references: {
+      requested: record?.referencesRequested === true,
+      succeeded: record?.referencesSucceeded === true
+    },
+    sourceBootstrapUsed: record?.sourceBootstrapUsed === true,
+    sourceFallbackUsed: record?.sourceFallbackUsed === true
+  },
+  evidence: {
+    scheme: 'lsp',
+    tier: evidenceTier,
+    confidence: resolveEvidenceConfidenceTier(evidenceTier)
+  },
+  quality: {
+    score: detailScore.total,
+    candidateScore,
+    incomplete: completeness.incomplete === true,
+    missingReturn: completeness.missingReturn === true,
+    missingParamTypes: completeness.missingParamTypes === true,
+    paramCoverage: Number(completeness.paramCoverage || 0),
+    conflictCount,
+    unresolvedRate: Number(unresolvedRate.toFixed(4)),
+    stability: stabilityTier
+  },
+  confidence
+});
 
 /**
  * Create default hover metrics envelope.
@@ -1866,6 +2044,10 @@ export const processDocumentTypes = async ({
     });
 
     const candidateRows = [];
+    const unresolvedRate = symbolRecords.length > 0
+      ? (unresolvedRecords.length / symbolRecords.length)
+      : 0;
+    const stabilityTier = resolveProviderStabilityTier({ fileHoverStats, hoverControl });
     const resolveRecordCandidate = async (record, recordIndex) => {
       throwIfAborted(abortSignal);
       let info = record.info;
@@ -1911,6 +2093,7 @@ export const processDocumentTypes = async ({
         }
       }
       const evidenceTier = resolveEvidenceTier(record);
+      const completeness = isIncompleteTypePayload(info, { symbolKind: record?.symbol?.kind });
 
       const payload = {
         returnType: normalizedReturn,
@@ -1919,15 +2102,45 @@ export const processDocumentTypes = async ({
         }),
         signature: normalizedSignature
       };
+      const detailScore = scoreSignatureInfo(info, { symbolKind: record?.symbol?.kind });
+      const conflictCount = countParamTypeConflicts(payload.paramTypes);
       const candidateScore = scoreChunkPayloadCandidate({
         info,
         symbol: record.symbol,
         target: record.target
       }) + scoreEvidenceTier(evidenceTier);
+      const confidence = scoreLspConfidence({
+        evidenceTier,
+        completeness,
+        conflictCount,
+        unresolvedRate,
+        stabilityTier,
+        sourceFallbackUsed: record?.sourceFallbackUsed === true
+      });
+      const provenance = buildLspProvenanceEntry({
+        cmd,
+        record,
+        completeness,
+        detailScore,
+        candidateScore,
+        evidenceTier,
+        conflictCount,
+        unresolvedRate,
+        stabilityTier,
+        confidence
+      });
+      const symbolRef = buildLspSymbolRef({
+        record,
+        payload,
+        languageId,
+        evidenceConfidence: confidence
+      });
       return {
         chunkUid,
         chunkRef: record.target.chunkRef,
         payload,
+        ...(symbolRef ? { symbolRef } : {}),
+        provenance,
         candidateScore,
         evidenceTier,
         signatureLength: String(payload.signature || '').length,
@@ -1957,11 +2170,8 @@ export const processDocumentTypes = async ({
       byChunkUid[row.chunkUid] = {
         chunk: row.chunkRef,
         payload: row.payload,
-        provenance: {
-          provider: cmd,
-          version: '1.0.0',
-          collectedAt: new Date().toISOString()
-        }
+        ...(row.symbolRef ? { symbolRef: row.symbolRef } : {}),
+        provenance: row.provenance
       };
       enrichedDelta += 1;
     }
