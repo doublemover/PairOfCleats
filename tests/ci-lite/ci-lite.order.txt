@@ -752,6 +752,7 @@ indexing/watch/index-lock-signal-cleanup
 tooling/lsp/failure-accounting-per-target
 tooling/reports/capabilities-report
 ci/tooling-lsp-slo-gate.smoke
+ci/tooling-lsp-replay-gate.smoke
 indexing/artifacts/sharded-meta/schema
 shared/runtime/thread-limits
 retrieval/providers/provider-retry-reset-contract
@@ -843,6 +844,8 @@ tooling/doctor/runtime-requirements-jdtls-dedicated
 indexing/validate/index-current-build-pointer-case-insensitive
 indexing/preprocess/files
 ci/tooling-lsp-default-enable-gate.smoke
+ci/tooling-lsp-slo-gate-regression-diff
+ci/tooling-lsp-guardrail-regression-diff
 indexing/imports/import-graph-unresolved-refresh
 indexing/imports/import-graph-incremental-reuse
 indexing/imports/import-graph-warning-merge

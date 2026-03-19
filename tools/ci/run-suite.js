@@ -169,9 +169,13 @@ const main = async () => {
   const capabilityJson = path.join(diagnosticsDir, 'capabilities.json');
   const toolingDoctorJson = path.join(diagnosticsDir, 'tooling-doctor-gate.json');
   const toolingLspSloJson = path.join(diagnosticsDir, 'tooling-lsp-slo-gate.json');
+  const toolingLspReplayJson = path.join(diagnosticsDir, 'tooling-lsp-replay-gate.json');
   const toolingLspDefaultEnableJson = path.join(diagnosticsDir, 'tooling-lsp-default-enable-gate.json');
   const toolingLspGuardrailJson = path.join(diagnosticsDir, 'tooling-lsp-guardrail.json');
   const importResolutionSloJson = path.join(diagnosticsDir, 'import-resolution-slo-gate.json');
+  const toolingLspSloBaseline = String(env.PAIROFCLEATS_TOOLING_LSP_SLO_BASELINE || '').trim();
+  const toolingLspReplayBaseline = String(env.PAIROFCLEATS_TOOLING_LSP_REPLAY_BASELINE || '').trim();
+  const toolingLspGuardrailBaseline = String(env.PAIROFCLEATS_TOOLING_LSP_GUARDRAIL_BASELINE || '').trim();
   validateUsrGuardrailGates();
 
   if (!argv['dry-run']) {
@@ -226,7 +230,18 @@ const main = async () => {
         '--doctor',
         toolingDoctorJson,
         '--json',
-        toolingLspSloJson
+        toolingLspSloJson,
+        ...(toolingLspSloBaseline ? ['--baseline', toolingLspSloBaseline] : [])
+      ]
+    },
+    {
+      label: 'Tooling LSP replay gate',
+      command: process.execPath,
+      args: [
+        'tools/ci/tooling-lsp-replay-gate.js',
+        '--json',
+        toolingLspReplayJson,
+        ...(toolingLspReplayBaseline ? ['--baseline', toolingLspReplayBaseline] : [])
       ]
     },
     {
@@ -252,7 +267,8 @@ const main = async () => {
         '--report',
         toolingLspSloJson,
         '--json',
-        toolingLspGuardrailJson
+        toolingLspGuardrailJson,
+        ...(toolingLspGuardrailBaseline ? ['--baseline', toolingLspGuardrailBaseline] : [])
       ]
     },
     ...buildUsrGateSteps(diagnosticsDir),

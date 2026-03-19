@@ -615,6 +615,8 @@ const createSession = (options) => {
     cwd: options.cwd,
     env: options.env,
     shell: options.shell,
+    providerId: options.providerId,
+    sessionKey: key,
     log: options.log,
     stderrFilter: (line) => {
       const filter = handlers.stderrFilter;

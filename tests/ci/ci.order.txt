@@ -43,6 +43,8 @@ retrieval/federation/abort-does-not-cache-partial
 retrieval/federation/search-multi-repo-basic
 tooling/lsp/protocol-malformed-hover-fail-open
 tooling/lsp/protocol-malformed-document-symbol-fail-open
+tooling/lsp/protocol-capability-drift-hover-fail-open
+tooling/lsp/protocol-inconsistent-document-symbol-fail-open
 retrieval/federation/select-aliases
 services/api/federated-search-workspace-allowlist
 tooling/install/download-extensions
@@ -53,6 +55,7 @@ context-pack/risk-filters-parity
 retrieval/filters/types
 retrieval/federation/raw-args-query-forwarding
 tooling/lsp/protocol-malformed-initialize-fail-open
+tooling/lsp/protocol-delayed-partial-document-symbol
 retrieval/federation/raw-args-mode-selection
 retrieval/filters/risk
 lang/fixtures-sample/swift-metadata
@@ -113,6 +116,7 @@ indexing/postings/real-bench-contract
 map/build-streaming
 indexing/map/code-dot
 tooling/lsp/session-pool-poisoned-recycle
+tooling/lsp/protocol-disconnect-hover-fail-open
 indexing/tree-sitter/js-maxbytes
 indexing/map/code-graphviz-fallback
 indexing/shards/shard-progress-determinism

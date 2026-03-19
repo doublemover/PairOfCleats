@@ -12,6 +12,7 @@ import { resolveWindowsCmdInvocation } from '../../../shared/subprocess/windows-
 import { killChildProcessTree, killChildProcessTreeSync } from '../../../shared/kill-tree.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
 import { resolveNearestRankPercentile } from '../../../shared/perf/percentiles.js';
+import { createJsonRpcTraceRecorder } from './trace.js';
 
 /**
  * Convert a local path to a file:// URI.
@@ -143,6 +144,9 @@ const summarizeLatencies = (samples, totalMs, maxMs) => ({
  *   log?:(msg:string)=>void,
  *   onNotification?:(msg:object)=>void,
  *   onRequest?:(msg:object)=>Promise<any>,
+ *   providerId?:string,
+ *   sessionKey?:string,
+ *   tracePath?:string,
  *   spawnProcess?:(input:{cmd:string,args:string[],options:import('node:child_process').SpawnOptionsWithoutStdio,rawCmd:string,rawArgs:string[],useShell:boolean})=>import('node:child_process').ChildProcess
  * }} options
  */
@@ -156,6 +160,9 @@ export function createLspClient(options) {
     log = () => {},
     onNotification,
     onRequest,
+    providerId,
+    sessionKey,
+    tracePath,
     onLifecycleEvent,
     onStderrLine,
     stderrFilter,
@@ -170,6 +177,12 @@ export function createLspClient(options) {
     : (process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd));
   const killTreeDetached = process.platform !== 'win32';
   const resolvedEnv = applyToolchainDaemonPolicyEnv(env || process.env);
+  const traceRecorder = createJsonRpcTraceRecorder({
+    tracePath: tracePath || resolvedEnv.POC_LSP_RPC_TRACE || '',
+    providerId: providerId || cmd,
+    sessionKey: sessionKey || null,
+    log
+  });
 
   let proc = null;
   let parser = null;
@@ -235,6 +248,10 @@ export function createLspClient(options) {
   };
 
   const emitLifecycleEvent = (event) => {
+    traceRecorder.recordLifecycle(event, {
+      providerId: providerId || cmd,
+      sessionKey
+    });
     if (typeof onLifecycleEvent !== 'function') return;
     try {
       onLifecycleEvent({
@@ -427,6 +444,10 @@ export function createLspClient(options) {
 
   const send = (payload) => {
     if (!writer || writerClosed) return false;
+    traceRecorder.recordOutbound(payload, {
+      providerId: providerId || cmd,
+      sessionKey
+    });
     const pendingWrite = writer.write(payload);
     if (pendingWrite && typeof pendingWrite.catch === 'function') {
       pendingWrite.catch((err) => {
@@ -444,6 +465,11 @@ export function createLspClient(options) {
   const handleResponse = (message) => {
     const entry = pending.get(message.id);
     if (!entry) return;
+    traceRecorder.recordInbound(message, {
+      method: entry.method,
+      providerId: providerId || cmd,
+      sessionKey
+    });
     pending.delete(message.id);
     if (entry.timeout) clearTimeout(entry.timeout);
     const latencyMs = Date.now() - Number(entry.startedAt || Date.now());
@@ -465,6 +491,10 @@ export function createLspClient(options) {
   };
 
   const handleRequest = async (message) => {
+    traceRecorder.recordInbound(message, {
+      providerId: providerId || cmd,
+      sessionKey
+    });
     if (typeof onRequest === 'function') {
       try {
         const result = await onRequest(message);
@@ -487,6 +517,12 @@ export function createLspClient(options) {
 
   const handleMessage = (message) => {
     if (!message || typeof message !== 'object') return;
+    if (!Object.prototype.hasOwnProperty.call(message, 'id') && message.method) {
+      traceRecorder.recordInbound(message, {
+        providerId: providerId || cmd,
+        sessionKey
+      });
+    }
     if (Object.prototype.hasOwnProperty.call(message, 'id')) {
       if (message.method) {
         void handleRequest(message);

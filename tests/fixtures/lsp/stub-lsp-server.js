@@ -272,6 +272,12 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
       documentSymbolProvider: true
     };
   }
+  if (mode === 'capability-drift-hover') {
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true
+    };
+  }
   if (mode === 'signature-help') {
     return {
       documentSymbolProvider: true,
@@ -630,12 +636,46 @@ const handleRequest = (message) => {
       ]);
       return;
     }
+    if (mode === 'inconsistent-document-symbol' && symbol) {
+      respond(id, [{
+        ...symbol,
+        kind: '12',
+        detail: { label: symbol.detail },
+        selectionRange: null
+      }]);
+      return;
+    }
+    if (mode === 'delayed-partial-document-symbol') {
+      send({
+        jsonrpc: '2.0',
+        method: '$/progress',
+        params: {
+          token: `docsymbol-${id}`,
+          value: {
+            kind: 'report',
+            message: 'partial documentSymbol'
+          }
+        }
+      });
+      setTimeout(() => {
+        respond(id, symbol ? [symbol] : []);
+      }, 20);
+      return;
+    }
     respond(id, symbol ? [symbol] : []);
     return;
   }
   if (method === 'textDocument/hover') {
+    if (mode === 'disconnect-on-hover') {
+      process.exit(1);
+      return;
+    }
     if (mode === 'malformed-hover') {
       sendMalformedFrame('{"jsonrpc":"2.0","id":3,"result":');
+      return;
+    }
+    if (mode === 'capability-drift-hover') {
+      respondError(id, 'hover provider disabled after initialize');
       return;
     }
     respond(id, {

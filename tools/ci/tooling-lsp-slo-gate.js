@@ -24,6 +24,7 @@ const parseArgs = () => createCli({
     mode: { type: 'string', default: 'ci', choices: ['ci', 'nightly'] },
     repo: { type: 'string', default: '' },
     doctor: { type: 'string', default: '' },
+    baseline: { type: 'string', default: '' },
     json: { type: 'string', default: '' },
     enforce: { type: 'boolean', default: false },
     'samples-per-provider': { type: 'number', default: DEFAULT_SAMPLES_PER_PROVIDER },
@@ -223,6 +224,16 @@ const buildProviderSamples = async ({
   return rows;
 };
 
+const loadBaselineMetrics = async (baselinePath) => {
+  const resolvedPath = String(baselinePath || '').trim();
+  if (!resolvedPath) return null;
+  const raw = await fs.readFile(path.resolve(resolvedPath), 'utf8');
+  const parsed = JSON.parse(raw);
+  return parsed?.metrics && typeof parsed.metrics === 'object'
+    ? parsed.metrics
+    : null;
+};
+
 export const summarizeSampleMetrics = (samples) => {
   const requests = samples.length;
   const measuredAttempts = samples.reduce(
@@ -272,6 +283,7 @@ const main = async () => {
   const doctorInput = await resolveDoctorReportInput(doctorInputPath);
   const doctorReport = doctorInput.report;
   const doctorPath = doctorInput.reportPath;
+  const baselineMetrics = await loadBaselineMetrics(argv.baseline);
   const samples = await buildProviderSamples({
     doctorReport,
     repoRoot,
@@ -353,6 +365,13 @@ const main = async () => {
       enrichmentCoverage,
       maxP95Ms: maxP95MsObserved
     },
+    regressionDiff: baselineMetrics ? {
+      requestsDelta: Number(requests || 0) - Number(baselineMetrics.requests || 0),
+      timeoutRatioDelta: Number(timeoutRatio || 0) - Number(baselineMetrics.timeoutRatio || 0),
+      fatalFailureRateDelta: Number(fatalFailureRate || 0) - Number(baselineMetrics.fatalFailureRate || 0),
+      enrichmentCoverageDelta: Number(enrichmentCoverage || 0) - Number(baselineMetrics.enrichmentCoverage || 0),
+      maxP95MsDelta: Number(maxP95MsObserved || 0) - Number(baselineMetrics.maxP95Ms || 0)
+    } : null,
     samples,
     failures: violations
   };

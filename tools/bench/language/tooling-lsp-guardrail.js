@@ -13,6 +13,7 @@ const parseArgs = () => createCli({
   options: {
     report: { type: 'string', default: '' },
     json: { type: 'string', default: '' },
+    baseline: { type: 'string', default: '' },
     enforce: { type: 'boolean', default: false },
     'min-summary-coverage': { type: 'number', default: 0.9 },
     'max-crash-retention': { type: 'number', default: 25 },
@@ -69,6 +70,15 @@ const computeTimedOutRatio = (timedOutCount, totalTasks) => {
   return timedOut / total;
 };
 
+const loadBaselineMetrics = async (baselinePath) => {
+  const resolvedPath = String(baselinePath || '').trim();
+  if (!resolvedPath) return null;
+  const baseline = await readJsonFileResolved(path.resolve(resolvedPath));
+  return baseline?.metrics && typeof baseline.metrics === 'object'
+    ? baseline.metrics
+    : null;
+};
+
 const main = async () => {
   const argv = parseArgs();
   if (!argv.report) {
@@ -76,6 +86,7 @@ const main = async () => {
   }
   const reportPath = path.resolve(argv.report);
   const report = await readJsonFileResolved(reportPath);
+  const baselineMetrics = await loadBaselineMetrics(argv.baseline);
   const reportMetrics = extractGuardrailMetrics(report);
   const summaryCoverage = reportMetrics.summaryCoverage;
   const crashRetentionCount = reportMetrics.crashRetentionCount;
@@ -146,6 +157,13 @@ const main = async () => {
       timedOutRatio,
       timeoutAbsoluteScaledMax: reportMetrics.sourceType === 'slo-gate' ? timeoutAbsoluteScaledMax : null
     },
+    regressionDiff: baselineMetrics ? {
+      totalTasksDelta: Number(reportMetrics.totalTasks || 0) - Number(baselineMetrics.totalTasks || 0),
+      summaryCoverageDelta: Number(summaryCoverage || 0) - Number(baselineMetrics.summaryCoverage || 0),
+      crashRetentionCountDelta: Number(crashRetentionCount || 0) - Number(baselineMetrics.crashRetentionCount || 0),
+      topRegressionCountDelta: Number(topRegressionCount || 0) - Number(baselineMetrics.topRegressionCount || 0),
+      timedOutRatioDelta: Number(timedOutRatio || 0) - Number(baselineMetrics.timedOutRatio || 0)
+    } : null,
     failures: violations
   };
 
