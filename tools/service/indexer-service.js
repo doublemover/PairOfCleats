@@ -42,6 +42,7 @@ import { resolveQueueLeasePolicy } from './lease-policy.js';
 import { resolveQueueAdmissionPolicy } from './admission-policy.js';
 import { resolveQueueRetentionPolicy } from './retention-policy.js';
 import { resolveQueueOperationalEnvelope } from './operational-envelope.js';
+import { collectEmbeddingReplayState } from './embedding-replay.js';
 import {
   completeServiceShutdown,
   loadServiceShutdownState,
@@ -569,6 +570,9 @@ const queueWorker = createQueueWorker({
     admissionPolicy: queueAdmissionPolicy
   }),
   describeOperationalEnvelope: async () => queueOperationalEnvelope,
+  loadJobReplayState: isEmbeddingsQueue
+    ? async (job) => await collectEmbeddingReplayState(job)
+    : async () => null,
   queueSummary: async () => await queueSummary(queueDir, resolvedQueueName),
   loadShutdownState: async () => await loadServiceShutdownState(queueDir, resolvedQueueName),
   requestShutdownState: async (input) => await requestServiceShutdown(queueDir, resolvedQueueName, input),

@@ -1,8 +1,8 @@
 /**
  * Normalize run result shape for queue completion/retry transitions.
  *
- * @param {{exitCode?:number,signal?:string|null,executionMode?:string,daemon?:object|null}|null|undefined} runResult
- * @returns {{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',daemon:object|null,status:'done'|'failed',cancelled:boolean,shutdownMode:string|null}}
+ * @param {{exitCode?:number,signal?:string|null,executionMode?:string,daemon?:object|null,replay?:object|null}|null|undefined} runResult
+ * @returns {{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',daemon:object|null,status:'done'|'failed',cancelled:boolean,shutdownMode:string|null,replay:object|null}}
  */
 const normalizeRunResult = (runResult) => {
   const parsedExitCode = Number(runResult?.exitCode);
@@ -18,6 +18,9 @@ const normalizeRunResult = (runResult) => {
   const shutdownMode = typeof runResult?.shutdownMode === 'string' && runResult.shutdownMode.trim()
     ? runResult.shutdownMode.trim()
     : null;
+  const replay = runResult?.replay && typeof runResult.replay === 'object'
+    ? runResult.replay
+    : null;
   return {
     exitCode,
     signal,
@@ -25,6 +28,7 @@ const normalizeRunResult = (runResult) => {
     daemon,
     cancelled,
     shutdownMode,
+    replay,
     status: exitCode === 0 && !signal ? 'done' : 'failed'
   };
 };
@@ -42,7 +46,7 @@ const normalizeRunResult = (runResult) => {
  * @returns {{
  *   completeNonRetriableFailure:(job:{id:string},error:string)=>Promise<void>,
  *   finalizeJobRun:(input:{job:object,runResult:object,metrics:{processed:number,succeeded:number,failed:number,retried:number}})=>Promise<void>,
- *   normalizeRunResult:(runResult:object|null|undefined)=>{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',daemon:object|null,status:'done'|'failed',cancelled:boolean,shutdownMode:string|null}
+ *   normalizeRunResult:(runResult:object|null|undefined)=>{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',daemon:object|null,status:'done'|'failed',cancelled:boolean,shutdownMode:string|null,replay:object|null}
  * }}
  */
 export const createJobCompletion = ({
@@ -112,7 +116,8 @@ export const createJobCompletion = ({
           executionMode: normalized.executionMode,
           daemon: normalized.daemon,
           cancelled: true,
-          shutdownMode: normalized.shutdownMode || null
+          shutdownMode: normalized.shutdownMode || null,
+          replay: normalized.replay
         },
         resolvedQueueName,
         {
@@ -136,7 +141,8 @@ export const createJobCompletion = ({
           attempts: nextAttempts,
           error: normalizedError,
           executionMode: normalized.executionMode,
-          daemon: normalized.daemon
+          daemon: normalized.daemon,
+          replay: normalized.replay
         },
         resolvedQueueName,
         {
@@ -164,7 +170,8 @@ export const createJobCompletion = ({
             signal: normalized.signal,
             error: normalizedError,
             executionMode: normalized.executionMode,
-            daemon: normalized.daemon
+            daemon: normalized.daemon,
+            replay: normalized.replay
           },
           ownerId: job?.lease?.owner || null,
           expectedLeaseVersion: job?.lease?.version ?? null
@@ -181,7 +188,8 @@ export const createJobCompletion = ({
         signal: normalized.signal,
         error: normalizedError,
         executionMode: normalized.executionMode,
-        daemon: normalized.daemon
+        daemon: normalized.daemon,
+        replay: normalized.replay
       },
       resolvedQueueName,
       {

@@ -667,6 +667,9 @@ const createQueuedJobRecord = (job, {
       at: normalizeIsoTimestamp(job.createdAt) || new Date().toISOString(),
       reason: 'enqueue'
     },
+    replayState: job?.replayState && typeof job.replayState === 'object'
+      ? { ...job.replayState }
+      : null,
     logPath: path.join(logsDir, `${job.id}.log`),
     reportPath: path.join(reportsDir, `${job.id}.json`)
   });
@@ -1036,6 +1039,12 @@ export async function touchJobHeartbeat(dirPath, jobId, queueName = null, option
       kind: options.progress?.kind || 'renewal',
       note: options.progress?.note || null
     });
+    if (options.replayState && typeof options.replayState === 'object') {
+      job.replayState = {
+        ...options.replayState,
+        updatedAt: nowIso
+      };
+    }
     await appendQueueJournalEntries(dirPath, queueName, [
       buildJournalEntry({
         eventType: 'heartbeat',

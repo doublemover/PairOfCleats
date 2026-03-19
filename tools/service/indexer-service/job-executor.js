@@ -5,6 +5,7 @@ import path from 'node:path';
 import { parseBuildArgs } from '../../../src/index/build/args.js';
 import { buildIndex } from '../../../src/integrations/core/index.js';
 import { isAbsolutePathNative } from '../../../src/shared/files.js';
+import { collectEmbeddingReplayState, repairEmbeddingReplayState } from '../embedding-replay.js';
 import { buildEmbeddingsArgs, normalizeEmbeddingJob } from '../indexer-service-helpers.js';
 import { runLoggedSubprocess } from '../subprocess-log.js';
 
@@ -349,6 +350,8 @@ export const createJobExecutor = ({
         console.error(`[indexer] embedding job ${job.id} indexDir not under buildRoot; continuing with buildRoot only.`);
       }
     }
+    const replayRepair = await repairEmbeddingReplayState(job);
+    job.replayState = replayRepair.after;
     const subprocessResult = await jobLifecycle.registerPromise(
       runBuildEmbeddings(
         repoPath,
@@ -368,7 +371,12 @@ export const createJobExecutor = ({
         executionMode: 'subprocess',
         daemon: null,
         cancelled: subprocessResult.cancelled === true,
-        shutdownMode: subprocessResult.cancelled ? 'force-stop' : null
+        shutdownMode: subprocessResult.cancelled ? 'force-stop' : null,
+        replay: {
+          version: 1,
+          repair: replayRepair,
+          current: await collectEmbeddingReplayState(job)
+        }
       }
     };
   };

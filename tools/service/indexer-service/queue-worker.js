@@ -32,6 +32,7 @@ const DEFAULT_SHUTDOWN_STATE = Object.freeze({
  *   printPayload:(payload:object)=>void,
  *   summarizeBackpressure?:()=>Promise<object|null>,
  *   describeOperationalEnvelope?:()=>Promise<object|null>,
+ *   loadJobReplayState?:(job:object)=>Promise<object|null>,
  *   queueSummary?:()=>Promise<{queued:number,running:number,total:number,done:number,failed:number,retries:number}>,
  *   loadShutdownState?:()=>Promise<{mode:string,accepting:boolean,stopClaiming:boolean,forceAbort:boolean,deadlineAt:string|null}>,
  *   requestShutdownState?:(input:{mode:string,timeoutMs?:number|null,requestedBy?:string,source?:string})=>Promise<object|null>,
@@ -63,6 +64,7 @@ export const createQueueWorker = ({
   printPayload,
   summarizeBackpressure = async () => null,
   describeOperationalEnvelope = async () => null,
+  loadJobReplayState = async () => null,
   queueSummary = async () => ({ total: 0, queued: 0, running: 0, done: 0, failed: 0, retries: 0 }),
   loadShutdownState = async () => DEFAULT_SHUTDOWN_STATE,
   requestShutdownState = async () => DEFAULT_SHUTDOWN_STATE,
@@ -134,18 +136,22 @@ export const createQueueWorker = ({
     const heartbeat = setInterval(() => {
       if (renewalState.inFlight) return;
       renewalState.inFlight = true;
-      void touchJobHeartbeat(queueDir, job.id, resolvedQueueName, {
-        ownerId: workerOwnerId,
-        expectedLeaseVersion: job?.lease?.version ?? null,
-        leaseMs: leasePolicy?.leaseMs ?? null,
-        renewIntervalMs: leasePolicy?.renewIntervalMs ?? null,
-        progressIntervalMs: leasePolicy?.progressIntervalMs ?? null,
-        minIntervalMs: renewalIntervalMs,
-        progress: {
-          kind: 'renewal',
-          note: `workload=${leasePolicy?.workloadClass || 'balanced'}`
-        }
-      }).then(() => {
+      void (async () => {
+        const replayState = await loadJobReplayState(job);
+        return await touchJobHeartbeat(queueDir, job.id, resolvedQueueName, {
+          ownerId: workerOwnerId,
+          expectedLeaseVersion: job?.lease?.version ?? null,
+          leaseMs: leasePolicy?.leaseMs ?? null,
+          renewIntervalMs: leasePolicy?.renewIntervalMs ?? null,
+          progressIntervalMs: leasePolicy?.progressIntervalMs ?? null,
+          minIntervalMs: renewalIntervalMs,
+          replayState,
+          progress: {
+            kind: 'renewal',
+            note: `workload=${leasePolicy?.workloadClass || 'balanced'}`
+          }
+        });
+      })().then(() => {
         renewalState.consecutiveFailures = 0;
         renewalState.lastSuccessAt = Date.now();
       }).catch((err) => {
