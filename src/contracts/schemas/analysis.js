@@ -1075,6 +1075,151 @@ const riskStatsSchema = {
   additionalProperties: false
 };
 
+const riskDeltaSideSchema = {
+  type: 'object',
+  required: ['requestedRef', 'canonical', 'seedStatus', 'flows', 'partialFlows'],
+  properties: {
+    requestedRef: { type: 'string' },
+    canonical: { type: 'string' },
+    identity: { type: ['object', 'null'], additionalProperties: true },
+    snapshot: { type: ['object', 'null'], additionalProperties: true },
+    warnings: { type: 'array', items: { type: 'string' } },
+    seedStatus: { type: 'string', enum: ['resolved', 'missing'] },
+    target: {
+      type: ['object', 'null'],
+      properties: {
+        chunkUid: nullableString,
+        file: nullableString,
+        name: nullableString,
+        kind: nullableString
+      },
+      additionalProperties: false
+    },
+    summary: riskSummarySchema,
+    stats: riskStatsSchema,
+    provenance: {
+      type: ['object', 'null'],
+      properties: {
+        manifestVersion: nullableNumber,
+        artifactSurfaceVersion: nullableString,
+        indexIdentity: { type: ['object', 'null'], additionalProperties: true },
+        ruleBundle: { type: ['object', 'null'], additionalProperties: true },
+        artifacts: { type: ['object', 'null'], additionalProperties: true }
+      },
+      additionalProperties: false
+    },
+    flows: { type: 'array', items: riskFlowSummarySchema },
+    partialFlows: { type: 'array', items: riskPartialFlowSummarySchema }
+  },
+  additionalProperties: false
+};
+
+export const RISK_DELTA_SCHEMA = {
+  type: 'object',
+  required: ['version', 'seed', 'filters', 'includePartialFlows', 'from', 'to', 'summary', 'deltas'],
+  properties: {
+    version: semverString,
+    seed: seedRefSchema,
+    filters: riskFiltersSchema,
+    includePartialFlows: { type: 'boolean' },
+    from: riskDeltaSideSchema,
+    to: riskDeltaSideSchema,
+    summary: {
+      type: 'object',
+      required: ['flowCounts', 'partialFlowCounts'],
+      properties: {
+        flowCounts: {
+          type: 'object',
+          required: ['from', 'to', 'added', 'removed', 'changed', 'unchanged'],
+          properties: {
+            from: nullableNumber,
+            to: nullableNumber,
+            added: nullableNumber,
+            removed: nullableNumber,
+            changed: nullableNumber,
+            unchanged: nullableNumber
+          },
+          additionalProperties: false
+        },
+        partialFlowCounts: {
+          type: 'object',
+          required: ['from', 'to', 'added', 'removed', 'changed', 'unchanged'],
+          properties: {
+            from: nullableNumber,
+            to: nullableNumber,
+            added: nullableNumber,
+            removed: nullableNumber,
+            changed: nullableNumber,
+            unchanged: nullableNumber
+          },
+          additionalProperties: false
+        }
+      },
+      additionalProperties: false
+    },
+    deltas: {
+      type: 'object',
+      required: ['flows', 'partialFlows'],
+      properties: {
+        flows: {
+          type: 'object',
+          required: ['added', 'removed', 'changed', 'unchangedCount'],
+          properties: {
+            added: { type: 'array', items: riskFlowSummarySchema },
+            removed: { type: 'array', items: riskFlowSummarySchema },
+            changed: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['flowId', 'changedFields', 'beforeFingerprint', 'afterFingerprint', 'before', 'after'],
+                properties: {
+                  flowId: nullableString,
+                  changedFields: { type: 'array', items: { type: 'string' } },
+                  beforeFingerprint: nullableString,
+                  afterFingerprint: nullableString,
+                  before: riskFlowSummarySchema,
+                  after: riskFlowSummarySchema
+                },
+                additionalProperties: false
+              }
+            },
+            unchangedCount: nullableNumber
+          },
+          additionalProperties: false
+        },
+        partialFlows: {
+          type: 'object',
+          required: ['added', 'removed', 'changed', 'unchangedCount'],
+          properties: {
+            added: { type: 'array', items: riskPartialFlowSummarySchema },
+            removed: { type: 'array', items: riskPartialFlowSummarySchema },
+            changed: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['partialFlowId', 'changedFields', 'beforeFingerprint', 'afterFingerprint', 'before', 'after'],
+                properties: {
+                  partialFlowId: nullableString,
+                  changedFields: { type: 'array', items: { type: 'string' } },
+                  beforeFingerprint: nullableString,
+                  afterFingerprint: nullableString,
+                  before: riskPartialFlowSummarySchema,
+                  after: riskPartialFlowSummarySchema
+                },
+                additionalProperties: false
+              }
+            },
+            unchangedCount: nullableNumber
+          },
+          additionalProperties: false
+        }
+      },
+      additionalProperties: false
+    }
+  },
+  additionalProperties: false
+};
+
 export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
   type: 'object',
   required: ['version', 'seed', 'primary', 'provenance'],

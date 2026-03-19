@@ -1,6 +1,6 @@
 import { configStatus, indexStatus } from './repo.js';
 import { cacheGc, cleanArtifacts, reportArtifacts } from './tools/handlers/artifacts.js';
-import { runContextPack, runRiskExplain } from './tools/handlers/analysis.js';
+import { runContextPack, runRiskDelta, runRiskExplain } from './tools/handlers/analysis.js';
 import { runBootstrap } from './tools/handlers/bootstrap.js';
 import { downloadDictionaries, downloadExtensions, downloadModels, verifyExtensions } from './tools/handlers/downloads.js';
 import { buildIndex, buildSqliteIndex, compactSqliteIndex } from './tools/handlers/indexing.js';
@@ -43,6 +43,7 @@ export {
   buildIndex,
   runSearch,
   runContextPack,
+  runRiskDelta,
   runRiskExplain,
   downloadModels,
   downloadDictionaries,
@@ -65,6 +66,7 @@ export const TOOL_HANDLERS = new Map([
   ['build_index', buildIndex],
   ['search', runSearch],
   ['context_pack', runContextPack],
+  ['risk_delta', runRiskDelta],
   ['risk_explain', runRiskExplain],
   ['search_workspace', runWorkspaceSearch],
   ['download_models', downloadModels],

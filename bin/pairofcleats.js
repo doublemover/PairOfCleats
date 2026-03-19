@@ -796,7 +796,7 @@ function resolveCommand(primary, rest) {
   if (primary === 'risk') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      failCli('risk requires a subcommand: explain', {
+      failCli('risk requires a subcommand: explain, delta', {
         code: ERROR_CODES.INVALID_REQUEST,
         showHelp: true
       });
@@ -808,6 +808,47 @@ function resolveCommand(primary, rest) {
         ['index', 'chunk', 'max', 'rule', 'category', 'severity', 'tag', 'source', 'sink', 'flow-id', 'source-rule', 'sink-rule', 'maxPartialFlows', 'max-partial-flows']
       );
       return { script: 'tools/analysis/explain-risk.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'delta') {
+      validateArgs(
+        rest,
+        [
+          'repo',
+          'from',
+          'to',
+          'seed',
+          'rule',
+          'category',
+          'severity',
+          'tag',
+          'source',
+          'sink',
+          'flow-id',
+          'source-rule',
+          'sink-rule',
+          'json',
+          'format',
+          'includePartialFlows',
+          'include-partial-flows'
+        ],
+        [
+          'repo',
+          'from',
+          'to',
+          'seed',
+          'rule',
+          'category',
+          'severity',
+          'tag',
+          'source',
+          'sink',
+          'flow-id',
+          'source-rule',
+          'sink-rule',
+          'format'
+        ]
+      );
+      return { script: 'tools/analysis/delta-risk.js', extraArgs: [], args: rest };
     }
     failCli(`Unknown risk subcommand: ${sub}`, {
       code: ERROR_CODES.INVALID_REQUEST,

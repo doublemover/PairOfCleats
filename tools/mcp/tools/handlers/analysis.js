@@ -1,6 +1,7 @@
 import { loadUserConfig } from '../../../shared/dict-utils.js';
 import { resolveIndexDir } from '../../../../src/retrieval/cli-index.js';
 import { hasIndexMeta } from '../../../../src/retrieval/cli/index-loader.js';
+import { buildRiskDeltaPayload } from '../../../../src/context-pack/risk-delta.js';
 import { createError, ERROR_CODES } from '../../../../src/shared/error-codes.js';
 import { attachObservability, buildChildObservability } from '../../../../src/shared/observability.js';
 import { normalizeRiskFilters, validateRiskFilters } from '../../../../src/shared/risk-filters.js';
@@ -113,4 +114,50 @@ export async function runContextPack(args = {}, context = {}) {
     }
     throw err;
   }
+}
+
+export async function runRiskDelta(args = {}, context = {}) {
+  if (context.signal?.aborted) {
+    throw createError(ERROR_CODES.CANCELLED, 'Request cancelled.');
+  }
+  const repoPath = resolveRepoPath(args.repoPath);
+  const fromRef = String(args.from || '').trim();
+  const toRef = String(args.to || '').trim();
+  const seed = String(args.seed || '').trim();
+  if (!fromRef || !toRef || !seed) {
+    throw createError(ERROR_CODES.INVALID_REQUEST, 'seed, from, and to are required.');
+  }
+  const filters = normalizeRiskFilters(args.filters || null);
+  const validation = validateRiskFilters(filters);
+  if (!validation.ok) {
+    throw createError(ERROR_CODES.INVALID_REQUEST, `Invalid risk filters: ${validation.errors.join('; ')}`, {
+      reason: 'invalid_risk_filters'
+    });
+  }
+  const observability = buildChildObservability(context.observability, {
+    surface: 'analysis',
+    operation: 'risk_delta',
+    context: {
+      repoRoot: repoPath,
+      from: fromRef,
+      to: toRef
+    }
+  });
+  if (typeof context.progress === 'function') {
+    context.progress({ phase: 'start', message: 'Building risk delta.', observability });
+  }
+  const userConfig = loadUserConfig(repoPath);
+  const result = await buildRiskDeltaPayload({
+    repoRoot: repoPath,
+    userConfig,
+    from: fromRef,
+    to: toRef,
+    seed,
+    filters,
+    includePartialFlows: args.includePartialFlows === true
+  });
+  if (typeof context.progress === 'function') {
+    context.progress({ phase: 'done', message: 'Risk delta ready.', observability });
+  }
+  return attachObservability(result, observability);
 }

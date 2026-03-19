@@ -1,6 +1,6 @@
 import { getToolVersion } from '../../shared/dict-utils.js';
 
-export const MCP_SCHEMA_VERSION = '1.3.0';
+export const MCP_SCHEMA_VERSION = '1.4.0';
 
 /**
  * Build MCP tool definitions for the server.
@@ -185,6 +185,35 @@ export function getToolDefs(defaultModelId) {
           }
         },
         required: ['chunk']
+      }
+    },
+    {
+      name: 'risk_delta',
+      description: 'Compare risk flows for one seed across two code-index refs.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+          seed: { type: 'string', description: 'Chunk/file/symbol seed reference.' },
+          from: { type: 'string', description: 'From ref (build:<id>, snap:<id>, tag:<name>, latest).' },
+          to: { type: 'string', description: 'To ref (build:<id>, snap:<id>, tag:<name>, latest).' },
+          includePartialFlows: { type: 'boolean', description: 'Compare partial frontier flows in addition to full flows.' },
+          filters: {
+            type: 'object',
+            properties: {
+              rule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              category: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              severity: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              tag: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              source: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              sink: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              flowId: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              sourceRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              sinkRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] }
+            }
+          }
+        },
+        required: ['seed', 'from', 'to']
       }
     },
     {

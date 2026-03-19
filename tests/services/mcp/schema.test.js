@@ -93,6 +93,19 @@ if (!('includePartialFlows' in (riskExplainTool.inputSchema?.properties || {})))
 if (!('maxPartialFlows' in (riskExplainTool.inputSchema?.properties || {}))) {
   throw new Error('risk_explain tool schema missing maxPartialFlows.');
 }
+const riskDeltaTool = getToolDefs(DEFAULT_MODEL_ID).find((tool) => tool.name === 'risk_delta');
+if (!riskDeltaTool) {
+  throw new Error('risk_delta tool missing from MCP tool defs.');
+}
+if (!('from' in (riskDeltaTool.inputSchema?.properties || {}))) {
+  throw new Error('risk_delta tool schema missing from.');
+}
+if (!('to' in (riskDeltaTool.inputSchema?.properties || {}))) {
+  throw new Error('risk_delta tool schema missing to.');
+}
+if (!('seed' in (riskDeltaTool.inputSchema?.properties || {}))) {
+  throw new Error('risk_delta tool schema missing seed.');
+}
 const contextPackTool = getToolDefs(DEFAULT_MODEL_ID).find((tool) => tool.name === 'context_pack');
 if (!contextPackTool) {
   throw new Error('context_pack tool missing from MCP tool defs.');

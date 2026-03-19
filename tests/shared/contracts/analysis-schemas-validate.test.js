@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   validateGraphContextPack,
   validateGraphImpact,
+  validateRiskDelta,
   validateCompositeContextPack,
   validateApiContracts,
   validateArchitectureReport,
@@ -317,6 +318,119 @@ const compositeContextPack = {
   }
 };
 
+const riskDelta = {
+  version: '1.0.0',
+  seed,
+  filters: {
+    rule: [],
+    category: [],
+    severity: [],
+    tag: [],
+    source: [],
+    sink: [],
+    sourceRule: [],
+    sinkRule: [],
+    flowId: []
+  },
+  includePartialFlows: true,
+  from: {
+    requestedRef: 'snap:snap-old',
+    canonical: 'snap:snap-old',
+    identity: { type: 'snapshot', snapshotId: 'snap-old' },
+    snapshot: null,
+    warnings: [],
+    seedStatus: 'resolved',
+    target: {
+      chunkUid: 'chunk-1',
+      file: 'src/app.js',
+      name: 'alpha',
+      kind: 'function'
+    },
+    summary: compositeContextPack.risk.summary,
+    stats: compositeContextPack.risk.stats,
+    provenance: {
+      manifestVersion: 2,
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+      indexIdentity: { type: 'snapshot', snapshotId: 'snap-old' },
+      ruleBundle: compositeContextPack.risk.provenance.ruleBundle,
+      artifacts: compositeContextPack.risk.provenance.artifacts
+    },
+    flows: compositeContextPack.risk.flows,
+    partialFlows: compositeContextPack.risk.partialFlows
+  },
+  to: {
+    requestedRef: 'snap:snap-new',
+    canonical: 'snap:snap-new',
+    identity: { type: 'snapshot', snapshotId: 'snap-new' },
+    snapshot: null,
+    warnings: [],
+    seedStatus: 'resolved',
+    target: {
+      chunkUid: 'chunk-1',
+      file: 'src/app.js',
+      name: 'alpha',
+      kind: 'function'
+    },
+    summary: compositeContextPack.risk.summary,
+    stats: compositeContextPack.risk.stats,
+    provenance: {
+      manifestVersion: 2,
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+      indexIdentity: { type: 'snapshot', snapshotId: 'snap-new' },
+      ruleBundle: compositeContextPack.risk.provenance.ruleBundle,
+      artifacts: compositeContextPack.risk.provenance.artifacts
+    },
+    flows: compositeContextPack.risk.flows,
+    partialFlows: compositeContextPack.risk.partialFlows
+  },
+  summary: {
+    flowCounts: {
+      from: 1,
+      to: 1,
+      added: 0,
+      removed: 0,
+      changed: 1,
+      unchanged: 0
+    },
+    partialFlowCounts: {
+      from: 1,
+      to: 1,
+      added: 0,
+      removed: 0,
+      changed: 1,
+      unchanged: 0
+    }
+  },
+  deltas: {
+    flows: {
+      added: [],
+      removed: [],
+      changed: [{
+        flowId: compositeContextPack.risk.flows[0].flowId,
+        changedFields: ['confidence'],
+        beforeFingerprint: 'sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        afterFingerprint: 'sha1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        before: compositeContextPack.risk.flows[0],
+        after: { ...compositeContextPack.risk.flows[0], confidence: 0.9 }
+      }],
+      unchangedCount: 0
+    },
+    partialFlows: {
+      added: [],
+      removed: [],
+      changed: [{
+        partialFlowId: compositeContextPack.risk.partialFlows[0].partialFlowId,
+        changedFields: ['confidence'],
+        beforeFingerprint: 'sha1:cccccccccccccccccccccccccccccccccccccccc',
+        afterFingerprint: 'sha1:dddddddddddddddddddddddddddddddddddddddd',
+        before: compositeContextPack.risk.partialFlows[0],
+        after: { ...compositeContextPack.risk.partialFlows[0], confidence: 0.8 }
+      }],
+      unchangedCount: 0
+    }
+  }
+};
+
 const apiContracts = {
   version: '1.0.0',
   provenance,
@@ -349,6 +463,7 @@ const suggestTests = {
 const validators = [
   ['graph context pack', validateGraphContextPack, graphContextPack],
   ['graph impact', validateGraphImpact, graphImpact],
+  ['risk delta', validateRiskDelta, riskDelta],
   ['composite context pack', validateCompositeContextPack, compositeContextPack],
   ['api contracts', validateApiContracts, apiContracts],
   ['architecture report', validateArchitectureReport, architectureReport],

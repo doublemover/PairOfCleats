@@ -5,6 +5,7 @@ import {
   ANALYSIS_POLICY_SCHEMA,
   GRAPH_CONTEXT_PACK_SCHEMA,
   GRAPH_IMPACT_SCHEMA,
+  RISK_DELTA_SCHEMA,
   COMPOSITE_CONTEXT_PACK_SCHEMA,
   API_CONTRACTS_SCHEMA,
   ARCHITECTURE_REPORT_SCHEMA,
@@ -23,6 +24,7 @@ const RISK_RULES_VALIDATOR = compileSchema(ajv, RISK_RULES_BUNDLE_SCHEMA);
 const ANALYSIS_POLICY_VALIDATOR = compileSchema(ajv, ANALYSIS_POLICY_SCHEMA);
 const GRAPH_CONTEXT_PACK_VALIDATOR = compileSchema(ajv, GRAPH_CONTEXT_PACK_SCHEMA);
 const GRAPH_IMPACT_VALIDATOR = compileSchema(ajv, GRAPH_IMPACT_SCHEMA);
+const RISK_DELTA_VALIDATOR = compileSchema(ajv, RISK_DELTA_SCHEMA);
 const COMPOSITE_CONTEXT_PACK_VALIDATOR = compileSchema(ajv, COMPOSITE_CONTEXT_PACK_SCHEMA);
 const API_CONTRACTS_VALIDATOR = compileSchema(ajv, API_CONTRACTS_SCHEMA);
 const ARCHITECTURE_REPORT_VALIDATOR = compileSchema(ajv, ARCHITECTURE_REPORT_SCHEMA);
@@ -61,6 +63,11 @@ export function validateGraphContextPack(payload) {
 export function validateGraphImpact(payload) {
   const ok = Boolean(GRAPH_IMPACT_VALIDATOR(payload));
   return { ok, errors: ok ? [] : formatErrors(GRAPH_IMPACT_VALIDATOR) };
+}
+
+export function validateRiskDelta(payload) {
+  const ok = Boolean(RISK_DELTA_VALIDATOR(payload));
+  return { ok, errors: ok ? [] : formatErrors(RISK_DELTA_VALIDATOR) };
 }
 
 export function validateCompositeContextPack(payload) {

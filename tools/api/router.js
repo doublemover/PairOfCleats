@@ -4,7 +4,13 @@ import { MCP_SCHEMA_VERSION } from '../../src/integrations/mcp/defs.js';
 import { runFederatedSearch } from '../../src/retrieval/federation/coordinator.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { resolveFederationCacheRoot } from '../../src/workspace/manifest.js';
-import { createContextPackValidator, createFederatedSearchValidator, createRiskExplainValidator, createSearchValidator } from './validation.js';
+import {
+  createContextPackValidator,
+  createFederatedSearchValidator,
+  createRiskDeltaValidator,
+  createRiskExplainValidator,
+  createSearchValidator
+} from './validation.js';
 import { sendError, sendJson } from './response.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import { getToolVersion, isWithinRoot, toRealPathSync } from '../shared/dict-utils.js';
@@ -16,7 +22,7 @@ import { createCorsResolver } from './router/cors.js';
 import { createRepoResolver } from './router/paths.js';
 import { handleIndexDiffsRoute } from './router/index-diffs.js';
 import { handleIndexSnapshotsRoute } from './router/index-snapshots.js';
-import { handleContextPackRoute, handleRiskExplainRoute } from './router/analysis.js';
+import { handleContextPackRoute, handleRiskDeltaRoute, handleRiskExplainRoute } from './router/analysis.js';
 import { buildSearchParams, buildSearchPayloadFromQuery, isNoIndexError } from './router/search.js';
 import { getApiWorkflowCapabilities, getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
 import {
@@ -59,6 +65,7 @@ export const createApiRouter = ({
   const validateSearchPayload = createSearchValidator();
   const validateFederatedPayload = createFederatedSearchValidator();
   const validateRiskExplainPayload = createRiskExplainValidator();
+  const validateRiskDeltaPayload = createRiskDeltaValidator();
   const validateContextPackPayload = createContextPackValidator();
   const { resolveCorsHeaders } = createCorsResolver(cors);
   const { isAuthorized } = createAuthGuard(auth);
@@ -244,6 +251,20 @@ export const createApiRouter = ({
           parseJsonBody,
           resolveRepo,
           validateRiskExplainPayload
+        });
+        return;
+      }
+
+      if (requestUrl.pathname === '/analysis/risk-delta' && req.method === 'POST') {
+        const requestObservability = createRequestObservability(req, requestUrl, 'risk_delta');
+        await handleRiskDeltaRoute({
+          req,
+          res,
+          corsHeaders: mergeResponseHeaders(corsHeaders, requestObservability),
+          observability: requestObservability,
+          parseJsonBody,
+          resolveRepo,
+          validateRiskDeltaPayload
         });
         return;
       }

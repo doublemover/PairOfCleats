@@ -1,6 +1,7 @@
 import { loadUserConfig } from '../../shared/dict-utils.js';
 import { resolveIndexDir } from '../../../src/retrieval/cli-index.js';
 import { hasIndexMeta } from '../../../src/retrieval/cli/index-loader.js';
+import { buildRiskDeltaPayload } from '../../../src/context-pack/risk-delta.js';
 import { buildRiskExplainPayload } from '../../analysis/explain-risk.js';
 import { buildCompositeContextPackPayload } from '../../../src/integrations/tooling/context-pack.js';
 import { attachObservability, buildChildObservability } from '../../../src/shared/observability.js';
@@ -143,6 +144,71 @@ export async function handleContextPackRoute({
       : status === 404 ? ERROR_CODES.NO_INDEX
         : ERROR_CODES.INTERNAL;
     sendError(res, status, code, message, details, corsHeaders || {});
+    return true;
+  }
+}
+
+export async function handleRiskDeltaRoute({
+  req,
+  res,
+  corsHeaders,
+  observability,
+  parseJsonBody,
+  resolveRepo,
+  validateRiskDeltaPayload
+}) {
+  const payload = await parseJsonBody(req);
+  const validation = validateRiskDeltaPayload(payload);
+  if (!validation.ok) {
+    sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid risk delta request.', {
+      errors: validation.errors
+    }, corsHeaders || {});
+    return true;
+  }
+
+  const repoPath = await resolveRepo(payload.repoPath || payload.repo || '');
+  const filters = normalizeRiskFilters(payload.filters || null);
+  const filterValidation = validateRiskFilters(filters);
+  if (!filterValidation.ok) {
+    sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid risk filters.', {
+      errors: filterValidation.errors,
+      reason: 'invalid_risk_filters'
+    }, corsHeaders || {});
+    return true;
+  }
+
+  try {
+    const userConfig = loadUserConfig(repoPath);
+    const resultObservability = buildChildObservability(observability, {
+      surface: 'analysis',
+      operation: 'risk_delta',
+      context: {
+        repoRoot: repoPath,
+        from: String(payload.from),
+        to: String(payload.to)
+      }
+    });
+    const result = await buildRiskDeltaPayload({
+      repoRoot: repoPath,
+      userConfig,
+      from: String(payload.from),
+      to: String(payload.to),
+      seed: String(payload.seed),
+      filters,
+      includePartialFlows: payload.includePartialFlows === true
+    });
+    sendJson(res, 200, attachObservability({ ok: true, result }, resultObservability), corsHeaders || {});
+    return true;
+  } catch (err) {
+    const status = err?.code === ERROR_CODES.INVALID_REQUEST ? 400
+      : err?.code === ERROR_CODES.NOT_FOUND ? 404
+        : 500;
+    const code = status === 400 ? ERROR_CODES.INVALID_REQUEST
+      : status === 404 ? ERROR_CODES.NOT_FOUND
+        : ERROR_CODES.INTERNAL;
+    sendError(res, status, code, err?.message || 'Failed to build risk delta.', {
+      ...(err?.reason ? { reason: err.reason } : {})
+    }, corsHeaders || {});
     return true;
   }
 }

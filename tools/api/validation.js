@@ -187,6 +187,21 @@ const riskExplainSchema = {
   }
 };
 
+const riskDeltaSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['seed', 'from', 'to'],
+  properties: {
+    repoPath: { type: 'string' },
+    repo: { type: 'string' },
+    seed: { type: 'string', minLength: 1 },
+    from: { type: 'string', minLength: 1 },
+    to: { type: 'string', minLength: 1 },
+    includePartialFlows: { type: 'boolean' },
+    filters: riskFiltersSchema
+  }
+};
+
 const contextPackSchema = {
   type: 'object',
   additionalProperties: false,
@@ -258,6 +273,16 @@ export const createRiskExplainValidator = () => {
     const valid = validateRiskExplain(payload);
     if (valid) return { ok: true };
     return { ok: false, errors: formatValidationErrors(validateRiskExplain.errors || []) };
+  };
+};
+
+export const createRiskDeltaValidator = () => {
+  const ajv = createAjv({ allErrors: false, strict: false });
+  const validateRiskDelta = compileSchema(ajv, riskDeltaSchema);
+  return (payload) => {
+    const valid = validateRiskDelta(payload);
+    if (valid) return { ok: true };
+    return { ok: false, errors: formatValidationErrors(validateRiskDelta.errors || []) };
   };
 };
 
