@@ -26,6 +26,7 @@ indexing/type-inference/crossfile/apply
 retrieval/context-expansion/shuffled-chunkmeta
 retrieval/output/clean-context-fences
 tooling/lsp/runtime-config-resolution
+tooling/editors/harness-coverage
 tooling/vscode/extension
 tooling/vscode/extension-packaging
 tooling/vscode/extension-module-boundary
