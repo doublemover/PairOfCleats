@@ -46,10 +46,12 @@ export const SERVICE_INDEXER_OPTIONS = {
   stage: { type: 'string' },
   command: { type: 'string' },
   all: { type: 'boolean', default: false },
+  'dry-run': { type: 'boolean', default: false },
   watch: { type: 'boolean', default: false },
   interval: { type: 'number' },
   concurrency: { type: 'number' },
   queue: { type: 'string', default: 'index' },
+  lock: { type: 'string' },
   'shutdown-mode': { type: 'string' },
   'timeout-ms': { type: 'number' },
   json: { type: 'boolean', default: false }

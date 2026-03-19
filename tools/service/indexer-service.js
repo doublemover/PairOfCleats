@@ -44,6 +44,15 @@ import { resolveQueueRetentionPolicy } from './retention-policy.js';
 import { resolveQueueOperationalEnvelope } from './operational-envelope.js';
 import { collectEmbeddingReplayState } from './embedding-replay.js';
 import {
+  cleanupOrphanArtifacts,
+  heartbeatStatusRepairState,
+  inspectRepairState,
+  purgeRepairJobs,
+  quarantineRepairJob,
+  retryRepairJob,
+  unlockRepairState
+} from './repair.js';
+import {
   completeServiceShutdown,
   loadServiceShutdownState,
   requestServiceShutdown,
@@ -117,6 +126,7 @@ const JOB_HEARTBEAT_INTERVAL_MS = 30000;
 const shutdownTimeoutMs = Number.isFinite(Number(workerConfig.shutdownTimeoutMs))
   ? Math.max(250, Math.trunc(Number(workerConfig.shutdownTimeoutMs)))
   : 10000;
+const isDryRun = argv['dry-run'] === true;
 const runtimeConfigCache = new Map();
 const RUNTIME_CONFIG_REVALIDATE_MS = 1000;
 const RUNTIME_CONFIG_CACHE_MAX_ENTRIES = 128;
@@ -445,21 +455,89 @@ const handleQuarantine = async () => {
   });
 };
 
-const handleRetryQuarantined = async () => {
-  const jobId = requireJobArg('retry-quarantined');
-  const result = await retryQuarantinedJob(queueDir, jobId, resolvedQueueName);
-  if (!result) {
-    exitWithCommandError(`Quarantined job not found: ${jobId}`);
-  }
+const handleInspect = async () => {
+  const payload = await inspectRepairState(queueDir, resolvedQueueName, {
+    jobId: argv.job || null
+  });
   printPayload({
     ok: true,
-    duplicate: result.duplicate === true,
-    replaySuppressed: result.replaySuppressed === true,
-    retriedFromId: result.retriedFromId || jobId,
-    idempotencyKey: result.idempotencyKey || result.job?.idempotencyKey || null,
-    job: result.job,
-    quarantinedJob: result.quarantinedJob || null
+    queue: resolvedQueueName,
+    ...payload
   });
+};
+
+const handleHeartbeatStatus = async () => {
+  const payload = await heartbeatStatusRepairState(queueDir, resolvedQueueName);
+  printPayload(payload);
+};
+
+const handleRepairRetry = async () => {
+  const jobId = requireJobArg('retry');
+  const result = await retryRepairJob(queueDir, resolvedQueueName, {
+    jobId,
+    dryRun: isDryRun,
+    requestedBy: `cli:${process.pid}`
+  });
+  printPayload(result);
+};
+
+const handleRepairQuarantine = async () => {
+  const jobId = requireJobArg('quarantine-job');
+  const result = await quarantineRepairJob(queueDir, resolvedQueueName, {
+    jobId,
+    reason: argv.reason || 'operator-repair',
+    dryRun: isDryRun,
+    requestedBy: `cli:${process.pid}`
+  });
+  printPayload(result);
+};
+
+const handleRepairPurge = async () => {
+  const jobId = typeof argv.job === 'string' && argv.job.trim() ? argv.job.trim() : null;
+  const purgeAll = argv.all === true;
+  if (!jobId && !purgeAll) {
+    exitWithCommandError('Provide --job <id> or --all for purge.');
+  }
+  const result = await purgeRepairJobs(queueDir, resolvedQueueName, {
+    jobId,
+    purgeAll,
+    dryRun: isDryRun,
+    requestedBy: `cli:${process.pid}`
+  });
+  printPayload(result);
+};
+
+const handleUnlock = async () => {
+  const lockKind = typeof argv.lock === 'string' && argv.lock.trim()
+    ? argv.lock.trim().toLowerCase()
+    : 'all';
+  if (!['all', 'queue', 'shutdown'].includes(lockKind)) {
+    exitWithCommandError('Unlock requires --lock all|queue|shutdown.');
+  }
+  const result = await unlockRepairState(queueDir, resolvedQueueName, {
+    lockKind,
+    dryRun: isDryRun,
+    requestedBy: `cli:${process.pid}`
+  });
+  printPayload(result);
+};
+
+const handleCleanupOrphans = async () => {
+  const result = await cleanupOrphanArtifacts(queueDir, resolvedQueueName, {
+    dryRun: isDryRun,
+    requestedBy: `cli:${process.pid}`
+  });
+  printPayload(result);
+};
+
+const handleRetryQuarantined = async () => {
+  const jobId = requireJobArg('retry-quarantined');
+  const result = await retryRepairJob(queueDir, resolvedQueueName, {
+    jobId,
+    dryRun: isDryRun,
+    requestedBy: `cli:${process.pid}`
+  });
+  printPayload(result);
 };
 
 const handlePurgeQuarantined = async () => {
@@ -468,16 +546,13 @@ const handlePurgeQuarantined = async () => {
   if (!jobId && !purgeAll) {
     exitWithCommandError('Provide --job <id> or --all for purge-quarantined.');
   }
-  const result = await purgeQuarantinedJobs(queueDir, resolvedQueueName, {
+  const result = await purgeRepairJobs(queueDir, resolvedQueueName, {
     jobId,
-    all: purgeAll
+    purgeAll,
+    dryRun: isDryRun,
+    requestedBy: `cli:${process.pid}`
   });
-  printPayload({
-    ok: true,
-    queue: resolvedQueueName,
-    removed: result.removed,
-    remaining: result.jobs.length
-  });
+  printPayload(result);
 };
 
 const handleCompact = async () => {
@@ -665,12 +740,26 @@ try {
     await handleWork();
   } else if (command === 'status') {
     await handleStatus();
+  } else if (command === 'inspect') {
+    await handleInspect();
+  } else if (command === 'heartbeat-status') {
+    await handleHeartbeatStatus();
   } else if (command === 'quarantine') {
     await handleQuarantine();
+  } else if (command === 'quarantine-job') {
+    await handleRepairQuarantine();
+  } else if (command === 'retry') {
+    await handleRepairRetry();
+  } else if (command === 'purge') {
+    await handleRepairPurge();
   } else if (command === 'retry-quarantined') {
     await handleRetryQuarantined();
   } else if (command === 'purge-quarantined') {
     await handlePurgeQuarantined();
+  } else if (command === 'unlock') {
+    await handleUnlock();
+  } else if (command === 'cleanup-orphans') {
+    await handleCleanupOrphans();
   } else if (command === 'compact') {
     await handleCompact();
   } else if (command === 'shutdown') {
@@ -683,7 +772,7 @@ try {
     await handleServe();
   } else {
     exitWithCommandError(
-      'Usage: indexer-service <sync|enqueue|work|status|quarantine|retry-quarantined|purge-quarantined|compact|shutdown|resume|smoke|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]'
+      'Usage: indexer-service <sync|enqueue|work|status|inspect|heartbeat-status|quarantine|quarantine-job|retry|purge|retry-quarantined|purge-quarantined|unlock|cleanup-orphans|compact|shutdown|resume|smoke|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]'
     );
   }
 } catch (err) {
