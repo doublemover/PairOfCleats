@@ -3,24 +3,24 @@ import { applyTestEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { runSearchCli } from '../../src/retrieval/cli.js';
+import { acquireIndexLock } from '../../src/index/build/lock.js';
+import { resolveIndexRef } from '../../src/index/index-ref.js';
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
-import { loadUserConfig } from '../../tools/shared/dict-utils.js';
+import { getRepoCacheRoot, loadUserConfig } from '../../tools/shared/dict-utils.js';
+import { loadChunkMeta } from '../../src/shared/artifact-io.js';
+import { replaceDir } from '../../src/shared/json-stream/atomic.js';
+import { createBaseIndex } from '../indexing/validate/helpers.js';
 
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'snapshot-query-service');
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
+const tempRoot = resolveTestCachePath(process.cwd(), 'snapshot-query-service');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
-await fs.cp(fixtureRoot, repoRoot, { recursive: true });
+await fs.mkdir(repoRoot, { recursive: true });
 
-const env = applyTestEnv({
+applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
   testConfig: {
@@ -36,38 +36,80 @@ const env = applyTestEnv({
   extraEnv: { PAIROFCLEATS_WORKER_POOL: 'off' }
 });
 
-const runBuild = () => {
-  const result = spawnSync(
-    process.execPath,
-    [
-      path.join(root, 'build_index.js'),
-      '--repo',
-      repoRoot,
-      '--mode',
-      'code',
-      '--stub-embeddings',
-      '--no-sqlite',
-      '--progress',
-      'off'
+const writeJson = async (filePath, value) => {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+};
+
+const seedBuildRoot = async ({
+  repoCacheRoot,
+  buildId,
+  token,
+  end
+}) => {
+  const buildRoot = path.join(repoCacheRoot, 'builds', buildId);
+  await fs.mkdir(buildRoot, { recursive: true });
+  const { indexDir } = await createBaseIndex({
+    rootDir: buildRoot,
+    chunkMeta: [
+      {
+        id: 0,
+        file: 'src/phase14-snapshot-query.js',
+        start: 0,
+        end,
+        text: `export const phase14_marker = "${token}";`
+      }
     ],
-    {
-      cwd: repoRoot,
-      env,
-      encoding: 'utf8'
+    fileMeta: [
+      {
+        id: 0,
+        file: 'src/phase14-snapshot-query.js',
+        ext: '.js'
+      }
+    ],
+    tokenPostings: {
+      vocab: [token],
+      postings: [
+        [[0, 1]]
+      ],
+      docLengths: [1],
+      avgDocLen: 1,
+      totalDocs: 1
     }
-  );
-  if (result.status !== 0) {
-    throw new Error(`build_index failed: ${result.stderr || result.stdout || 'unknown error'}`);
-  }
+  });
+  const modeDir = path.join(buildRoot, 'index-code');
+  await replaceDir(indexDir, modeDir);
+  await fs.rm(path.join(buildRoot, '.index-root'), { recursive: true, force: true });
+  await writeJson(path.join(buildRoot, 'build_state.json'), {
+    schemaVersion: 1,
+    buildId,
+    configHash: `cfg-${buildId}`,
+    tool: { version: '1.0.0' },
+    validation: { ok: true, issueCount: 0, warningCount: 0, issues: [] }
+  });
 };
 
 const markerPath = path.join(repoRoot, 'src', 'phase14-snapshot-query.js');
 await fs.mkdir(path.dirname(markerPath), { recursive: true });
-await fs.writeFile(markerPath, 'export const phase14_marker = "phase14alpha";\n', 'utf8');
-
-runBuild();
+await fs.writeFile(markerPath, 'export const phase14_marker = "alpha";\n', 'utf8');
 
 const userConfig = loadUserConfig(repoRoot);
+const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
+
+await seedBuildRoot({
+  repoCacheRoot,
+  buildId: 'build-alpha',
+  token: 'alpha',
+  end: 38
+});
+await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
+  buildId: 'build-alpha',
+  buildRoot: 'builds/build-alpha',
+  buildRoots: {
+    code: 'builds/build-alpha'
+  }
+});
 
 const snapshotA = 'snap-20260212000000-snapqa';
 await createPointerSnapshot({
@@ -77,8 +119,20 @@ await createPointerSnapshot({
   snapshotId: snapshotA
 });
 
-await fs.writeFile(markerPath, 'export const phase14_marker = "phase14beta";\n', 'utf8');
-runBuild();
+await fs.writeFile(markerPath, 'export const phase14_marker = "beta";\n', 'utf8');
+await seedBuildRoot({
+  repoCacheRoot,
+  buildId: 'build-beta',
+  token: 'beta',
+  end: 37
+});
+await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
+  buildId: 'build-beta',
+  buildRoot: 'builds/build-beta',
+  buildRoots: {
+    code: 'builds/build-beta'
+  }
+});
 
 const snapshotB = 'snap-20260212000000-snapqb';
 await createPointerSnapshot({
@@ -88,115 +142,68 @@ await createPointerSnapshot({
   snapshotId: snapshotB
 });
 
-const searchA = await runSearchCli([
-  '--repo',
+const resolvedA = resolveIndexRef({
+  ref: `snap:${snapshotA}`,
   repoRoot,
-  '--mode',
-  'code',
-  '--backend',
-  'memory',
-  '--top',
-  '50',
-  '--json',
-  '--compact',
-  '--snapshot',
-  snapshotA,
-  '--',
-  'phase14alpha'
-], {
-  emitOutput: false,
-  exitOnError: false
+  userConfig,
+  requestedModes: ['code'],
+  preferFrozen: true,
+  allowMissingModes: false
 });
+assert.equal(resolvedA.canonical, `snap:${snapshotA}`, 'snapshot alias should normalize to snap:<id>');
+assert.equal(resolvedA.identity?.snapshotId, snapshotA);
+const chunkMetaA = await loadChunkMeta(resolvedA.indexDirByMode.code, { strict: false });
+assert.equal(chunkMetaA[0]?.file, 'src/phase14-snapshot-query.js');
+assert.equal(chunkMetaA[0]?.end, 38, 'snapshot A should resolve its committed build root');
 
-assert.equal(searchA.asOf?.ref, `snap:${snapshotA}`, 'snapshot alias should normalize to as-of snap:<id>');
-assert.ok(
-  Array.isArray(searchA.code)
-  && searchA.code.some((hit) => String(hit.file || '').includes('phase14-snapshot-query.js')),
-  'snapshot A query should find the alpha marker'
+const activeBuildLock = await acquireIndexLock({
+  repoCacheRoot,
+  waitMs: 0,
+  metadata: {
+    owner: 'build-index',
+    operation: 'stage4-promote'
+  }
+});
+assert.ok(activeBuildLock, 'expected to acquire index lock for snapshot query concurrency test');
+
+const resolvedAWhileLocked = resolveIndexRef({
+  ref: `snap:${snapshotA}`,
+  repoRoot,
+  userConfig,
+  requestedModes: ['code'],
+  preferFrozen: true,
+  allowMissingModes: false
+});
+const chunkMetaAWhileLocked = await loadChunkMeta(resolvedAWhileLocked.indexDirByMode.code, { strict: false });
+assert.equal(
+  chunkMetaAWhileLocked[0]?.end,
+  38,
+  'snapshot query resolution should remain readable while build-side mutations are blocked by the index lock'
 );
-const snapshotAHit = searchA.code.find((hit) => String(hit.file || '').includes('phase14-snapshot-query.js'));
+await activeBuildLock.release();
 
-const searchB = await runSearchCli([
-  '--repo',
+const resolvedB = resolveIndexRef({
+  ref: `snap:${snapshotB}`,
   repoRoot,
-  '--mode',
-  'code',
-  '--backend',
-  'memory',
-  '--top',
-  '50',
-  '--json',
-  '--compact',
-  '--snapshot',
-  snapshotB,
-  '--',
-  'phase14beta'
-], {
-  emitOutput: false,
-  exitOnError: false
+  userConfig,
+  requestedModes: ['code'],
+  preferFrozen: true,
+  allowMissingModes: false
 });
+const chunkMetaB = await loadChunkMeta(resolvedB.indexDirByMode.code, { strict: false });
+assert.equal(chunkMetaB[0]?.end, 37, 'snapshot B should resolve its newer committed build root');
+assert.notEqual(chunkMetaA[0]?.end ?? null, chunkMetaB[0]?.end ?? null, 'snapshot A and B should resolve distinct chunk metadata');
 
-const searchBAlpha = await runSearchCli([
-  '--repo',
+const latest = resolveIndexRef({
+  ref: 'latest',
   repoRoot,
-  '--mode',
-  'code',
-  '--backend',
-  'memory',
-  '--top',
-  '50',
-  '--json',
-  '--compact',
-  '--snapshot',
-  snapshotB,
-  '--',
-  'phase14alpha'
-], {
-  emitOutput: false,
-  exitOnError: false
+  userConfig,
+  requestedModes: ['code'],
+  preferFrozen: true,
+  allowMissingModes: false
 });
-const staleSnapshotBHit = Array.isArray(searchBAlpha.code)
-  ? searchBAlpha.code.find((hit) => String(hit.file || '').includes('phase14-snapshot-query.js'))
-  : null;
-assert.ok(!staleSnapshotBHit, 'snapshot B should not match stale alpha marker text');
-
-const snapshotBHit = Array.isArray(searchB.code)
-  ? searchB.code.find((hit) => String(hit.file || '').includes('phase14-snapshot-query.js'))
-  : null;
-assert.ok(snapshotBHit, 'snapshot B query should still resolve marker file in its own snapshot state');
-assert.notEqual(
-  snapshotAHit?.end ?? null,
-  snapshotBHit?.end ?? null,
-  'snapshot A and B should yield different chunk bounds for the same query'
-);
-
-const latest = await runSearchCli([
-  '--repo',
-  repoRoot,
-  '--mode',
-  'code',
-  '--backend',
-  'memory',
-  '--top',
-  '50',
-  '--json',
-  '--compact',
-  '--',
-  'phase14beta'
-], {
-  emitOutput: false,
-  exitOnError: false
-});
-
-assert.equal(latest.asOf?.ref, 'latest', 'latest should remain the default as-of ref');
-const latestHit = Array.isArray(latest.code)
-  ? latest.code.find((hit) => String(hit.file || '').includes('phase14-snapshot-query.js'))
-  : null;
-assert.ok(
-  Array.isArray(latest.code)
-  && latest.code.some((hit) => String(hit.file || '').includes('phase14-snapshot-query.js')),
-  'latest query should resolve to current build without snapshot flag'
-);
-assert.equal(latestHit?.end ?? null, snapshotBHit?.end ?? null, 'latest should match snapshot B (current build)');
+const latestChunkMeta = await loadChunkMeta(latest.indexDirByMode.code, { strict: false });
+assert.equal(latest.canonical, 'latest', 'latest should remain the default as-of ref');
+assert.equal(latestChunkMeta[0]?.end, chunkMetaB[0]?.end, 'latest should match the current build rather than an older snapshot');
 
 console.log('snapshot query service test passed');

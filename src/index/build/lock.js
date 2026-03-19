@@ -12,7 +12,7 @@ const DEFAULT_STALE_MS = 30 * 60 * 1000;
 
 /**
  * Acquire a repo-scoped index lock to prevent concurrent writes.
- * @param {{repoCacheRoot:string,waitMs?:number,pollMs?:number,staleMs?:number,log?:(msg:string)=>void}} input
+ * @param {{repoCacheRoot:string,waitMs?:number,pollMs?:number,staleMs?:number,metadata?:object|null,log?:(msg:string)=>void}} input
  * @returns {Promise<{lockPath:string,release:()=>Promise<void>}|null>}
  */
 export async function acquireIndexLock({
@@ -20,6 +20,7 @@ export async function acquireIndexLock({
   waitMs = 0,
   pollMs = 1000,
   staleMs = DEFAULT_STALE_MS,
+  metadata = null,
   log = () => {}
 }) {
   const lockPath = path.join(repoCacheRoot, 'locks', 'index.lock');
@@ -28,7 +29,10 @@ export async function acquireIndexLock({
     waitMs,
     pollMs,
     staleMs,
-    metadata: { scope: 'index' },
+    metadata: {
+      scope: 'index',
+      ...(metadata && typeof metadata === 'object' ? metadata : {})
+    },
     onStale: ({ reason, pid }) => {
       if (reason === 'dead-pid' && Number.isFinite(pid)) {
         log(`Removed stale index lock at ${lockPath} (pid ${pid} not running).`);
@@ -94,6 +98,17 @@ export async function acquireIndexLock({
     }
   };
   return publicLock;
+}
+
+/**
+ * Read the current repo-scoped index lock metadata, if present.
+ *
+ * @param {string} repoCacheRoot
+ * @returns {Promise<object|null>}
+ */
+export async function readIndexLockInfo(repoCacheRoot) {
+  const lockPath = path.join(repoCacheRoot, 'locks', 'index.lock');
+  return await readLockInfo(lockPath);
 }
 
 /**

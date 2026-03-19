@@ -2,7 +2,11 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { acquireIndexLock, attachIndexLockSignalCleanup } from '../build/lock.js';
+import {
+  acquireIndexLock,
+  attachIndexLockSignalCleanup,
+  readIndexLockInfo
+} from '../build/lock.js';
 import { resolveIndexRef } from '../index-ref.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { isManifestPathSafe } from '../validate/paths.js';
@@ -154,6 +158,34 @@ const updateTagIndex = (manifest) => {
   manifest.tags = tags;
 };
 
+const buildSnapshotLockConflict = async (repoCacheRoot, action, details = {}) => {
+  const lockPath = path.join(repoCacheRoot, 'locks', 'index.lock');
+  const lockInfo = await readIndexLockInfo(repoCacheRoot);
+  const ownerPid = Number.isFinite(Number(lockInfo?.pid)) ? Math.trunc(Number(lockInfo.pid)) : null;
+  const owner = typeof lockInfo?.owner === 'string' && lockInfo.owner.trim()
+    ? lockInfo.owner.trim()
+    : (typeof lockInfo?.scope === 'string' && lockInfo.scope.trim() ? lockInfo.scope.trim() : null);
+  const operation = typeof lockInfo?.operation === 'string' && lockInfo.operation.trim()
+    ? lockInfo.operation.trim()
+    : null;
+  const detailParts = [];
+  if (owner) detailParts.push(owner);
+  if (operation) detailParts.push(operation);
+  if (ownerPid != null) detailParts.push(`pid ${ownerPid}`);
+  const detailText = detailParts.length ? ` (${detailParts.join(', ')})` : '';
+  return queueError(`Index lock held; unable to ${action}.${detailText}`, {
+    conflict: {
+      lockPath,
+      owner,
+      operation,
+      ownerPid,
+      startedAt: typeof lockInfo?.startedAt === 'string' ? lockInfo.startedAt : null,
+      snapshotId: typeof lockInfo?.snapshotId === 'string' ? lockInfo.snapshotId : null
+    },
+    ...details
+  });
+};
+
 const prunePointerSnapshots = async ({
   repoCacheRoot,
   manifest,
@@ -211,10 +243,21 @@ const withSnapshotLock = async (repoCacheRoot, options, worker) => {
     waitMs: Number.isFinite(options?.waitMs) ? Number(options.waitMs) : 0,
     pollMs: Number.isFinite(options?.pollMs) ? Number(options.pollMs) : 1000,
     staleMs: Number.isFinite(options?.staleMs) ? Number(options.staleMs) : undefined,
+    metadata: options?.metadata && typeof options.metadata === 'object'
+      ? options.metadata
+      : null,
     log: typeof options?.log === 'function' ? options.log : () => {}
   });
   if (!lock) {
-    throw queueError('Index lock held; unable to mutate snapshots.');
+    throw await buildSnapshotLockConflict(
+      repoCacheRoot,
+      typeof options?.action === 'string' && options.action.trim()
+        ? options.action.trim()
+        : 'mutate snapshots',
+      {
+        requestedSnapshotId: typeof options?.snapshotId === 'string' ? options.snapshotId : null
+      }
+    );
   }
   const detachSignalCleanup = attachIndexLockSignalCleanup(lock);
   try {
@@ -247,7 +290,16 @@ export const createPointerSnapshot = async ({
   const selectedSnapshotId = snapshotId || generateSnapshotId(now);
   ensureSnapshotId(selectedSnapshotId);
 
-  return withSnapshotLock(repoCacheRoot, { waitMs }, async (lock) => {
+  return withSnapshotLock(repoCacheRoot, {
+    waitMs,
+    action: 'create snapshot',
+    snapshotId: selectedSnapshotId,
+    metadata: {
+      owner: 'snapshots',
+      operation: 'create',
+      snapshotId: selectedSnapshotId
+    }
+  }, async (lock) => {
     const resolved = resolveIndexRef({
       ref: 'latest',
       repoRoot: resolvedRepoRoot,
@@ -383,7 +435,16 @@ export const removeSnapshot = async ({
   ensureSnapshotId(snapshotId);
   const resolvedRepoRoot = path.resolve(repoRoot);
   const repoCacheRoot = getRepoCacheRoot(resolvedRepoRoot, userConfig);
-  return withSnapshotLock(repoCacheRoot, { waitMs }, async (lock) => {
+  return withSnapshotLock(repoCacheRoot, {
+    waitMs,
+    action: 'remove snapshot',
+    snapshotId,
+    metadata: {
+      owner: 'snapshots',
+      operation: 'remove',
+      snapshotId
+    }
+  }, async (lock) => {
     const manifest = loadSnapshotsManifest(repoCacheRoot);
     const entry = manifest.snapshots?.[snapshotId];
     if (!entry) {
@@ -416,7 +477,14 @@ export const pruneSnapshots = async ({
   }
   const resolvedRepoRoot = path.resolve(repoRoot);
   const repoCacheRoot = getRepoCacheRoot(resolvedRepoRoot, userConfig);
-  return withSnapshotLock(repoCacheRoot, { waitMs }, async (lock) => {
+  return withSnapshotLock(repoCacheRoot, {
+    waitMs,
+    action: 'prune snapshots',
+    metadata: {
+      owner: 'snapshots',
+      operation: 'prune'
+    }
+  }, async (lock) => {
     const manifest = loadSnapshotsManifest(repoCacheRoot);
     const removed = await prunePointerSnapshots({
       repoCacheRoot,

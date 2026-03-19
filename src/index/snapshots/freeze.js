@@ -2,7 +2,11 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { acquireIndexLock, attachIndexLockSignalCleanup } from '../build/lock.js';
+import {
+  acquireIndexLock,
+  attachIndexLockSignalCleanup,
+  readIndexLockInfo
+} from '../build/lock.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { fromPosix, isAbsolutePathAny, toPosix } from '../../shared/files.js';
 import { getRepoCacheRoot } from '../../shared/dict-utils.js';
@@ -98,16 +102,55 @@ const normalizeBooleanFlag = (value, fallback = false) => {
   return fallback;
 };
 
+const buildSnapshotLockConflict = async (repoCacheRoot, action, details = {}) => {
+  const lockPath = path.join(repoCacheRoot, 'locks', 'index.lock');
+  const lockInfo = await readIndexLockInfo(repoCacheRoot);
+  const ownerPid = Number.isFinite(Number(lockInfo?.pid)) ? Math.trunc(Number(lockInfo.pid)) : null;
+  const owner = typeof lockInfo?.owner === 'string' && lockInfo.owner.trim()
+    ? lockInfo.owner.trim()
+    : (typeof lockInfo?.scope === 'string' && lockInfo.scope.trim() ? lockInfo.scope.trim() : null);
+  const operation = typeof lockInfo?.operation === 'string' && lockInfo.operation.trim()
+    ? lockInfo.operation.trim()
+    : null;
+  const detailParts = [];
+  if (owner) detailParts.push(owner);
+  if (operation) detailParts.push(operation);
+  if (ownerPid != null) detailParts.push(`pid ${ownerPid}`);
+  const detailText = detailParts.length ? ` (${detailParts.join(', ')})` : '';
+  return queueError(`Index lock held; unable to ${action}.${detailText}`, {
+    conflict: {
+      lockPath,
+      owner,
+      operation,
+      ownerPid,
+      startedAt: typeof lockInfo?.startedAt === 'string' ? lockInfo.startedAt : null,
+      snapshotId: typeof lockInfo?.snapshotId === 'string' ? lockInfo.snapshotId : null
+    },
+    ...details
+  });
+};
+
 const withSnapshotLock = async (repoCacheRoot, options, worker) => {
   const lock = await acquireIndexLock({
     repoCacheRoot,
     waitMs: Number.isFinite(options?.waitMs) ? Number(options.waitMs) : 0,
     pollMs: Number.isFinite(options?.pollMs) ? Number(options.pollMs) : 1000,
     staleMs: Number.isFinite(options?.staleMs) ? Number(options.staleMs) : undefined,
+    metadata: options?.metadata && typeof options.metadata === 'object'
+      ? options.metadata
+      : null,
     log: typeof options?.log === 'function' ? options.log : () => {}
   });
   if (!lock) {
-    throw queueError('Index lock held; unable to freeze snapshots.');
+    throw await buildSnapshotLockConflict(
+      repoCacheRoot,
+      typeof options?.action === 'string' && options.action.trim()
+        ? options.action.trim()
+        : 'freeze snapshots',
+      {
+        requestedSnapshotId: typeof options?.snapshotId === 'string' ? options.snapshotId : null
+      }
+    );
   }
   const detachSignalCleanup = attachIndexLockSignalCleanup(lock);
   try {
@@ -266,7 +309,16 @@ export const freezeSnapshot = async ({
   const resolvedRepoRoot = path.resolve(repoRoot);
   const repoCacheRoot = getRepoCacheRoot(resolvedRepoRoot, userConfig);
 
-  return withSnapshotLock(repoCacheRoot, { waitMs }, async (lock) => {
+  return withSnapshotLock(repoCacheRoot, {
+    waitMs,
+    action: 'freeze snapshot',
+    snapshotId,
+    metadata: {
+      owner: 'snapshots',
+      operation: 'freeze',
+      snapshotId
+    }
+  }, async (lock) => {
     await cleanupStaleFrozenStagingDirs(repoCacheRoot, {
       lock,
       maxAgeHours: stagingMaxAgeHours
@@ -459,7 +511,14 @@ export const gcSnapshots = async ({
     ? (Date.now() - Math.max(0, Number(maxAgeDays)) * 24 * 60 * 60 * 1000)
     : null;
 
-  return withSnapshotLock(repoCacheRoot, { waitMs }, async (lock) => {
+  return withSnapshotLock(repoCacheRoot, {
+    waitMs,
+    action: 'garbage-collect snapshots',
+    metadata: {
+      owner: 'snapshots',
+      operation: 'gc'
+    }
+  }, async (lock) => {
     const staleCleanup = await cleanupStaleFrozenStagingDirs(repoCacheRoot, {
       lock,
       maxAgeHours: stagingMaxAgeHours

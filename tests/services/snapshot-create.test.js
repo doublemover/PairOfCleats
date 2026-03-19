@@ -3,6 +3,7 @@ import { applyTestEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { acquireIndexLock } from '../../src/index/build/lock.js';
 import { getRepoCacheRoot } from '../../src/shared/dict-utils.js';
 import {
   createPointerSnapshot,
@@ -91,6 +92,35 @@ const firstSnapshotJson = loadSnapshot(repoCacheRoot, firstSnapshot.snapshotId);
 assert.deepEqual(Object.keys(firstSnapshotJson.pointer.buildRootsByMode), ['code']);
 assert.equal(firstSnapshotJson.pointer.buildRootsByMode.code, 'builds/build-code');
 
+const activeBuildLock = await acquireIndexLock({
+  repoCacheRoot,
+  waitMs: 0,
+  metadata: {
+    owner: 'build-index',
+    operation: 'stage4-promote'
+  }
+});
+assert.ok(activeBuildLock, 'expected to acquire index lock for snapshot create contention test');
+try {
+  await assert.rejects(
+    () => createPointerSnapshot({
+      repoRoot,
+      userConfig,
+      modes: ['code'],
+      snapshotId: 'snap-20260212000000-aa0002',
+      waitMs: 0
+    }),
+    (error) => (
+      error?.code === 'QUEUE_OVERLOADED'
+      && error?.conflict?.owner === 'build-index'
+      && error?.conflict?.operation === 'stage4-promote'
+    ),
+    'snapshot create should expose active build conflict details when index lock is held'
+  );
+} finally {
+  await activeBuildLock.release();
+}
+
 const escapeTargetRoot = path.join(tempRoot, 'snapshot-escape-target');
 const escapeLinkRoot = path.join(buildsRoot, 'build-escape-link');
 let escapeLinkCreated = false;
@@ -117,7 +147,7 @@ if (escapeLinkCreated) {
       repoRoot,
       userConfig,
       modes: ['code'],
-      snapshotId: 'snap-20260212000000-aa0002'
+      snapshotId: 'snap-20260212000000-aa0003'
     }),
     /escapes repo cache root/,
     'snapshot create should reject symlinked build roots that escape repo cache'
@@ -140,7 +170,7 @@ await assert.rejects(
     repoRoot,
     userConfig,
     modes: ['code'],
-    snapshotId: 'snap-20260212000000-aa0002'
+    snapshotId: 'snap-20260212000000-aa0004'
   }),
   /validation\.ok === true/,
   'snapshot create should fail when validation.ok is false'
@@ -162,7 +192,7 @@ await assert.rejects(
     repoRoot,
     userConfig,
     modes: ['code'],
-    snapshotId: 'snap-20260212000000-aa0003'
+    snapshotId: 'snap-20260212000000-aa0005'
   }),
   /validation\.ok === true/,
   'snapshot create should fail when validation block is missing'
@@ -174,9 +204,9 @@ await writeJson(path.join(buildsRoot, 'current.json'), {
   buildRoots: { code: 'builds/build-code' }
 });
 const retentionIds = [
-  'snap-20260212000000-aa0004',
-  'snap-20260212000000-aa0005',
-  'snap-20260212000000-aa0006'
+  'snap-20260212000000-aa0006',
+  'snap-20260212000000-aa0007',
+  'snap-20260212000000-aa0008'
 ];
 for (const snapshotId of retentionIds) {
   await createPointerSnapshot({
@@ -199,11 +229,11 @@ assert.ok(
   'retention should keep tagged snapshots'
 );
 assert.ok(
-  !manifestAfterRetention.snapshots['snap-20260212000000-aa0004'],
+  !manifestAfterRetention.snapshots['snap-20260212000000-aa0006'],
   'retention should prune oldest untagged snapshot'
 );
 await assert.rejects(
-  () => fs.stat(path.join(repoCacheRoot, 'snapshots', 'snap-20260212000000-aa0004')),
+  () => fs.stat(path.join(repoCacheRoot, 'snapshots', 'snap-20260212000000-aa0006')),
   'pruned snapshot directory should be deleted'
 );
 const listedSnapshots = listSnapshots({ repoRoot, userConfig });

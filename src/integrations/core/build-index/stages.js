@@ -62,14 +62,18 @@ const BUILD_INDEX_LOCK_POLL_MS = Math.max(
  * Throws when the lock cannot be obtained within configured wait time so
  * callers can fail fast before mutating current build pointers.
  *
- * @param {{repoCacheRoot:string,log:(line:string)=>void}} input
+ * @param {{repoCacheRoot:string,log:(line:string)=>void,metadata?:object|null}} input
  * @returns {Promise<{release:()=>Promise<void>}>}
  */
-const acquireBuildIndexLock = async ({ repoCacheRoot, log }) => {
+const acquireBuildIndexLock = async ({ repoCacheRoot, log, metadata = null }) => {
   const lock = await acquireIndexLock({
     repoCacheRoot,
     waitMs: BUILD_INDEX_LOCK_WAIT_MS,
     pollMs: BUILD_INDEX_LOCK_POLL_MS,
+    metadata: {
+      owner: 'build-index',
+      ...(metadata && typeof metadata === 'object' ? metadata : {})
+    },
     log
   });
   if (lock) return lock;
@@ -156,7 +160,13 @@ export const runEmbeddingsStage = async ({
       modeIndexRootCache.set(mode, resolved);
       return resolved;
     };
-    const lock = await acquireBuildIndexLock({ repoCacheRoot, log });
+    const lock = await acquireBuildIndexLock({
+      repoCacheRoot,
+      log,
+      metadata: {
+        operation: 'stage3-embeddings'
+      }
+    });
     const detachSignalCleanup = attachIndexLockSignalCleanup(lock);
     try {
       throwIfAborted(effectiveAbortSignal);
@@ -498,7 +508,13 @@ export const runSqliteStage = async ({
       await updateBuildState(runtime.buildRoot, { stage: 'stage4' });
       const shouldPromote = !(explicitIndexRoot && argv.stage === 'stage4');
       if (shouldPromote) {
-        lock = await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
+        lock = await acquireBuildIndexLock({
+          repoCacheRoot: runtime.repoCacheRoot,
+          log,
+          metadata: {
+            operation: 'stage4-promote'
+          }
+        });
         detachLockSignalCleanup = attachIndexLockSignalCleanup(lock);
         await markBuildPhase(runtime.buildRoot, 'promote', 'running');
         promoteRunning = true;
@@ -878,7 +894,13 @@ export const runStage = async (
       await markBuildPhase(runtime.buildRoot, 'validation', 'done');
       validationDone = true;
       throwIfAborted(effectiveAbortSignal);
-      lock = await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
+      lock = await acquireBuildIndexLock({
+        repoCacheRoot: runtime.repoCacheRoot,
+        log,
+        metadata: {
+          operation: `${phaseStage}-promote`
+        }
+      });
       detachLockSignalCleanup = attachIndexLockSignalCleanup(lock);
       await markBuildPhase(runtime.buildRoot, 'promote', 'running');
       promoteRunning = true;

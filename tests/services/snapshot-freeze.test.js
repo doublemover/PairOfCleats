@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { acquireIndexLock } from '../../src/index/build/lock.js';
 import { getRepoCacheRoot } from '../../src/shared/dict-utils.js';
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
 import { freezeSnapshot } from '../../src/index/snapshots/freeze.js';
@@ -100,6 +101,37 @@ const pointerSnapshot = await createPointerSnapshot({
   snapshotId: 'snap-20260212000000-frz001'
 });
 assert.equal(pointerSnapshot.snapshotId, 'snap-20260212000000-frz001');
+
+const activeBuildLock = await acquireIndexLock({
+  repoCacheRoot,
+  waitMs: 0,
+  metadata: {
+    owner: 'build-index',
+    operation: 'stage3-embeddings'
+  }
+});
+assert.ok(activeBuildLock, 'expected to acquire index lock for snapshot freeze contention test');
+try {
+  await assert.rejects(
+    () => freezeSnapshot({
+      repoRoot,
+      userConfig,
+      snapshotId: pointerSnapshot.snapshotId,
+      modes: ['code'],
+      method: 'hardlink',
+      verify: true,
+      waitMs: 0
+    }),
+    (error) => (
+      error?.code === 'QUEUE_OVERLOADED'
+      && error?.conflict?.owner === 'build-index'
+      && error?.conflict?.operation === 'stage3-embeddings'
+    ),
+    'snapshot freeze should expose active build conflict details when index lock is held'
+  );
+} finally {
+  await activeBuildLock.release();
+}
 
 const freezeResult = await freezeSnapshot({
   repoRoot,

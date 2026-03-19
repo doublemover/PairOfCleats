@@ -318,6 +318,8 @@ const resolveSnapshot = ({
 
   if (preferFrozen && hasFrozen) {
     const frozenRoot = path.join(snapshotDir, 'frozen');
+    // Read paths never consult `frozen.staging-*`; visibility flips only after
+    // committed frozen metadata/root publication is complete.
     if (!fs.existsSync(frozenRoot)) {
       if (!allowMissingModes) {
         throw notFound(`Frozen root missing for snapshot ${snapshotId}.`);
