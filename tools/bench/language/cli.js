@@ -3,6 +3,7 @@ import { createCli } from '../../../src/shared/cli.js';
 import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../../../src/shared/cli-options.js';
 import { normalizeLegacyCacheRootPath } from '../../../src/shared/cache-roots.js';
 import { getCacheRoot, resolveToolRoot } from '../../shared/dict-utils.js';
+import { resolveBenchMode } from './policy.js';
 
 export const BENCH_REPO_TIMEOUT_DEFAULT_MS = 30 * 60 * 1000;
 
@@ -61,6 +62,10 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
       root: { type: 'string' },
       'cache-root': { type: 'string' },
       'cache-suffix': { type: 'string' },
+      mode: { type: 'string' },
+      'control-slice': { type: 'boolean', default: false },
+      'control-slice-max': { type: 'number' },
+      'corpus-version': { type: 'string' },
       'waiver-file': { type: 'string' },
       results: { type: 'string' },
       log: { type: 'string' },
@@ -89,10 +94,20 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
   const reposRoot = path.resolve(argv.root || path.join(scriptRoot, 'benchmarks', 'repos'));
   const cacheRootInput = argv['cache-root'] || path.join(getCacheRoot(), 'bench-language');
   const cacheRootBase = normalizeLegacyCacheRootPath(cacheRootInput) || path.resolve(cacheRootInput);
+  const mode = resolveBenchMode(argv.mode);
   const cacheSuffixRaw = typeof argv['cache-suffix'] === 'string' ? argv['cache-suffix'].trim() : '';
   const cacheRun = argv['cache-run'] === true;
-  const cacheSuffix = cacheSuffixRaw || (cacheRun ? runSuffix : '');
-  const cacheRoot = cacheSuffix ? path.resolve(cacheRootBase, cacheSuffix) : cacheRootBase;
+  const cacheSuffix = cacheSuffixRaw || (cacheRun || mode === 'cold' ? runSuffix : '');
+  const modeCacheRoot = (
+    mode === 'tooling'
+      ? path.resolve(cacheRootBase, 'tooling')
+      : mode === 'reliability'
+        ? path.resolve(cacheRootBase, 'reliability')
+        : mode === 'cold'
+          ? path.resolve(cacheRootBase, 'cold')
+          : cacheRootBase
+  );
+  const cacheRoot = cacheSuffix ? path.resolve(modeCacheRoot, cacheSuffix) : modeCacheRoot;
   const resultsRoot = path.resolve(argv.results || path.join(scriptRoot, 'benchmarks', 'results'));
   const waiverFile = argv['waiver-file'] ? path.resolve(argv['waiver-file']) : null;
   const logRoot = path.join(resultsRoot, 'logs', 'bench-language');
@@ -128,10 +143,12 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
     argv,
     scriptRoot,
     runSuffix,
+    mode,
     configPath,
     reposRoot,
     cacheRoot,
     resultsRoot,
+    corpusVersion: argv['corpus-version'] ? String(argv['corpus-version']).trim() : '',
     waiverFile,
     logRoot,
     logPath,

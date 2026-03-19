@@ -23,6 +23,10 @@ import {
   normalizeBenchDiagnosticText
 } from './logging.js';
 import { evaluateBenchVerdict, loadBenchPolicy } from './verdict.js';
+import {
+  buildBenchMethodologyTaskId,
+  buildBenchMetricTags
+} from './policy.js';
 
 const resolveCrashRetention = (entry) => {
   const direct = entry?.crashRetention && typeof entry.crashRetention === 'object'
@@ -1028,7 +1032,7 @@ const buildRemediationSummary = (tasks) => {
   };
 };
 
-export const summarizeResults = (items) => {
+export const summarizeResults = (items, { metricTags = null } = {}) => {
   const valid = items.filter((entry) => entry.summary);
   if (!valid.length) return null;
   const backendSet = new Set();
@@ -1088,7 +1092,8 @@ export const summarizeResults = (items) => {
     resultCountAvg,
     memoryRssAvgMb,
     buildMs: Object.keys(buildMs).length ? buildMs : null,
-    stageTiming
+    stageTiming,
+    metricTags
   };
 };
 
@@ -1213,8 +1218,15 @@ export const buildReportOutput = async ({
   results,
   config,
   runSuffix = null,
-  waiverFile = null
+  waiverFile = null,
+  methodology = null
 }) => {
+  const metricTags = buildBenchMetricTags(methodology);
+  const controlSliceTaskIds = new Set(
+    Array.isArray(methodology?.controlSlice?.taskIds)
+      ? methodology.controlSlice.taskIds
+      : []
+  );
   const taskInputs = Array.isArray(results) ? results : [];
   const tasksWithTelemetry = await mapWithConcurrency(taskInputs, async (entry) => {
     const payload = await resolveTaskPayload(entry);
@@ -1228,7 +1240,11 @@ export const buildReportOutput = async ({
           summary: entry.summary
         })
         : null,
-      throughputLedger
+      throughputLedger,
+      benchContext: {
+        metricTags,
+        controlSliceMember: controlSliceTaskIds.has(buildBenchMethodologyTaskId(entry))
+      }
     };
   }, { concurrency: 8 });
   const tasks = applyThroughputLedgerDiffs(tasksWithTelemetry);
@@ -1242,10 +1258,10 @@ export const buildReportOutput = async ({
     groupedSummary[language] = {
       label: config[language]?.label || language,
       count: items.length,
-      summary: summarizeResults(items)
+      summary: summarizeResults(items, { metricTags })
     };
   }
-  const overallSummary = summarizeResults(tasks);
+  const overallSummary = summarizeResults(tasks, { metricTags });
   const crashRetention = buildCrashRetentionSummary(tasks);
   const streamOptions = { runSuffix };
   const diagnosticsStream = await buildDiagnosticsStreamSummary(resultsRoot, streamOptions);
@@ -1274,6 +1290,7 @@ export const buildReportOutput = async ({
     config: configPath,
     cacheRoot,
     resultsRoot,
+    methodology,
     tasks: verdict.tasks,
     run: verdict.run,
     diagnostics: {

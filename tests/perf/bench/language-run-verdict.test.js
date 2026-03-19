@@ -13,6 +13,14 @@ const output = await buildReportOutput({
   configPath: '/tmp/repos.json',
   cacheRoot: '/tmp/cache',
   resultsRoot: '/tmp/results',
+  methodology: {
+    mode: 'warm',
+    cacheMode: 'warm',
+    toolingMode: 'disabled',
+    corpusVersion: 'repos-fixture',
+    policyVersion: 'bench-language-methodology-v1',
+    controlSlice: { taskIds: ['javascript:small:owner/passed'] }
+  },
   config: {
     javascript: { label: 'JavaScript' }
   },
@@ -57,6 +65,8 @@ const output = await buildReportOutput({
 assert.ok(Array.isArray(output.tasks), 'expected task list in report output');
 assert.equal(output.run.aggregateResultClass, 'passed_with_degradation', 'expected degradation-aware run verdict');
 assert.equal(output.run.exitCode, 0, 'expected degradations to remain zero-exit by default');
+assert.equal(output.methodology?.mode, 'warm', 'expected methodology payload in report output');
+assert.equal(output.overallSummary?.metricTags?.cacheMode, 'warm', 'expected report metric tags to carry cache mode');
 assert.equal(output.run.repoCounts.passed, 1, 'expected one clean passing repo');
 assert.equal(output.run.repoCounts.passedWithDegradation, 1, 'expected one degraded passing repo');
 assert.equal(output.run.countsByDiagnosticType.fallback_used, 1, 'expected diagnostic type counted once at repo level');
@@ -65,6 +75,7 @@ assert.equal(output.run.countsByDiagnosticType.queue_delay_hotspot, 1, 'expected
 const degradedTask = output.tasks.find((entry) => entry.repo === 'owner/degraded');
 assert.ok(degradedTask, 'expected degraded task payload');
 assert.equal(degradedTask.taskStatus.resultClass, 'passed_with_degradation', 'expected degraded task class');
+assert.equal(degradedTask.benchContext?.metricTags?.policyVersion, 'bench-language-methodology-v1', 'expected task metric tags');
 assert.deepEqual(
   degradedTask.taskStatus.degradationClasses,
   ['fallback_used', 'queue_delay_hotspot'],
@@ -100,6 +111,14 @@ const waivedOutput = await buildReportOutput({
   cacheRoot: '/tmp/cache',
   resultsRoot: '/tmp/results',
   waiverFile: waiverPath,
+  methodology: {
+    mode: 'reliability',
+    cacheMode: 'warm',
+    toolingMode: 'disabled',
+    corpusVersion: 'repos-fixture',
+    policyVersion: 'bench-language-methodology-v1',
+    controlSlice: { taskIds: [] }
+  },
   config: {
     javascript: { label: 'JavaScript' }
   },

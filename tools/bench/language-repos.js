@@ -16,6 +16,10 @@ import {
 import { createProcessRunner } from './language/process.js';
 import { buildBenchEnvironmentMetadata } from './language/logging.js';
 import { validateEncodingFixtures } from './language/metrics.js';
+import {
+  createBenchMethodologyPolicy,
+  filterTasksToControlSlice
+} from './language/policy.js';
 import { buildReportOutput, printSummary } from './language/report.js';
 import { createToolDisplay } from '../shared/cli-display.js';
 import {
@@ -71,10 +75,12 @@ const {
   argv,
   scriptRoot,
   runSuffix,
+  mode,
   configPath,
   reposRoot,
   cacheRoot,
   resultsRoot,
+  corpusVersion,
   waiverFile,
   logPath: masterLogPath,
   cloneEnabled,
@@ -355,6 +361,20 @@ try {
 if (argv.random) {
   shuffleInPlace(tasks);
 }
+const methodology = createBenchMethodologyPolicy({
+  argv: {
+    ...argv,
+    mode,
+    'control-slice-max': argv['control-slice-max']
+  },
+  tasks,
+  configPath,
+  waiverFile,
+  corpusVersion
+});
+if (argv['control-slice'] === true) {
+  tasks = filterTasksToControlSlice(tasks, methodology);
+}
 assignRepoLogMetadata({
   plannedTasks: tasks,
   repoLogsEnabled
@@ -371,6 +391,7 @@ if (argv.list) {
     logsRoot: path.dirname(masterLogPath),
     diagnosticsRoot: runDiagnosticsRoot,
     runSuffix,
+    methodology,
     randomizedOrder: argv.random === true,
     masterLog: masterLogPath,
     languages: Object.keys(config),
@@ -486,7 +507,8 @@ const output = await buildReportOutput({
   results,
   config,
   runSuffix,
-  waiverFile
+  waiverFile,
+  methodology
 });
 if (usrGuardrailBenchmarks.length) {
   output.usrGuardrails = {

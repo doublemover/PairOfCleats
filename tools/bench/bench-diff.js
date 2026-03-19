@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { buildBenchRunDiff } from './language/diff.js';
 
 const parseArgs = () => {
   const out = { before: null, after: null, json: false };
@@ -70,6 +71,23 @@ const main = async () => {
   const afterPath = path.resolve(argv.after);
   const before = JSON.parse(await fs.readFile(beforePath, 'utf8'));
   const after = JSON.parse(await fs.readFile(afterPath, 'utf8'));
+  if (Array.isArray(before?.tasks) && before?.run && Array.isArray(after?.tasks) && after?.run) {
+    const diff = buildBenchRunDiff({ before, after });
+    if (argv.json) {
+      process.stdout.write(`${JSON.stringify(diff, null, 2)}\n`);
+      return;
+    }
+    console.log(`bench-language diff (${diff.byLanguage.length} languages, ${diff.byRepo.length} repos)`);
+    for (const row of diff.byLanguage) {
+      console.log(
+        `${row.language}: buildIndex ${row.buildIndexMs?.before ?? 'n/a'} -> ${row.buildIndexMs?.after ?? 'n/a'} `
+        + `| crashes ${row.crashCount?.before ?? 'n/a'} -> ${row.crashCount?.after ?? 'n/a'} `
+        + `| timeouts ${row.timeoutCount?.before ?? 'n/a'} -> ${row.timeoutCount?.after ?? 'n/a'} `
+        + `| degradations ${row.degradationCount?.before ?? 'n/a'} -> ${row.degradationCount?.after ?? 'n/a'}`
+      );
+    }
+    return;
+  }
 
   const indexResults = (report) => {
     const out = new Map();
