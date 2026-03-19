@@ -75,6 +75,11 @@ export async function runContextPack(args = {}, context = {}) {
       repoRoot: repoPath,
       seed: args.seed,
       hops: args.hops,
+      workspacePath: args.workspacePath,
+      workspaceId: args.workspaceId,
+      select: args.select,
+      includeDisabled: args.includeDisabled,
+      maxFederatedRepos: args.maxFederatedRepos,
       includeGraph: args.includeGraph,
       includeTypes: args.includeTypes,
       includeRisk: args.includeRisk,
@@ -96,7 +101,7 @@ export async function runContextPack(args = {}, context = {}) {
       maxCandidates: args.maxCandidates,
       maxWorkUnits: args.maxWorkUnits,
       maxWallClockMs: args.maxWallClockMs
-    });
+    }, context);
     if (typeof context.progress === 'function') {
       context.progress({ phase: 'done', message: 'Context pack ready.', observability });
     }

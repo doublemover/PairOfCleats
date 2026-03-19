@@ -209,6 +209,11 @@ const contextPackSchema = {
   properties: {
     repoPath: { type: 'string' },
     repo: { type: 'string' },
+    workspacePath: { type: 'string', minLength: 1 },
+    workspaceId: { type: 'string', minLength: 1 },
+    select: federatedSelectionSchema,
+    includeDisabled: { type: 'boolean' },
+    maxFederatedRepos: { type: 'integer', minimum: 1 },
     seed: { type: 'string', minLength: 1 },
     hops: { type: 'integer', minimum: 0 },
     includeGraph: { type: 'boolean' },

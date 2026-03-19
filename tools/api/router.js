@@ -278,7 +278,8 @@ export const createApiRouter = ({
           observability: requestObservability,
           parseJsonBody,
           resolveRepo,
-          validateContextPackPayload
+          validateContextPackPayload,
+          ensureWorkspaceAllowlist
         });
         return;
       }

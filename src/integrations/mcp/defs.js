@@ -118,6 +118,19 @@ export function getToolDefs(defaultModelId) {
         type: 'object',
         properties: {
           repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+          workspacePath: { type: 'string', description: 'Workspace config path (.jsonc) for federated risk packs.' },
+          workspaceId: { type: 'string', description: 'Expected workspace repoSetId (optional cross-check).' },
+          select: {
+            type: 'object',
+            properties: {
+              repos: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              tags: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              repoFilter: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              includeDisabled: { type: 'boolean' }
+            }
+          },
+          includeDisabled: { type: 'boolean' },
+          maxFederatedRepos: { type: 'number' },
           seed: { type: 'string', description: 'Chunk/file/symbol seed reference.' },
           hops: { type: 'number', description: 'Neighborhood depth.' },
           includeGraph: { type: 'boolean' },

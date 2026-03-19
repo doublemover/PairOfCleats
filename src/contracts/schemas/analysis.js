@@ -622,6 +622,17 @@ const riskSummarySchema = {
     chunkUid: nullableString,
     file: nullableString,
     languageId: nullableString,
+    repo: {
+      type: ['object', 'null'],
+      properties: {
+        repoId: nullableString,
+        alias: nullableString,
+        priority: nullableNumber,
+        workspaceId: nullableString,
+        base: { type: ['boolean', 'null'] }
+      },
+      additionalProperties: false
+    },
     symbol: {
       type: ['object', 'null'],
       properties: {
@@ -679,6 +690,18 @@ const riskSummarySchema = {
   additionalProperties: false
 };
 
+const riskRepoProvenanceSchema = {
+  type: ['object', 'null'],
+  properties: {
+    repoId: nullableString,
+    alias: nullableString,
+    priority: nullableNumber,
+    workspaceId: nullableString,
+    base: { type: ['boolean', 'null'] }
+  },
+  additionalProperties: false
+};
+
 const riskSourceSinkSchema = {
   type: ['object', 'null'],
   properties: {
@@ -690,7 +713,8 @@ const riskSourceSinkSchema = {
     category: nullableString,
     severity: nullableString,
     confidence: nullableNumber,
-    tags: { type: 'array', items: { type: 'string' } }
+    tags: { type: 'array', items: { type: 'string' } },
+    repo: riskRepoProvenanceSchema
   },
   additionalProperties: false
 };
@@ -740,6 +764,7 @@ const riskFlowSummarySchema = {
   properties: {
     rank: nullableNumber,
     flowId: nullableString,
+    repo: riskRepoProvenanceSchema,
     source: riskSourceSinkSchema,
     sink: riskSourceSinkSchema,
     category: nullableString,
@@ -813,7 +838,8 @@ const riskPartialBlockedExpansionSchema = {
   properties: {
     targetChunkUid: nullableString,
     reason: nullableString,
-    callSiteIds: { type: 'array', items: { type: 'string' } }
+    callSiteIds: { type: 'array', items: { type: 'string' } },
+    repo: riskRepoProvenanceSchema
   },
   additionalProperties: false
 };
@@ -824,6 +850,7 @@ const riskPartialFlowSummarySchema = {
   properties: {
     rank: nullableNumber,
     partialFlowId: nullableString,
+    repo: riskRepoProvenanceSchema,
     source: riskSourceSinkSchema,
     confidence: nullableNumber,
     score: {
@@ -840,6 +867,7 @@ const riskPartialFlowSummarySchema = {
       properties: {
         chunkUid: nullableString,
         terminalReason: nullableString,
+        repo: riskRepoProvenanceSchema,
         blockedExpansions: {
           type: 'array',
           items: riskPartialBlockedExpansionSchema
@@ -895,6 +923,62 @@ const riskPartialFlowSummarySchema = {
       additionalProperties: false
     },
     notes: riskFlowNotesSchema
+  },
+  additionalProperties: false
+};
+
+const riskFederationSchema = {
+  type: ['object', 'null'],
+  properties: {
+    enabled: { type: ['boolean', 'null'] },
+    workspace: {
+      type: ['object', 'null'],
+      properties: {
+        workspaceId: nullableString,
+        name: nullableString,
+        workspacePath: nullableString
+      },
+      additionalProperties: false
+    },
+    selection: {
+      type: ['object', 'null'],
+      properties: {
+        selectedRepoIds: { type: 'array', items: { type: 'string' } },
+        selectedRepos: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              repoId: nullableString,
+              alias: nullableString,
+              priority: nullableNumber,
+              enabled: { type: ['boolean', 'null'] },
+              base: { type: ['boolean', 'null'] }
+            },
+            additionalProperties: false
+          }
+        },
+        explicitSelects: { type: 'array', items: { type: 'string' } },
+        tags: { type: 'array', items: { type: 'string' } },
+        repoFilter: { type: 'array', items: { type: 'string' } },
+        includeDisabled: { type: ['boolean', 'null'] },
+        maxRepos: nullableNumber,
+        bounded: { type: ['boolean', 'null'] }
+      },
+      additionalProperties: false
+    },
+    skippedRepos: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          repoId: nullableString,
+          alias: nullableString,
+          reason: nullableString
+        },
+        additionalProperties: false
+      }
+    }
   },
   additionalProperties: false
 };
@@ -1435,6 +1519,7 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
         summary: riskSummarySchema,
         support: riskSupportSchema,
         guidance: riskGuidanceSchema,
+        federation: riskFederationSchema,
         stats: riskStatsSchema,
         analysisStatus: riskAnalysisStatusSchema,
         caps: riskCapsSchema,

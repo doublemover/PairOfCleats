@@ -83,7 +83,8 @@ export async function handleContextPackRoute({
   observability,
   parseJsonBody,
   resolveRepo,
-  validateContextPackPayload
+  validateContextPackPayload,
+  ensureWorkspaceAllowlist
 }) {
   const payload = await parseJsonBody(req);
   const validation = validateContextPackPayload(payload);
@@ -94,8 +95,14 @@ export async function handleContextPackRoute({
     return true;
   }
 
-  const repoPath = await resolveRepo(payload.repoPath || payload.repo || '');
+  const workspaceRequested = typeof payload.workspacePath === 'string' && payload.workspacePath.trim();
+  const repoPath = workspaceRequested
+    ? await resolveRepo(payload.repoPath || payload.repo || '')
+    : await resolveRepo(payload.repoPath || payload.repo || '');
   try {
+    const workspaceConfig = workspaceRequested && typeof ensureWorkspaceAllowlist === 'function'
+      ? await ensureWorkspaceAllowlist(payload)
+      : null;
     const resultObservability = buildChildObservability(observability, {
       surface: 'analysis',
       operation: 'context_pack',
@@ -127,22 +134,34 @@ export async function handleContextPackRoute({
       maxPaths: payload.maxPaths,
       maxCandidates: payload.maxCandidates,
       maxWorkUnits: payload.maxWorkUnits,
-      maxWallClockMs: payload.maxWallClockMs
+      maxWallClockMs: payload.maxWallClockMs,
+      workspacePath: payload.workspacePath,
+      workspaceId: payload.workspaceId,
+      select: payload.select,
+      includeDisabled: payload.includeDisabled,
+      maxFederatedRepos: payload.maxFederatedRepos,
+      workspaceConfig
+    }, {
+      trustedWorkspaceConfig: Boolean(workspaceConfig)
     });
     sendJson(res, 200, attachObservability({ ok: true, result }, resultObservability), corsHeaders || {});
     return true;
   } catch (err) {
     const message = err?.message || 'Failed to build context pack.';
+    const forbidden = err?.code === ERROR_CODES.FORBIDDEN
+      || String(message).toLowerCase().includes('not permitted');
     const status = Number.isFinite(err?.status) ? err.status
-      : err?.code === 'ERR_CONTEXT_PACK_NO_INDEX' ? 404
-        : err?.code === 'ERR_CONTEXT_PACK_INVALID_REQUEST' || err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID' ? 400
-          : 500;
+      : forbidden ? 403
+        : err?.code === 'ERR_CONTEXT_PACK_NO_INDEX' ? 404
+          : err?.code === 'ERR_CONTEXT_PACK_INVALID_REQUEST' || err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID' ? 400
+            : 500;
     const details = err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID'
       ? { reason: 'invalid_risk_filters' }
-      : {};
+      : err?.code === ERROR_CODES.FORBIDDEN ? { reason: 'workspace_not_permitted' } : {};
     const code = status === 400 ? ERROR_CODES.INVALID_REQUEST
-      : status === 404 ? ERROR_CODES.NO_INDEX
-        : ERROR_CODES.INTERNAL;
+      : status === 403 ? ERROR_CODES.FORBIDDEN
+        : status === 404 ? ERROR_CODES.NO_INDEX
+          : ERROR_CODES.INTERNAL;
     sendError(res, status, code, message, details, corsHeaders || {});
     return true;
   }
