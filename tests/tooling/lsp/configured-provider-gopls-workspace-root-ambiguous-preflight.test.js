@@ -92,20 +92,25 @@ const result = await runToolingProviders({
   kinds: ['types']
 });
 
-assert.equal(result.byChunkUid.has(chunkUidA), false, 'expected configured gopls provider to block ambiguous multi-module roots');
-assert.equal(result.byChunkUid.has(chunkUidB), false, 'expected configured gopls provider to block ambiguous multi-module roots');
+assert.equal(result.byChunkUid.has(chunkUidA), true, 'expected configured gopls provider to route the first module root');
+assert.equal(result.byChunkUid.has(chunkUidB), true, 'expected configured gopls provider to route the second module root');
 const diagnostics = result.diagnostics?.['lsp-gopls'] || {};
-assert.equal(diagnostics?.preflight?.state, 'blocked', 'expected gopls preflight blocked state');
+assert.equal(diagnostics?.preflight?.state, 'ready', 'expected gopls preflight ready state');
 assert.equal(
-  diagnostics?.preflight?.reasonCode,
-  'go_workspace_module_root_ambiguous',
-  'expected go workspace root ambiguous reason code'
+  diagnostics?.workspaceModel?.partitionCount,
+  2,
+  'expected two workspace partitions in diagnostics summary'
 );
 const checks = Array.isArray(diagnostics?.checks) ? diagnostics.checks : [];
 assert.equal(
-  checks.some((check) => check?.name === 'go_workspace_module_root_ambiguous'),
+  checks.some((check) => check?.name === 'go_workspace_module_root_partitioned'),
   true,
-  'expected go workspace root ambiguous warning check'
+  'expected go workspace partitioned preflight check'
+);
+assert.equal(
+  checks.some((check) => check?.name === 'lsp-gopls_workspace_partition_multi_root'),
+  true,
+  'expected runtime multi-root workspace routing check'
 );
 
 console.log('configured LSP gopls workspace root ambiguous preflight test passed');

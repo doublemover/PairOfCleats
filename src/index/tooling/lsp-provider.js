@@ -39,6 +39,10 @@ import { resolveGoWorkspaceModulePreflight } from './preflight/go-workspace-pref
 import { resolveRustWorkspaceMetadataPreflight } from './preflight/rust-workspace-preflight.js';
 import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
 import { resolveLspStartupDocuments } from '../../integrations/tooling/providers/lsp/path-policy.js';
+import {
+  mergeLspWorkspacePartitionResults,
+  resolveLspWorkspaceRouting
+} from './lsp-workspace-routing.js';
 
 const normalizeList = (value) => {
   if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
@@ -744,49 +748,68 @@ const createConfiguredLspProvider = (server) => {
     const resolvedArgs = Array.isArray(commandProfile?.resolved?.args)
       ? commandProfile.resolved.args
       : (Array.isArray(requestedCommand?.args) ? requestedCommand.args : []);
-    const result = await collectLspTypes({
-      ...resolveLspRuntimeConfig({
-        providerConfig: server,
-        globalConfigs: [ctx?.toolingConfig?.lsp || null, ctx?.toolingConfig || null],
-        defaults: {
-          timeoutMs: 60000,
-          retries: 2,
-          breakerThreshold: 3
-        }
-      }),
-      rootDir: ctx.repoRoot,
+    const runtimeConfig = resolveLspRuntimeConfig({
+      providerConfig: server,
+      globalConfigs: [ctx?.toolingConfig?.lsp || null, ctx?.toolingConfig || null],
+      defaults: {
+        timeoutMs: 60000,
+        retries: 2,
+        breakerThreshold: 3
+      }
+    });
+    const workspaceRouting = resolveLspWorkspaceRouting({
+      repoRoot: ctx.repoRoot,
+      providerId,
       documents: docs,
       targets,
-      abortSignal: ctx?.abortSignal || null,
-      log,
-      providerId,
-      cmd: resolvedCmd,
-      args: resolvedArgs,
-      parseSignature: parseGenericSignature,
-      strict: ctx?.strict !== false,
-      vfsRoot: ctx?.buildRoot || ctx.repoRoot,
-      uriScheme: server.uriScheme || 'file',
-      vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
-      vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
-      vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
-      indexDir: ctx?.buildRoot || null,
-      cacheRoot: ctx?.cache?.dir || null,
-      documentSymbolConcurrency: server.documentSymbolConcurrency,
-      hoverConcurrency: server.hoverConcurrency,
-      requestCacheMaxEntries: server.requestCacheMaxEntries,
-      providerVersion: server.version,
-      adaptiveDocScope: server.adaptiveDocScope,
-      adaptiveDegradedHint: preflightState === 'degraded',
-      adaptiveReasonHint: preflightReasonCode,
-      ...(Array.isArray(server.hoverSymbolKinds) && server.hoverSymbolKinds.length
-        ? { hoverSymbolKinds: server.hoverSymbolKinds }
-        : {}),
-      initializationOptions: server.initializationOptions,
-      captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(requestedKinds)
+      workspaceMarkerOptions: server.workspaceMarkerOptions || null,
+      requireWorkspaceModel: server.requireWorkspaceModel !== false,
+      workspaceModelPolicy: server.workspaceModelPolicy
     });
+    const partitionResults = [];
+    for (const partition of workspaceRouting.partitions) {
+      partitionResults.push(await collectLspTypes({
+        ...runtimeConfig,
+        rootDir: ctx.repoRoot,
+        workspaceRootDir: partition.rootDir,
+        workspaceKey: partition.workspaceKey,
+        documents: partition.documents,
+        targets: partition.targets,
+        abortSignal: ctx?.abortSignal || null,
+        log,
+        providerId,
+        cmd: resolvedCmd,
+        args: resolvedArgs,
+        parseSignature: parseGenericSignature,
+        strict: ctx?.strict !== false,
+        vfsRoot: ctx?.buildRoot || ctx.repoRoot,
+        uriScheme: server.uriScheme || 'file',
+        vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
+        vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
+        vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
+        indexDir: ctx?.buildRoot || null,
+        cacheRoot: ctx?.cache?.dir || null,
+        documentSymbolConcurrency: server.documentSymbolConcurrency,
+        hoverConcurrency: server.hoverConcurrency,
+        requestCacheMaxEntries: server.requestCacheMaxEntries,
+        providerVersion: server.version,
+        adaptiveDocScope: server.adaptiveDocScope,
+        adaptiveDegradedHint: preflightState === 'degraded' || workspaceRouting.state === 'degraded',
+        adaptiveReasonHint: workspaceRouting.reasonCode || preflightReasonCode,
+        ...(Array.isArray(server.hoverSymbolKinds) && server.hoverSymbolKinds.length
+          ? { hoverSymbolKinds: server.hoverSymbolKinds }
+          : {}),
+        initializationOptions: server.initializationOptions,
+        captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(requestedKinds)
+      }));
+    }
+    const result = mergeLspWorkspacePartitionResults(partitionResults, workspaceRouting.workspaceModel);
     let diagnosticsByChunkUid = result.diagnosticsByChunkUid;
     let diagnosticsCount = result.diagnosticsCount;
-    const resultChecks = Array.isArray(result.checks) ? result.checks.slice() : [];
+    const resultChecks = [
+      ...workspaceRouting.checks,
+      ...(Array.isArray(result.checks) ? result.checks.slice() : [])
+    ];
     invalidateProbeCacheOnInitializeFailure({
       checks: resultChecks,
       providerId: server.id || providerId,
@@ -808,9 +831,12 @@ const createConfiguredLspProvider = (server) => {
       }
     }
     const diagnostics = appendDiagnosticChecks(
-      diagnosticsCount
-        ? { diagnosticsCount, diagnosticsByChunkUid }
-        : null,
+      {
+        ...(diagnosticsCount
+          ? { diagnosticsCount, diagnosticsByChunkUid }
+          : {}),
+        workspaceModel: workspaceRouting.workspaceModel
+      },
       [...preChecks, ...resultChecks]
     );
     return {

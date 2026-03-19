@@ -21,6 +21,10 @@ import {
 } from './preflight/command-profile-preflight.js';
 import { resolveRuntimeRequirementsPreflight } from './preflight/runtime-requirements-preflight.js';
 import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
+import {
+  mergeLspWorkspacePartitionResults,
+  resolveLspWorkspaceRouting
+} from './lsp-workspace-routing.js';
 
 const DEFAULT_RUNTIME_OPTIONS = {
   timeoutMs: 60000,
@@ -62,14 +66,17 @@ const resolveProviderConfigHash = (ctx, configKey) => (
   hashProviderConfig({ [configKey]: resolveProviderConfig(ctx, configKey) })
 );
 
-const appendRuntimeDiagnostics = (result, checks) => {
+const appendRuntimeDiagnostics = (result, checks, extras = null) => {
   const diagnostics = appendDiagnosticChecks(
-    result?.diagnosticsCount
-      ? {
-        diagnosticsCount: result.diagnosticsCount,
-        diagnosticsByChunkUid: result.diagnosticsByChunkUid
-      }
-      : null,
+    {
+      ...(result?.diagnosticsCount
+        ? {
+          diagnosticsCount: result.diagnosticsCount,
+          diagnosticsByChunkUid: result.diagnosticsByChunkUid
+        }
+        : {}),
+      ...(extras && typeof extras === 'object' ? extras : {})
+    },
     checks
   );
   return result?.runtime
@@ -318,33 +325,51 @@ export const createDedicatedLspProvider = (descriptor) => {
       const initializationOptions = isPlainObject(config.initializationOptions)
         ? config.initializationOptions
         : null;
+      const workspaceRouting = resolveLspWorkspaceRouting({
+        repoRoot: ctx.repoRoot,
+        providerId: descriptor.id,
+        documents: docs,
+        targets,
+        workspaceMarkerOptions: descriptor.workspace?.markerOptions || null,
+        requireWorkspaceModel: config.requireWorkspaceModel !== false,
+        workspaceModelPolicy: 'block'
+      });
 
       let result;
       try {
-        result = await collectLspTypes({
-          ...runtimeConfig,
-          rootDir: ctx.repoRoot,
-          documents: docs,
-          targets,
-          abortSignal: ctx?.abortSignal || null,
-          log: getLogger(ctx),
-          providerId: descriptor.id,
-          cmd: resolvedCmd,
-          args: resolvedArgs,
-          parseSignature: descriptor.parseSignature,
-          strict: ctx?.strict !== false,
-          vfsRoot: ctx?.buildRoot || ctx.repoRoot,
-          vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
-          vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
-          vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
-          indexDir: ctx?.buildRoot || null,
-          cacheRoot: ctx?.cache?.dir || null,
-          initializationOptions,
-          captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
-          ...collectOptions
-        });
+        const partitionResults = [];
+        for (const partition of workspaceRouting.partitions) {
+          partitionResults.push(await collectLspTypes({
+            ...runtimeConfig,
+            rootDir: ctx.repoRoot,
+            workspaceRootDir: partition.rootDir,
+            workspaceKey: partition.workspaceKey,
+            documents: partition.documents,
+            targets: partition.targets,
+            abortSignal: ctx?.abortSignal || null,
+            log: getLogger(ctx),
+            providerId: descriptor.id,
+            cmd: resolvedCmd,
+            args: resolvedArgs,
+            parseSignature: descriptor.parseSignature,
+            strict: ctx?.strict !== false,
+            vfsRoot: ctx?.buildRoot || ctx.repoRoot,
+            vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
+            vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
+            vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
+            indexDir: ctx?.buildRoot || null,
+            cacheRoot: ctx?.cache?.dir || null,
+            initializationOptions,
+            captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
+            ...collectOptions
+          }));
+        }
+        result = mergeLspWorkspacePartitionResults(partitionResults, workspaceRouting.workspaceModel);
         invalidateProbeCacheOnInitializeFailure({
-          checks: result?.checks,
+          checks: [
+            ...workspaceRouting.checks,
+            ...(Array.isArray(result?.checks) ? result.checks : [])
+          ],
           providerId: descriptor.id,
           command: resolvedCmd,
           args: resolvedArgs,
@@ -361,8 +386,11 @@ export const createDedicatedLspProvider = (descriptor) => {
         byChunkUid: result.byChunkUid,
         diagnostics: appendRuntimeDiagnostics(result, [
           ...checks,
+          ...workspaceRouting.checks,
           ...(Array.isArray(result.checks) ? result.checks : [])
-        ])
+        ], {
+          workspaceModel: workspaceRouting.workspaceModel
+        })
       };
     }
   };
@@ -409,6 +437,9 @@ export const createDedicatedLspProvider = (descriptor) => {
         const workspacePreflight = resolveWorkspaceModelPreflight({
           repoRoot: ctx?.repoRoot || process.cwd(),
           markerOptions: descriptor.workspace.markerOptions || {},
+          candidatePaths: Array.isArray(inputs?.documents)
+            ? inputs.documents.map((doc) => doc?.virtualPath || doc?.path || '').filter(Boolean)
+            : [],
           missingCheck,
           fallbackName: missingCheck.name,
           fallbackMessage: missingCheck.message,

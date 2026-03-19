@@ -1,7 +1,7 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { runWorkspaceCommandPreflight } from './workspace-command-preflight.js';
-import { findWorkspaceMarkerNearPaths } from '../workspace-model.js';
+import { findWorkspaceMarkersNearPaths } from '../workspace-model.js';
 
 const DEFAULT_METADATA_ARGS = Object.freeze(['metadata', '--no-deps', '--format-version', '1']);
 const DEFAULT_METADATA_TIMEOUT_MS = 12000;
@@ -53,12 +53,21 @@ export const resolveRustWorkspaceMetadataPreflight = async ({
   if (selectedDocuments.length > 0 && rustDocuments.length <= 0) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
-  const nearbyWorkspace = findWorkspaceMarkerNearPaths(
+  const nearbyWorkspaces = findWorkspaceMarkersNearPaths(
     repoRoot,
     rustDocuments.map((doc) => doc?.virtualPath || doc?.path || '')
       .filter(Boolean),
     { exactNames: ['Cargo.toml', 'Cargo.lock'] }
   );
+  const nearbyWorkspace = nearbyWorkspaces.length > 0
+    ? nearbyWorkspaces[0]
+    : {
+      found: false,
+      markerDirAbs: null,
+      markerDirRel: null,
+      markerPathAbs: null,
+      markerName: null
+    };
   const cargoTomlPath = path.join(repoRoot, 'Cargo.toml');
   const cargoLockPath = path.join(repoRoot, 'Cargo.lock');
   const cargoConfigTomlPath = path.join(repoRoot, '.cargo', 'config.toml');
@@ -76,6 +85,28 @@ export const resolveRustWorkspaceMetadataPreflight = async ({
       },
       checks: [],
       blockProvider: true
+    };
+  }
+  if (nearbyWorkspaces.length > 1) {
+    const sample = nearbyWorkspaces
+      .map((entry) => String(entry?.markerDirRel || '.'))
+      .filter(Boolean)
+      .slice(0, 4)
+      .join(', ');
+    const suffix = nearbyWorkspaces.length > 4
+      ? ` (+${nearbyWorkspaces.length - 4} more)`
+      : '';
+    const message = `rust workspace markers found in multiple selected roots (${sample}${suffix}); runtime will partition rust-analyzer sessions per workspace root.`;
+    return {
+      state: 'ready',
+      reasonCode: 'rust_workspace_root_partitioned',
+      message,
+      check: {
+        name: 'rust_workspace_root_partitioned',
+        status: 'info',
+        message
+      },
+      checks: []
     };
   }
 

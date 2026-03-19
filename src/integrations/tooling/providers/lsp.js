@@ -722,6 +722,7 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {string|null} [params.providerVersion=null]
  * @param {boolean} [params.semanticTokensEnabled=true]
  * @param {boolean} [params.inlayHintsEnabled=true]
+ * @param {string|null} [params.workspaceRootDir=null]
  * @param {string|null} [params.workspaceKey=null]
  * @param {number|null} [params.lifecycleRestartWindowMs=null]
  * @param {number|null} [params.lifecycleMaxRestartsPerWindow=null]
@@ -788,6 +789,7 @@ export async function collectLspTypes({
   providerVersion = null,
   semanticTokensEnabled = true,
   inlayHintsEnabled = true,
+  workspaceRootDir = null,
   workspaceKey = null,
   lifecycleRestartWindowMs = null,
   lifecycleMaxRestartsPerWindow = null,
@@ -912,7 +914,8 @@ export async function collectLspTypes({
   throwIfAborted(toolingAbortSignal);
 
   const resolvedRoot = vfsRoot || rootDir;
-  const resolvedWorkspaceKey = String(workspaceKey || resolvedRoot || rootDir || '').trim() || null;
+  const resolvedWorkspaceRootDir = String(workspaceRootDir || rootDir || '').trim() || rootDir;
+  const resolvedWorkspaceKey = String(workspaceKey || workspaceRootDir || rootDir || '').trim() || null;
   const resolvedScheme = normalizeUriScheme(uriScheme);
   const resolvedBatching = resolveVfsIoBatching(vfsIoBatching);
 
@@ -1006,7 +1009,7 @@ export async function collectLspTypes({
     workspaceKey: resolvedWorkspaceKey || rootDir,
     cmd,
     args,
-    cwd: rootDir,
+    cwd: resolvedWorkspaceRootDir,
     env: applyToolchainDaemonPolicyEnv(process.env),
     log,
     stderrFilter,
@@ -1045,6 +1048,10 @@ export async function collectLspTypes({
       requested: Object.create(null),
       effective: Object.create(null),
       missing: []
+    };
+    runtime.workspaceModel = {
+      workspaceRootDir: resolvedWorkspaceRootDir,
+      workspaceKey: resolvedWorkspaceKey
     };
 
     let detachAbortHandler = null;
@@ -1110,7 +1117,7 @@ export async function collectLspTypes({
       }
     };
 
-    const rootUri = pathToFileUri(rootDir);
+    const rootUri = pathToFileUri(resolvedWorkspaceRootDir);
     let shouldShutdownClient = false;
     let capabilityMask = null;
     let effectiveHoverEnabled = hoverEnabled !== false;

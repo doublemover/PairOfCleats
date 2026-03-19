@@ -276,18 +276,17 @@ export const resolveGoWorkspaceModulePreflight = async ({
       const suffix = selectedWorkspaceMatches.length > 4
         ? ` (+${selectedWorkspaceMatches.length - 4} more)`
         : '';
-      const message = `go workspace markers found in multiple selected module roots (${sample}${suffix}); gopls root is ambiguous.`;
+      const message = `go workspace markers found in multiple selected module roots (${sample}${suffix}); runtime will partition gopls sessions per module root.`;
       return {
-        state: 'blocked',
-        reasonCode: 'go_workspace_module_root_ambiguous',
+        state: 'ready',
+        reasonCode: 'go_workspace_module_root_partitioned',
         message,
         check: {
-          name: 'go_workspace_module_root_ambiguous',
-          status: 'warn',
+          name: 'go_workspace_module_root_partitioned',
+          status: 'info',
           message
         },
-        checks: [],
-        blockProvider: true
+        checks: []
       };
     }
     if (selectedWorkspaceMatches.length === 0 && !repoHasWorkspaceMarker) {
