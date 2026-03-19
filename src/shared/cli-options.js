@@ -50,6 +50,8 @@ export const SERVICE_INDEXER_OPTIONS = {
   interval: { type: 'number' },
   concurrency: { type: 'number' },
   queue: { type: 'string', default: 'index' },
+  'shutdown-mode': { type: 'string' },
+  'timeout-ms': { type: 'number' },
   json: { type: 'boolean', default: false }
 };
 

@@ -41,6 +41,13 @@ import { createQueueWorker } from './indexer-service/queue-worker.js';
 import { resolveQueueLeasePolicy } from './lease-policy.js';
 import { resolveQueueAdmissionPolicy } from './admission-policy.js';
 import { resolveQueueRetentionPolicy } from './retention-policy.js';
+import {
+  completeServiceShutdown,
+  loadServiceShutdownState,
+  requestServiceShutdown,
+  resumeServiceShutdown,
+  updateServiceShutdownWorker
+} from './shutdown-state.js';
 
 const argv = createCli({
   scriptName: 'indexer-service',
@@ -100,6 +107,9 @@ const embeddingExtraEnv = embeddingMemoryMb
   ? { NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --max-old-space-size=${embeddingMemoryMb}`.trim() }
   : {};
 const JOB_HEARTBEAT_INTERVAL_MS = 30000;
+const shutdownTimeoutMs = Number.isFinite(Number(workerConfig.shutdownTimeoutMs))
+  ? Math.max(250, Math.trunc(Number(workerConfig.shutdownTimeoutMs)))
+  : 10000;
 const runtimeConfigCache = new Map();
 const RUNTIME_CONFIG_REVALIDATE_MS = 1000;
 const RUNTIME_CONFIG_CACHE_MAX_ENTRIES = 128;
@@ -333,6 +343,15 @@ const handleEnqueue = async () => {
   if (!target) {
     exitWithCommandError('Repo not found for enqueue.');
   }
+  const shutdown = await loadServiceShutdownState(queueDir, resolvedQueueName);
+  if (shutdown.accepting === false) {
+    exitWithCommandError('Queue is not accepting new work.', {
+      payload: {
+        code: 'SERVICE_STOP_ACCEPTING',
+        shutdown
+      }
+    });
+  }
   await ensureQueueDir(queueDir);
   const id = formatJobId();
   const mode = argv.mode || 'both';
@@ -375,7 +394,8 @@ const handleStatus = async () => {
   const backpressure = await describeQueueBackpressure(queueDir, resolvedQueueName, {
     admissionPolicy: queueAdmissionPolicy
   });
-  printPayload({ ok: true, queue: summary, quarantine, backpressure, name: resolvedQueueName });
+  const shutdown = await loadServiceShutdownState(queueDir, resolvedQueueName);
+  printPayload({ ok: true, queue: summary, quarantine, backpressure, shutdown, name: resolvedQueueName });
 };
 
 const requireJobArg = (action) => {
@@ -448,6 +468,25 @@ const handleCompact = async () => {
   printPayload(result);
 };
 
+const handleShutdown = async () => {
+  const mode = argv['shutdown-mode'] || argv.reason || 'drain';
+  const result = await requestServiceShutdown(queueDir, resolvedQueueName, {
+    mode,
+    timeoutMs: argv['timeout-ms'] ?? shutdownTimeoutMs,
+    requestedBy: `cli:${process.pid}`,
+    source: 'operator'
+  });
+  printPayload({ ok: true, shutdown: result });
+};
+
+const handleResume = async () => {
+  const result = await resumeServiceShutdown(queueDir, resolvedQueueName, {
+    requestedBy: `cli:${process.pid}`,
+    source: 'operator'
+  });
+  printPayload({ ok: true, shutdown: result });
+};
+
 /**
  * Emit smoke-test metadata that callers can use to validate worker bootstrap.
  *
@@ -468,6 +507,7 @@ const handleSmoke = async () => {
     queueName: resolvedQueueName,
     queueSummary: summary,
     queueBackpressure: backpressure,
+    shutdown: await loadServiceShutdownState(queueDir, resolvedQueueName),
     requiredEnv: ['PAIROFCLEATS_CACHE_ROOT'],
     securityDefaults: {
       allowShell: config?.security?.allowShell === true,
@@ -513,6 +553,11 @@ const queueWorker = createQueueWorker({
   summarizeBackpressure: async () => await describeQueueBackpressure(queueDir, resolvedQueueName, {
     admissionPolicy: queueAdmissionPolicy
   }),
+  queueSummary: async () => await queueSummary(queueDir, resolvedQueueName),
+  loadShutdownState: async () => await loadServiceShutdownState(queueDir, resolvedQueueName),
+  requestShutdownState: async (input) => await requestServiceShutdown(queueDir, resolvedQueueName, input),
+  updateShutdownWorkerState: async (patch) => await updateServiceShutdownWorker(queueDir, resolvedQueueName, patch),
+  completeShutdownState: async (input) => await completeServiceShutdown(queueDir, resolvedQueueName, input),
   resolveLeasePolicy: ({ job, queueName: activeQueueName }) => resolveQueueLeasePolicy({
     job,
     queueName: activeQueueName
@@ -532,12 +577,37 @@ const handleWork = async () => {
   const intervalMs = Number.isFinite(Number(argv.interval))
     ? Math.max(100, Number(argv.interval))
     : (config.sync?.intervalMs || 5000);
-  await queueWorker.runWorkLoop({
-    requestedConcurrency,
-    intervalMs,
-    watch: argv.watch,
-    serviceExecutionMode
-  });
+  const signalHandlers = [];
+  let signalCount = 0;
+  const registerSignalHandler = (signal, mode) => {
+    const handler = () => {
+      signalCount += 1;
+      void requestServiceShutdown(queueDir, resolvedQueueName, {
+        mode: signalCount > 1 ? 'force-stop' : mode,
+        timeoutMs: shutdownTimeoutMs,
+        requestedBy: `signal:${signal}`,
+        source: 'signal'
+      }).catch((err) => {
+        console.error(`[indexer] failed to persist ${signal} shutdown request: ${err?.message || err}`);
+      });
+    };
+    process.on(signal, handler);
+    signalHandlers.push([signal, handler]);
+  };
+  registerSignalHandler('SIGTERM', 'drain');
+  registerSignalHandler('SIGINT', 'cancel');
+  try {
+    await queueWorker.runWorkLoop({
+      requestedConcurrency,
+      intervalMs,
+      watch: argv.watch,
+      serviceExecutionMode
+    });
+  } finally {
+    for (const [signal, handler] of signalHandlers) {
+      process.off(signal, handler);
+    }
+  }
 };
 
 /**
@@ -577,13 +647,17 @@ try {
     await handlePurgeQuarantined();
   } else if (command === 'compact') {
     await handleCompact();
+  } else if (command === 'shutdown') {
+    await handleShutdown();
+  } else if (command === 'resume') {
+    await handleResume();
   } else if (command === 'smoke') {
     await handleSmoke();
   } else if (command === 'serve') {
     await handleServe();
   } else {
     exitWithCommandError(
-      'Usage: indexer-service <sync|enqueue|work|status|quarantine|retry-quarantined|purge-quarantined|compact|smoke|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]'
+      'Usage: indexer-service <sync|enqueue|work|status|quarantine|retry-quarantined|purge-quarantined|compact|shutdown|resume|smoke|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]'
     );
   }
 } catch (err) {

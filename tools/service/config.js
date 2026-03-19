@@ -17,7 +17,8 @@ export const DEFAULT_SERVICE_CONFIG = Object.freeze({
     }
   },
   worker: {
-    concurrency: 1
+    concurrency: 1,
+    shutdownTimeoutMs: 10000
   },
   embeddings: {
     queue: {
@@ -32,7 +33,8 @@ export const DEFAULT_SERVICE_CONFIG = Object.freeze({
     },
     worker: {
       concurrency: 1,
-      maxMemoryMb: 4096
+      maxMemoryMb: 4096,
+      shutdownTimeoutMs: 10000
     }
   },
   sync: {

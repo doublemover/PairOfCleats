@@ -11,13 +11,15 @@ import { runLoggedSubprocess } from '../subprocess-log.js';
 /**
  * Build the default run result shape used when execution fails unexpectedly.
  *
- * @returns {{exitCode:number,signal:null,executionMode:'subprocess',daemon:null}}
+ * @returns {{exitCode:number,signal:null,executionMode:'subprocess',daemon:null,cancelled:boolean,shutdownMode:string|null}}
  */
 const buildDefaultRunResult = () => ({
   exitCode: 1,
   signal: null,
   executionMode: 'subprocess',
-  daemon: null
+  daemon: null,
+  cancelled: false,
+  shutdownMode: null
 });
 
 /**
@@ -35,7 +37,7 @@ const buildDefaultRunResult = () => ({
  * }} input
  * @returns {{
  *   buildDefaultRunResult:()=>{exitCode:number,signal:null,executionMode:'subprocess',daemon:null},
- *   executeClaimedJob:(input:{job:object,jobLifecycle:object,logPath:string})=>Promise<{handled:boolean,runResult?:{exitCode:number,signal:string|null,executionMode:string,daemon:object|null}}>
+ *   executeClaimedJob:(input:{job:object,jobLifecycle:object,logPath:string,abortSignal?:AbortSignal|null})=>Promise<{handled:boolean,runResult?:{exitCode:number,signal:string|null,executionMode:string,daemon:object|null,cancelled:boolean,shutdownMode:string|null}}>
  * }}
  */
 export const createJobExecutor = ({
@@ -54,13 +56,14 @@ export const createJobExecutor = ({
    * @param {string[]} args
    * @param {Record<string, string>} [extraEnv={}]
    * @param {string|null} [logPath=null]
-   * @returns {Promise<{exitCode:number,signal:string|null}>}
+   * @returns {Promise<{exitCode:number,signal:string|null,cancelled:boolean,errorCode:string|null,errorMessage:string|null}>}
    */
-  const spawnWithLog = async (args, extraEnv = {}, logPath = null) => {
+  const spawnWithLog = async (args, extraEnv = {}, logPath = null, abortSignal = null) => {
     const result = await runLoggedSubprocess({
       command: process.execPath,
       args,
       env: process.env,
+      signal: abortSignal,
       extraEnv,
       logPath,
       onWriteError: (err) => {
@@ -79,7 +82,10 @@ export const createJobExecutor = ({
       exitCode: Number.isFinite(result.exitCode) ? result.exitCode : 1,
       signal: typeof result.signal === 'string' && result.signal.trim().length > 0
         ? result.signal.trim()
-        : null
+        : null,
+      cancelled: result.cancelled === true,
+      errorCode: result.errorCode || null,
+      errorMessage: result.errorMessage || null
     };
   };
 
@@ -92,9 +98,16 @@ export const createJobExecutor = ({
    * @param {string|null} stage
    * @param {string[]|null} [extraArgs]
    * @param {string|null} [logPath]
-   * @returns {Promise<{exitCode:number,signal:string|null}>}
+   * @returns {Promise<{exitCode:number,signal:string|null,cancelled:boolean,errorCode:string|null,errorMessage:string|null}>}
    */
-  const runBuildIndexSubprocess = (repoPath, mode, stage, extraArgs = null, logPath = null) => {
+  const runBuildIndexSubprocess = (
+    repoPath,
+    mode,
+    stage,
+    extraArgs = null,
+    logPath = null,
+    abortSignal = null
+  ) => {
     const buildPath = path.join(toolRoot, 'build_index.js');
     const args = [buildPath];
     if (Array.isArray(extraArgs) && extraArgs.length) {
@@ -105,7 +118,7 @@ export const createJobExecutor = ({
       if (stage) args.push('--stage', stage);
     }
     const runtimeEnv = resolveRepoRuntimeEnv(repoPath);
-    return spawnWithLog(args, runtimeEnv, logPath);
+    return spawnWithLog(args, runtimeEnv, logPath, abortSignal);
   };
 
   /**
@@ -204,7 +217,7 @@ export const createJobExecutor = ({
    * @param {string[]|null} [extraArgs]
    * @param {string|null} [logPath]
    * @param {object} [daemonOptions]
-   * @returns {Promise<{exitCode:number,signal:null,executionMode:'daemon',daemon:object}>}
+   * @returns {Promise<{exitCode:number,signal:null,executionMode:'daemon',daemon:object,cancelled:boolean,shutdownMode:string|null}>}
    */
   const runBuildIndexDaemon = async (
     repoPath,
@@ -212,7 +225,8 @@ export const createJobExecutor = ({
     stage,
     extraArgs = null,
     logPath = null,
-    daemonOptions = {}
+    daemonOptions = {},
+    abortSignal = null
   ) => {
     const rawArgs = resolveBuildIndexArgs(repoPath, mode, stage, extraArgs);
     const daemonDeterministic = daemonOptions?.deterministic !== false;
@@ -236,6 +250,7 @@ export const createJobExecutor = ({
       await buildIndex(resolvedRepo, {
         ...buildArgv,
         rawArgv: rawArgs,
+        abortSignal,
         daemonEnabled: true,
         daemonDeterministic,
         daemonSessionKey,
@@ -247,6 +262,8 @@ export const createJobExecutor = ({
         exitCode: 0,
         signal: null,
         executionMode: 'daemon',
+        cancelled: false,
+        shutdownMode: null,
         daemon: {
           sessionKey: daemonSessionKey,
           deterministic: daemonDeterministic,
@@ -256,12 +273,15 @@ export const createJobExecutor = ({
     } catch (err) {
       const durationMs = Math.max(0, Date.now() - startedAt);
       const message = err?.message || String(err);
+      const cancelled = err?.name === 'AbortError' || err?.code === 'ABORT_ERR';
       await appendDaemonLogLine(logPath, `[daemon] failed durationMs=${durationMs} error=${message}`);
       console.error(`[indexer] daemon build failed: ${message}`);
       return {
-        exitCode: 1,
+        exitCode: cancelled ? 130 : 1,
         signal: null,
         executionMode: 'daemon',
+        cancelled,
+        shutdownMode: cancelled ? 'force-stop' : null,
         daemon: {
           sessionKey: daemonSessionKey,
           deterministic: daemonDeterministic,
@@ -280,22 +300,29 @@ export const createJobExecutor = ({
    * @param {string} indexRoot
    * @param {Record<string, string>} [extraEnv={}]
    * @param {string|null} [logPath=null]
-   * @returns {Promise<{exitCode:number,signal:string|null}>}
+   * @returns {Promise<{exitCode:number,signal:string|null,cancelled:boolean,errorCode:string|null,errorMessage:string|null}>}
    */
-  const runBuildEmbeddings = (repoPath, mode, indexRoot, extraEnv = {}, logPath = null) => {
+  const runBuildEmbeddings = (
+    repoPath,
+    mode,
+    indexRoot,
+    extraEnv = {},
+    logPath = null,
+    abortSignal = null
+  ) => {
     const buildPath = path.join(toolRoot, 'tools', 'build', 'embeddings.js');
     const args = buildEmbeddingsArgs({ buildPath, repoPath, mode, indexRoot });
     const runtimeEnv = resolveRepoRuntimeEnv(repoPath, extraEnv);
-    return spawnWithLog(args, runtimeEnv, logPath);
+    return spawnWithLog(args, runtimeEnv, logPath, abortSignal);
   };
 
   /**
    * Execute one embeddings queue job.
    *
-   * @param {{job:object,jobLifecycle:object,logPath:string}} input
-   * @returns {Promise<{handled:boolean,runResult?:{exitCode:number,signal:string|null,executionMode:string,daemon:object|null}}>}
+   * @param {{job:object,jobLifecycle:object,logPath:string,abortSignal?:AbortSignal|null}} input
+   * @returns {Promise<{handled:boolean,runResult?:{exitCode:number,signal:string|null,executionMode:string,daemon:object|null,cancelled:boolean,shutdownMode:string|null}}>}
    */
-  const executeEmbeddingJob = async ({ job, jobLifecycle, logPath }) => {
+  const executeEmbeddingJob = async ({ job, jobLifecycle, logPath, abortSignal = null }) => {
     const normalized = normalizeEmbeddingJob(job);
     const repoPath = normalized.repoRoot || job.repo;
     if (job.repoRoot && job.repo && path.resolve(job.repoRoot) !== path.resolve(job.repo)) {
@@ -328,17 +355,20 @@ export const createJobExecutor = ({
         job.mode,
         normalized.buildRoot,
         embeddingExtraEnv,
-        logPath
+        logPath,
+        abortSignal
       ),
       { label: 'indexer-service-run-embeddings' }
     );
     return {
       handled: false,
       runResult: {
-        exitCode: subprocessResult.exitCode,
+        exitCode: subprocessResult.cancelled ? 130 : subprocessResult.exitCode,
         signal: subprocessResult.signal,
         executionMode: 'subprocess',
-        daemon: null
+        daemon: null,
+        cancelled: subprocessResult.cancelled === true,
+        shutdownMode: subprocessResult.cancelled ? 'force-stop' : null
       }
     };
   };
@@ -346,10 +376,10 @@ export const createJobExecutor = ({
   /**
    * Execute one index queue job in daemon/subprocess mode.
    *
-   * @param {{job:object,jobLifecycle:object,logPath:string}} input
-   * @returns {Promise<{handled:boolean,runResult:{exitCode:number,signal:string|null,executionMode:string,daemon:object|null}}>}
+   * @param {{job:object,jobLifecycle:object,logPath:string,abortSignal?:AbortSignal|null}} input
+   * @returns {Promise<{handled:boolean,runResult:{exitCode:number,signal:string|null,executionMode:string,daemon:object|null,cancelled:boolean,shutdownMode:string|null}}>}
    */
-  const executeIndexJob = async ({ job, jobLifecycle, logPath }) => {
+  const executeIndexJob = async ({ job, jobLifecycle, logPath, abortSignal = null }) => {
     if (serviceExecutionMode === 'daemon') {
       const runResult = await jobLifecycle.registerPromise(
         runBuildIndexDaemon(
@@ -363,23 +393,26 @@ export const createJobExecutor = ({
             deterministic: daemonWorkerConfig.deterministic !== false,
             sessionNamespace: daemonWorkerConfig.sessionNamespace || null,
             health: daemonWorkerConfig.health || null
-          }
+          },
+          abortSignal
         ),
         { label: 'indexer-service-run-index-daemon' }
       );
       return { handled: false, runResult };
     }
     const subprocessResult = await jobLifecycle.registerPromise(
-      runBuildIndexSubprocess(job.repo, job.mode, job.stage, job.args, logPath),
+      runBuildIndexSubprocess(job.repo, job.mode, job.stage, job.args, logPath, abortSignal),
       { label: 'indexer-service-run-index-subprocess' }
     );
     return {
       handled: false,
       runResult: {
-        exitCode: subprocessResult.exitCode,
+        exitCode: subprocessResult.cancelled ? 130 : subprocessResult.exitCode,
         signal: subprocessResult.signal,
         executionMode: 'subprocess',
-        daemon: null
+        daemon: null,
+        cancelled: subprocessResult.cancelled === true,
+        shutdownMode: subprocessResult.cancelled ? 'force-stop' : null
       }
     };
   };
@@ -387,12 +420,12 @@ export const createJobExecutor = ({
   /**
    * Route a claimed job to the appropriate executor.
    *
-   * @param {{job:object,jobLifecycle:object,logPath:string}} input
-   * @returns {Promise<{handled:boolean,runResult?:{exitCode:number,signal:string|null,executionMode:string,daemon:object|null}}>}
+   * @param {{job:object,jobLifecycle:object,logPath:string,abortSignal?:AbortSignal|null}} input
+   * @returns {Promise<{handled:boolean,runResult?:{exitCode:number,signal:string|null,executionMode:string,daemon:object|null,cancelled:boolean,shutdownMode:string|null}}>}
    */
-  const executeClaimedJob = ({ job, jobLifecycle, logPath }) => (isEmbeddingsQueue
-    ? executeEmbeddingJob({ job, jobLifecycle, logPath })
-    : executeIndexJob({ job, jobLifecycle, logPath }));
+  const executeClaimedJob = ({ job, jobLifecycle, logPath, abortSignal = null }) => (isEmbeddingsQueue
+    ? executeEmbeddingJob({ job, jobLifecycle, logPath, abortSignal })
+    : executeIndexJob({ job, jobLifecycle, logPath, abortSignal }));
 
   return {
     buildDefaultRunResult,

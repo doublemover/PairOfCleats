@@ -2,7 +2,7 @@
  * Normalize run result shape for queue completion/retry transitions.
  *
  * @param {{exitCode?:number,signal?:string|null,executionMode?:string,daemon?:object|null}|null|undefined} runResult
- * @returns {{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',daemon:object|null,status:'done'|'failed'}}
+ * @returns {{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',daemon:object|null,status:'done'|'failed',cancelled:boolean,shutdownMode:string|null}}
  */
 const normalizeRunResult = (runResult) => {
   const parsedExitCode = Number(runResult?.exitCode);
@@ -14,11 +14,17 @@ const normalizeRunResult = (runResult) => {
   const daemon = runResult?.daemon && typeof runResult.daemon === 'object'
     ? runResult.daemon
     : null;
+  const cancelled = runResult?.cancelled === true;
+  const shutdownMode = typeof runResult?.shutdownMode === 'string' && runResult.shutdownMode.trim()
+    ? runResult.shutdownMode.trim()
+    : null;
   return {
     exitCode,
     signal,
     executionMode,
     daemon,
+    cancelled,
+    shutdownMode,
     status: exitCode === 0 && !signal ? 'done' : 'failed'
   };
 };
@@ -36,7 +42,7 @@ const normalizeRunResult = (runResult) => {
  * @returns {{
  *   completeNonRetriableFailure:(job:{id:string},error:string)=>Promise<void>,
  *   finalizeJobRun:(input:{job:object,runResult:object,metrics:{processed:number,succeeded:number,failed:number,retried:number}})=>Promise<void>,
- *   normalizeRunResult:(runResult:object|null|undefined)=>{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',daemon:object|null,status:'done'|'failed'}
+ *   normalizeRunResult:(runResult:object|null|undefined)=>{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',daemon:object|null,status:'done'|'failed',cancelled:boolean,shutdownMode:string|null}
  * }}
  */
 export const createJobCompletion = ({
@@ -92,6 +98,30 @@ export const createJobCompletion = ({
     const normalizedError = normalized.status === 'failed'
       ? (normalized.signal ? `signal ${normalized.signal}` : `exit ${normalized.exitCode}`)
       : null;
+    if (normalized.cancelled) {
+      await completeJob(
+        queueDir,
+        job.id,
+        'queued',
+        {
+          exitCode: normalized.exitCode,
+          signal: normalized.signal,
+          retry: false,
+          attempts,
+          error: `service shutdown cancelled job (${normalized.shutdownMode || 'cancel'})`,
+          executionMode: normalized.executionMode,
+          daemon: normalized.daemon,
+          cancelled: true,
+          shutdownMode: normalized.shutdownMode || null
+        },
+        resolvedQueueName,
+        {
+          ownerId: job?.lease?.owner || null,
+          expectedLeaseVersion: job?.lease?.version ?? null
+        }
+      );
+      return;
+    }
     if (normalized.status === 'failed' && maxRetries > attempts) {
       const nextAttempts = attempts + 1;
       metrics.retried += 1;

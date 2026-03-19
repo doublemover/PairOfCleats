@@ -3,6 +3,14 @@ import { createLifecycleRegistry } from '../../../src/shared/lifecycle/registry.
 
 const NOOP_ASYNC = async () => {};
 const STALE_SWEEP_MIN_INTERVAL_MS = 1000;
+const SHUTDOWN_POLL_INTERVAL_MS = 250;
+const DEFAULT_SHUTDOWN_STATE = Object.freeze({
+  mode: 'running',
+  accepting: true,
+  stopClaiming: false,
+  forceAbort: false,
+  deadlineAt: null
+});
 
 /**
  * Create queue worker orchestration helpers for job lifecycle and watch-loop
@@ -20,11 +28,17 @@ const STALE_SWEEP_MIN_INTERVAL_MS = 1000;
  *   ensureQueueDir:(dirPath:string)=>Promise<void>,
  *   executeClaimedJob:(input:{job:object,jobLifecycle:ReturnType<typeof createLifecycleRegistry>,logPath:string})=>Promise<{handled:boolean,runResult?:object}>,
  *   finalizeJobRun:(input:{job:object,runResult:object,metrics:{processed:number,succeeded:number,failed:number,retried:number}})=>Promise<void>,
- *   buildDefaultRunResult:()=>{exitCode:number,executionMode:string,daemon:object|null},
+ *   buildDefaultRunResult:()=>{exitCode:number,executionMode:string,daemon:object|null,cancelled:boolean,shutdownMode:string|null},
  *   printPayload:(payload:object)=>void,
  *   summarizeBackpressure?:()=>Promise<object|null>,
+ *   queueSummary?:()=>Promise<{queued:number,running:number,total:number,done:number,failed:number,retries:number}>,
+ *   loadShutdownState?:()=>Promise<{mode:string,accepting:boolean,stopClaiming:boolean,forceAbort:boolean,deadlineAt:string|null}>,
+ *   requestShutdownState?:(input:{mode:string,timeoutMs?:number|null,requestedBy?:string,source?:string})=>Promise<object|null>,
+ *   updateShutdownWorkerState?:(patch:object)=>Promise<object|null>,
+ *   completeShutdownState?:(input:{reason?:string|null})=>Promise<object|null>,
  *   resolveLeasePolicy?:(input:{job:object|null,queueName:string|null})=>{leaseMs:number,renewIntervalMs:number,progressIntervalMs:number,workloadClass:string,maxRenewalGapMs:number,maxConsecutiveRenewalFailures:number},
- *   jobHeartbeatIntervalMs?:number
+ *   jobHeartbeatIntervalMs?:number,
+ *   shutdownPollIntervalMs?:number
  * }} input
  * @returns {{
  *   processQueueOnce:(metrics:{processed:number,succeeded:number,failed:number,retried:number})=>Promise<boolean>,
@@ -47,6 +61,11 @@ export const createQueueWorker = ({
   buildDefaultRunResult,
   printPayload,
   summarizeBackpressure = async () => null,
+  queueSummary = async () => ({ total: 0, queued: 0, running: 0, done: 0, failed: 0, retries: 0 }),
+  loadShutdownState = async () => DEFAULT_SHUTDOWN_STATE,
+  requestShutdownState = async () => DEFAULT_SHUTDOWN_STATE,
+  updateShutdownWorkerState = async () => null,
+  completeShutdownState = async () => null,
   resolveLeasePolicy = () => ({
     leaseMs: 5 * 60 * 1000,
     renewIntervalMs: 30 * 1000,
@@ -55,11 +74,16 @@ export const createQueueWorker = ({
     maxRenewalGapMs: 60 * 1000,
     maxConsecutiveRenewalFailures: 3
   }),
-  jobHeartbeatIntervalMs = 30000
+  jobHeartbeatIntervalMs = 30000,
+  shutdownPollIntervalMs = SHUTDOWN_POLL_INTERVAL_MS
 }) => {
   let staleSweepPromise = null;
   let lastStaleSweepAtMs = 0;
   const workerOwnerId = `queue-worker:${process.pid}:${Math.random().toString(16).slice(2, 10)}`;
+  const activeJobControls = new Map();
+  let currentShutdownState = { ...DEFAULT_SHUTDOWN_STATE };
+  let shutdownMonitor = null;
+  let escalatedDeadlineAt = null;
 
   /**
    * Deduplicate concurrent stale-sweep scans across workers.
@@ -95,6 +119,7 @@ export const createQueueWorker = ({
     const jobLifecycle = createLifecycleRegistry({
       name: `indexer-service-job:${job.id}`
     });
+    const abortController = new AbortController();
     const leasePolicy = resolveLeasePolicy({ job, queueName: resolvedQueueName });
     const renewalIntervalMs = Number.isFinite(Number(leasePolicy?.renewIntervalMs))
       ? Math.max(250, Math.trunc(Number(leasePolicy.renewIntervalMs)))
@@ -140,7 +165,56 @@ export const createQueueWorker = ({
       ? startBuildProgressMonitor({ job, repoPath: job.repo, stage: job.stage })
       : NOOP_ASYNC;
     jobLifecycle.registerCleanup(() => stopProgress(), { label: 'indexer-service-progress-stop' });
-    return { jobLifecycle, logPath };
+    return { jobLifecycle, logPath, abortController };
+  };
+
+  const syncWorkerShutdownState = async (status = null) => {
+    await updateShutdownWorkerState({
+      pid: process.pid,
+      ownerId: workerOwnerId,
+      status: status || (activeJobControls.size > 0 ? 'running' : 'idle'),
+      activeJobs: Array.from(activeJobControls.keys()),
+      lastSeenAt: new Date().toISOString()
+    });
+  };
+
+  const abortActiveJobs = (mode) => {
+    for (const jobControl of activeJobControls.values()) {
+      if (jobControl.abortController.signal.aborted) continue;
+      try {
+        jobControl.abortController.abort(new Error(`service shutdown: ${mode}`));
+      } catch {}
+    }
+  };
+
+  const refreshShutdownState = async () => {
+    currentShutdownState = await loadShutdownState();
+    const deadlineMs = Date.parse(currentShutdownState?.deadlineAt || '');
+    if (
+      currentShutdownState?.mode !== 'force-stop'
+      && !Number.isNaN(deadlineMs)
+      && deadlineMs <= Date.now()
+      && currentShutdownState?.deadlineAt !== escalatedDeadlineAt
+    ) {
+      escalatedDeadlineAt = currentShutdownState.deadlineAt;
+      currentShutdownState = await requestShutdownState({
+        mode: 'force-stop',
+        timeoutMs: null,
+        requestedBy: workerOwnerId,
+        source: 'timeout-escalation'
+      });
+    }
+    if (currentShutdownState?.forceAbort) {
+      abortActiveJobs(currentShutdownState.mode);
+    }
+    await syncWorkerShutdownState(
+      currentShutdownState?.mode === 'drain'
+        ? 'draining'
+        : currentShutdownState?.stopClaiming
+          ? 'stopping'
+          : null
+    );
+    return currentShutdownState;
   };
 
   /**
@@ -152,6 +226,9 @@ export const createQueueWorker = ({
    */
   const processQueueOnce = async (metrics) => {
     await ensureStaleSweep();
+    if (currentShutdownState?.stopClaiming) {
+      return false;
+    }
     const queueLeasePolicy = resolveLeasePolicy({ job: null, queueName: resolvedQueueName });
     const job = await claimNextJob(queueDir, resolvedQueueName, {
       ownerId: workerOwnerId,
@@ -161,13 +238,15 @@ export const createQueueWorker = ({
     });
     if (!job) return false;
     metrics.processed += 1;
-    const { jobLifecycle, logPath } = startJobLifecycle(job);
+    const { jobLifecycle, logPath, abortController } = startJobLifecycle(job);
+    activeJobControls.set(job.id, { abortController });
+    await syncWorkerShutdownState();
     let execution = {
       handled: false,
       runResult: buildDefaultRunResult()
     };
     try {
-      execution = await executeClaimedJob({ job, jobLifecycle, logPath });
+      execution = await executeClaimedJob({ job, jobLifecycle, logPath, abortSignal: abortController.signal });
     } catch (err) {
       const message = err?.message || String(err);
       console.error(`[indexer] job ${job.id} execution failed before completion: ${message}`);
@@ -180,6 +259,8 @@ export const createQueueWorker = ({
       };
     } finally {
       await jobLifecycle.close().catch(() => {});
+      activeJobControls.delete(job.id);
+      await syncWorkerShutdownState();
     }
     if (execution?.handled) {
       // `handled` jobs are completed out-of-band (currently non-retriable failures),
@@ -216,8 +297,8 @@ export const createQueueWorker = ({
   const runBatch = async (concurrency) => {
     const metrics = { processed: 0, succeeded: 0, failed: 0, retried: 0 };
     const workers = Array.from({ length: concurrency }, async () => {
-      let worked = true;
-      while (worked) {
+      let worked = !currentShutdownState?.stopClaiming;
+      while (worked && !currentShutdownState?.stopClaiming) {
         worked = await processQueueOnce(metrics);
       }
     });
@@ -242,18 +323,44 @@ export const createQueueWorker = ({
    */
   const runWorkLoop = async ({ requestedConcurrency, intervalMs, watch = false, serviceExecutionMode }) => {
     await ensureQueueDir(queueDir);
+    await refreshShutdownState();
     const concurrency = serviceExecutionMode === 'daemon' && monitorBuildProgress
       ? 1
       : requestedConcurrency;
     if (concurrency !== requestedConcurrency) {
       console.error(`[indexer] daemon execution enforces concurrency=1 (requested=${requestedConcurrency}).`);
     }
-    await runBatch(concurrency);
-    if (watch) {
+    shutdownMonitor = setInterval(() => {
+      void refreshShutdownState().catch((err) => {
+        console.error(`[indexer] shutdown monitor failed: ${err?.message || err}`);
+      });
+    }, Math.max(100, shutdownPollIntervalMs));
+    try {
       while (true) {
-        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        await refreshShutdownState();
         await runBatch(concurrency);
+        const summary = await queueSummary();
+        if (currentShutdownState?.mode === 'drain' && summary.queued === 0 && summary.running === 0) {
+          await completeShutdownState({ reason: 'drain-complete' });
+          return;
+        }
+        if (currentShutdownState?.mode === 'cancel' && activeJobControls.size === 0) {
+          await completeShutdownState({ reason: 'cancel-complete' });
+          return;
+        }
+        if (currentShutdownState?.mode === 'force-stop' && activeJobControls.size === 0) {
+          await completeShutdownState({ reason: 'force-stop-complete' });
+          return;
+        }
+        if (!watch) return;
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
       }
+    } finally {
+      if (shutdownMonitor) {
+        clearInterval(shutdownMonitor);
+        shutdownMonitor = null;
+      }
+      await syncWorkerShutdownState('stopped').catch(() => {});
     }
   };
 
