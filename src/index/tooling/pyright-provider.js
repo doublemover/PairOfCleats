@@ -17,6 +17,13 @@ import {
   persistPyrightPlannerHealth,
   resolvePyrightRequestPlan
 } from './pyright-planner.js';
+import {
+  buildPyrightFallbackContract,
+  derivePyrightRuntimeOutcome,
+  persistPyrightRuntimeHealth,
+  resolvePyrightRuntimeHealth,
+  resolvePyrightRuntimeOverrides
+} from './pyright-runtime-health.js';
 import { awaitToolingProviderPreflight } from './preflight-manager.js';
 import {
   mergePreflightChecks,
@@ -384,9 +391,76 @@ export const createPyrightProvider = () => ({
       allDocuments: Array.isArray(inputs?.documents) ? inputs.documents : docs
     });
     checks.push(...requestPlan.checks);
+    const runtimeHealth = await resolvePyrightRuntimeHealth({
+      repoRoot: ctx.repoRoot,
+      cacheRoot: ctx?.cache?.dir || null,
+      workspaceRootRel: requestPlan.workspaceRootRel,
+      selectedDocumentSummaries: requestPlan.selectedDocumentSummaries
+    });
     if (!requestPlan.selectedDocuments.length || !requestPlan.selectedTargets.length) {
       const diagnostics = appendDiagnosticChecks({
-        planning: requestPlan.diagnostics
+        planning: requestPlan.diagnostics,
+        health: {
+          state: runtimeHealth.effectiveState,
+          nextState: runtimeHealth.effectiveState,
+          reasonCode: runtimeHealth.reasonCode,
+          workspaceRootRel: runtimeHealth.workspaceRootRel,
+          fingerprint: runtimeHealth.fingerprint,
+          priorState: runtimeHealth.persistedState?.state || null,
+          cooldownRemainingMs: runtimeHealth.cooldownRemainingMs,
+          documentSymbolTimedOut: 0,
+          documentSymbolFailed: 0
+        },
+        fallback: buildPyrightFallbackContract({
+          state: runtimeHealth.effectiveState,
+          reasonCode: runtimeHealth.reasonCode,
+          workspaceRootRel: runtimeHealth.workspaceRootRel,
+          fingerprint: runtimeHealth.fingerprint,
+          captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds)
+        })
+      }, checks);
+      return {
+        provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics
+      };
+    }
+    const runtimeOverrides = resolvePyrightRuntimeOverrides({
+      documentSymbolConcurrency: requestPlan.documentSymbolConcurrency
+    });
+    if (runtimeOverrides.documentSymbolConcurrency !== requestPlan.documentSymbolConcurrency) {
+      checks.push({
+        name: 'pyright_document_symbol_serialized',
+        status: 'info',
+        message: 'pyright documentSymbol collection is serialized to avoid repeated workspace-local timeout storms.'
+      });
+    }
+    if (runtimeHealth.shouldShortCircuit) {
+      checks.push({
+        name: 'pyright_quarantined_for_run',
+        status: 'warn',
+        message: `pyright workspace "${runtimeHealth.workspaceRootRel}" is quarantined for this run${runtimeHealth.cooldownRemainingMs > 0 ? ` (${runtimeHealth.cooldownRemainingMs}ms remaining)` : ''}.`
+      });
+      const diagnostics = appendDiagnosticChecks({
+        planning: requestPlan.diagnostics,
+        health: {
+          state: runtimeHealth.effectiveState,
+          nextState: runtimeHealth.effectiveState,
+          reasonCode: runtimeHealth.reasonCode,
+          workspaceRootRel: runtimeHealth.workspaceRootRel,
+          fingerprint: runtimeHealth.fingerprint,
+          priorState: runtimeHealth.persistedState?.state || null,
+          cooldownRemainingMs: runtimeHealth.cooldownRemainingMs,
+          documentSymbolTimedOut: 0,
+          documentSymbolFailed: 0
+        },
+        fallback: buildPyrightFallbackContract({
+          state: runtimeHealth.effectiveState,
+          reasonCode: runtimeHealth.reasonCode,
+          workspaceRootRel: runtimeHealth.workspaceRootRel,
+          fingerprint: runtimeHealth.fingerprint,
+          captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds)
+        })
       }, checks);
       return {
         provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
@@ -398,6 +472,7 @@ export const createPyrightProvider = () => ({
       ...runtimeConfig,
       rootDir: ctx.repoRoot,
       workspaceRootDir: requestPlan.workspaceRootDir,
+      workspaceKey: `pyright:${requestPlan.workspaceRootRel}:${runtimeHealth.fingerprint}`,
       documents: requestPlan.selectedDocuments,
       targets: requestPlan.selectedTargets,
       abortSignal: ctx?.abortSignal || null,
@@ -407,7 +482,7 @@ export const createPyrightProvider = () => ({
       adaptiveReasonHint: preflight?.reasonCode || null,
       cmd: resolvedCmd,
       args: resolvedArgs,
-      documentSymbolConcurrency: requestPlan.documentSymbolConcurrency,
+      documentSymbolConcurrency: runtimeOverrides.documentSymbolConcurrency,
       parseSignature: (detail) => parsePythonSignature(detail),
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,
@@ -423,12 +498,33 @@ export const createPyrightProvider = () => ({
       workspaceRootRel: requestPlan.workspaceRootRel,
       runtime: result.runtime
     });
+    const runtimeOutcome = derivePyrightRuntimeOutcome({
+      healthContext: runtimeHealth,
+      runtime: result.runtime,
+      checks: result.checks,
+      captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds)
+    });
+    await persistPyrightRuntimeHealth({
+      repoRoot: ctx.repoRoot,
+      cacheRoot: ctx?.cache?.dir || null,
+      workspaceRootRel: requestPlan.workspaceRootRel,
+      record: runtimeOutcome.record
+    });
+    if (runtimeOutcome.state === 'degraded_soft' && runtimeOutcome.nextState === 'degraded_hard') {
+      checks.push({
+        name: 'pyright_timeout_storm_truncated',
+        status: 'warn',
+        message: 'pyright promoted a documentSymbol timeout into a hard degraded state and will quarantine the same workspace shape on the next run.'
+      });
+    }
     const diagnostics = appendDiagnosticChecks(
       {
         ...(result.diagnosticsCount
           ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
           : {}),
-        planning: requestPlan.diagnostics
+        planning: requestPlan.diagnostics,
+        health: runtimeOutcome.summary,
+        fallback: runtimeOutcome.fallback
       },
       [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
     );

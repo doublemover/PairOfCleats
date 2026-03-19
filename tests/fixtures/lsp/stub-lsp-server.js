@@ -448,7 +448,7 @@ const lineColForIndex = (text, index) => {
 };
 
 const buildSymbol = (text) => {
-  if (mode === 'pyright') {
+  if (mode === 'pyright' || mode === 'stall-document-symbol') {
     const match = text.match(/^\s*(?:async\s+)?def\s+([A-Za-z_][\w]*)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?\s*:/m);
     if (match) {
       const name = match[1];
@@ -571,6 +571,9 @@ const handleRequest = (message) => {
   if (method === 'textDocument/documentSymbol') {
     if (mode === 'disconnect-on-document-symbol') {
       process.exit(1);
+      return;
+    }
+    if (mode === 'stall-document-symbol') {
       return;
     }
     if (mode === 'malformed-document-symbol') {
@@ -779,7 +782,7 @@ const handleNotification = (message) => {
     const uri = message.params?.textDocument?.uri;
     const text = message.params?.textDocument?.text || '';
     if (uri) documents.set(uri, text);
-    if (uri && mode === 'pyright') {
+    if (uri && (mode === 'pyright' || mode === 'stall-document-symbol')) {
       send({
         jsonrpc: '2.0',
         method: 'textDocument/publishDiagnostics',
