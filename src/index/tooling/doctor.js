@@ -17,6 +17,7 @@ import { isAbsolutePathNative } from '../../shared/files.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { hasWorkspaceMarker, resolveWorkspaceModelCheckForCommand } from './workspace-model.js';
 import { listLspServerPresets } from './lsp-presets.js';
+import { getLspProviderDelta } from './lsp-provider-deltas.js';
 import { resolveCompileCommandsDir } from './compile-commands.js';
 import {
   normalizeCommandToken,
@@ -358,6 +359,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
           ? Math.max(0, Math.floor(Number(provider.preflightTimeoutMs)))
           : null
       },
+      lspDelta: getLspProviderDelta(providerId),
       status: 'ok',
       checks: []
     };

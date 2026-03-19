@@ -908,6 +908,7 @@ tooling/doctor/workspace-model-phpactor-detection
 indexing/validate/validator/manifest-count-sharded
 tooling/doctor/workspace-model-haskell-detection
 tooling/lsp/session-pool-reuse
+tooling/lsp/provider-delta-manifest
 tooling/doctor/workspace-model-dart-detection
 ci/tooling-lsp-slo-gate-tail-p95
 tooling/install/tooling-phpactor-phar-plan
@@ -1074,6 +1075,7 @@ tooling/lsp/configured-provider-go-workspace-warmup-doc-count-gating
 tooling/lsp/configured-provider-go-workspace-module-preflight-failed
 tooling/lsp/provider-metrics-capability-rollup
 tooling/lsp/csharp-provider-overload-signature
+tooling/lsp/provider-fidelity-coverage-contract
 tooling/lsp/configured-provider-go-workspace-warmup-preflight-failed
 tooling/lsp/provider-metrics-envelope-aggregate
 tooling/lsp/configured-provider-go-workspace-preflight-cache-hit

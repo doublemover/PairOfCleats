@@ -1030,7 +1030,8 @@ const scoreLspConfidence = ({
   conflictCount,
   unresolvedRate,
   stabilityTier,
-  sourceFallbackUsed
+  sourceFallbackUsed,
+  providerConfidenceBias = 0
 }) => {
   let score = evidenceTier === 'full'
     ? 0.92
@@ -1042,6 +1043,7 @@ const scoreLspConfidence = ({
   score -= Math.min(0.2, Math.max(0, Number(unresolvedRate || 0)) * 0.25);
   if (stabilityTier !== 'stable') score -= 0.08;
   if (sourceFallbackUsed) score -= 0.05;
+  score += Math.max(-0.1, Math.min(0.1, Number(providerConfidenceBias) || 0));
   const normalizedScore = Math.max(0.05, Math.min(0.99, Number(score.toFixed(2))));
   const tier = normalizedScore >= 0.85
     ? 'high'
@@ -1576,6 +1578,7 @@ export const processDocumentTypes = async ({
   markRequestCacheDirty,
   requestBudgetControllers = null,
   requestCacheContext = null,
+  providerConfidenceBias = 0,
   semanticTokensLegend = null,
   hoverControl,
   documentSymbolControl = null,
@@ -2643,7 +2646,8 @@ export const processDocumentTypes = async ({
         conflictCount,
         unresolvedRate,
         stabilityTier,
-        sourceFallbackUsed: record?.sourceFallbackUsed === true
+        sourceFallbackUsed: record?.sourceFallbackUsed === true,
+        providerConfidenceBias
       });
       const provenance = buildLspProvenanceEntry({
         cmd,

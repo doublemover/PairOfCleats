@@ -1,5 +1,6 @@
 indexing/imports/replay-perf-budget
 services/soak/operational-recovery
+tooling/lsp/provider-fidelity-coverage-contract
 retrieval/pipeline/ann-lazy-import
 retrieval/pipeline/index-loader-lazy
 indexing/artifacts/chunk-meta-trim-strict

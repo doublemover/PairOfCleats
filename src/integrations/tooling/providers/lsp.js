@@ -46,6 +46,7 @@ import { coercePositiveInt } from '../../../shared/number-coerce.js';
 import { sleep } from '../../../shared/sleep.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
 import { sha1 } from '../../../shared/hash.js';
+import { getLspProviderDelta, listLspProviderDeltas } from '../../../index/tooling/lsp-provider-deltas.js';
 
 /**
  * Parse positive integer configuration with fallback floor of 1.
@@ -88,100 +89,13 @@ const buildEmptyCollectResult = (checks, runtime = null) => ({
     : runtime
 });
 
-const ADAPTIVE_LSP_SCOPE_PROFILES = Object.freeze({
-  pyright: Object.freeze({
-    docThreshold: 192,
-    maxDocs: 192,
-    degradedMaxDocs: 96,
-    targetThreshold: 512,
-    maxTargets: 512,
-    degradedMaxTargets: 192,
-    degradedDocumentSymbolTimeouts: 2,
-    degradedDocumentSymbolP95Ms: 2500,
-    defaultHoverMaxPerFile: 6,
-    degradedHoverMaxPerFile: 3
-  }),
-  clangd: Object.freeze({
-    docThreshold: 64,
-    maxDocs: 64,
-    degradedMaxDocs: 32,
-    targetThreshold: 256,
-    maxTargets: 256,
-    degradedMaxTargets: 96,
-    degradedDocumentSymbolTimeouts: 1,
-    degradedDocumentSymbolP95Ms: 3500,
-    defaultHoverMaxPerFile: 4,
-    degradedHoverMaxPerFile: 2
-  }),
-  gopls: Object.freeze({
-    docThreshold: 128,
-    maxDocs: 128,
-    degradedMaxDocs: 64,
-    targetThreshold: 256,
-    maxTargets: 256,
-    degradedMaxTargets: 96,
-    degradedDocumentSymbolTimeouts: 2,
-    degradedDocumentSymbolP95Ms: 2500,
-    defaultHoverMaxPerFile: 6,
-    degradedHoverMaxPerFile: 3
-  }),
-  sourcekit: Object.freeze({
-    docThreshold: 64,
-    maxDocs: 64,
-    degradedMaxDocs: 32,
-    targetThreshold: 160,
-    maxTargets: 128,
-    degradedMaxTargets: 64,
-    degradedHoverTimeouts: 2,
-    degradedHoverP95Ms: 2000,
-    defaultHoverMaxPerFile: 3,
-    degradedHoverMaxPerFile: 1
-  }),
-  'yaml-language-server': Object.freeze({
-    docThreshold: 64,
-    maxDocs: 96,
-    degradedMaxDocs: 48,
-    targetThreshold: 96,
-    maxTargets: 160,
-    degradedMaxTargets: 80
-  }),
-  'lua-language-server': Object.freeze({
-    docThreshold: 192,
-    maxDocs: 256,
-    degradedMaxDocs: 160,
-    targetThreshold: 320,
-    maxTargets: 640,
-    degradedMaxTargets: 256,
-    degradedDocumentSymbolTimeouts: 2,
-    degradedDocumentSymbolP95Ms: 2500,
-    defaultHoverMaxPerFile: 8,
-    degradedHoverMaxPerFile: 5
-  }),
-  'rust-analyzer': Object.freeze({
-    docThreshold: 256,
-    maxDocs: 320,
-    degradedMaxDocs: 192,
-    targetThreshold: 384,
-    maxTargets: 768,
-    degradedMaxTargets: 320,
-    degradedDocumentSymbolTimeouts: 2,
-    degradedDocumentSymbolP95Ms: 3000,
-    defaultHoverMaxPerFile: 8,
-    degradedHoverMaxPerFile: 4
-  }),
-  zls: Object.freeze({
-    docThreshold: 160,
-    maxDocs: 256,
-    degradedMaxDocs: 128,
-    targetThreshold: 256,
-    maxTargets: 512,
-    degradedMaxTargets: 192,
-    degradedDocumentSymbolTimeouts: 2,
-    degradedDocumentSymbolP95Ms: 2500,
-    defaultHoverMaxPerFile: 6,
-    degradedHoverMaxPerFile: 4
-  })
-});
+const ADAPTIVE_LSP_SCOPE_PROFILES = Object.freeze(
+  Object.fromEntries(
+    listLspProviderDeltas()
+      .filter((delta) => delta?.adaptiveDocScope && typeof delta.adaptiveDocScope === 'object')
+      .map((delta) => [delta.id, Object.freeze({ ...delta.adaptiveDocScope })])
+  )
+);
 
 const normalizeAdaptiveLspScopeProfile = (value) => {
   if (!value || typeof value !== 'object') return null;
@@ -463,14 +377,19 @@ const REQUEST_BUDGET_P95_THRESHOLDS = Object.freeze({
   references: 2500
 });
 
-const REQUEST_BUDGET_PROVIDER_WEIGHTS = Object.freeze({
-  pyright: 1.2,
-  gopls: 1.15,
-  clangd: 1,
-  sourcekit: 0.9,
-  'lua-language-server': 0.95,
-  'rust-analyzer': 1.05
-});
+const REQUEST_BUDGET_PROVIDER_WEIGHTS = Object.freeze(
+  Object.fromEntries(
+    listLspProviderDeltas()
+      .map((delta) => [delta.id, Number(delta?.requestBudgetWeight)])
+      .filter(([, weight]) => Number.isFinite(weight) && weight > 0)
+  )
+);
+
+const resolveProviderConfidenceBias = (providerId) => {
+  const delta = getLspProviderDelta(providerId);
+  const bias = Number(delta?.confidenceBias);
+  return Number.isFinite(bias) ? bias : 0;
+};
 
 const toNonNegativeInt = (value) => {
   const parsed = Number(value);
@@ -1490,6 +1409,7 @@ export async function collectLspTypes({
             providerVersion: resolvedProviderVersion,
             workspaceKey: resolvedWorkspaceKey
           },
+          providerConfidenceBias: resolveProviderConfidenceBias(resolvedProviderId),
           semanticTokensLegend: initializeResult?.capabilities?.semanticTokensProvider?.legend
             || initializeResult?.capabilities?.textDocument?.semanticTokens?.legend
             || null,

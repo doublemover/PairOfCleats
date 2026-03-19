@@ -1,6 +1,13 @@
 import { normalizeProviderId } from './provider-contract.js';
+import { getLspProviderDelta } from './lsp-provider-deltas.js';
 
 const normalizePresetKey = (value) => normalizeProviderId(value);
+const adaptiveDocScopeFor = (providerId) => {
+  const adaptiveDocScope = getLspProviderDelta(providerId)?.adaptiveDocScope;
+  return adaptiveDocScope && typeof adaptiveDocScope === 'object'
+    ? Object.freeze({ ...adaptiveDocScope })
+    : null;
+};
 
 const PRESET_DEFINITIONS = Object.freeze({
   gopls: Object.freeze({
@@ -8,18 +15,7 @@ const PRESET_DEFINITIONS = Object.freeze({
     cmd: 'gopls',
     args: [],
     languages: ['go'],
-    adaptiveDocScope: Object.freeze({
-      docThreshold: 192,
-      maxDocs: 320,
-      degradedMaxDocs: 160,
-      targetThreshold: 384,
-      maxTargets: 768,
-      degradedMaxTargets: 256,
-      degradedDocumentSymbolTimeouts: 2,
-      degradedDocumentSymbolP95Ms: 2500,
-      defaultHoverMaxPerFile: 10,
-      degradedHoverMaxPerFile: 6
-    }),
+    adaptiveDocScope: adaptiveDocScopeFor('gopls'),
     label: 'Go (gopls)',
     priority: 80,
     requireWorkspaceModel: true,
@@ -40,18 +36,7 @@ const PRESET_DEFINITIONS = Object.freeze({
     cmd: 'rust-analyzer',
     args: [],
     languages: ['rust'],
-    adaptiveDocScope: Object.freeze({
-      docThreshold: 256,
-      maxDocs: 320,
-      degradedMaxDocs: 192,
-      targetThreshold: 384,
-      maxTargets: 768,
-      degradedMaxTargets: 320,
-      degradedDocumentSymbolTimeouts: 2,
-      degradedDocumentSymbolP95Ms: 3000,
-      defaultHoverMaxPerFile: 8,
-      degradedHoverMaxPerFile: 4
-    }),
+    adaptiveDocScope: adaptiveDocScopeFor('rust-analyzer'),
     label: 'Rust (rust-analyzer)',
     priority: 80,
     requireWorkspaceModel: true,
@@ -81,14 +66,7 @@ const PRESET_DEFINITIONS = Object.freeze({
     args: ['--stdio'],
     languages: ['yaml', 'yml'],
     kinds: ['diagnostics'],
-    adaptiveDocScope: Object.freeze({
-      docThreshold: 64,
-      maxDocs: 96,
-      degradedMaxDocs: 48,
-      targetThreshold: 96,
-      maxTargets: 160,
-      degradedMaxTargets: 80
-    }),
+    adaptiveDocScope: adaptiveDocScopeFor('yaml-language-server'),
     hoverEnabled: false,
     signatureHelpEnabled: false,
     definitionEnabled: false,
@@ -111,18 +89,7 @@ const PRESET_DEFINITIONS = Object.freeze({
     cmd: 'lua-language-server',
     args: [],
     languages: ['lua'],
-    adaptiveDocScope: Object.freeze({
-      docThreshold: 192,
-      maxDocs: 256,
-      degradedMaxDocs: 160,
-      targetThreshold: 320,
-      maxTargets: 640,
-      degradedMaxTargets: 256,
-      degradedDocumentSymbolTimeouts: 2,
-      degradedDocumentSymbolP95Ms: 2500,
-      defaultHoverMaxPerFile: 8,
-      degradedHoverMaxPerFile: 5
-    }),
+    adaptiveDocScope: adaptiveDocScopeFor('lua-language-server'),
     label: 'Lua (lua-language-server)',
     priority: 80,
     preflightPolicy: 'optional'
@@ -132,18 +99,7 @@ const PRESET_DEFINITIONS = Object.freeze({
     cmd: 'zls',
     args: [],
     languages: ['zig'],
-    adaptiveDocScope: Object.freeze({
-      docThreshold: 160,
-      maxDocs: 256,
-      degradedMaxDocs: 128,
-      targetThreshold: 256,
-      maxTargets: 512,
-      degradedMaxTargets: 192,
-      degradedDocumentSymbolTimeouts: 2,
-      degradedDocumentSymbolP95Ms: 2500,
-      defaultHoverMaxPerFile: 6,
-      degradedHoverMaxPerFile: 4
-    }),
+    adaptiveDocScope: adaptiveDocScopeFor('zls'),
     label: 'Zig (zls)',
     priority: 80,
     preflightTimeoutMs: 30000,
