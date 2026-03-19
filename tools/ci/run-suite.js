@@ -293,6 +293,23 @@ const main = async () => {
     },
     ...(mode === 'nightly'
       ? [{
+        label: 'Operational soak and recovery suites',
+        command: process.execPath,
+        args: [
+          'tests/run.js',
+          '--lane',
+          'ci-long',
+          '--match',
+          'services/soak/operational-recovery',
+          '--timeout-ms',
+          '600000',
+          '--log-dir',
+          logDir
+        ]
+      }]
+      : []),
+    ...(mode === 'nightly'
+      ? [{
         label: 'Bench harness (sweet16-ci)',
         command: process.execPath,
         args: [

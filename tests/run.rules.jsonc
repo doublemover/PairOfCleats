@@ -18,6 +18,7 @@
     {
       "lane": "ci-long",
       "match": [
+        "^services/soak/",
         "^lang/contracts/(go|javascript|misc-buildfiles|python|sql|typescript)$",
         "^indexing/contracts/golden-surface-suite$"
       ]
@@ -94,6 +95,7 @@
     {
       "tag": "long",
       "match": [
+        "^services/soak/",
         "(^|/)parity$",
         "(^|/)fixture-parity$",
         "(^|/)fixture-eval$",

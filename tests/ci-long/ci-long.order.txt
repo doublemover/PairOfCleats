@@ -1,4 +1,5 @@
 indexing/imports/replay-perf-budget
+services/soak/operational-recovery
 retrieval/pipeline/ann-lazy-import
 retrieval/pipeline/index-loader-lazy
 indexing/artifacts/chunk-meta-trim-strict
