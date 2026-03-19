@@ -147,6 +147,21 @@ function createTrackedStatusBarItem(statusBarItems) {
   return item;
 }
 
+function normalizeEditor(editor, decorationApplications) {
+  if (!editor) return null;
+  if (typeof editor.setDecorations === 'function') return editor;
+  return {
+    ...editor,
+    setDecorations(decorationType, decorations) {
+      decorationApplications.push({
+        editor: this,
+        decorationType,
+        decorations
+      });
+    }
+  };
+}
+
 function createFakeFetch(fetchCalls, queuedFetchResults, implementation = null) {
   return async function fakeFetch(url, options = {}) {
     fetchCalls.push({ url, options });
@@ -218,6 +233,10 @@ export function createVsCodeRuntimeHarness({
     searchModifiedSince: '',
     searchChurn: '',
     searchCaseSensitive: false,
+    inlineHoverEnabled: false,
+    inlineDiagnosticsEnabled: false,
+    inlineDecorationsEnabled: false,
+    inlineMaxItems: 3,
     extraSearchArgs: [],
     env: {},
     ...configValues
@@ -240,6 +259,10 @@ export function createVsCodeRuntimeHarness({
   const referenceProviders = [];
   const documentSymbolProviders = [];
   const completionProviders = [];
+  const hoverProviders = [];
+  const diagnosticCollections = [];
+  const decorationTypes = [];
+  const decorationApplications = [];
   const treeViews = [];
   const treeProviders = [];
   const statusBarItems = [];
@@ -272,7 +295,7 @@ export function createVsCodeRuntimeHarness({
   );
 
   const defaultActiveEditor = activeFile
-    ? { document: { uri: normalizeFileUri(path.resolve(activeFile)) } }
+    ? normalizeEditor({ document: { uri: normalizeFileUri(path.resolve(activeFile)) } }, decorationApplications)
     : null;
 
   const fakeVscode = {
@@ -304,7 +327,7 @@ export function createVsCodeRuntimeHarness({
       }
     },
     window: {
-      activeTextEditor: activeEditor || defaultActiveEditor,
+      activeTextEditor: normalizeEditor(activeEditor, decorationApplications) || defaultActiveEditor,
       async withProgress(_options, task) {
         const token = {
           isCancellationRequested: false,
@@ -355,6 +378,17 @@ export function createVsCodeRuntimeHarness({
         treeProviders.push(options.treeDataProvider);
         return { dispose() {} };
       },
+      createTextEditorDecorationType(options) {
+        const decorationType = {
+          options,
+          disposed: false,
+          dispose() {
+            this.disposed = true;
+          }
+        };
+        decorationTypes.push(decorationType);
+        return decorationType;
+      },
       onDidChangeActiveTextEditor(handler) {
         editorHandlers.push(handler);
         return { dispose() {} };
@@ -385,6 +419,29 @@ export function createVsCodeRuntimeHarness({
       registerCompletionItemProvider(selector, provider, ...triggerCharacters) {
         completionProviders.push({ selector, provider, triggerCharacters });
         return { dispose() {} };
+      },
+      registerHoverProvider(selector, provider) {
+        hoverProviders.push({ selector, provider });
+        return { dispose() {} };
+      },
+      createDiagnosticCollection(name) {
+        const collection = {
+          name,
+          entries: new Map(),
+          set(uri, diagnostics) {
+            const key = typeof uri?.toString === 'function' ? uri.toString() : String(uri || '');
+            this.entries.set(key, diagnostics);
+          },
+          clear() {
+            this.entries.clear();
+          },
+          dispose() {
+            this.entries.clear();
+            this.disposed = true;
+          }
+        };
+        diagnosticCollections.push(collection);
+        return collection;
       }
     },
     env: {
@@ -487,6 +544,17 @@ export function createVsCodeRuntimeHarness({
         this.kind = kind;
       }
     },
+    MarkdownString: class MarkdownString {
+      constructor(value = '') {
+        this.value = value;
+      }
+    },
+    Hover: class Hover {
+      constructor(contents, range = null) {
+        this.contents = contents;
+        this.range = range;
+      }
+    },
     SymbolKind: {
       Module: 1,
       Namespace: 2,
@@ -525,6 +593,19 @@ export function createVsCodeRuntimeHarness({
       EnumMember: 19,
       Constant: 20,
       Struct: 21
+    },
+    Diagnostic: class Diagnostic {
+      constructor(range, message, severity) {
+        this.range = range;
+        this.message = message;
+        this.severity = severity;
+      }
+    },
+    DiagnosticSeverity: {
+      Error: 0,
+      Warning: 1,
+      Information: 2,
+      Hint: 3
     },
     Selection: class Selection {
       constructor(start, end) {
@@ -576,6 +657,10 @@ export function createVsCodeRuntimeHarness({
     referenceProviders,
     documentSymbolProviders,
     completionProviders,
+    hoverProviders,
+    diagnosticCollections,
+    decorationTypes,
+    decorationApplications,
     statusBarItems,
     openedDocuments,
     workspaceStateStore,
@@ -590,12 +675,13 @@ export function createVsCodeRuntimeHarness({
       return path.join(repoRoot, ...segments);
     },
     setActiveEditor(editor) {
-      fakeVscode.window.activeTextEditor = editor;
-      for (const handler of editorHandlers) handler(editor);
+      const normalizedEditor = normalizeEditor(editor, decorationApplications);
+      fakeVscode.window.activeTextEditor = normalizedEditor;
+      for (const handler of editorHandlers) handler(normalizedEditor);
     },
     setActiveFile(filePath) {
       const nextEditor = filePath
-        ? { document: { uri: normalizeFileUri(path.resolve(filePath)) } }
+        ? normalizeEditor({ document: { uri: normalizeFileUri(path.resolve(filePath)) } }, decorationApplications)
         : null;
       this.setActiveEditor(nextEditor);
     },

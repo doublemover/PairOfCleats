@@ -102,6 +102,10 @@ Settings:
 - `pairofcleats.searchCaseSensitive`
 - `pairofcleats.env`
 - `pairofcleats.extraSearchArgs`
+- `pairofcleats.inlineHoverEnabled`
+- `pairofcleats.inlineDiagnosticsEnabled`
+- `pairofcleats.inlineDecorationsEnabled`
+- `pairofcleats.inlineMaxItems`
 
 The VS Code search command forwards these common search flags directly instead of forcing normal workflows through `extraSearchArgs`. `pairofcleats.searchAsOf` and `pairofcleats.searchSnapshot` are mutually exclusive; if both are set, the extension fails closed with an explicit configuration error.
 
@@ -112,6 +116,13 @@ VS Code API-backed workflow behavior:
 - `pairofcleats.apiExecutionMode` accepts `cli`, `prefer`, or `require`.
 - `search`, symbol lookup, and index health can use the API path when the configured mode and server probe allow it.
 - CLI-only workflows fail closed when `require` forces API mode onto an unsupported surface.
+
+VS Code inline signal behavior:
+
+- hover, file-level diagnostics, and lightweight file decorations are CLI-backed today and fail quiet when `pairofcleats.apiExecutionMode=require`
+- inline surfaces use bounded context-pack requests with `--hops 0 --includeRisk --includeTypes`
+- `pairofcleats.inlineHoverEnabled`, `pairofcleats.inlineDiagnosticsEnabled`, and `pairofcleats.inlineDecorationsEnabled` allow users to disable noisy inline surfaces independently
+- `pairofcleats.inlineMaxItems` bounds the number of risk flows, type facts, warnings, and truncation notes shown in hover output
 
 Repo targeting behavior:
 

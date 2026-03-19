@@ -104,7 +104,23 @@ const VSCODE_SETTINGS = Object.freeze({
     ['settings', 'vscode', 'caseSensitiveKey'],
     DEFAULT_VSCODE_SETTINGS.caseSensitiveKey
   )),
-  envKey: String(readContract(['settings', 'vscode', 'envKey'], DEFAULT_VSCODE_SETTINGS.envKey))
+  envKey: String(readContract(['settings', 'vscode', 'envKey'], DEFAULT_VSCODE_SETTINGS.envKey)),
+  inlineHoverEnabledKey: String(readContract(
+    ['settings', 'vscode', 'inlineHoverEnabledKey'],
+    DEFAULT_VSCODE_SETTINGS.inlineHoverEnabledKey
+  )),
+  inlineDiagnosticsEnabledKey: String(readContract(
+    ['settings', 'vscode', 'inlineDiagnosticsEnabledKey'],
+    DEFAULT_VSCODE_SETTINGS.inlineDiagnosticsEnabledKey
+  )),
+  inlineDecorationsEnabledKey: String(readContract(
+    ['settings', 'vscode', 'inlineDecorationsEnabledKey'],
+    DEFAULT_VSCODE_SETTINGS.inlineDecorationsEnabledKey
+  )),
+  inlineMaxItemsKey: String(readContract(
+    ['settings', 'vscode', 'inlineMaxItemsKey'],
+    DEFAULT_VSCODE_SETTINGS.inlineMaxItemsKey
+  ))
 });
 
 const CLI_DEFAULT_COMMAND = String(readContract(
@@ -132,6 +148,9 @@ const NAVIGATION_RESULT_LIMIT = 25;
 const DOCUMENT_SYMBOL_LIMIT = 200;
 const COMPLETION_RESULT_LIMIT = 40;
 const MIN_COMPLETION_QUERY_LENGTH = 2;
+const INLINE_SIGNAL_TIMEOUT_MS = 4000;
+const INLINE_SIGNAL_CACHE_TTL_MS = 30 * 1000;
+const DEFAULT_INLINE_MAX_ITEMS = 3;
 
 const REPO_MARKERS_RAW = readContract(['repoRoot', 'markers'], DEFAULT_EDITOR_CONFIG_CONTRACT.repoRoot.markers);
 const REPO_MARKERS = Array.isArray(REPO_MARKERS_RAW)
@@ -176,6 +195,8 @@ const WORKFLOW_TRANSPORTS = Object.freeze({
 });
 const apiCapabilityCache = new Map();
 const navigationDegradationNotes = new Set();
+const inlineSignalCache = new Map();
+const inlineSignalDegradationNotes = new Set();
 
 /**
  * Normalize settings values that are expected to be arrays of strings.
@@ -221,6 +242,22 @@ function readApiSettings(config) {
   const rawMode = String(config.get(VSCODE_SETTINGS.apiExecutionModeKey) || 'cli').trim().toLowerCase();
   const mode = VALID_API_EXECUTION_MODES.has(rawMode) ? rawMode : 'cli';
   return { baseUrl, timeoutMs, mode };
+}
+
+function readInlineSettings(config) {
+  const inlineHoverEnabled = config.get(VSCODE_SETTINGS.inlineHoverEnabledKey) !== false;
+  const inlineDiagnosticsEnabled = config.get(VSCODE_SETTINGS.inlineDiagnosticsEnabledKey) !== false;
+  const inlineDecorationsEnabled = config.get(VSCODE_SETTINGS.inlineDecorationsEnabledKey) !== false;
+  const rawMaxItems = Number(config.get(VSCODE_SETTINGS.inlineMaxItemsKey));
+  const maxItems = Number.isFinite(rawMaxItems) && rawMaxItems > 0
+    ? Math.max(1, Math.floor(rawMaxItems))
+    : DEFAULT_INLINE_MAX_ITEMS;
+  return {
+    inlineHoverEnabled,
+    inlineDiagnosticsEnabled,
+    inlineDecorationsEnabled,
+    maxItems
+  };
 }
 
 function buildApiHeaders(config) {
@@ -1679,6 +1716,186 @@ function noteNavigationDegraded(key, message, detail = null) {
   if (detail) output.appendLine(detail);
 }
 
+function noteInlineSignalDegraded(key, message, detail = null) {
+  if (!key || inlineSignalDegradationNotes.has(key)) return;
+  inlineSignalDegradationNotes.add(key);
+  const output = getOutputChannel();
+  output.appendLine(`[inline] ${message}`);
+  if (detail) output.appendLine(detail);
+}
+
+function createFallbackLineRange(line = 0) {
+  const safeLine = Math.max(0, Number.isFinite(line) ? Number(line) : 0);
+  return new vscode.Range(
+    new vscode.Position(safeLine, 0),
+    new vscode.Position(safeLine, 0)
+  );
+}
+
+function buildInlineFileSeed(document, repoContext) {
+  const filePath = getDocumentFilePath(document);
+  if (!filePath || !repoContext?.repoRoot) return '';
+  const relative = path.relative(repoContext.repoRoot, filePath);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return '';
+  return `file:${toPosixPath(relative)}`;
+}
+
+function buildInlineSeed(document, position, repoContext) {
+  const query = getWordQueryAtPosition(document, position);
+  if (query) return `symbol:${query}`;
+  return buildInlineFileSeed(document, repoContext);
+}
+
+function createInlineCacheKey(repoRoot, seed) {
+  return `${repoRoot}::${seed}`;
+}
+
+function getCachedInlineSignalPayload(repoRoot, seed) {
+  const key = createInlineCacheKey(repoRoot, seed);
+  const cached = inlineSignalCache.get(key);
+  if (!cached) return null;
+  if ((Date.now() - cached.timestamp) > INLINE_SIGNAL_CACHE_TTL_MS) {
+    inlineSignalCache.delete(key);
+    return null;
+  }
+  return cached.payload;
+}
+
+function setCachedInlineSignalPayload(repoRoot, seed, payload) {
+  inlineSignalCache.set(createInlineCacheKey(repoRoot, seed), {
+    timestamp: Date.now(),
+    payload
+  });
+}
+
+function countInlineWarnings(payload) {
+  return Array.isArray(payload?.warnings) ? payload.warnings.length : 0;
+}
+
+function countInlineTruncation(payload) {
+  return Array.isArray(payload?.truncation) ? payload.truncation.length : 0;
+}
+
+function countInlineRiskFlows(payload) {
+  return Array.isArray(payload?.risk?.flows) ? payload.risk.flows.length : 0;
+}
+
+function collectInlineTypeFacts(payload) {
+  return Array.isArray(payload?.types?.facts) ? payload.types.facts : [];
+}
+
+function hasInlineSignals(payload) {
+  return countInlineRiskFlows(payload) > 0
+    || collectInlineTypeFacts(payload).length > 0
+    || countInlineWarnings(payload) > 0
+    || countInlineTruncation(payload) > 0;
+}
+
+function buildInlineSignalSummary(payload) {
+  const parts = [];
+  const riskFlows = countInlineRiskFlows(payload);
+  const warnings = countInlineWarnings(payload);
+  const truncation = countInlineTruncation(payload);
+  const typeFacts = collectInlineTypeFacts(payload).length;
+  if (riskFlows > 0) parts.push(`${riskFlows} risk flow${riskFlows === 1 ? '' : 's'}`);
+  if (typeFacts > 0) parts.push(`${typeFacts} type fact${typeFacts === 1 ? '' : 's'}`);
+  if (warnings > 0) parts.push(`${warnings} warning${warnings === 1 ? '' : 's'}`);
+  if (truncation > 0) parts.push(`${truncation} truncation${truncation === 1 ? '' : 's'}`);
+  return parts.join(', ');
+}
+
+function buildInlineHoverMarkdown(payload, { seed, maxItems }) {
+  const lines = [
+    '### PairOfCleats inline context',
+    `- seed: \`${seed}\``
+  ];
+  const riskStatus = String(payload?.risk?.analysisStatus?.code || payload?.risk?.status || '').trim();
+  if (riskStatus) {
+    lines.push(`- risk status: \`${riskStatus}\``);
+  }
+  const summary = buildInlineSignalSummary(payload);
+  if (summary) {
+    lines.push(`- summary: ${summary}`);
+  }
+  const flows = Array.isArray(payload?.risk?.flows) ? payload.risk.flows.slice(0, maxItems) : [];
+  if (flows.length) {
+    lines.push('');
+    lines.push('**Risk flows**');
+    for (const flow of flows) {
+      const confidence = Number.isFinite(Number(flow?.confidence)) ? ` (${Number(flow.confidence).toFixed(2)})` : '';
+      lines.push(`- \`${String(flow?.flowId || 'unknown')}\`${confidence}`);
+    }
+  }
+  const typeFacts = collectInlineTypeFacts(payload).slice(0, maxItems);
+  if (typeFacts.length) {
+    lines.push('');
+    lines.push('**Type facts**');
+    for (const fact of typeFacts) {
+      lines.push(`- ${String(fact?.role || 'type')}: \`${String(fact?.type || 'unknown')}\``);
+    }
+  }
+  const warnings = Array.isArray(payload?.warnings) ? payload.warnings.slice(0, maxItems) : [];
+  if (warnings.length) {
+    lines.push('');
+    lines.push('**Warnings**');
+    for (const warning of warnings) {
+      lines.push(`- ${String(warning?.code || 'WARN')}: ${String(warning?.message || 'warning')}`);
+    }
+  }
+  const truncation = Array.isArray(payload?.truncation) ? payload.truncation.slice(0, maxItems) : [];
+  if (truncation.length) {
+    lines.push('');
+    lines.push('**Truncation**');
+    for (const entry of truncation) {
+      lines.push(`- ${String(entry?.cap || 'cap')}: limit=${entry?.limit ?? 'n/a'} observed=${entry?.observed ?? 'n/a'}`);
+    }
+  }
+  const markdown = new vscode.MarkdownString(lines.join('\n'));
+  markdown.isTrusted = false;
+  return markdown;
+}
+
+function createInlineDiagnostic(document, payload) {
+  const summary = buildInlineSignalSummary(payload);
+  if (!summary) return null;
+  const severity = countInlineRiskFlows(payload) > 0 || countInlineWarnings(payload) > 0
+    ? vscode.DiagnosticSeverity.Warning
+    : vscode.DiagnosticSeverity.Information;
+  const diagnostic = new vscode.Diagnostic(
+    createFallbackLineRange(0),
+    `PairOfCleats inline signal: ${summary}`,
+    severity
+  );
+  diagnostic.source = 'PairOfCleats';
+  return diagnostic;
+}
+
+function clearInlineDecorations(editor = null) {
+  if (editor?.setDecorations && inlineRiskDecorationType) {
+    editor.setDecorations(inlineRiskDecorationType, []);
+  }
+  if (inlineRiskDecorationType?.dispose) {
+    inlineRiskDecorationType.dispose();
+  }
+  inlineRiskDecorationType = null;
+}
+
+function applyInlineDecorations(editor, payload) {
+  if (!editor?.setDecorations || typeof vscode.window?.createTextEditorDecorationType !== 'function') return;
+  const summary = buildInlineSignalSummary(payload);
+  clearInlineDecorations(editor);
+  if (!summary) return;
+  inlineRiskDecorationType = vscode.window.createTextEditorDecorationType({
+    isWholeLine: true,
+    after: {
+      contentText: ` PairOfCleats: ${summary}`,
+      color: 'rgba(120, 120, 120, 0.9)',
+      margin: '0 0 0 1rem'
+    }
+  });
+  editor.setDecorations(inlineRiskDecorationType, [createFallbackLineRange(0)]);
+}
+
 function createRangeFromNavigationEntry(entry) {
   if (!Number.isFinite(entry?.startLine) || entry.startLine <= 0) return null;
   const startLine = Math.max(0, Number(entry.startLine) - 1);
@@ -1874,6 +2091,114 @@ async function runNavigationCommand({
   return Array.isArray(result.payload?.results) ? result.payload.results : [];
 }
 
+async function runInlineContextCommand({
+  repoContext,
+  seed
+}) {
+  if (!repoContext?.repoRoot || !seed) return null;
+  const cached = getCachedInlineSignalPayload(repoContext.repoRoot, seed);
+  if (cached) return cached;
+  const config = getExtensionConfiguration();
+  const apiSettings = readApiSettings(config);
+  if (apiSettings.mode === 'require') {
+    noteInlineSignalDegraded(
+      'api-require',
+      'Inline PairOfCleats signals are unavailable when pairofcleats.apiExecutionMode=require.',
+      'Inline hover, diagnostics, and decorations currently use the local CLI context-pack backend.'
+    );
+    return null;
+  }
+  const cliResolution = resolveCli(repoContext.repoRoot, config);
+  if (!cliResolution.ok) {
+    noteInlineSignalDegraded('cli-invalid', cliResolution.message, cliResolution.detail || null);
+    return null;
+  }
+  const { command, argsPrefix } = cliResolution;
+  const args = [
+    ...argsPrefix,
+    'context-pack',
+    '--json',
+    '--repo',
+    repoContext.repoRoot,
+    '--seed',
+    seed,
+    '--hops',
+    '0',
+    '--includeRisk',
+    '--includeTypes'
+  ];
+  const env = buildSpawnEnv(config);
+  const useShellWrapper = process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
+  const invocation = useShellWrapper
+    ? resolveWindowsCmdInvocation(command, args)
+    : { command, args };
+  const spawned = spawnBufferedProcess(cp, invocation.command, invocation.args, {
+    cwd: repoContext.repoRoot,
+    env: invocation.env ? { ...env, ...invocation.env } : env,
+    shell: false,
+    windowsHide: true
+  });
+  if (!spawned.ok) {
+    noteInlineSignalDegraded('spawn-error', summarizeSpawnFailure('PairOfCleats inline context', spawned.error).message);
+    return null;
+  }
+  const child = spawned.child;
+  const stdoutAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
+  const stderrAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
+  const result = await new Promise((resolve) => {
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      try {
+        child.kill('SIGKILL');
+      } catch {}
+    }, INLINE_SIGNAL_TIMEOUT_MS);
+    timeout.unref?.();
+    child.stdout?.on('data', (chunk) => stdoutAccumulator.push(chunk));
+    child.stderr?.on('data', (chunk) => stderrAccumulator.push(chunk));
+    child.once('error', (error) => {
+      clearTimeout(timeout);
+      resolve({ ok: false, ...summarizeSpawnFailure('PairOfCleats inline context', error) });
+    });
+    child.once('close', (code) => {
+      clearTimeout(timeout);
+      const stdout = stdoutAccumulator.text();
+      const stderr = stderrAccumulator.text();
+      const processFailure = summarizeProcessFailure({
+        code,
+        timedOut,
+        cancelled: false,
+        stderr,
+        stdout,
+        stdoutTruncated: stdoutAccumulator.truncated(),
+        stderrTruncated: stderrAccumulator.truncated(),
+        timeoutMs: INLINE_SIGNAL_TIMEOUT_MS
+      });
+      if (processFailure) {
+        resolve({ ok: false, ...processFailure });
+        return;
+      }
+      const parsed = parseJsonPayload(stdout, {
+        stdoutTruncated: stdoutAccumulator.truncated(),
+        label: 'PairOfCleats inline context'
+      });
+      if (!parsed.ok) {
+        resolve({ ok: false, kind: parsed.kind, message: parsed.message, detail: parsed.detail || stderr || null });
+        return;
+      }
+      resolve({ ok: true, payload: parsed.payload });
+    });
+  });
+  if (!result.ok || !result.payload || !hasInlineSignals(result.payload)) {
+    if (!result.ok) {
+      noteInlineSignalDegraded(`inline-${result.kind || 'failed'}`, result.message || 'PairOfCleats inline context failed.', result.detail || null);
+    }
+    return null;
+  }
+  setCachedInlineSignalPayload(repoContext.repoRoot, seed, result.payload);
+  return result.payload;
+}
+
 async function provideDefinitionsAtPosition(document, position) {
   const query = getWordQueryAtPosition(document, position);
   if (!query) return [];
@@ -1931,6 +2256,84 @@ async function provideCompletionItemsAtPosition(document, position) {
     limit: COMPLETION_RESULT_LIMIT
   });
   return rows.map((entry) => createCompletionItem(entry)).filter(Boolean);
+}
+
+async function provideInlineHoverAtPosition(document, position) {
+  const config = getExtensionConfiguration();
+  const inlineSettings = readInlineSettings(config);
+  if (!inlineSettings.inlineHoverEnabled) return null;
+  const repoContext = await resolveRepoContext({ pathHint: document?.uri || null, allowPrompt: false });
+  if (!repoContext.ok) return null;
+  const seed = buildInlineSeed(document, position, repoContext);
+  if (!seed) return null;
+  const payload = await runInlineContextCommand({
+    repoContext,
+    seed
+  });
+  if (!payload) return null;
+  const range = typeof document?.getWordRangeAtPosition === 'function'
+    ? (document.getWordRangeAtPosition(position) || createFallbackLineRange(position?.line || 0))
+    : createFallbackLineRange(position?.line || 0);
+  return new vscode.Hover(
+    buildInlineHoverMarkdown(payload, {
+      seed,
+      maxItems: inlineSettings.maxItems
+    }),
+    range
+  );
+}
+
+async function refreshInlineSignalsForEditor(editor = null) {
+  const targetEditor = editor || vscode.window.activeTextEditor || null;
+  const config = getExtensionConfiguration();
+  const inlineSettings = readInlineSettings(config);
+  const targetDocument = targetEditor?.document || null;
+  if (!targetDocument || targetDocument?.uri?.scheme !== 'file') {
+    inlineRiskDiagnostics?.clear?.();
+    clearInlineDecorations(targetEditor);
+    return;
+  }
+  if (!inlineSettings.inlineDiagnosticsEnabled && !inlineSettings.inlineDecorationsEnabled) {
+    inlineRiskDiagnostics?.clear?.();
+    clearInlineDecorations(targetEditor);
+    return;
+  }
+  const repoContext = await resolveRepoContext({ pathHint: targetDocument.uri, allowPrompt: false });
+  if (!repoContext.ok) {
+    inlineRiskDiagnostics?.clear?.();
+    clearInlineDecorations(targetEditor);
+    return;
+  }
+  const seed = buildInlineFileSeed(targetDocument, repoContext);
+  if (!seed) {
+    inlineRiskDiagnostics?.clear?.();
+    clearInlineDecorations(targetEditor);
+    return;
+  }
+  const payload = await runInlineContextCommand({
+    repoContext,
+    seed
+  });
+  if (!payload) {
+    inlineRiskDiagnostics?.set?.(targetDocument.uri, []);
+    clearInlineDecorations(targetEditor);
+    return;
+  }
+  if (inlineSettings.inlineDiagnosticsEnabled) {
+    const diagnostic = createInlineDiagnostic(targetDocument, payload);
+    inlineRiskDiagnostics?.set?.(targetDocument.uri, diagnostic ? [diagnostic] : []);
+  } else {
+    inlineRiskDiagnostics?.set?.(targetDocument.uri, []);
+  }
+  if (inlineSettings.inlineDecorationsEnabled) {
+    applyInlineDecorations(targetEditor, payload);
+  } else {
+    clearInlineDecorations(targetEditor);
+  }
+}
+
+async function refreshInlineSignalsForActiveEditor() {
+  return await refreshInlineSignalsForEditor(vscode.window.activeTextEditor || null);
 }
 
 function looksLikeSeedRef(value) {
@@ -4144,6 +4547,12 @@ function activate(context) {
   activeSearchResultId = String(readWorkspaceState('pairofcleats.searchResults.active', '') || '').trim() || (searchHistory[0]?.resultSetId || null);
   searchGroupMode = readSearchGroupMode();
   ensureResultsExplorer();
+  inlineRiskDiagnostics = typeof vscode.languages?.createDiagnosticCollection === 'function'
+    ? vscode.languages.createDiagnosticCollection('pairofcleats-inline-risk')
+    : null;
+  if (inlineRiskDiagnostics) {
+    context.subscriptions.push(inlineRiskDiagnostics);
+  }
   workflowStatusBar = typeof vscode.window.createStatusBarItem === 'function'
     ? vscode.window.createStatusBarItem(vscode.StatusBarAlignment?.Left ?? 0, 100)
     : null;
@@ -4218,6 +4627,9 @@ function activate(context) {
       { provideCompletionItems: provideCompletionItemsAtPosition }
     )
     : null;
+  const hoverProvider = typeof vscode.languages?.registerHoverProvider === 'function'
+    ? vscode.languages.registerHoverProvider({ scheme: 'file' }, { provideHover: provideInlineHoverAtPosition })
+    : null;
   context.subscriptions.push(
     workflowStatusCommand,
     rerunLastWorkflowCommand,
@@ -4236,6 +4648,7 @@ function activate(context) {
   if (referenceProvider) context.subscriptions.push(referenceProvider);
   if (documentSymbolProvider) context.subscriptions.push(documentSymbolProvider);
   if (completionProvider) context.subscriptions.push(completionProvider);
+  if (hoverProvider) context.subscriptions.push(hoverProvider);
   for (const spec of OPERATOR_COMMAND_SPECS) {
     const command = vscode.commands.registerCommand(spec.id, () => runOperatorCommand(spec));
     context.subscriptions.push(command);
@@ -4243,15 +4656,18 @@ function activate(context) {
   if (typeof vscode.window.onDidChangeActiveTextEditor === 'function') {
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(() => {
       updateWorkflowStatusBar();
+      void refreshInlineSignalsForActiveEditor();
     }));
   }
   if (typeof vscode.workspace.onDidChangeWorkspaceFolders === 'function') {
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
       updateWorkflowStatusBar();
+      void refreshInlineSignalsForActiveEditor();
     }));
   }
   void restoreWorkflowSessions();
   refreshResultsExplorer();
+  void refreshInlineSignalsForActiveEditor();
 }
 
 /**
@@ -4264,6 +4680,8 @@ function deactivate() {
     killChildProcess(entry.child);
   }
   managedProcesses.clear();
+  inlineRiskDiagnostics?.clear?.();
+  clearInlineDecorations(vscode.window.activeTextEditor || null);
 }
 
 let outputChannel = null;
@@ -4277,6 +4695,8 @@ let searchGroupMode = 'section';
 let resultsTreeProvider = null;
 let resultsTreeView = null;
 let managedProcesses = new Map();
+let inlineRiskDiagnostics = null;
+let inlineRiskDecorationType = null;
 
 function getOutputChannel() {
   if (!outputChannel) {
@@ -4312,6 +4732,8 @@ module.exports = {
     provideReferencesAtPosition,
     provideDocumentSymbolsForDocument,
     provideCompletionItemsAtPosition,
+    provideInlineHoverAtPosition,
+    refreshInlineSignalsForActiveEditor,
     selectRepo,
     clearSelectedRepo,
     showWorkflowStatus,

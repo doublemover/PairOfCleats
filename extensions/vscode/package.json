@@ -33,6 +33,7 @@
     }
   },
   "activationEvents": [
+    "onStartupFinished",
     "onCommand:pairofcleats.search",
     "onCommand:pairofcleats.searchSelection",
     "onCommand:pairofcleats.searchSymbolUnderCursor",
@@ -607,6 +608,27 @@
           "items": {
             "type": "string"
           }
+        },
+        "pairofcleats.inlineHoverEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable bounded PairOfCleats hover content for inline risk and context signals."
+        },
+        "pairofcleats.inlineDiagnosticsEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable lightweight PairOfCleats diagnostics for the active file when inline risk signals are available."
+        },
+        "pairofcleats.inlineDecorationsEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable lightweight PairOfCleats inline decorations for the active file when inline risk signals are available."
+        },
+        "pairofcleats.inlineMaxItems": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "description": "Maximum number of risk, type, warning, or truncation items shown in inline PairOfCleats signals."
         }
       }
     },

@@ -44,7 +44,11 @@
       "modifiedSinceKey": "searchModifiedSince",
       "churnKey": "searchChurn",
       "caseSensitiveKey": "searchCaseSensitive",
-      "envKey": "env"
+      "envKey": "env",
+      "inlineHoverEnabledKey": "inlineHoverEnabled",
+      "inlineDiagnosticsEnabledKey": "inlineDiagnosticsEnabled",
+      "inlineDecorationsEnabledKey": "inlineDecorationsEnabled",
+      "inlineMaxItemsKey": "inlineMaxItems"
     },
     "sublime": {
       "cliPathKey": "pairofcleats_path",

@@ -245,7 +245,11 @@ const keyMap = {
   churnKey: 'pairofcleats',
   caseSensitiveKey: 'pairofcleats',
   envKey: 'pairofcleats',
-  extraSearchArgsKey: 'pairofcleats'
+  extraSearchArgsKey: 'pairofcleats',
+  inlineHoverEnabledKey: 'pairofcleats',
+  inlineDiagnosticsEnabledKey: 'pairofcleats',
+  inlineDecorationsEnabledKey: 'pairofcleats',
+  inlineMaxItemsKey: 'pairofcleats'
 };
 
 const expectedSettings = Object.entries(keyMap)
