@@ -16,7 +16,7 @@ export function resolveQueueAdmissionPolicy({
   const normalizedQueueName = typeof queueName === 'string' && queueName.trim()
     ? queueName.trim()
     : 'index';
-  const isEmbeddings = normalizedQueueName === 'embeddings';
+  const isEmbeddings = normalizedQueueName === 'embeddings' || normalizedQueueName.startsWith('embeddings-');
   const workerConcurrency = toNonNegativeIntOrNull(workerConfig?.concurrency) || 1;
   const maxQueued = toNonNegativeIntOrNull(queueConfig?.maxQueued);
   const maxRunning = toNonNegativeIntOrNull(queueConfig?.maxRunning) ?? workerConcurrency;
@@ -38,7 +38,11 @@ export function resolveQueueJobCost(job = {}, queueName = null) {
   const normalizedQueueName = typeof queueName === 'string' && queueName.trim()
     ? queueName.trim()
     : (job?.queueName || 'index');
-  if (normalizedQueueName === 'embeddings' || job?.reason === 'embeddings') {
+  if (
+    normalizedQueueName === 'embeddings'
+    || normalizedQueueName.startsWith('embeddings-')
+    || job?.reason === 'embeddings'
+  ) {
     return DEFAULT_EMBEDDING_JOB_COST;
   }
   if (job?.stage === 'stage3') return 3;

@@ -43,4 +43,16 @@ const block = resolveEnqueueBackpressure({
 assert.equal(block?.code, 'QUEUE_BACKPRESSURE_MAX_TOTAL', 'expected projected active limit to reject the enqueue');
 assert.equal(block?.reason, 'max_total', 'expected explicit rejection reason code');
 
+const embeddingsPolicy = resolveQueueAdmissionPolicy({
+  queueName: 'embeddings-stage3',
+  queueConfig: {
+    maxQueued: 3
+  },
+  workerConfig: {
+    concurrency: 2
+  }
+});
+assert.equal(embeddingsPolicy.queueClass, 'embeddings', 'expected embeddings-* queues to retain embeddings policy class');
+assert.equal(embeddingsPolicy.maxTotal, 5, 'expected embeddings queue defaults to diverge from index totals');
+
 console.log('service queue admission policy test passed');

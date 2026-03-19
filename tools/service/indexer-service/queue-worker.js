@@ -31,6 +31,7 @@ const DEFAULT_SHUTDOWN_STATE = Object.freeze({
  *   buildDefaultRunResult:()=>{exitCode:number,executionMode:string,daemon:object|null,cancelled:boolean,shutdownMode:string|null},
  *   printPayload:(payload:object)=>void,
  *   summarizeBackpressure?:()=>Promise<object|null>,
+ *   describeOperationalEnvelope?:()=>Promise<object|null>,
  *   queueSummary?:()=>Promise<{queued:number,running:number,total:number,done:number,failed:number,retries:number}>,
  *   loadShutdownState?:()=>Promise<{mode:string,accepting:boolean,stopClaiming:boolean,forceAbort:boolean,deadlineAt:string|null}>,
  *   requestShutdownState?:(input:{mode:string,timeoutMs?:number|null,requestedBy?:string,source?:string})=>Promise<object|null>,
@@ -61,6 +62,7 @@ export const createQueueWorker = ({
   buildDefaultRunResult,
   printPayload,
   summarizeBackpressure = async () => null,
+  describeOperationalEnvelope = async () => null,
   queueSummary = async () => ({ total: 0, queued: 0, running: 0, done: 0, failed: 0, retries: 0 }),
   loadShutdownState = async () => DEFAULT_SHUTDOWN_STATE,
   requestShutdownState = async () => DEFAULT_SHUTDOWN_STATE,
@@ -305,10 +307,12 @@ export const createQueueWorker = ({
     await Promise.all(workers);
     if (metrics.processed) {
       const backpressure = await summarizeBackpressure();
+      const envelope = await describeOperationalEnvelope();
       printPayload({
         ok: true,
         queue: resolvedQueueName,
         metrics,
+        ...(envelope ? { envelope } : {}),
         ...(backpressure ? { backpressure } : {}),
         at: new Date().toISOString()
       });

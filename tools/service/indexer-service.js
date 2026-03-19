@@ -41,6 +41,7 @@ import { createQueueWorker } from './indexer-service/queue-worker.js';
 import { resolveQueueLeasePolicy } from './lease-policy.js';
 import { resolveQueueAdmissionPolicy } from './admission-policy.js';
 import { resolveQueueRetentionPolicy } from './retention-policy.js';
+import { resolveQueueOperationalEnvelope } from './operational-envelope.js';
 import {
   completeServiceShutdown,
   loadServiceShutdownState,
@@ -91,6 +92,11 @@ const daemonWorkerConfig = config.worker?.daemon && typeof config.worker.daemon 
 const queueMaxRetries = Number.isFinite(queueConfig.maxRetries) ? queueConfig.maxRetries : null;
 const staleQueueMaxRetries = Number.isFinite(queueConfig.maxRetries) ? queueConfig.maxRetries : 2;
 const queueAdmissionPolicy = resolveQueueAdmissionPolicy({
+  queueName: resolvedQueueName || queueName,
+  queueConfig,
+  workerConfig
+});
+const queueOperationalEnvelope = resolveQueueOperationalEnvelope({
   queueName: resolvedQueueName || queueName,
   queueConfig,
   workerConfig
@@ -395,7 +401,15 @@ const handleStatus = async () => {
     admissionPolicy: queueAdmissionPolicy
   });
   const shutdown = await loadServiceShutdownState(queueDir, resolvedQueueName);
-  printPayload({ ok: true, queue: summary, quarantine, backpressure, shutdown, name: resolvedQueueName });
+  printPayload({
+    ok: true,
+    queue: summary,
+    quarantine,
+    backpressure,
+    envelope: queueOperationalEnvelope,
+    shutdown,
+    name: resolvedQueueName
+  });
 };
 
 const requireJobArg = (action) => {
@@ -507,6 +521,7 @@ const handleSmoke = async () => {
     queueName: resolvedQueueName,
     queueSummary: summary,
     queueBackpressure: backpressure,
+    envelope: queueOperationalEnvelope,
     shutdown: await loadServiceShutdownState(queueDir, resolvedQueueName),
     requiredEnv: ['PAIROFCLEATS_CACHE_ROOT'],
     securityDefaults: {
@@ -553,6 +568,7 @@ const queueWorker = createQueueWorker({
   summarizeBackpressure: async () => await describeQueueBackpressure(queueDir, resolvedQueueName, {
     admissionPolicy: queueAdmissionPolicy
   }),
+  describeOperationalEnvelope: async () => queueOperationalEnvelope,
   queueSummary: async () => await queueSummary(queueDir, resolvedQueueName),
   loadShutdownState: async () => await loadServiceShutdownState(queueDir, resolvedQueueName),
   requestShutdownState: async (input) => await requestServiceShutdown(queueDir, resolvedQueueName, input),
