@@ -12,12 +12,14 @@ import {
 import {
   buildRiskExplanationPresentationFromStandalone
 } from '../../src/retrieval/output/risk-explain.js';
+import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import {
   filterRiskFlows,
   filterRiskPartialFlows,
   normalizeRiskFilters,
   validateRiskFilters
 } from '../../src/shared/risk-filters.js';
+import { emitCliError, emitCliOutput, resolveFormat } from '../../src/integrations/tooling/cli-helpers.js';
 
 const RISK_EXPLAIN_OPTIONS = Object.freeze({
   index: { type: 'string' },
@@ -34,6 +36,7 @@ const RISK_EXPLAIN_OPTIONS = Object.freeze({
   'flow-id': { type: 'string' },
   'source-rule': { type: 'string' },
   'sink-rule': { type: 'string' },
+  format: { type: 'string' },
   json: { type: 'boolean', default: false }
 });
 
@@ -48,6 +51,14 @@ const buildRiskExplainFilters = (argv) => normalizeRiskFilters({
   sourceRule: argv['source-rule'],
   sinkRule: argv['sink-rule']
 });
+
+const buildCliErrorDetails = (canonicalCode, reason = null) => {
+  const details = {
+    canonicalCode
+  };
+  if (reason) details.reason = reason;
+  return details;
+};
 
 export async function buildRiskExplainPayload({
   indexDir,
@@ -237,59 +248,93 @@ export async function runRiskExplainCli(rawArgs = process.argv.slice(2)) {
       'max-partial-flows': 'maxPartialFlows'
     }
   }).parse(rawArgs);
+  const format = resolveFormat(argv);
 
   const indexArg = argv.index ? String(argv.index) : '';
   const chunkArg = argv.chunk ? String(argv.chunk) : '';
   if (!indexArg || !chunkArg) {
-    console.error('Usage: pairofcleats risk explain --index <dir> --chunk <chunkUid> [--max N]');
-    return { ok: false, code: 'ERR_INVALID_REQUEST', message: 'Missing --index or --chunk.' };
+    if (format === 'md') {
+      console.error('Usage: pairofcleats risk explain --index <dir> --chunk <chunkUid> [--max N]');
+    }
+    return emitCliError({
+      format,
+      code: 'ERR_INVALID_REQUEST',
+      message: 'Missing --index or --chunk.',
+      details: buildCliErrorDetails(ERROR_CODES.INVALID_REQUEST, 'missing_required_arguments')
+    });
   }
 
   const indexDir = path.resolve(indexArg);
   if (!fs.existsSync(indexDir)) {
-    console.error(`Missing index directory: ${indexDir}`);
-    return { ok: false, code: 'ERR_INDEX_DIR_MISSING', message: `Missing index directory: ${indexDir}` };
+    const message = `Missing index directory: ${indexDir}`;
+    if (format === 'md') {
+      console.error(message);
+    }
+    return emitCliError({
+      format,
+      code: 'ERR_INDEX_DIR_MISSING',
+      message,
+      details: buildCliErrorDetails(ERROR_CODES.NO_INDEX, 'missing_index_dir')
+    });
   }
 
   const filters = buildRiskExplainFilters(argv);
   const filterValidation = validateRiskFilters(filters);
   if (!filterValidation.ok) {
-    console.error(`Invalid risk filters: ${filterValidation.errors.join('; ')}`);
-    return { ok: false, code: 'ERR_RISK_FILTERS_INVALID', message: `Invalid risk filters: ${filterValidation.errors.join('; ')}` };
+    const message = `Invalid risk filters: ${filterValidation.errors.join('; ')}`;
+    if (format === 'md') {
+      console.error(message);
+    }
+    return emitCliError({
+      format,
+      code: 'ERR_RISK_FILTERS_INVALID',
+      message,
+      details: buildCliErrorDetails(ERROR_CODES.INVALID_REQUEST, 'invalid_risk_filters')
+    });
   }
 
-  const output = await buildRiskExplainPayload({
-    indexDir,
-    chunkUid: chunkArg,
-    max: argv.max,
-    filters,
-    includePartialFlows: argv.includePartialFlows === true,
-    maxPartialFlows: argv.maxPartialFlows
-  });
-  const maxItems = Number.isFinite(argv.max) ? Math.max(1, Math.floor(argv.max)) : 20;
-  const maxPartialItems = Number.isFinite(argv.maxPartialFlows) ? Math.max(1, Math.floor(argv.maxPartialFlows)) : 20;
-  const presentation = buildRiskExplanationPresentationFromStandalone(output, {
-    surface: 'standalone',
-    maxFlows: maxItems,
-    maxEvidencePerFlow: maxItems,
-    maxPartialFlows: maxPartialItems
-  });
+  try {
+    const output = await buildRiskExplainPayload({
+      indexDir,
+      chunkUid: chunkArg,
+      max: argv.max,
+      filters,
+      includePartialFlows: argv.includePartialFlows === true,
+      maxPartialFlows: argv.maxPartialFlows
+    });
+    const maxItems = Number.isFinite(argv.max) ? Math.max(1, Math.floor(argv.max)) : 20;
+    const maxPartialItems = Number.isFinite(argv.maxPartialFlows) ? Math.max(1, Math.floor(argv.maxPartialFlows)) : 20;
+    const presentation = buildRiskExplanationPresentationFromStandalone(output, {
+      surface: 'standalone',
+      maxFlows: maxItems,
+      maxEvidencePerFlow: maxItems,
+      maxPartialFlows: maxPartialItems
+    });
 
-  if (argv.json) {
-    console.log(JSON.stringify({
-      ...output,
-      rendered: presentation.json
-    }, null, 2));
-    return { ok: true, payload: output };
+    if (format === 'md' && !output.flows.length && !output.partialFlows.length) {
+      console.log('No interprocedural flows found for this chunk.');
+      return { ok: true, payload: output };
+    }
+
+    return emitCliOutput({
+      format,
+      payload: output,
+      renderMarkdown: () => presentation.markdown,
+      renderJson: () => ({
+        ...output,
+        rendered: presentation.json
+      })
+    });
+  } catch (err) {
+    const message = err?.message || 'Failed to build risk explanation.';
+    const details = /Unknown chunkUid/i.test(message)
+      ? buildCliErrorDetails(ERROR_CODES.INVALID_REQUEST, 'unknown_chunk_uid')
+      : buildCliErrorDetails(ERROR_CODES.INTERNAL);
+    const code = /Unknown chunkUid/i.test(message)
+      ? 'ERR_INVALID_REQUEST'
+      : 'ERR_RISK_EXPLAIN';
+    return emitCliError({ format, code, message, details });
   }
-
-  if (!output.flows.length && !output.partialFlows.length) {
-    console.log('No interprocedural flows found for this chunk.');
-    return { ok: true, payload: output };
-  }
-
-  console.log(presentation.markdown);
-  return { ok: true, payload: output };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

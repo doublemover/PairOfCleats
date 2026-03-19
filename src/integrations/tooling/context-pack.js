@@ -9,6 +9,7 @@ import { emitCliError, emitCliOutput, mergeCaps, resolveFormat } from './cli-hel
 import { assembleCompositeContextPack, buildChunkIndex } from '../../context-pack/assemble.js';
 import { renderCompositeContextPack, renderCompositeContextPackJson } from '../../retrieval/output/composite-context-pack.js';
 import { validateCompositeContextPack } from '../../contracts/validators/analysis.js';
+import { ERROR_CODES } from '../../shared/error-codes.js';
 import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
 import { prepareGraphIndex, prepareGraphInputs } from './graph-helpers.js';
@@ -261,7 +262,13 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
     });
   } catch (err) {
     const message = err?.message || String(err);
-    return emitCliError({ format, code: err?.code || 'ERR_CONTEXT_PACK', message });
+    const details = err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID'
+      ? {
+        canonicalCode: ERROR_CODES.INVALID_REQUEST,
+        reason: 'invalid_risk_filters'
+      }
+      : null;
+    return emitCliError({ format, code: err?.code || 'ERR_CONTEXT_PACK', message, details });
   }
 }
 

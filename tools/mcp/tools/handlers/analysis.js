@@ -25,7 +25,9 @@ export async function runRiskExplain(args = {}, context = {}) {
   const filters = normalizeRiskFilters(args.filters || null);
   const validation = validateRiskFilters(filters);
   if (!validation.ok) {
-    throw createError(ERROR_CODES.INVALID_REQUEST, `Invalid risk filters: ${validation.errors.join('; ')}`);
+    throw createError(ERROR_CODES.INVALID_REQUEST, `Invalid risk filters: ${validation.errors.join('; ')}`, {
+      reason: 'invalid_risk_filters'
+    });
   }
   const observability = buildChildObservability(context.observability, {
     surface: 'analysis',
@@ -100,7 +102,11 @@ export async function runContextPack(args = {}, context = {}) {
     return attachObservability(result, observability);
   } catch (err) {
     if (err?.code === 'ERR_CONTEXT_PACK_INVALID_REQUEST' || err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID') {
-      throw createError(ERROR_CODES.INVALID_REQUEST, err.message);
+      throw createError(ERROR_CODES.INVALID_REQUEST, err.message, {
+        ...(err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID'
+          ? { reason: 'invalid_risk_filters' }
+          : {})
+      });
     }
     if (err?.code === 'ERR_CONTEXT_PACK_NO_INDEX') {
       throw createError(ERROR_CODES.NO_INDEX, err.message);

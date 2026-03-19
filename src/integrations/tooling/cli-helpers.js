@@ -94,11 +94,14 @@ export const emitCliOutput = ({ format, payload, renderMarkdown, renderJson = nu
 /**
  * Emit standardized CLI error payload in selected format.
  *
- * @param {{format:'md'|'json',code:string,message:string}} input
+ * @param {{format:'md'|'json',code:string,message:string,details?:object|null}} input
  * @returns {{ok:false,code:string,message:string}}
  */
-export const emitCliError = ({ format, code, message }) => {
+export const emitCliError = ({ format, code, message, details = null }) => {
   const errorPayload = { ok: false, code, message };
+  if (details && typeof details === 'object') {
+    Object.assign(errorPayload, details);
+  }
   if (format === 'json') {
     console.log(JSON.stringify(errorPayload, null, 2));
   } else {

@@ -41,7 +41,8 @@ export async function handleRiskExplainRoute({
   const filterValidation = validateRiskFilters(filters);
   if (!filterValidation.ok) {
     sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid risk filters.', {
-      errors: filterValidation.errors
+      errors: filterValidation.errors,
+      reason: 'invalid_risk_filters'
     }, corsHeaders || {});
     return true;
   }
@@ -135,10 +136,13 @@ export async function handleContextPackRoute({
       : err?.code === 'ERR_CONTEXT_PACK_NO_INDEX' ? 404
         : err?.code === 'ERR_CONTEXT_PACK_INVALID_REQUEST' || err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID' ? 400
           : 500;
+    const details = err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID'
+      ? { reason: 'invalid_risk_filters' }
+      : {};
     const code = status === 400 ? ERROR_CODES.INVALID_REQUEST
       : status === 404 ? ERROR_CODES.NO_INDEX
         : ERROR_CODES.INTERNAL;
-    sendError(res, status, code, message, {}, corsHeaders || {});
+    sendError(res, status, code, message, details, corsHeaders || {});
     return true;
   }
 }
