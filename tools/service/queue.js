@@ -31,16 +31,24 @@ const readJson = async (filePath, fallback) => {
 };
 
 const withLock = async (lockPath, worker) => {
-  const lock = await acquireFileLock({
-    lockPath,
-    waitMs: 5000,
-    pollMs: 100,
-    staleMs: DEFAULT_LOCK_STALE_MS,
-    metadata: { scope: 'service-queue' },
-    timeoutBehavior: 'throw',
-    timeoutMessage: 'Queue lock timeout.'
-  });
-  if (!lock) throw new Error('Queue lock timeout.');
+  let lock = null;
+  try {
+    lock = await acquireFileLock({
+      lockPath,
+      waitMs: 5000,
+      pollMs: 100,
+      staleMs: DEFAULT_LOCK_STALE_MS,
+      metadata: { scope: 'service-queue' },
+      timeoutBehavior: 'throw',
+      timeoutMessage: 'Queue lock timeout.'
+    });
+  } catch (error) {
+    if (/Queue lock timeout\./i.test(String(error?.message || error))) {
+      throw createQueueError('QUEUE_LOCK_TIMEOUT', 'Queue lock timeout.');
+    }
+    throw error;
+  }
+  if (!lock) throw createQueueError('QUEUE_LOCK_TIMEOUT', 'Queue lock timeout.');
   try {
     return await worker();
   } finally {
@@ -917,6 +925,7 @@ const resolveRetryDelayMs = (attempts) => {
 export async function requeueStaleJobs(dirPath, queueName = null, options = {}) {
   const { lockPath } = getQueuePaths(dirPath, queueName);
   return withLock(lockPath, async () => {
+    const { reportsDir } = await ensureJobDirs(dirPath);
     const queue = await loadQueue(dirPath, queueName);
     const quarantine = await loadQuarantine(dirPath, queueName);
     const now = Date.now();
@@ -932,6 +941,7 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
     let quarantined = 0;
     const quarantinedIds = new Set();
     const journalEntries = [];
+    const reportUpdates = [];
     for (const job of stale) {
       const attempts = Number.isFinite(job.attempts) ? job.attempts : 0;
       const maxRetries = Number.isFinite(job.maxRetries)
@@ -960,6 +970,11 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
           workerId: job?.lease?.lastOwner || null,
           at: nowIso
         }));
+        reportUpdates.push({
+          job,
+          nowIso,
+          quarantined: false
+        });
       } else {
         failed += 1;
         quarantined += 1;
@@ -995,6 +1010,11 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
           workerId: job?.lease?.lastOwner || null,
           at: nowIso
         }));
+        reportUpdates.push({
+          job,
+          nowIso,
+          quarantined: true
+        });
       }
       job.lastHeartbeatAt = null;
     }
@@ -1004,6 +1024,17 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
       await saveQuarantine(dirPath, quarantine, queueName);
     }
     await saveQueue(dirPath, queue, queueName);
+    for (const update of reportUpdates) {
+      const reportPath = update.job.reportPath || path.join(reportsDir, `${update.job.id}.json`);
+      try {
+        await atomicWriteJson(reportPath, {
+          updatedAt: update.nowIso,
+          status: update.job.status,
+          quarantined: update.quarantined,
+          job: update.job
+        }, { spaces: 2 });
+      } catch {}
+    }
     return { stale: stale.length, retried, failed, quarantined };
   });
 }
