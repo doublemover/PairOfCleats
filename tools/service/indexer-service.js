@@ -20,6 +20,7 @@ import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './
 import {
   compactQueueState,
   describeQueueBackpressure,
+  describeQueueMetrics,
   ensureQueueDir,
   enqueueJob,
   claimNextJob,
@@ -430,12 +431,17 @@ const handleStatus = async () => {
     admissionPolicy: queueAdmissionPolicy,
     sloPolicy: queueOperationalEnvelope.slo
   });
+  const metrics = await describeQueueMetrics(queueDir, resolvedQueueName, {
+    admissionPolicy: queueAdmissionPolicy,
+    sloPolicy: queueOperationalEnvelope.slo
+  });
   const shutdown = await loadServiceShutdownState(queueDir, resolvedQueueName);
   printPayload({
     ok: true,
     queue: summary,
     quarantine,
     backpressure,
+    metrics,
     envelope: queueOperationalEnvelope,
     shutdown,
     name: resolvedQueueName
@@ -608,6 +614,10 @@ const handleSmoke = async () => {
     admissionPolicy: queueAdmissionPolicy,
     sloPolicy: queueOperationalEnvelope.slo
   });
+  const metrics = await describeQueueMetrics(queueDir, resolvedQueueName, {
+    admissionPolicy: queueAdmissionPolicy,
+    sloPolicy: queueOperationalEnvelope.slo
+  });
   const canonicalCommand = `pairofcleats service indexer work --watch --config "${configPath}" --queue ${resolvedQueueName}`;
   const payload = {
     ok: true,
@@ -617,6 +627,7 @@ const handleSmoke = async () => {
     queueName: resolvedQueueName,
     queueSummary: summary,
     queueBackpressure: backpressure,
+    metrics,
     envelope: queueOperationalEnvelope,
     shutdown: await loadServiceShutdownState(queueDir, resolvedQueueName),
     requiredEnv: ['PAIROFCLEATS_CACHE_ROOT'],

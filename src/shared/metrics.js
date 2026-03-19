@@ -33,6 +33,32 @@ const TIMEOUTS = new Set(['tool', 'search', 'index', 'unknown']);
 const ANN_BACKENDS = new Set(['sqlite-vector', 'lancedb', 'hnsw', 'js', 'unknown']);
 const PUSHDOWN_STRATEGIES = new Set(['none', 'inline', 'temp-table', 'fallback', 'unknown']);
 const CANDIDATE_SIZE_BUCKETS = new Set(['none', '1-32', '33-256', '257-1024', '1025+', 'unknown']);
+const RISK_PACK_STATUSES = new Set([
+  'ok',
+  'capped',
+  'degraded',
+  'missing',
+  'timed_out',
+  'schema_invalid',
+  'summary_only',
+  'disabled',
+  'unknown'
+]);
+const RISK_CAPS = new Set([
+  'max_flows',
+  'max_steps_per_flow',
+  'max_partial_flows',
+  'max_call_sites_per_step',
+  'max_call_site_excerpt_bytes',
+  'max_call_site_excerpt_tokens',
+  'max_risk_bytes',
+  'max_risk_tokens',
+  'max_partial_bytes',
+  'max_partial_tokens',
+  'unknown'
+]);
+const RISK_SCOPES = new Set(['risk', 'unknown']);
+const RISK_FLOW_KINDS = new Set(['full', 'partial', 'unknown']);
 
 const normalizeStage = (value) => normalizeLabel(value, STAGES);
 const normalizeMode = (value) => normalizeLabel(value, MODES);
@@ -50,6 +76,19 @@ const normalizeTimeout = (value) => normalizeLabel(value, TIMEOUTS);
 const normalizeAnnBackend = (value) => normalizeLabel(value, ANN_BACKENDS);
 const normalizePushdownStrategy = (value) => normalizeLabel(value, PUSHDOWN_STRATEGIES);
 const normalizeCandidateSizeBucket = (value) => normalizeLabel(value, CANDIDATE_SIZE_BUCKETS);
+const normalizeRiskPackStatus = (value) => normalizeLabel(value, RISK_PACK_STATUSES);
+const normalizeRiskScope = (value) => normalizeLabel(value, RISK_SCOPES);
+const normalizeRiskFlowKind = (value) => normalizeLabel(value, RISK_FLOW_KINDS);
+const normalizeRiskCap = (value) => {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) return 'unknown';
+  const snakeCase = raw
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+  return normalizeLabel(snakeCase, RISK_CAPS);
+};
 const normalizeAnn = (value) => {
   if (value === true || value === 'on') return 'on';
   if (value === false || value === 'off') return 'off';
@@ -206,6 +245,24 @@ const ensureMetrics = () => {
       name: 'pairofcleats_ann_candidate_pushdown_total',
       help: 'ANN candidate pushdown strategy selection.',
       labelNames: ['backend', 'strategy', 'size_bucket'],
+      registers: [registry]
+    }),
+    riskPackCapsHit: new Counter({
+      name: 'pairofcleats_risk_pack_caps_hit_total',
+      help: 'Risk-pack cap-hit occurrences by status and cap.',
+      labelNames: ['status', 'cap'],
+      registers: [registry]
+    }),
+    riskPackDroppedFlows: new Counter({
+      name: 'pairofcleats_risk_pack_dropped_flows_total',
+      help: 'Risk-pack flows dropped by boundedness policy.',
+      labelNames: ['status', 'flow_kind'],
+      registers: [registry]
+    }),
+    riskPackTruncation: new Counter({
+      name: 'pairofcleats_risk_pack_truncation_total',
+      help: 'Risk-pack truncation occurrences by status, cap, and scope.',
+      labelNames: ['status', 'cap', 'scope'],
       registers: [registry]
     })
   };
@@ -434,6 +491,59 @@ export function incAnnCandidatePushdown({ backend, strategy, sizeBucket }) {
     strategy: normalizePushdownStrategy(strategy),
     size_bucket: normalizeCandidateSizeBucket(sizeBucket)
   });
+}
+
+/**
+ * Record risk-pack boundedness and truncation metrics.
+ * @param {{
+ *   status?:string,
+ *   capsHit?:string[],
+ *   truncation?:Array<{cap?:string,scope?:string,omitted?:number}>,
+ *   droppedFlows?:number,
+ *   droppedPartialFlows?:number
+ * }} input
+ */
+export function observeRiskPackMetrics({
+  status,
+  capsHit = [],
+  truncation = [],
+  droppedFlows = 0,
+  droppedPartialFlows = 0
+}) {
+  ensureMetrics();
+  const normalizedStatus = normalizeRiskPackStatus(status);
+  const uniqueCaps = new Set();
+  for (const cap of Array.isArray(capsHit) ? capsHit : []) {
+    uniqueCaps.add(normalizeRiskCap(cap));
+  }
+  for (const cap of uniqueCaps) {
+    metrics.riskPackCapsHit.inc({
+      status: normalizedStatus,
+      cap
+    });
+  }
+  const fullDropped = Number(droppedFlows);
+  if (Number.isFinite(fullDropped) && fullDropped > 0) {
+    metrics.riskPackDroppedFlows.inc({
+      status: normalizedStatus,
+      flow_kind: normalizeRiskFlowKind('full')
+    }, fullDropped);
+  }
+  const partialDropped = Number(droppedPartialFlows);
+  if (Number.isFinite(partialDropped) && partialDropped > 0) {
+    metrics.riskPackDroppedFlows.inc({
+      status: normalizedStatus,
+      flow_kind: normalizeRiskFlowKind('partial')
+    }, partialDropped);
+  }
+  for (const entry of Array.isArray(truncation) ? truncation : []) {
+    const amount = Number(entry?.omitted);
+    metrics.riskPackTruncation.inc({
+      status: normalizedStatus,
+      cap: normalizeRiskCap(entry?.cap),
+      scope: normalizeRiskScope(entry?.scope)
+    }, Number.isFinite(amount) && amount > 0 ? amount : 1);
+  }
 }
 
 /**

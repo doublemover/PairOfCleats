@@ -11,6 +11,7 @@ import {
   normalizeRiskSummary,
   summarizeRiskStats
 } from '../shared/risk-explain.js';
+import { observeRiskPackMetrics } from '../shared/metrics.js';
 import {
   filterRiskFlows,
   filterRiskPartialFlows,
@@ -1585,6 +1586,13 @@ const buildRiskSlice = ({
     statusCode = 'capped';
   }
   const strictFailure = statusCode !== 'ok';
+  observeRiskPackMetrics({
+    status: statusCode,
+    capsHit: riskCaps.hits,
+    truncation: riskTruncation,
+    droppedFlows: omittedFlows,
+    droppedPartialFlows: omittedPartialFlows
+  });
   return {
     version: 1,
     status,

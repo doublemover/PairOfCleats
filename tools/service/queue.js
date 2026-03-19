@@ -1550,6 +1550,84 @@ export async function describeQueueBackpressure(dirPath, queueName = null, optio
   };
 }
 
+const hasLeaseExpiryRetry = (job) => (
+  job?.status === 'queued'
+  && job?.transition?.reason === 'lease-expired-retry'
+);
+
+const hasLeaseExpiryQuarantine = (job) => (
+  job?.quarantine?.reason === 'lease-expired-fail'
+);
+
+export async function describeQueueMetrics(dirPath, queueName = null, options = {}) {
+  const queue = await loadQueue(dirPath, queueName);
+  const quarantine = await loadQuarantine(dirPath, queueName);
+  const policy = options.admissionPolicy && typeof options.admissionPolicy === 'object'
+    ? options.admissionPolicy
+    : resolveQueueAdmissionPolicy({
+      queueName: queueName || 'index',
+      queueConfig: options.queueConfig || {},
+      workerConfig: options.workerConfig || {}
+    });
+  const sloPolicy = options.sloPolicy && typeof options.sloPolicy === 'object'
+    ? options.sloPolicy
+    : resolveQueueSloPolicy({
+      queueName: queueName || 'index',
+      queueConfig: options.queueConfig || {},
+      workerConfig: options.workerConfig || {}
+    });
+  const backpressure = evaluateQueueBackpressure({
+    jobs: queue.jobs,
+    queueName: queueName || 'index',
+    policy,
+    sloPolicy
+  });
+  const activeJobs = queue.jobs.filter((job) => job?.status === 'queued' || job?.status === 'running');
+  const retriedActiveJobs = activeJobs.filter((job) => Number.isFinite(Number(job?.attempts)) && Number(job.attempts) > 0);
+  const leaseExpiryRetriedJobs = queue.jobs.filter(hasLeaseExpiryRetry).length;
+  const leaseExpiryQuarantinedJobs = quarantine.jobs.filter((job) => (
+    hasLeaseExpiryQuarantine(job) && (job?.quarantine?.state || 'quarantined') === 'quarantined'
+  )).length;
+  const leaseExpiryRetriedQuarantineRecords = quarantine.jobs.filter((job) => (
+    hasLeaseExpiryQuarantine(job) && job?.quarantine?.state === 'retried'
+  )).length;
+  return {
+    retryRate: {
+      value: backpressure.retryRate,
+      retriedActiveJobs: retriedActiveJobs.length,
+      activeJobs: activeJobs.length,
+      thresholds: sloPolicy.maxRetryRate
+    },
+    leaseExpiry: {
+      retriedJobs: leaseExpiryRetriedJobs,
+      quarantinedJobs: leaseExpiryQuarantinedJobs,
+      retriedQuarantineRecords: leaseExpiryRetriedQuarantineRecords,
+      totalRecords: leaseExpiryRetriedJobs + leaseExpiryQuarantinedJobs + leaseExpiryRetriedQuarantineRecords
+    },
+    queueAge: {
+      oldestQueuedMs: backpressure.oldestQueuedAgeMs,
+      oldestRunningMs: backpressure.oldestRunLatencyMs,
+      thresholds: {
+        queued: sloPolicy.maxQueueAgeMs,
+        running: sloPolicy.maxRunLatencyMs
+      }
+    },
+    saturation: {
+      state: backpressure.state,
+      reasons: backpressure.reasons,
+      ratio: backpressure.saturationRatio,
+      queued: backpressure.queued,
+      running: backpressure.running,
+      totalActive: backpressure.totalActive,
+      resourceUnitsInUse: backpressure.resourceUnitsInUse,
+      thresholds: backpressure.thresholds,
+      sloState: backpressure.slo?.state || 'healthy',
+      sloReasons: Array.isArray(backpressure.slo?.reasons) ? backpressure.slo.reasons : [],
+      sloThresholds: backpressure.slo?.thresholds || null
+    }
+  };
+}
+
 export async function queueSummary(dirPath, queueName = null) {
   const { queuePath } = getQueuePaths(dirPath, queueName);
   if (!fsSync.existsSync(queuePath)) {
