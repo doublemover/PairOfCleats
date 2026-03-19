@@ -7,6 +7,10 @@ import { killProcessTree as killPidTree } from '../../../src/shared/kill-tree.js
 import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
 import { createProgressLineDecoder } from '../../../src/shared/cli/progress-stream.js';
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
+import {
+  buildProgressTimeoutBudget,
+  evaluateProgressTimeout
+} from '../../../src/shared/indexing/progress-timeout-policy.js';
 import { exitLikeCommandResult } from '../../shared/cli-utils.js';
 import {
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
@@ -625,18 +629,54 @@ export const createProcessRunner = ({
     const spawnSignal = idleAbortController
       ? composeAbortSignals(spawnOptions.signal, idleAbortController.signal)
       : spawnOptions.signal;
+    const processStartedAtMs = Date.now();
     let lastActivityAtMs = Date.now();
     let lastActivitySource = 'spawn';
     let lastActivityText = label;
+    let lastHeartbeatAtMs = null;
+    let lastQueueMovementAtMs = null;
+    let lastByteProgressAtMs = null;
+    let lastQueueAgeMs = null;
+    let lastInFlight = null;
+    let lastProgressCurrent = 0;
+    let lastProgressTotal = 0;
     let idleWatchdog = null;
     let idleTimeoutTriggered = false;
     let idleWatchdogProbeInFlight = false;
+    let timeoutDecision = null;
 
     const markActivity = ({ source = 'output', text = '' } = {}) => {
       lastActivityAtMs = Date.now();
       lastActivitySource = String(source || 'output');
       lastActivityText = truncateForDisplay(text || label, 140) || label;
     };
+
+    const markByteProgress = ({ source = 'stream-bytes', text = '' } = {}) => {
+      lastByteProgressAtMs = Date.now();
+      markActivity({ source, text });
+    };
+
+    const markQueueMovement = ({ source = 'queue-movement', text = '' } = {}) => {
+      lastQueueMovementAtMs = Date.now();
+      markActivity({ source, text });
+    };
+
+    const buildIdleTimeoutDecision = () => evaluateProgressTimeout({
+      budget: buildProgressTimeoutBudget({
+        phase: 'bench-process-idle',
+        baseTimeoutMs: resolvedIdleTimeoutMs,
+        maxTimeoutMs: resolvedIdleTimeoutMs,
+        activeBatchCount: Math.max(0, Number(lastInFlight) || 0),
+        completedUnits: Math.max(0, Number(lastProgressCurrent) || 0),
+        totalUnits: Math.max(0, Number(lastProgressTotal) || 0),
+        elapsedMs: Math.max(0, Date.now() - processStartedAtMs)
+      }),
+      heartbeatAgeMs: Number.isFinite(lastHeartbeatAtMs) ? Math.max(0, Date.now() - lastHeartbeatAtMs) : null,
+      queueMovementAgeMs: Number.isFinite(lastQueueMovementAtMs) ? Math.max(0, Date.now() - lastQueueMovementAtMs) : null,
+      byteProgressAgeMs: Number.isFinite(lastByteProgressAtMs) ? Math.max(0, Date.now() - lastByteProgressAtMs) : null,
+      queueExpected: Number.isFinite(lastInFlight) || Number.isFinite(lastQueueAgeMs),
+      byteProgressExpected: true
+    });
 
     const cleanupIdleWatchdog = () => {
       if (idleWatchdog) {
@@ -670,7 +710,12 @@ export const createProcessRunner = ({
         } finally {
           idleWatchdogProbeInFlight = false;
         }
+        const decision = buildIdleTimeoutDecision();
+        if (!decision.timedOut) {
+          return;
+        }
         idleTimeoutTriggered = true;
+        timeoutDecision = decision;
         const error = new Error(
           `Bench subprocess idle timeout after ${resolvedIdleTimeoutMs}ms (last activity: ${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''}).`
         );
@@ -679,6 +724,7 @@ export const createProcessRunner = ({
         error.lastActivityAtMs = lastActivityAtMs;
         error.lastActivitySource = lastActivitySource;
         error.lastActivityText = lastActivityText;
+        error.timeoutDecision = decision;
         try {
           idleAbortController.abort(error);
         } catch {
@@ -923,6 +969,9 @@ export const createProcessRunner = ({
       const hasHeartbeatSignal = eventName.startsWith('task:')
         && (eventName === 'task:start' || eventName === 'task:progress' || eventName === 'task:end');
       if (hasHeartbeatSignal) {
+        lastHeartbeatAtMs = now;
+        lastProgressCurrent = Math.max(0, Number(event?.current) || 0);
+        lastProgressTotal = Math.max(lastProgressCurrent, Math.max(0, Number(event?.total) || 0));
         if (Number.isFinite(progressConfidenceStats.lastHeartbeatMs)) {
           const intervalMs = Math.max(0, now - progressConfidenceStats.lastHeartbeatMs);
           appendSample(heartbeatIntervalsMs, intervalMs);
@@ -938,11 +987,19 @@ export const createProcessRunner = ({
       if (Number.isFinite(queueAgeMs)) {
         appendSample(queueAgeSamplesMs, queueAgeMs);
         progressConfidenceStats.queueSamples = queueAgeSamplesMs.length;
+        if (queueAgeMs !== lastQueueAgeMs) {
+          lastQueueAgeMs = queueAgeMs;
+          markQueueMovement({ source: 'queue-age', text: `queueAgeMs=${Math.round(queueAgeMs)}` });
+        }
       }
       const inFlight = resolveInFlightCount({ message, event });
       if (Number.isFinite(inFlight)) {
         appendSample(inFlightSamples, inFlight);
         progressConfidenceStats.inFlightSamples = inFlightSamples.length;
+        if (inFlight !== lastInFlight) {
+          lastInFlight = inFlight;
+          markQueueMovement({ source: 'in-flight', text: `inFlight=${Math.round(inFlight)}` });
+        }
       }
 
       emitProgressConfidenceSample({
@@ -1117,8 +1174,18 @@ export const createProcessRunner = ({
         ...spawnOptions,
         signal: spawnSignal,
         onSpawn: (child) => setActiveChild(child, label),
-        onStdout: (chunk) => stdoutDecoder.push(chunk),
-        onStderr: (chunk) => stderrDecoder.push(chunk)
+        onStdout: (chunk) => {
+          if (chunk && String(chunk).length > 0) {
+            markByteProgress({ source: 'stdout-bytes', text: `stdout+${String(chunk).length}` });
+          }
+          stdoutDecoder.push(chunk);
+        },
+        onStderr: (chunk) => {
+          if (chunk && String(chunk).length > 0) {
+            markByteProgress({ source: 'stderr-bytes', text: `stderr+${String(chunk).length}` });
+          }
+          stderrDecoder.push(chunk);
+        }
       });
       cleanupIdleWatchdog();
       stdoutDecoder.flush();
@@ -1175,6 +1242,24 @@ export const createProcessRunner = ({
       stdoutDecoder.flush();
       stderrDecoder.flush();
       const message = err?.message || err;
+      if (!timeoutDecision && err?.timeoutDecision) {
+        timeoutDecision = err.timeoutDecision;
+      }
+      if (!timeoutDecision && err?.code === 'SUBPROCESS_TIMEOUT') {
+        timeoutDecision = evaluateProgressTimeout({
+          budget: buildProgressTimeoutBudget({
+            phase: 'bench-process-wall-clock',
+            baseTimeoutMs: Number(spawnOptions.timeoutMs) || DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS,
+            maxTimeoutMs: Number(spawnOptions.timeoutMs) || DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS,
+            wallClockCapMs: Number(spawnOptions.timeoutMs) || null,
+            activeBatchCount: Math.max(0, Number(lastInFlight) || 0),
+            completedUnits: Math.max(0, Number(lastProgressCurrent) || 0),
+            totalUnits: Math.max(0, Number(lastProgressTotal) || 0),
+            elapsedMs: Math.max(0, Date.now() - processStartedAtMs)
+          }),
+          wallClockElapsedMs: Math.max(0, Date.now() - processStartedAtMs)
+        });
+      }
       const failureStatus = Number.isInteger(err?.result?.exitCode)
         ? Number(err.result.exitCode)
         : (Number.isInteger(err?.exitCode) ? Number(err.exitCode) : null);
@@ -1234,7 +1319,8 @@ export const createProcessRunner = ({
               atMs: lastActivityAtMs
             }
           }
-          : {})
+          : {}),
+        ...(timeoutDecision ? { timeoutDecision } : {})
       };
     }
   };

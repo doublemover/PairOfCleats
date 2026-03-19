@@ -23,6 +23,10 @@ import {
   resolveStage1StallAction,
   resolveStage1StallSoftKickTimeoutMs
 } from '../../../../shared/indexing/stage1-watchdog-policy.js';
+import {
+  buildProgressTimeoutBudget,
+  evaluateProgressTimeout
+} from '../../../../shared/indexing/progress-timeout-policy.js';
 import { createLifecycleRegistry } from '../../../../shared/lifecycle/registry.js';
 import {
   snapshotTrackedSubprocesses,
@@ -2790,6 +2794,12 @@ export const processFiles = async ({
     let lastOrderedCompletionAt = Date.now();
     let lastStallSnapshotAt = 0;
     let watchdogAdaptiveLogged = false;
+    const stage1TimeoutSignals = {
+      lastQueueMovementAtMs: Date.now(),
+      lastByteProgressAtMs: Date.now(),
+      queueBaselineKey: null,
+      byteBaselineKey: null
+    };
     /**
      * Resolve pending ordered-appender queue depth for watchdog snapshots.
      *
@@ -2806,6 +2816,74 @@ export const processFiles = async ({
         pendingCount += Number(snapshot?.pending) || 0;
       }
       return pendingCount;
+    };
+    const readStage1InFlightBytesTotal = () => {
+      const total = Number(runtime?.telemetry?.readInFlightBytes?.()?.total);
+      return Number.isFinite(total) && total >= 0 ? Math.floor(total) : 0;
+    };
+    const observeStage1TimeoutSignals = (nowMs = Date.now()) => {
+      const orderedSnapshot = typeof orderedAppender.snapshot === 'function'
+        ? orderedAppender.snapshot()
+        : null;
+      const postingsSnapshot = typeof postingsQueue?.stats === 'function'
+        ? postingsQueue.stats()
+        : null;
+      const queueBaselineKey = [
+        Number(orderedSnapshot?.nextIndex) || 0,
+        Number(orderedSnapshot?.pendingCount) || 0,
+        Number(orderedSnapshot?.commitLag) || 0,
+        Number(orderedSnapshot?.terminalCount) || 0
+      ].join(':');
+      const byteBaselineKey = [
+        Number(orderedSnapshot?.pendingBytes) || 0,
+        Number(postingsSnapshot?.pendingBytes) || 0,
+        readStage1InFlightBytesTotal()
+      ].join(':');
+      if (stage1TimeoutSignals.queueBaselineKey !== queueBaselineKey) {
+        stage1TimeoutSignals.queueBaselineKey = queueBaselineKey;
+        stage1TimeoutSignals.lastQueueMovementAtMs = nowMs;
+      }
+      if (stage1TimeoutSignals.byteBaselineKey !== byteBaselineKey) {
+        stage1TimeoutSignals.byteBaselineKey = byteBaselineKey;
+        stage1TimeoutSignals.lastByteProgressAtMs = nowMs;
+      }
+      return {
+        orderedSnapshot,
+        postingsSnapshot,
+        inFlightBytesTotal: readStage1InFlightBytesTotal()
+      };
+    };
+    const resolveStage1TimeoutDecision = ({
+      nowMs = Date.now(),
+      orderedPending = getOrderedPendingCount()
+    } = {}) => {
+      const signals = observeStage1TimeoutSignals(nowMs);
+      const phase = signals?.orderedSnapshot?.flushActive
+        ? 'stage1-ordered-flush'
+        : orderedPending > 0
+          ? 'stage1-ordered-backpressure'
+          : 'stage1-active-processing';
+      const budget = buildProgressTimeoutBudget({
+        phase,
+        baseTimeoutMs: stage1StallAbortMs > 0 ? stage1StallAbortMs : Math.max(stallSnapshotMs, 1),
+        maxTimeoutMs: stage1StallAbortMs > 0 ? stage1StallAbortMs : null,
+        scheduledFileCount: progress?.total || 0,
+        activeBatchCount: inFlightFiles.size,
+        completedUnits: progress?.count || 0,
+        totalUnits: progress?.total || 0,
+        elapsedMs: Math.max(0, nowMs - processStart)
+      });
+      return evaluateProgressTimeout({
+        budget,
+        heartbeatAgeMs: Math.max(0, nowMs - lastProgressAt),
+        queueMovementAgeMs: Math.max(0, nowMs - stage1TimeoutSignals.lastQueueMovementAtMs),
+        byteProgressAgeMs: Math.max(0, nowMs - stage1TimeoutSignals.lastByteProgressAtMs),
+        queueExpected: orderedPending > 0 || (Number(signals?.orderedSnapshot?.pendingCount) || 0) > 0,
+        byteProgressExpected: Boolean(signals?.orderedSnapshot?.flushActive)
+          || (Number(signals?.orderedSnapshot?.pendingBytes) || 0) > 0
+          || (Number(signals?.postingsSnapshot?.pendingBytes) || 0) > 0
+          || (Number(signals?.inFlightBytesTotal) || 0) > 0
+      });
     };
     const hasStage1WindowLayoutChanged = (before, after) => {
       const beforeWindows = Array.isArray(before) ? before : [];
@@ -3271,6 +3349,10 @@ export const processFiles = async ({
         nowMs: now
       });
       if (decision.action === 'none') return;
+      const timeoutDecision = resolveStage1TimeoutDecision({
+        nowMs: now,
+        orderedPending
+      });
       const snapshot = buildProcessingStallSnapshot({
         reason: decision.action === 'abort' ? 'stall_timeout' : 'stall_soft_kick',
         idleMs,
@@ -3282,6 +3364,9 @@ export const processFiles = async ({
           source,
           snapshot
         });
+        return;
+      }
+      if (!timeoutDecision.timedOut) {
         return;
       }
       const recoveredBeforeAbort = attemptOrderedGapRecovery({
@@ -3303,11 +3388,15 @@ export const processFiles = async ({
           inFlight: inFlightFiles.size,
           orderedPending,
           trackedSubprocesses: Number(snapshot?.trackedSubprocesses?.total) || 0,
-          softKickAttempts: stage1StallSoftKickAttempts
+          softKickAttempts: stage1StallSoftKickAttempts,
+          timeoutClass: timeoutDecision.timeoutClass,
+          timeoutBudget: timeoutDecision.budget,
+          observedProgress: timeoutDecision.observedProgress
         }
       });
       logLine(
-        `[watchdog] stall-timeout idle=${Math.round(idleMs / 1000)}s progress=${progress.count}/${progress.total}; aborting stage1.`,
+        `[watchdog] stall-timeout class=${timeoutDecision.timeoutClass || 'unknown'} `
+          + `idle=${Math.round(idleMs / 1000)}s progress=${progress.count}/${progress.total}; aborting stage1.`,
         {
           kind: 'error',
           mode,
@@ -3322,6 +3411,9 @@ export const processFiles = async ({
           softKickAttempts: stage1StallSoftKickAttempts,
           softKickThresholdMs: stage1StallSoftKickMs,
           stallAbortMs: stage1StallAbortMs,
+          timeoutClass: timeoutDecision.timeoutClass,
+          timeoutBudget: timeoutDecision.budget,
+          observedProgress: timeoutDecision.observedProgress,
           watchdogSnapshot: snapshot
         }
       );
