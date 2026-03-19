@@ -329,6 +329,8 @@ const ensureJobDirs = async (dirPath) => {
   return { logsDir, reportsDir };
 };
 
+const createQueueJobId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+
 const normalizeQueueName = (value) => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
   if (!raw || raw === 'index') return null;
@@ -357,6 +359,14 @@ export function getQueuePaths(dirPath, queueName = null) {
   };
 }
 
+export function getQuarantinePaths(dirPath, queueName = null) {
+  const normalized = normalizeQueueName(queueName);
+  const suffix = normalized ? `-${normalized}` : '';
+  return {
+    quarantinePath: path.join(dirPath, `quarantine${suffix}.json`)
+  };
+}
+
 export async function loadQueue(dirPath, queueName = null) {
   const { queuePath } = getQueuePaths(dirPath, queueName);
   const payload = await readJson(queuePath, { jobs: [] });
@@ -369,6 +379,147 @@ export async function saveQueue(dirPath, queue, queueName = null) {
   const { queuePath } = getQueuePaths(dirPath, queueName);
   await atomicWriteJson(queuePath, queue, { spaces: 2 });
 }
+
+const normalizeQuarantineState = (value) => {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (normalized === 'retried') return 'retried';
+  return 'quarantined';
+};
+
+const normalizeQuarantineMetadata = (job = {}) => {
+  const quarantine = job?.quarantine && typeof job.quarantine === 'object'
+    ? job.quarantine
+    : {};
+  return {
+    state: normalizeQuarantineState(quarantine.state),
+    quarantinedAt: normalizeIsoTimestamp(quarantine.quarantinedAt || job?.finishedAt || job?.createdAt || null),
+    reason: typeof quarantine.reason === 'string' && quarantine.reason.trim()
+      ? quarantine.reason.trim()
+      : null,
+    sourceStatus: typeof quarantine.sourceStatus === 'string' && quarantine.sourceStatus.trim()
+      ? quarantine.sourceStatus.trim()
+      : job?.status || 'failed',
+    sourceQueueName: typeof quarantine.sourceQueueName === 'string' && quarantine.sourceQueueName.trim()
+      ? quarantine.sourceQueueName.trim()
+      : (job?.queueName || 'index'),
+    releasedAt: normalizeIsoTimestamp(quarantine.releasedAt || null),
+    releaseReason: typeof quarantine.releaseReason === 'string' && quarantine.releaseReason.trim()
+      ? quarantine.releaseReason.trim()
+      : null,
+    retryJobId: typeof quarantine.retryJobId === 'string' && quarantine.retryJobId.trim()
+      ? quarantine.retryJobId.trim()
+      : null
+  };
+};
+
+const applyQuarantineMetadata = (job, {
+  at,
+  reason,
+  sourceStatus = null,
+  sourceQueueName = null,
+  state = 'quarantined',
+  releasedAt = null,
+  releaseReason = null,
+  retryJobId = null
+}) => {
+  job.quarantine = {
+    state: normalizeQuarantineState(state),
+    quarantinedAt: at,
+    reason,
+    sourceStatus: sourceStatus || job.status,
+    sourceQueueName: sourceQueueName || job.queueName || 'index',
+    releasedAt: normalizeIsoTimestamp(releasedAt || null),
+    releaseReason: typeof releaseReason === 'string' && releaseReason.trim()
+      ? releaseReason.trim()
+      : null,
+    retryJobId: typeof retryJobId === 'string' && retryJobId.trim()
+      ? retryJobId.trim()
+      : null
+  };
+};
+
+export async function loadQuarantine(dirPath, queueName = null) {
+  const { quarantinePath } = getQuarantinePaths(dirPath, queueName);
+  const payload = await readJson(quarantinePath, { jobs: [] });
+  return {
+    jobs: Array.isArray(payload.jobs)
+      ? payload.jobs.map((job) => {
+        const normalized = normalizeJobRecord(job);
+        normalized.quarantine = normalizeQuarantineMetadata(normalized);
+        return normalized;
+      })
+      : []
+  };
+}
+
+export async function saveQuarantine(dirPath, quarantine, queueName = null) {
+  const { quarantinePath } = getQuarantinePaths(dirPath, queueName);
+  await atomicWriteJson(quarantinePath, quarantine, { spaces: 2 });
+}
+
+const createQueuedJobRecord = (job, {
+  logsDir,
+  reportsDir,
+  resolvedQueueName,
+  idempotencyKey
+}) => {
+  const maxRetries = Number.isFinite(Number(job.maxRetries)) && Number(job.maxRetries) >= 0
+    ? Math.floor(Number(job.maxRetries))
+    : null;
+  return normalizeJobRecord({
+    id: job.id,
+    createdAt: job.createdAt,
+    status: 'queued',
+    queueName: resolvedQueueName || 'index',
+    repo: job.repo,
+    repoRoot: job.repoRoot || job.repo || null,
+    mode: job.mode,
+    reason: job.reason || null,
+    stage: job.stage || null,
+    buildId: job.buildId || null,
+    buildRoot: job.buildRoot || null,
+    indexDir: job.indexDir || null,
+    indexRoot: job.indexRoot || null,
+    idempotencyKey,
+    configHash: job.configHash || null,
+    repoProvenance: job.repoProvenance || null,
+    embeddingIdentity: job.embeddingIdentity || null,
+    embeddingIdentityKey: job.embeddingIdentityKey || null,
+    embeddingPayloadFormatVersion: Number.isFinite(Number(job.embeddingPayloadFormatVersion))
+      ? Math.max(1, Math.floor(Number(job.embeddingPayloadFormatVersion)))
+      : null,
+    args: Array.isArray(job.args) && job.args.length ? job.args : null,
+    attempts: 0,
+    maxRetries,
+    nextEligibleAt: null,
+    lastHeartbeatAt: null,
+    progress: {
+      sequence: 0,
+      updatedAt: null,
+      kind: null,
+      note: null
+    },
+    lease: {
+      owner: null,
+      version: 0,
+      expiresAt: null,
+      acquiredAt: null,
+      renewedAt: null,
+      releasedAt: null,
+      releasedReason: null,
+      lastOwner: null
+    },
+    transition: {
+      sequence: 0,
+      from: null,
+      to: 'queued',
+      at: normalizeIsoTimestamp(job.createdAt) || new Date().toISOString(),
+      reason: 'enqueue'
+    },
+    logPath: path.join(logsDir, `${job.id}.log`),
+    reportPath: path.join(reportsDir, `${job.id}.json`)
+  });
+};
 
 /**
  * Enqueue one job payload after queue-capacity checks and path normalization.
@@ -408,62 +559,12 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
     if (Number.isFinite(maxQueued) && queued.length >= maxQueued) {
       return { ok: false, message: 'Queue is full.' };
     }
-    const maxRetries = Number.isFinite(Number(job.maxRetries)) && Number(job.maxRetries) >= 0
-      ? Math.floor(Number(job.maxRetries))
-      : null;
-    const next = {
-      id: job.id,
-      createdAt: job.createdAt,
-      status: 'queued',
-      queueName: resolvedQueueName || 'index',
-      repo: job.repo,
-      repoRoot: job.repoRoot || job.repo || null,
-      mode: job.mode,
-      reason: job.reason || null,
-      stage: job.stage || null,
-      buildId: job.buildId || null,
-      buildRoot: job.buildRoot || null,
-      indexDir: job.indexDir || null,
-      indexRoot: job.indexRoot || null,
-      idempotencyKey,
-      configHash: job.configHash || null,
-      repoProvenance: job.repoProvenance || null,
-      embeddingIdentity: job.embeddingIdentity || null,
-      embeddingIdentityKey: job.embeddingIdentityKey || null,
-      embeddingPayloadFormatVersion: Number.isFinite(Number(job.embeddingPayloadFormatVersion))
-        ? Math.max(1, Math.floor(Number(job.embeddingPayloadFormatVersion)))
-        : null,
-      args: Array.isArray(job.args) && job.args.length ? job.args : null,
-      attempts: 0,
-      maxRetries,
-      nextEligibleAt: null,
-      lastHeartbeatAt: null,
-      progress: {
-        sequence: 0,
-        updatedAt: null,
-        kind: null,
-        note: null
-      },
-      lease: {
-        owner: null,
-        version: 0,
-        expiresAt: null,
-        acquiredAt: null,
-        renewedAt: null,
-        releasedAt: null,
-        releasedReason: null,
-        lastOwner: null
-      },
-      transition: {
-        sequence: 0,
-        from: null,
-        to: 'queued',
-        at: normalizeIsoTimestamp(job.createdAt) || new Date().toISOString(),
-        reason: 'enqueue'
-      },
-      logPath: path.join(logsDir, `${job.id}.log`),
-      reportPath: path.join(reportsDir, `${job.id}.json`)
-    };
+    const next = createQueuedJobRecord(job, {
+      logsDir,
+      reportsDir,
+      resolvedQueueName,
+      idempotencyKey
+    });
     queue.jobs.push(next);
     await saveQueue(dirPath, queue, resolvedQueueName);
     return { ok: true, job: next, idempotencyKey };
@@ -586,6 +687,81 @@ export async function completeJob(dirPath, jobId, status, result, queueName = nu
   });
 }
 
+export async function quarantineJob(dirPath, jobId, reason, queueName = null, options = {}) {
+  const { lockPath } = getQueuePaths(dirPath, queueName);
+  return withLock(lockPath, async () => {
+    const { reportsDir } = await ensureJobDirs(dirPath);
+    const queue = await loadQueue(dirPath, queueName);
+    const quarantine = await loadQuarantine(dirPath, queueName);
+    const jobIndex = queue.jobs.findIndex((entry) => entry.id === jobId);
+    if (jobIndex < 0) return null;
+    const job = queue.jobs[jobIndex];
+    if (job.status === 'running') {
+      assertLeaseOwnership(job, {
+        ownerId: options.ownerId,
+        expectedLeaseVersion: options.expectedLeaseVersion
+      });
+    }
+    const nowIso = new Date().toISOString();
+    const quarantineReason = typeof reason === 'string' && reason.trim()
+      ? reason.trim()
+      : 'quarantined';
+    const sourceStatus = options.sourceStatus || job.status || 'failed';
+    if (job.status !== 'failed') {
+      const previousStatus = assertAllowedTransition(job, 'failed');
+      job.status = 'failed';
+      job.finishedAt = nowIso;
+      job.nextEligibleAt = null;
+      job.lastHeartbeatAt = null;
+      clearLease(job, nowIso, quarantineReason);
+      recordProgress(job, { at: nowIso, kind: 'quarantine', note: quarantineReason });
+      recordTransition(job, previousStatus, 'failed', quarantineReason, nowIso);
+    } else {
+      job.finishedAt = normalizeIsoTimestamp(job.finishedAt || nowIso) || nowIso;
+      job.nextEligibleAt = null;
+      job.lastHeartbeatAt = null;
+      clearLease(job, nowIso, quarantineReason);
+      recordProgress(job, { at: nowIso, kind: 'quarantine', note: quarantineReason });
+    }
+    const resultPayload = options.result && typeof options.result === 'object'
+      ? { ...options.result }
+      : {};
+    if (!resultPayload.error) {
+      resultPayload.error = job.lastError || quarantineReason;
+    }
+    job.result = {
+      ...(job.result && typeof job.result === 'object' ? job.result : {}),
+      ...resultPayload
+    };
+    job.lastError = resultPayload.error || quarantineReason;
+    applyQuarantineMetadata(job, {
+      at: nowIso,
+      reason: quarantineReason,
+      sourceStatus,
+      sourceQueueName: queueName || job.queueName || 'index'
+    });
+    queue.jobs.splice(jobIndex, 1);
+    const existingIndex = quarantine.jobs.findIndex((entry) => entry.id === job.id);
+    if (existingIndex >= 0) {
+      quarantine.jobs[existingIndex] = job;
+    } else {
+      quarantine.jobs.push(job);
+    }
+    await saveQueue(dirPath, queue, queueName);
+    await saveQuarantine(dirPath, quarantine, queueName);
+    const reportPath = job.reportPath || path.join(reportsDir, `${job.id}.json`);
+    try {
+      await atomicWriteJson(reportPath, {
+        updatedAt: nowIso,
+        status: job.status,
+        quarantined: true,
+        job
+      }, { spaces: 2 });
+    } catch {}
+    return job;
+  });
+}
+
 export async function touchJobHeartbeat(dirPath, jobId, queueName = null, options = {}) {
   const { lockPath } = getQueuePaths(dirPath, queueName);
   return withLock(lockPath, async () => {
@@ -644,12 +820,13 @@ const resolveRetryDelayMs = (attempts) => {
  * @param {string} dirPath
  * @param {string|null} [queueName=null]
  * @param {{maxRetries?:number}} [options={}]
- * @returns {Promise<{stale:number,retried:number,failed:number}>}
+ * @returns {Promise<{stale:number,retried:number,failed:number,quarantined:number}>}
  */
 export async function requeueStaleJobs(dirPath, queueName = null, options = {}) {
   const { lockPath } = getQueuePaths(dirPath, queueName);
   return withLock(lockPath, async () => {
     const queue = await loadQueue(dirPath, queueName);
+    const quarantine = await loadQuarantine(dirPath, queueName);
     const now = Date.now();
     const stale = [];
     for (const job of queue.jobs) {
@@ -657,9 +834,11 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
       if (!isLeaseExpired(job, now, queueName)) continue;
       stale.push(job);
     }
-    if (!stale.length) return { stale: 0, retried: 0, failed: 0 };
+    if (!stale.length) return { stale: 0, retried: 0, failed: 0, quarantined: 0 };
     let retried = 0;
     let failed = 0;
+    let quarantined = 0;
+    const quarantinedIds = new Set();
     for (const job of stale) {
       const attempts = Number.isFinite(job.attempts) ? job.attempts : 0;
       const maxRetries = Number.isFinite(job.maxRetries)
@@ -682,19 +861,134 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
         recordTransition(job, previousStatus, 'queued', 'lease-expired-retry', nowIso);
       } else {
         failed += 1;
+        quarantined += 1;
         const previousStatus = assertAllowedTransition(job, 'failed');
         job.status = 'failed';
+        job.attempts = nextAttempts;
         job.finishedAt = nowIso;
         job.nextEligibleAt = null;
+        job.lastError = 'lease expired before completion';
         job.result = { error: 'lease expired before completion', attempts: nextAttempts };
         clearLease(job, nowIso, 'lease-expired-fail');
-        recordProgress(job, { at: nowIso, kind: 'failed', note: 'lease-expired' });
+        recordProgress(job, { at: nowIso, kind: 'quarantine', note: 'lease-expired-fail' });
         recordTransition(job, previousStatus, 'failed', 'lease-expired-fail', nowIso);
+        applyQuarantineMetadata(job, {
+          at: nowIso,
+          reason: 'lease-expired-fail',
+          sourceStatus: 'running',
+          sourceQueueName: queueName || job.queueName || 'index'
+        });
+        const existingIndex = quarantine.jobs.findIndex((entry) => entry.id === job.id);
+        if (existingIndex >= 0) {
+          quarantine.jobs[existingIndex] = job;
+        } else {
+          quarantine.jobs.push(job);
+        }
+        quarantinedIds.add(job.id);
       }
       job.lastHeartbeatAt = null;
     }
+    if (quarantinedIds.size > 0) {
+      queue.jobs = queue.jobs.filter((job) => !quarantinedIds.has(job.id));
+      await saveQuarantine(dirPath, quarantine, queueName);
+    }
     await saveQueue(dirPath, queue, queueName);
-    return { stale: stale.length, retried, failed };
+    return { stale: stale.length, retried, failed, quarantined };
+  });
+}
+
+export async function quarantineSummary(dirPath, queueName = null) {
+  const { quarantinePath } = getQuarantinePaths(dirPath, queueName);
+  if (!fsSync.existsSync(quarantinePath)) {
+    return { total: 0, quarantined: 0, retried: 0 };
+  }
+  const quarantine = await loadQuarantine(dirPath, queueName);
+  const summary = { total: quarantine.jobs.length, quarantined: 0, retried: 0 };
+  for (const job of quarantine.jobs) {
+    if (job.quarantine?.state === 'retried') summary.retried += 1;
+    else summary.quarantined += 1;
+  }
+  return summary;
+}
+
+export async function retryQuarantinedJob(dirPath, jobId, queueName = null, options = {}) {
+  const { lockPath } = getQueuePaths(dirPath, queueName);
+  return withLock(lockPath, async () => {
+    await ensureQueueDir(dirPath);
+    const { logsDir, reportsDir } = await ensureJobDirs(dirPath);
+    const resolvedQueueName = resolveQueueName(queueName, null);
+    const queue = await loadQueue(dirPath, resolvedQueueName);
+    const quarantine = await loadQuarantine(dirPath, resolvedQueueName);
+    const quarantinedJob = quarantine.jobs.find((entry) => (
+      entry.id === jobId
+      && (entry.quarantine?.state || 'quarantined') === 'quarantined'
+    ));
+    if (!quarantinedJob) return null;
+    const idempotencyKey = buildQueueJobIdempotencyKey(quarantinedJob, resolvedQueueName || 'index');
+    if (options.forceDuplicate !== true) {
+      const duplicate = findActiveDuplicateJob(queue.jobs, idempotencyKey);
+      if (duplicate) {
+        return {
+          ok: true,
+          duplicate: true,
+          replaySuppressed: true,
+          message: 'Duplicate logical job suppressed.',
+          job: duplicate,
+          idempotencyKey,
+          quarantinedJob
+        };
+      }
+    }
+    const nextJob = createQueuedJobRecord({
+      ...quarantinedJob,
+      id: createQueueJobId(),
+      createdAt: new Date().toISOString()
+    }, {
+      logsDir,
+      reportsDir,
+      resolvedQueueName,
+      idempotencyKey
+    });
+    queue.jobs.push(nextJob);
+    applyQuarantineMetadata(quarantinedJob, {
+      at: quarantinedJob.quarantine?.quarantinedAt || new Date().toISOString(),
+      reason: quarantinedJob.quarantine?.reason || quarantinedJob.lastError || 'quarantined',
+      sourceStatus: quarantinedJob.quarantine?.sourceStatus || quarantinedJob.status || 'failed',
+      sourceQueueName: quarantinedJob.quarantine?.sourceQueueName || resolvedQueueName || 'index',
+      state: 'retried',
+      releasedAt: new Date().toISOString(),
+      releaseReason: 'manual-retry',
+      retryJobId: nextJob.id
+    });
+    await saveQueue(dirPath, queue, resolvedQueueName);
+    await saveQuarantine(dirPath, quarantine, resolvedQueueName);
+    return {
+      ok: true,
+      job: nextJob,
+      idempotencyKey,
+      retriedFromId: quarantinedJob.id,
+      quarantinedJob
+    };
+  });
+}
+
+export async function purgeQuarantinedJobs(dirPath, queueName = null, options = {}) {
+  const { lockPath } = getQueuePaths(dirPath, queueName);
+  return withLock(lockPath, async () => {
+    const quarantine = await loadQuarantine(dirPath, queueName);
+    const before = quarantine.jobs.length;
+    if (options.jobId) {
+      quarantine.jobs = quarantine.jobs.filter((entry) => entry.id !== options.jobId);
+    } else if (options.all === true) {
+      quarantine.jobs = [];
+    } else {
+      return { removed: 0, jobs: quarantine.jobs };
+    }
+    await saveQuarantine(dirPath, quarantine, queueName);
+    return {
+      removed: before - quarantine.jobs.length,
+      jobs: quarantine.jobs
+    };
   });
 }
 

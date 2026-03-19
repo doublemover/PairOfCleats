@@ -30,7 +30,8 @@ const normalizeRunResult = (runResult) => {
  *   queueDir:string,
  *   resolvedQueueName:string|null,
  *   queueMaxRetries:number|null,
- *   completeJob:(dirPath:string,jobId:string,status:string,result:object,queueName?:string|null,options?:object)=>Promise<unknown>
+ *   completeJob:(dirPath:string,jobId:string,status:string,result:object,queueName?:string|null,options?:object)=>Promise<unknown>,
+ *   quarantineJob:(dirPath:string,jobId:string,reason:string,queueName?:string|null,options?:object)=>Promise<unknown>
  * }} input
  * @returns {{
  *   completeNonRetriableFailure:(job:{id:string},error:string)=>Promise<void>,
@@ -42,7 +43,8 @@ export const createJobCompletion = ({
   queueDir,
   resolvedQueueName,
   queueMaxRetries,
-  completeJob
+  completeJob,
+  quarantineJob
 }) => {
   /**
    * Complete a job immediately with a non-retriable failure.
@@ -52,18 +54,19 @@ export const createJobCompletion = ({
    * @returns {Promise<void>}
    */
   const completeNonRetriableFailure = async (job, error) => {
-    await completeJob(
+    await quarantineJob(
       queueDir,
       job.id,
-      'failed',
-      {
-        exitCode: 1,
-        signal: null,
-        error,
-        executionMode: 'subprocess'
-      },
+      'non-retriable-failure',
       resolvedQueueName,
       {
+        sourceStatus: job?.status || 'running',
+        result: {
+          exitCode: 1,
+          signal: null,
+          error,
+          executionMode: 'subprocess'
+        },
         ownerId: job?.lease?.owner || null,
         expectedLeaseVersion: job?.lease?.version ?? null
       }
@@ -117,6 +120,27 @@ export const createJobCompletion = ({
       metrics.succeeded += 1;
     } else {
       metrics.failed += 1;
+    }
+    if (normalized.status === 'failed') {
+      await quarantineJob(
+        queueDir,
+        job.id,
+        'retry-exhausted',
+        resolvedQueueName,
+        {
+          sourceStatus: job?.status || 'running',
+          result: {
+            exitCode: normalized.exitCode,
+            signal: normalized.signal,
+            error: normalizedError,
+            executionMode: normalized.executionMode,
+            daemon: normalized.daemon
+          },
+          ownerId: job?.lease?.owner || null,
+          expectedLeaseVersion: job?.lease?.version ?? null
+        }
+      );
+      return;
     }
     await completeJob(
       queueDir,

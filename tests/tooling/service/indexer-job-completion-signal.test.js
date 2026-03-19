@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createJobCompletion } from '../../../tools/service/indexer-service/job-completion.js';
 
 const calls = [];
+const quarantineCalls = [];
 const metrics = { processed: 0, succeeded: 0, failed: 0, retried: 0 };
 
 const completion = createJobCompletion({
@@ -11,6 +12,9 @@ const completion = createJobCompletion({
   queueMaxRetries: 1,
   completeJob: async (queueDir, jobId, status, result, queueName) => {
     calls.push({ queueDir, jobId, status, result, queueName });
+  },
+  quarantineJob: async (queueDir, jobId, reason, queueName, options) => {
+    quarantineCalls.push({ queueDir, jobId, reason, queueName, options });
   }
 });
 
@@ -27,12 +31,13 @@ await completion.finalizeJobRun({
   runResult: { exitCode: 1, signal: 'SIGTERM', executionMode: 'subprocess' },
   metrics
 });
-assert.equal(calls[0].status, 'failed');
-assert.equal(calls[0].result.signal, 'SIGTERM');
-assert.equal(calls[0].result.error, 'signal SIGTERM');
+assert.equal(quarantineCalls[0].reason, 'retry-exhausted');
+assert.equal(quarantineCalls[0].options.result.signal, 'SIGTERM');
+assert.equal(quarantineCalls[0].options.result.error, 'signal SIGTERM');
 assert.equal(metrics.failed, 1);
 
 calls.length = 0;
+quarantineCalls.length = 0;
 await completion.finalizeJobRun({
   job: { id: 'job-2', attempts: 0, maxRetries: 2 },
   runResult: { exitCode: 1, signal: 'SIGINT', executionMode: 'subprocess' },
@@ -71,6 +76,7 @@ assert.equal(calls[0].result.error, null, 'successful jobs should not emit failu
 assert.equal(metrics.succeeded, 1);
 
 calls.length = 0;
+quarantineCalls.length = 0;
 await completion.finalizeJobRun({
   job: { id: 'job-4', attempts: '1', maxRetries: '2' },
   runResult: { exitCode: 1, signal: null, executionMode: 'subprocess' },

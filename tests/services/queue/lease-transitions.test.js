@@ -8,6 +8,7 @@ import {
   enqueueJob,
   claimNextJob,
   completeJob,
+  loadQuarantine,
   loadQueue,
   saveQueue,
   queueSummary,
@@ -113,14 +114,15 @@ await new Promise((resolve) => setTimeout(resolve, 1200));
 const staleFailure = await requeueStaleJobs(queueDir, 'index-stale', { maxRetries: 1 });
 assert.equal(staleFailure.stale, 1, 'expected second stale sweep to detect expired lease again');
 assert.equal(staleFailure.failed, 1, 'expected second stale sweep to fail expired job after retries exhausted');
-const failedStale = (await loadQueue(queueDir, 'index-stale')).jobs.find((job) => job.id === staleJob.id);
-assert.equal(failedStale?.status, 'failed', 'expected expired lease to fail after retry budget exhausted');
+assert.equal(staleFailure.quarantined, 1, 'expected exhausted stale job to move into quarantine');
+const failedStale = (await loadQuarantine(queueDir, 'index-stale')).jobs.find((job) => job.id === staleJob.id);
+assert.equal(failedStale?.quarantine?.reason, 'lease-expired-fail', 'expected expired lease to quarantine after retry budget exhausted');
 assert.match(String(failedStale?.result?.error || ''), /lease expired/i, 'expected lease-expired failure reason');
 
 const summaryIndex = await queueSummary(queueDir, 'index');
 const summaryStale = await queueSummary(queueDir, 'index-stale');
 assert.equal(summaryIndex.done, 1, 'expected one successful completion in the primary queue');
 assert.equal(summaryIndex.queued >= 1, true, 'expected retried queued job to remain queued in the primary queue');
-assert.equal(summaryStale.failed, 1, 'expected one terminal failed stale job');
+assert.equal(summaryStale.failed, 0, 'expected exhausted stale jobs to leave the hot queue');
 
 console.log('service queue lease transitions test passed');

@@ -21,7 +21,12 @@ import {
   enqueueJob,
   claimNextJob,
   completeJob,
+  loadQuarantine,
+  quarantineJob,
+  quarantineSummary,
   queueSummary,
+  purgeQuarantinedJobs,
+  retryQuarantinedJob,
   resolveQueueName,
   requeueStaleJobs,
   touchJobHeartbeat
@@ -346,7 +351,71 @@ const handleEnqueue = async () => {
  */
 const handleStatus = async () => {
   const summary = await queueSummary(queueDir, resolvedQueueName);
-  printPayload({ ok: true, queue: summary, name: resolvedQueueName });
+  const quarantine = await quarantineSummary(queueDir, resolvedQueueName);
+  printPayload({ ok: true, queue: summary, quarantine, name: resolvedQueueName });
+};
+
+const requireJobArg = (action) => {
+  const jobId = typeof argv.job === 'string' && argv.job.trim() ? argv.job.trim() : '';
+  if (!jobId) {
+    exitWithCommandError(`--job is required for ${action}.`);
+  }
+  return jobId;
+};
+
+const handleQuarantine = async () => {
+  const quarantine = await loadQuarantine(queueDir, resolvedQueueName);
+  const activeJobs = quarantine.jobs.filter((job) => (job.quarantine?.state || 'quarantined') === 'quarantined');
+  if (argv.job) {
+    const jobId = requireJobArg('quarantine');
+    const job = quarantine.jobs.find((entry) => entry.id === jobId);
+    if (!job) {
+      exitWithCommandError(`Quarantined job not found: ${jobId}`);
+    }
+    printPayload({ ok: true, queue: resolvedQueueName, job });
+    return;
+  }
+  printPayload({
+    ok: true,
+    queue: resolvedQueueName,
+    summary: await quarantineSummary(queueDir, resolvedQueueName),
+    jobs: activeJobs
+  });
+};
+
+const handleRetryQuarantined = async () => {
+  const jobId = requireJobArg('retry-quarantined');
+  const result = await retryQuarantinedJob(queueDir, jobId, resolvedQueueName);
+  if (!result) {
+    exitWithCommandError(`Quarantined job not found: ${jobId}`);
+  }
+  printPayload({
+    ok: true,
+    duplicate: result.duplicate === true,
+    replaySuppressed: result.replaySuppressed === true,
+    retriedFromId: result.retriedFromId || jobId,
+    idempotencyKey: result.idempotencyKey || result.job?.idempotencyKey || null,
+    job: result.job,
+    quarantinedJob: result.quarantinedJob || null
+  });
+};
+
+const handlePurgeQuarantined = async () => {
+  const jobId = typeof argv.job === 'string' && argv.job.trim() ? argv.job.trim() : null;
+  const purgeAll = argv.all === true;
+  if (!jobId && !purgeAll) {
+    exitWithCommandError('Provide --job <id> or --all for purge-quarantined.');
+  }
+  const result = await purgeQuarantinedJobs(queueDir, resolvedQueueName, {
+    jobId,
+    all: purgeAll
+  });
+  printPayload({
+    ok: true,
+    queue: resolvedQueueName,
+    removed: result.removed,
+    remaining: result.jobs.length
+  });
 };
 
 /**
@@ -378,7 +447,8 @@ const { completeNonRetriableFailure, finalizeJobRun } = createJobCompletion({
   queueDir,
   resolvedQueueName,
   queueMaxRetries,
-  completeJob
+  completeJob,
+  quarantineJob
 });
 
 const { buildDefaultRunResult, executeClaimedJob } = createJobExecutor({
@@ -462,13 +532,19 @@ try {
     await handleWork();
   } else if (command === 'status') {
     await handleStatus();
+  } else if (command === 'quarantine') {
+    await handleQuarantine();
+  } else if (command === 'retry-quarantined') {
+    await handleRetryQuarantined();
+  } else if (command === 'purge-quarantined') {
+    await handlePurgeQuarantined();
   } else if (command === 'smoke') {
     await handleSmoke();
   } else if (command === 'serve') {
     await handleServe();
   } else {
     exitWithCommandError(
-      'Usage: indexer-service <sync|enqueue|work|status|smoke|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]'
+      'Usage: indexer-service <sync|enqueue|work|status|quarantine|retry-quarantined|purge-quarantined|smoke|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]'
     );
   }
 } catch (err) {

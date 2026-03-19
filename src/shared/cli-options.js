@@ -40,10 +40,12 @@ export const INDEX_BUILD_OPTIONS = {
 export const SERVICE_INDEXER_OPTIONS = {
   config: { type: 'string' },
   repo: { type: 'string' },
+  job: { type: 'string' },
   mode: { type: 'string', default: 'all' },
   reason: { type: 'string' },
   stage: { type: 'string' },
   command: { type: 'string' },
+  all: { type: 'boolean', default: false },
   watch: { type: 'boolean', default: false },
   interval: { type: 'number' },
   concurrency: { type: 'number' },
