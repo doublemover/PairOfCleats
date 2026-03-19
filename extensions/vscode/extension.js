@@ -32,90 +32,9 @@ const {
   resolveValidatedHitTarget,
   openSearchHit
 } = require('./runtime.js');
-
-const DEFAULT_EDITOR_CONFIG_CONTRACT = Object.freeze({
-  schemaVersion: 1,
-  repoRoot: {
-    markers: ['.pairofcleats.json', '.git'],
-    vscode: {
-      walkUpFromWorkspaceFolder: false
-    },
-    sublime: {
-      walkUpFromHints: true
-    }
-  },
-  cli: {
-    defaultCommand: 'pairofcleats',
-    repoRelativeEntrypoint: 'bin/pairofcleats.js',
-    jsEntrypointExtension: '.js'
-  },
-  settings: {
-    vscode: {
-      namespace: 'pairofcleats',
-      cliPathKey: 'cliPath',
-      cliArgsKey: 'cliArgs',
-      apiServerUrlKey: 'apiServerUrl',
-      apiTimeoutKey: 'apiTimeoutMs',
-      apiExecutionModeKey: 'apiExecutionMode',
-      extraSearchArgsKey: 'extraSearchArgs',
-      modeKey: 'searchMode',
-      backendKey: 'searchBackend',
-      annKey: 'searchAnn',
-      maxResultsKey: 'maxResults',
-      contextLinesKey: 'searchContextLines',
-      fileKey: 'searchFile',
-      pathKey: 'searchPath',
-      langKey: 'searchLang',
-      extKey: 'searchExt',
-      typeKey: 'searchType',
-      asOfKey: 'searchAsOf',
-      snapshotKey: 'searchSnapshot',
-      filterKey: 'searchFilter',
-      authorKey: 'searchAuthor',
-      modifiedAfterKey: 'searchModifiedAfter',
-      modifiedSinceKey: 'searchModifiedSince',
-      churnKey: 'searchChurn',
-      caseSensitiveKey: 'searchCaseSensitive',
-      envKey: 'env'
-    },
-    sublime: {
-      cliPathKey: 'pairofcleats_path',
-      nodePathKey: 'node_path',
-      envKey: 'env'
-    }
-  },
-  env: {
-    mergeOrder: ['process', 'settings'],
-    stringifyValues: true
-  }
-});
-
+const EDITOR_CONFIG_CONTRACT = Object.freeze(require('../../src/shared/editor-config-contract.json'));
+const DEFAULT_EDITOR_CONFIG_CONTRACT = EDITOR_CONFIG_CONTRACT;
 const DEFAULT_VSCODE_SETTINGS = Object.freeze(DEFAULT_EDITOR_CONFIG_CONTRACT.settings.vscode);
-
-/**
- * Load editor config contract from docs, falling back to embedded defaults.
- *
- * @returns {object}
- */
-function loadEditorConfigContract() {
-  const contractPath = path.resolve(
-    __dirname,
-    '..',
-    '..',
-    'docs',
-    'tooling',
-    'editor-config-contract.json'
-  );
-  try {
-    const loaded = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
-    if (loaded && typeof loaded === 'object') {
-      return loaded;
-    }
-  } catch {}
-  return DEFAULT_EDITOR_CONFIG_CONTRACT;
-}
-
-const EDITOR_CONFIG_CONTRACT = loadEditorConfigContract();
 
 /**
  * Read nested contract value by path with fallback.

@@ -8,46 +8,6 @@ from . import paths
 
 SETTINGS_FILE = 'PairOfCleats.sublime-settings'
 
-DEFAULT_EDITOR_CONFIG_CONTRACT = {
-    'schemaVersion': 1,
-    'repoRoot': {
-        'markers': ['.pairofcleats.json', '.git'],
-        'vscode': {
-            'walkUpFromWorkspaceFolder': False
-        },
-        'sublime': {
-            'walkUpFromHints': True
-        }
-    },
-    'cli': {
-        'defaultCommand': 'pairofcleats',
-        'repoRelativeEntrypoint': 'bin/pairofcleats.js',
-        'jsEntrypointExtension': '.js'
-    },
-    'settings': {
-        'vscode': {
-            'namespace': 'pairofcleats',
-            'cliPathKey': 'cliPath',
-            'cliArgsKey': 'cliArgs',
-            'extraSearchArgsKey': 'extraSearchArgs',
-            'modeKey': 'searchMode',
-            'backendKey': 'searchBackend',
-            'annKey': 'searchAnn',
-            'maxResultsKey': 'maxResults',
-            'envKey': 'env'
-        },
-        'sublime': {
-            'cliPathKey': 'pairofcleats_path',
-            'nodePathKey': 'node_path',
-            'envKey': 'env'
-        }
-    },
-    'env': {
-        'mergeOrder': ['process', 'settings'],
-        'stringifyValues': True
-    }
-}
-
 
 def _load_editor_config_contract():
     contract_path = os.path.abspath(
@@ -56,19 +16,16 @@ def _load_editor_config_contract():
             '..',
             '..',
             '..',
-            'docs',
-            'tooling',
+            'src',
+            'shared',
             'editor-config-contract.json'
         )
     )
-    try:
-        with open(contract_path, 'r', encoding='utf-8') as handle:
-            loaded = json.load(handle)
-        if isinstance(loaded, dict):
-            return loaded
-    except Exception:
-        pass
-    return DEFAULT_EDITOR_CONFIG_CONTRACT
+    with open(contract_path, 'r', encoding='utf-8') as handle:
+        loaded = json.load(handle)
+    if not isinstance(loaded, dict):
+        raise ValueError('editor-config-contract.json must contain an object')
+    return loaded
 
 
 EDITOR_CONFIG_CONTRACT = _load_editor_config_contract()
