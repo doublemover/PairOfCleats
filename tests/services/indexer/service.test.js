@@ -33,6 +33,25 @@ if (enqueue.status !== 0) {
   console.error(enqueue.stderr || enqueue.stdout || 'indexer-service enqueue failed');
   process.exit(enqueue.status ?? 1);
 }
+const enqueuePayload = JSON.parse(enqueue.stdout || '{}');
+assert.equal(enqueuePayload.ok, true);
+assert.equal(enqueuePayload.duplicate, false);
+assert.ok(typeof enqueuePayload.idempotencyKey === 'string' && enqueuePayload.idempotencyKey.length > 0);
+
+const duplicateEnqueue = spawnSync(
+  process.execPath,
+  [path.join(root, 'tools', 'service', 'indexer-service.js'), 'enqueue', '--config', configPath, '--repo', repoRoot, '--mode', 'code'],
+  { encoding: 'utf8' }
+);
+if (duplicateEnqueue.status !== 0) {
+  console.error(duplicateEnqueue.stderr || duplicateEnqueue.stdout || 'indexer-service duplicate enqueue failed');
+  process.exit(duplicateEnqueue.status ?? 1);
+}
+const duplicatePayload = JSON.parse(duplicateEnqueue.stdout || '{}');
+assert.equal(duplicatePayload.ok, true);
+assert.equal(duplicatePayload.duplicate, true);
+assert.equal(duplicatePayload.replaySuppressed, true);
+assert.equal(duplicatePayload.job?.id, enqueuePayload.job?.id);
 
 const status = spawnSync(
   process.execPath,

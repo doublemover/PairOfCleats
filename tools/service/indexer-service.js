@@ -330,7 +330,13 @@ const handleEnqueue = async () => {
   if (!result.ok) {
     exitWithCommandError(result.message || 'Failed to enqueue job.');
   }
-  printPayload({ ok: true, job: result.job });
+  printPayload({
+    ok: true,
+    job: result.job,
+    duplicate: result.duplicate === true,
+    replaySuppressed: result.replaySuppressed === true,
+    idempotencyKey: result.idempotencyKey || result.job?.idempotencyKey || null
+  });
 };
 
 /**

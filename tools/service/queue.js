@@ -4,11 +4,12 @@ import path from 'node:path';
 import { acquireFileLock } from '../../src/shared/locks/file-lock.js';
 import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
 import { resolveQueueLeasePolicy } from './lease-policy.js';
+import { buildQueueJobIdempotencyKey } from './queue-idempotency.js';
 
 const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
 const VALID_JOB_STATUSES = new Set(['queued', 'running', 'done', 'failed']);
 const ALLOWED_TRANSITIONS = Object.freeze({
-  queued: new Set(['running']),
+  queued: new Set(['running', 'failed']),
   running: new Set(['queued', 'done', 'failed']),
   done: new Set(),
   failed: new Set()
@@ -108,10 +109,13 @@ const normalizeJobRecord = (job = {}) => {
   const attempts = Number.isFinite(Number(job?.attempts))
     ? Math.max(0, Math.trunc(Number(job.attempts)))
     : 0;
-  const maxRetries = Number.isFinite(Number(job?.maxRetries))
-    ? Math.max(0, Math.trunc(Number(job.maxRetries)))
-    : null;
-  return {
+  const rawMaxRetries = job?.maxRetries;
+  const maxRetries = rawMaxRetries === null || rawMaxRetries === undefined || rawMaxRetries === ''
+    ? null
+    : (Number.isFinite(Number(rawMaxRetries))
+      ? Math.max(0, Math.trunc(Number(rawMaxRetries)))
+      : null);
+  const normalized = {
     ...job,
     status,
     attempts,
@@ -136,6 +140,10 @@ const normalizeJobRecord = (job = {}) => {
     lease: normalizeLease(job),
     transition: normalizeTransition(job, status)
   };
+  normalized.idempotencyKey = typeof job?.idempotencyKey === 'string' && job.idempotencyKey.trim()
+    ? job.idempotencyKey.trim()
+    : buildQueueJobIdempotencyKey(normalized, normalized.queueName || null);
+  return normalized;
 };
 
 const assertAllowedTransition = (job, nextStatus) => {
@@ -252,6 +260,53 @@ const recordProgress = (job, { at, kind, note = null }) => {
   };
 };
 
+const isActiveJobStatus = (status) => status === 'queued' || status === 'running';
+
+const findActiveDuplicateJob = (jobs, idempotencyKey, excludeJobId = null) => jobs.find((entry) => (
+  entry.id !== excludeJobId
+  && entry.idempotencyKey
+  && entry.idempotencyKey === idempotencyKey
+  && isActiveJobStatus(entry.status)
+));
+
+const suppressQueuedDuplicateJob = (job, { at, duplicateOfJob, reason }) => {
+  if (!job || job.status !== 'queued') return false;
+  const previousStatus = assertAllowedTransition(job, 'failed');
+  job.status = 'failed';
+  job.finishedAt = at;
+  job.nextEligibleAt = null;
+  job.lastHeartbeatAt = null;
+  job.lastError = 'duplicate logical job suppressed';
+  job.result = {
+    error: 'duplicate logical job suppressed',
+    duplicateOfId: duplicateOfJob?.id || null,
+    duplicateOfIdempotencyKey: duplicateOfJob?.idempotencyKey || job.idempotencyKey || null,
+    reason
+  };
+  clearLease(job, at, reason);
+  recordProgress(job, { at, kind: 'failed', note: reason });
+  recordTransition(job, previousStatus, 'failed', reason, at);
+  return true;
+};
+
+const suppressClaimSideDuplicates = (queue, claimedJob, nowIso) => {
+  if (!claimedJob?.idempotencyKey) return 0;
+  let suppressed = 0;
+  for (const entry of queue.jobs) {
+    if (entry.id === claimedJob.id) continue;
+    if (entry.status !== 'queued') continue;
+    if (entry.idempotencyKey !== claimedJob.idempotencyKey) continue;
+    if (suppressQueuedDuplicateJob(entry, {
+      at: nowIso,
+      duplicateOfJob: claimedJob,
+      reason: 'duplicate-claim-suppressed'
+    })) {
+      suppressed += 1;
+    }
+  }
+  return suppressed;
+};
+
 const isLeaseExpired = (job, nowMs, queueName = null) => {
   const leaseExpiresAt = Date.parse(job?.lease?.expiresAt || '');
   if (!Number.isNaN(leaseExpiresAt)) {
@@ -325,15 +380,30 @@ export async function saveQueue(dirPath, queue, queueName = null) {
  * @param {object} job
  * @param {number|null} [maxQueued=null]
  * @param {string|null} [queueName=null]
- * @returns {Promise<{ok:boolean,job?:object,message?:string}>}
+ * @param {{forceDuplicate?:boolean}} [options={}]
+ * @returns {Promise<{ok:boolean,job?:object,message?:string,duplicate?:boolean,replaySuppressed?:boolean,idempotencyKey?:string}>}
  */
-export async function enqueueJob(dirPath, job, maxQueued = null, queueName = null) {
+export async function enqueueJob(dirPath, job, maxQueued = null, queueName = null, options = {}) {
   await ensureQueueDir(dirPath);
   const { logsDir, reportsDir } = await ensureJobDirs(dirPath);
   const resolvedQueueName = resolveQueueName(queueName, job);
   const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
     const queue = await loadQueue(dirPath, resolvedQueueName);
+    const idempotencyKey = buildQueueJobIdempotencyKey(job, resolvedQueueName || 'index');
+    if (options.forceDuplicate !== true) {
+      const duplicate = findActiveDuplicateJob(queue.jobs, idempotencyKey);
+      if (duplicate) {
+        return {
+          ok: true,
+          duplicate: true,
+          replaySuppressed: true,
+          message: 'Duplicate logical job suppressed.',
+          job: duplicate,
+          idempotencyKey
+        };
+      }
+    }
     const queued = queue.jobs.filter((entry) => entry.status === 'queued');
     if (Number.isFinite(maxQueued) && queued.length >= maxQueued) {
       return { ok: false, message: 'Queue is full.' };
@@ -355,6 +425,7 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
       buildRoot: job.buildRoot || null,
       indexDir: job.indexDir || null,
       indexRoot: job.indexRoot || null,
+      idempotencyKey,
       configHash: job.configHash || null,
       repoProvenance: job.repoProvenance || null,
       embeddingIdentity: job.embeddingIdentity || null,
@@ -395,7 +466,7 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
     };
     queue.jobs.push(next);
     await saveQueue(dirPath, queue, resolvedQueueName);
-    return { ok: true, job: next };
+    return { ok: true, job: next, idempotencyKey };
   });
 }
 
@@ -406,12 +477,30 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
     const queue = await loadQueue(dirPath, queueName);
     const now = Date.now();
     const nowIso = new Date(now).toISOString();
-    const job = queue.jobs.find((entry) => {
-      if (entry.status !== 'queued') return false;
-      if (!entry.nextEligibleAt) return true;
+    let job = null;
+    for (const entry of queue.jobs) {
+      if (entry.status !== 'queued') continue;
+      if (entry.idempotencyKey) {
+        const runningDuplicate = findActiveDuplicateJob(queue.jobs, entry.idempotencyKey, entry.id);
+        if (runningDuplicate?.status === 'running') {
+          suppressQueuedDuplicateJob(entry, {
+            at: nowIso,
+            duplicateOfJob: runningDuplicate,
+            reason: 'duplicate-running-suppressed'
+          });
+          continue;
+        }
+      }
+      if (!entry.nextEligibleAt) {
+        job = entry;
+        break;
+      }
       const eligibleAt = Date.parse(entry.nextEligibleAt);
-      return Number.isNaN(eligibleAt) || eligibleAt <= now;
-    });
+      if (Number.isNaN(eligibleAt) || eligibleAt <= now) {
+        job = entry;
+        break;
+      }
+    }
     if (!job) return null;
     if (!job.logPath) job.logPath = path.join(logsDir, `${job.id}.log`);
     if (!job.reportPath) job.reportPath = path.join(reportsDir, `${job.id}.json`);
@@ -432,6 +521,7 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
     });
     recordProgress(job, { at: nowIso, kind: 'claim', note: 'lease-acquired' });
     recordTransition(job, previousStatus, 'running', 'claim', nowIso);
+    suppressClaimSideDuplicates(queue, job, nowIso);
     await saveQueue(dirPath, queue, queueName);
     return job;
   });
