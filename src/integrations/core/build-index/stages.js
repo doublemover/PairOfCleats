@@ -418,6 +418,7 @@ export const runSqliteStage = async ({
   log,
   abortSignal,
   recordIndexMetric,
+  observability = null,
   options,
   sqliteLogger
 }) => {
@@ -452,7 +453,7 @@ export const runSqliteStage = async ({
       rawArgv,
       policy,
       indexRoot: runtimeIndexRoot,
-      observability: context?.observability || null
+      observability
     });
     const scheduleSqlite = (fn) => (runtime?.scheduler?.schedule
       ? runtime.scheduler.schedule(

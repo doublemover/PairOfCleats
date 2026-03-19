@@ -45,7 +45,7 @@ const ensureDir = async (dir) => {
 
 const FIXTURE_MODES = new Set(['code', 'prose', 'extracted-prose', 'records']);
 const DEFAULT_REQUIRED_MODES = Object.freeze(['code', 'prose', 'extracted-prose']);
-const FIXTURE_HEALTH_VERSION = 3;
+const FIXTURE_HEALTH_VERSION = 5;
 
 const resolveCacheName = (baseName, { cacheScope = 'isolated' } = {}) => {
   const MAX_CACHE_NAME_LENGTH = 64;
@@ -219,14 +219,34 @@ const hasMissingSqlDialectMetadata = async (codeDir) => {
       (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
     );
     const isSqlFile = (file) => typeof file === 'string' && /\.(sql|psql|pgsql|mysql|sqlite)$/i.test(file);
+    const sqlFiles = new Set(
+      (Array.isArray(fileMeta) ? fileMeta : [])
+        .map((entry) => entry?.file)
+        .filter((file) => isSqlFile(file))
+    );
+    const sqlFilesWithChunks = new Set();
+    const expectedDialectByExt = new Map([
+      ['.psql', 'postgres'],
+      ['.pgsql', 'postgres'],
+      ['.mysql', 'mysql'],
+      ['.sqlite', 'sqlite']
+    ]);
     for (const entry of chunkMeta) {
       const filePath = entry?.file || fileById.get(entry?.fileId) || null;
       const isSqlChunk = String(entry?.lang || '').toLowerCase() === 'sql' || isSqlFile(filePath);
       if (!isSqlChunk) continue;
-      const dialect = entry?.docmeta?.dialect;
-      if (typeof dialect !== 'string' || !dialect.trim()) {
+      if (filePath) sqlFilesWithChunks.add(filePath);
+      const dialect = typeof entry?.docmeta?.dialect === 'string'
+        ? entry.docmeta.dialect.trim().toLowerCase()
+        : '';
+      if (!dialect) {
         return true;
       }
+      const expectedDialect = expectedDialectByExt.get(path.extname(String(filePath || '')).toLowerCase()) || null;
+      if (expectedDialect && dialect !== expectedDialect) return true;
+    }
+    for (const filePath of sqlFiles) {
+      if (!sqlFilesWithChunks.has(filePath)) return true;
     }
   } catch {}
   return false;

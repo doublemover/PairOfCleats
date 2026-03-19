@@ -231,6 +231,7 @@ export async function buildIndex(repoRoot, options = {}) {
       log,
       abortSignal,
       recordIndexMetric,
+      observability,
       options,
       sqliteLogger
     }), observability);
@@ -317,6 +318,7 @@ export async function buildIndex(repoRoot, options = {}) {
       log,
       abortSignal,
       recordIndexMetric,
+      observability,
       options,
       sqliteLogger
     });

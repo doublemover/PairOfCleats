@@ -339,12 +339,29 @@ function extractSqlLeadingDoc(statementText) {
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>|null}
  */
 export function buildSqlChunks(text, options = {}) {
+  const resolveDialect = () => {
+    const explicitDialect = typeof options.dialect === 'string' && options.dialect.trim()
+      ? options.dialect.trim().toLowerCase()
+      : '';
+    if (explicitDialect) return explicitDialect;
+    if (typeof options.resolveSqlDialect === 'function') {
+      const resolved = options.resolveSqlDialect(
+        typeof options.ext === 'string' && options.ext.trim()
+          ? options.ext
+          : ''
+      );
+      if (typeof resolved === 'string' && resolved.trim()) {
+        return resolved.trim().toLowerCase();
+      }
+    }
+    return 'generic';
+  };
   const statements = splitSqlStatements(text);
   const treeChunks = buildTreeSitterChunks({ text, languageId: 'sql', options });
 
   if (treeChunks && treeChunks.length) {
     if (!statements.length || treeChunks.length >= statements.length) {
-      const dialect = options.dialect || 'generic';
+      const dialect = resolveDialect();
       return treeChunks.map((chunk) => ({
         ...chunk,
         meta: {
@@ -357,7 +374,7 @@ export function buildSqlChunks(text, options = {}) {
 
   if (!statements.length) return null;
 
-  const dialect = options.dialect || 'generic';
+  const dialect = resolveDialect();
   const lineIndex = buildLineIndex(text);
   const lines = text.includes('--') || text.includes('/*')
     ? text.split('\n')

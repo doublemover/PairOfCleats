@@ -687,23 +687,32 @@ export const processChunks = async (context) => {
     if (
       chunkMode === 'code'
       && chunkLanguageId === 'sql'
-      && (!docmeta?.dialect || typeof docmeta.dialect !== 'string')
     ) {
       // Scheduler/fallback chunk paths can skip SQL dialect propagation from
-      // language prepare context; enforce deterministic dialect metadata here.
+      // language prepare context, or can stamp generic metadata for dialect-
+      // specific containers like `.psql`; enforce deterministic dialect
+      // metadata here.
       const resolveSqlDialect = typeof languageOptions?.resolveSqlDialect === 'function'
         ? languageOptions.resolveSqlDialect
         : null;
+      const sqlDialectExt = containerExt || c?.ext || effectiveExt || '';
       const resolvedSqlDialect = resolveSqlDialect
-        ? resolveSqlDialect(effectiveExt || containerExt || '')
+        ? resolveSqlDialect(sqlDialectExt)
         : (languageOptions?.sql?.dialect || 'generic');
       const normalizedSqlDialect = typeof resolvedSqlDialect === 'string' && resolvedSqlDialect.trim()
         ? resolvedSqlDialect.trim().toLowerCase()
         : 'generic';
-      docmeta = {
-        ...docmeta,
-        dialect: normalizedSqlDialect
-      };
+      const currentSqlDialect = typeof docmeta?.dialect === 'string'
+        ? docmeta.dialect.trim().toLowerCase()
+        : '';
+      const shouldStampSqlDialect = !currentSqlDialect
+        || (currentSqlDialect === 'generic' && normalizedSqlDialect !== 'generic');
+      if (shouldStampSqlDialect) {
+        docmeta = {
+          ...docmeta,
+          dialect: normalizedSqlDialect
+        };
+      }
     }
     const parserMetadata = {
       ...(docmeta?.parser && typeof docmeta.parser === 'object' ? docmeta.parser : {}),
