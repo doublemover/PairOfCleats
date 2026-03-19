@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { writeDenseVectorArtifacts } from '../../../src/shared/dense-vector-artifacts.js';
 import { updateSqliteDense } from '../../../tools/build/embeddings/sqlite-dense.js';
 import { skip } from '../../helpers/skip.js';
 
@@ -16,6 +17,8 @@ try {
 const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-embeddings-sqlite-'));
 const dbPath = path.join(tempRoot, 'index-code.db');
 const dbMissingPath = path.join(tempRoot, 'index-missing.db');
+const dbBinaryPath = path.join(tempRoot, 'index-binary.db');
+const vectorsBasePath = path.join(tempRoot, 'dense_vectors_uint8');
 
 const vectors = [
   [1, 2, 3],
@@ -31,6 +34,7 @@ const createDbWithTables = (target) => {
 
 createDbWithTables(dbPath);
 new Database(dbMissingPath).close();
+createDbWithTables(dbBinaryPath);
 
 const disabledResult = updateSqliteDense({
   Database,
@@ -77,6 +81,35 @@ assert.equal(enabledResult.skipped, false, 'expected sqlite update to run when e
 assert.ok(Number(enabledResult?.pragmas?.wal_autocheckpoint) > 0, 'expected wal_autocheckpoint to be tuned for embedding writes');
 assert.ok(Number(enabledResult?.pragmas?.journal_size_limit) > 0, 'expected journal_size_limit to be tuned for embedding writes');
 
+await writeDenseVectorArtifacts({
+  indexDir: tempRoot,
+  baseName: 'dense_vectors_uint8',
+  vectorFields: {
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    model: 'model-a',
+    dims: 3,
+    count: vectors.length
+  },
+  vectors,
+  writeBinary: true
+});
+
+const binaryResult = updateSqliteDense({
+  Database,
+  root: tempRoot,
+  userConfig: { sqlite: { use: true } },
+  mode: 'code',
+  dims: 3,
+  scale: 1,
+  modelId: 'model-a',
+  dbPath: dbBinaryPath,
+  vectorsPath: vectorsBasePath,
+  emitOutput: false
+});
+assert.equal(binaryResult.skipped, false, 'expected sqlite update to accept dense vector binary artifacts');
+assert.equal(binaryResult.count, vectors.length, 'expected sqlite update count to reflect artifact-backed rows');
+
 const db = new Database(dbPath, { readonly: true });
 const denseCount = db.prepare('SELECT COUNT(*) AS total FROM dense_vectors').get().total;
 const metaCount = db.prepare('SELECT COUNT(*) AS total FROM dense_meta').get().total;
@@ -85,6 +118,11 @@ db.close();
 assert.equal(denseCount, vectors.length, 'expected dense vectors to be written');
 assert.equal(metaCount, 1, 'expected dense metadata to be written');
 assert.equal(modeCount, vectors.length, 'expected mode-specific dense vectors');
+
+const dbBinary = new Database(dbBinaryPath, { readonly: true });
+const binaryDenseCount = dbBinary.prepare('SELECT COUNT(*) AS total FROM dense_vectors').get().total;
+dbBinary.close();
+assert.equal(binaryDenseCount, vectors.length, 'expected artifact-backed sqlite update to write dense rows');
 
 const trimmedVectors = [
   [1, 2, 3]

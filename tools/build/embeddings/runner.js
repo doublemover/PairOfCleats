@@ -96,7 +96,7 @@ import { updatePieceManifest } from './manifest.js';
 import { createFileEmbeddingsProcessor } from './pipeline.js';
 import { createEmbeddingsScheduler } from './scheduler.js';
 import { createBoundedWriterQueue } from './writer-queue.js';
-import { updateSqliteDense } from './sqlite-dense.js';
+import { runSqliteDenseWithBoundary } from './sqlite-dense-isolate.js';
 import {
   createDeterministicFileStreamSampler,
   selectDeterministicFileSample
@@ -185,12 +185,6 @@ const CHUNK_META_TOO_LARGE_BYTES_PATTERN = /\((\d+)\s*>\s*(\d+)\)/;
  * @property {boolean} manifestWritten
  * @property {boolean} completeCoverage
  */
-
-let Database = null;
-try {
-  ({ default: Database } = await import('better-sqlite3'));
-} catch {}
-
 /**
  * Resolve max chunk-meta payload size used when loading chunk metadata for
  * embeddings generation.
@@ -4060,23 +4054,55 @@ export async function runBuildEmbeddingsWithConfig(config) {
           const sqliteSharedDbForMode = sqlitePathsForMode?.codePath
             && sqlitePathsForMode?.prosePath
             && path.resolve(sqlitePathsForMode.codePath) === path.resolve(sqlitePathsForMode.prosePath);
-          const sqliteResult = await scheduleIo(() => updateSqliteDense({
-            Database,
-            root,
-            userConfig,
-            indexRoot: modeIndexRoot,
-            mode,
-            vectors: mergedVectors,
-            dims: finalDims,
-            scale: denseScale,
-            modelId,
-            quantization,
-            sharedDb: sqliteSharedDbForMode,
-            writeBatchSize: sqliteDenseWriteBatchSize,
-            emitOutput: true,
-            warnOnMissing: false,
-            logger
-          }));
+          let sqliteResult;
+          try {
+            sqliteResult = await scheduleIo(() => runSqliteDenseWithBoundary({
+              root,
+              userConfig,
+              indexRoot: modeIndexRoot,
+              repoCacheRoot,
+              mode,
+              vectorsPath: mergedVectorsBasePath,
+              dims: finalDims,
+              scale: denseScale,
+              modelId,
+              quantization,
+              dbPath: mode === 'code' ? sqlitePathsForMode?.codePath : sqlitePathsForMode?.prosePath,
+              sharedDb: sqliteSharedDbForMode,
+              writeBatchSize: sqliteDenseWriteBatchSize,
+              emitOutput: true,
+              warnOnMissing: false,
+              crashLogger,
+              buildId: modeIndexRoot ? path.basename(modeIndexRoot) : null,
+              workerIdentity: `stage3-sqlite:${mode}`,
+              logger,
+              enableWindowsCrashCapture: envConfig?.benchRun === true || isTestingEnv()
+            }));
+          } catch (err) {
+            crashLogger.logError({
+              phase: `embeddings:${mode}`,
+              stage: 'sqlite-dense-isolate',
+              tool: 'sqlite-dense',
+              workerId: err?.workerId || `stage3-sqlite:${mode}`,
+              buildId: err?.buildId || (modeIndexRoot ? path.basename(modeIndexRoot) : null),
+              bundleId: err?.bundleId || (modeIndexRoot ? path.basename(modeIndexRoot) : null),
+              message: err?.message || String(err),
+              code: err?.code || null,
+              failureClass: err?.failureClass || null,
+              file: mergedVectorsBasePath,
+              indexRoot: modeIndexRoot,
+              dbPath: mode === 'code' ? sqlitePathsForMode?.codePath : sqlitePathsForMode?.prosePath,
+              replayBundlePath: err?.replayBundlePath || null,
+              nativeCrash: err?.nativeCrash === true,
+              dumpDir: err?.dumpDir || null,
+              dumpFiles: Array.isArray(err?.dumpFiles) ? err.dumpFiles : [],
+              exitCode: Number.isFinite(Number(err?.result?.exitCode)) ? Number(err.result.exitCode) : null,
+              signal: typeof err?.result?.signal === 'string' ? err.result.signal : null,
+              stderrTail: err?.result?.stderr || null,
+              stdoutTail: err?.result?.stdout || null
+            });
+            throw err;
+          }
           const vectorAnn = sqliteResult?.vectorAnn || null;
           sqliteVecState = {
             enabled: vectorAnn?.enabled === true,
