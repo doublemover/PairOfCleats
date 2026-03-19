@@ -385,6 +385,49 @@ const chunkMeta = [
   }
 ];
 
+const frameworkChunkMeta = structuredClone(chunkMeta);
+frameworkChunkMeta[0].lang = 'javascript';
+frameworkChunkMeta[0].docmeta = {
+  ...frameworkChunkMeta[0].docmeta,
+  frameworkProfile: {
+    id: 'react',
+    confidence: 'heuristic',
+    signals: {
+      reactHydrationBoundary: true
+    }
+  }
+};
+
+const partialLanguageChunkMeta = structuredClone(chunkMeta);
+partialLanguageChunkMeta[0].lang = 'cmake';
+partialLanguageChunkMeta[0].docmeta = {
+  ...partialLanguageChunkMeta[0].docmeta,
+  usrCapabilities: {
+    state: 'partial',
+    source: 'cmake',
+    diagnostics: [
+      {
+        code: 'USR-W-CAPABILITY-DOWNGRADED',
+        reasonCode: 'imports-only',
+        detail: 'Heuristic adapter only supports import and symbol heuristics.'
+      }
+    ]
+  }
+};
+
+const unsupportedLanguageChunkMeta = structuredClone(chunkMeta);
+unsupportedLanguageChunkMeta[0].lang = 'unknownlang';
+
+const partialLanguageSummaryRow = {
+  ...summaryRow,
+  languageId: 'cmake'
+};
+
+const unsupportedLanguageSummaryRow = {
+  ...summaryRow,
+  languageId: 'unknownlang'
+};
+
 const graphIndex = {
   graphRelations: {
     importGraph: {
@@ -555,7 +598,8 @@ const buildPack = async ({
   includeRiskPartialFlows = false,
   includeGraph = false,
   includeCallersCallees = false,
-  graphIndexOverride = null
+  graphIndexOverride = null,
+  chunkMetaOverride = chunkMeta
 }) => {
   const indexDir = path.join(tempRoot, name, 'index-code');
   await fs.rm(indexDir, { recursive: true, force: true });
@@ -584,7 +628,7 @@ const buildPack = async ({
   await writeManifest(indexDir, pieces);
   return assembleCompositeContextPack({
     seed: { type: 'chunk', chunkUid: 'chunk-risk' },
-    chunkMeta,
+    chunkMeta: chunkMetaOverride,
     repoRoot,
     indexDir,
     graphIndex: graphIndexOverride,
@@ -662,6 +706,57 @@ assert.equal(fullPack.risk?.guidance?.symbols?.[0]?.symbolId, 'sym:query');
 assert.equal(fullPack.risk?.guidance?.tests?.[0]?.testPath, 'tests/risky.test.js');
 assert.match(fullPack.risk?.guidance?.ranking?.callers || '', /Direct inbound callers/i);
 assert.deepEqual(fullPack.risk?.guidance?.caps?.hits || [], []);
+assert.equal(fullPack.risk?.support?.language?.languageId, 'javascript');
+assert.equal(fullPack.risk?.support?.language?.state, 'supported');
+assert.equal(fullPack.risk?.support?.language?.capabilities?.riskLocal, 'supported');
+assert.equal(fullPack.risk?.support?.language?.capabilities?.riskInterprocedural, 'partial');
+assert.ok(
+  fullPack.risk?.support?.downgradedReasoningPaths?.some((entry) => entry?.code === 'risk_interprocedural_partial'),
+  'expected supported language to surface interprocedural downgrade reasoning'
+);
+const frameworkPack = await buildPack({
+  name: 'risk-ok-framework-support',
+  stats: baseStats,
+  summaries: [summaryRow],
+  flows: [flowRow],
+  callSites: [callSiteRow],
+  chunkMetaOverride: frameworkChunkMeta
+});
+assert.equal(frameworkPack.risk?.support?.framework?.frameworkId, 'react');
+assert.equal(frameworkPack.risk?.support?.framework?.state, 'partial');
+assert.ok(
+  frameworkPack.risk?.support?.downgradedReasoningPaths?.some((entry) => entry?.code === 'RISK_FRAMEWORK_BASELINE_ONLY'),
+  'expected framework baseline-only downgrade path'
+);
+const partialSupportPack = await buildPack({
+  name: 'risk-ok-language-partial',
+  stats: baseStats,
+  summaries: [partialLanguageSummaryRow],
+  flows: [flowRow],
+  callSites: [callSiteRow],
+  chunkMetaOverride: partialLanguageChunkMeta
+});
+assert.equal(partialSupportPack.risk?.support?.language?.languageId, 'cmake');
+assert.equal(partialSupportPack.risk?.support?.language?.state, 'partial');
+assert.deepEqual(partialSupportPack.risk?.support?.language?.unsupportedConstructs?.sources, ['interprocedural-source']);
+assert.ok(
+  partialSupportPack.risk?.support?.downgradedReasoningPaths?.some((entry) => entry?.code === 'USR-W-CAPABILITY-DOWNGRADED'),
+  'expected partial language diagnostics to surface as downgraded reasoning'
+);
+const unsupportedSupportPack = await buildPack({
+  name: 'risk-ok-language-unsupported',
+  stats: baseStats,
+  summaries: [unsupportedLanguageSummaryRow],
+  flows: [flowRow],
+  callSites: [callSiteRow],
+  chunkMetaOverride: unsupportedLanguageChunkMeta
+});
+assert.equal(unsupportedSupportPack.risk?.support?.language?.languageId, 'unknownlang');
+assert.equal(unsupportedSupportPack.risk?.support?.language?.state, 'unsupported');
+assert.ok(
+  unsupportedSupportPack.risk?.support?.language?.diagnostics?.some((entry) => entry?.code === 'RISK_LANGUAGE_PROFILE_MISSING'),
+  'expected unsupported language to report missing registry profile'
+);
 const noGraphPack = await buildPack({
   name: 'risk-ok-no-graph',
   stats: baseStats,
@@ -723,12 +818,16 @@ assert.ok(fullRendered.includes('artifact refs:'), 'expected rendered artifact r
 assert.ok(fullRendered.includes('rules: source.req.body -> sink.sql.query'), 'expected rendered rules');
 assert.ok(fullRendered.includes('semantics sem.callback.register-handler-payload'), 'expected rendered semantics labels');
 const fullRenderedJson = renderCompositeContextPackJson(fullPack);
+assert.equal(fullRenderedJson.rendered?.risk?.support?.language?.state, 'supported');
 assert.equal(fullRenderedJson.rendered?.sarif?.runs?.[0]?.results?.[0]?.properties?.pairOfCleats?.flowId, flowRow.flowId);
 assert.equal(
   fullRenderedJson.rendered?.sarif?.runs?.[0]?.results?.[0]?.codeFlows?.[0]?.threadFlows?.[0]?.locations?.[0]
     ?.location?.physicalLocation?.artifactLocation?.uri,
   'src/file.js'
 );
+const partialSupportRendered = renderCompositeContextPack(partialSupportPack);
+assert.match(partialSupportRendered, /support: language cmake partial/i);
+assert.match(partialSupportRendered, /unsupported constructs: sources interprocedural-source/i);
 
 const fullPackRepeat = await buildPack({
   name: 'full-repeat',

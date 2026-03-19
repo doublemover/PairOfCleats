@@ -33,6 +33,7 @@ import {
   resolveArtifactPresence
 } from '../shared/artifact-io.js';
 import { CONTEXT_PACK_RISK_CONTRACT_VERSION } from '../contracts/context-pack-risk-contract.js';
+import { buildRiskSupportEnvelope } from './risk-support.js';
 
 const resolveSeedRef = (seed) => {
   if (!seed || typeof seed !== 'object') return null;
@@ -1824,6 +1825,25 @@ const buildRiskSlice = ({
     statusCode = 'capped';
   }
   const strictFailure = statusCode !== 'ok';
+  const summarizedStats = summarizeRiskStats(stats);
+  const analysisStatus = buildRiskAnalysisStatus({
+    status,
+    reason: degraded ? 'partial-artifacts' : (stats?.reason || null),
+    degraded,
+    summaryOnly,
+    code: statusCode,
+    strictFailure,
+    artifactStatus: resolvedArtifactStatus,
+    stats: summarizedStats,
+    caps: riskCaps,
+    degradedReasons
+  });
+  const support = buildRiskSupportEnvelope({
+    primaryChunk,
+    summary: normalizedSummary,
+    stats,
+    analysisStatus
+  });
   observeRiskPackMetrics({
     status: statusCode,
     capsHit: riskCaps.hits,
@@ -1840,20 +1860,10 @@ const buildRiskSlice = ({
     flows: normalizedFlows,
     partialFlows: normalizedPartialFlows,
     summary: normalizedSummary,
+    support,
     guidance,
-    stats: summarizeRiskStats(stats),
-    analysisStatus: buildRiskAnalysisStatus({
-      status,
-      reason: degraded ? 'partial-artifacts' : (stats?.reason || null),
-      degraded,
-      summaryOnly,
-      code: statusCode,
-      strictFailure,
-      artifactStatus: resolvedArtifactStatus,
-      stats: summarizeRiskStats(stats),
-      caps: riskCaps,
-      degradedReasons
-    }),
+    stats: summarizedStats,
+    analysisStatus,
     caps: riskCaps,
     truncation: riskTruncation,
     provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: resolvedArtifactStatus, indexSignature, indexCompatKey }),

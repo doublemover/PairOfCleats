@@ -341,6 +341,7 @@ export const renderRiskExplanationJson = (
   anchor: model?.anchor || null,
   analysisStatus: model?.analysisStatus || null,
   summary: model?.summary || null,
+  support: model?.support || null,
   stats: model?.stats || null,
   provenance: model?.provenance || null,
   caps: model?.caps || null,
@@ -399,6 +400,60 @@ const renderSummary = (model, lines) => {
   }
   if (Array.isArray(summary?.topTags) && summary.topTags.length) {
     lines.push(`- top tags: ${summary.topTags.slice(0, 3).map((entry) => `${entry.tag} (${entry.count})`).join(', ')}`);
+  }
+};
+
+const renderSupport = (model, lines) => {
+  const support = model?.support || null;
+  if (!support || typeof support !== 'object') return;
+  const language = support.language || null;
+  const framework = support.framework || null;
+  const downgradePaths = Array.isArray(support.downgradedReasoningPaths)
+    ? support.downgradedReasoningPaths
+    : [];
+  const languageState = language?.state || null;
+  const frameworkState = framework?.state || null;
+  const shouldRender = languageState === 'partial'
+    || languageState === 'unsupported'
+    || frameworkState === 'partial'
+    || frameworkState === 'unsupported'
+    || downgradePaths.length > 0;
+  if (!shouldRender) return;
+
+  const parts = [];
+  if (language?.languageId) {
+    const capabilityParts = [];
+    if (language?.capabilities?.riskLocal) capabilityParts.push(`local=${language.capabilities.riskLocal}`);
+    if (language?.capabilities?.riskInterprocedural) capabilityParts.push(`interprocedural=${language.capabilities.riskInterprocedural}`);
+    const suffix = capabilityParts.length ? ` (${capabilityParts.join(', ')})` : '';
+    parts.push(`language ${language.languageId} ${languageState || 'unknown'}${suffix}`);
+  }
+  if (framework?.frameworkId) {
+    parts.push(`framework ${framework.frameworkId} ${frameworkState || 'unknown'}`);
+  }
+  if (parts.length) {
+    lines.push(`- support: ${parts.join('; ')}`);
+  }
+
+  const unsupported = language?.unsupportedConstructs || null;
+  if (unsupported) {
+    const unsupportedParts = [];
+    if (Array.isArray(unsupported.sources) && unsupported.sources.length) {
+      unsupportedParts.push(`sources ${unsupported.sources.join(', ')}`);
+    }
+    if (Array.isArray(unsupported.sinks) && unsupported.sinks.length) {
+      unsupportedParts.push(`sinks ${unsupported.sinks.join(', ')}`);
+    }
+    if (Array.isArray(unsupported.sanitizers) && unsupported.sanitizers.length) {
+      unsupportedParts.push(`sanitizers ${unsupported.sanitizers.join(', ')}`);
+    }
+    if (unsupportedParts.length) {
+      lines.push(`- unsupported constructs: ${unsupportedParts.join('; ')}`);
+    }
+  }
+
+  if (downgradePaths.length) {
+    lines.push(`- downgraded reasoning: ${downgradePaths.slice(0, 4).map((entry) => entry.message || entry.code).join('; ')}`);
   }
 };
 
@@ -569,6 +624,7 @@ export const renderRiskExplanation = (
   if (includeAnchor) renderAnchor(model, lines);
   if (includeAnalysisStatus) renderAnalysisStatus(model, lines);
   if (includeSummary) renderSummary(model, lines);
+  renderSupport(model, lines);
   if (includeStats) renderStats(model, lines);
   if (includeProvenance) renderProvenance(model, lines);
   if (includeCaps) renderCaps(model, lines);

@@ -231,6 +231,7 @@ const normalizeExplainPartialFlow = (flow) => {
 export const buildRiskExplanationModel = ({
   subject = null,
   summary = null,
+  support = null,
   stats = null,
   provenance = null,
   analysisStatus = null,
@@ -243,6 +244,7 @@ export const buildRiskExplanationModel = ({
 } = {}) => ({
   subject: normalizeExplainSubject(subject),
   summary: summary && typeof summary === 'object' ? summary : null,
+  support: support && typeof support === 'object' ? support : null,
   stats: stats && typeof stats === 'object' ? stats : null,
   provenance: provenance && typeof provenance === 'object' ? provenance : null,
   analysisStatus: analysisStatus && typeof analysisStatus === 'object' ? analysisStatus : null,
@@ -257,6 +259,7 @@ export const buildRiskExplanationModel = ({
 export const buildRiskExplanationModelFromStandalone = ({
   chunk = null,
   summary = null,
+  support = null,
   stats = null,
   provenance = null,
   filters = null,
@@ -265,6 +268,7 @@ export const buildRiskExplanationModelFromStandalone = ({
 } = {}) => buildRiskExplanationModel({
   subject: chunk,
   summary: normalizeRiskSummary(summary, flows),
+  support,
   stats: normalizeExplainStats(stats),
   provenance: provenance || stats?.provenance || null,
   analysisStatus: stats && typeof stats === 'object'
@@ -284,6 +288,7 @@ export const buildRiskExplanationModelFromStandalone = ({
 export const buildRiskExplanationModelFromRiskSlice = (risk, { subject = null, filters = null } = {}) => buildRiskExplanationModel({
   subject,
   summary: risk?.summary || null,
+  support: risk?.support || null,
   stats: normalizeExplainStats(risk?.stats || null),
   provenance: risk?.provenance || null,
   analysisStatus: risk?.analysisStatus || null,

@@ -1147,6 +1147,97 @@ const riskGuidanceSchema = {
   additionalProperties: false
 };
 
+const riskSupportSchema = {
+  type: ['object', 'null'],
+  properties: {
+    registry: {
+      type: ['object', 'null'],
+      properties: {
+        loaded: { type: ['boolean', 'null'] },
+        languageKey: nullableString,
+        frameworkKey: nullableString
+      },
+      additionalProperties: false
+    },
+    language: {
+      type: ['object', 'null'],
+      properties: {
+        languageId: nullableString,
+        state: nullableString,
+        source: nullableString,
+        capabilities: {
+          type: ['object', 'null'],
+          properties: {
+            riskLocal: nullableString,
+            riskInterprocedural: nullableString
+          },
+          additionalProperties: false
+        },
+        unsupportedConstructs: {
+          type: ['object', 'null'],
+          properties: {
+            sources: { type: 'array', items: { type: 'string' } },
+            sinks: { type: 'array', items: { type: 'string' } },
+            sanitizers: { type: 'array', items: { type: 'string' } }
+          },
+          additionalProperties: false
+        },
+        diagnostics: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              code: nullableString,
+              source: nullableString,
+              reasonCode: nullableString,
+              detail: nullableString
+            },
+            additionalProperties: false
+          }
+        }
+      },
+      additionalProperties: false
+    },
+    framework: {
+      type: ['object', 'null'],
+      properties: {
+        frameworkId: nullableString,
+        state: nullableString,
+        source: nullableString,
+        appliesToLanguage: { type: ['boolean', 'null'] },
+        confidence: nullableString,
+        signals: { type: 'array', items: { type: 'string' } },
+        diagnostics: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              code: nullableString,
+              source: nullableString,
+              detail: nullableString
+            },
+            additionalProperties: false
+          }
+        }
+      },
+      additionalProperties: false
+    },
+    downgradedReasoningPaths: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          code: nullableString,
+          scope: nullableString,
+          message: nullableString
+        },
+        additionalProperties: false
+      }
+    }
+  },
+  additionalProperties: false
+};
+
 const riskDeltaSideSchema = {
   type: 'object',
   required: ['requestedRef', 'canonical', 'seedStatus', 'flows', 'partialFlows'],
@@ -1342,6 +1433,7 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
         anchor: riskAnchorSchema,
         filters: riskFiltersSchema,
         summary: riskSummarySchema,
+        support: riskSupportSchema,
         guidance: riskGuidanceSchema,
         stats: riskStatsSchema,
         analysisStatus: riskAnalysisStatusSchema,
