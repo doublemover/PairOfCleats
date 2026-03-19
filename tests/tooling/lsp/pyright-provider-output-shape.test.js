@@ -12,6 +12,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const tempRoot = resolveTestCachePath(root, 'pyright-provider-output-shape');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
+await fs.writeFile(path.join(tempRoot, 'pyproject.toml'), '[project]\nname = "pyright-shape"\n', 'utf8');
+await fs.writeFile(path.join(tempRoot, 'src', 'one.py'), 'def alpha():\n    return 1\n', 'utf8');
 
 registerDefaultToolingProviders();
 const provider = getToolingProvider('pyright');
@@ -55,6 +57,11 @@ assert.ok(duplicate, 'expected duplicate chunkUid warning');
 assert.ok(
   Array.isArray(duplicate.samples) && duplicate.samples[0]?.startsWith('ck:'),
   'expected duplicate chunkUid samples to be chunk-style ids'
+);
+assert.equal(
+  typeof output.diagnostics?.planning?.workspaceRootRel,
+  'string',
+  'expected pyright diagnostics to expose planning summary'
 );
 
 console.log('pyright provider output shape test passed');

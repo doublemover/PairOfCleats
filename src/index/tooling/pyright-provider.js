@@ -13,6 +13,10 @@ import { parsePythonSignature } from './signature-parse/python.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { filterTargetsForDocuments } from './provider-utils.js';
+import {
+  persistPyrightPlannerHealth,
+  resolvePyrightRequestPlan
+} from './pyright-planner.js';
 import { awaitToolingProviderPreflight } from './preflight-manager.js';
 import {
   mergePreflightChecks,
@@ -372,11 +376,30 @@ export const createPyrightProvider = () => ({
         breakerThreshold: 5
       }
     });
+    const requestPlan = await resolvePyrightRequestPlan({
+      repoRoot: ctx.repoRoot,
+      cacheRoot: ctx?.cache?.dir || null,
+      documents: docs,
+      targets,
+      allDocuments: Array.isArray(inputs?.documents) ? inputs.documents : docs
+    });
+    checks.push(...requestPlan.checks);
+    if (!requestPlan.selectedDocuments.length || !requestPlan.selectedTargets.length) {
+      const diagnostics = appendDiagnosticChecks({
+        planning: requestPlan.diagnostics
+      }, checks);
+      return {
+        provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics
+      };
+    }
     const result = await collectLspTypes({
       ...runtimeConfig,
       rootDir: ctx.repoRoot,
-      documents: docs,
-      targets,
+      workspaceRootDir: requestPlan.workspaceRootDir,
+      documents: requestPlan.selectedDocuments,
+      targets: requestPlan.selectedTargets,
       abortSignal: ctx?.abortSignal || null,
       log,
       providerId: 'pyright',
@@ -384,6 +407,7 @@ export const createPyrightProvider = () => ({
       adaptiveReasonHint: preflight?.reasonCode || null,
       cmd: resolvedCmd,
       args: resolvedArgs,
+      documentSymbolConcurrency: requestPlan.documentSymbolConcurrency,
       parseSignature: (detail) => parsePythonSignature(detail),
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,
@@ -393,10 +417,19 @@ export const createPyrightProvider = () => ({
       indexDir: ctx?.buildRoot || null,
       captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds)
     });
+    await persistPyrightPlannerHealth({
+      repoRoot: ctx.repoRoot,
+      cacheRoot: ctx?.cache?.dir || null,
+      workspaceRootRel: requestPlan.workspaceRootRel,
+      runtime: result.runtime
+    });
     const diagnostics = appendDiagnosticChecks(
-      result.diagnosticsCount
-        ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
-        : null,
+      {
+        ...(result.diagnosticsCount
+          ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
+          : {}),
+        planning: requestPlan.diagnostics
+      },
       [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
     );
     invalidateProbeCacheOnInitializeFailure({
