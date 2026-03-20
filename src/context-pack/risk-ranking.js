@@ -1,6 +1,6 @@
 import { compareStrings } from '../shared/sort.js';
 
-const resolveRiskSeverityWeight = (value) => {
+export const resolveRiskSeverityWeight = (value) => {
   if (value === 'critical') return 4;
   if (value === 'high') return 3;
   if (value === 'medium') return 2;
@@ -8,7 +8,7 @@ const resolveRiskSeverityWeight = (value) => {
   return 0;
 };
 
-const resolveRiskSeedRelevance = (flow, riskAnchor) => {
+export const resolveRiskSeedRelevance = (flow, riskAnchor) => {
   if (!flow || !riskAnchor) return 0;
   const anchorChunkUid = riskAnchor?.chunkUid || null;
   if (!anchorChunkUid) return 0;
