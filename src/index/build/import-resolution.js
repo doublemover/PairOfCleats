@@ -46,6 +46,10 @@ export {
 } from './import-resolution/reason-codes.js';
 export { matchGeneratedExpectationSpecifier } from './import-resolution/specifier-hints.js';
 export {
+  createImportResolutionTrace,
+  IMPORT_RESOLUTION_TRACE_STAGES
+} from './import-resolution/trace-model.js';
+export {
   aggregateImportResolutionGraphPayloads,
   aggregateImportResolutionGraphReportPaths,
   DEFAULT_REPLAY_MAX_REPORTS,

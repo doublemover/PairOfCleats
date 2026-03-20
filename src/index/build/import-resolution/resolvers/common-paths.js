@@ -297,6 +297,45 @@ const escapesImporterRoot = ({ rawSpec, importerDir = '' }) => {
   return climbs > depth;
 };
 
+export const buildBazelLabelCandidatePaths = ({ rawSpec, importerInfo }) => {
+  const bazelSourceFile = importerInfo?.extension === '.bzl'
+    || importerInfo?.extension === '.star'
+    || importerInfo?.extension === '.bazel';
+  const bazelLabel = parseBazelLabelSpecifier(rawSpec, { importerRel: importerInfo?.importerRel });
+  if (!bazelLabel) return null;
+  const labelCandidates = [];
+  const pushCandidate = (candidate) => {
+    const normalized = normalizeRelPath(candidate);
+    if (!normalized) return;
+    if (!labelCandidates.includes(normalized)) labelCandidates.push(normalized);
+  };
+  const packageRel = normalizeRelPath(bazelLabel.package);
+  const targetRel = normalizeRelPath(bazelLabel.target);
+  if (targetRel) {
+    pushCandidate(packageRel ? `${packageRel}/${targetRel}` : targetRel);
+    if (bazelSourceFile && !path.posix.extname(path.posix.basename(targetRel))) {
+      pushCandidate(packageRel ? `${packageRel}/${targetRel}.bzl` : `${targetRel}.bzl`);
+    }
+  }
+  if (packageRel) {
+    pushCandidate(packageRel);
+    const packageBase = path.posix.basename(packageRel);
+    if (packageBase) {
+      pushCandidate(`${packageRel}/${packageBase}`);
+      if (bazelSourceFile) {
+        pushCandidate(`${packageRel}/${packageBase}.bzl`);
+      }
+    }
+    if (bazelSourceFile) pushCandidate(`${packageRel}.bzl`);
+  }
+  return {
+    parsed: bazelLabel,
+    candidates: expandPathLikeCandidates({ importerInfo, candidates: labelCandidates }),
+    packageRel,
+    targetRel
+  };
+};
+
 export const resolvePathLikeImport = ({ spec, importerInfo, lookup }) => {
   const rawSpec = toPosix(String(spec || '')).trim();
   if (!rawSpec) return null;
@@ -304,38 +343,10 @@ export const resolvePathLikeImport = ({ spec, importerInfo, lookup }) => {
     || importerInfo?.extension === '.star'
     || importerInfo?.extension === '.bazel';
   const htmlSourceFile = importerInfo?.extension === '.html' || importerInfo?.extension === '.htm';
-  const bazelLabel = parseBazelLabelSpecifier(rawSpec, { importerRel: importerInfo.importerRel });
+  const bazelLabel = buildBazelLabelCandidatePaths({ rawSpec, importerInfo });
   if (bazelLabel) {
-    if (bazelLabel.repo) return null;
-    const labelCandidates = [];
-    const pushCandidate = (candidate) => {
-      const normalized = normalizeRelPath(candidate);
-      if (!normalized) return;
-      if (!labelCandidates.includes(normalized)) labelCandidates.push(normalized);
-    };
-    const packageRel = normalizeRelPath(bazelLabel.package);
-    const targetRel = normalizeRelPath(bazelLabel.target);
-    if (targetRel) {
-      pushCandidate(packageRel ? `${packageRel}/${targetRel}` : targetRel);
-      if (bazelSourceFile && !path.posix.extname(path.posix.basename(targetRel))) {
-        pushCandidate(packageRel ? `${packageRel}/${targetRel}.bzl` : `${targetRel}.bzl`);
-      }
-    }
-    if (packageRel) {
-      pushCandidate(packageRel);
-      const packageBase = path.posix.basename(packageRel);
-      if (packageBase) {
-        pushCandidate(`${packageRel}/${packageBase}`);
-        if (bazelSourceFile) {
-          pushCandidate(`${packageRel}/${packageBase}.bzl`);
-        }
-      }
-      if (bazelSourceFile) pushCandidate(`${packageRel}.bzl`);
-    }
-    return resolveFromCandidateList(
-      expandPathLikeCandidates({ importerInfo, candidates: labelCandidates }),
-      lookup
-    );
+    if (bazelLabel.parsed?.repo) return null;
+    return resolveFromCandidateList(bazelLabel.candidates, lookup);
   }
   if (rawSpec.startsWith('/')) {
     const normalizedSpec = normalizeRelPath(rawSpec);

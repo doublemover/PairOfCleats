@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { normalizeImportSpecifier } from '../../path-utils.js';
 import { IMPORT_REASON_CODES } from '../../reason-codes.js';
+import { IMPORT_RESOLUTION_TRACE_STAGES } from '../../trace-model.js';
 
 const BAZEL_SOURCE_EXTENSIONS = new Set(['.bazel', '.bzl', '.star']);
 const CONFIG_ROOT_SENTINEL_EXTENSIONS = new Set([
@@ -122,6 +123,8 @@ const classifyBazelRootTraversal = ({ importerRel = '', spec = '', rawSpec = '' 
   return {
     reasonCode: IMPORT_REASON_CODES.BAZEL_WORKSPACE_ROOT_SENTINEL,
     pluginId: 'path-context',
+    adapter: 'path-context',
+    traceStage: IMPORT_RESOLUTION_TRACE_STAGES.WORKSPACE_ANCHORING,
     match: {
       matched: true,
       source: 'plugin',
@@ -139,6 +142,8 @@ const classifyConfigRootSentinel = ({ importerRel = '', spec = '', rawSpec = '' 
     return {
       reasonCode: IMPORT_REASON_CODES.CONFIG_ROOT_SENTINEL,
       pluginId: 'path-context',
+      adapter: 'path-context',
+      traceStage: IMPORT_RESOLUTION_TRACE_STAGES.WORKSPACE_ANCHORING,
       match: {
         matched: true,
         source: 'plugin',
@@ -150,6 +155,8 @@ const classifyConfigRootSentinel = ({ importerRel = '', spec = '', rawSpec = '' 
     return {
       reasonCode: IMPORT_REASON_CODES.CONFIG_ROOT_ANCHORED_PATH,
       pluginId: 'path-context',
+      adapter: 'path-context',
+      traceStage: IMPORT_RESOLUTION_TRACE_STAGES.WORKSPACE_ANCHORING,
       match: {
         matched: true,
         source: 'plugin',
@@ -180,6 +187,8 @@ const classifyConfigRootedSpecifier = ({ importerRel = '', spec = '', rawSpec = 
   return {
     reasonCode: IMPORT_REASON_CODES.CONFIG_ROOT_ANCHORED_PATH,
     pluginId: 'path-context',
+    adapter: 'path-context',
+    traceStage: IMPORT_RESOLUTION_TRACE_STAGES.WORKSPACE_ANCHORING,
     match: {
       matched: true,
       source: 'plugin',
@@ -199,6 +208,8 @@ const classifyFixtureReference = ({ importerRel = '', spec = '', rawSpec = '' } 
     return {
       reasonCode: IMPORT_REASON_CODES.FIXTURE_REFERENCE,
       pluginId: 'path-context',
+      adapter: 'path-context',
+      traceStage: IMPORT_RESOLUTION_TRACE_STAGES.CLASSIFY,
       match: {
         matched: true,
         source: 'plugin',
@@ -217,6 +228,8 @@ const classifyBuildOutputReference = ({ importerRel = '', spec = '', rawSpec = '
   return {
     reasonCode: IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING,
     pluginId: 'path-context',
+    adapter: 'path-context',
+    traceStage: IMPORT_RESOLUTION_TRACE_STAGES.GENERATED_ARTIFACT_INTERPRETATION,
     match: {
       matched: true,
       source: 'plugin',
@@ -236,6 +249,8 @@ const classifyBuildScriptTypeScriptEmitReference = ({ importerRel = '', spec = '
   return {
     reasonCode: IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING,
     pluginId: 'path-context',
+    adapter: 'path-context',
+    traceStage: IMPORT_RESOLUTION_TRACE_STAGES.GENERATED_ARTIFACT_INTERPRETATION,
     match: {
       matched: true,
       source: 'plugin',
@@ -251,6 +266,8 @@ const classifyBuildRuntimeRootReference = ({ importerRel = '', spec = '', rawSpe
   return {
     reasonCode: IMPORT_REASON_CODES.RESOLVER_GAP,
     pluginId: 'path-context',
+    adapter: 'path-context',
+    traceStage: IMPORT_RESOLUTION_TRACE_STAGES.WORKSPACE_ANCHORING,
     match: {
       matched: true,
       source: 'plugin',
@@ -274,6 +291,8 @@ const classifyWebRuntimeBootstrapReference = ({ importerRel = '', spec = '', raw
   return {
     reasonCode: IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING,
     pluginId: 'path-context',
+    adapter: 'path-context',
+    traceStage: IMPORT_RESOLUTION_TRACE_STAGES.GENERATED_ARTIFACT_INTERPRETATION,
     match: {
       matched: true,
       source: 'plugin',
@@ -291,6 +310,8 @@ const classifyDartPackageRootReference = ({ importerRel = '', spec = '', rawSpec
   return {
     reasonCode: IMPORT_REASON_CODES.RESOLVER_GAP,
     pluginId: 'path-context',
+    adapter: 'path-context',
+    traceStage: IMPORT_RESOLUTION_TRACE_STAGES.WORKSPACE_ANCHORING,
     match: {
       matched: true,
       source: 'plugin',
@@ -305,6 +326,8 @@ const classifyOptionalDependency = ({ spec = '', rawSpec = '' } = {}) => {
   return {
     reasonCode: IMPORT_REASON_CODES.OPTIONAL_DEPENDENCY,
     pluginId: 'path-context',
+    adapter: 'path-context',
+    traceStage: IMPORT_RESOLUTION_TRACE_STAGES.CLASSIFY,
     match: {
       matched: true,
       source: 'plugin',

@@ -44,13 +44,14 @@ assert.equal(Number.isFinite(Number(stages.classify?.degraded)), true, 'expected
 
 const warnings = Array.isArray(resolution?.unresolvedSamples) ? resolution.unresolvedSamples : [];
 assert.equal(warnings.length, 1);
-assert.equal(warnings[0].reasonCode, 'IMP_U_RESOLVER_GAP');
-assert.equal(warnings[0].resolverStage, 'language_resolver');
-assert.equal((stages.language_resolver?.degraded || 0) >= 1, true, 'expected unresolved resolver gap to increment degraded stage counter');
+assert.equal(warnings[0].reasonCode, 'IMP_U_BAZEL_LABEL_TARGET_MISSING');
+assert.equal(warnings[0].resolverStage, 'build_system_resolver');
+assert.equal(warnings[0].resolverAdapter, 'bazel-label');
+assert.equal(Array.isArray(warnings[0].resolverTrace), true, 'expected unresolved warning trace');
 assert.equal(
-  (stages.language_resolver?.reasonCodes?.IMP_U_RESOLVER_GAP || 0) >= 1,
+  (stages.build_system_resolver?.reasonCodes?.IMP_U_BAZEL_LABEL_TARGET_MISSING || 0) >= 1,
   true,
-  'expected stage reason-code counters for unresolved resolver-gap events'
+  'expected stage reason-code counters for unresolved Bazel target misses'
 );
 
 const graphStageStats = resolution?.graph?.stats?.resolverPipelineStages || {};

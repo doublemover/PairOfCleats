@@ -285,6 +285,7 @@ const createAggregateState = () => ({
     actionableHotspotCounts: Object.create(null),
     actionableRepoCounts: Object.create(null),
     actionableLanguageCounts: Object.create(null),
+    resolverAdapterCounts: Object.create(null),
     resolverStageCounts: Object.create(null),
     resolverPipelineStages: Object.create(null),
     resolverPipelineStageElapsedSamples: Object.create(null),
@@ -409,18 +410,23 @@ const accumulateGraphReport = (
   );
 
   const statsResolverStages = toResolverStageCounts(stats.unresolvedByResolverStage);
+  const statsResolverAdapters = toCountMap(stats.unresolvedByAdapter);
   const statsResolverPipelineStages = toStagePipelineMap(stats.resolverPipelineStages);
   const statsBudgetPolicy = toBudgetPolicy(stats.resolverBudgetPolicy);
   const statsActionableByLanguage = toCountMap(stats.unresolvedActionableByLanguage);
 
   const warningResolverStages = Object.create(null);
+  const warningResolverAdapters = Object.create(null);
   for (const warning of warnings) {
     const stage = typeof warning?.resolverStage === 'string' ? warning.resolverStage.trim() : '';
     if (!isKnownResolverStage(stage)) continue;
     if (!stage) continue;
     bumpCount(warningResolverStages, stage);
+    const adapter = typeof warning?.resolverAdapter === 'string' ? warning.resolverAdapter.trim() : '';
+    if (adapter) bumpCount(warningResolverAdapters, adapter);
   }
   const effectiveResolverStages = statsResolverStages || warningResolverStages;
+  const effectiveResolverAdapters = statsResolverAdapters || warningResolverAdapters;
 
   const statsHotspots = toHotspotCounts(stats.unresolvedActionableHotspots);
   const effectiveHotspotCounts = statsHotspots || Object.create(null);
@@ -470,6 +476,9 @@ const accumulateGraphReport = (
   for (const [resolverStage, count] of Object.entries(effectiveResolverStages)) {
     bumpCount(state.totals.resolverStageCounts, resolverStage, count);
   }
+  for (const [resolverAdapter, count] of Object.entries(effectiveResolverAdapters)) {
+    bumpCount(state.totals.resolverAdapterCounts, resolverAdapter, count);
+  }
   mergeStagePipelineMaps(state.totals.resolverPipelineStages, statsResolverPipelineStages);
   collectStageElapsedSamples(state.totals.resolverPipelineStageElapsedSamples, statsResolverPipelineStages);
 };
@@ -479,6 +488,7 @@ const finalizeAggregateState = (state) => ({
   reasonCodeCounts: toSortedObject(state.reasonCodeCounts),
   actionableByRepo: toSortedObject(state.totals.actionableRepoCounts),
   actionableByLanguage: toSortedObject(state.totals.actionableLanguageCounts),
+  resolverAdapters: toSortedObject(state.totals.resolverAdapterCounts),
   resolverStages: toSortedObject(state.totals.resolverStageCounts),
   resolverPipelineStages: toSortedStagePipeline(state.totals.resolverPipelineStages),
   resolverPipelineStagePercentiles: summarizeResolverPipelineStageElapsedPercentiles(

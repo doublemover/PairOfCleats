@@ -53,11 +53,15 @@ import {
   isKnownReasonCode,
 } from './reason-codes.js';
 import { createImportResolutionStageTracker } from './stage-pipeline.js';
+import {
+  createImportResolutionTrace,
+  IMPORT_RESOLUTION_TRACE_STAGES
+} from './trace-model.js';
 import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
 
 const ABSOLUTE_SYSTEM_PATH_PREFIX_RX = /^\/(?:etc|usr|opt|var|bin|sbin|lib|lib64|dev|proc|sys|run|tmp|home|root)(?:\/|$)/i;
 const SCHEME_RELATIVE_URL_RX = /^\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/:]|$)/i;
-const IMPORT_RESOLVER_VERSION = 'import-resolution-engine-v4';
+const IMPORT_RESOLVER_VERSION = 'import-resolution-engine-v5';
 
 const normalizeAliasRuleText = (value) => (
   typeof value === 'string'
@@ -266,6 +270,23 @@ const resolveUnresolvedReasonCode = ({
     return IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED;
   }
   return IMPORT_REASON_CODES.MISSING_FILE_RELATIVE;
+};
+
+const preferUnresolvedReasonHint = ({
+  unresolvedReasonCodeHint = null,
+  buildContextReasonCode = null,
+  collectorHintReasonCode = null
+} = {}) => {
+  if (
+    unresolvedReasonCodeHint
+    && unresolvedReasonCodeHint !== IMPORT_REASON_CODES.RESOLVER_GAP
+  ) {
+    return unresolvedReasonCodeHint;
+  }
+  return buildContextReasonCode
+    || unresolvedReasonCodeHint
+    || collectorHintReasonCode
+    || null;
 };
 
 export function resolveImportLinks({
@@ -622,6 +643,7 @@ export function resolveImportLinks({
   const unresolvedFailureCauseCounts = Object.create(null);
   const unresolvedDispositionCounts = Object.create(null);
   const unresolvedResolverStageCounts = Object.create(null);
+  const unresolvedAdapterCounts = Object.create(null);
   const unresolvedActionableHotspotCounts = Object.create(null);
   const unresolvedActionableLanguageCounts = Object.create(null);
   const unresolvedBudgetExhaustedByType = Object.create(null);
@@ -696,15 +718,29 @@ export function resolveImportLinks({
     const nextSpecCache = cacheState && fileHash ? {} : null;
 
     for (const rawSpec of rawSpecs) {
+      const resolutionTrace = createImportResolutionTrace({
+        importer: relNormalized,
+        rawSpecifier: rawSpec
+      });
       const spec = stageTracker.withStage(
         IMPORT_RESOLVER_STAGES.NORMALIZE,
         () => normalizeImportSpecifier(rawSpec)
       );
       if (!spec) {
         stageTracker.markMiss(IMPORT_RESOLVER_STAGES.NORMALIZE);
+        resolutionTrace.record({
+          stage: IMPORT_RESOLUTION_TRACE_STAGES.NORMALIZATION,
+          outcome: 'miss',
+          details: { rawSpecifier: rawSpec }
+        });
         continue;
       }
       stageTracker.markHit(IMPORT_RESOLVER_STAGES.NORMALIZE);
+      resolutionTrace.record({
+        stage: IMPORT_RESOLUTION_TRACE_STAGES.NORMALIZATION,
+        outcome: 'normalized',
+        details: { normalizedSpecifier: spec }
+      });
       let includeGraphEdge = true;
       const isRelative = spec.startsWith('.') || spec.startsWith('/');
       if (!isRelative && !tsconfigResolved) {
@@ -734,6 +770,7 @@ export function resolveImportLinks({
       let unresolvedFailureCause = null;
       let unresolvedDisposition = null;
       let unresolvedResolverStage = null;
+      let unresolvedAdapter = null;
       const specProbeDiagnostics = { errors: 0, errorByCode: Object.create(null) };
       const specBudget = createImportResolutionSpecifierBudgetState(budgetPolicy);
       let buildContextClassification = null;
@@ -752,6 +789,14 @@ export function resolveImportLinks({
           } else {
             stageTracker.markMiss(IMPORT_RESOLVER_STAGES.BUILD_SYSTEM_RESOLVER);
           }
+          resolutionTrace.record({
+            stage: buildContextClassification?.traceStage
+              || IMPORT_RESOLUTION_TRACE_STAGES.BUILD_SYSTEM_INTERPRETATION,
+            outcome: buildContextClassification?.reasonCode ? 'classified' : 'miss',
+            adapter: buildContextClassification?.adapter || buildContextClassification?.pluginId || null,
+            reasonCode: buildContextClassification?.reasonCode || null,
+            details: buildContextClassification?.details || null
+          });
         }
         return buildContextClassification;
       };
@@ -766,6 +811,14 @@ export function resolveImportLinks({
               specifier: spec || rawSpec,
               expectedArtifactsIndex
             });
+            if (generatedExpectationMatch?.matched) {
+              resolutionTrace.record({
+                stage: IMPORT_RESOLUTION_TRACE_STAGES.GENERATED_ARTIFACT_INTERPRETATION,
+                outcome: 'classified',
+                reasonCode: IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING,
+                details: generatedExpectationMatch
+              });
+            }
           }
         }
         return generatedExpectationMatch;
@@ -849,8 +902,18 @@ export function resolveImportLinks({
           );
           if (languageRelativeResolved) {
             stageTracker.markHit(IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER);
+            resolutionTrace.record({
+              stage: IMPORT_RESOLUTION_TRACE_STAGES.LANGUAGE_RESOLUTION,
+              outcome: 'hit',
+              details: { resolvedPath: languageRelativeResolved, relative: true }
+            });
           } else {
             stageTracker.markMiss(IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER);
+            resolutionTrace.record({
+              stage: IMPORT_RESOLUTION_TRACE_STAGES.LANGUAGE_RESOLUTION,
+              outcome: 'miss',
+              details: { relative: true }
+            });
           }
           const hasExtension = Boolean(path.posix.extname(base));
           const candidate = languageRelativeResolved
@@ -902,8 +965,24 @@ export function resolveImportLinks({
               if (fallbackResult.fallbackPath) fallbackPath = fallbackResult.fallbackPath;
               if (fallbackResult.hit) {
                 stageTracker.markHit(IMPORT_RESOLVER_STAGES.FILESYSTEM_PROBE);
+                resolutionTrace.record({
+                  stage: IMPORT_RESOLUTION_TRACE_STAGES.FILESYSTEM_EXISTENCE,
+                  outcome: 'hit',
+                  details: {
+                    fallbackPath: fallbackResult.fallbackPath || null,
+                    cacheClass: fallbackResult.cacheClass || null
+                  }
+                });
               } else {
                 stageTracker.markMiss(IMPORT_RESOLVER_STAGES.FILESYSTEM_PROBE);
+                resolutionTrace.record({
+                  stage: IMPORT_RESOLUTION_TRACE_STAGES.FILESYSTEM_EXISTENCE,
+                  outcome: 'miss',
+                  details: {
+                    probeErrors: specProbeDiagnostics.errors,
+                    errorByCode: specProbeDiagnostics.errorByCode
+                  }
+                });
               }
             }
           }
@@ -937,10 +1016,24 @@ export function resolveImportLinks({
               );
               if (languageResolved) {
                 stageTracker.markHit(IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER);
+                resolutionTrace.record({
+                  stage: IMPORT_RESOLUTION_TRACE_STAGES.LANGUAGE_RESOLUTION,
+                  outcome: 'hit',
+                  details: {
+                    resolvedPath: languageResolved.resolvedPath,
+                    resolvedType: languageResolved.resolvedType,
+                    relative: false
+                  }
+                });
                 resolvedType = languageResolved.resolvedType;
                 resolvedPath = languageResolved.resolvedPath;
               } else {
                 stageTracker.markMiss(IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER);
+                resolutionTrace.record({
+                  stage: IMPORT_RESOLUTION_TRACE_STAGES.LANGUAGE_RESOLUTION,
+                  outcome: 'miss',
+                  details: { relative: false }
+                });
                 const bazelLabelLike = isBazelLabelSpecifier(spec)
                   && (importerInfo?.extension === '.bzl'
                     || importerInfo?.extension === '.star'
@@ -996,8 +1089,13 @@ export function resolveImportLinks({
         };
       }
 
-      if (!unresolvedReasonCodeHint && collectorHintReasonCode) {
-        unresolvedReasonCodeHint = collectorHintReasonCode;
+      if (collectorHintReasonCode) {
+        resolutionTrace.record({
+          stage: IMPORT_RESOLUTION_TRACE_STAGES.EXTRACTION,
+          outcome: 'collector_hint',
+          reasonCode: collectorHintReasonCode,
+          details: collectorHint
+        });
       }
 
       if (resolvedType !== 'external' && resolvedType !== 'unresolved') {
@@ -1025,8 +1123,16 @@ export function resolveImportLinks({
             ignoredUnresolved
               ? createUnresolvedDecision(IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED)
               : (
-                unresolvedReasonCodeHint
-                  ? createUnresolvedDecision(unresolvedReasonCodeHint)
+                preferUnresolvedReasonHint({
+                  unresolvedReasonCodeHint,
+                  buildContextReasonCode: resolveBuildContextClassification()?.reasonCode || null,
+                  collectorHintReasonCode
+                })
+                  ? createUnresolvedDecision(preferUnresolvedReasonHint({
+                    unresolvedReasonCodeHint,
+                    buildContextReasonCode: buildContextClassification?.reasonCode || null,
+                    collectorHintReasonCode
+                  }))
                   : createUnresolvedDecision(resolveUnresolvedReasonCode({
                     importerRel: relNormalized,
                     spec,
@@ -1048,10 +1154,24 @@ export function resolveImportLinks({
         unresolvedFailureCause = unresolvedDecision.failureCause;
         unresolvedDisposition = unresolvedDecision.disposition;
         unresolvedResolverStage = unresolvedDecision.resolverStage;
+        unresolvedAdapter = buildContextClassification?.adapter
+          || buildContextClassification?.pluginId
+          || null;
         stageTracker.markReasonCode(
           unresolvedResolverStage || IMPORT_RESOLVER_STAGES.CLASSIFY,
           unresolvedReasonCode
         );
+        resolutionTrace.record({
+          stage: IMPORT_RESOLUTION_TRACE_STAGES.CLASSIFY,
+          outcome: 'unresolved',
+          adapter: unresolvedAdapter,
+          reasonCode: unresolvedReasonCode,
+          details: {
+            failureCause: unresolvedFailureCause,
+            disposition: unresolvedDisposition,
+            resolverStage: unresolvedResolverStage
+          }
+        });
         if (!isActionableDisposition(unresolvedDisposition)) {
           stageTracker.markDegraded(unresolvedResolverStage || IMPORT_RESOLVER_STAGES.CLASSIFY);
         }
@@ -1084,6 +1204,7 @@ export function resolveImportLinks({
         bumpCount(unresolvedFailureCauseCounts, unresolvedFailureCause);
         bumpCount(unresolvedDispositionCounts, unresolvedDisposition);
         bumpCount(unresolvedResolverStageCounts, unresolvedResolverStage);
+        if (unresolvedAdapter) bumpCount(unresolvedAdapterCounts, unresolvedAdapter);
         if (unresolvedDisposition && !isActionableDisposition(unresolvedDisposition)) {
           unresolvedSuppressed += 1;
         }
@@ -1113,6 +1234,8 @@ export function resolveImportLinks({
               failureCause: unresolvedFailureCause,
               disposition: unresolvedDisposition,
               resolverStage: unresolvedResolverStage,
+              resolverAdapter: unresolvedAdapter,
+              resolverTrace: resolutionTrace.snapshot(),
               collectorHint: collectorHint || null
             });
           } else {
@@ -1143,7 +1266,11 @@ export function resolveImportLinks({
             reasonCode: unresolvedReasonCode,
             failureCause: unresolvedFailureCause,
             disposition: unresolvedDisposition,
-            resolverStage: unresolvedResolverStage
+            resolverStage: unresolvedResolverStage,
+            resolverAdapter: unresolvedAdapter,
+            resolverTrace: resolutionState === IMPORT_RESOLUTION_STATES.UNRESOLVED
+              ? resolutionTrace.snapshot()
+              : null
           });
         } else {
           truncatedEdges += 1;
@@ -1203,6 +1330,7 @@ export function resolveImportLinks({
       unresolvedByFailureCause: toSortedCountObject(unresolvedFailureCauseCounts),
       unresolvedByDisposition: toSortedCountObject(unresolvedDispositionCounts),
       unresolvedByResolverStage: toSortedCountObject(unresolvedResolverStageCounts),
+      unresolvedByAdapter: toSortedCountObject(unresolvedAdapterCounts),
       unresolvedActionableHotspots: toSortedHotspotEntries(unresolvedActionableHotspotCounts),
       unresolvedActionableByLanguage: toSortedCountObject(unresolvedActionableLanguageCounts),
       unresolvedBudgetExhausted,
@@ -1236,6 +1364,7 @@ export function resolveImportLinks({
       unresolvedByFailureCause: toSortedCountObject(unresolvedFailureCauseCounts),
       unresolvedByDisposition: toSortedCountObject(unresolvedDispositionCounts),
       unresolvedByResolverStage: toSortedCountObject(unresolvedResolverStageCounts),
+      unresolvedByAdapter: toSortedCountObject(unresolvedAdapterCounts),
       unresolvedActionableHotspots: toSortedHotspotEntries(unresolvedActionableHotspotCounts),
       unresolvedActionableByLanguage: toSortedCountObject(unresolvedActionableLanguageCounts),
       unresolvedBudgetExhausted,

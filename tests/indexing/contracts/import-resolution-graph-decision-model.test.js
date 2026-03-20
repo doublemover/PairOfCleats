@@ -29,7 +29,41 @@ const baseGraph = {
       reasonCode: 'IMP_U_MISSING_FILE_RELATIVE',
       failureCause: 'missing_file',
       disposition: 'actionable',
-      resolverStage: 'filesystem_probe'
+      resolverStage: 'filesystem_probe',
+      resolverAdapter: null,
+      resolverTrace: [
+        {
+          stage: 'normalization',
+          outcome: 'normalized',
+          adapter: null,
+          reasonCode: null,
+          importer: 'src/main.js',
+          rawSpecifier: './missing.js',
+          details: { normalizedSpecifier: './missing.js' }
+        },
+        {
+          stage: 'filesystem_existence',
+          outcome: 'miss',
+          adapter: null,
+          reasonCode: null,
+          importer: 'src/main.js',
+          rawSpecifier: './missing.js',
+          details: { probeErrors: 0, errorByCode: {} }
+        },
+        {
+          stage: 'classify',
+          outcome: 'unresolved',
+          adapter: null,
+          reasonCode: 'IMP_U_MISSING_FILE_RELATIVE',
+          importer: 'src/main.js',
+          rawSpecifier: './missing.js',
+          details: {
+            failureCause: 'missing_file',
+            disposition: 'actionable',
+            resolverStage: 'filesystem_probe'
+          }
+        }
+      ]
     }
   ],
   warnings: [
@@ -42,6 +76,22 @@ const baseGraph = {
       failureCause: 'missing_file',
       disposition: 'actionable',
       resolverStage: 'filesystem_probe',
+      resolverAdapter: null,
+      resolverTrace: [
+        {
+          stage: 'classify',
+          outcome: 'unresolved',
+          adapter: null,
+          reasonCode: 'IMP_U_MISSING_FILE_RELATIVE',
+          importer: 'src/main.js',
+          rawSpecifier: './missing.js',
+          details: {
+            failureCause: 'missing_file',
+            disposition: 'actionable',
+            resolverStage: 'filesystem_probe'
+          }
+        }
+      ],
       confidence: 0.9
     }
   ],
@@ -50,6 +100,7 @@ const baseGraph = {
     unresolvedByFailureCause: { missing_file: 1 },
     unresolvedByDisposition: { actionable: 1 },
     unresolvedByResolverStage: { filesystem_probe: 1 },
+    unresolvedByAdapter: {},
     unresolvedActionableByLanguage: { js: 1 },
     unresolvedGateEligible: 1,
     unresolvedActionableGateEligible: 1,
@@ -166,6 +217,27 @@ const invalidWarningCategoryField = validateArtifact('import_resolution_graph', 
   ]
 });
 assert.equal(invalidWarningCategoryField.ok, false, 'warning entries must reject legacy category field');
+
+const invalidWarningTraceStage = validateArtifact('import_resolution_graph', {
+  ...baseGraph,
+  warnings: [
+    {
+      ...baseGraph.warnings[0],
+      resolverTrace: [
+        {
+          stage: 'not_a_real_trace_stage',
+          outcome: 'miss',
+          adapter: null,
+          reasonCode: null,
+          importer: 'src/main.js',
+          rawSpecifier: './missing.js',
+          details: null
+        }
+      ]
+    }
+  ]
+});
+assert.equal(invalidWarningTraceStage.ok, false, 'warning trace entries must use known trace stages');
 
 const invalidResolverStagePipelineKey = validateArtifact('import_resolution_graph', {
   ...baseGraph,

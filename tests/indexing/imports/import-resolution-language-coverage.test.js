@@ -366,18 +366,20 @@ assert.equal(realBySpecifier['./lib/missing.sh']?.reasonCode, 'IMP_U_MISSING_FIL
 assert.equal(realBySpecifier['./lib/missing.sh']?.failureCause, 'missing_file');
 assert.equal(realBySpecifier['./lib/missing.sh']?.disposition, 'actionable');
 assert.equal(realBySpecifier['./lib/missing.sh']?.resolverStage, 'filesystem_probe');
-assert.equal(realBySpecifier['//go:missing_extension.bzl']?.reasonCode, 'IMP_U_RESOLVER_GAP');
-assert.equal(realBySpecifier['//go:missing_extension.bzl']?.failureCause, 'resolver_gap');
-assert.equal(realBySpecifier['//go:missing_extension.bzl']?.disposition, 'suppress_gate');
-assert.equal(realBySpecifier['//go:missing_extension.bzl']?.resolverStage, 'language_resolver');
-assert.equal(realBySpecifier[':missing_local.bzl']?.reasonCode, 'IMP_U_RESOLVER_GAP');
-assert.equal(realBySpecifier[':missing_local.bzl']?.failureCause, 'resolver_gap');
-assert.equal(realBySpecifier[':missing_local.bzl']?.disposition, 'suppress_gate');
-assert.equal(realBySpecifier[':missing_local.bzl']?.resolverStage, 'language_resolver');
-assert.equal(realBySpecifier['@repo_tools//defs:missing.bzl']?.reasonCode, 'IMP_U_RESOLVER_GAP');
-assert.equal(realBySpecifier['@repo_tools//defs:missing.bzl']?.failureCause, 'resolver_gap');
+assert.equal(realBySpecifier['//go:missing_extension.bzl']?.reasonCode, 'IMP_U_BAZEL_LABEL_TARGET_MISSING');
+assert.equal(realBySpecifier['//go:missing_extension.bzl']?.failureCause, 'missing_file');
+assert.equal(realBySpecifier['//go:missing_extension.bzl']?.disposition, 'actionable');
+assert.equal(realBySpecifier['//go:missing_extension.bzl']?.resolverStage, 'build_system_resolver');
+assert.equal(realBySpecifier['//go:missing_extension.bzl']?.resolverAdapter, 'bazel-label');
+assert.equal(realBySpecifier[':missing_local.bzl']?.reasonCode, 'IMP_U_BAZEL_LABEL_TARGET_MISSING');
+assert.equal(realBySpecifier[':missing_local.bzl']?.failureCause, 'missing_file');
+assert.equal(realBySpecifier[':missing_local.bzl']?.disposition, 'actionable');
+assert.equal(realBySpecifier[':missing_local.bzl']?.resolverStage, 'build_system_resolver');
+assert.equal(realBySpecifier[':missing_local.bzl']?.resolverAdapter, 'bazel-label');
+assert.equal(realBySpecifier['@repo_tools//defs:missing.bzl']?.reasonCode, 'IMP_U_BAZEL_EXTERNAL_REPOSITORY_UNAVAILABLE');
+assert.equal(realBySpecifier['@repo_tools//defs:missing.bzl']?.failureCause, 'missing_dependency');
 assert.equal(realBySpecifier['@repo_tools//defs:missing.bzl']?.disposition, 'suppress_gate');
-assert.equal(realBySpecifier['@repo_tools//defs:missing.bzl']?.resolverStage, 'language_resolver');
+assert.equal(realBySpecifier['@repo_tools//defs:missing.bzl']?.resolverStage, 'build_system_resolver');
 assert.equal(realBySpecifier['./generated/client.pb.ts']?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 assert.equal(realBySpecifier['./generated/client.pb.ts']?.failureCause, 'generated_expected_missing');
 assert.equal(realBySpecifier['./generated/client.pb.ts']?.disposition, 'suppress_gate');
@@ -410,7 +412,7 @@ const taxonomySamples = enrichUnresolvedImportSamples([
   {
     importer: 'MODULE.bazel',
     specifier: '//go:missing.bzl',
-    reasonCode: 'IMP_U_RESOLVER_GAP'
+    reasonCode: 'IMP_U_BAZEL_LABEL_TARGET_MISSING'
   },
   {
     importer: 'src/main.js',
@@ -425,16 +427,15 @@ const taxonomySamples = enrichUnresolvedImportSamples([
 ]);
 const taxonomy = summarizeUnresolvedImportTaxonomy(taxonomySamples);
 assert.equal(taxonomy.liveSuppressed, 2);
-assert.equal(taxonomy.gateSuppressed, 8);
-assert.equal(taxonomy.actionable, 3);
+assert.equal(taxonomy.gateSuppressed, 5);
+assert.equal(taxonomy.actionable, 6);
 assert.equal(Object.keys(taxonomy.reasonCodes).length > 0, true, 'expected reason-code aggregation');
 assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.resolverStages)),
   {
-    build_system_resolver: 4,
+    build_system_resolver: 8,
     classify: 3,
     filesystem_probe: 1,
-    language_resolver: 4,
     normalize: 1
   },
   'expected resolver stage aggregation in taxonomy'
@@ -442,26 +443,27 @@ assert.deepEqual(
 assert.deepEqual(
   taxonomy.actionableHotspots,
   [
+    { importer: 'MODULE.bazel', count: 2 },
     { importer: 'src/main.js', count: 2 },
+    { importer: 'app/rules.bzl', count: 1 },
     { importer: 'scripts/main.sh', count: 1 }
   ],
   'expected actionable unresolved importer hotspots'
 );
 assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.actionableByLanguage || {})),
-  { js: 2, sh: 1 },
+  { bazel: 2, bzl: 1, js: 2, sh: 1 },
   'expected actionable unresolved language hotspot counts'
 );
 assert.equal(Number.isFinite(Number(taxonomy.actionableRate)), true, 'expected actionable rate in taxonomy');
 assert.equal(taxonomy.actionableUnresolvedRate, taxonomy.actionableRate, 'expected actionable rate alias');
 assert.equal(taxonomy.parserArtifactRate, 1 / 13, 'expected parser artifact rate in taxonomy');
-assert.equal(taxonomy.resolverGapRate, 4 / 13, 'expected resolver-gap rate in taxonomy');
+assert.equal(taxonomy.resolverGapRate, 0, 'expected resolver-gap rate in taxonomy');
 assert.deepEqual(Object.fromEntries(Object.entries(taxonomy.failureCauses)), {
   generated_expected_missing: 4,
-  missing_dependency: 1,
-  missing_file: 1,
+  missing_dependency: 2,
+  missing_file: 4,
   parser_artifact: 1,
-  resolver_gap: 4,
   unknown: 2
 });
 

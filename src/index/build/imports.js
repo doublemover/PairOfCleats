@@ -150,7 +150,13 @@ const resolveSuggestedRemediation = (reasonCode) => {
     case IMPORT_REASON_CODES.MISSING_DEPENDENCY_PACKAGE:
       return 'Install or map the dependency path so import resolution can locate it.';
     case IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING:
+    case IMPORT_REASON_CODES.MAKEFILE_GENERATED_TARGET_MISSING:
       return 'Build or materialize generated artifacts before indexing this import surface.';
+    case IMPORT_REASON_CODES.BAZEL_LABEL_PACKAGE_MISSING:
+    case IMPORT_REASON_CODES.BAZEL_LABEL_TARGET_MISSING:
+      return 'Verify the Bazel package or target exists in the workspace and that the label maps to a real checked-in file.';
+    case IMPORT_REASON_CODES.BAZEL_EXTERNAL_REPOSITORY_UNAVAILABLE:
+      return 'Vendor or materialize the Bazel external repository inputs before indexing this workspace.';
     case IMPORT_REASON_CODES.RESOLVER_GAP:
     case IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED:
       return 'Extend resolver coverage/budgets for this import surface.';
@@ -196,6 +202,10 @@ export const classifyUnresolvedImportSample = (sample) => {
     failureCause: decision.failureCause,
     disposition: decision.disposition,
     resolverStage: decision.resolverStage,
+    resolverAdapter: typeof sample?.resolverAdapter === 'string' && sample.resolverAdapter.trim()
+      ? sample.resolverAdapter.trim()
+      : null,
+    resolverTrace: Array.isArray(sample?.resolverTrace) ? sample.resolverTrace.slice() : null,
     confidence,
     suggestedRemediation: resolveSuggestedRemediation(decision.reasonCode),
     suppressLive,
