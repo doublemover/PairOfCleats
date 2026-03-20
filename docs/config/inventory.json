@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-19T07:50:40.652Z",
+  "generatedAt": "2026-03-19T18:14:48.689Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2191,6 +2191,7 @@
         "extensions/vscode/extension.js",
         "src/shared/env.js",
         "tests/retrieval/filters/filter-index-config-hash.test.js",
+        "tests/tooling/vscode/search-env-runtime.test.js",
         "tools/api/server.js",
         "tools/config/inventory.js"
       ]
@@ -3458,6 +3459,24 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TOOLING_LSP_GUARDRAIL_BASELINE",
+      "files": [
+        "tools/ci/run-suite.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TOOLING_LSP_REPLAY_BASELINE",
+      "files": [
+        "tools/ci/run-suite.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TOOLING_LSP_SLO_BASELINE",
+      "files": [
+        "tools/ci/run-suite.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TRACE_ARTIFACT_IO",
       "files": [
         "src/shared/env.js",
@@ -3659,10 +3678,13 @@
   "envVarsUnknown": [
     "PAIROFCLEATS_OBSERVABILITY_CONTEXT",
     "PAIROFCLEATS_SQLITE_DENSE_CHILD",
-    "PAIROFCLEATS_SQLITE_DENSE_PAYLOAD"
+    "PAIROFCLEATS_SQLITE_DENSE_PAYLOAD",
+    "PAIROFCLEATS_TOOLING_LSP_GUARDRAIL_BASELINE",
+    "PAIROFCLEATS_TOOLING_LSP_REPLAY_BASELINE",
+    "PAIROFCLEATS_TOOLING_LSP_SLO_BASELINE"
   ],
   "cliFlags": {
-    "totalFlags": 409,
+    "totalFlags": 416,
     "publicFlags": [
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -3769,6 +3791,7 @@
       "encoding",
       "enforce",
       "enforce-fts",
+      "enforce-gates",
       "engine",
       "event-log-dir",
       "evidence",
@@ -3797,6 +3820,7 @@
       "frame-budget",
       "from",
       "full-run",
+      "gates",
       "global",
       "grace-days",
       "graphFixture",
@@ -3814,6 +3838,7 @@
       "includeCalls",
       "includeChunks",
       "includeDense",
+      "includeDisabled",
       "includeFilterIndex",
       "includeGraph",
       "includeImports",
@@ -3882,6 +3907,7 @@
       "maxEdges",
       "maxEdgesExamined",
       "maxFanoutPerNode",
+      "maxFederatedRepos",
       "maxNodeBytes",
       "maxNodes",
       "maxPaths",
@@ -3961,6 +3987,7 @@
       "registry",
       "repeats",
       "repo-current",
+      "repo-filter",
       "report",
       "requestedBatchSize",
       "require",
@@ -3998,6 +4025,7 @@
       "seed",
       "segmentBytes",
       "segments",
+      "select",
       "severity",
       "sha256",
       "shard-count",
@@ -4072,6 +4100,7 @@
       "windowBytes",
       "with-sqlite",
       "workspace",
+      "workspaceId",
       "write-report",
       "yes",
       "zoom-sensitivity"
@@ -4198,6 +4227,7 @@
           "format",
           "hops",
           "includeCallersCallees",
+          "includeDisabled",
           "includeGraph",
           "includeImports",
           "includePaths",
@@ -4211,6 +4241,7 @@
           "maxDepth",
           "maxEdges",
           "maxFanoutPerNode",
+          "maxFederatedRepos",
           "maxNodes",
           "maxPaths",
           "maxTokens",
@@ -4218,15 +4249,19 @@
           "maxWallClockMs",
           "maxWorkUnits",
           "repo",
+          "repo-filter",
           "rule",
           "seed",
+          "select",
           "severity",
           "sink",
           "sink-rule",
           "source",
           "source-rule",
           "strictRisk",
-          "tag"
+          "tag",
+          "workspace",
+          "workspaceId"
         ]
       },
       {
@@ -4827,6 +4862,7 @@
       {
         "file": "tools/bench/language/tooling-lsp-guardrail.js",
         "flags": [
+          "baseline",
           "enforce",
           "json",
           "max-crash-retention",
@@ -5304,8 +5340,18 @@
         ]
       },
       {
+        "file": "tools/ci/tooling-lsp-replay-gate.js",
+        "flags": [
+          "baseline",
+          "enforce",
+          "json",
+          "mode"
+        ]
+      },
+      {
         "file": "tools/ci/tooling-lsp-slo-gate.js",
         "flags": [
+          "baseline",
           "doctor",
           "enforce",
           "fatal-failure-rate-max",
@@ -5454,6 +5500,16 @@
           "onnx",
           "onnx-path",
           "repo"
+        ]
+      },
+      {
+        "file": "tools/eval/risk-pack.js",
+        "flags": [
+          "dataset",
+          "enforce-gates",
+          "gates",
+          "out",
+          "pretty"
         ]
       },
       {
@@ -5915,7 +5971,7 @@
     "duplicated": [
       {
         "flag": "json",
-        "count": 66,
+        "count": 67,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -5953,6 +6009,7 @@
           "tools/ci/import-resolution-slo-gate.js",
           "tools/ci/tooling-doctor-gate.js",
           "tools/ci/tooling-lsp-default-enable-gate.js",
+          "tools/ci/tooling-lsp-replay-gate.js",
           "tools/ci/tooling-lsp-slo-gate.js",
           "tools/config/dump.js",
           "tools/config/reset.js",
@@ -6058,7 +6115,7 @@
       },
       {
         "flag": "out",
-        "count": 43,
+        "count": 44,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/equivalence.test.js",
@@ -6091,6 +6148,7 @@
           "tools/dicts/generate-repo-dict.js",
           "tools/docs/export-artifact-schema-index.js",
           "tools/download/extensions.js",
+          "tools/eval/risk-pack.js",
           "tools/eval/run.js",
           "tools/index/assemble-pieces.js",
           "tools/ingest/ctags.js",
@@ -6107,7 +6165,7 @@
       },
       {
         "flag": "mode",
-        "count": 39,
+        "count": 40,
         "files": [
           "bin/pairofcleats.js",
           "tests/map/build-determinism.test.js",
@@ -6139,6 +6197,7 @@
           "tools/ci/run-suite.js",
           "tools/ci/tooling-doctor-gate.js",
           "tools/ci/tooling-lsp-default-enable-gate.js",
+          "tools/ci/tooling-lsp-replay-gate.js",
           "tools/ci/tooling-lsp-slo-gate.js",
           "tools/docs/script-inventory.js",
           "tools/index/assemble-pieces.js",
@@ -6469,6 +6528,18 @@
         ]
       },
       {
+        "flag": "baseline",
+        "count": 6,
+        "files": [
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/bench/language/tooling-lsp-guardrail.js",
+          "tools/ci/tooling-lsp-replay-gate.js",
+          "tools/ci/tooling-lsp-slo-gate.js",
+          "tools/reports/combined-summary.js",
+          "tools/reports/compare-models.js"
+        ]
+      },
+      {
         "flag": "depth",
         "count": 6,
         "files": [
@@ -6478,6 +6549,18 @@
           "tools/bench/graph/context-pack-latency.js",
           "tools/bench/graph/neighborhood-cache.js",
           "tools/bench/graph/neighborhood-index-dir.js"
+        ]
+      },
+      {
+        "flag": "enforce",
+        "count": 6,
+        "files": [
+          "tests/retrieval/parity/equivalence.test.js",
+          "tools/bench/language/tooling-lsp-guardrail.js",
+          "tools/ci/bench-language-rollout-gate.js",
+          "tools/ci/tooling-lsp-default-enable-gate.js",
+          "tools/ci/tooling-lsp-replay-gate.js",
+          "tools/ci/tooling-lsp-slo-gate.js"
         ]
       },
       {
@@ -6569,17 +6652,6 @@
           "tests/lang/contracts/dynamic-heuristic-adapters.test.js",
           "tests/lang/contracts/managed-heuristic-adapters.test.js",
           "tests/lang/contracts/template-heuristic-adapters.test.js"
-        ]
-      },
-      {
-        "flag": "enforce",
-        "count": 5,
-        "files": [
-          "tests/retrieval/parity/equivalence.test.js",
-          "tools/bench/language/tooling-lsp-guardrail.js",
-          "tools/ci/bench-language-rollout-gate.js",
-          "tools/ci/tooling-lsp-default-enable-gate.js",
-          "tools/ci/tooling-lsp-slo-gate.js"
         ]
       },
       {
@@ -6874,6 +6946,16 @@
         ]
       },
       {
+        "flag": "workspace",
+        "count": 4,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "tools/workspace/catalog.js",
+          "tools/workspace/manifest.js",
+          "tools/workspace/status.js"
+        ]
+      },
+      {
         "flag": "args",
         "count": 3,
         "files": [
@@ -6883,12 +6965,12 @@
         ]
       },
       {
-        "flag": "baseline",
+        "flag": "dataset",
         "count": 3,
         "files": [
           "tools/bench/embeddings/model-bakeoff.js",
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js"
+          "tools/eval/risk-pack.js",
+          "tools/eval/run.js"
         ]
       },
       {
@@ -6964,6 +7046,15 @@
         ]
       },
       {
+        "flag": "pretty",
+        "count": 3,
+        "files": [
+          "tools/eval/risk-pack.js",
+          "tools/eval/run.js",
+          "tools/reports/report-code-map.js"
+        ]
+      },
+      {
         "flag": "queue",
         "count": 3,
         "files": [
@@ -7033,15 +7124,6 @@
           "tools/bench/micro/hash.js",
           "tools/bench/micro/run.js",
           "tools/bench/symbol-resolution-bench.js"
-        ]
-      },
-      {
-        "flag": "workspace",
-        "count": 3,
-        "files": [
-          "tools/workspace/catalog.js",
-          "tools/workspace/manifest.js",
-          "tools/workspace/status.js"
         ]
       },
       {
@@ -7154,14 +7236,6 @@
         "files": [
           "tests/fixtures/medium/generate.js",
           "tools/bench/query-generator.js"
-        ]
-      },
-      {
-        "flag": "dataset",
-        "count": 2,
-        "files": [
-          "tools/bench/embeddings/model-bakeoff.js",
-          "tools/eval/run.js"
         ]
       },
       {
@@ -7413,14 +7487,6 @@
         ]
       },
       {
-        "flag": "pretty",
-        "count": 2,
-        "files": [
-          "tools/eval/run.js",
-          "tools/reports/report-code-map.js"
-        ]
-      },
-      {
         "flag": "provider",
         "count": 2,
         "files": [
@@ -7628,6 +7694,7 @@
       "tests/lang/registry/import-entries.test.js",
       "tests/perf/bench/run.test.js",
       "tests/tooling/signature-parse/shared-splitter.test.js",
+      "tools/analysis/delta-risk.js",
       "tools/analysis/explain-risk.js",
       "tools/api/server.js",
       "tools/bench/language-matrix.js",
