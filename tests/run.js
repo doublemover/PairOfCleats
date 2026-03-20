@@ -271,6 +271,7 @@ const main = async () => {
     : {};
   const tagExclude = splitCsv(argv['exclude-tag']);
   const ignoreConfigExcludes = laneInfo.includeAll || isCiLiteOnly;
+  const isCiLongSelected = requestedLanes.includes('ci-long');
   const configExclude = new Set();
   if (!ignoreConfigExcludes) {
     const baseExcludes = Array.isArray(runConfig.excludeTags)
@@ -293,9 +294,19 @@ const main = async () => {
   if (laneInfo.includeDestructive) {
     configExclude.delete('destructive');
   }
+  if (isCiLongSelected) {
+    configExclude.delete('long');
+  }
   for (const tag of configExclude) {
     if (!tag || tagInclude.includes(tag) || tagExclude.includes(tag)) continue;
     tagExclude.push(tag);
+  }
+  if (isCiLongSelected) {
+    for (let index = tagExclude.length - 1; index >= 0; index -= 1) {
+      if (tagExclude[index] === 'long') {
+        tagExclude.splice(index, 1);
+      }
+    }
   }
   const dropTags = [];
   const dropLongFromCi = requestedLanes.includes('ci')
@@ -409,7 +420,9 @@ const main = async () => {
         id: test.id,
         path: test.relPath,
         lane: test.lane,
-        tags: test.tags
+        tags: test.tags,
+        presetStatus: test.presetStatus || '',
+        skipReason: test.skipReason || ''
       })) };
       process.stdout.write(`${JSON.stringify(payload)}\n`);
       return;

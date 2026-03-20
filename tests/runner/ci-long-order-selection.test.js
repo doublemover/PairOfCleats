@@ -34,6 +34,9 @@ const actualIds = Array.isArray(payload?.tests)
 const nonLongSelected = Array.isArray(payload?.tests)
   ? payload.tests.filter((test) => !Array.isArray(test?.tags) || !test.tags.includes('long'))
   : [];
+const soakEntry = Array.isArray(payload?.tests)
+  ? payload.tests.find((test) => test.id === 'services/soak/operational-recovery')
+  : null;
 
 assert.deepEqual(
   actualIds,
@@ -43,6 +46,17 @@ assert.deepEqual(
 assert(
   actualIds.includes('indexing/imports/replay-perf-budget'),
   'ci-long selection should include current non-long ordered entries'
+);
+assert(soakEntry, 'ci-long selection should include services/soak/operational-recovery');
+assert.equal(
+  soakEntry?.presetStatus || '',
+  '',
+  'ci-long selection should not preset-skip long-tagged ordered entries'
+);
+assert.equal(
+  soakEntry?.skipReason || '',
+  '',
+  'ci-long selection should not carry an excluded-tag skip reason for ordered long entries'
 );
 assert(
   nonLongSelected.length > 50,
