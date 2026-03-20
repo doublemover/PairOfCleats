@@ -1,10 +1,7 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import {
   runWithQueue,
   createOrderedCompletionTracker as createSharedOrderedCompletionTracker
 } from '../../../../shared/concurrency.js';
-import { createLruCache, estimateJsonBytes } from '../../../../shared/cache.js';
 import { getEnvConfig } from '../../../../shared/env.js';
 import { fileExt, toPosix } from '../../../../shared/files.js';
 import { countLinesForEntries } from '../../../../shared/file-stats.js';
@@ -15,7 +12,6 @@ import { coerceNonNegativeInt, coercePositiveInt } from '../../../../shared/numb
 import { coerceAbortSignal, composeAbortSignals, throwIfAborted } from '../../../../shared/abort.js';
 import { compareStrings } from '../../../../shared/sort.js';
 import { toArray } from '../../../../shared/iterables.js';
-import { atomicWriteJson } from '../../../../shared/io/atomic-write.js';
 import {
   FILE_PROGRESS_HEARTBEAT_DEFAULT_MS,
   resolveStage1HangPolicy,
@@ -27,7 +23,6 @@ import {
   buildProgressTimeoutBudget,
   evaluateProgressTimeout
 } from '../../../../shared/indexing/progress-timeout-policy.js';
-import { createLifecycleRegistry } from '../../../../shared/lifecycle/registry.js';
 import {
   snapshotTrackedSubprocesses,
   terminateTrackedSubprocesses,
@@ -39,12 +34,12 @@ import { getLanguageForFile } from '../../../language-registry.js';
 import { runTreeSitterScheduler } from '../../tree-sitter-scheduler/runner.js';
 import { createHeavyFilePerfAggregator, createPerfEventLogger } from '../../perf-event-log.js';
 import { loadStructuralMatches } from '../../../structural.js';
-import { planShardBatches, planShards } from '../../shards.js';
+import { planShards } from '../../shards.js';
 import { recordFileMetric } from '../../perf-profile.js';
 import { createVfsManifestCollector } from '../../vfs-manifest-collector.js';
 import { resolveHangProbeConfig, runWithHangProbe } from '../hang-probe.js';
 import { createTokenRetentionState } from './postings.js';
-import { createPostingsQueue, estimatePostingsPayload } from './process-files/postings-queue.js';
+import { createPostingsQueue } from './process-files/postings-queue.js';
 import { buildOrderedAppender } from './process-files/ordered.js';
 import { resolveCheckpointBatchSize } from './process-files/runtime.js';
 import {
@@ -56,22 +51,70 @@ import {
 } from './process-files/stage-timing.js';
 import { executeStage1ShardProcessing } from './process-files/shard-execution.js';
 import { finalizeStage1ProcessingResult } from './process-files/results.js';
-import { normalizeExtractedProseYieldProfilePrefilterConfig } from '../../../chunking/formats/document-common.js';
 import { buildExtractedProseYieldProfileFamily } from '../../file-processor/skip.js';
 import {
   buildContiguousSeqWindows,
   buildDeterministicShardMergePlan,
   resolveActiveSeqWindows,
-  normalizeOwnershipSegment,
   resolveClusterSubsetRetryConfig,
   resolveEntryOrderIndex,
   resolveStage1WindowPlannerConfig,
   resolveShardSubsetId,
   resolveShardSubsetMinOrderIndex,
-  resolveShardWorkItemMinOrderIndex,
   runShardSubsetsWithRetry,
   sortEntriesByOrderIndex
 } from './process-files/ordering.js';
+import {
+  compactDocumentExtractionCacheEntries,
+  createMutableKeyValueStore,
+  DOCUMENT_EXTRACTION_CACHE_FILE,
+  DOCUMENT_EXTRACTION_CACHE_MAX_ENTRIES,
+  DOCUMENT_EXTRACTION_CACHE_MAX_ENTRY_TEXT_BYTES,
+  DOCUMENT_EXTRACTION_CACHE_MAX_LOAD_BYTES,
+  DOCUMENT_EXTRACTION_CACHE_MAX_TOTAL_ENTRY_BYTES,
+  loadDocumentExtractionCacheState,
+  loadExtractedProseYieldProfileState,
+  normalizeYieldProfileFamilyStats,
+  persistDocumentExtractionCacheState,
+  persistExtractedProseYieldProfileState,
+  resolveExtractedProseExtrasCache,
+  resolveSharedScmMetaCache
+} from './process-files/runtime-state.js';
+import {
+  buildWatchdogNearThresholdSummary,
+  createDurationHistogram,
+  isNearThresholdSlowFileDuration,
+  resolveEffectiveSlowFileDurationMs,
+  resolveFileHardTimeoutMs,
+  resolveFileLifecycleDurations,
+  resolveFileWatchdogConfig,
+  resolveFileWatchdogMs,
+  resolveProcessCleanupTimeoutMs,
+  resolveStageTimingSizeBin,
+  shouldTriggerSlowFileWarning
+} from './process-files/watchdog-policy.js';
+import {
+  buildStage1FileSubprocessOwnershipId,
+  buildTrackedProcessFileTaskSummaryText,
+  createTrackedProcessFileTaskRegistry,
+  drainTrackedProcessFileTasks,
+  resolveStage1FileSubprocessOwnershipPrefix,
+  runCleanupWithTimeout,
+  runStage1TailCleanupTasks
+} from './process-files/task-lifecycle.js';
+import {
+  runApplyWithPostingsBackpressure,
+  shouldBypassPostingsBackpressure
+} from './process-files/backpressure.js';
+import {
+  assignFileIndexes,
+  clampShardConcurrencyToRuntime,
+  resolveOrderedEntryProgressPlan,
+  resolveStage1OrderingIntegrity,
+  resolveStage1ShardExecutionQueuePlan,
+  resolveStableEntryOrderIndex,
+  sortShardBatchesByDeterministicMergeOrder
+} from './process-files/shard-plan.js';
 import {
   buildExtractedProseLowYieldCohort,
   buildExtractedProseLowYieldBailoutState,
@@ -87,14 +130,6 @@ import {
   resolveTreeSitterPlannerEntries
 } from './process-files/planner.js';
 import {
-  buildWatchdogNearThresholdSummary as buildWatchdogNearThresholdSummaryShared,
-  createDurationHistogram as createDurationHistogramShared,
-  isNearThresholdSlowFileDuration as isNearThresholdSlowFileDurationShared,
-  resolveFileLifecycleDurations as resolveFileLifecycleDurationsShared,
-  resolveStageTimingSizeBin as resolveStageTimingSizeBinShared,
-  shouldTriggerSlowFileWarning as shouldTriggerSlowFileWarningShared
-} from './process-files/watchdog.js';
-import {
   buildStage1ProcessingStallSnapshot,
   collectStage1StalledFiles,
   formatStage1SchedulerStallSummary,
@@ -106,568 +141,57 @@ import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.j
 import { prepareScmFileMetaSnapshot } from '../../../scm/file-meta-snapshot.js';
 
 export {
+  buildWatchdogNearThresholdSummary,
   buildFileProgressHeartbeatText,
+  buildStage1FileSubprocessOwnershipId,
+  buildTrackedProcessFileTaskSummaryText,
+  clampShardConcurrencyToRuntime,
+  compactDocumentExtractionCacheEntries,
+  createDurationHistogram,
+  createTrackedProcessFileTaskRegistry,
+  DOCUMENT_EXTRACTION_CACHE_FILE,
+  DOCUMENT_EXTRACTION_CACHE_MAX_ENTRIES,
+  DOCUMENT_EXTRACTION_CACHE_MAX_ENTRY_TEXT_BYTES,
+  DOCUMENT_EXTRACTION_CACHE_MAX_LOAD_BYTES,
+  DOCUMENT_EXTRACTION_CACHE_MAX_TOTAL_ENTRY_BYTES,
+  drainTrackedProcessFileTasks,
+  isNearThresholdSlowFileDuration,
+  loadDocumentExtractionCacheState,
+  resolveEffectiveSlowFileDurationMs,
+  resolveExtractedProseExtrasCache,
+  resolveFileHardTimeoutMs,
+  resolveFileLifecycleDurations,
+  resolveFileWatchdogConfig,
+  resolveFileWatchdogMs,
+  resolveProcessCleanupTimeoutMs,
+  resolveSharedScmMetaCache,
+  resolveStage1FileSubprocessOwnershipPrefix,
   resolveStage1HangPolicy,
+  resolveStage1OrderingIntegrity,
+  resolveStageTimingSizeBin,
   resolveStage1StallAbortTimeoutMs,
   resolveStage1StallAction,
-  resolveStage1StallSoftKickTimeoutMs
+  resolveStage1StallSoftKickTimeoutMs,
+  runApplyWithPostingsBackpressure,
+  runCleanupWithTimeout,
+  runStage1TailCleanupTasks,
+  shouldBypassPostingsBackpressure,
+  shouldTriggerSlowFileWarning,
+  sortShardBatchesByDeterministicMergeOrder
 };
-
-const extractedProseExtrasCacheByRuntime = new WeakMap();
-const sharedScmMetaCacheByRuntime = new WeakMap();
-
-const FILE_WATCHDOG_DEFAULT_MS = 10000;
-const FILE_WATCHDOG_DEFAULT_MAX_MS = 120000;
-const FILE_WATCHDOG_HUGE_REPO_FILE_MIN = 3000;
-const FILE_WATCHDOG_HUGE_REPO_BASE_MS = 20000;
-const FILE_WATCHDOG_DEFAULT_BYTES_PER_STEP = 256 * 1024;
-const FILE_WATCHDOG_DEFAULT_LINES_PER_STEP = 2000;
-const FILE_WATCHDOG_DEFAULT_STEP_MS = 1000;
-const FILE_WATCHDOG_NEAR_THRESHOLD_LOWER_FRACTION = 0.85;
-const FILE_WATCHDOG_NEAR_THRESHOLD_UPPER_FRACTION = 1;
-const FILE_WATCHDOG_NEAR_THRESHOLD_ALERT_FRACTION = 0.6;
-const FILE_WATCHDOG_NEAR_THRESHOLD_MIN_SAMPLES = 20;
-const FILE_HARD_TIMEOUT_DEFAULT_MS = 300000;
-const FILE_HARD_TIMEOUT_MAX_MS = 1800000;
-const FILE_HARD_TIMEOUT_SLOW_MULTIPLIER = 3;
-const FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS = 30000;
 const STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS = 2 * 60 * 1000;
 const STAGE1_ORDERED_FLUSH_TIMEOUT_FALLBACK_MS = 90 * 1000;
 const STAGE1_ORDERED_COMPLETION_STALL_POLL_DEFAULT_MS = 5000;
 const FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS = Object.freeze([50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000]);
-const EXTRACTED_PROSE_RUNTIME_STATE_DIR = 'runtime';
-const EXTRACTED_PROSE_YIELD_PROFILE_FILE = 'extracted-prose-yield-profile.json';
-const EXTRACTED_PROSE_YIELD_PROFILE_VERSION = 1;
-export const DOCUMENT_EXTRACTION_CACHE_FILE = 'document-extraction-cache.json';
-const DOCUMENT_EXTRACTION_CACHE_VERSION = 1;
-export const DOCUMENT_EXTRACTION_CACHE_MAX_LOAD_BYTES = 16 * 1024 * 1024;
-export const DOCUMENT_EXTRACTION_CACHE_MAX_ENTRIES = 2048;
-export const DOCUMENT_EXTRACTION_CACHE_MAX_TOTAL_ENTRY_BYTES = 8 * 1024 * 1024;
-export const DOCUMENT_EXTRACTION_CACHE_MAX_ENTRY_TEXT_BYTES = 512 * 1024;
-const NOOP_RESERVATION = Object.freeze({
-  release() {}
-});
 
-const isPlainObject = (value) => (
-  value && typeof value === 'object' && !Array.isArray(value)
-);
-
-const toSafeNonNegativeInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return 0;
-  return Math.floor(parsed);
-};
-
-const normalizeYieldProfileFamilyStats = (value) => {
-  const observedFiles = toSafeNonNegativeInt(value?.observedFiles);
-  const yieldedFiles = Math.min(observedFiles, toSafeNonNegativeInt(value?.yieldedFiles));
-  const chunkCount = toSafeNonNegativeInt(value?.chunkCount);
-  return {
-    observedFiles,
-    yieldedFiles,
-    chunkCount,
-    yieldRatio: observedFiles > 0 ? yieldedFiles / observedFiles : 0
-  };
-};
-
-const normalizeYieldProfileEntry = (value, configFallback = null) => {
-  const entry = isPlainObject(value) ? value : {};
-  const families = isPlainObject(entry.families) ? entry.families : {};
-  const cohorts = isPlainObject(entry.cohorts) ? entry.cohorts : {};
-  const normalizedFamilies = {};
-  for (const [familyKey, familyStats] of Object.entries(families)) {
-    if (!familyKey) continue;
-    normalizedFamilies[familyKey] = normalizeYieldProfileFamilyStats(familyStats);
-  }
-  const normalizedCohorts = {};
-  for (const [cohortKey, cohortStats] of Object.entries(cohorts)) {
-    if (!cohortKey) continue;
-    normalizedCohorts[cohortKey] = normalizeYieldProfileFamilyStats(cohortStats);
-  }
-  const totals = normalizeYieldProfileFamilyStats(entry.totals || {});
-  return {
-    config: normalizeExtractedProseYieldProfilePrefilterConfig(entry.config || configFallback || null),
-    builds: toSafeNonNegativeInt(entry.builds),
-    totals,
-    families: normalizedFamilies,
-    cohorts: normalizedCohorts,
-    fingerprint: isPlainObject(entry.fingerprint) ? entry.fingerprint : null
-  };
-};
-
-const normalizeYieldProfileState = (value, configFallback = null) => {
-  const payload = isPlainObject(value) ? value : {};
-  const entries = isPlainObject(payload.entries) ? payload.entries : {};
-  return {
-    version: EXTRACTED_PROSE_YIELD_PROFILE_VERSION,
-    entries: {
-      'extracted-prose': normalizeYieldProfileEntry(entries['extracted-prose'], configFallback)
-    }
-  };
-};
-
-const resolveRuntimeStatePath = (runtime, fileName) => {
-  const repoCacheRoot = typeof runtime?.repoCacheRoot === 'string'
-    ? runtime.repoCacheRoot.trim()
-    : '';
-  if (!repoCacheRoot) return null;
-  return path.join(repoCacheRoot, EXTRACTED_PROSE_RUNTIME_STATE_DIR, fileName);
-};
-
-const readJsonIfExists = async (filePath, { maxBytes = null, label = 'json' } = {}) => {
-  if (!filePath) return null;
-  try {
-    if (Number.isFinite(Number(maxBytes)) && Number(maxBytes) > 0) {
-      const fileStat = await fs.stat(filePath);
-      const cappedMaxBytes = Math.floor(Number(maxBytes));
-      if (Number(fileStat?.size || 0) > cappedMaxBytes) {
-        const err = new Error(
-          `[stage1:extracted-prose] ${label} exceeds load limit `
-          + `(${fileStat.size} > ${cappedMaxBytes} bytes)`
-        );
-        err.code = 'ERR_JSON_FILE_TOO_LARGE';
-        err.meta = { filePath, label, bytes: fileStat.size, maxBytes: cappedMaxBytes };
-        throw err;
-      }
-    }
-    const raw = await fs.readFile(filePath, 'utf8');
-    return JSON.parse(raw);
-  } catch (err) {
-    if (err?.code === 'ENOENT') return null;
-    throw err;
-  }
-};
-
-const loadExtractedProseYieldProfileState = async ({ runtime, log: logger = null }) => {
-  const config = normalizeExtractedProseYieldProfilePrefilterConfig(
-    runtime?.indexingConfig?.extractedProse?.prefilter?.yieldProfile || null
-  );
-  const profilePath = resolveRuntimeStatePath(runtime, EXTRACTED_PROSE_YIELD_PROFILE_FILE);
-  if (!profilePath) {
-    return normalizeYieldProfileState(null, config);
-  }
-  try {
-    const loaded = await readJsonIfExists(profilePath);
-    return normalizeYieldProfileState(loaded, config);
-  } catch (err) {
-    if (typeof logger === 'function') {
-      logger(`[stage1:extracted-prose] failed to load yield profile: ${err?.message || err}`);
-    }
-    return normalizeYieldProfileState(null, config);
-  }
-};
-
-const persistExtractedProseYieldProfileState = async ({ runtime, state, log: logger = null }) => {
-  const profilePath = resolveRuntimeStatePath(runtime, EXTRACTED_PROSE_YIELD_PROFILE_FILE);
-  if (!profilePath) return;
-  try {
-    await atomicWriteJson(profilePath, state, { spaces: 2, newline: true });
-  } catch (err) {
-    if (typeof logger === 'function') {
-      logger(`[stage1:extracted-prose] failed to persist yield profile: ${err?.message || err}`);
-    }
-  }
-};
-
-const normalizeDocumentExtractionCacheState = (value) => {
-  const payload = isPlainObject(value) ? value : {};
-  const entries = isPlainObject(payload.entries) ? payload.entries : {};
-  const normalizedEntries = {};
-  for (const [cacheKey, record] of Object.entries(entries)) {
-    if (!cacheKey || !isPlainObject(record)) continue;
-    normalizedEntries[cacheKey] = record;
-  }
-  return {
-    version: DOCUMENT_EXTRACTION_CACHE_VERSION,
-    entries: normalizedEntries
-  };
-};
-
-const resolveDocumentExtractionCachePersistencePolicy = () => ({
-  maxLoadBytes: DOCUMENT_EXTRACTION_CACHE_MAX_LOAD_BYTES,
-  maxEntries: DOCUMENT_EXTRACTION_CACHE_MAX_ENTRIES,
-  maxTotalEntryBytes: DOCUMENT_EXTRACTION_CACHE_MAX_TOTAL_ENTRY_BYTES,
-  maxEntryTextBytes: DOCUMENT_EXTRACTION_CACHE_MAX_ENTRY_TEXT_BYTES
-});
-
-/**
- * Keep the most recently touched extraction-cache entries while enforcing
- * payload caps so startup JSON load is predictably bounded.
- *
- * @param {object} entries
- * @param {{maxEntries:number,maxTotalEntryBytes:number,maxEntryTextBytes:number}} [policy]
- * @returns {{entries:object,stats:{inputEntries:number,keptEntries:number,droppedEntries:number,droppedForEntryTextBytes:number,droppedForTotalBytes:number,droppedForMaxEntries:number,totalEntryBytes:number,maxEntries:number,maxTotalEntryBytes:number,maxEntryTextBytes:number}}}
- */
-export const compactDocumentExtractionCacheEntries = (entries, policy = resolveDocumentExtractionCachePersistencePolicy()) => {
-  const sourceEntries = isPlainObject(entries) ? entries : {};
-  const maxEntries = Math.max(1, Math.floor(Number(policy?.maxEntries) || DOCUMENT_EXTRACTION_CACHE_MAX_ENTRIES));
-  const maxTotalEntryBytes = Math.max(
-    1,
-    Math.floor(Number(policy?.maxTotalEntryBytes) || DOCUMENT_EXTRACTION_CACHE_MAX_TOTAL_ENTRY_BYTES)
-  );
-  const maxEntryTextBytes = Math.max(
-    1,
-    Math.floor(Number(policy?.maxEntryTextBytes) || DOCUMENT_EXTRACTION_CACHE_MAX_ENTRY_TEXT_BYTES)
-  );
-  const orderedEntries = Object.entries(sourceEntries);
-  const keptNewestFirst = [];
-  let totalEntryBytes = 0;
-  let droppedForEntryTextBytes = 0;
-  let droppedForTotalBytes = 0;
-  let droppedForMaxEntries = 0;
-  for (let i = orderedEntries.length - 1; i >= 0; i -= 1) {
-    const [cacheKey, record] = orderedEntries[i];
-    if (!cacheKey || !isPlainObject(record)) continue;
-    if (keptNewestFirst.length >= maxEntries) {
-      droppedForMaxEntries += 1;
-      continue;
-    }
-    const text = typeof record.text === 'string' ? record.text : '';
-    const textBytes = Buffer.byteLength(text, 'utf8');
-    if (textBytes > maxEntryTextBytes) {
-      droppedForEntryTextBytes += 1;
-      continue;
-    }
-    const entryBytes = Math.max(1, Math.floor(estimateJsonBytes(record)));
-    if (totalEntryBytes + entryBytes > maxTotalEntryBytes) {
-      droppedForTotalBytes += 1;
-      continue;
-    }
-    totalEntryBytes += entryBytes;
-    keptNewestFirst.push([cacheKey, record]);
-  }
-  keptNewestFirst.reverse();
-  const compactedEntries = Object.fromEntries(keptNewestFirst);
-  return {
-    entries: compactedEntries,
-    stats: {
-      inputEntries: orderedEntries.length,
-      keptEntries: keptNewestFirst.length,
-      droppedEntries: Math.max(0, orderedEntries.length - keptNewestFirst.length),
-      droppedForEntryTextBytes,
-      droppedForTotalBytes,
-      droppedForMaxEntries,
-      totalEntryBytes,
-      maxEntries,
-      maxTotalEntryBytes,
-      maxEntryTextBytes
-    }
-  };
-};
-
-export const loadDocumentExtractionCacheState = async ({ runtime, log: logger = null }) => {
-  const cachePath = resolveRuntimeStatePath(runtime, DOCUMENT_EXTRACTION_CACHE_FILE);
-  if (!cachePath) return normalizeDocumentExtractionCacheState(null);
-  const policy = resolveDocumentExtractionCachePersistencePolicy();
-  try {
-    const loaded = await readJsonIfExists(cachePath, {
-      maxBytes: policy.maxLoadBytes,
-      label: DOCUMENT_EXTRACTION_CACHE_FILE
-    });
-    const normalized = normalizeDocumentExtractionCacheState(loaded);
-    const compacted = compactDocumentExtractionCacheEntries(normalized.entries, policy);
-    if (typeof logger === 'function' && compacted.stats.droppedEntries > 0) {
-      logger(
-        `[stage1:extracted-prose] compacted document extraction cache `
-        + `(${compacted.stats.inputEntries} -> ${compacted.stats.keptEntries}; `
-        + `dropMaxEntries=${compacted.stats.droppedForMaxEntries}, `
-        + `dropTotalBytes=${compacted.stats.droppedForTotalBytes}, `
-        + `dropEntryTextBytes=${compacted.stats.droppedForEntryTextBytes}).`
-      );
-    }
-    return {
-      version: DOCUMENT_EXTRACTION_CACHE_VERSION,
-      entries: compacted.entries
-    };
-  } catch (err) {
-    if (typeof logger === 'function') {
-      logger(`[stage1:extracted-prose] failed to load document extraction cache: ${err?.message || err}`);
-    }
-    return normalizeDocumentExtractionCacheState(null);
-  }
-};
-
-const createMutableKeyValueStore = (entries = null) => {
-  const map = new Map();
-  if (isPlainObject(entries)) {
-    for (const [key, value] of Object.entries(entries)) {
-      if (!key) continue;
-      map.set(key, value);
-    }
-  }
-  return {
-    get(key) {
-      if (!key || !map.has(key)) return null;
-      const value = map.get(key);
-      map.delete(key);
-      map.set(key, value);
-      return value;
-    },
-    set(key, value) {
-      if (!key) return;
-      if (map.has(key)) {
-        map.delete(key);
-      }
-      map.set(key, value);
-    },
-    snapshot() {
-      return Object.fromEntries(map.entries());
-    }
-  };
-};
-
-const persistDocumentExtractionCacheState = async ({ runtime, cacheStore, log: logger = null }) => {
-  const cachePath = resolveRuntimeStatePath(runtime, DOCUMENT_EXTRACTION_CACHE_FILE);
-  if (!cachePath || !cacheStore || typeof cacheStore.snapshot !== 'function') return;
-  const policy = resolveDocumentExtractionCachePersistencePolicy();
-  const compacted = compactDocumentExtractionCacheEntries(cacheStore.snapshot(), policy);
-  if (typeof logger === 'function' && compacted.stats.droppedEntries > 0) {
-    logger(
-      `[stage1:extracted-prose] persisted compacted document extraction cache `
-      + `(${compacted.stats.inputEntries} -> ${compacted.stats.keptEntries}; `
-      + `dropMaxEntries=${compacted.stats.droppedForMaxEntries}, `
-      + `dropTotalBytes=${compacted.stats.droppedForTotalBytes}, `
-      + `dropEntryTextBytes=${compacted.stats.droppedForEntryTextBytes}).`
-    );
-  }
-  const payload = {
-    version: DOCUMENT_EXTRACTION_CACHE_VERSION,
-    entries: compacted.entries
-  };
-  try {
-    await atomicWriteJson(cachePath, payload, { spaces: 2, newline: true });
-  } catch (err) {
-    if (typeof logger === 'function') {
-      logger(`[stage1:extracted-prose] failed to persist document extraction cache: ${err?.message || err}`);
-    }
-  }
-};
-
-/**
- * Coerce optional numeric input to non-negative integer while preserving nullish values.
- *
- * @param {unknown} value
- * @returns {number|null}
- */
-const coerceOptionalNonNegativeInt = (value) => {
-  if (value === null || value === undefined) return null;
-  return coerceNonNegativeInt(value);
-};
-/**
- * Parse a fractional config value and clamp via bounds; fall back when invalid.
- *
- * @param {unknown} value
- * @param {number} fallback
- * @param {{min?:number,max?:number,allowZero?:boolean}} [options]
- * @returns {number}
- */
-const coerceClampedFractionOrDefault = (value, fallback, { min = 0, max = 1, allowZero = false } = {}) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  if ((!allowZero && parsed <= 0) || parsed < min || parsed > max) return fallback;
-  return parsed;
-};
-/**
- * Normalize a duration input to a finite non-negative number of milliseconds.
- *
- * @param {unknown} value
- * @returns {number}
- */
 const clampDurationMs = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 };
 
-/**
- * Convert epoch milliseconds to ISO timestamp when the input is valid.
- *
- * @param {unknown} value
- * @returns {string|null}
- */
 const toIsoTimestamp = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? new Date(parsed).toISOString() : null;
-};
-
-export const resolveStageTimingSizeBin = resolveStageTimingSizeBinShared;
-export const createDurationHistogram = createDurationHistogramShared;
-
-/**
- * Resolve effective active processing duration used by slow-file watchdog
- * heuristics after subtracting SCM proc-queue wait.
- *
- * @param {{activeDurationMs?:number,scmProcQueueWaitMs?:number}} [input]
- * @returns {number}
- */
-export const resolveEffectiveSlowFileDurationMs = ({
-  activeDurationMs = 0,
-  scmProcQueueWaitMs = 0
-} = {}) => Math.max(0, clampDurationMs(activeDurationMs) - clampDurationMs(scmProcQueueWaitMs));
-
-/**
- * Resolve queue/active/write/total lifecycle durations with SCM wait metadata.
- *
- * @param {object} [lifecycle]
- * @returns {{
- *   queueDelayMs:number,
- *   activeDurationMs:number,
- *   writeDurationMs:number,
- *   totalDurationMs:number,
- *   scmProcQueueWaitMs:number,
- *   activeProcessingDurationMs:number
- * }}
- */
-export const resolveFileLifecycleDurations = (lifecycle = {}) => {
-  const base = resolveFileLifecycleDurationsShared(lifecycle);
-  const scmProcQueueWaitMs = clampDurationMs(lifecycle?.scmProcQueueWaitMs);
-  return {
-    ...base,
-    scmProcQueueWaitMs,
-    activeProcessingDurationMs: resolveEffectiveSlowFileDurationMs({
-      activeDurationMs: base.activeDurationMs,
-      scmProcQueueWaitMs
-    })
-  };
-};
-
-/**
- * Determine whether effective active file processing crossed slow-file warning
- * threshold after subtracting SCM proc-queue wait.
- *
- * @param {{activeDurationMs:number,thresholdMs:number,scmProcQueueWaitMs?:number}} input
- * @returns {boolean}
- */
-export const shouldTriggerSlowFileWarning = ({
-  activeDurationMs,
-  thresholdMs,
-  scmProcQueueWaitMs = 0
-}) => shouldTriggerSlowFileWarningShared({
-  activeDurationMs: resolveEffectiveSlowFileDurationMs({
-    activeDurationMs,
-    scmProcQueueWaitMs
-  }),
-  thresholdMs
-});
-
-export const isNearThresholdSlowFileDuration = isNearThresholdSlowFileDurationShared;
-export const buildWatchdogNearThresholdSummary = buildWatchdogNearThresholdSummaryShared;
-
-/**
- * Resolve shared extracted-prose extras LRU cache.
- *
- * @param {object|null} runtime
- * @param {object|null} [cacheReporter=null]
- * @returns {{get:Function,set:Function,delete:Function,clear:Function,size:Function}}
- */
-export const resolveExtractedProseExtrasCache = (runtime, cacheReporter = null) => {
-  if (!runtime || typeof runtime !== 'object') {
-    return createLruCache({
-      name: 'extractedProseExtras',
-      maxEntries: 10000,
-      sizeCalculation: estimateJsonBytes,
-      reporter: cacheReporter
-    });
-  }
-  const existing = extractedProseExtrasCacheByRuntime.get(runtime);
-  if (existing) return existing;
-  const cacheConfig = runtime?.cacheConfig?.extractedProseExtras || {};
-  const cache = createLruCache({
-    name: 'extractedProseExtras',
-    maxEntries: cacheConfig.maxEntries,
-    maxMb: cacheConfig.maxMb,
-    ttlMs: cacheConfig.ttlMs,
-    sizeCalculation: estimateJsonBytes,
-    reporter: cacheReporter
-  });
-  extractedProseExtrasCacheByRuntime.set(runtime, cache);
-  return cache;
-};
-
-/**
- * Resolve shared SCM metadata cache used across stage1 file processing.
- *
- * @param {object|null} runtime
- * @param {object|null} [cacheReporter=null]
- * @returns {{get:Function,set:Function,delete:Function,clear:Function,size:Function}}
- */
-export const resolveSharedScmMetaCache = (runtime, cacheReporter = null) => {
-  if (!runtime || typeof runtime !== 'object') {
-    return createLruCache({
-      name: 'sharedScmMeta',
-      maxEntries: 5000,
-      sizeCalculation: estimateJsonBytes,
-      reporter: cacheReporter
-    });
-  }
-  const existing = sharedScmMetaCacheByRuntime.get(runtime);
-  if (existing) return existing;
-  const cacheConfig = runtime?.cacheConfig?.gitMeta || {};
-  const cache = createLruCache({
-    name: 'sharedScmMeta',
-    maxEntries: cacheConfig.maxEntries,
-    maxMb: cacheConfig.maxMb,
-    ttlMs: cacheConfig.ttlMs,
-    sizeCalculation: estimateJsonBytes,
-    reporter: cacheReporter
-  });
-  sharedScmMetaCacheByRuntime.set(runtime, cache);
-  return cache;
-};
-
-/**
- * Clamp shard worker concurrency to runtime queue ceilings.
- *
- * @param {object} runtime
- * @param {number} requestedConcurrency
- * @returns {number}
- */
-export const clampShardConcurrencyToRuntime = (runtime, requestedConcurrency) => {
-  const requested = coercePositiveInt(requestedConcurrency) ?? 1;
-  const caps = [
-    coercePositiveInt(runtime?.fileConcurrency),
-    coercePositiveInt(runtime?.cpuConcurrency),
-    coercePositiveInt(runtime?.importConcurrency)
-  ].filter((value) => Number.isFinite(value) && value > 0);
-  if (!caps.length) return Math.max(1, requested);
-  return Math.max(1, Math.min(requested, ...caps));
-};
-
-/**
- * Compare shard work items by deterministic merge order.
- *
- * @param {object|null|undefined} left
- * @param {object|null|undefined} right
- * @returns {number}
- */
-const compareShardWorkItemsForDeterministicMerge = (left, right) => {
-  const aOrder = Number.isFinite(left?.firstOrderIndex) ? left.firstOrderIndex : Number.MAX_SAFE_INTEGER;
-  const bOrder = Number.isFinite(right?.firstOrderIndex) ? right.firstOrderIndex : Number.MAX_SAFE_INTEGER;
-  if (aOrder !== bOrder) return aOrder - bOrder;
-  const aMerge = Number.isFinite(left?.mergeIndex) ? left.mergeIndex : Number.MAX_SAFE_INTEGER;
-  const bMerge = Number.isFinite(right?.mergeIndex) ? right.mergeIndex : Number.MAX_SAFE_INTEGER;
-  if (aMerge !== bMerge) return aMerge - bMerge;
-  const aShard = left?.shard?.id || left?.shard?.label || '';
-  const bShard = right?.shard?.id || right?.shard?.label || '';
-  return compareStrings(aShard, bShard);
-};
-
-/**
- * Sort shard batches and their entries by deterministic merge order.
- *
- * @param {Array<Array<object>>} shardBatches
- * @returns {Array<Array<object>>}
- */
-export const sortShardBatchesByDeterministicMergeOrder = (shardBatches) => {
-  if (!Array.isArray(shardBatches) || shardBatches.length === 0) return [];
-  const sortedEntries = shardBatches.map((batch) => {
-    const list = Array.isArray(batch) ? [...batch] : [];
-    return list.sort(compareShardWorkItemsForDeterministicMerge);
-  });
-  return sortedEntries.sort((leftBatch, rightBatch) => {
-    const leftHead = leftBatch[0] || null;
-    const rightHead = rightBatch[0] || null;
-    return compareShardWorkItemsForDeterministicMerge(leftHead, rightHead);
-  });
 };
 
 /**
@@ -705,666 +229,11 @@ export const createOrderedCompletionTracker = createSharedOrderedCompletionTrack
  * @returns {Promise<T>}
  */
 export const awaitStage1Barrier = (promise) => awaitWithKeepalive(Promise.resolve(promise));
-
-/**
- * Resolve per-file watchdog thresholds for stage1 processing.
- *
- * This merges queue watchdog config with adaptive defaults and optional
- * repo-size floors so large repositories can avoid noisy slow-file warnings.
- *
- * @param {object} runtime
- * @param {{repoFileCount?:number}} [input]
- * @returns {{
- *   slowFileMs:number,
- *   maxSlowFileMs:number,
- *   hardTimeoutMs:number,
- *   bytesPerStep:number,
- *   linesPerStep:number,
- *   stepMs:number,
- *   nearThresholdLowerFraction:number,
- *   nearThresholdUpperFraction:number,
- *   nearThresholdAlertFraction:number,
- *   nearThresholdMinSamples:number,
- *   adaptiveSlowFloorMs:number
- * }}
- */
-export const resolveFileWatchdogConfig = (runtime, { repoFileCount = 0 } = {}) => {
-  const config = runtime?.stage1Queues?.watchdog || {};
-  const configuredSlowFileMs = coerceOptionalNonNegativeInt(config.slowFileMs);
-  const hasExplicitSlowFileMs = configuredSlowFileMs != null;
-  const normalizedRepoFileCount = Number.isFinite(Number(repoFileCount))
-    ? Math.max(0, Math.floor(Number(repoFileCount)))
-    : 0;
-  const adaptiveSlowFloorMs = !hasExplicitSlowFileMs && normalizedRepoFileCount >= FILE_WATCHDOG_HUGE_REPO_FILE_MIN
-    ? FILE_WATCHDOG_HUGE_REPO_BASE_MS
-    : 0;
-  const slowFileMs = Math.max(
-    configuredSlowFileMs ?? FILE_WATCHDOG_DEFAULT_MS,
-    adaptiveSlowFloorMs
-  );
-  const maxSlowFileMs = coerceOptionalNonNegativeInt(config.maxSlowFileMs)
-    ?? Math.max(FILE_WATCHDOG_DEFAULT_MAX_MS, slowFileMs);
-  const bytesPerStep = coercePositiveInt(config.bytesPerStep) ?? FILE_WATCHDOG_DEFAULT_BYTES_PER_STEP;
-  const linesPerStep = coercePositiveInt(config.linesPerStep) ?? FILE_WATCHDOG_DEFAULT_LINES_PER_STEP;
-  const stepMs = coercePositiveInt(config.stepMs) ?? FILE_WATCHDOG_DEFAULT_STEP_MS;
-  const nearThresholdLowerFraction = coerceClampedFractionOrDefault(
-    config.nearThresholdLowerFraction,
-    FILE_WATCHDOG_NEAR_THRESHOLD_LOWER_FRACTION,
-    { min: 0, max: 1, allowZero: false }
-  );
-  const nearThresholdUpperFraction = Math.max(
-    nearThresholdLowerFraction,
-    coerceClampedFractionOrDefault(
-      config.nearThresholdUpperFraction,
-      FILE_WATCHDOG_NEAR_THRESHOLD_UPPER_FRACTION,
-      { min: 0, max: 1, allowZero: false }
-    )
-  );
-  const nearThresholdAlertFraction = coerceClampedFractionOrDefault(
-    config.nearThresholdAlertFraction,
-    FILE_WATCHDOG_NEAR_THRESHOLD_ALERT_FRACTION,
-    { min: 0, max: 1, allowZero: false }
-  );
-  const nearThresholdMinSamples = Math.max(
-    1,
-    Math.floor(
-      Number(config.nearThresholdMinSamples)
-      || FILE_WATCHDOG_NEAR_THRESHOLD_MIN_SAMPLES
-    )
-  );
-  const hardTimeoutMs = coerceOptionalNonNegativeInt(config.hardTimeoutMs)
-    ?? Math.max(FILE_HARD_TIMEOUT_DEFAULT_MS, maxSlowFileMs * FILE_HARD_TIMEOUT_SLOW_MULTIPLIER);
-  return {
-    slowFileMs: Math.max(0, slowFileMs),
-    maxSlowFileMs: Math.max(0, maxSlowFileMs),
-    hardTimeoutMs: Math.max(0, hardTimeoutMs),
-    bytesPerStep,
-    linesPerStep,
-    stepMs,
-    nearThresholdLowerFraction,
-    nearThresholdUpperFraction,
-    nearThresholdAlertFraction,
-    nearThresholdMinSamples,
-    adaptiveSlowFloorMs
-  };
+const coerceOptionalNonNegativeInt = (value) => {
+  if (value === null || value === undefined) return null;
+  return coerceNonNegativeInt(value);
 };
 
-/**
- * Resolve soft slow-file timeout budget for one entry.
- *
- * Timeout scales by byte/line steps and is capped at the configured
- * `maxSlowFileMs` ceiling.
- *
- * @param {object} watchdogConfig
- * @param {object} entry
- * @returns {number}
- */
-export const resolveFileWatchdogMs = (watchdogConfig, entry) => {
-  if (!watchdogConfig || watchdogConfig.slowFileMs <= 0) return 0;
-  const fileBytes = coerceNonNegativeInt(entry?.stat?.size) ?? 0;
-  const fileLines = coerceNonNegativeInt(entry?.lines) ?? 0;
-  const byteSteps = Math.floor(fileBytes / watchdogConfig.bytesPerStep);
-  const lineSteps = Math.floor(fileLines / watchdogConfig.linesPerStep);
-  const extraSteps = Math.max(byteSteps, lineSteps);
-  const timeoutMs = watchdogConfig.slowFileMs + (extraSteps * watchdogConfig.stepMs);
-  return Math.min(watchdogConfig.maxSlowFileMs, timeoutMs);
-};
-
-/**
- * Resolve a hard timeout for a single file, scaled by file size and line count.
- *
- * Hard timeout is capped globally and always kept at or above both the base
- * hard timeout and a soft-timeout-derived floor when provided.
- *
- * @param {object} watchdogConfig
- * @param {object} entry
- * @param {number} [softTimeoutMs=0]
- * @returns {number}
- */
-export const resolveFileHardTimeoutMs = (watchdogConfig, entry, softTimeoutMs = 0) => {
-  if (!watchdogConfig || watchdogConfig.hardTimeoutMs <= 0) return 0;
-  const fileBytes = coerceNonNegativeInt(entry?.stat?.size) ?? 0;
-  const fileLines = coerceNonNegativeInt(entry?.lines) ?? 0;
-  const byteSteps = Math.floor(fileBytes / Math.max(1, watchdogConfig.bytesPerStep || FILE_WATCHDOG_DEFAULT_BYTES_PER_STEP));
-  const lineSteps = Math.floor(fileLines / Math.max(1, watchdogConfig.linesPerStep || FILE_WATCHDOG_DEFAULT_LINES_PER_STEP));
-  const sizeSteps = Math.max(byteSteps, lineSteps);
-  const sizeScaledTimeout = watchdogConfig.hardTimeoutMs + (sizeSteps * Math.max(1, watchdogConfig.stepMs || FILE_WATCHDOG_DEFAULT_STEP_MS));
-  const softScaledTimeout = Number.isFinite(softTimeoutMs) && softTimeoutMs > 0
-    ? Math.ceil(softTimeoutMs * 2)
-    : 0;
-  return Math.min(FILE_HARD_TIMEOUT_MAX_MS, Math.max(watchdogConfig.hardTimeoutMs, sizeScaledTimeout, softScaledTimeout));
-};
-
-/**
- * Resolve cleanup timeout for stage1 subprocess teardown.
- *
- * Stage1 queue watchdog settings take precedence, then raw indexing config.
- * A configured value of `0` explicitly disables timeout enforcement.
- *
- * @param {object} runtime
- * @returns {number}
- */
-export const resolveProcessCleanupTimeoutMs = (runtime) => {
-  const configured = resolveOptionalNonNegativeIntFromValues(
-    runtime?.stage1Queues?.watchdog?.cleanupTimeoutMs,
-    runtime?.indexingConfig?.stage1?.watchdog?.cleanupTimeoutMs
-  );
-  if (configured === 0) return 0;
-  return configured ?? FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS;
-};
-
-
-/**
- * Return the first valid optional non-negative integer from ordered candidates.
- *
- * @param {...unknown} values
- * @returns {number|null}
- */
-/**
- * Return the first non-null parsed non-negative integer from a value list.
- *
- * @param {...unknown} values
- * @returns {number|null}
- */
-const resolveOptionalNonNegativeIntFromValues = (...values) => {
-  for (const value of values) {
-    const parsed = coerceOptionalNonNegativeInt(value);
-    if (parsed != null) return parsed;
-  }
-  return null;
-};
-
-
-/**
- * Build deterministic subprocess-ownership id prefix for stage1 file workers.
- *
- * @param {object} runtime
- * @param {string} [mode='unknown']
- * @returns {string}
- */
-export const resolveStage1FileSubprocessOwnershipPrefix = (runtime, mode = 'unknown') => {
-  const configuredPrefix = typeof runtime?.subprocessOwnership?.stage1FilePrefix === 'string'
-    ? runtime.subprocessOwnership.stage1FilePrefix.trim()
-    : '';
-  if (configuredPrefix) {
-    return `${configuredPrefix}:${normalizeOwnershipSegment(mode, 'mode')}`;
-  }
-  const fallbackBuildId = normalizeOwnershipSegment(runtime?.buildId, 'build');
-  return `stage1:${fallbackBuildId}:${normalizeOwnershipSegment(mode, 'mode')}`;
-};
-
-/**
- * Build deterministic ownership id for per-file stage1 subprocesses.
- *
- * @param {{
- *  runtime:object,
- *  mode?:string,
- *  fileIndex?:number|null,
- *  rel?:string,
- *  shardId?:string|number|null
- * }} [input]
- * @returns {string}
- */
-export const buildStage1FileSubprocessOwnershipId = ({
-  runtime,
-  mode = 'unknown',
-  fileIndex = null,
-  rel = '',
-  shardId = null
-} = {}) => {
-  const prefix = resolveStage1FileSubprocessOwnershipPrefix(runtime, mode);
-  const normalizedFileIndex = Number.isFinite(Number(fileIndex))
-    ? Math.max(0, Math.floor(Number(fileIndex)))
-    : 'na';
-  const normalizedRel = normalizeOwnershipSegment(rel, 'unknown_file');
-  const normalizedShardId = normalizeOwnershipSegment(String(shardId || 'none'), 'none');
-  return `${prefix}:shard:${normalizedShardId}:file:${normalizedFileIndex}:${normalizedRel}`;
-};
-
-/**
- * Run async cleanup with optional timeout/telemetry handling.
- *
- * Returns timing and timeout metadata regardless of cleanup outcome. Timeout
- * callbacks are best-effort and do not suppress original timeout errors.
- *
- * @param {{
- *  label:string,
- *  cleanup:Function,
- *  timeoutMs?:number,
- *  log?:(message:string,meta?:object)=>void,
- *  logMeta?:object|null,
- *  onTimeout?:Function|null
- * }} input
- * @returns {Promise<{skipped:boolean,timedOut:boolean,elapsedMs:number,error?:unknown}>}
- */
-export const runCleanupWithTimeout = async ({
-  label,
-  cleanup,
-  timeoutMs = FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS,
-  log = null,
-  logMeta = null,
-  onTimeout = null
-}) => {
-  if (typeof cleanup !== 'function') return { skipped: true, timedOut: false, elapsedMs: 0 };
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    const startAtMs = Date.now();
-    await cleanup();
-    return { skipped: false, timedOut: false, elapsedMs: Date.now() - startAtMs };
-  }
-  const startedAtMs = Date.now();
-  try {
-    await runWithTimeout(
-      () => cleanup(),
-      {
-        timeoutMs,
-        errorFactory: () => createTimeoutError({
-          message: `[cleanup] ${label || 'cleanup'} timed out after ${timeoutMs}ms`,
-          code: 'PROCESS_CLEANUP_TIMEOUT',
-          retryable: false,
-          meta: {
-            label: label || 'cleanup',
-            timeoutMs
-          }
-        })
-      }
-    );
-    return { skipped: false, timedOut: false, elapsedMs: Date.now() - startedAtMs };
-  } catch (err) {
-    if (err?.code !== 'PROCESS_CLEANUP_TIMEOUT') throw err;
-    const elapsedMs = Date.now() - startedAtMs;
-    if (typeof log === 'function') {
-      log(
-        `[cleanup] ${label || 'cleanup'} timed out after ${timeoutMs}ms; continuing.`,
-        {
-          kind: 'warning',
-          ...(logMeta && typeof logMeta === 'object' ? logMeta : {}),
-          cleanupLabel: label || 'cleanup',
-          timeoutMs,
-          elapsedMs
-        }
-      );
-    }
-    if (typeof onTimeout === 'function') {
-      try {
-        await onTimeout(err);
-      } catch {}
-    }
-    return { skipped: false, timedOut: true, elapsedMs, error: err };
-  }
-};
-
-/**
- * Run stage1 tail cleanup tasks concurrently and aggregate diagnostics.
- *
- * Each task should enforce its own timeout via `runCleanupWithTimeout`. This
- * coordinator waits for all cleanup legs so one failure does not hide the
- * status of sibling teardown work.
- *
- * @param {{
- *  tasks?:Array<{label?:string,run?:Function}>,
- *  logSummary?:(input:{
- *    outcomes:Array<{label:string,skipped:boolean,timedOut:boolean,elapsedMs:number,error?:unknown}>,
- *    elapsedMs:number,
- *    fatalErrors:Array<{label:string,error:unknown}>
- *  })=>void
- * }} [input]
- * @returns {Promise<Array<{label:string,skipped:boolean,timedOut:boolean,elapsedMs:number,error?:unknown}>>}
- */
-export const runStage1TailCleanupTasks = async ({
-  tasks = [],
-  logSummary = null,
-  sequential = false
-} = {}) => {
-  const cleanupTasks = Array.isArray(tasks)
-    ? tasks.filter((task) => typeof task?.run === 'function')
-    : [];
-  if (!cleanupTasks.length) return [];
-  const startedAtMs = Date.now();
-  const runTask = async (task, index) => {
-    const result = await task.run();
-    return {
-      label: typeof task.label === 'string' && task.label.trim()
-        ? task.label.trim()
-        : `cleanup-${index + 1}`,
-      skipped: result?.skipped === true,
-      timedOut: result?.timedOut === true,
-      elapsedMs: Number.isFinite(result?.elapsedMs)
-        ? Math.max(0, Math.floor(Number(result.elapsedMs)))
-        : 0,
-      error: result?.error
-    };
-  };
-  const settled = sequential
-    ? await (async () => {
-      const results = [];
-      for (let index = 0; index < cleanupTasks.length; index += 1) {
-        try {
-          results.push({
-            status: 'fulfilled',
-            value: await runTask(cleanupTasks[index], index)
-          });
-        } catch (error) {
-          results.push({
-            status: 'rejected',
-            reason: error
-          });
-        }
-      }
-      return results;
-    })()
-    : await Promise.allSettled(cleanupTasks.map((task, index) => runTask(task, index)));
-  const outcomes = [];
-  const fatalErrors = [];
-  settled.forEach((entry, index) => {
-    const task = cleanupTasks[index] || {};
-    const label = typeof task.label === 'string' && task.label.trim()
-      ? task.label.trim()
-      : `cleanup-${index + 1}`;
-    if (entry.status === 'fulfilled') {
-      outcomes.push(entry.value);
-      return;
-    }
-    const error = entry.reason;
-    outcomes.push({
-      label,
-      skipped: false,
-      timedOut: false,
-      elapsedMs: 0,
-      error
-    });
-    fatalErrors.push({ label, error });
-  });
-  if (typeof logSummary === 'function') {
-    try {
-      logSummary({
-        outcomes,
-        elapsedMs: Math.max(0, Date.now() - startedAtMs),
-        fatalErrors
-      });
-    } catch {}
-  }
-  if (fatalErrors.length > 0) {
-    throw fatalErrors[0].error;
-  }
-  return outcomes;
-};
-
-const normalizeTrackedProcessFileTaskMeta = (meta = {}) => ({
-  file: typeof meta?.file === 'string' && meta.file.trim() ? meta.file.trim() : null,
-  fileIndex: Number.isFinite(Number(meta?.fileIndex)) ? Math.floor(Number(meta.fileIndex)) : null,
-  orderIndex: Number.isFinite(Number(meta?.orderIndex)) ? Math.floor(Number(meta.orderIndex)) : null,
-  shardId: typeof meta?.shardId === 'string' && meta.shardId.trim() ? meta.shardId.trim() : null,
-  ownershipId: typeof meta?.ownershipId === 'string' && meta.ownershipId.trim() ? meta.ownershipId.trim() : null,
-  startedAtMs: Number.isFinite(Number(meta?.startedAtMs))
-    ? Math.max(0, Math.floor(Number(meta.startedAtMs)))
-    : Date.now()
-});
-
-/**
- * Summarize still-running raw `processFile` tasks for cleanup diagnostics.
- *
- * These entries represent work that can survive a timeout-wrapped caller due to
- * `runWithTimeout` racing the wrapper promise instead of the underlying task.
- *
- * @param {Array<object>} [entries]
- * @param {number} [maxEntries=8]
- * @returns {string}
- */
-export const buildTrackedProcessFileTaskSummaryText = (
-  entries = [],
-  maxEntries = 8
-) => {
-  const list = Array.isArray(entries) ? entries : [];
-  const safeMaxEntries = Number.isFinite(Number(maxEntries))
-    ? Math.max(1, Math.floor(Number(maxEntries)))
-    : 8;
-  const preview = list
-    .slice(0, safeMaxEntries)
-    .map((entry) => {
-      const file = entry?.file || 'unknown';
-      const fileIndex = Number.isFinite(Number(entry?.fileIndex))
-        ? `#${Math.floor(Number(entry.fileIndex))}`
-        : '#?';
-      const orderIndex = Number.isFinite(Number(entry?.orderIndex))
-        ? `seq=${Math.floor(Number(entry.orderIndex))}`
-        : null;
-      const shardId = entry?.shardId ? `shard=${entry.shardId}` : null;
-      const ageMs = Number.isFinite(Number(entry?.ageMs))
-        ? `age=${Math.max(0, Math.floor(Number(entry.ageMs)))}ms`
-        : null;
-      return [fileIndex, file, orderIndex, shardId, ageMs].filter(Boolean).join(' ');
-    });
-  const remainder = list.length > preview.length
-    ? ` (+${list.length - preview.length} more)`
-    : '';
-  return preview.length ? `${preview.join('; ')}${remainder}` : 'none';
-};
-
-/**
- * Track raw `processFile` promises independently from timeout wrappers.
- *
- * Stage1 uses this registry to drain active file work before shared teardown
- * closes scheduler-backed readers.
- *
- * @param {{name?:string,now?:() => number}} [input]
- * @returns {{
- *   track:(promise:Promise<unknown>, meta?:object) => Promise<unknown>,
- *   snapshot:() => Array<object>,
- *   pendingCount:() => number,
- *   drain:() => Promise<void>
- * }}
- */
-export const createTrackedProcessFileTaskRegistry = ({
-  name = 'stage1-process-file-tasks',
-  now = () => Date.now()
-} = {}) => {
-  const lifecycle = createLifecycleRegistry({ name });
-  const pending = new Map();
-  let nextId = 0;
-  let sealed = false;
-  let sealReason = null;
-
-  const snapshot = () => Array.from(pending.entries())
-    .map(([id, entry]) => ({
-      id,
-      ...entry,
-      ageMs: Math.max(0, now() - (Number(entry?.startedAtMs) || now()))
-    }))
-    .sort((left, right) => {
-      const rightAge = Number.isFinite(Number(right?.ageMs)) ? Number(right.ageMs) : -1;
-      const leftAge = Number.isFinite(Number(left?.ageMs)) ? Number(left.ageMs) : -1;
-      if (rightAge !== leftAge) return rightAge - leftAge;
-      const leftIndex = Number.isFinite(Number(left?.fileIndex)) ? Number(left.fileIndex) : Number.MAX_SAFE_INTEGER;
-      const rightIndex = Number.isFinite(Number(right?.fileIndex)) ? Number(right.fileIndex) : Number.MAX_SAFE_INTEGER;
-      return leftIndex - rightIndex;
-    });
-
-  const track = (promise, meta = {}) => {
-    if (!promise || typeof promise.then !== 'function') return promise;
-    if (sealed) {
-      const err = new Error(
-        `[stage1] ${name} is sealed; refusing new process-file task` +
-        `${sealReason ? ` (${sealReason})` : ''}.`
-      );
-      err.code = 'ERR_STAGE1_PROCESS_FILE_TASK_REGISTRY_SEALED';
-      throw err;
-    }
-    const id = nextId + 1;
-    nextId = id;
-    pending.set(id, normalizeTrackedProcessFileTaskMeta(meta));
-    const tracked = lifecycle.registerPromise(Promise.resolve(promise), {
-      label: typeof meta?.file === 'string' && meta.file.trim()
-        ? `process-file:${meta.file.trim()}`
-        : `process-file:${id}`
-    });
-    void tracked.then(
-      () => {
-        pending.delete(id);
-      },
-      () => {
-        pending.delete(id);
-      }
-    );
-    return tracked;
-  };
-
-  return {
-    track,
-    seal: (reason = null) => {
-      sealed = true;
-      sealReason = typeof reason === 'string' && reason.trim() ? reason.trim() : null;
-    },
-    isSealed: () => sealed,
-    snapshot,
-    pendingCount: () => pending.size,
-    drain: () => lifecycle.drain()
-  };
-};
-
-/**
- * Drain tracked raw `processFile` tasks with bounded timeout and named logs.
- *
- * @param {{
- *   registry?:{drain?:Function,snapshot?:Function}|null,
- *   timeoutMs?:number,
- *   log?:(message:string,meta?:object)=>void,
- *   logMeta?:object|null,
- *   onTimeout?:(error:Error,pendingEntries:Array<object>)=>Promise<void>|void,
- *   snapshotLimit?:number
- * }} [input]
- * @returns {Promise<{skipped:boolean,timedOut:boolean,elapsedMs:number,error?:unknown}>}
- */
-export const drainTrackedProcessFileTasks = async ({
-  registry = null,
-  timeoutMs = FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS,
-  log = null,
-  logMeta = null,
-  onTimeout = null,
-  snapshotLimit = 8
-} = {}) => {
-  if (!registry || typeof registry.drain !== 'function') {
-    return { skipped: true, timedOut: false, elapsedMs: 0 };
-  }
-  return runCleanupWithTimeout({
-    label: 'stage1.process-file-drain',
-    cleanup: () => registry.drain(),
-    timeoutMs,
-    log,
-    logMeta,
-    onTimeout: async (error) => {
-      const pendingEntries = typeof registry.snapshot === 'function' ? registry.snapshot() : [];
-      if (typeof log === 'function' && pendingEntries.length > 0) {
-        log(
-          `[cleanup] stage1 process-file drain timed out with ${pendingEntries.length} pending task(s): `
-            + `${buildTrackedProcessFileTaskSummaryText(pendingEntries, snapshotLimit)}`,
-          {
-            kind: 'warning',
-            ...(logMeta && typeof logMeta === 'object' ? logMeta : {}),
-            cleanupLabel: 'stage1.process-file-drain',
-            pendingCount: pendingEntries.length,
-            pendingEntries: pendingEntries.slice(0, snapshotLimit)
-          }
-        );
-      }
-      if (typeof onTimeout === 'function') {
-        await onTimeout(error, pendingEntries);
-      }
-    }
-  });
-};
-
-/**
- * Allow near-front ordered entries to bypass postings backpressure temporarily.
- *
- * This avoids pipeline stalls when the next ordered entry is only slightly
- * behind the current work item.
- *
- * @param {{orderIndex:number,nextOrderedIndex:number,bypassWindow?:number}} input
- * @returns {boolean}
- */
-export const shouldBypassPostingsBackpressure = ({
-  orderIndex,
-  nextOrderedIndex,
-  bypassWindow = 0
-}) => {
-  if (!Number.isFinite(orderIndex) || !Number.isFinite(nextOrderedIndex)) return false;
-  const normalizedOrderIndex = Math.floor(orderIndex);
-  const normalizedNextIndex = Math.floor(nextOrderedIndex);
-  const normalizedWindow = Number.isFinite(bypassWindow)
-    ? Math.max(0, Math.floor(bypassWindow))
-    : 0;
-  return normalizedOrderIndex <= (normalizedNextIndex + normalizedWindow);
-};
-
-/**
- * Execute one ordered stage1 apply callback while holding postings queue
- * reservation only for the write/apply window.
- *
- * This avoids blocking `onResult` enqueue on postings backpressure, which can
- * create a circular wait with ordered flush under head-of-line gaps.
- *
- * @param {{
- *   sparsePostingsEnabled?:boolean,
- *   postingsQueue?:{reserve?:Function}|null,
- *   result?:object|null,
- *   signal?:AbortSignal|null,
- *   reserveTimeoutMs?:number,
- *   onReserveWait?:(snapshot:object)=>void,
- *   runApply:(context?:{signal?:AbortSignal|null})=>Promise<unknown>|unknown
- * }} input
- * @returns {Promise<unknown>}
- */
-export const runApplyWithPostingsBackpressure = async ({
-  sparsePostingsEnabled = false,
-  postingsQueue = null,
-  result = null,
-  signal = null,
-  reserveTimeoutMs = null,
-  onReserveWait = null,
-  runApply
-} = {}) => {
-  const reserveSignal = signal && typeof signal.aborted === 'boolean' ? signal : null;
-  const resolvedReserveTimeoutMs = reserveTimeoutMs !== null
-    && reserveTimeoutMs !== undefined
-    && Number.isFinite(Number(reserveTimeoutMs))
-    ? Math.max(0, Math.floor(Number(reserveTimeoutMs)))
-    : null;
-  const reserveWaitHook = typeof onReserveWait === 'function' ? onReserveWait : null;
-  let reservation = NOOP_RESERVATION;
-  if (
-    sparsePostingsEnabled
-    && postingsQueue
-    && typeof postingsQueue.reserve === 'function'
-  ) {
-    reservation = await postingsQueue.reserve({
-      ...estimatePostingsPayload(result),
-      ...(reserveSignal ? { signal: reserveSignal } : {}),
-      ...(resolvedReserveTimeoutMs != null ? { timeoutMs: resolvedReserveTimeoutMs } : {}),
-      ...(reserveWaitHook ? { onWait: reserveWaitHook } : {})
-    });
-  }
-  try {
-    throwIfAborted(reserveSignal);
-    const applyResult = await runApply({ signal: reserveSignal });
-    throwIfAborted(reserveSignal);
-    return applyResult;
-  } finally {
-    try {
-      reservation.release?.();
-    } catch {}
-  }
-};
-
-/**
- * Resolve timeout budget for ordered completion drain waits.
- *
- * @param {{
- *   runtime?:object,
- *   stallAbortMs?:number,
- *   stallSoftKickMs?:number
- * }} [input]
- * @returns {number}
- */
 const resolveOrderedCompletionTimeoutMs = ({
   runtime = null,
   stallAbortMs = 0,
@@ -1442,65 +311,6 @@ const resolveOrderedFlushTimeoutMs = ({ runtime = null } = {}) => {
  *   progressTotal:number
  * }}
  */
-export const resolveStage1OrderingIntegrity = ({
-  expectedOrderIndices = [],
-  completedOrderIndices = [],
-  progressCount = 0,
-  progressTotal = 0,
-  terminalCount = null,
-  committedCount = null,
-  totalSeqCount = null
-} = {}) => {
-  const expected = Array.isArray(expectedOrderIndices)
-    ? expectedOrderIndices
-      .map((value) => Number(value))
-      .filter((value) => Number.isFinite(value))
-      .map((value) => Math.floor(value))
-    : [];
-  const expectedSet = new Set(expected);
-  const completedSet = new Set();
-  for (const value of toArray(completedOrderIndices)) {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) continue;
-    completedSet.add(Math.floor(parsed));
-  }
-  const missingIndices = [];
-  for (const index of expectedSet) {
-    if (!completedSet.has(index)) missingIndices.push(index);
-  }
-  missingIndices.sort((a, b) => a - b);
-  const normalizedProgressCount = Math.max(0, Math.floor(Number(progressCount) || 0));
-  const normalizedProgressTotal = Math.max(0, Math.floor(Number(progressTotal) || 0));
-  const progressComplete = normalizedProgressTotal === 0
-    || normalizedProgressCount >= normalizedProgressTotal;
-  const normalizedTerminalCount = Number.isFinite(Number(terminalCount))
-    ? Math.max(0, Math.floor(Number(terminalCount)))
-    : null;
-  const normalizedCommittedCount = Number.isFinite(Number(committedCount))
-    ? Math.max(0, Math.floor(Number(committedCount)))
-    : null;
-  const normalizedTotalSeqCount = Number.isFinite(Number(totalSeqCount))
-    ? Math.max(0, Math.floor(Number(totalSeqCount)))
-    : null;
-  const terminalComplete = normalizedTotalSeqCount == null
-    || (normalizedTerminalCount != null && normalizedTerminalCount === normalizedTotalSeqCount);
-  const commitComplete = normalizedTotalSeqCount == null
-    || (normalizedCommittedCount != null && normalizedCommittedCount === normalizedTotalSeqCount);
-  return {
-    ok: missingIndices.length === 0 && progressComplete && terminalComplete && commitComplete,
-    expectedCount: expectedSet.size,
-    completedCount: completedSet.size,
-    terminalCount: normalizedTerminalCount,
-    committedCount: normalizedCommittedCount,
-    totalSeqCount: normalizedTotalSeqCount,
-    missingIndices,
-    missingCount: missingIndices.length,
-    progressComplete,
-    progressCount: normalizedProgressCount,
-    progressTotal: normalizedProgressTotal
-  };
-};
-
 export {
   buildDeterministicShardMergePlan,
   resolveClusterSubsetRetryConfig,
@@ -1510,258 +320,6 @@ export {
   runShardSubsetsWithRetry,
   sortEntriesByOrderIndex
 };
-
-/**
- * Assign deterministic 1-based file indices used in logs and ownership ids.
- *
- * @param {object[]} entries
- * @returns {void}
- */
-const assignFileIndexes = (entries) => {
-  if (!Array.isArray(entries)) return;
-  for (let i = 0; i < entries.length; i += 1) {
-    const entry = entries[i];
-    if (!entry || typeof entry !== 'object') continue;
-    entry.fileIndex = i + 1;
-  }
-};
-
-/**
- * Resolve one stable order index for one entry across shard subsets/retries.
- *
- * We must never fall back to a subset-local index because that can remap the
- * same file to different order slots and deadlock ordered commit cursor drain.
- *
- * @param {object} entry
- * @param {number|null} [fallbackIndex=null]
- * @returns {number|null}
- */
-const resolveStableEntryOrderIndex = (entry, fallbackIndex = null) => {
-  const explicitOrderIndex = resolveEntryOrderIndex(entry, null);
-  if (Number.isFinite(explicitOrderIndex)) {
-    return Math.floor(explicitOrderIndex);
-  }
-  if (Number.isFinite(entry?.fileIndex)) {
-    return Math.max(0, Math.floor(entry.fileIndex) - 1);
-  }
-  if (Number.isFinite(fallbackIndex)) {
-    return Math.max(0, Math.floor(fallbackIndex));
-  }
-  return null;
-};
-
-/**
- * Build ordered-progress seed data from entry order indexes.
- *
- * @param {object[]} entries
- * @returns {{
- *   startOrderIndex:number,
- *   expectedOrderIndices:number[],
- *   orderIndexToRel:Map<number,string>
- * }}
- */
-const resolveOrderedEntryProgressPlan = (entries) => {
-  const safeEntries = Array.isArray(entries) ? entries : [];
-  let minIndex = null;
-  const expected = new Set();
-  const orderIndexToRel = new Map();
-  for (let i = 0; i < safeEntries.length; i += 1) {
-    const entry = safeEntries[i];
-    if (!entry || typeof entry !== 'object') continue;
-    const startValue = resolveStableEntryOrderIndex(entry, null);
-    if (Number.isFinite(startValue)) {
-      minIndex = minIndex == null ? startValue : Math.min(minIndex, startValue);
-    }
-    const expectedValue = resolveStableEntryOrderIndex(entry, i);
-    if (Number.isFinite(expectedValue)) {
-      const normalizedExpected = Math.floor(expectedValue);
-      expected.add(normalizedExpected);
-      if (!orderIndexToRel.has(normalizedExpected)) {
-        const rel = entry.rel || toPosix(entry.abs || '');
-        if (typeof rel === 'string' && rel) {
-          orderIndexToRel.set(normalizedExpected, rel);
-        }
-      }
-    }
-  }
-  return {
-    startOrderIndex: Number.isFinite(minIndex) ? Math.max(0, Math.floor(minIndex)) : 0,
-    expectedOrderIndices: Array.from(expected).sort((a, b) => a - b),
-    orderIndexToRel
-  };
-};
-
-const buildStage1ShardWorkPlan = ({
-  shardExecutionPlan,
-  shardIndexById,
-  totals
-}) => {
-  const work = [];
-  const totalShards = shardExecutionPlan.length;
-  const totalFiles = totals.totalFiles;
-  const totalLines = totals.totalLines;
-  const totalBytes = totals.totalBytes;
-  const totalCost = totals.totalCost;
-  for (const shard of shardExecutionPlan) {
-    const fileCount = shard.entries.length;
-    const costPerFile = shard.costMs && fileCount ? shard.costMs / fileCount : 0;
-    const fileShare = totalFiles > 0 ? fileCount / totalFiles : 0;
-    const lineCount = shard.lineCount || 0;
-    const lineShare = totalLines > 0 ? lineCount / totalLines : 0;
-    const byteCount = shard.byteCount || 0;
-    const byteShare = totalBytes > 0 ? byteCount / totalBytes : 0;
-    const costMs = shard.costMs || 0;
-    const costShare = totalCost > 0 ? costMs / totalCost : 0;
-    const share = Math.max(fileShare, lineShare, byteShare, costShare);
-    let parts = 1;
-    if (share > 0.05) parts = share > 0.1 ? 4 : 2;
-    parts = Math.min(parts, Math.max(1, fileCount));
-    if (parts <= 1) {
-      work.push({
-        shard,
-        entries: shard.entries,
-        partIndex: 1,
-        partTotal: 1,
-        predictedCostMs: costPerFile ? costPerFile * fileCount : costMs,
-        shardIndex: shardIndexById.get(shard.id) || 1,
-        shardTotal: totalShards
-      });
-      continue;
-    }
-    const perPart = Math.ceil(fileCount / parts);
-    for (let i = 0; i < parts; i += 1) {
-      const start = i * perPart;
-      const end = Math.min(start + perPart, fileCount);
-      if (start >= end) continue;
-      const partCount = end - start;
-      work.push({
-        shard,
-        entries: shard.entries.slice(start, end),
-        partIndex: i + 1,
-        partTotal: parts,
-        predictedCostMs: costPerFile ? costPerFile * partCount : costMs / parts,
-        shardIndex: shardIndexById.get(shard.id) || 1,
-        shardTotal: totalShards
-      });
-    }
-  }
-  return work;
-};
-
-const resolveStage1ShardExecutionQueuePlan = ({
-  shardPlan,
-  runtime,
-  clusterModeEnabled = false,
-  clusterDeterministicMerge = true
-}) => {
-  const shardExecutionPlan = [...shardPlan].sort((a, b) => {
-    if (clusterModeEnabled && clusterDeterministicMerge) {
-      return compareStrings(a.id, b.id);
-    }
-    const costDelta = (b.costMs || 0) - (a.costMs || 0);
-    if (costDelta !== 0) return costDelta;
-    const lineDelta = (b.lineCount || 0) - (a.lineCount || 0);
-    if (lineDelta !== 0) return lineDelta;
-    const sizeDelta = b.entries.length - a.entries.length;
-    if (sizeDelta !== 0) return sizeDelta;
-    return compareStrings(a.label || a.id, b.label || b.id);
-  });
-  const shardIndexById = new Map(
-    shardExecutionPlan.map((shard, index) => [shard.id, index + 1])
-  );
-  const shardExecutionOrderById = new Map(
-    shardExecutionPlan.map((shard, index) => [shard.id, index + 1])
-  );
-  const totals = {
-    totalFiles: shardPlan.reduce((sum, shard) => sum + shard.entries.length, 0),
-    totalLines: shardPlan.reduce((sum, shard) => sum + (shard.lineCount || 0), 0),
-    totalBytes: shardPlan.reduce((sum, shard) => sum + (shard.byteCount || 0), 0),
-    totalCost: shardPlan.reduce((sum, shard) => sum + (shard.costMs || 0), 0)
-  };
-  const shardWorkPlan = buildStage1ShardWorkPlan({
-    shardExecutionPlan,
-    shardIndexById,
-    totals
-  }).map((workItem) => ({
-    ...workItem,
-    subsetId: resolveShardSubsetId(workItem),
-    firstOrderIndex: resolveShardWorkItemMinOrderIndex(workItem)
-  }));
-  const shardMergePlan = buildDeterministicShardMergePlan(shardWorkPlan);
-  const mergeOrderBySubsetId = new Map(
-    shardMergePlan.map((entry) => [entry.subsetId, entry.mergeIndex])
-  );
-  const mergeOrderByShardId = new Map();
-  for (const entry of shardMergePlan) {
-    const shardId = entry?.shardId;
-    if (!shardId || mergeOrderByShardId.has(shardId)) continue;
-    mergeOrderByShardId.set(shardId, entry.mergeIndex);
-  }
-  for (const workItem of shardWorkPlan) {
-    workItem.mergeIndex = mergeOrderBySubsetId.get(workItem.subsetId) || null;
-  }
-  const defaultShardConcurrency = Math.max(
-    1,
-    Math.min(32, runtime.fileConcurrency, runtime.cpuConcurrency)
-  );
-  let shardConcurrency = Number.isFinite(runtime.shards?.cluster?.workerCount)
-    ? Math.max(1, Math.floor(runtime.shards.cluster.workerCount))
-    : (Number.isFinite(runtime.shards.maxWorkers)
-      ? Math.max(1, Math.floor(runtime.shards.maxWorkers))
-      : defaultShardConcurrency);
-  shardConcurrency = clampShardConcurrencyToRuntime(runtime, shardConcurrency);
-  let shardBatches = planShardBatches(shardWorkPlan, shardConcurrency, {
-    resolveWeight: (workItem) => Number.isFinite(workItem.predictedCostMs)
-      ? workItem.predictedCostMs
-      : (workItem.shard.costMs || workItem.shard.lineCount || workItem.entries.length || 0),
-    resolveTieBreaker: (workItem) => {
-      const shardId = workItem.shard?.id || workItem.shard?.label || '';
-      const part = Number.isFinite(workItem.partIndex) ? workItem.partIndex : 0;
-      return `${shardId}:${part}`;
-    }
-  });
-  if (shardBatches.length) {
-    shardBatches = sortShardBatchesByDeterministicMergeOrder(shardBatches);
-  }
-  if (!shardBatches.length && shardWorkPlan.length) {
-    shardBatches = [shardWorkPlan.slice()];
-  }
-  shardConcurrency = Math.max(1, shardBatches.length);
-  const perShardFileConcurrency = Math.max(
-    1,
-    Math.min(4, Math.floor(runtime.fileConcurrency / shardConcurrency))
-  );
-  const perShardImportConcurrency = Math.max(1, Math.floor(runtime.importConcurrency / shardConcurrency));
-  const baseEmbedConcurrency = Number.isFinite(runtime.embeddingConcurrency)
-    ? runtime.embeddingConcurrency
-    : runtime.cpuConcurrency;
-  const perShardEmbeddingConcurrency = Math.max(
-    1,
-    Math.min(perShardFileConcurrency, Math.floor(baseEmbedConcurrency / shardConcurrency))
-  );
-  return {
-    shardExecutionPlan,
-    shardExecutionOrderById,
-    totals,
-    shardWorkPlan,
-    shardMergePlan,
-    mergeOrderByShardId,
-    shardBatches,
-    shardConcurrency,
-    perShardFileConcurrency,
-    perShardImportConcurrency,
-    perShardEmbeddingConcurrency
-  };
-};
-
-/**
- * Main stage1 file-processing orchestration.
- * Handles scheduler prep, concurrent file processing, ordered output append,
- * sparse postings backpressure, and checkpoint/progress emission.
- *
- * @param {object} input
- * @returns {Promise<object>}
- */
 export const processFiles = async ({
   mode,
   runtime,
@@ -4678,3 +3236,4 @@ export const processFiles = async ({
     });
   }
 };
+
