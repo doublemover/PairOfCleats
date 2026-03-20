@@ -1026,6 +1026,31 @@ export async function collectLspTypes({
       const lifecycleState = lifecycleHealth.getState();
       refreshRuntimeState({ includeRequests: true });
       runtime.requestCache = summarizeRequestCacheMetrics(requestCacheMetrics);
+      const documentSymbolMetrics = runtime.requests?.byMethod?.['textDocument/documentSymbol'] || null;
+      const hasDocumentSymbolFailureCheck = checks.some((check) => check?.name === 'tooling_document_symbol_failed');
+      if (
+        Number(documentSymbolMetrics?.failed || 0) > 0
+        && hasDocumentSymbolFailureCheck !== true
+      ) {
+        checkFlags.documentSymbolFailed = true;
+        const lastFailureMessage = String(runtime.guard?.lastFailure?.message || '').toLowerCase();
+        const lastFailureCode = String(runtime.guard?.lastFailure?.code || '');
+        const failureCategory = Number(documentSymbolMetrics?.timedOut || 0) > 0
+          ? 'timeout'
+          : (
+            lifecycleState?.quarantine?.reasonCode === 'transport_failure'
+              || lastFailureCode === 'ERR_LSP_TRANSPORT_CLOSED'
+              || lastFailureMessage.includes('transport closed')
+              || lastFailureMessage.includes('writer unavailable')
+          )
+            ? 'transport'
+            : 'request';
+        checks.push({
+          name: 'tooling_document_symbol_failed',
+          status: 'warn',
+          message: `${cmd} documentSymbol requests failed; running in degraded mode (${failureCategory}).`
+        });
+      }
       if (lifecycleState.crashLoopTrips > 0 && !checkFlags.crashLoopQuarantined) {
         checkFlags.crashLoopQuarantined = true;
         checks.push({
