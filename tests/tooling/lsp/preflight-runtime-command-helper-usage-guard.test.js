@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const files = [
-  'src/index/tooling/lsp-provider.js',
+  'src/index/tooling/lsp-provider/factory.js',
   'src/index/tooling/dedicated-lsp-provider.js',
   'src/index/tooling/pyright-provider.js',
   'src/index/tooling/clangd-provider.js',
