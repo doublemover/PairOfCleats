@@ -7,19 +7,30 @@ const root = process.cwd();
 const jsonPath = path.join(root, 'src', 'shared', 'artifact-io', 'json.js');
 const fallbackPath = path.join(root, 'src', 'shared', 'artifact-io', 'json', 'fallback.js');
 const readPlanPath = path.join(root, 'src', 'shared', 'artifact-io', 'json', 'read-plan.js');
+const readJsonPath = path.join(root, 'src', 'shared', 'artifact-io', 'json', 'read-json.js');
+const readJsonlStreamPath = path.join(root, 'src', 'shared', 'artifact-io', 'json', 'read-jsonl-stream.js');
+const readJsonlArrayPath = path.join(root, 'src', 'shared', 'artifact-io', 'json', 'read-jsonl-array.js');
 
-for (const target of [jsonPath, fallbackPath, readPlanPath]) {
+for (const target of [
+  jsonPath,
+  fallbackPath,
+  readPlanPath,
+  readJsonPath,
+  readJsonlStreamPath,
+  readJsonlArrayPath
+]) {
   assert.equal(fs.existsSync(target), true, `missing expected artifact-io modularization file: ${target}`);
 }
 
 const source = fs.readFileSync(jsonPath, 'utf8');
 
 for (const marker of [
-  "./json/fallback.js",
-  "./json/read-plan.js",
-  'canUseFallbackAfterPrimaryError(',
-  'resolveJsonlReadPlan(',
-  'resolveOptionalZstd('
+  "./json/read-json.js",
+  "./json/read-jsonl-stream.js",
+  "./json/read-jsonl-array.js",
+  'export { readJsonFile }',
+  'export {',
+  'readJsonLinesIterator'
 ]) {
   assert.equal(
     source.includes(marker),
@@ -29,9 +40,11 @@ for (const marker of [
 }
 
 for (const legacyInlineMarker of [
-  'const resolveOptionalZstd = () => {',
-  'const resolveJsonlReadPlan = (byteSize) => {',
-  'const canUseFallbackAfterPrimaryError = (primaryErr, recoveryFallback) => ('
+  'export const readJsonFile = (',
+  'export const readJsonLinesEach = async (',
+  'export const readJsonLinesIterator = function (',
+  'export const readJsonLinesArray = async (',
+  'export const readJsonLinesArraySync = ('
 ]) {
   assert.equal(
     source.includes(legacyInlineMarker),
