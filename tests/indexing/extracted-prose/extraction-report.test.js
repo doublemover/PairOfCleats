@@ -14,12 +14,14 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 const sha256 = (value) => crypto.createHash('sha256').update(String(value || ''), 'utf8').digest('hex');
 
 const { root, repoRoot, cacheRoot, docsDir } = await setupExtractedProseFixture('phase17-extraction-report');
+const generatedDir = path.join(repoRoot, 'generated');
 
 await fs.writeFile(path.join(docsDir, 'sample.pdf'), Buffer.from('phase17 extraction report pdf', 'utf8'));
 await fs.writeFile(path.join(docsDir, 'sample.docx'), Buffer.from('phase17 extraction report docx', 'utf8'));
+await fs.mkdir(generatedDir, { recursive: true });
 for (let i = 1; i <= 6; i += 1) {
   await fs.writeFile(
-    path.join(repoRoot, `a-low-yield-${i}.js`),
+    path.join(generatedDir, `a-low-yield-${i}.js`),
     `const v${i} = ${i};\nexport default v${i};\n`
   );
 }
@@ -62,26 +64,19 @@ assert.ok(Array.isArray(report?.files) && report.files.length >= 2, 'expected re
 assert.ok(Array.isArray(report?.extractors) && report.extractors.length >= 1, 'expected report extractor entries');
 const lowYieldMarker = report?.quality?.lowYieldBailout;
 assert.ok(lowYieldMarker && typeof lowYieldMarker === 'object', 'expected extracted-prose quality marker');
-assert.equal(lowYieldMarker?.enabled, true, 'expected low-yield bailout marker enabled');
-assert.equal(lowYieldMarker?.triggered, true, 'expected low-yield bailout trigger');
-assert.equal(
-  lowYieldMarker?.reason,
-  'extracted-prose-low-yield-bailout',
-  'expected low-yield bailout reason'
-);
-assert.equal(
-  lowYieldMarker?.qualityImpact,
-  'reduced-extracted-prose-recall',
-  'expected low-yield quality marker'
-);
+assert.equal(lowYieldMarker?.enabled, false, 'expected low-yield bailout to stay disabled for tiny document-only fixture');
+assert.equal(lowYieldMarker?.triggered, false, 'expected no low-yield bailout trigger for tiny document-only fixture');
+assert.equal(lowYieldMarker?.reason, null, 'expected no low-yield bailout reason when disabled');
+assert.equal(lowYieldMarker?.qualityImpact, null, 'expected no low-yield quality impact when disabled');
 assert.equal(lowYieldMarker?.seed, 'phase17-low-yield-seed', 'expected deterministic warmup seed');
-assert.ok(
-  Number(lowYieldMarker?.sampledFiles) >= 4,
-  'expected low-yield warmup sample accounting'
-);
-assert.equal(lowYieldMarker?.sampledYieldedFiles, 0, 'expected zero warmup yield for synthetic low-yield files');
+assert.equal(lowYieldMarker?.sampledFiles, 0, 'expected no warmup sampling when bailout is disabled');
+assert.equal(lowYieldMarker?.sampledYieldedFiles, 0, 'expected zero warmup yield accounting');
+assert.equal(lowYieldMarker?.suppressedCohortCount, 0, 'expected no suppressed cohorts when bailout is disabled');
+assert.ok(lowYieldMarker?.repoFingerprint && typeof lowYieldMarker.repoFingerprint === 'object', 'expected repo fingerprint accounting');
+assert.ok(Array.isArray(lowYieldMarker?.suppressedCohorts), 'expected suppressed cohort detail');
+assert.ok(Array.isArray(lowYieldMarker?.protectedCohorts), 'expected protected cohort detail');
 assert.equal(lowYieldMarker?.deterministic, true, 'expected deterministic warmup marker');
-assert.equal(lowYieldMarker?.downgradedRecall, true, 'expected downgraded recall marker');
+assert.equal(lowYieldMarker?.downgradedRecall, false, 'expected no downgraded recall when bailout is disabled');
 
 const schemaCheck = validateArtifact('extraction_report', report);
 assert.equal(schemaCheck.ok, true, `expected extraction report schema validation: ${schemaCheck.errors.join('; ')}`);

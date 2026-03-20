@@ -11,7 +11,86 @@ import {
 } from './ordering.js';
 
 export const EXTRACTED_PROSE_LOW_YIELD_SKIP_REASON = 'extracted-prose-low-yield-bailout';
+export const EXTRACTED_PROSE_LOW_YIELD_COHORT_KEYS = Object.freeze([
+  'docs-markdown',
+  'tests-examples',
+  'templates-config',
+  'generated-machine',
+  'code-comment-heavy'
+]);
 const EXTRACTED_PROSE_LOW_YIELD_DOC_SAMPLE_RATIO = 0.5;
+const EXTRACTED_PROSE_LOW_YIELD_GENERATED_PATH_FAMILIES = new Set([
+  'node_modules',
+  'vendor',
+  'dist',
+  'build',
+  'coverage',
+  'git',
+  'generated',
+  'gen',
+  'target',
+  'out'
+]);
+const EXTRACTED_PROSE_LOW_YIELD_TEST_PATH_FAMILIES = new Set([
+  'test',
+  'tests',
+  'spec',
+  'specs',
+  'example',
+  'examples',
+  'sample',
+  'samples',
+  'demo',
+  'demos',
+  'fixture',
+  'fixtures',
+  'benchmark',
+  'benchmarks'
+]);
+const EXTRACTED_PROSE_LOW_YIELD_TEMPLATE_PATH_FAMILIES = new Set([
+  'config',
+  'configs',
+  '.github',
+  '.gitlab',
+  '.vscode',
+  '.idea',
+  'template',
+  'templates'
+]);
+const EXTRACTED_PROSE_LOW_YIELD_TEMPLATE_EXTENSIONS = new Set([
+  '.conf',
+  '.cfg',
+  '.ini',
+  '.toml',
+  '.yaml',
+  '.yml',
+  '.json',
+  '.jsonc',
+  '.properties',
+  '.xml',
+  '.html',
+  '.htm',
+  '.mustache',
+  '.hbs',
+  '.handlebars',
+  '.liquid',
+  '.njk',
+  '.jinja',
+  '.jinja2',
+  '.tpl',
+  '.tmpl'
+]);
+const EXTRACTED_PROSE_LOW_YIELD_HIGH_VALUE_COHORTS = new Set([
+  'docs-markdown',
+  'tests-examples',
+  'templates-config'
+]);
+const EXTRACTED_PROSE_LOW_YIELD_MACHINE_COHORTS = new Set([
+  'generated-machine'
+]);
+const EXTRACTED_PROSE_LOW_YIELD_CODE_COHORTS = new Set([
+  'code-comment-heavy'
+]);
 
 const toIsoTimestamp = (value) => {
   const parsed = Number(value);
@@ -29,6 +108,16 @@ const resolveExtractedProseLowYieldBailoutConfig = (runtime) => {
 const resolveWarmupEntryKey = (entry) => String(entry?.rel || toPosix(entry?.abs || '') || '');
 
 const resolveWarmupEntryExtension = (entry) => String(entry?.ext || '').trim().toLowerCase();
+const normalizePathFamily = (value) => String(value || '(root)').trim().toLowerCase() || '(root)';
+const normalizeWarmupPath = (value) => {
+  const normalized = toPosix(String(value || '')).trim().toLowerCase();
+  if (!normalized) return '';
+  return normalized.startsWith('/') ? normalized : `/${normalized}`;
+};
+const resolveWarmupPathSegments = (value) => normalizeWarmupPath(value)
+  .replace(/^\/+/, '')
+  .split('/')
+  .filter(Boolean);
 
 const resolveWarmupEntryFamily = (entry) => buildExtractedProseYieldProfileFamily({
   relPath: entry?.rel || null,
@@ -36,10 +125,200 @@ const resolveWarmupEntryFamily = (entry) => buildExtractedProseYieldProfileFamil
   ext: resolveWarmupEntryExtension(entry)
 });
 
+const resolveExtractedProseLowYieldCohortKey = ({
+  relPath = null,
+  absPath = null,
+  ext = null,
+  pathFamily = null
+} = {}) => {
+  const normalizedPath = normalizeWarmupPath(relPath || absPath || '');
+  const normalizedExt = resolveWarmupEntryExtension({ ext });
+  const normalizedFamily = normalizePathFamily(pathFamily);
+  const segments = resolveWarmupPathSegments(normalizedPath);
+  const fileName = segments.length > 0 ? segments[segments.length - 1] : '';
+  const docLike = isExtractedProseDocumentLikeExtension(normalizedExt);
+  if (
+    EXTRACTED_PROSE_LOW_YIELD_GENERATED_PATH_FAMILIES.has(normalizedFamily)
+    || segments.some((segment) => EXTRACTED_PROSE_LOW_YIELD_GENERATED_PATH_FAMILIES.has(segment))
+    || fileName.includes('.min.')
+    || fileName.endsWith('.map')
+    || fileName.endsWith('.lock')
+  ) {
+    return 'generated-machine';
+  }
+  if (
+    EXTRACTED_PROSE_LOW_YIELD_TEST_PATH_FAMILIES.has(normalizedFamily)
+    || segments.some((segment) => EXTRACTED_PROSE_LOW_YIELD_TEST_PATH_FAMILIES.has(segment))
+  ) {
+    return 'tests-examples';
+  }
+  if (
+    EXTRACTED_PROSE_LOW_YIELD_TEMPLATE_PATH_FAMILIES.has(normalizedFamily)
+    || segments.some((segment) => EXTRACTED_PROSE_LOW_YIELD_TEMPLATE_PATH_FAMILIES.has(segment))
+    || EXTRACTED_PROSE_LOW_YIELD_TEMPLATE_EXTENSIONS.has(normalizedExt)
+  ) {
+    return docLike && normalizedFamily === 'docs' ? 'docs-markdown' : 'templates-config';
+  }
+  if (docLike) return 'docs-markdown';
+  return 'code-comment-heavy';
+};
+
+export const buildExtractedProseLowYieldCohort = ({
+  relPath = null,
+  absPath = null,
+  ext = null,
+  pathFamily = null
+} = {}) => {
+  const normalizedPath = normalizeWarmupPath(relPath || absPath || '');
+  const normalizedExt = resolveWarmupEntryExtension({ ext });
+  const normalizedFamily = normalizePathFamily(pathFamily);
+  const key = resolveExtractedProseLowYieldCohortKey({
+    relPath,
+    absPath,
+    ext,
+    pathFamily: normalizedFamily
+  });
+  return {
+    key,
+    ext: normalizedExt || null,
+    pathFamily: normalizedFamily,
+    docLike: isExtractedProseDocumentLikeExtension(normalizedExt),
+    pathHint: normalizedPath || null
+  };
+};
+
+const resolveWarmupEntryCohort = (entry) => {
+  const family = resolveWarmupEntryFamily(entry);
+  return buildExtractedProseLowYieldCohort({
+    relPath: entry?.rel || null,
+    absPath: entry?.abs || null,
+    ext: resolveWarmupEntryExtension(entry),
+    pathFamily: family?.pathFamily || null
+  });
+};
+
+const createEmptyCohortStats = (cohort = null) => ({
+  key: cohort?.key || null,
+  ext: cohort?.ext || null,
+  pathFamily: cohort?.pathFamily || null,
+  docLike: cohort?.docLike === true,
+  warmupFiles: 0,
+  sampledFiles: 0,
+  observedFiles: 0,
+  yieldedFiles: 0,
+  chunkCount: 0
+});
+
+const normalizeLowYieldCohortStats = (value, fallbackKey = null) => {
+  const observedFiles = Math.max(0, Math.floor(Number(value?.observedFiles) || 0));
+  const yieldedFiles = Math.min(observedFiles, Math.max(0, Math.floor(Number(value?.yieldedFiles) || 0)));
+  const chunkCount = Math.max(0, Math.floor(Number(value?.chunkCount) || 0));
+  return {
+    key: String(value?.key || fallbackKey || ''),
+    ext: typeof value?.ext === 'string' ? value.ext : null,
+    pathFamily: typeof value?.pathFamily === 'string' ? value.pathFamily : null,
+    docLike: value?.docLike === true,
+    warmupFiles: Math.max(0, Math.floor(Number(value?.warmupFiles) || 0)),
+    sampledFiles: Math.max(0, Math.floor(Number(value?.sampledFiles) || 0)),
+    observedFiles,
+    yieldedFiles,
+    chunkCount,
+    yieldRatio: observedFiles > 0 ? yieldedFiles / observedFiles : 0
+  };
+};
+
+const normalizeRepoFingerprint = (value) => {
+  const payload = value && typeof value === 'object' ? value : {};
+  const cohortCountsRaw = payload.cohortCounts && typeof payload.cohortCounts === 'object'
+    ? payload.cohortCounts
+    : {};
+  const cohortCounts = {};
+  for (const cohortKey of EXTRACTED_PROSE_LOW_YIELD_COHORT_KEYS) {
+    cohortCounts[cohortKey] = Math.max(0, Math.floor(Number(cohortCountsRaw[cohortKey]) || 0));
+  }
+  const totalEntries = Object.values(cohortCounts).reduce((sum, count) => sum + count, 0);
+  const dominantCohort = EXTRACTED_PROSE_LOW_YIELD_COHORT_KEYS
+    .slice()
+    .sort((left, right) => {
+      const delta = cohortCounts[right] - cohortCounts[left];
+      if (delta !== 0) return delta;
+      return left.localeCompare(right);
+    })[0] || null;
+  return {
+    totalEntries,
+    docLikeEntries: Math.max(0, Math.floor(Number(payload.docLikeEntries) || 0)),
+    dominantCohort: cohortCounts[dominantCohort] > 0 ? dominantCohort : null,
+    cohortCounts
+  };
+};
+
+const buildExtractedProseRepoFingerprint = (entries = []) => {
+  const cohortCounts = Object.fromEntries(
+    EXTRACTED_PROSE_LOW_YIELD_COHORT_KEYS.map((cohortKey) => [cohortKey, 0])
+  );
+  let docLikeEntries = 0;
+  for (const entry of entries) {
+    const cohort = resolveWarmupEntryCohort(entry);
+    if (cohort?.key && Object.prototype.hasOwnProperty.call(cohortCounts, cohort.key)) {
+      cohortCounts[cohort.key] += 1;
+    }
+    if (cohort?.docLike === true) {
+      docLikeEntries += 1;
+    }
+  }
+  return normalizeRepoFingerprint({ cohortCounts, docLikeEntries });
+};
+
+const compareRepoFingerprintShape = ({ current = null, previous = null, cohortKey = null } = {}) => {
+  const currentFingerprint = normalizeRepoFingerprint(current);
+  const previousFingerprint = normalizeRepoFingerprint(previous);
+  if (currentFingerprint.totalEntries <= 0 || previousFingerprint.totalEntries <= 0) return false;
+  if (
+    currentFingerprint.dominantCohort
+    && previousFingerprint.dominantCohort
+    && currentFingerprint.dominantCohort !== previousFingerprint.dominantCohort
+  ) {
+    return true;
+  }
+  if (!cohortKey) return false;
+  const currentShare = currentFingerprint.totalEntries > 0
+    ? currentFingerprint.cohortCounts[cohortKey] / currentFingerprint.totalEntries
+    : 0;
+  const previousShare = previousFingerprint.totalEntries > 0
+    ? previousFingerprint.cohortCounts[cohortKey] / previousFingerprint.totalEntries
+    : 0;
+  return Math.abs(currentShare - previousShare) >= 0.2;
+};
+
+const scoreWarmupCohortPriority = ({ cohortKey, history = null, repoFingerprint = null }) => {
+  const normalizedHistory = history && typeof history === 'object' ? history : {};
+  const cohortHistory = normalizeLowYieldCohortStats(
+    normalizedHistory.cohorts?.[cohortKey] || null,
+    cohortKey
+  );
+  const historyHasYield = cohortHistory.yieldedFiles > 0 || cohortHistory.chunkCount > 0;
+  const shapeChanged = compareRepoFingerprintShape({
+    current: repoFingerprint,
+    previous: normalizedHistory.fingerprint,
+    cohortKey
+  });
+  if (EXTRACTED_PROSE_LOW_YIELD_HIGH_VALUE_COHORTS.has(cohortKey)) {
+    return historyHasYield || shapeChanged ? 0 : 1;
+  }
+  if (EXTRACTED_PROSE_LOW_YIELD_MACHINE_COHORTS.has(cohortKey)) {
+    return historyHasYield ? 2 : 4;
+  }
+  if (EXTRACTED_PROSE_LOW_YIELD_CODE_COHORTS.has(cohortKey)) {
+    return historyHasYield || shapeChanged ? 2 : 3;
+  }
+  return 2;
+};
+
 const groupWarmupEntriesByFamily = ({ entries, seed }) => {
   const families = new Map();
   for (const entry of entries) {
     const family = resolveWarmupEntryFamily(entry);
+    const cohort = resolveWarmupEntryCohort(entry);
     const key = family?.key || '(unknown)';
     if (!families.has(key)) {
       families.set(key, {
@@ -47,6 +326,7 @@ const groupWarmupEntriesByFamily = ({ entries, seed }) => {
         ext: family?.ext || null,
         pathFamily: family?.pathFamily || null,
         docLike: isExtractedProseDocumentLikeExtension(resolveWarmupEntryExtension(entry)),
+        cohortKey: cohort?.key || 'code-comment-heavy',
         entries: []
       });
     }
@@ -117,12 +397,42 @@ const selectFamilyRepresentativesByPathFamily = (families) => {
     .filter(Boolean);
 };
 
-const selectWarmupEntries = ({ warmupWindowEntries, warmupSampleSize, seed }) => {
+const prioritizeWarmupFamilies = ({ familyBuckets, history = null, repoFingerprint = null }) => (
+  [...familyBuckets].sort((left, right) => {
+    const leftPriority = scoreWarmupCohortPriority({
+      cohortKey: left?.cohortKey || 'code-comment-heavy',
+      history,
+      repoFingerprint
+    });
+    const rightPriority = scoreWarmupCohortPriority({
+      cohortKey: right?.cohortKey || 'code-comment-heavy',
+      history,
+      repoFingerprint
+    });
+    if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+    const leftDocLike = left?.docLike === true ? 1 : 0;
+    const rightDocLike = right?.docLike === true ? 1 : 0;
+    if (leftDocLike !== rightDocLike) return rightDocLike - leftDocLike;
+    return String(left?.key || '').localeCompare(String(right?.key || ''));
+  })
+);
+
+const selectWarmupEntries = ({
+  warmupWindowEntries,
+  warmupSampleSize,
+  seed,
+  history = null,
+  repoFingerprint = null
+}) => {
   const requested = Math.max(0, Math.floor(Number(warmupSampleSize) || 0));
   if (!Array.isArray(warmupWindowEntries) || !warmupWindowEntries.length || requested <= 0) {
     return [];
   }
-  const familyBuckets = groupWarmupEntriesByFamily({ entries: warmupWindowEntries, seed });
+  const familyBuckets = prioritizeWarmupFamilies({
+    familyBuckets: groupWarmupEntriesByFamily({ entries: warmupWindowEntries, seed }),
+    history,
+    repoFingerprint
+  });
   const docLikeFamilies = familyBuckets.filter((family) => family.docLike === true);
   const docLikeQuota = docLikeFamilies.length > 0
     ? Math.min(
@@ -192,6 +502,9 @@ const normalizeLowYieldHistory = (value) => {
   const families = value.families && typeof value.families === 'object'
     ? value.families
     : {};
+  const cohorts = value.cohorts && typeof value.cohorts === 'object'
+    ? value.cohorts
+    : {};
   const normalizedFamilies = {};
   for (const [familyKey, familyStats] of Object.entries(families)) {
     if (!familyKey || !familyStats || typeof familyStats !== 'object') continue;
@@ -210,12 +523,42 @@ const normalizeLowYieldHistory = (value) => {
       docLike: isExtractedProseDocumentLikeExtension(ext)
     };
   }
+  const derivedCohorts = {};
+  for (const familyState of Object.values(normalizedFamilies)) {
+    const cohort = buildExtractedProseLowYieldCohort({
+      relPath: familyState.pathFamily && familyState.ext
+        ? `${familyState.pathFamily}/synthetic${familyState.ext}`
+        : null,
+      ext: familyState.ext,
+      pathFamily: familyState.pathFamily
+    });
+    const current = normalizeLowYieldCohortStats(derivedCohorts[cohort.key] || null, cohort.key);
+    derivedCohorts[cohort.key] = normalizeLowYieldCohortStats({
+      ...current,
+      key: cohort.key,
+      ext: cohort.ext,
+      pathFamily: cohort.pathFamily,
+      docLike: cohort.docLike,
+      observedFiles: current.observedFiles + familyState.observedFiles,
+      yieldedFiles: current.yieldedFiles + familyState.yieldedFiles,
+      chunkCount: current.chunkCount + familyState.chunkCount
+    }, cohort.key);
+  }
+  const normalizedCohorts = {};
+  for (const cohortKey of EXTRACTED_PROSE_LOW_YIELD_COHORT_KEYS) {
+    normalizedCohorts[cohortKey] = normalizeLowYieldCohortStats(
+      cohorts[cohortKey] || derivedCohorts[cohortKey] || { key: cohortKey },
+      cohortKey
+    );
+  }
   return {
     builds: Math.max(0, Math.floor(Number(value.builds) || 0)),
     observedFiles: Math.max(0, Math.floor(Number(value.observedFiles) || 0)),
     yieldedFiles: Math.max(0, Math.floor(Number(value.yieldedFiles) || 0)),
     chunkCount: Math.max(0, Math.floor(Number(value.chunkCount) || 0)),
-    families: normalizedFamilies
+    families: normalizedFamilies,
+    cohorts: normalizedCohorts,
+    fingerprint: normalizeRepoFingerprint(value.fingerprint)
   };
 };
 
@@ -300,6 +643,110 @@ const buildFamilyEvidenceSummary = ({
   };
 };
 
+const buildCohortEvidenceSummary = ({
+  sampledCohort = null,
+  warmupCohort = null,
+  historyCohort = null,
+  repoFingerprint = null,
+  historyFingerprint = null,
+  minYieldRatio = 0,
+  minYieldedFiles = 1,
+  minYieldedChunks = 1
+} = {}) => {
+  const sampledObservedFiles = Math.max(0, Math.floor(Number(sampledCohort?.observedFiles) || 0));
+  const sampledYieldedFiles = Math.max(0, Math.floor(Number(sampledCohort?.yieldedFiles) || 0));
+  const sampledChunkCount = Math.max(0, Math.floor(Number(sampledCohort?.chunkCount) || 0));
+  const sampledFiles = Math.max(
+    sampledObservedFiles,
+    Math.max(0, Math.floor(Number(sampledCohort?.sampledFiles) || 0))
+  );
+  const historyObservedFiles = Math.max(0, Math.floor(Number(historyCohort?.observedFiles) || 0));
+  const historyYieldedFiles = Math.max(0, Math.floor(Number(historyCohort?.yieldedFiles) || 0));
+  const historyChunkCount = Math.max(0, Math.floor(Number(historyCohort?.chunkCount) || 0));
+  const warmupFiles = Math.max(
+    sampledFiles,
+    Math.max(0, Math.floor(Number(warmupCohort?.warmupFiles) || 0))
+  );
+  const key = String(sampledCohort?.key || warmupCohort?.key || historyCohort?.key || '');
+  const docLike = sampledCohort?.docLike === true || warmupCohort?.docLike === true || historyCohort?.docLike === true;
+  const sampledYieldRatio = sampledObservedFiles > 0 ? sampledYieldedFiles / sampledObservedFiles : 0;
+  const historyYieldRatio = historyObservedFiles > 0 ? historyYieldedFiles / historyObservedFiles : 0;
+  const fingerprintShifted = compareRepoFingerprintShape({
+    current: repoFingerprint,
+    previous: historyFingerprint,
+    cohortKey: key
+  });
+  const highValue = EXTRACTED_PROSE_LOW_YIELD_HIGH_VALUE_COHORTS.has(key);
+  const machineHeavy = EXTRACTED_PROSE_LOW_YIELD_MACHINE_COHORTS.has(key);
+  const codeHeavy = EXTRACTED_PROSE_LOW_YIELD_CODE_COHORTS.has(key);
+  const historyProductive = historyYieldedFiles > 0 || historyChunkCount > 0;
+  const sampleProductive = sampledYieldedFiles > 0 || sampledChunkCount > 0;
+  const historyLowYield = historyObservedFiles >= Math.max(1, warmupFiles)
+    && historyYieldedFiles === 0
+    && historyChunkCount === 0;
+  const strategyMismatchRisk = (
+    (highValue || codeHeavy) && fingerprintShifted
+  ) || (highValue && warmupFiles > sampledFiles && historyProductive);
+  const expectedYieldClass = sampleProductive || historyProductive || highValue
+    ? 'expected-high'
+    : machineHeavy && historyLowYield
+      ? 'expected-low'
+      : codeHeavy && !historyLowYield
+        ? 'uncertain'
+        : 'likely-low';
+  const protectedByHistory = historyProductive;
+  const protectedBySample = sampleProductive;
+  const protectedByPriority = highValue || strategyMismatchRisk;
+  const suppressible = (
+    protectedBySample !== true
+    && protectedByHistory !== true
+    && protectedByPriority !== true
+    && (
+      machineHeavy === true
+      || (codeHeavy === true && historyLowYield === true)
+    )
+  );
+  const suppressionClass = suppressible
+    ? (historyLowYield || machineHeavy ? 'genuine-low-yield' : 'likely-low-yield')
+    : null;
+  return {
+    key,
+    docLike,
+    warmupFiles,
+    sampledFiles,
+    sampledObservedFiles,
+    sampledYieldedFiles,
+    sampledChunkCount,
+    sampledYieldRatio,
+    historyObservedFiles,
+    historyYieldedFiles,
+    historyChunkCount,
+    historyYieldRatio,
+    fingerprintShifted,
+    expectedYieldClass,
+    strategyMismatchRisk,
+    protectedBySample,
+    protectedByHistory,
+    protectedByPriority,
+    suppressible,
+    suppressionClass,
+    minYieldRatio,
+    minYieldedFiles,
+    minYieldedChunks
+  };
+};
+
+const hasMeaningfulCohortEvidence = (cohortState = null) => {
+  if (!cohortState || typeof cohortState !== 'object') return false;
+  return (
+    Math.max(0, Math.floor(Number(cohortState.warmupFiles) || 0)) > 0
+    || Math.max(0, Math.floor(Number(cohortState.sampledFiles) || 0)) > 0
+    || Math.max(0, Math.floor(Number(cohortState.observedFiles) || 0)) > 0
+    || Math.max(0, Math.floor(Number(cohortState.yieldedFiles) || 0)) > 0
+    || Math.max(0, Math.floor(Number(cohortState.chunkCount) || 0)) > 0
+  );
+};
+
 export const buildExtractedProseLowYieldBailoutState = ({
   mode,
   runtime,
@@ -328,6 +775,7 @@ export const buildExtractedProseLowYieldBailoutState = ({
     && config.disableWhenHistoryHasYield !== false
     && normalizedHistory.yieldedFiles > 0
   );
+  const repoFingerprint = buildExtractedProseRepoFingerprint(sortedEntries);
   if (disableForYieldHistory) {
     return {
       enabled: false,
@@ -349,7 +797,9 @@ export const buildExtractedProseLowYieldBailoutState = ({
         yieldedFiles: normalizedHistory.yieldedFiles,
         observedFiles: normalizedHistory.observedFiles,
         builds: normalizedHistory.builds,
-        families: normalizedHistory.families || {}
+        families: normalizedHistory.families || {},
+        cohorts: normalizedHistory.cohorts || {},
+        fingerprint: normalizedHistory.fingerprint || null
       }
     };
   }
@@ -393,15 +843,22 @@ export const buildExtractedProseLowYieldBailoutState = ({
   const sampledEntries = selectWarmupEntries({
     warmupWindowEntries,
     warmupSampleSize,
-    seed: config.seed
+    seed: config.seed,
+    history: normalizedHistory,
+    repoFingerprint
   });
   const sampledOrderIndices = new Set();
   const sampledFamilies = {};
   const sampledFamilyByOrderIndex = new Map();
+  const sampledCohorts = {};
+  const sampledCohortByOrderIndex = new Map();
   const warmupFamilies = {};
+  const warmupCohorts = {};
   for (const entry of warmupWindowEntries) {
     const family = resolveWarmupEntryFamily(entry);
     const familyKey = family?.key || '(unknown)';
+    const cohort = resolveWarmupEntryCohort(entry);
+    const cohortKey = cohort?.key || 'code-comment-heavy';
     const current = warmupFamilies[familyKey] || {
       key: familyKey,
       ext: family?.ext || null,
@@ -411,6 +868,9 @@ export const buildExtractedProseLowYieldBailoutState = ({
     };
     current.warmupFiles += 1;
     warmupFamilies[familyKey] = current;
+    const cohortCurrent = warmupCohorts[cohortKey] || createEmptyCohortStats(cohort);
+    cohortCurrent.warmupFiles += 1;
+    warmupCohorts[cohortKey] = normalizeLowYieldCohortStats(cohortCurrent, cohortKey);
   }
   for (const entry of sampledEntries) {
     const orderIndex = resolveEntryOrderIndex(entry, null);
@@ -419,6 +879,8 @@ export const buildExtractedProseLowYieldBailoutState = ({
     sampledOrderIndices.add(normalizedOrderIndex);
     const family = resolveWarmupEntryFamily(entry);
     const familyKey = family?.key || '(unknown)';
+    const cohort = resolveWarmupEntryCohort(entry);
+    const cohortKey = cohort?.key || 'code-comment-heavy';
     const current = sampledFamilies[familyKey] || {
       key: familyKey,
       ext: family?.ext || null,
@@ -432,6 +894,10 @@ export const buildExtractedProseLowYieldBailoutState = ({
     current.sampledFiles += 1;
     sampledFamilies[familyKey] = current;
     sampledFamilyByOrderIndex.set(normalizedOrderIndex, familyKey);
+    const cohortCurrent = sampledCohorts[cohortKey] || createEmptyCohortStats(cohort);
+    cohortCurrent.sampledFiles += 1;
+    sampledCohorts[cohortKey] = normalizeLowYieldCohortStats(cohortCurrent, cohortKey);
+    sampledCohortByOrderIndex.set(normalizedOrderIndex, cohortKey);
   }
   const hasSufficientWarmupPopulation = sortedEntries.length >= Math.max(
     2,
@@ -447,9 +913,12 @@ export const buildExtractedProseLowYieldBailoutState = ({
     warmupSampleSize,
     sampledOrderIndices,
     sampledFamilies,
+    sampledCohorts,
     warmupFamilies,
+    warmupCohorts,
     warmupFamilyOrderIndices: buildWarmupFamilyOrderIndices(warmupWindowEntries),
     sampledFamilyByOrderIndex,
+    sampledCohortByOrderIndex,
     observedOrderIndices: new Set(),
     observedSamples: 0,
     yieldedSamples: 0,
@@ -466,20 +935,32 @@ export const buildExtractedProseLowYieldBailoutState = ({
         observedFiles: normalizedHistory.observedFiles,
         yieldedFiles: normalizedHistory.yieldedFiles,
         chunkCount: normalizedHistory.chunkCount,
-        families: normalizedHistory.families || {}
+        families: normalizedHistory.families || {},
+        cohorts: normalizedHistory.cohorts || {},
+        fingerprint: normalizedHistory.fingerprint || null
       }
-      : historySummary
+      : historySummary,
+    repoFingerprint
   };
 };
 
-const expandWarmupSampleForUnsampledDocLikeFamilies = (bailout) => {
+const expandWarmupSampleForUnsampledHighValueCohorts = (bailout) => {
   if (!bailout || bailout.enabled !== true) return null;
   const warmupFamilyOrderIndices = bailout.warmupFamilyOrderIndices || {};
   const sampledFamilies = bailout.sampledFamilies || {};
   const selectedOrderIndices = [];
   const deferredFamilies = [];
+  const deferredCohorts = [];
   for (const [familyKey, warmupFamily] of Object.entries(bailout.warmupFamilies || {})) {
-    if (warmupFamily?.docLike !== true) continue;
+    const cohort = buildExtractedProseLowYieldCohort({
+      relPath: warmupFamily?.pathFamily && warmupFamily?.ext
+        ? `${warmupFamily.pathFamily}/synthetic${warmupFamily.ext}`
+        : null,
+      ext: warmupFamily?.ext,
+      pathFamily: warmupFamily?.pathFamily
+    });
+    const cohortKey = cohort?.key || 'code-comment-heavy';
+    if (!EXTRACTED_PROSE_LOW_YIELD_HIGH_VALUE_COHORTS.has(cohortKey)) continue;
     const sampledFamily = sampledFamilies[familyKey] || null;
     const sampledFiles = Math.max(0, Math.floor(Number(sampledFamily?.sampledFiles) || 0));
     if (sampledFiles > 0) continue;
@@ -510,17 +991,26 @@ const expandWarmupSampleForUnsampledDocLikeFamilies = (bailout) => {
       key: familyKey,
       ext: warmupFamily?.ext || null,
       pathFamily: warmupFamily?.pathFamily || null,
-      docLike: true,
+      docLike: warmupFamily?.docLike === true,
       warmupFiles: Math.max(0, Math.floor(Number(warmupFamily?.warmupFiles) || 0)),
       sampledFiles: 0
     });
+    if (!deferredCohorts.some((entry) => entry.key === cohortKey)) {
+      deferredCohorts.push({
+        key: cohortKey,
+        warmupFiles: Math.max(0, Math.floor(Number(bailout.warmupCohorts?.[cohortKey]?.warmupFiles) || 0)),
+        sampledFiles: 0,
+        strategyMismatchRisk: true
+      });
+    }
   }
   bailout.sampledFamilies = sampledFamilies;
   if (!selectedOrderIndices.length) return null;
   bailout.warmupSampleSize += selectedOrderIndices.length;
   return {
     addedOrderIndices: selectedOrderIndices,
-    deferredFamilies
+    deferredFamilies,
+    deferredCohorts
   };
 };
 
@@ -548,6 +1038,18 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
       }
       familyStats.chunkCount += safeChunkCount;
       bailout.sampledFamilies[familyKey] = familyStats;
+    }
+  }
+  const cohortKey = bailout.sampledCohortByOrderIndex?.get(normalizedOrderIndex);
+  if (cohortKey) {
+    const cohortStats = bailout.sampledCohorts?.[cohortKey];
+    if (cohortStats && typeof cohortStats === 'object') {
+      cohortStats.observedFiles += 1;
+      if (safeChunkCount > 0) {
+        cohortStats.yieldedFiles += 1;
+      }
+      cohortStats.chunkCount += safeChunkCount;
+      bailout.sampledCohorts[cohortKey] = normalizeLowYieldCohortStats(cohortStats, cohortKey);
     }
   }
   if (bailout.decisionMade || bailout.observedSamples < bailout.warmupSampleSize) {
@@ -611,6 +1113,15 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
   const warmupFamilyMap = Object.fromEntries(
     Object.values(bailout.warmupFamilies || {}).map((familyState) => [familyState.key, familyState])
   );
+  const sampledCohortMap = Object.fromEntries(
+    Object.values(bailout.sampledCohorts || {}).map((cohortState) => [cohortState.key, cohortState])
+  );
+  const historyCohortMap = Object.fromEntries(
+    Object.values(bailout.history?.cohorts || {}).map((cohortState) => [cohortState.key, cohortState])
+  );
+  const warmupCohortMap = Object.fromEntries(
+    Object.values(bailout.warmupCohorts || {}).map((cohortState) => [cohortState.key, cohortState])
+  );
   const familyEvidence = Object.values({
     ...warmupFamilyMap,
     ...sampledFamilyMap,
@@ -629,6 +1140,22 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
       minYieldedChunks
     });
   });
+  const cohortEvidence = EXTRACTED_PROSE_LOW_YIELD_COHORT_KEYS
+    .filter((cohortKey) => (
+      hasMeaningfulCohortEvidence(warmupCohortMap[cohortKey])
+      || hasMeaningfulCohortEvidence(sampledCohortMap[cohortKey])
+      || hasMeaningfulCohortEvidence(historyCohortMap[cohortKey])
+    ))
+    .map((cohortKey) => buildCohortEvidenceSummary({
+      sampledCohort: sampledCohortMap[cohortKey] || bailout.sampledCohorts?.[cohortKey] || null,
+      warmupCohort: warmupCohortMap[cohortKey] || null,
+      historyCohort: historyCohortMap[cohortKey] || null,
+      repoFingerprint: bailout.repoFingerprint,
+      historyFingerprint: bailout.history?.fingerprint || null,
+      minYieldRatio: bailout.config.minYieldRatio,
+      minYieldedFiles,
+      minYieldedChunks
+    }));
   const historyProtectedFamilies = familyEvidence.filter((familyState) => familyState.protectedByHistory === true);
   const historyProtected = historyProtectedFamilies.length > 0;
   const historyDeferredFamilies = familyEvidence.filter((familyState) => familyState.deferDecisionByHistory === true);
@@ -646,8 +1173,28 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
     && familyProtected !== true
     && historyProtected !== true
     && historyDeferred !== true
-    ? expandWarmupSampleForUnsampledDocLikeFamilies(bailout)
+    ? expandWarmupSampleForUnsampledHighValueCohorts(bailout)
     : null;
+  const protectedCohorts = cohortEvidence.filter((cohortState) => (
+    cohortState.protectedBySample === true
+    || cohortState.protectedByHistory === true
+    || cohortState.protectedByPriority === true
+  ));
+  const strategyMismatchRiskCohorts = cohortEvidence.filter((cohortState) => cohortState.strategyMismatchRisk === true);
+  const suppressedCohorts = lowRatio && lowYieldedCount && lowChunkCount
+    ? cohortEvidence
+      .filter((cohortState) => cohortState.suppressible === true)
+      .map((cohortState) => ({
+        key: cohortState.key,
+        suppressionClass: cohortState.suppressionClass,
+        expectedYieldClass: cohortState.expectedYieldClass,
+        warmupFiles: cohortState.warmupFiles,
+        sampledFiles: cohortState.sampledFiles,
+        sampledObservedFiles: cohortState.sampledObservedFiles,
+        sampledYieldedFiles: cohortState.sampledYieldedFiles,
+        sampledChunkCount: cohortState.sampledChunkCount
+      }))
+    : [];
   if (warmupDeferred) {
     bailout.lastDecision = {
       triggered: false,
@@ -660,10 +1207,15 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
       historyDeferred,
       warmupDeferred: true,
       warmupDeferredFamilies: warmupDeferred.deferredFamilies,
+      warmupDeferredCohorts: warmupDeferred.deferredCohorts,
       sampledFamilies: familySummaries,
       historyFamilies: historyProtectedFamilies,
       historyDeferredFamilies,
       familyEvidence,
+      cohortEvidence,
+      protectedCohorts,
+      suppressedCohorts: [],
+      strategyMismatchRiskCohorts,
       minYieldRatio: bailout.config.minYieldRatio,
       minYieldedFiles,
       minYieldedChunks
@@ -671,12 +1223,8 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
     return bailout.lastDecision;
   }
   bailout.decisionMade = true;
-  bailout.triggered = lowRatio
-    && lowYieldedCount
-    && lowChunkCount
-    && familyProtected !== true
-    && historyProtected !== true
-    && historyDeferred !== true;
+  bailout.suppressedCohorts = suppressedCohorts;
+  bailout.triggered = suppressedCohorts.length > 0;
   bailout.decisionAtOrderIndex = normalizedOrderIndex;
   bailout.decisionAtMs = Date.now();
   bailout.lastDecision = {
@@ -690,10 +1238,15 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
     historyDeferred,
     warmupDeferred: false,
     warmupDeferredFamilies: [],
+    warmupDeferredCohorts: [],
     sampledFamilies: familySummaries,
     historyFamilies: historyProtectedFamilies,
     historyDeferredFamilies,
     familyEvidence,
+    cohortEvidence,
+    protectedCohorts,
+    suppressedCohorts,
+    strategyMismatchRiskCohorts,
     minYieldRatio: bailout.config.minYieldRatio,
     minYieldedFiles,
     minYieldedChunks
@@ -701,7 +1254,7 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
   return bailout.lastDecision;
 };
 
-export const shouldSkipExtractedProseForLowYield = ({ bailout, orderIndex }) => {
+export const shouldSkipExtractedProseForLowYield = ({ bailout, orderIndex, entry = null }) => {
   if (!bailout?.enabled || !bailout.triggered) return false;
   if (!Number.isFinite(orderIndex)) return true;
   const normalizedOrderIndex = Math.floor(orderIndex);
@@ -709,7 +1262,11 @@ export const shouldSkipExtractedProseForLowYield = ({ bailout, orderIndex }) => 
   if (Number.isFinite(bailout.decisionAtOrderIndex) && normalizedOrderIndex <= bailout.decisionAtOrderIndex) {
     return false;
   }
-  return true;
+  const cohort = resolveWarmupEntryCohort(entry);
+  const cohortKey = cohort?.key || 'code-comment-heavy';
+  return Array.isArray(bailout.suppressedCohorts)
+    ? bailout.suppressedCohorts.some((cohortState) => cohortState.key === cohortKey)
+    : false;
 };
 
 export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
@@ -717,6 +1274,15 @@ export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
   const observedYieldRatio = bailout.observedSamples > 0
     ? bailout.yieldedSamples / bailout.observedSamples
     : 0;
+  const suppressedCohorts = Array.isArray(bailout.lastDecision?.suppressedCohorts)
+    ? bailout.lastDecision.suppressedCohorts
+    : [];
+  const protectedCohorts = Array.isArray(bailout.lastDecision?.protectedCohorts)
+    ? bailout.lastDecision.protectedCohorts
+    : [];
+  const strategyMismatchRiskCohorts = Array.isArray(bailout.lastDecision?.strategyMismatchRiskCohorts)
+    ? bailout.lastDecision.strategyMismatchRiskCohorts
+    : [];
   return {
     enabled: bailout.enabled === true,
     triggered: bailout.triggered === true,
@@ -736,9 +1302,13 @@ export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
     historyProtected: bailout.lastDecision?.historyProtected === true,
     historyDeferred: bailout.lastDecision?.historyDeferred === true,
     warmupDeferred: bailout.lastDecision?.warmupDeferred === true,
+    suppressedCohortCount: suppressedCohorts.length,
+    protectedCohortCount: protectedCohorts.length,
+    strategyMismatchRiskCount: strategyMismatchRiskCohorts.length,
     skippedFiles: bailout.skippedFiles,
     decisionAtOrderIndex: bailout.decisionAtOrderIndex,
     decisionAt: toIsoTimestamp(bailout.decisionAtMs),
+    repoFingerprint: normalizeRepoFingerprint(bailout.repoFingerprint),
     sampledFamilies: Object.values(bailout.sampledFamilies || {}).map((familyState) => ({
       key: familyState.key,
       ext: familyState.ext,
@@ -781,6 +1351,14 @@ export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
         docLike: familyState.docLike === true,
         warmupFiles: familyState.warmupFiles,
         sampledFiles: familyState.sampledFiles
+      })) 
+      : [],
+    warmupDeferredCohorts: Array.isArray(bailout.lastDecision?.warmupDeferredCohorts)
+      ? bailout.lastDecision.warmupDeferredCohorts.map((cohortState) => ({
+        key: cohortState.key,
+        warmupFiles: Math.max(0, Math.floor(Number(cohortState.warmupFiles) || 0)),
+        sampledFiles: Math.max(0, Math.floor(Number(cohortState.sampledFiles) || 0)),
+        strategyMismatchRisk: cohortState.strategyMismatchRisk === true
       }))
       : [],
     familyEvidence: Array.isArray(bailout.lastDecision?.familyEvidence)
@@ -808,6 +1386,64 @@ export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
         protectedByHistory: familyState.protectedByHistory === true,
         deferDecisionByHistory: familyState.deferDecisionByHistory === true
       }))
-      : []
+      : [],
+    cohortEvidence: Array.isArray(bailout.lastDecision?.cohortEvidence)
+      ? bailout.lastDecision.cohortEvidence.map((cohortState) => ({
+        key: cohortState.key,
+        docLike: cohortState.docLike === true,
+        warmupFiles: Math.max(0, Math.floor(Number(cohortState.warmupFiles) || 0)),
+        sampledFiles: Math.max(0, Math.floor(Number(cohortState.sampledFiles) || 0)),
+        sampledObservedFiles: Math.max(0, Math.floor(Number(cohortState.sampledObservedFiles) || 0)),
+        sampledYieldedFiles: Math.max(0, Math.floor(Number(cohortState.sampledYieldedFiles) || 0)),
+        sampledChunkCount: Math.max(0, Math.floor(Number(cohortState.sampledChunkCount) || 0)),
+        sampledYieldRatio: Number.isFinite(Number(cohortState.sampledYieldRatio))
+          ? Number(cohortState.sampledYieldRatio)
+          : 0,
+        historyObservedFiles: Math.max(0, Math.floor(Number(cohortState.historyObservedFiles) || 0)),
+        historyYieldedFiles: Math.max(0, Math.floor(Number(cohortState.historyYieldedFiles) || 0)),
+        historyChunkCount: Math.max(0, Math.floor(Number(cohortState.historyChunkCount) || 0)),
+        historyYieldRatio: Number.isFinite(Number(cohortState.historyYieldRatio))
+          ? Number(cohortState.historyYieldRatio)
+          : 0,
+        fingerprintShifted: cohortState.fingerprintShifted === true,
+        expectedYieldClass: typeof cohortState.expectedYieldClass === 'string'
+          ? cohortState.expectedYieldClass
+          : 'uncertain',
+        strategyMismatchRisk: cohortState.strategyMismatchRisk === true,
+        protectedBySample: cohortState.protectedBySample === true,
+        protectedByHistory: cohortState.protectedByHistory === true,
+        protectedByPriority: cohortState.protectedByPriority === true,
+        suppressible: cohortState.suppressible === true,
+        suppressionClass: typeof cohortState.suppressionClass === 'string'
+          ? cohortState.suppressionClass
+          : null
+      }))
+      : [],
+    suppressedCohorts: suppressedCohorts.map((cohortState) => ({
+      key: cohortState.key,
+      suppressionClass: cohortState.suppressionClass,
+      expectedYieldClass: cohortState.expectedYieldClass,
+      warmupFiles: Math.max(0, Math.floor(Number(cohortState.warmupFiles) || 0)),
+      sampledFiles: Math.max(0, Math.floor(Number(cohortState.sampledFiles) || 0)),
+      sampledObservedFiles: Math.max(0, Math.floor(Number(cohortState.sampledObservedFiles) || 0)),
+      sampledYieldedFiles: Math.max(0, Math.floor(Number(cohortState.sampledYieldedFiles) || 0)),
+      sampledChunkCount: Math.max(0, Math.floor(Number(cohortState.sampledChunkCount) || 0))
+    })),
+    protectedCohorts: protectedCohorts.map((cohortState) => ({
+      key: cohortState.key,
+      expectedYieldClass: typeof cohortState.expectedYieldClass === 'string'
+        ? cohortState.expectedYieldClass
+        : 'uncertain',
+      strategyMismatchRisk: cohortState.strategyMismatchRisk === true,
+      protectedBySample: cohortState.protectedBySample === true,
+      protectedByHistory: cohortState.protectedByHistory === true,
+      protectedByPriority: cohortState.protectedByPriority === true
+    })),
+    strategyMismatchRiskCohorts: strategyMismatchRiskCohorts.map((cohortState) => ({
+      key: cohortState.key,
+      expectedYieldClass: typeof cohortState.expectedYieldClass === 'string'
+        ? cohortState.expectedYieldClass
+        : 'uncertain'
+    }))
   };
 };

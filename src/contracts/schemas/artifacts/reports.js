@@ -107,9 +107,16 @@ const extractionReportLowYieldBailout = {
     'observedYieldRatio',
     'minYieldRatio',
     'minYieldedFiles',
+    'suppressedCohortCount',
+    'protectedCohortCount',
+    'strategyMismatchRiskCount',
     'skippedFiles',
     'decisionAtOrderIndex',
     'decisionAt',
+    'repoFingerprint',
+    'suppressedCohorts',
+    'protectedCohorts',
+    'strategyMismatchRiskCohorts',
     'deterministic',
     'downgradedRecall'
   ],
@@ -127,9 +134,88 @@ const extractionReportLowYieldBailout = {
     observedYieldRatio: { type: 'number' },
     minYieldRatio: { type: 'number' },
     minYieldedFiles: intId,
+    suppressedCohortCount: intId,
+    protectedCohortCount: intId,
+    strategyMismatchRiskCount: intId,
     skippedFiles: intId,
     decisionAtOrderIndex: nullableInt,
     decisionAt: nullableString,
+    repoFingerprint: {
+      type: 'object',
+      required: ['totalEntries', 'docLikeEntries', 'dominantCohort', 'cohortCounts'],
+      properties: {
+        totalEntries: intId,
+        docLikeEntries: intId,
+        dominantCohort: nullableString,
+        cohortCounts: {
+          type: 'object',
+          additionalProperties: intId
+        }
+      },
+      additionalProperties: false
+    },
+    suppressedCohorts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'key',
+          'suppressionClass',
+          'expectedYieldClass',
+          'warmupFiles',
+          'sampledFiles',
+          'sampledObservedFiles',
+          'sampledYieldedFiles',
+          'sampledChunkCount'
+        ],
+        properties: {
+          key: { type: 'string' },
+          suppressionClass: nullableString,
+          expectedYieldClass: { type: 'string' },
+          warmupFiles: intId,
+          sampledFiles: intId,
+          sampledObservedFiles: intId,
+          sampledYieldedFiles: intId,
+          sampledChunkCount: intId
+        },
+        additionalProperties: false
+      }
+    },
+    protectedCohorts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'key',
+          'expectedYieldClass',
+          'strategyMismatchRisk',
+          'protectedBySample',
+          'protectedByHistory',
+          'protectedByPriority'
+        ],
+        properties: {
+          key: { type: 'string' },
+          expectedYieldClass: { type: 'string' },
+          strategyMismatchRisk: { type: 'boolean' },
+          protectedBySample: { type: 'boolean' },
+          protectedByHistory: { type: 'boolean' },
+          protectedByPriority: { type: 'boolean' }
+        },
+        additionalProperties: false
+      }
+    },
+    strategyMismatchRiskCohorts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['key', 'expectedYieldClass'],
+        properties: {
+          key: { type: 'string' },
+          expectedYieldClass: { type: 'string' }
+        },
+        additionalProperties: false
+      }
+    },
     deterministic: { type: 'boolean' },
     downgradedRecall: { type: 'boolean' }
   },

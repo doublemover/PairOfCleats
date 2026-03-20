@@ -73,6 +73,7 @@ import {
   sortEntriesByOrderIndex
 } from './process-files/ordering.js';
 import {
+  buildExtractedProseLowYieldCohort,
   buildExtractedProseLowYieldBailoutState,
   buildExtractedProseLowYieldBailoutSummary,
   EXTRACTED_PROSE_LOW_YIELD_SKIP_REASON,
@@ -172,17 +173,25 @@ const normalizeYieldProfileFamilyStats = (value) => {
 const normalizeYieldProfileEntry = (value, configFallback = null) => {
   const entry = isPlainObject(value) ? value : {};
   const families = isPlainObject(entry.families) ? entry.families : {};
+  const cohorts = isPlainObject(entry.cohorts) ? entry.cohorts : {};
   const normalizedFamilies = {};
   for (const [familyKey, familyStats] of Object.entries(families)) {
     if (!familyKey) continue;
     normalizedFamilies[familyKey] = normalizeYieldProfileFamilyStats(familyStats);
+  }
+  const normalizedCohorts = {};
+  for (const [cohortKey, cohortStats] of Object.entries(cohorts)) {
+    if (!cohortKey) continue;
+    normalizedCohorts[cohortKey] = normalizeYieldProfileFamilyStats(cohortStats);
   }
   const totals = normalizeYieldProfileFamilyStats(entry.totals || {});
   return {
     config: normalizeExtractedProseYieldProfilePrefilterConfig(entry.config || configFallback || null),
     builds: toSafeNonNegativeInt(entry.builds),
     totals,
-    families: normalizedFamilies
+    families: normalizedFamilies,
+    cohorts: normalizedCohorts,
+    fingerprint: isPlainObject(entry.fingerprint) ? entry.fingerprint : null
   };
 };
 
@@ -1879,7 +1888,8 @@ export const processFiles = async ({
     observedFiles: 0,
     yieldedFiles: 0,
     chunkCount: 0,
-    families: new Map()
+    families: new Map(),
+    cohorts: new Map()
   };
   const lowYieldBypassOrderIndices = new Set();
   const stageFileWatchdogConfig = resolveFileWatchdogConfig(runtime, { repoFileCount: stageFileCount });
@@ -1982,6 +1992,12 @@ export const processFiles = async ({
       absPath: entry?.abs || null,
       ext
     });
+    const cohort = buildExtractedProseLowYieldCohort({
+      relPath,
+      absPath: entry?.abs || null,
+      ext,
+      pathFamily: family?.pathFamily || null
+    });
     const chunkCount = Math.max(0, Math.floor(Number(result?.chunks?.length) || 0));
     extractedProseYieldRunStats.observedFiles += 1;
     if (chunkCount > 0) {
@@ -1999,6 +2015,17 @@ export const processFiles = async ({
     }
     familyStats.chunkCount += chunkCount;
     extractedProseYieldRunStats.families.set(family.key, familyStats);
+    const cohortStats = extractedProseYieldRunStats.cohorts.get(cohort.key) || {
+      observedFiles: 0,
+      yieldedFiles: 0,
+      chunkCount: 0
+    };
+    cohortStats.observedFiles += 1;
+    if (chunkCount > 0) {
+      cohortStats.yieldedFiles += 1;
+    }
+    cohortStats.chunkCount += chunkCount;
+    extractedProseYieldRunStats.cohorts.set(cohort.key, cohortStats);
   };
   const ioQueueConcurrency = Number.isFinite(runtime?.queues?.io?.concurrency)
     ? runtime.queues.io.concurrency
@@ -3506,7 +3533,8 @@ export const processFiles = async ({
             const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
             if (shouldSkipExtractedProseForLowYield({
               bailout: extractedProseLowYieldBailout,
-              orderIndex
+              orderIndex,
+              entry
             })) {
               const skippedAtMs = Date.now();
               const lifecycle = ensureLifecycleRecord({
@@ -4358,12 +4386,21 @@ export const processFiles = async ({
         profileConfig
       );
       const mergedFamilies = { ...(existingProfileEntry.families || {}) };
+      const mergedCohorts = { ...(existingProfileEntry.cohorts || {}) };
       for (const [familyKey, familyStats] of extractedProseYieldRunStats.families.entries()) {
         const current = normalizeYieldProfileFamilyStats(mergedFamilies[familyKey] || null);
         mergedFamilies[familyKey] = normalizeYieldProfileFamilyStats({
           observedFiles: current.observedFiles + toSafeNonNegativeInt(familyStats?.observedFiles),
           yieldedFiles: current.yieldedFiles + toSafeNonNegativeInt(familyStats?.yieldedFiles),
           chunkCount: current.chunkCount + toSafeNonNegativeInt(familyStats?.chunkCount)
+        });
+      }
+      for (const [cohortKey, cohortStats] of extractedProseYieldRunStats.cohorts.entries()) {
+        const current = normalizeYieldProfileFamilyStats(mergedCohorts[cohortKey] || null);
+        mergedCohorts[cohortKey] = normalizeYieldProfileFamilyStats({
+          observedFiles: current.observedFiles + toSafeNonNegativeInt(cohortStats?.observedFiles),
+          yieldedFiles: current.yieldedFiles + toSafeNonNegativeInt(cohortStats?.yieldedFiles),
+          chunkCount: current.chunkCount + toSafeNonNegativeInt(cohortStats?.chunkCount)
         });
       }
       const mergedTotals = normalizeYieldProfileFamilyStats({
@@ -4378,7 +4415,9 @@ export const processFiles = async ({
         config: profileConfig,
         builds: toSafeNonNegativeInt(existingProfileEntry.builds) + 1,
         totals: mergedTotals,
-        families: mergedFamilies
+        families: mergedFamilies,
+        cohorts: mergedCohorts,
+        fingerprint: extractedProseLowYieldBailout?.repoFingerprint || existingProfileEntry.fingerprint || null
       };
       const mergedYieldProfileState = {
         version: EXTRACTED_PROSE_YIELD_PROFILE_VERSION,

@@ -46,7 +46,21 @@ for (const entry of entries) {
 
 assert.ok(decision, 'expected low-yield bailout decision after warmup');
 assert.equal(decision.familyProtected, true, 'expected a yielding document family to protect warmup');
-assert.equal(decision.triggered, false, 'expected family-level yield to prevent low-yield bailout');
+assert.equal(
+  decision.triggered,
+  true,
+  'expected cohort-aware suppression to still quarantine low-yield machine-heavy files'
+);
+assert.equal(
+  decision.suppressedCohorts.some((cohort) => cohort.key === 'generated-machine'),
+  true,
+  'expected generated-machine cohort suppression'
+);
+assert.equal(
+  decision.protectedCohorts.some((cohort) => cohort.key === 'docs-markdown'),
+  true,
+  'expected docs cohort protection'
+);
 
 const protectedFamily = (decision.sampledFamilies || []).find((family) => family.key === '.md|docs');
 assert.ok(protectedFamily, 'expected sampled family summary for docs');

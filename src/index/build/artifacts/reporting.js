@@ -209,10 +209,27 @@ const buildExtractedProseLowYieldQualityMarker = (state) => {
     skippedFiles: Number.isFinite(Number(raw.skippedFiles))
       ? Math.max(0, Math.floor(Number(raw.skippedFiles)))
       : 0,
+    suppressedCohortCount: Number.isFinite(Number(raw.suppressedCohortCount))
+      ? Math.max(0, Math.floor(Number(raw.suppressedCohortCount)))
+      : 0,
+    protectedCohortCount: Number.isFinite(Number(raw.protectedCohortCount))
+      ? Math.max(0, Math.floor(Number(raw.protectedCohortCount)))
+      : 0,
+    strategyMismatchRiskCount: Number.isFinite(Number(raw.strategyMismatchRiskCount))
+      ? Math.max(0, Math.floor(Number(raw.strategyMismatchRiskCount)))
+      : 0,
     decisionAtOrderIndex: Number.isFinite(Number(raw.decisionAtOrderIndex))
       ? Math.floor(Number(raw.decisionAtOrderIndex))
       : null,
     decisionAt: typeof raw.decisionAt === 'string' ? raw.decisionAt : null,
+    repoFingerprint: raw.repoFingerprint && typeof raw.repoFingerprint === 'object'
+      ? raw.repoFingerprint
+      : { totalEntries: 0, docLikeEntries: 0, dominantCohort: null, cohortCounts: {} },
+    suppressedCohorts: Array.isArray(raw.suppressedCohorts) ? raw.suppressedCohorts : [],
+    protectedCohorts: Array.isArray(raw.protectedCohorts) ? raw.protectedCohorts : [],
+    strategyMismatchRiskCohorts: Array.isArray(raw.strategyMismatchRiskCohorts)
+      ? raw.strategyMismatchRiskCohorts
+      : [],
     deterministic: typeof raw.seed === 'string' && raw.seed.length > 0,
     downgradedRecall: triggered
   };
