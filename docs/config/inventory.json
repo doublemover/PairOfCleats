@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-19T18:14:48.689Z",
+  "generatedAt": "2026-03-20T07:30:47.494Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -4176,7 +4176,7 @@
         ]
       },
       {
-        "file": "src/contracts/schemas/analysis.js",
+        "file": "src/contracts/schemas/analysis/api.js",
         "flags": [
           "additionalProperties",
           "properties",
@@ -7602,7 +7602,7 @@
         "flag": "type",
         "count": 2,
         "files": [
-          "src/contracts/schemas/analysis.js",
+          "src/contracts/schemas/analysis/api.js",
           "src/integrations/mcp/defs.js"
         ]
       },
@@ -7685,7 +7685,7 @@
       "src/retrieval/index-cache.js",
       "src/shared/cli-options.js",
       "src/shared/cli.js",
-      "src/shared/concurrency/scheduler-core.js",
+      "src/shared/concurrency/scheduler-core/index.js",
       "src/shared/dispatch/env.js",
       "tests/indexing/chunking/chunker-options-forwarding.test.js",
       "tests/indexing/lifecycle/build-entry-failure-no-unsettled-warning.test.js",
