@@ -10,7 +10,7 @@ const sharedScmMetaCacheByRuntime = new WeakMap();
 
 const EXTRACTED_PROSE_RUNTIME_STATE_DIR = 'runtime';
 const EXTRACTED_PROSE_YIELD_PROFILE_FILE = 'extracted-prose-yield-profile.json';
-const EXTRACTED_PROSE_YIELD_PROFILE_VERSION = 1;
+export const EXTRACTED_PROSE_YIELD_PROFILE_VERSION = 1;
 export const DOCUMENT_EXTRACTION_CACHE_FILE = 'document-extraction-cache.json';
 const DOCUMENT_EXTRACTION_CACHE_VERSION = 1;
 export const DOCUMENT_EXTRACTION_CACHE_MAX_LOAD_BYTES = 16 * 1024 * 1024;
@@ -22,7 +22,7 @@ const isPlainObject = (value) => (
   value && typeof value === 'object' && !Array.isArray(value)
 );
 
-const toSafeNonNegativeInt = (value) => {
+export const toSafeNonNegativeInt = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return 0;
   return Math.floor(parsed);
@@ -40,7 +40,7 @@ export const normalizeYieldProfileFamilyStats = (value) => {
   };
 };
 
-const normalizeYieldProfileEntry = (value, configFallback = null) => {
+export const normalizeYieldProfileEntry = (value, configFallback = null) => {
   const entry = isPlainObject(value) ? value : {};
   const families = isPlainObject(entry.families) ? entry.families : {};
   const cohorts = isPlainObject(entry.cohorts) ? entry.cohorts : {};
@@ -352,3 +352,5 @@ export const resolveSharedScmMetaCache = (runtime, cacheReporter = null) => {
   sharedScmMetaCacheByRuntime.set(runtime, cache);
   return cache;
 };
+
+export { normalizeExtractedProseYieldProfilePrefilterConfig };

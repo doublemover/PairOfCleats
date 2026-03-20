@@ -72,13 +72,17 @@ import {
   DOCUMENT_EXTRACTION_CACHE_MAX_ENTRY_TEXT_BYTES,
   DOCUMENT_EXTRACTION_CACHE_MAX_LOAD_BYTES,
   DOCUMENT_EXTRACTION_CACHE_MAX_TOTAL_ENTRY_BYTES,
+  EXTRACTED_PROSE_YIELD_PROFILE_VERSION,
   loadDocumentExtractionCacheState,
   loadExtractedProseYieldProfileState,
+  normalizeExtractedProseYieldProfilePrefilterConfig,
+  normalizeYieldProfileEntry,
   normalizeYieldProfileFamilyStats,
   persistDocumentExtractionCacheState,
   persistExtractedProseYieldProfileState,
   resolveExtractedProseExtrasCache,
-  resolveSharedScmMetaCache
+  resolveSharedScmMetaCache,
+  toSafeNonNegativeInt
 } from './process-files/runtime-state.js';
 import {
   buildWatchdogNearThresholdSummary,
