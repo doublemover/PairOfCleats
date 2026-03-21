@@ -511,7 +511,10 @@ const summarizeDegradedProviders = ({ providerDiagnostics, sourcesByChunkUid, ob
     const providerId = normalizeProviderId(providerIdRaw);
     if (!providerId) continue;
     const checks = Array.isArray(diag?.checks) ? diag.checks : [];
-    const failingChecks = checks.filter((check) => check?.status === 'warn' || check?.status === 'error');
+    const failingChecks = checks.filter((check) => (
+      (check?.status === 'warn' || check?.status === 'error')
+      && check?.degradedEligible !== false
+    ));
     if (!failingChecks.length) continue;
     const contributedChunks = providerChunkContributions.get(providerId) || 0;
     if (contributedChunks > 0) continue;

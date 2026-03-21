@@ -233,6 +233,22 @@ const extractTypes = (ts, checker, sourceFile, node) => {
   return { returnType, paramTypes, signature: signatureText };
 };
 
+const buildTypeScriptDiagnosticCheck = ({
+  name,
+  status,
+  message,
+  triggerClass,
+  degradedEligible,
+  contributionState = 'none'
+}) => ({
+  name,
+  status,
+  message,
+  triggerClass,
+  degradedEligible,
+  contributionState
+});
+
 export const createTypeScriptProvider = () => ({
   id: 'typescript',
   version: '2.0.0',
@@ -267,7 +283,19 @@ export const createTypeScriptProvider = () => ({
     const ts = await loadTypeScript(ctx?.toolingConfig, ctx?.repoRoot);
     if (!ts) {
       log({ level: 'warn', message: 'TypeScript tooling not detected; skipping.' });
-      return { provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {}, diagnostics: baseDiagnostics };
+      return {
+        provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(baseDiagnostics, [
+          buildTypeScriptDiagnosticCheck({
+            name: 'typescript_runtime_unavailable',
+            status: 'error',
+            message: 'TypeScript runtime module not found.',
+            triggerClass: 'runtime_unavailable',
+            degradedEligible: true
+          })
+        ])
+      };
     }
     const config = ctx?.toolingConfig?.typescript || {};
     const useCaseSensitive = typeof ts?.sys?.useCaseSensitiveFileNames === 'boolean'
@@ -328,9 +356,16 @@ export const createTypeScriptProvider = () => ({
       const groupDocs = group.documents || [];
       if (maxFiles && groupDocs.length > maxFiles) {
         diagnostics.push({
-          name: 'cap_maxFiles',
-          status: 'warn',
-          message: `TypeScript provider skipped ${groupDocs.length} docs (maxFiles=${maxFiles}).`
+          ...buildTypeScriptDiagnosticCheck({
+            name: 'cap_maxFiles',
+            status: 'warn',
+            message: `TypeScript provider skipped ${groupDocs.length} docs (maxFiles=${maxFiles}).`,
+            triggerClass: 'planner_cap',
+            degradedEligible: false,
+            contributionState: 'skipped'
+          }),
+          maxFiles,
+          skippedDocuments: groupDocs.length
         });
         continue;
       }
@@ -338,9 +373,16 @@ export const createTypeScriptProvider = () => ({
         const oversized = groupDocs.find((doc) => Buffer.byteLength(doc.text || '', 'utf8') > maxFileBytes);
         if (oversized) {
           diagnostics.push({
-            name: 'cap_maxFileBytes',
-            status: 'warn',
-            message: `TypeScript provider skipped ${oversized.virtualPath} (size > ${maxFileBytes}).`
+            ...buildTypeScriptDiagnosticCheck({
+              name: 'cap_maxFileBytes',
+              status: 'warn',
+              message: `TypeScript provider skipped ${oversized.virtualPath} (size > ${maxFileBytes}).`,
+              triggerClass: 'planner_cap',
+              degradedEligible: false,
+              contributionState: 'skipped'
+            }),
+            maxFileBytes,
+            virtualPath: oversized.virtualPath
           });
           continue;
         }
@@ -376,9 +418,16 @@ export const createTypeScriptProvider = () => ({
 
       if (maxProgramFiles && finalRootNames.length > maxProgramFiles) {
         diagnostics.push({
-          name: 'cap_maxProgramFiles',
-          status: 'warn',
-          message: `TypeScript provider skipped program with ${finalRootNames.length} files (maxProgramFiles=${maxProgramFiles}).`
+          ...buildTypeScriptDiagnosticCheck({
+            name: 'cap_maxProgramFiles',
+            status: 'warn',
+            message: `TypeScript provider skipped program with ${finalRootNames.length} files (maxProgramFiles=${maxProgramFiles}).`,
+            triggerClass: 'planner_cap',
+            degradedEligible: false,
+            contributionState: 'skipped'
+          }),
+          maxProgramFiles,
+          programFiles: finalRootNames.length
         });
         continue;
       }
@@ -396,9 +445,17 @@ export const createTypeScriptProvider = () => ({
           const result = findNodeForTarget(ts, sourceFile, target, ctx?.strict !== false);
           if (!result.node) {
             diagnostics.push({
-              name: 'node_match',
-              status: result.status === 'ambiguous' ? 'warn' : 'error',
-              message: `TypeScript target ${result.status} for ${target.chunkRef.chunkUid}`
+              ...buildTypeScriptDiagnosticCheck({
+                name: 'node_match',
+                status: result.status === 'ambiguous' ? 'warn' : 'error',
+                message: `TypeScript target ${result.status} for ${target.chunkRef.chunkUid}`,
+                triggerClass: 'planner_target_match',
+                degradedEligible: false,
+                contributionState: 'skipped'
+              }),
+              targetStatus: result.status,
+              chunkUid: target.chunkRef.chunkUid,
+              virtualPath: target.virtualPath || null
             });
             continue;
           }
