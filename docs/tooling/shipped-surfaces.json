@@ -1,0 +1,391 @@
+{
+  "schemaVersion": "1.0.0",
+  "surfaces": [
+    {
+      "id": "cli",
+      "name": "Canonical CLI",
+      "owner": "cli",
+      "supportLevel": "stable",
+      "packagingBoundary": "node-bin",
+      "publishBoundary": "repo-package",
+      "versionSource": "package.json#version",
+      "runtimeTargets": [
+        "node>=24.13.0"
+      ],
+      "platforms": [
+        "windows",
+        "linux",
+        "macos"
+      ],
+      "build": {
+        "kind": "source-entrypoint",
+        "sourcePaths": [
+          "bin/pairofcleats.js"
+        ],
+        "outputs": []
+      },
+      "install": {
+        "kind": "npm-bin-or-direct-node",
+        "summary": "Expose `pairofcleats` on PATH via install/link, or run `node bin/pairofcleats.js` directly from source."
+      },
+      "smoke": {
+        "summary": "CLI boots, reports its version, builds a fixture index, validates it, and returns a search result."
+      },
+      "releaseCheck": {
+        "enabled": true,
+        "steps": [
+          {
+            "id": "smoke.version",
+            "label": "pairofcleats --version",
+            "command": [
+              "$NODE",
+              "bin/pairofcleats.js",
+              "--version"
+            ],
+            "artifacts": []
+          },
+          {
+            "id": "smoke.fixture-index-build",
+            "label": "fixture index build",
+            "command": [
+              "$NODE",
+              "bin/pairofcleats.js",
+              "index",
+              "build",
+              "--repo",
+              "tests/fixtures/sample",
+              "--mode",
+              "code"
+            ],
+            "artifacts": []
+          },
+          {
+            "id": "smoke.fixture-index-validate-strict",
+            "label": "fixture index validate --strict",
+            "command": [
+              "$NODE",
+              "tools/index/validate.js",
+              "--repo",
+              "tests/fixtures/sample",
+              "--strict"
+            ],
+            "artifacts": []
+          },
+          {
+            "id": "smoke.fixture-search",
+            "label": "fixture search",
+            "command": [
+              "$NODE",
+              "bin/pairofcleats.js",
+              "search",
+              "sample",
+              "--repo",
+              "tests/fixtures/sample",
+              "--top",
+              "1",
+              "--json"
+            ],
+            "artifacts": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "api",
+      "name": "HTTP API server",
+      "owner": "services-api",
+      "supportLevel": "stable",
+      "packagingBoundary": "node-service",
+      "publishBoundary": "repo-package",
+      "versionSource": "package.json#version",
+      "runtimeTargets": [
+        "node>=24.13.0"
+      ],
+      "platforms": [
+        "windows",
+        "linux",
+        "macos"
+      ],
+      "build": {
+        "kind": "source-service",
+        "sourcePaths": [
+          "tools/api/server.js",
+          "tools/api/router.js"
+        ],
+        "outputs": []
+      },
+      "install": {
+        "kind": "node-service-launch",
+        "summary": "Launch via `pairofcleats service api` or `node tools/api/server.js` with repo-local config and token policy."
+      },
+      "smoke": {
+        "summary": "Boot the packaged/runtime entrypoint, probe health/status/capabilities, and validate one representative API workflow."
+      },
+      "releaseCheck": {
+        "enabled": false,
+        "steps": []
+      }
+    },
+    {
+      "id": "mcp",
+      "name": "MCP server",
+      "owner": "services-mcp",
+      "supportLevel": "operator",
+      "packagingBoundary": "node-service",
+      "publishBoundary": "repo-package",
+      "versionSource": "package.json#version",
+      "runtimeTargets": [
+        "node>=24.13.0"
+      ],
+      "platforms": [
+        "windows",
+        "linux",
+        "macos"
+      ],
+      "build": {
+        "kind": "source-service",
+        "sourcePaths": [
+          "tools/mcp/server.js"
+        ],
+        "outputs": []
+      },
+      "install": {
+        "kind": "node-service-launch",
+        "summary": "Launch via `pairofcleats service mcp` or the server entrypoint and attach over stdio/jsonrpc."
+      },
+      "smoke": {
+        "summary": "Boot the MCP server, complete initialize/capabilities handshake, and execute one representative tool call."
+      },
+      "releaseCheck": {
+        "enabled": false,
+        "steps": []
+      }
+    },
+    {
+      "id": "indexer-service",
+      "name": "Indexer service mode",
+      "owner": "services-indexer",
+      "supportLevel": "operator",
+      "packagingBoundary": "node-service",
+      "publishBoundary": "repo-package",
+      "versionSource": "package.json#version",
+      "runtimeTargets": [
+        "node>=24.13.0"
+      ],
+      "platforms": [
+        "windows",
+        "linux",
+        "macos"
+      ],
+      "build": {
+        "kind": "source-service",
+        "sourcePaths": [
+          "tools/service/indexer-service.js"
+        ],
+        "outputs": []
+      },
+      "install": {
+        "kind": "node-service-launch",
+        "summary": "Launch via `pairofcleats service indexer` or `node tools/service/indexer-service.js`."
+      },
+      "smoke": {
+        "summary": "Boot in smoke mode and verify the service command path responds with a valid JSON health/contract payload."
+      },
+      "releaseCheck": {
+        "enabled": true,
+        "steps": [
+          {
+            "id": "smoke.service-mode",
+            "label": "service-mode smoke check",
+            "command": [
+              "$NODE",
+              "tools/service/indexer-service.js",
+              "smoke",
+              "--json"
+            ],
+            "artifacts": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "vscode",
+      "name": "VS Code extension",
+      "owner": "editor-vscode",
+      "supportLevel": "stable",
+      "packagingBoundary": "vsix",
+      "publishBoundary": "vsix-artifact",
+      "versionSource": "extensions/vscode/package.json#version",
+      "runtimeTargets": [
+        "node>=24.13.0",
+        "vscode-extension-host"
+      ],
+      "platforms": [
+        "windows",
+        "linux",
+        "macos"
+      ],
+      "build": {
+        "kind": "package-script",
+        "sourcePaths": [
+          "extensions/vscode/package.json",
+          "tools/package-vscode.js"
+        ],
+        "outputs": [
+          "dist/vscode/pairofcleats.vsix",
+          "dist/vscode/pairofcleats.vsix.sha256"
+        ]
+      },
+      "install": {
+        "kind": "vsix-install",
+        "summary": "Install the VSIX into a compatible VS Code host and validate activation/runtime packaging metadata."
+      },
+      "smoke": {
+        "summary": "Package the VSIX deterministically and verify the smoke contract for manifest, activation, and bundled assets."
+      },
+      "releaseCheck": {
+        "enabled": true,
+        "steps": [
+          {
+            "id": "smoke.editor-vscode",
+            "label": "editor package smoke (vscode)",
+            "command": [
+              "$NODE",
+              "tools/package-vscode.js",
+              "--smoke"
+            ],
+            "artifacts": [
+              "dist/vscode/pairofcleats.vsix",
+              "dist/vscode/pairofcleats.vsix.sha256"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "sublime",
+      "name": "Sublime package",
+      "owner": "editor-sublime",
+      "supportLevel": "operator",
+      "packagingBoundary": "sublime-package",
+      "publishBoundary": "archive-artifact",
+      "versionSource": "package.json#version",
+      "runtimeTargets": [
+        "python>=3.8",
+        "sublime-text-host"
+      ],
+      "platforms": [
+        "windows",
+        "linux",
+        "macos"
+      ],
+      "build": {
+        "kind": "package-script",
+        "sourcePaths": [
+          "sublime/PairOfCleats",
+          "tools/package-sublime.js"
+        ],
+        "outputs": [
+          "dist/sublime/pairofcleats.sublime-package",
+          "dist/sublime/pairofcleats.sublime-package.sha256"
+        ]
+      },
+      "install": {
+        "kind": "sublime-package-install",
+        "summary": "Install the generated `.sublime-package` into the target Sublime environment and validate package metadata."
+      },
+      "smoke": {
+        "summary": "Package the Sublime surface deterministically and verify the smoke contract for bundled files and archive integrity."
+      },
+      "releaseCheck": {
+        "enabled": true,
+        "steps": [
+          {
+            "id": "smoke.editor-sublime",
+            "label": "editor package smoke (sublime)",
+            "command": [
+              "$NODE",
+              "tools/package-sublime.js",
+              "--smoke"
+            ],
+            "artifacts": [
+              "dist/sublime/pairofcleats.sublime-package",
+              "dist/sublime/pairofcleats.sublime-package.sha256"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "tui",
+      "name": "Rust TUI and wrapper",
+      "owner": "tui",
+      "supportLevel": "operator",
+      "packagingBoundary": "native-binary-plus-wrapper",
+      "publishBoundary": "platform-artifact",
+      "versionSource": "package.json#version",
+      "runtimeTargets": [
+        "rust-target-artifact",
+        "node>=24.13.0"
+      ],
+      "platforms": [
+        "windows",
+        "linux",
+        "macos"
+      ],
+      "build": {
+        "kind": "cargo-plus-staging",
+        "sourcePaths": [
+          "crates/pairofcleats-tui/Cargo.toml",
+          "bin/pairofcleats-tui.js",
+          "tools/tui/build.js",
+          "tools/tui/install.js"
+        ],
+        "outputs": [
+          "dist/tui/tui-artifacts-manifest.json",
+          "dist/tui/tui-artifacts-manifest.json.sha256",
+          "dist/tui/install-smoke"
+        ]
+      },
+      "install": {
+        "kind": "wrapper-verified-install",
+        "summary": "Stage host-target binaries, install them into the shared cache-root layout, and launch through `pairofcleats-tui`."
+      },
+      "smoke": {
+        "summary": "Build and checksum the staged TUI artifacts, then perform an install smoke against an isolated install root."
+      },
+      "releaseCheck": {
+        "enabled": true,
+        "steps": [
+          {
+            "id": "smoke.tui-build",
+            "label": "tui artifact manifest smoke",
+            "command": [
+              "$NODE",
+              "tools/tui/build.js",
+              "--smoke"
+            ],
+            "artifacts": [
+              "dist/tui/tui-artifacts-manifest.json",
+              "dist/tui/tui-artifacts-manifest.json.sha256"
+            ]
+          },
+          {
+            "id": "smoke.tui-install",
+            "label": "tui install smoke",
+            "command": [
+              "$NODE",
+              "tools/tui/install.js",
+              "--json",
+              "--install-root",
+              "dist/tui/install-smoke"
+            ],
+            "artifacts": [
+              "dist/tui/install-smoke"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

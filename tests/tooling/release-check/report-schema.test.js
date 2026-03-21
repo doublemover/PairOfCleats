@@ -30,6 +30,11 @@ if (!Array.isArray(report.checks) || report.checks.length === 0) {
   process.exit(1);
 }
 
+if (!Array.isArray(report.shippedSurfaces) || report.shippedSurfaces.length === 0) {
+  console.error('report-schema test failed: shipped surface metadata missing from report');
+  process.exit(1);
+}
+
 for (const check of report.checks) {
   if (!check.id || !check.phase || !check.label) {
     console.error('report-schema test failed: required check fields missing');
@@ -46,10 +51,26 @@ if (!Array.isArray(manifest.artifacts) || manifest.artifacts.length === 0) {
   process.exit(1);
 }
 
+if (!Array.isArray(manifest.surfaces) || manifest.surfaces.length === 0) {
+  console.error('report-schema test failed: manifest surfaces missing');
+  process.exit(1);
+}
+
+if (!manifest.shippedSurfacesRegistryPath || typeof manifest.shippedSurfacesRegistryPath !== 'string') {
+  console.error('report-schema test failed: manifest registry path missing');
+  process.exit(1);
+}
+
 const reportRel = path.relative(root, reportPath).replace(/\\/g, '/');
 const reportArtifact = manifest.artifacts.find((entry) => entry.path === reportRel);
 if (!reportArtifact || reportArtifact.exists !== true || !Number.isFinite(reportArtifact.sizeBytes) || !reportArtifact.sha256) {
   console.error('report-schema test failed: report artifact metadata missing or invalid');
+  process.exit(1);
+}
+
+const cliSurface = manifest.surfaces.find((entry) => entry.id === 'cli');
+if (!cliSurface || !Array.isArray(cliSurface.releaseCheckStepIds) || cliSurface.releaseCheckStepIds.length === 0) {
+  console.error('report-schema test failed: cli surface release-check metadata missing');
   process.exit(1);
 }
 

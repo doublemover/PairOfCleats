@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { escapeRegex } from '../../src/shared/text/escape-regex.js';
 import { isTestingEnv } from '../../src/shared/env.js';
+import { getReleaseCheckSurfaceSteps, loadShippedSurfaces } from './surfaces.js';
 
 const args = process.argv.slice(2);
 const hasFlag = (flag) => args.includes(flag);
@@ -70,58 +71,6 @@ if (hasFlag('--help') || hasFlag('-h')) {
 const root = process.cwd();
 const reportPath = path.resolve(root, reportPathInput);
 const manifestPath = path.resolve(root, manifestPathInput);
-
-const SMOKE_STEPS = Object.freeze([
-  {
-    id: 'smoke.version',
-    label: 'pairofcleats --version',
-    command: [process.execPath, 'bin/pairofcleats.js', '--version']
-  },
-  {
-    id: 'smoke.fixture-index-build',
-    label: 'fixture index build',
-    command: [process.execPath, 'bin/pairofcleats.js', 'index', 'build', '--repo', 'tests/fixtures/sample', '--mode', 'code']
-  },
-  {
-    id: 'smoke.fixture-index-validate-strict',
-    label: 'fixture index validate --strict',
-    command: [process.execPath, 'tools/index/validate.js', '--repo', 'tests/fixtures/sample', '--strict']
-  },
-  {
-    id: 'smoke.fixture-search',
-    label: 'fixture search',
-    command: [process.execPath, 'bin/pairofcleats.js', 'search', 'sample', '--repo', 'tests/fixtures/sample', '--top', '1', '--json']
-  },
-  {
-    id: 'smoke.editor-sublime',
-    label: 'editor package smoke (sublime)',
-    command: [process.execPath, 'tools/package-sublime.js', '--smoke'],
-    artifacts: ['dist/sublime/pairofcleats.sublime-package', 'dist/sublime/pairofcleats.sublime-package.sha256']
-  },
-  {
-    id: 'smoke.editor-vscode',
-    label: 'editor package smoke (vscode)',
-    command: [process.execPath, 'tools/package-vscode.js', '--smoke'],
-    artifacts: ['dist/vscode/pairofcleats.vsix', 'dist/vscode/pairofcleats.vsix.sha256']
-  },
-  {
-    id: 'smoke.tui-build',
-    label: 'tui artifact manifest smoke',
-    command: [process.execPath, 'tools/tui/build.js', '--smoke'],
-    artifacts: ['dist/tui/tui-artifacts-manifest.json', 'dist/tui/tui-artifacts-manifest.json.sha256']
-  },
-  {
-    id: 'smoke.tui-install',
-    label: 'tui install smoke',
-    command: [process.execPath, 'tools/tui/install.js', '--json', '--install-root', 'dist/tui/install-smoke'],
-    artifacts: ['dist/tui/install-smoke']
-  },
-  {
-    id: 'smoke.service-mode',
-    label: 'service-mode smoke check',
-    command: [process.execPath, 'tools/service/indexer-service.js', 'smoke', '--json']
-  }
-]);
 
 const trimOutput = (value) => {
   const text = String(value || '').trim();
@@ -289,6 +238,8 @@ const writeOutputs = (reportPayload, manifestPayload) => {
 const collectManifestArtifacts = (steps) => {
   const inventory = new Set([
     normalizePath(path.relative(root, reportPath)),
+    'docs/tooling/shipped-surfaces.json',
+    'docs/guides/release-surfaces.md',
     'docs/tooling/doc-contract-drift.json',
     'docs/tooling/doc-contract-drift.md'
   ]);
@@ -329,6 +280,8 @@ const main = () => {
   const startedAtMs = Date.now();
   const startedAt = toIso(startedAtMs);
   const steps = [];
+  const shippedSurfaceRegistry = loadShippedSurfaces(root);
+  const smokeSteps = getReleaseCheckSurfaceSteps(root);
   let version = null;
   let ok = true;
 
@@ -402,12 +355,13 @@ const main = () => {
   steps.push(pythonToolchainStep);
   if (pythonToolchainStep.status === 'failed') ok = false;
 
-  for (const smokeStep of SMOKE_STEPS) {
+  for (const smokeStep of smokeSteps) {
     const step = recordStep({
       id: smokeStep.id,
       phase: 'smoke',
       label: smokeStep.label,
       command: smokeStep.command,
+      owner: smokeStep.owner || null,
       artifacts: smokeStep.artifacts || []
     });
     steps.push(step);
@@ -431,6 +385,17 @@ const main = () => {
       skipModesDisabled: true,
       requiredChecks: ['changelog', 'contracts', 'toolchain', 'smoke']
     },
+    shippedSurfaces: shippedSurfaceRegistry.surfaces.map((surface) => ({
+      id: surface.id,
+      name: surface.name,
+      owner: surface.owner,
+      supportLevel: surface.supportLevel,
+      packagingBoundary: surface.packagingBoundary,
+      publishBoundary: surface.publishBoundary,
+      versionSource: surface.versionSource,
+      releaseCheckEnabled: surface.releaseCheck.enabled,
+      releaseCheckStepIds: surface.releaseCheck.steps.map((step) => step.id)
+    })),
     summary: {
       total: steps.length,
       passed: passedCount,
@@ -447,6 +412,25 @@ const main = () => {
     schemaVersion: 1,
     generatedAt: finishedAt,
     reportPath: normalizePath(path.relative(root, reportPath)),
+    shippedSurfacesRegistryPath: normalizePath(
+      path.relative(root, shippedSurfaceRegistry.registryPath)
+    ),
+    surfaces: shippedSurfaceRegistry.surfaces.map((surface) => ({
+      id: surface.id,
+      name: surface.name,
+      owner: surface.owner,
+      supportLevel: surface.supportLevel,
+      packagingBoundary: surface.packagingBoundary,
+      publishBoundary: surface.publishBoundary,
+      versionSource: surface.versionSource,
+      runtimeTargets: surface.runtimeTargets,
+      platforms: surface.platforms,
+      build: surface.build,
+      install: surface.install,
+      smoke: surface.smoke,
+      releaseCheckEnabled: surface.releaseCheck.enabled,
+      releaseCheckStepIds: surface.releaseCheck.steps.map((step) => step.id)
+    })),
     artifacts: []
   };
 

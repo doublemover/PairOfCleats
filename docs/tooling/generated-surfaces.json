@@ -158,6 +158,31 @@
       "audit": {
         "command": "node tests/tooling/docs/artifact-schema-index.test.js"
       }
+    },
+    {
+      "id": "release-surfaces-guide",
+      "owner": "release",
+      "committed": true,
+      "validationMode": "registry-audited",
+      "freshnessExpectation": "regenerate after shipped-surface registry or release-surface contract changes",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/release/export-surface-guide.js --out {output:0}",
+        "outputs": [
+          {
+            "format": "text"
+          }
+        ]
+      },
+      "outputs": [
+        "docs/guides/release-surfaces.md"
+      ],
+      "refresh": {
+        "command": "node tools/release/export-surface-guide.js"
+      },
+      "audit": {
+        "command": "node tests/tooling/release/shipped-surface-registry.test.js"
+      }
     }
   ]
 }
