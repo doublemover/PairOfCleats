@@ -5,6 +5,7 @@ import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 import { BUILD_STATE_DURABILITY_CLASS, resolveBuildStateDurabilityClass } from './durability.js';
 
 const HEARTBEAT_MIN_INTERVAL_MS = 5000;
+const HEARTBEAT_LAG_WARNING_MIN_MS = 45000;
 
 export const startHeartbeat = ({
   buildRoot,
@@ -23,6 +24,7 @@ export const startHeartbeat = ({
   let active = true;
   let timer = null;
   let stopPromise = null;
+  let lastLagWarningAtMs = 0;
   const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   const stop = () => {
     if (stopPromise) return stopPromise;
@@ -113,8 +115,39 @@ export const startHeartbeat = ({
         lastHeartbeatAt: now
       }
     }, {
-      durabilityClass: resolvedDurabilityClass
+      durabilityClass: resolvedDurabilityClass,
+      waitForFlush: false
     }).then((outcome) => {
+      const pendingLagMs = Number.isFinite(Number(outcome?.pendingLagMs))
+        ? Math.max(0, Math.floor(Number(outcome.pendingLagMs)))
+        : 0;
+      const lagWarningThresholdMs = Math.max(
+        HEARTBEAT_LAG_WARNING_MIN_MS,
+        Math.max(HEARTBEAT_MIN_INTERVAL_MS, Math.floor(Number(intervalMs) || 0)) * 2
+      );
+      if (outcome?.queued && pendingLagMs >= lagWarningThresholdMs) {
+        const nowMs = Date.now();
+        if (nowMs - lastLagWarningAtMs >= lagWarningThresholdMs) {
+          lastLagWarningAtMs = nowMs;
+          logLine(
+            `[build_state] heartbeat durability lag ${pendingLagMs}ms for ${path.resolve(buildRoot)}; continuing with coalesced best-effort updates.`,
+            {
+              kind: 'warning',
+              buildState: {
+                event: 'heartbeat-write-lag',
+                buildRoot: path.resolve(buildRoot),
+                stage: stage || null,
+                lagMs: pendingLagMs,
+                pendingSinceMs: outcome?.pendingSinceMs ?? null,
+                pendingPatchBytes: outcome?.pendingPatchBytes ?? null,
+                pendingWaiterCount: outcome?.pendingWaiterCount ?? null,
+                coalescedPatches: outcome?.coalescedPatches ?? null,
+                lastFlushDurationMs: outcome?.lastFlushDurationMs ?? null
+              }
+            }
+          );
+        }
+      }
       if (outcome?.status !== 'timed_out') return;
       logLine(
         `[build_state] heartbeat write timed out for ${path.resolve(buildRoot)}; heartbeat remains best-effort.`,

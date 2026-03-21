@@ -64,9 +64,10 @@ export const createPatchQueue = ({
   const statePendingLifecycles = new Map();
   const lockRetryLogAtMsByBuildRoot = new Map();
 
-  const createFlushedOutcome = (value) => ({
+  const createFlushedOutcome = (value, extras = null) => ({
     status: PATCH_QUEUE_WAIT_STATUS.FLUSHED,
-    value: value ?? null
+    value: value ?? null,
+    ...(extras && typeof extras === 'object' ? extras : {})
   });
   const createTimedOutOutcome = (buildRoot, elapsedMs) => ({
     status: PATCH_QUEUE_WAIT_STATUS.TIMED_OUT,
@@ -242,10 +243,37 @@ export const createPatchQueue = ({
         timerCancel: null,
         lifecycle: getPendingLifecycle(buildRoot),
         durabilityClass: BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT,
-        waiters: []
+        waiters: [],
+        pendingSinceMs: null,
+        lastLogicalUpdateAtMs: null,
+        coalescedPatchCount: 0,
+        lastFlushStartedAtMs: null,
+        lastFlushCompletedAtMs: null,
+        lastFlushDurationMs: null
       });
     }
     return statePending.get(key);
+  };
+
+  const buildPendingTelemetry = (pending) => {
+    if (!pending || typeof pending !== 'object') return {};
+    const nowMs = Date.now();
+    const pendingLagMs = Number.isFinite(Number(pending.lastLogicalUpdateAtMs))
+      ? Math.max(0, nowMs - Number(pending.lastLogicalUpdateAtMs))
+      : 0;
+    return {
+      queued: true,
+      pendingLagMs,
+      pendingSinceMs: Number.isFinite(Number(pending.pendingSinceMs))
+        ? Math.max(0, nowMs - Number(pending.pendingSinceMs))
+        : 0,
+      pendingPatchBytes: estimateJsonBytes(pending.patch),
+      pendingWaiterCount: Array.isArray(pending.waiters) ? pending.waiters.length : 0,
+      coalescedPatches: Math.max(0, Math.floor(Number(pending.coalescedPatchCount) || 0)),
+      lastFlushDurationMs: Number.isFinite(Number(pending.lastFlushDurationMs))
+        ? Math.max(0, Math.floor(Number(pending.lastFlushDurationMs)))
+        : null
+    };
   };
 
   const flushPendingState = async (buildRoot) => {
@@ -263,16 +291,25 @@ export const createPatchQueue = ({
       pending.durabilityClass,
       BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT
     );
+    const pendingSinceMs = pending.pendingSinceMs;
+    const lastLogicalUpdateAtMs = pending.lastLogicalUpdateAtMs;
+    const coalescedPatchCount = pending.coalescedPatchCount;
     const waiters = pending.waiters;
     pending.patch = null;
     pending.events = [];
     pending.durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT;
     pending.waiters = [];
+    pending.lastFlushStartedAtMs = Date.now();
     try {
       const result = await enqueueStateUpdate(
         buildRoot,
         () => applyStatePatch(buildRoot, patch, events, { durabilityClass })
       );
+      pending.lastFlushCompletedAtMs = Date.now();
+      pending.lastFlushDurationMs = Math.max(0, pending.lastFlushCompletedAtMs - pending.lastFlushStartedAtMs);
+      pending.pendingSinceMs = null;
+      pending.lastLogicalUpdateAtMs = null;
+      pending.coalescedPatchCount = 0;
       if (isLockUnavailable(result)) {
         throw result;
       }
@@ -283,6 +320,8 @@ export const createPatchQueue = ({
       }
       return result;
     } catch (err) {
+      pending.lastFlushCompletedAtMs = Date.now();
+      pending.lastFlushDurationMs = Math.max(0, pending.lastFlushCompletedAtMs - pending.lastFlushStartedAtMs);
       const lockUnavailable = isLockUnavailable(err);
       if (lockUnavailable) {
         waiters.forEach((waiter) => {
@@ -306,6 +345,14 @@ export const createPatchQueue = ({
        */
       pending.patch = pending.patch ? mergeState(patch, pending.patch) : patch;
       pending.durabilityClass = durabilityClass;
+      pending.pendingSinceMs = Number.isFinite(Number(pendingSinceMs)) ? pendingSinceMs : Date.now();
+      pending.lastLogicalUpdateAtMs = Number.isFinite(Number(lastLogicalUpdateAtMs))
+        ? lastLogicalUpdateAtMs
+        : pending.pendingSinceMs;
+      pending.coalescedPatchCount = Math.max(
+        Math.floor(Number(pending.coalescedPatchCount) || 0),
+        Math.floor(Number(coalescedPatchCount) || 0)
+      );
       if (events.length) {
         pending.events = [...events, ...pending.events];
       }
@@ -357,20 +404,33 @@ export const createPatchQueue = ({
     events = [],
     {
       flushNow = false,
-      durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT
+      durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT,
+      waitForFlush = true
     } = {}
   ) => {
     if (!buildRoot || !patch) return Promise.resolve(createFlushedOutcome(null));
     const pending = getPendingEntry(buildRoot);
     const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
+    const enqueuedAtMs = Date.now();
+    if (pending.patch) {
+      pending.coalescedPatchCount += 1;
+    } else {
+      pending.pendingSinceMs = enqueuedAtMs;
+      pending.coalescedPatchCount = 0;
+    }
+    pending.lastLogicalUpdateAtMs = enqueuedAtMs;
     pending.patch = pending.patch ? mergeState(pending.patch, patch) : patch;
     if (events.length) pending.events.push(...events);
     pending.durabilityClass = isRequiredBuildStateDurability(resolvedDurabilityClass)
       || isRequiredBuildStateDurability(pending.durabilityClass)
       ? BUILD_STATE_DURABILITY_CLASS.REQUIRED
       : BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT;
-    const { waiter, promise } = createWaiter(buildRoot, pending, resolvedDurabilityClass);
-    pending.waiters.push(waiter);
+    let promise = null;
+    if (waitForFlush || isRequiredBuildStateDurability(resolvedDurabilityClass)) {
+      const waiterResult = createWaiter(buildRoot, pending, resolvedDurabilityClass);
+      pending.waiters.push(waiterResult.waiter);
+      promise = waiterResult.promise;
+    }
     if (pending.timerCancel) {
       pending.timerCancel();
       pending.timerCancel = null;
@@ -394,7 +454,8 @@ export const createPatchQueue = ({
         label: 'build-state-debounce'
       });
     }
-    return promise;
+    if (promise) return promise;
+    return Promise.resolve(createFlushedOutcome(null, buildPendingTelemetry(pending)));
   };
 
   const flushBuildState = async (buildRoot) => {

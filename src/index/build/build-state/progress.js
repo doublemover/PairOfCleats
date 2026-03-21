@@ -1,6 +1,10 @@
 import path from 'node:path';
 import { logLine } from '../../../shared/progress.js';
-import { BUILD_STATE_DURABILITY_CLASS, resolveBuildStateDurabilityClass } from './durability.js';
+import {
+  BUILD_STATE_DURABILITY_CLASS,
+  isRequiredBuildStateDurability,
+  resolveBuildStateDurabilityClass
+} from './durability.js';
 
 /**
  * Create batched progress checkpoint writer for long-running stage processing.
@@ -59,7 +63,8 @@ export const createBuildCheckpointTracker = ({
               }
             }
           }, {
-            durabilityClass: resolvedDurabilityClass
+            durabilityClass: resolvedDurabilityClass,
+            waitForFlush: force || isRequiredBuildStateDurability(resolvedDurabilityClass)
           });
           if (outcome?.status === 'timed_out') {
             logLine(
@@ -77,7 +82,7 @@ export const createBuildCheckpointTracker = ({
                 }
               }
             );
-          } else {
+          } else if (outcome?.queued || outcome?.status !== 'timed_out') {
             lastFlushedProcessed = snapshotProcessed;
           }
         } catch (error) {
