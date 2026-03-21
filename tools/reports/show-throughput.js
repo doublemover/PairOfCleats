@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { color } from '../../src/retrieval/cli/ansi.js';
 import {
   THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
@@ -91,12 +92,22 @@ import {
 
 const {
   resultsRoot,
+  compareRoot,
   refreshJson,
   deepAnalysis,
   verboseOutput,
-  includeUsrGuardrails
+  includeUsrGuardrails,
+  folderFilter,
+  repoFilter,
+  modeFilter,
+  latestCount,
+  sortMetric,
+  topN,
+  profile,
+  jsonOutput,
+  csvOutput
 } = resolveShowThroughputOptions({
-  argv: process.argv.slice(2),
+  argv: process.argv,
   cwd: process.cwd()
 });
 
@@ -111,7 +122,11 @@ if (refreshJson) {
   process.exit(2);
 }
 
-const folders = listResultFolders(resultsRoot, { includeUsrGuardrails });
+const folderNameFilter = String(folderFilter || '').trim().toLowerCase();
+const folders = listResultFolders(resultsRoot, { includeUsrGuardrails })
+  .filter((dir) => (
+    !folderNameFilter || String(dir.name || '').toLowerCase().includes(folderNameFilter)
+  ));
 if (!folders.length) {
   console.error('No benchmark results folders found.');
   process.exit(0);
@@ -133,6 +148,7 @@ const totalThroughput = {
 };
 const throughputRunsGlobal = [];
 const summariesGlobal = [];
+const folderReports = [];
 /** @type {Map<string, number>} */
 const languageTotals = new Map();
 const modeTotalsGlobal = createModeTotalsMap();
@@ -192,6 +208,7 @@ const createOutcomeRollup = () => ({
 });
 const outcomeTotalsGlobal = createOutcomeRollup();
 const outcomeRepoKeysGlobal = new Set();
+const shouldRenderTextOverview = profile === 'overview' && !jsonOutput && !csvOutput;
 
 const incrementCountMap = (map, key, amount = 1) => {
   if (!(map instanceof Map)) return;
@@ -416,9 +433,86 @@ const createVariabilityEntry = (folder, label, summary) => ({
   p95: summary?.p95 ?? null
 });
 
-console.error(color.bold(color.cyan('Benchmark Performance Overview')));
-console.error(color.gray(`Root: ${resultsRoot}`));
-if (refreshJson) {
+const normalizeTextKey = (value) => String(value || '').trim().toLowerCase();
+
+const matchesRepoFilter = (run, repoFilterValue) => {
+  const filter = normalizeTextKey(repoFilterValue);
+  if (!filter) return true;
+  const candidates = [
+    run?.repoIdentity,
+    run?.repoHistoryKey,
+    run?.file
+  ]
+    .map((value) => normalizeTextKey(value))
+    .filter(Boolean);
+  return candidates.some((candidate) => candidate.includes(filter));
+};
+
+const pickModeDistribution = (report, modeKey) => {
+  const distributions = {
+    code: report?.codeDistribution,
+    prose: report?.proseDistribution,
+    'extracted-prose': report?.extractedProseDistribution,
+    records: report?.recordsDistribution
+  };
+  return modeKey ? distributions[modeKey] || null : null;
+};
+
+const getSortValue = (row, metric) => {
+  switch (metric) {
+    case 'name':
+      return String(row?.label || row?.folder || row?.repoIdentity || '');
+    case 'chunks':
+      return Number(row?.chunksMedian ?? row?.chunkMedian ?? row?.codeDistribution?.chunksPerSec?.median ?? 0);
+    case 'files':
+      return Number(row?.filesMedian ?? row?.codeDistribution?.filesPerSec?.median ?? 0);
+    case 'lines':
+      return Number(row?.linesPerSec ?? 0);
+    case 'build':
+      return Number(row?.buildIndexMedian ?? 0);
+    case 'query':
+      return Number(row?.queryMedian ?? 0);
+    case 'search':
+      return Number(row?.searchMedian ?? 0);
+    case 'variability':
+      return Number(row?.variability ?? row?.codeDistribution?.chunksPerSec?.coefficientOfVariation ?? 0);
+    case 'regressions':
+    default:
+      return Number(row?.regressionSeverity ?? 0);
+  }
+};
+
+const sortRows = (rows, metric) => rows.slice().sort((left, right) => {
+  const leftValue = getSortValue(left, metric);
+  const rightValue = getSortValue(right, metric);
+  if (metric === 'name') {
+    return String(leftValue).localeCompare(String(rightValue));
+  }
+  return Number(rightValue) - Number(leftValue)
+    || String(left?.label || left?.repoIdentity || left?.folder || '').localeCompare(
+      String(right?.label || right?.repoIdentity || right?.folder || '')
+    );
+});
+
+const csvEscape = (value) => {
+  const text = String(value ?? '');
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+const printCsv = (rows) => {
+  if (!rows.length) return;
+  const headers = Object.keys(rows[0]);
+  console.log(headers.join(','));
+  for (const row of rows) {
+    console.log(headers.map((header) => csvEscape(row[header])).join(','));
+  }
+};
+
+if (shouldRenderTextOverview) {
+  console.error(color.bold(color.cyan('Benchmark Performance Overview')));
+  console.error(color.gray(`Root: ${resultsRoot}`));
+}
+if (refreshJson && shouldRenderTextOverview) {
   const depthLabel = deepAnalysis ? 'deep analysis enabled' : 'deep analysis disabled';
   console.error(color.gray(`Refresh mode: writing benchmark JSON summaries (${depthLabel}).`));
 }
@@ -567,11 +661,15 @@ for (const dir of folders) {
   }
 
   const header = `${dir.name}`;
-  console.error('');
-  console.error(color.bold(color.blue(header)));
+  if (shouldRenderTextOverview) {
+    console.error('');
+    console.error(color.bold(color.blue(header)));
+  }
 
   if (!runs.length) {
-    console.error(color.gray('  No benchmark JSON files found.'));
+    if (shouldRenderTextOverview) {
+      console.error(color.gray('  No benchmark JSON files found.'));
+    }
     continue;
   }
 
@@ -622,21 +720,57 @@ for (const dir of folders) {
     createVariabilityEntry(dir.name, 'query/search', wallPerSearch)
   );
 
+  const aggregateIndexed = Array.from(modeTotalsFolder.values()).reduce(
+    (acc, entry) => {
+      acc.lines += Number.isFinite(entry.lines) ? entry.lines : 0;
+      acc.files += Number.isFinite(entry.files) ? entry.files : 0;
+      acc.bytes += Number.isFinite(entry.bytes) ? entry.bytes : 0;
+      acc.durationMs += Number.isFinite(entry.durationMs) ? entry.durationMs : 0;
+      return acc;
+    },
+    { lines: 0, files: 0, bytes: 0, durationMs: 0 }
+  );
+  const aggregateLinesPerSec = aggregateIndexed.durationMs > 0
+    ? (aggregateIndexed.lines / (aggregateIndexed.durationMs / 1000))
+    : null;
+  const folderRegressionCount = folderLedgerRegressions.length;
+  const folderRegressionSeverity = folderLedgerRegressions.length
+    ? Math.max(...folderLedgerRegressions.map((entry) => Math.abs(Number(entry?.deltaPct) || 0)))
+    : 0;
+  folderReports.push({
+    folder: dir.name,
+    label: dir.name,
+    runCount: runs.length,
+    codeDistribution,
+    proseDistribution,
+    extractedProseDistribution,
+    recordsDistribution,
+    buildIndexMs,
+    buildSqliteMs,
+    wallPerQuery,
+    wallPerSearch,
+    backendLatency,
+    aggregateIndexed,
+    aggregateLinesPerSec,
+    folderLedgerRegressions,
+    regressionCount: folderRegressionCount,
+    regressionSeverity: folderRegressionSeverity,
+    outcomeRuns: outcomeTotalsFolder.runs,
+    outcomeRepos: outcomeTotalsFolder.repos,
+    provenance: {
+      indexing: formatSectionProvenance(provenanceTotalsFolder, 'indexing'),
+      analysis: formatSectionProvenance(provenanceTotalsFolder, 'analysis'),
+      throughputLedger: formatSectionProvenance(provenanceTotalsFolder, 'throughputLedger')
+    },
+    runs
+  });
+
+  if (!shouldRenderTextOverview) {
+    continue;
+  }
+
   if (!verboseOutput) {
-    const aggregateIndexed = Array.from(modeTotalsFolder.values()).reduce(
-      (acc, entry) => {
-        acc.lines += Number.isFinite(entry.lines) ? entry.lines : 0;
-        acc.files += Number.isFinite(entry.files) ? entry.files : 0;
-        acc.bytes += Number.isFinite(entry.bytes) ? entry.bytes : 0;
-        acc.durationMs += Number.isFinite(entry.durationMs) ? entry.durationMs : 0;
-        return acc;
-      },
-      { lines: 0, files: 0, bytes: 0, durationMs: 0 }
-    );
     if (aggregateIndexed.lines > 0 || aggregateIndexed.files > 0) {
-      const aggregateLinesPerSec = aggregateIndexed.durationMs > 0
-        ? (aggregateIndexed.lines / (aggregateIndexed.durationMs / 1000))
-        : null;
       console.error(
         `  indexed ${formatCount(aggregateIndexed.lines)} lines | ` +
         `${formatCount(aggregateIndexed.files)} files | ${formatBytes(aggregateIndexed.bytes)} | ` +
@@ -934,49 +1068,51 @@ const bytesWidth = Math.max(...modeRows.map((row) => row.bytesCell.length));
 const filesWidth = Math.max(...modeRows.map((row) => row.filesCell.length));
 const linesWidth = Math.max(0, ...modeRows.map((row) => row.linesCell.length));
 
-console.error('');
-console.error(color.bold(color.green('Throughput Totals')));
-printAlignedTotalLine('Files', `${formatNumber(totalFilesPerSec)} files/s`);
-printAlignedTotalLine('Chunks', `${formatNumber(totalChunksPerSec)} chunks/s`);
-printAlignedTotalLine('Tokens', `${formatNumber(totalTokensPerSec)} tokens/s`);
-printAlignedTotalLine('Bytes', formatBytesPerSec(totalBytesPerSec));
-if (Number.isFinite(totalLinesPerSec)) {
-  printAlignedTotalLine('Lines', `${formatNumber(totalLinesPerSec)} lines/s`);
-}
-for (const row of modeRows) {
-  const linesText = row.linesCell ? row.linesCell.padStart(linesWidth) : '';
-  printAlignedTotalLine(
-    row.label,
-    `${row.chunksCell.padStart(chunksWidth)} | ` +
-    `${row.tokensCell.padStart(tokensWidth)} | ` +
-    `${row.bytesCell.padStart(bytesWidth)} | ` +
-    `${row.filesCell.padStart(filesWidth)} | ` +
-    `${linesText}`
-  );
-}
-for (const { label, pick } of THROUGHPUT_GROUPS) {
-  if (['Code throughput', 'Prose throughput', 'Extracted prose throughput', 'Records throughput']
-    .some((entry) => entry.toLowerCase() === label.toLowerCase())) {
-    continue;
+if (shouldRenderTextOverview) {
+  console.error('');
+  console.error(color.bold(color.green('Throughput Totals')));
+  printAlignedTotalLine('Files', `${formatNumber(totalFilesPerSec)} files/s`);
+  printAlignedTotalLine('Chunks', `${formatNumber(totalChunksPerSec)} chunks/s`);
+  printAlignedTotalLine('Tokens', `${formatNumber(totalTokensPerSec)} tokens/s`);
+  printAlignedTotalLine('Bytes', formatBytesPerSec(totalBytesPerSec));
+  if (Number.isFinite(totalLinesPerSec)) {
+    printAlignedTotalLine('Lines', `${formatNumber(totalLinesPerSec)} lines/s`);
   }
-  const entry = pick(totalThroughput);
-  const chunksPerSec = rateFromTotals(entry, 'chunks');
-  const tokensPerSec = rateFromTotals(entry, 'tokens');
-  const bytesPerSec = rateFromTotals(entry, 'bytes');
-  const filesPerSec = rateFromTotals(entry, 'files');
-  if (!Number.isFinite(chunksPerSec)
-    && !Number.isFinite(tokensPerSec)
-    && !Number.isFinite(bytesPerSec)
-    && !Number.isFinite(filesPerSec)) {
-    continue;
+  for (const row of modeRows) {
+    const linesText = row.linesCell ? row.linesCell.padStart(linesWidth) : '';
+    printAlignedTotalLine(
+      row.label,
+      `${row.chunksCell.padStart(chunksWidth)} | ` +
+      `${row.tokensCell.padStart(tokensWidth)} | ` +
+      `${row.bytesCell.padStart(bytesWidth)} | ` +
+      `${row.filesCell.padStart(filesWidth)} | ` +
+      `${linesText}`
+    );
   }
-  printAlignedTotalLine(
-    label,
-    `${formatNumber(chunksPerSec)} chunks/s | ` +
-    `${formatNumber(tokensPerSec)} tokens/s | ` +
-    `${formatBytesPerSec(bytesPerSec)} | ` +
-    `${formatNumber(filesPerSec)} files/s`
-  );
+  for (const { label, pick } of THROUGHPUT_GROUPS) {
+    if (['Code throughput', 'Prose throughput', 'Extracted prose throughput', 'Records throughput']
+      .some((entry) => entry.toLowerCase() === label.toLowerCase())) {
+      continue;
+    }
+    const entry = pick(totalThroughput);
+    const chunksPerSec = rateFromTotals(entry, 'chunks');
+    const tokensPerSec = rateFromTotals(entry, 'tokens');
+    const bytesPerSec = rateFromTotals(entry, 'bytes');
+    const filesPerSec = rateFromTotals(entry, 'files');
+    if (!Number.isFinite(chunksPerSec)
+      && !Number.isFinite(tokensPerSec)
+      && !Number.isFinite(bytesPerSec)
+      && !Number.isFinite(filesPerSec)) {
+      continue;
+    }
+    printAlignedTotalLine(
+      label,
+      `${formatNumber(chunksPerSec)} chunks/s | ` +
+      `${formatNumber(tokensPerSec)} tokens/s | ` +
+      `${formatBytesPerSec(bytesPerSec)} | ` +
+      `${formatNumber(filesPerSec)} files/s`
+    );
+  }
 }
 const globalCodeDistribution = summarizeThroughputDistribution(throughputRunsGlobal, (throughput) => throughput?.code || null);
 const globalProseDistribution = summarizeThroughputDistribution(throughputRunsGlobal, (throughput) => throughput?.prose || null);
@@ -1016,7 +1152,7 @@ console.error(
   `  ${''.padStart(8)}  sqlite mean ${formatDistributionMsSummary(globalLatency.sqlite?.mean)} | ` +
   `sqlite run-p95 ${formatDistributionMsSummary(globalLatency.sqlite?.p95)}`
 );
-if (ledgerRegressionsGlobal.length) {
+if (shouldRenderTextOverview && ledgerRegressionsGlobal.length) {
   ledgerRegressionsGlobal.sort((left, right) => (
     left.metricKind === 'duration'
       ? (Number(right.deltaPct) - Number(left.deltaPct))
@@ -1038,7 +1174,7 @@ const variabilityRows = variabilityRowsGlobal
   .sort((left, right) => (
     Number(right.coefficientOfVariation) - Number(left.coefficientOfVariation)
   ) || String(left.folder || '').localeCompare(String(right.folder || '')));
-if (variabilityRows.length) {
+if (shouldRenderTextOverview && variabilityRows.length) {
   console.error(color.bold('Top Variability'));
   for (const entry of variabilityRows.slice(0, 8)) {
     console.error(
@@ -1047,7 +1183,7 @@ if (variabilityRows.length) {
     );
   }
 }
-if (hasAstGraphValues(astGraphTotalsGlobal.totals)) {
+if (shouldRenderTextOverview && hasAstGraphValues(astGraphTotalsGlobal.totals)) {
   const astPairs = [
     ['Symbols', formatAstField(astGraphTotalsGlobal, 'symbols'), 'Classes', formatAstField(astGraphTotalsGlobal, 'classes')],
     ['Functions', formatAstField(astGraphTotalsGlobal, 'functions'), 'Imports', formatAstField(astGraphTotalsGlobal, 'imports')],
@@ -1093,7 +1229,7 @@ const totalsByModeRows = [
   };
 }).filter(Boolean);
 
-if (totalsByModeRows.length) {
+if (shouldRenderTextOverview && totalsByModeRows.length) {
   const lineWidth = Math.max(...totalsByModeRows.map((row) => row.linesText.length));
   const fileWidth = Math.max(...totalsByModeRows.map((row) => row.filesText.length));
   const bytesWidth = Math.max(...totalsByModeRows.map((row) => row.bytesText.length));
@@ -1110,7 +1246,7 @@ if (totalsByModeRows.length) {
     );
   }
 }
-if (languageTotals.size) {
+if (shouldRenderTextOverview && languageTotals.size) {
   const sortedLanguages = Array.from(languageTotals.entries())
     .sort((a, b) => b[1] - a[1]);
   const languageDisplayLimit = verboseOutput ? sortedLanguages.length : 12;
@@ -1135,22 +1271,233 @@ if (languageTotals.size) {
     }
   }
 }
-console.error('');
-console.error(color.bold('Scan Outcome Totals'));
-console.error(`  coverage repos: ${formatCoverageSummary(outcomeTotalsGlobal.repos)}`);
-console.error(`  coverage runs: ${formatCoverageSummary(outcomeTotalsGlobal.runs)}`);
-console.error(`  skip reasons: ${formatCountMapSummary(outcomeTotalsGlobal.repos.skipReasons, 8)}`);
-console.error(`  cache: ${formatCacheSummary(outcomeTotalsGlobal.repos)}`);
-console.error(
-  `  quality: ${formatCountMapSummary(outcomeTotalsGlobal.runs.confidence)} | ` +
-  `low-yield ${formatCount(outcomeTotalsGlobal.runs.lowYield.triggered)} ` +
-  `(${formatCount(outcomeTotalsGlobal.runs.lowYield.skippedFiles)} skipped files) | ` +
-  `filter-index reused ${formatCount(outcomeTotalsGlobal.runs.filterIndexReused)} | ` +
-  `diagnostics ${formatCountMapSummary(outcomeTotalsGlobal.runs.diagnostics, 6)}`
-);
-console.error(`  pressure: ${formatResourceSummary(outcomeTotalsGlobal.runs)}`);
-console.error('');
-console.error(color.bold('Overview Provenance'));
-console.error(`  indexing: ${formatSectionProvenance(provenanceTotalsGlobal, 'indexing')}`);
-console.error(`  analysis: ${formatSectionProvenance(provenanceTotalsGlobal, 'analysis')}`);
-console.error(`  throughput ledger: ${formatSectionProvenance(provenanceTotalsGlobal, 'throughputLedger')}`);
+if (shouldRenderTextOverview) {
+  console.error('');
+  console.error(color.bold('Scan Outcome Totals'));
+  console.error(`  coverage repos: ${formatCoverageSummary(outcomeTotalsGlobal.repos)}`);
+  console.error(`  coverage runs: ${formatCoverageSummary(outcomeTotalsGlobal.runs)}`);
+  console.error(`  skip reasons: ${formatCountMapSummary(outcomeTotalsGlobal.repos.skipReasons, 8)}`);
+  console.error(`  cache: ${formatCacheSummary(outcomeTotalsGlobal.repos)}`);
+  console.error(
+    `  quality: ${formatCountMapSummary(outcomeTotalsGlobal.runs.confidence)} | ` +
+    `low-yield ${formatCount(outcomeTotalsGlobal.runs.lowYield.triggered)} ` +
+    `(${formatCount(outcomeTotalsGlobal.runs.lowYield.skippedFiles)} skipped files) | ` +
+    `filter-index reused ${formatCount(outcomeTotalsGlobal.runs.filterIndexReused)} | ` +
+    `diagnostics ${formatCountMapSummary(outcomeTotalsGlobal.runs.diagnostics, 6)}`
+  );
+  console.error(`  pressure: ${formatResourceSummary(outcomeTotalsGlobal.runs)}`);
+  console.error('');
+  console.error(color.bold('Overview Provenance'));
+  console.error(`  indexing: ${formatSectionProvenance(provenanceTotalsGlobal, 'indexing')}`);
+  console.error(`  analysis: ${formatSectionProvenance(provenanceTotalsGlobal, 'analysis')}`);
+  console.error(`  throughput ledger: ${formatSectionProvenance(provenanceTotalsGlobal, 'throughputLedger')}`);
+}
+
+const outputSummary = {
+  schemaVersion: 1,
+  generatedAt: new Date().toISOString(),
+  profile,
+  root: resultsRoot,
+  compareRoot,
+  filters: {
+    folder: folderFilter || null,
+    repo: repoFilter || null,
+    mode: modeFilter || null,
+    latest: latestCount,
+    sort: sortMetric,
+    top: topN
+  },
+  totals: {
+    filesPerSec: totalFilesPerSec,
+    chunksPerSec: totalChunksPerSec,
+    tokensPerSec: totalTokensPerSec,
+    bytesPerSec: totalBytesPerSec,
+    linesPerSec: totalLinesPerSec
+  },
+  distributions: {
+    code: globalCodeDistribution,
+    prose: globalProseDistribution,
+    extractedProse: globalExtractedProseDistribution,
+    records: globalRecordsDistribution,
+    buildIndexMs: globalBuildIndexDistribution,
+    buildSqliteMs: globalBuildSqliteDistribution,
+    queryWallMsPerQuery: globalQueryDistribution,
+    queryWallMsPerSearch: globalSearchDistribution,
+    latencyMs: globalLatency
+  },
+  outcomes: {
+    repos: outcomeTotalsGlobal.repos,
+    runs: outcomeTotalsGlobal.runs
+  },
+  provenance: {
+    indexing: formatSectionProvenance(provenanceTotalsGlobal, 'indexing'),
+    analysis: formatSectionProvenance(provenanceTotalsGlobal, 'analysis'),
+    throughputLedger: formatSectionProvenance(provenanceTotalsGlobal, 'throughputLedger')
+  },
+  topRegressions: ledgerRegressionsGlobal.slice(0, topN),
+  topVariability: variabilityRows.slice(0, topN),
+  folders: folderReports.map((report) => ({
+    folder: report.folder,
+    runCount: report.runCount,
+    codeChunksMedian: report.codeDistribution?.chunksPerSec?.median ?? null,
+    codeChunksP95: report.codeDistribution?.chunksPerSec?.p95 ?? null,
+    codeFilesMedian: report.codeDistribution?.filesPerSec?.median ?? null,
+    linesPerSec: report.aggregateLinesPerSec,
+    buildIndexMedian: report.buildIndexMs?.median ?? null,
+    queryMedian: report.wallPerQuery?.median ?? null,
+    searchMedian: report.wallPerSearch?.median ?? null,
+    regressionCount: report.regressionCount,
+    regressionSeverity: report.regressionSeverity,
+    variability: report.codeDistribution?.chunksPerSec?.coefficientOfVariation ?? null,
+    coverageCandidates: report.outcomeRepos.coverage.candidates,
+    coverageScanned: report.outcomeRepos.coverage.scanned,
+    coverageSkipped: report.outcomeRepos.coverage.skipped,
+    provenance: report.provenance
+  }))
+};
+
+const buildFamilyRows = () => sortRows(folderReports.map((report) => ({
+  folder: report.folder,
+  label: report.folder,
+  runs: report.runCount,
+  chunkMedian: report.codeDistribution?.chunksPerSec?.median ?? null,
+  chunkP95: report.codeDistribution?.chunksPerSec?.p95 ?? null,
+  filesMedian: report.codeDistribution?.filesPerSec?.median ?? null,
+  linesPerSec: report.aggregateLinesPerSec,
+  buildIndexMedian: report.buildIndexMs?.median ?? null,
+  searchMedian: report.wallPerSearch?.median ?? null,
+  regressions: report.regressionCount,
+  regressionSeverity: report.regressionSeverity,
+  variability: report.codeDistribution?.chunksPerSec?.coefficientOfVariation ?? null,
+  coverageCandidates: report.outcomeRepos.coverage.candidates,
+  coverageScanned: report.outcomeRepos.coverage.scanned,
+  coverageSkipped: report.outcomeRepos.coverage.skipped
+})), sortMetric).slice(0, topN);
+
+const buildRepoRows = () => {
+  const rows = [];
+  for (const report of folderReports) {
+    for (const run of report.runs) {
+      if (!matchesRepoFilter(run, repoFilter)) continue;
+      const modeDistribution = modeFilter
+        ? (run.throughput?.[modeFilter === 'extracted-prose' ? 'extractedProse' : modeFilter] || null)
+        : (run.throughput?.code || null);
+      rows.push({
+        folder: report.folder,
+        label: run.repoIdentity || run.file,
+        repoIdentity: run.repoIdentity,
+        file: run.file,
+        chunksMedian: Number(modeDistribution?.chunksPerSec),
+        filesMedian: Number(modeDistribution?.filesPerSec),
+        buildIndexMedian: Number(run.summary?.buildMs?.index),
+        queryMedian: Number(run.summary?.queryWallMsPerQuery),
+        searchMedian: Number(run.summary?.queryWallMsPerSearch),
+        regressionSeverity: Math.max(...Object.values(run.throughputLedgerDiff?.metrics || {})
+          .flatMap((metricSummary) => (metricSummary?.regressions || []).map((entry) => Math.abs(Number(entry?.deltaPct) || 0))), 0),
+        variability: null
+      });
+    }
+  }
+  return sortRows(rows, sortMetric).slice(0, topN);
+};
+
+const printFamilyText = (rows) => {
+  console.log('Family Overview');
+  for (const row of rows) {
+    console.log(
+      `${row.folder}: runs ${formatCount(row.runs)} | ` +
+      `chunks p50/p95 ${formatNumber(row.chunkMedian)}/${formatNumber(row.chunkP95)} | ` +
+      `build ${formatMs(row.buildIndexMedian)} | search ${formatMs(row.searchMedian)} | ` +
+      `reg ${formatCount(row.regressions)} | cv ${formatPct(row.variability)}`
+    );
+  }
+};
+
+const printRepoText = (rows) => {
+  console.log('Repo Overview');
+  for (const row of rows) {
+    console.log(
+      `${row.folder}/${row.repoIdentity}: chunks ${formatNumber(row.chunksMedian)} | ` +
+      `build ${formatMs(row.buildIndexMedian)} | query ${formatMs(row.queryMedian)} | ` +
+      `search ${formatMs(row.searchMedian)} | reg ${formatPct(row.regressionSeverity)}`
+    );
+  }
+};
+
+const printCompareText = () => {
+  if (!compareRoot) {
+    throw new Error('--compare is required when --profile compare is used');
+  }
+  const compareResult = spawnSync(
+    process.execPath,
+    [
+      process.argv[1],
+      '--root', compareRoot,
+      '--profile', 'raw',
+      '--json',
+      '--top', String(topN),
+      ...(folderFilter ? ['--folder', folderFilter] : []),
+      ...(repoFilter ? ['--repo', repoFilter] : []),
+      ...(modeFilter ? ['--mode', modeFilter] : []),
+      ...(latestCount ? ['--latest', String(latestCount)] : [])
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: process.env
+    }
+  );
+  if (compareResult.status !== 0) {
+    throw new Error(compareResult.stderr || compareResult.stdout || 'compare profile failed');
+  }
+  const baseline = JSON.parse(String(compareResult.stdout || '{}'));
+  const currentFolders = new Map(outputSummary.folders.map((entry) => [entry.folder, entry]));
+  const baselineFolders = new Map((baseline.folders || []).map((entry) => [entry.folder, entry]));
+  const rows = [];
+  for (const folder of new Set([...currentFolders.keys(), ...baselineFolders.keys()])) {
+    const current = currentFolders.get(folder) || {};
+    const prior = baselineFolders.get(folder) || {};
+    rows.push({
+      folder,
+      currentChunks: current.codeChunksMedian ?? null,
+      baselineChunks: prior.codeChunksMedian ?? null,
+      deltaChunksPct: Number.isFinite(current.codeChunksMedian) && Number.isFinite(prior.codeChunksMedian) && prior.codeChunksMedian > 0
+        ? ((current.codeChunksMedian - prior.codeChunksMedian) / prior.codeChunksMedian)
+        : null,
+      currentBuild: current.buildIndexMedian ?? null,
+      baselineBuild: prior.buildIndexMedian ?? null,
+      deltaBuildPct: Number.isFinite(current.buildIndexMedian) && Number.isFinite(prior.buildIndexMedian) && prior.buildIndexMedian > 0
+        ? ((current.buildIndexMedian - prior.buildIndexMedian) / prior.buildIndexMedian)
+        : null
+    });
+  }
+  console.log('Compare Overview');
+  for (const row of sortRows(rows.map((entry) => ({
+    ...entry,
+    label: entry.folder,
+    regressionSeverity: Math.abs(Number(entry.deltaBuildPct) || 0) + Math.abs(Number(entry.deltaChunksPct) || 0)
+  })), sortMetric).slice(0, topN)) {
+    console.log(
+      `${row.folder}: chunks ${formatNumber(row.currentChunks)} vs ${formatNumber(row.baselineChunks)} ` +
+      `(${formatPct(row.deltaChunksPct)}) | build ${formatMs(row.currentBuild)} vs ${formatMs(row.baselineBuild)} ` +
+      `(${formatPct(row.deltaBuildPct)})`
+    );
+  }
+};
+
+if (!shouldRenderTextOverview) {
+  if (jsonOutput || profile === 'raw') {
+    console.log(JSON.stringify(outputSummary, null, 2));
+  } else if (csvOutput) {
+    const rows = profile === 'repo' ? buildRepoRows() : buildFamilyRows();
+    printCsv(rows);
+  } else if (profile === 'family') {
+    printFamilyText(buildFamilyRows());
+  } else if (profile === 'repo') {
+    printRepoText(buildRepoRows());
+  } else if (profile === 'compare') {
+    printCompareText();
+  } else {
+    console.log(JSON.stringify(outputSummary, null, 2));
+  }
+}
