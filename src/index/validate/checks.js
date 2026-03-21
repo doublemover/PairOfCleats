@@ -1,4 +1,8 @@
 import { buildMetaV2 } from '../metadata-v2.js';
+import {
+  assertChunkIdentityEnvelope,
+  buildChunkIdentityEnvelopeFromArtifactRow
+} from '../../shared/identity.js';
 import { stableStringify } from '../../shared/stable-json.js';
 import { addIssue } from './issues.js';
 
@@ -65,31 +69,25 @@ export const validateChunkIdentity = (report, mode, chunkMeta) => {
   for (const entry of Array.isArray(chunkMeta) ? chunkMeta : []) {
     if (errors >= maxErrors) return;
     if (!entry) continue;
-    const meta = entry.metaV2 || {};
-    const chunkUid = meta.chunkUid || entry.chunkUid;
-    const virtualPath = meta.virtualPath || entry.virtualPath || meta.segment?.virtualPath || entry.segment?.virtualPath;
-    if (!chunkUid) {
-      addIssue(report, mode, 'chunk_meta missing chunkUid', 'Rebuild index artifacts for this mode.');
+    const identity = buildChunkIdentityEnvelopeFromArtifactRow(entry);
+    try {
+      assertChunkIdentityEnvelope(identity, {
+        label: 'chunk_meta',
+        requireChunkUid: true,
+        requireVirtualPath: true,
+        requireSegmentUid: !!(entry?.metaV2?.segment || entry?.segment)
+      });
+    } catch (error) {
+      addIssue(report, mode, String(error?.message || error), 'Rebuild index artifacts for this mode.');
       errors += 1;
       continue;
     }
-    if (!virtualPath) {
-      addIssue(report, mode, `chunk_meta missing virtualPath (chunkUid=${chunkUid})`, 'Rebuild index artifacts for this mode.');
+    if (seenUids.has(identity.chunkUid)) {
+      addIssue(report, mode, `chunk_meta duplicate chunkUid (${identity.chunkUid})`, 'Rebuild index artifacts for this mode.');
       errors += 1;
       continue;
     }
-    const segment = meta.segment || entry.segment || null;
-    if (segment && !segment.segmentUid) {
-      addIssue(report, mode, `chunk_meta missing segmentUid (chunkUid=${chunkUid})`, 'Rebuild index artifacts for this mode.');
-      errors += 1;
-      continue;
-    }
-    if (seenUids.has(chunkUid)) {
-      addIssue(report, mode, `chunk_meta duplicate chunkUid (${chunkUid})`, 'Rebuild index artifacts for this mode.');
-      errors += 1;
-      continue;
-    }
-    seenUids.add(chunkUid);
+    seenUids.add(identity.chunkUid);
   }
 };
 

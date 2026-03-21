@@ -26,7 +26,8 @@ export const writeArtifactPublicationRecord = async ({
   artifactSurfaceVersion = ARTIFACT_SURFACE_VERSION,
   compatibilityKey = null,
   pieceEntries = [],
-  manifestPath = null
+  manifestPath = null,
+  identityReconciliation = null
 }) => {
   if (!buildRoot || !outDir || !mode) {
     throw new Error('writeArtifactPublicationRecord requires buildRoot, outDir, and mode.');
@@ -59,6 +60,14 @@ export const writeArtifactPublicationRecord = async ({
     manifestPath: path.resolve(resolvedManifestPath),
     artifactSurfaceVersion,
     compatibilityKey: compatibilityKey || null,
+    identityReconciliation: identityReconciliation
+      ? {
+        ok: identityReconciliation.ok !== false,
+        totalIssues: Number(identityReconciliation.totalIssues || 0),
+        counts: identityReconciliation.counts || null,
+        summary: identityReconciliation.summary || null
+      }
+      : null,
     pieceCount: committedPieceEntries.length,
     publishedAt: new Date().toISOString()
   };
@@ -104,6 +113,11 @@ export const assertArtifactPublicationReady = async ({
     if (typeof payload?.manifestPath !== 'string' || !payload.manifestPath) {
       throw new Error(
         `[artifact-publication] ${mode} publication is missing manifestPath in ${publicationPath}.`
+      );
+    }
+    if (payload?.identityReconciliation && payload.identityReconciliation.ok === false) {
+      throw new Error(
+        `[artifact-publication] ${mode} identity reconciliation failed in ${publicationPath}.`
       );
     }
     try {

@@ -40,11 +40,9 @@ await assignChunkUids({
 const [first, second] = chunks;
 assert.ok(first.chunkUid && second.chunkUid, 'expected chunkUid values to be assigned');
 assert.notEqual(first.chunkUid, second.chunkUid, 'expected collision disambiguation to create unique chunkUid values');
-const firstCollision = first.identity?.collisionOf || null;
-const secondCollision = second.identity?.collisionOf || null;
-if (firstCollision || secondCollision) {
-  assert.equal(firstCollision, secondCollision, 'expected shared collisionOf base');
-  assert.ok(firstCollision, 'expected collisionOf metadata on first chunk');
-}
+assert.equal(String(first.chunkUid).includes(':ord'), false, 'expected deterministic entropy salt to avoid ordinal fallback');
+assert.equal(String(second.chunkUid).includes(':ord'), false, 'expected deterministic entropy salt to avoid ordinal fallback');
+assert.equal(first.identity?.collisionOf || null, null, 'expected no ordinal collision metadata on first chunk');
+assert.equal(second.identity?.collisionOf || null, null, 'expected no ordinal collision metadata on second chunk');
 
 console.log('chunkUid collision disambiguation test passed');

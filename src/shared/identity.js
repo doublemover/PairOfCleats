@@ -35,18 +35,16 @@ const GENERATED_SYMBOL_ID_PATTERN = /^sym1:[a-z0-9._-]+:[a-f0-9]{40}$/;
  */
 export const buildChunkRef = (chunk) => {
   if (!chunk || typeof chunk !== 'object') return null;
-  const meta = chunk.metaV2 || {};
-  const segment = chunk.segment || meta.segment || null;
+  const identity = buildChunkIdentityEnvelopeFromArtifactRow(chunk);
+  if (!identity) return null;
   return {
-    docId: Number.isFinite(chunk.id) ? chunk.id : null,
-    chunkUid: chunk.chunkUid || meta.chunkUid || null,
-    chunkId: chunk.chunkId || meta.chunkId || null,
-    file: chunk.file || meta.file || null,
-    segmentUid: segment?.segmentUid || null,
-    segmentId: segment?.segmentId || null,
-    range: Number.isFinite(chunk.start) && Number.isFinite(chunk.end)
-      ? { start: chunk.start, end: chunk.end }
-      : undefined
+    docId: identity.docId,
+    chunkUid: identity.chunkUid,
+    chunkId: identity.chunkId,
+    file: identity.file,
+    segmentUid: identity.segmentUid,
+    segmentId: identity.segmentId,
+    range: identity.range
   };
 };
 
@@ -126,4 +124,156 @@ export const buildSymbolId = ({ scopedId, scheme = 'heur' }) => {
   const prefix = `sym1:${scheme}:`;
   const symbolId = `${prefix}${sha1(String(scopedId))}`;
   return isCanonicalGeneratedSymbolId(symbolId) ? symbolId : null;
+};
+
+const normalizeIdentityText = (value) => {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  return text ? text : null;
+};
+
+const normalizeFiniteNumber = (value) => (
+  Number.isFinite(value) ? Number(value) : null
+);
+
+const buildRangeEnvelope = ({ start, end } = {}) => {
+  const safeStart = normalizeFiniteNumber(start);
+  const safeEnd = normalizeFiniteNumber(end);
+  if (!Number.isFinite(safeStart) || !Number.isFinite(safeEnd)) return undefined;
+  return { start: safeStart, end: safeEnd };
+};
+
+export const buildSegmentIdentityEnvelope = (input = {}) => {
+  if (!input || typeof input !== 'object') return null;
+  const segmentUid = normalizeIdentityText(input.segmentUid);
+  const segmentId = normalizeIdentityText(input.segmentId);
+  const virtualPath = normalizeIdentityText(input.virtualPath);
+  const file = normalizeIdentityText(input.file);
+  const languageId = normalizeIdentityText(input.languageId);
+  const range = buildRangeEnvelope({
+    start: input.start ?? input.segmentStart,
+    end: input.end ?? input.segmentEnd
+  });
+  if (!segmentUid && !segmentId && !virtualPath && !file && !languageId && !range) {
+    return null;
+  }
+  return {
+    segmentUid,
+    segmentId,
+    virtualPath,
+    file,
+    languageId,
+    range
+  };
+};
+
+export const buildChunkIdentityEnvelope = (input = {}) => {
+  if (!input || typeof input !== 'object') return null;
+  const segmentEnvelope = buildSegmentIdentityEnvelope(input.segment || input);
+  const docId = normalizeFiniteNumber(input.docId ?? input.id);
+  const chunkUid = normalizeIdentityText(input.chunkUid);
+  const chunkId = normalizeIdentityText(input.chunkId);
+  const file = normalizeIdentityText(input.file);
+  const virtualPath = normalizeIdentityText(
+    input.virtualPath ?? segmentEnvelope?.virtualPath
+  );
+  const languageId = normalizeIdentityText(
+    input.languageId ?? input.lang ?? segmentEnvelope?.languageId
+  );
+  const range = buildRangeEnvelope({ start: input.start, end: input.end });
+  if (
+    docId === null
+    && !chunkUid
+    && !chunkId
+    && !file
+    && !virtualPath
+    && !languageId
+    && !range
+    && !segmentEnvelope
+  ) {
+    return null;
+  }
+  return {
+    docId,
+    chunkUid,
+    chunkId,
+    file,
+    virtualPath,
+    languageId,
+    segmentUid: segmentEnvelope?.segmentUid || null,
+    segmentId: segmentEnvelope?.segmentId || null,
+    range
+  };
+};
+
+export const buildChunkIdentityEnvelopeFromArtifactRow = (row) => {
+  if (!row || typeof row !== 'object') return null;
+  const meta = row.metaV2 && typeof row.metaV2 === 'object' ? row.metaV2 : {};
+  const segment = row.segment && typeof row.segment === 'object'
+    ? row.segment
+    : (meta.segment && typeof meta.segment === 'object' ? meta.segment : null);
+  return buildChunkIdentityEnvelope({
+    docId: row.id ?? row.docId,
+    chunkUid: row.chunkUid ?? meta.chunkUid,
+    chunkId: row.chunkId ?? meta.chunkId,
+    file: row.file ?? meta.file,
+    virtualPath: row.virtualPath ?? meta.virtualPath ?? segment?.virtualPath,
+    languageId: row.lang ?? meta.lang ?? segment?.languageId,
+    start: row.start,
+    end: row.end,
+    segment
+  });
+};
+
+export const assertSegmentIdentityEnvelope = (
+  envelope,
+  {
+    label = 'segment',
+    requireSegmentUid = false,
+    requireVirtualPath = false
+  } = {}
+) => {
+  const identity = buildSegmentIdentityEnvelope(envelope);
+  if (!identity) {
+    throw new Error(`${label} missing identity envelope`);
+  }
+  if (requireSegmentUid && !identity.segmentUid) {
+    throw new Error(`${label} missing segmentUid`);
+  }
+  if (requireVirtualPath && !identity.virtualPath) {
+    throw new Error(`${label} missing virtualPath`);
+  }
+  return identity;
+};
+
+export const assertChunkIdentityEnvelope = (
+  envelope,
+  {
+    label = 'chunk',
+    requireChunkUid = false,
+    requireVirtualPath = false,
+    requireSegmentUid = false,
+    requireFile = false
+  } = {}
+) => {
+  const identity = buildChunkIdentityEnvelope(envelope);
+  if (!identity) {
+    throw new Error(`${label} missing identity envelope`);
+  }
+  if (requireChunkUid && !identity.chunkUid) {
+    throw new Error(`${label} missing chunkUid`);
+  }
+  if (identity.chunkUid && !isCanonicalChunkUid(identity.chunkUid)) {
+    throw new Error(`${label} invalid canonical chunkUid (${identity.chunkUid})`);
+  }
+  if (requireVirtualPath && !identity.virtualPath) {
+    throw new Error(`${label} missing virtualPath`);
+  }
+  if (requireSegmentUid && !identity.segmentUid) {
+    throw new Error(`${label} missing segmentUid`);
+  }
+  if (requireFile && !identity.file) {
+    throw new Error(`${label} missing file`);
+  }
+  return identity;
 };

@@ -4,6 +4,7 @@ import { writeFileLists } from '../artifacts/file-lists.js';
 import { writeIndexMetrics } from '../artifacts/metrics.js';
 import { writePiecesManifest } from '../artifacts/checksums.js';
 import { writeArtifactPublicationRecord } from '../artifact-publication.js';
+import { reconcileIndexIdentity } from '../../identity/reconcile.js';
 import { createOrderingHasher } from '../../../shared/order.js';
 import { recordOrderingHash } from '../build-state.js';
 
@@ -135,6 +136,11 @@ export const runArtifactPublicationFinalizers = async ({
     repoProvenance
   }));
   pieceEntries = listPieceEntries();
+  const identityReconciliation = await assertArtifactIdentityReconciliationReady({
+    runTrackedArtifactCloseout,
+    outDir,
+    mode
+  });
   await runTrackedArtifactCloseout('artifact-publication', async () => writeArtifactPublicationRecord({
     buildRoot: buildRoot || path.resolve(outDir, '..'),
     outDir,
@@ -144,7 +150,37 @@ export const runArtifactPublicationFinalizers = async ({
     artifactSurfaceVersion: indexState?.artifactSurfaceVersion || null,
     compatibilityKey: indexState?.compatibilityKey || null,
     pieceEntries,
-    manifestPath: path.join(outDir, 'pieces', 'manifest.json')
+    manifestPath: path.join(outDir, 'pieces', 'manifest.json'),
+    identityReconciliation
   }));
   return pieceEntries;
+};
+
+export const assertArtifactIdentityReconciliationReady = async ({
+  runTrackedArtifactCloseout,
+  outDir,
+  mode
+} = {}) => {
+  if (mode !== 'code') return null;
+  let identityReconciliation = null;
+  const run = typeof runTrackedArtifactCloseout === 'function'
+    ? runTrackedArtifactCloseout
+    : async (_label, task) => task();
+  await run('identity-reconciliation', async () => {
+    identityReconciliation = await reconcileIndexIdentity({
+      indexDir: outDir,
+      mode,
+      strict: true
+    });
+    if (!identityReconciliation.ok) {
+      const firstIssue = identityReconciliation.issues[0]?.message || 'identity reconciliation failed';
+      throw new Error(
+        `[identity] ${firstIssue} `
+        + `(issues=${identityReconciliation.totalIssues}, chunk_meta=${identityReconciliation.counts.chunkMeta}, `
+        + `symbols=${identityReconciliation.counts.symbols}, symbol_occurrences=${identityReconciliation.counts.symbolOccurrences}, `
+        + `symbol_edges=${identityReconciliation.counts.symbolEdges})`
+      );
+    }
+  });
+  return identityReconciliation;
 };

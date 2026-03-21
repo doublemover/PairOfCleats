@@ -87,14 +87,17 @@ const buildCollisionKey = (chunk, fileRelPath) => [
   chunk?.name || ''
 ].join('|');
 
-const buildCollisionEntropySalt = (chunk) => {
+const buildCollisionEntropySalt = (chunk, fileRelPath = '') => {
   const chunkId = chunk?.chunkId || chunk?.metaV2?.chunkId || '';
+  const file = chunk?.file || chunk?.metaV2?.file || fileRelPath || '';
+  const start = Number.isFinite(chunk?.start) ? Math.floor(chunk.start) : '';
+  const end = Number.isFinite(chunk?.end) ? Math.floor(chunk.end) : '';
   const startLine = Number.isFinite(chunk?.startLine) ? Math.floor(chunk.startLine) : '';
   const endLine = Number.isFinite(chunk?.endLine) ? Math.floor(chunk.endLine) : '';
   const segmentUid = chunk?.segment?.segmentUid || '';
   const kind = chunk?.kind || '';
   const name = chunk?.name || '';
-  return `${chunkId}:${startLine}:${endLine}:${segmentUid}:${kind}:${name}`;
+  return `${file}:${chunkId}:${start}:${end}:${startLine}:${endLine}:${segmentUid}:${kind}:${name}`;
 };
 
 const formatHashForMeta = (value) => (value ? `xxh64:${value}` : null);
@@ -177,7 +180,7 @@ export const assignChunkUids = async ({
         await computeForChunk(
           chunk,
           { pre: PRE_CONTEXT_CHARS, post: POST_CONTEXT_CHARS },
-          { spanSalt: buildCollisionEntropySalt(chunk) }
+          { spanSalt: buildCollisionEntropySalt(chunk, safePath) }
         );
       }
     }
@@ -191,7 +194,7 @@ export const assignChunkUids = async ({
         await computeForChunk(
           chunk,
           { pre: ESCALATION_CONTEXT_CHARS, post: ESCALATION_CONTEXT_CHARS },
-          { spanSalt: buildCollisionEntropySalt(chunk) }
+          { spanSalt: buildCollisionEntropySalt(chunk, safePath) }
         );
       }
     }

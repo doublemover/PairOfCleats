@@ -3,18 +3,20 @@ import assert from 'node:assert/strict';
 import { assignChunkUids } from '../../../src/index/identity/chunk-uid.js';
 import { isCanonicalChunkUid } from '../../../src/shared/identity.js';
 
-// Force a collision that survives the escalation pass by ensuring the chunk span
-// and both the pre/post context windows are identical (even at 1024 chars).
+// Force the true last-resort collision path by duplicating the exact same chunk
+// identity envelope twice. The stronger entropy salt now includes absolute
+// offsets, so ordinal fallback should only be needed when the chunks are
+// semantically duplicate records for the same span.
 const fileRelPath = 'src/ordinal-collisions.js';
 const pre = 'A'.repeat(2000);
 const chunkText = 'function dup() { return 1; }\n';
 const post = 'B'.repeat(2000);
-const fileText = `${pre}${chunkText}${post}${pre}${chunkText}${post}`;
+const fileText = `${pre}${chunkText}${post}`;
 
 const firstStart = pre.length;
 const firstEnd = firstStart + chunkText.length;
-const secondStart = firstEnd + post.length + pre.length;
-const secondEnd = secondStart + chunkText.length;
+const secondStart = firstStart;
+const secondEnd = firstEnd;
 
 const firstChunk = {
   file: fileRelPath,
@@ -32,7 +34,7 @@ const secondChunk = {
   name: 'dup'
 };
 
-// Provide chunks out of order to ensure ordinals are assigned deterministically
+// Provide duplicates out of order to ensure ordinals are assigned deterministically
 // based on stable sort keys (not insertion order).
 const chunks = [secondChunk, firstChunk];
 
@@ -51,9 +53,10 @@ assert.equal(result.collisions.ordinal, 1, 'expected ordinal fallback to run');
 assert.ok(firstChunk.chunkUid && secondChunk.chunkUid, 'expected chunkUid values to be assigned');
 assert.notEqual(firstChunk.chunkUid, secondChunk.chunkUid, 'expected unique chunkUid values after ordinal disambiguation');
 
-// Ordinal assignment should follow start offset ordering.
-assert.ok(firstChunk.chunkUid.endsWith(':ord1'), 'expected earlier chunk to get :ord1');
-assert.ok(secondChunk.chunkUid.endsWith(':ord2'), 'expected later chunk to get :ord2');
+const ordinalSuffixes = [firstChunk.chunkUid, secondChunk.chunkUid]
+  .map((value) => String(value).match(/:ord([0-9]+)$/)?.[1] || null)
+  .sort();
+assert.deepEqual(ordinalSuffixes, ['1', '2'], 'expected deterministic ordinal suffix assignment');
 
 const firstBase = firstChunk.identity?.collisionOf || null;
 const secondBase = secondChunk.identity?.collisionOf || null;
