@@ -451,10 +451,9 @@ jobs:
     name: publish
     runs-on: ubuntu-latest
     needs:
-      - prepare
-      - release-bundle
-      - trust-materials
       - attest
+      - prepare
+      - readiness-gate
     if: github.event_name == 'push' || inputs.publish == true
     environment: release
     permissions:
@@ -489,3 +488,101 @@ jobs:
           fi
           mapfile -t release_files < <(find dist/release/downloads dist/release/bundle -type f | sort)
           gh release upload "$RELEASE_TAG" "${release_files[@]}" --clobber
+
+  readiness-gate:
+    name: readiness-gate
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - verify-runtime-surfaces
+      - verify-node-packages
+      - verify-tui
+      - trust-materials
+      - attest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+
+      - name: Download prepare artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-prepare
+          path: dist/release/downloads/release-prepare
+
+      - name: Download runtime verification artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-runtime-verify
+          path: dist/release/downloads/release-runtime-verify
+
+      - name: Download node package verification artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-node-package-verify
+          path: dist/release/downloads/release-node-package-verify
+
+      - name: Download TUI verification artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-tui-verify-*
+          path: dist/release/downloads
+          merge-multiple: false
+
+      - name: Download trust materials
+        uses: actions/download-artifact@v4
+        with:
+          name: release-trust-materials
+          path: dist/release
+
+      - name: Resolve CI workflow status and quality artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist/release/readiness dist/release/ci-quality
+          ci_run_id=$(gh run list --workflow 'ci.yml' --commit "$GITHUB_SHA" --status success --json databaseId --limit 1 --jq '.[0].databaseId')
+          ci_long_run_id=$(gh run list --workflow 'ci-long.yml' --commit "$GITHUB_SHA" --status success --json databaseId --limit 1 --jq '.[0].databaseId')
+          if [ -z "$ci_run_id" ] || [ "$ci_run_id" = "null" ]; then
+            echo 'missing successful CI workflow run for release commit'
+            exit 1
+          fi
+          if [ -z "$ci_long_run_id" ] || [ "$ci_long_run_id" = "null" ]; then
+            echo 'missing successful CI Long workflow run for release commit'
+            exit 1
+          fi
+          gh run download "$ci_run_id" -n ci-quality-artifacts-ubuntu -D dist/release/ci-quality
+          node -e "const fs=require('fs');const payload={workflows:[{workflow:'CI',runId:Number(process.argv[1]),conclusion:'success'},{workflow:'CI Long',runId:Number(process.argv[2]),conclusion:'success'}]};fs.writeFileSync('dist/release/readiness/ci-statuses.json', JSON.stringify(payload, null, 2)+'\n');" "$ci_run_id" "$ci_long_run_id"
+
+      - name: Generate integrated readiness summary
+        run: >
+          node tools/release/readiness-gate.js
+          --prepare-report dist/release/downloads/release-prepare/release_check_report.json
+          --runtime-report dist/release/downloads/release-runtime-verify/release_check_report.json
+          --node-verify-report dist/release/downloads/release-node-package-verify/release_check_report.json
+          --tui-verify-root dist/release/downloads
+          --trust-root dist/release/trust
+          --ci-statuses dist/release/readiness/ci-statuses.json
+          --ci-test-summary dist/release/ci-quality/.diagnostics/test-summary.json
+          --coverage-dir dist/release/ci-quality/.diagnostics/coverage
+          --attested
+          --out-json dist/release/readiness/readiness-summary.json
+          --out-md dist/release/readiness/readiness-summary.md
+
+      - name: Upload readiness artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-readiness
+          path: |
+            dist/release/readiness/**
+            dist/release/ci-quality/**
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 0

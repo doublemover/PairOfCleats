@@ -102,7 +102,11 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
     /tools\/release\/check\.js[\s\S]*--surfaces\s+tui[\s\S]*--phases\s+build/,
     /tools\/release\/assemble-bundle\.js/,
     /tools\/release\/generate-trust-materials\.js/,
+    /tools\/release\/readiness-gate\.js/,
     /cargo install cargo-cyclonedx --locked/,
+    /gh run list --workflow 'ci\.yml'/,
+    /gh run list --workflow 'ci-long\.yml'/,
+    /gh run download "\$ci_run_id" -n ci-quality-artifacts-ubuntu/,
     /uses:\s*actions\/download-artifact@v4/,
     /uses:\s*actions\/upload-artifact@v4/,
     /uses:\s*actions\/attest-build-provenance@v2/,
@@ -120,6 +124,10 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
   const publishBlock = publishBlockMatch ? publishBlockMatch[1] : '';
   if (!publishBlock) {
     console.error(`${label} is missing publish job block.`);
+    process.exit(1);
+  }
+  if (!/needs:[\s\S]*readiness-gate/.test(publishBlock)) {
+    console.error(`${label} publish job must depend on readiness-gate.`);
     process.exit(1);
   }
   const forbiddenPatterns = [

@@ -100,3 +100,19 @@ Verification expectations:
 2. Verify the artifact appears in `release-checksum-bundle.json`.
 3. Verify the GitHub attestation for the published bundle and trust material.
 4. Use the published CycloneDX SBOMs to review dependency inventory for the Node root package and the Rust TUI crate.
+
+## Integrated readiness gate
+
+The release workflow also emits an authoritative ship/no-ship summary:
+
+- `readiness-summary.json`
+- `readiness-summary.md`
+
+The readiness gate aggregates:
+
+- release prepare/build/verify reports
+- trust-material presence and attestation readiness
+- matching CI and CI Long workflow success for the same commit
+- CI quality artifacts (`test-summary.json` and coverage outputs)
+
+Publish must depend on this readiness gate rather than on scattered individual checks.
