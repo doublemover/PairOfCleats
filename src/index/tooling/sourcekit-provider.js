@@ -229,6 +229,44 @@ const logHoverMetrics = (log, metrics) => {
   }
 };
 
+const shouldSuppressSourcekitSemanticTokensForStartup = (preflight, sourcekitConfig, runtimeConfig) => {
+  if (sourcekitConfig?.semanticTokensEnabled === false || sourcekitConfig?.semanticTokens === false) {
+    return {
+      suppress: true,
+      reasonCode: 'sourcekit_semantic_tokens_disabled',
+      message: 'sourcekit semantic tokens are disabled by configuration.'
+    };
+  }
+  if (runtimeConfig?.semanticTokensEnabled === false) {
+    return {
+      suppress: true,
+      reasonCode: 'sourcekit_semantic_tokens_disabled',
+      message: 'sourcekit semantic tokens are disabled by runtime policy.'
+    };
+  }
+  const startupState = String(
+    preflight?.state === 'degraded'
+      ? preflight.state
+      : (
+        preflight?.preflightState && String(preflight.preflightState).trim().toLowerCase() !== 'ready'
+          ? 'degraded'
+          : preflight?.state || ''
+      )
+  ).trim().toLowerCase();
+  if (startupState !== 'degraded') {
+    return {
+      suppress: false,
+      reasonCode: null,
+      message: ''
+    };
+  }
+  return {
+    suppress: true,
+    reasonCode: 'sourcekit_semantic_tokens_suppressed_weak_startup',
+    message: `sourcekit semantic tokens suppressed because startup is degraded (${String(preflight?.reasonCode || 'unknown')}).`
+  };
+};
+
 export const createSourcekitProvider = () => ({
   id: 'sourcekit',
   preflightId: 'sourcekit.package-resolution',
@@ -337,7 +375,7 @@ export const createSourcekitProvider = () => ({
     }
     return {
       ...preflight,
-      state: 'ready',
+      state: preflight?.state === 'degraded' ? 'degraded' : 'ready',
       requestedCommand: commandPreflight.requestedCommand,
       commandProfile: commandPreflight.commandProfile
     };
@@ -532,6 +570,21 @@ export const createSourcekitProvider = () => ({
       }
     }
 
+    const semanticTokenStartupPolicy = shouldSuppressSourcekitSemanticTokensForStartup(
+      preflight,
+      sourcekitConfig,
+      runtimeConfig
+    );
+    const semanticTokensEnabled = semanticTokenStartupPolicy.suppress !== true;
+    if (semanticTokenStartupPolicy.suppress && semanticTokenStartupPolicy.reasonCode === 'sourcekit_semantic_tokens_suppressed_weak_startup') {
+      checks.push({
+        name: 'sourcekit_semantic_tokens_suppressed_weak_startup',
+        status: 'warn',
+        message: semanticTokenStartupPolicy.message
+      });
+      log(`[tooling] ${semanticTokenStartupPolicy.message}`);
+    }
+
     try {
       const result = await collectLspTypes({
         ...runtimeConfig,
@@ -554,6 +607,7 @@ export const createSourcekitProvider = () => ({
         hoverMaxPerFile,
         hoverDisableAfterTimeouts,
         hoverConcurrency,
+        semanticTokensEnabled,
         parseSignature: (detail) => parseSwiftSignature(detail),
         strict: ctx?.strict !== false,
         vfsRoot: ctx?.buildRoot || ctx.repoRoot,
