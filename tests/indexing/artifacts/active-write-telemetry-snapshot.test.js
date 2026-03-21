@@ -16,9 +16,9 @@ const activeWriteBytes = new Map([
   ['repo_map.json', 4096]
 ]);
 const activeWriteMeta = new Map([
-  ['pieces/manifest.json', { phase: 'scheduler-wait', lane: 'light' }],
-  ['chunk_meta/shard-0001.jsonl', { phase: 'job', lane: 'heavy' }],
-  ['repo_map.json', { phase: 'prefetch-wait', lane: 'massive' }]
+  ['pieces/manifest.json', { phase: 'scheduler-wait', lane: 'light', family: 'artifact-stats' }],
+  ['chunk_meta/shard-0001.jsonl', { phase: 'job', lane: 'heavy', family: 'chunk-meta', progressUnit: 'chunks', estimatedItems: 2048 }],
+  ['repo_map.json', { phase: 'prefetch-wait', lane: 'massive', family: 'repo-analysis' }]
 ]);
 
 const snapshot = buildActiveWriteTelemetrySnapshot({
@@ -36,13 +36,18 @@ assert.equal(snapshot.inflight[0].phase, 'scheduler-wait', 'expected phase metad
 assert.equal(snapshot.inflight[0].phaseClass, 'other', 'expected phase class metadata to be captured');
 assert.equal(
   snapshot.previewText,
-  'pieces/manifest.json [scheduler-wait:light] (7s, ~1024b), chunk_meta/shard-0001.jsonl [job:heavy] (4s, ~2048b)',
-  'expected preview text to include phase, lane, elapsed time, and bytes'
+  'pieces/manifest.json [artifact-stats|scheduler-wait:light] (7s, ~1024b), chunk_meta/shard-0001.jsonl [chunk-meta|job:heavy] (4s, ~2048b, ~2048 chunks)',
+  'expected preview text to include family, phase, lane, elapsed time, bytes, and estimated work units'
 );
 assert.equal(
   snapshot.phaseSummaryText,
   'job=1, prefetch-wait=1, scheduler-wait=1',
   'expected stable phase histogram summary'
+);
+assert.equal(
+  snapshot.familySummaryText,
+  'artifact-stats=1, chunk-meta=1, repo-analysis=1',
+  'expected stable family histogram summary'
 );
 assert.equal(snapshot.stallOwner, null, 'expected non-executing phases to avoid synthetic stall ownership');
 
@@ -57,7 +62,7 @@ const closeoutSnapshot = buildActiveWriteTelemetrySnapshot({
   ]),
   activeWriteMeta: new Map([
     ['closeout/pieces-manifest', { phase: 'closeout:pieces-manifest', lane: 'closeout' }],
-    ['chunk_meta.binary-columnar.bundle', { phase: 'materialize:chunk-meta-binary-columnar', lane: 'massive' }]
+    ['chunk_meta.binary-columnar.bundle', { phase: 'materialize:chunk-meta-binary-columnar', lane: 'massive', family: 'chunk-meta' }]
   ]),
   now: 8000
 });
@@ -65,6 +70,11 @@ assert.equal(
   closeoutSnapshot.stallOwner,
   'closeout:pieces-manifest',
   'expected closeout work to surface as the active stall owner before generic non-write attribution'
+);
+assert.equal(
+  resolveActiveWritePhaseLabel('chunk_meta.binary-columnar.bundle'),
+  'write:binary-columnar',
+  'expected binary-columnar artifacts to keep their specific phase label'
 );
 assert.equal(
   resolveActiveWritePhaseLabel('closeout/pieces-manifest'),

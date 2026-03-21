@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 
+import { resolveArtifactPublicationFamilyCapability } from '../../../src/index/build/artifacts/publication-family-capabilities.js';
 import {
   createQueuedArtifactWritePlanner,
   scheduleWrites,
@@ -43,6 +44,48 @@ assert.deepEqual(
     massive: ['chunk_meta.binary-columnar.bundle']
   },
   'expected lane planner to classify writes deterministically'
+);
+
+const familyLanes = splitWriteLanes([
+  {
+    label: 'field_tokens.parts',
+    seq: 0,
+    family: 'fielded-postings',
+    familyCapability: resolveArtifactPublicationFamilyCapability('fielded-postings')
+  },
+  {
+    label: 'pieces/manifest.json',
+    seq: 1,
+    family: 'artifact-stats',
+    familyCapability: resolveArtifactPublicationFamilyCapability('artifact-stats')
+  },
+  {
+    label: 'chunk_meta.binary-columnar.bundle',
+    seq: 2,
+    family: 'chunk-meta',
+    familyCapability: resolveArtifactPublicationFamilyCapability('chunk-meta')
+  }
+], {
+  forcedMassiveWritePatterns: [],
+  forcedHeavyWritePatterns: [],
+  massiveWriteThresholdBytes: 128 * 1024 * 1024,
+  heavyWriteThresholdBytes: 16 * 1024 * 1024,
+  ultraLightWriteThresholdBytes: 64 * 1024
+});
+assert.deepEqual(
+  {
+    ultraLight: familyLanes.ultraLight.map((entry) => entry.label),
+    light: familyLanes.light.map((entry) => entry.label),
+    heavy: familyLanes.heavy.map((entry) => entry.label),
+    massive: familyLanes.massive.map((entry) => entry.label)
+  },
+  {
+    ultraLight: ['pieces/manifest.json'],
+    light: [],
+    heavy: ['field_tokens.parts'],
+    massive: ['chunk_meta.binary-columnar.bundle']
+  },
+  'expected family capabilities to drive write-lane selection without size guesses'
 );
 
 const writes = [];

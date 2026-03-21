@@ -24,6 +24,25 @@ export const resolveWriteWeight = (entry) => {
   return weight;
 };
 
+const normalizeLaneHint = (value) => {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  if (
+    normalized === 'ultraLight'
+    || normalized === 'light'
+    || normalized === 'heavy'
+    || normalized === 'massive'
+  ) {
+    return normalized;
+  }
+  return null;
+};
+
+const resolveEntryLaneHint = (entry) => {
+  const explicitLane = normalizeLaneHint(entry?.laneHint);
+  if (explicitLane) return explicitLane;
+  return normalizeLaneHint(entry?.familyCapability?.laneHint);
+};
+
 /**
  * Return write entries ordered by scheduler weight then sequence.
  *
@@ -85,6 +104,7 @@ export const splitWriteLanes = (entries, options = {}) => {
   for (const entry of ordered) {
     const estimated = Number(entry?.estimatedBytes);
     const label = typeof entry?.label === 'string' ? entry.label : '';
+    const preferredLane = resolveEntryLaneHint(entry);
     const isForcedMassive = forcedMassiveWritePatterns.some((pattern) => pattern.test(label));
     const isForcedHeavy = forcedHeavyWritePatterns.some((pattern) => pattern.test(label));
     const isForcedUltraLight = forcedUltraLightWritePatterns.some((pattern) => pattern.test(label));
@@ -93,11 +113,11 @@ export const splitWriteLanes = (entries, options = {}) => {
     const isUltraLightBySize = Number.isFinite(estimated)
       && estimated > 0
       && estimated <= ultraLightWriteThresholdBytes;
-    if (isForcedMassive || isMassiveBySize) {
+    if (preferredLane === 'massive' || isForcedMassive || isMassiveBySize) {
       lanes.massive.push(entry);
-    } else if (isForcedHeavy || isHeavyBySize) {
+    } else if (preferredLane === 'heavy' || isForcedHeavy || isHeavyBySize) {
       lanes.heavy.push(entry);
-    } else if (isForcedUltraLight || isUltraLightBySize) {
+    } else if (preferredLane === 'ultraLight' || isForcedUltraLight || isUltraLightBySize) {
       lanes.ultraLight.push(entry);
     } else {
       lanes.light.push(entry);
@@ -163,6 +183,22 @@ export const createQueuedArtifactWritePlanner = (input = {}) => {
       : null;
     const laneHint = typeof meta?.laneHint === 'string' ? meta.laneHint : null;
     const phaseHint = typeof meta?.phaseHint === 'string' ? meta.phaseHint : null;
+    const family = typeof meta?.family === 'string' && meta.family.trim()
+      ? meta.family.trim()
+      : null;
+    const familyCapability = meta?.familyCapability && typeof meta.familyCapability === 'object'
+      ? meta.familyCapability
+      : null;
+    const progressUnit = typeof meta?.progressUnit === 'string' && meta.progressUnit.trim()
+      ? meta.progressUnit.trim()
+      : null;
+    const estimatedItems = Number.isFinite(Number(meta?.estimatedItems))
+      ? Math.max(0, Math.floor(Number(meta.estimatedItems)))
+      : null;
+    const exclusivePublisherFamily = typeof meta?.exclusivePublisherFamily === 'string'
+      && meta.exclusivePublisherFamily.trim()
+      ? meta.exclusivePublisherFamily.trim()
+      : null;
     const publishedPieces = Array.isArray(meta?.publishedPieces)
       ? meta.publishedPieces
         .filter((piece) => piece && typeof piece === 'object')
@@ -186,12 +222,20 @@ export const createQueuedArtifactWritePlanner = (input = {}) => {
         const setPhase = (phase) => {
           updateActiveWriteMeta(label, {
             phase: resolveActiveWritePhaseLabel(label, phase),
-            lane: laneHint || null
+            lane: laneHint || null,
+            family,
+            progressUnit,
+            estimatedItems,
+            exclusivePublisherFamily
           });
         };
         updateActiveWriteMeta(label, {
           phase: resolveActiveWritePhaseLabel(label, phaseHint),
-          lane: laneHint || null
+          lane: laneHint || null,
+          family,
+          progressUnit,
+          estimatedItems,
+          exclusivePublisherFamily
         });
         const result = await job({
           setPhase,
@@ -233,6 +277,11 @@ export const createQueuedArtifactWritePlanner = (input = {}) => {
       priority,
       estimatedBytes,
       laneHint,
+      family,
+      familyCapability,
+      progressUnit,
+      estimatedItems,
+      exclusivePublisherFamily,
       eagerStart,
       prefetched,
       prefetchStartedAt,

@@ -170,6 +170,9 @@ export const dispatchArtifactWrites = async (input = {}) => {
         const phaseSuffix = activeWriteSnapshot.phaseSummaryText
           ? `, phases={${activeWriteSnapshot.phaseSummaryText}}`
           : '';
+        const familySuffix = activeWriteSnapshot.familySummaryText
+          ? `, families={${activeWriteSnapshot.familySummaryText}}`
+          : '';
         const oldestPhaseClassSuffix = oldestInflight?.phaseClass
           ? `, oldestPhaseClass=${oldestInflight.phaseClass}`
           : '';
@@ -184,7 +187,7 @@ export const dispatchArtifactWrites = async (input = {}) => {
           `(active=${activeCount}, pendingWrites=${pendingWriteCount()}, ` +
           `writeQ.pending=${schedulerWritePending}, writeQ.oldest=${schedulerWriteOldestWaitMs}ms, ` +
           `writeQ.p95=${Number.isFinite(schedulerWriteWaitP95Ms) ? schedulerWriteWaitP95Ms : 'n/a'}ms` +
-          `${phaseSuffix}${oldestPhaseClassSuffix}${previewSuffix}${hugeSuffix})`,
+          `${phaseSuffix}${familySuffix}${oldestPhaseClassSuffix}${previewSuffix}${hugeSuffix})`,
           { kind: 'warning' }
         );
       }
@@ -311,7 +314,7 @@ export const dispatchArtifactWrites = async (input = {}) => {
   };
 
   const runSingleWrite = async (
-    { label, job, estimatedBytes, enqueuedAt, prefetched, prefetchStartedAt },
+    { label, job, estimatedBytes, enqueuedAt, prefetched, prefetchStartedAt, family, progressUnit, estimatedItems, familyCapability, exclusivePublisherFamily },
     laneName,
     { rescueBoost = false, tailWorker = false, batchSize = 1, batchIndex = 0 } = {}
   ) => {
@@ -320,7 +323,15 @@ export const dispatchArtifactWrites = async (input = {}) => {
     const started = resolveWriteStartTimestampMs(prefetchStartedAt, dispatchStartedAt);
     const queueDelayMs = Math.max(0, started - (Number(enqueuedAt) || started));
     const startedConcurrency = getActiveWriteConcurrency();
-    const hugeWriteFamily = resolveHugeWriteFamily(activeLabel);
+    const hugeWriteFamily = resolveHugeWriteFamily({
+      label: activeLabel,
+      family,
+      progressUnit,
+      estimatedItems,
+      familyCapability,
+      exclusivePublisherFamily,
+      laneHint: laneName
+    });
     const effectiveEstimatedBytes = resolveEntryEstimatedBytes({
       label: activeLabel,
       estimatedBytes,
@@ -333,6 +344,10 @@ export const dispatchArtifactWrites = async (input = {}) => {
     updateActiveWriteMeta(activeLabel, {
       phase: existingPhase || (prefetched ? 'prefetch-wait' : 'scheduler-wait'),
       lane: laneName,
+      family,
+      progressUnit,
+      estimatedItems,
+      exclusivePublisherFamily,
       hugeWriteFamily,
       rescueBoost: rescueBoost === true,
       tailWorker: tailWorker === true

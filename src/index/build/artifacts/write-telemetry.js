@@ -126,7 +126,11 @@ export const resolveActiveWriteStallOwner = (entries = []) => {
   const preferredPhaseClasses = ['closeout', 'publish', 'materialize', 'execute'];
   for (const phaseClass of preferredPhaseClasses) {
     const match = list.find((entry) => entry?.phaseClass === phaseClass && typeof entry?.phase === 'string');
-    if (match) return match.phase;
+    if (!match) continue;
+    if (typeof match.family === 'string' && match.family) {
+      return `${match.family}:${match.phase}`;
+    }
+    return match.phase;
   }
   return null;
 };
@@ -189,11 +193,12 @@ export const recordArtifactMetricRow = ({
  *   formatBytes?:(bytes:number)=>string
  * }} input
  * @returns {{
- *   inflight:Array<{label:string,elapsedSec:number,estimatedBytes:number|null,phase:string,lane:string|null}>,
+ *   inflight:Array<{label:string,elapsedSec:number,estimatedBytes:number|null,phase:string,lane:string|null,family:string|null,progressUnit:string|null,estimatedItems:number|null}>,
  *   previewText:string,
  *   phaseSummaryText:string,
+ *   familySummaryText:string,
  *   phaseByLabel:Map<string,string>,
- *   stallOwner:string|null
+  *   stallOwner:string|null
  * }}
  */
 export const buildActiveWriteTelemetrySnapshot = ({
@@ -214,8 +219,17 @@ export const buildActiveWriteTelemetrySnapshot = ({
         estimatedBytes: Number(activeWriteBytes?.get?.(label)) || null,
         phase,
         phaseClass: resolveArtifactWritePhaseClass(phase),
+        family: typeof meta?.family === 'string' && meta.family.trim()
+          ? meta.family.trim()
+          : null,
         lane: typeof meta?.lane === 'string' && meta.lane.trim()
           ? meta.lane.trim()
+          : null,
+        progressUnit: typeof meta?.progressUnit === 'string' && meta.progressUnit.trim()
+          ? meta.progressUnit.trim()
+          : null,
+        estimatedItems: Number.isFinite(Number(meta?.estimatedItems))
+          ? Math.max(0, Math.floor(Number(meta.estimatedItems)))
           : null
       };
     })
@@ -224,25 +238,37 @@ export const buildActiveWriteTelemetrySnapshot = ({
       || left.label.localeCompare(right.label)
     ));
   const phaseCounts = new Map();
+  const familyCounts = new Map();
   for (const entry of entries) {
     phaseCounts.set(entry.phase, (phaseCounts.get(entry.phase) || 0) + 1);
+    if (entry.family) {
+      familyCounts.set(entry.family, (familyCounts.get(entry.family) || 0) + 1);
+    }
   }
   const phaseByLabel = new Map(entries.map((entry) => [entry.label, entry.phase]));
   const previewText = entries
     .slice(0, Math.max(1, Math.floor(Number(limit) || 3)))
-    .map(({ label, elapsedSec, estimatedBytes, phase, lane }) => (
-      `${label} [${phase}${lane ? `:${lane}` : ''}]`
-      + ` (${elapsedSec}s${Number.isFinite(estimatedBytes) ? `, ~${formatBytes(estimatedBytes)}` : ''})`
+    .map(({ label, elapsedSec, estimatedBytes, phase, lane, family, progressUnit, estimatedItems }) => (
+      `${label} [${family ? `${family}|` : ''}${phase}${lane ? `:${lane}` : ''}]`
+      + ` (${elapsedSec}s`
+      + `${Number.isFinite(estimatedBytes) ? `, ~${formatBytes(estimatedBytes)}` : ''}`
+      + `${Number.isFinite(estimatedItems) && progressUnit ? `, ~${estimatedItems} ${progressUnit}` : ''}`
+      + `)`
     ))
     .join(', ');
   const phaseSummaryText = Array.from(phaseCounts.entries())
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
     .map(([phase, count]) => `${phase}=${count}`)
     .join(', ');
+  const familySummaryText = Array.from(familyCounts.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .map(([family, count]) => `${family}=${count}`)
+    .join(', ');
   return {
     inflight: entries,
     previewText,
     phaseSummaryText,
+    familySummaryText,
     phaseByLabel,
     stallOwner: resolveActiveWriteStallOwner(entries)
   };

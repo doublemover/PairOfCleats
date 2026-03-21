@@ -126,7 +126,7 @@ export const resolveArtifactBlockingState = (activeEntries = []) => {
       hasOversizeBlockingEntry = false;
       for (const activeEntry of Array.isArray(activeEntries) ? activeEntries : []) {
         if (!activeEntry || typeof activeEntry !== 'object') continue;
-        const activeFamily = resolveArtifactExclusivePublisherFamily(activeEntry.label);
+        const activeFamily = resolveArtifactExclusivePublisherFamily(activeEntry);
         const activeBytes = resolveArtifactEffectiveDispatchBytes(activeEntry);
         const phaseWeight = resolveArtifactPhaseBudgetWeight(activeEntry.phase);
         const phaseClass = resolveArtifactWritePhaseClass(activeEntry.phase);
@@ -210,7 +210,17 @@ const toNonNegativeNumberOrNull = (value) => {
   return parsed;
 };
 
-export const resolveArtifactExclusivePublisherFamily = (label) => {
+export const resolveArtifactExclusivePublisherFamily = (value) => {
+  const explicitFamily = typeof value === 'object' && value
+    ? (
+      (typeof value.exclusivePublisherFamily === 'string' && value.exclusivePublisherFamily.trim())
+      || (typeof value?.familyCapability?.exclusivePublisherFamily === 'string'
+        && value.familyCapability.exclusivePublisherFamily.trim())
+      || null
+    )
+    : null;
+  if (explicitFamily) return explicitFamily;
+  const label = typeof value === 'object' && value ? value.label : value;
   const normalized = String(label || '').replace(/\\/g, '/').toLowerCase();
   if (!normalized) return null;
   for (const entry of EXCLUSIVE_ARTIFACT_PUBLISHER_FAMILIES) {
@@ -224,7 +234,7 @@ export const resolveArtifactEffectiveDispatchBytes = (entry) => {
   if (!entry || typeof entry !== 'object') return 0;
   const estimatedBytes = toNonNegativeNumberOrNull(entry.estimatedBytes);
   if (estimatedBytes != null && estimatedBytes > 0) return estimatedBytes;
-  if (resolveArtifactExclusivePublisherFamily(entry.label)) {
+  if (resolveArtifactExclusivePublisherFamily(entry)) {
     return HUGE_ARTIFACT_WRITE_BYTES;
   }
   const lane = typeof entry.lane === 'string' ? entry.lane.trim().toLowerCase() : '';
@@ -258,7 +268,7 @@ export const shouldEagerStartArtifactWrite = ({
 } = {}) => {
   if (!entry || typeof entry !== 'object' || entry.eagerStart !== true) return false;
   const entryBytes = resolveArtifactEffectiveDispatchBytes(entry);
-  const entryFamily = resolveArtifactExclusivePublisherFamily(entry.label);
+  const entryFamily = resolveArtifactExclusivePublisherFamily(entry);
   if (entryBytes <= 0) return true;
   if (maxBytesInFlight != null && entryBytes > maxBytesInFlight) {
     return false;
@@ -282,7 +292,7 @@ export const canDispatchArtifactWriteEntry = ({
 } = {}) => {
   if (!entry || typeof entry !== 'object') return false;
   const entryBytes = resolveArtifactEffectiveDispatchBytes(entry);
-  const entryFamily = resolveArtifactExclusivePublisherFamily(entry.label);
+  const entryFamily = resolveArtifactExclusivePublisherFamily(entry);
   const blockingState = resolveArtifactBlockingState(activeEntries).fromEntries(maxBytesInFlight);
   if (entryFamily && blockingState.blockingHugeFamilies.has(entryFamily)) {
     return false;

@@ -75,7 +75,14 @@ export const createArtifactWriter = ({
       compressible = true,
       piece = null,
       priority = null,
-      estimatedBytes = null
+      estimatedBytes = null,
+      family = null,
+      familyCapability = null,
+      laneHint = null,
+      phaseHint = null,
+      progressUnit = null,
+      estimatedItems = null,
+      exclusivePublisherFamily = null
     } = {}
   ) => {
     const compression = resolveCompression(base, compressible, estimatedBytes);
@@ -94,6 +101,13 @@ export const createArtifactWriter = ({
         {
           priority,
           estimatedBytes,
+          family,
+          familyCapability,
+          laneHint,
+          phaseHint,
+          progressUnit,
+          estimatedItems,
+          exclusivePublisherFamily,
           publishedPieces: piece ? [{ entry: { ...piece, format: 'json', compression }, filePath: gzPath }] : []
         }
       );
@@ -105,6 +119,13 @@ export const createArtifactWriter = ({
           {
             priority,
             estimatedBytes,
+            family,
+            familyCapability,
+            laneHint,
+            phaseHint,
+            progressUnit,
+            estimatedItems,
+            exclusivePublisherFamily,
             publishedPieces: piece ? [{ entry: { ...piece, format: 'json' }, filePath: rawPath }] : []
           }
         );
@@ -118,6 +139,13 @@ export const createArtifactWriter = ({
       {
         priority,
         estimatedBytes,
+        family,
+        familyCapability,
+        laneHint,
+        phaseHint,
+        progressUnit,
+        estimatedItems,
+        exclusivePublisherFamily,
         publishedPieces: piece ? [{ entry: { ...piece, format: 'json' }, filePath: rawPath }] : []
       }
     );
@@ -130,9 +158,19 @@ export const createArtifactWriter = ({
       compressible = true,
       piece = null,
       priority = null,
-      estimatedBytes = null
+      estimatedBytes = null,
+      family = null,
+      familyCapability = null,
+      laneHint = null,
+      phaseHint = null,
+      progressUnit = null,
+      estimatedItems = null,
+      exclusivePublisherFamily = null
     } = {}
   ) => {
+    const resolvedEstimatedItems = Number.isFinite(Number(estimatedItems))
+      ? Math.max(0, Math.floor(Number(estimatedItems)))
+      : (Array.isArray(items) ? items.length : null);
     const compression = resolveCompression(base, compressible, estimatedBytes);
     const keepRaw = resolveKeepRaw(base);
     if (compression) {
@@ -148,6 +186,13 @@ export const createArtifactWriter = ({
         {
           priority,
           estimatedBytes,
+          family,
+          familyCapability,
+          laneHint,
+          phaseHint,
+          progressUnit,
+          estimatedItems: resolvedEstimatedItems,
+          exclusivePublisherFamily,
           publishedPieces: piece ? [{ entry: { ...piece, format: 'json', compression }, filePath: gzPath }] : []
         }
       );
@@ -159,6 +204,13 @@ export const createArtifactWriter = ({
           {
             priority,
             estimatedBytes,
+            family,
+            familyCapability,
+            laneHint,
+            phaseHint,
+            progressUnit,
+            estimatedItems: resolvedEstimatedItems,
+            exclusivePublisherFamily,
             publishedPieces: piece ? [{ entry: { ...piece, format: 'json' }, filePath: rawPath }] : []
           }
         );
@@ -172,6 +224,13 @@ export const createArtifactWriter = ({
       {
         priority,
         estimatedBytes,
+        family,
+        familyCapability,
+        laneHint,
+        phaseHint,
+        progressUnit,
+        estimatedItems: resolvedEstimatedItems,
+        exclusivePublisherFamily,
         publishedPieces: piece ? [{ entry: { ...piece, format: 'json' }, filePath: rawPath }] : []
       }
     );
@@ -187,7 +246,14 @@ export const createArtifactWriter = ({
       compression = null,
       gzipOptions = null,
       metaExtensions = null,
-      offsets = null
+      offsets = null,
+      family = null,
+      familyCapability = null,
+      laneHint = null,
+      phaseHint = null,
+      progressUnit = null,
+      estimatedItems = null,
+      exclusivePublisherFamily = null
     } = {}
   ) => {
     /**
@@ -211,6 +277,9 @@ export const createArtifactWriter = ({
     const resolvedEstimatedBytes = Number.isFinite(Number(estimatedBytes))
       ? Math.max(0, Math.floor(Number(estimatedBytes)))
       : estimateJsonBytes(items);
+    const resolvedEstimatedItems = Number.isFinite(Number(estimatedItems))
+      ? Math.max(0, Math.floor(Number(estimatedItems)))
+      : (Array.isArray(items) ? items.length : null);
     const shapeHints = jsonlShapeAware
       ? resolveJsonlWriteShapeHints({
         estimatedBytes: resolvedEstimatedBytes,
@@ -236,7 +305,14 @@ export const createArtifactWriter = ({
       enqueueJsonArray(base, items, {
         compressible: false,
         piece,
-        estimatedBytes: resolvedEstimatedBytes
+        estimatedBytes: resolvedEstimatedBytes,
+        family,
+        familyCapability,
+        laneHint,
+        phaseHint,
+        progressUnit,
+        estimatedItems: resolvedEstimatedItems,
+        exclusivePublisherFamily
       });
       return;
     }
@@ -312,6 +388,17 @@ export const createArtifactWriter = ({
           }, absPath);
         }
         addPieceFile({ type: piece?.type || 'chunks', name: `${base}_meta`, format: 'json' }, metaPath);
+      }
+      ,
+      {
+        estimatedBytes: resolvedEstimatedBytes,
+        family,
+        familyCapability,
+        laneHint,
+        phaseHint,
+        progressUnit,
+        estimatedItems: resolvedEstimatedItems,
+        exclusivePublisherFamily
       }
     );
   };

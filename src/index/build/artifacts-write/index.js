@@ -32,6 +32,7 @@ import { createArtifactWriter } from '../artifacts/writer.js';
 import { formatBytes } from '../artifacts/helpers.js';
 import { resolveFilterIndexArtifactState } from '../artifacts/filter-index-reuse.js';
 import { createArtifactPieceRegistry } from '../artifacts/piece-registry.js';
+import { applyArtifactPublicationFamilyMeta } from '../artifacts/publication-family-capabilities.js';
 import { createQueuedArtifactWritePlanner } from '../artifacts/write-queue.js';
 import { enqueueFileRelationsArtifacts } from '../artifacts/writers/file-relations.js';
 import { enqueueCallSitesArtifacts } from '../artifacts/writers/call-sites.js';
@@ -713,13 +714,17 @@ export async function writeIndexArtifacts(input) {
   const resolveEntryEstimatedBytes = (entry) => {
     return resolveArtifactEffectiveDispatchBytes(entry);
   };
-  const resolveEntryHugeWriteFamily = (entry) => resolveHugeWriteFamily(entry?.label);
+  const resolveEntryHugeWriteFamily = (entry) => resolveHugeWriteFamily(entry);
   const canDispatchEntryUnderHugeWritePolicy = (entry) => {
     const activeEntries = [...activeWriteBytes.entries()].map(([label, estimatedBytes]) => ({
       label,
       estimatedBytes,
       lane: activeWriteMeta.get(label)?.lane || null,
-      phase: activeWriteMeta.get(label)?.phase || null
+      phase: activeWriteMeta.get(label)?.phase || null,
+      family: activeWriteMeta.get(label)?.family || null,
+      progressUnit: activeWriteMeta.get(label)?.progressUnit || null,
+      estimatedItems: activeWriteMeta.get(label)?.estimatedItems ?? null,
+      exclusivePublisherFamily: activeWriteMeta.get(label)?.exclusivePublisherFamily || null
     }));
     const family = resolveEntryHugeWriteFamily(entry);
     const blockingState = resolveArtifactBlockingState(activeEntries).fromEntries(
@@ -784,6 +789,13 @@ export async function writeIndexArtifacts(input) {
   };
   const listArtifactFamilyDeclarations = () => Array.from(publicationFamilies.values())
     .sort((a, b) => String(a.family || '').localeCompare(String(b.family || '')));
+  const withArtifactFamilyMeta = (family, meta = {}) => applyArtifactPublicationFamilyMeta(family, meta);
+  const createFamilyScopedArtifactOps = (family) => ({
+    enqueueWrite: (label, job, meta = {}) => enqueueWrite(label, job, withArtifactFamilyMeta(family, meta)),
+    enqueueJsonObject: (base, payload, options = {}) => enqueueJsonObject(base, payload, withArtifactFamilyMeta(family, options)),
+    enqueueJsonArray: (base, items, options = {}) => enqueueJsonArray(base, items, withArtifactFamilyMeta(family, options)),
+    enqueueJsonArraySharded: (base, items, options = {}) => enqueueJsonArraySharded(base, items, withArtifactFamilyMeta(family, options))
+  });
   dropCommittedPiece = removePieceFile;
   const writePlanner = createQueuedArtifactWritePlanner({
     writes,
@@ -1042,7 +1054,8 @@ export async function writeIndexArtifacts(input) {
     artifactName,
     baseName,
     vectors,
-    dims
+    dims,
+    family = null
   }) => {
     const binFile = `${baseName}.bin`;
     const binMetaFile = `${baseName}.bin.meta.json`;
@@ -1074,6 +1087,9 @@ export async function writeIndexArtifacts(input) {
         });
       },
       {
+        ...withArtifactFamilyMeta(family, {
+          estimatedItems: Array.isArray(vectors) ? vectors.length : 0
+        }),
         publishedPieces: [
           {
             entry: {
@@ -1101,6 +1117,25 @@ export async function writeIndexArtifacts(input) {
   };
 
   const denseVectorsEnabled = postings.dims > 0 && postings.quantizedVectors.length;
+  const denseVectorWrites = createFamilyScopedArtifactOps('dense-vectors');
+  const fileMetaWrites = createFamilyScopedArtifactOps('file-meta');
+  const chunkMetaWrites = createFamilyScopedArtifactOps('chunk-meta');
+  const identitySupportWrites = createFamilyScopedArtifactOps('identity-support');
+  const vfsManifestWrites = createFamilyScopedArtifactOps('vfs-manifest');
+  const repoAnalysisWrites = createFamilyScopedArtifactOps('repo-analysis');
+  const fieldedPostingWrites = createFamilyScopedArtifactOps('fielded-postings');
+  const fileRelationsWrites = createFamilyScopedArtifactOps('file-relations');
+  const riskWrites = createFamilyScopedArtifactOps('risk-interprocedural');
+  const symbolsWrites = createFamilyScopedArtifactOps('symbols');
+  const symbolOccurrencesWrites = createFamilyScopedArtifactOps('symbol-occurrences');
+  const symbolEdgesWrites = createFamilyScopedArtifactOps('symbol-edges');
+  const graphRelationsWrites = createFamilyScopedArtifactOps('graph-relations');
+  const phraseNgramWrites = createFamilyScopedArtifactOps('phrase-ngrams');
+  const chargramWrites = createFamilyScopedArtifactOps('chargram-postings');
+  const artifactStatsWrites = createFamilyScopedArtifactOps('artifact-stats');
+  const tokenPostingWrites = createFamilyScopedArtifactOps('token-postings');
+  const minhashWrites = createFamilyScopedArtifactOps('minhash-postings');
+  const fieldPostingWrites = createFamilyScopedArtifactOps('field-postings');
   declareArtifactFamily({
     family: 'core-metadata',
     owner: 'artifacts-write',
@@ -1167,7 +1202,8 @@ export async function writeIndexArtifacts(input) {
       artifactName: 'dense_vectors',
       baseName: 'dense_vectors_uint8',
       vectors: postings.quantizedVectors,
-      dims: postings.dims
+      dims: postings.dims,
+      family: 'dense-vectors'
     });
   }
   const fileMetaEstimatedBytes = estimateJsonBytes(fileMeta);
@@ -1198,7 +1234,7 @@ export async function writeIndexArtifacts(input) {
   if (!fileMetaFromCache) {
     if (fileMetaUseColumnar) {
       const columnarPath = path.join(outDir, 'file_meta.columnar.json');
-      enqueueWrite(
+      fileMetaWrites.enqueueWrite(
         formatArtifactLabel(columnarPath),
         async () => {
           await removeArtifact(path.join(outDir, 'file_meta.json'));
@@ -1238,14 +1274,14 @@ export async function writeIndexArtifacts(input) {
         }
       );
     } else if (fileMetaUseJsonl) {
-      enqueueWrite(
+      fileMetaWrites.enqueueWrite(
         formatArtifactLabel(path.join(outDir, 'file_meta.parts')),
         async () => {
           await removeArtifact(path.join(outDir, 'file_meta.json'));
           await removeCompressedArtifact({ outDir, base: 'file_meta', removeArtifact });
         }
       );
-      enqueueJsonArraySharded('file_meta', fileMeta, {
+      fileMetaWrites.enqueueJsonArraySharded('file_meta', fileMeta, {
         maxBytes: fileMetaShardedMaxBytes || fileMetaMaxBytes,
         estimatedBytes: fileMetaEstimatedBytes,
         piece: { type: 'chunks', name: 'file_meta' },
@@ -1255,11 +1291,11 @@ export async function writeIndexArtifacts(input) {
         offsets: true
       });
     } else {
-      enqueueJsonArray('file_meta', fileMeta, {
+      fileMetaWrites.enqueueJsonArray('file_meta', fileMeta, {
         compressible: false,
         piece: { type: 'chunks', name: 'file_meta', count: fileMeta.length }
       });
-      enqueueWrite(
+      fileMetaWrites.enqueueWrite(
         formatArtifactLabel(fileMetaMetaPath),
         async () => {
           await writeJsonObjectFile(fileMetaMetaPath, {
@@ -1322,13 +1358,15 @@ export async function writeIndexArtifacts(input) {
       artifactName: 'dense_vectors_doc',
       baseName: 'dense_vectors_doc_uint8',
       vectors: postings.quantizedDocVectors,
-      dims: postings.dims
+      dims: postings.dims,
+      family: 'dense-vectors'
     });
     enqueueDenseBinaryArtifacts({
       artifactName: 'dense_vectors_code',
       baseName: 'dense_vectors_code_uint8',
       vectors: postings.quantizedCodeVectors,
-      dims: postings.dims
+      dims: postings.dims,
+      family: 'dense-vectors'
     });
   }
   const chunkMetaCompression = resolveShardCompression('chunk_meta');
@@ -1342,8 +1380,8 @@ export async function writeIndexArtifacts(input) {
     byteBudget: chunkMetaBudget,
     compression: chunkMetaCompression,
     gzipOptions: chunkMetaCompression === 'gzip' ? compressionGzipOptions : null,
-    enqueueJsonArray,
-    enqueueWrite,
+    enqueueJsonArray: chunkMetaWrites.enqueueJsonArray,
+    enqueueWrite: chunkMetaWrites.enqueueWrite,
     addPieceFile,
     formatArtifactLabel,
     stageCheckpoints
@@ -1358,7 +1396,7 @@ export async function writeIndexArtifacts(input) {
     byteBudget: chunkUidMapBudget,
     compression: chunkUidMapCompression,
     gzipOptions: chunkUidMapCompression === 'gzip' ? compressionGzipOptions : null,
-    enqueueWrite,
+    enqueueWrite: identitySupportWrites.enqueueWrite,
     addPieceFile,
     formatArtifactLabel,
     stageCheckpoints
@@ -1373,7 +1411,7 @@ export async function writeIndexArtifacts(input) {
     compression: vfsManifestCompression,
     gzipOptions: vfsManifestCompression === 'gzip' ? compressionGzipOptions : null,
     hashRouting: vfsHashRouting,
-    enqueueWrite,
+    enqueueWrite: vfsManifestWrites.enqueueWrite,
     addPieceFile,
     formatArtifactLabel,
     stageCheckpoints
@@ -1398,7 +1436,7 @@ export async function writeIndexArtifacts(input) {
     repoMapCompression,
     compressionGzipOptions,
     log,
-    enqueueWrite,
+    enqueueWrite: repoAnalysisWrites.enqueueWrite,
     addPieceFile,
     formatArtifactLabel,
     removeArtifact,
@@ -1406,7 +1444,7 @@ export async function writeIndexArtifacts(input) {
   });
   await recordOrdering('repo_map', repoMapMeasurement, 'repo_map:file,name,kind,signature,startLine');
   if (filterIndex) {
-    enqueueJsonObject('filter_index', { fields: filterIndex }, {
+    artifactStatsWrites.enqueueJsonObject('filter_index', { fields: filterIndex }, {
       compressible: false,
       piece: { type: 'chunks', name: 'filter_index' }
     });
@@ -1493,7 +1531,7 @@ export async function writeIndexArtifacts(input) {
     ]);
   }
   if (sparseArtifactsEnabled && !skipMinhashJsonForLarge) {
-    enqueueJsonObject('minhash_signatures', {
+    minhashWrites.enqueueJsonObject('minhash_signatures', {
       fields: minhashSamplingMeta ? { sampling: minhashSamplingMeta } : undefined,
       arrays: { signatures: minhashIterable }
     }, {
@@ -1508,7 +1546,7 @@ export async function writeIndexArtifacts(input) {
     const packedChecksum = computePackedChecksum(packedMinhash.buffer);
     const packedPath = path.join(outDir, 'minhash_signatures.packed.bin');
     const packedMetaPath = path.join(outDir, 'minhash_signatures.packed.meta.json');
-    enqueueWrite(
+    minhashWrites.enqueueWrite(
       formatArtifactLabel(packedPath),
       async () => {
         await writeBinaryArtifactAtomically(packedPath, packedMinhash.buffer);
@@ -1558,8 +1596,8 @@ export async function writeIndexArtifacts(input) {
       tokenPostingsCompression,
       writePriority: 210,
       tokenPostingsEstimatedBytes: tokenPostingsEstimate?.estimatedBytes || null,
-      enqueueJsonObject,
-      enqueueWrite,
+      enqueueJsonObject: tokenPostingWrites.enqueueJsonObject,
+      enqueueWrite: tokenPostingWrites.enqueueWrite,
       addPieceFile,
       formatArtifactLabel
     });
@@ -1808,7 +1846,7 @@ export async function writeIndexArtifacts(input) {
           throw err;
         }
       };
-      enqueueWrite(
+      fieldPostingWrites.enqueueWrite(
         'field_postings.json',
         writeLegacyFieldPostingsFromShards,
         {
@@ -1821,7 +1859,7 @@ export async function writeIndexArtifacts(input) {
         }
       );
     } else {
-      enqueueJsonObject('field_postings', { fields: { fields: fieldPostingsObject } }, {
+      fieldPostingWrites.enqueueJsonObject('field_postings', { fields: { fields: fieldPostingsObject } }, {
         piece: { type: 'postings', name: 'field_postings' },
         priority: 220,
         estimatedBytes: fieldPostingsEstimatedBytes
@@ -1836,7 +1874,7 @@ export async function writeIndexArtifacts(input) {
       && fieldPostingsEstimatedBytes >= fieldPostingsBinaryColumnarThresholdBytes
       && fieldNames.length > 0;
     if (shouldWriteFieldPostingsBinary) {
-      enqueueWrite(
+      fieldPostingWrites.enqueueWrite(
         fieldPostingsBinaryTaskLabel,
         async ({ setPhase } = {}) => {
           setPhase?.('materialize:field-postings-binary-columnar');
@@ -1960,7 +1998,7 @@ export async function writeIndexArtifacts(input) {
       && fieldTokensShardMaxBytes > 0
       && fieldTokensEstimatedBytes >= fieldTokensShardThresholdBytes;
     if (fieldTokensUseShards) {
-      enqueueWrite(
+      fieldedPostingWrites.enqueueWrite(
         formatArtifactLabel(path.join(outDir, 'field_tokens.parts')),
         async () => {
           await removeArtifact(path.join(outDir, 'field_tokens.json'), { policy: 'format_cleanup' });
@@ -1974,7 +2012,7 @@ export async function writeIndexArtifacts(input) {
           `using jsonl-sharded output (target ${formatBytes(fieldTokensShardMaxBytes)}).`
         );
       }
-      enqueueJsonArraySharded('field_tokens', state.fieldTokens, {
+      fieldedPostingWrites.enqueueJsonArraySharded('field_tokens', state.fieldTokens, {
         maxBytes: fieldTokensShardMaxBytes,
         estimatedBytes: fieldTokensEstimatedBytes,
         piece: { type: 'postings', name: 'field_tokens', count: state.fieldTokens.length },
@@ -1983,7 +2021,7 @@ export async function writeIndexArtifacts(input) {
         offsets: true
       });
     } else {
-      enqueueWrite(
+      fieldedPostingWrites.enqueueWrite(
         formatArtifactLabel(path.join(outDir, 'field_tokens.parts')),
         async () => {
           await removeArtifact(path.join(outDir, 'field_tokens.meta.json'), { policy: 'format_cleanup' });
@@ -1993,7 +2031,7 @@ export async function writeIndexArtifacts(input) {
           });
         }
       );
-      enqueueJsonArray('field_tokens', state.fieldTokens, {
+      fieldedPostingWrites.enqueueJsonArray('field_tokens', state.fieldTokens, {
         piece: { type: 'postings', name: 'field_tokens', count: state.fieldTokens.length }
       });
     }
@@ -2007,7 +2045,7 @@ export async function writeIndexArtifacts(input) {
     log,
     compression: fileRelationsCompression,
     gzipOptions: fileRelationsCompression === 'gzip' ? compressionGzipOptions : null,
-    enqueueWrite,
+    enqueueWrite: fileRelationsWrites.enqueueWrite,
     addPieceFile,
     formatArtifactLabel,
     stageCheckpoints
@@ -2035,7 +2073,7 @@ export async function writeIndexArtifacts(input) {
       forceEmpty: callSitesRequired,
       compression: callSitesCompression,
       gzipOptions: callSitesCompression === 'gzip' ? compressionGzipOptions : null,
-      enqueueWrite,
+      enqueueWrite: riskWrites.enqueueWrite,
       addPieceFile,
       formatArtifactLabel,
       stageCheckpoints
@@ -2054,7 +2092,7 @@ export async function writeIndexArtifacts(input) {
       flowsCompression: riskPartialFlowsCompression || riskFlowsCompression,
       gzipOptions: compressionGzipOptions,
       emitArtifacts: riskInterproceduralEmitArtifacts || 'jsonl',
-      enqueueWrite,
+      enqueueWrite: riskWrites.enqueueWrite,
       addPieceFile,
       formatArtifactLabel,
       callSitesRef
@@ -2069,7 +2107,7 @@ export async function writeIndexArtifacts(input) {
       log,
       compression: symbolsCompression,
       gzipOptions: symbolsCompression === 'gzip' ? compressionGzipOptions : null,
-      enqueueWrite,
+      enqueueWrite: symbolsWrites.enqueueWrite,
       addPieceFile,
       formatArtifactLabel,
       stageCheckpoints
@@ -2086,7 +2124,7 @@ export async function writeIndexArtifacts(input) {
       format: symbolArtifactsFormatConfig,
       compression: symbolOccurrencesCompression,
       gzipOptions: symbolOccurrencesCompression === 'gzip' ? compressionGzipOptions : null,
-      enqueueWrite,
+      enqueueWrite: symbolOccurrencesWrites.enqueueWrite,
       addPieceFile,
       formatArtifactLabel,
       stageCheckpoints
@@ -2103,7 +2141,7 @@ export async function writeIndexArtifacts(input) {
       format: symbolArtifactsFormatConfig,
       compression: symbolEdgesCompression,
       gzipOptions: symbolEdgesCompression === 'gzip' ? compressionGzipOptions : null,
-      enqueueWrite,
+      enqueueWrite: symbolEdgesWrites.enqueueWrite,
       addPieceFile,
       formatArtifactLabel,
       stageCheckpoints
@@ -2140,14 +2178,14 @@ export async function writeIndexArtifacts(input) {
     byteBudget: graphRelationsBudget,
     log,
     scheduleIo: scheduleRelationsIo,
-    enqueueWrite,
+    enqueueWrite: graphRelationsWrites.enqueueWrite,
     addPieceFile,
     formatArtifactLabel,
     removeArtifact
   }));
   await recordOrdering('graph_relations', graphRelationsOrdering, 'graph_relations:graph,node');
   if (sparseArtifactsEnabled && resolvedConfig.enablePhraseNgrams !== false) {
-    enqueueJsonObject('phrase_ngrams', {
+    phraseNgramWrites.enqueueJsonObject('phrase_ngrams', {
       arrays: { vocab: postings.phraseVocab, postings: postings.phrasePostings }
     }, {
       piece: { type: 'postings', name: 'phrase_ngrams', count: postings.phraseVocab.length }
@@ -2162,7 +2200,7 @@ export async function writeIndexArtifacts(input) {
     }
   }
   if (sparseArtifactsEnabled && resolvedConfig.enableChargrams !== false) {
-    enqueueJsonObject('chargram_postings', {
+    chargramWrites.enqueueJsonObject('chargram_postings', {
       fields: { hash: CHARGRAM_HASH_META },
       arrays: { vocab: postings.chargramVocab, postings: postings.chargramPostings }
     }, {
@@ -2178,7 +2216,7 @@ export async function writeIndexArtifacts(input) {
     }
   }
   if (sparseArtifactsEnabled && Object.keys(vocabOrder).length) {
-    enqueueJsonObject('vocab_order', {
+    artifactStatsWrites.enqueueJsonObject('vocab_order', {
       fields: {
         algo: 'sha1',
         generatedAt: new Date().toISOString(),
