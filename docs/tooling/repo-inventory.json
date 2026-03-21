@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T16:35:29.712Z",
+  "generatedAt": "2026-03-21T16:50:14.221Z",
   "generatedBy": "node tools/docs/repo-inventory.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "docs": {
@@ -2004,6 +2004,7 @@
       "tools/triage/ingest.js",
       "tools/tui/build-support.js",
       "tools/tui/build.js",
+      "tools/tui/capture-fixtures.js",
       "tools/tui/install.js",
       "tools/tui/supervisor.js",
       "tools/tui/supervisor/artifacts.js",
@@ -3058,6 +3059,7 @@
       "tools/triage/decision.js",
       "tools/triage/ingest.js",
       "tools/tui/build.js",
+      "tools/tui/capture-fixtures.js",
       "tools/tui/install.js",
       "tools/tui/supervisor.js",
       "tools/workspace/build.js",
@@ -3324,7 +3326,8 @@
       "tools/tooling/python-check.js",
       "tools/triage/context-pack.js",
       "tools/triage/decision.js",
-      "tools/triage/ingest.js"
+      "tools/triage/ingest.js",
+      "tools/tui/capture-fixtures.js"
     ]
   },
   "scripts": {

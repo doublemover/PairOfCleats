@@ -83,6 +83,32 @@ Session snapshot restore path:
 - default `.cache/tui/last-state.json`
 - override with `PAIROFCLEATS_TUI_SNAPSHOT_PATH`
 
+## Frame Capture Harness
+
+For deterministic operator-view snapshots without launching the live TUI, run:
+
+- `node tools/tui/capture-fixtures.js`
+
+By default this replays fixture-backed sessions and writes frame artifacts under:
+
+- `.testLogs/tui/frame-capture/`
+
+Each fixture emits:
+
+- `capture-manifest.json`
+- one `*.frame.txt` file per capture + terminal variant
+- one `*.frame.json` metadata file per capture + terminal variant
+
+The metadata includes:
+
+- terminal width/height
+- color and unicode mode
+- selected job and scroll offsets
+- job/task/log counts
+- style runs for non-default colors/modifiers
+
+Use `node tools/tui/capture-fixtures.js --list` to see the bundled fixtures, or `--fixture <path>` / `--out-dir <path>` to target a specific capture set or output root.
+
 ## Related specs
 
 - `docs/specs/tui-installation.md`

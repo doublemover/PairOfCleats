@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "name": "external-observability",
+  "source_mode": "external-observability",
+  "run_id": "fixture-observability",
+  "variants": [
+    {
+      "id": "medium-color",
+      "width": 96,
+      "height": 24,
+      "color": true,
+      "unicode": true
+    }
+  ],
+  "steps": [
+    {
+      "event": {
+        "event": "log",
+        "runId": "fixture-observability",
+        "message": "attached to external observability stream"
+      }
+    },
+    {
+      "event": {
+        "event": "runtime:metrics",
+        "runId": "fixture-observability",
+        "flow": {
+          "queueDepth": 3
+        }
+      }
+    },
+    {
+      "capture_id": "logs-only"
+    }
+  ]
+}

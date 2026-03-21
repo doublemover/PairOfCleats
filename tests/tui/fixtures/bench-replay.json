@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "name": "bench-replay",
+  "source_mode": "replay",
+  "run_id": "fixture-bench-replay",
+  "variants": [
+    {
+      "id": "medium-color",
+      "width": 100,
+      "height": 26,
+      "color": true,
+      "unicode": true
+    }
+  ],
+  "steps": [
+    {
+      "event": {
+        "event": "log",
+        "runId": "fixture-bench-replay",
+        "message": "replay attached: bench-language large run"
+      }
+    },
+    {
+      "event": {
+        "event": "job:start",
+        "runId": "fixture-bench-replay",
+        "jobId": "repo-swift",
+        "title": "swift/rxhanson/Rectangle"
+      }
+    },
+    {
+      "event": {
+        "event": "task:progress",
+        "runId": "fixture-bench-replay",
+        "jobId": "repo-swift",
+        "taskId": "sourcekit",
+        "status": "running",
+        "message": "semantic tokens retry 1"
+      }
+    },
+    {
+      "event": {
+        "event": "runtime:metrics",
+        "runId": "fixture-bench-replay",
+        "flow": {
+          "queueDepth": 12
+        }
+      }
+    },
+    {
+      "event": {
+        "event": "log",
+        "runId": "fixture-bench-replay",
+        "message": "provider degraded: sourcekit semantic tokens timeout"
+      }
+    },
+    {
+      "capture_id": "degraded"
+    },
+    {
+      "event": {
+        "event": "task:end",
+        "runId": "fixture-bench-replay",
+        "jobId": "repo-swift",
+        "taskId": "sourcekit",
+        "status": "failed",
+        "message": "timeout -> fail-open"
+      }
+    },
+    {
+      "event": {
+        "event": "job:end",
+        "runId": "fixture-bench-replay",
+        "jobId": "repo-swift",
+        "status": "failed"
+      }
+    },
+    {
+      "capture_id": "failed"
+    }
+  ]
+}

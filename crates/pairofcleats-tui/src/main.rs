@@ -13,9 +13,9 @@ use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
-use ratatui::backend::CrosstermBackend;
+use ratatui::backend::{CrosstermBackend, TestBackend};
 use ratatui::layout::{Constraint, Direction, Layout};
-use ratatui::style::{Color, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 use ratatui::Terminal;
 use serde::{Deserialize, Serialize};
@@ -33,6 +33,7 @@ const INPUT_DISPATCH_INTERVAL_MS: u128 = 25;
 const FLOW_CREDIT_BATCH: u64 = 64;
 const FLOW_CREDIT_FLUSH_INTERVAL: Duration = Duration::from_millis(80);
 const METRICS_EMIT_INTERVAL: Duration = Duration::from_millis(1000);
+const TUI_CAPTURE_FIXTURE_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Clone)]
 struct TerminalCapabilities {
@@ -118,6 +119,97 @@ struct ChunkAssembly {
     chunk_count: usize,
     parts: Vec<Option<String>>,
     bytes: usize,
+}
+
+#[derive(Deserialize)]
+struct CaptureFixture {
+    schema_version: u32,
+    name: String,
+    #[serde(default)]
+    source_mode: String,
+    #[serde(default)]
+    run_id: String,
+    variants: Vec<CaptureVariant>,
+    #[serde(default)]
+    steps: Vec<CaptureStep>,
+}
+
+#[derive(Deserialize)]
+struct CaptureVariant {
+    id: String,
+    width: u16,
+    height: u16,
+    #[serde(default)]
+    color: Option<bool>,
+    #[serde(default)]
+    unicode: Option<bool>,
+}
+
+#[derive(Default, Deserialize)]
+struct CaptureStep {
+    #[serde(default)]
+    capture_id: String,
+    #[serde(default)]
+    event: Option<Value>,
+    #[serde(default)]
+    input: String,
+    #[serde(default)]
+    selected_job: String,
+    #[serde(default)]
+    job_scroll: Option<usize>,
+    #[serde(default)]
+    task_scroll: Option<usize>,
+    #[serde(default)]
+    log_scroll: Option<usize>,
+}
+
+#[derive(Serialize)]
+struct FrameStyleRun {
+    row: u16,
+    start_col: u16,
+    end_col: u16,
+    fg: String,
+    bg: String,
+    modifiers: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct CapturedFrameMetadata {
+    fixture_name: String,
+    source_mode: String,
+    capture_id: String,
+    variant_id: String,
+    width: u16,
+    height: u16,
+    color: bool,
+    unicode: bool,
+    run_id: String,
+    selected_job: Option<String>,
+    job_scroll: usize,
+    task_scroll: usize,
+    log_scroll: usize,
+    job_count: usize,
+    task_count: usize,
+    log_count: usize,
+    non_default_style_cells: usize,
+    style_runs: Vec<FrameStyleRun>,
+}
+
+#[derive(Serialize)]
+struct CaptureManifestEntry {
+    capture_id: String,
+    variant_id: String,
+    frame_path: String,
+    metadata_path: String,
+}
+
+#[derive(Serialize)]
+struct CaptureManifest {
+    schema_version: u32,
+    fixture_name: String,
+    source_mode: String,
+    run_id: String,
+    outputs: Vec<CaptureManifestEntry>,
 }
 
 #[derive(Clone)]
@@ -242,6 +334,80 @@ impl AppModel {
         self.task_status.insert(key, text);
         self.dirty = true;
     }
+}
+
+fn resolve_capture_fixture_path() -> Option<PathBuf> {
+    let value = std::env::var("PAIROFCLEATS_TUI_CAPTURE_FIXTURE").ok()?;
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(PathBuf::from(trimmed))
+}
+
+fn resolve_capture_out_dir() -> Option<PathBuf> {
+    let value = std::env::var("PAIROFCLEATS_TUI_CAPTURE_OUT_DIR").ok()?;
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(PathBuf::from(trimmed))
+}
+
+fn color_name(color: Option<Color>) -> String {
+    match color.unwrap_or(Color::Reset) {
+        Color::Reset => "reset".to_string(),
+        Color::Black => "black".to_string(),
+        Color::Red => "red".to_string(),
+        Color::Green => "green".to_string(),
+        Color::Yellow => "yellow".to_string(),
+        Color::Blue => "blue".to_string(),
+        Color::Magenta => "magenta".to_string(),
+        Color::Cyan => "cyan".to_string(),
+        Color::Gray => "gray".to_string(),
+        Color::DarkGray => "dark_gray".to_string(),
+        Color::LightRed => "light_red".to_string(),
+        Color::LightGreen => "light_green".to_string(),
+        Color::LightYellow => "light_yellow".to_string(),
+        Color::LightBlue => "light_blue".to_string(),
+        Color::LightMagenta => "light_magenta".to_string(),
+        Color::LightCyan => "light_cyan".to_string(),
+        Color::White => "white".to_string(),
+        Color::Rgb(r, g, b) => format!("rgb({r},{g},{b})"),
+        Color::Indexed(index) => format!("indexed({index})"),
+    }
+}
+
+fn modifier_names(modifier: Modifier) -> Vec<String> {
+    let mut names = Vec::new();
+    if modifier.contains(Modifier::BOLD) {
+        names.push("bold".to_string());
+    }
+    if modifier.contains(Modifier::DIM) {
+        names.push("dim".to_string());
+    }
+    if modifier.contains(Modifier::ITALIC) {
+        names.push("italic".to_string());
+    }
+    if modifier.contains(Modifier::UNDERLINED) {
+        names.push("underlined".to_string());
+    }
+    if modifier.contains(Modifier::SLOW_BLINK) {
+        names.push("slow_blink".to_string());
+    }
+    if modifier.contains(Modifier::RAPID_BLINK) {
+        names.push("rapid_blink".to_string());
+    }
+    if modifier.contains(Modifier::REVERSED) {
+        names.push("reversed".to_string());
+    }
+    if modifier.contains(Modifier::HIDDEN) {
+        names.push("hidden".to_string());
+    }
+    if modifier.contains(Modifier::CROSSED_OUT) {
+        names.push("crossed_out".to_string());
+    }
+    names
 }
 
 fn resolve_run_id() -> String {
@@ -399,123 +565,370 @@ fn frame_signature(model: &AppModel) -> String {
     )
 }
 
+fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Min(1),
+        ])
+        .split(frame.area());
+
+    let controls = if model.terminal_caps.unicode {
+        "PairOfCleats TUI - [r] run  [c] cancel  [q] quit  [j/k] logs  [n/m] jobs  [u/i] tasks"
+    } else {
+        "PairOfCleats TUI - [r] run [c] cancel [q] quit [j/k] logs [n/m] jobs [u/i] tasks"
+    };
+    let control_block =
+        Paragraph::new(controls).block(Block::default().borders(Borders::ALL).title("Controls"));
+    frame.render_widget(control_block, rows[0]);
+
+    let metrics = format!(
+        "run={} events={} lag~{:.1}ms render~{:.1}ms q~{:.1} chunked={} droppedChunks={}",
+        model.run_id,
+        model.telemetry.processed_events,
+        model.telemetry.event_lag_ms_ewma,
+        model.telemetry.render_ms_ewma,
+        model.telemetry.queue_depth_ewma,
+        model.telemetry.chunk_reassembled,
+        model.telemetry.dropped_chunks
+    );
+    let metrics_block =
+        Paragraph::new(metrics).block(Block::default().borders(Borders::ALL).title("Runtime"));
+    frame.render_widget(metrics_block, rows[1]);
+
+    let cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(28),
+            Constraint::Percentage(28),
+            Constraint::Percentage(44),
+        ])
+        .split(rows[2]);
+
+    let mut job_rows: Vec<String> = model
+        .job_status
+        .iter()
+        .map(|(job_id, status)| format!("{job_id}  {status}"))
+        .collect();
+    if job_rows.is_empty() {
+        job_rows.push("(no jobs)".to_string());
+    }
+    let visible_jobs = list_window(
+        &job_rows,
+        model.job_scroll,
+        cols[0].height.saturating_sub(2) as usize,
+    );
+    let job_items: Vec<ListItem> = visible_jobs
+        .into_iter()
+        .map(|row| {
+            let style = if !model.terminal_caps.color {
+                Style::default()
+            } else if row.contains("done") {
+                Style::default().fg(Color::Green)
+            } else if row.contains("failed") {
+                Style::default().fg(Color::Red)
+            } else if row.contains("cancelled") {
+                Style::default().fg(Color::Yellow)
+            } else if row.contains("running") {
+                Style::default().fg(Color::Blue)
+            } else {
+                Style::default().fg(Color::Gray)
+            };
+            ListItem::new(row).style(style)
+        })
+        .collect();
+    let jobs = List::new(job_items).block(Block::default().borders(Borders::ALL).title("Jobs"));
+    frame.render_widget(jobs, cols[0]);
+
+    let selected_job = model.selected_job.clone().unwrap_or_default();
+    let mut task_rows: Vec<String> = model
+        .task_status
+        .iter()
+        .filter_map(|(key, status)| {
+            if selected_job.is_empty() || key.starts_with(&format!("{selected_job}:")) {
+                Some(format!("{key}  {status}"))
+            } else {
+                None
+            }
+        })
+        .collect();
+    if task_rows.is_empty() {
+        task_rows.push("(no tasks)".to_string());
+    }
+    let visible_tasks = list_window(
+        &task_rows,
+        model.task_scroll,
+        cols[1].height.saturating_sub(2) as usize,
+    );
+    let task_items: Vec<ListItem> = visible_tasks.into_iter().map(ListItem::new).collect();
+    let tasks = List::new(task_items).block(Block::default().borders(Borders::ALL).title("Tasks"));
+    frame.render_widget(tasks, cols[1]);
+
+    let visible_logs = tail_window(
+        &model.logs,
+        model.log_scroll,
+        cols[2].height.saturating_sub(2) as usize,
+    );
+    let log_items: Vec<ListItem> = visible_logs.into_iter().map(ListItem::new).collect();
+    let logs = List::new(log_items).block(Block::default().borders(Borders::ALL).title("Logs"));
+    frame.render_widget(logs, cols[2]);
+}
+
 fn draw_ui(
     terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
     model: &AppModel,
 ) -> anyhow::Result<u128> {
     let frame_started = Instant::now();
-    terminal.draw(|frame| {
-        let rows = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3),
-                Constraint::Length(3),
-                Constraint::Min(1),
-            ])
-            .split(frame.area());
-
-        let controls = if model.terminal_caps.unicode {
-            "PairOfCleats TUI - [r] run  [c] cancel  [q] quit  [j/k] logs  [n/m] jobs  [u/i] tasks"
-        } else {
-            "PairOfCleats TUI - [r] run [c] cancel [q] quit [j/k] logs [n/m] jobs [u/i] tasks"
-        };
-        let control_block = Paragraph::new(controls)
-            .block(Block::default().borders(Borders::ALL).title("Controls"));
-        frame.render_widget(control_block, rows[0]);
-
-        let metrics = format!(
-            "run={} events={} lag~{:.1}ms render~{:.1}ms q~{:.1} chunked={} droppedChunks={}",
-            model.run_id,
-            model.telemetry.processed_events,
-            model.telemetry.event_lag_ms_ewma,
-            model.telemetry.render_ms_ewma,
-            model.telemetry.queue_depth_ewma,
-            model.telemetry.chunk_reassembled,
-            model.telemetry.dropped_chunks
-        );
-        let metrics_block =
-            Paragraph::new(metrics).block(Block::default().borders(Borders::ALL).title("Runtime"));
-        frame.render_widget(metrics_block, rows[1]);
-
-        let cols = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(28),
-                Constraint::Percentage(28),
-                Constraint::Percentage(44),
-            ])
-            .split(rows[2]);
-
-        let mut job_rows: Vec<String> = model
-            .job_status
-            .iter()
-            .map(|(job_id, status)| format!("{job_id}  {status}"))
-            .collect();
-        if job_rows.is_empty() {
-            job_rows.push("(no jobs)".to_string());
-        }
-        let visible_jobs = list_window(
-            &job_rows,
-            model.job_scroll,
-            cols[0].height.saturating_sub(2) as usize,
-        );
-        let job_items: Vec<ListItem> = visible_jobs
-            .into_iter()
-            .map(|row| {
-                let style = if !model.terminal_caps.color {
-                    Style::default()
-                } else if row.contains("done") {
-                    Style::default().fg(Color::Green)
-                } else if row.contains("failed") {
-                    Style::default().fg(Color::Red)
-                } else if row.contains("cancelled") {
-                    Style::default().fg(Color::Yellow)
-                } else if row.contains("running") {
-                    Style::default().fg(Color::Blue)
-                } else {
-                    Style::default().fg(Color::Gray)
-                };
-                ListItem::new(row).style(style)
-            })
-            .collect();
-        let jobs = List::new(job_items).block(Block::default().borders(Borders::ALL).title("Jobs"));
-        frame.render_widget(jobs, cols[0]);
-
-        let selected_job = model.selected_job.clone().unwrap_or_default();
-        let mut task_rows: Vec<String> = model
-            .task_status
-            .iter()
-            .filter_map(|(key, status)| {
-                if selected_job.is_empty() || key.starts_with(&format!("{selected_job}:")) {
-                    Some(format!("{key}  {status}"))
-                } else {
-                    None
-                }
-            })
-            .collect();
-        if task_rows.is_empty() {
-            task_rows.push("(no tasks)".to_string());
-        }
-        let visible_tasks = list_window(
-            &task_rows,
-            model.task_scroll,
-            cols[1].height.saturating_sub(2) as usize,
-        );
-        let task_items: Vec<ListItem> = visible_tasks.into_iter().map(ListItem::new).collect();
-        let tasks =
-            List::new(task_items).block(Block::default().borders(Borders::ALL).title("Tasks"));
-        frame.render_widget(tasks, cols[1]);
-
-        let visible_logs = tail_window(
-            &model.logs,
-            model.log_scroll,
-            cols[2].height.saturating_sub(2) as usize,
-        );
-        let log_items: Vec<ListItem> = visible_logs.into_iter().map(ListItem::new).collect();
-        let logs = List::new(log_items).block(Block::default().borders(Borders::ALL).title("Logs"));
-        frame.render_widget(logs, cols[2]);
-    })?;
+    terminal.draw(|frame| render_ui(frame, model))?;
     Ok(frame_started.elapsed().as_millis())
+}
+
+fn apply_local_input(model: &mut AppModel, input: &str) {
+    match input.trim() {
+        "logs_up" => {
+            model.log_scroll = model.log_scroll.saturating_add(1);
+            model.dirty = true;
+        }
+        "logs_down" => {
+            model.log_scroll = model.log_scroll.saturating_sub(1);
+            model.dirty = true;
+        }
+        "jobs_up" => {
+            model.job_scroll = model.job_scroll.saturating_add(1);
+            model.dirty = true;
+        }
+        "jobs_down" => {
+            model.job_scroll = model.job_scroll.saturating_sub(1);
+            model.dirty = true;
+        }
+        "tasks_up" => {
+            model.task_scroll = model.task_scroll.saturating_add(1);
+            model.dirty = true;
+        }
+        "tasks_down" => {
+            model.task_scroll = model.task_scroll.saturating_sub(1);
+            model.dirty = true;
+        }
+        _ => {}
+    }
+}
+
+fn capture_frame(
+    model: &AppModel,
+    fixture_name: &str,
+    source_mode: &str,
+    capture_id: &str,
+    variant: &CaptureVariant,
+    output_dir: &Path,
+) -> anyhow::Result<CaptureManifestEntry> {
+    let mut backend = TestBackend::new(variant.width, variant.height);
+    let mut terminal = Terminal::new(backend)?;
+    terminal.draw(|frame| render_ui(frame, model))?;
+    backend = terminal.backend().clone();
+    let buffer = backend.buffer().clone();
+    let width = buffer.area.width as usize;
+    let height = buffer.area.height as usize;
+    let mut lines = Vec::new();
+    let mut style_runs = Vec::new();
+    let mut non_default_style_cells = 0usize;
+
+    for row in 0..height {
+        let mut line = String::new();
+        let mut active_run: Option<FrameStyleRun> = None;
+        for col in 0..width {
+            let cell = &buffer.content[(row * width) + col];
+            let symbol = cell.symbol();
+            let style = cell.style();
+            let fg = color_name(style.fg);
+            let bg = color_name(style.bg);
+            let modifiers = modifier_names(style.add_modifier);
+            let is_default_style = fg == "reset"
+                && bg == "reset"
+                && modifiers.is_empty()
+                && style.sub_modifier.is_empty();
+            if !is_default_style {
+                non_default_style_cells += 1;
+            }
+            match active_run.as_mut() {
+                Some(run)
+                    if run.fg == fg
+                        && run.bg == bg
+                        && run.modifiers == modifiers
+                        && run.end_col == col as u16 =>
+                {
+                    run.end_col += 1;
+                }
+                Some(_) => {
+                    style_runs.push(active_run.take().unwrap());
+                    if !is_default_style {
+                        active_run = Some(FrameStyleRun {
+                            row: row as u16,
+                            start_col: col as u16,
+                            end_col: col as u16 + 1,
+                            fg,
+                            bg,
+                            modifiers,
+                        });
+                    }
+                }
+                None => {
+                    if !is_default_style {
+                        active_run = Some(FrameStyleRun {
+                            row: row as u16,
+                            start_col: col as u16,
+                            end_col: col as u16 + 1,
+                            fg,
+                            bg,
+                            modifiers,
+                        });
+                    }
+                }
+            }
+            line.push_str(symbol);
+        }
+        if let Some(run) = active_run.take() {
+            style_runs.push(run);
+        }
+        lines.push(line);
+    }
+
+    fs::create_dir_all(output_dir)?;
+    let frame_path = output_dir.join(format!("{}.frame.txt", variant.id));
+    let metadata_path = output_dir.join(format!("{}.frame.json", variant.id));
+    fs::write(&frame_path, format!("{}\n", lines.join("\n")))?;
+    let metadata = CapturedFrameMetadata {
+        fixture_name: fixture_name.to_string(),
+        source_mode: source_mode.to_string(),
+        capture_id: capture_id.to_string(),
+        variant_id: variant.id.clone(),
+        width: variant.width,
+        height: variant.height,
+        color: model.terminal_caps.color,
+        unicode: model.terminal_caps.unicode,
+        run_id: model.run_id.clone(),
+        selected_job: model.selected_job.clone(),
+        job_scroll: model.job_scroll,
+        task_scroll: model.task_scroll,
+        log_scroll: model.log_scroll,
+        job_count: model.job_status.len(),
+        task_count: model.task_status.len(),
+        log_count: model.logs.len(),
+        non_default_style_cells,
+        style_runs,
+    };
+    fs::write(
+        &metadata_path,
+        format!("{}\n", serde_json::to_string_pretty(&metadata)?),
+    )?;
+    Ok(CaptureManifestEntry {
+        capture_id: capture_id.to_string(),
+        variant_id: variant.id.clone(),
+        frame_path: frame_path.to_string_lossy().replace('\\', "/"),
+        metadata_path: metadata_path.to_string_lossy().replace('\\', "/"),
+    })
+}
+
+fn run_capture_fixture_mode(fixture_path: &Path, output_root: &Path) -> anyhow::Result<()> {
+    let body = fs::read_to_string(fixture_path)?;
+    let fixture: CaptureFixture = serde_json::from_str(&body)?;
+    if fixture.schema_version != TUI_CAPTURE_FIXTURE_SCHEMA_VERSION {
+        anyhow::bail!(
+            "unsupported capture fixture schema version in {}: {} (expected {})",
+            fixture_path.display(),
+            fixture.schema_version,
+            TUI_CAPTURE_FIXTURE_SCHEMA_VERSION
+        );
+    }
+    if fixture.name.trim().is_empty() {
+        anyhow::bail!("capture fixture missing name: {}", fixture_path.display());
+    }
+    if fixture.variants.is_empty() {
+        anyhow::bail!(
+            "capture fixture missing variants: {}",
+            fixture_path.display()
+        );
+    }
+    let source_mode = if fixture.source_mode.trim().is_empty() {
+        "unspecified".to_string()
+    } else {
+        fixture.source_mode.trim().to_string()
+    };
+    let run_id = if fixture.run_id.trim().is_empty() {
+        fixture.name.trim().to_string()
+    } else {
+        fixture.run_id.trim().to_string()
+    };
+    let terminal_caps = TerminalCapabilities {
+        color: true,
+        unicode: true,
+        mouse: false,
+        alt_screen: false,
+    };
+    let mut model = AppModel::new(run_id.clone(), terminal_caps, None);
+    let fixture_out_dir = output_root.join(fixture.name.trim());
+    fs::create_dir_all(&fixture_out_dir)?;
+    let mut outputs = Vec::new();
+
+    for (index, step) in fixture.steps.iter().enumerate() {
+        if let Some(event) = step.event.clone() {
+            apply_protocol_event(&mut model, event, 0);
+        }
+        if !step.input.trim().is_empty() {
+            apply_local_input(&mut model, &step.input);
+        }
+        if !step.selected_job.trim().is_empty() {
+            model.selected_job = Some(step.selected_job.trim().to_string());
+            model.dirty = true;
+        }
+        if let Some(job_scroll) = step.job_scroll {
+            model.job_scroll = job_scroll;
+            model.dirty = true;
+        }
+        if let Some(task_scroll) = step.task_scroll {
+            model.task_scroll = task_scroll;
+            model.dirty = true;
+        }
+        if let Some(log_scroll) = step.log_scroll {
+            model.log_scroll = log_scroll;
+            model.dirty = true;
+        }
+        if step.capture_id.trim().is_empty() {
+            continue;
+        }
+        let capture_dir =
+            fixture_out_dir.join(format!("{:02}-{}", index + 1, step.capture_id.trim()));
+        for variant in &fixture.variants {
+            let original_color = model.terminal_caps.color;
+            let original_unicode = model.terminal_caps.unicode;
+            model.terminal_caps.color = variant.color.unwrap_or(original_color);
+            model.terminal_caps.unicode = variant.unicode.unwrap_or(original_unicode);
+            outputs.push(capture_frame(
+                &model,
+                fixture.name.trim(),
+                &source_mode,
+                step.capture_id.trim(),
+                variant,
+                &capture_dir,
+            )?);
+            model.terminal_caps.color = original_color;
+            model.terminal_caps.unicode = original_unicode;
+        }
+    }
+
+    let manifest = CaptureManifest {
+        schema_version: TUI_CAPTURE_FIXTURE_SCHEMA_VERSION,
+        fixture_name: fixture.name.trim().to_string(),
+        source_mode,
+        run_id,
+        outputs,
+    };
+    fs::write(
+        fixture_out_dir.join("capture-manifest.json"),
+        format!("{}\n", serde_json::to_string_pretty(&manifest)?),
+    )?;
+    Ok(())
 }
 
 fn enqueue_input(model: &mut AppModel, command: InputCommand, token: &str) {
@@ -806,6 +1219,12 @@ fn dispatch_input(
 }
 
 fn main() -> anyhow::Result<()> {
+    if let Some(fixture_path) = resolve_capture_fixture_path() {
+        let output_root = resolve_capture_out_dir()
+            .unwrap_or_else(|| Path::new(".testLogs").join("tui").join("frame-capture"));
+        return run_capture_fixture_mode(&fixture_path, &output_root);
+    }
+
     let terminal_caps = TerminalCapabilities::detect();
     let run_id = resolve_run_id();
     let observability_dir = resolve_observability_dir();

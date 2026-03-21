@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "name": "navigation-scroll",
+  "source_mode": "supervised",
+  "run_id": "fixture-navigation",
+  "variants": [
+    {
+      "id": "medium-color",
+      "width": 100,
+      "height": 24,
+      "color": true,
+      "unicode": true
+    }
+  ],
+  "steps": [
+    {
+      "event": {
+        "event": "job:start",
+        "runId": "fixture-navigation",
+        "jobId": "job-a",
+        "title": "alpha"
+      }
+    },
+    {
+      "event": {
+        "event": "job:start",
+        "runId": "fixture-navigation",
+        "jobId": "job-b",
+        "title": "beta"
+      }
+    },
+    {
+      "event": {
+        "event": "job:start",
+        "runId": "fixture-navigation",
+        "jobId": "job-c",
+        "title": "gamma"
+      }
+    },
+    {
+      "event": {
+        "event": "task:progress",
+        "runId": "fixture-navigation",
+        "jobId": "job-c",
+        "taskId": "task-1",
+        "status": "running",
+        "message": "phase 1"
+      }
+    },
+    {
+      "event": {
+        "event": "task:progress",
+        "runId": "fixture-navigation",
+        "jobId": "job-c",
+        "taskId": "task-2",
+        "status": "running",
+        "message": "phase 2"
+      }
+    },
+    {
+      "event": {
+        "event": "task:progress",
+        "runId": "fixture-navigation",
+        "jobId": "job-b",
+        "taskId": "task-1",
+        "status": "running",
+        "message": "waiting"
+      }
+    },
+    {
+      "event": {
+        "event": "log",
+        "runId": "fixture-navigation",
+        "message": "log line 1"
+      }
+    },
+    {
+      "event": {
+        "event": "log",
+        "runId": "fixture-navigation",
+        "message": "log line 2"
+      }
+    },
+    {
+      "event": {
+        "event": "log",
+        "runId": "fixture-navigation",
+        "message": "log line 3"
+      }
+    },
+    {
+      "event": {
+        "event": "log",
+        "runId": "fixture-navigation",
+        "message": "log line 4"
+      }
+    },
+    {
+      "capture_id": "before-scroll"
+    },
+    {
+      "input": "logs_up"
+    },
+    {
+      "input": "jobs_up"
+    },
+    {
+      "selected_job": "job-b"
+    },
+    {
+      "capture_id": "after-scroll"
+    }
+  ]
+}

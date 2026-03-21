@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T16:35:30.067Z",
+  "generatedAt": "2026-03-21T16:51:39.036Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -199,6 +199,8 @@
       "PAIROFCLEATS_TOOLING_LSP_SLO_BASELINE",
       "PAIROFCLEATS_TRACE_ARTIFACT_IO",
       "PAIROFCLEATS_TUI_ALT_SCREEN",
+      "PAIROFCLEATS_TUI_CAPTURE_FIXTURE",
+      "PAIROFCLEATS_TUI_CAPTURE_OUT_DIR",
       "PAIROFCLEATS_TUI_CARGO",
       "PAIROFCLEATS_TUI_DIST_DIR",
       "PAIROFCLEATS_TUI_EVENT_LOG_DIR",
@@ -3554,6 +3556,20 @@
       "files": [
         "tests/tui/terminal-capability-fallback.test.js",
         "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TUI_CAPTURE_FIXTURE",
+      "files": [
+        "tools/config/inventory.js",
+        "tools/tui/capture-fixtures.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TUI_CAPTURE_OUT_DIR",
+      "files": [
+        "tools/config/inventory.js",
+        "tools/tui/capture-fixtures.js"
       ]
     },
     {

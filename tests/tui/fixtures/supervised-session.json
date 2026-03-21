@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "name": "supervised-session",
+  "source_mode": "supervised",
+  "run_id": "fixture-supervised",
+  "variants": [
+    {
+      "id": "narrow-color",
+      "width": 80,
+      "height": 24,
+      "color": true,
+      "unicode": true
+    },
+    {
+      "id": "wide-no-color",
+      "width": 120,
+      "height": 28,
+      "color": false,
+      "unicode": true
+    }
+  ],
+  "steps": [
+    {
+      "capture_id": "startup"
+    },
+    {
+      "event": {
+        "event": "job:start",
+        "runId": "fixture-supervised",
+        "jobId": "job-index",
+        "title": "Index Repo"
+      }
+    },
+    {
+      "event": {
+        "event": "task:start",
+        "runId": "fixture-supervised",
+        "jobId": "job-index",
+        "taskId": "discover",
+        "status": "running",
+        "message": "discovering repository"
+      }
+    },
+    {
+      "event": {
+        "event": "task:progress",
+        "runId": "fixture-supervised",
+        "jobId": "job-index",
+        "taskId": "discover",
+        "status": "running",
+        "message": "files=128"
+      }
+    },
+    {
+      "event": {
+        "event": "log",
+        "runId": "fixture-supervised",
+        "message": "indexing active: chunk assembly stable"
+      }
+    },
+    {
+      "capture_id": "active"
+    },
+    {
+      "event": {
+        "event": "task:end",
+        "runId": "fixture-supervised",
+        "jobId": "job-index",
+        "taskId": "discover",
+        "status": "done",
+        "message": "completed"
+      }
+    },
+    {
+      "event": {
+        "event": "job:end",
+        "runId": "fixture-supervised",
+        "jobId": "job-index",
+        "status": "done"
+      }
+    },
+    {
+      "event": {
+        "event": "log",
+        "runId": "fixture-supervised",
+        "message": "indexing completed successfully"
+      }
+    },
+    {
+      "capture_id": "complete"
+    }
+  ]
+}
