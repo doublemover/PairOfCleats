@@ -1648,6 +1648,7 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
             Some("streaming"),
             Some("receiving runtime metrics"),
         );
+        return;
     }
 
     let log_line = if event_name == "log" {
@@ -1788,14 +1789,6 @@ fn main() -> anyhow::Result<()> {
 
     let (mut supervisor, events_rx) = spawn_supervisor(&run_id, &observability_dir)?;
 
-    send_request(
-        &mut supervisor,
-        json!({
-            "proto": "poc.tui@1",
-            "op": "hello",
-            "client": {"name": "pairofcleats-tui", "version": env!("CARGO_PKG_VERSION")}
-        }),
-    )?;
     let _ = send_request(
         &mut supervisor,
         json!({

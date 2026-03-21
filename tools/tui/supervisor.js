@@ -153,7 +153,6 @@ const handleRequest = async (request) => {
   }
   if (op === 'flow:credit') {
     const added = addFlowCredits(request.credits);
-    emitRuntimeMetrics();
     if (added <= 0) {
       emitLog(null, 'warn', 'ignored invalid flow:credit request', { credits: request.credits });
     }
