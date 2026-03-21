@@ -80,7 +80,7 @@ const SMOKE_STEPS = Object.freeze([
   {
     id: 'smoke.fixture-index-build',
     label: 'fixture index build',
-    command: [process.execPath, 'build_index.js', '--repo', 'tests/fixtures/sample', '--mode', 'code']
+    command: [process.execPath, 'bin/pairofcleats.js', 'index', 'build', '--repo', 'tests/fixtures/sample', '--mode', 'code']
   },
   {
     id: 'smoke.fixture-index-validate-strict',
@@ -90,7 +90,7 @@ const SMOKE_STEPS = Object.freeze([
   {
     id: 'smoke.fixture-search',
     label: 'fixture search',
-    command: [process.execPath, 'search.js', 'sample', '--repo', 'tests/fixtures/sample', '--top', '1', '--json']
+    command: [process.execPath, 'bin/pairofcleats.js', 'search', 'sample', '--repo', 'tests/fixtures/sample', '--top', '1', '--json']
   },
   {
     id: 'smoke.editor-sublime',

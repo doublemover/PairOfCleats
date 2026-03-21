@@ -12,6 +12,7 @@ import { parseObservabilityContextEnv } from './src/shared/observability.js';
 import { resolveRuntimeEnvelope } from './src/shared/runtime-envelope.js';
 import { createAbortControllerWithHandlers, isAbortError } from './src/shared/abort.js';
 import { setCacheRebuildEnv, setVerboseEnv } from './src/shared/env.js';
+import { emitLegacyCliEntrypointWarning } from './src/shared/legacy-cli-entrypoint.js';
 import { getCurrentBuildInfo, getRepoCacheRoot, getToolVersion, loadUserConfig, resolveRepoRoot } from './tools/shared/dict-utils.js';
 
 const normalizePath = (value) => String(value || '').replace(/\//g, path.sep);
@@ -214,5 +215,10 @@ const isDirectExecution = () => {
 };
 
 if (isDirectExecution()) {
+  emitLegacyCliEntrypointWarning({
+    entrypoint: 'build_index.js',
+    replacement: 'pairofcleats index build',
+    args: process.argv.slice(2)
+  });
   void runCli();
 }

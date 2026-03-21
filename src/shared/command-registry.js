@@ -108,12 +108,12 @@ export const COMMAND_REGISTRY = Object.freeze([
     helpGroup: 'Config',
     capability: false
   }),
-  entry('index.build', ['index', 'build'], 'build_index.js', 'Build file-backed indexes.', {
+  entry('index.build', ['index', 'build'], 'tools/index/cli-entry.js', 'Build file-backed indexes.', {
     helpGroup: 'Index',
     expectedArtifacts: ['index:code', 'index:prose', 'index:records'],
     helpExamples: ['pairofcleats index build --repo .']
   }),
-  entry('index.watch', ['index', 'watch'], 'build_index.js', 'Watch and rebuild indexes.', {
+  entry('index.watch', ['index', 'watch'], 'tools/index/cli-entry.js', 'Watch and rebuild indexes.', {
     helpGroup: 'Index',
     extraArgs: ['--watch'],
     expectedArtifacts: ['index:code', 'index:prose', 'index:records']
@@ -141,7 +141,7 @@ export const COMMAND_REGISTRY = Object.freeze([
     capability: false,
     supportTier: 'operator'
   }),
-  entry('search', ['search'], 'search.js', 'Query indexed data.', {
+  entry('search', ['search'], 'tools/search/cli-entry.js', 'Query indexed data.', {
     helpGroup: 'Search',
     expectedArtifacts: ['metrics:search'],
     helpExamples: ['pairofcleats search --repo . foo'],

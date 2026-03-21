@@ -166,6 +166,7 @@ const main = async () => {
     '- `npm run env:check`',
     '',
     'Prefer `pairofcleats search`, `pairofcleats index build`, and `pairofcleats index watch` for user-facing workflows.',
+    'Root `build_index.js` and `search.js` remain compatibility shims; prefer the canonical `pairofcleats ...` commands.',
     'Index build/watch SCM flags: `--scm-provider <auto|git|jj|none>`, `--scm-annotate`, `--no-scm-annotate`.',
     'See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.',
     '',

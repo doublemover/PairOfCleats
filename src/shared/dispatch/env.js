@@ -18,7 +18,7 @@ export const resolveDispatchRuntimeEnv = async ({
   baseEnv = process.env
 } = {}) => {
   const userConfig = loadUserConfig(root);
-  if (scriptPath === 'build_index.js') {
+  if (scriptPath === 'build_index.js' || scriptPath === 'tools/index/cli-entry.js') {
     const rawArgs = [...extraArgs, ...restArgs];
     const cli = createCli({
       argv: ['node', 'build_index.js', ...rawArgs],

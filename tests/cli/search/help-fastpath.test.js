@@ -5,12 +5,12 @@ import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 
 const root = process.cwd();
-const scriptPath = path.join(root, 'search.js');
+const scriptPath = path.join(root, 'src', 'retrieval', 'cli', 'search-entry.js');
 const source = fs.readFileSync(scriptPath, 'utf8');
 
 const helpIndex = source.indexOf('hasHelpArg(args)');
 const versionIndex = source.indexOf('hasVersionArg(args)');
-const importIndex = source.indexOf("await import('./src/integrations/core/index.js')");
+const importIndex = source.indexOf("await import('../../integrations/core/index.js')");
 
 if (helpIndex === -1 || versionIndex === -1 || importIndex === -1) {
   console.error('search help fastpath test failed: expected help/version checks and dynamic import.');
@@ -22,7 +22,7 @@ if (!(helpIndex < importIndex && versionIndex < importIndex)) {
   process.exit(1);
 }
 
-const result = spawnSync(process.execPath, [scriptPath, '--help'], { encoding: 'utf8' });
+const result = spawnSync(process.execPath, [path.join(root, 'tools', 'search', 'cli-entry.js'), '--help'], { encoding: 'utf8' });
 if (result.status !== 0) {
   console.error('search help fastpath test failed: expected exit code 0.');
   console.error(getCombinedOutput(result) || '<empty>');

@@ -11,6 +11,10 @@ if (result.status === 0) {
 }
 
 const output = getCombinedOutput(result);
+if (!output.includes('[deprecated] search.js')) {
+  console.error('Expected search help output to include legacy wrapper warning.');
+  process.exit(1);
+}
 const requiredFlags = ['--calls', '--uses', '--author', '--import', '--explain'];
 for (const flag of requiredFlags) {
   if (!output.includes(flag)) {

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T16:12:54.824Z",
+  "generatedAt": "2026-03-21T16:27:04.295Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -160,6 +160,7 @@
       "PAIROFCLEATS_SUBLIME_TEST_NODE",
       "PAIROFCLEATS_SUITE_MODE",
       "PAIROFCLEATS_SUMMARY_CACHE_MAX",
+      "PAIROFCLEATS_SUPPRESS_LEGACY_ENTRYPOINT_WARNING",
       "PAIROFCLEATS_TESTING",
       "PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY",
       "PAIROFCLEATS_TEST_ALLOW_TIMEOUT_PASS_SIGNAL_TARGET",
@@ -3149,6 +3150,14 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_SUPPRESS_LEGACY_ENTRYPOINT_WARNING",
+      "files": [
+        "src/shared/legacy-cli-entrypoint.js",
+        "tests/cli/general/legacy-entrypoint-warning.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY",
       "files": [
         "src/shared/env.js",
@@ -3464,7 +3473,9 @@
       "name": "PAIROFCLEATS_TESTING",
       "files": [
         "src/shared/env.js",
+        "src/shared/legacy-cli-entrypoint.js",
         "src/shared/ops-failure-injection.js",
+        "tests/cli/general/legacy-entrypoint-warning.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/lane-default-test-config.test.js",
         "tests/helpers/test-env-sync-option.test.js",
@@ -7853,7 +7864,6 @@
     ],
     "dynamicOptionFiles": [
       "extensions/vscode/extension.js",
-      "search.js",
       "src/index/build/args.js",
       "src/index/build/context-window.js",
       "src/index/build/file-processor/cpu.js",
@@ -7876,6 +7886,7 @@
       "src/map/isometric/client/ui.js",
       "src/retrieval/cli-args.js",
       "src/retrieval/cli/run-search-session/mode-expansion.js",
+      "src/retrieval/cli/search-entry.js",
       "src/retrieval/federation/args.js",
       "src/retrieval/federation/coordinator.js",
       "src/retrieval/index-cache.js",

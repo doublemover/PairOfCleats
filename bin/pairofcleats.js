@@ -75,7 +75,7 @@ function resolveCommand(primary, rest) {
   if (primary === 'index') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      return { script: 'build_index.js', extraArgs: [], args: rest };
+      return { script: 'tools/index/cli-entry.js', extraArgs: [], args: rest };
     }
     if (sub === 'build') {
       if (readFlagValue(rest, 'workspace')) {
@@ -94,10 +94,10 @@ function resolveCommand(primary, rest) {
         validateArgs(rest, allowed, ['workspace', 'concurrency', ...buildValueFlags]);
         return { script: 'tools/workspace/build.js', extraArgs: [], args: rest };
       }
-      return { script: 'build_index.js', extraArgs: [], args: rest };
+      return { script: 'tools/index/cli-entry.js', extraArgs: [], args: rest };
     }
     if (sub === 'watch') {
-      return { script: 'build_index.js', extraArgs: ['--watch'], args: rest };
+      return { script: 'tools/index/cli-entry.js', extraArgs: ['--watch'], args: rest };
     }
     if (sub === 'validate') {
       return { script: 'tools/index/validate.js', extraArgs: [], args: rest };
@@ -200,10 +200,10 @@ function resolveCommand(primary, rest) {
       );
       return { script: 'tools/index-diff.js', extraArgs: [], args: rest };
     }
-    return { script: 'build_index.js', extraArgs: [], args: [sub, ...rest] };
+    return { script: 'tools/index/cli-entry.js', extraArgs: [], args: [sub, ...rest] };
   }
   if (primary === 'search') {
-    return { script: 'search.js', extraArgs: [], args: rest };
+    return { script: 'tools/search/cli-entry.js', extraArgs: [], args: rest };
   }
   if (primary === 'config') {
     const sub = rest.shift();
