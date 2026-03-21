@@ -24,7 +24,7 @@ const {
   verboseOutput,
   includeUsrGuardrails
 } = resolveThroughputMaterializeOptions({
-  argv: process.argv.slice(2),
+  argv: process.argv,
   cwd: process.cwd()
 });
 
