@@ -29,66 +29,18 @@ import {
   resolveExpectedDenseCount
 } from './sqlite-probes.js';
 import {
+  classifySqliteModeBuildFailure,
+  createSqliteModeRowLedger,
+  validateSqliteRowLedgerPostImport,
+  validateSqliteRowLedgerPreImport
+} from './row-ledger.js';
+import {
   formatBundleManifest,
   formatEmbedStats,
   formatVectorAnnState
 } from './logging.js';
 import { createModeReporter } from './reporting-state-transitions.js';
 import { resolveModeSelectionPlan } from './selection-planning.js';
-
-const resolveBundleIntegrityFailureReason = ({
-  bundleResult,
-  denseArtifactsRequired,
-  expectedDenseCount,
-  expectedChunkCount
-}) => {
-  const explicitReason = typeof bundleResult?.reason === 'string'
-    ? bundleResult.reason.trim()
-    : '';
-  if (explicitReason) return explicitReason;
-  const observedChunkCount = Number(bundleResult?.count);
-  if (
-    Number.isFinite(Number(expectedChunkCount))
-    && Number(expectedChunkCount) >= 0
-    && Number.isFinite(observedChunkCount)
-    && observedChunkCount !== Number(expectedChunkCount)
-  ) {
-    return `bundle row count mismatch (${observedChunkCount} !== ${Number(expectedChunkCount)})`;
-  }
-  const observedDenseCount = Number(bundleResult?.denseCount);
-  if (
-    denseArtifactsRequired
-    && Number.isFinite(Number(expectedDenseCount))
-    && Number(expectedDenseCount) > 0
-  ) {
-    const embedStats = bundleResult?.embedStats || null;
-    const hasPartialDenseCoverage = (
-      Number(embedStats?.filesMissingEmbeddings || 0) > 0
-      || Number(embedStats?.filesPartiallyMissingEmbeddings || 0) > 0
-      || Number(embedStats?.missingChunks || 0) > 0
-      || (
-        Number.isFinite(Number(embedStats?.denseChunks))
-        && Number.isFinite(Number(embedStats?.totalChunks))
-        && Number(embedStats.totalChunks) > 0
-        && Number(embedStats.denseChunks) !== Number(embedStats.totalChunks)
-      )
-      || (
-        Number.isFinite(Number(embedStats?.filesWithChunks))
-        && Number.isFinite(Number(embedStats?.filesWithEmbeddings))
-        && Number(embedStats.filesWithChunks) > Number(embedStats.filesWithEmbeddings)
-      )
-    );
-    const missingDense = observedDenseCount === 0
-      || hasPartialDenseCoverage;
-    if (missingDense) {
-      return 'bundles missing embeddings';
-    }
-    if (Number.isFinite(observedDenseCount) && observedDenseCount !== Number(expectedDenseCount)) {
-      return `bundle dense count mismatch (${observedDenseCount} !== ${Number(expectedDenseCount)})`;
-    }
-  }
-  return '';
-};
 
 /**
  * Execute sqlite build orchestration for all selected modes.
@@ -298,6 +250,18 @@ export const executeSqliteModeBuilds = async ({
         }
       }
       resolvedInput = { ...incrementalPlan.resolvedInput };
+      const createModeRowLedger = ({
+        source = resolvedInput?.source,
+        inputRoot = source === 'incremental' ? incrementalBundleDir : modeIndexDir
+      } = {}) => createSqliteModeRowLedger({
+        mode,
+        source,
+        expectedChunkCount: modeChunkCountHint,
+        expectedDenseCount,
+        expectedFileCount: repoFileCountHint,
+        inputRoot
+      });
+      let activeRowLedger = createModeRowLedger();
       const bundleWorkerAutotune = resolveBundleWorkerAutotune({
         mode,
         manifestFiles: incrementalFiles,
@@ -317,6 +281,7 @@ export const executeSqliteModeBuilds = async ({
         bundleCount: bundleWorkerAutotune.bundleCount,
         avgBundleBytes: bundleWorkerAutotune.avgBundleBytes
       };
+      sqliteStats.rowLedger = activeRowLedger;
       if (emitOutput && hasIncrementalBundles) {
         log(
           `[sqlite] bundle worker autotune ${mode}: threads=${bundleWorkerAutotune.threads} ` +
@@ -516,14 +481,17 @@ export const executeSqliteModeBuilds = async ({
           batchSize: activeBatchConfig,
           stats: sqliteStats
         });
-        const bundleFailureReason = resolveBundleIntegrityFailureReason({
+        const preImportValidation = validateSqliteRowLedgerPreImport({
+          rowLedger: activeRowLedger,
           bundleResult,
-          denseArtifactsRequired,
-          expectedDenseCount,
-          expectedChunkCount: modeChunkCountHint
+          denseArtifactsRequired
         });
-        if (bundleFailureReason) {
-          warn(`[sqlite] incremental bundle build failed for ${mode}: ${bundleFailureReason}; using artifacts.`);
+        sqliteStats.rowLedgerChecks = {
+          ...(sqliteStats.rowLedgerChecks || {}),
+          preImport: preImportValidation
+        };
+        if (!preImportValidation.ok) {
+          warn(`[sqlite] incremental bundle build failed for ${mode}: ${preImportValidation.message}; using artifacts.`);
           const embedLine = formatEmbedStats(bundleResult?.embedStats);
           if (embedLine) log(`[sqlite] bundle embeddings ${mode}: ${embedLine}.`);
           const annLine = formatVectorAnnState(bundleResult?.vectorAnn);
@@ -531,6 +499,11 @@ export const executeSqliteModeBuilds = async ({
           const manifestLine = formatBundleManifest(bundleManifest);
           if (manifestLine) log(`[sqlite] bundle manifest ${mode}: ${manifestLine}.`);
           resolvedInput = { source: 'artifacts', indexDir: modeIndexDir };
+          activeRowLedger = createModeRowLedger({
+            source: resolvedInput.source,
+            inputRoot: modeIndexDir
+          });
+          sqliteStats.rowLedger = activeRowLedger;
           applyAdaptivePlan({
             inputBytesHint: inputBytes,
             fileCountHint: artifactFileCountHint || repoFileCountHint,
@@ -578,6 +551,24 @@ export const executeSqliteModeBuilds = async ({
           batchSize: activeBatchConfig,
           stats: sqliteStats
         });
+      }
+      const postImportValidation = validateSqliteRowLedgerPostImport({
+        rowLedger: activeRowLedger,
+        Database,
+        dbPath: tempOutputPath,
+        annTable: resolvedVectorConfig?.extension?.table || 'dense_vectors_ann'
+      });
+      sqliteStats.rowLedgerChecks = {
+        ...(sqliteStats.rowLedgerChecks || {}),
+        postImport: postImportValidation
+      };
+      if (!postImportValidation.ok) {
+        const validationError = new Error(postImportValidation.message);
+        validationError.code = postImportValidation.code;
+        validationError.failureClass = postImportValidation.failureClass;
+        validationError.rowLedger = postImportValidation.rowLedger;
+        validationError.observed = postImportValidation.observed;
+        throw validationError;
       }
       const hadVectorTable = resolvedVectorConfig?.enabled === true
         ? hasVectorTableAtPath({
@@ -644,13 +635,19 @@ export const executeSqliteModeBuilds = async ({
       const errorMessage = err?.message || String(err);
       await reporter.reportFailure({ errorMessage, err });
       if (err && typeof err === 'object') {
-        if (!err.code) err.code = 'ERR_SQLITE_MODE_BUILD_FAILED';
+        if (!err.code || !err.failureClass) {
+          const classifiedFailure = classifySqliteModeBuildFailure(err);
+          if (!err.code) err.code = classifiedFailure.code;
+          if (!err.failureClass) err.failureClass = classifiedFailure.failureClass;
+        }
         if (!Number.isFinite(Number(err.exitCode))) err.exitCode = 1;
         err.exitOnError = exitOnError === true;
         throw err;
       }
       const wrapped = new Error(errorMessage);
-      wrapped.code = 'ERR_SQLITE_MODE_BUILD_FAILED';
+      const classifiedFailure = classifySqliteModeBuildFailure(wrapped);
+      wrapped.code = classifiedFailure.code;
+      wrapped.failureClass = classifiedFailure.failureClass;
       wrapped.exitCode = 1;
       wrapped.exitOnError = exitOnError === true;
       throw wrapped;

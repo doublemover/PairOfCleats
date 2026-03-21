@@ -142,7 +142,7 @@ try {
   }
 
   assert.ok(orchestrationFailure, 'expected orchestration failure from synthetic piece error');
-  assert.equal(orchestrationFailure?.code, 'ERR_SQLITE_MODE_BUILD_FAILED');
+  assert.equal(orchestrationFailure?.code, 'ERR_SQLITE_INPUT_PIECES_LOAD_FAILED');
   assert.equal(orchestrationFailure?.exitCode, 1);
   assert.equal(orchestrationFailure?.exitOnError, true);
   assert.equal(exitCalls.length, 0, 'orchestration should not invoke process.exit');

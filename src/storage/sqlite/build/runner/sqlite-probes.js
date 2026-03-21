@@ -49,6 +49,56 @@ export const readSqliteModeCount = ({ Database, dbPath, mode }) => {
 };
 
 /**
+ * Read dense vector row count for a single mode from sqlite db.
+ * Returns null when db/table is unreadable.
+ *
+ * @param {{Database:any,dbPath:string,mode:string}} input
+ * @returns {number|null}
+ */
+export const readSqliteDenseModeCount = ({ Database, dbPath, mode }) => {
+  if (!dbPath || !mode) return null;
+  let db = null;
+  try {
+    db = new Database(dbPath, { readonly: true });
+    const row = db.prepare('SELECT COUNT(*) AS total FROM dense_vectors WHERE mode = ?').get(mode);
+    return Number.isFinite(row?.total) ? row.total : 0;
+  } catch {
+    return null;
+  } finally {
+    if (db) {
+      try {
+        db.close();
+      } catch {}
+    }
+  }
+};
+
+/**
+ * Read total table row count from sqlite db.
+ * Returns null when db/table is unreadable.
+ *
+ * @param {{Database:any,dbPath:string,tableName:string}} input
+ * @returns {number|null}
+ */
+export const readSqliteTableCount = ({ Database, dbPath, tableName }) => {
+  if (!dbPath || !tableName) return null;
+  let db = null;
+  try {
+    db = new Database(dbPath, { readonly: true });
+    const row = db.prepare(`SELECT COUNT(*) AS total FROM ${tableName}`).get();
+    return Number.isFinite(row?.total) ? row.total : 0;
+  } catch {
+    return null;
+  } finally {
+    if (db) {
+      try {
+        db.close();
+      } catch {}
+    }
+  }
+};
+
+/**
  * Probe whether vector table exists in sqlite db.
  * @param {{Database:any,dbPath:string,tableName:string,hasVectorTable:(db:any,tableName:string)=>boolean}} input
  * @returns {boolean}
