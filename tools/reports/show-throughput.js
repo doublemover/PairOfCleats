@@ -54,15 +54,10 @@ import {
   formatBytes,
   formatBytesPerSec,
   formatPct,
-  printAlignedTotalLine,
-  formatModeThroughputLine,
-  formatModeChunkRate,
-  formatSectionMetaLine,
   buildIndexedTotalsRows,
   formatThroughputTotalsCell,
   formatAstField,
-  formatDistributionSummary,
-  formatDistributionCell
+  printTextTable
 } from './show-throughput/render.js';
 
 /**
@@ -348,6 +343,29 @@ const formatResourceSummary = (aggregate) => {
   );
 };
 
+const formatDistributionPair = (summary, formatter = (value) => formatNumber(value)) => (
+  !summary || !Number.isFinite(summary.count) || summary.count <= 0
+    ? 'n/a'
+    : `${formatter(summary.median)}/${formatter(summary.p95)}`
+);
+
+const formatDistributionDetailCell = (summary, formatter = (value) => formatNumber(value)) => (
+  !summary || !Number.isFinite(summary.count) || summary.count <= 0
+    ? 'n/a'
+    : [
+      `n ${formatCount(summary.count)}`,
+      `p50 ${formatter(summary.median)}`,
+      `p95 ${formatter(summary.p95)}`,
+      `p99 ${formatter(summary.p99)}`,
+      `min/max ${formatter(summary.min)}/${formatter(summary.max)}`,
+      `cv ${formatPct(summary.coefficientOfVariation)}`
+    ].join(' | ')
+);
+
+const printNamedSection = (title) => {
+  console.log(`  ${color.bold(title)}`);
+};
+
 const summarizeSummaryMetric = (summaries, selector) => summarizeNumericDistribution(collect(summaries, selector));
 
 const summarizeLatencyDistributions = (summaries) => {
@@ -369,16 +387,6 @@ const summarizeLatencyDistributions = (summaries) => {
       }
     ])
   );
-};
-
-const formatDistributionMsSummary = (summary) => formatDistributionSummary(summary, {
-  digits: 1,
-  formatter: (value) => formatMs(value)
-});
-
-const formatDistributionRateSummary = (summary, unitLabel) => {
-  if (!summary) return `${unitLabel} n/a`;
-  return `${unitLabel} ${formatDistributionSummary(summary)}`;
 };
 
 const flattenRegressionMetrics = (entries, {
@@ -692,15 +700,6 @@ for (const dir of folders) {
   const proseDistribution = summarizeThroughputDistribution(throughputs, (throughput) => throughput?.prose || null);
   const extractedProseDistribution = summarizeThroughputDistribution(throughputs, (throughput) => throughput?.extractedProse || null);
   const recordsDistribution = summarizeThroughputDistribution(throughputs, (throughput) => throughput?.records || null);
-  const compactModeLine = [
-    formatModeChunkRate('code', codeDistribution),
-    formatModeChunkRate('prose', proseDistribution),
-    formatModeChunkRate('xprose', extractedProseDistribution),
-    formatModeChunkRate('records', recordsDistribution)
-  ].join(' | ');
-  if (shouldRenderTextOverview) {
-    console.log(`  ch/s p50/p95 ${compactModeLine}`);
-  }
 
   const summaries = runs.map((r) => r.summary).filter(Boolean);
   const buildIndexMs = summarizeSummaryMetric(summaries, (s) => s.buildMs?.index);
@@ -771,188 +770,206 @@ for (const dir of folders) {
     continue;
   }
 
-  if (!verboseOutput) {
-    if (aggregateIndexed.lines > 0 || aggregateIndexed.files > 0) {
-      console.log(
-        `  indexed ${formatCount(aggregateIndexed.lines)} lines | ` +
-        `${formatCount(aggregateIndexed.files)} files | ${formatBytes(aggregateIndexed.bytes)} | ` +
-        `${formatNumber(aggregateLinesPerSec)} lines/s`
-      );
-    }
-    if (summaries.length) {
-      console.log(
-        `  perf build ${formatDistributionCell(buildIndexMs)} / ${formatDistributionCell(buildSqliteMs)} ms | ` +
-        `query ${formatDistributionCell(wallPerQuery)} ms | search ${formatDistributionCell(wallPerSearch)} ms`
-      );
-      console.log(
-        `  lat mean mem/sql ${formatDistributionCell(memoryMean)} / ${formatDistributionCell(sqliteMean)} ms | ` +
-        `run-p95 ${formatDistributionCell(memoryP95)} / ${formatDistributionCell(sqliteP95)} ms`
-      );
-    }
-    console.log(
-      `  coverage repo ${formatCoverageSummary(outcomeTotalsFolder.repos)} | ` +
-      `runs ${formatCoverageSummary(outcomeTotalsFolder.runs)}`
-    );
-    console.log(
-      `  skip/cache ${formatCountMapSummary(outcomeTotalsFolder.repos.skipReasons)} | ` +
-      `${formatCacheSummary(outcomeTotalsFolder.repos)}`
-    );
-    console.log(
-      `  quality ${formatCountMapSummary(outcomeTotalsFolder.runs.confidence)} | ` +
-      `low-yield ${formatCount(outcomeTotalsFolder.runs.lowYield.triggered)} ` +
-      `(${formatCount(outcomeTotalsFolder.runs.lowYield.skippedFiles)} skipped) | ` +
-      `filter-index reused ${formatCount(outcomeTotalsFolder.runs.filterIndexReused)} | ` +
-      `diagnostics ${formatCountMapSummary(outcomeTotalsFolder.runs.diagnostics, 3)}`
-    );
-    console.log(`  pressure ${formatResourceSummary(outcomeTotalsFolder.runs)}`);
-    if (hasAstGraphValues(astGraphTotalsFolder.totals)) {
-      const coverage = runs.length ? `${astGraphTotalsFolder.repos}/${runs.length}` : `${astGraphTotalsFolder.repos}/0`;
-      console.log(
-        `  ast (${coverage}) symbols ${formatAstField(astGraphTotalsFolder, 'symbols')} | ` +
-        `classes ${formatAstField(astGraphTotalsFolder, 'classes')} | ` +
-        `functions ${formatAstField(astGraphTotalsFolder, 'functions')} | ` +
-        `imports ${formatAstField(astGraphTotalsFolder, 'imports')}`
-      );
-    }
-    if (folderLedgerRegressions.length) {
-      const top = folderLedgerRegressions[0];
-      console.log(
-        `  ledger regression ${top.repoIdentity} ${top.modality}/${top.stage} ` +
-        `${formatPct(top.deltaPct)} ${top.metricLabel} ` +
-        `(${formatRegressionDelta(top)} | ${top.baselineConfidence} conf)`
-      );
-    }
-    console.log(
-      `  provenance idx ${formatSectionProvenance(provenanceTotalsFolder, 'indexing')} | ` +
-      `analysis ${formatSectionProvenance(provenanceTotalsFolder, 'analysis')} | ` +
-      `ledger ${formatSectionProvenance(provenanceTotalsFolder, 'throughputLedger')}`
-    );
-    continue;
-  }
+  printNamedSection('Throughput');
+  printTextTable(
+    [
+      { key: 'mode', label: 'Mode' },
+      { key: 'chunks', label: 'Chunks p50/p95', align: 'right' },
+      { key: 'tokens', label: 'Tokens p50/p95', align: 'right' },
+      { key: 'bytes', label: 'MB/s p50/p95', align: 'right' },
+      { key: 'files', label: 'Files/s p50/p95', align: 'right' }
+    ],
+    [
+      ['Code', codeDistribution],
+      ['Prose', proseDistribution],
+      ['XProse', extractedProseDistribution],
+      ['Records', recordsDistribution]
+    ].map(([label, distribution]) => {
+      const bytesMedian = Number.isFinite(distribution?.bytesPerSec?.median)
+        ? (distribution.bytesPerSec.median / (1024 * 1024))
+        : null;
+      const bytesP95 = Number.isFinite(distribution?.bytesPerSec?.p95)
+        ? (distribution.bytesPerSec.p95 / (1024 * 1024))
+        : null;
+      return {
+        mode: label,
+        chunks: formatDistributionPair(distribution?.chunksPerSec),
+        tokens: formatDistributionPair(distribution?.tokensPerSec),
+        bytes: formatDistributionPair(
+          Number.isFinite(bytesMedian) || Number.isFinite(bytesP95)
+            ? { count: distribution?.bytesPerSec?.count, median: bytesMedian, p95: bytesP95 }
+            : null
+        ),
+        files: formatDistributionPair(distribution?.filesPerSec)
+      };
+    }),
+    { indent: '    ' }
+  );
 
-  console.log(`  ${formatModeThroughputLine({ label: 'Code', entry: codeDistribution })}`);
-  console.log(`  ${formatModeThroughputLine({ label: 'Prose', entry: proseDistribution })}`);
-  console.log(`  ${formatModeThroughputLine({ label: 'XProse', entry: extractedProseDistribution })}`);
-  console.log(`  ${formatModeThroughputLine({ label: 'Records', entry: recordsDistribution })}`);
-
-  const indexedRows = buildIndexedTotalsRows(modeTotalsFolder);
-  if (indexedRows.length) {
-    const lineWidth = Math.max(...indexedRows.map((row) => row.linesText.length));
-    const fileWidth = Math.max(...indexedRows.map((row) => row.filesText.length));
-    const bytesWidth = Math.max(...indexedRows.map((row) => row.bytesText.length));
-    const rateWidth = Math.max(...indexedRows.map((row) => row.linesPerSecText.length));
-    console.log(`  ${color.bold('Indexed totals')}:`);
-    for (const row of indexedRows) {
-      console.log(
-        `    ${row.label.padStart(8)}: ${row.linesText.padStart(lineWidth)} | ` +
-        `${row.filesText.padStart(fileWidth)} | ` +
-        `${row.bytesText.padStart(bytesWidth)} | ` +
-        `${row.linesPerSecText.padStart(rateWidth)} | ` +
-        `${row.msPerLineText}`
-      );
-    }
-
-    const aggregate = Array.from(modeTotalsFolder.values()).reduce(
-      (acc, entry) => {
-        acc.lines += Number.isFinite(entry.lines) ? entry.lines : 0;
-        acc.files += Number.isFinite(entry.files) ? entry.files : 0;
-        acc.bytes += Number.isFinite(entry.bytes) ? entry.bytes : 0;
-        acc.durationMs += Number.isFinite(entry.durationMs) ? entry.durationMs : 0;
-        return acc;
-      },
-      { lines: 0, files: 0, bytes: 0, durationMs: 0 }
-    );
-    const aggregateLinesPerSec = aggregate.durationMs > 0 ? (aggregate.lines / (aggregate.durationMs / 1000)) : null;
-    const aggregateMsPerLine = (aggregate.durationMs > 0 && aggregate.lines > 0)
-      ? (aggregate.durationMs / aggregate.lines)
-      : null;
-    const aggregateLinesText = `${formatCount(aggregate.lines)} lines`;
-    const aggregateFilesText = `${formatCount(aggregate.files)} files`;
-    const aggregateBytesText = formatBytes(aggregate.bytes);
-    const aggregateRateText = `${formatNumber(aggregateLinesPerSec)} lines/s`;
-    const aggregateMsPerLineText = `${formatNumber(aggregateMsPerLine, 3)} ms/line`;
-    console.log(
-      `     Aggregate: ` +
-      `${aggregateLinesText.padStart(lineWidth)} | ` +
-      `${aggregateFilesText.padStart(fileWidth)} | ` +
-      `${aggregateBytesText.padStart(bytesWidth)} | ` +
-      `${aggregateRateText.padStart(rateWidth)} | ` +
-      `${aggregateMsPerLineText}`
+  if (aggregateIndexed.lines > 0 || aggregateIndexed.files > 0) {
+    printNamedSection('Indexed');
+    printTextTable(
+      [
+        { key: 'scope', label: 'Scope' },
+        { key: 'lines', label: 'Lines', align: 'right' },
+        { key: 'files', label: 'Files', align: 'right' },
+        { key: 'bytes', label: 'Bytes', align: 'right' },
+        { key: 'rate', label: 'Lines/s', align: 'right' },
+        { key: 'msPerLine', label: 'ms/line', align: 'right' }
+      ],
+      [
+        ...buildIndexedTotalsRows(modeTotalsFolder).map((row) => ({
+          scope: row.label,
+          lines: row.linesText,
+          files: row.filesText,
+          bytes: row.bytesText,
+          rate: row.linesPerSecText,
+          msPerLine: row.msPerLineText
+        })),
+        {
+          scope: 'Aggregate',
+          lines: `${formatCount(aggregateIndexed.lines)} lines`,
+          files: `${formatCount(aggregateIndexed.files)} files`,
+          bytes: formatBytes(aggregateIndexed.bytes),
+          rate: `${formatNumber(aggregateLinesPerSec)} lines/s`,
+          msPerLine: `${formatNumber(
+            (aggregateIndexed.durationMs > 0 && aggregateIndexed.lines > 0)
+              ? (aggregateIndexed.durationMs / aggregateIndexed.lines)
+              : null,
+            3
+          )} ms/line`
+        }
+      ],
+      { indent: '    ' }
     );
   }
 
   if (summaries.length) {
-    console.log(
-      formatSectionMetaLine({
-        label: 'Build',
-        left: `index ${formatDistributionCell(buildIndexMs)} ms`,
-        right: `sqlite ${formatDistributionCell(buildSqliteMs)} ms`
-      })
-    );
-
-    console.log(
-      formatSectionMetaLine({
-        label: 'Query',
-        left: `avg/q ${formatDistributionCell(wallPerQuery)} ms`,
-        right: `avg/search ${formatDistributionCell(wallPerSearch)} ms`
-      })
-    );
-    console.log('  Latency');
-    console.log(
-      `      mean mem: ${formatDistributionSummary(memoryMean, { formatter: (value) => `${formatNumber(value)}ms` })}` +
-      ` | sqlite: ${formatDistributionSummary(sqliteMean, { formatter: (value) => `${formatNumber(value)}ms` })}`
-    );
-    console.log(
-      `      run-p95 mem: ${formatDistributionSummary(memoryP95, { formatter: (value) => `${formatNumber(value)}ms` })}` +
-      ` | sqlite: ${formatDistributionSummary(sqliteP95, { formatter: (value) => `${formatNumber(value)}ms` })}`
+    printNamedSection('Timing');
+    printTextTable(
+      [
+        { key: 'metric', label: 'Metric' },
+        { key: 'p50p95', label: 'p50/p95', align: 'right' },
+        { key: 'detail', label: 'Detail' }
+      ],
+      [
+        { metric: 'Build index', p50p95: formatDistributionPair(buildIndexMs, formatMs), detail: formatDistributionDetailCell(buildIndexMs, formatMs) },
+        { metric: 'Build sqlite', p50p95: formatDistributionPair(buildSqliteMs, formatMs), detail: formatDistributionDetailCell(buildSqliteMs, formatMs) },
+        { metric: 'Query/search', p50p95: formatDistributionPair(wallPerQuery, formatMs), detail: formatDistributionDetailCell(wallPerQuery, formatMs) },
+        { metric: 'Search only', p50p95: formatDistributionPair(wallPerSearch, formatMs), detail: formatDistributionDetailCell(wallPerSearch, formatMs) },
+        { metric: 'Mem mean', p50p95: formatDistributionPair(memoryMean, formatMs), detail: formatDistributionDetailCell(memoryMean, formatMs) },
+        { metric: 'Mem run-p95', p50p95: formatDistributionPair(memoryP95, formatMs), detail: formatDistributionDetailCell(memoryP95, formatMs) },
+        { metric: 'Sqlite mean', p50p95: formatDistributionPair(sqliteMean, formatMs), detail: formatDistributionDetailCell(sqliteMean, formatMs) },
+        { metric: 'Sqlite run-p95', p50p95: formatDistributionPair(sqliteP95, formatMs), detail: formatDistributionDetailCell(sqliteP95, formatMs) }
+      ],
+      { indent: '    ' }
     );
   }
+
+  printNamedSection('Coverage');
+  printTextTable(
+    [
+      { key: 'scope', label: 'Scope' },
+      { key: 'candidates', label: 'Candidates', align: 'right' },
+      { key: 'scanned', label: 'Scanned', align: 'right' },
+      { key: 'skipped', label: 'Skipped', align: 'right' }
+    ],
+    [
+      {
+        scope: 'Repos',
+        candidates: formatCount(outcomeTotalsFolder.repos.coverage.candidates),
+        scanned: formatCount(outcomeTotalsFolder.repos.coverage.scanned),
+        skipped: formatCount(outcomeTotalsFolder.repos.coverage.skipped)
+      },
+      {
+        scope: 'Runs',
+        candidates: formatCount(outcomeTotalsFolder.runs.coverage.candidates),
+        scanned: formatCount(outcomeTotalsFolder.runs.coverage.scanned),
+        skipped: formatCount(outcomeTotalsFolder.runs.coverage.skipped)
+      }
+    ],
+    { indent: '    ' }
+  );
+
+  printNamedSection('Quality');
+  printTextTable(
+    [
+      { key: 'metric', label: 'Metric' },
+      { key: 'value', label: 'Value' }
+    ],
+    [
+      { metric: 'Skip reasons', value: formatCountMapSummary(outcomeTotalsFolder.repos.skipReasons) },
+      { metric: 'Cache', value: formatCacheSummary(outcomeTotalsFolder.repos) },
+      {
+        metric: 'Quality',
+        value:
+          `${formatCountMapSummary(outcomeTotalsFolder.runs.confidence)} | ` +
+          `low-yield ${formatCount(outcomeTotalsFolder.runs.lowYield.triggered)} ` +
+          `(${formatCount(outcomeTotalsFolder.runs.lowYield.skippedFiles)} skipped) | ` +
+          `filter-index reused ${formatCount(outcomeTotalsFolder.runs.filterIndexReused)}`
+      },
+      { metric: 'Diagnostics', value: formatCountMapSummary(outcomeTotalsFolder.runs.diagnostics, 4) },
+      { metric: 'Pressure', value: formatResourceSummary(outcomeTotalsFolder.runs) }
+    ],
+    { indent: '    ' }
+  );
 
   if (hasAstGraphValues(astGraphTotalsFolder.totals)) {
     const coverage = runs.length ? `${astGraphTotalsFolder.repos}/${runs.length}` : `${astGraphTotalsFolder.repos}/0`;
-    console.log(
-      `  ${color.bold(`AST/Graph (${coverage} runs)`)}: ` +
-      `symbols ${formatAstField(astGraphTotalsFolder, 'symbols')} | ` +
-      `classes ${formatAstField(astGraphTotalsFolder, 'classes')} | ` +
-      `functions ${formatAstField(astGraphTotalsFolder, 'functions')} | ` +
-      `imports ${formatAstField(astGraphTotalsFolder, 'imports')} | ` +
-      `file links ${formatAstField(astGraphTotalsFolder, 'fileLinks')} | ` +
-      `graph links ${formatAstField(astGraphTotalsFolder, 'graphLinks')}`
+    printNamedSection(`AST / Graph (${coverage} runs)`);
+    printTextTable(
+      [
+        { key: 'metric', label: 'Metric' },
+        { key: 'value', label: 'Value', align: 'right' }
+      ],
+      [
+        { metric: 'Symbols', value: formatAstField(astGraphTotalsFolder, 'symbols') },
+        { metric: 'Classes', value: formatAstField(astGraphTotalsFolder, 'classes') },
+        { metric: 'Functions', value: formatAstField(astGraphTotalsFolder, 'functions') },
+        { metric: 'Imports', value: formatAstField(astGraphTotalsFolder, 'imports') },
+        { metric: 'File links', value: formatAstField(astGraphTotalsFolder, 'fileLinks') },
+        { metric: 'Graph links', value: formatAstField(astGraphTotalsFolder, 'graphLinks') }
+      ],
+      { indent: '    ' }
     );
   }
+
   if (folderLedgerRegressions.length) {
-    console.log(`  ${color.bold('Top Throughput Regressions')}:`);
-    for (const regression of folderLedgerRegressions.slice(0, 5)) {
-      console.log(
-        `    ${regression.repoIdentity} | ${regression.modality}/${regression.stage} | ` +
-        `${regression.metricLabel} | ${formatPct(regression.deltaPct)} | ` +
-        `${formatRegressionDelta(regression)} | ${regression.baselineConfidence} conf`
-      );
-    }
+    printNamedSection('Top Throughput Regressions');
+    printTextTable(
+      [
+        { key: 'repo', label: 'Repo' },
+        { key: 'metric', label: 'Metric' },
+        { key: 'delta', label: 'Delta', align: 'right' },
+        { key: 'detail', label: 'Detail' }
+      ],
+      folderLedgerRegressions.slice(0, verboseOutput ? 5 : 3).map((regression) => ({
+        repo: regression.repoIdentity,
+        metric: `${regression.modality}/${regression.stage} ${regression.metricLabel}`,
+        delta: formatPct(regression.deltaPct),
+        detail: `${formatRegressionDelta(regression)} | ${regression.baselineConfidence} conf`
+      })),
+      { indent: '    ' }
+    );
   }
-  console.log(`  ${color.bold('Scan Outcomes')}:`);
-  console.log(
-    `    coverage repo ${formatCoverageSummary(outcomeTotalsFolder.repos)} | ` +
-    `runs ${formatCoverageSummary(outcomeTotalsFolder.runs)}`
+
+  printNamedSection('Provenance');
+  printTextTable(
+    [
+      { key: 'section', label: 'Section' },
+      { key: 'source', label: 'Source' }
+    ],
+    [
+      { section: 'Indexing', source: formatSectionProvenance(provenanceTotalsFolder, 'indexing') },
+      { section: 'Analysis', source: formatSectionProvenance(provenanceTotalsFolder, 'analysis') },
+      { section: 'Ledger', source: formatSectionProvenance(provenanceTotalsFolder, 'throughputLedger') }
+    ],
+    { indent: '    ' }
   );
-  console.log(`    skip reasons ${formatCountMapSummary(outcomeTotalsFolder.repos.skipReasons, 6)}`);
-  console.log(
-    `    cache ${formatCacheSummary(outcomeTotalsFolder.repos)} | ` +
-    `filter-index reused ${formatCount(outcomeTotalsFolder.runs.filterIndexReused)}`
-  );
-  console.log(
-    `    quality ${formatCountMapSummary(outcomeTotalsFolder.runs.confidence)} | ` +
-    `low-yield triggers ${formatCount(outcomeTotalsFolder.runs.lowYield.triggered)} ` +
-    `(${formatCount(outcomeTotalsFolder.runs.lowYield.skippedFiles)} skipped files) | ` +
-    `diagnostics ${formatCountMapSummary(outcomeTotalsFolder.runs.diagnostics, 4)}`
-  );
-  console.log(`    pressure ${formatResourceSummary(outcomeTotalsFolder.runs)}`);
-  console.log(
-    `  ${color.bold('Provenance')}: ` +
-    `indexing ${formatSectionProvenance(provenanceTotalsFolder, 'indexing')} | ` +
-    `analysis ${formatSectionProvenance(provenanceTotalsFolder, 'analysis')} | ` +
-    `ledger ${formatSectionProvenance(provenanceTotalsFolder, 'throughputLedger')}`
-  );
+
+  if (!verboseOutput) {
+    continue;
+  }
 
   const runRows = runs.map((run) => {
     const repoLabel = run.file.replace(/\.json$/, '').replace(/__/g, '/');
@@ -1064,55 +1081,83 @@ const modeRows = MODE_THROUGHPUT_TOTALS.map(({ label, pick, modeKey }) => {
   };
 });
 
-const chunksWidth = Math.max(...modeRows.map((row) => row.chunksCell.length));
-const tokensWidth = Math.max(...modeRows.map((row) => row.tokensCell.length));
-const bytesWidth = Math.max(...modeRows.map((row) => row.bytesCell.length));
-const filesWidth = Math.max(...modeRows.map((row) => row.filesCell.length));
-const linesWidth = Math.max(0, ...modeRows.map((row) => row.linesCell.length));
-
 if (shouldRenderTextOverview) {
   console.log('');
   console.log(color.bold(color.green('Throughput Totals')));
-  printAlignedTotalLine('Files', `${formatNumber(totalFilesPerSec)} files/s`);
-  printAlignedTotalLine('Chunks', `${formatNumber(totalChunksPerSec)} chunks/s`);
-  printAlignedTotalLine('Tokens', `${formatNumber(totalTokensPerSec)} tokens/s`);
-  printAlignedTotalLine('Bytes', formatBytesPerSec(totalBytesPerSec));
-  if (Number.isFinite(totalLinesPerSec)) {
-    printAlignedTotalLine('Lines', `${formatNumber(totalLinesPerSec)} lines/s`);
-  }
-  for (const row of modeRows) {
-    const linesText = row.linesCell ? row.linesCell.padStart(linesWidth) : '';
-    printAlignedTotalLine(
-      row.label,
-      `${row.chunksCell.padStart(chunksWidth)} | ` +
-      `${row.tokensCell.padStart(tokensWidth)} | ` +
-      `${row.bytesCell.padStart(bytesWidth)} | ` +
-      `${row.filesCell.padStart(filesWidth)} | ` +
-      `${linesText}`
-    );
-  }
-  for (const { label, pick } of THROUGHPUT_GROUPS) {
-    if (['Code throughput', 'Prose throughput', 'Extracted prose throughput', 'Records throughput']
-      .some((entry) => entry.toLowerCase() === label.toLowerCase())) {
-      continue;
-    }
-    const entry = pick(totalThroughput);
-    const chunksPerSec = rateFromTotals(entry, 'chunks');
-    const tokensPerSec = rateFromTotals(entry, 'tokens');
-    const bytesPerSec = rateFromTotals(entry, 'bytes');
-    const filesPerSec = rateFromTotals(entry, 'files');
-    if (!Number.isFinite(chunksPerSec)
-      && !Number.isFinite(tokensPerSec)
-      && !Number.isFinite(bytesPerSec)
-      && !Number.isFinite(filesPerSec)) {
-      continue;
-    }
-    printAlignedTotalLine(
-      label,
-      `${formatNumber(chunksPerSec)} chunks/s | ` +
-      `${formatNumber(tokensPerSec)} tokens/s | ` +
-      `${formatBytesPerSec(bytesPerSec)} | ` +
-      `${formatNumber(filesPerSec)} files/s`
+  printTextTable(
+    [
+      { key: 'metric', label: 'Metric' },
+      { key: 'rate', label: 'Rate', align: 'right' }
+    ],
+    [
+      { metric: 'Files', rate: `${formatNumber(totalFilesPerSec)} files/s` },
+      { metric: 'Chunks', rate: `${formatNumber(totalChunksPerSec)} chunks/s` },
+      { metric: 'Tokens', rate: `${formatNumber(totalTokensPerSec)} tokens/s` },
+      { metric: 'Bytes', rate: formatBytesPerSec(totalBytesPerSec) },
+      ...(Number.isFinite(totalLinesPerSec)
+        ? [{ metric: 'Lines', rate: `${formatNumber(totalLinesPerSec)} lines/s` }]
+        : [])
+    ],
+    { indent: '  ' }
+  );
+  console.log('');
+  console.log('  By Mode');
+  printTextTable(
+    [
+      { key: 'mode', label: 'Mode' },
+      { key: 'chunks', label: 'Chunks/s', align: 'right' },
+      { key: 'tokens', label: 'Tokens/s', align: 'right' },
+      { key: 'bytes', label: 'MB/s', align: 'right' },
+      { key: 'files', label: 'Files/s', align: 'right' },
+      { key: 'lines', label: 'Lines/s', align: 'right' }
+    ],
+    modeRows.map((row) => ({
+      mode: row.label,
+      chunks: row.chunksCell,
+      tokens: row.tokensCell,
+      bytes: row.bytesCell,
+      files: row.filesCell,
+      lines: row.linesCell || 'n/a'
+    })),
+    { indent: '    ' }
+  );
+  const additionalTotalsRows = THROUGHPUT_GROUPS
+    .filter(({ label }) => !['Code throughput', 'Prose throughput', 'Extracted prose throughput', 'Records throughput']
+      .some((entry) => entry.toLowerCase() === label.toLowerCase()))
+    .map(({ label, pick }) => {
+      const entry = pick(totalThroughput);
+      const chunksPerSec = rateFromTotals(entry, 'chunks');
+      const tokensPerSec = rateFromTotals(entry, 'tokens');
+      const bytesPerSec = rateFromTotals(entry, 'bytes');
+      const filesPerSec = rateFromTotals(entry, 'files');
+      if (!Number.isFinite(chunksPerSec)
+        && !Number.isFinite(tokensPerSec)
+        && !Number.isFinite(bytesPerSec)
+        && !Number.isFinite(filesPerSec)) {
+        return null;
+      }
+      return {
+        mode: label,
+        chunks: `${formatNumber(chunksPerSec)} chunks/s`,
+        tokens: `${formatNumber(tokensPerSec)} tokens/s`,
+        bytes: formatBytesPerSec(bytesPerSec),
+        files: `${formatNumber(filesPerSec)} files/s`
+      };
+    })
+    .filter(Boolean);
+  if (additionalTotalsRows.length) {
+    console.log('');
+    console.log('  Additional Groups');
+    printTextTable(
+      [
+        { key: 'mode', label: 'Group' },
+        { key: 'chunks', label: 'Chunks/s', align: 'right' },
+        { key: 'tokens', label: 'Tokens/s', align: 'right' },
+        { key: 'bytes', label: 'Bytes/s', align: 'right' },
+        { key: 'files', label: 'Files/s', align: 'right' }
+      ],
+      additionalTotalsRows,
+      { indent: '    ' }
     );
   }
 }
@@ -1127,33 +1172,32 @@ const globalSearchDistribution = summarizeSummaryMetric(summariesGlobal, (summar
 const globalLatency = summarizeLatencyDistributions(summariesGlobal);
 if (shouldRenderTextOverview) {
   console.log(color.bold('Run Distributions'));
-  for (const [label, distribution] of [
-    ['Code', globalCodeDistribution],
-    ['Prose', globalProseDistribution],
-    ['XProse', globalExtractedProseDistribution],
-    ['Records', globalRecordsDistribution]
-  ]) {
-    console.log(
-      `  ${label.padStart(8)}: ` +
-      `${formatDistributionRateSummary(distribution?.chunksPerSec, 'chunks/s')} | ` +
-      `${formatDistributionRateSummary(distribution?.filesPerSec, 'files/s')}`
-    );
-  }
-  console.log(
-    `  ${'Build'.padStart(8)}: index ${formatDistributionMsSummary(globalBuildIndexDistribution)} | ` +
-    `sqlite ${formatDistributionMsSummary(globalBuildSqliteDistribution)}`
-  );
-  console.log(
-    `  ${'Query'.padStart(8)}: per-query ${formatDistributionMsSummary(globalQueryDistribution)} | ` +
-    `per-search ${formatDistributionMsSummary(globalSearchDistribution)}`
-  );
-  console.log(
-    `  ${'Latency'.padStart(8)}: mem mean ${formatDistributionMsSummary(globalLatency.memory?.mean)} | ` +
-    `mem run-p95 ${formatDistributionMsSummary(globalLatency.memory?.p95)}`
-  );
-  console.log(
-    `  ${''.padStart(8)}  sqlite mean ${formatDistributionMsSummary(globalLatency.sqlite?.mean)} | ` +
-    `sqlite run-p95 ${formatDistributionMsSummary(globalLatency.sqlite?.p95)}`
+  printTextTable(
+    [
+      { key: 'category', label: 'Category' },
+      { key: 'metric', label: 'Metric' },
+      { key: 'p50p95', label: 'p50/p95', align: 'right' },
+      { key: 'detail', label: 'Detail' }
+    ],
+    [
+      { category: 'Code', metric: 'Chunks/s', p50p95: formatDistributionPair(globalCodeDistribution?.chunksPerSec), detail: formatDistributionDetailCell(globalCodeDistribution?.chunksPerSec) },
+      { category: 'Code', metric: 'Files/s', p50p95: formatDistributionPair(globalCodeDistribution?.filesPerSec), detail: formatDistributionDetailCell(globalCodeDistribution?.filesPerSec) },
+      { category: 'Prose', metric: 'Chunks/s', p50p95: formatDistributionPair(globalProseDistribution?.chunksPerSec), detail: formatDistributionDetailCell(globalProseDistribution?.chunksPerSec) },
+      { category: 'Prose', metric: 'Files/s', p50p95: formatDistributionPair(globalProseDistribution?.filesPerSec), detail: formatDistributionDetailCell(globalProseDistribution?.filesPerSec) },
+      { category: 'XProse', metric: 'Chunks/s', p50p95: formatDistributionPair(globalExtractedProseDistribution?.chunksPerSec), detail: formatDistributionDetailCell(globalExtractedProseDistribution?.chunksPerSec) },
+      { category: 'XProse', metric: 'Files/s', p50p95: formatDistributionPair(globalExtractedProseDistribution?.filesPerSec), detail: formatDistributionDetailCell(globalExtractedProseDistribution?.filesPerSec) },
+      { category: 'Records', metric: 'Chunks/s', p50p95: formatDistributionPair(globalRecordsDistribution?.chunksPerSec), detail: formatDistributionDetailCell(globalRecordsDistribution?.chunksPerSec) },
+      { category: 'Records', metric: 'Files/s', p50p95: formatDistributionPair(globalRecordsDistribution?.filesPerSec), detail: formatDistributionDetailCell(globalRecordsDistribution?.filesPerSec) },
+      { category: 'Build', metric: 'Index', p50p95: formatDistributionPair(globalBuildIndexDistribution, formatMs), detail: formatDistributionDetailCell(globalBuildIndexDistribution, formatMs) },
+      { category: 'Build', metric: 'Sqlite', p50p95: formatDistributionPair(globalBuildSqliteDistribution, formatMs), detail: formatDistributionDetailCell(globalBuildSqliteDistribution, formatMs) },
+      { category: 'Query', metric: 'Per-query', p50p95: formatDistributionPair(globalQueryDistribution, formatMs), detail: formatDistributionDetailCell(globalQueryDistribution, formatMs) },
+      { category: 'Query', metric: 'Per-search', p50p95: formatDistributionPair(globalSearchDistribution, formatMs), detail: formatDistributionDetailCell(globalSearchDistribution, formatMs) },
+      { category: 'Latency', metric: 'Mem mean', p50p95: formatDistributionPair(globalLatency.memory?.mean, formatMs), detail: formatDistributionDetailCell(globalLatency.memory?.mean, formatMs) },
+      { category: 'Latency', metric: 'Mem run-p95', p50p95: formatDistributionPair(globalLatency.memory?.p95, formatMs), detail: formatDistributionDetailCell(globalLatency.memory?.p95, formatMs) },
+      { category: 'Latency', metric: 'Sqlite mean', p50p95: formatDistributionPair(globalLatency.sqlite?.mean, formatMs), detail: formatDistributionDetailCell(globalLatency.sqlite?.mean, formatMs) },
+      { category: 'Latency', metric: 'Sqlite run-p95', p50p95: formatDistributionPair(globalLatency.sqlite?.p95, formatMs), detail: formatDistributionDetailCell(globalLatency.sqlite?.p95, formatMs) }
+    ],
+    { indent: '  ' }
   );
 }
 if (shouldRenderTextOverview && ledgerRegressionsGlobal.length) {
@@ -1180,28 +1224,41 @@ const variabilityRows = variabilityRowsGlobal
   ) || String(left.folder || '').localeCompare(String(right.folder || '')));
 if (shouldRenderTextOverview && variabilityRows.length) {
   console.log(color.bold('Top Variability'));
-  for (const entry of variabilityRows.slice(0, 8)) {
-    console.log(
-      `  ${entry.folder} ${entry.label}: cv ${formatPct(entry.coefficientOfVariation)} | ` +
-      `p50/p95 ${formatNumber(entry.median)}/${formatNumber(entry.p95)} | n ${formatCount(entry.count)}`
-    );
-  }
+  printTextTable(
+    [
+      { key: 'family', label: 'Family' },
+      { key: 'metric', label: 'Metric' },
+      { key: 'cv', label: 'CV', align: 'right' },
+      { key: 'p50p95', label: 'p50/p95', align: 'right' },
+      { key: 'count', label: 'n', align: 'right' }
+    ],
+    variabilityRows.slice(0, 8).map((entry) => ({
+      family: entry.folder,
+      metric: entry.label,
+      cv: formatPct(entry.coefficientOfVariation),
+      p50p95: `${formatNumber(entry.median)}/${formatNumber(entry.p95)}`,
+      count: formatCount(entry.count)
+    })),
+    { indent: '  ' }
+  );
 }
 if (shouldRenderTextOverview && hasAstGraphValues(astGraphTotalsGlobal.totals)) {
-  const astPairs = [
-    ['Symbols', formatAstField(astGraphTotalsGlobal, 'symbols'), 'Classes', formatAstField(astGraphTotalsGlobal, 'classes')],
-    ['Functions', formatAstField(astGraphTotalsGlobal, 'functions'), 'Imports', formatAstField(astGraphTotalsGlobal, 'imports')],
-    ['File links', formatAstField(astGraphTotalsGlobal, 'fileLinks'), 'Graph links', formatAstField(astGraphTotalsGlobal, 'graphLinks')]
-  ];
-  const astLabelWidth = Math.max(...astPairs.flatMap(([leftLabel, , rightLabel]) => [leftLabel.length, rightLabel.length]));
-  const astValueWidth = Math.max(...astPairs.flatMap(([, leftValue, , rightValue]) => [String(leftValue).length, String(rightValue).length]));
   console.log(color.bold('AST/Graph Totals'));
-  for (const [leftLabel, leftValue, rightLabel, rightValue] of astPairs) {
-    console.log(
-      `  ${leftLabel.padStart(astLabelWidth)}: ${String(leftValue).padStart(astValueWidth)} | ` +
-      `${rightLabel.padStart(astLabelWidth)}: ${String(rightValue).padStart(astValueWidth)}`
-    );
-  }
+  printTextTable(
+    [
+      { key: 'metric', label: 'Metric' },
+      { key: 'value', label: 'Value', align: 'right' }
+    ],
+    [
+      { metric: 'Symbols', value: formatAstField(astGraphTotalsGlobal, 'symbols') },
+      { metric: 'Classes', value: formatAstField(astGraphTotalsGlobal, 'classes') },
+      { metric: 'Functions', value: formatAstField(astGraphTotalsGlobal, 'functions') },
+      { metric: 'Imports', value: formatAstField(astGraphTotalsGlobal, 'imports') },
+      { metric: 'File links', value: formatAstField(astGraphTotalsGlobal, 'fileLinks') },
+      { metric: 'Graph links', value: formatAstField(astGraphTotalsGlobal, 'graphLinks') }
+    ],
+    { indent: '  ' }
+  );
 }
 
 const totalsByModeRows = [
@@ -1234,21 +1291,27 @@ const totalsByModeRows = [
 }).filter(Boolean);
 
 if (shouldRenderTextOverview && totalsByModeRows.length) {
-  const lineWidth = Math.max(...totalsByModeRows.map((row) => row.linesText.length));
-  const fileWidth = Math.max(...totalsByModeRows.map((row) => row.filesText.length));
-  const bytesWidth = Math.max(...totalsByModeRows.map((row) => row.bytesText.length));
-  const rateWidth = Math.max(...totalsByModeRows.map((row) => row.lineRateText.length));
   console.log('');
-  console.log('  Totals by Mode:');
-  for (const row of totalsByModeRows) {
-    console.log(
-      `  ${row.label.padStart(8)}: ${row.linesText.padStart(lineWidth)} | ` +
-      `${row.filesText.padStart(fileWidth)} | ` +
-      `${row.bytesText.padStart(bytesWidth)} | ` +
-      `${row.lineRateText.padStart(rateWidth)} | ` +
-      `${row.msPerLineText}`
-    );
-  }
+  console.log('Totals by Mode');
+  printTextTable(
+    [
+      { key: 'mode', label: 'Mode' },
+      { key: 'lines', label: 'Lines', align: 'right' },
+      { key: 'files', label: 'Files', align: 'right' },
+      { key: 'bytes', label: 'Bytes', align: 'right' },
+      { key: 'rate', label: 'Lines/s', align: 'right' },
+      { key: 'msPerLine', label: 'ms/line', align: 'right' }
+    ],
+    totalsByModeRows.map((row) => ({
+      mode: row.label,
+      lines: row.linesText,
+      files: row.filesText,
+      bytes: row.bytesText,
+      rate: row.lineRateText,
+      msPerLine: row.msPerLineText
+    })),
+    { indent: '  ' }
+  );
 }
 if (shouldRenderTextOverview && languageTotals.size) {
   const sortedLanguages = Array.from(languageTotals.entries())
@@ -1258,43 +1321,85 @@ if (shouldRenderTextOverview && languageTotals.size) {
   const omitted = sortedLanguages.slice(languageDisplayLimit);
   const omittedLines = omitted.reduce((sum, [, lines]) => sum + (Number(lines) || 0), 0);
   console.log('');
-  if (!verboseOutput) {
-    const summary = displayed
-      .map(([language, lines]) => `${language} ${formatCount(lines)}`)
-      .join(' | ');
-    const omittedLabel = omitted.length
-      ? ` | other ${formatCount(omittedLines)} (${omitted.length})`
-      : '';
-    console.log(`Lines by Language (top ${displayed.length}): ${summary}${omittedLabel}`);
-  } else {
-    const languageWidth = Math.max(...displayed.map(([language]) => language.length));
-    const countWidth = Math.max(...displayed.map(([, lines]) => formatCount(lines).length));
-    console.log('Lines by Language:');
-    for (const [language, lines] of displayed) {
-      console.log(`  ${language.padStart(languageWidth)}: ${formatCount(lines).padStart(countWidth)} `);
-    }
+  console.log(`Lines by Language${verboseOutput ? '' : ` (top ${displayed.length})`}`);
+  printTextTable(
+    [
+      { key: 'language', label: 'Language' },
+      { key: 'lines', label: 'Lines', align: 'right' }
+    ],
+    displayed.map(([language, lines]) => ({
+      language,
+      lines: formatCount(lines)
+    })),
+    { indent: '  ' }
+  );
+  if (omitted.length) {
+    console.log(`  Other languages: ${formatCount(omittedLines)} lines across ${formatCount(omitted.length)} entries`);
   }
 }
 if (shouldRenderTextOverview) {
   console.log('');
   console.log(color.bold('Scan Outcome Totals'));
-  console.log(`  coverage repos: ${formatCoverageSummary(outcomeTotalsGlobal.repos)}`);
-  console.log(`  coverage runs: ${formatCoverageSummary(outcomeTotalsGlobal.runs)}`);
-  console.log(`  skip reasons: ${formatCountMapSummary(outcomeTotalsGlobal.repos.skipReasons, 8)}`);
-  console.log(`  cache: ${formatCacheSummary(outcomeTotalsGlobal.repos)}`);
-  console.log(
-    `  quality: ${formatCountMapSummary(outcomeTotalsGlobal.runs.confidence)} | ` +
-    `low-yield ${formatCount(outcomeTotalsGlobal.runs.lowYield.triggered)} ` +
-    `(${formatCount(outcomeTotalsGlobal.runs.lowYield.skippedFiles)} skipped files) | ` +
-    `filter-index reused ${formatCount(outcomeTotalsGlobal.runs.filterIndexReused)} | ` +
-    `diagnostics ${formatCountMapSummary(outcomeTotalsGlobal.runs.diagnostics, 6)}`
+  printTextTable(
+    [
+      { key: 'scope', label: 'Scope' },
+      { key: 'candidates', label: 'Candidates', align: 'right' },
+      { key: 'scanned', label: 'Scanned', align: 'right' },
+      { key: 'skipped', label: 'Skipped', align: 'right' }
+    ],
+    [
+      {
+        scope: 'Repos',
+        candidates: formatCount(outcomeTotalsGlobal.repos.coverage.candidates),
+        scanned: formatCount(outcomeTotalsGlobal.repos.coverage.scanned),
+        skipped: formatCount(outcomeTotalsGlobal.repos.coverage.skipped)
+      },
+      {
+        scope: 'Runs',
+        candidates: formatCount(outcomeTotalsGlobal.runs.coverage.candidates),
+        scanned: formatCount(outcomeTotalsGlobal.runs.coverage.scanned),
+        skipped: formatCount(outcomeTotalsGlobal.runs.coverage.skipped)
+      }
+    ],
+    { indent: '  ' }
   );
-  console.log(`  pressure: ${formatResourceSummary(outcomeTotalsGlobal.runs)}`);
+  console.log('');
+  console.log('  Quality / Cache / Pressure');
+  printTextTable(
+    [
+      { key: 'metric', label: 'Metric' },
+      { key: 'value', label: 'Value' }
+    ],
+    [
+      { metric: 'Skip reasons', value: formatCountMapSummary(outcomeTotalsGlobal.repos.skipReasons, 8) },
+      { metric: 'Cache', value: formatCacheSummary(outcomeTotalsGlobal.repos) },
+      {
+        metric: 'Quality',
+        value:
+          `${formatCountMapSummary(outcomeTotalsGlobal.runs.confidence)} | ` +
+          `low-yield ${formatCount(outcomeTotalsGlobal.runs.lowYield.triggered)} ` +
+          `(${formatCount(outcomeTotalsGlobal.runs.lowYield.skippedFiles)} skipped files) | ` +
+          `filter-index reused ${formatCount(outcomeTotalsGlobal.runs.filterIndexReused)}`
+      },
+      { metric: 'Diagnostics', value: formatCountMapSummary(outcomeTotalsGlobal.runs.diagnostics, 6) },
+      { metric: 'Pressure', value: formatResourceSummary(outcomeTotalsGlobal.runs) }
+    ],
+    { indent: '    ' }
+  );
   console.log('');
   console.log(color.bold('Overview Provenance'));
-  console.log(`  indexing: ${formatSectionProvenance(provenanceTotalsGlobal, 'indexing')}`);
-  console.log(`  analysis: ${formatSectionProvenance(provenanceTotalsGlobal, 'analysis')}`);
-  console.log(`  throughput ledger: ${formatSectionProvenance(provenanceTotalsGlobal, 'throughputLedger')}`);
+  printTextTable(
+    [
+      { key: 'section', label: 'Section' },
+      { key: 'source', label: 'Source' }
+    ],
+    [
+      { section: 'Indexing', source: formatSectionProvenance(provenanceTotalsGlobal, 'indexing') },
+      { section: 'Analysis', source: formatSectionProvenance(provenanceTotalsGlobal, 'analysis') },
+      { section: 'Throughput ledger', source: formatSectionProvenance(provenanceTotalsGlobal, 'throughputLedger') }
+    ],
+    { indent: '  ' }
+  );
 }
 
 const outputSummary = {

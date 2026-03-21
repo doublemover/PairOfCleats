@@ -106,12 +106,14 @@ try {
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.equal(String(result.stderr || '').trim(), '', 'expected overview text on stdout only');
   const output = String(result.stdout || '').replace(/\u001b\[[0-9;]*m/g, '');
-  assert.equal(output.includes('ch/s p50/p95 code 30.0/48.0'), true, output);
+  assert.equal(output.includes('Throughput'), true, output);
+  assert.equal(output.includes('Mode     Chunks p50/p95'), true, output);
+  assert.equal(output.includes('Code          30.0/48.0'), true, output);
   assert.equal(output.includes('Run Distributions'), true, output);
-  assert.equal(output.includes('chunks/s n 3 | p50 30.0 | p95 48.0'), true, output);
-  assert.equal(output.includes('Build: index n 3 | p50 300ms | p95 480ms'), true, output);
-  assert.equal(output.includes('Latency: mem mean n 3 | p50 6ms | p95 10ms'), true, output);
-  assert.equal(output.includes('mem run-p95 n 3 | p50 12ms | p95 19ms'), true, output);
+  assert.equal(output.includes('Code      Chunks/s          30.0/48.0'), true, output);
+  assert.equal(output.includes('Build     Index           300ms/480ms'), true, output);
+  assert.equal(output.includes('Latency   Mem mean           6ms/10ms'), true, output);
+  assert.equal(output.includes('Latency   Mem run-p95       12ms/19ms'), true, output);
   assert.equal(output.includes('Top Variability'), true, output);
 
   console.log('show-throughput statistical summary test passed');

@@ -138,3 +138,56 @@ export const formatPct = (value) => (
 export const formatAstField = ({ totals, observed }, key) => (
   (Number(observed?.[key]) || 0) > 0 ? formatCount(totals?.[key]) : 'n/a'
 );
+
+const repeatChar = (char, count) => char.repeat(Math.max(0, count));
+
+const normalizeCell = (value) => String(value ?? '');
+
+export const buildTextTable = (columns, rows, {
+  indent = '  ',
+  header = true
+} = {}) => {
+  const normalizedColumns = Array.isArray(columns) ? columns : [];
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+  if (!normalizedColumns.length) return [];
+
+  const widths = normalizedColumns.map((column) => {
+    const headerWidth = normalizeCell(column?.label || column?.key || '').length;
+    const rowWidth = normalizedRows.reduce((maxWidth, row) => {
+      const cell = normalizeCell(row?.[column.key]);
+      return Math.max(maxWidth, cell.length);
+    }, 0);
+    return Math.max(headerWidth, rowWidth);
+  });
+
+  const renderRow = (row, {
+    isHeader = false,
+    divider = false
+  } = {}) => (
+    indent + normalizedColumns.map((column, index) => {
+      if (divider) return repeatChar('-', widths[index]);
+      const text = isHeader
+        ? normalizeCell(column?.label || column?.key || '')
+        : normalizeCell(row?.[column.key]);
+      return column?.align === 'right'
+        ? text.padStart(widths[index])
+        : text.padEnd(widths[index]);
+    }).join('  ')
+  );
+
+  const lines = [];
+  if (header) {
+    lines.push(renderRow({}, { isHeader: true }));
+    lines.push(renderRow({}, { divider: true }));
+  }
+  for (const row of normalizedRows) {
+    lines.push(renderRow(row));
+  }
+  return lines;
+};
+
+export const printTextTable = (columns, rows, options = {}) => {
+  for (const line of buildTextTable(columns, rows, options)) {
+    console.log(line);
+  }
+};
