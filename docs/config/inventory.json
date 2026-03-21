@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T17:18:03.141Z",
+  "generatedAt": "2026-03-21T20:10:08.422Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2359,6 +2359,7 @@
         "tools/bench/language/logging.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js",
+        "tools/release/verify-surface.js",
         "tools/reports/compare-models.js",
         "tools/service/indexer-service.js"
       ]
@@ -2584,7 +2585,8 @@
         "tests/services/mcp/sdk-mode.test.js",
         "tests/shared/cache/root-versioning.test.js",
         "tools/ci/run-suite.js",
-        "tools/config/inventory.js"
+        "tools/config/inventory.js",
+        "tools/release/verify-surface.js"
       ]
     },
     {
@@ -2705,7 +2707,8 @@
         "src/shared/env.js",
         "tests/services/mcp/mode-selection.test.js",
         "tools/config/contract-doc.js",
-        "tools/config/inventory.js"
+        "tools/config/inventory.js",
+        "tools/release/verify-surface.js"
       ]
     },
     {
@@ -3263,7 +3266,8 @@
         "tools/bench/ab-sweep.js",
         "tools/bench/index/scheduler-store-format.js",
         "tools/bench/language/logging.js",
-        "tools/config/inventory.js"
+        "tools/config/inventory.js",
+        "tools/release/verify-surface.js"
       ]
     },
     {
@@ -3505,6 +3509,7 @@
         "tools/config/contract-doc.js",
         "tools/config/inventory.js",
         "tools/release/check.js",
+        "tools/release/verify-surface.js",
         "tools/tooling/utils.js"
       ]
     },
@@ -3564,6 +3569,7 @@
       "name": "PAIROFCLEATS_TUI_CAPTURE_FIXTURE",
       "files": [
         "tools/config/inventory.js",
+        "tools/release/verify-surface.js",
         "tools/tui/capture-fixtures.js"
       ]
     },
@@ -3571,6 +3577,7 @@
       "name": "PAIROFCLEATS_TUI_CAPTURE_OUT_DIR",
       "files": [
         "tools/config/inventory.js",
+        "tools/release/verify-surface.js",
         "tools/tui/capture-fixtures.js"
       ]
     },
@@ -3614,7 +3621,8 @@
         "src/shared/env.js",
         "tests/tui/session-snapshot-recovery.test.js",
         "tests/tui/wrapper-behavior.test.js",
-        "tools/config/inventory.js"
+        "tools/config/inventory.js",
+        "tools/release/verify-surface.js"
       ]
     },
     {
@@ -3773,7 +3781,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 435,
+    "totalFlags": 452,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -3816,9 +3824,11 @@
       "apply",
       "arch",
       "args",
+      "artifact-root",
       "artifactDir",
       "as-of",
       "astDataflowEnabled",
+      "attested",
       "avg",
       "avgBytes",
       "backends",
@@ -3833,9 +3843,13 @@
       "build",
       "build-index",
       "build-sqlite",
+      "bundle-dir",
       "cache-dir",
       "cache-root",
       "caps",
+      "capture-out-dir",
+      "cargo-manifest-path",
+      "cargo-sbom-input",
       "category",
       "cert-dir",
       "changed",
@@ -3845,6 +3859,8 @@
       "checkpoint",
       "chunk",
       "chunk-meta-size",
+      "ci-statuses",
+      "ci-test-summary",
       "clean",
       "code",
       "collapse",
@@ -3858,6 +3874,7 @@
       "controlFlowEnabled",
       "count",
       "coverage",
+      "coverage-dir",
       "crash-bundle",
       "csv",
       "ctags",
@@ -4027,6 +4044,7 @@
       "mcp-mode",
       "mergeProb",
       "meta",
+      "metadata",
       "min",
       "min-count",
       "min-enrichment-coverage",
@@ -4048,9 +4066,12 @@
       "no-ann",
       "no-fallback",
       "node-list-out",
+      "node-sbom-input",
+      "node-verify-report",
       "nodes",
       "non-interactive",
       "non-strict",
+      "notes-out",
       "only-exported",
       "onlyExported",
       "onlyExports",
@@ -4073,6 +4094,7 @@
       "plan",
       "platform",
       "policy",
+      "prepare-report",
       "pretty",
       "probe-handshake",
       "probe-timeout-ms",
@@ -4120,6 +4142,7 @@
       "runSize",
       "runs",
       "runtime",
+      "runtime-report",
       "sample",
       "samples",
       "samples-per-provider",
@@ -4189,6 +4212,8 @@
       "translateTime",
       "treeSitter",
       "treeSitterMissingLanguages",
+      "trust-root",
+      "tui-verify-root",
       "type",
       "unique",
       "update",
@@ -5821,6 +5846,65 @@
         ]
       },
       {
+        "file": "tools/release/assemble-bundle.js",
+        "flags": [
+          "artifact-root",
+          "metadata",
+          "out"
+        ]
+      },
+      {
+        "file": "tools/release/export-surface-guide.js",
+        "flags": [
+          "out"
+        ]
+      },
+      {
+        "file": "tools/release/generate-trust-materials.js",
+        "flags": [
+          "bundle-dir",
+          "cargo-manifest-path",
+          "cargo-sbom-input",
+          "metadata",
+          "node-sbom-input",
+          "out-dir"
+        ]
+      },
+      {
+        "file": "tools/release/metadata.js",
+        "flags": [
+          "notes-out",
+          "out",
+          "tag"
+        ]
+      },
+      {
+        "file": "tools/release/readiness-gate.js",
+        "flags": [
+          "attested",
+          "ci-statuses",
+          "ci-test-summary",
+          "coverage-dir",
+          "node-verify-report",
+          "out-json",
+          "out-md",
+          "prepare-report",
+          "runtime-report",
+          "trust-root",
+          "tui-verify-root"
+        ]
+      },
+      {
+        "file": "tools/release/verify-surface.js",
+        "flags": [
+          "capture-out-dir",
+          "install-root",
+          "out",
+          "stage",
+          "surface"
+        ]
+      },
+      {
         "file": "tools/reports/combined-summary.js",
         "flags": [
           "ann",
@@ -6300,7 +6384,7 @@
       },
       {
         "flag": "out",
-        "count": 45,
+        "count": 49,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/equivalence.test.js",
@@ -6341,6 +6425,10 @@
           "tools/ingest/gtags.js",
           "tools/ingest/lsif.js",
           "tools/ingest/scip.js",
+          "tools/release/assemble-bundle.js",
+          "tools/release/export-surface-guide.js",
+          "tools/release/metadata.js",
+          "tools/release/verify-surface.js",
           "tools/reports/combined-summary.js",
           "tools/reports/compare-models.js",
           "tools/reports/diagnostics-report.js",
@@ -7154,6 +7242,16 @@
         ]
       },
       {
+        "flag": "stage",
+        "count": 4,
+        "files": [
+          "bin/pairofcleats.js",
+          "tools/docs/script-inventory.js",
+          "tools/index/assemble-pieces.js",
+          "tools/release/verify-surface.js"
+        ]
+      },
+      {
         "flag": "workspace",
         "count": 4,
         "files": [
@@ -7296,15 +7394,6 @@
           "tools/download/dicts.js",
           "tools/download/extensions.js",
           "tools/tooling/install-phpactor-phar.js"
-        ]
-      },
-      {
-        "flag": "stage",
-        "count": 3,
-        "files": [
-          "bin/pairofcleats.js",
-          "tools/docs/script-inventory.js",
-          "tools/index/assemble-pieces.js"
         ]
       },
       {
@@ -7566,6 +7655,14 @@
         ]
       },
       {
+        "flag": "install-root",
+        "count": 2,
+        "files": [
+          "tools/release/verify-surface.js",
+          "tools/tui/install.js"
+        ]
+      },
+      {
         "flag": "interval",
         "count": 2,
         "files": [
@@ -7638,6 +7735,14 @@
         ]
       },
       {
+        "flag": "metadata",
+        "count": 2,
+        "files": [
+          "tools/release/assemble-bundle.js",
+          "tools/release/generate-trust-materials.js"
+        ]
+      },
+      {
         "flag": "minBytes",
         "count": 2,
         "files": [
@@ -7675,6 +7780,30 @@
         "files": [
           "tools/analysis/map-iso-serve.js",
           "tools/reports/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "out-dir",
+        "count": 2,
+        "files": [
+          "tools/release/generate-trust-materials.js",
+          "tools/reports/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "out-json",
+        "count": 2,
+        "files": [
+          "tools/docs/contract-drift.js",
+          "tools/release/readiness-gate.js"
+        ]
+      },
+      {
+        "flag": "out-md",
+        "count": 2,
+        "files": [
+          "tools/docs/contract-drift.js",
+          "tools/release/readiness-gate.js"
         ]
       },
       {
@@ -7811,6 +7940,22 @@
         "files": [
           "src/integrations/tooling/context-pack.js",
           "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "surface",
+        "count": 2,
+        "files": [
+          "tools/docs/generated-surfaces.js",
+          "tools/release/verify-surface.js"
+        ]
+      },
+      {
+        "flag": "tag",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "tools/release/metadata.js"
         ]
       },
       {
