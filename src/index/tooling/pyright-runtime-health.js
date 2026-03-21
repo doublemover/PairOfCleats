@@ -230,6 +230,21 @@ const hasNamedCheck = (checks, name) => (
   Array.isArray(checks) && checks.some((check) => check?.name === name)
 );
 
+const resolveRequestClassFromRuntime = (runtime) => {
+  const documentSymbol = runtime?.requests?.byMethod?.['textDocument/documentSymbol'] || {};
+  const hover = runtime?.requests?.byMethod?.['textDocument/hover'] || {};
+  return {
+    documentSymbol: {
+      timedOut: Number(documentSymbol?.timedOut || 0),
+      failed: Number(documentSymbol?.failed || 0)
+    },
+    hover: {
+      timedOut: Number(hover?.timedOut || 0),
+      failed: Number(hover?.failed || 0)
+    }
+  };
+};
+
 export const derivePyrightRuntimeOutcome = ({
   healthContext,
   runtime,
@@ -237,14 +252,18 @@ export const derivePyrightRuntimeOutcome = ({
   captureDiagnostics = false,
   now = Date.now()
 } = {}) => {
-  const documentSymbol = runtime?.requests?.byMethod?.['textDocument/documentSymbol'] || {};
-  const timedOut = Number(documentSymbol?.timedOut || 0);
-  const failed = Number(documentSymbol?.failed || 0);
+  const requestClasses = resolveRequestClassFromRuntime(runtime);
+  const timedOut = requestClasses.documentSymbol.timedOut;
+  const failed = requestClasses.documentSymbol.failed;
+  const hoverTimedOut = requestClasses.hover.timedOut;
+  const hoverFailed = requestClasses.hover.failed;
   const circuitOpened = hasNamedCheck(checks, 'tooling_circuit_open');
   const documentSymbolFailed = hasNamedCheck(checks, 'tooling_document_symbol_failed');
+  const hoverStageTimedOut = hasNamedCheck(checks, 'tooling_hover_timeout');
   const providerQuarantined = hasNamedCheck(checks, 'tooling_provider_quarantined');
   const timeoutStormDetected = timedOut >= 1;
-  const hardFailureDetected = providerQuarantined || timeoutStormDetected || circuitOpened;
+  const hoverTimeoutStormDetected = hoverTimedOut >= 1 || hoverStageTimedOut;
+  const hardFailureDetected = providerQuarantined || timeoutStormDetected || hoverTimeoutStormDetected || circuitOpened;
   let state = healthContext?.effectiveState || PYRIGHT_RUNTIME_HEALTH_STATE.HEALTHY;
   let nextState = state;
   let reasonCode = healthContext?.reasonCode || null;
@@ -259,12 +278,18 @@ export const derivePyrightRuntimeOutcome = ({
     nextState = PYRIGHT_RUNTIME_HEALTH_STATE.DEGRADED_HARD;
     reasonCode = timeoutStormDetected
       ? 'document_symbol_timeout'
-      : (circuitOpened ? 'document_symbol_circuit_open' : 'document_symbol_failed');
+      : (
+        hoverTimeoutStormDetected
+          ? 'hover_timeout'
+          : (circuitOpened ? 'document_symbol_circuit_open' : 'document_symbol_failed')
+      );
     cooldownUntil = now + resolveHardCooldownMs();
-  } else if (documentSymbolFailed || failed > 0) {
+  } else if (documentSymbolFailed || failed > 0 || hoverFailed > 0) {
     state = PYRIGHT_RUNTIME_HEALTH_STATE.DEGRADED_SOFT;
     nextState = PYRIGHT_RUNTIME_HEALTH_STATE.DEGRADED_SOFT;
-    reasonCode = 'document_symbol_failed';
+    reasonCode = hoverFailed > 0 && !(documentSymbolFailed || failed > 0)
+      ? 'hover_failed'
+      : 'document_symbol_failed';
     cooldownUntil = now + resolveSoftCooldownMs();
   } else {
     state = state === PYRIGHT_RUNTIME_HEALTH_STATE.WARMING
@@ -289,7 +314,9 @@ export const derivePyrightRuntimeOutcome = ({
       priorState: persistedState?.state || null,
       cooldownRemainingMs: Math.max(0, cooldownUntil - now),
       documentSymbolTimedOut: timedOut,
-      documentSymbolFailed: failed
+      documentSymbolFailed: failed,
+      hoverTimedOut,
+      hoverFailed
     },
     fallback: buildPyrightFallbackContract({
       state,
@@ -307,6 +334,7 @@ export const derivePyrightRuntimeOutcome = ({
       reasonCode,
       cooldownUntil,
       timeoutStormCount: Number(persistedState?.timeoutStormCount || 0) + (timeoutStormDetected ? 1 : 0),
+      hoverTimeoutStormCount: Number(persistedState?.hoverTimeoutStormCount || 0) + (hoverTimeoutStormDetected ? 1 : 0),
       degradationCount: Number(persistedState?.degradationCount || 0) + (nextState !== PYRIGHT_RUNTIME_HEALTH_STATE.HEALTHY ? 1 : 0),
       recoveryCount: Number(persistedState?.recoveryCount || 0) + (nextState === PYRIGHT_RUNTIME_HEALTH_STATE.HEALTHY ? 1 : 0)
     }

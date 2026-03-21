@@ -46,6 +46,12 @@ const symbolsByMode = {
     detail: 'def greet(name: str) -> str',
     kind: 12
   },
+  'pyright-hover-timeout': {
+    name: 'greet',
+    detail: 'def greet(name)',
+    hoverDetail: 'def greet(name: str) -> str',
+    kind: 12
+  },
   'pyright-parameter-shadow': {
     name: 'greet',
     detail: 'def greet(name: str) -> str',
@@ -689,6 +695,9 @@ const handleRequest = (message) => {
   if (method === 'textDocument/hover') {
     if (mode === 'disconnect-on-hover') {
       process.exit(1);
+      return;
+    }
+    if (mode === 'pyright-hover-timeout') {
       return;
     }
     if (mode === 'malformed-hover') {

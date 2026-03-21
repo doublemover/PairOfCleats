@@ -409,7 +409,9 @@ export const createPyrightProvider = () => ({
           priorState: runtimeHealth.persistedState?.state || null,
           cooldownRemainingMs: runtimeHealth.cooldownRemainingMs,
           documentSymbolTimedOut: 0,
-          documentSymbolFailed: 0
+          documentSymbolFailed: 0,
+          hoverTimedOut: 0,
+          hoverFailed: 0
         },
         fallback: buildPyrightFallbackContract({
           state: runtimeHealth.effectiveState,
@@ -452,7 +454,9 @@ export const createPyrightProvider = () => ({
           priorState: runtimeHealth.persistedState?.state || null,
           cooldownRemainingMs: runtimeHealth.cooldownRemainingMs,
           documentSymbolTimedOut: 0,
-          documentSymbolFailed: 0
+          documentSymbolFailed: 0,
+          hoverTimedOut: 0,
+          hoverFailed: 0
         },
         fallback: buildPyrightFallbackContract({
           state: runtimeHealth.effectiveState,
@@ -514,7 +518,7 @@ export const createPyrightProvider = () => ({
       checks.push({
         name: 'pyright_timeout_storm_truncated',
         status: 'warn',
-        message: 'pyright promoted a documentSymbol timeout into a hard degraded state and will quarantine the same workspace shape on the next run.'
+        message: 'pyright promoted a high-cost request timeout into a hard degraded state and will quarantine the same workspace shape on the next run.'
       });
     }
     const diagnostics = appendDiagnosticChecks(

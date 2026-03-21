@@ -73,6 +73,9 @@ const readPlannerHealth = async ({ repoRoot, cacheRoot = null, workspaceRootRel 
       documentSymbolTimeouts: Number(payload.documentSymbolTimeouts) || 0,
       documentSymbolFailures: Number(payload.documentSymbolFailures) || 0,
       documentSymbolP95Ms: Number(payload.documentSymbolP95Ms) || 0,
+      hoverTimeouts: Number(payload.hoverTimeouts) || 0,
+      hoverFailures: Number(payload.hoverFailures) || 0,
+      hoverP95Ms: Number(payload.hoverP95Ms) || 0,
       updatedAt: String(payload.updatedAt || '').trim() || null
     }
   };
@@ -85,13 +88,17 @@ export const persistPyrightPlannerHealth = async ({
   runtime = null
 } = {}) => {
   const method = runtime?.requests?.byMethod?.['textDocument/documentSymbol'] || {};
+  const hoverMethod = runtime?.requests?.byMethod?.['textDocument/hover'] || {};
   const payload = {
     schemaVersion: 1,
     updatedAt: new Date().toISOString(),
     workspaceRootRel: normalizeWorkspaceRootRel(workspaceRootRel),
     documentSymbolTimeouts: Number(method?.timedOut || 0),
     documentSymbolFailures: Number(method?.failed || 0),
-    documentSymbolP95Ms: Number(method?.latencyMs?.p95 || 0)
+    documentSymbolP95Ms: Number(method?.latencyMs?.p95 || 0),
+    hoverTimeouts: Number(hoverMethod?.timedOut || 0),
+    hoverFailures: Number(hoverMethod?.failed || 0),
+    hoverP95Ms: Number(hoverMethod?.latencyMs?.p95 || 0)
   };
   const healthPath = resolvePlannerHealthPath({ repoRoot, cacheRoot, workspaceRootRel });
   await fs.promises.mkdir(path.dirname(healthPath), { recursive: true });
@@ -106,8 +113,25 @@ const resolveHealthLevel = (state) => {
   const timeouts = Number(state?.documentSymbolTimeouts || 0);
   const failures = Number(state?.documentSymbolFailures || 0);
   const p95Ms = Number(state?.documentSymbolP95Ms || 0);
-  if (timeouts >= 3 || failures >= 4 || p95Ms >= 3000) return 'severe';
-  if (timeouts >= 1 || failures >= 2 || p95Ms >= 2200) return 'moderate';
+  const hoverTimeouts = Number(state?.hoverTimeouts || 0);
+  const hoverFailures = Number(state?.hoverFailures || 0);
+  const hoverP95Ms = Number(state?.hoverP95Ms || 0);
+  if (
+    timeouts >= 3
+    || failures >= 4
+    || p95Ms >= 3000
+    || hoverTimeouts >= 2
+    || hoverFailures >= 3
+    || hoverP95Ms >= 3000
+  ) return 'severe';
+  if (
+    timeouts >= 1
+    || failures >= 2
+    || p95Ms >= 2200
+    || hoverTimeouts >= 1
+    || hoverFailures >= 2
+    || hoverP95Ms >= 2200
+  ) return 'moderate';
   return 'healthy';
 };
 

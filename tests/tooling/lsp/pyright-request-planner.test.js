@@ -105,4 +105,27 @@ assert.equal(
   'expected planner to record budget-capped documents under health pressure'
 );
 
+const hoverPressuredPlan = __resolvePyrightRequestPlanForTests({
+  repoRoot: process.cwd(),
+  documents: pressureDocs,
+  targets: pressureTargets,
+  allDocuments: pressureDocs,
+  persistedHealth: {
+    workspaceRootRel: 'pkg-a',
+    documentSymbolTimeouts: 0,
+    documentSymbolFailures: 0,
+    documentSymbolP95Ms: 0,
+    hoverTimeouts: 2,
+    hoverFailures: 1,
+    hoverP95Ms: 3100
+  },
+  workspaceRootByVirtualPath: Object.fromEntries(
+    pressureDocs.map((doc) => [doc.virtualPath, 'pkg-a'])
+  )
+});
+
+assert.equal(hoverPressuredPlan.healthLevel, 'severe', 'expected persisted hover timeout pressure to classify as severe');
+assert.equal(hoverPressuredPlan.documentSymbolConcurrency, 1, 'expected severe hover pressure to force serial documentSymbol planning');
+assert.equal(hoverPressuredPlan.selectedDocuments.length <= 24, true, 'expected severe hover pressure to cap selected docs aggressively');
+
 console.log('pyright request planner test passed');
