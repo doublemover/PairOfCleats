@@ -212,6 +212,11 @@ try {
   assert.equal(output.includes('indexed 87 lines'), true, 'expected scanProfile lines to drive indexed totals');
   assert.equal(output.includes('python 15'), true, 'expected scanProfile language lines to be normalized and rendered');
   assert.equal(output.includes('haskell 69'), true, 'expected scanProfile language aliases to collapse');
+  assert.equal(
+    output.includes('native-scan-profile 1'),
+    true,
+    'expected report provenance to surface scan-profile-derived indexing'
+  );
 
   console.log('show-throughput scan-profile preferred test passed');
 } finally {

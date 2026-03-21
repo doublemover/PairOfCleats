@@ -21,6 +21,7 @@ import {
 } from './load.js';
 
 const ANALYSIS_SCHEMA_VERSION = 1;
+const MATERIALIZATION_SCHEMA_VERSION = 1;
 const REPO_MAP_KIND_PATTERN = /"kind":"([^"]+)"/g;
 const REPO_MAP_KIND_SCAN_TAIL_BYTES = 256;
 const REPO_MAP_KIND_CACHE = new Map();
@@ -373,39 +374,103 @@ export const loadOrComputeIndexingSummary = ({
   featureMetrics,
   refreshJson = false
 }) => {
+  return refreshJson
+    ? materializeIndexingSummary({ payload, featureMetrics })
+    : resolveIndexingSummary({ payload, featureMetrics });
+};
+
+const createProvenance = (section, source, category) => ({
+  section,
+  source,
+  category
+});
+
+const ensureArtifactsObject = (payload) => {
+  if (!payload.artifacts || typeof payload.artifacts !== 'object') payload.artifacts = {};
+  return payload.artifacts;
+};
+
+const upsertMaterializationSection = (payload, section, provenance) => {
+  const artifacts = ensureArtifactsObject(payload);
+  const nextEntry = {
+    source: provenance?.source || 'unknown',
+    category: provenance?.category || 'unknown',
+    reason: 'backfill-missing-or-invalid-benchmark-artifact'
+  };
+  const previous = artifacts.materialization
+    && typeof artifacts.materialization === 'object'
+    && artifacts.materialization.schemaVersion === MATERIALIZATION_SCHEMA_VERSION
+    ? artifacts.materialization
+    : null;
+  const next = {
+    schemaVersion: MATERIALIZATION_SCHEMA_VERSION,
+    sections: {
+      ...(previous?.sections || {}),
+      [section]: nextEntry
+    }
+  };
+  const changed = JSON.stringify(previous || null) !== JSON.stringify(next);
+  artifacts.materialization = next;
+  return changed;
+};
+
+export const resolveIndexingSummary = ({
+  payload,
+  featureMetrics,
+  preferExisting = true
+}) => {
   const existing = payload?.artifacts?.indexing;
   const scanProfile = payload?.artifacts?.scanProfile;
-  if (!refreshJson) {
-    if (isValidIndexingSummary(existing)) {
-      return { indexingSummary: existing, changed: false, featureMetrics };
-    }
-    const scanProfileSummary = buildIndexingSummaryFromScanProfile(scanProfile);
-    if (scanProfileSummary) {
-      return { indexingSummary: scanProfileSummary, changed: false, featureMetrics };
-    }
-    return { indexingSummary: null, changed: false, featureMetrics };
+  if (preferExisting && isValidIndexingSummary(existing)) {
+    return {
+      indexingSummary: existing,
+      changed: false,
+      featureMetrics,
+      provenance: createProvenance('indexing', 'native-indexing-summary', 'native')
+    };
   }
-
   const metrics = featureMetrics || loadFeatureMetricsForPayload(payload);
-  const computed = buildIndexingSummaryFromScanProfile(scanProfile)
-    || buildIndexingSummaryFromFeatureMetrics(metrics)
-    || buildIndexingSummaryFromThroughput(payload?.artifacts?.throughput);
-  if (!computed) {
-    if (isValidIndexingSummary(existing)) {
-      return { indexingSummary: existing, changed: false, featureMetrics: metrics };
-    }
-    if (isValidScanProfile(scanProfile)) {
-      const scanProfileSummary = buildIndexingSummaryFromScanProfile(scanProfile);
-      if (scanProfileSummary) {
-        return { indexingSummary: scanProfileSummary, changed: false, featureMetrics: metrics };
-      }
-    }
-    return { indexingSummary: null, changed: false, featureMetrics: metrics };
+  const fromScanProfile = buildIndexingSummaryFromScanProfile(scanProfile);
+  if (fromScanProfile) {
+    return {
+      indexingSummary: fromScanProfile,
+      changed: false,
+      featureMetrics: metrics,
+      provenance: createProvenance('indexing', 'native-scan-profile', 'native-derived')
+    };
   }
-  const changed = JSON.stringify(existing || null) !== JSON.stringify(computed);
-  if (!payload.artifacts || typeof payload.artifacts !== 'object') payload.artifacts = {};
-  payload.artifacts.indexing = computed;
-  return { indexingSummary: computed, changed, featureMetrics: metrics };
+  const fromFeatureMetrics = buildIndexingSummaryFromFeatureMetrics(metrics);
+  if (fromFeatureMetrics) {
+    return {
+      indexingSummary: fromFeatureMetrics,
+      changed: false,
+      featureMetrics: metrics,
+      provenance: createProvenance('indexing', 'fallback-feature-metrics', 'fallback')
+    };
+  }
+  const fromThroughput = buildIndexingSummaryFromThroughput(payload?.artifacts?.throughput);
+  if (fromThroughput) {
+    return {
+      indexingSummary: fromThroughput,
+      changed: false,
+      featureMetrics: metrics,
+      provenance: createProvenance('indexing', 'fallback-throughput', 'fallback')
+    };
+  }
+  if (!preferExisting && isValidIndexingSummary(existing)) {
+    return {
+      indexingSummary: existing,
+      changed: false,
+      featureMetrics: metrics,
+      provenance: createProvenance('indexing', 'native-indexing-summary', 'native')
+    };
+  }
+  return {
+    indexingSummary: null,
+    changed: false,
+    featureMetrics: metrics,
+    provenance: createProvenance('indexing', 'missing', 'missing')
+  };
 };
 
 export const loadOrComputeBenchAnalysis = ({
@@ -415,37 +480,69 @@ export const loadOrComputeBenchAnalysis = ({
   refreshJson = false,
   deepAnalysis = false
 }) => {
-  const existing = payload?.artifacts?.analysis;
-  if (!refreshJson) {
-    if (existing
-      && typeof existing === 'object'
-      && existing.schemaVersion === ANALYSIS_SCHEMA_VERSION
-      && hasAstGraphValues(existing.totals)
-      && (!deepAnalysis || hasKindBreakdown(existing))) {
-      return { analysis: existing, changed: false };
-    }
-    return { analysis: null, changed: false };
-  }
+  return refreshJson
+    ? materializeBenchAnalysis({
+      payload,
+      featureMetrics,
+      indexingSummary,
+      deepAnalysis
+    })
+    : resolveBenchAnalysis({
+      payload,
+      featureMetrics,
+      indexingSummary,
+      deepAnalysis
+    });
+};
 
+export const resolveBenchAnalysis = ({
+  payload,
+  featureMetrics,
+  indexingSummary,
+  deepAnalysis = false,
+  preferExisting = true
+}) => {
+  const existing = payload?.artifacts?.analysis;
+  if (preferExisting && existing
+    && typeof existing === 'object'
+    && existing.schemaVersion === ANALYSIS_SCHEMA_VERSION
+    && hasAstGraphValues(existing.totals)
+    && (!deepAnalysis || hasKindBreakdown(existing))) {
+    return {
+      analysis: existing,
+      changed: false,
+      provenance: createProvenance('analysis', 'native-analysis', 'native')
+    };
+  }
   const computed = computeBenchAnalysis(payload, {
     includeKindCounts: deepAnalysis,
     featureMetrics,
     indexingSummary
   });
-  if (!computed) {
-    if (existing
-      && typeof existing === 'object'
-      && existing.schemaVersion === ANALYSIS_SCHEMA_VERSION
-      && hasAstGraphValues(existing.totals)
-      && (!deepAnalysis || hasKindBreakdown(existing))) {
-      return { analysis: existing, changed: false };
-    }
-    return { analysis: null, changed: false };
+  if (computed) {
+    return {
+      analysis: computed,
+      changed: false,
+      provenance: createProvenance('analysis', 'fallback-build-state', 'fallback')
+    };
   }
-  const changed = JSON.stringify(existing || null) !== JSON.stringify(computed);
-  if (!payload.artifacts || typeof payload.artifacts !== 'object') payload.artifacts = {};
-  payload.artifacts.analysis = computed;
-  return { analysis: computed, changed };
+  if (!preferExisting
+    && existing
+    && typeof existing === 'object'
+    && existing.schemaVersion === ANALYSIS_SCHEMA_VERSION
+    && hasAstGraphValues(existing.totals)
+    && (!deepAnalysis || hasKindBreakdown(existing))) {
+    return {
+      analysis: existing,
+      changed: false,
+      provenance: createProvenance('analysis', 'native-analysis', 'native')
+    };
+  }
+  return {
+    analysis: null,
+    changed: false,
+    provenance: createProvenance('analysis', 'missing', 'missing')
+  };
 };
 
 const GENERIC_PATH_SEGMENTS = new Set([
@@ -539,9 +636,35 @@ export const resolveRepoHistoryKey = ({ payload, file }) => {
 };
 
 export const loadOrComputeThroughputLedger = ({ payload, indexingSummary }) => {
+  return materializeOrResolveThroughputLedger({
+    payload,
+    indexingSummary,
+    materialize: false
+  });
+};
+
+export const resolveThroughputLedger = ({ payload, indexingSummary }) => {
+  return materializeOrResolveThroughputLedger({
+    payload,
+    indexingSummary,
+    materialize: false,
+    preferExisting: true
+  });
+};
+
+const materializeOrResolveThroughputLedger = ({
+  payload,
+  indexingSummary,
+  materialize = false,
+  preferExisting = true
+}) => {
   const existing = payload?.artifacts?.throughputLedger;
-  if (isValidThroughputLedger(existing)) {
-    return { throughputLedger: existing, changed: false };
+  if (preferExisting && isValidThroughputLedger(existing)) {
+    return {
+      throughputLedger: existing,
+      changed: false,
+      provenance: createProvenance('throughput-ledger', 'native-throughput-ledger', 'native')
+    };
   }
   const computed = buildThroughputLedgerForTask({
     repoPath: payload?.repo?.root || payload?.artifacts?.repo?.root || null,
@@ -550,12 +673,92 @@ export const loadOrComputeThroughputLedger = ({ payload, indexingSummary }) => {
     indexingSummary: indexingSummary || payload?.artifacts?.indexing || null
   });
   if (!isValidThroughputLedger(computed)) {
-    return { throughputLedger: null, changed: false };
+    if (!preferExisting && isValidThroughputLedger(existing)) {
+      return {
+        throughputLedger: existing,
+        changed: false,
+        provenance: createProvenance('throughput-ledger', 'native-throughput-ledger', 'native')
+      };
+    }
+    return {
+      throughputLedger: null,
+      changed: false,
+      provenance: createProvenance('throughput-ledger', 'missing', 'missing')
+    };
   }
-  if (!payload.artifacts || typeof payload.artifacts !== 'object') payload.artifacts = {};
-  payload.artifacts.throughputLedger = computed;
-  return { throughputLedger: computed, changed: true };
+  if (!materialize) {
+    return {
+      throughputLedger: computed,
+      changed: false,
+      provenance: createProvenance('throughput-ledger', 'fallback-throughput-derived', 'fallback')
+    };
+  }
+  const artifacts = ensureArtifactsObject(payload);
+  const changed = JSON.stringify(artifacts.throughputLedger || null) !== JSON.stringify(computed);
+  artifacts.throughputLedger = computed;
+  const metadataChanged = upsertMaterializationSection(
+    payload,
+    'throughputLedger',
+    createProvenance('throughput-ledger', 'fallback-throughput-derived', 'fallback')
+  );
+  return {
+    throughputLedger: computed,
+    changed: changed || metadataChanged,
+    provenance: createProvenance('throughput-ledger', 'fallback-throughput-derived', 'fallback')
+  };
 };
+
+export const materializeIndexingSummary = ({
+  payload,
+  featureMetrics
+}) => {
+  const resolved = resolveIndexingSummary({ payload, featureMetrics, preferExisting: false });
+  if (!resolved.indexingSummary) return resolved;
+  if (resolved.provenance?.source === 'native-indexing-summary') return resolved;
+  const artifacts = ensureArtifactsObject(payload);
+  const changed = JSON.stringify(artifacts.indexing || null) !== JSON.stringify(resolved.indexingSummary);
+  artifacts.indexing = resolved.indexingSummary;
+  const metadataChanged = upsertMaterializationSection(payload, 'indexing', resolved.provenance);
+  return {
+    ...resolved,
+    changed: changed || metadataChanged
+  };
+};
+
+export const materializeBenchAnalysis = ({
+  payload,
+  featureMetrics,
+  indexingSummary,
+  deepAnalysis = false
+}) => {
+  const resolved = resolveBenchAnalysis({
+    payload,
+    featureMetrics,
+    indexingSummary,
+    deepAnalysis,
+    preferExisting: false
+  });
+  if (!resolved.analysis) return resolved;
+  if (resolved.provenance?.source === 'native-analysis') return resolved;
+  const artifacts = ensureArtifactsObject(payload);
+  const changed = JSON.stringify(artifacts.analysis || null) !== JSON.stringify(resolved.analysis);
+  artifacts.analysis = resolved.analysis;
+  const metadataChanged = upsertMaterializationSection(payload, 'analysis', resolved.provenance);
+  return {
+    ...resolved,
+    changed: changed || metadataChanged
+  };
+};
+
+export const materializeThroughputLedger = ({
+  payload,
+  indexingSummary
+}) => materializeOrResolveThroughputLedger({
+  payload,
+  indexingSummary,
+  materialize: true,
+  preferExisting: false
+});
 
 export const applyRunThroughputLedgerDiffs = (runs) => {
   const historyByRepo = new Map();

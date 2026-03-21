@@ -38,11 +38,11 @@ import {
   mergeAstGraphTotals,
   mergeAstGraphObserved,
   hasAstGraphValues,
-  loadOrComputeIndexingSummary,
-  loadOrComputeBenchAnalysis,
+  resolveIndexingSummary,
+  resolveBenchAnalysis,
   resolveRepoIdentity,
   resolveRepoHistoryKey,
-  loadOrComputeThroughputLedger,
+  resolveThroughputLedger,
   applyRunThroughputLedgerDiffs,
   collectRunLedgerRegressions
 } from './show-throughput/analysis.js';
@@ -103,6 +103,12 @@ if (!validateResultsRoot(resultsRoot)) {
   process.exit(1);
 }
 
+if (refreshJson) {
+  console.error('`show-throughput` is now read-only.');
+  console.error('Use `node tools/reports/materialize-throughput.js` to backfill legacy benchmark JSON.');
+  process.exit(2);
+}
+
 const folders = listResultFolders(resultsRoot, { includeUsrGuardrails });
 if (!folders.length) {
   console.error('No benchmark results folders found.');
@@ -130,7 +136,28 @@ const reposWithMetrics = new Set();
 /** @type {AstGraphAggregate} */
 const astGraphTotalsGlobal = { repos: 0, totals: createAstGraphTotals(), observed: createAstGraphObserved() };
 const ledgerRegressionsGlobal = [];
-const refreshWriteFailures = [];
+const createSectionProvenanceTotals = () => ({
+  indexing: new Map(),
+  analysis: new Map(),
+  throughputLedger: new Map()
+});
+const provenanceTotalsGlobal = createSectionProvenanceTotals();
+
+const recordSectionProvenance = (totals, section, provenance) => {
+  const key = provenance?.source || 'missing';
+  const bucket = totals?.[section];
+  if (!(bucket instanceof Map)) return;
+  bucket.set(key, (bucket.get(key) || 0) + 1);
+};
+
+const formatSectionProvenance = (totals, section) => {
+  const bucket = totals?.[section];
+  if (!(bucket instanceof Map) || !bucket.size) return 'none';
+  return Array.from(bucket.entries())
+    .sort((left, right) => Number(right[1]) - Number(left[1]) || String(left[0]).localeCompare(String(right[0])))
+    .map(([source, count]) => `${source} ${count}`)
+    .join(' | ');
+};
 
 console.error(color.bold(color.cyan('Benchmark Performance Overview')));
 console.error(color.gray(`Root: ${resultsRoot}`));
@@ -150,6 +177,7 @@ for (const dir of folders) {
   const modeTotalsFolder = createModeTotalsMap();
   const folderReposWithMetrics = new Set();
   const astGraphTotalsFolder = { repos: 0, totals: createAstGraphTotals(), observed: createAstGraphObserved() };
+  const provenanceTotalsFolder = createSectionProvenanceTotals();
 
   for (const file of files) {
     const resultPath = path.join(folderPath, file);
@@ -157,42 +185,25 @@ for (const dir of folders) {
     if (!payload) continue;
     const summary = payload.summary || payload.runs?.[0] || null;
     const throughput = payload.artifacts?.throughput || {};
-    let dirty = false;
     const featureMetrics = loadFeatureMetricsForPayload(payload);
     const {
       indexingSummary,
-      changed: indexingChanged,
-      featureMetrics: resolvedFeatureMetrics
-    } = loadOrComputeIndexingSummary({
+      featureMetrics: resolvedFeatureMetrics,
+      provenance: indexingProvenance
+    } = resolveIndexingSummary({
       payload,
-      featureMetrics,
-      refreshJson
+      featureMetrics
     });
-    if (indexingChanged) dirty = true;
-    const { analysis, changed: analysisChanged } = loadOrComputeBenchAnalysis({
+    const { analysis, provenance: analysisProvenance } = resolveBenchAnalysis({
       payload,
       featureMetrics: resolvedFeatureMetrics,
       indexingSummary,
-      refreshJson,
       deepAnalysis
     });
-    if (analysisChanged) dirty = true;
-    const { throughputLedger, changed: throughputLedgerChanged } = loadOrComputeThroughputLedger({
+    const { throughputLedger, provenance: throughputLedgerProvenance } = resolveThroughputLedger({
       payload,
       indexingSummary
     });
-    if (throughputLedgerChanged && refreshJson) dirty = true;
-    if (dirty && refreshJson) {
-      try {
-        fs.writeFileSync(resultPath, JSON.stringify(payload, null, 2));
-      } catch (err) {
-        refreshWriteFailures.push({
-          path: resultPath,
-          message: err?.message || String(err)
-        });
-        console.error(color.yellow(`[warn] Failed to refresh benchmark JSON: ${resultPath} (${err?.message || err})`));
-      }
-    }
     const repoIdentity = resolveRepoIdentity({ payload, file });
     const repoHistoryKey = resolveRepoHistoryKey({ payload, file });
     const generatedAtMs = Date.parse(payload?.generatedAt || payload?.summary?.generatedAt || '');
@@ -203,10 +214,19 @@ for (const dir of folders) {
       analysis,
       indexingSummary,
       throughputLedger,
+      indexingProvenance,
+      analysisProvenance,
+      throughputLedgerProvenance,
       repoIdentity,
       repoHistoryKey,
       generatedAtMs: Number.isFinite(generatedAtMs) ? generatedAtMs : null
     });
+    recordSectionProvenance(provenanceTotalsFolder, 'indexing', indexingProvenance);
+    recordSectionProvenance(provenanceTotalsGlobal, 'indexing', indexingProvenance);
+    recordSectionProvenance(provenanceTotalsFolder, 'analysis', analysisProvenance);
+    recordSectionProvenance(provenanceTotalsGlobal, 'analysis', analysisProvenance);
+    recordSectionProvenance(provenanceTotalsFolder, 'throughputLedger', throughputLedgerProvenance);
+    recordSectionProvenance(provenanceTotalsGlobal, 'throughputLedger', throughputLedgerProvenance);
     throughputs.push(throughput);
     mergeTotals(totalThroughput.code, throughput.code);
     mergeTotals(totalThroughput.prose, throughput.prose);
@@ -354,6 +374,11 @@ for (const dir of folders) {
         `${formatPct(top.deltaPct)} (${formatNumber(top.deltaRate)} ch/s vs ${formatNumber(top.baselineRate)})`
       );
     }
+    console.error(
+      `  provenance idx ${formatSectionProvenance(provenanceTotalsFolder, 'indexing')} | ` +
+      `analysis ${formatSectionProvenance(provenanceTotalsFolder, 'analysis')} | ` +
+      `ledger ${formatSectionProvenance(provenanceTotalsFolder, 'throughputLedger')}`
+    );
     continue;
   }
 
@@ -457,6 +482,12 @@ for (const dir of folders) {
       );
     }
   }
+  console.error(
+    `  ${color.bold('Provenance')}: ` +
+    `indexing ${formatSectionProvenance(provenanceTotalsFolder, 'indexing')} | ` +
+    `analysis ${formatSectionProvenance(provenanceTotalsFolder, 'analysis')} | ` +
+    `ledger ${formatSectionProvenance(provenanceTotalsFolder, 'throughputLedger')}`
+  );
 
   const runRows = runs.map((run) => {
     const repoLabel = run.file.replace(/\.json$/, '').replace(/__/g, '/');
@@ -721,11 +752,8 @@ if (languageTotals.size) {
     }
   }
 }
-if (refreshWriteFailures.length) {
-  process.exitCode = 1;
-  console.error('');
-  console.error(color.bold(color.yellow(`Refresh JSON write failures: ${refreshWriteFailures.length}`)));
-  for (const entry of refreshWriteFailures.slice(0, 12)) {
-    console.error(`  ${entry.path} :: ${entry.message}`);
-  }
-}
+console.error('');
+console.error(color.bold('Overview Provenance'));
+console.error(`  indexing: ${formatSectionProvenance(provenanceTotalsGlobal, 'indexing')}`);
+console.error(`  analysis: ${formatSectionProvenance(provenanceTotalsGlobal, 'analysis')}`);
+console.error(`  throughput ledger: ${formatSectionProvenance(provenanceTotalsGlobal, 'throughputLedger')}`);

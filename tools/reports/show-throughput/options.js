@@ -31,11 +31,21 @@ export const resolveShowThroughputOptions = ({
   return {
     resultsRoot,
     refreshJson,
-    deepAnalysis: hasFlag(argv, '--deep-analysis') || refreshJson,
+    deepAnalysis: hasFlag(argv, '--deep-analysis'),
     verboseOutput: hasFlag(argv, '--verbose'),
     includeUsrGuardrails: hasFlag(argv, '--include-usr')
   };
 };
+
+export const resolveThroughputMaterializeOptions = ({
+  argv = process.argv.slice(2),
+  cwd = process.cwd()
+} = {}) => ({
+  resultsRoot: path.join(cwd, 'benchmarks', 'results'),
+  deepAnalysis: hasFlag(argv, '--deep-analysis'),
+  verboseOutput: hasFlag(argv, '--verbose'),
+  includeUsrGuardrails: hasFlag(argv, '--include-usr')
+});
 
 /**
  * Validate results root path exists before attempting report traversal.

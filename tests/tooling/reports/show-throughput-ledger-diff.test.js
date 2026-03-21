@@ -11,6 +11,7 @@ ensureTestingEnv(process.env);
 
 const root = process.cwd();
 const scriptPath = path.join(root, 'tools', 'reports', 'show-throughput.js');
+const materializeScriptPath = path.join(root, 'tools', 'reports', 'materialize-throughput.js');
 const tmpRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'show-throughput-ledger-diff-'));
 const runRoot = path.join(tmpRoot, 'workspace');
 const resultsRoot = path.join(runRoot, 'benchmarks', 'results');
@@ -85,10 +86,30 @@ assert.equal(
   true,
   'expected global throughput regression section'
 );
+const untouchedPayload = JSON.parse(
+  await fsPromises.readFile(path.join(languageDir, 'owner__repo-current.json'), 'utf8')
+);
+assert.equal(
+  untouchedPayload?.artifacts?.throughputLedger ?? null,
+  null,
+  'expected read-only show-throughput to avoid mutating benchmark JSON'
+);
+
+const deprecatedRefresh = spawnSync(
+  process.execPath,
+  [scriptPath, '--refresh-json'],
+  { cwd: runRoot, encoding: 'utf8' }
+);
+assert.equal(deprecatedRefresh.status, 2, deprecatedRefresh.stderr || deprecatedRefresh.stdout);
+assert.equal(
+  stripAnsi(deprecatedRefresh.stderr).includes('materialize-throughput.js'),
+  true,
+  'expected show-throughput refresh flag to direct callers to the dedicated materializer'
+);
 
 const refreshed = spawnSync(
   process.execPath,
-  [scriptPath, '--refresh-json'],
+  [materializeScriptPath],
   { cwd: runRoot, encoding: 'utf8' }
 );
 assert.equal(refreshed.status, 0, refreshed.stderr || refreshed.stdout);
@@ -105,6 +126,11 @@ assert.equal(
   typeof refreshedPayload?.artifacts?.throughputLedger?.runSignature,
   'string',
   'expected persisted throughput ledger run signature'
+);
+assert.equal(
+  refreshedPayload?.artifacts?.materialization?.sections?.throughputLedger?.source,
+  'fallback-throughput-derived',
+  'expected materializer to record synthesized throughput-ledger provenance'
 );
 
 await fsPromises.rm(tmpRoot, { recursive: true, force: true });
