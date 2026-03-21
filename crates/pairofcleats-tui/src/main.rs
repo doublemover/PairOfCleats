@@ -131,6 +131,183 @@ struct AlertEntry {
     message: String,
 }
 
+#[derive(Clone)]
+struct LogEntry {
+    text: String,
+    level: String,
+    source: String,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FocusPanel {
+    Jobs,
+    Tasks,
+    Logs,
+}
+
+impl FocusPanel {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Jobs => "jobs",
+            Self::Tasks => "tasks",
+            Self::Logs => "logs",
+        }
+    }
+
+    fn next(&self) -> Self {
+        match self {
+            Self::Jobs => Self::Tasks,
+            Self::Tasks => Self::Logs,
+            Self::Logs => Self::Jobs,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum JobFilter {
+    All,
+    Active,
+    Failed,
+    Done,
+}
+
+impl JobFilter {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::Active => "active",
+            Self::Failed => "failed",
+            Self::Done => "done",
+        }
+    }
+
+    fn next(&self) -> Self {
+        match self {
+            Self::All => Self::Active,
+            Self::Active => Self::Failed,
+            Self::Failed => Self::Done,
+            Self::Done => Self::All,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TaskFilter {
+    All,
+    Active,
+    Failed,
+    Done,
+}
+
+impl TaskFilter {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::Active => "active",
+            Self::Failed => "failed",
+            Self::Done => "done",
+        }
+    }
+
+    fn next(&self) -> Self {
+        match self {
+            Self::All => Self::Active,
+            Self::Active => Self::Failed,
+            Self::Failed => Self::Done,
+            Self::Done => Self::All,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LogLevelFilter {
+    All,
+    WarnError,
+    Error,
+}
+
+impl LogLevelFilter {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::WarnError => "warn+",
+            Self::Error => "error",
+        }
+    }
+
+    fn next(&self) -> Self {
+        match self {
+            Self::All => Self::WarnError,
+            Self::WarnError => Self::Error,
+            Self::Error => Self::All,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LogSourceFilter {
+    All,
+    Supervisor,
+    Events,
+}
+
+impl LogSourceFilter {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::Supervisor => "supervisor",
+            Self::Events => "events",
+        }
+    }
+
+    fn next(&self) -> Self {
+        match self {
+            Self::All => Self::Supervisor,
+            Self::Supervisor => Self::Events,
+            Self::Events => Self::All,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OverlayMode {
+    None,
+    Help,
+    Palette,
+    Search,
+}
+
+#[derive(Clone, Copy)]
+enum PaletteAction {
+    ToggleFollow,
+    FocusJobs,
+    FocusTasks,
+    FocusLogs,
+    CycleFilter,
+    ClearSearch,
+    RunJob,
+    CancelSelected,
+    ShowHelp,
+    Quit,
+}
+
+impl PaletteAction {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::ToggleFollow => "Toggle follow / pause",
+            Self::FocusJobs => "Focus jobs panel",
+            Self::FocusTasks => "Focus tasks panel",
+            Self::FocusLogs => "Focus logs panel",
+            Self::CycleFilter => "Cycle active panel filter",
+            Self::ClearSearch => "Clear current panel search",
+            Self::RunJob => "Run sample job",
+            Self::CancelSelected => "Cancel selected job",
+            Self::ShowHelp => "Open help overlay",
+            Self::Quit => "Quit TUI",
+        }
+    }
+}
+
 struct ChunkAssembly {
     chunk_count: usize,
     parts: Vec<Option<String>>,
@@ -239,6 +416,23 @@ enum InputCommand {
     Quit,
     RunJob,
     CancelSelected,
+    FocusNext,
+    FocusJobs,
+    FocusTasks,
+    FocusLogs,
+    CycleFilter,
+    ToggleFollow,
+    ToggleHelp,
+    TogglePalette,
+    PaletteUp,
+    PaletteDown,
+    PaletteSelect,
+    SearchOpen,
+    SearchAccept,
+    SearchCancel,
+    SearchBackspace,
+    SearchChar(char),
+    ClearSearch,
     LogsUp,
     LogsDown,
     JobsUp,
@@ -254,10 +448,23 @@ struct AppModel {
     job_order: VecDeque<String>,
     task_status: BTreeMap<String, String>,
     task_order: VecDeque<String>,
-    logs: VecDeque<String>,
+    logs: VecDeque<LogEntry>,
     alerts: VecDeque<AlertEntry>,
     session: SessionState,
     selected_job: Option<String>,
+    focus_panel: FocusPanel,
+    follow_updates: bool,
+    job_filter: JobFilter,
+    task_filter: TaskFilter,
+    log_level_filter: LogLevelFilter,
+    log_source_filter: LogSourceFilter,
+    search_jobs: String,
+    search_tasks: String,
+    search_logs: String,
+    overlay: OverlayMode,
+    search_target: FocusPanel,
+    search_draft: String,
+    palette_index: usize,
     job_scroll: usize,
     task_scroll: usize,
     log_scroll: usize,
@@ -303,6 +510,19 @@ impl AppModel {
                 note: "awaiting supervisor handshake".to_string(),
             },
             selected_job: None,
+            focus_panel: FocusPanel::Jobs,
+            follow_updates: true,
+            job_filter: JobFilter::All,
+            task_filter: TaskFilter::All,
+            log_level_filter: LogLevelFilter::All,
+            log_source_filter: LogSourceFilter::All,
+            search_jobs: String::new(),
+            search_tasks: String::new(),
+            search_logs: String::new(),
+            overlay: OverlayMode::None,
+            search_target: FocusPanel::Jobs,
+            search_draft: String::new(),
+            palette_index: 0,
             job_scroll: 0,
             task_scroll: 0,
             log_scroll: 0,
@@ -323,11 +543,23 @@ impl AppModel {
         }
     }
 
-    fn push_log(&mut self, message: String) {
+    fn push_log_entry(&mut self, text: String, level: &str, source: &str) {
+        if !self.follow_updates && !self.logs.is_empty() {
+            self.log_scroll = self.log_scroll.saturating_add(1);
+        }
         if self.logs.len() >= LOG_RING_LIMIT {
             self.logs.pop_front();
         }
-        self.logs.push_back(message);
+        self.logs.push_back(LogEntry {
+            text,
+            level: level.to_string(),
+            source: source.to_string(),
+        });
+        self.dirty = true;
+    }
+
+    fn push_log(&mut self, message: String) {
+        self.push_log_entry(message, "info", "supervisor");
         self.dirty = true;
     }
 
@@ -399,7 +631,9 @@ impl AppModel {
                     .insert(job_id.to_string(), next_title.trim().to_string());
             }
         }
-        self.selected_job = Some(job_id.to_string());
+        if self.follow_updates || self.selected_job.is_none() {
+            self.selected_job = Some(job_id.to_string());
+        }
         self.dirty = true;
     }
 
@@ -663,24 +897,23 @@ fn send_request(child: &mut std::process::Child, payload: Value) -> anyhow::Resu
     Ok(())
 }
 
-fn tail_window(items: &VecDeque<String>, scroll: usize, height: usize) -> Vec<String> {
+fn tail_window_slice<T: Clone>(items: &[T], scroll: usize, height: usize) -> Vec<T> {
     if items.is_empty() {
-        return vec!["(empty)".to_string()];
+        return Vec::new();
     }
     let total = items.len();
     let end = total.saturating_sub(scroll.min(total));
     let safe_height = height.max(1);
     let start = end.saturating_sub(safe_height);
-    items
-        .iter()
-        .skip(start)
-        .take(end.saturating_sub(start))
-        .cloned()
-        .collect()
+    items[start..end].to_vec()
 }
 
 fn frame_signature(model: &AppModel) -> String {
-    let last_log = model.logs.back().cloned().unwrap_or_default();
+    let last_log = model
+        .logs
+        .back()
+        .map(|entry| entry.text.clone())
+        .unwrap_or_default();
     let selected = model.selected_job.clone().unwrap_or_default();
     let last_alert = model
         .alerts
@@ -688,17 +921,85 @@ fn frame_signature(model: &AppModel) -> String {
         .map(|alert| format!("{}:{}", alert.level, alert.message))
         .unwrap_or_default();
     format!(
-        "{}|{}|{}|{}|{}|{}|{}|{}|{}",
+        "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
         model.run_id,
         model.job_status.len(),
         model.task_status.len(),
         model.logs.len(),
         selected,
+        model.focus_panel.label(),
+        model.follow_updates,
+        model.job_filter.label(),
+        model.task_filter.label(),
+        model.log_level_filter.label(),
         model.job_scroll,
         last_log,
         model.session.mode,
         last_alert
     )
+}
+
+fn current_search<'a>(model: &'a AppModel, panel: FocusPanel) -> &'a str {
+    match panel {
+        FocusPanel::Jobs => &model.search_jobs,
+        FocusPanel::Tasks => &model.search_tasks,
+        FocusPanel::Logs => &model.search_logs,
+    }
+}
+
+fn current_search_mut<'a>(model: &'a mut AppModel, panel: FocusPanel) -> &'a mut String {
+    match panel {
+        FocusPanel::Jobs => &mut model.search_jobs,
+        FocusPanel::Tasks => &mut model.search_tasks,
+        FocusPanel::Logs => &mut model.search_logs,
+    }
+}
+
+fn clear_search(model: &mut AppModel, panel: FocusPanel) {
+    current_search_mut(model, panel).clear();
+    model.dirty = true;
+}
+
+fn contains_query(text: &str, query: &str) -> bool {
+    let needle = query.trim().to_lowercase();
+    if needle.is_empty() {
+        return true;
+    }
+    text.to_lowercase().contains(&needle)
+}
+
+fn matches_job_filter(status: &str, filter: JobFilter) -> bool {
+    match filter {
+        JobFilter::All => true,
+        JobFilter::Active => !status.contains("failed") && !status.contains("done"),
+        JobFilter::Failed => status.contains("failed") || status.contains("cancelled"),
+        JobFilter::Done => status.contains("done"),
+    }
+}
+
+fn matches_task_filter(status: &str, filter: TaskFilter) -> bool {
+    match filter {
+        TaskFilter::All => true,
+        TaskFilter::Active => !status.contains("failed") && !status.contains("done"),
+        TaskFilter::Failed => status.contains("failed"),
+        TaskFilter::Done => status.contains("done"),
+    }
+}
+
+fn matches_log_level_filter(level: &str, filter: LogLevelFilter) -> bool {
+    match filter {
+        LogLevelFilter::All => true,
+        LogLevelFilter::WarnError => level == "warn" || level == "error",
+        LogLevelFilter::Error => level == "error",
+    }
+}
+
+fn matches_log_source_filter(source: &str, filter: LogSourceFilter) -> bool {
+    match filter {
+        LogSourceFilter::All => true,
+        LogSourceFilter::Supervisor => source == "supervisor" || source == "log",
+        LogSourceFilter::Events => source != "supervisor" && source != "log",
+    }
 }
 
 fn job_status_counts(model: &AppModel) -> (usize, usize, usize) {
@@ -732,6 +1033,9 @@ fn task_status_counts(model: &AppModel) -> (usize, usize) {
 
 fn jobs_empty_reason(model: &AppModel) -> String {
     if !model.job_status.is_empty() {
+        if model.job_filter != JobFilter::All || !model.search_jobs.trim().is_empty() {
+            return "(no jobs match filter/search)".to_string();
+        }
         return "(jobs available)".to_string();
     }
     match model.session.mode.as_str() {
@@ -748,6 +1052,9 @@ fn jobs_empty_reason(model: &AppModel) -> String {
 }
 
 fn tasks_empty_reason(model: &AppModel) -> String {
+    if model.task_filter != TaskFilter::All || !model.search_tasks.trim().is_empty() {
+        return "(no tasks match filter/search)".to_string();
+    }
     if let Some(job_id) = model.selected_job.as_ref() {
         return format!("(no tasks recorded for {job_id})");
     }
@@ -785,6 +1092,20 @@ fn fit_text(text: &str, width: usize) -> String {
         .collect::<String>();
     output.push('…');
     output
+}
+
+fn block_title(base: &str, focused: bool, extra: &[String]) -> String {
+    let mut parts = vec![if focused {
+        format!("{base} *")
+    } else {
+        base.to_string()
+    }];
+    for item in extra {
+        if !item.trim().is_empty() {
+            parts.push(item.trim().to_string());
+        }
+    }
+    parts.join(" | ")
 }
 
 fn wrap_text_lines(text: &str, width: usize, max_lines: usize) -> Vec<String> {
@@ -846,6 +1167,32 @@ fn session_summary_text(model: &AppModel, width: usize) -> String {
     fit_text(&parts.join(" | "), width)
 }
 
+fn operator_summary_text(model: &AppModel, width: usize) -> String {
+    let mut parts = vec![
+        format!("focus {}", model.focus_panel.label()),
+        format!(
+            "follow {}",
+            if model.follow_updates {
+                "live"
+            } else {
+                "paused"
+            }
+        ),
+        format!("jobs {}", model.job_filter.label()),
+        format!("tasks {}", model.task_filter.label()),
+        format!(
+            "logs {}/{}",
+            model.log_level_filter.label(),
+            model.log_source_filter.label()
+        ),
+    ];
+    let active_search = current_search(model, model.focus_panel);
+    if !active_search.trim().is_empty() {
+        parts.push(format!("search {}", active_search.trim()));
+    }
+    fit_text(&parts.join(" | "), width)
+}
+
 fn runtime_summary_text(model: &AppModel, width: usize) -> String {
     let (running_jobs, failed_jobs, done_jobs) = job_status_counts(model);
     let (active_tasks, failed_tasks) = task_status_counts(model);
@@ -860,6 +1207,16 @@ fn runtime_summary_text(model: &AppModel, width: usize) -> String {
     fit_text(&parts.join(" | "), width)
 }
 
+fn footer_hint_text(model: &AppModel, width: usize) -> String {
+    let text = match model.overlay {
+        OverlayMode::Help => "help overlay | Esc or ? close",
+        OverlayMode::Palette => "action palette | j/k move | Enter select | Esc close",
+        OverlayMode::Search => "search | type to filter current panel | Enter apply | Backspace delete | Esc cancel",
+        OverlayMode::None => "Tab focus | f cycle filter | / search | x clear search | p pause/follow | : actions | ? help | q quit",
+    };
+    fit_text(text, width)
+}
+
 fn build_job_rows(model: &AppModel, width: usize) -> Vec<ListItem<'static>> {
     let mut rows = Vec::new();
     if model.job_order.is_empty() {
@@ -870,24 +1227,30 @@ fn build_job_rows(model: &AppModel, width: usize) -> Vec<ListItem<'static>> {
         let Some(status) = model.job_status.get(job_id) else {
             continue;
         };
+        if !matches_job_filter(status, model.job_filter) {
+            continue;
+        }
         let title = model.job_titles.get(job_id).cloned().unwrap_or_default();
         let rendered = if title.is_empty() {
             format!("{job_id} | {status}")
         } else {
             format!("{job_id} | {status} | {title}")
         };
+        if !contains_query(&rendered, &model.search_jobs) {
+            continue;
+        }
         let style = if !model.terminal_caps.color {
             Style::default()
+        } else if model.selected_job.as_deref() == Some(job_id.as_str()) {
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else if status.contains("done") {
             Style::default().fg(Color::Green)
         } else if status.contains("failed") {
             Style::default().fg(Color::Red)
         } else if status.contains("cancelled") {
             Style::default().fg(Color::Yellow)
-        } else if model.selected_job.as_deref() == Some(job_id.as_str()) {
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD)
         } else if status.contains("running") {
             Style::default().fg(Color::Blue)
         } else {
@@ -911,7 +1274,14 @@ fn build_task_rows(model: &AppModel, width: usize) -> Vec<ListItem<'static>> {
         let Some(status) = model.task_status.get(key) else {
             continue;
         };
+        if !matches_task_filter(status, model.task_filter) {
+            continue;
+        }
         let task_name = key.rsplit(':').next().unwrap_or(key);
+        let rendered = format!("{task_name} | {status}");
+        if !contains_query(&rendered, &model.search_tasks) {
+            continue;
+        }
         let style = if !model.terminal_caps.color {
             Style::default()
         } else if status.contains("failed") {
@@ -921,7 +1291,7 @@ fn build_task_rows(model: &AppModel, width: usize) -> Vec<ListItem<'static>> {
         } else {
             Style::default().fg(Color::Yellow)
         };
-        rows.push(ListItem::new(fit_text(&format!("{task_name} | {status}"), width)).style(style));
+        rows.push(ListItem::new(fit_text(&rendered, width)).style(style));
     }
     if rows.is_empty() {
         rows.push(ListItem::new(fit_text(&tasks_empty_reason(model), width)));
@@ -929,22 +1299,37 @@ fn build_task_rows(model: &AppModel, width: usize) -> Vec<ListItem<'static>> {
     rows
 }
 
-fn summarize_log_line(line: &str) -> String {
-    let trimmed = line.trim();
-    if trimmed.starts_with("event=") {
-        return trimmed
-            .trim_start_matches("event=")
-            .replace('{', " ")
-            .replace('}', " ");
+fn render_log_entry(entry: &LogEntry) -> String {
+    let text = entry.text.trim();
+    match entry.level.as_str() {
+        "warn" | "error" => format!("{} | {} | {}", entry.level, entry.source, text),
+        _ => format!("{} | {}", entry.source, text),
     }
-    trimmed.to_string()
+}
+
+fn logs_empty_reason(model: &AppModel) -> String {
+    if model.log_level_filter != LogLevelFilter::All
+        || model.log_source_filter != LogSourceFilter::All
+        || !model.search_logs.trim().is_empty()
+    {
+        return "(no logs match filter/search)".to_string();
+    }
+    "(no logs yet)".to_string()
 }
 
 fn build_log_lines(model: &AppModel, width: usize, height: usize) -> String {
-    let visible_logs = tail_window(&model.logs, model.log_scroll, model.logs.len().max(1));
+    let filtered: Vec<LogEntry> = model
+        .logs
+        .iter()
+        .filter(|entry| matches_log_level_filter(&entry.level, model.log_level_filter))
+        .filter(|entry| matches_log_source_filter(&entry.source, model.log_source_filter))
+        .filter(|entry| contains_query(&render_log_entry(entry), &model.search_logs))
+        .cloned()
+        .collect();
+    let visible_logs = tail_window_slice(&filtered, model.log_scroll, filtered.len().max(1));
     let mut lines = Vec::new();
     for entry in visible_logs {
-        let wrapped = wrap_text_lines(&summarize_log_line(&entry), width, 2);
+        let wrapped = wrap_text_lines(&render_log_entry(&entry), width, 2);
         for line in wrapped {
             lines.push(line);
             if lines.len() >= height {
@@ -956,10 +1341,148 @@ fn build_log_lines(model: &AppModel, width: usize, height: usize) -> String {
         }
     }
     if lines.is_empty() {
-        lines.push("(no logs yet)".to_string());
+        lines.push(logs_empty_reason(model));
     }
     let start = lines.len().saturating_sub(height.max(1));
     lines[start..].join("\n")
+}
+
+fn panel_block(title: String, focused: bool, color: bool) -> Block<'static> {
+    let mut block = Block::default().borders(Borders::ALL).title(title);
+    if color && focused {
+        block = block.border_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        );
+    }
+    block
+}
+
+fn render_help_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
+    let area = centered_rect(76, 70, frame.area());
+    let text = [
+        "Operator Help",
+        "",
+        "Tab switch focus panels",
+        "f cycle filter for focused panel",
+        "/ search within focused panel",
+        "x clear search for focused panel",
+        "p toggle follow/pause",
+        ": open action palette",
+        "? close help",
+        "r run sample job",
+        "c cancel selected job",
+        "q quit",
+        "",
+        &format!(
+            "Current: focus {} | follow {}",
+            model.focus_panel.label(),
+            if model.follow_updates {
+                "live"
+            } else {
+                "paused"
+            }
+        ),
+    ]
+    .join("\n");
+    let overlay = Paragraph::new(text)
+        .wrap(Wrap { trim: true })
+        .block(panel_block(
+            "Help".to_string(),
+            true,
+            model.terminal_caps.color,
+        ));
+    frame.render_widget(overlay, area);
+}
+
+fn palette_actions() -> Vec<PaletteAction> {
+    vec![
+        PaletteAction::ToggleFollow,
+        PaletteAction::FocusJobs,
+        PaletteAction::FocusTasks,
+        PaletteAction::FocusLogs,
+        PaletteAction::CycleFilter,
+        PaletteAction::ClearSearch,
+        PaletteAction::RunJob,
+        PaletteAction::CancelSelected,
+        PaletteAction::ShowHelp,
+        PaletteAction::Quit,
+    ]
+}
+
+fn render_palette_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
+    let actions = palette_actions();
+    let area = centered_rect(68, 60, frame.area());
+    let rows: Vec<ListItem<'static>> = actions
+        .iter()
+        .enumerate()
+        .map(|(index, action)| {
+            let prefix = if index == model.palette_index {
+                ">"
+            } else {
+                " "
+            };
+            let style = if model.terminal_caps.color && index == model.palette_index {
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+            ListItem::new(format!("{prefix} {}", action.label())).style(style)
+        })
+        .collect();
+    let overlay = List::new(rows).block(panel_block(
+        "Actions".to_string(),
+        true,
+        model.terminal_caps.color,
+    ));
+    frame.render_widget(overlay, area);
+}
+
+fn render_search_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
+    let area = centered_rect(64, 22, frame.area());
+    let text = format!(
+        "Search {}\n\n{}\n\nEnter apply | Esc cancel | Backspace delete",
+        model.search_target.label(),
+        if model.search_draft.is_empty() {
+            "Type to filter".to_string()
+        } else {
+            model.search_draft.clone()
+        }
+    );
+    let overlay = Paragraph::new(text)
+        .wrap(Wrap { trim: true })
+        .block(panel_block(
+            "Search".to_string(),
+            true,
+            model.terminal_caps.color,
+        ));
+    frame.render_widget(overlay, area);
+}
+
+fn centered_rect(
+    percent_x: u16,
+    percent_y: u16,
+    area: ratatui::layout::Rect,
+) -> ratatui::layout::Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(area);
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
 }
 
 fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
@@ -967,6 +1490,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
+            Constraint::Length(3),
             Constraint::Length(3),
             Constraint::Length(3),
             Constraint::Length(3),
@@ -979,13 +1503,9 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         .block(Block::default().borders(Borders::ALL).title("Session"));
     frame.render_widget(session_block, rows[0]);
 
-    let controls = if model.terminal_caps.unicode {
-        "PairOfCleats TUI - [r] run  [c] cancel  [q] quit  [j/k] logs  [n/m] jobs  [u/i] tasks"
-    } else {
-        "PairOfCleats TUI - [r] run [c] cancel [q] quit [j/k] logs [n/m] jobs [u/i] tasks"
-    };
-    let control_block =
-        Paragraph::new(controls).block(Block::default().borders(Borders::ALL).title("Controls"));
+    let control_block = Paragraph::new(operator_summary_text(model, session_width))
+        .wrap(Wrap { trim: true })
+        .block(Block::default().borders(Borders::ALL).title("Operator"));
     frame.render_widget(control_block, rows[1]);
 
     let metrics_block = Paragraph::new(runtime_summary_text(model, session_width))
@@ -993,7 +1513,12 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         .block(Block::default().borders(Borders::ALL).title("Runtime"));
     frame.render_widget(metrics_block, rows[2]);
 
-    if rows[3].width < 100 {
+    let footer_block = Paragraph::new(footer_hint_text(model, session_width))
+        .wrap(Wrap { trim: true })
+        .block(Block::default().borders(Borders::ALL).title("Hints"));
+    frame.render_widget(footer_block, rows[3]);
+
+    if rows[4].width < 100 {
         let stacked = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -1001,15 +1526,43 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                 Constraint::Percentage(30),
                 Constraint::Percentage(40),
             ])
-            .split(rows[3]);
+            .split(rows[4]);
         let jobs_width = stacked[0].width.saturating_sub(2) as usize;
         let tasks_width = stacked[1].width.saturating_sub(2) as usize;
         let logs_width = stacked[2].width.saturating_sub(2) as usize;
-        let jobs = List::new(build_job_rows(model, jobs_width))
-            .block(Block::default().borders(Borders::ALL).title("Jobs"));
+        let jobs = List::new(build_job_rows(model, jobs_width)).block(panel_block(
+            block_title(
+                "Jobs",
+                model.focus_panel == FocusPanel::Jobs,
+                &[format!("filter {}", model.job_filter.label()), {
+                    let query = model.search_jobs.trim();
+                    if query.is_empty() {
+                        String::new()
+                    } else {
+                        format!("search {}", query)
+                    }
+                }],
+            ),
+            model.focus_panel == FocusPanel::Jobs,
+            model.terminal_caps.color,
+        ));
         frame.render_widget(jobs, stacked[0]);
-        let tasks = List::new(build_task_rows(model, tasks_width))
-            .block(Block::default().borders(Borders::ALL).title("Tasks"));
+        let tasks = List::new(build_task_rows(model, tasks_width)).block(panel_block(
+            block_title(
+                "Tasks",
+                model.focus_panel == FocusPanel::Tasks,
+                &[format!("filter {}", model.task_filter.label()), {
+                    let query = model.search_tasks.trim();
+                    if query.is_empty() {
+                        String::new()
+                    } else {
+                        format!("search {}", query)
+                    }
+                }],
+            ),
+            model.focus_panel == FocusPanel::Tasks,
+            model.terminal_caps.color,
+        ));
         frame.render_widget(tasks, stacked[1]);
         let logs = Paragraph::new(build_log_lines(
             model,
@@ -1017,40 +1570,128 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             stacked[2].height.saturating_sub(2) as usize,
         ))
         .wrap(Wrap { trim: true })
-        .block(Block::default().borders(Borders::ALL).title("Logs"));
+        .block(panel_block(
+            block_title(
+                "Logs",
+                model.focus_panel == FocusPanel::Logs,
+                &[
+                    format!(
+                        "filter {}/{}",
+                        model.log_level_filter.label(),
+                        model.log_source_filter.label()
+                    ),
+                    if model.follow_updates {
+                        "follow live".to_string()
+                    } else {
+                        "follow paused".to_string()
+                    },
+                    {
+                        let query = model.search_logs.trim();
+                        if query.is_empty() {
+                            String::new()
+                        } else {
+                            format!("search {}", query)
+                        }
+                    },
+                ],
+            ),
+            model.focus_panel == FocusPanel::Logs,
+            model.terminal_caps.color,
+        ));
         frame.render_widget(logs, stacked[2]);
-        return;
+    } else {
+        let cols = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(28),
+                Constraint::Percentage(28),
+                Constraint::Percentage(44),
+            ])
+            .split(rows[4]);
+
+        let jobs_width = cols[0].width.saturating_sub(2) as usize;
+        let tasks_width = cols[1].width.saturating_sub(2) as usize;
+        let logs_width = cols[2].width.saturating_sub(2) as usize;
+
+        let jobs = List::new(build_job_rows(model, jobs_width)).block(panel_block(
+            block_title(
+                "Jobs",
+                model.focus_panel == FocusPanel::Jobs,
+                &[format!("filter {}", model.job_filter.label()), {
+                    let query = model.search_jobs.trim();
+                    if query.is_empty() {
+                        String::new()
+                    } else {
+                        format!("search {}", query)
+                    }
+                }],
+            ),
+            model.focus_panel == FocusPanel::Jobs,
+            model.terminal_caps.color,
+        ));
+        frame.render_widget(jobs, cols[0]);
+
+        let tasks = List::new(build_task_rows(model, tasks_width)).block(panel_block(
+            block_title(
+                "Tasks",
+                model.focus_panel == FocusPanel::Tasks,
+                &[format!("filter {}", model.task_filter.label()), {
+                    let query = model.search_tasks.trim();
+                    if query.is_empty() {
+                        String::new()
+                    } else {
+                        format!("search {}", query)
+                    }
+                }],
+            ),
+            model.focus_panel == FocusPanel::Tasks,
+            model.terminal_caps.color,
+        ));
+        frame.render_widget(tasks, cols[1]);
+
+        let logs = Paragraph::new(build_log_lines(
+            model,
+            logs_width,
+            cols[2].height.saturating_sub(2) as usize,
+        ))
+        .wrap(Wrap { trim: true })
+        .block(panel_block(
+            block_title(
+                "Logs",
+                model.focus_panel == FocusPanel::Logs,
+                &[
+                    format!(
+                        "filter {}/{}",
+                        model.log_level_filter.label(),
+                        model.log_source_filter.label()
+                    ),
+                    if model.follow_updates {
+                        "follow live".to_string()
+                    } else {
+                        "follow paused".to_string()
+                    },
+                    {
+                        let query = model.search_logs.trim();
+                        if query.is_empty() {
+                            String::new()
+                        } else {
+                            format!("search {}", query)
+                        }
+                    },
+                ],
+            ),
+            model.focus_panel == FocusPanel::Logs,
+            model.terminal_caps.color,
+        ));
+        frame.render_widget(logs, cols[2]);
     }
 
-    let cols = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(28),
-            Constraint::Percentage(28),
-            Constraint::Percentage(44),
-        ])
-        .split(rows[3]);
-
-    let jobs_width = cols[0].width.saturating_sub(2) as usize;
-    let tasks_width = cols[1].width.saturating_sub(2) as usize;
-    let logs_width = cols[2].width.saturating_sub(2) as usize;
-
-    let jobs = List::new(build_job_rows(model, jobs_width))
-        .block(Block::default().borders(Borders::ALL).title("Jobs"));
-    frame.render_widget(jobs, cols[0]);
-
-    let tasks = List::new(build_task_rows(model, tasks_width))
-        .block(Block::default().borders(Borders::ALL).title("Tasks"));
-    frame.render_widget(tasks, cols[1]);
-
-    let logs = Paragraph::new(build_log_lines(
-        model,
-        logs_width,
-        cols[2].height.saturating_sub(2) as usize,
-    ))
-    .wrap(Wrap { trim: true })
-    .block(Block::default().borders(Borders::ALL).title("Logs"));
-    frame.render_widget(logs, cols[2]);
+    match model.overlay {
+        OverlayMode::Help => render_help_overlay(frame, model),
+        OverlayMode::Palette => render_palette_overlay(frame, model),
+        OverlayMode::Search => render_search_overlay(frame, model),
+        OverlayMode::None => {}
+    }
 }
 
 fn draw_ui(
@@ -1064,6 +1705,92 @@ fn draw_ui(
 
 fn apply_local_input(model: &mut AppModel, input: &str) {
     match input.trim() {
+        "focus_next" => {
+            model.focus_panel = model.focus_panel.next();
+            model.dirty = true;
+        }
+        "focus_jobs" => {
+            model.focus_panel = FocusPanel::Jobs;
+            model.dirty = true;
+        }
+        "focus_tasks" => {
+            model.focus_panel = FocusPanel::Tasks;
+            model.dirty = true;
+        }
+        "focus_logs" => {
+            model.focus_panel = FocusPanel::Logs;
+            model.dirty = true;
+        }
+        "cycle_filter" => cycle_active_filter(model),
+        "toggle_follow" => {
+            model.follow_updates = !model.follow_updates;
+            model.dirty = true;
+        }
+        "toggle_help" => {
+            model.overlay = if model.overlay == OverlayMode::Help {
+                OverlayMode::None
+            } else {
+                OverlayMode::Help
+            };
+            model.dirty = true;
+        }
+        "toggle_palette" => {
+            model.overlay = if model.overlay == OverlayMode::Palette {
+                OverlayMode::None
+            } else {
+                OverlayMode::Palette
+            };
+            model.dirty = true;
+        }
+        "palette_up" => {
+            let actions = palette_actions();
+            if model.palette_index == 0 {
+                model.palette_index = actions.len().saturating_sub(1);
+            } else {
+                model.palette_index = model.palette_index.saturating_sub(1);
+            }
+            model.dirty = true;
+        }
+        "palette_down" => {
+            let actions = palette_actions();
+            model.palette_index = (model.palette_index + 1) % actions.len().max(1);
+            model.dirty = true;
+        }
+        "palette_select" => {
+            if let Some(action) = palette_actions().get(model.palette_index).copied() {
+                match action {
+                    PaletteAction::ToggleFollow => model.follow_updates = !model.follow_updates,
+                    PaletteAction::FocusJobs => model.focus_panel = FocusPanel::Jobs,
+                    PaletteAction::FocusTasks => model.focus_panel = FocusPanel::Tasks,
+                    PaletteAction::FocusLogs => model.focus_panel = FocusPanel::Logs,
+                    PaletteAction::CycleFilter => cycle_active_filter(model),
+                    PaletteAction::ClearSearch => clear_search(model, model.focus_panel),
+                    PaletteAction::ShowHelp => model.overlay = OverlayMode::Help,
+                    PaletteAction::RunJob | PaletteAction::CancelSelected | PaletteAction::Quit => {
+                    }
+                }
+            }
+            if model.overlay == OverlayMode::Palette {
+                model.overlay = OverlayMode::None;
+            }
+            model.dirty = true;
+        }
+        "search_open" => open_search(model),
+        "search_apply" => {
+            *current_search_mut(model, model.search_target) = model.search_draft.clone();
+            model.overlay = OverlayMode::None;
+            model.dirty = true;
+        }
+        "search_cancel" => {
+            model.overlay = OverlayMode::None;
+            model.search_draft.clear();
+            model.dirty = true;
+        }
+        "search_backspace" => {
+            model.search_draft.pop();
+            model.dirty = true;
+        }
+        "clear_search" => clear_search(model, model.focus_panel),
         "logs_up" => {
             model.log_scroll = model.log_scroll.saturating_add(1);
             model.dirty = true;
@@ -1086,6 +1813,12 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
         }
         "tasks_down" => {
             model.task_scroll = model.task_scroll.saturating_sub(1);
+            model.dirty = true;
+        }
+        other if other.starts_with("search_type:") => {
+            model
+                .search_draft
+                .push_str(other.trim_start_matches("search_type:"));
             model.dirty = true;
         }
         _ => {}
@@ -1312,6 +2045,96 @@ fn run_capture_fixture_mode(fixture_path: &Path, output_root: &Path) -> anyhow::
         format!("{}\n", serde_json::to_string_pretty(&manifest)?),
     )?;
     Ok(())
+}
+
+fn cycle_active_filter(model: &mut AppModel) {
+    match model.focus_panel {
+        FocusPanel::Jobs => model.job_filter = model.job_filter.next(),
+        FocusPanel::Tasks => model.task_filter = model.task_filter.next(),
+        FocusPanel::Logs => {
+            if model.log_level_filter == LogLevelFilter::Error {
+                model.log_level_filter = LogLevelFilter::All;
+                model.log_source_filter = model.log_source_filter.next();
+            } else {
+                model.log_level_filter = model.log_level_filter.next();
+            }
+        }
+    }
+    model.dirty = true;
+}
+
+fn open_search(model: &mut AppModel) {
+    model.search_target = model.focus_panel;
+    model.search_draft = current_search(model, model.focus_panel).to_string();
+    model.overlay = OverlayMode::Search;
+    model.dirty = true;
+}
+
+fn apply_palette_action(
+    model: &mut AppModel,
+    supervisor: &mut std::process::Child,
+    next_job_idx: &mut u64,
+    action: PaletteAction,
+) -> anyhow::Result<bool> {
+    match action {
+        PaletteAction::ToggleFollow => {
+            model.follow_updates = !model.follow_updates;
+            model.dirty = true;
+        }
+        PaletteAction::FocusJobs => {
+            model.focus_panel = FocusPanel::Jobs;
+            model.dirty = true;
+        }
+        PaletteAction::FocusTasks => {
+            model.focus_panel = FocusPanel::Tasks;
+            model.dirty = true;
+        }
+        PaletteAction::FocusLogs => {
+            model.focus_panel = FocusPanel::Logs;
+            model.dirty = true;
+        }
+        PaletteAction::CycleFilter => cycle_active_filter(model),
+        PaletteAction::ClearSearch => clear_search(model, model.focus_panel),
+        PaletteAction::RunJob => {
+            let job_id = format!("job-{}", *next_job_idx);
+            *next_job_idx += 1;
+            let _ = send_request(
+                supervisor,
+                json!({
+                    "proto": "poc.tui@1",
+                    "op": "job:run",
+                    "jobId": job_id,
+                    "title": "Search Help",
+                    "argv": ["search", "--help"]
+                }),
+            );
+        }
+        PaletteAction::CancelSelected => {
+            if let Some(job_id) = model.selected_job.clone() {
+                let _ = send_request(
+                    supervisor,
+                    json!({
+                        "proto": "poc.tui@1",
+                        "op": "job:cancel",
+                        "jobId": job_id,
+                        "reason": "user_cancel"
+                    }),
+                );
+            }
+        }
+        PaletteAction::ShowHelp => {
+            model.overlay = OverlayMode::Help;
+            model.dirty = true;
+        }
+        PaletteAction::Quit => {
+            let _ = send_request(
+                supervisor,
+                json!({"proto": "poc.tui@1", "op": "shutdown", "reason": "user_exit"}),
+            );
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn enqueue_input(model: &mut AppModel, command: InputCommand, token: &str) {
@@ -1651,21 +2474,27 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
         return;
     }
 
-    let log_line = if event_name == "log" {
+    let (log_line, log_level, log_source) = if event_name == "log" {
         let msg = event
             .get("message")
             .and_then(|value| value.as_str())
             .unwrap_or("(empty log)");
-        if let Some(level) = event.get("level").and_then(|value| value.as_str()) {
-            if level == "warn" || level == "error" {
-                model.push_alert(level, msg);
-            }
+        let level = event
+            .get("level")
+            .and_then(|value| value.as_str())
+            .unwrap_or("info");
+        if level == "warn" || level == "error" {
+            model.push_alert(level, msg);
         }
-        msg.to_string()
+        (msg.to_string(), level.to_string(), "supervisor".to_string())
     } else {
-        summarize_protocol_event(&event_name, &event)
+        (
+            summarize_protocol_event(&event_name, &event),
+            "info".to_string(),
+            event_name.clone(),
+        )
     };
-    model.push_log(log_line);
+    model.push_log_entry(log_line, &log_level, &log_source);
 }
 
 fn dispatch_input(
@@ -1689,6 +2518,89 @@ fn dispatch_input(
             );
             return Ok(true);
         }
+        InputCommand::FocusNext => {
+            model.focus_panel = model.focus_panel.next();
+            model.dirty = true;
+        }
+        InputCommand::FocusJobs => {
+            model.focus_panel = FocusPanel::Jobs;
+            model.dirty = true;
+        }
+        InputCommand::FocusTasks => {
+            model.focus_panel = FocusPanel::Tasks;
+            model.dirty = true;
+        }
+        InputCommand::FocusLogs => {
+            model.focus_panel = FocusPanel::Logs;
+            model.dirty = true;
+        }
+        InputCommand::CycleFilter => cycle_active_filter(model),
+        InputCommand::ToggleFollow => {
+            model.follow_updates = !model.follow_updates;
+            model.dirty = true;
+        }
+        InputCommand::ToggleHelp => {
+            model.overlay = if model.overlay == OverlayMode::Help {
+                OverlayMode::None
+            } else {
+                OverlayMode::Help
+            };
+            model.dirty = true;
+        }
+        InputCommand::TogglePalette => {
+            model.overlay = if model.overlay == OverlayMode::Palette {
+                OverlayMode::None
+            } else {
+                OverlayMode::Palette
+            };
+            model.dirty = true;
+        }
+        InputCommand::PaletteUp => {
+            let actions = palette_actions();
+            if model.palette_index == 0 {
+                model.palette_index = actions.len().saturating_sub(1);
+            } else {
+                model.palette_index = model.palette_index.saturating_sub(1);
+            }
+            model.dirty = true;
+        }
+        InputCommand::PaletteDown => {
+            let actions = palette_actions();
+            model.palette_index = (model.palette_index + 1) % actions.len().max(1);
+            model.dirty = true;
+        }
+        InputCommand::PaletteSelect => {
+            let actions = palette_actions();
+            if let Some(action) = actions.get(model.palette_index).copied() {
+                if apply_palette_action(model, supervisor, next_job_idx, action)? {
+                    return Ok(true);
+                }
+            }
+            if model.overlay == OverlayMode::Palette {
+                model.overlay = OverlayMode::None;
+            }
+            model.dirty = true;
+        }
+        InputCommand::SearchOpen => open_search(model),
+        InputCommand::SearchAccept => {
+            *current_search_mut(model, model.search_target) = model.search_draft.clone();
+            model.overlay = OverlayMode::None;
+            model.dirty = true;
+        }
+        InputCommand::SearchCancel => {
+            model.overlay = OverlayMode::None;
+            model.search_draft.clear();
+            model.dirty = true;
+        }
+        InputCommand::SearchBackspace => {
+            model.search_draft.pop();
+            model.dirty = true;
+        }
+        InputCommand::SearchChar(ch) => {
+            model.search_draft.push(ch);
+            model.dirty = true;
+        }
+        InputCommand::ClearSearch => clear_search(model, model.focus_panel),
         InputCommand::RunJob => {
             let job_id = format!("job-{}", *next_job_idx);
             *next_job_idx += 1;
@@ -1837,19 +2749,97 @@ fn main() -> anyhow::Result<()> {
                 if key.kind == KeyEventKind::Release {
                     continue;
                 }
-                match key.code {
-                    KeyCode::Char('q') => enqueue_input(&mut model, InputCommand::Quit, "q"),
-                    KeyCode::Char('r') => enqueue_input(&mut model, InputCommand::RunJob, "r"),
-                    KeyCode::Char('c') => {
-                        enqueue_input(&mut model, InputCommand::CancelSelected, "c")
-                    }
-                    KeyCode::Char('j') => enqueue_input(&mut model, InputCommand::LogsUp, "j"),
-                    KeyCode::Char('k') => enqueue_input(&mut model, InputCommand::LogsDown, "k"),
-                    KeyCode::Char('n') => enqueue_input(&mut model, InputCommand::JobsUp, "n"),
-                    KeyCode::Char('m') => enqueue_input(&mut model, InputCommand::JobsDown, "m"),
-                    KeyCode::Char('u') => enqueue_input(&mut model, InputCommand::TasksUp, "u"),
-                    KeyCode::Char('i') => enqueue_input(&mut model, InputCommand::TasksDown, "i"),
-                    _ => {}
+                match model.overlay {
+                    OverlayMode::Help => match key.code {
+                        KeyCode::Esc | KeyCode::Char('?') => {
+                            enqueue_input(&mut model, InputCommand::ToggleHelp, "help-close")
+                        }
+                        _ => {}
+                    },
+                    OverlayMode::Palette => match key.code {
+                        KeyCode::Esc | KeyCode::Char(':') => {
+                            enqueue_input(&mut model, InputCommand::TogglePalette, "palette-close")
+                        }
+                        KeyCode::Char('j') | KeyCode::Down => {
+                            enqueue_input(&mut model, InputCommand::PaletteDown, "palette-down")
+                        }
+                        KeyCode::Char('k') | KeyCode::Up => {
+                            enqueue_input(&mut model, InputCommand::PaletteUp, "palette-up")
+                        }
+                        KeyCode::Enter => {
+                            enqueue_input(&mut model, InputCommand::PaletteSelect, "palette-select")
+                        }
+                        _ => {}
+                    },
+                    OverlayMode::Search => match key.code {
+                        KeyCode::Esc => {
+                            enqueue_input(&mut model, InputCommand::SearchCancel, "search-cancel")
+                        }
+                        KeyCode::Enter => {
+                            enqueue_input(&mut model, InputCommand::SearchAccept, "search-accept")
+                        }
+                        KeyCode::Backspace => enqueue_input(
+                            &mut model,
+                            InputCommand::SearchBackspace,
+                            "search-backspace",
+                        ),
+                        KeyCode::Char(ch) if !ch.is_control() => enqueue_input(
+                            &mut model,
+                            InputCommand::SearchChar(ch),
+                            &format!("search-char-{ch}"),
+                        ),
+                        _ => {}
+                    },
+                    OverlayMode::None => match key.code {
+                        KeyCode::Char('q') => enqueue_input(&mut model, InputCommand::Quit, "q"),
+                        KeyCode::Char('r') => enqueue_input(&mut model, InputCommand::RunJob, "r"),
+                        KeyCode::Char('c') => {
+                            enqueue_input(&mut model, InputCommand::CancelSelected, "c")
+                        }
+                        KeyCode::Char('j') => enqueue_input(&mut model, InputCommand::LogsUp, "j"),
+                        KeyCode::Char('k') => {
+                            enqueue_input(&mut model, InputCommand::LogsDown, "k")
+                        }
+                        KeyCode::Char('n') => enqueue_input(&mut model, InputCommand::JobsUp, "n"),
+                        KeyCode::Char('m') => {
+                            enqueue_input(&mut model, InputCommand::JobsDown, "m")
+                        }
+                        KeyCode::Char('u') => enqueue_input(&mut model, InputCommand::TasksUp, "u"),
+                        KeyCode::Char('i') => {
+                            enqueue_input(&mut model, InputCommand::TasksDown, "i")
+                        }
+                        KeyCode::Tab => {
+                            enqueue_input(&mut model, InputCommand::FocusNext, "focus-next")
+                        }
+                        KeyCode::Char('1') => {
+                            enqueue_input(&mut model, InputCommand::FocusJobs, "focus-jobs")
+                        }
+                        KeyCode::Char('2') => {
+                            enqueue_input(&mut model, InputCommand::FocusTasks, "focus-tasks")
+                        }
+                        KeyCode::Char('3') => {
+                            enqueue_input(&mut model, InputCommand::FocusLogs, "focus-logs")
+                        }
+                        KeyCode::Char('f') => {
+                            enqueue_input(&mut model, InputCommand::CycleFilter, "cycle-filter")
+                        }
+                        KeyCode::Char('p') => {
+                            enqueue_input(&mut model, InputCommand::ToggleFollow, "toggle-follow")
+                        }
+                        KeyCode::Char('?') => {
+                            enqueue_input(&mut model, InputCommand::ToggleHelp, "toggle-help")
+                        }
+                        KeyCode::Char(':') | KeyCode::Char('a') => {
+                            enqueue_input(&mut model, InputCommand::TogglePalette, "toggle-palette")
+                        }
+                        KeyCode::Char('/') => {
+                            enqueue_input(&mut model, InputCommand::SearchOpen, "search-open")
+                        }
+                        KeyCode::Char('x') => {
+                            enqueue_input(&mut model, InputCommand::ClearSearch, "clear-search")
+                        }
+                        _ => {}
+                    },
                 }
             }
         }

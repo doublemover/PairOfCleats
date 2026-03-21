@@ -9,7 +9,7 @@ const root = process.cwd();
 const mainPath = path.join(root, 'crates', 'pairofcleats-tui', 'src', 'main.rs');
 const source = fs.readFileSync(mainPath, 'utf8');
 const runtimeMetricsIndex = source.indexOf('if event_name == "runtime:metrics"');
-const logPushIndex = source.indexOf('model.push_log(log_line);');
+const logPushIndex = source.indexOf('model.push_log_entry(log_line, &log_level, &log_source);');
 const runtimeReturnIndex = source.indexOf('return;', runtimeMetricsIndex);
 
 if (runtimeMetricsIndex === -1) {

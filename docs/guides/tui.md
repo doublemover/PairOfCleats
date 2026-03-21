@@ -22,6 +22,14 @@ Runtime controls:
 - `[r]` queue job run
 - `[c]` cancel selected job
 - `[q]` graceful shutdown
+- `[Tab]` cycle focus between jobs, tasks, and logs
+- `[1]`, `[2]`, `[3]` focus jobs, tasks, or logs directly
+- `[f]` cycle the active panel filter
+- `[/]` open search for the active panel
+- `[x]` clear the active search
+- `[p]` toggle follow live / pause selection drift
+- `[:]` or `[a]` open the action palette
+- `[?]` open the in-app help overlay
 - `[j]/[k]` log viewport scroll
 - `[n]/[m]` job viewport scroll
 - `[u]/[i]` task viewport scroll
@@ -40,6 +48,9 @@ Presentation behavior:
 - runtime events are summarized into operator-facing text instead of raw JSON by default
 - logs wrap/truncate to pane width, while job/task rows use concise status summaries
 - no-color mode remains readable without relying on decorative styling
+- filters and search operate on the focused panel so operators can isolate failures, active work, or specific provider text quickly
+- follow mode can be paused so active sessions stop stealing focus while you inspect a failed job or log line
+- the action palette and help overlay expose the available controls without leaving the terminal
 
 ## Install layout
 

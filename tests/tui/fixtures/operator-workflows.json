@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "name": "operator-workflows",
+  "source_mode": "supervised",
+  "run_id": "fixture-operator-workflows",
+  "variants": [
+    {
+      "id": "medium-color",
+      "width": 100,
+      "height": 28,
+      "color": true,
+      "unicode": true
+    },
+    {
+      "id": "narrow-no-color",
+      "width": 80,
+      "height": 24,
+      "color": false,
+      "unicode": true
+    }
+  ],
+  "steps": [
+    {
+      "event": {
+        "event": "session:attach",
+        "runId": "fixture-operator-workflows",
+        "mode": "supervised",
+        "source": "local-supervisor",
+        "scope": "repo:fixtures/operator-workflows",
+        "connection": "connected",
+        "note": "operator workflows loaded"
+      }
+    },
+    {
+      "event": {
+        "event": "job:start",
+        "runId": "fixture-operator-workflows",
+        "jobId": "job-a",
+        "title": "Build Index"
+      }
+    },
+    {
+      "event": {
+        "event": "task:start",
+        "runId": "fixture-operator-workflows",
+        "jobId": "job-a",
+        "taskId": "analyze",
+        "status": "running",
+        "message": "warming analyzers"
+      }
+    },
+    {
+      "event": {
+        "event": "log",
+        "runId": "fixture-operator-workflows",
+        "level": "warn",
+        "message": "watchdog warning: sourcekit slow-start"
+      }
+    },
+    {
+      "event": {
+        "event": "job:end",
+        "runId": "fixture-operator-workflows",
+        "jobId": "job-a",
+        "status": "failed"
+      }
+    },
+    {
+      "event": {
+        "event": "job:start",
+        "runId": "fixture-operator-workflows",
+        "jobId": "job-b",
+        "title": "Serve API"
+      }
+    },
+    {
+      "event": {
+        "event": "task:start",
+        "runId": "fixture-operator-workflows",
+        "jobId": "job-b",
+        "taskId": "boot",
+        "status": "running",
+        "message": "listening on :3000"
+      }
+    },
+    {
+      "event": {
+        "event": "log",
+        "runId": "fixture-operator-workflows",
+        "level": "error",
+        "message": "provider degraded: sourcekit timeout storm"
+      }
+    },
+    {
+      "event": {
+        "event": "log",
+        "runId": "fixture-operator-workflows",
+        "message": "background refresh complete"
+      }
+    },
+    {
+      "capture_id": "baseline"
+    },
+    {
+      "input": "focus_jobs"
+    },
+    {
+      "input": "cycle_filter"
+    },
+    {
+      "capture_id": "jobs-active-filter"
+    },
+    {
+      "input": "focus_logs"
+    },
+    {
+      "input": "cycle_filter"
+    },
+    {
+      "capture_id": "logs-warn-filter"
+    },
+    {
+      "input": "search_open"
+    },
+    {
+      "input": "search_type:sourcekit"
+    },
+    {
+      "input": "search_apply"
+    },
+    {
+      "capture_id": "logs-search"
+    },
+    {
+      "input": "toggle_follow"
+    },
+    {
+      "capture_id": "follow-paused"
+    },
+    {
+      "input": "toggle_help"
+    },
+    {
+      "capture_id": "help-overlay"
+    },
+    {
+      "input": "toggle_help"
+    },
+    {
+      "input": "toggle_palette"
+    },
+    {
+      "capture_id": "palette-open"
+    }
+  ]
+}

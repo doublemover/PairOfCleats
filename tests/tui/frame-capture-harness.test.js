@@ -34,33 +34,39 @@ if (result.status !== 0) {
 
 const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, 'utf8'));
 const readText = (filePath) => fs.readFileSync(filePath, 'utf8');
+const readFixtureManifest = (fixtureName) =>
+  readJson(path.join(outputRoot, fixtureName, 'capture-manifest.json'));
+const getCapturePaths = (fixtureManifest, captureId, variantId) => {
+  const output = fixtureManifest.outputs.find(
+    (entry) => entry.capture_id === captureId && entry.variant_id === variantId
+  );
+  assert(output, `missing capture ${captureId}/${variantId} in ${fixtureManifest.fixture_name}`);
+  return output;
+};
 
-const supervisedManifest = readJson(
-  path.join(outputRoot, 'supervised-session', 'capture-manifest.json')
-);
+const supervisedManifest = readFixtureManifest('supervised-session');
 assert.equal(supervisedManifest.fixture_name, 'supervised-session');
 assert(supervisedManifest.outputs.length >= 6, 'expected multiple supervised outputs');
 
-const startupFramePath = path.join(
-  outputRoot,
-  'supervised-session',
-  '02-startup',
-  'narrow-color.frame.txt'
-);
+const startupFramePath = getCapturePaths(
+  supervisedManifest,
+  'startup',
+  'narrow-color'
+).frame_path;
 const startupFrame = readText(startupFramePath);
 assert.match(startupFrame, /Session/);
-assert.match(startupFrame, /Controls/);
+assert.match(startupFrame, /Operator/);
+assert.match(startupFrame, /Hints/);
 assert.match(startupFrame, /Jobs/);
 assert.match(startupFrame, /mode supervised/);
 assert.match(startupFrame, /no supervised jobs|supervisor ready/);
 assert.doesNotMatch(startupFrame, /\{\"connection\"/);
 
-const activeMetaPath = path.join(
-  outputRoot,
-  'supervised-session',
-  '07-active',
-  'narrow-color.frame.json'
-);
+const activeMetaPath = getCapturePaths(
+  supervisedManifest,
+  'active',
+  'narrow-color'
+).metadata_path;
 const activeMeta = readJson(activeMetaPath);
 assert.equal(activeMeta.source_mode, 'supervised');
 assert.equal(activeMeta.session_mode, 'supervised');
@@ -68,41 +74,90 @@ assert.equal(activeMeta.session_source, 'local-supervisor');
 assert.equal(activeMeta.selected_job, 'job-index');
 assert(activeMeta.non_default_style_cells > 0, 'expected styled job rows in color capture');
 
-const noColorMetaPath = path.join(
-  outputRoot,
-  'supervised-session',
-  '07-active',
-  'wide-no-color.frame.json'
-);
+const noColorMetaPath = getCapturePaths(
+  supervisedManifest,
+  'active',
+  'wide-no-color'
+).metadata_path;
 const noColorMeta = readJson(noColorMetaPath);
 assert.equal(noColorMeta.color, false);
 assert.equal(noColorMeta.non_default_style_cells, 0, 'no-color variant should avoid styled cells');
 
+const replayManifest = readFixtureManifest('bench-replay');
 const replayFrame = readText(
-  path.join(outputRoot, 'bench-replay', '07-degraded', 'medium-color.frame.txt')
+  getCapturePaths(replayManifest, 'degraded', 'medium-color').frame_path
 );
 assert.match(replayFrame, /mode replay/);
 assert.match(replayFrame, /sourcekit/);
 assert.match(replayFrame, /provider degraded/);
 assert.doesNotMatch(replayFrame, /\{\"event\"/);
 
+const observabilityManifest = readFixtureManifest('external-observability');
 const observabilityFrame = readText(
-  path.join(outputRoot, 'external-observability', '04-logs-only', 'medium-color.frame.txt')
+  getCapturePaths(observabilityManifest, 'logs-only', 'medium-color').frame_path
 );
 assert.match(observabilityFrame, /mode external-observability/);
 assert.match(observabilityFrame, /external stream without/);
 assert.match(observabilityFrame, /attached to external observability/);
 assert.doesNotMatch(observabilityFrame, /\{\"event\"/);
 
+const navigationManifest = readFixtureManifest('navigation-scroll');
 const navigationBefore = readJson(
-  path.join(outputRoot, 'navigation-scroll', '12-before-scroll', 'medium-color.frame.json')
+  getCapturePaths(navigationManifest, 'before-scroll', 'medium-color').metadata_path
 );
 const navigationAfter = readJson(
-  path.join(outputRoot, 'navigation-scroll', '16-after-scroll', 'medium-color.frame.json')
+  getCapturePaths(navigationManifest, 'after-scroll', 'medium-color').metadata_path
 );
 assert.equal(navigationBefore.job_scroll, 0);
 assert.equal(navigationAfter.job_scroll, 1);
 assert.equal(navigationAfter.log_scroll, 1);
 assert.equal(navigationAfter.selected_job, 'job-b');
+
+const operatorManifest = readFixtureManifest('operator-workflows');
+const operatorBaseline = readText(
+  getCapturePaths(operatorManifest, 'baseline', 'medium-color').frame_path
+);
+assert.match(operatorBaseline, /Operator/);
+assert.match(operatorBaseline, /focus jobs/);
+assert.match(operatorBaseline, /follow live/);
+
+const jobsFilterFrame = readText(
+  getCapturePaths(operatorManifest, 'jobs-active-filter', 'medium-color').frame_path
+);
+assert.match(jobsFilterFrame, /Jobs \* \| filter active/);
+assert.match(jobsFilterFrame, /job-b \| running \| Serve A/);
+assert.doesNotMatch(jobsFilterFrame, /^│job-a \| failed/m);
+
+const logFilterFrame = readText(
+  getCapturePaths(operatorManifest, 'logs-warn-filter', 'medium-color').frame_path
+);
+assert.match(logFilterFrame, /Logs \* \| filter warn\+\/all/);
+assert.match(logFilterFrame, /warn \| supervisor \| watchdog warning/);
+assert.match(logFilterFrame, /error \| supervisor \| provider degraded/);
+assert.doesNotMatch(logFilterFrame, /background refresh complete/);
+
+const searchFrame = readText(
+  getCapturePaths(operatorManifest, 'logs-search', 'medium-color').frame_path
+);
+assert.match(searchFrame, /search sourcekit/);
+assert.match(searchFrame, /sourcekit/);
+assert.doesNotMatch(searchFrame, /background refresh complete/);
+
+const pausedFrame = readText(
+  getCapturePaths(operatorManifest, 'follow-paused', 'medium-color').frame_path
+);
+assert.match(pausedFrame, /follow paused/);
+
+const helpFrame = readText(
+  getCapturePaths(operatorManifest, 'help-overlay', 'medium-color').frame_path
+);
+assert.match(helpFrame, /Operator Help/);
+assert.match(helpFrame, /Tab switch focus panels/);
+
+const paletteFrame = readText(
+  getCapturePaths(operatorManifest, 'palette-open', 'medium-color').frame_path
+);
+assert.match(paletteFrame, /Actions/);
+assert.match(paletteFrame, /Toggle follow \/ pause/);
 
 console.log('tui frame capture harness test passed');
