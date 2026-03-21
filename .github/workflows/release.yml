@@ -374,7 +374,9 @@ jobs:
   attest:
     name: attest
     runs-on: ubuntu-latest
-    needs: release-bundle
+    needs:
+      - release-bundle
+      - trust-materials
     permissions:
       contents: read
       attestations: write
@@ -386,12 +388,64 @@ jobs:
           name: release-bundle
           path: dist/release
 
+      - name: Download trust materials
+        uses: actions/download-artifact@v4
+        with:
+          name: release-trust-materials
+          path: dist/release
+
       - name: Attest release bundle provenance
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
             dist/release/bundle/**
             dist/release/downloads/**
+            dist/release/trust/**
+
+  trust-materials:
+    name: trust-materials
+    runs-on: ubuntu-latest
+    needs: release-bundle
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.83.0
+
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
+
+      - name: Download release bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+          path: dist/release
+
+      - name: Generate trust materials
+        run: >
+          node tools/release/generate-trust-materials.js
+          --bundle-dir dist/release/bundle
+          --metadata dist/release/downloads/release-prepare/metadata.json
+          --out-dir dist/release/trust
+
+      - name: Upload trust materials
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-trust-materials
+          path: |
+            dist/release/trust/**
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 0
 
   publish:
     name: publish
@@ -399,6 +453,7 @@ jobs:
     needs:
       - prepare
       - release-bundle
+      - trust-materials
       - attest
     if: github.event_name == 'push' || inputs.publish == true
     environment: release
@@ -409,6 +464,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: release-bundle
+          path: dist/release
+
+      - name: Download trust materials
+        uses: actions/download-artifact@v4
+        with:
+          name: release-trust-materials
           path: dist/release
 
       - name: Publish verified artifacts

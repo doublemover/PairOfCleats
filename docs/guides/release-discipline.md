@@ -19,6 +19,15 @@ The command executes `tools/release/check.js` and always writes:
 
 Both artifacts use ISO-8601 timestamps and stable schema/order.
 
+The CI release workflow now stages release security material separately under `dist/release/trust` and publishes:
+
+- `release-checksum-bundle.json`
+- `release-checksums.txt`
+- `provenance-summary.json`
+- `trust-manifest.json`
+- `node-root.cyclonedx.json`
+- `tui.cyclonedx.json`
+
 Shipped release surfaces are defined in:
 
 - `docs/tooling/shipped-surfaces.json`
@@ -70,3 +79,24 @@ Core release tooling fails fast when Python is unavailable.
 - Breaking output/schema behavior requires a major version bump.
 - Contract and spec updates ship in the same change as behavior updates.
 - Artifact readers/writers and contract docs must stay aligned.
+
+## Trust material and verification
+
+Release trust material is generated from the verified release bundle, not from a second build.
+
+- checksum bundle:
+  - `release-checksum-bundle.json`
+  - `release-checksums.txt`
+- provenance summary:
+  - `provenance-summary.json`
+  - GitHub artifact attestation from the `attest` job
+- SBOMs:
+  - `node-root.cyclonedx.json` from `npm sbom`
+  - `tui.cyclonedx.json` from `cargo cyclonedx`
+
+Verification expectations:
+
+1. Verify the published artifact checksum against `release-checksums.txt`.
+2. Verify the artifact appears in `release-checksum-bundle.json`.
+3. Verify the GitHub attestation for the published bundle and trust material.
+4. Use the published CycloneDX SBOMs to review dependency inventory for the Node root package and the Rust TUI crate.

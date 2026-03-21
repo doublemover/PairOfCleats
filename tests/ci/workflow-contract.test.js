@@ -101,6 +101,8 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
     /tools\/release\/check\.js[\s\S]*--surfaces\s+cli,api,mcp,indexer-service[\s\S]*--phases\s+boot,smoke/,
     /tools\/release\/check\.js[\s\S]*--surfaces\s+tui[\s\S]*--phases\s+build/,
     /tools\/release\/assemble-bundle\.js/,
+    /tools\/release\/generate-trust-materials\.js/,
+    /cargo install cargo-cyclonedx --locked/,
     /uses:\s*actions\/download-artifact@v4/,
     /uses:\s*actions\/upload-artifact@v4/,
     /uses:\s*actions\/attest-build-provenance@v2/,
