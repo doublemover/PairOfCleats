@@ -8,7 +8,9 @@ import {
 import {
   MODE_METRICS,
   toFiniteOrNull,
+  isValidScanProfile,
   isValidIndexingSummary,
+  buildIndexingSummaryFromScanProfile,
   buildIndexingSummaryFromFeatureMetrics,
   buildIndexingSummaryFromThroughput
 } from './aggregate.js';
@@ -372,19 +374,31 @@ export const loadOrComputeIndexingSummary = ({
   refreshJson = false
 }) => {
   const existing = payload?.artifacts?.indexing;
+  const scanProfile = payload?.artifacts?.scanProfile;
   if (!refreshJson) {
     if (isValidIndexingSummary(existing)) {
       return { indexingSummary: existing, changed: false, featureMetrics };
+    }
+    const scanProfileSummary = buildIndexingSummaryFromScanProfile(scanProfile);
+    if (scanProfileSummary) {
+      return { indexingSummary: scanProfileSummary, changed: false, featureMetrics };
     }
     return { indexingSummary: null, changed: false, featureMetrics };
   }
 
   const metrics = featureMetrics || loadFeatureMetricsForPayload(payload);
-  const computed = buildIndexingSummaryFromFeatureMetrics(metrics)
+  const computed = buildIndexingSummaryFromScanProfile(scanProfile)
+    || buildIndexingSummaryFromFeatureMetrics(metrics)
     || buildIndexingSummaryFromThroughput(payload?.artifacts?.throughput);
   if (!computed) {
     if (isValidIndexingSummary(existing)) {
       return { indexingSummary: existing, changed: false, featureMetrics: metrics };
+    }
+    if (isValidScanProfile(scanProfile)) {
+      const scanProfileSummary = buildIndexingSummaryFromScanProfile(scanProfile);
+      if (scanProfileSummary) {
+        return { indexingSummary: scanProfileSummary, changed: false, featureMetrics: metrics };
+      }
     }
     return { indexingSummary: null, changed: false, featureMetrics: metrics };
   }

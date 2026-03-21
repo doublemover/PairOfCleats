@@ -1,6 +1,7 @@
 const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
 const nullableInt = { type: ['integer', 'null'], minimum: 0 };
+const nullableNumber = { type: ['number', 'null'] };
 const posInt = { type: 'integer', minimum: 1 };
 const semverString = { type: 'string', pattern: '^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$' };
 const modeName = { type: 'string', enum: ['code', 'prose', 'extracted-prose', 'records'] };
@@ -389,9 +390,260 @@ const boilerplateCatalogSchema = {
   additionalProperties: false
 };
 
+const scanProfileCountMap = {
+  type: 'object',
+  additionalProperties: intId
+};
+
+const scanProfileLanguageLines = {
+  type: 'object',
+  additionalProperties: intId
+};
+
+const scanProfileModeSchema = {
+  type: 'object',
+  required: [
+    'mode',
+    'indexDir',
+    'cache',
+    'files',
+    'chunks',
+    'tokens',
+    'lines',
+    'bytes',
+    'timings',
+    'throughput',
+    'queues',
+    'quality'
+  ],
+  properties: {
+    mode: modeName,
+    indexDir: nullableString,
+    cache: {
+      type: 'object',
+      required: ['hits', 'misses', 'hitRate'],
+      properties: {
+        hits: nullableInt,
+        misses: nullableInt,
+        hitRate: nullableNumber
+      },
+      additionalProperties: false
+    },
+    files: {
+      type: 'object',
+      required: ['candidates', 'scanned', 'skipped', 'skippedByReason'],
+      properties: {
+        candidates: nullableInt,
+        scanned: nullableInt,
+        skipped: nullableInt,
+        skippedByReason: scanProfileCountMap
+      },
+      additionalProperties: false
+    },
+    chunks: {
+      type: 'object',
+      required: ['total', 'avgTokens'],
+      properties: {
+        total: nullableInt,
+        avgTokens: nullableNumber
+      },
+      additionalProperties: false
+    },
+    tokens: {
+      type: 'object',
+      required: ['total', 'vocab'],
+      properties: {
+        total: nullableInt,
+        vocab: nullableInt
+      },
+      additionalProperties: false
+    },
+    lines: {
+      type: 'object',
+      required: ['total', 'byLanguage'],
+      properties: {
+        total: nullableInt,
+        byLanguage: scanProfileLanguageLines
+      },
+      additionalProperties: false
+    },
+    bytes: {
+      type: 'object',
+      required: ['source', 'artifact'],
+      properties: {
+        source: nullableInt,
+        artifact: nullableInt
+      },
+      additionalProperties: false
+    },
+    timings: {
+      anyOf: [
+        { type: 'null' },
+        {
+          type: 'object',
+          additionalProperties: {
+            anyOf: [
+              { type: 'number' },
+              { type: 'integer' },
+              { type: 'boolean' },
+              { type: 'string' },
+              {
+                type: 'object',
+                additionalProperties: true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    throughput: {
+      type: 'object',
+      required: [
+        'totalMs',
+        'writeMs',
+        'filesPerSec',
+        'chunksPerSec',
+        'tokensPerSec',
+        'bytesPerSec',
+        'linesPerSec',
+        'writeBytesPerSec'
+      ],
+      properties: {
+        totalMs: nullableNumber,
+        writeMs: nullableNumber,
+        filesPerSec: nullableNumber,
+        chunksPerSec: nullableNumber,
+        tokensPerSec: nullableNumber,
+        bytesPerSec: nullableNumber,
+        linesPerSec: nullableNumber,
+        writeBytesPerSec: nullableNumber
+      },
+      additionalProperties: false
+    },
+    queues: {
+      type: 'object',
+      required: ['postings'],
+      properties: {
+        postings: {
+          anyOf: [
+            { type: 'null' },
+            {
+              type: 'object',
+              additionalProperties: true
+            }
+          ]
+        }
+      },
+      additionalProperties: false
+    },
+    quality: {
+      type: 'object',
+      required: ['lowYieldBailout'],
+      properties: {
+        lowYieldBailout: {
+          anyOf: [
+            { type: 'null' },
+            extractionReportLowYieldBailout
+          ]
+        }
+      },
+      additionalProperties: false
+    }
+  },
+  additionalProperties: false
+};
+
+const scanProfileSchema = {
+  type: 'object',
+  required: [
+    'schemaVersion',
+    'generatedAt',
+    'source',
+    'repo',
+    'modes',
+    'totals',
+    'languageLines'
+  ],
+  properties: {
+    schemaVersion: posInt,
+    generatedAt: { type: 'string' },
+    source: { type: 'string', const: 'report-artifacts' },
+    repo: {
+      type: 'object',
+      required: ['root', 'cacheRoot'],
+      properties: {
+        root: nullableString,
+        cacheRoot: nullableString
+      },
+      additionalProperties: false
+    },
+    modes: {
+      type: 'object',
+      required: ['code', 'prose', 'extracted-prose', 'records'],
+      properties: {
+        code: scanProfileModeSchema,
+        prose: scanProfileModeSchema,
+        'extracted-prose': scanProfileModeSchema,
+        records: scanProfileModeSchema
+      },
+      additionalProperties: false
+    },
+    totals: {
+      type: 'object',
+      required: [
+        'files',
+        'chunks',
+        'tokens',
+        'lines',
+        'bytes',
+        'durationMs',
+        'filesPerSec',
+        'chunksPerSec',
+        'tokensPerSec',
+        'bytesPerSec',
+        'linesPerSec'
+      ],
+      properties: {
+        files: {
+          type: 'object',
+          required: ['candidates', 'scanned', 'skipped'],
+          properties: {
+            candidates: intId,
+            scanned: intId,
+            skipped: intId
+          },
+          additionalProperties: false
+        },
+        chunks: intId,
+        tokens: intId,
+        lines: nullableInt,
+        bytes: {
+          type: 'object',
+          required: ['source', 'artifact'],
+          properties: {
+            source: nullableInt,
+            artifact: intId
+          },
+          additionalProperties: false
+        },
+        durationMs: nullableNumber,
+        filesPerSec: nullableNumber,
+        chunksPerSec: nullableNumber,
+        tokensPerSec: nullableNumber,
+        bytesPerSec: nullableNumber,
+        linesPerSec: nullableNumber
+      },
+      additionalProperties: false
+    },
+    languageLines: scanProfileLanguageLines
+  },
+  additionalProperties: false
+};
+
 export const REPORT_ARTIFACT_SCHEMA_DEFS = {
   filelists: fileListsSchema,
   extraction_report: extractionReportSchema,
+  scan_profile: scanProfileSchema,
   lexicon_relation_filter_report: lexiconRelationFilterReportSchema,
   boilerplate_catalog: boilerplateCatalogSchema,
   determinism_report: {

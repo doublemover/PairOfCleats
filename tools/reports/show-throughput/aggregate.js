@@ -51,6 +51,7 @@ export const MODE_SHORT_LABEL = {
 };
 
 export const INDEXING_SCHEMA_VERSION = 1;
+export const SCAN_PROFILE_SCHEMA_VERSION = 1;
 
 const THROUGHPUT_KEY_BY_MODE = {
   code: 'code',
@@ -246,6 +247,69 @@ export const buildIndexingSummaryFromFeatureMetrics = (metrics) => {
     schemaVersion: INDEXING_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
     source: 'feature-metrics',
+    modes,
+    totals: {
+      ...totals,
+      linesPerSec: totalLinesPerSec
+    },
+    languageLines
+  };
+};
+
+export const isValidScanProfile = (scanProfile) => {
+  if (!scanProfile || typeof scanProfile !== 'object') return false;
+  if (scanProfile.schemaVersion !== SCAN_PROFILE_SCHEMA_VERSION) return false;
+  const modes = scanProfile?.modes || {};
+  return MODE_METRICS.some(([modeKey]) => hasModeTotals({
+    files: toFiniteOrNull(modes?.[modeKey]?.files?.candidates),
+    lines: toFiniteOrNull(modes?.[modeKey]?.lines?.total)
+  }));
+};
+
+export const buildIndexingSummaryFromScanProfile = (scanProfile) => {
+  if (!isValidScanProfile(scanProfile)) return null;
+  const modes = {};
+  const totals = { files: 0, lines: 0, bytes: 0, durationMs: 0 };
+  const languageLines = {};
+  let hasData = false;
+
+  for (const [modeKey] of MODE_METRICS) {
+    const modeEntry = scanProfile?.modes?.[modeKey] || {};
+    const files = toFiniteOrNull(modeEntry?.files?.candidates);
+    const lines = toFiniteOrNull(modeEntry?.lines?.total);
+    const bytes = toFiniteOrNull(modeEntry?.bytes?.source ?? modeEntry?.bytes?.artifact);
+    const durationMs = toFiniteOrNull(modeEntry?.throughput?.totalMs ?? modeEntry?.timings?.totalMs);
+    const linesPerSec = (Number.isFinite(lines) && Number.isFinite(durationMs) && durationMs > 0)
+      ? (lines / (durationMs / 1000))
+      : null;
+    const modeTotals = {
+      files,
+      lines,
+      bytes,
+      durationMs,
+      linesPerSec
+    };
+    modes[modeKey] = modeTotals;
+    if (Number.isFinite(files)) totals.files += files;
+    if (Number.isFinite(lines)) totals.lines += lines;
+    if (Number.isFinite(bytes)) totals.bytes += bytes;
+    if (Number.isFinite(durationMs)) totals.durationMs += durationMs;
+    if (hasModeTotals(modeTotals)) hasData = true;
+    const modeLanguageLines = modeEntry?.lines?.byLanguage || {};
+    for (const [language, linesValue] of Object.entries(modeLanguageLines)) {
+      const normalizedLanguage = normalizeMetricsLanguageKey(language);
+      const numericLines = Number(linesValue);
+      if (!Number.isFinite(numericLines) || numericLines <= 0) continue;
+      languageLines[normalizedLanguage] = (languageLines[normalizedLanguage] || 0) + numericLines;
+    }
+  }
+
+  if (!hasData) return null;
+  const totalLinesPerSec = totals.durationMs > 0 ? (totals.lines / (totals.durationMs / 1000)) : null;
+  return {
+    schemaVersion: INDEXING_SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+    source: 'scan-profile',
     modes,
     totals: {
       ...totals,

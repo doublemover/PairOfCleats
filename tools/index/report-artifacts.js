@@ -8,6 +8,7 @@ import { validateIndexArtifacts } from '../../src/index/validate.js';
 import { loadJsonArrayArtifactRows } from '../../src/shared/artifact-io/loaders.js';
 import { getMetricsDir, resolveRepoConfig } from '../shared/dict-utils.js';
 import { readJsonFileSyncSafe } from '../shared/json-utils.js';
+import { buildScanProfile } from './report-artifacts/scan-profile.js';
 
 const argv = createCli({
   scriptName: 'report-artifacts',
@@ -401,10 +402,17 @@ const corruption = await validateIndexArtifacts({
   userConfig,
   modes: ['code', 'prose', 'extracted-prose', 'records']
 });
+const scanProfile = buildScanProfile({
+  artifactReport: status,
+  indexMetrics,
+  featureMetrics,
+  throughput
+});
 const indexing = buildIndexingSummaryFromFeatureMetrics(featureMetrics)
   || buildIndexingSummaryFromThroughput(throughput);
 const analysis = await buildAnalysis({ artifactReport: status, indexingSummary: indexing });
 status.throughput = throughput;
+status.scanProfile = scanProfile;
 status.indexing = indexing;
 status.analysis = analysis;
 status.corruption = corruption;

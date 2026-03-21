@@ -1,5 +1,5 @@
 {
-  "schemaHash": "1894026b7b297745a060ae1e587d13494d1e98ed",
+  "schemaHash": "ca8afa87c00580e2c6b9ecaf5d8984217b9c528f",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -1025,6 +1025,22 @@
       "optionalFields": [
         "extensions"
       ]
+    },
+    {
+      "artifact": "scan_profile",
+      "schemaVersion": {
+        "type": "integer"
+      },
+      "requiredFields": [
+        "generatedAt",
+        "languageLines",
+        "modes",
+        "repo",
+        "schemaVersion",
+        "source",
+        "totals"
+      ],
+      "optionalFields": []
     },
     {
       "artifact": "snapshot_frozen",
