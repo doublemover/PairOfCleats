@@ -17,7 +17,7 @@ import {
 import { normalizeBundleFormat } from '../../../shared/bundle-io.js';
 import { normalizeCommentConfig } from '../../comments.js';
 import { normalizeSegmentsConfig } from '../../segments.js';
-import { log } from '../../../shared/progress.js';
+import { log, logLine } from '../../../shared/progress.js';
 import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { isAbsolutePathNative } from '../../../shared/files.js';
 import { resolveCacheFilesystemProfile } from '../../../shared/cache-roots.js';
@@ -369,7 +369,11 @@ export async function createBuildRuntime({
   if (Array.isArray(envelope.warnings) && envelope.warnings.length) {
     for (const warning of envelope.warnings) {
       if (!warning?.message) continue;
-      log(`[warn] ${warning.message}`);
+      logLine(warning.message, {
+        kind: 'warning',
+        source: 'runtime-envelope',
+        warningCode: warning.code || null
+      });
     }
   }
   const telemetry = createRuntimeTelemetry();

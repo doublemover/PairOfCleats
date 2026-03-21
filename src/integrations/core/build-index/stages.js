@@ -919,9 +919,9 @@ export const runStage = async (
             });
           }
           if (validation.warnings?.length) {
-            logLine('[warn] Index validation warnings (first 10):');
+            logLine('Index validation warnings (first 10):', { kind: 'warning' });
             validation.warnings.slice(0, 10).forEach((warning) => {
-              logLine(`[warn] - ${warning}`);
+              logLine(`- ${warning}`, { kind: 'warning' });
             });
           }
         }

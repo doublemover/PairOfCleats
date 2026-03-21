@@ -103,7 +103,9 @@ export const createRepoLifecycle = ({
   const ensureRepoPresent = async ({ task, repoPath, repoLabel }) => {
     if (hasRepoPath(repoPath)) return { ok: true };
     if (!cloneEnabled && !dryRun) {
-      display.error(`Missing repo ${task.repo} at ${repoPath}. Continuing without clone.`);
+      appendLog(`Missing repo ${task.repo} at ${repoPath}. Continuing without clone.`, 'error', {
+        forceOutput: true
+      });
       return {
         ok: false,
         failureCode: null,

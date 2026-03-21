@@ -4,7 +4,7 @@ import os from 'node:os';
 import { parseBuildArgs } from '../../../index/build/args.js';
 import { createBuildRuntime } from '../../../index/build/runtime.js';
 import { watchIndex } from '../../../index/build/watch.js';
-import { log as defaultLog, logError as defaultLogError } from '../../../shared/progress.js';
+import { log as defaultLog, logError as defaultLogError, logLine } from '../../../shared/progress.js';
 import { observeIndexDuration } from '../../../shared/metrics.js';
 import { buildAutoPolicy } from '../../../shared/auto-policy.js';
 import {
@@ -93,7 +93,9 @@ export async function buildIndex(repoRoot, options = {}) {
   const rawArgv = options.rawArgv || buildRawArgs(options);
   const log = typeof options.log === 'function' ? options.log : defaultLog;
   const logError = typeof options.logError === 'function' ? options.logError : defaultLogError;
-  const warn = typeof options.warn === 'function' ? options.warn : ((message) => log(`[warn] ${message}`));
+  const warn = typeof options.warn === 'function'
+    ? options.warn
+    : ((message, meta = null) => logLine(message, { kind: 'warning', ...(meta || {}) }));
   const abortSignal = coerceAbortSignal(options.abortSignal || null);
   const observability = normalizeObservability(options.observability, {
     surface: 'build',

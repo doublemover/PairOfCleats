@@ -138,6 +138,7 @@ const {
   closeMasterLog,
   closeLogsSync,
   appendLog,
+  appendLogSync,
   writeListLine,
   writeLog,
   writeLogSync,
@@ -282,10 +283,10 @@ const reportFatal = (label, err) => {
   } catch {}
   try {
     const details = err?.stack || String(err);
-    display.error(`[bench-language] Fatal: ${label}`);
-    display.error(details);
     const names = getLogPaths().map((entry) => path.basename(entry));
-    display.error(`[bench-language] Details logged (${names.join(', ')})`);
+    appendLogSync(`[bench-language] Fatal: ${label}`, 'error', { forceOutput: true });
+    appendLogSync(details, 'error', { forceOutput: true });
+    appendLogSync(`[bench-language] Details logged (${names.join(', ')})`, 'error', { forceOutput: true });
   } catch {}
 };
 
@@ -482,7 +483,7 @@ try {
     scriptRoot
   });
 } catch (err) {
-  display.error(err?.message || String(err));
+  appendLog(err?.message || String(err), 'error', { forceOutput: true });
   exitWithDisplay(1);
 }
 
@@ -551,7 +552,7 @@ if (argv.list) {
 }
 
 if (!tasks.length) {
-  display.error('No benchmark targets match the requested filters.');
+  appendLog('No benchmark targets match the requested filters.', 'error', { forceOutput: true });
   exitWithDisplay(1);
 }
 

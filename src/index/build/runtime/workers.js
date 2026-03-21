@@ -113,6 +113,7 @@ const resolvePerWorkerCacheAndWriteBudget = ({
  * @param {object} input.envConfig
  * @param {object} input.indexingConfig
  * @param {(line:string)=>void} [input.log]
+ * @param {(line:string,meta?:object|null)=>void} [input.warn]
  * @returns {{
  *   threadLimits:object,
  *   cpuCount:number,
@@ -123,7 +124,7 @@ const resolvePerWorkerCacheAndWriteBudget = ({
  *   cpuConcurrency:number
  * }}
  */
-export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingConfig, log }) => {
+export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingConfig, log, warn }) => {
   const configConcurrency = Number(indexingConfig.concurrency);
   const importConcurrencyConfig = Number(indexingConfig.importConcurrency);
   const ioConcurrencyCapConfig = Number(indexingConfig.ioConcurrencyCap);
@@ -153,13 +154,13 @@ export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingCo
     const warning =
       `[threads] ioConcurrency=${ioConcurrency} exceeds UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize}. `
       + 'Consider aligning runtime.uvThreadpoolSize/UV_THREADPOOL_SIZE with your I/O concurrency for best throughput.';
-    if (typeof log === 'function') log(`[warn] ${warning}`);
+    if (typeof warn === 'function') warn(warning, { source: 'thread-limits' });
     else logLine(warning, { kind: 'warning' });
   } else if (!effectiveUvThreadpoolSize && envConfig.verbose && ioConcurrency >= 16) {
     const warning =
       `[threads] ioConcurrency=${ioConcurrency} with default UV threadpool. `
       + 'Consider setting runtime.uvThreadpoolSize (or UV_THREADPOOL_SIZE) for I/O-heavy indexing.';
-    if (typeof log === 'function') log(`[warn] ${warning}`);
+    if (typeof warn === 'function') warn(warning, { source: 'thread-limits' });
     else logLine(warning, { kind: 'warning' });
   }
 

@@ -640,8 +640,7 @@ export const runBenchExecutionLoop = async ({
       if (!lockCheck.ok) {
         const detail = formatLockDetail(lockCheck.detail);
         const message = `Skipping ${repoLabel}: index lock held ${detail}`.trim();
-        appendLog(`[lock] ${message}`);
-        if (!quietMode) display.error(message);
+        appendLog(`[lock] ${message}`, 'error', { forceOutput: true });
         progressRuntime.completeRepo();
         appendLog('[metrics] skipped (lock)');
         const result = {
@@ -752,7 +751,9 @@ export const runBenchExecutionLoop = async ({
           summary = JSON.parse(raw).summary || null;
         } catch (err) {
           appendLog(`[error] failed to read bench report for ${repoLabel}; continuing.`, 'error');
-          if (err && err.message) display.error(err.message);
+          if (err && err.message) {
+            appendLog(err.message, 'error', { forceOutput: true });
+          }
           const crashRetention = await lifecycle.attachCrashRetention({
             task,
             repoLabel,
