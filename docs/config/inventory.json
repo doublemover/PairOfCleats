@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-20T07:30:47.494Z",
+  "generatedAt": "2026-03-21T12:37:10.257Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2366,6 +2366,19 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_CRASH_RETENTION_FULL_TRACE",
+      "files": [
+        "src/index/build/crash-log.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_CRASH_RETENTION_PROFILE",
+      "files": [
+        "src/index/build/crash-log.js",
+        "tests/indexing/crash-log-retention-trace-policy.test.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL",
       "files": [
         "src/shared/env.js",
@@ -3152,6 +3165,18 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TEST_BENCH_REPO_DELAY_MS",
+      "files": [
+        "tools/bench/language-repos/run-loop.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_BENCH_SELF_INTERRUPT_AFTER_MS",
+      "files": [
+        "tools/bench/language-repos.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TEST_CACHE_SUFFIX",
       "files": [
         "tests/helpers/fixture-index.js",
@@ -3435,6 +3460,8 @@
         "tests/tooling/doctor/command-profile-tooling-dir-precedence.test.js",
         "tools/bench/ab-sweep.js",
         "tools/bench/index/scheduler-store-format.js",
+        "tools/bench/language-repos.js",
+        "tools/bench/language-repos/run-loop.js",
         "tools/bench/language/logging.js",
         "tools/config/contract-doc.js",
         "tools/config/inventory.js",
@@ -3676,15 +3703,19 @@
     "PAIROFCLEATS_API_TOKEN"
   ],
   "envVarsUnknown": [
+    "PAIROFCLEATS_CRASH_RETENTION_FULL_TRACE",
+    "PAIROFCLEATS_CRASH_RETENTION_PROFILE",
     "PAIROFCLEATS_OBSERVABILITY_CONTEXT",
     "PAIROFCLEATS_SQLITE_DENSE_CHILD",
     "PAIROFCLEATS_SQLITE_DENSE_PAYLOAD",
+    "PAIROFCLEATS_TEST_BENCH_REPO_DELAY_MS",
+    "PAIROFCLEATS_TEST_BENCH_SELF_INTERRUPT_AFTER_MS",
     "PAIROFCLEATS_TOOLING_LSP_GUARDRAIL_BASELINE",
     "PAIROFCLEATS_TOOLING_LSP_REPLAY_BASELINE",
     "PAIROFCLEATS_TOOLING_LSP_SLO_BASELINE"
   ],
   "cliFlags": {
-    "totalFlags": 416,
+    "totalFlags": 426,
     "publicFlags": [
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -3755,12 +3786,16 @@
       "collectorScanBudgets",
       "colorize",
       "column",
+      "compare",
       "components",
       "context-pack",
       "controlFlowEnabled",
       "count",
+      "crash-bundle",
+      "csv",
       "ctags",
       "dataset",
+      "deep-analysis",
       "default-timeout-ms",
       "depth",
       "destination",
@@ -3814,6 +3849,7 @@
       "flow-id",
       "flowMode",
       "focus",
+      "folder",
       "force",
       "forcePrepare",
       "format",
@@ -3834,6 +3870,7 @@
       "in",
       "include",
       "include-prose",
+      "include-usr",
       "includeCallersCallees",
       "includeCalls",
       "includeChunks",
@@ -3866,8 +3903,10 @@
       "keys",
       "lane",
       "lang",
+      "language",
       "language-family",
       "languages",
+      "latest",
       "limit",
       "list-groups",
       "list-packs",
@@ -3972,6 +4011,7 @@
       "pretty",
       "probe-handshake",
       "probe-timeout-ms",
+      "profile",
       "progress",
       "properties",
       "provider",
@@ -3983,6 +4023,7 @@
       "record",
       "recursive",
       "refresh",
+      "refresh-json",
       "refs",
       "registry",
       "repeats",
@@ -5579,6 +5620,18 @@
         ]
       },
       {
+        "file": "tools/index/reconcile-identity.js",
+        "flags": [
+          "crash-bundle",
+          "index-root",
+          "json",
+          "mode",
+          "non-strict",
+          "repo",
+          "strict"
+        ]
+      },
+      {
         "file": "tools/index/report-artifacts.js",
         "flags": [
           "all",
@@ -5784,6 +5837,27 @@
         ]
       },
       {
+        "file": "tools/reports/show-throughput/options.js",
+        "flags": [
+          "compare",
+          "csv",
+          "deep-analysis",
+          "folder",
+          "include-usr",
+          "json",
+          "language",
+          "latest",
+          "mode",
+          "profile",
+          "refresh-json",
+          "repo",
+          "root",
+          "sort",
+          "top",
+          "verbose"
+        ]
+      },
+      {
         "file": "tools/setup/bootstrap.js",
         "flags": [
           "incremental",
@@ -5971,7 +6045,7 @@
     "duplicated": [
       {
         "flag": "json",
-        "count": 67,
+        "count": 69,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -6018,6 +6092,7 @@
           "tools/docs/repo-inventory.js",
           "tools/docs/script-inventory.js",
           "tools/index/cache-gc.js",
+          "tools/index/reconcile-identity.js",
           "tools/index/report-artifacts.js",
           "tools/index/stats.js",
           "tools/index/validate.js",
@@ -6030,6 +6105,7 @@
           "tools/reports/diagnostics-report.js",
           "tools/reports/metrics-dashboard.js",
           "tools/reports/report-code-map.js",
+          "tools/reports/show-throughput/options.js",
           "tools/setup/bootstrap.js",
           "tools/setup/setup.js",
           "tools/sqlite/verify-extensions.js",
@@ -6044,7 +6120,7 @@
       },
       {
         "flag": "repo",
-        "count": 65,
+        "count": 67,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -6087,6 +6163,7 @@
           "tools/index/cache-gc.js",
           "tools/index/clean-artifacts.js",
           "tools/index/compact-pieces.js",
+          "tools/index/reconcile-identity.js",
           "tools/index/report-artifacts.js",
           "tools/index/shard-census.js",
           "tools/index/stats.js",
@@ -6101,6 +6178,7 @@
           "tools/reports/diagnostics-report.js",
           "tools/reports/metrics-dashboard.js",
           "tools/reports/report-code-map.js",
+          "tools/reports/show-throughput/options.js",
           "tools/setup/bootstrap.js",
           "tools/setup/setup.js",
           "tools/sqlite/verify-extensions.js",
@@ -6165,7 +6243,7 @@
       },
       {
         "flag": "mode",
-        "count": 40,
+        "count": 42,
         "files": [
           "bin/pairofcleats.js",
           "tests/map/build-determinism.test.js",
@@ -6202,11 +6280,13 @@
           "tools/docs/script-inventory.js",
           "tools/index/assemble-pieces.js",
           "tools/index/compact-pieces.js",
+          "tools/index/reconcile-identity.js",
           "tools/index/stats.js",
           "tools/index/validate.js",
           "tools/reports/combined-summary.js",
           "tools/reports/compare-models.js",
-          "tools/reports/report-code-map.js"
+          "tools/reports/report-code-map.js",
+          "tools/reports/show-throughput/options.js"
         ]
       },
       {
@@ -6233,7 +6313,7 @@
       },
       {
         "flag": "index-root",
-        "count": 11,
+        "count": 12,
         "files": [
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
@@ -6244,6 +6324,7 @@
           "tools/build/embeddings/cli.js",
           "tools/build/lmdb-index.js",
           "tools/build/tantivy-index.js",
+          "tools/index/reconcile-identity.js",
           "tools/index/validate.js",
           "tools/reports/report-code-map.js"
         ]
@@ -6279,6 +6360,22 @@
           "tools/reports/parity-matrix.js",
           "tools/tooling/install.js",
           "tools/tooling/uninstall.js"
+        ]
+      },
+      {
+        "flag": "top",
+        "count": 10,
+        "files": [
+          "tests/retrieval/parity/equivalence.test.js",
+          "tests/tooling/fixtures/fixture-eval.test.js",
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/eval/run.js",
+          "tools/reports/combined-summary.js",
+          "tools/reports/compare-models.js",
+          "tools/reports/metrics-dashboard.js",
+          "tools/reports/parity-matrix.js",
+          "tools/reports/show-throughput/options.js",
+          "tools/test_times/report.js"
         ]
       },
       {
@@ -6328,18 +6425,18 @@
         ]
       },
       {
-        "flag": "top",
+        "flag": "verbose",
         "count": 9,
         "files": [
-          "tests/retrieval/parity/equivalence.test.js",
-          "tests/tooling/fixtures/fixture-eval.test.js",
           "tools/bench/embeddings/model-bakeoff.js",
+          "tools/build/compact-sqlite-index.js",
+          "tools/build/embeddings/cli.js",
+          "tools/build/lmdb-index.js",
+          "tools/build/tantivy-index.js",
+          "tools/ci/build-artifacts.js",
+          "tools/download/extensions.js",
           "tools/eval/run.js",
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js",
-          "tools/reports/metrics-dashboard.js",
-          "tools/reports/parity-matrix.js",
-          "tools/test_times/report.js"
+          "tools/reports/show-throughput/options.js"
         ]
       },
       {
@@ -6399,6 +6496,20 @@
         ]
       },
       {
+        "flag": "root",
+        "count": 8,
+        "files": [
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/docs/contract-drift.js",
+          "tools/docs/export-artifact-schema-index.js",
+          "tools/docs/repo-inventory.js",
+          "tools/reports/show-throughput/options.js",
+          "tools/setup/setup.js",
+          "tools/tooling/detect.js",
+          "tools/tooling/install.js"
+        ]
+      },
+      {
         "flag": "scope",
         "count": 8,
         "files": [
@@ -6410,20 +6521,6 @@
           "tools/reports/report-code-map.js",
           "tools/tooling/install-phpactor-phar.js",
           "tools/tooling/install.js"
-        ]
-      },
-      {
-        "flag": "verbose",
-        "count": 8,
-        "files": [
-          "tools/bench/embeddings/model-bakeoff.js",
-          "tools/build/compact-sqlite-index.js",
-          "tools/build/embeddings/cli.js",
-          "tools/build/lmdb-index.js",
-          "tools/build/tantivy-index.js",
-          "tools/ci/build-artifacts.js",
-          "tools/download/extensions.js",
-          "tools/eval/run.js"
         ]
       },
       {
@@ -6463,19 +6560,6 @@
           "tools/setup/bootstrap.js",
           "tools/setup/setup.js",
           "tools/triage/ingest.js"
-        ]
-      },
-      {
-        "flag": "root",
-        "count": 7,
-        "files": [
-          "tools/bench/vfs/cold-start-cache.js",
-          "tools/docs/contract-drift.js",
-          "tools/docs/export-artifact-schema-index.js",
-          "tools/docs/repo-inventory.js",
-          "tools/setup/setup.js",
-          "tools/tooling/detect.js",
-          "tools/tooling/install.js"
         ]
       },
       {
@@ -6765,6 +6849,17 @@
         ]
       },
       {
+        "flag": "strict",
+        "count": 5,
+        "files": [
+          "tests/indexing/map/build-symbol-identity.test.js",
+          "tests/indexing/map/chunkuid-join.test.js",
+          "tools/index/reconcile-identity.js",
+          "tools/index/validate.js",
+          "tools/tooling/doctor.js"
+        ]
+      },
+      {
         "flag": "top-k-by-degree",
         "count": 5,
         "files": [
@@ -6906,6 +7001,16 @@
         ]
       },
       {
+        "flag": "non-strict",
+        "count": 4,
+        "files": [
+          "tools/index/assemble-pieces.js",
+          "tools/index/reconcile-identity.js",
+          "tools/index/validate.js",
+          "tools/tooling/doctor.js"
+        ]
+      },
+      {
         "flag": "port",
         "count": 4,
         "files": [
@@ -6933,16 +7038,6 @@
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/micro/run.js",
           "tools/bench/vfs/merge-runs-heap.js"
-        ]
-      },
-      {
-        "flag": "strict",
-        "count": 4,
-        "files": [
-          "tests/indexing/map/build-symbol-identity.test.js",
-          "tests/indexing/map/chunkuid-join.test.js",
-          "tools/index/validate.js",
-          "tools/tooling/doctor.js"
         ]
       },
       {
@@ -7034,15 +7129,6 @@
           "tools/bench/embeddings/model-bakeoff.js",
           "tools/reports/combined-summary.js",
           "tools/reports/compare-models.js"
-        ]
-      },
-      {
-        "flag": "non-strict",
-        "count": 3,
-        "files": [
-          "tools/index/assemble-pieces.js",
-          "tools/index/validate.js",
-          "tools/tooling/doctor.js"
         ]
       },
       {
@@ -7580,6 +7666,14 @@
         "files": [
           "tools/setup/bootstrap.js",
           "tools/setup/setup.js"
+        ]
+      },
+      {
+        "flag": "sort",
+        "count": 2,
+        "files": [
+          "tools/index/assemble-pieces.js",
+          "tools/reports/show-throughput/options.js"
         ]
       },
       {
