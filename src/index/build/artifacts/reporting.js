@@ -218,6 +218,18 @@ const buildExtractedProseLowYieldQualityMarker = (state) => {
     strategyMismatchRiskCount: Number.isFinite(Number(raw.strategyMismatchRiskCount))
       ? Math.max(0, Math.floor(Number(raw.strategyMismatchRiskCount)))
       : 0,
+    estimatedSuppressedFiles: Number.isFinite(Number(raw.estimatedSuppressedFiles))
+      ? Math.max(0, Math.floor(Number(raw.estimatedSuppressedFiles)))
+      : 0,
+    estimatedRecallLossRatio: Number.isFinite(Number(raw.estimatedRecallLossRatio))
+      ? Math.max(0, Math.min(1, Number(raw.estimatedRecallLossRatio)))
+      : 0,
+    estimatedRecallLossClass: typeof raw.estimatedRecallLossClass === 'string'
+      ? raw.estimatedRecallLossClass
+      : null,
+    estimatedRecallLossConfidence: typeof raw.estimatedRecallLossConfidence === 'string'
+      ? raw.estimatedRecallLossConfidence
+      : null,
     decisionAtOrderIndex: Number.isFinite(Number(raw.decisionAtOrderIndex))
       ? Math.floor(Number(raw.decisionAtOrderIndex))
       : null,

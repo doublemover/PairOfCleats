@@ -30,6 +30,58 @@ const toIsoTimestamp = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? new Date(parsed).toISOString() : null;
 };
 
+const classifyEstimatedRecallLoss = (ratio) => {
+  if (!Number.isFinite(ratio) || ratio <= 0) return null;
+  if (ratio <= 0.05) return 'low';
+  if (ratio <= 0.15) return 'moderate';
+  if (ratio <= 0.3) return 'high';
+  return 'severe';
+};
+
+const classifyEstimatedRecallLossConfidence = ({
+  strategyMismatchRiskCount = 0,
+  suppressedCohorts = []
+} = {}) => {
+  if (Math.max(0, Math.floor(Number(strategyMismatchRiskCount) || 0)) > 0) return 'low';
+  const normalizedSuppressed = Array.isArray(suppressedCohorts) ? suppressedCohorts : [];
+  if (!normalizedSuppressed.length) return null;
+  const allGenuineLowYield = normalizedSuppressed.every(
+    (cohortState) => cohortState?.suppressionClass === 'genuine-low-yield'
+  );
+  return allGenuineLowYield ? 'high' : 'medium';
+};
+
+const buildSuppressedCohortRecallLossEstimates = ({
+  suppressedCohorts = [],
+  repoFingerprint = null
+} = {}) => {
+  const normalizedFingerprint = normalizeRepoFingerprint(repoFingerprint);
+  return (Array.isArray(suppressedCohorts) ? suppressedCohorts : []).map((cohortState) => {
+    const key = String(cohortState?.key || '');
+    const repoFiles = Math.max(0, Math.floor(Number(normalizedFingerprint?.cohortCounts?.[key]) || 0));
+    const warmupFiles = Math.max(0, Math.floor(Number(cohortState?.warmupFiles) || 0));
+    const estimatedSuppressedFiles = Math.max(0, repoFiles - warmupFiles);
+    const estimatedRecallLossRatio = normalizedFingerprint.totalEntries > 0
+      ? estimatedSuppressedFiles / normalizedFingerprint.totalEntries
+      : 0;
+    return {
+      key,
+      suppressionClass: cohortState?.suppressionClass || null,
+      expectedYieldClass: typeof cohortState?.expectedYieldClass === 'string'
+        ? cohortState.expectedYieldClass
+        : 'uncertain',
+      warmupFiles,
+      sampledFiles: Math.max(0, Math.floor(Number(cohortState?.sampledFiles) || 0)),
+      sampledObservedFiles: Math.max(0, Math.floor(Number(cohortState?.sampledObservedFiles) || 0)),
+      sampledYieldedFiles: Math.max(0, Math.floor(Number(cohortState?.sampledYieldedFiles) || 0)),
+      sampledChunkCount: Math.max(0, Math.floor(Number(cohortState?.sampledChunkCount) || 0)),
+      repoFiles,
+      estimatedSuppressedFiles,
+      estimatedRecallLossRatio: Number.isFinite(estimatedRecallLossRatio) ? estimatedRecallLossRatio : 0
+    };
+  });
+};
+
 const resolveExtractedProseLowYieldBailoutConfig = (runtime) => {
   const extractedProseConfig = runtime?.indexingConfig?.extractedProse
     && typeof runtime.indexingConfig.extractedProse === 'object'
@@ -474,15 +526,32 @@ export const shouldSkipExtractedProseForLowYield = ({ bailout, orderIndex, entry
 export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
   if (!bailout) return null;
   const observedYieldRatio = bailout.observedSamples > 0 ? bailout.yieldedSamples / bailout.observedSamples : 0;
-  const suppressedCohorts = Array.isArray(bailout.lastDecision?.suppressedCohorts)
+  const rawSuppressedCohorts = Array.isArray(bailout.lastDecision?.suppressedCohorts)
     ? bailout.lastDecision.suppressedCohorts
     : [];
+  const suppressedCohorts = buildSuppressedCohortRecallLossEstimates({
+    suppressedCohorts: rawSuppressedCohorts,
+    repoFingerprint: bailout.repoFingerprint
+  });
   const protectedCohorts = Array.isArray(bailout.lastDecision?.protectedCohorts)
     ? bailout.lastDecision.protectedCohorts
     : [];
   const strategyMismatchRiskCohorts = Array.isArray(bailout.lastDecision?.strategyMismatchRiskCohorts)
     ? bailout.lastDecision.strategyMismatchRiskCohorts
     : [];
+  const estimatedSuppressedFiles = suppressedCohorts.reduce(
+    (sum, cohortState) => sum + Math.max(0, Math.floor(Number(cohortState?.estimatedSuppressedFiles) || 0)),
+    0
+  );
+  const normalizedRepoFingerprint = normalizeRepoFingerprint(bailout.repoFingerprint);
+  const estimatedRecallLossRatio = normalizedRepoFingerprint.totalEntries > 0
+    ? estimatedSuppressedFiles / normalizedRepoFingerprint.totalEntries
+    : 0;
+  const estimatedRecallLossClass = classifyEstimatedRecallLoss(estimatedRecallLossRatio);
+  const estimatedRecallLossConfidence = classifyEstimatedRecallLossConfidence({
+    strategyMismatchRiskCount: strategyMismatchRiskCohorts.length,
+    suppressedCohorts
+  });
   return {
     enabled: bailout.enabled === true,
     triggered: bailout.triggered === true,
@@ -505,10 +574,14 @@ export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
     suppressedCohortCount: suppressedCohorts.length,
     protectedCohortCount: protectedCohorts.length,
     strategyMismatchRiskCount: strategyMismatchRiskCohorts.length,
+    estimatedSuppressedFiles,
+    estimatedRecallLossRatio,
+    estimatedRecallLossClass,
+    estimatedRecallLossConfidence,
     skippedFiles: bailout.skippedFiles,
     decisionAtOrderIndex: bailout.decisionAtOrderIndex,
     decisionAt: toIsoTimestamp(bailout.decisionAtMs),
-    repoFingerprint: normalizeRepoFingerprint(bailout.repoFingerprint),
+    repoFingerprint: normalizedRepoFingerprint,
     sampledFamilies: Object.values(bailout.sampledFamilies || {}).map((familyState) => ({
       key: familyState.key,
       ext: familyState.ext,

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   buildExtractedProseLowYieldBailoutState,
+  buildExtractedProseLowYieldBailoutSummary,
   observeExtractedProseLowYieldSample
 } from '../../../src/index/build/indexer/steps/process-files/extracted-prose.js';
 
@@ -77,5 +78,8 @@ assert.equal(
 const docsProtection = decision.protectedCohorts.find((cohort) => cohort.key === 'docs-markdown');
 assert.ok(docsProtection, 'expected docs cohort protection');
 assert.equal(docsProtection.strategyMismatchRisk, true, 'expected repo fingerprint shift to protect docs cohort');
+const summary = buildExtractedProseLowYieldBailoutSummary(bailout);
+assert.equal(summary.strategyMismatchRiskCount >= 1, true, 'expected mismatch risk accounting in summary');
+assert.equal(summary.estimatedRecallLossConfidence, 'low', 'expected low confidence when strategy mismatch risk remains');
 
 console.log('extracted prose low-yield strategy mismatch risk test passed');

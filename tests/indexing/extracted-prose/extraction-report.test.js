@@ -72,6 +72,10 @@ assert.equal(lowYieldMarker?.seed, 'phase17-low-yield-seed', 'expected determini
 assert.equal(lowYieldMarker?.sampledFiles, 0, 'expected no warmup sampling when bailout is disabled');
 assert.equal(lowYieldMarker?.sampledYieldedFiles, 0, 'expected zero warmup yield accounting');
 assert.equal(lowYieldMarker?.suppressedCohortCount, 0, 'expected no suppressed cohorts when bailout is disabled');
+assert.equal(lowYieldMarker?.estimatedSuppressedFiles, 0, 'expected zero suppressed-file estimate when bailout is disabled');
+assert.equal(lowYieldMarker?.estimatedRecallLossRatio, 0, 'expected zero recall-loss ratio when bailout is disabled');
+assert.equal(lowYieldMarker?.estimatedRecallLossClass, null, 'expected no recall-loss class when bailout is disabled');
+assert.equal(lowYieldMarker?.estimatedRecallLossConfidence, null, 'expected no recall-loss confidence when bailout is disabled');
 assert.ok(lowYieldMarker?.repoFingerprint && typeof lowYieldMarker.repoFingerprint === 'object', 'expected repo fingerprint accounting');
 assert.ok(Array.isArray(lowYieldMarker?.suppressedCohorts), 'expected suppressed cohort detail');
 assert.ok(Array.isArray(lowYieldMarker?.protectedCohorts), 'expected protected cohort detail');

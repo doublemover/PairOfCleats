@@ -111,6 +111,10 @@ const extractionReportLowYieldBailout = {
     'suppressedCohortCount',
     'protectedCohortCount',
     'strategyMismatchRiskCount',
+    'estimatedSuppressedFiles',
+    'estimatedRecallLossRatio',
+    'estimatedRecallLossClass',
+    'estimatedRecallLossConfidence',
     'skippedFiles',
     'decisionAtOrderIndex',
     'decisionAt',
@@ -138,6 +142,10 @@ const extractionReportLowYieldBailout = {
     suppressedCohortCount: intId,
     protectedCohortCount: intId,
     strategyMismatchRiskCount: intId,
+    estimatedSuppressedFiles: intId,
+    estimatedRecallLossRatio: { type: 'number' },
+    estimatedRecallLossClass: nullableString,
+    estimatedRecallLossConfidence: nullableString,
     skippedFiles: intId,
     decisionAtOrderIndex: nullableInt,
     decisionAt: nullableString,
@@ -167,7 +175,10 @@ const extractionReportLowYieldBailout = {
           'sampledFiles',
           'sampledObservedFiles',
           'sampledYieldedFiles',
-          'sampledChunkCount'
+          'sampledChunkCount',
+          'repoFiles',
+          'estimatedSuppressedFiles',
+          'estimatedRecallLossRatio'
         ],
         properties: {
           key: { type: 'string' },
@@ -177,7 +188,10 @@ const extractionReportLowYieldBailout = {
           sampledFiles: intId,
           sampledObservedFiles: intId,
           sampledYieldedFiles: intId,
-          sampledChunkCount: intId
+          sampledChunkCount: intId,
+          repoFiles: intId,
+          estimatedSuppressedFiles: intId,
+          estimatedRecallLossRatio: { type: 'number' }
         },
         additionalProperties: false
       }

@@ -19,7 +19,8 @@ const entries = [
   { rel: 'src/late.js', ext: '.js', orderIndex: 7 },
   { rel: 'generated/schema-d.js', ext: '.js', orderIndex: 8 },
   { rel: 'docs/appendix.md', ext: '.md', orderIndex: 9 },
-  { rel: 'src/final.js', ext: '.js', orderIndex: 10 }
+  { rel: 'src/final.js', ext: '.js', orderIndex: 10 },
+  { rel: 'generated/schema-e.js', ext: '.js', orderIndex: 11 }
 ];
 
 const bailout = buildExtractedProseLowYieldBailoutState({
@@ -122,5 +123,10 @@ const summary = buildExtractedProseLowYieldBailoutSummary(bailout);
 assert.equal(summary.suppressedCohortCount, 1, 'expected one suppressed cohort');
 assert.equal(summary.protectedCohortCount >= 1, true, 'expected protected cohort accounting');
 assert.equal(summary.repoFingerprint.cohortCounts['generated-machine'] >= 3, true, 'expected fingerprint cohort counts');
+assert.equal(summary.estimatedSuppressedFiles, 1, 'expected one future generated file to be estimated as suppressed');
+assert.equal(summary.estimatedRecallLossClass, 'moderate', 'expected moderate recall-loss estimate for selective suppression');
+assert.equal(summary.estimatedRecallLossConfidence, 'high', 'expected high confidence for genuine low-yield suppression');
+assert.equal(summary.suppressedCohorts[0]?.repoFiles, 5, 'expected repo-level cohort size in summary');
+assert.equal(summary.suppressedCohorts[0]?.estimatedSuppressedFiles, 1, 'expected per-cohort suppressed-file estimate');
 
 console.log('extracted prose low-yield selective cohort suppression test passed');
