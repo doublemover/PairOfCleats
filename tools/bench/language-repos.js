@@ -30,6 +30,11 @@ import {
 } from './language-repos/planning.js';
 import { createBenchLogger } from './language-repos/logging.js';
 import { createRepoLifecycle } from './language-repos/lifecycle.js';
+import {
+  buildBenchRunSummaryFromLedgerEvents,
+  createBenchRunLedger,
+  readBenchRunLedger
+} from './language-repos/run-ledger.js';
 import { createBenchProgressRuntime, runBenchExecutionLoop } from './language-repos/run-loop.js';
 
 const USR_GUARDRAIL_BENCHMARKS = Object.freeze([
@@ -142,6 +147,9 @@ const {
   getLogPaths,
   logHistory
 } = logger;
+let runLedger = null;
+let finalizedRunSummary = null;
+let runCloseoutFinalized = false;
 
 const progressRuntime = createBenchProgressRuntime({
   display,
@@ -161,6 +169,111 @@ const processRunner = createProcessRunner({
 const closeLogs = async () => {
   await closeRepoLog();
   await closeMasterLog();
+};
+
+const emitRunFooterToOperatorLog = async (summary, { sync = false } = {}) => {
+  if (!runLedger || !summary) return [];
+  const lines = sync
+    ? await runLedger.writeFooterArtifact(summary, { sync: true })
+    : await runLedger.writeFooterArtifact(summary);
+  for (const line of lines) {
+    writeLogSync(line);
+    if (!quietMode && argv.json !== true) {
+      display.log(line, { forceOutput: true });
+    }
+  }
+  return lines;
+};
+
+const rebuildRunSummary = async (output = null) => {
+  if (!runLedger) return null;
+  const events = await readBenchRunLedger(runLedger.ledgerPath);
+  return await buildBenchRunSummaryFromLedgerEvents({
+    events,
+    diagnosticsRoot: runDiagnosticsRoot,
+    output,
+    runSuffix,
+    logPaths: {
+      masterLogPath,
+      footerPath: runLedger.footerPath,
+      ledgerPath: runLedger.ledgerPath,
+      summaryPath: runLedger.summaryPath
+    }
+  });
+};
+
+const finalizeRunCloseout = async ({
+  endState,
+  endReason = null,
+  signal = null,
+  exitCode = null,
+  output = null
+}) => {
+  if (!runLedger) return null;
+  if (runCloseoutFinalized && finalizedRunSummary) return finalizedRunSummary;
+  let stage = 'closeout.start';
+  try {
+    runLedger.recordCloseoutEvent('closeout.started', {
+      state: endState,
+      reason: endReason,
+      signal,
+      exitCode
+    });
+    stage = 'summary.build';
+    let summary = await runLedger.buildSummary({
+      output,
+      endState,
+      endReason,
+      signal,
+      exitCode
+    });
+    stage = 'summary.write';
+    await runLedger.writeSummaryArtifact(summary);
+    runLedger.recordCloseoutEvent('closeout.summary_written', {
+      summaryPath: runLedger.summaryPath
+    });
+    await runLedger.flush();
+    summary = await rebuildRunSummary(output);
+    if (summary) {
+      await runLedger.writeSummaryArtifact(summary);
+    }
+    stage = 'footer.write';
+    const footerLines = await emitRunFooterToOperatorLog(summary);
+    runLedger.recordCloseoutEvent('closeout.footer_written', {
+      footerPath: runLedger.footerPath,
+      lineCount: footerLines.length
+    });
+    await runLedger.flush();
+    summary = await rebuildRunSummary(output);
+    if (summary) {
+      await runLedger.writeSummaryArtifact(summary);
+    }
+    finalizedRunSummary = summary;
+    runCloseoutFinalized = true;
+    await runLedger.close();
+    return summary;
+  } catch (error) {
+    try {
+      runLedger.recordCloseoutEvent('closeout.failed', {
+        stage,
+        message: error?.message || String(error)
+      }, { sync: true });
+      const fallbackSummary = runLedger.buildSummarySync({
+        endState,
+        endReason: endReason || 'closeout_failed',
+        signal,
+        exitCode
+      });
+      runLedger.writeSummaryArtifactSync(fallbackSummary);
+      await emitRunFooterToOperatorLog(fallbackSummary, { sync: true });
+      finalizedRunSummary = fallbackSummary;
+      runCloseoutFinalized = true;
+    } catch {}
+    try {
+      runLedger.closeSync();
+    } catch {}
+    throw error;
+  }
 };
 
 const reportFatal = (label, err) => {
@@ -223,6 +336,20 @@ const gracefulShutdown = ({
         );
       }
     }
+    try {
+      await finalizeRunCloseout({
+        endState: normalizedReason === 'SIGINT' || normalizedReason === 'SIGTERM'
+          ? 'interrupted'
+          : 'fatal',
+        endReason: normalizedReason,
+        signal: normalizedReason === 'SIGINT' || normalizedReason === 'SIGTERM'
+          ? normalizedReason
+          : null,
+        exitCode
+      });
+    } catch (closeoutError) {
+      writeLogSync(`[closeout] failed during ${normalizedReason}: ${closeoutError?.message || closeoutError}`);
+    }
     processRunner.logExit(normalizedReason, exitCode);
     await closeLogs();
     display.close();
@@ -233,6 +360,7 @@ const gracefulShutdown = ({
 
 process.on('exit', (code) => {
   processRunner.logExit('exit', code);
+  runLedger?.closeSync?.();
   closeLogsSync();
 });
 process.on('SIGINT', () => {
@@ -453,6 +581,34 @@ const { executionPlans, precreateDirs } = buildExecutionPlans({
   cacheRoot
 });
 await Promise.all(precreateDirs.map((dir) => fsPromises.mkdir(dir, { recursive: true })));
+runLedger = createBenchRunLedger({
+  logsRoot: path.dirname(masterLogPath),
+  runSuffix,
+  diagnosticsRoot: runDiagnosticsRoot,
+  configPath,
+  reposRoot,
+  cacheRoot,
+  resultsRoot,
+  masterLogPath,
+  waiverFile,
+  methodology
+});
+runLedger.recordRunStarted({
+  plannedRepoCount: executionPlans.length,
+  taskCount: tasks.length
+});
+const testInterruptAfterMs = Number(process.env.PAIROFCLEATS_TEST_BENCH_SELF_INTERRUPT_AFTER_MS);
+if (
+  process.env.PAIROFCLEATS_TESTING === '1'
+  && Number.isFinite(testInterruptAfterMs)
+  && testInterruptAfterMs > 0
+) {
+  setTimeout(() => {
+    try {
+      process.kill(process.pid, 'SIGINT');
+    } catch {}
+  }, Math.floor(testInterruptAfterMs)).unref?.();
+}
 
 const lifecycle = createRepoLifecycle({
   appendLog,
@@ -488,6 +644,7 @@ const results = await runBenchExecutionLoop({
   getRepoLogPath,
   clearLogHistory,
   hasDiskFullMessageInHistory,
+  runLedger,
   progressRuntime,
   lifecycle,
   wantsSqlite,
@@ -497,8 +654,6 @@ const results = await runBenchExecutionLoop({
   lockStaleMs,
   benchTimeoutMs
 });
-
-await closeLogs();
 
 const output = await buildReportOutput({
   configPath,
@@ -545,18 +700,27 @@ if (outputPath) {
   await fsPromises.mkdir(path.dirname(outputPath), { recursive: true });
   await fsPromises.writeFile(outputPath, JSON.stringify(output, null, 2));
 }
+appendLog(`Completed ${results.length} benchmark runs.`);
+if (outputPath) {
+  appendLog(`[summary] written (${path.basename(outputPath)})`, 'info', {
+    fileOnlyLine: `Summary written to ${outputPath}`
+  });
+}
+
+finalizedRunSummary = await finalizeRunCloseout({
+  endState: 'completed',
+  endReason: 'completed',
+  exitCode: Number.isFinite(Number(output?.run?.exitCode))
+    ? Number(output.run.exitCode)
+    : 0,
+  output
+});
 
 if (argv.json) {
   await closeLogs();
   display.close();
   console.log(JSON.stringify(output, null, 2));
 } else {
-  appendLog(`Completed ${results.length} benchmark runs.`);
-  if (outputPath) {
-    appendLog(`[summary] written (${path.basename(outputPath)})`, 'info', {
-      fileOnlyLine: `Summary written to ${outputPath}`
-    });
-  }
   await closeLogs();
   display.close();
 }

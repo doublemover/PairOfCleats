@@ -267,6 +267,13 @@ const formatLineStatsSummary = (stats) => {
   return parts.join(' ');
 };
 
+const maybeDelayBenchTestRepoStart = async () => {
+  if (process.env.PAIROFCLEATS_TESTING !== '1') return;
+  const delayMs = Number(process.env.PAIROFCLEATS_TEST_BENCH_REPO_DELAY_MS);
+  if (!Number.isFinite(delayMs) || delayMs <= 0) return;
+  await new Promise((resolve) => setTimeout(resolve, Math.floor(delayMs)));
+};
+
 /**
  * Build child bench command args for one repo plan.
  *
@@ -337,6 +344,7 @@ const buildBenchArgs = ({
  *   getRepoLogPath:() => (string|null),
  *   clearLogHistory:() => void,
  *   hasDiskFullMessageInHistory:() => boolean,
+ *   runLedger?:object|null,
  *   progressRuntime:BenchProgressRuntime,
  *   lifecycle:object,
  *   wantsSqlite:boolean,
@@ -363,6 +371,7 @@ export const runBenchExecutionLoop = async ({
   getRepoLogPath,
   clearLogHistory,
   hasDiskFullMessageInHistory,
+  runLedger = null,
   progressRuntime,
   lifecycle,
   wantsSqlite,
@@ -462,6 +471,8 @@ export const runBenchExecutionLoop = async ({
       fallbackLogSlug
     } = plan;
     progressRuntime.beginRepo({ tierLabel, repo: task.repo });
+    runLedger?.recordRepoStarted?.(plan);
+    await maybeDelayBenchTestRepoStart();
 
     // Reset per-repo transient history so failure summaries and disk-full
     // detection reflect only the currently executing repo.
@@ -500,7 +511,7 @@ export const runBenchExecutionLoop = async ({
         });
         progressRuntime.completeRepo();
         appendLog('[metrics] failed (clone)');
-        results.push({
+        const result = {
           ...task,
           repoPath,
           outFile: null,
@@ -511,7 +522,9 @@ export const runBenchExecutionLoop = async ({
           ...(crashRetention
             ? { diagnostics: { crashRetention } }
             : {})
-        });
+        };
+        results.push(result);
+        runLedger?.recordRepoCompleted?.(result);
         continue;
       }
 
@@ -530,7 +543,7 @@ export const runBenchExecutionLoop = async ({
         });
         progressRuntime.completeRepo();
         appendLog('[metrics] failed (preflight)');
-        results.push({
+        const result = {
           ...task,
           repoPath,
           outFile: null,
@@ -541,7 +554,9 @@ export const runBenchExecutionLoop = async ({
           ...(crashRetention
             ? { diagnostics: { crashRetention } }
             : {})
-        });
+        };
+        results.push(result);
+        runLedger?.recordRepoCompleted?.(result);
         continue;
       }
 
@@ -629,7 +644,7 @@ export const runBenchExecutionLoop = async ({
         if (!quietMode) display.error(message);
         progressRuntime.completeRepo();
         appendLog('[metrics] skipped (lock)');
-        results.push({
+        const result = {
           ...task,
           repoPath,
           outFile,
@@ -637,7 +652,9 @@ export const runBenchExecutionLoop = async ({
           skipped: true,
           skipReason: 'lock',
           lock: lockCheck.detail || null
-        });
+        };
+        results.push(result);
+        runLedger?.recordRepoCompleted?.(result);
         continue;
       }
 
@@ -693,7 +710,7 @@ export const runBenchExecutionLoop = async ({
           });
           progressRuntime.completeRepo();
           appendLog('[metrics] failed (bench)');
-          results.push({
+          const result = {
             ...task,
             repoPath,
             outFile,
@@ -718,7 +735,9 @@ export const runBenchExecutionLoop = async ({
                   progressConfidence: benchResult.progressConfidence || null
                 }
               })
-          });
+          };
+          results.push(result);
+          runLedger?.recordRepoCompleted?.(result);
           continue;
         }
 
@@ -746,7 +765,7 @@ export const runBenchExecutionLoop = async ({
           });
           progressRuntime.completeRepo();
           appendLog('[metrics] failed (report)');
-          results.push({
+          const result = {
             ...task,
             repoPath,
             outFile,
@@ -759,14 +778,16 @@ export const runBenchExecutionLoop = async ({
               progressConfidence: benchResult.progressConfidence || null,
               ...(crashRetention ? { crashRetention } : {})
             }
-          });
+          };
+          results.push(result);
+          runLedger?.recordRepoCompleted?.(result);
           continue;
         }
       }
 
       progressRuntime.completeRepo();
       appendLog(`[metrics] ${formatMetricSummary(summary)}`);
-      results.push({
+      const result = {
         ...task,
         repoPath,
         outFile,
@@ -777,7 +798,9 @@ export const runBenchExecutionLoop = async ({
             progressConfidence: benchResult.progressConfidence || null
           }
           : {}
-      });
+      };
+      results.push(result);
+      runLedger?.recordRepoCompleted?.(result);
     } finally {
       await lifecycle.cleanRepoCache({ repoCacheRoot, repoLabel });
     }

@@ -75,5 +75,24 @@ if (!logText.includes('Completed 1 benchmark runs.')) {
   console.error('expected completion marker in bench log');
   process.exit(1);
 }
+const logsRoot = path.dirname(logPath);
+const logEntries = await fsPromises.readdir(logsRoot);
+const summaryName = logEntries.find((entry) => entry.endsWith('-run-summary.json'));
+const ledgerName = logEntries.find((entry) => entry.endsWith('-run-ledger.jsonl'));
+const footerName = logEntries.find((entry) => entry.endsWith('-footer.log'));
+if (!summaryName || !ledgerName || !footerName) {
+  console.error(`expected bench closeout artifacts in ${logsRoot}; found ${logEntries.join(', ')}`);
+  process.exit(1);
+}
+const summary = JSON.parse(await fsPromises.readFile(path.join(logsRoot, summaryName), 'utf8'));
+if (summary?.run?.state !== 'completed') {
+  console.error(`expected completed run summary, got ${summary?.run?.state}`);
+  process.exit(1);
+}
+const footerText = await fsPromises.readFile(path.join(logsRoot, footerName), 'utf8');
+if (!footerText.includes('State: completed')) {
+  console.error('expected completed state in footer artifact');
+  process.exit(1);
+}
 
 console.log('bench-language closeout exit test passed');
