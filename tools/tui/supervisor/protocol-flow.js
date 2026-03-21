@@ -345,13 +345,14 @@ export const createFlowController = ({ runId, nextSeq, eventLogRecorder }) => {
   /**
    * Emit startup capabilities handshake event.
    *
-   * @param {{supervisorVersion:string}} input
+   * @param {{supervisorVersion:string,session?:object}} input
    * @returns {void}
    */
-  const emitHello = ({ supervisorVersion }) => {
+  const emitHello = ({ supervisorVersion, session = null }) => {
     emit('hello', {
       supervisorVersion,
-      capabilities: SUPERVISOR_CAPABILITIES
+      capabilities: SUPERVISOR_CAPABILITIES,
+      ...(session && typeof session === 'object' ? { session } : {})
     }, { critical: true });
   };
 

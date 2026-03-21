@@ -44,29 +44,33 @@ assert(supervisedManifest.outputs.length >= 6, 'expected multiple supervised out
 const startupFramePath = path.join(
   outputRoot,
   'supervised-session',
-  '01-startup',
+  '02-startup',
   'narrow-color.frame.txt'
 );
 const startupFrame = readText(startupFramePath);
+assert.match(startupFrame, /Session/);
 assert.match(startupFrame, /Controls/);
 assert.match(startupFrame, /Jobs/);
-assert.match(startupFrame, /\(no jobs\)/);
+assert.match(startupFrame, /mode=supervised/);
+assert.match(startupFrame, /no supervised jobs|supervisor ready/);
 
 const activeMetaPath = path.join(
   outputRoot,
   'supervised-session',
-  '06-active',
+  '07-active',
   'narrow-color.frame.json'
 );
 const activeMeta = readJson(activeMetaPath);
 assert.equal(activeMeta.source_mode, 'supervised');
+assert.equal(activeMeta.session_mode, 'supervised');
+assert.equal(activeMeta.session_source, 'local-supervisor');
 assert.equal(activeMeta.selected_job, 'job-index');
 assert(activeMeta.non_default_style_cells > 0, 'expected styled job rows in color capture');
 
 const noColorMetaPath = path.join(
   outputRoot,
   'supervised-session',
-  '06-active',
+  '07-active',
   'wide-no-color.frame.json'
 );
 const noColorMeta = readJson(noColorMetaPath);
@@ -74,22 +78,24 @@ assert.equal(noColorMeta.color, false);
 assert.equal(noColorMeta.non_default_style_cells, 0, 'no-color variant should avoid styled cells');
 
 const replayFrame = readText(
-  path.join(outputRoot, 'bench-replay', '06-degraded', 'medium-color.frame.txt')
+  path.join(outputRoot, 'bench-replay', '07-degraded', 'medium-color.frame.txt')
 );
+assert.match(replayFrame, /mode=replay/);
 assert.match(replayFrame, /sourcekit/);
 assert.match(replayFrame, /provider degraded/);
 
 const observabilityFrame = readText(
-  path.join(outputRoot, 'external-observability', '03-logs-only', 'medium-color.frame.txt')
+  path.join(outputRoot, 'external-observability', '04-logs-only', 'medium-color.frame.txt')
 );
-assert.match(observabilityFrame, /\(no jobs\)/);
+assert.match(observabilityFrame, /mode=external-observability/);
+assert.match(observabilityFrame, /external stream without/);
 assert.match(observabilityFrame, /attached to external observability/);
 
 const navigationBefore = readJson(
-  path.join(outputRoot, 'navigation-scroll', '11-before-scroll', 'medium-color.frame.json')
+  path.join(outputRoot, 'navigation-scroll', '12-before-scroll', 'medium-color.frame.json')
 );
 const navigationAfter = readJson(
-  path.join(outputRoot, 'navigation-scroll', '15-after-scroll', 'medium-color.frame.json')
+  path.join(outputRoot, 'navigation-scroll', '16-after-scroll', 'medium-color.frame.json')
 );
 assert.equal(navigationBefore.job_scroll, 0);
 assert.equal(navigationAfter.job_scroll, 1);

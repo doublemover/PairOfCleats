@@ -74,6 +74,15 @@ const {
   eventLogRecorder
 });
 
+const buildSessionDescriptor = () => ({
+  mode: 'supervised',
+  source: 'local-supervisor',
+  scope: process.cwd(),
+  connection: 'connected',
+  note: 'interactive supervisor session',
+  controllable: true
+});
+
 const {
   startJob,
   cancelJob,
@@ -138,7 +147,7 @@ const handleRequest = async (request) => {
     return;
   }
   if (op === 'hello') {
-    emitHello({ supervisorVersion });
+    emitHello({ supervisorVersion, session: buildSessionDescriptor() });
     emitRuntimeMetrics();
     return;
   }
@@ -230,7 +239,7 @@ process.on('SIGTERM', () => {
   shutdown('sigterm', 130).catch(() => process.exit(130));
 });
 
-emitHello({ supervisorVersion });
+emitHello({ supervisorVersion, session: buildSessionDescriptor() });
 
 runtimeMetricsTimer = setInterval(() => {
   if (state.shuttingDown) return;

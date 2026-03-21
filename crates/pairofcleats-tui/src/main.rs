@@ -24,6 +24,7 @@ use serde_json::{json, Value};
 const LOG_RING_LIMIT: usize = 2048;
 const JOB_RING_LIMIT: usize = 512;
 const TASK_RING_LIMIT: usize = 2048;
+const ALERT_RING_LIMIT: usize = 64;
 const CHUNK_ASSEMBLY_LIMIT_BYTES: usize = 2 * 1024 * 1024;
 const FRAME_INTERVAL: Duration = Duration::from_millis(50);
 const INPUT_POLL_INTERVAL: Duration = Duration::from_millis(20);
@@ -115,6 +116,21 @@ impl RuntimeTelemetry {
     }
 }
 
+#[derive(Default)]
+struct SessionState {
+    mode: String,
+    source: String,
+    scope: String,
+    connection: String,
+    note: String,
+}
+
+#[derive(Clone)]
+struct AlertEntry {
+    level: String,
+    message: String,
+}
+
 struct ChunkAssembly {
     chunk_count: usize,
     parts: Vec<Option<String>>,
@@ -184,6 +200,11 @@ struct CapturedFrameMetadata {
     color: bool,
     unicode: bool,
     run_id: String,
+    session_mode: String,
+    session_source: String,
+    session_scope: String,
+    session_connection: String,
+    session_note: String,
     selected_job: Option<String>,
     job_scroll: usize,
     task_scroll: usize,
@@ -191,6 +212,7 @@ struct CapturedFrameMetadata {
     job_count: usize,
     task_count: usize,
     log_count: usize,
+    alert_count: usize,
     non_default_style_cells: usize,
     style_runs: Vec<FrameStyleRun>,
 }
@@ -228,10 +250,13 @@ enum InputCommand {
 struct AppModel {
     run_id: String,
     job_status: BTreeMap<String, String>,
+    job_titles: BTreeMap<String, String>,
     job_order: VecDeque<String>,
     task_status: BTreeMap<String, String>,
     task_order: VecDeque<String>,
     logs: VecDeque<String>,
+    alerts: VecDeque<AlertEntry>,
+    session: SessionState,
     selected_job: Option<String>,
     job_scroll: usize,
     task_scroll: usize,
@@ -261,10 +286,22 @@ impl AppModel {
         Self {
             run_id,
             job_status: BTreeMap::new(),
+            job_titles: BTreeMap::new(),
             job_order: VecDeque::new(),
             task_status: BTreeMap::new(),
             task_order: VecDeque::new(),
             logs: VecDeque::new(),
+            alerts: VecDeque::new(),
+            session: SessionState {
+                mode: "supervised".to_string(),
+                source: "local-supervisor".to_string(),
+                scope: std::env::current_dir()
+                    .ok()
+                    .map(|value| value.display().to_string())
+                    .unwrap_or_else(|| ".".to_string()),
+                connection: "starting".to_string(),
+                note: "awaiting supervisor handshake".to_string(),
+            },
             selected_job: None,
             job_scroll: 0,
             task_scroll: 0,
@@ -294,17 +331,74 @@ impl AppModel {
         self.dirty = true;
     }
 
-    fn update_job_status(&mut self, job_id: &str, status: &str) {
+    fn push_alert(&mut self, level: &str, message: &str) {
+        if message.trim().is_empty() {
+            return;
+        }
+        if self.alerts.len() >= ALERT_RING_LIMIT {
+            self.alerts.pop_front();
+        }
+        self.alerts.push_back(AlertEntry {
+            level: level.to_string(),
+            message: message.to_string(),
+        });
+        self.dirty = true;
+    }
+
+    fn update_session_state(
+        &mut self,
+        mode: Option<&str>,
+        source: Option<&str>,
+        scope: Option<&str>,
+        connection: Option<&str>,
+        note: Option<&str>,
+    ) {
+        if let Some(value) = mode {
+            if !value.trim().is_empty() {
+                self.session.mode = value.trim().to_string();
+            }
+        }
+        if let Some(value) = source {
+            if !value.trim().is_empty() {
+                self.session.source = value.trim().to_string();
+            }
+        }
+        if let Some(value) = scope {
+            if !value.trim().is_empty() {
+                self.session.scope = value.trim().to_string();
+            }
+        }
+        if let Some(value) = connection {
+            if !value.trim().is_empty() {
+                self.session.connection = value.trim().to_string();
+            }
+        }
+        if let Some(value) = note {
+            if !value.trim().is_empty() {
+                self.session.note = value.trim().to_string();
+            }
+        }
+        self.dirty = true;
+    }
+
+    fn update_job_status(&mut self, job_id: &str, status: &str, title: Option<&str>) {
         if !self.job_status.contains_key(job_id) {
             self.job_order.push_back(job_id.to_string());
             while self.job_order.len() > JOB_RING_LIMIT {
                 if let Some(old) = self.job_order.pop_front() {
                     self.job_status.remove(&old);
+                    self.job_titles.remove(&old);
                 }
             }
         }
         self.job_status
             .insert(job_id.to_string(), status.to_string());
+        if let Some(next_title) = title {
+            if !next_title.trim().is_empty() {
+                self.job_titles
+                    .insert(job_id.to_string(), next_title.trim().to_string());
+            }
+        }
         self.selected_job = Some(job_id.to_string());
         self.dirty = true;
     }
@@ -553,16 +647,90 @@ fn tail_window(items: &VecDeque<String>, scroll: usize, height: usize) -> Vec<St
 fn frame_signature(model: &AppModel) -> String {
     let last_log = model.logs.back().cloned().unwrap_or_default();
     let selected = model.selected_job.clone().unwrap_or_default();
+    let last_alert = model
+        .alerts
+        .back()
+        .map(|alert| format!("{}:{}", alert.level, alert.message))
+        .unwrap_or_default();
     format!(
-        "{}|{}|{}|{}|{}|{}|{}",
+        "{}|{}|{}|{}|{}|{}|{}|{}|{}",
         model.run_id,
         model.job_status.len(),
         model.task_status.len(),
         model.logs.len(),
         selected,
         model.job_scroll,
-        last_log
+        last_log,
+        model.session.mode,
+        last_alert
     )
+}
+
+fn job_status_counts(model: &AppModel) -> (usize, usize, usize) {
+    let mut running = 0usize;
+    let mut failed = 0usize;
+    let mut done = 0usize;
+    for status in model.job_status.values() {
+        if status.contains("failed") {
+            failed += 1;
+        } else if status.contains("done") {
+            done += 1;
+        } else {
+            running += 1;
+        }
+    }
+    (running, failed, done)
+}
+
+fn task_status_counts(model: &AppModel) -> (usize, usize) {
+    let mut active = 0usize;
+    let mut failed = 0usize;
+    for status in model.task_status.values() {
+        if status.contains("failed") {
+            failed += 1;
+        } else if !status.contains("done") {
+            active += 1;
+        }
+    }
+    (active, failed)
+}
+
+fn jobs_empty_reason(model: &AppModel) -> String {
+    if !model.job_status.is_empty() {
+        return "(jobs available)".to_string();
+    }
+    match model.session.mode.as_str() {
+        "replay" => "(replay session without derived jobs)".to_string(),
+        "external-observability" => "(external stream without derived jobs)".to_string(),
+        _ => {
+            if model.telemetry.processed_events == 0 && model.logs.is_empty() {
+                "(waiting for supervised jobs)".to_string()
+            } else {
+                "(no supervised jobs yet)".to_string()
+            }
+        }
+    }
+}
+
+fn tasks_empty_reason(model: &AppModel) -> String {
+    if let Some(job_id) = model.selected_job.as_ref() {
+        return format!("(no tasks recorded for {job_id})");
+    }
+    if !model.job_status.is_empty() {
+        return "(no job selected yet)".to_string();
+    }
+    match model.session.mode.as_str() {
+        "replay" => "(replay session without derived tasks)".to_string(),
+        "external-observability" => "(external stream without derived tasks)".to_string(),
+        _ => "(waiting for supervised tasks)".to_string(),
+    }
+}
+
+fn last_alert_summary(model: &AppModel) -> String {
+    match model.alerts.back() {
+        Some(alert) => format!("{} {}", alert.level, alert.message),
+        None => "none".to_string(),
+    }
 }
 
 fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
@@ -571,9 +739,23 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         .constraints([
             Constraint::Length(3),
             Constraint::Length(3),
+            Constraint::Length(3),
             Constraint::Min(1),
         ])
         .split(frame.area());
+
+    let session_summary = format!(
+        "mode={} source={} connection={} run={} scope={} alert={}",
+        model.session.mode,
+        model.session.source,
+        model.session.connection,
+        model.run_id,
+        model.session.scope,
+        last_alert_summary(model)
+    );
+    let session_block = Paragraph::new(session_summary)
+        .block(Block::default().borders(Borders::ALL).title("Session"));
+    frame.render_widget(session_block, rows[0]);
 
     let controls = if model.terminal_caps.unicode {
         "PairOfCleats TUI - [r] run  [c] cancel  [q] quit  [j/k] logs  [n/m] jobs  [u/i] tasks"
@@ -582,21 +764,27 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
     };
     let control_block =
         Paragraph::new(controls).block(Block::default().borders(Borders::ALL).title("Controls"));
-    frame.render_widget(control_block, rows[0]);
+    frame.render_widget(control_block, rows[1]);
+
+    let (running_jobs, failed_jobs, done_jobs) = job_status_counts(model);
+    let (active_tasks, failed_tasks) = task_status_counts(model);
 
     let metrics = format!(
-        "run={} events={} lag~{:.1}ms render~{:.1}ms q~{:.1} chunked={} droppedChunks={}",
-        model.run_id,
+        "events={} lag~{:.1}ms render~{:.1}ms q~{:.1} jobs r/f/d={}/{}/{} tasks a/f={}/{} note={}",
         model.telemetry.processed_events,
         model.telemetry.event_lag_ms_ewma,
         model.telemetry.render_ms_ewma,
         model.telemetry.queue_depth_ewma,
-        model.telemetry.chunk_reassembled,
-        model.telemetry.dropped_chunks
+        running_jobs,
+        failed_jobs,
+        done_jobs,
+        active_tasks,
+        failed_tasks,
+        model.session.note
     );
     let metrics_block =
         Paragraph::new(metrics).block(Block::default().borders(Borders::ALL).title("Runtime"));
-    frame.render_widget(metrics_block, rows[1]);
+    frame.render_widget(metrics_block, rows[2]);
 
     let cols = Layout::default()
         .direction(Direction::Horizontal)
@@ -605,7 +793,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             Constraint::Percentage(28),
             Constraint::Percentage(44),
         ])
-        .split(rows[2]);
+        .split(rows[3]);
 
     let mut job_rows: Vec<String> = model
         .job_status
@@ -613,7 +801,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         .map(|(job_id, status)| format!("{job_id}  {status}"))
         .collect();
     if job_rows.is_empty() {
-        job_rows.push("(no jobs)".to_string());
+        job_rows.push(jobs_empty_reason(model));
     }
     let visible_jobs = list_window(
         &job_rows,
@@ -636,7 +824,17 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             } else {
                 Style::default().fg(Color::Gray)
             };
-            ListItem::new(row).style(style)
+            let title = model
+                .job_titles
+                .get(row.split("  ").next().unwrap_or_default())
+                .cloned()
+                .unwrap_or_default();
+            let rendered = if title.is_empty() {
+                row
+            } else {
+                format!("{row}  {title}")
+            };
+            ListItem::new(rendered).style(style)
         })
         .collect();
     let jobs = List::new(job_items).block(Block::default().borders(Borders::ALL).title("Jobs"));
@@ -655,7 +853,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         })
         .collect();
     if task_rows.is_empty() {
-        task_rows.push("(no tasks)".to_string());
+        task_rows.push(tasks_empty_reason(model));
     }
     let visible_tasks = list_window(
         &task_rows,
@@ -808,6 +1006,11 @@ fn capture_frame(
         color: model.terminal_caps.color,
         unicode: model.terminal_caps.unicode,
         run_id: model.run_id.clone(),
+        session_mode: model.session.mode.clone(),
+        session_source: model.session.source.clone(),
+        session_scope: model.session.scope.clone(),
+        session_connection: model.session.connection.clone(),
+        session_note: model.session.note.clone(),
         selected_job: model.selected_job.clone(),
         job_scroll: model.job_scroll,
         task_scroll: model.task_scroll,
@@ -815,6 +1018,7 @@ fn capture_frame(
         job_count: model.job_status.len(),
         task_count: model.task_status.len(),
         log_count: model.logs.len(),
+        alert_count: model.alerts.len(),
         non_default_style_cells,
         style_runs,
     };
@@ -1064,6 +1268,24 @@ fn handle_chunk_event(model: &mut AppModel, event: &Value) -> Option<Value> {
     }
 }
 
+fn apply_session_descriptor(model: &mut AppModel, event: &Value) {
+    let mode = event
+        .get("mode")
+        .or_else(|| event.get("sessionMode"))
+        .and_then(|value| value.as_str());
+    let source = event
+        .get("source")
+        .or_else(|| event.get("attachmentSource"))
+        .and_then(|value| value.as_str());
+    let scope = event.get("scope").and_then(|value| value.as_str());
+    let connection = event
+        .get("connection")
+        .or_else(|| event.get("connectionState"))
+        .and_then(|value| value.as_str());
+    let note = event.get("note").and_then(|value| value.as_str());
+    model.update_session_state(mode, source, scope, connection, note);
+}
+
 fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) {
     let event_name = event
         .get("event")
@@ -1089,15 +1311,35 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
     if let Some(run_id) = event.get("runId").and_then(|value| value.as_str()) {
         model.run_id = run_id.to_string();
     }
+    if event_name == "hello" {
+        if let Some(session) = event.get("session") {
+            apply_session_descriptor(model, session);
+        } else {
+            model.update_session_state(
+                Some("supervised"),
+                Some("local-supervisor"),
+                None,
+                Some("connected"),
+                Some("supervisor handshake complete"),
+            );
+        }
+    }
+    if event_name == "session:attach" {
+        apply_session_descriptor(model, &event);
+    }
     if let Some(job_id) = event.get("jobId").and_then(|value| value.as_str()) {
         if event_name == "job:start" || event_name == "job:spawn" {
-            model.update_job_status(job_id, "running");
+            let title = event.get("title").and_then(|value| value.as_str());
+            model.update_job_status(job_id, "running", title);
         } else if event_name == "job:end" {
             let status = event
                 .get("status")
                 .and_then(|value| value.as_str())
                 .unwrap_or("unknown");
-            model.update_job_status(job_id, status);
+            model.update_job_status(job_id, status, None);
+            if status == "failed" || status == "cancelled" {
+                model.push_alert(status, &format!("job {job_id} {status}"));
+            }
         } else if event_name == "task:start"
             || event_name == "task:progress"
             || event_name == "task:end"
@@ -1128,6 +1370,13 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
             model.telemetry.queue_depth_ewma =
                 RuntimeTelemetry::update_ewma(model.telemetry.queue_depth_ewma, queue_depth);
         }
+        model.update_session_state(
+            None,
+            None,
+            None,
+            Some("streaming"),
+            Some("receiving runtime metrics"),
+        );
     }
 
     let log_line = if event_name == "log" {
@@ -1135,6 +1384,11 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
             .get("message")
             .and_then(|value| value.as_str())
             .unwrap_or("(empty log)");
+        if let Some(level) = event.get("level").and_then(|value| value.as_str()) {
+            if level == "warn" || level == "error" {
+                model.push_alert(level, msg);
+            }
+        }
         msg.to_string()
     } else {
         format!("event={event_name} {event}")

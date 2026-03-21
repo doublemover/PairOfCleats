@@ -26,6 +26,14 @@ Runtime controls:
 - `[n]/[m]` job viewport scroll
 - `[u]/[i]` task viewport scroll
 
+The live UI now exposes an explicit session header so operators can tell:
+
+- attachment mode (`supervised`, `replay`, `external-observability`)
+- source (`local-supervisor`, `event-log`, `passive-stream`)
+- connection state
+- run id and current scope
+- last durable alert
+
 ## Install layout
 
 Default install root is repo-local:

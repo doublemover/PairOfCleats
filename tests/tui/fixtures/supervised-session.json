@@ -21,6 +21,17 @@
   ],
   "steps": [
     {
+      "event": {
+        "event": "session:attach",
+        "runId": "fixture-supervised",
+        "mode": "supervised",
+        "source": "local-supervisor",
+        "scope": "repo:fixtures/supervised",
+        "connection": "connected",
+        "note": "supervisor ready"
+      }
+    },
+    {
       "capture_id": "startup"
     },
     {

@@ -15,6 +15,17 @@
   "steps": [
     {
       "event": {
+        "event": "session:attach",
+        "runId": "fixture-observability",
+        "mode": "external-observability",
+        "source": "passive-stream",
+        "scope": "bench-language:shared-log",
+        "connection": "passive",
+        "note": "stream attached without derived jobs"
+      }
+    },
+    {
+      "event": {
         "event": "log",
         "runId": "fixture-observability",
         "message": "attached to external observability stream"
