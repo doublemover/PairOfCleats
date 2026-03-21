@@ -9,6 +9,12 @@ export const CROSS_FILE_CACHE_SCHEMA_VERSION = 1;
 export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference';
 export const DEFAULT_CROSS_FILE_CACHE_MAX_BYTES = 8 * 1024 * 1024;
 export const DEFAULT_CROSS_FILE_CACHE_READ_MAX_BYTES = 12 * 1024 * 1024;
+const CROSS_FILE_CACHE_ROW_VALUE_PRIORITY = Object.freeze({
+  'relations+docmeta': 3,
+  'relations-only': 2,
+  'docmeta-only': 1,
+  empty: 0
+});
 
 const compareStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -65,6 +71,65 @@ const normalizeCacheStats = (cacheStats) => ({
   bundleSizing: cacheStats?.bundleSizing || null,
   inferenceLiteEnabled: cacheStats?.inferenceLiteEnabled === true
 });
+
+const classifyCrossFileCacheRow = (row) => {
+  const hasRelations = row?.codeRelations && typeof row.codeRelations === 'object';
+  const hasDocmeta = row?.docmeta && typeof row.docmeta === 'object';
+  if (hasRelations && hasDocmeta) return 'relations+docmeta';
+  if (hasRelations) return 'relations-only';
+  if (hasDocmeta) return 'docmeta-only';
+  return 'empty';
+};
+
+const buildAdmissionBreakdown = (entries = []) => {
+  const counts = Object.create(null);
+  const bytes = Object.create(null);
+  for (const entry of entries) {
+    const rowClass = classifyCrossFileCacheRow(entry?.row);
+    counts[rowClass] = (counts[rowClass] || 0) + 1;
+    bytes[rowClass] = (bytes[rowClass] || 0) + Math.max(0, Math.floor(Number(entry?.rowBytes) || 0));
+  }
+  return {
+    counts,
+    bytes
+  };
+};
+
+const selectCrossFileCacheRowsForAdmission = ({
+  rowEntries,
+  baseBytes,
+  maxBytes
+}) => {
+  const ranked = [...rowEntries].sort((left, right) => {
+    const leftClass = classifyCrossFileCacheRow(left?.row);
+    const rightClass = classifyCrossFileCacheRow(right?.row);
+    const priorityDelta = (CROSS_FILE_CACHE_ROW_VALUE_PRIORITY[rightClass] || 0)
+      - (CROSS_FILE_CACHE_ROW_VALUE_PRIORITY[leftClass] || 0);
+    if (priorityDelta !== 0) return priorityDelta;
+    const byteDelta = Math.max(0, Math.floor(Number(left?.rowBytes) || 0))
+      - Math.max(0, Math.floor(Number(right?.rowBytes) || 0));
+    if (byteDelta !== 0) return byteDelta;
+    return compareStrings(String(left?.row?.id || ''), String(right?.row?.id || ''));
+  });
+  const retained = [];
+  const dropped = [];
+  let estimatedBytes = Math.max(0, Math.floor(Number(baseBytes) || 0));
+  for (const entry of ranked) {
+    const rowBytes = Math.max(0, Math.floor(Number(entry?.rowBytes) || 0));
+    const rowOverhead = retained.length ? 1 : 0;
+    if (maxBytes > 0 && (estimatedBytes + rowOverhead + rowBytes) > maxBytes) {
+      dropped.push(entry);
+      continue;
+    }
+    retained.push(entry);
+    estimatedBytes += rowOverhead + rowBytes;
+  }
+  return {
+    retained: retained.sort((left, right) => (Number(left?.index) || 0) - (Number(right?.index) || 0)),
+    dropped,
+    estimatedBytes
+  };
+};
 
 const applyCachedCrossFileOutput = ({ chunks, cacheRows }) => {
   if (!Array.isArray(cacheRows) || !cacheRows.length) return false;
@@ -204,6 +269,9 @@ export const readCrossFileInferenceCache = async ({
     const cacheStats = cached?.stats && typeof cached.stats === 'object'
       ? cached.stats
       : null;
+    const admission = cached?.admission && typeof cached.admission === 'object'
+      ? cached.admission
+      : null;
     if (
       Number(cached?.schemaVersion) === CROSS_FILE_CACHE_SCHEMA_VERSION
       && typeof cached?.fingerprint === 'string'
@@ -216,7 +284,12 @@ export const readCrossFileInferenceCache = async ({
       });
       if (applied) {
         if (typeof log === 'function') {
-          log(`[perf] cross-file cache hit: restored ${cached.rows.length} chunk updates.`);
+          const droppedRows = Math.max(0, Math.floor(Number(admission?.droppedRows) || 0));
+          log(
+            droppedRows > 0
+              ? `[perf] cross-file cache hit: restored ${cached.rows.length} chunk updates (partial, dropped=${droppedRows}).`
+              : `[perf] cross-file cache hit: restored ${cached.rows.length} chunk updates.`
+          );
         }
         return normalizeCacheStats(cacheStats);
       }
@@ -262,14 +335,15 @@ export const writeCrossFileInferenceCache = async ({
     const generatedAt = new Date().toISOString();
     const normalizedStats = normalizeCacheStats(stats);
     const cacheMaxBytes = normalizeCacheMaxBytes(maxBytes);
-    let estimatedBytes = Buffer.byteLength(JSON.stringify({
+    const baseBytes = Buffer.byteLength(JSON.stringify({
       schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
       generatedAt,
       fingerprint: crossFileFingerprint,
       stats: normalizedStats,
+      admission: null,
       rows: []
     }), 'utf8');
-    const rows = [];
+    const rowEntries = [];
     for (let index = 0; index < chunks.length; index += 1) {
       const chunk = chunks[index];
       const row = {
@@ -283,17 +357,44 @@ export const writeCrossFileInferenceCache = async ({
       };
       const rowJson = JSON.stringify(row);
       const rowBytes = Buffer.byteLength(rowJson, 'utf8');
-      const rowOverhead = rows.length ? 1 : 0;
-      if (cacheMaxBytes > 0 && (estimatedBytes + rowOverhead + rowBytes) > cacheMaxBytes) {
-        if (typeof log === 'function') {
-          log(
-            `[perf] cross-file cache write skipped: projected size ${estimatedBytes + rowOverhead + rowBytes} bytes exceeds max ${cacheMaxBytes} bytes.`
-          );
-        }
-        return;
+      rowEntries.push({ index, row, rowBytes });
+    }
+    const admissionSelection = selectCrossFileCacheRowsForAdmission({
+      rowEntries,
+      baseBytes,
+      maxBytes: cacheMaxBytes
+    });
+    const rows = admissionSelection.retained.map((entry) => entry.row);
+    if (!rows.length && rowEntries.length > 0) {
+      if (typeof log === 'function') {
+        log(
+          `[perf] cross-file cache write skipped: no cache rows fit within max ${cacheMaxBytes} bytes.`
+        );
       }
-      rows.push(row);
-      estimatedBytes += rowOverhead + rowBytes;
+      return;
+    }
+    const retainedBreakdown = buildAdmissionBreakdown(admissionSelection.retained);
+    const droppedBreakdown = buildAdmissionBreakdown(admissionSelection.dropped);
+    const admission = {
+      mode: admissionSelection.dropped.length > 0 ? 'value-ranked-partial' : 'full',
+      maxBytes: cacheMaxBytes,
+      retainedRows: rows.length,
+      droppedRows: admissionSelection.dropped.length,
+      retainedBytes: admissionSelection.estimatedBytes,
+      estimatedFullBytes: baseBytes
+        + rowEntries.reduce((sum, entry, index) => (
+          sum + Math.max(0, Math.floor(Number(entry?.rowBytes) || 0)) + (index > 0 ? 1 : 0)
+        ), 0),
+      breakdown: {
+        retained: retainedBreakdown,
+        dropped: droppedBreakdown
+      }
+    };
+    if (typeof log === 'function' && admissionSelection.dropped.length > 0) {
+      log(
+        `[perf] cross-file cache write truncated: retained ${rows.length}/${rowEntries.length} rows `
+        + `within ${cacheMaxBytes} bytes (dropped=${admissionSelection.dropped.length}).`
+      );
     }
     await writeJsonObjectFile(cachePath, {
       trailingNewline: false,
@@ -301,7 +402,8 @@ export const writeCrossFileInferenceCache = async ({
         schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
         generatedAt,
         fingerprint: crossFileFingerprint,
-        stats: normalizedStats
+        stats: normalizedStats,
+        admission
       },
       arrays: { rows },
       atomic: true
