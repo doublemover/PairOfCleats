@@ -46,11 +46,18 @@ Presentation behavior:
 
 - narrow terminals stack jobs, tasks, and logs vertically instead of squeezing three unreadable columns
 - runtime events are summarized into operator-facing text instead of raw JSON by default
+- workload-specific summaries sit above the main panes so bench, indexing, and service sessions show the active repo, stage/queue state, and degraded conditions without log-reading first
 - logs wrap/truncate to pane width, while job/task rows use concise status summaries
 - no-color mode remains readable without relying on decorative styling
 - filters and search operate on the focused panel so operators can isolate failures, active work, or specific provider text quickly
 - follow mode can be paused so active sessions stop stealing focus while you inspect a failed job or log line
 - the action palette and help overlay expose the available controls without leaving the terminal
+
+Workload summaries:
+
+- `Bench` sessions surface active repo, tier/lane, degraded providers, retained crash count, import/quality pressure, and the latest stall/timeout hints when available
+- `Indexing` sessions surface repo, stage, mode, sqlite/validation/promotion state, heartbeat freshness, and artifact-write progress when available
+- `Service` sessions surface service name, queue depth, active jobs/workers, retries, quarantine state, and shutdown posture when available
 
 ## Install layout
 

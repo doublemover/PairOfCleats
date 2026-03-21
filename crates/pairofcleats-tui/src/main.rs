@@ -277,6 +277,61 @@ enum OverlayMode {
     Search,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WorkloadKind {
+    Generic,
+    Bench,
+    Indexing,
+    Service,
+}
+
+impl WorkloadKind {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Generic => "Workload",
+            Self::Bench => "Bench",
+            Self::Indexing => "Indexing",
+            Self::Service => "Service",
+        }
+    }
+}
+
+#[derive(Default)]
+struct BenchSummary {
+    lane: String,
+    tier: String,
+    active_repo: String,
+    degraded_providers: Vec<String>,
+    retained_crash_count: u64,
+    unresolved_import_count: u64,
+    quality_signals: Vec<String>,
+    artifact_stall: String,
+    timeout_state: String,
+}
+
+#[derive(Default)]
+struct IndexingSummary {
+    repo: String,
+    stage: String,
+    mode: String,
+    heartbeat_age_ms: Option<u64>,
+    artifact_write_progress: String,
+    sqlite_state: String,
+    validation_state: String,
+    promotion_state: String,
+}
+
+#[derive(Default)]
+struct ServiceSummary {
+    service: String,
+    active_workers: Option<u64>,
+    active_jobs: Option<u64>,
+    retry_count: u64,
+    quarantine_state: String,
+    shutdown_state: String,
+    queue_depth: Option<u64>,
+}
+
 #[derive(Clone, Copy)]
 enum PaletteAction {
     ToggleFollow,
@@ -465,6 +520,10 @@ struct AppModel {
     search_target: FocusPanel,
     search_draft: String,
     palette_index: usize,
+    workload_kind: WorkloadKind,
+    bench_summary: BenchSummary,
+    indexing_summary: IndexingSummary,
+    service_summary: ServiceSummary,
     job_scroll: usize,
     task_scroll: usize,
     log_scroll: usize,
@@ -523,6 +582,10 @@ impl AppModel {
             search_target: FocusPanel::Jobs,
             search_draft: String::new(),
             palette_index: 0,
+            workload_kind: WorkloadKind::Generic,
+            bench_summary: BenchSummary::default(),
+            indexing_summary: IndexingSummary::default(),
+            service_summary: ServiceSummary::default(),
             job_scroll: 0,
             task_scroll: 0,
             log_scroll: 0,
@@ -661,6 +724,21 @@ impl AppModel {
         }
         self.task_status.insert(key, text);
         self.dirty = true;
+    }
+
+    fn promote_workload_kind(&mut self, next_kind: WorkloadKind) {
+        if self.workload_kind == next_kind {
+            return;
+        }
+        if self.workload_kind == WorkloadKind::Generic {
+            self.workload_kind = next_kind;
+            self.dirty = true;
+            return;
+        }
+        if next_kind != WorkloadKind::Generic {
+            self.workload_kind = next_kind;
+            self.dirty = true;
+        }
     }
 }
 
@@ -1167,6 +1245,304 @@ fn session_summary_text(model: &AppModel, width: usize) -> String {
     fit_text(&parts.join(" | "), width)
 }
 
+fn push_unique_summary(values: &mut Vec<String>, value: &str) {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || values.iter().any(|entry| entry == trimmed) {
+        return;
+    }
+    values.push(trimmed.to_string());
+}
+
+fn update_workload_from_scope(model: &mut AppModel) {
+    let scope = model.session.scope.trim().to_string();
+    if let Some((lane, tier)) = scope.split_once(':') {
+        if lane == "bench-language" {
+            model.promote_workload_kind(WorkloadKind::Bench);
+            if model.bench_summary.lane.is_empty() {
+                model.bench_summary.lane = lane.to_string();
+            }
+            if model.bench_summary.tier.is_empty() {
+                model.bench_summary.tier = tier.to_string();
+            }
+            return;
+        }
+        if lane == "service" {
+            model.promote_workload_kind(WorkloadKind::Service);
+            if model.service_summary.service.is_empty() {
+                model.service_summary.service = tier.to_string();
+            }
+            return;
+        }
+        if lane == "repo" {
+            model.promote_workload_kind(WorkloadKind::Indexing);
+            if model.indexing_summary.repo.is_empty() {
+                model.indexing_summary.repo = tier.to_string();
+            }
+        }
+    }
+}
+
+fn apply_workload_descriptor(model: &mut AppModel, event: &Value) {
+    let Some(workload) = event.get("workload").and_then(|value| value.as_object()) else {
+        return;
+    };
+    match workload
+        .get("kind")
+        .and_then(|value| value.as_str())
+        .unwrap_or("")
+    {
+        "bench" => {
+            model.promote_workload_kind(WorkloadKind::Bench);
+            if let Some(value) = workload.get("lane").and_then(|value| value.as_str()) {
+                model.bench_summary.lane = value.trim().to_string();
+            }
+            if let Some(value) = workload.get("tier").and_then(|value| value.as_str()) {
+                model.bench_summary.tier = value.trim().to_string();
+            }
+            if let Some(value) = workload
+                .get("activeRepo")
+                .or_else(|| workload.get("repo"))
+                .and_then(|value| value.as_str())
+            {
+                model.bench_summary.active_repo = value.trim().to_string();
+            }
+            if let Some(values) = workload
+                .get("degradedProviders")
+                .and_then(|value| value.as_array())
+            {
+                for value in values.iter().filter_map(|entry| entry.as_str()) {
+                    push_unique_summary(&mut model.bench_summary.degraded_providers, value);
+                }
+            }
+            if let Some(value) = workload
+                .get("retainedCrashCount")
+                .and_then(|value| value.as_u64())
+            {
+                model.bench_summary.retained_crash_count = value;
+            }
+            if let Some(value) = workload
+                .get("unresolvedImportCount")
+                .and_then(|value| value.as_u64())
+            {
+                model.bench_summary.unresolved_import_count = value;
+            }
+            if let Some(values) = workload
+                .get("qualitySignals")
+                .and_then(|value| value.as_array())
+            {
+                for value in values.iter().filter_map(|entry| entry.as_str()) {
+                    push_unique_summary(&mut model.bench_summary.quality_signals, value);
+                }
+            }
+            if let Some(value) = workload
+                .get("artifactStall")
+                .or_else(|| workload.get("currentArtifactStall"))
+                .and_then(|value| value.as_str())
+            {
+                model.bench_summary.artifact_stall = value.trim().to_string();
+            }
+            if let Some(value) = workload
+                .get("timeoutState")
+                .or_else(|| workload.get("timeout"))
+                .and_then(|value| value.as_str())
+            {
+                model.bench_summary.timeout_state = value.trim().to_string();
+            }
+        }
+        "indexing" => {
+            model.promote_workload_kind(WorkloadKind::Indexing);
+            if let Some(value) = workload.get("repo").and_then(|value| value.as_str()) {
+                model.indexing_summary.repo = value.trim().to_string();
+            }
+            if let Some(value) = workload.get("stage").and_then(|value| value.as_str()) {
+                model.indexing_summary.stage = value.trim().to_string();
+            }
+            if let Some(value) = workload.get("mode").and_then(|value| value.as_str()) {
+                model.indexing_summary.mode = value.trim().to_string();
+            }
+            if let Some(value) = workload
+                .get("heartbeatAgeMs")
+                .and_then(|value| value.as_u64())
+            {
+                model.indexing_summary.heartbeat_age_ms = Some(value);
+            }
+            if let Some(value) = workload
+                .get("artifactWriteProgress")
+                .and_then(|value| value.as_str())
+            {
+                model.indexing_summary.artifact_write_progress = value.trim().to_string();
+            }
+            if let Some(value) = workload.get("sqliteState").and_then(|value| value.as_str()) {
+                model.indexing_summary.sqlite_state = value.trim().to_string();
+            }
+            if let Some(value) = workload
+                .get("validationState")
+                .and_then(|value| value.as_str())
+            {
+                model.indexing_summary.validation_state = value.trim().to_string();
+            }
+            if let Some(value) = workload
+                .get("promotionState")
+                .and_then(|value| value.as_str())
+            {
+                model.indexing_summary.promotion_state = value.trim().to_string();
+            }
+        }
+        "service" => {
+            model.promote_workload_kind(WorkloadKind::Service);
+            if let Some(value) = workload
+                .get("service")
+                .or_else(|| workload.get("name"))
+                .and_then(|value| value.as_str())
+            {
+                model.service_summary.service = value.trim().to_string();
+            }
+            if let Some(value) = workload
+                .get("activeWorkers")
+                .and_then(|value| value.as_u64())
+            {
+                model.service_summary.active_workers = Some(value);
+            }
+            if let Some(value) = workload.get("activeJobs").and_then(|value| value.as_u64()) {
+                model.service_summary.active_jobs = Some(value);
+            }
+            if let Some(value) = workload.get("retryCount").and_then(|value| value.as_u64()) {
+                model.service_summary.retry_count = value;
+            }
+            if let Some(value) = workload
+                .get("quarantineState")
+                .and_then(|value| value.as_str())
+            {
+                model.service_summary.quarantine_state = value.trim().to_string();
+            }
+            if let Some(value) = workload
+                .get("shutdownState")
+                .and_then(|value| value.as_str())
+            {
+                model.service_summary.shutdown_state = value.trim().to_string();
+            }
+            if let Some(value) = workload.get("queueDepth").and_then(|value| value.as_u64()) {
+                model.service_summary.queue_depth = Some(value);
+            }
+        }
+        _ => {}
+    }
+    model.dirty = true;
+}
+
+fn workload_summary_text(model: &AppModel, width: usize) -> String {
+    let mut parts = Vec::new();
+    match model.workload_kind {
+        WorkloadKind::Bench => {
+            if !model.bench_summary.active_repo.is_empty() {
+                parts.push(format!("repo {}", model.bench_summary.active_repo));
+            }
+            if !model.bench_summary.tier.is_empty() {
+                parts.push(format!("tier {}", model.bench_summary.tier));
+            }
+            if !model.bench_summary.lane.is_empty() {
+                parts.push(format!("lane {}", model.bench_summary.lane));
+            }
+            if !model.bench_summary.degraded_providers.is_empty() {
+                parts.push(format!(
+                    "degraded {}",
+                    model.bench_summary.degraded_providers.join(",")
+                ));
+            }
+            if !model.bench_summary.artifact_stall.is_empty() {
+                parts.push(format!("stall {}", model.bench_summary.artifact_stall));
+            }
+            if !model.bench_summary.timeout_state.is_empty() {
+                parts.push(format!("timeout {}", model.bench_summary.timeout_state));
+            }
+            if model.bench_summary.retained_crash_count > 0 {
+                parts.push(format!(
+                    "crashes {}",
+                    model.bench_summary.retained_crash_count
+                ));
+            }
+            if model.bench_summary.unresolved_import_count > 0 {
+                parts.push(format!(
+                    "imports {}",
+                    model.bench_summary.unresolved_import_count
+                ));
+            }
+            if !model.bench_summary.quality_signals.is_empty() {
+                parts.push(format!(
+                    "quality {}",
+                    model.bench_summary.quality_signals.join(",")
+                ));
+            }
+        }
+        WorkloadKind::Indexing => {
+            if !model.indexing_summary.repo.is_empty() {
+                parts.push(format!("repo {}", model.indexing_summary.repo));
+            }
+            if !model.indexing_summary.stage.is_empty() {
+                parts.push(format!("stage {}", model.indexing_summary.stage));
+            }
+            if !model.indexing_summary.mode.is_empty() {
+                parts.push(format!("mode {}", model.indexing_summary.mode));
+            }
+            if !model.indexing_summary.sqlite_state.is_empty() {
+                parts.push(format!("sqlite {}", model.indexing_summary.sqlite_state));
+            }
+            if !model.indexing_summary.validation_state.is_empty() {
+                parts.push(format!(
+                    "validate {}",
+                    model.indexing_summary.validation_state
+                ));
+            }
+            if !model.indexing_summary.promotion_state.is_empty() {
+                parts.push(format!(
+                    "promote {}",
+                    model.indexing_summary.promotion_state
+                ));
+            }
+            if let Some(value) = model.indexing_summary.heartbeat_age_ms {
+                parts.push(format!("heartbeat {}ms", value));
+            }
+            if !model.indexing_summary.artifact_write_progress.is_empty() {
+                parts.push(format!(
+                    "artifacts {}",
+                    model.indexing_summary.artifact_write_progress
+                ));
+            }
+        }
+        WorkloadKind::Service => {
+            if !model.service_summary.service.is_empty() {
+                parts.push(format!("service {}", model.service_summary.service));
+            }
+            if let Some(value) = model.service_summary.active_workers {
+                parts.push(format!("workers {}", value));
+            }
+            if let Some(value) = model.service_summary.active_jobs {
+                parts.push(format!("jobs {}", value));
+            }
+            if let Some(value) = model.service_summary.queue_depth {
+                parts.push(format!("queue {}", value));
+            }
+            if model.service_summary.retry_count > 0 {
+                parts.push(format!("retries {}", model.service_summary.retry_count));
+            }
+            if !model.service_summary.quarantine_state.is_empty() {
+                parts.push(format!(
+                    "quarantine {}",
+                    model.service_summary.quarantine_state
+                ));
+            }
+            if !model.service_summary.shutdown_state.is_empty() {
+                parts.push(format!("shutdown {}", model.service_summary.shutdown_state));
+            }
+        }
+        WorkloadKind::Generic => {}
+    }
+    if parts.is_empty() {
+        parts.push("no workload-specific summary yet".to_string());
+    }
+    fit_text(&parts.join(" | "), width)
+}
+
 fn operator_summary_text(model: &AppModel, width: usize) -> String {
     let mut parts = vec![
         format!("focus {}", model.focus_panel.label()),
@@ -1494,6 +1870,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             Constraint::Length(3),
             Constraint::Length(3),
             Constraint::Length(3),
+            Constraint::Length(3),
             Constraint::Min(1),
         ])
         .split(frame.area());
@@ -1513,12 +1890,21 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         .block(Block::default().borders(Borders::ALL).title("Runtime"));
     frame.render_widget(metrics_block, rows[2]);
 
+    let workload_block = Paragraph::new(workload_summary_text(model, session_width))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(model.workload_kind.label()),
+        );
+    frame.render_widget(workload_block, rows[3]);
+
     let footer_block = Paragraph::new(footer_hint_text(model, session_width))
         .wrap(Wrap { trim: true })
         .block(Block::default().borders(Borders::ALL).title("Hints"));
-    frame.render_widget(footer_block, rows[3]);
+    frame.render_widget(footer_block, rows[4]);
 
-    if rows[4].width < 100 {
+    if rows[5].width < 100 {
         let stacked = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -1526,7 +1912,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                 Constraint::Percentage(30),
                 Constraint::Percentage(40),
             ])
-            .split(rows[4]);
+            .split(rows[5]);
         let jobs_width = stacked[0].width.saturating_sub(2) as usize;
         let tasks_width = stacked[1].width.saturating_sub(2) as usize;
         let logs_width = stacked[2].width.saturating_sub(2) as usize;
@@ -1607,7 +1993,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                 Constraint::Percentage(28),
                 Constraint::Percentage(44),
             ])
-            .split(rows[4]);
+            .split(rows[5]);
 
         let jobs_width = cols[0].width.saturating_sub(2) as usize;
         let tasks_width = cols[1].width.saturating_sub(2) as usize;
@@ -2286,6 +2672,97 @@ fn apply_session_descriptor(model: &mut AppModel, event: &Value) {
         .and_then(|value| value.as_str());
     let note = event.get("note").and_then(|value| value.as_str());
     model.update_session_state(mode, source, scope, connection, note);
+    update_workload_from_scope(model);
+}
+
+fn apply_workload_fallbacks(
+    model: &mut AppModel,
+    event_name: &str,
+    event: &Value,
+    log_message: Option<&str>,
+) {
+    match model.workload_kind {
+        WorkloadKind::Bench => {
+            if event_name == "job:start" {
+                if let Some(title) = event.get("title").and_then(|value| value.as_str()) {
+                    if !title.trim().is_empty() {
+                        model.bench_summary.active_repo = title.trim().to_string();
+                    }
+                }
+            }
+            if let Some(message) = log_message {
+                if let Some((_, provider)) = message.split_once("provider degraded:") {
+                    let normalized = provider
+                        .trim()
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or("")
+                        .trim_matches(|ch: char| ch == ',' || ch == ':');
+                    if !normalized.is_empty() {
+                        push_unique_summary(
+                            &mut model.bench_summary.degraded_providers,
+                            normalized,
+                        );
+                    }
+                }
+            }
+        }
+        WorkloadKind::Indexing => {
+            if model.indexing_summary.repo.is_empty() && event_name == "job:start" {
+                if let Some(title) = event.get("title").and_then(|value| value.as_str()) {
+                    if !title.trim().is_empty() {
+                        model.indexing_summary.repo = title.trim().to_string();
+                    }
+                }
+            }
+            if event_name == "task:start"
+                || event_name == "task:progress"
+                || event_name == "task:end"
+            {
+                if let Some(value) = event.get("stage").and_then(|value| value.as_str()) {
+                    model.indexing_summary.stage = value.trim().to_string();
+                } else if let Some(value) = event.get("taskId").and_then(|value| value.as_str()) {
+                    model.indexing_summary.stage = value.trim().to_string();
+                }
+                if let Some(value) = event.get("mode").and_then(|value| value.as_str()) {
+                    model.indexing_summary.mode = value.trim().to_string();
+                }
+            }
+            if event_name == "job:artifacts" {
+                let count = event
+                    .get("artifacts")
+                    .and_then(|value| value.as_array())
+                    .map(|value| value.len())
+                    .unwrap_or(0);
+                if count > 0 {
+                    model.indexing_summary.artifact_write_progress =
+                        format!("{count} indexed roots");
+                }
+            }
+        }
+        WorkloadKind::Service => {
+            if let Some(queue_depth) = event
+                .get("flow")
+                .and_then(|value| value.get("queueDepth"))
+                .and_then(|value| value.as_u64())
+            {
+                if model.service_summary.queue_depth.is_none() {
+                    model.service_summary.queue_depth = Some(queue_depth);
+                }
+            }
+            if event_name == "job:start" || event_name == "job:end" {
+                let active_jobs = model
+                    .job_status
+                    .values()
+                    .filter(|status| status.contains("running"))
+                    .count() as u64;
+                if model.service_summary.active_jobs.is_none() {
+                    model.service_summary.active_jobs = Some(active_jobs);
+                }
+            }
+        }
+        WorkloadKind::Generic => {}
+    }
 }
 
 fn summarize_protocol_event(event_name: &str, event: &Value) -> String {
@@ -2405,6 +2882,7 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
     if let Some(run_id) = event.get("runId").and_then(|value| value.as_str()) {
         model.run_id = run_id.to_string();
     }
+    apply_workload_descriptor(model, &event);
     if event_name == "hello" {
         if let Some(session) = event.get("session") {
             apply_session_descriptor(model, session);
@@ -2463,6 +2941,9 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
                 .unwrap_or(0) as f64;
             model.telemetry.queue_depth_ewma =
                 RuntimeTelemetry::update_ewma(model.telemetry.queue_depth_ewma, queue_depth);
+            if model.workload_kind == WorkloadKind::Service {
+                model.service_summary.queue_depth = Some(queue_depth as u64);
+            }
         }
         model.update_session_state(
             None,
@@ -2471,6 +2952,7 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
             Some("streaming"),
             Some("receiving runtime metrics"),
         );
+        apply_workload_fallbacks(model, &event_name, &event, None);
         return;
     }
 
@@ -2494,6 +2976,12 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
             event_name.clone(),
         )
     };
+    let fallback_log_message = if event_name == "log" {
+        Some(log_line.as_str())
+    } else {
+        None
+    };
+    apply_workload_fallbacks(model, &event_name, &event, fallback_log_message);
     model.push_log_entry(log_line, &log_level, &log_source);
 }
 

@@ -56,6 +56,7 @@ const startupFramePath = getCapturePaths(
 const startupFrame = readText(startupFramePath);
 assert.match(startupFrame, /Session/);
 assert.match(startupFrame, /Operator/);
+assert.match(startupFrame, /Workload|Indexing/);
 assert.match(startupFrame, /Hints/);
 assert.match(startupFrame, /Jobs/);
 assert.match(startupFrame, /mode supervised/);
@@ -88,6 +89,11 @@ const replayFrame = readText(
   getCapturePaths(replayManifest, 'degraded', 'medium-color').frame_path
 );
 assert.match(replayFrame, /mode replay/);
+assert.match(replayFrame, /Bench/);
+assert.match(replayFrame, /lane bench-language/);
+assert.match(replayFrame, /tier large/);
+assert.match(replayFrame, /degraded sourcekit/);
+assert.match(replayFrame, /stall fie/);
 assert.match(replayFrame, /sourcekit/);
 assert.match(replayFrame, /provider degraded/);
 assert.doesNotMatch(replayFrame, /\{\"event\"/);
@@ -159,5 +165,28 @@ const paletteFrame = readText(
 );
 assert.match(paletteFrame, /Actions/);
 assert.match(paletteFrame, /Toggle follow \/ pause/);
+
+const indexingManifest = readFixtureManifest('indexing-summary');
+const indexingFrame = readText(
+  getCapturePaths(indexingManifest, 'sqlite-active', 'medium-color').frame_path
+);
+assert.match(indexingFrame, /Indexing/);
+assert.match(indexingFrame, /repo fixtures\/indexing/);
+assert.match(indexingFrame, /stage sqlite/);
+assert.match(indexingFrame, /mode code/);
+assert.match(indexingFrame, /sqlite building sidecar/);
+
+const serviceManifest = readFixtureManifest('service-summary');
+const serviceFrame = readText(
+  getCapturePaths(serviceManifest, 'service-active', 'medium-color').frame_path
+);
+assert.match(serviceFrame, /Service/);
+assert.match(serviceFrame, /service indexer/);
+assert.match(serviceFrame, /workers 3/);
+assert.match(serviceFrame, /jobs 2/);
+assert.match(serviceFrame, /queue 7/);
+assert.match(serviceFrame, /retries 2/);
+assert.match(serviceFrame, /quarantine repo\/docs-42/);
+assert.match(serviceFrame, /shutdown a/);
 
 console.log('tui frame capture harness test passed');

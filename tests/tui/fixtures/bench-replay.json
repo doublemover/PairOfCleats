@@ -62,7 +62,19 @@
       "event": {
         "event": "log",
         "runId": "fixture-bench-replay",
-        "message": "provider degraded: sourcekit semantic tokens timeout"
+        "message": "provider degraded: sourcekit semantic tokens timeout",
+        "workload": {
+          "kind": "bench",
+          "lane": "bench-language",
+          "tier": "large",
+          "activeRepo": "swift/rxhanson/Rectangle",
+          "degradedProviders": ["sourcekit"],
+          "retainedCrashCount": 1,
+          "unresolvedImportCount": 3,
+          "qualitySignals": ["low-yield", "resolver-gap"],
+          "artifactStall": "field_postings.json",
+          "timeoutState": "semantic tokens timeout"
+        }
       }
     },
     {

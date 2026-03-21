@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "name": "indexing-summary",
+  "source_mode": "supervised",
+  "run_id": "fixture-indexing-summary",
+  "variants": [
+    {
+      "id": "medium-color",
+      "width": 100,
+      "height": 26,
+      "color": true,
+      "unicode": true
+    }
+  ],
+  "steps": [
+    {
+      "event": {
+        "event": "session:attach",
+        "runId": "fixture-indexing-summary",
+        "mode": "supervised",
+        "source": "local-supervisor",
+        "scope": "repo:fixtures/indexing",
+        "connection": "connected",
+        "note": "index build attached"
+      }
+    },
+    {
+      "event": {
+        "event": "job:start",
+        "runId": "fixture-indexing-summary",
+        "jobId": "job-index",
+        "title": "Index fixtures/indexing"
+      }
+    },
+    {
+      "event": {
+        "event": "task:progress",
+        "runId": "fixture-indexing-summary",
+        "jobId": "job-index",
+        "taskId": "sqlite",
+        "stage": "sqlite",
+        "mode": "code",
+        "status": "running",
+        "message": "building sqlite sidecar",
+        "workload": {
+          "kind": "indexing",
+          "repo": "fixtures/indexing",
+          "stage": "sqlite",
+          "mode": "code",
+          "heartbeatAgeMs": 1200,
+          "artifactWriteProgress": "7/12 families",
+          "sqliteState": "building sidecar",
+          "validationState": "queued",
+          "promotionState": "pending"
+        }
+      }
+    },
+    {
+      "capture_id": "sqlite-active"
+    }
+  ]
+}
