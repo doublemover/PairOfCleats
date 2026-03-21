@@ -1,60 +1,6 @@
 {
-  "generatedAt": "2026-03-21T15:44:53.837Z",
+  "generatedAt": "2026-03-21T15:55:45.279Z",
   "scripts": [
-    {
-      "name": "api-server",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats service api"
-    },
-    {
-      "name": "bench-dict-seg",
-      "category": "bench",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "bench-embedding-models",
-      "category": "bench",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "bench-language",
-      "category": "bench",
-      "ciAllowed": false,
-      "replacement": "pairofcleats bench language"
-    },
-    {
-      "name": "bench-language:matrix",
-      "category": "bench",
-      "ciAllowed": false,
-      "replacement": "pairofcleats bench matrix"
-    },
-    {
-      "name": "bench-language:summarize",
-      "category": "bench",
-      "ciAllowed": false,
-      "replacement": "pairofcleats bench summarize"
-    },
-    {
-      "name": "bench-micro",
-      "category": "bench",
-      "ciAllowed": false,
-      "replacement": "pairofcleats bench micro"
-    },
-    {
-      "name": "bench-micro:tiny",
-      "category": "bench",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "bench-queries",
-      "category": "bench",
-      "ciAllowed": false,
-      "replacement": null
-    },
     {
       "name": "bootstrap",
       "category": "tooling",
@@ -68,117 +14,9 @@
       "replacement": null
     },
     {
-      "name": "build-index",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": "pairofcleats index build"
-    },
-    {
-      "name": "build-lmdb-index",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": "pairofcleats lmdb build"
-    },
-    {
-      "name": "build-tantivy-index",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "cache-gc",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats cache gc"
-    },
-    {
-      "name": "caps:calibrate",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "ci-build",
-      "category": "release",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "ci-restore",
-      "category": "release",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "clean-artifacts",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "compact-sqlite-index",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": "pairofcleats sqlite compact"
-    },
-    {
-      "name": "compare-models",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats report compare-models"
-    },
-    {
-      "name": "config-dump",
-      "category": "config",
-      "ciAllowed": false,
-      "replacement": "pairofcleats config dump"
-    },
-    {
-      "name": "config-reset",
-      "category": "config",
-      "ciAllowed": false,
-      "replacement": "pairofcleats config reset"
-    },
-    {
-      "name": "config-validate",
-      "category": "config",
-      "ciAllowed": false,
-      "replacement": "pairofcleats config validate"
-    },
-    {
       "name": "config:budget",
       "category": "config",
       "ciAllowed": true,
-      "replacement": null
-    },
-    {
-      "name": "ctags-ingest",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats ingest ctags"
-    },
-    {
-      "name": "dict:build-pack",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "download-dicts",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "download-extensions",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "download-models",
-      "category": "tooling",
-      "ciAllowed": false,
       "replacement": null
     },
     {
@@ -188,57 +26,9 @@
       "replacement": null
     },
     {
-      "name": "eval-run",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats report eval"
-    },
-    {
       "name": "format",
       "category": "lint",
       "ciAllowed": true,
-      "replacement": null
-    },
-    {
-      "name": "generate-repo-dict",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "get-last-failure",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "gtags-ingest",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats ingest gtags"
-    },
-    {
-      "name": "index-validate",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": "pairofcleats index validate"
-    },
-    {
-      "name": "indexer-service",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": "pairofcleats service indexer"
-    },
-    {
-      "name": "lexicon:report",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "lexicon:validate",
-      "category": "tooling",
-      "ciAllowed": false,
       "replacement": null
     },
     {
@@ -248,130 +38,16 @@
       "replacement": null
     },
     {
-      "name": "lsif-ingest",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats ingest lsif"
-    },
-    {
-      "name": "map-iso",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "mcp-server",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats service mcp"
-    },
-    {
-      "name": "metrics-dashboard",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats report metrics"
-    },
-    {
-      "name": "package-sublime",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "package-vscode",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "parity:matrix",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats report parity"
-    },
-    {
-      "name": "patch",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
       "name": "postinstall",
       "category": "tooling",
       "ciAllowed": false,
       "replacement": null
     },
     {
-      "name": "python:check",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "rebuild:native",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "release-check",
+      "name": "release:verify",
       "category": "release",
       "ciAllowed": false,
       "replacement": null
-    },
-    {
-      "name": "release-check:breaking",
-      "category": "release",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "repair:native",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "report-artifacts",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "scip-ingest",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats ingest scip"
-    },
-    {
-      "name": "search",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": "pairofcleats search"
-    },
-    {
-      "name": "shard-census",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "show-throughput",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats report throughput"
-    },
-    {
-      "name": "structural-search",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "summary-report",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats report summary"
     },
     {
       "name": "test",
@@ -380,64 +56,52 @@
       "replacement": null
     },
     {
-      "name": "tooling-detect",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats tooling detect"
+      "name": "test:api",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
     },
     {
-      "name": "tooling-install",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats tooling install"
+      "name": "test:ci",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
     },
     {
-      "name": "tui:build",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats tui build --smoke"
+      "name": "test:ci-lite",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
     },
     {
-      "name": "tui:install",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats tui install --json"
+      "name": "test:ci-long",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
     },
     {
-      "name": "tui:supervisor",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats tui supervisor"
+      "name": "test:perf",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
     },
     {
-      "name": "uninstall",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": "pairofcleats tooling uninstall"
+      "name": "test:services",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:storage",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
     },
     {
       "name": "verify",
       "category": "tooling",
       "ciAllowed": true,
       "replacement": null
-    },
-    {
-      "name": "verify-extensions",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "verify:native",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "watch-index",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": "pairofcleats index watch"
     }
   ],
   "cliCommands": [

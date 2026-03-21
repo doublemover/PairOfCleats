@@ -41,7 +41,7 @@ if (dictionaryPaths.length) {
 } else if (argv['require-dicts']) {
   report(false, 'dictionary files not found');
 } else {
-  warn('dictionary files not found (run npm run download-dicts -- --lang en)');
+  warn('dictionary files not found (run node tools/download/dicts.js --lang en)');
 }
 
 const indexDirs = [

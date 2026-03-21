@@ -53,9 +53,9 @@ jobs:
             npm run bootstrap:ci
           else
             echo "node_modules cache hit; verifying native modules."
-            if ! npm run verify:native; then
+            if ! node tools/setup/rebuild-native.js --verify; then
               echo "native verification failed; running targeted repair:native."
-              npm run repair:native
+              node tools/setup/rebuild-native.js --repair
             fi
           fi
           node -v

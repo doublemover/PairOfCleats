@@ -12,7 +12,7 @@ pairofcleats ingest gtags --repo . --run
 node tools/ingest/gtags.js --repo . --run
 
 # Or via npm
-npm run gtags-ingest -- --repo . --run
+pairofcleats ingest gtags --repo . --run
 
 # Ingest from a file
 node tools/ingest/gtags.js --repo . --input gtags.txt --out ./gtags.jsonl

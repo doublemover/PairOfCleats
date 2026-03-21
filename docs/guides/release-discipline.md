@@ -7,7 +7,7 @@ This guide defines the canonical release validation contract.
 Run release validation with:
 
 ```bash
-npm run release-check
+npm run release:verify
 ```
 
 The command executes `tools/release/check.js` and always writes:
@@ -42,7 +42,7 @@ Execution order:
 For breaking releases:
 
 ```bash
-npm run release-check:breaking
+npm run release:verify -- --breaking
 ```
 
 This requires a non-empty `### Breaking` section for the current version in `CHANGELOG.md`.
@@ -56,7 +56,7 @@ Blocker-related flags are unsupported (`--blockers-only`, `--no-blockers`, `--al
 Python is a required runtime dependency for active tooling flows that package or validate Sublime integrations. Enforce availability with:
 
 ```bash
-npm run python:check
+node tools/tooling/python-check.js
 ```
 
 Core release tooling fails fast when Python is unavailable.

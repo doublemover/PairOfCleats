@@ -15,8 +15,8 @@ The JSON payload includes top-level search buckets (`code`, `prose`, `extractedP
 Canonical packaging commands:
 
 ```bash
-npm run package-sublime
-npm run package-vscode
+node tools/package-sublime.js
+node tools/package-vscode.js
 ```
 
 Smoke checks (used by release-check):

@@ -8,28 +8,9 @@ import { getPackageScriptReplacement, listPackageScriptReplacements } from '../.
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const scriptPath = path.join(ROOT, 'tools', 'ci', 'check-command-surface.js');
 
-const expectedReplacements = new Map([
-  ['build-index', 'pairofcleats index build'],
-  ['watch-index', 'pairofcleats index watch'],
-  ['search', 'pairofcleats search'],
-  ['api-server', 'pairofcleats service api'],
-  ['ctags-ingest', 'pairofcleats ingest ctags'],
-  ['show-throughput', 'pairofcleats report throughput'],
-  ['tui:build', 'pairofcleats tui build --smoke']
-]);
-
-for (const [name, replacement] of expectedReplacements) {
-  assert.equal(
-    getPackageScriptReplacement(name),
-    replacement,
-    `expected canonical replacement for ${name}`
-  );
-}
+assert.equal(getPackageScriptReplacement('build-index'), null, 'legacy product aliases should not remain in the contributor npm surface');
 assert.equal(getPackageScriptReplacement('verify'), null, 'verify should remain a contributor workflow, not a deprecated CLI alias');
-assert.ok(
-  listPackageScriptReplacements().some((entry) => entry.name === 'indexer-service' && entry.replacement === 'pairofcleats service indexer'),
-  'expected indexer-service replacement mapping'
-);
+assert.equal(listPackageScriptReplacements().length, 0, 'expected no deprecated package-script replacements after npm surface reduction');
 
 const result = spawnSync(process.execPath, [scriptPath], {
   cwd: ROOT,
