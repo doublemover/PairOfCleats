@@ -122,6 +122,12 @@ const symbolsByMode = {
     detail: 'function greet(name: string): string',
     kind: 12
   },
+  'lua-hover-timeout': {
+    name: 'greet',
+    detail: 'function greet(name: string)',
+    hoverDetail: 'function greet(name: string): string',
+    kind: 12
+  },
   'lua-requires-workspace-library': {
     name: 'greet',
     detail: 'function greet(name: string): string',
@@ -697,7 +703,7 @@ const handleRequest = (message) => {
       process.exit(1);
       return;
     }
-    if (mode === 'pyright-hover-timeout') {
+    if (mode === 'pyright-hover-timeout' || mode === 'lua-hover-timeout') {
       return;
     }
     if (mode === 'malformed-hover') {

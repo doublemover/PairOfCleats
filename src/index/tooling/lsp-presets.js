@@ -90,6 +90,9 @@ const PRESET_DEFINITIONS = Object.freeze({
     args: [],
     languages: ['lua'],
     adaptiveDocScope: adaptiveDocScopeFor('lua-language-server'),
+    documentSymbolConcurrency: 1,
+    hoverConcurrency: 1,
+    hoverDisableAfterTimeouts: 1,
     label: 'Lua (lua-language-server)',
     priority: 80,
     preflightPolicy: 'optional'
