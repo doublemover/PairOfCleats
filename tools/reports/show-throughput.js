@@ -19,9 +19,9 @@ import {
   isValidIndexingSummary,
   rateFromTotals,
   sumRates,
-  mean,
   collect,
-  meanThroughput
+  summarizeNumericDistribution,
+  summarizeThroughputDistribution
 } from './show-throughput/aggregate.js';
 import {
   listResultFolders,
@@ -59,7 +59,9 @@ import {
   formatSectionMetaLine,
   buildIndexedTotalsRows,
   formatThroughputTotalsCell,
-  formatAstField
+  formatAstField,
+  formatDistributionSummary,
+  formatDistributionCell
 } from './show-throughput/render.js';
 
 /**
@@ -129,6 +131,8 @@ const totalThroughput = {
     prose: createRateTotals()
   }
 };
+const throughputRunsGlobal = [];
+const summariesGlobal = [];
 /** @type {Map<string, number>} */
 const languageTotals = new Map();
 const modeTotalsGlobal = createModeTotalsMap();
@@ -136,6 +140,7 @@ const reposWithMetrics = new Set();
 /** @type {AstGraphAggregate} */
 const astGraphTotalsGlobal = { repos: 0, totals: createAstGraphTotals(), observed: createAstGraphObserved() };
 const ledgerRegressionsGlobal = [];
+const variabilityRowsGlobal = [];
 const createSectionProvenanceTotals = () => ({
   indexing: new Map(),
   analysis: new Map(),
@@ -326,6 +331,91 @@ const formatResourceSummary = (aggregate) => {
   );
 };
 
+const summarizeSummaryMetric = (summaries, selector) => summarizeNumericDistribution(collect(summaries, selector));
+
+const summarizeLatencyDistributions = (summaries) => {
+  const latencyByBackend = {};
+  for (const summary of summaries) {
+    const latency = summary?.latencyMs || {};
+    for (const [backend, stats] of Object.entries(latency)) {
+      if (!latencyByBackend[backend]) latencyByBackend[backend] = { mean: [], p95: [] };
+      if (Number.isFinite(stats?.mean)) latencyByBackend[backend].mean.push(stats.mean);
+      if (Number.isFinite(stats?.p95)) latencyByBackend[backend].p95.push(stats.p95);
+    }
+  }
+  return Object.fromEntries(
+    Object.entries(latencyByBackend).map(([backend, values]) => [
+      backend,
+      {
+        mean: summarizeNumericDistribution(values.mean),
+        p95: summarizeNumericDistribution(values.p95)
+      }
+    ])
+  );
+};
+
+const formatDistributionMsSummary = (summary) => formatDistributionSummary(summary, {
+  digits: 1,
+  formatter: (value) => formatMs(value)
+});
+
+const formatDistributionRateSummary = (summary, unitLabel) => {
+  if (!summary) return `${unitLabel} n/a`;
+  return `${unitLabel} ${formatDistributionSummary(summary)}`;
+};
+
+const flattenRegressionMetrics = (entries, {
+  includeImprovements = false
+} = {}) => {
+  const rows = [];
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    const metricSummaries = entry?.throughputLedgerDiff?.metrics || {};
+    for (const [metricKey, summary] of Object.entries(metricSummaries)) {
+      const regressions = includeImprovements
+        ? (summary?.improvements || [])
+        : (summary?.regressions || []);
+      for (const regression of regressions) {
+        rows.push({
+          folder: entry.folder || null,
+          repoIdentity: entry.repoIdentity,
+          metric: metricKey,
+          metricKind: regression.metricKind,
+          metricLabel: regression.metricLabel,
+          modality: regression.modality,
+          stage: regression.stage,
+          deltaPct: regression.deltaPct,
+          deltaRate: regression.deltaRate,
+          currentRate: regression.currentRate,
+          baselineRate: regression.baselineRate,
+          baselineSamples: regression.baselineSamples,
+          baselineConfidence: regression.baselineConfidence
+        });
+      }
+    }
+  }
+  rows.sort((left, right) => (
+    left.metricKind === 'duration'
+      ? (Number(right.deltaPct) - Number(left.deltaPct))
+      : (Number(left.deltaPct) - Number(right.deltaPct))
+  ) || String(left.repoIdentity || '').localeCompare(String(right.repoIdentity || '')));
+  return rows;
+};
+
+const formatRegressionDelta = (entry) => (
+  entry?.metricKind === 'duration'
+    ? `${formatMs(entry.currentRate)} vs ${formatMs(entry.baselineRate)}`
+    : `${formatNumber(entry.currentRate)} vs ${formatNumber(entry.baselineRate)} ${entry.metricLabel}`
+);
+
+const createVariabilityEntry = (folder, label, summary) => ({
+  folder,
+  label,
+  count: summary?.count ?? 0,
+  coefficientOfVariation: summary?.coefficientOfVariation ?? null,
+  median: summary?.median ?? null,
+  p95: summary?.p95 ?? null
+});
+
 console.error(color.bold(color.cyan('Benchmark Performance Overview')));
 console.error(color.gray(`Root: ${resultsRoot}`));
 if (refreshJson) {
@@ -433,6 +523,8 @@ for (const dir of folders) {
       outcomeRepoKeysGlobal.add(outcomeRepoKey);
     }
     throughputs.push(throughput);
+    throughputRunsGlobal.push(throughput);
+    if (summary) summariesGlobal.push(summary);
     mergeTotals(totalThroughput.code, throughput.code);
     mergeTotals(totalThroughput.prose, throughput.prose);
     mergeTotals(totalThroughput.extractedProse, throughput.extractedProse);
@@ -498,38 +590,37 @@ for (const dir of folders) {
     ledgerRegressionsGlobal.push(...folderLedgerRegressions.map((entry) => ({ ...entry, folder: dir.name })));
   }
 
-  const avgCode = meanThroughput(throughputs, (throughput) => throughput?.code || null);
-  const avgProse = meanThroughput(throughputs, (throughput) => throughput?.prose || null);
-  const avgXProse = meanThroughput(throughputs, (throughput) => throughput?.extractedProse || null);
-  const avgRecords = meanThroughput(throughputs, (throughput) => throughput?.records || null);
+  const codeDistribution = summarizeThroughputDistribution(throughputs, (throughput) => throughput?.code || null);
+  const proseDistribution = summarizeThroughputDistribution(throughputs, (throughput) => throughput?.prose || null);
+  const extractedProseDistribution = summarizeThroughputDistribution(throughputs, (throughput) => throughput?.extractedProse || null);
+  const recordsDistribution = summarizeThroughputDistribution(throughputs, (throughput) => throughput?.records || null);
   const compactModeLine = [
-    formatModeChunkRate('code', avgCode),
-    formatModeChunkRate('prose', avgProse),
-    formatModeChunkRate('xprose', avgXProse),
-    formatModeChunkRate('records', avgRecords)
+    formatModeChunkRate('code', codeDistribution),
+    formatModeChunkRate('prose', proseDistribution),
+    formatModeChunkRate('xprose', extractedProseDistribution),
+    formatModeChunkRate('records', recordsDistribution)
   ].join(' | ');
-  console.error(`  ch/s ${compactModeLine}`);
+  console.error(`  ch/s p50/p95 ${compactModeLine}`);
 
   const summaries = runs.map((r) => r.summary).filter(Boolean);
-  const buildIndexMs = summaries.length ? mean(collect(summaries, (s) => s.buildMs?.index)) : null;
-  const buildSqliteMs = summaries.length ? mean(collect(summaries, (s) => s.buildMs?.sqlite)) : null;
-  const wallPerQuery = summaries.length ? mean(collect(summaries, (s) => s.queryWallMsPerQuery)) : null;
-  const wallPerSearch = summaries.length ? mean(collect(summaries, (s) => s.queryWallMsPerSearch)) : null;
-  const backendLatency = {};
-  if (summaries.length) {
-    for (const summary of summaries) {
-      const latency = summary.latencyMs || {};
-      for (const [backend, stats] of Object.entries(latency)) {
-        if (!backendLatency[backend]) backendLatency[backend] = { mean: [], p95: [] };
-        if (Number.isFinite(stats?.mean)) backendLatency[backend].mean.push(stats.mean);
-        if (Number.isFinite(stats?.p95)) backendLatency[backend].p95.push(stats.p95);
-      }
-    }
-  }
-  const memoryMean = mean(backendLatency.memory?.mean || []);
-  const memoryP95 = mean(backendLatency.memory?.p95 || []);
-  const sqliteMean = mean(backendLatency.sqlite?.mean || []);
-  const sqliteP95 = mean(backendLatency.sqlite?.p95 || []);
+  const buildIndexMs = summarizeSummaryMetric(summaries, (s) => s.buildMs?.index);
+  const buildSqliteMs = summarizeSummaryMetric(summaries, (s) => s.buildMs?.sqlite);
+  const wallPerQuery = summarizeSummaryMetric(summaries, (s) => s.queryWallMsPerQuery);
+  const wallPerSearch = summarizeSummaryMetric(summaries, (s) => s.queryWallMsPerSearch);
+  const backendLatency = summarizeLatencyDistributions(summaries);
+  const memoryMean = backendLatency.memory?.mean || null;
+  const memoryP95 = backendLatency.memory?.p95 || null;
+  const sqliteMean = backendLatency.sqlite?.mean || null;
+  const sqliteP95 = backendLatency.sqlite?.p95 || null;
+
+  variabilityRowsGlobal.push(
+    createVariabilityEntry(dir.name, 'code chunks/s', codeDistribution?.chunksPerSec),
+    createVariabilityEntry(dir.name, 'prose chunks/s', proseDistribution?.chunksPerSec),
+    createVariabilityEntry(dir.name, 'xprose chunks/s', extractedProseDistribution?.chunksPerSec),
+    createVariabilityEntry(dir.name, 'records chunks/s', recordsDistribution?.chunksPerSec),
+    createVariabilityEntry(dir.name, 'build index', buildIndexMs),
+    createVariabilityEntry(dir.name, 'query/search', wallPerSearch)
+  );
 
   if (!verboseOutput) {
     const aggregateIndexed = Array.from(modeTotalsFolder.values()).reduce(
@@ -554,9 +645,12 @@ for (const dir of folders) {
     }
     if (summaries.length) {
       console.error(
-        `  perf build ${formatMs(buildIndexMs)} + sqlite ${formatMs(buildSqliteMs)} | ` +
-        `query ${formatMs(wallPerQuery)} | search ${formatMs(wallPerSearch)} | ` +
-        `lat mem/sql ${formatNumber(memoryMean)}ms/${formatNumber(sqliteMean)}ms`
+        `  perf build ${formatDistributionCell(buildIndexMs)} / ${formatDistributionCell(buildSqliteMs)} ms | ` +
+        `query ${formatDistributionCell(wallPerQuery)} ms | search ${formatDistributionCell(wallPerSearch)} ms`
+      );
+      console.error(
+        `  lat mean mem/sql ${formatDistributionCell(memoryMean)} / ${formatDistributionCell(sqliteMean)} ms | ` +
+        `run-p95 ${formatDistributionCell(memoryP95)} / ${formatDistributionCell(sqliteP95)} ms`
       );
     }
     console.error(
@@ -588,7 +682,8 @@ for (const dir of folders) {
       const top = folderLedgerRegressions[0];
       console.error(
         `  ledger regression ${top.repoIdentity} ${top.modality}/${top.stage} ` +
-        `${formatPct(top.deltaPct)} (${formatNumber(top.deltaRate)} ch/s vs ${formatNumber(top.baselineRate)})`
+        `${formatPct(top.deltaPct)} ${top.metricLabel} ` +
+        `(${formatRegressionDelta(top)} | ${top.baselineConfidence} conf)`
       );
     }
     console.error(
@@ -599,10 +694,10 @@ for (const dir of folders) {
     continue;
   }
 
-  console.error(`  ${formatModeThroughputLine({ label: 'Code', entry: avgCode })}`);
-  console.error(`  ${formatModeThroughputLine({ label: 'Prose', entry: avgProse })}`);
-  console.error(`  ${formatModeThroughputLine({ label: 'XProse', entry: avgXProse })}`);
-  console.error(`  ${formatModeThroughputLine({ label: 'Records', entry: avgRecords })}`);
+  console.error(`  ${formatModeThroughputLine({ label: 'Code', entry: codeDistribution })}`);
+  console.error(`  ${formatModeThroughputLine({ label: 'Prose', entry: proseDistribution })}`);
+  console.error(`  ${formatModeThroughputLine({ label: 'XProse', entry: extractedProseDistribution })}`);
+  console.error(`  ${formatModeThroughputLine({ label: 'Records', entry: recordsDistribution })}`);
 
   const indexedRows = buildIndexedTotalsRows(modeTotalsFolder);
   if (indexedRows.length) {
@@ -654,26 +749,26 @@ for (const dir of folders) {
     console.error(
       formatSectionMetaLine({
         label: 'Build',
-        left: `index ${formatMs(buildIndexMs)}`,
-        right: `sqlite ${formatMs(buildSqliteMs)}`
+        left: `index ${formatDistributionCell(buildIndexMs)} ms`,
+        right: `sqlite ${formatDistributionCell(buildSqliteMs)} ms`
       })
     );
 
     console.error(
       formatSectionMetaLine({
         label: 'Query',
-        left: `avg/q ${formatMs(wallPerQuery)}`,
-        right: `avg/search ${formatMs(wallPerSearch)}`
+        left: `avg/q ${formatDistributionCell(wallPerQuery)} ms`,
+        right: `avg/search ${formatDistributionCell(wallPerSearch)} ms`
       })
     );
     console.error('  Latency');
     console.error(
-      `      mem: ${formatNumber(memoryMean)}ms` +
-      ` | sqlite: ${formatNumber(sqliteMean)}ms`
+      `      mean mem: ${formatDistributionSummary(memoryMean, { formatter: (value) => `${formatNumber(value)}ms` })}` +
+      ` | sqlite: ${formatDistributionSummary(sqliteMean, { formatter: (value) => `${formatNumber(value)}ms` })}`
     );
     console.error(
-      `      (p95 ${formatNumber(memoryP95)}ms)` +
-      ` | (p95 ${formatNumber(sqliteP95)}ms)`
+      `      run-p95 mem: ${formatDistributionSummary(memoryP95, { formatter: (value) => `${formatNumber(value)}ms` })}` +
+      ` | sqlite: ${formatDistributionSummary(sqliteP95, { formatter: (value) => `${formatNumber(value)}ms` })}`
     );
   }
 
@@ -694,8 +789,8 @@ for (const dir of folders) {
     for (const regression of folderLedgerRegressions.slice(0, 5)) {
       console.error(
         `    ${regression.repoIdentity} | ${regression.modality}/${regression.stage} | ` +
-        `${formatPct(regression.deltaPct)} | ` +
-        `${formatNumber(regression.currentRate)} vs ${formatNumber(regression.baselineRate)} ch/s`
+        `${regression.metricLabel} | ${formatPct(regression.deltaPct)} | ` +
+        `${formatRegressionDelta(regression)} | ${regression.baselineConfidence} conf`
       );
     }
   }
@@ -883,18 +978,72 @@ for (const { label, pick } of THROUGHPUT_GROUPS) {
     `${formatNumber(filesPerSec)} files/s`
   );
 }
+const globalCodeDistribution = summarizeThroughputDistribution(throughputRunsGlobal, (throughput) => throughput?.code || null);
+const globalProseDistribution = summarizeThroughputDistribution(throughputRunsGlobal, (throughput) => throughput?.prose || null);
+const globalExtractedProseDistribution = summarizeThroughputDistribution(throughputRunsGlobal, (throughput) => throughput?.extractedProse || null);
+const globalRecordsDistribution = summarizeThroughputDistribution(throughputRunsGlobal, (throughput) => throughput?.records || null);
+const globalBuildIndexDistribution = summarizeSummaryMetric(summariesGlobal, (summary) => summary?.buildMs?.index);
+const globalBuildSqliteDistribution = summarizeSummaryMetric(summariesGlobal, (summary) => summary?.buildMs?.sqlite);
+const globalQueryDistribution = summarizeSummaryMetric(summariesGlobal, (summary) => summary?.queryWallMsPerQuery);
+const globalSearchDistribution = summarizeSummaryMetric(summariesGlobal, (summary) => summary?.queryWallMsPerSearch);
+const globalLatency = summarizeLatencyDistributions(summariesGlobal);
+console.error(color.bold('Run Distributions'));
+for (const [label, distribution] of [
+  ['Code', globalCodeDistribution],
+  ['Prose', globalProseDistribution],
+  ['XProse', globalExtractedProseDistribution],
+  ['Records', globalRecordsDistribution]
+]) {
+  console.error(
+    `  ${label.padStart(8)}: ` +
+    `${formatDistributionRateSummary(distribution?.chunksPerSec, 'chunks/s')} | ` +
+    `${formatDistributionRateSummary(distribution?.filesPerSec, 'files/s')}`
+  );
+}
+console.error(
+  `  ${'Build'.padStart(8)}: index ${formatDistributionMsSummary(globalBuildIndexDistribution)} | ` +
+  `sqlite ${formatDistributionMsSummary(globalBuildSqliteDistribution)}`
+);
+console.error(
+  `  ${'Query'.padStart(8)}: per-query ${formatDistributionMsSummary(globalQueryDistribution)} | ` +
+  `per-search ${formatDistributionMsSummary(globalSearchDistribution)}`
+);
+console.error(
+  `  ${'Latency'.padStart(8)}: mem mean ${formatDistributionMsSummary(globalLatency.memory?.mean)} | ` +
+  `mem run-p95 ${formatDistributionMsSummary(globalLatency.memory?.p95)}`
+);
+console.error(
+  `  ${''.padStart(8)}  sqlite mean ${formatDistributionMsSummary(globalLatency.sqlite?.mean)} | ` +
+  `sqlite run-p95 ${formatDistributionMsSummary(globalLatency.sqlite?.p95)}`
+);
 if (ledgerRegressionsGlobal.length) {
   ledgerRegressionsGlobal.sort((left, right) => (
-    Number(left.deltaPct) - Number(right.deltaPct)
+    left.metricKind === 'duration'
+      ? (Number(right.deltaPct) - Number(left.deltaPct))
+      : (Number(left.deltaPct) - Number(right.deltaPct))
   ) || String(left.repoIdentity || '').localeCompare(String(right.repoIdentity || '')));
   console.error(color.bold(
     `Top Throughput Regressions (schema v${THROUGHPUT_LEDGER_SCHEMA_VERSION}/diff v${THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION})`
   ));
   for (const entry of ledgerRegressionsGlobal.slice(0, 8)) {
     console.error(
-      `  ${entry.folder}/${entry.repoIdentity} ${entry.modality}/${entry.stage}: ` +
-      `${formatPct(entry.deltaPct)} | ` +
-      `${formatNumber(entry.currentRate)} vs ${formatNumber(entry.baselineRate)} ch/s`
+      `  ${entry.folder}/${entry.repoIdentity} ${entry.modality}/${entry.stage} ${entry.metricLabel}: ` +
+      `${formatPct(entry.deltaPct)} | ${formatRegressionDelta(entry)} | ` +
+      `${entry.baselineConfidence} conf`
+    );
+  }
+}
+const variabilityRows = variabilityRowsGlobal
+  .filter((entry) => Number.isFinite(entry?.coefficientOfVariation))
+  .sort((left, right) => (
+    Number(right.coefficientOfVariation) - Number(left.coefficientOfVariation)
+  ) || String(left.folder || '').localeCompare(String(right.folder || '')));
+if (variabilityRows.length) {
+  console.error(color.bold('Top Variability'));
+  for (const entry of variabilityRows.slice(0, 8)) {
+    console.error(
+      `  ${entry.folder} ${entry.label}: cv ${formatPct(entry.coefficientOfVariation)} | ` +
+      `p50/p95 ${formatNumber(entry.median)}/${formatNumber(entry.p95)} | n ${formatCount(entry.count)}`
     );
   }
 }

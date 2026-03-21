@@ -1306,6 +1306,7 @@ const resolveTaskThroughputLedger = ({ entry, payload }) => {
 
 const applyThroughputLedgerDiffs = (tasks) => {
   const historyByRepo = new Map();
+  const historyWindow = 8;
   const out = [];
   for (const task of tasks) {
     const repoIdentity = task.repoIdentity;
@@ -1325,7 +1326,7 @@ const applyThroughputLedgerDiffs = (tasks) => {
     if (isValidThroughputLedger(task.throughputLedger)) {
       if (historyByRepo.has(repoIdentity)) {
         baseline.push(task.throughputLedger);
-        while (baseline.length > 3) baseline.shift();
+        while (baseline.length > historyWindow) baseline.shift();
       } else {
         historyByRepo.set(repoIdentity, [task.throughputLedger]);
       }

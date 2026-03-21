@@ -762,6 +762,7 @@ export const materializeThroughputLedger = ({
 
 export const applyRunThroughputLedgerDiffs = (runs) => {
   const historyByRepo = new Map();
+  const historyWindow = 8;
   for (const run of runs) {
     if (!isValidThroughputLedger(run?.throughputLedger)) {
       run.throughputLedgerDiff = null;
@@ -771,7 +772,7 @@ export const applyRunThroughputLedgerDiffs = (runs) => {
     const history = historyByRepo.get(historyKey) || [];
     run.throughputLedgerDiff = computeThroughputLedgerRegression({
       currentLedger: run.throughputLedger,
-      baselineLedgers: history.slice(-3),
+      baselineLedgers: history.slice(-historyWindow),
       metric: 'chunksPerSec'
     });
     history.push(run.throughputLedger);
@@ -782,22 +783,32 @@ export const applyRunThroughputLedgerDiffs = (runs) => {
 export const collectRunLedgerRegressions = (runs) => {
   const rows = [];
   for (const run of runs) {
-    const regressions = run?.throughputLedgerDiff?.regressions || [];
-    for (const regression of regressions.slice(0, 3)) {
-      rows.push({
-        file: run.file,
-        repoIdentity: run.repoIdentity,
-        modality: regression.modality,
-        stage: regression.stage,
-        deltaPct: regression.deltaPct,
-        deltaRate: regression.deltaRate,
-        currentRate: regression.currentRate,
-        baselineRate: regression.baselineRate
-      });
+    const diffMetrics = run?.throughputLedgerDiff?.metrics || {};
+    for (const [metricKey, metricSummary] of Object.entries(diffMetrics)) {
+      const regressions = metricSummary?.regressions || [];
+      for (const regression of regressions.slice(0, 2)) {
+        rows.push({
+          file: run.file,
+          repoIdentity: run.repoIdentity,
+          modality: regression.modality,
+          stage: regression.stage,
+          metric: metricKey,
+          metricKind: regression.metricKind,
+          metricLabel: regression.metricLabel,
+          deltaPct: regression.deltaPct,
+          deltaRate: regression.deltaRate,
+          currentRate: regression.currentRate,
+          baselineRate: regression.baselineRate,
+          baselineSamples: regression.baselineSamples,
+          baselineConfidence: regression.baselineConfidence
+        });
+      }
     }
   }
   rows.sort((left, right) => (
-    Number(left.deltaPct) - Number(right.deltaPct)
+    left.metricKind === 'duration'
+      ? (Number(right.deltaPct) - Number(left.deltaPct))
+      : (Number(left.deltaPct) - Number(right.deltaPct))
   ) || String(left.repoIdentity || '').localeCompare(String(right.repoIdentity || '')));
   return rows;
 };
