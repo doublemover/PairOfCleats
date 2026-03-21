@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
+  __resetRepoPreflightFailureCacheForTests,
   __setGitCommandRunnerForTests,
   buildNonInteractiveGitEnv,
   ensureRepoBenchmarkReady,
@@ -65,6 +66,7 @@ const withMockGitRunner = (runner, action) => {
     return action();
   } finally {
     __setGitCommandRunnerForTests(null);
+    __resetRepoPreflightFailureCacheForTests();
   }
 };
 
@@ -125,6 +127,9 @@ const sshSummary = withMockGitRunner((cmd, args) => {
 assert.equal(sshSummary.ok, false, 'expected failing submodule init to fail preflight');
 assert.equal(sshSummary.failureReason, 'preflight-submodule-init', 'expected init failure reason');
 assert.equal(sshSummary.submodules.rewriteGithubSshToHttps, true, 'expected SSH rewrite marker');
+assert.equal(sshSummary.preflight.state, 'blocked_auth', 'expected auth classification for SSH host-key failure');
+assert.equal(sshSummary.preflight.stage, 'submodule_update', 'expected failing preflight stage');
+assert.equal(sshSummary.preflight.blockedClass, 'auth', 'expected auth blocked class');
 assert.match(sshSummary.failureDetail || '', /Host key verification failed\./, 'expected stderr detail tail');
 assert.match(
   sshSummary.failureDetail || '',
@@ -138,6 +143,57 @@ assert.ok(
 assert.ok(
   sshLogs.some((line) => line.includes('submodule init failed')),
   'expected submodule init failure to be logged'
+);
+
+const cacheRepoPath = await setupMockRepo(
+  'cache-hit',
+  [
+    '[submodule "deps/example"]',
+    '  path = deps/example',
+    '  url = https://github.com/example/example.git'
+  ].join('\n')
+);
+const cacheCalls = [];
+let cacheStatusChecks = 0;
+const cacheRunner = (cmd, args) => {
+  cacheCalls.push([cmd, args]);
+  assert.equal(cmd, 'git', 'expected git command for cache test');
+  if (args[0] === '--version') {
+    return { ok: true, status: 0, stdout: 'git version 2.49.0\n', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === cacheRepoPath && args[2] === 'rev-parse') {
+    return { ok: true, status: 0, stdout: 'true\n', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === cacheRepoPath && args[2] === 'submodule' && args[3] === 'status') {
+    cacheStatusChecks += 1;
+    return { ok: true, status: 0, stdout: '-89abcde deps/example\n', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === cacheRepoPath && args[2] === 'submodule' && args[3] === 'sync') {
+    return { ok: true, status: 0, stdout: '', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === cacheRepoPath && args[2] === 'submodule' && args[3] === 'update') {
+    return {
+      ok: false,
+      status: 128,
+      stdout: '',
+      stderr: 'fatal: could not read Username for \'https://github.com\': terminal prompts disabled'
+    };
+  }
+  throw new Error(`unexpected git invocation: ${JSON.stringify(args)}`);
+};
+__setGitCommandRunnerForTests(cacheRunner);
+const cacheSummaryFirst = ensureRepoBenchmarkReady({ repoPath: cacheRepoPath });
+const cacheSummarySecond = ensureRepoBenchmarkReady({ repoPath: cacheRepoPath });
+__setGitCommandRunnerForTests(null);
+__resetRepoPreflightFailureCacheForTests();
+assert.equal(cacheSummaryFirst.ok, false, 'expected first cache test attempt to fail');
+assert.equal(cacheSummarySecond.ok, false, 'expected second cache test attempt to reuse failure');
+assert.equal(cacheSummaryFirst.preflight.state, 'blocked_auth', 'expected auth block classification on first failure');
+assert.equal(cacheSummarySecond.preflight.cacheHit, true, 'expected second failure to be served from cache');
+assert.equal(
+  cacheCalls.filter(([, args]) => args[0] === '-C' && args[1] === cacheRepoPath && args.includes('update')).length,
+  1,
+  'expected doomed submodule update to run only once under failure cache'
 );
 
 const verifyRepoPath = await setupMockRepo(
@@ -182,6 +238,9 @@ assert.equal(
 assert.equal(verifySummary.submodules.initialMissing, 1, 'expected one missing submodule before update');
 assert.equal(verifySummary.submodules.missing, 1, 'expected one missing submodule after update');
 assert.equal(verifySummary.submodules.updated, false, 'expected update flag to remain false on incomplete state');
+assert.equal(verifySummary.preflight.state, 'blocked_repo_contract', 'expected contract classification for required missing submodule');
+assert.equal(verifySummary.preflight.failingSubmodule, 'deps/example', 'expected failing submodule path');
+assert.deepEqual(verifySummary.submodules.requiredMissingPaths, ['deps/example'], 'expected required missing path classification');
 
 const successRepoPath = await setupMockRepo(
   'verify-success',
@@ -232,5 +291,80 @@ assert.ok(
   successLogs.some((line) => line.includes('initialMissing=1, initialDirty=0')),
   'expected success log to preserve initial submodule state for diagnostics'
 );
+
+const optionalRepoPath = await setupMockRepo(
+  'optional-only',
+  [
+    '[submodule "deps/optional"]',
+    '  path = deps/optional',
+    '  url = https://github.com/example/optional.git'
+  ].join('\n')
+);
+let optionalStatusChecks = 0;
+const optionalSummary = withMockGitRunner((cmd, args) => {
+  assert.equal(cmd, 'git', 'expected git command for optional submodule case');
+  if (args[0] === '--version') {
+    return { ok: true, status: 0, stdout: 'git version 2.49.0\n', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === optionalRepoPath && args[2] === 'rev-parse') {
+    return { ok: true, status: 0, stdout: 'true\n', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === optionalRepoPath && args[2] === 'submodule' && args[3] === 'status') {
+    optionalStatusChecks += 1;
+    return { ok: true, status: 0, stdout: '-89abcde deps/optional\n', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === optionalRepoPath && args[2] === 'submodule' && args[3] === 'sync') {
+    return { ok: true, status: 0, stdout: '', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === optionalRepoPath && args[2] === 'submodule' && args[3] === 'update') {
+    return { ok: true, status: 0, stdout: '', stderr: '' };
+  }
+  throw new Error(`unexpected git invocation: ${JSON.stringify(args)}`);
+}, () => ensureRepoBenchmarkReady({
+  repoPath: optionalRepoPath,
+  repoContract: {
+    key: 'optional-only',
+    optionalSubmodules: ['deps/optional'],
+    requiredSubmodules: []
+  }
+}));
+
+assert.equal(optionalSummary.ok, true, 'expected optional missing submodule to remain runnable');
+assert.equal(optionalSummary.preflight.state, 'ready_partial_optional_submodules', 'expected partial-ready state');
+assert.equal(optionalSummary.preflight.partialReady, true, 'expected partial-ready marker');
+assert.deepEqual(optionalSummary.submodules.optionalMissingPaths, ['deps/optional'], 'expected optional missing path classification');
+assert.deepEqual(optionalSummary.submodules.requiredMissingPaths, [], 'expected no required missing paths');
+
+const timeoutRepoPath = await setupMockRepo(
+  'timeout-case',
+  [
+    '[submodule "deps/timeout"]',
+    '  path = deps/timeout',
+    '  url = https://github.com/example/timeout.git'
+  ].join('\n')
+);
+const timeoutSummary = withMockGitRunner((cmd, args) => {
+  assert.equal(cmd, 'git', 'expected git command for timeout case');
+  if (args[0] === '--version') {
+    return { ok: true, status: 0, stdout: 'git version 2.49.0\n', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === timeoutRepoPath && args[2] === 'rev-parse') {
+    return { ok: true, status: 0, stdout: 'true\n', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === timeoutRepoPath && args[2] === 'submodule' && args[3] === 'status') {
+    return { ok: true, status: 0, stdout: '-89abcde deps/timeout\n', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === timeoutRepoPath && args[2] === 'submodule' && args[3] === 'sync') {
+    return { ok: true, status: 0, stdout: '', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === timeoutRepoPath && args[2] === 'submodule' && args[3] === 'update') {
+    return { ok: false, status: null, stdout: '', stderr: 'timed out after 120000ms', timedOut: true };
+  }
+  throw new Error(`unexpected git invocation: ${JSON.stringify(args)}`);
+}, () => ensureRepoBenchmarkReady({ repoPath: timeoutRepoPath }));
+
+assert.equal(timeoutSummary.ok, false, 'expected timeout case to fail');
+assert.equal(timeoutSummary.preflight.state, 'blocked_timeout', 'expected timeout classification');
+assert.equal(timeoutSummary.preflight.blockedClass, 'timeout', 'expected timeout blocked class');
 
 console.log('bench-language repo preflight parser test passed.');

@@ -36,7 +36,7 @@ const methodology = createBenchMethodologyPolicy({
 assert.equal(methodology.policyVersion, BENCH_METHODOLOGY_POLICY_VERSION, 'expected methodology policy version');
 assert.equal(methodology.mode, 'tooling', 'expected explicit mode');
 assert.equal(methodology.toolingMode, 'included', 'expected tooling mode to be included for tooling runs');
-assert.equal(methodology.timeoutPolicyVersion, '1.0.0', 'expected timeout policy version tagging');
+assert.equal(methodology.timeoutPolicyVersion, '1.1.0', 'expected timeout policy version tagging');
 
 const filtered = filterTasksToControlSlice(tasks, methodology);
 assert.equal(filtered.length, 4, 'expected filtering to match control slice');
