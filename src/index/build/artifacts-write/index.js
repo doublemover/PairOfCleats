@@ -751,6 +751,39 @@ export async function writeIndexArtifacts(input) {
     hasPieceFile,
     updatePieceMetadata
   } = pieceRegistry;
+  const publicationFamilies = new Map();
+  const normalizePublicationFamilyMembers = (values) => Array.from(new Set(
+    (Array.isArray(values) ? values : [])
+      .filter((value) => typeof value === 'string' && value.trim())
+      .map((value) => value.trim())
+  )).sort((a, b) => a.localeCompare(b));
+  const declareArtifactFamily = ({
+    family,
+    owner,
+    requiredMembers = [],
+    optionalMembers = []
+  } = {}) => {
+    const familyName = typeof family === 'string' ? family.trim() : '';
+    if (!familyName) return;
+    const existing = publicationFamilies.get(familyName) || {
+      family: familyName,
+      owner: typeof owner === 'string' && owner ? owner : null,
+      requiredMembers: [],
+      optionalMembers: []
+    };
+    existing.owner = existing.owner || (typeof owner === 'string' && owner ? owner : null);
+    existing.requiredMembers = normalizePublicationFamilyMembers([
+      ...existing.requiredMembers,
+      ...requiredMembers
+    ]);
+    existing.optionalMembers = normalizePublicationFamilyMembers([
+      ...existing.optionalMembers,
+      ...optionalMembers
+    ]);
+    publicationFamilies.set(familyName, existing);
+  };
+  const listArtifactFamilyDeclarations = () => Array.from(publicationFamilies.values())
+    .sort((a, b) => String(a.family || '').localeCompare(String(b.family || '')));
   dropCommittedPiece = removePieceFile;
   const writePlanner = createQueuedArtifactWritePlanner({
     writes,
@@ -1068,6 +1101,53 @@ export async function writeIndexArtifacts(input) {
   };
 
   const denseVectorsEnabled = postings.dims > 0 && postings.quantizedVectors.length;
+  declareArtifactFamily({
+    family: 'core-metadata',
+    owner: 'artifacts-write',
+    requiredMembers: ['chunk_meta', 'file_meta', 'index_state', 'filelists']
+  });
+  if (sparseArtifactsEnabled) {
+    declareArtifactFamily({
+      family: 'lexical-core',
+      owner: 'artifacts-write',
+      requiredMembers: ['token_postings']
+    });
+  }
+  if (mode === 'code' && Array.isArray(state?.chunks) && state.chunks.length > 0) {
+    declareArtifactFamily({
+      family: 'identity-support',
+      owner: 'artifacts-write',
+      requiredMembers: ['chunk_uid_map']
+    });
+    if (!tinyRepoMinimalArtifacts) {
+      declareArtifactFamily({
+        family: 'repo-analysis',
+        owner: 'artifacts-write',
+        requiredMembers: ['repo_map']
+      });
+    }
+  }
+  if (sparseArtifactsEnabled && Array.isArray(state?.fieldTokens) && state.fieldTokens.length > 0) {
+    declareArtifactFamily({
+      family: 'fielded-postings',
+      owner: 'artifacts-write',
+      requiredMembers: ['field_tokens']
+    });
+  }
+  if (sparseArtifactsEnabled && resolvedConfig.enableChargrams !== false) {
+    declareArtifactFamily({
+      family: 'chargram-postings',
+      owner: 'artifacts-write',
+      requiredMembers: ['chargram_postings']
+    });
+  }
+  if (mode === 'code' && state?.riskInterproceduralStats) {
+    declareArtifactFamily({
+      family: 'risk-interprocedural',
+      owner: 'artifacts-write',
+      requiredMembers: ['risk_interprocedural_stats']
+    });
+  }
   if (!denseVectorsEnabled) {
     await removeArtifact(path.join(outDir, 'dense_vectors_uint8.json'));
     await removeCompressedArtifact({ outDir, base: 'dense_vectors_uint8', removeArtifact });
@@ -2314,7 +2394,8 @@ export async function writeIndexArtifacts(input) {
     compressionKeepRaw,
     documentExtractionEnabled,
     repoProvenance,
-    buildRoot
+    buildRoot,
+    familyDeclarations: listArtifactFamilyDeclarations()
   });
 }
 

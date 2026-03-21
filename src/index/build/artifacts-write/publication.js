@@ -3,7 +3,10 @@ import path from 'node:path';
 import { writeFileLists } from '../artifacts/file-lists.js';
 import { writeIndexMetrics } from '../artifacts/metrics.js';
 import { writePiecesManifest } from '../artifacts/checksums.js';
-import { writeArtifactPublicationRecord } from '../artifact-publication.js';
+import {
+  writeArtifactPublicationRecord,
+  writeArtifactPublicationValidationReport
+} from '../artifact-publication.js';
 import { reconcileIndexIdentity } from '../../identity/reconcile.js';
 import { createOrderingHasher } from '../../../shared/order.js';
 import { recordOrderingHash } from '../build-state.js';
@@ -79,7 +82,8 @@ export const runArtifactPublicationFinalizers = async ({
   compressionKeepRaw,
   documentExtractionEnabled,
   repoProvenance,
-  buildRoot
+  buildRoot,
+  familyDeclarations = []
 } = {}) => {
   await runTrackedArtifactCloseout('file-lists', async () => writeFileLists({
     outDir,
@@ -136,6 +140,46 @@ export const runArtifactPublicationFinalizers = async ({
     repoProvenance
   }));
   pieceEntries = listPieceEntries();
+  let publicationValidation = null;
+  await runTrackedArtifactCloseout('artifact-publication-validation', async () => {
+    publicationValidation = await writeArtifactPublicationValidationReport({
+      buildRoot: buildRoot || path.resolve(outDir, '..'),
+      outDir,
+      mode,
+      buildId: indexState?.buildId || null,
+      pieceEntries,
+      manifestPath: path.join(outDir, 'pieces', 'manifest.json'),
+      familyDeclarations
+    });
+    if (!publicationValidation.payload.ok) {
+      const failedFamily = publicationValidation.payload.families.find((entry) => entry?.ok === false);
+      if (failedFamily) {
+        const missing = failedFamily.missingRequiredMembers.join(', ');
+        throw new Error(
+          `[artifact-publication] ${failedFamily.family} missing required members: ${missing}`
+        );
+      }
+      if (publicationValidation.payload.checks.missingManifestEntries.length) {
+        throw new Error(
+          `[artifact-publication] manifest missing committed entries: `
+          + `${publicationValidation.payload.checks.missingManifestEntries.join(', ')}`
+        );
+      }
+      if (publicationValidation.payload.checks.extraManifestEntries.length) {
+        throw new Error(
+          `[artifact-publication] manifest contains undeclared entries: `
+          + `${publicationValidation.payload.checks.extraManifestEntries.join(', ')}`
+        );
+      }
+      if (publicationValidation.payload.checks.missingCommittedPaths.length) {
+        throw new Error(
+          `[artifact-publication] staged files missing on disk: `
+          + `${publicationValidation.payload.checks.missingCommittedPaths.map((entry) => entry.path).join(', ')}`
+        );
+      }
+      throw new Error('[artifact-publication] validation failed');
+    }
+  });
   const identityReconciliation = await assertArtifactIdentityReconciliationReady({
     runTrackedArtifactCloseout,
     outDir,
@@ -151,6 +195,7 @@ export const runArtifactPublicationFinalizers = async ({
     compatibilityKey: indexState?.compatibilityKey || null,
     pieceEntries,
     manifestPath: path.join(outDir, 'pieces', 'manifest.json'),
+    publicationValidation,
     identityReconciliation
   }));
   return pieceEntries;

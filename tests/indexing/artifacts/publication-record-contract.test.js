@@ -8,6 +8,8 @@ import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import {
   readArtifactPublicationRecord,
   resolveArtifactPublicationPath,
+  resolveArtifactPublicationValidationPath,
+  writeArtifactPublicationValidationReport,
   writeArtifactPublicationRecord
 } from '../../../src/index/build/artifact-publication.js';
 
@@ -49,7 +51,22 @@ try {
     buildId: 'build-1',
     stage: 'stage2',
     pieceEntries: [{ type: 'chunks', name: 'chunk_meta', format: 'json', path: 'chunk_meta.json' }],
-    manifestPath
+    manifestPath,
+    publicationValidation: await writeArtifactPublicationValidationReport({
+      buildRoot,
+      outDir,
+      mode: 'code',
+      buildId: 'build-1',
+      pieceEntries: [{ type: 'chunks', name: 'chunk_meta', format: 'json', path: 'chunk_meta.json' }],
+      manifestPath,
+      familyDeclarations: [
+        {
+          family: 'core',
+          owner: 'test',
+          requiredMembers: ['chunk_meta']
+        }
+      ]
+    })
   });
 
   assert.equal(result.publicationPath, resolveArtifactPublicationPath(buildRoot, 'code'));
@@ -57,7 +74,13 @@ try {
   assert.equal(publication.status, 'published');
   assert.equal(publication.mode, 'code');
   assert.equal(publication.buildId, 'build-1');
+  assert.equal(publication.generationId, 'build-1');
   assert.equal(publication.pieceCount, 1);
+  assert.equal(publication.publicationValidation?.ok, true);
+  assert.equal(
+    publication.publicationValidation?.validationPath,
+    resolveArtifactPublicationValidationPath(buildRoot, 'code')
+  );
 
   console.log('artifact publication record contract test passed');
 } finally {
