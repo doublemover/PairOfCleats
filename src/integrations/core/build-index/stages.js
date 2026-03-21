@@ -22,10 +22,12 @@ import { createFeatureMetrics, writeFeatureMetrics } from '../../../index/build/
 import { runBuildCleanupWithTimeout } from '../../../index/build/cleanup-timeout.js';
 import { releaseFileLockOrThrow } from '../../../shared/locks/file-lock.js';
 import {
+  BUILD_ROOT_RESOLUTION_FAILURES,
   getCacheRoot,
   getCurrentBuildInfo,
   getIndexDir,
   getMetricsDir,
+  resolveCurrentBuildModeRoot,
   getToolVersion
 } from '../../../../tools/shared/dict-utils.js';
 import { ensureQueueDir, enqueueJob } from '../../../../tools/service/queue.js';
@@ -81,6 +83,16 @@ const acquireBuildIndexLock = async ({ repoCacheRoot, log, metadata = null }) =>
     log(`[build] Index lock unavailable after waiting ${BUILD_INDEX_LOCK_WAIT_MS}ms.`);
   }
   throw new Error('Index lock unavailable.');
+};
+
+const createBuildRootResolutionError = (message, failureClass, context = null) => {
+  const error = new Error(message);
+  error.code = 'ERR_BUILD_ROOT_RESOLUTION_FAILED';
+  error.failureClass = failureClass || BUILD_ROOT_RESOLUTION_FAILURES.missingCurrentBuild;
+  if (context && typeof context === 'object') {
+    error.context = context;
+  }
+  return error;
 };
 
 /**
@@ -440,13 +452,21 @@ export const runSqliteStage = async ({
     const buildInfo = explicitIndexRoot
       ? null
       : getCurrentBuildInfo(root, userConfig, { mode: sqliteModes[0] || null });
-    if (!explicitIndexRoot && !buildInfo?.buildRoot) {
-      throw new Error('Missing current build for SQLite stage. Run stage2 first or pass --index-root.');
+    const runtimeIndexResolution = resolveCurrentBuildModeRoot(root, userConfig, {
+      mode: sqliteModes[0] || null,
+      indexRoot: explicitIndexRoot,
+      buildInfo,
+      requireArtifacts: !explicitIndexRoot,
+      disallowRepoRootFallback: !explicitIndexRoot
+    });
+    if (!runtimeIndexResolution.ok || !runtimeIndexResolution.root) {
+      throw createBuildRootResolutionError(
+        'Missing current build for SQLite stage. Run stage2 first or pass --index-root.',
+        runtimeIndexResolution.errorCode,
+        runtimeIndexResolution.context
+      );
     }
-    const runtimeIndexRoot = explicitIndexRoot
-      || buildInfo?.buildRoots?.[sqliteModes[0]]
-      || buildInfo?.buildRoot
-      || null;
+    const runtimeIndexRoot = runtimeIndexResolution.root;
     runtime = await createBuildRuntime({
       root,
       argv: { ...argv, stage: 'stage4' },
@@ -480,14 +500,22 @@ export const runSqliteStage = async ({
       const sqliteModeList = resolveSqliteModeList(sqliteModes);
       for (const mode of sqliteModeList) {
         throwIfAborted(effectiveAbortSignal);
-        const indexRoot = explicitIndexRoot
-          || buildInfo?.buildRoots?.[mode]
-          || buildInfo?.buildRoot
-          || runtime?.buildRoot
-          || null;
-        if (!indexRoot) {
-          throw new Error(`Missing index root for SQLite stage (mode=${mode}).`);
+        const indexRootResolution = resolveCurrentBuildModeRoot(root, userConfig, {
+          mode,
+          indexRoot: explicitIndexRoot,
+          buildInfo,
+          runtimeBuildRoot: runtime?.buildRoot || null,
+          requireArtifacts: !explicitIndexRoot,
+          disallowRepoRootFallback: !explicitIndexRoot
+        });
+        if (!indexRootResolution.ok || !indexRootResolution.root) {
+          throw createBuildRootResolutionError(
+            `Missing index root for SQLite stage (mode=${mode}).`,
+            indexRootResolution.errorCode,
+            indexRootResolution.context
+          );
         }
+        const indexRoot = indexRootResolution.root;
         const sqliteDirs = resolveSqliteDirs(indexRoot);
         sqliteResult = await scheduleSqlite(() => buildSqliteIndex(root, {
           mode,

@@ -15,6 +15,7 @@ export {
 } from '../dict-utils/config.js';
 export { getDefaultCacheRoot } from '../dict-utils/cache.js';
 export {
+  BUILD_ROOT_RESOLUTION_FAILURES,
   getBuildsRoot,
   getCacheRuntimeConfig,
   getCurrentBuildInfo,
@@ -35,6 +36,7 @@ export {
   getTriageConfig,
   getTriageRecordsDir,
   getExtensionsDir,
+  resolveCurrentBuildModeRoot,
   resolveIndexRoot,
   resolveLmdbPaths,
   resolveNodeOptions,

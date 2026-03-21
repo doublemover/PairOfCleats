@@ -1,10 +1,12 @@
 export {
+  BUILD_ROOT_RESOLUTION_FAILURES,
   getRepoId,
   resolveRepoRoot,
   getRepoRoot,
   getRepoCacheRoot,
   getBuildsRoot,
   getCurrentBuildInfo,
+  resolveCurrentBuildModeRoot,
   resolveIndexRoot,
   getIndexDir
 } from './paths/repo.js';

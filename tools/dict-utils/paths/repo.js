@@ -3,7 +3,7 @@ import path from 'node:path';
 import { isAbsolutePathNative } from '../../../src/shared/files.js';
 import { findUpwards } from '../../../src/shared/fs/find-upwards.js';
 import { joinPathSafe } from '../../../src/shared/path-normalize.js';
-import { toRealPathSync } from '../../../src/workspace/identity.js';
+import { normalizeIdentityPath, toRealPathSync } from '../../../src/workspace/identity.js';
 import {
   findLatestBuildRootWithIndexes,
   hasModeIndexDir,
@@ -12,6 +12,114 @@ import {
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { getCacheRoot, loadUserConfig } from '../config.js';
+
+export const BUILD_ROOT_RESOLUTION_FAILURES = Object.freeze({
+  missingCurrentBuild: 'missing_current_build',
+  missingModeArtifacts: 'missing_mode_artifacts',
+  disallowedRepoRootFallback: 'disallowed_repo_root_fallback'
+});
+
+const sameIdentityPath = (left, right) => normalizeIdentityPath(left) === normalizeIdentityPath(right);
+
+const coerceExistingPath = (value) => (value && fs.existsSync(value) ? value : null);
+
+const isDisallowedBuildRootCandidate = (candidate, repoCacheRoot, buildsRoot) => {
+  if (!candidate) return false;
+  const canonicalCandidate = toRealPathSync(candidate);
+  return sameIdentityPath(canonicalCandidate, repoCacheRoot)
+    || sameIdentityPath(canonicalCandidate, buildsRoot);
+};
+
+export function resolveCurrentBuildModeRoot(repoRoot, userConfig = null, options = {}) {
+  const mode = typeof options.mode === 'string' && options.mode.trim()
+    ? options.mode.trim()
+    : null;
+  const explicitIndexRoot = options.indexRoot ? path.resolve(options.indexRoot) : null;
+  if (explicitIndexRoot) {
+    return {
+      ok: true,
+      root: explicitIndexRoot,
+      source: 'explicit-index-root',
+      errorCode: null,
+      context: { mode }
+    };
+  }
+  const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+  const buildsRoot = path.join(repoCacheRoot, 'builds');
+  const buildInfo = options.buildInfo || getCurrentBuildInfo(repoRoot, userConfig, { mode });
+  if (!buildInfo) {
+    return {
+      ok: false,
+      root: null,
+      source: null,
+      errorCode: BUILD_ROOT_RESOLUTION_FAILURES.missingCurrentBuild,
+      context: { mode }
+    };
+  }
+  const requireArtifacts = options.requireArtifacts !== false;
+  const disallowRepoRootFallback = options.disallowRepoRootFallback === true;
+  const runtimeBuildRoot = options.runtimeBuildRoot ? path.resolve(options.runtimeBuildRoot) : null;
+  const candidates = [
+    { source: 'mode-root', root: mode ? buildInfo.buildRoots?.[mode] : null },
+    { source: 'active-root', root: buildInfo.activeRoot || null },
+    { source: 'runtime-build-root', root: runtimeBuildRoot },
+    { source: 'build-root', root: buildInfo.buildRoot || null }
+  ];
+  const attempted = [];
+  for (const entry of candidates) {
+    const candidate = coerceExistingPath(entry.root);
+    if (!candidate) continue;
+    const artifactReady = !requireArtifacts || hasModeIndexDir(candidate, mode);
+    attempted.push({
+      source: entry.source,
+      root: candidate,
+      artifactReady,
+      disallowed: disallowRepoRootFallback
+        ? isDisallowedBuildRootCandidate(candidate, repoCacheRoot, buildsRoot)
+        : false
+    });
+  }
+  const disallowedCandidate = attempted.find((entry) => entry.disallowed);
+  const selected = attempted.find((entry) => entry.artifactReady && !entry.disallowed);
+  if (selected) {
+    return {
+      ok: true,
+      root: selected.root,
+      source: selected.source,
+      errorCode: null,
+      context: {
+        mode,
+        buildId: buildInfo.buildId || null,
+        attempted: attempted.map(({ source, root, artifactReady, disallowed }) => ({
+          source,
+          root,
+          artifactReady,
+          disallowed
+        }))
+      }
+    };
+  }
+  return {
+    ok: false,
+    root: null,
+    source: null,
+    errorCode: attempted.some((entry) => entry.artifactReady === false)
+      ? BUILD_ROOT_RESOLUTION_FAILURES.missingModeArtifacts
+      : (disallowedCandidate
+        ? BUILD_ROOT_RESOLUTION_FAILURES.disallowedRepoRootFallback
+        : BUILD_ROOT_RESOLUTION_FAILURES.missingCurrentBuild),
+    context: {
+      mode,
+      buildId: buildInfo.buildId || null,
+      attempted: attempted.map(({ source, root, artifactReady, disallowed }) => ({
+        source,
+        root,
+        artifactReady,
+        disallowed
+      }))
+    }
+  };
+}
 
 export function getRepoId(repoRoot) {
   const resolved = toRealPathSync(path.resolve(repoRoot));
@@ -142,24 +250,14 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
  */
 export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
   if (options?.indexRoot) return path.resolve(options.indexRoot);
-  const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
-  const buildsRoot = path.join(repoCacheRoot, 'builds');
-  const currentPath = path.join(buildsRoot, 'current.json');
-  if (fs.existsSync(currentPath)) {
-    try {
-      const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
-      const preferredMode = typeof options.mode === 'string' ? options.mode : null;
-      const { buildRoot, activeRoot, buildRoots } = resolveCurrentBuildRoots(data, {
-        repoCacheRoot,
-        buildsRoot,
-        preferredMode
-      });
-      const ensureExists = (value) => (value && fs.existsSync(value) ? value : null);
-      let resolved = preferredMode ? ensureExists(buildRoots[preferredMode]) : null;
-      if (!resolved) resolved = ensureExists(buildRoot);
-      if (!resolved) resolved = ensureExists(activeRoot);
-      if (resolved) return resolved;
-    } catch {}
+  const preferredMode = typeof options.mode === 'string' ? options.mode : null;
+  const resolved = resolveCurrentBuildModeRoot(repoRoot, userConfig, {
+    mode: preferredMode,
+    requireArtifacts: true,
+    disallowRepoRootFallback: false
+  });
+  if (resolved.ok && resolved.root) {
+    return resolved.root;
   }
   return getRepoCacheRoot(repoRoot, userConfig);
 }
