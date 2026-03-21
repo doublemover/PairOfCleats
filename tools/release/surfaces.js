@@ -8,6 +8,8 @@ const COMMAND_TOKENS = Object.freeze({
   '$NODE': () => process.execPath
 });
 
+const RELEASE_CHECK_PHASES = new Set(['build', 'install', 'boot', 'smoke']);
+
 const normalizeString = (value) => String(value || '').trim();
 
 const normalizeStringArray = (value) => (Array.isArray(value) ? value : [])
@@ -26,13 +28,18 @@ const resolveCommandToken = (part) => {
 const normalizeReleaseCheckStep = (surfaceId, step, index) => {
   const id = normalizeString(step?.id);
   const label = normalizeString(step?.label);
+  const phase = normalizeString(step?.phase || 'smoke').toLowerCase();
   const command = normalizeStringArray(step?.command).map((part) => resolveCommandToken(part));
   const artifacts = normalizeStringArray(step?.artifacts);
   if (!id || !label || command.length === 0) {
     throw new Error(`invalid releaseCheck step for ${surfaceId} at index ${index}`);
   }
+  if (!RELEASE_CHECK_PHASES.has(phase)) {
+    throw new Error(`invalid releaseCheck phase for ${surfaceId}:${id} (${phase || 'missing'})`);
+  }
   return {
     id,
+    phase,
     label,
     command,
     artifacts
@@ -131,11 +138,15 @@ export const getReleaseCheckSurfaceSteps = (root = resolveToolRoot()) => {
     surface.releaseCheck.enabled
       ? surface.releaseCheck.steps.map((step) => ({
         ...step,
-        phase: 'smoke',
         surfaceId: surface.id,
         surfaceName: surface.name,
         owner: surface.owner
       }))
       : []
   );
+};
+
+export const getReleaseCheckSurfacePhases = (root = resolveToolRoot()) => {
+  const phases = new Set(getReleaseCheckSurfaceSteps(root).map((step) => step.phase));
+  return Array.from(phases);
 };

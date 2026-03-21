@@ -18,7 +18,13 @@ const parseArgs = () => createCli({
   .parse();
 
 const renderSurface = (surface) => {
-  const smokeSteps = surface.releaseCheck.steps;
+  const releaseCheckStepsByPhase = new Map();
+  for (const step of surface.releaseCheck.steps) {
+    const key = String(step.phase || 'smoke');
+    const bucket = releaseCheckStepsByPhase.get(key) || [];
+    bucket.push(step);
+    releaseCheckStepsByPhase.set(key, bucket);
+  }
   const lines = [
     `## ${surface.name}`,
     '',
@@ -49,10 +55,15 @@ const renderSurface = (surface) => {
   lines.push('');
   lines.push('Smoke contract:');
   lines.push(`- ${surface.smoke.summary}`);
-  if (smokeSteps.length > 0) {
-    lines.push('- automated release-check steps:');
-    for (const step of smokeSteps) {
-      lines.push(`  - \`${step.id}\` -- ${step.label}`);
+  if (surface.releaseCheck.steps.length > 0) {
+    lines.push('- automated release-check steps by phase:');
+    for (const phase of ['build', 'install', 'boot', 'smoke']) {
+      const steps = releaseCheckStepsByPhase.get(phase) || [];
+      if (steps.length === 0) continue;
+      lines.push(`  - ${phase}:`);
+      for (const step of steps) {
+        lines.push(`    - \`${step.id}\` -- ${step.label}`);
+      }
     }
   } else {
     lines.push('- automated release-check steps: _not yet enabled_');

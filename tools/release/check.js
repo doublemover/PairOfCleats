@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { escapeRegex } from '../../src/shared/text/escape-regex.js';
 import { isTestingEnv } from '../../src/shared/env.js';
-import { getReleaseCheckSurfaceSteps, loadShippedSurfaces } from './surfaces.js';
+import { getReleaseCheckSurfacePhases, getReleaseCheckSurfaceSteps, loadShippedSurfaces } from './surfaces.js';
 
 const args = process.argv.slice(2);
 const hasFlag = (flag) => args.includes(flag);
@@ -233,7 +233,7 @@ const writeOutputs = (reportPayload, manifestPayload) => {
  * Collect deterministic release-manifest artifact metadata.
  *
  * @param {object[]} steps
- * @returns {Array<{path:string,exists:boolean,sizeBytes:number|null,sha256:string|null}>}
+ * @returns {Array<{path:string,exists:boolean,type:string,sizeBytes:number|null,sha256:string|null}>}
  */
 const collectManifestArtifacts = (steps) => {
   const inventory = new Set([
@@ -257,14 +257,25 @@ const collectManifestArtifacts = (steps) => {
         return {
           path: relPath,
           exists: false,
+          type: 'missing',
           sizeBytes: null,
           sha256: null
         };
       }
       const stat = fs.statSync(absPath);
+      if (stat.isDirectory()) {
+        return {
+          path: relPath,
+          exists: true,
+          type: 'directory',
+          sizeBytes: null,
+          sha256: null
+        };
+      }
       return {
         path: relPath,
         exists: true,
+        type: 'file',
         sizeBytes: stat.size,
         sha256: sha256File(absPath)
       };
@@ -282,6 +293,7 @@ const main = () => {
   const steps = [];
   const shippedSurfaceRegistry = loadShippedSurfaces(root);
   const smokeSteps = getReleaseCheckSurfaceSteps(root);
+  const verificationPhases = getReleaseCheckSurfacePhases(root);
   let version = null;
   let ok = true;
 
@@ -383,7 +395,7 @@ const main = () => {
     releaseVersion: version,
     strict: {
       skipModesDisabled: true,
-      requiredChecks: ['changelog', 'contracts', 'toolchain', 'smoke']
+      requiredChecks: ['changelog', 'contracts', 'toolchain', ...verificationPhases]
     },
     shippedSurfaces: shippedSurfaceRegistry.surfaces.map((surface) => ({
       id: surface.id,
@@ -394,12 +406,28 @@ const main = () => {
       publishBoundary: surface.publishBoundary,
       versionSource: surface.versionSource,
       releaseCheckEnabled: surface.releaseCheck.enabled,
-      releaseCheckStepIds: surface.releaseCheck.steps.map((step) => step.id)
+      releaseCheckStepIds: surface.releaseCheck.steps.map((step) => step.id),
+      releaseCheckStepsByPhase: Object.fromEntries(
+        ['build', 'install', 'boot', 'smoke']
+          .map((phase) => [
+            phase,
+            surface.releaseCheck.steps
+              .filter((step) => step.phase === phase)
+              .map((step) => step.id)
+          ])
+          .filter(([, ids]) => ids.length > 0)
+      )
     })),
     summary: {
       total: steps.length,
       passed: passedCount,
-      failed: failedCount
+      failed: failedCount,
+      byPhase: Object.fromEntries(
+        ['changelog', 'contracts', 'toolchain', ...verificationPhases].map((phase) => [
+          phase,
+          steps.filter((step) => step.phase === phase).length
+        ])
+      )
     },
     checks: steps.map((step) => ({
       ...step,
@@ -429,7 +457,17 @@ const main = () => {
       install: surface.install,
       smoke: surface.smoke,
       releaseCheckEnabled: surface.releaseCheck.enabled,
-      releaseCheckStepIds: surface.releaseCheck.steps.map((step) => step.id)
+      releaseCheckStepIds: surface.releaseCheck.steps.map((step) => step.id),
+      releaseCheckStepsByPhase: Object.fromEntries(
+        ['build', 'install', 'boot', 'smoke']
+          .map((phase) => [
+            phase,
+            surface.releaseCheck.steps
+              .filter((step) => step.phase === phase)
+              .map((step) => step.id)
+          ])
+          .filter(([, ids]) => ids.length > 0)
+      )
     })),
     artifacts: []
   };

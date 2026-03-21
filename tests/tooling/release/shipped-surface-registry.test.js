@@ -24,6 +24,9 @@ for (const surface of registry.surfaces) {
   assert.ok(surface.versionSource, `expected version source for ${surface.id}`);
   assert.ok(surface.install.summary, `expected install summary for ${surface.id}`);
   assert.ok(surface.smoke.summary, `expected smoke summary for ${surface.id}`);
+  for (const step of surface.releaseCheck.steps) {
+    assert.ok(['build', 'install', 'boot', 'smoke'].includes(step.phase), `expected valid phase for ${surface.id}:${step.id}`);
+  }
   for (const sourcePath of surface.build.sourcePaths) {
     assert.ok(
       fs.existsSync(path.join(root, sourcePath)),
@@ -40,11 +43,18 @@ assert.deepEqual(
     'smoke.fixture-index-build',
     'smoke.fixture-index-validate-strict',
     'smoke.fixture-search',
+    'api.boot.server',
+    'api.smoke.workflow',
+    'mcp.boot.initialize',
+    'mcp.smoke.workflow',
     'smoke.service-mode',
     'smoke.editor-vscode',
+    'vscode.install.unpack',
     'smoke.editor-sublime',
+    'sublime.install.unpack',
     'smoke.tui-build',
-    'smoke.tui-install'
+    'smoke.tui-install',
+    'tui.boot.wrapper'
   ]
 );
 

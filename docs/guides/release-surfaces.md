@@ -26,11 +26,13 @@ Install contract: `npm-bin-or-direct-node`
 
 Smoke contract:
 - CLI boots, reports its version, builds a fixture index, validates it, and returns a search result.
-- automated release-check steps:
-  - `smoke.version` -- pairofcleats --version
-  - `smoke.fixture-index-build` -- fixture index build
-  - `smoke.fixture-index-validate-strict` -- fixture index validate --strict
-  - `smoke.fixture-search` -- fixture search
+- automated release-check steps by phase:
+  - boot:
+    - `smoke.version` -- pairofcleats --version
+  - smoke:
+    - `smoke.fixture-index-build` -- fixture index build
+    - `smoke.fixture-index-validate-strict` -- fixture index validate --strict
+    - `smoke.fixture-search` -- fixture search
 
 ## HTTP API server
 
@@ -53,7 +55,11 @@ Install contract: `node-service-launch`
 
 Smoke contract:
 - Boot the packaged/runtime entrypoint, probe health/status/capabilities, and validate one representative API workflow.
-- automated release-check steps: _not yet enabled_
+- automated release-check steps by phase:
+  - boot:
+    - `api.boot.server` -- api server boot verification
+  - smoke:
+    - `api.smoke.workflow` -- api server smoke verification
 
 ## MCP server
 
@@ -75,7 +81,11 @@ Install contract: `node-service-launch`
 
 Smoke contract:
 - Boot the MCP server, complete initialize/capabilities handshake, and execute one representative tool call.
-- automated release-check steps: _not yet enabled_
+- automated release-check steps by phase:
+  - boot:
+    - `mcp.boot.initialize` -- mcp initialize verification
+  - smoke:
+    - `mcp.smoke.workflow` -- mcp tools smoke verification
 
 ## Indexer service mode
 
@@ -97,8 +107,9 @@ Install contract: `node-service-launch`
 
 Smoke contract:
 - Boot in smoke mode and verify the service command path responds with a valid JSON health/contract payload.
-- automated release-check steps:
-  - `smoke.service-mode` -- service-mode smoke check
+- automated release-check steps by phase:
+  - smoke:
+    - `smoke.service-mode` -- service-mode smoke check
 
 ## VS Code extension
 
@@ -117,14 +128,18 @@ Build contract: `package-script`
 - build source: `tools/package-vscode.js`
 - build output: `dist/vscode/pairofcleats.vsix`
 - build output: `dist/vscode/pairofcleats.vsix.sha256`
+- build output: `dist/vscode/pairofcleats.vsix.manifest.json`
 
 Install contract: `vsix-install`
 - Install the VSIX into a compatible VS Code host and validate activation/runtime packaging metadata.
 
 Smoke contract:
 - Package the VSIX deterministically and verify the smoke contract for manifest, activation, and bundled assets.
-- automated release-check steps:
-  - `smoke.editor-vscode` -- editor package smoke (vscode)
+- automated release-check steps by phase:
+  - build:
+    - `smoke.editor-vscode` -- editor package smoke (vscode)
+  - install:
+    - `vscode.install.unpack` -- editor archive unpack verification (vscode)
 
 ## Sublime package
 
@@ -143,14 +158,18 @@ Build contract: `package-script`
 - build source: `tools/package-sublime.js`
 - build output: `dist/sublime/pairofcleats.sublime-package`
 - build output: `dist/sublime/pairofcleats.sublime-package.sha256`
+- build output: `dist/sublime/pairofcleats.sublime-package.manifest.json`
 
 Install contract: `sublime-package-install`
 - Install the generated `.sublime-package` into the target Sublime environment and validate package metadata.
 
 Smoke contract:
 - Package the Sublime surface deterministically and verify the smoke contract for bundled files and archive integrity.
-- automated release-check steps:
-  - `smoke.editor-sublime` -- editor package smoke (sublime)
+- automated release-check steps by phase:
+  - build:
+    - `smoke.editor-sublime` -- editor package smoke (sublime)
+  - install:
+    - `sublime.install.unpack` -- editor archive unpack verification (sublime)
 
 ## Rust TUI and wrapper
 
@@ -178,6 +197,10 @@ Install contract: `wrapper-verified-install`
 
 Smoke contract:
 - Build and checksum the staged TUI artifacts, then perform an install smoke against an isolated install root.
-- automated release-check steps:
-  - `smoke.tui-build` -- tui artifact manifest smoke
-  - `smoke.tui-install` -- tui install smoke
+- automated release-check steps by phase:
+  - build:
+    - `smoke.tui-build` -- tui artifact manifest smoke
+  - install:
+    - `smoke.tui-install` -- tui install smoke
+  - boot:
+    - `tui.boot.wrapper` -- tui wrapper boot verification

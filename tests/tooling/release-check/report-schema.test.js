@@ -56,6 +56,11 @@ if (!Array.isArray(manifest.surfaces) || manifest.surfaces.length === 0) {
   process.exit(1);
 }
 
+if (!report.summary?.byPhase || typeof report.summary.byPhase !== 'object') {
+  console.error('report-schema test failed: summary.byPhase missing');
+  process.exit(1);
+}
+
 if (!manifest.shippedSurfacesRegistryPath || typeof manifest.shippedSurfacesRegistryPath !== 'string') {
   console.error('report-schema test failed: manifest registry path missing');
   process.exit(1);
@@ -71,6 +76,10 @@ if (!reportArtifact || reportArtifact.exists !== true || !Number.isFinite(report
 const cliSurface = manifest.surfaces.find((entry) => entry.id === 'cli');
 if (!cliSurface || !Array.isArray(cliSurface.releaseCheckStepIds) || cliSurface.releaseCheckStepIds.length === 0) {
   console.error('report-schema test failed: cli surface release-check metadata missing');
+  process.exit(1);
+}
+if (!cliSurface.releaseCheckStepsByPhase || !Array.isArray(cliSurface.releaseCheckStepsByPhase.boot)) {
+  console.error('report-schema test failed: cli surface phase grouping missing');
   process.exit(1);
 }
 

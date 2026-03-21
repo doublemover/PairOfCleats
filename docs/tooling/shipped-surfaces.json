@@ -36,6 +36,7 @@
         "steps": [
           {
             "id": "smoke.version",
+            "phase": "boot",
             "label": "pairofcleats --version",
             "command": [
               "$NODE",
@@ -46,6 +47,7 @@
           },
           {
             "id": "smoke.fixture-index-build",
+            "phase": "smoke",
             "label": "fixture index build",
             "command": [
               "$NODE",
@@ -61,6 +63,7 @@
           },
           {
             "id": "smoke.fixture-index-validate-strict",
+            "phase": "smoke",
             "label": "fixture index validate --strict",
             "command": [
               "$NODE",
@@ -73,6 +76,7 @@
           },
           {
             "id": "smoke.fixture-search",
+            "phase": "smoke",
             "label": "fixture search",
             "command": [
               "$NODE",
@@ -122,8 +126,45 @@
         "summary": "Boot the packaged/runtime entrypoint, probe health/status/capabilities, and validate one representative API workflow."
       },
       "releaseCheck": {
-        "enabled": false,
-        "steps": []
+        "enabled": true,
+        "steps": [
+          {
+            "id": "api.boot.server",
+            "phase": "boot",
+            "label": "api server boot verification",
+            "command": [
+              "$NODE",
+              "tools/release/verify-surface.js",
+              "--surface",
+              "api",
+              "--stage",
+              "boot",
+              "--out",
+              "dist/release-verification/api/boot/verification.json"
+            ],
+            "artifacts": [
+              "dist/release-verification/api/boot/verification.json"
+            ]
+          },
+          {
+            "id": "api.smoke.workflow",
+            "phase": "smoke",
+            "label": "api server smoke verification",
+            "command": [
+              "$NODE",
+              "tools/release/verify-surface.js",
+              "--surface",
+              "api",
+              "--stage",
+              "smoke",
+              "--out",
+              "dist/release-verification/api/smoke/verification.json"
+            ],
+            "artifacts": [
+              "dist/release-verification/api/smoke/verification.json"
+            ]
+          }
+        ]
       }
     },
     {
@@ -157,8 +198,45 @@
         "summary": "Boot the MCP server, complete initialize/capabilities handshake, and execute one representative tool call."
       },
       "releaseCheck": {
-        "enabled": false,
-        "steps": []
+        "enabled": true,
+        "steps": [
+          {
+            "id": "mcp.boot.initialize",
+            "phase": "boot",
+            "label": "mcp initialize verification",
+            "command": [
+              "$NODE",
+              "tools/release/verify-surface.js",
+              "--surface",
+              "mcp",
+              "--stage",
+              "boot",
+              "--out",
+              "dist/release-verification/mcp/boot/verification.json"
+            ],
+            "artifacts": [
+              "dist/release-verification/mcp/boot/verification.json"
+            ]
+          },
+          {
+            "id": "mcp.smoke.workflow",
+            "phase": "smoke",
+            "label": "mcp tools smoke verification",
+            "command": [
+              "$NODE",
+              "tools/release/verify-surface.js",
+              "--surface",
+              "mcp",
+              "--stage",
+              "smoke",
+              "--out",
+              "dist/release-verification/mcp/smoke/verification.json"
+            ],
+            "artifacts": [
+              "dist/release-verification/mcp/smoke/verification.json"
+            ]
+          }
+        ]
       }
     },
     {
@@ -196,6 +274,7 @@
         "steps": [
           {
             "id": "smoke.service-mode",
+            "phase": "smoke",
             "label": "service-mode smoke check",
             "command": [
               "$NODE",
@@ -233,7 +312,8 @@
         ],
         "outputs": [
           "dist/vscode/pairofcleats.vsix",
-          "dist/vscode/pairofcleats.vsix.sha256"
+          "dist/vscode/pairofcleats.vsix.sha256",
+          "dist/vscode/pairofcleats.vsix.manifest.json"
         ]
       },
       "install": {
@@ -248,6 +328,7 @@
         "steps": [
           {
             "id": "smoke.editor-vscode",
+            "phase": "build",
             "label": "editor package smoke (vscode)",
             "command": [
               "$NODE",
@@ -256,7 +337,26 @@
             ],
             "artifacts": [
               "dist/vscode/pairofcleats.vsix",
-              "dist/vscode/pairofcleats.vsix.sha256"
+              "dist/vscode/pairofcleats.vsix.sha256",
+              "dist/vscode/pairofcleats.vsix.manifest.json"
+            ]
+          },
+          {
+            "id": "vscode.install.unpack",
+            "phase": "install",
+            "label": "editor archive unpack verification (vscode)",
+            "command": [
+              "$NODE",
+              "tools/release/verify-surface.js",
+              "--surface",
+              "vscode",
+              "--stage",
+              "install",
+              "--out",
+              "dist/release-verification/vscode/install/verification.json"
+            ],
+            "artifacts": [
+              "dist/release-verification/vscode/install/verification.json"
             ]
           }
         ]
@@ -287,7 +387,8 @@
         ],
         "outputs": [
           "dist/sublime/pairofcleats.sublime-package",
-          "dist/sublime/pairofcleats.sublime-package.sha256"
+          "dist/sublime/pairofcleats.sublime-package.sha256",
+          "dist/sublime/pairofcleats.sublime-package.manifest.json"
         ]
       },
       "install": {
@@ -302,6 +403,7 @@
         "steps": [
           {
             "id": "smoke.editor-sublime",
+            "phase": "build",
             "label": "editor package smoke (sublime)",
             "command": [
               "$NODE",
@@ -310,7 +412,26 @@
             ],
             "artifacts": [
               "dist/sublime/pairofcleats.sublime-package",
-              "dist/sublime/pairofcleats.sublime-package.sha256"
+              "dist/sublime/pairofcleats.sublime-package.sha256",
+              "dist/sublime/pairofcleats.sublime-package.manifest.json"
+            ]
+          },
+          {
+            "id": "sublime.install.unpack",
+            "phase": "install",
+            "label": "editor archive unpack verification (sublime)",
+            "command": [
+              "$NODE",
+              "tools/release/verify-surface.js",
+              "--surface",
+              "sublime",
+              "--stage",
+              "install",
+              "--out",
+              "dist/release-verification/sublime/install/verification.json"
+            ],
+            "artifacts": [
+              "dist/release-verification/sublime/install/verification.json"
             ]
           }
         ]
@@ -359,6 +480,7 @@
         "steps": [
           {
             "id": "smoke.tui-build",
+            "phase": "build",
             "label": "tui artifact manifest smoke",
             "command": [
               "$NODE",
@@ -372,6 +494,7 @@
           },
           {
             "id": "smoke.tui-install",
+            "phase": "install",
             "label": "tui install smoke",
             "command": [
               "$NODE",
@@ -382,6 +505,29 @@
             ],
             "artifacts": [
               "dist/tui/install-smoke"
+            ]
+          },
+          {
+            "id": "tui.boot.wrapper",
+            "phase": "boot",
+            "label": "tui wrapper boot verification",
+            "command": [
+              "$NODE",
+              "tools/release/verify-surface.js",
+              "--surface",
+              "tui",
+              "--stage",
+              "boot",
+              "--install-root",
+              "dist/tui/install-smoke",
+              "--out",
+              "dist/release-verification/tui/boot/verification.json",
+              "--capture-out-dir",
+              "dist/release-verification/tui/boot/capture"
+            ],
+            "artifacts": [
+              "dist/release-verification/tui/boot/verification.json",
+              "dist/release-verification/tui/boot/capture/supervised-session/capture-manifest.json"
             ]
           }
         ]
