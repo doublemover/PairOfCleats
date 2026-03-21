@@ -50,6 +50,15 @@ Before launch, wrapper verifies:
 
 On failure, wrapper exits non-zero with repair hints.
 
+## Local Rust verification
+
+For source-checkout validation of the TUI crate, run:
+
+- `cargo fmt --check --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
+- `cargo check --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
+- `cargo test --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
+- `cargo clippy --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml -- -D warnings`
+
 ## Observability
 
 Wrapper injects:

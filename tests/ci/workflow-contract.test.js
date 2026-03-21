@@ -54,6 +54,24 @@ const assertHiddenArtifactUploadsConfigured = ({ workflowText, label }) => {
   }
 };
 
+const assertRustValidationPresent = ({ workflowText, label }) => {
+  const requiredPatterns = [
+    /uses:\s*dtolnay\/rust-toolchain@stable/,
+    /toolchain:\s*1\.83\.0/,
+    /components:\s*rustfmt,\s*clippy/,
+    /cargo fmt --check/,
+    /cargo check --locked/,
+    /cargo test --locked/,
+    /cargo clippy --locked -- -D warnings/
+  ];
+  for (const pattern of requiredPatterns) {
+    if (!pattern.test(workflowText)) {
+      console.error(`${label} is missing required Rust validation: ${pattern}`);
+      process.exit(1);
+    }
+  }
+};
+
 const readWorkflow = (name) => {
   const workflowPath = path.join(ROOT, '.github', 'workflows', name);
   if (!fs.existsSync(workflowPath)) {
@@ -67,11 +85,13 @@ const ciWorkflow = readWorkflow('ci.yml');
 assertWorkflowScriptsExist({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertNodePinned({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertHiddenArtifactUploadsConfigured({ workflowText: ciWorkflow, label: 'CI workflow' });
+assertRustValidationPresent({ workflowText: ciWorkflow, label: 'CI workflow' });
 
 const nightlyWorkflow = readWorkflow('nightly.yml');
 assertWorkflowScriptsExist({ workflowText: nightlyWorkflow, label: 'Nightly workflow' });
 assertNodePinned({ workflowText: nightlyWorkflow, label: 'Nightly workflow' });
 assertHiddenArtifactUploadsConfigured({ workflowText: nightlyWorkflow, label: 'Nightly workflow' });
+assertRustValidationPresent({ workflowText: nightlyWorkflow, label: 'Nightly workflow' });
 
 const ciLongWorkflow = readWorkflow('ci-long.yml');
 assertWorkflowScriptsExist({ workflowText: ciLongWorkflow, label: 'CI-long workflow' });

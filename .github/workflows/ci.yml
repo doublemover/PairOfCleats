@@ -68,6 +68,47 @@ jobs:
           include-hidden-files: true
           compression-level: 0
 
+  rust-tui:
+    name: rust-tui
+    runs-on: ubuntu-latest
+    needs: gate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.83.0
+          components: rustfmt, clippy
+
+      - name: Restore Cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            crates/pairofcleats-tui/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('crates/pairofcleats-tui/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Cargo fmt
+        working-directory: crates/pairofcleats-tui
+        run: cargo fmt --check
+
+      - name: Cargo check
+        working-directory: crates/pairofcleats-tui
+        run: cargo check --locked
+
+      - name: Cargo test
+        working-directory: crates/pairofcleats-tui
+        run: cargo test --locked
+
+      - name: Cargo clippy
+        working-directory: crates/pairofcleats-tui
+        run: cargo clippy --locked -- -D warnings
+
   ubuntu:
     name: ubuntu
     runs-on: ubuntu-latest

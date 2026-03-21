@@ -10,7 +10,9 @@ use crossterm::event::{
     self, DisableMouseCapture, EnableMouseCapture, Event as CEvent, KeyCode, KeyEventKind,
 };
 use crossterm::execute;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Style};
@@ -42,7 +44,10 @@ struct TerminalCapabilities {
 
 impl TerminalCapabilities {
     fn detect() -> Self {
-        let no_color = std::env::var("NO_COLOR").ok().map(|v| !v.trim().is_empty()).unwrap_or(false);
+        let no_color = std::env::var("NO_COLOR")
+            .ok()
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false);
         let color = !no_color;
         let unicode = std::env::var("PAIROFCLEATS_TUI_UNICODE")
             .ok()
@@ -156,7 +161,11 @@ struct AppModel {
 }
 
 impl AppModel {
-    fn new(run_id: String, terminal_caps: TerminalCapabilities, telemetry_file: Option<fs::File>) -> Self {
+    fn new(
+        run_id: String,
+        terminal_caps: TerminalCapabilities,
+        telemetry_file: Option<fs::File>,
+    ) -> Self {
         Self {
             run_id,
             job_status: BTreeMap::new(),
@@ -202,12 +211,19 @@ impl AppModel {
                 }
             }
         }
-        self.job_status.insert(job_id.to_string(), status.to_string());
+        self.job_status
+            .insert(job_id.to_string(), status.to_string());
         self.selected_job = Some(job_id.to_string());
         self.dirty = true;
     }
 
-    fn update_task_status(&mut self, job_id: &str, task_id: &str, status: &str, message: Option<&str>) {
+    fn update_task_status(
+        &mut self,
+        job_id: &str,
+        task_id: &str,
+        status: &str,
+        message: Option<&str>,
+    ) {
         let key = format!("{job_id}:{task_id}");
         if !self.task_status.contains_key(&key) {
             self.task_order.push_back(key.clone());
@@ -247,7 +263,10 @@ fn resolve_observability_dir() -> PathBuf {
             return PathBuf::from(value.trim());
         }
     }
-    Path::new(".cache").join("tui").join("install-v1").join("session-logs")
+    Path::new(".cache")
+        .join("tui")
+        .join("install-v1")
+        .join("session-logs")
 }
 
 fn resolve_snapshot_path() -> PathBuf {
@@ -279,7 +298,10 @@ fn save_snapshot(snapshot_path: &Path, model: &AppModel) {
     }
 }
 
-fn spawn_supervisor(run_id: &str, event_log_dir: &Path) -> anyhow::Result<(std::process::Child, Receiver<Value>)> {
+fn spawn_supervisor(
+    run_id: &str,
+    event_log_dir: &Path,
+) -> anyhow::Result<(std::process::Child, Receiver<Value>)> {
     let node_from_exe = std::env::current_exe()?.with_file_name("node");
     let mut child = Command::new(&node_from_exe)
         .arg("tools/tui/supervisor.js")
@@ -307,7 +329,7 @@ fn spawn_supervisor(run_id: &str, event_log_dir: &Path) -> anyhow::Result<(std::
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
         let reader = BufReader::new(stdout);
-        for line in reader.lines().flatten() {
+        for line in reader.lines().map_while(Result::ok) {
             if line.trim().is_empty() {
                 continue;
             }
@@ -338,7 +360,12 @@ fn list_window(items: &[String], scroll: usize, height: usize) -> Vec<String> {
     let safe_height = height.max(1);
     let max_start = items.len().saturating_sub(safe_height);
     let start = scroll.min(max_start);
-    items.iter().skip(start).take(safe_height).cloned().collect()
+    items
+        .iter()
+        .skip(start)
+        .take(safe_height)
+        .cloned()
+        .collect()
 }
 
 fn tail_window(items: &VecDeque<String>, scroll: usize, height: usize) -> Vec<String> {
@@ -349,7 +376,12 @@ fn tail_window(items: &VecDeque<String>, scroll: usize, height: usize) -> Vec<St
     let end = total.saturating_sub(scroll.min(total));
     let safe_height = height.max(1);
     let start = end.saturating_sub(safe_height);
-    items.iter().skip(start).take(end.saturating_sub(start)).cloned().collect()
+    items
+        .iter()
+        .skip(start)
+        .take(end.saturating_sub(start))
+        .cloned()
+        .collect()
 }
 
 fn frame_signature(model: &AppModel) -> String {
@@ -401,8 +433,8 @@ fn draw_ui(
             model.telemetry.chunk_reassembled,
             model.telemetry.dropped_chunks
         );
-        let metrics_block = Paragraph::new(metrics)
-            .block(Block::default().borders(Borders::ALL).title("Runtime"));
+        let metrics_block =
+            Paragraph::new(metrics).block(Block::default().borders(Borders::ALL).title("Runtime"));
         frame.render_widget(metrics_block, rows[1]);
 
         let cols = Layout::default()
@@ -470,7 +502,8 @@ fn draw_ui(
             cols[1].height.saturating_sub(2) as usize,
         );
         let task_items: Vec<ListItem> = visible_tasks.into_iter().map(ListItem::new).collect();
-        let tasks = List::new(task_items).block(Block::default().borders(Borders::ALL).title("Tasks"));
+        let tasks =
+            List::new(task_items).block(Block::default().borders(Borders::ALL).title("Tasks"));
         frame.render_widget(tasks, cols[1]);
 
         let visible_logs = tail_window(
@@ -487,7 +520,9 @@ fn draw_ui(
 
 fn enqueue_input(model: &mut AppModel, command: InputCommand, token: &str) {
     let now = Instant::now();
-    if token == model.last_input_token && now.duration_since(model.last_input_at).as_millis() < INPUT_DEBOUNCE_MS {
+    if token == model.last_input_token
+        && now.duration_since(model.last_input_at).as_millis() < INPUT_DEBOUNCE_MS
+    {
         return;
     }
     let seq = model.next_input_seq;
@@ -501,7 +536,9 @@ fn flush_flow_credits(model: &mut AppModel, supervisor: &mut std::process::Child
     if model.flow_credit_pending == 0 {
         return;
     }
-    if model.flow_credit_pending < FLOW_CREDIT_BATCH && model.last_credit_flush.elapsed() < FLOW_CREDIT_FLUSH_INTERVAL {
+    if model.flow_credit_pending < FLOW_CREDIT_BATCH
+        && model.last_credit_flush.elapsed() < FLOW_CREDIT_FLUSH_INTERVAL
+    {
         return;
     }
     let credits = model.flow_credit_pending;
@@ -648,7 +685,10 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
                 .and_then(|value| value.as_str())
                 .unwrap_or("unknown");
             model.update_job_status(job_id, status);
-        } else if event_name == "task:start" || event_name == "task:progress" || event_name == "task:end" {
+        } else if event_name == "task:start"
+            || event_name == "task:progress"
+            || event_name == "task:end"
+        {
             let task_id = event
                 .get("taskId")
                 .and_then(|value| value.as_str())
@@ -656,7 +696,11 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
             let status = event
                 .get("status")
                 .and_then(|value| value.as_str())
-                .unwrap_or(if event_name == "task:end" { "done" } else { "running" });
+                .unwrap_or(if event_name == "task:end" {
+                    "done"
+                } else {
+                    "running"
+                });
             let msg = event.get("message").and_then(|value| value.as_str());
             model.update_task_status(job_id, task_id, status, msg);
         }
@@ -664,7 +708,10 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
 
     if event_name == "runtime:metrics" {
         if let Some(flow) = event.get("flow").and_then(|value| value.as_object()) {
-            let queue_depth = flow.get("queueDepth").and_then(|value| value.as_u64()).unwrap_or(0) as f64;
+            let queue_depth = flow
+                .get("queueDepth")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0) as f64;
             model.telemetry.queue_depth_ewma =
                 RuntimeTelemetry::update_ewma(model.telemetry.queue_depth_ewma, queue_depth);
         }
@@ -856,7 +903,9 @@ fn main() -> anyhow::Result<()> {
                 match key.code {
                     KeyCode::Char('q') => enqueue_input(&mut model, InputCommand::Quit, "q"),
                     KeyCode::Char('r') => enqueue_input(&mut model, InputCommand::RunJob, "r"),
-                    KeyCode::Char('c') => enqueue_input(&mut model, InputCommand::CancelSelected, "c"),
+                    KeyCode::Char('c') => {
+                        enqueue_input(&mut model, InputCommand::CancelSelected, "c")
+                    }
                     KeyCode::Char('j') => enqueue_input(&mut model, InputCommand::LogsUp, "j"),
                     KeyCode::Char('k') => enqueue_input(&mut model, InputCommand::LogsDown, "k"),
                     KeyCode::Char('n') => enqueue_input(&mut model, InputCommand::JobsUp, "n"),
