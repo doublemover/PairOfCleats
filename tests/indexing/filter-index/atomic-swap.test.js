@@ -6,6 +6,7 @@ import { buildPostings } from '../../../src/index/build/postings.js';
 import { writeIndexArtifacts } from '../../../src/index/build/artifacts.js';
 import { fromPosix } from '../../../src/shared/files.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { createCanonicalTestChunkUid } from '../../helpers/chunk-uid.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -40,12 +41,18 @@ const baseState = {
   importResolutionGraph: null
 };
 
+const chunkUid = createCanonicalTestChunkUid({
+  virtualPath: 'src/a.js',
+  salt: 'filter-index-atomic-swap'
+});
+
 const makeChunk = (overrides) => ({
   id: 0,
   file: 'src/a.js',
   ext: '.js',
   lang: 'javascript',
-  chunkUid: 'chunk-0',
+  chunkUid,
+  virtualPath: 'src/a.js',
   start: 0,
   end: 1,
   startLine: 1,

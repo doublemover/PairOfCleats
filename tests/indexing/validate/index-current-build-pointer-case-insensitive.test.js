@@ -6,6 +6,7 @@ import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { createCanonicalTestChunkUid } from '../../helpers/chunk-uid.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -45,6 +46,10 @@ const buildsRoot = path.join(repoCacheRoot, 'builds');
 const buildId = 'build-case';
 const buildRoot = path.join(buildsRoot, buildId);
 const indexDir = path.join(buildRoot, 'index-code');
+const chunkUid = createCanonicalTestChunkUid({
+  virtualPath: 'src/a.js',
+  salt: 'index-current-build-pointer-case-insensitive'
+});
 
 await writeJson(path.join(indexDir, 'chunk_meta.json'), [
   {
@@ -53,7 +58,7 @@ await writeJson(path.join(indexDir, 'chunk_meta.json'), [
     start: 0,
     end: 1,
     chunkId: 'chunk_0',
-    chunkUid: 'ck:test:chunk_0',
+    chunkUid,
     virtualPath: 'src/a.js'
   }
 ]);
