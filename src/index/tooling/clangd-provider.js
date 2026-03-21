@@ -17,6 +17,7 @@ import {
 } from './preflight/command-profile-preflight.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { resolveCompileCommandsDir } from './compile-commands.js';
+import { classifyLspDocumentPathPolicy } from '../../integrations/tooling/providers/lsp/path-policy.js';
 
 const CLANGD_BASE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh'];
 const CLANGD_OBJC_EXTS = ['.m', '.mm'];
@@ -353,6 +354,73 @@ const resolveClangdDocumentsAndTargets = (inputs) => {
   return { docs, targets };
 };
 
+const CLANGD_SELECTION_TIER_WEIGHT = Object.freeze({
+  preferred: 0,
+  secondary: 1,
+  'low-value': 2,
+  skipped: 3
+});
+
+const rankClangdWeakCompileContextDocs = (docs) => (
+  (Array.isArray(docs) ? docs : [])
+    .map((doc, index) => {
+      const pathPolicy = classifyLspDocumentPathPolicy({
+        providerId: 'clangd',
+        virtualPath: doc?.virtualPath || ''
+      });
+      const tier = String(pathPolicy?.selectionTier || 'preferred');
+      return {
+        doc,
+        index,
+        pathPolicy,
+        tier,
+        tierWeight: CLANGD_SELECTION_TIER_WEIGHT[tier] ?? 3,
+        headerPenalty: headerExtForPath(doc?.virtualPath) ? 1 : 0,
+        textLength: String(doc?.text || '').length
+      };
+    })
+    .sort((left, right) => (
+      left.tierWeight - right.tierWeight
+      || left.headerPenalty - right.headerPenalty
+      || right.textLength - left.textLength
+      || String(left.doc?.virtualPath || '').localeCompare(String(right.doc?.virtualPath || ''))
+      || left.index - right.index
+    ))
+);
+
+const reduceClangdWeakCompileContextScope = ({
+  docs,
+  targets,
+  maxDocs
+}) => {
+  const ranked = rankClangdWeakCompileContextDocs(docs);
+  const boundedMaxDocs = Math.max(1, Math.floor(Number(maxDocs) || 1));
+  const selectedRanked = ranked.slice(0, boundedMaxDocs);
+  const selectedDocs = selectedRanked.map((entry) => entry.doc);
+  const selectedPaths = new Set(selectedDocs.map((doc) => String(doc?.virtualPath || '')));
+  const selectedTargets = (Array.isArray(targets) ? targets : [])
+    .filter((target) => selectedPaths.has(String(target?.virtualPath || '')));
+  const droppedRanked = ranked.slice(boundedMaxDocs);
+  const droppedByTier = {
+    preferred: 0,
+    secondary: 0,
+    'low-value': 0,
+    skipped: 0
+  };
+  let droppedHeaders = 0;
+  for (const entry of droppedRanked) {
+    droppedByTier[entry.tier] = Number(droppedByTier[entry.tier] || 0) + 1;
+    if (entry.headerPenalty > 0) droppedHeaders += 1;
+  }
+  return {
+    selectedDocs,
+    selectedTargets,
+    droppedDocs: droppedRanked.length,
+    droppedHeaders,
+    droppedByTier
+  };
+};
+
 const buildClangdRequestedCommand = ({ ctx, clangdConfig, compileCommandsDir }) => {
   const clangdArgs = ['--log=error', '--background-index=false'];
   if (compileCommandsDir) clangdArgs.push(`--compile-commands-dir=${compileCommandsDir}`);
@@ -557,29 +625,36 @@ export const createClangdProvider = () => ({
     }
     const compileCommandsDir = preflight?.compileCommandsDir || resolveCompileCommandsDir(ctx.repoRoot, clangdConfig);
     let selectedDocs = docs;
+    const checks = [...duplicateChecks, ...preflightChecks];
     if (!compileCommandsDir) {
       const maxDocsWithoutCompileCommands = Number.isFinite(Number(clangdConfig.maxDocsWithoutCompileCommands))
         ? Math.max(1, Math.floor(Number(clangdConfig.maxDocsWithoutCompileCommands)))
         : 128;
       if (selectedDocs.length > maxDocsWithoutCompileCommands) {
-        const rankedDocs = selectedDocs
-          .slice()
-          .sort((a, b) => {
-            const aHeader = headerExtForPath(a?.virtualPath) ? 1 : 0;
-            const bHeader = headerExtForPath(b?.virtualPath) ? 1 : 0;
-            if (aHeader !== bHeader) return aHeader - bHeader;
-            return String(a?.virtualPath || '').localeCompare(String(b?.virtualPath || ''));
-          });
-        selectedDocs = rankedDocs.slice(0, maxDocsWithoutCompileCommands);
-        const selectedPaths = new Set(selectedDocs.map((doc) => String(doc?.virtualPath || '')));
-        targets = targets.filter((target) => selectedPaths.has(String(target?.virtualPath || '')));
+        const scopeReduction = reduceClangdWeakCompileContextScope({
+          docs: selectedDocs,
+          targets,
+          maxDocs: maxDocsWithoutCompileCommands
+        });
+        selectedDocs = scopeReduction.selectedDocs;
+        targets = scopeReduction.selectedTargets;
+        checks.push({
+          name: 'clangd_weak_compile_context_scope_reduced',
+          status: 'warn',
+          message: `clangd reduced documentSymbol scope to ${selectedDocs.length}/${docs.length} files without compile_commands.json; dropped ${scopeReduction.droppedDocs} weak-context file(s) (${scopeReduction.droppedHeaders} headers, ${scopeReduction.droppedByTier['low-value']} low-value, ${scopeReduction.droppedByTier.secondary} secondary).`,
+          selectedDocs: selectedDocs.length,
+          totalDocs: docs.length,
+          droppedDocs: scopeReduction.droppedDocs,
+          droppedHeaders: scopeReduction.droppedHeaders,
+          droppedByTier: scopeReduction.droppedByTier
+        });
         log(
           `[tooling] clangd limiting documentSymbol scope to ${selectedDocs.length}/${docs.length} files ` +
-          '(no compile_commands.json).'
+          `(no compile_commands.json; dropped=${scopeReduction.droppedDocs}; ` +
+          `headers=${scopeReduction.droppedHeaders}; lowValue=${scopeReduction.droppedByTier['low-value']}).`
         );
       }
     }
-    const checks = [...duplicateChecks, ...preflightChecks];
     if (!selectedDocs.length || !targets.length) {
       return {
         provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
