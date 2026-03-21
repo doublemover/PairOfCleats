@@ -203,6 +203,7 @@ const createOutcomeRollup = () => ({
 });
 const outcomeTotalsGlobal = createOutcomeRollup();
 const outcomeRepoKeysGlobal = new Set();
+const riskScanTotalsGlobal = createRiskScanAggregate();
 const shouldRenderTextOverview = profile === 'overview' && !jsonOutput && !csvOutput;
 
 const incrementCountMap = (map, key, amount = 1) => {
@@ -349,21 +350,114 @@ const formatDistributionPair = (summary, formatter = (value) => formatNumber(val
     : `${formatter(summary.median)}/${formatter(summary.p95)}`
 );
 
-const formatDistributionDetailCell = (summary, formatter = (value) => formatNumber(value)) => (
+const formatDistributionValue = (summary, key, formatter = (value) => formatNumber(value)) => (
+  !summary || !Number.isFinite(summary.count) || summary.count <= 0 || !Number.isFinite(summary?.[key])
+    ? 'n/a'
+    : formatter(summary[key])
+);
+
+const formatDistributionMinMax = (summary, formatter = (value) => formatNumber(value)) => (
   !summary || !Number.isFinite(summary.count) || summary.count <= 0
     ? 'n/a'
-    : [
-      `n ${formatCount(summary.count)}`,
-      `p50 ${formatter(summary.median)}`,
-      `p95 ${formatter(summary.p95)}`,
-      `p99 ${formatter(summary.p99)}`,
-      `min/max ${formatter(summary.min)}/${formatter(summary.max)}`,
-      `cv ${formatPct(summary.coefficientOfVariation)}`
-    ].join(' | ')
+    : `${formatter(summary.min)}/${formatter(summary.max)}`
 );
+
+const buildDistributionStatsRow = ({
+  category = '',
+  metric,
+  summary,
+  formatter = (value) => formatNumber(value)
+}) => ({
+  category,
+  metric,
+  count: Number.isFinite(summary?.count) && summary.count > 0 ? formatCount(summary.count) : 'n/a',
+  p50: formatDistributionValue(summary, 'median', formatter),
+  p95: formatDistributionValue(summary, 'p95', formatter),
+  p99: formatDistributionValue(summary, 'p99', formatter),
+  minMax: formatDistributionMinMax(summary, formatter),
+  cv: Number.isFinite(summary?.count) && summary.count > 0 ? formatPct(summary.coefficientOfVariation) : 'n/a'
+});
 
 const printNamedSection = (title) => {
   console.log(`  ${color.bold(title)}`);
+};
+
+function createRiskScanAggregate() {
+  return {
+    observedRuns: 0,
+    summaryOnlyRuns: 0,
+    statuses: new Map(),
+    caps: new Map(),
+    summariesEmitted: 0,
+    flowsEmitted: 0,
+    partialFlowsEmitted: 0,
+    uniqueCallSitesReferenced: 0
+  };
+}
+
+const resolveRiskScanSummary = (analysis) => {
+  const buildRoot = typeof analysis?.buildRoot === 'string' ? analysis.buildRoot : null;
+  if (!buildRoot) return null;
+  const riskStatsPath = path.join(buildRoot, 'index-code', 'risk_interprocedural_stats.json');
+  const payload = loadJson(riskStatsPath);
+  const stats = payload?.fields && typeof payload.fields === 'object' ? payload.fields : payload;
+  if (!stats || typeof stats !== 'object') return null;
+  return {
+    status: typeof stats?.status === 'string' && stats.status.trim() ? stats.status.trim() : 'unknown',
+    summaryOnly: stats?.effectiveConfig?.summaryOnly === true,
+    summariesEmitted: Number.isFinite(stats?.counts?.summariesEmitted) ? Number(stats.counts.summariesEmitted) : 0,
+    flowsEmitted: Number.isFinite(stats?.counts?.flowsEmitted) ? Number(stats.counts.flowsEmitted) : 0,
+    partialFlowsEmitted: Number.isFinite(stats?.counts?.partialFlowsEmitted) ? Number(stats.counts.partialFlowsEmitted) : 0,
+    uniqueCallSitesReferenced: Number.isFinite(stats?.counts?.uniqueCallSitesReferenced)
+      ? Number(stats.counts.uniqueCallSitesReferenced)
+      : 0,
+    capsHit: Array.isArray(stats?.capsHit) ? stats.capsHit.filter(Boolean) : []
+  };
+};
+
+const addRiskScanAggregate = (aggregate, riskScanSummary) => {
+  if (!aggregate || !riskScanSummary) return;
+  aggregate.observedRuns += 1;
+  if (riskScanSummary.summaryOnly) aggregate.summaryOnlyRuns += 1;
+  incrementCountMap(aggregate.statuses, riskScanSummary.status);
+  aggregate.summariesEmitted += Number(riskScanSummary.summariesEmitted) || 0;
+  aggregate.flowsEmitted += Number(riskScanSummary.flowsEmitted) || 0;
+  aggregate.partialFlowsEmitted += Number(riskScanSummary.partialFlowsEmitted) || 0;
+  aggregate.uniqueCallSitesReferenced += Number(riskScanSummary.uniqueCallSitesReferenced) || 0;
+  for (const cap of riskScanSummary.capsHit) {
+    incrementCountMap(aggregate.caps, cap);
+  }
+};
+
+const buildAstDerivedRows = ({ astGraphAggregate, indexedFiles }) => {
+  const symbols = Number(astGraphAggregate?.totals?.symbols) || 0;
+  const functions = Number(astGraphAggregate?.totals?.functions) || 0;
+  const imports = Number(astGraphAggregate?.totals?.imports) || 0;
+  const graphLinks = Number(astGraphAggregate?.totals?.graphLinks) || 0;
+  const fileLinks = Number(astGraphAggregate?.totals?.fileLinks) || 0;
+  const files = Number(indexedFiles) || 0;
+  return [
+    {
+      metric: 'Symbols / file',
+      value: files > 0 && symbols > 0 ? formatNumber(symbols / files, 1) : 'n/a'
+    },
+    {
+      metric: 'Functions / symbol',
+      value: symbols > 0 && functions > 0 ? formatPct(functions / symbols) : 'n/a'
+    },
+    {
+      metric: 'Imports / file',
+      value: files > 0 && imports > 0 ? formatNumber(imports / files, 1) : 'n/a'
+    },
+    {
+      metric: 'Graph links / symbol',
+      value: symbols > 0 && graphLinks > 0 ? formatNumber(graphLinks / symbols, 2) : 'n/a'
+    },
+    {
+      metric: 'Graph links / file link',
+      value: fileLinks > 0 && graphLinks > 0 ? formatNumber(graphLinks / fileLinks, 2) : 'n/a'
+    }
+  ];
 };
 
 const summarizeSummaryMetric = (summaries, selector) => summarizeNumericDistribution(collect(summaries, selector));
@@ -539,6 +633,7 @@ for (const dir of folders) {
   const provenanceTotalsFolder = createSectionProvenanceTotals();
   const outcomeTotalsFolder = createOutcomeRollup();
   const outcomeRepoKeysFolder = new Set();
+  const riskScanTotalsFolder = createRiskScanAggregate();
 
   for (const file of files) {
     const resultPath = path.join(folderPath, file);
@@ -572,6 +667,7 @@ for (const dir of folders) {
     const repoIdentity = resolveRepoIdentity({ payload, file });
     const repoHistoryKey = resolveRepoHistoryKey({ payload, file });
     const generatedAtMs = Date.parse(payload?.generatedAt || payload?.summary?.generatedAt || '');
+    const riskScanSummary = resolveRiskScanSummary(analysis);
     runs.push({
       file,
       summary,
@@ -585,8 +681,11 @@ for (const dir of folders) {
       throughputLedgerProvenance,
       repoIdentity,
       repoHistoryKey,
-      generatedAtMs: Number.isFinite(generatedAtMs) ? generatedAtMs : null
+      generatedAtMs: Number.isFinite(generatedAtMs) ? generatedAtMs : null,
+      riskScanSummary
     });
+    addRiskScanAggregate(riskScanTotalsFolder, riskScanSummary);
+    addRiskScanAggregate(riskScanTotalsGlobal, riskScanSummary);
     recordSectionProvenance(provenanceTotalsFolder, 'indexing', indexingProvenance);
     recordSectionProvenance(provenanceTotalsGlobal, 'indexing', indexingProvenance);
     recordSectionProvenance(provenanceTotalsFolder, 'analysis', analysisProvenance);
@@ -849,18 +948,22 @@ for (const dir of folders) {
     printTextTable(
       [
         { key: 'metric', label: 'Metric' },
-        { key: 'p50p95', label: 'p50/p95', align: 'right' },
-        { key: 'detail', label: 'Detail' }
+        { key: 'count', label: 'n', align: 'right' },
+        { key: 'p50', label: 'p50', align: 'right' },
+        { key: 'p95', label: 'p95', align: 'right' },
+        { key: 'p99', label: 'p99', align: 'right' },
+        { key: 'minMax', label: 'min/max', align: 'right' },
+        { key: 'cv', label: 'cv', align: 'right' }
       ],
       [
-        { metric: 'Build index', p50p95: formatDistributionPair(buildIndexMs, formatMs), detail: formatDistributionDetailCell(buildIndexMs, formatMs) },
-        { metric: 'Build sqlite', p50p95: formatDistributionPair(buildSqliteMs, formatMs), detail: formatDistributionDetailCell(buildSqliteMs, formatMs) },
-        { metric: 'Query/search', p50p95: formatDistributionPair(wallPerQuery, formatMs), detail: formatDistributionDetailCell(wallPerQuery, formatMs) },
-        { metric: 'Search only', p50p95: formatDistributionPair(wallPerSearch, formatMs), detail: formatDistributionDetailCell(wallPerSearch, formatMs) },
-        { metric: 'Mem mean', p50p95: formatDistributionPair(memoryMean, formatMs), detail: formatDistributionDetailCell(memoryMean, formatMs) },
-        { metric: 'Mem run-p95', p50p95: formatDistributionPair(memoryP95, formatMs), detail: formatDistributionDetailCell(memoryP95, formatMs) },
-        { metric: 'Sqlite mean', p50p95: formatDistributionPair(sqliteMean, formatMs), detail: formatDistributionDetailCell(sqliteMean, formatMs) },
-        { metric: 'Sqlite run-p95', p50p95: formatDistributionPair(sqliteP95, formatMs), detail: formatDistributionDetailCell(sqliteP95, formatMs) }
+        buildDistributionStatsRow({ metric: 'Build index', summary: buildIndexMs, formatter: formatMs }),
+        buildDistributionStatsRow({ metric: 'Build sqlite', summary: buildSqliteMs, formatter: formatMs }),
+        buildDistributionStatsRow({ metric: 'Query/search', summary: wallPerQuery, formatter: formatMs }),
+        buildDistributionStatsRow({ metric: 'Search only', summary: wallPerSearch, formatter: formatMs }),
+        buildDistributionStatsRow({ metric: 'Mem mean', summary: memoryMean, formatter: formatMs }),
+        buildDistributionStatsRow({ metric: 'Mem run-p95', summary: memoryP95, formatter: formatMs }),
+        buildDistributionStatsRow({ metric: 'Sqlite mean', summary: sqliteMean, formatter: formatMs }),
+        buildDistributionStatsRow({ metric: 'Sqlite run-p95', summary: sqliteP95, formatter: formatMs })
       ],
       { indent: '    ' }
     );
@@ -928,7 +1031,32 @@ for (const dir of folders) {
         { metric: 'Functions', value: formatAstField(astGraphTotalsFolder, 'functions') },
         { metric: 'Imports', value: formatAstField(astGraphTotalsFolder, 'imports') },
         { metric: 'File links', value: formatAstField(astGraphTotalsFolder, 'fileLinks') },
-        { metric: 'Graph links', value: formatAstField(astGraphTotalsFolder, 'graphLinks') }
+        { metric: 'Graph links', value: formatAstField(astGraphTotalsFolder, 'graphLinks') },
+        ...buildAstDerivedRows({
+          astGraphAggregate: astGraphTotalsFolder,
+          indexedFiles: aggregateIndexed.files
+        })
+      ],
+      { indent: '    ' }
+    );
+  }
+
+  if (riskScanTotalsFolder.observedRuns > 0) {
+    printNamedSection('Risk / Context');
+    printTextTable(
+      [
+        { key: 'metric', label: 'Metric' },
+        { key: 'value', label: 'Value' }
+      ],
+      [
+        { metric: 'Observed runs', value: formatCount(riskScanTotalsFolder.observedRuns) },
+        { metric: 'Statuses', value: formatCountMapSummary(riskScanTotalsFolder.statuses, 4) },
+        { metric: 'Summary-only runs', value: formatCount(riskScanTotalsFolder.summaryOnlyRuns) },
+        { metric: 'Risk summaries', value: formatCount(riskScanTotalsFolder.summariesEmitted) },
+        { metric: 'Risk flows', value: formatCount(riskScanTotalsFolder.flowsEmitted) },
+        { metric: 'Partial flows', value: formatCount(riskScanTotalsFolder.partialFlowsEmitted) },
+        { metric: 'Unique call sites', value: formatCount(riskScanTotalsFolder.uniqueCallSitesReferenced) },
+        { metric: 'Caps hit', value: formatCountMapSummary(riskScanTotalsFolder.caps, 6) }
       ],
       { indent: '    ' }
     );
@@ -1043,10 +1171,11 @@ const totalBytesPerSec = sumRates(
 const aggregateModeTotalsGlobal = Array.from(modeTotalsGlobal.values()).reduce(
   (acc, entry) => {
     acc.lines += Number.isFinite(entry.lines) ? entry.lines : 0;
+    acc.files += Number.isFinite(entry.files) ? entry.files : 0;
     acc.durationMs += Number.isFinite(entry.durationMs) ? entry.durationMs : 0;
     return acc;
   },
-  { lines: 0, durationMs: 0 }
+  { lines: 0, files: 0, durationMs: 0 }
 );
 const totalLinesPerSec = (aggregateModeTotalsGlobal.durationMs > 0)
   ? (aggregateModeTotalsGlobal.lines / (aggregateModeTotalsGlobal.durationMs / 1000))
@@ -1176,26 +1305,30 @@ if (shouldRenderTextOverview) {
     [
       { key: 'category', label: 'Category' },
       { key: 'metric', label: 'Metric' },
-      { key: 'p50p95', label: 'p50/p95', align: 'right' },
-      { key: 'detail', label: 'Detail' }
+      { key: 'count', label: 'n', align: 'right' },
+      { key: 'p50', label: 'p50', align: 'right' },
+      { key: 'p95', label: 'p95', align: 'right' },
+      { key: 'p99', label: 'p99', align: 'right' },
+      { key: 'minMax', label: 'min/max', align: 'right' },
+      { key: 'cv', label: 'cv', align: 'right' }
     ],
     [
-      { category: 'Code', metric: 'Chunks/s', p50p95: formatDistributionPair(globalCodeDistribution?.chunksPerSec), detail: formatDistributionDetailCell(globalCodeDistribution?.chunksPerSec) },
-      { category: 'Code', metric: 'Files/s', p50p95: formatDistributionPair(globalCodeDistribution?.filesPerSec), detail: formatDistributionDetailCell(globalCodeDistribution?.filesPerSec) },
-      { category: 'Prose', metric: 'Chunks/s', p50p95: formatDistributionPair(globalProseDistribution?.chunksPerSec), detail: formatDistributionDetailCell(globalProseDistribution?.chunksPerSec) },
-      { category: 'Prose', metric: 'Files/s', p50p95: formatDistributionPair(globalProseDistribution?.filesPerSec), detail: formatDistributionDetailCell(globalProseDistribution?.filesPerSec) },
-      { category: 'XProse', metric: 'Chunks/s', p50p95: formatDistributionPair(globalExtractedProseDistribution?.chunksPerSec), detail: formatDistributionDetailCell(globalExtractedProseDistribution?.chunksPerSec) },
-      { category: 'XProse', metric: 'Files/s', p50p95: formatDistributionPair(globalExtractedProseDistribution?.filesPerSec), detail: formatDistributionDetailCell(globalExtractedProseDistribution?.filesPerSec) },
-      { category: 'Records', metric: 'Chunks/s', p50p95: formatDistributionPair(globalRecordsDistribution?.chunksPerSec), detail: formatDistributionDetailCell(globalRecordsDistribution?.chunksPerSec) },
-      { category: 'Records', metric: 'Files/s', p50p95: formatDistributionPair(globalRecordsDistribution?.filesPerSec), detail: formatDistributionDetailCell(globalRecordsDistribution?.filesPerSec) },
-      { category: 'Build', metric: 'Index', p50p95: formatDistributionPair(globalBuildIndexDistribution, formatMs), detail: formatDistributionDetailCell(globalBuildIndexDistribution, formatMs) },
-      { category: 'Build', metric: 'Sqlite', p50p95: formatDistributionPair(globalBuildSqliteDistribution, formatMs), detail: formatDistributionDetailCell(globalBuildSqliteDistribution, formatMs) },
-      { category: 'Query', metric: 'Per-query', p50p95: formatDistributionPair(globalQueryDistribution, formatMs), detail: formatDistributionDetailCell(globalQueryDistribution, formatMs) },
-      { category: 'Query', metric: 'Per-search', p50p95: formatDistributionPair(globalSearchDistribution, formatMs), detail: formatDistributionDetailCell(globalSearchDistribution, formatMs) },
-      { category: 'Latency', metric: 'Mem mean', p50p95: formatDistributionPair(globalLatency.memory?.mean, formatMs), detail: formatDistributionDetailCell(globalLatency.memory?.mean, formatMs) },
-      { category: 'Latency', metric: 'Mem run-p95', p50p95: formatDistributionPair(globalLatency.memory?.p95, formatMs), detail: formatDistributionDetailCell(globalLatency.memory?.p95, formatMs) },
-      { category: 'Latency', metric: 'Sqlite mean', p50p95: formatDistributionPair(globalLatency.sqlite?.mean, formatMs), detail: formatDistributionDetailCell(globalLatency.sqlite?.mean, formatMs) },
-      { category: 'Latency', metric: 'Sqlite run-p95', p50p95: formatDistributionPair(globalLatency.sqlite?.p95, formatMs), detail: formatDistributionDetailCell(globalLatency.sqlite?.p95, formatMs) }
+      buildDistributionStatsRow({ category: 'Code', metric: 'Chunks/s', summary: globalCodeDistribution?.chunksPerSec }),
+      buildDistributionStatsRow({ category: 'Code', metric: 'Files/s', summary: globalCodeDistribution?.filesPerSec }),
+      buildDistributionStatsRow({ category: 'Prose', metric: 'Chunks/s', summary: globalProseDistribution?.chunksPerSec }),
+      buildDistributionStatsRow({ category: 'Prose', metric: 'Files/s', summary: globalProseDistribution?.filesPerSec }),
+      buildDistributionStatsRow({ category: 'XProse', metric: 'Chunks/s', summary: globalExtractedProseDistribution?.chunksPerSec }),
+      buildDistributionStatsRow({ category: 'XProse', metric: 'Files/s', summary: globalExtractedProseDistribution?.filesPerSec }),
+      buildDistributionStatsRow({ category: 'Records', metric: 'Chunks/s', summary: globalRecordsDistribution?.chunksPerSec }),
+      buildDistributionStatsRow({ category: 'Records', metric: 'Files/s', summary: globalRecordsDistribution?.filesPerSec }),
+      buildDistributionStatsRow({ category: 'Build', metric: 'Index', summary: globalBuildIndexDistribution, formatter: formatMs }),
+      buildDistributionStatsRow({ category: 'Build', metric: 'Sqlite', summary: globalBuildSqliteDistribution, formatter: formatMs }),
+      buildDistributionStatsRow({ category: 'Query', metric: 'Per-query', summary: globalQueryDistribution, formatter: formatMs }),
+      buildDistributionStatsRow({ category: 'Query', metric: 'Per-search', summary: globalSearchDistribution, formatter: formatMs }),
+      buildDistributionStatsRow({ category: 'Latency', metric: 'Mem mean', summary: globalLatency.memory?.mean, formatter: formatMs }),
+      buildDistributionStatsRow({ category: 'Latency', metric: 'Mem run-p95', summary: globalLatency.memory?.p95, formatter: formatMs }),
+      buildDistributionStatsRow({ category: 'Latency', metric: 'Sqlite mean', summary: globalLatency.sqlite?.mean, formatter: formatMs }),
+      buildDistributionStatsRow({ category: 'Latency', metric: 'Sqlite run-p95', summary: globalLatency.sqlite?.p95, formatter: formatMs })
     ],
     { indent: '  ' }
   );
@@ -1255,7 +1388,31 @@ if (shouldRenderTextOverview && hasAstGraphValues(astGraphTotalsGlobal.totals)) 
       { metric: 'Functions', value: formatAstField(astGraphTotalsGlobal, 'functions') },
       { metric: 'Imports', value: formatAstField(astGraphTotalsGlobal, 'imports') },
       { metric: 'File links', value: formatAstField(astGraphTotalsGlobal, 'fileLinks') },
-      { metric: 'Graph links', value: formatAstField(astGraphTotalsGlobal, 'graphLinks') }
+      { metric: 'Graph links', value: formatAstField(astGraphTotalsGlobal, 'graphLinks') },
+      ...buildAstDerivedRows({
+        astGraphAggregate: astGraphTotalsGlobal,
+        indexedFiles: aggregateModeTotalsGlobal.files
+      })
+    ],
+    { indent: '  ' }
+  );
+}
+if (shouldRenderTextOverview && riskScanTotalsGlobal.observedRuns > 0) {
+  console.log(color.bold('Risk / Context Totals'));
+  printTextTable(
+    [
+      { key: 'metric', label: 'Metric' },
+      { key: 'value', label: 'Value' }
+    ],
+    [
+      { metric: 'Observed runs', value: formatCount(riskScanTotalsGlobal.observedRuns) },
+      { metric: 'Statuses', value: formatCountMapSummary(riskScanTotalsGlobal.statuses, 4) },
+      { metric: 'Summary-only runs', value: formatCount(riskScanTotalsGlobal.summaryOnlyRuns) },
+      { metric: 'Risk summaries', value: formatCount(riskScanTotalsGlobal.summariesEmitted) },
+      { metric: 'Risk flows', value: formatCount(riskScanTotalsGlobal.flowsEmitted) },
+      { metric: 'Partial flows', value: formatCount(riskScanTotalsGlobal.partialFlowsEmitted) },
+      { metric: 'Unique call sites', value: formatCount(riskScanTotalsGlobal.uniqueCallSitesReferenced) },
+      { metric: 'Caps hit', value: formatCountMapSummary(riskScanTotalsGlobal.caps, 8) }
     ],
     { indent: '  ' }
   );

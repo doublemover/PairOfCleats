@@ -110,10 +110,11 @@ try {
   assert.equal(output.includes('Mode     Chunks p50/p95'), true, output);
   assert.equal(output.includes('Code          30.0/48.0'), true, output);
   assert.equal(output.includes('Run Distributions'), true, output);
-  assert.equal(output.includes('Code      Chunks/s          30.0/48.0'), true, output);
-  assert.equal(output.includes('Build     Index           300ms/480ms'), true, output);
-  assert.equal(output.includes('Latency   Mem mean           6ms/10ms'), true, output);
-  assert.equal(output.includes('Latency   Mem run-p95       12ms/19ms'), true, output);
+  assert.equal(output.includes('Category  Metric            n    p50    p95'), true, output);
+  assert.equal(output.includes('Code      Chunks/s          3   30.0   48.0'), true, output);
+  assert.equal(output.includes('Build     Index             3  300ms  480ms'), true, output);
+  assert.equal(output.includes('Latency   Mem mean          3    6ms   10ms'), true, output);
+  assert.equal(output.includes('Latency   Mem run-p95       3   12ms   19ms'), true, output);
   assert.equal(output.includes('Top Variability'), true, output);
 
   console.log('show-throughput statistical summary test passed');
