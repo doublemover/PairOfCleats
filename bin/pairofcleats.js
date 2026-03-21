@@ -230,6 +230,27 @@ function resolveCommand(primary, rest) {
       showHelp: true
     });
   }
+  if (primary === 'cli') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      failCli('cli requires a subcommand: completions, audit', {
+        code: ERROR_CODES.INVALID_REQUEST,
+        showHelp: true
+      });
+    }
+    if (sub === 'completions') {
+      validateArgs(rest, ['shell'], ['shell']);
+      return { script: 'tools/cli/completions.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'audit') {
+      validateArgs(rest, ['root', 'json'], ['root']);
+      return { script: 'tools/ci/check-command-surface.js', extraArgs: [], args: rest };
+    }
+    failCli(`Unknown cli subcommand: ${sub}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
+  }
   if (primary === 'dispatch') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub) || sub === 'list') {
@@ -1106,6 +1127,7 @@ function extractRepoArg(args) {
 function shouldSkipDispatchRuntimeEnvResolution(scriptPath) {
   const normalized = String(scriptPath || '').trim().replace(/\\/g, '/');
   return normalized.startsWith('tools/config/')
+    || normalized.startsWith('tools/cli/')
     || normalized.startsWith('tools/tooling/')
     || normalized.startsWith('tools/tui/')
     || normalized.startsWith('tools/reports/')

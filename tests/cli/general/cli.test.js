@@ -53,6 +53,14 @@ if (!helpOutput.includes('Operator commands:')) {
   console.error('cli --help missing operator section');
   process.exit(1);
 }
+if (!helpOutput.includes('CLI:')) {
+  console.error('cli --help missing CLI section');
+  process.exit(1);
+}
+if (!helpOutput.includes('cli completions')) {
+  console.error('cli --help missing cli completions entry');
+  process.exit(1);
+}
 if (!helpOutput.includes('risk delta')) {
   console.error('cli --help missing stable registry-derived risk delta entry');
   process.exit(1);
@@ -89,6 +97,21 @@ if (!reportHelpOutput.includes('Help topic: report')) {
 }
 if (!reportHelpOutput.includes('throughput')) {
   console.error('cli help report missing report throughput subcommand');
+  process.exit(1);
+}
+
+const cliHelpResult = spawnSync(process.execPath, [binPath, 'help', 'cli'], { encoding: 'utf8' });
+if (cliHelpResult.status !== 0) {
+  console.error('cli help cli failed');
+  process.exit(cliHelpResult.status ?? 1);
+}
+const cliHelpOutput = getCombinedOutput(cliHelpResult);
+if (!cliHelpOutput.includes('completions')) {
+  console.error('cli help cli missing completions subcommand');
+  process.exit(1);
+}
+if (!cliHelpOutput.includes('audit')) {
+  console.error('cli help cli missing audit subcommand');
   process.exit(1);
 }
 

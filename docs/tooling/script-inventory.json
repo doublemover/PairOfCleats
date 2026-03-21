@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T16:02:58.374Z",
+  "generatedAt": "2026-03-21T16:15:36.430Z",
   "scripts": [
     {
       "name": "bootstrap",
@@ -148,6 +148,16 @@
     {
       "command": "pairofcleats cache gc",
       "summary": "Run shared cache GC.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats cli audit",
+      "summary": "Run the local command-surface self-audit.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats cli completions",
+      "summary": "Generate shell completions for the canonical CLI surface.",
       "supportTier": "operator"
     },
     {

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T15:45:21.357Z",
+  "generatedAt": "2026-03-21T16:12:54.824Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3740,7 +3740,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 434,
+    "totalFlags": 435,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -4103,6 +4103,7 @@
       "sha256",
       "shard-count",
       "shard-index",
+      "shell",
       "sink",
       "sink-rule",
       "size",
@@ -5451,6 +5452,12 @@
           "samples-per-provider",
           "timeout-ratio-max",
           "warmup-samples"
+        ]
+      },
+      {
+        "file": "tools/cli/completions.js",
+        "flags": [
+          "shell"
         ]
       },
       {

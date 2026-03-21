@@ -18,6 +18,7 @@ const entry = (id, commandPath, script, description, extras = {}) => Object.free
 
 export const COMMAND_HELP_GROUP_ORDER = Object.freeze([
   'Core',
+  'CLI',
   'Config',
   'Index',
   'SQLite',
@@ -82,6 +83,18 @@ export const COMMAND_REGISTRY = Object.freeze([
     helpGroup: 'Core',
     expectedArtifacts: ['config:file', 'cache:dicts', 'cache:models', 'index:code', 'index:prose', 'index:records'],
     helpExamples: ['pairofcleats bootstrap']
+  }),
+  entry('cli.completions', ['cli', 'completions'], 'tools/cli/completions.js', 'Generate shell completions for the canonical CLI surface.', {
+    helpGroup: 'CLI',
+    supportTier: 'operator',
+    capability: false,
+    helpExamples: ['pairofcleats cli completions --shell powershell']
+  }),
+  entry('cli.audit', ['cli', 'audit'], 'tools/ci/check-command-surface.js', 'Run the local command-surface self-audit.', {
+    helpGroup: 'CLI',
+    supportTier: 'operator',
+    capability: false,
+    helpExamples: ['pairofcleats cli audit --json']
   }),
   entry('config.dump', ['config', 'dump'], 'tools/config/dump.js', 'Dump effective config and derived runtime state.', {
     helpGroup: 'Config',
