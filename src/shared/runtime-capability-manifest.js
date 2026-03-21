@@ -80,7 +80,7 @@ const API_ROUTE_SPECS = freezeArray([
   { id: 'status.stream', method: 'GET', path: '/status/stream', workflow: 'index-health' },
   { id: 'search', method: 'POST', path: '/search', workflow: 'search' },
   { id: 'search.stream', method: 'POST', path: '/search/stream', workflow: 'search' },
-  { id: 'search.workspace', method: 'POST', path: '/search/workspace', workflow: 'search-workspace' },
+  { id: 'search.workspace', method: 'POST', path: '/search/federated', workflow: 'search-workspace' },
   { id: 'analysis.context-pack', method: 'POST', path: '/analysis/context-pack', workflow: 'context-pack' },
   { id: 'analysis.risk-delta', method: 'POST', path: '/analysis/risk-delta', workflow: 'risk-delta' },
   { id: 'analysis.risk-explain', method: 'POST', path: '/analysis/risk-explain', workflow: 'risk-explain' },
@@ -110,9 +110,9 @@ const CLI_EXTRA_COMMAND_SPECS = freezeArray([
   { id: 'architecture-check', commandPath: ['architecture-check'], description: 'Evaluate architecture rules over graphs.', script: 'tools/analysis/architecture-check.js' },
   { id: 'impact', commandPath: ['impact'], description: 'Analyze change impact over the graph.', script: 'tools/analysis/impact.js' },
   { id: 'suggest-tests', commandPath: ['suggest-tests'], description: 'Suggest tests impacted by a change list.', script: 'tools/analysis/suggest-tests.js' },
-  { id: 'context-pack', commandPath: ['context-pack'], description: 'Generate a composite context pack.', script: 'tools/context-pack.js' },
+  { id: 'context-pack', commandPath: ['context-pack'], description: 'Generate a composite context pack.', script: 'tools/analysis/context-pack.js' },
   { id: 'risk.delta', commandPath: ['risk', 'delta'], description: 'Compare risk flows across two refs.', script: 'tools/analysis/delta-risk.js' },
-  { id: 'risk.explain', commandPath: ['risk', 'explain'], description: 'Explain interprocedural risk flows.', script: 'tools/risk/explain.js' },
+  { id: 'risk.explain', commandPath: ['risk', 'explain'], description: 'Explain interprocedural risk flows.', script: 'tools/analysis/explain-risk.js' },
   { id: 'tui.build', commandPath: ['tui', 'build'], description: 'Build TUI artifacts.', script: 'tools/tui/build.js' },
   { id: 'tui.install', commandPath: ['tui', 'install'], description: 'Install TUI artifacts.', script: 'tools/tui/install.js' }
 ]);

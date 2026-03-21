@@ -96,9 +96,14 @@ export async function handleContextPackRoute({
   }
 
   const workspaceRequested = typeof payload.workspacePath === 'string' && payload.workspacePath.trim();
-  const repoPath = workspaceRequested
-    ? await resolveRepo(payload.repoPath || payload.repo || '')
-    : await resolveRepo(payload.repoPath || payload.repo || '');
+  const requestedRepo = typeof payload.repoPath === 'string' && payload.repoPath.trim()
+    ? payload.repoPath
+    : typeof payload.repo === 'string' && payload.repo.trim()
+      ? payload.repo
+      : '';
+  const repoPath = requestedRepo
+    ? await resolveRepo(requestedRepo)
+    : null;
   try {
     const workspaceConfig = workspaceRequested && typeof ensureWorkspaceAllowlist === 'function'
       ? await ensureWorkspaceAllowlist(payload)
@@ -106,9 +111,11 @@ export async function handleContextPackRoute({
     const resultObservability = buildChildObservability(observability, {
       surface: 'analysis',
       operation: 'context_pack',
-      context: {
-        repoRoot: repoPath
-      }
+      context: repoPath
+        ? {
+          repoRoot: repoPath
+        }
+        : {}
     });
     const result = await buildCompositeContextPackPayload({
       repoRoot: repoPath,
