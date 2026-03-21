@@ -95,6 +95,9 @@ const createEmptyModeProfile = (modeKey) => ({
     source: null,
     artifact: null
   },
+  artifacts: {
+    filterIndex: null
+  },
   timings: null,
   throughput: {
     totalMs: null,
@@ -166,6 +169,9 @@ const buildModeScanProfile = ({
     bytes: {
       source: toNonNegativeIntOrNull(featureTotals?.bytes),
       artifact: artifactTotalBytes
+    },
+    artifacts: {
+      filterIndex: metrics?.artifacts?.filterIndex || null
     },
     timings: metrics?.timings && typeof metrics.timings === 'object'
       ? metrics.timings

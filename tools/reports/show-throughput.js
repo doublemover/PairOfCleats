@@ -159,6 +159,173 @@ const formatSectionProvenance = (totals, section) => {
     .join(' | ');
 };
 
+const createRssAggregate = () => ({
+  count: 0,
+  meanSum: 0,
+  maxP95: 0
+});
+
+const createOutcomeAggregate = () => ({
+  coverage: { candidates: 0, scanned: 0, skipped: 0 },
+  skipReasons: new Map(),
+  confidence: new Map(),
+  diagnostics: new Map(),
+  cache: { hits: 0, misses: 0 },
+  lowYield: { triggered: 0, skippedFiles: 0 },
+  filterIndexReused: 0,
+  queueDelay: { count: 0, totalMs: 0, maxMs: 0 },
+  artifactWrite: { bytes: 0, writeMs: 0, totalMs: 0 },
+  rss: {
+    memory: createRssAggregate(),
+    sqlite: createRssAggregate()
+  }
+});
+
+const createOutcomeRollup = () => ({
+  runs: createOutcomeAggregate(),
+  repos: createOutcomeAggregate()
+});
+const outcomeTotalsGlobal = createOutcomeRollup();
+const outcomeRepoKeysGlobal = new Set();
+
+const incrementCountMap = (map, key, amount = 1) => {
+  if (!(map instanceof Map)) return;
+  const label = key || 'unknown';
+  map.set(label, (map.get(label) || 0) + amount);
+};
+
+const addRssStats = (aggregate, stats) => {
+  const meanValue = Number(stats?.mean);
+  const p95Value = Number(stats?.p95);
+  if (Number.isFinite(meanValue) && meanValue > 0) {
+    aggregate.count += 1;
+    aggregate.meanSum += meanValue;
+  }
+  if (Number.isFinite(p95Value) && p95Value > aggregate.maxP95) {
+    aggregate.maxP95 = p95Value;
+  }
+};
+
+const resolveCoverageConfidence = ({ scanProfile, indexingProvenance }) => {
+  if (indexingProvenance?.category === 'fallback') return 'fallback-driven';
+  const extracted = scanProfile?.modes?.['extracted-prose'];
+  if (extracted?.quality?.lowYieldBailout?.triggered) return 'partial';
+  if (scanProfile) return 'native';
+  return 'missing';
+};
+
+const addOutcomeAggregate = (aggregate, {
+  scanProfile,
+  summary,
+  indexingProvenance,
+  diagnostics
+}) => {
+  incrementCountMap(aggregate.confidence, resolveCoverageConfidence({ scanProfile, indexingProvenance }));
+  const diagnosticCounts = diagnostics?.process?.countsByType || diagnostics?.countsByType || {};
+  for (const [type, countValue] of Object.entries(diagnosticCounts)) {
+    const count = Number(countValue);
+    if (!Number.isFinite(count) || count <= 0) continue;
+    incrementCountMap(aggregate.diagnostics, type, count);
+  }
+  if (scanProfile && typeof scanProfile === 'object') {
+    for (const modeProfile of Object.values(scanProfile.modes || {})) {
+      const candidates = Number(modeProfile?.files?.candidates);
+      const scanned = Number(modeProfile?.files?.scanned);
+      const skipped = Number(modeProfile?.files?.skipped);
+      if (Number.isFinite(candidates)) aggregate.coverage.candidates += candidates;
+      if (Number.isFinite(scanned)) aggregate.coverage.scanned += scanned;
+      if (Number.isFinite(skipped)) aggregate.coverage.skipped += skipped;
+
+      for (const [reason, countValue] of Object.entries(modeProfile?.files?.skippedByReason || {})) {
+        const count = Number(countValue);
+        if (!Number.isFinite(count) || count <= 0) continue;
+        incrementCountMap(aggregate.skipReasons, reason, count);
+      }
+
+      const cacheHits = Number(modeProfile?.cache?.hits);
+      const cacheMisses = Number(modeProfile?.cache?.misses);
+      if (Number.isFinite(cacheHits)) aggregate.cache.hits += cacheHits;
+      if (Number.isFinite(cacheMisses)) aggregate.cache.misses += cacheMisses;
+
+      const lowYield = modeProfile?.quality?.lowYieldBailout || null;
+      if (lowYield?.triggered) {
+        aggregate.lowYield.triggered += 1;
+        const skippedFiles = Number(lowYield?.skippedFiles);
+        if (Number.isFinite(skippedFiles)) aggregate.lowYield.skippedFiles += skippedFiles;
+      }
+
+      if (modeProfile?.artifacts?.filterIndex?.reused === true) {
+        aggregate.filterIndexReused += 1;
+      }
+
+      const queueSummary = modeProfile?.timings?.watchdog?.queueDelayMs?.summary;
+      const queueCount = Number(queueSummary?.count);
+      const queueTotalMs = Number(queueSummary?.totalMs);
+      const queueMaxMs = Number(queueSummary?.maxMs);
+      if (Number.isFinite(queueCount) && queueCount > 0) aggregate.queueDelay.count += queueCount;
+      if (Number.isFinite(queueTotalMs) && queueTotalMs > 0) aggregate.queueDelay.totalMs += queueTotalMs;
+      if (Number.isFinite(queueMaxMs) && queueMaxMs > aggregate.queueDelay.maxMs) {
+        aggregate.queueDelay.maxMs = queueMaxMs;
+      }
+
+      const artifactBytes = Number(modeProfile?.bytes?.artifact);
+      const writeMs = Number(modeProfile?.throughput?.writeMs);
+      const totalMs = Number(modeProfile?.throughput?.totalMs);
+      if (Number.isFinite(artifactBytes) && artifactBytes > 0) aggregate.artifactWrite.bytes += artifactBytes;
+      if (Number.isFinite(writeMs) && writeMs > 0) aggregate.artifactWrite.writeMs += writeMs;
+      if (Number.isFinite(totalMs) && totalMs > 0) aggregate.artifactWrite.totalMs += totalMs;
+    }
+  }
+
+  addRssStats(aggregate.rss.memory, summary?.memoryRss?.memory);
+  addRssStats(aggregate.rss.sqlite, summary?.memoryRss?.sqlite);
+};
+
+const formatCountMapSummary = (map, limit = 4) => {
+  if (!(map instanceof Map) || !map.size) return 'none';
+  return Array.from(map.entries())
+    .sort((left, right) => Number(right[1]) - Number(left[1]) || String(left[0]).localeCompare(String(right[0])))
+    .slice(0, limit)
+    .map(([label, count]) => `${label} ${formatCount(count)}`)
+    .join(' | ');
+};
+
+const formatCoverageSummary = (aggregate) => (
+  `cand ${formatCount(aggregate.coverage.candidates)} | ` +
+  `scanned ${formatCount(aggregate.coverage.scanned)} | ` +
+  `skipped ${formatCount(aggregate.coverage.skipped)}`
+);
+
+const formatCacheSummary = (aggregate) => {
+  const attempts = aggregate.cache.hits + aggregate.cache.misses;
+  const hitRate = attempts > 0 ? aggregate.cache.hits / attempts : null;
+  return (
+    `hits ${formatCount(aggregate.cache.hits)} | ` +
+    `misses ${formatCount(aggregate.cache.misses)} | ` +
+    `hit ${formatPct(hitRate)}`
+  );
+};
+
+const formatResourceSummary = (aggregate) => {
+  const avgQueueDelayMs = aggregate.queueDelay.count > 0
+    ? (aggregate.queueDelay.totalMs / aggregate.queueDelay.count)
+    : null;
+  const avgMemoryRss = aggregate.rss.memory.count > 0
+    ? (aggregate.rss.memory.meanSum / aggregate.rss.memory.count)
+    : null;
+  const avgSqliteRss = aggregate.rss.sqlite.count > 0
+    ? (aggregate.rss.sqlite.meanSum / aggregate.rss.sqlite.count)
+    : null;
+  const writeShare = aggregate.artifactWrite.totalMs > 0
+    ? (aggregate.artifactWrite.writeMs / aggregate.artifactWrite.totalMs)
+    : null;
+  return (
+    `rss mem/sql ${formatBytes(avgMemoryRss)}/${formatBytes(avgSqliteRss)} | ` +
+    `queue avg/max ${formatMs(avgQueueDelayMs)}/${formatMs(aggregate.queueDelay.maxMs)} | ` +
+    `write ${formatBytes(aggregate.artifactWrite.bytes)} @ ${formatPct(writeShare)}`
+  );
+};
+
 console.error(color.bold(color.cyan('Benchmark Performance Overview')));
 console.error(color.gray(`Root: ${resultsRoot}`));
 if (refreshJson) {
@@ -178,6 +345,8 @@ for (const dir of folders) {
   const folderReposWithMetrics = new Set();
   const astGraphTotalsFolder = { repos: 0, totals: createAstGraphTotals(), observed: createAstGraphObserved() };
   const provenanceTotalsFolder = createSectionProvenanceTotals();
+  const outcomeTotalsFolder = createOutcomeRollup();
+  const outcomeRepoKeysFolder = new Set();
 
   for (const file of files) {
     const resultPath = path.join(folderPath, file);
@@ -204,6 +373,10 @@ for (const dir of folders) {
       payload,
       indexingSummary
     });
+    const repoIdentityForMetrics = payload.repo?.root
+      || payload?.artifacts?.repo?.root
+      || payload?.artifacts?.repo?.cacheRoot
+      || null;
     const repoIdentity = resolveRepoIdentity({ payload, file });
     const repoHistoryKey = resolveRepoHistoryKey({ payload, file });
     const generatedAtMs = Date.parse(payload?.generatedAt || payload?.summary?.generatedAt || '');
@@ -213,6 +386,7 @@ for (const dir of folders) {
       throughput,
       analysis,
       indexingSummary,
+      scanProfile: payload?.artifacts?.scanProfile || null,
       throughputLedger,
       indexingProvenance,
       analysisProvenance,
@@ -227,6 +401,37 @@ for (const dir of folders) {
     recordSectionProvenance(provenanceTotalsGlobal, 'analysis', analysisProvenance);
     recordSectionProvenance(provenanceTotalsFolder, 'throughputLedger', throughputLedgerProvenance);
     recordSectionProvenance(provenanceTotalsGlobal, 'throughputLedger', throughputLedgerProvenance);
+    addOutcomeAggregate(outcomeTotalsFolder.runs, {
+      scanProfile: payload?.artifacts?.scanProfile || null,
+      summary,
+      indexingProvenance,
+      diagnostics: payload?.diagnostics || null
+    });
+    addOutcomeAggregate(outcomeTotalsGlobal.runs, {
+      scanProfile: payload?.artifacts?.scanProfile || null,
+      summary,
+      indexingProvenance,
+      diagnostics: payload?.diagnostics || null
+    });
+    const outcomeRepoKey = repoIdentityForMetrics || repoHistoryKey || file;
+    if (!outcomeRepoKeysFolder.has(outcomeRepoKey)) {
+      addOutcomeAggregate(outcomeTotalsFolder.repos, {
+        scanProfile: payload?.artifacts?.scanProfile || null,
+        summary,
+        indexingProvenance,
+        diagnostics: payload?.diagnostics || null
+      });
+      outcomeRepoKeysFolder.add(outcomeRepoKey);
+    }
+    if (!outcomeRepoKeysGlobal.has(outcomeRepoKey)) {
+      addOutcomeAggregate(outcomeTotalsGlobal.repos, {
+        scanProfile: payload?.artifacts?.scanProfile || null,
+        summary,
+        indexingProvenance,
+        diagnostics: payload?.diagnostics || null
+      });
+      outcomeRepoKeysGlobal.add(outcomeRepoKey);
+    }
     throughputs.push(throughput);
     mergeTotals(totalThroughput.code, throughput.code);
     mergeTotals(totalThroughput.prose, throughput.prose);
@@ -234,10 +439,6 @@ for (const dir of folders) {
     mergeTotals(totalThroughput.records, throughput.records);
     mergeTotals(totalThroughput.lmdb.code, throughput?.lmdb?.code);
     mergeTotals(totalThroughput.lmdb.prose, throughput?.lmdb?.prose);
-    const repoIdentityForMetrics = payload.repo?.root
-      || payload?.artifacts?.repo?.root
-      || payload?.artifacts?.repo?.cacheRoot
-      || null;
     if (isValidIndexingSummary(indexingSummary)) {
       if (repoIdentityForMetrics && !folderReposWithMetrics.has(repoIdentityForMetrics)) {
         mergeModeTotalsFromIndexingSummary(indexingSummary, modeTotalsFolder);
@@ -358,6 +559,22 @@ for (const dir of folders) {
         `lat mem/sql ${formatNumber(memoryMean)}ms/${formatNumber(sqliteMean)}ms`
       );
     }
+    console.error(
+      `  coverage repo ${formatCoverageSummary(outcomeTotalsFolder.repos)} | ` +
+      `runs ${formatCoverageSummary(outcomeTotalsFolder.runs)}`
+    );
+    console.error(
+      `  skip/cache ${formatCountMapSummary(outcomeTotalsFolder.repos.skipReasons)} | ` +
+      `${formatCacheSummary(outcomeTotalsFolder.repos)}`
+    );
+    console.error(
+      `  quality ${formatCountMapSummary(outcomeTotalsFolder.runs.confidence)} | ` +
+      `low-yield ${formatCount(outcomeTotalsFolder.runs.lowYield.triggered)} ` +
+      `(${formatCount(outcomeTotalsFolder.runs.lowYield.skippedFiles)} skipped) | ` +
+      `filter-index reused ${formatCount(outcomeTotalsFolder.runs.filterIndexReused)} | ` +
+      `diagnostics ${formatCountMapSummary(outcomeTotalsFolder.runs.diagnostics, 3)}`
+    );
+    console.error(`  pressure ${formatResourceSummary(outcomeTotalsFolder.runs)}`);
     if (hasAstGraphValues(astGraphTotalsFolder.totals)) {
       const coverage = runs.length ? `${astGraphTotalsFolder.repos}/${runs.length}` : `${astGraphTotalsFolder.repos}/0`;
       console.error(
@@ -482,6 +699,23 @@ for (const dir of folders) {
       );
     }
   }
+  console.error(`  ${color.bold('Scan Outcomes')}:`);
+  console.error(
+    `    coverage repo ${formatCoverageSummary(outcomeTotalsFolder.repos)} | ` +
+    `runs ${formatCoverageSummary(outcomeTotalsFolder.runs)}`
+  );
+  console.error(`    skip reasons ${formatCountMapSummary(outcomeTotalsFolder.repos.skipReasons, 6)}`);
+  console.error(
+    `    cache ${formatCacheSummary(outcomeTotalsFolder.repos)} | ` +
+    `filter-index reused ${formatCount(outcomeTotalsFolder.runs.filterIndexReused)}`
+  );
+  console.error(
+    `    quality ${formatCountMapSummary(outcomeTotalsFolder.runs.confidence)} | ` +
+    `low-yield triggers ${formatCount(outcomeTotalsFolder.runs.lowYield.triggered)} ` +
+    `(${formatCount(outcomeTotalsFolder.runs.lowYield.skippedFiles)} skipped files) | ` +
+    `diagnostics ${formatCountMapSummary(outcomeTotalsFolder.runs.diagnostics, 4)}`
+  );
+  console.error(`    pressure ${formatResourceSummary(outcomeTotalsFolder.runs)}`);
   console.error(
     `  ${color.bold('Provenance')}: ` +
     `indexing ${formatSectionProvenance(provenanceTotalsFolder, 'indexing')} | ` +
@@ -752,6 +986,20 @@ if (languageTotals.size) {
     }
   }
 }
+console.error('');
+console.error(color.bold('Scan Outcome Totals'));
+console.error(`  coverage repos: ${formatCoverageSummary(outcomeTotalsGlobal.repos)}`);
+console.error(`  coverage runs: ${formatCoverageSummary(outcomeTotalsGlobal.runs)}`);
+console.error(`  skip reasons: ${formatCountMapSummary(outcomeTotalsGlobal.repos.skipReasons, 8)}`);
+console.error(`  cache: ${formatCacheSummary(outcomeTotalsGlobal.repos)}`);
+console.error(
+  `  quality: ${formatCountMapSummary(outcomeTotalsGlobal.runs.confidence)} | ` +
+  `low-yield ${formatCount(outcomeTotalsGlobal.runs.lowYield.triggered)} ` +
+  `(${formatCount(outcomeTotalsGlobal.runs.lowYield.skippedFiles)} skipped files) | ` +
+  `filter-index reused ${formatCount(outcomeTotalsGlobal.runs.filterIndexReused)} | ` +
+  `diagnostics ${formatCountMapSummary(outcomeTotalsGlobal.runs.diagnostics, 6)}`
+);
+console.error(`  pressure: ${formatResourceSummary(outcomeTotalsGlobal.runs)}`);
 console.error('');
 console.error(color.bold('Overview Provenance'));
 console.error(`  indexing: ${formatSectionProvenance(provenanceTotalsGlobal, 'indexing')}`);

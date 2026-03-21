@@ -411,6 +411,7 @@ const scanProfileModeSchema = {
     'tokens',
     'lines',
     'bytes',
+    'artifacts',
     'timings',
     'throughput',
     'queues',
@@ -473,6 +474,22 @@ const scanProfileModeSchema = {
       properties: {
         source: nullableInt,
         artifact: nullableInt
+      },
+      additionalProperties: false
+    },
+    artifacts: {
+      type: 'object',
+      required: ['filterIndex'],
+      properties: {
+        filterIndex: {
+          anyOf: [
+            { type: 'null' },
+            {
+              type: 'object',
+              additionalProperties: true
+            }
+          ]
+        }
       },
       additionalProperties: false
     },
