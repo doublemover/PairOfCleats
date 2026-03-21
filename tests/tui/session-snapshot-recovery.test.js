@@ -21,5 +21,13 @@ if (!source.includes('last-state.json')) {
   console.error('session snapshot recovery test failed: missing canonical last-state.json snapshot target');
   process.exit(1);
 }
+if (!source.includes('PAIROFCLEATS_TUI_INSTALL_ROOT') || !source.includes('PAIROFCLEATS_CACHE_ROOT')) {
+  console.error('session snapshot recovery test failed: snapshot path should derive from install/cache root inputs');
+  process.exit(1);
+}
+if (source.includes('Path::new(".cache").join("tui").join("last-state.json")')) {
+  console.error('session snapshot recovery test failed: snapshot path should not default to repo-local .cache');
+  process.exit(1);
+}
 
 console.log('tui session snapshot recovery test passed');

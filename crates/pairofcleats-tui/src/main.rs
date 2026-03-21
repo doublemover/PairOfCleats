@@ -517,25 +517,75 @@ fn resolve_run_id() -> String {
     format!("run-{now}-{}", std::process::id())
 }
 
-fn resolve_observability_dir() -> PathBuf {
-    if let Ok(value) = std::env::var("PAIROFCLEATS_TUI_EVENT_LOG_DIR") {
-        if !value.trim().is_empty() {
-            return PathBuf::from(value.trim());
-        }
+fn env_path(key: &str) -> Option<PathBuf> {
+    std::env::var(key)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+}
+
+fn resolve_default_cache_root_base() -> Option<PathBuf> {
+    if let Some(value) = env_path("PAIROFCLEATS_CACHE_ROOT") {
+        return Some(value);
     }
-    Path::new(".cache")
-        .join("tui")
-        .join("install-v1")
-        .join("session-logs")
+    if let Some(value) = env_path("PAIROFCLEATS_HOME") {
+        return Some(value);
+    }
+    if let Some(value) = env_path("LOCALAPPDATA") {
+        return Some(value.join("PairOfCleats"));
+    }
+    if let Some(value) = env_path("XDG_CACHE_HOME") {
+        return Some(value.join("pairofcleats"));
+    }
+    env_path("HOME").map(|value| value.join(".cache").join("pairofcleats"))
+}
+
+fn resolve_default_cache_root() -> PathBuf {
+    let base = resolve_default_cache_root_base().unwrap_or_else(|| {
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join(".pairofcleats-runtime")
+    });
+    if base
+        .file_name()
+        .map(|value| value.to_string_lossy().eq_ignore_ascii_case("cache"))
+        .unwrap_or(false)
+    {
+        return base;
+    }
+    base.join("cache")
+}
+
+fn resolve_install_root() -> PathBuf {
+    if let Some(value) = env_path("PAIROFCLEATS_TUI_INSTALL_ROOT") {
+        return value;
+    }
+    resolve_default_cache_root().join("tui").join("install-v1")
+}
+
+fn resolve_runtime_root() -> PathBuf {
+    if let Some(value) = env_path("PAIROFCLEATS_TUI_INSTALL_ROOT") {
+        if let Some(parent) = value.parent() {
+            return parent.to_path_buf();
+        }
+        return value;
+    }
+    resolve_default_cache_root().join("tui")
+}
+
+fn resolve_observability_dir() -> PathBuf {
+    if let Some(value) = env_path("PAIROFCLEATS_TUI_EVENT_LOG_DIR") {
+        return value;
+    }
+    resolve_install_root().join("session-logs")
 }
 
 fn resolve_snapshot_path() -> PathBuf {
-    if let Ok(value) = std::env::var("PAIROFCLEATS_TUI_SNAPSHOT_PATH") {
-        if !value.trim().is_empty() {
-            return PathBuf::from(value.trim());
-        }
+    if let Some(value) = env_path("PAIROFCLEATS_TUI_SNAPSHOT_PATH") {
+        return value;
     }
-    Path::new(".cache").join("tui").join("last-state.json")
+    resolve_runtime_root().join("last-state.json")
 }
 
 fn load_snapshot(snapshot_path: &Path) -> Option<SessionSnapshot> {

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { getCacheRoot } from '../../src/shared/cache-roots.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 
 export const TUI_TARGETS_SCHEMA_VERSION = 1;
@@ -176,10 +177,12 @@ export const resolveTargetForTriple = (targets, triple) => {
   return list.find((entry) => entry.triple === resolvedTriple) || null;
 };
 
+export const resolveDefaultTuiInstallRoot = () => path.join(getCacheRoot(), 'tui', TUI_INSTALL_LAYOUT_DIR);
+
 export const resolveTuiInstallLayout = ({ root, triple, artifactName, installRoot = '' }) => {
   const baseInstallRoot = normalizeString(installRoot)
     ? path.resolve(installRoot)
-    : path.join(root, '.cache', 'tui', TUI_INSTALL_LAYOUT_DIR);
+    : resolveDefaultTuiInstallRoot();
   const tripleDir = path.join(baseInstallRoot, normalizeString(triple));
   const binDir = path.join(tripleDir, 'bin');
   const logsDir = path.join(tripleDir, 'logs');

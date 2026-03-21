@@ -121,16 +121,17 @@ const resolveRuntime = () => {
     ? path.resolve(root, String(metadata.observability.eventLogDir))
     : layout.logsDir;
   fs.mkdirSync(eventLogDir, { recursive: true });
-  return { binaryPath, eventLogDir };
+  return { binaryPath, eventLogDir, installRoot: layout.baseInstallRoot };
 };
 
-const { binaryPath, eventLogDir } = resolveRuntime();
+const { binaryPath, eventLogDir, installRoot } = resolveRuntime();
 const args = process.argv.slice(2);
 const runId = tuiEnvConfig.runId
   || `tui-${Date.now().toString(36)}-${process.pid}`;
 const env = {
   ...process.env,
   PAIROFCLEATS_TUI_RUN_ID: runId,
+  PAIROFCLEATS_TUI_INSTALL_ROOT: tuiEnvConfig.installRoot || installRoot,
   PAIROFCLEATS_TUI_EVENT_LOG_DIR: tuiEnvConfig.eventLogDir || eventLogDir
 };
 const result = spawnSync(binaryPath, args, { stdio: 'inherit', env });

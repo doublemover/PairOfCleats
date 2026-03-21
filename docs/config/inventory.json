@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T16:51:39.036Z",
+  "generatedAt": "2026-03-21T17:18:03.141Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2350,6 +2350,8 @@
         "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
         "tests/tooling/triage/records-index-and-search.test.js",
+        "tests/tui/install-layout-default-root.test.js",
+        "tests/tui/session-snapshot-recovery.test.js",
         "tools/bench/embeddings/model-bakeoff.js",
         "tools/bench/index/postings-real.js",
         "tools/bench/index/scheduler-build.js",
@@ -3610,6 +3612,7 @@
       "files": [
         "bin/pairofcleats-tui.js",
         "src/shared/env.js",
+        "tests/tui/session-snapshot-recovery.test.js",
         "tests/tui/wrapper-behavior.test.js",
         "tools/config/inventory.js"
       ]

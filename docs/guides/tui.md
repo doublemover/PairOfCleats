@@ -43,11 +43,17 @@ Presentation behavior:
 
 ## Install layout
 
-Default install root is repo-local:
+Default install root is under the PairOfCleats cache root:
 
-- `.cache/tui/install-v1/<triple>/bin/<artifactName>`
-- `.cache/tui/install-v1/<triple>/install-manifest.json`
-- `.cache/tui/install-v1/<triple>/logs/`
+- `<cacheRoot>/tui/install-v1/<triple>/bin/<artifactName>`
+- `<cacheRoot>/tui/install-v1/<triple>/install-manifest.json`
+- `<cacheRoot>/tui/install-v1/<triple>/logs/`
+
+Default cache root follows the normal PairOfCleats cache-root policy:
+
+- Windows: `%LOCALAPPDATA%/PairOfCleats/cache`
+- Linux/macOS with `XDG_CACHE_HOME`: `$XDG_CACHE_HOME/pairofcleats/cache`
+- otherwise: `~/.cache/pairofcleats/cache`
 
 Override root with:
 
@@ -95,7 +101,7 @@ Set a custom event log directory with:
 
 Session snapshot restore path:
 
-- default `.cache/tui/last-state.json`
+- default `<cacheRoot>/tui/last-state.json`
 - override with `PAIROFCLEATS_TUI_SNAPSHOT_PATH`
 
 ## Frame Capture Harness
