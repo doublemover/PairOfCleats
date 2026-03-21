@@ -6,14 +6,16 @@ import { createProcessRunner } from '../../../tools/bench/language/process.js';
 
 ensureTestingEnv(process.env);
 
+const logLines = [];
 const runner = createProcessRunner({
-  appendLog: () => {},
+  appendLog: (line) => logLines.push(String(line || '')),
   writeLog: () => {},
   writeLogSync: () => {},
   logHistory: [],
   logPath: null,
   getLogPaths: () => [],
-  onProgressEvent: () => {}
+  onProgressEvent: () => {},
+  sampleProcessActivity: async () => null
 });
 
 const queueSilentScript = [
@@ -62,4 +64,28 @@ assert.equal(
   'expected wall clock timeout classification'
 );
 
+const extensionScript = [
+  "const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));",
+  "const emit = (event, payload) => console.log(JSON.stringify({ proto: 'poc.progress@2', event, ts: new Date().toISOString(), ...payload }));",
+  '(async () => {',
+  "  emit('task:start', { taskId: 'overall', stage: 'overall', current: 200, total: 400, message: 'start', inFlight: 4, meta: { queueAgeMs: 180 } });",
+  '  await wait(180);',
+  "  emit('task:progress', { taskId: 'overall', stage: 'overall', current: 260, total: 400, message: 'resumed', inFlight: 4, meta: { queueAgeMs: 160 } });",
+  '  await wait(25);',
+  '})();',
+  'setTimeout(() => process.exit(0), 260);'
+].join('');
+
+const extensionResult = await runner.runProcess(
+  'bench-timeout-decision-extend',
+  process.execPath,
+  ['-e', extensionScript],
+  {
+    continueOnError: true,
+    idleTimeoutMs: 100,
+    timeoutMs: 900
+  }
+);
+
+assert.equal(extensionResult.ok, true, 'expected progress extension run to complete');
 console.log('bench language process timeout decision test passed');

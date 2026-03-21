@@ -5,6 +5,7 @@ import {
   buildProgressTimeoutBudget,
   evaluateProgressTimeout,
   PROGRESS_TIMEOUT_CLASSES,
+  PROGRESS_TIMEOUT_OUTCOMES,
   PROGRESS_TIMEOUT_POLICY_VERSION,
   resolveProgressTimeoutRepoTier
 } from '../../../src/shared/indexing/progress-timeout-policy.js';
@@ -33,22 +34,35 @@ assert.equal(budget.schemaVersion, PROGRESS_TIMEOUT_POLICY_VERSION, 'expected po
 assert.equal(budget.repoTier, 'large', 'expected large repo tier');
 assert.ok(budget.budgetMs > budget.baseTimeoutMs, 'expected workload-aware timeout multiplier');
 
+const abortBudget = buildProgressTimeoutBudget({
+  phase: 'stage1-ordered-backpressure',
+  baseTimeoutMs: 30_000,
+  maxTimeoutMs: 30_000,
+  repoFileCount: 25_000,
+  scheduledFileCount: 18_000,
+  activeBatchCount: 0,
+  completedUnits: 0,
+  totalUnits: 18_000,
+  elapsedMs: 180_000
+});
+
 const queueDecision = evaluateProgressTimeout({
-  budget,
-  heartbeatAgeMs: budget.budgetMs + 5000,
-  queueMovementAgeMs: budget.budgetMs + 5000,
-  byteProgressAgeMs: budget.budgetMs + 5000,
+  budget: abortBudget,
+  heartbeatAgeMs: abortBudget.budgetMs + 5000,
+  queueMovementAgeMs: abortBudget.budgetMs + 5000,
+  byteProgressAgeMs: abortBudget.budgetMs + 5000,
   queueExpected: true,
   byteProgressExpected: true
 });
 assert.equal(queueDecision.timedOut, true, 'expected queue-stall timeout');
 assert.equal(queueDecision.timeoutClass, PROGRESS_TIMEOUT_CLASSES.noQueueMovement, 'expected no_queue_movement');
+assert.equal(queueDecision.outcome, PROGRESS_TIMEOUT_OUTCOMES.hardAbort, 'expected hard-abort outcome');
 
 const byteDecision = evaluateProgressTimeout({
-  budget,
-  heartbeatAgeMs: budget.budgetMs + 5000,
+  budget: abortBudget,
+  heartbeatAgeMs: abortBudget.budgetMs + 5000,
   queueMovementAgeMs: 1000,
-  byteProgressAgeMs: budget.budgetMs + 5000,
+  byteProgressAgeMs: abortBudget.budgetMs + 5000,
   queueExpected: false,
   byteProgressExpected: true
 });
@@ -56,8 +70,8 @@ assert.equal(byteDecision.timedOut, true, 'expected byte-progress timeout');
 assert.equal(byteDecision.timeoutClass, PROGRESS_TIMEOUT_CLASSES.noByteProgress, 'expected no_byte_progress');
 
 const heartbeatDecision = evaluateProgressTimeout({
-  budget,
-  heartbeatAgeMs: budget.budgetMs + 5000,
+  budget: abortBudget,
+  heartbeatAgeMs: abortBudget.budgetMs + 5000,
   queueMovementAgeMs: null,
   byteProgressAgeMs: null
 });
@@ -100,6 +114,7 @@ assert.equal(
   false,
   'expected Ensembl-style ordered queue movement to suppress false idle timeout'
 );
+assert.equal(ensemblReplayDecision.outcome, PROGRESS_TIMEOUT_OUTCOMES.continueWait);
 
 const envoyReplayDecision = evaluateProgressTimeout({
   budget,
@@ -114,6 +129,35 @@ assert.equal(
   false,
   'expected Envoy-style byte progress to suppress false idle timeout'
 );
+assert.equal(envoyReplayDecision.outcome, PROGRESS_TIMEOUT_OUTCOMES.continueWait);
+
+const extensionBudget = buildProgressTimeoutBudget({
+  phase: 'bench-process-idle',
+  baseTimeoutMs: 100,
+  maxTimeoutMs: 400,
+  scheduledFileCount: 18_000,
+  activeBatchCount: 4,
+  completedUnits: 250,
+  totalUnits: 500,
+  elapsedMs: 90_000,
+  languages: ['cpp', 'protobuf']
+});
+const extensionDecision = evaluateProgressTimeout({
+  budget: extensionBudget,
+  heartbeatAgeMs: extensionBudget.budgetMs + 10,
+  queueMovementAgeMs: extensionBudget.budgetMs + 20,
+  byteProgressAgeMs: extensionBudget.budgetMs + 15,
+  queueExpected: true,
+  byteProgressExpected: true
+});
+assert.equal(extensionDecision.timedOut, false, 'expected progress extension to suppress false timeout');
+assert.equal(extensionDecision.outcome, PROGRESS_TIMEOUT_OUTCOMES.extendBudget, 'expected explicit budget extension');
+assert.equal(extensionDecision.candidateTimeoutClass, PROGRESS_TIMEOUT_CLASSES.noQueueMovement);
+assert.ok(
+  Number(extensionDecision.effectiveBudgetMs) > Number(extensionBudget.budgetMs),
+  'expected effective budget to extend beyond the base budget'
+);
+assert.equal(extensionDecision.trace?.policyVersion, PROGRESS_TIMEOUT_POLICY_VERSION, 'expected replay trace policy version');
 
 const basedosdadosReplayDecision = evaluateProgressTimeout({
   budget: buildProgressTimeoutBudget({

@@ -9,7 +9,8 @@ import { createProgressLineDecoder } from '../../../src/shared/cli/progress-stre
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
 import {
   buildProgressTimeoutBudget,
-  evaluateProgressTimeout
+  evaluateProgressTimeout,
+  PROGRESS_TIMEOUT_OUTCOMES
 } from '../../../src/shared/indexing/progress-timeout-policy.js';
 import { exitLikeCommandResult } from '../../shared/cli-utils.js';
 import {
@@ -623,6 +624,17 @@ export const createProcessRunner = ({
     const resolvedIdleTimeoutMs = Number.isFinite(Number(idleTimeoutMs))
       ? Math.max(0, Math.floor(Number(idleTimeoutMs)))
       : 0;
+    const hardTimeoutCapMs = Number.isFinite(Number(spawnOptions.timeoutMs)) && Number(spawnOptions.timeoutMs) > 0
+      ? Math.floor(Number(spawnOptions.timeoutMs))
+      : null;
+    const maxIdleTimeoutBudgetMs = resolvedIdleTimeoutMs > 0
+      ? Math.max(
+        resolvedIdleTimeoutMs,
+        hardTimeoutCapMs != null
+          ? Math.min(hardTimeoutCapMs, Math.max(resolvedIdleTimeoutMs, Math.round(resolvedIdleTimeoutMs * 4)))
+          : Math.max(resolvedIdleTimeoutMs, Math.round(resolvedIdleTimeoutMs * 4))
+      )
+      : 0;
     const idleWatchdogPollMs = resolvedIdleTimeoutMs > 0
       ? Math.max(250, Math.min(DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS, Math.floor(resolvedIdleTimeoutMs / 4) || 250))
       : 0;
@@ -645,11 +657,13 @@ export const createProcessRunner = ({
     let idleTimeoutTriggered = false;
     let idleWatchdogProbeInFlight = false;
     let timeoutDecision = null;
+    let activeIdleTimeoutBudgetMs = resolvedIdleTimeoutMs;
 
     const markActivity = ({ source = 'output', text = '' } = {}) => {
       lastActivityAtMs = Date.now();
       lastActivitySource = String(source || 'output');
       lastActivityText = truncateForDisplay(text || label, 140) || label;
+      activeIdleTimeoutBudgetMs = resolvedIdleTimeoutMs;
     };
 
     const markByteProgress = ({ source = 'stream-bytes', text = '' } = {}) => {
@@ -665,8 +679,8 @@ export const createProcessRunner = ({
     const buildIdleTimeoutDecision = () => evaluateProgressTimeout({
       budget: buildProgressTimeoutBudget({
         phase: 'bench-process-idle',
-        baseTimeoutMs: resolvedIdleTimeoutMs,
-        maxTimeoutMs: resolvedIdleTimeoutMs,
+        baseTimeoutMs: Math.max(1, activeIdleTimeoutBudgetMs || resolvedIdleTimeoutMs),
+        maxTimeoutMs: maxIdleTimeoutBudgetMs || resolvedIdleTimeoutMs,
         activeBatchCount: Math.max(0, Number(lastInFlight) || 0),
         completedUnits: Math.max(0, Number(lastProgressCurrent) || 0),
         totalUnits: Math.max(0, Number(lastProgressTotal) || 0),
@@ -691,7 +705,7 @@ export const createProcessRunner = ({
         if (idleTimeoutTriggered || idleAbortController.signal.aborted) return;
         if (idleWatchdogProbeInFlight) return;
         const idleMs = Date.now() - lastActivityAtMs;
-        if (idleMs < resolvedIdleTimeoutMs) return;
+        if (idleMs < activeIdleTimeoutBudgetMs) return;
         idleWatchdogProbeInFlight = true;
         try {
           const probe = await probeActiveChildActivity();
@@ -705,7 +719,7 @@ export const createProcessRunner = ({
           }
           await new Promise((resolve) => setImmediate(resolve));
           const refreshedIdleMs = Date.now() - lastActivityAtMs;
-          if (refreshedIdleMs < resolvedIdleTimeoutMs) {
+          if (refreshedIdleMs < activeIdleTimeoutBudgetMs) {
             return;
           }
         } finally {
@@ -713,6 +727,31 @@ export const createProcessRunner = ({
         }
         const decision = buildIdleTimeoutDecision();
         if (!decision.timedOut) {
+          timeoutDecision = decision;
+          if (
+            Number.isFinite(Number(decision.effectiveBudgetMs))
+            && Number(decision.effectiveBudgetMs) > activeIdleTimeoutBudgetMs
+          ) {
+            activeIdleTimeoutBudgetMs = Math.floor(Number(decision.effectiveBudgetMs));
+            appendLog(
+              `[run] timeout budget extended: ${label} ` +
+              `(idle budget ${activeIdleTimeoutBudgetMs}ms, reason=${decision.decisionReason || 'healthy_progress'}, ` +
+              `candidate=${decision.candidateTimeoutClass || decision.timeoutClass || 'none'}, ` +
+              `outcome=${decision.outcome || PROGRESS_TIMEOUT_OUTCOMES.continueWait})`,
+              'info'
+            );
+          } else if (
+            decision.outcome === PROGRESS_TIMEOUT_OUTCOMES.extendBudget
+            && Number.isFinite(Number(decision.effectiveBudgetMs))
+            && Number(decision.effectiveBudgetMs) === activeIdleTimeoutBudgetMs
+          ) {
+            appendLog(
+              `[run] timeout budget extended: ${label} ` +
+              `(idle budget ${activeIdleTimeoutBudgetMs}ms, reason=${decision.decisionReason || 'healthy_progress'}, ` +
+              `candidate=${decision.candidateTimeoutClass || 'none'})`,
+              'info'
+            );
+          }
           return;
         }
         idleTimeoutTriggered = true;

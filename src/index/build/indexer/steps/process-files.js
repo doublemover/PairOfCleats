@@ -1701,13 +1701,18 @@ export const processFiles = async ({
           orderedPending,
           trackedSubprocesses: Number(snapshot?.trackedSubprocesses?.total) || 0,
           softKickAttempts: stage1StallSoftKickAttempts,
+          timeoutOutcome: timeoutDecision.outcome,
+          timeoutDecisionReason: timeoutDecision.decisionReason,
           timeoutClass: timeoutDecision.timeoutClass,
+          timeoutCandidateClass: timeoutDecision.candidateTimeoutClass,
           timeoutBudget: timeoutDecision.budget,
-          observedProgress: timeoutDecision.observedProgress
+          observedProgress: timeoutDecision.observedProgress,
+          timeoutTrace: timeoutDecision.trace
         }
       });
       logLine(
         `[watchdog] stall-timeout class=${timeoutDecision.timeoutClass || 'unknown'} `
+          + `outcome=${timeoutDecision.outcome || 'unknown'} `
           + `idle=${Math.round(idleMs / 1000)}s progress=${progress.count}/${progress.total}; aborting stage1.`,
         {
           kind: 'error',
@@ -1723,9 +1728,13 @@ export const processFiles = async ({
           softKickAttempts: stage1StallSoftKickAttempts,
           softKickThresholdMs: stage1StallSoftKickMs,
           stallAbortMs: stage1StallAbortMs,
+          timeoutOutcome: timeoutDecision.outcome,
+          timeoutDecisionReason: timeoutDecision.decisionReason,
           timeoutClass: timeoutDecision.timeoutClass,
+          timeoutCandidateClass: timeoutDecision.candidateTimeoutClass,
           timeoutBudget: timeoutDecision.budget,
           observedProgress: timeoutDecision.observedProgress,
+          timeoutTrace: timeoutDecision.trace,
           watchdogSnapshot: snapshot
         }
       );
