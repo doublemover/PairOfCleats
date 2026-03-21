@@ -38,6 +38,10 @@ for (const id of requiredIds) {
     console.error(`generated surfaces registry test failed: ${id} missing refresh command`);
     process.exit(1);
   }
+  if (!surface.freshness?.mode) {
+    console.error(`generated surfaces registry test failed: ${id} missing freshness metadata`);
+    process.exit(1);
+  }
   const outputs = Array.isArray(surface.outputs) ? surface.outputs : [];
   if (!outputs.length) {
     console.error(`generated surfaces registry test failed: ${id} missing outputs`);

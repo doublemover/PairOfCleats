@@ -32,7 +32,7 @@ indexing.artifacts.symbolArtifactsFormat (string) enum=auto|jsonl|jsonl-sharded|
 indexing.artifacts.tokenPostingsFormat (string)
 indexing.artifacts.tokenPostingsShardSize (number)
 indexing.artifacts.tokenPostingsShardThreshold (number)
-indexing.artifacts.writeConcurrency (integer) range=1..32
+indexing.artifacts.writeConcurrency (integer)
 indexing.concurrency (number)
 indexing.diffs (object)
 indexing.diffs.compute (object)
@@ -134,15 +134,28 @@ indexing.postings.tokenClassification
 indexing.profile (string) enum=default|vector_only
 indexing.riskInterprocedural (object)
 indexing.riskInterprocedural.caps (object)
+indexing.riskInterprocedural.caps.maxBlockedExpansionsPerPartial (number)
 indexing.riskInterprocedural.caps.maxCallSitesPerEdge (number)
 indexing.riskInterprocedural.caps.maxDepth (number)
 indexing.riskInterprocedural.caps.maxEdgeExpansions (number)
 indexing.riskInterprocedural.caps.maxMs (number|null)
+indexing.riskInterprocedural.caps.maxPartialFlows (number)
 indexing.riskInterprocedural.caps.maxPathsPerPair (number)
 indexing.riskInterprocedural.caps.maxTotalFlows (number)
 indexing.riskInterprocedural.emitArtifacts (string) enum=none|jsonl|off
 indexing.riskInterprocedural.enabled (boolean)
 indexing.riskInterprocedural.sanitizerPolicy (string) enum=terminate|weaken
+indexing.riskInterprocedural.semantics (array)
+indexing.riskInterprocedural.semantics[] (object)
+indexing.riskInterprocedural.semantics[].frameworks (array)
+indexing.riskInterprocedural.semantics[].fromArgs (array)
+indexing.riskInterprocedural.semantics[].id (string)
+indexing.riskInterprocedural.semantics[].kind (string) enum=wrapper|propagator|builder|callback|asyncHandoff
+indexing.riskInterprocedural.semantics[].languages (array)
+indexing.riskInterprocedural.semantics[].name (string)
+indexing.riskInterprocedural.semantics[].patterns (array)
+indexing.riskInterprocedural.semantics[].taintHints (array)
+indexing.riskInterprocedural.semantics[].toParams (array)
 indexing.riskInterprocedural.strictness (string) enum=conservative|argAware
 indexing.riskInterprocedural.summaryOnly (boolean)
 indexing.scheduler (object)
@@ -261,13 +274,23 @@ tooling.circuitBreakerThreshold (number)
 tooling.clangd (object)
 tooling.clangd.compileCommandsDir (string)
 tooling.clangd.requireCompilationDatabase (boolean)
+tooling.csharp (object)
+tooling.dart (object)
 tooling.dir (string)
 tooling.disabledTools
+tooling.elixir (object)
 tooling.enabledTools
+tooling.gopls (object)
+tooling.haskell (object)
 tooling.installScope (string)
+tooling.jdtls (object)
+tooling.lifecycle (object)
 tooling.logDir (string)
 tooling.lsp (object)
+tooling.lsp.circuitBreakerThreshold (number)
 tooling.lsp.enabled (boolean)
+tooling.lsp.lifecycle (object)
+tooling.lsp.maxRetries (number)
 tooling.lsp.servers (array)
 tooling.lsp.servers[] (object)
 tooling.lsp.servers[].args
@@ -280,9 +303,12 @@ tooling.lsp.servers[].retries (number)
 tooling.lsp.servers[].timeoutMs (number)
 tooling.lsp.servers[].uriScheme (string) enum=file|poc-vfs
 tooling.lsp.servers[].version (string)
+tooling.lsp.timeoutMs (number)
 tooling.maxRetries (number)
+tooling.phpactor (object)
 tooling.providerOrder
 tooling.pyright (object)
+tooling.solargraph (object)
 tooling.sourcekit (object)
 tooling.strict (boolean)
 tooling.timeoutMs (number)
@@ -335,22 +361,44 @@ tooling.vfs.tokenMode (string)
 
 - MCP_MODE -> mcpMode
 - PAIROFCLEATS_API_TOKEN -> apiToken
+- PAIROFCLEATS_BENCH_ANTIVIRUS_STATE -> benchAntivirusState
+- PAIROFCLEATS_BENCH_CPU_GOVERNOR -> benchCpuGovernor
+- PAIROFCLEATS_BENCH_MIRROR_REFRESH_MS -> benchMirrorRefreshMs
+- PAIROFCLEATS_BENCH_RUN -> benchRun
+- PAIROFCLEATS_BUILD_INDEX_LOCK_POLL_MS -> buildIndexLockPollMs
+- PAIROFCLEATS_BUILD_INDEX_LOCK_WAIT_MS -> buildIndexLockWaitMs
 - PAIROFCLEATS_BUNDLE_THREADS -> bundleThreads
 - PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE -> cacheMetricsSampleRate
 - PAIROFCLEATS_CACHE_NAMESPACE -> cacheNamespace
 - PAIROFCLEATS_CACHE_REBUILD -> cacheRebuild
 - PAIROFCLEATS_CACHE_ROOT -> cacheRoot
+- PAIROFCLEATS_CI_USE_LSP_FIXTURES -> ciUseLspFixtures
 - PAIROFCLEATS_COMPRESSION -> compression
+- PAIROFCLEATS_CRASH_LOG_ANNOUNCE -> crashLogAnnounce
+- PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL -> crossfilePropagationParallel
+- PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL_MIN_BUNDLE -> crossfilePropagationParallelMinBundle
 - PAIROFCLEATS_DEBUG_CRASH -> debugCrash
+- PAIROFCLEATS_DEBUG_HANG_PROBES -> debugHangProbes
+- PAIROFCLEATS_DEBUG_HANG_PROBE_HEARTBEAT_MS -> debugHangProbeHeartbeatMs
+- PAIROFCLEATS_DEBUG_HANG_PROBE_WARN_MS -> debugHangProbeWarnMs
 - PAIROFCLEATS_DEBUG_ORDERED -> debugOrdered
+- PAIROFCLEATS_DEBUG_PERF_EVENTS -> debugPerfEvents
+- PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB -> denseBinaryMaxInlineMb
 - PAIROFCLEATS_DICT_DIR -> dictDir
 - PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY -> discoveryStatConcurrency
 - PAIROFCLEATS_DOC_EXTRACT -> docExtract
 - PAIROFCLEATS_EMBEDDINGS -> embeddings
+- PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES -> embeddingsSampleFiles
+- PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED -> embeddingsSampleSeed
 - PAIROFCLEATS_EXTENSIONS_DIR -> extensionsDir
 - PAIROFCLEATS_FILE_CACHE_MAX -> fileCacheMax
 - PAIROFCLEATS_HOME -> homeRoot
 - PAIROFCLEATS_IMPORT_GRAPH -> importGraph
+- PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY -> incrementalBundleUpdateConcurrency
+- PAIROFCLEATS_INDEXER_SERVICE_EXECUTION -> indexerServiceExecutionMode
+- PAIROFCLEATS_INDEX_DAEMON -> indexDaemon
+- PAIROFCLEATS_INDEX_DAEMON_SESSION -> indexDaemonSession
+- PAIROFCLEATS_JSON_STREAM_WAIT_TIMEOUT_MS -> jsonStreamWaitTimeoutMs
 - PAIROFCLEATS_LANCEDB_CHILD -> child
 - PAIROFCLEATS_LANCEDB_ISOLATE -> isolate
 - PAIROFCLEATS_LANCEDB_PAYLOAD -> payload
@@ -362,20 +410,48 @@ tooling.vfs.tokenMode (string)
 - PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS -> mcpToolTimeoutMs
 - PAIROFCLEATS_MCP_TRANSPORT -> mcpTransport
 - PAIROFCLEATS_MODELS_DIR -> modelsDir
+- PAIROFCLEATS_PREFER_MEMORY_BACKEND_ON_CACHE_HIT -> preferMemoryBackendOnCacheHit
+- PAIROFCLEATS_PROGRESS_CONTEXT -> progressContext
+- PAIROFCLEATS_QUERY_CACHE_MEMORY_FRESH_MS -> queryCacheMemoryFreshMs
+- PAIROFCLEATS_QUERY_CACHE_PREWARM -> queryCachePrewarm
+- PAIROFCLEATS_QUERY_CACHE_PREWARM_MAX_ENTRIES -> queryCachePrewarmMaxEntries
+- PAIROFCLEATS_QUERY_CACHE_STRATEGY -> queryCacheStrategy
 - PAIROFCLEATS_REGEX_ENGINE -> regexEngine
 - PAIROFCLEATS_SCHEDULER -> schedulerEnabled
+- PAIROFCLEATS_SCHEDULER_ADAPTIVE -> schedulerAdaptive
+- PAIROFCLEATS_SCHEDULER_ADAPTIVE_STEP -> schedulerAdaptiveStep
 - PAIROFCLEATS_SCHEDULER_CPU -> schedulerCpuTokens
 - PAIROFCLEATS_SCHEDULER_IO -> schedulerIoTokens
 - PAIROFCLEATS_SCHEDULER_LOW_RESOURCE -> schedulerLowResource
+- PAIROFCLEATS_SCHEDULER_MAX_CPU -> schedulerMaxCpuTokens
+- PAIROFCLEATS_SCHEDULER_MAX_IO -> schedulerMaxIoTokens
+- PAIROFCLEATS_SCHEDULER_MAX_MEM -> schedulerMaxMemoryTokens
 - PAIROFCLEATS_SCHEDULER_MEM -> schedulerMemoryTokens
+- PAIROFCLEATS_SCHEDULER_MEMORY_PER_TOKEN_MB -> schedulerMemoryPerTokenMb
+- PAIROFCLEATS_SCHEDULER_MEMORY_RESERVE_MB -> schedulerMemoryReserveMb
 - PAIROFCLEATS_SCHEDULER_STARVATION_MS -> schedulerStarvationMs
+- PAIROFCLEATS_SCHEDULER_TARGET_UTILIZATION -> schedulerTargetUtilization
+- PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_TARGET -> schedulerUtilizationAlertTarget
+- PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_WINDOW_MS -> schedulerUtilizationAlertWindowMs
+- PAIROFCLEATS_SQLITE_FTS_OVERFETCH_CHUNK_SIZE -> sqliteFtsOverfetchChunkSize
+- PAIROFCLEATS_SQLITE_FTS_OVERFETCH_ROW_CAP -> sqliteFtsOverfetchRowCap
+- PAIROFCLEATS_SQLITE_FTS_OVERFETCH_TIME_BUDGET_MS -> sqliteFtsOverfetchTimeBudgetMs
+- PAIROFCLEATS_SQLITE_TAIL_LATENCY_TUNING -> sqliteTailLatencyTuning
 - PAIROFCLEATS_STAGE -> stage
+- PAIROFCLEATS_STORAGE_TIER -> storageTier
 - PAIROFCLEATS_SUMMARY_CACHE_MAX -> summaryCacheMax
 - PAIROFCLEATS_THREADS -> threads
 - PAIROFCLEATS_TRACE_ARTIFACT_IO -> traceArtifactIo
+- PAIROFCLEATS_TUI_EVENT_LOG_DIR -> eventLogDir
+- PAIROFCLEATS_TUI_INSTALL_ROOT -> installRoot
+- PAIROFCLEATS_TUI_RUN_ID -> runId
 - PAIROFCLEATS_VERBOSE -> verbose
 - PAIROFCLEATS_WATCHER_BACKEND -> watcherBackend
 - PAIROFCLEATS_WORKER_POOL -> workerPool
+- PAIROFCLEATS_WORKER_POOL_HEAP_MAX_MB -> workerPoolHeapMaxMb
+- PAIROFCLEATS_WORKER_POOL_HEAP_MIN_MB -> workerPoolHeapMinMb
+- PAIROFCLEATS_WORKER_POOL_HEAP_TARGET_MB -> workerPoolHeapTargetMb
+- PAIROFCLEATS_WORKER_POOL_MAX_WORKERS -> workerPoolMaxWorkers
 - PAIROFCLEATS_XXHASH_BACKEND -> xxhashBackend
 
 ## Env overrides (test-only, require PAIROFCLEATS_TESTING=1)
@@ -389,6 +465,7 @@ tooling.vfs.tokenMode (string)
 - PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT -> stubDocxExtract
 - PAIROFCLEATS_TEST_STUB_PDF_EXTRACT -> stubPdfExtract
 - PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS -> stubPdfExtractDelayMs
+- PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH
 
 ## CLI flags
 

@@ -72,6 +72,13 @@ const assertRustValidationPresent = ({ workflowText, label }) => {
   }
 };
 
+const assertGeneratedFreshnessGatePresent = ({ workflowText, label }) => {
+  if (!/node\s+tools\/docs\/generated-surfaces\.js\s+--check-freshness/.test(workflowText)) {
+    console.error(`${label} is missing generated surfaces freshness enforcement`);
+    process.exit(1);
+  }
+};
+
 const readWorkflow = (name) => {
   const workflowPath = path.join(ROOT, '.github', 'workflows', name);
   if (!fs.existsSync(workflowPath)) {
@@ -86,6 +93,7 @@ assertWorkflowScriptsExist({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertNodePinned({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertHiddenArtifactUploadsConfigured({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertRustValidationPresent({ workflowText: ciWorkflow, label: 'CI workflow' });
+assertGeneratedFreshnessGatePresent({ workflowText: ciWorkflow, label: 'CI workflow' });
 
 const nightlyWorkflow = readWorkflow('nightly.yml');
 assertWorkflowScriptsExist({ workflowText: nightlyWorkflow, label: 'Nightly workflow' });

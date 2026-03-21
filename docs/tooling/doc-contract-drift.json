@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-02-21T13:51:31.763Z",
-  "ok": true,
+  "generatedAt": "2026-03-21T14:59:40.998Z",
+  "ok": false,
   "checks": {
     "searchCliFlags": {
       "doc": "docs/contracts/search-cli.md",
@@ -99,10 +99,23 @@
     "artifactSchemas": {
       "doc": "docs/contracts/artifact-schemas.md",
       "source": "src/contracts/schemas/artifacts.js",
-      "sourceCount": 69,
-      "docCount": 69,
-      "missingInDocs": [],
-      "extraInDocs": []
+      "sourceCount": 75,
+      "docCount": 78,
+      "missingInDocs": [
+        "dense_vectors_binary_meta",
+        "dense_vectors_code_binary_meta",
+        "dense_vectors_doc_binary_meta",
+        "scan_profile"
+      ],
+      "extraInDocs": [
+        "author",
+        "bookmarks",
+        "branch",
+        "changeId",
+        "commitId",
+        "operationId",
+        "timestamp"
+      ]
     },
     "scoreBreakdown": {
       "doc": "docs/contracts/search-contract.md",

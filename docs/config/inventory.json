@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T12:37:10.257Z",
+  "generatedAt": "2026-03-21T14:59:40.702Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -14,6 +14,7 @@
       "PAIROFCLEATS_API_TOKEN"
     ],
     "cliFlags": [
+      "all",
       "allow-unauthenticated",
       "allowed-repo-roots",
       "auth-token",
@@ -23,11 +24,14 @@
       "config",
       "cors-allow-any",
       "cors-allowed-origins",
+      "dry-run",
       "explain",
       "filter",
       "host",
       "interval",
+      "job",
       "json",
+      "lock",
       "max-body-bytes",
       "mode",
       "output",
@@ -37,7 +41,9 @@
       "quiet",
       "reason",
       "repo",
+      "shutdown-mode",
       "stage",
+      "timeout-ms",
       "top",
       "watch"
     ],
@@ -58,6 +64,8 @@
       "PAIROFCLEATS_CI_USE_LSP_FIXTURES",
       "PAIROFCLEATS_COMPRESSION",
       "PAIROFCLEATS_CRASH_LOG_ANNOUNCE",
+      "PAIROFCLEATS_CRASH_RETENTION_FULL_TRACE",
+      "PAIROFCLEATS_CRASH_RETENTION_PROFILE",
       "PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL",
       "PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL_MIN_BUNDLE",
       "PAIROFCLEATS_DEBUG_CRASH",
@@ -99,6 +107,7 @@
       "PAIROFCLEATS_MODEL",
       "PAIROFCLEATS_MODELS_DIR",
       "PAIROFCLEATS_NODE_OPTIONS",
+      "PAIROFCLEATS_OBSERVABILITY_CONTEXT",
       "PAIROFCLEATS_ONNX_CPU_EP_TUNING",
       "PAIROFCLEATS_ONNX_PREWARM_MODEL",
       "PAIROFCLEATS_ONNX_PREWARM_TEXTS",
@@ -138,6 +147,8 @@
       "PAIROFCLEATS_SKIP_BENCH",
       "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
       "PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL",
+      "PAIROFCLEATS_SQLITE_DENSE_CHILD",
+      "PAIROFCLEATS_SQLITE_DENSE_PAYLOAD",
       "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_CHUNK_SIZE",
       "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_ROW_CAP",
       "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_TIME_BUDGET_MS",
@@ -154,6 +165,8 @@
       "PAIROFCLEATS_TEST_ALLOW_TIMEOUT_PASS_SIGNAL_TARGET",
       "PAIROFCLEATS_TEST_ALLOW_TIMEOUT_TARGET",
       "PAIROFCLEATS_TEST_API_STARTUP_TIMEOUT_MS",
+      "PAIROFCLEATS_TEST_BENCH_REPO_DELAY_MS",
+      "PAIROFCLEATS_TEST_BENCH_SELF_INTERRUPT_AFTER_MS",
       "PAIROFCLEATS_TEST_CACHE_SUFFIX",
       "PAIROFCLEATS_TEST_CODE_MAP_BUDGET_MS",
       "PAIROFCLEATS_TEST_CONFIG",
@@ -180,6 +193,9 @@
       "PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH",
       "PAIROFCLEATS_TEST_WATCHDOG_MS",
       "PAIROFCLEATS_THREADS",
+      "PAIROFCLEATS_TOOLING_LSP_GUARDRAIL_BASELINE",
+      "PAIROFCLEATS_TOOLING_LSP_REPLAY_BASELINE",
+      "PAIROFCLEATS_TOOLING_LSP_SLO_BASELINE",
       "PAIROFCLEATS_TRACE_ARTIFACT_IO",
       "PAIROFCLEATS_TUI_ALT_SCREEN",
       "PAIROFCLEATS_TUI_DIST_DIR",
@@ -2368,14 +2384,16 @@
     {
       "name": "PAIROFCLEATS_CRASH_RETENTION_FULL_TRACE",
       "files": [
-        "src/index/build/crash-log.js"
+        "src/index/build/crash-log.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_CRASH_RETENTION_PROFILE",
       "files": [
         "src/index/build/crash-log.js",
-        "tests/indexing/crash-log-retention-trace-policy.test.js"
+        "tests/indexing/crash-log-retention-trace-policy.test.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2738,7 +2756,8 @@
     {
       "name": "PAIROFCLEATS_OBSERVABILITY_CONTEXT",
       "files": [
-        "src/shared/observability.js"
+        "src/shared/observability.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -3039,13 +3058,15 @@
     {
       "name": "PAIROFCLEATS_SQLITE_DENSE_CHILD",
       "files": [
-        "tools/build/embeddings/sqlite-dense-isolate.js"
+        "tools/build/embeddings/sqlite-dense-isolate.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SQLITE_DENSE_PAYLOAD",
       "files": [
-        "tools/build/embeddings/sqlite-dense-isolate.js"
+        "tools/build/embeddings/sqlite-dense-isolate.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -3167,13 +3188,15 @@
     {
       "name": "PAIROFCLEATS_TEST_BENCH_REPO_DELAY_MS",
       "files": [
-        "tools/bench/language-repos/run-loop.js"
+        "tools/bench/language-repos/run-loop.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_TEST_BENCH_SELF_INTERRUPT_AFTER_MS",
       "files": [
-        "tools/bench/language-repos.js"
+        "tools/bench/language-repos.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -3488,19 +3511,22 @@
     {
       "name": "PAIROFCLEATS_TOOLING_LSP_GUARDRAIL_BASELINE",
       "files": [
-        "tools/ci/run-suite.js"
+        "tools/ci/run-suite.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_TOOLING_LSP_REPLAY_BASELINE",
       "files": [
-        "tools/ci/run-suite.js"
+        "tools/ci/run-suite.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_TOOLING_LSP_SLO_BASELINE",
       "files": [
-        "tools/ci/run-suite.js"
+        "tools/ci/run-suite.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -3702,21 +3728,11 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_CRASH_RETENTION_FULL_TRACE",
-    "PAIROFCLEATS_CRASH_RETENTION_PROFILE",
-    "PAIROFCLEATS_OBSERVABILITY_CONTEXT",
-    "PAIROFCLEATS_SQLITE_DENSE_CHILD",
-    "PAIROFCLEATS_SQLITE_DENSE_PAYLOAD",
-    "PAIROFCLEATS_TEST_BENCH_REPO_DELAY_MS",
-    "PAIROFCLEATS_TEST_BENCH_SELF_INTERRUPT_AFTER_MS",
-    "PAIROFCLEATS_TOOLING_LSP_GUARDRAIL_BASELINE",
-    "PAIROFCLEATS_TOOLING_LSP_REPLAY_BASELINE",
-    "PAIROFCLEATS_TOOLING_LSP_SLO_BASELINE"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 426,
+    "totalFlags": 429,
     "publicFlags": [
+      "all",
       "allow-unauthenticated",
       "allowed-repo-roots",
       "auth-token",
@@ -3726,9 +3742,12 @@
       "config",
       "cors-allow-any",
       "cors-allowed-origins",
+      "dry-run",
       "host",
       "interval",
+      "job",
       "json",
+      "lock",
       "max-body-bytes",
       "mode",
       "output",
@@ -3737,7 +3756,9 @@
       "quiet",
       "reason",
       "repo",
+      "shutdown-mode",
       "stage",
+      "timeout-ms",
       "top",
       "watch"
     ],
@@ -3745,7 +3766,6 @@
       "actionable-unresolved-rate-max",
       "additionalProperties",
       "adversarial-ratio",
-      "all",
       "ann",
       "ann-backends",
       "ann-mode",
@@ -3776,6 +3796,8 @@
       "cert-dir",
       "changed",
       "changedFile",
+      "check",
+      "check-freshness",
       "checkpoint",
       "chunk",
       "chunk-meta-size",
@@ -3815,7 +3837,6 @@
       "draw-files",
       "draw-labels",
       "draw-members",
-      "dry-run",
       "duplicate-bucket",
       "duplicate-rate",
       "edgeTypes",
@@ -3895,7 +3916,6 @@
       "intent-weights",
       "interactive",
       "iterations",
-      "job",
       "junit",
       "justification",
       "keep",
@@ -3911,7 +3931,6 @@
       "list-groups",
       "list-packs",
       "load",
-      "lock",
       "lod-edge-high",
       "lod-edge-low",
       "lod-zoom-high",
@@ -4071,7 +4090,6 @@
       "sha256",
       "shard-count",
       "shard-index",
-      "shutdown-mode",
       "sink",
       "sink-rule",
       "size",
@@ -4102,6 +4120,7 @@
       "strict",
       "strictRisk",
       "stub-embeddings",
+      "surface",
       "symbols",
       "table",
       "tag",
@@ -4111,7 +4130,6 @@
       "tests-json",
       "threads",
       "three-url",
-      "timeout-ms",
       "timeout-ratio-max",
       "token-postings-size",
       "tokenSize",
@@ -4175,14 +4193,7 @@
       "timeout-ms",
       "watch"
     ],
-    "publicUnknown": [
-      "all",
-      "dry-run",
-      "job",
-      "lock",
-      "shutdown-mode",
-      "timeout-ms"
-    ],
+    "publicUnknown": [],
     "byFile": [
       {
         "file": "bin/pairofcleats.js",
@@ -5473,6 +5484,17 @@
         ]
       },
       {
+        "file": "tools/docs/generated-surfaces.js",
+        "flags": [
+          "check",
+          "check-freshness",
+          "json",
+          "refresh",
+          "root",
+          "surface"
+        ]
+      },
+      {
         "file": "tools/docs/repo-inventory.js",
         "flags": [
           "json",
@@ -6045,7 +6067,7 @@
     "duplicated": [
       {
         "flag": "json",
-        "count": 69,
+        "count": 70,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -6089,6 +6111,7 @@
           "tools/config/reset.js",
           "tools/config/validate.js",
           "tools/dispatch/manifest.js",
+          "tools/docs/generated-surfaces.js",
           "tools/docs/repo-inventory.js",
           "tools/docs/script-inventory.js",
           "tools/index/cache-gc.js",
@@ -6425,6 +6448,21 @@
         ]
       },
       {
+        "flag": "root",
+        "count": 9,
+        "files": [
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/docs/contract-drift.js",
+          "tools/docs/export-artifact-schema-index.js",
+          "tools/docs/generated-surfaces.js",
+          "tools/docs/repo-inventory.js",
+          "tools/reports/show-throughput/options.js",
+          "tools/setup/setup.js",
+          "tools/tooling/detect.js",
+          "tools/tooling/install.js"
+        ]
+      },
+      {
         "flag": "verbose",
         "count": 9,
         "files": [
@@ -6493,20 +6531,6 @@
           "tools/ci/build-artifacts.js",
           "tools/download/extensions.js",
           "tools/eval/run.js"
-        ]
-      },
-      {
-        "flag": "root",
-        "count": 8,
-        "files": [
-          "tools/bench/vfs/cold-start-cache.js",
-          "tools/docs/contract-drift.js",
-          "tools/docs/export-artifact-schema-index.js",
-          "tools/docs/repo-inventory.js",
-          "tools/reports/show-throughput/options.js",
-          "tools/setup/setup.js",
-          "tools/tooling/detect.js",
-          "tools/tooling/install.js"
         ]
       },
       {
@@ -7594,6 +7618,14 @@
         "files": [
           "tools/triage/context-pack.js",
           "tools/triage/decision.js"
+        ]
+      },
+      {
+        "flag": "refresh",
+        "count": 2,
+        "files": [
+          "tools/docs/generated-surfaces.js",
+          "tools/reports/report-code-map.js"
         ]
       },
       {

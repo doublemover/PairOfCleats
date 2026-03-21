@@ -7,6 +7,21 @@
       "committed": true,
       "validationMode": "registry-audited",
       "freshnessExpectation": "regenerate after command-surface changes",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/docs/script-inventory.js --json {output:0} --markdown {output:1}",
+        "outputs": [
+          {
+            "format": "json",
+            "omitKeys": [
+              "generatedAt"
+            ]
+          },
+          {
+            "format": "text"
+          }
+        ]
+      },
       "outputs": [
         "docs/tooling/script-inventory.json",
         "docs/guides/commands.md"
@@ -24,6 +39,18 @@
       "committed": true,
       "validationMode": "registry-audited",
       "freshnessExpectation": "regenerate after docs, tool entrypoints, script references, or workflow references change",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/docs/repo-inventory.js --root . --json {output:0}",
+        "outputs": [
+          {
+            "format": "json",
+            "omitKeys": [
+              "generatedAt"
+            ]
+          }
+        ]
+      },
       "outputs": [
         "docs/tooling/repo-inventory.json"
       ],
@@ -40,6 +67,21 @@
       "committed": true,
       "validationMode": "drift-report",
       "freshnessExpectation": "regenerate after contract docs, CLI flags, artifact schema docs, or test lane docs change",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/docs/contract-drift.js --out-json {output:0} --out-md {output:1}",
+        "outputs": [
+          {
+            "format": "json",
+            "omitKeys": [
+              "generatedAt"
+            ]
+          },
+          {
+            "format": "text"
+          }
+        ]
+      },
       "outputs": [
         "docs/tooling/doc-contract-drift.json",
         "docs/tooling/doc-contract-drift.md"
@@ -57,6 +99,15 @@
       "committed": true,
       "validationMode": "registry-audited",
       "freshnessExpectation": "regenerate after config schema, env mapping, or public CLI config surface changes",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/config/contract-doc.js --out {output:0}",
+        "outputs": [
+          {
+            "format": "text"
+          }
+        ]
+      },
       "outputs": [
         "docs/config/contract.md"
       ],
@@ -73,6 +124,10 @@
       "committed": true,
       "validationMode": "sync-check",
       "freshnessExpectation": "regenerate after config schema, env vars, or public CLI/config exposure changes",
+      "freshness": {
+        "mode": "audit-command",
+        "command": "node tools/config/inventory.js --check"
+      },
       "outputs": [
         "docs/config/inventory.json",
         "docs/config/inventory.md"
@@ -90,6 +145,10 @@
       "committed": true,
       "validationMode": "test-backed-sync",
       "freshnessExpectation": "regenerate after artifact schema registry changes",
+      "freshness": {
+        "mode": "audit-command",
+        "command": "node tests/tooling/docs/artifact-schema-index.test.js"
+      },
       "outputs": [
         "docs/contracts/artifact-schema-index.json"
       ],

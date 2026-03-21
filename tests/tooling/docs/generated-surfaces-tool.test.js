@@ -14,6 +14,12 @@ if (!checkResult.stdout.includes('generated surfaces registry check passed')) {
   process.exit(1);
 }
 
+const freshnessResult = execaSync('node', [toolPath, '--check-freshness'], { cwd: root });
+if (!freshnessResult.stdout.includes('generated surfaces freshness check passed')) {
+  console.error('generated surfaces tool test failed: --check-freshness output missing success marker');
+  process.exit(1);
+}
+
 const jsonResult = execaSync('node', [toolPath, '--json'], { cwd: root });
 const payload = JSON.parse(jsonResult.stdout);
 if (!Array.isArray(payload?.surfaces) || payload.surfaces.length < 6) {
