@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T15:35:05.052Z",
+  "generatedAt": "2026-03-21T15:45:21.357Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -5338,6 +5338,13 @@
         ]
       },
       {
+        "file": "tools/ci/check-command-surface.js",
+        "flags": [
+          "json",
+          "root"
+        ]
+      },
+      {
         "file": "tools/ci/coverage-policy-report.js",
         "flags": [
           "base",
@@ -6102,7 +6109,7 @@
     "duplicated": [
       {
         "flag": "json",
-        "count": 70,
+        "count": 71,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -6137,6 +6144,7 @@
           "tools/bench/vfs/vfsidx-lookup.js",
           "tools/ci/bench-language-rollout-gate.js",
           "tools/ci/capability-gate.js",
+          "tools/ci/check-command-surface.js",
           "tools/ci/import-resolution-slo-gate.js",
           "tools/ci/tooling-doctor-gate.js",
           "tools/ci/tooling-lsp-default-enable-gate.js",
@@ -6390,6 +6398,23 @@
         ]
       },
       {
+        "flag": "root",
+        "count": 11,
+        "files": [
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/ci/check-command-surface.js",
+          "tools/ci/coverage-policy-report.js",
+          "tools/docs/contract-drift.js",
+          "tools/docs/export-artifact-schema-index.js",
+          "tools/docs/generated-surfaces.js",
+          "tools/docs/repo-inventory.js",
+          "tools/reports/show-throughput/options.js",
+          "tools/setup/setup.js",
+          "tools/tooling/detect.js",
+          "tools/tooling/install.js"
+        ]
+      },
+      {
         "flag": "samples",
         "count": 11,
         "files": [
@@ -6420,22 +6445,6 @@
           "tools/reports/parity-matrix.js",
           "tools/tooling/install.js",
           "tools/tooling/uninstall.js"
-        ]
-      },
-      {
-        "flag": "root",
-        "count": 10,
-        "files": [
-          "tools/bench/vfs/cold-start-cache.js",
-          "tools/ci/coverage-policy-report.js",
-          "tools/docs/contract-drift.js",
-          "tools/docs/export-artifact-schema-index.js",
-          "tools/docs/generated-surfaces.js",
-          "tools/docs/repo-inventory.js",
-          "tools/reports/show-throughput/options.js",
-          "tools/setup/setup.js",
-          "tools/tooling/detect.js",
-          "tools/tooling/install.js"
         ]
       },
       {

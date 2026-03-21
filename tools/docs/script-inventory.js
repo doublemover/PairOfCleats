@@ -6,6 +6,7 @@ import {
   SERVICE_INDEXER_OPTIONS,
   resolveCliOptionFlagSets
 } from '../../src/shared/cli-options.js';
+import { getPackageScriptReplacement } from '../../src/shared/command-aliases.js';
 import { listCommandRegistry } from '../../src/shared/command-registry.js';
 
 const parseArgs = () => createCli({
@@ -104,7 +105,7 @@ const main = async () => {
     name,
     category: categoryFor(name),
     ciAllowed: ciAllowlist.has(name) || name.startsWith('test:'),
-    replacement: null
+    replacement: getPackageScriptReplacement(name)
   }));
   const { optionNames: serviceIndexerFlags, valueOptionNames: serviceIndexerValueFlags } = resolveCliOptionFlagSets(
     SERVICE_INDEXER_OPTIONS

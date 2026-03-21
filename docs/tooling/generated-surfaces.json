@@ -30,7 +30,7 @@
         "command": "node tools/docs/script-inventory.js"
       },
       "audit": {
-        "command": "node tools/docs/generated-surfaces.js --check --surface script-inventory"
+        "command": "node tools/ci/check-command-surface.js"
       }
     },
     {

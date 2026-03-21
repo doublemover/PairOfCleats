@@ -55,6 +55,9 @@ jobs:
       - name: Generated surfaces freshness
         run: node tools/docs/generated-surfaces.js --check-freshness
 
+      - name: Command surface audit
+        run: node tools/ci/check-command-surface.js
+
       - name: Gate lane
         run: |
           node tests/run.js --lane gate --allow-timeouts --junit .testLogs/junit-gate.xml --log-dir .testLogs

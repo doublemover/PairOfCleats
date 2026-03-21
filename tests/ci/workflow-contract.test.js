@@ -79,6 +79,16 @@ const assertGeneratedFreshnessGatePresent = ({ workflowText, label }) => {
   }
 };
 
+const assertCommandSurfaceAuditPresent = ({ workflowText, label }) => {
+  if (
+    !/node\s+tools\/ci\/check-command-surface\.js/.test(workflowText)
+    && !/node\s+tools\/ci\/run-suite\.js/.test(workflowText)
+  ) {
+    console.error(`${label} is missing command surface audit enforcement`);
+    process.exit(1);
+  }
+};
+
 const readWorkflow = (name) => {
   const workflowPath = path.join(ROOT, '.github', 'workflows', name);
   if (!fs.existsSync(workflowPath)) {
@@ -94,12 +104,14 @@ assertNodePinned({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertHiddenArtifactUploadsConfigured({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertRustValidationPresent({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertGeneratedFreshnessGatePresent({ workflowText: ciWorkflow, label: 'CI workflow' });
+assertCommandSurfaceAuditPresent({ workflowText: ciWorkflow, label: 'CI workflow' });
 
 const nightlyWorkflow = readWorkflow('nightly.yml');
 assertWorkflowScriptsExist({ workflowText: nightlyWorkflow, label: 'Nightly workflow' });
 assertNodePinned({ workflowText: nightlyWorkflow, label: 'Nightly workflow' });
 assertHiddenArtifactUploadsConfigured({ workflowText: nightlyWorkflow, label: 'Nightly workflow' });
 assertRustValidationPresent({ workflowText: nightlyWorkflow, label: 'Nightly workflow' });
+assertCommandSurfaceAuditPresent({ workflowText: nightlyWorkflow, label: 'Nightly workflow' });
 
 const ciLongWorkflow = readWorkflow('ci-long.yml');
 assertWorkflowScriptsExist({ workflowText: ciLongWorkflow, label: 'CI-long workflow' });
@@ -113,5 +125,6 @@ if (!/--lane\s+ci-long/.test(ciLongWorkflow)) {
   console.error('CI-long workflow does not pass --lane ci-long');
   process.exit(1);
 }
+assertCommandSurfaceAuditPresent({ workflowText: ciLongWorkflow, label: 'CI-long workflow' });
 
 console.log('workflow contract test passed (ci, ci-long, nightly)');

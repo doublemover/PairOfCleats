@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T15:34:29.377Z",
+  "generatedAt": "2026-03-21T15:45:45.188Z",
   "generatedBy": "node tools/docs/repo-inventory.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "docs": {
@@ -1438,6 +1438,7 @@
       "src/shared/cli/progress-stream.js",
       "src/shared/cli/stdout-guard.js",
       "src/shared/code-dictionaries.js",
+      "src/shared/command-aliases.js",
       "src/shared/command-registry.js",
       "src/shared/concurrency.js",
       "src/shared/concurrency/adaptive-surfaces.js",
@@ -1820,6 +1821,7 @@
       "tools/ci/bench-language-rollout-gate.js",
       "tools/ci/build-artifacts.js",
       "tools/ci/capability-gate.js",
+      "tools/ci/check-command-surface.js",
       "tools/ci/check-env-usage.js",
       "tools/ci/coverage-policy-report.js",
       "tools/ci/get-last-failure.js",
@@ -2956,6 +2958,7 @@
       "tools/ci/bench-language-rollout-gate.js",
       "tools/ci/build-artifacts.js",
       "tools/ci/capability-gate.js",
+      "tools/ci/check-command-surface.js",
       "tools/ci/check-env-usage.js",
       "tools/ci/coverage-policy-report.js",
       "tools/ci/get-last-failure.js",
@@ -3322,6 +3325,7 @@
       "tools/build/embeddings.js",
       "tools/ci/bench-language-rollout-gate.js",
       "tools/ci/capability-gate.js",
+      "tools/ci/check-command-surface.js",
       "tools/ci/coverage-policy-report.js",
       "tools/ci/import-resolution-slo-gate.js",
       "tools/ci/run-lsp-embeddings-gates.js",
@@ -3475,11 +3479,16 @@
       "verify:native"
     ],
     "referencedByTests": [
+      "api-server",
       "build",
       "build-index",
+      "ctags-ingest",
       "download-dicts",
+      "indexer-service",
       "search",
-      "test"
+      "test",
+      "tui:build",
+      "watch-index"
     ],
     "referenced": [
       "api-server",

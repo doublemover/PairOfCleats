@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-03-21T15:34:28.205Z",
+  "generatedAt": "2026-03-21T15:44:53.837Z",
   "scripts": [
     {
       "name": "api-server",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats service api"
     },
     {
       "name": "bench-dict-seg",
@@ -23,25 +23,25 @@
       "name": "bench-language",
       "category": "bench",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats bench language"
     },
     {
       "name": "bench-language:matrix",
       "category": "bench",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats bench matrix"
     },
     {
       "name": "bench-language:summarize",
       "category": "bench",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats bench summarize"
     },
     {
       "name": "bench-micro",
       "category": "bench",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats bench micro"
     },
     {
       "name": "bench-micro:tiny",
@@ -71,13 +71,13 @@
       "name": "build-index",
       "category": "indexing",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats index build"
     },
     {
       "name": "build-lmdb-index",
       "category": "indexing",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats lmdb build"
     },
     {
       "name": "build-tantivy-index",
@@ -89,7 +89,7 @@
       "name": "cache-gc",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats cache gc"
     },
     {
       "name": "caps:calibrate",
@@ -119,31 +119,31 @@
       "name": "compact-sqlite-index",
       "category": "indexing",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats sqlite compact"
     },
     {
       "name": "compare-models",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats report compare-models"
     },
     {
       "name": "config-dump",
       "category": "config",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats config dump"
     },
     {
       "name": "config-reset",
       "category": "config",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats config reset"
     },
     {
       "name": "config-validate",
       "category": "config",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats config validate"
     },
     {
       "name": "config:budget",
@@ -155,7 +155,7 @@
       "name": "ctags-ingest",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats ingest ctags"
     },
     {
       "name": "dict:build-pack",
@@ -191,7 +191,7 @@
       "name": "eval-run",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats report eval"
     },
     {
       "name": "format",
@@ -215,19 +215,19 @@
       "name": "gtags-ingest",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats ingest gtags"
     },
     {
       "name": "index-validate",
       "category": "indexing",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats index validate"
     },
     {
       "name": "indexer-service",
       "category": "indexing",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats service indexer"
     },
     {
       "name": "lexicon:report",
@@ -251,7 +251,7 @@
       "name": "lsif-ingest",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats ingest lsif"
     },
     {
       "name": "map-iso",
@@ -263,13 +263,13 @@
       "name": "mcp-server",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats service mcp"
     },
     {
       "name": "metrics-dashboard",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats report metrics"
     },
     {
       "name": "package-sublime",
@@ -287,7 +287,7 @@
       "name": "parity:matrix",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats report parity"
     },
     {
       "name": "patch",
@@ -341,13 +341,13 @@
       "name": "scip-ingest",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats ingest scip"
     },
     {
       "name": "search",
       "category": "indexing",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats search"
     },
     {
       "name": "shard-census",
@@ -359,7 +359,7 @@
       "name": "show-throughput",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats report throughput"
     },
     {
       "name": "structural-search",
@@ -371,7 +371,7 @@
       "name": "summary-report",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats report summary"
     },
     {
       "name": "test",
@@ -383,37 +383,37 @@
       "name": "tooling-detect",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats tooling detect"
     },
     {
       "name": "tooling-install",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats tooling install"
     },
     {
       "name": "tui:build",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats tui build --smoke"
     },
     {
       "name": "tui:install",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats tui install --json"
     },
     {
       "name": "tui:supervisor",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats tui supervisor"
     },
     {
       "name": "uninstall",
       "category": "tooling",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats tooling uninstall"
     },
     {
       "name": "verify",
@@ -437,7 +437,7 @@
       "name": "watch-index",
       "category": "indexing",
       "ciAllowed": false,
-      "replacement": null
+      "replacement": "pairofcleats index watch"
     }
   ],
   "cliCommands": [

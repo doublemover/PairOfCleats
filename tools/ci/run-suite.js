@@ -213,7 +213,8 @@ const main = async () => {
     : [
       { label: 'Lint', command: npmCommand, args: [...npmPrefix, 'run', 'lint'] },
       { label: 'Config budget', command: npmCommand, args: [...npmPrefix, 'run', 'config:budget'] },
-      { label: 'Env usage guardrail', command: npmCommand, args: [...npmPrefix, 'run', 'env:check'] }
+      { label: 'Env usage guardrail', command: npmCommand, args: [...npmPrefix, 'run', 'env:check'] },
+      { label: 'Command surface audit', command: process.execPath, args: ['tools/ci/check-command-surface.js'] }
     ];
 
   const steps = [

@@ -81,54 +81,54 @@ See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.
 
 | Script | Category | CI Allowed | Replacement |
 | --- | --- | --- | --- |
-| `api-server` | tooling | no |  |
+| `api-server` | tooling | no | pairofcleats service api |
 | `bench-dict-seg` | bench | no |  |
 | `bench-embedding-models` | bench | no |  |
-| `bench-language` | bench | no |  |
-| `bench-language:matrix` | bench | no |  |
-| `bench-language:summarize` | bench | no |  |
-| `bench-micro` | bench | no |  |
+| `bench-language` | bench | no | pairofcleats bench language |
+| `bench-language:matrix` | bench | no | pairofcleats bench matrix |
+| `bench-language:summarize` | bench | no | pairofcleats bench summarize |
+| `bench-micro` | bench | no | pairofcleats bench micro |
 | `bench-micro:tiny` | bench | no |  |
 | `bench-queries` | bench | no |  |
 | `bootstrap` | tooling | no |  |
 | `bootstrap:ci` | tooling | no |  |
-| `build-index` | indexing | no |  |
-| `build-lmdb-index` | indexing | no |  |
+| `build-index` | indexing | no | pairofcleats index build |
+| `build-lmdb-index` | indexing | no | pairofcleats lmdb build |
 | `build-tantivy-index` | indexing | no |  |
-| `cache-gc` | tooling | no |  |
+| `cache-gc` | tooling | no | pairofcleats cache gc |
 | `caps:calibrate` | tooling | no |  |
 | `ci-build` | release | no |  |
 | `ci-restore` | release | no |  |
 | `clean-artifacts` | tooling | no |  |
-| `compact-sqlite-index` | indexing | no |  |
-| `compare-models` | tooling | no |  |
-| `config-dump` | config | no |  |
-| `config-reset` | config | no |  |
-| `config-validate` | config | no |  |
+| `compact-sqlite-index` | indexing | no | pairofcleats sqlite compact |
+| `compare-models` | tooling | no | pairofcleats report compare-models |
+| `config-dump` | config | no | pairofcleats config dump |
+| `config-reset` | config | no | pairofcleats config reset |
+| `config-validate` | config | no | pairofcleats config validate |
 | `config:budget` | config | yes |  |
-| `ctags-ingest` | tooling | no |  |
+| `ctags-ingest` | tooling | no | pairofcleats ingest ctags |
 | `dict:build-pack` | tooling | no |  |
 | `download-dicts` | tooling | no |  |
 | `download-extensions` | tooling | no |  |
 | `download-models` | tooling | no |  |
 | `env:check` | tooling | yes |  |
-| `eval-run` | tooling | no |  |
+| `eval-run` | tooling | no | pairofcleats report eval |
 | `format` | lint | yes |  |
 | `generate-repo-dict` | tooling | no |  |
 | `get-last-failure` | tooling | no |  |
-| `gtags-ingest` | tooling | no |  |
-| `index-validate` | indexing | no |  |
-| `indexer-service` | indexing | no |  |
+| `gtags-ingest` | tooling | no | pairofcleats ingest gtags |
+| `index-validate` | indexing | no | pairofcleats index validate |
+| `indexer-service` | indexing | no | pairofcleats service indexer |
 | `lexicon:report` | tooling | no |  |
 | `lexicon:validate` | tooling | no |  |
 | `lint` | lint | yes |  |
-| `lsif-ingest` | tooling | no |  |
+| `lsif-ingest` | tooling | no | pairofcleats ingest lsif |
 | `map-iso` | tooling | no |  |
-| `mcp-server` | tooling | no |  |
-| `metrics-dashboard` | tooling | no |  |
+| `mcp-server` | tooling | no | pairofcleats service mcp |
+| `metrics-dashboard` | tooling | no | pairofcleats report metrics |
 | `package-sublime` | tooling | no |  |
 | `package-vscode` | tooling | no |  |
-| `parity:matrix` | tooling | no |  |
+| `parity:matrix` | tooling | no | pairofcleats report parity |
 | `patch` | tooling | no |  |
 | `postinstall` | tooling | no |  |
 | `python:check` | tooling | no |  |
@@ -137,21 +137,21 @@ See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.
 | `release-check:breaking` | release | no |  |
 | `repair:native` | tooling | no |  |
 | `report-artifacts` | tooling | no |  |
-| `scip-ingest` | tooling | no |  |
-| `search` | indexing | no |  |
+| `scip-ingest` | tooling | no | pairofcleats ingest scip |
+| `search` | indexing | no | pairofcleats search |
 | `shard-census` | tooling | no |  |
-| `show-throughput` | tooling | no |  |
+| `show-throughput` | tooling | no | pairofcleats report throughput |
 | `structural-search` | indexing | no |  |
-| `summary-report` | tooling | no |  |
+| `summary-report` | tooling | no | pairofcleats report summary |
 | `test` | test | yes |  |
-| `tooling-detect` | tooling | no |  |
-| `tooling-install` | tooling | no |  |
-| `tui:build` | tooling | no |  |
-| `tui:install` | tooling | no |  |
-| `tui:supervisor` | tooling | no |  |
-| `uninstall` | tooling | no |  |
+| `tooling-detect` | tooling | no | pairofcleats tooling detect |
+| `tooling-install` | tooling | no | pairofcleats tooling install |
+| `tui:build` | tooling | no | pairofcleats tui build --smoke |
+| `tui:install` | tooling | no | pairofcleats tui install --json |
+| `tui:supervisor` | tooling | no | pairofcleats tui supervisor |
+| `uninstall` | tooling | no | pairofcleats tooling uninstall |
 | `verify` | tooling | yes |  |
 | `verify-extensions` | tooling | no |  |
 | `verify:native` | tooling | no |  |
-| `watch-index` | indexing | no |  |
+| `watch-index` | indexing | no | pairofcleats index watch |
 
