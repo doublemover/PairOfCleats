@@ -128,7 +128,7 @@ export const formatThroughputTotalsCell = (value, unit, width) => (
 );
 
 export const printAlignedTotalLine = (label, value) => {
-  console.error(`  ${label.padStart(THROUGHPUT_TOTAL_LABEL_WIDTH)}: ${value}`);
+  console.log(`  ${label.padStart(THROUGHPUT_TOTAL_LABEL_WIDTH)}: ${value}`);
 };
 
 export const formatPct = (value) => (

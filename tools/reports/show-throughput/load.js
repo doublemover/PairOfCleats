@@ -27,7 +27,9 @@ export const includeResultsFolder = (
 export const listResultFolders = (
   resultsRoot,
   { includeUsrGuardrails = false } = {}
-) => listDirs(resultsRoot).filter((dir) => includeResultsFolder(dir.name, { includeUsrGuardrails }));
+) => listDirs(resultsRoot)
+  .filter((dir) => includeResultsFolder(dir.name, { includeUsrGuardrails }))
+  .sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')));
 
 export const loadJson = (filePath) => {
   try {

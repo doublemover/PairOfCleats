@@ -40,6 +40,31 @@ Prefer `pairofcleats search`, `pairofcleats index build`, and `pairofcleats inde
 Index build/watch SCM flags: `--scm-provider <auto|git|jj|none>`, `--scm-annotate`, `--no-scm-annotate`.
 See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.
 
+## `show-throughput`
+- Default invocation: `node tools/reports/show-throughput.js`
+- Profiles:
+  - `overview` default operator summary
+  - `family` focused per-folder summary
+  - `repo` focused per-repo summary
+  - `compare` compare current results against another results root
+  - `raw` machine-readable export
+- Common filters:
+  - `--root <results-root>`
+  - `--folder <name>`
+  - `--repo <substring>`
+  - `--mode <code|prose|extracted-prose|records>`
+  - `--latest <n>`
+  - `--sort <name|chunks|files|lines|build|query|search|variability|regressions>`
+  - `--top <n>`
+- Export modes:
+  - `--json` raw machine-readable report
+  - `--csv` tabular export for focused profiles
+- Schema:
+  - raw JSON export is documented by `docs/schemas/show-throughput-report.schema.json`
+- Materialization:
+  - `show-throughput` is read-only
+  - use `node tools/reports/materialize-throughput.js` to backfill legacy benchmark JSON
+
 | Script | Category | CI Allowed | Replacement |
 | --- | --- | --- | --- |
 | `api-server` | tooling | no |  |

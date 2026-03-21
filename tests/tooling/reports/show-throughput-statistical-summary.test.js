@@ -104,8 +104,8 @@ try {
     { cwd: runRoot, encoding: 'utf8', env: process.env }
   );
   assert.equal(result.status, 0, result.stderr || result.stdout);
-
-  const output = String(result.stderr || '').replace(/\u001b\[[0-9;]*m/g, '');
+  assert.equal(String(result.stderr || '').trim(), '', 'expected overview text on stdout only');
+  const output = String(result.stdout || '').replace(/\u001b\[[0-9;]*m/g, '');
   assert.equal(output.includes('ch/s p50/p95 code 30.0/48.0'), true, output);
   assert.equal(output.includes('Run Distributions'), true, output);
   assert.equal(output.includes('chunks/s n 3 | p50 30.0 | p95 48.0'), true, output);

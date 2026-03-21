@@ -75,7 +75,8 @@ const first = spawnSync(
   { cwd: runRoot, encoding: 'utf8' }
 );
 assert.equal(first.status, 0, first.stderr || first.stdout);
-const firstOutput = stripAnsi(first.stderr);
+const firstOutput = stripAnsi(first.stdout);
+assert.equal(stripAnsi(first.stderr).trim(), '', 'expected overview text on stdout only');
 assert.equal(
   firstOutput.toLowerCase().includes('ledger regression'),
   true,

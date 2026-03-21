@@ -207,8 +207,8 @@ try {
     { cwd: runRoot, encoding: 'utf8', env: process.env }
   );
   assert.equal(result.status, 0, result.stderr || result.stdout);
-
-  const output = String(result.stderr || '').replace(/\u001b\[[0-9;]*m/g, '');
+  assert.equal(String(result.stderr || '').trim(), '', 'expected overview text on stdout only');
+  const output = String(result.stdout || '').replace(/\u001b\[[0-9;]*m/g, '');
   assert.equal(output.includes('indexed 87 lines'), true, 'expected scanProfile lines to drive indexed totals');
   assert.equal(output.includes('python 15'), true, 'expected scanProfile language lines to be normalized and rendered');
   assert.equal(output.includes('haskell 69'), true, 'expected scanProfile language aliases to collapse');

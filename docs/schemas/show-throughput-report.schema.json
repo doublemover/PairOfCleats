@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pairofcleats.local/schemas/show-throughput-report.schema.json",
+  "title": "show-throughput raw report",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "profile",
+    "root",
+    "filters",
+    "totals",
+    "distributions",
+    "outcomes",
+    "provenance",
+    "topRegressions",
+    "topVariability",
+    "folders"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "profile": { "type": "string", "enum": ["overview", "compare", "repo", "family", "raw"] },
+    "root": { "type": "string", "minLength": 1 },
+    "compareRoot": { "type": ["string", "null"] },
+    "filters": {
+      "type": "object",
+      "required": ["folder", "repo", "mode", "latest", "sort", "top"],
+      "properties": {
+        "folder": { "type": ["string", "null"] },
+        "repo": { "type": ["string", "null"] },
+        "mode": { "type": ["string", "null"] },
+        "latest": { "type": ["integer", "null"], "minimum": 1 },
+        "sort": { "type": "string" },
+        "top": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "totals": {
+      "type": "object",
+      "required": ["filesPerSec", "chunksPerSec", "tokensPerSec", "bytesPerSec", "linesPerSec"],
+      "properties": {
+        "filesPerSec": { "type": ["number", "null"] },
+        "chunksPerSec": { "type": ["number", "null"] },
+        "tokensPerSec": { "type": ["number", "null"] },
+        "bytesPerSec": { "type": ["number", "null"] },
+        "linesPerSec": { "type": ["number", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "distributions": {
+      "type": "object",
+      "required": [
+        "code",
+        "prose",
+        "extractedProse",
+        "records",
+        "buildIndexMs",
+        "buildSqliteMs",
+        "queryWallMsPerQuery",
+        "queryWallMsPerSearch",
+        "latencyMs"
+      ],
+      "properties": {
+        "code": { "$ref": "#/$defs/throughputDistribution" },
+        "prose": { "$ref": "#/$defs/throughputDistribution" },
+        "extractedProse": { "$ref": "#/$defs/throughputDistribution" },
+        "records": { "$ref": "#/$defs/throughputDistribution" },
+        "buildIndexMs": { "$ref": "#/$defs/distribution" },
+        "buildSqliteMs": { "$ref": "#/$defs/distribution" },
+        "queryWallMsPerQuery": { "$ref": "#/$defs/distribution" },
+        "queryWallMsPerSearch": { "$ref": "#/$defs/distribution" },
+        "latencyMs": {
+          "type": "object",
+          "properties": {
+            "memory": {
+              "type": ["object", "null"],
+              "properties": {
+                "mean": { "$ref": "#/$defs/distribution" },
+                "p95": { "$ref": "#/$defs/distribution" }
+              },
+              "required": ["mean", "p95"],
+              "additionalProperties": false
+            },
+            "sqlite": {
+              "type": ["object", "null"],
+              "properties": {
+                "mean": { "$ref": "#/$defs/distribution" },
+                "p95": { "$ref": "#/$defs/distribution" }
+              },
+              "required": ["mean", "p95"],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "outcomes": {
+      "type": "object",
+      "required": ["repos", "runs"],
+      "properties": {
+        "repos": { "type": "object" },
+        "runs": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["indexing", "analysis", "throughputLedger"],
+      "properties": {
+        "indexing": { "type": "string" },
+        "analysis": { "type": "string" },
+        "throughputLedger": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "topRegressions": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "topVariability": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "folders": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "folder",
+          "runCount",
+          "codeChunksMedian",
+          "codeChunksP95",
+          "codeFilesMedian",
+          "linesPerSec",
+          "buildIndexMedian",
+          "queryMedian",
+          "searchMedian",
+          "regressionCount",
+          "regressionSeverity",
+          "variability",
+          "coverageCandidates",
+          "coverageScanned",
+          "coverageSkipped",
+          "provenance"
+        ],
+        "properties": {
+          "folder": { "type": "string" },
+          "runCount": { "type": "integer", "minimum": 0 },
+          "codeChunksMedian": { "type": ["number", "null"] },
+          "codeChunksP95": { "type": ["number", "null"] },
+          "codeFilesMedian": { "type": ["number", "null"] },
+          "linesPerSec": { "type": ["number", "null"] },
+          "buildIndexMedian": { "type": ["number", "null"] },
+          "queryMedian": { "type": ["number", "null"] },
+          "searchMedian": { "type": ["number", "null"] },
+          "regressionCount": { "type": "integer", "minimum": 0 },
+          "regressionSeverity": { "type": "number", "minimum": 0 },
+          "variability": { "type": ["number", "null"] },
+          "coverageCandidates": { "type": "number" },
+          "coverageScanned": { "type": "number" },
+          "coverageSkipped": { "type": "number" },
+          "provenance": {
+            "type": "object",
+            "required": ["indexing", "analysis", "throughputLedger"],
+            "properties": {
+              "indexing": { "type": "string" },
+              "analysis": { "type": "string" },
+              "throughputLedger": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "ciSummary": {
+      "type": ["object", "null"],
+      "properties": {
+        "folderCount": { "type": "integer", "minimum": 0 },
+        "regressionCount": { "type": "integer", "minimum": 0 },
+        "highestRegressionPct": { "type": ["number", "null"] },
+        "highestVariabilityPct": { "type": ["number", "null"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "distribution": {
+      "type": ["object", "null"],
+      "properties": {
+        "count": { "type": "integer", "minimum": 1 },
+        "min": { "type": ["number", "null"] },
+        "max": { "type": ["number", "null"] },
+        "mean": { "type": ["number", "null"] },
+        "median": { "type": ["number", "null"] },
+        "p90": { "type": ["number", "null"] },
+        "p95": { "type": ["number", "null"] },
+        "p99": { "type": ["number", "null"] },
+        "stdDev": { "type": ["number", "null"] },
+        "coefficientOfVariation": { "type": ["number", "null"] }
+      },
+      "required": ["count", "min", "max", "mean", "median", "p90", "p95", "p99", "stdDev", "coefficientOfVariation"],
+      "additionalProperties": false
+    },
+    "throughputDistribution": {
+      "type": ["object", "null"],
+      "properties": {
+        "chunksPerSec": { "$ref": "#/$defs/distribution" },
+        "tokensPerSec": { "$ref": "#/$defs/distribution" },
+        "bytesPerSec": { "$ref": "#/$defs/distribution" },
+        "filesPerSec": { "$ref": "#/$defs/distribution" }
+      },
+      "required": ["chunksPerSec", "tokensPerSec", "bytesPerSec", "filesPerSec"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -110,8 +110,8 @@ const result = spawnSync(
   { cwd: runRoot, encoding: 'utf8' }
 );
 assert.equal(result.status, 0, result.stderr || result.stdout);
-
-const output = stripAnsi(result.stderr);
+assert.equal(stripAnsi(result.stderr).trim(), '', 'expected overview text on stdout only');
+const output = stripAnsi(result.stdout);
 const lines = output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 const languageSummaryLine = lines.find((line) => line.startsWith('Lines by Language (top ')) || '';
 

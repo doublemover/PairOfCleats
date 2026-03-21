@@ -68,7 +68,8 @@ try {
     { cwd: runRoot, encoding: 'utf8', env: process.env }
   );
   assert.equal(overview.status, 0, overview.stderr || overview.stdout);
-  const overviewText = String(overview.stderr || '').replace(/\u001b\[[0-9;]*m/g, '');
+  assert.equal(String(overview.stderr || '').trim(), '', 'expected overview text on stdout only');
+  const overviewText = String(overview.stdout || '').replace(/\u001b\[[0-9;]*m/g, '');
   assert.equal(overviewText.includes('Throughput Totals'), true, overviewText);
   assert.equal(overviewText.includes('Scan Outcome Totals'), true, overviewText);
 

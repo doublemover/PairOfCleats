@@ -509,12 +509,12 @@ const printCsv = (rows) => {
 };
 
 if (shouldRenderTextOverview) {
-  console.error(color.bold(color.cyan('Benchmark Performance Overview')));
-  console.error(color.gray(`Root: ${resultsRoot}`));
+  console.log(color.bold(color.cyan('Benchmark Performance Overview')));
+  console.log(color.gray(`Root: ${resultsRoot}`));
 }
 if (refreshJson && shouldRenderTextOverview) {
   const depthLabel = deepAnalysis ? 'deep analysis enabled' : 'deep analysis disabled';
-  console.error(color.gray(`Refresh mode: writing benchmark JSON summaries (${depthLabel}).`));
+  console.log(color.gray(`Refresh mode: writing benchmark JSON summaries (${depthLabel}).`));
 }
 
 for (const dir of folders) {
@@ -662,13 +662,13 @@ for (const dir of folders) {
 
   const header = `${dir.name}`;
   if (shouldRenderTextOverview) {
-    console.error('');
-    console.error(color.bold(color.blue(header)));
+    console.log('');
+    console.log(color.bold(color.blue(header)));
   }
 
   if (!runs.length) {
     if (shouldRenderTextOverview) {
-      console.error(color.gray('  No benchmark JSON files found.'));
+      console.log(color.gray('  No benchmark JSON files found.'));
     }
     continue;
   }
@@ -698,7 +698,9 @@ for (const dir of folders) {
     formatModeChunkRate('xprose', extractedProseDistribution),
     formatModeChunkRate('records', recordsDistribution)
   ].join(' | ');
-  console.error(`  ch/s p50/p95 ${compactModeLine}`);
+  if (shouldRenderTextOverview) {
+    console.log(`  ch/s p50/p95 ${compactModeLine}`);
+  }
 
   const summaries = runs.map((r) => r.summary).filter(Boolean);
   const buildIndexMs = summarizeSummaryMetric(summaries, (s) => s.buildMs?.index);
@@ -771,41 +773,41 @@ for (const dir of folders) {
 
   if (!verboseOutput) {
     if (aggregateIndexed.lines > 0 || aggregateIndexed.files > 0) {
-      console.error(
+      console.log(
         `  indexed ${formatCount(aggregateIndexed.lines)} lines | ` +
         `${formatCount(aggregateIndexed.files)} files | ${formatBytes(aggregateIndexed.bytes)} | ` +
         `${formatNumber(aggregateLinesPerSec)} lines/s`
       );
     }
     if (summaries.length) {
-      console.error(
+      console.log(
         `  perf build ${formatDistributionCell(buildIndexMs)} / ${formatDistributionCell(buildSqliteMs)} ms | ` +
         `query ${formatDistributionCell(wallPerQuery)} ms | search ${formatDistributionCell(wallPerSearch)} ms`
       );
-      console.error(
+      console.log(
         `  lat mean mem/sql ${formatDistributionCell(memoryMean)} / ${formatDistributionCell(sqliteMean)} ms | ` +
         `run-p95 ${formatDistributionCell(memoryP95)} / ${formatDistributionCell(sqliteP95)} ms`
       );
     }
-    console.error(
+    console.log(
       `  coverage repo ${formatCoverageSummary(outcomeTotalsFolder.repos)} | ` +
       `runs ${formatCoverageSummary(outcomeTotalsFolder.runs)}`
     );
-    console.error(
+    console.log(
       `  skip/cache ${formatCountMapSummary(outcomeTotalsFolder.repos.skipReasons)} | ` +
       `${formatCacheSummary(outcomeTotalsFolder.repos)}`
     );
-    console.error(
+    console.log(
       `  quality ${formatCountMapSummary(outcomeTotalsFolder.runs.confidence)} | ` +
       `low-yield ${formatCount(outcomeTotalsFolder.runs.lowYield.triggered)} ` +
       `(${formatCount(outcomeTotalsFolder.runs.lowYield.skippedFiles)} skipped) | ` +
       `filter-index reused ${formatCount(outcomeTotalsFolder.runs.filterIndexReused)} | ` +
       `diagnostics ${formatCountMapSummary(outcomeTotalsFolder.runs.diagnostics, 3)}`
     );
-    console.error(`  pressure ${formatResourceSummary(outcomeTotalsFolder.runs)}`);
+    console.log(`  pressure ${formatResourceSummary(outcomeTotalsFolder.runs)}`);
     if (hasAstGraphValues(astGraphTotalsFolder.totals)) {
       const coverage = runs.length ? `${astGraphTotalsFolder.repos}/${runs.length}` : `${astGraphTotalsFolder.repos}/0`;
-      console.error(
+      console.log(
         `  ast (${coverage}) symbols ${formatAstField(astGraphTotalsFolder, 'symbols')} | ` +
         `classes ${formatAstField(astGraphTotalsFolder, 'classes')} | ` +
         `functions ${formatAstField(astGraphTotalsFolder, 'functions')} | ` +
@@ -814,13 +816,13 @@ for (const dir of folders) {
     }
     if (folderLedgerRegressions.length) {
       const top = folderLedgerRegressions[0];
-      console.error(
+      console.log(
         `  ledger regression ${top.repoIdentity} ${top.modality}/${top.stage} ` +
         `${formatPct(top.deltaPct)} ${top.metricLabel} ` +
         `(${formatRegressionDelta(top)} | ${top.baselineConfidence} conf)`
       );
     }
-    console.error(
+    console.log(
       `  provenance idx ${formatSectionProvenance(provenanceTotalsFolder, 'indexing')} | ` +
       `analysis ${formatSectionProvenance(provenanceTotalsFolder, 'analysis')} | ` +
       `ledger ${formatSectionProvenance(provenanceTotalsFolder, 'throughputLedger')}`
@@ -828,10 +830,10 @@ for (const dir of folders) {
     continue;
   }
 
-  console.error(`  ${formatModeThroughputLine({ label: 'Code', entry: codeDistribution })}`);
-  console.error(`  ${formatModeThroughputLine({ label: 'Prose', entry: proseDistribution })}`);
-  console.error(`  ${formatModeThroughputLine({ label: 'XProse', entry: extractedProseDistribution })}`);
-  console.error(`  ${formatModeThroughputLine({ label: 'Records', entry: recordsDistribution })}`);
+  console.log(`  ${formatModeThroughputLine({ label: 'Code', entry: codeDistribution })}`);
+  console.log(`  ${formatModeThroughputLine({ label: 'Prose', entry: proseDistribution })}`);
+  console.log(`  ${formatModeThroughputLine({ label: 'XProse', entry: extractedProseDistribution })}`);
+  console.log(`  ${formatModeThroughputLine({ label: 'Records', entry: recordsDistribution })}`);
 
   const indexedRows = buildIndexedTotalsRows(modeTotalsFolder);
   if (indexedRows.length) {
@@ -839,9 +841,9 @@ for (const dir of folders) {
     const fileWidth = Math.max(...indexedRows.map((row) => row.filesText.length));
     const bytesWidth = Math.max(...indexedRows.map((row) => row.bytesText.length));
     const rateWidth = Math.max(...indexedRows.map((row) => row.linesPerSecText.length));
-    console.error(`  ${color.bold('Indexed totals')}:`);
+    console.log(`  ${color.bold('Indexed totals')}:`);
     for (const row of indexedRows) {
-      console.error(
+      console.log(
         `    ${row.label.padStart(8)}: ${row.linesText.padStart(lineWidth)} | ` +
         `${row.filesText.padStart(fileWidth)} | ` +
         `${row.bytesText.padStart(bytesWidth)} | ` +
@@ -869,7 +871,7 @@ for (const dir of folders) {
     const aggregateBytesText = formatBytes(aggregate.bytes);
     const aggregateRateText = `${formatNumber(aggregateLinesPerSec)} lines/s`;
     const aggregateMsPerLineText = `${formatNumber(aggregateMsPerLine, 3)} ms/line`;
-    console.error(
+    console.log(
       `     Aggregate: ` +
       `${aggregateLinesText.padStart(lineWidth)} | ` +
       `${aggregateFilesText.padStart(fileWidth)} | ` +
@@ -880,7 +882,7 @@ for (const dir of folders) {
   }
 
   if (summaries.length) {
-    console.error(
+    console.log(
       formatSectionMetaLine({
         label: 'Build',
         left: `index ${formatDistributionCell(buildIndexMs)} ms`,
@@ -888,19 +890,19 @@ for (const dir of folders) {
       })
     );
 
-    console.error(
+    console.log(
       formatSectionMetaLine({
         label: 'Query',
         left: `avg/q ${formatDistributionCell(wallPerQuery)} ms`,
         right: `avg/search ${formatDistributionCell(wallPerSearch)} ms`
       })
     );
-    console.error('  Latency');
-    console.error(
+    console.log('  Latency');
+    console.log(
       `      mean mem: ${formatDistributionSummary(memoryMean, { formatter: (value) => `${formatNumber(value)}ms` })}` +
       ` | sqlite: ${formatDistributionSummary(sqliteMean, { formatter: (value) => `${formatNumber(value)}ms` })}`
     );
-    console.error(
+    console.log(
       `      run-p95 mem: ${formatDistributionSummary(memoryP95, { formatter: (value) => `${formatNumber(value)}ms` })}` +
       ` | sqlite: ${formatDistributionSummary(sqliteP95, { formatter: (value) => `${formatNumber(value)}ms` })}`
     );
@@ -908,7 +910,7 @@ for (const dir of folders) {
 
   if (hasAstGraphValues(astGraphTotalsFolder.totals)) {
     const coverage = runs.length ? `${astGraphTotalsFolder.repos}/${runs.length}` : `${astGraphTotalsFolder.repos}/0`;
-    console.error(
+    console.log(
       `  ${color.bold(`AST/Graph (${coverage} runs)`)}: ` +
       `symbols ${formatAstField(astGraphTotalsFolder, 'symbols')} | ` +
       `classes ${formatAstField(astGraphTotalsFolder, 'classes')} | ` +
@@ -919,33 +921,33 @@ for (const dir of folders) {
     );
   }
   if (folderLedgerRegressions.length) {
-    console.error(`  ${color.bold('Top Throughput Regressions')}:`);
+    console.log(`  ${color.bold('Top Throughput Regressions')}:`);
     for (const regression of folderLedgerRegressions.slice(0, 5)) {
-      console.error(
+      console.log(
         `    ${regression.repoIdentity} | ${regression.modality}/${regression.stage} | ` +
         `${regression.metricLabel} | ${formatPct(regression.deltaPct)} | ` +
         `${formatRegressionDelta(regression)} | ${regression.baselineConfidence} conf`
       );
     }
   }
-  console.error(`  ${color.bold('Scan Outcomes')}:`);
-  console.error(
+  console.log(`  ${color.bold('Scan Outcomes')}:`);
+  console.log(
     `    coverage repo ${formatCoverageSummary(outcomeTotalsFolder.repos)} | ` +
     `runs ${formatCoverageSummary(outcomeTotalsFolder.runs)}`
   );
-  console.error(`    skip reasons ${formatCountMapSummary(outcomeTotalsFolder.repos.skipReasons, 6)}`);
-  console.error(
+  console.log(`    skip reasons ${formatCountMapSummary(outcomeTotalsFolder.repos.skipReasons, 6)}`);
+  console.log(
     `    cache ${formatCacheSummary(outcomeTotalsFolder.repos)} | ` +
     `filter-index reused ${formatCount(outcomeTotalsFolder.runs.filterIndexReused)}`
   );
-  console.error(
+  console.log(
     `    quality ${formatCountMapSummary(outcomeTotalsFolder.runs.confidence)} | ` +
     `low-yield triggers ${formatCount(outcomeTotalsFolder.runs.lowYield.triggered)} ` +
     `(${formatCount(outcomeTotalsFolder.runs.lowYield.skippedFiles)} skipped files) | ` +
     `diagnostics ${formatCountMapSummary(outcomeTotalsFolder.runs.diagnostics, 4)}`
   );
-  console.error(`    pressure ${formatResourceSummary(outcomeTotalsFolder.runs)}`);
-  console.error(
+  console.log(`    pressure ${formatResourceSummary(outcomeTotalsFolder.runs)}`);
+  console.log(
     `  ${color.bold('Provenance')}: ` +
     `indexing ${formatSectionProvenance(provenanceTotalsFolder, 'indexing')} | ` +
     `analysis ${formatSectionProvenance(provenanceTotalsFolder, 'analysis')} | ` +
@@ -975,8 +977,8 @@ for (const dir of folders) {
   const recordsWidth = Math.max('records'.length, ...runRows.map((row) => row.recordsText.length));
   const queryWidth = Math.max('query'.length, ...runRows.map((row) => row.queryText.length));
 
-  console.error('');
-  console.error(color.gray(
+  console.log('');
+  console.log(color.gray(
     `${`(${runs.length} run${runs.length === 1 ? '' : 's'})`.padStart(repoWidth)}` +
     ` | ${'code'.padStart(codeWidth)}` +
     ` | ${'prose'.padStart(proseWidth)}` +
@@ -985,7 +987,7 @@ for (const dir of folders) {
     ` | ${'query'.padStart(queryWidth)}`
   ));
   for (const row of runRows) {
-    console.error(
+    console.log(
       `${row.repoLabel.padEnd(repoWidth)} | ` +
       `${row.codeText.padStart(codeWidth)} | ` +
       `${row.proseText.padStart(proseWidth)} | ` +
@@ -1069,8 +1071,8 @@ const filesWidth = Math.max(...modeRows.map((row) => row.filesCell.length));
 const linesWidth = Math.max(0, ...modeRows.map((row) => row.linesCell.length));
 
 if (shouldRenderTextOverview) {
-  console.error('');
-  console.error(color.bold(color.green('Throughput Totals')));
+  console.log('');
+  console.log(color.bold(color.green('Throughput Totals')));
   printAlignedTotalLine('Files', `${formatNumber(totalFilesPerSec)} files/s`);
   printAlignedTotalLine('Chunks', `${formatNumber(totalChunksPerSec)} chunks/s`);
   printAlignedTotalLine('Tokens', `${formatNumber(totalTokensPerSec)} tokens/s`);
@@ -1123,46 +1125,48 @@ const globalBuildSqliteDistribution = summarizeSummaryMetric(summariesGlobal, (s
 const globalQueryDistribution = summarizeSummaryMetric(summariesGlobal, (summary) => summary?.queryWallMsPerQuery);
 const globalSearchDistribution = summarizeSummaryMetric(summariesGlobal, (summary) => summary?.queryWallMsPerSearch);
 const globalLatency = summarizeLatencyDistributions(summariesGlobal);
-console.error(color.bold('Run Distributions'));
-for (const [label, distribution] of [
-  ['Code', globalCodeDistribution],
-  ['Prose', globalProseDistribution],
-  ['XProse', globalExtractedProseDistribution],
-  ['Records', globalRecordsDistribution]
-]) {
-  console.error(
-    `  ${label.padStart(8)}: ` +
-    `${formatDistributionRateSummary(distribution?.chunksPerSec, 'chunks/s')} | ` +
-    `${formatDistributionRateSummary(distribution?.filesPerSec, 'files/s')}`
+if (shouldRenderTextOverview) {
+  console.log(color.bold('Run Distributions'));
+  for (const [label, distribution] of [
+    ['Code', globalCodeDistribution],
+    ['Prose', globalProseDistribution],
+    ['XProse', globalExtractedProseDistribution],
+    ['Records', globalRecordsDistribution]
+  ]) {
+    console.log(
+      `  ${label.padStart(8)}: ` +
+      `${formatDistributionRateSummary(distribution?.chunksPerSec, 'chunks/s')} | ` +
+      `${formatDistributionRateSummary(distribution?.filesPerSec, 'files/s')}`
+    );
+  }
+  console.log(
+    `  ${'Build'.padStart(8)}: index ${formatDistributionMsSummary(globalBuildIndexDistribution)} | ` +
+    `sqlite ${formatDistributionMsSummary(globalBuildSqliteDistribution)}`
+  );
+  console.log(
+    `  ${'Query'.padStart(8)}: per-query ${formatDistributionMsSummary(globalQueryDistribution)} | ` +
+    `per-search ${formatDistributionMsSummary(globalSearchDistribution)}`
+  );
+  console.log(
+    `  ${'Latency'.padStart(8)}: mem mean ${formatDistributionMsSummary(globalLatency.memory?.mean)} | ` +
+    `mem run-p95 ${formatDistributionMsSummary(globalLatency.memory?.p95)}`
+  );
+  console.log(
+    `  ${''.padStart(8)}  sqlite mean ${formatDistributionMsSummary(globalLatency.sqlite?.mean)} | ` +
+    `sqlite run-p95 ${formatDistributionMsSummary(globalLatency.sqlite?.p95)}`
   );
 }
-console.error(
-  `  ${'Build'.padStart(8)}: index ${formatDistributionMsSummary(globalBuildIndexDistribution)} | ` +
-  `sqlite ${formatDistributionMsSummary(globalBuildSqliteDistribution)}`
-);
-console.error(
-  `  ${'Query'.padStart(8)}: per-query ${formatDistributionMsSummary(globalQueryDistribution)} | ` +
-  `per-search ${formatDistributionMsSummary(globalSearchDistribution)}`
-);
-console.error(
-  `  ${'Latency'.padStart(8)}: mem mean ${formatDistributionMsSummary(globalLatency.memory?.mean)} | ` +
-  `mem run-p95 ${formatDistributionMsSummary(globalLatency.memory?.p95)}`
-);
-console.error(
-  `  ${''.padStart(8)}  sqlite mean ${formatDistributionMsSummary(globalLatency.sqlite?.mean)} | ` +
-  `sqlite run-p95 ${formatDistributionMsSummary(globalLatency.sqlite?.p95)}`
-);
 if (shouldRenderTextOverview && ledgerRegressionsGlobal.length) {
   ledgerRegressionsGlobal.sort((left, right) => (
     left.metricKind === 'duration'
       ? (Number(right.deltaPct) - Number(left.deltaPct))
       : (Number(left.deltaPct) - Number(right.deltaPct))
   ) || String(left.repoIdentity || '').localeCompare(String(right.repoIdentity || '')));
-  console.error(color.bold(
+  console.log(color.bold(
     `Top Throughput Regressions (schema v${THROUGHPUT_LEDGER_SCHEMA_VERSION}/diff v${THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION})`
   ));
   for (const entry of ledgerRegressionsGlobal.slice(0, 8)) {
-    console.error(
+    console.log(
       `  ${entry.folder}/${entry.repoIdentity} ${entry.modality}/${entry.stage} ${entry.metricLabel}: ` +
       `${formatPct(entry.deltaPct)} | ${formatRegressionDelta(entry)} | ` +
       `${entry.baselineConfidence} conf`
@@ -1175,9 +1179,9 @@ const variabilityRows = variabilityRowsGlobal
     Number(right.coefficientOfVariation) - Number(left.coefficientOfVariation)
   ) || String(left.folder || '').localeCompare(String(right.folder || '')));
 if (shouldRenderTextOverview && variabilityRows.length) {
-  console.error(color.bold('Top Variability'));
+  console.log(color.bold('Top Variability'));
   for (const entry of variabilityRows.slice(0, 8)) {
-    console.error(
+    console.log(
       `  ${entry.folder} ${entry.label}: cv ${formatPct(entry.coefficientOfVariation)} | ` +
       `p50/p95 ${formatNumber(entry.median)}/${formatNumber(entry.p95)} | n ${formatCount(entry.count)}`
     );
@@ -1191,9 +1195,9 @@ if (shouldRenderTextOverview && hasAstGraphValues(astGraphTotalsGlobal.totals)) 
   ];
   const astLabelWidth = Math.max(...astPairs.flatMap(([leftLabel, , rightLabel]) => [leftLabel.length, rightLabel.length]));
   const astValueWidth = Math.max(...astPairs.flatMap(([, leftValue, , rightValue]) => [String(leftValue).length, String(rightValue).length]));
-  console.error(color.bold('AST/Graph Totals'));
+  console.log(color.bold('AST/Graph Totals'));
   for (const [leftLabel, leftValue, rightLabel, rightValue] of astPairs) {
-    console.error(
+    console.log(
       `  ${leftLabel.padStart(astLabelWidth)}: ${String(leftValue).padStart(astValueWidth)} | ` +
       `${rightLabel.padStart(astLabelWidth)}: ${String(rightValue).padStart(astValueWidth)}`
     );
@@ -1234,10 +1238,10 @@ if (shouldRenderTextOverview && totalsByModeRows.length) {
   const fileWidth = Math.max(...totalsByModeRows.map((row) => row.filesText.length));
   const bytesWidth = Math.max(...totalsByModeRows.map((row) => row.bytesText.length));
   const rateWidth = Math.max(...totalsByModeRows.map((row) => row.lineRateText.length));
-  console.error('');
-  console.error('  Totals by Mode:');
+  console.log('');
+  console.log('  Totals by Mode:');
   for (const row of totalsByModeRows) {
-    console.error(
+    console.log(
       `  ${row.label.padStart(8)}: ${row.linesText.padStart(lineWidth)} | ` +
       `${row.filesText.padStart(fileWidth)} | ` +
       `${row.bytesText.padStart(bytesWidth)} | ` +
@@ -1253,7 +1257,7 @@ if (shouldRenderTextOverview && languageTotals.size) {
   const displayed = sortedLanguages.slice(0, languageDisplayLimit);
   const omitted = sortedLanguages.slice(languageDisplayLimit);
   const omittedLines = omitted.reduce((sum, [, lines]) => sum + (Number(lines) || 0), 0);
-  console.error('');
+  console.log('');
   if (!verboseOutput) {
     const summary = displayed
       .map(([language, lines]) => `${language} ${formatCount(lines)}`)
@@ -1261,36 +1265,36 @@ if (shouldRenderTextOverview && languageTotals.size) {
     const omittedLabel = omitted.length
       ? ` | other ${formatCount(omittedLines)} (${omitted.length})`
       : '';
-    console.error(`Lines by Language (top ${displayed.length}): ${summary}${omittedLabel}`);
+    console.log(`Lines by Language (top ${displayed.length}): ${summary}${omittedLabel}`);
   } else {
     const languageWidth = Math.max(...displayed.map(([language]) => language.length));
     const countWidth = Math.max(...displayed.map(([, lines]) => formatCount(lines).length));
-    console.error('Lines by Language:');
+    console.log('Lines by Language:');
     for (const [language, lines] of displayed) {
-      console.error(`  ${language.padStart(languageWidth)}: ${formatCount(lines).padStart(countWidth)} `);
+      console.log(`  ${language.padStart(languageWidth)}: ${formatCount(lines).padStart(countWidth)} `);
     }
   }
 }
 if (shouldRenderTextOverview) {
-  console.error('');
-  console.error(color.bold('Scan Outcome Totals'));
-  console.error(`  coverage repos: ${formatCoverageSummary(outcomeTotalsGlobal.repos)}`);
-  console.error(`  coverage runs: ${formatCoverageSummary(outcomeTotalsGlobal.runs)}`);
-  console.error(`  skip reasons: ${formatCountMapSummary(outcomeTotalsGlobal.repos.skipReasons, 8)}`);
-  console.error(`  cache: ${formatCacheSummary(outcomeTotalsGlobal.repos)}`);
-  console.error(
+  console.log('');
+  console.log(color.bold('Scan Outcome Totals'));
+  console.log(`  coverage repos: ${formatCoverageSummary(outcomeTotalsGlobal.repos)}`);
+  console.log(`  coverage runs: ${formatCoverageSummary(outcomeTotalsGlobal.runs)}`);
+  console.log(`  skip reasons: ${formatCountMapSummary(outcomeTotalsGlobal.repos.skipReasons, 8)}`);
+  console.log(`  cache: ${formatCacheSummary(outcomeTotalsGlobal.repos)}`);
+  console.log(
     `  quality: ${formatCountMapSummary(outcomeTotalsGlobal.runs.confidence)} | ` +
     `low-yield ${formatCount(outcomeTotalsGlobal.runs.lowYield.triggered)} ` +
     `(${formatCount(outcomeTotalsGlobal.runs.lowYield.skippedFiles)} skipped files) | ` +
     `filter-index reused ${formatCount(outcomeTotalsGlobal.runs.filterIndexReused)} | ` +
     `diagnostics ${formatCountMapSummary(outcomeTotalsGlobal.runs.diagnostics, 6)}`
   );
-  console.error(`  pressure: ${formatResourceSummary(outcomeTotalsGlobal.runs)}`);
-  console.error('');
-  console.error(color.bold('Overview Provenance'));
-  console.error(`  indexing: ${formatSectionProvenance(provenanceTotalsGlobal, 'indexing')}`);
-  console.error(`  analysis: ${formatSectionProvenance(provenanceTotalsGlobal, 'analysis')}`);
-  console.error(`  throughput ledger: ${formatSectionProvenance(provenanceTotalsGlobal, 'throughputLedger')}`);
+  console.log(`  pressure: ${formatResourceSummary(outcomeTotalsGlobal.runs)}`);
+  console.log('');
+  console.log(color.bold('Overview Provenance'));
+  console.log(`  indexing: ${formatSectionProvenance(provenanceTotalsGlobal, 'indexing')}`);
+  console.log(`  analysis: ${formatSectionProvenance(provenanceTotalsGlobal, 'analysis')}`);
+  console.log(`  throughput ledger: ${formatSectionProvenance(provenanceTotalsGlobal, 'throughputLedger')}`);
 }
 
 const outputSummary = {
@@ -1336,6 +1340,16 @@ const outputSummary = {
   },
   topRegressions: ledgerRegressionsGlobal.slice(0, topN),
   topVariability: variabilityRows.slice(0, topN),
+  ciSummary: {
+    folderCount: folderReports.length,
+    regressionCount: ledgerRegressionsGlobal.length,
+    highestRegressionPct: ledgerRegressionsGlobal.length
+      ? Math.max(...ledgerRegressionsGlobal.map((entry) => Math.abs(Number(entry?.deltaPct) || 0)))
+      : null,
+    highestVariabilityPct: variabilityRows.length
+      ? Math.max(...variabilityRows.map((entry) => Number(entry?.coefficientOfVariation) || 0))
+      : null
+  },
   folders: folderReports.map((report) => ({
     folder: report.folder,
     runCount: report.runCount,
@@ -1501,3 +1515,4 @@ if (!shouldRenderTextOverview) {
     console.log(JSON.stringify(outputSummary, null, 2));
   }
 }
+
