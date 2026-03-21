@@ -168,6 +168,8 @@ const main = async () => {
   const testProfilePath = path.join(diagnosticsDir, 'test-profile.json');
   const coverageDir = path.join(diagnosticsDir, 'coverage');
   const coveragePath = path.join(coverageDir, `test-coverage-${mode}.json`);
+  const coveragePolicyPath = path.join(coverageDir, `coverage-policy-${mode}.json`);
+  const coveragePolicyMarkdownPath = path.join(coverageDir, `coverage-policy-${mode}.md`);
   if (!env.PAIROFCLEATS_TEST_LOG_DIR) {
     env.PAIROFCLEATS_TEST_LOG_DIR = logDir;
   }
@@ -319,6 +321,23 @@ const main = async () => {
         mode === 'nightly' ? '0.45' : '0.60',
         '--min-unresolved-samples',
         '5'
+      ]
+    },
+    {
+      label: 'Coverage policy report',
+      command: process.execPath,
+      args: [
+        'tools/ci/coverage-policy-report.js',
+        '--root',
+        ROOT,
+        '--coverage',
+        coveragePath,
+        '--out',
+        coveragePolicyPath,
+        '--markdown',
+        coveragePolicyMarkdownPath,
+        '--mode',
+        mode
       ]
     },
     ...(mode === 'nightly'

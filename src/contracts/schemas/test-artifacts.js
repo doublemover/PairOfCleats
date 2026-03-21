@@ -44,6 +44,136 @@ export const TEST_COVERAGE_ARTIFACT_SCHEMA = {
   }
 };
 
+export const TEST_COVERAGE_POLICY_REPORT_SCHEMA = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  title: 'test-coverage-policy-report',
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'schemaVersion',
+    'generatedAt',
+    'kind',
+    'policyVersion',
+    'mode',
+    'sourceCoverageKind',
+    'sourceCoverageRunId',
+    'overall',
+    'changedFiles',
+    'criticalSurfaces',
+    'policy'
+  ],
+  properties: {
+    schemaVersion: { type: 'number', const: 1 },
+    generatedAt: { type: 'string' },
+    kind: { type: 'string', const: 'test-coverage-policy-report' },
+    policyVersion: { type: 'string' },
+    mode: { type: 'string' },
+    sourceCoverageKind: { type: 'string' },
+    sourceCoverageRunId: { type: 'string' },
+    overall: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['files', 'coveredRanges', 'totalRanges', 'coverageFraction'],
+      properties: {
+        files: { type: 'integer' },
+        coveredRanges: { type: 'number' },
+        totalRanges: { type: 'number' },
+        coverageFraction: { type: ['number', 'null'] }
+      }
+    },
+    changedFiles: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['available', 'strategy', 'baseRef', 'headRef', 'reason', 'summary', 'files'],
+      properties: {
+        available: { type: 'boolean' },
+        strategy: { type: 'string' },
+        baseRef: { type: ['string', 'null'] },
+        headRef: { type: ['string', 'null'] },
+        reason: { type: ['string', 'null'] },
+        summary: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['files', 'coveredRanges', 'totalRanges', 'coverageFraction'],
+          properties: {
+            files: { type: 'integer' },
+            coveredRanges: { type: 'number' },
+            totalRanges: { type: 'number' },
+            coverageFraction: { type: ['number', 'null'] }
+          }
+        },
+        files: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['path', 'coveredRanges', 'totalRanges', 'coverageFraction'],
+            properties: {
+              path: { type: 'string' },
+              coveredRanges: { type: 'number' },
+              totalRanges: { type: 'number' },
+              coverageFraction: { type: ['number', 'null'] }
+            }
+          }
+        }
+      }
+    },
+    criticalSurfaces: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'label', 'patterns', 'summary', 'topUncoveredFiles'],
+        properties: {
+          id: { type: 'string' },
+          label: { type: 'string' },
+          patterns: {
+            type: 'array',
+            items: { type: 'string' }
+          },
+          summary: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['files', 'coveredRanges', 'totalRanges', 'coverageFraction'],
+            properties: {
+              files: { type: 'integer' },
+              coveredRanges: { type: 'number' },
+              totalRanges: { type: 'number' },
+              coverageFraction: { type: ['number', 'null'] }
+            }
+          },
+          topUncoveredFiles: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['path', 'coveredRanges', 'totalRanges', 'coverageFraction'],
+              properties: {
+                path: { type: 'string' },
+                coveredRanges: { type: 'number' },
+                totalRanges: { type: 'number' },
+                coverageFraction: { type: ['number', 'null'] }
+              }
+            }
+          }
+        }
+      }
+    },
+    policy: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['phase', 'progression'],
+      properties: {
+        phase: { type: 'string' },
+        progression: {
+          type: 'array',
+          items: { type: 'string' }
+        }
+      }
+    }
+  }
+};
+
 export const TEST_TIMINGS_ARTIFACT_SCHEMA = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   title: 'test-timings-artifact',
@@ -146,6 +276,7 @@ export const TEST_PROFILE_ARTIFACT_SCHEMA = {
 
 export const TEST_ARTIFACT_SCHEMA_DEFS = Object.freeze({
   testCoverage: TEST_COVERAGE_ARTIFACT_SCHEMA,
+  testCoveragePolicyReport: TEST_COVERAGE_POLICY_REPORT_SCHEMA,
   testTimings: TEST_TIMINGS_ARTIFACT_SCHEMA,
   testProfile: TEST_PROFILE_ARTIFACT_SCHEMA
 });

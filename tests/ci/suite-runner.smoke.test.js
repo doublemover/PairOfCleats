@@ -45,6 +45,7 @@ assertRequired(ciOutput, [
   /tools[\\/]ci[\\/]tooling-lsp-replay-gate\.js --json/,
   /tools[\\/]ci[\\/]tooling-lsp-default-enable-gate\.js/,
   /tools[\\/]ci[\\/]import-resolution-slo-gate\.js --mode ci/,
+  /tools[\\/]ci[\\/]coverage-policy-report\.js --root/,
   /tools[\\/]bench[\\/]language[\\/]tooling-lsp-guardrail\.js --report/
 ], 'ci');
 
@@ -55,6 +56,7 @@ assertRequired(nightlyOutput, [
   /--timings-file/,
   /--profile/,
   /--coverage/,
+  /tools[\\/]ci[\\/]coverage-policy-report\.js --root/,
   /tools[\\/]bench[\\/]bench-runner\.js --suite sweet16-ci/
 ], 'nightly');
 

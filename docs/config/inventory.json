@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T14:59:40.702Z",
+  "generatedAt": "2026-03-21T15:07:50.433Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3730,7 +3730,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 429,
+    "totalFlags": 432,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -3780,6 +3780,7 @@
       "avgBytes",
       "backends",
       "backup",
+      "base",
       "baseline",
       "baseline-json",
       "batch",
@@ -3813,6 +3814,7 @@
       "context-pack",
       "controlFlowEnabled",
       "count",
+      "coverage",
       "crash-bundle",
       "csv",
       "ctags",
@@ -3885,6 +3887,7 @@
       "groups",
       "handshake-timeout-ms",
       "hashes",
+      "head",
       "heap-mb",
       "hops",
       "import-rate",
@@ -5323,6 +5326,18 @@
         ]
       },
       {
+        "file": "tools/ci/coverage-policy-report.js",
+        "flags": [
+          "base",
+          "coverage",
+          "head",
+          "markdown",
+          "mode",
+          "out",
+          "root"
+        ]
+      },
+      {
         "file": "tools/ci/import-resolution-slo-gate.js",
         "flags": [
           "actionable-unresolved-rate-max",
@@ -6216,7 +6231,7 @@
       },
       {
         "flag": "out",
-        "count": 44,
+        "count": 45,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/equivalence.test.js",
@@ -6245,6 +6260,7 @@
           "tools/bench/vfs/token-uri-encode.js",
           "tools/bench/vfs/vfsidx-lookup.js",
           "tools/ci/build-artifacts.js",
+          "tools/ci/coverage-policy-report.js",
           "tools/config/generate-demo-config.js",
           "tools/dicts/generate-repo-dict.js",
           "tools/docs/export-artifact-schema-index.js",
@@ -6266,7 +6282,7 @@
       },
       {
         "flag": "mode",
-        "count": 42,
+        "count": 43,
         "files": [
           "bin/pairofcleats.js",
           "tests/map/build-determinism.test.js",
@@ -6294,6 +6310,7 @@
           "tools/build/lmdb-index.js",
           "tools/build/tantivy-index.js",
           "tools/ci/capability-gate.js",
+          "tools/ci/coverage-policy-report.js",
           "tools/ci/import-resolution-slo-gate.js",
           "tools/ci/run-suite.js",
           "tools/ci/tooling-doctor-gate.js",
@@ -6386,6 +6403,22 @@
         ]
       },
       {
+        "flag": "root",
+        "count": 10,
+        "files": [
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/ci/coverage-policy-report.js",
+          "tools/docs/contract-drift.js",
+          "tools/docs/export-artifact-schema-index.js",
+          "tools/docs/generated-surfaces.js",
+          "tools/docs/repo-inventory.js",
+          "tools/reports/show-throughput/options.js",
+          "tools/setup/setup.js",
+          "tools/tooling/detect.js",
+          "tools/tooling/install.js"
+        ]
+      },
+      {
         "flag": "top",
         "count": 10,
         "files": [
@@ -6445,21 +6478,6 @@
           "tools/ci/build-artifacts.js",
           "tools/download/extensions.js",
           "tools/eval/run.js"
-        ]
-      },
-      {
-        "flag": "root",
-        "count": 9,
-        "files": [
-          "tools/bench/vfs/cold-start-cache.js",
-          "tools/docs/contract-drift.js",
-          "tools/docs/export-artifact-schema-index.js",
-          "tools/docs/generated-surfaces.js",
-          "tools/docs/repo-inventory.js",
-          "tools/reports/show-throughput/options.js",
-          "tools/setup/setup.js",
-          "tools/tooling/detect.js",
-          "tools/tooling/install.js"
         ]
       },
       {
@@ -7513,6 +7531,14 @@
         "count": 2,
         "files": [
           "bin/pairofcleats.js",
+          "tools/docs/script-inventory.js"
+        ]
+      },
+      {
+        "flag": "markdown",
+        "count": 2,
+        "files": [
+          "tools/ci/coverage-policy-report.js",
           "tools/docs/script-inventory.js"
         ]
       },
