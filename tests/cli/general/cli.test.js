@@ -45,6 +45,14 @@ if (!helpOutput.includes('Usage: pairofcleats')) {
   console.error('cli --help missing usage banner');
   process.exit(1);
 }
+if (!helpOutput.includes('risk delta')) {
+  console.error('cli --help missing registry-derived risk delta entry');
+  process.exit(1);
+}
+if (!helpOutput.includes('tui install')) {
+  console.error('cli --help missing registry-derived tui install entry');
+  process.exit(1);
+}
 
 const configResult = spawnSync(
   process.execPath,

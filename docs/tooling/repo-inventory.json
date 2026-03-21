@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T15:08:03.659Z",
+  "generatedAt": "2026-03-21T15:17:33.272Z",
   "generatedBy": "node tools/docs/repo-inventory.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "docs": {
@@ -1438,6 +1438,7 @@
       "src/shared/cli/progress-stream.js",
       "src/shared/cli/stdout-guard.js",
       "src/shared/code-dictionaries.js",
+      "src/shared/command-registry.js",
       "src/shared/concurrency.js",
       "src/shared/concurrency/adaptive-surfaces.js",
       "src/shared/concurrency/ordered-completion.js",

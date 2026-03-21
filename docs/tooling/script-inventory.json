@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T14:59:39.252Z",
+  "generatedAt": "2026-03-21T15:17:19.995Z",
   "scripts": [
     {
       "name": "api-server",
@@ -442,12 +442,60 @@
   ],
   "cliCommands": [
     {
+      "command": "pairofcleats api-contracts",
+      "summary": "Report cross-file API contracts."
+    },
+    {
+      "command": "pairofcleats architecture-check",
+      "summary": "Evaluate architecture rules over graphs."
+    },
+    {
       "command": "pairofcleats bootstrap",
       "summary": "Fast bootstrap flow."
     },
     {
+      "command": "pairofcleats cache clear",
+      "summary": "Clear shared caches."
+    },
+    {
+      "command": "pairofcleats cache gc",
+      "summary": "Run shared cache GC."
+    },
+    {
+      "command": "pairofcleats context-pack",
+      "summary": "Build a composite context pack for a seed."
+    },
+    {
+      "command": "pairofcleats dispatch describe",
+      "summary": "Describe one shared dispatch command."
+    },
+    {
+      "command": "pairofcleats dispatch list",
+      "summary": "List shared dispatch manifest entries."
+    },
+    {
+      "command": "pairofcleats graph-context",
+      "summary": "Build a graph context pack for a seed."
+    },
+    {
+      "command": "pairofcleats impact",
+      "summary": "Analyze change impact over the graph."
+    },
+    {
       "command": "pairofcleats index build",
       "summary": "Build file-backed indexes."
+    },
+    {
+      "command": "pairofcleats index diff",
+      "summary": "Compute and inspect index diffs."
+    },
+    {
+      "command": "pairofcleats index snapshot",
+      "summary": "Manage index snapshots."
+    },
+    {
+      "command": "pairofcleats index stats",
+      "summary": "Report per-mode index artifact stats."
     },
     {
       "command": "pairofcleats index validate",
@@ -474,6 +522,34 @@
       "summary": "Ingest SCIP index."
     },
     {
+      "command": "pairofcleats lmdb build",
+      "summary": "Build LMDB indexes."
+    },
+    {
+      "command": "pairofcleats report compare-models",
+      "summary": "Compare embedding model results."
+    },
+    {
+      "command": "pairofcleats report eval",
+      "summary": "Run retrieval evaluation."
+    },
+    {
+      "command": "pairofcleats report map",
+      "summary": "Generate the code map report."
+    },
+    {
+      "command": "pairofcleats report metrics",
+      "summary": "Render metrics dashboard artifacts."
+    },
+    {
+      "command": "pairofcleats risk delta",
+      "summary": "Compare risk flows across two refs."
+    },
+    {
+      "command": "pairofcleats risk explain",
+      "summary": "Explain interprocedural risk flows."
+    },
+    {
       "command": "pairofcleats search",
       "summary": "Query indexed data."
     },
@@ -488,6 +564,26 @@
     {
       "command": "pairofcleats setup",
       "summary": "Guided setup flow."
+    },
+    {
+      "command": "pairofcleats suggest-tests",
+      "summary": "Suggest tests impacted by a change list."
+    },
+    {
+      "command": "pairofcleats tooling doctor",
+      "summary": "Inspect tooling availability and configuration."
+    },
+    {
+      "command": "pairofcleats tooling navigate",
+      "summary": "Query indexed definitions, references, and document symbols."
+    },
+    {
+      "command": "pairofcleats tui build",
+      "summary": "Build TUI artifacts."
+    },
+    {
+      "command": "pairofcleats tui install",
+      "summary": "Install TUI artifacts."
     },
     {
       "command": "pairofcleats tui supervisor",

@@ -12,6 +12,7 @@ import {
   SERVICE_INDEXER_OPTIONS,
   resolveCliOptionFlagSets
 } from '../src/shared/cli-options.js';
+import { listHelpSections } from '../src/shared/command-registry.js';
 import { spawnSubprocessSync } from '../src/shared/subprocess.js';
 import { exitLikeChild } from '../src/tui/wrapper-exit.js';
 import { buildErrorPayload, ERROR_CODES, isErrorCode } from '../src/shared/error-codes.js';
@@ -1014,76 +1015,21 @@ function isVersionCommand(value) {
  * @returns {void}
  */
 function printHelp() {
-  process.stderr.write(`Usage: pairofcleats <command> [args]
-
-Core:
-  setup                   Guided setup flow
-  bootstrap               Fast bootstrap flow
-
-Index:
-  index build             Build file-backed indexes
-  index watch             Watch and rebuild indexes incrementally
-  index validate          Validate index artifacts
-  index stats             Report per-mode manifest-driven index artifact stats
-  index snapshot          Manage index snapshots (create/list/show/rm/freeze/gc)
-  index diff              Compute/list/show/explain/prune index diffs
-
-Search:
-  search "<query>"         Query indexed data
-
-Workspace:
-  workspace manifest       Generate/refresh workspace manifest
-  workspace status         Show workspace repo/mode index availability
-  workspace build          Build indexes across workspace repos
-  workspace catalog        Inspect workspace cache/manifests (debug)
-
-Service:
-  service api             Run local HTTP JSON API
-  service indexer         Run indexer service queue/worker
-
-Ingest:
-  ingest ctags            Ingest ctags JSONL symbols into normalized records
-  ingest gtags            Ingest GNU Global symbols into normalized records
-  ingest lsif             Ingest LSIF dumps into normalized records
-  ingest scip             Ingest SCIP indexes into normalized records
-
-TUI:
-  tui supervisor          Run Node supervisor for terminal-owned TUI sessions
-  tui build               Generate deterministic TUI artifact manifest/checksums
-  tui install             Install the selected TUI artifact locally
-
-Dispatch:
-  dispatch list           List shared dispatch manifest entries
-  dispatch describe       Describe one shared dispatch command
-
-Tooling:
-  tooling doctor          Inspect tooling availability and config
-  tooling navigate        Query indexed definitions, references, and document symbols
-
-Cache:
-  cache clear             Remove cache data safely
-  cache gc                Run cache GC planner (CAS + legacy quota mode)
-
-LMDB:
-  lmdb build              Build LMDB indexes
-
-Report:
-  report map              Generate code map artifacts
-  report eval             Run evaluation suites
-  report compare-models   Compare embedding models
-  report metrics          Summarize metrics dashboard
-
-Graph:
-  graph-context          Build a graph context pack for a seed
-  context-pack           Build a composite context pack for a seed
-  api-contracts          Report cross-file API contracts
-  architecture-check     Evaluate architecture rules over graphs
-  suggest-tests          Suggest tests impacted by a change list
-  impact                 Compute bounded graph impact for a seed or change set
-
-Risk:
-  risk explain            Explain interprocedural risk flows
-`);
+  const commandWidth = Math.max(
+    ...listHelpSections()
+      .flatMap((section) => section.commands.map((entry) => entry.commandPath.join(' ').length)),
+    0
+  );
+  const lines = ['Usage: pairofcleats <command> [args]', ''];
+  for (const section of listHelpSections()) {
+    lines.push(`${section.group}:`);
+    for (const entry of section.commands) {
+      const commandLabel = entry.commandPath.join(' ');
+      lines.push(`  ${commandLabel.padEnd(commandWidth)}  ${entry.description}`);
+    }
+    lines.push('');
+  }
+  process.stderr.write(`${lines.join('\n')}\n`);
 }
 
 /**

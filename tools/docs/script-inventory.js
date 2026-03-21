@@ -6,7 +6,7 @@ import {
   SERVICE_INDEXER_OPTIONS,
   resolveCliOptionFlagSets
 } from '../../src/shared/cli-options.js';
-import { listDispatchManifest } from '../../src/shared/dispatch/manifest.js';
+import { listCommandRegistry } from '../../src/shared/command-registry.js';
 
 const parseArgs = () => createCli({
   scriptName: 'pairofcleats script-inventory',
@@ -43,7 +43,7 @@ const ciAllowlist = new Set([
 ]);
 
 const resolveCliEntrypoints = () => {
-  const entries = listDispatchManifest()
+  const entries = listCommandRegistry()
     .map((entry) => ({
       command: `pairofcleats ${entry.commandPath.join(' ')}`,
       summary: String(entry.description || '').trim() || 'No summary available.'

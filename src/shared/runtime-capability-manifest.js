@@ -7,8 +7,8 @@ import {
   resolveCliOptionFlagSets
 } from './cli-options.js';
 import { PROGRESS_PROTOCOL } from './cli/progress-events.js';
+import { listCommandRegistry } from './command-registry.js';
 import { getCapabilities } from './capabilities.js';
-import { DISPATCH_REGISTRY } from './dispatch/registry.js';
 
 export const RUNTIME_CAPABILITY_MANIFEST_VERSION = '1.0.0';
 
@@ -96,27 +96,6 @@ const TUI_SUPERVISOR_CAPABILITY_SPEC = Object.freeze({
   supportsChunking: true
 });
 
-const CLI_EXTRA_COMMAND_SPECS = freezeArray([
-  { id: 'cache.clear', commandPath: ['cache', 'clear'], description: 'Clear shared caches.', script: 'tools/cache/clear-cache.js' },
-  { id: 'cache.gc', commandPath: ['cache', 'gc'], description: 'Run shared cache GC.', script: 'tools/index/cache-gc.js', flagSetId: 'bench' },
-  { id: 'report.map', commandPath: ['report', 'map'], description: 'Generate the code map report.', script: 'tools/reports/report-code-map.js' },
-  { id: 'report.eval', commandPath: ['report', 'eval'], description: 'Run retrieval evaluation.', script: 'tools/eval/run.js' },
-  { id: 'report.compare-models', commandPath: ['report', 'compare-models'], description: 'Compare embedding model results.', script: 'tools/reports/compare-models.js', flagSetId: 'bench' },
-  { id: 'report.metrics', commandPath: ['report', 'metrics'], description: 'Render metrics dashboard artifacts.', script: 'tools/reports/metrics-dashboard.js' },
-  { id: 'report.diagnostics', commandPath: ['report', 'diagnostics'], description: 'Render risk and operational diagnostics reports.', script: 'tools/reports/diagnostics-report.js' },
-  { id: 'tooling.doctor', commandPath: ['tooling', 'doctor'], description: 'Inspect tooling availability and configuration.', script: 'tools/tooling/doctor.js' },
-  { id: 'config.dump', commandPath: ['config', 'dump'], description: 'Dump effective config plus runtime capability manifest.', script: 'tools/config/dump.js' },
-  { id: 'graph-context', commandPath: ['graph-context'], description: 'Render graph-neighborhood context.', script: 'tools/analysis/graph-context.js' },
-  { id: 'architecture-check', commandPath: ['architecture-check'], description: 'Evaluate architecture rules over graphs.', script: 'tools/analysis/architecture-check.js' },
-  { id: 'impact', commandPath: ['impact'], description: 'Analyze change impact over the graph.', script: 'tools/analysis/impact.js' },
-  { id: 'suggest-tests', commandPath: ['suggest-tests'], description: 'Suggest tests impacted by a change list.', script: 'tools/analysis/suggest-tests.js' },
-  { id: 'context-pack', commandPath: ['context-pack'], description: 'Generate a composite context pack.', script: 'tools/analysis/context-pack.js' },
-  { id: 'risk.delta', commandPath: ['risk', 'delta'], description: 'Compare risk flows across two refs.', script: 'tools/analysis/delta-risk.js' },
-  { id: 'risk.explain', commandPath: ['risk', 'explain'], description: 'Explain interprocedural risk flows.', script: 'tools/analysis/explain-risk.js' },
-  { id: 'tui.build', commandPath: ['tui', 'build'], description: 'Build TUI artifacts.', script: 'tools/tui/build.js' },
-  { id: 'tui.install', commandPath: ['tui', 'install'], description: 'Install TUI artifacts.', script: 'tools/tui/install.js' }
-]);
-
 const RISK_FEATURES = Object.freeze({
   searchFilters: Object.freeze({
     risk: true,
@@ -156,25 +135,19 @@ const buildFlagSet = (options) => {
 };
 
 const buildCliCommandManifest = () => {
-  const commands = [
-    ...DISPATCH_REGISTRY.map((entry) => ({
-      id: entry.id,
-      commandPath: entry.commandPath.slice(),
-      description: entry.description,
-      script: entry.script,
-      progressMode: entry.progressMode,
-      expectedArtifacts: entry.expectedArtifacts.slice(),
-      metadata: { ...entry.metadata }
-    })),
-    ...CLI_EXTRA_COMMAND_SPECS.map((entry) => ({
-      id: entry.id,
-      commandPath: entry.commandPath.slice(),
-      description: entry.description,
-      script: entry.script,
-      flagSetId: entry.flagSetId || null
-    }))
-  ];
-  return commands.sort((left, right) => left.id.localeCompare(right.id));
+  return listCommandRegistry({ capabilityOnly: true }).map((entry) => ({
+    id: entry.id,
+    commandPath: entry.commandPath.slice(),
+    description: entry.description,
+    script: entry.script,
+    progressMode: entry.progressMode,
+    expectedArtifacts: entry.expectedArtifacts.slice(),
+    metadata: { ...entry.metadata },
+    helpGroup: entry.helpGroup,
+    flagSetId: entry.capability && typeof entry.capability === 'object'
+      ? entry.capability.flagSetId || null
+      : null
+  }));
 };
 
 const buildMcpToolManifest = (defaultModelId = 'default') => (
