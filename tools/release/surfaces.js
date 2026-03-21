@@ -16,6 +16,18 @@ const normalizeStringArray = (value) => (Array.isArray(value) ? value : [])
   .map((entry) => normalizeString(entry))
   .filter(Boolean);
 
+const normalizeSelectorSet = (value) => {
+  if (value == null || value === '') return null;
+  const entries = Array.isArray(value)
+    ? value
+    : String(value || '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  if (entries.length === 0) return new Set();
+  return new Set(entries.map((entry) => normalizeString(entry).toLowerCase()).filter(Boolean));
+};
+
 const resolveCommandToken = (part) => {
   const text = normalizeString(part);
   if (!text) {
@@ -132,21 +144,34 @@ export const loadShippedSurfaces = (root = resolveToolRoot()) => {
   };
 };
 
-export const getReleaseCheckSurfaceSteps = (root = resolveToolRoot()) => {
+export const getReleaseCheckSurfaceSteps = (
+  root = resolveToolRoot(),
+  { surfaceIds = null, phases = null } = {}
+) => {
   const registry = loadShippedSurfaces(root);
+  const selectedSurfaceIds = normalizeSelectorSet(surfaceIds);
+  const selectedPhases = normalizeSelectorSet(phases);
   return registry.surfaces.flatMap((surface) =>
-    surface.releaseCheck.enabled
-      ? surface.releaseCheck.steps.map((step) => ({
-        ...step,
-        surfaceId: surface.id,
-        surfaceName: surface.name,
-        owner: surface.owner
-      }))
-      : []
+    (selectedSurfaceIds && !selectedSurfaceIds.has(surface.id.toLowerCase()))
+      ? []
+      : (
+        surface.releaseCheck.enabled
+          ? surface.releaseCheck.steps.map((step) => ({
+            ...step,
+            surfaceId: surface.id,
+            surfaceName: surface.name,
+            owner: surface.owner
+          }))
+            .filter((step) => !selectedPhases || selectedPhases.has(step.phase.toLowerCase()))
+          : []
+      )
   );
 };
 
-export const getReleaseCheckSurfacePhases = (root = resolveToolRoot()) => {
-  const phases = new Set(getReleaseCheckSurfaceSteps(root).map((step) => step.phase));
+export const getReleaseCheckSurfacePhases = (
+  root = resolveToolRoot(),
+  options = {}
+) => {
+  const phases = new Set(getReleaseCheckSurfaceSteps(root, options).map((step) => step.phase));
   return Array.from(phases);
 };

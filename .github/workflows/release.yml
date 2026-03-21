@@ -1,0 +1,430 @@
+name: Release
+
+permissions:
+  contents: read
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to promote (for manual runs)
+        required: false
+        type: string
+      publish:
+        description: Publish or update the GitHub release after verification
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: prepare
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.release-metadata.outputs.release_tag }}
+      release_version: ${{ steps.release-metadata.outputs.release_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+
+      - name: Install deps
+        run: npm run bootstrap:ci
+
+      - name: Resolve release metadata
+        id: release-metadata
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          mkdir -p dist/release/prepare
+          node tools/release/metadata.js --tag "$RELEASE_TAG" --out dist/release/prepare/metadata.json --notes-out dist/release/prepare/notes.md
+          echo "release_tag=$(node -e "const fs=require('fs');const payload=JSON.parse(fs.readFileSync('dist/release/prepare/metadata.json','utf8'));process.stdout.write(payload.releaseTag||'');")" >> "$GITHUB_OUTPUT"
+          echo "release_version=$(node -e "const fs=require('fs');const payload=JSON.parse(fs.readFileSync('dist/release/prepare/metadata.json','utf8'));process.stdout.write(payload.releaseVersion||'');")" >> "$GITHUB_OUTPUT"
+
+      - name: Release prepare gates
+        run: >
+          node tools/release/check.js
+          --phases changelog,contracts,toolchain
+          --report dist/release/prepare/release_check_report.json
+          --manifest dist/release/prepare/release-manifest.json
+
+      - name: Upload prepare artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-prepare
+          path: |
+            dist/release/prepare/**
+            docs/tooling/doc-contract-drift.json
+            docs/tooling/doc-contract-drift.md
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 0
+
+  build-node-packages:
+    name: build-node-packages
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+
+      - name: Install deps
+        run: npm run bootstrap:ci
+
+      - name: Build packaged node surfaces
+        run: >
+          node tools/release/check.js
+          --surfaces vscode,sublime
+          --phases build
+          --report dist/release/build-node/release_check_report.json
+          --manifest dist/release/build-node/release-manifest.json
+
+      - name: Upload packaged node artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-node-packages
+          path: |
+            dist/vscode/**
+            dist/sublime/**
+            dist/release/build-node/**
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 0
+
+  verify-runtime-surfaces:
+    name: verify-runtime-surfaces
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+
+      - name: Install deps
+        run: npm run bootstrap:ci
+
+      - name: Verify runtime surfaces
+        run: >
+          node tools/release/check.js
+          --surfaces cli,api,mcp,indexer-service
+          --phases boot,smoke
+          --report dist/release/verify-runtime/release_check_report.json
+          --manifest dist/release/verify-runtime/release-manifest.json
+
+      - name: Upload runtime verification artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-runtime-verify
+          path: |
+            dist/release-verification/**
+            dist/release/verify-runtime/**
+          if-no-files-found: ignore
+          include-hidden-files: true
+          compression-level: 0
+
+  verify-node-packages:
+    name: verify-node-packages
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - build-node-packages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+
+      - name: Install deps
+        run: npm run bootstrap:ci
+
+      - name: Download packaged node artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-node-packages
+          path: .
+
+      - name: Verify packaged node installs
+        run: >
+          node tools/release/check.js
+          --surfaces vscode,sublime
+          --phases install
+          --report dist/release/verify-node/release_check_report.json
+          --manifest dist/release/verify-node/release-manifest.json
+
+      - name: Upload node package verification artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-node-package-verify
+          path: |
+            dist/release-verification/**
+            dist/release/verify-node/**
+          if-no-files-found: ignore
+          include-hidden-files: true
+          compression-level: 0
+
+  build-tui:
+    name: build-tui-${{ matrix.release_id }}
+    runs-on: ${{ matrix.os }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            release_id: ubuntu
+          - os: windows-latest
+            release_id: windows
+          - os: macos-latest
+            release_id: macos
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.83.0
+
+      - name: Install deps
+        run: npm run bootstrap:ci
+
+      - name: Build TUI release artifacts
+        run: >
+          node tools/release/check.js
+          --surfaces tui
+          --phases build
+          --report dist/release/build-tui-${{ matrix.release_id }}/release_check_report.json
+          --manifest dist/release/build-tui-${{ matrix.release_id }}/release-manifest.json
+
+      - name: Upload TUI build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-tui-${{ matrix.release_id }}
+          path: |
+            dist/tui/**
+            dist/release/build-tui-${{ matrix.release_id }}/**
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 0
+
+  verify-tui:
+    name: verify-tui-${{ matrix.release_id }}
+    runs-on: ${{ matrix.os }}
+    needs:
+      - prepare
+      - build-tui
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            release_id: ubuntu
+          - os: windows-latest
+            release_id: windows
+          - os: macos-latest
+            release_id: macos
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+
+      - name: Install deps
+        run: npm run bootstrap:ci
+
+      - name: Download TUI build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-tui-${{ matrix.release_id }}
+          path: .
+
+      - name: Verify TUI install and wrapper boot
+        run: >
+          node tools/release/check.js
+          --surfaces tui
+          --phases install,boot
+          --report dist/release/verify-tui-${{ matrix.release_id }}/release_check_report.json
+          --manifest dist/release/verify-tui-${{ matrix.release_id }}/release-manifest.json
+
+      - name: Upload TUI verification artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-tui-verify-${{ matrix.release_id }}
+          path: |
+            dist/release-verification/**
+            dist/release/verify-tui-${{ matrix.release_id }}/**
+          if-no-files-found: ignore
+          include-hidden-files: true
+          compression-level: 0
+
+  release-bundle:
+    name: release-bundle
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - build-node-packages
+      - verify-runtime-surfaces
+      - verify-node-packages
+      - verify-tui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+
+      - name: Download prepare artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-prepare
+          path: dist/release/downloads/release-prepare
+
+      - name: Download packaged node artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-node-packages
+          path: dist/release/downloads/release-node-packages
+
+      - name: Download runtime verification artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-runtime-verify
+          path: dist/release/downloads/release-runtime-verify
+
+      - name: Download node package verification artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-node-package-verify
+          path: dist/release/downloads/release-node-package-verify
+
+      - name: Download TUI build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-tui-*
+          path: dist/release/downloads
+          merge-multiple: false
+
+      - name: Download TUI verification artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-tui-verify-*
+          path: dist/release/downloads
+          merge-multiple: false
+
+      - name: Assemble release bundle
+        run: >
+          node tools/release/assemble-bundle.js
+          --artifact-root dist/release/downloads
+          --metadata dist/release/downloads/release-prepare/metadata.json
+          --out dist/release/bundle
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: |
+            dist/release/bundle/**
+            dist/release/downloads/**
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 0
+
+  attest:
+    name: attest
+    runs-on: ubuntu-latest
+    needs: release-bundle
+    permissions:
+      contents: read
+      attestations: write
+      id-token: write
+    steps:
+      - name: Download release bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+          path: dist/release
+
+      - name: Attest release bundle provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/release/bundle/**
+            dist/release/downloads/**
+
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - release-bundle
+      - attest
+    if: github.event_name == 'push' || inputs.publish == true
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Download release bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+          path: dist/release
+
+      - name: Publish verified artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.release_version }}
+        run: |
+          if [ -z "$RELEASE_TAG" ]; then
+            echo "release tag is required for publish"
+            exit 1
+          fi
+          NOTES_PATH='dist/release/downloads/release-prepare/notes.md'
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --title "PairOfCleats $RELEASE_VERSION" --notes-file "$NOTES_PATH"
+          fi
+          mapfile -t release_files < <(find dist/release/downloads dist/release/bundle -type f | sort)
+          gh release upload "$RELEASE_TAG" "${release_files[@]}" --clobber

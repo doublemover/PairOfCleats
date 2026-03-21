@@ -89,6 +89,51 @@ const assertCommandSurfaceAuditPresent = ({ workflowText, label }) => {
   }
 };
 
+const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
+  const requiredPatterns = [
+    /name:\s*Release/,
+    /push:\s*\n\s*tags:\s*\n\s*-\s*'v\*'/,
+    /workflow_dispatch:/,
+    /node-version:\s*['"]?24\.13\.0['"]?/,
+    /tools\/release\/metadata\.js/,
+    /tools\/release\/check\.js[\s\S]*--phases\s+changelog,contracts,toolchain/,
+    /tools\/release\/check\.js[\s\S]*--surfaces\s+vscode,sublime[\s\S]*--phases\s+build/,
+    /tools\/release\/check\.js[\s\S]*--surfaces\s+cli,api,mcp,indexer-service[\s\S]*--phases\s+boot,smoke/,
+    /tools\/release\/check\.js[\s\S]*--surfaces\s+tui[\s\S]*--phases\s+build/,
+    /tools\/release\/assemble-bundle\.js/,
+    /uses:\s*actions\/download-artifact@v4/,
+    /uses:\s*actions\/upload-artifact@v4/,
+    /uses:\s*actions\/attest-build-provenance@v2/,
+    /environment:\s*release/,
+    /gh release create/,
+    /gh release upload/
+  ];
+  for (const pattern of requiredPatterns) {
+    if (!pattern.test(workflowText)) {
+      console.error(`${label} is missing required release automation contract: ${pattern}`);
+      process.exit(1);
+    }
+  }
+  const publishBlockMatch = workflowText.match(/\n  publish:\n([\s\S]*)$/);
+  const publishBlock = publishBlockMatch ? publishBlockMatch[1] : '';
+  if (!publishBlock) {
+    console.error(`${label} is missing publish job block.`);
+    process.exit(1);
+  }
+  const forbiddenPatterns = [
+    /tools\/package-vscode\.js/,
+    /tools\/package-sublime\.js/,
+    /tools\/tui\/build\.js/,
+    /npm run bootstrap:ci/
+  ];
+  for (const pattern of forbiddenPatterns) {
+    if (pattern.test(publishBlock)) {
+      console.error(`${label} rebuilds artifacts during publish, which violates promotion-only release flow.`);
+      process.exit(1);
+    }
+  }
+};
+
 const readWorkflow = (name) => {
   const workflowPath = path.join(ROOT, '.github', 'workflows', name);
   if (!fs.existsSync(workflowPath)) {
@@ -127,4 +172,10 @@ if (!/--lane\s+ci-long/.test(ciLongWorkflow)) {
 }
 assertCommandSurfaceAuditPresent({ workflowText: ciLongWorkflow, label: 'CI-long workflow' });
 
-console.log('workflow contract test passed (ci, ci-long, nightly)');
+const releaseWorkflow = readWorkflow('release.yml');
+assertWorkflowScriptsExist({ workflowText: releaseWorkflow, label: 'Release workflow' });
+assertNodePinned({ workflowText: releaseWorkflow, label: 'Release workflow' });
+assertHiddenArtifactUploadsConfigured({ workflowText: releaseWorkflow, label: 'Release workflow' });
+assertReleaseWorkflowStructure({ workflowText: releaseWorkflow, label: 'Release workflow' });
+
+console.log('workflow contract test passed (ci, ci-long, nightly, release)');
