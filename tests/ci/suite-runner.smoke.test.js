@@ -35,6 +35,10 @@ assertRequired(ciOutput, [
   /npm(?:\.cmd)? run config:budget/,
   /npm(?:\.cmd)? run env:check/,
   /tests[\\/]run\.js --lane ci-lite/,
+  /--report-file/,
+  /--timings-file/,
+  /--profile/,
+  /--coverage/,
   /tools[\\/]ci[\\/]capability-gate\.js --mode ci/,
   /tools[\\/]ci[\\/]tooling-doctor-gate\.js --mode ci/,
   /tools[\\/]ci[\\/]tooling-lsp-slo-gate\.js --mode ci --doctor/,
@@ -47,6 +51,10 @@ assertRequired(ciOutput, [
 const nightlyOutput = runDrySuite('nightly');
 assertRequired(nightlyOutput, [
   /tests[\\/]run\.js --lane ci --exclude services[\\/]api[\\/] --lane storage --lane perf/,
+  /--report-file/,
+  /--timings-file/,
+  /--profile/,
+  /--coverage/,
   /tools[\\/]bench[\\/]bench-runner\.js --suite sweet16-ci/
 ], 'nightly');
 

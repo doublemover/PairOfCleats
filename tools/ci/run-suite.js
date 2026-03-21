@@ -163,6 +163,11 @@ const main = async () => {
   const diagnosticsDir = path.resolve(argv.diagnostics);
   const junitPath = path.resolve(argv.junit);
   const logDir = path.resolve(argv['log-dir']);
+  const testSummaryPath = path.join(diagnosticsDir, 'test-summary.json');
+  const testTimingsPath = path.join(diagnosticsDir, 'test-timings.json');
+  const testProfilePath = path.join(diagnosticsDir, 'test-profile.json');
+  const coverageDir = path.join(diagnosticsDir, 'coverage');
+  const coveragePath = path.join(coverageDir, `test-coverage-${mode}.json`);
   if (!env.PAIROFCLEATS_TEST_LOG_DIR) {
     env.PAIROFCLEATS_TEST_LOG_DIR = logDir;
   }
@@ -182,6 +187,7 @@ const main = async () => {
     await ensureDir(path.dirname(junitPath));
     await ensureDir(diagnosticsDir);
     await ensureDir(logDir);
+    await ensureDir(coverageDir);
     if (env.PAIROFCLEATS_CACHE_ROOT) {
       await ensureDir(env.PAIROFCLEATS_CACHE_ROOT);
     }
@@ -286,6 +292,14 @@ const main = async () => {
         '600000',
         '--junit',
         junitPath,
+        '--report-file',
+        testSummaryPath,
+        '--timings-file',
+        testTimingsPath,
+        '--profile',
+        testProfilePath,
+        '--coverage',
+        coveragePath,
         '--log-dir',
         logDir
       ]

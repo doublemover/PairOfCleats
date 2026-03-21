@@ -183,6 +183,21 @@ jobs:
           $env:PAIROFCLEATS_CACHE_ROOT = $cacheRoot
           node tools/index/cache-gc.js --apply --grace-days 3 --max-deletes 200 --repo .
 
+      - name: Upload quality artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-quality-artifacts-ubuntu
+          path: |
+            .diagnostics/test-summary.json
+            .diagnostics/test-timings.json
+            .diagnostics/test-profile.json
+            .diagnostics/coverage/**
+            .testLogs/junit.xml
+          if-no-files-found: ignore
+          include-hidden-files: true
+          compression-level: 0
+
       - name: Upload test artifacts
         if: failure()
         uses: actions/upload-artifact@v4
@@ -259,6 +274,21 @@ jobs:
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
 
+      - name: Upload quality artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-quality-artifacts-windows
+          path: |
+            .diagnostics/test-summary.json
+            .diagnostics/test-timings.json
+            .diagnostics/test-profile.json
+            .diagnostics/coverage/**
+            .testLogs/junit.xml
+          if-no-files-found: ignore
+          include-hidden-files: true
+          compression-level: 0
+
       - name: Upload test artifacts
         if: failure()
         uses: actions/upload-artifact@v4
@@ -334,6 +364,21 @@ jobs:
       - name: CI Suite
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
+
+      - name: Upload quality artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-quality-artifacts-macos
+          path: |
+            .diagnostics/test-summary.json
+            .diagnostics/test-timings.json
+            .diagnostics/test-profile.json
+            .diagnostics/coverage/**
+            .testLogs/junit.xml
+          if-no-files-found: ignore
+          include-hidden-files: true
+          compression-level: 0
 
       - name: Upload test artifacts
         if: failure()

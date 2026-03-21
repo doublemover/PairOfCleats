@@ -484,6 +484,7 @@ const main = async () => {
   const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const runLogDir = logDir ? path.join(logDir, `run-${runId}`) : '';
   const timingsPath = argv['timings-file'] ? path.resolve(ROOT, argv['timings-file']) : '';
+  const reportFilePath = argv['report-file'] ? path.resolve(ROOT, argv['report-file']) : '';
   const hasCoverageFlag = process.argv.some((arg) => arg === '--coverage' || arg.startsWith('--coverage='));
   const coveragePathProvided = typeof argv.coverage === 'string' && argv.coverage.trim().length > 0;
   const coverageRequested = (
@@ -675,15 +676,22 @@ const main = async () => {
     });
   }
 
+  const reportPayload = buildJsonReport({
+    summary,
+    results: finalResults,
+    root: ROOT,
+    runLogDir,
+    junitPath: argv.junit || ''
+  });
+
   if (argv.json) {
-    const payload = buildJsonReport({
-      summary,
-      results: finalResults,
-      root: ROOT,
-      runLogDir,
-      junitPath: argv.junit || ''
-    });
+    const payload = reportPayload;
     process.stdout.write(`${JSON.stringify(payload)}\n`);
+  }
+
+  if (reportFilePath) {
+    await fsPromises.mkdir(path.dirname(reportFilePath), { recursive: true });
+    await fsPromises.writeFile(reportFilePath, `${stableStringify(reportPayload)}\n`, 'utf8');
   }
 
   if (argv.junit) {

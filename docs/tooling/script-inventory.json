@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-21T13:36:26.622Z",
+  "generatedAt": "2026-03-21T14:50:04.052Z",
   "scripts": [
     {
       "name": "api-server",
@@ -14,6 +14,12 @@
       "replacement": null
     },
     {
+      "name": "bench-embedding-models",
+      "category": "bench",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
       "name": "bench-language",
       "category": "bench",
       "ciAllowed": false,
@@ -21,6 +27,12 @@
     },
     {
       "name": "bench-language:matrix",
+      "category": "bench",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "bench-language:summarize",
       "category": "bench",
       "ciAllowed": false,
       "replacement": null
@@ -141,6 +153,12 @@
     },
     {
       "name": "ctags-ingest",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "dict:build-pack",
       "category": "tooling",
       "ciAllowed": false,
       "replacement": null
@@ -356,6 +374,12 @@
       "replacement": null
     },
     {
+      "name": "test",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
       "name": "tooling-detect",
       "category": "tooling",
       "ciAllowed": false,
@@ -389,6 +413,12 @@
       "name": "uninstall",
       "category": "tooling",
       "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "verify",
+      "category": "tooling",
+      "ciAllowed": true,
       "replacement": null
     },
     {

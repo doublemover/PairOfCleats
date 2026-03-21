@@ -27,6 +27,7 @@ export const parseArgs = () => {
     .option('fail-fast', { type: 'boolean', default: false })
     .option('quiet', { type: 'boolean', default: false })
     .option('json', { type: 'boolean', default: false })
+    .option('report-file', { type: 'string', default: '' })
     .option('junit', { type: 'string', default: '' })
     .option('log-dir', { type: 'string', default: '' })
     .option('log-times', { type: 'string', default: null })
