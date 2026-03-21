@@ -41,6 +41,12 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
         const hashAlgo = entry.hash_algo || entry.hashAlgo || null;
         const encoding = entry.encoding || null;
         const encodingFallback = typeof entry.encodingFallback === 'boolean' ? entry.encodingFallback : null;
+        const encodingFallbackClass = typeof entry.encodingFallbackClass === 'string'
+          ? entry.encodingFallbackClass
+          : null;
+        const encodingFallbackRisk = typeof entry.encodingFallbackRisk === 'string'
+          ? entry.encodingFallbackRisk
+          : null;
         const encodingConfidence = Number.isFinite(entry.encodingConfidence)
           ? entry.encodingConfidence
           : null;
@@ -50,6 +56,8 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
           hashAlgo,
           encoding,
           encodingFallback,
+          encodingFallbackClass,
+          encodingFallbackRisk,
           encodingConfidence
         });
       }

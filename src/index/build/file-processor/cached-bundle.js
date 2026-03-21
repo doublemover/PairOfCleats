@@ -96,6 +96,12 @@ export function reuseCachedBundle({
   const resolvedEncodingFallback = typeof cachedBundle.encodingFallback === 'boolean'
     ? cachedBundle.encodingFallback
     : (typeof cachedEntry?.encodingFallback === 'boolean' ? cachedEntry.encodingFallback : null);
+  const resolvedEncodingFallbackClass = typeof cachedBundle.encodingFallbackClass === 'string'
+    ? cachedBundle.encodingFallbackClass
+    : (typeof cachedEntry?.encodingFallbackClass === 'string' ? cachedEntry.encodingFallbackClass : null);
+  const resolvedEncodingFallbackRisk = typeof cachedBundle.encodingFallbackRisk === 'string'
+    ? cachedBundle.encodingFallbackRisk
+    : (typeof cachedEntry?.encodingFallbackRisk === 'string' ? cachedEntry.encodingFallbackRisk : null);
   const resolvedEncodingConfidence = Number.isFinite(cachedBundle.encodingConfidence)
     ? cachedBundle.encodingConfidence
     : (Number.isFinite(cachedEntry?.encodingConfidence) ? cachedEntry.encodingConfidence : null);
@@ -105,6 +111,8 @@ export function reuseCachedBundle({
     hashAlgo: resolvedHashAlgo,
     encoding: resolvedEncoding,
     encodingFallback: resolvedEncodingFallback,
+    encodingFallbackClass: resolvedEncodingFallbackClass,
+    encodingFallbackRisk: resolvedEncodingFallbackRisk,
     encodingConfidence: resolvedEncodingConfidence
   };
   const manifestBundleNames = resolveManifestBundleNames(cachedEntry);
@@ -118,6 +126,8 @@ export function reuseCachedBundle({
       : [resolveBundleShardFilename(relKey, manifestBundleFormat, 0)],
     encoding: resolvedEncoding,
     encodingFallback: resolvedEncodingFallback,
+    encodingFallbackClass: resolvedEncodingFallbackClass,
+    encodingFallbackRisk: resolvedEncodingFallbackRisk,
     encodingConfidence: resolvedEncodingConfidence
   } : null;
   const fileRelations = cachedBundle.fileRelations || null;

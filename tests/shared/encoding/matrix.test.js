@@ -20,6 +20,8 @@ const cases = [
     expect: {
       usedFallback: false,
       encoding: 'utf8',
+      encodingFallbackClass: null,
+      encodingFallbackRisk: null,
       includes: 'café'
     }
   },
@@ -27,7 +29,9 @@ const cases = [
     name: 'utf8-invalid.txt',
     buffer: Buffer.from([0xff, 0xfe, 0xfd, 0x41]),
     expect: {
-      usedFallback: true
+      usedFallback: true,
+      encodingFallbackClass: 'document',
+      encodingFallbackRisk: 'low'
     }
   },
   {
@@ -36,7 +40,9 @@ const cases = [
     expect: {
       usedFallback: true,
       encodingSet: new Set(['latin1', 'iso-8859-1', 'iso-8859-2', 'windows-1252']),
-      text: 'café'
+      text: 'café',
+      encodingFallbackClass: 'document',
+      encodingFallbackRisk: 'low'
     }
   },
   {
@@ -45,13 +51,48 @@ const cases = [
     expect: {
       usedFallback: true,
       encoding: 'windows-1252',
-      text: '“Hi”'
+      text: '“Hi”',
+      encodingFallbackClass: 'document',
+      encodingFallbackRisk: 'low'
+    }
+  },
+  {
+    name: 'legacy-source.js',
+    buffer: Buffer.from([0x63, 0x61, 0x66, 0xe9]),
+    expect: {
+      usedFallback: true,
+      text: 'café',
+      encodingFallbackClass: 'source',
+      encodingFallbackRisk: 'high'
+    }
+  },
+  {
+    name: 'vendor-lib.js',
+    dir: 'vendor',
+    buffer: Buffer.from([0x63, 0x61, 0x66, 0xe9]),
+    expect: {
+      usedFallback: true,
+      text: 'café',
+      encodingFallbackClass: 'vendor',
+      encodingFallbackRisk: 'low'
+    }
+  },
+  {
+    name: 'settings.yaml',
+    buffer: Buffer.from([0xff, 0xfe, 0xfd, 0x41]),
+    expect: {
+      usedFallback: true,
+      encodingFallbackClass: 'configuration',
+      encodingFallbackRisk: 'medium'
     }
   }
 ];
 
 for (const testCase of cases) {
-  const filePath = path.join(tempRoot, testCase.name);
+  const filePath = testCase.dir
+    ? path.join(tempRoot, testCase.dir, testCase.name)
+    : path.join(tempRoot, testCase.name);
+  await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
   await fsPromises.writeFile(filePath, testCase.buffer);
   const info = await readTextFileWithHash(filePath);
   const expectedHash = sha1(testCase.buffer);
@@ -73,6 +114,14 @@ for (const testCase of cases) {
   }
   if (testCase.expect.text && info.text !== testCase.expect.text) {
     console.error(`Encoding matrix failed for ${testCase.name}: text mismatch.`);
+    process.exit(1);
+  }
+  if ((info.encodingFallbackClass || null) !== (testCase.expect.encodingFallbackClass || null)) {
+    console.error(`Encoding matrix failed for ${testCase.name}: fallback class ${info.encodingFallbackClass}.`);
+    process.exit(1);
+  }
+  if ((info.encodingFallbackRisk || null) !== (testCase.expect.encodingFallbackRisk || null)) {
+    console.error(`Encoding matrix failed for ${testCase.name}: fallback risk ${info.encodingFallbackRisk}.`);
     process.exit(1);
   }
   if (testCase.expect.includes && !info.text.includes(testCase.expect.includes)) {

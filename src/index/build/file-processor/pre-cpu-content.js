@@ -183,6 +183,8 @@ export async function resolvePreCpuFileContent({
     }
     artifacts.fileEncoding = 'document-extracted';
     artifacts.fileEncodingFallback = null;
+    artifacts.fileEncodingFallbackClass = null;
+    artifacts.fileEncodingFallbackRisk = null;
     artifacts.fileEncodingConfidence = null;
     artifacts.documentExtraction = buildDocumentExtractionInfo({
       sourceType: documentSourceType,
@@ -224,10 +226,14 @@ export async function resolvePreCpuFileContent({
     }
     artifacts.fileEncoding = decoded.encoding || artifacts.fileEncoding;
     artifacts.fileEncodingFallback = decoded.usedFallback;
+    artifacts.fileEncodingFallbackClass = decoded.encodingFallbackClass || null;
+    artifacts.fileEncodingFallbackRisk = decoded.encodingFallbackRisk || null;
     artifacts.fileEncodingConfidence = decoded.confidence;
     warnEncodingFallback(relKey, {
       encoding: artifacts.fileEncoding,
       encodingFallback: artifacts.fileEncodingFallback,
+      encodingFallbackClass: artifacts.fileEncodingFallbackClass,
+      encodingFallbackRisk: artifacts.fileEncodingFallbackRisk,
       encodingConfidence: artifacts.fileEncodingConfidence
     });
   }

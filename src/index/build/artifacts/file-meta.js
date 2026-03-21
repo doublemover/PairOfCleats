@@ -38,6 +38,8 @@ export const buildFileMetaColumnar = (fileMeta) => {
     hashAlgo: [],
     encoding: [],
     encodingFallback: [],
+    encodingFallbackClass: [],
+    encodingFallbackRisk: [],
     encodingConfidence: [],
     externalDocs: [],
     last_modified: [],
@@ -56,6 +58,8 @@ export const buildFileMetaColumnar = (fileMeta) => {
     arrays.hashAlgo.push(row?.hashAlgo ?? null);
     arrays.encoding.push(row?.encoding ?? null);
     arrays.encodingFallback.push(typeof row?.encodingFallback === 'boolean' ? row.encodingFallback : null);
+    arrays.encodingFallbackClass.push(typeof row?.encodingFallbackClass === 'string' ? row.encodingFallbackClass : null);
+    arrays.encodingFallbackRisk.push(typeof row?.encodingFallbackRisk === 'string' ? row.encodingFallbackRisk : null);
     arrays.encodingConfidence.push(row?.encodingConfidence ?? null);
     arrays.externalDocs.push(row?.externalDocs ?? null);
     arrays.last_modified.push(row?.last_modified ?? null);
@@ -143,6 +147,8 @@ export function buildFileMeta(state) {
       hashAlgo: info?.hashAlgo || entry.hashAlgo || null,
       encoding: info?.encoding || null,
       encodingFallback: typeof info?.encodingFallback === 'boolean' ? info.encodingFallback : null,
+      encodingFallbackClass: typeof info?.encodingFallbackClass === 'string' ? info.encodingFallbackClass : null,
+      encodingFallbackRisk: typeof info?.encodingFallbackRisk === 'string' ? info.encodingFallbackRisk : null,
       encodingConfidence: Number.isFinite(info?.encodingConfidence) ? info.encodingConfidence : null,
       externalDocs: entry.externalDocs,
       last_modified: entry.last_modified,

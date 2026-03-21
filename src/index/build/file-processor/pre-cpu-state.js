@@ -9,6 +9,8 @@
  *   fileBuffer:Buffer|null,
  *   fileEncoding:string|null,
  *   fileEncodingFallback:boolean|null,
+ *   fileEncodingFallbackClass:string|null,
+ *   fileEncodingFallbackRisk:string|null,
  *   fileEncodingConfidence:number|null,
  *   documentExtraction:object|null
  * }}
@@ -21,6 +23,8 @@ const createEmptyArtifacts = () => ({
   fileBuffer: null,
   fileEncoding: null,
   fileEncodingFallback: null,
+  fileEncodingFallbackClass: null,
+  fileEncodingFallbackRisk: null,
   fileEncodingConfidence: null,
   documentExtraction: null
 });
@@ -62,6 +66,12 @@ export function createPreCpuArtifactState({
   if (typeof cached.encodingFallback === 'boolean') {
     artifacts.fileEncodingFallback = cached.encodingFallback;
   }
+  if (typeof cached.encodingFallbackClass === 'string') {
+    artifacts.fileEncodingFallbackClass = cached.encodingFallbackClass;
+  }
+  if (typeof cached.encodingFallbackRisk === 'string') {
+    artifacts.fileEncodingFallbackRisk = cached.encodingFallbackRisk;
+  }
   if (Number.isFinite(cached.encodingConfidence)) {
     artifacts.fileEncodingConfidence = cached.encodingConfidence;
   }
@@ -91,6 +101,12 @@ export function applyCachedResultToArtifacts({
   if (typeof cachedBundle.encodingFallback === 'boolean') {
     artifacts.fileEncodingFallback = cachedBundle.encodingFallback;
   }
+  if (typeof cachedBundle.encodingFallbackClass === 'string') {
+    artifacts.fileEncodingFallbackClass = cachedBundle.encodingFallbackClass;
+  }
+  if (typeof cachedBundle.encodingFallbackRisk === 'string') {
+    artifacts.fileEncodingFallbackRisk = cachedBundle.encodingFallbackRisk;
+  }
   if (Number.isFinite(cachedBundle.encodingConfidence)) {
     artifacts.fileEncodingConfidence = cachedBundle.encodingConfidence;
   }
@@ -115,6 +131,12 @@ export function buildFileInfoFromArtifacts({
     encoding: artifacts.fileEncoding || null,
     encodingFallback: typeof artifacts.fileEncodingFallback === 'boolean'
       ? artifacts.fileEncodingFallback
+      : null,
+    encodingFallbackClass: typeof artifacts.fileEncodingFallbackClass === 'string'
+      ? artifacts.fileEncodingFallbackClass
+      : null,
+    encodingFallbackRisk: typeof artifacts.fileEncodingFallbackRisk === 'string'
+      ? artifacts.fileEncodingFallbackRisk
       : null,
     encodingConfidence: Number.isFinite(artifacts.fileEncodingConfidence)
       ? artifacts.fileEncodingConfidence
@@ -148,6 +170,12 @@ export function writeArtifactsToFileTextCache({
     encoding: artifacts.fileEncoding || null,
     encodingFallback: typeof artifacts.fileEncodingFallback === 'boolean'
       ? artifacts.fileEncodingFallback
+      : null,
+    encodingFallbackClass: typeof artifacts.fileEncodingFallbackClass === 'string'
+      ? artifacts.fileEncodingFallbackClass
+      : null,
+    encodingFallbackRisk: typeof artifacts.fileEncodingFallbackRisk === 'string'
+      ? artifacts.fileEncodingFallbackRisk
       : null,
     encodingConfidence: Number.isFinite(artifacts.fileEncodingConfidence)
       ? artifacts.fileEncodingConfidence

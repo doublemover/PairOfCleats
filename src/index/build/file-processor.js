@@ -255,11 +255,22 @@ export function createFileProcessor(options) {
    * repositories.
    *
    * @param {string} fileKey
-   * @param {{encodingFallback?:boolean,encoding?:string,encodingConfidence?:number,file?:string}} info
+   * @param {{
+   *   encodingFallback?:boolean,
+   *   encoding?:string,
+   *   encodingConfidence?:number,
+   *   encodingFallbackClass?:string,
+   *   encodingFallbackRisk?:string,
+   *   file?:string
+   * }} info
    * @returns {void}
    */
   const warnEncodingFallback = (fileKey, info) => {
     if (!info?.encodingFallback) return;
+    const risk = typeof info.encodingFallbackRisk === 'string'
+      ? info.encodingFallbackRisk
+      : 'medium';
+    if (risk === 'low' && !showLineProgress) return;
     const key = fileKey || info?.file || '';
     if (!key || encodingWarnings.seen.has(key)) return;
     if (encodingWarnings.count >= encodingWarnings.limit) return;
@@ -268,10 +279,15 @@ export function createFileProcessor(options) {
     const confidence = Number.isFinite(info.encodingConfidence)
       ? info.encodingConfidence.toFixed(2)
       : null;
-    const details = info.encoding
-      ? ` (${info.encoding}${confidence ? `, conf=${confidence}` : ''})`
-      : '';
-    log(`[encoding] fallback decode used for ${key}${details}.`);
+    const classLabel = typeof info.encodingFallbackClass === 'string'
+      ? info.encodingFallbackClass
+      : 'unknown';
+    const detailParts = [];
+    if (info.encoding) detailParts.push(info.encoding);
+    if (confidence) detailParts.push(`conf=${confidence}`);
+    detailParts.push(`class=${classLabel}`);
+    detailParts.push(`risk=${risk}`);
+    log(`[encoding] ${risk}-risk fallback decode for ${key} (${detailParts.join(', ')}).`);
   };
   if (!workerPool && !warnedNoWorkerPool) {
     warnedNoWorkerPool = true;
@@ -600,6 +616,8 @@ export function createFileProcessor(options) {
           }
           artifacts.fileEncoding = 'document-extracted';
           artifacts.fileEncodingFallback = null;
+          artifacts.fileEncodingFallbackClass = null;
+          artifacts.fileEncodingFallbackRisk = null;
           artifacts.fileEncodingConfidence = null;
           artifacts.documentExtraction = {
             sourceType: documentSourceType,
@@ -807,6 +825,12 @@ export function createFileProcessor(options) {
       fileEncoding: artifacts.fileEncoding || null,
       fileEncodingFallback: typeof artifacts.fileEncodingFallback === 'boolean'
         ? artifacts.fileEncodingFallback
+        : null,
+      fileEncodingFallbackClass: typeof artifacts.fileEncodingFallbackClass === 'string'
+        ? artifacts.fileEncodingFallbackClass
+        : null,
+      fileEncodingFallbackRisk: typeof artifacts.fileEncodingFallbackRisk === 'string'
+        ? artifacts.fileEncodingFallbackRisk
         : null,
       fileEncodingConfidence: Number.isFinite(artifacts.fileEncodingConfidence)
         ? artifacts.fileEncodingConfidence

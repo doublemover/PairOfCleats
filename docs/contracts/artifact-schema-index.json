@@ -1,5 +1,5 @@
 {
-  "schemaHash": "a49cf8357d7ad423707a6da8d004b42830a83837",
+  "schemaHash": "93a9b245952d6d1127e5af0dcc79eebb57bd3b38",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -628,6 +628,8 @@
         "encoding",
         "encodingConfidence",
         "encodingFallback",
+        "encodingFallbackClass",
+        "encodingFallbackRisk",
         "ext"
       ]
     },

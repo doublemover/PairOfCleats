@@ -7,6 +7,10 @@ import {
   IMPORT_RESOLVER_STAGES
 } from '../../../index/build/import-resolution/reason-codes.js';
 import { IMPORT_RESOLUTION_TRACE_STAGES } from '../../../index/build/import-resolution/trace-model.js';
+import {
+  ENCODING_FALLBACK_CLASSES,
+  ENCODING_FALLBACK_RISKS
+} from '../../../shared/encoding.js';
 
 const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
@@ -24,6 +28,8 @@ const nullableEnum = (values) => ({
     { type: 'null' }
   ]
 });
+const encodingFallbackClassEnum = Object.freeze(Object.values(ENCODING_FALLBACK_CLASSES));
+const encodingFallbackRiskEnum = Object.freeze(Object.values(ENCODING_FALLBACK_RISKS));
 
 const importResolutionTraceEntrySchema = {
   type: 'object',
@@ -443,6 +449,8 @@ export const CORE_POST_VFS_ARTIFACT_SCHEMA_DEFS = {
             ext: nullableString,
             encoding: nullableString,
             encodingFallback: { type: ['boolean', 'null'] },
+            encodingFallbackClass: nullableEnum(encodingFallbackClassEnum),
+            encodingFallbackRisk: nullableEnum(encodingFallbackRiskEnum),
             encodingConfidence: { type: ['number', 'null'] }
           },
           additionalProperties: true

@@ -203,6 +203,8 @@ export const discoverTreeSitterSchedulerGroups = async ({
               mtimeMs: stat?.mtimeMs ?? null,
               encoding: decoded.encoding || null,
               encodingFallback: decoded.usedFallback,
+              encodingFallbackClass: decoded.encodingFallbackClass || null,
+              encodingFallbackRisk: decoded.encodingFallbackRisk || null,
               encodingConfidence: decoded.confidence
             });
           }

@@ -35,6 +35,8 @@ const cachedBundle = {
   fileRelations: {},
   encoding: 'windows-1252',
   encodingFallback: true,
+  encodingFallbackClass: 'source',
+  encodingFallbackRisk: 'high',
   encodingConfidence: 0.42
 };
 
@@ -56,6 +58,8 @@ const { result, skip } = reuseCachedBundle({
           hash: 'hash',
           encoding: 'windows-1252',
           encodingFallback: true,
+          encodingFallbackClass: 'source',
+          encodingFallbackRisk: 'high',
           encodingConfidence: 0.42
         }
       }
@@ -72,6 +76,8 @@ assert.equal(skip, null);
 assert(result, 'expected cached bundle reuse result');
 assert.equal(result.fileInfo.encoding, 'windows-1252');
 assert.equal(result.fileInfo.encodingFallback, true);
+assert.equal(result.fileInfo.encodingFallbackClass, 'source');
+assert.equal(result.fileInfo.encodingFallbackRisk, 'high');
 assert.equal(result.fileInfo.encodingConfidence, 0.42);
 
 const { fileMeta } = buildFileMeta({
@@ -82,6 +88,8 @@ const entry = fileMeta.find((item) => item.file === 'encoded.txt');
 assert(entry, 'expected file meta entry');
 assert.equal(entry.encoding, 'windows-1252');
 assert.equal(entry.encodingFallback, true);
+assert.equal(entry.encodingFallbackClass, 'source');
+assert.equal(entry.encodingFallbackRisk, 'high');
 assert.equal(entry.encodingConfidence, 0.42);
 
 console.log('encoding metadata plumbed and reused ok');

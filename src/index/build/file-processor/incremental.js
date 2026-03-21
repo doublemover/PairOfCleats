@@ -30,6 +30,8 @@ export async function writeBundleForFile({
   vfsManifestRows,
   fileEncoding = null,
   fileEncodingFallback = null,
+  fileEncodingFallbackClass = null,
+  fileEncodingFallbackRisk = null,
   fileEncodingConfidence = null
 }) {
   return runIo(() => writeIncrementalBundle({
@@ -46,6 +48,8 @@ export async function writeBundleForFile({
     previousManifestEntry: incrementalState.manifest?.files?.[relKey] || null,
     fileEncoding,
     fileEncodingFallback,
+    fileEncodingFallbackClass,
+    fileEncodingFallbackRisk,
     fileEncodingConfidence
   }));
 }
