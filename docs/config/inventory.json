@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T16:27:04.295Z",
+  "generatedAt": "2026-03-21T16:35:30.067Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3560,7 +3560,9 @@
       "name": "PAIROFCLEATS_TUI_CARGO",
       "files": [
         "tests/cli/general/tui-build-install.test.js",
+        "tests/cli/general/tui-install-missing-cargo.test.js",
         "tools/config/inventory.js",
+        "tools/tui/build-support.js",
         "tools/tui/targets.js"
       ]
     },
@@ -3568,6 +3570,7 @@
       "name": "PAIROFCLEATS_TUI_DIST_DIR",
       "files": [
         "tests/cli/general/tui-build-install.test.js",
+        "tests/cli/general/tui-install-missing-cargo.test.js",
         "tests/tui/build-verify-manifest.test.js",
         "tests/tui/headless-smoke.test.js",
         "tests/tui/installer-unit.test.js",
@@ -6096,6 +6099,7 @@
       {
         "file": "tools/tui/install.js",
         "flags": [
+          "build",
           "event-log-dir",
           "install-root",
           "json",
@@ -6784,6 +6788,17 @@
         ]
       },
       {
+        "flag": "build",
+        "count": 5,
+        "files": [
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/bench/micro/run.js",
+          "tools/reports/combined-summary.js",
+          "tools/reports/compare-models.js",
+          "tools/tui/install.js"
+        ]
+      },
+      {
         "flag": "cache-root",
         "count": 5,
         "files": [
@@ -6957,16 +6972,6 @@
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js",
           "tools/reports/report-code-map.js"
-        ]
-      },
-      {
-        "flag": "build",
-        "count": 4,
-        "files": [
-          "tools/bench/embeddings/model-bakeoff.js",
-          "tools/bench/micro/run.js",
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js"
         ]
       },
       {

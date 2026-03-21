@@ -111,6 +111,12 @@ const SMOKE_STEPS = Object.freeze([
     artifacts: ['dist/tui/tui-artifacts-manifest.json', 'dist/tui/tui-artifacts-manifest.json.sha256']
   },
   {
+    id: 'smoke.tui-install',
+    label: 'tui install smoke',
+    command: [process.execPath, 'tools/tui/install.js', '--json'],
+    artifacts: ['.cache/tui/install-v1']
+  },
+  {
     id: 'smoke.service-mode',
     label: 'service-mode smoke check',
     command: [process.execPath, 'tools/service/indexer-service.js', 'smoke', '--json']

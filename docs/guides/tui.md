@@ -5,16 +5,17 @@ Last updated: 2026-02-21T00:00:00Z
 
 ## Commands
 
-- Build manifest/checksums: `pairofcleats tui build`
-- Install target binary: `pairofcleats tui install`
+- Build and stage target artifacts explicitly: `pairofcleats tui build`
+- Install target binary (auto-builds the host target when staging is missing): `pairofcleats tui install`
 - Run supervisor directly: `pairofcleats tui supervisor`
 - Launch native TUI wrapper: `pairofcleats-tui`
 
 ## Typical flow
 
-1. `pairofcleats tui build`
-2. `pairofcleats tui install`
-3. `pairofcleats-tui`
+1. `pairofcleats tui install`
+2. `pairofcleats-tui`
+
+Use `pairofcleats tui build --smoke` when you want to validate or restage the host artifact explicitly without installing it yet.
 
 Runtime controls:
 

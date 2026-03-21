@@ -54,18 +54,6 @@ const env = applyTestEnv({
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [binPath, 'tui', 'build', '--target', triple, '--smoke'],
-  {
-    cwd: root,
-    encoding: 'utf8',
-    env
-  }
-);
-assert.equal(buildResult.status, 0, buildResult.stderr || buildResult.stdout || 'expected tui build to succeed');
-assert.equal(fs.existsSync(path.join(distDir, target.artifactName)), true, 'expected tui build to stage the target artifact');
-
 const installResult = spawnSync(
   process.execPath,
   [binPath, 'tui', 'install', '--target', triple, '--install-root', installRoot, '--json'],
@@ -78,6 +66,19 @@ const installResult = spawnSync(
 assert.equal(installResult.status, 0, installResult.stderr || installResult.stdout || 'expected tui install to succeed');
 const installPayload = JSON.parse(installResult.stdout || '{}');
 assert.equal(installPayload.ok, true, 'expected tui install to report ok=true');
+assert.equal(installPayload.built, true, 'expected tui install to auto-build the host target when staging is missing');
+assert.equal(fs.existsSync(path.join(distDir, target.artifactName)), true, 'expected tui install to stage the target artifact');
 assert.equal(fs.existsSync(path.join(installRoot, triple, 'bin', target.artifactName)), true, 'expected tui install to place the built artifact');
+
+const explicitBuildResult = spawnSync(
+  process.execPath,
+  [binPath, 'tui', 'build', '--target', triple, '--smoke'],
+  {
+    cwd: root,
+    encoding: 'utf8',
+    env
+  }
+);
+assert.equal(explicitBuildResult.status, 0, explicitBuildResult.stderr || explicitBuildResult.stdout || 'expected explicit tui build to succeed');
 
 console.log('tui build/install CLI test passed');

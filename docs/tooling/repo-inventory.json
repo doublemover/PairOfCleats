@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T16:25:36.998Z",
+  "generatedAt": "2026-03-21T16:35:29.712Z",
   "generatedBy": "node tools/docs/repo-inventory.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "docs": {
@@ -2002,6 +2002,7 @@
       "tools/triage/context-pack.js",
       "tools/triage/decision.js",
       "tools/triage/ingest.js",
+      "tools/tui/build-support.js",
       "tools/tui/build.js",
       "tools/tui/install.js",
       "tools/tui/supervisor.js",
