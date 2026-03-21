@@ -51,8 +51,9 @@ const startupFrame = readText(startupFramePath);
 assert.match(startupFrame, /Session/);
 assert.match(startupFrame, /Controls/);
 assert.match(startupFrame, /Jobs/);
-assert.match(startupFrame, /mode=supervised/);
+assert.match(startupFrame, /mode supervised/);
 assert.match(startupFrame, /no supervised jobs|supervisor ready/);
+assert.doesNotMatch(startupFrame, /\{\"connection\"/);
 
 const activeMetaPath = path.join(
   outputRoot,
@@ -80,16 +81,18 @@ assert.equal(noColorMeta.non_default_style_cells, 0, 'no-color variant should av
 const replayFrame = readText(
   path.join(outputRoot, 'bench-replay', '07-degraded', 'medium-color.frame.txt')
 );
-assert.match(replayFrame, /mode=replay/);
+assert.match(replayFrame, /mode replay/);
 assert.match(replayFrame, /sourcekit/);
 assert.match(replayFrame, /provider degraded/);
+assert.doesNotMatch(replayFrame, /\{\"event\"/);
 
 const observabilityFrame = readText(
   path.join(outputRoot, 'external-observability', '04-logs-only', 'medium-color.frame.txt')
 );
-assert.match(observabilityFrame, /mode=external-observability/);
+assert.match(observabilityFrame, /mode external-observability/);
 assert.match(observabilityFrame, /external stream without/);
 assert.match(observabilityFrame, /attached to external observability/);
+assert.doesNotMatch(observabilityFrame, /\{\"event\"/);
 
 const navigationBefore = readJson(
   path.join(outputRoot, 'navigation-scroll', '12-before-scroll', 'medium-color.frame.json')

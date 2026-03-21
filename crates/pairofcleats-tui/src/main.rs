@@ -16,7 +16,7 @@ use crossterm::terminal::{
 use ratatui::backend::{CrosstermBackend, TestBackend};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
+use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Wrap};
 use ratatui::Terminal;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -613,21 +613,6 @@ fn send_request(child: &mut std::process::Child, payload: Value) -> anyhow::Resu
     Ok(())
 }
 
-fn list_window(items: &[String], scroll: usize, height: usize) -> Vec<String> {
-    if items.is_empty() {
-        return vec!["(empty)".to_string()];
-    }
-    let safe_height = height.max(1);
-    let max_start = items.len().saturating_sub(safe_height);
-    let start = scroll.min(max_start);
-    items
-        .iter()
-        .skip(start)
-        .take(safe_height)
-        .cloned()
-        .collect()
-}
-
 fn tail_window(items: &VecDeque<String>, scroll: usize, height: usize) -> Vec<String> {
     if items.is_empty() {
         return vec!["(empty)".to_string()];
@@ -733,7 +718,202 @@ fn last_alert_summary(model: &AppModel) -> String {
     }
 }
 
+fn fit_text(text: &str, width: usize) -> String {
+    if width == 0 {
+        return String::new();
+    }
+    let chars: Vec<char> = text.chars().collect();
+    if chars.len() <= width {
+        return text.to_string();
+    }
+    if width <= 1 {
+        return "…".to_string();
+    }
+    let mut output = chars
+        .into_iter()
+        .take(width.saturating_sub(1))
+        .collect::<String>();
+    output.push('…');
+    output
+}
+
+fn wrap_text_lines(text: &str, width: usize, max_lines: usize) -> Vec<String> {
+    if width == 0 || max_lines == 0 {
+        return Vec::new();
+    }
+    let mut output = Vec::new();
+    for raw_line in text.split('\n') {
+        let mut remaining = raw_line.trim();
+        if remaining.is_empty() {
+            output.push(String::new());
+            if output.len() >= max_lines {
+                break;
+            }
+            continue;
+        }
+        while !remaining.is_empty() && output.len() < max_lines {
+            let chars: Vec<char> = remaining.chars().collect();
+            if chars.len() <= width {
+                output.push(remaining.to_string());
+                break;
+            }
+            let slice = chars.iter().take(width).collect::<String>();
+            let boundary = slice.rfind(' ').unwrap_or(width);
+            let next_line = slice[..boundary].trim_end().to_string();
+            output.push(if next_line.is_empty() {
+                slice
+            } else {
+                next_line
+            });
+            let consumed = boundary.min(remaining.len());
+            remaining = remaining[consumed..].trim_start();
+        }
+        if output.len() >= max_lines {
+            break;
+        }
+    }
+    if output.len() == max_lines {
+        if let Some(last) = output.last_mut() {
+            *last = fit_text(last, width);
+        }
+    }
+    output
+}
+
+fn session_summary_text(model: &AppModel, width: usize) -> String {
+    let mut parts = vec![
+        format!("mode {}", model.session.mode),
+        format!("src {}", model.session.source),
+        format!("conn {}", model.session.connection),
+        format!("run {}", model.run_id),
+    ];
+    if width >= 96 && !model.session.scope.trim().is_empty() {
+        parts.push(format!("scope {}", model.session.scope));
+    }
+    if !model.alerts.is_empty() {
+        parts.push(format!("alert {}", last_alert_summary(model)));
+    }
+    fit_text(&parts.join(" | "), width)
+}
+
+fn runtime_summary_text(model: &AppModel, width: usize) -> String {
+    let (running_jobs, failed_jobs, done_jobs) = job_status_counts(model);
+    let (active_tasks, failed_tasks) = task_status_counts(model);
+    let parts = vec![
+        format!("jobs {running_jobs}r/{failed_jobs}f/{done_jobs}d"),
+        format!("tasks {active_tasks}a/{failed_tasks}f"),
+        format!("queue {:.0}", model.telemetry.queue_depth_ewma),
+        format!("lag {:.0}ms", model.telemetry.event_lag_ms_ewma),
+        format!("render {:.0}ms", model.telemetry.render_ms_ewma),
+        format!("note {}", model.session.note),
+    ];
+    fit_text(&parts.join(" | "), width)
+}
+
+fn build_job_rows(model: &AppModel, width: usize) -> Vec<ListItem<'static>> {
+    let mut rows = Vec::new();
+    if model.job_order.is_empty() {
+        rows.push(ListItem::new(fit_text(&jobs_empty_reason(model), width)));
+        return rows;
+    }
+    for job_id in &model.job_order {
+        let Some(status) = model.job_status.get(job_id) else {
+            continue;
+        };
+        let title = model.job_titles.get(job_id).cloned().unwrap_or_default();
+        let rendered = if title.is_empty() {
+            format!("{job_id} | {status}")
+        } else {
+            format!("{job_id} | {status} | {title}")
+        };
+        let style = if !model.terminal_caps.color {
+            Style::default()
+        } else if status.contains("done") {
+            Style::default().fg(Color::Green)
+        } else if status.contains("failed") {
+            Style::default().fg(Color::Red)
+        } else if status.contains("cancelled") {
+            Style::default().fg(Color::Yellow)
+        } else if model.selected_job.as_deref() == Some(job_id.as_str()) {
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
+        } else if status.contains("running") {
+            Style::default().fg(Color::Blue)
+        } else {
+            Style::default().fg(Color::Gray)
+        };
+        rows.push(ListItem::new(fit_text(&rendered, width)).style(style));
+    }
+    if rows.is_empty() {
+        rows.push(ListItem::new(fit_text(&jobs_empty_reason(model), width)));
+    }
+    rows
+}
+
+fn build_task_rows(model: &AppModel, width: usize) -> Vec<ListItem<'static>> {
+    let selected_job = model.selected_job.clone().unwrap_or_default();
+    let mut rows = Vec::new();
+    for key in &model.task_order {
+        if !selected_job.is_empty() && !key.starts_with(&format!("{selected_job}:")) {
+            continue;
+        }
+        let Some(status) = model.task_status.get(key) else {
+            continue;
+        };
+        let task_name = key.rsplit(':').next().unwrap_or(key);
+        let style = if !model.terminal_caps.color {
+            Style::default()
+        } else if status.contains("failed") {
+            Style::default().fg(Color::Red)
+        } else if status.contains("done") {
+            Style::default().fg(Color::Green)
+        } else {
+            Style::default().fg(Color::Yellow)
+        };
+        rows.push(ListItem::new(fit_text(&format!("{task_name} | {status}"), width)).style(style));
+    }
+    if rows.is_empty() {
+        rows.push(ListItem::new(fit_text(&tasks_empty_reason(model), width)));
+    }
+    rows
+}
+
+fn summarize_log_line(line: &str) -> String {
+    let trimmed = line.trim();
+    if trimmed.starts_with("event=") {
+        return trimmed
+            .trim_start_matches("event=")
+            .replace('{', " ")
+            .replace('}', " ");
+    }
+    trimmed.to_string()
+}
+
+fn build_log_lines(model: &AppModel, width: usize, height: usize) -> String {
+    let visible_logs = tail_window(&model.logs, model.log_scroll, model.logs.len().max(1));
+    let mut lines = Vec::new();
+    for entry in visible_logs {
+        let wrapped = wrap_text_lines(&summarize_log_line(&entry), width, 2);
+        for line in wrapped {
+            lines.push(line);
+            if lines.len() >= height {
+                break;
+            }
+        }
+        if lines.len() >= height {
+            break;
+        }
+    }
+    if lines.is_empty() {
+        lines.push("(no logs yet)".to_string());
+    }
+    let start = lines.len().saturating_sub(height.max(1));
+    lines[start..].join("\n")
+}
+
 fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
+    let session_width = frame.area().width.saturating_sub(2) as usize;
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -744,16 +924,8 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         ])
         .split(frame.area());
 
-    let session_summary = format!(
-        "mode={} source={} connection={} run={} scope={} alert={}",
-        model.session.mode,
-        model.session.source,
-        model.session.connection,
-        model.run_id,
-        model.session.scope,
-        last_alert_summary(model)
-    );
-    let session_block = Paragraph::new(session_summary)
+    let session_block = Paragraph::new(session_summary_text(model, session_width))
+        .wrap(Wrap { trim: true })
         .block(Block::default().borders(Borders::ALL).title("Session"));
     frame.render_widget(session_block, rows[0]);
 
@@ -766,25 +938,39 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         Paragraph::new(controls).block(Block::default().borders(Borders::ALL).title("Controls"));
     frame.render_widget(control_block, rows[1]);
 
-    let (running_jobs, failed_jobs, done_jobs) = job_status_counts(model);
-    let (active_tasks, failed_tasks) = task_status_counts(model);
-
-    let metrics = format!(
-        "events={} lag~{:.1}ms render~{:.1}ms q~{:.1} jobs r/f/d={}/{}/{} tasks a/f={}/{} note={}",
-        model.telemetry.processed_events,
-        model.telemetry.event_lag_ms_ewma,
-        model.telemetry.render_ms_ewma,
-        model.telemetry.queue_depth_ewma,
-        running_jobs,
-        failed_jobs,
-        done_jobs,
-        active_tasks,
-        failed_tasks,
-        model.session.note
-    );
-    let metrics_block =
-        Paragraph::new(metrics).block(Block::default().borders(Borders::ALL).title("Runtime"));
+    let metrics_block = Paragraph::new(runtime_summary_text(model, session_width))
+        .wrap(Wrap { trim: true })
+        .block(Block::default().borders(Borders::ALL).title("Runtime"));
     frame.render_widget(metrics_block, rows[2]);
+
+    if rows[3].width < 100 {
+        let stacked = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Percentage(30),
+                Constraint::Percentage(30),
+                Constraint::Percentage(40),
+            ])
+            .split(rows[3]);
+        let jobs_width = stacked[0].width.saturating_sub(2) as usize;
+        let tasks_width = stacked[1].width.saturating_sub(2) as usize;
+        let logs_width = stacked[2].width.saturating_sub(2) as usize;
+        let jobs = List::new(build_job_rows(model, jobs_width))
+            .block(Block::default().borders(Borders::ALL).title("Jobs"));
+        frame.render_widget(jobs, stacked[0]);
+        let tasks = List::new(build_task_rows(model, tasks_width))
+            .block(Block::default().borders(Borders::ALL).title("Tasks"));
+        frame.render_widget(tasks, stacked[1]);
+        let logs = Paragraph::new(build_log_lines(
+            model,
+            logs_width,
+            stacked[2].height.saturating_sub(2) as usize,
+        ))
+        .wrap(Wrap { trim: true })
+        .block(Block::default().borders(Borders::ALL).title("Logs"));
+        frame.render_widget(logs, stacked[2]);
+        return;
+    }
 
     let cols = Layout::default()
         .direction(Direction::Horizontal)
@@ -795,82 +981,25 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         ])
         .split(rows[3]);
 
-    let mut job_rows: Vec<String> = model
-        .job_status
-        .iter()
-        .map(|(job_id, status)| format!("{job_id}  {status}"))
-        .collect();
-    if job_rows.is_empty() {
-        job_rows.push(jobs_empty_reason(model));
-    }
-    let visible_jobs = list_window(
-        &job_rows,
-        model.job_scroll,
-        cols[0].height.saturating_sub(2) as usize,
-    );
-    let job_items: Vec<ListItem> = visible_jobs
-        .into_iter()
-        .map(|row| {
-            let style = if !model.terminal_caps.color {
-                Style::default()
-            } else if row.contains("done") {
-                Style::default().fg(Color::Green)
-            } else if row.contains("failed") {
-                Style::default().fg(Color::Red)
-            } else if row.contains("cancelled") {
-                Style::default().fg(Color::Yellow)
-            } else if row.contains("running") {
-                Style::default().fg(Color::Blue)
-            } else {
-                Style::default().fg(Color::Gray)
-            };
-            let title = model
-                .job_titles
-                .get(row.split("  ").next().unwrap_or_default())
-                .cloned()
-                .unwrap_or_default();
-            let rendered = if title.is_empty() {
-                row
-            } else {
-                format!("{row}  {title}")
-            };
-            ListItem::new(rendered).style(style)
-        })
-        .collect();
-    let jobs = List::new(job_items).block(Block::default().borders(Borders::ALL).title("Jobs"));
+    let jobs_width = cols[0].width.saturating_sub(2) as usize;
+    let tasks_width = cols[1].width.saturating_sub(2) as usize;
+    let logs_width = cols[2].width.saturating_sub(2) as usize;
+
+    let jobs = List::new(build_job_rows(model, jobs_width))
+        .block(Block::default().borders(Borders::ALL).title("Jobs"));
     frame.render_widget(jobs, cols[0]);
 
-    let selected_job = model.selected_job.clone().unwrap_or_default();
-    let mut task_rows: Vec<String> = model
-        .task_status
-        .iter()
-        .filter_map(|(key, status)| {
-            if selected_job.is_empty() || key.starts_with(&format!("{selected_job}:")) {
-                Some(format!("{key}  {status}"))
-            } else {
-                None
-            }
-        })
-        .collect();
-    if task_rows.is_empty() {
-        task_rows.push(tasks_empty_reason(model));
-    }
-    let visible_tasks = list_window(
-        &task_rows,
-        model.task_scroll,
-        cols[1].height.saturating_sub(2) as usize,
-    );
-    let task_items: Vec<ListItem> = visible_tasks.into_iter().map(ListItem::new).collect();
-    let tasks = List::new(task_items).block(Block::default().borders(Borders::ALL).title("Tasks"));
+    let tasks = List::new(build_task_rows(model, tasks_width))
+        .block(Block::default().borders(Borders::ALL).title("Tasks"));
     frame.render_widget(tasks, cols[1]);
 
-    let visible_logs = tail_window(
-        &model.logs,
-        model.log_scroll,
+    let logs = Paragraph::new(build_log_lines(
+        model,
+        logs_width,
         cols[2].height.saturating_sub(2) as usize,
-    );
-    let log_items: Vec<ListItem> = visible_logs.into_iter().map(ListItem::new).collect();
-    let logs = List::new(log_items).block(Block::default().borders(Borders::ALL).title("Logs"));
+    ))
+    .wrap(Wrap { trim: true })
+    .block(Block::default().borders(Borders::ALL).title("Logs"));
     frame.render_widget(logs, cols[2]);
 }
 
@@ -1286,6 +1415,98 @@ fn apply_session_descriptor(model: &mut AppModel, event: &Value) {
     model.update_session_state(mode, source, scope, connection, note);
 }
 
+fn summarize_protocol_event(event_name: &str, event: &Value) -> String {
+    match event_name {
+        "hello" => {
+            let version = event
+                .get("supervisorVersion")
+                .and_then(|value| value.as_str())
+                .unwrap_or("unknown");
+            format!("supervisor connected | version {version}")
+        }
+        "session:attach" => {
+            let mode = event
+                .get("mode")
+                .and_then(|value| value.as_str())
+                .unwrap_or("unknown");
+            let source = event
+                .get("source")
+                .and_then(|value| value.as_str())
+                .unwrap_or("unknown");
+            format!("session attached | mode {mode} | source {source}")
+        }
+        "job:start" => {
+            let job_id = event
+                .get("jobId")
+                .and_then(|value| value.as_str())
+                .unwrap_or("job");
+            let title = event
+                .get("title")
+                .and_then(|value| value.as_str())
+                .unwrap_or("");
+            if title.is_empty() {
+                format!("job started | {job_id}")
+            } else {
+                format!("job started | {job_id} | {title}")
+            }
+        }
+        "job:spawn" => {
+            let job_id = event
+                .get("jobId")
+                .and_then(|value| value.as_str())
+                .unwrap_or("job");
+            let pid = event
+                .get("pid")
+                .and_then(|value| value.as_i64())
+                .unwrap_or(0);
+            format!("job spawned | {job_id} | pid {pid}")
+        }
+        "job:end" => {
+            let job_id = event
+                .get("jobId")
+                .and_then(|value| value.as_str())
+                .unwrap_or("job");
+            let status = event
+                .get("status")
+                .and_then(|value| value.as_str())
+                .unwrap_or("unknown");
+            format!("job finished | {job_id} | {status}")
+        }
+        "task:start" | "task:progress" | "task:end" => {
+            let job_id = event
+                .get("jobId")
+                .and_then(|value| value.as_str())
+                .unwrap_or("job");
+            let task_id = event
+                .get("taskId")
+                .and_then(|value| value.as_str())
+                .unwrap_or("task");
+            let status = event
+                .get("status")
+                .and_then(|value| value.as_str())
+                .unwrap_or("running");
+            let message = event
+                .get("message")
+                .and_then(|value| value.as_str())
+                .unwrap_or("");
+            if message.is_empty() {
+                format!("task {status} | {job_id}/{task_id}")
+            } else {
+                format!("task {status} | {job_id}/{task_id} | {message}")
+            }
+        }
+        "runtime:metrics" => {
+            let queue_depth = event
+                .get("flow")
+                .and_then(|value| value.get("queueDepth"))
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0);
+            format!("runtime metrics | queue depth {queue_depth}")
+        }
+        _ => format!("event {event_name}"),
+    }
+}
+
 fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) {
     let event_name = event
         .get("event")
@@ -1391,7 +1612,7 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
         }
         msg.to_string()
     } else {
-        format!("event={event_name} {event}")
+        summarize_protocol_event(&event_name, &event)
     };
     model.push_log(log_line);
 }

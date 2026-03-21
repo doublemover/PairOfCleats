@@ -34,6 +34,13 @@ The live UI now exposes an explicit session header so operators can tell:
 - run id and current scope
 - last durable alert
 
+Presentation behavior:
+
+- narrow terminals stack jobs, tasks, and logs vertically instead of squeezing three unreadable columns
+- runtime events are summarized into operator-facing text instead of raw JSON by default
+- logs wrap/truncate to pane width, while job/task rows use concise status summaries
+- no-color mode remains readable without relying on decorative styling
+
 ## Install layout
 
 Default install root is repo-local:
