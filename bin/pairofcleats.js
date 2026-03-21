@@ -191,6 +191,31 @@ function resolveCommand(primary, rest) {
   if (primary === 'search') {
     return { script: 'search.js', extraArgs: [], args: rest };
   }
+  if (primary === 'config') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      failCli('config requires a subcommand: dump, validate, reset', {
+        code: ERROR_CODES.INVALID_REQUEST,
+        showHelp: true
+      });
+    }
+    if (sub === 'dump') {
+      validateArgs(rest, ['repo', 'json'], ['repo']);
+      return { script: 'tools/config/dump.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'validate') {
+      validateArgs(rest, ['json', 'repo', 'config'], ['repo', 'config']);
+      return { script: 'tools/config/validate.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'reset') {
+      validateArgs(rest, ['repo', 'config', 'force', 'backup', 'json'], ['repo', 'config']);
+      return { script: 'tools/config/reset.js', extraArgs: [], args: rest };
+    }
+    failCli(`Unknown config subcommand: ${sub}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
+  }
   if (primary === 'dispatch') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub) || sub === 'list') {
@@ -300,7 +325,7 @@ function resolveCommand(primary, rest) {
   if (primary === 'report') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      failCli('report requires a subcommand: map, eval, compare-models, metrics', {
+      failCli('report requires a subcommand: map, eval, compare-models, throughput, summary, parity, metrics', {
         code: ERROR_CODES.INVALID_REQUEST,
         showHelp: true
       });
@@ -430,6 +455,15 @@ function resolveCommand(primary, rest) {
       );
       return { script: 'tools/reports/compare-models.js', extraArgs: [], args: rest };
     }
+    if (sub === 'throughput') {
+      return { script: 'tools/reports/show-throughput.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'summary') {
+      return { script: 'tools/reports/combined-summary.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'parity') {
+      return { script: 'tools/reports/parity-matrix.js', extraArgs: [], args: rest };
+    }
     if (sub === 'metrics') {
       validateArgs(rest, ['json', 'out', 'repo', 'top'], ['out', 'repo', 'top']);
       return { script: 'tools/reports/metrics-dashboard.js', extraArgs: [], args: rest };
@@ -442,7 +476,7 @@ function resolveCommand(primary, rest) {
   if (primary === 'service') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      failCli('service requires a subcommand: api, indexer', {
+      failCli('service requires a subcommand: api, mcp, indexer', {
         code: ERROR_CODES.INVALID_REQUEST,
         showHelp: true
       });
@@ -455,6 +489,10 @@ function resolveCommand(primary, rest) {
         valueOptionNames
       );
       return { script: 'tools/api/server.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'mcp') {
+      validateArgs(rest, ['repo', 'mcp-mode'], ['repo', 'mcp-mode']);
+      return { script: 'tools/mcp/server.js', extraArgs: [], args: rest };
     }
     if (sub === 'indexer') {
       const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(SERVICE_INDEXER_OPTIONS);
@@ -513,6 +551,31 @@ function resolveCommand(primary, rest) {
       return { script: 'tools/tui/install.js', extraArgs: [], args: rest };
     }
     failCli(`Unknown tui subcommand: ${sub}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
+  }
+  if (primary === 'bench') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      failCli('bench requires a subcommand: language, matrix, summarize, micro', {
+        code: ERROR_CODES.INVALID_REQUEST,
+        showHelp: true
+      });
+    }
+    if (sub === 'language') {
+      return { script: 'tools/bench/language-repos.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'matrix') {
+      return { script: 'tools/bench/language-matrix.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'summarize') {
+      return { script: 'tools/bench/language-summarize.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'micro') {
+      return { script: 'tools/bench/micro/run.js', extraArgs: [], args: rest };
+    }
+    failCli(`Unknown bench subcommand: ${sub}`, {
       code: ERROR_CODES.INVALID_REQUEST,
       showHelp: true
     });
@@ -763,7 +826,7 @@ function resolveCommand(primary, rest) {
   if (primary === 'tooling') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      failCli('tooling requires a subcommand: doctor, navigate', {
+      failCli('tooling requires a subcommand: doctor, detect, install, navigate, uninstall', {
         code: ERROR_CODES.INVALID_REQUEST,
         showHelp: true
       });
@@ -772,11 +835,39 @@ function resolveCommand(primary, rest) {
       validateArgs(rest, ['repo', 'json', 'strict', 'non-strict'], ['repo']);
       return { script: 'tools/tooling/doctor.js', extraArgs: [], args: rest };
     }
+    if (sub === 'detect') {
+      validateArgs(rest, ['json', 'root', 'repo', 'languages'], ['root', 'repo', 'languages']);
+      return { script: 'tools/tooling/detect.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'install') {
+      validateArgs(rest, ['json', 'dry-run', 'no-fallback', 'root', 'repo', 'scope', 'languages', 'tools'], ['root', 'repo', 'scope', 'languages', 'tools']);
+      return { script: 'tools/tooling/install.js', extraArgs: [], args: rest };
+    }
     if (sub === 'navigate') {
       validateArgs(rest, ['repo', 'kind', 'symbol', 'file', 'top', 'json'], ['repo', 'kind', 'symbol', 'file', 'top']);
       return { script: 'tools/tooling/navigation.js', extraArgs: [], args: rest };
     }
+    if (sub === 'uninstall') {
+      validateArgs(rest, ['yes', 'dry-run', 'repo'], ['repo']);
+      return { script: 'tools/tooling/uninstall.js', extraArgs: [], args: rest };
+    }
     failCli(`Unknown tooling subcommand: ${sub}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
+  }
+  if (primary === 'sqlite') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      failCli('sqlite requires a subcommand: compact', {
+        code: ERROR_CODES.INVALID_REQUEST,
+        showHelp: true
+      });
+    }
+    if (sub === 'compact') {
+      return { script: 'tools/build/compact-sqlite-index.js', extraArgs: [], args: rest };
+    }
+    failCli(`Unknown sqlite subcommand: ${sub}`, {
       code: ERROR_CODES.INVALID_REQUEST,
       showHelp: true
     });
@@ -809,8 +900,8 @@ function resolveCommand(primary, rest) {
     if (sub === 'explain') {
       validateArgs(
         rest,
-        ['index', 'chunk', 'max', 'rule', 'category', 'severity', 'tag', 'source', 'sink', 'flow-id', 'source-rule', 'sink-rule', 'json', 'includePartialFlows', 'maxPartialFlows', 'include-partial-flows', 'max-partial-flows'],
-        ['index', 'chunk', 'max', 'rule', 'category', 'severity', 'tag', 'source', 'sink', 'flow-id', 'source-rule', 'sink-rule', 'maxPartialFlows', 'max-partial-flows']
+        ['index', 'chunk', 'max', 'rule', 'category', 'severity', 'tag', 'source', 'sink', 'flow-id', 'source-rule', 'sink-rule', 'json', 'format', 'includePartialFlows', 'maxPartialFlows', 'include-partial-flows', 'max-partial-flows'],
+        ['index', 'chunk', 'max', 'rule', 'category', 'severity', 'tag', 'source', 'sink', 'flow-id', 'source-rule', 'sink-rule', 'format', 'maxPartialFlows', 'max-partial-flows']
       );
       return { script: 'tools/analysis/explain-risk.js', extraArgs: [], args: rest };
     }
@@ -949,13 +1040,15 @@ async function runScript(scriptPath, extraArgs, restArgs) {
   }
   const repoOverride = extractRepoArg(restArgs);
   const repoRoot = repoOverride ? path.resolve(repoOverride) : resolveRepoRoot(process.cwd());
-  const env = await resolveDispatchRuntimeEnv({
-    root: repoRoot,
-    scriptPath,
-    extraArgs,
-    restArgs,
-    baseEnv: process.env
-  });
+  const env = shouldSkipDispatchRuntimeEnvResolution(scriptPath)
+    ? { ...process.env }
+    : await resolveDispatchRuntimeEnv({
+      root: repoRoot,
+      scriptPath,
+      extraArgs,
+      restArgs,
+      baseEnv: process.env
+    });
   const result = spawnSubprocessSync(process.execPath, [resolved, ...extraArgs, ...restArgs], {
     stdio: 'inherit',
     env,
@@ -987,6 +1080,24 @@ function extractRepoArg(args) {
     }
   }
   return null;
+}
+
+/**
+ * Commands that either recover from invalid config or do not benefit from
+ * wrapper-side runtime envelope shaping should launch with the caller env.
+ *
+ * @param {string} scriptPath
+ * @returns {boolean}
+ */
+function shouldSkipDispatchRuntimeEnvResolution(scriptPath) {
+  const normalized = String(scriptPath || '').trim().replace(/\\/g, '/');
+  return normalized.startsWith('tools/config/')
+    || normalized.startsWith('tools/tooling/')
+    || normalized.startsWith('tools/tui/')
+    || normalized.startsWith('tools/reports/')
+    || normalized.startsWith('tools/bench/')
+    || normalized === 'tools/mcp/server.js'
+    || normalized === 'tools/build/compact-sqlite-index.js';
 }
 
 /**

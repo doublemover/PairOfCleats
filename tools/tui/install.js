@@ -21,7 +21,7 @@ import {
 } from './targets.js';
 
 const argv = createCli({
-  scriptName: 'tui-install',
+  scriptName: 'pairofcleats tui install',
   options: {
     json: { type: 'boolean', default: false },
     target: { type: 'string', default: '' },

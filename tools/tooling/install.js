@@ -10,7 +10,7 @@ import { splitPathEntries } from '../../src/index/tooling/binary-utils.js';
 import { getToolingConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
 
 const argv = createCli({
-  scriptName: 'tooling-install',
+  scriptName: 'pairofcleats tooling install',
   options: {
     json: { type: 'boolean', default: false },
     'dry-run': { type: 'boolean', default: false },

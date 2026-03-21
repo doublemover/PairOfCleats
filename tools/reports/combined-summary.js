@@ -10,7 +10,7 @@ import { ensureParityArtifacts } from '../shared/parity-indexes.js';
 
 const rawArgs = process.argv.slice(2);
 const argv = createCli({
-  scriptName: 'summary-report',
+  scriptName: 'pairofcleats report summary',
   options: {
     json: { type: 'boolean', default: false },
     build: { type: 'boolean', default: true },

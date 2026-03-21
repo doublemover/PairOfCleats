@@ -6,7 +6,7 @@ import { resolveRepoRootArg } from '../shared/dict-utils.js';
 import { emitJson } from '../shared/cli-utils.js';
 
 const argv = createCli({
-  scriptName: 'tooling-detect',
+  scriptName: 'pairofcleats tooling detect',
   options: {
     json: { type: 'boolean', default: false },
     root: { type: 'string' },
@@ -55,5 +55,5 @@ if (missing.length) {
     console.error(`- ${tool.id} (${tool.label})`);
     if (tool.docs) console.error(`  Docs: ${tool.docs}`);
   }
-  console.error('Run: node tools/tooling/install.js --scope cache');
+  console.error('Run: pairofcleats tooling install --scope cache');
 }

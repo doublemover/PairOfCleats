@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T15:07:50.433Z",
+  "generatedAt": "2026-03-21T15:35:05.052Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -198,6 +198,7 @@
       "PAIROFCLEATS_TOOLING_LSP_SLO_BASELINE",
       "PAIROFCLEATS_TRACE_ARTIFACT_IO",
       "PAIROFCLEATS_TUI_ALT_SCREEN",
+      "PAIROFCLEATS_TUI_CARGO",
       "PAIROFCLEATS_TUI_DIST_DIR",
       "PAIROFCLEATS_TUI_EVENT_LOG_DIR",
       "PAIROFCLEATS_TUI_INSTALL_ROOT",
@@ -3545,8 +3546,17 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TUI_CARGO",
+      "files": [
+        "tests/cli/general/tui-build-install.test.js",
+        "tools/config/inventory.js",
+        "tools/tui/targets.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TUI_DIST_DIR",
       "files": [
+        "tests/cli/general/tui-build-install.test.js",
         "tests/tui/build-verify-manifest.test.js",
         "tests/tui/headless-smoke.test.js",
         "tests/tui/installer-unit.test.js",
@@ -3730,7 +3740,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 432,
+    "totalFlags": 434,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -4113,6 +4123,7 @@
       "skip-validate",
       "skipPrepare",
       "slo",
+      "smoke",
       "snapshot",
       "sort",
       "source",
@@ -4153,6 +4164,7 @@
       "validate-config",
       "verbose",
       "verify",
+      "verify-manifest",
       "warmup",
       "warmup-samples",
       "wasd-acceleration",
@@ -6049,6 +6061,14 @@
         ]
       },
       {
+        "file": "tools/tui/build.js",
+        "flags": [
+          "smoke",
+          "target",
+          "verify-manifest"
+        ]
+      },
+      {
         "file": "tools/tui/install.js",
         "flags": [
           "event-log-dir",
@@ -7740,6 +7760,14 @@
         "files": [
           "src/integrations/tooling/context-pack.js",
           "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "target",
+        "count": 2,
+        "files": [
+          "tools/tui/build.js",
+          "tools/tui/install.js"
         ]
       },
       {

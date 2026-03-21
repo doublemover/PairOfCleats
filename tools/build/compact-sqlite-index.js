@@ -509,7 +509,7 @@ const argvEntry = typeof process.argv[1] === 'string' ? process.argv[1] : '';
 const isDirectRun = argvEntry ? import.meta.url === pathToFileURL(argvEntry).href : false;
 if (isDirectRun) {
   const argv = createCli({
-    scriptName: 'compact-sqlite-index',
+    scriptName: 'pairofcleats sqlite compact',
     options: {
       mode: { type: 'string', default: 'all' },
       repo: { type: 'string' },

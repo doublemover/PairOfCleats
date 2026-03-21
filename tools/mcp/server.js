@@ -8,7 +8,7 @@ import { handleToolCall } from './tools.js';
 import { createMcpTransport } from './transport.js';
 
 const argv = createCli({
-  scriptName: 'mcp-server',
+  scriptName: 'pairofcleats service mcp',
   options: {
     'mcp-mode': { type: 'string' },
     repo: { type: 'string' }

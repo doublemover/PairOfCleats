@@ -13,6 +13,7 @@ export const TUI_INSTALL_LAYOUT_VERSION = 1;
 export const TUI_INSTALL_LAYOUT_DIR = `install-v${TUI_INSTALL_LAYOUT_VERSION}`;
 export const TUI_INSTALL_METADATA_FILE = 'install-manifest.json';
 export const TUI_BUILD_DIST_DIR_ENV = 'PAIROFCLEATS_TUI_DIST_DIR';
+export const TUI_CARGO_COMMAND_ENV = 'PAIROFCLEATS_TUI_CARGO';
 
 const normalizeString = (value) => String(value || '').trim();
 
@@ -93,6 +94,44 @@ const normalizeTargetsPayload = (payload, sourcePath) => {
 };
 
 export const resolveTargetsPath = (root) => path.join(root, 'tools', 'tui', 'targets.json');
+
+export const resolveCargoManifestPath = (root) => path.join(root, 'crates', 'pairofcleats-tui', 'Cargo.toml');
+
+export const resolveCargoCommandInvocation = (env = process.env) => {
+  const override = normalizeString(env?.[TUI_CARGO_COMMAND_ENV]);
+  if (!override) {
+    return {
+      command: 'cargo',
+      args: []
+    };
+  }
+  const resolved = path.resolve(override);
+  const extension = path.extname(resolved).toLowerCase();
+  if (extension === '.js' || extension === '.mjs' || extension === '.cjs') {
+    return {
+      command: process.execPath,
+      args: [resolved]
+    };
+  }
+  return {
+    command: resolved,
+    args: []
+  };
+};
+
+export const resolveCargoTargetDir = ({ root, env = process.env } = {}) => {
+  const override = normalizeString(env?.CARGO_TARGET_DIR);
+  if (override) return path.resolve(override);
+  return path.join(path.dirname(resolveCargoManifestPath(root)), 'target');
+};
+
+const resolveCargoBinaryBaseName = () => 'pairofcleats-tui';
+
+export const resolveCargoBuildOutputPath = ({ root, triple, env = process.env } = {}) => {
+  const targetDir = resolveCargoTargetDir({ root, env });
+  const suffix = String(triple || '').includes('windows') ? '.exe' : '';
+  return path.join(targetDir, String(triple || ''), 'release', `${resolveCargoBinaryBaseName()}${suffix}`);
+};
 
 export const resolveBuildDistDir = ({ root, env = process.env } = {}) => {
   const override = normalizeString(env?.[TUI_BUILD_DIST_DIR_ENV]);

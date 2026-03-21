@@ -14,7 +14,7 @@ import { parseCommaList } from '../shared/text-utils.js';
 import { readQueryFile } from '../shared/query-file-utils.js';
 
 const argv = createCli({
-  scriptName: 'parity-matrix',
+  scriptName: 'pairofcleats report parity',
   options: {
     backend: { type: 'string' },
     backends: { type: 'string' },

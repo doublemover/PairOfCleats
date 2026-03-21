@@ -67,11 +67,20 @@ const offsetToPosition = (starts, offset) => {
   };
 };
 
-const createFilePositionResolver = () => {
+const resolveArtifactFilePath = (repoRoot, filePath) => {
+  const target = normalizeText(filePath);
+  if (!target) return '';
+  if (path.isAbsolute(target)) return path.resolve(target);
+  const root = normalizeText(repoRoot);
+  if (!root) return path.resolve(target);
+  return path.resolve(root, target);
+};
+
+const createFilePositionResolver = (repoRoot = '') => {
   const cache = new Map();
   return (filePath, range) => {
     if (!filePath || !range || !Number.isFinite(range.start) || !Number.isFinite(range.end)) return null;
-    const resolved = path.resolve(filePath);
+    const resolved = resolveArtifactFilePath(repoRoot, filePath);
     let entry = cache.get(resolved);
     if (!entry) {
       try {
@@ -166,7 +175,7 @@ const refMatchesSymbolIds = (ref, symbolIds, query) => {
 
 const relativeVirtualPath = (repoRoot, filePath) => {
   const root = normalizeText(repoRoot);
-  const target = normalizeText(filePath);
+  const target = resolveArtifactFilePath(root, filePath);
   if (!root || !target) return '';
   const relative = path.relative(root, target);
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return '';
@@ -380,7 +389,7 @@ export const queryNavigationData = async ({
     if (occurrenceChunkUids.size === 0 || chunkByUid.size >= (wantedChunkUids.size + occurrenceChunkUids.size)) break;
   }
 
-  const resolveFileRange = createFilePositionResolver();
+  const resolveFileRange = createFilePositionResolver(repoRoot);
   const seen = new Set();
   payload.results = occurrences
     .map((row) => {

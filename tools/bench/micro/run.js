@@ -14,6 +14,7 @@ const defaultRepo = path.resolve(toolRoot, 'tests', 'fixtures', 'sample');
 
 const rawArgs = process.argv.slice(2);
 const argv = createCli({
+  scriptName: 'pairofcleats bench micro',
   options: {
     repo: {
       type: 'string',

@@ -12,7 +12,7 @@ import {
 } from '../shared/dict-utils.js';
 
 const argv = createCli({
-  scriptName: 'config-dump',
+  scriptName: 'pairofcleats config dump',
   options: {
     repo: { type: 'string' },
     json: { type: 'boolean', default: false }

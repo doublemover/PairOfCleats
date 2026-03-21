@@ -371,7 +371,7 @@ const renderMarkdown = ({ summary }) => {
 };
 
 const printUsage = () => {
-  console.error('Usage: node tools/bench/language-summarize.js [options]');
+  console.error('Usage: pairofcleats bench summarize [options]');
   console.error('');
   console.error('Options:');
   console.error('  --results <path>      Results root (default: ./benchmarks/results)');

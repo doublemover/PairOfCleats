@@ -8,7 +8,7 @@ import { emitJson } from '../shared/cli-utils.js';
 import { validateConfig } from '../../src/config/validate.js';
 
 const argv = createCli({
-  scriptName: 'config-validate',
+  scriptName: 'pairofcleats config validate',
   options: {
     json: { type: 'boolean', default: false },
     repo: { type: 'string' },

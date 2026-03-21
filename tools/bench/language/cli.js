@@ -82,7 +82,7 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
     }
   );
   const argv = createCli({
-    scriptName: 'bench-language',
+    scriptName: 'pairofcleats bench language',
     options: benchOptions,
     argv: ['node', 'tools/bench/language-repos.js', ...(rawArgs || [])]
   }).parse();

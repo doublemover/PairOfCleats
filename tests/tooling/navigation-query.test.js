@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 import { getRepoCacheRoot } from '../../tools/dict-utils/paths/repo.js';
 import { queryNavigationData } from '../../tools/tooling/navigation.js';
@@ -10,8 +11,10 @@ import { queryNavigationData } from '../../tools/tooling/navigation.js';
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-navigation-query-'));
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
+const outsideRoot = path.join(tempRoot, 'outside');
 const srcDir = path.join(repoRoot, 'src');
 await fs.mkdir(srcDir, { recursive: true });
+await fs.mkdir(outsideRoot, { recursive: true });
 await fs.writeFile(
   path.join(repoRoot, '.pairofcleats.json'),
   JSON.stringify({
@@ -157,6 +160,16 @@ assert.equal(documentSymbols.results.length, 1);
 assert.equal(documentSymbols.results[0].name, 'WidgetBuilder');
 assert.equal(documentSymbols.results[0].virtualPath, 'src/defs.js');
 
+const repoRelativeDocumentSymbols = await queryNavigationData({
+  repoRoot,
+  kind: 'document-symbols',
+  filePath: 'src/defs.js',
+  limit: 10
+});
+assert.equal(repoRelativeDocumentSymbols.ok, true);
+assert.equal(repoRelativeDocumentSymbols.results.length, 1);
+assert.equal(repoRelativeDocumentSymbols.results[0].virtualPath, 'src/defs.js');
+
 const completions = await queryNavigationData({
   repoRoot,
   kind: 'completions',
@@ -168,5 +181,22 @@ assert.equal(completions.ok, true);
 assert.equal(completions.results.length, 1);
 assert.equal(completions.results[0].name, 'WidgetBuilder');
 assert.equal(completions.results[0].virtualPath, 'src/defs.js');
+
+const cliPath = path.join(process.cwd(), 'bin', 'pairofcleats.js');
+const cliReferences = spawnSync(
+  process.execPath,
+  [cliPath, 'tooling', 'navigate', '--repo', repoRoot, '--kind', 'references', '--symbol', 'WidgetBuilder', '--file', 'src/refs.js', '--top', '10', '--json'],
+  {
+    cwd: outsideRoot,
+    encoding: 'utf8'
+  }
+);
+assert.equal(cliReferences.status, 0, cliReferences.stderr || 'expected CLI tooling navigate to succeed');
+const cliPayload = JSON.parse(cliReferences.stdout || '{}');
+assert.equal(cliPayload.ok, true);
+assert.equal(cliPayload.results.length, 1);
+assert.equal(cliPayload.results[0].virtualPath, 'src/refs.js');
+assert.equal(cliPayload.results[0].startLine, 2);
+assert.equal(cliPayload.results[0].startCol, 1);
 
 console.log('navigation query test passed');

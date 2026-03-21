@@ -53,6 +53,14 @@ assert.equal(filteredResult.status, 0, 'expected filtered risk explain run to su
 const filteredOutput = getCombinedOutput(filteredResult, { trim: true });
 assert.ok(filteredOutput.includes(flow.flowId), 'expected filtered output to include requested flow');
 
+const markdownResult = spawnSync(
+  process.execPath,
+  [binPath, 'risk', 'explain', '--index', codeDir, '--chunk', chunkUid, '--max', '1', '--format', 'md'],
+  { encoding: 'utf8', env }
+);
+assert.equal(markdownResult.status, 0, 'expected markdown risk explain run to succeed');
+assert.ok(getCombinedOutput(markdownResult, { trim: true }).includes(flow.flowId), 'expected markdown output to include flowId');
+
 const jsonResult = spawnSync(
   process.execPath,
   [binPath, 'risk', 'explain', '--index', codeDir, '--chunk', chunkUid, '--max', '1', '--json', '--includePartialFlows', '--maxPartialFlows', '2'],

@@ -40,7 +40,7 @@ const normalizeChoice = (value, allowed, fallback) => {
 
 const createShowThroughputCli = ({ argv = process.argv, cwd = process.cwd() } = {}) => createCli({
   argv,
-  scriptName: 'pairofcleats show-throughput',
+  scriptName: 'pairofcleats report throughput',
   usage: '$0 [options]',
   options: {
     root: {

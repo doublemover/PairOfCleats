@@ -16,10 +16,13 @@ const entry = (id, commandPath, script, description, extras = {}) => Object.free
 
 export const COMMAND_HELP_GROUP_ORDER = Object.freeze([
   'Core',
+  'Config',
   'Index',
+  'SQLite',
   'Search',
   'Workspace',
   'Service',
+  'Bench',
   'Ingest',
   'TUI',
   'Dispatch',
@@ -59,6 +62,18 @@ export const COMMAND_REGISTRY = Object.freeze([
     helpGroup: 'Core',
     expectedArtifacts: ['config:file', 'cache:dicts', 'cache:models', 'index:code', 'index:prose', 'index:records']
   }),
+  entry('config.dump', ['config', 'dump'], 'tools/config/dump.js', 'Dump effective config and derived runtime state.', {
+    helpGroup: 'Config',
+    capability: false
+  }),
+  entry('config.validate', ['config', 'validate'], 'tools/config/validate.js', 'Validate repo config against the schema.', {
+    helpGroup: 'Config',
+    capability: false
+  }),
+  entry('config.reset', ['config', 'reset'], 'tools/config/reset.js', 'Reset repo config back to the default template.', {
+    helpGroup: 'Config',
+    capability: false
+  }),
   entry('index.build', ['index', 'build'], 'build_index.js', 'Build file-backed indexes.', {
     helpGroup: 'Index',
     expectedArtifacts: ['index:code', 'index:prose', 'index:records']
@@ -83,6 +98,10 @@ export const COMMAND_REGISTRY = Object.freeze([
     helpGroup: 'Index',
     capability: false
   }),
+  entry('sqlite.compact', ['sqlite', 'compact'], 'tools/build/compact-sqlite-index.js', 'Compact SQLite indexes in place.', {
+    helpGroup: 'SQLite',
+    capability: false
+  }),
   entry('search', ['search'], 'search.js', 'Query indexed data.', {
     helpGroup: 'Search',
     expectedArtifacts: ['metrics:search'],
@@ -105,8 +124,28 @@ export const COMMAND_REGISTRY = Object.freeze([
   entry('service.api', ['service', 'api'], 'tools/api/server.js', 'Run local API service.', {
     helpGroup: 'Service'
   }),
+  entry('service.mcp', ['service', 'mcp'], 'tools/mcp/server.js', 'Run local MCP service.', {
+    helpGroup: 'Service',
+    capability: false
+  }),
   entry('service.indexer', ['service', 'indexer'], 'tools/service/indexer-service.js', 'Run indexer service.', {
     helpGroup: 'Service'
+  }),
+  entry('bench.language', ['bench', 'language'], 'tools/bench/language-repos.js', 'Run the bench-language corpus.', {
+    helpGroup: 'Bench',
+    capability: false
+  }),
+  entry('bench.matrix', ['bench', 'matrix'], 'tools/bench/language-matrix.js', 'Run the bench-language backend matrix.', {
+    helpGroup: 'Bench',
+    capability: false
+  }),
+  entry('bench.summarize', ['bench', 'summarize'], 'tools/bench/language-summarize.js', 'Summarize completed bench-language runs.', {
+    helpGroup: 'Bench',
+    capability: false
+  }),
+  entry('bench.micro', ['bench', 'micro'], 'tools/bench/micro/run.js', 'Run focused indexing/search microbenchmarks.', {
+    helpGroup: 'Bench',
+    capability: false
   }),
   entry('ingest.ctags', ['ingest', 'ctags'], 'tools/ingest/ctags.js', 'Ingest ctags symbols.', {
     helpGroup: 'Ingest',
@@ -144,7 +183,19 @@ export const COMMAND_REGISTRY = Object.freeze([
   entry('tooling.doctor', ['tooling', 'doctor'], 'tools/tooling/doctor.js', 'Inspect tooling availability and configuration.', {
     helpGroup: 'Tooling'
   }),
+  entry('tooling.detect', ['tooling', 'detect'], 'tools/tooling/detect.js', 'Detect repo tooling and language coverage.', {
+    helpGroup: 'Tooling',
+    capability: false
+  }),
+  entry('tooling.install', ['tooling', 'install'], 'tools/tooling/install.js', 'Install or plan external tooling dependencies.', {
+    helpGroup: 'Tooling',
+    capability: false
+  }),
   entry('tooling.navigate', ['tooling', 'navigate'], 'tools/tooling/navigation.js', 'Query indexed definitions, references, and document symbols.', {
+    helpGroup: 'Tooling',
+    capability: false
+  }),
+  entry('tooling.uninstall', ['tooling', 'uninstall'], 'tools/tooling/uninstall.js', 'Remove installed PairOfCleats caches and tooling payloads.', {
     helpGroup: 'Tooling',
     capability: false
   }),
@@ -172,6 +223,18 @@ export const COMMAND_REGISTRY = Object.freeze([
     capability: {
       flagSetId: 'bench'
     }
+  }),
+  entry('report.throughput', ['report', 'throughput'], 'tools/reports/show-throughput.js', 'Render benchmark throughput overviews.', {
+    helpGroup: 'Report',
+    capability: false
+  }),
+  entry('report.summary', ['report', 'summary'], 'tools/reports/combined-summary.js', 'Build the combined summary report.', {
+    helpGroup: 'Report',
+    capability: false
+  }),
+  entry('report.parity', ['report', 'parity'], 'tools/reports/parity-matrix.js', 'Run the retrieval parity matrix harness.', {
+    helpGroup: 'Report',
+    capability: false
   }),
   entry('report.metrics', ['report', 'metrics'], 'tools/reports/metrics-dashboard.js', 'Render metrics dashboard artifacts.', {
     helpGroup: 'Report'

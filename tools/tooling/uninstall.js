@@ -9,7 +9,7 @@ import { getCacheRoot, getDictConfig, getExtensionsDir, getModelsDir, resolveRep
 import { isInside, isRootPath } from '../shared/path-utils.js';
 
 const argv = createCli({
-  scriptName: 'uninstall',
+  scriptName: 'pairofcleats tooling uninstall',
   options: {
     yes: { type: 'boolean', default: false },
     'dry-run': { type: 'boolean', default: false },

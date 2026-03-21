@@ -39,7 +39,7 @@ const benchOptions = mergeCliOptions(
   }
 );
 const argv = createCli({
-  scriptName: 'bench-language-matrix',
+  scriptName: 'pairofcleats bench matrix',
   options: benchOptions
 }).parse();
 validateBenchArgs(argv, { allowedOptions: benchOptions });
