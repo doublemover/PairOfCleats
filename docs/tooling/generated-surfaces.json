@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "1.0.0",
+  "surfaces": [
+    {
+      "id": "script-inventory",
+      "owner": "tooling-docs",
+      "committed": true,
+      "validationMode": "registry-audited",
+      "freshnessExpectation": "regenerate after command-surface changes",
+      "outputs": [
+        "docs/tooling/script-inventory.json",
+        "docs/guides/commands.md"
+      ],
+      "refresh": {
+        "command": "node tools/docs/script-inventory.js"
+      },
+      "audit": {
+        "command": "node tools/docs/generated-surfaces.js --check --surface script-inventory"
+      }
+    },
+    {
+      "id": "repo-inventory",
+      "owner": "tooling-docs",
+      "committed": true,
+      "validationMode": "registry-audited",
+      "freshnessExpectation": "regenerate after docs, tool entrypoints, script references, or workflow references change",
+      "outputs": [
+        "docs/tooling/repo-inventory.json"
+      ],
+      "refresh": {
+        "command": "node tools/docs/repo-inventory.js --root . --json docs/tooling/repo-inventory.json"
+      },
+      "audit": {
+        "command": "node tools/docs/generated-surfaces.js --check --surface repo-inventory"
+      }
+    },
+    {
+      "id": "doc-contract-drift",
+      "owner": "tooling-docs",
+      "committed": true,
+      "validationMode": "drift-report",
+      "freshnessExpectation": "regenerate after contract docs, CLI flags, artifact schema docs, or test lane docs change",
+      "outputs": [
+        "docs/tooling/doc-contract-drift.json",
+        "docs/tooling/doc-contract-drift.md"
+      ],
+      "refresh": {
+        "command": "node tools/docs/contract-drift.js"
+      },
+      "audit": {
+        "command": "node tools/docs/contract-drift.js --fail"
+      }
+    },
+    {
+      "id": "config-contract",
+      "owner": "config",
+      "committed": true,
+      "validationMode": "registry-audited",
+      "freshnessExpectation": "regenerate after config schema, env mapping, or public CLI config surface changes",
+      "outputs": [
+        "docs/config/contract.md"
+      ],
+      "refresh": {
+        "command": "node tools/config/contract-doc.js"
+      },
+      "audit": {
+        "command": "node tools/docs/generated-surfaces.js --check --surface config-contract"
+      }
+    },
+    {
+      "id": "config-inventory",
+      "owner": "config",
+      "committed": true,
+      "validationMode": "sync-check",
+      "freshnessExpectation": "regenerate after config schema, env vars, or public CLI/config exposure changes",
+      "outputs": [
+        "docs/config/inventory.json",
+        "docs/config/inventory.md"
+      ],
+      "refresh": {
+        "command": "node tools/config/inventory.js"
+      },
+      "audit": {
+        "command": "node tools/config/inventory.js --check"
+      }
+    },
+    {
+      "id": "artifact-schema-index",
+      "owner": "contracts",
+      "committed": true,
+      "validationMode": "test-backed-sync",
+      "freshnessExpectation": "regenerate after artifact schema registry changes",
+      "outputs": [
+        "docs/contracts/artifact-schema-index.json"
+      ],
+      "refresh": {
+        "command": "node tools/docs/export-artifact-schema-index.js"
+      },
+      "audit": {
+        "command": "node tests/tooling/docs/artifact-schema-index.test.js"
+      }
+    }
+  ]
+}
