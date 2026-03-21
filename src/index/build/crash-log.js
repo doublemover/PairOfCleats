@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
+import readline from 'node:readline';
 import { pipeline } from 'node:stream/promises';
 import { getRecentLogEvents } from '../../shared/progress.js';
 import { createTempPath } from '../../shared/json-stream/atomic.js';
@@ -17,7 +18,7 @@ import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.
  */
 const formatTimestamp = () => new Date().toISOString();
 const RENAME_RETRY_CODES = new Set(['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV']);
-const CRASH_RETENTION_SCHEMA_VERSION = '1.0.0';
+const CRASH_RETENTION_SCHEMA_VERSION = '1.1.0';
 const CRASH_RETENTION_BUNDLE_FILE = 'retained-crash-bundle.json';
 const CRASH_RETENTION_MARKER_FILE = 'retained-crash-bundle.consistency.json';
 const CRASH_RETENTION_LOG_TAIL_LIMIT = 100;
@@ -25,6 +26,13 @@ const CRASH_RETENTION_SCHEDULER_EVENT_LIMIT = 40;
 const CRASH_RETENTION_SCAN_MAX_DEPTH = 12;
 const CRASH_RETENTION_FORENSIC_SCAN_MAX_FILES = 1200;
 const CRASH_RETENTION_DURABLE_SCAN_MAX_FILES = 600;
+const CRASH_RETENTION_PROFILE_ENV = 'PAIROFCLEATS_CRASH_RETENTION_PROFILE';
+const CRASH_RETENTION_FULL_TRACE_ENV = 'PAIROFCLEATS_CRASH_RETENTION_FULL_TRACE';
+const CRASH_RETENTION_DEFAULT_BUNDLE_BUDGET_BYTES = 32 * 1024 * 1024;
+const CRASH_RETENTION_DEFAULT_FULL_TRACE_MAX_BYTES = 2 * 1024 * 1024;
+const CRASH_RETENTION_TRACE_HEAD_LIMIT = 24;
+const CRASH_RETENTION_TRACE_TAIL_LIMIT = 48;
+const CRASH_RETENTION_TRACE_TOP_LIMIT = 10;
 const RETAINED_CRASH_LOG_BASENAMES = new Set([
   'index-crash.log',
   'index-crash-state.json',
@@ -74,6 +82,27 @@ const computeForensicSignature = (payload) => {
   } catch {
     return sha1(String(payload || '')).slice(0, 20);
   }
+};
+
+const normalizeCrashRetentionProfile = (value) => {
+  const text = String(value || '').trim().toLowerCase();
+  return text === 'full' ? 'full' : 'default';
+};
+
+const resolveCrashRetentionPolicy = () => {
+  const profile = normalizeCrashRetentionProfile(process.env[CRASH_RETENTION_PROFILE_ENV]);
+  const fullTraceEnabled = profile === 'full' || process.env[CRASH_RETENTION_FULL_TRACE_ENV] === '1';
+  return {
+    profile: fullTraceEnabled ? 'full' : 'default',
+    bundleBudgetBytes: CRASH_RETENTION_DEFAULT_BUNDLE_BUDGET_BYTES,
+    fullTraceMaxBytes: fullTraceEnabled
+      ? Number.POSITIVE_INFINITY
+      : CRASH_RETENTION_DEFAULT_FULL_TRACE_MAX_BYTES,
+    traceHeadLimit: CRASH_RETENTION_TRACE_HEAD_LIMIT,
+    traceTailLimit: CRASH_RETENTION_TRACE_TAIL_LIMIT,
+    traceTopLimit: CRASH_RETENTION_TRACE_TOP_LIMIT,
+    fullTraceEnabled
+  };
 };
 
 /**
@@ -312,6 +341,121 @@ const listFilesRecursive = async (
   return out;
 };
 
+const toSortedCountEntries = (map, limit = CRASH_RETENTION_TRACE_TOP_LIMIT) => Array.from(map.entries())
+  .sort((left, right) => (right[1] - left[1]) || String(left[0]).localeCompare(String(right[0])))
+  .slice(0, Math.max(1, Math.floor(limit)))
+  .map(([value, count]) => ({ value, count }));
+
+const appendRingSample = (items, value, limit) => {
+  items.push(value);
+  if (items.length > limit) items.shift();
+};
+
+const maybeParseTraceEntry = (line) => {
+  try {
+    return JSON.parse(line);
+  } catch {
+    return { raw: line };
+  }
+};
+
+const buildTraceSampleEntry = (entry) => {
+  if (!entry || typeof entry !== 'object') return entry;
+  return {
+    ts: entry.ts || null,
+    phase: entry.phase || null,
+    stage: entry.stage || null,
+    substage: entry.substage || null,
+    file: entry.file || null,
+    mode: entry.mode || null,
+    ...(entry.errorCode ? { errorCode: entry.errorCode } : {}),
+    ...(entry.errorName ? { errorName: entry.errorName } : {}),
+    ...(entry.errorMessage ? { errorMessage: entry.errorMessage } : {}),
+    ...(entry.raw ? { raw: entry.raw } : {})
+  };
+};
+
+const summarizeCrashTrace = async ({
+  sourcePath,
+  summaryPath,
+  sourceBytes,
+  policy
+}) => {
+  const phaseCounts = new Map();
+  const stageCounts = new Map();
+  const substageCounts = new Map();
+  const fileCounts = new Map();
+  const head = [];
+  const tail = [];
+  let totalEvents = 0;
+  let parsedEvents = 0;
+  let rawEvents = 0;
+  let maxFileIndex = null;
+  const input = fsSync.createReadStream(sourcePath, { encoding: 'utf8' });
+  const reader = readline.createInterface({
+    input,
+    crlfDelay: Infinity
+  });
+  try {
+    for await (const line of reader) {
+      const trimmed = String(line || '').trim();
+      if (!trimmed) continue;
+      totalEvents += 1;
+      const entry = maybeParseTraceEntry(trimmed);
+      const parsed = !Object.prototype.hasOwnProperty.call(entry, 'raw');
+      if (parsed) parsedEvents += 1;
+      else rawEvents += 1;
+      const sample = buildTraceSampleEntry(entry);
+      if (head.length < policy.traceHeadLimit) head.push(sample);
+      appendRingSample(tail, sample, policy.traceTailLimit);
+      const phase = String(entry?.phase || '').trim();
+      const stage = String(entry?.stage || '').trim();
+      const substage = String(entry?.substage || '').trim();
+      const file = String(entry?.file || '').trim();
+      const fileIndex = Number(entry?.fileIndex);
+      if (phase) phaseCounts.set(phase, (phaseCounts.get(phase) || 0) + 1);
+      if (stage) stageCounts.set(stage, (stageCounts.get(stage) || 0) + 1);
+      if (substage) substageCounts.set(substage, (substageCounts.get(substage) || 0) + 1);
+      if (file) fileCounts.set(file, (fileCounts.get(file) || 0) + 1);
+      if (Number.isFinite(fileIndex)) {
+        maxFileIndex = Number.isFinite(maxFileIndex) ? Math.max(maxFileIndex, fileIndex) : fileIndex;
+      }
+    }
+  } finally {
+    reader.close();
+  }
+  const payload = {
+    schemaVersion: CRASH_RETENTION_SCHEMA_VERSION,
+    kind: 'crash-trace-summary',
+    sourceFile: path.basename(sourcePath),
+    sourceBytes,
+    policy: {
+      profile: policy.profile,
+      fullTraceMaxBytes: Number.isFinite(policy.fullTraceMaxBytes) ? policy.fullTraceMaxBytes : null,
+      traceHeadLimit: policy.traceHeadLimit,
+      traceTailLimit: policy.traceTailLimit,
+      traceTopLimit: policy.traceTopLimit
+    },
+    eventCount: totalEvents,
+    parsedEventCount: parsedEvents,
+    rawEventCount: rawEvents,
+    maxFileIndex,
+    countsByPhase: Object.fromEntries(toSortedCountEntries(phaseCounts, policy.traceTopLimit).map((entry) => [entry.value, entry.count])),
+    countsByStage: Object.fromEntries(toSortedCountEntries(stageCounts, policy.traceTopLimit).map((entry) => [entry.value, entry.count])),
+    countsBySubstage: Object.fromEntries(toSortedCountEntries(substageCounts, policy.traceTopLimit).map((entry) => [entry.value, entry.count])),
+    topFiles: toSortedCountEntries(fileCounts, policy.traceTopLimit),
+    head,
+    tail
+  };
+  await atomicWriteJson(summaryPath, payload, { spaces: 2 });
+  const summaryStats = await fs.stat(summaryPath);
+  return {
+    path: summaryPath,
+    bytes: summaryStats.size,
+    payload
+  };
+};
+
 /**
  * Select crash-log and forensics artifacts eligible for retention bundles.
  *
@@ -405,27 +549,111 @@ export async function retainCrashArtifacts({
   if (!repoCacheRoot || !diagnosticsRoot) return null;
   const resolvedRepoCacheRoot = path.resolve(repoCacheRoot);
   const resolvedDiagnosticsRoot = path.resolve(diagnosticsRoot);
+  const retentionPolicy = resolveCrashRetentionPolicy();
   const artifactCandidates = await selectCrashArtifacts({ repoCacheRoot: resolvedRepoCacheRoot });
   const repoToken = sanitizePathToken(repoSlug || repoLabel || path.basename(resolvedRepoCacheRoot), 'repo');
   const targetDir = path.join(resolvedDiagnosticsRoot, repoToken);
   const copiedArtifacts = [];
+  const retainedArtifacts = [];
   const copyErrors = [];
+  const retentionDecisions = [];
   let parserMetadata = [];
   let crashLogTail = [];
+  let retainedBytesTotal = 0;
 
   for (const artifact of artifactCandidates) {
     const sourcePath = artifact?.sourcePath;
     const relativePath = artifact?.relativePath;
     if (!sourcePath || !relativePath) continue;
     const targetPath = path.join(targetDir, relativePath);
+    let sourceBytes = null;
     try {
+      const sourceStat = await fs.stat(sourcePath);
+      sourceBytes = sourceStat.size;
+    } catch {}
+    const baseName = path.basename(sourcePath);
+    try {
+      if (
+        baseName === 'index-crash-file-trace.ndjson'
+        && !retentionPolicy.fullTraceEnabled
+        && Number.isFinite(sourceBytes)
+        && sourceBytes > retentionPolicy.fullTraceMaxBytes
+      ) {
+        const summaryRelativePath = path.join('logs', 'index-crash-file-trace.summary.json');
+        const summaryPath = path.join(targetDir, summaryRelativePath);
+        const summary = await summarizeCrashTrace({
+          sourcePath,
+          summaryPath,
+          sourceBytes,
+          policy: retentionPolicy
+        });
+        retainedBytesTotal += summary.bytes;
+        retainedArtifacts.push({
+          sourcePath,
+          path: summary.path,
+          relativePath: summaryRelativePath,
+          bytes: summary.bytes,
+          sha1: sha1(JSON.stringify(summary.payload))
+        });
+        retentionDecisions.push({
+          sourcePath,
+          relativePath,
+          sourceBytes,
+          retentionKind: 'summary',
+          reason: 'trace_exceeded_full_copy_budget',
+          retainedArtifacts: [
+            {
+              path: summary.path,
+              relativePath: summaryRelativePath,
+              bytes: summary.bytes,
+              kind: 'crash-trace-summary'
+            }
+          ],
+          policy: {
+            profile: retentionPolicy.profile,
+            fullTraceMaxBytes: retentionPolicy.fullTraceMaxBytes,
+            bundleBudgetBytes: retentionPolicy.bundleBudgetBytes
+          }
+        });
+        continue;
+      }
       const copied = await copyFileAtomic(sourcePath, targetPath);
+      retainedBytesTotal += copied.bytes;
       copiedArtifacts.push({
         sourcePath,
         path: targetPath,
         relativePath,
         bytes: copied.bytes,
         sha1: copied.sha1
+      });
+      retainedArtifacts.push({
+        sourcePath,
+        path: targetPath,
+        relativePath,
+        bytes: copied.bytes,
+        sha1: copied.sha1
+      });
+      retentionDecisions.push({
+        sourcePath,
+        relativePath,
+        sourceBytes: Number.isFinite(sourceBytes) ? sourceBytes : copied.bytes,
+        retentionKind: 'full',
+        reason: 'retained_full',
+        retainedArtifacts: [
+          {
+            path: targetPath,
+            relativePath,
+            bytes: copied.bytes,
+            kind: 'file-copy'
+          }
+        ],
+        policy: {
+          profile: retentionPolicy.profile,
+          fullTraceMaxBytes: Number.isFinite(retentionPolicy.fullTraceMaxBytes)
+            ? retentionPolicy.fullTraceMaxBytes
+            : null,
+          bundleBudgetBytes: retentionPolicy.bundleBudgetBytes
+        }
       });
       if (path.basename(sourcePath) === 'index-crash.log') {
         try {
@@ -445,6 +673,22 @@ export async function retainCrashArtifacts({
         relativePath,
         message: err?.message || String(err)
       });
+      retentionDecisions.push({
+        sourcePath,
+        relativePath,
+        sourceBytes,
+        retentionKind: 'error',
+        reason: 'retention_copy_failed',
+        retainedArtifacts: [],
+        error: err?.message || String(err),
+        policy: {
+          profile: retentionPolicy.profile,
+          fullTraceMaxBytes: Number.isFinite(retentionPolicy.fullTraceMaxBytes)
+            ? retentionPolicy.fullTraceMaxBytes
+            : null,
+          bundleBudgetBytes: retentionPolicy.bundleBudgetBytes
+        }
+      });
     }
   }
 
@@ -458,7 +702,7 @@ export async function retainCrashArtifacts({
       .filter(Boolean)
       .slice(-CRASH_RETENTION_LOG_TAIL_LIMIT)
     : [];
-  if (!copiedArtifacts.length && !copyErrors.length && !resolvedSchedulerEvents.length) {
+  if (!retainedArtifacts.length && !copyErrors.length && !resolvedSchedulerEvents.length) {
     return null;
   }
   const retainedAt = formatTimestamp();
@@ -476,15 +720,25 @@ export async function retainCrashArtifacts({
       arch: process.arch,
       ...(environment && typeof environment === 'object' ? environment : {})
     },
+    retentionPolicy: {
+      profile: retentionPolicy.profile,
+      bundleBudgetBytes: retentionPolicy.bundleBudgetBytes,
+      fullTraceMaxBytes: Number.isFinite(retentionPolicy.fullTraceMaxBytes)
+        ? retentionPolicy.fullTraceMaxBytes
+        : null,
+      fullTraceEnabled: retentionPolicy.fullTraceEnabled,
+      retainedBytesTotal
+    },
     parserMetadata,
     schedulerEvents: resolvedSchedulerEvents,
     logTail: resolvedLogTail,
-    copiedArtifacts: copiedArtifacts.map((entry) => ({
+    copiedArtifacts: retainedArtifacts.map((entry) => ({
       path: entry.path,
       relativePath: entry.relativePath,
       bytes: entry.bytes,
       checksum: `sha1:${entry.sha1}`
     })),
+    retentionDecisions,
     copyErrors
   };
   const checksum = sha1(JSON.stringify(bundleWithoutChecksum));
@@ -504,14 +758,14 @@ export async function retainCrashArtifacts({
     marker: 'complete',
     checksum: `sha1:${checksum}`,
     bundleFile: path.basename(bundlePath),
-    artifactCount: copiedArtifacts.length,
+    artifactCount: retainedArtifacts.length,
     copyErrorCount: copyErrors.length
   }, { spaces: 2 });
   return {
     bundlePath,
     markerPath,
     diagnosticsDir: targetDir,
-    artifactCount: copiedArtifacts.length,
+    artifactCount: retainedArtifacts.length,
     copyErrorCount: copyErrors.length,
     parserMetadataCount: parserMetadata.length,
     schedulerEventCount: resolvedSchedulerEvents.length,
