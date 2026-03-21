@@ -441,6 +441,14 @@ assert.deepEqual(
   'expected resolver stage aggregation in taxonomy'
 );
 assert.deepEqual(
+  Object.fromEntries(Object.entries(taxonomy.resolverAdapters || {})),
+  {
+    'bazel-label': 3,
+    'generated-artifacts': 4
+  },
+  'expected resolver adapter aggregation in taxonomy'
+);
+assert.deepEqual(
   taxonomy.actionableHotspots,
   [
     { importer: 'MODULE.bazel', count: 2 },

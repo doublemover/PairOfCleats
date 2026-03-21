@@ -86,6 +86,14 @@ const formatUnresolvedResolverStageCounts = (resolverStages) => {
   return entries.map(([stage, count]) => `${stage}=${Number(count)}`).join(', ');
 };
 
+const formatUnresolvedResolverAdapterCounts = (resolverAdapters) => {
+  const entries = Object.entries(resolverAdapters || {})
+    .filter(([adapter, count]) => adapter && Number.isFinite(Number(count)) && Number(count) > 0)
+    .sort((a, b) => sortStrings(a[0], b[0]));
+  if (entries.length === 0) return 'none';
+  return entries.map(([adapter, count]) => `${adapter}=${Number(count)}`).join(', ');
+};
+
 const formatBudgetExhaustedByType = (counts) => {
   const entries = Object.entries(counts || {})
     .filter(([kind, count]) => kind && Number.isFinite(Number(count)) && Number(count) > 0)
@@ -236,6 +244,7 @@ const logUnresolvedImportSamples = ({
   );
   log(`[imports] unresolved reason codes: ${formatUnresolvedReasonCodeCounts(summary?.reasonCodes)}`);
   log(`[imports] unresolved resolver stages: ${formatUnresolvedResolverStageCounts(summary?.resolverStages)}`);
+  log(`[imports] unresolved resolver adapters: ${formatUnresolvedResolverAdapterCounts(summary?.resolverAdapters)}`);
   const budgetExhausted = Number(summary?.resolverBudgetExhausted || 0);
   if (budgetExhausted > 0) {
     log(
@@ -565,6 +574,9 @@ export const postScanImports = async ({
   const unresolvedResolverStages = toSortedCountObject(
     canonicalStatsSource.unresolvedByResolverStage || unresolvedTaxonomySample.resolverStages
   );
+  const unresolvedResolverAdapters = toSortedCountObject(
+    canonicalStatsSource.unresolvedByAdapter || unresolvedTaxonomySample.resolverAdapters
+  );
   const unresolvedActionableByLanguage = toSortedCountObject(
     canonicalStatsSource.unresolvedActionableByLanguage || unresolvedTaxonomySample.actionableByLanguage
   );
@@ -632,6 +644,7 @@ export const postScanImports = async ({
     failureCauses: unresolvedFailureCauses,
     dispositions: unresolvedDispositions,
     resolverStages: unresolvedResolverStages,
+    resolverAdapters: unresolvedResolverAdapters,
     actionableHotspots: unresolvedActionableHotspots,
     actionableByLanguage: unresolvedActionableByLanguage,
     actionableRate: unresolvedActionableRate,
@@ -656,6 +669,7 @@ export const postScanImports = async ({
       resolution.graph.stats.unresolvedByFailureCause = unresolvedTaxonomy.failureCauses;
       resolution.graph.stats.unresolvedByDisposition = unresolvedTaxonomy.dispositions;
       resolution.graph.stats.unresolvedByResolverStage = unresolvedTaxonomy.resolverStages;
+      resolution.graph.stats.unresolvedByAdapter = unresolvedTaxonomy.resolverAdapters;
       resolution.graph.stats.unresolvedActionableHotspots = unresolvedTaxonomy.actionableHotspots;
       resolution.graph.stats.unresolvedActionableByLanguage = unresolvedTaxonomy.actionableByLanguage;
       resolution.graph.stats.unresolvedGateEligible = unresolvedGateEligible.unresolved;
@@ -741,6 +755,7 @@ export const postScanImports = async ({
     resolvedStats.unresolvedByFailureCause = unresolvedTaxonomy.failureCauses;
     resolvedStats.unresolvedByDisposition = unresolvedTaxonomy.dispositions;
     resolvedStats.unresolvedByResolverStage = unresolvedTaxonomy.resolverStages;
+    resolvedStats.unresolvedByAdapter = unresolvedTaxonomy.resolverAdapters;
     resolvedStats.unresolvedActionableHotspots = unresolvedTaxonomy.actionableHotspots;
     resolvedStats.unresolvedActionableByLanguage = unresolvedTaxonomy.actionableByLanguage;
     resolvedStats.unresolvedGateEligible = unresolvedGateEligible.unresolved;

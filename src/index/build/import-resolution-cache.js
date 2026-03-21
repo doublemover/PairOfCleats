@@ -170,6 +170,7 @@ const normalizeUnresolvedSnapshot = (
     allowedKeys: KNOWN_RESOLVER_STAGES,
     unknownKeysOut: unknownResolverStages
   });
+  const resolverAdapters = normalizeCategoryCounts(raw.resolverAdapters);
   throwIfUnknownCategoryKeys({
     unknownKeys: unknownReasonCodes,
     fieldName: 'reasonCode',
@@ -237,6 +238,7 @@ const normalizeUnresolvedSnapshot = (
     failureCauses,
     dispositions,
     resolverStages,
+    resolverAdapters,
     resolverBudgetExhausted,
     resolverBudgetExhaustedByType,
     actionableHotspots: normalizeActionableHotspots(raw.actionableHotspots),
@@ -257,6 +259,7 @@ const normalizeDiagnostics = (
   const unknownDeltaFailureCauses = [];
   const unknownDeltaDispositions = [];
   const unknownDeltaResolverStages = [];
+  const unknownDeltaResolverAdapters = [];
   const unknownDeltaActionableLanguages = [];
   const unresolvedTrend = {
     previous: normalizeUnresolvedSnapshot(unresolvedTrendRaw.previous, {
@@ -289,6 +292,10 @@ const normalizeDiagnostics = (
       allowNegative: true,
       allowedKeys: KNOWN_RESOLVER_STAGES,
       unknownKeysOut: unknownDeltaResolverStages
+    }),
+    deltaByResolverAdapter: normalizeCategoryCounts(unresolvedTrendRaw.deltaByResolverAdapter, {
+      allowNegative: true,
+      unknownKeysOut: unknownDeltaResolverAdapters
     }),
     deltaByActionableLanguage: normalizeCategoryCounts(unresolvedTrendRaw.deltaByActionableLanguage, {
       allowNegative: true,
@@ -326,6 +333,12 @@ const normalizeDiagnostics = (
   throwIfUnknownCategoryKeys({
     unknownKeys: unknownDeltaResolverStages,
     fieldName: 'delta resolverStage',
+    cachePath,
+    cacheVersion
+  });
+  throwIfUnknownCategoryKeys({
+    unknownKeys: unknownDeltaResolverAdapters,
+    fieldName: 'delta resolverAdapter',
     cachePath,
     cacheVersion
   });
@@ -710,6 +723,7 @@ const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
   const failureCauses = normalizeCategoryCounts(taxonomy.failureCauses);
   const dispositions = normalizeCategoryCounts(taxonomy.dispositions);
   const resolverStages = normalizeCategoryCounts(taxonomy.resolverStages);
+  const resolverAdapters = normalizeCategoryCounts(taxonomy.resolverAdapters);
   const resolverBudgetExhaustedRaw = Number(taxonomy.resolverBudgetExhausted);
   const resolverBudgetExhausted = Number.isFinite(resolverBudgetExhaustedRaw) && resolverBudgetExhaustedRaw >= 0
     ? Math.trunc(resolverBudgetExhaustedRaw)
@@ -756,6 +770,7 @@ const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
     failureCauses,
     dispositions,
     resolverStages,
+    resolverAdapters,
     resolverBudgetExhausted,
     resolverBudgetExhaustedByType,
     actionableHotspots: normalizeActionableHotspots(taxonomy.actionableHotspots),
@@ -1222,6 +1237,7 @@ export const updateImportResolutionDiagnosticsCache = ({
       deltaByFailureCause: buildCategoryDelta(previousCurrent?.failureCauses || {}, current.failureCauses),
       deltaByDisposition: buildCategoryDelta(previousCurrent?.dispositions || {}, current.dispositions),
       deltaByResolverStage: buildCategoryDelta(previousCurrent?.resolverStages || {}, current.resolverStages),
+      deltaByResolverAdapter: buildCategoryDelta(previousCurrent?.resolverAdapters || {}, current.resolverAdapters),
       deltaByActionableLanguage: buildCategoryDelta(
         previousCurrent?.actionableByLanguage || {},
         current.actionableByLanguage

@@ -230,6 +230,7 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
   const failureCauseCounts = new Map();
   const dispositionCounts = new Map();
   const resolverStageCounts = new Map();
+  const resolverAdapterCounts = new Map();
   const actionableImporterCounts = new Map();
   const actionableLanguageCounts = new Map();
   let liveSuppressed = 0;
@@ -249,6 +250,12 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
     }
     if (sample.resolverStage) {
       resolverStageCounts.set(sample.resolverStage, (resolverStageCounts.get(sample.resolverStage) || 0) + 1);
+    }
+    if (sample.resolverAdapter) {
+      resolverAdapterCounts.set(
+        sample.resolverAdapter,
+        (resolverAdapterCounts.get(sample.resolverAdapter) || 0) + 1
+      );
     }
     if (isParserArtifactImportWarning(sample)) {
       parserArtifact += 1;
@@ -289,6 +296,7 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
     failureCauses: toSortedCountObject(failureCauseCounts),
     dispositions: toSortedCountObject(dispositionCounts),
     resolverStages: toSortedCountObject(resolverStageCounts),
+    resolverAdapters: toSortedCountObject(resolverAdapterCounts),
     actionableHotspots: toSortedHotspotEntries(actionableImporterCounts),
     actionableByLanguage: toSortedCountObject(actionableLanguageCounts),
     actionableRate,
