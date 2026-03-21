@@ -29,6 +29,28 @@ const DIAGNOSTIC_STREAM_SUFFIX = '.diagnostics.jsonl';
 const PROGRESS_CONFIDENCE_STREAM_SUFFIX = '.progress-confidence.jsonl';
 const DIAGNOSTIC_REPEAT_COUNT = 5;
 const DIAGNOSTIC_REPEAT_INTERVAL_MS = 30 * 1000;
+const BENCH_INTERACTIVE_DIAGNOSTIC_SILENT_TYPES = new Set([
+  'provider_preflight_start',
+  'provider_preflight_finish',
+  'workspace_partition_decision',
+  'fallback_used'
+]);
+const BENCH_INTERACTIVE_DIAGNOSTIC_REPEAT_COUNT_BY_TYPE = Object.freeze({
+  provider_preflight_blocked: 2,
+  provider_circuit_breaker: 2,
+  provider_degraded_mode_entered: 2,
+  provider_request_timeout: 4,
+  provider_request_failed: 4,
+  queue_delay_hotspot: 6,
+  artifact_tail_stall: 3
+});
+const BENCH_INTERACTIVE_DIAGNOSTIC_REPEAT_INTERVAL_BY_TYPE = Object.freeze({
+  provider_request_timeout: 45 * 1000,
+  provider_request_failed: 45 * 1000,
+  queue_delay_hotspot: 90 * 1000,
+  artifact_tail_stall: 90 * 1000
+});
+const BENCH_REPO_DIAGNOSTIC_TOP_SIGNAL_LIMIT = 6;
 const PROGRESS_CONFIDENCE_EMIT_INTERVAL_MS = 15 * 1000;
 const PROGRESS_CONFIDENCE_EMIT_DELTA = 0.07;
 const QUEUE_DELAY_HOTSPOT_MS = 250;
@@ -378,6 +400,33 @@ const resolveLegacyDiagnosticType = (message, event = null) => {
     return 'fallback_used';
   }
   return null;
+};
+
+const buildDiagnosticSummaryKey = ({
+  eventType,
+  providerId,
+  requestMethod,
+  failureClass,
+  preflightClass,
+  workspacePartition
+}) => JSON.stringify([
+  toText(eventType) || null,
+  toText(providerId) || null,
+  toText(requestMethod) || null,
+  toText(failureClass) || null,
+  toText(preflightClass) || null,
+  toText(workspacePartition) || null
+]);
+
+const formatDiagnosticSummaryLabel = (entry) => {
+  if (!entry || typeof entry !== 'object') return '';
+  const parts = [entry.eventType];
+  if (entry.providerId) parts.push(entry.providerId);
+  if (entry.requestMethod) parts.push(entry.requestMethod);
+  else if (entry.preflightClass) parts.push(entry.preflightClass);
+  if (entry.failureClass && entry.failureClass !== entry.eventType) parts.push(entry.failureClass);
+  if (entry.workspacePartition) parts.push(`partition=${entry.workspacePartition}`);
+  return parts.filter(Boolean).join(' ');
 };
 
 export const createProcessRunner = ({
@@ -786,6 +835,7 @@ export const createProcessRunner = ({
     let diagnosticEventCount = 0;
     const diagnosticCountByType = new Map();
     const diagnosticCountById = new Map();
+    const diagnosticSummaryBySignal = new Map();
     const heartbeatIntervalsMs = [];
     const queueAgeSamplesMs = [];
     const inFlightSamples = [];
@@ -843,6 +893,22 @@ export const createProcessRunner = ({
         Array.from(diagnosticCountByType.entries())
           .sort(([left], [right]) => String(left).localeCompare(String(right)))
       ),
+      topSignals: Array.from(diagnosticSummaryBySignal.values())
+        .sort((left, right) => (
+          Number(right.count) - Number(left.count)
+        ) || formatDiagnosticSummaryLabel(left).localeCompare(formatDiagnosticSummaryLabel(right)))
+        .slice(0, BENCH_REPO_DIAGNOSTIC_TOP_SIGNAL_LIMIT)
+        .map((entry) => ({
+          eventType: entry.eventType,
+          providerId: entry.providerId,
+          requestMethod: entry.requestMethod,
+          failureClass: entry.failureClass,
+          preflightClass: entry.preflightClass,
+          workspacePartition: entry.workspacePartition,
+          count: entry.count,
+          message: entry.message,
+          summaryLabel: formatDiagnosticSummaryLabel(entry)
+        })),
       telemetryWriteFailures: Object.fromEntries(
         Array.from(telemetryWriteFailures.entries()).map(([filePath, info]) => [filePath, info.count])
       )
@@ -1061,6 +1127,9 @@ export const createProcessRunner = ({
     };
 
     const maybeEmitInteractiveDiagnostic = ({ eventType, eventId, message }) => {
+      if (BENCH_INTERACTIVE_DIAGNOSTIC_SILENT_TYPES.has(String(eventType || '').trim())) {
+        return;
+      }
       const key = String(eventId || '');
       if (!key) return;
       const now = Date.now();
@@ -1069,9 +1138,11 @@ export const createProcessRunner = ({
         count: prior.count + 1,
         lastEmitMs: prior.lastEmitMs
       };
+      const repeatCount = BENCH_INTERACTIVE_DIAGNOSTIC_REPEAT_COUNT_BY_TYPE[eventType] || DIAGNOSTIC_REPEAT_COUNT;
+      const repeatIntervalMs = BENCH_INTERACTIVE_DIAGNOSTIC_REPEAT_INTERVAL_BY_TYPE[eventType] || DIAGNOSTIC_REPEAT_INTERVAL_MS;
       const shouldEmit = next.count === 1
-        || (next.count % DIAGNOSTIC_REPEAT_COUNT === 0)
-        || (now - next.lastEmitMs >= DIAGNOSTIC_REPEAT_INTERVAL_MS);
+        || (next.count % repeatCount === 0)
+        || (now - next.lastEmitMs >= repeatIntervalMs);
       if (!shouldEmit) {
         interactiveDiagnostics.set(key, next);
         return;
@@ -1140,6 +1211,29 @@ export const createProcessRunner = ({
         preflightClass: toText(preflightClass) || null,
         preflightState: toText(preflightState) || null
       };
+      const summaryKey = buildDiagnosticSummaryKey({
+        eventType,
+        providerId,
+        requestMethod,
+        failureClass,
+        preflightClass,
+        workspacePartition
+      });
+      const priorSummary = diagnosticSummaryBySignal.get(summaryKey) || {
+        eventType,
+        providerId: toText(providerId) || null,
+        requestMethod: toText(requestMethod) || null,
+        failureClass: toText(failureClass) || null,
+        preflightClass: toText(preflightClass) || null,
+        workspacePartition: toText(workspacePartition) || null,
+        count: 0,
+        message: ''
+      };
+      diagnosticSummaryBySignal.set(summaryKey, {
+        ...priorSummary,
+        count: priorSummary.count + 1,
+        message: priorSummary.message || truncateForDisplay(message, 140)
+      });
       for (const filePath of diagnosticStreams) {
         appendJsonLineQueued(telemetryWriteQueues, telemetryWriteFailures, filePath, payload);
       }

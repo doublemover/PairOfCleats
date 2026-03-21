@@ -267,6 +267,66 @@ const formatLineStatsSummary = (stats) => {
   return parts.join(' ');
 };
 
+const BENCH_REPO_SUMMARY_TYPE_LABELS = Object.freeze([
+  ['provider_request_timeout', 'timeouts'],
+  ['provider_request_failed', 'request-failures'],
+  ['provider_circuit_breaker', 'circuit-breakers'],
+  ['provider_degraded_mode_entered', 'degraded'],
+  ['provider_preflight_blocked', 'blocked'],
+  ['artifact_tail_stall', 'artifact-stalls'],
+  ['queue_delay_hotspot', 'queue-hotspots'],
+  ['fallback_used', 'fallbacks']
+]);
+
+const formatRepoTopSignal = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  const label = String(entry.summaryLabel || '').trim();
+  if (!label) return null;
+  const count = Number.isFinite(Number(entry.count)) ? Number(entry.count) : 0;
+  return count > 1 ? `${label} x${count}` : label;
+};
+
+export const buildBenchRepoCloseoutSummaryLines = ({
+  repoLabel,
+  outcome = 'ok',
+  failureReason = null,
+  diagnostics = null,
+  progressConfidence = null,
+  crashRetention = null
+} = {}) => {
+  const label = String(repoLabel || '').trim() || 'repo';
+  const countsByType = diagnostics?.countsByType && typeof diagnostics.countsByType === 'object'
+    ? diagnostics.countsByType
+    : {};
+  const issueParts = [];
+  for (const [eventType, displayLabel] of BENCH_REPO_SUMMARY_TYPE_LABELS) {
+    const count = Number(countsByType[eventType] || 0);
+    if (count > 0) {
+      issueParts.push(`${displayLabel}=${count}`);
+    }
+  }
+  const confidenceBucket = String(progressConfidence?.bucket || '').trim().toLowerCase();
+  if (confidenceBucket && confidenceBucket !== 'high') {
+    const score = Number(progressConfidence?.score);
+    issueParts.push(
+      Number.isFinite(score)
+        ? `confidence=${confidenceBucket}:${score.toFixed(2)}`
+        : `confidence=${confidenceBucket}`
+    );
+  }
+  if (crashRetention?.bundlePath) {
+    issueParts.push('crash-bundle=yes');
+  }
+  const summaryLine = `[repo-summary] ${label} ${outcome}${failureReason ? ` (${failureReason})` : ''}`
+    + (issueParts.length ? ` | ${issueParts.join(' | ')}` : '');
+  const topSignals = Array.isArray(diagnostics?.topSignals)
+    ? diagnostics.topSignals.map(formatRepoTopSignal).filter(Boolean).slice(0, 3)
+    : [];
+  return topSignals.length
+    ? [summaryLine, `[repo-summary] ${label} top: ${topSignals.join(' | ')}`]
+    : [summaryLine];
+};
+
 const maybeDelayBenchTestRepoStart = async () => {
   if (process.env.PAIROFCLEATS_TESTING !== '1') return;
   const delayMs = Number(process.env.PAIROFCLEATS_TEST_BENCH_REPO_DELAY_MS);
@@ -735,6 +795,16 @@ export const runBenchExecutionLoop = async ({
                 }
               })
           };
+          for (const line of buildBenchRepoCloseoutSummaryLines({
+            repoLabel,
+            outcome: 'failed',
+            failureReason,
+            diagnostics: result.diagnostics?.process || null,
+            progressConfidence: result.diagnostics?.progressConfidence || null,
+            crashRetention: crashRetention || null
+          })) {
+            appendLog(line, 'warn');
+          }
           results.push(result);
           runLedger?.recordRepoCompleted?.(result);
           continue;
@@ -780,6 +850,16 @@ export const runBenchExecutionLoop = async ({
               ...(crashRetention ? { crashRetention } : {})
             }
           };
+          for (const line of buildBenchRepoCloseoutSummaryLines({
+            repoLabel,
+            outcome: 'failed',
+            failureReason: 'report',
+            diagnostics: result.diagnostics?.process || null,
+            progressConfidence: result.diagnostics?.progressConfidence || null,
+            crashRetention: crashRetention || null
+          })) {
+            appendLog(line, 'warn');
+          }
           results.push(result);
           runLedger?.recordRepoCompleted?.(result);
           continue;
@@ -800,6 +880,18 @@ export const runBenchExecutionLoop = async ({
           }
           : {}
       };
+      const repoSummaryLines = buildBenchRepoCloseoutSummaryLines({
+        repoLabel,
+        outcome: 'ok',
+        diagnostics: result.diagnostics?.process || null,
+        progressConfidence: result.diagnostics?.progressConfidence || null,
+        crashRetention: null
+      });
+      if (repoSummaryLines.length > 1 || /\|/.test(repoSummaryLines[0] || '')) {
+        for (const line of repoSummaryLines) {
+          appendLog(line);
+        }
+      }
       results.push(result);
       runLedger?.recordRepoCompleted?.(result);
     } finally {

@@ -125,19 +125,15 @@ const interactiveDiagnostics = captured
   .sort();
 const expectedInteractivePrefixes = [
   '[diagnostics] artifact_tail_stall <eventId> artifact tail stalled for 32000ms while writing shard',
-  '[diagnostics] fallback_used <eventId> using fallback parser for unsupported grammar',
   '[diagnostics] parser_crash <eventId> tree-sitter parser crash while parsing src/main.c',
   '[diagnostics] provider_circuit_breaker <eventId> [tooling] pyright circuit breaker tripped.',
   '[diagnostics] provider_degraded_mode_cleared <eventId> [tooling] pyright degraded mode cleared.',
   '[diagnostics] provider_degraded_mode_entered <eventId> [tooling] pyright degraded mode active (fail-open).',
   '[diagnostics] provider_preflight_blocked <eventId> [tooling] preflight:blocked provider=gopls id=gopls.workspace-model durationMs=87 state=blocked',
-  '[diagnostics] provider_preflight_finish <eventId> [tooling] preflight:blocked provider=gopls id=gopls.workspace-model durationMs=87 state=blocked',
-  '[diagnostics] provider_preflight_start <eventId> [tooling] preflight:start provider=gopls id=gopls.workspace-model class=workspace timeoutMs=20000',
   '[diagnostics] provider_request_failed <eventId> [tooling] request:failed provider=sourcekit method=textDocument/semanticTokens/full stage=semantic_tokens',
   '[diagnostics] provider_request_timeout <eventId> [tooling] request:timeout provider=pyright method=textDocument/documentSymbol stage=documentSymbol',
   '[diagnostics] queue_delay_hotspot <eventId> [tree-sitter:schedule] queue delay hotspot 1450ms',
-  '[diagnostics] scm_timeout <eventId> [scm] timeout while collecting git metadata',
-  '[diagnostics] workspace_partition_decision <eventId> [tooling] workspace:partition provider=gopls state=degraded reason=gopls_workspace_partition_incomplete'
+  '[diagnostics] scm_timeout <eventId> [scm] timeout while collecting git metadata'
 ];
 assert.equal(interactiveDiagnostics.length, expectedInteractivePrefixes.length, 'expected one concise interactive line per unique diagnostic');
 for (const prefix of expectedInteractivePrefixes) {
@@ -145,6 +141,19 @@ for (const prefix of expectedInteractivePrefixes) {
     interactiveDiagnostics.some((line) => line.startsWith(prefix)),
     true,
     `expected interactive diagnostics to include prefix: ${prefix}`
+  );
+}
+const unexpectedInteractivePrefixes = [
+  '[diagnostics] fallback_used <eventId> using fallback parser for unsupported grammar',
+  '[diagnostics] provider_preflight_finish <eventId> [tooling] preflight:blocked provider=gopls id=gopls.workspace-model durationMs=87 state=blocked',
+  '[diagnostics] provider_preflight_start <eventId> [tooling] preflight:start provider=gopls id=gopls.workspace-model class=workspace timeoutMs=20000',
+  '[diagnostics] workspace_partition_decision <eventId> [tooling] workspace:partition provider=gopls state=degraded reason=gopls_workspace_partition_incomplete'
+];
+for (const prefix of unexpectedInteractivePrefixes) {
+  assert.equal(
+    interactiveDiagnostics.some((line) => line.startsWith(prefix)),
+    false,
+    `expected interactive diagnostics to suppress prefix: ${prefix}`
   );
 }
 

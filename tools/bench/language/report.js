@@ -1281,6 +1281,45 @@ export const printSummary = (
   }
 };
 
+export const buildBenchRunDiagnosticsSummaryLines = (output) => {
+  const lines = [];
+  const countsByType = output?.diagnostics?.stream?.countsByType && typeof output.diagnostics.stream.countsByType === 'object'
+    ? output.diagnostics.stream.countsByType
+    : {};
+  const highlights = [
+    ['provider_request_timeout', 'timeouts'],
+    ['provider_request_failed', 'request-failures'],
+    ['provider_circuit_breaker', 'circuit-breakers'],
+    ['provider_degraded_mode_entered', 'degraded'],
+    ['provider_preflight_blocked', 'blocked'],
+    ['artifact_tail_stall', 'artifact-stalls'],
+    ['queue_delay_hotspot', 'queue-hotspots'],
+    ['fallback_used', 'fallbacks']
+  ]
+    .map(([eventType, label]) => {
+      const count = Number(countsByType[eventType] || 0);
+      return count > 0 ? `${label}=${count}` : null;
+    })
+    .filter(Boolean);
+  if (highlights.length) {
+    lines.push(`[diagnostics] run highlights: ${highlights.join(' | ')}`);
+  }
+  const progressBuckets = output?.diagnostics?.progressConfidence?.countsByBucket
+    && typeof output.diagnostics.progressConfidence.countsByBucket === 'object'
+    ? output.diagnostics.progressConfidence.countsByBucket
+    : {};
+  const mediumConfidence = Number(progressBuckets.medium || 0);
+  const lowConfidence = Number(progressBuckets.low || 0);
+  if (mediumConfidence > 0 || lowConfidence > 0) {
+    lines.push(`[diagnostics] progress confidence: low=${lowConfidence} medium=${mediumConfidence}`);
+  }
+  const retainedCount = Number(output?.diagnostics?.crashRetention?.retainedCount) || 0;
+  if (retainedCount > 0) {
+    lines.push(`[diagnostics] retained crash bundles: ${retainedCount}`);
+  }
+  return lines;
+};
+
 const resolveTaskPayload = async (entry) => {
   if (!entry?.outFile) return null;
   return loadJsonFile(entry.outFile);

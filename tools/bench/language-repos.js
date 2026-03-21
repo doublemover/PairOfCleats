@@ -20,7 +20,7 @@ import {
   createBenchMethodologyPolicy,
   filterTasksToControlSlice
 } from './language/policy.js';
-import { buildReportOutput, printSummary } from './language/report.js';
+import { buildBenchRunDiagnosticsSummaryLines, buildReportOutput, printSummary } from './language/report.js';
 import { createToolDisplay } from '../shared/cli-display.js';
 import {
   assignRepoLogMetadata,
@@ -684,9 +684,8 @@ if (!quietMode) {
   printSummary('Overall', output.overallSummary, results.length, quietMode, {
     writeLine: (line) => appendLog(line)
   });
-  const retainedCount = Number(output?.diagnostics?.crashRetention?.retainedCount) || 0;
-  if (retainedCount > 0) {
-    appendLog(`[diagnostics] retained crash bundles: ${retainedCount}`);
+  for (const line of buildBenchRunDiagnosticsSummaryLines(output)) {
+    appendLog(line);
   }
   if (output?.run?.aggregateResultClass) {
     appendLog(
