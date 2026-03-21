@@ -47,7 +47,8 @@ const resolveCliEntrypoints = () => {
   const entries = listCommandRegistry()
     .map((entry) => ({
       command: `pairofcleats ${entry.commandPath.join(' ')}`,
-      summary: String(entry.description || '').trim() || 'No summary available.'
+      summary: String(entry.description || '').trim() || 'No summary available.',
+      supportTier: entry.supportTier
     }))
     .sort((a, b) => a.command.localeCompare(b.command));
   return Array.from(
@@ -136,7 +137,7 @@ const main = async () => {
     ...phaseSpecInfo.specs.map((spec) => `- \`${spec}\``),
     '',
     '## CLI entrypoints',
-    ...cliEntrypoints.map((entry) => `- \`${entry.command}\` - ${entry.summary}`),
+    ...cliEntrypoints.map((entry) => `- [${entry.supportTier}] \`${entry.command}\` - ${entry.summary}`),
     '- `pairofcleats service indexer` flags:',
     `  - allowed: ${serviceIndexerFlags.map((flag) => `--${flag}`).join(', ')}`,
     `  - requires values: ${serviceIndexerValueFlags.map((flag) => `--${flag}`).join(', ')}`,

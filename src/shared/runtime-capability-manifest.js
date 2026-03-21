@@ -139,6 +139,7 @@ const buildCliCommandManifest = () => {
     id: entry.id,
     commandPath: entry.commandPath.slice(),
     description: entry.description,
+    supportTier: entry.supportTier,
     script: entry.script,
     progressMode: entry.progressMode,
     expectedArtifacts: entry.expectedArtifacts.slice(),

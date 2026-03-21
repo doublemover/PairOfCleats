@@ -12,7 +12,14 @@ import {
   SERVICE_INDEXER_OPTIONS,
   resolveCliOptionFlagSets
 } from '../src/shared/cli-options.js';
-import { listHelpSections } from '../src/shared/command-registry.js';
+import {
+  COMMAND_SUPPORT_TIER_LABELS,
+  DEFAULT_HELP_SUPPORT_TIERS,
+  describeCommandRegistryEntry,
+  listCommandRegistry,
+  listCommonWorkflowExamples,
+  listHelpSections
+} from '../src/shared/command-registry.js';
 import { spawnSubprocessSync } from '../src/shared/subprocess.js';
 import { exitLikeChild } from '../src/tui/wrapper-exit.js';
 import { buildErrorPayload, ERROR_CODES, isErrorCode } from '../src/shared/error-codes.js';
@@ -23,8 +30,15 @@ const ROOT = resolveToolRoot();
 const args = process.argv.slice(2);
 const command = args[0];
 
-if (!command || isHelpCommand(command)) {
-  printHelp();
+if (command === 'help') {
+  printRequestedHelp(args.slice(1));
+  process.exit(0);
+}
+
+if (!command || isHelpCommand(command) || isHelpAllCommand(command)) {
+  printHelp({
+    includeAll: isHelpAllCommand(command) || args.includes('--all')
+  });
   process.exit(0);
 }
 
@@ -1120,25 +1134,131 @@ function isVersionCommand(value) {
   return value === 'version' || value === '--version' || value === '-v';
 }
 
+function isHelpAllCommand(value) {
+  return value === '--help-all' || value === 'help-all';
+}
+
 /**
  * Print top-level CLI command reference to stderr.
  *
  * @returns {void}
  */
-function printHelp() {
-  const commandWidth = Math.max(
-    ...listHelpSections()
-      .flatMap((section) => section.commands.map((entry) => entry.commandPath.join(' ').length)),
-    0
-  );
+function printHelp({ includeAll = false, topicTokens = [] } = {}) {
+  const trimmedTopicTokens = topicTokens.map((value) => String(value || '').trim()).filter(Boolean);
+  if (trimmedTopicTokens.length > 0) {
+    printTopicHelp(trimmedTopicTokens, { includeAll });
+    return;
+  }
+  const supportTiers = includeAll
+    ? ['stable', 'operator', 'internal', 'experimental']
+    : DEFAULT_HELP_SUPPORT_TIERS;
   const lines = ['Usage: pairofcleats <command> [args]', ''];
-  for (const section of listHelpSections()) {
-    lines.push(`${section.group}:`);
-    for (const entry of section.commands) {
-      const commandLabel = entry.commandPath.join(' ');
-      lines.push(`  ${commandLabel.padEnd(commandWidth)}  ${entry.description}`);
+  lines.push('Use `pairofcleats help <topic>` for subcommands and examples.');
+  if (!includeAll) {
+    lines.push('Use `pairofcleats help --all` to reveal internal and experimental commands.');
+  }
+  lines.push('');
+
+  const examples = listCommonWorkflowExamples({ supportTiers }).slice(0, 6);
+  if (examples.length > 0) {
+    lines.push('Common workflows:');
+    for (const entry of examples) {
+      lines.push(`  - ${entry.example}`);
     }
     lines.push('');
+  }
+
+  for (const tier of supportTiers) {
+    const tierSections = listHelpSections({ supportTiers: [tier] });
+    if (!tierSections.length) continue;
+    lines.push(`${COMMAND_SUPPORT_TIER_LABELS[tier]} commands:`);
+    const commandWidth = Math.max(
+      ...tierSections.flatMap((section) => section.commands.map((entry) => entry.commandPath.join(' ').length)),
+      0
+    );
+    for (const section of tierSections) {
+      lines.push(`  ${section.group}:`);
+      for (const entry of section.commands) {
+        const commandLabel = entry.commandPath.join(' ');
+        lines.push(`    ${commandLabel.padEnd(commandWidth)}  ${entry.description}`);
+      }
+    }
+    lines.push('');
+  }
+  process.stderr.write(`${lines.join('\n')}\n`);
+}
+
+function printRequestedHelp(helpArgs) {
+  const includeAll = helpArgs.includes('--all');
+  const topicTokens = helpArgs.filter((arg) => arg !== '--all');
+  printHelp({ includeAll, topicTokens });
+}
+
+function printTopicHelp(topicTokens, { includeAll = false } = {}) {
+  const supportTiers = includeAll
+    ? ['stable', 'operator', 'internal', 'experimental']
+    : DEFAULT_HELP_SUPPORT_TIERS;
+  const exactEntry = describeCommandRegistryEntry(topicTokens.join(' '));
+  if (exactEntry && supportTiers.includes(exactEntry.supportTier)) {
+    const lines = [
+      `Command: pairofcleats ${exactEntry.commandPath.join(' ')}`,
+      `Support tier: ${COMMAND_SUPPORT_TIER_LABELS[exactEntry.supportTier]}`,
+      `Group: ${exactEntry.helpGroup}`,
+      '',
+      exactEntry.description
+    ];
+    if (exactEntry.helpExamples.length > 0) {
+      lines.push('', 'Examples:');
+      for (const example of exactEntry.helpExamples) {
+        lines.push(`  - ${example}`);
+      }
+    }
+    lines.push('', 'Pass `--help` after the command to inspect script-specific flags.');
+    process.stderr.write(`${lines.join('\n')}\n`);
+    return;
+  }
+
+  const topic = topicTokens[0];
+  const matchingEntries = listCommandRegistry({ supportTiers })
+    .filter((entry) => entry.commandPath[0] === topic);
+  if (!matchingEntries.length) {
+    failCli(`Unknown help topic: ${topicTokens.join(' ')}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
+  }
+
+  const commandWidth = Math.max(
+    ...matchingEntries.map((entry) => entry.commandPath.slice(1).join(' ').length || topic.length),
+    0
+  );
+  const lines = [
+    `Help topic: ${topic}`,
+    '',
+    'Subcommands:'
+  ];
+  for (const tier of supportTiers) {
+    const entries = matchingEntries.filter((entry) => entry.supportTier === tier);
+    if (!entries.length) continue;
+    lines.push(`  ${COMMAND_SUPPORT_TIER_LABELS[tier]}:`);
+    for (const entry of entries) {
+      const subcommand = entry.commandPath.slice(1).join(' ') || topic;
+      lines.push(`    ${subcommand.padEnd(commandWidth)}  ${entry.description}`);
+    }
+  }
+  const examples = matchingEntries.flatMap((entry) => entry.helpExamples).slice(0, 4);
+  if (examples.length > 0) {
+    lines.push('', 'Examples:');
+    for (const example of examples) {
+      lines.push(`  - ${example}`);
+    }
+  }
+  if (!includeAll) {
+    const hidden = listCommandRegistry({ supportTiers: ['internal', 'experimental'] })
+      .filter((entry) => entry.commandPath[0] === topic);
+    if (hidden.length > 0) {
+      lines.push('', 'Use `pairofcleats help --all` to reveal additional internal or experimental subcommands.');
+    }
   }
   process.stderr.write(`${lines.join('\n')}\n`);
 }

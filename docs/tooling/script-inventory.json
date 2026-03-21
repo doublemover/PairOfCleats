@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T15:55:45.279Z",
+  "generatedAt": "2026-03-21T16:02:58.374Z",
   "scripts": [
     {
       "name": "bootstrap",
@@ -107,227 +107,283 @@
   "cliCommands": [
     {
       "command": "pairofcleats api-contracts",
-      "summary": "Report cross-file API contracts."
+      "summary": "Report cross-file API contracts.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats architecture-check",
-      "summary": "Evaluate architecture rules over graphs."
+      "summary": "Evaluate architecture rules over graphs.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats bench language",
-      "summary": "Run the bench-language corpus."
+      "summary": "Run the bench-language corpus.",
+      "supportTier": "experimental"
     },
     {
       "command": "pairofcleats bench matrix",
-      "summary": "Run the bench-language backend matrix."
+      "summary": "Run the bench-language backend matrix.",
+      "supportTier": "experimental"
     },
     {
       "command": "pairofcleats bench micro",
-      "summary": "Run focused indexing/search microbenchmarks."
+      "summary": "Run focused indexing/search microbenchmarks.",
+      "supportTier": "experimental"
     },
     {
       "command": "pairofcleats bench summarize",
-      "summary": "Summarize completed bench-language runs."
+      "summary": "Summarize completed bench-language runs.",
+      "supportTier": "experimental"
     },
     {
       "command": "pairofcleats bootstrap",
-      "summary": "Fast bootstrap flow."
+      "summary": "Fast bootstrap flow.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats cache clear",
-      "summary": "Clear shared caches."
+      "summary": "Clear shared caches.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats cache gc",
-      "summary": "Run shared cache GC."
+      "summary": "Run shared cache GC.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats config dump",
-      "summary": "Dump effective config and derived runtime state."
+      "summary": "Dump effective config and derived runtime state.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats config reset",
-      "summary": "Reset repo config back to the default template."
+      "summary": "Reset repo config back to the default template.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats config validate",
-      "summary": "Validate repo config against the schema."
+      "summary": "Validate repo config against the schema.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats context-pack",
-      "summary": "Build a composite context pack for a seed."
+      "summary": "Build a composite context pack for a seed.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats dispatch describe",
-      "summary": "Describe one shared dispatch command."
+      "summary": "Describe one shared dispatch command.",
+      "supportTier": "internal"
     },
     {
       "command": "pairofcleats dispatch list",
-      "summary": "List shared dispatch manifest entries."
+      "summary": "List shared dispatch manifest entries.",
+      "supportTier": "internal"
     },
     {
       "command": "pairofcleats graph-context",
-      "summary": "Build a graph context pack for a seed."
+      "summary": "Build a graph context pack for a seed.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats impact",
-      "summary": "Analyze change impact over the graph."
+      "summary": "Analyze change impact over the graph.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats index build",
-      "summary": "Build file-backed indexes."
+      "summary": "Build file-backed indexes.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats index diff",
-      "summary": "Compute and inspect index diffs."
+      "summary": "Compute and inspect index diffs.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats index snapshot",
-      "summary": "Manage index snapshots."
+      "summary": "Manage index snapshots.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats index stats",
-      "summary": "Report per-mode index artifact stats."
+      "summary": "Report per-mode index artifact stats.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats index validate",
-      "summary": "Validate index artifacts."
+      "summary": "Validate index artifacts.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats index watch",
-      "summary": "Watch and rebuild indexes."
+      "summary": "Watch and rebuild indexes.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats ingest ctags",
-      "summary": "Ingest ctags symbols."
+      "summary": "Ingest ctags symbols.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats ingest gtags",
-      "summary": "Ingest GTAGS symbols."
+      "summary": "Ingest GTAGS symbols.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats ingest lsif",
-      "summary": "Ingest LSIF dump."
+      "summary": "Ingest LSIF dump.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats ingest scip",
-      "summary": "Ingest SCIP index."
+      "summary": "Ingest SCIP index.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats lmdb build",
-      "summary": "Build LMDB indexes."
+      "summary": "Build LMDB indexes.",
+      "supportTier": "experimental"
     },
     {
       "command": "pairofcleats report compare-models",
-      "summary": "Compare embedding model results."
+      "summary": "Compare embedding model results.",
+      "supportTier": "experimental"
     },
     {
       "command": "pairofcleats report eval",
-      "summary": "Run retrieval evaluation."
+      "summary": "Run retrieval evaluation.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats report map",
-      "summary": "Generate the code map report."
+      "summary": "Generate the code map report.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats report metrics",
-      "summary": "Render metrics dashboard artifacts."
+      "summary": "Render metrics dashboard artifacts.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats report parity",
-      "summary": "Run the retrieval parity matrix harness."
+      "summary": "Run the retrieval parity matrix harness.",
+      "supportTier": "experimental"
     },
     {
       "command": "pairofcleats report summary",
-      "summary": "Build the combined summary report."
+      "summary": "Build the combined summary report.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats report throughput",
-      "summary": "Render benchmark throughput overviews."
+      "summary": "Render benchmark throughput overviews.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats risk delta",
-      "summary": "Compare risk flows across two refs."
+      "summary": "Compare risk flows across two refs.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats risk explain",
-      "summary": "Explain interprocedural risk flows."
+      "summary": "Explain interprocedural risk flows.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats search",
-      "summary": "Query indexed data."
+      "summary": "Query indexed data.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats service api",
-      "summary": "Run local API service."
+      "summary": "Run local API service.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats service indexer",
-      "summary": "Run indexer service."
+      "summary": "Run indexer service.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats service mcp",
-      "summary": "Run local MCP service."
+      "summary": "Run local MCP service.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats setup",
-      "summary": "Guided setup flow."
+      "summary": "Guided setup flow.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats sqlite compact",
-      "summary": "Compact SQLite indexes in place."
+      "summary": "Compact SQLite indexes in place.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats suggest-tests",
-      "summary": "Suggest tests impacted by a change list."
+      "summary": "Suggest tests impacted by a change list.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats tooling detect",
-      "summary": "Detect repo tooling and language coverage."
+      "summary": "Detect repo tooling and language coverage.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats tooling doctor",
-      "summary": "Inspect tooling availability and configuration."
+      "summary": "Inspect tooling availability and configuration.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats tooling install",
-      "summary": "Install or plan external tooling dependencies."
+      "summary": "Install or plan external tooling dependencies.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats tooling navigate",
-      "summary": "Query indexed definitions, references, and document symbols."
+      "summary": "Query indexed definitions, references, and document symbols.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats tooling uninstall",
-      "summary": "Remove installed PairOfCleats caches and tooling payloads."
+      "summary": "Remove installed PairOfCleats caches and tooling payloads.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats tui build",
-      "summary": "Build TUI artifacts."
+      "summary": "Build TUI artifacts.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats tui install",
-      "summary": "Install TUI artifacts."
+      "summary": "Install TUI artifacts.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats tui supervisor",
-      "summary": "Run Node supervisor process."
+      "summary": "Run Node supervisor process.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats workspace build",
-      "summary": "Build workspace indexes."
+      "summary": "Build workspace indexes.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats workspace catalog",
-      "summary": "Inspect workspace catalog."
+      "summary": "Inspect workspace catalog.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats workspace manifest",
-      "summary": "Generate workspace manifest."
+      "summary": "Generate workspace manifest.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats workspace status",
-      "summary": "Show workspace status."
+      "summary": "Show workspace status.",
+      "supportTier": "stable"
     }
   ],
   "phaseSpecDir": null

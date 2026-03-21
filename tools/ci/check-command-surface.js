@@ -63,7 +63,8 @@ const startsWithArray = (values, prefix) => (
 const buildInventoryCliEntries = () => listCommandRegistry()
   .map((entry) => ({
     command: `pairofcleats ${entry.commandPath.join(' ')}`,
-    summary: String(entry.description || '').trim() || 'No summary available.'
+    summary: String(entry.description || '').trim() || 'No summary available.',
+    supportTier: entry.supportTier
   }))
   .sort((left, right) => left.command.localeCompare(right.command));
 
@@ -195,7 +196,7 @@ const main = async () => {
   }
 
   for (const entry of expectedCliCommands) {
-    const line = `- \`${entry.command}\` - ${entry.summary}`;
+    const line = `- [${entry.supportTier}] \`${entry.command}\` - ${entry.summary}`;
     if (!commandsMarkdown.includes(line)) {
       fail(`command surface audit failed: commands.md missing CLI entry line for ${entry.command}`, state);
     }

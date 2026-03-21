@@ -45,12 +45,50 @@ if (!helpOutput.includes('Usage: pairofcleats')) {
   console.error('cli --help missing usage banner');
   process.exit(1);
 }
-if (!helpOutput.includes('risk delta')) {
-  console.error('cli --help missing registry-derived risk delta entry');
+if (!helpOutput.includes('Common workflows:')) {
+  console.error('cli --help missing common workflows section');
   process.exit(1);
 }
-if (!helpOutput.includes('tui install')) {
-  console.error('cli --help missing registry-derived tui install entry');
+if (!helpOutput.includes('Operator commands:')) {
+  console.error('cli --help missing operator section');
+  process.exit(1);
+}
+if (!helpOutput.includes('risk delta')) {
+  console.error('cli --help missing stable registry-derived risk delta entry');
+  process.exit(1);
+}
+if (helpOutput.includes('dispatch list')) {
+  console.error('cli --help should hide internal dispatch commands by default');
+  process.exit(1);
+}
+
+const helpAllResult = spawnSync(process.execPath, [binPath, 'help', '--all'], { encoding: 'utf8' });
+if (helpAllResult.status !== 0) {
+  console.error('cli help --all failed');
+  process.exit(helpAllResult.status ?? 1);
+}
+const helpAllOutput = getCombinedOutput(helpAllResult);
+if (!helpAllOutput.includes('dispatch list')) {
+  console.error('cli help --all missing internal dispatch list entry');
+  process.exit(1);
+}
+if (!helpAllOutput.includes('bench matrix')) {
+  console.error('cli help --all missing experimental bench matrix entry');
+  process.exit(1);
+}
+
+const reportHelpResult = spawnSync(process.execPath, [binPath, 'help', 'report'], { encoding: 'utf8' });
+if (reportHelpResult.status !== 0) {
+  console.error('cli help report failed');
+  process.exit(reportHelpResult.status ?? 1);
+}
+const reportHelpOutput = getCombinedOutput(reportHelpResult);
+if (!reportHelpOutput.includes('Help topic: report')) {
+  console.error('cli help report missing topic header');
+  process.exit(1);
+}
+if (!reportHelpOutput.includes('throughput')) {
+  console.error('cli help report missing report throughput subcommand');
   process.exit(1);
 }
 
