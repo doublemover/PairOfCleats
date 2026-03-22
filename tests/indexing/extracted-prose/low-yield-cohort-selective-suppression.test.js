@@ -126,6 +126,10 @@ assert.equal(summary.repoFingerprint.cohortCounts['generated-machine'] >= 3, tru
 assert.equal(summary.estimatedSuppressedFiles, 1, 'expected one future generated file to be estimated as suppressed');
 assert.equal(summary.estimatedRecallLossClass, 'moderate', 'expected moderate recall-loss estimate for selective suppression');
 assert.equal(summary.estimatedRecallLossConfidence, 'high', 'expected high confidence for genuine low-yield suppression');
+assert.equal(summary.repoYieldClass, 'sparse-high-value', 'expected repo class to distinguish sparse high-value prose');
+assert.equal(summary.opportunityCost?.class, 'limited', 'expected bounded opportunity-cost classification');
+assert.equal(summary.recallCost?.class, 'moderate', 'expected recall-cost classification to mirror recall-loss class');
+assert.equal(summary.recallCost?.downgradedRecall, true, 'expected reduced-recall flag when bailout triggers');
 assert.equal(summary.suppressedCohorts[0]?.repoFiles, 5, 'expected repo-level cohort size in summary');
 assert.equal(summary.suppressedCohorts[0]?.estimatedSuppressedFiles, 1, 'expected per-cohort suppressed-file estimate');
 

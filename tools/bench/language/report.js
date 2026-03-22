@@ -700,6 +700,81 @@ const buildBenchReuseDiagnosticsSummary = async (resultsRoot, options = {}) => {
   };
 };
 
+const EXTRACTED_PROSE_QUALITY_BUDGET_SCHEMA_VERSION = 1;
+
+const resolveTaskLowYieldBailout = (payload) => {
+  const candidates = [
+    payload?.artifacts?.scanProfile?.modes?.['extracted-prose']?.quality?.lowYieldBailout,
+    payload?.scanProfile?.modes?.['extracted-prose']?.quality?.lowYieldBailout,
+    payload?.artifacts?.extractionReport?.quality?.lowYieldBailout,
+    payload?.extractionReport?.quality?.lowYieldBailout,
+    payload?.artifacts?.state?.extractedProseLowYieldBailout,
+    payload?.state?.extractedProseLowYieldBailout
+  ];
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === 'object') return candidate;
+  }
+  return null;
+};
+
+const buildBenchQualityBudgetSummary = (tasks) => {
+  const validTasks = Array.isArray(tasks) ? tasks : [];
+  const countsByRepoYieldClass = new Map();
+  const countsByOpportunityClass = new Map();
+  const countsByRecallClass = new Map();
+  const countsByRecallConfidence = new Map();
+  const countsByQualityImpact = new Map();
+  let observedTaskCount = 0;
+  let reducedRecallCount = 0;
+  let skippedFiles = 0;
+  let estimatedSuppressedFiles = 0;
+  let weightedRecallLossTotal = 0;
+  let weightedRecallLossWeight = 0;
+
+  for (const task of validTasks) {
+    const lowYield = resolveTaskLowYieldBailout(task?.payload || null);
+    if (!lowYield || typeof lowYield !== 'object') continue;
+    observedTaskCount += 1;
+    if (lowYield.repoYieldClass) bumpMapCount(countsByRepoYieldClass, lowYield.repoYieldClass);
+    if (lowYield.opportunityCost?.class) bumpMapCount(countsByOpportunityClass, lowYield.opportunityCost.class);
+    if (lowYield.recallCost?.class) bumpMapCount(countsByRecallClass, lowYield.recallCost.class);
+    if (lowYield.recallCost?.estimatedRecallLossConfidence) {
+      bumpMapCount(countsByRecallConfidence, lowYield.recallCost.estimatedRecallLossConfidence);
+    }
+    if (lowYield.recallCost?.qualityImpact) {
+      bumpMapCount(countsByQualityImpact, lowYield.recallCost.qualityImpact);
+    }
+    if (lowYield.triggered === true) reducedRecallCount += 1;
+    skippedFiles += Number(lowYield.opportunityCost?.skippedFiles ?? lowYield.skippedFiles) || 0;
+    estimatedSuppressedFiles += Number(
+      lowYield.opportunityCost?.estimatedSuppressedFiles ?? lowYield.estimatedSuppressedFiles
+    ) || 0;
+    const repoEntries = Number(lowYield?.repoFingerprint?.totalEntries);
+    const recallLossRatio = Number(
+      lowYield.recallCost?.estimatedRecallLossRatio ?? lowYield.estimatedRecallLossRatio
+    );
+    if (Number.isFinite(repoEntries) && repoEntries > 0 && Number.isFinite(recallLossRatio) && recallLossRatio > 0) {
+      weightedRecallLossTotal += recallLossRatio * repoEntries;
+      weightedRecallLossWeight += repoEntries;
+    }
+  }
+
+  return {
+    schemaVersion: EXTRACTED_PROSE_QUALITY_BUDGET_SCHEMA_VERSION,
+    taskCount: validTasks.length,
+    observedTaskCount,
+    reducedRecallCount,
+    skippedFiles,
+    estimatedSuppressedFiles,
+    weightedRecallLossRatio: weightedRecallLossWeight > 0 ? weightedRecallLossTotal / weightedRecallLossWeight : 0,
+    countsByRepoYieldClass: sortMapObject(countsByRepoYieldClass),
+    countsByOpportunityClass: sortMapObject(countsByOpportunityClass),
+    countsByRecallClass: sortMapObject(countsByRecallClass),
+    countsByRecallConfidence: sortMapObject(countsByRecallConfidence),
+    countsByQualityImpact: sortMapObject(countsByQualityImpact)
+  };
+};
+
 const parseProgressConfidenceLine = (line) => {
   const trimmed = String(line || '').trim();
   if (!trimmed) return null;
@@ -1534,6 +1609,48 @@ export const buildBenchRunDiagnosticsSummaryLines = (output) => {
     if (qualityHighlights.length) costHighlights.push(`quality ${qualityHighlights.join(' | ')}`);
     lines.push(`[diagnostics] fallback cost: ${costHighlights.join(' | ')}`);
   }
+  const qualityBudget = output?.diagnostics?.qualityBudget && typeof output.diagnostics.qualityBudget === 'object'
+    ? output.diagnostics.qualityBudget
+    : null;
+  const reducedRecallCount = Number(qualityBudget?.reducedRecallCount || 0);
+  const budgetSkippedFiles = Number(qualityBudget?.skippedFiles || 0);
+  const budgetSuppressedFiles = Number(qualityBudget?.estimatedSuppressedFiles || 0);
+  const weightedRecallLossRatio = Number(qualityBudget?.weightedRecallLossRatio || 0);
+  if (reducedRecallCount > 0 || budgetSkippedFiles > 0 || budgetSuppressedFiles > 0 || weightedRecallLossRatio > 0) {
+    const budgetHighlights = [];
+    if (reducedRecallCount > 0) budgetHighlights.push(`reduced-recall=${reducedRecallCount}`);
+    if (budgetSkippedFiles > 0) budgetHighlights.push(`skipped-files=${budgetSkippedFiles}`);
+    if (budgetSuppressedFiles > 0) budgetHighlights.push(`suppressed-est=${budgetSuppressedFiles}`);
+    if (weightedRecallLossRatio > 0) budgetHighlights.push(`weighted-recall-loss=${(weightedRecallLossRatio * 100).toFixed(1)}%`);
+    lines.push(`[diagnostics] extracted-prose quality budget: ${budgetHighlights.join(' | ')}`);
+  }
+  const repoYieldClassCounts = qualityBudget?.countsByRepoYieldClass && typeof qualityBudget.countsByRepoYieldClass === 'object'
+    ? qualityBudget.countsByRepoYieldClass
+    : {};
+  const opportunityClassCounts = qualityBudget?.countsByOpportunityClass
+    && typeof qualityBudget.countsByOpportunityClass === 'object'
+    ? qualityBudget.countsByOpportunityClass
+    : {};
+  const recallClassCounts = qualityBudget?.countsByRecallClass && typeof qualityBudget.countsByRecallClass === 'object'
+    ? qualityBudget.countsByRecallClass
+    : {};
+  const budgetClassHighlights = [
+    ...Object.entries(repoYieldClassCounts)
+      .filter(([, count]) => Number(count) > 0)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([label, count]) => `${label}=${count}`),
+    ...Object.entries(opportunityClassCounts)
+      .filter(([, count]) => Number(count) > 0)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([label, count]) => `opportunity-${label}=${count}`),
+    ...Object.entries(recallClassCounts)
+      .filter(([, count]) => Number(count) > 0)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([label, count]) => `recall-${label}=${count}`)
+  ];
+  if (budgetClassHighlights.length) {
+    lines.push(`[diagnostics] extracted-prose classes: ${budgetClassHighlights.join(' | ')}`);
+  }
   const warningCount = Number(countsBySeverity.warn || 0);
   const errorCount = Number(countsBySeverity.error || 0);
   if (warningCount > 0 || errorCount > 0) {
@@ -1671,6 +1788,7 @@ export const buildReportOutput = async ({
       : null);
     return {
       ...entry,
+      payload,
       repoIdentity: resolveTaskRepoIdentity(entry, payload),
       stageTimingProfile,
       throughputLedger,
@@ -1737,6 +1855,7 @@ export const buildReportOutput = async ({
       stream: diagnosticsStream,
       parity: diagnosticsParity,
       reuse: reuseDiagnostics,
+      qualityBudget: buildBenchQualityBudgetSummary(tasks),
       progressConfidence,
       preflight
     },

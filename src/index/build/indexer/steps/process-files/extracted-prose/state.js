@@ -1,6 +1,8 @@
 import { normalizeExtractedProseLowYieldBailoutConfig } from '../../../../../chunking/formats/document-common.js';
 import { sortEntriesByOrderIndex } from '../ordering.js';
 import {
+  EXTRACTED_PROSE_LOW_YIELD_HIGH_VALUE_COHORTS,
+  EXTRACTED_PROSE_LOW_YIELD_MACHINE_COHORTS,
   EXTRACTED_PROSE_LOW_YIELD_COHORT_KEYS,
   EXTRACTED_PROSE_LOW_YIELD_SKIP_REASON,
   buildExtractedProseLowYieldCohort,
@@ -50,6 +52,124 @@ const classifyEstimatedRecallLossConfidence = ({
   );
   return allGenuineLowYield ? 'high' : 'medium';
 };
+
+const classifyOpportunityCost = ({
+  skippedFiles = 0,
+  estimatedSuppressedFiles = 0,
+  estimatedAvoidedChunkSamples = 0
+} = {}) => {
+  const pressure = Math.max(
+    Math.max(0, Math.floor(Number(skippedFiles) || 0)),
+    Math.max(0, Math.floor(Number(estimatedSuppressedFiles) || 0)),
+    Math.max(0, Math.floor(Number(estimatedAvoidedChunkSamples) || 0))
+  );
+  if (pressure <= 0) return null;
+  if (pressure <= 5) return 'limited';
+  if (pressure <= 20) return 'material';
+  return 'major';
+};
+
+const classifyRepoYieldClass = ({
+  enabled = false,
+  triggered = false,
+  suppressedCohorts = [],
+  protectedCohorts = [],
+  strategyMismatchRiskCohorts = [],
+  repoFingerprint = null
+} = {}) => {
+  if (!enabled) return 'disabled';
+  const normalizedSuppressed = Array.isArray(suppressedCohorts) ? suppressedCohorts : [];
+  const normalizedProtected = Array.isArray(protectedCohorts) ? protectedCohorts : [];
+  const normalizedRisk = Array.isArray(strategyMismatchRiskCohorts) ? strategyMismatchRiskCohorts : [];
+  if (normalizedRisk.length > 0) return 'mixed-uncertain';
+
+  const normalizedFingerprint = normalizeRepoFingerprint(repoFingerprint);
+  const hasProtectedHighValue = normalizedProtected.some(
+    (cohortState) => EXTRACTED_PROSE_LOW_YIELD_HIGH_VALUE_COHORTS.has(String(cohortState?.key || ''))
+  );
+  const hasSuppressedGenerated = normalizedSuppressed.some(
+    (cohortState) => EXTRACTED_PROSE_LOW_YIELD_MACHINE_COHORTS.has(String(cohortState?.key || ''))
+  );
+  const allSuppressedGenuineLowYield = normalizedSuppressed.length > 0 && normalizedSuppressed.every(
+    (cohortState) => cohortState?.suppressionClass === 'genuine-low-yield'
+  );
+  if (triggered && hasSuppressedGenerated && hasProtectedHighValue) return 'sparse-high-value';
+  if (
+    triggered
+    && hasSuppressedGenerated
+    && normalizedFingerprint.dominantCohort === 'generated-machine'
+    && normalizedFingerprint.docLikeEntries <= 1
+  ) {
+    return 'generated-repetitive';
+  }
+  if (triggered && allSuppressedGenuineLowYield) return 'genuine-low-yield';
+  if (hasProtectedHighValue) return 'sparse-high-value';
+  return 'productive-or-protected';
+};
+
+const buildOpportunityCostSummary = ({
+  bailout = null,
+  suppressedCohorts = [],
+  protectedCohorts = [],
+  estimatedSuppressedFiles = 0,
+  estimatedRecallLossRatio = 0,
+  estimatedRecallLossClass = null,
+  estimatedRecallLossConfidence = null,
+  strategyMismatchRiskCohorts = []
+} = {}) => {
+  const sampledFiles = Math.max(0, Math.floor(Number(bailout?.observedSamples) || 0));
+  const sampledChunkCount = Math.max(0, Math.floor(Number(bailout?.sampledChunkCount) || 0));
+  const skippedFiles = Math.max(0, Math.floor(Number(bailout?.skippedFiles) || 0));
+  const estimatedAvoidedChunkSamples = sampledFiles > 0
+    ? Math.max(0, Math.round((sampledChunkCount / sampledFiles) * skippedFiles))
+    : 0;
+  return {
+    class: classifyOpportunityCost({
+      skippedFiles,
+      estimatedSuppressedFiles,
+      estimatedAvoidedChunkSamples
+    }),
+    estimatedRecallLossRatio: Number.isFinite(Number(estimatedRecallLossRatio))
+      ? Math.max(0, Math.min(1, Number(estimatedRecallLossRatio)))
+      : 0,
+    estimatedRecallLossClass,
+    estimatedRecallLossConfidence,
+    skippedFiles,
+    estimatedSuppressedFiles: Math.max(0, Math.floor(Number(estimatedSuppressedFiles) || 0)),
+    estimatedAvoidedChunkSamples,
+    suppressedCohortCount: Array.isArray(suppressedCohorts) ? suppressedCohorts.length : 0,
+    protectedCohortCount: Array.isArray(protectedCohorts) ? protectedCohorts.length : 0,
+    protectedHighValueCohortCount: (Array.isArray(protectedCohorts) ? protectedCohorts : []).filter(
+      (cohortState) => EXTRACTED_PROSE_LOW_YIELD_HIGH_VALUE_COHORTS.has(String(cohortState?.key || ''))
+    ).length,
+    strategyMismatchRiskCount: Array.isArray(strategyMismatchRiskCohorts) ? strategyMismatchRiskCohorts.length : 0
+  };
+};
+
+const buildRecallCostSummary = ({
+  triggered = false,
+  qualityImpact = null,
+  estimatedSuppressedFiles = 0,
+  estimatedRecallLossRatio = 0,
+  estimatedRecallLossClass = null,
+  estimatedRecallLossConfidence = null,
+  protectedCohorts = [],
+  strategyMismatchRiskCohorts = []
+} = {}) => ({
+  class: triggered ? (estimatedRecallLossClass || 'low') : null,
+  qualityImpact: triggered ? qualityImpact : null,
+  downgradedRecall: triggered,
+  estimatedSuppressedFiles: Math.max(0, Math.floor(Number(estimatedSuppressedFiles) || 0)),
+  estimatedRecallLossRatio: Number.isFinite(Number(estimatedRecallLossRatio))
+    ? Math.max(0, Math.min(1, Number(estimatedRecallLossRatio)))
+    : 0,
+  estimatedRecallLossClass: triggered ? estimatedRecallLossClass : null,
+  estimatedRecallLossConfidence: triggered ? estimatedRecallLossConfidence : null,
+  protectedHighValueCohortCount: (Array.isArray(protectedCohorts) ? protectedCohorts : []).filter(
+    (cohortState) => EXTRACTED_PROSE_LOW_YIELD_HIGH_VALUE_COHORTS.has(String(cohortState?.key || ''))
+  ).length,
+  strategyMismatchRiskCount: Array.isArray(strategyMismatchRiskCohorts) ? strategyMismatchRiskCohorts.length : 0
+});
 
 const buildSuppressedCohortRecallLossEstimates = ({
   suppressedCohorts = [],
@@ -552,11 +672,41 @@ export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
     strategyMismatchRiskCount: strategyMismatchRiskCohorts.length,
     suppressedCohorts
   });
+  const qualityImpact = bailout.triggered ? 'reduced-extracted-prose-recall' : null;
+  const repoYieldClass = classifyRepoYieldClass({
+    enabled: bailout.enabled === true,
+    triggered: bailout.triggered === true,
+    suppressedCohorts,
+    protectedCohorts,
+    strategyMismatchRiskCohorts,
+    repoFingerprint: normalizedRepoFingerprint
+  });
+  const opportunityCost = buildOpportunityCostSummary({
+    bailout,
+    suppressedCohorts,
+    protectedCohorts,
+    estimatedSuppressedFiles,
+    estimatedRecallLossRatio,
+    estimatedRecallLossClass,
+    estimatedRecallLossConfidence,
+    strategyMismatchRiskCohorts
+  });
+  const recallCost = buildRecallCostSummary({
+    triggered: bailout.triggered === true,
+    qualityImpact,
+    estimatedSuppressedFiles,
+    estimatedRecallLossRatio,
+    estimatedRecallLossClass,
+    estimatedRecallLossConfidence,
+    protectedCohorts,
+    strategyMismatchRiskCohorts
+  });
   return {
     enabled: bailout.enabled === true,
     triggered: bailout.triggered === true,
     reason: bailout.triggered ? EXTRACTED_PROSE_LOW_YIELD_SKIP_REASON : null,
-    qualityImpact: bailout.triggered ? 'reduced-extracted-prose-recall' : null,
+    qualityImpact,
+    repoYieldClass,
     seed: bailout.config.seed,
     warmupWindowSize: bailout.warmupWindowSize,
     warmupSampleSize: bailout.warmupSampleSize,
@@ -578,6 +728,8 @@ export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
     estimatedRecallLossRatio,
     estimatedRecallLossClass,
     estimatedRecallLossConfidence,
+    opportunityCost,
+    recallCost,
     skippedFiles: bailout.skippedFiles,
     decisionAtOrderIndex: bailout.decisionAtOrderIndex,
     decisionAt: toIsoTimestamp(bailout.decisionAtMs),

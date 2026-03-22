@@ -25,6 +25,7 @@ try {
           triggered: true,
           reason: 'low_yield',
           qualityImpact: 'reduced-extracted-prose-recall',
+          repoYieldClass: 'sparse-high-value',
           seed: 'fixture-seed',
           warmupWindowSize: 8,
           warmupSampleSize: 4,
@@ -37,6 +38,38 @@ try {
           suppressedCohortCount: 1,
           protectedCohortCount: 1,
           strategyMismatchRiskCount: 0,
+          estimatedSuppressedFiles: 1,
+          estimatedRecallLossRatio: 0.25,
+          estimatedRecallLossClass: 'high',
+          estimatedRecallLossConfidence: 'medium',
+          opportunityCost: {
+            class: 'limited',
+            estimatedSuppressedFiles: 1,
+            estimatedRecallLossRatio: 0.25,
+            estimatedRecallLossClass: 'high',
+            estimatedRecallLossConfidence: 'medium',
+            skippedFiles: 4,
+            estimatedAvoidedChunkSamples: 0,
+            suppressedCohortCount: 1,
+            protectedCohortCount: 1,
+            protectedHighValueCohortCount: 1,
+            strategyMismatchRiskCount: 0
+          },
+          recallCost: {
+            class: 'high',
+            qualityImpact: 'reduced-extracted-prose-recall',
+            downgradedRecall: true,
+            estimatedSuppressedFiles: 1,
+            estimatedRecallLossRatio: 0.25,
+            estimatedRecallLossClass: 'high',
+            estimatedRecallLossConfidence: 'medium',
+            skippedFiles: 0,
+            estimatedAvoidedChunkSamples: 0,
+            suppressedCohortCount: 1,
+            protectedCohortCount: 1,
+            protectedHighValueCohortCount: 1,
+            strategyMismatchRiskCount: 0
+          },
           skippedFiles: 4,
           decisionAtOrderIndex: 4,
           decisionAt: '2026-03-21T00:00:01.000Z',
@@ -55,7 +88,10 @@ try {
               sampledFiles: 3,
               sampledObservedFiles: 3,
               sampledYieldedFiles: 0,
-              sampledChunkCount: 0
+              sampledChunkCount: 0,
+              repoFiles: 3,
+              estimatedSuppressedFiles: 1,
+              estimatedRecallLossRatio: 0.25
             }
           ],
           protectedCohorts: [
@@ -202,6 +238,7 @@ try {
   assert.equal(payload.modes.code.lines.total, 42);
   assert.equal(payload.modes.code.lines.byLanguage.python, 40);
   assert.equal(payload.modes['extracted-prose'].quality.lowYieldBailout?.triggered, true);
+  assert.equal(payload.modes['extracted-prose'].quality.lowYieldBailout?.repoYieldClass, 'sparse-high-value');
   assert.equal(payload.totals.files.candidates, 8);
   assert.equal(payload.totals.lines, 54);
   assert.equal(payload.languageLines.markdown, 12);

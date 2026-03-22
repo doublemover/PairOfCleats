@@ -176,11 +176,54 @@ const buildExtractedProseLowYieldQualityMarker = (state) => {
     ? state.extractedProseLowYieldBailout
     : {};
   const triggered = raw.triggered === true;
+  const normalizeQualityBudgetCost = (value, { includeQualityImpact = false } = {}) => {
+    const payload = value && typeof value === 'object' ? value : {};
+    return {
+      class: typeof payload.class === 'string' ? payload.class : null,
+      ...(includeQualityImpact
+        ? {
+          qualityImpact: typeof payload.qualityImpact === 'string' ? payload.qualityImpact : null,
+          downgradedRecall: payload.downgradedRecall === true
+        }
+        : {}),
+      estimatedSuppressedFiles: Number.isFinite(Number(payload.estimatedSuppressedFiles))
+        ? Math.max(0, Math.floor(Number(payload.estimatedSuppressedFiles)))
+        : 0,
+      estimatedRecallLossRatio: Number.isFinite(Number(payload.estimatedRecallLossRatio))
+        ? Math.max(0, Math.min(1, Number(payload.estimatedRecallLossRatio)))
+        : 0,
+      estimatedRecallLossClass: typeof payload.estimatedRecallLossClass === 'string'
+        ? payload.estimatedRecallLossClass
+        : null,
+      estimatedRecallLossConfidence: typeof payload.estimatedRecallLossConfidence === 'string'
+        ? payload.estimatedRecallLossConfidence
+        : null,
+      skippedFiles: Number.isFinite(Number(payload.skippedFiles))
+        ? Math.max(0, Math.floor(Number(payload.skippedFiles)))
+        : 0,
+      estimatedAvoidedChunkSamples: Number.isFinite(Number(payload.estimatedAvoidedChunkSamples))
+        ? Math.max(0, Math.floor(Number(payload.estimatedAvoidedChunkSamples)))
+        : 0,
+      suppressedCohortCount: Number.isFinite(Number(payload.suppressedCohortCount))
+        ? Math.max(0, Math.floor(Number(payload.suppressedCohortCount)))
+        : 0,
+      protectedCohortCount: Number.isFinite(Number(payload.protectedCohortCount))
+        ? Math.max(0, Math.floor(Number(payload.protectedCohortCount)))
+        : 0,
+      protectedHighValueCohortCount: Number.isFinite(Number(payload.protectedHighValueCohortCount))
+        ? Math.max(0, Math.floor(Number(payload.protectedHighValueCohortCount)))
+        : 0,
+      strategyMismatchRiskCount: Number.isFinite(Number(payload.strategyMismatchRiskCount))
+        ? Math.max(0, Math.floor(Number(payload.strategyMismatchRiskCount)))
+        : 0
+    };
+  };
   return {
     enabled: raw.enabled === true,
     triggered,
     reason: typeof raw.reason === 'string' ? raw.reason : null,
     qualityImpact: typeof raw.qualityImpact === 'string' ? raw.qualityImpact : null,
+    repoYieldClass: typeof raw.repoYieldClass === 'string' ? raw.repoYieldClass : null,
     seed: typeof raw.seed === 'string' ? raw.seed : null,
     warmupWindowSize: Number.isFinite(Number(raw.warmupWindowSize))
       ? Math.max(0, Math.floor(Number(raw.warmupWindowSize)))
@@ -230,6 +273,8 @@ const buildExtractedProseLowYieldQualityMarker = (state) => {
     estimatedRecallLossConfidence: typeof raw.estimatedRecallLossConfidence === 'string'
       ? raw.estimatedRecallLossConfidence
       : null,
+    opportunityCost: normalizeQualityBudgetCost(raw.opportunityCost),
+    recallCost: normalizeQualityBudgetCost(raw.recallCost, { includeQualityImpact: true }),
     decisionAtOrderIndex: Number.isFinite(Number(raw.decisionAtOrderIndex))
       ? Math.floor(Number(raw.decisionAtOrderIndex))
       : null,

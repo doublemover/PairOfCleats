@@ -68,6 +68,7 @@ assert.equal(lowYieldMarker?.enabled, false, 'expected low-yield bailout to stay
 assert.equal(lowYieldMarker?.triggered, false, 'expected no low-yield bailout trigger for tiny document-only fixture');
 assert.equal(lowYieldMarker?.reason, null, 'expected no low-yield bailout reason when disabled');
 assert.equal(lowYieldMarker?.qualityImpact, null, 'expected no low-yield quality impact when disabled');
+assert.equal(lowYieldMarker?.repoYieldClass, 'disabled', 'expected disabled repo classification when low-yield control is inactive');
 assert.equal(lowYieldMarker?.seed, 'phase17-low-yield-seed', 'expected deterministic warmup seed');
 assert.equal(lowYieldMarker?.sampledFiles, 0, 'expected no warmup sampling when bailout is disabled');
 assert.equal(lowYieldMarker?.sampledYieldedFiles, 0, 'expected zero warmup yield accounting');
@@ -76,6 +77,8 @@ assert.equal(lowYieldMarker?.estimatedSuppressedFiles, 0, 'expected zero suppres
 assert.equal(lowYieldMarker?.estimatedRecallLossRatio, 0, 'expected zero recall-loss ratio when bailout is disabled');
 assert.equal(lowYieldMarker?.estimatedRecallLossClass, null, 'expected no recall-loss class when bailout is disabled');
 assert.equal(lowYieldMarker?.estimatedRecallLossConfidence, null, 'expected no recall-loss confidence when bailout is disabled');
+assert.equal(lowYieldMarker?.opportunityCost?.class, null, 'expected no opportunity-cost class when bailout is disabled');
+assert.equal(lowYieldMarker?.recallCost?.downgradedRecall, false, 'expected no recall downgrade when bailout is disabled');
 assert.ok(lowYieldMarker?.repoFingerprint && typeof lowYieldMarker.repoFingerprint === 'object', 'expected repo fingerprint accounting');
 assert.ok(Array.isArray(lowYieldMarker?.suppressedCohorts), 'expected suppressed cohort detail');
 assert.ok(Array.isArray(lowYieldMarker?.protectedCohorts), 'expected protected cohort detail');

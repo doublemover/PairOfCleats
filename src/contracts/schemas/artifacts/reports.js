@@ -6,6 +6,46 @@ const posInt = { type: 'integer', minimum: 1 };
 const semverString = { type: 'string', pattern: '^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$' };
 const modeName = { type: 'string', enum: ['code', 'prose', 'extracted-prose', 'records'] };
 
+const extractedProseQualityBudgetCost = ({
+  includeQualityImpact = false
+} = {}) => ({
+  type: 'object',
+  required: [
+    'class',
+    ...(includeQualityImpact ? ['qualityImpact', 'downgradedRecall'] : []),
+    'estimatedSuppressedFiles',
+    'estimatedRecallLossRatio',
+    'estimatedRecallLossClass',
+    'estimatedRecallLossConfidence',
+    'skippedFiles',
+    'estimatedAvoidedChunkSamples',
+    'suppressedCohortCount',
+    'protectedCohortCount',
+    'protectedHighValueCohortCount',
+    'strategyMismatchRiskCount'
+  ],
+  properties: {
+    class: nullableString,
+    ...(includeQualityImpact
+      ? {
+        qualityImpact: nullableString,
+        downgradedRecall: { type: 'boolean' }
+      }
+      : {}),
+    estimatedSuppressedFiles: intId,
+    estimatedRecallLossRatio: { type: 'number' },
+    estimatedRecallLossClass: nullableString,
+    estimatedRecallLossConfidence: nullableString,
+    skippedFiles: intId,
+    estimatedAvoidedChunkSamples: intId,
+    suppressedCohortCount: intId,
+    protectedCohortCount: intId,
+    protectedHighValueCohortCount: intId,
+    strategyMismatchRiskCount: intId
+  },
+  additionalProperties: false
+});
+
 const fileListBucket = {
   type: 'object',
   required: ['count', 'sample'],
@@ -99,6 +139,7 @@ const extractionReportLowYieldBailout = {
     'triggered',
     'reason',
     'qualityImpact',
+    'repoYieldClass',
     'seed',
     'warmupWindowSize',
     'warmupSampleSize',
@@ -115,6 +156,8 @@ const extractionReportLowYieldBailout = {
     'estimatedRecallLossRatio',
     'estimatedRecallLossClass',
     'estimatedRecallLossConfidence',
+    'opportunityCost',
+    'recallCost',
     'skippedFiles',
     'decisionAtOrderIndex',
     'decisionAt',
@@ -130,6 +173,7 @@ const extractionReportLowYieldBailout = {
     triggered: { type: 'boolean' },
     reason: nullableString,
     qualityImpact: nullableString,
+    repoYieldClass: nullableString,
     seed: nullableString,
     warmupWindowSize: intId,
     warmupSampleSize: intId,
@@ -146,6 +190,8 @@ const extractionReportLowYieldBailout = {
     estimatedRecallLossRatio: { type: 'number' },
     estimatedRecallLossClass: nullableString,
     estimatedRecallLossConfidence: nullableString,
+    opportunityCost: extractedProseQualityBudgetCost(),
+    recallCost: extractedProseQualityBudgetCost({ includeQualityImpact: true }),
     skippedFiles: intId,
     decisionAtOrderIndex: nullableInt,
     decisionAt: nullableString,
