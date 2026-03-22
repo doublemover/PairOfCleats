@@ -258,10 +258,20 @@ export const validateMetaV2Equivalence = (report, mode, chunkMeta, options = {})
     const meta = entry.metaV2;
     let identity = entry.identity || null;
     if (!identity) {
-      const hasIdentity = meta.chunkUidAlgoVersion || meta.spanHash || meta.preHash || meta.postHash || meta.collisionOf;
+      const hasIdentity = meta.chunkUidAlgoVersion
+        || meta.canonicalEnvelopeVersion
+        || meta.mintedByStage
+        || meta.disambiguation
+        || meta.spanHash
+        || meta.preHash
+        || meta.postHash
+        || meta.collisionOf;
       identity = hasIdentity
         ? {
           chunkUidAlgoVersion: meta.chunkUidAlgoVersion ?? null,
+          canonicalEnvelopeVersion: meta.canonicalEnvelopeVersion ?? null,
+          mintedByStage: meta.mintedByStage ?? null,
+          disambiguation: meta.disambiguation ?? null,
           spanHash: meta.spanHash ?? null,
           preHash: meta.preHash ?? null,
           postHash: meta.postHash ?? null,

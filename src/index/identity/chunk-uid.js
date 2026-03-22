@@ -1,12 +1,14 @@
 import { checksumString } from '../../shared/hash.js';
 import { toPosix } from '../../shared/files.js';
 import { normalizeEol } from '../../shared/eol.js';
-import { isCanonicalChunkUid } from '../../shared/identity.js';
+import { assertChunkIdentityEnvelope, isCanonicalChunkUid } from '../../shared/identity.js';
 
 export const PRE_CONTEXT_CHARS = 128;
 export const POST_CONTEXT_CHARS = 128;
 export const ESCALATION_CONTEXT_CHARS = 1024;
 export const MAX_COLLISION_PASSES = 2;
+export const CHUNK_IDENTITY_ENVELOPE_VERSION = 'v1';
+export const CHUNK_IDENTITY_MINTED_BY_STAGE = 'index.identity.chunk-uid.assignChunkUids';
 
 export const normalizeForUid = (value) => normalizeEol(value || '');
 
@@ -102,8 +104,33 @@ const buildCollisionEntropySalt = (chunk, fileRelPath = '') => {
 
 const formatHashForMeta = (value) => (value ? `xxh64:${value}` : null);
 
-const assignChunkIdentity = (chunk, virtualPath, computed, { collisionOf = null } = {}) => {
+const normalizeIdentityLabelPart = (value) => {
+  const normalized = String(value || '').trim().replace(/\s+/g, ' ');
+  return normalized || null;
+};
+
+const buildCanonicalEnvelopeSalt = (chunk) => {
+  const parts = [
+    normalizeIdentityLabelPart(chunk?.segment?.languageId),
+    normalizeIdentityLabelPart(chunk?.kind),
+    normalizeIdentityLabelPart(chunk?.name)
+  ].filter(Boolean);
+  return parts.length ? `canon:${parts.join('|')}` : null;
+};
+
+const assignChunkIdentity = (
+  chunk,
+  virtualPath,
+  computed,
+  {
+    collisionOf = null,
+    disambiguation = 'base',
+    fileRelPath = null
+  } = {}
+) => {
   if (!chunk) return;
+  const file = chunk.file || fileRelPath || null;
+  if (!chunk.file && file) chunk.file = file;
   chunk.chunkUid = computed?.chunkUid || chunk.chunkUid || null;
   chunk.virtualPath = virtualPath || chunk.virtualPath || null;
   if (chunk.segment && typeof chunk.segment === 'object') {
@@ -111,11 +138,26 @@ const assignChunkIdentity = (chunk, virtualPath, computed, { collisionOf = null 
   }
   chunk.identity = {
     chunkUidAlgoVersion: 'v1',
+    canonicalEnvelopeVersion: CHUNK_IDENTITY_ENVELOPE_VERSION,
+    mintedByStage: CHUNK_IDENTITY_MINTED_BY_STAGE,
+    disambiguation,
     spanHash: formatHashForMeta(computed?.spanHash),
     preHash: formatHashForMeta(computed?.preHash),
     postHash: formatHashForMeta(computed?.postHash),
     collisionOf: collisionOf || null
   };
+  assertChunkIdentityEnvelope({
+    chunkUid: chunk.chunkUid,
+    virtualPath: chunk.virtualPath,
+    file,
+    segment: chunk.segment || null
+  }, {
+    label: CHUNK_IDENTITY_MINTED_BY_STAGE,
+    requireChunkUid: true,
+    requireVirtualPath: true,
+    requireSegmentUid: !!chunk?.segment,
+    requireFile: true
+  });
 };
 
 const findCollisionGroups = (chunks) => {
@@ -163,12 +205,19 @@ export const assignChunkUids = async ({
       preContextChars: contextChars.pre,
       postContextChars: contextChars.post
     });
-    assignChunkIdentity(chunk, virtualPath, computed);
+    assignChunkIdentity(chunk, virtualPath, computed, {
+      disambiguation: spanSalt
+        ? (String(spanSalt).startsWith('canon:') ? 'canonical-envelope' : 'collision-entropy')
+        : 'base',
+      fileRelPath: safePath
+    });
     return computed;
   };
 
   for (const chunk of chunks) {
-    await computeForChunk(chunk, { pre: PRE_CONTEXT_CHARS, post: POST_CONTEXT_CHARS });
+    await computeForChunk(chunk, { pre: PRE_CONTEXT_CHARS, post: POST_CONTEXT_CHARS }, {
+      spanSalt: buildCanonicalEnvelopeSalt(chunk)
+    });
   }
 
   let collisionGroups = findCollisionGroups(chunks);
@@ -221,9 +270,13 @@ export const assignChunkUids = async ({
         }
         if (chunk.identity) {
           chunk.identity.collisionOf = base;
+          chunk.identity.disambiguation = 'ordinal-fallback';
         } else {
           chunk.identity = {
             chunkUidAlgoVersion: 'v1',
+            canonicalEnvelopeVersion: CHUNK_IDENTITY_ENVELOPE_VERSION,
+            mintedByStage: CHUNK_IDENTITY_MINTED_BY_STAGE,
+            disambiguation: 'ordinal-fallback',
             spanHash: null,
             preHash: null,
             postHash: null,

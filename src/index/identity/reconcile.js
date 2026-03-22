@@ -37,6 +37,18 @@ const pushIssue = (report, code, message, extra = {}) => {
   report.issues.push({ code, message, ...extra });
 };
 
+const extractChunkIdentityProvenance = (row) => {
+  const meta = row?.metaV2 && typeof row.metaV2 === 'object' ? row.metaV2 : {};
+  const identity = row?.identity && typeof row.identity === 'object' ? row.identity : {};
+  return {
+    mintedByStage: String(identity.mintedByStage || meta.mintedByStage || '').trim() || null,
+    disambiguation: String(identity.disambiguation || meta.disambiguation || '').trim() || null,
+    canonicalEnvelopeVersion: String(
+      identity.canonicalEnvelopeVersion || meta.canonicalEnvelopeVersion || ''
+    ).trim() || null
+  };
+};
+
 const formatArtifactLabel = (artifact, detail) => (
   detail ? `${artifact} ${detail}` : artifact
 );
@@ -63,7 +75,10 @@ const validateKnownChunkReference = ({
       report,
       'ERR_ID_CHUNK_REFERENCE_UNKNOWN',
       `${formatArtifactLabel(artifact, detail)} chunkUid missing in chunk_meta (${uid})`,
-      { chunkUid: uid }
+      {
+        chunkUid: uid,
+        detectedByStage: `identity.reconcile.${artifact}`
+      }
     );
     return null;
   }
@@ -73,7 +88,11 @@ const validateKnownChunkReference = ({
       report,
       'ERR_ID_CHUNK_REFERENCE_FILE_MISMATCH',
       `${formatArtifactLabel(artifact, detail)} file mismatch for ${uid} (${file} != ${expected.file})`,
-      { chunkUid: uid }
+      {
+        chunkUid: uid,
+        detectedByStage: `identity.reconcile.${artifact}`,
+        mintedByStage: expected.mintedByStage || null
+      }
     );
   }
   const virtualPath = typeof reference?.virtualPath === 'string' ? reference.virtualPath.trim() : '';
@@ -82,7 +101,11 @@ const validateKnownChunkReference = ({
       report,
       'ERR_ID_CHUNK_REFERENCE_VIRTUAL_PATH_MISMATCH',
       `${formatArtifactLabel(artifact, detail)} virtualPath mismatch for ${uid} (${virtualPath} != ${expected.virtualPath})`,
-      { chunkUid: uid }
+      {
+        chunkUid: uid,
+        detectedByStage: `identity.reconcile.${artifact}`,
+        mintedByStage: expected.mintedByStage || null
+      }
     );
   }
   const segmentUid = typeof reference?.segmentUid === 'string' ? reference.segmentUid.trim() : '';
@@ -91,7 +114,11 @@ const validateKnownChunkReference = ({
       report,
       'ERR_ID_CHUNK_REFERENCE_SEGMENT_MISMATCH',
       `${formatArtifactLabel(artifact, detail)} segmentUid mismatch for ${uid} (${segmentUid} != ${expected.segmentUid})`,
-      { chunkUid: uid }
+      {
+        chunkUid: uid,
+        detectedByStage: `identity.reconcile.${artifact}`,
+        mintedByStage: expected.mintedByStage || null
+      }
     );
   }
   return expected;
@@ -140,15 +167,27 @@ const buildChunkIndex = async ({
         }
       );
     } catch (error) {
-      pushIssue(report, 'ERR_ID_CHUNK_META_INVALID', String(error?.message || error));
+      pushIssue(report, 'ERR_ID_CHUNK_META_INVALID', String(error?.message || error), {
+        detectedByStage: 'identity.reconcile.chunk_meta',
+        ...extractChunkIdentityProvenance(row)
+      });
       continue;
     }
+    const provenance = extractChunkIdentityProvenance(row);
+    identity = {
+      ...identity,
+      ...provenance
+    };
     if (chunkByUid.has(identity.chunkUid)) {
       pushIssue(
         report,
         'ERR_ID_CHUNK_META_DUPLICATE_UID',
         `chunk_meta duplicate chunkUid (${identity.chunkUid})`,
-        { chunkUid: identity.chunkUid }
+        {
+          chunkUid: identity.chunkUid,
+          detectedByStage: 'identity.reconcile.chunk_meta',
+          mintedByStage: identity.mintedByStage || null
+        }
       );
       continue;
     }
@@ -158,7 +197,11 @@ const buildChunkIndex = async ({
           report,
           'ERR_ID_CHUNK_META_DUPLICATE_DOC_ID',
           `chunk_meta duplicate docId (${identity.docId})`,
-          { docId: identity.docId }
+          {
+            docId: identity.docId,
+            detectedByStage: 'identity.reconcile.chunk_meta',
+            mintedByStage: identity.mintedByStage || null
+          }
         );
       } else {
         chunkByDocId.set(identity.docId, identity);
@@ -167,6 +210,117 @@ const buildChunkIndex = async ({
     chunkByUid.set(identity.chunkUid, identity);
   }
   return { chunkByUid, chunkByDocId };
+};
+
+const reconcileCallSites = async ({
+  indexDir,
+  manifest,
+  strict,
+  maxBytes,
+  report,
+  chunkByUid
+}) => {
+  if (!hasManifestPiece(manifest, 'call_sites')) return;
+  for await (const row of loadJsonArrayArtifactRows(indexDir, 'call_sites', {
+    manifest,
+    strict,
+    maxBytes
+  })) {
+    report.counts.callSites += 1;
+    validateKnownChunkReference({
+      report,
+      artifact: 'call_sites',
+      detail: 'caller',
+      reference: {
+        chunkUid: row?.callerChunkUid || null,
+        file: row?.file || null
+      },
+      chunkByUid
+    });
+    if (row?.targetChunkUid) {
+      validateKnownChunkReference({
+        report,
+        artifact: 'call_sites',
+        detail: 'target',
+        reference: {
+          chunkUid: row.targetChunkUid
+        },
+        chunkByUid
+      });
+    }
+  }
+};
+
+const reconcileRiskSummaries = async ({
+  indexDir,
+  manifest,
+  strict,
+  maxBytes,
+  report,
+  chunkByUid
+}) => {
+  if (!hasManifestPiece(manifest, 'risk_summaries')) return;
+  for await (const row of loadJsonArrayArtifactRows(indexDir, 'risk_summaries', {
+    manifest,
+    strict,
+    maxBytes
+  })) {
+    report.counts.riskSummaries += 1;
+    validateKnownChunkReference({
+      report,
+      artifact: 'risk_summaries',
+      reference: row,
+      chunkByUid
+    });
+  }
+};
+
+const reconcileRiskFlows = async ({
+  indexDir,
+  manifest,
+  strict,
+  maxBytes,
+  report,
+  chunkByUid,
+  partial = false
+}) => {
+  const artifact = partial ? 'risk_partial_flows' : 'risk_flows';
+  if (!hasManifestPiece(manifest, artifact)) return;
+  for await (const row of loadJsonArrayArtifactRows(indexDir, artifact, {
+    manifest,
+    strict,
+    maxBytes
+  })) {
+    if (partial) {
+      report.counts.riskPartialFlows += 1;
+    } else {
+      report.counts.riskFlows += 1;
+    }
+    validateKnownChunkReference({
+      report,
+      artifact,
+      detail: 'source',
+      reference: row?.source,
+      chunkByUid
+    });
+    validateKnownChunkReference({
+      report,
+      artifact,
+      detail: partial ? 'frontier' : 'sink',
+      reference: partial ? row?.frontier : row?.sink,
+      chunkByUid
+    });
+    const chunkUids = Array.isArray(row?.path?.chunkUids) ? row.path.chunkUids : [];
+    for (let index = 0; index < chunkUids.length; index += 1) {
+      validateKnownChunkReference({
+        report,
+        artifact,
+        detail: `path[${index}]`,
+        reference: { chunkUid: chunkUids[index] },
+        chunkByUid
+      });
+    }
+  }
 };
 
 const reconcileSymbols = async ({
@@ -341,7 +495,11 @@ export const reconcileIndexIdentity = async ({
       symbols: 0,
       symbolOccurrences: 0,
       symbolEdges: 0,
-      chunkUidMap: 0
+      chunkUidMap: 0,
+      callSites: 0,
+      riskSummaries: 0,
+      riskFlows: 0,
+      riskPartialFlows: 0
     },
     issues: []
   };
@@ -389,6 +547,40 @@ export const reconcileIndexIdentity = async ({
     report,
     chunkByUid,
     chunkByDocId
+  });
+
+  await reconcileCallSites({
+    indexDir: resolvedIndexDir,
+    manifest,
+    strict,
+    maxBytes,
+    report,
+    chunkByUid
+  });
+  await reconcileRiskSummaries({
+    indexDir: resolvedIndexDir,
+    manifest,
+    strict,
+    maxBytes,
+    report,
+    chunkByUid
+  });
+  await reconcileRiskFlows({
+    indexDir: resolvedIndexDir,
+    manifest,
+    strict,
+    maxBytes,
+    report,
+    chunkByUid
+  });
+  await reconcileRiskFlows({
+    indexDir: resolvedIndexDir,
+    manifest,
+    strict,
+    maxBytes,
+    report,
+    chunkByUid,
+    partial: true
   });
 
   report.summary = {
