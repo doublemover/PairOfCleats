@@ -86,7 +86,7 @@ jobs:
         if: matrix.language == 'rust' && (github.event_name != 'push' || steps.rate.outputs.skip != 'true') && (github.event_name != 'schedule' || steps.nightly.outputs.skip != 'true')
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.83.0
+          toolchain: 1.86.0
 
       - name: Autobuild Rust
         if: matrix.language == 'rust' && (github.event_name != 'push' || steps.rate.outputs.skip != 'true') && (github.event_name != 'schedule' || steps.nightly.outputs.skip != 'true')

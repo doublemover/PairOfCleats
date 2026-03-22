@@ -30,6 +30,8 @@ jobs:
     outputs:
       release_tag: ${{ steps.release-metadata.outputs.release_tag }}
       release_version: ${{ steps.release-metadata.outputs.release_version }}
+      release_git_sha: ${{ steps.release-revision.outputs.release_git_sha }}
+      release_ref: ${{ steps.release-revision.outputs.release_ref }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,6 +58,15 @@ jobs:
           node tools/release/metadata.js --tag "$RELEASE_TAG" --out dist/release/prepare/metadata.json --notes-out dist/release/prepare/notes.md
           echo "release_tag=$(node -e "const fs=require('fs');const payload=JSON.parse(fs.readFileSync('dist/release/prepare/metadata.json','utf8'));process.stdout.write(payload.releaseTag||'');")" >> "$GITHUB_OUTPUT"
           echo "release_version=$(node -e "const fs=require('fs');const payload=JSON.parse(fs.readFileSync('dist/release/prepare/metadata.json','utf8'));process.stdout.write(payload.releaseVersion||'');")" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve checked out release revision
+        id: release-revision
+        shell: bash
+        env:
+          RELEASE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          echo "release_git_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "release_ref=$RELEASE_REF" >> "$GITHUB_OUTPUT"
 
       - name: Release prepare gates
         run: >
@@ -228,7 +239,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.83.0
+          toolchain: 1.86.0
 
       - name: Install deps
         run: npm run bootstrap:ci
@@ -434,7 +445,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.83.0
+          toolchain: 1.86.0
 
       - name: Install cargo-cyclonedx
         run: cargo install cargo-cyclonedx --locked
@@ -561,20 +572,75 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_GIT_SHA: ${{ needs.prepare.outputs.release_git_sha }}
+          RELEASE_REF: ${{ needs.prepare.outputs.release_ref }}
+          RELEASE_EVENT_NAME: ${{ github.event_name }}
         run: |
           mkdir -p dist/release/readiness dist/release/ci-quality
-          ci_run_id=$(gh run list --workflow 'ci.yml' --commit "$GITHUB_SHA" --status success --json databaseId --limit 1 --jq '.[0].databaseId')
-          ci_long_run_id=$(gh run list --workflow 'ci-long.yml' --commit "$GITHUB_SHA" --status success --json databaseId --limit 1 --jq '.[0].databaseId')
-          if [ -z "$ci_run_id" ] || [ "$ci_run_id" = "null" ]; then
-            echo 'missing successful CI workflow run for release commit'
-            exit 1
-          fi
-          if [ -z "$ci_long_run_id" ] || [ "$ci_long_run_id" = "null" ]; then
-            echo 'missing successful CI Long workflow run for release commit'
-            exit 1
-          fi
+          target_sha="${RELEASE_GIT_SHA:-$GITHUB_SHA}"
+          target_ref="${RELEASE_REF:-$GITHUB_REF_NAME}"
+          poll_interval_seconds=30
+          max_attempts=120
+
+          find_run_state() {
+            local workflow="$1"
+            gh run list --workflow "$workflow" --commit "$target_sha" --json databaseId,status,conclusion,event,headSha --limit 20
+          }
+
+          maybe_dispatch_ci_long() {
+            local runs_json="$1"
+            if [ "$RELEASE_EVENT_NAME" != "workflow_dispatch" ]; then
+              return 0
+            fi
+            local existing_count
+            existing_count=$(node -e "const payload=JSON.parse(process.argv[1]);process.stdout.write(String(Array.isArray(payload)?payload.length:0));" "$runs_json")
+            if [ "$existing_count" != "0" ]; then
+              return 0
+            fi
+            echo "dispatching ci-long.yml for $target_ref ($target_sha)"
+            gh workflow run 'ci-long.yml' --ref "$target_ref"
+          }
+
+          wait_for_successful_run() {
+            local workflow="$1"
+            local allow_dispatch="$2"
+            local attempt=0
+            while [ "$attempt" -lt "$max_attempts" ]; do
+              local runs_json
+              runs_json=$(find_run_state "$workflow")
+              if [ "$allow_dispatch" = "dispatch" ]; then
+                maybe_dispatch_ci_long "$runs_json"
+                runs_json=$(find_run_state "$workflow")
+              fi
+              local result
+              result=$(node -e "const payload=JSON.parse(process.argv[1]); const runs=Array.isArray(payload)?payload:[]; const success=runs.find((run)=>run.status==='completed'&&run.conclusion==='success'); if (success) { process.stdout.write(`success:${success.databaseId}`); process.exit(0); } const failed=runs.find((run)=>run.status==='completed'&&run.conclusion&&run.conclusion!=='success'); if (failed) { process.stdout.write(`failed:${failed.databaseId}:${failed.conclusion}`); process.exit(0); } const active=runs.find((run)=>run.status!=='completed'); if (active) { process.stdout.write(`pending:${active.databaseId}:${active.status}`); process.exit(0); } process.stdout.write('missing');" "$runs_json")
+              case "$result" in
+                success:*)
+                  echo "${result#success:}"
+                  return 0
+                  ;;
+                failed:*)
+                  echo "workflow $workflow did not succeed for $target_sha ($result)"
+                  return 1
+                  ;;
+                pending:*)
+                  echo "waiting for $workflow on $target_sha ($result)"
+                  ;;
+                *)
+                  echo "waiting for $workflow to appear for $target_sha"
+                  ;;
+              esac
+              attempt=$((attempt + 1))
+              sleep "$poll_interval_seconds"
+            done
+            echo "timed out waiting for $workflow on $target_sha"
+            return 1
+          }
+
+          ci_run_id=$(wait_for_successful_run 'ci.yml' 'no-dispatch')
+          ci_long_run_id=$(wait_for_successful_run 'ci-long.yml' 'dispatch')
           gh run download "$ci_run_id" -n ci-quality-artifacts-ubuntu -D dist/release/ci-quality
-          node -e "const fs=require('fs');const payload={workflows:[{workflow:'CI',runId:Number(process.argv[1]),conclusion:'success'},{workflow:'CI Long',runId:Number(process.argv[2]),conclusion:'success'}]};fs.writeFileSync('dist/release/readiness/ci-statuses.json', JSON.stringify(payload, null, 2)+'\n');" "$ci_run_id" "$ci_long_run_id"
+          node -e "const fs=require('fs');const payload={targetSha:process.argv[3],workflows:[{workflow:'CI',runId:Number(process.argv[1]),conclusion:'success'},{workflow:'CI Long',runId:Number(process.argv[2]),conclusion:'success'}]};fs.writeFileSync('dist/release/readiness/ci-statuses.json', JSON.stringify(payload, null, 2)+'\n');" "$ci_run_id" "$ci_long_run_id" "$target_sha"
 
       - name: Generate integrated readiness summary
         run: >

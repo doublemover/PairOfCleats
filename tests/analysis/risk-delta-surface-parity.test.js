@@ -265,6 +265,8 @@ const normalizeDelta = (payload) => ({
   toSeedStatus: payload?.to?.seedStatus || null,
   fromTarget: payload?.from?.target?.chunkUid || null,
   toTarget: payload?.to?.target?.chunkUid || null,
+  fromSummarySinks: payload?.from?.summary?.totals?.sinks ?? null,
+  toSummarySinks: payload?.to?.summary?.totals?.sinks ?? null,
   fromRuleBundle: payload?.from?.provenance?.ruleBundle?.fingerprint || null,
   toRuleBundle: payload?.to?.provenance?.ruleBundle?.fingerprint || null,
   flowSummary: payload?.summary?.flowCounts || null,
@@ -468,6 +470,249 @@ await withTemporaryEnv(env, async () => {
   } finally {
     await harness.close();
   }
+});
+
+const multiChunkFlowA = buildFlow({
+  flowId: 'sha1:4444444444444444444444444444444444444444',
+  confidence: 0.65,
+  chunkUid: 'chunk-beta-a',
+  sinkRuleId: 'sink.fs',
+  pathChunkUids: ['chunk-beta-a'],
+  callSiteId: 'call-d',
+  semanticKinds: ['asyncHandoff']
+});
+const multiChunkFlowBStableA = buildFlow({
+  flowId: 'sha1:5555555555555555555555555555555555555555',
+  confidence: 0.4,
+  chunkUid: 'chunk-gamma-a',
+  sinkRuleId: 'sink.net',
+  pathChunkUids: ['chunk-gamma-a', 'chunk-helper-a'],
+  callSiteId: 'call-e',
+  semanticKinds: ['callback']
+});
+const multiChunkFlowBStableB = buildFlow({
+  flowId: 'sha1:5555555555555555555555555555555555555555',
+  confidence: 0.55,
+  chunkUid: 'chunk-gamma-b',
+  sinkRuleId: 'sink.net',
+  pathChunkUids: ['chunk-gamma-b', 'chunk-helper-b'],
+  callSiteId: 'call-e2',
+  semanticKinds: ['callback', 'wrapper']
+});
+const multiChunkFlowAdded = buildFlow({
+  flowId: 'sha1:6666666666666666666666666666666666666666',
+  confidence: 0.9,
+  chunkUid: 'chunk-gamma-b',
+  sinkRuleId: 'sink.exec',
+  pathChunkUids: ['chunk-gamma-b'],
+  callSiteId: 'call-f',
+  semanticKinds: ['builder']
+});
+
+await seedBuild({
+  repoCacheRoot,
+  buildId: 'build-multi-a',
+  chunkUid: 'chunk-ignored-a',
+  flows: [],
+  partialFlows: []
+});
+await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-a', 'index-code', 'chunk_meta.json'), [
+  {
+    id: 1,
+    fileId: 1,
+    file: 'src/a.js',
+    start: 0,
+    end: 16,
+    startLine: 1,
+    endLine: 1,
+    kind: 'function',
+    name: 'ignored',
+    chunkUid: 'chunk-ignored-a',
+    metaV2: {
+      chunkUid: 'chunk-ignored-a',
+      chunkId: 'ignored',
+      file: 'src/a.js',
+      virtualPath: 'src/a.js',
+      symbol: { symbolId: 'sym:ignored:a', name: 'ignored', kind: 'function' }
+    }
+  },
+  {
+    id: 2,
+    fileId: 1,
+    file: 'src/a.js',
+    start: 17,
+    end: 32,
+    startLine: 2,
+    endLine: 2,
+    kind: 'function',
+    name: 'beta',
+    chunkUid: 'chunk-beta-a',
+    metaV2: {
+      chunkUid: 'chunk-beta-a',
+      chunkId: 'beta',
+      file: 'src/a.js',
+      virtualPath: 'src/a.js',
+      symbol: { symbolId: 'sym:beta:a', name: 'beta', kind: 'function' }
+    }
+  },
+  {
+    id: 3,
+    fileId: 1,
+    file: 'src/a.js',
+    start: 33,
+    end: 48,
+    startLine: 3,
+    endLine: 3,
+    kind: 'function',
+    name: 'gamma',
+    chunkUid: 'chunk-gamma-a',
+    metaV2: {
+      chunkUid: 'chunk-gamma-a',
+      chunkId: 'gamma',
+      file: 'src/a.js',
+      virtualPath: 'src/a.js',
+      symbol: { symbolId: 'sym:gamma:a', name: 'gamma', kind: 'function' }
+    }
+  }
+]);
+await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-a', 'index-code', 'risk_summaries.json'), [
+  {
+    chunkUid: 'chunk-beta-a',
+    file: 'src/a.js',
+    languageId: 'javascript',
+    totals: { sources: 1, sinks: 1, sanitizers: 0, localFlows: 0 },
+    truncated: { sources: false, sinks: false, sanitizers: false, localFlows: false, evidence: false },
+    signals: { sources: [{ category: 'input', tags: ['http'] }], sinks: [{ category: 'filesystem', tags: ['fs'] }], sanitizers: [], localFlows: [] }
+  },
+  {
+    chunkUid: 'chunk-gamma-a',
+    file: 'src/a.js',
+    languageId: 'javascript',
+    totals: { sources: 1, sinks: 1, sanitizers: 0, localFlows: 0 },
+    truncated: { sources: false, sinks: false, sanitizers: false, localFlows: false, evidence: false },
+    signals: { sources: [{ category: 'input', tags: ['http'] }], sinks: [{ category: 'network', tags: ['net'] }], sanitizers: [], localFlows: [] }
+  }
+]);
+await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-a', 'index-code', 'risk_flows.json'), [multiChunkFlowA, multiChunkFlowBStableA]);
+await writePiecesManifest(path.join(repoCacheRoot, 'builds', 'build-multi-a', 'index-code'), [
+  { type: 'meta', name: 'file_meta', path: 'file_meta.json' },
+  { type: 'chunks', name: 'chunk_meta', path: 'chunk_meta.json' },
+  { type: 'analysis', name: 'risk_summaries', path: 'risk_summaries.json' },
+  { type: 'analysis', name: 'risk_flows', path: 'risk_flows.json' },
+  { type: 'analysis', name: 'risk_partial_flows', path: 'risk_partial_flows.json' },
+  { type: 'analysis', name: 'risk_interprocedural_stats', path: 'risk_interprocedural_stats.json' }
+]);
+
+await seedBuild({
+  repoCacheRoot,
+  buildId: 'build-multi-b',
+  chunkUid: 'chunk-ignored-b',
+  flows: [],
+  partialFlows: []
+});
+await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-b', 'index-code', 'chunk_meta.json'), [
+  {
+    id: 1,
+    fileId: 1,
+    file: 'src/a.js',
+    start: 0,
+    end: 16,
+    startLine: 1,
+    endLine: 1,
+    kind: 'function',
+    name: 'ignored',
+    chunkUid: 'chunk-ignored-b',
+    metaV2: {
+      chunkUid: 'chunk-ignored-b',
+      chunkId: 'ignored',
+      file: 'src/a.js',
+      virtualPath: 'src/a.js',
+      symbol: { symbolId: 'sym:ignored:b', name: 'ignored', kind: 'function' }
+    }
+  },
+  {
+    id: 2,
+    fileId: 1,
+    file: 'src/a.js',
+    start: 17,
+    end: 32,
+    startLine: 2,
+    endLine: 2,
+    kind: 'function',
+    name: 'beta',
+    chunkUid: 'chunk-beta-b',
+    metaV2: {
+      chunkUid: 'chunk-beta-b',
+      chunkId: 'beta',
+      file: 'src/a.js',
+      virtualPath: 'src/a.js',
+      symbol: { symbolId: 'sym:beta:b', name: 'beta', kind: 'function' }
+    }
+  },
+  {
+    id: 3,
+    fileId: 1,
+    file: 'src/a.js',
+    start: 33,
+    end: 48,
+    startLine: 3,
+    endLine: 3,
+    kind: 'function',
+    name: 'gamma',
+    chunkUid: 'chunk-gamma-b',
+    metaV2: {
+      chunkUid: 'chunk-gamma-b',
+      chunkId: 'gamma',
+      file: 'src/a.js',
+      virtualPath: 'src/a.js',
+      symbol: { symbolId: 'sym:gamma:b', name: 'gamma', kind: 'function' }
+    }
+  }
+]);
+await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-b', 'index-code', 'risk_summaries.json'), [
+  {
+    chunkUid: 'chunk-beta-b',
+    file: 'src/a.js',
+    languageId: 'javascript',
+    totals: { sources: 1, sinks: 1, sanitizers: 0, localFlows: 0 },
+    truncated: { sources: false, sinks: false, sanitizers: false, localFlows: false, evidence: false },
+    signals: { sources: [{ category: 'input', tags: ['http'] }], sinks: [{ category: 'filesystem', tags: ['fs'] }], sanitizers: [], localFlows: [] }
+  },
+  {
+    chunkUid: 'chunk-gamma-b',
+    file: 'src/a.js',
+    languageId: 'javascript',
+    totals: { sources: 1, sinks: 2, sanitizers: 0, localFlows: 0 },
+    truncated: { sources: false, sinks: false, sanitizers: false, localFlows: false, evidence: false },
+    signals: { sources: [{ category: 'input', tags: ['http'] }], sinks: [{ category: 'network', tags: ['net'] }, { category: 'execution', tags: ['exec'] }], sanitizers: [], localFlows: [] }
+  }
+]);
+await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-b', 'index-code', 'risk_flows.json'), [multiChunkFlowBStableB, multiChunkFlowAdded]);
+await writePiecesManifest(path.join(repoCacheRoot, 'builds', 'build-multi-b', 'index-code'), [
+  { type: 'meta', name: 'file_meta', path: 'file_meta.json' },
+  { type: 'chunks', name: 'chunk_meta', path: 'chunk_meta.json' },
+  { type: 'analysis', name: 'risk_summaries', path: 'risk_summaries.json' },
+  { type: 'analysis', name: 'risk_flows', path: 'risk_flows.json' },
+  { type: 'analysis', name: 'risk_partial_flows', path: 'risk_partial_flows.json' },
+  { type: 'analysis', name: 'risk_interprocedural_stats', path: 'risk_interprocedural_stats.json' }
+]);
+
+await withTemporaryEnv(env, async () => {
+  const multiChunkPayload = await buildRiskDeltaPayload({
+    repoRoot,
+    userConfig,
+    from: 'build:build-multi-a',
+    to: 'build:build-multi-b',
+    seed: 'file:src/a.js',
+    includePartialFlows: false
+  });
+
+  const normalized = normalizeDelta(multiChunkPayload);
+  assert.deepEqual(normalized.added, ['sha1:6666666666666666666666666666666666666666']);
+  assert.deepEqual(normalized.removed, ['sha1:4444444444444444444444444444444444444444']);
+  assert.equal(normalized.changed[0]?.flowId, 'sha1:5555555555555555555555555555555555555555');
+  assert.equal(normalized.fromSummarySinks, 2);
+  assert.equal(normalized.toSummarySinks, 3);
 });
 
 console.log('risk delta surface parity test passed');

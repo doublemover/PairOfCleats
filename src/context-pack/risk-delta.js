@@ -89,22 +89,72 @@ const normalizePartialFlowEntry = (flow) => ({
 
 const fingerprintEntry = (value) => `sha1:${sha1(stableStringify(value))}`;
 
-const resolveChunkFromSeed = (seedRef, chunkIndex) => {
-  if (!seedRef || !chunkIndex) return null;
+const resolveChunksFromSeed = (seedRef, chunkIndex) => {
+  if (!seedRef || !chunkIndex) return [];
   if (seedRef.type === 'chunk') {
-    return chunkIndex.byChunkUid.get(seedRef.chunkUid) || null;
+    const chunk = chunkIndex.byChunkUid.get(seedRef.chunkUid) || null;
+    return chunk ? [chunk] : [];
   }
   if (seedRef.type === 'symbol') {
-    return chunkIndex.bySymbol.get(seedRef.symbolId) || null;
+    const chunk = chunkIndex.bySymbol.get(seedRef.symbolId) || null;
+    return chunk ? [chunk] : [];
   }
   if (seedRef.type === 'file') {
     const normalized = typeof chunkIndex.normalizePath === 'function'
       ? chunkIndex.normalizePath(seedRef.path)
       : seedRef.path;
     const matches = chunkIndex.byFile.get(normalized) || chunkIndex.byFile.get(seedRef.path) || [];
-    return Array.isArray(matches) && matches.length > 0 ? matches[0] : null;
+    return Array.isArray(matches) ? matches.filter(Boolean) : [];
   }
-  return null;
+  return [];
+};
+
+const aggregateRiskSummary = (summaryRows, targetChunks, relevantFlows) => {
+  const rows = Array.isArray(summaryRows) ? summaryRows.filter((row) => row && typeof row === 'object') : [];
+  const chunks = Array.isArray(targetChunks) ? targetChunks.filter((chunk) => chunk && typeof chunk === 'object') : [];
+  if (rows.length <= 0) return null;
+  if (rows.length === 1) return normalizeRiskSummary(rows[0], relevantFlows);
+
+  const file = chunks[0]?.file || chunks[0]?.metaV2?.file || rows[0]?.file || null;
+  const languageId = rows.map((row) => row?.languageId).find((value) => typeof value === 'string' && value.trim()) || null;
+  const totals = {
+    sources: 0,
+    sinks: 0,
+    sanitizers: 0,
+    localFlows: 0
+  };
+  const truncated = {
+    sources: false,
+    sinks: false,
+    sanitizers: false,
+    localFlows: false,
+    evidence: false
+  };
+  const signals = {
+    sources: [],
+    sinks: [],
+    sanitizers: [],
+    localFlows: []
+  };
+  for (const row of rows) {
+    for (const key of Object.keys(totals)) {
+      totals[key] += Number.isFinite(row?.totals?.[key]) ? row.totals[key] : 0;
+      truncated[key] = truncated[key] || row?.truncated?.[key] === true;
+      if (Array.isArray(row?.signals?.[key])) {
+        signals[key].push(...row.signals[key]);
+      }
+    }
+    truncated.evidence = truncated.evidence || row?.truncated?.evidence === true;
+  }
+  return normalizeRiskSummary({
+    chunkUid: chunks[0]?.chunkUid || chunks[0]?.metaV2?.chunkUid || null,
+    file,
+    languageId,
+    symbol: null,
+    totals,
+    truncated,
+    signals
+  }, relevantFlows);
 };
 
 const collectChangedFields = (before, after, prefix = '') => {
@@ -207,35 +257,38 @@ const loadRiskSliceForRef = async ({
   const manifest = loadPiecesManifest(indexDir, { strict: true });
   const chunkMeta = await loadChunkMeta(indexDir, { manifest, strict: true });
   const chunkIndex = buildChunkIndex(chunkMeta, { repoRoot });
-  const targetChunk = resolveChunkFromSeed(parsedSeed, chunkIndex);
+  const targetChunks = resolveChunksFromSeed(parsedSeed, chunkIndex);
+  const targetChunk = targetChunks[0] || null;
   const riskSummaries = await safeLoadArray(indexDir, manifest, 'risk_summaries');
   const riskFlows = await safeLoadArray(indexDir, manifest, 'risk_flows');
   const riskPartialFlows = includePartialFlows
     ? await safeLoadArray(indexDir, manifest, 'risk_partial_flows')
     : [];
   const stats = await safeLoadObject(indexDir, manifest, 'risk_interprocedural_stats');
-  const targetChunkUid = targetChunk?.chunkUid || targetChunk?.metaV2?.chunkUid || null;
-  const relevantFlows = targetChunkUid
+  const targetChunkUids = new Set(targetChunks
+    .map((chunk) => chunk?.chunkUid || chunk?.metaV2?.chunkUid || null)
+    .filter(Boolean));
+  const relevantFlows = targetChunkUids.size > 0
     ? filterRiskFlows((Array.isArray(riskFlows) ? riskFlows : []).filter((flow) => {
       const pathChunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
-      return flow?.source?.chunkUid === targetChunkUid
-        || flow?.sink?.chunkUid === targetChunkUid
-        || pathChunkUids.includes(targetChunkUid);
+      return targetChunkUids.has(flow?.source?.chunkUid || null)
+        || targetChunkUids.has(flow?.sink?.chunkUid || null)
+        || pathChunkUids.some((chunkUid) => targetChunkUids.has(chunkUid));
     }), filters)
     : [];
-  const relevantPartialFlows = includePartialFlows && targetChunkUid
+  const relevantPartialFlows = includePartialFlows && targetChunkUids.size > 0
     ? filterRiskPartialFlows((Array.isArray(riskPartialFlows) ? riskPartialFlows : []).filter((flow) => {
       const pathChunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
-      return flow?.source?.chunkUid === targetChunkUid
-        || flow?.frontier?.chunkUid === targetChunkUid
-        || pathChunkUids.includes(targetChunkUid);
+      return targetChunkUids.has(flow?.source?.chunkUid || null)
+        || targetChunkUids.has(flow?.frontier?.chunkUid || null)
+        || pathChunkUids.some((chunkUid) => targetChunkUids.has(chunkUid));
     }), filters)
     : [];
   relevantFlows.sort((left, right) => String(left?.flowId || '').localeCompare(String(right?.flowId || '')));
   relevantPartialFlows.sort((left, right) => String(left?.partialFlowId || '').localeCompare(String(right?.partialFlowId || '')));
-  const summaryRow = targetChunkUid && Array.isArray(riskSummaries)
-    ? riskSummaries.find((row) => row?.chunkUid === targetChunkUid) || null
-    : null;
+  const summaryRows = targetChunkUids.size > 0 && Array.isArray(riskSummaries)
+    ? riskSummaries.filter((row) => targetChunkUids.has(row?.chunkUid || null))
+    : [];
   const summaryFromChunk = targetChunk?.docmeta?.risk?.summary || targetChunk?.metaV2?.risk?.summary || null;
   const normalizedFlows = relevantFlows.map(normalizeFlowEntry);
   const normalizedPartialFlows = relevantPartialFlows.map(normalizePartialFlowEntry);
@@ -247,7 +300,9 @@ const loadRiskSliceForRef = async ({
     warnings: Array.isArray(resolved.warnings) ? resolved.warnings.slice() : [],
     seedStatus: targetChunk ? 'resolved' : 'missing',
     target: normalizeChunkSubject(targetChunk),
-    summary: normalizeRiskSummary(summaryFromChunk || summaryRow, relevantFlows),
+    summary: summaryFromChunk
+      ? normalizeRiskSummary(summaryFromChunk, relevantFlows)
+      : aggregateRiskSummary(summaryRows, targetChunks, relevantFlows),
     stats: summarizeRiskStats(stats),
     provenance: {
       manifestVersion: Number.isFinite(manifest?.version) ? manifest.version : null,
