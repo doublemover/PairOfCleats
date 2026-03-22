@@ -29,6 +29,13 @@ const INDEX_STATE_NONDETERMINISTIC_FIELDS = Object.freeze([
     excludeFromStableHash: true
   },
   {
+    path: 'extensions.artifactCleanup.previousSchemaVersion',
+    category: 'cleanup_history',
+    reason: 'artifact cleanup carries prior schema provenance after first write, but it does not change the current published state semantics.',
+    source: 'src/index/build/artifacts-write/family-dispatch.js',
+    excludeFromStableHash: true
+  },
+  {
     path: 'embeddings.updatedAt',
     category: 'time',
     reason: 'embeddings updatedAt reflects stage3 execution timing per run.',

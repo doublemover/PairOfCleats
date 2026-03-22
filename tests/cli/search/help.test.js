@@ -4,7 +4,12 @@ import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 
 const root = process.cwd();
-const result = spawnSync(process.execPath, [path.join(root, 'search.js')], { encoding: 'utf8' });
+const env = { ...process.env };
+delete env.PAIROFCLEATS_TESTING;
+delete env.PAIROFCLEATS_SUPPRESS_LEGACY_ENTRYPOINT_WARNING;
+delete env.CI;
+
+const result = spawnSync(process.execPath, [path.join(root, 'search.js')], { encoding: 'utf8', env });
 if (result.status === 0) {
   console.error('Expected search help to exit non-zero with no query.');
   process.exit(1);

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T20:10:08.422Z",
+  "generatedAt": "2026-03-22T12:15:19.045Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3161,6 +3161,7 @@
       "files": [
         "src/shared/legacy-cli-entrypoint.js",
         "tests/cli/general/legacy-entrypoint-warning.test.js",
+        "tests/cli/search/help.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3484,6 +3485,7 @@
         "src/shared/legacy-cli-entrypoint.js",
         "src/shared/ops-failure-injection.js",
         "tests/cli/general/legacy-entrypoint-warning.test.js",
+        "tests/cli/search/help.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/lane-default-test-config.test.js",
         "tests/helpers/test-env-sync-option.test.js",
