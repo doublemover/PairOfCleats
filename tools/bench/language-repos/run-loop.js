@@ -576,26 +576,32 @@ export const runBenchExecutionLoop = async ({
       }
       const repoState = await lifecycle.ensureRepoPresent({ task, repoPath, repoLabel });
       if (!repoState.ok) {
-        appendLog(`[error] clone failed for ${repoLabel}; continuing.`, 'error');
+        appendLog(
+          `[error] ${repoState.failureReason === 'platform_incompatible_checkout' ? 'platform compatibility blocked' : 'clone failed'} for ${repoLabel}; continuing.`,
+          'error'
+        );
+        if (repoState.failureDetail) {
+          appendLog(`[error] ${repoState.failureDetail}`, 'error');
+        }
         const crashRetention = await lifecycle.attachCrashRetention({
           task,
           repoLabel,
           repoPath,
           repoCacheRoot,
           outFile: null,
-          failureReason: 'clone',
+          failureReason: repoState.failureReason || 'clone',
           failureCode: repoState.failureCode ?? null,
           schedulerEvents: repoState.schedulerEvents || []
         });
         progressRuntime.completeRepo();
-        appendLog('[metrics] failed (clone)');
+        appendLog(`[metrics] failed (${repoState.failureReason || 'clone'})`);
         const result = {
           ...task,
           repoPath,
           outFile: null,
           summary: null,
           failed: true,
-          failureReason: 'clone',
+          failureReason: repoState.failureReason || 'clone',
           failureCode: repoState.failureCode ?? null,
           ...(crashRetention
             ? { diagnostics: { crashRetention } }

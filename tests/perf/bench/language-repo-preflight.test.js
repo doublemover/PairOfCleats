@@ -9,6 +9,11 @@ import {
   ensureRepoBenchmarkReady,
   parseSubmoduleStatusLines
 } from '../../../tools/bench/language/repos.js';
+import { createRepoLifecycle } from '../../../tools/bench/language-repos/lifecycle.js';
+import {
+  classifyRepoPreflightBlock,
+  resolveRepoPlatformCompatibility
+} from '../../../tools/bench/language/repo-preflight-contracts.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -50,6 +55,36 @@ const env = buildNonInteractiveGitEnv({ HOME: '/tmp/home' });
 assert.equal(env.GIT_TERMINAL_PROMPT, '0', 'expected bench preflight git commands to disable prompts');
 assert.equal(env.GCM_INTERACTIVE, 'Never', 'expected bench preflight to disable interactive credential manager');
 assert.equal(env.HOME, '/tmp/home', 'expected caller env vars to remain intact');
+
+const kubeaszCompatibility = resolveRepoPlatformCompatibility({
+  repo: 'easzlab/kubeasz',
+  platform: 'win32'
+});
+assert.equal(kubeaszCompatibility.state, 'blocked', 'expected kubeasz to be preclassified as blocked on Windows');
+assert.equal(
+  kubeaszCompatibility.failureReason,
+  'platform_incompatible_checkout',
+  'expected precise platform checkout failure reason'
+);
+assert.match(
+  kubeaszCompatibility.detail || '',
+  /Windows-incompatible checkout paths/i,
+  'expected explicit Windows compatibility detail'
+);
+
+const invalidPathBlock = classifyRepoPreflightBlock({
+  detail: 'error: invalid path roles/containerd/templates/easzlab.io.local:5000/hosts.toml.j2'
+});
+assert.equal(
+  invalidPathBlock.state,
+  'platform_incompatible_checkout',
+  'expected invalid path clone output to classify as platform-incompatible checkout'
+);
+assert.equal(
+  invalidPathBlock.blockedClass,
+  'platform_checkout',
+  'expected platform checkout blocked class'
+);
 
 const setupMockRepo = async (name, gitmodulesContent) => {
   const repoPath = path.join(tempRoot, name);
@@ -366,5 +401,52 @@ const timeoutSummary = withMockGitRunner((cmd, args) => {
 assert.equal(timeoutSummary.ok, false, 'expected timeout case to fail');
 assert.equal(timeoutSummary.preflight.state, 'blocked_timeout', 'expected timeout classification');
 assert.equal(timeoutSummary.preflight.blockedClass, 'timeout', 'expected timeout blocked class');
+
+const cloneLogs = [];
+const cloneHistory = [];
+let cloneInvoked = false;
+const lifecycle = createRepoLifecycle({
+  appendLog: (line) => {
+    const text = String(line || '');
+    cloneLogs.push(text);
+    cloneHistory.push(text);
+  },
+  display: null,
+  processRunner: {
+    async runProcess() {
+      cloneInvoked = true;
+      return { ok: false, code: 128, schedulerEvents: [] };
+    }
+  },
+  cloneEnabled: true,
+  dryRun: false,
+  keepCache: true,
+  cloneTool: {
+    label: 'git',
+    supportsMirrorClone: false,
+    buildArgs: (repo, repoPath) => ['clone', `https://github.com/${repo}.git`, repoPath]
+  },
+  cloneCommandEnv: {},
+  mirrorCacheRoot: path.join(tempRoot, 'mirror-cache'),
+  mirrorRefreshMs: 0,
+  cacheRoot: path.join(tempRoot, 'cache-root'),
+  runDiagnosticsRoot: path.join(tempRoot, 'diagnostics'),
+  runSuffix: 'run-test',
+  benchEnvironmentMetadata: {},
+  logHistory: cloneHistory
+});
+
+const blockedClone = await lifecycle.ensureRepoPresent({
+  task: { repo: 'easzlab/kubeasz' },
+  repoPath: path.join(tempRoot, 'repos', 'groovy', 'easzlab__kubeasz'),
+  repoLabel: 'groovy easzlab/kubeasz'
+});
+assert.equal(cloneInvoked, false, 'expected known Windows-incompatible repo to skip clone invocation');
+assert.equal(blockedClone.ok, false, 'expected blocked clone state');
+assert.equal(
+  blockedClone.failureReason,
+  'platform_incompatible_checkout',
+  'expected lifecycle clone result to preserve platform incompatibility reason'
+);
 
 console.log('bench-language repo preflight parser test passed.');

@@ -22,11 +22,35 @@ const BUILT_IN_REPO_PREFLIGHT_CONTRACTS = Object.freeze({
   })
 });
 
+const BUILT_IN_PLATFORM_COMPATIBILITY_CONTRACTS = Object.freeze({
+  easzlab__kubeasz: Object.freeze({
+    key: 'easzlab__kubeasz',
+    platforms: Object.freeze({
+      win32: Object.freeze({
+        state: 'blocked',
+        failureReason: 'platform_incompatible_checkout',
+        blockedClass: 'platform_checkout',
+        detail: 'repo contains Windows-incompatible checkout paths such as roles/containerd/templates/easzlab.io.local:5000/hosts.toml.j2',
+        notes: 'Known Windows-invalid checkout path components; skip clone attempts and report a precise compatibility outcome.'
+      })
+    })
+  })
+});
+
 const sanitizeContractKey = (value) => (
   String(value || '')
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+);
+
+const sanitizeRepoSlugKey = (value) => (
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\\/]+/g, '__')
+    .replace(/[^a-z0-9_.-]+/g, '_')
     .replace(/^_+|_+$/g, '')
 );
 
@@ -82,6 +106,37 @@ export const resolveRepoPreflightContract = ({ repoPath, repoContract = null } =
   };
 };
 
+export const resolveRepoPlatformCompatibility = ({
+  repo = null,
+  repoPath = null,
+  repoContract = null,
+  platform = process.platform
+} = {}) => {
+  const repoSlugKey = sanitizeRepoSlugKey(repo);
+  const repoNameKey = sanitizeContractKey(path.basename(String(repoPath || '').trim()));
+  const builtIn = BUILT_IN_PLATFORM_COMPATIBILITY_CONTRACTS[repoSlugKey]
+    || BUILT_IN_PLATFORM_COMPATIBILITY_CONTRACTS[repoNameKey]
+    || null;
+  const sourceContract = repoContract && typeof repoContract === 'object'
+    ? repoContract
+    : builtIn;
+  const platformEntry = sourceContract?.platforms && typeof sourceContract.platforms === 'object'
+    ? sourceContract.platforms[String(platform || '').trim()] || null
+    : null;
+  return {
+    schemaVersion: 1,
+    key: sanitizeContractKey(sourceContract?.key || repoSlugKey || repoNameKey || 'repo_platform_compatibility'),
+    repo: String(repo || '').trim() || null,
+    repoName: repoNameKey || null,
+    platform: String(platform || '').trim() || process.platform,
+    state: String(platformEntry?.state || 'ready').trim() || 'ready',
+    failureReason: String(platformEntry?.failureReason || '').trim() || null,
+    blockedClass: String(platformEntry?.blockedClass || '').trim() || null,
+    detail: String(platformEntry?.detail || '').trim() || null,
+    notes: String(platformEntry?.notes || sourceContract?.notes || '').trim() || null
+  };
+};
+
 export const classifySubmoduleContractState = (entries, contract) => {
   const list = Array.isArray(entries) ? entries : [];
   const optionalPatterns = Array.isArray(contract?.optionalSubmodules) ? contract.optionalSubmodules : [];
@@ -122,6 +177,12 @@ export const classifyRepoPreflightBlock = ({ detail = '', timedOut = false } = {
     return {
       state: 'blocked_timeout',
       blockedClass: 'timeout'
+    };
+  }
+  if (/invalid path|filename, directory name, or volume label syntax is incorrect|cannot create [^:]+: invalid argument/i.test(normalized)) {
+    return {
+      state: 'platform_incompatible_checkout',
+      blockedClass: 'platform_checkout'
     };
   }
   if (

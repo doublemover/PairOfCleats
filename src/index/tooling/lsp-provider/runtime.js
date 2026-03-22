@@ -158,7 +158,7 @@ const createRustAnalyzerWorkspaceStderrFilter = () => {
       }
       if (counts.toolchain_noise > 0) {
         checks.push({
-          name: 'rust_workspace_toolchain_metadata_noise',
+          name: 'rust_workspace_toolchain_resolution_failed',
           status: 'warn',
           message: `rust-analyzer suppressed ${counts.toolchain_noise} duplicate toolchain or stdlib metadata stderr line(s).`
         });

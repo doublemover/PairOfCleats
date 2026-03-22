@@ -78,7 +78,7 @@ assert.equal(
   'expected repo-invalidity stderr suppression check'
 );
 assert.equal(
-  checks.some((check) => check?.name === 'rust_workspace_toolchain_metadata_noise'),
+  checks.some((check) => check?.name === 'rust_workspace_toolchain_resolution_failed'),
   true,
   'expected toolchain-noise stderr suppression check'
 );

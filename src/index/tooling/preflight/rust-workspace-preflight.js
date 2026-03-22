@@ -79,9 +79,11 @@ const classifyRustProbeFailureCheck = (partitionResult, partition) => {
     || lower.includes('\\library\\')
   ) {
     return {
-      name: 'rust_workspace_toolchain_metadata_noise',
+      name: 'rust_workspace_toolchain_resolution_failed',
+      kind: 'toolchain_resolution_failed',
+      reasonCode: 'rust_workspace_toolchain_resolution_failed',
       status: 'warn',
-      message: `rust workspace probe hit toolchain or stdlib metadata noise for partition "${partitionLabel}". ${message}`.trim()
+      message: `rust workspace probe hit toolchain or stdlib metadata resolution failure for partition "${partitionLabel}". ${message}`.trim()
     };
   }
   if (
@@ -94,12 +96,16 @@ const classifyRustProbeFailureCheck = (partitionResult, partition) => {
   ) {
     return {
       name: 'rust_workspace_repo_invalidity',
+      kind: 'repo_workspace_invalidity',
+      reasonCode: 'rust_workspace_repo_invalidity',
       status: 'warn',
       message: `rust workspace probe found repo-local workspace invalidity for partition "${partitionLabel}". ${message}`.trim()
     };
   }
   return {
     name: 'rust_workspace_probe_runtime_problem',
+    kind: 'runtime_problem',
+    reasonCode: 'rust_workspace_probe_runtime_problem',
     status: 'warn',
     message: `rust workspace probe failed for partition "${partitionLabel}" due to a runtime or tooling problem. ${message}`.trim()
   };
@@ -282,7 +288,8 @@ export const resolveRustWorkspaceMetadataPreflight = async ({
     if (classifiedFailure) checks.push(classifiedFailure);
     blockedPartitions.push({
       partition,
-      result: metadataPreflight
+      result: metadataPreflight,
+      failureCheck: classifiedFailure
     });
   }
 
@@ -290,15 +297,28 @@ export const resolveRustWorkspaceMetadataPreflight = async ({
   const blockedWorkspaceRoots = blockedPartitions.map((entry) => entry.partition.rootRel);
   const runnablePartitionCount = partitions.filter((entry) => entry.validSessionRoot === true).length;
   const cached = runnablePartitionCount > 0 && cachedPartitionCount === runnablePartitionCount;
+  const blockedFailureKinds = new Set(
+    blockedPartitions
+      .map((entry) => String(entry?.failureCheck?.kind || '').trim())
+      .filter(Boolean)
+  );
 
   if (!readyPartitions.length && blockedPartitions.length) {
-    const blockedMessage = `rust-analyzer blocked all selected workspace partitions (${formatPartitionList(blockedPartitions.map((entry) => entry.partition)) || 'none'}).`;
+    let reasonCode = 'rust_workspace_blocked_all_partitions';
+    let blockedMessage = `rust-analyzer blocked all selected workspace partitions (${formatPartitionList(blockedPartitions.map((entry) => entry.partition)) || 'none'}).`;
+    if (blockedFailureKinds.size === 1 && blockedFailureKinds.has('toolchain_resolution_failed')) {
+      reasonCode = 'rust_workspace_toolchain_resolution_failed';
+      blockedMessage = `rust-analyzer could not resolve toolchain or stdlib metadata for any selected workspace partition (${formatPartitionList(blockedPartitions.map((entry) => entry.partition)) || 'none'}).`;
+    } else if (blockedFailureKinds.size === 1 && blockedFailureKinds.has('repo_workspace_invalidity')) {
+      reasonCode = 'rust_workspace_repo_invalidity';
+      blockedMessage = `rust-analyzer found repo-local workspace invalidity for all selected workspace partitions (${formatPartitionList(blockedPartitions.map((entry) => entry.partition)) || 'none'}).`;
+    }
     return {
       state: 'blocked',
-      reasonCode: 'rust_workspace_blocked_all_partitions',
+      reasonCode,
       message: blockedMessage,
       check: {
-        name: 'rust_workspace_blocked_all_partitions',
+        name: reasonCode,
         status: 'warn',
         message: blockedMessage
       },
