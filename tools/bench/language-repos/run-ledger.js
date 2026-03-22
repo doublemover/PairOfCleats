@@ -77,6 +77,16 @@ const normalizeTaskEntry = (entry) => {
     failureCode: Number.isFinite(Number(entry.failureCode)) ? Number(entry.failureCode) : null,
     failureSignal: toText(entry.failureSignal || entry.signal),
     timeoutKind: toText(entry.timeoutKind),
+    timeoutDecision: entry?.timeoutDecision && typeof entry.timeoutDecision === 'object'
+      ? {
+        phase: toText(entry.timeoutDecision.phase),
+        resourceClass: toText(entry.timeoutDecision.resourceClass),
+        failureMode: toText(entry.timeoutDecision.failureMode),
+        decisionReason: toText(entry.timeoutDecision.decisionReason),
+        timeoutClass: toText(entry.timeoutDecision.timeoutClass),
+        candidateTimeoutClass: toText(entry.timeoutDecision.candidateTimeoutClass)
+      }
+      : null,
     lastActivity: entry?.lastActivity && typeof entry.lastActivity === 'object'
       ? {
         source: toText(entry.lastActivity.source),

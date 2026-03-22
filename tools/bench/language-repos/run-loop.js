@@ -11,7 +11,10 @@ import {
   getRecommendedHeapMb,
   stripMaxOldSpaceFlag
 } from '../language/metrics.js';
-import { resolveBenchProcessTimeoutProfile } from '../language/timeout.js';
+import {
+  resolveBenchProcessTimeoutProfile,
+  resolveBenchRuntimeAdaptationPlan
+} from '../language/timeout.js';
 import { needsIndexArtifacts, needsSqliteArtifacts } from '../language/repos.js';
 
 /**
@@ -293,7 +296,8 @@ export const buildBenchRepoCloseoutSummaryLines = ({
   failureReason = null,
   diagnostics = null,
   progressConfidence = null,
-  crashRetention = null
+  crashRetention = null,
+  timeoutDecision = null
 } = {}) => {
   const label = String(repoLabel || '').trim() || 'repo';
   const countsByType = diagnostics?.countsByType && typeof diagnostics.countsByType === 'object'
@@ -325,6 +329,15 @@ export const buildBenchRepoCloseoutSummaryLines = ({
   const errorCount = Number(countsBySeverity.error || 0);
   if (warningCount > 0 || errorCount > 0) {
     issueParts.push(`severity=error:${errorCount},warn:${warningCount}`);
+  }
+  if (timeoutDecision && typeof timeoutDecision === 'object') {
+    const timeoutPhase = String(timeoutDecision.phase || '').trim();
+    const timeoutResource = String(timeoutDecision.resourceClass || '').trim();
+    const timeoutMode = String(timeoutDecision.failureMode || '').trim();
+    const timeoutParts = [timeoutPhase, timeoutResource, timeoutMode].filter(Boolean);
+    if (timeoutParts.length) {
+      issueParts.push(`timeout=${timeoutParts.join('/')}`);
+    }
   }
   const summaryLine = `[repo-summary] ${label} ${outcome}${failureReason ? ` (${failureReason})` : ''}`
     + (issueParts.length ? ` | ${issueParts.join(' | ')}` : '');
@@ -452,9 +465,6 @@ export const runBenchExecutionLoop = async ({
 }) => {
   const results = [];
   const benchScript = path.join(scriptRoot, 'tests', 'perf', 'bench', 'run.test.js');
-  const timeoutProfile = resolveBenchProcessTimeoutProfile({
-    repoTimeoutMs: benchTimeoutMs
-  });
   const heapArgRaw = argv['heap-mb'];
   const heapArg = Number.isFinite(Number(heapArgRaw)) ? Math.floor(Number(heapArgRaw)) : null;
   const heapRecommendation = getRecommendedHeapMb();
@@ -484,7 +494,6 @@ export const runBenchExecutionLoop = async ({
   if (argv.backend) benchArgsSuffix.push('--backend', String(argv.backend));
   if (argv.top) benchArgsSuffix.push('--top', String(argv.top));
   if (argv.limit) benchArgsSuffix.push('--limit', String(argv.limit));
-  if (argv.threads) benchArgsSuffix.push('--threads', String(argv.threads));
   const childProgressMode = argv.progress === 'off' ? 'off' : 'jsonl';
   benchArgsSuffix.push('--progress', childProgressMode);
   if (argv.verbose) benchArgsSuffix.push('--verbose');
@@ -698,6 +707,37 @@ export const runBenchExecutionLoop = async ({
         }
       }
 
+      const lineStats = lineStatsCache.get(repoPath) || null;
+      const timeoutAdaptation = resolveBenchRuntimeAdaptationPlan({
+        repoTimeoutMs: benchTimeoutMs,
+        language: task.language || null,
+        lineStats,
+        buildIndex: shouldBuildIndex,
+        buildSqlite: shouldBuildSqlite,
+        queryCount: Number.isFinite(Number(task.queryCount)) ? Number(task.queryCount) : 0,
+        backendCount: backendList.length,
+        realEmbeddings: argv['stub-embeddings'] !== true,
+        requestedThreads: argv.threads
+      });
+      const timeoutProfile = resolveBenchProcessTimeoutProfile({
+        repoTimeoutMs: timeoutAdaptation.repoTimeoutMs
+      });
+      const explicitThreads = Number.isFinite(Number(argv.threads)) && Number(argv.threads) > 0
+        ? Math.floor(Number(argv.threads))
+        : null;
+      const effectiveThreads = explicitThreads || timeoutAdaptation.recommendedThreads;
+      if (timeoutAdaptation.adapted || Number.isFinite(effectiveThreads)) {
+        const adaptationParts = [
+          `tier=${timeoutAdaptation.repoShape.tier}`,
+          `timeout=${timeoutProfile.idleTimeoutMs}ms/${timeoutProfile.hardTimeoutMs}ms`
+        ];
+        if (Number.isFinite(effectiveThreads)) adaptationParts.push(`threads=${effectiveThreads}`);
+        if (timeoutAdaptation.adaptationReasons.length) {
+          adaptationParts.push(`reasons=${timeoutAdaptation.adaptationReasons.join(',')}`);
+        }
+        appendLog(`[timeout] repo adaptation for ${repoLabel}: ${adaptationParts.join(' | ')}`);
+      }
+
       const lockCheck = await checkIndexLock({
         repoCacheRoot,
         repoLabel,
@@ -726,6 +766,10 @@ export const runBenchExecutionLoop = async ({
         continue;
       }
 
+      const perRepoBenchArgsSuffix = benchArgsSuffix.slice();
+      if (Number.isFinite(effectiveThreads)) {
+        perRepoBenchArgsSuffix.push('--threads', String(effectiveThreads));
+      }
       const benchArgs = buildBenchArgs({
         benchScript,
         repoPath,
@@ -737,7 +781,7 @@ export const runBenchExecutionLoop = async ({
         buildIndexFlag,
         buildSqliteFlag,
         benchArgsPrefix,
-        benchArgsSuffix
+        benchArgsSuffix: perRepoBenchArgsSuffix
       });
 
       progressRuntime.update();
@@ -788,6 +832,7 @@ export const runBenchExecutionLoop = async ({
             failureCode: benchResult.code ?? null,
             failureSignal: benchResult.signal ?? null,
             timeoutKind: benchResult.timeoutKind || null,
+            timeoutDecision: benchResult.timeoutDecision || null,
             lastActivity: benchResult.lastActivity || null,
             ...(crashRetention
               ? {
@@ -810,7 +855,8 @@ export const runBenchExecutionLoop = async ({
             failureReason,
             diagnostics: result.diagnostics?.process || null,
             progressConfidence: result.diagnostics?.progressConfidence || null,
-            crashRetention: crashRetention || null
+            crashRetention: crashRetention || null,
+            timeoutDecision: result.timeoutDecision || null
           })) {
             appendLog(line, 'warn');
           }

@@ -10,6 +10,7 @@ import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.
 import {
   buildProgressTimeoutBudget,
   evaluateProgressTimeout,
+  PROGRESS_TIMEOUT_CLASSES,
   PROGRESS_TIMEOUT_OUTCOMES
 } from '../../../src/shared/indexing/progress-timeout-policy.js';
 import { exitLikeCommandResult } from '../../shared/cli-utils.js';
@@ -402,6 +403,108 @@ const resolveLegacyDiagnosticType = (message, event = null) => {
     return 'fallback_used';
   }
   return null;
+};
+
+const resolveTimeoutPhase = ({
+  timeoutDecision = null,
+  diagnostics = null,
+  lastActivitySource = '',
+  lastActivityText = ''
+} = {}) => {
+  const countsByType = diagnostics?.countsByType && typeof diagnostics.countsByType === 'object'
+    ? diagnostics.countsByType
+    : {};
+  const timeoutClass = String(timeoutDecision?.timeoutClass || '').trim().toLowerCase();
+  const text = `${String(lastActivitySource || '')} ${String(lastActivityText || '')}`.toLowerCase();
+  if (Number(countsByType.artifact_tail_stall || 0) > 0 || text.includes('artifact')) {
+    return 'artifact_write';
+  }
+  if (
+    Number(countsByType.provider_preflight_blocked || 0) > 0
+    || Number(countsByType.provider_request_timeout || 0) > 0
+    || Number(countsByType.provider_request_failed || 0) > 0
+    || Number(countsByType.provider_circuit_breaker || 0) > 0
+    || Number(countsByType.provider_degraded_mode_entered || 0) > 0
+    || text.includes('tooling')
+    || text.includes('preflight')
+    || text.includes('workspace')
+  ) {
+    return 'provider_bootstrap';
+  }
+  if (text.includes('sqlite')) return 'sqlite';
+  if (text.includes('validation')) return 'validation';
+  if (text.includes('clone') || text.includes('checkout')) return 'clone';
+  if (timeoutClass === PROGRESS_TIMEOUT_CLASSES.noQueueMovement) return 'execute';
+  if (timeoutClass === PROGRESS_TIMEOUT_CLASSES.noByteProgress) return 'execute';
+  if (timeoutClass === PROGRESS_TIMEOUT_CLASSES.globalWallClockCap) return 'execute';
+  return 'unknown';
+};
+
+const resolveTimeoutResourceClass = ({ phase = 'unknown' } = {}) => {
+  switch (String(phase || '').trim().toLowerCase()) {
+    case 'artifact_write':
+    case 'sqlite':
+      return 'write-bound';
+    case 'provider_bootstrap':
+      return 'provider-bound';
+    case 'clone':
+      return 'network-bound';
+    case 'validation':
+    case 'execute':
+    default:
+      return 'cpu-bound';
+  }
+};
+
+const resolveTimeoutFailureMode = ({
+  timeoutDecision = null,
+  lastActivityAtMs = null,
+  lastActivitySource = '',
+  lastHeartbeatAtMs = null,
+  lastQueueMovementAtMs = null,
+  lastByteProgressAtMs = null,
+  lastProgressCurrent = 0
+} = {}) => {
+  const effectiveBudgetMs = Number(timeoutDecision?.effectiveBudgetMs || timeoutDecision?.budget?.budgetMs || 0);
+  const recentWindowMs = Number.isFinite(effectiveBudgetMs) && effectiveBudgetMs > 0
+    ? Math.max(1000, Math.floor(effectiveBudgetMs * 0.5))
+    : 15_000;
+  const now = Date.now();
+  const recentActivity = Number.isFinite(lastActivityAtMs)
+    && String(lastActivitySource || '').trim().toLowerCase() !== 'spawn'
+    && (now - lastActivityAtMs) <= recentWindowMs;
+  const recentHeartbeat = Number.isFinite(lastHeartbeatAtMs) && (now - lastHeartbeatAtMs) <= recentWindowMs;
+  const recentQueue = Number.isFinite(lastQueueMovementAtMs) && (now - lastQueueMovementAtMs) <= recentWindowMs;
+  const recentBytes = Number.isFinite(lastByteProgressAtMs) && (now - lastByteProgressAtMs) <= recentWindowMs;
+  const completedUnits = Number(lastProgressCurrent);
+  const observedProgress = recentActivity
+    || recentHeartbeat
+    || recentQueue
+    || recentBytes
+    || (Number.isFinite(completedUnits) && completedUnits > 0);
+  return observedProgress ? 'budget_exhausted_with_progress' : 'phase_stalled';
+};
+
+const resolveTimeoutQualityDelta = ({
+  diagnostics = null
+} = {}) => {
+  const countsByType = diagnostics?.countsByType && typeof diagnostics.countsByType === 'object'
+    ? diagnostics.countsByType
+    : {};
+  const skipped = [];
+  if (Number(countsByType.provider_preflight_blocked || 0) > 0) skipped.push('workspace-preflight');
+  if (Number(countsByType.provider_request_timeout || 0) > 0) skipped.push('provider-requests');
+  if (Number(countsByType.provider_degraded_mode_entered || 0) > 0) skipped.push('provider-enrichment');
+  if (Number(countsByType.artifact_tail_stall || 0) > 0) skipped.push('artifact-closeout');
+  return skipped.length
+    ? {
+      skippedWork: Array.from(new Set(skipped)).sort((left, right) => left.localeCompare(right)),
+      partialSuccess: false
+    }
+    : {
+      skippedWork: [],
+      partialSuccess: false
+    };
 };
 
 const buildDiagnosticSummaryKey = ({
@@ -1487,13 +1590,51 @@ export const createProcessRunner = ({
         || err?.code === 'ERR_BENCH_IDLE_TIMEOUT'
         || spawnSignal?.reason?.code === 'ERR_BENCH_IDLE_TIMEOUT'
         || idleAbortController?.signal?.reason?.code === 'ERR_BENCH_IDLE_TIMEOUT';
+      const diagnosticsSummary = buildDiagnosticsSummary();
+      const progressConfidenceSummary = buildProgressConfidenceSummary();
+      const enrichedTimeoutDecision = timeoutDecision
+        ? {
+          ...timeoutDecision,
+          phase: resolveTimeoutPhase({
+            timeoutDecision,
+            diagnostics: diagnosticsSummary,
+            lastActivitySource,
+            lastActivityText
+          }),
+          failureMode: resolveTimeoutFailureMode({
+            timeoutDecision,
+            lastActivityAtMs,
+            lastActivitySource,
+            lastHeartbeatAtMs,
+            lastQueueMovementAtMs,
+            lastByteProgressAtMs,
+            lastProgressCurrent
+          })
+        }
+        : null;
+      if (enrichedTimeoutDecision) {
+        enrichedTimeoutDecision.resourceClass = resolveTimeoutResourceClass({
+          phase: enrichedTimeoutDecision.phase
+        });
+        enrichedTimeoutDecision.qualityDelta = resolveTimeoutQualityDelta({
+          diagnostics: diagnosticsSummary
+        });
+      }
       if (idleTimeoutFailure) {
         appendLog(
           `[run] idle timeout: ${label} (no activity for ${resolvedIdleTimeoutMs}ms; last=${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''})`,
           'warn'
         );
       } else if (err?.code === 'SUBPROCESS_TIMEOUT') {
-        appendLog(`[run] timeout: ${label} (${message})`, 'warn');
+        appendLog(
+          `[run] timeout: ${label} (${message})`
+          + (enrichedTimeoutDecision
+            ? ` phase=${enrichedTimeoutDecision.phase || 'unknown'}`
+              + ` resource=${enrichedTimeoutDecision.resourceClass || 'unknown'}`
+              + ` mode=${enrichedTimeoutDecision.failureMode || 'unknown'}`
+            : ''),
+          'warn'
+        );
       }
       emitLogPaths('[error]');
       if (logHistory.length) {
@@ -1518,8 +1659,8 @@ export const createProcessRunner = ({
         code: failureStatus ?? 1,
         signal: failureSignal,
         schedulerEvents: getSchedulerEvents(),
-        diagnostics: buildDiagnosticsSummary(),
-        progressConfidence: buildProgressConfidenceSummary(),
+        diagnostics: diagnosticsSummary,
+        progressConfidence: progressConfidenceSummary,
         ...((idleTimeoutFailure || err?.code === 'SUBPROCESS_TIMEOUT')
           ? {
             timeoutKind: idleTimeoutFailure ? 'idle' : 'hard'
@@ -1534,7 +1675,7 @@ export const createProcessRunner = ({
             }
           }
           : {}),
-        ...(timeoutDecision ? { timeoutDecision } : {})
+        ...(enrichedTimeoutDecision ? { timeoutDecision: enrichedTimeoutDecision } : {})
       };
     }
   };

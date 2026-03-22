@@ -32,6 +32,11 @@ const lines = buildBenchRepoCloseoutSummaryLines({
     bucket: 'low',
     score: 0.42
   },
+  timeoutDecision: {
+    phase: 'artifact_write',
+    resourceClass: 'write-bound',
+    failureMode: 'budget_exhausted_with_progress'
+  },
   crashRetention: {
     bundlePath: 'C:\\cache\\bundle.json'
   }
@@ -43,6 +48,7 @@ assert.match(lines[0], /timeouts=4/);
 assert.match(lines[0], /degraded=1/);
 assert.match(lines[0], /artifact-stalls=2/);
 assert.match(lines[0], /confidence=low:0\.42/);
+assert.match(lines[0], /timeout=artifact_write\/write-bound\/budget_exhausted_with_progress/);
 assert.match(lines[0], /crash-bundle=yes/);
 assert.match(lines[0], /severity=error:1,warn:7/);
 assert.match(lines[1], /pyright textDocument\/documentSymbol timeout x4/);

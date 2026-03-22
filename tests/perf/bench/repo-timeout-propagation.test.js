@@ -6,7 +6,10 @@ import path from 'node:path';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { runBenchExecutionLoop } from '../../../tools/bench/language-repos/run-loop.js';
-import { resolveBenchProcessTimeoutProfile } from '../../../tools/bench/language/timeout.js';
+import {
+  resolveBenchProcessTimeoutProfile,
+  resolveBenchRuntimeAdaptationPlan
+} from '../../../tools/bench/language/timeout.js';
 
 ensureTestingEnv(process.env);
 
@@ -109,7 +112,19 @@ const results = await runBenchExecutionLoop({
   benchTimeoutMs: 4321
 });
 
-const expectedTimeoutProfile = resolveBenchProcessTimeoutProfile({ repoTimeoutMs: 4321 });
+const adaptationPlan = resolveBenchRuntimeAdaptationPlan({
+  repoTimeoutMs: 4321,
+  language: null,
+  lineStats: null,
+  buildIndex: true,
+  buildSqlite: false,
+  backendCount: 1,
+  realEmbeddings: false,
+  requestedThreads: null
+});
+const expectedTimeoutProfile = resolveBenchProcessTimeoutProfile({
+  repoTimeoutMs: adaptationPlan.repoTimeoutMs
+});
 assert.equal(capturedIdleTimeoutMs, expectedTimeoutProfile.idleTimeoutMs, 'expected idle bench timeout to be forwarded to the repo subprocess');
 assert.equal(capturedTimeoutMs, expectedTimeoutProfile.hardTimeoutMs, 'expected hard bench timeout profile to be forwarded to the repo subprocess');
 assert.equal(Array.isArray(results), true, 'expected result list');
