@@ -90,6 +90,11 @@ const assertCommandSurfaceAuditPresent = ({ workflowText, label }) => {
 };
 
 const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
+  const checkoutRefs = workflowText.match(/uses:\s*actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*github\.event_name == 'workflow_dispatch' && inputs\.tag \|\| github\.ref\s*\}\}/g) || [];
+  if (checkoutRefs.length < 8) {
+    console.error(`${label} must pin manual release checkouts to the requested tag ref in every checkout-based job.`);
+    process.exit(1);
+  }
   const requiredPatterns = [
     /name:\s*Release/,
     /push:\s*\n\s*tags:\s*\n\s*-\s*'v\*'/,
@@ -141,6 +146,10 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
       console.error(`${label} rebuilds artifacts during publish, which violates promotion-only release flow.`);
       process.exit(1);
     }
+  }
+  if (!/find dist\/release\/downloads dist\/release\/bundle dist\/release\/trust -type f \| sort/.test(publishBlock)) {
+    console.error(`${label} publish job must upload trust materials alongside the release bundle.`);
+    process.exit(1);
   }
 };
 
