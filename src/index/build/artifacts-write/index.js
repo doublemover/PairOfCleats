@@ -605,6 +605,7 @@ export async function writeIndexArtifacts(input) {
   let dropCommittedPiece = () => {};
   const {
     cleanupActions,
+    commitArtifactCleanup,
     runCleanupBatch,
     removeArtifact
   } = await prepareArtifactCleanup({
@@ -2399,8 +2400,9 @@ export async function writeIndexArtifacts(input) {
     const nameB = String(b?.name || '');
     return nameA.localeCompare(nameB);
   });
-  pieceEntries = await runArtifactPublicationFinalizers({
+  const publicationOutcome = await runArtifactPublicationFinalizers({
     runTrackedArtifactCloseout,
+    commitArtifactCleanup,
     listPieceEntries,
     hasPieceFile,
     addPieceFile,
@@ -2435,6 +2437,39 @@ export async function writeIndexArtifacts(input) {
     buildRoot,
     familyDeclarations: listArtifactFamilyDeclarations()
   });
+  pieceEntries = Array.isArray(publicationOutcome?.pieceEntries) ? publicationOutcome.pieceEntries : pieceEntries;
+  if (timing) {
+    timing.cleanup = {
+      ...(timing.cleanup || {}),
+      status: publicationOutcome?.cleanupCommit?.status || (cleanupActions.length ? 'staged' : 'not-required'),
+      plannedActions: cleanupActions.length,
+      completedActions: Number.isFinite(Number(publicationOutcome?.cleanupCommit?.completedActions))
+        ? Number(publicationOutcome.cleanupCommit.completedActions)
+        : 0,
+      failedActions: Number.isFinite(Number(publicationOutcome?.cleanupCommit?.failedActions))
+        ? Number(publicationOutcome.cleanupCommit.failedActions)
+        : 0,
+      failures: Array.isArray(publicationOutcome?.cleanupCommit?.failures)
+        ? publicationOutcome.cleanupCommit.failures
+        : []
+    };
+    timing.publication = {
+      validation: publicationOutcome?.publicationValidation?.payload
+        ? {
+          ok: publicationOutcome.publicationValidation.payload.ok !== false,
+          familyContractsVersion: publicationOutcome.publicationValidation.payload.familyContractsVersion,
+          failedFamilies: Number(publicationOutcome.publicationValidation.payload?.counts?.failedFamilies || 0)
+        }
+        : null,
+      cleanup: timing.cleanup,
+      identity: publicationOutcome?.identityReconciliation
+        ? {
+          ok: publicationOutcome.identityReconciliation.ok !== false,
+          totalIssues: Number(publicationOutcome.identityReconciliation.totalIssues || 0)
+        }
+        : null
+    };
+  }
 }
 
 

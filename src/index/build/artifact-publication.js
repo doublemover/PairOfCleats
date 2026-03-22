@@ -6,6 +6,7 @@ import { toPosix } from '../../shared/files.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 
 export const ARTIFACT_PUBLICATION_SCHEMA_VERSION = 1;
+export const ARTIFACT_PUBLICATION_FAMILY_CONTRACTS_VERSION = 1;
 
 export const resolveArtifactPublicationPath = (buildRoot, mode) => (
   path.join(buildRoot, `artifact-publication.${String(mode || 'unknown')}.json`)
@@ -30,6 +31,31 @@ const normalizeFamilyMembers = (values) => Array.from(new Set(
 const resolveGenerationId = ({ buildId, buildRoot, mode }) => (
   String(buildId || path.basename(buildRoot) || mode || 'generation').trim()
 );
+
+const normalizeCleanupSummary = (cleanup) => {
+  if (!cleanup || typeof cleanup !== 'object') return null;
+  const plannedActions = Number(cleanup.plannedActions);
+  const completedActions = Number(cleanup.completedActions);
+  const failedActions = Number(cleanup.failedActions);
+  return {
+    schemaVersion: Number.isFinite(Number(cleanup.schemaVersion))
+      ? Number(cleanup.schemaVersion)
+      : 1,
+    status: typeof cleanup.status === 'string' && cleanup.status.trim()
+      ? cleanup.status.trim()
+      : 'unknown',
+    plannedActions: Number.isFinite(plannedActions) && plannedActions >= 0 ? plannedActions : 0,
+    completedActions: Number.isFinite(completedActions) && completedActions >= 0 ? completedActions : 0,
+    failedActions: Number.isFinite(failedActions) && failedActions >= 0 ? failedActions : 0,
+    failures: Array.isArray(cleanup.failures)
+      ? cleanup.failures
+        .filter((entry) => entry && typeof entry === 'object')
+        .map((entry) => ({
+          message: typeof entry.message === 'string' ? entry.message : String(entry.message || '')
+        }))
+      : []
+  };
+};
 
 export const validateArtifactPublicationGeneration = async ({
   buildRoot,
@@ -116,6 +142,7 @@ export const validateArtifactPublicationGeneration = async ({
   const failedFamilies = families.filter((family) => !family.ok);
   return {
     schemaVersion: 1,
+    familyContractsVersion: ARTIFACT_PUBLICATION_FAMILY_CONTRACTS_VERSION,
     mode,
     buildId: buildId || null,
     generationId,
@@ -162,7 +189,9 @@ export const writeArtifactPublicationRecord = async ({
   pieceEntries = [],
   manifestPath = null,
   identityReconciliation = null,
-  publicationValidation = null
+  publicationValidation = null,
+  cleanup = null,
+  publishedAt = null
 }) => {
   if (!buildRoot || !outDir || !mode) {
     throw new Error('writeArtifactPublicationRecord requires buildRoot, outDir, and mode.');
@@ -200,10 +229,25 @@ export const writeArtifactPublicationRecord = async ({
       ? {
         ok: publicationValidation.ok !== false,
         validationPath: publicationValidation.validationPath || null,
+        familyContractsVersion: Number(
+          publicationValidation.payload?.familyContractsVersion
+            || ARTIFACT_PUBLICATION_FAMILY_CONTRACTS_VERSION
+        ),
         failedFamilies: Number(publicationValidation.payload?.counts?.failedFamilies || 0),
-        counts: publicationValidation.payload?.counts || null
+        counts: publicationValidation.payload?.counts || null,
+        families: Array.isArray(publicationValidation.payload?.families)
+          ? publicationValidation.payload.families.map((family) => ({
+            family: typeof family?.family === 'string' ? family.family : 'unnamed-family',
+            owner: typeof family?.owner === 'string' ? family.owner : null,
+            ok: family?.ok !== false,
+            missingRequiredMembers: Array.isArray(family?.missingRequiredMembers)
+              ? family.missingRequiredMembers
+              : []
+          }))
+          : []
       }
       : null,
+    cleanup: normalizeCleanupSummary(cleanup),
     identityReconciliation: identityReconciliation
       ? {
         ok: identityReconciliation.ok !== false,
@@ -213,7 +257,7 @@ export const writeArtifactPublicationRecord = async ({
       }
       : null,
     pieceCount: committedPieceEntries.length,
-    publishedAt: new Date().toISOString()
+    publishedAt: publishedAt || new Date().toISOString()
   };
   const publicationPath = resolveArtifactPublicationPath(buildRoot, mode);
   await atomicWriteJson(publicationPath, payload, { spaces: 2, newline: true });

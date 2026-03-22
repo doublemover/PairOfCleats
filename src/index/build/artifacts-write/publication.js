@@ -51,6 +51,7 @@ export const createArtifactOrderingRecorder = ({
 
 export const runArtifactPublicationFinalizers = async ({
   runTrackedArtifactCloseout,
+  commitArtifactCleanup,
   listPieceEntries,
   hasPieceFile,
   addPieceFile,
@@ -141,6 +142,7 @@ export const runArtifactPublicationFinalizers = async ({
   }));
   pieceEntries = listPieceEntries();
   let publicationValidation = null;
+  const publishedAt = new Date().toISOString();
   await runTrackedArtifactCloseout('artifact-publication-validation', async () => {
     publicationValidation = await writeArtifactPublicationValidationReport({
       buildRoot: buildRoot || path.resolve(outDir, '..'),
@@ -185,20 +187,68 @@ export const runArtifactPublicationFinalizers = async ({
     outDir,
     mode
   });
-  await runTrackedArtifactCloseout('artifact-publication', async () => writeArtifactPublicationRecord({
-    buildRoot: buildRoot || path.resolve(outDir, '..'),
-    outDir,
-    mode,
-    stage: indexState?.stage || null,
-    buildId: indexState?.buildId || null,
-    artifactSurfaceVersion: indexState?.artifactSurfaceVersion || null,
-    compatibilityKey: indexState?.compatibilityKey || null,
+  let publicationRecord = null;
+  await runTrackedArtifactCloseout('artifact-publication', async () => {
+    publicationRecord = await writeArtifactPublicationRecord({
+      buildRoot: buildRoot || path.resolve(outDir, '..'),
+      outDir,
+      mode,
+      stage: indexState?.stage || null,
+      buildId: indexState?.buildId || null,
+      artifactSurfaceVersion: indexState?.artifactSurfaceVersion || null,
+      compatibilityKey: indexState?.compatibilityKey || null,
+      pieceEntries,
+      manifestPath: path.join(outDir, 'pieces', 'manifest.json'),
+      publicationValidation,
+      identityReconciliation,
+      cleanup: {
+        status: 'pending',
+        plannedActions: Number.isFinite(Number(indexState?.extensions?.artifactCleanup?.plannedActions))
+          ? Number(indexState.extensions.artifactCleanup.plannedActions)
+          : 0,
+        completedActions: 0,
+        failedActions: 0,
+        failures: []
+      },
+      publishedAt
+    });
+  });
+  let cleanupCommit = null;
+  if (typeof commitArtifactCleanup === 'function') {
+    await runTrackedArtifactCloseout('artifact-cleanup-commit', async () => {
+      cleanupCommit = await commitArtifactCleanup();
+    });
+  }
+  await runTrackedArtifactCloseout('artifact-publication-record-finalize', async () => {
+    publicationRecord = await writeArtifactPublicationRecord({
+      buildRoot: buildRoot || path.resolve(outDir, '..'),
+      outDir,
+      mode,
+      stage: indexState?.stage || null,
+      buildId: indexState?.buildId || null,
+      artifactSurfaceVersion: indexState?.artifactSurfaceVersion || null,
+      compatibilityKey: indexState?.compatibilityKey || null,
+      pieceEntries,
+      manifestPath: path.join(outDir, 'pieces', 'manifest.json'),
+      publicationValidation,
+      identityReconciliation,
+      cleanup: cleanupCommit || {
+        status: 'not-required',
+        plannedActions: 0,
+        completedActions: 0,
+        failedActions: 0,
+        failures: []
+      },
+      publishedAt
+    });
+  });
+  return {
     pieceEntries,
-    manifestPath: path.join(outDir, 'pieces', 'manifest.json'),
     publicationValidation,
-    identityReconciliation
-  }));
-  return pieceEntries;
+    identityReconciliation,
+    cleanupCommit,
+    publicationRecord
+  };
 };
 
 export const assertArtifactIdentityReconciliationReady = async ({

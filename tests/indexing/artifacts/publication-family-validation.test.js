@@ -6,6 +6,7 @@ import os from 'node:os';
 
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import {
+  ARTIFACT_PUBLICATION_FAMILY_CONTRACTS_VERSION,
   writeArtifactPublicationValidationReport,
   resolveArtifactPublicationValidationPath
 } from '../../../src/index/build/artifact-publication.js';
@@ -73,6 +74,7 @@ try {
 
   assert.equal(result.validationPath, resolveArtifactPublicationValidationPath(buildRoot, 'code'));
   assert.equal(result.payload.ok, false, 'expected validation report to fail');
+  assert.equal(result.payload.familyContractsVersion, ARTIFACT_PUBLICATION_FAMILY_CONTRACTS_VERSION);
   const failedFamily = result.payload.families.find((entry) => entry.family === 'fielded-postings');
   assert.ok(failedFamily, 'expected fielded-postings family entry');
   assert.deepEqual(failedFamily.missingRequiredMembers, ['field_tokens']);

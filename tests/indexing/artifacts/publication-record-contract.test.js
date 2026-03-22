@@ -6,6 +6,7 @@ import os from 'node:os';
 
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import {
+  ARTIFACT_PUBLICATION_FAMILY_CONTRACTS_VERSION,
   readArtifactPublicationRecord,
   resolveArtifactPublicationPath,
   resolveArtifactPublicationValidationPath,
@@ -43,6 +44,13 @@ try {
     fields: { rows: [] },
     atomic: true
   });
+  await writeJsonObjectFile(manifestPath, {
+    fields: {
+      version: 2,
+      pieces: [{ type: 'chunks', name: 'chunk_meta', format: 'json', path: 'chunk_meta.json' }]
+    },
+    atomic: true
+  });
 
   const result = await writeArtifactPublicationRecord({
     buildRoot,
@@ -66,7 +74,15 @@ try {
           requiredMembers: ['chunk_meta']
         }
       ]
-    })
+    }),
+    cleanup: {
+      status: 'completed',
+      plannedActions: 1,
+      completedActions: 1,
+      failedActions: 0,
+      failures: []
+    },
+    publishedAt: '2026-03-22T00:00:00.000Z'
   });
 
   assert.equal(result.publicationPath, resolveArtifactPublicationPath(buildRoot, 'code'));
@@ -78,9 +94,30 @@ try {
   assert.equal(publication.pieceCount, 1);
   assert.equal(publication.publicationValidation?.ok, true);
   assert.equal(
+    publication.publicationValidation?.familyContractsVersion,
+    ARTIFACT_PUBLICATION_FAMILY_CONTRACTS_VERSION
+  );
+  assert.deepEqual(publication.publicationValidation?.families, [
+    {
+      family: 'core',
+      owner: 'test',
+      ok: true,
+      missingRequiredMembers: []
+    }
+  ]);
+  assert.equal(
     publication.publicationValidation?.validationPath,
     resolveArtifactPublicationValidationPath(buildRoot, 'code')
   );
+  assert.deepEqual(publication.cleanup, {
+    schemaVersion: 1,
+    status: 'completed',
+    plannedActions: 1,
+    completedActions: 1,
+    failedActions: 0,
+    failures: []
+  });
+  assert.equal(publication.publishedAt, '2026-03-22T00:00:00.000Z');
 
   console.log('artifact publication record contract test passed');
 } finally {

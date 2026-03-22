@@ -66,6 +66,7 @@ export const prepareArtifactCleanup = async ({
   removePieceFile
 } = {}) => {
   const cleanupActions = [];
+  const stagedCleanupOperations = [];
   const runCleanupBatch = async (operations, { concurrency = 3 } = {}) => {
     const tasks = Array.isArray(operations) ? operations.filter((op) => typeof op === 'function') : [];
     const batchSize = Number.isFinite(Number(concurrency))
@@ -75,21 +76,48 @@ export const prepareArtifactCleanup = async ({
       await Promise.all(tasks.slice(i, i + batchSize).map((task) => task()));
     }
   };
-  const recordCleanupAction = ({ targetPath, recursive = false, policy = 'legacy' }) => {
+  const recordCleanupAction = ({ targetPath, recursive = false, policy = 'legacy', phase = 'staged' }) => {
     if (!targetPath) return;
-    cleanupActions.push({
+    const action = {
       path: toPosix(path.relative(outDir, targetPath)),
       recursive: recursive === true,
-      policy
-    });
+      policy,
+      phase
+    };
+    cleanupActions.push(action);
+    return action;
   };
-  const removeArtifact = async (targetPath, options = {}) => {
+  const syncCleanupState = (summary = null) => {
+    if (!indexState || typeof indexState !== 'object') return;
+    if (!indexState.extensions || typeof indexState.extensions !== 'object') {
+      indexState.extensions = {};
+    }
+    const existing = indexState.extensions.artifactCleanup;
+    indexState.extensions.artifactCleanup = {
+      schemaVersion: 2,
+      profileId,
+      allowlistOnly: vectorOnlyProfile,
+      status: summary?.status || 'staged',
+      plannedActions: cleanupActions.length,
+      completedActions: Number.isFinite(Number(summary?.completedActions))
+        ? Number(summary.completedActions)
+        : 0,
+      failedActions: Number.isFinite(Number(summary?.failedActions))
+        ? Number(summary.failedActions)
+        : 0,
+      actions: cleanupActions,
+      failures: Array.isArray(summary?.failures) ? summary.failures : [],
+      previousSchemaVersion: Number.isFinite(Number(existing?.schemaVersion))
+        ? Number(existing.schemaVersion)
+        : null
+    };
+  };
+  const removeArtifactNow = async (targetPath, options = {}) => {
     const { recursive = true, policy = 'legacy' } = options;
     try {
       const exists = await cleanupPathExists(targetPath);
       if (exists) {
         logLine?.(`[artifact-cleanup] remove ${targetPath}`, { kind: 'status' });
-        recordCleanupAction({ targetPath, recursive, policy });
       }
       const removed = await removePathWithRetry(targetPath, { recursive, force: true });
       if (removed?.ok) {
@@ -101,6 +129,68 @@ export const prepareArtifactCleanup = async ({
     } catch (err) {
       log?.(`[warn] [artifact-cleanup] exception removing ${targetPath}: ${err?.message || err}`);
     }
+  };
+  const removeArtifact = async (targetPath, options = {}) => {
+    const { recursive = true, policy = 'legacy', immediate = false } = options;
+    const exists = await cleanupPathExists(targetPath);
+    if (!exists) return { ok: true, staged: false, targetPath };
+    if (immediate) {
+      recordCleanupAction({ targetPath, recursive, policy, phase: 'immediate' });
+      await removeArtifactNow(targetPath, { recursive, policy });
+      syncCleanupState();
+      return { ok: true, staged: false, targetPath };
+    }
+    const action = recordCleanupAction({ targetPath, recursive, policy, phase: 'staged' });
+    logLine?.(`[artifact-cleanup] stage remove ${targetPath}`, { kind: 'status' });
+    stagedCleanupOperations.push(async () => {
+      await removeArtifactNow(targetPath, { recursive, policy });
+      return action;
+    });
+    syncCleanupState();
+    return { ok: true, staged: true, targetPath };
+  };
+  const commitArtifactCleanup = async ({
+    concurrency = 3
+  } = {}) => {
+    const failures = [];
+    let completedActions = 0;
+    const tasks = stagedCleanupOperations.splice(0, stagedCleanupOperations.length);
+    const batchSize = Number.isFinite(Number(concurrency))
+      ? Math.max(1, Math.floor(Number(concurrency)))
+      : 3;
+    for (let index = 0; index < tasks.length; index += batchSize) {
+      const batch = tasks.slice(index, index + batchSize);
+      const results = await Promise.all(batch.map(async (task) => {
+        try {
+          await task();
+          return { ok: true };
+        } catch (error) {
+          return { ok: false, error };
+        }
+      }));
+      for (const result of results) {
+        if (result.ok) {
+          completedActions += 1;
+          continue;
+        }
+        failures.push({
+          message: result.error?.message || String(result.error)
+        });
+      }
+    }
+    const summary = {
+      schemaVersion: 1,
+      status: failures.length ? 'completed-with-warnings' : 'completed',
+      plannedActions: cleanupActions.length,
+      completedActions,
+      failedActions: failures.length,
+      failures
+    };
+    syncCleanupState(summary);
+    return {
+      ...summary,
+      actions: cleanupActions
+    };
   };
 
   if (vectorOnlyProfile) {
@@ -142,20 +232,11 @@ export const prepareArtifactCleanup = async ({
       ]);
     }
   }
-  if (indexState && typeof indexState === 'object') {
-    if (!indexState.extensions || typeof indexState.extensions !== 'object') {
-      indexState.extensions = {};
-    }
-    indexState.extensions.artifactCleanup = {
-      schemaVersion: 1,
-      profileId,
-      allowlistOnly: vectorOnlyProfile,
-      actions: cleanupActions
-    };
-  }
+  syncCleanupState();
 
   return {
     cleanupActions,
+    commitArtifactCleanup,
     runCleanupBatch,
     removeArtifact
   };
