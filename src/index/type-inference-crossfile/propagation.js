@@ -76,6 +76,16 @@ const buildCandidateIds = (symbolRef) => {
   return ids.length ? ids : [];
 };
 
+const syncCallDetailResolution = (detail, symbolRef) => {
+  if (!detail || typeof detail !== 'object') return;
+  const resolvedChunkUid = symbolRef?.resolved?.chunkUid || null;
+  const candidateIds = buildCandidateIds(symbolRef);
+  detail.calleeRef = symbolRef || null;
+  detail.resolvedCalleeChunkUid = resolvedChunkUid;
+  detail.targetChunkUid = resolvedChunkUid;
+  detail.targetCandidates = candidateIds;
+};
+
 const buildEdgeLink = ({ edgeKind, fromChunkUid, symbolRef, resolvedEntry }) => {
   if (!symbolRef) return null;
   const link = {
@@ -606,14 +616,7 @@ export async function runCrossFilePropagation({
             kindHint: null,
             fromFile: chunk.file
           });
-          const candidateIds = buildCandidateIds(symbolRef);
-          if (symbolRef?.resolved?.chunkUid && !detail.targetChunkUid) {
-            detail.targetChunkUid = symbolRef.resolved.chunkUid;
-          } else if (!detail.targetChunkUid && (!detail.targetCandidates || !detail.targetCandidates.length) && candidateIds.length) {
-            detail.targetCandidates = candidateIds;
-          }
-          detail.calleeRef = symbolRef || null;
-          detail.resolvedCalleeChunkUid = symbolRef?.resolved?.chunkUid || null;
+          syncCallDetailResolution(detail, symbolRef);
           const resolvedEntry = symbolRef?.resolved?.chunkUid
             ? entryByUid.get(symbolRef.resolved.chunkUid)
             : null;
