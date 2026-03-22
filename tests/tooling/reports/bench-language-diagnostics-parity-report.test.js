@@ -96,6 +96,14 @@ await fsPromises.writeFile(
       providerId: 'gopls',
       workspacePartition: 'multiple',
       failureClass: 'gopls_workspace_partition_incomplete'
+    },
+    {
+      eventType: 'warning_suppressed',
+      eventId: 'ub050:v1:warning_suppressed:141414141414',
+      message: '[tooling] clangd suppressed 2 IncludeCleaner stderr line(s); missing include roots should be configured via compile_commands.json.',
+      providerId: 'clangd',
+      failureClass: 'stderr:includecleaner',
+      severity: 'warn'
     }
   ].map((entry) => JSON.stringify({
     schemaVersion: 2,
@@ -118,6 +126,7 @@ await fsPromises.writeFile(
     '[tooling] pyright circuit breaker tripped.',
     '[tooling] pyright degraded mode active (fail-open).',
     '[tooling] workspace:partition provider=gopls state=degraded reason=gopls_workspace_partition_incomplete workspacePartition=multiple partitionCount=2 unmatchedDocuments=1 unmatchedTargets=1',
+    '[tooling] clangd suppressed 2 IncludeCleaner stderr line(s); missing include roots should be configured via compile_commands.json.',
     'using fallback parser'
   ].join('\n') + '\n',
   'utf8'
@@ -138,7 +147,9 @@ assert.equal(parity.mismatchCount, 0, 'expected zero diagnostics parity mismatch
 assert.equal(parity.countsFromLogs.provider_preflight_blocked, 1, 'expected blocked preflight parity count');
 assert.equal(parity.countsFromLogs.provider_request_timeout, 1, 'expected request timeout parity count');
 assert.equal(parity.countsFromLogs.provider_degraded_mode_entered, 1, 'expected degraded mode parity count');
+assert.equal(parity.countsFromLogs.warning_suppressed, 1, 'expected warning suppression parity count');
 assert.equal(parity.countsFromDiagnosticsStream.provider_request_failed, 1, 'expected request failed stream parity count');
+assert.equal(parity.countsFromDiagnosticsStream.warning_suppressed, 1, 'expected warning suppression stream parity count');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 

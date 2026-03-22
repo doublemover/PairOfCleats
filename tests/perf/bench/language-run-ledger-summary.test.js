@@ -57,6 +57,9 @@ const events = [
           process: {
             countsByType: {
               fallback_used: 2
+            },
+            countsBySeverity: {
+              warn: 2
             }
           }
         }
@@ -90,6 +93,9 @@ const events = [
           process: {
             countsByType: {
               artifact_tail_stall: 1
+            },
+            countsBySeverity: {
+              warn: 1
             }
           },
           crashRetention: {
@@ -145,6 +151,7 @@ assert.equal(summary.counts.planned, 2, 'expected planned repo count');
 assert.equal(summary.counts.finished, 2, 'expected finished repo count');
 assert.equal(summary.counts.unfinished, 0, 'expected no unfinished repos');
 assert.equal(summary.verdict.aggregateResultClass, 'repo_failed', 'expected repo_failed verdict');
+assert.equal(summary.verdict.countsByDiagnosticSeverity.warn, 3, 'expected diagnostic severity counts in run summary verdict');
 assert.equal(summary.parities.crashRetention.ledgerCount, 1, 'expected one ledger crash bundle');
 assert.equal(summary.parities.crashRetention.directoryCount, 1, 'expected one retained crash bundle on disk');
 assert.equal(summary.parities.crashRetention.ok, true, 'expected crash-retention parity');

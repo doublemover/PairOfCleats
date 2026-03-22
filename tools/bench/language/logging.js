@@ -16,6 +16,7 @@ export const BENCH_DIAGNOSTIC_EVENT_TYPES = Object.freeze([
   'queue_delay_hotspot',
   'artifact_tail_stall',
   'fallback_used',
+  'warning_suppressed',
   'provider_preflight_start',
   'provider_preflight_finish',
   'provider_preflight_blocked',
@@ -28,6 +29,7 @@ export const BENCH_DIAGNOSTIC_EVENT_TYPES = Object.freeze([
 ]);
 export const BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES = Object.freeze([
   'fallback_used',
+  'warning_suppressed',
   'provider_preflight_blocked',
   'provider_request_timeout',
   'provider_request_failed',
@@ -37,6 +39,7 @@ export const BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES = Object.freeze([
 ]);
 export const BENCH_DIAGNOSTIC_MATERIAL_PARITY_EVENT_TYPES = Object.freeze([
   'fallback_used',
+  'warning_suppressed',
   'provider_preflight_blocked',
   'provider_request_timeout',
   'provider_request_failed',
@@ -88,7 +91,21 @@ const TOOLING_CIRCUIT_BREAKER_PATTERN = /\[tooling\]\s+(?<providerId>[^\s]+)\s+c
 const TOOLING_DEGRADED_ENTER_PATTERN = /\[tooling\]\s+(?<providerId>[^\s]+)\s+degraded mode active \(fail-open\)\./iu;
 const TOOLING_DEGRADED_CLEAR_PATTERN = /\[tooling\]\s+(?<providerId>[^\s]+)\s+degraded mode cleared\./iu;
 const TOOLING_WORKSPACE_PARTITION_PATTERN = /\[tooling\]\s+workspace:partition\s+provider=(?<providerId>[^\s]+)(?<rest>.*)$/iu;
+const TOOLING_WARNING_SUPPRESSED_PATTERN = /\[tooling\]\s+(?<providerId>[^\s]+)\s+suppressed\s+(?<count>\d+)\s+(?<kind>.+?)\s+stderr line\(s\)(?<rest>.*)$/iu;
+const IMPORT_WARNING_SUPPRESSED_POLICY_PATTERN = /\[imports\]\s+all captured unresolved samples were suppressed by live policy\s+\((?<count>\d+)\)\./iu;
+const IMPORT_WARNING_SUPPRESSED_COUNT_PATTERN = /\[imports\]\s+suppressed\s+(?<count>\d+)\s+import resolution warnings\./iu;
 const TOOLING_FIELD_PATTERN = /([a-zA-Z][a-zA-Z0-9_]*)=("([^"]*)"|[^\s]+)/gu;
+
+export const BENCH_DIAGNOSTIC_SEVERITY_LEVELS = Object.freeze([
+  'info',
+  'warn',
+  'error'
+]);
+const BENCH_DIAGNOSTIC_SEVERITY_RANK = Object.freeze({
+  info: 0,
+  warn: 1,
+  error: 2
+});
 
 const normalizeDiagnosticField = (value, maxLength = 160) => (
   normalizeBenchDiagnosticText(value, { maxLength })
@@ -130,7 +147,8 @@ const buildDiagnosticSignal = ({
   preflightState = null,
   stage = null,
   taskId = null,
-  level = null
+  level = null,
+  severity = null
 } = {}) => {
   if (!isBenchDiagnosticEventType(eventType)) return null;
   return {
@@ -146,8 +164,49 @@ const buildDiagnosticSignal = ({
     preflightState: String(preflightState || '').trim() || null,
     stage: String(stage || '').trim() || null,
     taskId: String(taskId || '').trim() || null,
-    level: String(level || '').trim() || null
+    level: String(level || '').trim() || null,
+    severity: normalizeBenchDiagnosticSeverity(severity)
   };
+};
+
+export const normalizeBenchDiagnosticSeverity = (value, fallback = 'info') => {
+  const text = String(value || '').trim().toLowerCase();
+  if (text && Object.prototype.hasOwnProperty.call(BENCH_DIAGNOSTIC_SEVERITY_RANK, text)) return text;
+  return String(fallback || 'info').trim().toLowerCase();
+};
+
+export const resolveBenchDiagnosticSeverity = ({
+  eventType,
+  failureClass = null,
+  preflightState = null
+} = {}) => {
+  const type = String(eventType || '').trim();
+  const failure = String(failureClass || '').trim().toLowerCase();
+  const state = String(preflightState || '').trim().toLowerCase();
+  switch (type) {
+    case 'parser_crash':
+      return 'error';
+    case 'provider_preflight_start':
+    case 'provider_degraded_mode_cleared':
+      return 'info';
+    case 'provider_preflight_finish':
+      if (state === 'ready' || failure === 'ready') return 'info';
+      return 'warn';
+    case 'scm_timeout':
+    case 'queue_delay_hotspot':
+    case 'artifact_tail_stall':
+    case 'fallback_used':
+    case 'warning_suppressed':
+    case 'provider_preflight_blocked':
+    case 'provider_request_timeout':
+    case 'provider_request_failed':
+    case 'provider_circuit_breaker':
+    case 'provider_degraded_mode_entered':
+    case 'workspace_partition_decision':
+      return 'warn';
+    default:
+      return 'info';
+  }
 };
 
 export const createBenchDiagnosticClassifier = () => {
@@ -188,7 +247,12 @@ export const createBenchDiagnosticClassifier = () => {
         failureClass: 'start',
         stage: event?.stage || null,
         taskId: event?.taskId || null,
-        level: event?.level || null
+        level: event?.level || null,
+        severity: resolveBenchDiagnosticSeverity({
+          eventType: 'provider_preflight_start',
+          failureClass: 'start',
+          preflightState: TOOLING_PREFLIGHT_EVENT_STATE_BY_EVENT.start
+        })
       });
       return signal ? [signal] : [];
     }
@@ -218,7 +282,12 @@ export const createBenchDiagnosticClassifier = () => {
         failureClass,
         stage: event?.stage || null,
         taskId: event?.taskId || null,
-        level: event?.level || null
+        level: event?.level || null,
+        severity: resolveBenchDiagnosticSeverity({
+          eventType: 'provider_preflight_finish',
+          failureClass,
+          preflightState
+        })
       });
       if (finishSignal) signals.push(finishSignal);
       if (preflightState === 'blocked' || failureClass === 'blocked') {
@@ -233,7 +302,12 @@ export const createBenchDiagnosticClassifier = () => {
           failureClass: 'blocked',
           stage: event?.stage || null,
           taskId: event?.taskId || null,
-          level: event?.level || null
+          level: event?.level || null,
+          severity: resolveBenchDiagnosticSeverity({
+            eventType: 'provider_preflight_blocked',
+            failureClass: 'blocked',
+            preflightState
+          })
         });
         if (blockedSignal) signals.push(blockedSignal);
       }
@@ -258,7 +332,11 @@ export const createBenchDiagnosticClassifier = () => {
         failureClass: String(fields.class || kind).trim() || kind,
         stage: event?.stage || null,
         taskId: event?.taskId || null,
-        level: event?.level || null
+        level: event?.level || null,
+        severity: resolveBenchDiagnosticSeverity({
+          eventType: kind === 'timeout' ? 'provider_request_timeout' : 'provider_request_failed',
+          failureClass: String(fields.class || kind).trim() || kind
+        })
       });
       return signal ? [signal] : [];
     }
@@ -273,7 +351,11 @@ export const createBenchDiagnosticClassifier = () => {
         failureClass: 'circuit_breaker',
         stage: event?.stage || null,
         taskId: event?.taskId || null,
-        level: event?.level || null
+        level: event?.level || null,
+        severity: resolveBenchDiagnosticSeverity({
+          eventType: 'provider_circuit_breaker',
+          failureClass: 'circuit_breaker'
+        })
       });
       return signal ? [signal] : [];
     }
@@ -288,7 +370,11 @@ export const createBenchDiagnosticClassifier = () => {
         failureClass: 'fail_open',
         stage: event?.stage || null,
         taskId: event?.taskId || null,
-        level: event?.level || null
+        level: event?.level || null,
+        severity: resolveBenchDiagnosticSeverity({
+          eventType: 'provider_degraded_mode_entered',
+          failureClass: 'fail_open'
+        })
       });
       return signal ? [signal] : [];
     }
@@ -303,7 +389,11 @@ export const createBenchDiagnosticClassifier = () => {
         failureClass: 'recovered',
         stage: event?.stage || null,
         taskId: event?.taskId || null,
-        level: event?.level || null
+        level: event?.level || null,
+        severity: resolveBenchDiagnosticSeverity({
+          eventType: 'provider_degraded_mode_cleared',
+          failureClass: 'recovered'
+        })
       });
       return signal ? [signal] : [];
     }
@@ -321,7 +411,71 @@ export const createBenchDiagnosticClassifier = () => {
         failureClass: String(fields.reason || fields.state || '').trim() || null,
         stage: event?.stage || null,
         taskId: event?.taskId || null,
-        level: event?.level || null
+        level: event?.level || null,
+        severity: resolveBenchDiagnosticSeverity({
+          eventType: 'workspace_partition_decision',
+          failureClass: String(fields.reason || fields.state || '').trim() || null
+        })
+      });
+      return signal ? [signal] : [];
+    }
+
+    const toolingWarningSuppressedMatch = TOOLING_WARNING_SUPPRESSED_PATTERN.exec(text);
+    if (toolingWarningSuppressedMatch) {
+      const providerId = String(toolingWarningSuppressedMatch.groups?.providerId || '').trim();
+      const count = String(toolingWarningSuppressedMatch.groups?.count || '').trim();
+      const kind = normalizeDiagnosticField(toolingWarningSuppressedMatch.groups?.kind || '', 96) || 'stderr';
+      const signal = buildDiagnosticSignal({
+        eventType: 'warning_suppressed',
+        message: text,
+        source,
+        providerId,
+        failureClass: `stderr:${kind}`,
+        stage: event?.stage || null,
+        taskId: event?.taskId || null,
+        level: event?.level || null,
+        severity: resolveBenchDiagnosticSeverity({
+          eventType: 'warning_suppressed',
+          failureClass: `stderr:${kind}:${count}`
+        })
+      });
+      return signal ? [signal] : [];
+    }
+
+    const importPolicySuppressedMatch = IMPORT_WARNING_SUPPRESSED_POLICY_PATTERN.exec(text);
+    if (importPolicySuppressedMatch) {
+      const count = String(importPolicySuppressedMatch.groups?.count || '').trim();
+      const signal = buildDiagnosticSignal({
+        eventType: 'warning_suppressed',
+        message: text,
+        source,
+        failureClass: `imports_live_policy:${count || 'unknown'}`,
+        stage: event?.stage || null,
+        taskId: event?.taskId || null,
+        level: event?.level || null,
+        severity: resolveBenchDiagnosticSeverity({
+          eventType: 'warning_suppressed',
+          failureClass: `imports_live_policy:${count || 'unknown'}`
+        })
+      });
+      return signal ? [signal] : [];
+    }
+
+    const importCountSuppressedMatch = IMPORT_WARNING_SUPPRESSED_COUNT_PATTERN.exec(text);
+    if (importCountSuppressedMatch) {
+      const count = String(importCountSuppressedMatch.groups?.count || '').trim();
+      const signal = buildDiagnosticSignal({
+        eventType: 'warning_suppressed',
+        message: text,
+        source,
+        failureClass: `imports_warning_count:${count || 'unknown'}`,
+        stage: event?.stage || null,
+        taskId: event?.taskId || null,
+        level: event?.level || null,
+        severity: resolveBenchDiagnosticSeverity({
+          eventType: 'warning_suppressed',
+          failureClass: `imports_warning_count:${count || 'unknown'}`
+        })
       });
       return signal ? [signal] : [];
     }

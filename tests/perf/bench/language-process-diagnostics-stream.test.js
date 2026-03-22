@@ -47,6 +47,7 @@ const script = [
   "console.log('[tooling] pyright circuit breaker tripped.');",
   "console.log('[tooling] pyright degraded mode active (fail-open).');",
   "console.log('[tooling] pyright degraded mode cleared.');",
+  "console.log('[tooling] clangd suppressed 2 IncludeCleaner stderr line(s); missing include roots should be configured via compile_commands.json.');",
   "console.log('[tooling] workspace:partition provider=gopls state=degraded reason=gopls_workspace_partition_incomplete workspacePartition=multiple partitionCount=2 unmatchedDocuments=1 unmatchedTargets=1');",
   "const fallback = JSON.stringify({ proto: 'poc.progress@2', event: 'log', ts: new Date().toISOString(), level: 'warn', stage: 'parse', taskId: 'stage:parse', message: 'using fallback parser for unsupported grammar' });",
   'console.log(fallback);',
@@ -68,8 +69,13 @@ assert.equal(
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
   'expected diagnostics schema version'
 );
-assert.equal(result.diagnostics.eventCount, 15, 'expected structured diagnostics to include tooling/runtime events');
+assert.equal(result.diagnostics.eventCount, 16, 'expected structured diagnostics to include tooling/runtime events');
 assert.equal(result.diagnostics.countsByType.fallback_used, 2, 'expected fallback duplicate count in full stream');
+assert.deepEqual(
+  result.diagnostics.countsBySeverity,
+  { error: 1, info: 2, warn: 13 },
+  'expected consequence-based severity counts in process diagnostics summary'
+);
 
 for (const type of BENCH_DIAGNOSTIC_EVENT_TYPES) {
   assert.equal(
@@ -90,7 +96,7 @@ assert.equal(
 const streamLines = (await fsPromises.readFile(diagnosticsPath, 'utf8'))
   .split(/\r?\n/)
   .filter((line) => line.trim());
-assert.equal(streamLines.length, 15, 'expected full JSON event stream with all occurrences');
+assert.equal(streamLines.length, 16, 'expected full JSON event stream with all occurrences');
 
 const streamEvents = streamLines.map((line) => JSON.parse(line));
 const fallbackEvents = streamEvents.filter((entry) => entry.eventType === 'fallback_used');
@@ -114,6 +120,13 @@ assert.equal(preflightBlockedEvent?.preflightState, 'blocked', 'expected blocked
 const workspacePartitionEvent = streamEvents.find((entry) => entry.eventType === 'workspace_partition_decision');
 assert.equal(workspacePartitionEvent?.providerId, 'gopls', 'expected provider correlation on workspace routing event');
 assert.equal(workspacePartitionEvent?.workspacePartition, 'multiple', 'expected workspace partition identifier on routing event');
+const warningSuppressedEvent = streamEvents.find((entry) => entry.eventType === 'warning_suppressed');
+assert.equal(warningSuppressedEvent?.providerId, 'clangd', 'expected provider correlation on warning suppression');
+assert.equal(warningSuppressedEvent?.severity, 'warn', 'expected warning suppression to surface at warn severity');
+const parserCrashEvent = streamEvents.find((entry) => entry.eventType === 'parser_crash');
+assert.equal(parserCrashEvent?.severity, 'error', 'expected parser crash to surface at error severity');
+const preflightStartEvent = streamEvents.find((entry) => entry.eventType === 'provider_preflight_start');
+assert.equal(preflightStartEvent?.severity, 'info', 'expected preflight start to remain informational');
 for (const entry of streamEvents) {
   assert.match(entry.eventId, /^ub050:v1:[a-z_]+:[a-f0-9]{12}$/);
   assert.equal(entry.schemaVersion, BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION, 'expected schema version on stream entry');
@@ -133,7 +146,8 @@ const expectedInteractivePrefixes = [
   '[diagnostics] provider_request_failed <eventId> [tooling] request:failed provider=sourcekit method=textDocument/semanticTokens/full stage=semantic_tokens',
   '[diagnostics] provider_request_timeout <eventId> [tooling] request:timeout provider=pyright method=textDocument/documentSymbol stage=documentSymbol',
   '[diagnostics] queue_delay_hotspot <eventId> [tree-sitter:schedule] queue delay hotspot 1450ms',
-  '[diagnostics] scm_timeout <eventId> [scm] timeout while collecting git metadata'
+  '[diagnostics] scm_timeout <eventId> [scm] timeout while collecting git metadata',
+  '[diagnostics] warning_suppressed <eventId> [tooling] clangd suppressed 2 IncludeCleaner stderr line(s); missing include roots should be configured via'
 ];
 assert.equal(interactiveDiagnostics.length, expectedInteractivePrefixes.length, 'expected one concise interactive line per unique diagnostic');
 for (const prefix of expectedInteractivePrefixes) {

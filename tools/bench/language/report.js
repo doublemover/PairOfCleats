@@ -18,12 +18,15 @@ import {
   BENCH_DIAGNOSTIC_EVENT_TYPES,
   BENCH_DIAGNOSTIC_MATERIAL_PARITY_EVENT_TYPES,
   BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES,
+  BENCH_DIAGNOSTIC_SEVERITY_LEVELS,
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
   BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION,
   buildBenchDiagnosticEventId,
   buildBenchDiagnosticSignature,
   createBenchDiagnosticClassifier,
-  normalizeBenchDiagnosticText
+  normalizeBenchDiagnosticSeverity,
+  normalizeBenchDiagnosticText,
+  resolveBenchDiagnosticSeverity
 } from './logging.js';
 import { evaluateBenchVerdict, loadBenchPolicy } from './verdict.js';
 import {
@@ -265,12 +268,21 @@ const parseDiagnosticEventLine = (line) => {
   const label = typeof parsed.label === 'string' && parsed.label.trim()
     ? parsed.label.trim()
     : null;
+  const severity = normalizeBenchDiagnosticSeverity(
+    parsed.severity,
+    resolveBenchDiagnosticSeverity({
+      eventType,
+      failureClass: parsed.failureClass || null,
+      preflightState: parsed.preflightState || null
+    })
+  );
   return {
     eventType,
     eventId,
     signature,
     message,
     label,
+    severity,
     providerId: typeof parsed.providerId === 'string' && parsed.providerId.trim()
       ? parsed.providerId.trim()
       : null,
@@ -355,6 +367,7 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
     .sort((left, right) => Number(isMasterBenchStreamFile(left)) - Number(isMasterBenchStreamFile(right))
       || left.localeCompare(right));
   const countsByType = new Map();
+  const countsBySeverity = new Map();
   const uniqueEventIds = new Set();
   const knownTypes = new Set(BENCH_DIAGNOSTIC_EVENT_TYPES);
   const perFile = [];
@@ -369,6 +382,7 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
       continue;
     }
     const fileCounts = new Map();
+    const fileSeverityCounts = new Map();
     let fileEventCount = 0;
     forEachNonEmptyLine(raw, (line) => {
       const parsed = parseDiagnosticEventLine(line);
@@ -384,13 +398,18 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
       if (uniqueEventIds.has(eventKey)) return;
       uniqueEventIds.add(eventKey);
       countsByType.set(parsed.eventType, (countsByType.get(parsed.eventType) || 0) + 1);
+      countsBySeverity.set(parsed.severity, (countsBySeverity.get(parsed.severity) || 0) + 1);
       fileCounts.set(parsed.eventType, (fileCounts.get(parsed.eventType) || 0) + 1);
+      fileSeverityCounts.set(parsed.severity, (fileSeverityCounts.get(parsed.severity) || 0) + 1);
     });
     perFile.push({
       path: filePath,
       eventCount: fileEventCount,
       countsByType: Object.fromEntries(
         Array.from(fileCounts.entries()).sort(([left], [right]) => left.localeCompare(right))
+      ),
+      countsBySeverity: Object.fromEntries(
+        BENCH_DIAGNOSTIC_SEVERITY_LEVELS.map((severity) => [severity, fileSeverityCounts.get(severity) || 0])
       )
     });
   }
@@ -414,6 +433,9 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
     uniqueEventCount: uniqueEventIds.size,
     countsByType: Object.fromEntries(
       Array.from(countsByType.entries()).sort(([left], [right]) => left.localeCompare(right))
+    ),
+    countsBySeverity: Object.fromEntries(
+      BENCH_DIAGNOSTIC_SEVERITY_LEVELS.map((severity) => [severity, countsBySeverity.get(severity) || 0])
     ),
     required,
     unknownTypeCount,
@@ -1286,6 +1308,9 @@ export const buildBenchRunDiagnosticsSummaryLines = (output) => {
   const countsByType = output?.diagnostics?.stream?.countsByType && typeof output.diagnostics.stream.countsByType === 'object'
     ? output.diagnostics.stream.countsByType
     : {};
+  const countsBySeverity = output?.diagnostics?.stream?.countsBySeverity && typeof output.diagnostics.stream.countsBySeverity === 'object'
+    ? output.diagnostics.stream.countsBySeverity
+    : {};
   const highlights = [
     ['provider_request_timeout', 'timeouts'],
     ['provider_request_failed', 'request-failures'],
@@ -1294,6 +1319,7 @@ export const buildBenchRunDiagnosticsSummaryLines = (output) => {
     ['provider_preflight_blocked', 'blocked'],
     ['artifact_tail_stall', 'artifact-stalls'],
     ['queue_delay_hotspot', 'queue-hotspots'],
+    ['warning_suppressed', 'warning-suppressed'],
     ['fallback_used', 'fallbacks']
   ]
     .map(([eventType, label]) => {
@@ -1303,6 +1329,11 @@ export const buildBenchRunDiagnosticsSummaryLines = (output) => {
     .filter(Boolean);
   if (highlights.length) {
     lines.push(`[diagnostics] run highlights: ${highlights.join(' | ')}`);
+  }
+  const warningCount = Number(countsBySeverity.warn || 0);
+  const errorCount = Number(countsBySeverity.error || 0);
+  if (warningCount > 0 || errorCount > 0) {
+    lines.push(`[diagnostics] severity: error=${errorCount} warn=${warningCount}`);
   }
   const progressBuckets = output?.diagnostics?.progressConfidence?.countsByBucket
     && typeof output.diagnostics.progressConfidence.countsByBucket === 'object'

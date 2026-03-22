@@ -20,7 +20,9 @@ import {
   buildBenchDiagnosticEventId,
   buildBenchDiagnosticSignature,
   createBenchDiagnosticClassifier,
-  normalizeBenchDiagnosticText
+  normalizeBenchDiagnosticSeverity,
+  normalizeBenchDiagnosticText,
+  resolveBenchDiagnosticSeverity
 } from './logging.js';
 
 const SCHEDULER_EVENT_WINDOW = 40;
@@ -834,6 +836,7 @@ export const createProcessRunner = ({
     const telemetryWriteFailures = new Map();
     let diagnosticEventCount = 0;
     const diagnosticCountByType = new Map();
+    const diagnosticCountBySeverity = new Map();
     const diagnosticCountById = new Map();
     const diagnosticSummaryBySignal = new Map();
     const heartbeatIntervalsMs = [];
@@ -893,6 +896,10 @@ export const createProcessRunner = ({
         Array.from(diagnosticCountByType.entries())
           .sort(([left], [right]) => String(left).localeCompare(String(right)))
       ),
+      countsBySeverity: Object.fromEntries(
+        Array.from(diagnosticCountBySeverity.entries())
+          .sort(([left], [right]) => String(left).localeCompare(String(right)))
+      ),
       topSignals: Array.from(diagnosticSummaryBySignal.values())
         .sort((left, right) => (
           Number(right.count) - Number(left.count)
@@ -900,6 +907,7 @@ export const createProcessRunner = ({
         .slice(0, BENCH_REPO_DIAGNOSTIC_TOP_SIGNAL_LIMIT)
         .map((entry) => ({
           eventType: entry.eventType,
+          severity: entry.severity,
           providerId: entry.providerId,
           requestMethod: entry.requestMethod,
           failureClass: entry.failureClass,
@@ -1126,7 +1134,7 @@ export const createProcessRunner = ({
       });
     };
 
-    const maybeEmitInteractiveDiagnostic = ({ eventType, eventId, message }) => {
+    const maybeEmitInteractiveDiagnostic = ({ eventType, eventId, message, severity = null }) => {
       if (BENCH_INTERACTIVE_DIAGNOSTIC_SILENT_TYPES.has(String(eventType || '').trim())) {
         return;
       }
@@ -1149,7 +1157,11 @@ export const createProcessRunner = ({
       }
       const repeat = next.count > 1 ? ` x${next.count}` : '';
       const excerpt = truncateForDisplay(message, 110);
-      appendLog(`[diagnostics] ${eventType}${repeat} ${eventId} ${excerpt}`, 'warn');
+      const interactiveLevel = normalizeBenchDiagnosticSeverity(severity, 'warn');
+      appendLog(
+        `[diagnostics] ${eventType}${repeat} ${eventId} ${excerpt}`,
+        interactiveLevel === 'error' ? 'error' : 'warn'
+      );
       next.lastEmitMs = now;
       interactiveDiagnostics.set(key, next);
     };
@@ -1167,9 +1179,18 @@ export const createProcessRunner = ({
       failureClass = null,
       preflightId = null,
       preflightClass = null,
-      preflightState = null
+      preflightState = null,
+      severity = null
     }) => {
       if (!eventType || !message) return;
+      const resolvedSeverity = normalizeBenchDiagnosticSeverity(
+        severity,
+        resolveBenchDiagnosticSeverity({
+          eventType,
+          failureClass,
+          preflightState
+        })
+      );
       const signature = buildBenchDiagnosticSignature({
         eventType,
         stage,
@@ -1188,6 +1209,7 @@ export const createProcessRunner = ({
       const occurrence = (diagnosticCountById.get(eventId) || 0) + 1;
       diagnosticCountById.set(eventId, occurrence);
       diagnosticCountByType.set(eventType, (diagnosticCountByType.get(eventType) || 0) + 1);
+      diagnosticCountBySeverity.set(resolvedSeverity, (diagnosticCountBySeverity.get(resolvedSeverity) || 0) + 1);
       diagnosticEventCount += 1;
       const payload = {
         schemaVersion: BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
@@ -1201,6 +1223,7 @@ export const createProcessRunner = ({
         source: toText(source) || 'stream',
         message: truncateForDisplay(message, 400),
         level: toText(level) || null,
+        severity: resolvedSeverity,
         stage: toText(stage) || null,
         taskId: toText(taskId) || null,
         providerId: toText(providerId) || null,
@@ -1227,17 +1250,24 @@ export const createProcessRunner = ({
         preflightClass: toText(preflightClass) || null,
         workspacePartition: toText(workspacePartition) || null,
         count: 0,
-        message: ''
+        message: '',
+        severity: resolvedSeverity
       };
       diagnosticSummaryBySignal.set(summaryKey, {
         ...priorSummary,
         count: priorSummary.count + 1,
-        message: priorSummary.message || truncateForDisplay(message, 140)
+        message: priorSummary.message || truncateForDisplay(message, 140),
+        severity: priorSummary.severity || resolvedSeverity
       });
       for (const filePath of diagnosticStreams) {
         appendJsonLineQueued(telemetryWriteQueues, telemetryWriteFailures, filePath, payload);
       }
-      maybeEmitInteractiveDiagnostic({ eventType, eventId, message: payload.message });
+      maybeEmitInteractiveDiagnostic({
+        eventType,
+        eventId,
+        message: payload.message,
+        severity: resolvedSeverity
+      });
       if (eventType === 'queue_delay_hotspot' || eventType === 'artifact_tail_stall') {
         noteStallEvent({
           source: payload.source,
@@ -1259,7 +1289,10 @@ export const createProcessRunner = ({
           source: eventSource,
           level: event?.level || null,
           stage: event?.stage || null,
-          taskId: event?.taskId || null
+          taskId: event?.taskId || null,
+          severity: resolveBenchDiagnosticSeverity({
+            eventType: legacyEventType
+          })
         });
       }
       const structuredSignals = diagnosticClassifier.classify({
@@ -1281,7 +1314,8 @@ export const createProcessRunner = ({
           failureClass: signal.failureClass || null,
           preflightId: signal.preflightId || null,
           preflightClass: signal.preflightClass || null,
-          preflightState: signal.preflightState || null
+          preflightState: signal.preflightState || null,
+          severity: signal.severity || null
         });
       }
     };

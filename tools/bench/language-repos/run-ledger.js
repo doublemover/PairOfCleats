@@ -88,6 +88,7 @@ const normalizeTaskEntry = (entry) => {
       process: entry?.diagnostics?.process && typeof entry.diagnostics.process === 'object'
         ? {
           countsByType: normalizeCountsByType(entry.diagnostics.process.countsByType),
+          countsBySeverity: normalizeCountsByType(entry.diagnostics.process.countsBySeverity),
           eventCount: Number.isFinite(Number(entry.diagnostics.process.eventCount))
             ? Number(entry.diagnostics.process.eventCount)
             : null

@@ -275,6 +275,7 @@ const BENCH_REPO_SUMMARY_TYPE_LABELS = Object.freeze([
   ['provider_preflight_blocked', 'blocked'],
   ['artifact_tail_stall', 'artifact-stalls'],
   ['queue_delay_hotspot', 'queue-hotspots'],
+  ['warning_suppressed', 'warning-suppressed'],
   ['fallback_used', 'fallbacks']
 ]);
 
@@ -298,6 +299,9 @@ export const buildBenchRepoCloseoutSummaryLines = ({
   const countsByType = diagnostics?.countsByType && typeof diagnostics.countsByType === 'object'
     ? diagnostics.countsByType
     : {};
+  const countsBySeverity = diagnostics?.countsBySeverity && typeof diagnostics.countsBySeverity === 'object'
+    ? diagnostics.countsBySeverity
+    : {};
   const issueParts = [];
   for (const [eventType, displayLabel] of BENCH_REPO_SUMMARY_TYPE_LABELS) {
     const count = Number(countsByType[eventType] || 0);
@@ -316,6 +320,11 @@ export const buildBenchRepoCloseoutSummaryLines = ({
   }
   if (crashRetention?.bundlePath) {
     issueParts.push('crash-bundle=yes');
+  }
+  const warningCount = Number(countsBySeverity.warn || 0);
+  const errorCount = Number(countsBySeverity.error || 0);
+  if (warningCount > 0 || errorCount > 0) {
+    issueParts.push(`severity=error:${errorCount},warn:${warningCount}`);
   }
   const summaryLine = `[repo-summary] ${label} ${outcome}${failureReason ? ` (${failureReason})` : ''}`
     + (issueParts.length ? ` | ${issueParts.join(' | ')}` : '');

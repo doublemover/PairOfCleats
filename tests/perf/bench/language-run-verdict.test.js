@@ -55,6 +55,9 @@ const output = await buildReportOutput({
           countsByType: {
             fallback_used: 2,
             queue_delay_hotspot: 1
+          },
+          countsBySeverity: {
+            warn: 3
           }
         }
       }
@@ -71,6 +74,7 @@ assert.equal(output.run.repoCounts.passed, 1, 'expected one clean passing repo')
 assert.equal(output.run.repoCounts.passedWithDegradation, 1, 'expected one degraded passing repo');
 assert.equal(output.run.countsByDiagnosticType.fallback_used, 1, 'expected diagnostic type counted once at repo level');
 assert.equal(output.run.countsByDiagnosticType.queue_delay_hotspot, 1, 'expected hotspot diagnostic counted once at repo level');
+assert.equal(output.run.countsByDiagnosticSeverity.warn, 3, 'expected severity counts to aggregate across task diagnostics');
 
 const degradedTask = output.tasks.find((entry) => entry.repo === 'owner/degraded');
 assert.ok(degradedTask, 'expected degraded task payload');

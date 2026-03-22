@@ -13,6 +13,10 @@ const lines = buildBenchRepoCloseoutSummaryLines({
       provider_degraded_mode_entered: 1,
       artifact_tail_stall: 2
     },
+    countsBySeverity: {
+      warn: 7,
+      error: 1
+    },
     topSignals: [
       {
         summaryLabel: 'provider_request_timeout pyright textDocument/documentSymbol timeout',
@@ -40,6 +44,7 @@ assert.match(lines[0], /degraded=1/);
 assert.match(lines[0], /artifact-stalls=2/);
 assert.match(lines[0], /confidence=low:0\.42/);
 assert.match(lines[0], /crash-bundle=yes/);
+assert.match(lines[0], /severity=error:1,warn:7/);
 assert.match(lines[1], /pyright textDocument\/documentSymbol timeout x4/);
 assert.match(lines[1], /artifact_tail_stall field_tokens x2/);
 

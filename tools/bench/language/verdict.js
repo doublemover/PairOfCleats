@@ -63,6 +63,23 @@ const sumDiagnosticCounts = (entry) => {
   return out;
 };
 
+const sumDiagnosticSeverityCounts = (entry) => {
+  const sources = [
+    entry?.diagnostics?.process?.countsBySeverity,
+    entry?.diagnostics?.countsBySeverity
+  ];
+  const out = {};
+  for (const source of sources) {
+    if (!source || typeof source !== 'object' || Array.isArray(source)) continue;
+    for (const [key, value] of Object.entries(source)) {
+      const count = Number(value);
+      if (!Number.isFinite(count) || count <= 0) continue;
+      out[key] = (out[key] || 0) + count;
+    }
+  }
+  return out;
+};
+
 const listDegradationClasses = (entry) => Object.entries(sumDiagnosticCounts(entry))
   .filter(([type, count]) => DEGRADATION_DIAGNOSTIC_TYPES.has(type) && Number(count) > 0)
   .map(([type]) => type)
@@ -280,6 +297,7 @@ export const evaluateBenchVerdict = ({ tasks, policy }) => {
   const resultClassCounts = new Map();
   const failureClassCounts = new Map();
   const diagnosticTypeCounts = new Map();
+  const diagnosticSeverityCounts = new Map();
   const issues = [];
   const now = Date.now();
   const activeWaivers = [];
@@ -302,6 +320,9 @@ export const evaluateBenchVerdict = ({ tasks, policy }) => {
     }
     for (const diagnosticType of taskStatus.degradationClasses) {
       incrementCount(diagnosticTypeCounts, diagnosticType);
+    }
+    for (const [severity, count] of Object.entries(sumDiagnosticSeverityCounts(entry))) {
+      incrementCount(diagnosticSeverityCounts, severity, count);
     }
     const taskEntry = { ...entry, taskStatus };
     for (const issue of buildTaskIssues(taskEntry)) {
@@ -371,6 +392,7 @@ export const evaluateBenchVerdict = ({ tasks, policy }) => {
       countsByResultClass: countMapToObject(resultClassCounts),
       countsByFailureClass: countMapToObject(failureClassCounts),
       countsByDiagnosticType: countMapToObject(diagnosticTypeCounts),
+      countsByDiagnosticSeverity: countMapToObject(diagnosticSeverityCounts),
       issues: {
         total: issues.length,
         unwaivedCount: unwaivedIssues.length,
