@@ -24,6 +24,7 @@ import {
   buildBenchDiagnosticEventId,
   buildBenchDiagnosticSignature,
   createBenchDiagnosticClassifier,
+  parseBenchReuseObservation,
   normalizeBenchDiagnosticSeverity,
   normalizeBenchDiagnosticText,
   resolveBenchDiagnosticSeverity
@@ -230,6 +231,23 @@ const sortMapObject = (map) => Object.fromEntries(
     .sort(([left], [right]) => String(left).localeCompare(String(right)))
 );
 
+const sumMapObjectValues = (map) => (
+  Array.from((map instanceof Map ? map : new Map()).values())
+    .map((value) => Number(value))
+    .filter(Number.isFinite)
+    .reduce((sum, value) => sum + value, 0)
+);
+
+const formatCompactDuration = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return '0ms';
+  if (numeric < 1000) return `${Math.round(numeric)}ms`;
+  if (numeric < 60_000) return `${(numeric / 1000).toFixed(1)}s`;
+  const minutes = Math.floor(numeric / 60_000);
+  const seconds = ((numeric % 60_000) / 1000).toFixed(1);
+  return `${minutes}m ${seconds}s`;
+};
+
 const listDiagnosticsStreamFiles = async (resultsRoot, options = {}) => (
   listBenchStreamFiles(resultsRoot, DIAGNOSTIC_STREAM_FILE_SUFFIX, options)
 );
@@ -303,6 +321,30 @@ const parseDiagnosticEventLine = (line) => {
       : null,
     preflightState: typeof parsed.preflightState === 'string' && parsed.preflightState.trim()
       ? parsed.preflightState.trim()
+      : null,
+    reuseSurface: typeof parsed.reuseSurface === 'string' && parsed.reuseSurface.trim()
+      ? parsed.reuseSurface.trim()
+      : null,
+    reuseSource: typeof parsed.reuseSource === 'string' && parsed.reuseSource.trim()
+      ? parsed.reuseSource.trim()
+      : null,
+    qualityImpact: typeof parsed.qualityImpact === 'string' && parsed.qualityImpact.trim()
+      ? parsed.qualityImpact.trim()
+      : null,
+    timeCostMs: Number.isFinite(Number(parsed.timeCostMs))
+      ? Math.max(0, Math.floor(Number(parsed.timeCostMs)))
+      : null,
+    requestedCount: Number.isFinite(Number(parsed.requestedCount))
+      ? Math.max(0, Math.floor(Number(parsed.requestedCount)))
+      : null,
+    reusedCount: Number.isFinite(Number(parsed.reusedCount))
+      ? Math.max(0, Math.floor(Number(parsed.reusedCount)))
+      : null,
+    fetchedCount: Number.isFinite(Number(parsed.fetchedCount))
+      ? Math.max(0, Math.floor(Number(parsed.fetchedCount)))
+      : null,
+    chunkCount: Number.isFinite(Number(parsed.chunkCount))
+      ? Math.max(0, Math.floor(Number(parsed.chunkCount)))
       : null
   };
 };
@@ -368,11 +410,20 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
       || left.localeCompare(right));
   const countsByType = new Map();
   const countsBySeverity = new Map();
+  const countsByFailureClass = new Map();
+  const countsByReuseSurface = new Map();
+  const countsByReuseSource = new Map();
+  const countsByQualityImpact = new Map();
   const uniqueEventIds = new Set();
   const knownTypes = new Set(BENCH_DIAGNOSTIC_EVENT_TYPES);
   const perFile = [];
   let rawEventCount = 0;
   let malformedLines = 0;
+  let totalTimeCostMs = 0;
+  let totalRequestedCount = 0;
+  let totalReusedCount = 0;
+  let totalFetchedCount = 0;
+  let totalChunkCount = 0;
 
   for (const filePath of orderedFiles) {
     let raw = '';
@@ -399,6 +450,23 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
       uniqueEventIds.add(eventKey);
       countsByType.set(parsed.eventType, (countsByType.get(parsed.eventType) || 0) + 1);
       countsBySeverity.set(parsed.severity, (countsBySeverity.get(parsed.severity) || 0) + 1);
+      if (parsed.failureClass) {
+        countsByFailureClass.set(parsed.failureClass, (countsByFailureClass.get(parsed.failureClass) || 0) + 1);
+      }
+      if (parsed.reuseSurface) {
+        countsByReuseSurface.set(parsed.reuseSurface, (countsByReuseSurface.get(parsed.reuseSurface) || 0) + 1);
+      }
+      if (parsed.reuseSource) {
+        countsByReuseSource.set(parsed.reuseSource, (countsByReuseSource.get(parsed.reuseSource) || 0) + 1);
+      }
+      if (parsed.qualityImpact) {
+        countsByQualityImpact.set(parsed.qualityImpact, (countsByQualityImpact.get(parsed.qualityImpact) || 0) + 1);
+      }
+      totalTimeCostMs += Number(parsed.timeCostMs) || 0;
+      totalRequestedCount += Number(parsed.requestedCount) || 0;
+      totalReusedCount += Number(parsed.reusedCount) || 0;
+      totalFetchedCount += Number(parsed.fetchedCount) || 0;
+      totalChunkCount += Number(parsed.chunkCount) || 0;
       fileCounts.set(parsed.eventType, (fileCounts.get(parsed.eventType) || 0) + 1);
       fileSeverityCounts.set(parsed.severity, (fileSeverityCounts.get(parsed.severity) || 0) + 1);
     });
@@ -437,6 +505,17 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
     countsBySeverity: Object.fromEntries(
       BENCH_DIAGNOSTIC_SEVERITY_LEVELS.map((severity) => [severity, countsBySeverity.get(severity) || 0])
     ),
+    countsByFailureClass: sortMapObject(countsByFailureClass),
+    countsByReuseSurface: sortMapObject(countsByReuseSurface),
+    countsByReuseSource: sortMapObject(countsByReuseSource),
+    countsByQualityImpact: sortMapObject(countsByQualityImpact),
+    cost: {
+      timeCostMs: totalTimeCostMs,
+      requestedCount: totalRequestedCount,
+      reusedCount: totalReusedCount,
+      fetchedCount: totalFetchedCount,
+      chunkCount: totalChunkCount
+    },
     required,
     unknownTypeCount,
     malformedLines
@@ -473,6 +552,7 @@ const buildDiagnosticsParitySummary = async (resultsRoot, diagnosticsStream, opt
       if (
         parityTypes.has('fallback_used')
         && /\bfallback\b/i.test(line)
+        && !parseBenchReuseObservation(line)
         && !fallbackNegativePattern.test(line)
       ) {
         signals.push({
@@ -495,6 +575,9 @@ const buildDiagnosticsParitySummary = async (resultsRoot, diagnosticsStream, opt
           preflightId: signal.preflightId || '',
           preflightClass: signal.preflightClass || '',
           preflightState: signal.preflightState || '',
+          reuseSurface: signal.reuseSurface || '',
+          reuseSource: signal.reuseSource || '',
+          qualityImpact: signal.qualityImpact || '',
           message: normalizeBenchDiagnosticText(signal.message || '', { maxLength: 220 })
         });
         const eventId = buildBenchDiagnosticEventId({
@@ -547,6 +630,73 @@ const buildDiagnosticsParitySummary = async (resultsRoot, diagnosticsStream, opt
     materialMismatchCount,
     status: materialMismatchCount > 0 ? 'error' : (mismatches.length > 0 ? 'warn' : 'ok'),
     mismatches
+  };
+};
+
+const buildBenchReuseDiagnosticsSummary = async (resultsRoot, options = {}) => {
+  const files = await listBenchStreamFiles(resultsRoot, LOG_FILE_SUFFIX, options);
+  const observations = [];
+  for (const filePath of files) {
+    let raw = '';
+    try {
+      raw = await fsPromises.readFile(filePath, 'utf8');
+    } catch {
+      continue;
+    }
+    forEachNonEmptyLine(raw, (line) => {
+      const parsed = parseBenchReuseObservation(line);
+      if (!parsed) return;
+      observations.push(parsed);
+    });
+  }
+  const countsByCause = new Map();
+  const countsBySurface = new Map();
+  const countsBySurfaceAndSource = new Map();
+  const countsByQualityImpact = new Map();
+  const scmSnapshotSources = new Map();
+  const providerResultSources = new Map();
+  let timeCostMs = 0;
+  let requestedCount = 0;
+  let reusedCount = 0;
+  let fetchedCount = 0;
+  let chunkCount = 0;
+
+  for (const entry of observations) {
+    if (entry.causeClass) bumpMapCount(countsByCause, entry.causeClass);
+    if (entry.reuseSurface) bumpMapCount(countsBySurface, entry.reuseSurface);
+    if (entry.reuseSurface && entry.reuseSource) {
+      bumpMapCount(countsBySurfaceAndSource, `${entry.reuseSurface}:${entry.reuseSource}`);
+    }
+    if (entry.qualityImpact) bumpMapCount(countsByQualityImpact, entry.qualityImpact);
+    if (entry.kind === 'scm_snapshot' && entry.reuseSource) {
+      bumpMapCount(scmSnapshotSources, entry.reuseSource);
+    }
+    if (entry.kind === 'provider_result' && entry.reuseSource) {
+      bumpMapCount(providerResultSources, entry.reuseSource);
+    }
+    timeCostMs += Number(entry.timeCostMs) || 0;
+    requestedCount += Number(entry.requestedCount) || 0;
+    reusedCount += Number(entry.reusedCount) || 0;
+    fetchedCount += Number(entry.fetchedCount) || 0;
+    chunkCount += Number(entry.chunkCount) || 0;
+  }
+
+  return {
+    schemaVersion: 1,
+    observationCount: observations.length,
+    countsByCause: sortMapObject(countsByCause),
+    countsBySurface: sortMapObject(countsBySurface),
+    countsBySurfaceAndSource: sortMapObject(countsBySurfaceAndSource),
+    countsByQualityImpact: sortMapObject(countsByQualityImpact),
+    scmSnapshotSources: sortMapObject(scmSnapshotSources),
+    providerResultSources: sortMapObject(providerResultSources),
+    cost: {
+      timeCostMs,
+      requestedCount,
+      reusedCount,
+      fetchedCount,
+      chunkCount
+    }
   };
 };
 
@@ -1330,6 +1480,60 @@ export const buildBenchRunDiagnosticsSummaryLines = (output) => {
   if (highlights.length) {
     lines.push(`[diagnostics] run highlights: ${highlights.join(' | ')}`);
   }
+  const fallbackCauseCounts = output?.diagnostics?.stream?.countsByFailureClass && typeof output.diagnostics.stream.countsByFailureClass === 'object'
+    ? output.diagnostics.stream.countsByFailureClass
+    : {};
+  const fallbackCauseHighlights = [
+    ['provider_unhealthy', 'provider-unhealthy'],
+    ['provider_unavailable', 'provider-unavailable'],
+    ['cache_invalid', 'cache-invalid']
+  ].map(([key, label]) => {
+    const count = Number(fallbackCauseCounts[key] || 0);
+    return count > 0 ? `${label}=${count}` : null;
+  }).filter(Boolean);
+  if (fallbackCauseHighlights.length) {
+    lines.push(`[diagnostics] fallback causes: ${fallbackCauseHighlights.join(' | ')}`);
+  }
+  const reuse = output?.diagnostics?.reuse && typeof output.diagnostics.reuse === 'object'
+    ? output.diagnostics.reuse
+    : null;
+  const surfaceSource = reuse?.countsBySurfaceAndSource && typeof reuse.countsBySurfaceAndSource === 'object'
+    ? reuse.countsBySurfaceAndSource
+    : {};
+  const reuseHighlights = [
+    ['scm-derived:cache', 'scm-cache'],
+    ['scm-derived:mixed', 'scm-mixed'],
+    ['scm-derived:fresh', 'scm-fresh'],
+    ['scm-derived:mixed-fallback', 'scm-mixed-fallback'],
+    ['scm-derived:fallback', 'scm-fallback'],
+    ['scm-derived:fresh-fallback', 'scm-fresh-fallback'],
+    ['provider-result:cache', 'provider-cache'],
+    ['provider-result:live', 'provider-live']
+  ].map(([key, label]) => {
+    const count = Number(surfaceSource[key] || 0);
+    return count > 0 ? `${label}=${count}` : null;
+  }).filter(Boolean);
+  if (reuseHighlights.length) {
+    lines.push(`[diagnostics] reuse surfaces: ${reuseHighlights.join(' | ')}`);
+  }
+  const qualityCounts = reuse?.countsByQualityImpact && typeof reuse.countsByQualityImpact === 'object'
+    ? reuse.countsByQualityImpact
+    : {};
+  const qualityHighlights = Object.entries(qualityCounts)
+    .filter(([, count]) => Number(count) > 0)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([label, count]) => `${label}=${count}`);
+  const timeCostMs = Number(reuse?.cost?.timeCostMs || 0);
+  const fetchedCount = Number(reuse?.cost?.fetchedCount || 0);
+  const chunkCount = Number(reuse?.cost?.chunkCount || 0);
+  if (timeCostMs > 0 || fetchedCount > 0 || chunkCount > 0 || qualityHighlights.length) {
+    const costHighlights = [];
+    if (timeCostMs > 0) costHighlights.push(`time=${formatCompactDuration(timeCostMs)}`);
+    if (fetchedCount > 0) costHighlights.push(`fetched-files=${fetchedCount}`);
+    if (chunkCount > 0) costHighlights.push(`chunks=${chunkCount}`);
+    if (qualityHighlights.length) costHighlights.push(`quality ${qualityHighlights.join(' | ')}`);
+    lines.push(`[diagnostics] fallback cost: ${costHighlights.join(' | ')}`);
+  }
   const warningCount = Number(countsBySeverity.warn || 0);
   const errorCount = Number(countsBySeverity.error || 0);
   if (warningCount > 0 || errorCount > 0) {
@@ -1495,6 +1699,7 @@ export const buildReportOutput = async ({
   const streamOptions = { runSuffix };
   const diagnosticsStream = await buildDiagnosticsStreamSummary(resultsRoot, streamOptions);
   const diagnosticsParity = await buildDiagnosticsParitySummary(resultsRoot, diagnosticsStream, streamOptions);
+  const reuseDiagnostics = await buildBenchReuseDiagnosticsSummary(resultsRoot, streamOptions);
   const progressConfidence = await buildProgressConfidenceSummary(resultsRoot, streamOptions);
   const preflight = await buildPreflightLogSummary(resultsRoot, streamOptions);
   const throughputLedger = buildThroughputLedgerSummary(tasks);
@@ -1531,6 +1736,7 @@ export const buildReportOutput = async ({
       crashRetention,
       stream: diagnosticsStream,
       parity: diagnosticsParity,
+      reuse: reuseDiagnostics,
       progressConfidence,
       preflight
     },

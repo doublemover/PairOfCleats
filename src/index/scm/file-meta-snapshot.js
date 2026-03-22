@@ -300,6 +300,7 @@ export const prepareScmFileMetaSnapshot = async ({
   maxFallbackConcurrency = 8,
   log = null
 } = {}) => {
+  const startedAtMs = Date.now();
   const logFn = typeof log === 'function' ? log : null;
   const activeProvider = typeof provider === 'string' ? provider : null;
   const resolvedRepoRoot = normalizeRepoRoot(repoRoot);
@@ -495,7 +496,8 @@ export const prepareScmFileMetaSnapshot = async ({
         (timeoutHeatmapLabel ? ` timeoutHeatmap=${timeoutHeatmapLabel}` : '')
       : '';
     logFn(
-      `[scm] file-meta snapshot: source=${source} requested=${targetFiles.length} reused=${reused} fetched=${fetched}.${diagnosticsSuffix}`
+      `[scm] file-meta snapshot: source=${source} requested=${targetFiles.length} reused=${reused} fetched=${fetched}.`
+      + ` elapsedMs=${Math.max(0, Date.now() - startedAtMs)}${diagnosticsSuffix}`
     );
   }
   return {

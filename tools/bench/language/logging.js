@@ -94,6 +94,11 @@ const TOOLING_WORKSPACE_PARTITION_PATTERN = /\[tooling\]\s+workspace:partition\s
 const TOOLING_WARNING_SUPPRESSED_PATTERN = /\[tooling\]\s+(?<providerId>[^\s]+)\s+suppressed\s+(?<count>\d+)\s+(?<kind>.+?)\s+stderr line\(s\)(?<rest>.*)$/iu;
 const IMPORT_WARNING_SUPPRESSED_POLICY_PATTERN = /\[imports\]\s+all captured unresolved samples were suppressed by live policy\s+\((?<count>\d+)\)\./iu;
 const IMPORT_WARNING_SUPPRESSED_COUNT_PATTERN = /\[imports\]\s+suppressed\s+(?<count>\d+)\s+import resolution warnings\./iu;
+const SCM_FILE_META_SNAPSHOT_PATTERN = /\[scm\]\s+file-meta snapshot:\s+source=(?<source>[^\s]+)\s+requested=(?<requested>\d+)\s+reused=(?<reused>\d+)\s+fetched=(?<fetched>\d+)\.(?<rest>.*)$/iu;
+const TOOLING_PROVIDER_DONE_PATTERN = /\[tooling\]\s+provider\s+\d+\/\d+\s+done\s+id=(?<providerId>[^\s]+)\s+outcome=(?<outcome>[^\s]+)\s+source=(?<source>[^\s]+)\s+chunks=(?<chunks>\d+)\s+elapsedMs=(?<elapsedMs>\d+)\./iu;
+const TOOLING_CACHE_SKIPPED_PATTERN = /\[tooling\]\s+provider cache skipped for\s+(?<providerId>[^\s:]+):\s+oversized\s+\((?<sizeBytes>\d+)\s+bytes\)\./iu;
+const TOOLING_CACHE_READ_FAILED_PATTERN = /\[tooling\]\s+provider cache read failed for\s+(?<providerId>[^\s;]+);\s+using live run\./iu;
+const TOOLING_CACHE_WRITE_FAILED_PATTERN = /\[tooling\]\s+provider cache write failed for\s+(?<providerId>[^\s.]+)\./iu;
 const TOOLING_FIELD_PATTERN = /([a-zA-Z][a-zA-Z0-9_]*)=("([^"]*)"|[^\s]+)/gu;
 
 export const BENCH_DIAGNOSTIC_SEVERITY_LEVELS = Object.freeze([
@@ -128,10 +133,166 @@ const toPositiveCount = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? Math.max(1, Math.floor(parsed)) : null;
 };
 
+const toNonNegativeCount = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.max(0, Math.floor(parsed)) : null;
+};
+
 const normalizeWorkspacePartitionValue = (value) => {
   const text = String(value || '').trim();
   if (!text) return null;
   return text;
+};
+
+const normalizeReuseSurface = (value) => {
+  const text = String(value || '').trim().toLowerCase();
+  return text || null;
+};
+
+const normalizeReuseSource = (value) => {
+  const text = String(value || '').trim().toLowerCase();
+  return text || null;
+};
+
+const resolveScmFallbackCause = ({
+  source,
+  timeoutCount = 0,
+  cooldownSkips = 0,
+  unavailableChunks = 0
+}) => {
+  const normalizedSource = normalizeReuseSource(source) || 'unknown';
+  if (normalizedSource === 'cache') return 'cache_hit';
+  if (normalizedSource === 'fresh') return 'cache_miss';
+  if (normalizedSource === 'mixed') return 'scm_state_prevents_reuse';
+  if (normalizedSource.includes('fallback')) {
+    if ((Number(timeoutCount) || 0) > 0 || (Number(cooldownSkips) || 0) > 0 || (Number(unavailableChunks) || 0) > 0) {
+      return 'provider_unhealthy';
+    }
+    return 'provider_unavailable';
+  }
+  return 'unknown';
+};
+
+const resolveQualityImpactForCause = (causeClass) => {
+  switch (String(causeClass || '').trim().toLowerCase()) {
+    case 'provider_unhealthy':
+    case 'provider_unavailable':
+    case 'workspace_blocked':
+      return 'partial-provider-fidelity';
+    case 'cache_invalid':
+    case 'cache_miss':
+    case 'scm_state_prevents_reuse':
+    case 'cache_hit':
+    default:
+      return 'none';
+  }
+};
+
+const parseScmSnapshotObservation = (text) => {
+  const match = SCM_FILE_META_SNAPSHOT_PATTERN.exec(text);
+  if (!match) return null;
+  const source = normalizeReuseSource(match.groups?.source) || 'unknown';
+  const requested = toNonNegativeCount(match.groups?.requested);
+  const reused = toNonNegativeCount(match.groups?.reused);
+  const fetched = toNonNegativeCount(match.groups?.fetched);
+  const fields = parseToolingFields(match.groups?.rest || '');
+  const timeoutCount = toNonNegativeCount(fields.timeoutcount) || 0;
+  const timeoutRetries = toNonNegativeCount(fields.timeoutretries) || 0;
+  const cooldownSkips = toNonNegativeCount(fields.cooldownskips) || 0;
+  const unavailableChunks = toNonNegativeCount(fields.unavailablechunks) || 0;
+  const elapsedMs = toNonNegativeCount(fields.elapsedms);
+  const causeClass = resolveScmFallbackCause({
+    source,
+    timeoutCount,
+    cooldownSkips,
+    unavailableChunks
+  });
+  return {
+    kind: 'scm_snapshot',
+    reuseSurface: 'scm-derived',
+    reuseSource: source,
+    causeClass,
+    qualityImpact: resolveQualityImpactForCause(causeClass),
+    requestedCount: requested,
+    reusedCount: reused,
+    fetchedCount: fetched,
+    timeCostMs: elapsedMs,
+    timeoutCount,
+    timeoutRetries,
+    cooldownSkips,
+    unavailableChunks
+  };
+};
+
+const parseToolingProviderDoneObservation = (text) => {
+  const match = TOOLING_PROVIDER_DONE_PATTERN.exec(text);
+  if (!match) return null;
+  const providerId = String(match.groups?.providerId || '').trim() || null;
+  const source = normalizeReuseSource(match.groups?.source) || 'unknown';
+  const chunks = toNonNegativeCount(match.groups?.chunks);
+  const elapsedMs = toNonNegativeCount(match.groups?.elapsedMs);
+  const outcome = String(match.groups?.outcome || '').trim().toLowerCase() || null;
+  const causeClass = source === 'cache'
+    ? 'cache_hit'
+    : (source === 'live' ? 'cache_miss' : source);
+  return {
+    kind: 'provider_result',
+    reuseSurface: 'provider-result',
+    reuseSource: source,
+    providerId,
+    causeClass,
+    qualityImpact: resolveQualityImpactForCause(causeClass),
+    chunkCount: chunks,
+    timeCostMs: elapsedMs,
+    outcome
+  };
+};
+
+const parseToolingCacheObservation = (text) => {
+  const skippedMatch = TOOLING_CACHE_SKIPPED_PATTERN.exec(text);
+  if (skippedMatch) {
+    return {
+      kind: 'provider_cache',
+      reuseSurface: 'provider-result',
+      reuseSource: 'live',
+      providerId: String(skippedMatch.groups?.providerId || '').trim() || null,
+      causeClass: 'cache_invalid',
+      qualityImpact: resolveQualityImpactForCause('cache_invalid'),
+      sizeBytes: toNonNegativeCount(skippedMatch.groups?.sizeBytes)
+    };
+  }
+  const readFailedMatch = TOOLING_CACHE_READ_FAILED_PATTERN.exec(text);
+  if (readFailedMatch) {
+    return {
+      kind: 'provider_cache',
+      reuseSurface: 'provider-result',
+      reuseSource: 'live',
+      providerId: String(readFailedMatch.groups?.providerId || '').trim() || null,
+      causeClass: 'cache_invalid',
+      qualityImpact: resolveQualityImpactForCause('cache_invalid')
+    };
+  }
+  const writeFailedMatch = TOOLING_CACHE_WRITE_FAILED_PATTERN.exec(text);
+  if (writeFailedMatch) {
+    return {
+      kind: 'provider_cache',
+      reuseSurface: 'provider-result',
+      reuseSource: 'write-failed',
+      providerId: String(writeFailedMatch.groups?.providerId || '').trim() || null,
+      causeClass: 'cache_write_failed',
+      qualityImpact: 'future-reuse-risk'
+    };
+  }
+  return null;
+};
+
+export const parseBenchReuseObservation = (line = '') => {
+  const text = String(line || '').trim();
+  if (!text) return null;
+  return parseScmSnapshotObservation(text)
+    || parseToolingCacheObservation(text)
+    || parseToolingProviderDoneObservation(text)
+    || null;
 };
 
 const buildDiagnosticSignal = ({
@@ -145,6 +306,14 @@ const buildDiagnosticSignal = ({
   preflightId = null,
   preflightClass = null,
   preflightState = null,
+  reuseSurface = null,
+  reuseSource = null,
+  qualityImpact = null,
+  timeCostMs = null,
+  requestedCount = null,
+  reusedCount = null,
+  fetchedCount = null,
+  chunkCount = null,
   stage = null,
   taskId = null,
   level = null,
@@ -162,6 +331,14 @@ const buildDiagnosticSignal = ({
     preflightId: String(preflightId || '').trim() || null,
     preflightClass: String(preflightClass || '').trim() || null,
     preflightState: String(preflightState || '').trim() || null,
+    reuseSurface: normalizeReuseSurface(reuseSurface),
+    reuseSource: normalizeReuseSource(reuseSource),
+    qualityImpact: String(qualityImpact || '').trim().toLowerCase() || null,
+    timeCostMs: toNonNegativeCount(timeCostMs),
+    requestedCount: toNonNegativeCount(requestedCount),
+    reusedCount: toNonNegativeCount(reusedCount),
+    fetchedCount: toNonNegativeCount(fetchedCount),
+    chunkCount: toNonNegativeCount(chunkCount),
     stage: String(stage || '').trim() || null,
     taskId: String(taskId || '').trim() || null,
     level: String(level || '').trim() || null,
@@ -480,6 +657,33 @@ export const createBenchDiagnosticClassifier = () => {
       return signal ? [signal] : [];
     }
 
+    const reuseObservation = parseBenchReuseObservation(text);
+    if (reuseObservation && ['provider_unavailable', 'provider_unhealthy', 'cache_invalid'].includes(reuseObservation.causeClass)) {
+      const signal = buildDiagnosticSignal({
+        eventType: 'fallback_used',
+        message: text,
+        source,
+        providerId: reuseObservation.providerId || null,
+        failureClass: reuseObservation.causeClass,
+        reuseSurface: reuseObservation.reuseSurface,
+        reuseSource: reuseObservation.reuseSource,
+        qualityImpact: reuseObservation.qualityImpact,
+        timeCostMs: reuseObservation.timeCostMs,
+        requestedCount: reuseObservation.requestedCount,
+        reusedCount: reuseObservation.reusedCount,
+        fetchedCount: reuseObservation.fetchedCount,
+        chunkCount: reuseObservation.chunkCount,
+        stage: event?.stage || null,
+        taskId: event?.taskId || null,
+        level: event?.level || null,
+        severity: resolveBenchDiagnosticSeverity({
+          eventType: 'fallback_used',
+          failureClass: reuseObservation.causeClass
+        })
+      });
+      return signal ? [signal] : [];
+    }
+
     return [];
   };
 
@@ -618,7 +822,10 @@ export const buildBenchDiagnosticSignature = ({
   failureClass = '',
   preflightId = '',
   preflightClass = '',
-  preflightState = ''
+  preflightState = '',
+  reuseSurface = '',
+  reuseSource = '',
+  qualityImpact = ''
 } = {}) => {
   const type = isBenchDiagnosticEventType(eventType) ? eventType : 'unknown';
   return [
@@ -633,6 +840,9 @@ export const buildBenchDiagnosticSignature = ({
     normalizeDiagnosticField(preflightId, 96) || '-',
     normalizeDiagnosticField(preflightClass, 64) || '-',
     normalizeDiagnosticField(preflightState, 48) || '-',
+    normalizeDiagnosticField(reuseSurface, 48) || '-',
+    normalizeDiagnosticField(reuseSource, 48) || '-',
+    normalizeDiagnosticField(qualityImpact, 48) || '-',
     normalizeBenchDiagnosticText(message, { maxLength: 200 }) || '-'
   ].join('|');
 };

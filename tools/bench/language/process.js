@@ -21,6 +21,7 @@ import {
   buildBenchDiagnosticEventId,
   buildBenchDiagnosticSignature,
   createBenchDiagnosticClassifier,
+  parseBenchReuseObservation,
   normalizeBenchDiagnosticSeverity,
   normalizeBenchDiagnosticText,
   resolveBenchDiagnosticSeverity
@@ -399,6 +400,7 @@ const resolveLegacyDiagnosticType = (message, event = null) => {
     event?.meta?.fallback === true
     || normalizeBenchDiagnosticText(event?.meta?.decision || '').includes('fallback')
   );
+  if (parseBenchReuseObservation(text)) return null;
   if ((/\bfallback\b/i.test(text) || hasFallbackMeta) && !FALLBACK_NEGATIVE_PATTERN.test(text)) {
     return 'fallback_used';
   }
@@ -513,14 +515,20 @@ const buildDiagnosticSummaryKey = ({
   requestMethod,
   failureClass,
   preflightClass,
-  workspacePartition
+  workspacePartition,
+  reuseSurface,
+  reuseSource,
+  qualityImpact
 }) => JSON.stringify([
   toText(eventType) || null,
   toText(providerId) || null,
   toText(requestMethod) || null,
   toText(failureClass) || null,
   toText(preflightClass) || null,
-  toText(workspacePartition) || null
+  toText(workspacePartition) || null,
+  toText(reuseSurface) || null,
+  toText(reuseSource) || null,
+  toText(qualityImpact) || null
 ]);
 
 const formatDiagnosticSummaryLabel = (entry) => {
@@ -530,6 +538,9 @@ const formatDiagnosticSummaryLabel = (entry) => {
   if (entry.requestMethod) parts.push(entry.requestMethod);
   else if (entry.preflightClass) parts.push(entry.preflightClass);
   if (entry.failureClass && entry.failureClass !== entry.eventType) parts.push(entry.failureClass);
+  if (entry.reuseSurface) parts.push(entry.reuseSurface);
+  if (entry.reuseSource) parts.push(`source=${entry.reuseSource}`);
+  if (entry.qualityImpact && entry.qualityImpact !== 'none') parts.push(`quality=${entry.qualityImpact}`);
   if (entry.workspacePartition) parts.push(`partition=${entry.workspacePartition}`);
   return parts.filter(Boolean).join(' ');
 };
@@ -1016,7 +1027,15 @@ export const createProcessRunner = ({
           failureClass: entry.failureClass,
           preflightClass: entry.preflightClass,
           workspacePartition: entry.workspacePartition,
+          reuseSurface: entry.reuseSurface,
+          reuseSource: entry.reuseSource,
+          qualityImpact: entry.qualityImpact,
           count: entry.count,
+          timeCostMs: Number.isFinite(entry.timeCostMs) ? entry.timeCostMs : null,
+          requestedCount: Number.isFinite(entry.requestedCount) ? entry.requestedCount : null,
+          reusedCount: Number.isFinite(entry.reusedCount) ? entry.reusedCount : null,
+          fetchedCount: Number.isFinite(entry.fetchedCount) ? entry.fetchedCount : null,
+          chunkCount: Number.isFinite(entry.chunkCount) ? entry.chunkCount : null,
           message: entry.message,
           summaryLabel: formatDiagnosticSummaryLabel(entry)
         })),
@@ -1283,6 +1302,14 @@ export const createProcessRunner = ({
       preflightId = null,
       preflightClass = null,
       preflightState = null,
+      reuseSurface = null,
+      reuseSource = null,
+      qualityImpact = null,
+      timeCostMs = null,
+      requestedCount = null,
+      reusedCount = null,
+      fetchedCount = null,
+      chunkCount = null,
       severity = null
     }) => {
       if (!eventType || !message) return;
@@ -1306,7 +1333,10 @@ export const createProcessRunner = ({
         failureClass,
         preflightId,
         preflightClass,
-        preflightState
+        preflightState,
+        reuseSurface,
+        reuseSource,
+        qualityImpact
       });
       const eventId = buildBenchDiagnosticEventId({ eventType, signature });
       const occurrence = (diagnosticCountById.get(eventId) || 0) + 1;
@@ -1335,7 +1365,15 @@ export const createProcessRunner = ({
         failureClass: toText(failureClass) || null,
         preflightId: toText(preflightId) || null,
         preflightClass: toText(preflightClass) || null,
-        preflightState: toText(preflightState) || null
+        preflightState: toText(preflightState) || null,
+        reuseSurface: toText(reuseSurface) || null,
+        reuseSource: toText(reuseSource) || null,
+        qualityImpact: toText(qualityImpact) || null,
+        timeCostMs: Number.isFinite(Number(timeCostMs)) ? Math.max(0, Math.floor(Number(timeCostMs))) : null,
+        requestedCount: Number.isFinite(Number(requestedCount)) ? Math.max(0, Math.floor(Number(requestedCount))) : null,
+        reusedCount: Number.isFinite(Number(reusedCount)) ? Math.max(0, Math.floor(Number(reusedCount))) : null,
+        fetchedCount: Number.isFinite(Number(fetchedCount)) ? Math.max(0, Math.floor(Number(fetchedCount))) : null,
+        chunkCount: Number.isFinite(Number(chunkCount)) ? Math.max(0, Math.floor(Number(chunkCount))) : null
       };
       const summaryKey = buildDiagnosticSummaryKey({
         eventType,
@@ -1343,7 +1381,10 @@ export const createProcessRunner = ({
         requestMethod,
         failureClass,
         preflightClass,
-        workspacePartition
+        workspacePartition,
+        reuseSurface,
+        reuseSource,
+        qualityImpact
       });
       const priorSummary = diagnosticSummaryBySignal.get(summaryKey) || {
         eventType,
@@ -1352,15 +1393,28 @@ export const createProcessRunner = ({
         failureClass: toText(failureClass) || null,
         preflightClass: toText(preflightClass) || null,
         workspacePartition: toText(workspacePartition) || null,
+        reuseSurface: toText(reuseSurface) || null,
+        reuseSource: toText(reuseSource) || null,
+        qualityImpact: toText(qualityImpact) || null,
         count: 0,
         message: '',
-        severity: resolvedSeverity
+        severity: resolvedSeverity,
+        timeCostMs: 0,
+        requestedCount: 0,
+        reusedCount: 0,
+        fetchedCount: 0,
+        chunkCount: 0
       };
       diagnosticSummaryBySignal.set(summaryKey, {
         ...priorSummary,
         count: priorSummary.count + 1,
         message: priorSummary.message || truncateForDisplay(message, 140),
-        severity: priorSummary.severity || resolvedSeverity
+        severity: priorSummary.severity || resolvedSeverity,
+        timeCostMs: (priorSummary.timeCostMs || 0) + (payload.timeCostMs || 0),
+        requestedCount: (priorSummary.requestedCount || 0) + (payload.requestedCount || 0),
+        reusedCount: (priorSummary.reusedCount || 0) + (payload.reusedCount || 0),
+        fetchedCount: (priorSummary.fetchedCount || 0) + (payload.fetchedCount || 0),
+        chunkCount: (priorSummary.chunkCount || 0) + (payload.chunkCount || 0)
       });
       for (const filePath of diagnosticStreams) {
         appendJsonLineQueued(telemetryWriteQueues, telemetryWriteFailures, filePath, payload);
@@ -1418,6 +1472,14 @@ export const createProcessRunner = ({
           preflightId: signal.preflightId || null,
           preflightClass: signal.preflightClass || null,
           preflightState: signal.preflightState || null,
+          reuseSurface: signal.reuseSurface || null,
+          reuseSource: signal.reuseSource || null,
+          qualityImpact: signal.qualityImpact || null,
+          timeCostMs: signal.timeCostMs,
+          requestedCount: signal.requestedCount,
+          reusedCount: signal.reusedCount,
+          fetchedCount: signal.fetchedCount,
+          chunkCount: signal.chunkCount,
           severity: signal.severity || null
         });
       }
