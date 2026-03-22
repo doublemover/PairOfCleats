@@ -5,6 +5,10 @@ import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { sha1 } from '../../shared/hash.js';
 import { DEFAULT_IMPORT_EXTS } from './import-resolution/constants.js';
 import {
+  stripGrpcPbGeneratedBase,
+  stripPbGeneratedBase
+} from './import-resolution/generated-counterpart-suffix.js';
+import {
   IMPORT_DISPOSITIONS,
   IMPORT_FAILURE_CAUSES,
   IMPORT_REASON_CODES,
@@ -532,12 +536,12 @@ const resolveGeneratedCounterpartCandidatesForPath = (candidatePath) => {
     addCandidate(`${pb2Base}.proto`);
   }
 
-  const grpcPbBase = normalized.replace(/\.grpc\.pb(?:\.[^/]+)+$/i, '');
+  const grpcPbBase = stripGrpcPbGeneratedBase(normalized);
   if (grpcPbBase !== normalized) {
     addCandidate(`${grpcPbBase}.proto`);
   }
 
-  const pbBase = normalized.replace(/\.pb(?:\.[^/]+)+$/i, '');
+  const pbBase = stripPbGeneratedBase(normalized);
   if (pbBase !== normalized) {
     addCandidate(`${pbBase}.proto`);
   }

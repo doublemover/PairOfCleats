@@ -2,6 +2,10 @@ import path from 'node:path';
 import { sha1 } from '../../../shared/hash.js';
 import { normalizeRelPath, sortStrings } from './path-utils.js';
 import { toSpecifierCandidatePaths } from './candidate-paths.js';
+import {
+  stripGrpcPbGeneratedBase,
+  stripPbGeneratedBase
+} from './generated-counterpart-suffix.js';
 
 const GENERATED_DIR_SEGMENT_RX = /\/(?:__generated__|generated|gen)\//i;
 const GENERATED_DIR_HINTS = Object.freeze([
@@ -101,12 +105,12 @@ const addCounterpartCandidates = (candidateRel, targetSet) => {
     addIfSetMissing(targetSet, `${pb2Base}.proto`);
   }
 
-  const grpcPbBase = normalized.replace(/\.grpc\.pb(?:\.[^/]+)+$/i, '');
+  const grpcPbBase = stripGrpcPbGeneratedBase(normalized);
   if (grpcPbBase !== normalized) {
     addIfSetMissing(targetSet, `${grpcPbBase}.proto`);
   }
 
-  const pbBase = normalized.replace(/\.pb(?:\.[^/]+)+$/i, '');
+  const pbBase = stripPbGeneratedBase(normalized);
   if (pbBase !== normalized) {
     addIfSetMissing(targetSet, `${pbBase}.proto`);
   }
