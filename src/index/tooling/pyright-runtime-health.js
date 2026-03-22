@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readJsonFileSafe } from '../../shared/files.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import {
+  buildProviderFidelityContract,
+  PROVIDER_FIDELITY_STATE
+} from './provider-contract.js';
 
 const DEFAULT_HARD_COOLDOWN_MS = 10 * 60 * 1000;
 const DEFAULT_SOFT_COOLDOWN_MS = 2 * 60 * 1000;
@@ -191,24 +195,30 @@ export const buildPyrightFallbackContract = ({
   reasonCode,
   workspaceRootRel,
   fingerprint,
-  captureDiagnostics = false
+  captureDiagnostics = false,
+  runtime = null,
+  checks = [],
+  byChunkUid = null
 } = {}) => {
   const normalizedState = normalizeStoredState(state);
   const degraded = normalizedState !== PYRIGHT_RUNTIME_HEALTH_STATE.HEALTHY
     && normalizedState !== PYRIGHT_RUNTIME_HEALTH_STATE.WARMING;
-  return {
-    contractVersion: 1,
+  const fidelityState = (
+    normalizedState === PYRIGHT_RUNTIME_HEALTH_STATE.QUARANTINED_FOR_RUN
+      ? PROVIDER_FIDELITY_STATE.QUARANTINED
+      : (degraded ? PROVIDER_FIDELITY_STATE.DEGRADED : PROVIDER_FIDELITY_STATE.HEALTHY)
+  );
+  const fidelity = buildProviderFidelityContract({
     providerId: 'pyright',
-    state: normalizedState,
-    reasonCode: String(reasonCode || '').trim() || null,
+    state: fidelityState,
+    reasonCode,
     workspaceRootRel: normalizeWorkspaceRootRel(workspaceRootRel),
-    fingerprint: String(fingerprint || '').trim() || null,
-    contributes: {
-      typeEnrichment: degraded !== true,
-      diagnostics: captureDiagnostics === true
-        && normalizedState !== PYRIGHT_RUNTIME_HEALTH_STATE.QUARANTINED_FOR_RUN
-    },
-    skipped: degraded
+    fingerprint,
+    runtime,
+    checks,
+    captureDiagnostics,
+    byChunkUid,
+    skippedRequestClasses: degraded
       ? [
         'documentSymbol',
         'hover',
@@ -220,9 +230,19 @@ export const buildPyrightFallbackContract = ({
         'inlayHints'
       ]
       : [],
+    contributes: {
+      typeEnrichment: degraded !== true,
+      diagnostics: captureDiagnostics === true
+        && normalizedState !== PYRIGHT_RUNTIME_HEALTH_STATE.QUARANTINED_FOR_RUN
+    },
     downstreamMergeInterpretation: degraded
       ? 'Treat missing Pyright output as explicit provider degradation, not as negative symbol evidence.'
       : 'Pyright output is healthy and may participate in normal merge scoring.'
+  });
+  return {
+    ...fidelity,
+    fidelityState: fidelity.state,
+    state: normalizedState
   };
 };
 

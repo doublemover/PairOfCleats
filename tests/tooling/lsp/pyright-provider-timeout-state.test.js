@@ -141,6 +141,9 @@ try {
   assert.equal(first.diagnostics?.pyright?.health?.state, 'degraded_soft', 'expected timeout run to enter degraded_soft');
   assert.equal(first.diagnostics?.pyright?.health?.nextState, 'degraded_hard', 'expected timeout run to persist degraded_hard next state');
   assert.equal(first.diagnostics?.pyright?.fallback?.state, 'degraded_soft', 'expected fallback contract to reflect degraded_soft');
+  assert.equal(first.diagnostics?.pyright?.fidelity?.state, 'degraded', 'expected fidelity contract to reflect degraded provider state');
+  assert.equal(first.diagnostics?.pyright?.fidelity?.qualityDelta?.partialSuccess, true, 'expected timeout run to report truthful partial success');
+  assert.equal(first.diagnostics?.pyright?.fidelity?.requestClasses?.documentSymbol?.timedOut, 1, 'expected fidelity contract to track timed out request class');
   assert.equal(
     Array.isArray(first.diagnostics?.pyright?.checks)
     && first.diagnostics.pyright.checks.some((check) => check?.name === 'pyright_timeout_storm_truncated'),
@@ -161,6 +164,8 @@ try {
   assert.equal(second.byChunkUid.size, 0, 'expected quarantined run to fail open without enrichment');
   assert.equal(second.diagnostics?.pyright?.health?.state, 'quarantined_for_run', 'expected same fingerprint rerun to be quarantined');
   assert.equal(second.diagnostics?.pyright?.fallback?.state, 'quarantined_for_run', 'expected fallback contract to reflect active quarantine');
+  assert.equal(second.diagnostics?.pyright?.fidelity?.state, 'quarantined', 'expected fidelity contract to reflect active quarantine');
+  assert.equal(second.diagnostics?.pyright?.fidelity?.qualityDelta?.partialSuccess, false, 'expected quarantined rerun to report no partial success');
   assert.equal(
     Array.isArray(second.diagnostics?.pyright?.checks)
     && second.diagnostics.pyright.checks.some((check) => check?.name === 'pyright_quarantined_for_run'),

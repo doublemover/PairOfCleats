@@ -114,6 +114,10 @@ assert.equal(result.byChunkUid.has(chunkUidOk), true, 'expected healthy gopls pa
 assert.equal(result.byChunkUid.has(chunkUidBad), false, 'expected blocked gopls partition to be isolated');
 const diagnostics = result.diagnostics?.['lsp-gopls'] || {};
 assert.equal(diagnostics?.preflight?.state, 'degraded', 'expected mixed partition preflight degraded state');
+assert.equal(diagnostics?.fidelity?.state, 'degraded', 'expected fidelity contract to classify partial workspace coverage as degraded');
+assert.equal(diagnostics?.fidelity?.qualityDelta?.partialSuccess, true, 'expected mixed partition coverage to report partial success');
+assert.equal(diagnostics?.fidelity?.blockedPartitions?.count, 1, 'expected blocked partition count to be surfaced');
+assert.equal(diagnostics?.fidelity?.contributes?.typeEnrichment, true, 'expected healthy partitions to remain contributory');
 assert.equal(
   diagnostics?.preflight?.reasonCode,
   'go_workspace_partial_repo_coverage',

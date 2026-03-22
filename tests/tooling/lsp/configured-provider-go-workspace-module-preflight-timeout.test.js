@@ -78,6 +78,9 @@ assert.equal(
   'blocked',
   'expected go workspace module timeout preflight blocked state when no healthy partition remains'
 );
+assert.equal(diagnostics?.fidelity?.state, 'blocked', 'expected fidelity contract to classify fully blocked workspace preflight');
+assert.equal(diagnostics?.fidelity?.contributes?.typeEnrichment, false, 'expected blocked workspace preflight to contribute no enrichment');
+assert.equal(diagnostics?.fidelity?.qualityDelta?.partialSuccess, false, 'expected blocked workspace preflight to report no partial success');
 assert.equal(
   diagnostics?.preflight?.reasonCode,
   'go_workspace_blocked_workspace_shape',

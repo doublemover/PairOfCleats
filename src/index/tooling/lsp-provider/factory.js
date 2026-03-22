@@ -6,7 +6,10 @@ import {
 } from '../preflight/command-profile-preflight.js';
 import { resolveRuntimeRequirementsPreflight } from '../preflight/runtime-requirements-preflight.js';
 import {
-  appendDiagnosticChecks
+  appendDiagnosticChecks,
+  buildProviderFidelityContract,
+  PROVIDER_FIDELITY_STATE,
+  shouldCaptureDiagnosticsForRequestedKinds
 } from '../provider-contract.js';
 import {
   buildConfiguredProviderConfigHash,
@@ -123,10 +126,19 @@ export const createConfiguredLspProvider = (server) => {
           }
         }
         if (preflight?.blockProvider === true || preflight?.blockSourcekit === true) {
+          const fidelity = buildProviderFidelityContract({
+            providerId,
+            state: PROVIDER_FIDELITY_STATE.BLOCKED,
+            preflightState: 'blocked',
+            reasonCode: preflight?.reasonCode || null,
+            captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
+            blockedWorkspaceKeys,
+            blockedWorkspaceRoots
+          });
           return {
             provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
             byChunkUid: {},
-            diagnostics: appendDiagnosticChecks(null, preChecks)
+            diagnostics: appendDiagnosticChecks({ fidelity }, preChecks)
           };
         }
         if (preflight?.requestedCommand && typeof preflight.requestedCommand === 'object') {
@@ -156,10 +168,21 @@ export const createConfiguredLspProvider = (server) => {
         preChecks.push({
           ...runtimeCommand.checks[0]
         });
+        const fidelity = buildProviderFidelityContract({
+          providerId,
+          state: String(preflightState || '').trim().toLowerCase() === 'blocked'
+            ? PROVIDER_FIDELITY_STATE.BLOCKED
+            : PROVIDER_FIDELITY_STATE.DEGRADED,
+          preflightState,
+          reasonCode: preflightReasonCode || 'lsp_preflight_command_profile_missing',
+          captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
+          blockedWorkspaceKeys,
+          blockedWorkspaceRoots
+        });
         return {
           provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
           byChunkUid: {},
-          diagnostics: appendDiagnosticChecks(null, preChecks)
+          diagnostics: appendDiagnosticChecks({ fidelity }, preChecks)
         };
       }
       if (runtimeCommand.probeKnown && runtimeCommand.probeOk !== true) {

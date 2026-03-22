@@ -3,6 +3,7 @@ import { invalidateProbeCacheOnInitializeFailure } from '../command-resolver.js'
 import { resolveLspRuntimeConfig } from '../lsp-runtime-config.js';
 import {
   appendDiagnosticChecks,
+  buildProviderFidelityContract,
   shouldCaptureDiagnosticsForRequestedKinds
 } from '../provider-contract.js';
 import { mergeLspWorkspacePartitionResults } from '../lsp-workspace-routing.js';
@@ -315,7 +316,19 @@ export const collectConfiguredOutput = async ({
       ...(diagnosticsCount
         ? { diagnosticsCount, diagnosticsByChunkUid }
         : {}),
-      workspaceModel: workspaceRouting.workspaceModel
+      workspaceModel: workspaceRouting.workspaceModel,
+      fidelity: buildProviderFidelityContract({
+        providerId,
+        preflightState,
+        reasonCode: preflightReasonCode,
+        runtime: result.runtime,
+        checks: [...preChecks, ...resultChecks],
+        captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(requestedKinds),
+        blockedWorkspaceKeys,
+        blockedWorkspaceRoots,
+        byChunkUid: result.byChunkUid,
+        workspaceKey: workspaceRouting.workspaceModel?.workspaceKey || null
+      })
     },
     [...preChecks, ...resultChecks]
   );

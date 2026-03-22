@@ -398,6 +398,17 @@ export const createPyrightProvider = () => ({
       selectedDocumentSummaries: requestPlan.selectedDocumentSummaries
     });
     if (!requestPlan.selectedDocuments.length || !requestPlan.selectedTargets.length) {
+      const fallback = buildPyrightFallbackContract({
+        state: runtimeHealth.effectiveState,
+        reasonCode: runtimeHealth.reasonCode,
+        workspaceRootRel: runtimeHealth.workspaceRootRel,
+        fingerprint: runtimeHealth.fingerprint,
+        captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds)
+      });
+      const fidelity = {
+        ...fallback,
+        state: fallback.fidelityState || fallback.state
+      };
       const diagnostics = appendDiagnosticChecks({
         planning: requestPlan.diagnostics,
         health: {
@@ -413,13 +424,8 @@ export const createPyrightProvider = () => ({
           hoverTimedOut: 0,
           hoverFailed: 0
         },
-        fallback: buildPyrightFallbackContract({
-          state: runtimeHealth.effectiveState,
-          reasonCode: runtimeHealth.reasonCode,
-          workspaceRootRel: runtimeHealth.workspaceRootRel,
-          fingerprint: runtimeHealth.fingerprint,
-          captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds)
-        })
+        fallback,
+        fidelity
       }, checks);
       return {
         provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
@@ -443,6 +449,18 @@ export const createPyrightProvider = () => ({
         status: 'warn',
         message: `pyright workspace "${runtimeHealth.workspaceRootRel}" is quarantined for this run${runtimeHealth.cooldownRemainingMs > 0 ? ` (${runtimeHealth.cooldownRemainingMs}ms remaining)` : ''}.`
       });
+      const fallback = buildPyrightFallbackContract({
+        state: runtimeHealth.effectiveState,
+        reasonCode: runtimeHealth.reasonCode,
+        workspaceRootRel: runtimeHealth.workspaceRootRel,
+        fingerprint: runtimeHealth.fingerprint,
+        captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
+        checks
+      });
+      const fidelity = {
+        ...fallback,
+        state: fallback.fidelityState || fallback.state
+      };
       const diagnostics = appendDiagnosticChecks({
         planning: requestPlan.diagnostics,
         health: {
@@ -458,13 +476,8 @@ export const createPyrightProvider = () => ({
           hoverTimedOut: 0,
           hoverFailed: 0
         },
-        fallback: buildPyrightFallbackContract({
-          state: runtimeHealth.effectiveState,
-          reasonCode: runtimeHealth.reasonCode,
-          workspaceRootRel: runtimeHealth.workspaceRootRel,
-          fingerprint: runtimeHealth.fingerprint,
-          captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds)
-        })
+        fallback,
+        fidelity
       }, checks);
       return {
         provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
@@ -521,6 +534,20 @@ export const createPyrightProvider = () => ({
         message: 'pyright promoted a high-cost request timeout into a hard degraded state and will quarantine the same workspace shape on the next run.'
       });
     }
+    const fallback = buildPyrightFallbackContract({
+      state: runtimeOutcome.state,
+      reasonCode: runtimeOutcome.reasonCode,
+      workspaceRootRel: runtimeHealth.workspaceRootRel,
+      fingerprint: runtimeHealth.fingerprint,
+      captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
+      runtime: result.runtime,
+      checks: [...checks, ...(Array.isArray(result.checks) ? result.checks : [])],
+      byChunkUid: result.byChunkUid
+    });
+    const fidelity = {
+      ...fallback,
+      state: fallback.fidelityState || fallback.state
+    };
     const diagnostics = appendDiagnosticChecks(
       {
         ...(result.diagnosticsCount
@@ -528,7 +555,8 @@ export const createPyrightProvider = () => ({
           : {}),
         planning: requestPlan.diagnostics,
         health: runtimeOutcome.summary,
-        fallback: runtimeOutcome.fallback
+        fallback,
+        fidelity
       },
       [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
     );

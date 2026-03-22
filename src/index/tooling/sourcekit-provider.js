@@ -5,7 +5,13 @@ import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { toPosix } from '../../shared/files.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { acquireFileLock, releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
-import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
+import {
+  appendDiagnosticChecks,
+  buildDuplicateChunkUidChecks,
+  buildProviderFidelityContract,
+  hashProviderConfig,
+  PROVIDER_FIDELITY_STATE
+} from './provider-contract.js';
 import {
   invalidateProbeCacheOnInitializeFailure,
   isProbeCommandDefinitelyMissing
@@ -483,6 +489,13 @@ export const createSourcekitProvider = () => ({
     }
     if (preflight?.blockSourcekit) {
       log('[tooling] sourcekit skipped because package preflight did not complete safely.');
+      const fidelity = buildProviderFidelityContract({
+        providerId: 'sourcekit',
+        state: PROVIDER_FIDELITY_STATE.BLOCKED,
+        preflightState: 'blocked',
+        reasonCode: preflight?.reasonCode || null,
+        captureDiagnostics: false
+      });
       return {
         provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
@@ -496,7 +509,8 @@ export const createSourcekitProvider = () => ({
             classificationDurationMs: Number(preflight?.classificationDurationMs) || 0,
             resolveDurationMs: Number(preflight?.resolveDurationMs) || 0,
             markerPath: preflight?.markerPath || null
-          }
+          },
+          fidelity
         }, checks)
       };
     }
@@ -562,10 +576,17 @@ export const createSourcekitProvider = () => ({
           status: 'warn',
           message: `sourcekit host lock timed out after ${hostLockWaitMs}ms; skipping provider to avoid unlocked contention.`
         });
+        const fidelity = buildProviderFidelityContract({
+          providerId: 'sourcekit',
+          state: PROVIDER_FIDELITY_STATE.BLOCKED,
+          reasonCode: 'sourcekit_host_lock_unavailable',
+          captureDiagnostics: false,
+          checks
+        });
         return {
           provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
           byChunkUid: {},
-          diagnostics: appendDiagnosticChecks(null, checks)
+          diagnostics: appendDiagnosticChecks({ fidelity }, checks)
         };
       }
     }
@@ -626,6 +647,18 @@ export const createSourcekitProvider = () => ({
       });
 
       logHoverMetrics(log, result.hoverMetrics);
+      const fidelity = buildProviderFidelityContract({
+        providerId: 'sourcekit',
+        preflightState: preflight?.state || 'ready',
+        reasonCode: preflight?.reasonCode || null,
+        runtime: result.runtime,
+        checks: [...checks, ...(Array.isArray(result.checks) ? result.checks : [])],
+        captureDiagnostics: false,
+        byChunkUid: result.byChunkUid,
+        skippedRequestClasses: semanticTokenStartupPolicy.suppress === true
+          ? ['semanticTokens']
+          : []
+      });
       const diagnostics = appendDiagnosticChecks(
         {
           ...(result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : {}),
@@ -638,7 +671,8 @@ export const createSourcekitProvider = () => ({
             classificationDurationMs: Number(preflight?.classificationDurationMs) || 0,
             resolveDurationMs: Number(preflight?.resolveDurationMs) || 0,
             markerPath: preflight?.markerPath || null
-          }
+          },
+          fidelity
         },
         [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
       );

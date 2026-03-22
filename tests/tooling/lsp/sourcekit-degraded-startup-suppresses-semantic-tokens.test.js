@@ -108,6 +108,14 @@ try {
 
     assert.equal(Boolean(output?.byChunkUid?.[target.chunkRef.chunkUid]), true, 'expected sourcekit to preserve partial success under degraded startup');
     assert.equal(output?.diagnostics?.preflight?.reasonCode, 'sourcekit_preflight_lock_unavailable', 'expected degraded startup reason code to be preserved');
+    assert.equal(output?.diagnostics?.fidelity?.state, 'degraded', 'expected fidelity contract to classify degraded startup');
+    assert.equal(output?.diagnostics?.fidelity?.qualityDelta?.partialSuccess, true, 'expected degraded startup to report truthful partial success');
+    assert.equal(
+      Array.isArray(output?.diagnostics?.fidelity?.skipped)
+      && output.diagnostics.fidelity.skipped.includes('semanticTokens'),
+      true,
+      'expected fidelity contract to record suppressed semantic tokens'
+    );
     assert.equal(output?.diagnostics?.runtime?.hoverMetrics?.semanticTokensTimedOut ?? 0, 0, 'expected semantic token timeout to be suppressed under degraded startup');
     assert.equal(
       Array.isArray(output?.diagnostics?.checks)
