@@ -48,6 +48,7 @@ const script = [
   "console.log('[tooling] pyright degraded mode active (fail-open).');",
   "console.log('[tooling] pyright degraded mode cleared.');",
   "console.log('[tooling] clangd suppressed 2 IncludeCleaner stderr line(s); missing include roots should be configured via compile_commands.json.');",
+  "console.log('[imports] suppression: policy=live count=4 degraded=1 visible=1 total=7 actionable=3 omittedFailureCauses=resolver_gap,parser_artifact');",
   "console.log('[tooling] workspace:partition provider=gopls state=degraded reason=gopls_workspace_partition_incomplete workspacePartition=multiple partitionCount=2 unmatchedDocuments=1 unmatchedTargets=1');",
   "progress({ level: 'info', stage: 'watchdog', taskId: 'stage:watchdog', message: 'structured watchdog budget extension', benchDiagnostic: { eventType: 'runtime_timeout_budget_extended', message: 'watchdog budget extended for healthy progress', timeoutKind: 'idle', phase: 'execute', resourceClass: 'cpu-bound', failureMode: 'budget_exhausted_with_progress', decisionReason: 'healthy_progress', outcome: 'extend_budget', effectiveBudgetMs: 1200, skippedWork: ['provider-enrichment'], partialSuccess: true } });",
   "progress({ level: 'warn', stage: 'watchdog', taskId: 'stage:watchdog', message: 'structured watchdog timeout', benchDiagnostic: { eventType: 'runtime_timeout', message: 'watchdog timeout after progress-aware budget', timeoutKind: 'hard', phase: 'provider_bootstrap', resourceClass: 'provider-bound', failureMode: 'budget_exhausted_with_progress', decisionReason: 'progress_budget_exhausted', outcome: 'terminate', effectiveBudgetMs: 1600, skippedWork: ['provider-requests', 'workspace-preflight'], partialSuccess: true } });",
@@ -71,11 +72,11 @@ assert.equal(
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
   'expected diagnostics schema version'
 );
-assert.equal(result.diagnostics.eventCount, 18, 'expected structured diagnostics to include tooling/runtime events');
+assert.equal(result.diagnostics.eventCount, 19, 'expected structured diagnostics to include tooling/runtime events');
 assert.equal(result.diagnostics.countsByType.fallback_used, 2, 'expected fallback duplicate count in full stream');
 assert.deepEqual(
   result.diagnostics.countsBySeverity,
-  { error: 2, info: 3, warn: 13 },
+  { error: 2, info: 3, warn: 14 },
   'expected consequence-based severity counts in process diagnostics summary'
 );
 
@@ -98,7 +99,7 @@ assert.equal(
 const streamLines = (await fsPromises.readFile(diagnosticsPath, 'utf8'))
   .split(/\r?\n/)
   .filter((line) => line.trim());
-assert.equal(streamLines.length, 18, 'expected full JSON event stream with all occurrences');
+assert.equal(streamLines.length, 19, 'expected full JSON event stream with all occurrences');
 
 const streamEvents = streamLines.map((line) => JSON.parse(line));
 const fallbackEvents = streamEvents.filter((entry) => entry.eventType === 'fallback_used');
@@ -125,6 +126,14 @@ assert.equal(workspacePartitionEvent?.workspacePartition, 'multiple', 'expected 
 const warningSuppressedEvent = streamEvents.find((entry) => entry.eventType === 'warning_suppressed');
 assert.equal(warningSuppressedEvent?.providerId, 'clangd', 'expected provider correlation on warning suppression');
 assert.equal(warningSuppressedEvent?.severity, 'warn', 'expected warning suppression to surface at warn severity');
+const importSuppressionEvent = streamEvents.find((entry) => entry.eventType === 'warning_suppressed' && entry.failureClass === 'imports_live:4');
+assert.equal(importSuppressionEvent?.suppressionPolicy, 'live', 'expected import suppression policy on structured warning event');
+assert.equal(importSuppressionEvent?.suppressedCount, 4, 'expected import suppression count on structured warning event');
+assert.equal(importSuppressionEvent?.degradedRun, true, 'expected degraded-run flag on structured warning event');
+assert.equal(importSuppressionEvent?.visibleSampleCount, 1, 'expected retained visible-sample count on structured warning event');
+assert.equal(importSuppressionEvent?.actionableCount, 3, 'expected actionable unresolved count on structured warning event');
+assert.equal(importSuppressionEvent?.totalCount, 7, 'expected total unresolved count on structured warning event');
+assert.deepEqual(importSuppressionEvent?.omittedSampleClasses, ['resolver_gap', 'parser_artifact'], 'expected omitted sample classes on structured warning event');
 const parserCrashEvent = streamEvents.find((entry) => entry.eventType === 'parser_crash');
 assert.equal(parserCrashEvent?.severity, 'error', 'expected parser crash to surface at error severity');
 const preflightStartEvent = streamEvents.find((entry) => entry.eventType === 'provider_preflight_start');
@@ -157,6 +166,7 @@ const interactiveDiagnostics = captured
   .sort();
 const expectedInteractivePrefixes = [
   '[diagnostics] artifact_tail_stall <eventId> [perf] artifact write stall critical: chunk_meta.binary-columnar.bundle in-flight for 32s (threshold=30s, fam...',
+  '[diagnostics] warning_suppressed <eventId> [imports] suppression: policy=live count=4 degraded=1 visible=1 total=7 actionable=3 omittedFailureCauses=res...',
   '[diagnostics] parser_crash <eventId> tree-sitter parser crash while parsing src/main.c',
   '[diagnostics] provider_circuit_breaker <eventId> [tooling] pyright circuit breaker tripped.',
   '[diagnostics] provider_degraded_mode_cleared <eventId> [tooling] pyright degraded mode cleared.',

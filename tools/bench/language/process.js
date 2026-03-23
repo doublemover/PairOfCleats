@@ -1577,6 +1577,13 @@ export const createProcessRunner = ({
       effectiveBudgetMs = null,
       skippedWork = null,
       partialSuccess = null,
+      suppressedCount = null,
+      suppressionPolicy = null,
+      omittedSampleClasses = null,
+      degradedRun = null,
+      visibleSampleCount = null,
+      actionableCount = null,
+      totalCount = null,
       severity = null
     }) => {
       if (!eventType || !message) return;
@@ -1651,7 +1658,16 @@ export const createProcessRunner = ({
         skippedWork: Array.isArray(skippedWork)
           ? skippedWork.map((entry) => toText(entry)).filter(Boolean)
           : null,
-        partialSuccess: typeof partialSuccess === 'boolean' ? partialSuccess : null
+        partialSuccess: typeof partialSuccess === 'boolean' ? partialSuccess : null,
+        suppressedCount: Number.isFinite(Number(suppressedCount)) ? Math.max(0, Math.floor(Number(suppressedCount))) : null,
+        suppressionPolicy: toText(suppressionPolicy) || null,
+        omittedSampleClasses: Array.isArray(omittedSampleClasses)
+          ? omittedSampleClasses.map((entry) => toText(entry)).filter(Boolean)
+          : null,
+        degradedRun: typeof degradedRun === 'boolean' ? degradedRun : null,
+        visibleSampleCount: Number.isFinite(Number(visibleSampleCount)) ? Math.max(0, Math.floor(Number(visibleSampleCount))) : null,
+        actionableCount: Number.isFinite(Number(actionableCount)) ? Math.max(0, Math.floor(Number(actionableCount))) : null,
+        totalCount: Number.isFinite(Number(totalCount)) ? Math.max(0, Math.floor(Number(totalCount))) : null
       };
       const summaryKey = buildDiagnosticSummaryKey({
         eventType,
@@ -1819,6 +1835,13 @@ export const createProcessRunner = ({
           effectiveBudgetMs: signal.effectiveBudgetMs,
           skippedWork: signal.skippedWork || null,
           partialSuccess: signal.partialSuccess ?? null,
+          suppressedCount: signal.suppressedCount,
+          suppressionPolicy: signal.suppressionPolicy,
+          omittedSampleClasses: signal.omittedSampleClasses,
+          degradedRun: signal.degradedRun ?? null,
+          visibleSampleCount: signal.visibleSampleCount,
+          actionableCount: signal.actionableCount,
+          totalCount: signal.totalCount,
           severity: signal.severity || null
         });
       }

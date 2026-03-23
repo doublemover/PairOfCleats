@@ -95,6 +95,7 @@ const TOOLING_DEGRADED_CLEAR_PATTERN = /\[tooling\]\s+(?<providerId>[^\s]+)\s+de
 const TOOLING_WORKSPACE_PARTITION_PATTERN = /\[tooling\]\s+workspace:partition\s+provider=(?<providerId>[^\s]+)(?<rest>.*)$/iu;
 const TOOLING_WARNING_SUPPRESSED_PATTERN = /\[tooling\]\s+(?<providerId>[^\s]+)\s+suppressed\s+(?<count>\d+)\s+(?<kind>.+?)\s+stderr line\(s\)(?<rest>.*)$/iu;
 const IMPORT_WARNING_SUPPRESSED_POLICY_PATTERN = /\[imports\]\s+all captured unresolved samples were suppressed by live policy\s+\((?<count>\d+)\)\./iu;
+const IMPORT_WARNING_SUPPRESSION_EVENT_PATTERN = /\[imports\]\s+suppression:\s+policy=(?<policy>[^\s]+)\s+count=(?<count>\d+)\s+degraded=(?<degraded>[01])\s+visible=(?<visible>\d+)\s+total=(?<total>\d+)\s+actionable=(?<actionable>\d+)\s+omittedFailureCauses=(?<failureCauses>[^\s]+)$/iu;
 const IMPORT_WARNING_SUPPRESSED_COUNT_PATTERN = /\[imports\]\s+suppressed\s+(?<count>\d+)\s+import resolution warnings\./iu;
 const SCM_FILE_META_SNAPSHOT_PATTERN = /\[scm\]\s+file-meta snapshot:\s+source=(?<source>[^\s]+)\s+requested=(?<requested>\d+)\s+reused=(?<reused>\d+)\s+fetched=(?<fetched>\d+)\.(?<rest>.*)$/iu;
 const TOOLING_PROVIDER_DONE_PATTERN = /\[tooling\]\s+provider\s+\d+\/\d+\s+done\s+id=(?<providerId>[^\s]+)\s+outcome=(?<outcome>[^\s]+)\s+source=(?<source>[^\s]+)\s+chunks=(?<chunks>\d+)\s+elapsedMs=(?<elapsedMs>\d+)\./iu;
@@ -325,6 +326,13 @@ const buildDiagnosticSignal = ({
   effectiveBudgetMs = null,
   skippedWork = null,
   partialSuccess = null,
+  suppressedCount = null,
+  suppressionPolicy = null,
+  omittedSampleClasses = null,
+  degradedRun = null,
+  visibleSampleCount = null,
+  actionableCount = null,
+  totalCount = null,
   stage = null,
   taskId = null,
   level = null,
@@ -361,6 +369,15 @@ const buildDiagnosticSignal = ({
       ? skippedWork.map((entry) => String(entry || '').trim()).filter(Boolean)
       : null,
     partialSuccess: typeof partialSuccess === 'boolean' ? partialSuccess : null,
+    suppressedCount: toNonNegativeCount(suppressedCount),
+    suppressionPolicy: String(suppressionPolicy || '').trim() || null,
+    omittedSampleClasses: Array.isArray(omittedSampleClasses)
+      ? omittedSampleClasses.map((entry) => String(entry || '').trim()).filter(Boolean)
+      : null,
+    degradedRun: typeof degradedRun === 'boolean' ? degradedRun : null,
+    visibleSampleCount: toNonNegativeCount(visibleSampleCount),
+    actionableCount: toNonNegativeCount(actionableCount),
+    totalCount: toNonNegativeCount(totalCount),
     stage: String(stage || '').trim() || null,
     taskId: String(taskId || '').trim() || null,
     level: String(level || '').trim() || null,
@@ -454,6 +471,13 @@ export const createBenchDiagnosticClassifier = () => {
         effectiveBudgetMs: entry.effectiveBudgetMs,
         skippedWork: entry.skippedWork || null,
         partialSuccess: entry.partialSuccess ?? null,
+        suppressedCount: entry.suppressedCount,
+        suppressionPolicy: entry.suppressionPolicy,
+        omittedSampleClasses: entry.omittedSampleClasses,
+        degradedRun: entry.degradedRun ?? null,
+        visibleSampleCount: entry.visibleSampleCount,
+        actionableCount: entry.actionableCount,
+        totalCount: entry.totalCount,
         stage: entry.stage ?? event?.stage ?? null,
         taskId: entry.taskId ?? event?.taskId ?? null,
         level: entry.level ?? event?.level ?? null,
@@ -717,6 +741,37 @@ export const createBenchDiagnosticClassifier = () => {
         severity: resolveBenchDiagnosticSeverity({
           eventType: 'warning_suppressed',
           failureClass: `imports_live_policy:${count || 'unknown'}`
+        })
+      });
+      return signal ? [signal] : [];
+    }
+
+    const importSuppressionEventMatch = IMPORT_WARNING_SUPPRESSION_EVENT_PATTERN.exec(text);
+    if (importSuppressionEventMatch) {
+      const count = String(importSuppressionEventMatch.groups?.count || '').trim();
+      const policy = String(importSuppressionEventMatch.groups?.policy || '').trim().toLowerCase() || 'unknown';
+      const omittedSampleClasses = String(importSuppressionEventMatch.groups?.failureCauses || '')
+        .split(',')
+        .map((entry) => normalizeDiagnosticField(entry, 48))
+        .filter(Boolean);
+      const signal = buildDiagnosticSignal({
+        eventType: 'warning_suppressed',
+        message: text,
+        source,
+        failureClass: `imports_${policy}:${count || 'unknown'}`,
+        suppressedCount: Number(count || 0),
+        suppressionPolicy: policy,
+        omittedSampleClasses,
+        degradedRun: String(importSuppressionEventMatch.groups?.degraded || '') === '1',
+        visibleSampleCount: Number(importSuppressionEventMatch.groups?.visible || 0),
+        actionableCount: Number(importSuppressionEventMatch.groups?.actionable || 0),
+        totalCount: Number(importSuppressionEventMatch.groups?.total || 0),
+        stage: event?.stage || null,
+        taskId: event?.taskId || null,
+        level: event?.level || null,
+        severity: resolveBenchDiagnosticSeverity({
+          eventType: 'warning_suppressed',
+          failureClass: `imports_${policy}:${count || 'unknown'}`
         })
       });
       return signal ? [signal] : [];

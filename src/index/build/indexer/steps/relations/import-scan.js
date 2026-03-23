@@ -38,6 +38,7 @@ const toSortedCountObject = (counts) => {
 };
 
 const normalizeUnresolvedSamples = (samples) => enrichUnresolvedImportSamples(samples);
+const MAX_DEGRADED_VISIBLE_UNRESOLVED_SAMPLES = 3;
 
 /**
  * Merge existing graph warnings with unresolved samples while preserving
@@ -205,7 +206,7 @@ const resolveImportCacheStaleEdgeBudget = (resolverPlugins) => {
   return Math.floor(budget);
 };
 
-const logUnresolvedImportSamples = ({
+export const logUnresolvedImportSamples = ({
   samples,
   suppressed,
   unresolvedTotal,
@@ -234,6 +235,14 @@ const logUnresolvedImportSamples = ({
     : summary?.actionableRate;
   const parserArtifactRate = Number.isFinite(summary?.parserArtifactRate) ? summary.parserArtifactRate : 0;
   const resolverGapRate = Number.isFinite(summary?.resolverGapRate) ? summary.resolverGapRate : 0;
+  const budgetExhausted = Number(summary?.resolverBudgetExhausted || 0);
+  const degradedRun = actionableTotal > 0 || budgetExhausted > 0 || resolverGapRate > 0;
+  const degradedVisibleFloor = policySuppressed > 0 && degradedRun && normalized.length > 0
+    ? Math.min(MAX_DEGRADED_VISIBLE_UNRESOLVED_SAMPLES, normalized.length)
+    : 0;
+  const visibleSamples = visible.length > 0
+    ? visible
+    : (degradedVisibleFloor > 0 ? normalized.slice(0, degradedVisibleFloor) : []);
   log(
     `[imports] unresolved taxonomy: ${formatUnresolvedFailureCauseCounts(summary?.failureCauses)} ` +
     `(actionable=${actionableTotal}, live-suppressed=${policySuppressed})`
@@ -245,7 +254,6 @@ const logUnresolvedImportSamples = ({
   log(`[imports] unresolved reason codes: ${formatUnresolvedReasonCodeCounts(summary?.reasonCodes)}`);
   log(`[imports] unresolved resolver stages: ${formatUnresolvedResolverStageCounts(summary?.resolverStages)}`);
   log(`[imports] unresolved resolver adapters: ${formatUnresolvedResolverAdapterCounts(summary?.resolverAdapters)}`);
-  const budgetExhausted = Number(summary?.resolverBudgetExhausted || 0);
   if (budgetExhausted > 0) {
     log(
       `[imports] unresolved resolver budgets exhausted: ${budgetExhausted} ` +
@@ -254,8 +262,14 @@ const logUnresolvedImportSamples = ({
   }
   log(`[imports] unresolved actionable hotspots: ${formatUnresolvedActionableHotspots(summary?.actionableHotspots)}`);
   log(`[imports] unresolved actionable languages: ${formatUnresolvedActionableByLanguage(summary?.actionableByLanguage)}`);
-  log(`[imports] unresolved import samples (${visible.length} live of ${total}):`);
-  for (const entry of visible) {
+  if (visible.length === 0 && degradedVisibleFloor > 0) {
+    log(
+      `[imports] retaining ${visibleSamples.length} bounded unresolved sample(s) ` +
+      'despite live suppression because actionable degradation is active.'
+    );
+  }
+  log(`[imports] unresolved import samples (${visibleSamples.length} live of ${total}):`);
+  for (const entry of visibleSamples) {
     const from = entry.importer || '<unknown-importer>';
     const specifier = entry.specifier || '<empty-specifier>';
     const reasonCode = entry.reasonCode || 'IMP_U_UNKNOWN';
@@ -266,18 +280,40 @@ const logUnresolvedImportSamples = ({
       `[reasonCode=${reasonCode}, failureCause=${failureCause}, confidence=${confidence}]`
     );
   }
-  if (visible.length === 0 && policySuppressed > 0) {
+  if (visibleSamples.length === 0 && policySuppressed > 0) {
     log(`[imports] all captured unresolved samples were suppressed by live policy (${policySuppressed}).`);
   }
   const resolverSuppressed = Number.isFinite(suppressed) && suppressed > 0 ? suppressed : 0;
   const capSuppressed = Math.max(0, actionable.length - visible.length);
   const omittedTotal = policySuppressed + capSuppressed + resolverSuppressed;
+  const omittedFailureCauses = Object.entries(summary?.failureCauses || {})
+    .filter(([, count]) => Number(count) > 0)
+    .sort((left, right) => sortStrings(left[0], right[0]))
+    .map(([failureCause]) => failureCause)
+    .slice(0, 8);
+  if (policySuppressed > 0) {
+    log(
+      `[imports] suppression: policy=live count=${policySuppressed} degraded=${degradedRun ? 1 : 0} ` +
+      `visible=${visibleSamples.length} total=${total} actionable=${actionableTotal} ` +
+      `omittedFailureCauses=${omittedFailureCauses.length ? omittedFailureCauses.join(',') : 'none'}`
+    );
+  }
   if (omittedTotal > 0) {
     log(
       `[imports] unresolved imports omitted from live log: ${omittedTotal} ` +
       `(policy=${policySuppressed}, cap=${capSuppressed}, resolver=${resolverSuppressed})`
     );
   }
+  return {
+    suppressionPolicy: policySuppressed > 0 ? 'live' : null,
+    suppressedCount: policySuppressed,
+    resolverSuppressedCount: resolverSuppressed,
+    capSuppressedCount: capSuppressed,
+    omittedTotal,
+    omittedFailureCauses,
+    degradedRun,
+    visibleSampleCount: visibleSamples.length
+  };
 };
 
 /**
@@ -846,13 +882,19 @@ export const postScanImports = async ({
       );
     }
     if (unresolved > 0) {
-      logUnresolvedImportSamples({
+      const unresolvedSuppression = logUnresolvedImportSamples({
         samples: resolvedResult.unresolvedSamples,
         suppressed: resolvedResult.unresolvedSuppressed,
         unresolvedTotal: unresolved,
         taxonomy: resolvedResult.unresolvedTaxonomy,
         alreadyNormalized: true
       });
+      if (resolvedResult?.stats && unresolvedSuppression) {
+        resolvedResult.stats.unresolvedWarningSuppression = unresolvedSuppression;
+      }
+      if (stageState?.importResolutionGraph?.stats && unresolvedSuppression) {
+        stageState.importResolutionGraph.stats.unresolvedWarningSuppression = unresolvedSuppression;
+      }
     }
   }
   return resolvedResult;
