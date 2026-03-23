@@ -20,6 +20,7 @@ import { createBodyParser } from './router/body.js';
 import { createRepoCacheManager } from './router/cache.js';
 import { createCorsResolver } from './router/cors.js';
 import { createRepoResolver } from './router/paths.js';
+import { getRepoCacheGenerationContext } from '../shared/repo-cache-config.js';
 import { handleIndexDiffsRoute } from './router/index-diffs.js';
 import { handleIndexSnapshotsRoute } from './router/index-snapshots.js';
 import { handleContextPackRoute, handleRiskDeltaRoute, handleRiskExplainRoute } from './router/analysis.js';
@@ -77,6 +78,18 @@ export const createApiRouter = ({
     indexCache,
     sqliteCache
   });
+  const buildSearchObservability = (requestObservability, repoPath, caches, extraContext = {}) => buildChildObservability(
+    requestObservability,
+    {
+      surface: 'search',
+      operation: 'search',
+      context: {
+        repoRoot: repoPath,
+        ...extraContext,
+        ...getRepoCacheGenerationContext(caches)
+      }
+    }
+  );
   const canonicalConfiguredAllowedRoots = [defaultRepo, ...allowedRepoRoots]
     .filter((entry) => typeof entry === 'string' && entry.trim())
     .map((entry) => toRealPathSync(path.resolve(entry)));
@@ -486,13 +499,6 @@ export const createApiRouter = ({
           sendError(res, status, code, err?.message || 'Invalid repo path.', {}, responseHeaders);
           return;
         }
-        const searchObservability = buildChildObservability(requestObservability, {
-          surface: 'search',
-          operation: 'search',
-          context: {
-            repoRoot: repoPath
-          }
-        });
         const searchParams = buildSearchParams(repoPath, payload || {}, defaultOutput);
         if (!searchParams.ok) {
           sendError(
@@ -508,6 +514,7 @@ export const createApiRouter = ({
         try {
           const caches = getRepoCaches(repoPath);
           await refreshBuildPointer(caches);
+          const searchObservability = buildSearchObservability(requestObservability, repoPath, caches);
           const body = await search(repoPath, {
             args: searchParams.args,
             query: searchParams.query,
@@ -542,13 +549,6 @@ export const createApiRouter = ({
       if (requestUrl.pathname === '/search/stream' && req.method === 'POST') {
         const requestObservability = createRequestObservability(req, requestUrl, 'search_stream');
         const responseHeaders = mergeResponseHeaders(corsHeaders, requestObservability);
-        const searchObservability = buildChildObservability(requestObservability, {
-          surface: 'search',
-          operation: 'search',
-          context: {
-            stream: true
-          }
-        });
         const sse = createSseResponder(req, res, { headers: responseHeaders });
         const controller = new AbortController();
         const abortRequest = () => controller.abort();
@@ -606,6 +606,7 @@ export const createApiRouter = ({
         await sse.sendEvent('progress', attachObservability({ ok: true, phase: 'search', message: 'Searching.' }, requestObservability));
         const caches = getRepoCaches(repoPath);
         await refreshBuildPointer(caches);
+        const searchObservability = buildSearchObservability(requestObservability, repoPath, caches, { stream: true });
         try {
           await sse.sendEvent('progress', attachObservability({ ok: true, phase: 'search', message: 'Running search.' }, requestObservability));
           const body = await search(repoPath, {
@@ -680,13 +681,6 @@ export const createApiRouter = ({
           sendError(res, status, code, err?.message || 'Invalid repo path.', {}, responseHeaders);
           return;
         }
-        const searchObservability = buildChildObservability(requestObservability, {
-          surface: 'search',
-          operation: 'search',
-          context: {
-            repoRoot: repoPath
-          }
-        });
         const searchParams = buildSearchParams(repoPath, payload || {}, defaultOutput);
         if (!searchParams.ok) {
           sendError(
@@ -702,6 +696,7 @@ export const createApiRouter = ({
         try {
           const caches = getRepoCaches(repoPath);
           await refreshBuildPointer(caches);
+          const searchObservability = buildSearchObservability(requestObservability, repoPath, caches);
           const body = await search(repoPath, {
             args: searchParams.args,
             query: searchParams.query,

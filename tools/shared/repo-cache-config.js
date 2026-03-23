@@ -1,9 +1,11 @@
+import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { LRUCache } from 'lru-cache';
 import { getRepoCacheRoot, loadUserConfig, resolveRepoRoot, toRealPathSync } from './dict-utils.js';
 import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
 import { createIndexCache } from '../../src/retrieval/index-cache.js';
+import { resolveCurrentBuildRoots } from '../../src/shared/indexing/build-pointer.js';
 import { incCacheEviction, setCacheSize } from '../../src/shared/metrics.js';
 import { defineCachePolicy, resolveCachePolicy } from '../../src/shared/cache/policy.js';
 
@@ -66,6 +68,37 @@ export const normalizeCacheConfig = (value, defaults) => {
   };
 };
 
+export const getRepoCacheGenerationContext = (entry = null) => {
+  if (!entry || typeof entry !== 'object') return {};
+  return {
+    buildId: typeof entry.buildId === 'string' && entry.buildId.trim() ? entry.buildId : null,
+    buildRoot: typeof entry.buildRoot === 'string' && entry.buildRoot.trim() ? entry.buildRoot : null,
+    activeBuildRoot: typeof entry.activeBuildRoot === 'string' && entry.activeBuildRoot.trim()
+      ? entry.activeBuildRoot
+      : null
+  };
+};
+
+const hasRepoArtifacts = (repoPath) => {
+  try {
+    const userConfig = loadUserConfig(repoPath);
+    const repoCacheRoot = getRepoCacheRoot(repoPath, userConfig);
+    const buildsRoot = path.join(repoCacheRoot, 'builds');
+    if (typeof repoCacheRoot !== 'string' || !repoCacheRoot.trim()) return false;
+    if (fs.existsSync(path.join(buildsRoot, 'current.json'))) return true;
+    for (const mode of ['code', 'prose', 'extracted-prose', 'records']) {
+      try {
+        if (fs.statSync(path.join(repoCacheRoot, `index-${mode}`)).isDirectory()) {
+          return true;
+        }
+      } catch {}
+    }
+    return false;
+  } catch {
+    return false;
+  }
+};
+
 export const createRepoCacheManager = ({
   defaultRepo,
   namespace = 'api',
@@ -104,9 +137,26 @@ export const createRepoCacheManager = ({
     }
   });
 
+  const buildGenerationKey = ({ buildId = null, buildRoot = null, activeRoot = null, buildRoots = null } = {}) => {
+    const normalizedBuildRoots = buildRoots && typeof buildRoots === 'object'
+      ? Object.fromEntries(
+        Object.entries(buildRoots)
+          .filter(([, value]) => typeof value === 'string' && value.trim())
+          .sort(([left], [right]) => left.localeCompare(right))
+      )
+      : {};
+    return JSON.stringify({
+      buildId: typeof buildId === 'string' && buildId.trim() ? buildId : null,
+      buildRoot: typeof buildRoot === 'string' && buildRoot.trim() ? buildRoot : null,
+      activeRoot: typeof activeRoot === 'string' && activeRoot.trim() ? activeRoot : null,
+      buildRoots: normalizedBuildRoots
+    });
+  };
+
   const buildRepoCacheEntry = (repoPath) => {
     const userConfig = loadUserConfig(repoPath);
     const repoCacheRoot = getRepoCacheRoot(repoPath, userConfig);
+    const buildsRoot = path.join(repoCacheRoot, 'builds');
     return {
       indexCache: createIndexCache({
         maxEntries: indexCacheConfig.maxEntries,
@@ -118,7 +168,12 @@ export const createRepoCacheManager = ({
       }),
       lastUsed: Date.now(),
       buildId: null,
-      buildPointerPath: path.join(repoCacheRoot, 'builds', 'current.json'),
+      buildRoot: null,
+      activeBuildRoot: null,
+      buildGenerationKey: null,
+      repoCacheRoot,
+      buildsRoot,
+      buildPointerPath: path.join(buildsRoot, 'current.json'),
       buildPointerMtimeMs: null
     };
   };
@@ -137,32 +192,55 @@ export const createRepoCacheManager = ({
     }
     entry.buildPointerMtimeMs = nextMtime;
     if (!stat) {
-      if (entry.buildId) {
+      if (entry.buildGenerationKey || entry.buildId || entry.buildRoot || entry.activeBuildRoot) {
         resetRepoEntry(entry);
       }
       entry.buildId = null;
+      entry.buildRoot = null;
+      entry.activeBuildRoot = null;
+      entry.buildGenerationKey = null;
       return;
     }
     try {
       const raw = await fsPromises.readFile(entry.buildPointerPath, 'utf8');
       const data = JSON.parse(raw) || {};
-      const nextBuildId = typeof data.buildId === 'string' ? data.buildId : null;
-      const changed = (entry.buildId && !nextBuildId)
-        || (entry.buildId && nextBuildId && entry.buildId !== nextBuildId)
-        || (!entry.buildId && nextBuildId);
+      const currentInfo = resolveCurrentBuildRoots(data, {
+        repoCacheRoot: entry.repoCacheRoot,
+        buildsRoot: entry.buildsRoot
+      });
+      const nextBuildId = typeof currentInfo.buildId === 'string' ? currentInfo.buildId : null;
+      const nextBuildRoot = typeof currentInfo.buildRoot === 'string' ? currentInfo.buildRoot : null;
+      const nextActiveRoot = typeof currentInfo.activeRoot === 'string' ? currentInfo.activeRoot : null;
+      const nextGenerationKey = buildGenerationKey({
+        buildId: nextBuildId,
+        buildRoot: nextBuildRoot,
+        activeRoot: nextActiveRoot,
+        buildRoots: currentInfo.buildRoots
+      });
+      const changed = entry.buildGenerationKey !== nextGenerationKey;
       if (changed) {
         resetRepoEntry(entry);
       }
       entry.buildId = nextBuildId;
+      entry.buildRoot = nextBuildRoot;
+      entry.activeBuildRoot = nextActiveRoot;
+      entry.buildGenerationKey = nextGenerationKey;
     } catch {
       resetRepoEntry(entry);
       entry.buildId = null;
+      entry.buildRoot = null;
+      entry.activeBuildRoot = null;
+      entry.buildGenerationKey = null;
     }
   };
 
   const resolveRepoKey = (repoPath) => {
-    const candidate = repoPath || resolvedDefaultRepo;
-    return toRealPathSync(resolveRepoRoot(candidate));
+    const candidate = path.resolve(repoPath || resolvedDefaultRepo);
+    const resolvedRoot = toRealPathSync(resolveRepoRoot(candidate));
+    const explicitPath = toRealPathSync(candidate);
+    if (explicitPath === resolvedRoot) return resolvedRoot;
+    if (hasRepoArtifacts(explicitPath)) return explicitPath;
+    return resolvedRoot;
   };
 
   const getRepoCaches = (repoPath) => {

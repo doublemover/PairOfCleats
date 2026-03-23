@@ -34,6 +34,11 @@ export const createMcpTransport = ({
   const normalizeId = (value) => (value === null || value === undefined ? null : String(value));
   const progressState = new Map();
   const PROGRESS_THROTTLE_MS = 250;
+  const attachToolResultObservability = (result, requestObservability) => (
+    result && typeof result === 'object' && !Array.isArray(result) && result.observability
+      ? result
+      : attachObservability(result, requestObservability)
+  );
 
   const sendProgress = (id, tool, payload, observability = null) => {
     if (id === null || id === undefined) return;
@@ -195,7 +200,7 @@ export const createMcpTransport = ({
           return;
         }
         sendResult(id, {
-          content: [{ type: 'text', text: JSON.stringify(attachObservability(result, requestObservability), null, 2) }]
+          content: [{ type: 'text', text: JSON.stringify(attachToolResultObservability(result, requestObservability), null, 2) }]
         });
       } catch (error) {
         const entry = inFlight.get(idKey);

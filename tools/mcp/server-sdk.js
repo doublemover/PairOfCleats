@@ -104,6 +104,11 @@ export async function startMcpSdkServer({
     InitializeRequestSchema
   } = await resolveSdkModules();
   const queue = new PQueue({ concurrency: 1 });
+  const attachToolResultObservability = (result, requestObservability) => (
+    result && typeof result === 'object' && !Array.isArray(result) && result.observability
+      ? result
+      : attachObservability(result, requestObservability)
+  );
   const baseCapabilities = {
     tools: { listChanged: false },
     resources: { listChanged: false }
@@ -198,7 +203,7 @@ export async function startMcpSdkServer({
           };
         }
         return {
-          content: [{ type: 'text', text: JSON.stringify(attachObservability(result, requestObservability), null, 2) }]
+          content: [{ type: 'text', text: JSON.stringify(attachToolResultObservability(result, requestObservability), null, 2) }]
         };
       } catch (error) {
         const payload = formatToolError(error);

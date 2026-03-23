@@ -2,6 +2,7 @@ import { search as coreSearch } from '../../../../src/integrations/core/index.js
 import { runFederatedSearch } from '../../../../src/retrieval/federation/coordinator.js';
 import { createError, ERROR_CODES } from '../../../../src/shared/error-codes.js';
 import { attachObservability, buildChildObservability } from '../../../../src/shared/observability.js';
+import { getRepoCacheGenerationContext } from '../../../shared/repo-cache-config.js';
 import { getRepoCaches, refreshRepoCaches, resolveRepoPath } from '../../repo.js';
 import { buildMcpSearchArgs } from '../search-args.js';
 
@@ -19,16 +20,16 @@ export async function runSearch(args = {}, context = {}) {
   if (!query) throw createError(ERROR_CODES.INVALID_REQUEST, 'Query is required.');
 
   const searchArgs = buildMcpSearchArgs({ ...args, repoPath });
+  const caches = getRepoCaches(repoPath);
+  await refreshRepoCaches(repoPath);
   const observability = buildChildObservability(context.observability, {
     surface: 'search',
     operation: 'search',
     context: {
-      repoRoot: repoPath
+      repoRoot: repoPath,
+      ...getRepoCacheGenerationContext(caches)
     }
   });
-
-  const caches = getRepoCaches(repoPath);
-  await refreshRepoCaches(repoPath);
   return await coreSearch(repoPath, {
     args: searchArgs,
     query,
