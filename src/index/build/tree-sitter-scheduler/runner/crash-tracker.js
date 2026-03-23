@@ -10,6 +10,7 @@ const TREE_SITTER_RUNTIME_PACKAGE = 'tree-sitter';
 const CRASH_BUNDLE_SCHEMA_VERSION = '1.0.0';
 const CRASH_BUNDLE_FILE = 'crash-forensics.json';
 const DEFAULT_DURABLE_DIR = '_crash-forensics';
+const QUARANTINE_REPEAT_THRESHOLD = 2;
 const require = createRequire(import.meta.url);
 const packageVersionCache = new Map();
 
@@ -165,6 +166,39 @@ const resolveDurableCrashBundlePath = ({ runtime, outDir }) => {
   return path.join(durableDir, `${repoToken}-${buildToken}-${CRASH_BUNDLE_FILE}`);
 };
 
+const buildQuarantineDecisions = (eventsBySignature) => (
+  Array.from(eventsBySignature.values())
+    .map((event) => {
+      const grammarKeys = Array.from(new Set([
+        String(event?.grammarKey || '').trim(),
+        ...toArray(event?.task?.taskGrammarKeys).map((entry) => String(entry || '').trim()),
+        ...toArray(event?.task?.inferredFailedGrammarKeys).map((entry) => String(entry || '').trim())
+      ].filter(Boolean))).sort();
+      const virtualPaths = Array.from(new Set([
+        String(event?.file?.virtualPath || '').trim()
+      ].filter(Boolean))).sort();
+      const repeated = Number(event?.occurrences || 0) >= QUARANTINE_REPEAT_THRESHOLD;
+      return {
+        signature: String(event?.signature || '').trim() || null,
+        scope: repeated ? 'signature' : 'virtual_path',
+        target: repeated
+          ? (String(event?.signature || '').trim() || null)
+          : (virtualPaths[0] || grammarKeys[0] || null),
+        occurrences: Number(event?.occurrences || 0),
+        failureClass: String(event?.failureClass || '').trim() || null,
+        fallbackConsequence: String(event?.fallbackConsequence || '').trim() || null,
+        grammarKeys,
+        virtualPaths
+      };
+    })
+    .filter((entry) => entry.signature)
+    .sort((left, right) => (
+      String(left.scope).localeCompare(String(right.scope))
+      || String(left.target || '').localeCompare(String(right.target || ''))
+      || String(left.signature || '').localeCompare(String(right.signature || ''))
+    ))
+);
+
 /**
  * Materialize immutable bundle snapshot from tracker state.
  *
@@ -193,6 +227,7 @@ const makeBundleSnapshot = ({
   outDir: path.resolve(outDir),
   failedGrammarKeys: Array.from(failedGrammarKeys).sort(),
   degradedVirtualPaths: Array.from(degradedVirtualPaths).sort(),
+  quarantineDecisions: buildQuarantineDecisions(eventsBySignature),
   failureClasses: Object.fromEntries(
     Array.from(failureClassCounts.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
   ),
@@ -468,6 +503,7 @@ export const createSchedulerCrashTracker = ({
         .sort((a, b) => String(a.signature).localeCompare(String(b.signature))),
       failedGrammarKeys: Array.from(failedGrammarKeys).sort(),
       degradedVirtualPaths: Array.from(degradedVirtualPaths).sort(),
+      quarantineDecisions: buildQuarantineDecisions(eventsBySignature),
       failureClasses: Object.fromEntries(
         Array.from(failureClassCounts.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
       )

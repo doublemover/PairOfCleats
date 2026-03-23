@@ -14,6 +14,26 @@ const toNonNegativeInteger = (value) => {
   return Math.floor(parsed);
 };
 
+const normalizeQuarantineDecision = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  const signature = typeof entry.signature === 'string' ? entry.signature.trim() : '';
+  if (!signature) return null;
+  const scope = typeof entry.scope === 'string' ? entry.scope.trim() : '';
+  const target = typeof entry.target === 'string' ? entry.target.trim() : '';
+  return {
+    signature,
+    scope: scope || 'virtual_path',
+    target: target || null,
+    occurrences: toNonNegativeInteger(entry.occurrences) || 0,
+    failureClass: typeof entry.failureClass === 'string' ? entry.failureClass.trim() || null : null,
+    fallbackConsequence: typeof entry.fallbackConsequence === 'string'
+      ? entry.fallbackConsequence.trim() || null
+      : null,
+    grammarKeys: Array.isArray(entry.grammarKeys) ? entry.grammarKeys.map((value) => String(value || '')).filter(Boolean) : [],
+    virtualPaths: Array.isArray(entry.virtualPaths) ? entry.virtualPaths.map((value) => String(value || '')).filter(Boolean) : []
+  };
+};
+
 const failContract = (phase, message) => {
   const error = new Error(`[tree-sitter:schedule] ${phase}: ${message}`);
   error.code = 'ERR_TREE_SITTER_SCHEDULER_CONTRACT';
@@ -210,6 +230,11 @@ export const buildTreeSitterPlannerFailureSnapshot = ({
           : [],
         degradedVirtualPaths: Array.isArray(failureSummary?.degradedVirtualPaths)
           ? failureSummary.degradedVirtualPaths.slice()
+          : [],
+        quarantineDecisions: Array.isArray(failureSummary?.quarantineDecisions)
+          ? failureSummary.quarantineDecisions
+            .map((entry) => normalizeQuarantineDecision(entry))
+            .filter(Boolean)
           : [],
         failureClasses: failureSummary?.failureClasses && typeof failureSummary.failureClasses === 'object'
           ? { ...failureSummary.failureClasses }

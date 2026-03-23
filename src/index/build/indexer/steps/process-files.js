@@ -648,15 +648,17 @@ export const processFiles = async ({
         const degradedSummary = {
           parserCrashSignatures: Number(schedStats.parserCrashSignatures) || 0,
           failedGrammarKeys: Number(schedStats.failedGrammarKeys) || 0,
-          degradedVirtualPaths: Number(schedStats.degradedVirtualPaths) || 0
+          degradedVirtualPaths: Number(schedStats.degradedVirtualPaths) || 0,
+          quarantineDecisions: Number(schedStats.quarantineDecisions) || 0
         };
         if (state && typeof state === 'object') {
           state.treeSitterDegraded = degradedSummary;
         }
         logLine(
-          `[tree-sitter:schedule] degraded parser mode active: signatures=${degradedSummary.parserCrashSignatures} ` +
+          `[tree-sitter:schedule] parser quarantine active: signatures=${degradedSummary.parserCrashSignatures} ` +
           `failedGrammars=${degradedSummary.failedGrammarKeys} ` +
-          `degradedVirtualPaths=${degradedSummary.degradedVirtualPaths}`,
+          `degradedVirtualPaths=${degradedSummary.degradedVirtualPaths} ` +
+          `quarantineDecisions=${degradedSummary.quarantineDecisions}`,
           {
             kind: 'warning',
             mode,

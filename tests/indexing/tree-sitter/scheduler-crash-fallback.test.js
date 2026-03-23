@@ -109,6 +109,13 @@ try {
       degradedPerlVirtualPaths.length <= 1,
       `expected per-file degradation containment; got ${degradedPerlVirtualPaths.length} perl paths`
     );
+    assert.ok(Array.isArray(crashSummary.quarantineDecisions), 'expected quarantine decisions in crash summary');
+    assert.ok(crashSummary.quarantineDecisions.length >= 1, 'expected at least one quarantine decision');
+    assert.equal(
+      crashSummary.quarantineDecisions[0].scope,
+      'virtual_path',
+      'expected first isolated crash to quarantine exact virtual paths'
+    );
     await fs.access(scheduler.crashForensicsBundlePath);
     await fs.access(scheduler.plannerFailureSnapshotPath);
     await fs.access(path.join(repoCacheRoot, 'logs', 'index-crash-forensics-index.json'));
@@ -121,6 +128,11 @@ try {
       plannerSnapshot?.failureSummary?.failureClasses?.parser_crash,
       1,
       'expected planner snapshot failure classes'
+    );
+    assert.ok(
+      Array.isArray(plannerSnapshot?.failureSummary?.quarantineDecisions)
+      && plannerSnapshot.failureSummary.quarantineDecisions.length >= 1,
+      'expected planner snapshot quarantine decisions'
     );
 
     const rel = path.relative(root, perlAbs);

@@ -109,6 +109,16 @@ const snapshot = buildTreeSitterPlannerFailureSnapshot({
     parserCrashSignatures: 1,
     failedGrammarKeys: ['native:javascript'],
     degradedVirtualPaths: [validJob.virtualPath],
+    quarantineDecisions: [{
+      signature: 'tscrash:test',
+      scope: 'virtual_path',
+      target: validJob.virtualPath,
+      occurrences: 1,
+      failureClass: TREE_SITTER_SCHEDULER_FAILURE_CLASSES.parserCrash,
+      fallbackConsequence: 'degrade_virtual_paths',
+      grammarKeys: ['native:javascript'],
+      virtualPaths: [validJob.virtualPath]
+    }],
     failureClasses: {
       [TREE_SITTER_SCHEDULER_FAILURE_CLASSES.parserCrash]: 1
     }
@@ -123,6 +133,8 @@ assert.deepEqual(
   { [TREE_SITTER_SCHEDULER_FAILURE_CLASSES.parserCrash]: 1 },
   'expected failure classes in snapshot'
 );
+assert.equal(snapshot.failureSummary.quarantineDecisions.length, 1, 'expected quarantine decisions in snapshot');
+assert.equal(snapshot.failureSummary.quarantineDecisions[0].scope, 'virtual_path', 'expected normalized quarantine scope');
 
 assert.deepEqual(
   classifyTreeSitterSchedulerFailure({

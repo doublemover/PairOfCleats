@@ -162,12 +162,16 @@ export const runTreeSitterScheduler = async ({
   const failedGrammarKeySet = new Set(crashSummary.failedGrammarKeys);
   const successfulGrammarKeys = grammarKeys.filter((grammarKey) => !failedGrammarKeySet.has(grammarKey));
   const degradedVirtualPathSet = new Set(crashSummary.degradedVirtualPaths);
+  const quarantineDecisionCount = Array.isArray(crashSummary.quarantineDecisions)
+    ? crashSummary.quarantineDecisions.length
+    : 0;
   if (crashSummary.parserCrashSignatures > 0 && log) {
     log(
-      `[tree-sitter:schedule] degraded parser mode enabled: ` +
+      `[tree-sitter:schedule] parser quarantine active: ` +
       `signatures=${crashSummary.parserCrashSignatures} ` +
       `failedGrammarKeys=${crashSummary.failedGrammarKeys.length} ` +
-      `degradedVirtualPaths=${crashSummary.degradedVirtualPaths.length}`
+      `degradedVirtualPaths=${crashSummary.degradedVirtualPaths.length} ` +
+      `quarantineDecisions=${quarantineDecisionCount}`
     );
   }
   let plannerFailureSnapshotPath = null;
@@ -232,6 +236,7 @@ export const runTreeSitterScheduler = async ({
           : 0
       },
       parserCrashSignatures: crashSummary.parserCrashSignatures,
+      quarantineDecisions: quarantineDecisionCount,
       degradedVirtualPaths: crashSummary.degradedVirtualPaths.length,
       failureClasses: crashSummary.failureClasses
     }
@@ -245,6 +250,7 @@ export const runTreeSitterScheduler = async ({
     degradedVirtualPaths: crashSummary.degradedVirtualPaths,
     parserCrashEvents: crashSummary.parserCrashEvents,
     parserCrashSignatures: crashSummary.parserCrashSignatures,
+    quarantineDecisions: crashSummary.quarantineDecisions,
     crashForensicsBundlePath: crashTracker.getBundlePath(),
     durableCrashForensicsBundlePath: crashTracker.getDurableBundlePath(),
     plannerFailureSnapshotPath,
@@ -253,6 +259,9 @@ export const runTreeSitterScheduler = async ({
       parserCrashEvents: crashSummary.parserCrashEvents.map((event) => ({ ...event })),
       failedGrammarKeys: crashSummary.failedGrammarKeys.slice(),
       degradedVirtualPaths: crashSummary.degradedVirtualPaths.slice(),
+      quarantineDecisions: Array.isArray(crashSummary.quarantineDecisions)
+        ? crashSummary.quarantineDecisions.map((entry) => ({ ...entry }))
+        : [],
       failureClasses: { ...(crashSummary.failureClasses || {}) }
     }),
     isDegradedVirtualPath: (virtualPath) => degradedVirtualPathSet.has(virtualPath),
@@ -266,6 +275,7 @@ export const runTreeSitterScheduler = async ({
     stats: () => ({
       ...(baseLookupStats ? baseLookupStats() : {}),
       parserCrashSignatures: crashSummary.parserCrashSignatures,
+      quarantineDecisions: quarantineDecisionCount,
       failedGrammarKeys: crashSummary.failedGrammarKeys.length,
       degradedVirtualPaths: crashSummary.degradedVirtualPaths.length,
       failureClasses: { ...(crashSummary.failureClasses || {}) }
