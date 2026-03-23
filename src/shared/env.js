@@ -53,6 +53,17 @@ const normalizeNonNegativeInt = (value) => {
   return Math.max(0, Math.floor(parsed));
 };
 
+const normalizeStringList = (value) => {
+  const text = normalizeString(value);
+  if (!text) return [];
+  return Array.from(new Set(
+    text
+      .split(',')
+      .map((entry) => normalizeString(entry).toLowerCase())
+      .filter(Boolean)
+  ));
+};
+
 const isTesting = (env) => env?.PAIROFCLEATS_TESTING === '1' || env?.PAIROFCLEATS_TESTING === 'true';
 
 export const isTestingEnv = (env = process.env) => isTesting(env);
@@ -184,7 +195,8 @@ export function getTestEnvConfig(env = process.env) {
       config: null,
       maxJsonBytes: null,
       allowMissingCompatKey: false,
-      mcpDelayMs: null
+      mcpDelayMs: null,
+      mcpDelayToolNames: []
     };
   }
   const rawConfig = normalizeString(env.PAIROFCLEATS_TEST_CONFIG);
@@ -206,7 +218,8 @@ export function getTestEnvConfig(env = process.env) {
     config,
     maxJsonBytes: normalizeNumber(env.PAIROFCLEATS_TEST_MAX_JSON_BYTES),
     allowMissingCompatKey: normalizeOptionalBoolean(env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY),
-    mcpDelayMs: normalizeNumber(env.PAIROFCLEATS_TEST_MCP_DELAY_MS)
+    mcpDelayMs: normalizeNumber(env.PAIROFCLEATS_TEST_MCP_DELAY_MS),
+    mcpDelayToolNames: normalizeStringList(env.PAIROFCLEATS_TEST_MCP_DELAY_TOOL_NAMES)
   };
 }
 

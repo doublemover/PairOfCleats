@@ -14,7 +14,16 @@ const parseTestDelayMs = () => {
   const testEnv = getTestEnvConfig();
   if (!testEnv.testing) return null;
   const parsed = Number(testEnv.mcpDelayMs);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  const toolNames = Array.isArray(testEnv.mcpDelayToolNames)
+    ? testEnv.mcpDelayToolNames
+      .map((entry) => (typeof entry === 'string' ? entry.trim().toLowerCase() : ''))
+      .filter(Boolean)
+    : [];
+  return {
+    ms: Math.floor(parsed),
+    toolNames
+  };
 };
 
 const delayWithAbort = (ms, signal) => new Promise((resolve, reject) => {
@@ -95,14 +104,20 @@ export async function handleToolCall(name, args, context = {}) {
   if (!handler) {
     throw createError(ERROR_CODES.NOT_FOUND, `Unknown tool: ${name}`);
   }
-  const delayMs = parseTestDelayMs();
-  if (delayMs) {
+  const delayConfig = parseTestDelayMs();
+  const normalizedName = typeof name === 'string' ? name.trim().toLowerCase() : '';
+  const shouldDelay = delayConfig && (
+    !Array.isArray(delayConfig.toolNames)
+    || delayConfig.toolNames.length === 0
+    || delayConfig.toolNames.includes(normalizedName)
+  );
+  if (shouldDelay) {
     if (typeof context.progress === 'function') {
       for (let i = 0; i < 5; i += 1) {
         context.progress({ message: `test-progress-${i}`, phase: 'progress' });
       }
     }
-    await delayWithAbort(delayMs, context.signal);
+    await delayWithAbort(delayConfig.ms, context.signal);
   }
   return await handler(args, context);
 }

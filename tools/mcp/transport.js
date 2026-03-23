@@ -28,9 +28,21 @@ export const createMcpTransport = ({
   capabilities,
   capabilityManifest
 }) => {
-  let processing = false;
-  const queue = [];
   const inFlight = new Map();
+  const pendingById = new Map();
+  const laneQueues = {
+    fast: [],
+    slow: []
+  };
+  const laneConcurrency = {
+    fast: 1,
+    slow: 1
+  };
+  const laneActive = {
+    fast: 0,
+    slow: 0
+  };
+  const FAST_TOOL_NAMES = new Set(['index_status', 'config_status']);
   const normalizeId = (value) => (value === null || value === undefined ? null : String(value));
   const progressState = new Map();
   const PROGRESS_THROTTLE_MS = 250;
@@ -95,6 +107,28 @@ export const createMcpTransport = ({
     });
   };
 
+  const totalQueued = () => laneQueues.fast.length + laneQueues.slow.length;
+  const totalActive = () => laneActive.fast + laneActive.slow;
+  const classifyToolLane = (name, timeoutMs) => {
+    if (FAST_TOOL_NAMES.has(String(name || '').trim())) return 'fast';
+    if (Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0 && Number(timeoutMs) <= 5000) {
+      return 'fast';
+    }
+    return 'slow';
+  };
+
+  const removePendingTask = (idKey) => {
+    if (!pendingById.has(idKey)) return null;
+    const task = pendingById.get(idKey);
+    pendingById.delete(idKey);
+    const queue = laneQueues[task?.lane] || [];
+    const index = queue.findIndex((entry) => entry.idKey === idKey);
+    if (index >= 0) {
+      queue.splice(index, 1);
+    }
+    return task || null;
+  };
+
   const applyCancellation = (params) => {
     const cancelKey = normalizeId(params?.id);
     if (cancelKey === null) return false;
@@ -104,7 +138,113 @@ export const createMcpTransport = ({
       entry.controller.abort();
       return true;
     }
+    const pendingTask = removePendingTask(cancelKey);
+    if (pendingTask) {
+      clearProgressState(cancelKey);
+      sendCancelledResponse(pendingTask.id);
+      return true;
+    }
     return false;
+  };
+
+  const processTask = async (task) => {
+    const {
+      id,
+      idKey,
+      lane,
+      name,
+      args,
+      timeoutMs
+    } = task;
+    const controller = new AbortController();
+    const requestObservability = normalizeObservability({
+      correlationId: task.meta?.correlationId || null,
+      parentCorrelationId: task.meta?.parentCorrelationId || null,
+      requestId: task.meta?.requestId || idKey
+    }, {
+      surface: 'mcp',
+      operation: name,
+      context: {
+        tool: name,
+        toolCallId: idKey,
+        qosLane: lane
+      }
+    });
+    const entry = { controller, cancelled: false, observability: requestObservability, lane };
+    inFlight.set(idKey, entry);
+    let timedOut = false;
+    const progress = (payload) => {
+      if (timedOut) return;
+      sendProgress(id, name, payload, requestObservability);
+    };
+    try {
+      const result = await withTimeout(
+        handleToolCall(name, args, {
+          progress,
+          toolCallId: id,
+          signal: controller.signal,
+          observability: requestObservability
+        }),
+        timeoutMs,
+        {
+          label: name,
+          onTimeout: () => {
+            timedOut = true;
+            entry.cancelled = true;
+            controller.abort();
+          }
+        }
+      );
+      if (entry.cancelled) {
+        sendCancelledResponse(id);
+        return;
+      }
+      sendResult(id, {
+        content: [{ type: 'text', text: JSON.stringify(attachToolResultObservability(result, requestObservability), null, 2) }]
+      });
+    } catch (error) {
+      const activeEntry = inFlight.get(idKey);
+      if (activeEntry?.cancelled && error?.code !== ERROR_CODES.TOOL_TIMEOUT) {
+        sendCancelledResponse(id);
+        return;
+      }
+      const payload = formatToolError(error);
+      if (error?.code === 'TOOL_TIMEOUT' && timeoutMs) {
+        payload.timeoutMs = timeoutMs;
+      }
+      sendResult(id, {
+        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+        isError: true
+      });
+    } finally {
+      inFlight.delete(idKey);
+      clearProgressState(idKey);
+    }
+  };
+
+  const scheduleWork = () => {
+    while (totalActive() < (laneConcurrency.fast + laneConcurrency.slow)) {
+      let lane = null;
+      if (laneActive.fast < laneConcurrency.fast && laneQueues.fast.length > 0) {
+        lane = 'fast';
+      } else if (laneActive.slow < laneConcurrency.slow && laneQueues.slow.length > 0) {
+        lane = 'slow';
+      } else {
+        break;
+      }
+      const task = laneQueues[lane].shift();
+      if (!task) continue;
+      pendingById.delete(task.idKey);
+      laneActive[lane] += 1;
+      void processTask(task)
+        .catch((error) => {
+          logError('[mcp] queue error', { error: error?.message || String(error), lane });
+        })
+        .finally(() => {
+          laneActive[lane] = Math.max(0, laneActive[lane] - 1);
+          scheduleWork();
+        });
+    }
   };
 
   /**
@@ -157,69 +297,23 @@ export const createMcpTransport = ({
       const name = params?.name;
       const args = params?.arguments || {};
       const timeoutMs = resolveToolTimeoutMs(name, args);
-      try {
-        const controller = new AbortController();
-        const requestObservability = normalizeObservability({
-          correlationId: params?._meta?.correlationId || null,
-          parentCorrelationId: params?._meta?.parentCorrelationId || null,
-          requestId: params?._meta?.requestId || idKey
-        }, {
-          surface: 'mcp',
-          operation: name,
-          context: {
-            tool: name,
-            toolCallId: idKey
-          }
-        });
-        const entry = { controller, cancelled: false, observability: requestObservability };
-        inFlight.set(idKey, entry);
-        let timedOut = false;
-        const progress = (payload) => {
-          if (timedOut) return;
-          sendProgress(id, name, payload, requestObservability);
-        };
-        const result = await withTimeout(
-          handleToolCall(name, args, {
-            progress,
-            toolCallId: id,
-            signal: controller.signal,
-            observability: requestObservability
-          }),
-          timeoutMs,
-          {
-            label: name,
-            onTimeout: () => {
-              timedOut = true;
-              entry.cancelled = true;
-              controller.abort();
-            }
-          }
-        );
-        if (entry.cancelled) {
-          sendCancelledResponse(id);
-          return;
-        }
-        sendResult(id, {
-          content: [{ type: 'text', text: JSON.stringify(attachToolResultObservability(result, requestObservability), null, 2) }]
-        });
-      } catch (error) {
-        const entry = inFlight.get(idKey);
-        if (entry?.cancelled && error?.code !== ERROR_CODES.TOOL_TIMEOUT) {
-          sendCancelledResponse(id);
-          return;
-        }
-        const payload = formatToolError(error);
-        if (error?.code === 'TOOL_TIMEOUT' && timeoutMs) {
-          payload.timeoutMs = timeoutMs;
-        }
-        sendResult(id, {
-          content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-          isError: true
-        });
-      } finally {
-        inFlight.delete(idKey);
-        clearProgressState(idKey);
+      const lane = classifyToolLane(name, timeoutMs);
+      if (Number.isFinite(queueMax) && queueMax > 0 && (totalQueued() + totalActive()) >= queueMax) {
+        sendError(id, -32001, 'Server overloaded.', undefined, { code: ERROR_CODES.QUEUE_OVERLOADED });
+        return;
       }
+      const task = {
+        id,
+        idKey,
+        lane,
+        name,
+        args,
+        timeoutMs,
+        meta: params?._meta || null
+      };
+      pendingById.set(idKey, task);
+      laneQueues[lane].push(task);
+      scheduleWork();
       return;
     }
 
@@ -228,43 +322,14 @@ export const createMcpTransport = ({
     }
   }
 
-  /**
-   * Process queued messages serially.
-   */
-  function processQueue() {
-    if (processing) return;
-    processing = true;
-    const run = async () => {
-      while (queue.length) {
-        const msg = queue.shift();
-        await handleMessage(msg);
-      }
-      processing = false;
-    };
-    run().catch((error) => {
-      processing = false;
-      logError('[mcp] queue error', { error: error?.message || String(error) });
-    });
-  }
-
-  /**
-   * Enqueue a message for processing.
-   * @param {object} message
-   */
   function enqueueMessage(message) {
     if (message?.method === '$/cancelRequest') {
       applyCancellation(message.params);
       return;
     }
-    const inFlightCount = processing ? 1 : 0;
-    if (queue.length + inFlightCount >= queueMax) {
-      if (message?.id !== undefined && message?.id !== null) {
-        sendError(message.id, -32001, 'Server overloaded.', undefined, { code: ERROR_CODES.QUEUE_OVERLOADED });
-      }
-      return;
-    }
-    queue.push(message);
-    processQueue();
+    void handleMessage(message).catch((error) => {
+      logError('[mcp] queue error', { error: error?.message || String(error) });
+    });
   }
 
   const start = () => {
