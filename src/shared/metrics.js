@@ -30,6 +30,7 @@ const CACHE_RESULTS = new Set(['hit', 'miss', 'unknown']);
 const SURFACES = new Set(['cli', 'api', 'mcp', 'search', 'index', 'unknown']);
 const FALLBACKS = new Set(['backend', 'vector-candidates', 'unknown']);
 const TIMEOUTS = new Set(['tool', 'search', 'index', 'unknown']);
+const ATOMIC_PERSISTENCE_REASONS = new Set(['exdev', 'unknown']);
 const ANN_BACKENDS = new Set(['sqlite-vector', 'lancedb', 'hnsw', 'js', 'unknown']);
 const PUSHDOWN_STRATEGIES = new Set(['none', 'inline', 'temp-table', 'fallback', 'unknown']);
 const CANDIDATE_SIZE_BUCKETS = new Set(['none', '1-32', '33-256', '257-1024', '1025+', 'unknown']);
@@ -73,6 +74,7 @@ const normalizeCacheResult = (value) => normalizeLabel(value, CACHE_RESULTS);
 const normalizeSurface = (value) => normalizeLabel(value, SURFACES);
 const normalizeFallback = (value) => normalizeLabel(value, FALLBACKS);
 const normalizeTimeout = (value) => normalizeLabel(value, TIMEOUTS);
+const normalizeAtomicPersistenceReason = (value) => normalizeLabel(value, ATOMIC_PERSISTENCE_REASONS);
 const normalizeAnnBackend = (value) => normalizeLabel(value, ANN_BACKENDS);
 const normalizePushdownStrategy = (value) => normalizeLabel(value, PUSHDOWN_STRATEGIES);
 const normalizeCandidateSizeBucket = (value) => normalizeLabel(value, CANDIDATE_SIZE_BUCKETS);
@@ -239,6 +241,18 @@ const ensureMetrics = () => {
       name: 'pairofcleats_timeouts_total',
       help: 'Timeout events by surface.',
       labelNames: ['surface', 'operation'],
+      registers: [registry]
+    }),
+    atomicPersistenceFallbacks: new Counter({
+      name: 'pairofcleats_atomic_persistence_fallbacks_total',
+      help: 'Atomic persistence degraded-mode fallback events.',
+      labelNames: ['reason'],
+      registers: [registry]
+    }),
+    atomicPersistenceDegraded: new Gauge({
+      name: 'pairofcleats_atomic_persistence_degraded',
+      help: 'Whether atomic persistence has entered a degraded runtime mode.',
+      labelNames: ['reason'],
       registers: [registry]
     }),
     annCandidatePushdown: new Counter({
@@ -478,6 +492,17 @@ export function incTimeout({ surface, operation }) {
     surface: normalizeSurface(surface),
     operation: normalizeTimeout(operation)
   });
+}
+
+/**
+ * Increment atomic persistence degraded fallback counter.
+ * @param {{ reason: string }} input
+ */
+export function incAtomicPersistenceFallback({ reason }) {
+  ensureMetrics();
+  const normalizedReason = normalizeAtomicPersistenceReason(reason);
+  metrics.atomicPersistenceFallbacks.inc({ reason: normalizedReason });
+  metrics.atomicPersistenceDegraded.set({ reason: normalizedReason }, 1);
 }
 
 /**

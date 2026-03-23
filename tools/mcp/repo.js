@@ -5,6 +5,7 @@ import simpleGit from 'simple-git';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { getEnvConfig } from '../../src/shared/env.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
+import { getAtomicWriteDurabilityStatus } from '../../src/shared/io/atomic-write.js';
 import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
 import {
   getCacheRoot,
@@ -238,6 +239,12 @@ function listArtifacts(repoPath, userConfig) {
   };
 }
 
+const buildDurabilityStatus = ({ repoPath, cacheRoot, repoCacheRoot }) => getAtomicWriteDurabilityStatus({
+  repoPath,
+  cacheRoot,
+  repoCacheRoot
+});
+
 /**
  * Stat a path if it exists.
  * @param {string} target
@@ -310,6 +317,7 @@ export async function indexStatus(args = {}) {
   const artifacts = listArtifacts(repoPath, userConfig);
   const git = await getGitInfo(repoPath);
   const incrementalRoot = path.join(repoCacheRoot, 'incremental');
+  const durability = buildDurabilityStatus({ repoPath, cacheRoot, repoCacheRoot });
   const report = {
     repoPath,
     repoId,
@@ -362,7 +370,8 @@ export async function indexStatus(args = {}) {
       indexProse: statIfExists(artifacts.metrics.indexProse),
       indexRecords: statIfExists(artifacts.metrics.indexRecords),
       queryCache: statIfExists(artifacts.metrics.queryCache)
-    }
+    },
+    durability
   };
 
   return report;
@@ -391,6 +400,7 @@ export async function configStatus(args = {}) {
   const vectorConfig = getVectorExtensionConfig(repoPath, userConfig);
   const vectorPath = resolveVectorExtensionPath(vectorConfig);
   const capabilities = getCapabilities();
+  const durability = buildDurabilityStatus({ repoPath, cacheRoot, repoCacheRoot });
 
   const warnings = [];
   if (!dictionaryPathsConfigured.length && (dictConfig.languages.length || dictConfig.files.length || dictConfig.includeSlang || dictConfig.enableRepoDictionary)) {
@@ -478,6 +488,18 @@ export async function configStatus(args = {}) {
       message: 'mcp.mode=sdk requested but @modelcontextprotocol/sdk is not available.'
     });
   }
+  if (durability.runtime?.degradedDurability) {
+    warnings.push({
+      code: 'atomic_write_exdev_fallback',
+      message: `Atomic persistence used EXDEV fallback ${durability.runtime.exdevRenameFallbackCount} time(s); durability is degraded until restart.`
+    });
+  }
+  if (durability.layout?.crossDeviceRisk) {
+    warnings.push({
+      code: 'atomic_write_layout_risk',
+      message: 'Cache and repo persistence paths span different filesystem devices; EXDEV fallback risk is elevated.'
+    });
+  }
 
   return {
     repoPath,
@@ -514,6 +536,7 @@ export async function configStatus(args = {}) {
         available: !!(vectorPath && fs.existsSync(vectorPath))
       }
     },
+    durability,
     warnings
   };
 }

@@ -3,12 +3,15 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createTempPath, replaceFile, replaceFileSync } from './atomic-persistence.js';
 import { joinPathSafe, normalizePathForPlatform } from '../path-normalize.js';
+import { incAtomicPersistenceFallback } from '../metrics.js';
 
 const DIR_SYNC_UNSUPPORTED_CODES = new Set(['EINVAL', 'ENOTSUP', 'EPERM', 'EISDIR', 'EBADF', 'EMFILE', 'ENFILE']);
 const OPEN_RETRY_CODES = new Set(['EMFILE', 'ENFILE']);
 const OPEN_RETRY_ATTEMPTS = 10;
 const OPEN_RETRY_BASE_DELAY_MS = 10;
 let exdevRenameFallbackCount = 0;
+let lastExdevFallbackAt = null;
+let lastExdevFallbackPath = null;
 
 const toNonNegativeInt = (value, fallback) => {
   const parsed = Number(value);
@@ -43,6 +46,36 @@ const removeTempPathSync = (tempPath) => {
 };
 
 const sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
+
+const findExistingPathSync = (candidatePath) => {
+  if (!candidatePath) return null;
+  let current = path.resolve(String(candidatePath));
+  while (current) {
+    if (fsSync.existsSync(current)) return current;
+    const parent = path.dirname(current);
+    if (!parent || parent === current) break;
+    current = parent;
+  }
+  return null;
+};
+
+const readDeviceIdSync = (candidatePath) => {
+  const existingPath = findExistingPathSync(candidatePath);
+  if (!existingPath) return null;
+  try {
+    const stat = fsSync.statSync(existingPath);
+    return Number.isFinite(Number(stat?.dev)) ? Number(stat.dev) : null;
+  } catch {
+    return null;
+  }
+};
+
+const recordExdevFallback = (targetPath) => {
+  exdevRenameFallbackCount += 1;
+  lastExdevFallbackAt = new Date().toISOString();
+  lastExdevFallbackPath = targetPath || null;
+  incAtomicPersistenceFallback({ reason: 'exdev' });
+};
 
 /**
  * Retry transient descriptor exhaustion (EMFILE/ENFILE) when creating temp files.
@@ -131,7 +164,7 @@ const writeAtomicPayload = async (targetPath, payload, {
     await replaceFile(tempPath, safeTargetPath, {
       keepBackup: false,
       onExdevFallback: () => {
-        exdevRenameFallbackCount += 1;
+        recordExdevFallback(safeTargetPath);
       }
     });
     await syncParentDirectory(safeTargetPath);
@@ -211,7 +244,7 @@ const writeAtomicPayloadSync = (targetPath, payload, {
     replaceFileSync(tempPath, safeTargetPath, {
       keepBackup: false,
       onExdevFallback: () => {
-        exdevRenameFallbackCount += 1;
+        recordExdevFallback(safeTargetPath);
       }
     });
     if (durable !== false) {
@@ -342,9 +375,42 @@ export const atomicWriteJsonSync = (targetPath, value, options = {}) => {
 };
 
 export const getAtomicWriteRuntimeMetrics = () => ({
-  exdevRenameFallbackCount
+  degradedDurability: exdevRenameFallbackCount > 0,
+  exdevRenameFallbackCount,
+  lastExdevFallbackAt,
+  lastExdevFallbackPath
 });
+
+export const getAtomicWriteDurabilityStatus = ({
+  repoPath = null,
+  cacheRoot = null,
+  repoCacheRoot = null
+} = {}) => {
+  const repoDeviceId = readDeviceIdSync(repoPath);
+  const cacheDeviceId = readDeviceIdSync(cacheRoot);
+  const repoCacheDeviceId = readDeviceIdSync(repoCacheRoot);
+  const deviceIds = [repoDeviceId, cacheDeviceId, repoCacheDeviceId].filter((value) => value != null);
+  const uniqueDeviceIds = Array.from(new Set(deviceIds));
+  const crossDeviceRisk = uniqueDeviceIds.length > 1;
+  return {
+    runtime: getAtomicWriteRuntimeMetrics(),
+    layout: {
+      repoPath: repoPath ? path.resolve(repoPath) : null,
+      cacheRoot: cacheRoot ? path.resolve(cacheRoot) : null,
+      repoCacheRoot: repoCacheRoot ? path.resolve(repoCacheRoot) : null,
+      deviceIds: {
+        repo: repoDeviceId,
+        cache: cacheDeviceId,
+        repoCache: repoCacheDeviceId
+      },
+      crossDeviceRisk,
+      reason: crossDeviceRisk ? 'device_mismatch' : 'shared_device'
+    }
+  };
+};
 
 export const resetAtomicWriteRuntimeMetricsForTests = () => {
   exdevRenameFallbackCount = 0;
+  lastExdevFallbackAt = null;
+  lastExdevFallbackPath = null;
 };

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import {
+  getAtomicWriteDurabilityStatus,
   atomicWriteJson,
   atomicWriteJsonSync,
   atomicWriteText,
@@ -11,6 +12,7 @@ import {
   getAtomicWriteRuntimeMetrics,
   resetAtomicWriteRuntimeMetricsForTests
 } from '../../../src/shared/io/atomic-write.js';
+import { getMetricsText } from '../../../src/shared/metrics.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -96,6 +98,29 @@ assert.equal(
   getAtomicWriteRuntimeMetrics().exdevRenameFallbackCount >= 1,
   true,
   'expected EXDEV rename fallback metric to be incremented'
+);
+assert.equal(
+  getAtomicWriteRuntimeMetrics().degradedDurability,
+  true,
+  'expected EXDEV rename fallback to mark degraded durability'
+);
+assert.equal(
+  typeof getAtomicWriteRuntimeMetrics().lastExdevFallbackAt,
+  'string',
+  'expected EXDEV fallback timestamp to be recorded'
+);
+const durabilityStatus = getAtomicWriteDurabilityStatus({
+  repoPath: tempRoot,
+  cacheRoot: tempRoot,
+  repoCacheRoot: tempRoot
+});
+assert.equal(durabilityStatus.runtime?.degradedDurability, true, 'expected durability status to expose degraded runtime state');
+assert.equal(durabilityStatus.layout?.crossDeviceRisk, false, 'expected same-root durability status to remain non-risky');
+const metricsText = await getMetricsText();
+assert.match(
+  metricsText,
+  /pairofcleats_atomic_persistence_fallbacks_total\{reason="exdev"\} 1/,
+  'expected EXDEV fallback to surface in Prometheus metrics'
 );
 
 const epermPath = path.join(tempRoot, 'eperm.txt');
