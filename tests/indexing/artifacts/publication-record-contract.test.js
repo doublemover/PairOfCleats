@@ -7,6 +7,7 @@ import os from 'node:os';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import {
   ARTIFACT_PUBLICATION_FAMILY_CONTRACTS_VERSION,
+  ARTIFACT_PUBLICATION_STATUSES,
   readArtifactPublicationRecord,
   resolveArtifactPublicationPath,
   resolveArtifactPublicationValidationPath,
@@ -118,6 +119,20 @@ try {
     failures: []
   });
   assert.equal(publication.publishedAt, '2026-03-22T00:00:00.000Z');
+
+  await writeArtifactPublicationRecord({
+    buildRoot,
+    outDir,
+    mode: 'code',
+    stage: 'stage2',
+    buildId: 'build-1',
+    pieceEntries: [{ type: 'chunks', name: 'chunk_meta', format: 'json', path: 'chunk_meta.json' }],
+    manifestPath,
+    status: ARTIFACT_PUBLICATION_STATUSES.VALIDATED
+  });
+  const validatedPublication = await readArtifactPublicationRecord(buildRoot, 'code');
+  assert.equal(validatedPublication.status, ARTIFACT_PUBLICATION_STATUSES.VALIDATED);
+  assert.equal(validatedPublication.publishedAt, null);
 
   console.log('artifact publication record contract test passed');
 } finally {

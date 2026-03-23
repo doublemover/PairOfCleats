@@ -4,12 +4,47 @@ import { writeFileLists } from '../artifacts/file-lists.js';
 import { writeIndexMetrics } from '../artifacts/metrics.js';
 import { writePiecesManifest } from '../artifacts/checksums.js';
 import {
+  ARTIFACT_PUBLICATION_STATUSES,
+  resolveCommittedArtifactPaths,
   writeArtifactPublicationRecord,
   writeArtifactPublicationValidationReport
 } from '../artifact-publication.js';
 import { reconcileIndexIdentity } from '../../identity/reconcile.js';
 import { createOrderingHasher } from '../../../shared/order.js';
 import { recordOrderingHash } from '../build-state.js';
+
+const assertPublicationValidationSucceeded = (publicationValidation) => {
+  if (publicationValidation?.payload?.ok) return;
+  const payload = publicationValidation?.payload || {};
+  const failedFamily = Array.isArray(payload.families)
+    ? payload.families.find((entry) => entry?.ok === false)
+    : null;
+  if (failedFamily) {
+    const missing = failedFamily.missingRequiredMembers.join(', ');
+    throw new Error(
+      `[artifact-publication] ${failedFamily.family} missing required members: ${missing}`
+    );
+  }
+  if (Array.isArray(payload.checks?.missingManifestEntries) && payload.checks.missingManifestEntries.length) {
+    throw new Error(
+      `[artifact-publication] manifest missing committed entries: `
+      + `${payload.checks.missingManifestEntries.join(', ')}`
+    );
+  }
+  if (Array.isArray(payload.checks?.extraManifestEntries) && payload.checks.extraManifestEntries.length) {
+    throw new Error(
+      `[artifact-publication] manifest contains undeclared entries: `
+      + `${payload.checks.extraManifestEntries.join(', ')}`
+    );
+  }
+  if (Array.isArray(payload.checks?.missingCommittedPaths) && payload.checks.missingCommittedPaths.length) {
+    throw new Error(
+      `[artifact-publication] staged files missing on disk: `
+      + `${payload.checks.missingCommittedPaths.map((entry) => entry.path).join(', ')}`
+    );
+  }
+  throw new Error('[artifact-publication] validation failed');
+};
 
 export const createArtifactOrderingRecorder = ({
   buildRoot,
@@ -104,6 +139,8 @@ export const runArtifactPublicationFinalizers = async ({
     addPieceFile({ type: 'stats', name: 'filelists', format: 'json' }, fileListsPath);
   }
   let pieceEntries = listPieceEntries();
+  const publicationBuildRoot = buildRoot || path.resolve(outDir, '..');
+  const publicationManifestPath = path.join(outDir, 'pieces', 'manifest.json');
   await runTrackedArtifactCloseout('pieces-manifest', async () => writePiecesManifest({
     pieceEntries,
     outDir,
@@ -145,42 +182,15 @@ export const runArtifactPublicationFinalizers = async ({
   const publishedAt = new Date().toISOString();
   await runTrackedArtifactCloseout('artifact-publication-validation', async () => {
     publicationValidation = await writeArtifactPublicationValidationReport({
-      buildRoot: buildRoot || path.resolve(outDir, '..'),
+      buildRoot: publicationBuildRoot,
       outDir,
       mode,
       buildId: indexState?.buildId || null,
       pieceEntries,
-      manifestPath: path.join(outDir, 'pieces', 'manifest.json'),
+      manifestPath: publicationManifestPath,
       familyDeclarations
     });
-    if (!publicationValidation.payload.ok) {
-      const failedFamily = publicationValidation.payload.families.find((entry) => entry?.ok === false);
-      if (failedFamily) {
-        const missing = failedFamily.missingRequiredMembers.join(', ');
-        throw new Error(
-          `[artifact-publication] ${failedFamily.family} missing required members: ${missing}`
-        );
-      }
-      if (publicationValidation.payload.checks.missingManifestEntries.length) {
-        throw new Error(
-          `[artifact-publication] manifest missing committed entries: `
-          + `${publicationValidation.payload.checks.missingManifestEntries.join(', ')}`
-        );
-      }
-      if (publicationValidation.payload.checks.extraManifestEntries.length) {
-        throw new Error(
-          `[artifact-publication] manifest contains undeclared entries: `
-          + `${publicationValidation.payload.checks.extraManifestEntries.join(', ')}`
-        );
-      }
-      if (publicationValidation.payload.checks.missingCommittedPaths.length) {
-        throw new Error(
-          `[artifact-publication] staged files missing on disk: `
-          + `${publicationValidation.payload.checks.missingCommittedPaths.map((entry) => entry.path).join(', ')}`
-        );
-      }
-      throw new Error('[artifact-publication] validation failed');
-    }
+    assertPublicationValidationSucceeded(publicationValidation);
   });
   const identityReconciliation = await assertArtifactIdentityReconciliationReady({
     runTrackedArtifactCloseout,
@@ -190,7 +200,7 @@ export const runArtifactPublicationFinalizers = async ({
   let publicationRecord = null;
   await runTrackedArtifactCloseout('artifact-publication', async () => {
     publicationRecord = await writeArtifactPublicationRecord({
-      buildRoot: buildRoot || path.resolve(outDir, '..'),
+      buildRoot: publicationBuildRoot,
       outDir,
       mode,
       stage: indexState?.stage || null,
@@ -198,7 +208,7 @@ export const runArtifactPublicationFinalizers = async ({
       artifactSurfaceVersion: indexState?.artifactSurfaceVersion || null,
       compatibilityKey: indexState?.compatibilityKey || null,
       pieceEntries,
-      manifestPath: path.join(outDir, 'pieces', 'manifest.json'),
+      manifestPath: publicationManifestPath,
       publicationValidation,
       identityReconciliation,
       cleanup: {
@@ -210,18 +220,45 @@ export const runArtifactPublicationFinalizers = async ({
         failedActions: 0,
         failures: []
       },
-      publishedAt
+      status: ARTIFACT_PUBLICATION_STATUSES.VALIDATED,
+      publishedAt: null
     });
   });
   let cleanupCommit = null;
   if (typeof commitArtifactCleanup === 'function') {
     await runTrackedArtifactCloseout('artifact-cleanup-commit', async () => {
-      cleanupCommit = await commitArtifactCleanup();
+      cleanupCommit = await commitArtifactCleanup({
+        immutablePaths: resolveCommittedArtifactPaths({
+          buildRoot: publicationBuildRoot,
+          outDir,
+          pieceEntries,
+          manifestPath: publicationManifestPath
+        })
+      });
+      if (Number(cleanupCommit?.failedActions || 0) > 0) {
+        throw new Error(
+          `[artifact-cleanup] cleanup failed for current generation: `
+          + `${cleanupCommit.failures.map((entry) => entry.message).join(' | ')}`
+        );
+      }
     });
   }
+  let finalPublicationValidation = publicationValidation;
+  await runTrackedArtifactCloseout('artifact-publication-post-cleanup-validation', async () => {
+    finalPublicationValidation = await writeArtifactPublicationValidationReport({
+      buildRoot: publicationBuildRoot,
+      outDir,
+      mode,
+      buildId: indexState?.buildId || null,
+      pieceEntries,
+      manifestPath: publicationManifestPath,
+      familyDeclarations
+    });
+    assertPublicationValidationSucceeded(finalPublicationValidation);
+  });
   await runTrackedArtifactCloseout('artifact-publication-record-finalize', async () => {
     publicationRecord = await writeArtifactPublicationRecord({
-      buildRoot: buildRoot || path.resolve(outDir, '..'),
+      buildRoot: publicationBuildRoot,
       outDir,
       mode,
       stage: indexState?.stage || null,
@@ -229,8 +266,8 @@ export const runArtifactPublicationFinalizers = async ({
       artifactSurfaceVersion: indexState?.artifactSurfaceVersion || null,
       compatibilityKey: indexState?.compatibilityKey || null,
       pieceEntries,
-      manifestPath: path.join(outDir, 'pieces', 'manifest.json'),
-      publicationValidation,
+      manifestPath: publicationManifestPath,
+      publicationValidation: finalPublicationValidation,
       identityReconciliation,
       cleanup: cleanupCommit || {
         status: 'not-required',
@@ -239,12 +276,13 @@ export const runArtifactPublicationFinalizers = async ({
         failedActions: 0,
         failures: []
       },
+      status: ARTIFACT_PUBLICATION_STATUSES.PUBLISHED,
       publishedAt
     });
   });
   return {
     pieceEntries,
-    publicationValidation,
+    publicationValidation: finalPublicationValidation,
     identityReconciliation,
     cleanupCommit,
     publicationRecord

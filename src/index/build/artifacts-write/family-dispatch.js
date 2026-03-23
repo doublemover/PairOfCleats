@@ -142,27 +142,46 @@ export const prepareArtifactCleanup = async ({
     }
     const action = recordCleanupAction({ targetPath, recursive, policy, phase: 'staged' });
     logLine?.(`[artifact-cleanup] stage remove ${targetPath}`, { kind: 'status' });
-    stagedCleanupOperations.push(async () => {
-      await removeArtifactNow(targetPath, { recursive, policy });
-      return action;
+    stagedCleanupOperations.push({
+      action,
+      targetPath: path.resolve(targetPath),
+      run: async () => {
+        await removeArtifactNow(targetPath, { recursive, policy });
+        return action;
+      }
     });
     syncCleanupState();
     return { ok: true, staged: true, targetPath };
   };
   const commitArtifactCleanup = async ({
-    concurrency = 3
+    concurrency = 3,
+    immutablePaths = []
   } = {}) => {
     const failures = [];
     let completedActions = 0;
     const tasks = stagedCleanupOperations.splice(0, stagedCleanupOperations.length);
+    const immutablePathSet = new Set(
+      (Array.isArray(immutablePaths) ? immutablePaths : [])
+        .filter((targetPath) => typeof targetPath === 'string' && targetPath.trim())
+        .map((targetPath) => path.resolve(targetPath))
+    );
     const batchSize = Number.isFinite(Number(concurrency))
       ? Math.max(1, Math.floor(Number(concurrency)))
       : 3;
     for (let index = 0; index < tasks.length; index += batchSize) {
       const batch = tasks.slice(index, index + batchSize);
       const results = await Promise.all(batch.map(async (task) => {
+        if (immutablePathSet.has(task.targetPath)) {
+          return {
+            ok: false,
+            error: new Error(
+              `[artifact-cleanup] refusing to remove committed artifact from current generation: `
+              + `${toPosix(path.relative(outDir, task.targetPath))}`
+            )
+          };
+        }
         try {
-          await task();
+          await task.run();
           return { ok: true };
         } catch (error) {
           return { ok: false, error };

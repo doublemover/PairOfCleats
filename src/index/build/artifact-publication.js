@@ -7,6 +7,10 @@ import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 
 export const ARTIFACT_PUBLICATION_SCHEMA_VERSION = 1;
 export const ARTIFACT_PUBLICATION_FAMILY_CONTRACTS_VERSION = 1;
+export const ARTIFACT_PUBLICATION_STATUSES = Object.freeze({
+  VALIDATED: 'validated',
+  PUBLISHED: 'published'
+});
 
 export const resolveArtifactPublicationPath = (buildRoot, mode) => (
   path.join(buildRoot, `artifact-publication.${String(mode || 'unknown')}.json`)
@@ -21,6 +25,22 @@ const ensureCommittedPieceEntries = (pieceEntries) => (
     ? pieceEntries.filter((entry) => typeof entry?.path === 'string' && entry.path.trim())
     : []
 );
+
+export const resolveCommittedArtifactPaths = ({
+  buildRoot,
+  outDir,
+  pieceEntries = [],
+  manifestPath = null
+} = {}) => {
+  if (!buildRoot || !outDir) return [];
+  const resolvedManifestPath = manifestPath || path.join(outDir, 'pieces', 'manifest.json');
+  const committedPieceEntries = ensureCommittedPieceEntries(pieceEntries);
+  const requiredPaths = [resolvedManifestPath];
+  for (const entry of committedPieceEntries) {
+    requiredPaths.push(path.join(outDir, entry.path));
+  }
+  return Array.from(new Set(requiredPaths.map((targetPath) => path.resolve(targetPath))));
+};
 
 const normalizeFamilyMembers = (values) => Array.from(new Set(
   (Array.isArray(values) ? values : [])
@@ -191,6 +211,7 @@ export const writeArtifactPublicationRecord = async ({
   identityReconciliation = null,
   publicationValidation = null,
   cleanup = null,
+  status = ARTIFACT_PUBLICATION_STATUSES.PUBLISHED,
   publishedAt = null
 }) => {
   if (!buildRoot || !outDir || !mode) {
@@ -198,10 +219,15 @@ export const writeArtifactPublicationRecord = async ({
   }
   const committedPieceEntries = ensureCommittedPieceEntries(pieceEntries);
   const resolvedManifestPath = manifestPath || path.join(outDir, 'pieces', 'manifest.json');
-  const requiredPaths = [resolvedManifestPath];
-  for (const entry of committedPieceEntries) {
-    requiredPaths.push(path.join(outDir, entry.path));
-  }
+  const normalizedStatus = Object.values(ARTIFACT_PUBLICATION_STATUSES).includes(status)
+    ? status
+    : ARTIFACT_PUBLICATION_STATUSES.PUBLISHED;
+  const requiredPaths = resolveCommittedArtifactPaths({
+    buildRoot,
+    outDir,
+    pieceEntries: committedPieceEntries,
+    manifestPath: resolvedManifestPath
+  });
   for (const requiredPath of requiredPaths) {
     try {
       await fs.stat(requiredPath);
@@ -217,7 +243,7 @@ export const writeArtifactPublicationRecord = async ({
     schemaVersion: ARTIFACT_PUBLICATION_SCHEMA_VERSION,
     mode,
     stage,
-    status: 'published',
+    status: normalizedStatus,
     buildId: buildId || null,
     generationId: resolveGenerationId({ buildId, buildRoot, mode }),
     buildRoot: path.resolve(buildRoot),
@@ -257,7 +283,9 @@ export const writeArtifactPublicationRecord = async ({
       }
       : null,
     pieceCount: committedPieceEntries.length,
-    publishedAt: publishedAt || new Date().toISOString()
+    publishedAt: normalizedStatus === ARTIFACT_PUBLICATION_STATUSES.PUBLISHED
+      ? (publishedAt || new Date().toISOString())
+      : null
   };
   const publicationPath = resolveArtifactPublicationPath(buildRoot, mode);
   await atomicWriteJson(publicationPath, payload, { spaces: 2, newline: true });
