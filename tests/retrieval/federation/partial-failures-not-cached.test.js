@@ -76,6 +76,7 @@ const baseRequest = {
 
 const first = await runFederatedSearch(baseRequest, { searchFn });
 assert.equal(first.ok, true);
+assert.equal(first.status, 'partial');
 assert.equal(first.code.length, 1, 'first request should succeed with partial results');
 assert.ok(
   first.repos.some((entry) => entry.repoId && entry.status === 'missing_index'),
@@ -84,6 +85,7 @@ assert.ok(
 
 const second = await runFederatedSearch(baseRequest, { searchFn });
 assert.equal(second.ok, true);
+assert.equal(second.status, 'complete');
 assert.equal(second.code.length, 2, 'second request should re-run fanout and include recovered repo');
 assert.equal(searchCalls, 4, 'partial first response should not be reused from cache');
 

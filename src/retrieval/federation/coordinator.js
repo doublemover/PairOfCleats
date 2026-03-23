@@ -260,6 +260,84 @@ const sortDiagnostics = (entries) => entries.slice().sort((a, b) => (
   || String(a?.status || '').localeCompare(String(b?.status || ''))
 ));
 
+const sortModes = (modes) => Array.from(new Set(toArray(modes).filter(Boolean))).sort();
+
+const buildRepoFreshness = (manifestRepo, requestedModes = [], manifestGeneratedAt = null) => {
+  if (!manifestRepo || typeof manifestRepo !== 'object') {
+    return {
+      buildId: null,
+      currentJsonMtimeMs: null,
+      manifestGeneratedAt,
+      byMode: {}
+    };
+  }
+  const modeKeys = requestedModes.length
+    ? requestedModes
+    : Object.keys(manifestRepo.indexes || {});
+  const byMode = {};
+  for (const mode of modeKeys) {
+    const indexEntry = manifestRepo.indexes?.[mode] || null;
+    const sqliteEntry = manifestRepo.sqlite?.dbs?.[mode] || null;
+    byMode[mode] = {
+      present: indexEntry?.present === true,
+      indexSignatureHash: indexEntry?.indexSignatureHash || null,
+      availabilityReason: indexEntry?.availabilityReason || 'missing-index-dir',
+      sqlitePresent: sqliteEntry?.present === true,
+      sqliteFileSignature: sqliteEntry?.fileSignature || null
+    };
+  }
+  return {
+    buildId: manifestRepo.build?.buildId || null,
+    currentJsonMtimeMs: Number.isFinite(Number(manifestRepo.build?.currentJsonMtimeMs))
+      ? Number(manifestRepo.build.currentJsonMtimeMs)
+      : null,
+    manifestGeneratedAt,
+    byMode
+  };
+};
+
+const resolveRepoCompleteness = ({
+  status,
+  eligibleModes = [],
+  fulfilledModes = [],
+  unavailableModes = [],
+  executionFailures = [],
+  hitCount = 0
+}) => {
+  if (status === 'error' || status === 'missing_index') {
+    return 'partial';
+  }
+  if (status === 'skipped') {
+    return unavailableModes.length ? 'degraded' : 'empty';
+  }
+  if (executionFailures.length) {
+    return 'partial';
+  }
+  if (unavailableModes.length || eligibleModes.length !== fulfilledModes.length) {
+    return 'degraded';
+  }
+  if (hitCount === 0) {
+    return 'empty';
+  }
+  return 'complete';
+};
+
+const resolveFederatedResponseStatus = ({
+  repoReports = [],
+  totalHits = 0
+}) => {
+  if (repoReports.some((entry) => entry?.completeness === 'partial')) {
+    return 'partial';
+  }
+  if (repoReports.some((entry) => entry?.completeness === 'degraded')) {
+    return 'degraded';
+  }
+  if (totalHits === 0) {
+    return 'empty';
+  }
+  return 'complete';
+};
+
 const isFederatedAbortError = (error, signal = null) => (
   isAbortError(error)
   || error?.code === ERROR_CODES.CANCELLED
@@ -545,10 +623,67 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     return sharedCaches;
   };
   const searchFn = typeof context.searchFn === 'function' ? context.searchFn : coreSearch;
-  const diagnostics = [];
   const perRepoResults = [];
   const perRepoErrors = [];
   const repoMap = new Map(workspaceConfig.repos.map((repo) => [repo.repoId, repo]));
+  const repoOutcomes = new Map();
+  const manifestRepoMap = new Map(
+    toArray(manifest.repos).map((entry) => [entry?.repoId, entry])
+  );
+
+  const recordRepoOutcome = (repoId, patch) => {
+    const existing = repoOutcomes.get(repoId) || { repoId };
+    repoOutcomes.set(repoId, {
+      ...existing,
+      ...patch
+    });
+  };
+
+  const buildRepoReports = () => sortDiagnostics(selection.selectedRepos.map((repo) => {
+    const manifestRepo = manifestRepoMap.get(repo.repoId) || null;
+    const outcome = repoOutcomes.get(repo.repoId) || null;
+    const eligibleModes = sortModes(repoEligibleModesById.get(repo.repoId) || []);
+    const fulfilledModes = sortModes(outcome?.fulfilledModes || []);
+    const unavailableModes = requestedModes
+      .filter((mode) => !eligibleModes.includes(mode))
+      .map((mode) => ({
+        mode,
+        availabilityReason: manifestRepo?.indexes?.[mode]?.availabilityReason || 'not-eligible-for-request'
+      }));
+    const executionFailures = Array.isArray(outcome?.executionFailures)
+      ? outcome.executionFailures.slice()
+      : [];
+    const hitCounts = outcome?.hitCounts || {
+      code: 0,
+      prose: 0,
+      extractedProse: 0,
+      records: 0
+    };
+    const hitCount = Object.values(hitCounts).reduce((sum, value) => sum + Number(value || 0), 0);
+    const status = outcome?.status || 'skipped';
+    return {
+      repoId: repo.repoId,
+      status,
+      completeness: resolveRepoCompleteness({
+        status,
+        eligibleModes,
+        fulfilledModes,
+        unavailableModes,
+        executionFailures,
+        hitCount
+      }),
+      freshness: buildRepoFreshness(manifestRepo, requestedModes, manifest.generatedAt),
+      modes: {
+        requested: requestedModes.slice(),
+        eligible: eligibleModes,
+        fulfilled: fulfilledModes,
+        unavailable: unavailableModes,
+        executionFailures,
+        hitCounts
+      },
+      error: outcome?.error || null
+    };
+  }));
 
   if (!activeRepoIds.length) {
     const workspaceMeta = {
@@ -559,6 +694,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     const emptyResponse = {
       ok: true,
       backend: 'federated',
+      status: null,
       meta: {
         repoSetId: workspaceConfig.repoSetId,
         manifestHash: manifest.manifestHash,
@@ -580,14 +716,29 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
           concurrency,
           merge: request.merge?.strategy || 'rrf',
           rrfK
-        }
+        },
+        completeness: null
       },
       code: [],
       prose: [],
       extractedProse: [],
       records: [],
-      repos: [],
+      repos: buildRepoReports(),
       warnings: [...toArray(selection.warnings), ...toArray(cohortResult?.warnings)]
+    };
+    emptyResponse.status = resolveFederatedResponseStatus({
+      repoReports: emptyResponse.repos,
+      totalHits: 0
+    });
+    emptyResponse.meta.completeness = {
+      status: emptyResponse.status,
+      strict: strictFailures,
+      repoCounts: {
+        complete: emptyResponse.repos.filter((entry) => entry.completeness === 'complete').length,
+        partial: emptyResponse.repos.filter((entry) => entry.completeness === 'partial').length,
+        degraded: emptyResponse.repos.filter((entry) => entry.completeness === 'degraded').length,
+        empty: emptyResponse.repos.filter((entry) => entry.completeness === 'empty').length
+      }
     };
     const stable = toStableResponse(emptyResponse, includePaths);
     await persistCachedResult(stable);
@@ -620,12 +771,19 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
             if (strictFailures || aborted) {
               throw error;
             }
-            diagnostics.push({
-              repoId: repo.repoId,
+            recordRepoOutcome(repo.repoId, {
               status: error?.code === ERROR_CODES.NO_INDEX ? 'missing_index' : 'error',
               error: {
                 code: error?.code || ERROR_CODES.INTERNAL,
                 message: error?.message || String(error)
+              },
+              fulfilledModes: [],
+              executionFailures: [],
+              hitCounts: {
+                code: 0,
+                prose: 0,
+                extractedProse: 0,
+                records: 0
               }
             });
             continue;
@@ -647,6 +805,8 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
           records: []
         };
         let firstRepoError = null;
+        const fulfilledModes = new Set();
+        const executionFailures = [];
         for (const plan of modePlans) {
           const repoArgs = applyModeOverride(basePerRepoArgs, plan.modeFlag);
           try {
@@ -665,6 +825,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
               if (!key) continue;
               const hits = Array.isArray(result?.[key]) ? result[key] : [];
               if (hits.length) combined[key].push(...hits);
+              fulfilledModes.add(mode);
             }
             callSucceeded = true;
           } catch (error) {
@@ -677,6 +838,11 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
             if (strictFailures || aborted) {
               throw error;
             }
+            executionFailures.push({
+              modes: Array.from(plan.modesCovered).sort(),
+              code: error?.code || ERROR_CODES.INTERNAL,
+              message: error?.message || String(error)
+            });
           }
         }
         if (!callSucceeded) {
@@ -684,12 +850,19 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
             ERROR_CODES.NO_INDEX,
             `Federated search failed for ${repo.repoId}: no eligible mode call succeeded.`
           );
-          diagnostics.push({
-            repoId: repo.repoId,
+          recordRepoOutcome(repo.repoId, {
             status: error?.code === ERROR_CODES.NO_INDEX ? 'missing_index' : 'error',
             error: {
               code: error?.code || ERROR_CODES.INTERNAL,
               message: error?.message || String(error)
+            },
+            fulfilledModes: [],
+            executionFailures,
+            hitCounts: {
+              code: 0,
+              prose: 0,
+              extractedProse: 0,
+              records: 0
             }
           });
           continue;
@@ -698,9 +871,22 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
           repoId: repo.repoId,
           repoAlias: repo.alias,
           priority: repo.priority || 0,
-          result: combined
+          result: combined,
+          fulfilledModes: Array.from(fulfilledModes).sort(),
+          executionFailures
         });
-        diagnostics.push({ repoId: repo.repoId, status: 'ok' });
+        recordRepoOutcome(repo.repoId, {
+          status: 'ok',
+          error: null,
+          fulfilledModes: Array.from(fulfilledModes).sort(),
+          executionFailures,
+          hitCounts: {
+            code: combined.code.length,
+            prose: combined.prose.length,
+            extractedProse: combined.extractedProse.length,
+            records: combined.records.length
+          }
+        });
       } catch (error) {
         throw error;
       }
@@ -753,6 +939,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   const response = {
     ok: true,
     backend: 'federated',
+    status: null,
     meta: {
       repoSetId: workspaceConfig.repoSetId,
       manifestHash: manifest.manifestHash,
@@ -774,14 +961,30 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
         concurrency,
         merge: request.merge?.strategy || 'rrf',
         rrfK
-      }
+      },
+      completeness: null
     },
     code: merged.code,
     prose: merged.prose,
     extractedProse: merged.extractedProse,
     records: merged.records,
-    repos: sortDiagnostics(diagnostics),
+    repos: buildRepoReports(),
     warnings: [...toArray(selection.warnings), ...toArray(cohortResult?.warnings)]
+  };
+  const totalHits = response.code.length + response.prose.length + response.extractedProse.length + response.records.length;
+  response.status = resolveFederatedResponseStatus({
+    repoReports: response.repos,
+    totalHits
+  });
+  response.meta.completeness = {
+    status: response.status,
+    strict: strictFailures,
+    repoCounts: {
+      complete: response.repos.filter((entry) => entry.completeness === 'complete').length,
+      partial: response.repos.filter((entry) => entry.completeness === 'partial').length,
+      degraded: response.repos.filter((entry) => entry.completeness === 'degraded').length,
+      empty: response.repos.filter((entry) => entry.completeness === 'empty').length
+    }
   };
 
   const stable = toStableResponse(response, includePaths);

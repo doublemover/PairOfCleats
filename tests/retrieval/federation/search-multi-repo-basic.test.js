@@ -83,6 +83,8 @@ const response = await runFederatedSearch({
 
 assert.equal(response.ok, true);
 assert.equal(response.backend, 'federated');
+assert.equal(response.status, 'partial');
+assert.equal(response.meta?.completeness?.status, 'partial');
 assert.equal(Array.isArray(response.code), true);
 assert.equal(response.code.length, 2, 'expected successful repos to contribute merged hits');
 assert.deepEqual(
@@ -106,5 +108,13 @@ assert.ok(
   diagnostics.some((entry) => entry.status === 'missing_index'),
   'missing indexes should be non-fatal diagnostics'
 );
+const alphaRepo = diagnostics.find((entry) => entry.repoId && entry.status === 'ok');
+assert.equal(alphaRepo?.completeness, 'complete');
+assert.equal(alphaRepo?.freshness?.buildId, 'test-build');
+assert.equal(alphaRepo?.modes?.requested?.includes('code'), true);
+assert.equal(alphaRepo?.modes?.fulfilled?.includes('code'), true);
+const missingRepo = diagnostics.find((entry) => entry.status === 'missing_index');
+assert.equal(missingRepo?.completeness, 'partial');
+assert.equal(missingRepo?.modes?.executionFailures?.length, 1);
 
 console.log('federated search multi-repo basic test passed');
