@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
+  BUILD_ROOT_SELECTION_SCOPES,
   findLatestBuildRootWithIndexes,
+  resolveCanonicalBuildRoot,
   resolveCacheScopedBuildIdRoot,
   resolveCacheScopedBuildPointerRoot,
   resolveCurrentBuildRoots
@@ -85,6 +87,31 @@ assert.notEqual(
   normalizePath(buildIdOnly.buildRoot),
   normalizePath(rogueRoot),
   'expected rogue repo-cache sibling root to be ignored'
+);
+
+const canonical = resolveCanonicalBuildRoot({
+  repoCacheRoot,
+  buildsRoot,
+  buildInfo: {
+    buildId: buildIdOnly.buildId,
+    buildRoot: repoCacheRoot,
+    activeRoot: validRoot,
+    buildRoots: { code: repoCacheRoot }
+  },
+  preferredMode: 'code',
+  requireArtifacts: true,
+  allowLegacyRepoRootFallback: false
+});
+assert.equal(canonical.ok, true, 'expected canonical build root resolution to succeed');
+assert.equal(
+  canonical.scope,
+  BUILD_ROOT_SELECTION_SCOPES.ACTIVE_GENERATION,
+  'expected canonical resolver to prefer the active generation root'
+);
+assert.equal(
+  normalizePath(canonical.root),
+  normalizePath(validRoot),
+  'expected canonical resolver to avoid repo-root pointers when active generation exists'
 );
 
 await fs.rm(tempRoot, { recursive: true, force: true });

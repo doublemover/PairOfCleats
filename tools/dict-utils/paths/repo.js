@@ -5,8 +5,8 @@ import { findUpwards } from '../../../src/shared/fs/find-upwards.js';
 import { joinPathSafe } from '../../../src/shared/path-normalize.js';
 import { normalizeIdentityPath, toRealPathSync } from '../../../src/workspace/identity.js';
 import {
-  findLatestBuildRootWithIndexes,
-  hasModeIndexDir,
+  BUILD_ROOT_SELECTION_SCOPES,
+  resolveCanonicalBuildRoot,
   resolveCurrentBuildRoots
 } from '../../../src/shared/indexing/build-pointer.js';
 import crypto from 'node:crypto';
@@ -18,10 +18,9 @@ export const BUILD_ROOT_RESOLUTION_FAILURES = Object.freeze({
   missingModeArtifacts: 'missing_mode_artifacts',
   disallowedRepoRootFallback: 'disallowed_repo_root_fallback'
 });
+export const BUILD_ROOT_SELECTION_SCOPE = BUILD_ROOT_SELECTION_SCOPES;
 
 const sameIdentityPath = (left, right) => normalizeIdentityPath(left) === normalizeIdentityPath(right);
-
-const coerceExistingPath = (value) => (value && fs.existsSync(value) ? value : null);
 
 const isDisallowedBuildRootCandidate = (candidate, repoCacheRoot, buildsRoot) => {
   if (!candidate) return false;
@@ -57,28 +56,22 @@ export function resolveCurrentBuildModeRoot(repoRoot, userConfig = null, options
     };
   }
   const requireArtifacts = options.requireArtifacts !== false;
-  const disallowRepoRootFallback = options.disallowRepoRootFallback === true;
   const runtimeBuildRoot = options.runtimeBuildRoot ? path.resolve(options.runtimeBuildRoot) : null;
-  const candidates = [
-    { source: 'mode-root', root: mode ? buildInfo.buildRoots?.[mode] : null },
-    { source: 'active-root', root: buildInfo.activeRoot || null },
-    { source: 'runtime-build-root', root: runtimeBuildRoot },
-    { source: 'build-root', root: buildInfo.buildRoot || null }
-  ];
-  const attempted = [];
-  for (const entry of candidates) {
-    const candidate = coerceExistingPath(entry.root);
-    if (!candidate) continue;
-    const artifactReady = !requireArtifacts || hasModeIndexDir(candidate, mode);
-    attempted.push({
-      source: entry.source,
-      root: candidate,
-      artifactReady,
-      disallowed: disallowRepoRootFallback
-        ? isDisallowedBuildRootCandidate(candidate, repoCacheRoot, buildsRoot)
-        : false
-    });
-  }
+  const allowLegacyRepoRootFallback = options.allowLegacyRepoRootFallback === true;
+  const attempted = resolveCanonicalBuildRoot({
+    repoCacheRoot,
+    buildsRoot,
+    buildInfo,
+    preferredMode: mode,
+    runtimeBuildRoot,
+    requireArtifacts,
+    allowLegacyRepoRootFallback
+  }).attempted.map((entry) => ({
+    ...entry,
+    disallowed: options.disallowRepoRootFallback === true
+      ? isDisallowedBuildRootCandidate(entry.root, repoCacheRoot, buildsRoot)
+      : entry.disallowed
+  }));
   const disallowedCandidate = attempted.find((entry) => entry.disallowed);
   const selected = attempted.find((entry) => entry.artifactReady && !entry.disallowed);
   if (selected) {
@@ -86,12 +79,14 @@ export function resolveCurrentBuildModeRoot(repoRoot, userConfig = null, options
       ok: true,
       root: selected.root,
       source: selected.source,
+      scope: selected.scope,
       errorCode: null,
       context: {
         mode,
         buildId: buildInfo.buildId || null,
-        attempted: attempted.map(({ source, root, artifactReady, disallowed }) => ({
+        attempted: attempted.map(({ source, scope, root, artifactReady, disallowed }) => ({
           source,
+          scope,
           root,
           artifactReady,
           disallowed
@@ -103,6 +98,7 @@ export function resolveCurrentBuildModeRoot(repoRoot, userConfig = null, options
     ok: false,
     root: null,
     source: null,
+    scope: null,
     errorCode: attempted.some((entry) => entry.artifactReady === false)
       ? BUILD_ROOT_RESOLUTION_FAILURES.missingModeArtifacts
       : (disallowedCandidate
@@ -111,8 +107,9 @@ export function resolveCurrentBuildModeRoot(repoRoot, userConfig = null, options
     context: {
       mode,
       buildId: buildInfo.buildId || null,
-      attempted: attempted.map(({ source, root, artifactReady, disallowed }) => ({
+      attempted: attempted.map(({ source, scope, root, artifactReady, disallowed }) => ({
         source,
+        scope,
         root,
         artifactReady,
         disallowed
@@ -254,7 +251,8 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
   const resolved = resolveCurrentBuildModeRoot(repoRoot, userConfig, {
     mode: preferredMode,
     requireArtifacts: true,
-    disallowRepoRootFallback: false
+    disallowRepoRootFallback: false,
+    allowLegacyRepoRootFallback: options.allowLegacyRepoRootFallback === true
   });
   if (resolved.ok && resolved.root) {
     return resolved.root;

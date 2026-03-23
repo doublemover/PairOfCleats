@@ -1,5 +1,10 @@
 import { buildSqliteIndex } from '../../src/integrations/core/index.js';
-import { getCurrentBuildInfo, loadUserConfig, resolveIndexRoot } from '../../tools/shared/dict-utils.js';
+import {
+  getCurrentBuildInfo,
+  loadUserConfig,
+  resolveCurrentBuildModeRoot,
+  resolveIndexRoot
+} from '../../tools/shared/dict-utils.js';
 import { withTemporaryEnv } from './test-env.js';
 
 export const resolveSqliteIndexRoot = (repoRoot, mode = null, explicitIndexRoot = null) => {
@@ -11,6 +16,15 @@ export const resolveSqliteIndexRoot = (repoRoot, mode = null, explicitIndexRoot 
   const buildInfo = getCurrentBuildInfo(repoRoot, userConfig, { mode: modeHint });
   if (buildInfo?.activeRoot) {
     return buildInfo.activeRoot;
+  }
+  const activeGeneration = resolveCurrentBuildModeRoot(repoRoot, userConfig, {
+    mode: modeHint || null,
+    requireArtifacts: true,
+    disallowRepoRootFallback: true,
+    allowLegacyRepoRootFallback: false
+  });
+  if (activeGeneration.ok && activeGeneration.root) {
+    return activeGeneration.root;
   }
   try {
     const fallbackRoot = resolveIndexRoot(repoRoot, userConfig);

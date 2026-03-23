@@ -129,6 +129,7 @@ const buildEmptyPointerState = (currentJsonPath) => ({
   invalidPointer: false,
   buildId: null,
   buildRoot: null,
+  activeRoot: null,
   buildRoots: {},
   modes: []
 });
@@ -197,6 +198,7 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
     pointer.invalidPointer = true;
     pointer.buildId = null;
     pointer.buildRoot = null;
+    pointer.activeRoot = null;
     pointer.buildRoots = {};
     pointer.modes = [];
     diagnostics.warnings.push({
@@ -240,6 +242,16 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
         );
       }
       pointer.buildRoot = toRealPathSync(resolvedCurrentBuildRoot);
+    }
+    if (currentInfo.activeRoot) {
+      const resolvedActiveRoot = resolveCacheScopedBuildPointerRoot(
+        currentInfo.activeRoot,
+        repoCacheRoot,
+        buildsRoot
+      );
+      if (resolvedActiveRoot) {
+        pointer.activeRoot = toRealPathSync(resolvedActiveRoot);
+      }
     }
     for (const [mode, rootValue] of Object.entries(ensureObject(currentInfo.buildRoots))) {
       const normalized = normalizeString(rootValue);
@@ -300,7 +312,9 @@ const buildModeEntry = async ({
     || pointer.modes.length === 0
     || pointer.modes.includes(mode)
   );
-  const indexRoot = pointer.buildRoots[mode] || (modeFromBuildRoot ? pointer.buildRoot : null);
+  const indexRoot = pointer.activeRoot
+    || pointer.buildRoots[mode]
+    || (modeFromBuildRoot ? pointer.buildRoot : null);
   const indexDir = indexRoot ? path.join(indexRoot, `index-${mode}`) : null;
   const indexStat = indexDir ? await statIfExists(indexDir) : null;
   const hasIndexDir = Boolean(indexStat?.isDirectory?.());
@@ -408,6 +422,7 @@ const buildRepoManifestEntry = async (repoEntry, diagnostics) => {
       parseOk: pointer.parseOk,
       buildId: pointer.buildId,
       buildRoot: pointer.buildRoot,
+      activeRoot: pointer.activeRoot,
       buildRoots: pointer.buildRoots,
       modes: pointer.modes
     },

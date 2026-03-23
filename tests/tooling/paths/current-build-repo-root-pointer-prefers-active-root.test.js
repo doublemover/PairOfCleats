@@ -66,6 +66,7 @@ const modeResolution = resolveCurrentBuildModeRoot(repoRoot, userConfig, {
 });
 assert.equal(modeResolution.ok, true, 'expected structured mode resolution to succeed');
 assert.equal(modeResolution.source, 'active-root', 'expected mode resolution to attribute selection to activeRoot');
+assert.equal(modeResolution.scope, 'active-generation', 'expected active generation scope');
 assert.equal(
   normalizePath(modeResolution.root),
   normalizePath(activeRoot),
