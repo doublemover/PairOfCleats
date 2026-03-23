@@ -36,6 +36,15 @@ try {
     assert.equal(output?.diagnostics?.preflight?.workspaceKind, 'package_managed_workspace');
     assert.equal(output?.diagnostics?.preflight?.preflightState, 'blocked_dependency');
     assert.equal(output?.diagnostics?.preflight?.reasonCode, 'sourcekit_blocked_dependency');
+    assert.equal(output?.diagnostics?.fidelity?.preflight?.workspaceKind, 'package_managed_workspace');
+    assert.equal(output?.diagnostics?.fidelity?.preflight?.dependencyState, 'required');
+    assert.equal(
+      Array.isArray(output?.diagnostics?.fidelity?.runtimeIssues)
+      && output.diagnostics.fidelity.runtimeIssues.includes('package_resolution_blocked')
+      && output.diagnostics.fidelity.runtimeIssues.includes('dependency_resolution_required'),
+      true,
+      'expected fidelity contract to preserve blocked dependency classification'
+    );
     assert.equal(
       logs.some((line) => line.includes('sourcekit skipped because package preflight did not complete safely')),
       true,

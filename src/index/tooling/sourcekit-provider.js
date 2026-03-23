@@ -273,6 +273,51 @@ const shouldSuppressSourcekitSemanticTokensForStartup = (preflight, sourcekitCon
   };
 };
 
+const resolveSourcekitRuntimeIssueClasses = ({
+  preflight = null,
+  checks = [],
+  semanticTokenStartupPolicy = null,
+  runtime = null
+} = {}) => {
+  const issueClasses = new Set();
+  const preflightState = String(preflight?.preflightState || '').trim().toLowerCase();
+  const preflightReasonCode = String(preflight?.reasonCode || '').trim().toLowerCase();
+  if (preflightReasonCode === 'sourcekit_preflight_lock_unavailable') {
+    issueClasses.add('package_preflight_lock_unavailable');
+  }
+  if (preflightReasonCode.startsWith('sourcekit_blocked_dependency')) {
+    issueClasses.add('package_resolution_blocked');
+  }
+  if (preflightReasonCode === 'sourcekit_blocked_network') {
+    issueClasses.add('package_resolution_network_blocked');
+  }
+  if (
+    preflightReasonCode === 'sourcekit_blocked_manifest'
+    || preflightReasonCode === 'sourcekit_blocked_manifest_unreadable'
+  ) {
+    issueClasses.add('package_manifest_blocked');
+  }
+  if (preflightState === 'blocked_dependency') {
+    issueClasses.add('dependency_resolution_required');
+  }
+  if (String(semanticTokenStartupPolicy?.reasonCode || '').trim() === 'sourcekit_semantic_tokens_suppressed_weak_startup') {
+    issueClasses.add('weak_startup_semantic_tokens_suppressed');
+  }
+  if (Array.isArray(checks) && checks.some((check) => check?.name === 'sourcekit_host_lock_unavailable')) {
+    issueClasses.add('host_lock_unavailable');
+  }
+  if (Number(runtime?.requests?.byMethod?.['textDocument/semanticTokens/full']?.timedOut || 0) > 0) {
+    issueClasses.add('semantic_tokens_timeout');
+  }
+  if (Number(runtime?.requests?.byMethod?.['textDocument/hover']?.timedOut || 0) > 0) {
+    issueClasses.add('hover_timeout');
+  }
+  if (Number(runtime?.guard?.tripCount || 0) > 0) {
+    issueClasses.add('circuit_breaker_tripped');
+  }
+  return Array.from(issueClasses).sort((left, right) => left.localeCompare(right));
+};
+
 export const createSourcekitProvider = () => ({
   id: 'sourcekit',
   preflightId: 'sourcekit.package-resolution',
@@ -494,7 +539,16 @@ export const createSourcekitProvider = () => ({
         state: PROVIDER_FIDELITY_STATE.BLOCKED,
         preflightState: 'blocked',
         reasonCode: preflight?.reasonCode || null,
-        captureDiagnostics: false
+        preflightDetails: {
+          state: 'blocked',
+          workspaceKind: preflight?.workspaceKind || null,
+          dependencyState: preflight?.dependencyState || null
+        },
+        captureDiagnostics: false,
+        runtimeIssueClasses: resolveSourcekitRuntimeIssueClasses({
+          preflight,
+          checks
+        })
       });
       return {
         provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
@@ -581,7 +635,16 @@ export const createSourcekitProvider = () => ({
           state: PROVIDER_FIDELITY_STATE.BLOCKED,
           reasonCode: 'sourcekit_host_lock_unavailable',
           captureDiagnostics: false,
-          checks
+          checks,
+          preflightDetails: {
+            state: preflight?.state || 'ready',
+            workspaceKind: preflight?.workspaceKind || null,
+            dependencyState: preflight?.dependencyState || null
+          },
+          runtimeIssueClasses: resolveSourcekitRuntimeIssueClasses({
+            preflight,
+            checks
+          })
         });
         return {
           provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
@@ -651,13 +714,24 @@ export const createSourcekitProvider = () => ({
         providerId: 'sourcekit',
         preflightState: preflight?.state || 'ready',
         reasonCode: preflight?.reasonCode || null,
+        preflightDetails: {
+          state: preflight?.preflightState || preflight?.state || 'ready',
+          workspaceKind: preflight?.workspaceKind || null,
+          dependencyState: preflight?.dependencyState || null
+        },
         runtime: result.runtime,
         checks: [...checks, ...(Array.isArray(result.checks) ? result.checks : [])],
         captureDiagnostics: false,
         byChunkUid: result.byChunkUid,
         skippedRequestClasses: semanticTokenStartupPolicy.suppress === true
           ? ['semanticTokens']
-          : []
+          : [],
+        runtimeIssueClasses: resolveSourcekitRuntimeIssueClasses({
+          preflight,
+          checks: [...checks, ...(Array.isArray(result.checks) ? result.checks : [])],
+          semanticTokenStartupPolicy,
+          runtime: result.runtime
+        })
       });
       const diagnostics = appendDiagnosticChecks(
         {

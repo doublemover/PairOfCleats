@@ -93,6 +93,13 @@ try {
     checks.some((check) => check?.name === 'sourcekit_host_lock_unavailable'),
     'expected sourcekit host lock unavailable check'
   );
+  assert.equal(output?.diagnostics?.fidelity?.state, 'blocked', 'expected fidelity contract to classify host lock failure as blocked');
+  assert.equal(
+    Array.isArray(output?.diagnostics?.fidelity?.runtimeIssues)
+    && output.diagnostics.fidelity.runtimeIssues.includes('host_lock_unavailable'),
+    true,
+    'expected fidelity contract to preserve host lock classification'
+  );
 } finally {
   await heldLock.release();
 }

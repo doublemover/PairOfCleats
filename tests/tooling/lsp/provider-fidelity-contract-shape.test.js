@@ -9,6 +9,11 @@ const contract = buildProviderFidelityContract({
   providerId: 'sourcekit',
   state: PROVIDER_FIDELITY_STATE.DEGRADED,
   reasonCode: 'sourcekit_preflight_lock_unavailable',
+  preflightDetails: {
+    state: 'blocked_dependency',
+    workspaceKind: 'package_managed_workspace',
+    dependencyState: 'required'
+  },
   workspaceKey: 'sourcekit:.',
   runtime: {
     capabilityGate: {
@@ -38,6 +43,7 @@ const contract = buildProviderFidelityContract({
 assert.equal(contract.contractVersion, 1);
 assert.equal(contract.providerId, 'sourcekit');
 assert.equal(contract.state, 'degraded');
+assert.equal(contract.preflight.workspaceKind, 'package_managed_workspace');
 assert.equal(contract.qualityDelta.partialSuccess, true);
 assert.equal(contract.blockedPartitions.count, 1);
 assert.equal(contract.workspaceCoverage.totalPartitions, 0);

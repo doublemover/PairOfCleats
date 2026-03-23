@@ -219,6 +219,7 @@ export const buildProviderFidelityContract = ({
   state = null,
   reasonCode = null,
   preflightState = null,
+  preflightDetails = null,
   workspaceRootRel = null,
   workspaceKey = null,
   fingerprint = null,
@@ -228,6 +229,7 @@ export const buildProviderFidelityContract = ({
   blockedWorkspaceKeys = [],
   blockedWorkspaceRoots = [],
   skippedRequestClasses = [],
+  runtimeIssueClasses = [],
   byChunkUid = null,
   contributes = null,
   downstreamMergeInterpretation = null
@@ -237,6 +239,17 @@ export const buildProviderFidelityContract = ({
     blockedWorkspaceKeys,
     blockedWorkspaceRoots
   });
+  const normalizedPreflightDetails = preflightDetails && typeof preflightDetails === 'object'
+    ? {
+      state: String(preflightDetails.state || preflightState || '').trim() || null,
+      workspaceKind: String(preflightDetails.workspaceKind || '').trim() || null,
+      dependencyState: String(preflightDetails.dependencyState || '').trim() || null
+    }
+    : {
+      state: String(preflightState || '').trim() || null,
+      workspaceKind: null,
+      dependencyState: null
+    };
   const workspaceCoverage = summarizeWorkspaceCoverage({
     runtime,
     blockedPartitions
@@ -264,6 +277,7 @@ export const buildProviderFidelityContract = ({
     ...skippedRequestClasses,
     ...summarizeCapabilityGateSkips(runtime)
   ]);
+  const normalizedRuntimeIssueClasses = uniqueStringList(runtimeIssueClasses);
   const contributedChunkCount = countByChunkUidEntries(byChunkUid);
   const resolvedContributes = contributes && typeof contributes === 'object'
     ? {
@@ -304,6 +318,7 @@ export const buildProviderFidelityContract = ({
     providerId: normalizeProviderId(providerId) || String(providerId || '').trim(),
     state: effectiveState,
     reasonCode: String(reasonCode || '').trim() || null,
+    preflight: normalizedPreflightDetails,
     workspaceRootRel: String(workspaceRootRel || '').trim() || null,
     workspaceKey: String(workspaceKey || '').trim() || null,
     fingerprint: String(fingerprint || '').trim() || null,
@@ -312,6 +327,7 @@ export const buildProviderFidelityContract = ({
     blockedPartitions,
     workspaceCoverage,
     skipped: normalizedSkipped,
+    runtimeIssues: normalizedRuntimeIssueClasses,
     qualityDelta: {
       partialSuccess,
       contributedChunkCount,
@@ -321,7 +337,8 @@ export const buildProviderFidelityContract = ({
       readyPartitionCount: workspaceCoverage.readyPartitionCount,
       totalPartitionCount: workspaceCoverage.totalPartitions,
       unmatchedDocumentCount: workspaceCoverage.unmatchedDocumentCount,
-      unmatchedTargetCount: workspaceCoverage.unmatchedTargetCount
+      unmatchedTargetCount: workspaceCoverage.unmatchedTargetCount,
+      runtimeIssueClasses: normalizedRuntimeIssueClasses
     },
     downstreamMergeInterpretation: mergeInterpretation
   };
