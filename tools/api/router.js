@@ -44,6 +44,7 @@ import {
  *  auth?:{token?:string|null,required?:boolean},
  *  allowedRepoRoots?:string[],
  *  maxBodyBytes?:number,
+ *  trustBoundary?:object|null,
  *  repoCache?:{maxEntries?:number,ttlMs?:number},
  *  indexCache?:{maxEntries?:number,ttlMs?:number},
  *  sqliteCache?:{maxEntries?:number,ttlMs?:number}
@@ -58,6 +59,7 @@ export const createApiRouter = ({
   auth = {},
   allowedRepoRoots = [],
   maxBodyBytes = 1_000_000,
+  trustBoundary = null,
   repoCache = {},
   indexCache = {},
   sqliteCache = {}
@@ -231,6 +233,7 @@ export const createApiRouter = ({
             name: 'PairOfCleats',
             version: toolVersion
           },
+          trustBoundary,
           capabilities: getApiWorkflowCapabilities({ runtimeCapabilities: runtimeManifest.runtimeCapabilities }),
           runtimeCapabilities: runtimeManifest.runtimeCapabilities,
           runtimeManifest

@@ -6,6 +6,7 @@ import { MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { getCapabilities } from '../../../src/shared/capabilities.js';
 import { getApiWorkflowCapabilities, getRuntimeCapabilityManifest } from '../../../src/shared/runtime-capability-manifest.js';
 import { getToolVersion } from '../../../tools/shared/dict-utils.js';
+import { evaluateApiTrustBoundary } from '../../../tools/api/trust-boundary.js';
 import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
 import { startApiServer } from '../../helpers/api-server.js';
 
@@ -22,6 +23,14 @@ const { fixtureRoot, env } = await ensureFixtureIndex({
 const expectedToolVersion = getToolVersion() || '0.0.0';
 const expectedRuntimeCapabilities = getCapabilities({ refresh: true });
 const expectedManifest = getRuntimeCapabilityManifest({ runtimeCapabilities: expectedRuntimeCapabilities });
+const expectedTrustBoundary = evaluateApiTrustBoundary({
+  host: '127.0.0.1',
+  defaultRepo: fixtureRoot,
+  allowedRepoRoots: [],
+  allowUnauthenticated: false,
+  authToken: 'test-token',
+  corsAllowAny: false
+});
 
 const { serverInfo, requestJson, stop } = await startApiServer({
   repoRoot: fixtureRoot,
@@ -57,6 +66,11 @@ try {
     capabilities.body?.runtimeManifest,
     expectedManifest,
     'api-server /capabilities runtime manifest mismatch'
+  );
+  assert.deepEqual(
+    capabilities.body?.trustBoundary,
+    expectedTrustBoundary,
+    'api-server /capabilities trust boundary mismatch'
   );
 } catch (err) {
   console.error(err?.message || err);
