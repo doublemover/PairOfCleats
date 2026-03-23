@@ -55,7 +55,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Watch for file changes and rebuild indexes incrementally.
- * @param {{runtime:object,modes:string[],pollMs:number,debounceMs:number,abortSignal?:AbortSignal|null,handleSignals?:boolean,deps?:object,onReady?:Function}} input
+ * @param {{runtime:object,modes:string[],pollMs:number,debounceMs:number,abortSignal?:AbortSignal|null,handleSignals?:boolean,deps?:object,onReady?:Function,onStateChange?:Function}} input
  */
 export async function watchIndex({
   runtime,
@@ -65,7 +65,8 @@ export async function watchIndex({
   abortSignal = null,
   handleSignals = true,
   deps = null,
-  onReady = null
+  onReady = null,
+  onStateChange = null
 }) {
   const resolvedDeps = {
     acquireIndexLockWithBackoff,
@@ -133,6 +134,65 @@ export async function watchIndex({
   let stabilityGuard = null;
   let updateScheduled = false;
   let updateRunning = false;
+  const watchState = {
+    consistency: 'consistent',
+    quiescent: true,
+    backlogDepth: 0,
+    pendingReplay: false,
+    running: false,
+    updateQueueRunning: false,
+    stabilityRetries: 0,
+    lastConsistentGeneration: null,
+    lastAttemptedGeneration: null,
+    activeGeneration: null,
+    lastEventAt: null,
+    shutdownSignal: null
+  };
+
+  const snapshotGeneration = (value) => (
+    value && typeof value === 'object'
+      ? {
+        buildId: value.buildId || null,
+        buildRoot: value.buildRoot || null,
+        status: value.status || null,
+        startedAt: value.startedAt || null,
+        finishedAt: value.finishedAt || null
+      }
+      : null
+  );
+
+  const emitWatchState = () => {
+    const backlogDepth = pendingPaths.size + stabilityRetryTimers.size;
+    const pendingReplay = pending
+      || updateScheduled
+      || updateRunning
+      || pendingUpdates.size > 0
+      || stabilityRetryTimers.size > 0;
+    const quiescent = !running && !pendingReplay && backlogDepth === 0;
+    const snapshot = {
+      consistency: quiescent ? 'consistent' : 'catching-up',
+      quiescent,
+      backlogDepth,
+      pendingReplay,
+      running,
+      updateQueueRunning: updateRunning,
+      stabilityRetries: stabilityRetryTimers.size,
+      lastConsistentGeneration: snapshotGeneration(watchState.lastConsistentGeneration),
+      lastAttemptedGeneration: snapshotGeneration(watchState.lastAttemptedGeneration),
+      activeGeneration: snapshotGeneration(watchState.activeGeneration),
+      lastEventAt: watchState.lastEventAt || null,
+      shutdownSignal
+    };
+    Object.assign(watchState, snapshot);
+    runtimeRef.watchState = snapshot;
+    if (runtime && typeof runtime === 'object') {
+      runtime.watchState = snapshot;
+    }
+    if (typeof onStateChange === 'function') {
+      onStateChange(snapshot);
+    }
+    return snapshot;
+  };
 
   const stop = () => {
     if (resolveExit) {
@@ -145,12 +205,15 @@ export async function watchIndex({
     if (shouldExit) return;
     shouldExit = true;
     shutdownSignal = signal;
+    watchState.shutdownSignal = signal;
     scheduler?.cancel?.();
     for (const timer of stabilityRetryTimers.values()) {
       clearTimeout(timer);
     }
     stabilityRetryTimers.clear();
     stabilityRetryCounts.clear();
+    setWatchBacklog(pendingPaths.size);
+    emitWatchState();
     if (activeBuildAbort && !activeBuildAbort.signal.aborted) {
       activeBuildAbort.abort();
     }
@@ -230,6 +293,7 @@ export async function watchIndex({
   const flushPendingUpdates = async () => {
     if (updateRunning) return;
     updateRunning = true;
+    emitWatchState();
     const drainPendingUpdateBatch = () => {
       const batch = Array.from(pendingUpdates);
       for (const absPath of batch) {
@@ -257,6 +321,7 @@ export async function watchIndex({
       }
     } finally {
       updateRunning = false;
+      emitWatchState();
     }
     if (pendingUpdates.size) {
       scheduleUpdateFlush();
@@ -266,8 +331,10 @@ export async function watchIndex({
   const scheduleUpdateFlush = () => {
     if (updateScheduled) return;
     updateScheduled = true;
+    emitWatchState();
     setImmediate(() => {
       updateScheduled = false;
+      emitWatchState();
       void flushPendingUpdates();
     });
   };
@@ -515,10 +582,12 @@ export async function watchIndex({
   const runBuild = async () => {
     if (running) {
       pending = true;
+      emitWatchState();
       return;
     }
     if (shouldExit) return;
     running = true;
+    emitWatchState();
     const startTime = process.hrtime.bigint();
     let status = 'ok';
     let lock = null;
@@ -550,6 +619,22 @@ export async function watchIndex({
         buildId: attempt.buildId,
         buildRoot: attempt.buildRoot
       };
+      const generationStart = new Date().toISOString();
+      watchState.activeGeneration = {
+        buildId: attempt.buildId,
+        buildRoot: attempt.buildRoot,
+        status: 'running',
+        startedAt: generationStart,
+        finishedAt: null
+      };
+      watchState.lastAttemptedGeneration = {
+        buildId: attempt.buildId,
+        buildRoot: attempt.buildRoot,
+        status: 'running',
+        startedAt: generationStart,
+        finishedAt: null
+      };
+      emitWatchState();
       activeBuildAbort = new AbortController();
       if (queuedPathsAtStart > 0) {
         log(`[watch] Rebuilding index for ${queuedPathsAtStart} change(s)...`);
@@ -684,6 +769,24 @@ export async function watchIndex({
           log(`[watch] Failed to record attempt outcome: ${err?.message || err}`);
         }
       }
+      const generationFinishedAt = new Date().toISOString();
+      if (watchState.lastAttemptedGeneration?.buildId === attempt?.buildId) {
+        watchState.lastAttemptedGeneration = {
+          ...watchState.lastAttemptedGeneration,
+          status,
+          finishedAt: generationFinishedAt
+        };
+      }
+      if (status === 'ok' && attemptRuntime?.buildId) {
+        watchState.lastConsistentGeneration = {
+          buildId: attemptRuntime.buildId,
+          buildRoot: attemptRuntime.buildRoot,
+          status: 'ok',
+          startedAt: watchState.lastAttemptedGeneration?.startedAt || generationFinishedAt,
+          finishedAt: generationFinishedAt
+        };
+      }
+      watchState.activeGeneration = null;
       running = false;
       observeWatchBuildDuration({
         status,
@@ -707,9 +810,11 @@ export async function watchIndex({
       if (releaseError || outcomeError) {
         pending = true;
       }
+      emitWatchState();
     }
     if (pending) {
       pending = false;
+      emitWatchState();
       if (!shouldExit) scheduleBuild();
     }
   };
@@ -730,6 +835,7 @@ export async function watchIndex({
       clearTimeout(timer);
       stabilityRetryTimers.delete(absPath);
     }
+    emitWatchState();
   };
 
   /**
@@ -750,20 +856,26 @@ export async function watchIndex({
     const delayMs = Math.min(5000, baseDelayMs * (2 ** Math.min(nextAttempt - 1, 6)));
     const timer = setTimeout(() => {
       stabilityRetryTimers.delete(absPath);
+      emitWatchState();
       void recordAddOrChange(absPath, { fromStabilityRetry: true });
     }, delayMs);
     timer.unref?.();
     stabilityRetryTimers.set(absPath, timer);
+    emitWatchState();
   };
 
   const recordAddOrChange = async (absPath, { fromStabilityRetry = false } = {}) => {
+    watchState.lastEventAt = new Date().toISOString();
     if (stabilityGuard?.enabled) {
       const stable = await waitForStableFile(absPath, stabilityGuard);
       if (!stable) {
         if (!fromStabilityRetry) {
           log(`[watch] Deferring unstable update: ${absPath}`);
         }
+        pendingPaths.add(absPath);
+        setWatchBacklog(pendingPaths.size);
         scheduleStabilityRetry(absPath);
+        emitWatchState();
         return;
       }
       clearStabilityRetry(absPath);
@@ -771,13 +883,16 @@ export async function watchIndex({
     pendingPaths.add(absPath);
     setWatchBacklog(pendingPaths.size);
     pendingUpdates.add(absPath);
+    emitWatchState();
     scheduleUpdateFlush();
   };
 
   const recordRemove = (absPath) => {
+    watchState.lastEventAt = new Date().toISOString();
     clearStabilityRetry(absPath);
     pendingPaths.add(absPath);
     setWatchBacklog(pendingPaths.size);
+    emitWatchState();
     const before = trackedCounts.get(absPath) || 0;
     if (before > 0) {
       removeEntryFromModes(absPath);
@@ -880,6 +995,7 @@ export async function watchIndex({
         awaitWriteFinishMs: debounceMs
       }));
 
+  emitWatchState();
   if (typeof onReady === 'function') {
     onReady();
   }
@@ -915,8 +1031,10 @@ export async function watchIndex({
     if (abortSignal && abortHandler) {
       abortSignal.removeEventListener('abort', abortHandler);
     }
+    emitWatchState();
     log(`[watch] Shutdown complete${shutdownSignal ? ` (${shutdownSignal})` : ''}.`);
   }
+  return runtimeRef.watchState || emitWatchState();
 }
 
 export { resolveWatcherBackend, waitForStableFile, isIndexablePath };
