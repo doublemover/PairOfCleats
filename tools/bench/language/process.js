@@ -37,7 +37,9 @@ const BENCH_INTERACTIVE_DIAGNOSTIC_SILENT_TYPES = new Set([
   'provider_preflight_start',
   'provider_preflight_finish',
   'workspace_partition_decision',
-  'fallback_used'
+  'fallback_used',
+  'runtime_timeout_budget_extended',
+  'runtime_timeout'
 ]);
 const BENCH_INTERACTIVE_DIAGNOSTIC_REPEAT_COUNT_BY_TYPE = Object.freeze({
   provider_preflight_blocked: 2,
@@ -460,6 +462,7 @@ const resolveTimeoutResourceClass = ({ phase = 'unknown' } = {}) => {
 
 const resolveTimeoutFailureMode = ({
   timeoutDecision = null,
+  diagnostics = null,
   lastActivityAtMs = null,
   lastActivitySource = '',
   lastHeartbeatAtMs = null,
@@ -479,10 +482,24 @@ const resolveTimeoutFailureMode = ({
   const recentQueue = Number.isFinite(lastQueueMovementAtMs) && (now - lastQueueMovementAtMs) <= recentWindowMs;
   const recentBytes = Number.isFinite(lastByteProgressAtMs) && (now - lastByteProgressAtMs) <= recentWindowMs;
   const completedUnits = Number(lastProgressCurrent);
+  const countsByType = diagnostics?.countsByType && typeof diagnostics.countsByType === 'object'
+    ? diagnostics.countsByType
+    : {};
+  const observedDiagnosticProgress = [
+    'provider_preflight_blocked',
+    'provider_request_timeout',
+    'provider_request_failed',
+    'provider_circuit_breaker',
+    'provider_degraded_mode_entered',
+    'artifact_tail_stall',
+    'queue_delay_hotspot',
+    'fallback_used'
+  ].some((eventType) => Number(countsByType[eventType] || 0) > 0);
   const observedProgress = recentActivity
     || recentHeartbeat
     || recentQueue
     || recentBytes
+    || observedDiagnosticProgress
     || (Number.isFinite(completedUnits) && completedUnits > 0);
   return observedProgress ? 'budget_exhausted_with_progress' : 'phase_stalled';
 };
@@ -898,24 +915,36 @@ export const createProcessRunner = ({
             && Number(decision.effectiveBudgetMs) > activeIdleTimeoutBudgetMs
           ) {
             activeIdleTimeoutBudgetMs = Math.floor(Number(decision.effectiveBudgetMs));
-            appendLog(
+            const timeoutExtensionMessage =
               `[run] timeout budget extended: ${label} ` +
               `(idle budget ${activeIdleTimeoutBudgetMs}ms, reason=${decision.decisionReason || 'healthy_progress'}, ` +
               `candidate=${decision.candidateTimeoutClass || decision.timeoutClass || 'none'}, ` +
-              `outcome=${decision.outcome || PROGRESS_TIMEOUT_OUTCOMES.continueWait})`,
-              'info'
-            );
+              `outcome=${decision.outcome || PROGRESS_TIMEOUT_OUTCOMES.continueWait})`;
+            appendLog(timeoutExtensionMessage, 'info');
+            emitRuntimeTimeoutEvent({
+              eventType: 'runtime_timeout_budget_extended',
+              message: timeoutExtensionMessage,
+              timeoutKind: 'idle',
+              timeoutDecision: decision,
+              severity: 'info'
+            });
           } else if (
             decision.outcome === PROGRESS_TIMEOUT_OUTCOMES.extendBudget
             && Number.isFinite(Number(decision.effectiveBudgetMs))
             && Number(decision.effectiveBudgetMs) === activeIdleTimeoutBudgetMs
           ) {
-            appendLog(
+            const timeoutExtensionMessage =
               `[run] timeout budget extended: ${label} ` +
               `(idle budget ${activeIdleTimeoutBudgetMs}ms, reason=${decision.decisionReason || 'healthy_progress'}, ` +
-              `candidate=${decision.candidateTimeoutClass || 'none'})`,
-              'info'
-            );
+              `candidate=${decision.candidateTimeoutClass || 'none'})`;
+            appendLog(timeoutExtensionMessage, 'info');
+            emitRuntimeTimeoutEvent({
+              eventType: 'runtime_timeout_budget_extended',
+              message: timeoutExtensionMessage,
+              timeoutKind: 'idle',
+              timeoutDecision: decision,
+              severity: 'info'
+            });
           }
           return;
         }
@@ -1310,6 +1339,15 @@ export const createProcessRunner = ({
       reusedCount = null,
       fetchedCount = null,
       chunkCount = null,
+      timeoutKind = null,
+      phase = null,
+      resourceClass = null,
+      failureMode = null,
+      decisionReason = null,
+      outcome = null,
+      effectiveBudgetMs = null,
+      skippedWork = null,
+      partialSuccess = null,
       severity = null
     }) => {
       if (!eventType || !message) return;
@@ -1373,7 +1411,18 @@ export const createProcessRunner = ({
         requestedCount: Number.isFinite(Number(requestedCount)) ? Math.max(0, Math.floor(Number(requestedCount))) : null,
         reusedCount: Number.isFinite(Number(reusedCount)) ? Math.max(0, Math.floor(Number(reusedCount))) : null,
         fetchedCount: Number.isFinite(Number(fetchedCount)) ? Math.max(0, Math.floor(Number(fetchedCount))) : null,
-        chunkCount: Number.isFinite(Number(chunkCount)) ? Math.max(0, Math.floor(Number(chunkCount))) : null
+        chunkCount: Number.isFinite(Number(chunkCount)) ? Math.max(0, Math.floor(Number(chunkCount))) : null,
+        timeoutKind: toText(timeoutKind) || null,
+        phase: toText(phase) || null,
+        resourceClass: toText(resourceClass) || null,
+        failureMode: toText(failureMode) || null,
+        decisionReason: toText(decisionReason) || null,
+        outcome: toText(outcome) || null,
+        effectiveBudgetMs: Number.isFinite(Number(effectiveBudgetMs)) ? Math.max(0, Math.floor(Number(effectiveBudgetMs))) : null,
+        skippedWork: Array.isArray(skippedWork)
+          ? skippedWork.map((entry) => toText(entry)).filter(Boolean)
+          : null,
+        partialSuccess: typeof partialSuccess === 'boolean' ? partialSuccess : null
       };
       const summaryKey = buildDiagnosticSummaryKey({
         eventType,
@@ -1433,6 +1482,37 @@ export const createProcessRunner = ({
       }
     };
 
+    const emitRuntimeTimeoutEvent = ({
+      eventType,
+      message,
+      timeoutKind = null,
+      timeoutDecision: timeoutDetails = null,
+      severity = null
+    }) => {
+      emitDiagnostic({
+        eventType,
+        message,
+        source: 'bench-runtime',
+        level: 'warn',
+        stage: 'watchdog',
+        taskId: label,
+        failureClass: timeoutDetails?.timeoutClass || null,
+        qualityImpact: Array.isArray(timeoutDetails?.qualityDelta?.skippedWork) && timeoutDetails.qualityDelta.skippedWork.length
+          ? 'partial-bench-runtime-coverage'
+          : 'none',
+        timeoutKind,
+        phase: timeoutDetails?.phase || null,
+        resourceClass: timeoutDetails?.resourceClass || null,
+        failureMode: timeoutDetails?.failureMode || null,
+        decisionReason: timeoutDetails?.decisionReason || null,
+        outcome: timeoutDetails?.outcome || null,
+        effectiveBudgetMs: timeoutDetails?.effectiveBudgetMs || timeoutDetails?.budget?.budgetMs || null,
+        skippedWork: timeoutDetails?.qualityDelta?.skippedWork || null,
+        partialSuccess: timeoutDetails?.qualityDelta?.partialSuccess ?? null,
+        severity
+      });
+    };
+
     const inspectDiagnostic = ({ line, event, source }) => {
       const text = event && typeof event.message === 'string' && event.message.trim()
         ? event.message
@@ -1480,6 +1560,15 @@ export const createProcessRunner = ({
           reusedCount: signal.reusedCount,
           fetchedCount: signal.fetchedCount,
           chunkCount: signal.chunkCount,
+          timeoutKind: signal.timeoutKind || null,
+          phase: signal.phase || null,
+          resourceClass: signal.resourceClass || null,
+          failureMode: signal.failureMode || null,
+          decisionReason: signal.decisionReason || null,
+          outcome: signal.outcome || null,
+          effectiveBudgetMs: signal.effectiveBudgetMs,
+          skippedWork: signal.skippedWork || null,
+          partialSuccess: signal.partialSuccess ?? null,
           severity: signal.severity || null
         });
       }
@@ -1652,19 +1741,20 @@ export const createProcessRunner = ({
         || err?.code === 'ERR_BENCH_IDLE_TIMEOUT'
         || spawnSignal?.reason?.code === 'ERR_BENCH_IDLE_TIMEOUT'
         || idleAbortController?.signal?.reason?.code === 'ERR_BENCH_IDLE_TIMEOUT';
-      const diagnosticsSummary = buildDiagnosticsSummary();
+      const initialDiagnosticsSummary = buildDiagnosticsSummary();
       const progressConfidenceSummary = buildProgressConfidenceSummary();
       const enrichedTimeoutDecision = timeoutDecision
         ? {
           ...timeoutDecision,
           phase: resolveTimeoutPhase({
             timeoutDecision,
-            diagnostics: diagnosticsSummary,
+            diagnostics: initialDiagnosticsSummary,
             lastActivitySource,
             lastActivityText
           }),
           failureMode: resolveTimeoutFailureMode({
             timeoutDecision,
+            diagnostics: initialDiagnosticsSummary,
             lastActivityAtMs,
             lastActivitySource,
             lastHeartbeatAtMs,
@@ -1679,25 +1769,38 @@ export const createProcessRunner = ({
           phase: enrichedTimeoutDecision.phase
         });
         enrichedTimeoutDecision.qualityDelta = resolveTimeoutQualityDelta({
-          diagnostics: diagnosticsSummary
+          diagnostics: initialDiagnosticsSummary
         });
       }
       if (idleTimeoutFailure) {
-        appendLog(
-          `[run] idle timeout: ${label} (no activity for ${resolvedIdleTimeoutMs}ms; last=${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''})`,
-          'warn'
-        );
+        const timeoutMessage =
+          `[run] idle timeout: ${label} (no activity for ${resolvedIdleTimeoutMs}ms; last=${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''})`;
+        appendLog(timeoutMessage, 'warn');
+        emitRuntimeTimeoutEvent({
+          eventType: 'runtime_timeout',
+          message: timeoutMessage,
+          timeoutKind: 'idle',
+          timeoutDecision: enrichedTimeoutDecision,
+          severity: 'error'
+        });
       } else if (err?.code === 'SUBPROCESS_TIMEOUT') {
-        appendLog(
+        const timeoutMessage =
           `[run] timeout: ${label} (${message})`
           + (enrichedTimeoutDecision
             ? ` phase=${enrichedTimeoutDecision.phase || 'unknown'}`
               + ` resource=${enrichedTimeoutDecision.resourceClass || 'unknown'}`
               + ` mode=${enrichedTimeoutDecision.failureMode || 'unknown'}`
-            : ''),
-          'warn'
-        );
+            : '');
+        appendLog(timeoutMessage, 'warn');
+        emitRuntimeTimeoutEvent({
+          eventType: 'runtime_timeout',
+          message: timeoutMessage,
+          timeoutKind: 'hard',
+          timeoutDecision: enrichedTimeoutDecision,
+          severity: 'error'
+        });
       }
+      const diagnosticsSummary = buildDiagnosticsSummary();
       emitLogPaths('[error]');
       if (logHistory.length) {
         appendLog('[run] tail:');

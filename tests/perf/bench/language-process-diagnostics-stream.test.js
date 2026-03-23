@@ -49,6 +49,8 @@ const script = [
   "console.log('[tooling] pyright degraded mode cleared.');",
   "console.log('[tooling] clangd suppressed 2 IncludeCleaner stderr line(s); missing include roots should be configured via compile_commands.json.');",
   "console.log('[tooling] workspace:partition provider=gopls state=degraded reason=gopls_workspace_partition_incomplete workspacePartition=multiple partitionCount=2 unmatchedDocuments=1 unmatchedTargets=1');",
+  "progress({ level: 'info', stage: 'watchdog', taskId: 'stage:watchdog', message: 'structured watchdog budget extension', benchDiagnostic: { eventType: 'runtime_timeout_budget_extended', message: 'watchdog budget extended for healthy progress', timeoutKind: 'idle', phase: 'execute', resourceClass: 'cpu-bound', failureMode: 'budget_exhausted_with_progress', decisionReason: 'healthy_progress', outcome: 'extend_budget', effectiveBudgetMs: 1200, skippedWork: ['provider-enrichment'], partialSuccess: true } });",
+  "progress({ level: 'warn', stage: 'watchdog', taskId: 'stage:watchdog', message: 'structured watchdog timeout', benchDiagnostic: { eventType: 'runtime_timeout', message: 'watchdog timeout after progress-aware budget', timeoutKind: 'hard', phase: 'provider_bootstrap', resourceClass: 'provider-bound', failureMode: 'budget_exhausted_with_progress', decisionReason: 'progress_budget_exhausted', outcome: 'terminate', effectiveBudgetMs: 1600, skippedWork: ['provider-requests', 'workspace-preflight'], partialSuccess: true } });",
   "const fallback = JSON.stringify({ proto: 'poc.progress@2', event: 'log', ts: new Date().toISOString(), level: 'warn', stage: 'parse', taskId: 'stage:parse', message: 'using fallback parser for unsupported grammar' });",
   'console.log(fallback);',
   'console.log(fallback);',
@@ -69,11 +71,11 @@ assert.equal(
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
   'expected diagnostics schema version'
 );
-assert.equal(result.diagnostics.eventCount, 16, 'expected structured diagnostics to include tooling/runtime events');
+assert.equal(result.diagnostics.eventCount, 18, 'expected structured diagnostics to include tooling/runtime events');
 assert.equal(result.diagnostics.countsByType.fallback_used, 2, 'expected fallback duplicate count in full stream');
 assert.deepEqual(
   result.diagnostics.countsBySeverity,
-  { error: 1, info: 2, warn: 13 },
+  { error: 2, info: 3, warn: 13 },
   'expected consequence-based severity counts in process diagnostics summary'
 );
 
@@ -96,7 +98,7 @@ assert.equal(
 const streamLines = (await fsPromises.readFile(diagnosticsPath, 'utf8'))
   .split(/\r?\n/)
   .filter((line) => line.trim());
-assert.equal(streamLines.length, 16, 'expected full JSON event stream with all occurrences');
+assert.equal(streamLines.length, 18, 'expected full JSON event stream with all occurrences');
 
 const streamEvents = streamLines.map((line) => JSON.parse(line));
 const fallbackEvents = streamEvents.filter((entry) => entry.eventType === 'fallback_used');
@@ -127,6 +129,20 @@ const parserCrashEvent = streamEvents.find((entry) => entry.eventType === 'parse
 assert.equal(parserCrashEvent?.severity, 'error', 'expected parser crash to surface at error severity');
 const preflightStartEvent = streamEvents.find((entry) => entry.eventType === 'provider_preflight_start');
 assert.equal(preflightStartEvent?.severity, 'info', 'expected preflight start to remain informational');
+const runtimeTimeoutEvent = streamEvents.find((entry) => entry.eventType === 'runtime_timeout');
+assert.equal(runtimeTimeoutEvent?.timeoutKind, 'hard', 'expected runtime timeout kind on structured stream entry');
+assert.equal(runtimeTimeoutEvent?.phase, 'provider_bootstrap', 'expected timeout phase on structured stream entry');
+assert.equal(runtimeTimeoutEvent?.resourceClass, 'provider-bound', 'expected timeout resource class on structured stream entry');
+assert.equal(runtimeTimeoutEvent?.failureMode, 'budget_exhausted_with_progress', 'expected timeout failure mode on structured stream entry');
+assert.equal(runtimeTimeoutEvent?.decisionReason, 'progress_budget_exhausted', 'expected timeout decision reason on structured stream entry');
+assert.equal(runtimeTimeoutEvent?.outcome, 'terminate', 'expected timeout outcome on structured stream entry');
+assert.equal(runtimeTimeoutEvent?.effectiveBudgetMs, 1600, 'expected timeout budget on structured stream entry');
+assert.deepEqual(runtimeTimeoutEvent?.skippedWork, ['provider-requests', 'workspace-preflight'], 'expected skipped work on structured stream entry');
+assert.equal(runtimeTimeoutEvent?.partialSuccess, true, 'expected partial success flag on structured stream entry');
+const runtimeBudgetExtendedEvent = streamEvents.find((entry) => entry.eventType === 'runtime_timeout_budget_extended');
+assert.equal(runtimeBudgetExtendedEvent?.timeoutKind, 'idle', 'expected runtime timeout extension kind on structured stream entry');
+assert.equal(runtimeBudgetExtendedEvent?.decisionReason, 'healthy_progress', 'expected timeout extension decision reason on structured stream entry');
+assert.equal(runtimeBudgetExtendedEvent?.outcome, 'extend_budget', 'expected timeout extension outcome on structured stream entry');
 for (const entry of streamEvents) {
   assert.match(entry.eventId, /^ub050:v1:[a-z_]+:[a-f0-9]{12}$/);
   assert.equal(entry.schemaVersion, BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION, 'expected schema version on stream entry');
@@ -162,6 +178,9 @@ const unexpectedInteractivePrefixes = [
   '[diagnostics] provider_preflight_finish <eventId> [tooling] preflight:blocked provider=gopls id=gopls.workspace-model durationMs=87 state=blocked',
   '[diagnostics] provider_preflight_start <eventId> [tooling] preflight:start provider=gopls id=gopls.workspace-model class=workspace timeoutMs=20000',
   '[diagnostics] workspace_partition_decision <eventId> [tooling] workspace:partition provider=gopls state=degraded reason=gopls_workspace_partition_incomplete'
+  ,
+  '[diagnostics] runtime_timeout <eventId> watchdog timeout after progress-aware budget',
+  '[diagnostics] runtime_timeout_budget_extended <eventId> watchdog budget extended for healthy progress'
 ];
 for (const prefix of unexpectedInteractivePrefixes) {
   assert.equal(

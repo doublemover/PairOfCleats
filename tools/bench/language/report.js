@@ -345,6 +345,35 @@ const parseDiagnosticEventLine = (line) => {
       : null,
     chunkCount: Number.isFinite(Number(parsed.chunkCount))
       ? Math.max(0, Math.floor(Number(parsed.chunkCount)))
+      : null,
+    timeoutKind: typeof parsed.timeoutKind === 'string' && parsed.timeoutKind.trim()
+      ? parsed.timeoutKind.trim()
+      : null,
+    phase: typeof parsed.phase === 'string' && parsed.phase.trim()
+      ? parsed.phase.trim()
+      : null,
+    resourceClass: typeof parsed.resourceClass === 'string' && parsed.resourceClass.trim()
+      ? parsed.resourceClass.trim()
+      : null,
+    failureMode: typeof parsed.failureMode === 'string' && parsed.failureMode.trim()
+      ? parsed.failureMode.trim()
+      : null,
+    decisionReason: typeof parsed.decisionReason === 'string' && parsed.decisionReason.trim()
+      ? parsed.decisionReason.trim()
+      : null,
+    outcome: typeof parsed.outcome === 'string' && parsed.outcome.trim()
+      ? parsed.outcome.trim()
+      : null,
+    effectiveBudgetMs: Number.isFinite(Number(parsed.effectiveBudgetMs))
+      ? Math.max(0, Math.floor(Number(parsed.effectiveBudgetMs)))
+      : null,
+    skippedWork: Array.isArray(parsed.skippedWork)
+      ? parsed.skippedWork
+        .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+        .filter(Boolean)
+      : null,
+    partialSuccess: typeof parsed.partialSuccess === 'boolean'
+      ? parsed.partialSuccess
       : null
   };
 };

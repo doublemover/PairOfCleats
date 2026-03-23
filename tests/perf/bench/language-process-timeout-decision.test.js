@@ -45,6 +45,11 @@ assert.equal(
   'no_queue_movement',
   'expected queue movement timeout classification'
 );
+assert.equal(
+  Number(idleResult.diagnostics?.countsByType?.runtime_timeout || 0),
+  1,
+  'expected idle timeout run to emit one structured runtime timeout event'
+);
 
 const hardResult = await runner.runProcess(
   'bench-timeout-decision-hard',
@@ -69,6 +74,11 @@ assert.equal(
   hardResult.timeoutDecision?.failureMode,
   'phase_stalled',
   'expected no-progress hard timeout to be classified as phase stalled'
+);
+assert.equal(
+  Number(hardResult.diagnostics?.countsByType?.runtime_timeout || 0),
+  1,
+  'expected hard timeout run to emit one structured runtime timeout event'
 );
 
 const providerTimeoutScript = [
@@ -106,6 +116,11 @@ assert.deepEqual(
   ['provider-enrichment', 'provider-requests', 'workspace-preflight'],
   'expected provider timeout quality delta to surface skipped enrichment classes'
 );
+assert.equal(
+  Number(providerHardResult.diagnostics?.countsByType?.runtime_timeout || 0),
+  1,
+  'expected provider timeout run to emit one structured runtime timeout event'
+);
 
 const artifactTimeoutScript = [
   "const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));",
@@ -134,6 +149,11 @@ assert.equal(
   artifactHardResult.timeoutDecision?.failureMode,
   'budget_exhausted_with_progress',
   'expected artifact timeout with queue activity to be classified as budget exhausted with progress'
+);
+assert.equal(
+  Number(artifactHardResult.diagnostics?.countsByType?.runtime_timeout || 0),
+  1,
+  'expected artifact timeout run to emit one structured runtime timeout event'
 );
 
 const extensionScript = [

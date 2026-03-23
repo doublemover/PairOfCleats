@@ -15,6 +15,8 @@ export const BENCH_DIAGNOSTIC_EVENT_TYPES = Object.freeze([
   'scm_timeout',
   'queue_delay_hotspot',
   'artifact_tail_stall',
+  'runtime_timeout_budget_extended',
+  'runtime_timeout',
   'fallback_used',
   'warning_suppressed',
   'provider_preflight_start',
@@ -314,6 +316,15 @@ const buildDiagnosticSignal = ({
   reusedCount = null,
   fetchedCount = null,
   chunkCount = null,
+  timeoutKind = null,
+  phase = null,
+  resourceClass = null,
+  failureMode = null,
+  decisionReason = null,
+  outcome = null,
+  effectiveBudgetMs = null,
+  skippedWork = null,
+  partialSuccess = null,
   stage = null,
   taskId = null,
   level = null,
@@ -339,6 +350,17 @@ const buildDiagnosticSignal = ({
     reusedCount: toNonNegativeCount(reusedCount),
     fetchedCount: toNonNegativeCount(fetchedCount),
     chunkCount: toNonNegativeCount(chunkCount),
+    timeoutKind: String(timeoutKind || '').trim() || null,
+    phase: String(phase || '').trim() || null,
+    resourceClass: String(resourceClass || '').trim() || null,
+    failureMode: String(failureMode || '').trim() || null,
+    decisionReason: String(decisionReason || '').trim() || null,
+    outcome: String(outcome || '').trim() || null,
+    effectiveBudgetMs: toNonNegativeCount(effectiveBudgetMs),
+    skippedWork: Array.isArray(skippedWork)
+      ? skippedWork.map((entry) => String(entry || '').trim()).filter(Boolean)
+      : null,
+    partialSuccess: typeof partialSuccess === 'boolean' ? partialSuccess : null,
     stage: String(stage || '').trim() || null,
     taskId: String(taskId || '').trim() || null,
     level: String(level || '').trim() || null,
@@ -362,9 +384,11 @@ export const resolveBenchDiagnosticSeverity = ({
   const state = String(preflightState || '').trim().toLowerCase();
   switch (type) {
     case 'parser_crash':
+    case 'runtime_timeout':
       return 'error';
     case 'provider_preflight_start':
     case 'provider_degraded_mode_cleared':
+    case 'runtime_timeout_budget_extended':
       return 'info';
     case 'provider_preflight_finish':
       if (state === 'ready' || failure === 'ready') return 'info';
@@ -389,6 +413,64 @@ export const resolveBenchDiagnosticSeverity = ({
 export const createBenchDiagnosticClassifier = () => {
   const preflightByKey = new Map();
 
+  const classifyStructuredDiagnostics = ({
+    event = null,
+    source = 'stream'
+  } = {}) => {
+    const candidates = Array.isArray(event?.benchDiagnostics)
+      ? event.benchDiagnostics
+      : (event?.benchDiagnostic && typeof event.benchDiagnostic === 'object' && !Array.isArray(event.benchDiagnostic)
+        ? [event.benchDiagnostic]
+        : []);
+    if (!candidates.length) return [];
+    const signals = [];
+    for (const entry of candidates) {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+      const signal = buildDiagnosticSignal({
+        eventType: entry.eventType,
+        message: entry.message || event?.message || '',
+        source: entry.source || source,
+        providerId: entry.providerId || event?.providerId || null,
+        workspacePartition: entry.workspacePartition || null,
+        requestMethod: entry.requestMethod || null,
+        failureClass: entry.failureClass || null,
+        preflightId: entry.preflightId || null,
+        preflightClass: entry.preflightClass || null,
+        preflightState: entry.preflightState || null,
+        reuseSurface: entry.reuseSurface || null,
+        reuseSource: entry.reuseSource || null,
+        qualityImpact: entry.qualityImpact || null,
+        timeCostMs: entry.timeCostMs,
+        requestedCount: entry.requestedCount,
+        reusedCount: entry.reusedCount,
+        fetchedCount: entry.fetchedCount,
+        chunkCount: entry.chunkCount,
+        timeoutKind: entry.timeoutKind || null,
+        phase: entry.phase || null,
+        resourceClass: entry.resourceClass || null,
+        failureMode: entry.failureMode || null,
+        decisionReason: entry.decisionReason || null,
+        outcome: entry.outcome || null,
+        effectiveBudgetMs: entry.effectiveBudgetMs,
+        skippedWork: entry.skippedWork || null,
+        partialSuccess: entry.partialSuccess ?? null,
+        stage: entry.stage ?? event?.stage ?? null,
+        taskId: entry.taskId ?? event?.taskId ?? null,
+        level: entry.level ?? event?.level ?? null,
+        severity: normalizeBenchDiagnosticSeverity(
+          entry.severity,
+          resolveBenchDiagnosticSeverity({
+            eventType: entry.eventType,
+            failureClass: entry.failureClass || null,
+            preflightState: entry.preflightState || null
+          })
+        )
+      });
+      if (signal) signals.push(signal);
+    }
+    return signals;
+  };
+
   const classify = ({
     line = '',
     event = null,
@@ -401,6 +483,8 @@ export const createBenchDiagnosticClassifier = () => {
     ).trim();
     if (!text) return [];
     const signals = [];
+    const structuredSignals = classifyStructuredDiagnostics({ event, source });
+    if (structuredSignals.length) return structuredSignals;
 
     const preflightStartMatch = TOOLING_PREFLIGHT_START_PATTERN.exec(text);
     if (preflightStartMatch) {
