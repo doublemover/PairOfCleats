@@ -83,6 +83,13 @@ assert.equal(
   'expected toolchain-noise stderr suppression check'
 );
 assert.equal(
+  Array.isArray(result.diagnostics?.['lsp-rust-analyzer']?.fidelity?.runtimeIssues)
+  && result.diagnostics['lsp-rust-analyzer'].fidelity.runtimeIssues.includes('repo_workspace_invalidity')
+  && result.diagnostics['lsp-rust-analyzer'].fidelity.runtimeIssues.includes('toolchain_resolution_failed'),
+  true,
+  'expected fidelity contract to preserve both repo-invalidity and toolchain-noise runtime issue classes from stderr suppression'
+);
+assert.equal(
   logLines.some((line) => line.includes('rust-analyzer suppressed 4 duplicate workspace stderr line(s)')),
   true,
   'expected aggregated rust-analyzer stderr suppression log line'

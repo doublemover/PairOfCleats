@@ -132,6 +132,34 @@ assert.equal(
   'rust_workspace_partial_repo_coverage',
   'expected partial coverage preflight reason code'
 );
+assert.equal(
+  diagnostics?.fidelity?.state,
+  'degraded',
+  'expected fidelity contract to classify partial coverage as degraded'
+);
+assert.equal(
+  diagnostics?.fidelity?.qualityDelta?.partialSuccess,
+  true,
+  'expected mixed Rust partition coverage to report truthful partial success'
+);
+assert.equal(
+  diagnostics?.fidelity?.workspaceCoverage?.readyPartitionCount,
+  1,
+  'expected ready Rust partition count in fidelity contract'
+);
+assert.equal(
+  diagnostics?.fidelity?.workspaceCoverage?.blockedPartitionCount,
+  1,
+  'expected blocked Rust partition count in fidelity contract'
+);
+assert.equal(
+  Array.isArray(diagnostics?.fidelity?.runtimeIssues)
+  && diagnostics.fidelity.runtimeIssues.includes('partial_workspace_coverage')
+  && diagnostics.fidelity.runtimeIssues.includes('blocked_workspace_partitions')
+  && diagnostics.fidelity.runtimeIssues.includes('repo_workspace_invalidity'),
+  true,
+  'expected fidelity contract to preserve partial-coverage and repo-invalidity runtime issue classes'
+);
 const checks = Array.isArray(diagnostics?.checks) ? diagnostics.checks : [];
 assert.equal(
   checks.some((check) => check?.name === 'rust_workspace_broken_manifest'),

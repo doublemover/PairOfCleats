@@ -168,6 +168,79 @@ const createRustAnalyzerWorkspaceStderrFilter = () => {
   };
 };
 
+export const resolveRustRuntimeIssueClasses = ({
+  providerId,
+  preflightState = null,
+  preflightReasonCode = null,
+  checks = [],
+  blockedWorkspaceKeys = [],
+  blockedWorkspaceRoots = []
+} = {}) => {
+  const issueClasses = new Set();
+  const reasonCode = String(preflightReasonCode || '').trim().toLowerCase();
+  const normalizedProviderId = String(providerId || '').trim();
+  const hasCheck = (name) => Array.isArray(checks) && checks.some((check) => check?.name === name);
+
+  if (
+    reasonCode === 'rust_workspace_toolchain_resolution_failed'
+    || hasCheck('rust_workspace_toolchain_resolution_failed')
+  ) {
+    issueClasses.add('toolchain_resolution_failed');
+  }
+  if (
+    reasonCode === 'rust_workspace_repo_invalidity'
+    || hasCheck('rust_workspace_repo_invalidity')
+    || hasCheck('rust_workspace_broken_manifest')
+    || hasCheck('rust_workspace_invalid_root')
+    || hasCheck('rust_workspace_tooling_only_root')
+  ) {
+    issueClasses.add('repo_workspace_invalidity');
+  }
+  if (
+    reasonCode === 'rust_workspace_model_missing'
+    || hasCheck('rust_workspace_model_missing')
+  ) {
+    issueClasses.add('workspace_model_missing');
+  }
+  if (
+    reasonCode === 'rust_workspace_probe_runtime_problem'
+    || hasCheck('rust_workspace_probe_runtime_problem')
+  ) {
+    issueClasses.add('workspace_probe_runtime_problem');
+  }
+  if (
+    reasonCode === 'rust_workspace_partial_repo_coverage'
+    || hasCheck('rust_workspace_partial_repo_coverage')
+    || hasCheck(`${normalizedProviderId}_workspace_partition_partial_success`)
+  ) {
+    issueClasses.add('partial_workspace_coverage');
+  }
+  if (
+    (Array.isArray(blockedWorkspaceKeys) && blockedWorkspaceKeys.length > 0)
+    || (Array.isArray(blockedWorkspaceRoots) && blockedWorkspaceRoots.length > 0)
+    || hasCheck(`${normalizedProviderId}_workspace_partition_blocked`)
+    || hasCheck('rust_workspace_blocked_all_partitions')
+  ) {
+    issueClasses.add('blocked_workspace_partitions');
+  }
+  if (hasCheck('rust_workspace_manifest_only_preflight')) {
+    issueClasses.add('manifest_only_preflight');
+  }
+  if (String(preflightState || '').trim().toLowerCase() === 'blocked' && issueClasses.size <= 0) {
+    issueClasses.add('workspace_blocked');
+  }
+  return Array.from(issueClasses).sort((left, right) => left.localeCompare(right));
+};
+
+export const isRustWorkspaceProvider = ({ server, providerId }) => {
+  const id = String(server?.id || providerId || '').trim().toLowerCase();
+  const preset = String(server?.preset || '').trim().toLowerCase();
+  const languages = Array.isArray(server?.languages)
+    ? server.languages.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)
+    : [];
+  return id === 'rust-analyzer' || preset === 'rust-analyzer' || languages.includes('rust');
+};
+
 export const collectConfiguredOutput = async ({
   server,
   providerId,
@@ -328,11 +401,24 @@ export const collectConfiguredOutput = async ({
         providerId,
         preflightState,
         reasonCode: preflightReasonCode,
+        preflightDetails: {
+          state: preflightState
+        },
         runtime: result.runtime,
         checks: [...preChecks, ...resultChecks],
         captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(requestedKinds),
         blockedWorkspaceKeys,
         blockedWorkspaceRoots,
+        runtimeIssueClasses: isRustWorkspaceProvider({ server, providerId })
+          ? resolveRustRuntimeIssueClasses({
+            providerId,
+            preflightState,
+            preflightReasonCode,
+            checks: [...preChecks, ...resultChecks],
+            blockedWorkspaceKeys,
+            blockedWorkspaceRoots
+          })
+          : [],
         byChunkUid: result.byChunkUid,
         workspaceKey: workspaceRouting.workspaceModel?.workspaceKey || null
       })

@@ -29,6 +29,10 @@ import {
   prepareConfiguredProviderInputs,
   resolveConfiguredWorkspacePreflight
 } from './workspace.js';
+import {
+  isRustWorkspaceProvider,
+  resolveRustRuntimeIssueClasses
+} from './runtime.js';
 
 const buildCommandUnavailableCheck = (providerId, requestedCmd) => ({
   name: 'lsp_command_unavailable',
@@ -131,9 +135,22 @@ export const createConfiguredLspProvider = (server) => {
             state: PROVIDER_FIDELITY_STATE.BLOCKED,
             preflightState: 'blocked',
             reasonCode: preflight?.reasonCode || null,
+            preflightDetails: {
+              state: 'blocked'
+            },
             captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
             blockedWorkspaceKeys,
-            blockedWorkspaceRoots
+            blockedWorkspaceRoots,
+            runtimeIssueClasses: isRustWorkspaceProvider({ server, providerId })
+              ? resolveRustRuntimeIssueClasses({
+                providerId,
+                preflightState: 'blocked',
+                preflightReasonCode: preflight?.reasonCode || null,
+                checks: preChecks,
+                blockedWorkspaceKeys,
+                blockedWorkspaceRoots
+              })
+              : []
           });
           return {
             provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
@@ -175,9 +192,22 @@ export const createConfiguredLspProvider = (server) => {
             : PROVIDER_FIDELITY_STATE.DEGRADED,
           preflightState,
           reasonCode: preflightReasonCode || 'lsp_preflight_command_profile_missing',
+          preflightDetails: {
+            state: preflightState
+          },
           captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
           blockedWorkspaceKeys,
-          blockedWorkspaceRoots
+          blockedWorkspaceRoots,
+          runtimeIssueClasses: isRustWorkspaceProvider({ server, providerId })
+            ? resolveRustRuntimeIssueClasses({
+              providerId,
+              preflightState,
+              preflightReasonCode: preflightReasonCode || 'lsp_preflight_command_profile_missing',
+              checks: preChecks,
+              blockedWorkspaceKeys,
+              blockedWorkspaceRoots
+            })
+            : []
         });
         return {
           provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },

@@ -139,6 +139,17 @@ assert.equal(
   'blocked',
   'expected toolchain-resolution failure to block provider startup'
 );
+assert.equal(
+  first.diagnostics?.['lsp-rust-toolchain-resolution']?.fidelity?.state,
+  'blocked',
+  'expected fidelity contract to classify toolchain-resolution failure as blocked'
+);
+assert.equal(
+  Array.isArray(first.diagnostics?.['lsp-rust-toolchain-resolution']?.fidelity?.runtimeIssues)
+  && first.diagnostics['lsp-rust-toolchain-resolution'].fidelity.runtimeIssues.includes('toolchain_resolution_failed'),
+  true,
+  'expected fidelity contract to surface toolchain-resolution runtime issue class'
+);
 const firstChecks = first.diagnostics?.['lsp-rust-toolchain-resolution']?.checks || [];
 assert.equal(
   firstChecks.some((check) => check?.name === 'rust_workspace_toolchain_resolution_failed'),
@@ -153,6 +164,12 @@ assert.equal(
   second.diagnostics?.['lsp-rust-toolchain-resolution']?.preflight?.cached,
   true,
   'expected toolchain-resolution diagnostics to report cached negative reuse'
+);
+assert.equal(
+  Array.isArray(second.diagnostics?.['lsp-rust-toolchain-resolution']?.fidelity?.runtimeIssues)
+  && second.diagnostics['lsp-rust-toolchain-resolution'].fidelity.runtimeIssues.includes('toolchain_resolution_failed'),
+  true,
+  'expected cached negative reuse to retain the toolchain-resolution runtime issue class'
 );
 
 console.log('configured LSP rust workspace toolchain resolution failed test passed');
