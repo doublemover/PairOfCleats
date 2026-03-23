@@ -40,6 +40,8 @@ assert.equal(contract.providerId, 'sourcekit');
 assert.equal(contract.state, 'degraded');
 assert.equal(contract.qualityDelta.partialSuccess, true);
 assert.equal(contract.blockedPartitions.count, 1);
+assert.equal(contract.workspaceCoverage.totalPartitions, 0);
+assert.equal(contract.workspaceCoverage.blockedPartitionCount, 1);
 assert.equal(contract.requestClasses.documentSymbol.timedOut, 1);
 assert.equal(contract.requestClasses.hover.requests, 5);
 assert.equal(contract.skipped.includes('semanticTokens'), true);

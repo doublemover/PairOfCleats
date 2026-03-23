@@ -117,6 +117,9 @@ assert.equal(diagnostics?.preflight?.state, 'degraded', 'expected mixed partitio
 assert.equal(diagnostics?.fidelity?.state, 'degraded', 'expected fidelity contract to classify partial workspace coverage as degraded');
 assert.equal(diagnostics?.fidelity?.qualityDelta?.partialSuccess, true, 'expected mixed partition coverage to report partial success');
 assert.equal(diagnostics?.fidelity?.blockedPartitions?.count, 1, 'expected blocked partition count to be surfaced');
+assert.equal(diagnostics?.fidelity?.workspaceCoverage?.totalPartitions, 2, 'expected total partition count to be surfaced');
+assert.equal(diagnostics?.fidelity?.workspaceCoverage?.readyPartitionCount, 1, 'expected ready partition count to be surfaced');
+assert.equal(diagnostics?.fidelity?.workspaceCoverage?.blockedPartitionCount, 1, 'expected blocked partition count in workspace coverage');
 assert.equal(diagnostics?.fidelity?.contributes?.typeEnrichment, true, 'expected healthy partitions to remain contributory');
 assert.equal(
   diagnostics?.preflight?.reasonCode,
@@ -133,6 +136,11 @@ assert.equal(
   checks.some((check) => check?.name === 'lsp-gopls_workspace_partition_blocked'),
   true,
   'expected runtime blocked partition check'
+);
+assert.equal(
+  checks.some((check) => check?.name === 'lsp-gopls_workspace_partition_partial_success'),
+  true,
+  'expected runtime partial-success check for mixed partition repo'
 );
 
 console.log('configured LSP gopls workspace partial coverage test passed');

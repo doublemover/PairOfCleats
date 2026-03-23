@@ -290,6 +290,13 @@ export const collectConfiguredOutput = async ({
       status: 'warn',
       message: `${providerId} skipped ${skippedBlockedPartitions.length} blocked workspace partition(s) (${sample}${suffix}).`
     });
+    if (partitionResults.length > 0) {
+      resultChecks.push({
+        name: `${providerId}_workspace_partition_partial_success`,
+        status: 'info',
+        message: `${providerId} continued with ${partitionResults.length} ready workspace partition(s) while ${skippedBlockedPartitions.length} blocked partition(s) remained excluded.`
+      });
+    }
   }
   invalidateProbeCacheOnInitializeFailure({
     checks: resultChecks,

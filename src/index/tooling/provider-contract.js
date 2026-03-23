@@ -167,6 +167,35 @@ const summarizeCapabilityGateSkips = (runtime) => {
   return skipped;
 };
 
+const summarizeWorkspaceCoverage = ({ runtime = null, blockedPartitions = null } = {}) => {
+  const workspaceModel = runtime?.workspaceModel && typeof runtime.workspaceModel === 'object'
+    ? runtime.workspaceModel
+    : null;
+  const totalPartitions = Number.isFinite(Number(workspaceModel?.partitionCount))
+    ? Math.max(0, Math.floor(Number(workspaceModel.partitionCount)))
+    : 0;
+  const blockedPartitionCount = Number.isFinite(Number(blockedPartitions?.count))
+    ? Math.max(0, Math.floor(Number(blockedPartitions.count)))
+    : 0;
+  const readyPartitionCount = Math.max(0, totalPartitions - blockedPartitionCount);
+  return {
+    partitioned: workspaceModel?.partitioned === true,
+    strategy: String(workspaceModel?.strategy || '').trim() || null,
+    totalPartitions,
+    readyPartitionCount,
+    blockedPartitionCount,
+    matchedDocumentCount: Number.isFinite(Number(workspaceModel?.matchedDocumentCount))
+      ? Math.max(0, Math.floor(Number(workspaceModel.matchedDocumentCount)))
+      : 0,
+    unmatchedDocumentCount: Number.isFinite(Number(workspaceModel?.unmatchedDocumentCount))
+      ? Math.max(0, Math.floor(Number(workspaceModel.unmatchedDocumentCount)))
+      : 0,
+    unmatchedTargetCount: Number.isFinite(Number(workspaceModel?.unmatchedTargetCount))
+      ? Math.max(0, Math.floor(Number(workspaceModel.unmatchedTargetCount)))
+      : 0
+  };
+};
+
 export const summarizeProviderRequestClasses = (runtime) => {
   const byMethod = runtime?.requests?.byMethod && typeof runtime.requests.byMethod === 'object'
     ? runtime.requests.byMethod
@@ -208,6 +237,10 @@ export const buildProviderFidelityContract = ({
     blockedWorkspaceKeys,
     blockedWorkspaceRoots
   });
+  const workspaceCoverage = summarizeWorkspaceCoverage({
+    runtime,
+    blockedPartitions
+  });
   const requestClassFailures = Object.entries(requestClasses)
     .filter(([, metrics]) => Number(metrics?.timedOut || 0) > 0 || Number(metrics?.failed || 0) > 0)
     .map(([requestClass]) => requestClass);
@@ -247,6 +280,7 @@ export const buildProviderFidelityContract = ({
     effectiveState === PROVIDER_FIDELITY_STATE.DEGRADED
     && (
       contributedChunkCount > 0
+      || workspaceCoverage.readyPartitionCount > 0
       || blockedPartitions.count > 0
       || requestClassFailures.length > 0
       || normalizedSkipped.length > 0
@@ -257,7 +291,11 @@ export const buildProviderFidelityContract = ({
       ? 'Provider output is healthy and may participate in normal merge scoring.'
       : (
         effectiveState === PROVIDER_FIDELITY_STATE.DEGRADED
-          ? 'Treat present provider output as partial contribution; do not treat blocked partitions or skipped request classes as negative evidence.'
+          ? (
+            workspaceCoverage.blockedPartitionCount > 0 && workspaceCoverage.readyPartitionCount > 0
+              ? 'Treat present provider output as partition-local partial contribution; blocked partitions remain excluded and must not count as negative evidence.'
+              : 'Treat present provider output as partial contribution; do not treat blocked partitions or skipped request classes as negative evidence.'
+          )
           : 'Treat missing provider output as explicit provider degradation or unavailability, not as negative evidence.'
       )
   );
@@ -272,13 +310,18 @@ export const buildProviderFidelityContract = ({
     contributes: resolvedContributes,
     requestClasses,
     blockedPartitions,
+    workspaceCoverage,
     skipped: normalizedSkipped,
     qualityDelta: {
       partialSuccess,
       contributedChunkCount,
       degradedRequestClasses: requestClassFailures,
       skippedRequestClasses: normalizedSkipped,
-      blockedPartitionCount: blockedPartitions.count
+      blockedPartitionCount: blockedPartitions.count,
+      readyPartitionCount: workspaceCoverage.readyPartitionCount,
+      totalPartitionCount: workspaceCoverage.totalPartitions,
+      unmatchedDocumentCount: workspaceCoverage.unmatchedDocumentCount,
+      unmatchedTargetCount: workspaceCoverage.unmatchedTargetCount
     },
     downstreamMergeInterpretation: mergeInterpretation
   };
