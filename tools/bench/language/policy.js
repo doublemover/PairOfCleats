@@ -144,6 +144,21 @@ export const createBenchMethodologyPolicy = ({
       maxRetainedCrashBundles: 0,
       maxUnwaivedIssues: 0
     },
+    productionCleanGate: {
+      profile: `${modePolicy.mode}-production-clean`,
+      thresholds: {
+        maxUnwaivedIssues: 0,
+        maxDegradedRepos: 0,
+        maxFallbackRepos: 0,
+        maxFallbackTimeCostMs: 0,
+        maxProviderTimeoutRepos: 0,
+        maxCircuitBreakerRepos: 0,
+        maxProviderDegradationRepos: 0,
+        maxPreflightBlockedRepos: 0,
+        maxArtifactStallRepos: 0,
+        maxQualityBudgetLossRepos: 0
+      }
+    },
     controlSlice: {
       maxTasks: controlSlice.maxTasks,
       taskIds: controlSlice.taskIds

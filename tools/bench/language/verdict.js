@@ -19,6 +19,14 @@ const DEGRADATION_DIAGNOSTIC_TYPES = new Set([
   'queue_delay_hotspot',
   'scm_timeout'
 ]);
+const PRODUCTION_CLEAN_SIGNAL_TYPES = Object.freeze({
+  fallbackRepos: 'fallback_used',
+  providerTimeoutRepos: 'provider_request_timeout',
+  circuitBreakerRepos: 'provider_circuit_breaker',
+  providerDegradationRepos: 'provider_degraded_mode_entered',
+  preflightBlockedRepos: 'provider_preflight_blocked',
+  artifactStallRepos: 'artifact_tail_stall'
+});
 
 const WINDOWS_CRASH_EXIT_CODES = new Set([
   3221225477, // 0xC0000005 access violation
@@ -93,6 +101,120 @@ const listContributingClasses = (entry) => {
   }
   if (entry?.diagnostics?.crashRetention?.bundlePath) classes.add('retained_crash_bundle');
   return Array.from(classes).sort((left, right) => left.localeCompare(right));
+};
+
+const resolveTaskLowYieldBailout = (payload) => {
+  const candidates = [
+    payload?.artifacts?.scanProfile?.modes?.['extracted-prose']?.quality?.lowYieldBailout,
+    payload?.scanProfile?.modes?.['extracted-prose']?.quality?.lowYieldBailout,
+    payload?.artifacts?.extractionReport?.quality?.lowYieldBailout,
+    payload?.extractionReport?.quality?.lowYieldBailout,
+    payload?.artifacts?.state?.extractedProseLowYieldBailout,
+    payload?.state?.extractedProseLowYieldBailout
+  ];
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === 'object') return candidate;
+  }
+  return null;
+};
+
+const countTasksWithDiagnosticType = (tasks, diagnosticType) => (
+  (Array.isArray(tasks) ? tasks : []).reduce((count, task) => {
+    const diagnosticCounts = sumDiagnosticCounts(task);
+    return count + (Number(diagnosticCounts?.[diagnosticType]) > 0 ? 1 : 0);
+  }, 0)
+);
+
+const sumTaskReuseTimeCostMs = (tasks) => (
+  (Array.isArray(tasks) ? tasks : []).reduce((sum, task) => {
+    const payload = task?.payload || null;
+    const candidates = [
+      payload?.artifacts?.scanProfile?.reuse?.cost?.timeCostMs,
+      payload?.scanProfile?.reuse?.cost?.timeCostMs,
+      payload?.artifacts?.metrics?.reuse?.cost?.timeCostMs,
+      payload?.metrics?.reuse?.cost?.timeCostMs
+    ];
+    const value = candidates.find((entry) => Number.isFinite(Number(entry)));
+    return sum + (Number(value) || 0);
+  }, 0)
+);
+
+const countQualityBudgetLossRepos = (tasks) => (
+  (Array.isArray(tasks) ? tasks : []).reduce((count, task) => {
+    const lowYield = resolveTaskLowYieldBailout(task?.payload || null);
+    return count + (lowYield?.triggered === true ? 1 : 0);
+  }, 0)
+);
+
+const evaluateProductionCleanGate = ({
+  tasks,
+  unwaivedIssues,
+  methodology
+}) => {
+  const thresholds = {
+    maxUnwaivedIssues: 0,
+    maxDegradedRepos: 0,
+    maxFallbackRepos: 0,
+    maxFallbackTimeCostMs: 0,
+    maxProviderTimeoutRepos: 0,
+    maxCircuitBreakerRepos: 0,
+    maxProviderDegradationRepos: 0,
+    maxPreflightBlockedRepos: 0,
+    maxArtifactStallRepos: 0,
+    maxQualityBudgetLossRepos: 0,
+    ...(methodology?.productionCleanGate?.thresholds || {})
+  };
+  const metrics = {
+    unwaivedIssues: Array.isArray(unwaivedIssues) ? unwaivedIssues.length : 0,
+    degradedRepos: new Set(
+      (Array.isArray(unwaivedIssues) ? unwaivedIssues : [])
+        .filter((issue) => issue?.resultClass === 'passed_with_degradation')
+        .map((issue) => `${issue.language || 'unknown'}:${issue.repo || 'unknown'}`)
+    ).size,
+    fallbackRepos: countTasksWithDiagnosticType(tasks, PRODUCTION_CLEAN_SIGNAL_TYPES.fallbackRepos),
+    fallbackTimeCostMs: sumTaskReuseTimeCostMs(tasks),
+    providerTimeoutRepos: countTasksWithDiagnosticType(tasks, PRODUCTION_CLEAN_SIGNAL_TYPES.providerTimeoutRepos),
+    circuitBreakerRepos: countTasksWithDiagnosticType(tasks, PRODUCTION_CLEAN_SIGNAL_TYPES.circuitBreakerRepos),
+    providerDegradationRepos: countTasksWithDiagnosticType(tasks, PRODUCTION_CLEAN_SIGNAL_TYPES.providerDegradationRepos),
+    preflightBlockedRepos: countTasksWithDiagnosticType(tasks, PRODUCTION_CLEAN_SIGNAL_TYPES.preflightBlockedRepos),
+    artifactStallRepos: countTasksWithDiagnosticType(tasks, PRODUCTION_CLEAN_SIGNAL_TYPES.artifactStallRepos),
+    qualityBudgetLossRepos: countQualityBudgetLossRepos(tasks)
+  };
+  const thresholdMetricMap = {
+    maxUnwaivedIssues: 'unwaivedIssues',
+    maxDegradedRepos: 'degradedRepos',
+    maxFallbackRepos: 'fallbackRepos',
+    maxFallbackTimeCostMs: 'fallbackTimeCostMs',
+    maxProviderTimeoutRepos: 'providerTimeoutRepos',
+    maxCircuitBreakerRepos: 'circuitBreakerRepos',
+    maxProviderDegradationRepos: 'providerDegradationRepos',
+    maxPreflightBlockedRepos: 'preflightBlockedRepos',
+    maxArtifactStallRepos: 'artifactStallRepos',
+    maxQualityBudgetLossRepos: 'qualityBudgetLossRepos'
+  };
+  const thresholdFailures = Object.entries(thresholds)
+    .map(([key, limit]) => {
+      const metricKey = thresholdMetricMap[key];
+      const numericLimit = Number(limit);
+      const metricValue = Number(metrics[metricKey]);
+      if (!Number.isFinite(numericLimit) || !Number.isFinite(metricValue)) return null;
+      if (metricValue <= numericLimit) return null;
+      return {
+        metric: metricKey,
+        threshold: key,
+        actual: metricValue,
+        limit: numericLimit
+      };
+    })
+    .filter(Boolean);
+  return {
+    profile: methodology?.productionCleanGate?.profile || 'production-clean',
+    status: thresholdFailures.length ? 'fail' : 'pass',
+    exitCode: thresholdFailures.length ? 1 : 0,
+    thresholds,
+    metrics,
+    thresholdFailures
+  };
 };
 
 const isCrashExitCode = (value) => {
@@ -292,7 +414,7 @@ const buildTaskIssues = (entry) => {
   return issues;
 };
 
-export const evaluateBenchVerdict = ({ tasks, policy }) => {
+export const evaluateBenchVerdict = ({ tasks, policy, methodology = null }) => {
   const normalizedTasks = Array.isArray(tasks) ? tasks : [];
   const resultClassCounts = new Map();
   const failureClassCounts = new Map();
@@ -372,6 +494,11 @@ export const evaluateBenchVerdict = ({ tasks, policy }) => {
     const hasAnyDegradation = issues.length > 0;
     if (hasAnyDegradation) aggregateResultClass = 'passed_with_degradation';
   }
+  const productionClean = evaluateProductionCleanGate({
+    tasks: enrichedTasks,
+    unwaivedIssues,
+    methodology
+  });
 
   return {
     tasks: enrichedTasks,
@@ -400,6 +527,7 @@ export const evaluateBenchVerdict = ({ tasks, policy }) => {
         unwaived: unwaivedIssues,
         waived: waivedIssues
       },
+      productionClean,
       policy: {
         schemaVersion: BENCH_POLICY_SCHEMA_VERSION,
         policyVersion: policy?.policyVersion || BENCH_POLICY_VERSION,

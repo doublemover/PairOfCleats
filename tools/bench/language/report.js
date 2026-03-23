@@ -1916,7 +1916,7 @@ export const buildReportOutput = async ({
   );
   const remediation = buildRemediationSummary(tasks);
   const policy = await loadBenchPolicy({ waiverFile });
-  const verdict = evaluateBenchVerdict({ tasks, policy });
+  const verdict = evaluateBenchVerdict({ tasks, policy, methodology });
   const ownership = buildBenchOwnershipSummary({
     tasks: verdict.tasks,
     methodology

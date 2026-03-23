@@ -68,6 +68,10 @@ const output = await buildReportOutput({
 assert.ok(Array.isArray(output.tasks), 'expected task list in report output');
 assert.equal(output.run.aggregateResultClass, 'passed_with_degradation', 'expected degradation-aware run verdict');
 assert.equal(output.run.exitCode, 0, 'expected degradations to remain zero-exit by default');
+assert.equal(output.run.productionClean?.status, 'fail', 'expected degraded run to fail production-clean gate');
+assert.equal(output.run.productionClean?.exitCode, 1, 'expected production-clean gate to carry failing exit code');
+assert.equal(output.run.productionClean?.metrics?.degradedRepos, 1, 'expected one degraded repo in clean-gate metrics');
+assert.equal(output.run.productionClean?.metrics?.fallbackRepos, 1, 'expected fallback repo counted for clean gate');
 assert.equal(output.methodology?.mode, 'warm', 'expected methodology payload in report output');
 assert.equal(output.overallSummary?.metricTags?.cacheMode, 'warm', 'expected report metric tags to carry cache mode');
 assert.equal(output.run.repoCounts.passed, 1, 'expected one clean passing repo');
@@ -144,6 +148,7 @@ assert.equal(
   'expected waived repo failures to downgrade aggregate result'
 );
 assert.equal(waivedOutput.run.exitCode, 0, 'expected waived repo failures to stay zero-exit');
+assert.equal(waivedOutput.run.productionClean?.status, 'pass', 'expected waived fixture to satisfy zero-threshold clean gate');
 assert.deepEqual(
   waivedOutput.run.policy.matchedWaiverIds,
   ['waive-benchmark-failure'],
