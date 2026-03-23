@@ -1,6 +1,7 @@
 import fsSync from 'node:fs';
 import { createLruCache } from '../shared/cache.js';
 import { incCacheEviction, setCacheSize } from '../shared/metrics.js';
+import { stableStringifyForSignature } from '../shared/stable-json.js';
 
 const DEFAULT_SQLITE_CACHE_MAX_ENTRIES = 4;
 const DEFAULT_SQLITE_CACHE_TTL_MS = 15 * 60 * 1000;
@@ -13,6 +14,21 @@ const fileSignature = (filePath) => {
     return null;
   }
 };
+
+const normalizeGenerationTag = (generationTag = null) => {
+  if (generationTag == null) return null;
+  if (typeof generationTag === 'string') {
+    const trimmed = generationTag.trim();
+    return trimmed || null;
+  }
+  return stableStringifyForSignature(generationTag);
+};
+
+const buildCacheKey = (dbPath, generationTag = null) => (
+  `${dbPath}|generation:${normalizeGenerationTag(generationTag) || 'default'}`
+);
+
+const isEntryForPath = (entry, dbPath) => entry?.dbPath === dbPath;
 
 export function createSqliteDbCache({
   maxEntries = DEFAULT_SQLITE_CACHE_MAX_ENTRIES,
@@ -51,26 +67,47 @@ export function createSqliteDbCache({
     };
   }
 
-  const get = (dbPath) => {
-    const entry = cacheHandle.get(dbPath);
+  const get = (dbPath, options = {}) => {
+    const cacheKey = buildCacheKey(dbPath, options.generationTag);
+    const entry = cacheHandle.get(cacheKey);
     if (!entry) return null;
     const signature = fileSignature(dbPath);
     if (!signature || signature !== entry.signature) {
-      cacheHandle.delete(dbPath);
+      cacheHandle.delete(cacheKey);
       return null;
     }
     return entry.db || null;
   };
 
-  const set = (dbPath, db) => {
+  const set = (dbPath, db, options = {}) => {
+    const normalizedGenerationTag = normalizeGenerationTag(options.generationTag);
+    const cacheKey = buildCacheKey(dbPath, normalizedGenerationTag);
     const signature = fileSignature(dbPath);
-    cacheHandle.set(dbPath, { db, signature });
+    for (const [existingKey, existingEntry] of cacheHandle.cache.entries()) {
+      if (!isEntryForPath(existingEntry, dbPath) || existingKey === cacheKey) continue;
+      cacheHandle.delete(existingKey);
+    }
+    cacheHandle.set(cacheKey, {
+      db,
+      dbPath,
+      generationTag: normalizedGenerationTag,
+      signature
+    });
   };
 
-  const close = (dbPath) => {
-    const entry = cacheHandle.get(dbPath);
-    if (!entry) return;
-    cacheHandle.delete(dbPath);
+  const close = (dbPath, options = {}) => {
+    const normalizedGenerationTag = normalizeGenerationTag(options.generationTag);
+    if (normalizedGenerationTag) {
+      const cacheKey = buildCacheKey(dbPath, normalizedGenerationTag);
+      if (cacheHandle.get(cacheKey)) {
+        cacheHandle.delete(cacheKey);
+      }
+      return;
+    }
+    for (const [existingKey, existingEntry] of cacheHandle.cache.entries()) {
+      if (!isEntryForPath(existingEntry, dbPath)) continue;
+      cacheHandle.delete(existingKey);
+    }
   };
 
   const closeAll = () => {

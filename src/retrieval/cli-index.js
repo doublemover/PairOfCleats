@@ -3,7 +3,7 @@ import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { getIndexDir } from '../../tools/shared/dict-utils.js';
 import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
-import { buildIndexSignature } from './index-cache.js';
+import { buildIndexSignatureInfo } from './index-cache.js';
 import { probeFileSignature } from '../shared/file-signature.js';
 import {
   loadDenseVectorBinaryFromMetaAsync,
@@ -419,9 +419,17 @@ export async function getIndexSignature(options) {
     records: runRecords ? safeResolveModeDir('records') : null
   };
   const modeSignatures = {};
+  const generationByMode = {};
   await Promise.all(
     Object.entries(modeDirs).map(async ([mode, dir]) => {
-      modeSignatures[mode] = dir ? await buildIndexSignature(dir) : null;
+      const info = dir ? await buildIndexSignatureInfo(dir) : null;
+      modeSignatures[mode] = info?.signature || null;
+      generationByMode[mode] = info
+        ? {
+          buildId: info.buildId || null,
+          artifactSurfaceVersion: info.artifactSurfaceVersion || null
+        }
+        : null;
     })
   );
   const asOfSignature = asOfContext
@@ -446,12 +454,14 @@ export async function getIndexSignature(options) {
         prose: proseSig,
         extractedProse: extractedSig
       },
-      modes: modeSignatures
+      modes: modeSignatures,
+      generationByMode
     };
   }
   return {
     backend: backendLabel,
     asOf: asOfSignature,
-    modes: modeSignatures
+    modes: modeSignatures,
+    generationByMode
   };
 }

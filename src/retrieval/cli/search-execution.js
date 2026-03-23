@@ -292,6 +292,7 @@ export async function executeSearchAndEmit(input) {
     intentInfo: queryPlan.intentInfo,
     resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
     fieldWeights: queryPlan.fieldWeights,
+    indexSignaturePayload,
     contextExpansionStats: searchResult.contextExpansionStats,
     idxProse,
     idxExtractedProse,

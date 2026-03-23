@@ -101,6 +101,8 @@ try {
 const output = outputChunks.join('');
 const parsed = JSON.parse(output);
 assert.equal(parsed.backend, 'memory');
+assert.equal(parsed.retrieval?.backend?.selected, 'memory');
+assert.equal(parsed.retrieval?.cache?.hit, false);
 assert.equal(parsed.code.length, 1);
 assert.equal(parsed.code[0].file, 'src/a.js');
 

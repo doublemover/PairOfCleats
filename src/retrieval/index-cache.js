@@ -112,12 +112,12 @@ const setCachedSignature = (cacheKey, signature) => {
 };
 
 /**
- * Build index-state signature preferring semantic build metadata when present.
+ * Read semantic index-state freshness info when available.
  *
  * @param {string} dir
- * @returns {Promise<{signature:string,buildId:string|null}|null>}
+ * @returns {Promise<{signature:string,buildId:string|null,mode:string|null,artifactSurfaceVersion:string|null}|null>}
  */
-const indexStateSignature = async (dir) => {
+export const readIndexStateSignature = async (dir) => {
   if (!dir) return null;
   const statePath = path.join(dir, 'index_state.json');
   try {
@@ -130,17 +130,74 @@ const indexStateSignature = async (dir) => {
     if (state && typeof state === 'object') {
       const buildId = typeof state.buildId === 'string' ? state.buildId : '';
       const mode = typeof state.mode === 'string' ? state.mode : '';
-      const surface = typeof state.artifactSurfaceVersion === 'string' ? state.artifactSurfaceVersion : '';
-      if (buildId || mode || surface) {
+      const artifactSurfaceVersion = typeof state.artifactSurfaceVersion === 'string'
+        ? state.artifactSurfaceVersion
+        : '';
+      if (buildId || mode || artifactSurfaceVersion) {
         return {
-          signature: `build:${buildId || 'missing'}|mode:${mode || 'missing'}|surface:${surface || 'missing'}`,
-          buildId: buildId || null
+          signature: `build:${buildId || 'missing'}|mode:${mode || 'missing'}|surface:${artifactSurfaceVersion || 'missing'}`,
+          buildId: buildId || null,
+          mode: mode || null,
+          artifactSurfaceVersion: artifactSurfaceVersion || null
         };
       }
     }
   } catch {}
   const statSig = await fileSignature(statePath);
-  return statSig ? { signature: `stat:${statSig}`, buildId: null } : null;
+  return statSig
+    ? {
+      signature: `stat:${statSig}`,
+      buildId: null,
+      mode: null,
+      artifactSurfaceVersion: null
+    }
+    : null;
+};
+
+export async function buildIndexSignatureInfo(dir) {
+  if (!dir) return null;
+  const canonicalDir = await canonicalizeIndexDir(dir);
+  if (!canonicalDir) return null;
+  const stateInfo = await readIndexStateSignature(canonicalDir);
+  if (stateInfo?.signature) {
+    const cacheKey = `${canonicalDir}|state:${stateInfo.signature}`;
+    const cached = getCachedSignature(cacheKey);
+    const signature = cached || `index_state:${stateInfo.signature}`;
+    if (!cached) {
+      setCachedSignature(cacheKey, signature);
+    }
+    return {
+      canonicalDir,
+      signature,
+      buildId: stateInfo.buildId || null,
+      mode: stateInfo.mode || null,
+      artifactSurfaceVersion: stateInfo.artifactSurfaceVersion || null
+    };
+  }
+  const [chunkMetaSig, tokenPostingsSig, fileRelationsSig, repoMapSig, ...fileSigs] = await Promise.all([
+    chunkMetaSignature(canonicalDir),
+    tokenPostingsSignature(canonicalDir),
+    jsonlArtifactSignature(canonicalDir, 'file_relations'),
+    jsonlArtifactSignature(canonicalDir, 'repo_map'),
+    ...INDEX_FILES.map(async (name) => {
+      const target = path.join(canonicalDir, name);
+      const sig = await fileSignature(target);
+      return `${name}:${sig || 'missing'}`;
+    })
+  ]);
+  return {
+    canonicalDir,
+    signature: [
+      chunkMetaSig,
+      tokenPostingsSig,
+      fileRelationsSig,
+      repoMapSig,
+      ...fileSigs
+    ].join('|'),
+    buildId: null,
+    mode: null,
+    artifactSurfaceVersion: null
+  };
 };
 
 export { probeFileSignature };
@@ -256,37 +313,7 @@ const jsonlArtifactSignature = async (dir, baseName) => {
  * @returns {Promise<string|null>}
  */
 export async function buildIndexSignature(dir) {
-  if (!dir) return null;
-  const canonicalDir = await canonicalizeIndexDir(dir);
-  if (!canonicalDir) return null;
-  const stateInfo = await indexStateSignature(canonicalDir);
-  if (stateInfo?.signature) {
-    const cacheKey = `${canonicalDir}|state:${stateInfo.signature}`;
-    const cached = getCachedSignature(cacheKey);
-    if (cached) return cached;
-    const signature = `index_state:${stateInfo.signature}`;
-    setCachedSignature(cacheKey, signature);
-    return signature;
-  }
-  const [chunkMetaSig, tokenPostingsSig, fileRelationsSig, repoMapSig, ...fileSigs] = await Promise.all([
-    chunkMetaSignature(canonicalDir),
-    tokenPostingsSignature(canonicalDir),
-    jsonlArtifactSignature(canonicalDir, 'file_relations'),
-    jsonlArtifactSignature(canonicalDir, 'repo_map'),
-    ...INDEX_FILES.map(async (name) => {
-      const target = path.join(canonicalDir, name);
-      const sig = await fileSignature(target);
-      return `${name}:${sig || 'missing'}`;
-    })
-  ]);
-  const signature = [
-    chunkMetaSig,
-    tokenPostingsSig,
-    fileRelationsSig,
-    repoMapSig,
-    ...fileSigs
-  ].join('|');
-  return signature;
+  return (await buildIndexSignatureInfo(dir))?.signature || null;
 }
 
 /**

@@ -7,6 +7,7 @@ import {
 } from '../output.js';
 import { applyOutputBudgetPolicy, normalizeOutputBudgetPolicy } from '../output/score-breakdown.js';
 import { buildTrustSurface } from '../output/explain.js';
+import { buildRetrievalMetadata } from '../output/retrieval-metadata.js';
 
 /**
  * Render retrieval results in JSON or TTY format and append derived output
@@ -54,6 +55,7 @@ export function renderSearchOutput({
   intentInfo,
   resolvedDenseVectorMode,
   fieldWeights,
+  indexSignaturePayload = null,
   contextExpansionStats,
   idxProse,
   idxExtractedProse,
@@ -108,6 +110,17 @@ export function renderSearchOutput({
     extractedProse: payload.extractedProse,
     prose: payload.prose,
     records: payload.records
+  });
+  payload.retrieval = buildRetrievalMetadata({
+    backendLabel,
+    backendPolicyInfo,
+    cacheInfo,
+    idxCode,
+    idxProse,
+    idxExtractedProse,
+    idxRecords,
+    indexSignaturePayload,
+    asOfContext
   });
   if (asOfContext) {
     payload.asOf = {
@@ -280,6 +293,10 @@ export function renderSearchOutput({
       writeArray(outputPayload.records);
       out.write(',\"bundles\":');
       out.write(JSON.stringify(outputPayload.bundles));
+      if (outputPayload.retrieval) {
+        out.write(',\"retrieval\":');
+        out.write(JSON.stringify(outputPayload.retrieval));
+      }
       if (outputPayload.asOf) {
         out.write(',\"asOf\":');
         out.write(JSON.stringify(outputPayload.asOf));

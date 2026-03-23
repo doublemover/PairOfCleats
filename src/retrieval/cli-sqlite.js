@@ -10,8 +10,22 @@ import {
 import { SCHEMA_VERSION } from '../storage/sqlite/schema.js';
 import { applyReadPragmas } from '../storage/sqlite/build/pragmas.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
+import { stableStringifyForSignature } from '../shared/stable-json.js';
 
 const sqliteChunkCountCache = new Map();
+
+const buildSqliteGenerationTag = (mode, state = null) => {
+  if (!state || typeof state !== 'object') return null;
+  return stableStringifyForSignature({
+    mode,
+    buildId: state.buildId || null,
+    artifactSurfaceVersion: state.artifactSurfaceVersion || null,
+    profileId: state.profile?.id || null,
+    profileSchemaVersion: state.profile?.schemaVersion || null,
+    sqliteReady: state.sqlite?.ready ?? null,
+    sqlitePending: state.sqlite?.pending ?? null
+  });
+};
 
 /**
  * Initialize SQLite connections for search.
@@ -175,8 +189,15 @@ export async function createSqliteBackend(options) {
     dense_meta: ['mode', 'dims', 'scale', 'model', 'min_val', 'max_val', 'levels']
   };
 
-  const openSqlite = (dbPath, label) => {
-    const cached = dbCache?.get?.(dbPath);
+  const generationTagByMode = {
+    code: buildSqliteGenerationTag('code', sqliteStates?.code),
+    prose: buildSqliteGenerationTag('prose', sqliteStates?.prose),
+    'extracted-prose': buildSqliteGenerationTag('extracted-prose', sqliteStates?.['extracted-prose'])
+  };
+
+  const openSqlite = (dbPath, label, mode) => {
+    const generationTag = generationTagByMode[mode] || null;
+    const cached = dbCache?.get?.(dbPath, { generationTag });
     if (cached) return cached;
     let db;
     let dbStat = null;
@@ -238,7 +259,7 @@ export async function createSqliteBackend(options) {
       storageTier,
       ...(sqliteReadPragmas && typeof sqliteReadPragmas === 'object' ? sqliteReadPragmas : {})
     });
-    if (dbCache?.set) dbCache.set(dbPath, db);
+    if (dbCache?.set) dbCache.set(dbPath, db, { generationTag });
     return db;
   };
 
@@ -268,16 +289,28 @@ export async function createSqliteBackend(options) {
     vectorAnnState[mode].column = config.column;
   };
 
-  if (needsCode) dbCode = openSqlite(sqliteCodePath, 'code');
-  if (needsProse) dbProse = openSqlite(sqliteProsePath, 'prose');
-  if (needsExtractedProse) dbExtractedProse = openSqlite(sqliteExtractedProsePath, 'extracted-prose');
+  if (needsCode) dbCode = openSqlite(sqliteCodePath, 'code', 'code');
+  if (needsProse) dbProse = openSqlite(sqliteProsePath, 'prose', 'prose');
+  if (needsExtractedProse) dbExtractedProse = openSqlite(sqliteExtractedProsePath, 'extracted-prose', 'extracted-prose');
   if (needsCode) initVectorAnn(dbCode, 'code');
   if (needsProse) initVectorAnn(dbProse, 'prose');
   if (needsExtractedProse) initVectorAnn(dbExtractedProse, 'extracted-prose');
   if ((needsCode && !dbCode) || (needsProse && !dbProse) || (needsExtractedProse && !dbExtractedProse)) {
-    if (dbCode) dbCache?.close ? dbCache.close(sqliteCodePath) : dbCode.close();
-    if (dbProse) dbCache?.close ? dbCache.close(sqliteProsePath) : dbProse.close();
-    if (dbExtractedProse) dbCache?.close ? dbCache.close(sqliteExtractedProsePath) : dbExtractedProse.close();
+    if (dbCode) {
+      dbCache?.close
+        ? dbCache.close(sqliteCodePath, { generationTag: generationTagByMode.code })
+        : dbCode.close();
+    }
+    if (dbProse) {
+      dbCache?.close
+        ? dbCache.close(sqliteProsePath, { generationTag: generationTagByMode.prose })
+        : dbProse.close();
+    }
+    if (dbExtractedProse) {
+      dbCache?.close
+        ? dbCache.close(sqliteExtractedProsePath, { generationTag: generationTagByMode['extracted-prose'] })
+        : dbExtractedProse.close();
+    }
     dbCode = null;
     dbProse = null;
     dbExtractedProse = null;
