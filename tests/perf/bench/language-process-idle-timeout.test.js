@@ -81,4 +81,28 @@ assert.equal(
   'expected idle timeout summary log line'
 );
 
+const noisyScript = [
+  "setInterval(() => console.log('non-progress noise from child'), 20);",
+  'setTimeout(() => {}, 10_000);'
+].join('');
+
+const noisyResult = await runner.runProcess(
+  'bench-idle-output-noise',
+  process.execPath,
+  ['-e', noisyScript],
+  {
+    continueOnError: true,
+    idleTimeoutMs: 80,
+    timeoutMs: 1000
+  }
+);
+
+assert.equal(noisyResult.ok, false, 'expected noisy subprocess without owned progress to fail');
+assert.equal(noisyResult.timeoutKind, 'idle', 'expected noisy subprocess to be classified as idle timeout');
+assert.equal(
+  captured.some((line) => line.includes('[run] idle timeout: bench-idle-output-noise')),
+  true,
+  'expected idle timeout despite non-progress output chatter'
+);
+
 console.log('bench language process idle-timeout test passed');

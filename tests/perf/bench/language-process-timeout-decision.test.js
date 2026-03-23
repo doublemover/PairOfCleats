@@ -113,7 +113,7 @@ assert.equal(
 );
 assert.deepEqual(
   providerHardResult.timeoutDecision?.qualityDelta?.skippedWork,
-  ['provider-enrichment', 'provider-requests', 'workspace-preflight'],
+  ['provider-enrichment', 'provider-ladder', 'provider-requests', 'workspace-preflight'],
   'expected provider timeout quality delta to surface skipped enrichment classes'
 );
 assert.equal(
@@ -154,6 +154,39 @@ assert.equal(
   Number(artifactHardResult.diagnostics?.countsByType?.runtime_timeout || 0),
   1,
   'expected artifact timeout run to emit one structured runtime timeout event'
+);
+
+const sqlitePhaseScript = [
+  "const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));",
+  "const emit = (event, payload) => console.log(JSON.stringify({ proto: 'poc.progress@2', event, ts: new Date().toISOString(), ...payload }));",
+  '(async () => {',
+  "  emit('task:progress', { taskId: 'phase:step', stage: 'neutral-stage', current: 4, total: 10, message: 'still working', meta: { phase: 'sqlite' } });",
+  '  await wait(10_000);',
+  '})();'
+].join('');
+
+const sqliteHardResult = await runner.runProcess(
+  'bench-timeout-decision-sqlite',
+  process.execPath,
+  ['-e', sqlitePhaseScript],
+  {
+    continueOnError: true,
+    timeoutMs: 160
+  }
+);
+
+assert.equal(sqliteHardResult.ok, false, 'expected sqlite hard timeout result');
+assert.equal(sqliteHardResult.timeoutDecision?.phase, 'sqlite', 'expected explicit runtime phase token to drive sqlite attribution');
+assert.equal(sqliteHardResult.timeoutDecision?.resourceClass, 'write-bound', 'expected sqlite phase to map to write-bound resource class');
+assert.equal(
+  sqliteHardResult.timeoutDecision?.failureMode,
+  'budget_exhausted_with_progress',
+  'expected explicit sqlite phase progress token to count as owned progress'
+);
+assert.equal(
+  Number(sqliteHardResult.diagnostics?.countsByType?.runtime_timeout || 0),
+  1,
+  'expected sqlite timeout run to emit one structured runtime timeout event'
 );
 
 const extensionScript = [

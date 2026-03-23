@@ -291,6 +291,106 @@ const formatCompactDuration = (value) => {
   return `${(value / 1000).toFixed(1)}s`;
 };
 
+const BENCH_RUNTIME_PHASES = new Set([
+  'clone',
+  'provider_bootstrap',
+  'execute',
+  'artifact_write',
+  'sqlite',
+  'validation'
+]);
+
+const normalizeBenchRuntimePhase = (value) => {
+  const text = String(value || '').trim().toLowerCase();
+  return BENCH_RUNTIME_PHASES.has(text) ? text : null;
+};
+
+const resolveBenchRuntimePhaseFromText = (...values) => {
+  const text = values
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean)
+    .join(' ');
+  if (!text) return null;
+  if (/\b(?:clone|checkout|mirror(?:-|\s)?(?:clone|refresh)|fetch)\b/.test(text)) return 'clone';
+  if (/\b(?:sqlite|mode-build|db-build|row-ledger)\b/.test(text)) return 'sqlite';
+  if (/\b(?:validation|validator|reconcile|integrity-check)\b/.test(text)) return 'validation';
+  if (/\b(?:artifact|field_postings|field_tokens|chunk_meta|repo_map|publication|closeout|binary-columnar|write:|\bwrite\b|flush)\b/.test(text)) {
+    return 'artifact_write';
+  }
+  if (
+    /\b(?:tooling|preflight|workspace-model|workspace|documentsymbol|document\/symbol|semantictokens|hover|inlay|clangd|pyright|sourcekit|gopls|rust-analyzer|lua-language-server)\b/.test(text)
+  ) {
+    return 'provider_bootstrap';
+  }
+  if (/\b(?:overall|parse|index|process|chunk|record|analysis|scheduler|tree-sitter)\b/.test(text)) return 'execute';
+  return null;
+};
+
+const resolveBenchRuntimePhaseForProgressEvent = (event = null) => {
+  if (!event || typeof event !== 'object') return null;
+  return normalizeBenchRuntimePhase(event.phase)
+    || normalizeBenchRuntimePhase(event?.meta?.phase)
+    || resolveBenchRuntimePhaseFromText(
+      event.stage,
+      event.taskId,
+      event.name,
+      event.message
+    );
+};
+
+const resolveBenchRuntimePhaseForDiagnostic = (diagnostic = null, event = null) => {
+  if (!diagnostic || typeof diagnostic !== 'object') return null;
+  return normalizeBenchRuntimePhase(diagnostic.phase)
+    || resolveBenchRuntimePhaseFromText(
+      diagnostic.stage,
+      diagnostic.taskId,
+      diagnostic.eventType,
+      diagnostic.providerId,
+      diagnostic.requestMethod,
+      diagnostic.message,
+      event?.stage,
+      event?.taskId,
+      event?.message
+    );
+};
+
+const resolveBenchPhaseExpectations = ({
+  phase = null,
+  hasOwnedProgress = false,
+  lastInFlight = null,
+  lastQueueAgeMs = null
+} = {}) => {
+  if (!hasOwnedProgress) {
+    return {
+      phase: 'execute',
+      queueExpected: false,
+      byteProgressExpected: false,
+      optionalPhase: false
+    };
+  }
+  const normalizedPhase = normalizeBenchRuntimePhase(phase) || 'execute';
+  switch (normalizedPhase) {
+    case 'clone':
+      return { phase: normalizedPhase, queueExpected: false, byteProgressExpected: true, optionalPhase: false };
+    case 'provider_bootstrap':
+      return { phase: normalizedPhase, queueExpected: false, byteProgressExpected: false, optionalPhase: true };
+    case 'artifact_write':
+      return { phase: normalizedPhase, queueExpected: false, byteProgressExpected: true, optionalPhase: true };
+    case 'sqlite':
+      return { phase: normalizedPhase, queueExpected: false, byteProgressExpected: true, optionalPhase: false };
+    case 'validation':
+      return { phase: normalizedPhase, queueExpected: false, byteProgressExpected: false, optionalPhase: false };
+    case 'execute':
+    default:
+      return {
+        phase: 'execute',
+        queueExpected: Number.isFinite(lastInFlight) || Number.isFinite(lastQueueAgeMs),
+        byteProgressExpected: true,
+        optionalPhase: false
+      };
+  }
+};
+
 const resolveQueueAgeMs = ({ message, event }) => {
   const eventCandidates = [
     event?.queueAgeMs,
@@ -411,10 +511,13 @@ const resolveLegacyDiagnosticType = (message, event = null) => {
 
 const resolveTimeoutPhase = ({
   timeoutDecision = null,
+  ownedPhase = null,
   diagnostics = null,
   lastActivitySource = '',
   lastActivityText = ''
 } = {}) => {
+  const progressPhase = normalizeBenchRuntimePhase(ownedPhase);
+  if (progressPhase) return progressPhase;
   const countsByType = diagnostics?.countsByType && typeof diagnostics.countsByType === 'object'
     ? diagnostics.countsByType
     : {};
@@ -438,9 +541,12 @@ const resolveTimeoutPhase = ({
   if (text.includes('sqlite')) return 'sqlite';
   if (text.includes('validation')) return 'validation';
   if (text.includes('clone') || text.includes('checkout')) return 'clone';
+  const budgetPhase = normalizeBenchRuntimePhase(timeoutDecision?.budget?.phase);
+  if (budgetPhase && budgetPhase !== 'execute') return budgetPhase;
   if (timeoutClass === PROGRESS_TIMEOUT_CLASSES.noQueueMovement) return 'execute';
   if (timeoutClass === PROGRESS_TIMEOUT_CLASSES.noByteProgress) return 'execute';
   if (timeoutClass === PROGRESS_TIMEOUT_CLASSES.globalWallClockCap) return 'execute';
+  if (budgetPhase) return budgetPhase;
   return 'unknown';
 };
 
@@ -462,6 +568,8 @@ const resolveTimeoutResourceClass = ({ phase = 'unknown' } = {}) => {
 
 const resolveTimeoutFailureMode = ({
   timeoutDecision = null,
+  ownedPhase = null,
+  lastOwnedProgressAtMs = null,
   diagnostics = null,
   lastActivityAtMs = null,
   lastActivitySource = '',
@@ -475,6 +583,8 @@ const resolveTimeoutFailureMode = ({
     ? Math.max(1000, Math.floor(effectiveBudgetMs * 0.5))
     : 15_000;
   const now = Date.now();
+  const recentOwnedProgress = Number.isFinite(lastOwnedProgressAtMs)
+    && (now - lastOwnedProgressAtMs) <= recentWindowMs;
   const recentActivity = Number.isFinite(lastActivityAtMs)
     && String(lastActivitySource || '').trim().toLowerCase() !== 'spawn'
     && (now - lastActivityAtMs) <= recentWindowMs;
@@ -495,22 +605,31 @@ const resolveTimeoutFailureMode = ({
     'queue_delay_hotspot',
     'fallback_used'
   ].some((eventType) => Number(countsByType[eventType] || 0) > 0);
-  const observedProgress = recentActivity
+  const observedPhaseOwnedProgress = recentOwnedProgress && Boolean(
+    normalizeBenchRuntimePhase(timeoutDecision?.budget?.phase)
+    || normalizeBenchRuntimePhase(ownedPhase)
+  );
+  const observedProgress = observedPhaseOwnedProgress
     || recentHeartbeat
     || recentQueue
     || recentBytes
-    || observedDiagnosticProgress
+    || (!observedPhaseOwnedProgress && recentActivity)
+    || (!observedPhaseOwnedProgress && observedDiagnosticProgress)
     || (Number.isFinite(completedUnits) && completedUnits > 0);
   return observedProgress ? 'budget_exhausted_with_progress' : 'phase_stalled';
 };
 
 const resolveTimeoutQualityDelta = ({
+  phase = null,
   diagnostics = null
 } = {}) => {
   const countsByType = diagnostics?.countsByType && typeof diagnostics.countsByType === 'object'
     ? diagnostics.countsByType
     : {};
   const skipped = [];
+  const normalizedPhase = normalizeBenchRuntimePhase(phase);
+  if (normalizedPhase === 'provider_bootstrap') skipped.push('provider-ladder');
+  if (normalizedPhase === 'artifact_write') skipped.push('artifact-ladder');
   if (Number(countsByType.provider_preflight_blocked || 0) > 0) skipped.push('workspace-preflight');
   if (Number(countsByType.provider_request_timeout || 0) > 0) skipped.push('provider-requests');
   if (Number(countsByType.provider_degraded_mode_entered || 0) > 0) skipped.push('provider-enrichment');
@@ -835,6 +954,13 @@ export const createProcessRunner = ({
     let lastInFlight = null;
     let lastProgressCurrent = 0;
     let lastProgressTotal = 0;
+    let lastOwnedProgressAtMs = processStartedAtMs;
+    let lastOwnedProgressSource = 'spawn';
+    let lastOwnedProgressText = label;
+    let lastOwnedPhase = 'execute';
+    let hasOwnedProgress = false;
+    let lastProcessProbeActivityAtMs = processStartedAtMs;
+    const phaseProgressState = new Map();
     let idleWatchdog = null;
     let idleTimeoutTriggered = false;
     let idleWatchdogProbeInFlight = false;
@@ -845,35 +971,114 @@ export const createProcessRunner = ({
       lastActivityAtMs = Date.now();
       lastActivitySource = String(source || 'output');
       lastActivityText = truncateForDisplay(text || label, 140) || label;
+      if (!hasOwnedProgress) {
+        activeIdleTimeoutBudgetMs = resolvedIdleTimeoutMs;
+      }
+    };
+
+    const noteOwnedPhaseProgress = ({
+      phase = null,
+      source = 'output',
+      text = '',
+      kind = 'activity'
+    } = {}) => {
+      const normalizedPhase = normalizeBenchRuntimePhase(phase);
+      if (!normalizedPhase) return;
+      const now = Date.now();
+      const displayText = truncateForDisplay(text || label, 140) || label;
+      lastOwnedProgressAtMs = now;
+      lastOwnedProgressSource = String(source || 'output');
+      lastOwnedProgressText = displayText;
+      lastOwnedPhase = normalizedPhase;
+      hasOwnedProgress = true;
       activeIdleTimeoutBudgetMs = resolvedIdleTimeoutMs;
+      const prior = phaseProgressState.get(normalizedPhase) || { count: 0 };
+      phaseProgressState.set(normalizedPhase, {
+        phase: normalizedPhase,
+        count: prior.count + 1,
+        lastAtMs: now,
+        lastSource: lastOwnedProgressSource,
+        lastText: displayText,
+        lastKind: String(kind || 'activity')
+      });
+    };
+
+    const resolveActiveOwnedPhase = () => {
+      const normalizedLastPhase = normalizeBenchRuntimePhase(lastOwnedPhase);
+      if (normalizedLastPhase && normalizedLastPhase !== 'execute') return normalizedLastPhase;
+      let latest = null;
+      let latestSpecific = null;
+      for (const entry of phaseProgressState.values()) {
+        if (!entry || !Number.isFinite(entry.lastAtMs)) continue;
+        if (!latest || entry.lastAtMs > latest.lastAtMs) latest = entry;
+        if (
+          normalizeBenchRuntimePhase(entry.phase)
+          && entry.phase !== 'execute'
+          && (!latestSpecific || entry.lastAtMs > latestSpecific.lastAtMs)
+        ) {
+          latestSpecific = entry;
+        }
+      }
+      return normalizeBenchRuntimePhase(latestSpecific?.phase)
+        || normalizeBenchRuntimePhase(latest?.phase)
+        || normalizedLastPhase
+        || 'execute';
     };
 
     const markByteProgress = ({ source = 'stream-bytes', text = '' } = {}) => {
       lastByteProgressAtMs = Date.now();
       markActivity({ source, text });
+      if (hasOwnedProgress) {
+        noteOwnedPhaseProgress({
+          phase: resolveActiveOwnedPhase(),
+          source,
+          text,
+          kind: 'byte-progress'
+        });
+      }
     };
 
     const markQueueMovement = ({ source = 'queue-movement', text = '' } = {}) => {
       lastQueueMovementAtMs = Date.now();
       markActivity({ source, text });
+      if (hasOwnedProgress) {
+        noteOwnedPhaseProgress({
+          phase: resolveActiveOwnedPhase(),
+          source,
+          text,
+          kind: 'queue-progress'
+        });
+      }
     };
 
-    const buildIdleTimeoutDecision = () => evaluateProgressTimeout({
-      budget: buildProgressTimeoutBudget({
-        phase: 'bench-process-idle',
-        baseTimeoutMs: Math.max(1, activeIdleTimeoutBudgetMs || resolvedIdleTimeoutMs),
-        maxTimeoutMs: maxIdleTimeoutBudgetMs || resolvedIdleTimeoutMs,
-        activeBatchCount: Math.max(0, Number(lastInFlight) || 0),
-        completedUnits: Math.max(0, Number(lastProgressCurrent) || 0),
-        totalUnits: Math.max(0, Number(lastProgressTotal) || 0),
-        elapsedMs: Math.max(0, Date.now() - processStartedAtMs)
-      }),
-      heartbeatAgeMs: Number.isFinite(lastHeartbeatAtMs) ? Math.max(0, Date.now() - lastHeartbeatAtMs) : null,
-      queueMovementAgeMs: Number.isFinite(lastQueueMovementAtMs) ? Math.max(0, Date.now() - lastQueueMovementAtMs) : null,
-      byteProgressAgeMs: Number.isFinite(lastByteProgressAtMs) ? Math.max(0, Date.now() - lastByteProgressAtMs) : null,
-      queueExpected: Number.isFinite(lastInFlight) || Number.isFinite(lastQueueAgeMs),
-      byteProgressExpected: true
-    });
+    const buildIdleTimeoutDecision = () => {
+      const phaseExpectations = resolveBenchPhaseExpectations({
+        phase: resolveActiveOwnedPhase(),
+        hasOwnedProgress,
+        lastInFlight,
+        lastQueueAgeMs
+      });
+      const livenessAnchorAtMs = hasOwnedProgress
+        ? lastHeartbeatAtMs
+        : lastProcessProbeActivityAtMs;
+      return evaluateProgressTimeout({
+        budget: buildProgressTimeoutBudget({
+          phase: phaseExpectations.phase,
+          baseTimeoutMs: Math.max(1, activeIdleTimeoutBudgetMs || resolvedIdleTimeoutMs),
+          maxTimeoutMs: maxIdleTimeoutBudgetMs || resolvedIdleTimeoutMs,
+          activeBatchCount: Math.max(0, Number(lastInFlight) || 0),
+          completedUnits: Math.max(0, Number(lastProgressCurrent) || 0),
+          totalUnits: Math.max(0, Number(lastProgressTotal) || 0),
+          elapsedMs: Math.max(0, Date.now() - processStartedAtMs)
+        }),
+        heartbeatAgeMs: Number.isFinite(livenessAnchorAtMs) ? Math.max(0, Date.now() - livenessAnchorAtMs) : null,
+        queueMovementAgeMs: Number.isFinite(lastQueueMovementAtMs) ? Math.max(0, Date.now() - lastQueueMovementAtMs) : null,
+        byteProgressAgeMs: Number.isFinite(lastByteProgressAtMs) ? Math.max(0, Date.now() - lastByteProgressAtMs) : null,
+        queueExpected: phaseExpectations.queueExpected,
+        byteProgressExpected: phaseExpectations.byteProgressExpected,
+        optionalPhase: phaseExpectations.optionalPhase
+      });
+    };
 
     const cleanupIdleWatchdog = () => {
       if (idleWatchdog) {
@@ -886,12 +1091,15 @@ export const createProcessRunner = ({
       idleWatchdog = setInterval(async () => {
         if (idleTimeoutTriggered || idleAbortController.signal.aborted) return;
         if (idleWatchdogProbeInFlight) return;
-        const idleMs = Date.now() - lastActivityAtMs;
+        const idleMs = hasOwnedProgress
+          ? (Date.now() - lastOwnedProgressAtMs)
+          : (Date.now() - lastProcessProbeActivityAtMs);
         if (idleMs < activeIdleTimeoutBudgetMs) return;
         idleWatchdogProbeInFlight = true;
         try {
           const probe = await probeActiveChildActivity();
           if (probe?.kind === 'activity') {
+            lastProcessProbeActivityAtMs = Date.now();
             markActivity({ source: probe.source, text: probe.text });
             return;
           }
@@ -900,7 +1108,9 @@ export const createProcessRunner = ({
             return;
           }
           await new Promise((resolve) => setImmediate(resolve));
-          const refreshedIdleMs = Date.now() - lastActivityAtMs;
+          const refreshedIdleMs = hasOwnedProgress
+            ? (Date.now() - lastOwnedProgressAtMs)
+            : (Date.now() - lastProcessProbeActivityAtMs);
           if (refreshedIdleMs < activeIdleTimeoutBudgetMs) {
             return;
           }
@@ -950,8 +1160,10 @@ export const createProcessRunner = ({
         }
         idleTimeoutTriggered = true;
         timeoutDecision = decision;
+        const timeoutLastSource = hasOwnedProgress ? lastOwnedProgressSource : lastActivitySource;
+        const timeoutLastText = hasOwnedProgress ? lastOwnedProgressText : lastActivityText;
         const error = new Error(
-          `Bench subprocess idle timeout after ${resolvedIdleTimeoutMs}ms (last activity: ${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''}).`
+          `Bench subprocess idle timeout after ${resolvedIdleTimeoutMs}ms (${hasOwnedProgress ? 'last owned progress' : 'last activity'}: ${timeoutLastSource}${timeoutLastText ? `: ${timeoutLastText}` : ''}).`
         );
         error.code = 'ERR_BENCH_IDLE_TIMEOUT';
         error.idleTimeoutMs = resolvedIdleTimeoutMs;
@@ -1520,6 +1732,17 @@ export const createProcessRunner = ({
       const eventSource = event ? 'progress-event' : source;
       const legacyEventType = resolveLegacyDiagnosticType(text, event);
       if (legacyEventType) {
+        noteOwnedPhaseProgress({
+          phase: resolveBenchRuntimePhaseForDiagnostic({
+            eventType: legacyEventType,
+            message: text,
+            stage: event?.stage || null,
+            taskId: event?.taskId || null
+          }, event),
+          source: eventSource,
+          text,
+          kind: 'legacy-diagnostic'
+        });
         emitDiagnostic({
           eventType: legacyEventType,
           message: text,
@@ -1538,6 +1761,12 @@ export const createProcessRunner = ({
         source: eventSource
       });
       for (const signal of structuredSignals) {
+        noteOwnedPhaseProgress({
+          phase: resolveBenchRuntimePhaseForDiagnostic(signal, event),
+          source: signal.source || eventSource,
+          text: signal.message,
+          kind: 'diagnostic'
+        });
         emitDiagnostic({
           eventType: signal.eventType,
           message: signal.message,
@@ -1594,6 +1823,12 @@ export const createProcessRunner = ({
       const textLine = String(line || '');
       const parsedEvent = event || (textLine ? parseProgressEventLine(textLine, { strict: true }) : null);
       if (parsedEvent) {
+        noteOwnedPhaseProgress({
+          phase: resolveBenchRuntimePhaseForProgressEvent(parsedEvent),
+          source: parsedEvent.event || 'progress-event',
+          text: parsedEvent.message || parsedEvent.taskId || parsedEvent.name || textLine,
+          kind: parsedEvent.event || 'progress-event'
+        });
         markActivity({
           source: parsedEvent.event || 'progress-event',
           text: parsedEvent.message || parsedEvent.taskId || parsedEvent.name || textLine
@@ -1714,9 +1949,15 @@ export const createProcessRunner = ({
         timeoutDecision = err.timeoutDecision;
       }
       if (!timeoutDecision && err?.code === 'SUBPROCESS_TIMEOUT') {
+        const phaseExpectations = resolveBenchPhaseExpectations({
+          phase: resolveActiveOwnedPhase(),
+          hasOwnedProgress,
+          lastInFlight,
+          lastQueueAgeMs
+        });
         timeoutDecision = evaluateProgressTimeout({
           budget: buildProgressTimeoutBudget({
-            phase: 'bench-process-wall-clock',
+            phase: phaseExpectations.phase,
             baseTimeoutMs: Number(spawnOptions.timeoutMs) || DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS,
             maxTimeoutMs: Number(spawnOptions.timeoutMs) || DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS,
             wallClockCapMs: Number(spawnOptions.timeoutMs) || null,
@@ -1725,7 +1966,10 @@ export const createProcessRunner = ({
             totalUnits: Math.max(0, Number(lastProgressTotal) || 0),
             elapsedMs: Math.max(0, Date.now() - processStartedAtMs)
           }),
-          wallClockElapsedMs: Math.max(0, Date.now() - processStartedAtMs)
+          wallClockElapsedMs: Math.max(0, Date.now() - processStartedAtMs),
+          queueExpected: phaseExpectations.queueExpected,
+          byteProgressExpected: phaseExpectations.byteProgressExpected,
+          optionalPhase: phaseExpectations.optionalPhase
         });
       }
       const failureStatus = Number.isInteger(err?.result?.exitCode)
@@ -1748,12 +1992,15 @@ export const createProcessRunner = ({
           ...timeoutDecision,
           phase: resolveTimeoutPhase({
             timeoutDecision,
+            ownedPhase: resolveActiveOwnedPhase(),
             diagnostics: initialDiagnosticsSummary,
             lastActivitySource,
             lastActivityText
           }),
           failureMode: resolveTimeoutFailureMode({
             timeoutDecision,
+            ownedPhase: resolveActiveOwnedPhase(),
+            lastOwnedProgressAtMs,
             diagnostics: initialDiagnosticsSummary,
             lastActivityAtMs,
             lastActivitySource,
@@ -1769,12 +2016,15 @@ export const createProcessRunner = ({
           phase: enrichedTimeoutDecision.phase
         });
         enrichedTimeoutDecision.qualityDelta = resolveTimeoutQualityDelta({
+          phase: enrichedTimeoutDecision.phase,
           diagnostics: initialDiagnosticsSummary
         });
       }
       if (idleTimeoutFailure) {
         const timeoutMessage =
-          `[run] idle timeout: ${label} (no activity for ${resolvedIdleTimeoutMs}ms; last=${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''})`;
+          hasOwnedProgress
+            ? `[run] idle timeout: ${label} (no owned progress for ${resolvedIdleTimeoutMs}ms; last=${lastOwnedProgressSource}${lastOwnedProgressText ? `: ${lastOwnedProgressText}` : ''})`
+            : `[run] idle timeout: ${label} (no activity for ${resolvedIdleTimeoutMs}ms; last=${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''})`;
         appendLog(timeoutMessage, 'warn');
         emitRuntimeTimeoutEvent({
           eventType: 'runtime_timeout',
