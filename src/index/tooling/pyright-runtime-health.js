@@ -208,6 +208,31 @@ export const buildPyrightFallbackContract = ({
       ? PROVIDER_FIDELITY_STATE.QUARANTINED
       : (degraded ? PROVIDER_FIDELITY_STATE.DEGRADED : PROVIDER_FIDELITY_STATE.HEALTHY)
   );
+  const runtimeIssueClasses = new Set();
+  if (String(reasonCode || '').trim() === 'pyright_timeout_storm') {
+    runtimeIssueClasses.add('timeout_storm_truncated');
+  }
+  if (normalizedState === PYRIGHT_RUNTIME_HEALTH_STATE.QUARANTINED_FOR_RUN) {
+    runtimeIssueClasses.add('workspace_quarantined');
+  }
+  if (hasNamedCheck(checks, 'pyright_workspace_scan_outlier')) {
+    runtimeIssueClasses.add('workspace_scan_outlier');
+  }
+  if (hasNamedCheck(checks, 'pyright_workspace_config_invalid')) {
+    runtimeIssueClasses.add('workspace_config_invalid');
+  }
+  if (hasNamedCheck(checks, 'pyright_workspace_config_unreadable')) {
+    runtimeIssueClasses.add('workspace_config_unreadable');
+  }
+  if (hasNamedCheck(checks, 'pyright_timeout_storm_truncated')) {
+    runtimeIssueClasses.add('timeout_storm_truncated');
+  }
+  if (Number(runtime?.requests?.byMethod?.['textDocument/documentSymbol']?.timedOut || 0) > 0) {
+    runtimeIssueClasses.add('document_symbol_timeout');
+  }
+  if (Number(runtime?.requests?.byMethod?.['textDocument/hover']?.timedOut || 0) > 0) {
+    runtimeIssueClasses.add('hover_timeout');
+  }
   const fidelity = buildProviderFidelityContract({
     providerId: 'pyright',
     state: fidelityState,
@@ -217,6 +242,7 @@ export const buildPyrightFallbackContract = ({
     runtime,
     checks,
     captureDiagnostics,
+    runtimeIssueClasses: Array.from(runtimeIssueClasses).sort((left, right) => left.localeCompare(right)),
     byChunkUid,
     skippedRequestClasses: degraded
       ? [

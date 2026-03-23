@@ -18,7 +18,19 @@ const lines = buildBenchRunDiagnosticsSummaryLines({
             failureClass: 'family:field-postings',
             count: 1
           }
-        ]
+        ],
+        fidelity: {
+          providerId: 'gopls',
+          runtimeIssues: ['partial_workspace_coverage', 'blocked_workspace_partitions']
+        }
+      }
+    },
+    {
+      diagnostics: {
+        fidelity: {
+          providerId: 'pyright',
+          runtimeIssues: ['document_symbol_timeout', 'timeout_storm_truncated']
+        }
       }
     }
   ],
@@ -68,18 +80,19 @@ const lines = buildBenchRunDiagnosticsSummaryLines({
   }
 });
 
-assert.equal(lines.length, 8, 'expected highlights, artifact families, fallback causes, reuse, cost, severity, confidence, and crash-retention lines');
+assert.equal(lines.length, 9, 'expected highlights, artifact families, provider fidelity, fallback causes, reuse, cost, severity, confidence, and crash-retention lines');
 assert.match(lines[0], /^\[diagnostics\] run highlights: /);
 assert.match(lines[0], /timeouts=5/);
 assert.match(lines[0], /degraded=2/);
 assert.match(lines[0], /artifact-stalls=3/);
 assert.match(lines[0], /fallbacks=8/);
 assert.equal(lines[1], '[diagnostics] artifact families: chunk-meta=2 | field-postings=1');
-assert.equal(lines[2], '[diagnostics] fallback causes: provider-unhealthy=3 | cache-invalid=2');
-assert.equal(lines[3], '[diagnostics] reuse surfaces: scm-mixed-fallback=2 | provider-cache=4 | provider-live=3');
-assert.equal(lines[4], '[diagnostics] fallback cost: time=3.2s | fetched-files=12 | chunks=9 | quality none=2 | partial-provider-fidelity=3');
-assert.equal(lines[5], '[diagnostics] severity: error=1 warn=18');
-assert.equal(lines[6], '[diagnostics] progress confidence: low=1 medium=3');
-assert.equal(lines[7], '[diagnostics] retained crash bundles: 2');
+assert.equal(lines[2], '[diagnostics] provider fidelity: gopls.blocked-workspace-partitions=1 | gopls.partial-workspace-coverage=1 | pyright.document-symbol-timeout=1 | pyright.timeout-storm-truncated=1');
+assert.equal(lines[3], '[diagnostics] fallback causes: provider-unhealthy=3 | cache-invalid=2');
+assert.equal(lines[4], '[diagnostics] reuse surfaces: scm-mixed-fallback=2 | provider-cache=4 | provider-live=3');
+assert.equal(lines[5], '[diagnostics] fallback cost: time=3.2s | fetched-files=12 | chunks=9 | quality none=2 | partial-provider-fidelity=3');
+assert.equal(lines[6], '[diagnostics] severity: error=1 warn=18');
+assert.equal(lines[7], '[diagnostics] progress confidence: low=1 medium=3');
+assert.equal(lines[8], '[diagnostics] retained crash bundles: 2');
 
 console.log('bench run closeout summary test passed');

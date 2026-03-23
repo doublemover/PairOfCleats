@@ -1604,6 +1604,27 @@ export const buildBenchRunDiagnosticsSummaryLines = (output) => {
   if (artifactFamilyHighlights.length) {
     lines.push(`[diagnostics] artifact families: ${artifactFamilyHighlights.join(' | ')}`);
   }
+  const providerFidelityIssueCounts = new Map();
+  for (const task of Array.isArray(output?.tasks) ? output.tasks : []) {
+    const fidelity = task?.diagnostics?.fidelity && typeof task.diagnostics.fidelity === 'object'
+      ? task.diagnostics.fidelity
+      : null;
+    const providerId = String(fidelity?.providerId || '').trim();
+    if (!providerId) continue;
+    for (const issueClass of Array.isArray(fidelity?.runtimeIssues) ? fidelity.runtimeIssues : []) {
+      const normalized = String(issueClass || '').trim();
+      if (!normalized) continue;
+      bumpMapCount(providerFidelityIssueCounts, `${providerId}.${normalized}`);
+    }
+  }
+  const providerFidelityHighlights = Array.from(providerFidelityIssueCounts.entries())
+    .sort((left, right) => Number(right[1]) - Number(left[1])
+      || String(left[0]).localeCompare(String(right[0])))
+    .slice(0, 8)
+    .map(([key, count]) => `${key.replaceAll('_', '-')}=${count}`);
+  if (providerFidelityHighlights.length) {
+    lines.push(`[diagnostics] provider fidelity: ${providerFidelityHighlights.join(' | ')}`);
+  }
   const fallbackCauseCounts = output?.diagnostics?.stream?.countsByFailureClass && typeof output.diagnostics.stream.countsByFailureClass === 'object'
     ? output.diagnostics.stream.countsByFailureClass
     : {};

@@ -30,8 +30,7 @@ import {
   resolveConfiguredWorkspacePreflight
 } from './workspace.js';
 import {
-  isRustWorkspaceProvider,
-  resolveRustRuntimeIssueClasses
+  resolveConfiguredLspRuntimeIssueClasses
 } from './runtime.js';
 
 const buildCommandUnavailableCheck = (providerId, requestedCmd) => ({
@@ -141,16 +140,15 @@ export const createConfiguredLspProvider = (server) => {
             captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
             blockedWorkspaceKeys,
             blockedWorkspaceRoots,
-            runtimeIssueClasses: isRustWorkspaceProvider({ server, providerId })
-              ? resolveRustRuntimeIssueClasses({
-                providerId,
-                preflightState: 'blocked',
-                preflightReasonCode: preflight?.reasonCode || null,
-                checks: preChecks,
-                blockedWorkspaceKeys,
-                blockedWorkspaceRoots
-              })
-              : []
+            runtimeIssueClasses: resolveConfiguredLspRuntimeIssueClasses({
+              server,
+              providerId,
+              preflightState: 'blocked',
+              preflightReasonCode: preflight?.reasonCode || null,
+              checks: preChecks,
+              blockedWorkspaceKeys,
+              blockedWorkspaceRoots
+            })
           });
           return {
             provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
@@ -198,16 +196,15 @@ export const createConfiguredLspProvider = (server) => {
           captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
           blockedWorkspaceKeys,
           blockedWorkspaceRoots,
-          runtimeIssueClasses: isRustWorkspaceProvider({ server, providerId })
-            ? resolveRustRuntimeIssueClasses({
-              providerId,
-              preflightState,
-              preflightReasonCode: preflightReasonCode || 'lsp_preflight_command_profile_missing',
-              checks: preChecks,
-              blockedWorkspaceKeys,
-              blockedWorkspaceRoots
-            })
-            : []
+          runtimeIssueClasses: resolveConfiguredLspRuntimeIssueClasses({
+            server,
+            providerId,
+            preflightState,
+            preflightReasonCode: preflightReasonCode || 'lsp_preflight_command_profile_missing',
+            checks: preChecks,
+            blockedWorkspaceKeys,
+            blockedWorkspaceRoots
+          })
         });
         return {
           provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },

@@ -122,6 +122,13 @@ assert.equal(diagnostics?.fidelity?.workspaceCoverage?.readyPartitionCount, 1, '
 assert.equal(diagnostics?.fidelity?.workspaceCoverage?.blockedPartitionCount, 1, 'expected blocked partition count in workspace coverage');
 assert.equal(diagnostics?.fidelity?.contributes?.typeEnrichment, true, 'expected healthy partitions to remain contributory');
 assert.equal(
+  Array.isArray(diagnostics?.fidelity?.runtimeIssues)
+  && diagnostics.fidelity.runtimeIssues.includes('partial_workspace_coverage')
+  && diagnostics.fidelity.runtimeIssues.includes('blocked_workspace_partitions'),
+  true,
+  'expected fidelity contract to expose shared workspace-partition runtime issue classes'
+);
+assert.equal(
   diagnostics?.preflight?.reasonCode,
   'go_workspace_partial_repo_coverage',
   'expected partial coverage reason code for mixed healthy and blocked partitions'

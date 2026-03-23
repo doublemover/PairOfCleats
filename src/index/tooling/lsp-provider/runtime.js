@@ -173,10 +173,21 @@ export const resolveRustRuntimeIssueClasses = ({
   preflightState = null,
   preflightReasonCode = null,
   checks = [],
+  runtime = null,
   blockedWorkspaceKeys = [],
   blockedWorkspaceRoots = []
 } = {}) => {
-  const issueClasses = new Set();
+  const issueClasses = new Set(
+    resolveGenericLspRuntimeIssueClasses({
+      providerId,
+      preflightState,
+      preflightReasonCode,
+      checks,
+      runtime,
+      blockedWorkspaceKeys,
+      blockedWorkspaceRoots
+    })
+  );
   const reasonCode = String(preflightReasonCode || '').trim().toLowerCase();
   const normalizedProviderId = String(providerId || '').trim();
   const hasCheck = (name) => Array.isArray(checks) && checks.some((check) => check?.name === name);
@@ -240,6 +251,103 @@ export const isRustWorkspaceProvider = ({ server, providerId }) => {
     : [];
   return id === 'rust-analyzer' || preset === 'rust-analyzer' || languages.includes('rust');
 };
+
+const RUNTIME_ISSUE_BY_METHOD = Object.freeze({
+  'textDocument/documentSymbol': 'document_symbol_timeout',
+  'textDocument/hover': 'hover_timeout',
+  'textDocument/signatureHelp': 'signature_help_timeout',
+  'textDocument/definition': 'definition_timeout',
+  'textDocument/typeDefinition': 'type_definition_timeout',
+  'textDocument/references': 'references_timeout',
+  'textDocument/semanticTokens/full': 'semantic_tokens_timeout',
+  'textDocument/inlayHint': 'inlay_hints_timeout'
+});
+
+export const resolveGenericLspRuntimeIssueClasses = ({
+  providerId,
+  preflightState = null,
+  preflightReasonCode = null,
+  checks = [],
+  runtime = null,
+  blockedWorkspaceKeys = [],
+  blockedWorkspaceRoots = []
+} = {}) => {
+  const issueClasses = new Set();
+  const normalizedProviderId = String(providerId || '').trim();
+  const reasonCode = String(preflightReasonCode || '').trim().toLowerCase();
+  const state = String(preflightState || '').trim().toLowerCase();
+  const hasCheck = (name) => Array.isArray(checks) && checks.some((check) => check?.name === name);
+
+  if (
+    reasonCode.includes('workspace_model_missing')
+    || hasCheck(`${normalizedProviderId}_workspace_model_missing`)
+  ) {
+    issueClasses.add('workspace_model_missing');
+  }
+  if (
+    reasonCode.includes('partial_repo_coverage')
+    || hasCheck(`${normalizedProviderId}_workspace_partition_partial_success`)
+  ) {
+    issueClasses.add('partial_workspace_coverage');
+  }
+  if (
+    (Array.isArray(blockedWorkspaceKeys) && blockedWorkspaceKeys.length > 0)
+    || (Array.isArray(blockedWorkspaceRoots) && blockedWorkspaceRoots.length > 0)
+    || hasCheck(`${normalizedProviderId}_workspace_partition_blocked`)
+    || reasonCode.includes('blocked_all_partitions')
+  ) {
+    issueClasses.add('blocked_workspace_partitions');
+  }
+  if (hasCheck('lsp_command_unavailable') || hasCheck(`${normalizedProviderId}_command_unavailable`)) {
+    issueClasses.add('command_unavailable');
+  }
+  const requestsByMethod = runtime?.requests?.byMethod && typeof runtime.requests.byMethod === 'object'
+    ? runtime.requests.byMethod
+    : {};
+  for (const [method, issueClass] of Object.entries(RUNTIME_ISSUE_BY_METHOD)) {
+    if (Number(requestsByMethod?.[method]?.timedOut || 0) > 0) {
+      issueClasses.add(issueClass);
+    }
+  }
+  if (Number(runtime?.guard?.tripCount || 0) > 0) {
+    issueClasses.add('circuit_breaker_tripped');
+  }
+  if (state === 'blocked' && issueClasses.size <= 0) {
+    issueClasses.add('workspace_blocked');
+  }
+  return Array.from(issueClasses).sort((left, right) => left.localeCompare(right));
+};
+
+export const resolveConfiguredLspRuntimeIssueClasses = ({
+  server,
+  providerId,
+  preflightState = null,
+  preflightReasonCode = null,
+  checks = [],
+  runtime = null,
+  blockedWorkspaceKeys = [],
+  blockedWorkspaceRoots = []
+} = {}) => (
+  isRustWorkspaceProvider({ server, providerId })
+    ? resolveRustRuntimeIssueClasses({
+      providerId,
+      preflightState,
+      preflightReasonCode,
+      checks,
+      runtime,
+      blockedWorkspaceKeys,
+      blockedWorkspaceRoots
+    })
+    : resolveGenericLspRuntimeIssueClasses({
+      providerId,
+      preflightState,
+      preflightReasonCode,
+      checks,
+      runtime,
+      blockedWorkspaceKeys,
+      blockedWorkspaceRoots
+    })
+);
 
 export const collectConfiguredOutput = async ({
   server,
@@ -409,16 +517,16 @@ export const collectConfiguredOutput = async ({
         captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(requestedKinds),
         blockedWorkspaceKeys,
         blockedWorkspaceRoots,
-        runtimeIssueClasses: isRustWorkspaceProvider({ server, providerId })
-          ? resolveRustRuntimeIssueClasses({
-            providerId,
-            preflightState,
-            preflightReasonCode,
-            checks: [...preChecks, ...resultChecks],
-            blockedWorkspaceKeys,
-            blockedWorkspaceRoots
-          })
-          : [],
+        runtimeIssueClasses: resolveConfiguredLspRuntimeIssueClasses({
+          server,
+          providerId,
+          preflightState,
+          preflightReasonCode,
+          checks: [...preChecks, ...resultChecks],
+          runtime: result.runtime,
+          blockedWorkspaceKeys,
+          blockedWorkspaceRoots
+        }),
         byChunkUid: result.byChunkUid,
         workspaceKey: workspaceRouting.workspaceModel?.workspaceKey || null
       })

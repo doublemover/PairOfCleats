@@ -145,6 +145,13 @@ try {
   assert.equal(first.diagnostics?.pyright?.fidelity?.qualityDelta?.partialSuccess, true, 'expected timeout run to report truthful partial success');
   assert.equal(first.diagnostics?.pyright?.fidelity?.requestClasses?.documentSymbol?.timedOut, 1, 'expected fidelity contract to track timed out request class');
   assert.equal(
+    Array.isArray(first.diagnostics?.pyright?.fidelity?.runtimeIssues)
+    && first.diagnostics.pyright.fidelity.runtimeIssues.includes('document_symbol_timeout')
+    && first.diagnostics.pyright.fidelity.runtimeIssues.includes('timeout_storm_truncated'),
+    true,
+    'expected fidelity contract to expose shared and provider-specific runtime issue classes for timeout degradation'
+  );
+  assert.equal(
     Array.isArray(first.diagnostics?.pyright?.checks)
     && first.diagnostics.pyright.checks.some((check) => check?.name === 'pyright_timeout_storm_truncated'),
     true,
@@ -166,6 +173,12 @@ try {
   assert.equal(second.diagnostics?.pyright?.fallback?.state, 'quarantined_for_run', 'expected fallback contract to reflect active quarantine');
   assert.equal(second.diagnostics?.pyright?.fidelity?.state, 'quarantined', 'expected fidelity contract to reflect active quarantine');
   assert.equal(second.diagnostics?.pyright?.fidelity?.qualityDelta?.partialSuccess, false, 'expected quarantined rerun to report no partial success');
+  assert.equal(
+    Array.isArray(second.diagnostics?.pyright?.fidelity?.runtimeIssues)
+    && second.diagnostics.pyright.fidelity.runtimeIssues.includes('workspace_quarantined'),
+    true,
+    'expected fidelity contract to preserve workspace quarantine classification'
+  );
   assert.equal(
     Array.isArray(second.diagnostics?.pyright?.checks)
     && second.diagnostics.pyright.checks.some((check) => check?.name === 'pyright_quarantined_for_run'),
