@@ -21,10 +21,12 @@ const completion = createJobCompletion({
 const normalizedSignalFailure = completion.normalizeRunResult({
   exitCode: 1,
   signal: 'SIGTERM',
-  executionMode: 'subprocess'
+  executionMode: 'subprocess',
+  executionClass: 'subprocess-isolated'
 });
 assert.equal(normalizedSignalFailure.status, 'failed');
 assert.equal(normalizedSignalFailure.signal, 'SIGTERM');
+assert.equal(normalizedSignalFailure.executionClass, 'subprocess-isolated');
 
 await completion.finalizeJobRun({
   job: { id: 'job-1', attempts: 0, maxRetries: 0 },
@@ -34,6 +36,7 @@ await completion.finalizeJobRun({
 assert.equal(quarantineCalls[0].reason, 'retry-exhausted');
 assert.equal(quarantineCalls[0].options.result.signal, 'SIGTERM');
 assert.equal(quarantineCalls[0].options.result.error, 'signal SIGTERM');
+assert.equal(quarantineCalls[0].options.result.executionClass, 'subprocess-isolated');
 assert.equal(metrics.failed, 1);
 
 calls.length = 0;
@@ -47,15 +50,27 @@ assert.equal(calls[0].status, 'queued');
 assert.equal(calls[0].result.retry, true);
 assert.equal(calls[0].result.signal, 'SIGINT');
 assert.equal(calls[0].result.error, 'signal SIGINT');
+assert.equal(calls[0].result.executionClass, 'subprocess-isolated');
 assert.equal(metrics.retried, 1);
 
 const normalizedSuccess = completion.normalizeRunResult({
   exitCode: 0,
   signal: null,
-  executionMode: 'daemon'
+  executionMode: 'daemon',
+  executionClass: 'daemon-governed',
+  governance: {
+    policy: 'daemon',
+    decision: 'daemon',
+    sessionKey: 'daemon-session-1',
+    sessionEpoch: 1,
+    recycleCount: 2,
+    subprocessCooldownRemaining: 0
+  }
 });
 assert.equal(normalizedSuccess.status, 'done');
 assert.equal(normalizedSuccess.signal, null);
+assert.equal(normalizedSuccess.executionClass, 'daemon-governed');
+assert.equal(normalizedSuccess.governance?.sessionKey, 'daemon-session-1');
 
 const normalizedStringExit = completion.normalizeRunResult({
   exitCode: '2',
@@ -73,6 +88,7 @@ await completion.finalizeJobRun({
 });
 assert.equal(calls[0].status, 'done');
 assert.equal(calls[0].result.error, null, 'successful jobs should not emit failure error strings');
+assert.equal(calls[0].result.executionClass, 'daemon-governed');
 assert.equal(metrics.succeeded, 1);
 
 calls.length = 0;

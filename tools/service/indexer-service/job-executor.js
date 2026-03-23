@@ -16,17 +16,38 @@ import { runLoggedSubprocess } from '../subprocess-log.js';
 /**
  * Build the default run result shape used when execution fails unexpectedly.
  *
- * @returns {{exitCode:number,signal:null,executionMode:'subprocess',daemon:null,cancelled:boolean,shutdownMode:string|null}}
+ * @returns {{exitCode:number,signal:null,executionMode:'subprocess',executionClass:'subprocess-isolated',daemon:null,cancelled:boolean,shutdownMode:string|null,governance:object,observability:null}}
  */
 const buildDefaultRunResult = () => ({
   exitCode: 1,
   signal: null,
   executionMode: 'subprocess',
+  executionClass: 'subprocess-isolated',
   daemon: null,
   cancelled: false,
   shutdownMode: null,
+  governance: {
+    policy: 'subprocess',
+    decision: 'subprocess',
+    sessionKey: null,
+    sessionEpoch: 0,
+    recycleCount: 0,
+    subprocessCooldownRemaining: 0
+  },
   observability: null
 });
+
+const toPositiveInt = (value, fallback) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
+  return Math.max(1, Math.floor(numeric));
+};
+
+const toNonNegativeInt = (value, fallback = 0) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return Math.max(0, Math.floor(fallback));
+  return Math.max(0, Math.floor(numeric));
+};
 
 /**
  * Create queue job executors bound to one service runtime context.
@@ -39,11 +60,13 @@ const buildDefaultRunResult = () => ({
  *   embeddingExtraEnv:Record<string,string>,
  *   resolveRepoRuntimeEnv:(repoPath:string,extraEnv?:Record<string,string>)=>Record<string,string>,
  *   toolRoot:string,
- *   completeNonRetriableFailure:(job:{id:string},error:string)=>Promise<void>
+ *   completeNonRetriableFailure:(job:{id:string},error:string)=>Promise<void>,
+ *   runBuildIndexSubprocessImpl?:(repoPath:string,mode:string|null,stage:string|null,extraArgs?:string[]|null,logPath?:string|null,abortSignal?:AbortSignal|null,observability?:object|null)=>Promise<{exitCode:number,signal:string|null,cancelled:boolean,errorCode:string|null,errorMessage:string|null}>,
+ *   runBuildIndexDaemonImpl?:(repoPath:string,mode:string|null,stage:string|null,extraArgs?:string[]|null,logPath?:string|null,daemonOptions?:object,abortSignal?:AbortSignal|null,observability?:object|null)=>Promise<{exitCode:number,signal:null,executionMode:'daemon',daemon:object,cancelled:boolean,shutdownMode:string|null}>
  * }} input
  * @returns {{
- *   buildDefaultRunResult:()=>{exitCode:number,signal:null,executionMode:'subprocess',daemon:null},
- *   executeClaimedJob:(input:{job:object,jobLifecycle:object,logPath:string,abortSignal?:AbortSignal|null})=>Promise<{handled:boolean,runResult?:{exitCode:number,signal:string|null,executionMode:string,daemon:object|null,cancelled:boolean,shutdownMode:string|null}}>
+ *   buildDefaultRunResult:()=>{exitCode:number,signal:null,executionMode:'subprocess',executionClass:'subprocess-isolated',daemon:null},
+ *   executeClaimedJob:(input:{job:object,jobLifecycle:object,logPath:string,abortSignal?:AbortSignal|null})=>Promise<{handled:boolean,runResult?:{exitCode:number,signal:string|null,executionMode:string,executionClass:string,daemon:object|null,cancelled:boolean,shutdownMode:string|null}}>
  * }}
  */
 export const createJobExecutor = ({
@@ -54,8 +77,25 @@ export const createJobExecutor = ({
   embeddingExtraEnv,
   resolveRepoRuntimeEnv,
   toolRoot,
-  completeNonRetriableFailure
+  completeNonRetriableFailure,
+  runBuildIndexSubprocessImpl = null,
+  runBuildIndexDaemonImpl = null
 }) => {
+  const daemonGovernanceConfig = (() => {
+    const raw = daemonWorkerConfig?.governance && typeof daemonWorkerConfig.governance === 'object'
+      ? daemonWorkerConfig.governance
+      : {};
+    return {
+      executionClass: serviceExecutionMode === 'daemon' ? 'daemon-governed' : 'subprocess-isolated',
+      maxConsecutiveFailures: toPositiveInt(raw.maxConsecutiveFailures ?? raw.maxErrorsBeforeFallback, 2),
+      subprocessCooldownJobs: toNonNegativeInt(raw.subprocessCooldownJobs ?? raw.fallbackSubprocessJobs, 1),
+      sessionNamespace: typeof daemonWorkerConfig?.sessionNamespace === 'string' && daemonWorkerConfig.sessionNamespace.trim()
+        ? daemonWorkerConfig.sessionNamespace.trim()
+        : null,
+      deterministic: daemonWorkerConfig?.deterministic !== false
+    };
+  })();
+  const daemonGovernanceState = new Map();
   /**
    * Execute a Node subprocess and route output into the shared log helper.
    *
@@ -131,6 +171,20 @@ export const createJobExecutor = ({
     return spawnWithLog(args, runtimeEnv, logPath, abortSignal);
   };
 
+  const callRunBuildIndexSubprocess = (
+    repoPath,
+    mode,
+    stage,
+    extraArgs = null,
+    logPath = null,
+    abortSignal = null,
+    observability = null
+  ) => (
+    typeof runBuildIndexSubprocessImpl === 'function'
+      ? runBuildIndexSubprocessImpl(repoPath, mode, stage, extraArgs, logPath, abortSignal, observability)
+      : runBuildIndexSubprocess(repoPath, mode, stage, extraArgs, logPath, abortSignal, observability)
+  );
+
   /**
    * Normalize arbitrary values for use inside daemon session key segments.
    *
@@ -167,6 +221,36 @@ export const createJobExecutor = ({
     const queueSegment = toSafeSegment(daemonQueueName, 'index');
     const namespaceSegment = toSafeSegment(namespace || 'service-indexer', 'service-indexer');
     return `${namespaceSegment}:${queueSegment}:${digest}`;
+  };
+
+  const buildDaemonSessionNamespace = (namespace = null, sessionEpoch = 0) => {
+    const segments = [];
+    if (typeof namespace === 'string' && namespace.trim()) {
+      segments.push(namespace.trim());
+    }
+    segments.push(`epoch-${Math.max(0, Math.trunc(Number(sessionEpoch) || 0))}`);
+    return segments.join(':');
+  };
+
+  const resolveDaemonGovernanceState = (repoPath) => {
+    const sessionScopeKey = buildDaemonSessionKey({
+      repoPath,
+      queueName: resolvedQueueName || 'index',
+      namespace: daemonGovernanceConfig.sessionNamespace
+    });
+    if (!daemonGovernanceState.has(sessionScopeKey)) {
+      daemonGovernanceState.set(sessionScopeKey, {
+        sessionScopeKey,
+        sessionEpoch: 0,
+        consecutiveFailures: 0,
+        subprocessCooldownRemaining: 0,
+        recycleCount: 0,
+        lastSessionKey: null,
+        lastDecision: null,
+        lastReason: null
+      });
+    }
+    return daemonGovernanceState.get(sessionScopeKey);
   };
 
   /**
@@ -306,6 +390,39 @@ export const createJobExecutor = ({
     }
   };
 
+  const callRunBuildIndexDaemon = async (
+    repoPath,
+    mode,
+    stage,
+    extraArgs = null,
+    logPath = null,
+    daemonOptions = {},
+    abortSignal = null,
+    observability = null
+  ) => (
+    typeof runBuildIndexDaemonImpl === 'function'
+      ? await runBuildIndexDaemonImpl(
+        repoPath,
+        mode,
+        stage,
+        extraArgs,
+        logPath,
+        daemonOptions,
+        abortSignal,
+        observability
+      )
+      : await runBuildIndexDaemon(
+        repoPath,
+        mode,
+        stage,
+        extraArgs,
+        logPath,
+        daemonOptions,
+        abortSignal,
+        observability
+      )
+  );
+
   /**
    * Run embeddings build worker for one repo/build root pair.
    *
@@ -382,9 +499,18 @@ export const createJobExecutor = ({
         exitCode: subprocessResult.cancelled ? 130 : subprocessResult.exitCode,
         signal: subprocessResult.signal,
         executionMode: 'subprocess',
+        executionClass: 'subprocess-isolated',
         daemon: null,
         cancelled: subprocessResult.cancelled === true,
         shutdownMode: subprocessResult.cancelled ? 'force-stop' : null,
+        governance: {
+          policy: 'subprocess',
+          decision: 'subprocess',
+          sessionKey: null,
+          sessionEpoch: 0,
+          recycleCount: 0,
+          subprocessCooldownRemaining: 0
+        },
         replay: {
           version: 1,
           repair: replayRepair,
@@ -412,8 +538,61 @@ export const createJobExecutor = ({
       }
     });
     if (serviceExecutionMode === 'daemon') {
+      const governanceState = resolveDaemonGovernanceState(job.repo);
+      const daemonSessionNamespace = buildDaemonSessionNamespace(
+        daemonGovernanceConfig.sessionNamespace,
+        governanceState.sessionEpoch
+      );
+      const plannedSessionKey = buildDaemonSessionKey({
+        repoPath: job.repo,
+        queueName: resolvedQueueName || 'index',
+        namespace: daemonSessionNamespace
+      });
+      if (governanceState.subprocessCooldownRemaining > 0) {
+        const cooldownBeforeJob = governanceState.subprocessCooldownRemaining;
+        const subprocessResult = await jobLifecycle.registerPromise(
+          callRunBuildIndexSubprocess(job.repo, job.mode, job.stage, job.args, logPath, abortSignal, jobObservability),
+          { label: 'indexer-service-run-index-subprocess-fallback' }
+        );
+        governanceState.subprocessCooldownRemaining = Math.max(0, governanceState.subprocessCooldownRemaining - 1);
+        governanceState.lastSessionKey = plannedSessionKey;
+        governanceState.lastDecision = 'subprocess-fallback';
+        governanceState.lastReason = 'daemon-failure-burst';
+        if ((subprocessResult.cancelled ? 130 : subprocessResult.exitCode) === 0 && !subprocessResult.signal) {
+          governanceState.consecutiveFailures = 0;
+        }
+        return {
+          handled: false,
+          runResult: {
+            exitCode: subprocessResult.cancelled ? 130 : subprocessResult.exitCode,
+            signal: subprocessResult.signal,
+            executionMode: 'subprocess',
+            executionClass: daemonGovernanceConfig.executionClass,
+            daemon: {
+              sessionKey: plannedSessionKey,
+              deterministic: daemonGovernanceConfig.deterministic,
+              sessionEpoch: governanceState.sessionEpoch,
+              recycleCount: governanceState.recycleCount,
+              fallback: true
+            },
+            cancelled: subprocessResult.cancelled === true,
+            shutdownMode: subprocessResult.cancelled ? 'force-stop' : null,
+            governance: {
+              policy: 'daemon',
+              decision: 'subprocess-fallback',
+              reason: 'daemon-failure-burst',
+              sessionKey: plannedSessionKey,
+              sessionEpoch: governanceState.sessionEpoch,
+              recycleCount: governanceState.recycleCount,
+              subprocessCooldownRemaining: governanceState.subprocessCooldownRemaining,
+              cooldownBeforeJob
+            },
+            observability: jobObservability
+          }
+        };
+      }
       const runResult = await jobLifecycle.registerPromise(
-        runBuildIndexDaemon(
+        callRunBuildIndexDaemon(
           job.repo,
           job.mode,
           job.stage,
@@ -422,7 +601,7 @@ export const createJobExecutor = ({
           {
             queueName: resolvedQueueName,
             deterministic: daemonWorkerConfig.deterministic !== false,
-            sessionNamespace: daemonWorkerConfig.sessionNamespace || null,
+            sessionNamespace: daemonSessionNamespace,
             health: daemonWorkerConfig.health || null
           },
           abortSignal,
@@ -430,10 +609,53 @@ export const createJobExecutor = ({
         ),
         { label: 'indexer-service-run-index-daemon' }
       );
+      const daemonFailed = runResult.cancelled !== true && (
+        Number(runResult.exitCode) !== 0
+        || (typeof runResult.signal === 'string' && runResult.signal.trim().length > 0)
+      );
+      let recycleRequested = false;
+      let recycleReason = null;
+      if (daemonFailed) {
+        governanceState.consecutiveFailures += 1;
+        if (governanceState.consecutiveFailures >= daemonGovernanceConfig.maxConsecutiveFailures) {
+          governanceState.sessionEpoch += 1;
+          governanceState.consecutiveFailures = 0;
+          governanceState.recycleCount += 1;
+          governanceState.subprocessCooldownRemaining = daemonGovernanceConfig.subprocessCooldownJobs;
+          recycleRequested = true;
+          recycleReason = 'daemon-failure-burst';
+        }
+      } else if (!runResult.cancelled) {
+        governanceState.consecutiveFailures = 0;
+      }
+      governanceState.lastSessionKey = runResult?.daemon?.sessionKey || plannedSessionKey;
+      governanceState.lastDecision = 'daemon';
+      governanceState.lastReason = recycleReason;
+      runResult.executionClass = daemonGovernanceConfig.executionClass;
+      runResult.governance = {
+        policy: 'daemon',
+        decision: 'daemon',
+        reason: recycleReason,
+        sessionKey: runResult?.daemon?.sessionKey || plannedSessionKey,
+        sessionEpoch: recycleRequested ? Math.max(0, governanceState.sessionEpoch - 1) : governanceState.sessionEpoch,
+        nextSessionEpoch: governanceState.sessionEpoch,
+        recycleCount: governanceState.recycleCount,
+        recycleRequested,
+        subprocessCooldownRemaining: governanceState.subprocessCooldownRemaining
+      };
+      if (runResult?.daemon && typeof runResult.daemon === 'object') {
+        runResult.daemon = {
+          ...runResult.daemon,
+          sessionEpoch: recycleRequested ? Math.max(0, governanceState.sessionEpoch - 1) : governanceState.sessionEpoch,
+          recycleCount: governanceState.recycleCount,
+          recycleRequested,
+          recycleReason
+        };
+      }
       return { handled: false, runResult };
     }
     const subprocessResult = await jobLifecycle.registerPromise(
-      runBuildIndexSubprocess(job.repo, job.mode, job.stage, job.args, logPath, abortSignal, jobObservability),
+      callRunBuildIndexSubprocess(job.repo, job.mode, job.stage, job.args, logPath, abortSignal, jobObservability),
       { label: 'indexer-service-run-index-subprocess' }
     );
     return {
@@ -442,9 +664,18 @@ export const createJobExecutor = ({
         exitCode: subprocessResult.cancelled ? 130 : subprocessResult.exitCode,
         signal: subprocessResult.signal,
         executionMode: 'subprocess',
+        executionClass: 'subprocess-isolated',
         daemon: null,
         cancelled: subprocessResult.cancelled === true,
         shutdownMode: subprocessResult.cancelled ? 'force-stop' : null,
+        governance: {
+          policy: 'subprocess',
+          decision: 'subprocess',
+          sessionKey: null,
+          sessionEpoch: 0,
+          recycleCount: 0,
+          subprocessCooldownRemaining: 0
+        },
         observability: jobObservability
       }
     };

@@ -41,14 +41,26 @@ await completion.finalizeJobRun({
     exitCode: 130,
     signal: null,
     executionMode: 'subprocess',
+    executionClass: 'daemon-governed',
     cancelled: true,
     shutdownMode: 'cancel',
+    governance: {
+      policy: 'daemon',
+      decision: 'subprocess-fallback',
+      reason: 'daemon-failure-burst',
+      sessionKey: 'daemon-session-1',
+      sessionEpoch: 1,
+      recycleCount: 1,
+      subprocessCooldownRemaining: 0
+    },
     replay
   },
   metrics
 });
 assert.equal(completions[0]?.status, 'queued');
 assert.deepEqual(completions[0]?.result?.replay, replay, 'expected cancelled retry payload to preserve replay metadata');
+assert.equal(completions[0]?.result?.executionClass, 'daemon-governed');
+assert.equal(completions[0]?.result?.governance?.decision, 'subprocess-fallback');
 
 await completion.finalizeJobRun({
   job: {
@@ -61,12 +73,24 @@ await completion.finalizeJobRun({
     exitCode: 1,
     signal: null,
     executionMode: 'subprocess',
+    executionClass: 'daemon-governed',
     cancelled: false,
+    governance: {
+      policy: 'daemon',
+      decision: 'subprocess-fallback',
+      reason: 'daemon-failure-burst',
+      sessionKey: 'daemon-session-1',
+      sessionEpoch: 1,
+      recycleCount: 1,
+      subprocessCooldownRemaining: 0
+    },
     replay
   },
   metrics
 });
 assert.equal(quarantines[0]?.reason, 'retry-exhausted');
 assert.deepEqual(quarantines[0]?.options?.result?.replay, replay, 'expected quarantine payload to preserve replay metadata');
+assert.equal(quarantines[0]?.options?.result?.executionClass, 'daemon-governed');
+assert.equal(quarantines[0]?.options?.result?.governance?.decision, 'subprocess-fallback');
 
 console.log('indexer service job-completion replay test passed');
