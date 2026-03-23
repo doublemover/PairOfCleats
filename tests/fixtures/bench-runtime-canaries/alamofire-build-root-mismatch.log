@@ -1,0 +1,3 @@
+[sqlite] wrote pieces manifest under generation-local build root C:/cache/builds/run-1/index-code/pieces/manifest.json.
+[sqlite] falling back to legacy non-strict manifests under repo root C:/cache/repo/index-code.
+[sqlite] ERR_SQLITE_INPUT_PIECES_MISSING missing pieces manifest for same-run sqlite input.

@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-03-23T00:00:00.000Z",
+  "entries": [
+    {
+      "id": "swift-nio-timeout",
+      "kind": "structured-stream",
+      "file": "swift-nio-timeout.jsonl",
+      "issue": 345,
+      "requiredEventTypes": [
+        "runtime_timeout_budget_extended",
+        "runtime_timeout"
+      ],
+      "requiredFailureClasses": [
+        "budget_exhausted_with_progress",
+        "healthy_progress"
+      ]
+    },
+    {
+      "id": "sdk-publication-cleanup",
+      "kind": "text-fragment",
+      "file": "sdk-publication-cleanup.log",
+      "issue": 346,
+      "requiredPatterns": [
+        "index-code/file_meta.json",
+        "ERR_MANIFEST_ENTRY_MISSING"
+      ]
+    },
+    {
+      "id": "alamofire-build-root-mismatch",
+      "kind": "text-fragment",
+      "file": "alamofire-build-root-mismatch.log",
+      "issue": 347,
+      "requiredPatterns": [
+        "ERR_SQLITE_INPUT_PIECES_MISSING",
+        "legacy non-strict manifests",
+        "pieces manifest"
+      ]
+    },
+    {
+      "id": "gopls-blocked-partitions",
+      "kind": "log-fragment",
+      "file": "gopls-blocked-partitions.log",
+      "issue": 349,
+      "requiredEventTypes": [
+        "provider_preflight_blocked",
+        "workspace_partition_decision"
+      ],
+      "requiredFailureClasses": [
+        "blocked",
+        "blocked_workspace_partitions"
+      ]
+    },
+    {
+      "id": "sourcekit-package-resolution-blocked",
+      "kind": "log-fragment",
+      "file": "sourcekit-package-resolution-blocked.log",
+      "issue": 350,
+      "requiredEventTypes": [
+        "provider_preflight_blocked",
+        "provider_degraded_mode_entered"
+      ],
+      "requiredFailureClasses": [
+        "blocked"
+      ],
+      "requiredPatterns": [
+        "sourcekit.package-resolution"
+      ]
+    },
+    {
+      "id": "windows-rust-toolchain-noise",
+      "kind": "text-fragment",
+      "file": "windows-rust-toolchain-noise.log",
+      "issue": 352,
+      "requiredPatterns": [
+        "cargo metadata",
+        "toolchain_noise",
+        "rust-analyzer"
+      ]
+    },
+    {
+      "id": "parser-crash-quarantine",
+      "kind": "structured-stream",
+      "file": "parser-crash-quarantine.jsonl",
+      "issue": 351,
+      "requiredEventTypes": [
+        "parser_crash"
+      ],
+      "requiredFailureClasses": [
+        "grammar:json"
+      ]
+    }
+  ]
+}

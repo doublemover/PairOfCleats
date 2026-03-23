@@ -1,0 +1,2 @@
+[artifacts] cleanup removed stale index-code/file_meta.json before publish validation completed.
+[artifacts] publication failed: ERR_MANIFEST_ENTRY_MISSING required artifact family=file_meta path=index-code/file_meta.json.
