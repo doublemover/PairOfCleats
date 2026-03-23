@@ -123,6 +123,7 @@ import {
   resolveArtifactWriteRuntime
 } from './runtime.js';
 import { createArtifactWriteTelemetryContext } from './telemetry.js';
+import { buildArtifactFamilyCloseoutSummary } from '../artifacts/write-telemetry.js';
 import {
   enqueueArtifactFamilyWrites,
   prepareArtifactCleanup
@@ -633,6 +634,7 @@ export async function writeIndexArtifacts(input) {
     activeWriteBytes,
     activeWriteMeta,
     hugeWriteState,
+    artifactFamilyLedger,
     artifactMetrics,
     artifactQueueDelaySamples,
     writeLogIntervalMs,
@@ -686,6 +688,7 @@ export async function writeIndexArtifacts(input) {
     activeWrites,
     activeWriteBytes,
     activeWriteMeta,
+    artifactFamilyLedger,
     formatBytes,
     writeProgressHeartbeatMs,
     normalizedWriteStallThresholds,
@@ -2279,6 +2282,7 @@ export async function writeIndexArtifacts(input) {
     resolveArtifactWriteMemTokens,
     outDir,
     artifactMetrics,
+    artifactFamilyLedger,
     artifactQueueDelaySamples,
     updatePieceMetadata,
     formatBytes,
@@ -2376,11 +2380,13 @@ export async function writeIndexArtifacts(input) {
   }
   if (timing) {
     const artifactLatencyClasses = summarizeArtifactLatencyClasses(Array.from(artifactMetrics.values()));
+    const artifactFamilyCloseout = buildArtifactFamilyCloseoutSummary(artifactFamilyLedger);
     timing.cleanup = {
       profileId,
       actions: cleanupActions,
       writeFsStrategy,
-      artifactLatencyClasses
+      artifactLatencyClasses,
+      artifactFamilyCloseout
     };
     timing.artifacts = Array.from(artifactMetrics.values()).sort((a, b) => {
       const aPath = String(a?.path || '');

@@ -17,6 +17,7 @@ await dispatchArtifactWrites({
     ultraLight: [{
       label: 'meta.json',
       estimatedBytes: 4096,
+      family: 'artifact-stats',
       enqueuedAt: Date.now(),
       job: async () => ({
         bytes: 11,
@@ -28,6 +29,7 @@ await dispatchArtifactWrites({
     light: [{
       label: 'report.json',
       estimatedBytes: 2 * 1024 * 1024,
+      family: 'repo-analysis',
       enqueuedAt: Date.now(),
       job: async () => ({
         bytes: 22,
@@ -108,6 +110,8 @@ assert.deepEqual(
   'expected dispatcher to drain ultra-light work before regular light work under single-slot concurrency'
 );
 assert.equal(artifactMetrics.size, 2, 'expected per-artifact telemetry rows to be recorded');
+assert.equal(artifactMetrics.get('meta.json')?.family, 'artifact-stats', 'expected family metadata on ultra-light artifact metrics');
+assert.equal(artifactMetrics.get('report.json')?.family, 'repo-analysis', 'expected family metadata on regular artifact metrics');
 assert.deepEqual(
   pieceMetadata.map((entry) => entry.label),
   ['meta.json', 'report.json'],

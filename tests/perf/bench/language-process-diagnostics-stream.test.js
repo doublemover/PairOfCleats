@@ -39,7 +39,7 @@ const script = [
   "progress({ level: 'error', stage: 'parse', taskId: 'stage:parse', message: 'tree-sitter parser crash while parsing src/main.c' });",
   "console.error('[scm] timeout while collecting git metadata');",
   "progress({ level: 'warn', stage: 'watchdog', taskId: 'stage:watchdog', message: '[tree-sitter:schedule] queue delay hotspot 1450ms' });",
-  "console.log('artifact tail stalled for 32000ms while writing shard');",
+  "console.log('[perf] artifact write stall critical: chunk_meta.binary-columnar.bundle in-flight for 32s (threshold=30s, family=chunk-meta, lane=massive, phase=materialize:chunk-meta-binary-columnar)');",
   "console.log('[tooling] preflight:start provider=gopls id=gopls.workspace-model class=workspace timeoutMs=20000');",
   "console.log('[tooling] preflight:blocked provider=gopls id=gopls.workspace-model durationMs=87 state=blocked');",
   "console.log('[tooling] request:timeout provider=pyright method=textDocument/documentSymbol stage=documentSymbol workspacePartition=. class=timeout');",
@@ -143,6 +143,9 @@ const runtimeBudgetExtendedEvent = streamEvents.find((entry) => entry.eventType 
 assert.equal(runtimeBudgetExtendedEvent?.timeoutKind, 'idle', 'expected runtime timeout extension kind on structured stream entry');
 assert.equal(runtimeBudgetExtendedEvent?.decisionReason, 'healthy_progress', 'expected timeout extension decision reason on structured stream entry');
 assert.equal(runtimeBudgetExtendedEvent?.outcome, 'extend_budget', 'expected timeout extension outcome on structured stream entry');
+const artifactTailStallEvent = streamEvents.find((entry) => entry.eventType === 'artifact_tail_stall');
+assert.equal(artifactTailStallEvent?.failureClass, 'family:chunk-meta', 'expected artifact stall family classification in stream entry');
+assert.equal(artifactTailStallEvent?.phase, 'materialize:chunk-meta-binary-columnar', 'expected artifact stall phase classification in stream entry');
 for (const entry of streamEvents) {
   assert.match(entry.eventId, /^ub050:v1:[a-z_]+:[a-f0-9]{12}$/);
   assert.equal(entry.schemaVersion, BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION, 'expected schema version on stream entry');
@@ -153,17 +156,17 @@ const interactiveDiagnostics = captured
   .map((line) => line.replace(/ub050:v1:[a-z_]+:[a-f0-9]{12}/g, '<eventId>'))
   .sort();
 const expectedInteractivePrefixes = [
-  '[diagnostics] artifact_tail_stall <eventId> artifact tail stalled for 32000ms while writing shard',
+  '[diagnostics] artifact_tail_stall <eventId> [perf] artifact write stall critical: chunk_meta.binary-columnar.bundle in-flight for 32s (threshold=30s, fam...',
   '[diagnostics] parser_crash <eventId> tree-sitter parser crash while parsing src/main.c',
   '[diagnostics] provider_circuit_breaker <eventId> [tooling] pyright circuit breaker tripped.',
   '[diagnostics] provider_degraded_mode_cleared <eventId> [tooling] pyright degraded mode cleared.',
   '[diagnostics] provider_degraded_mode_entered <eventId> [tooling] pyright degraded mode active (fail-open).',
   '[diagnostics] provider_preflight_blocked <eventId> [tooling] preflight:blocked provider=gopls id=gopls.workspace-model durationMs=87 state=blocked',
-  '[diagnostics] provider_request_failed <eventId> [tooling] request:failed provider=sourcekit method=textDocument/semanticTokens/full stage=semantic_tokens',
-  '[diagnostics] provider_request_timeout <eventId> [tooling] request:timeout provider=pyright method=textDocument/documentSymbol stage=documentSymbol',
+  '[diagnostics] provider_request_failed <eventId> [tooling] request:failed provider=sourcekit method=textDocument/semanticTokens/full stage=semantic_tokens wor...',
+  '[diagnostics] provider_request_timeout <eventId> [tooling] request:timeout provider=pyright method=textDocument/documentSymbol stage=documentSymbol workspaceP...',
   '[diagnostics] queue_delay_hotspot <eventId> [tree-sitter:schedule] queue delay hotspot 1450ms',
   '[diagnostics] scm_timeout <eventId> [scm] timeout while collecting git metadata',
-  '[diagnostics] warning_suppressed <eventId> [tooling] clangd suppressed 2 IncludeCleaner stderr line(s); missing include roots should be configured via'
+  '[diagnostics] warning_suppressed <eventId> [tooling] clangd suppressed 2 IncludeCleaner stderr line(s); missing include roots should be configured via c...'
 ];
 assert.equal(interactiveDiagnostics.length, expectedInteractivePrefixes.length, 'expected one concise interactive line per unique diagnostic');
 for (const prefix of expectedInteractivePrefixes) {

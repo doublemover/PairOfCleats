@@ -405,6 +405,7 @@ export const createArtifactWriteExecutionState = ({
     bytes: 0,
     families: new Set()
   };
+  const artifactFamilyLedger = new Map();
   const artifactMetrics = new Map();
   const artifactQueueDelaySamples = new Map();
   const writeLogIntervalMs = 1000;
@@ -601,6 +602,7 @@ export const createArtifactWriteExecutionState = ({
     activeWriteBytes,
     activeWriteMeta,
     hugeWriteState,
+    artifactFamilyLedger,
     artifactMetrics,
     artifactQueueDelaySamples,
     writeLogIntervalMs,

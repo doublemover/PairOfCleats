@@ -119,12 +119,24 @@ await writeIndexArtifacts({
 const inMemoryHistogramEntries = histogramEntries(timing.artifacts);
 assert.ok(inMemoryHistogramEntries.length > 0, 'expected in-memory queue delay histogram metrics');
 inMemoryHistogramEntries.forEach(assertQueueDelayHistogram);
+assert.ok(
+  Array.isArray(timing?.cleanup?.artifactFamilyCloseout),
+  'expected in-memory family closeout ledger summary'
+);
+assert.ok(
+  timing.cleanup.artifactFamilyCloseout.some((entry) => entry?.family === 'artifact-stats'),
+  'expected artifact-stats family in cleanup ledger summary'
+);
 
 const metricsPath = path.join(getMetricsDir(testRoot, userConfig), 'index-code.json');
 const metrics = JSON.parse(await fs.readFile(metricsPath, 'utf8'));
 const persistedHistogramEntries = histogramEntries(metrics?.timings?.artifacts);
 assert.ok(persistedHistogramEntries.length > 0, 'expected queue delay histogram metrics persisted to metrics output');
 persistedHistogramEntries.forEach(assertQueueDelayHistogram);
+assert.ok(
+  Array.isArray(metrics?.timings?.cleanup?.artifactFamilyCloseout),
+  'expected persisted family closeout ledger summary'
+);
 
 await fs.rm(testRoot, { recursive: true, force: true });
 

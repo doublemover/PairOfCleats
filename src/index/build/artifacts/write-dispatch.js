@@ -8,7 +8,14 @@ import {
   selectMicroWriteBatch,
   selectTailWorkerWriteEntry
 } from './write-strategy.js';
-import { recordArtifactMetricRow } from './write-telemetry.js';
+import {
+  buildArtifactFamilyCloseoutSummary,
+  recordArtifactFamilyCloseoutCompletion,
+  recordArtifactFamilyCloseoutStall,
+  recordArtifactFamilyCloseoutStart,
+  recordArtifactMetricRow,
+  summarizePendingArtifactFamilies
+} from './write-telemetry.js';
 
 /**
  * Drain the queued artifact-write lanes using the adaptive dispatcher runtime.
@@ -58,6 +65,7 @@ export const dispatchArtifactWrites = async (input = {}) => {
     resolveArtifactWriteMemTokens,
     outDir,
     artifactMetrics,
+    artifactFamilyLedger,
     artifactQueueDelaySamples,
     updatePieceMetadata,
     formatBytes,
@@ -86,6 +94,32 @@ export const dispatchArtifactWrites = async (input = {}) => {
     + laneQueues.light.length
     + laneQueues.heavy.length
   );
+
+  const normalizeFamilyName = (value) => {
+    const text = String(value || '').trim().toLowerCase();
+    return text || null;
+  };
+
+  const resolveEntryFamily = (entry) => normalizeFamilyName(
+    entry?.family
+    || entry?.familyCapability?.family
+    || null
+  );
+
+  const buildPendingFamilyPressure = ({ stalledFamily = null } = {}) => {
+    const familyCounts = summarizePendingArtifactFamilies(laneQueues);
+    const normalizedStalledFamily = normalizeFamilyName(stalledFamily);
+    return {
+      familyCounts,
+      pendingFamilyCount: familyCounts.size,
+      stalledFamilyPendingCount: normalizedStalledFamily
+        ? Number(familyCounts.get(normalizedStalledFamily) || 0)
+        : 0,
+      alternatePendingFamilies: normalizedStalledFamily
+        ? Math.max(0, familyCounts.size - (familyCounts.has(normalizedStalledFamily) ? 1 : 0))
+        : familyCounts.size
+    };
+  };
 
   const getActiveWriteConcurrency = () => (
     forcedTailRescueConcurrency != null
@@ -141,6 +175,8 @@ export const dispatchArtifactWrites = async (input = {}) => {
     );
     const activeWriteSnapshot = getActiveWriteTelemetrySnapshot();
     const activeStallOwner = activeWriteSnapshot.stallOwner || null;
+    const stalledFamily = activeWriteSnapshot.stallFamily || null;
+    const familyPressure = buildPendingFamilyPressure({ stalledFamily });
     if (rescueState.active !== tailRescueActive) {
       tailRescueActive = rescueState.active;
       if (tailRescueActive) {
@@ -173,6 +209,9 @@ export const dispatchArtifactWrites = async (input = {}) => {
         const familySuffix = activeWriteSnapshot.familySummaryText
           ? `, families={${activeWriteSnapshot.familySummaryText}}`
           : '';
+        const familyPressureSuffix = stalledFamily
+          ? `, stalledFamily=${stalledFamily}, pendingFamilyCount=${familyPressure.pendingFamilyCount}, alternateFamilies=${familyPressure.alternatePendingFamilies}`
+          : '';
         const oldestPhaseClassSuffix = oldestInflight?.phaseClass
           ? `, oldestPhaseClass=${oldestInflight.phaseClass}`
           : '';
@@ -187,7 +226,7 @@ export const dispatchArtifactWrites = async (input = {}) => {
           `(active=${activeCount}, pendingWrites=${pendingWriteCount()}, ` +
           `writeQ.pending=${schedulerWritePending}, writeQ.oldest=${schedulerWriteOldestWaitMs}ms, ` +
           `writeQ.p95=${Number.isFinite(schedulerWriteWaitP95Ms) ? schedulerWriteWaitP95Ms : 'n/a'}ms` +
-          `${phaseSuffix}${familySuffix}${oldestPhaseClassSuffix}${previewSuffix}${hugeSuffix})`,
+          `${phaseSuffix}${familySuffix}${familyPressureSuffix}${oldestPhaseClassSuffix}${previewSuffix}${hugeSuffix})`,
           { kind: 'warning' }
         );
       }
@@ -206,7 +245,11 @@ export const dispatchArtifactWrites = async (input = {}) => {
       schedulerWritePending,
       schedulerWriteOldestWaitMs,
       schedulerWriteWaitP95Ms,
-      activeStallOwner
+      activeStallOwner,
+      activeStallFamily: stalledFamily,
+      pendingFamilyCount: familyPressure.pendingFamilyCount,
+      stalledFamilyPendingCount: familyPressure.stalledFamilyPendingCount,
+      alternatePendingFamilies: familyPressure.alternatePendingFamilies
     });
   };
 
@@ -274,11 +317,21 @@ export const dispatchArtifactWrites = async (input = {}) => {
     return null;
   };
 
-  const takeLaneDispatchEntries = (laneName) => {
+  const takeLaneDispatchEntries = (laneName, { avoidFamily = null } = {}) => {
     const queue = Array.isArray(laneQueues?.[laneName]) ? laneQueues[laneName] : null;
     if (!queue || !queue.length) return [];
+    const normalizedAvoidFamily = normalizeFamilyName(avoidFamily);
+    const findEligibleIndex = (predicate = null) => queue.findIndex((entry) => (
+      canDispatchEntryUnderHugeWritePolicy(entry)
+      && (typeof predicate === 'function' ? predicate(entry) : true)
+    ));
     if (laneName === 'ultraLight' && writeFsStrategy.microCoalescing) {
-      const eligibleIndex = queue.findIndex((entry) => canDispatchEntryUnderHugeWritePolicy(entry));
+      let eligibleIndex = normalizedAvoidFamily
+        ? findEligibleIndex((entry) => resolveEntryFamily(entry) !== normalizedAvoidFamily)
+        : -1;
+      if (eligibleIndex < 0) {
+        eligibleIndex = findEligibleIndex();
+      }
       if (eligibleIndex < 0) return [];
       if (eligibleIndex === 0) {
         const batch = selectMicroWriteBatch(queue, {
@@ -287,13 +340,22 @@ export const dispatchArtifactWrites = async (input = {}) => {
           maxEntryBytes: ultraLightWriteThresholdBytes
         });
         return Array.isArray(batch?.entries)
-          ? batch.entries.filter((entry) => entry && canDispatchEntryUnderHugeWritePolicy(entry))
+          ? batch.entries.filter((entry) => (
+            entry
+            && canDispatchEntryUnderHugeWritePolicy(entry)
+            && (!normalizedAvoidFamily || resolveEntryFamily(entry) !== normalizedAvoidFamily)
+          ))
           : [];
       }
       const removed = queue.splice(eligibleIndex, 1);
       return removed[0] ? [removed[0]] : [];
     }
-    const eligibleIndex = queue.findIndex((entry) => canDispatchEntryUnderHugeWritePolicy(entry));
+    let eligibleIndex = normalizedAvoidFamily
+      ? findEligibleIndex((entry) => resolveEntryFamily(entry) !== normalizedAvoidFamily)
+      : -1;
+    if (eligibleIndex < 0) {
+      eligibleIndex = findEligibleIndex();
+    }
     if (eligibleIndex < 0) return [];
     const removed = queue.splice(eligibleIndex, 1);
     const entry = removed[0];
@@ -332,6 +394,8 @@ export const dispatchArtifactWrites = async (input = {}) => {
       exclusivePublisherFamily,
       laneHint: laneName
     });
+    const entryFamily = resolveEntryFamily({ family, familyCapability });
+    let familyCompletionRecorded = false;
     const effectiveEstimatedBytes = resolveEntryEstimatedBytes({
       label: activeLabel,
       estimatedBytes,
@@ -344,13 +408,21 @@ export const dispatchArtifactWrites = async (input = {}) => {
     updateActiveWriteMeta(activeLabel, {
       phase: existingPhase || (prefetched ? 'prefetch-wait' : 'scheduler-wait'),
       lane: laneName,
-      family,
+      family: entryFamily,
       progressUnit,
       estimatedItems,
       exclusivePublisherFamily,
       hugeWriteFamily,
       rescueBoost: rescueBoost === true,
       tailWorker: tailWorker === true
+    });
+    recordArtifactFamilyCloseoutStart({
+      artifactFamilyLedger,
+      family: entryFamily,
+      lane: laneName,
+      phase: existingPhase || (prefetched ? 'prefetch-wait' : 'scheduler-wait'),
+      label: activeLabel,
+      estimatedBytes: effectiveEstimatedBytes
     });
     if (hugeWriteFamily) {
       hugeWriteState.families.add(hugeWriteFamily);
@@ -424,6 +496,9 @@ export const dispatchArtifactWrites = async (input = {}) => {
           checksum: typeof writeResult?.checksum === 'string' ? writeResult.checksum : null,
           checksumAlgo: typeof writeResult?.checksumAlgo === 'string' ? writeResult.checksumAlgo : null,
           lane: laneName,
+          family: entryFamily,
+          progressUnit,
+          estimatedItems,
           schedulerIoTokens: schedulerTokens.io || 0,
           schedulerMemTokens: schedulerTokens.mem || 0,
           writeConcurrencyAtStart: startedConcurrency
@@ -431,6 +506,18 @@ export const dispatchArtifactWrites = async (input = {}) => {
         artifactMetrics,
         artifactQueueDelaySamples
       });
+      recordArtifactFamilyCloseoutCompletion({
+        artifactFamilyLedger,
+        family: entryFamily,
+        queueDelayMs,
+        durationMs,
+        bytes,
+        latencyClass,
+        lane: laneName,
+        phase: activeWriteMeta.get(activeLabel)?.phase || 'write-execute',
+        label: activeLabel
+      });
+      familyCompletionRecorded = true;
       updatePieceMetadata(label, {
         bytes,
         checksum: typeof writeResult?.checksum === 'string' ? writeResult.checksum : null,
@@ -438,6 +525,7 @@ export const dispatchArtifactWrites = async (input = {}) => {
         checksumHash: typeof writeResult?.checksumHash === 'string' ? writeResult.checksumHash : null
       });
     } finally {
+      const familyPhase = activeWriteMeta.get(activeLabel)?.phase || null;
       activeWrites.delete(activeLabel);
       activeWriteBytes.delete(activeLabel);
       activeWriteMeta.delete(activeLabel);
@@ -453,6 +541,16 @@ export const dispatchArtifactWrites = async (input = {}) => {
       updateWriteInFlightTelemetry();
       writeHeartbeat.clearLabelAlerts(activeLabel);
       logWriteProgress(label);
+      if (activeLabel && entryFamily && !familyCompletionRecorded) {
+        recordArtifactFamilyCloseoutCompletion({
+          artifactFamilyLedger,
+          family: entryFamily,
+          completed: false,
+          lane: laneName,
+          phase: familyPhase,
+          label: activeLabel
+        });
+      }
     }
   };
 
@@ -576,7 +674,10 @@ export const dispatchArtifactWrites = async (input = {}) => {
       const rescueState = resolveTailRescueState({ writeQueueBackedUp: queueBackedUp });
       const budgets = resolveLaneBudgets();
       let laneName = pickDispatchLane(budgets);
-      let dispatchEntries = laneName ? takeLaneDispatchEntries(laneName) : [];
+      const stalledFamily = getActiveWriteTelemetrySnapshot().stallFamily || null;
+      let dispatchEntries = laneName
+        ? takeLaneDispatchEntries(laneName, { avoidFamily: stalledFamily })
+        : [];
       let usedTailWorker = false;
       if (
         (!laneName || dispatchEntries.length === 0)
@@ -585,7 +686,11 @@ export const dispatchArtifactWrites = async (input = {}) => {
       ) {
         const tailSelection = selectTailWorkerWriteEntry(laneQueues, {
           laneOrder: ['massive', 'heavy', 'light', 'ultraLight'],
-          canSelect: (entry) => canDispatchEntryUnderHugeWritePolicy(entry)
+          canSelect: (entry) => {
+            const stalledFamily = getActiveWriteTelemetrySnapshot().stallFamily || null;
+            return canDispatchEntryUnderHugeWritePolicy(entry)
+              && (!stalledFamily || resolveEntryFamily(entry) !== normalizeFamilyName(stalledFamily));
+          }
         });
         if (tailSelection?.entry) {
           laneName = tailSelection.laneName;

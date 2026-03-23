@@ -424,8 +424,8 @@ const isMicroCoalescibleWrite = (entry, maxEntryBytes) => {
  * @param {number} [input.writeQueueOldestWaitMsThreshold]
  * @param {number} [input.writeQueueWaitP95MsThreshold]
  * @param {() => number} [input.now]
- * @param {(event:{reason:string,from:number,to:number,pendingWrites:number,activeWrites:number,longestStallSec:number,memoryPressure:number|null,gcPressure:number|null,rssUtilization:number|null,schedulerWritePending:number|null,schedulerWriteOldestWaitMs:number|null,schedulerWriteWaitP95Ms:number|null,stallAttribution:string}) => void} [input.onChange]
- * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,activeWriteBytes?:number,longestStallSec?:number,memoryPressure?:number|null,gcPressure?:number|null,rssUtilization?:number|null,schedulerWritePending?:number|null,schedulerWriteOldestWaitMs?:number|null,schedulerWriteWaitP95Ms?:number|null,activeStallOwner?:string|null})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
+ * @param {(event:{reason:string,from:number,to:number,pendingWrites:number,activeWrites:number,longestStallSec:number,memoryPressure:number|null,gcPressure:number|null,rssUtilization:number|null,schedulerWritePending:number|null,schedulerWriteOldestWaitMs:number|null,schedulerWriteWaitP95Ms:number|null,stallAttribution:string,stalledFamily:string|null,alternatePendingFamilies:number|null}) => void} [input.onChange]
+ * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,activeWriteBytes?:number,longestStallSec?:number,memoryPressure?:number|null,gcPressure?:number|null,rssUtilization?:number|null,schedulerWritePending?:number|null,schedulerWriteOldestWaitMs?:number|null,schedulerWriteWaitP95Ms?:number|null,activeStallOwner?:string|null,activeStallFamily?:string|null,pendingFamilyCount?:number,stalledFamilyPendingCount?:number,alternatePendingFamilies?:number})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
  */
 export const createAdaptiveWriteConcurrencyController = (input = {}) => {
   const maxConcurrency = clampWriteConcurrency(input.maxConcurrency, 1);
@@ -506,7 +506,11 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       schedulerWritePending: snapshot.schedulerWritePending,
       schedulerWriteOldestWaitMs: snapshot.schedulerWriteOldestWaitMs,
       schedulerWriteWaitP95Ms: snapshot.schedulerWriteWaitP95Ms,
-      stallAttribution: snapshot.stallAttribution
+      stallAttribution: snapshot.stallAttribution,
+      stalledFamily: snapshot.activeStallFamily || null,
+      alternatePendingFamilies: Number.isFinite(Number(snapshot.alternatePendingFamilies))
+        ? Number(snapshot.alternatePendingFamilies)
+        : null
     });
   };
 
@@ -540,6 +544,18 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
     const activeStallOwner = typeof snapshot.activeStallOwner === 'string' && snapshot.activeStallOwner.trim()
       ? snapshot.activeStallOwner.trim()
       : null;
+    const activeStallFamily = typeof snapshot.activeStallFamily === 'string' && snapshot.activeStallFamily.trim()
+      ? snapshot.activeStallFamily.trim().toLowerCase()
+      : null;
+    const pendingFamilyCount = Number.isFinite(Number(snapshot.pendingFamilyCount))
+      ? Math.max(0, Math.floor(Number(snapshot.pendingFamilyCount)))
+      : 0;
+    const stalledFamilyPendingCount = Number.isFinite(Number(snapshot.stalledFamilyPendingCount))
+      ? Math.max(0, Math.floor(Number(snapshot.stalledFamilyPendingCount)))
+      : 0;
+    const alternatePendingFamilies = Number.isFinite(Number(snapshot.alternatePendingFamilies))
+      ? Math.max(0, Math.floor(Number(snapshot.alternatePendingFamilies)))
+      : 0;
     const hasSchedulerWriteSignals = (
       schedulerWritePending != null
       || schedulerWriteOldestWaitMs != null
@@ -651,6 +667,12 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       && longestStallSec >= stallScaleDownSeconds
       && isNonQueueArtifactStallAttribution(stallAttribution)
       && activeWriteBytes >= nonWriteHighBytesThreshold
+      && !(
+        activeStallFamily
+        && pendingFamilyCount > 1
+        && stalledFamilyPendingCount > 0
+        && alternatePendingFamilies > 0
+      )
     ) {
       currentConcurrency = Math.max(minConcurrency, currentConcurrency - 1);
       lastScaleDownAt = timestamp;

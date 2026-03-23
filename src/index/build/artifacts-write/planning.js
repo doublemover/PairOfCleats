@@ -69,6 +69,7 @@ export const dispatchPlannedArtifactWrites = async ({
   resolveArtifactWriteMemTokens,
   outDir,
   artifactMetrics,
+  artifactFamilyLedger,
   artifactQueueDelaySamples,
   updatePieceMetadata,
   formatBytes,
@@ -125,7 +126,9 @@ export const dispatchPlannedArtifactWrites = async ({
       schedulerWritePending,
       schedulerWriteOldestWaitMs,
       schedulerWriteWaitP95Ms,
-      stallAttribution
+      stallAttribution,
+      stalledFamily,
+      alternatePendingFamilies
     }) => {
       const stallSuffix = longestStallSec > 0 ? `, stall=${longestStallSec}s` : '';
       const memorySuffix = (
@@ -149,10 +152,13 @@ export const dispatchPlannedArtifactWrites = async ({
       )
         ? `, attribution=${stallAttribution || 'unknown'}`
         : '';
+      const familySuffix = typeof stalledFamily === 'string' && stalledFamily
+        ? `, family=${stalledFamily}${Number.isFinite(alternatePendingFamilies) && alternatePendingFamilies > 0 ? `, alternateFamilies=${alternatePendingFamilies}` : ''}`
+        : '';
       logLine(
         `[perf] adaptive artifact write concurrency ${from} -> ${to} `
           + `(${reason}, pending=${pendingWrites}${stallSuffix}${memorySuffix}`
-          + `${schedulerSuffix}${stallAttributionSuffix})`,
+          + `${schedulerSuffix}${stallAttributionSuffix}${familySuffix})`,
         { kind: 'status' }
       );
     }
@@ -199,6 +205,7 @@ export const dispatchPlannedArtifactWrites = async ({
     resolveArtifactWriteMemTokens,
     outDir,
     artifactMetrics,
+    artifactFamilyLedger,
     artifactQueueDelaySamples,
     updatePieceMetadata,
     formatBytes,

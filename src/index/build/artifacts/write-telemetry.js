@@ -22,6 +22,11 @@ const toNonNegativeNumberOrNull = (value) => {
   return parsed;
 };
 
+const normalizeArtifactFamilyName = (value) => {
+  const text = String(value || '').trim().toLowerCase();
+  return text || null;
+};
+
 export const resolveActiveWritePhaseLabel = (label, phaseHint = null) => {
   const hinted = typeof phaseHint === 'string' ? phaseHint.trim() : '';
   if (hinted) return hinted;
@@ -133,6 +138,170 @@ export const resolveActiveWriteStallOwner = (entries = []) => {
     return match.phase;
   }
   return null;
+};
+
+export const resolveActiveWriteStallFamily = (entries = []) => {
+  const list = Array.isArray(entries) ? entries : [];
+  const preferredPhaseClasses = ['closeout', 'publish', 'materialize', 'execute'];
+  for (const phaseClass of preferredPhaseClasses) {
+    const match = list.find((entry) => entry?.phaseClass === phaseClass);
+    const family = normalizeArtifactFamilyName(match?.family);
+    if (family) return family;
+  }
+  return null;
+};
+
+const resolveArtifactFamilyLedgerEntry = (artifactFamilyLedger, family) => {
+  if (!(artifactFamilyLedger instanceof Map)) return null;
+  const normalizedFamily = normalizeArtifactFamilyName(family) || 'unknown';
+  if (!artifactFamilyLedger.has(normalizedFamily)) {
+    artifactFamilyLedger.set(normalizedFamily, {
+      family: normalizedFamily,
+      started: 0,
+      completed: 0,
+      active: 0,
+      startedBytes: 0,
+      completedBytes: 0,
+      maxQueueDelayMs: 0,
+      maxDurationMs: 0,
+      maxStallElapsedSec: 0,
+      stallCount: 0,
+      lanes: new Set(),
+      phaseClasses: new Set(),
+      labels: new Set(),
+      latencyClasses: new Set()
+    });
+  }
+  return artifactFamilyLedger.get(normalizedFamily);
+};
+
+export const recordArtifactFamilyCloseoutStart = ({
+  artifactFamilyLedger,
+  family,
+  lane = null,
+  phase = null,
+  label = null,
+  estimatedBytes = null
+} = {}) => {
+  const entry = resolveArtifactFamilyLedgerEntry(artifactFamilyLedger, family);
+  if (!entry) return null;
+  entry.started += 1;
+  entry.active += 1;
+  const bytes = toNonNegativeNumberOrNull(estimatedBytes);
+  if (bytes != null) {
+    entry.startedBytes += bytes;
+  }
+  const normalizedLane = String(lane || '').trim();
+  if (normalizedLane) entry.lanes.add(normalizedLane);
+  const phaseClass = resolveArtifactWritePhaseClass(phase);
+  if (phaseClass && phaseClass !== 'unknown') entry.phaseClasses.add(phaseClass);
+  const normalizedLabel = String(label || '').trim();
+  if (normalizedLabel) entry.labels.add(normalizedLabel);
+  return entry;
+};
+
+export const recordArtifactFamilyCloseoutCompletion = ({
+  artifactFamilyLedger,
+  family,
+  completed = true,
+  queueDelayMs = null,
+  durationMs = null,
+  bytes = null,
+  latencyClass = null,
+  lane = null,
+  phase = null,
+  label = null
+} = {}) => {
+  const entry = resolveArtifactFamilyLedgerEntry(artifactFamilyLedger, family);
+  if (!entry) return null;
+  if (completed !== false) {
+    entry.completed += 1;
+  }
+  entry.active = Math.max(0, entry.active - 1);
+  const normalizedQueueDelayMs = toNonNegativeNumberOrNull(queueDelayMs);
+  if (normalizedQueueDelayMs != null) {
+    entry.maxQueueDelayMs = Math.max(entry.maxQueueDelayMs, normalizedQueueDelayMs);
+  }
+  const normalizedDurationMs = toNonNegativeNumberOrNull(durationMs);
+  if (normalizedDurationMs != null) {
+    entry.maxDurationMs = Math.max(entry.maxDurationMs, normalizedDurationMs);
+  }
+  const normalizedBytes = toNonNegativeNumberOrNull(bytes);
+  if (normalizedBytes != null) {
+    entry.completedBytes += normalizedBytes;
+  }
+  const normalizedLatencyClass = String(latencyClass || '').trim();
+  if (normalizedLatencyClass) entry.latencyClasses.add(normalizedLatencyClass);
+  const normalizedLane = String(lane || '').trim();
+  if (normalizedLane) entry.lanes.add(normalizedLane);
+  const phaseClass = resolveArtifactWritePhaseClass(phase);
+  if (phaseClass && phaseClass !== 'unknown') entry.phaseClasses.add(phaseClass);
+  const normalizedLabel = String(label || '').trim();
+  if (normalizedLabel) entry.labels.add(normalizedLabel);
+  return entry;
+};
+
+export const recordArtifactFamilyCloseoutStall = ({
+  artifactFamilyLedger,
+  family,
+  elapsedSec = null,
+  lane = null,
+  phase = null,
+  label = null
+} = {}) => {
+  const entry = resolveArtifactFamilyLedgerEntry(artifactFamilyLedger, family);
+  if (!entry) return null;
+  entry.stallCount += 1;
+  const normalizedElapsedSec = toNonNegativeNumberOrNull(elapsedSec);
+  if (normalizedElapsedSec != null) {
+    entry.maxStallElapsedSec = Math.max(entry.maxStallElapsedSec, normalizedElapsedSec);
+  }
+  const normalizedLane = String(lane || '').trim();
+  if (normalizedLane) entry.lanes.add(normalizedLane);
+  const phaseClass = resolveArtifactWritePhaseClass(phase);
+  if (phaseClass && phaseClass !== 'unknown') entry.phaseClasses.add(phaseClass);
+  const normalizedLabel = String(label || '').trim();
+  if (normalizedLabel) entry.labels.add(normalizedLabel);
+  return entry;
+};
+
+export const buildArtifactFamilyCloseoutSummary = (artifactFamilyLedger = null) => {
+  if (!(artifactFamilyLedger instanceof Map) || artifactFamilyLedger.size === 0) return [];
+  return Array.from(artifactFamilyLedger.values())
+    .map((entry) => ({
+      family: entry.family,
+      started: entry.started,
+      completed: entry.completed,
+      active: entry.active,
+      startedBytes: entry.startedBytes,
+      completedBytes: entry.completedBytes,
+      maxQueueDelayMs: entry.maxQueueDelayMs,
+      maxDurationMs: entry.maxDurationMs,
+      maxStallElapsedSec: entry.maxStallElapsedSec,
+      stallCount: entry.stallCount,
+      lanes: Array.from(entry.lanes).sort((left, right) => left.localeCompare(right)),
+      phaseClasses: Array.from(entry.phaseClasses).sort((left, right) => left.localeCompare(right)),
+      latencyClasses: Array.from(entry.latencyClasses).sort((left, right) => left.localeCompare(right)),
+      sampleLabels: Array.from(entry.labels).sort((left, right) => left.localeCompare(right)).slice(0, 3)
+    }))
+    .sort((left, right) => (
+      Number(right.stallCount || 0) - Number(left.stallCount || 0)
+    ) || (
+      Number(right.maxStallElapsedSec || 0) - Number(left.maxStallElapsedSec || 0)
+    ) || left.family.localeCompare(right.family));
+};
+
+export const summarizePendingArtifactFamilies = (laneQueues = {}) => {
+  const counts = new Map();
+  for (const queue of Object.values(laneQueues || {})) {
+    if (!Array.isArray(queue)) continue;
+    for (const entry of queue) {
+      const family = normalizeArtifactFamilyName(entry?.family);
+      if (!family) continue;
+      counts.set(family, (counts.get(family) || 0) + 1);
+    }
+  }
+  return counts;
 };
 
 /**
@@ -270,7 +439,9 @@ export const buildActiveWriteTelemetrySnapshot = ({
     phaseSummaryText,
     familySummaryText,
     phaseByLabel,
-    stallOwner: resolveActiveWriteStallOwner(entries)
+    familyCounts,
+    stallOwner: resolveActiveWriteStallOwner(entries),
+    stallFamily: resolveActiveWriteStallFamily(entries)
   };
 };
 
@@ -282,6 +453,7 @@ export const buildActiveWriteTelemetrySnapshot = ({
  *   activeWrites:Map<string, number>,
   *   activeWriteBytes:Map<string, number>,
  *   activeWriteMeta?:Map<string, object>|null,
+ *   artifactFamilyLedger?:Map<string, object>|null,
  *   getCompletedWrites:()=>number,
  *   getTotalWrites:()=>number,
  *   normalizedWriteStallThresholds:number[],
@@ -296,6 +468,7 @@ export const createWriteHeartbeatController = ({
   activeWrites,
   activeWriteBytes,
   activeWriteMeta = null,
+  artifactFamilyLedger = null,
   getCompletedWrites,
   getTotalWrites,
   normalizedWriteStallThresholds,
@@ -324,15 +497,27 @@ export const createWriteHeartbeatController = ({
           normalizedWriteStallThresholds,
           estimatedBytes
         });
+        const meta = activeWriteMeta instanceof Map ? activeWriteMeta.get(label) : null;
+        const family = normalizeArtifactFamilyName(meta?.family);
+        const lane = typeof meta?.lane === 'string' ? meta.lane.trim() : null;
+        const phase = typeof meta?.phase === 'string' ? meta.phase.trim() : null;
         for (let thresholdIndex = 0; thresholdIndex < resolvedThresholds.length; thresholdIndex += 1) {
           const thresholdSec = resolvedThresholds[thresholdIndex];
           if (alerts.has(thresholdSec) || elapsedSec < thresholdSec) continue;
           alerts.add(thresholdSec);
           writeStallAlerts.set(label, alerts);
           const levelName = stallThresholdLevelName(thresholdSec, thresholdIndex);
+          recordArtifactFamilyCloseoutStall({
+            artifactFamilyLedger,
+            family,
+            elapsedSec,
+            lane,
+            phase,
+            label
+          });
           logLine(
             `[perf] artifact write stall ${levelName}: ${label} in-flight for ${elapsedSec}s ` +
-            `(threshold=${thresholdSec}s)`,
+            `(threshold=${thresholdSec}s${family ? `, family=${family}` : ''}${lane ? `, lane=${lane}` : ''}${phase ? `, phase=${phase}` : ''})`,
             { kind: thresholdSec >= 30 ? 'error' : 'warning' }
           );
           if (stageCheckpoints?.record) {

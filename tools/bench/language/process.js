@@ -509,6 +509,23 @@ const resolveLegacyDiagnosticType = (message, event = null) => {
   return null;
 };
 
+const resolveLegacyDiagnosticFields = (eventType, message) => {
+  if (String(eventType || '').trim() !== 'artifact_tail_stall') {
+    return {};
+  }
+  const text = String(message || '');
+  const familyMatch = text.match(/\bfamily=(?<family>[a-z0-9_-]+)\b/i);
+  const phaseMatch = text.match(/\bphase=(?<phase>[^,\s)]+)\b/i);
+  return {
+    failureClass: familyMatch?.groups?.family
+      ? `family:${String(familyMatch.groups.family).trim().toLowerCase()}`
+      : null,
+    phase: phaseMatch?.groups?.phase
+      ? String(phaseMatch.groups.phase).trim().toLowerCase()
+      : null
+  };
+};
+
 const resolveTimeoutPhase = ({
   timeoutDecision = null,
   ownedPhase = null,
@@ -1732,10 +1749,12 @@ export const createProcessRunner = ({
       const eventSource = event ? 'progress-event' : source;
       const legacyEventType = resolveLegacyDiagnosticType(text, event);
       if (legacyEventType) {
+        const legacyFields = resolveLegacyDiagnosticFields(legacyEventType, text);
         noteOwnedPhaseProgress({
           phase: resolveBenchRuntimePhaseForDiagnostic({
             eventType: legacyEventType,
             message: text,
+            phase: legacyFields.phase || null,
             stage: event?.stage || null,
             taskId: event?.taskId || null
           }, event),
@@ -1750,6 +1769,8 @@ export const createProcessRunner = ({
           level: event?.level || null,
           stage: event?.stage || null,
           taskId: event?.taskId || null,
+          failureClass: legacyFields.failureClass || null,
+          phase: legacyFields.phase || null,
           severity: resolveBenchDiagnosticSeverity({
             eventType: legacyEventType
           })

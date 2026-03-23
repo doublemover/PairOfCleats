@@ -1584,6 +1584,26 @@ export const buildBenchRunDiagnosticsSummaryLines = (output) => {
   if (highlights.length) {
     lines.push(`[diagnostics] run highlights: ${highlights.join(' | ')}`);
   }
+  const artifactFamilyCounts = new Map();
+  for (const task of Array.isArray(output?.tasks) ? output.tasks : []) {
+    const topSignals = Array.isArray(task?.diagnostics?.topSignals) ? task.diagnostics.topSignals : [];
+    for (const signal of topSignals) {
+      if (signal?.eventType !== 'artifact_tail_stall') continue;
+      const failureClass = String(signal?.failureClass || '').trim().toLowerCase();
+      if (!failureClass.startsWith('family:')) continue;
+      const family = failureClass.slice('family:'.length).trim();
+      if (!family) continue;
+      const count = Number.isFinite(Number(signal?.count)) ? Number(signal.count) : 0;
+      artifactFamilyCounts.set(family, (artifactFamilyCounts.get(family) || 0) + Math.max(1, count));
+    }
+  }
+  const artifactFamilyHighlights = Array.from(artifactFamilyCounts.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 5)
+    .map(([family, count]) => `${family}=${count}`);
+  if (artifactFamilyHighlights.length) {
+    lines.push(`[diagnostics] artifact families: ${artifactFamilyHighlights.join(' | ')}`);
+  }
   const fallbackCauseCounts = output?.diagnostics?.stream?.countsByFailureClass && typeof output.diagnostics.stream.countsByFailureClass === 'object'
     ? output.diagnostics.stream.countsByFailureClass
     : {};
