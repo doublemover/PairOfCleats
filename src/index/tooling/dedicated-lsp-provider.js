@@ -43,7 +43,11 @@ const toExtensionSet = (extensions) => new Set(
 
 const filterProviderDocuments = (documents, extensionSet) => {
   if (!Array.isArray(documents) || !documents.length || !extensionSet.size) return [];
-  return documents.filter((doc) => extensionSet.has(path.extname(String(doc?.virtualPath || '')).toLowerCase()));
+  return documents.filter((doc) => {
+    const effectiveExt = String(doc?.effectiveExt || '').trim().toLowerCase();
+    if (effectiveExt && extensionSet.has(effectiveExt)) return true;
+    return extensionSet.has(path.extname(String(doc?.virtualPath || '')).toLowerCase());
+  });
 };
 
 const buildProviderRef = (descriptor, configHash) => ({

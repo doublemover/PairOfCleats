@@ -1,5 +1,5 @@
 {
-  "schemaHash": "2378175137b19e1db6464acc74994234e2e054a0",
+  "schemaHash": "b0733ae613e78c0716ca211c0eb1568df7554e06",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -1038,6 +1038,7 @@
         "languageLines",
         "modes",
         "repo",
+        "reuse",
         "schemaVersion",
         "source",
         "totals"

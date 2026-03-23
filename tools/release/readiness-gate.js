@@ -12,6 +12,7 @@ const argv = createCli({
     'runtime-report': { type: 'string', default: '' },
     'node-verify-report': { type: 'string', default: '' },
     'tui-verify-root': { type: 'string', default: '' },
+    'tui-verify-targets': { type: 'string', default: 'ubuntu,windows,macos' },
     'trust-root': { type: 'string', default: '' },
     'ci-statuses': { type: 'string', default: '' },
     'ci-test-summary': { type: 'string', default: '' },
@@ -33,6 +34,10 @@ const prepareReportPath = resolveOptionalPath(argv['prepare-report']);
 const runtimeReportPath = resolveOptionalPath(argv['runtime-report']);
 const nodeVerifyReportPath = resolveOptionalPath(argv['node-verify-report']);
 const tuiVerifyRoot = resolveOptionalPath(argv['tui-verify-root']);
+const expectedTuiTargets = String(argv['tui-verify-targets'] || '')
+  .split(',')
+  .map((value) => value.trim().toLowerCase())
+  .filter(Boolean);
 const trustRoot = resolveOptionalPath(argv['trust-root']);
 const ciStatusesPath = resolveOptionalPath(argv['ci-statuses']);
 const ciTestSummaryPath = resolveOptionalPath(argv['ci-test-summary']);
@@ -73,8 +78,25 @@ const collectTuiReports = (dirPath) => collectFiles(dirPath)
   .filter((filePath) => /release_check_report\.json$/i.test(path.basename(filePath)))
   .map((filePath) => ({
     path: toPosixRelative(filePath),
+    target: resolveTuiReportTarget(filePath),
     payload: JSON.parse(fs.readFileSync(filePath, 'utf8'))
   }));
+
+function resolveTuiReportTarget(filePath) {
+  const rel = toPosixRelative(filePath);
+  const patterns = [
+    /release-tui-verify-([^/]+)/i,
+    /verify-tui-([^/]+)/i,
+    /(?:^|\/)(ubuntu|windows|macos)(?:\/|$)/i
+  ];
+  for (const pattern of patterns) {
+    const match = rel.match(pattern);
+    if (match?.[1]) {
+      return String(match[1]).trim().toLowerCase();
+    }
+  }
+  return null;
+}
 
 const blockers = [];
 const addBlocker = (id, detail) => blockers.push({ id, detail });
@@ -110,13 +132,33 @@ const run = async () => {
     prepare: assertReleaseReport('prepare', prepareReportPath, prepareReport),
     runtime: assertReleaseReport('runtime', runtimeReportPath, runtimeReport),
     nodeVerify: assertReleaseReport('nodeVerify', nodeVerifyReportPath, nodeVerifyReport),
-    tuiVerify: {
-      ok: tuiReports.length > 0 && tuiReports.every((entry) => entry.payload?.ok === true),
-      reports: tuiReports.map((entry) => ({ path: entry.path, ok: entry.payload?.ok === true }))
-    }
+    tuiVerify: (() => {
+      const reportsByTarget = new Map();
+      for (const entry of tuiReports) {
+        if (!entry.target) continue;
+        reportsByTarget.set(entry.target, entry);
+      }
+      const missingTargets = expectedTuiTargets.filter((target) => !reportsByTarget.has(target));
+      const reports = tuiReports.map((entry) => ({
+        path: entry.path,
+        target: entry.target,
+        ok: entry.payload?.ok === true
+      }));
+      const allPresent = missingTargets.length === 0;
+      const allPassing = expectedTuiTargets.every((target) => reportsByTarget.get(target)?.payload?.ok === true);
+      return {
+        ok: expectedTuiTargets.length > 0 && allPresent && allPassing,
+        expectedTargets: expectedTuiTargets,
+        missingTargets,
+        reports
+      };
+    })()
   };
   if (!releaseChecks.tuiVerify.ok) {
-    addBlocker('tuiVerify.failed', 'one or more TUI verification reports are missing or failed.');
+    const missingDetail = releaseChecks.tuiVerify.missingTargets?.length
+      ? ` missing targets: ${releaseChecks.tuiVerify.missingTargets.join(', ')}.`
+      : '';
+    addBlocker('tuiVerify.failed', `one or more required TUI verification reports are missing or failed.${missingDetail}`);
   }
 
   const trustChecks = {

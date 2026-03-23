@@ -892,8 +892,8 @@ export const postScanImports = async ({
       if (resolvedResult?.stats && unresolvedSuppression) {
         resolvedResult.stats.unresolvedWarningSuppression = unresolvedSuppression;
       }
-      if (stageState?.importResolutionGraph?.stats && unresolvedSuppression) {
-        stageState.importResolutionGraph.stats.unresolvedWarningSuppression = unresolvedSuppression;
+      if (state?.importResolutionGraph?.stats && unresolvedSuppression) {
+        state.importResolutionGraph.stats.unresolvedWarningSuppression = unresolvedSuppression;
       }
     }
   }

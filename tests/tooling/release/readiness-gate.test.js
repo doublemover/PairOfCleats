@@ -81,4 +81,46 @@ assert.equal(payload.ok, true, 'expected readiness gate to report ok=true');
 assert.deepEqual(payload.blockers, [], 'expected no blockers');
 assert.equal(fs.existsSync(outMdPath), true, 'expected markdown readiness report');
 
+const missingMacosRoot = path.join(fixtureDir, 'tui-missing-macos');
+writeJson(path.join(missingMacosRoot, 'ubuntu', 'release_check_report.json'), { ok: true });
+writeJson(path.join(missingMacosRoot, 'windows', 'release_check_report.json'), { ok: true });
+const missingTargetRun = runNode(
+  [
+    scriptPath,
+    '--prepare-report',
+    prepareReportPath,
+    '--runtime-report',
+    runtimeReportPath,
+    '--node-verify-report',
+    nodeVerifyReportPath,
+    '--tui-verify-root',
+    missingMacosRoot,
+    '--trust-root',
+    trustRoot,
+    '--ci-statuses',
+    ciStatusesPath,
+    '--ci-test-summary',
+    ciSummaryPath,
+    '--coverage-dir',
+    coverageDir,
+    '--attested',
+    '--out-json',
+    path.join(fixtureDir, 'readiness', 'missing-target-summary.json'),
+    '--out-md',
+    path.join(fixtureDir, 'readiness', 'missing-target-summary.md')
+  ],
+  'release readiness gate missing target',
+  root,
+  process.env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
+);
+
+assert.notEqual(missingTargetRun.status, 0, 'expected readiness gate to fail when a TUI target report is missing');
+const missingTargetPayload = JSON.parse(
+  fs.readFileSync(path.join(fixtureDir, 'readiness', 'missing-target-summary.json'), 'utf8')
+);
+assert.equal(missingTargetPayload.ok, false, 'expected readiness gate to report ok=false when a TUI target is missing');
+assert.equal(missingTargetPayload.releaseChecks.tuiVerify.ok, false, 'expected tui verification gate to fail');
+assert.deepEqual(missingTargetPayload.releaseChecks.tuiVerify.missingTargets, ['macos']);
+
 console.log('release readiness gate test passed');

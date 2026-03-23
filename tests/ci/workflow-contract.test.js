@@ -99,6 +99,13 @@ const assertCommandSurfaceAuditPresent = ({ workflowText, label }) => {
   }
 };
 
+const assertWorkflowDispatchPresent = ({ workflowText, label }) => {
+  if (!/workflow_dispatch:/m.test(workflowText)) {
+    console.error(`${label} must support workflow_dispatch.`);
+    process.exit(1);
+  }
+};
+
 const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
   const checkoutRefs = workflowText.match(/uses:\s*actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*github\.event_name == 'workflow_dispatch' && inputs\.tag \|\| github\.ref\s*\}\}/g) || [];
   if (checkoutRefs.length < 8) {
@@ -120,11 +127,11 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
     /tools\/release\/readiness-gate\.js/,
     /cargo install cargo-cyclonedx --locked/,
     /gh run list --workflow "\$workflow"/,
-    /gh workflow run 'ci-long\.yml' --ref "\$target_ref"/,
+    /gh workflow run "\$workflow" --ref "\$target_ref"/,
     /RELEASE_GIT_SHA:\s*\$\{\{\s*needs\.prepare\.outputs\.release_git_sha\s*\}\}/,
     /RELEASE_REF:\s*\$\{\{\s*needs\.prepare\.outputs\.release_ref\s*\}\}/,
     /target_sha="\$\{RELEASE_GIT_SHA:-\$GITHUB_SHA\}"/,
-    /wait_for_successful_run 'ci\.yml' 'no-dispatch'/,
+    /wait_for_successful_run 'ci\.yml' 'dispatch'/,
     /wait_for_successful_run 'ci-long\.yml' 'dispatch'/,
     /gh run download "\$ci_run_id" -n ci-quality-artifacts-ubuntu/,
     /uses:\s*actions\/download-artifact@v4/,
@@ -181,6 +188,7 @@ const ciWorkflow = readWorkflow('ci.yml');
 assertWorkflowScriptsExist({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertNodePinned({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertHiddenArtifactUploadsConfigured({ workflowText: ciWorkflow, label: 'CI workflow' });
+assertWorkflowDispatchPresent({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertRustValidationPresent({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertGeneratedFreshnessGatePresent({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertCommandSurfaceAuditPresent({ workflowText: ciWorkflow, label: 'CI workflow' });

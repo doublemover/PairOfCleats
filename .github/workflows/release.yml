@@ -587,8 +587,9 @@ jobs:
             gh run list --workflow "$workflow" --commit "$target_sha" --json databaseId,status,conclusion,event,headSha --limit 20
           }
 
-          maybe_dispatch_ci_long() {
-            local runs_json="$1"
+          maybe_dispatch_workflow() {
+            local workflow="$1"
+            local runs_json="$2"
             if [ "$RELEASE_EVENT_NAME" != "workflow_dispatch" ]; then
               return 0
             fi
@@ -597,8 +598,8 @@ jobs:
             if [ "$existing_count" != "0" ]; then
               return 0
             fi
-            echo "dispatching ci-long.yml for $target_ref ($target_sha)"
-            gh workflow run 'ci-long.yml' --ref "$target_ref"
+            echo "dispatching $workflow for $target_ref ($target_sha)"
+            gh workflow run "$workflow" --ref "$target_ref"
           }
 
           wait_for_successful_run() {
@@ -609,7 +610,7 @@ jobs:
               local runs_json
               runs_json=$(find_run_state "$workflow")
               if [ "$allow_dispatch" = "dispatch" ]; then
-                maybe_dispatch_ci_long "$runs_json"
+                maybe_dispatch_workflow "$workflow" "$runs_json"
                 runs_json=$(find_run_state "$workflow")
               fi
               local result
@@ -637,7 +638,7 @@ jobs:
             return 1
           }
 
-          ci_run_id=$(wait_for_successful_run 'ci.yml' 'no-dispatch')
+          ci_run_id=$(wait_for_successful_run 'ci.yml' 'dispatch')
           ci_long_run_id=$(wait_for_successful_run 'ci-long.yml' 'dispatch')
           gh run download "$ci_run_id" -n ci-quality-artifacts-ubuntu -D dist/release/ci-quality
           node -e "const fs=require('fs');const payload={targetSha:process.argv[3],workflows:[{workflow:'CI',runId:Number(process.argv[1]),conclusion:'success'},{workflow:'CI Long',runId:Number(process.argv[2]),conclusion:'success'}]};fs.writeFileSync('dist/release/readiness/ci-statuses.json', JSON.stringify(payload, null, 2)+'\n');" "$ci_run_id" "$ci_long_run_id" "$target_sha"
