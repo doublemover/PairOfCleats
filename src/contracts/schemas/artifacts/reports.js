@@ -460,6 +460,101 @@ const scanProfileLanguageLines = {
   additionalProperties: intId
 };
 
+const reuseGenerationSchema = {
+  type: 'object',
+  required: ['mode', 'repoRoot', 'buildRoot', 'buildId'],
+  properties: {
+    mode: nullableString,
+    repoRoot: nullableString,
+    buildRoot: nullableString,
+    buildId: nullableString
+  },
+  additionalProperties: false
+};
+
+const reuseCostSchema = {
+  type: 'object',
+  required: ['timeCostMs', 'requestedCount', 'reusedCount', 'fetchedCount', 'chunkCount'],
+  properties: {
+    timeCostMs: intId,
+    requestedCount: intId,
+    reusedCount: intId,
+    fetchedCount: intId,
+    chunkCount: intId
+  },
+  additionalProperties: false
+};
+
+const reuseSummarySchema = {
+  anyOf: [
+    { type: 'null' },
+    {
+      type: 'object',
+      required: [
+        'observationCount',
+        'generationAware',
+        'generation',
+        'countsByCause',
+        'countsBySurface',
+        'countsBySurfaceAndSource',
+        'countsByQualityImpact',
+        'scmSnapshotSources',
+        'providerResultSources',
+        'cost',
+        'observations'
+      ],
+      properties: {
+        observationCount: intId,
+        generationAware: { type: 'boolean' },
+        generation: reuseGenerationSchema,
+        countsByCause: scanProfileCountMap,
+        countsBySurface: scanProfileCountMap,
+        countsBySurfaceAndSource: scanProfileCountMap,
+        countsByQualityImpact: scanProfileCountMap,
+        scmSnapshotSources: scanProfileCountMap,
+        providerResultSources: scanProfileCountMap,
+        cost: reuseCostSchema,
+        observations: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: [
+              'kind',
+              'providerId',
+              'reuseSurface',
+              'reuseSource',
+              'causeClass',
+              'qualityImpact',
+              'requestedCount',
+              'reusedCount',
+              'fetchedCount',
+              'chunkCount',
+              'timeCostMs',
+              'generation'
+            ],
+            properties: {
+              kind: nullableString,
+              providerId: nullableString,
+              reuseSurface: nullableString,
+              reuseSource: nullableString,
+              causeClass: nullableString,
+              qualityImpact: nullableString,
+              requestedCount: nullableInt,
+              reusedCount: nullableInt,
+              fetchedCount: nullableInt,
+              chunkCount: nullableInt,
+              timeCostMs: nullableInt,
+              generation: reuseGenerationSchema
+            },
+            additionalProperties: false
+          }
+        }
+      },
+      additionalProperties: false
+    }
+  ]
+};
+
 const scanProfileModeSchema = {
   type: 'object',
   required: [
@@ -475,7 +570,8 @@ const scanProfileModeSchema = {
     'timings',
     'throughput',
     'queues',
-    'quality'
+    'quality',
+    'reuse'
   ],
   properties: {
     mode: modeName,
@@ -625,7 +721,8 @@ const scanProfileModeSchema = {
         }
       },
       additionalProperties: false
-    }
+    },
+    reuse: reuseSummarySchema
   },
   additionalProperties: false
 };
@@ -639,7 +736,8 @@ const scanProfileSchema = {
     'repo',
     'modes',
     'totals',
-    'languageLines'
+    'languageLines',
+    'reuse'
   ],
   properties: {
     schemaVersion: posInt,
@@ -712,7 +810,8 @@ const scanProfileSchema = {
       },
       additionalProperties: false
     },
-    languageLines: scanProfileLanguageLines
+    languageLines: scanProfileLanguageLines,
+    reuse: reuseSummarySchema
   },
   additionalProperties: false
 };

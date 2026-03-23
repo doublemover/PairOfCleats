@@ -1,5 +1,11 @@
 import crypto from 'node:crypto';
 import { log, logError } from '../../../src/shared/progress.js';
+import {
+  normalizeReuseSource,
+  normalizeReuseSurface,
+  resolveQualityImpactForCause,
+  resolveScmFallbackCause
+} from '../../../src/shared/reuse-diagnostics.js';
 
 const ENV_METADATA_KEYS = Object.freeze([
   'NODE_OPTIONS',
@@ -145,50 +151,6 @@ const normalizeWorkspacePartitionValue = (value) => {
   const text = String(value || '').trim();
   if (!text) return null;
   return text;
-};
-
-const normalizeReuseSurface = (value) => {
-  const text = String(value || '').trim().toLowerCase();
-  return text || null;
-};
-
-const normalizeReuseSource = (value) => {
-  const text = String(value || '').trim().toLowerCase();
-  return text || null;
-};
-
-const resolveScmFallbackCause = ({
-  source,
-  timeoutCount = 0,
-  cooldownSkips = 0,
-  unavailableChunks = 0
-}) => {
-  const normalizedSource = normalizeReuseSource(source) || 'unknown';
-  if (normalizedSource === 'cache') return 'cache_hit';
-  if (normalizedSource === 'fresh') return 'cache_miss';
-  if (normalizedSource === 'mixed') return 'scm_state_prevents_reuse';
-  if (normalizedSource.includes('fallback')) {
-    if ((Number(timeoutCount) || 0) > 0 || (Number(cooldownSkips) || 0) > 0 || (Number(unavailableChunks) || 0) > 0) {
-      return 'provider_unhealthy';
-    }
-    return 'provider_unavailable';
-  }
-  return 'unknown';
-};
-
-const resolveQualityImpactForCause = (causeClass) => {
-  switch (String(causeClass || '').trim().toLowerCase()) {
-    case 'provider_unhealthy':
-    case 'provider_unavailable':
-    case 'workspace_blocked':
-      return 'partial-provider-fidelity';
-    case 'cache_invalid':
-    case 'cache_miss':
-    case 'scm_state_prevents_reuse':
-    case 'cache_hit':
-    default:
-      return 'none';
-  }
 };
 
 const parseScmSnapshotObservation = (text) => {

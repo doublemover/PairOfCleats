@@ -2,6 +2,11 @@ import path from 'node:path';
 import PQueue from 'p-queue';
 import { toPosix, readJsonFileSafe } from '../../shared/files.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import {
+  resolveQualityImpactForCause,
+  resolveScmFallbackCause,
+  summarizeReuseObservations
+} from '../../shared/reuse-diagnostics.js';
 import { buildScmFreshnessGuard, getScmRuntimeConfigEpoch } from './runtime.js';
 
 const SCM_FILE_META_SNAPSHOT_SCHEMA_VERSION = 1;
@@ -298,7 +303,10 @@ export const prepareScmFileMetaSnapshot = async ({
   includeChurn = false,
   timeoutMs = null,
   maxFallbackConcurrency = 8,
-  log = null
+  log = null,
+  buildRoot = null,
+  buildId = null,
+  mode = null
 } = {}) => {
   const startedAtMs = Date.now();
   const logFn = typeof log === 'function' ? log : null;
@@ -476,6 +484,55 @@ export const prepareScmFileMetaSnapshot = async ({
     freshnessGuard
   });
   const fetched = Object.keys(fetchedMap).length;
+  const causeClass = resolveScmFallbackCause({
+    source,
+    timeoutCount: batchDiagnostics.timeoutCount,
+    cooldownSkips: batchDiagnostics.cooldownSkips,
+    unavailableChunks: batchDiagnostics.unavailableChunks
+  });
+  const reuseSummary = {
+    ...summarizeReuseObservations([{
+      kind: 'scm_snapshot',
+      reuseSurface: 'scm-derived',
+      reuseSource: source,
+      causeClass,
+      qualityImpact: resolveQualityImpactForCause(causeClass),
+      requestedCount: targetFiles.length,
+      reusedCount: reused,
+      fetchedCount: fetched,
+      timeCostMs: Math.max(0, Date.now() - startedAtMs),
+      generation: {
+        mode,
+        repoRoot: resolvedRepoRoot,
+        buildRoot: typeof buildRoot === 'string' ? path.resolve(buildRoot) : null,
+        buildId: typeof buildId === 'string' ? buildId : null
+      }
+    }], {
+      generation: {
+        mode,
+        repoRoot: resolvedRepoRoot,
+        buildRoot: typeof buildRoot === 'string' ? path.resolve(buildRoot) : null,
+        buildId: typeof buildId === 'string' ? buildId : null
+      }
+    }),
+    observations: [{
+      kind: 'scm_snapshot',
+      reuseSurface: 'scm-derived',
+      reuseSource: source,
+      causeClass,
+      qualityImpact: resolveQualityImpactForCause(causeClass),
+      requestedCount: targetFiles.length,
+      reusedCount: reused,
+      fetchedCount: fetched,
+      timeCostMs: Math.max(0, Date.now() - startedAtMs),
+      generation: {
+        mode,
+        repoRoot: resolvedRepoRoot,
+        buildRoot: typeof buildRoot === 'string' ? path.resolve(buildRoot) : null,
+        buildId: typeof buildId === 'string' ? buildId : null
+      }
+    }]
+  };
   if (logFn) {
     const timeoutHeatmapLabel = Array.isArray(batchDiagnostics.timeoutHeatmap) && batchDiagnostics.timeoutHeatmap.length
       ? batchDiagnostics.timeoutHeatmap
@@ -508,6 +565,7 @@ export const prepareScmFileMetaSnapshot = async ({
       requested: targetFiles.length,
       reused,
       fetched,
+      reuse: reuseSummary,
       timeoutCount: batchDiagnostics.timeoutCount,
       timeoutRetries: batchDiagnostics.timeoutRetries,
       cooldownSkips: batchDiagnostics.cooldownSkips,

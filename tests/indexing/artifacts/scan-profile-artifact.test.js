@@ -149,6 +149,69 @@ try {
           total: 51,
           vocab: 20
         },
+        reuse: {
+          observationCount: 2,
+          generationAware: true,
+          generation: {
+            mode: 'code',
+            repoRoot: 'C:/repo',
+            buildRoot: 'C:/cache/builds/run-1/index-code',
+            buildId: 'run-1'
+          },
+          countsByCause: { cache_miss: 1, cache_invalid: 1 },
+          countsBySurface: { 'provider-result': 2 },
+          countsBySurfaceAndSource: { 'provider-result:live': 2 },
+          countsByQualityImpact: { none: 2 },
+          scmSnapshotSources: {},
+          providerResultSources: { live: 2 },
+          cost: {
+            timeCostMs: 180,
+            requestedCount: 0,
+            reusedCount: 0,
+            fetchedCount: 0,
+            chunkCount: 4
+          },
+          observations: [
+            {
+              kind: 'provider_cache',
+              providerId: 'pyright',
+              reuseSurface: 'provider-result',
+              reuseSource: 'live',
+              causeClass: 'cache_invalid',
+              qualityImpact: 'none',
+              requestedCount: null,
+              reusedCount: null,
+              fetchedCount: null,
+              chunkCount: null,
+              timeCostMs: null,
+              generation: {
+                mode: 'code',
+                repoRoot: 'C:/repo',
+                buildRoot: 'C:/cache/builds/run-1/index-code',
+                buildId: 'run-1'
+              }
+            },
+            {
+              kind: 'provider_result',
+              providerId: 'pyright',
+              reuseSurface: 'provider-result',
+              reuseSource: 'live',
+              causeClass: 'cache_miss',
+              qualityImpact: 'none',
+              requestedCount: null,
+              reusedCount: null,
+              fetchedCount: null,
+              chunkCount: 4,
+              timeCostMs: 180,
+              generation: {
+                mode: 'code',
+                repoRoot: 'C:/repo',
+                buildRoot: 'C:/cache/builds/run-1/index-code',
+                buildId: 'run-1'
+              }
+            }
+          ]
+        },
         queues: {
           postings: { depth: 2 }
         },
@@ -237,6 +300,8 @@ try {
   assert.equal(payload.schemaVersion, 1);
   assert.equal(payload.modes.code.lines.total, 42);
   assert.equal(payload.modes.code.lines.byLanguage.python, 40);
+  assert.equal(payload.modes.code.reuse?.countsByCause?.cache_miss, 1);
+  assert.equal(payload.reuse?.countsBySurface?.['provider-result'], 2);
   assert.equal(payload.modes['extracted-prose'].quality.lowYieldBailout?.triggered, true);
   assert.equal(payload.modes['extracted-prose'].quality.lowYieldBailout?.repoYieldClass, 'sparse-high-value');
   assert.equal(payload.totals.files.candidates, 8);

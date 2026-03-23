@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { readJsonFileSyncSafe } from '../../shared/json-utils.js';
+import { mergeReuseSummaries } from '../../../src/shared/reuse-diagnostics.js';
 
 export const SCAN_PROFILE_SCHEMA_VERSION = 1;
 
@@ -114,7 +115,8 @@ const createEmptyModeProfile = (modeKey) => ({
   },
   quality: {
     lowYieldBailout: null
-  }
+  },
+  reuse: null
 });
 
 const buildModeScanProfile = ({
@@ -193,7 +195,10 @@ const buildModeScanProfile = ({
       lowYieldBailout: modeKey === 'extracted-prose'
         ? readExtractionReportLowYieldBailout(metrics?.indexDir)
         : null
-    }
+    },
+    reuse: metrics?.reuse && typeof metrics.reuse === 'object'
+      ? metrics.reuse
+      : null
   };
 };
 
@@ -226,6 +231,7 @@ export const buildScanProfile = ({
     bytesPerSec: null,
     linesPerSec: null
   };
+  let reuseSummary = null;
   let observedLines = false;
   let observedDuration = false;
   let observedSourceBytes = false;
@@ -240,6 +246,7 @@ export const buildScanProfile = ({
       artifactBytes: repo?.artifacts?.[artifactBytesKey]
     });
     modes[modeKey] = modeProfile;
+    reuseSummary = mergeReuseSummaries(reuseSummary, modeProfile.reuse);
     if (Number.isFinite(modeProfile.files.candidates)) totals.files.candidates += modeProfile.files.candidates;
     if (Number.isFinite(modeProfile.files.scanned)) totals.files.scanned += modeProfile.files.scanned;
     if (Number.isFinite(modeProfile.files.skipped)) totals.files.skipped += modeProfile.files.skipped;
@@ -282,6 +289,7 @@ export const buildScanProfile = ({
     },
     modes,
     totals,
-    languageLines
+    languageLines,
+    reuse: reuseSummary
   };
 };

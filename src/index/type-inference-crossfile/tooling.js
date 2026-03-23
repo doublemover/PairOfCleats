@@ -19,7 +19,8 @@ const EMPTY_TOOLING_PASS_STATS = Object.freeze({
   toolingProvidersContributed: 0,
   toolingRequests: 0,
   toolingRequestFailures: 0,
-  toolingRequestTimeouts: 0
+  toolingRequestTimeouts: 0,
+  toolingReuse: null
 });
 
 const WINDOWS_DRIVE_PREFIX_RE = /^[a-zA-Z]:[\\/]/;
@@ -191,7 +192,8 @@ const summarizeToolingRuntimeCounts = (metrics) => ({
   toolingProvidersContributed: Number(metrics?.providersContributed) || 0,
   toolingRequests: Number(metrics?.requests?.requests) || 0,
   toolingRequestFailures: Number(metrics?.requests?.failed) || 0,
-  toolingRequestTimeouts: Number(metrics?.requests?.timedOut) || 0
+  toolingRequestTimeouts: Number(metrics?.requests?.timedOut) || 0,
+  toolingReuse: metrics?.reuse || null
 });
 
 export const runToolingPass = async ({

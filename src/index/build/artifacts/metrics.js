@@ -122,6 +122,9 @@ export const writeIndexMetrics = async ({
         enabled: Boolean(documentExtractionEnabled)
       }
     },
+    reuse: state?.reuse && typeof state.reuse === 'object'
+      ? state.reuse
+      : null,
     queues: {
       postings: timing?.postingsQueue || state?.postingsQueueStats || null
     },

@@ -1,5 +1,6 @@
 import { log } from '../../../../../shared/progress.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
+import { mergeReuseSummaries } from '../../../../../shared/reuse-diagnostics.js';
 import { applyCrossFileInference } from '../../../../type-inference-crossfile.js';
 import {
   applyCrossFileInferenceBudgetPlan,
@@ -139,6 +140,9 @@ export const runCrossFileInference = async ({
     });
     const crossFileDurationMs = Date.now() - crossFileStart;
     log(`[stage2:${mode}] cross-file done elapsedMs=${Math.max(0, crossFileDurationMs)}.`);
+    if (crossFileStats?.toolingReuse) {
+      state.reuse = mergeReuseSummaries(state.reuse, crossFileStats.toolingReuse);
+    }
     const roiMetrics = buildCrossFileInferenceRoiMetrics({
       crossFileStats,
       budgetStats,

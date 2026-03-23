@@ -58,6 +58,7 @@ try {
   });
   assert.equal(first.stats.fetched, 3, 'expected first snapshot to fetch all files');
   assert.equal(first.stats.reused, 0, 'expected first snapshot to reuse nothing');
+  assert.equal(first.stats.reuse?.countsByCause?.cache_miss, 1, 'expected fresh snapshot reuse summary');
   assert.equal(first.fileMetaByPath['src/a.js'].lastAuthor, 'headA:src/a.js');
   assert.equal(first.fileMetaByPath.get('src/a.js')?.lastAuthor, 'headA:src/a.js');
 
@@ -74,6 +75,7 @@ try {
   });
   assert.equal(second.stats.reused, 2, 'expected changed-files reuse for unchanged entries');
   assert.equal(second.stats.fetched, 1, 'expected only changed file to be refetched');
+  assert.equal(second.stats.reuse?.countsByCause?.scm_state_prevents_reuse, 1, 'expected partial reuse summary');
   assert.equal(second.fileMetaByPath['src/a.js'].lastAuthor, 'headA:src/a.js');
   assert.equal(second.fileMetaByPath['src/b.js'].lastAuthor, 'headB:src/b.js');
 
@@ -89,6 +91,7 @@ try {
   });
   assert.equal(third.stats.source, 'cache', 'expected full cache reuse at same head');
   assert.equal(third.stats.fetched, 0, 'expected no fetches at same head');
+  assert.equal(third.stats.reuse?.countsByCause?.cache_hit, 1, 'expected full cache-hit summary');
   assert.equal(third.fileMetaByPath.get('src/a.js')?.lastAuthor, 'headA:src/a.js');
 
   setScmRuntimeConfig({ repoHeadId: 'headB', snapshotSalt: 'v2' });

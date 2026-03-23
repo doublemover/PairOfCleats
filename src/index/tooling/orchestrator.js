@@ -3,6 +3,10 @@ import path from 'node:path';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { coerceFiniteNumber } from '../../shared/number-coerce.js';
+import {
+  resolveQualityImpactForCause,
+  summarizeReuseObservations
+} from '../../shared/reuse-diagnostics.js';
 import { selectToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
 import {
@@ -106,7 +110,19 @@ const computeTargetsKey = (targets) => {
   return parts.join(',');
 };
 
-const computeCacheKey = ({ providerId, providerVersion, configHash, documents, targets }) => {
+const normalizeIdentityString = (value) => {
+  const text = String(value || '').trim();
+  return text || null;
+};
+
+const resolveGenerationIdentity = (ctx) => ({
+  mode: normalizeIdentityString(ctx?.mode),
+  repoRoot: normalizeIdentityString(ctx?.repoRoot),
+  buildRoot: normalizeIdentityString(ctx?.buildRoot),
+  buildId: normalizeIdentityString(ctx?.buildId)
+});
+
+const computeCacheKey = ({ providerId, providerVersion, configHash, documents, targets, generation }) => {
   const docKey = computeDocumentsKey(documents || []);
   const targetKey = computeTargetsKey(targets || []);
   return buildLocalCacheKey({
@@ -118,7 +134,13 @@ const computeCacheKey = ({ providerId, providerVersion, configHash, documents, t
       providerVersion,
       configHash,
       documents: docKey,
-      targets: targetKey
+      targets: targetKey,
+      generation: {
+        mode: normalizeIdentityString(generation?.mode),
+        repoRoot: normalizeIdentityString(generation?.repoRoot),
+        buildRoot: normalizeIdentityString(generation?.buildRoot),
+        buildId: normalizeIdentityString(generation?.buildId)
+      }
     }
   }).key;
 };
@@ -146,12 +168,14 @@ const resolveProviderCachedExecution = async ({
   const planDocuments = Array.isArray(plan?.documents) ? plan.documents : [];
   const planTargets = Array.isArray(plan?.targets) ? plan.targets : [];
   const configHash = provider.getConfigHash(ctx);
+  const generation = resolveGenerationIdentity(ctx);
   const cacheKey = computeCacheKey({
     providerId,
     providerVersion: provider.version,
     configHash,
     documents: planDocuments,
-    targets: planTargets
+    targets: planTargets,
+    generation
   });
   const cachePath = cacheDir
     ? path.join(cacheDir, buildCacheFileName({ providerId, cacheKey }))
@@ -171,7 +195,8 @@ const resolveProviderCachedExecution = async ({
             providerId,
             cachePath,
             sizeBytes: stat.size,
-            maxBytes: TOOLING_PROVIDER_CACHE_READ_MAX_BYTES
+            maxBytes: TOOLING_PROVIDER_CACHE_READ_MAX_BYTES,
+            generation
           }
         });
       } else {
@@ -193,7 +218,8 @@ const resolveProviderCachedExecution = async ({
           context: {
             providerId,
             cachePath,
-            error: error?.message || String(error)
+            error: error?.message || String(error),
+            generation
           }
         });
       }
@@ -209,7 +235,8 @@ const resolveProviderCachedExecution = async ({
     cachePath,
     output,
     outputFromCache,
-    outputSource
+    outputSource,
+    generation
   };
 };
 
@@ -339,7 +366,8 @@ const buildDeterministicCachePayload = ({
   output,
   providerId,
   providerVersion,
-  configHash
+  configHash,
+  generation
 }) => {
   if (!output || typeof output !== 'object') return null;
   return {
@@ -347,6 +375,12 @@ const buildDeterministicCachePayload = ({
       id: providerId,
       version: providerVersion,
       configHash
+    },
+    generation: {
+      mode: normalizeIdentityString(generation?.mode),
+      repoRoot: normalizeIdentityString(generation?.repoRoot),
+      buildRoot: normalizeIdentityString(generation?.buildRoot),
+      buildId: normalizeIdentityString(generation?.buildId)
     },
     byChunkUid: output.byChunkUid || {},
     byChunkId: output.byChunkId || {},
@@ -670,7 +704,9 @@ const summarizeToolingMetrics = ({
   providerPlans,
   providerDiagnostics,
   sourcesByChunkUid,
-  degradedProviders
+  degradedProviders,
+  reuseObservations,
+  generation
 }) => {
   const uniquePlannedProviderIds = new Set();
   for (const plan of providerPlans || []) {
@@ -861,6 +897,10 @@ const summarizeToolingMetrics = ({
     degradedErrorChecks,
     degradedReasonCodeCount: degradedReasonCodes.size,
     requests: requestTotals,
+    reuse: {
+      ...summarizeReuseObservations(reuseObservations, { generation }),
+      observations: Array.isArray(reuseObservations) ? reuseObservations.slice() : []
+    },
     health: healthTotals,
     hover: hoverTotals,
     capabilities: capabilityTotals,
@@ -907,6 +947,8 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
   const sourcesByChunkUid = new Map();
   const providerDiagnostics = {};
   const observations = [];
+  const reuseObservations = [];
+  const generation = resolveGenerationIdentity(ctx);
   const providerCount = providerPlans.length;
   if (log && providerCount > 0) {
     log(
@@ -999,7 +1041,8 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
         planDocuments,
         planTargets,
         configHash,
-        cachePath
+        cachePath,
+        generation: executionGeneration
       } = execution;
       if (!providerId) continue;
       const providerStartedAtMs = Date.now();
@@ -1055,7 +1098,8 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
                   output,
                   providerId,
                   providerVersion: provider.version,
-                  configHash
+                  configHash,
+                  generation: execution.generation
                 });
                 if (deterministicPayload) {
                   await atomicWriteJson(cachePath, deterministicPayload, { spaces: 2 });
@@ -1068,7 +1112,8 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
                   context: {
                     providerId,
                     cachePath,
-                    error: error?.message || String(error)
+                    error: error?.message || String(error),
+                    generation: executionGeneration
                   }
                 });
               }
@@ -1097,45 +1142,62 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
         }
         if (!output) {
           providerOutcome = 'empty';
-          continue;
-        }
-        providerProgressPhase = 'merge';
-        providerDiagnostics[providerId] = withDiagnosticsSource(output.diagnostics || null, {
-          source: outputFromCache ? 'cache-suppressed' : 'live',
-          stripRuntime: outputFromCache
-        });
-        const normalized = normalizeProviderOutputs({
-          output,
-          targetByChunkUid,
-          chunkUidByChunkId,
-          strict,
-          observations,
-          providerId
-        });
-        providerChunksMerged = normalized.size;
-        for (const [chunkUid, entry] of normalized.entries()) {
-          const existing = merged.get(chunkUid) || {
-            chunk: entry?.chunk || targetByChunkUid.get(chunkUid)?.chunkRef || null,
-            payload: {},
-            provenance: []
-          };
-          mergePayload(existing, entry, { observations, chunkUid });
-          if (entry?.symbolRef && !existing.symbolRef) {
-            existing.symbolRef = entry.symbolRef;
-          }
-          const provenanceEntries = normalizeProvenanceList(entry?.provenance, {
-            providerId,
-            providerVersion: provider.version
+        } else {
+          providerProgressPhase = 'merge';
+          providerDiagnostics[providerId] = withDiagnosticsSource(output.diagnostics || null, {
+            source: outputFromCache ? 'cache-suppressed' : 'live',
+            stripRuntime: outputFromCache
           });
-          existing.provenance = Array.isArray(existing.provenance)
-            ? [...existing.provenance, ...provenanceEntries]
-            : provenanceEntries;
-          merged.set(chunkUid, existing);
-          const sources = sourcesByChunkUid.get(chunkUid) || new Set();
-          sources.add(providerId);
-          sourcesByChunkUid.set(chunkUid, sources);
+          const normalized = normalizeProviderOutputs({
+            output,
+            targetByChunkUid,
+            chunkUidByChunkId,
+            strict,
+            observations,
+            providerId
+          });
+          providerChunksMerged = normalized.size;
+          for (const [chunkUid, entry] of normalized.entries()) {
+            const existing = merged.get(chunkUid) || {
+              chunk: entry?.chunk || targetByChunkUid.get(chunkUid)?.chunkRef || null,
+              payload: {},
+              provenance: []
+            };
+            mergePayload(existing, entry, { observations, chunkUid });
+            if (entry?.symbolRef && !existing.symbolRef) {
+              existing.symbolRef = entry.symbolRef;
+            }
+            const provenanceEntries = normalizeProvenanceList(entry?.provenance, {
+              providerId,
+              providerVersion: provider.version
+            });
+            existing.provenance = Array.isArray(existing.provenance)
+              ? [...existing.provenance, ...provenanceEntries]
+              : provenanceEntries;
+            merged.set(chunkUid, existing);
+            const sources = sourcesByChunkUid.get(chunkUid) || new Set();
+            sources.add(providerId);
+            sourcesByChunkUid.set(chunkUid, sources);
+          }
         }
       } finally {
+        reuseObservations.push({
+          kind: providerOutcome === 'error' ? 'provider_cache' : 'provider_result',
+          providerId,
+          reuseSurface: 'provider-result',
+          reuseSource: providerOutcome === 'error' ? 'live' : providerOutputSource,
+          causeClass: providerOutcome === 'error'
+            ? 'provider_unhealthy'
+            : (providerOutputSource === 'cache' ? 'cache_hit' : 'cache_miss'),
+          qualityImpact: resolveQualityImpactForCause(
+            providerOutcome === 'error'
+              ? 'provider_unhealthy'
+              : (providerOutputSource === 'cache' ? 'cache_hit' : 'cache_miss')
+          ),
+          chunkCount: providerChunksMerged,
+          timeCostMs: toElapsedMs(providerStartedAtMs),
+          generation: executionGeneration
+        });
         if (providerProgressTimer) clearInterval(providerProgressTimer);
         if (log) {
           const elapsedMs = toElapsedMs(providerStartedAtMs);
@@ -1160,11 +1222,38 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       sourcesByChunkUid,
       observations
     });
+    for (const observation of observations) {
+      if (!observation || typeof observation !== 'object') continue;
+      if (observation.code === 'tooling_cache_oversized' || observation.code === 'tooling_cache_read_failed') {
+        reuseObservations.push({
+          kind: 'provider_cache',
+          providerId: normalizeProviderId(observation?.context?.providerId),
+          reuseSurface: 'provider-result',
+          reuseSource: 'live',
+          causeClass: 'cache_invalid',
+          qualityImpact: resolveQualityImpactForCause('cache_invalid'),
+          generation: observation?.context?.generation || generation
+        });
+      }
+      if (observation.code === 'tooling_cache_write_failed') {
+        reuseObservations.push({
+          kind: 'provider_cache',
+          providerId: normalizeProviderId(observation?.context?.providerId),
+          reuseSurface: 'provider-result',
+          reuseSource: 'write-failed',
+          causeClass: 'cache_write_failed',
+          qualityImpact: resolveQualityImpactForCause('cache_write_failed'),
+          generation: observation?.context?.generation || generation
+        });
+      }
+    }
     const metrics = summarizeToolingMetrics({
       providerPlans,
       providerDiagnostics,
       sourcesByChunkUid,
-      degradedProviders
+      degradedProviders,
+      reuseObservations,
+      generation
     });
     await finalizePreflights();
     mergeProviderPreflightDiagnostics(providerDiagnostics, preflights);

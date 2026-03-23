@@ -143,6 +143,7 @@ import {
 import { SCHEDULER_QUEUE_NAMES } from '../../runtime/scheduler.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.js';
 import { prepareScmFileMetaSnapshot } from '../../../scm/file-meta-snapshot.js';
+import { mergeReuseSummaries } from '../../../../shared/reuse-diagnostics.js';
 
 export {
   buildWatchdogNearThresholdSummary,
@@ -724,6 +725,9 @@ export const processFiles = async ({
         providerImpl: runtime.scmProviderImpl,
         repoRoot: runtime.scmRepoRoot,
         repoProvenance: runtime.repoProvenance,
+        buildRoot: runtime.buildRoot,
+        buildId: runtime.buildId,
+        mode,
         filesPosix: scmFilesPosix,
         includeChurn: scmSnapshotConfig.includeChurn === true,
         timeoutMs: Number.isFinite(Number(scmSnapshotConfig.timeoutMs))
@@ -735,6 +739,9 @@ export const processFiles = async ({
         log
       });
       scmFileMetaByPath = scmSnapshot?.fileMetaByPath || null;
+      if (scmSnapshot?.stats?.reuse) {
+        state.reuse = mergeReuseSummaries(state.reuse, scmSnapshot.stats.reuse);
+      }
       if (timing && typeof timing === 'object') {
         timing.scmMetaMs = Math.max(0, Date.now() - scmMetaStart);
       }

@@ -1,6 +1,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { log } from '../../../src/shared/progress.js';
+import { mergeReuseSummaries, summarizeReuseObservations } from '../../../src/shared/reuse-diagnostics.js';
 import {
   STAGE_TIMING_SCHEMA_VERSION,
   THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
@@ -662,7 +663,27 @@ const buildDiagnosticsParitySummary = async (resultsRoot, diagnosticsStream, opt
   };
 };
 
-const buildBenchReuseDiagnosticsSummary = async (resultsRoot, options = {}) => {
+const resolveTaskReuseSummary = (payload) => {
+  const candidates = [
+    payload?.artifacts?.scanProfile?.reuse,
+    payload?.scanProfile?.reuse,
+    payload?.artifacts?.metrics?.reuse,
+    payload?.metrics?.reuse
+  ];
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === 'object') return candidate;
+  }
+  return null;
+};
+
+const buildBenchReuseDiagnosticsSummary = async (tasks, resultsRoot, options = {}) => {
+  let taskReuseSummary = null;
+  for (const task of Array.isArray(tasks) ? tasks : []) {
+    const reuse = resolveTaskReuseSummary(task?.payload || null);
+    if (!reuse) continue;
+    taskReuseSummary = mergeReuseSummaries(taskReuseSummary, reuse);
+  }
+  if (taskReuseSummary?.observationCount > 0) return taskReuseSummary;
   const files = await listBenchStreamFiles(resultsRoot, LOG_FILE_SUFFIX, options);
   const observations = [];
   for (const filePath of files) {
@@ -711,21 +732,9 @@ const buildBenchReuseDiagnosticsSummary = async (resultsRoot, options = {}) => {
   }
 
   return {
+    ...summarizeReuseObservations(observations),
     schemaVersion: 1,
-    observationCount: observations.length,
-    countsByCause: sortMapObject(countsByCause),
-    countsBySurface: sortMapObject(countsBySurface),
-    countsBySurfaceAndSource: sortMapObject(countsBySurfaceAndSource),
-    countsByQualityImpact: sortMapObject(countsByQualityImpact),
-    scmSnapshotSources: sortMapObject(scmSnapshotSources),
-    providerResultSources: sortMapObject(providerResultSources),
-    cost: {
-      timeCostMs,
-      requestedCount,
-      reusedCount,
-      fetchedCount,
-      chunkCount
-    }
+    observations
   };
 };
 
@@ -1887,7 +1896,7 @@ export const buildReportOutput = async ({
   const streamOptions = { runSuffix };
   const diagnosticsStream = await buildDiagnosticsStreamSummary(resultsRoot, streamOptions);
   const diagnosticsParity = await buildDiagnosticsParitySummary(resultsRoot, diagnosticsStream, streamOptions);
-  const reuseDiagnostics = await buildBenchReuseDiagnosticsSummary(resultsRoot, streamOptions);
+  const reuseDiagnostics = await buildBenchReuseDiagnosticsSummary(tasks, resultsRoot, streamOptions);
   const progressConfidence = await buildProgressConfidenceSummary(resultsRoot, streamOptions);
   const preflight = await buildPreflightLogSummary(resultsRoot, streamOptions);
   const throughputLedger = buildThroughputLedgerSummary(tasks);
