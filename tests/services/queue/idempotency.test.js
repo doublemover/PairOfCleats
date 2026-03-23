@@ -7,6 +7,8 @@ import {
   claimNextJob,
   enqueueJob,
   ensureQueueDir,
+  inspectJobReplayState,
+  listDuplicateJobGroups,
   loadQueue,
   queueSummary,
   requeueStaleJobs,
@@ -54,6 +56,9 @@ await enqueueJob(queueDir, {
 
 const claimed = await claimNextJob(queueDir, 'index', { ownerId: 'worker-idempotent' });
 assert.equal(claimed?.id, 'job-a', 'expected first logical job to claim first');
+assert.equal(claimed?.delivery?.semantics, 'at-least-once');
+assert.equal(claimed?.attemptHistory?.length, 1, 'expected claim to create first attempt record');
+assert.equal(claimed?.attemptHistory?.[0]?.outcome, 'claimed');
 
 const claimedQueue = await loadQueue(queueDir, 'index');
 const suppressed = claimedQueue.jobs.find((job) => job.id === 'job-c');
@@ -101,5 +106,12 @@ await saveQueue(replayQueueDir, replayQueue, 'index');
 const replayDuplicate = await enqueueJob(replayQueueDir, { ...replayBaseJob, id: 'job-replay-2' }, null, 'index');
 assert.equal(replayDuplicate.duplicate, true, 'expected replay enqueue to suppress duplicate logical work');
 assert.equal(replayDuplicate.job?.id, 'job-replay', 'expected replay suppression to point at the requeued job');
+const replayInspection = await inspectJobReplayState(replayQueueDir, 'job-replay', 'index');
+assert.equal(replayInspection?.deliverySemantics, 'at-least-once');
+assert.equal(replayInspection?.job?.attempts?.length, 1, 'expected replay inspection to retain the claimed attempt');
+assert.equal(replayInspection?.job?.replayHistory?.[0]?.action, 'stale-requeue');
+const duplicateGroups = await listDuplicateJobGroups(queueDir, 'index');
+assert.equal(duplicateGroups.length, 1, 'expected duplicate inspection to group logical duplicates');
+assert.equal(duplicateGroups[0]?.jobs?.length, 2, 'expected duplicate group to include suppressed duplicate');
 
 console.log('service queue idempotency test passed');

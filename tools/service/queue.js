@@ -127,6 +127,171 @@ const normalizeTransition = (job = {}, status = 'queued') => {
   };
 };
 
+const normalizeAttemptEntry = (value = {}) => ({
+  attemptId: typeof value?.attemptId === 'string' && value.attemptId.trim()
+    ? value.attemptId.trim()
+    : null,
+  sequence: Number.isFinite(Number(value?.sequence))
+    ? Math.max(0, Math.trunc(Number(value.sequence)))
+    : 0,
+  owner: typeof value?.owner === 'string' && value.owner.trim()
+    ? value.owner.trim()
+    : null,
+  leaseVersion: Number.isFinite(Number(value?.leaseVersion))
+    ? Math.max(0, Math.trunc(Number(value.leaseVersion)))
+    : 0,
+  claimedAt: normalizeIsoTimestamp(value?.claimedAt || null),
+  completedAt: normalizeIsoTimestamp(value?.completedAt || null),
+  status: typeof value?.status === 'string' && value.status.trim()
+    ? value.status.trim()
+    : null,
+  outcome: typeof value?.outcome === 'string' && value.outcome.trim()
+    ? value.outcome.trim()
+    : null,
+  reason: typeof value?.reason === 'string' && value.reason.trim()
+    ? value.reason.trim()
+    : null
+});
+
+const normalizeReplayEvent = (value = {}) => ({
+  at: normalizeIsoTimestamp(value?.at || null),
+  action: typeof value?.action === 'string' && value.action.trim()
+    ? value.action.trim()
+    : null,
+  reason: typeof value?.reason === 'string' && value.reason.trim()
+    ? value.reason.trim()
+    : null,
+  sourceJobId: typeof value?.sourceJobId === 'string' && value.sourceJobId.trim()
+    ? value.sourceJobId.trim()
+    : null,
+  targetJobId: typeof value?.targetJobId === 'string' && value.targetJobId.trim()
+    ? value.targetJobId.trim()
+    : null,
+  sourceAttemptId: typeof value?.sourceAttemptId === 'string' && value.sourceAttemptId.trim()
+    ? value.sourceAttemptId.trim()
+    : null
+});
+
+const normalizeDelivery = (job = {}) => {
+  const delivery = job?.delivery && typeof job.delivery === 'object'
+    ? job.delivery
+    : {};
+  const attemptHistory = Array.isArray(job?.attemptHistory)
+    ? job.attemptHistory.map((entry) => normalizeAttemptEntry(entry))
+    : [];
+  const replayHistory = Array.isArray(job?.replayHistory)
+    ? job.replayHistory.map((entry) => normalizeReplayEvent(entry))
+    : [];
+  return {
+    semantics: 'at-least-once',
+    claimCount: Number.isFinite(Number(delivery?.claimCount))
+      ? Math.max(0, Math.trunc(Number(delivery.claimCount)))
+      : attemptHistory.length,
+    replayCount: Number.isFinite(Number(delivery?.replayCount))
+      ? Math.max(0, Math.trunc(Number(delivery.replayCount)))
+      : replayHistory.length,
+    activeAttemptId: typeof delivery?.activeAttemptId === 'string' && delivery.activeAttemptId.trim()
+      ? delivery.activeAttemptId.trim()
+      : null,
+    lastAttemptId: typeof delivery?.lastAttemptId === 'string' && delivery.lastAttemptId.trim()
+      ? delivery.lastAttemptId.trim()
+      : (attemptHistory[attemptHistory.length - 1]?.attemptId || null),
+    replayOfJobId: typeof delivery?.replayOfJobId === 'string' && delivery.replayOfJobId.trim()
+      ? delivery.replayOfJobId.trim()
+      : null
+  };
+};
+
+const appendAttemptHistory = (job, {
+  at,
+  owner,
+  leaseVersion,
+  reason
+}) => {
+  const delivery = normalizeDelivery(job);
+  const sequence = Math.max(delivery.claimCount, Array.isArray(job.attemptHistory) ? job.attemptHistory.length : 0) + 1;
+  const attemptId = `${job.id}:attempt:${sequence}`;
+  const nextEntry = normalizeAttemptEntry({
+    attemptId,
+    sequence,
+    owner,
+    leaseVersion,
+    claimedAt: at,
+    completedAt: null,
+    status: 'running',
+    outcome: 'claimed',
+    reason
+  });
+  job.attemptHistory = [...(Array.isArray(job.attemptHistory) ? job.attemptHistory : []), nextEntry];
+  job.delivery = {
+    ...delivery,
+    semantics: 'at-least-once',
+    claimCount: sequence,
+    activeAttemptId: attemptId,
+    lastAttemptId: attemptId
+  };
+  return nextEntry;
+};
+
+const finalizeAttemptHistory = (job, {
+  at,
+  status,
+  outcome,
+  reason
+}) => {
+  const delivery = normalizeDelivery(job);
+  const history = Array.isArray(job.attemptHistory)
+    ? job.attemptHistory.map((entry) => normalizeAttemptEntry(entry))
+    : [];
+  const activeAttemptId = delivery.activeAttemptId;
+  const targetIndex = activeAttemptId
+    ? history.findIndex((entry) => entry.attemptId === activeAttemptId)
+    : history.length - 1;
+  if (targetIndex >= 0 && history[targetIndex]) {
+    history[targetIndex] = normalizeAttemptEntry({
+      ...history[targetIndex],
+      completedAt: at,
+      status,
+      outcome,
+      reason
+    });
+    job.attemptHistory = history;
+    job.delivery = {
+      ...delivery,
+      semantics: 'at-least-once',
+      activeAttemptId: null,
+      lastAttemptId: history[targetIndex].attemptId
+    };
+  }
+};
+
+const recordReplayEvent = (job, {
+  at,
+  action,
+  reason,
+  sourceJobId = null,
+  targetJobId = null,
+  sourceAttemptId = null
+}) => {
+  job.replayHistory = [
+    ...(Array.isArray(job.replayHistory) ? job.replayHistory : []),
+    normalizeReplayEvent({
+      at,
+      action,
+      reason,
+      sourceJobId,
+      targetJobId,
+      sourceAttemptId
+    })
+  ];
+  const delivery = normalizeDelivery(job);
+  job.delivery = {
+    ...delivery,
+    semantics: 'at-least-once',
+    replayCount: job.replayHistory.length
+  };
+};
+
 const normalizeJobRecord = (job = {}) => {
   const status = VALID_JOB_STATUSES.has(job?.status) ? job.status : 'queued';
   const attempts = Number.isFinite(Number(job?.attempts))
@@ -161,8 +326,15 @@ const normalizeJobRecord = (job = {}) => {
         : null
     },
     lease: normalizeLease(job),
-    transition: normalizeTransition(job, status)
+    transition: normalizeTransition(job, status),
+    attemptHistory: Array.isArray(job?.attemptHistory)
+      ? job.attemptHistory.map((entry) => normalizeAttemptEntry(entry))
+      : [],
+    replayHistory: Array.isArray(job?.replayHistory)
+      ? job.replayHistory.map((entry) => normalizeReplayEvent(entry))
+      : []
   };
+  normalized.delivery = normalizeDelivery(normalized);
   normalized.idempotencyKey = typeof job?.idempotencyKey === 'string' && job.idempotencyKey.trim()
     ? job.idempotencyKey.trim()
     : buildQueueJobIdempotencyKey(normalized, normalized.queueName || null);
@@ -683,6 +855,18 @@ const createQueuedJobRecord = (job, {
     replayState: job?.replayState && typeof job.replayState === 'object'
       ? { ...job.replayState }
       : null,
+    attemptHistory: Array.isArray(job?.attemptHistory) ? job.attemptHistory.map((entry) => ({ ...entry })) : [],
+    replayHistory: Array.isArray(job?.replayHistory) ? job.replayHistory.map((entry) => ({ ...entry })) : [],
+    delivery: job?.delivery && typeof job.delivery === 'object'
+      ? { ...job.delivery, semantics: 'at-least-once' }
+      : {
+        semantics: 'at-least-once',
+        claimCount: 0,
+        replayCount: 0,
+        activeAttemptId: null,
+        lastAttemptId: null,
+        replayOfJobId: null
+      },
     logPath: path.join(logsDir, `${job.id}.log`),
     reportPath: path.join(reportsDir, `${job.id}.json`)
   });
@@ -902,6 +1086,12 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
       queueName,
       incrementVersion: true
     });
+    appendAttemptHistory(job, {
+      at: nowIso,
+      owner: job.lease?.owner || options.ownerId || null,
+      leaseVersion: job.lease?.version || 0,
+      reason: 'claim'
+    });
     recordProgress(job, { at: nowIso, kind: 'claim', note: 'lease-acquired' });
     recordTransition(job, previousStatus, 'running', 'claim', nowIso);
     const suppressedDuplicates = suppressClaimSideDuplicates(queue, job, nowIso);
@@ -974,6 +1164,12 @@ export async function completeJob(dirPath, jobId, status, result, queueName = nu
       note: nextStatus
     });
     recordTransition(job, previousStatus, nextStatus, nextStatus === 'queued' ? 'retry' : 'complete', nowIso);
+    finalizeAttemptHistory(job, {
+      at: nowIso,
+      status: nextStatus,
+      outcome: nextStatus === 'queued' ? 'retry-scheduled' : 'completed',
+      reason: nextStatus === 'queued' ? 'retry' : 'complete'
+    });
     await appendQueueJournalEntries(dirPath, queueName, [
       buildJournalEntry({
         eventType: nextStatus === 'queued' ? 'retry-scheduled' : 'complete',
@@ -1033,6 +1229,19 @@ export async function quarantineJob(dirPath, jobId, reason, queueName = null, op
       clearLease(job, nowIso, quarantineReason);
       recordProgress(job, { at: nowIso, kind: 'quarantine', note: quarantineReason });
     }
+    finalizeAttemptHistory(job, {
+      at: nowIso,
+      status: 'failed',
+      outcome: 'quarantined',
+      reason: quarantineReason
+    });
+    recordReplayEvent(job, {
+      at: nowIso,
+      action: 'quarantine',
+      reason: quarantineReason,
+      sourceJobId: job.id,
+      sourceAttemptId: job.delivery?.lastAttemptId || null
+    });
     const resultPayload = options.result && typeof options.result === 'object'
       ? { ...options.result }
       : {};
@@ -1199,6 +1408,19 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
         clearLease(job, nowIso, 'lease-expired-retry');
         recordProgress(job, { at: nowIso, kind: 'retry', note: 'lease-expired' });
         recordTransition(job, previousStatus, 'queued', 'lease-expired-retry', nowIso);
+        finalizeAttemptHistory(job, {
+          at: nowIso,
+          status: 'queued',
+          outcome: 'stale-requeue',
+          reason: 'lease-expired-retry'
+        });
+        recordReplayEvent(job, {
+          at: nowIso,
+          action: 'stale-requeue',
+          reason: 'lease-expired-retry',
+          sourceJobId: job.id,
+          sourceAttemptId: job.delivery?.lastAttemptId || null
+        });
         journalEntries.push(buildJournalEntry({
           eventType: 'stale-retry',
           job,
@@ -1225,6 +1447,19 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
         clearLease(job, nowIso, 'lease-expired-fail');
         recordProgress(job, { at: nowIso, kind: 'quarantine', note: 'lease-expired-fail' });
         recordTransition(job, previousStatus, 'failed', 'lease-expired-fail', nowIso);
+        finalizeAttemptHistory(job, {
+          at: nowIso,
+          status: 'failed',
+          outcome: 'stale-quarantine',
+          reason: 'lease-expired-fail'
+        });
+        recordReplayEvent(job, {
+          at: nowIso,
+          action: 'stale-quarantine',
+          reason: 'lease-expired-fail',
+          sourceJobId: job.id,
+          sourceAttemptId: job.delivery?.lastAttemptId || null
+        });
         applyQuarantineMetadata(job, {
           at: nowIso,
           reason: 'lease-expired-fail',
@@ -1290,6 +1525,72 @@ export async function quarantineSummary(dirPath, queueName = null) {
   return summary;
 }
 
+export async function listDuplicateJobGroups(dirPath, queueName = null) {
+  const queue = await loadQueue(dirPath, queueName);
+  const quarantine = await loadQuarantine(dirPath, queueName);
+  const grouped = new Map();
+  for (const job of [...queue.jobs, ...quarantine.jobs]) {
+    if (!job?.idempotencyKey) continue;
+    if (!grouped.has(job.idempotencyKey)) {
+      grouped.set(job.idempotencyKey, []);
+    }
+    grouped.get(job.idempotencyKey).push({
+      id: job.id,
+      status: job.status,
+      queueName: job.queueName || queueName || 'index',
+      attempts: job.attempts || 0,
+      replayOfJobId: job.delivery?.replayOfJobId || null,
+      quarantined: (job.quarantine?.state || null) === 'quarantined'
+    });
+  }
+  return Array.from(grouped.entries())
+    .filter(([, jobs]) => jobs.length > 1)
+    .map(([idempotencyKey, jobs]) => ({
+      idempotencyKey,
+      jobs: jobs.slice().sort((left, right) => String(left.id || '').localeCompare(String(right.id || '')))
+    }))
+    .sort((left, right) => String(left.idempotencyKey || '').localeCompare(String(right.idempotencyKey || '')));
+}
+
+export async function inspectJobReplayState(dirPath, jobId, queueName = null) {
+  const queue = await loadQueue(dirPath, queueName);
+  const quarantine = await loadQuarantine(dirPath, queueName);
+  const allJobs = [...queue.jobs, ...quarantine.jobs];
+  const job = allJobs.find((entry) => entry.id === jobId) || null;
+  if (!job) return null;
+  const relatedJobs = allJobs
+    .filter((entry) => (
+      entry.id !== job.id
+      && (
+        (job.idempotencyKey && entry.idempotencyKey === job.idempotencyKey)
+        || entry.delivery?.replayOfJobId === job.id
+        || job.delivery?.replayOfJobId === entry.id
+      )
+    ))
+    .map((entry) => ({
+      id: entry.id,
+      status: entry.status,
+      idempotencyKey: entry.idempotencyKey || null,
+      replayOfJobId: entry.delivery?.replayOfJobId || null,
+      attempts: entry.attemptHistory || [],
+      replayHistory: entry.replayHistory || []
+    }))
+    .sort((left, right) => String(left.id || '').localeCompare(String(right.id || '')));
+  return {
+    job: {
+      id: job.id,
+      status: job.status,
+      idempotencyKey: job.idempotencyKey || null,
+      delivery: job.delivery || null,
+      attempts: job.attemptHistory || [],
+      replayHistory: job.replayHistory || [],
+      quarantine: job.quarantine || null
+    },
+    relatedJobs,
+    deliverySemantics: 'at-least-once'
+  };
+}
+
 export async function retryQuarantinedJob(dirPath, jobId, queueName = null, options = {}) {
   const { lockPath } = getQueuePaths(dirPath, queueName);
   return withLock(lockPath, async () => {
@@ -1328,6 +1629,19 @@ export async function retryQuarantinedJob(dirPath, jobId, queueName = null, opti
       resolvedQueueName,
       idempotencyKey
     });
+    nextJob.delivery = {
+      ...normalizeDelivery(nextJob),
+      semantics: 'at-least-once',
+      replayOfJobId: quarantinedJob.id
+    };
+    recordReplayEvent(nextJob, {
+      at: nextJob.createdAt,
+      action: 'manual-retry-created',
+      reason: 'manual-retry',
+      sourceJobId: quarantinedJob.id,
+      targetJobId: nextJob.id,
+      sourceAttemptId: quarantinedJob.delivery?.lastAttemptId || null
+    });
     queue.jobs.push(nextJob);
     applyQuarantineMetadata(quarantinedJob, {
       at: quarantinedJob.quarantine?.quarantinedAt || new Date().toISOString(),
@@ -1338,6 +1652,14 @@ export async function retryQuarantinedJob(dirPath, jobId, queueName = null, opti
       releasedAt: new Date().toISOString(),
       releaseReason: 'manual-retry',
       retryJobId: nextJob.id
+    });
+    recordReplayEvent(quarantinedJob, {
+      at: quarantinedJob.quarantine?.releasedAt || new Date().toISOString(),
+      action: 'manual-retry-released',
+      reason: 'manual-retry',
+      sourceJobId: quarantinedJob.id,
+      targetJobId: nextJob.id,
+      sourceAttemptId: quarantinedJob.delivery?.lastAttemptId || null
     });
     await appendQueueJournalEntries(dirPath, resolvedQueueName, [
       buildJournalEntry({
