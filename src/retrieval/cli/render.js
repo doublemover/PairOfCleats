@@ -68,7 +68,8 @@ export function renderSearchOutput({
   stageTracker,
   outputBudget = null,
   asOfContext = null,
-  streamJson = false
+  streamJson = false,
+  generationContext = null
 }) {
   const outputStart = stageTracker?.mark?.();
   const proseHitsFinal = expandedHits.prose.hits;
@@ -120,7 +121,8 @@ export function renderSearchOutput({
     idxExtractedProse,
     idxRecords,
     indexSignaturePayload,
-    asOfContext
+    asOfContext,
+    generationContext
   });
   if (asOfContext) {
     payload.asOf = {

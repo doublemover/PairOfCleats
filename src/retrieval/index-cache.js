@@ -4,6 +4,7 @@ import { createLruCache } from '../shared/cache.js';
 import { runWithConcurrency } from '../shared/concurrency.js';
 import { incCacheEviction, setCacheSize } from '../shared/metrics.js';
 import { probeFileSignature } from '../shared/file-signature.js';
+import { stableStringifyForSignature } from '../shared/stable-json.js';
 
 const DEFAULT_INDEX_CACHE_MAX_ENTRIES = 4;
 const DEFAULT_INDEX_CACHE_TTL_MS = 15 * 60 * 1000;
@@ -387,6 +388,9 @@ export async function loadIndexWithCache(cache, dir, options, loader) {
   if (!cache) return loader(dir, options);
   const resolvedDir = path.resolve(String(dir || ''));
   const canonicalDir = await fs.realpath(resolvedDir).catch(() => resolvedDir);
+  const generationTag = options?.generationTag
+    ? stableStringifyForSignature(options.generationTag)
+    : null;
   const hnswKey = options?.includeHnsw ? JSON.stringify(options?.hnswConfig || {}) : 'no-hnsw';
   const denseKey = options?.denseVectorMode ? String(options.denseVectorMode) : '';
   const includeKey = [
@@ -398,7 +402,7 @@ export async function loadIndexWithCache(cache, dir, options, loader) {
     options?.includeTokenIndex !== false ? 'token' : 'no-token',
     options?.includeChunkMetaCold !== false ? 'chunk-meta-cold' : 'chunk-meta-hot'
   ].join(',');
-  const cacheKey = `${canonicalDir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}::${denseKey}::${includeKey}`;
+  const cacheKey = `${canonicalDir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}::${denseKey}::${includeKey}::generation:${generationTag || 'default'}`;
   const signature = await buildIndexSignature(canonicalDir);
   const cached = cache.get(cacheKey);
   if (cached && cached.signature === signature) {

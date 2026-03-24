@@ -83,6 +83,7 @@ import {
  * @param {object|null} [options.sqliteCache]
  * @param {object|null} [options.queryPlanCache]
  * @param {string|null} [options.root]
+ * @param {object|null} [options.generationContext]
  * @returns {Promise<object>}
  */
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
@@ -91,6 +92,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const exitOnError = options.exitOnError !== false;
   const indexCache = options.indexCache || null;
   const sqliteCache = options.sqliteCache || null;
+  const generationContext = options.generationContext || null;
   const signal = options.signal || null;
   const scoreModeOverride = options.scoreMode ?? null;
   const t0 = Date.now();
@@ -700,7 +702,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       storageTier,
       sqliteReadPragmas,
       root: rootDir,
-      userConfig
+      userConfig,
+      generationContext
     });
     const backendInitResult = await runWithOperationalFailurePolicy({
       target: 'retrieval.hotpath',
@@ -839,7 +842,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
         indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
         explicitRef: asOfContext?.strict === true,
-        asOfContext
+        asOfContext,
+        generationContext
       })
       : null;
     const planIndexSignature = planConfigSignature
@@ -1069,7 +1073,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       requiredArtifacts,
       indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
       indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
-      explicitRef: asOfContext?.strict === true
+      explicitRef: asOfContext?.strict === true,
+      generationContext
     });
     stageTracker.record('startup.indexes', indexesStart, { mode: 'all' });
     throwIfAborted();
@@ -1203,6 +1208,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       verboseCache,
       stageTracker,
       asOfContext,
+      generationContext,
       signal
     });
 

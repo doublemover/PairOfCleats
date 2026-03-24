@@ -68,6 +68,21 @@ try {
     currentInfo.generationKey,
     'expected MCP search result observability to expose the active generation key'
   );
+  assert.equal(
+    payload?.retrieval?.freshness?.activeGeneration?.buildId,
+    currentInfo.buildId,
+    'expected MCP retrieval metadata to expose the active build id'
+  );
+  assert.equal(
+    payload?.retrieval?.freshness?.activeGeneration?.activeBuildRoot,
+    currentInfo.activeRoot,
+    'expected MCP retrieval metadata to expose the active build root'
+  );
+  assert.equal(
+    payload?.retrieval?.freshness?.activeGeneration?.buildGenerationKey,
+    currentInfo.generationKey,
+    'expected MCP retrieval metadata to expose the active generation key'
+  );
 
   send({ jsonrpc: '2.0', id: 3, method: 'shutdown' });
   await readMessage();

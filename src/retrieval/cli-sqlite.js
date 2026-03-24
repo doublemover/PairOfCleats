@@ -14,11 +14,13 @@ import { stableStringifyForSignature } from '../shared/stable-json.js';
 
 const sqliteChunkCountCache = new Map();
 
-const buildSqliteGenerationTag = (mode, state = null) => {
+const buildSqliteGenerationTag = (mode, state = null, generationContext = null) => {
   if (!state || typeof state !== 'object') return null;
   return stableStringifyForSignature({
     mode,
     buildId: state.buildId || null,
+    buildGenerationKey: generationContext?.buildGenerationKey || null,
+    activeBuildRoot: generationContext?.activeBuildRoot || null,
     artifactSurfaceVersion: state.artifactSurfaceVersion || null,
     profileId: state.profile?.id || null,
     profileSchemaVersion: state.profile?.schemaVersion || null,
@@ -48,7 +50,8 @@ export async function createSqliteBackend(options) {
     storageTier,
     sqliteReadPragmas,
     dbCache,
-    sqliteStates
+    sqliteStates,
+    generationContext = null
   } = options;
 
   let useSqlite = useSqliteInput;
@@ -190,9 +193,9 @@ export async function createSqliteBackend(options) {
   };
 
   const generationTagByMode = {
-    code: buildSqliteGenerationTag('code', sqliteStates?.code),
-    prose: buildSqliteGenerationTag('prose', sqliteStates?.prose),
-    'extracted-prose': buildSqliteGenerationTag('extracted-prose', sqliteStates?.['extracted-prose'])
+    code: buildSqliteGenerationTag('code', sqliteStates?.code, generationContext),
+    prose: buildSqliteGenerationTag('prose', sqliteStates?.prose, generationContext),
+    'extracted-prose': buildSqliteGenerationTag('extracted-prose', sqliteStates?.['extracted-prose'], generationContext)
   };
 
   const openSqlite = (dbPath, label, mode) => {

@@ -8,6 +8,7 @@ export { hasLmdbStore };
 export async function loadIndexCached({
   indexCache,
   dir,
+  generationTag = null,
   modelIdDefault,
   fileChargramN,
   includeHnsw = true,
@@ -37,7 +38,8 @@ export async function loadIndexCached({
       includeTokenIndex,
       includeChunkMetaCold,
       hnswConfig,
-      denseVectorMode
+      denseVectorMode,
+      generationTag
     },
     loadIndex
   );

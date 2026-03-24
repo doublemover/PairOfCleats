@@ -46,6 +46,21 @@ try {
     currentInfo.generationKey,
     'expected API search result observability to expose the active generation key'
   );
+  assert.equal(
+    response.body?.result?.retrieval?.freshness?.activeGeneration?.buildId,
+    currentInfo.buildId,
+    'expected API retrieval metadata to expose the active build id'
+  );
+  assert.equal(
+    response.body?.result?.retrieval?.freshness?.activeGeneration?.activeBuildRoot,
+    currentInfo.activeRoot,
+    'expected API retrieval metadata to expose the active build root'
+  );
+  assert.equal(
+    response.body?.result?.retrieval?.freshness?.activeGeneration?.buildGenerationKey,
+    currentInfo.generationKey,
+    'expected API retrieval metadata to expose the active generation key'
+  );
 } finally {
   await stop();
 }

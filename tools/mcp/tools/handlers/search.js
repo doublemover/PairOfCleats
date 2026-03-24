@@ -38,7 +38,8 @@ export async function runSearch(args = {}, context = {}) {
     indexCache: caches.indexCache,
     sqliteCache: caches.sqliteCache,
     signal: context.signal,
-    observability
+    observability,
+    generationContext: getRepoCacheGenerationContext(caches)
   });
 }
 

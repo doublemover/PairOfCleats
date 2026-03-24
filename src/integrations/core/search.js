@@ -32,7 +32,8 @@ export async function search(repoRoot, params = {}) {
     indexCache: params.indexCache,
     sqliteCache: params.sqliteCache,
     signal: params.signal || null,
-    scoreMode: params.scoreMode ?? null
+    scoreMode: params.scoreMode ?? null,
+    generationContext: params.generationContext || null
   });
   return attachObservability(result, observability);
 }

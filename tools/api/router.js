@@ -526,7 +526,8 @@ export const createApiRouter = ({
             indexCache: caches.indexCache,
             sqliteCache: caches.sqliteCache,
             signal: controller.signal,
-            observability: searchObservability
+            observability: searchObservability,
+            generationContext: getRepoCacheGenerationContext(caches)
           });
           sendJson(res, 200, attachObservability({ ok: true, result: body }, requestObservability), responseHeaders);
         } catch (err) {
@@ -620,7 +621,8 @@ export const createApiRouter = ({
             indexCache: caches.indexCache,
             sqliteCache: caches.sqliteCache,
             signal: controller.signal,
-            observability: searchObservability
+            observability: searchObservability,
+            generationContext: getRepoCacheGenerationContext(caches)
           });
           if (!sse.isClosed()) {
             await sse.sendEvent('result', attachObservability({ ok: true, result: body }, requestObservability));
@@ -708,7 +710,8 @@ export const createApiRouter = ({
             indexCache: caches.indexCache,
             sqliteCache: caches.sqliteCache,
             signal: controller.signal,
-            observability: searchObservability
+            observability: searchObservability,
+            generationContext: getRepoCacheGenerationContext(caches)
           });
           sendJson(res, 200, attachObservability({ ok: true, result: body }, requestObservability), responseHeaders);
         } catch (err) {

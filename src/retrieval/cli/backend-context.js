@@ -29,6 +29,7 @@ export const createBackendContext = async ({
   vectorAnnEnabled,
   dbCache,
   sqliteStates,
+  generationContext = null,
   lmdbCodePath,
   lmdbProsePath,
   lmdbStates,
@@ -71,7 +72,8 @@ export const createBackendContext = async ({
     storageTier,
     sqliteReadPragmas,
     dbCache,
-    sqliteStates
+    sqliteStates,
+    generationContext
   });
   let useSqlite = sqliteBackend.useSqlite;
   let dbCode = sqliteBackend.dbCode;

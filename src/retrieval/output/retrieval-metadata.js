@@ -35,11 +35,15 @@ const normalizeModeFreshness = (mode, idx, indexSignaturePayload = null) => {
   const signature = indexSignaturePayload?.modes?.[payloadModeKey] || null;
   const buildId = payloadFreshness?.buildId || state?.buildId || null;
   const artifactSurfaceVersion = payloadFreshness?.artifactSurfaceVersion || state?.artifactSurfaceVersion || null;
+  const generationKey = payloadFreshness?.generationKey || null;
+  const activeBuildRoot = payloadFreshness?.activeBuildRoot || null;
   const profileId = state?.profile?.id || null;
-  if (!buildId && !artifactSurfaceVersion && !profileId && !signature) return null;
+  if (!buildId && !artifactSurfaceVersion && !profileId && !signature && !generationKey && !activeBuildRoot) return null;
   return {
     buildId,
     artifactSurfaceVersion,
+    generationKey,
+    activeBuildRoot,
     profileId,
     signature
   };
@@ -54,7 +58,8 @@ export function buildRetrievalMetadata({
   idxExtractedProse = null,
   idxRecords = null,
   indexSignaturePayload = null,
-  asOfContext = null
+  asOfContext = null,
+  generationContext = null
 } = {}) {
   const requested = normalizeRequestedBackend(backendPolicyInfo);
   const forced = isForcedBackendSelection(backendPolicyInfo);
@@ -86,6 +91,13 @@ export function buildRetrievalMetadata({
       fallbackDerived
     },
     freshness: {
+      activeGeneration: generationContext
+        ? {
+          buildId: generationContext.buildId || null,
+          activeBuildRoot: generationContext.activeBuildRoot || null,
+          buildGenerationKey: generationContext.buildGenerationKey || null
+        }
+        : null,
       byMode: freshnessByMode,
       asOf: asOfContext
         ? {

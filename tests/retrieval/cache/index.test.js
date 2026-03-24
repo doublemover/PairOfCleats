@@ -56,6 +56,48 @@ assert.equal(
   'cache key should include includeChunkMetaCold to avoid stale meta shape reuse'
 );
 
+const generationScopedCache = new Map();
+let generationScopedLoads = 0;
+const generationScopedLoader = () => {
+  generationScopedLoads += 1;
+  return { loaded: generationScopedLoads };
+};
+await loadIndexWithCache(
+  generationScopedCache,
+  indexDir,
+  {
+    modelIdDefault: 'm',
+    fileChargramN: 3,
+    generationTag: { mode: 'code', buildId: 'build-a', buildGenerationKey: 'gen-a' }
+  },
+  generationScopedLoader
+);
+await loadIndexWithCache(
+  generationScopedCache,
+  indexDir,
+  {
+    modelIdDefault: 'm',
+    fileChargramN: 3,
+    generationTag: { mode: 'code', buildId: 'build-a', buildGenerationKey: 'gen-a' }
+  },
+  generationScopedLoader
+);
+await loadIndexWithCache(
+  generationScopedCache,
+  indexDir,
+  {
+    modelIdDefault: 'm',
+    fileChargramN: 3,
+    generationTag: { mode: 'code', buildId: 'build-b', buildGenerationKey: 'gen-b' }
+  },
+  generationScopedLoader
+);
+assert.equal(
+  generationScopedLoads,
+  2,
+  'cache key should include generationTag to avoid cross-generation index reuse'
+);
+
 await writeMeta([{ id: 2 }]);
 const originalNow = Date.now;
 let now = originalNow();

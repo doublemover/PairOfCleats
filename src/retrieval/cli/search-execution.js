@@ -109,7 +109,8 @@ export async function executeSearchAndEmit(input) {
     showMatched,
     verboseCache,
     stageTracker,
-    asOfContext
+    asOfContext,
+    generationContext = null
   } = input;
 
   const modelIds = {
@@ -304,7 +305,8 @@ export async function executeSearchAndEmit(input) {
     elapsedMs,
     stageTracker,
     outputBudget: userConfig?.search?.outputBudget || null,
-    asOfContext
+    asOfContext,
+    generationContext
   });
 
   await recordSearchArtifacts({

@@ -28,6 +28,7 @@ export function createIndexBackendLoader({
   hnswConfig,
   tantivyConfig,
   strict = true,
+  generationContext = null,
   resolvedDenseVectorMode,
   requiredArtifacts,
   loadIndexFromSqlite,
@@ -66,6 +67,14 @@ export function createIndexBackendLoader({
   const loadIndexCachedLocal = async (dir, options = {}, mode = null) => loadIndexCached({
     indexCache,
     dir,
+    generationTag: generationContext && mode
+      ? {
+        mode,
+        buildId: generationContext.buildId || null,
+        buildGenerationKey: generationContext.buildGenerationKey || null,
+        activeBuildRoot: generationContext.activeBuildRoot || null
+      }
+      : null,
     modelIdDefault,
     fileChargramN,
     includeHnsw: options.includeHnsw !== false,
