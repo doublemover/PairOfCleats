@@ -48,6 +48,7 @@ const runtime = {
   configHash: 'test',
   toolInfo: { version: 'test' }
 };
+const watchStatePath = path.join(repoCacheRoot, 'watch-state.json');
 
 let onEventRef = null;
 let readyResolve;
@@ -137,6 +138,15 @@ try {
   assert.ok(runtime.watchState.lastConsistentGeneration?.buildId, 'expected last consistent generation');
   assert.equal(runtime.watchState.lastAttemptedGeneration?.status, 'ok');
   assert.equal(runtime.watchState.activeGeneration, null);
+  const persistedWatchState = JSON.parse(await fs.readFile(watchStatePath, 'utf8'));
+  assert.equal(persistedWatchState.consistency, 'consistent');
+  assert.equal(persistedWatchState.quiescent, true);
+  assert.equal(persistedWatchState.backlogDepth, 0);
+  assert.equal(
+    persistedWatchState.lastConsistentGeneration?.buildId,
+    runtime.watchState.lastConsistentGeneration?.buildId,
+    'expected persisted watch state to expose the same last consistent generation'
+  );
   assert.ok(
     stateSnapshots.some((snapshot) => snapshot.pendingReplay === true && snapshot.backlogDepth >= 2),
     'expected emitted watch states to include a replaying backlog snapshot'

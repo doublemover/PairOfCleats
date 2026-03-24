@@ -148,6 +148,11 @@ export async function watchIndex({
     lastEventAt: null,
     shutdownSignal: null
   };
+  const watchStatePath = runtimeRef.repoCacheRoot
+    ? path.join(runtimeRef.repoCacheRoot, 'watch-state.json')
+    : null;
+  let persistedWatchStateJson = null;
+  let watchStatePersistChain = Promise.resolve();
 
   const snapshotGeneration = (value) => (
     value && typeof value === 'object'
@@ -160,6 +165,22 @@ export async function watchIndex({
       }
       : null
   );
+
+  const persistWatchState = (snapshot) => {
+    if (!watchStatePath) return;
+    const payload = JSON.stringify(snapshot, null, 2);
+    if (payload === persistedWatchStateJson) return;
+    persistedWatchStateJson = payload;
+    watchStatePersistChain = watchStatePersistChain
+      .catch(() => {})
+      .then(async () => {
+        await fs.mkdir(path.dirname(watchStatePath), { recursive: true });
+        await fs.writeFile(watchStatePath, payload);
+      })
+      .catch((err) => {
+        log(`[watch] Failed to persist watch state: ${err?.message || err}`);
+      });
+  };
 
   const emitWatchState = () => {
     const backlogDepth = pendingPaths.size + stabilityRetryTimers.size;
@@ -191,6 +212,7 @@ export async function watchIndex({
     if (typeof onStateChange === 'function') {
       onStateChange(snapshot);
     }
+    persistWatchState(snapshot);
     return snapshot;
   };
 
@@ -245,6 +267,7 @@ export async function watchIndex({
     if (abortSignal && abortHandler) {
       abortSignal.removeEventListener('abort', abortHandler);
     }
+    await watchStatePersistChain.catch(() => {});
     return;
   }
 
@@ -1032,6 +1055,7 @@ export async function watchIndex({
       abortSignal.removeEventListener('abort', abortHandler);
     }
     emitWatchState();
+    await watchStatePersistChain.catch(() => {});
     log(`[watch] Shutdown complete${shutdownSignal ? ` (${shutdownSignal})` : ''}.`);
   }
   return runtimeRef.watchState || emitWatchState();

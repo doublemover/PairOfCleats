@@ -263,6 +263,25 @@ function statIfExists(target) {
   }
 }
 
+const readWatchState = (repoCacheRoot) => {
+  const watchStatePath = path.join(repoCacheRoot, 'watch-state.json');
+  try {
+    const raw = fs.readFileSync(watchStatePath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return {
+      path: watchStatePath,
+      exists: true,
+      state: parsed && typeof parsed === 'object' ? parsed : null
+    };
+  } catch {
+    return {
+      path: watchStatePath,
+      exists: false,
+      state: null
+    };
+  }
+};
+
 /**
  * Fetch lightweight git status info for a repo.
  * @param {string} repoPath
@@ -318,6 +337,7 @@ export async function indexStatus(args = {}) {
   const git = await getGitInfo(repoPath);
   const incrementalRoot = path.join(repoCacheRoot, 'incremental');
   const durability = buildDurabilityStatus({ repoPath, cacheRoot, repoCacheRoot });
+  const watch = readWatchState(repoCacheRoot);
   const report = {
     repoPath,
     repoId,
@@ -371,6 +391,7 @@ export async function indexStatus(args = {}) {
       indexRecords: statIfExists(artifacts.metrics.indexRecords),
       queryCache: statIfExists(artifacts.metrics.queryCache)
     },
+    watch,
     durability
   };
 
