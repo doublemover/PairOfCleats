@@ -31,6 +31,7 @@ const buildDefaultRunResult = () => ({
     decision: 'subprocess',
     sessionKey: null,
     sessionEpoch: 0,
+    sessionJobCount: 0,
     recycleCount: 0,
     subprocessCooldownRemaining: 0
   },
@@ -88,6 +89,7 @@ export const createJobExecutor = ({
     return {
       executionClass: serviceExecutionMode === 'daemon' ? 'daemon-governed' : 'subprocess-isolated',
       maxConsecutiveFailures: toPositiveInt(raw.maxConsecutiveFailures ?? raw.maxErrorsBeforeFallback, 2),
+      maxJobsPerSession: toPositiveInt(raw.maxJobsPerSession ?? raw.maxJobsBeforeRecycle, 25),
       subprocessCooldownJobs: toNonNegativeInt(raw.subprocessCooldownJobs ?? raw.fallbackSubprocessJobs, 1),
       sessionNamespace: typeof daemonWorkerConfig?.sessionNamespace === 'string' && daemonWorkerConfig.sessionNamespace.trim()
         ? daemonWorkerConfig.sessionNamespace.trim()
@@ -242,6 +244,7 @@ export const createJobExecutor = ({
       daemonGovernanceState.set(sessionScopeKey, {
         sessionScopeKey,
         sessionEpoch: 0,
+        sessionJobCount: 0,
         consecutiveFailures: 0,
         subprocessCooldownRemaining: 0,
         recycleCount: 0,
@@ -583,6 +586,7 @@ export const createJobExecutor = ({
               reason: 'daemon-failure-burst',
               sessionKey: plannedSessionKey,
               sessionEpoch: governanceState.sessionEpoch,
+              sessionJobCount: governanceState.sessionJobCount,
               recycleCount: governanceState.recycleCount,
               subprocessCooldownRemaining: governanceState.subprocessCooldownRemaining,
               cooldownBeforeJob
@@ -613,6 +617,9 @@ export const createJobExecutor = ({
         Number(runResult.exitCode) !== 0
         || (typeof runResult.signal === 'string' && runResult.signal.trim().length > 0)
       );
+      if (!runResult.cancelled) {
+        governanceState.sessionJobCount += 1;
+      }
       let recycleRequested = false;
       let recycleReason = null;
       if (daemonFailed) {
@@ -628,6 +635,17 @@ export const createJobExecutor = ({
       } else if (!runResult.cancelled) {
         governanceState.consecutiveFailures = 0;
       }
+      if (!recycleRequested && !runResult.cancelled
+        && governanceState.sessionJobCount >= daemonGovernanceConfig.maxJobsPerSession) {
+        governanceState.sessionEpoch += 1;
+        governanceState.sessionJobCount = 0;
+        governanceState.recycleCount += 1;
+        recycleRequested = true;
+        recycleReason = 'daemon-session-job-budget';
+      }
+      if (recycleRequested) {
+        governanceState.sessionJobCount = 0;
+      }
       governanceState.lastSessionKey = runResult?.daemon?.sessionKey || plannedSessionKey;
       governanceState.lastDecision = 'daemon';
       governanceState.lastReason = recycleReason;
@@ -638,15 +656,23 @@ export const createJobExecutor = ({
         reason: recycleReason,
         sessionKey: runResult?.daemon?.sessionKey || plannedSessionKey,
         sessionEpoch: recycleRequested ? Math.max(0, governanceState.sessionEpoch - 1) : governanceState.sessionEpoch,
+        sessionJobCount: recycleRequested
+          ? daemonGovernanceConfig.maxJobsPerSession
+          : governanceState.sessionJobCount,
+        nextSessionJobCount: governanceState.sessionJobCount,
         nextSessionEpoch: governanceState.sessionEpoch,
         recycleCount: governanceState.recycleCount,
         recycleRequested,
+        maxJobsPerSession: daemonGovernanceConfig.maxJobsPerSession,
         subprocessCooldownRemaining: governanceState.subprocessCooldownRemaining
       };
       if (runResult?.daemon && typeof runResult.daemon === 'object') {
         runResult.daemon = {
           ...runResult.daemon,
           sessionEpoch: recycleRequested ? Math.max(0, governanceState.sessionEpoch - 1) : governanceState.sessionEpoch,
+          sessionJobCount: recycleRequested
+            ? daemonGovernanceConfig.maxJobsPerSession
+            : governanceState.sessionJobCount,
           recycleCount: governanceState.recycleCount,
           recycleRequested,
           recycleReason
@@ -673,6 +699,7 @@ export const createJobExecutor = ({
           decision: 'subprocess',
           sessionKey: null,
           sessionEpoch: 0,
+          sessionJobCount: 0,
           recycleCount: 0,
           subprocessCooldownRemaining: 0
         },
