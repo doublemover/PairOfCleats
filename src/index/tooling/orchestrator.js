@@ -544,27 +544,39 @@ const summarizeDegradedProviders = ({ providerDiagnostics, sourcesByChunkUid, ob
   for (const [providerIdRaw, diag] of Object.entries(providerDiagnostics || {})) {
     const providerId = normalizeProviderId(providerIdRaw);
     if (!providerId) continue;
+    const fidelity = diag?.fidelity && typeof diag.fidelity === 'object'
+      ? diag.fidelity
+      : null;
+    const fidelityState = String(fidelity?.state || '').trim().toLowerCase();
     const checks = Array.isArray(diag?.checks) ? diag.checks : [];
     const failingChecks = checks.filter((check) => (
       (check?.status === 'warn' || check?.status === 'error')
       && check?.degradedEligible !== false
     ));
-    if (!failingChecks.length) continue;
     const contributedChunks = providerChunkContributions.get(providerId) || 0;
-    if (contributedChunks > 0) continue;
+    const degradedByContract = fidelityState === 'degraded'
+      || fidelityState === 'blocked'
+      || fidelityState === 'quarantined';
+    if (!degradedByContract && !failingChecks.length) continue;
+    if (!degradedByContract && contributedChunks > 0) continue;
     const warningCount = failingChecks.filter((check) => check?.status === 'warn').length;
     const errorCount = failingChecks.filter((check) => check?.status === 'error').length;
-    const reasonCodes = Array.from(new Set(
-      failingChecks
+    const reasonCodes = Array.from(new Set([
+      ...failingChecks
         .map((check) => String(check?.name || '').trim())
-        .filter(Boolean)
-    ));
+        .filter(Boolean),
+      ...(Array.isArray(fidelity?.runtimeIssues) ? fidelity.runtimeIssues : [])
+    ]));
     const entry = {
       providerId,
+      fidelityState: fidelityState || null,
+      partialSuccess: fidelity?.qualityDelta?.partialSuccess === true,
       warningCount,
       errorCount,
       reasonCodes,
-      contributedChunks
+      contributedChunks,
+      semanticCoverage: fidelity?.semanticCoverage || null,
+      requestSuppression: fidelity?.requestSuppression || null
     };
     degradedProviders.push(entry);
     observations.push({

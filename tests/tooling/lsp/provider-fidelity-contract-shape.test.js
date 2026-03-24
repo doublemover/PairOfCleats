@@ -40,7 +40,7 @@ const contract = buildProviderFidelityContract({
   captureDiagnostics: false
 });
 
-assert.equal(contract.contractVersion, 1);
+assert.equal(contract.contractVersion, 2);
 assert.equal(contract.providerId, 'sourcekit');
 assert.equal(contract.state, 'degraded');
 assert.equal(contract.preflight.workspaceKind, 'package_managed_workspace');
@@ -51,6 +51,12 @@ assert.equal(contract.workspaceCoverage.blockedPartitionCount, 1);
 assert.equal(contract.requestClasses.documentSymbol.timedOut, 1);
 assert.equal(contract.requestClasses.hover.requests, 5);
 assert.equal(contract.skipped.includes('semanticTokens'), true);
+assert.equal(contract.requestSuppression.active, true);
+assert.equal(contract.requestSuppression.suppressedRequestClasses.includes('semanticTokens'), true);
+assert.equal(contract.requestSuppression.degradedRequestClasses.includes('documentSymbol'), true);
+assert.equal(contract.semanticCoverage.state, 'partial');
+assert.equal(contract.semanticCoverage.partialSuccess, true);
+assert.equal(contract.semanticCoverage.suppressedRequestClasses.includes('semanticTokens'), true);
 assert.equal(contract.qualityDelta.degradedRequestClasses.includes('documentSymbol'), true);
 assert.equal(contract.contributes.typeEnrichment, true);
 

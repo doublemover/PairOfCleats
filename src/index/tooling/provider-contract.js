@@ -15,7 +15,7 @@ export const PROVIDER_FIDELITY_STATE = Object.freeze({
   QUARANTINED: 'quarantined'
 });
 
-export const PROVIDER_FIDELITY_CONTRACT_VERSION = 1;
+export const PROVIDER_FIDELITY_CONTRACT_VERSION = 2;
 
 const PROVIDER_REQUEST_CLASS_METHODS = Object.freeze({
   documentSymbol: 'textDocument/documentSymbol',
@@ -167,6 +167,19 @@ const summarizeCapabilityGateSkips = (runtime) => {
   return skipped;
 };
 
+const summarizeRequestedRequestClasses = (runtime, requestClasses) => {
+  const requested = runtime?.capabilityGate?.requested && typeof runtime.capabilityGate.requested === 'object'
+    ? runtime.capabilityGate.requested
+    : null;
+  const out = [];
+  for (const requestClass of Object.keys(PROVIDER_REQUEST_CLASS_METHODS)) {
+    if (requested?.[requestClass] === true || Number(requestClasses?.[requestClass]?.requests || 0) > 0) {
+      out.push(requestClass);
+    }
+  }
+  return out;
+};
+
 const summarizeWorkspaceCoverage = ({ runtime = null, blockedPartitions = null } = {}) => {
   const workspaceModel = runtime?.workspaceModel && typeof runtime.workspaceModel === 'object'
     ? runtime.workspaceModel
@@ -313,6 +326,40 @@ export const buildProviderFidelityContract = ({
           : 'Treat missing provider output as explicit provider degradation or unavailability, not as negative evidence.'
       )
   );
+  const requestedRequestClasses = summarizeRequestedRequestClasses(runtime, requestClasses);
+  const capabilityGateSuppressed = summarizeCapabilityGateSkips(runtime);
+  const semanticCoverageState = (
+    effectiveState === PROVIDER_FIDELITY_STATE.HEALTHY
+      ? 'full'
+      : (partialSuccess ? 'partial' : 'missing')
+  );
+  const requestSuppression = {
+    active: blockedPartitions.count > 0 || normalizedSkipped.length > 0 || requestClassFailures.length > 0,
+    requestedRequestClasses,
+    suppressedRequestClasses: normalizedSkipped,
+    degradedRequestClasses: requestClassFailures,
+    capabilityGateSuppressed,
+    blockedPartitionCount: blockedPartitions.count
+  };
+  const semanticCoverage = {
+    state: semanticCoverageState,
+    confidence: (
+      effectiveState === PROVIDER_FIDELITY_STATE.HEALTHY
+        ? 'high'
+        : (partialSuccess ? 'degraded' : 'none')
+    ),
+    contributedChunkCount,
+    requestedRequestClasses,
+    healthyRequestClasses: requestedRequestClasses.filter((requestClass) => (
+      !normalizedSkipped.includes(requestClass) && !requestClassFailures.includes(requestClass)
+    )),
+    degradedRequestClasses: requestClassFailures,
+    suppressedRequestClasses: normalizedSkipped,
+    blockedPartitionCount: blockedPartitions.count,
+    readyPartitionCount: workspaceCoverage.readyPartitionCount,
+    totalPartitionCount: workspaceCoverage.totalPartitions,
+    partialSuccess
+  };
   return {
     contractVersion: PROVIDER_FIDELITY_CONTRACT_VERSION,
     providerId: normalizeProviderId(providerId) || String(providerId || '').trim(),
@@ -328,6 +375,8 @@ export const buildProviderFidelityContract = ({
     workspaceCoverage,
     skipped: normalizedSkipped,
     runtimeIssues: normalizedRuntimeIssueClasses,
+    requestSuppression,
+    semanticCoverage,
     qualityDelta: {
       partialSuccess,
       contributedChunkCount,

@@ -112,6 +112,18 @@ try {
     assert.equal(output?.diagnostics?.fidelity?.preflight?.workspaceKind, 'package_managed_workspace', 'expected fidelity contract to preserve workspace kind');
     assert.equal(output?.diagnostics?.fidelity?.preflight?.dependencyState, 'required', 'expected fidelity contract to preserve dependency state');
     assert.equal(output?.diagnostics?.fidelity?.qualityDelta?.partialSuccess, true, 'expected degraded startup to report truthful partial success');
+    assert.equal(output?.diagnostics?.fidelity?.semanticCoverage?.state, 'partial', 'expected degraded startup semantic coverage to be partial');
+    assert.equal(
+      output?.diagnostics?.fidelity?.requestSuppression?.active,
+      true,
+      'expected degraded startup request suppression to be explicit'
+    );
+    assert.equal(
+      Array.isArray(output?.diagnostics?.fidelity?.requestSuppression?.suppressedRequestClasses)
+      && output.diagnostics.fidelity.requestSuppression.suppressedRequestClasses.includes('semanticTokens'),
+      true,
+      'expected degraded startup request suppression to record semantic token suppression'
+    );
     assert.equal(
       Array.isArray(output?.diagnostics?.fidelity?.skipped)
       && output.diagnostics.fidelity.skipped.includes('semanticTokens'),

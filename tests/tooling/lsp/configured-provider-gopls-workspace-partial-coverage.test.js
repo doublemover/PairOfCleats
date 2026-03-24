@@ -116,6 +116,8 @@ const diagnostics = result.diagnostics?.['lsp-gopls'] || {};
 assert.equal(diagnostics?.preflight?.state, 'degraded', 'expected mixed partition preflight degraded state');
 assert.equal(diagnostics?.fidelity?.state, 'degraded', 'expected fidelity contract to classify partial workspace coverage as degraded');
 assert.equal(diagnostics?.fidelity?.qualityDelta?.partialSuccess, true, 'expected mixed partition coverage to report partial success');
+assert.equal(diagnostics?.fidelity?.semanticCoverage?.state, 'partial', 'expected mixed partition coverage semantic state');
+assert.equal(diagnostics?.fidelity?.requestSuppression?.active, true, 'expected partial workspace request suppression to be explicit');
 assert.equal(diagnostics?.fidelity?.blockedPartitions?.count, 1, 'expected blocked partition count to be surfaced');
 assert.equal(diagnostics?.fidelity?.workspaceCoverage?.totalPartitions, 2, 'expected total partition count to be surfaced');
 assert.equal(diagnostics?.fidelity?.workspaceCoverage?.readyPartitionCount, 1, 'expected ready partition count to be surfaced');
@@ -148,6 +150,19 @@ assert.equal(
   checks.some((check) => check?.name === 'lsp-gopls_workspace_partition_partial_success'),
   true,
   'expected runtime partial-success check for mixed partition repo'
+);
+assert.equal(
+  Array.isArray(result.degradedProviders)
+  && result.degradedProviders.some((entry) => entry?.providerId === 'lsp-gopls' && entry?.partialSuccess === true),
+  true,
+  'expected partial-success gopls run to remain visible in degraded provider rollups'
+);
+assert.equal(result.metrics?.degradedProviderCount, 1, 'expected degraded provider metrics to include partial-success gopls');
+assert.equal(
+  Array.isArray(result.observations)
+  && result.observations.some((entry) => entry?.code === 'tooling_provider_degraded_mode' && entry?.context?.providerId === 'lsp-gopls'),
+  true,
+  'expected degraded provider observation for partial-success gopls coverage loss'
 );
 
 console.log('configured LSP gopls workspace partial coverage test passed');
