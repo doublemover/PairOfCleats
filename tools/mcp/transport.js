@@ -109,12 +109,38 @@ export const createMcpTransport = ({
 
   const totalQueued = () => laneQueues.fast.length + laneQueues.slow.length;
   const totalActive = () => laneActive.fast + laneActive.slow;
+  const laneOccupancy = (lane) => (
+    (laneQueues[lane]?.length || 0) + (laneActive[lane] || 0)
+  );
+  const reservedFastCapacity = Number.isFinite(queueMax) && queueMax > 1 ? 1 : 0;
+  const slowLaneAdmissionLimit = Number.isFinite(queueMax) && queueMax > 0
+    ? Math.max(1, queueMax - reservedFastCapacity)
+    : Infinity;
   const classifyToolLane = (name, timeoutMs) => {
     if (FAST_TOOL_NAMES.has(String(name || '').trim())) return 'fast';
     if (Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0 && Number(timeoutMs) <= 5000) {
       return 'fast';
     }
     return 'slow';
+  };
+  const resolveOverloadDecision = (lane) => {
+    if (!Number.isFinite(queueMax) || queueMax <= 0) {
+      return { overloaded: false, reason: null };
+    }
+    const activeAndQueued = totalQueued() + totalActive();
+    if (lane === 'slow' && reservedFastCapacity > 0 && laneOccupancy('slow') >= slowLaneAdmissionLimit) {
+      return {
+        overloaded: true,
+        reason: 'fast-lane-reserved-capacity'
+      };
+    }
+    if (activeAndQueued >= queueMax) {
+      return {
+        overloaded: true,
+        reason: 'queue-max-capacity'
+      };
+    }
+    return { overloaded: false, reason: null };
   };
 
   const removePendingTask = (idKey) => {
@@ -298,8 +324,13 @@ export const createMcpTransport = ({
       const args = params?.arguments || {};
       const timeoutMs = resolveToolTimeoutMs(name, args);
       const lane = classifyToolLane(name, timeoutMs);
-      if (Number.isFinite(queueMax) && queueMax > 0 && (totalQueued() + totalActive()) >= queueMax) {
-        sendError(id, -32001, 'Server overloaded.', undefined, { code: ERROR_CODES.QUEUE_OVERLOADED });
+      const overloadDecision = resolveOverloadDecision(lane);
+      if (overloadDecision.overloaded) {
+        sendError(id, -32001, 'Server overloaded.', undefined, {
+          code: ERROR_CODES.QUEUE_OVERLOADED,
+          lane,
+          reason: overloadDecision.reason
+        });
         return;
       }
       const task = {
