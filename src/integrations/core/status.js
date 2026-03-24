@@ -4,6 +4,7 @@ import path from 'node:path';
 import { getCacheRoot, getDictConfig, getIndexDir, getMetricsDir, getRepoCacheRoot, getRepoRoot, loadUserConfig, resolveLmdbPaths, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { loadPiecesManifest, resolveArtifactPresence } from '../../shared/artifact-io.js';
 import { getEnvConfig } from '../../shared/env.js';
+import { getAtomicWriteDurabilityStatus } from '../../shared/io/atomic-write.js';
 import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { sizeOfPath } from '../../shared/disk-space.js';
 import { hasLmdbStore } from '../../storage/lmdb/utils.js';
@@ -54,6 +55,11 @@ export async function getStatus(input = {}) {
   let sqliteOutsideCacheSize = 0;
   const lmdbStats = {};
   let lmdbOutsideCacheSize = 0;
+  const durability = getAtomicWriteDurabilityStatus({
+    repoPath: root,
+    cacheRoot,
+    repoCacheRoot
+  });
   const sqliteTargets = [
     { label: 'code', path: sqlitePaths.codePath },
     { label: 'prose', path: sqlitePaths.prosePath },
@@ -184,6 +190,7 @@ export async function getStatus(input = {}) {
       }
     },
     health,
+    durability,
     overall: {
       cacheRoot: path.resolve(cacheRoot),
       cacheBytes: cacheRootSize,

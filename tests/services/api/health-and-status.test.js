@@ -52,6 +52,9 @@ try {
   if (!status.body?.ok || !status.body.status?.repo?.root) {
     throw new Error('api-server /status response missing repo info');
   }
+  if (status.body?.status?.durability?.runtime?.degradedDurability !== false) {
+    throw new Error('api-server /status response missing clean durability payload');
+  }
   if (status.body?.trustBoundary?.effectiveBoundary?.summary !== serverInfo?.trustBoundary?.effectiveBoundary?.summary) {
     throw new Error('api-server /status response missing effective trust boundary summary');
   }
