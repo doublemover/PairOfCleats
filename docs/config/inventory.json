@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-23T22:10:06.605Z",
+  "generatedAt": "2026-03-24T02:39:29.293Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2211,8 +2211,9 @@
         "extensions/vscode/extension.js",
         "src/shared/env.js",
         "tests/retrieval/filters/filter-index-config-hash.test.js",
+        "tests/services/api/trust-boundary-matrix.test.js",
         "tests/tooling/vscode/search-env-runtime.test.js",
-        "tools/api/server.js",
+        "tools/api/trust-boundary.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2327,6 +2328,7 @@
         "tests/services/mcp/repo-path-resolution.test.js",
         "tests/services/mcp/schema.test.js",
         "tests/services/mcp/sdk-mode.test.js",
+        "tests/services/mcp/tool-index-status.test.js",
         "tests/services/service-mode-smoke.test.js",
         "tests/shared/cache/gc.test.js",
         "tests/shared/cache/migration.test.js",
@@ -2715,6 +2717,7 @@
       "name": "PAIROFCLEATS_MCP_QUEUE_MAX",
       "files": [
         "src/shared/env.js",
+        "tests/services/mcp/lane-reservation-fairness.test.js",
         "tests/services/mcp/robustness.test.js",
         "tools/config/inventory.js"
       ]
@@ -3283,6 +3286,7 @@
       "files": [
         "src/shared/env.js",
         "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
+        "tests/indexing/extracted-prose/document-extraction-quality-sensitive-coverage.test.js",
         "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
         "tests/indexing/extracted-prose/docx-missing-dep-skips.test.js",
         "tools/config/inventory.js"
@@ -3359,10 +3363,20 @@
       "name": "PAIROFCLEATS_TEST_MCP_DELAY_MS",
       "files": [
         "src/shared/env.js",
+        "tests/services/mcp/fairness.test.js",
+        "tests/services/mcp/lane-reservation-fairness.test.js",
         "tests/services/mcp/observability-correlation.test.js",
         "tests/services/mcp/robustness.test.js",
         "tests/services/mcp/tool-cancel-response.test.js",
         "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_MCP_DELAY_TOOL_NAMES",
+      "files": [
+        "src/shared/env.js",
+        "tests/services/mcp/fairness.test.js",
+        "tests/services/mcp/lane-reservation-fairness.test.js"
       ]
     },
     {
@@ -3421,6 +3435,7 @@
         "tests/indexing/extracted-prose/document-extraction-cache-policy-key.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
         "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
+        "tests/indexing/extracted-prose/document-extraction-quality-sensitive-coverage.test.js",
         "tests/indexing/extracted-prose/document-extractor-version-recorded.test.js",
         "tests/indexing/extracted-prose/document-security-guardrails.test.js",
         "tests/indexing/extracted-prose/documents-included-when-available.test.js",
@@ -3706,6 +3721,7 @@
         "tests/indexing/extracted-prose/document-extraction-cache-policy-key.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
         "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
+        "tests/indexing/extracted-prose/document-extraction-quality-sensitive-coverage.test.js",
         "tests/indexing/extracted-prose/document-extractor-version-recorded.test.js",
         "tests/indexing/extracted-prose/documents-included-when-available.test.js",
         "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
@@ -3781,9 +3797,11 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [],
+  "envVarsUnknown": [
+    "PAIROFCLEATS_TEST_MCP_DELAY_TOOL_NAMES"
+  ],
   "cliFlags": {
-    "totalFlags": 452,
+    "totalFlags": 454,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -4191,6 +4209,7 @@
       "sqlite-backend",
       "status",
       "strict",
+      "strictEvidence",
       "strictRisk",
       "stub-embeddings",
       "surface",
@@ -4216,6 +4235,7 @@
       "treeSitterMissingLanguages",
       "trust-root",
       "tui-verify-root",
+      "tui-verify-targets",
       "type",
       "unique",
       "update",
@@ -4386,6 +4406,7 @@
           "sink-rule",
           "source",
           "source-rule",
+          "strictEvidence",
           "strictRisk",
           "tag",
           "workspace",
@@ -5893,7 +5914,8 @@
           "prepare-report",
           "runtime-report",
           "trust-root",
-          "tui-verify-root"
+          "tui-verify-root",
+          "tui-verify-targets"
         ]
       },
       {
@@ -6190,6 +6212,7 @@
           "meta",
           "repo",
           "source",
+          "strict",
           "stub-embeddings"
         ]
       },
@@ -6874,6 +6897,18 @@
         ]
       },
       {
+        "flag": "strict",
+        "count": 6,
+        "files": [
+          "tests/indexing/map/build-symbol-identity.test.js",
+          "tests/indexing/map/chunkuid-join.test.js",
+          "tools/index/reconcile-identity.js",
+          "tools/index/validate.js",
+          "tools/tooling/doctor.js",
+          "tools/triage/ingest.js"
+        ]
+      },
+      {
         "flag": "stub-embeddings",
         "count": 6,
         "files": [
@@ -7059,17 +7094,6 @@
           "tools/bench/vfs/cdc-segmentation.js",
           "tools/bench/vfs/io-batching.js",
           "tools/bench/vfs/segment-hash-cache.js"
-        ]
-      },
-      {
-        "flag": "strict",
-        "count": 5,
-        "files": [
-          "tests/indexing/map/build-symbol-identity.test.js",
-          "tests/indexing/map/chunkuid-join.test.js",
-          "tools/index/reconcile-identity.js",
-          "tools/index/validate.js",
-          "tools/tooling/doctor.js"
         ]
       },
       {
