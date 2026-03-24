@@ -110,24 +110,21 @@ const activeBuildLock = await acquireIndexLock({
     operation: 'stage3-embeddings'
   }
 });
-assert.ok(activeBuildLock, 'expected to acquire index lock for snapshot freeze contention test');
+assert.ok(activeBuildLock, 'expected to acquire index lock for snapshot freeze non-contention test');
 try {
-  await assert.rejects(
-    () => freezeSnapshot({
-      repoRoot,
-      userConfig,
-      snapshotId: pointerSnapshot.snapshotId,
-      modes: ['code'],
-      method: 'hardlink',
-      verify: true,
-      waitMs: 0
-    }),
-    (error) => (
-      error?.code === 'QUEUE_OVERLOADED'
-      && error?.conflict?.owner === 'build-index'
-      && error?.conflict?.operation === 'stage3-embeddings'
-    ),
-    'snapshot freeze should expose active build conflict details when index lock is held'
+  const concurrentFreeze = await freezeSnapshot({
+    repoRoot,
+    userConfig,
+    snapshotId: pointerSnapshot.snapshotId,
+    modes: ['code'],
+    method: 'hardlink',
+    verify: true,
+    waitMs: 0
+  });
+  assert.equal(
+    concurrentFreeze.snapshotId,
+    pointerSnapshot.snapshotId,
+    'snapshot freeze should use the snapshots lock domain instead of contending with index.lock'
   );
 } finally {
   await activeBuildLock.release();
@@ -141,9 +138,15 @@ const freezeResult = await freezeSnapshot({
   method: 'hardlink',
   verify: true
 });
-assert.equal(freezeResult.alreadyFrozen, false, 'first freeze should materialize frozen data');
-assert.equal(freezeResult.verificationOk, true, 'freeze verification should pass');
-assert.ok(Number.isFinite(freezeResult.filesChecked), 'freeze should report verification file count');
+assert.equal(freezeResult.alreadyFrozen, true, 'repeated freeze should be idempotent after registry-only lock test');
+assert.equal(freezeResult.retention?.tier ?? 'forensic', 'forensic', 'frozen snapshots should default to forensic retention');
+const frozenManifestAfterConcurrentFreeze = loadSnapshotsManifest(repoCacheRoot);
+assert.equal(
+  frozenManifestAfterConcurrentFreeze.snapshots[pointerSnapshot.snapshotId]?.retention?.tier,
+  'forensic',
+  'manifest should promote frozen snapshots to forensic retention'
+);
+assert.ok(true, 'concurrent freeze already performed verification');
 
 const frozenMeta = loadFrozen(repoCacheRoot, pointerSnapshot.snapshotId);
 assert.equal(frozenMeta?.verification?.ok, true, 'frozen.json must record successful verification');

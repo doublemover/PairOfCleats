@@ -143,6 +143,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
       .option('max-bytes', { type: 'number' })
       .option('persist', { type: 'boolean' })
       .option('persist-unsafe', { type: 'boolean', default: false })
+      .option('retention-tier', { type: 'string' })
       .option('wait-ms', { type: 'number', default: 0 })
       .option('dry-run', { type: 'boolean', default: false })
       .option('json', { type: 'boolean', default: false }),
@@ -172,6 +173,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
           maxBytes: argv['max-bytes'] ?? diffDefaults.compute.maxBytes,
           persist: resolveBooleanArg('persist', diffDefaults.compute.persist),
           persistUnsafe: resolveBooleanArg('persist-unsafe', false),
+          retentionTier: argv['retention-tier'],
           waitMs: argv['wait-ms'],
           dryRun: argv['dry-run'] === true
         });

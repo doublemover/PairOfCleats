@@ -4,9 +4,11 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { acquireIndexLock } from '../../src/index/build/lock.js';
 import { getRepoCacheRoot } from '../../src/shared/dict-utils.js';
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
-import { computeIndexDiff, showDiff } from '../../src/index/diffs/compute.js';
+import { computeIndexDiff, pruneDiffs, showDiff } from '../../src/index/diffs/compute.js';
+import { loadDiffsManifest, writeDiffsManifest } from '../../src/index/diffs/registry.js';
 
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 
@@ -189,6 +191,7 @@ const first = await computeIndexDiff({
 });
 assert.equal(first.persisted, true, 'expected persisted diff result');
 assert.ok(first.diffId.startsWith('diff_'), 'expected deterministic diff id prefix');
+assert.equal(first.retention?.tier, 'forensic', 'snapshot-to-snapshot diffs should default to forensic retention');
 assert.ok(
   Number(first.summary?.totals?.byKind?.['file.modified'] || 0) >= 1,
   'expected file.modified event in summary'
@@ -216,6 +219,34 @@ const second = await computeIndexDiff({
 });
 assert.equal(second.diffId, first.diffId, 'diffId should be deterministic for identical inputs');
 assert.equal(second.reused, true, 'second run should reuse existing persisted diff');
+
+const activeBuildLock = await acquireIndexLock({
+  repoCacheRoot,
+  waitMs: 0,
+  metadata: {
+    owner: 'build-index',
+    operation: 'stage4-promote'
+  }
+});
+assert.ok(activeBuildLock, 'expected to acquire index lock for diff non-contention test');
+try {
+  const underIndexLock = await computeIndexDiff({
+    repoRoot,
+    userConfig,
+    from: 'snap:snap-20260212000000-diffa',
+    to: 'snap:snap-20260212000000-diffb',
+    modes: ['code'],
+    includeRelations: false,
+    persist: true
+  });
+  assert.equal(
+    underIndexLock.diffId,
+    first.diffId,
+    'persisted diff reuse should remain available while index.lock is held by active indexing'
+  );
+} finally {
+  await activeBuildLock.release();
+}
 
 const truncated = await computeIndexDiff({
   repoRoot,
@@ -307,6 +338,59 @@ const toolMismatch = await computeIndexDiff({
   persist: false
 });
 assert.equal(toolMismatch.summary.compat.toolVersionMismatch, true, 'tool mismatch should be annotated');
+
+const pinnedDiff = await computeIndexDiff({
+  repoRoot,
+  userConfig,
+  from: 'snap:snap-20260212000000-diffa',
+  to: 'snap:snap-20260212000000-diffd',
+  modes: ['code'],
+  allowMismatch: true,
+  persist: true,
+  retentionTier: 'pinned'
+});
+assert.equal(pinnedDiff.retention?.tier, 'pinned', 'explicit retention tier should be preserved');
+
+const cacheDiff = await computeIndexDiff({
+  repoRoot,
+  userConfig,
+  from: 'snap:snap-20260212000000-diffa',
+  to: 'snap:snap-20260212000000-diffd',
+  modes: ['code'],
+  allowMismatch: true,
+  persist: true,
+  retentionTier: 'cache',
+  includeRelations: false
+});
+assert.equal(cacheDiff.retention?.tier, 'cache', 'cache-tier diff should be persisted explicitly');
+
+const agedDiffManifest = loadDiffsManifest(repoCacheRoot);
+agedDiffManifest.diffs[cacheDiff.diffId] = {
+  ...agedDiffManifest.diffs[cacheDiff.diffId],
+  createdAt: '2025-01-01T00:00:00.000Z'
+};
+agedDiffManifest.updatedAt = new Date().toISOString();
+await writeDiffsManifest(repoCacheRoot, agedDiffManifest);
+
+const pruneResult = await pruneDiffs({
+  repoRoot,
+  userConfig,
+  maxDiffs: 0,
+  retainDays: 30,
+  dryRun: true
+});
+assert.ok(
+  pruneResult.decisions.some((entry) => entry.diffId === first.diffId && entry.reason === 'max_age'),
+  'forensic diffs should remain retained by the forensic age policy'
+);
+assert.ok(
+  pruneResult.decisions.some((entry) => entry.diffId === pinnedDiff.diffId && entry.reason === 'pinned'),
+  'pinned diffs should remain retained regardless of cache churn'
+);
+assert.ok(
+  pruneResult.decisions.some((entry) => entry.diffId === cacheDiff.diffId && entry.action === 'remove'),
+  'cache-tier diffs should be eligible for churn pruning'
+);
 
 await seedBuild({
   repoCacheRoot,

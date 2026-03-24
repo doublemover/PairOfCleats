@@ -3,7 +3,7 @@ import { applyTestEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { acquireIndexLock } from '../../src/index/build/lock.js';
+import { acquireRegistryLock } from '../../src/index/registry-lock.js';
 import {
   cleanupStaleFrozenStagingDirs,
   createEmptySnapshotsManifest,
@@ -54,13 +54,13 @@ await fs.writeFile(`${manifestPath}.tmp-orphan`, '{not-valid-json');
 const loaded = loadSnapshotsManifest(repoCacheRoot);
 assert.deepEqual(loaded, manifest, 'orphan temp writes must not corrupt registry reads');
 
-const lock = await acquireIndexLock({ repoCacheRoot, waitMs: 0 });
-assert.ok(lock, 'expected to acquire index lock');
+const lock = await acquireRegistryLock({ repoCacheRoot, domain: 'snapshots', waitMs: 0 });
+assert.ok(lock, 'expected to acquire snapshots lock');
 try {
   await assert.rejects(
     () => writeSnapshotsManifest(repoCacheRoot, createEmptySnapshotsManifest(), { waitMs: 0 }),
     (err) => err?.code === 'QUEUE_OVERLOADED',
-    'manifest writes should fail fast when lock is held'
+    'manifest writes should fail fast when snapshots lock is held'
   );
 } finally {
   await lock.release();

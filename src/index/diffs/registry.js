@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { acquireIndexLock, attachIndexLockSignalCleanup } from '../build/lock.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { isAbsolutePathAny, toPosix } from '../../shared/files.js';
 import { sha1 } from '../../shared/hash.js';
@@ -10,6 +9,10 @@ import { atomicWriteText } from '../../shared/io/atomic-write.js';
 import { stableStringify } from '../../shared/stable-json.js';
 import { parseIndexRef, redactIndexRefForPersistence } from '../index-ref.js';
 import { isManifestPathSafe } from '../validate/paths.js';
+import {
+  acquireRegistryLock,
+  attachRegistryLockSignalCleanup
+} from '../registry-lock.js';
 
 const DIFFS_DIR = 'diffs';
 const DIFF_ID_RE = /^diff_[A-Za-z0-9._-]+$/;
@@ -173,17 +176,21 @@ const withIndexLock = async (repoCacheRoot, options, worker) => {
   if (lockInput && typeof lockInput.release === 'function') {
     return worker(lockInput);
   }
-  const lock = await acquireIndexLock({
+  const lock = await acquireRegistryLock({
     repoCacheRoot,
+    domain: 'diffs',
     waitMs: Number.isFinite(options?.waitMs) ? Number(options.waitMs) : 0,
     pollMs: Number.isFinite(options?.pollMs) ? Number(options.pollMs) : 1000,
     staleMs: Number.isFinite(options?.staleMs) ? Number(options.staleMs) : undefined,
+    metadata: options?.metadata && typeof options.metadata === 'object'
+      ? options.metadata
+      : null,
     log: typeof options?.log === 'function' ? options.log : () => {}
   });
   if (!lock) {
-    throw queueError('Index lock held; unable to write diff registry.');
+    throw queueError('Diff registry lock held; unable to write diff registry.');
   }
-  const detachSignalCleanup = attachIndexLockSignalCleanup(lock);
+  const detachSignalCleanup = attachRegistryLockSignalCleanup(lock);
   try {
     return await worker(lock);
   } finally {

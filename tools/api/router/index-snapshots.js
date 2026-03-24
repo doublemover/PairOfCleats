@@ -145,6 +145,7 @@ export const handleIndexSnapshotsRoute = async ({
         tags: parseStringList(payload?.tags),
         modes: parseStringList(payload?.modes),
         snapshotId: typeof payload?.snapshotId === 'string' ? payload.snapshotId : null,
+        retentionTier: typeof payload?.retentionTier === 'string' ? payload.retentionTier : null,
         waitMs: Number.isFinite(Number(payload?.waitMs)) ? Math.max(0, Math.floor(Number(payload.waitMs))) : 0
       });
       sendJson(res, 200, {

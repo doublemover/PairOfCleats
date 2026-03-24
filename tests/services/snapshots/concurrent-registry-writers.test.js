@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { acquireIndexLock } from '../../../src/index/build/lock.js';
+import { acquireRegistryLock } from '../../../src/index/registry-lock.js';
 import {
   loadSnapshotsManifest,
   writeSnapshotsManifest
@@ -61,32 +61,38 @@ const diffsManifestB = {
   diffs: {}
 };
 
-const lock = await acquireIndexLock({ repoCacheRoot, waitMs: 0 });
-assert.ok(lock, 'expected to acquire index lock for contention test');
+const snapshotLock = await acquireRegistryLock({ repoCacheRoot, domain: 'snapshots', waitMs: 0 });
+assert.ok(snapshotLock, 'expected to acquire snapshots lock for contention test');
 try {
-  await writeSnapshotsManifest(repoCacheRoot, snapshotsManifestA, { lock });
+  await writeSnapshotsManifest(repoCacheRoot, snapshotsManifestA, { lock: snapshotLock });
   await assert.rejects(
     () => writeSnapshotsManifest(repoCacheRoot, snapshotsManifestB, { waitMs: 0 }),
     (error) => error?.code === 'QUEUE_OVERLOADED',
-    'concurrent snapshot writer should fail fast while lock is held'
+    'concurrent snapshot writer should fail fast while snapshots lock is held'
   );
   const snapshotManifestPath = path.join(repoCacheRoot, 'snapshots', 'manifest.json');
   await fs.writeFile(`${snapshotManifestPath}.tmp-interrupted`, '{broken', 'utf8');
   const loadedSnapshots = loadSnapshotsManifest(repoCacheRoot);
   assert.equal(loadedSnapshots.updatedAt, snapshotsManifestA.updatedAt);
+} finally {
+  await snapshotLock.release();
+}
 
-  await writeDiffsManifest(repoCacheRoot, diffsManifestA, { lock });
+const diffLock = await acquireRegistryLock({ repoCacheRoot, domain: 'diffs', waitMs: 0 });
+assert.ok(diffLock, 'expected to acquire diffs lock for contention test');
+try {
+  await writeDiffsManifest(repoCacheRoot, diffsManifestA, { lock: diffLock });
   await assert.rejects(
     () => writeDiffsManifest(repoCacheRoot, diffsManifestB, { waitMs: 0 }),
     (error) => error?.code === 'QUEUE_OVERLOADED',
-    'concurrent diff writer should fail fast while lock is held'
+    'concurrent diff writer should fail fast while diff lock is held'
   );
   const diffManifestPath = path.join(repoCacheRoot, 'diffs', 'manifest.json');
   await fs.writeFile(`${diffManifestPath}.tmp-interrupted`, '{broken', 'utf8');
   const loadedDiffs = loadDiffsManifest(repoCacheRoot);
   assert.equal(loadedDiffs.updatedAt, diffsManifestA.updatedAt);
 } finally {
-  await lock.release();
+  await diffLock.release();
 }
 
 console.log('concurrent registry writers test passed');

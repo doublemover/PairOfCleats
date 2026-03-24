@@ -2,11 +2,6 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import {
-  acquireIndexLock,
-  attachIndexLockSignalCleanup,
-  readIndexLockInfo
-} from '../build/lock.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { fromPosix, isAbsolutePathAny, toPosix } from '../../shared/files.js';
 import { getRepoCacheRoot } from '../../shared/dict-utils.js';
@@ -14,6 +9,11 @@ import { releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import { isManifestPathSafe } from '../validate/paths.js';
 import { validateArtifact } from '../../contracts/validators/artifacts.js';
+import {
+  acquireRegistryLock,
+  attachRegistryLockSignalCleanup,
+  readRegistryLockInfo
+} from '../registry-lock.js';
 import {
   cleanupStaleFrozenStagingDirs,
   loadFrozen,
@@ -29,6 +29,7 @@ const VALID_MODES = ['code', 'prose', 'extracted-prose', 'records'];
 const DEFAULT_KEEP_POINTER = 50;
 const DEFAULT_KEEP_FROZEN = 20;
 const DEFAULT_KEEP_TAGS = ['release/*', 'release'];
+const RETENTION_TIERS = ['cache', 'forensic', 'pinned'];
 
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 const invalidRequest = (message, details = null) => createError(ERROR_CODES.INVALID_REQUEST, message, details);
@@ -102,9 +103,41 @@ const normalizeBooleanFlag = (value, fallback = false) => {
   return fallback;
 };
 
+const normalizeRetentionTier = (value, fallback = 'cache') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return fallback;
+  if (!RETENTION_TIERS.includes(normalized)) {
+    throw invalidRequest(`Invalid retention tier "${value}". Use ${RETENTION_TIERS.join('|')}.`);
+  }
+  return normalized;
+};
+
+const buildSnapshotRetention = ({
+  retentionTier = null,
+  tags = [],
+  hasFrozen = false,
+  reason = null
+} = {}) => {
+  const normalizedTags = Array.isArray(tags) ? tags.filter(Boolean) : [];
+  const tier = normalizeRetentionTier(
+    retentionTier,
+    normalizedTags.length > 0
+      ? 'pinned'
+      : (hasFrozen === true ? 'forensic' : 'cache')
+  );
+  const inferredReason = reason
+    || (tier === 'pinned'
+      ? (normalizedTags.length > 0 ? 'tagged' : 'manual')
+      : (tier === 'forensic' ? 'frozen_snapshot' : 'cache_default'));
+  return {
+    tier,
+    reason: inferredReason
+  };
+};
+
 const buildSnapshotLockConflict = async (repoCacheRoot, action, details = {}) => {
-  const lockPath = path.join(repoCacheRoot, 'locks', 'index.lock');
-  const lockInfo = await readIndexLockInfo(repoCacheRoot);
+  const lockPath = path.join(repoCacheRoot, 'locks', 'snapshots.lock');
+  const lockInfo = await readRegistryLockInfo(repoCacheRoot, 'snapshots');
   const ownerPid = Number.isFinite(Number(lockInfo?.pid)) ? Math.trunc(Number(lockInfo.pid)) : null;
   const owner = typeof lockInfo?.owner === 'string' && lockInfo.owner.trim()
     ? lockInfo.owner.trim()
@@ -117,7 +150,7 @@ const buildSnapshotLockConflict = async (repoCacheRoot, action, details = {}) =>
   if (operation) detailParts.push(operation);
   if (ownerPid != null) detailParts.push(`pid ${ownerPid}`);
   const detailText = detailParts.length ? ` (${detailParts.join(', ')})` : '';
-  return queueError(`Index lock held; unable to ${action}.${detailText}`, {
+  return queueError(`Snapshot registry lock held; unable to ${action}.${detailText}`, {
     conflict: {
       lockPath,
       owner,
@@ -131,8 +164,9 @@ const buildSnapshotLockConflict = async (repoCacheRoot, action, details = {}) =>
 };
 
 const withSnapshotLock = async (repoCacheRoot, options, worker) => {
-  const lock = await acquireIndexLock({
+  const lock = await acquireRegistryLock({
     repoCacheRoot,
+    domain: 'snapshots',
     waitMs: Number.isFinite(options?.waitMs) ? Number(options.waitMs) : 0,
     pollMs: Number.isFinite(options?.pollMs) ? Number(options.pollMs) : 1000,
     staleMs: Number.isFinite(options?.staleMs) ? Number(options.staleMs) : undefined,
@@ -152,7 +186,7 @@ const withSnapshotLock = async (repoCacheRoot, options, worker) => {
       }
     );
   }
-  const detachSignalCleanup = attachIndexLockSignalCleanup(lock);
+  const detachSignalCleanup = attachRegistryLockSignalCleanup(lock);
   try {
     return await worker(lock);
   } finally {
@@ -295,6 +329,7 @@ export const freezeSnapshot = async ({
   verify = true,
   includeSqlite = 'auto',
   includeLmdb = false,
+  retentionTier = null,
   waitMs = 0,
   stagingMaxAgeHours = 24
 } = {}) => {
@@ -459,7 +494,12 @@ export const freezeSnapshot = async ({
       manifest.updatedAt = checkedAt;
       manifest.snapshots[snapshotId] = {
         ...entry,
-        hasFrozen: true
+        hasFrozen: true,
+        retention: buildSnapshotRetention({
+          retentionTier,
+          tags: Array.isArray(entry?.tags) ? entry.tags : [],
+          hasFrozen: true
+        })
       };
       await writeSnapshotsManifest(repoCacheRoot, manifest, { lock });
       return {
@@ -474,7 +514,8 @@ export const freezeSnapshot = async ({
         bytesCopied,
         filesChecked: verifyEnabled ? filesChecked : null,
         bytesChecked: verifyEnabled ? bytesChecked : null,
-        verificationOk: true
+        verificationOk: true,
+        retention: manifest.snapshots[snapshotId].retention
       };
     } catch (err) {
       await cleanupStaging();
@@ -526,38 +567,71 @@ export const gcSnapshots = async ({
     const manifest = loadSnapshotsManifest(repoCacheRoot);
     const entries = sortedSnapshotEntries(manifest);
     const protectedIds = new Set();
+    const removedEntries = [];
+    const decisions = [];
+    let keptPointer = 0;
+    let keptFrozen = 0;
+
     for (const entry of entries) {
+      const snapshotId = entry?.snapshotId;
+      if (typeof snapshotId !== 'string' || !snapshotId) continue;
       const tags = Array.isArray(entry.tags) ? entry.tags : [];
-      if (tags.some((tag) => keepTagPatterns.some((pattern) => matchesTagPattern(tag, pattern)))) {
-        protectedIds.add(entry.snapshotId);
+      const tagProtected = tags.some((tag) => (
+        keepTagPatterns.some((pattern) => matchesTagPattern(tag, pattern))
+      ));
+      const retentionTier = normalizeRetentionTier(
+        entry?.retention?.tier,
+        entry?.hasFrozen === true ? 'forensic' : 'cache'
+      );
+      if (tagProtected) protectedIds.add(snapshotId);
+      const createdAtMs = parseCreatedAtMs(entry.createdAt);
+      const youngerThanCutoff = maxAgeCutoffMs == null || createdAtMs >= maxAgeCutoffMs;
+
+      let action = 'keep';
+      let reason = 'cache_budget';
+      if (tagProtected) {
+        reason = 'tag_pattern';
+      } else if (retentionTier === 'pinned') {
+        reason = 'pinned';
+      } else if (retentionTier === 'forensic') {
+        const withinKeep = keptFrozen < keepFrozenCount;
+        if (withinKeep || youngerThanCutoff) {
+          keptFrozen += 1;
+          reason = withinKeep ? 'forensic_budget' : 'max_age';
+        } else {
+          action = 'remove';
+          reason = 'age_and_forensic_budget';
+        }
+      } else {
+        const withinKeep = keptPointer < keepPointerCount;
+        if (withinKeep || youngerThanCutoff) {
+          keptPointer += 1;
+          reason = withinKeep ? 'pointer_budget' : 'max_age';
+        } else {
+          action = 'remove';
+          reason = 'age_and_pointer_budget';
+        }
+      }
+
+      decisions.push({
+        snapshotId,
+        retentionTier,
+        action,
+        reason
+      });
+      if (action === 'remove') {
+        removedEntries.push(entry);
       }
     }
 
-    const frozenEntries = entries.filter((entry) => entry.hasFrozen === true && !protectedIds.has(entry.snapshotId));
-    const pointerEntries = entries.filter((entry) => entry.hasFrozen !== true && !protectedIds.has(entry.snapshotId));
-    const removals = [];
-    const chooseRemovals = (list, keepCount) => {
-      for (let i = 0; i < list.length; i += 1) {
-        const entry = list[i];
-        const createdAtMs = parseCreatedAtMs(entry.createdAt);
-        const withinKeep = i < keepCount;
-        const youngerThanCutoff = maxAgeCutoffMs == null || createdAtMs >= maxAgeCutoffMs;
-        const keepEntry = maxAgeCutoffMs == null
-          ? withinKeep
-          : (withinKeep || youngerThanCutoff);
-        if (!keepEntry) removals.push(entry);
-      }
-    };
-    chooseRemovals(frozenEntries, keepFrozenCount);
-    chooseRemovals(pointerEntries, keepPointerCount);
-    removals.sort((left, right) => {
+    removedEntries.sort((left, right) => {
       const leftMs = parseCreatedAtMs(left.createdAt);
       const rightMs = parseCreatedAtMs(right.createdAt);
       if (leftMs !== rightMs) return leftMs - rightMs;
       return String(left.snapshotId).localeCompare(String(right.snapshotId));
     });
 
-    const removed = removals.map((entry) => entry.snapshotId);
+    const removed = removedEntries.map((entry) => entry.snapshotId);
     if (!dryRunEnabled && removed.length) {
       for (const snapshotId of removed) {
         await fsPromises.rm(path.join(repoCacheRoot, 'snapshots', snapshotId), {
@@ -573,6 +647,9 @@ export const gcSnapshots = async ({
     return {
       dryRun: dryRunEnabled,
       removed,
+      decisions: decisions.sort((left, right) => (
+        String(left.snapshotId).localeCompare(String(right.snapshotId))
+      )),
       protectedByTag: Array.from(protectedIds).sort((a, b) => a.localeCompare(b)),
       staleStaging: staleCleanup
     };

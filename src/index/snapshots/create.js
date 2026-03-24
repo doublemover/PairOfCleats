@@ -2,11 +2,6 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import {
-  acquireIndexLock,
-  attachIndexLockSignalCleanup,
-  readIndexLockInfo
-} from '../build/lock.js';
 import { resolveIndexRef } from '../index-ref.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { isManifestPathSafe } from '../validate/paths.js';
@@ -15,6 +10,11 @@ import { sha1 } from '../../shared/hash.js';
 import { getRepoCacheRoot, getRepoId } from '../../shared/dict-utils.js';
 import { releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
+import {
+  acquireRegistryLock,
+  attachRegistryLockSignalCleanup,
+  readRegistryLockInfo
+} from '../registry-lock.js';
 import {
   loadSnapshot,
   loadSnapshotsManifest,
@@ -29,6 +29,7 @@ const DEFAULT_MAX_POINTER_SNAPSHOTS = 25;
 const invalidRequest = (message, details = null) => createError(ERROR_CODES.INVALID_REQUEST, message, details);
 const notFound = (message, details = null) => createError(ERROR_CODES.NOT_FOUND, message, details);
 const queueError = (message, details = null) => createError(ERROR_CODES.QUEUE_OVERLOADED, message, details);
+const RETENTION_TIERS = ['cache', 'forensic', 'pinned'];
 
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 
@@ -158,9 +159,41 @@ const updateTagIndex = (manifest) => {
   manifest.tags = tags;
 };
 
+const normalizeRetentionTier = (value, fallback = 'cache') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return fallback;
+  if (!RETENTION_TIERS.includes(normalized)) {
+    throw invalidRequest(`Invalid retention tier "${value}". Use ${RETENTION_TIERS.join('|')}.`);
+  }
+  return normalized;
+};
+
+const buildSnapshotRetention = ({
+  retentionTier = null,
+  tags = [],
+  hasFrozen = false,
+  reason = null
+} = {}) => {
+  const normalizedTags = Array.isArray(tags) ? tags.filter(Boolean) : [];
+  const tier = normalizeRetentionTier(
+    retentionTier,
+    normalizedTags.length > 0
+      ? 'pinned'
+      : (hasFrozen === true ? 'forensic' : 'cache')
+  );
+  const inferredReason = reason
+    || (tier === 'pinned'
+      ? (normalizedTags.length > 0 ? 'tagged' : 'manual')
+      : (tier === 'forensic' ? 'frozen_snapshot' : 'cache_default'));
+  return {
+    tier,
+    reason: inferredReason
+  };
+};
+
 const buildSnapshotLockConflict = async (repoCacheRoot, action, details = {}) => {
-  const lockPath = path.join(repoCacheRoot, 'locks', 'index.lock');
-  const lockInfo = await readIndexLockInfo(repoCacheRoot);
+  const lockPath = path.join(repoCacheRoot, 'locks', 'snapshots.lock');
+  const lockInfo = await readRegistryLockInfo(repoCacheRoot, 'snapshots');
   const ownerPid = Number.isFinite(Number(lockInfo?.pid)) ? Math.trunc(Number(lockInfo.pid)) : null;
   const owner = typeof lockInfo?.owner === 'string' && lockInfo.owner.trim()
     ? lockInfo.owner.trim()
@@ -173,7 +206,7 @@ const buildSnapshotLockConflict = async (repoCacheRoot, action, details = {}) =>
   if (operation) detailParts.push(operation);
   if (ownerPid != null) detailParts.push(`pid ${ownerPid}`);
   const detailText = detailParts.length ? ` (${detailParts.join(', ')})` : '';
-  return queueError(`Index lock held; unable to ${action}.${detailText}`, {
+  return queueError(`Snapshot registry lock held; unable to ${action}.${detailText}`, {
     conflict: {
       lockPath,
       owner,
@@ -219,10 +252,26 @@ const prunePointerSnapshots = async ({
   }
 
   const removed = [];
+  const decisions = [];
   for (const entry of pointerEntries) {
     const snapshotId = entry.snapshotId;
-    if (!snapshotId || keepIds.has(snapshotId)) continue;
+    if (!snapshotId) continue;
+    if (keepIds.has(snapshotId)) {
+      decisions.push({
+        snapshotId,
+        retentionTier: entry?.retention?.tier || null,
+        action: 'keep',
+        reason: protectedByTag.has(snapshotId) ? 'tagged' : 'pointer_budget'
+      });
+      continue;
+    }
     removed.push(snapshotId);
+    decisions.push({
+      snapshotId,
+      retentionTier: entry?.retention?.tier || null,
+      action: 'remove',
+      reason: 'pointer_budget'
+    });
     if (!dryRun) {
       delete manifest.snapshots[snapshotId];
       await fsPromises.rm(path.join(repoCacheRoot, 'snapshots', snapshotId), {
@@ -234,12 +283,18 @@ const prunePointerSnapshots = async ({
   if (removed.length && !dryRun) {
     updateTagIndex(manifest);
   }
-  return removed;
+  return {
+    removed,
+    decisions: decisions.sort((left, right) => (
+      String(left.snapshotId).localeCompare(String(right.snapshotId))
+    ))
+  };
 };
 
 const withSnapshotLock = async (repoCacheRoot, options, worker) => {
-  const lock = await acquireIndexLock({
+  const lock = await acquireRegistryLock({
     repoCacheRoot,
+    domain: 'snapshots',
     waitMs: Number.isFinite(options?.waitMs) ? Number(options.waitMs) : 0,
     pollMs: Number.isFinite(options?.pollMs) ? Number(options.pollMs) : 1000,
     staleMs: Number.isFinite(options?.staleMs) ? Number(options.staleMs) : undefined,
@@ -259,7 +314,7 @@ const withSnapshotLock = async (repoCacheRoot, options, worker) => {
       }
     );
   }
-  const detachSignalCleanup = attachIndexLockSignalCleanup(lock);
+  const detachSignalCleanup = attachRegistryLockSignalCleanup(lock);
   try {
     return await worker(lock);
   } finally {
@@ -275,6 +330,7 @@ export const createPointerSnapshot = async ({
   tags = [],
   label = null,
   snapshotId = null,
+  retentionTier = null,
   waitMs = 0,
   maxPointerSnapshots = DEFAULT_MAX_POINTER_SNAPSHOTS
 } = {}) => {
@@ -375,12 +431,17 @@ export const createPointerSnapshot = async ({
       kind: 'pointer',
       tags: normalizedTags,
       label: snapshotJson.label,
-      hasFrozen: false
+      hasFrozen: false,
+      retention: buildSnapshotRetention({
+        retentionTier,
+        tags: normalizedTags,
+        hasFrozen: false
+      })
     };
     updateTagIndex(manifest);
 
     await writeSnapshot(repoCacheRoot, selectedSnapshotId, snapshotJson, { lock });
-    const removed = await prunePointerSnapshots({
+    const retention = await prunePointerSnapshots({
       repoCacheRoot,
       manifest,
       maxPointerSnapshots: Number.isFinite(maxPointerSnapshots)
@@ -395,7 +456,9 @@ export const createPointerSnapshot = async ({
       modes: normalizedModes,
       tags: normalizedTags,
       buildIdByMode,
-      removedByRetention: removed
+      retention: manifest.snapshots[selectedSnapshotId].retention,
+      removedByRetention: retention.removed,
+      retentionDecisions: retention.decisions
     };
   });
 };
@@ -486,7 +549,7 @@ export const pruneSnapshots = async ({
     }
   }, async (lock) => {
     const manifest = loadSnapshotsManifest(repoCacheRoot);
-    const removed = await prunePointerSnapshots({
+    const retention = await prunePointerSnapshots({
       repoCacheRoot,
       manifest,
       maxPointerSnapshots: Number.isFinite(maxPointerSnapshots)
@@ -494,10 +557,14 @@ export const pruneSnapshots = async ({
         : DEFAULT_MAX_POINTER_SNAPSHOTS,
       dryRun: dryRun === true
     });
-    if (removed.length && dryRun !== true) {
+    if (retention.removed.length && dryRun !== true) {
       manifest.updatedAt = new Date().toISOString();
       await writeSnapshotsManifest(repoCacheRoot, manifest, { lock });
     }
-    return { removed, dryRun: dryRun === true };
+    return {
+      removed: retention.removed,
+      decisions: retention.decisions,
+      dryRun: dryRun === true
+    };
   });
 };

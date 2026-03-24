@@ -85,6 +85,7 @@ const firstSnapshot = await createPointerSnapshot({
 });
 assert.equal(firstSnapshot.snapshotId, 'snap-20260212000000-aa0001');
 assert.deepEqual(firstSnapshot.modes, ['code']);
+assert.equal(firstSnapshot.retention?.tier, 'pinned', 'tagged snapshots should default to pinned retention');
 
 const manifestAfterFirst = loadSnapshotsManifest(repoCacheRoot);
 assert.ok(manifestAfterFirst.snapshots[firstSnapshot.snapshotId], 'snapshot entry should be in manifest');
@@ -100,22 +101,19 @@ const activeBuildLock = await acquireIndexLock({
     operation: 'stage4-promote'
   }
 });
-assert.ok(activeBuildLock, 'expected to acquire index lock for snapshot create contention test');
+assert.ok(activeBuildLock, 'expected to acquire index lock for snapshot create non-contention test');
 try {
-  await assert.rejects(
-    () => createPointerSnapshot({
-      repoRoot,
-      userConfig,
-      modes: ['code'],
-      snapshotId: 'snap-20260212000000-aa0002',
-      waitMs: 0
-    }),
-    (error) => (
-      error?.code === 'QUEUE_OVERLOADED'
-      && error?.conflict?.owner === 'build-index'
-      && error?.conflict?.operation === 'stage4-promote'
-    ),
-    'snapshot create should expose active build conflict details when index lock is held'
+  const concurrentSnapshot = await createPointerSnapshot({
+    repoRoot,
+    userConfig,
+    modes: ['code'],
+    snapshotId: 'snap-20260212000000-aa0002',
+    waitMs: 0
+  });
+  assert.equal(
+    concurrentSnapshot.snapshotId,
+    'snap-20260212000000-aa0002',
+    'snapshot create should use the snapshots lock domain instead of blocking on index.lock'
   );
 } finally {
   await activeBuildLock.release();
@@ -252,6 +250,10 @@ const dryRunPrune = await pruneSnapshots({
   dryRun: true
 });
 assert.ok(Array.isArray(dryRunPrune.removed), 'prune should return removed ids');
+assert.ok(
+  dryRunPrune.decisions.some((entry) => entry.reason === 'tagged' || entry.reason === 'pointer_budget'),
+  'prune should return deterministic retention decisions'
+);
 
 const removableId = untaggedPointers.find((entry) => entry.snapshotId)?.snapshotId;
 assert.ok(removableId, 'expected at least one removable untagged snapshot');

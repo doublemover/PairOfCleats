@@ -45,6 +45,7 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
       .option('label', { type: 'string' })
       .option('tags', { type: 'string' })
       .option('tag', { type: 'array', string: true })
+      .option('retention-tier', { type: 'string' })
       .option('wait-ms', { type: 'number', default: 0 })
       .option('max-pointer-snapshots', { type: 'number' })
       .option('json', { type: 'boolean', default: false }),
@@ -59,6 +60,7 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
           tags: parseTags(argv.tags, argv.tag),
           label: argv.label,
           snapshotId: argv.id,
+          retentionTier: argv['retention-tier'],
           waitMs: argv['wait-ms'],
           maxPointerSnapshots: argv['max-pointer-snapshots'] ?? snapshotDefaults.keepPointer
         });
@@ -87,6 +89,7 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
       .option('verify', { type: 'boolean', default: true })
       .option('include-sqlite', { type: 'string', default: 'auto' })
       .option('include-lmdb', { type: 'boolean', default: false })
+      .option('retention-tier', { type: 'string' })
       .option('wait-ms', { type: 'number', default: 0 })
       .option('json', { type: 'boolean', default: false }),
     async (argv) => {
@@ -101,6 +104,7 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
           verify: argv.verify !== false,
           includeSqlite: argv['include-sqlite'],
           includeLmdb: argv['include-lmdb'] === true,
+          retentionTier: argv['retention-tier'],
           waitMs: argv['wait-ms']
         });
         if (argv.json) {
