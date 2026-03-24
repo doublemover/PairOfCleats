@@ -126,6 +126,7 @@ export async function handleContextPackRoute({
       includeRisk: payload.includeRisk,
       includeRiskPartialFlows: payload.includeRiskPartialFlows,
       strictRisk: payload.strictRisk,
+      strictEvidence: payload.strictEvidence,
       riskFilters: payload.filters || null,
       includeImports: payload.includeImports,
       includeUsages: payload.includeUsages,
@@ -160,11 +161,15 @@ export async function handleContextPackRoute({
     const status = Number.isFinite(err?.status) ? err.status
       : forbidden ? 403
         : err?.code === 'ERR_CONTEXT_PACK_NO_INDEX' ? 404
-          : err?.code === 'ERR_CONTEXT_PACK_INVALID_REQUEST' || err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID' ? 400
+          : err?.code === 'ERR_CONTEXT_PACK_INVALID_REQUEST'
+              || err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID'
+              || err?.code === 'ERR_CONTEXT_PACK_STRICT_EVIDENCE' ? 400
             : 500;
     const details = err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID'
       ? { reason: 'invalid_risk_filters' }
-      : err?.code === ERROR_CODES.FORBIDDEN ? { reason: 'workspace_not_permitted' } : {};
+      : err?.code === 'ERR_CONTEXT_PACK_STRICT_EVIDENCE'
+        ? { reason: 'strict_evidence_incomplete', evidence: err?.evidence || null }
+        : err?.code === ERROR_CODES.FORBIDDEN ? { reason: 'workspace_not_permitted' } : {};
     const code = status === 400 ? ERROR_CODES.INVALID_REQUEST
       : status === 403 ? ERROR_CODES.FORBIDDEN
         : status === 404 ? ERROR_CODES.NO_INDEX

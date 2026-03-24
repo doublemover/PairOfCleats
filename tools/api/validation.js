@@ -221,6 +221,7 @@ const contextPackSchema = {
     includeRisk: { type: 'boolean' },
     includeRiskPartialFlows: { type: 'boolean' },
     strictRisk: { type: 'boolean' },
+    strictEvidence: { type: 'boolean' },
     includeImports: { type: 'boolean' },
     includeUsages: { type: 'boolean' },
     includeCallersCallees: { type: 'boolean' },

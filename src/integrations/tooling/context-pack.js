@@ -396,6 +396,7 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
     includeRisk: input.includeRisk === true,
     includeRiskPartialFlows: input.includeRiskPartialFlows === true,
     riskStrict: input.strictRisk === true,
+    strictEvidence: input.strictEvidence === true,
     riskFilters,
     includeImports: input.includeImports !== false,
     includeUsages: input.includeUsages !== false,
@@ -528,6 +529,7 @@ export async function buildFederatedCompositeContextPackPayload(input = {}, cont
  *   includeRisk?:boolean,
  *   includeRiskPartialFlows?:boolean,
  *   strictRisk?:boolean,
+ *   strictEvidence?:boolean,
  *   riskFilters?:object|null,
  *   includeImports?:boolean,
  *   includeUsages?:boolean,
@@ -579,6 +581,7 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
       includeRisk: { type: 'boolean', default: false },
       includeRiskPartialFlows: { type: 'boolean', default: false },
       strictRisk: { type: 'boolean', default: false },
+      strictEvidence: { type: 'boolean', default: false },
       rule: { type: 'string' },
       category: { type: 'string' },
       severity: { type: 'string' },
@@ -626,6 +629,7 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
       includeRisk: argv.includeRisk,
       includeRiskPartialFlows: argv.includeRiskPartialFlows,
       strictRisk: argv.strictRisk,
+      strictEvidence: argv.strictEvidence,
       riskFilters: buildRiskFilterInput(argv),
       includeImports: argv.includeImports,
       includeUsages: argv.includeUsages,
@@ -663,7 +667,13 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
         canonicalCode: ERROR_CODES.INVALID_REQUEST,
         reason: 'invalid_risk_filters'
       }
-      : null;
+      : err?.code === 'ERR_CONTEXT_PACK_STRICT_EVIDENCE'
+        ? {
+          canonicalCode: ERROR_CODES.INVALID_REQUEST,
+          reason: 'strict_evidence_incomplete',
+          evidence: err?.evidence || null
+        }
+        : null;
     return emitCliError({ format, code: err?.code || 'ERR_CONTEXT_PACK', message, details });
   }
 }

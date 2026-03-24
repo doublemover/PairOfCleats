@@ -85,6 +85,7 @@ export async function runContextPack(args = {}, context = {}) {
       includeRisk: args.includeRisk,
       includeRiskPartialFlows: args.includeRiskPartialFlows,
       strictRisk: args.strictRisk,
+      strictEvidence: args.strictEvidence,
       riskFilters: args.filters || null,
       includeImports: args.includeImports,
       includeUsages: args.includeUsages,
@@ -107,11 +108,17 @@ export async function runContextPack(args = {}, context = {}) {
     }
     return attachObservability(result, observability);
   } catch (err) {
-    if (err?.code === 'ERR_CONTEXT_PACK_INVALID_REQUEST' || err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID') {
+    if (
+      err?.code === 'ERR_CONTEXT_PACK_INVALID_REQUEST'
+      || err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID'
+      || err?.code === 'ERR_CONTEXT_PACK_STRICT_EVIDENCE'
+    ) {
       throw createError(ERROR_CODES.INVALID_REQUEST, err.message, {
         ...(err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID'
           ? { reason: 'invalid_risk_filters' }
-          : {})
+          : err?.code === 'ERR_CONTEXT_PACK_STRICT_EVIDENCE'
+            ? { reason: 'strict_evidence_incomplete', evidence: err?.evidence || null }
+            : {})
       });
     }
     if (err?.code === 'ERR_CONTEXT_PACK_NO_INDEX') {

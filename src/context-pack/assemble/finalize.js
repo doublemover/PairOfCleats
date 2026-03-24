@@ -13,6 +13,7 @@ import {
   resolveSeedRef
 } from '../seed-resolution.js';
 import {
+  buildTypeFactsEvidence,
   buildPrimaryExcerpt,
   normalizeTypeFacts
 } from '../excerpt-cache.js';
@@ -47,6 +48,7 @@ export const assembleCompositeContextPack = ({
   includeRisk = false,
   includeRiskPartialFlows = false,
   riskStrict = false,
+  strictEvidence = false,
   riskFilters = null,
   includeImports = true,
   includeUsages = true,
@@ -100,6 +102,7 @@ export const assembleCompositeContextPack = ({
   primary.range = excerptPayload.range;
   primary.excerpt = excerptPayload.excerpt;
   primary.excerptHash = excerptPayload.excerptHash;
+  primary.evidence = excerptPayload.evidence || null;
   const excerptBytes = primary.excerpt ? Buffer.byteLength(primary.excerpt, 'utf8') : 0;
 
   let graph = null;
@@ -128,10 +131,18 @@ export const assembleCompositeContextPack = ({
   }
 
   let types = null;
+  let typeFacts = [];
   if (includeTypes) {
+    const warningCountBeforeTypes = warnings.length;
+    typeFacts = normalizeTypeFacts(primaryRef || seedRef, primaryChunk, maxTypeEntries, warnings);
     types = {
-      facts: normalizeTypeFacts(primaryRef || seedRef, primaryChunk, maxTypeEntries, warnings)
+      facts: typeFacts
     };
+    types.evidence = buildTypeFactsEvidence({
+      includeTypes: true,
+      facts: typeFacts,
+      warnings: warnings.slice(warningCountBeforeTypes)
+    });
   }
 
   let risk = null;
@@ -184,6 +195,37 @@ export const assembleCompositeContextPack = ({
     arrayBuffers: Math.max(memoryStart.arrayBuffers, memoryEnd.arrayBuffers)
   };
   const elapsedMs = Number((process.hrtime.bigint() - timingStart) / 1000000n);
+  const evidence = {
+    schemaVersion: 1,
+    policy: {
+      strictEvidence: strictEvidence === true
+    },
+    primary: excerptPayload.evidence || {
+      state: 'missing',
+      source: 'missing',
+      fileBacked: false,
+      substituted: false,
+      missing: true,
+      truncated: false,
+      truncatedBytes: false,
+      truncatedTokens: false,
+      warningCodes: []
+    },
+    types: types?.evidence || buildTypeFactsEvidence({
+      includeTypes,
+      facts: typeFacts,
+      warnings: []
+    })
+  };
+  evidence.complete = evidence.primary.state === 'file-backed'
+    && evidence.primary.truncated !== true
+    && (includeTypes !== true || evidence.types.state === 'complete');
+  if (strictEvidence === true && evidence.complete !== true) {
+    const err = new Error('Context-pack strict evidence policy rejected incomplete evidence.');
+    err.code = 'ERR_CONTEXT_PACK_STRICT_EVIDENCE';
+    err.evidence = evidence;
+    throw err;
+  }
 
   return {
     version: '1.0.0',
@@ -193,6 +235,7 @@ export const assembleCompositeContextPack = ({
     graph,
     types,
     risk,
+    evidence,
     truncation: truncation.length ? truncation : null,
     warnings: warnings.length ? warnings : null,
     stats: {

@@ -29,7 +29,7 @@ import {
 
 export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
   type: 'object',
-  required: ['version', 'seed', 'primary', 'provenance'],
+  required: ['version', 'seed', 'primary', 'provenance', 'evidence'],
   properties: {
     version: semverString,
     seed: seedRefSchema,
@@ -50,6 +50,7 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
         },
         excerpt: { type: 'string' },
         excerptHash: nullableString,
+        evidence: { type: ['object', 'null'], additionalProperties: true },
         provenance: { type: ['object', 'null'], additionalProperties: true }
       },
       additionalProperties: true
@@ -88,6 +89,61 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
         flows: { type: 'array', items: riskFlowSummarySchema }
         ,
         partialFlows: { type: 'array', items: riskPartialFlowSummarySchema }
+      },
+      additionalProperties: false
+    },
+    evidence: {
+      type: 'object',
+      required: ['schemaVersion', 'policy', 'primary', 'types', 'complete'],
+      properties: {
+        schemaVersion: { type: 'number' },
+        policy: {
+          type: 'object',
+          required: ['strictEvidence'],
+          properties: {
+            strictEvidence: { type: 'boolean' }
+          },
+          additionalProperties: false
+        },
+        primary: {
+          type: 'object',
+          required: [
+            'state',
+            'source',
+            'fileBacked',
+            'substituted',
+            'missing',
+            'truncated',
+            'truncatedBytes',
+            'truncatedTokens',
+            'warningCodes'
+          ],
+          properties: {
+            state: { type: 'string', enum: ['file-backed', 'fallback', 'missing'] },
+            source: { type: 'string' },
+            fileBacked: { type: 'boolean' },
+            substituted: { type: 'boolean' },
+            missing: { type: 'boolean' },
+            truncated: { type: 'boolean' },
+            truncatedBytes: { type: 'boolean' },
+            truncatedTokens: { type: 'boolean' },
+            warningCodes: { type: 'array', items: { type: 'string' } }
+          },
+          additionalProperties: false
+        },
+        types: {
+          type: 'object',
+          required: ['included', 'state', 'count', 'truncated', 'warningCodes'],
+          properties: {
+            included: { type: 'boolean' },
+            state: { type: 'string', enum: ['complete', 'partial', 'missing', 'omitted'] },
+            count: { type: 'number' },
+            truncated: { type: 'boolean' },
+            warningCodes: { type: 'array', items: { type: 'string' } }
+          },
+          additionalProperties: false
+        },
+        complete: { type: 'boolean' }
       },
       additionalProperties: false
     },

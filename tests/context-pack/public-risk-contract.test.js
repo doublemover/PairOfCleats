@@ -62,6 +62,9 @@ const pack = assembleCompositeContextPack({
   indexSignature
 });
 
+assert.equal(pack.evidence?.schemaVersion, 1, 'expected context-pack evidence schema version');
+assert.equal(pack.evidence?.primary?.state, 'file-backed', 'expected fixture pack to retain file-backed primary evidence');
+assert.equal(pack.evidence?.complete, true, 'expected fixture pack evidence to remain complete');
 assert.equal(pack.risk?.version, CONTEXT_PACK_RISK_SCHEMA_VERSION, 'expected explicit risk schema version');
 assert.equal(pack.risk?.contractVersion, CONTEXT_PACK_RISK_CONTRACT_VERSION, 'expected explicit risk contract version');
 assert.equal(pack.risk?.provenance?.artifactSurfaceVersion, ARTIFACT_SURFACE_VERSION, 'expected current artifact surface version');

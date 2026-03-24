@@ -11,10 +11,33 @@ const payload = {
     ref: { type: 'chunk', chunkUid: 'chunk-risk' },
     file: 'src/app.ts',
     excerpt: 'query(req.body);',
+    evidence: {
+      state: 'file-backed',
+      source: 'file-range',
+      fileBacked: true,
+      substituted: false,
+      missing: false,
+      truncated: false,
+      truncatedBytes: false,
+      truncatedTokens: false,
+      warningCodes: []
+    },
     provenance: {
       excerptSource: 'repo-range',
       excerptHash: 'sha1:excerpt',
       excerptBytes: 16
+    }
+  },
+  types: {
+    facts: [
+      { role: 'return', type: 'Promise<string>' }
+    ],
+    evidence: {
+      included: true,
+      state: 'partial',
+      count: 1,
+      truncated: true,
+      warningCodes: ['TYPES_TRUNCATED']
     }
   },
   risk: {
@@ -166,6 +189,31 @@ const payload = {
       degradedReasons: []
     }
   },
+  evidence: {
+    schemaVersion: 1,
+    policy: {
+      strictEvidence: true
+    },
+    primary: {
+      state: 'file-backed',
+      source: 'file-range',
+      fileBacked: true,
+      substituted: false,
+      missing: false,
+      truncated: false,
+      truncatedBytes: false,
+      truncatedTokens: false,
+      warningCodes: []
+    },
+    types: {
+      included: true,
+      state: 'partial',
+      count: 1,
+      truncated: true,
+      warningCodes: ['TYPES_TRUNCATED']
+    },
+    complete: false
+  },
   truncation: [{ cap: 'maxBytes', limit: 2048, observed: 4096, omitted: 2048 }],
   warnings: [{ code: 'PACK_WARN', message: 'warning emitted' }]
 };
@@ -177,10 +225,14 @@ assert.match(markdown, /Risk/);
 assert.match(markdown, /summary: sources 1, sinks 1, sanitizers 0, localFlows 1/);
 assert.match(markdown, /Partial Risk Flows/);
 assert.match(markdown, /partial-e/);
+assert.match(markdown, /Evidence\nPrimary: file-backed \(file-range\)/);
+assert.match(markdown, /Types: partial \(count=1\)/);
+assert.match(markdown, /strict evidence policy enabled/);
 assert.match(markdown, /Truncation\n- maxBytes limit=2048 observed=4096 omitted=2048/);
 assert.match(markdown, /Warnings\n- PACK_WARN: warning emitted/);
 
 const jsonPayload = renderCompositeContextPackJson(payload);
+assert.deepEqual(jsonPayload.rendered.evidence, payload.evidence);
 assert.deepEqual(jsonPayload.rendered.truncation, payload.truncation);
 assert.deepEqual(jsonPayload.rendered.warnings, payload.warnings);
 assert.equal(jsonPayload.rendered.risk.subject.chunkUid, 'chunk-risk');
