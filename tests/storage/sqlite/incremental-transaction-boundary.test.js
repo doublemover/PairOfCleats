@@ -185,5 +185,23 @@ if (!updateResult.used) {
 assert.equal(stats.batchSize, adaptivePlan.batchSize, 'expected adaptive batch size to flow into incremental update stats');
 assert.ok(stats.transactionPhases?.deletes, 'expected delete transaction phase to run');
 assert.ok(stats.transactionPhases?.inserts, 'expected insert transaction phase to run');
+assert.equal(
+  stats.runtimeTelemetry?.plan?.source,
+  'incremental',
+  'expected incremental plan telemetry to be recorded'
+);
+assert.equal(
+  stats.runtimeTelemetry?.plan?.walPressure,
+  adaptivePlan.walPressure,
+  'expected incremental telemetry to preserve wal pressure'
+);
+assert.ok(
+  Array.isArray(stats.runtimeTelemetry?.walSnapshots) && stats.runtimeTelemetry.walSnapshots.length >= 1,
+  'expected incremental telemetry to record WAL snapshots'
+);
+assert.ok(
+  Array.isArray(stats.runtimeTelemetry?.checkpoints) && stats.runtimeTelemetry.checkpoints.length >= 1,
+  'expected incremental telemetry to record checkpoint samples'
+);
 
 console.log('sqlite incremental transaction boundary test passed');

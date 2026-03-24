@@ -499,7 +499,11 @@ export async function buildDatabaseFromArtifacts({
       count = await ingestIndex(index, mode, indexDir);
       validationStats.chunks = count;
       db.exec(CREATE_INDEXES_SQL);
-      commitSqliteBuildTransaction(db, batchStats);
+      commitSqliteBuildTransaction(db, batchStats, {
+        dbPath,
+        stage: 'artifact-build',
+        source: 'artifacts'
+      });
     } catch (err) {
       rollbackSqliteBuildTransaction(db, batchStats);
       throw err;
@@ -515,7 +519,8 @@ export async function buildDatabaseFromArtifacts({
       vectorAnnTable: vectorAnn?.tableName || vectorExtension.table || 'dense_vectors_ann',
       useOptimize,
       inputBytes,
-      batchStats
+      batchStats,
+      telemetry: { source: 'artifacts' }
     });
     succeeded = true;
   } finally {
@@ -529,6 +534,7 @@ export async function buildDatabaseFromArtifacts({
       db,
       succeeded,
       pragmaState,
+      batchStats,
       dbPath,
       promotePath,
       outPath: resolvedOutPath,

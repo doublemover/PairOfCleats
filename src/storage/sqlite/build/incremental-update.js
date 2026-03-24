@@ -1,9 +1,12 @@
 import fsSync from 'node:fs';
 import { REQUIRED_TABLES, SCHEMA_VERSION } from '../schema.js';
 import {
+  checkpointSqliteWithTelemetry,
   hasRequiredTables,
+  recordSqlitePlanTelemetry,
+  recordSqliteWalSnapshot,
   removeSqliteSidecars,
-  resolveSqliteBatchSize,
+  resolveSqliteIngestPlan,
   bumpSqliteBatchStat
 } from '../utils.js';
 import { createUint8ClampStats } from '../vector.js';
@@ -141,13 +144,23 @@ export async function incrementalUpdateDatabase({
     }
     console.warn(message);
   };
-  const resolvedBatchSize = resolveSqliteBatchSize({ batchSize, inputBytes });
+  const ingestPlan = resolveSqliteIngestPlan({ batchSize, inputBytes });
+  const resolvedBatchSize = ingestPlan.batchSize;
   const denseClampStats = createUint8ClampStats();
   const recordDenseClamp = (clamped) => denseClampStats.record(clamped);
   const batchStats = stats && typeof stats === 'object' ? stats : null;
   const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
   if (batchStats) {
     batchStats.batchSize = resolvedBatchSize;
+    batchStats.ingestPlan = {
+      batchSize: ingestPlan.batchSize,
+      transactionRows: ingestPlan.transactionRows,
+      batchesPerTransaction: ingestPlan.batchesPerTransaction,
+      filesPerTransaction: ingestPlan.filesPerTransaction,
+      repoTier: ingestPlan.repoTier,
+      walPressure: ingestPlan.walPressure
+    };
+    recordSqlitePlanTelemetry(batchStats, ingestPlan, { source: 'incremental' });
   }
   const tableStats = batchStats
     ? (batchStats.tables || (batchStats.tables = {}))
@@ -177,6 +190,22 @@ export async function incrementalUpdateDatabase({
   const useBuildPragmas = buildPragmas !== false;
   const db = new Database(outPath);
   const pragmaState = useBuildPragmas ? applyBuildPragmas(db, { inputBytes, stats: batchStats }) : null;
+  const pageSizeRaw = Number(db.pragma('page_size', { simple: true }));
+  const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? pageSizeRaw : ingestPlan.pageSize;
+  const journalModeRaw = db.pragma('journal_mode', { simple: true });
+  const journalMode = typeof journalModeRaw === 'string'
+    ? journalModeRaw.trim().toLowerCase()
+    : ingestPlan.journalMode;
+  const walEnabled = journalMode === 'wal' || ingestPlan.walEnabled === true;
+  recordSqliteWalSnapshot(batchStats, {
+    stage: 'open',
+    dbPath: outPath,
+    pageSize,
+    journalMode,
+    walEnabled,
+    walPressure: ingestPlan.walPressure,
+    source: 'incremental'
+  });
   let dbClosed = false;
 
   /**
@@ -190,7 +219,16 @@ export async function incrementalUpdateDatabase({
     if (dbClosed) return;
     dbClosed = true;
     try {
-      db.pragma('wal_checkpoint(TRUNCATE)');
+      checkpointSqliteWithTelemetry(db, {
+        stats: batchStats,
+        dbPath: outPath,
+        stage: 'close',
+        pageSize,
+        journalMode,
+        walEnabled,
+        walPressure: ingestPlan.walPressure,
+        source: 'incremental'
+      });
     } catch {}
     if (pragmaState) {
       try {
@@ -310,7 +348,16 @@ export async function incrementalUpdateDatabase({
     });
     updateTx();
     try {
-      db.pragma('wal_checkpoint(TRUNCATE)');
+      checkpointSqliteWithTelemetry(db, {
+        stats: batchStats,
+        dbPath: outPath,
+        stage: 'manifest-only',
+        pageSize,
+        journalMode,
+        walEnabled,
+        walPressure: ingestPlan.walPressure,
+        source: 'incremental'
+      });
     } catch (err) {
       if (emitOutput) {
         warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
@@ -438,7 +485,16 @@ export async function incrementalUpdateDatabase({
       batchStats.transactionPhases = updateResult.transactionPhases;
     }
     try {
-      db.pragma('wal_checkpoint(TRUNCATE)');
+      checkpointSqliteWithTelemetry(db, {
+        stats: batchStats,
+        dbPath: outPath,
+        stage: 'post-update',
+        pageSize,
+        journalMode,
+        walEnabled,
+        walPressure: ingestPlan.walPressure,
+        source: 'incremental'
+      });
     } catch (err) {
       if (emitOutput) {
         warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);

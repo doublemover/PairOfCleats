@@ -3,7 +3,15 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../schema.js';
-import { removeSqliteSidecars, resolveSqliteBatchSize, bumpSqliteBatchStat } from '../utils.js';
+import {
+  bumpSqliteBatchStat,
+  checkpointSqliteWithTelemetry,
+  recordSqliteCommitTelemetry,
+  recordSqlitePlanTelemetry,
+  recordSqliteWalSnapshot,
+  removeSqliteSidecars,
+  resolveSqliteIngestPlan
+} from '../utils.js';
 import { applyBuildPragmas, optimizeBuildDatabase, optimizeFtsTable, restoreBuildPragmas } from './pragmas.js';
 import { validateSqliteDatabase } from './validate.js';
 import { createInsertStatements } from './statements.js';
@@ -106,12 +114,22 @@ const openDatabaseWithFallback = (Database, outPath) => {
  * @returns {{resolvedBatchSize:number,batchStats:object|null,resolvedStatementStrategy:string,recordBatch:function,recordTable:function}}
  */
 export const createBuildExecutionContext = ({ batchSize, inputBytes, statementStrategy, stats }) => {
-  const resolvedBatchSize = resolveSqliteBatchSize({ batchSize, inputBytes });
+  const ingestPlan = resolveSqliteIngestPlan({ batchSize, inputBytes });
+  const resolvedBatchSize = ingestPlan.batchSize;
   const batchStats = stats && typeof stats === 'object' ? stats : null;
   const resolvedStatementStrategy = normalizeStatementStrategy(statementStrategy);
   if (batchStats) {
     batchStats.batchSize = resolvedBatchSize;
     batchStats.statementStrategy = resolvedStatementStrategy;
+    batchStats.ingestPlan = {
+      batchSize: ingestPlan.batchSize,
+      transactionRows: ingestPlan.transactionRows,
+      batchesPerTransaction: ingestPlan.batchesPerTransaction,
+      filesPerTransaction: ingestPlan.filesPerTransaction,
+      repoTier: ingestPlan.repoTier,
+      walPressure: ingestPlan.walPressure
+    };
+    recordSqlitePlanTelemetry(batchStats, ingestPlan);
   }
   const tableStats = batchStats
     ? (batchStats.tables || (batchStats.tables = {}))
@@ -129,6 +147,7 @@ export const createBuildExecutionContext = ({ batchSize, inputBytes, statementSt
   };
   return {
     resolvedBatchSize,
+    ingestPlan,
     batchStats,
     resolvedStatementStrategy,
     recordBatch,
@@ -170,6 +189,22 @@ export const openSqliteBuildDatabase = ({
   const pragmaState = useBuildPragmas
     ? applyBuildPragmas(db, { inputBytes, stats: batchStats })
     : null;
+  const pageSizeRaw = Number(db.pragma('page_size', { simple: true }));
+  const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? pageSizeRaw : null;
+  const journalModeRaw = db.pragma('journal_mode', { simple: true });
+  const journalMode = typeof journalModeRaw === 'string'
+    ? journalModeRaw.trim().toLowerCase()
+    : null;
+  const plan = batchStats?.runtimeTelemetry?.plan || null;
+  recordSqliteWalSnapshot(batchStats, {
+    stage: 'open',
+    dbPath,
+    pageSize: pageSize ?? plan?.pageSize ?? null,
+    journalMode: journalMode ?? plan?.journalMode ?? null,
+    walEnabled: plan?.walEnabled ?? (journalMode === 'wal'),
+    walPressure: plan?.walPressure ?? null,
+    source: plan?.source || null
+  });
   db.exec(CREATE_TABLES_BASE_SQL);
   db.pragma(`user_version = ${SCHEMA_VERSION}`);
   return { db, pragmaState, dbPath, promotePath };
@@ -268,9 +303,21 @@ export const beginSqliteBuildTransaction = (db, batchStats) => {
  * @param {object} [batchStats]
  * @returns {void}
  */
-export const commitSqliteBuildTransaction = (db, batchStats) => {
+export const commitSqliteBuildTransaction = (db, batchStats, telemetry = null) => {
+  const start = performance.now();
   db.exec('COMMIT');
   if (batchStats?.transaction) batchStats.transaction.commit += 1;
+  const plan = batchStats?.runtimeTelemetry?.plan || null;
+  recordSqliteCommitTelemetry(batchStats, {
+    stage: telemetry?.stage || 'commit',
+    durationMs: performance.now() - start,
+    dbPath: telemetry?.dbPath || null,
+    pageSize: telemetry?.pageSize ?? plan?.pageSize ?? null,
+    journalMode: telemetry?.journalMode ?? plan?.journalMode ?? null,
+    walEnabled: telemetry?.walEnabled ?? plan?.walEnabled ?? null,
+    walPressure: telemetry?.walPressure ?? plan?.walPressure ?? null,
+    source: telemetry?.source || plan?.source || null
+  });
 };
 
 /**
@@ -303,7 +350,8 @@ export const runSqliteBuildPostCommit = ({
   vectorAnnTable,
   useOptimize,
   inputBytes,
-  batchStats
+  batchStats,
+  telemetry = null
 }) => {
   if (useOptimize) {
     optimizeFtsTable(db, 'chunks_fts', { stats: batchStats });
@@ -322,13 +370,23 @@ export const runSqliteBuildPostCommit = ({
     batchStats.validationMs = performance.now() - validationStart;
   }
   try {
-    db.pragma('wal_checkpoint(TRUNCATE)');
+    const plan = batchStats?.runtimeTelemetry?.plan || null;
+    checkpointSqliteWithTelemetry(db, {
+      stats: batchStats,
+      dbPath,
+      stage: 'post-commit',
+      pageSize: telemetry?.pageSize ?? plan?.pageSize ?? null,
+      journalMode: telemetry?.journalMode ?? plan?.journalMode ?? null,
+      walEnabled: telemetry?.walEnabled ?? plan?.walEnabled ?? null,
+      walPressure: telemetry?.walPressure ?? plan?.walPressure ?? null,
+      source: telemetry?.source || plan?.source || null
+    });
   } catch {}
 };
 
 /**
  * Close sqlite build db and clean sidecars when build fails.
- * @param {{db:any,succeeded:boolean,pragmaState?:object|null,outPath:string,dbPath?:string,promotePath?:string|null,warn?:(err:Error)=>void}} input
+ * @param {{db:any,succeeded:boolean,pragmaState?:object|null,outPath:string,dbPath?:string,promotePath?:string|null,batchStats?:object|null,warn?:(err:Error)=>void}} input
  * @returns {Promise<void>}
  */
 export const closeSqliteBuildDatabase = async ({
@@ -338,6 +396,7 @@ export const closeSqliteBuildDatabase = async ({
   outPath,
   dbPath = outPath,
   promotePath = null,
+  batchStats = null,
   warn
 }) => {
   const resolvedOutPath = toComparablePath(outPath);
@@ -350,7 +409,17 @@ export const closeSqliteBuildDatabase = async ({
   );
   if (succeeded) {
     try {
-      db.pragma('wal_checkpoint(TRUNCATE)');
+      const plan = batchStats?.runtimeTelemetry?.plan || null;
+      checkpointSqliteWithTelemetry(db, {
+        stats: batchStats,
+        dbPath,
+        stage: 'close',
+        pageSize: plan?.pageSize ?? null,
+        journalMode: plan?.journalMode ?? null,
+        walEnabled: plan?.walEnabled ?? null,
+        walPressure: plan?.walPressure ?? null,
+        source: plan?.source || null
+      });
     } catch (err) {
       if (typeof warn === 'function') {
         warn(err);

@@ -875,7 +875,11 @@ export async function buildDatabaseFromBundles({
     recordTable('dense_meta', denseMetaRows, 0);
 
     db.exec(CREATE_INDEXES_SQL);
-    commitSqliteBuildTransaction(db, batchStats);
+    commitSqliteBuildTransaction(db, batchStats, {
+      dbPath,
+      stage: 'bundle-build',
+      source: 'bundles'
+    });
     runSqliteBuildPostCommit({
       db,
       mode,
@@ -887,7 +891,8 @@ export async function buildDatabaseFromBundles({
       vectorAnnTable: vectorAnnState?.table || vectorExtension.table || 'dense_vectors_ann',
       useOptimize,
       inputBytes,
-      batchStats
+      batchStats,
+      telemetry: { source: 'bundles' }
     });
     succeeded = true;
     emitDenseClampSummary();
@@ -898,6 +903,7 @@ export async function buildDatabaseFromBundles({
       db,
       succeeded,
       pragmaState,
+      batchStats,
       dbPath,
       promotePath,
       outPath,
