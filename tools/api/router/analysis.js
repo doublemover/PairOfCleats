@@ -101,9 +101,9 @@ export async function handleContextPackRoute({
     : typeof payload.repo === 'string' && payload.repo.trim()
       ? payload.repo
       : '';
-  const repoPath = requestedRepo
-    ? await resolveRepo(requestedRepo)
-    : null;
+  const repoPath = workspaceRequested && !requestedRepo
+    ? null
+    : await resolveRepo(requestedRepo);
   try {
     const workspaceConfig = workspaceRequested && typeof ensureWorkspaceAllowlist === 'function'
       ? await ensureWorkspaceAllowlist(payload)

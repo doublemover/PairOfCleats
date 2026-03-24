@@ -1240,10 +1240,42 @@ function printTopicHelp(topicTokens, { includeAll = false } = {}) {
     return;
   }
 
+  if (exactEntry && !supportTiers.includes(exactEntry.supportTier)) {
+    const lines = [
+      `Help topic: ${topicTokens.join(' ')}`,
+      '',
+      `This command exists in the ${COMMAND_SUPPORT_TIER_LABELS[exactEntry.supportTier].toLowerCase()} tier and is hidden by default.`,
+      'Use `pairofcleats help --all` to reveal internal and experimental commands.'
+    ];
+    process.stderr.write(`${lines.join('\n')}\n`);
+    return;
+  }
+
   const topic = topicTokens[0];
+  const allMatchingEntries = listCommandRegistry({
+    supportTiers: ['stable', 'operator', 'internal', 'experimental']
+  }).filter((entry) => entry.commandPath[0] === topic);
   const matchingEntries = listCommandRegistry({ supportTiers })
     .filter((entry) => entry.commandPath[0] === topic);
   if (!matchingEntries.length) {
+    if (!includeAll && allMatchingEntries.length > 0) {
+      const hiddenTiers = Array.from(new Set(
+        allMatchingEntries
+          .map((entry) => entry.supportTier)
+          .filter((tier) => !supportTiers.includes(tier))
+      ));
+      const tierLabel = hiddenTiers.length === 1
+        ? COMMAND_SUPPORT_TIER_LABELS[hiddenTiers[0]].toLowerCase()
+        : 'internal/experimental';
+      const lines = [
+        `Help topic: ${topic}`,
+        '',
+        `This topic exists only in the ${tierLabel} tier and is hidden by default.`,
+        'Use `pairofcleats help --all` to reveal internal and experimental commands.'
+      ];
+      process.stderr.write(`${lines.join('\n')}\n`);
+      return;
+    }
     failCli(`Unknown help topic: ${topicTokens.join(' ')}`, {
       code: ERROR_CODES.INVALID_REQUEST,
       showHelp: true
