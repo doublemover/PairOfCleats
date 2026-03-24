@@ -36,21 +36,32 @@ const env = applyTestEnv({
 
 runExtractedProseBuild({ root, repoRoot, env });
 
-const { extractionReport: report } = await readExtractedProseArtifacts(repoRoot);
+const { extraction, extractionReport: report } = await readExtractedProseArtifacts(repoRoot);
 assert.ok(report, 'expected extraction_report.json');
+assert.ok(extraction, 'expected build_state documentExtraction summary');
 const files = Array.isArray(report?.files) ? report.files : [];
 const okPdf = files.find((entry) => normalizeFixturePath(entry?.file).endsWith('docs/ok.pdf'));
 const skippedDocx = files.find((entry) => normalizeFixturePath(entry?.file).endsWith('docs/skip.docx'));
+const buildStateFiles = Array.isArray(extraction?.files) ? extraction.files : [];
+const buildStateSkippedDocx = buildStateFiles.find((entry) => normalizeFixturePath(entry?.file).endsWith('docs/skip.docx'));
 
 assert.ok(okPdf, 'expected PDF report entry');
 assert.ok(skippedDocx, 'expected DOCX report entry');
+assert.ok(buildStateSkippedDocx, 'expected DOCX build_state entry');
 assert.equal(okPdf?.status, 'ok', 'expected PDF status=ok');
 assert.equal(skippedDocx?.status, 'skipped', 'expected DOCX status=skipped');
 assert.equal(skippedDocx?.reason, 'missing_dependency', 'expected DOCX missing dependency reason');
+assert.equal(skippedDocx?.fidelity?.state, 'coverage_gap', 'expected skipped DOCX fidelity state');
+assert.equal(skippedDocx?.fidelity?.policyMode, 'permissive', 'expected permissive policy mode by default');
+assert.equal(buildStateSkippedDocx?.fidelity?.reasonCode, 'missing_dependency', 'expected build_state fidelity reason');
 
 assert.equal(report?.counts?.total, 2, 'expected total count=2');
 assert.equal(report?.counts?.ok, 1, 'expected ok count=1');
 assert.equal(report?.counts?.skipped, 1, 'expected skipped count=1');
 assert.equal(report?.counts?.byReason?.missing_dependency, 1, 'expected missing_dependency count=1');
+assert.equal(report?.coverage?.state, 'partial', 'expected partial extraction coverage');
+assert.equal(report?.coverage?.coverageLossCount, 1, 'expected one coverage loss');
+assert.equal(extraction?.coverage?.state, 'partial', 'expected build_state partial coverage');
+assert.equal(extraction?.counts?.skipped, 1, 'expected build_state skipped count=1');
 
 console.log('document extraction outcomes recorded test passed');

@@ -80,44 +80,135 @@ const DOCUMENT_EXTRACTION_EXTRACTOR = {
   }
 };
 
+const DOCUMENT_EXTRACTION_POLICY = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['maxBytesPerFile', 'maxPages', 'extractTimeoutMs', 'fidelityMode', 'qualitySensitive'],
+  properties: {
+    maxBytesPerFile: { type: 'number' },
+    maxPages: { type: 'number' },
+    extractTimeoutMs: { type: 'number' },
+    fidelityMode: { type: 'string', enum: ['permissive', 'quality-sensitive'] },
+    qualitySensitive: { type: 'boolean' }
+  }
+};
+
+const DOCUMENT_EXTRACTION_FIDELITY = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'schemaVersion',
+    'sourceType',
+    'state',
+    'status',
+    'reasonCode',
+    'policyMode',
+    'qualitySensitive',
+    'policyViolation',
+    'warningCount'
+  ],
+  properties: {
+    schemaVersion: { type: 'number' },
+    sourceType: { type: 'string', enum: ['pdf', 'docx'] },
+    state: { type: 'string', enum: ['complete', 'coverage_gap'] },
+    status: { type: 'string', enum: ['ok', 'skipped'] },
+    reasonCode: { type: ['string', 'null'] },
+    policyMode: { type: 'string', enum: ['permissive', 'quality-sensitive'] },
+    qualitySensitive: { type: 'boolean' },
+    policyViolation: { type: 'boolean' },
+    warningCount: { type: 'number' }
+  }
+};
+
 const DOCUMENT_EXTRACTION_FILE_ENTRY = {
   type: 'object',
   additionalProperties: false,
   required: [
     'file',
     'sourceType',
+    'status',
+    'reason',
     'extractor',
     'sourceBytesHash',
     'sourceBytesHashAlgo',
     'unitCounts',
-    'normalizationPolicy'
+    'normalizationPolicy',
+    'policy',
+    'fidelity'
   ],
   properties: {
     file: { type: 'string' },
     sourceType: { type: ['string', 'null'], enum: ['pdf', 'docx', null] },
-    extractor: DOCUMENT_EXTRACTION_EXTRACTOR,
+    status: { type: 'string', enum: ['ok', 'skipped'] },
+    reason: { type: ['string', 'null'] },
+    extractor: { anyOf: [DOCUMENT_EXTRACTION_EXTRACTOR, { type: 'null' }] },
     sourceBytesHash: { type: ['string', 'null'] },
-    sourceBytesHashAlgo: { type: 'string' },
+    sourceBytesHashAlgo: { type: ['string', 'null'] },
     unitCounts: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['pages', 'paragraphs', 'totalUnits'],
-      properties: {
-        pages: { type: 'number' },
-        paragraphs: { type: 'number' },
-        totalUnits: { type: 'number' }
-      }
+      anyOf: [
+        {
+          type: 'object',
+          additionalProperties: false,
+          required: ['pages', 'paragraphs', 'totalUnits'],
+          properties: {
+            pages: { type: 'number' },
+            paragraphs: { type: 'number' },
+            totalUnits: { type: 'number' }
+          }
+        },
+        { type: 'null' }
+      ]
     },
-    normalizationPolicy: { type: ['string', 'null'] }
+    normalizationPolicy: { type: ['string', 'null'] },
+    policy: DOCUMENT_EXTRACTION_POLICY,
+    fidelity: DOCUMENT_EXTRACTION_FIDELITY
   }
 };
 
 const DOCUMENT_EXTRACTION_SUMMARY = {
   type: 'object',
   additionalProperties: false,
-  required: ['schemaVersion', 'files', 'extractors', 'totals'],
+  required: ['schemaVersion', 'policy', 'coverage', 'files', 'extractors', 'totals', 'counts'],
   properties: {
     schemaVersion: { type: 'number' },
+    policy: DOCUMENT_EXTRACTION_POLICY,
+    coverage: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['state', 'coverageLossCount', 'qualitySensitiveFailures', 'bySourceType'],
+      properties: {
+        state: { type: 'string', enum: ['complete', 'partial', 'missing'] },
+        coverageLossCount: { type: 'number' },
+        qualitySensitiveFailures: { type: 'number' },
+        bySourceType: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['pdf', 'docx'],
+          properties: {
+            pdf: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['total', 'ok', 'skipped'],
+              properties: {
+                total: { type: 'number' },
+                ok: { type: 'number' },
+                skipped: { type: 'number' }
+              }
+            },
+            docx: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['total', 'ok', 'skipped'],
+              properties: {
+                total: { type: 'number' },
+                ok: { type: 'number' },
+                skipped: { type: 'number' }
+              }
+            }
+          }
+        }
+      }
+    },
     files: { type: 'array', items: DOCUMENT_EXTRACTION_FILE_ENTRY },
     extractors: { type: 'array', items: DOCUMENT_EXTRACTION_EXTRACTOR },
     totals: {
@@ -129,6 +220,47 @@ const DOCUMENT_EXTRACTION_SUMMARY = {
         pages: { type: 'number' },
         paragraphs: { type: 'number' },
         units: { type: 'number' }
+      }
+    },
+    counts: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['total', 'ok', 'skipped', 'byReason', 'bySourceType'],
+      properties: {
+        total: { type: 'number' },
+        ok: { type: 'number' },
+        skipped: { type: 'number' },
+        byReason: {
+          type: 'object',
+          additionalProperties: { type: 'number' }
+        },
+        bySourceType: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['pdf', 'docx'],
+          properties: {
+            pdf: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['total', 'ok', 'skipped'],
+              properties: {
+                total: { type: 'number' },
+                ok: { type: 'number' },
+                skipped: { type: 'number' }
+              }
+            },
+            docx: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['total', 'ok', 'skipped'],
+              properties: {
+                total: { type: 'number' },
+                ok: { type: 'number' },
+                skipped: { type: 'number' }
+              }
+            }
+          }
+        }
       }
     }
   }

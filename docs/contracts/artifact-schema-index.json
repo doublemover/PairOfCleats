@@ -1,5 +1,5 @@
 {
-  "schemaHash": "b0733ae613e78c0716ca211c0eb1568df7554e06",
+  "schemaHash": "91762b106c71460aab1148f9adceeea6f74818d2",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -564,11 +564,13 @@
       "requiredFields": [
         "chunkerVersion",
         "counts",
+        "coverage",
         "extractionConfigDigest",
         "extractors",
         "files",
         "generatedAt",
         "mode",
+        "policy",
         "quality",
         "schemaVersion"
       ],

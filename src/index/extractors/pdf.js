@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { tryImport } from '../../shared/optional-deps.js';
 import { getDocumentExtractorTestConfig } from '../../shared/env.js';
 import {
+  buildDocumentExtractionFidelity,
   buildFailedResult,
   normalizeDocumentExtractionPolicy,
   normalizeExtractedText,
@@ -122,10 +123,16 @@ export async function extractPdf({
     ? buffer
     : (filePath ? await fs.readFile(filePath) : null);
   if (!source) {
-    return buildFailedResult('extract_failed', ['Missing file buffer']);
+    return buildFailedResult('extract_failed', ['Missing file buffer'], {
+      sourceType: 'pdf',
+      policy: resolvedPolicy
+    });
   }
   if (source.length > resolvedPolicy.maxBytesPerFile) {
-    return buildFailedResult('oversize');
+    return buildFailedResult('oversize', [], {
+      sourceType: 'pdf',
+      policy: resolvedPolicy
+    });
   }
   if (stubExtract) {
     try {
@@ -134,11 +141,22 @@ export async function extractPdf({
           await new Promise((resolve) => setTimeout(resolve, stubDelayMs));
         }
         const text = normalizeExtractedText(source.toString('utf8'));
-        if (!text) return buildFailedResult('unsupported_scanned');
+        if (!text) {
+          return buildFailedResult('unsupported_scanned', [], {
+            sourceType: 'pdf',
+            policy: resolvedPolicy
+          });
+        }
         return {
           ok: true,
           pages: [{ pageNumber: 1, text }],
           warnings: [],
+          fidelity: buildDocumentExtractionFidelity({
+            sourceType: 'pdf',
+            status: 'ok',
+            warnings: [],
+            policy: resolvedPolicy
+          }),
           extractor: {
             name: 'pdf-test-stub',
             version: 'test',
@@ -147,12 +165,18 @@ export async function extractPdf({
         };
       }, resolvedPolicy.extractTimeoutMs);
     } catch (err) {
-      return buildFailedResult(resolvePdfFailureReason(err), [err?.message]);
+      return buildFailedResult(resolvePdfFailureReason(err), [err?.message], {
+        sourceType: 'pdf',
+        policy: resolvedPolicy
+      });
     }
   }
   const runtime = await loadPdfExtractorRuntime();
   if (!runtime.ok || !runtime.mod) {
-    return buildFailedResult('missing_dependency');
+    return buildFailedResult('missing_dependency', [], {
+      sourceType: 'pdf',
+      policy: resolvedPolicy
+    });
   }
   try {
     const result = await withTimeout(async () => {
@@ -169,7 +193,10 @@ export async function extractPdf({
       if (numPages > resolvedPolicy.maxPages) {
         if (typeof doc?.destroy === 'function') await doc.destroy();
         if (typeof loadingTask?.destroy === 'function') await loadingTask.destroy();
-        return buildFailedResult('oversize');
+        return buildFailedResult('oversize', [], {
+          sourceType: 'pdf',
+          policy: resolvedPolicy
+        });
       }
       const pages = [];
       for (let pageNumber = 1; pageNumber <= numPages; pageNumber += 1) {
@@ -182,12 +209,21 @@ export async function extractPdf({
       if (typeof loadingTask?.destroy === 'function') await loadingTask.destroy();
       const nonEmptyPageCount = pages.reduce((count, page) => count + (page.text ? 1 : 0), 0);
       if (!pages.length || nonEmptyPageCount === 0) {
-        return buildFailedResult('unsupported_scanned');
+        return buildFailedResult('unsupported_scanned', [], {
+          sourceType: 'pdf',
+          policy: resolvedPolicy
+        });
       }
       return {
         ok: true,
         pages,
         warnings: normalizeWarnings(warnings),
+        fidelity: buildDocumentExtractionFidelity({
+          sourceType: 'pdf',
+          status: 'ok',
+          warnings,
+          policy: resolvedPolicy
+        }),
         extractor: {
           name: runtime.name,
           version: runtime.version,
@@ -197,6 +233,9 @@ export async function extractPdf({
     }, resolvedPolicy.extractTimeoutMs);
     return result;
   } catch (err) {
-    return buildFailedResult(resolvePdfFailureReason(err), [err?.message]);
+    return buildFailedResult(resolvePdfFailureReason(err), [err?.message], {
+      sourceType: 'pdf',
+      policy: resolvedPolicy
+    });
   }
 }

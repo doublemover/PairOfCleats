@@ -342,7 +342,10 @@ export const runPipelineStageOrchestrator = async ({
     })
   });
   if (mode === 'extracted-prose') {
-    const extractionSummary = summarizeDocumentExtractionForMode(state);
+    const extractionSummary = summarizeDocumentExtractionForMode(
+      state,
+      runtimeRef.indexingConfig?.documentExtraction || null
+    );
     if (extractionSummary) {
       await runStateWriteBestEffort({
         label: 'pipeline.update-build-state.document-extraction',

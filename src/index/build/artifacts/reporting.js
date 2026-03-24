@@ -3,7 +3,11 @@ import { createHash } from 'node:crypto';
 import { isRelativePathEscape, toPosix } from '../../../shared/files.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import { DOCUMENT_CHUNKER_VERSION } from '../../chunking/formats/document-common.js';
-import { DOCUMENT_EXTRACTION_REASON_CODES } from '../../extractors/common.js';
+import {
+  buildDocumentExtractionFidelity,
+  buildDocumentExtractionPolicySummary,
+  DOCUMENT_EXTRACTION_REASON_CODES
+} from '../../extractors/common.js';
 
 const DOCUMENT_SOURCE_EXT_TO_TYPE = new Map([
   ['.pdf', 'pdf'],
@@ -315,6 +319,7 @@ export const buildExtractionReport = ({
   documentExtractionConfig
 }) => {
   const configDigest = sha256Hex(stableStringifyForSignature(documentExtractionConfig || {}));
+  const policy = buildDocumentExtractionPolicySummary(documentExtractionConfig);
   const entries = new Map();
   const fileInfoByPath = state?.fileInfoByPath;
   if (fileInfoByPath && typeof fileInfoByPath.entries === 'function') {
@@ -348,7 +353,14 @@ export const buildExtractionReport = ({
           paragraphs: Number(extraction?.counts?.paragraphs) || 0,
           totalUnits: Number(extraction?.counts?.totalUnits) || 0
         },
-        warnings: Array.isArray(extraction?.warnings) ? extraction.warnings : []
+        warnings: Array.isArray(extraction?.warnings) ? extraction.warnings : [],
+        policy: extraction?.policy || policy,
+        fidelity: extraction?.fidelity || buildDocumentExtractionFidelity({
+          sourceType,
+          status: 'ok',
+          warnings: extraction?.warnings || [],
+          policy
+        })
       });
     }
   }
@@ -372,7 +384,15 @@ export const buildExtractionReport = ({
       extractionConfigDigest: configDigest,
       extractionIdentityHash: null,
       unitCounts: null,
-      warnings: Array.isArray(skipped?.warnings) ? skipped.warnings : []
+      warnings: Array.isArray(skipped?.warnings) ? skipped.warnings : [],
+      policy,
+      fidelity: buildDocumentExtractionFidelity({
+        sourceType,
+        status: 'skipped',
+        reason,
+        warnings: skipped?.warnings || [],
+        policy
+      })
     });
   }
   const files = Array.from(entries.values()).sort((a, b) => (
@@ -381,12 +401,25 @@ export const buildExtractionReport = ({
   const byReason = {};
   let okCount = 0;
   let skippedCount = 0;
+  const bySourceType = {
+    pdf: { total: 0, ok: 0, skipped: 0 },
+    docx: { total: 0, ok: 0, skipped: 0 }
+  };
   for (const file of files) {
+    if (file.sourceType === 'pdf' || file.sourceType === 'docx') {
+      bySourceType[file.sourceType].total += 1;
+    }
     if (file.status === 'ok') {
       okCount += 1;
+      if (file.sourceType === 'pdf' || file.sourceType === 'docx') {
+        bySourceType[file.sourceType].ok += 1;
+      }
       continue;
     }
     skippedCount += 1;
+    if (file.sourceType === 'pdf' || file.sourceType === 'docx') {
+      bySourceType[file.sourceType].skipped += 1;
+    }
     const reason = file.reason || 'extract_failed';
     byReason[reason] = (byReason[reason] || 0) + 1;
   }
@@ -407,11 +440,24 @@ export const buildExtractionReport = ({
     }
   }
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     mode,
     generatedAt: new Date().toISOString(),
     chunkerVersion: DOCUMENT_CHUNKER_VERSION,
     extractionConfigDigest: configDigest,
+    policy,
+    coverage: {
+      state: files.length === 0
+        ? 'missing'
+        : skippedCount === 0
+          ? 'complete'
+          : okCount > 0
+            ? 'partial'
+            : 'missing',
+      coverageLossCount: skippedCount,
+      qualitySensitiveFailures: policy.qualitySensitive ? skippedCount : 0,
+      bySourceType
+    },
     quality: {
       lowYieldBailout: buildExtractedProseLowYieldQualityMarker(state)
     },

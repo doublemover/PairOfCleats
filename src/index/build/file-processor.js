@@ -25,6 +25,8 @@ import { resolvePreCpuFileContent } from './file-processor/pre-cpu-content.js';
 import { getLanguageForFile } from '../language-registry.js';
 import {
   EXTRACTION_NORMALIZATION_POLICY,
+  buildDocumentExtractionFidelity,
+  buildDocumentExtractionPolicySummary,
   sha256Hex,
   normalizeDocumentExtractionPolicy
 } from '../extractors/common.js';
@@ -628,7 +630,14 @@ export function createFileProcessor(options) {
             counts: cachedExtraction.counts || { pages: 0, paragraphs: 0, totalUnits: 0 },
             units: Array.isArray(cachedExtraction.units) ? cachedExtraction.units : [],
             normalizationPolicy: cachedExtraction.normalizationPolicy || EXTRACTION_NORMALIZATION_POLICY,
-            warnings
+            warnings,
+            policy: buildDocumentExtractionPolicySummary(documentExtractionPolicy),
+            fidelity: buildDocumentExtractionFidelity({
+              sourceType: documentSourceType,
+              status: 'ok',
+              warnings,
+              policy: documentExtractionPolicy
+            })
           };
           updateCrashStage('pre-cpu:extract:cache-hit', {
             sourceType: documentSourceType

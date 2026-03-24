@@ -58,10 +58,15 @@ runExtractedProseBuild({ root, repoRoot, env });
 const { state, extractionReport: report } = await readExtractedProseArtifacts(repoRoot);
 assert.ok(state?.indexDir, 'expected extracted-prose index dir');
 assert.ok(report, 'expected extraction_report artifact');
-assert.equal(report?.schemaVersion, 1, 'expected extraction report schemaVersion=1');
+assert.equal(report?.schemaVersion, 2, 'expected extraction report schemaVersion=2');
 assert.equal(report?.mode, 'extracted-prose', 'expected extraction report mode');
 assert.ok(Array.isArray(report?.files) && report.files.length >= 2, 'expected report file entries');
 assert.ok(Array.isArray(report?.extractors) && report.extractors.length >= 1, 'expected report extractor entries');
+assert.equal(report?.policy?.fidelityMode, 'permissive', 'expected permissive extraction policy by default');
+assert.equal(report?.coverage?.state, 'complete', 'expected complete coverage for successful fixture');
+assert.equal(report?.coverage?.coverageLossCount, 0, 'expected zero coverage loss for successful fixture');
+assert.equal(report?.coverage?.bySourceType?.pdf?.ok, 1, 'expected one covered PDF');
+assert.equal(report?.coverage?.bySourceType?.docx?.ok, 1, 'expected one covered DOCX');
 const lowYieldMarker = report?.quality?.lowYieldBailout;
 assert.ok(lowYieldMarker && typeof lowYieldMarker === 'object', 'expected extracted-prose quality marker');
 assert.equal(lowYieldMarker?.enabled, false, 'expected low-yield bailout to stay disabled for tiny document-only fixture');
@@ -90,6 +95,8 @@ assert.equal(schemaCheck.ok, true, `expected extraction report schema validation
 
 for (const file of report.files) {
   if (file?.status !== 'ok') continue;
+  assert.equal(file?.fidelity?.state, 'complete', `expected complete fidelity for ${file?.file}`);
+  assert.equal(file?.fidelity?.policyViolation, false, `expected no policy violation for ${file?.file}`);
   const expected = sha256([
     file?.sourceBytesHash || '',
     file?.extractor?.version || '',

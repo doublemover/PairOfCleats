@@ -4,6 +4,8 @@ import { sha1 } from '../../../shared/hash.js';
 import { extractPdf } from '../../extractors/pdf.js';
 import { extractDocx } from '../../extractors/docx.js';
 import {
+  buildDocumentExtractionFidelity,
+  buildDocumentExtractionPolicySummary,
   EXTRACTION_NORMALIZATION_POLICY,
   sha256Hex
 } from '../../extractors/common.js';
@@ -43,7 +45,8 @@ const buildDocumentExtractionInfo = ({
   sourceType,
   extracted,
   joined,
-  sourceHashBuffer
+  sourceHashBuffer,
+  policy
 }) => ({
   sourceType,
   status: 'ok',
@@ -53,7 +56,14 @@ const buildDocumentExtractionInfo = ({
   counts: joined.counts,
   units: buildDocumentExtractionUnits(joined.units),
   normalizationPolicy: EXTRACTION_NORMALIZATION_POLICY,
-  warnings: extracted.warnings || []
+  warnings: extracted.warnings || [],
+  policy: buildDocumentExtractionPolicySummary(policy),
+  fidelity: extracted.fidelity || buildDocumentExtractionFidelity({
+    sourceType,
+    status: 'ok',
+    warnings: extracted.warnings || [],
+    policy
+  })
 });
 
 /**
@@ -190,7 +200,8 @@ export async function resolvePreCpuFileContent({
       sourceType: documentSourceType,
       extracted,
       joined,
-      sourceHashBuffer
+      sourceHashBuffer,
+      policy: documentExtractionPolicy
     });
     return { skip: null };
   }

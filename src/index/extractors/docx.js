@@ -3,6 +3,7 @@ import zlib from 'node:zlib';
 import { tryImport } from '../../shared/optional-deps.js';
 import { getDocumentExtractorTestConfig } from '../../shared/env.js';
 import {
+  buildDocumentExtractionFidelity,
   buildFailedResult,
   normalizeDocumentExtractionPolicy,
   normalizeExtractedText,
@@ -156,18 +157,22 @@ const parseDocxParagraphsFromXml = (xml) => {
   return paragraphs;
 };
 
-const parseDocxParagraphsFromBuffer = (buffer) => {
+const parseDocxParagraphsFromBuffer = (buffer, policy = null) => {
   const entries = parseCentralDirectory(buffer);
   if (hasEncryptedDocxEntries(entries)) {
-    return buildFailedResult('unsupported_encrypted');
+    return buildFailedResult('unsupported_encrypted', [], { sourceType: 'docx', policy });
   }
   const documentEntry = entries.find((entry) => entry.name === 'word/document.xml');
-  if (!documentEntry) return buildFailedResult('extract_failed', ['word/document.xml missing']);
+  if (!documentEntry) {
+    return buildFailedResult('extract_failed', ['word/document.xml missing'], { sourceType: 'docx', policy });
+  }
   const xmlBuffer = extractZipEntry(buffer, documentEntry);
-  if (!xmlBuffer) return buildFailedResult('extract_failed', ['word/document.xml unreadable']);
+  if (!xmlBuffer) {
+    return buildFailedResult('extract_failed', ['word/document.xml unreadable'], { sourceType: 'docx', policy });
+  }
   const xml = xmlBuffer.toString('utf8');
   const paragraphs = parseDocxParagraphsFromXml(xml);
-  if (!paragraphs.length) return buildFailedResult('unsupported_scanned');
+  if (!paragraphs.length) return buildFailedResult('unsupported_scanned', [], { sourceType: 'docx', policy });
   return { ok: true, paragraphs, warnings: [] };
 };
 
@@ -214,7 +219,7 @@ export async function loadDocxExtractorRuntime({ refresh = false } = {}) {
   return cachedRuntime;
 }
 
-const extractWithMammoth = async (runtime, source) => {
+const extractWithMammoth = async (runtime, source, policy = null) => {
   const result = await runtime.mod.extractRawText({ buffer: source });
   const warnings = normalizeWarnings(result?.messages);
   const lines = String(result?.value || '')
@@ -226,7 +231,9 @@ const extractWithMammoth = async (runtime, source) => {
     if (!text) continue;
     paragraphs.push({ index: paragraphs.length + 1, text });
   }
-  if (!paragraphs.length) return buildFailedResult('unsupported_scanned', warnings);
+  if (!paragraphs.length) {
+    return buildFailedResult('unsupported_scanned', warnings, { sourceType: 'docx', policy });
+  }
   return { ok: true, paragraphs, warnings };
 };
 
@@ -241,17 +248,36 @@ export async function extractDocx({
   const source = Buffer.isBuffer(buffer)
     ? buffer
     : (filePath ? await fs.readFile(filePath) : null);
-  if (!source) return buildFailedResult('extract_failed', ['Missing file buffer']);
+  if (!source) {
+    return buildFailedResult('extract_failed', ['Missing file buffer'], {
+      sourceType: 'docx',
+      policy: resolvedPolicy
+    });
+  }
   if (source.length > resolvedPolicy.maxBytesPerFile) {
-    return buildFailedResult('oversize');
+    return buildFailedResult('oversize', [], {
+      sourceType: 'docx',
+      policy: resolvedPolicy
+    });
   }
   if (stubExtract) {
     const text = normalizeExtractedText(source.toString('utf8'));
-    if (!text) return buildFailedResult('unsupported_scanned');
+    if (!text) {
+      return buildFailedResult('unsupported_scanned', [], {
+        sourceType: 'docx',
+        policy: resolvedPolicy
+      });
+    }
     return {
       ok: true,
       paragraphs: [{ index: 1, text }],
       warnings: [],
+      fidelity: buildDocumentExtractionFidelity({
+        sourceType: 'docx',
+        status: 'ok',
+        warnings: [],
+        policy: resolvedPolicy
+      }),
       extractor: {
         name: 'docx-test-stub',
         version: 'test',
@@ -260,22 +286,36 @@ export async function extractDocx({
     };
   }
   if (isEncryptedDocxBuffer(source)) {
-    return buildFailedResult('unsupported_encrypted');
+    return buildFailedResult('unsupported_encrypted', [], {
+      sourceType: 'docx',
+      policy: resolvedPolicy
+    });
   }
   const runtime = await loadDocxExtractorRuntime();
-  if (!runtime.ok) return buildFailedResult('missing_dependency');
+  if (!runtime.ok) {
+    return buildFailedResult('missing_dependency', [], {
+      sourceType: 'docx',
+      policy: resolvedPolicy
+    });
+  }
   try {
     const parsed = await withTimeout(async () => {
       if (runtime.backend === 'mammoth') {
-        return extractWithMammoth(runtime, source);
+        return extractWithMammoth(runtime, source, resolvedPolicy);
       }
-      return parseDocxParagraphsFromBuffer(source);
+      return parseDocxParagraphsFromBuffer(source, resolvedPolicy);
     }, resolvedPolicy.extractTimeoutMs);
     if (!parsed.ok) return parsed;
     return {
       ok: true,
       paragraphs: parsed.paragraphs,
       warnings: normalizeWarnings(parsed.warnings),
+      fidelity: buildDocumentExtractionFidelity({
+        sourceType: 'docx',
+        status: 'ok',
+        warnings: parsed.warnings,
+        policy: resolvedPolicy
+      }),
       extractor: {
         name: runtime.name,
         version: runtime.version,
@@ -283,6 +323,9 @@ export async function extractDocx({
       }
     };
   } catch (err) {
-    return buildFailedResult(resolveDocxFailureReason(err), [err?.message]);
+    return buildFailedResult(resolveDocxFailureReason(err), [err?.message], {
+      sourceType: 'docx',
+      policy: resolvedPolicy
+    });
   }
 }

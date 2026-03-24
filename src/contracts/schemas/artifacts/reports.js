@@ -78,6 +78,46 @@ const extractionReportExtractor = {
   additionalProperties: false
 };
 
+const extractionReportPolicy = {
+  type: 'object',
+  required: ['maxBytesPerFile', 'maxPages', 'extractTimeoutMs', 'fidelityMode', 'qualitySensitive'],
+  properties: {
+    maxBytesPerFile: { type: 'number' },
+    maxPages: { type: 'number' },
+    extractTimeoutMs: { type: 'number' },
+    fidelityMode: { type: 'string', enum: ['permissive', 'quality-sensitive'] },
+    qualitySensitive: { type: 'boolean' }
+  },
+  additionalProperties: false
+};
+
+const extractionReportFidelity = {
+  type: 'object',
+  required: [
+    'schemaVersion',
+    'sourceType',
+    'state',
+    'status',
+    'reasonCode',
+    'policyMode',
+    'qualitySensitive',
+    'policyViolation',
+    'warningCount'
+  ],
+  properties: {
+    schemaVersion: posInt,
+    sourceType: { type: 'string', enum: ['pdf', 'docx'] },
+    state: { type: 'string', enum: ['complete', 'coverage_gap'] },
+    status: { type: 'string', enum: ['ok', 'skipped'] },
+    reasonCode: nullableString,
+    policyMode: { type: 'string', enum: ['permissive', 'quality-sensitive'] },
+    qualitySensitive: { type: 'boolean' },
+    policyViolation: { type: 'boolean' },
+    warningCount: intId
+  },
+  additionalProperties: false
+};
+
 const extractionReportFile = {
   type: 'object',
   required: [
@@ -93,7 +133,9 @@ const extractionReportFile = {
     'extractionConfigDigest',
     'extractionIdentityHash',
     'unitCounts',
-    'warnings'
+    'warnings',
+    'policy',
+    'fidelity'
   ],
   properties: {
     file: { type: 'string' },
@@ -122,7 +164,9 @@ const extractionReportFile = {
         { type: 'null' }
       ]
     },
-    warnings: { type: 'array', items: { type: 'string' } }
+    warnings: { type: 'array', items: { type: 'string' } },
+    policy: extractionReportPolicy,
+    fidelity: extractionReportFidelity
   },
   additionalProperties: false
 };
@@ -306,6 +350,8 @@ const extractionReportSchema = {
     'generatedAt',
     'chunkerVersion',
     'extractionConfigDigest',
+    'policy',
+    'coverage',
     'quality',
     'counts',
     'extractors',
@@ -317,6 +363,44 @@ const extractionReportSchema = {
     generatedAt: { type: 'string' },
     chunkerVersion: { type: 'string' },
     extractionConfigDigest: { type: 'string' },
+    policy: extractionReportPolicy,
+    coverage: {
+      type: 'object',
+      required: ['state', 'coverageLossCount', 'qualitySensitiveFailures', 'bySourceType'],
+      properties: {
+        state: { type: 'string', enum: ['complete', 'partial', 'missing'] },
+        coverageLossCount: intId,
+        qualitySensitiveFailures: intId,
+        bySourceType: {
+          type: 'object',
+          required: ['pdf', 'docx'],
+          properties: {
+            pdf: {
+              type: 'object',
+              required: ['total', 'ok', 'skipped'],
+              properties: {
+                total: intId,
+                ok: intId,
+                skipped: intId
+              },
+              additionalProperties: false
+            },
+            docx: {
+              type: 'object',
+              required: ['total', 'ok', 'skipped'],
+              properties: {
+                total: intId,
+                ok: intId,
+                skipped: intId
+              },
+              additionalProperties: false
+            }
+          },
+          additionalProperties: false
+        }
+      },
+      additionalProperties: false
+    },
     quality: extractionReportQuality,
     counts: {
       type: 'object',

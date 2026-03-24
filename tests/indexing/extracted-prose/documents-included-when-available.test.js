@@ -37,6 +37,9 @@ runExtractedProseBuild({ root, repoRoot, env });
 
 const { extraction } = await readExtractedProseArtifacts(repoRoot);
 assert.ok(extraction, 'expected document extraction summary in build_state');
+assert.equal(extraction?.schemaVersion, 2, 'expected document extraction summary schemaVersion=2');
+assert.equal(extraction?.policy?.fidelityMode, 'permissive', 'expected permissive default document extraction policy');
+assert.equal(extraction?.coverage?.state, 'complete', 'expected complete document coverage when both extractors succeed');
 
 const files = Array.isArray(extraction?.files) ? extraction.files : [];
 const pdfEntry = findFixtureEntryBySuffix(files, 'docs/sample.pdf');
