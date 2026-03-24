@@ -7,6 +7,7 @@ import { stableStringify } from '../shared/stable-json.js';
 import { atomicWriteText } from '../shared/io/atomic-write.js';
 import { readJsonFileSafe } from '../shared/files.js';
 import {
+  buildGenerationKey,
   resolveCacheScopedBuildIdRoot,
   resolveCacheScopedBuildPointerRoot
 } from '../shared/indexing/build-pointer.js';
@@ -423,6 +424,12 @@ const buildRepoManifestEntry = async (repoEntry, diagnostics) => {
       buildId: pointer.buildId,
       buildRoot: pointer.buildRoot,
       activeRoot: pointer.activeRoot,
+      generationKey: buildGenerationKey({
+        buildId: pointer.buildId,
+        buildRoot: pointer.buildRoot,
+        activeRoot: pointer.activeRoot,
+        buildRoots: pointer.buildRoots
+      }),
       buildRoots: pointer.buildRoots,
       modes: pointer.modes
     },
@@ -459,6 +466,8 @@ export const computeManifestHash = (manifestLike) => {
         currentJsonMtimeMs: Number.isFinite(Number(repo?.build?.currentJsonMtimeMs))
           ? Number(repo.build.currentJsonMtimeMs)
           : null,
+        activeRoot: repo?.build?.activeRoot || null,
+        generationKey: repo?.build?.generationKey || null,
         buildRoots: ensureObject(repo?.build?.buildRoots)
       },
       indexes: WORKSPACE_INDEX_MODES.reduce((acc, mode) => {

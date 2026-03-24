@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { getRepoCacheRoot } from '../../tools/shared/dict-utils.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
-import { generateWorkspaceManifest } from '../../src/workspace/manifest.js';
+import { computeManifestHash, generateWorkspaceManifest } from '../../src/workspace/manifest.js';
 import { toRealPathSync } from '../../src/workspace/identity.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 
@@ -116,6 +116,26 @@ const generateManifestFromWorkspace = async (workspacePath) => {
 
   const third = await generateManifestFromWorkspace(workspacePath);
   assert.equal(second.manifest.manifestHash, third.manifest.manifestHash, 'display-only edits must not change manifestHash');
+
+  const baseRepo = third.manifest.repos[0];
+  const shiftedGenerationHash = computeManifestHash({
+    ...third.manifest,
+    repos: [
+      {
+        ...baseRepo,
+        build: {
+          ...baseRepo.build,
+          activeRoot: path.join(cacheRoot, 'builds', 'build-1-shadow'),
+          generationKey: 'wm-test-generation-shift'
+        }
+      }
+    ]
+  });
+  assert.notEqual(
+    third.manifest.manifestHash,
+    shiftedGenerationHash,
+    'manifestHash should change when repo generation identity changes'
+  );
 }
 
 console.log('workspace manifest determinism/hash test passed');

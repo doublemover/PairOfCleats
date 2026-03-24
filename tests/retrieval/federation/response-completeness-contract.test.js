@@ -77,12 +77,15 @@ const response = await runFederatedSearch({
 
 assert.equal(response.ok, true);
 assert.equal(response.status, 'partial');
+assert.equal(response.partialSuccess, true);
 assert.deepEqual(response.meta?.completeness?.repoCounts, {
   complete: 1,
   partial: 1,
   degraded: 1,
   empty: 0
 });
+assert.equal(response.meta?.policy?.acceptPartialResults, true);
+assert.equal(response.meta?.policy?.responseStatus, 'partial');
 assert.deepEqual(
   searchCalls.slice().sort(),
   ['repo-complete', 'repo-fail'],
@@ -93,6 +96,7 @@ const completeRepo = response.repos.find((entry) => entry.repoId?.includes('repo
 assert.equal(completeRepo?.status, 'ok');
 assert.equal(completeRepo?.completeness, 'complete');
 assert.equal(completeRepo?.freshness?.buildId, 'test-build');
+assert.ok(completeRepo?.freshness?.generationKey, 'expected repo freshness to expose generation key');
 assert.equal(completeRepo?.modes?.fulfilled?.includes('code'), true);
 
 const failedRepo = response.repos.find((entry) => entry.repoId?.includes('repo-fail'));

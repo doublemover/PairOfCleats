@@ -41,5 +41,9 @@ assert.equal(
   toRealPathSync(buildRoot),
   'expected workspace manifest to preserve the canonical active build root'
 );
+assert.ok(
+  typeof manifest.repos[0]?.build?.generationKey === 'string' && manifest.repos[0].build.generationKey.length > 0,
+  'expected workspace manifest to expose a repo generation key'
+);
 
 console.log('workspace manifest schema validation test passed');

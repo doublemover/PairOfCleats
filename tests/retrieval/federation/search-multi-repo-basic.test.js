@@ -84,7 +84,11 @@ const response = await runFederatedSearch({
 assert.equal(response.ok, true);
 assert.equal(response.backend, 'federated');
 assert.equal(response.status, 'partial');
+assert.equal(response.partialSuccess, true);
 assert.equal(response.meta?.completeness?.status, 'partial');
+assert.equal(response.meta?.policy?.acceptPartialResults, true);
+assert.equal(response.meta?.policy?.responseStatus, 'partial');
+assert.equal(typeof response.meta?.manifestGeneratedAt, 'string');
 assert.equal(Array.isArray(response.code), true);
 assert.equal(response.code.length, 2, 'expected successful repos to contribute merged hits');
 assert.deepEqual(
@@ -111,6 +115,7 @@ assert.ok(
 const alphaRepo = diagnostics.find((entry) => entry.repoId && entry.status === 'ok');
 assert.equal(alphaRepo?.completeness, 'complete');
 assert.equal(alphaRepo?.freshness?.buildId, 'test-build');
+assert.ok(alphaRepo?.freshness?.generationKey, 'expected repo freshness to expose generation key');
 assert.equal(alphaRepo?.modes?.requested?.includes('code'), true);
 assert.equal(alphaRepo?.modes?.fulfilled?.includes('code'), true);
 const missingRepo = diagnostics.find((entry) => entry.status === 'missing_index');

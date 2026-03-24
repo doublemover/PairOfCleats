@@ -266,6 +266,8 @@ const buildRepoFreshness = (manifestRepo, requestedModes = [], manifestGenerated
   if (!manifestRepo || typeof manifestRepo !== 'object') {
     return {
       buildId: null,
+      activeBuildRoot: null,
+      generationKey: null,
       currentJsonMtimeMs: null,
       manifestGeneratedAt,
       byMode: {}
@@ -288,6 +290,8 @@ const buildRepoFreshness = (manifestRepo, requestedModes = [], manifestGenerated
   }
   return {
     buildId: manifestRepo.build?.buildId || null,
+    activeBuildRoot: manifestRepo.build?.activeRoot || null,
+    generationKey: manifestRepo.build?.generationKey || null,
     currentJsonMtimeMs: Number.isFinite(Number(manifestRepo.build?.currentJsonMtimeMs))
       ? Number(manifestRepo.build.currentJsonMtimeMs)
       : null,
@@ -337,6 +341,23 @@ const resolveFederatedResponseStatus = ({
   }
   return 'complete';
 };
+
+const buildRepoGenerationContext = (repoCaches = null) => (
+  repoCaches && typeof repoCaches === 'object'
+    ? {
+      buildId: repoCaches.buildId || null,
+      buildRoot: repoCaches.buildRoot || null,
+      activeBuildRoot: repoCaches.activeBuildRoot || null,
+      buildGenerationKey: repoCaches.buildGenerationKey || null
+    }
+    : null
+);
+
+const buildPolicyMeta = ({ strictFailures, responseStatus = null }) => ({
+  strictFailures: strictFailures === true,
+  acceptPartialResults: strictFailures !== true,
+  responseStatus
+});
 
 const isFederatedAbortError = (error, signal = null) => (
   isAbortError(error)
@@ -698,6 +719,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       meta: {
         repoSetId: workspaceConfig.repoSetId,
         manifestHash: manifest.manifestHash,
+        manifestGeneratedAt: manifest.generatedAt,
         workspace: workspaceMeta,
         selection: {
           selectedRepoIds: selection.selectedRepoIds,
@@ -717,8 +739,10 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
           merge: request.merge?.strategy || 'rrf',
           rrfK
         },
+        policy: buildPolicyMeta({ strictFailures, responseStatus: null }),
         completeness: null
       },
+      partialSuccess: false,
       code: [],
       prose: [],
       extractedProse: [],
@@ -740,6 +764,11 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
         empty: emptyResponse.repos.filter((entry) => entry.completeness === 'empty').length
       }
     };
+    emptyResponse.meta.policy = buildPolicyMeta({
+      strictFailures,
+      responseStatus: emptyResponse.status
+    });
+    emptyResponse.partialSuccess = emptyResponse.status === 'partial' || emptyResponse.status === 'degraded';
     const stable = toStableResponse(emptyResponse, includePaths);
     await persistCachedResult(stable);
     return stable;
@@ -817,7 +846,8 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
               exitOnError: false,
               indexCache: repoCaches?.indexCache || fallbackCaches.indexCache,
               sqliteCache: repoCaches?.sqliteCache || fallbackCaches.sqliteCache,
-              signal: context.signal || null
+              signal: context.signal || null,
+              generationContext: buildRepoGenerationContext(repoCaches)
             });
             if (result?.backend) combined.backend = result.backend;
             for (const mode of plan.modesCovered) {
@@ -943,6 +973,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     meta: {
       repoSetId: workspaceConfig.repoSetId,
       manifestHash: manifest.manifestHash,
+      manifestGeneratedAt: manifest.generatedAt,
       workspace: workspaceMeta,
       selection: {
         selectedRepoIds: selection.selectedRepoIds,
@@ -962,8 +993,10 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
         merge: request.merge?.strategy || 'rrf',
         rrfK
       },
+      policy: buildPolicyMeta({ strictFailures, responseStatus: null }),
       completeness: null
     },
+    partialSuccess: false,
     code: merged.code,
     prose: merged.prose,
     extractedProse: merged.extractedProse,
@@ -986,6 +1019,11 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       empty: response.repos.filter((entry) => entry.completeness === 'empty').length
     }
   };
+  response.meta.policy = buildPolicyMeta({
+    strictFailures,
+    responseStatus: response.status
+  });
+  response.partialSuccess = response.status === 'partial' || response.status === 'degraded';
 
   const stable = toStableResponse(response, includePaths);
   // Avoid pinning degraded non-strict responses when any repo failed during fanout.
