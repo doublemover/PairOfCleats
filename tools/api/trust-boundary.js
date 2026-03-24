@@ -76,6 +76,35 @@ export const evaluateApiTrustBoundary = ({
   };
 };
 
+export const buildApiTrustBoundaryStatusView = (trustBoundary) => ({
+  bind: {
+    scope: trustBoundary?.bind?.scope || 'unknown'
+  },
+  auth: {
+    required: trustBoundary?.auth?.required === true,
+    mode: trustBoundary?.auth?.mode || 'unknown'
+  },
+  repos: {
+    mode: trustBoundary?.repos?.mode || 'unknown',
+    allowedRepoRootCount: Array.isArray(trustBoundary?.repos?.effectiveAllowedRepoRoots)
+      ? trustBoundary.repos.effectiveAllowedRepoRoots.length
+      : 0
+  },
+  workspaces: {
+    policyRootCount: Array.isArray(trustBoundary?.workspaces?.policyRoots)
+      ? trustBoundary.workspaces.policyRoots.length
+      : 0
+  },
+  cors: {
+    allowAnyOrigin: trustBoundary?.cors?.allowAnyOrigin === true
+  },
+  effectiveBoundary: {
+    exposure: trustBoundary?.effectiveBoundary?.exposure || 'unknown',
+    authentication: trustBoundary?.effectiveBoundary?.authentication || 'unknown',
+    summary: trustBoundary?.effectiveBoundary?.summary || 'unknown'
+  }
+});
+
 export const validateApiTrustBoundary = (trustBoundary) => {
   const issues = [];
   if (!trustBoundary || typeof trustBoundary !== 'object') return issues;
@@ -87,6 +116,11 @@ export const validateApiTrustBoundary = (trustBoundary) => {
   if (trustBoundary.bind?.scope === 'non-local' && trustBoundary.auth?.allowUnauthenticated === true) {
     issues.push(
       'api-server refuses --allow-unauthenticated when binding to non-localhost.'
+    );
+  }
+  if (trustBoundary.bind?.scope === 'non-local' && trustBoundary.cors?.allowAnyOrigin === true) {
+    issues.push(
+      'api-server refuses --cors-allow-any when binding to non-localhost.'
     );
   }
   return issues;

@@ -26,6 +26,7 @@ import { handleIndexSnapshotsRoute } from './router/index-snapshots.js';
 import { handleContextPackRoute, handleRiskDeltaRoute, handleRiskExplainRoute } from './router/analysis.js';
 import { buildSearchParams, buildSearchPayloadFromQuery, isNoIndexError } from './router/search.js';
 import { getApiWorkflowCapabilities, getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
+import { buildApiTrustBoundaryStatusView } from './trust-boundary.js';
 import {
   attachObservability,
   buildChildObservability,
@@ -348,7 +349,11 @@ export const createApiRouter = ({
         }
         try {
           const payload = await status(repoPath);
-          sendJson(res, 200, { ok: true, status: payload }, corsHeaders || {});
+          sendJson(res, 200, {
+            ok: true,
+            status: payload,
+            trustBoundary: buildApiTrustBoundaryStatusView(trustBoundary)
+          }, corsHeaders || {});
         } catch (err) {
           sendError(res, 500, ERROR_CODES.INTERNAL, 'Failed to collect status.', {
             error: err?.message || String(err)

@@ -48,6 +48,16 @@ await expectStartupFailure({
   startupTimeoutMs: 5000
 }, /refuses --allow-unauthenticated/i);
 
+await expectStartupFailure({
+  repoRoot: fixtureRoot,
+  allowedRoots: [],
+  env,
+  host: '0.0.0.0',
+  authToken: 'remote-token',
+  corsAllowAny: true,
+  startupTimeoutMs: 5000
+}, /refuses --cors-allow-any/i);
+
 const localUnauthenticated = await startApiServer({
   repoRoot: fixtureRoot,
   allowedRoots: [allowedExtraRoot],

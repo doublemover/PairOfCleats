@@ -52,6 +52,12 @@ try {
   if (!status.body?.ok || !status.body.status?.repo?.root) {
     throw new Error('api-server /status response missing repo info');
   }
+  if (status.body?.trustBoundary?.effectiveBoundary?.summary !== serverInfo?.trustBoundary?.effectiveBoundary?.summary) {
+    throw new Error('api-server /status response missing effective trust boundary summary');
+  }
+  if (typeof status.body?.trustBoundary?.repos?.allowedRepoRootCount !== 'number') {
+    throw new Error('api-server /status response missing trust boundary counts');
+  }
   const statusBody = JSON.stringify(status.body);
   if (statusBody.includes(fixtureRoot) || statusBody.includes(cacheRoot)) {
     throw new Error('api-server /status response leaked absolute paths');
