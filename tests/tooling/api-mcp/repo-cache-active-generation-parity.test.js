@@ -9,7 +9,7 @@ import { createRepoCacheManager } from '../../../tools/shared/repo-cache-config.
 import { createRepoCacheManager as createApiRepoCacheManager } from '../../../tools/api/router/cache.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-repo-cache-generation-parity-'));
-let pointerWriteCounter = 0;
+const fixedTick = new Date('2026-03-23T00:00:00.000Z');
 
 const writeBuild = async (buildsRoot, buildId) => {
   const buildRoot = path.join(buildsRoot, buildId);
@@ -41,9 +41,7 @@ try {
       buildId: 'build-a',
       buildRoot: path.relative(repoCacheRoot, buildRoot).replace(/\\/g, '/')
     }, null, 2), 'utf8');
-    pointerWriteCounter += 1;
-    const tick = new Date(Date.now() + (pointerWriteCounter * 2000));
-    await fs.utimes(currentJsonPath, tick, tick);
+    await fs.utimes(currentJsonPath, fixedTick, fixedTick);
   };
 
   await writePointer(buildRootA);

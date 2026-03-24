@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
-import { resolveCurrentBuildRoots } from '../../../src/shared/indexing/build-pointer.js';
+import { readCurrentBuildGeneration } from '../../../src/shared/indexing/build-pointer.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
 import { startMcpServer } from '../../helpers/mcp-client.js';
@@ -20,10 +20,11 @@ const { fixtureRoot, env, userConfig } = await ensureFixtureIndex({
 });
 
 const repoCacheRoot = getRepoCacheRoot(fixtureRoot, userConfig);
-const currentInfo = resolveCurrentBuildRoots(
-  JSON.parse(await fsPromises.readFile(path.join(repoCacheRoot, 'builds', 'current.json'), 'utf8')),
-  { repoCacheRoot, buildsRoot: path.join(repoCacheRoot, 'builds') }
-);
+const currentInfo = readCurrentBuildGeneration({
+  currentJsonPath: path.join(repoCacheRoot, 'builds', 'current.json'),
+  repoCacheRoot,
+  buildsRoot: path.join(repoCacheRoot, 'builds')
+});
 
 const { send, readMessage, shutdown } = await startMcpServer({
   cacheRoot,
@@ -61,6 +62,11 @@ try {
     payload?.observability?.context?.activeBuildRoot,
     currentInfo.activeRoot,
     'expected MCP search result observability to expose the active generation root'
+  );
+  assert.equal(
+    payload?.observability?.context?.buildGenerationKey,
+    currentInfo.generationKey,
+    'expected MCP search result observability to expose the active generation key'
   );
 
   send({ jsonrpc: '2.0', id: 3, method: 'shutdown' });

@@ -1,11 +1,10 @@
 import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { LRUCache } from 'lru-cache';
 import { getRepoCacheRoot, loadUserConfig, resolveRepoRoot, toRealPathSync } from './dict-utils.js';
 import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
 import { createIndexCache } from '../../src/retrieval/index-cache.js';
-import { resolveCurrentBuildRoots } from '../../src/shared/indexing/build-pointer.js';
+import { readCurrentBuildGeneration } from '../../src/shared/indexing/build-pointer.js';
 import { incCacheEviction, setCacheSize } from '../../src/shared/metrics.js';
 import { defineCachePolicy, resolveCachePolicy } from '../../src/shared/cache/policy.js';
 
@@ -75,6 +74,9 @@ export const getRepoCacheGenerationContext = (entry = null) => {
     buildRoot: typeof entry.buildRoot === 'string' && entry.buildRoot.trim() ? entry.buildRoot : null,
     activeBuildRoot: typeof entry.activeBuildRoot === 'string' && entry.activeBuildRoot.trim()
       ? entry.activeBuildRoot
+      : null,
+    buildGenerationKey: typeof entry.buildGenerationKey === 'string' && entry.buildGenerationKey.trim()
+      ? entry.buildGenerationKey
       : null
   };
 };
@@ -137,22 +139,6 @@ export const createRepoCacheManager = ({
     }
   });
 
-  const buildGenerationKey = ({ buildId = null, buildRoot = null, activeRoot = null, buildRoots = null } = {}) => {
-    const normalizedBuildRoots = buildRoots && typeof buildRoots === 'object'
-      ? Object.fromEntries(
-        Object.entries(buildRoots)
-          .filter(([, value]) => typeof value === 'string' && value.trim())
-          .sort(([left], [right]) => left.localeCompare(right))
-      )
-      : {};
-    return JSON.stringify({
-      buildId: typeof buildId === 'string' && buildId.trim() ? buildId : null,
-      buildRoot: typeof buildRoot === 'string' && buildRoot.trim() ? buildRoot : null,
-      activeRoot: typeof activeRoot === 'string' && activeRoot.trim() ? activeRoot : null,
-      buildRoots: normalizedBuildRoots
-    });
-  };
-
   const buildRepoCacheEntry = (repoPath) => {
     const userConfig = loadUserConfig(repoPath);
     const repoCacheRoot = getRepoCacheRoot(repoPath, userConfig);
@@ -180,18 +166,13 @@ export const createRepoCacheManager = ({
 
   const refreshBuildPointer = async (entry) => {
     if (!entry?.buildPointerPath) return;
-    let stat = null;
-    try {
-      stat = await fsPromises.stat(entry.buildPointerPath);
-    } catch {
-      stat = null;
-    }
-    const nextMtime = stat?.mtimeMs || null;
-    if (entry.buildPointerMtimeMs && entry.buildPointerMtimeMs === nextMtime) {
-      return;
-    }
-    entry.buildPointerMtimeMs = nextMtime;
-    if (!stat) {
+    const nextPointerState = readCurrentBuildGeneration({
+      currentJsonPath: entry.buildPointerPath,
+      repoCacheRoot: entry.repoCacheRoot,
+      buildsRoot: entry.buildsRoot
+    });
+    entry.buildPointerMtimeMs = nextPointerState.currentJsonMtimeMs;
+    if (!nextPointerState.currentJsonExists) {
       if (entry.buildGenerationKey || entry.buildId || entry.buildRoot || entry.activeBuildRoot) {
         resetRepoEntry(entry);
       }
@@ -201,37 +182,22 @@ export const createRepoCacheManager = ({
       entry.buildGenerationKey = null;
       return;
     }
-    try {
-      const raw = await fsPromises.readFile(entry.buildPointerPath, 'utf8');
-      const data = JSON.parse(raw) || {};
-      const currentInfo = resolveCurrentBuildRoots(data, {
-        repoCacheRoot: entry.repoCacheRoot,
-        buildsRoot: entry.buildsRoot
-      });
-      const nextBuildId = typeof currentInfo.buildId === 'string' ? currentInfo.buildId : null;
-      const nextBuildRoot = typeof currentInfo.buildRoot === 'string' ? currentInfo.buildRoot : null;
-      const nextActiveRoot = typeof currentInfo.activeRoot === 'string' ? currentInfo.activeRoot : null;
-      const nextGenerationKey = buildGenerationKey({
-        buildId: nextBuildId,
-        buildRoot: nextBuildRoot,
-        activeRoot: nextActiveRoot,
-        buildRoots: currentInfo.buildRoots
-      });
-      const changed = entry.buildGenerationKey !== nextGenerationKey;
-      if (changed) {
-        resetRepoEntry(entry);
-      }
-      entry.buildId = nextBuildId;
-      entry.buildRoot = nextBuildRoot;
-      entry.activeBuildRoot = nextActiveRoot;
-      entry.buildGenerationKey = nextGenerationKey;
-    } catch {
+    if (!nextPointerState.parseOk) {
       resetRepoEntry(entry);
       entry.buildId = null;
       entry.buildRoot = null;
       entry.activeBuildRoot = null;
       entry.buildGenerationKey = null;
+      return;
     }
+    const changed = entry.buildGenerationKey !== nextPointerState.generationKey;
+    if (changed) {
+      resetRepoEntry(entry);
+    }
+    entry.buildId = nextPointerState.buildId;
+    entry.buildRoot = nextPointerState.buildRoot;
+    entry.activeBuildRoot = nextPointerState.activeRoot;
+    entry.buildGenerationKey = nextPointerState.generationKey;
   };
 
   const resolveRepoKey = (repoPath) => {

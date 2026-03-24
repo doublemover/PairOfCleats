@@ -4,7 +4,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
   BUILD_ROOT_SELECTION_SCOPES,
+  buildGenerationKey,
   findLatestBuildRootWithIndexes,
+  readCurrentBuildGeneration,
   resolveCanonicalBuildRoot,
   resolveCacheScopedBuildIdRoot,
   resolveCacheScopedBuildPointerRoot,
@@ -19,6 +21,7 @@ const root = process.cwd();
 const { dir: tempRoot } = await prepareIsolatedTestCacheDir('build-pointer', { root });
 const repoCacheRoot = path.join(tempRoot, 'repo-cache');
 const buildsRoot = path.join(repoCacheRoot, 'builds');
+const currentJsonPath = path.join(buildsRoot, 'current.json');
 const validRoot = path.join(buildsRoot, '20260211T000000Z-valid');
 const missingRoot = path.join(buildsRoot, '20260211T010000Z-missing');
 const rogueRoot = path.join(repoCacheRoot, '20260211T000000Z-valid');
@@ -66,6 +69,16 @@ assert.equal(
   normalizePath(validRoot),
   'expected active root fallback to skip empty index dirs'
 );
+assert.equal(
+  buildGenerationKey(resolved),
+  JSON.stringify({
+    buildId: resolved.buildId,
+    buildRoot: resolved.buildRoot,
+    activeRoot: resolved.activeRoot,
+    buildRoots: {}
+  }),
+  'expected build generation key to normalize canonical build roots'
+);
 
 const buildIdOnly = resolveCurrentBuildRoots(
   {
@@ -112,6 +125,29 @@ assert.equal(
   normalizePath(canonical.root),
   normalizePath(validRoot),
   'expected canonical resolver to avoid repo-root pointers when active generation exists'
+);
+
+await fs.writeFile(currentJsonPath, JSON.stringify({
+  buildId: '20260211T000000Z-valid',
+  buildRoot: validRoot
+}, null, 2), 'utf8');
+const generation = readCurrentBuildGeneration({
+  currentJsonPath,
+  repoCacheRoot,
+  buildsRoot,
+  preferredMode: 'code'
+});
+assert.equal(generation.currentJsonExists, true, 'expected current build pointer to exist');
+assert.equal(generation.parseOk, true, 'expected current build pointer to parse');
+assert.equal(
+  normalizePath(generation.activeRoot),
+  normalizePath(validRoot),
+  'expected current build generation to resolve the active root'
+);
+assert.equal(
+  generation.generationKey,
+  buildGenerationKey(generation),
+  'expected current build generation reader to use the canonical generation key'
 );
 
 await fs.rm(tempRoot, { recursive: true, force: true });

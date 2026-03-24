@@ -26,6 +26,7 @@ const userConfig = loadUserConfig(repoRoot);
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
 const buildsRoot = path.join(repoCacheRoot, 'builds');
 const currentPath = path.join(buildsRoot, 'current.json');
+const fixedTick = new Date('2026-03-23T00:00:00.000Z');
 
 const buildRootA = await writeBuild(buildsRoot, 'build-a');
 const buildRootB = await writeBuild(buildsRoot, 'build-b');
@@ -33,6 +34,7 @@ await fs.writeFile(currentPath, JSON.stringify({
   buildId: 'build-a',
   buildRoot: 'builds/build-a'
 }, null, 2), 'utf8');
+await fs.utimes(currentPath, fixedTick, fixedTick);
 
 const manager = createRepoCacheManager({ defaultRepo: repoRoot });
 const entry = manager.getRepoCaches(repoRoot);
@@ -50,6 +52,7 @@ await fs.writeFile(currentPath, JSON.stringify({
   buildId: 'build-a',
   buildRoot: 'builds/build-b'
 }, null, 2), 'utf8');
+await fs.utimes(currentPath, fixedTick, fixedTick);
 
 await manager.refreshBuildPointer(entry);
 
