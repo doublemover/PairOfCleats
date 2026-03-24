@@ -29,6 +29,8 @@ const report = buildSuggestTestsReport({
 });
 
 assert.strictEqual(report.suggestions.length, 1, 'expected suggestions to be bounded');
+assert.equal(report.fidelity?.source, 'graph', 'expected bounded suggestions to stay graph-backed');
+assert.equal(report.fidelity?.state, 'complete', 'expected maxSuggestions truncation not to degrade source fidelity');
 assert(
   Array.isArray(report.truncation) && report.truncation.some((entry) => entry.cap === 'maxSuggestions'),
   'expected maxSuggestions truncation record'

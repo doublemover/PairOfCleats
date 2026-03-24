@@ -24,6 +24,14 @@ const DEFAULT_EXCLUDED_DIRS = new Set([
 const TEST_EXTENSIONS = new Set(['.js', '.cjs', '.mjs', '.ts', '.tsx', '.jsx']);
 const TEST_MATCHER_CACHE_MAX = 8;
 const TEST_DISCOVERY_CACHE_MAX = 4;
+const SUGGEST_TESTS_FIDELITY_SCHEMA_VERSION = 1;
+const SUGGEST_TESTS_REASON_CODES = Object.freeze({
+  GRAPH_MISSING: 'graph_missing',
+  GRAPH_NO_MATCHES: 'graph_no_matches',
+  TRAVERSAL_CAPPED: 'traversal_capped',
+  CANDIDATE_TRUNCATED: 'candidate_truncated'
+});
+const TRAVERSAL_TRUNCATION_CAPS = new Set(['maxNodes', 'maxEdges', 'maxWorkUnits']);
 const testMatcherCache = new Map();
 const testDiscoveryCache = new Map();
 
@@ -226,10 +234,75 @@ const buildFallbackSuggestions = (changed, tests) => {
       testPath,
       score: best.score,
       reason: best.reason,
-      witnessPath: null
+      witnessPath: null,
+      fidelity: {
+        source: 'heuristic',
+        state: 'fallback',
+        reasonCodes: [],
+        matchKind: best.reason.startsWith('name match:') ? 'name' : 'path-proximity',
+        graphDistance: null
+      }
     });
   }
   return suggestions;
+};
+
+const buildSuggestTestsFidelity = ({
+  graphAvailable = false,
+  graphUsed = false,
+  graphSuggestions = 0,
+  heuristicUsed = false,
+  visitedNodes = 0,
+  edgesVisited = 0,
+  workUnits = 0,
+  traversalCapsHit = [],
+  candidateTruncated = false
+} = {}) => {
+  const reasonCodes = [];
+  if (!graphAvailable) reasonCodes.push(SUGGEST_TESTS_REASON_CODES.GRAPH_MISSING);
+  if (graphAvailable && graphUsed && graphSuggestions === 0) {
+    reasonCodes.push(SUGGEST_TESTS_REASON_CODES.GRAPH_NO_MATCHES);
+  }
+  if (Array.isArray(traversalCapsHit) && traversalCapsHit.length) {
+    reasonCodes.push(SUGGEST_TESTS_REASON_CODES.TRAVERSAL_CAPPED);
+  }
+  if (candidateTruncated) {
+    reasonCodes.push(SUGGEST_TESTS_REASON_CODES.CANDIDATE_TRUNCATED);
+  }
+  const source = heuristicUsed
+    ? 'heuristic'
+    : graphSuggestions > 0
+      ? 'graph'
+      : 'none';
+  const state = source === 'graph'
+    ? reasonCodes.some((code) => (
+      code === SUGGEST_TESTS_REASON_CODES.TRAVERSAL_CAPPED
+      || code === SUGGEST_TESTS_REASON_CODES.CANDIDATE_TRUNCATED
+    ))
+      ? 'partial'
+      : 'complete'
+    : source === 'heuristic'
+      ? 'fallback'
+      : 'missing';
+  return {
+    schemaVersion: SUGGEST_TESTS_FIDELITY_SCHEMA_VERSION,
+    source,
+    state,
+    reasonCodes,
+    graph: {
+      available: graphAvailable,
+      used: graphUsed,
+      matchedSuggestions: graphSuggestions,
+      visitedNodes,
+      edgesVisited,
+      workUnits,
+      traversalCapsHit: Array.isArray(traversalCapsHit) ? traversalCapsHit.slice() : [],
+      candidateTruncated
+    },
+    heuristic: {
+      used: heuristicUsed
+    }
+  };
 };
 
 export const buildSuggestTestsReport = ({
@@ -311,8 +384,13 @@ export const buildSuggestTestsReport = ({
 
   let suggestions = [];
   const graphAvailable = Boolean(graphRelations && graphRelations.importGraph);
+  let graphUsed = false;
+  let edgesVisited = 0;
+  let workUnits = 0;
+  let visitedNodeCount = 0;
 
   if (graphAvailable && seeds.length && testList.length) {
+    graphUsed = true;
     const { incoming } = buildImportGraphIndex(graphRelations, repoRoot);
     const queue = [];
     const visited = new Map();
@@ -322,8 +400,6 @@ export const buildSuggestTestsReport = ({
       queue.push({ path: seed, distance: 0, trail });
     }
     let queueIndex = 0;
-    let edgesVisited = 0;
-    let workUnits = 0;
     let stopTraversal = false;
     while (queueIndex < queue.length && !stopTraversal) {
       const current = queue[queueIndex];
@@ -377,9 +453,17 @@ export const buildSuggestTestsReport = ({
         testPath,
         score,
         reason: `graph distance ${entry.distance}`,
-        witnessPath: buildWitnessPath(entry.trail)
+        witnessPath: buildWitnessPath(entry.trail),
+        fidelity: {
+          source: 'graph',
+          state: 'complete',
+          reasonCodes: [],
+          matchKind: 'graph-distance',
+          graphDistance: entry.distance
+        }
       });
     }
+    visitedNodeCount = visited.size;
   }
 
   if (!suggestions.length && testList.length) {
@@ -397,6 +481,57 @@ export const buildSuggestTestsReport = ({
       });
     }
     suggestions = buildFallbackSuggestions(seeds, testList);
+  }
+
+  const truncationCaps = new Set(truncation.list.map((entry) => entry.cap));
+  const traversalCapsHit = Array.from(new Set(
+    truncation.list
+      .map((entry) => String(entry?.cap || '').trim())
+      .filter((cap) => TRAVERSAL_TRUNCATION_CAPS.has(cap))
+  ));
+  const candidateTruncated = truncationCaps.has('maxCandidates');
+  const heuristicUsed = suggestions.some((entry) => entry?.fidelity?.source === 'heuristic');
+  const fidelity = buildSuggestTestsFidelity({
+    graphAvailable,
+    graphUsed,
+    graphSuggestions: suggestions.filter((entry) => entry?.fidelity?.source === 'graph').length,
+    heuristicUsed,
+    visitedNodes: visitedNodeCount,
+    edgesVisited,
+    workUnits,
+    traversalCapsHit,
+    candidateTruncated
+  });
+
+  if (fidelity.source === 'graph' && fidelity.state === 'partial') {
+    const graphReasonCodes = fidelity.reasonCodes.filter((code) => (
+      code === SUGGEST_TESTS_REASON_CODES.TRAVERSAL_CAPPED
+      || code === SUGGEST_TESTS_REASON_CODES.CANDIDATE_TRUNCATED
+    ));
+    suggestions = suggestions.map((entry) => (
+      entry?.fidelity?.source === 'graph'
+        ? {
+          ...entry,
+          fidelity: {
+            ...entry.fidelity,
+            state: 'partial',
+            reasonCodes: graphReasonCodes
+          }
+        }
+        : entry
+    ));
+  } else if (heuristicUsed && fidelity.reasonCodes.length) {
+    suggestions = suggestions.map((entry) => (
+      entry?.fidelity?.source === 'heuristic'
+        ? {
+          ...entry,
+          fidelity: {
+            ...entry.fidelity,
+            reasonCodes: fidelity.reasonCodes.slice()
+          }
+        }
+        : entry
+    ));
   }
 
   suggestions.sort((a, b) => {
@@ -430,6 +565,7 @@ export const buildSuggestTestsReport = ({
     provenance: resolvedProvenance,
     changed: changedEntries,
     suggestions,
+    fidelity,
     truncation: truncation.list.length ? truncation.list : null,
     warnings: warnings.length ? warnings : null
   };

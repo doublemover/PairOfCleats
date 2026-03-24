@@ -23,5 +23,7 @@ const entry = report.suggestions.find((item) => item.testPath === 'tests/unit/li
 assert(entry, 'expected lib.test.js suggestion');
 assert(entry.witnessPath, 'expected witnessPath to be present');
 assert(entry.witnessPath.nodes.length >= 2, 'expected witness path to include at least two nodes');
+assert.equal(entry.fidelity?.graphDistance, 1, 'expected graph-backed suggestion to expose graph distance');
+assert.deepEqual(entry.fidelity?.reasonCodes, [], 'expected direct graph-backed witness suggestion to avoid degradation codes');
 
 console.log('suggest-tests witness path test passed');
