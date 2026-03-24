@@ -55,6 +55,13 @@ assert.ok(retried?.job?.id, 'expected manual retry to create a fresh queue job')
 
 const inspection = await inspectJobReplayState(queueDir, retried.job.id, 'index');
 assert.equal(inspection?.deliverySemantics, 'at-least-once');
+assert.equal(inspection?.deliveryContract?.semantics, 'at-least-once');
+assert.equal(inspection?.deliveryContract?.idempotencyKey, inspection?.job?.idempotencyKey || null);
+assert.equal(
+  inspection?.deliveryContract?.sideEffectFences?.reportWrite,
+  'atomic-report-path',
+  'expected replay inspection to expose report-write idempotency fence'
+);
 assert.equal(inspection?.job?.delivery?.replayOfJobId, 'job-original');
 assert.equal(inspection?.job?.replayHistory?.some((entry) => entry?.action === 'manual-retry-created'), true);
 assert.equal(inspection?.relatedJobs?.some((entry) => entry?.id === 'job-original'), true);

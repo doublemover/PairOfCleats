@@ -4,7 +4,9 @@ import path from 'node:path';
 import { isLockStale, isProcessAlive, readLockInfo } from '../../src/shared/locks/file-lock.js';
 import { resolveQueueLeasePolicy } from './lease-policy.js';
 import {
+  buildQueueJobDeliveryContract,
   getQueuePaths,
+  listDuplicateJobGroups,
   loadQueue,
   loadQuarantine,
   purgeQuarantinedJobs,
@@ -164,11 +166,12 @@ export async function describeOrphanArtifacts(dirPath, queueName = null) {
 }
 
 export async function inspectRepairState(dirPath, queueName = null, { jobId = null } = {}) {
-  const [queue, quarantine, locks, orphans] = await Promise.all([
+  const [queue, quarantine, locks, orphans, duplicateGroups] = await Promise.all([
     loadQueue(dirPath, queueName),
     loadQuarantine(dirPath, queueName),
     describeRepairLocks(dirPath, queueName),
-    describeOrphanArtifacts(dirPath, queueName)
+    describeOrphanArtifacts(dirPath, queueName),
+    listDuplicateJobGroups(dirPath, queueName)
   ]);
   const runningJobs = queue.jobs.filter((job) => job?.status === 'running');
   const heartbeat = runningJobs.map((job) => summarizeHeartbeatJob(job));
@@ -199,11 +202,12 @@ export async function inspectRepairState(dirPath, queueName = null, { jobId = nu
       jobs: heartbeat
     },
     locks,
+    duplicateGroups,
     orphans: {
       logs: orphans.logs,
       reports: orphans.reports
     },
-    ...(job ? { job } : {})
+    ...(job ? { job, deliveryContract: buildQueueJobDeliveryContract(job) } : {})
   };
 }
 

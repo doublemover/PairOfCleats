@@ -177,6 +177,16 @@ const retryActual = runCli('retry', '--config', configPath, '--job', 'job-repair
 assert.equal(retryActual.ok, true);
 assert.notEqual(retryActual.job?.id, 'job-repair-retry');
 
+const inspectRetriedPayload = runCli('inspect', '--config', configPath, '--job', retryActual.job.id, '--json');
+assert.equal(Array.isArray(inspectRetriedPayload.duplicateGroups), true, 'expected inspect to surface duplicate job groups');
+assert.equal(inspectRetriedPayload.duplicateGroups.length >= 1, true, 'expected retried job to remain inspectable as a duplicate group');
+assert.equal(inspectRetriedPayload.deliveryContract?.semantics, 'at-least-once');
+assert.equal(
+  inspectRetriedPayload.deliveryContract?.sideEffectFences?.duplicateSuppression,
+  'idempotency-key-active-scan',
+  'expected inspect to expose duplicate-suppression fence'
+);
+
 const purgeDryRun = runCli('purge', '--config', configPath, '--job', 'job-repair-retry', '--dry-run', '--json');
 assert.equal(purgeDryRun.ok, true);
 assert.equal(purgeDryRun.dryRun, true);

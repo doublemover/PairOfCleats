@@ -23,6 +23,14 @@ import { normalizeObservability } from '../../src/shared/observability.js';
 
 const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
 const VALID_JOB_STATUSES = new Set(['queued', 'running', 'done', 'failed']);
+const QUEUE_DELIVERY_SEMANTICS = 'at-least-once';
+const QUEUE_SIDE_EFFECT_FENCES = Object.freeze({
+  queueMutation: 'lease-version-guarded',
+  duplicateSuppression: 'idempotency-key-active-scan',
+  reportWrite: 'atomic-report-path',
+  quarantineStore: 'replace-by-job-id',
+  journal: 'append-only-replayable'
+});
 const ALLOWED_TRANSITIONS = Object.freeze({
   queued: new Set(['running', 'failed']),
   running: new Set(['queued', 'done', 'failed']),
@@ -183,7 +191,7 @@ const normalizeDelivery = (job = {}) => {
     ? job.replayHistory.map((entry) => normalizeReplayEvent(entry))
     : [];
   return {
-    semantics: 'at-least-once',
+    semantics: QUEUE_DELIVERY_SEMANTICS,
     claimCount: Number.isFinite(Number(delivery?.claimCount))
       ? Math.max(0, Math.trunc(Number(delivery.claimCount)))
       : attemptHistory.length,
@@ -199,6 +207,21 @@ const normalizeDelivery = (job = {}) => {
     replayOfJobId: typeof delivery?.replayOfJobId === 'string' && delivery.replayOfJobId.trim()
       ? delivery.replayOfJobId.trim()
       : null
+  };
+};
+
+export const buildQueueJobDeliveryContract = (job = {}) => {
+  const delivery = normalizeDelivery(job);
+  return {
+    semantics: delivery.semantics || QUEUE_DELIVERY_SEMANTICS,
+    idempotencyKey: job?.idempotencyKey || null,
+    attemptCounts: {
+      claims: delivery.claimCount,
+      replays: delivery.replayCount
+    },
+    activeAttemptId: delivery.activeAttemptId || null,
+    replayOfJobId: delivery.replayOfJobId || null,
+    sideEffectFences: { ...QUEUE_SIDE_EFFECT_FENCES }
   };
 };
 
@@ -1186,6 +1209,7 @@ export async function completeJob(dirPath, jobId, status, result, queueName = nu
       await atomicWriteJson(reportPath, {
         updatedAt: nowIso,
         status: job.status,
+        deliveryContract: buildQueueJobDeliveryContract(job),
         job
       }, { spaces: 2 });
     } catch {}
@@ -1285,6 +1309,7 @@ export async function quarantineJob(dirPath, jobId, reason, queueName = null, op
         updatedAt: nowIso,
         status: job.status,
         quarantined: true,
+        deliveryContract: buildQueueJobDeliveryContract(job),
         job
       }, { spaces: 2 });
     } catch {}
@@ -1503,6 +1528,7 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
           updatedAt: update.nowIso,
           status: update.job.status,
           quarantined: update.quarantined,
+          deliveryContract: buildQueueJobDeliveryContract(update.job),
           job: update.job
         }, { spaces: 2 });
       } catch {}
@@ -1547,6 +1573,7 @@ export async function listDuplicateJobGroups(dirPath, queueName = null) {
     .filter(([, jobs]) => jobs.length > 1)
     .map(([idempotencyKey, jobs]) => ({
       idempotencyKey,
+      deliverySemantics: QUEUE_DELIVERY_SEMANTICS,
       jobs: jobs.slice().sort((left, right) => String(left.id || '').localeCompare(String(right.id || '')))
     }))
     .sort((left, right) => String(left.idempotencyKey || '').localeCompare(String(right.idempotencyKey || '')));
@@ -1587,7 +1614,8 @@ export async function inspectJobReplayState(dirPath, jobId, queueName = null) {
       quarantine: job.quarantine || null
     },
     relatedJobs,
-    deliverySemantics: 'at-least-once'
+    deliverySemantics: QUEUE_DELIVERY_SEMANTICS,
+    deliveryContract: buildQueueJobDeliveryContract(job)
   };
 }
 
