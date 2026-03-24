@@ -32,9 +32,17 @@ if (!storedRecord.exposure || storedRecord.exposure.internetExposed !== true) {
   console.error('Exposure metadata not preserved in stored record.');
   process.exit(1);
 }
+if (storedRecord.idProvenance?.method !== 'stable-key' || storedRecord.idProvenance?.source !== 'stableKey') {
+  console.error('Expected generic ingest to preserve stable-key ID provenance.');
+  process.exit(1);
+}
 const recordMarkdown = await fsPromises.readFile(recordMdPath, 'utf8');
 if (!recordMarkdown.includes('## Exposure') || !recordMarkdown.includes('Internet exposed')) {
   console.error('Exposure metadata not rendered in record markdown.');
+  process.exit(1);
+}
+if (!recordMarkdown.includes('## Record identity') || !recordMarkdown.includes('Method: stable-key')) {
+  console.error('ID provenance not rendered in record markdown.');
   process.exit(1);
 }
 

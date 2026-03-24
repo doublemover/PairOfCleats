@@ -297,6 +297,7 @@ export function getToolDefs(defaultModelId) {
           source: { type: 'string', enum: ['dependabot', 'aws_inspector', 'generic', 'manual'] },
           inputPath: { type: 'string', description: 'Input JSON/JSONL file.' },
           meta: { type: 'object', description: 'Routing metadata (service/env/team/owner/etc).' },
+          strict: { type: 'boolean', description: 'Fail when malformed JSONL records are encountered.' },
           buildIndex: { type: 'boolean', description: 'Build the records index after ingest.' },
           incremental: { type: 'boolean', description: 'Use incremental indexing if enabled.' },
           stubEmbeddings: { type: 'boolean', description: 'Use stub embeddings for indexing.' }

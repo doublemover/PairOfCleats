@@ -1,4 +1,5 @@
 import {
+  buildStableKeyCandidate,
   buildBaseRecord,
   ensureRecordId,
   normalizeExposure,
@@ -111,8 +112,12 @@ export function normalizeAwsInspector(raw, meta = {}, options = {}) {
   const exposure = normalizeExposure(raw, meta);
   if (exposure) record.exposure = exposure;
 
-  let stableKey = pickFirst(raw?.findingArn, raw?.arn, raw?.id);
-  if (!stableKey && vulnId && assetId) stableKey = `${vulnId}:${assetId}`;
+  let stableKey = buildStableKeyCandidate('findingArn', raw?.findingArn)
+    || buildStableKeyCandidate('arn', raw?.arn)
+    || buildStableKeyCandidate('id', raw?.id);
+  if (!stableKey && vulnId && assetId) {
+    stableKey = buildStableKeyCandidate('vulnId-assetId', `${vulnId}:${assetId}`);
+  }
 
   ensureRecordId(record, record.source, stableKey, raw, warnings);
 

@@ -26,6 +26,39 @@ export function pickFirst(...values) {
 }
 
 /**
+ * Return the first labeled non-empty value from a list.
+ * @param {Array<[string, unknown]>} entries
+ * @returns {{value:string,source:string}|null}
+ */
+export function pickFirstLabeled(entries = []) {
+  for (const [source, value] of Array.isArray(entries) ? entries : []) {
+    const resolved = pickFirst(value);
+    if (resolved) {
+      return {
+        value: resolved,
+        source: String(source || 'unknown')
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Build a normalized stable-key candidate descriptor.
+ * @param {string} source
+ * @param {unknown} value
+ * @returns {{value:string,source:string}|null}
+ */
+export function buildStableKeyCandidate(source, value) {
+  const resolved = pickFirst(value);
+  if (!resolved) return null;
+  return {
+    value: resolved,
+    source: pickFirst(source) || 'stableKey'
+  };
+}
+
+/**
  * Convert a value into an ISO timestamp, or null.
  * @param {unknown} value
  * @returns {string|null}
@@ -96,14 +129,44 @@ export function buildBaseRecord({ source, recordType, meta, repoRoot, createdAt,
  * @returns {void}
  */
 export function ensureRecordId(record, source, stableKey, raw, warnings) {
-  if (!record || typeof record !== 'object' || record.recordId) return;
-  let key = stableKey;
+  if (!record || typeof record !== 'object') return;
+  const stableCandidate = stableKey && typeof stableKey === 'object' && !Array.isArray(stableKey)
+    ? {
+      value: pickFirst(stableKey.value),
+      source: pickFirst(stableKey.source) || 'stableKey'
+    }
+    : {
+      value: pickFirst(stableKey),
+      source: 'stableKey'
+    };
+  if (record.recordId) {
+    record.idProvenance = {
+      method: 'stable-key',
+      stability: 'stable',
+      source: stableCandidate.value ? stableCandidate.source : 'recordId'
+    };
+    return;
+  }
+  let key = stableCandidate.value;
+  let idProvenance = null;
   if (!key) {
     const fallback = raw && typeof raw === 'object' ? safeStringifyFallback(raw) : String(raw ?? 'unknown');
     key = fallback || 'unknown';
     if (Array.isArray(warnings)) warnings.push('missing stable key; using raw payload hash');
+    idProvenance = {
+      method: 'fallback-hash',
+      stability: 'lower-trust',
+      source: 'raw-payload-hash'
+    };
+  } else {
+    idProvenance = {
+      method: 'stable-key',
+      stability: 'stable',
+      source: stableCandidate.source || 'stableKey'
+    };
   }
   record.recordId = buildRecordId(source, key);
+  record.idProvenance = idProvenance;
 }
 
 const MAX_FALLBACK_BYTES = 16384;

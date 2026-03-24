@@ -1,4 +1,5 @@
 import {
+  buildStableKeyCandidate,
   buildBaseRecord,
   ensureRecordId,
   normalizeExposure,
@@ -79,7 +80,22 @@ export function normalizeGeneric(raw, meta = {}, options = {}) {
   const exposure = normalizeExposure(raw, meta);
   if (exposure) record.exposure = exposure;
 
-  const stableKey = pickFirst(record.stableKey, record.recordId, vulnId, record.package?.name, record.asset?.assetId);
+  const stableKey = buildStableKeyCandidate(
+    'stableKey',
+    record.stableKey
+  ) || buildStableKeyCandidate(
+    'recordId',
+    record.recordId
+  ) || buildStableKeyCandidate(
+    'vulnId',
+    vulnId
+  ) || buildStableKeyCandidate(
+    'package.name',
+    record.package?.name
+  ) || buildStableKeyCandidate(
+    'asset.assetId',
+    record.asset?.assetId
+  );
   ensureRecordId(record, record.source, stableKey, raw, warnings);
 
   if (options.storeRawPayload) record.raw = raw;

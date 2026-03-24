@@ -24,6 +24,7 @@ export async function triageIngest(args = {}, context = {}) {
   const metaFilters = normalizeMetaFilters(args.meta);
   const ingestArgs = [path.join(toolRoot, 'tools', 'triage', 'ingest.js'), '--source', source, '--in', resolvedInput];
   ingestArgs.push('--repo', repoPath);
+  if (args.strict === true) ingestArgs.push('--strict');
   if (Array.isArray(metaFilters)) {
     metaFilters.forEach((entry) => ingestArgs.push('--meta', entry));
   }
