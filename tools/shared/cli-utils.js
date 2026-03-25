@@ -1,7 +1,12 @@
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
-import { resolveWindowsCmdInvocation } from '../../src/shared/subprocess/windows-cmd.js';
+import {
+  resolveWindowsCmdInvocation,
+  resolveWindowsCmdShimPath
+} from '../../src/shared/subprocess/windows-cmd.js';
 
-const shouldUseCmdShell = (command) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(String(command || ''));
+const shouldUseCmdShell = (command, env = process.env) => (
+  process.platform === 'win32' && Boolean(resolveWindowsCmdShimPath(command, env))
+);
 
 /**
  * Exit current process using child-command exit semantics.
@@ -39,8 +44,9 @@ export function exitLikeCommandResult(result, proc = process) {
  */
 export function runCommand(cmd, args, options = {}) {
   const resolvedArgs = Array.isArray(args) ? args : [];
-  const invocation = shouldUseCmdShell(cmd)
-    ? resolveWindowsCmdInvocation(cmd, resolvedArgs)
+  const effectiveEnv = options.env || process.env;
+  const invocation = shouldUseCmdShell(cmd, effectiveEnv)
+    ? resolveWindowsCmdInvocation(cmd, resolvedArgs, effectiveEnv)
     : { command: cmd, args: resolvedArgs };
   const maxOutputBytes = Number.isFinite(Number(options.maxOutputBytes))
     ? Number(options.maxOutputBytes)
@@ -51,8 +57,8 @@ export function runCommand(cmd, args, options = {}) {
   const result = spawnSubprocessSync(invocation.command, invocation.args, {
     cwd: options.cwd,
     env: invocation.env
-      ? { ...(options.env || process.env), ...invocation.env }
-      : options.env,
+      ? { ...effectiveEnv, ...invocation.env }
+      : effectiveEnv,
     stdio: options.stdio,
     input: options.input,
     shell: options.shell,

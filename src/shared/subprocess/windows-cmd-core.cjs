@@ -41,7 +41,7 @@ function splitPathEntries(envPath) {
     .filter(Boolean);
 }
 
-function resolveCommandPath(cmd) {
+function resolveCommandPath(cmd, env = process.env) {
   const raw = String(cmd || '').trim();
   if (!raw) return '';
   if (path.isAbsolute(raw)) return fs.existsSync(raw) ? raw : '';
@@ -49,9 +49,34 @@ function resolveCommandPath(cmd) {
     const candidate = path.resolve(raw);
     return fs.existsSync(candidate) ? candidate : '';
   }
-  for (const dir of splitPathEntries(process.env.PATH || process.env.Path || process.env.path || '')) {
+  const envPath = env?.PATH || env?.Path || env?.path || '';
+  for (const dir of splitPathEntries(envPath)) {
     const candidate = path.join(dir, raw);
     if (fs.existsSync(candidate)) return candidate;
+  }
+  return '';
+}
+
+function resolveWindowsCmdShimPath(cmd, env = process.env) {
+  const raw = String(cmd || '').trim();
+  if (!raw) return '';
+  const ext = path.extname(raw).toLowerCase();
+  if (ext === '.cmd' || ext === '.bat') {
+    return resolveCommandPath(raw, env);
+  }
+  if (ext) return '';
+
+  if (path.isAbsolute(raw) || /[\\/]/u.test(raw)) {
+    for (const candidateExt of ['.cmd', '.bat']) {
+      const candidate = `${raw}${candidateExt}`;
+      if (fs.existsSync(candidate)) return candidate;
+    }
+    return '';
+  }
+
+  for (const candidateExt of ['.cmd', '.bat']) {
+    const resolved = resolveCommandPath(`${raw}${candidateExt}`, env);
+    if (resolved) return resolved;
   }
   return '';
 }
@@ -128,25 +153,26 @@ function buildWindowsCmdShellInvocation(cmdPath, args = []) {
   };
 }
 
-function resolveWindowsCmdInvocation(cmd, args = []) {
+function resolveWindowsCmdInvocation(cmd, args = [], env = process.env) {
   const raw = String(cmd || '').trim();
-  if (!/\.(cmd|bat)$/iu.test(raw)) {
-    return { command: cmd, args: Array.isArray(args) ? [...args] : [] };
-  }
-  const resolvedPath = resolveCommandPath(raw);
-  if (!resolvedPath) {
+  const resolvedShimPath = resolveWindowsCmdShimPath(raw, env);
+  if (!resolvedShimPath && /\.(cmd|bat)$/iu.test(raw)) {
     const error = new Error(`Windows wrapper command not found: ${cmd}`);
     error.code = 'ERR_WINDOWS_CMD_NOT_FOUND';
     throw error;
   }
-  const shimInvocation = maybeResolveWindowsCmdShim(resolvedPath, args);
+  if (!resolvedShimPath) {
+    return { command: cmd, args: Array.isArray(args) ? [...args] : [] };
+  }
+  const shimInvocation = maybeResolveWindowsCmdShim(resolvedShimPath, args);
   if (shimInvocation) return shimInvocation;
-  return buildWindowsCmdShellInvocation(resolvedPath, args);
+  return buildWindowsCmdShellInvocation(resolvedShimPath, args);
 }
 
 module.exports = {
   quoteWindowsCmdArg,
   buildWindowsShellCommand,
   buildWindowsCmdShellInvocation,
+  resolveWindowsCmdShimPath,
   resolveWindowsCmdInvocation
 };

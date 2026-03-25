@@ -8,7 +8,10 @@ import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { acquireFileLock, releaseFileLockOrThrow } from '../../../shared/locks/file-lock.js';
 import { spawnSubprocess } from '../../../shared/subprocess.js';
-import { resolveWindowsCmdInvocation } from '../../../shared/subprocess/windows-cmd.js';
+import {
+  resolveWindowsCmdInvocation,
+  resolveWindowsCmdShimPath
+} from '../../../shared/subprocess/windows-cmd.js';
 import { resolveToolingCommandProfile } from '../command-resolver.js';
 import { splitPathEntries } from '../binary-utils.js';
 
@@ -34,16 +37,18 @@ const SOURCEKIT_WORKSPACE_KIND = Object.freeze({
   MALFORMED: 'malformed_workspace'
 });
 
-const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
+const shouldUseShell = (cmd, env = process.env) => (
+  process.platform === 'win32' && Boolean(resolveWindowsCmdShimPath(cmd, env))
+);
 
 const resolveSpawnCommandForExec = (cmd, args) => {
-  if (!shouldUseShell(cmd)) {
+  if (!shouldUseShell(cmd, process.env)) {
     return {
       command: cmd,
       args: Array.isArray(args) ? args : []
     };
   }
-  return resolveWindowsCmdInvocation(cmd, args);
+  return resolveWindowsCmdInvocation(cmd, args, process.env);
 };
 
 const asFiniteNumber = (value) => {

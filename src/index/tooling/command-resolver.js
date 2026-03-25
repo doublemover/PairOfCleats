@@ -4,7 +4,10 @@ import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { resolveEnvPath } from '../../shared/env-path.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { spawnSubprocessSync } from '../../shared/subprocess.js';
-import { resolveWindowsCmdInvocation } from '../../shared/subprocess/windows-cmd.js';
+import {
+  resolveWindowsCmdInvocation,
+  resolveWindowsCmdShimPath
+} from '../../shared/subprocess/windows-cmd.js';
 import {
   resolveGlobalToolingBinDirs,
   resolveLocalToolingBinDirs
@@ -34,7 +37,9 @@ const COMMAND_PROBE_FAILURE_TTL_MS = 10_000;
 const DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS = 5 * 60_000;
 let commandProbeSuccessTtlMs = DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS;
 
-const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(String(cmd || ''));
+const shouldUseShell = (cmd, env = process.env) => (
+  process.platform === 'win32' && Boolean(resolveWindowsCmdShimPath(cmd, env))
+);
 
 const runProbeCommand = (cmd, args = [], options = {}) => {
   const maxOutputBytes = options.maxBuffer || (2 * 1024 * 1024);
@@ -53,7 +58,7 @@ const runProbeCommand = (cmd, args = [], options = {}) => {
       timeoutMs
     });
   }
-  const invocation = resolveWindowsCmdInvocation(cmd, args);
+  const invocation = resolveWindowsCmdInvocation(cmd, args, process.env);
   return spawnSubprocessSync(invocation.command, invocation.args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: invocation.env ? { ...process.env, ...invocation.env } : process.env,
