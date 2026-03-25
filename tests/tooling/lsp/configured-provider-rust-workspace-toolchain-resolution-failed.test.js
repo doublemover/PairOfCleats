@@ -130,19 +130,24 @@ const first = await runToolingProviders(createContext(), createInputs('a'));
 assert.equal(first.metrics?.preflights?.cached || 0, 0, 'expected first toolchain-resolution run to be uncached');
 assert.equal(await readCount(), 2, 'expected first toolchain-resolution run to execute metadata probes for both partitions');
 assert.equal(
+  first.byChunkUid.size,
+  2,
+  'expected toolchain-only metadata noise not to block repo-local Rust coverage'
+);
+assert.equal(
   first.diagnostics?.['lsp-rust-toolchain-resolution']?.preflight?.reasonCode,
   'rust_workspace_toolchain_resolution_failed',
   'expected explicit toolchain-resolution preflight reason'
 );
 assert.equal(
   first.diagnostics?.['lsp-rust-toolchain-resolution']?.preflight?.state,
-  'blocked',
-  'expected toolchain-resolution failure to block provider startup'
+  'degraded',
+  'expected toolchain-only metadata noise to degrade rather than block provider startup'
 );
 assert.equal(
   first.diagnostics?.['lsp-rust-toolchain-resolution']?.fidelity?.state,
-  'blocked',
-  'expected fidelity contract to classify toolchain-resolution failure as blocked'
+  'degraded',
+  'expected fidelity contract to classify toolchain-only metadata noise as degraded'
 );
 assert.equal(
   Array.isArray(first.diagnostics?.['lsp-rust-toolchain-resolution']?.fidelity?.runtimeIssues)
@@ -160,6 +165,11 @@ assert.equal(
 const second = await runToolingProviders(createContext(), createInputs('b'));
 assert.equal(second.metrics?.preflights?.cached, 1, 'expected cached negative toolchain-resolution marker on second run');
 assert.equal(await readCount(), 2, 'expected cached negative toolchain-resolution result to skip rerun');
+assert.equal(
+  second.byChunkUid.size,
+  2,
+  'expected cached toolchain-noise degradation to preserve repo-local Rust coverage'
+);
 assert.equal(
   second.diagnostics?.['lsp-rust-toolchain-resolution']?.preflight?.cached,
   true,

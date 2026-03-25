@@ -200,6 +200,7 @@ export const resolveRustWorkspaceMetadataPreflight = async ({
   const checks = [];
   const readyPartitions = [];
   const blockedPartitions = [];
+  const toolchainDegradedPartitions = [];
   let cachedPartitionCount = 0;
 
   for (const partition of partitions) {
@@ -286,6 +287,15 @@ export const resolveRustWorkspaceMetadataPreflight = async ({
       partition
     );
     if (classifiedFailure) checks.push(classifiedFailure);
+    if (classifiedFailure?.kind === 'toolchain_resolution_failed') {
+      readyPartitions.push(partition);
+      toolchainDegradedPartitions.push({
+        partition,
+        result: metadataPreflight,
+        failureCheck: classifiedFailure
+      });
+      continue;
+    }
     blockedPartitions.push({
       partition,
       result: metadataPreflight,
@@ -345,6 +355,22 @@ export const resolveRustWorkspaceMetadataPreflight = async ({
       cached,
       blockedWorkspaceKeys,
       blockedWorkspaceRoots
+    };
+  }
+
+  if (toolchainDegradedPartitions.length > 0) {
+    const message = `rust-analyzer hit toolchain or stdlib metadata noise for ${toolchainDegradedPartitions.length} selected workspace partition(s) (${formatPartitionList(toolchainDegradedPartitions.map((entry) => entry.partition)) || 'none'}) but continued with repo-local coverage.`;
+    return {
+      state: 'degraded',
+      reasonCode: 'rust_workspace_toolchain_resolution_failed',
+      message,
+      check: {
+        name: 'rust_workspace_toolchain_resolution_failed',
+        status: 'warn',
+        message
+      },
+      checks,
+      cached
     };
   }
 
