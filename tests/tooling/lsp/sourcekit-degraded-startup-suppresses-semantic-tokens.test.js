@@ -9,6 +9,7 @@ import { getToolingProvider } from '../../../src/index/tooling/provider-registry
 import { resolveSourcekitPreflightLockPath } from '../../../src/index/tooling/sourcekit-provider.js';
 import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';
 import { createSourcekitPreflightFixture } from '../../helpers/sourcekit-preflight-fixture.js';
+import { parseJsonLinesFile } from '../../helpers/lsp-signature-fixtures.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -25,6 +26,7 @@ const preflightLockPath = resolveSourcekitPreflightLockPath(ctx.repoRoot);
 const stubServerPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 const launcherPath = path.join(fixture.tempRoot, 'stub-launcher.js');
 const modePath = path.join(fixture.tempRoot, 'mode.txt');
+const tracePath = path.join(fixture.tempRoot, 'trace.jsonl');
 
 await fs.writeFile(
   launcherPath,
@@ -37,7 +39,7 @@ await fs.writeFile(
   + `child.on('exit', (code, signal) => process.exit(code ?? (signal ? 1 : 0)));\n`,
   'utf8'
 );
-await fs.writeFile(modePath, 'stall-semantic-tokens', 'utf8');
+await fs.writeFile(modePath, 'all-capabilities', 'utf8');
 
 const document = {
   virtualPath: 'src/one.swift',
@@ -79,7 +81,7 @@ try {
   });
   assert.ok(heldLock, 'expected test to acquire sourcekit preflight lock');
 
-  await withTemporaryEnv({ POC_SWIFT_PREFLIGHT_COUNTER: fixture.counterPath }, async () => {
+  await withTemporaryEnv({ POC_SWIFT_PREFLIGHT_COUNTER: fixture.counterPath, POC_LSP_TRACE: tracePath }, async () => {
     registerDefaultToolingProviders();
     const provider = getToolingProvider('sourcekit');
     assert.ok(provider, 'expected sourcekit provider');
@@ -93,7 +95,7 @@ try {
           preflightFailOpen: true,
           preflightLockWaitMs: 0,
           preflightLockPollMs: 25,
-          hoverEnabled: false,
+          hoverEnabled: true,
           hoverTimeoutMs: 150,
           timeoutMs: 500,
           retries: 0,
@@ -113,6 +115,13 @@ try {
     assert.equal(output?.diagnostics?.fidelity?.preflight?.dependencyState, 'required', 'expected fidelity contract to preserve dependency state');
     assert.equal(output?.diagnostics?.fidelity?.qualityDelta?.partialSuccess, true, 'expected degraded startup to report truthful partial success');
     assert.equal(output?.diagnostics?.fidelity?.semanticCoverage?.state, 'partial', 'expected degraded startup semantic coverage to be partial');
+    assert.equal(output?.diagnostics?.admission?.startupMode, 'weak_startup', 'expected explicit weak-startup admission mode');
+    assert.equal(
+      Array.isArray(output?.diagnostics?.admission?.admittedRequestClasses)
+      && output.diagnostics.admission.admittedRequestClasses.includes('hover'),
+      true,
+      'expected weak-startup admission policy to preserve hover coverage'
+    );
     assert.equal(
       output?.diagnostics?.fidelity?.requestSuppression?.active,
       true,
@@ -120,20 +129,25 @@ try {
     );
     assert.equal(
       Array.isArray(output?.diagnostics?.fidelity?.requestSuppression?.suppressedRequestClasses)
-      && output.diagnostics.fidelity.requestSuppression.suppressedRequestClasses.includes('semanticTokens'),
+      && output.diagnostics.fidelity.requestSuppression.suppressedRequestClasses.includes('semanticTokens')
+      && output.diagnostics.fidelity.requestSuppression.suppressedRequestClasses.includes('signatureHelp')
+      && output.diagnostics.fidelity.requestSuppression.suppressedRequestClasses.includes('inlayHints'),
       true,
-      'expected degraded startup request suppression to record semantic token suppression'
+      'expected degraded startup request suppression to record the full weak-startup request policy'
     );
     assert.equal(
       Array.isArray(output?.diagnostics?.fidelity?.skipped)
-      && output.diagnostics.fidelity.skipped.includes('semanticTokens'),
+      && output.diagnostics.fidelity.skipped.includes('semanticTokens')
+      && output.diagnostics.fidelity.skipped.includes('signatureHelp')
+      && output.diagnostics.fidelity.skipped.includes('inlayHints'),
       true,
-      'expected fidelity contract to record suppressed semantic tokens'
+      'expected fidelity contract to record all suppressed weak-startup request classes'
     );
     assert.equal(
       Array.isArray(output?.diagnostics?.fidelity?.runtimeIssues)
       && output.diagnostics.fidelity.runtimeIssues.includes('package_preflight_lock_unavailable')
-      && output.diagnostics.fidelity.runtimeIssues.includes('weak_startup_semantic_tokens_suppressed'),
+      && output.diagnostics.fidelity.runtimeIssues.includes('weak_startup_semantic_tokens_suppressed')
+      && output.diagnostics.fidelity.runtimeIssues.includes('weak_startup_request_suppression'),
       true,
       'expected fidelity contract to expose specific degraded-startup issue classes'
     );
@@ -144,6 +158,22 @@ try {
       true,
       'expected degraded-startup semantic token suppression check'
     );
+    assert.equal(
+      Array.isArray(output?.diagnostics?.checks)
+      && output.diagnostics.checks.some((check) => check?.name === 'sourcekit_weak_startup_request_suppression'),
+      true,
+      'expected explicit weak-startup request-suppression check'
+    );
+
+    const events = await parseJsonLinesFile(tracePath);
+    const hoverRequests = events.filter((entry) => entry.kind === 'request' && entry.method === 'textDocument/hover').length;
+    const semanticTokenRequests = events.filter((entry) => entry.kind === 'request' && entry.method === 'textDocument/semanticTokens/full').length;
+    const signatureHelpRequests = events.filter((entry) => entry.kind === 'request' && entry.method === 'textDocument/signatureHelp').length;
+    const inlayHintRequests = events.filter((entry) => entry.kind === 'request' && entry.method === 'textDocument/inlayHint').length;
+    assert.equal(Number.isFinite(hoverRequests), true, 'expected weak-startup trace parsing to remain valid');
+    assert.equal(semanticTokenRequests, 0, 'expected weak-startup policy to suppress semantic token requests');
+    assert.equal(signatureHelpRequests, 0, 'expected weak-startup policy to suppress signature-help requests');
+    assert.equal(inlayHintRequests, 0, 'expected weak-startup policy to suppress inlay-hint requests');
   });
 } finally {
   if (heldLock?.release) {

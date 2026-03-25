@@ -36,6 +36,7 @@ try {
     assert.equal(output?.diagnostics?.preflight?.workspaceKind, 'package_managed_workspace');
     assert.equal(output?.diagnostics?.preflight?.preflightState, 'blocked_dependency');
     assert.equal(output?.diagnostics?.preflight?.reasonCode, 'sourcekit_blocked_dependency');
+    assert.equal(output?.diagnostics?.admission?.startupMode, 'dependency_blocked', 'expected explicit dependency-blocked admission mode');
     assert.equal(output?.diagnostics?.fidelity?.preflight?.workspaceKind, 'package_managed_workspace');
     assert.equal(output?.diagnostics?.fidelity?.preflight?.dependencyState, 'required');
     assert.equal(

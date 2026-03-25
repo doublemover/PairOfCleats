@@ -93,6 +93,7 @@ try {
     checks.some((check) => check?.name === 'sourcekit_host_lock_unavailable'),
     'expected sourcekit host lock unavailable check'
   );
+  assert.equal(output?.diagnostics?.admission?.startupMode, 'host_lock_unavailable', 'expected explicit host-lock admission mode');
   assert.equal(output?.diagnostics?.fidelity?.state, 'blocked', 'expected fidelity contract to classify host lock failure as blocked');
   assert.equal(
     Array.isArray(output?.diagnostics?.fidelity?.runtimeIssues)

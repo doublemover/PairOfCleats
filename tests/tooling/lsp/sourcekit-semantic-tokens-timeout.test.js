@@ -84,6 +84,16 @@ try {
   assert.equal(output?.diagnostics?.runtime?.hoverMetrics?.requested ?? 0, 0, 'expected no hover requests');
   assert.equal(output?.diagnostics?.runtime?.hoverMetrics?.hoverTimedOut ?? 0, 0, 'expected no hover timeouts');
   assert.equal(output?.diagnostics?.runtime?.hoverMetrics?.semanticTokensTimedOut ?? 0, 1, 'expected semantic token timeout to be isolated');
+  assert.equal(output?.diagnostics?.fidelity?.state, 'degraded', 'expected semantic timeout run to remain degraded');
+  assert.equal(output?.diagnostics?.admission?.startupMode, 'runtime_timeout_storm', 'expected explicit timeout-storm admission mode');
+  assert.equal(
+    Array.isArray(output?.diagnostics?.fidelity?.runtimeIssues)
+    && output.diagnostics.fidelity.runtimeIssues.includes('semantic_tokens_timeout')
+    && output.diagnostics.fidelity.runtimeIssues.includes('circuit_breaker_tripped')
+    && output.diagnostics.fidelity.runtimeIssues.includes('timeout_storm_truncated'),
+    true,
+    'expected fidelity runtime issues to expose the timeout storm state'
+  );
   assert.equal(
     Array.isArray(output?.diagnostics?.checks)
     && output.diagnostics.checks.some((check) => check?.name === 'tooling_semantic_tokens_timeout'),
