@@ -10,6 +10,7 @@ import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.
 import {
   buildProgressTimeoutBudget,
   evaluateProgressTimeout,
+  normalizeProgressTimeoutOwnerPolicy,
   PROGRESS_TIMEOUT_CLASSES,
   PROGRESS_TIMEOUT_OUTCOMES
 } from '../../../src/shared/indexing/progress-timeout-policy.js';
@@ -356,10 +357,19 @@ const resolveBenchRuntimePhaseForDiagnostic = (diagnostic = null, event = null) 
 
 const resolveBenchPhaseExpectations = ({
   phase = null,
+  ownerPolicy = null,
   hasOwnedProgress = false,
   lastInFlight = null,
   lastQueueAgeMs = null
 } = {}) => {
+  if (ownerPolicy && typeof ownerPolicy === 'object') {
+    return {
+      phase: normalizeBenchRuntimePhase(ownerPolicy.phase) || 'execute',
+      queueExpected: ownerPolicy.queueExpected === true,
+      byteProgressExpected: ownerPolicy.byteProgressExpected === true,
+      optionalPhase: ownerPolicy.optionalPhase === true
+    };
+  }
   if (!hasOwnedProgress) {
     return {
       phase: 'execute',
@@ -528,11 +538,14 @@ const resolveLegacyDiagnosticFields = (eventType, message) => {
 
 const resolveTimeoutPhase = ({
   timeoutDecision = null,
+  ownerPolicy = null,
   ownedPhase = null,
   diagnostics = null,
   lastActivitySource = '',
   lastActivityText = ''
 } = {}) => {
+  const explicitPhase = normalizeBenchRuntimePhase(ownerPolicy?.phase);
+  if (explicitPhase) return explicitPhase;
   const progressPhase = normalizeBenchRuntimePhase(ownedPhase);
   if (progressPhase) return progressPhase;
   const countsByType = diagnostics?.countsByType && typeof diagnostics.countsByType === 'object'
@@ -585,6 +598,7 @@ const resolveTimeoutResourceClass = ({ phase = 'unknown' } = {}) => {
 
 const resolveTimeoutFailureMode = ({
   timeoutDecision = null,
+  hasOwnedProgress = false,
   ownedPhase = null,
   lastOwnedProgressAtMs = null,
   diagnostics = null,
@@ -600,10 +614,13 @@ const resolveTimeoutFailureMode = ({
     ? Math.max(1000, Math.floor(effectiveBudgetMs * 0.5))
     : 15_000;
   const now = Date.now();
-  const recentOwnedProgress = Number.isFinite(lastOwnedProgressAtMs)
+  const recentOwnedProgress = hasOwnedProgress
+    && Number.isFinite(lastOwnedProgressAtMs)
     && (now - lastOwnedProgressAtMs) <= recentWindowMs;
   const recentActivity = Number.isFinite(lastActivityAtMs)
     && String(lastActivitySource || '').trim().toLowerCase() !== 'spawn'
+    && String(lastActivitySource || '').trim().toLowerCase() !== 'process-cpu'
+    && String(lastActivitySource || '').trim().toLowerCase() !== 'process-memory'
     && (now - lastActivityAtMs) <= recentWindowMs;
   const recentHeartbeat = Number.isFinite(lastHeartbeatAtMs) && (now - lastHeartbeatAtMs) <= recentWindowMs;
   const recentQueue = Number.isFinite(lastQueueMovementAtMs) && (now - lastQueueMovementAtMs) <= recentWindowMs;
@@ -636,10 +653,51 @@ const resolveTimeoutFailureMode = ({
   return observedProgress ? 'budget_exhausted_with_progress' : 'phase_stalled';
 };
 
+export const resolveIdleBudgetExtension = ({
+  decision = null,
+  currentIdleBudgetMs = 0,
+  hardTimeoutCapMs = null,
+  processElapsedMs = 0
+} = {}) => {
+  const currentBudgetMs = Number.isFinite(Number(currentIdleBudgetMs))
+    ? Math.max(0, Math.floor(Number(currentIdleBudgetMs)))
+    : 0;
+  const requestedBudgetMs = Number.isFinite(Number(decision?.effectiveBudgetMs))
+    ? Math.max(0, Math.floor(Number(decision.effectiveBudgetMs)))
+    : currentBudgetMs;
+  const remainingHardCapMs = Number.isFinite(Number(hardTimeoutCapMs))
+    ? Math.max(0, Math.floor(Number(hardTimeoutCapMs)) - Math.max(0, Math.floor(Number(processElapsedMs) || 0)))
+    : null;
+  const nextIdleBudgetMs = remainingHardCapMs != null
+    ? Math.min(requestedBudgetMs, remainingHardCapMs)
+    : requestedBudgetMs;
+  return {
+    currentBudgetMs,
+    requestedBudgetMs,
+    remainingHardCapMs,
+    nextIdleBudgetMs,
+    extended: nextIdleBudgetMs > currentBudgetMs
+  };
+};
+
 const resolveTimeoutQualityDelta = ({
   phase = null,
+  ownerPolicy = null,
   diagnostics = null
 } = {}) => {
+  const normalizedOwnerPolicy = normalizeProgressTimeoutOwnerPolicy(ownerPolicy);
+  if (
+    normalizedOwnerPolicy
+    && (
+      normalizedOwnerPolicy.skippedWork.length > 0
+      || normalizedOwnerPolicy.partialSuccess === true
+    )
+  ) {
+    return {
+      skippedWork: normalizedOwnerPolicy.skippedWork.slice(),
+      partialSuccess: normalizedOwnerPolicy.partialSuccess === true
+    };
+  }
   const countsByType = diagnostics?.countsByType && typeof diagnostics.countsByType === 'object'
     ? diagnostics.countsByType
     : {};
@@ -983,6 +1041,8 @@ export const createProcessRunner = ({
     let idleWatchdogProbeInFlight = false;
     let timeoutDecision = null;
     let activeIdleTimeoutBudgetMs = resolvedIdleTimeoutMs;
+    const timeoutOwnerPoliciesByPhase = new Map();
+    let lastTimeoutOwnerPolicy = null;
 
     const markActivity = ({ source = 'output', text = '' } = {}) => {
       lastActivityAtMs = Date.now();
@@ -1020,6 +1080,27 @@ export const createProcessRunner = ({
       });
     };
 
+    const noteTimeoutOwnerPolicy = (policy = null, fallbackPhase = null) => {
+      const normalizedFallbackPhase = normalizeBenchRuntimePhase(fallbackPhase);
+      const normalized = normalizeProgressTimeoutOwnerPolicy(
+        policy && typeof policy === 'object' && !Array.isArray(policy)
+          ? {
+            ...policy,
+            ...(normalizedFallbackPhase && !policy.phase ? { phase: normalizedFallbackPhase } : {})
+          }
+          : null
+      );
+      if (!normalized) return null;
+      const observedAtMs = Date.now();
+      const payload = {
+        ...normalized,
+        observedAtMs
+      };
+      timeoutOwnerPoliciesByPhase.set(normalized.phase, payload);
+      lastTimeoutOwnerPolicy = payload;
+      return payload;
+    };
+
     const resolveActiveOwnedPhase = () => {
       const normalizedLastPhase = normalizeBenchRuntimePhase(lastOwnedPhase);
       if (normalizedLastPhase && normalizedLastPhase !== 'execute') return normalizedLastPhase;
@@ -1040,6 +1121,20 @@ export const createProcessRunner = ({
         || normalizeBenchRuntimePhase(latest?.phase)
         || normalizedLastPhase
         || 'execute';
+    };
+
+    const resolveActiveTimeoutOwnerPolicy = (phase = null) => {
+      const normalizedPhase = normalizeBenchRuntimePhase(phase) || normalizeBenchRuntimePhase(resolveActiveOwnedPhase());
+      if (normalizedPhase && timeoutOwnerPoliciesByPhase.has(normalizedPhase)) {
+        return timeoutOwnerPoliciesByPhase.get(normalizedPhase);
+      }
+      if (
+        lastTimeoutOwnerPolicy
+        && normalizeBenchRuntimePhase(lastTimeoutOwnerPolicy.phase) === normalizedPhase
+      ) {
+        return lastTimeoutOwnerPolicy;
+      }
+      return null;
     };
 
     const markByteProgress = ({ source = 'stream-bytes', text = '' } = {}) => {
@@ -1069,8 +1164,11 @@ export const createProcessRunner = ({
     };
 
     const buildIdleTimeoutDecision = () => {
+      const activePhase = resolveActiveOwnedPhase();
+      const ownerPolicy = resolveActiveTimeoutOwnerPolicy(activePhase);
       const phaseExpectations = resolveBenchPhaseExpectations({
-        phase: resolveActiveOwnedPhase(),
+        phase: activePhase,
+        ownerPolicy,
         hasOwnedProgress,
         lastInFlight,
         lastQueueAgeMs
@@ -1078,7 +1176,7 @@ export const createProcessRunner = ({
       const livenessAnchorAtMs = hasOwnedProgress
         ? lastHeartbeatAtMs
         : lastProcessProbeActivityAtMs;
-      return evaluateProgressTimeout({
+      const decision = evaluateProgressTimeout({
         budget: buildProgressTimeoutBudget({
           phase: phaseExpectations.phase,
           baseTimeoutMs: Math.max(1, activeIdleTimeoutBudgetMs || resolvedIdleTimeoutMs),
@@ -1095,6 +1193,7 @@ export const createProcessRunner = ({
         byteProgressExpected: phaseExpectations.byteProgressExpected,
         optionalPhase: phaseExpectations.optionalPhase
       });
+      return ownerPolicy ? { ...decision, ownerPolicy } : decision;
     };
 
     const cleanupIdleWatchdog = () => {
@@ -1137,33 +1236,19 @@ export const createProcessRunner = ({
         const decision = buildIdleTimeoutDecision();
         if (!decision.timedOut) {
           timeoutDecision = decision;
-          if (
-            Number.isFinite(Number(decision.effectiveBudgetMs))
-            && Number(decision.effectiveBudgetMs) > activeIdleTimeoutBudgetMs
-          ) {
-            activeIdleTimeoutBudgetMs = Math.floor(Number(decision.effectiveBudgetMs));
+          const extensionBudget = resolveIdleBudgetExtension({
+            decision,
+            currentIdleBudgetMs: activeIdleTimeoutBudgetMs,
+            hardTimeoutCapMs,
+            processElapsedMs: Math.max(0, Date.now() - processStartedAtMs)
+          });
+          if (extensionBudget.extended) {
+            activeIdleTimeoutBudgetMs = extensionBudget.nextIdleBudgetMs;
             const timeoutExtensionMessage =
               `[run] timeout budget extended: ${label} ` +
               `(idle budget ${activeIdleTimeoutBudgetMs}ms, reason=${decision.decisionReason || 'healthy_progress'}, ` +
               `candidate=${decision.candidateTimeoutClass || decision.timeoutClass || 'none'}, ` +
               `outcome=${decision.outcome || PROGRESS_TIMEOUT_OUTCOMES.continueWait})`;
-            appendLog(timeoutExtensionMessage, 'info');
-            emitRuntimeTimeoutEvent({
-              eventType: 'runtime_timeout_budget_extended',
-              message: timeoutExtensionMessage,
-              timeoutKind: 'idle',
-              timeoutDecision: decision,
-              severity: 'info'
-            });
-          } else if (
-            decision.outcome === PROGRESS_TIMEOUT_OUTCOMES.extendBudget
-            && Number.isFinite(Number(decision.effectiveBudgetMs))
-            && Number(decision.effectiveBudgetMs) === activeIdleTimeoutBudgetMs
-          ) {
-            const timeoutExtensionMessage =
-              `[run] timeout budget extended: ${label} ` +
-              `(idle budget ${activeIdleTimeoutBudgetMs}ms, reason=${decision.decisionReason || 'healthy_progress'}, ` +
-              `candidate=${decision.candidateTimeoutClass || 'none'})`;
             appendLog(timeoutExtensionMessage, 'info');
             emitRuntimeTimeoutEvent({
               eventType: 'runtime_timeout_budget_extended',
@@ -1867,8 +1952,13 @@ export const createProcessRunner = ({
       const textLine = String(line || '');
       const parsedEvent = event || (textLine ? parseProgressEventLine(textLine, { strict: true }) : null);
       if (parsedEvent) {
+        const eventTimeoutOwnerPolicy = noteTimeoutOwnerPolicy(
+          parsedEvent.timeoutPolicy || parsedEvent?.meta?.timeoutPolicy,
+          resolveBenchRuntimePhaseForProgressEvent(parsedEvent)
+        );
         noteOwnedPhaseProgress({
-          phase: resolveBenchRuntimePhaseForProgressEvent(parsedEvent),
+          phase: normalizeBenchRuntimePhase(eventTimeoutOwnerPolicy?.phase)
+            || resolveBenchRuntimePhaseForProgressEvent(parsedEvent),
           source: parsedEvent.event || 'progress-event',
           text: parsedEvent.message || parsedEvent.taskId || parsedEvent.name || textLine,
           kind: parsedEvent.event || 'progress-event'
@@ -1989,32 +2079,38 @@ export const createProcessRunner = ({
       stdoutDecoder.flush();
       stderrDecoder.flush();
       const message = err?.message || err;
-      if (!timeoutDecision && err?.timeoutDecision) {
+      if (!timeoutDecision && err?.timeoutDecision && err?.code !== 'SUBPROCESS_TIMEOUT') {
         timeoutDecision = err.timeoutDecision;
       }
-      if (!timeoutDecision && err?.code === 'SUBPROCESS_TIMEOUT') {
+      if (err?.code === 'SUBPROCESS_TIMEOUT') {
+        const activePhase = resolveActiveOwnedPhase();
+        const ownerPolicy = resolveActiveTimeoutOwnerPolicy(activePhase);
         const phaseExpectations = resolveBenchPhaseExpectations({
-          phase: resolveActiveOwnedPhase(),
+          phase: activePhase,
+          ownerPolicy,
           hasOwnedProgress,
           lastInFlight,
           lastQueueAgeMs
         });
-        timeoutDecision = evaluateProgressTimeout({
-          budget: buildProgressTimeoutBudget({
-            phase: phaseExpectations.phase,
-            baseTimeoutMs: Number(spawnOptions.timeoutMs) || DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS,
-            maxTimeoutMs: Number(spawnOptions.timeoutMs) || DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS,
-            wallClockCapMs: Number(spawnOptions.timeoutMs) || null,
-            activeBatchCount: Math.max(0, Number(lastInFlight) || 0),
-            completedUnits: Math.max(0, Number(lastProgressCurrent) || 0),
-            totalUnits: Math.max(0, Number(lastProgressTotal) || 0),
-            elapsedMs: Math.max(0, Date.now() - processStartedAtMs)
+        timeoutDecision = {
+          ...evaluateProgressTimeout({
+            budget: buildProgressTimeoutBudget({
+              phase: phaseExpectations.phase,
+              baseTimeoutMs: Number(spawnOptions.timeoutMs) || DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS,
+              maxTimeoutMs: Number(spawnOptions.timeoutMs) || DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS,
+              wallClockCapMs: Number(spawnOptions.timeoutMs) || null,
+              activeBatchCount: Math.max(0, Number(lastInFlight) || 0),
+              completedUnits: Math.max(0, Number(lastProgressCurrent) || 0),
+              totalUnits: Math.max(0, Number(lastProgressTotal) || 0),
+              elapsedMs: Math.max(0, Date.now() - processStartedAtMs)
+            }),
+            wallClockElapsedMs: Math.max(0, Date.now() - processStartedAtMs),
+            queueExpected: phaseExpectations.queueExpected,
+            byteProgressExpected: phaseExpectations.byteProgressExpected,
+            optionalPhase: phaseExpectations.optionalPhase
           }),
-          wallClockElapsedMs: Math.max(0, Date.now() - processStartedAtMs),
-          queueExpected: phaseExpectations.queueExpected,
-          byteProgressExpected: phaseExpectations.byteProgressExpected,
-          optionalPhase: phaseExpectations.optionalPhase
-        });
+          ...(ownerPolicy ? { ownerPolicy } : {})
+        };
       }
       const failureStatus = Number.isInteger(err?.result?.exitCode)
         ? Number(err.result.exitCode)
@@ -2036,6 +2132,7 @@ export const createProcessRunner = ({
           ...timeoutDecision,
           phase: resolveTimeoutPhase({
             timeoutDecision,
+            ownerPolicy: timeoutDecision?.ownerPolicy || null,
             ownedPhase: resolveActiveOwnedPhase(),
             diagnostics: initialDiagnosticsSummary,
             lastActivitySource,
@@ -2043,6 +2140,7 @@ export const createProcessRunner = ({
           }),
           failureMode: resolveTimeoutFailureMode({
             timeoutDecision,
+            hasOwnedProgress,
             ownedPhase: resolveActiveOwnedPhase(),
             lastOwnedProgressAtMs,
             diagnostics: initialDiagnosticsSummary,
@@ -2061,6 +2159,7 @@ export const createProcessRunner = ({
         });
         enrichedTimeoutDecision.qualityDelta = resolveTimeoutQualityDelta({
           phase: enrichedTimeoutDecision.phase,
+          ownerPolicy: enrichedTimeoutDecision.ownerPolicy || null,
           diagnostics: initialDiagnosticsSummary
         });
       }

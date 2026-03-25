@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   buildProgressTimeoutBudget,
   evaluateProgressTimeout,
+  normalizeProgressTimeoutOwnerPolicy,
   PROGRESS_TIMEOUT_CLASSES,
   PROGRESS_TIMEOUT_OUTCOMES,
   PROGRESS_TIMEOUT_POLICY_VERSION,
@@ -18,6 +19,24 @@ assert.equal(
   'xlarge',
   'expected xlarge repo tier'
 );
+
+const ownerPolicy = normalizeProgressTimeoutOwnerPolicy({
+  ownerId: 'tooling-orchestrator',
+  ladderId: 'provider-bootstrap',
+  phase: 'provider_bootstrap',
+  queueExpected: false,
+  byteProgressExpected: false,
+  optionalPhase: true,
+  skippedWork: ['provider-requests', 'provider-ladder', 'provider-requests'],
+  partialSuccess: true
+});
+assert.equal(ownerPolicy?.phase, 'provider_bootstrap', 'expected normalized timeout owner phase');
+assert.deepEqual(
+  ownerPolicy?.skippedWork,
+  ['provider-ladder', 'provider-requests'],
+  'expected timeout owner skipped work to be normalized and deduplicated'
+);
+assert.equal(ownerPolicy?.partialSuccess, true, 'expected timeout owner partial success flag');
 
 const budget = buildProgressTimeoutBudget({
   phase: 'stage1-ordered-backpressure',

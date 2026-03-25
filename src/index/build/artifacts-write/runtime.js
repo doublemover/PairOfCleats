@@ -414,7 +414,21 @@ export const createArtifactWriteExecutionState = ({
   const artifactMetrics = new Map();
   const artifactQueueDelaySamples = new Map();
   const writeLogIntervalMs = 1000;
-  const writeProgressMeta = { stage: 'write', mode, taskId: `write:${mode}:artifacts` };
+  const writeProgressMeta = {
+    stage: 'write',
+    mode,
+    taskId: `write:${mode}:artifacts`,
+    timeoutPolicy: {
+      ownerId: 'artifact-write-runtime',
+      ladderId: 'artifact-write',
+      phase: 'artifact_write',
+      queueExpected: false,
+      byteProgressExpected: true,
+      optionalPhase: true,
+      skippedWork: ['artifact-closeout', 'artifact-ladder'],
+      partialSuccess: true
+    }
+  };
   const configuredWriteStallThresholds = [];
   if (Array.isArray(artifactConfig.writeStallThresholdsSeconds)) {
     for (const entry of artifactConfig.writeStallThresholdsSeconds) {

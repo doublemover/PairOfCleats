@@ -1,4 +1,5 @@
 const DEFAULT_POLICY_VERSION = '1.1.0';
+const DEFAULT_OWNER_POLICY_VERSION = '1.0.0';
 const DEFAULT_BASE_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -22,6 +23,7 @@ const HEAVY_LANGUAGE_IDS = new Set([
 ]);
 
 export const PROGRESS_TIMEOUT_POLICY_VERSION = DEFAULT_POLICY_VERSION;
+export const PROGRESS_TIMEOUT_OWNER_POLICY_VERSION = DEFAULT_OWNER_POLICY_VERSION;
 
 export const PROGRESS_TIMEOUT_CLASSES = Object.freeze({
   noHeartbeat: 'no_heartbeat',
@@ -59,6 +61,29 @@ const normalizeLanguages = (value) => Array.from(new Set(
     .map((entry) => String(entry || '').trim().toLowerCase())
     .filter(Boolean)
 )).sort((left, right) => left.localeCompare(right));
+
+const normalizeSkippedWork = (value) => Array.from(new Set(
+  (Array.isArray(value) ? value : [])
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean)
+)).sort((left, right) => left.localeCompare(right));
+
+export const normalizeProgressTimeoutOwnerPolicy = (value = null) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const phase = String(value.phase || '').trim().toLowerCase();
+  if (!phase) return null;
+  return {
+    schemaVersion: String(value.schemaVersion || PROGRESS_TIMEOUT_OWNER_POLICY_VERSION),
+    ownerId: String(value.ownerId || '').trim() || null,
+    ladderId: String(value.ladderId || '').trim() || null,
+    phase,
+    queueExpected: value.queueExpected === true,
+    byteProgressExpected: value.byteProgressExpected === true,
+    optionalPhase: value.optionalPhase === true,
+    skippedWork: normalizeSkippedWork(value.skippedWork),
+    partialSuccess: value.partialSuccess === true
+  };
+};
 
 export const resolveProgressTimeoutRepoTier = ({
   repoFileCount = 0,

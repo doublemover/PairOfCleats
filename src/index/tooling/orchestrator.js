@@ -964,7 +964,25 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
   const providerCount = providerPlans.length;
   if (log && providerCount > 0) {
     log(
-      `[tooling] provider runtime start providers=${providerCount} docs=${documents.length} targets=${targets.length}.`
+      `[tooling] provider runtime start providers=${providerCount} docs=${documents.length} targets=${targets.length}.`,
+      {
+        stage: 'relations',
+        timeoutPolicy: {
+          ownerId: 'tooling-orchestrator',
+          ladderId: 'provider-bootstrap',
+          phase: 'provider_bootstrap',
+          queueExpected: false,
+          byteProgressExpected: false,
+          optionalPhase: true,
+          skippedWork: [
+            'provider-enrichment',
+            'provider-ladder',
+            'provider-requests',
+            'workspace-preflight'
+          ],
+          partialSuccess: true
+        }
+      }
     );
   }
   let preflightFinalized = false;
@@ -1275,9 +1293,22 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
     if (log && providerCount > 0) {
       log(
         `[tooling] provider runtime done providers=${providerCount} `
-        + `executed=${metrics.providersExecuted || 0} contributed=${metrics.providersContributed || 0} `
-        + `requests=${metrics.requests?.requests || 0} timedOut=${metrics.requests?.timedOut || 0} `
-        + `preflightTeardownTimedOut=${preflightTeardown.timedOut === true ? 1 : 0}.`
+          + `executed=${metrics.providersExecuted || 0} contributed=${metrics.providersContributed || 0} `
+          + `requests=${metrics.requests?.requests || 0} timedOut=${metrics.requests?.timedOut || 0} `
+          + `preflightTeardownTimedOut=${preflightTeardown.timedOut === true ? 1 : 0}.`,
+        {
+          stage: 'relations',
+          timeoutPolicy: {
+            ownerId: 'cross-file-runtime',
+            ladderId: 'cross-file-execute',
+            phase: 'execute',
+            queueExpected: false,
+            byteProgressExpected: true,
+            optionalPhase: false,
+            skippedWork: [],
+            partialSuccess: false
+          }
+        }
       );
     }
     if (log && metrics.preflights.total > 0) {
