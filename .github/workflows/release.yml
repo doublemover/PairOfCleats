@@ -11,7 +11,7 @@ on:
     inputs:
       tag:
         description: Existing release tag to promote (for manual runs)
-        required: false
+        required: true
         type: string
       publish:
         description: Publish or update the GitHub release after verification
@@ -338,6 +338,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24.13.0'
+          cache: npm
+
+      - name: Install deps
+        run: npm run bootstrap:ci
 
       - name: Download prepare artifacts
         uses: actions/download-artifact@v4
@@ -447,6 +451,9 @@ jobs:
         with:
           toolchain: 1.86.0
 
+      - name: Install deps
+        run: npm run bootstrap:ci
+
       - name: Install cargo-cyclonedx
         run: cargo install cargo-cyclonedx --locked
 
@@ -531,11 +538,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '24.13.0'
+          cache: npm
+
+      - name: Install deps
+        run: npm run bootstrap:ci
 
       - name: Download prepare artifacts
         uses: actions/download-artifact@v4
@@ -584,7 +597,7 @@ jobs:
 
           find_run_state() {
             local workflow="$1"
-            gh run list --workflow "$workflow" --commit "$target_sha" --json databaseId,status,conclusion,event,headSha --limit 20
+            gh run list --workflow "$workflow" --commit "$target_sha" --json databaseId,status,conclusion,event,headSha,createdAt,updatedAt --limit 20
           }
 
           maybe_dispatch_workflow() {
@@ -614,7 +627,7 @@ jobs:
                 runs_json=$(find_run_state "$workflow")
               fi
               local result
-              result=$(node -e "const payload=JSON.parse(process.argv[1]); const runs=Array.isArray(payload)?payload:[]; const success=runs.find((run)=>run.status==='completed'&&run.conclusion==='success'); if (success) { process.stdout.write(`success:${success.databaseId}`); process.exit(0); } const failed=runs.find((run)=>run.status==='completed'&&run.conclusion&&run.conclusion!=='success'); if (failed) { process.stdout.write(`failed:${failed.databaseId}:${failed.conclusion}`); process.exit(0); } const active=runs.find((run)=>run.status!=='completed'); if (active) { process.stdout.write(`pending:${active.databaseId}:${active.status}`); process.exit(0); } process.stdout.write('missing');" "$runs_json")
+              result=$(node --input-type=module -e "import { selectLatestWorkflowRunGateState } from './tools/release/workflow-run-selection.js'; const payload=JSON.parse(process.argv[1]); process.stdout.write(selectLatestWorkflowRunGateState(payload).text);" "$runs_json")
               case "$result" in
                 success:*)
                   echo "${result#success:}"

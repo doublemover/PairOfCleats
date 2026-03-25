@@ -108,8 +108,12 @@ const assertWorkflowDispatchPresent = ({ workflowText, label }) => {
 
 const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
   const checkoutRefs = workflowText.match(/uses:\s*actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*github\.event_name == 'workflow_dispatch' && inputs\.tag \|\| github\.ref\s*\}\}/g) || [];
-  if (checkoutRefs.length < 8) {
+  if (checkoutRefs.length < 9) {
     console.error(`${label} must pin manual release checkouts to the requested tag ref in every checkout-based job.`);
+    process.exit(1);
+  }
+  if (!/workflow_dispatch:\s*\n\s*inputs:\s*\n\s*tag:\s*\n\s*description:[\s\S]*?required:\s*true/.test(workflowText)) {
+    console.error(`${label} must require a tag for workflow_dispatch release promotions.`);
     process.exit(1);
   }
   const requiredPatterns = [
@@ -125,6 +129,7 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
     /tools\/release\/assemble-bundle\.js/,
     /tools\/release\/generate-trust-materials\.js/,
     /tools\/release\/readiness-gate\.js/,
+    /tools\/release\/workflow-run-selection\.js/,
     /cargo install cargo-cyclonedx --locked/,
     /gh run list --workflow "\$workflow"/,
     /gh workflow run "\$workflow" --ref "\$target_ref"/,
@@ -147,7 +152,26 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
       process.exit(1);
     }
   }
-  const publishBlockMatch = workflowText.match(/\n  publish:\n([\s\S]*)$/);
+  const jobBlocks = {
+    'release-bundle': workflowText.match(/\n  release-bundle:\n([\s\S]*?)\n  attest:\n/)?.[1] || '',
+    'trust-materials': workflowText.match(/\n  trust-materials:\n([\s\S]*?)\n  publish:\n/)?.[1] || '',
+    'readiness-gate': workflowText.match(/\n  readiness-gate:\n([\s\S]*)$/)?.[1] || ''
+  };
+  for (const [jobName, jobBlock] of Object.entries(jobBlocks)) {
+    if (!jobBlock) {
+      console.error(`${label} is missing job block for ${jobName}.`);
+      process.exit(1);
+    }
+    if (!/node-version:\s*['"]?24\.13\.0['"]?[\s\S]*cache:\s*npm/.test(jobBlock)) {
+      console.error(`${label} ${jobName} must enable npm cache in setup-node.`);
+      process.exit(1);
+    }
+    if (!/- name:\s*Install deps[\s\S]*npm run bootstrap:ci/.test(jobBlock)) {
+      console.error(`${label} ${jobName} must install dependencies before running Node-based release tooling.`);
+      process.exit(1);
+    }
+  }
+  const publishBlockMatch = workflowText.match(/\n  publish:\n([\s\S]*?)\n  readiness-gate:\n/);
   const publishBlock = publishBlockMatch ? publishBlockMatch[1] : '';
   if (!publishBlock) {
     console.error(`${label} is missing publish job block.`);
