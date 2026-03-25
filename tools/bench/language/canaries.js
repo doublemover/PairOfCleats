@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
 import { resolveWindowsCmdInvocation } from '../../../src/shared/subprocess/windows-cmd.js';
+import { classifyBenchTask } from './verdict.js';
 import {
   buildBenchEnvironmentMetadata,
   createBenchDiagnosticClassifier
@@ -35,6 +36,8 @@ export const DEFAULT_BENCH_RUNTIME_CANARY_ROOT = DEFAULT_CANARY_ROOT;
 export const BENCH_RUNTIME_CANARY_MANIFEST_SCHEMA_VERSION = 2;
 export const BENCH_RUNTIME_LIVE_CANARY_RESULT_SCHEMA_VERSION = 1;
 export const BENCH_RUNTIME_LIVE_CANARY_SUMMARY_SCHEMA_VERSION = 1;
+export const BENCH_RUNTIME_BLOCKER_CONFIRMATION_SCHEMA_VERSION = 1;
+export const BENCH_RUNTIME_BLOCKER_CLOSURE_EVIDENCE_SCHEMA_VERSION = 1;
 
 export const BENCH_RUNTIME_LIVE_CANARY_STATUS = Object.freeze({
   BASELINE_CONFIRMED: 'baseline_confirmed',
@@ -224,6 +227,36 @@ const toNonEmptyLines = (content) => String(content || '')
   .map((line) => line.trimEnd())
   .filter((line) => line.trim());
 
+const sumTaskDiagnosticCounts = (entry) => {
+  const sources = [
+    entry?.diagnostics?.process?.countsByType,
+    entry?.diagnostics?.countsByType
+  ];
+  const out = {};
+  for (const source of sources) {
+    if (!source || typeof source !== 'object' || Array.isArray(source)) continue;
+    for (const [key, value] of Object.entries(source)) {
+      const count = Number(value);
+      if (!Number.isFinite(count) || count <= 0) continue;
+      out[key] = (out[key] || 0) + count;
+    }
+  }
+  return out;
+};
+
+const parseBenchmarkConfirmationLaneSpec = (value) => {
+  const text = String(value || '').trim();
+  const normalized = text.toLowerCase();
+  const lanes = Array.from(new Set(
+    ['small', 'medium', 'large']
+      .filter((lane) => normalized.includes(lane))
+  ));
+  return {
+    raw: text || null,
+    lanes
+  };
+};
+
 const buildCountHelpers = (metrics) => {
   const counts = normalizeCountMap(metrics?.countsByDiagnosticType);
   return {
@@ -240,6 +273,27 @@ const buildCountHelpers = (metrics) => {
     providerTimeoutCount: Number(metrics?.providerTimeoutCount ?? counts.provider_request_timeout ?? 0) || 0,
     circuitBreakerCount: Number(metrics?.circuitBreakerCount ?? counts.provider_circuit_breaker ?? 0) || 0
   };
+};
+
+const extractBenchRuntimeTaskMetrics = (entry) => {
+  const taskStatus = entry?.taskStatus || classifyBenchTask(entry);
+  const countsByFailureClass = {};
+  if (taskStatus?.primaryFailureClass) {
+    countsByFailureClass[taskStatus.primaryFailureClass] = 1;
+  }
+  const timeoutClasses = [];
+  if (taskStatus?.resultClass === 'timed_out' && taskStatus?.primaryFailureClass) {
+    timeoutClasses.push(taskStatus.primaryFailureClass);
+  }
+  return buildCountHelpers({
+    resultClass: String(taskStatus?.resultClass || '').trim() || null,
+    productionCleanStatus: null,
+    timeoutClasses,
+    countsByDiagnosticType: normalizeCountMap(sumTaskDiagnosticCounts(entry)),
+    countsByFailureClass,
+    crashCount: taskStatus?.resultClass === 'crashed' ? 1 : 0,
+    taskCount: 1
+  });
 };
 
 export const resolveBenchRuntimeCanaryRoot = (root = process.cwd()) => (
@@ -687,6 +741,119 @@ export const buildBenchRuntimeLiveCanarySummary = (results, { requireTarget = fa
   };
 };
 
+export const buildBenchRuntimeBlockerConfirmationSummary = ({
+  manifest,
+  tasks,
+  generatedAt = null,
+  runAggregateResultClass = null,
+  runEnvironmentFingerprint = null,
+  runLabel = null
+}) => {
+  const liveCanaries = Array.isArray(manifest?.liveCanaries) ? manifest.liveCanaries : [];
+  const taskRows = Array.isArray(tasks) ? tasks : [];
+  const canaries = [];
+  for (const entry of liveCanaries) {
+    const repo = String(entry?.repo || '').trim();
+    if (!repo) continue;
+    const task = taskRows.find((row) => String(row?.repo || '').trim() === repo);
+    if (!task) continue;
+    const metrics = extractBenchRuntimeTaskMetrics(task);
+    const target = evaluateBenchRuntimeCanaryContract(entry?.targetContract || {}, metrics);
+    const regressionFailures = evaluateBenchRuntimeCanaryForbiddenRegressions(entry?.forbiddenRegressions || [], metrics);
+    const taskStatus = task?.taskStatus || classifyBenchTask(task);
+    canaries.push({
+      id: String(entry?.id || '').trim() || null,
+      issue: Number.isFinite(Number(entry?.issue)) ? Number(entry.issue) : null,
+      repo,
+      benchmarkConfirmationLane: parseBenchmarkConfirmationLaneSpec(entry?.benchmarkConfirmationLane),
+      runLabel: String(runLabel || '').trim() || null,
+      runGeneratedAt: String(generatedAt || '').trim() || null,
+      runAggregateResultClass: String(runAggregateResultClass || '').trim() || null,
+      runEnvironmentFingerprint: String(runEnvironmentFingerprint || '').trim() || null,
+      benchmarkConfirmed: target.ok && regressionFailures.length === 0,
+      taskStatus: {
+        resultClass: taskStatus?.resultClass || null,
+        primaryFailureClass: taskStatus?.primaryFailureClass || null,
+        degradationClasses: Array.isArray(taskStatus?.degradationClasses) ? taskStatus.degradationClasses : []
+      },
+      metrics,
+      targetFailures: target.failures,
+      regressionFailures
+    });
+  }
+  return {
+    schemaVersion: BENCH_RUNTIME_BLOCKER_CONFIRMATION_SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+    runGeneratedAt: String(generatedAt || '').trim() || null,
+    runLabel: String(runLabel || '').trim() || null,
+    runAggregateResultClass: String(runAggregateResultClass || '').trim() || null,
+    runEnvironmentFingerprint: String(runEnvironmentFingerprint || '').trim() || null,
+    confirmationCount: canaries.length,
+    confirmedIssues: canaries
+      .filter((entry) => entry.benchmarkConfirmed)
+      .map((entry) => entry.issue)
+      .filter(Number.isFinite)
+      .sort((left, right) => left - right),
+    canaries
+  };
+};
+
+export const buildBenchRuntimeBlockerClosureEvidence = ({
+  liveSummary,
+  benchmarkConfirmations
+}) => {
+  const canaryRows = Array.isArray(liveSummary?.canaries) ? liveSummary.canaries : [];
+  const confirmationSummaries = Array.isArray(benchmarkConfirmations) ? benchmarkConfirmations : [];
+  const blockers = canaryRows.map((entry) => {
+    const confirmations = confirmationSummaries.flatMap((summary) => (
+      Array.isArray(summary?.canaries)
+        ? summary.canaries.filter((candidate) => candidate?.id === entry?.id)
+        : []
+    ));
+    const benchmarkConfirmed = confirmations.some((candidate) => candidate?.benchmarkConfirmed === true);
+    const closureReady = entry?.closureReady === true && benchmarkConfirmed;
+    const closureFailures = [];
+    if (entry?.closureReady !== true) {
+      closureFailures.push('live canary target contract not yet satisfied');
+    }
+    if (!benchmarkConfirmed) {
+      closureFailures.push('no benchmark confirmation report satisfied the target contract');
+    }
+    return {
+      id: entry?.id || null,
+      issue: entry?.issue || null,
+      repo: entry?.repo || null,
+      benchmarkConfirmationLane: entry?.benchmarkConfirmationLane || null,
+      liveCanaryStatus: entry?.status || null,
+      liveCanaryClosureReady: entry?.closureReady === true,
+      benchmarkConfirmed,
+      closureReady,
+      environment: entry?.environment || null,
+      currentFailures: Array.isArray(entry?.currentFailures) ? entry.currentFailures : [],
+      targetFailures: Array.isArray(entry?.targetFailures) ? entry.targetFailures : [],
+      regressionFailures: Array.isArray(entry?.regressionFailures) ? entry.regressionFailures : [],
+      confirmations,
+      closureFailures
+    };
+  });
+  const blockedIssues = blockers
+    .filter((entry) => entry?.closureReady !== true)
+    .map((entry) => Number(entry?.issue))
+    .filter(Number.isFinite)
+    .sort((left, right) => left - right);
+  return {
+    schemaVersion: BENCH_RUNTIME_BLOCKER_CLOSURE_EVIDENCE_SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+    liveSummarySchemaVersion: Number(liveSummary?.schemaVersion) || null,
+    benchmarkConfirmationSchemaVersions: confirmationSummaries
+      .map((entry) => Number(entry?.schemaVersion))
+      .filter(Number.isFinite),
+    ok: blockers.length > 0 && blockedIssues.length === 0,
+    blockedIssues,
+    blockers
+  };
+};
+
 export const formatBenchRuntimeLiveCanarySummaryMarkdown = (summary) => {
   const counts = summary?.countsByStatus && typeof summary.countsByStatus === 'object'
     ? summary.countsByStatus
@@ -711,6 +878,29 @@ export const formatBenchRuntimeLiveCanarySummaryMarkdown = (summary) => {
     lines.push(`- ${entry.id}: ${entry.status} (issue #${entry.issue}, lane ${entry.benchmarkConfirmationLane || 'unknown'})`);
     if (entry?.environment?.mismatches?.length) {
       lines.push(`  environment mismatches: ${entry.environment.mismatches.join('; ')}`);
+    }
+  }
+  return `${lines.join('\n')}\n`;
+};
+
+export const formatBenchRuntimeBlockerClosureEvidenceMarkdown = (summary) => {
+  const lines = [
+    '# Bench Runtime Blocker Closure Evidence',
+    '',
+    `- generated: ${String(summary?.generatedAt || '').trim() || 'unknown'}`,
+    `- ok: ${summary?.ok === true ? 'yes' : 'no'}`,
+    `- blocked issues: ${Array.isArray(summary?.blockedIssues) && summary.blockedIssues.length ? summary.blockedIssues.join(', ') : 'none'}`,
+    '',
+    '## Blockers',
+    ''
+  ];
+  for (const entry of Array.isArray(summary?.blockers) ? summary.blockers : []) {
+    lines.push(
+      `- ${entry.id}: closure=${entry.closureReady === true ? 'ready' : 'blocked'} `
+        + `(issue #${entry.issue}, benchmark=${entry.benchmarkConfirmed === true ? 'confirmed' : 'missing'})`
+    );
+    for (const failure of Array.isArray(entry?.closureFailures) ? entry.closureFailures : []) {
+      lines.push(`  - ${failure}`);
     }
   }
   return `${lines.join('\n')}\n`;

@@ -39,6 +39,11 @@ import {
   buildBenchOwnershipSummary,
   buildBenchReuseSummary
 } from './ownership.js';
+import {
+  buildBenchRuntimeBlockerConfirmationSummary,
+  loadBenchRuntimeCanaryManifest,
+  validateBenchRuntimeCanaryManifest
+} from './canaries.js';
 
 const resolveCrashRetention = (entry) => {
   const direct = entry?.crashRetention && typeof entry.crashRetention === 'object'
@@ -1845,6 +1850,7 @@ export const buildReportOutput = async ({
   results,
   config,
   environmentMetadata = null,
+  runLabel = null,
   runSuffix = null,
   waiverFile = null,
   methodology = null
@@ -1922,6 +1928,50 @@ export const buildReportOutput = async ({
     tasks: verdict.tasks,
     methodology
   });
+  let blockerConfirmations = {
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    loadErrors: [],
+    summary: buildBenchRuntimeBlockerConfirmationSummary({
+      manifest: { liveCanaries: [] },
+      tasks: verdict.tasks,
+      generatedAt: runSuffix,
+      runAggregateResultClass: verdict.run.aggregateResultClass,
+      runEnvironmentFingerprint: environmentMetadata?.fingerprint || null,
+      runLabel
+    })
+  };
+  try {
+    const { manifest } = await loadBenchRuntimeCanaryManifest(process.cwd());
+    const manifestFailures = validateBenchRuntimeCanaryManifest(manifest);
+    blockerConfirmations = {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      loadErrors: manifestFailures,
+      summary: buildBenchRuntimeBlockerConfirmationSummary({
+        manifest,
+        tasks: verdict.tasks,
+        generatedAt: runSuffix,
+        runAggregateResultClass: verdict.run.aggregateResultClass,
+        runEnvironmentFingerprint: environmentMetadata?.fingerprint || null,
+        runLabel
+      })
+    };
+  } catch (error) {
+    blockerConfirmations = {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      loadErrors: [error?.message || String(error)],
+      summary: buildBenchRuntimeBlockerConfirmationSummary({
+        manifest: { liveCanaries: [] },
+        tasks: verdict.tasks,
+        generatedAt: runSuffix,
+        runAggregateResultClass: verdict.run.aggregateResultClass,
+        runEnvironmentFingerprint: environmentMetadata?.fingerprint || null,
+        runLabel
+      })
+    };
+  }
   return {
     generatedAt: new Date().toISOString(),
     config: configPath,
@@ -1940,6 +1990,7 @@ export const buildReportOutput = async ({
       progressConfidence,
       preflight
     },
+    blockerConfirmations,
     ownership,
     throughputLedger,
     stageTiming: {

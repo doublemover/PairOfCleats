@@ -664,6 +664,7 @@ const output = await buildReportOutput({
   results,
   config,
   environmentMetadata: benchEnvironmentMetadata,
+  runLabel: runSuffix,
   runSuffix,
   waiverFile,
   methodology
