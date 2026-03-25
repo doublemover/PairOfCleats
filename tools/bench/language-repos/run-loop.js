@@ -17,6 +17,9 @@ import {
 } from '../language/timeout.js';
 import { needsIndexArtifacts, needsSqliteArtifacts } from '../language/repos.js';
 
+const BENCH_CRASH_QUARANTINE_SCHEMA_VERSION = 1;
+const OPENMOONRAY_WORKER_POOL_QUARANTINE_ID = 'openmoonray-worker-pool-off';
+
 /**
  * @typedef {object} BenchProgressEvent
  * @property {string} [event]
@@ -354,6 +357,41 @@ const maybeDelayBenchTestRepoStart = async () => {
   const delayMs = Number(process.env.PAIROFCLEATS_TEST_BENCH_REPO_DELAY_MS);
   if (!Number.isFinite(delayMs) || delayMs <= 0) return;
   await new Promise((resolve) => setTimeout(resolve, Math.floor(delayMs)));
+};
+
+const isCrashLikeBenchResult = (benchResult) => (
+  benchResult
+  && benchResult.ok === false
+  && benchResult.diagnostics?.crashAttribution
+);
+
+export const resolveBenchCrashQuarantineDecision = ({
+  task,
+  benchResult,
+  crashRetention
+} = {}) => {
+  if (process.platform !== 'win32') return null;
+  const repo = String(task?.repo || '').trim().toLowerCase();
+  if (repo !== 'dreamworksanimation/openmoonray') return null;
+  const crashAttribution = benchResult?.diagnostics?.crashAttribution;
+  if (!crashAttribution || typeof crashAttribution !== 'object') return null;
+  if (String(crashAttribution.crashClass || '').trim() !== 'windows_access_violation') return null;
+  if (String(crashAttribution.recentCleanupLabel || '').trim() !== 'runtime.worker-pools.destroy') return null;
+  if (String(crashRetention?.crashState?.phase || '').trim() !== 'stage3:init') return null;
+  return {
+    schemaVersion: BENCH_CRASH_QUARANTINE_SCHEMA_VERSION,
+    quarantineId: OPENMOONRAY_WORKER_POOL_QUARANTINE_ID,
+    reason: 'windows_access_violation_after_embeddings_stage3_during_worker_pool_destroy',
+    likelySubsystem: 'embeddings-worker-pool-teardown',
+    envOverrides: {
+      PAIROFCLEATS_WORKER_POOL: 'off'
+    },
+    failureContext: {
+      crashClass: crashAttribution.crashClass,
+      recentCleanupLabel: crashAttribution.recentCleanupLabel,
+      crashStatePhase: crashRetention?.crashState?.phase || null
+    }
+  };
 };
 
 /**
@@ -794,6 +832,7 @@ export const runBenchExecutionLoop = async ({
 
       let summary = null;
       let benchResult = null;
+      let crashQuarantineRecovery = null;
       if (dryRun) {
         appendLog(`[dry-run] node ${benchArgs.join(' ')}`);
       } else {
@@ -811,64 +850,119 @@ export const runBenchExecutionLoop = async ({
         if (!benchResult.ok) {
           artifactStateCache.delete(repoPath);
           const diskFull = hasDiskFullMessageInHistory();
-          if (diskFull) {
-            appendLog(`[error] disk full while benchmarking ${repoLabel}; continuing.`, 'error');
-          }
-          appendLog(`[error] benchmark failed for ${repoLabel}; continuing.`, 'error');
-          const failureReason = diskFull ? 'disk-full' : 'bench';
-          const crashRetention = await lifecycle.attachCrashRetention({
-            task,
-            repoLabel,
-            repoPath,
-            repoCacheRoot,
-            outFile,
-            failureReason,
-            failureCode: benchResult.code ?? null,
-            schedulerEvents: benchResult.schedulerEvents || []
-          });
-          progressRuntime.completeRepo();
-          appendLog('[metrics] failed (bench)');
-          const result = {
-            ...task,
-            repoPath,
-            outFile,
-            summary: null,
-            failed: true,
-            failureReason,
-            failureCode: benchResult.code ?? null,
-            failureSignal: benchResult.signal ?? null,
-            timeoutKind: benchResult.timeoutKind || null,
-            timeoutDecision: benchResult.timeoutDecision || null,
-            lastActivity: benchResult.lastActivity || null,
-            ...(crashRetention
-              ? {
-                diagnostics: {
-                  process: benchResult.diagnostics || null,
-                  progressConfidence: benchResult.progressConfidence || null,
-                  crashRetention
-                }
+          let crashRetention = null;
+          if (!diskFull && isCrashLikeBenchResult(benchResult)) {
+            crashRetention = await lifecycle.attachCrashRetention({
+              task,
+              repoLabel,
+              repoPath,
+              repoCacheRoot,
+              outFile,
+              failureReason: 'bench',
+              failureCode: benchResult.code ?? null,
+              failureContext: benchResult.diagnostics?.crashAttribution || null,
+              schedulerEvents: benchResult.schedulerEvents || []
+            });
+            const quarantineDecision = resolveBenchCrashQuarantineDecision({
+              task,
+              benchResult,
+              crashRetention
+            });
+            if (quarantineDecision) {
+              appendLog(
+                `[crash-quarantine] ${repoLabel}: retrying with worker pool disabled `
+                + `(${quarantineDecision.reason}).`,
+                'warn'
+              );
+              const retryEnv = {
+                ...benchProcessEnv,
+                ...quarantineDecision.envOverrides
+              };
+              const retryResult = await processRunner.runProcess(`bench ${repoLabel} [quarantine]`, process.execPath, benchArgs, {
+                cwd: scriptRoot,
+                env: retryEnv,
+                timeoutMs: timeoutProfile.hardTimeoutMs,
+                idleTimeoutMs: timeoutProfile.idleTimeoutMs,
+                continueOnError: true
+              });
+              if (retryResult.ok) {
+                crashQuarantineRecovery = {
+                  schemaVersion: BENCH_CRASH_QUARANTINE_SCHEMA_VERSION,
+                  quarantineId: quarantineDecision.quarantineId,
+                  reason: quarantineDecision.reason,
+                  likelySubsystem: quarantineDecision.likelySubsystem,
+                  envOverrides: { ...quarantineDecision.envOverrides },
+                  priorCrashRetention: crashRetention || null
+                };
+                benchResult = retryResult;
+              } else {
+                benchResult = retryResult;
               }
-              : {
-                diagnostics: {
-                  process: benchResult.diagnostics || null,
-                  progressConfidence: benchResult.progressConfidence || null
-                }
-              })
-          };
-          for (const line of buildBenchRepoCloseoutSummaryLines({
-            repoLabel,
-            outcome: 'failed',
-            failureReason,
-            diagnostics: result.diagnostics?.process || null,
-            progressConfidence: result.diagnostics?.progressConfidence || null,
-            crashRetention: crashRetention || null,
-            timeoutDecision: result.timeoutDecision || null
-          })) {
-            appendLog(line, 'warn');
+            }
           }
-          results.push(result);
-          runLedger?.recordRepoCompleted?.(result);
-          continue;
+          if (!benchResult.ok) {
+            if (!crashRetention) {
+              crashRetention = await lifecycle.attachCrashRetention({
+                task,
+                repoLabel,
+                repoPath,
+                repoCacheRoot,
+                outFile,
+                failureReason: diskFull ? 'disk-full' : 'bench',
+                failureCode: benchResult.code ?? null,
+                failureContext: benchResult.diagnostics?.crashAttribution || null,
+                schedulerEvents: benchResult.schedulerEvents || []
+              });
+            }
+            if (diskFull) {
+              appendLog(`[error] disk full while benchmarking ${repoLabel}; continuing.`, 'error');
+            }
+            appendLog(`[error] benchmark failed for ${repoLabel}; continuing.`, 'error');
+            const failureReason = diskFull ? 'disk-full' : 'bench';
+            progressRuntime.completeRepo();
+            appendLog('[metrics] failed (bench)');
+            const result = {
+              ...task,
+              repoPath,
+              outFile,
+              summary: null,
+              failed: true,
+              failureReason,
+              failureCode: benchResult.code ?? null,
+              failureSignal: benchResult.signal ?? null,
+              timeoutKind: benchResult.timeoutKind || null,
+              timeoutDecision: benchResult.timeoutDecision || null,
+              lastActivity: benchResult.lastActivity || null,
+              ...(crashRetention
+                ? {
+                  diagnostics: {
+                    process: benchResult.diagnostics || null,
+                    progressConfidence: benchResult.progressConfidence || null,
+                    crashRetention
+                  }
+                }
+                : {
+                  diagnostics: {
+                    process: benchResult.diagnostics || null,
+                    progressConfidence: benchResult.progressConfidence || null
+                  }
+                })
+            };
+            for (const line of buildBenchRepoCloseoutSummaryLines({
+              repoLabel,
+              outcome: 'failed',
+              failureReason,
+              diagnostics: result.diagnostics?.process || null,
+              progressConfidence: result.diagnostics?.progressConfidence || null,
+              crashRetention: crashRetention || null,
+              timeoutDecision: result.timeoutDecision || null
+            })) {
+              appendLog(line, 'warn');
+            }
+            results.push(result);
+            runLedger?.recordRepoCompleted?.(result);
+            continue;
+          }
         }
 
         markArtifactsPresent({
@@ -937,7 +1031,8 @@ export const runBenchExecutionLoop = async ({
         diagnostics: benchResult
           ? {
             process: benchResult.diagnostics || null,
-            progressConfidence: benchResult.progressConfidence || null
+            progressConfidence: benchResult.progressConfidence || null,
+            ...(crashQuarantineRecovery ? { crashQuarantineRecovery } : {})
           }
           : {}
       };

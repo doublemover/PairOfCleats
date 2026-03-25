@@ -756,6 +756,73 @@ const formatDiagnosticSummaryLabel = (entry) => {
   return parts.filter(Boolean).join(' ');
 };
 
+const WINDOWS_CRASH_EXIT_LABELS = Object.freeze({
+  3221225477: 'windows_access_violation',
+  3221225786: 'windows_terminated',
+  3221226505: 'windows_fast_fail'
+});
+
+const isCrashExitCode = (value) => {
+  const code = Number(value);
+  if (!Number.isFinite(code)) return false;
+  if (code < 0) return true;
+  return code >= 0xC0000000;
+};
+
+const resolveRecentCleanupLabel = (lines) => {
+  const entries = Array.isArray(lines) ? lines : [];
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const normalized = String(entries[index] || '').trim().replace(/^-+\s*/, '');
+    const match = normalized.match(/^\[cleanup\]\s+(\S+)\s+start$/i);
+    if (match?.[1]) return String(match[1]).trim();
+  }
+  return null;
+};
+
+export const buildBenchCrashAttribution = ({
+  code = null,
+  signal = null,
+  activeLabel = '',
+  activeChildPid = null,
+  activePhase = null,
+  timeoutDecision = null,
+  logHistory = []
+} = {}) => {
+  const exitCode = Number.isFinite(Number(code)) ? Number(code) : null;
+  const normalizedSignal = typeof signal === 'string' && signal.trim()
+    ? signal.trim()
+    : null;
+  if (!normalizedSignal && !isCrashExitCode(exitCode)) return null;
+  const recentLogTail = Array.isArray(logHistory)
+    ? logHistory
+      .map((line) => String(line || '').trim())
+      .filter(Boolean)
+      .slice(-12)
+    : [];
+  const crashClass = normalizedSignal
+    ? 'process_signal'
+    : (WINDOWS_CRASH_EXIT_LABELS[ exitCode ] || 'process_exit_crash');
+  const recentCleanupLabel = resolveRecentCleanupLabel(recentLogTail);
+  return {
+    schemaVersion: 1,
+    crashClass,
+    exitCode,
+    signal: normalizedSignal,
+    ntStatusHex: normalizedSignal || !Number.isFinite(exitCode) || exitCode < 0xC0000000
+      ? null
+      : `0x${exitCode.toString(16).toUpperCase()}`,
+    activeLabel: String(activeLabel || '').trim() || null,
+    activeChildPid: Number.isFinite(Number(activeChildPid)) ? Number(activeChildPid) : null,
+    activePhase: String(
+      activePhase
+      || timeoutDecision?.phase
+      || ''
+    ).trim() || null,
+    recentCleanupLabel,
+    recentLogTail
+  };
+};
+
 export const createProcessRunner = ({
   appendLog,
   writeLog,
@@ -2065,13 +2132,23 @@ export const createProcessRunner = ({
         logExit('failure', code ?? 1);
         exitLikeCommandResult({ status: code, signal });
       }
+      const crashAttribution = buildBenchCrashAttribution({
+        code,
+        signal,
+        activeLabel: label,
+        activeChildPid: result.pid,
+        activePhase: resolveActiveOwnedPhase(),
+        logHistory
+      });
+      const diagnosticsSummary = buildDiagnosticsSummary();
+      if (crashAttribution) diagnosticsSummary.crashAttribution = crashAttribution;
       await flushTelemetryWrites('failure-return');
       return {
         ok: false,
         code: code ?? 1,
         signal,
         schedulerEvents: getSchedulerEvents(),
-        diagnostics: buildDiagnosticsSummary(),
+        diagnostics: diagnosticsSummary,
         progressConfidence: buildProgressConfidenceSummary()
       };
     } catch (err) {
@@ -2212,6 +2289,16 @@ export const createProcessRunner = ({
         interactive: false
       });
       await flushTelemetryWrites('spawn-error-return');
+      const crashAttribution = buildBenchCrashAttribution({
+        code: failureStatus,
+        signal: failureSignal,
+        activeLabel: label,
+        activeChildPid: err?.result?.pid ?? processActivityState.childPid,
+        activePhase: resolveActiveOwnedPhase(),
+        timeoutDecision: enrichedTimeoutDecision,
+        logHistory
+      });
+      if (crashAttribution) diagnosticsSummary.crashAttribution = crashAttribution;
       return {
         ok: false,
         code: failureStatus ?? 1,

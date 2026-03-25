@@ -294,6 +294,7 @@ export const createRepoLifecycle = ({
    *   outFile:string|null,
    *   failureReason:string,
    *   failureCode?:number|null,
+   *   failureContext?:object|null,
    *   schedulerEvents?:object[]
    * }} input
    * @returns {Promise<object|null>}
@@ -306,6 +307,7 @@ export const createRepoLifecycle = ({
     outFile,
     failureReason,
     failureCode = null,
+    failureContext = null,
     schedulerEvents = []
   }) => {
     if (dryRun || !repoCacheRoot) return null;
@@ -320,6 +322,9 @@ export const createRepoLifecycle = ({
           reason: failureReason || 'unknown',
           code: Number.isFinite(Number(failureCode)) ? Number(failureCode) : null
         },
+        failureContext: failureContext && typeof failureContext === 'object'
+          ? { ...failureContext }
+          : null,
         runtime: {
           runSuffix,
           language: task?.language || null,

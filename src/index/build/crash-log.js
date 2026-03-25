@@ -18,7 +18,7 @@ import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.
  */
 const formatTimestamp = () => new Date().toISOString();
 const RENAME_RETRY_CODES = new Set(['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV']);
-const CRASH_RETENTION_SCHEMA_VERSION = '1.1.0';
+const CRASH_RETENTION_SCHEMA_VERSION = '1.2.0';
 const CRASH_RETENTION_BUNDLE_FILE = 'retained-crash-bundle.json';
 const CRASH_RETENTION_MARKER_FILE = 'retained-crash-bundle.consistency.json';
 const CRASH_RETENTION_LOG_TAIL_LIMIT = 100;
@@ -530,6 +530,7 @@ const selectCrashArtifacts = async ({ repoCacheRoot }) => {
  * @param {object|null} [input.failure]
  * @param {object|null} [input.runtime]
  * @param {object|null} [input.environment]
+ * @param {object|null} [input.failureContext]
  * @param {Array<object|string>} [input.schedulerEvents]
  * @param {Array<string>} [input.logTail]
  * @returns {Promise<object|null>}
@@ -543,6 +544,7 @@ export async function retainCrashArtifacts({
   failure = null,
   runtime = null,
   environment = null,
+  failureContext = null,
   schedulerEvents = [],
   logTail = []
 } = {}) {
@@ -558,6 +560,7 @@ export async function retainCrashArtifacts({
   const copyErrors = [];
   const retentionDecisions = [];
   let parserMetadata = [];
+  let crashState = null;
   let crashLogTail = [];
   let retainedBytesTotal = 0;
 
@@ -664,6 +667,9 @@ export async function retainCrashArtifacts({
       if (sourcePath.endsWith('.json')) {
         try {
           const payload = JSON.parse(await fs.readFile(targetPath, 'utf8'));
+          if (path.basename(sourcePath) === 'index-crash-state.json') {
+            crashState = payload;
+          }
           parserMetadata = mergeParserMetadata({ parserMetadata, payload });
         } catch {}
       }
@@ -713,6 +719,9 @@ export async function retainCrashArtifacts({
     repoLabel: repoLabel || null,
     repoCacheRoot: resolvedRepoCacheRoot,
     failure: failure || null,
+    failureContext: failureContext && typeof failureContext === 'object'
+      ? { ...failureContext }
+      : null,
     runtime: runtime || null,
     environment: {
       nodeVersion: process.version,
@@ -730,6 +739,7 @@ export async function retainCrashArtifacts({
       retainedBytesTotal
     },
     parserMetadata,
+    crashState,
     schedulerEvents: resolvedSchedulerEvents,
     logTail: resolvedLogTail,
     copiedArtifacts: retainedArtifacts.map((entry) => ({
@@ -768,6 +778,9 @@ export async function retainCrashArtifacts({
     artifactCount: retainedArtifacts.length,
     copyErrorCount: copyErrors.length,
     parserMetadataCount: parserMetadata.length,
+    crashState: crashState && typeof crashState === 'object'
+      ? { ...crashState }
+      : null,
     schedulerEventCount: resolvedSchedulerEvents.length,
     checksum: `sha1:${checksum}`
   };
