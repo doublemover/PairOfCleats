@@ -233,6 +233,10 @@ export const resolveArtifactWriteRuntime = ({
   const binaryColumnarEnabled = artifactConfig.binaryColumnar !== false;
   const chunkMetaBinaryColumnar = artifactConfig.chunkMetaBinaryColumnar === true
     || (binaryColumnarEnabled && artifactConfig.chunkMetaBinaryColumnar !== false);
+  const chunkMetaBinaryColumnarMaxBytes = coerceIntAtLeast(
+    artifactConfig.chunkMetaBinaryColumnarMaxBytes,
+    1
+  ) ?? (512 * 1024 * 1024);
   const tokenPostingsBinaryColumnar = artifactConfig.tokenPostingsBinaryColumnar === true
     || (binaryColumnarEnabled && artifactConfig.tokenPostingsBinaryColumnar !== false);
   const chunkMetaJsonlThreshold = coerceIntAtLeast(
@@ -351,6 +355,7 @@ export const resolveArtifactWriteRuntime = ({
     fileMetaFormatConfig,
     chunkMetaFormatConfig,
     chunkMetaBinaryColumnar,
+    chunkMetaBinaryColumnarMaxBytes,
     tokenPostingsBinaryColumnar,
     chunkMetaJsonlThreshold,
     chunkMetaJsonlEstimateThresholdBytes,

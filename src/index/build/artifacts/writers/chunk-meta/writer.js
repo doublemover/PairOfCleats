@@ -339,6 +339,9 @@ export const enqueueChunkMetaArtifacts = async ({
   const binaryLengthsPath = path.join(outDir, 'chunk_meta.binary-columnar.lengths.varint');
   const binaryMetaPath = path.join(outDir, 'chunk_meta.binary-columnar.meta.json');
   const binaryTaskLabel = 'chunk_meta.binary-columnar.bundle';
+  const hotShardsTaskLabel = 'chunk_meta.parts.bundle';
+  const coldShardsTaskLabel = 'chunk_meta_cold.parts.bundle';
+  const optionalBinaryColumnarEnabled = chunkMetaBinaryColumnar === true;
   const removeJsonlVariants = async () => removeArtifacts(
     buildJsonlVariantPaths({ outDir, baseName: 'chunk_meta', includeOffsets: true })
   );
@@ -391,7 +394,7 @@ export const enqueueChunkMetaArtifacts = async ({
       await removeArtifact(columnarPath);
     }
   }
-  if (!chunkMetaBinaryColumnar) {
+  if (!optionalBinaryColumnarEnabled) {
     await removeArtifact(binaryDataPath);
     await removeArtifact(binaryOffsetsPath);
     await removeArtifact(binaryLengthsPath);
@@ -521,8 +524,9 @@ export const enqueueChunkMetaArtifacts = async ({
     if (resolvedUseShards) {
       const metaPath = path.join(outDir, 'chunk_meta.meta.json');
       enqueueWrite(
-        formatArtifactLabel(metaPath),
-        async () => {
+        hotShardsTaskLabel,
+        async ({ setPhase } = {}) => {
+          setPhase?.('write:chunk-meta-shards');
           const { items, itemsAsync } = createHotItemsSource();
           const result = itemsAsync
             ? await writeJsonLinesShardedAsync({
@@ -605,6 +609,7 @@ export const enqueueChunkMetaArtifacts = async ({
               ...(offsetsMeta ? { offsets: offsetsMeta } : {})
             }
           });
+          setPhase?.('publish:chunk-meta-meta');
           const chunkMetaPartPaths = expandPartPaths(result.parts);
           for (let i = 0; i < result.parts.length; i += 1) {
             const absPath = chunkMetaPartPaths[i];
@@ -633,13 +638,18 @@ export const enqueueChunkMetaArtifacts = async ({
           // Sharded outputs should never leave a chunk_meta.json alias behind.
           await removeArtifact(compatJsonPath);
           await cleanupCollected();
+        },
+        {
+          estimatedBytes: jsonlScan?.totalJsonlBytes || null,
+          priority: 275
         }
       );
       if (enableHotColdSplit) {
         const coldMetaPath = path.join(outDir, 'chunk_meta_cold.meta.json');
         enqueueWrite(
-          formatArtifactLabel(coldMetaPath),
-          async () => {
+          coldShardsTaskLabel,
+          async ({ setPhase } = {}) => {
+            setPhase?.('write:chunk-meta-cold-shards');
             const { items, itemsAsync } = createColdItemsSource();
             const result = itemsAsync
               ? await writeJsonLinesShardedAsync({
@@ -682,6 +692,7 @@ export const enqueueChunkMetaArtifacts = async ({
                 ...(offsetsMeta ? { offsets: offsetsMeta } : {})
               }
             });
+            setPhase?.('publish:chunk-meta-cold-meta');
             const chunkMetaColdPartPaths = expandPartPaths(result.parts);
             for (let i = 0; i < result.parts.length; i += 1) {
               const absPath = chunkMetaColdPartPaths[i];
@@ -708,6 +719,10 @@ export const enqueueChunkMetaArtifacts = async ({
             }
             addPieceFile({ type: 'chunks', name: 'chunk_meta_cold_meta', format: 'json' }, coldMetaPath);
             await cleanupCollected();
+          },
+          {
+            estimatedBytes: jsonlScan?.coldJsonlBytes || null,
+            priority: 260
           }
         );
       }
@@ -818,7 +833,7 @@ export const enqueueChunkMetaArtifacts = async ({
       piece: { type: 'chunks', name: 'chunk_meta', count: chunkMetaCount }
     });
   }
-  if (chunkMetaBinaryColumnar) {
+  if (optionalBinaryColumnarEnabled) {
     const binaryColumnarEstimatedBytes = Number.isFinite(Number(chunkMetaEstimatedJsonlBytes))
       ? Math.max(0, Math.floor(Number(chunkMetaEstimatedJsonlBytes)))
       : null;
@@ -918,10 +933,12 @@ export const enqueueChunkMetaArtifacts = async ({
       },
       {
         // Start binary-columnar generation early so it overlaps other long
-        // artifact writes instead of becoming the final tail.
-        priority: 225,
+        // artifact writes instead of becoming the final tail. When sharded
+        // JSONL is already required, keep the optional binary bundle behind
+        // the required shard publish path.
+        priority: resolvedUseShards ? 75 : 225,
         estimatedBytes: binaryColumnarEstimatedBytes,
-        eagerStart: true,
+        eagerStart: resolvedUseShards !== true,
         laneHint: 'massive'
       }
     );

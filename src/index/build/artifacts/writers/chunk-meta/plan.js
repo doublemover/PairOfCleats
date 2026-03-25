@@ -5,7 +5,7 @@ import { resolveChunkMetaMaxBytes } from './shared.js';
 
 /**
  * Decide chunk_meta artifact mode/sharding based on estimated row size and limits.
- * @param {{chunks:Array<object>,chunkMetaIterator:function,artifactMode:string,chunkMetaFormatConfig?:string|null,chunkMetaStreaming?:boolean,chunkMetaBinaryColumnar?:boolean,chunkMetaJsonlThreshold:number,chunkMetaShardSize:number,chunkMetaJsonlEstimateThresholdBytes?:number,maxJsonBytes?:number}} input
+ * @param {{chunks:Array<object>,chunkMetaIterator:function,artifactMode:string,chunkMetaFormatConfig?:string|null,chunkMetaStreaming?:boolean,chunkMetaBinaryColumnar?:boolean,chunkMetaBinaryColumnarMaxBytes?:number|null,chunkMetaJsonlThreshold:number,chunkMetaShardSize:number,chunkMetaJsonlEstimateThresholdBytes?:number,maxJsonBytes?:number}} input
  * @returns {object}
  */
 export const resolveChunkMetaPlan = ({
@@ -15,6 +15,7 @@ export const resolveChunkMetaPlan = ({
   chunkMetaFormatConfig,
   chunkMetaStreaming = false,
   chunkMetaBinaryColumnar = false,
+  chunkMetaBinaryColumnarMaxBytes = 512 * 1024 * 1024,
   chunkMetaJsonlThreshold,
   chunkMetaShardSize,
   chunkMetaJsonlEstimateThresholdBytes = 1 * 1024 * 1024,
@@ -24,6 +25,9 @@ export const resolveChunkMetaPlan = ({
   const resolvedJsonlEstimateThresholdBytes = Number.isFinite(Number(chunkMetaJsonlEstimateThresholdBytes))
     ? Math.max(1, Math.floor(Number(chunkMetaJsonlEstimateThresholdBytes)))
     : (1 * 1024 * 1024);
+  const resolvedBinaryColumnarMaxBytes = Number.isFinite(Number(chunkMetaBinaryColumnarMaxBytes))
+    ? Math.max(1, Math.floor(Number(chunkMetaBinaryColumnarMaxBytes)))
+    : null;
   const maxJsonBytesSoft = resolvedMaxJsonBytes * 0.9;
   const shardTargetBytes = resolvedMaxJsonBytes * 0.75;
   const chunkMetaCount = chunks.length;
@@ -78,11 +82,31 @@ export const resolveChunkMetaPlan = ({
       }
     }
   }
+  let chunkMetaBinaryColumnarDisabledReason = null;
+  if (
+    chunkMetaBinaryColumnar === true
+    && chunkMetaUseShards
+    && resolvedBinaryColumnarMaxBytes != null
+    && estimatedJsonlBytes > resolvedBinaryColumnarMaxBytes
+  ) {
+    chunkMetaBinaryColumnar = false;
+    chunkMetaBinaryColumnarDisabledReason = (
+      `estimated ${formatBytes(estimatedJsonlBytes)} exceeds binary-columnar max `
+      + `${formatBytes(resolvedBinaryColumnarMaxBytes)} for sharded chunk_meta`
+    );
+    log(
+      `Chunk metadata estimate ~${formatBytes(estimatedJsonlBytes)}; ` +
+      `skipping optional binary-columnar bundle because it exceeds ` +
+      `${formatBytes(resolvedBinaryColumnarMaxBytes)} while sharded JSONL is required.`
+    );
+  }
   return {
     chunkMetaCount,
     chunkMetaFormat,
     chunkMetaStreaming: chunkMetaStreaming === true,
     chunkMetaBinaryColumnar: chunkMetaBinaryColumnar === true,
+    chunkMetaBinaryColumnarMaxBytes: resolvedBinaryColumnarMaxBytes,
+    chunkMetaBinaryColumnarDisabledReason,
     chunkMetaEstimatedJsonlBytes: estimatedJsonlBytes,
     chunkMetaUseJsonl,
     chunkMetaUseColumnar,
