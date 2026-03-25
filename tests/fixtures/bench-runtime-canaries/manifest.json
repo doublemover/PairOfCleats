@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "generatedAt": "2026-03-23T00:00:00.000Z",
   "entries": [
     {
@@ -88,6 +88,380 @@
       ],
       "requiredFailureClasses": [
         "grammar:json"
+      ]
+    }
+  ],
+  "liveCanaries": [
+    {
+      "id": "sdk-artifact-tail-live",
+      "issue": 379,
+      "repo": "basedosdados/sdk",
+      "profile": "reduced-medium",
+      "canaryKind": "reduced-repro",
+      "environment": {
+        "os": "cross-platform",
+        "toolchain": "node-only reduced repro",
+        "providerAvailability": "providers disabled; artifact writer path exercised",
+        "cacheState": "isolated temp output",
+        "configProfile": "bench-live-canary"
+      },
+      "currentFailureMode": "artifact write path times out with heavy-family tail stalls",
+      "expectedImprovedMode": "artifact write completes without timeout and without artifact-tail stalls",
+      "benchmarkConfirmationLane": "bench-language medium + small",
+      "proofOfSimilarity": {
+        "referenceRun": "benchmarks/results/logs/bench-language/run-20260324-223022-sdk.log",
+        "note": "Latest blocker runs show repeated artifact tail stall diagnostics followed by timeout in artifact_write for basedosdados/sdk."
+      },
+      "runner": {
+        "type": "node-script",
+        "script": "tests/fixtures/bench-runtime-canaries/live/emit-live-canary.js",
+        "args": [
+          "--fixture",
+          "sdk-artifact-tail-live",
+          "--out",
+          "{outJson}"
+        ]
+      },
+      "currentContract": {
+        "allowedResultClasses": [
+          "timed_out"
+        ],
+        "requiredTimeoutClasses": [
+          "budget_exhausted_with_progress"
+        ],
+        "minCountsByDiagnosticType": {
+          "artifact_tail_stall": 1
+        },
+        "maxCrashCount": 0
+      },
+      "targetContract": {
+        "allowedResultClasses": [
+          "passed",
+          "passed_with_degradation"
+        ],
+        "maxCountsByDiagnosticType": {
+          "artifact_tail_stall": 0
+        },
+        "maxCrashCount": 0
+      },
+      "forbiddenRegressions": [
+        {
+          "type": "resultClassDisallowed",
+          "values": [
+            "crashed",
+            "infra_failed"
+          ]
+        },
+        {
+          "type": "crashCountMax",
+          "max": 0
+        }
+      ]
+    },
+    {
+      "id": "swift-nio-timeout-live",
+      "issue": 380,
+      "repo": "apple/swift-nio",
+      "profile": "reduced-medium",
+      "canaryKind": "reduced-repro",
+      "environment": {
+        "os": "cross-platform",
+        "toolchain": "node-only reduced repro",
+        "providerAvailability": "timeout controller exercised without external providers",
+        "cacheState": "isolated temp output",
+        "configProfile": "bench-live-canary"
+      },
+      "currentFailureMode": "timeout controller extends for healthy progress and still exits timed_out with budget_exhausted_with_progress",
+      "expectedImprovedMode": "stage-owned timeout control avoids contradictory extension-and-kill behavior",
+      "benchmarkConfirmationLane": "bench-language medium + small",
+      "proofOfSimilarity": {
+        "referenceRun": "benchmarks/results/logs/bench-language/run-20260324-060958-swift-nio.log",
+        "note": "The blocker run extends the timeout budget for healthy progress and then still terminates the repo as budget_exhausted_with_progress."
+      },
+      "runner": {
+        "type": "node-script",
+        "script": "tests/fixtures/bench-runtime-canaries/live/emit-live-canary.js",
+        "args": [
+          "--fixture",
+          "swift-nio-timeout-live",
+          "--out",
+          "{outJson}"
+        ]
+      },
+      "currentContract": {
+        "allowedResultClasses": [
+          "timed_out"
+        ],
+        "requiredTimeoutClasses": [
+          "budget_exhausted_with_progress",
+          "healthy_progress"
+        ],
+        "maxCrashCount": 0
+      },
+      "targetContract": {
+        "allowedResultClasses": [
+          "passed",
+          "passed_with_degradation"
+        ],
+        "maxCrashCount": 0
+      },
+      "forbiddenRegressions": [
+        {
+          "type": "resultClassDisallowed",
+          "values": [
+            "crashed",
+            "infra_failed"
+          ]
+        },
+        {
+          "type": "crashCountMax",
+          "max": 0
+        }
+      ]
+    },
+    {
+      "id": "openmoonray-crash-live",
+      "issue": 381,
+      "repo": "dreamworksanimation/openmoonray",
+      "profile": "reduced-windows",
+      "canaryKind": "representative-full",
+      "environment": {
+        "os": "windows",
+        "toolchain": "native reduced crash harness",
+        "providerAvailability": "crash isolation path exercised",
+        "cacheState": "isolated temp output",
+        "configProfile": "bench-live-canary"
+      },
+      "currentFailureMode": "run exits in a crash state matching the Windows access-violation blocker",
+      "expectedImprovedMode": "no crash; subsystem either succeeds or is cleanly quarantined behind degraded completion",
+      "benchmarkConfirmationLane": "bench-language medium + small",
+      "proofOfSimilarity": {
+        "referenceRun": "benchmarks/results/logs/bench-language/run-20260324-193555-openmoonray.log",
+        "note": "The blocker run exits with the Windows crash code path instead of a degradable repo failure."
+      },
+      "runner": {
+        "type": "node-script",
+        "script": "tests/fixtures/bench-runtime-canaries/live/emit-live-canary.js",
+        "args": [
+          "--fixture",
+          "openmoonray-crash-live",
+          "--out",
+          "{outJson}"
+        ]
+      },
+      "currentContract": {
+        "allowedResultClasses": [
+          "crashed"
+        ],
+        "minCrashCount": 1
+      },
+      "targetContract": {
+        "allowedResultClasses": [
+          "passed",
+          "passed_with_degradation"
+        ],
+        "maxCrashCount": 0
+      },
+      "forbiddenRegressions": [
+        {
+          "type": "resultClassDisallowed",
+          "values": [
+            "infra_failed"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sourcekit-container-live",
+      "issue": 382,
+      "repo": "apple/container",
+      "profile": "reduced-swift",
+      "canaryKind": "reduced-repro",
+      "environment": {
+        "os": "macos",
+        "toolchain": "sourcekit reduced repro fixture",
+        "providerAvailability": "SourceKit startup/admission path represented",
+        "cacheState": "isolated temp output",
+        "configProfile": "bench-live-canary"
+      },
+      "currentFailureMode": "SourceKit enters degraded mode after blocked package-resolution style startup failure",
+      "expectedImprovedMode": "bounded Swift coverage remains available without repo-wide fail-open classification",
+      "benchmarkConfirmationLane": "bench-language small + medium",
+      "proofOfSimilarity": {
+        "referenceRun": "benchmarks/results/logs/bench-language/run-20260324-030413-container.log",
+        "note": "The blocker run shows sourcekit.package-resolution blocking followed by degraded startup handling."
+      },
+      "runner": {
+        "type": "node-script",
+        "script": "tests/fixtures/bench-runtime-canaries/live/emit-live-canary.js",
+        "args": [
+          "--fixture",
+          "sourcekit-container-live",
+          "--out",
+          "{outJson}"
+        ]
+      },
+      "currentContract": {
+        "allowedResultClasses": [
+          "passed_with_degradation"
+        ],
+        "minCountsByDiagnosticType": {
+          "provider_preflight_blocked": 1,
+          "provider_degraded_mode_entered": 1
+        },
+        "maxCrashCount": 0
+      },
+      "targetContract": {
+        "allowedResultClasses": [
+          "passed",
+          "passed_with_degradation"
+        ],
+        "maxCountsByDiagnosticType": {
+          "provider_preflight_blocked": 0
+        },
+        "maxCrashCount": 0
+      },
+      "forbiddenRegressions": [
+        {
+          "type": "resultClassDisallowed",
+          "values": [
+            "crashed",
+            "timed_out",
+            "infra_failed"
+          ]
+        },
+        {
+          "type": "crashCountMax",
+          "max": 0
+        }
+      ]
+    },
+    {
+      "id": "gopls-cobra-live",
+      "issue": 383,
+      "repo": "spf13/cobra",
+      "profile": "reduced-go",
+      "canaryKind": "reduced-repro",
+      "environment": {
+        "os": "cross-platform",
+        "toolchain": "gopls reduced repro fixture",
+        "providerAvailability": "gopls workspace partition path represented",
+        "cacheState": "isolated temp output",
+        "configProfile": "bench-live-canary"
+      },
+      "currentFailureMode": "repo completes only in degraded mode because blocked partitions poison the workspace outcome",
+      "expectedImprovedMode": "ready partitions execute cleanly and blocked partitions remain isolated instead of forcing repo-wide fail-open",
+      "benchmarkConfirmationLane": "bench-language small + medium",
+      "proofOfSimilarity": {
+        "referenceRun": "benchmarks/results/logs/bench-language/run-20260324-030413-cobra.log",
+        "note": "The blocker run reports blocked gopls workspace modeling and repo-wide degraded handling instead of clean partition-local coverage."
+      },
+      "runner": {
+        "type": "node-script",
+        "script": "tests/fixtures/bench-runtime-canaries/live/emit-live-canary.js",
+        "args": [
+          "--fixture",
+          "gopls-cobra-live",
+          "--out",
+          "{outJson}"
+        ]
+      },
+      "currentContract": {
+        "allowedResultClasses": [
+          "passed_with_degradation"
+        ],
+        "minCountsByDiagnosticType": {
+          "provider_preflight_blocked": 1
+        },
+        "maxCrashCount": 0
+      },
+      "targetContract": {
+        "allowedResultClasses": [
+          "passed",
+          "passed_with_degradation"
+        ],
+        "maxCountsByDiagnosticType": {
+          "provider_preflight_blocked": 0
+        },
+        "maxCrashCount": 0
+      },
+      "forbiddenRegressions": [
+        {
+          "type": "resultClassDisallowed",
+          "values": [
+            "crashed",
+            "timed_out",
+            "infra_failed"
+          ]
+        },
+        {
+          "type": "crashCountMax",
+          "max": 0
+        }
+      ]
+    },
+    {
+      "id": "rust-windows-ripgrep-live",
+      "issue": 384,
+      "repo": "BurntSushi/ripgrep",
+      "profile": "reduced-rust-windows",
+      "canaryKind": "reduced-repro",
+      "environment": {
+        "os": "windows",
+        "toolchain": "rust-analyzer reduced repro fixture",
+        "providerAvailability": "Rust Windows toolchain probe path represented",
+        "cacheState": "isolated temp output",
+        "configProfile": "bench-live-canary"
+      },
+      "currentFailureMode": "Windows Rust coverage depends on fallback because toolchain/sysroot probes create false degradation",
+      "expectedImprovedMode": "repo code is analyzed without toolchain-noise-driven fallback inflation",
+      "benchmarkConfirmationLane": "bench-language small + medium",
+      "proofOfSimilarity": {
+        "referenceRun": "benchmarks/results/logs/bench-language/run-20260324-030413-ripgrep.log",
+        "note": "The blocker run completes only with repeated fallback activity on Windows Rust coverage."
+      },
+      "runner": {
+        "type": "node-script",
+        "script": "tests/fixtures/bench-runtime-canaries/live/emit-live-canary.js",
+        "args": [
+          "--fixture",
+          "rust-windows-ripgrep-live",
+          "--out",
+          "{outJson}"
+        ]
+      },
+      "currentContract": {
+        "allowedResultClasses": [
+          "passed_with_degradation"
+        ],
+        "minCountsByDiagnosticType": {
+          "fallback_used": 1
+        },
+        "maxCrashCount": 0
+      },
+      "targetContract": {
+        "allowedResultClasses": [
+          "passed",
+          "passed_with_degradation"
+        ],
+        "maxCountsByDiagnosticType": {
+          "fallback_used": 0
+        },
+        "maxCrashCount": 0
+      },
+      "forbiddenRegressions": [
+        {
+          "type": "resultClassDisallowed",
+          "values": [
+            "crashed",
+            "timed_out",
+            "infra_failed"
+          ]
+        },
+        {
+          "type": "crashCountMax",
+          "max": 0
+        }
       ]
     }
   ]

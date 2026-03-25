@@ -4,14 +4,22 @@ import fsPromises from 'node:fs/promises';
 
 import {
   loadBenchRuntimeCanaryManifest,
-  replayBenchRuntimeCanary
+  replayBenchRuntimeCanary,
+  validateBenchRuntimeCanaryManifest
 } from '../../../tools/bench/language/canaries.js';
 
 const { canaryRoot, manifest } = await loadBenchRuntimeCanaryManifest(process.cwd());
 
-assert.equal(manifest?.schemaVersion, 1, 'expected canary manifest schema version');
+assert.equal(manifest?.schemaVersion, 2, 'expected canary manifest schema version');
 assert.ok(Array.isArray(manifest?.entries), 'expected canary entries array');
 assert.equal(manifest.entries.length >= 7, true, 'expected critical canary coverage');
+assert.ok(Array.isArray(manifest?.liveCanaries), 'expected live canary entries array');
+assert.equal(manifest.liveCanaries.length >= 6, true, 'expected blocker live canary coverage');
+assert.deepEqual(
+  validateBenchRuntimeCanaryManifest(manifest),
+  [],
+  'expected canary manifest to satisfy replay and live-canary contract requirements'
+);
 
 for (const entry of manifest.entries) {
   assert.ok(entry?.id, 'expected canary id');
