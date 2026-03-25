@@ -275,6 +275,8 @@ export const buildProviderFidelityContract = ({
   const derivedBlocked = String(preflightState || '').trim().toLowerCase() === 'blocked';
   const derivedDegraded = String(preflightState || '').trim().toLowerCase() === 'degraded'
     || blockedPartitions.count > 0
+    || workspaceCoverage.unmatchedDocumentCount > 0
+    || workspaceCoverage.unmatchedTargetCount > 0
     || requestClassFailures.length > 0
     || hasNamedCheck(checks, 'tooling_document_symbol_failed')
     || hasNamedCheck(checks, 'pyright_timeout_storm_truncated');

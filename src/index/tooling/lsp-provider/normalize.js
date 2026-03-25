@@ -172,6 +172,7 @@ export const normalizeServerConfig = (server, index) => {
   const goWorkspaceWarmupMinGoFiles = Number(merged.goWorkspaceWarmupMinGoFiles);
   const goWorkspaceWarmupScanBudget = Number(merged.goWorkspaceWarmupScanBudget);
   const goWorkspaceWarmupScanMaxDepth = Number(merged.goWorkspaceWarmupScanMaxDepth);
+  const goWorkspaceNegativeCacheTtlMs = Number(merged.goWorkspaceNegativeCacheTtlMs);
   const rustWorkspaceMetadataCmd = String(merged.rustWorkspaceMetadataCmd || '').trim();
   const rustWorkspaceMetadataArgs = Array.isArray(merged.rustWorkspaceMetadataArgs)
     ? merged.rustWorkspaceMetadataArgs.map((entry) => String(entry))
@@ -324,6 +325,9 @@ export const normalizeServerConfig = (server, index) => {
       : null,
     goWorkspaceWarmupScanMaxDepth: Number.isFinite(goWorkspaceWarmupScanMaxDepth)
       ? Math.max(1, Math.floor(goWorkspaceWarmupScanMaxDepth))
+      : null,
+    goWorkspaceNegativeCacheTtlMs: Number.isFinite(goWorkspaceNegativeCacheTtlMs)
+      ? Math.max(0, Math.floor(goWorkspaceNegativeCacheTtlMs))
       : null,
     rustWorkspaceMetadataCmd: rustWorkspaceMetadataCmd || null,
     rustWorkspaceMetadataArgs: rustWorkspaceMetadataArgs?.length ? rustWorkspaceMetadataArgs : null,

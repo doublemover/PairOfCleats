@@ -14,6 +14,7 @@ const DEFAULT_WARMUP_TIMEOUT_MS = 20000;
 const DEFAULT_WARMUP_MIN_GO_FILES = 120;
 const DEFAULT_WARMUP_SCAN_BUDGET = 8000;
 const DEFAULT_WARMUP_SCAN_MAX_DEPTH = 7;
+const DEFAULT_NEGATIVE_CACHE_TTL_MS = 15_000;
 const GO_ROOT_MARKER_NAMES = new Set(['go.mod', 'go.work']);
 const GO_SOURCE_EXTS = new Set(['.go']);
 
@@ -73,6 +74,14 @@ const resolveWarmupScanOptions = (server) => {
     scanBudget,
     scanMaxDepth
   };
+};
+
+const resolveGoWorkspaceNegativeCacheTtlMs = (server) => {
+  const ttlValue = server?.goWorkspaceNegativeCacheTtlMs;
+  if (ttlValue == null || ttlValue === '') return DEFAULT_NEGATIVE_CACHE_TTL_MS;
+  const ttlRaw = Number(ttlValue);
+  if (!Number.isFinite(ttlRaw)) return DEFAULT_NEGATIVE_CACHE_TTL_MS;
+  return Math.max(0, Math.floor(ttlRaw));
 };
 
 const countSelectedGoDocuments = (documents) => {
@@ -233,6 +242,7 @@ const resolveGoWorkspaceWarmupPreflight = async ({
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
   const warmupCommand = resolveWarmupCommand(server);
+  const negativeCacheTtlMs = resolveGoWorkspaceNegativeCacheTtlMs(server);
   return await runWorkspaceCommandPreflight({
     ctx,
     cwd: repoRoot,
@@ -253,6 +263,9 @@ const resolveGoWorkspaceWarmupPreflight = async ({
         args: warmupCommand.args,
         minGoFiles: resolveWarmupScanOptions(server).minGoFiles
       }
+    },
+    cacheMaxAgeMsByState: {
+      degraded: negativeCacheTtlMs
     }
   });
 };
@@ -384,6 +397,7 @@ export const resolveGoWorkspaceModulePreflight = async ({
   }
 
   const command = resolveModuleCommand(server);
+  const negativeCacheTtlMs = resolveGoWorkspaceNegativeCacheTtlMs(server);
   const blockedPartitions = [];
   const readyPartitions = [];
   const checks = [];
@@ -415,6 +429,9 @@ export const resolveGoWorkspaceModulePreflight = async ({
           workspaceRoot: partition.rootRel,
           workspaceKey: partition.workspaceKey
         }
+      },
+      cacheMaxAgeMsByState: {
+        degraded: negativeCacheTtlMs
       }
     });
     const partitionResult = modulePreflight.state === 'ready'

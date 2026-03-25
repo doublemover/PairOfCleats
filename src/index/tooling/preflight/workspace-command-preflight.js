@@ -35,7 +35,8 @@ const summarize = (value, maxChars = 220) => {
  *     namespace:string,
  *     watchedFiles?:string[],
  *     extra?:object|null
- *   }|null
+ *   }|null,
+ *   cacheMaxAgeMsByState?:Record<string, number>|null
  * }} input
  * @returns {{
  *   state: 'ready'|'degraded',
@@ -55,7 +56,8 @@ export const runWorkspaceCommandPreflight = async ({
   reasonPrefix,
   label,
   log = () => {},
-  successCache = null
+  successCache = null,
+  cacheMaxAgeMsByState = null
 }) => {
   const command = String(cmd || '').trim();
   const commandArgs = Array.isArray(args) ? args.map((entry) => String(entry)) : [];
@@ -131,7 +133,8 @@ export const runWorkspaceCommandPreflight = async ({
         repoRoot: successCache.repoRoot || ctx?.repoRoot || process.cwd(),
         cacheRoot: successCache.cacheRoot || null,
         namespace: successCache.namespace,
-        fingerprint: successFingerprint
+        fingerprint: successFingerprint,
+        cacheMaxAgeMsByState
       });
       if (cached.hit) {
         if (typeof log === 'function') {

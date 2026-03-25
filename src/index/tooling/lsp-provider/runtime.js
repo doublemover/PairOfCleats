@@ -304,6 +304,20 @@ export const resolveGenericLspRuntimeIssueClasses = ({
   const requestsByMethod = runtime?.requests?.byMethod && typeof runtime.requests.byMethod === 'object'
     ? runtime.requests.byMethod
     : {};
+  const workspaceModel = runtime?.workspaceModel && typeof runtime.workspaceModel === 'object'
+    ? runtime.workspaceModel
+    : null;
+  const unmatchedDocumentCount = Number(workspaceModel?.unmatchedDocumentCount || 0);
+  const unmatchedTargetCount = Number(workspaceModel?.unmatchedTargetCount || 0);
+  if (unmatchedDocumentCount > 0 || unmatchedTargetCount > 0) {
+    issueClasses.add('partial_workspace_coverage');
+  }
+  if (unmatchedDocumentCount > 0) {
+    issueClasses.add('unmatched_workspace_documents');
+  }
+  if (unmatchedTargetCount > 0) {
+    issueClasses.add('unmatched_workspace_targets');
+  }
   for (const [method, issueClass] of Object.entries(RUNTIME_ISSUE_BY_METHOD)) {
     if (Number(requestsByMethod?.[method]?.timedOut || 0) > 0) {
       issueClasses.add(issueClass);
@@ -399,6 +413,25 @@ export const collectConfiguredOutput = async ({
   );
   const skippedBlockedPartitions = [];
   const partitionResults = [];
+  const effectivePreflightState = (
+    String(workspaceRouting.state || '').trim().toLowerCase() === 'blocked'
+      ? 'blocked'
+      : (
+        String(preflightState || '').trim().toLowerCase() === 'blocked'
+          ? 'blocked'
+          : (
+            String(workspaceRouting.state || '').trim().toLowerCase() === 'degraded'
+              || String(preflightState || '').trim().toLowerCase() === 'degraded'
+              ? 'degraded'
+              : 'ready'
+          )
+      )
+  );
+  const effectivePreflightReasonCode = (
+    effectivePreflightState === 'ready'
+      ? (preflightReasonCode || null)
+      : (workspaceRouting.reasonCode || preflightReasonCode || null)
+  );
   for (const partition of workspaceRouting.partitions) {
     if (blockedKeySet.has(String(partition.workspaceKey || '').trim()) || blockedRootSet.has(String(partition.rootRel || '').trim())) {
       skippedBlockedPartitions.push(partition);
@@ -435,8 +468,8 @@ export const collectConfiguredOutput = async ({
         requestCacheMaxEntries: server.requestCacheMaxEntries,
         providerVersion: server.version,
         adaptiveDocScope: server.adaptiveDocScope,
-        adaptiveDegradedHint: preflightState === 'degraded' || workspaceRouting.state === 'degraded',
-        adaptiveReasonHint: workspaceRouting.reasonCode || preflightReasonCode,
+        adaptiveDegradedHint: effectivePreflightState === 'degraded',
+        adaptiveReasonHint: effectivePreflightReasonCode,
         ...(Array.isArray(server.hoverSymbolKinds) && server.hoverSymbolKinds.length
           ? { hoverSymbolKinds: server.hoverSymbolKinds }
           : {}),
@@ -507,10 +540,10 @@ export const collectConfiguredOutput = async ({
       workspaceModel: workspaceRouting.workspaceModel,
       fidelity: buildProviderFidelityContract({
         providerId,
-        preflightState,
-        reasonCode: preflightReasonCode,
+        preflightState: effectivePreflightState,
+        reasonCode: effectivePreflightReasonCode,
         preflightDetails: {
-          state: preflightState
+          state: effectivePreflightState
         },
         runtime: result.runtime,
         checks: [...preChecks, ...resultChecks],
@@ -520,8 +553,8 @@ export const collectConfiguredOutput = async ({
         runtimeIssueClasses: resolveConfiguredLspRuntimeIssueClasses({
           server,
           providerId,
-          preflightState,
-          preflightReasonCode,
+          preflightState: effectivePreflightState,
+          preflightReasonCode: effectivePreflightReasonCode,
           checks: [...preChecks, ...resultChecks],
           runtime: result.runtime,
           blockedWorkspaceKeys,
