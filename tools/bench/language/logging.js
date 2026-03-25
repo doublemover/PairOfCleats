@@ -9,6 +9,8 @@ import {
 
 const ENV_METADATA_KEYS = Object.freeze([
   'NODE_OPTIONS',
+  'ORG_GRADLE_DAEMON',
+  'GRADLE_OPTS',
   'PAIROFCLEATS_TESTING',
   'PAIROFCLEATS_TEST_CONFIG',
   'PAIROFCLEATS_CACHE_ROOT',
@@ -961,17 +963,27 @@ export const buildBenchDiagnosticEventId = ({ eventType, signature } = {}) => {
 
 export const buildBenchEnvironmentMetadata = (env = process.env) => {
   const selected = {};
-  for (const key of ENV_METADATA_KEYS) {
-    if (!Object.prototype.hasOwnProperty.call(env, key)) continue;
-    const value = env[key];
+  for (const [key, value] of Object.entries(env || {})) {
+    const includeKey = ENV_METADATA_KEYS.includes(key) || key.startsWith('PAIROFCLEATS_');
+    if (!includeKey) continue;
     if (value == null || value === '') continue;
     selected[key] = String(value);
   }
+  const fingerprint = crypto
+    .createHash('sha1')
+    .update(JSON.stringify({
+      platform: process.platform,
+      arch: process.arch,
+      nodeVersion: process.version,
+      selected
+    }))
+    .digest('hex');
   return {
     platform: process.platform,
     arch: process.arch,
     nodeVersion: process.version,
-    selected
+    selected,
+    fingerprint: `sha1:${fingerprint}`
   };
 };
 

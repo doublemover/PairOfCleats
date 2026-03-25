@@ -16,6 +16,12 @@ for (const entry of manifest.liveCanaries) {
   results.push(result);
   assert.equal(result.id, entry.id, `expected result id for ${entry.id}`);
   assert.equal(result.ok, true, `expected baseline canary ${entry.id} to match current contract`);
+  assert.ok(result.environment?.actual?.fingerprint, `expected environment fingerprint for ${entry.id}`);
+  assert.equal(
+    Array.isArray(result.environment?.expectedProbeIds),
+    true,
+    `expected environment probe list for ${entry.id}`
+  );
   assert.equal(
     result.status,
     BENCH_RUNTIME_LIVE_CANARY_STATUS.BASELINE_CONFIRMED,
@@ -29,6 +35,7 @@ for (const entry of manifest.liveCanaries) {
 const summary = buildBenchRuntimeLiveCanarySummary(results, { requireTarget: false });
 assert.equal(summary.ok, true, 'expected baseline lane to pass without target requirement');
 assert.deepEqual(summary.blockedIssues, [], 'expected no blocked issues when only confirming baseline behavior');
+assert.equal(summary.environmentFingerprints.length >= 1, true, 'expected summary to expose environment fingerprint(s)');
 assert.equal(
   summary.countsByStatus[ BENCH_RUNTIME_LIVE_CANARY_STATUS.BASELINE_CONFIRMED ],
   manifest.liveCanaries.length,

@@ -596,7 +596,8 @@ runLedger = createBenchRunLedger({
 });
 runLedger.recordRunStarted({
   plannedRepoCount: executionPlans.length,
-  taskCount: tasks.length
+  taskCount: tasks.length,
+  environment: benchEnvironmentMetadata
 });
 const testInterruptAfterMs = Number(process.env.PAIROFCLEATS_TEST_BENCH_SELF_INTERRUPT_AFTER_MS);
 if (
@@ -662,6 +663,7 @@ const output = await buildReportOutput({
   resultsRoot,
   results,
   config,
+  environmentMetadata: benchEnvironmentMetadata,
   runSuffix,
   waiverFile,
   methodology

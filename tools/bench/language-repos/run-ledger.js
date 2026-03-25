@@ -271,6 +271,7 @@ export const buildBenchRunSummaryFromLedgerEvents = async ({
     schemaVersion: BENCH_RUN_SUMMARY_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
     runSuffix: toText(runSuffix || startEvent?.payload?.runSuffix),
+    environment: startEvent?.payload?.environment || null,
     run,
     verdict: output?.run || verdict.run,
     counts: {
@@ -448,7 +449,7 @@ export const createBenchRunLedger = ({
     writer = null;
   };
 
-  const recordRunStarted = ({ plannedRepoCount = 0, taskCount = 0 }) => {
+  const recordRunStarted = ({ plannedRepoCount = 0, taskCount = 0, environment = null }) => {
     appendLine(buildEvent('run.started', {
       runSuffix,
       plannedRepoCount: Number(plannedRepoCount || 0),
@@ -463,6 +464,9 @@ export const createBenchRunLedger = ({
       summaryPath,
       footerPath,
       waiverFile: waiverFile || null,
+      environment: environment && typeof environment === 'object'
+        ? sortObjectKeys(environment)
+        : null,
       methodology: methodology || null
     }));
   };

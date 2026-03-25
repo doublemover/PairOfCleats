@@ -38,6 +38,7 @@ assert.equal(baselineRun.status, 0, baselineRun.stderr || baselineRun.stdout || 
 const baselineSummary = JSON.parse(fs.readFileSync(outJsonPath, 'utf8'));
 assert.equal(baselineSummary.ok, true, 'expected baseline canary lane summary ok=true without target requirement');
 assert.deepEqual(baselineSummary.blockedIssues, [], 'expected no blocked issues without target requirement');
+assert.equal(baselineSummary.environmentFingerprints.length >= 1, true, 'expected baseline summary to expose environment fingerprints');
 assert.equal(fs.existsSync(outMdPath), true, 'expected markdown summary output');
 
 const requireTargetRun = runNode(

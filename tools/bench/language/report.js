@@ -1844,6 +1844,7 @@ export const buildReportOutput = async ({
   resultsRoot,
   results,
   config,
+  environmentMetadata = null,
   runSuffix = null,
   waiverFile = null,
   methodology = null
@@ -1926,6 +1927,7 @@ export const buildReportOutput = async ({
     config: configPath,
     cacheRoot,
     resultsRoot,
+    environment: environmentMetadata || null,
     methodology,
     tasks: verdict.tasks,
     run: verdict.run,

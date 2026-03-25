@@ -1,13 +1,35 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
-import { createBenchDiagnosticClassifier } from './logging.js';
+import { resolveWindowsCmdInvocation } from '../../../src/shared/subprocess/windows-cmd.js';
+import {
+  buildBenchEnvironmentMetadata,
+  createBenchDiagnosticClassifier
+} from './logging.js';
 
 const DEFAULT_CANARY_ROOT = path.join(process.cwd(), 'tests', 'fixtures', 'bench-runtime-canaries');
 const DEFAULT_LIVE_CANARY_TIMEOUT_MS = 5 * 60 * 1000;
+const VERSION_PROBE_TIMEOUT_MS = 1500;
+const BENCH_RUNTIME_ENVIRONMENT_PROBES = Object.freeze([
+  { id: 'node', command: process.execPath, args: ['--version'] },
+  { id: 'git', command: 'git', args: ['--version'] },
+  { id: 'npm', command: 'npm', args: ['--version'] },
+  { id: 'cargo', command: 'cargo', args: ['--version'] },
+  { id: 'rustc', command: 'rustc', args: ['--version'] },
+  { id: 'go', command: 'go', args: ['version'] },
+  { id: 'swift', command: 'swift', args: ['--version'] },
+  { id: 'python', command: 'python', args: ['--version'] },
+  { id: 'gopls', command: 'gopls', args: ['version'] },
+  { id: 'sourcekit-lsp', command: 'sourcekit-lsp', args: ['--version'] },
+  { id: 'rust-analyzer', command: 'rust-analyzer', args: ['--version'] }
+]);
+
+const environmentSnapshotCache = new Map();
 
 export const DEFAULT_BENCH_RUNTIME_CANARY_ROOT = DEFAULT_CANARY_ROOT;
 export const BENCH_RUNTIME_CANARY_MANIFEST_SCHEMA_VERSION = 2;
@@ -85,6 +107,117 @@ const normalizeTextList = (value) => Array.from(new Set(
     .map((entry) => String(entry || '').trim())
     .filter(Boolean)
 )).sort((left, right) => left.localeCompare(right));
+
+const inferExpectedPlatform = (value) => {
+  const text = String(value || '').trim().toLowerCase();
+  if (!text || text.includes('cross-platform')) return null;
+  if (text.includes('windows')) return 'win32';
+  if (text.includes('macos') || text.includes('darwin')) return 'darwin';
+  if (text.includes('linux')) return 'linux';
+  return null;
+};
+
+const collectExpectedProbeIds = (entry) => {
+  const corpus = [
+    entry?.environment?.toolchain,
+    entry?.environment?.providerAvailability,
+    entry?.repo,
+    entry?.profile
+  ].map((value) => String(value || '').toLowerCase()).join(' ');
+  const ids = new Set(['node', 'git', 'npm']);
+  if (corpus.includes('rust')) {
+    ids.add('cargo');
+    ids.add('rustc');
+    ids.add('rust-analyzer');
+  }
+  if (corpus.includes('go') || corpus.includes('gopls')) {
+    ids.add('go');
+    ids.add('gopls');
+  }
+  if (corpus.includes('swift') || corpus.includes('sourcekit')) {
+    ids.add('swift');
+    ids.add('sourcekit-lsp');
+  }
+  if (corpus.includes('python')) ids.add('python');
+  return Array.from(ids).sort((left, right) => left.localeCompare(right));
+};
+
+const runVersionProbe = ({ command, args }) => {
+  try {
+    const invocation = process.platform === 'win32'
+      ? resolveWindowsCmdInvocation(command, args, process.env)
+      : { command, args };
+    const result = spawnSync(invocation.command, invocation.args, {
+      cwd: process.cwd(),
+      env: process.env,
+      encoding: 'utf8',
+      timeout: VERSION_PROBE_TIMEOUT_MS
+    });
+    const stdout = String(result.stdout || '').trim();
+    const stderr = String(result.stderr || '').trim();
+    const version = stdout || stderr || null;
+    return {
+      available: result.status === 0,
+      version,
+      exitCode: Number.isFinite(Number(result.status)) ? Number(result.status) : null
+    };
+  } catch (error) {
+    return {
+      available: false,
+      version: null,
+      exitCode: null,
+      error: error?.message || String(error)
+    };
+  }
+};
+
+const buildBenchRuntimeEnvironmentSnapshot = (entry) => {
+  const probeIds = collectExpectedProbeIds(entry);
+  const probes = Object.fromEntries(
+    BENCH_RUNTIME_ENVIRONMENT_PROBES
+      .filter((probe) => probeIds.includes(probe.id))
+      .map((probe) => [probe.id, runVersionProbe(probe)])
+  );
+  const metadata = buildBenchEnvironmentMetadata(process.env);
+  const mismatches = [];
+  const expectedPlatform = inferExpectedPlatform(entry?.environment?.os);
+  if (expectedPlatform && metadata.platform !== expectedPlatform) {
+    mismatches.push(`expected platform ${expectedPlatform}, got ${metadata.platform}`);
+  }
+  for (const probeId of probeIds) {
+    const probe = probes[probeId];
+    if (!probe) continue;
+    if (!probe.available && probeId !== 'git' && probeId !== 'npm') {
+      mismatches.push(`expected tool/provider ${probeId} to be available`);
+    }
+  }
+  const fingerprint = crypto
+    .createHash('sha1')
+    .update(JSON.stringify({
+      metadata,
+      probes
+    }))
+    .digest('hex');
+  return {
+    declaredContract: entry?.environment || null,
+    actual: metadata,
+    probes,
+    expectedProbeIds: probeIds,
+    mismatches,
+    fingerprint: `sha1:${fingerprint}`
+  };
+};
+
+const getBenchRuntimeEnvironmentSnapshot = (entry) => {
+  const cacheKey = JSON.stringify({
+    environment: entry?.environment || null,
+    probeIds: collectExpectedProbeIds(entry)
+  });
+  if (!environmentSnapshotCache.has(cacheKey)) {
+    environmentSnapshotCache.set(cacheKey, buildBenchRuntimeEnvironmentSnapshot(entry));
+  }
+  return environmentSnapshotCache.get(cacheKey);
+};
 
 const toNonEmptyLines = (content) => String(content || '')
   .split(/\r?\n/u)
@@ -415,6 +548,7 @@ const resolveRunnerConfig = (entry, root, workDir, outJsonPath) => {
 };
 
 export const runBenchRuntimeLiveCanary = async (entry, root = process.cwd()) => {
+  const environment = getBenchRuntimeEnvironmentSnapshot(entry);
   const tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-bench-canary-'));
   const outJsonPath = path.join(tempDir, `${String(entry?.id || 'canary').replace(/[^a-z0-9_-]/gi, '_')}.json`);
   const { cmd, args, cwd, env } = resolveRunnerConfig(entry, root, tempDir, outJsonPath);
@@ -445,7 +579,9 @@ export const runBenchRuntimeLiveCanary = async (entry, root = process.cwd()) => 
       issue: Number.isFinite(Number(entry?.issue)) ? Number(entry.issue) : null,
       status: BENCH_RUNTIME_LIVE_CANARY_STATUS.RUNNER_FAILED,
       ok: false,
+      closureReady: false,
       runner: { cmd, args, cwd, timeoutMs },
+      environment,
       stdout,
       stderr,
       error: error?.message || String(error)
@@ -486,6 +622,7 @@ export const runBenchRuntimeLiveCanary = async (entry, root = process.cwd()) => 
     canaryKind: String(entry?.canaryKind || '').trim() || null,
     benchmarkConfirmationLane: String(entry?.benchmarkConfirmationLane || '').trim() || null,
     proofOfSimilarity: entry?.proofOfSimilarity || null,
+    environment,
     runner: {
       cmd,
       args,
@@ -519,6 +656,11 @@ export const buildBenchRuntimeLiveCanarySummary = (results, { requireTarget = fa
       .filter(Number.isFinite)
   )).sort((left, right) => left - right);
   const ok = rows.length > 0 && blockedIssues.length === 0;
+  const environmentFingerprints = Array.from(new Set(
+    rows
+      .map((entry) => String(entry?.environment?.fingerprint || '').trim())
+      .filter(Boolean)
+  )).sort((left, right) => left.localeCompare(right));
   return {
     schemaVersion: BENCH_RUNTIME_LIVE_CANARY_SUMMARY_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
@@ -526,6 +668,7 @@ export const buildBenchRuntimeLiveCanarySummary = (results, { requireTarget = fa
     ok,
     countsByStatus,
     blockedIssues,
+    environmentFingerprints,
     canaries: rows.map((entry) => ({
       id: entry?.id || null,
       issue: entry?.issue || null,
@@ -535,6 +678,7 @@ export const buildBenchRuntimeLiveCanarySummary = (results, { requireTarget = fa
       closureReady: entry?.closureReady === true,
       benchmarkConfirmationLane: entry?.benchmarkConfirmationLane || null,
       proofOfSimilarity: entry?.proofOfSimilarity || null,
+      environment: entry?.environment || null,
       metrics: entry?.metrics || null,
       currentFailures: entry?.current?.failures || [],
       targetFailures: entry?.target?.failures || [],
@@ -554,6 +698,7 @@ export const formatBenchRuntimeLiveCanarySummaryMarkdown = (summary) => {
     `- require target: ${summary?.requireTarget === true ? 'yes' : 'no'}`,
     `- ok: ${summary?.ok === true ? 'yes' : 'no'}`,
     `- blocked issues: ${Array.isArray(summary?.blockedIssues) && summary.blockedIssues.length ? summary.blockedIssues.join(', ') : 'none'}`,
+    `- environment fingerprints: ${Array.isArray(summary?.environmentFingerprints) && summary.environmentFingerprints.length ? summary.environmentFingerprints.join(', ') : 'none'}`,
     '',
     '## Status counts',
     ''
@@ -564,6 +709,9 @@ export const formatBenchRuntimeLiveCanarySummaryMarkdown = (summary) => {
   lines.push('', '## Canaries', '');
   for (const entry of Array.isArray(summary?.canaries) ? summary.canaries : []) {
     lines.push(`- ${entry.id}: ${entry.status} (issue #${entry.issue}, lane ${entry.benchmarkConfirmationLane || 'unknown'})`);
+    if (entry?.environment?.mismatches?.length) {
+      lines.push(`  environment mismatches: ${entry.environment.mismatches.join('; ')}`);
+    }
   }
   return `${lines.join('\n')}\n`;
 };
