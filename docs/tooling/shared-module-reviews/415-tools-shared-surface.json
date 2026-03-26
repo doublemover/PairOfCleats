@@ -1,0 +1,400 @@
+{
+  "issueId": "415",
+  "title": "Review all tools/shared modules as a first-class shared surface",
+  "reviewDate": "2026-03-25",
+  "scope": "Primary ownership for every file under tools/shared/** assigned to #415 in the shared-module ledger.",
+  "summary": {
+    "ownedFileCount": 20,
+    "overallAssessment": "tools/shared is doing three jobs at once: it houses real tool-local adapters, generic helpers that should probably live under src/shared, and a few one-off report or compatibility shims that are not strong shared modules at all. The main cleanup goal is to make those three categories explicit so the bucket stops growing ambiguously.",
+    "clusterFindings": [
+      {
+        "cluster": "tool-local-cli-and-gate-adapters",
+        "files": [
+          "tools/shared/cli-display.js",
+          "tools/shared/cli-utils.js",
+          "tools/shared/index-cli-utils.js",
+          "tools/shared/tooling-gate-utils.js"
+        ],
+        "assessment": "These files are legitimate tool-local adapters. They mostly wrap stable src/shared surfaces for CLI execution, display, and CI gate reporting, and they should stay tool-local as long as they do not absorb generic subprocess or JSON logic."
+      },
+      {
+        "cluster": "real-cross-surface-modules-hiding-in-tools-shared",
+        "files": [
+          "tools/shared/dict-utils.js",
+          "tools/shared/index-state-utils.js",
+          "tools/shared/json-utils.js",
+          "tools/shared/repo-cache-config.js",
+          "tools/shared/search-request.js"
+        ],
+        "assessment": "These are not merely tool-local helpers. Several are consumed by src/** runtime code or define behavior that belongs closer to shared runtime/cache/request contracts. Their current placement hides important architecture."
+      },
+      {
+        "cluster": "thin-compatibility-or-single-consumer-shims",
+        "files": [
+          "tools/shared/parity-indexes.js",
+          "tools/shared/path-within-root.js",
+          "tools/shared/search-cli-harness.js",
+          "tools/shared/stats-utils.js"
+        ],
+        "assessment": "These files are either effectively compatibility shims or only shared by one report-style caller. They should be deprecated, moved nearer to their only consumer, or collapsed into a more coherent helper family."
+      },
+      {
+        "cluster": "generic-helpers-with-boundary-drift-risk",
+        "files": [
+          "tools/shared/download-utils.js",
+          "tools/shared/fs-utils.js",
+          "tools/shared/input-parsers.js",
+          "tools/shared/path-utils.js",
+          "tools/shared/query-file-utils.js",
+          "tools/shared/text-utils.js"
+        ],
+        "assessment": "These helpers are useful, but several overlap with existing src/shared file, path, JSON, and collection utilities. They need clearer ownership boundaries so tool-local convenience does not become duplication."
+      }
+    ],
+    "highestPriorityFollowUps": [
+      {
+        "priority": "high",
+        "target": "tools/shared/dict-utils.js",
+        "action": "split",
+        "reason": "This is a large compatibility barrel with 137 consumers spanning bin, src integrations, and tools. It hides important ownership and should not remain the default import path indefinitely."
+      },
+      {
+        "priority": "high",
+        "target": "tools/shared/repo-cache-config.js",
+        "action": "move",
+        "reason": "It is used by API, MCP, and retrieval/cache runtime paths and should live closer to shared cache/runtime infrastructure."
+      },
+      {
+        "priority": "high",
+        "target": "tools/shared/search-request.js",
+        "action": "move",
+        "reason": "Both src and tools consumers depend on it as the canonical search request argument builder, which makes tools/shared the wrong long-term home."
+      },
+      {
+        "priority": "high",
+        "target": "tools/shared/json-utils.js",
+        "action": "move",
+        "reason": "These are generic JSON read/write helpers that overlap with existing src/shared JSON and IO surfaces."
+      },
+      {
+        "priority": "high",
+        "target": "tools/shared/path-within-root.js",
+        "action": "deprecate",
+        "reason": "It is a zero-consumer single-line re-export and should not remain as a named shared module."
+      },
+      {
+        "priority": "high",
+        "target": "tools/shared/search-cli-harness.js",
+        "action": "deprecate",
+        "reason": "This is only shared by one report consumer and should either move to that surface or be generalized more convincingly."
+      }
+    ]
+  },
+  "entries": [
+    {
+      "path": "tools/shared/cli-display.js",
+      "consumerCount": 11,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Bench and build scripts use it as a small adapter over src/shared CLI display primitives.",
+      "overlapReferences": [
+        "#413",
+        "src/shared/cli/display.js"
+      ],
+      "recommendation": "Keep it tool-local as a convenience adapter, but keep the wrapper thin and avoid duplicating display semantics that belong in src/shared/cli."
+    },
+    {
+      "path": "tools/shared/cli-utils.js",
+      "consumerCount": 22,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Widely used by bench, analysis, and maintenance tools for subprocess execution, probing, JSON emission, and command-style exits.",
+      "overlapReferences": [
+        "#412",
+        "#413",
+        "src/shared/subprocess.js"
+      ],
+      "recommendation": "Keep it in tools/shared as the tool runner facade, but do not let it absorb lower-level subprocess behavior that already belongs to src/shared."
+    },
+    {
+      "path": "tools/shared/dict-utils.js",
+      "consumerCount": 137,
+      "classifications": [
+        "split",
+        "move",
+        "deprecate",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "This compatibility barrel is imported from bin, src integrations, and many tools, which means it currently hides a large amount of actual ownership.",
+      "overlapReferences": [
+        "#410",
+        "#411",
+        "#414",
+        "src/workspace/identity.js"
+      ],
+      "recommendation": "Reduce this file to a temporary compatibility layer, move canonical runtime/root/config helpers to clearer homes, and migrate new callers away from the barrel."
+    },
+    {
+      "path": "tools/shared/download-utils.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Download scripts use it for hash normalization, policy resolution, and download verification rules.",
+      "overlapReferences": [
+        "#410",
+        "src/shared/error-codes.js"
+      ],
+      "recommendation": "Keep it tool-local for now, but document it as the canonical download-policy helper so download scripts do not invent parallel hash parsing and verification logic."
+    },
+    {
+      "path": "tools/shared/fs-utils.js",
+      "consumerCount": 5,
+      "classifications": [
+        "move",
+        "merge",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "CI and docs tooling use it for directory copying and recursive file listing, both of which are generic filesystem behaviors.",
+      "overlapReferences": [
+        "#411",
+        "src/shared/files.js"
+      ],
+      "recommendation": "Merge or move these helpers into a shared filesystem family so tool and runtime code stop carrying separate recursive file-list logic."
+    },
+    {
+      "path": "tools/shared/git-state.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Only CI artifact build and restore flows use it to capture lightweight git metadata.",
+      "overlapReferences": [
+        "#413"
+      ],
+      "recommendation": "Keep this tool-local; it is a reasonable wrapper around simple-git for build metadata collection."
+    },
+    {
+      "path": "tools/shared/index-cli-utils.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Index snapshot and diff CLIs use it for defaults, config normalization, and JSON/text error emission.",
+      "overlapReferences": [
+        "#413",
+        "src/shared/error-codes.js"
+      ],
+      "recommendation": "Keep it tool-local as an index-CLI helper surface, but avoid letting it turn into a generic numeric or flag-normalization bucket."
+    },
+    {
+      "path": "tools/shared/index-state-utils.js",
+      "consumerCount": 3,
+      "classifications": [
+        "move",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "It is used by both src storage code and tool-side build flows, which means it is already a cross-surface runtime helper rather than a pure tool helper.",
+      "overlapReferences": [
+        "#411",
+        "src/shared/artifact-io.js",
+        "src/shared/json-stream.js"
+      ],
+      "recommendation": "Move this into a shared index-state or artifact-state surface so src code does not depend on tools/shared."
+    },
+    {
+      "path": "tools/shared/input-parsers.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "merge",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Download and triage tooling use it for simple metadata and name=url parsing helpers.",
+      "overlapReferences": [
+        "#413",
+        "tools/shared/text-utils.js"
+      ],
+      "recommendation": "Keep the tool-local parsing boundary, but merge tiny duplicated string-list parsing helpers so text parsing lives in one obvious place."
+    },
+    {
+      "path": "tools/shared/json-utils.js",
+      "consumerCount": 12,
+      "classifications": [
+        "move",
+        "merge",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Bench, CI, and gate tooling use it as a generic JSON persistence surface, not a narrow tool-specific helper.",
+      "overlapReferences": [
+        "#411",
+        "src/shared/artifact-io.js",
+        "src/shared/json-stream.js"
+      ],
+      "recommendation": "Move or merge these helpers into a shared JSON/IO family so generic JSON file access stops being duplicated between src and tools."
+    },
+    {
+      "path": "tools/shared/parity-indexes.js",
+      "consumerCount": 1,
+      "classifications": [
+        "move",
+        "deprecate",
+        "document"
+      ],
+      "consumerNotes": "Only one report consumer uses it for parity artifact discovery and repair hooks.",
+      "overlapReferences": [
+        "#411"
+      ],
+      "recommendation": "Move this next to the report that owns parity behavior, or generalize it more convincingly before keeping it as a shared module."
+    },
+    {
+      "path": "tools/shared/path-utils.js",
+      "consumerCount": 4,
+      "classifications": [
+        "merge",
+        "deprecate",
+        "document"
+      ],
+      "consumerNotes": "A few cleanup and lifecycle tools use it for root-path checks and directory containment.",
+      "overlapReferences": [
+        "#410",
+        "src/shared/path-normalize.js"
+      ],
+      "recommendation": "Fold the contained-path helper into shared path primitives and remove alias-style wrappers that only rename existing shared behavior."
+    },
+    {
+      "path": "tools/shared/path-within-root.js",
+      "consumerCount": 0,
+      "classifications": [
+        "deprecate",
+        "document"
+      ],
+      "consumerNotes": "This file has no current consumers and is only a one-line re-export.",
+      "overlapReferences": [
+        "#410",
+        "src/shared/files.js"
+      ],
+      "recommendation": "Deprecate and remove this shim once any historical references are confirmed gone; it is not earning its own module."
+    },
+    {
+      "path": "tools/shared/query-file-utils.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Report tools use it for query-file parsing and top/limit normalization.",
+      "overlapReferences": [
+        "#414"
+      ],
+      "recommendation": "Keep it tool-local for report/query tooling, but keep the surface narrow and avoid growing it into a generic text/JSON parsing bucket."
+    },
+    {
+      "path": "tools/shared/repo-cache-config.js",
+      "consumerCount": 4,
+      "classifications": [
+        "move",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "API and MCP surfaces use it to manage repo-level index and sqlite caches, which is runtime behavior rather than incidental tool glue.",
+      "overlapReferences": [
+        "#411",
+        "#412",
+        "src/shared/cache/policy.js",
+        "src/retrieval/index-cache.js"
+      ],
+      "recommendation": "Move this closer to shared cache/runtime infrastructure so server surfaces stop depending on tools/shared for core cache behavior."
+    },
+    {
+      "path": "tools/shared/search-cli-harness.js",
+      "consumerCount": 1,
+      "classifications": [
+        "move",
+        "deprecate",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Only compare-models uses this harness for search CLI invocation and JSON result parsing.",
+      "overlapReferences": [
+        "#413",
+        "tools/shared/cli-utils.js"
+      ],
+      "recommendation": "Move this beside its report consumer or refactor it into a broader search tool harness only if more independent consumers appear."
+    },
+    {
+      "path": "tools/shared/search-request.js",
+      "consumerCount": 6,
+      "classifications": [
+        "move",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Both src and tools consumers use it as the canonical search request-to-CLI argument builder.",
+      "overlapReferences": [
+        "#414",
+        "src/retrieval/federation/args.js"
+      ],
+      "recommendation": "Move this into a shared request/contract surface so API, MCP, and retrieval code stop depending on tools/shared."
+    },
+    {
+      "path": "tools/shared/stats-utils.js",
+      "consumerCount": 1,
+      "classifications": [
+        "deprecate",
+        "document"
+      ],
+      "consumerNotes": "Only one report consumer uses these tiny mean helpers.",
+      "overlapReferences": [
+        "#414"
+      ],
+      "recommendation": "Inline or move these into the owning report helper surface unless broader statistical helpers actually emerge."
+    },
+    {
+      "path": "tools/shared/text-utils.js",
+      "consumerCount": 5,
+      "classifications": [
+        "merge",
+        "document"
+      ],
+      "consumerNotes": "Bench, API server, and planning tools use it only for comma-list parsing.",
+      "overlapReferences": [
+        "#413",
+        "tools/shared/input-parsers.js"
+      ],
+      "recommendation": "Merge this tiny helper into a more coherent input/text parsing module rather than keeping a one-function shared file."
+    },
+    {
+      "path": "tools/shared/tooling-gate-utils.js",
+      "consumerCount": 7,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Bench and CI gate scripts use it for doctor report resolution and gate result emission.",
+      "overlapReferences": [
+        "#413",
+        "tools/shared/json-utils.js"
+      ],
+      "recommendation": "Keep it tool-local as the gate/reporting helper surface, but ensure generic JSON persistence stays delegated to the lower-level JSON helper family."
+    }
+  ]
+}

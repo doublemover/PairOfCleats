@@ -20,6 +20,7 @@ const ALLOWED_CLASSIFICATIONS = new Set([
   'merge',
   'rename',
   'move',
+  'deprecate',
   'document',
   'test',
   'optimize'
