@@ -89,7 +89,7 @@ indexing/identity/symbolkey-scopedid
 retrieval/filters/ext-filter
 shared/concurrency/io-cap-uv-threadpool
 indexing/chunking/limits
-indexing/embeddings/maintenance-thresholds
+indexing/embeddings/writer-and-queue-contract-matrix
 indexing/embeddings/merge-vectors-no-nan
 indexing/identity/symbol
 retrieval/ann/embedding-dims-normalization
@@ -123,13 +123,12 @@ shared/safe-regex/flags-normalization
 ci-lite/placeholder
 indexing/type-inference/providers/type-inference-typescript-provider-no-ts
 lang/registry/collector-metamorphic-comment-placement
-retrieval/ann/backend-normalization-parity
+retrieval/ann/backend-contract-matrix
 storage/backend/policy
 tooling/lsp/preflight-await-manager-usage-guard
 indexing/chunking/guardrails
 indexing/embeddings/identity
 map/html-escape-contract
-retrieval/ann/backend-selection
 shared/cache/policy-contract
 tooling/architecture/forbidden-import-edge
 indexing/imports/cache-hard-cutover
@@ -246,7 +245,7 @@ shared/json-stream/gzip-options-forwarded
 tooling/docs/embeddings-cache-sync
 tooling/docs/spec-links-valid
 indexing/build-cleanup-pending-timeout
-indexing/embeddings/cache-index-fallback-entry
+indexing/embeddings/cache-index-contract-matrix
 map/viewer-culling-correctness
 retrieval/pipeline/topk-tie-break
 indexing/cache/cas-reuse-across-repos
@@ -291,7 +290,6 @@ retrieval/federation/raw-args-end-of-options
 indexing/runtime/caps-policy-merge
 tooling/lsp/signature-quality-score
 graph/multiseed-bfs-deterministic
-indexing/embeddings/writer-backpressure
 indexing/risk/interprocedural/flows-sanitizer-policy
 indexing/postings/typedarray-legacy-float-extraction
 shared/cache/preflight-meta
@@ -321,7 +319,7 @@ graph/filter-warnings
 shared/concurrency/run-with-queue-abort
 indexing/determinism/symbol-artifact-order
 indexing/artifacts/token-mode
-indexing/embeddings/embedding-batch-multipliers
+indexing/embeddings/embedding-batch-policy-matrix
 shared/artifact-io/loader-parallelism
 graph/import-missing-file-warning
 graph/adjacency-presorted
@@ -503,7 +501,6 @@ shared/artifact-io/packed-postings-windowed-read
 retrieval/ranking/graph-membership-invariant
 indexing/signatures/signature-multi-mode
 tooling/install/tooling-detect-pyright-path-key-fallback
-indexing/embeddings/embedding-batch-defaults
 map/build-map/spill-cleanup-retries
 graph/neighborhood-cache
 indexing/tree-sitter/runtime
@@ -618,7 +615,6 @@ tooling/vfs/collector-cleanup-on-error
 indexing/artifacts/minhash-packed-roundtrip
 tooling/config/tooling-lsp-lifecycle-and-dedicated-passthrough
 tooling/doctor/command-profile-probe-cache
-indexing/embeddings/cache-index-flush-contract
 shared/artifact-io/broken-offsets-fallback
 tooling/vfs/fastpath-telemetry-contract
 indexing/shards/shard-runtime-uses-threadlimits-io
@@ -877,7 +873,6 @@ lang/python/fallback
 tooling/lsp/typescript/vfs-segment-vue
 retrieval/ann/hnsw-candidate-set
 cli/general/cli
-indexing/embeddings/embedding-queue
 indexing/segments/segment-uid-derived
 shared/bloom/decode-length-contract
 tooling/lsp/typescript/node-matching-range
@@ -915,7 +910,6 @@ tooling/lsp/dedicated-provider-bootstrap-matrix
 indexing/tree-sitter/scheduler-lookup-reader-lease
 tooling/service/subprocess-cancellation-contract
 shared/cache/hit-rate-contract
-indexing/embeddings/embedding-queue-defaults
 tooling/lsp/protocol-stall-initialize-timeout
 tooling/lsp/haskell-provider-ambiguous-cradle-preflight
 indexing/segments/segment-pipeline
@@ -998,7 +992,6 @@ tooling/lsp/definition-fallback
 tooling/ingest/gtags/ingest
 tooling/lsp/fd-pressure-backoff-contract
 tooling/lsp/bychunkuid-keying
-indexing/embeddings/embedding-batch-autotune
 indexing/embeddings/stage3-manifest-failure-guard
 tooling/lsp/configured-provider-lua-workspace-library
 tooling/lsp/configured-provider-rust-proc-macro-suppression-policy-preflight
