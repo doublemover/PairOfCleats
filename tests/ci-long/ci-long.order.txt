@@ -34,10 +34,9 @@ indexing/file-caps/file-size-guard
 indexing/incremental/manifest
 services/api/core
 indexing/postings/chunk-meta-determinism
-indexing/map/code-guardrails
+indexing/map/code-map-guardrail-matrix
 indexing/validate/index
 indexing/incremental/cache-signature
-indexing/map/code-performance
 storage/sqlite/bundle-missing
 shared/encoding/fallback
 smoke/e2e

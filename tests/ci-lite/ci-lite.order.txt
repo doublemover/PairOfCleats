@@ -47,7 +47,7 @@ tooling/vscode/search-entrypoints-runtime
 tooling/vscode/search-arg-mapping
 tooling/vscode/search-contract-options
 tooling/vscode/search-result-sections
-indexing/postings/queue-metrics
+indexing/postings/queue-contract-matrix
 lang/registry/collector-utils-comment-aware
 shared/subprocess/shell-metachar-quoting
 map/filter-api-contract
@@ -177,7 +177,7 @@ shared/concurrency/scheduler-contract
 shared/encoding/hash
 storage/sqlite/build/output-paths
 graph/architecture-output-deterministic
-indexing/relations/graph-call-sites-preferred
+indexing/relations/call-graph-contract-matrix
 lang/python/heuristic-chunking
 shared/concurrency/retry-with-backoff
 shared/jsonrpc/parser
@@ -217,7 +217,6 @@ tooling/architecture/report-is-bounded
 tooling/docs/perfplan-sync
 graph/count-mismatch-warning
 graph/edge-dedupe-policy
-indexing/relations/graph-call-sites-fallback
 indexing/tokenization/tokenize-dictionary
 retrieval/filter-index/effective-lang-fallback
 graph/architecture-rules-cache
@@ -273,7 +272,7 @@ indexing/tree-sitter/chunks
 lang/clike/doc-comments
 graph/edge-type-inclusion
 indexing/tree-sitter/streaming-chunking
-indexing/risk/analysis-caps
+indexing/risk/risk-contract-matrix
 indexing/risk/rules/risk-config
 shared/cache/migration
 tooling/vfs/hash-routing-contract
@@ -297,7 +296,6 @@ graph/multiseed-bfs-deterministic
 indexing/embeddings/writer-backpressure
 indexing/risk/interprocedural/flows-sanitizer-policy
 indexing/postings/typedarray-legacy-float-extraction
-indexing/risk/analysis-taint
 shared/cache/preflight-meta
 indexing/risk/interprocedural/local-pointer-hash
 retrieval/query/intent
@@ -482,7 +480,7 @@ storage/sqlite/utils-dense-binary-load
 tooling/lsp/tooling
 storage/sqlite/build-manifest
 graph/store-cache-eviction
-indexing/extracted-prose/low-yield-min-chunks
+indexing/extracted-prose/low-yield-policy-matrix
 context-pack/contracts/context-pack-determinism
 context-pack/assembly-memory
 indexing/relations/ts-call-details-v2
@@ -785,7 +783,7 @@ indexing/imports/cache-hints-reuse
 tooling/lsp/csharp-provider-launch-bootstrap-missing
 indexing/imports/esmodule-lexer-init
 indexing/artifacts/symbols/symbol-edges-ambiguous
-indexing/validate/index-manifest-safety
+indexing/validate/index-contract-matrix
 indexing/imports/proto-safe-module-keys
 indexing/records/discovery
 indexing/artifacts/minhash-packed-bench-contract
@@ -793,7 +791,6 @@ shared/config/normalization-quality-threads
 indexing/imports/import-resolution-budget-policy-adaptive
 graph/memory-plateau
 indexing/type-inference/providers/type-inference-clangd-provider-no-clangd
-indexing/validate/index-manifest-symlink-escape
 indexing/git/meta-batch-churn
 shared/subprocess/process-exit-cleanup
 tooling/index-stats/explicit-repo-path
@@ -812,7 +809,6 @@ indexing/imports/import-build-context-plugins
 indexing/validate/index-file-name-collision
 indexing/imports/import-build-context-typescript-emit
 indexing/imports/gate-eligibility
-indexing/validate/index-missing-pieces
 indexing/imports/import-scan-post-graph-stats
 indexing/imports/import-scan
 indexing/validate/index-chunk-meta-large-manifest-budget
@@ -820,7 +816,7 @@ indexing/imports/import-scan-non-js-end-to-end
 storage/sqlite/build-bench-contract
 indexing/imports/import-graph-resolved-refresh
 indexing/imports/fs-exists-index
-indexing/imports/stage-cache-hit-miss
+indexing/imports/import-cache-contract-matrix
 indexing/imports/import-resolution
 tooling/doctor/runtime-requirements-provider-matrix
 indexing/imports/cache-missing-file
@@ -839,10 +835,7 @@ indexing/imports/import-graph-warning-merge
 indexing/filter-index/atomic-swap
 tooling/doctor/command-resolution-provider-overrides
 indexing/imports/import-graph-budget-diagnostics
-indexing/validate/index-unknown-artifact-fails-strict
-indexing/validate/index-missing-manifest
 tooling/doctor/detects-missing-typescript
-indexing/validate/index-optional-file-meta-nonstrict
 workspace/build-pointer-invalid-scenarios
 indexing/artifacts/clean
 indexing/validate/index-sharded-meta-consistency
@@ -851,12 +844,9 @@ perf/bench/language-tooling-lsp-guardrail
 indexing/validate/index-determinism-report-required
 indexing/validate/determinism-line-hash
 tooling/doctor/command-profile-probe-timeout
-indexing/imports/import-scan-collector-hints
-indexing/imports/import-scan-cache-hints
 indexing/artifacts/index-state-skip-write
 indexing/artifacts/eager-prefetch-drain
 shared/config/auto-policy
-indexing/validate/index-strict
 tooling/lsp/dedicated-provider-command-fallback-matrix
 tooling/triage/decision
 tooling/ci/lsp-embeddings-gates-timeout-junit
@@ -864,7 +854,6 @@ tooling/lsp/jdtls-provider-workspace-lock-unavailable
 ci/suite-runner.smoke
 embeddings/runner/helper-contracts
 indexing/imports/stage-pipeline-metrics
-indexing/imports/import-scan-cache-read
 indexing/validate/index-jsonl-required-keys
 storage/sqlite/bundle-shard-splitting
 indexing/piece-assembly/assemble-pieces-no-guess
@@ -954,7 +943,6 @@ tooling/config/validate
 shared/io/atomic-write-contract
 tooling/lsp/csharp-provider-ambiguous-project-preflight
 tooling/lsp/solargraph-provider-gemfile-lock-missing-preflight
-indexing/validate/index-unknown-piece
 indexing/relations/segment-call-site-offsets
 indexing/relations/segment-language-fidelity
 tooling/type-inference/crossfile-tooling-runtime-stats-fail-open
@@ -1064,7 +1052,6 @@ tooling/lsp/configured-provider-rust-workspace-metadata-preflight-timeout-overri
 tooling/lsp/configured-provider-go-workspace-module-preflight-timeout
 indexing/watch/lock-backoff
 indexing/ignore/ignore-file-overrides
-indexing/imports/import-scan-budget-cache-key
 tooling/doctor/gating-reasons
 tooling/lsp/elixir-provider-initialize-stall-fail-open
 perf/bench/language-log-closeout
@@ -1094,7 +1081,6 @@ tooling/lsp/references-timeout-adaptive
 tooling/lsp/provider-metrics-hover-timeout-rollup
 indexing/tokenization/file-stream-reuse
 perf/bench/language-closeout-exit
-indexing/extracted-prose/low-yield-history-family-priors
 indexing/stage1/barrier-keepalive
 indexing/runtime/runtime-teardown-order
 indexing/ordering/ordered-appender-retry-reset
