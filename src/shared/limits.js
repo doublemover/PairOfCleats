@@ -49,7 +49,11 @@ export const normalizeOptionalInt = (value) => {
  * @param {unknown} value
  * @returns {number|null}
  */
-export const normalizeOptionalNonNegativeInt = (value) => coerceNonNegativeInt(value);
+export const normalizeOptionalNonNegativeInt = (value) => {
+  const parsed = coerceFiniteNumber(value);
+  if (parsed == null) return null;
+  return Math.max(0, Math.floor(parsed));
+};
 
 /**
  * Normalize a value to a non-negative integer, falling back when invalid.
@@ -58,8 +62,9 @@ export const normalizeOptionalNonNegativeInt = (value) => coerceNonNegativeInt(v
  * @returns {number|null}
  */
 export const normalizeNonNegativeInt = (value, fallback = null) => {
-  const parsed = coerceNonNegativeInt(value);
-  return parsed == null ? fallback : parsed;
+  const parsed = coerceFiniteNumber(value);
+  if (parsed == null) return fallback;
+  return Math.max(0, Math.floor(parsed));
 };
 
 /**

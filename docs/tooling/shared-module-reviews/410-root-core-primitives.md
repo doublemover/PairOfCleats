@@ -17,9 +17,9 @@ The highest-priority follow-ups are:
 - split [`src/shared/env.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/env.js)
 - split [`src/shared/runtime-envelope.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/runtime-envelope.js)
 - split [`src/shared/auto-policy.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/auto-policy.js)
-- split [`src/shared/metrics.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/metrics.js)
+- split [`src/shared/metrics/core.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/metrics/core.js)
 - merge the numeric normalization overlap between [`src/shared/limits.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/limits.js) and [`src/shared/number-coerce.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/number-coerce.js)
-- move [`src/shared/editor-config-contract.json`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/editor-config-contract.json) out of the generic root shared bucket
+- move [`src/contracts/editor-config-contract.json`](C:/Users/sneak/Development/DOUBLECLEAT/src/contracts/editor-config-contract.json) out of the generic root shared bucket
 
 ## Cluster Notes
 
@@ -38,13 +38,13 @@ The highest-priority follow-ups are:
 
 ### Observability / Metrics / Ops
 
-- [`src/shared/metrics.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/metrics.js) has become the biggest root shared file and should be broken up by metric family behind one shared registry.
+- [`src/shared/metrics/core.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/metrics/core.js) has become the biggest root shared file and should be broken up by metric family behind one shared registry.
 - [`src/shared/observability.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/observability.js) has a clear purpose and should remain separate from metrics.
-- [`src/shared/ops-failure-injection.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/ops-failure-injection.js), [`src/shared/ops-health.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/ops-health.js), and [`src/shared/ops-resource-visibility.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/ops-resource-visibility.js) read like an undeclared family and should move under a dedicated ops path.
+- [`src/shared/ops/failure-injection.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/ops/failure-injection.js), [`src/shared/ops/health.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/ops/health.js), and [`src/shared/ops/resource-visibility.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/ops/resource-visibility.js) read like an undeclared family and should move under a dedicated ops path.
 
 ### Specialized Contracts
 
-- [`src/shared/editor-config-contract.json`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/editor-config-contract.json) is an editor integration contract, not a generic shared primitive.
+- [`src/contracts/editor-config-contract.json`](C:/Users/sneak/Development/DOUBLECLEAT/src/contracts/editor-config-contract.json) is an editor integration contract, not a generic shared primitive.
 - [`src/shared/native-accel.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/native-accel.js) is fine as a stable feasibility contract, but it should stay clearly documented as specialized.
 
 ## File Ledger
@@ -81,4 +81,3 @@ The highest-priority follow-ups are:
 | `src/shared/sort.js` | `keep`, `document` | Intentionally tiny primitive comparator; keep it that way. |
 | `src/shared/time-format.js` | `keep`, `document` | Good tiny duration-format helper. |
 | `src/shared/toolchain-env.js` | `keep`, `document`, `test` | Good narrow toolchain env patch helper. |
-

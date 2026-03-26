@@ -12,7 +12,7 @@ This surface already has strong shared anchors:
 - [paths.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\router\paths.js)
 - [response.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\response.js)
 - [trust-boundary.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\trust-boundary.js)
-- [repo-cache-config.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\repo-cache-config.js)
+- [repo-cache-config.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\repo-cache-config.js)
 - [dict-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\dict-utils.js)
 - [env.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\dispatch\env.js)
 - [runtime-envelope.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope.js)
@@ -54,7 +54,7 @@ Why this is best:
 ### 2. API cache/build identity and workspace interpretation drift
 
 Shared modules to prefer:
-- [repo-cache-config.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\repo-cache-config.js)
+- [repo-cache-config.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\repo-cache-config.js)
 - [config.js](C:\Users\sneak\Development\DOUBLECLEAT\src\workspace\config.js)
 - [manifest.js](C:\Users\sneak\Development\DOUBLECLEAT\src\workspace\manifest.js)
 
@@ -71,7 +71,7 @@ Best action:
 Shared modules to prefer:
 - [helpers.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\mcp\tools\helpers.js)
 - [dict-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\dict-utils.js)
-- [repo-cache-config.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\repo-cache-config.js)
+- [repo-cache-config.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\repo-cache-config.js)
 - [search-request.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\search-request.js)
 
 Representative local implementations:

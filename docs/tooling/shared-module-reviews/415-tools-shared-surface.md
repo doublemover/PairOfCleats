@@ -16,7 +16,7 @@ The main cleanup direction is to make those categories explicit so `tools/shared
 ## Highest-Priority Follow-Ups
 
 - split and deprecate [`tools/shared/dict-utils.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/dict-utils.js) as a broad compatibility barrel
-- move [`tools/shared/repo-cache-config.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/repo-cache-config.js) closer to shared cache/runtime infrastructure
+- move [`src/shared/repo-cache-config.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/repo-cache-config.js) closer to shared cache/runtime infrastructure
 - move [`tools/shared/search-request.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/search-request.js) into a shared request/contract surface
 - move or merge [`tools/shared/json-utils.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/json-utils.js) into a generic shared JSON/IO family
 - deprecate [`tools/shared/path-within-root.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/path-within-root.js)
@@ -36,9 +36,9 @@ These are reasonable `tools/shared` residents because they wrap CLI, display, an
 ### Modules That Are Really Cross-Surface Shared Code
 
 - [`tools/shared/dict-utils.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/dict-utils.js)
-- [`tools/shared/index-state-utils.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/index-state-utils.js)
+- [`src/shared/index-state-utils.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/index-state-utils.js)
 - [`tools/shared/json-utils.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/json-utils.js)
-- [`tools/shared/repo-cache-config.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/repo-cache-config.js)
+- [`src/shared/repo-cache-config.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/repo-cache-config.js)
 - [`tools/shared/search-request.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/search-request.js)
 
 These should not stay hidden in `tools/shared` long-term because they are either imported from `src/**` or define behavior shared by API, MCP, retrieval, or storage runtime code.
@@ -76,4 +76,3 @@ These are either effectively compatibility shims or only shared by one report-st
 | `tools/shared/stats-utils.js` | `deprecate`, `document` | Too small and weakly shared to remain a standalone shared module. |
 | `tools/shared/text-utils.js` | `merge`, `document` | Merge this tiny comma-list helper into a broader input/text parsing surface. |
 | `tools/shared/tooling-gate-utils.js` | `keep`, `document`, `test` | Good tool-local gate/reporting helper surface. |
-

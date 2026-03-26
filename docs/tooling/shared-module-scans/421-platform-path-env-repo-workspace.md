@@ -95,7 +95,7 @@ Best shared module:
 Representative local implementations:
 - [analysis.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\reports\show-throughput\analysis.js)
 - [repo.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\dict-utils\paths\repo.js)
-- [repo-cache-config.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\repo-cache-config.js)
+- [repo-cache-config.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\repo-cache-config.js)
 
 Best action:
 - Eliminate bespoke current-build resolution and route generation/build-root lookups through the shared build-pointer module.

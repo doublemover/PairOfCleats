@@ -17,7 +17,7 @@ def _load_editor_config_contract():
             '..',
             '..',
             'src',
-            'shared',
+            'contracts',
             'editor-config-contract.json'
         )
     )
