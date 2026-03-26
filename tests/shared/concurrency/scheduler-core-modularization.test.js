@@ -8,6 +8,10 @@ const schedulerCorePath = path.join(root, 'src', 'shared', 'concurrency', 'sched
 const schedulerIndexPath = path.join(root, 'src', 'shared', 'concurrency', 'scheduler-core', 'index.js');
 const schedulerConfigPath = path.join(root, 'src', 'shared', 'concurrency', 'scheduler-core', 'config.js');
 const schedulerAdaptiveControllerPath = path.join(root, 'src', 'shared', 'concurrency', 'scheduler-core', 'adaptive-controller.js');
+const schedulerAdaptiveSignalsPath = path.join(root, 'src', 'shared', 'concurrency', 'scheduler-core', 'adaptive-signals.js');
+const schedulerAdaptiveSurfaceControllerPath = path.join(root, 'src', 'shared', 'concurrency', 'scheduler-core', 'adaptive-surface-controller.js');
+const schedulerAdaptiveSurfaceSnapshotsPath = path.join(root, 'src', 'shared', 'concurrency', 'scheduler-core', 'adaptive-surface-snapshots.js');
+const schedulerAdaptiveTokenControllerPath = path.join(root, 'src', 'shared', 'concurrency', 'scheduler-core', 'adaptive-token-controller.js');
 const schedulerQueueLifecyclePath = path.join(root, 'src', 'shared', 'concurrency', 'scheduler-core', 'queue-lifecycle.js');
 const schedulerDispatchPath = path.join(root, 'src', 'shared', 'concurrency', 'scheduler-core', 'dispatch.js');
 const schedulerShutdownPath = path.join(root, 'src', 'shared', 'concurrency', 'scheduler-core', 'shutdown.js');
@@ -20,6 +24,10 @@ for (const target of [
   schedulerIndexPath,
   schedulerConfigPath,
   schedulerAdaptiveControllerPath,
+  schedulerAdaptiveSignalsPath,
+  schedulerAdaptiveSurfaceControllerPath,
+  schedulerAdaptiveSurfaceSnapshotsPath,
+  schedulerAdaptiveTokenControllerPath,
   schedulerQueueLifecyclePath,
   schedulerDispatchPath,
   schedulerShutdownPath,
@@ -32,6 +40,7 @@ for (const target of [
 
 const source = fs.readFileSync(schedulerCorePath, 'utf8');
 const indexSource = fs.readFileSync(schedulerIndexPath, 'utf8');
+const adaptiveSource = fs.readFileSync(schedulerAdaptiveControllerPath, 'utf8');
 
 for (const marker of [
   "./scheduler-core/index.js"
@@ -56,6 +65,23 @@ for (const marker of [
     indexSource.includes(marker),
     true,
     `expected scheduler core index to compose ${marker}`
+  );
+}
+
+for (const marker of [
+  "./adaptive-signals.js",
+  "./adaptive-surface-controller.js",
+  "./adaptive-surface-snapshots.js",
+  "./adaptive-token-controller.js",
+  'createAdaptiveSurfaceSnapshotHelpers(',
+  'createAdaptiveSignalReader(',
+  'createAdaptiveSurfaceController(',
+  'createAdaptiveTokenController('
+]) {
+  assert.equal(
+    adaptiveSource.includes(marker),
+    true,
+    `expected adaptive controller to compose ${marker}`
   );
 }
 

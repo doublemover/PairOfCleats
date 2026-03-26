@@ -4,7 +4,7 @@ import {
   EMBEDDINGS_PERF_METRIC_KEYS,
   formatEmbeddingsPerfLine,
   parseEmbeddingsPerfLine
-} from '../../../src/shared/embeddings-progress.js';
+} from '../../../tools/build/embeddings/perf-progress.js';
 
 const metrics = {
   files_total: 12,

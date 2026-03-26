@@ -14,7 +14,7 @@ Highest-priority follow-ups:
 - split [runner.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/subprocess/runner.js)
 - split [progress.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/progress.js)
 - split [adaptive-controller.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/concurrency/scheduler-core/adaptive-controller.js)
-- remove or relocate [queue.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/queue.js)
+- keep the canonical queue implementation at [queue.js](C:/Users/sneak/Development/DOUBLECLEAT/tools/service/queue.js) and avoid reintroducing root shared aliases
 
 ## Runtime-Risk Notes
 
@@ -25,16 +25,16 @@ Highest-priority follow-ups:
 
 ## Maintainability Notes
 
-- [bench-progress.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/bench-progress.js) is bench-specific and should not live in the generic root shared bucket.
-- [embeddings-progress.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/embeddings-progress.js) is embeddings-specific and would be clearer under embeddings or bench ownership.
-- [queue.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/queue.js) is only a re-export of `tools/service/queue.js`, which creates an odd cross-layer alias.
+- [progress-format.js](C:/Users/sneak/Development/DOUBLECLEAT/tools/bench/progress-format.js) is now correctly bench-specific rather than living in the generic root shared bucket.
+- [perf-progress.js](C:/Users/sneak/Development/DOUBLECLEAT/tools/build/embeddings/perf-progress.js) is now correctly embeddings-specific rather than living in the generic root shared bucket.
+- [queue.js](C:/Users/sneak/Development/DOUBLECLEAT/tools/service/queue.js) is the canonical queue implementation now that the old `src/shared` re-export has been removed.
 
 ## File Ledger
 
 | File | Classification | Review Note |
 | --- | --- | --- |
 | `src/shared/abort.js` | `keep`, `document`, `test` | Keep as the canonical abort helper surface. |
-| `src/shared/bench-progress.js` | `move`, `document`, `test` | Bench-specific formatter; move under bench or reporting ownership. |
+| `tools/bench/progress-format.js` | `move`, `document`, `test` | Bench-specific formatter now kept under bench ownership. |
 | `src/shared/bounded-object-pool.js` | `keep`, `document`, `test` | Keep as the small bounded pool helper. |
 | `src/shared/concurrency.js` | `keep`, `document`, `test` | Healthy public facade for the concurrency family. |
 | `src/shared/concurrency/adaptive-surfaces.js` | `keep`, `document`, `test` | Keep internal to scheduler adaptation behavior. |
@@ -54,7 +54,7 @@ Highest-priority follow-ups:
 | `src/shared/concurrency/scheduler-core/shutdown.js` | `keep`, `document`, `test` | Keep as the scheduler shutdown helper. |
 | `src/shared/concurrency/scheduler-telemetry.js` | `keep`, `document`, `test` | Keep as the scheduler telemetry support layer. |
 | `src/shared/concurrency/task-queues.js` | `keep`, `document`, `test` | Keep as the task-queue primitive layer. |
-| `src/shared/embeddings-progress.js` | `move`, `document`, `test` | Embeddings-specific formatter; move under embeddings or bench ownership. |
+| `tools/build/embeddings/perf-progress.js` | `move`, `document`, `test` | Embeddings-specific formatter now kept under embeddings ownership. |
 | `src/shared/kill-tree.js` | `split`, `document`, `test` | Split platform-specific kill behavior from generic tree orchestration. |
 | `src/shared/lifecycle/registry.js` | `keep`, `document`, `test` | Keep as the lifecycle registration surface. |
 | `src/shared/locks/file-lock.js` | `split`, `document`, `test` | Split lock info parsing, stale-owner detection, and release semantics from acquisition flow. |
@@ -63,7 +63,7 @@ Highest-priority follow-ups:
 | `src/shared/progress.js` | `split`, `document`, `test` | Split TTY progress rendering, structured logging, ring-buffer capture, and env propagation. |
 | `src/shared/promise-keepalive.js` | `keep`, `document`, `test` | Keep as the promise keepalive helper. |
 | `src/shared/promise-timeout.js` | `keep`, `document`, `test` | Keep as the shared timeout primitive. |
-| `src/shared/queue.js` | `move`, `document`, `test` | Remove or relocate this cross-layer re-export of `tools/service/queue.js`. |
+| `tools/service/queue.js` | `move`, `document`, `test` | Canonical queue implementation now that the `src/shared` alias has been removed. |
 | `src/shared/retry.js` | `keep`, `document`, `test` | Keep as the generic retry-with-backoff primitive. |
 | `src/shared/scheduler/debounce.js` | `keep`, `document`, `test` | Keep focused on debounce semantics only. |
 | `src/shared/sleep.js` | `keep`, `document`, `test` | Keep as the tiny sleep helper. |

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-03-26T09:01:29.832Z",
+  "generatedAt": "2026-03-26T09:52:14.892Z",
   "generatedBy": "node tools/docs/shared-module-ledger.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "census": {
@@ -17,7 +17,7 @@
           "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
           "umbrella": "407"
         },
-        "consumerCount": 42,
+        "consumerCount": 43,
         "importers": [
           "src/index/build/artifacts-write/index.js",
           "src/index/build/artifacts-write/runtime.js",
@@ -57,9 +57,10 @@
           "src/shared/concurrency/queue-adapter.js",
           "src/shared/concurrency/run-with-queue.js",
           "src/shared/concurrency/scheduler-core/dispatch.js",
+          "src/shared/locks/file-lock-runtime.js",
           "src/shared/locks/file-lock.js",
           "src/shared/promise-timeout.js",
-          "src/shared/subprocess/runner.js",
+          "src/shared/subprocess/runner-async.js",
           "tools/bench/language/process.js"
         ]
       },
@@ -850,17 +851,6 @@
         "importers": [
           "src/shared/auto-policy/build.js"
         ]
-      },
-      {
-        "path": "src/shared/bench-progress.js",
-        "family": "src/shared/root",
-        "primaryIssue": {
-          "issueId": "412",
-          "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
-          "umbrella": "407"
-        },
-        "consumerCount": 0,
-        "importers": []
       },
       {
         "path": "src/shared/bloom.js",
@@ -1802,6 +1792,58 @@
         ]
       },
       {
+        "path": "src/shared/concurrency/scheduler-core/adaptive-signals.js",
+        "family": "src/shared/concurrency",
+        "primaryIssue": {
+          "issueId": "412",
+          "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/concurrency/scheduler-core/adaptive-controller.js"
+        ]
+      },
+      {
+        "path": "src/shared/concurrency/scheduler-core/adaptive-surface-controller.js",
+        "family": "src/shared/concurrency",
+        "primaryIssue": {
+          "issueId": "412",
+          "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/concurrency/scheduler-core/adaptive-controller.js"
+        ]
+      },
+      {
+        "path": "src/shared/concurrency/scheduler-core/adaptive-surface-snapshots.js",
+        "family": "src/shared/concurrency",
+        "primaryIssue": {
+          "issueId": "412",
+          "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/concurrency/scheduler-core/adaptive-controller.js"
+        ]
+      },
+      {
+        "path": "src/shared/concurrency/scheduler-core/adaptive-token-controller.js",
+        "family": "src/shared/concurrency",
+        "primaryIssue": {
+          "issueId": "412",
+          "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/concurrency/scheduler-core/adaptive-controller.js"
+        ]
+      },
+      {
         "path": "src/shared/concurrency/scheduler-core/config.js",
         "family": "src/shared/concurrency",
         "primaryIssue": {
@@ -2304,19 +2346,6 @@
         "consumerCount": 1,
         "importers": [
           "src/shared/embeddings-cache/index.js"
-        ]
-      },
-      {
-        "path": "src/shared/embeddings-progress.js",
-        "family": "src/shared/root",
-        "primaryIssue": {
-          "issueId": "412",
-          "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
-          "umbrella": "407"
-        },
-        "consumerCount": 1,
-        "importers": [
-          "tools/build/embeddings/runner.js"
         ]
       },
       {
@@ -3655,10 +3684,51 @@
           "src/integrations/tooling/lsp/client.js",
           "src/lang/python/pool.js",
           "src/shared/lifecycle/registry.js",
-          "src/shared/subprocess/runner.js",
-          "src/shared/subprocess/tracking.js",
+          "src/shared/subprocess/runner-async.js",
+          "src/shared/subprocess/tracking-terminate.js",
           "tools/bench/language/process.js",
           "tools/ingest/shared-runner.js"
+        ]
+      },
+      {
+        "path": "src/shared/kill-tree/posix.js",
+        "family": "src/shared/kill-tree",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/kill-tree.js"
+        ]
+      },
+      {
+        "path": "src/shared/kill-tree/shared.js",
+        "family": "src/shared/kill-tree",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 3,
+        "importers": [
+          "src/shared/kill-tree.js",
+          "src/shared/kill-tree/posix.js",
+          "src/shared/kill-tree/windows.js"
+        ]
+      },
+      {
+        "path": "src/shared/kill-tree/windows.js",
+        "family": "src/shared/kill-tree",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/kill-tree.js"
         ]
       },
       {
@@ -3806,6 +3876,19 @@
           "src/lang/typescript/chunks-babel.js",
           "src/lang/typescript/chunks-heuristic.js",
           "tools/bench/language/metrics/line-stats.js"
+        ]
+      },
+      {
+        "path": "src/shared/locks/file-lock-runtime.js",
+        "family": "src/shared/locks",
+        "primaryIssue": {
+          "issueId": "412",
+          "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/locks/file-lock.js"
         ]
       },
       {
@@ -4291,6 +4374,19 @@
         ]
       },
       {
+        "path": "src/shared/progress-context.js",
+        "family": "src/shared/root",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/progress.js"
+        ]
+      },
+      {
         "path": "src/shared/progress-events.js",
         "family": "src/shared/root",
         "primaryIssue": {
@@ -4306,6 +4402,19 @@
           "tools/mcp/tools/handlers/indexing.js",
           "tools/mcp/tools/handlers/triage.js",
           "tools/mcp/tools/helpers.js"
+        ]
+      },
+      {
+        "path": "src/shared/progress-runtime.js",
+        "family": "src/shared/root",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/progress.js"
         ]
       },
       {
@@ -4442,19 +4551,6 @@
           "src/graph/impact.js",
           "src/graph/suggest-tests.js",
           "src/integrations/tooling/api-contracts.js"
-        ]
-      },
-      {
-        "path": "src/shared/queue.js",
-        "family": "src/shared/root",
-        "primaryIssue": {
-          "issueId": "412",
-          "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
-          "umbrella": "407"
-        },
-        "consumerCount": 1,
-        "importers": [
-          "src/index/build/indexer/embedding-queue.js"
         ]
       },
       {
@@ -4952,6 +5048,21 @@
         ]
       },
       {
+        "path": "src/shared/subprocess/errors.js",
+        "family": "src/shared/subprocess",
+        "primaryIssue": {
+          "issueId": "412",
+          "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 3,
+        "importers": [
+          "src/shared/subprocess/runner-async.js",
+          "src/shared/subprocess/runner-sync.js",
+          "src/shared/subprocess/runner.js"
+        ]
+      },
+      {
         "path": "src/shared/subprocess/options.js",
         "family": "src/shared/subprocess",
         "primaryIssue": {
@@ -4959,12 +5070,41 @@
           "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
           "umbrella": "407"
         },
-        "consumerCount": 4,
+        "consumerCount": 7,
         "importers": [
           "src/shared/subprocess.js",
-          "src/shared/subprocess/runner.js",
+          "src/shared/subprocess/runner-async.js",
+          "src/shared/subprocess/runner-sync.js",
           "src/shared/subprocess/snapshot.js",
+          "src/shared/subprocess/tracking-runtime.js",
+          "src/shared/subprocess/tracking-terminate.js",
           "src/shared/subprocess/tracking.js"
+        ]
+      },
+      {
+        "path": "src/shared/subprocess/runner-async.js",
+        "family": "src/shared/subprocess",
+        "primaryIssue": {
+          "issueId": "412",
+          "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/subprocess/runner.js"
+        ]
+      },
+      {
+        "path": "src/shared/subprocess/runner-sync.js",
+        "family": "src/shared/subprocess",
+        "primaryIssue": {
+          "issueId": "412",
+          "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/subprocess/runner.js"
         ]
       },
       {
@@ -5014,14 +5154,42 @@
           "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
           "umbrella": "407"
         },
-        "consumerCount": 6,
+        "consumerCount": 7,
         "importers": [
           "src/experimental/structural/binaries.js",
           "src/index/tooling/clangd-provider.js",
-          "src/shared/kill-tree.js",
-          "src/shared/locks/file-lock.js",
+          "src/shared/kill-tree/posix.js",
+          "src/shared/kill-tree/windows.js",
+          "src/shared/locks/file-lock-runtime.js",
           "src/shared/subprocess.js",
-          "src/shared/subprocess/runner.js"
+          "src/shared/subprocess/runner-sync.js"
+        ]
+      },
+      {
+        "path": "src/shared/subprocess/tracking-runtime.js",
+        "family": "src/shared/subprocess",
+        "primaryIssue": {
+          "issueId": "412",
+          "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 2,
+        "importers": [
+          "src/shared/subprocess/tracking-terminate.js",
+          "src/shared/subprocess/tracking.js"
+        ]
+      },
+      {
+        "path": "src/shared/subprocess/tracking-terminate.js",
+        "family": "src/shared/subprocess",
+        "primaryIssue": {
+          "issueId": "412",
+          "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/subprocess/tracking.js"
         ]
       },
       {
@@ -5035,7 +5203,7 @@
         "consumerCount": 3,
         "importers": [
           "src/shared/subprocess.js",
-          "src/shared/subprocess/runner.js",
+          "src/shared/subprocess/runner-async.js",
           "src/shared/subprocess/snapshot.js"
         ]
       },
@@ -5700,7 +5868,7 @@
     ]
   },
   "consumerMap": {
-    "edgeCount": 2382,
+    "edgeCount": 2405,
     "bySharedFile": {
       "src/shared/abort.js": {
         "importers": [
@@ -5742,12 +5910,13 @@
           "src/shared/concurrency/queue-adapter.js",
           "src/shared/concurrency/run-with-queue.js",
           "src/shared/concurrency/scheduler-core/dispatch.js",
+          "src/shared/locks/file-lock-runtime.js",
           "src/shared/locks/file-lock.js",
           "src/shared/promise-timeout.js",
-          "src/shared/subprocess/runner.js",
+          "src/shared/subprocess/runner-async.js",
           "tools/bench/language/process.js"
         ],
-        "importerCount": 42
+        "importerCount": 43
       },
       "src/shared/ann-similarity.js": {
         "importers": [
@@ -6221,10 +6390,6 @@
           "src/shared/auto-policy/build.js"
         ],
         "importerCount": 1
-      },
-      "src/shared/bench-progress.js": {
-        "importers": [],
-        "importerCount": 0
       },
       "src/shared/bloom.js": {
         "importers": [
@@ -6815,6 +6980,30 @@
         ],
         "importerCount": 1
       },
+      "src/shared/concurrency/scheduler-core/adaptive-signals.js": {
+        "importers": [
+          "src/shared/concurrency/scheduler-core/adaptive-controller.js"
+        ],
+        "importerCount": 1
+      },
+      "src/shared/concurrency/scheduler-core/adaptive-surface-controller.js": {
+        "importers": [
+          "src/shared/concurrency/scheduler-core/adaptive-controller.js"
+        ],
+        "importerCount": 1
+      },
+      "src/shared/concurrency/scheduler-core/adaptive-surface-snapshots.js": {
+        "importers": [
+          "src/shared/concurrency/scheduler-core/adaptive-controller.js"
+        ],
+        "importerCount": 1
+      },
+      "src/shared/concurrency/scheduler-core/adaptive-token-controller.js": {
+        "importers": [
+          "src/shared/concurrency/scheduler-core/adaptive-controller.js"
+        ],
+        "importerCount": 1
+      },
       "src/shared/concurrency/scheduler-core/config.js": {
         "importers": [
           "src/shared/concurrency/scheduler-core/index.js"
@@ -7107,12 +7296,6 @@
       "src/shared/embeddings-cache/lru.js": {
         "importers": [
           "src/shared/embeddings-cache/index.js"
-        ],
-        "importerCount": 1
-      },
-      "src/shared/embeddings-progress.js": {
-        "importers": [
-          "tools/build/embeddings/runner.js"
         ],
         "importerCount": 1
       },
@@ -8080,12 +8263,32 @@
           "src/integrations/tooling/lsp/client.js",
           "src/lang/python/pool.js",
           "src/shared/lifecycle/registry.js",
-          "src/shared/subprocess/runner.js",
-          "src/shared/subprocess/tracking.js",
+          "src/shared/subprocess/runner-async.js",
+          "src/shared/subprocess/tracking-terminate.js",
           "tools/bench/language/process.js",
           "tools/ingest/shared-runner.js"
         ],
         "importerCount": 7
+      },
+      "src/shared/kill-tree/posix.js": {
+        "importers": [
+          "src/shared/kill-tree.js"
+        ],
+        "importerCount": 1
+      },
+      "src/shared/kill-tree/shared.js": {
+        "importers": [
+          "src/shared/kill-tree.js",
+          "src/shared/kill-tree/posix.js",
+          "src/shared/kill-tree/windows.js"
+        ],
+        "importerCount": 3
+      },
+      "src/shared/kill-tree/windows.js": {
+        "importers": [
+          "src/shared/kill-tree.js"
+        ],
+        "importerCount": 1
       },
       "src/shared/lancedb.js": {
         "importers": [
@@ -8198,6 +8401,12 @@
           "tools/bench/language/metrics/line-stats.js"
         ],
         "importerCount": 31
+      },
+      "src/shared/locks/file-lock-runtime.js": {
+        "importers": [
+          "src/shared/locks/file-lock.js"
+        ],
+        "importerCount": 1
       },
       "src/shared/locks/file-lock.js": {
         "importers": [
@@ -8520,6 +8729,12 @@
         ],
         "importerCount": 3
       },
+      "src/shared/progress-context.js": {
+        "importers": [
+          "src/shared/progress.js"
+        ],
+        "importerCount": 1
+      },
       "src/shared/progress-events.js": {
         "importers": [
           "tools/mcp/runner.js",
@@ -8530,6 +8745,12 @@
           "tools/mcp/tools/helpers.js"
         ],
         "importerCount": 6
+      },
+      "src/shared/progress-runtime.js": {
+        "importers": [
+          "src/shared/progress.js"
+        ],
+        "importerCount": 1
       },
       "src/shared/progress.js": {
         "importers": [
@@ -8638,12 +8859,6 @@
           "src/integrations/tooling/api-contracts.js"
         ],
         "importerCount": 6
-      },
-      "src/shared/queue.js": {
-        "importers": [
-          "src/index/build/indexer/embedding-queue.js"
-        ],
-        "importerCount": 1
       },
       "src/shared/repo-cache-config.js": {
         "importers": [
@@ -8985,14 +9200,37 @@
         ],
         "importerCount": 4
       },
+      "src/shared/subprocess/errors.js": {
+        "importers": [
+          "src/shared/subprocess/runner-async.js",
+          "src/shared/subprocess/runner-sync.js",
+          "src/shared/subprocess/runner.js"
+        ],
+        "importerCount": 3
+      },
       "src/shared/subprocess/options.js": {
         "importers": [
           "src/shared/subprocess.js",
-          "src/shared/subprocess/runner.js",
+          "src/shared/subprocess/runner-async.js",
+          "src/shared/subprocess/runner-sync.js",
           "src/shared/subprocess/snapshot.js",
+          "src/shared/subprocess/tracking-runtime.js",
+          "src/shared/subprocess/tracking-terminate.js",
           "src/shared/subprocess/tracking.js"
         ],
-        "importerCount": 4
+        "importerCount": 7
+      },
+      "src/shared/subprocess/runner-async.js": {
+        "importers": [
+          "src/shared/subprocess/runner.js"
+        ],
+        "importerCount": 1
+      },
+      "src/shared/subprocess/runner-sync.js": {
+        "importers": [
+          "src/shared/subprocess/runner.js"
+        ],
+        "importerCount": 1
       },
       "src/shared/subprocess/runner.js": {
         "importers": [
@@ -9016,17 +9254,31 @@
         "importers": [
           "src/experimental/structural/binaries.js",
           "src/index/tooling/clangd-provider.js",
-          "src/shared/kill-tree.js",
-          "src/shared/locks/file-lock.js",
+          "src/shared/kill-tree/posix.js",
+          "src/shared/kill-tree/windows.js",
+          "src/shared/locks/file-lock-runtime.js",
           "src/shared/subprocess.js",
-          "src/shared/subprocess/runner.js"
+          "src/shared/subprocess/runner-sync.js"
         ],
-        "importerCount": 6
+        "importerCount": 7
+      },
+      "src/shared/subprocess/tracking-runtime.js": {
+        "importers": [
+          "src/shared/subprocess/tracking-terminate.js",
+          "src/shared/subprocess/tracking.js"
+        ],
+        "importerCount": 2
+      },
+      "src/shared/subprocess/tracking-terminate.js": {
+        "importers": [
+          "src/shared/subprocess/tracking.js"
+        ],
+        "importerCount": 1
       },
       "src/shared/subprocess/tracking.js": {
         "importers": [
           "src/shared/subprocess.js",
-          "src/shared/subprocess/runner.js",
+          "src/shared/subprocess/runner-async.js",
           "src/shared/subprocess/snapshot.js"
         ],
         "importerCount": 3
@@ -10414,10 +10666,9 @@
           "src/shared/abort.js",
           "src/shared/dict-utils.js",
           "src/shared/files.js",
-          "src/shared/progress.js",
-          "src/shared/queue.js"
+          "src/shared/progress.js"
         ],
-        "sharedImportCount": 5
+        "sharedImportCount": 4
       },
       "src/index/build/indexer/hang-probe.js": {
         "sharedImports": [
@@ -13380,6 +13631,15 @@
         ],
         "sharedImportCount": 1
       },
+      "src/shared/concurrency/scheduler-core/adaptive-controller.js": {
+        "sharedImports": [
+          "src/shared/concurrency/scheduler-core/adaptive-signals.js",
+          "src/shared/concurrency/scheduler-core/adaptive-surface-controller.js",
+          "src/shared/concurrency/scheduler-core/adaptive-surface-snapshots.js",
+          "src/shared/concurrency/scheduler-core/adaptive-token-controller.js"
+        ],
+        "sharedImportCount": 4
+      },
       "src/shared/concurrency/scheduler-core/config.js": {
         "sharedImports": [
           "src/shared/concurrency/adaptive-surfaces.js",
@@ -13734,9 +13994,25 @@
       },
       "src/shared/kill-tree.js": {
         "sharedImports": [
+          "src/shared/kill-tree/posix.js",
+          "src/shared/kill-tree/shared.js",
+          "src/shared/kill-tree/windows.js"
+        ],
+        "sharedImportCount": 3
+      },
+      "src/shared/kill-tree/posix.js": {
+        "sharedImports": [
+          "src/shared/kill-tree/shared.js",
           "src/shared/subprocess/sync-command.js"
         ],
-        "sharedImportCount": 1
+        "sharedImportCount": 2
+      },
+      "src/shared/kill-tree/windows.js": {
+        "sharedImports": [
+          "src/shared/kill-tree/shared.js",
+          "src/shared/subprocess/sync-command.js"
+        ],
+        "sharedImportCount": 2
       },
       "src/shared/lifecycle/registry.js": {
         "sharedImports": [
@@ -13751,10 +14027,17 @@
         ],
         "sharedImportCount": 1
       },
-      "src/shared/locks/file-lock.js": {
+      "src/shared/locks/file-lock-runtime.js": {
         "sharedImports": [
           "src/shared/abort.js",
           "src/shared/subprocess/sync-command.js"
+        ],
+        "sharedImportCount": 2
+      },
+      "src/shared/locks/file-lock.js": {
+        "sharedImports": [
+          "src/shared/abort.js",
+          "src/shared/locks/file-lock-runtime.js"
         ],
         "sharedImportCount": 2
       },
@@ -13823,6 +14106,13 @@
           "src/shared/promise-timeout.js"
         ],
         "sharedImportCount": 1
+      },
+      "src/shared/progress.js": {
+        "sharedImports": [
+          "src/shared/progress-context.js",
+          "src/shared/progress-runtime.js"
+        ],
+        "sharedImportCount": 2
       },
       "src/shared/promise-timeout.js": {
         "sharedImports": [
@@ -13929,15 +14219,31 @@
         ],
         "sharedImportCount": 2
       },
-      "src/shared/subprocess/runner.js": {
+      "src/shared/subprocess/runner-async.js": {
         "sharedImports": [
           "src/shared/abort.js",
           "src/shared/kill-tree.js",
+          "src/shared/subprocess/errors.js",
           "src/shared/subprocess/options.js",
-          "src/shared/subprocess/sync-command.js",
           "src/shared/subprocess/tracking.js"
         ],
         "sharedImportCount": 5
+      },
+      "src/shared/subprocess/runner-sync.js": {
+        "sharedImports": [
+          "src/shared/subprocess/errors.js",
+          "src/shared/subprocess/options.js",
+          "src/shared/subprocess/sync-command.js"
+        ],
+        "sharedImportCount": 3
+      },
+      "src/shared/subprocess/runner.js": {
+        "sharedImports": [
+          "src/shared/subprocess/errors.js",
+          "src/shared/subprocess/runner-async.js",
+          "src/shared/subprocess/runner-sync.js"
+        ],
+        "sharedImportCount": 3
       },
       "src/shared/subprocess/snapshot.js": {
         "sharedImports": [
@@ -13946,13 +14252,28 @@
         ],
         "sharedImportCount": 2
       },
-      "src/shared/subprocess/tracking.js": {
+      "src/shared/subprocess/tracking-runtime.js": {
+        "sharedImports": [
+          "src/shared/subprocess/options.js"
+        ],
+        "sharedImportCount": 1
+      },
+      "src/shared/subprocess/tracking-terminate.js": {
         "sharedImports": [
           "src/shared/kill-tree.js",
           "src/shared/subprocess/options.js",
-          "src/shared/subprocess/signals.js"
+          "src/shared/subprocess/tracking-runtime.js"
         ],
         "sharedImportCount": 3
+      },
+      "src/shared/subprocess/tracking.js": {
+        "sharedImports": [
+          "src/shared/subprocess/options.js",
+          "src/shared/subprocess/signals.js",
+          "src/shared/subprocess/tracking-runtime.js",
+          "src/shared/subprocess/tracking-terminate.js"
+        ],
+        "sharedImportCount": 4
       },
       "src/shared/subprocess/windows-cmd.js": {
         "sharedImports": [
@@ -15080,7 +15401,6 @@
           "src/shared/embedding-input-format.js",
           "src/shared/embedding-utils.js",
           "src/shared/embedding.js",
-          "src/shared/embeddings-progress.js",
           "src/shared/encoding.js",
           "src/shared/env.js",
           "src/shared/env/testing.js",
@@ -15095,7 +15415,7 @@
           "src/shared/subprocess.js",
           "tools/shared/dict-utils.js"
         ],
-        "sharedImportCount": 23
+        "sharedImportCount": 22
       },
       "tools/build/embeddings/runner/mapping.js": {
         "sharedImports": [
@@ -16492,6 +16812,9 @@
           "src/shared/iterables.js",
           "src/shared/json-file.js",
           "src/shared/jsonrpc.js",
+          "src/shared/kill-tree/posix.js",
+          "src/shared/kill-tree/shared.js",
+          "src/shared/kill-tree/windows.js",
           "src/shared/limits.js",
           "src/shared/lines.js",
           "src/shared/logging/warn-once.js",
@@ -16506,7 +16829,9 @@
           "src/shared/optional-deps.js",
           "src/shared/order.js",
           "src/shared/path-normalize.js",
+          "src/shared/progress-context.js",
           "src/shared/progress-events.js",
+          "src/shared/progress-runtime.js",
           "src/shared/repo-cache-config.js",
           "src/shared/repo-paths.js",
           "src/shared/reuse-diagnostics.js",
@@ -16519,7 +16844,7 @@
           "src/shared/time-format.js",
           "src/shared/toolchain-env.js"
         ],
-        "fileCount": 52,
+        "fileCount": 57,
         "entries": [
           {
             "path": "src/shared/auto-policy.js",
@@ -16678,6 +17003,24 @@
             "notes": ""
           },
           {
+            "path": "src/shared/kill-tree/posix.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/kill-tree/shared.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/kill-tree/windows.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
             "path": "src/shared/limits.js",
             "status": "pending-review",
             "classification": null,
@@ -16762,7 +17105,19 @@
             "notes": ""
           },
           {
+            "path": "src/shared/progress-context.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
             "path": "src/shared/progress-events.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/progress-runtime.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -17425,7 +17780,6 @@
         "umbrella": "407",
         "files": [
           "src/shared/abort.js",
-          "src/shared/bench-progress.js",
           "src/shared/bounded-object-pool.js",
           "src/shared/concurrency.js",
           "src/shared/concurrency/adaptive-surfaces.js",
@@ -17438,6 +17792,10 @@
           "src/shared/concurrency/scheduler-core-telemetry-capture.js",
           "src/shared/concurrency/scheduler-core.js",
           "src/shared/concurrency/scheduler-core/adaptive-controller.js",
+          "src/shared/concurrency/scheduler-core/adaptive-signals.js",
+          "src/shared/concurrency/scheduler-core/adaptive-surface-controller.js",
+          "src/shared/concurrency/scheduler-core/adaptive-surface-snapshots.js",
+          "src/shared/concurrency/scheduler-core/adaptive-token-controller.js",
           "src/shared/concurrency/scheduler-core/config.js",
           "src/shared/concurrency/scheduler-core/dispatch.js",
           "src/shared/concurrency/scheduler-core/index.js",
@@ -17445,42 +17803,40 @@
           "src/shared/concurrency/scheduler-core/shutdown.js",
           "src/shared/concurrency/scheduler-telemetry.js",
           "src/shared/concurrency/task-queues.js",
-          "src/shared/embeddings-progress.js",
           "src/shared/kill-tree.js",
           "src/shared/lifecycle/registry.js",
+          "src/shared/locks/file-lock-runtime.js",
           "src/shared/locks/file-lock.js",
           "src/shared/piscina-cleanup.js",
           "src/shared/process-signals.js",
           "src/shared/progress.js",
           "src/shared/promise-keepalive.js",
           "src/shared/promise-timeout.js",
-          "src/shared/queue.js",
           "src/shared/retry.js",
           "src/shared/scheduler/debounce.js",
           "src/shared/sleep.js",
           "src/shared/subprocess.js",
           "src/shared/subprocess/command-invocation.js",
+          "src/shared/subprocess/errors.js",
           "src/shared/subprocess/options.js",
+          "src/shared/subprocess/runner-async.js",
+          "src/shared/subprocess/runner-sync.js",
           "src/shared/subprocess/runner.js",
           "src/shared/subprocess/signals.js",
           "src/shared/subprocess/snapshot.js",
           "src/shared/subprocess/sync-command.js",
+          "src/shared/subprocess/tracking-runtime.js",
+          "src/shared/subprocess/tracking-terminate.js",
           "src/shared/subprocess/tracking.js",
           "src/shared/subprocess/windows-cmd-core.cjs",
           "src/shared/subprocess/windows-cmd.js",
           "src/shared/threads.js",
           "src/shared/workers/bundle-transform-worker.js"
         ],
-        "fileCount": 46,
+        "fileCount": 53,
         "entries": [
           {
             "path": "src/shared/abort.js",
-            "status": "pending-review",
-            "classification": null,
-            "notes": ""
-          },
-          {
-            "path": "src/shared/bench-progress.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -17558,6 +17914,30 @@
             "notes": ""
           },
           {
+            "path": "src/shared/concurrency/scheduler-core/adaptive-signals.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/concurrency/scheduler-core/adaptive-surface-controller.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/concurrency/scheduler-core/adaptive-surface-snapshots.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/concurrency/scheduler-core/adaptive-token-controller.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
             "path": "src/shared/concurrency/scheduler-core/config.js",
             "status": "pending-review",
             "classification": null,
@@ -17600,12 +17980,6 @@
             "notes": ""
           },
           {
-            "path": "src/shared/embeddings-progress.js",
-            "status": "pending-review",
-            "classification": null,
-            "notes": ""
-          },
-          {
             "path": "src/shared/kill-tree.js",
             "status": "pending-review",
             "classification": null,
@@ -17613,6 +17987,12 @@
           },
           {
             "path": "src/shared/lifecycle/registry.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/locks/file-lock-runtime.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -17654,12 +18034,6 @@
             "notes": ""
           },
           {
-            "path": "src/shared/queue.js",
-            "status": "pending-review",
-            "classification": null,
-            "notes": ""
-          },
-          {
             "path": "src/shared/retry.js",
             "status": "pending-review",
             "classification": null,
@@ -17690,7 +18064,25 @@
             "notes": ""
           },
           {
+            "path": "src/shared/subprocess/errors.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
             "path": "src/shared/subprocess/options.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/subprocess/runner-async.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/subprocess/runner-sync.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -17715,6 +18107,18 @@
           },
           {
             "path": "src/shared/subprocess/sync-command.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/subprocess/tracking-runtime.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/subprocess/tracking-terminate.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -19499,6 +19903,7 @@
             "tools/bench/micro/tinybench.js",
             "tools/bench/micro/utils.js",
             "tools/bench/micro/watch.js",
+            "tools/bench/progress-format.js",
             "tools/bench/query-generator.js",
             "tools/bench/sqlite/build-from-artifacts.js",
             "tools/bench/sqlite/build-from-bundles.js",
@@ -19543,6 +19948,7 @@
             "tools/build/embeddings/lancedb.js",
             "tools/build/embeddings/maintenance.js",
             "tools/build/embeddings/manifest.js",
+            "tools/build/embeddings/perf-progress.js",
             "tools/build/embeddings/pipeline.js",
             "tools/build/embeddings/run.js",
             "tools/build/embeddings/runner.js",
@@ -19695,7 +20101,7 @@
             "tools/workspace/manifest.js",
             "tools/workspace/status.js"
           ],
-          "fileCount": 303
+          "fileCount": 305
         },
         {
           "issueId": "419",
@@ -22850,7 +23256,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4677
+          "fileCount": 4691
         }
       ],
       "repoCoverage": {
@@ -23946,7 +24352,6 @@
           "src/shared/auto-policy/build.js",
           "src/shared/auto-policy/profile.js",
           "src/shared/auto-policy/repo-scan.js",
-          "src/shared/bench-progress.js",
           "src/shared/bloom.js",
           "src/shared/boolean-normalization.js",
           "src/shared/bounded-object-pool.js",
@@ -23997,6 +24402,10 @@
           "src/shared/concurrency/scheduler-core-telemetry-capture.js",
           "src/shared/concurrency/scheduler-core.js",
           "src/shared/concurrency/scheduler-core/adaptive-controller.js",
+          "src/shared/concurrency/scheduler-core/adaptive-signals.js",
+          "src/shared/concurrency/scheduler-core/adaptive-surface-controller.js",
+          "src/shared/concurrency/scheduler-core/adaptive-surface-snapshots.js",
+          "src/shared/concurrency/scheduler-core/adaptive-token-controller.js",
           "src/shared/concurrency/scheduler-core/config.js",
           "src/shared/concurrency/scheduler-core/dispatch.js",
           "src/shared/concurrency/scheduler-core/index.js",
@@ -24027,7 +24436,6 @@
           "src/shared/embeddings-cache/index.js",
           "src/shared/embeddings-cache/layout.js",
           "src/shared/embeddings-cache/lru.js",
-          "src/shared/embeddings-progress.js",
           "src/shared/encoding.js",
           "src/shared/env-path.js",
           "src/shared/env.js",
@@ -24081,11 +24489,15 @@
           "src/shared/jsonc.js",
           "src/shared/jsonrpc.js",
           "src/shared/kill-tree.js",
+          "src/shared/kill-tree/posix.js",
+          "src/shared/kill-tree/shared.js",
+          "src/shared/kill-tree/windows.js",
           "src/shared/lancedb.js",
           "src/shared/legacy-cli-entrypoint.js",
           "src/shared/lifecycle/registry.js",
           "src/shared/limits.js",
           "src/shared/lines.js",
+          "src/shared/locks/file-lock-runtime.js",
           "src/shared/locks/file-lock.js",
           "src/shared/logging/warn-once.js",
           "src/shared/merge.js",
@@ -24109,12 +24521,13 @@
           "src/shared/piscina-cleanup.js",
           "src/shared/postings-config.js",
           "src/shared/process-signals.js",
+          "src/shared/progress-context.js",
           "src/shared/progress-events.js",
+          "src/shared/progress-runtime.js",
           "src/shared/progress.js",
           "src/shared/promise-keepalive.js",
           "src/shared/promise-timeout.js",
           "src/shared/provenance.js",
-          "src/shared/queue.js",
           "src/shared/repo-cache-config.js",
           "src/shared/repo-paths.js",
           "src/shared/retry.js",
@@ -24137,11 +24550,16 @@
           "src/shared/stable-json.js",
           "src/shared/subprocess.js",
           "src/shared/subprocess/command-invocation.js",
+          "src/shared/subprocess/errors.js",
           "src/shared/subprocess/options.js",
+          "src/shared/subprocess/runner-async.js",
+          "src/shared/subprocess/runner-sync.js",
           "src/shared/subprocess/runner.js",
           "src/shared/subprocess/signals.js",
           "src/shared/subprocess/snapshot.js",
           "src/shared/subprocess/sync-command.js",
+          "src/shared/subprocess/tracking-runtime.js",
+          "src/shared/subprocess/tracking-terminate.js",
           "src/shared/subprocess/tracking.js",
           "src/shared/subprocess/windows-cmd-core.cjs",
           "src/shared/subprocess/windows-cmd.js",
@@ -27258,6 +27676,7 @@
           "tools/bench/micro/tinybench.js",
           "tools/bench/micro/utils.js",
           "tools/bench/micro/watch.js",
+          "tools/bench/progress-format.js",
           "tools/bench/query-generator.js",
           "tools/bench/sqlite/build-from-artifacts.js",
           "tools/bench/sqlite/build-from-bundles.js",
@@ -27302,6 +27721,7 @@
           "tools/build/embeddings/lancedb.js",
           "tools/build/embeddings/maintenance.js",
           "tools/build/embeddings/manifest.js",
+          "tools/build/embeddings/perf-progress.js",
           "tools/build/embeddings/pipeline.js",
           "tools/build/embeddings/run.js",
           "tools/build/embeddings/runner.js",
@@ -27674,7 +28094,7 @@
             "src/index/tooling/lsp-workspace-routing.js",
             "src/index/tooling/orchestrator.js"
           ],
-          "fileCount": 174
+          "fileCount": 180
         },
         {
           "issueId": "425",
@@ -27763,7 +28183,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4662
+          "fileCount": 4676
         },
         {
           "issueId": "427",
@@ -27806,7 +28226,7 @@
             "src/index/build/artifacts/minhash-packed.js",
             "src/index/build/artifacts/piece-registry.js"
           ],
-          "fileCount": 857
+          "fileCount": 858
         },
         {
           "issueId": "428",

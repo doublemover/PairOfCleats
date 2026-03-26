@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-26T08:15:59.296Z",
+  "generatedAt": "2026-03-26T09:52:21.258Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2840,7 +2840,7 @@
       "name": "PAIROFCLEATS_PROGRESS_CONTEXT",
       "files": [
         "src/shared/env/runtime.js",
-        "src/shared/progress.js",
+        "src/shared/progress-context.js",
         "tests/tui/progress-context-propagation.test.js",
         "tools/config/inventory.js"
       ]
@@ -4525,7 +4525,7 @@
         ]
       },
       {
-        "file": "src/shared/progress.js",
+        "file": "src/shared/progress-runtime.js",
         "flags": [
           "colorize",
           "destination",

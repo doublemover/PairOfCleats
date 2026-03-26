@@ -4,7 +4,7 @@
   "reviewDate": "2026-03-25",
   "scope": "Primary ownership for root-level src/shared helpers and root contracts assigned to #410 in the shared-module ledger.",
   "summary": {
-    "ownedFileCount": 52,
+    "ownedFileCount": 57,
     "overallAssessment": "The root shared surface is mostly useful, but it is still carrying too many neighboring responsibilities in a few high-consumer files. The biggest remaining cleanup opportunities are env/runtime policy composition, numeric normalization overlap, keeping the new helper leaf splits from collapsing back into broad buckets, and continuing the metrics and ops family deflation work.",
     "clusterFindings": [
       {
@@ -386,6 +386,39 @@
       "recommendation": "Keep the writer/parser pairing together, but document that this module owns framing and closed-stream handling, not higher-level protocol semantics."
     },
     {
+      "path": "src/shared/kill-tree/posix.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Platform-specific kill-tree leaf extracted from the root facade so POSIX traversal and termination details no longer live in the generic root file.",
+      "recommendation": "Keep platform behavior isolated here and prevent POSIX-specific process-tree logic from drifting back into the shared kill-tree facade."
+    },
+    {
+      "path": "src/shared/kill-tree/shared.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Shared kill-tree leaf extracted so platform-agnostic orchestration, delays, and normalization can stay separate from Windows and POSIX behavior.",
+      "recommendation": "Keep generic kill-tree orchestration here and let platform modules own process enumeration and termination details."
+    },
+    {
+      "path": "src/shared/kill-tree/windows.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Platform-specific kill-tree leaf extracted from the root facade so Windows process discovery and fallback behavior remain isolated.",
+      "recommendation": "Keep Windows-specific kill-tree behavior local to this file and avoid pushing cmd/tasklist details back into the generic kill-tree facade."
+    },
+    {
       "path": "src/shared/limits.js",
       "consumerCount": 45,
       "classifications": [
@@ -537,6 +570,17 @@
       "recommendation": "Keep it as the canonical repo/path normalization layer; document the boundary against env-path.js and files.js to prevent duplicate path helpers."
     },
     {
+      "path": "src/shared/progress-context.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Leaf helper extracted from progress.js so env propagation and progress-context encoding no longer live beside logging and TTY rendering.",
+      "recommendation": "Keep this as the explicit progress-context env helper and avoid mixing it back into the generic runtime logging surface."
+    },
+    {
       "path": "src/shared/progress-events.js",
       "consumerCount": 6,
       "classifications": [
@@ -546,6 +590,17 @@
       ],
       "consumerNotes": "Narrow shared helper promoted out of broader shared surfaces during the hard-cutover cleanup to make ownership and reuse explicit.",
       "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
+    },
+    {
+      "path": "src/shared/progress-runtime.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Leaf helper extracted from progress.js so structured logging, ring-buffer capture, and TTY progress state are isolated from env-context helpers.",
+      "recommendation": "Keep runtime progress and logging behavior in this leaf and resist rebuilding a single broad root progress utility."
     },
     {
       "path": "src/shared/repo-cache-config.js",

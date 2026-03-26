@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { formatShardFileProgress } from '../../../src/shared/bench-progress.js';
+import { formatShardFileProgress } from '../../../tools/bench/progress-format.js';
 
 const shardByLabel = new Map([['alpha', { index: 2, total: 10 }]]);
 const output = formatShardFileProgress({

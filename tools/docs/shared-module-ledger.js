@@ -184,17 +184,14 @@ const ROOT_LEVEL_ISSUE_411 = new Set([
 
 const ROOT_LEVEL_ISSUE_412 = new Set([
   'abort.js',
-  'bench-progress.js',
   'bounded-object-pool.js',
   'concurrency.js',
-  'embeddings-progress.js',
   'kill-tree.js',
   'piscina-cleanup.js',
   'process-signals.js',
   'progress.js',
   'promise-keepalive.js',
   'promise-timeout.js',
-  'queue.js',
   'retry.js',
   'sleep.js',
   'subprocess.js',

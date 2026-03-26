@@ -61,15 +61,6 @@ const formatMetricValue = (key, value) => {
   return String(numeric);
 };
 
-/**
- * Format a stable, key/value embeddings perf status line.
- *
- * @param {object} input
- * @param {string} input.mode
- * @param {'perf_progress'|'perf_summary'} [input.kind]
- * @param {Record<string, number>} [input.metrics]
- * @returns {string}
- */
 export const formatEmbeddingsPerfLine = ({ mode, kind = 'perf_progress', metrics = {} } = {}) => {
   const normalizedMode = sanitizeMode(mode);
   const normalizedKind = normalizeKind(kind);
@@ -86,12 +77,6 @@ const parseMetricValue = (value) => {
   return value;
 };
 
-/**
- * Parse a stable embeddings perf status line.
- *
- * @param {string} line
- * @returns {{mode:string,kind:'perf_progress'|'perf_summary',metrics:Record<string,number|string|null>}|null}
- */
 export const parseEmbeddingsPerfLine = (line) => {
   const text = typeof line === 'string' ? line.trim() : '';
   if (!text) return null;
