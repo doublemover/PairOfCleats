@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
 import { createCli } from '../../src/shared/cli.js';
 import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../../src/shared/cli-options.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import {
   bootstrapRuntime,
   resolveToolRoot
@@ -196,7 +197,7 @@ async function main() {
     results
   };
   const summaryPath = path.join(runRoot, 'matrix.json');
-  await fsPromises.writeFile(summaryPath, JSON.stringify(summary, null, 2));
+  await writeJsonFileResolved(summaryPath, summary);
   console.error(`\n[bench-matrix] Summary written to ${summaryPath}`);
 }
 

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getBenchMirrorRefreshMs } from '../../src/shared/env/bench.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { applyToolchainDaemonPolicyEnv } from '../../src/shared/toolchain-env.js';
 import { parseBenchLanguageArgs } from './language/cli.js';
 import { loadBenchConfig } from './language/config.js';
@@ -700,8 +701,7 @@ if (!quietMode) {
 
 const outputPath = argv.out ? path.resolve(argv.out) : null;
 if (outputPath) {
-  await fsPromises.mkdir(path.dirname(outputPath), { recursive: true });
-  await fsPromises.writeFile(outputPath, JSON.stringify(output, null, 2));
+  await writeJsonFileResolved(outputPath, output);
 }
 appendLog(`Completed ${results.length} benchmark runs.`);
 if (outputPath) {

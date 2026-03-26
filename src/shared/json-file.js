@@ -1,3 +1,4 @@
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readJsonFileSafe, readJsonFileSyncSafe } from './file-read.js';
@@ -40,5 +41,18 @@ export async function writeJsonFileResolved(filePath, payload, options = {}) {
     spaces: options?.spaces ?? 2,
     finalNewline: options?.trailingNewline === true || options?.finalNewline === true
   });
+  return resolved;
+}
+
+export function writeJsonFileSyncResolved(filePath, payload, options = {}) {
+  if (!filePath) return null;
+  const resolved = path.resolve(filePath);
+  const spaces = options?.spaces ?? 2;
+  const finalNewline = options?.trailingNewline === true || options?.finalNewline === true;
+  const serialized = JSON.stringify(payload, null, spaces);
+  const content = finalNewline ? `${serialized}\n` : serialized;
+  const directory = path.dirname(resolved);
+  fsSync.mkdirSync(directory, { recursive: true });
+  fsSync.writeFileSync(resolved, content, 'utf8');
   return resolved;
 }

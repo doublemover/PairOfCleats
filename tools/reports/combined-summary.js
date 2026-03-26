@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../../src/experimental/compare/config.js';
 import { runSubprocessOrExit } from '../shared/cli-utils.js';
 import { DEFAULT_MODEL_ID, bootstrapRuntime, resolveSqlitePaths, resolveToolRoot } from '../shared/dict-utils.js';
@@ -236,8 +236,7 @@ const combined = {
 };
 
 const outPath = argv.out ? path.resolve(argv.out) : reportPaths.combined;
-await fsPromises.mkdir(path.dirname(outPath), { recursive: true });
-await fsPromises.writeFile(outPath, JSON.stringify(combined, null, 2));
+await writeJsonFileResolved(outPath, combined);
 
 if (argv.json) {
   console.log(JSON.stringify(combined, null, 2));

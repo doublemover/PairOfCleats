@@ -10,6 +10,7 @@ import { getEnvConfig } from '../../../src/shared/env.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
 import { readJsonFileSyncSafe } from '../../../src/shared/file-read.js';
+import { writeJsonFileResolved } from '../../../src/shared/json-file.js';
 import { sleep } from '../../../src/shared/sleep.js';
 import { spawnSubprocess, spawnSubprocessSync } from '../../../src/shared/subprocess.js';
 import {
@@ -623,8 +624,7 @@ const writeOutputPayload = async ({
     currentPhase,
     phaseStartedAt
   });
-  await fsPromises.mkdir(path.dirname(checkpointOutPath), { recursive: true });
-  await fsPromises.writeFile(checkpointOutPath, JSON.stringify(payload, null, 2), 'utf8');
+  await writeJsonFileResolved(checkpointOutPath, payload);
   return payload;
 };
 

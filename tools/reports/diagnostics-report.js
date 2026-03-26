@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import {
   MAX_JSON_BYTES,
   loadJsonObjectArtifactSync,
@@ -604,8 +604,7 @@ export async function runDiagnosticsReportCli(rawArgs = process.argv.slice(2)) {
 
   if (argv.out) {
     const outPath = path.resolve(argv.out);
-    await fsPromises.mkdir(path.dirname(outPath), { recursive: true });
-    await fsPromises.writeFile(outPath, JSON.stringify(report, null, 2));
+    await writeJsonFileResolved(outPath, report);
   }
 
   if (argv.json) {

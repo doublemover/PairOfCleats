@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeJsonFileSyncResolved } from '../../src/shared/json-file.js';
 import { color } from '../../src/retrieval/cli/ansi.js';
 import {
   listResultFolders,
@@ -81,7 +82,7 @@ for (const dir of folders) {
     if (!dirty) continue;
 
     try {
-      fs.writeFileSync(resultPath, JSON.stringify(payload, null, 2));
+      writeJsonFileSyncResolved(resultPath, payload);
       changedFiles += 1;
       if (indexingResult.changed) changedSections.indexing += 1;
       if (analysisResult.changed) changedSections.analysis += 1;
