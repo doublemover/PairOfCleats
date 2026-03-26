@@ -166,6 +166,8 @@ const main = async () => {
   const testSummaryPath = path.join(diagnosticsDir, 'test-summary.json');
   const testTimingsPath = path.join(diagnosticsDir, 'test-timings.json');
   const testProfilePath = path.join(diagnosticsDir, 'test-profile.json');
+  const testStabilityPath = path.join(diagnosticsDir, 'test-stability.json');
+  const testStabilityHistoryDir = path.join(logDir, 'stability-history', baseLane);
   const coverageDir = path.join(diagnosticsDir, 'coverage');
   const coveragePath = path.join(coverageDir, `test-coverage-${mode}.json`);
   const coveragePolicyPath = path.join(coverageDir, `coverage-policy-${mode}.json`);
@@ -299,6 +301,10 @@ const main = async () => {
         testSummaryPath,
         '--timings-file',
         testTimingsPath,
+        '--stability-file',
+        testStabilityPath,
+        '--stability-history-dir',
+        testStabilityHistoryDir,
         '--profile',
         testProfilePath,
         '--coverage',

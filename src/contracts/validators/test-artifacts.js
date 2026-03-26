@@ -3,7 +3,8 @@ import {
   TEST_COVERAGE_ARTIFACT_SCHEMA,
   TEST_COVERAGE_POLICY_REPORT_SCHEMA,
   TEST_TIMINGS_ARTIFACT_SCHEMA,
-  TEST_PROFILE_ARTIFACT_SCHEMA
+  TEST_PROFILE_ARTIFACT_SCHEMA,
+  TEST_STABILITY_ARTIFACT_SCHEMA
 } from '../schemas/test-artifacts.js';
 
 const ajv = createAjv({
@@ -17,6 +18,7 @@ const VALIDATE_TEST_COVERAGE = compileSchema(ajv, TEST_COVERAGE_ARTIFACT_SCHEMA)
 const VALIDATE_TEST_COVERAGE_POLICY_REPORT = compileSchema(ajv, TEST_COVERAGE_POLICY_REPORT_SCHEMA);
 const VALIDATE_TEST_TIMINGS = compileSchema(ajv, TEST_TIMINGS_ARTIFACT_SCHEMA);
 const VALIDATE_TEST_PROFILE = compileSchema(ajv, TEST_PROFILE_ARTIFACT_SCHEMA);
+const VALIDATE_TEST_STABILITY = compileSchema(ajv, TEST_STABILITY_ARTIFACT_SCHEMA);
 
 const formatError = (error) => {
   const path = error.instancePath || '/';
@@ -46,4 +48,8 @@ export const validateTestTimingsArtifact = (payload) => (
 
 export const validateTestProfileArtifact = (payload) => (
   toResult(VALIDATE_TEST_PROFILE, payload)
+);
+
+export const validateTestStabilityArtifact = (payload) => (
+  toResult(VALIDATE_TEST_STABILITY, payload)
 );

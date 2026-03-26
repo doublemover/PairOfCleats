@@ -7,7 +7,8 @@ import { normalizePathForRepo } from '../src/shared/path-normalize.js';
 import {
   validateTestCoverageArtifact,
   validateTestTimingsArtifact,
-  validateTestProfileArtifact
+  validateTestProfileArtifact,
+  validateTestStabilityArtifact
 } from '../src/contracts/validators/test-artifacts.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadRunConfig, loadRunRules } from './runner/run-config.js';
@@ -52,6 +53,11 @@ import {
   writeTestRunTimes,
   writeTimings
 } from './runner/run-reporting.js';
+import {
+  buildStabilityArtifact,
+  loadStabilityHistory,
+  writeStabilityArtifact
+} from './runner/run-stability.js';
 import {
   buildCoverageArtifact,
   collectV8CoverageEntries,
@@ -511,6 +517,13 @@ const main = async () => {
   const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const runLogDir = logDir ? path.join(logDir, `run-${runId}`) : '';
   const timingsPath = argv['timings-file'] ? path.resolve(ROOT, argv['timings-file']) : '';
+  const stabilityPath = argv['stability-file'] ? path.resolve(ROOT, argv['stability-file']) : '';
+  const stabilityHistoryDir = argv['stability-history-dir']
+    ? path.resolve(ROOT, argv['stability-history-dir'])
+    : '';
+  const stabilityHistoryLimit = Number.isFinite(Number(argv['stability-history-limit']))
+    ? Math.max(1, Math.floor(Number(argv['stability-history-limit'])))
+    : 12;
   const reportFilePath = argv['report-file'] ? path.resolve(ROOT, argv['report-file']) : '';
   const hasCoverageFlag = process.argv.some((arg) => arg === '--coverage' || arg.startsWith('--coverage='));
   const coveragePathProvided = typeof argv.coverage === 'string' && argv.coverage.trim().length > 0;
@@ -742,6 +755,51 @@ const main = async () => {
       timingsPath,
       payload: timingsArtifact
     });
+  }
+  if (stabilityPath || stabilityHistoryDir) {
+    const stabilityHistory = await loadStabilityHistory({
+      historyDir: stabilityHistoryDir,
+      historyLimit: stabilityHistoryLimit
+    });
+    const resolveStabilityTimeoutBudget = (result) => {
+      const selectionLane = String(result?.selectionReason?.lane || '').trim();
+      const selectionLaneTargetMs = selectionLane && laneManifestConfig.orderedLanes.has(selectionLane)
+        ? Number(laneManifestConfig.orderedLanes.get(selectionLane)?.targetMaxDurationSeconds || 0) * 1000
+        : 0;
+      if (Number.isFinite(selectionLaneTargetMs) && selectionLaneTargetMs > 0) {
+        return selectionLaneTargetMs;
+      }
+      const intrinsicLaneTargetMs = result?.lane && laneManifestConfig.orderedLanes.has(result.lane)
+        ? Number(laneManifestConfig.orderedLanes.get(result.lane)?.targetMaxDurationSeconds || 0) * 1000
+        : 0;
+      if (Number.isFinite(intrinsicLaneTargetMs) && intrinsicLaneTargetMs > 0) {
+        return intrinsicLaneTargetMs;
+      }
+      return context.timeoutMs;
+    };
+    const stabilityArtifact = buildStabilityArtifact({
+      results: finalResults,
+      runId,
+      root: ROOT,
+      laneLabel,
+      retries,
+      history: stabilityHistory,
+      timeoutResolver: resolveStabilityTimeoutBudget,
+      baseEnv
+    });
+    const stabilityValidation = validateTestStabilityArtifact(stabilityArtifact);
+    if (!stabilityValidation.ok) {
+      console.error(`stability artifact validation failed: ${stabilityValidation.errors.join('; ')}`);
+      process.exit(2);
+    }
+    await writeStabilityArtifact({
+      artifactPath: stabilityPath,
+      archiveDir: stabilityHistoryDir,
+      artifact: stabilityArtifact
+    });
+    if (!argv.quiet && stabilityPath) {
+      consoleStream.write(`stability artifact: ${stabilityPath}\n`);
+    }
   }
   if (logTimesPath) {
     await writeTestRunTimes({ logTimesPath, results: finalResults });

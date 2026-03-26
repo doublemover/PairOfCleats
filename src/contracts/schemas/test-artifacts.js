@@ -274,9 +274,204 @@ export const TEST_PROFILE_ARTIFACT_SCHEMA = {
   }
 };
 
+export const TEST_STABILITY_ARTIFACT_SCHEMA = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  title: 'test-stability-artifact',
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'schemaVersion',
+    'generatedAt',
+    'runId',
+    'pathPolicy',
+    'timeUnit',
+    'lane',
+    'history',
+    'environment',
+    'policy',
+    'summary',
+    'families',
+    'tests'
+  ],
+  properties: {
+    schemaVersion: { type: 'number', const: 1 },
+    generatedAt: { type: 'string' },
+    runId: { type: 'string' },
+    pathPolicy: { type: 'string', const: 'repo-relative-posix' },
+    timeUnit: { type: 'string', const: 'ms' },
+    lane: { type: 'string' },
+    history: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['sourceDir', 'loadedArtifacts', 'historyLimit'],
+      properties: {
+        sourceDir: { type: ['string', 'null'] },
+        loadedArtifacts: { type: 'integer' },
+        historyLimit: { type: 'integer' }
+      }
+    },
+    environment: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['fingerprint', 'platform', 'arch', 'node', 'ci', 'suiteMode'],
+      properties: {
+        fingerprint: { type: 'string' },
+        platform: { type: 'string' },
+        arch: { type: 'string' },
+        node: { type: 'string' },
+        ci: { type: 'boolean' },
+        suiteMode: { type: ['string', 'null'] }
+      }
+    },
+    policy: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['retry', 'quarantine', 'escalation'],
+      properties: {
+        retry: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['runnerRetries', 'automaticRetryEnabled', 'note'],
+          properties: {
+            runnerRetries: { type: 'integer' },
+            automaticRetryEnabled: { type: 'boolean' },
+            note: { type: 'string' }
+          }
+        },
+        quarantine: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['automaticQuarantine', 'note'],
+          properties: {
+            automaticQuarantine: { type: 'boolean' },
+            note: { type: 'string' }
+          }
+        },
+        escalation: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['flaky', 'slow', 'environmentSensitive'],
+          properties: {
+            flaky: { type: 'string' },
+            slow: { type: 'string' },
+            environmentSensitive: { type: 'string' }
+          }
+        }
+      }
+    },
+    summary: {
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'tests',
+        'unstable',
+        'flaky',
+        'slow',
+        'environmentSensitive',
+        'failed',
+        'timedOut',
+        'redo'
+      ],
+      properties: {
+        tests: { type: 'integer' },
+        unstable: { type: 'integer' },
+        flaky: { type: 'integer' },
+        slow: { type: 'integer' },
+        environmentSensitive: { type: 'integer' },
+        failed: { type: 'integer' },
+        timedOut: { type: 'integer' },
+        redo: { type: 'integer' }
+      }
+    },
+    families: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'id',
+          'tests',
+          'unstable',
+          'flaky',
+          'slow',
+          'environmentSensitive',
+          'failed',
+          'timedOut',
+          'redo',
+          'avgDurationMs',
+          'maxDurationMs'
+        ],
+        properties: {
+          id: { type: 'string' },
+          tests: { type: 'integer' },
+          unstable: { type: 'integer' },
+          flaky: { type: 'integer' },
+          slow: { type: 'integer' },
+          environmentSensitive: { type: 'integer' },
+          failed: { type: 'integer' },
+          timedOut: { type: 'integer' },
+          redo: { type: 'integer' },
+          avgDurationMs: { type: 'number' },
+          maxDurationMs: { type: 'number' }
+        }
+      }
+    },
+    tests: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'id',
+          'path',
+          'lane',
+          'family',
+          'status',
+          'durationMs',
+          'timeoutBudgetMs',
+          'stabilityClass',
+          'outcomeClass',
+          'historyWindow',
+          'historyOutcomes',
+          'historyEnvironments',
+          'environmentFingerprint'
+        ],
+        properties: {
+          id: { type: 'string' },
+          path: { type: 'string' },
+          lane: { type: 'string' },
+          family: { type: 'string' },
+          status: { type: 'string' },
+          durationMs: { type: 'number' },
+          timeoutBudgetMs: { type: 'number' },
+          stabilityClass: {
+            type: 'string',
+            enum: ['stable', 'slow', 'flaky', 'environment-sensitive']
+          },
+          outcomeClass: {
+            type: 'string',
+            enum: ['passed', 'failed', 'timed_out', 'skipped', 'redo']
+          },
+          historyWindow: { type: 'integer' },
+          historyOutcomes: {
+            type: 'array',
+            items: { type: 'string' }
+          },
+          historyEnvironments: {
+            type: 'array',
+            items: { type: 'string' }
+          },
+          environmentFingerprint: { type: 'string' }
+        }
+      }
+    }
+  }
+};
+
 export const TEST_ARTIFACT_SCHEMA_DEFS = Object.freeze({
   testCoverage: TEST_COVERAGE_ARTIFACT_SCHEMA,
   testCoveragePolicyReport: TEST_COVERAGE_POLICY_REPORT_SCHEMA,
   testTimings: TEST_TIMINGS_ARTIFACT_SCHEMA,
-  testProfile: TEST_PROFILE_ARTIFACT_SCHEMA
+  testProfile: TEST_PROFILE_ARTIFACT_SCHEMA,
+  testStability: TEST_STABILITY_ARTIFACT_SCHEMA
 });

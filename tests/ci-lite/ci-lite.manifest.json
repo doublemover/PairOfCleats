@@ -4258,372 +4258,384 @@
       "order": 1062
     },
     {
-      "id": "tooling/lsp/configured-provider-rust-proc-macro-diagnostic-suppression",
+      "id": "runner/harness/stability-schema-validation",
       "order": 1063
     },
     {
-      "id": "tooling/lsp/configured-provider-yaml-schema-override-merge",
+      "id": "runner/stability-classification",
       "order": 1064
     },
     {
-      "id": "tooling/lsp/configured-provider-lua-workspace-config-invalid-preflight",
+      "id": "runner/harness/stability-artifact-contract",
       "order": 1065
     },
     {
-      "id": "tooling/lsp/configured-provider-rust-workspace-metadata-preflight-degraded",
+      "id": "tooling/lsp/configured-provider-rust-proc-macro-diagnostic-suppression",
       "order": 1066
     },
     {
-      "id": "tooling/lsp/hover-merge-quality",
+      "id": "tooling/lsp/configured-provider-yaml-schema-override-merge",
       "order": 1067
     },
     {
-      "id": "tooling/lsp/configured-provider-yaml-schema-store-remote-warning-preflight",
+      "id": "tooling/lsp/configured-provider-lua-workspace-config-invalid-preflight",
       "order": 1068
     },
     {
-      "id": "tooling/lsp/configured-provider-rust-workspace-metadata-cache-hit",
+      "id": "tooling/lsp/configured-provider-rust-workspace-metadata-preflight-degraded",
       "order": 1069
     },
     {
-      "id": "tooling/lsp/clangd-provider-output-shape",
+      "id": "tooling/lsp/hover-merge-quality",
       "order": 1070
     },
     {
-      "id": "tooling/lsp/configured-provider-zls-workspace-nested-root-preflight",
+      "id": "tooling/lsp/configured-provider-yaml-schema-store-remote-warning-preflight",
       "order": 1071
     },
     {
-      "id": "tooling/lsp/clangd-preflight-missing-compile-commands-inference-disabled",
+      "id": "tooling/lsp/configured-provider-rust-workspace-metadata-cache-hit",
       "order": 1072
     },
     {
-      "id": "tooling/lsp/protocol-disconnect-document-symbol-fail-open",
+      "id": "tooling/lsp/clangd-provider-output-shape",
       "order": 1073
     },
     {
-      "id": "tooling/lsp/configured-provider-go-workspace-warmup-doc-count-gating",
+      "id": "tooling/lsp/configured-provider-zls-workspace-nested-root-preflight",
       "order": 1074
     },
     {
-      "id": "tooling/lsp/configured-provider-go-workspace-module-preflight-failed",
+      "id": "tooling/lsp/clangd-preflight-missing-compile-commands-inference-disabled",
       "order": 1075
     },
     {
-      "id": "tooling/lsp/provider-metrics-capability-rollup",
+      "id": "tooling/lsp/protocol-disconnect-document-symbol-fail-open",
       "order": 1076
     },
     {
-      "id": "tooling/lsp/csharp-provider-overload-signature",
+      "id": "tooling/lsp/configured-provider-go-workspace-warmup-doc-count-gating",
       "order": 1077
     },
     {
-      "id": "tooling/lsp/provider-fidelity-coverage-contract",
+      "id": "tooling/lsp/configured-provider-go-workspace-module-preflight-failed",
       "order": 1078
     },
     {
-      "id": "tooling/lsp/configured-provider-go-workspace-warmup-preflight-failed",
+      "id": "tooling/lsp/provider-metrics-capability-rollup",
       "order": 1079
     },
     {
-      "id": "tooling/lsp/provider-metrics-envelope-aggregate",
+      "id": "tooling/lsp/csharp-provider-overload-signature",
       "order": 1080
     },
     {
-      "id": "tooling/lsp/configured-provider-go-workspace-preflight-cache-hit",
+      "id": "tooling/lsp/provider-fidelity-coverage-contract",
       "order": 1081
     },
     {
-      "id": "tooling/lsp/configured-provider-gopls-workspace-root-ambiguous-preflight",
+      "id": "tooling/lsp/configured-provider-go-workspace-warmup-preflight-failed",
       "order": 1082
     },
     {
-      "id": "tooling/lsp/configured-provider-gopls-workspace-root-nested-preflight",
+      "id": "tooling/lsp/provider-metrics-envelope-aggregate",
       "order": 1083
     },
     {
-      "id": "tooling/lsp/document-symbol-failure-disables-remaining-docs",
+      "id": "tooling/lsp/configured-provider-go-workspace-preflight-cache-hit",
       "order": 1084
     },
     {
-      "id": "indexing/tree-sitter/scheduler-native-language-contract",
+      "id": "tooling/lsp/configured-provider-gopls-workspace-root-ambiguous-preflight",
       "order": 1085
     },
     {
-      "id": "indexing/tree-sitter/scheduler-native-smoke",
+      "id": "tooling/lsp/configured-provider-gopls-workspace-root-nested-preflight",
       "order": 1086
     },
     {
-      "id": "tooling/lsp/references-fallback",
+      "id": "tooling/lsp/document-symbol-failure-disables-remaining-docs",
       "order": 1087
     },
     {
-      "id": "runner/harness/redo-semantics",
+      "id": "indexing/tree-sitter/scheduler-native-language-contract",
       "order": 1088
     },
     {
-      "id": "shared/cache/gc",
+      "id": "indexing/tree-sitter/scheduler-native-smoke",
       "order": 1089
     },
     {
-      "id": "tooling/type-inference/crossfile-stats.unit",
+      "id": "tooling/lsp/references-fallback",
       "order": 1090
     },
     {
-      "id": "tooling/lsp/elixir-provider-runtime-otp-mismatch-preflight",
+      "id": "runner/harness/redo-semantics",
       "order": 1091
     },
     {
-      "id": "cli/search/help",
+      "id": "shared/cache/gc",
       "order": 1092
     },
     {
-      "id": "tooling/vfs/partial-lsp-open",
+      "id": "tooling/type-inference/crossfile-stats.unit",
       "order": 1093
     },
     {
-      "id": "indexing/tree-sitter/scheduler-paged-json-gzip",
+      "id": "tooling/lsp/elixir-provider-runtime-otp-mismatch-preflight",
       "order": 1094
     },
     {
-      "id": "tooling/lsp/configured-provider-go-rust-signature-parsing",
+      "id": "cli/search/help",
       "order": 1095
     },
     {
-      "id": "tooling/lsp/configured-provider-rust-workspace-metadata-preflight-timeout-override",
+      "id": "tooling/vfs/partial-lsp-open",
       "order": 1096
     },
     {
-      "id": "tooling/lsp/configured-provider-go-workspace-module-preflight-timeout",
+      "id": "indexing/tree-sitter/scheduler-paged-json-gzip",
       "order": 1097
     },
     {
-      "id": "indexing/watch/lock-backoff",
+      "id": "tooling/lsp/configured-provider-go-rust-signature-parsing",
       "order": 1098
     },
     {
-      "id": "indexing/ignore/ignore-file-overrides",
+      "id": "tooling/lsp/configured-provider-rust-workspace-metadata-preflight-timeout-override",
       "order": 1099
     },
     {
-      "id": "indexing/imports/import-scan-budget-cache-key",
+      "id": "tooling/lsp/configured-provider-go-workspace-module-preflight-timeout",
       "order": 1100
     },
     {
-      "id": "tooling/doctor/gating-reasons",
+      "id": "indexing/watch/lock-backoff",
       "order": 1101
     },
     {
-      "id": "tooling/lsp/elixir-provider-initialize-stall-fail-open",
+      "id": "indexing/ignore/ignore-file-overrides",
       "order": 1102
     },
     {
-      "id": "perf/bench/language-log-closeout",
+      "id": "indexing/imports/import-scan-budget-cache-key",
       "order": 1103
     },
     {
-      "id": "perf/bench/language-log-emergency-close",
+      "id": "tooling/doctor/gating-reasons",
       "order": 1104
     },
     {
-      "id": "perf/bench/language-report-cross-repo-dedupe",
+      "id": "tooling/lsp/elixir-provider-initialize-stall-fail-open",
       "order": 1105
     },
     {
-      "id": "perf/bench/language-report-master-dedupe",
+      "id": "perf/bench/language-log-closeout",
       "order": 1106
     },
     {
-      "id": "perf/bench/language-report-master-summary-recovery",
+      "id": "perf/bench/language-log-emergency-close",
       "order": 1107
     },
     {
-      "id": "perf/bench/query-runtime",
+      "id": "perf/bench/language-report-cross-repo-dedupe",
       "order": 1108
     },
     {
-      "id": "perf/bench/language-timeout-profile",
+      "id": "perf/bench/language-report-master-dedupe",
       "order": 1109
     },
     {
-      "id": "perf/bench/language-process-idle-timeout",
+      "id": "perf/bench/language-report-master-summary-recovery",
       "order": 1110
     },
     {
-      "id": "perf/bench/language-process-idle-activity-probe",
+      "id": "perf/bench/query-runtime",
       "order": 1111
     },
     {
-      "id": "perf/bench/language-process-idle-activity-probe-async",
+      "id": "perf/bench/language-timeout-profile",
       "order": 1112
     },
     {
-      "id": "shared/lifecycle/registry-unref-promise-drain",
+      "id": "perf/bench/language-process-idle-timeout",
       "order": 1113
     },
     {
-      "id": "shared/bundle-io-patch-append",
+      "id": "perf/bench/language-process-idle-activity-probe",
       "order": 1114
     },
     {
-      "id": "shared/subprocess/windows-cmd",
+      "id": "perf/bench/language-process-idle-activity-probe-async",
       "order": 1115
     },
     {
-      "id": "indexing/embeddings/embedding-batcher-unref-timer",
+      "id": "shared/lifecycle/registry-unref-promise-drain",
       "order": 1116
     },
     {
-      "id": "perf/bench/repo-timeout-propagation",
+      "id": "shared/bundle-io-patch-append",
       "order": 1117
     },
     {
-      "id": "indexing/watch/debounce",
+      "id": "shared/subprocess/windows-cmd",
       "order": 1118
     },
     {
-      "id": "indexing/state/build-state-log-repair",
+      "id": "indexing/embeddings/embedding-batcher-unref-timer",
       "order": 1119
     },
     {
-      "id": "indexing/state/build-state-identical-patch-repeat-logs",
+      "id": "perf/bench/repo-timeout-propagation",
       "order": 1120
     },
     {
-      "id": "indexing/state/build-state-skip-write-missing-files",
+      "id": "indexing/watch/debounce",
       "order": 1121
     },
     {
-      "id": "tooling/lsp/signature-help-timeout-adaptive-gates-next-symbol",
+      "id": "indexing/state/build-state-log-repair",
       "order": 1122
     },
     {
-      "id": "tooling/lsp/signature-help-timeout-adaptive",
+      "id": "indexing/state/build-state-identical-patch-repeat-logs",
       "order": 1123
     },
     {
-      "id": "runner/harness/skip-semantics",
+      "id": "indexing/state/build-state-skip-write-missing-files",
       "order": 1124
     },
     {
-      "id": "tooling/lsp/definition-timeout-adaptive",
+      "id": "tooling/lsp/signature-help-timeout-adaptive-gates-next-symbol",
       "order": 1125
     },
     {
-      "id": "tooling/lsp/references-timeout-adaptive",
+      "id": "tooling/lsp/signature-help-timeout-adaptive",
       "order": 1126
     },
     {
-      "id": "tooling/lsp/provider-metrics-hover-timeout-rollup",
+      "id": "runner/harness/skip-semantics",
       "order": 1127
     },
     {
-      "id": "indexing/tokenization/file-stream-reuse",
+      "id": "tooling/lsp/definition-timeout-adaptive",
       "order": 1128
     },
     {
-      "id": "perf/bench/language-closeout-exit",
+      "id": "tooling/lsp/references-timeout-adaptive",
       "order": 1129
     },
     {
-      "id": "indexing/extracted-prose/low-yield-history-family-priors",
+      "id": "tooling/lsp/provider-metrics-hover-timeout-rollup",
       "order": 1130
     },
     {
-      "id": "indexing/stage1/barrier-keepalive",
+      "id": "indexing/tokenization/file-stream-reuse",
       "order": 1131
     },
     {
-      "id": "indexing/runtime/runtime-teardown-order",
+      "id": "perf/bench/language-closeout-exit",
       "order": 1132
     },
     {
-      "id": "indexing/ordering/ordered-appender-retry-reset",
+      "id": "indexing/extracted-prose/low-yield-history-family-priors",
       "order": 1133
     },
     {
-      "id": "tooling/install/tooling-signal-exit",
+      "id": "indexing/stage1/barrier-keepalive",
       "order": 1134
     },
     {
-      "id": "tooling/install/tooling-resolve-preferred-enabled-fallback",
+      "id": "indexing/runtime/runtime-teardown-order",
       "order": 1135
     },
     {
-      "id": "tooling/analysis-wrapper-exit-propagation",
+      "id": "indexing/ordering/ordered-appender-retry-reset",
       "order": 1136
     },
     {
-      "id": "tooling/vscode/windows-cmd",
+      "id": "tooling/install/tooling-signal-exit",
       "order": 1137
     },
     {
-      "id": "tooling/lsp/windows-wrapper-argv-forwarding",
+      "id": "tooling/install/tooling-resolve-preferred-enabled-fallback",
       "order": 1138
     },
     {
-      "id": "ci/tooling-lsp-slo-gate-attempt-ratios",
+      "id": "tooling/analysis-wrapper-exit-propagation",
       "order": 1139
     },
     {
-      "id": "ci/tooling-lsp-slo-gate-sampling",
+      "id": "tooling/vscode/windows-cmd",
       "order": 1140
     },
     {
-      "id": "ci/tooling-lsp-slo-gate-unavailable-skip",
+      "id": "tooling/lsp/windows-wrapper-argv-forwarding",
       "order": 1141
     },
     {
-      "id": "indexing/extracted-prose/low-yield-history-doclike-reinforcement",
+      "id": "ci/tooling-lsp-slo-gate-attempt-ratios",
       "order": 1142
     },
     {
-      "id": "indexing/extracted-prose/low-yield-history-unsampled-doclike-family",
+      "id": "ci/tooling-lsp-slo-gate-sampling",
       "order": 1143
     },
     {
-      "id": "indexing/extracted-prose/low-yield-unsampled-doclike-family-expansion",
+      "id": "ci/tooling-lsp-slo-gate-unavailable-skip",
       "order": 1144
     },
     {
-      "id": "indexing/extracted-prose/low-yield-summary-family-evidence",
+      "id": "indexing/extracted-prose/low-yield-history-doclike-reinforcement",
       "order": 1145
     },
     {
-      "id": "indexing/extracted-prose/extraction-report",
+      "id": "indexing/extracted-prose/low-yield-history-unsampled-doclike-family",
       "order": 1146
     },
     {
-      "id": "indexing/workers/worker-pool-lifecycle-destroy",
+      "id": "indexing/extracted-prose/low-yield-unsampled-doclike-family-expansion",
       "order": 1147
     },
     {
-      "id": "indexing/workers/worker-pool-lifecycle-destroy-during-restart",
+      "id": "indexing/extracted-prose/low-yield-summary-family-evidence",
       "order": 1148
     },
     {
-      "id": "context-pack/risk-ranking-budget",
+      "id": "indexing/extracted-prose/extraction-report",
       "order": 1149
     },
     {
-      "id": "context-pack/risk-strict-status",
+      "id": "indexing/workers/worker-pool-lifecycle-destroy",
       "order": 1150
     },
     {
-      "id": "retrieval/output/risk-explanation-contract",
+      "id": "indexing/workers/worker-pool-lifecycle-destroy-during-restart",
       "order": 1151
     },
     {
-      "id": "retrieval/output/risk-explanation-sarif-contract",
+      "id": "context-pack/risk-ranking-budget",
       "order": 1152
     },
     {
-      "id": "retrieval/output/composite-context-pack-render-contract",
+      "id": "context-pack/risk-strict-status",
       "order": 1153
     },
     {
-      "id": "retrieval/output/composite-context-pack-sarif-contract",
+      "id": "retrieval/output/risk-explanation-contract",
       "order": 1154
+    },
+    {
+      "id": "retrieval/output/risk-explanation-sarif-contract",
+      "order": 1155
+    },
+    {
+      "id": "retrieval/output/composite-context-pack-render-contract",
+      "order": 1156
+    },
+    {
+      "id": "retrieval/output/composite-context-pack-sarif-contract",
+      "order": 1157
     }
   ]
 }

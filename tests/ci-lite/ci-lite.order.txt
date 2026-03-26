@@ -1060,6 +1060,9 @@ tooling/lsp/type-definition-fallback
 tooling/lsp/configured-provider-lua-workspace-library-missing-path-preflight
 tooling/lsp/configured-provider-runtime-requirement-preflight-degraded
 runner/harness/timings-ledger
+runner/harness/stability-schema-validation
+runner/stability-classification
+runner/harness/stability-artifact-contract
 tooling/lsp/configured-provider-rust-proc-macro-diagnostic-suppression
 tooling/lsp/configured-provider-yaml-schema-override-merge
 tooling/lsp/configured-provider-lua-workspace-config-invalid-preflight
