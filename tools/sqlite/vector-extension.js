@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { buildLocalCacheKey } from '../../src/shared/cache-key.js';
 import path from 'node:path';
 import { getExtensionsDir, loadUserConfig } from '../shared/dict-utils.js';
-import { incAnnCandidatePushdown, incFallback } from '../../src/shared/metrics.js';
+import { incAnnCandidatePushdown, incFallback } from '../../src/shared/metrics/core.js';
 import { isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
 import { joinPathSafe } from '../../src/shared/path-normalize.js';
 import { normalizePositiveInt } from '../../src/shared/limits.js';

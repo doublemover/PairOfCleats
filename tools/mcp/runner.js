@@ -1,6 +1,6 @@
 import { spawnSubprocess, spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
-import { incTimeout } from '../../src/shared/metrics.js';
+import { incTimeout } from '../../src/shared/metrics/core.js';
 import { createProgressReporter, createStreamLineProgressForwarder } from '../../src/shared/progress-events.js';
 
 /**

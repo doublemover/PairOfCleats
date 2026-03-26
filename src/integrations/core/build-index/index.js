@@ -5,7 +5,7 @@ import { parseBuildArgs } from '../../../index/build/args.js';
 import { createBuildRuntime } from '../../../index/build/runtime.js';
 import { watchIndex } from '../../../index/build/watch.js';
 import { log as defaultLog, logError as defaultLogError, logLine } from '../../../shared/progress.js';
-import { observeIndexDuration } from '../../../shared/metrics.js';
+import { observeIndexDuration } from '../../../shared/metrics/core.js';
 import { buildAutoPolicy } from '../../../shared/auto-policy.js';
 import {
   applyObservabilityContextEnv,

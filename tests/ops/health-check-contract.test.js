@@ -8,7 +8,7 @@ import {
   formatHealthFailure,
   runIndexingHealthChecks,
   runRetrievalHealthChecks
-} from '../../src/shared/ops-health.js';
+} from '../../src/shared/ops/health.js';
 import { createRunnerHelpers } from '../../src/retrieval/cli/runner.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-op-health-'));

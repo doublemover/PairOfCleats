@@ -4,7 +4,7 @@ import { runBuildCleanupWithTimeout } from '../../cleanup-timeout.js';
 import { getTreeSitterStats } from '../../../../lang/tree-sitter.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../runtime/scheduler.js';
-import { runWithOperationalFailurePolicy } from '../../../../shared/ops-failure-injection.js';
+import { runWithOperationalFailurePolicy } from '../../../../shared/ops/failure-injection.js';
 import {
   SIGNATURE_VERSION,
   buildIncrementalSignature,

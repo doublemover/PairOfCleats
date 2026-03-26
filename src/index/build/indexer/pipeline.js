@@ -16,8 +16,8 @@ import { createPerfProfile, loadPerfProfile } from '../perf-profile.js';
 import { createStageCheckpointRecorder } from '../stage-checkpoints.js';
 import { createIndexState } from '../state.js';
 import { resetTreeSitterStats } from '../../../lang/tree-sitter.js';
-import { formatHealthFailure, runIndexingHealthChecks } from '../../../shared/ops-health.js';
-import { readIndexArtifactBytes } from '../../../shared/ops-resource-visibility.js';
+import { formatHealthFailure, runIndexingHealthChecks } from '../../../shared/ops/health.js';
+import { readIndexArtifactBytes } from '../../../shared/ops/resource-visibility.js';
 import {
   buildFeatureSettings,
   resolveAnalysisFlags,

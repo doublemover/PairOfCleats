@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createLruCache } from '../shared/cache.js';
 import { runWithConcurrency } from '../shared/concurrency.js';
-import { incCacheEviction, setCacheSize } from '../shared/metrics.js';
+import { incCacheEviction, setCacheSize } from '../shared/metrics/core.js';
 import { probeFileSignature } from '../shared/file-signature.js';
 import { stableStringifyForSignature } from '../shared/stable-json.js';
 

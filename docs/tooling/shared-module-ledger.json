@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-03-26T07:50:50.416Z",
+  "generatedAt": "2026-03-26T07:56:23.190Z",
   "generatedBy": "node tools/docs/shared-module-ledger.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "census": {
@@ -2004,17 +2004,6 @@
         ]
       },
       {
-        "path": "src/shared/editor-config-contract.json",
-        "family": "src/shared/root",
-        "primaryIssue": {
-          "issueId": "410",
-          "title": "Review shared core primitives and root-level contracts in src/shared",
-          "umbrella": "407"
-        },
-        "consumerCount": 0,
-        "importers": []
-      },
-      {
         "path": "src/shared/embedding-adapter.js",
         "family": "src/shared/root",
         "primaryIssue": {
@@ -2252,7 +2241,7 @@
           "src/shared/cache-roots.js",
           "src/shared/cli/display.js",
           "src/shared/json-stream/streams.js",
-          "src/shared/metrics.js",
+          "src/shared/metrics/core.js",
           "src/storage/sqlite/build/runner/selection-planning.js",
           "src/storage/sqlite/utils.js",
           "tools/bench/bench-runner.js",
@@ -2342,7 +2331,7 @@
           "src/shared/artifact-io/constants.js",
           "src/shared/artifact-io/manifest.js",
           "src/shared/env.js",
-          "src/shared/ops-failure-injection.js",
+          "src/shared/ops/failure-injection.js",
           "tools/build/embeddings/runner.js",
           "tools/build/embeddings/sqlite-dense-isolate.js",
           "tools/dict-utils/config.js",
@@ -3647,14 +3636,14 @@
         ]
       },
       {
-        "path": "src/shared/metrics.js",
-        "family": "src/shared/root",
+        "path": "src/shared/metrics/core.js",
+        "family": "src/shared/metrics",
         "primaryIssue": {
           "issueId": "410",
           "title": "Review shared core primitives and root-level contracts in src/shared",
           "umbrella": "407"
         },
-        "consumerCount": 15,
+        "consumerCount": 13,
         "importers": [
           "src/context-pack/assemble/risk-slice.js",
           "src/index/build/watch.js",
@@ -3666,8 +3655,6 @@
           "src/retrieval/index-cache.js",
           "src/retrieval/query-plan-cache.js",
           "src/retrieval/sqlite-cache.js",
-          "src/shared/io/atomic-write.js",
-          "src/shared/repo-cache-config.js",
           "tools/api/server.js",
           "tools/mcp/runner.js",
           "tools/sqlite/vector-extension.js"
@@ -3695,7 +3682,7 @@
           "title": "Review shared core primitives and root-level contracts in src/shared",
           "umbrella": "407"
         },
-        "consumerCount": 32,
+        "consumerCount": 33,
         "importers": [
           "src/index/build/artifacts-write/index.js",
           "src/index/build/artifacts-write/runtime.js",
@@ -3721,6 +3708,7 @@
           "src/shared/artifact-io/offsets.js",
           "src/shared/concurrency/scheduler-core/config.js",
           "src/shared/indexing/stage1-watchdog-policy.js",
+          "src/shared/limits.js",
           "src/shared/perf/histogram.js",
           "src/shared/runtime-envelope/parse.js",
           "src/storage/sqlite/build/from-artifacts/sources.js",
@@ -3776,8 +3764,8 @@
         ]
       },
       {
-        "path": "src/shared/ops-failure-injection.js",
-        "family": "src/shared/root",
+        "path": "src/shared/ops/failure-injection.js",
+        "family": "src/shared/ops",
         "primaryIssue": {
           "issueId": "410",
           "title": "Review shared core primitives and root-level contracts in src/shared",
@@ -3790,8 +3778,8 @@
         ]
       },
       {
-        "path": "src/shared/ops-health.js",
-        "family": "src/shared/root",
+        "path": "src/shared/ops/health.js",
+        "family": "src/shared/ops",
         "primaryIssue": {
           "issueId": "410",
           "title": "Review shared core primitives and root-level contracts in src/shared",
@@ -3804,8 +3792,8 @@
         ]
       },
       {
-        "path": "src/shared/ops-resource-visibility.js",
-        "family": "src/shared/root",
+        "path": "src/shared/ops/resource-visibility.js",
+        "family": "src/shared/ops",
         "primaryIssue": {
           "issueId": "410",
           "title": "Review shared core primitives and root-level contracts in src/shared",
@@ -5458,7 +5446,7 @@
     ]
   },
   "consumerMap": {
-    "edgeCount": 2333,
+    "edgeCount": 2332,
     "bySharedFile": {
       "src/shared/abort.js": {
         "importers": [
@@ -6705,10 +6693,6 @@
         ],
         "importerCount": 5
       },
-      "src/shared/editor-config-contract.json": {
-        "importers": [],
-        "importerCount": 0
-      },
       "src/shared/embedding-adapter.js": {
         "importers": [
           "src/index/build/runtime/runtime.js",
@@ -6848,7 +6832,7 @@
           "src/shared/cache-roots.js",
           "src/shared/cli/display.js",
           "src/shared/json-stream/streams.js",
-          "src/shared/metrics.js",
+          "src/shared/metrics/core.js",
           "src/storage/sqlite/build/runner/selection-planning.js",
           "src/storage/sqlite/utils.js",
           "tools/bench/bench-runner.js",
@@ -6910,7 +6894,7 @@
           "src/shared/artifact-io/constants.js",
           "src/shared/artifact-io/manifest.js",
           "src/shared/env.js",
-          "src/shared/ops-failure-injection.js",
+          "src/shared/ops/failure-injection.js",
           "tools/build/embeddings/runner.js",
           "tools/build/embeddings/sqlite-dense-isolate.js",
           "tools/dict-utils/config.js",
@@ -7886,7 +7870,7 @@
         ],
         "importerCount": 3
       },
-      "src/shared/metrics.js": {
+      "src/shared/metrics/core.js": {
         "importers": [
           "src/context-pack/assemble/risk-slice.js",
           "src/index/build/watch.js",
@@ -7898,13 +7882,11 @@
           "src/retrieval/index-cache.js",
           "src/retrieval/query-plan-cache.js",
           "src/retrieval/sqlite-cache.js",
-          "src/shared/io/atomic-write.js",
-          "src/shared/repo-cache-config.js",
           "tools/api/server.js",
           "tools/mcp/runner.js",
           "tools/sqlite/vector-extension.js"
         ],
-        "importerCount": 15
+        "importerCount": 13
       },
       "src/shared/native-accel.js": {
         "importers": [
@@ -7939,6 +7921,7 @@
           "src/shared/artifact-io/offsets.js",
           "src/shared/concurrency/scheduler-core/config.js",
           "src/shared/indexing/stage1-watchdog-policy.js",
+          "src/shared/limits.js",
           "src/shared/perf/histogram.js",
           "src/shared/runtime-envelope/parse.js",
           "src/storage/sqlite/build/from-artifacts/sources.js",
@@ -7948,7 +7931,7 @@
           "tools/ci/import-resolution-slo-gate.js",
           "tools/ci/tooling-lsp-slo-gate.js"
         ],
-        "importerCount": 32
+        "importerCount": 33
       },
       "src/shared/observability.js": {
         "importers": [
@@ -7980,21 +7963,21 @@
         ],
         "importerCount": 7
       },
-      "src/shared/ops-failure-injection.js": {
+      "src/shared/ops/failure-injection.js": {
         "importers": [
           "src/index/build/indexer/pipeline/orchestrator.js",
           "src/retrieval/cli/run-search/plan-runner.js"
         ],
         "importerCount": 2
       },
-      "src/shared/ops-health.js": {
+      "src/shared/ops/health.js": {
         "importers": [
           "src/index/build/indexer/pipeline.js",
           "src/retrieval/cli/runner.js"
         ],
         "importerCount": 2
       },
-      "src/shared/ops-resource-visibility.js": {
+      "src/shared/ops/resource-visibility.js": {
         "importers": [
           "src/index/build/indexer/pipeline.js",
           "src/index/build/indexer/pipeline/finalize.js",
@@ -9129,7 +9112,7 @@
       "src/context-pack/assemble/risk-slice.js": {
         "sharedImports": [
           "src/shared/artifact-io.js",
-          "src/shared/metrics.js",
+          "src/shared/metrics/core.js",
           "src/shared/risk-explain.js",
           "src/shared/risk-filters.js"
         ],
@@ -10059,8 +10042,8 @@
           "src/shared/cache.js",
           "src/shared/dict-utils.js",
           "src/shared/env.js",
-          "src/shared/ops-health.js",
-          "src/shared/ops-resource-visibility.js",
+          "src/shared/ops/health.js",
+          "src/shared/ops/resource-visibility.js",
           "src/shared/progress.js"
         ],
         "sharedImportCount": 7
@@ -10074,7 +10057,7 @@
       },
       "src/index/build/indexer/pipeline/finalize.js": {
         "sharedImports": [
-          "src/shared/ops-resource-visibility.js"
+          "src/shared/ops/resource-visibility.js"
         ],
         "sharedImportCount": 1
       },
@@ -10086,7 +10069,7 @@
       },
       "src/index/build/indexer/pipeline/orchestrator.js": {
         "sharedImports": [
-          "src/shared/ops-failure-injection.js"
+          "src/shared/ops/failure-injection.js"
         ],
         "sharedImportCount": 1
       },
@@ -10699,7 +10682,7 @@
           "src/shared/files.js",
           "src/shared/fs/ignore.js",
           "src/shared/locks/file-lock.js",
-          "src/shared/metrics.js",
+          "src/shared/metrics/core.js",
           "src/shared/progress.js",
           "src/shared/scheduler/debounce.js"
         ],
@@ -10752,7 +10735,7 @@
       },
       "src/index/build/workers/pool.js": {
         "sharedImports": [
-          "src/shared/metrics.js",
+          "src/shared/metrics/core.js",
           "src/shared/progress.js"
         ],
         "sharedImportCount": 2
@@ -11540,7 +11523,7 @@
           "src/shared/abort.js",
           "src/shared/auto-policy.js",
           "src/shared/dict-utils.js",
-          "src/shared/metrics.js",
+          "src/shared/metrics/core.js",
           "src/shared/observability.js",
           "src/shared/progress.js",
           "src/shared/repo-paths.js",
@@ -12169,7 +12152,7 @@
           "src/shared/dense-vector-artifacts.js",
           "src/shared/dense-vector-mode.js",
           "src/shared/error-codes.js",
-          "src/shared/metrics.js"
+          "src/shared/metrics/core.js"
         ],
         "sharedImportCount": 4
       },
@@ -12183,7 +12166,7 @@
         "sharedImports": [
           "src/shared/cache-key.js",
           "src/shared/embedding.js",
-          "src/shared/metrics.js"
+          "src/shared/metrics/core.js"
         ],
         "sharedImportCount": 3
       },
@@ -12213,7 +12196,7 @@
           "src/shared/dict-utils.js",
           "src/shared/error-codes.js",
           "src/shared/files.js",
-          "src/shared/ops-failure-injection.js",
+          "src/shared/ops/failure-injection.js",
           "src/shared/repo-paths.js"
         ],
         "sharedImportCount": 6
@@ -12221,7 +12204,7 @@
       "src/retrieval/cli/runner.js": {
         "sharedImports": [
           "src/shared/error-codes.js",
-          "src/shared/ops-health.js"
+          "src/shared/ops/health.js"
         ],
         "sharedImportCount": 2
       },
@@ -12233,8 +12216,8 @@
       },
       "src/retrieval/cli/telemetry.js": {
         "sharedImports": [
-          "src/shared/metrics.js",
-          "src/shared/ops-resource-visibility.js"
+          "src/shared/metrics/core.js",
+          "src/shared/ops/resource-visibility.js"
         ],
         "sharedImportCount": 2
       },
@@ -12307,7 +12290,7 @@
           "src/shared/cache.js",
           "src/shared/concurrency.js",
           "src/shared/file-signature.js",
-          "src/shared/metrics.js",
+          "src/shared/metrics/core.js",
           "src/shared/stable-json.js"
         ],
         "sharedImportCount": 5
@@ -12461,7 +12444,7 @@
           "src/shared/cache.js",
           "src/shared/files.js",
           "src/shared/io/atomic-write.js",
-          "src/shared/metrics.js"
+          "src/shared/metrics/core.js"
         ],
         "sharedImportCount": 5
       },
@@ -12480,7 +12463,7 @@
       "src/retrieval/sqlite-cache.js": {
         "sharedImports": [
           "src/shared/cache.js",
-          "src/shared/metrics.js",
+          "src/shared/metrics/core.js",
           "src/shared/stable-json.js"
         ],
         "sharedImportCount": 3
@@ -13177,10 +13160,9 @@
       "src/shared/io/atomic-write.js": {
         "sharedImports": [
           "src/shared/io/atomic-persistence.js",
-          "src/shared/metrics.js",
           "src/shared/path-normalize.js"
         ],
-        "sharedImportCount": 3
+        "sharedImportCount": 2
       },
       "src/shared/json-stream.js": {
         "sharedImports": [
@@ -13258,6 +13240,12 @@
         ],
         "sharedImportCount": 2
       },
+      "src/shared/limits.js": {
+        "sharedImports": [
+          "src/shared/number-coerce.js"
+        ],
+        "sharedImportCount": 1
+      },
       "src/shared/locks/file-lock.js": {
         "sharedImports": [
           "src/shared/abort.js",
@@ -13275,7 +13263,7 @@
         ],
         "sharedImportCount": 5
       },
-      "src/shared/metrics.js": {
+      "src/shared/metrics/core.js": {
         "sharedImports": [
           "src/shared/env.js"
         ],
@@ -13294,7 +13282,7 @@
         ],
         "sharedImportCount": 2
       },
-      "src/shared/ops-failure-injection.js": {
+      "src/shared/ops/failure-injection.js": {
         "sharedImports": [
           "src/shared/env/testing.js"
         ],
@@ -13341,10 +13329,9 @@
         "sharedImports": [
           "src/shared/cache/policy.js",
           "src/shared/dict-utils.js",
-          "src/shared/indexing/build-pointer.js",
-          "src/shared/metrics.js"
+          "src/shared/indexing/build-pointer.js"
         ],
-        "sharedImportCount": 4
+        "sharedImportCount": 3
       },
       "src/shared/repo-paths.js": {
         "sharedImports": [
@@ -13798,7 +13785,7 @@
           "src/shared/cli-options.js",
           "src/shared/cli.js",
           "src/shared/env/runtime.js",
-          "src/shared/metrics.js",
+          "src/shared/metrics/core.js",
           "tools/shared/dict-utils.js",
           "tools/shared/text-utils.js"
         ],
@@ -15237,7 +15224,7 @@
       "tools/mcp/runner.js": {
         "sharedImports": [
           "src/shared/error-codes.js",
-          "src/shared/metrics.js",
+          "src/shared/metrics/core.js",
           "src/shared/progress-events.js",
           "src/shared/subprocess.js"
         ],
@@ -15701,7 +15688,7 @@
           "src/shared/files.js",
           "src/shared/limits.js",
           "src/shared/logging/warn-once.js",
-          "src/shared/metrics.js",
+          "src/shared/metrics/core.js",
           "src/shared/path-normalize.js",
           "tools/shared/dict-utils.js"
         ],
@@ -15982,7 +15969,6 @@
           "src/shared/config.js",
           "src/shared/direct-execution.js",
           "src/shared/disk-space.js",
-          "src/shared/editor-config-contract.json",
           "src/shared/env-path.js",
           "src/shared/env.js",
           "src/shared/env/bench.js",
@@ -16001,13 +15987,13 @@
           "src/shared/lines.js",
           "src/shared/logging/warn-once.js",
           "src/shared/merge.js",
-          "src/shared/metrics.js",
+          "src/shared/metrics/core.js",
           "src/shared/native-accel.js",
           "src/shared/number-coerce.js",
           "src/shared/observability.js",
-          "src/shared/ops-failure-injection.js",
-          "src/shared/ops-health.js",
-          "src/shared/ops-resource-visibility.js",
+          "src/shared/ops/failure-injection.js",
+          "src/shared/ops/health.js",
+          "src/shared/ops/resource-visibility.js",
           "src/shared/optional-deps.js",
           "src/shared/order.js",
           "src/shared/path-normalize.js",
@@ -16024,7 +16010,7 @@
           "src/shared/time-format.js",
           "src/shared/toolchain-env.js"
         ],
-        "fileCount": 48,
+        "fileCount": 47,
         "entries": [
           {
             "path": "src/shared/auto-policy.js",
@@ -16064,12 +16050,6 @@
           },
           {
             "path": "src/shared/disk-space.js",
-            "status": "pending-review",
-            "classification": null,
-            "notes": ""
-          },
-          {
-            "path": "src/shared/editor-config-contract.json",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -16183,7 +16163,7 @@
             "notes": ""
           },
           {
-            "path": "src/shared/metrics.js",
+            "path": "src/shared/metrics/core.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -16207,19 +16187,19 @@
             "notes": ""
           },
           {
-            "path": "src/shared/ops-failure-injection.js",
+            "path": "src/shared/ops/failure-injection.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
           },
           {
-            "path": "src/shared/ops-health.js",
+            "path": "src/shared/ops/health.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
           },
           {
-            "path": "src/shared/ops-resource-visibility.js",
+            "path": "src/shared/ops/resource-visibility.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -22322,6 +22302,7 @@
           "src/contracts/adapters/index.js",
           "src/contracts/compatibility.js",
           "src/contracts/context-pack-risk-contract.js",
+          "src/contracts/editor-config-contract.json",
           "src/contracts/index-profile.js",
           "src/contracts/registry.js",
           "src/contracts/schemas/analysis.js",
@@ -23397,7 +23378,6 @@
           "src/shared/dispatch/resolve.js",
           "src/shared/dockerfile.js",
           "src/shared/docmeta.js",
-          "src/shared/editor-config-contract.json",
           "src/shared/embedding-adapter.js",
           "src/shared/embedding-batch.js",
           "src/shared/embedding-identity.js",
@@ -23463,14 +23443,14 @@
           "src/shared/logging/warn-once.js",
           "src/shared/merge.js",
           "src/shared/meta-v2.js",
-          "src/shared/metrics.js",
+          "src/shared/metrics/core.js",
           "src/shared/native-accel.js",
           "src/shared/number-coerce.js",
           "src/shared/observability.js",
           "src/shared/onnx-embeddings.js",
-          "src/shared/ops-failure-injection.js",
-          "src/shared/ops-health.js",
-          "src/shared/ops-resource-visibility.js",
+          "src/shared/ops/failure-injection.js",
+          "src/shared/ops/health.js",
+          "src/shared/ops/resource-visibility.js",
           "src/shared/optional-artifact-fallback.js",
           "src/shared/optional-deps.js",
           "src/shared/order.js",

@@ -38,7 +38,7 @@ import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../../.
 import { compileFilterPredicates } from '../../output/filters.js';
 import { RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from '../../sparse/requirements.js';
 import { resolveSqliteFtsRoutingByMode } from '../../routing-policy.js';
-import { runWithOperationalFailurePolicy } from '../../../shared/ops-failure-injection.js';
+import { runWithOperationalFailurePolicy } from '../../../shared/ops/failure-injection.js';
 import { pathExists } from '../../../shared/files.js';
 import {
   buildQueryPlanCacheKey,

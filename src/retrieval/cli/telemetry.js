@@ -1,11 +1,11 @@
-import { observeSearchDuration } from '../../shared/metrics.js';
+import { observeSearchDuration } from '../../shared/metrics/core.js';
 import {
   RESOURCE_GROWTH_THRESHOLDS,
   RESOURCE_WARNING_CODES,
   captureProcessMemoryRss,
   evaluateResourceGrowth,
   formatResourceGrowthWarning
-} from '../../shared/ops-resource-visibility.js';
+} from '../../shared/ops/resource-visibility.js';
 
 /**
  * Build per-search telemetry recorders.

@@ -6,7 +6,7 @@ import { createIndexCache } from '../retrieval/index-cache.js';
 import { defineCachePolicy, resolveCachePolicy } from './cache/policy.js';
 import { loadUserConfig, getRepoCacheRoot, resolveRepoRoot, toRealPathSync } from './dict-utils.js';
 import { readCurrentBuildGeneration } from './indexing/build-pointer.js';
-import { incCacheEviction, setCacheSize } from './metrics.js';
+import { incCacheEviction, setCacheSize } from './metrics/core.js';
 
 export const closeRepoCacheEntry = (entry) => {
   entry?.indexCache?.clear?.();

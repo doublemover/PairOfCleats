@@ -20,7 +20,7 @@ import {
   incWatchEvent,
   observeWatchBuildDuration,
   setWatchBacklog
-} from '../../shared/metrics.js';
+} from '../../shared/metrics/core.js';
 import { fileExt, isRelativePathEscape, toPosix } from '../../shared/files.js';
 import { runWithConcurrency, runWithQueue } from '../../shared/concurrency.js';
 import { coerceAbortSignal } from '../../shared/abort.js';

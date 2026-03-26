@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createTempPath, replaceFile, replaceFileSync } from './atomic-persistence.js';
 import { joinPathSafe, normalizePathForPlatform } from '../path-normalize.js';
-import { incAtomicPersistenceFallback } from '../metrics.js';
+import { incAtomicPersistenceFallback } from '../metrics/core.js';
 
 const DIR_SYNC_UNSUPPORTED_CODES = new Set(['EINVAL', 'ENOTSUP', 'EPERM', 'EISDIR', 'EBADF', 'EMFILE', 'ENFILE']);
 const OPEN_RETRY_CODES = new Set(['EMFILE', 'ENFILE']);

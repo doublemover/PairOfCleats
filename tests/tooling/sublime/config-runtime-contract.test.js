@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const configPath = path.join(root, 'sublime', 'PairOfCleats', 'lib', 'config.py');
-const contractPath = path.join(root, 'src', 'shared', 'editor-config-contract.json');
+const contractPath = path.join(root, 'src', 'contracts', 'editor-config-contract.json');
 
 for (const target of [configPath, contractPath]) {
   if (!fs.existsSync(target)) {

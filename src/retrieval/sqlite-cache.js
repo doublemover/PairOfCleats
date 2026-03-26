@@ -1,6 +1,6 @@
 import fsSync from 'node:fs';
 import { createLruCache } from '../shared/cache.js';
-import { incCacheEviction, setCacheSize } from '../shared/metrics.js';
+import { incCacheEviction, setCacheSize } from '../shared/metrics/core.js';
 import { stableStringifyForSignature } from '../shared/stable-json.js';
 
 const DEFAULT_SQLITE_CACHE_MAX_ENTRIES = 4;

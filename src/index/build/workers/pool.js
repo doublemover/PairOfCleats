@@ -9,7 +9,7 @@ import {
   setWorkerActiveTasks,
   setWorkerGcPressure,
   setWorkerQueueDepth
-} from '../../../shared/metrics.js';
+} from '../../../shared/metrics/core.js';
 import {
   buildWorkerExecArgv,
   resolveMemoryWorkerCap,

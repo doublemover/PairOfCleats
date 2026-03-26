@@ -9,7 +9,7 @@ const manifestPath = path.join(extensionDir, 'package.json');
 const entryPath = path.join(extensionDir, 'extension.js');
 const packagingScriptPath = path.join(root, 'tools', 'package-vscode.js');
 const determinismSpecPath = path.join(root, 'docs', 'specs', 'editor-packaging-determinism.md');
-const contractPath = path.join(root, 'src', 'shared', 'editor-config-contract.json');
+const contractPath = path.join(root, 'src', 'contracts', 'editor-config-contract.json');
 const packagedContractPath = path.join(extensionDir, 'editor-config-contract.json');
 const guidePath = path.join(root, 'docs', 'guides', 'editor-integration.md');
 const sublimeConfigPath = path.join(root, 'sublime', 'PairOfCleats', 'lib', 'config.py');
@@ -37,7 +37,7 @@ if (sublimeConfigSource.includes('docs/tooling/editor-config-contract.json')) {
   process.exit(1);
 }
 if (JSON.stringify(packagedContract) !== JSON.stringify(contract)) {
-  console.error('VS Code packaged editor config contract drifted from src/shared/editor-config-contract.json.');
+  console.error('VS Code packaged editor config contract drifted from src/contracts/editor-config-contract.json.');
   process.exit(1);
 }
 

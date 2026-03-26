@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { normalizeRiskSummary, summarizeRiskStats } from '../../shared/risk-explain.js';
-import { observeRiskPackMetrics } from '../../shared/metrics.js';
+import { observeRiskPackMetrics } from '../../shared/metrics/core.js';
 import {
   filterRiskFlows,
   filterRiskPartialFlows,

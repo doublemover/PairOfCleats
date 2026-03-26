@@ -7,7 +7,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { assembleCompositeContextPack } from '../../../src/context-pack/assemble.js';
-import { getMetricsRegistry } from '../../../src/shared/metrics.js';
+import { getMetricsRegistry } from '../../../src/shared/metrics/core.js';
 import { createApiRouter } from '../../../tools/api/router.js';
 
 applyTestEnv();

@@ -1,5 +1,5 @@
 import { createError, ERROR_CODES, isErrorCode } from '../../shared/error-codes.js';
-import { formatHealthFailure, runRetrievalHealthChecks } from '../../shared/ops-health.js';
+import { formatHealthFailure, runRetrievalHealthChecks } from '../../shared/ops/health.js';
 
 export const inferJsonOutputFromArgs = (rawArgs) => {
   if (!Array.isArray(rawArgs)) return { jsonOutput: false };

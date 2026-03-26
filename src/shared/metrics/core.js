@@ -1,5 +1,5 @@
 import { Counter, Gauge, Histogram, Registry } from 'prom-client';
-import { getEnvConfig } from './env.js';
+import { getEnvConfig } from '../env.js';
 
 const registry = new Registry();
 let initialized = false;

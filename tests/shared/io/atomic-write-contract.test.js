@@ -12,7 +12,7 @@ import {
   getAtomicWriteRuntimeMetrics,
   resetAtomicWriteRuntimeMetricsForTests
 } from '../../../src/shared/io/atomic-write.js';
-import { getMetricsText } from '../../../src/shared/metrics.js';
+import { getMetricsText } from '../../../src/shared/metrics/core.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 

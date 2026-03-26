@@ -5,7 +5,7 @@ import {
   evaluateResourceGrowth,
   formatResourceGrowthWarning,
   readIndexArtifactBytes
-} from '../../../../shared/ops-resource-visibility.js';
+} from '../../../../shared/ops/resource-visibility.js';
 import { enqueueEmbeddingJob } from '../embedding-queue.js';
 
 /**
