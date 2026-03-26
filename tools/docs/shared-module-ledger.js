@@ -492,6 +492,25 @@ const toMarkdownTable = (headers, rows) => {
   return [headerLine, dividerLine, ...body].join('\n');
 };
 
+const normalizeGeneratedPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') return payload;
+  return {
+    ...payload,
+    generatedAt: null
+  };
+};
+
+const writeIfChanged = async (outputPath, content) => {
+  let existingText = null;
+  try {
+    existingText = await fsPromises.readFile(outputPath, 'utf8');
+  } catch {}
+  if (existingText === content) return false;
+  await fsPromises.mkdir(path.dirname(outputPath), { recursive: true });
+  await fsPromises.writeFile(outputPath, content);
+  return true;
+};
+
 const renderMarkdown = (report) => {
   const lines = [
     '# Shared Module Ledger',
@@ -562,21 +581,17 @@ const renderMarkdown = (report) => {
   return `${lines.join('\n')}\n`;
 };
 
-const main = async () => {
-  const argv = parseArgs();
-  const root = path.resolve(argv.root || process.cwd());
-  const outputJsonPath = path.resolve(root, argv.json);
-  const outputMarkdownPath = path.resolve(root, argv.markdown);
-
-  const sharedFiles = uniqueSorted((await Promise.all(SHARED_ROOTS.map((relativeDir) => listFiles(root, relativeDir)))).flat());
-  const coverageFiles = await collectFilesForExtensions(root, CODE_SCAN_EXTENSIONS);
+export const buildSharedModuleLedger = async (root) => {
+  const resolvedRoot = path.resolve(root);
+  const sharedFiles = uniqueSorted((await Promise.all(SHARED_ROOTS.map((relativeDir) => listFiles(resolvedRoot, relativeDir)))).flat());
+  const coverageFiles = await collectFilesForExtensions(resolvedRoot, CODE_SCAN_EXTENSIONS);
   for (const relativeFile of BENCHMARK_SCAN_FILES) {
     if (!coverageFiles.includes(relativeFile)) {
       coverageFiles.push(relativeFile);
     }
   }
   coverageFiles.sort((a, b) => a.localeCompare(b));
-  const moduleFiles = await collectFilesForExtensions(root, MODULE_SCAN_EXTENSIONS, CONSUMER_SCAN_ROOTS);
+  const moduleFiles = await collectFilesForExtensions(resolvedRoot, MODULE_SCAN_EXTENSIONS, CONSUMER_SCAN_ROOTS);
   const consumerScanFiles = uniqueSorted([
     ...moduleFiles,
     ...sharedFiles.filter((file) => MODULE_EXTENSIONS.includes(path.extname(file).toLowerCase()))
@@ -589,9 +604,9 @@ const main = async () => {
   const unownedSharedFiles = sharedOwnership.filter((entry) => !entry.primaryIssueId).map((entry) => entry.path);
   const duplicateSharedOwnership = [];
 
-  const consumerMap = await collectConsumerMap(root, sharedFiles, consumerScanFiles);
-  const h31Ledger = await buildScanLedger(root, H31_ISSUES);
-  const h32Ledger = await buildScanLedger(root, H32_ISSUES);
+  const consumerMap = await collectConsumerMap(resolvedRoot, sharedFiles, consumerScanFiles);
+  const h31Ledger = await buildScanLedger(resolvedRoot, H31_ISSUES);
+  const h32Ledger = await buildScanLedger(resolvedRoot, H32_ISSUES);
   const h31CoverageIssue = h31Ledger.issues.find((issue) => issue.issueId === '421');
   const scanCoverageFiles = h31CoverageIssue?.sampleFiles
     ? coverageFiles
@@ -651,7 +666,7 @@ const main = async () => {
     schemaVersion: '1.0.0',
     generatedAt: new Date().toISOString(),
     generatedBy: 'node tools/docs/shared-module-ledger.js',
-    root: toPosix(root),
+    root: toPosix(resolvedRoot),
     census: {
       sharedRoots: SHARED_ROOTS,
       sharedFiles: censusEntries
@@ -699,12 +714,30 @@ const main = async () => {
     }
   };
 
+  return {
+    report,
+    markdown: renderMarkdown(report)
+  };
+};
+
+const main = async () => {
+  const argv = parseArgs();
+  const root = path.resolve(argv.root || process.cwd());
+  const outputJsonPath = path.resolve(root, argv.json);
+  const outputMarkdownPath = path.resolve(root, argv.markdown);
+  const { report: initialReport, markdown: initialMarkdown } = await buildSharedModuleLedger(root);
+  let existingPayload = null;
+  try {
+    existingPayload = JSON.parse(await fsPromises.readFile(outputJsonPath, 'utf8'));
+  } catch {}
+  const report = typeof existingPayload?.generatedAt === 'string'
+    && JSON.stringify(normalizeGeneratedPayload(existingPayload)) === JSON.stringify(normalizeGeneratedPayload(initialReport))
+    ? { ...initialReport, generatedAt: existingPayload.generatedAt }
+    : initialReport;
   const markdown = renderMarkdown(report);
 
-  await fsPromises.mkdir(path.dirname(outputJsonPath), { recursive: true });
-  await fsPromises.mkdir(path.dirname(outputMarkdownPath), { recursive: true });
-  await fsPromises.writeFile(outputJsonPath, `${JSON.stringify(report, null, 2)}\n`);
-  await fsPromises.writeFile(outputMarkdownPath, markdown);
+  await writeIfChanged(outputJsonPath, `${JSON.stringify(report, null, 2)}\n`);
+  await writeIfChanged(outputMarkdownPath, markdown);
 };
 
 main().catch((error) => {

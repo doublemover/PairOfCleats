@@ -238,29 +238,56 @@ const collectScriptReferences = async (root) => {
   };
 };
 
-const main = async () => {
-  const argv = parseArgs();
-  const root = path.resolve(argv.root || process.cwd());
-  const outputPath = path.resolve(root, argv.json);
+const normalizeGeneratedPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') return payload;
+  return {
+    ...payload,
+    generatedAt: null
+  };
+};
 
-  const docs = await collectDocs(root);
-  const docRefs = await collectDocReferences(root);
+const writeStableJsonReport = async (outputPath, report) => {
+  let existingText = null;
+  let existingPayload = null;
+  try {
+    existingText = await fsPromises.readFile(outputPath, 'utf8');
+    existingPayload = JSON.parse(existingText);
+  } catch {}
+
+  const previousGeneratedAt = typeof existingPayload?.generatedAt === 'string'
+    ? existingPayload.generatedAt
+    : null;
+  const nextReport = previousGeneratedAt
+    && JSON.stringify(normalizeGeneratedPayload(existingPayload)) === JSON.stringify(normalizeGeneratedPayload(report))
+    ? { ...report, generatedAt: previousGeneratedAt }
+    : report;
+  const nextText = `${JSON.stringify(nextReport, null, 2)}\n`;
+  if (existingText === nextText) return nextReport;
+  await fsPromises.mkdir(path.dirname(outputPath), { recursive: true });
+  await fsPromises.writeFile(outputPath, nextText);
+  return nextReport;
+};
+
+export const buildRepoInventory = async (root) => {
+  const resolvedRoot = path.resolve(root);
+  const docs = await collectDocs(resolvedRoot);
+  const docRefs = await collectDocReferences(resolvedRoot);
   const referencedDocs = docs.filter((doc) => docRefs.referenced.has(doc));
   const orphanDocs = docs.filter((doc) => !docRefs.referenced.has(doc));
 
-  const toolEntrypoints = await collectToolEntrypoints(root);
-  const scriptInfo = await collectScriptCommands(root);
-  const cliScripts = await collectCliScriptPaths(root);
+  const toolEntrypoints = await collectToolEntrypoints(resolvedRoot);
+  const scriptInfo = await collectScriptCommands(resolvedRoot);
+  const cliScripts = await collectCliScriptPaths(resolvedRoot);
   const toolRefs = findReferencedTools(toolEntrypoints, scriptInfo.commands, cliScripts);
   const orphanTools = toolEntrypoints.filter((entry) => !toolRefs.referenced.includes(entry));
 
-  const scriptRefs = await collectScriptReferences(root);
+  const scriptRefs = await collectScriptReferences(resolvedRoot);
   const orphanScripts = scriptInfo.names.filter((name) => !scriptRefs.referenced.includes(name));
 
-  const report = {
+  return {
     generatedAt: new Date().toISOString(),
     generatedBy: 'node tools/docs/repo-inventory.js',
-    root: toPosix(root),
+    root: toPosix(resolvedRoot),
     docs: {
       sources: docRefs.sources,
       files: docs,
@@ -288,9 +315,14 @@ const main = async () => {
       'Tool entrypoints are detected by a node shebang; only those are considered for orphan tool reporting.'
     ]
   };
+};
 
-  await fsPromises.mkdir(path.dirname(outputPath), { recursive: true });
-  await fsPromises.writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`);
+const main = async () => {
+  const argv = parseArgs();
+  const root = path.resolve(argv.root || process.cwd());
+  const outputPath = path.resolve(root, argv.json);
+  const report = await buildRepoInventory(root);
+  await writeStableJsonReport(outputPath, report);
 };
 
 main().catch((error) => {
