@@ -51,6 +51,126 @@
       }
     ]
   },
+  "hotspotMatrix": [
+    {
+      "name": "API route body parsing, repo/workspace resolution, and error envelope flow",
+      "sharedModules": [
+        "tools/api/router/body.js",
+        "tools/api/router/paths.js",
+        "tools/api/response.js",
+        "tools/api/trust-boundary.js"
+      ],
+      "localImplementations": [
+        "tools/api/router.js",
+        "tools/api/router/analysis.js",
+        "tools/api/router/index-snapshots.js",
+        "tools/api/router/index-diffs.js"
+      ],
+      "recommendedAction": "Push more route-local parsing and repo/workspace resolution through the existing body/paths/response helpers, and standardize client-error classification at that shared layer before introducing any new HTTP helper family.",
+      "whyThisWayIsBest": "These helpers already exist within the API surface and are closer to the current route semantics than inventing a new abstraction immediately. Using them more consistently addresses the known 400/403/413/415 versus 500 drift with less disruption.",
+      "testsToRequire": [
+        "service/api route-specific error classification regressions whenever local parsing/resolution logic is hoisted",
+        "surface-parity tests for any helperized path that touches federated search or analysis routing"
+      ]
+    },
+    {
+      "name": "API cache/build identity and trust-boundary redaction flow",
+      "sharedModules": [
+        "tools/shared/repo-cache-config.js",
+        "tools/api/trust-boundary.js",
+        "src/workspace/config.js",
+        "src/workspace/manifest.js"
+      ],
+      "localImplementations": [
+        "tools/api/router.js",
+        "tools/api/router/cache.js",
+        "tools/api/server.js"
+      ],
+      "recommendedAction": "Keep trust and HTTP response policy local, but route cache/build identity resolution and workspace-manifest interpretation through the existing shared cache/workspace modules rather than ad hoc router-level shaping.",
+      "whyThisWayIsBest": "The router must keep HTTP-specific semantics, but generation identity and workspace/build-root interpretation should not fork from the existing shared contracts.",
+      "testsToRequire": [
+        "capabilities/status trust-boundary redaction parity",
+        "search/build identity observability regressions"
+      ]
+    },
+    {
+      "name": "MCP handler config/runtime bootstrap duplication",
+      "sharedModules": [
+        "tools/mcp/tools/helpers.js",
+        "tools/shared/dict-utils.js",
+        "tools/shared/repo-cache-config.js",
+        "tools/shared/search-request.js"
+      ],
+      "localImplementations": [
+        "tools/mcp/tools/handlers/analysis.js",
+        "tools/mcp/tools/handlers/artifacts.js",
+        "tools/mcp/tools/handlers/bootstrap.js",
+        "tools/mcp/tools/handlers/downloads.js",
+        "tools/mcp/tools/handlers/indexing.js",
+        "tools/mcp/tools/handlers/search.js",
+        "tools/mcp/tools/handlers/triage.js"
+      ],
+      "recommendedAction": "Expand the existing MCP helper layer and route repeated loadUserConfig/runtime env/search-request bootstrap through it instead of duplicating setup in each handler.",
+      "whyThisWayIsBest": "MCP already has a local helper surface. Strengthening that one is lower risk than making each handler import a larger grab-bag of unrelated shared modules directly.",
+      "testsToRequire": [
+        "MCP handler contract tests for argument normalization and runtime env inheritance",
+        "search/build identity observability tests where handler outputs depend on cache generation context"
+      ]
+    },
+    {
+      "name": "Service job build-root/index-dir normalization",
+      "sharedModules": [
+        "tools/service/indexer-service-helpers.js",
+        "src/shared/indexing/build-pointer.js"
+      ],
+      "localImplementations": [
+        "tools/service/indexer-service.js",
+        "tools/service/indexer-service/job-executor.js",
+        "tools/service/indexer-service/progress-monitor.js",
+        "tools/service/embedding-replay.js"
+      ],
+      "recommendedAction": "Converge buildRoot/indexDir derivation on the existing service helper first, and only introduce a broader shared repo/workspace/generation abstraction later if the current helper proves too local.",
+      "whyThisWayIsBest": "Service execution, monitoring, and replay already share one helper family. Tightening that seam is safer than immediately pushing service-specific job assumptions into a repo-global shared module.",
+      "testsToRequire": [
+        "service replay/progress-monitor parity for buildRoot and indexDir derivation",
+        "queue/job-executor regressions where missing or escaped buildRoot values are involved"
+      ]
+    },
+    {
+      "name": "Service subprocess env shaping",
+      "sharedModules": [
+        "src/shared/runtime-envelope.js",
+        "tools/shared/dict-utils.js"
+      ],
+      "localImplementations": [
+        "tools/service/indexer-service.js",
+        "tools/service/indexer-service/job-executor.js",
+        "tools/service/subprocess-log.js"
+      ],
+      "recommendedAction": "Use shared runtime env/envelope shaping for policy decisions and keep local env merging only for service-specific payload injection or logging decoration.",
+      "whyThisWayIsBest": "The service runtime has legitimate extra env fields, but not its own separate NODE_OPTIONS and threadpool precedence rules.",
+      "testsToRequire": [
+        "service runtime env inheritance tests",
+        "existing shared runtime envelope precedence tests when service integration changes"
+      ]
+    },
+    {
+      "name": "TUI launcher bypasses shared dispatch/runtime env path",
+      "sharedModules": [
+        "src/shared/dispatch/env.js",
+        "src/shared/runtime-envelope.js"
+      ],
+      "localImplementations": [
+        "bin/pairofcleats-tui.js"
+      ],
+      "recommendedAction": "Adopt the shared dispatch/runtime env baseline in the TUI launcher, then layer TUI-specific variables on top rather than starting from a raw process.env merge.",
+      "whyThisWayIsBest": "The main CLI already proves this path. Keeping one runtime env baseline between the main wrapper and the TUI wrapper reduces cross-entrypoint drift.",
+      "testsToRequire": [
+        "TUI wrapper env-behavior and startup-handshake regressions",
+        "release verify-surface runtime/archive checks"
+      ]
+    }
+  ],
   "adoptionMatrix": [
     {
       "name": "API route body parsing, repo/workspace resolution, and error envelope flow",
