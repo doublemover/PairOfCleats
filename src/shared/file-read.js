@@ -1,6 +1,12 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 
+const normalizeJsonReadOptions = (options) => (
+  options && typeof options === 'object' && !Array.isArray(options)
+    ? options
+    : { fallback: options }
+);
+
 export function readFileRangeSync(filePath, start, end) {
   const safeStart = Number.isFinite(start) ? Math.max(0, Math.floor(start)) : 0;
   const safeEnd = Number.isFinite(end) ? Math.max(safeStart, Math.floor(end)) : safeStart;
@@ -29,8 +35,9 @@ export async function pathExists(targetPath) {
 
 export async function readJsonFileSafe(
   filePath,
-  { fallback = null, maxBytes = null, onError = null } = {}
+  options = {}
 ) {
+  const { fallback = null, maxBytes = null, onError = null } = normalizeJsonReadOptions(options);
   if (!filePath) return fallback;
   const emitError = (phase, error) => {
     if (typeof onError !== 'function') return;
@@ -71,8 +78,9 @@ export async function readJsonFileSafe(
 
 export function readJsonFileSyncSafe(
   filePath,
-  { fallback = null, maxBytes = null, onError = null } = {}
+  options = {}
 ) {
+  const { fallback = null, maxBytes = null, onError = null } = normalizeJsonReadOptions(options);
   if (!filePath) return fallback;
   const emitError = (phase, error) => {
     if (typeof onError !== 'function') return;

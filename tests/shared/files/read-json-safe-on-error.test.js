@@ -39,6 +39,19 @@ try {
   assert.equal(asyncErrors[0]?.phase, 'parse');
   assert.equal(asyncErrors[0]?.sync, false);
   assert.equal(asyncErrors[0]?.path, 'async.json');
+
+  const sentinelFallback = Symbol('parse-failed');
+  const syncSentinelOut = readJsonFileSyncSafe('sync.json', sentinelFallback);
+  assert.equal(syncSentinelOut, sentinelFallback, 'expected legacy sync fallback arg to be preserved');
+
+  const asyncSentinelOut = await readJsonFileSafe('async.json', sentinelFallback);
+  assert.equal(asyncSentinelOut, sentinelFallback, 'expected legacy async fallback arg to be preserved');
+
+  const syncNullOut = readJsonFileSyncSafe('sync.json', null);
+  assert.equal(syncNullOut, null, 'expected explicit null fallback arg to remain valid');
+
+  const asyncNullOut = await readJsonFileSafe('async.json', null);
+  assert.equal(asyncNullOut, null, 'expected explicit null async fallback arg to remain valid');
 } finally {
   fs.statSync = originalStatSync;
   fs.readFileSync = originalReadFileSync;
