@@ -11,6 +11,11 @@ const removedPaths = [
   'tools/shared/search-request.js'
 ];
 
+const allowedReferenceFiles = new Set([
+  'tests/shared/h33-hard-cutover-boundaries.test.js',
+  'tests/tooling/shared-module-migration.test.js'
+]);
+
 for (const relPath of removedPaths) {
   try {
     await fs.access(path.join(root, relPath));
@@ -20,8 +25,8 @@ for (const relPath of removedPaths) {
   }
 }
 
-const scanRoots = ['src', 'tools', 'bin', 'extensions', 'sublime'];
-const sourceExtensions = new Set(['.js', '.mjs', '.cjs', '.json']);
+const scanRoots = ['src', 'tools', 'bin', 'extensions', 'sublime', 'tests', 'docs'];
+const sourceExtensions = new Set(['.js', '.mjs', '.cjs', '.json', '.md']);
 
 const listFilesRecursive = async (dir) => {
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -29,7 +34,16 @@ const listFilesRecursive = async (dir) => {
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.testLogs') continue;
+      if (
+        entry.name === 'node_modules'
+        || entry.name === '.git'
+        || entry.name === '.testLogs'
+        || entry.name === '.cache'
+        || fullPath === path.join(root, 'docs', 'archived')
+        || fullPath === path.join(root, 'docs', 'tooling')
+      ) {
+        continue;
+      }
       files.push(...await listFilesRecursive(fullPath));
       continue;
     }
@@ -49,6 +63,7 @@ for (const relativeRoot of scanRoots) {
   for (const filePath of files) {
     const contents = await fs.readFile(filePath, 'utf8');
     const relPath = path.relative(root, filePath).replace(/\\/g, '/');
+    if (allowedReferenceFiles.has(relPath)) continue;
     for (const removedPath of removedPaths) {
       assert.equal(
         contents.includes(removedPath),
