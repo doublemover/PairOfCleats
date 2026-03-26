@@ -7,7 +7,7 @@ import {
   getToolVersion,
   loadUserConfig,
   resolveRuntimeEnv
-} from '../../../tools/shared/dict-utils.js';
+} from '../dict-utils.js';
 import { resolveRuntimeEnvelope, resolveRuntimeEnv as resolveRuntimeEnvFromEnvelope } from '../runtime-envelope.js';
 
 export const resolveDispatchRuntimeEnv = async ({

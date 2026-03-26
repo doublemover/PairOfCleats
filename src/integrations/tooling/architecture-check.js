@@ -13,7 +13,7 @@ import { validateArchitectureReport } from '../../contracts/validators/analysis.
 import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
 import { prepareGraphIndex, prepareGraphInputs } from './graph-helpers.js';
-import { loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { loadUserConfig } from '../../shared/dict-utils.js';
 import { resolveRepoRoot } from '../../shared/repo-paths.js';
 
 const loadRulesFile = (rulesPath) => {

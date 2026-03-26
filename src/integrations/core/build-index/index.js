@@ -25,7 +25,7 @@ import {
   getToolVersion,
   loadUserConfig,
   resolveToolRoot
-} from '../../../../tools/shared/dict-utils.js';
+} from '../../../shared/dict-utils.js';
 import { ensureQueueDir, enqueueJob } from '../../../../tools/service/queue.js';
 import { computeCompatibilityKey } from './compatibility.js';
 import { teardownRuntime } from './runtime.js';

@@ -31,7 +31,7 @@ import {
   getCacheRoot,
   getMetricsDir,
   getToolVersion
-} from '../../../../tools/shared/dict-utils.js';
+} from '../../../shared/dict-utils.js';
 import { ensureQueueDir, enqueueJob } from '../../../../tools/service/queue.js';
 import { buildSqliteIndex } from './sqlite.js';
 import { computeCompatibilityKey } from './compatibility.js';

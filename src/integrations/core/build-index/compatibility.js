@@ -1,6 +1,6 @@
 import { buildCompatibilityKey, buildCohortKey } from '../../../contracts/compatibility.js';
 import { buildTokenizationKey } from '../../../index/build/indexer/signatures.js';
-import { applyAdaptiveDictConfig } from '../../../../tools/shared/dict-utils.js';
+import { applyAdaptiveDictConfig } from '../../../shared/dict-utils.js';
 
 /**
  * Compute per-mode tokenization keys and attach compatibility/cohort keys.

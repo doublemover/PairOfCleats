@@ -4,7 +4,7 @@ import { pathExists } from '../../../shared/files.js';
 import { MAX_JSON_BYTES, readJsonFile } from '../../../shared/artifact-io.js';
 import { tryRequire } from '../../../shared/optional-deps.js';
 import { normalizeTantivyConfig, resolveTantivyPaths } from '../../../shared/tantivy.js';
-import { getRuntimeConfig, resolveRuntimeEnv, resolveToolRoot } from '../../../../tools/shared/dict-utils.js';
+import { getRuntimeConfig, resolveRuntimeEnv, resolveToolRoot } from '../../../shared/dict-utils.js';
 import { loadIndex } from '../../cli-index.js';
 import { loadIndexCached } from '../index-loader.js';
 import { EMPTY_INDEX } from '../filter-index.js';

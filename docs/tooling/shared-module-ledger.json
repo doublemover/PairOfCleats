@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-03-26T03:28:10.625Z",
+  "generatedAt": "2026-03-26T07:28:07.553Z",
   "generatedBy": "node tools/docs/shared-module-ledger.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "census": {
@@ -894,7 +894,7 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 18,
+        "consumerCount": 19,
         "importers": [
           "src/index/build/runtime/runtime.js",
           "src/index/tooling/command-probe-persistent-cache.js",
@@ -903,6 +903,7 @@
           "src/map/build-map.js",
           "src/retrieval/cli/cache-paths.js",
           "src/shared/embeddings-cache/layout.js",
+          "src/shared/repo-paths.js",
           "src/storage/sqlite/build/core.js",
           "tools/bench/embeddings/model-bakeoff.js",
           "tools/bench/index/postings-real.js",
@@ -1074,7 +1075,7 @@
           "title": "Review shared CLI, command, dispatch, capability, and tooling support modules",
           "umbrella": "407"
         },
-        "consumerCount": 128,
+        "consumerCount": 129,
         "importers": [
           "src/index/build/args.js",
           "src/integrations/tooling/api-contracts.js",
@@ -1191,6 +1192,7 @@
           "tools/setup/setup.js",
           "tools/sqlite/verify-extensions.js",
           "tools/test_times/report.js",
+          "tools/testing/shared-module-migration.js",
           "tools/tooling/detect.js",
           "tools/tooling/doctor.js",
           "tools/tooling/install-phpactor-phar.js",
@@ -1758,7 +1760,7 @@
           "title": "Review shared domain helper families for embeddings, indexing, search, risk, language, and type/token processing",
           "umbrella": "407"
         },
-        "consumerCount": 28,
+        "consumerCount": 43,
         "importers": [
           "src/index/build/artifacts-write/index.js",
           "src/index/build/artifacts/metrics.js",
@@ -1775,19 +1777,34 @@
           "src/index/snapshots/create.js",
           "src/index/snapshots/freeze.js",
           "src/index/tooling/command-resolver.js",
-          "src/index/type-inference-crossfile/cache.js",
           "src/index/type-inference-crossfile/pipeline.js",
           "src/index/validate.js",
           "src/index/validate/chunk-meta.js",
           "src/index/validate/lmdb-report.js",
           "src/index/validate/paths.js",
           "src/index/validate/sqlite-report.js",
+          "src/integrations/core/build-index/compatibility.js",
+          "src/integrations/core/build-index/index.js",
           "src/integrations/core/build-index/sqlite.js",
+          "src/integrations/core/build-index/stages.js",
+          "src/integrations/core/status.js",
           "src/integrations/mcp/defs.js",
           "src/integrations/mcp/validate.js",
+          "src/integrations/tooling/api-contracts.js",
+          "src/integrations/tooling/architecture-check.js",
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js",
+          "src/integrations/triage/index-records.js",
+          "src/retrieval/cli-dictionary.js",
+          "src/retrieval/cli/load-indexes/backend.js",
+          "src/retrieval/cli/run-search/plan-runner.js",
+          "src/shared/dispatch/env.js",
           "src/storage/sqlite/build/index-state.js",
           "src/storage/sqlite/build/runner/mode-plan.js",
-          "src/storage/sqlite/build/runner/selection-planning.js"
+          "src/storage/sqlite/build/runner/selection-planning.js",
+          "src/workspace/manifest.js"
         ]
       },
       {
@@ -1816,6 +1833,22 @@
         "importers": [
           "src/index/build/runtime/dictionaries.js",
           "src/index/build/workers/indexer-worker.js"
+        ]
+      },
+      {
+        "path": "src/shared/direct-execution.js",
+        "family": "src/shared/root",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 4,
+        "importers": [
+          "tools/build/compact-sqlite-index.js",
+          "tools/ci/tooling-lsp-slo-gate.js",
+          "tools/testing/shared-module-migration.js",
+          "tools/tooling/navigation.js"
         ]
       },
       {
@@ -2139,12 +2172,11 @@
           "title": "Review shared core primitives and root-level contracts in src/shared",
           "umbrella": "407"
         },
-        "consumerCount": 5,
+        "consumerCount": 4,
         "importers": [
           "src/index/tooling/binary-utils.js",
           "src/index/tooling/command-resolver.js",
           "src/index/tooling/preflight/sourcekit-package-resolution.js",
-          "tools/tooling/install.js",
           "tools/tooling/utils.js"
         ]
       },
@@ -2239,7 +2271,7 @@
           "title": "Review shared core primitives and root-level contracts in src/shared",
           "umbrella": "407"
         },
-        "consumerCount": 43,
+        "consumerCount": 44,
         "importers": [
           "bin/pairofcleats.js",
           "src/context-pack/risk-delta.js",
@@ -2271,6 +2303,7 @@
           "tools/api/router/index-diffs.js",
           "tools/api/router/index-snapshots.js",
           "tools/api/router/paths.js",
+          "tools/api/router/request-helpers.js",
           "tools/ci/capability-gate.js",
           "tools/download/extensions.js",
           "tools/index-snapshot.js",
@@ -2453,6 +2486,7 @@
           "src/shared/indexing/build-pointer.js",
           "src/shared/onnx-embeddings.js",
           "src/shared/path-normalize.js",
+          "src/shared/repo-paths.js",
           "src/workspace/identity.js",
           "src/workspace/manifest.js",
           "tools/analysis/map-iso-safe-join.js",
@@ -2469,7 +2503,6 @@
           "tools/ci/restore-artifacts.js",
           "tools/config/inventory.js",
           "tools/config/inventory/scan.js",
-          "tools/dict-utils/paths/repo.js",
           "tools/dicts/generate-repo-dict.js",
           "tools/docs/repo-inventory.js",
           "tools/docs/shared-module-ledger.js",
@@ -2524,7 +2557,7 @@
           "src/index/scm/providers/git.js",
           "src/index/scm/providers/jj.js",
           "src/index/tooling/typescript-provider.js",
-          "tools/dict-utils/paths/repo.js"
+          "src/shared/repo-paths.js"
         ]
       },
       {
@@ -2733,8 +2766,8 @@
         },
         "consumerCount": 4,
         "importers": [
+          "src/shared/repo-paths.js",
           "src/workspace/manifest.js",
-          "tools/dict-utils/paths/repo.js",
           "tools/reports/compare-models.js",
           "tools/shared/repo-cache-config.js"
         ]
@@ -2961,6 +2994,25 @@
           "src/storage/sqlite/build/incremental-update/update-phase.js",
           "src/storage/sqlite/build/manifest.js",
           "src/storage/sqlite/build/runner/sqlite-probes.js"
+        ]
+      },
+      {
+        "path": "src/shared/json-file.js",
+        "family": "src/shared/root",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 7,
+        "importers": [
+          "tools/ci/usr/item35-framework-canonicalization-gate.js",
+          "tools/ci/usr/item36-backcompat-matrix-gate.js",
+          "tools/ci/usr/item37-governance-drift-gate.js",
+          "tools/ci/usr/item38-catalog-contract-gate.js",
+          "tools/ci/usr/item39-normalization-linking-identity-gate.js",
+          "tools/ci/usr/item40-pipeline-incremental-transforms-gate.js",
+          "tools/testing/shared-module-migration.js"
         ]
       },
       {
@@ -3763,11 +3815,11 @@
           "src/shared/dense-vector-artifacts.js",
           "src/shared/index-artifact-helpers.js",
           "src/shared/io/atomic-write.js",
+          "src/shared/repo-paths.js",
           "src/shared/seed-ref.js",
           "src/storage/sqlite/build/incremental-update/planner.js",
           "src/storage/sqlite/utils.js",
           "tools/analysis/structural-search-paths.js",
-          "tools/dict-utils/paths/repo.js",
           "tools/shared/path-utils.js",
           "tools/sqlite/vector-extension.js",
           "tools/testing/coverage/index.js"
@@ -3865,6 +3917,24 @@
           "src/index/build/lock.js",
           "src/index/registry-lock.js",
           "src/lang/python/pool.js"
+        ]
+      },
+      {
+        "path": "src/shared/progress-events.js",
+        "family": "src/shared/root",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 6,
+        "importers": [
+          "tools/mcp/runner.js",
+          "tools/mcp/tools/handlers/analysis.js",
+          "tools/mcp/tools/handlers/downloads.js",
+          "tools/mcp/tools/handlers/indexing.js",
+          "tools/mcp/tools/handlers/triage.js",
+          "tools/mcp/tools/helpers.js"
         ]
       },
       {
@@ -4012,6 +4082,35 @@
         "consumerCount": 1,
         "importers": [
           "src/index/build/indexer/embedding-queue.js"
+        ]
+      },
+      {
+        "path": "src/shared/repo-paths.js",
+        "family": "src/shared/root",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 17,
+        "importers": [
+          "src/index/type-inference-crossfile/cache.js",
+          "src/integrations/core/build-index/index.js",
+          "src/integrations/core/build-index/stages.js",
+          "src/integrations/core/status.js",
+          "src/integrations/tooling/api-contracts.js",
+          "src/integrations/tooling/architecture-check.js",
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js",
+          "src/integrations/triage/index-records.js",
+          "src/retrieval/cli-index.js",
+          "src/retrieval/cli/run-search/plan-runner.js",
+          "src/shared/dict-utils.js",
+          "src/workspace/config.js",
+          "src/workspace/manifest.js",
+          "tools/dict-utils/paths/repo.js"
         ]
       },
       {
@@ -4178,6 +4277,25 @@
         ]
       },
       {
+        "path": "src/shared/search-request.js",
+        "family": "src/shared/root",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 7,
+        "importers": [
+          "src/retrieval/federation/args.js",
+          "tools/api/router/search.js",
+          "tools/api/validation.js",
+          "tools/mcp/tools.js",
+          "tools/mcp/tools/handlers/triage.js",
+          "tools/mcp/tools/search-args.js",
+          "tools/shared/search-request.js"
+        ]
+      },
+      {
         "path": "src/shared/seed-ref.js",
         "family": "src/shared/root",
         "primaryIssue": {
@@ -4331,7 +4449,7 @@
           "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
           "umbrella": "407"
         },
-        "consumerCount": 53,
+        "consumerCount": 50,
         "importers": [
           "bin/pairofcleats.js",
           "src/index/build/indexer/steps/process-files.js",
@@ -4340,10 +4458,8 @@
           "src/index/build/tree-sitter-scheduler/runner/task-execution.js",
           "src/index/scm/registry.js",
           "src/index/scm/runner.js",
-          "src/index/tooling/command-resolver.js",
           "src/index/tooling/preflight-manager.js",
           "src/index/tooling/preflight/manager-teardown.js",
-          "src/index/tooling/preflight/sourcekit-package-resolution.js",
           "src/index/tooling/preflight/workspace-command-preflight.js",
           "src/integrations/core/build-index/index.js",
           "src/integrations/core/build-index/runtime.js",
@@ -4352,6 +4468,7 @@
           "src/lang/python/executable.js",
           "src/lang/python/pool.js",
           "src/retrieval/cli/load-indexes/backend.js",
+          "src/shared/subprocess/command-invocation.js",
           "tools/analysis/map-iso-serve.js",
           "tools/bench/ab-sweep.js",
           "tools/bench/bench-runner.js",
@@ -4376,8 +4493,6 @@
           "tools/service/indexer-service.js",
           "tools/service/repos.js",
           "tools/service/subprocess-log.js",
-          "tools/setup/bootstrap.js",
-          "tools/shared/cli-utils.js",
           "tools/shared/search-cli-harness.js",
           "tools/triage/context-pack.js",
           "tools/triage/ingest.js",
@@ -4386,6 +4501,22 @@
           "tools/tui/supervisor/jobs.js",
           "tools/tui/supervisor/watchdog.js",
           "tools/workspace/build.js"
+        ]
+      },
+      {
+        "path": "src/shared/subprocess/command-invocation.js",
+        "family": "src/shared/subprocess",
+        "primaryIssue": {
+          "issueId": "412",
+          "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 4,
+        "importers": [
+          "src/index/tooling/command-resolver.js",
+          "src/index/tooling/preflight/sourcekit-package-resolution.js",
+          "tools/setup/bootstrap.js",
+          "tools/shared/cli-utils.js"
         ]
       },
       {
@@ -4497,14 +4628,12 @@
           "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
           "umbrella": "407"
         },
-        "consumerCount": 6,
+        "consumerCount": 4,
         "importers": [
-          "src/index/tooling/command-resolver.js",
-          "src/index/tooling/preflight/sourcekit-package-resolution.js",
           "src/integrations/tooling/lsp/client.js",
+          "src/shared/subprocess/command-invocation.js",
           "tools/bench/language/canaries.js",
-          "tools/setup/postinstall.js",
-          "tools/shared/cli-utils.js"
+          "tools/setup/postinstall.js"
         ]
       },
       {
@@ -4754,7 +4883,7 @@
           "title": "Review all tools/shared modules as a first-class shared surface",
           "umbrella": "407"
         },
-        "consumerCount": 22,
+        "consumerCount": 23,
         "importers": [
           "tools/analysis/map-iso-serve.js",
           "tools/bench/ab-sweep.js",
@@ -4766,6 +4895,7 @@
           "tools/config/validate.js",
           "tools/index-diff.js",
           "tools/index-snapshot.js",
+          "tools/package-vscode.js",
           "tools/reports/combined-summary.js",
           "tools/reports/compare-models.js",
           "tools/service/indexer-service.js",
@@ -4788,28 +4918,9 @@
           "title": "Review all tools/shared modules as a first-class shared surface",
           "umbrella": "407"
         },
-        "consumerCount": 137,
+        "consumerCount": 118,
         "importers": [
           "bin/pairofcleats.js",
-          "src/integrations/core/build-index/compatibility.js",
-          "src/integrations/core/build-index/index.js",
-          "src/integrations/core/build-index/stages.js",
-          "src/integrations/core/status.js",
-          "src/integrations/tooling/api-contracts.js",
-          "src/integrations/tooling/architecture-check.js",
-          "src/integrations/tooling/context-pack.js",
-          "src/integrations/tooling/graph-context.js",
-          "src/integrations/tooling/impact.js",
-          "src/integrations/tooling/suggest-tests.js",
-          "src/integrations/triage/index-records.js",
-          "src/retrieval/cli-dictionary.js",
-          "src/retrieval/cli-index.js",
-          "src/retrieval/cli/load-indexes/backend.js",
-          "src/retrieval/cli/run-search/plan-runner.js",
-          "src/shared/dict-utils.js",
-          "src/shared/dispatch/env.js",
-          "src/workspace/config.js",
-          "src/workspace/manifest.js",
           "tools/analysis/delta-risk.js",
           "tools/analysis/map-iso-serve.js",
           "tools/analysis/structural-search.js",
@@ -5134,15 +5245,8 @@
           "title": "Review all tools/shared modules as a first-class shared surface",
           "umbrella": "407"
         },
-        "consumerCount": 6,
-        "importers": [
-          "src/retrieval/federation/args.js",
-          "tools/api/router/search.js",
-          "tools/api/validation.js",
-          "tools/mcp/tools.js",
-          "tools/mcp/tools/handlers/triage.js",
-          "tools/mcp/tools/search-args.js"
-        ]
+        "consumerCount": 0,
+        "importers": []
       },
       {
         "path": "tools/shared/stats-utils.js",
@@ -5196,7 +5300,7 @@
     ]
   },
   "consumerMap": {
-    "edgeCount": 2274,
+    "edgeCount": 2307,
     "bySharedFile": {
       "src/shared/abort.js": {
         "importers": [
@@ -5755,6 +5859,7 @@
           "src/map/build-map.js",
           "src/retrieval/cli/cache-paths.js",
           "src/shared/embeddings-cache/layout.js",
+          "src/shared/repo-paths.js",
           "src/storage/sqlite/build/core.js",
           "tools/bench/embeddings/model-bakeoff.js",
           "tools/bench/index/postings-real.js",
@@ -5767,7 +5872,7 @@
           "tools/reports/compare-models.js",
           "tools/tui/targets.js"
         ],
-        "importerCount": 18
+        "importerCount": 19
       },
       "src/shared/cache.js": {
         "importers": [
@@ -5980,6 +6085,7 @@
           "tools/setup/setup.js",
           "tools/sqlite/verify-extensions.js",
           "tools/test_times/report.js",
+          "tools/testing/shared-module-migration.js",
           "tools/tooling/detect.js",
           "tools/tooling/doctor.js",
           "tools/tooling/install-phpactor-phar.js",
@@ -5994,7 +6100,7 @@
           "tools/workspace/manifest.js",
           "tools/workspace/status.js"
         ],
-        "importerCount": 128
+        "importerCount": 129
       },
       "src/shared/cli/ansi-utils.js": {
         "importers": [
@@ -6305,21 +6411,36 @@
           "src/index/snapshots/create.js",
           "src/index/snapshots/freeze.js",
           "src/index/tooling/command-resolver.js",
-          "src/index/type-inference-crossfile/cache.js",
           "src/index/type-inference-crossfile/pipeline.js",
           "src/index/validate.js",
           "src/index/validate/chunk-meta.js",
           "src/index/validate/lmdb-report.js",
           "src/index/validate/paths.js",
           "src/index/validate/sqlite-report.js",
+          "src/integrations/core/build-index/compatibility.js",
+          "src/integrations/core/build-index/index.js",
           "src/integrations/core/build-index/sqlite.js",
+          "src/integrations/core/build-index/stages.js",
+          "src/integrations/core/status.js",
           "src/integrations/mcp/defs.js",
           "src/integrations/mcp/validate.js",
+          "src/integrations/tooling/api-contracts.js",
+          "src/integrations/tooling/architecture-check.js",
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js",
+          "src/integrations/triage/index-records.js",
+          "src/retrieval/cli-dictionary.js",
+          "src/retrieval/cli/load-indexes/backend.js",
+          "src/retrieval/cli/run-search/plan-runner.js",
+          "src/shared/dispatch/env.js",
           "src/storage/sqlite/build/index-state.js",
           "src/storage/sqlite/build/runner/mode-plan.js",
-          "src/storage/sqlite/build/runner/selection-planning.js"
+          "src/storage/sqlite/build/runner/selection-planning.js",
+          "src/workspace/manifest.js"
         ],
-        "importerCount": 28
+        "importerCount": 43
       },
       "src/shared/dictionary-wordlists.js": {
         "importers": [
@@ -6334,6 +6455,15 @@
           "src/index/build/workers/indexer-worker.js"
         ],
         "importerCount": 2
+      },
+      "src/shared/direct-execution.js": {
+        "importers": [
+          "tools/build/compact-sqlite-index.js",
+          "tools/ci/tooling-lsp-slo-gate.js",
+          "tools/testing/shared-module-migration.js",
+          "tools/tooling/navigation.js"
+        ],
+        "importerCount": 4
       },
       "src/shared/disk-space.js": {
         "importers": [
@@ -6513,10 +6643,9 @@
           "src/index/tooling/binary-utils.js",
           "src/index/tooling/command-resolver.js",
           "src/index/tooling/preflight/sourcekit-package-resolution.js",
-          "tools/tooling/install.js",
           "tools/tooling/utils.js"
         ],
-        "importerCount": 5
+        "importerCount": 4
       },
       "src/shared/env.js": {
         "importers": [
@@ -6619,6 +6748,7 @@
           "tools/api/router/index-diffs.js",
           "tools/api/router/index-snapshots.js",
           "tools/api/router/paths.js",
+          "tools/api/router/request-helpers.js",
           "tools/ci/capability-gate.js",
           "tools/download/extensions.js",
           "tools/index-snapshot.js",
@@ -6633,7 +6763,7 @@
           "tools/shared/download-utils.js",
           "tools/shared/index-cli-utils.js"
         ],
-        "importerCount": 43
+        "importerCount": 44
       },
       "src/shared/file-signature.js": {
         "importers": [
@@ -6780,6 +6910,7 @@
           "src/shared/indexing/build-pointer.js",
           "src/shared/onnx-embeddings.js",
           "src/shared/path-normalize.js",
+          "src/shared/repo-paths.js",
           "src/workspace/identity.js",
           "src/workspace/manifest.js",
           "tools/analysis/map-iso-safe-join.js",
@@ -6796,7 +6927,6 @@
           "tools/ci/restore-artifacts.js",
           "tools/config/inventory.js",
           "tools/config/inventory/scan.js",
-          "tools/dict-utils/paths/repo.js",
           "tools/dicts/generate-repo-dict.js",
           "tools/docs/repo-inventory.js",
           "tools/docs/shared-module-ledger.js",
@@ -6837,7 +6967,7 @@
           "src/index/scm/providers/git.js",
           "src/index/scm/providers/jj.js",
           "src/index/tooling/typescript-provider.js",
-          "tools/dict-utils/paths/repo.js"
+          "src/shared/repo-paths.js"
         ],
         "importerCount": 4
       },
@@ -6997,8 +7127,8 @@
       },
       "src/shared/indexing/build-pointer.js": {
         "importers": [
+          "src/shared/repo-paths.js",
           "src/workspace/manifest.js",
-          "tools/dict-utils/paths/repo.js",
           "tools/reports/compare-models.js",
           "tools/shared/repo-cache-config.js"
         ],
@@ -7164,6 +7294,18 @@
           "src/storage/sqlite/build/runner/sqlite-probes.js"
         ],
         "importerCount": 37
+      },
+      "src/shared/json-file.js": {
+        "importers": [
+          "tools/ci/usr/item35-framework-canonicalization-gate.js",
+          "tools/ci/usr/item36-backcompat-matrix-gate.js",
+          "tools/ci/usr/item37-governance-drift-gate.js",
+          "tools/ci/usr/item38-catalog-contract-gate.js",
+          "tools/ci/usr/item39-normalization-linking-identity-gate.js",
+          "tools/ci/usr/item40-pipeline-incremental-transforms-gate.js",
+          "tools/testing/shared-module-migration.js"
+        ],
+        "importerCount": 7
       },
       "src/shared/json-stream.js": {
         "importers": [
@@ -7719,11 +7861,11 @@
           "src/shared/dense-vector-artifacts.js",
           "src/shared/index-artifact-helpers.js",
           "src/shared/io/atomic-write.js",
+          "src/shared/repo-paths.js",
           "src/shared/seed-ref.js",
           "src/storage/sqlite/build/incremental-update/planner.js",
           "src/storage/sqlite/utils.js",
           "tools/analysis/structural-search-paths.js",
-          "tools/dict-utils/paths/repo.js",
           "tools/shared/path-utils.js",
           "tools/sqlite/vector-extension.js",
           "tools/testing/coverage/index.js"
@@ -7781,6 +7923,17 @@
           "src/lang/python/pool.js"
         ],
         "importerCount": 3
+      },
+      "src/shared/progress-events.js": {
+        "importers": [
+          "tools/mcp/runner.js",
+          "tools/mcp/tools/handlers/analysis.js",
+          "tools/mcp/tools/handlers/downloads.js",
+          "tools/mcp/tools/handlers/indexing.js",
+          "tools/mcp/tools/handlers/triage.js",
+          "tools/mcp/tools/helpers.js"
+        ],
+        "importerCount": 6
       },
       "src/shared/progress.js": {
         "importers": [
@@ -7894,6 +8047,28 @@
         ],
         "importerCount": 1
       },
+      "src/shared/repo-paths.js": {
+        "importers": [
+          "src/index/type-inference-crossfile/cache.js",
+          "src/integrations/core/build-index/index.js",
+          "src/integrations/core/build-index/stages.js",
+          "src/integrations/core/status.js",
+          "src/integrations/tooling/api-contracts.js",
+          "src/integrations/tooling/architecture-check.js",
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js",
+          "src/integrations/triage/index-records.js",
+          "src/retrieval/cli-index.js",
+          "src/retrieval/cli/run-search/plan-runner.js",
+          "src/shared/dict-utils.js",
+          "src/workspace/config.js",
+          "src/workspace/manifest.js",
+          "tools/dict-utils/paths/repo.js"
+        ],
+        "importerCount": 17
+      },
       "src/shared/retry.js": {
         "importers": [
           "src/index/build/watch/lock.js"
@@ -7986,6 +8161,18 @@
           "src/index/build/watch.js"
         ],
         "importerCount": 1
+      },
+      "src/shared/search-request.js": {
+        "importers": [
+          "src/retrieval/federation/args.js",
+          "tools/api/router/search.js",
+          "tools/api/validation.js",
+          "tools/mcp/tools.js",
+          "tools/mcp/tools/handlers/triage.js",
+          "tools/mcp/tools/search-args.js",
+          "tools/shared/search-request.js"
+        ],
+        "importerCount": 7
       },
       "src/shared/seed-ref.js": {
         "importers": [
@@ -8114,10 +8301,8 @@
           "src/index/build/tree-sitter-scheduler/runner/task-execution.js",
           "src/index/scm/registry.js",
           "src/index/scm/runner.js",
-          "src/index/tooling/command-resolver.js",
           "src/index/tooling/preflight-manager.js",
           "src/index/tooling/preflight/manager-teardown.js",
-          "src/index/tooling/preflight/sourcekit-package-resolution.js",
           "src/index/tooling/preflight/workspace-command-preflight.js",
           "src/integrations/core/build-index/index.js",
           "src/integrations/core/build-index/runtime.js",
@@ -8126,6 +8311,7 @@
           "src/lang/python/executable.js",
           "src/lang/python/pool.js",
           "src/retrieval/cli/load-indexes/backend.js",
+          "src/shared/subprocess/command-invocation.js",
           "tools/analysis/map-iso-serve.js",
           "tools/bench/ab-sweep.js",
           "tools/bench/bench-runner.js",
@@ -8150,8 +8336,6 @@
           "tools/service/indexer-service.js",
           "tools/service/repos.js",
           "tools/service/subprocess-log.js",
-          "tools/setup/bootstrap.js",
-          "tools/shared/cli-utils.js",
           "tools/shared/search-cli-harness.js",
           "tools/triage/context-pack.js",
           "tools/triage/ingest.js",
@@ -8161,7 +8345,16 @@
           "tools/tui/supervisor/watchdog.js",
           "tools/workspace/build.js"
         ],
-        "importerCount": 53
+        "importerCount": 50
+      },
+      "src/shared/subprocess/command-invocation.js": {
+        "importers": [
+          "src/index/tooling/command-resolver.js",
+          "src/index/tooling/preflight/sourcekit-package-resolution.js",
+          "tools/setup/bootstrap.js",
+          "tools/shared/cli-utils.js"
+        ],
+        "importerCount": 4
       },
       "src/shared/subprocess/options.js": {
         "importers": [
@@ -8217,14 +8410,12 @@
       },
       "src/shared/subprocess/windows-cmd.js": {
         "importers": [
-          "src/index/tooling/command-resolver.js",
-          "src/index/tooling/preflight/sourcekit-package-resolution.js",
           "src/integrations/tooling/lsp/client.js",
+          "src/shared/subprocess/command-invocation.js",
           "tools/bench/language/canaries.js",
-          "tools/setup/postinstall.js",
-          "tools/shared/cli-utils.js"
+          "tools/setup/postinstall.js"
         ],
-        "importerCount": 6
+        "importerCount": 4
       },
       "src/shared/tantivy.js": {
         "importers": [
@@ -8379,6 +8570,7 @@
           "tools/config/validate.js",
           "tools/index-diff.js",
           "tools/index-snapshot.js",
+          "tools/package-vscode.js",
           "tools/reports/combined-summary.js",
           "tools/reports/compare-models.js",
           "tools/service/indexer-service.js",
@@ -8392,30 +8584,11 @@
           "tools/triage/ingest.js",
           "tools/workspace/build.js"
         ],
-        "importerCount": 22
+        "importerCount": 23
       },
       "tools/shared/dict-utils.js": {
         "importers": [
           "bin/pairofcleats.js",
-          "src/integrations/core/build-index/compatibility.js",
-          "src/integrations/core/build-index/index.js",
-          "src/integrations/core/build-index/stages.js",
-          "src/integrations/core/status.js",
-          "src/integrations/tooling/api-contracts.js",
-          "src/integrations/tooling/architecture-check.js",
-          "src/integrations/tooling/context-pack.js",
-          "src/integrations/tooling/graph-context.js",
-          "src/integrations/tooling/impact.js",
-          "src/integrations/tooling/suggest-tests.js",
-          "src/integrations/triage/index-records.js",
-          "src/retrieval/cli-dictionary.js",
-          "src/retrieval/cli-index.js",
-          "src/retrieval/cli/load-indexes/backend.js",
-          "src/retrieval/cli/run-search/plan-runner.js",
-          "src/shared/dict-utils.js",
-          "src/shared/dispatch/env.js",
-          "src/workspace/config.js",
-          "src/workspace/manifest.js",
           "tools/analysis/delta-risk.js",
           "tools/analysis/map-iso-serve.js",
           "tools/analysis/structural-search.js",
@@ -8534,7 +8707,7 @@
           "tools/tui/supervisor/artifacts.js",
           "tools/workspace/catalog.js"
         ],
-        "importerCount": 137
+        "importerCount": 118
       },
       "tools/shared/download-utils.js": {
         "importers": [
@@ -8643,15 +8816,8 @@
         "importerCount": 1
       },
       "tools/shared/search-request.js": {
-        "importers": [
-          "src/retrieval/federation/args.js",
-          "tools/api/router/search.js",
-          "tools/api/validation.js",
-          "tools/mcp/tools.js",
-          "tools/mcp/tools/handlers/triage.js",
-          "tools/mcp/tools/search-args.js"
-        ],
-        "importerCount": 6
+        "importers": [],
+        "importerCount": 0
       },
       "tools/shared/stats-utils.js": {
         "importers": [
@@ -10742,11 +10908,10 @@
           "src/shared/dict-utils.js",
           "src/shared/env-path.js",
           "src/shared/files.js",
-          "src/shared/subprocess.js",
-          "src/shared/subprocess/windows-cmd.js",
+          "src/shared/subprocess/command-invocation.js",
           "src/shared/tooling-bin-dirs.js"
         ],
-        "sharedImportCount": 6
+        "sharedImportCount": 5
       },
       "src/index/tooling/compile-commands.js": {
         "sharedImports": [
@@ -10823,10 +10988,9 @@
           "src/shared/files.js",
           "src/shared/io/atomic-write.js",
           "src/shared/locks/file-lock.js",
-          "src/shared/subprocess.js",
-          "src/shared/subprocess/windows-cmd.js"
+          "src/shared/subprocess/command-invocation.js"
         ],
-        "sharedImportCount": 8
+        "sharedImportCount": 7
       },
       "src/index/tooling/preflight/workspace-command-preflight-cache.js": {
         "sharedImports": [
@@ -10977,9 +11141,9 @@
       },
       "src/index/type-inference-crossfile/cache.js": {
         "sharedImports": [
-          "src/shared/dict-utils.js",
           "src/shared/hash.js",
           "src/shared/json-stream.js",
+          "src/shared/repo-paths.js",
           "src/shared/stable-json.js"
         ],
         "sharedImportCount": 4
@@ -11126,7 +11290,7 @@
       },
       "src/integrations/core/build-index/compatibility.js": {
         "sharedImports": [
-          "tools/shared/dict-utils.js"
+          "src/shared/dict-utils.js"
         ],
         "sharedImportCount": 1
       },
@@ -11134,14 +11298,15 @@
         "sharedImports": [
           "src/shared/abort.js",
           "src/shared/auto-policy.js",
+          "src/shared/dict-utils.js",
           "src/shared/metrics.js",
           "src/shared/observability.js",
           "src/shared/progress.js",
+          "src/shared/repo-paths.js",
           "src/shared/runtime-envelope.js",
-          "src/shared/subprocess.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/subprocess.js"
         ],
-        "sharedImportCount": 8
+        "sharedImportCount": 9
       },
       "src/integrations/core/build-index/progress.js": {
         "sharedImports": [
@@ -11165,12 +11330,13 @@
       "src/integrations/core/build-index/stages.js": {
         "sharedImports": [
           "src/shared/abort.js",
+          "src/shared/dict-utils.js",
           "src/shared/env.js",
           "src/shared/locks/file-lock.js",
           "src/shared/progress.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/repo-paths.js"
         ],
-        "sharedImportCount": 5
+        "sharedImportCount": 6
       },
       "src/integrations/core/embeddings.js": {
         "sharedImports": [
@@ -11195,13 +11361,14 @@
       "src/integrations/core/status.js": {
         "sharedImports": [
           "src/shared/artifact-io.js",
+          "src/shared/dict-utils.js",
           "src/shared/disk-space.js",
           "src/shared/env.js",
           "src/shared/io/atomic-write.js",
           "src/shared/path-normalize.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/repo-paths.js"
         ],
-        "sharedImportCount": 6
+        "sharedImportCount": 7
       },
       "src/integrations/mcp/defs.js": {
         "sharedImports": [
@@ -11228,24 +11395,26 @@
           "src/shared/artifact-io.js",
           "src/shared/artifact-io/manifest.js",
           "src/shared/cli.js",
+          "src/shared/dict-utils.js",
           "src/shared/files.js",
           "src/shared/json-stream.js",
           "src/shared/limits.js",
           "src/shared/merge.js",
           "src/shared/provenance.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/repo-paths.js"
         ],
-        "sharedImportCount": 9
+        "sharedImportCount": 10
       },
       "src/integrations/tooling/architecture-check.js": {
         "sharedImports": [
           "src/shared/cli.js",
+          "src/shared/dict-utils.js",
           "src/shared/files.js",
           "src/shared/jsonc.js",
           "src/shared/limits.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/repo-paths.js"
         ],
-        "sharedImportCount": 5
+        "sharedImportCount": 6
       },
       "src/integrations/tooling/cli-helpers.js": {
         "sharedImports": [
@@ -11256,24 +11425,26 @@
       "src/integrations/tooling/context-pack.js": {
         "sharedImports": [
           "src/shared/cli.js",
+          "src/shared/dict-utils.js",
           "src/shared/error-codes.js",
           "src/shared/files.js",
           "src/shared/limits.js",
+          "src/shared/repo-paths.js",
           "src/shared/risk-filters.js",
-          "src/shared/seed-ref.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/seed-ref.js"
         ],
-        "sharedImportCount": 7
+        "sharedImportCount": 8
       },
       "src/integrations/tooling/graph-context.js": {
         "sharedImports": [
           "src/shared/cli.js",
+          "src/shared/dict-utils.js",
           "src/shared/files.js",
           "src/shared/limits.js",
-          "src/shared/seed-ref.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/repo-paths.js",
+          "src/shared/seed-ref.js"
         ],
-        "sharedImportCount": 5
+        "sharedImportCount": 6
       },
       "src/integrations/tooling/graph-helpers.js": {
         "sharedImports": [
@@ -11284,12 +11455,13 @@
       "src/integrations/tooling/impact.js": {
         "sharedImports": [
           "src/shared/cli.js",
+          "src/shared/dict-utils.js",
           "src/shared/files.js",
           "src/shared/limits.js",
-          "src/shared/seed-ref.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/repo-paths.js",
+          "src/shared/seed-ref.js"
         ],
-        "sharedImportCount": 5
+        "sharedImportCount": 6
       },
       "src/integrations/tooling/lsp/client.js": {
         "sharedImports": [
@@ -11387,24 +11559,26 @@
       "src/integrations/tooling/suggest-tests.js": {
         "sharedImports": [
           "src/shared/cli.js",
+          "src/shared/dict-utils.js",
           "src/shared/files.js",
           "src/shared/limits.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/repo-paths.js"
         ],
-        "sharedImportCount": 4
+        "sharedImportCount": 5
       },
       "src/integrations/triage/index-records.js": {
         "sharedImports": [
           "src/shared/abort.js",
           "src/shared/chargram-hash.js",
+          "src/shared/dict-utils.js",
           "src/shared/files.js",
           "src/shared/hash.js",
           "src/shared/path-normalize.js",
           "src/shared/progress.js",
-          "src/shared/tokenize.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/repo-paths.js",
+          "src/shared/tokenize.js"
         ],
-        "sharedImportCount": 8
+        "sharedImportCount": 9
       },
       "src/lang/clike.js": {
         "sharedImports": [
@@ -11640,8 +11814,8 @@
       "src/retrieval/cli-dictionary.js": {
         "sharedImports": [
           "src/shared/code-dictionaries.js",
-          "src/shared/dictionary-wordlists.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/dict-utils.js",
+          "src/shared/dictionary-wordlists.js"
         ],
         "sharedImportCount": 3
       },
@@ -11654,7 +11828,7 @@
           "src/shared/file-signature.js",
           "src/shared/hnsw.js",
           "src/shared/index-artifact-helpers.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/repo-paths.js"
         ],
         "sharedImportCount": 8
       },
@@ -11708,11 +11882,11 @@
       "src/retrieval/cli/load-indexes/backend.js": {
         "sharedImports": [
           "src/shared/artifact-io.js",
+          "src/shared/dict-utils.js",
           "src/shared/files.js",
           "src/shared/optional-deps.js",
           "src/shared/subprocess.js",
-          "src/shared/tantivy.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/tantivy.js"
         ],
         "sharedImportCount": 6
       },
@@ -11794,12 +11968,13 @@
       "src/retrieval/cli/run-search/plan-runner.js": {
         "sharedImports": [
           "src/shared/code-dictionaries.js",
+          "src/shared/dict-utils.js",
           "src/shared/error-codes.js",
           "src/shared/files.js",
           "src/shared/ops-failure-injection.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/repo-paths.js"
         ],
-        "sharedImportCount": 5
+        "sharedImportCount": 6
       },
       "src/retrieval/cli/runner.js": {
         "sharedImports": [
@@ -11842,7 +12017,7 @@
         "sharedImports": [
           "src/shared/error-codes.js",
           "src/shared/limits.js",
-          "tools/shared/search-request.js"
+          "src/shared/search-request.js"
         ],
         "sharedImportCount": 3
       },
@@ -12564,7 +12739,7 @@
       },
       "src/shared/dict-utils.js": {
         "sharedImports": [
-          "tools/shared/dict-utils.js"
+          "src/shared/repo-paths.js"
         ],
         "sharedImportCount": 1
       },
@@ -12572,8 +12747,8 @@
         "sharedImports": [
           "src/shared/cli-options.js",
           "src/shared/cli.js",
-          "src/shared/runtime-envelope.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/dict-utils.js",
+          "src/shared/runtime-envelope.js"
         ],
         "sharedImportCount": 4
       },
@@ -12863,6 +13038,16 @@
         ],
         "sharedImportCount": 1
       },
+      "src/shared/repo-paths.js": {
+        "sharedImports": [
+          "src/shared/cache-roots.js",
+          "src/shared/files.js",
+          "src/shared/fs/find-upwards.js",
+          "src/shared/indexing/build-pointer.js",
+          "src/shared/path-normalize.js"
+        ],
+        "sharedImportCount": 5
+      },
       "src/shared/risk-explain.js": {
         "sharedImports": [
           "src/shared/risk-filters.js",
@@ -12921,6 +13106,13 @@
           "src/shared/subprocess/tracking.js"
         ],
         "sharedImportCount": 5
+      },
+      "src/shared/subprocess/command-invocation.js": {
+        "sharedImports": [
+          "src/shared/subprocess.js",
+          "src/shared/subprocess/windows-cmd.js"
+        ],
+        "sharedImportCount": 2
       },
       "src/shared/subprocess/runner.js": {
         "sharedImports": [
@@ -13139,8 +13331,8 @@
           "src/shared/error-codes.js",
           "src/shared/hash.js",
           "src/shared/jsonc.js",
-          "src/shared/stable-json.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/repo-paths.js",
+          "src/shared/stable-json.js"
         ],
         "sharedImportCount": 5
       },
@@ -13152,14 +13344,15 @@
       },
       "src/workspace/manifest.js": {
         "sharedImports": [
+          "src/shared/dict-utils.js",
           "src/shared/files.js",
           "src/shared/hash.js",
           "src/shared/indexing/build-pointer.js",
           "src/shared/io/atomic-write.js",
-          "src/shared/stable-json.js",
-          "tools/shared/dict-utils.js"
+          "src/shared/repo-paths.js",
+          "src/shared/stable-json.js"
         ],
-        "sharedImportCount": 6
+        "sharedImportCount": 7
       },
       "tools/analysis/delta-risk.js": {
         "sharedImports": [
@@ -13266,9 +13459,15 @@
         ],
         "sharedImportCount": 2
       },
+      "tools/api/router/request-helpers.js": {
+        "sharedImports": [
+          "src/shared/error-codes.js"
+        ],
+        "sharedImportCount": 1
+      },
       "tools/api/router/search.js": {
         "sharedImports": [
-          "tools/shared/search-request.js"
+          "src/shared/search-request.js"
         ],
         "sharedImportCount": 1
       },
@@ -13291,8 +13490,8 @@
       },
       "tools/api/validation.js": {
         "sharedImports": [
-          "src/shared/validation/ajv-factory.js",
-          "tools/shared/search-request.js"
+          "src/shared/search-request.js",
+          "src/shared/validation/ajv-factory.js"
         ],
         "sharedImportCount": 2
       },
@@ -13968,11 +14167,12 @@
       "tools/build/compact-sqlite-index.js": {
         "sharedImports": [
           "src/shared/cli.js",
+          "src/shared/direct-execution.js",
           "src/shared/disk-space.js",
           "tools/shared/cli-display.js",
           "tools/shared/dict-utils.js"
         ],
-        "sharedImportCount": 4
+        "sharedImportCount": 5
       },
       "tools/build/embeddings/atomic.js": {
         "sharedImports": [
@@ -14286,11 +14486,48 @@
       "tools/ci/tooling-lsp-slo-gate.js": {
         "sharedImports": [
           "src/shared/cli.js",
+          "src/shared/direct-execution.js",
           "src/shared/number-coerce.js",
           "tools/shared/dict-utils.js",
           "tools/shared/tooling-gate-utils.js"
         ],
-        "sharedImportCount": 4
+        "sharedImportCount": 5
+      },
+      "tools/ci/usr/item35-framework-canonicalization-gate.js": {
+        "sharedImports": [
+          "src/shared/json-file.js"
+        ],
+        "sharedImportCount": 1
+      },
+      "tools/ci/usr/item36-backcompat-matrix-gate.js": {
+        "sharedImports": [
+          "src/shared/json-file.js"
+        ],
+        "sharedImportCount": 1
+      },
+      "tools/ci/usr/item37-governance-drift-gate.js": {
+        "sharedImports": [
+          "src/shared/json-file.js"
+        ],
+        "sharedImportCount": 1
+      },
+      "tools/ci/usr/item38-catalog-contract-gate.js": {
+        "sharedImports": [
+          "src/shared/json-file.js"
+        ],
+        "sharedImportCount": 1
+      },
+      "tools/ci/usr/item39-normalization-linking-identity-gate.js": {
+        "sharedImports": [
+          "src/shared/json-file.js"
+        ],
+        "sharedImportCount": 1
+      },
+      "tools/ci/usr/item40-pipeline-incremental-transforms-gate.js": {
+        "sharedImports": [
+          "src/shared/json-file.js"
+        ],
+        "sharedImportCount": 1
       },
       "tools/cli/completions.js": {
         "sharedImports": [
@@ -14387,12 +14624,9 @@
       },
       "tools/dict-utils/paths/repo.js": {
         "sharedImports": [
-          "src/shared/files.js",
-          "src/shared/fs/find-upwards.js",
-          "src/shared/indexing/build-pointer.js",
-          "src/shared/path-normalize.js"
+          "src/shared/repo-paths.js"
         ],
-        "sharedImportCount": 4
+        "sharedImportCount": 1
       },
       "tools/dict-utils/paths/runtime.js": {
         "sharedImports": [
@@ -14677,9 +14911,10 @@
         "sharedImports": [
           "src/shared/error-codes.js",
           "src/shared/metrics.js",
+          "src/shared/progress-events.js",
           "src/shared/subprocess.js"
         ],
-        "sharedImportCount": 3
+        "sharedImportCount": 4
       },
       "tools/mcp/server-config.js": {
         "sharedImports": [
@@ -14710,7 +14945,7 @@
         "sharedImports": [
           "src/shared/env.js",
           "src/shared/error-codes.js",
-          "tools/shared/search-request.js"
+          "src/shared/search-request.js"
         ],
         "sharedImportCount": 3
       },
@@ -14718,10 +14953,11 @@
         "sharedImports": [
           "src/shared/error-codes.js",
           "src/shared/observability.js",
+          "src/shared/progress-events.js",
           "src/shared/risk-filters.js",
           "tools/shared/dict-utils.js"
         ],
-        "sharedImportCount": 4
+        "sharedImportCount": 5
       },
       "tools/mcp/tools/handlers/artifacts.js": {
         "sharedImports": [
@@ -14737,16 +14973,18 @@
       },
       "tools/mcp/tools/handlers/downloads.js": {
         "sharedImports": [
+          "src/shared/progress-events.js",
           "tools/shared/dict-utils.js"
         ],
-        "sharedImportCount": 1
+        "sharedImportCount": 2
       },
       "tools/mcp/tools/handlers/indexing.js": {
         "sharedImports": [
           "src/shared/observability.js",
+          "src/shared/progress-events.js",
           "tools/shared/dict-utils.js"
         ],
-        "sharedImportCount": 2
+        "sharedImportCount": 3
       },
       "tools/mcp/tools/handlers/search.js": {
         "sharedImports": [
@@ -14759,22 +14997,24 @@
       "tools/mcp/tools/handlers/triage.js": {
         "sharedImports": [
           "src/shared/files.js",
-          "tools/shared/dict-utils.js",
-          "tools/shared/search-request.js"
+          "src/shared/progress-events.js",
+          "src/shared/search-request.js",
+          "tools/shared/dict-utils.js"
         ],
-        "sharedImportCount": 3
+        "sharedImportCount": 4
       },
       "tools/mcp/tools/helpers.js": {
         "sharedImports": [
+          "src/shared/progress-events.js",
           "tools/shared/dict-utils.js"
         ],
-        "sharedImportCount": 1
+        "sharedImportCount": 2
       },
       "tools/mcp/tools/search-args.js": {
         "sharedImports": [
           "src/shared/error-codes.js",
-          "tools/shared/dict-utils.js",
-          "tools/shared/search-request.js"
+          "src/shared/search-request.js",
+          "tools/shared/dict-utils.js"
         ],
         "sharedImportCount": 3
       },
@@ -14789,9 +15029,10 @@
       },
       "tools/package-vscode.js": {
         "sharedImports": [
-          "src/shared/runtime-capability-manifest.js"
+          "src/shared/runtime-capability-manifest.js",
+          "tools/shared/cli-utils.js"
         ],
-        "sharedImportCount": 1
+        "sharedImportCount": 2
       },
       "tools/release/assemble-bundle.js": {
         "sharedImports": [
@@ -15035,7 +15276,7 @@
         "sharedImports": [
           "src/shared/cli.js",
           "src/shared/cli/stdout-guard.js",
-          "src/shared/subprocess.js",
+          "src/shared/subprocess/command-invocation.js",
           "tools/shared/cli-utils.js",
           "tools/shared/dict-utils.js"
         ],
@@ -15067,10 +15308,9 @@
       },
       "tools/shared/cli-utils.js": {
         "sharedImports": [
-          "src/shared/subprocess.js",
-          "src/shared/subprocess/windows-cmd.js"
+          "src/shared/subprocess/command-invocation.js"
         ],
-        "sharedImportCount": 2
+        "sharedImportCount": 1
       },
       "tools/shared/download-utils.js": {
         "sharedImports": [
@@ -15133,6 +15373,12 @@
         ],
         "sharedImportCount": 1
       },
+      "tools/shared/search-request.js": {
+        "sharedImports": [
+          "src/shared/search-request.js"
+        ],
+        "sharedImportCount": 1
+      },
       "tools/shared/tooling-gate-utils.js": {
         "sharedImports": [
           "tools/shared/json-utils.js"
@@ -15177,6 +15423,14 @@
         ],
         "sharedImportCount": 1
       },
+      "tools/testing/shared-module-migration.js": {
+        "sharedImports": [
+          "src/shared/cli.js",
+          "src/shared/direct-execution.js",
+          "src/shared/json-file.js"
+        ],
+        "sharedImportCount": 3
+      },
       "tools/tooling/archive-determinism.js": {
         "sharedImports": [
           "src/shared/files.js",
@@ -15209,17 +15463,17 @@
         "sharedImports": [
           "src/shared/cli.js",
           "src/shared/cli/stdout-guard.js",
-          "src/shared/env-path.js",
           "tools/shared/cli-utils.js",
           "tools/shared/dict-utils.js"
         ],
-        "sharedImportCount": 5
+        "sharedImportCount": 4
       },
       "tools/tooling/navigation.js": {
         "sharedImports": [
-          "src/shared/artifact-io.js"
+          "src/shared/artifact-io.js",
+          "src/shared/direct-execution.js"
         ],
-        "sharedImportCount": 1
+        "sharedImportCount": 2
       },
       "tools/tooling/python-check.js": {
         "sharedImports": [
@@ -15413,6 +15667,7 @@
         "files": [
           "src/shared/auto-policy.js",
           "src/shared/config.js",
+          "src/shared/direct-execution.js",
           "src/shared/disk-space.js",
           "src/shared/editor-config-contract.json",
           "src/shared/env-path.js",
@@ -15421,6 +15676,7 @@
           "src/shared/identity.js",
           "src/shared/invariants.js",
           "src/shared/iterables.js",
+          "src/shared/json-file.js",
           "src/shared/jsonrpc.js",
           "src/shared/limits.js",
           "src/shared/lines.js",
@@ -15436,13 +15692,16 @@
           "src/shared/optional-deps.js",
           "src/shared/order.js",
           "src/shared/path-normalize.js",
+          "src/shared/progress-events.js",
+          "src/shared/repo-paths.js",
           "src/shared/reuse-diagnostics.js",
           "src/shared/runtime-envelope.js",
+          "src/shared/search-request.js",
           "src/shared/sort.js",
           "src/shared/time-format.js",
           "src/shared/toolchain-env.js"
         ],
-        "fileCount": 30,
+        "fileCount": 35,
         "entries": [
           {
             "path": "src/shared/auto-policy.js",
@@ -15452,6 +15711,12 @@
           },
           {
             "path": "src/shared/config.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/direct-execution.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -15500,6 +15765,12 @@
           },
           {
             "path": "src/shared/iterables.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/json-file.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -15595,6 +15866,18 @@
             "notes": ""
           },
           {
+            "path": "src/shared/progress-events.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/repo-paths.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
             "path": "src/shared/reuse-diagnostics.js",
             "status": "pending-review",
             "classification": null,
@@ -15602,6 +15885,12 @@
           },
           {
             "path": "src/shared/runtime-envelope.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/search-request.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -16166,6 +16455,7 @@
           "src/shared/scheduler/debounce.js",
           "src/shared/sleep.js",
           "src/shared/subprocess.js",
+          "src/shared/subprocess/command-invocation.js",
           "src/shared/subprocess/options.js",
           "src/shared/subprocess/runner.js",
           "src/shared/subprocess/signals.js",
@@ -16177,7 +16467,7 @@
           "src/shared/threads.js",
           "src/shared/workers/bundle-transform-worker.js"
         ],
-        "fileCount": 45,
+        "fileCount": 46,
         "entries": [
           {
             "path": "src/shared/abort.js",
@@ -16385,6 +16675,12 @@
           },
           {
             "path": "src/shared/subprocess.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/subprocess/command-invocation.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -17204,6 +17500,7 @@
             "tools/api/router/index-diffs.js",
             "tools/api/router/index-snapshots.js",
             "tools/api/router/paths.js",
+            "tools/api/router/request-helpers.js",
             "tools/api/router/search.js",
             "tools/api/server.js",
             "tools/api/sse.js",
@@ -17246,7 +17543,7 @@
             "tools/service/shutdown-state.js",
             "tools/service/subprocess-log.js"
           ],
-          "fileCount": 58
+          "fileCount": 59
         },
         {
           "issueId": "417",
@@ -18498,6 +18795,7 @@
             "tests/cli/general/cli-options-schema-drift.test.js",
             "tests/cli/general/cli.test.js",
             "tests/cli/general/help-hidden-topics.test.js",
+            "tests/cli/general/legacy-entrypoint-symlink-contract.test.js",
             "tests/cli/general/legacy-entrypoint-warning.test.js",
             "tests/cli/general/repo-root.test.js",
             "tests/cli/general/risk-explain.test.js",
@@ -18773,6 +19071,7 @@
             "tests/helpers/git-fixture.js",
             "tests/helpers/impact-fixture.js",
             "tests/helpers/index-build-output.js",
+            "tests/helpers/json-gate.js",
             "tests/helpers/kill-tree.js",
             "tests/helpers/lane-default-cache-scope.test.js",
             "tests/helpers/lane-default-test-config.test.js",
@@ -19269,7 +19568,11 @@
             "tests/indexing/policy/module-cache-boundedness-contract.test.js",
             "tests/indexing/policy/optional-deps.test.js",
             "tests/indexing/policy/repo-inventory.test.js",
+            "tests/indexing/policy/shared-module-boundary-guard.test.js",
             "tests/indexing/policy/shared-module-ledger.test.js",
+            "tests/indexing/policy/shared-module-reduction-files.test.js",
+            "tests/indexing/policy/shared-module-review-files.test.js",
+            "tests/indexing/policy/shared-module-scan-files.test.js",
             "tests/indexing/policy/stable-entrypoints.test.js",
             "tests/indexing/postings/backpressure-queue.test.js",
             "tests/indexing/postings/build-sparse-disable.test.js",
@@ -20231,10 +20534,12 @@
             "tests/services/api/federated-search-validation-matrix.test.js",
             "tests/services/api/fixture-api-server-cohort.test.js",
             "tests/services/api/health-and-status.test.js",
+            "tests/services/api/index-route-client-error-classification.test.js",
             "tests/services/api/index-route-decode-validation.test.js",
             "tests/services/api/no-index.test.js",
             "tests/services/api/observability-correlation.test.js",
             "tests/services/api/repo-authorization.test.js",
+            "tests/services/api/request-helpers.test.js",
             "tests/services/api/risk-explain-filters.test.js",
             "tests/services/api/risk-pack-metrics.test.js",
             "tests/services/api/router-smoke.test.js",
@@ -20449,6 +20754,7 @@
             "tests/shared/io/atomic-write-contract.test.js",
             "tests/shared/io/bundle-io-checksum-fail-closed.test.js",
             "tests/shared/io/remove-path-with-retry.test.js",
+            "tests/shared/json-file.test.js",
             "tests/shared/json-stream/abort-closes-stream.test.js",
             "tests/shared/json-stream/atomic-dir-replace-fallback-rollback.test.js",
             "tests/shared/json-stream/atomic-replace.test.js",
@@ -20498,6 +20804,7 @@
             "tests/shared/perf/eta-format.test.js",
             "tests/shared/perf/percentiles-and-histogram.test.js",
             "tests/shared/process-signals/cleanup-signal-handlers.test.js",
+            "tests/shared/progress-events.test.js",
             "tests/shared/progress/configure-logger-pino10-transport.test.js",
             "tests/shared/progress/embeddings-line-contract.test.js",
             "tests/shared/progress/ring-buffer-circular-meta.test.js",
@@ -20505,6 +20812,8 @@
             "tests/shared/progress/total-zero-safe.test.js",
             "tests/shared/progress/tty-normalization.test.js",
             "tests/shared/provenance/contract.test.js",
+            "tests/shared/repo-paths-parity.test.js",
+            "tests/shared/risk-filter-input.test.js",
             "tests/shared/risk-filters.test.js",
             "tests/shared/runtime/env-envelope-overrides.test.js",
             "tests/shared/runtime/envelope-node-options-merge.test.js",
@@ -20525,6 +20834,7 @@
             "tests/shared/subprocess/abort-kills-child.test.js",
             "tests/shared/subprocess/capture-bounds.test.js",
             "tests/shared/subprocess/collector-tail.test.js",
+            "tests/shared/subprocess/command-invocation.test.js",
             "tests/shared/subprocess/detached-unref-skips-tracking.test.js",
             "tests/shared/subprocess/invalid-abort-signal-rejected.test.js",
             "tests/shared/subprocess/output-callbacks-guarded.test.js",
@@ -20708,6 +21018,7 @@
             "tests/tooling/cli-utils-exit-like-command-result.test.js",
             "tests/tooling/cli-utils-run-command-buffer.test.js",
             "tests/tooling/cli-utils-windows-wrapper-fallback.test.js",
+            "tests/tooling/config-inventory/inventory-idempotence.test.js",
             "tests/tooling/config-inventory/inventory-sync.test.js",
             "tests/tooling/config-inventory/report-format.test.js",
             "tests/tooling/config-inventory/schema-scan.test.js",
@@ -21176,6 +21487,7 @@
             "tests/tooling/service/subprocess-buffer-bounds.test.js",
             "tests/tooling/service/subprocess-cancellation-contract.test.js",
             "tests/tooling/service/subprocess-signal-contract.test.js",
+            "tests/tooling/shared-module-migration.test.js",
             "tests/tooling/signature-parse/go-rust-signatures.test.js",
             "tests/tooling/signature-parse/shared-splitter.test.js",
             "tests/tooling/structural/binary-default-timeout.test.js",
@@ -21393,9 +21705,10 @@
             "tools/test_times/TEST_TIMES.md",
             "tools/testing/coverage/index.js",
             "tools/testing/coverage/policy.js",
-            "tools/testing/generate-lane-manifests.js"
+            "tools/testing/generate-lane-manifests.js",
+            "tools/testing/shared-module-migration.js"
           ],
-          "fileCount": 2968
+          "fileCount": 2984
         },
         {
           "issueId": "420",
@@ -21547,7 +21860,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4622
+          "fileCount": 4645
         }
       ],
       "repoCoverage": {
@@ -22688,6 +23001,7 @@
           "src/shared/dict-utils.js",
           "src/shared/dictionary-wordlists.js",
           "src/shared/dictionary.js",
+          "src/shared/direct-execution.js",
           "src/shared/disk-space.js",
           "src/shared/dispatch/env.js",
           "src/shared/dispatch/manifest.js",
@@ -22733,6 +23047,7 @@
           "src/shared/io/atomic-write.js",
           "src/shared/io/remove-path-with-retry.js",
           "src/shared/iterables.js",
+          "src/shared/json-file.js",
           "src/shared/json-stream.js",
           "src/shared/json-stream/atomic.js",
           "src/shared/json-stream/compress.js",
@@ -22774,11 +23089,13 @@
           "src/shared/piscina-cleanup.js",
           "src/shared/postings-config.js",
           "src/shared/process-signals.js",
+          "src/shared/progress-events.js",
           "src/shared/progress.js",
           "src/shared/promise-keepalive.js",
           "src/shared/promise-timeout.js",
           "src/shared/provenance.js",
           "src/shared/queue.js",
+          "src/shared/repo-paths.js",
           "src/shared/retry.js",
           "src/shared/reuse-diagnostics.js",
           "src/shared/risk-explain.js",
@@ -22789,11 +23106,13 @@
           "src/shared/safe-regex/backends/re2.js",
           "src/shared/safe-regex/backends/re2js.js",
           "src/shared/scheduler/debounce.js",
+          "src/shared/search-request.js",
           "src/shared/seed-ref.js",
           "src/shared/sleep.js",
           "src/shared/sort.js",
           "src/shared/stable-json.js",
           "src/shared/subprocess.js",
+          "src/shared/subprocess/command-invocation.js",
           "src/shared/subprocess/options.js",
           "src/shared/subprocess/runner.js",
           "src/shared/subprocess/signals.js",
@@ -22909,6 +23228,7 @@
           "tests/cli/general/cli-options-schema-drift.test.js",
           "tests/cli/general/cli.test.js",
           "tests/cli/general/help-hidden-topics.test.js",
+          "tests/cli/general/legacy-entrypoint-symlink-contract.test.js",
           "tests/cli/general/legacy-entrypoint-warning.test.js",
           "tests/cli/general/repo-root.test.js",
           "tests/cli/general/risk-explain.test.js",
@@ -23184,6 +23504,7 @@
           "tests/helpers/git-fixture.js",
           "tests/helpers/impact-fixture.js",
           "tests/helpers/index-build-output.js",
+          "tests/helpers/json-gate.js",
           "tests/helpers/kill-tree.js",
           "tests/helpers/lane-default-cache-scope.test.js",
           "tests/helpers/lane-default-test-config.test.js",
@@ -23680,7 +24001,11 @@
           "tests/indexing/policy/module-cache-boundedness-contract.test.js",
           "tests/indexing/policy/optional-deps.test.js",
           "tests/indexing/policy/repo-inventory.test.js",
+          "tests/indexing/policy/shared-module-boundary-guard.test.js",
           "tests/indexing/policy/shared-module-ledger.test.js",
+          "tests/indexing/policy/shared-module-reduction-files.test.js",
+          "tests/indexing/policy/shared-module-review-files.test.js",
+          "tests/indexing/policy/shared-module-scan-files.test.js",
           "tests/indexing/policy/stable-entrypoints.test.js",
           "tests/indexing/postings/backpressure-queue.test.js",
           "tests/indexing/postings/build-sparse-disable.test.js",
@@ -24642,10 +24967,12 @@
           "tests/services/api/federated-search-validation-matrix.test.js",
           "tests/services/api/fixture-api-server-cohort.test.js",
           "tests/services/api/health-and-status.test.js",
+          "tests/services/api/index-route-client-error-classification.test.js",
           "tests/services/api/index-route-decode-validation.test.js",
           "tests/services/api/no-index.test.js",
           "tests/services/api/observability-correlation.test.js",
           "tests/services/api/repo-authorization.test.js",
+          "tests/services/api/request-helpers.test.js",
           "tests/services/api/risk-explain-filters.test.js",
           "tests/services/api/risk-pack-metrics.test.js",
           "tests/services/api/router-smoke.test.js",
@@ -24860,6 +25187,7 @@
           "tests/shared/io/atomic-write-contract.test.js",
           "tests/shared/io/bundle-io-checksum-fail-closed.test.js",
           "tests/shared/io/remove-path-with-retry.test.js",
+          "tests/shared/json-file.test.js",
           "tests/shared/json-stream/abort-closes-stream.test.js",
           "tests/shared/json-stream/atomic-dir-replace-fallback-rollback.test.js",
           "tests/shared/json-stream/atomic-replace.test.js",
@@ -24909,6 +25237,7 @@
           "tests/shared/perf/eta-format.test.js",
           "tests/shared/perf/percentiles-and-histogram.test.js",
           "tests/shared/process-signals/cleanup-signal-handlers.test.js",
+          "tests/shared/progress-events.test.js",
           "tests/shared/progress/configure-logger-pino10-transport.test.js",
           "tests/shared/progress/embeddings-line-contract.test.js",
           "tests/shared/progress/ring-buffer-circular-meta.test.js",
@@ -24916,6 +25245,8 @@
           "tests/shared/progress/total-zero-safe.test.js",
           "tests/shared/progress/tty-normalization.test.js",
           "tests/shared/provenance/contract.test.js",
+          "tests/shared/repo-paths-parity.test.js",
+          "tests/shared/risk-filter-input.test.js",
           "tests/shared/risk-filters.test.js",
           "tests/shared/runtime/env-envelope-overrides.test.js",
           "tests/shared/runtime/envelope-node-options-merge.test.js",
@@ -24936,6 +25267,7 @@
           "tests/shared/subprocess/abort-kills-child.test.js",
           "tests/shared/subprocess/capture-bounds.test.js",
           "tests/shared/subprocess/collector-tail.test.js",
+          "tests/shared/subprocess/command-invocation.test.js",
           "tests/shared/subprocess/detached-unref-skips-tracking.test.js",
           "tests/shared/subprocess/invalid-abort-signal-rejected.test.js",
           "tests/shared/subprocess/output-callbacks-guarded.test.js",
@@ -25119,6 +25451,7 @@
           "tests/tooling/cli-utils-exit-like-command-result.test.js",
           "tests/tooling/cli-utils-run-command-buffer.test.js",
           "tests/tooling/cli-utils-windows-wrapper-fallback.test.js",
+          "tests/tooling/config-inventory/inventory-idempotence.test.js",
           "tests/tooling/config-inventory/inventory-sync.test.js",
           "tests/tooling/config-inventory/report-format.test.js",
           "tests/tooling/config-inventory/schema-scan.test.js",
@@ -25587,6 +25920,7 @@
           "tests/tooling/service/subprocess-buffer-bounds.test.js",
           "tests/tooling/service/subprocess-cancellation-contract.test.js",
           "tests/tooling/service/subprocess-signal-contract.test.js",
+          "tests/tooling/shared-module-migration.test.js",
           "tests/tooling/signature-parse/go-rust-signatures.test.js",
           "tests/tooling/signature-parse/shared-splitter.test.js",
           "tests/tooling/structural/binary-default-timeout.test.js",
@@ -25797,6 +26131,7 @@
           "tools/api/router/index-diffs.js",
           "tools/api/router/index-snapshots.js",
           "tools/api/router/paths.js",
+          "tools/api/router/request-helpers.js",
           "tools/api/router/search.js",
           "tools/api/server.js",
           "tools/api/sse.js",
@@ -26147,6 +26482,7 @@
           "tools/testing/coverage/index.js",
           "tools/testing/coverage/policy.js",
           "tools/testing/generate-lane-manifests.js",
+          "tools/testing/shared-module-migration.js",
           "tools/tooling/archive-determinism.js",
           "tools/tooling/detect.js",
           "tools/tooling/doctor.js",
@@ -26229,7 +26565,7 @@
             "src/integrations/core/embeddings.js",
             "src/integrations/core/enrichment-state.js"
           ],
-          "fileCount": 125
+          "fileCount": 126
         },
         {
           "issueId": "423",
@@ -26272,7 +26608,7 @@
             "src/index/build/artifacts/minhash-packed.js",
             "src/index/build/artifacts/piece-registry.js"
           ],
-          "fileCount": 3630
+          "fileCount": 3646
         },
         {
           "issueId": "424",
@@ -26316,7 +26652,7 @@
             "src/index/tooling/lsp-workspace-routing.js",
             "src/index/tooling/orchestrator.js"
           ],
-          "fileCount": 175
+          "fileCount": 176
         },
         {
           "issueId": "425",
@@ -26363,7 +26699,7 @@
             "src/context-pack/risk-delta.js",
             "src/context-pack/risk-ranking.js"
           ],
-          "fileCount": 245
+          "fileCount": 246
         },
         {
           "issueId": "426",
@@ -26405,7 +26741,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4607
+          "fileCount": 4630
         },
         {
           "issueId": "427",
@@ -26448,7 +26784,7 @@
             "src/index/build/artifacts/minhash-packed.js",
             "src/index/build/artifacts/piece-registry.js"
           ],
-          "fileCount": 854
+          "fileCount": 855
         },
         {
           "issueId": "428",
@@ -26492,7 +26828,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 2968
+          "fileCount": 2984
         }
       ]
     }

@@ -17,7 +17,7 @@ import {
   getCacheRoot,
   loadUserConfig,
   resolveSqlitePaths
-} from '../../tools/shared/dict-utils.js';
+} from '../shared/dict-utils.js';
 import { loadWorkspaceConfig } from './config.js';
 import { toRealPathSync } from './identity.js';
 

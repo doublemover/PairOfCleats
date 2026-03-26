@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getIndexDir, getRepoCacheRoot } from '../../shared/repo-paths.js';
-import { getTriageConfig } from '../../../tools/shared/dict-utils.js';
+import { getTriageConfig } from '../../shared/dict-utils.js';
 import { SimpleMinHash } from '../../index/minhash.js';
 import { getHeadline } from '../../index/headline.js';
 import { STOP, SYN } from '../../index/constants.js';
