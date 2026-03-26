@@ -49,12 +49,25 @@ export const discoverTests = async ({ testsDir, excludedDirs, excludedFiles }) =
   }));
 };
 
-export const assignLane = (id, laneRules) => {
+export const assignLaneWithReason = (id, laneRules) => {
   for (const rule of laneRules) {
-    if (rule.match.some((regex) => regex.test(id))) return rule.lane;
+    const matched = rule.match.find((regex) => regex.test(id));
+    if (matched) {
+      return {
+        lane: rule.lane,
+        source: 'rule',
+        detail: matched.source || String(matched)
+      };
+    }
   }
-  return 'integration';
+  return {
+    lane: 'integration',
+    source: 'default',
+    detail: 'fallback:integration'
+  };
 };
+
+export const assignLane = (id, laneRules) => assignLaneWithReason(id, laneRules).lane;
 
 export const buildTags = (id, lane, tagRules) => {
   const tags = new Set([lane]);

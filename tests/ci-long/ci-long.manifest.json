@@ -1,0 +1,429 @@
+{
+  "schemaVersion": 1,
+  "lane": "ci-long",
+  "selectionMode": "ordered-manifest",
+  "durationBucket": "ci-long",
+  "targetMaxDurationSeconds": 180,
+  "notes": "Duration-bucket manifest for the long lane.",
+  "sourceOrderFile": "tests/ci-long/ci-long.order.txt",
+  "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
+  "timingArtifactPaths": [],
+  "tests": [
+    {
+      "id": "indexing/imports/replay-perf-budget",
+      "order": 1
+    },
+    {
+      "id": "services/soak/operational-recovery",
+      "order": 2
+    },
+    {
+      "id": "tooling/lsp/provider-fidelity-coverage-contract",
+      "order": 3
+    },
+    {
+      "id": "retrieval/pipeline/ann-lazy-import",
+      "order": 4
+    },
+    {
+      "id": "retrieval/pipeline/index-loader-lazy",
+      "order": 5
+    },
+    {
+      "id": "indexing/artifacts/chunk-meta-trim-strict",
+      "order": 6
+    },
+    {
+      "id": "storage/sqlite/incremental/bundle-partial-chunk-fallback",
+      "order": 7
+    },
+    {
+      "id": "storage/sqlite/incremental/bundle-partial-embeddings-fallback",
+      "order": 8
+    },
+    {
+      "id": "storage/sqlite/incremental/bundle-count-mismatch-fallback",
+      "order": 9
+    },
+    {
+      "id": "storage/sqlite/incremental/bundle-embeddings-stage3-refresh",
+      "order": 10
+    },
+    {
+      "id": "tooling/fixtures/prewarm-shared-indexes",
+      "order": 11
+    },
+    {
+      "id": "cli/search/startup-checkpoints-order",
+      "order": 12
+    },
+    {
+      "id": "services/api/search-validation",
+      "order": 13
+    },
+    {
+      "id": "services/api/search-stream-abort",
+      "order": 14
+    },
+    {
+      "id": "retrieval/contracts/compact-json",
+      "order": 15
+    },
+    {
+      "id": "services/api/search-happy-path",
+      "order": 16
+    },
+    {
+      "id": "services/api/repo-authorization",
+      "order": 17
+    },
+    {
+      "id": "services/api/health-and-status",
+      "order": 18
+    },
+    {
+      "id": "services/api/cors-allow",
+      "order": 19
+    },
+    {
+      "id": "indexing/imports/import-links",
+      "order": 20
+    },
+    {
+      "id": "indexing/build/stage4-explicit-index-root-no-promotion",
+      "order": 21
+    },
+    {
+      "id": "indexing/records/exclusion",
+      "order": 22
+    },
+    {
+      "id": "cli/search/explain-symbol",
+      "order": 23
+    },
+    {
+      "id": "indexer/call-sites/determinism",
+      "order": 24
+    },
+    {
+      "id": "indexing/scm/index-build-git-provider",
+      "order": 25
+    },
+    {
+      "id": "storage/sqlite/build-indexes",
+      "order": 26
+    },
+    {
+      "id": "cli/search/windows-path-filter",
+      "order": 27
+    },
+    {
+      "id": "indexing/scm/no-build-id",
+      "order": 28
+    },
+    {
+      "id": "indexing/type-inference/providers/type-inference-lsp-enrichment",
+      "order": 29
+    },
+    {
+      "id": "retrieval/ann/hnsw",
+      "order": 30
+    },
+    {
+      "id": "retrieval/filters/filter-index-artifact",
+      "order": 31
+    },
+    {
+      "id": "cli/build-index/all",
+      "order": 32
+    },
+    {
+      "id": "indexing/file-caps/file-size-guard",
+      "order": 33
+    },
+    {
+      "id": "indexing/incremental/manifest",
+      "order": 34
+    },
+    {
+      "id": "services/api/core",
+      "order": 35
+    },
+    {
+      "id": "indexing/postings/chunk-meta-determinism",
+      "order": 36
+    },
+    {
+      "id": "indexing/map/code-guardrails",
+      "order": 37
+    },
+    {
+      "id": "indexing/validate/index",
+      "order": 38
+    },
+    {
+      "id": "indexing/incremental/cache-signature",
+      "order": 39
+    },
+    {
+      "id": "indexing/map/code-performance",
+      "order": 40
+    },
+    {
+      "id": "storage/sqlite/bundle-missing",
+      "order": 41
+    },
+    {
+      "id": "shared/encoding/fallback",
+      "order": 42
+    },
+    {
+      "id": "smoke/e2e",
+      "order": 43
+    },
+    {
+      "id": "tooling/reports/summary/report-compare-sqlite",
+      "order": 44
+    },
+    {
+      "id": "tooling/reports/summary/report-compare-memory",
+      "order": 45
+    },
+    {
+      "id": "services/asof-explicit-root-no-fallback",
+      "order": 46
+    },
+    {
+      "id": "indexing/chunking/formats/format-fidelity",
+      "order": 47
+    },
+    {
+      "id": "indexing/artifacts/artifact-size-guardrails",
+      "order": 48
+    },
+    {
+      "id": "services/api/server-stream",
+      "order": 49
+    },
+    {
+      "id": "retrieval/backend/retrieval-strict-manifest-embeddings",
+      "order": 50
+    },
+    {
+      "id": "cli/search/tie-order",
+      "order": 51
+    },
+    {
+      "id": "indexing/determinism/chunkuid",
+      "order": 52
+    },
+    {
+      "id": "cli/search/rrf",
+      "order": 53
+    },
+    {
+      "id": "cli/search/missing-flag-values",
+      "order": 54
+    },
+    {
+      "id": "storage/sqlite/incremental/manifest-normalization",
+      "order": 55
+    },
+    {
+      "id": "retrieval/cache/query",
+      "order": 56
+    },
+    {
+      "id": "storage/sqlite/incremental/file-manifest-updates",
+      "order": 57
+    },
+    {
+      "id": "indexing/chunking/comment-join",
+      "order": 58
+    },
+    {
+      "id": "retrieval/filters/churn-filter",
+      "order": 59
+    },
+    {
+      "id": "retrieval/ann/lancedb",
+      "order": 60
+    },
+    {
+      "id": "storage/sqlite/migrations/schema-mismatch-rebuild",
+      "order": 61
+    },
+    {
+      "id": "indexing/embeddings/manifest-pieces",
+      "order": 62
+    },
+    {
+      "id": "storage/sqlite/incremental/manifest-hash-fill",
+      "order": 63
+    },
+    {
+      "id": "storage/sqlite/incremental/wal-checkpoint",
+      "order": 64
+    },
+    {
+      "id": "smoke/retrieval",
+      "order": 65
+    },
+    {
+      "id": "storage/sqlite/compact",
+      "order": 66
+    },
+    {
+      "id": "indexing/shards/shard-merge",
+      "order": 67
+    },
+    {
+      "id": "smoke/services",
+      "order": 68
+    },
+    {
+      "id": "indexing/incremental/tokenization-cache",
+      "order": 69
+    },
+    {
+      "id": "shared/subprocess/quoting",
+      "order": 70
+    },
+    {
+      "id": "services/snapshot-query",
+      "order": 71
+    },
+    {
+      "id": "indexing/embeddings/dims-mismatch",
+      "order": 72
+    },
+    {
+      "id": "storage/lmdb/corruption",
+      "order": 73
+    },
+    {
+      "id": "services/api-search-asof",
+      "order": 74
+    },
+    {
+      "id": "storage/lmdb/backend",
+      "order": 75
+    },
+    {
+      "id": "storage/sqlite/sidecar-cleanup",
+      "order": 76
+    },
+    {
+      "id": "indexing/embeddings/cache-cross-repo-reuse",
+      "order": 77
+    },
+    {
+      "id": "tooling/triage/records-index-and-search",
+      "order": 78
+    },
+    {
+      "id": "smoke/sqlite",
+      "order": 79
+    },
+    {
+      "id": "tooling/triage/context-pack",
+      "order": 80
+    },
+    {
+      "id": "storage/lmdb/report-artifacts",
+      "order": 81
+    },
+    {
+      "id": "indexing/embeddings/validate",
+      "order": 82
+    },
+    {
+      "id": "storage/sqlite/auto-backend",
+      "order": 83
+    },
+    {
+      "id": "indexing/piece-assembly/core",
+      "order": 84
+    },
+    {
+      "id": "indexing/embeddings/cache-index-append-only",
+      "order": 85
+    },
+    {
+      "id": "smoke/embeddings",
+      "order": 86
+    },
+    {
+      "id": "cli/search/topn-filters",
+      "order": 87
+    },
+    {
+      "id": "storage/sqlite/missing-dep",
+      "order": 88
+    },
+    {
+      "id": "indexing/embeddings/cache-identity",
+      "order": 89
+    },
+    {
+      "id": "indexing/embeddings/cache-partial-reuse",
+      "order": 90
+    },
+    {
+      "id": "retrieval/ann/hnsw-atomic",
+      "order": 91
+    },
+    {
+      "id": "storage/sqlite/incremental/search-after-update",
+      "order": 92
+    },
+    {
+      "id": "tooling/eval/quality",
+      "order": 93
+    },
+    {
+      "id": "storage/sqlite/incremental-no-change",
+      "order": 94
+    },
+    {
+      "id": "cli/general/repo-root",
+      "order": 95
+    },
+    {
+      "id": "storage/sqlite/ann/sqlite-extension",
+      "order": 96
+    },
+    {
+      "id": "storage/sqlite/ann/sqlite-fallback",
+      "order": 97
+    },
+    {
+      "id": "smoke/api-core-health",
+      "order": 98
+    },
+    {
+      "id": "services/sqlite-build-snapshot",
+      "order": 99
+    },
+    {
+      "id": "indexing/runtime/two-stage-state",
+      "order": 100
+    },
+    {
+      "id": "storage/sqlite/index-state-fail-closed",
+      "order": 101
+    },
+    {
+      "id": "storage/sqlite/incremental/doc-id-reuse",
+      "order": 102
+    },
+    {
+      "id": "retrieval/ranking/fielded-bm25",
+      "order": 103
+    },
+    {
+      "id": "indexing/contracts/golden-surface-suite",
+      "order": 104
+    }
+  ]
+}

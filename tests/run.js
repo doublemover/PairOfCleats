@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadRunConfig, loadRunRules } from './runner/run-config.js';
 import {
   applyFilters,
-  assignLane,
+  assignLaneWithReason,
   buildTags,
   compileMatchers,
   discoverTests,
@@ -22,6 +22,10 @@ import {
   resolveLanes,
   splitCsv
 } from './runner/run-discovery.js';
+import {
+  loadLaneManifestConfig,
+  loadOrderedLaneManifest
+} from './runner/lane-manifests.js';
 import { parseArgs } from './runner/run-args.js';
 import {
   mergeNodeOptions,
@@ -67,12 +71,6 @@ const SKIP_EXIT_CODE = 77;
 const REDO_EXIT_CODES = [3221226356, 3221225477];
 const DEFAULT_TIMEOUT_GRACE_MS = 2000;
 const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
-const ORDERED_LANES = new Set([
-  'gate',
-  'ci-lite',
-  'ci',
-  'ci-long'
-]);
 const INHERITED_PAIROFCLEATS_ENV_ALLOWLIST = new Set([
   'PAIROFCLEATS_TEST_API_STARTUP_TIMEOUT_MS',
   'PAIROFCLEATS_TEST_CACHE_SUFFIX',
@@ -183,17 +181,8 @@ const main = async () => {
   const laneInfo = normalizeLaneArgs(argv.lane);
   const requestedLanes = laneInfo.requested;
   const runRules = loadRunRules({ root: ROOT });
-  const ciLiteOrderPath = path.join(TESTS_DIR, 'ci-lite', 'ci-lite.order.txt');
-  let ciLiteOrderSet = new Set();
-  try {
-    const ciLiteRaw = await fsPromises.readFile(ciLiteOrderPath, 'utf8');
-    ciLiteOrderSet = new Set(
-      ciLiteRaw
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith('#'))
-    );
-  } catch {}
+  const laneManifestConfig = await loadLaneManifestConfig({ root: ROOT });
+  const orderedLaneNames = new Set(laneManifestConfig.orderedLanes.keys());
 
   /**
    * Resolve the default timeout from requested lanes.
@@ -231,7 +220,7 @@ const main = async () => {
       return '';
     }
     const lane = normalized[0];
-    return ORDERED_LANES.has(lane) ? lane : '';
+    return orderedLaneNames.has(lane) ? lane : '';
   })();
 
   if (argv['list-lanes'] || argv['list-tags']) {
@@ -320,9 +309,14 @@ const main = async () => {
     excludedDirs: runRules.excludedDirs,
     excludedFiles: runRules.excludedFiles
   })).map((test) => {
-    const lane = assignLane(test.id, runRules.laneRules);
-    const adjustedLane = ciLiteOrderSet.has(test.id) ? 'ci-lite' : lane;
-    return { ...test, lane: adjustedLane, tags: buildTags(test.id, adjustedLane, runRules.tagRules) };
+    const laneReason = assignLaneWithReason(test.id, runRules.laneRules);
+    const lane = laneReason.lane;
+    return {
+      ...test,
+      lane,
+      laneReason,
+      tags: buildTags(test.id, lane, runRules.tagRules)
+    };
   });
 
   const includeMatchers = compileMatchers(includePatterns, 'match');
@@ -331,24 +325,32 @@ const main = async () => {
   let selection = null;
 
   if (orderedLane) {
-    const orderPath = path.join(TESTS_DIR, orderedLane, `${orderedLane}.order.txt`);
     const orderLane = orderedLane;
-    let orderRaw = '';
+    let manifest = null;
     try {
-      orderRaw = await fsPromises.readFile(orderPath, 'utf8');
-    } catch (error) {
-      console.error(`${orderLane} lane requires an order file at ${path.relative(ROOT, orderPath)}.`);
-      console.error('Create the file with one test id per line (e.g., "run-results").');
+      manifest = await loadOrderedLaneManifest({
+        root: ROOT,
+        lane: orderLane,
+        config: laneManifestConfig
+      });
+    } catch {
+      manifest = null;
+    }
+
+    if (!manifest) {
+      const laneConfig = laneManifestConfig.orderedLanes.get(orderLane);
+      const manifestPath = laneConfig?.manifestPath || path.join(TESTS_DIR, orderLane, `${orderLane}.manifest.json`);
+      console.error(`${orderLane} lane requires a manifest file at ${path.relative(ROOT, manifestPath)}.`);
+      console.error('Generate manifests with: node tools/testing/generate-lane-manifests.js');
       process.exit(2);
     }
 
-    const orderIds = orderRaw
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith('#'));
+    const orderIds = Array.isArray(manifest.tests)
+      ? manifest.tests.map((entry) => String(entry?.id || '').trim()).filter(Boolean)
+      : [];
 
     if (!orderIds.length) {
-      console.error(`${orderLane} order file is empty: ${path.relative(ROOT, orderPath)}`);
+      console.error(`${orderLane} manifest is empty: ${path.relative(ROOT, manifest.manifestPath)}`);
       process.exit(2);
     }
 
@@ -364,7 +366,15 @@ const main = async () => {
       }
       const count = (seen.get(id) || 0) + 1;
       seen.set(id, count);
-      ordered.push(count === 1 ? test : { ...test, id: `${id}#${count}` });
+      const decorated = count === 1 ? test : { ...test, id: `${id}#${count}` };
+      ordered.push({
+        ...decorated,
+        selectionReason: {
+          source: 'ordered-manifest',
+          lane: orderLane,
+          detail: path.relative(ROOT, manifest.manifestPath).replace(/\\/g, '/')
+        }
+      });
     }
 
     if (missing.length) {
@@ -389,7 +399,12 @@ const main = async () => {
         return {
           ...test,
           presetStatus: 'skipped',
-          skipReason: `excluded tag: ${excluded.join(', ')}`
+          skipReason: `excluded tag: ${excluded.join(', ')}`,
+          selectionReason: test.selectionReason || {
+            source: 'ordered-manifest',
+            lane: orderLane,
+            detail: path.relative(ROOT, manifest.manifestPath).replace(/\\/g, '/')
+          }
         };
       });
   } else {
@@ -402,7 +417,14 @@ const main = async () => {
       tagExclude,
       dropTags
     });
-    selection = [...selected, ...skipped];
+    selection = [...selected, ...skipped].map((test) => ({
+      ...test,
+      selectionReason: {
+        source: 'lane-filter',
+        lane: test.lane,
+        detail: test.laneReason?.detail || ''
+      }
+    }));
   }
 
   if (!selection.length) {
@@ -421,6 +443,11 @@ const main = async () => {
         path: test.relPath,
         lane: test.lane,
         tags: test.tags,
+        laneSource: test.laneReason?.source || '',
+        laneDetail: test.laneReason?.detail || '',
+        selectionSource: test.selectionReason?.source || '',
+        selectionLane: test.selectionReason?.lane || '',
+        selectionDetail: test.selectionReason?.detail || '',
         presetStatus: test.presetStatus || '',
         skipReason: test.skipReason || ''
       })) };

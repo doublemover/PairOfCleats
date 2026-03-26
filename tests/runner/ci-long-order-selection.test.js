@@ -1,18 +1,17 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { loadLaneManifestConfig, loadOrderedLaneManifest } from './lane-manifests.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const runnerPath = path.join(ROOT, 'tests', 'run.js');
-const orderPath = path.join(ROOT, 'tests', 'ci-long', 'ci-long.order.txt');
-
-const expectedIds = fs.readFileSync(orderPath, 'utf8')
-  .split(/\r?\n/)
-  .map((line) => line.trim())
-  .filter((line) => line && !line.startsWith('#'));
+const manifestConfig = await loadLaneManifestConfig({ root: ROOT });
+const manifest = await loadOrderedLaneManifest({ root: ROOT, lane: 'ci-long', config: manifestConfig });
+const expectedIds = Array.isArray(manifest?.tests)
+  ? manifest.tests.map((entry) => entry.id)
+  : [];
 
 const result = spawnSync(process.execPath, [runnerPath, '--lane', 'ci-long', '--list', '--json'], {
   cwd: ROOT,
@@ -41,7 +40,17 @@ const soakEntry = Array.isArray(payload?.tests)
 assert.deepEqual(
   actualIds,
   expectedIds,
-  'ci-long ordered lane should match ci-long.order.txt exactly'
+  'ci-long ordered lane should match ci-long.manifest.json exactly'
+);
+assert.equal(
+  payload.tests[0]?.selectionSource,
+  'ordered-manifest',
+  'ci-long ordered selection should explain manifest-based selection'
+);
+assert.equal(
+  payload.tests[0]?.selectionLane,
+  'ci-long',
+  'ci-long ordered selection should report the selected ordered lane'
 );
 assert(
   actualIds.includes('indexing/imports/replay-perf-budget'),

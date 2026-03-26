@@ -1,0 +1,44 @@
+{
+  "orderedLanes": {
+    "gate": {
+      "durationBucket": "gate",
+      "targetMaxDurationSeconds": 15,
+      "orderFile": "tests/gate/gate.order.txt",
+      "manifestFile": "tests/gate/gate.manifest.json",
+      "timingArtifactPaths": [
+        ".testLogs/gate-testRunTimes.txt"
+      ],
+      "notes": "Generated from the gate lane order source; optional timing artifacts annotate entries when present."
+    },
+    "ci-lite": {
+      "durationBucket": "ci-lite",
+      "targetMaxDurationSeconds": 15,
+      "orderFile": "tests/ci-lite/ci-lite.order.txt",
+      "manifestFile": "tests/ci-lite/ci-lite.manifest.json",
+      "timingArtifactPaths": [
+        ".testLogs/ci-lite-testRunTimes.txt"
+      ],
+      "notes": "Duration-bucket manifest for the contributor default lane."
+    },
+    "ci": {
+      "durationBucket": "ci",
+      "targetMaxDurationSeconds": 60,
+      "orderFile": "tests/ci/ci.order.txt",
+      "manifestFile": "tests/ci/ci.manifest.json",
+      "timingArtifactPaths": [
+        ".testLogs/ci-testRunTimes.txt"
+      ],
+      "notes": "Duration-bucket manifest for the medium integration lane."
+    },
+    "ci-long": {
+      "durationBucket": "ci-long",
+      "targetMaxDurationSeconds": 180,
+      "orderFile": "tests/ci-long/ci-long.order.txt",
+      "manifestFile": "tests/ci-long/ci-long.manifest.json",
+      "timingArtifactPaths": [
+        ".testLogs/ci-long-testRunTimes.txt"
+      ],
+      "notes": "Duration-bucket manifest for the long lane."
+    }
+  }
+}

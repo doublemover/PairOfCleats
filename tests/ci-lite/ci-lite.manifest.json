@@ -1,0 +1,4629 @@
+{
+  "schemaVersion": 1,
+  "lane": "ci-lite",
+  "selectionMode": "ordered-manifest",
+  "durationBucket": "ci-lite",
+  "targetMaxDurationSeconds": 15,
+  "notes": "Duration-bucket manifest for the contributor default lane.",
+  "sourceOrderFile": "tests/ci-lite/ci-lite.order.txt",
+  "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
+  "timingArtifactPaths": [],
+  "tests": [
+    {
+      "id": "retrieval/pipeline/candidates-early-cutoff",
+      "order": 1
+    },
+    {
+      "id": "indexing/ordering/ordered-appender-bucketed-watermark",
+      "order": 2
+    },
+    {
+      "id": "shared/limits/normalization",
+      "order": 3
+    },
+    {
+      "id": "indexing/chunking/comment-boundary",
+      "order": 4
+    },
+    {
+      "id": "indexing/ignore/path-safety",
+      "order": 5
+    },
+    {
+      "id": "retrieval/pipeline/candidates-memory-plateau",
+      "order": 6
+    },
+    {
+      "id": "cli/search/lazy-imports",
+      "order": 7
+    },
+    {
+      "id": "graph/truncation-order-deterministic",
+      "order": 8
+    },
+    {
+      "id": "retrieval/output/risk-explain-render",
+      "order": 9
+    },
+    {
+      "id": "retrieval/output/risk-explain-alignment",
+      "order": 10
+    },
+    {
+      "id": "retrieval/output/risk-explain-parity",
+      "order": 11
+    },
+    {
+      "id": "retrieval/output/risk-explain-surface-defaults",
+      "order": 12
+    },
+    {
+      "id": "shared/risk-filters",
+      "order": 13
+    },
+    {
+      "id": "graph/suggest-tests-output-deterministic",
+      "order": 14
+    },
+    {
+      "id": "indexer/determinism/sort",
+      "order": 15
+    },
+    {
+      "id": "map/config-merge-behavior",
+      "order": 16
+    },
+    {
+      "id": "map/viewer-lod-switch",
+      "order": 17
+    },
+    {
+      "id": "indexing/ignore/matcher",
+      "order": 18
+    },
+    {
+      "id": "indexing/embeddings/quantization-clamp-warning",
+      "order": 19
+    },
+    {
+      "id": "indexing/map/edges",
+      "order": 20
+    },
+    {
+      "id": "tooling/lsp/preflight-command-profile-no-runtime-reprobe",
+      "order": 21
+    },
+    {
+      "id": "indexing/embeddings/cache-compression-zstd",
+      "order": 22
+    },
+    {
+      "id": "tooling/lsp/preflight-runtime-command-helper-usage-guard",
+      "order": 23
+    },
+    {
+      "id": "indexing/runtime/stage-overrides",
+      "order": 24
+    },
+    {
+      "id": "indexing/type-inference/crossfile/apply",
+      "order": 25
+    },
+    {
+      "id": "retrieval/context-expansion/shuffled-chunkmeta",
+      "order": 26
+    },
+    {
+      "id": "retrieval/output/clean-context-fences",
+      "order": 27
+    },
+    {
+      "id": "tooling/lsp/runtime-config-resolution",
+      "order": 28
+    },
+    {
+      "id": "tooling/editors/harness-coverage",
+      "order": 29
+    },
+    {
+      "id": "tooling/vscode/extension",
+      "order": 30
+    },
+    {
+      "id": "tooling/vscode/extension-packaging",
+      "order": 31
+    },
+    {
+      "id": "tooling/vscode/extension-module-boundary",
+      "order": 32
+    },
+    {
+      "id": "tooling/vscode/package-archive-metadata",
+      "order": 33
+    },
+    {
+      "id": "tooling/vscode/package-determinism",
+      "order": 34
+    },
+    {
+      "id": "tooling/vscode/extension-runtime",
+      "order": 35
+    },
+    {
+      "id": "tooling/vscode/integration-harness",
+      "order": 36
+    },
+    {
+      "id": "tooling/vscode/operator-runtime",
+      "order": 37
+    },
+    {
+      "id": "tooling/vscode/operations-runtime",
+      "order": 38
+    },
+    {
+      "id": "tooling/vscode/search-failure-runtime",
+      "order": 39
+    },
+    {
+      "id": "tooling/vscode/workflow-runtime",
+      "order": 40
+    },
+    {
+      "id": "tooling/vscode/context-risk-runtime",
+      "order": 41
+    },
+    {
+      "id": "tooling/vscode/context-risk-renderers",
+      "order": 42
+    },
+    {
+      "id": "tooling/vscode/session-runtime",
+      "order": 43
+    },
+    {
+      "id": "tooling/vscode/runtime",
+      "order": 44
+    },
+    {
+      "id": "tooling/vscode/results-explorer-runtime",
+      "order": 45
+    },
+    {
+      "id": "tooling/vscode/search-entrypoints-runtime",
+      "order": 46
+    },
+    {
+      "id": "tooling/vscode/search-arg-mapping",
+      "order": 47
+    },
+    {
+      "id": "tooling/vscode/search-contract-options",
+      "order": 48
+    },
+    {
+      "id": "tooling/vscode/search-result-sections",
+      "order": 49
+    },
+    {
+      "id": "indexing/postings/queue-metrics",
+      "order": 50
+    },
+    {
+      "id": "lang/registry/collector-utils-comment-aware",
+      "order": 51
+    },
+    {
+      "id": "shared/subprocess/shell-metachar-quoting",
+      "order": 52
+    },
+    {
+      "id": "map/filter-api-contract",
+      "order": 53
+    },
+    {
+      "id": "map/isometric/member-id-zero-contract",
+      "order": 54
+    },
+    {
+      "id": "tooling/lsp/python-signature-parse",
+      "order": 55
+    },
+    {
+      "id": "retrieval/filters/lang-filter",
+      "order": 56
+    },
+    {
+      "id": "retrieval/output/clean-context-nonstring-guard",
+      "order": 57
+    },
+    {
+      "id": "runner/harness/copy-fixture",
+      "order": 58
+    },
+    {
+      "id": "shared/concurrency/scheduler-config-parse",
+      "order": 59
+    },
+    {
+      "id": "indexing/embeddings/cache-layout-provider-model",
+      "order": 60
+    },
+    {
+      "id": "indexing/embeddings/quantization-no-wrap",
+      "order": 61
+    },
+    {
+      "id": "indexing/identity/kind-group",
+      "order": 62
+    },
+    {
+      "id": "indexing/tooling/vfs-sort-key-numeric-order",
+      "order": 63
+    },
+    {
+      "id": "indexing/embeddings/cache-binary-roundtrip",
+      "order": 64
+    },
+    {
+      "id": "retrieval/context-expansion/reason-precedence",
+      "order": 65
+    },
+    {
+      "id": "shared/provenance/contract",
+      "order": 66
+    },
+    {
+      "id": "shared/runtime/envelope-node-options-merge",
+      "order": 67
+    },
+    {
+      "id": "storage/sqlite/pragmas-restore-contract",
+      "order": 68
+    },
+    {
+      "id": "indexing/runtime/content-hash",
+      "order": 69
+    },
+    {
+      "id": "map/viewer-telemetry",
+      "order": 70
+    },
+    {
+      "id": "retrieval/context/expansion",
+      "order": 71
+    },
+    {
+      "id": "shared/concurrency/io-cap",
+      "order": 72
+    },
+    {
+      "id": "ci/workflow-contract",
+      "order": 73
+    },
+    {
+      "id": "indexing/identity/join-precedence",
+      "order": 74
+    },
+    {
+      "id": "indexing/ignore/optional-defaults",
+      "order": 75
+    },
+    {
+      "id": "tooling/vfs/token-uri-contract",
+      "order": 76
+    },
+    {
+      "id": "shared/path-normalize/path-containment-contract",
+      "order": 77
+    },
+    {
+      "id": "ci/npm-script-targets",
+      "order": 78
+    },
+    {
+      "id": "indexing/chunk-id/stable-id-does-not-depend-on-name-or-kind",
+      "order": 79
+    },
+    {
+      "id": "indexing/imports/import-resolution-cache-save-failure-health",
+      "order": 80
+    },
+    {
+      "id": "indexing/type-inference/symbolref-envelope",
+      "order": 81
+    },
+    {
+      "id": "shared/order/deterministic-ordering-contract",
+      "order": 82
+    },
+    {
+      "id": "shared/subprocess/spawn-error-propagates",
+      "order": 83
+    },
+    {
+      "id": "graph/output-deterministic",
+      "order": 84
+    },
+    {
+      "id": "retrieval/backend/retrieval-policy",
+      "order": 85
+    },
+    {
+      "id": "shared/fs/find-upwards-contract",
+      "order": 86
+    },
+    {
+      "id": "shared/safe-regex/program-size-cap",
+      "order": 87
+    },
+    {
+      "id": "indexing/identity/symbolkey-scopedid",
+      "order": 88
+    },
+    {
+      "id": "retrieval/filters/ext-filter",
+      "order": 89
+    },
+    {
+      "id": "shared/concurrency/io-cap-uv-threadpool",
+      "order": 90
+    },
+    {
+      "id": "indexing/chunking/limits",
+      "order": 91
+    },
+    {
+      "id": "indexing/embeddings/maintenance-thresholds",
+      "order": 92
+    },
+    {
+      "id": "indexing/embeddings/merge-vectors-no-nan",
+      "order": 93
+    },
+    {
+      "id": "indexing/identity/symbol",
+      "order": 94
+    },
+    {
+      "id": "retrieval/ann/embedding-dims-normalization",
+      "order": 95
+    },
+    {
+      "id": "retrieval/ann/similarity-metric-contract",
+      "order": 96
+    },
+    {
+      "id": "tooling/signature-parse/go-rust-signatures",
+      "order": 97
+    },
+    {
+      "id": "indexing/embeddings/provider-init-retry-contract",
+      "order": 98
+    },
+    {
+      "id": "indexing/type-inference/crossfile/resolve-relative-import",
+      "order": 99
+    },
+    {
+      "id": "shared/runtime/envelope-uv-threadpool-precedence",
+      "order": 100
+    },
+    {
+      "id": "shared/safe-regex/engine",
+      "order": 101
+    },
+    {
+      "id": "tooling/install/rebuild-native-required-contract",
+      "order": 102
+    },
+    {
+      "id": "indexing/identity/symbolref-envelope-required",
+      "order": 103
+    },
+    {
+      "id": "indexing/scm/jj-head-parse",
+      "order": 104
+    },
+    {
+      "id": "indexing/tree-sitter/vfs-language-routing",
+      "order": 105
+    },
+    {
+      "id": "retrieval/filters/active",
+      "order": 106
+    },
+    {
+      "id": "retrieval/graph/impact-analysis-upstream",
+      "order": 107
+    },
+    {
+      "id": "shared/safe-regex/input-length-cap",
+      "order": 108
+    },
+    {
+      "id": "tooling/lsp/zig-signature-parse",
+      "order": 109
+    },
+    {
+      "id": "indexing/artifacts/file-meta",
+      "order": 110
+    },
+    {
+      "id": "indexing/build/id-nonce-contract",
+      "order": 111
+    },
+    {
+      "id": "indexing/chunk-meta/id-alignment",
+      "order": 112
+    },
+    {
+      "id": "shared/cli/noop-task",
+      "order": 113
+    },
+    {
+      "id": "shared/embeddings-cache/decode-vector-bounds",
+      "order": 114
+    },
+    {
+      "id": "shared/jsonl/read-row-max-bytes-enforced",
+      "order": 115
+    },
+    {
+      "id": "tooling/lsp/elixir-signature-parse",
+      "order": 116
+    },
+    {
+      "id": "indexing/imports/warning-dispositions",
+      "order": 117
+    },
+    {
+      "id": "retrieval/output/explain-color-fallback",
+      "order": 118
+    },
+    {
+      "id": "shared/fs/atomic-replace-sync-stale-bak-collision-guard",
+      "order": 119
+    },
+    {
+      "id": "shared/json-stream/atomic-replace",
+      "order": 120
+    },
+    {
+      "id": "shared/json-stream/json-encode-cycle-guard",
+      "order": 121
+    },
+    {
+      "id": "shared/safe-regex/flags-normalization",
+      "order": 122
+    },
+    {
+      "id": "ci-lite/placeholder",
+      "order": 123
+    },
+    {
+      "id": "indexing/type-inference/providers/type-inference-typescript-provider-no-ts",
+      "order": 124
+    },
+    {
+      "id": "lang/registry/collector-metamorphic-comment-placement",
+      "order": 125
+    },
+    {
+      "id": "retrieval/ann/backend-normalization-parity",
+      "order": 126
+    },
+    {
+      "id": "storage/backend/policy",
+      "order": 127
+    },
+    {
+      "id": "tooling/lsp/preflight-await-manager-usage-guard",
+      "order": 128
+    },
+    {
+      "id": "indexing/chunking/guardrails",
+      "order": 129
+    },
+    {
+      "id": "indexing/embeddings/identity",
+      "order": 130
+    },
+    {
+      "id": "map/html-escape-contract",
+      "order": 131
+    },
+    {
+      "id": "retrieval/ann/backend-selection",
+      "order": 132
+    },
+    {
+      "id": "shared/cache/policy-contract",
+      "order": 133
+    },
+    {
+      "id": "tooling/architecture/forbidden-import-edge",
+      "order": 134
+    },
+    {
+      "id": "indexing/imports/cache-hard-cutover",
+      "order": 135
+    },
+    {
+      "id": "retrieval/context-expansion/no-candidate-explosion",
+      "order": 136
+    },
+    {
+      "id": "retrieval/pipeline/topk-equivalence",
+      "order": 137
+    },
+    {
+      "id": "smoke/tantivy",
+      "order": 138
+    },
+    {
+      "id": "tooling/test-selection/suggest-tests-witness-path",
+      "order": 139
+    },
+    {
+      "id": "indexing/identity/chunkuid-stability-lineshift",
+      "order": 140
+    },
+    {
+      "id": "indexing/relations/file-name-collision-no-wrong-join",
+      "order": 141
+    },
+    {
+      "id": "retrieval/pipeline/object-pool-leak",
+      "order": 142
+    },
+    {
+      "id": "shared/concurrency/run-with-queue-best-effort",
+      "order": 143
+    },
+    {
+      "id": "tooling/vfs/segment-hash-cache",
+      "order": 144
+    },
+    {
+      "id": "graph/symbol-direction",
+      "order": 145
+    },
+    {
+      "id": "indexing/metav2/metadata-v2",
+      "order": 146
+    },
+    {
+      "id": "retrieval/graph/impact-analysis-caps-and-truncation",
+      "order": 147
+    },
+    {
+      "id": "tooling/signature-parse/shared-splitter",
+      "order": 148
+    },
+    {
+      "id": "indexing/graphs/caps-enforced-and-reported",
+      "order": 149
+    },
+    {
+      "id": "shared/concurrency/run-with-queue-iterables",
+      "order": 150
+    },
+    {
+      "id": "indexing/artifacts/file-meta-stable-ids",
+      "order": 151
+    },
+    {
+      "id": "indexing/type-inference/crossfile/extract",
+      "order": 152
+    },
+    {
+      "id": "retrieval/context-expansion/determinism",
+      "order": 153
+    },
+    {
+      "id": "shared/concurrency/run-with-queue-error-propagation",
+      "order": 154
+    },
+    {
+      "id": "tooling/lsp/haskell-signature-parse",
+      "order": 155
+    },
+    {
+      "id": "graph/truncation-deterministic",
+      "order": 156
+    },
+    {
+      "id": "indexing/callsite-id/zero-based",
+      "order": 157
+    },
+    {
+      "id": "indexing/identity/chunkuid-collision-disambiguation",
+      "order": 158
+    },
+    {
+      "id": "indexing/state/patch-queue-lock-unavailable-best-effort-retry",
+      "order": 159
+    },
+    {
+      "id": "indexing/state/patch-queue-lock-unavailable-mixed-durability",
+      "order": 160
+    },
+    {
+      "id": "indexing/state/patch-queue-lock-unavailable-owner-attribution",
+      "order": 161
+    },
+    {
+      "id": "indexing/tree-sitter/worker-prune-bounds",
+      "order": 162
+    },
+    {
+      "id": "retrieval/graph/context-pack-determinism",
+      "order": 163
+    },
+    {
+      "id": "shared/concurrency/run-with-queue-backpressure-on-reject",
+      "order": 164
+    },
+    {
+      "id": "shared/progress/ring-buffer-circular-meta",
+      "order": 165
+    },
+    {
+      "id": "tooling/architecture/forbidden-call-edge",
+      "order": 166
+    },
+    {
+      "id": "tooling/test-selection/suggest-tests-determinism",
+      "order": 167
+    },
+    {
+      "id": "indexing/relations/memory-release",
+      "order": 168
+    },
+    {
+      "id": "indexing/type-inference/local/type-inference",
+      "order": 169
+    },
+    {
+      "id": "tooling/lsp/path-policy",
+      "order": 170
+    },
+    {
+      "id": "tooling/lsp/document-symbol-path-policy-skips-initialize",
+      "order": 171
+    },
+    {
+      "id": "tooling/lsp/document-symbol-no-targets-skips-initialize",
+      "order": 172
+    },
+    {
+      "id": "graph/edge-bucket-determinism",
+      "order": 173
+    },
+    {
+      "id": "retrieval/federation/query-cache-invalidation-via-manifesthash",
+      "order": 174
+    },
+    {
+      "id": "retrieval/filters/filter-index-config-hash",
+      "order": 175
+    },
+    {
+      "id": "shared/concurrency/scheduler-contract",
+      "order": 176
+    },
+    {
+      "id": "shared/encoding/hash",
+      "order": 177
+    },
+    {
+      "id": "storage/sqlite/build/output-paths",
+      "order": 178
+    },
+    {
+      "id": "graph/architecture-output-deterministic",
+      "order": 179
+    },
+    {
+      "id": "indexing/relations/graph-call-sites-preferred",
+      "order": 180
+    },
+    {
+      "id": "lang/python/heuristic-chunking",
+      "order": 181
+    },
+    {
+      "id": "shared/concurrency/retry-with-backoff",
+      "order": 182
+    },
+    {
+      "id": "shared/jsonrpc/parser",
+      "order": 183
+    },
+    {
+      "id": "tooling/vfs/token-uri-roundtrip",
+      "order": 184
+    },
+    {
+      "id": "indexing/artifacts/file-meta-columnar-roundtrip",
+      "order": 185
+    },
+    {
+      "id": "indexing/embeddings/dims-validation",
+      "order": 186
+    },
+    {
+      "id": "indexing/relations/graph-chunk-id",
+      "order": 187
+    },
+    {
+      "id": "indexing/scm/jj-changed-files-normalization",
+      "order": 188
+    },
+    {
+      "id": "retrieval/pipeline/context-skips",
+      "order": 189
+    },
+    {
+      "id": "indexing/scm/file-meta-snapshot-partial-fallback",
+      "order": 190
+    },
+    {
+      "id": "services/embeddings/mode-root-divergence-maintenance",
+      "order": 191
+    },
+    {
+      "id": "shared/json-stream/compress-options",
+      "order": 192
+    },
+    {
+      "id": "tooling/lsp/ruby-signature-parse",
+      "order": 193
+    },
+    {
+      "id": "tooling/lsp/swift-signature-parse",
+      "order": 194
+    },
+    {
+      "id": "indexing/artifacts/file-meta-membership-performance",
+      "order": 195
+    },
+    {
+      "id": "indexing/identity/chunkuid-ordinal-fallback",
+      "order": 196
+    },
+    {
+      "id": "indexing/tree-sitter/timeout-disable",
+      "order": 197
+    },
+    {
+      "id": "retrieval/graph/impact-analysis-determinism",
+      "order": 198
+    },
+    {
+      "id": "retrieval/graph/impact-analysis-downstream",
+      "order": 199
+    },
+    {
+      "id": "shared/runtime/thread-limits-precedence-cli-over-env",
+      "order": 200
+    },
+    {
+      "id": "indexing/metav2/metadata-v2-param-map-tooling-split",
+      "order": 201
+    },
+    {
+      "id": "shared/subprocess/tracked-leak-fails-process",
+      "order": 202
+    },
+    {
+      "id": "indexing/embeddings/cache-fast-reject",
+      "order": 203
+    },
+    {
+      "id": "indexing/postings/compact-token-roundtrip",
+      "order": 204
+    },
+    {
+      "id": "indexing/relations/graph-v2-chunkuid",
+      "order": 205
+    },
+    {
+      "id": "indexing/type-inference/crossfile/symbols",
+      "order": 206
+    },
+    {
+      "id": "retrieval/filters/retrieval-branch-filter",
+      "order": 207
+    },
+    {
+      "id": "shared/cache/root-versioning",
+      "order": 208
+    },
+    {
+      "id": "map/viewer-display-limits",
+      "order": 209
+    },
+    {
+      "id": "retrieval/graph/impact-analysis-changed-set",
+      "order": 210
+    },
+    {
+      "id": "shared/json-stream/maxbytes-enforced",
+      "order": 211
+    },
+    {
+      "id": "tooling/architecture/report-determinism",
+      "order": 212
+    },
+    {
+      "id": "shared/async/runwithqueue-failfast",
+      "order": 213
+    },
+    {
+      "id": "tooling/lsp/preflight-manager-entrypoint-guard",
+      "order": 214
+    },
+    {
+      "id": "indexing/validate/filter-index-requires-bylang-when-segment-aware",
+      "order": 215
+    },
+    {
+      "id": "tooling/architecture/report-is-bounded",
+      "order": 216
+    },
+    {
+      "id": "tooling/docs/perfplan-sync",
+      "order": 217
+    },
+    {
+      "id": "graph/count-mismatch-warning",
+      "order": 218
+    },
+    {
+      "id": "graph/edge-dedupe-policy",
+      "order": 219
+    },
+    {
+      "id": "indexing/relations/graph-call-sites-fallback",
+      "order": 220
+    },
+    {
+      "id": "indexing/tokenization/tokenize-dictionary",
+      "order": 221
+    },
+    {
+      "id": "retrieval/filter-index/effective-lang-fallback",
+      "order": 222
+    },
+    {
+      "id": "graph/architecture-rules-cache",
+      "order": 223
+    },
+    {
+      "id": "tooling/docs/jsdoc-standards-sync",
+      "order": 224
+    },
+    {
+      "id": "tooling/lsp/target-index",
+      "order": 225
+    },
+    {
+      "id": "indexing/tree-sitter/chunk-cache-persistent",
+      "order": 226
+    },
+    {
+      "id": "shared/fs/atomic-replace-restores-backup-on-missing-temp",
+      "order": 227
+    },
+    {
+      "id": "shared/fs/atomic-replace-final-committed-missing-temp",
+      "order": 228
+    },
+    {
+      "id": "shared/seed-ref/parse",
+      "order": 229
+    },
+    {
+      "id": "storage/sqlite/build-pragmas-restore",
+      "order": 230
+    },
+    {
+      "id": "indexing/postings/token-id-parse-resilience",
+      "order": 231
+    },
+    {
+      "id": "retrieval/federation/query-cache-key-stability",
+      "order": 232
+    },
+    {
+      "id": "tooling/test-selection/suggest-tests-basic",
+      "order": 233
+    },
+    {
+      "id": "indexing/postings/packed-roundtrip",
+      "order": 234
+    },
+    {
+      "id": "shared/io/remove-path-with-retry",
+      "order": 235
+    },
+    {
+      "id": "shared/json-stream/abort-closes-stream",
+      "order": 236
+    },
+    {
+      "id": "indexing/signatures/signature-canonicalization",
+      "order": 237
+    },
+    {
+      "id": "retrieval/ann/candidate-set-contract",
+      "order": 238
+    },
+    {
+      "id": "retrieval/cli/options-smoke",
+      "order": 239
+    },
+    {
+      "id": "indexing/ordering/ordered-appender-stale-drop",
+      "order": 240
+    },
+    {
+      "id": "shared/logging/warn-once",
+      "order": 241
+    },
+    {
+      "id": "storage/sqlite/build-pragmas-dynamic",
+      "order": 242
+    },
+    {
+      "id": "tooling/eval/match-mode",
+      "order": 243
+    },
+    {
+      "id": "indexing/type-inference/crossfile/symbolref-resolution",
+      "order": 244
+    },
+    {
+      "id": "lang/registry/collectors",
+      "order": 245
+    },
+    {
+      "id": "shared/cache/key-schema",
+      "order": 246
+    },
+    {
+      "id": "shared/json-stream/gzip-options-forwarded",
+      "order": 247
+    },
+    {
+      "id": "tooling/docs/embeddings-cache-sync",
+      "order": 248
+    },
+    {
+      "id": "tooling/docs/spec-links-valid",
+      "order": 249
+    },
+    {
+      "id": "indexing/build-cleanup-pending-timeout",
+      "order": 250
+    },
+    {
+      "id": "indexing/embeddings/cache-index-fallback-entry",
+      "order": 251
+    },
+    {
+      "id": "map/viewer-culling-correctness",
+      "order": 252
+    },
+    {
+      "id": "retrieval/pipeline/topk-tie-break",
+      "order": 253
+    },
+    {
+      "id": "indexing/cache/cas-reuse-across-repos",
+      "order": 254
+    },
+    {
+      "id": "indexing/postings/quantize",
+      "order": 255
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-deferred-options",
+      "order": 256
+    },
+    {
+      "id": "retrieval/federation/repo-selection",
+      "order": 257
+    },
+    {
+      "id": "lang/ruby/end-comment",
+      "order": 258
+    },
+    {
+      "id": "shared/artifact-io/varint-safe-bounds",
+      "order": 259
+    },
+    {
+      "id": "shared/progress/total-zero-safe",
+      "order": 260
+    },
+    {
+      "id": "graph/context-pack-skip-resort",
+      "order": 261
+    },
+    {
+      "id": "graph/suggest-tests-cache",
+      "order": 262
+    },
+    {
+      "id": "shared/files/read-file-range-fd-zero-guard",
+      "order": 263
+    },
+    {
+      "id": "graph/contracts/graph-artifact-ordering-contract",
+      "order": 264
+    },
+    {
+      "id": "tooling/vfs/cdc-segmentation-stability",
+      "order": 265
+    },
+    {
+      "id": "graph/witness-path-lazy",
+      "order": 266
+    },
+    {
+      "id": "indexing/embeddings/embedding-merge-vectors-semantics",
+      "order": 267
+    },
+    {
+      "id": "indexing/lifecycle/shutdown-drain-contract",
+      "order": 268
+    },
+    {
+      "id": "indexing/risk/rules/invalid-pattern-diagnostics",
+      "order": 269
+    },
+    {
+      "id": "indexing/embeddings/cache-invalidation",
+      "order": 270
+    },
+    {
+      "id": "indexing/tree-sitter/adaptive-budget",
+      "order": 271
+    },
+    {
+      "id": "indexing/tree-sitter/chunks",
+      "order": 272
+    },
+    {
+      "id": "lang/clike/doc-comments",
+      "order": 273
+    },
+    {
+      "id": "graph/edge-type-inclusion",
+      "order": 274
+    },
+    {
+      "id": "indexing/tree-sitter/streaming-chunking",
+      "order": 275
+    },
+    {
+      "id": "indexing/risk/analysis-caps",
+      "order": 276
+    },
+    {
+      "id": "indexing/risk/rules/risk-config",
+      "order": 277
+    },
+    {
+      "id": "shared/cache/migration",
+      "order": 278
+    },
+    {
+      "id": "tooling/vfs/hash-routing-contract",
+      "order": 279
+    },
+    {
+      "id": "indexing/artifacts/active-write-telemetry-snapshot",
+      "order": 280
+    },
+    {
+      "id": "indexing/artifacts/write-telemetry-thresholds",
+      "order": 281
+    },
+    {
+      "id": "indexing/risk/interprocedural/summaries-schema",
+      "order": 282
+    },
+    {
+      "id": "shared/concurrency/pending-limit-enforced",
+      "order": 283
+    },
+    {
+      "id": "shared/concurrency/run-with-queue-backpressure-keepalive",
+      "order": 284
+    },
+    {
+      "id": "shared/concurrency/run-with-queue-pending-drain-keepalive",
+      "order": 285
+    },
+    {
+      "id": "indexing/state/patch-queue-durability-class-forwarding",
+      "order": 286
+    },
+    {
+      "id": "shared/merge/determinism",
+      "order": 287
+    },
+    {
+      "id": "indexing/filter-index/release",
+      "order": 288
+    },
+    {
+      "id": "lang/php/methods-unique",
+      "order": 289
+    },
+    {
+      "id": "shared/path-handling",
+      "order": 290
+    },
+    {
+      "id": "tooling/vfs/hash-routing",
+      "order": 291
+    },
+    {
+      "id": "retrieval/federation/cli-mode-forwarding",
+      "order": 292
+    },
+    {
+      "id": "retrieval/federation/raw-args-end-of-options",
+      "order": 293
+    },
+    {
+      "id": "indexing/runtime/caps-policy-merge",
+      "order": 294
+    },
+    {
+      "id": "tooling/lsp/signature-quality-score",
+      "order": 295
+    },
+    {
+      "id": "graph/multiseed-bfs-deterministic",
+      "order": 296
+    },
+    {
+      "id": "indexing/embeddings/writer-backpressure",
+      "order": 297
+    },
+    {
+      "id": "indexing/risk/interprocedural/flows-sanitizer-policy",
+      "order": 298
+    },
+    {
+      "id": "indexing/postings/typedarray-legacy-float-extraction",
+      "order": 299
+    },
+    {
+      "id": "indexing/risk/analysis-taint",
+      "order": 300
+    },
+    {
+      "id": "shared/cache/preflight-meta",
+      "order": 301
+    },
+    {
+      "id": "indexing/risk/interprocedural/local-pointer-hash",
+      "order": 302
+    },
+    {
+      "id": "retrieval/query/intent",
+      "order": 303
+    },
+    {
+      "id": "indexing/postings/doc-only-missing-doc-is-zero",
+      "order": 304
+    },
+    {
+      "id": "retrieval/pipeline/filter-bitmap-equivalence",
+      "order": 305
+    },
+    {
+      "id": "map/viewer-selection-stability",
+      "order": 306
+    },
+    {
+      "id": "retrieval/filters/filter-index-bylang",
+      "order": 307
+    },
+    {
+      "id": "indexing/relations/collision-guard",
+      "order": 308
+    },
+    {
+      "id": "shared/cache/lru",
+      "order": 309
+    },
+    {
+      "id": "shared/order/stability",
+      "order": 310
+    },
+    {
+      "id": "shared/progress/show-total-zero",
+      "order": 311
+    },
+    {
+      "id": "indexing/risk/interprocedural/summaries-determinism",
+      "order": 312
+    },
+    {
+      "id": "retrieval/ranking/rank-dense-dims",
+      "order": 313
+    },
+    {
+      "id": "shared/fs/atomic-replace-cleans-bak",
+      "order": 314
+    },
+    {
+      "id": "indexing/tree-sitter/eviction-determinism",
+      "order": 315
+    },
+    {
+      "id": "retrieval/pipeline/ranking-fastpath",
+      "order": 316
+    },
+    {
+      "id": "shared/order/hash",
+      "order": 317
+    },
+    {
+      "id": "graph/filter-predicate-deterministic",
+      "order": 318
+    },
+    {
+      "id": "indexing/artifacts/offsets-unified-roundtrip",
+      "order": 319
+    },
+    {
+      "id": "indexing/runtime/vfs-checkpoint-stats",
+      "order": 320
+    },
+    {
+      "id": "shared/json-stream/typedarray-sharded",
+      "order": 321
+    },
+    {
+      "id": "storage/sqlite/wal-size-limit",
+      "order": 322
+    },
+    {
+      "id": "tooling/docs/artifact-schema-index",
+      "order": 323
+    },
+    {
+      "id": "graph/filter-warnings",
+      "order": 324
+    },
+    {
+      "id": "shared/concurrency/run-with-queue-abort",
+      "order": 325
+    },
+    {
+      "id": "indexing/determinism/symbol-artifact-order",
+      "order": 326
+    },
+    {
+      "id": "indexing/artifacts/token-mode",
+      "order": 327
+    },
+    {
+      "id": "indexing/embeddings/embedding-batch-multipliers",
+      "order": 328
+    },
+    {
+      "id": "shared/artifact-io/loader-parallelism",
+      "order": 329
+    },
+    {
+      "id": "graph/import-missing-file-warning",
+      "order": 330
+    },
+    {
+      "id": "graph/adjacency-presorted",
+      "order": 331
+    },
+    {
+      "id": "indexing/embeddings/embedding-normalization-consistency",
+      "order": 332
+    },
+    {
+      "id": "retrieval/pipeline/json-streaming",
+      "order": 333
+    },
+    {
+      "id": "indexing/artifacts/token-postings-shard-size-guard",
+      "order": 334
+    },
+    {
+      "id": "indexing/build-state/ledger-roundtrip",
+      "order": 335
+    },
+    {
+      "id": "retrieval/federation/raw-args-compact-top-flag",
+      "order": 336
+    },
+    {
+      "id": "retrieval/pipeline/filter-bitmap-shortcircuit",
+      "order": 337
+    },
+    {
+      "id": "retrieval/pipeline/filter-bitmap-threshold",
+      "order": 338
+    },
+    {
+      "id": "tooling/vfs/idx-contract",
+      "order": 339
+    },
+    {
+      "id": "indexing/runtime/stage-memory-checkpoints",
+      "order": 340
+    },
+    {
+      "id": "shared/encoding/matrix",
+      "order": 341
+    },
+    {
+      "id": "indexing/artifacts/manifest/pieces-strict",
+      "order": 342
+    },
+    {
+      "id": "integrations/lsp/uri-decode-malformed-input",
+      "order": 343
+    },
+    {
+      "id": "shared/artifact-io/validation-fastpath",
+      "order": 344
+    },
+    {
+      "id": "shared/json-stream/tombstone-cleanup-target-scope",
+      "order": 345
+    },
+    {
+      "id": "indexing/incremental/reuse",
+      "order": 346
+    },
+    {
+      "id": "lang/javascript/js-imports",
+      "order": 347
+    },
+    {
+      "id": "retrieval/backend/retrieval-auto-sqlite-thresholds",
+      "order": 348
+    },
+    {
+      "id": "retrieval/filters/filter-index",
+      "order": 349
+    },
+    {
+      "id": "shared/json-stream/jsonl-gzip",
+      "order": 350
+    },
+    {
+      "id": "indexer/incremental/plan",
+      "order": 351
+    },
+    {
+      "id": "indexing/embeddings/cache-pruning",
+      "order": 352
+    },
+    {
+      "id": "indexing/risk/interprocedural/callsite-sampling",
+      "order": 353
+    },
+    {
+      "id": "shared/merge/cleanup-regression",
+      "order": 354
+    },
+    {
+      "id": "tooling/lsp/client-metrics-snapshot-cache",
+      "order": 355
+    },
+    {
+      "id": "indexer/incremental/index-reuse-validation",
+      "order": 356
+    },
+    {
+      "id": "indexing/runtime/stage-timing-checkpoints",
+      "order": 357
+    },
+    {
+      "id": "indexing/scm/config-bench-annotate-default",
+      "order": 358
+    },
+    {
+      "id": "retrieval/filters/filter-strictness",
+      "order": 359
+    },
+    {
+      "id": "shared/lifecycle/registry-contract",
+      "order": 360
+    },
+    {
+      "id": "shared/lifecycle/registry-pending-keepalive",
+      "order": 361
+    },
+    {
+      "id": "indexing/extracted-prose/low-yield-doc-sample-bias",
+      "order": 362
+    },
+    {
+      "id": "graph/id-remap-roundtrip",
+      "order": 363
+    },
+    {
+      "id": "graph/index-cache-reuse",
+      "order": 364
+    },
+    {
+      "id": "indexing/postings/guard-max-unique-keeps-existing",
+      "order": 365
+    },
+    {
+      "id": "lang/javascript/js-chunking",
+      "order": 366
+    },
+    {
+      "id": "graph/store-csr-artifact-load",
+      "order": 367
+    },
+    {
+      "id": "indexing/scm/jj-changed-files-parse",
+      "order": 368
+    },
+    {
+      "id": "retrieval/context-pack/assembly",
+      "order": 369
+    },
+    {
+      "id": "context-pack/risk-assembly",
+      "order": 370
+    },
+    {
+      "id": "context-pack/risk-seed-anchoring",
+      "order": 371
+    },
+    {
+      "id": "shared/merge/spill-contract",
+      "order": 372
+    },
+    {
+      "id": "storage/sqlite/cache",
+      "order": 373
+    },
+    {
+      "id": "retrieval/pipeline/filter-compiled-reuse",
+      "order": 374
+    },
+    {
+      "id": "tooling/test-selection/suggest-tests-bounded",
+      "order": 375
+    },
+    {
+      "id": "indexing/tree-sitter/chunk-cache-reuse",
+      "order": 376
+    },
+    {
+      "id": "lang/kotlin/perf-guard",
+      "order": 377
+    },
+    {
+      "id": "tooling/docs/truth-table",
+      "order": 378
+    },
+    {
+      "id": "context-pack/seed-normalization",
+      "order": 379
+    },
+    {
+      "id": "indexing/build-state/build-truth-ledger-hash-alignment",
+      "order": 380
+    },
+    {
+      "id": "indexing/risk/interprocedural/stats-effective-config",
+      "order": 381
+    },
+    {
+      "id": "indexing/risk/interprocedural/framework-semantics",
+      "order": 382
+    },
+    {
+      "id": "retrieval/cache/index",
+      "order": 383
+    },
+    {
+      "id": "shared/artifact-io/jsonl-concurrency-order",
+      "order": 384
+    },
+    {
+      "id": "shared/encoding/metadata-plumbed-and-reused",
+      "order": 385
+    },
+    {
+      "id": "cli/search/help-fastpath",
+      "order": 386
+    },
+    {
+      "id": "graph/reporoot-warning",
+      "order": 387
+    },
+    {
+      "id": "indexing/embeddings/onnx-session-queue",
+      "order": 388
+    },
+    {
+      "id": "indexing/tree-sitter/preload-limited",
+      "order": 389
+    },
+    {
+      "id": "shared/json-stream/codec-contract",
+      "order": 390
+    },
+    {
+      "id": "indexing/artifacts/writers/writer-common-contract",
+      "order": 391
+    },
+    {
+      "id": "lang/python/imports",
+      "order": 392
+    },
+    {
+      "id": "context-pack/excerpt-file-cache",
+      "order": 393
+    },
+    {
+      "id": "context-pack/range-reads",
+      "order": 394
+    },
+    {
+      "id": "indexing/risk/interprocedural/flows-cap-matrix",
+      "order": 395
+    },
+    {
+      "id": "indexing/state/patch-queue-required-durability-awaits-flush",
+      "order": 396
+    },
+    {
+      "id": "shared/truncation/contract",
+      "order": 397
+    },
+    {
+      "id": "tooling/docs/config-inventory-sync",
+      "order": 398
+    },
+    {
+      "id": "indexing/tree-sitter/runtime-cache",
+      "order": 399
+    },
+    {
+      "id": "shared/json-stream/jsonl-utf8",
+      "order": 400
+    },
+    {
+      "id": "shared/merge/core",
+      "order": 401
+    },
+    {
+      "id": "context-pack/shared-index",
+      "order": 402
+    },
+    {
+      "id": "shared/artifact-io/offsets-unified",
+      "order": 403
+    },
+    {
+      "id": "shared/progress/tty-normalization",
+      "order": 404
+    },
+    {
+      "id": "map/viewer-instancing-count",
+      "order": 405
+    },
+    {
+      "id": "shared/merge/contract",
+      "order": 406
+    },
+    {
+      "id": "context-pack/excerpt-dedupe",
+      "order": 407
+    },
+    {
+      "id": "indexer/signatures/index-signature",
+      "order": 408
+    },
+    {
+      "id": "retrieval/pipeline/output-cache-hit",
+      "order": 409
+    },
+    {
+      "id": "indexing/chunk-meta/ordering",
+      "order": 410
+    },
+    {
+      "id": "indexing/determinism/ordering-ledger-integration",
+      "order": 411
+    },
+    {
+      "id": "indexing/file-processor/cached-bundle-does-not-emit-stale-metav2",
+      "order": 412
+    },
+    {
+      "id": "indexing/scm/signature-provenance-stability",
+      "order": 413
+    },
+    {
+      "id": "lang/javascript/js-relations",
+      "order": 414
+    },
+    {
+      "id": "indexing/file-processor/cached-bundle",
+      "order": 415
+    },
+    {
+      "id": "indexing/ordering/ordered-appender-capacity-keepalive",
+      "order": 416
+    },
+    {
+      "id": "indexing/stage1/postings-queue-byte-accounting",
+      "order": 417
+    },
+    {
+      "id": "indexing/stage1/postings-queue-capacity-keepalive",
+      "order": 418
+    },
+    {
+      "id": "storage/sqlite/chunk-id-non-null",
+      "order": 419
+    },
+    {
+      "id": "indexing/vfs/cdc-segmentation-contract",
+      "order": 420
+    },
+    {
+      "id": "indexing/artifacts/artifact-io-manifest-discovery",
+      "order": 421
+    },
+    {
+      "id": "indexer/signatures/core",
+      "order": 422
+    },
+    {
+      "id": "indexing/failure-taxonomy-null-shard",
+      "order": 423
+    },
+    {
+      "id": "indexing/watch/root-normalization",
+      "order": 424
+    },
+    {
+      "id": "lang/python/pool",
+      "order": 425
+    },
+    {
+      "id": "shared/runtime/uv-threadpool-no-override",
+      "order": 426
+    },
+    {
+      "id": "graph/index-mismatch-warning",
+      "order": 427
+    },
+    {
+      "id": "graph/lazy-edge-load",
+      "order": 428
+    },
+    {
+      "id": "indexing/risk/interprocedural/flows-argaware-negative",
+      "order": 429
+    },
+    {
+      "id": "indexing/tree-sitter/missing-grammar-fallback",
+      "order": 430
+    },
+    {
+      "id": "shared/artifact-io/loader-fallbacks",
+      "order": 431
+    },
+    {
+      "id": "storage/sqlite/chunk-id",
+      "order": 432
+    },
+    {
+      "id": "indexing/file-caps/doc-mode-large-markdown-not-skipped",
+      "order": 433
+    },
+    {
+      "id": "indexing/risk/interprocedural/config-normalization",
+      "order": 434
+    },
+    {
+      "id": "map/build-map/temp-cleanup-on-failure",
+      "order": 435
+    },
+    {
+      "id": "indexing/file-caps/cached-bundle-respects-caps",
+      "order": 436
+    },
+    {
+      "id": "cli/general/cli-options-schema-drift",
+      "order": 437
+    },
+    {
+      "id": "indexing/map/build-symbol-identity",
+      "order": 438
+    },
+    {
+      "id": "retrieval/graph/context-pack-streaming-assembly",
+      "order": 439
+    },
+    {
+      "id": "shared/artifact-io/jsonl-stream-roundtrip",
+      "order": 440
+    },
+    {
+      "id": "shared/subprocess/capture-bounds",
+      "order": 441
+    },
+    {
+      "id": "indexing/map/chunkuid-join",
+      "order": 442
+    },
+    {
+      "id": "shared/merge/comparator-adopters",
+      "order": 443
+    },
+    {
+      "id": "storage/sqlite/build-vocab",
+      "order": 444
+    },
+    {
+      "id": "storage/sqlite/bundle-loader-worker",
+      "order": 445
+    },
+    {
+      "id": "shared/runtime/uv-threadpool-env",
+      "order": 446
+    },
+    {
+      "id": "indexing/scm/build-state-repo-provenance",
+      "order": 447
+    },
+    {
+      "id": "retrieval/graph/context-pack-seed-indexing",
+      "order": 448
+    },
+    {
+      "id": "indexing/relations/js-call-details-v2",
+      "order": 449
+    },
+    {
+      "id": "retrieval/pipeline/artifact-gating",
+      "order": 450
+    },
+    {
+      "id": "shared/artifact-io/jsonl-buffer-scan",
+      "order": 451
+    },
+    {
+      "id": "tooling/paths/current-build-fallback-artifacts",
+      "order": 452
+    },
+    {
+      "id": "indexing/chunk-meta/hot-cold-split",
+      "order": 453
+    },
+    {
+      "id": "indexing/file-caps/pre-read-skip-respects-language",
+      "order": 454
+    },
+    {
+      "id": "indexing/artifacts/artifact-bak-recovery",
+      "order": 455
+    },
+    {
+      "id": "retrieval/ranking/graph-explain",
+      "order": 456
+    },
+    {
+      "id": "shared/json-stream/jsonl-zstd",
+      "order": 457
+    },
+    {
+      "id": "context-pack/excerpt-range",
+      "order": 458
+    },
+    {
+      "id": "storage/sqlite/manifest-legacy-bundle-key",
+      "order": 459
+    },
+    {
+      "id": "indexing/artifacts/file-meta-bench-contract",
+      "order": 460
+    },
+    {
+      "id": "retrieval/pipeline/query-plan-eviction",
+      "order": 461
+    },
+    {
+      "id": "shared/json-stream/jsonl-validation",
+      "order": 462
+    },
+    {
+      "id": "graph/csr-neighbors-deterministic",
+      "order": 463
+    },
+    {
+      "id": "context-pack/excerpt-cache",
+      "order": 464
+    },
+    {
+      "id": "indexing/risk/interprocedural/summaries-truncation",
+      "order": 465
+    },
+    {
+      "id": "graph/adjacency-deterministic",
+      "order": 466
+    },
+    {
+      "id": "retrieval/pipeline/artifact-gating-deps",
+      "order": 467
+    },
+    {
+      "id": "indexing/relations/call-sites-ordering",
+      "order": 468
+    },
+    {
+      "id": "shared/artifact-io/minhash-checksum-validation",
+      "order": 469
+    },
+    {
+      "id": "indexing/runtime/byte-budget-enforcement",
+      "order": 470
+    },
+    {
+      "id": "retrieval/filters/file-case-sensitive",
+      "order": 471
+    },
+    {
+      "id": "tooling/vfs/virtualpath-deterministic",
+      "order": 472
+    },
+    {
+      "id": "indexing/postings/spill-merge-unified",
+      "order": 473
+    },
+    {
+      "id": "indexing/vfs/segment-hash-cache-contract",
+      "order": 474
+    },
+    {
+      "id": "retrieval/federation/explicit-root-no-fallback",
+      "order": 475
+    },
+    {
+      "id": "retrieval/query/negation-compound-contract",
+      "order": 476
+    },
+    {
+      "id": "storage/sqlite/batch-size-adaptive",
+      "order": 477
+    },
+    {
+      "id": "retrieval/pipeline/query-plan-invalidates-config",
+      "order": 478
+    },
+    {
+      "id": "retrieval/ranking/graph-determinism",
+      "order": 479
+    },
+    {
+      "id": "shared/artifact-io/jsonl-fuzz",
+      "order": 480
+    },
+    {
+      "id": "shared/io/bundle-io-checksum-fail-closed",
+      "order": 481
+    },
+    {
+      "id": "storage/sqlite/utils-dense-binary-load",
+      "order": 482
+    },
+    {
+      "id": "tooling/lsp/tooling",
+      "order": 483
+    },
+    {
+      "id": "storage/sqlite/build-manifest",
+      "order": 484
+    },
+    {
+      "id": "graph/store-cache-eviction",
+      "order": 485
+    },
+    {
+      "id": "indexing/extracted-prose/low-yield-min-chunks",
+      "order": 486
+    },
+    {
+      "id": "context-pack/contracts/context-pack-determinism",
+      "order": 487
+    },
+    {
+      "id": "context-pack/assembly-memory",
+      "order": 488
+    },
+    {
+      "id": "indexing/relations/ts-call-details-v2",
+      "order": 489
+    },
+    {
+      "id": "shared/artifact-io/minhash-packed-row-stability",
+      "order": 490
+    },
+    {
+      "id": "storage/sqlite/build-delete",
+      "order": 491
+    },
+    {
+      "id": "shared/config/validate-object-without-properties",
+      "order": 492
+    },
+    {
+      "id": "shared/validation/ajv-factory-contract",
+      "order": 493
+    },
+    {
+      "id": "tooling/type-inference/crossfile-cache-degraded-stats-normalization",
+      "order": 494
+    },
+    {
+      "id": "indexing/artifacts/call-sites-manifest",
+      "order": 495
+    },
+    {
+      "id": "indexing/postings/token-id-canonicalization",
+      "order": 496
+    },
+    {
+      "id": "tooling/vfs/bloom-negative-lookup",
+      "order": 497
+    },
+    {
+      "id": "indexing/postings/spill-merge-compat",
+      "order": 498
+    },
+    {
+      "id": "shared/merge/benchmark-contract",
+      "order": 499
+    },
+    {
+      "id": "indexing/artifacts/symbol-smoke",
+      "order": 500
+    },
+    {
+      "id": "indexing/artifacts/symbols/symbol-by-file-index",
+      "order": 501
+    },
+    {
+      "id": "indexing/embeddings/build/runtime-defaults",
+      "order": 502
+    },
+    {
+      "id": "retrieval/query/parse",
+      "order": 503
+    },
+    {
+      "id": "indexing/artifacts/repo-map-delta-eligibility",
+      "order": 504
+    },
+    {
+      "id": "indexing/watch/stability-checks",
+      "order": 505
+    },
+    {
+      "id": "retrieval/ranking/rank-dense-binary-buffer",
+      "order": 506
+    },
+    {
+      "id": "shared/artifact-io/packed-postings-windowed-read",
+      "order": 507
+    },
+    {
+      "id": "retrieval/ranking/graph-membership-invariant",
+      "order": 508
+    },
+    {
+      "id": "indexing/signatures/signature-multi-mode",
+      "order": 509
+    },
+    {
+      "id": "retrieval/pipeline/query-plan-schema-version",
+      "order": 510
+    },
+    {
+      "id": "tooling/install/tooling-detect-pyright-path-key-fallback",
+      "order": 511
+    },
+    {
+      "id": "indexing/embeddings/embedding-batch-defaults",
+      "order": 512
+    },
+    {
+      "id": "map/build-map/spill-cleanup-retries",
+      "order": 513
+    },
+    {
+      "id": "graph/neighborhood-cache",
+      "order": 514
+    },
+    {
+      "id": "indexing/tree-sitter/runtime",
+      "order": 515
+    },
+    {
+      "id": "shared/artifact-io/spec-contract",
+      "order": 516
+    },
+    {
+      "id": "indexing/artifacts/symbols/symbol-artifacts-emission",
+      "order": 517
+    },
+    {
+      "id": "shared/index-ref",
+      "order": 518
+    },
+    {
+      "id": "workspace/repo-root-must-be-directory",
+      "order": 519
+    },
+    {
+      "id": "indexing/runtime/byte-budget-policy-contract",
+      "order": 520
+    },
+    {
+      "id": "shared/artifact-io/manifest-streaming",
+      "order": 521
+    },
+    {
+      "id": "tooling/vfs/maps-segment-offsets",
+      "order": 522
+    },
+    {
+      "id": "indexer/metav2/recompute-equivalence",
+      "order": 523
+    },
+    {
+      "id": "retrieval/pipeline/query-plan-cache-key",
+      "order": 524
+    },
+    {
+      "id": "indexing/build/promotion-timing-contract",
+      "order": 525
+    },
+    {
+      "id": "indexing/runtime/chunk-retention-sampling",
+      "order": 526
+    },
+    {
+      "id": "indexing/artifacts/sharded-meta/bytes",
+      "order": 527
+    },
+    {
+      "id": "indexing/artifacts/sharded-meta/manifest-consistency",
+      "order": 528
+    },
+    {
+      "id": "shared/progress/configure-logger-pino10-transport",
+      "order": 529
+    },
+    {
+      "id": "storage/sqlite/build/sqlite-core-contract",
+      "order": 530
+    },
+    {
+      "id": "indexing/incremental/signature-version",
+      "order": 531
+    },
+    {
+      "id": "retrieval/pipeline/ann-fallback-nonvector",
+      "order": 532
+    },
+    {
+      "id": "tooling/dict-utils/paths-builds-root",
+      "order": 533
+    },
+    {
+      "id": "tooling/ci/run-suite-path-normalization",
+      "order": 534
+    },
+    {
+      "id": "tooling/ci/run-suite-output-sanitization",
+      "order": 535
+    },
+    {
+      "id": "indexing/tree-sitter/query-precompile-cache",
+      "order": 536
+    },
+    {
+      "id": "indexing/watch/build-state",
+      "order": 537
+    },
+    {
+      "id": "retrieval/pipeline/query-plan-disk-cache",
+      "order": 538
+    },
+    {
+      "id": "retrieval/pipeline/query-plan-disk-cache-size-cap",
+      "order": 539
+    },
+    {
+      "id": "indexing/embeddings/build/args-parsing",
+      "order": 540
+    },
+    {
+      "id": "storage/vector-extension/sanitize",
+      "order": 541
+    },
+    {
+      "id": "indexing/chunking/sql-lua",
+      "order": 542
+    },
+    {
+      "id": "indexing/relations/memory-budget",
+      "order": 543
+    },
+    {
+      "id": "retrieval/pipeline/query-plan-requirements",
+      "order": 544
+    },
+    {
+      "id": "storage/sqlite/dense-meta-fallback",
+      "order": 545
+    },
+    {
+      "id": "retrieval/pipeline/ann-optional-skip",
+      "order": 546
+    },
+    {
+      "id": "retrieval/pipeline/query-plan-invalidates-index",
+      "order": 547
+    },
+    {
+      "id": "retrieval/pipeline/ann-preflight",
+      "order": 548
+    },
+    {
+      "id": "ci/markdown-link-check",
+      "order": 549
+    },
+    {
+      "id": "tooling/doctor/command-profile-probe-timeout-tiers",
+      "order": 550
+    },
+    {
+      "id": "tooling/vfs/offset-reader-close-timeout",
+      "order": 551
+    },
+    {
+      "id": "tooling/vfs/segment-coalesce",
+      "order": 552
+    },
+    {
+      "id": "tooling/dict-utils/paths-repo-root",
+      "order": 553
+    },
+    {
+      "id": "tooling/vfs/parallel-manifest-deterministic",
+      "order": 554
+    },
+    {
+      "id": "retrieval/pipeline/candidates-buffer-reuse",
+      "order": 555
+    },
+    {
+      "id": "storage/sqlite/token-text-materialization-skip",
+      "order": 556
+    },
+    {
+      "id": "tooling/doctor/command-profile-probe-cache-negative",
+      "order": 557
+    },
+    {
+      "id": "tooling/vfs/merge-heap-deterministic",
+      "order": 558
+    },
+    {
+      "id": "tooling/doctor/command-profile-tooling-dir-precedence",
+      "order": 559
+    },
+    {
+      "id": "tooling/doctor/command-profile-runtime-bin-dirs",
+      "order": 560
+    },
+    {
+      "id": "tooling/doctor/command-profile-global-bin-fallbacks",
+      "order": 561
+    },
+    {
+      "id": "indexing/tokenization/buffering",
+      "order": 562
+    },
+    {
+      "id": "tooling/dict-utils/dict-adaptive",
+      "order": 563
+    },
+    {
+      "id": "retrieval/backend/sqlite-fts-eligibility",
+      "order": 564
+    },
+    {
+      "id": "indexing/postings/chargram-long-token-does-not-abort",
+      "order": 565
+    },
+    {
+      "id": "tooling/logging/output-byte-accounting",
+      "order": 566
+    },
+    {
+      "id": "indexing/state/build-state-lock-unavailable-retryable",
+      "order": 567
+    },
+    {
+      "id": "indexing/state/build-state-lock-unavailable-required",
+      "order": 568
+    },
+    {
+      "id": "indexing/relations/atomicity-rollback",
+      "order": 569
+    },
+    {
+      "id": "indexing/chunking/json",
+      "order": 570
+    },
+    {
+      "id": "lang/typescript/imports-only",
+      "order": 571
+    },
+    {
+      "id": "runner/harness/pass-target",
+      "order": 572
+    },
+    {
+      "id": "tooling/vfs/disk-path-safety",
+      "order": 573
+    },
+    {
+      "id": "tooling/vfs/bloom-load-error-fallback",
+      "order": 574
+    },
+    {
+      "id": "indexing/risk/interprocedural/callsite-id",
+      "order": 575
+    },
+    {
+      "id": "retrieval/ranking/graph-toggle",
+      "order": 576
+    },
+    {
+      "id": "tooling/install/tooling-registry-pyright-langserver",
+      "order": 577
+    },
+    {
+      "id": "retrieval/ann/hnsw-distance-metrics",
+      "order": 578
+    },
+    {
+      "id": "services/api/sse-backpressure",
+      "order": 579
+    },
+    {
+      "id": "storage/sqlite/incremental/ann-existing-table",
+      "order": 580
+    },
+    {
+      "id": "tooling/doctor/command-profile-runtime-probe-args",
+      "order": 581
+    },
+    {
+      "id": "storage/sqlite/bundle-vocab-cache-eviction",
+      "order": 582
+    },
+    {
+      "id": "workspace/config-parsing",
+      "order": 583
+    },
+    {
+      "id": "shared/no-path-leak",
+      "order": 584
+    },
+    {
+      "id": "indexing/tokenization/token-classification-tree-sitter",
+      "order": 585
+    },
+    {
+      "id": "retrieval/pipeline/query-cache-hit",
+      "order": 586
+    },
+    {
+      "id": "storage/vector-extension/query-dims",
+      "order": 587
+    },
+    {
+      "id": "graph/spill-merge-deterministic",
+      "order": 588
+    },
+    {
+      "id": "storage/vector-extension/large-candidate-pushdown",
+      "order": 589
+    },
+    {
+      "id": "retrieval/ann/hnsw-load-signature",
+      "order": 590
+    },
+    {
+      "id": "indexing/tokenization/tokenize-code-dictionaries",
+      "order": 591
+    },
+    {
+      "id": "indexing/relations/ts-call-details-tsx",
+      "order": 592
+    },
+    {
+      "id": "indexing/postings/chargram-config-defaults",
+      "order": 593
+    },
+    {
+      "id": "tooling/doctor/command-profile-probe-cache-persistent",
+      "order": 594
+    },
+    {
+      "id": "tooling/doctor/command-profile-probe-cache-disabled",
+      "order": 595
+    },
+    {
+      "id": "storage/sqlite/quantization/sqlite-vector-ingest-encoding",
+      "order": 596
+    },
+    {
+      "id": "indexing/artifacts/chunk-meta-jsonl-cleanup",
+      "order": 597
+    },
+    {
+      "id": "storage/sqlite/ann/sqlite-vec-candidate-set",
+      "order": 598
+    },
+    {
+      "id": "indexing/vfs/virtual-path-stability",
+      "order": 599
+    },
+    {
+      "id": "storage/sqlite/bundle-dims-mismatch",
+      "order": 600
+    },
+    {
+      "id": "indexing/cache/workspace-global-reuse",
+      "order": 601
+    },
+    {
+      "id": "indexing/repo-map/roundtrip",
+      "order": 602
+    },
+    {
+      "id": "retrieval/graph/context-pack-caps",
+      "order": 603
+    },
+    {
+      "id": "tooling/vfs/hash-routing-compat",
+      "order": 604
+    },
+    {
+      "id": "indexing/runtime/byte-budget-default-policy",
+      "order": 605
+    },
+    {
+      "id": "indexing/scm/git-provider-parse",
+      "order": 606
+    },
+    {
+      "id": "tooling/vfs/doc-hash-skip-rewrite",
+      "order": 607
+    },
+    {
+      "id": "indexing/chunking/smartchunk-limits",
+      "order": 608
+    },
+    {
+      "id": "workspace/repo-set-id-determinism",
+      "order": 609
+    },
+    {
+      "id": "retrieval/graph/context-pack-basic",
+      "order": 610
+    },
+    {
+      "id": "tooling/vfs/manifest-streaming",
+      "order": 611
+    },
+    {
+      "id": "workspace/alias-uniqueness-and-tags-normalization",
+      "order": 612
+    },
+    {
+      "id": "storage/sqlite/bundle-invalid",
+      "order": 613
+    },
+    {
+      "id": "indexing/embeddings/embedding-typedarray-quantization-postings-step",
+      "order": 614
+    },
+    {
+      "id": "retrieval/ann/dense-provider-lazy-load",
+      "order": 615
+    },
+    {
+      "id": "retrieval/cache/query-lookup",
+      "order": 616
+    },
+    {
+      "id": "storage/sqlite/reader-schema-mismatch",
+      "order": 617
+    },
+    {
+      "id": "storage/sqlite/metav2-json-roundtrip",
+      "order": 618
+    },
+    {
+      "id": "storage/sqlite/build-validate-auto-fast-path",
+      "order": 619
+    },
+    {
+      "id": "tooling/vfs/index-negative",
+      "order": 620
+    },
+    {
+      "id": "storage/sqlite/token-postings-duplicate-docids",
+      "order": 621
+    },
+    {
+      "id": "storage/sqlite/jsonl-streaming-gzip",
+      "order": 622
+    },
+    {
+      "id": "indexing/artifacts/minhash-max-docs-guard",
+      "order": 623
+    },
+    {
+      "id": "workspace/repo-canonicalization-dedup",
+      "order": 624
+    },
+    {
+      "id": "indexing/postings/chargram-guardrails",
+      "order": 625
+    },
+    {
+      "id": "shared/logging/stdout-contract",
+      "order": 626
+    },
+    {
+      "id": "tooling/doctor/command-profile-jdtls",
+      "order": 627
+    },
+    {
+      "id": "indexing/postings/tokenless-chunk-preserved",
+      "order": 628
+    },
+    {
+      "id": "lang/registry/collector-scan-budget-diagnostics",
+      "order": 629
+    },
+    {
+      "id": "tooling/vfs/collector-cleanup-on-error",
+      "order": 630
+    },
+    {
+      "id": "tooling/vfs/hash-routing-roundtrip",
+      "order": 631
+    },
+    {
+      "id": "indexing/artifacts/minhash-packed-roundtrip",
+      "order": 632
+    },
+    {
+      "id": "tooling/config/tooling-lsp-lifecycle-and-dedicated-passthrough",
+      "order": 633
+    },
+    {
+      "id": "tooling/doctor/command-profile-probe-cache",
+      "order": 634
+    },
+    {
+      "id": "indexing/embeddings/cache-index-flush-contract",
+      "order": 635
+    },
+    {
+      "id": "shared/artifact-io/broken-offsets-fallback",
+      "order": 636
+    },
+    {
+      "id": "tooling/vfs/fastpath-telemetry-contract",
+      "order": 637
+    },
+    {
+      "id": "indexing/shards/shard-runtime-uses-threadlimits-io",
+      "order": 638
+    },
+    {
+      "id": "lang/typescript/ts-jsx-fixtures",
+      "order": 639
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-binary-row-format",
+      "order": 640
+    },
+    {
+      "id": "retrieval/pipeline/retrieval-stage-checkpoints",
+      "order": 641
+    },
+    {
+      "id": "storage/sqlite/chunk-meta-meta-fallback",
+      "order": 642
+    },
+    {
+      "id": "tooling/lsp/preflight-command-profile-helper",
+      "order": 643
+    },
+    {
+      "id": "tooling/config/profile",
+      "order": 644
+    },
+    {
+      "id": "lang/typescript/parser-selection",
+      "order": 645
+    },
+    {
+      "id": "indexing/vfs/path-traversal-deny",
+      "order": 646
+    },
+    {
+      "id": "tooling/doctor/command-profile-probe-cache-fingerprint-invalidation",
+      "order": 647
+    },
+    {
+      "id": "indexing/vfs/disk-path-safety",
+      "order": 648
+    },
+    {
+      "id": "indexing/watch/attempts",
+      "order": 649
+    },
+    {
+      "id": "storage/embeddings/backend-resilience",
+      "order": 650
+    },
+    {
+      "id": "indexing/vfs/manifest-row-trimming",
+      "order": 651
+    },
+    {
+      "id": "indexing/relations/merge-core-integration",
+      "order": 652
+    },
+    {
+      "id": "indexing/embeddings/embedding-batcher-flush-reentrancy",
+      "order": 653
+    },
+    {
+      "id": "indexing/postings/vocab-order-determinism",
+      "order": 654
+    },
+    {
+      "id": "storage/sqlite/build-rowcount-contract",
+      "order": 655
+    },
+    {
+      "id": "storage/sqlite/ann/sqlite-mode-scope",
+      "order": 656
+    },
+    {
+      "id": "storage/sqlite/fts-contentless-schema",
+      "order": 657
+    },
+    {
+      "id": "tooling/doctor/command-profile-gopls",
+      "order": 658
+    },
+    {
+      "id": "indexing/chunking/smartchunk-yaml",
+      "order": 659
+    },
+    {
+      "id": "indexing/relations/keyword-skip-heuristics",
+      "order": 660
+    },
+    {
+      "id": "indexing/postings/queue-bypass-deadlock",
+      "order": 661
+    },
+    {
+      "id": "storage/sqlite/incremental-memory-profile",
+      "order": 662
+    },
+    {
+      "id": "retrieval/cache/query-plan-bounds",
+      "order": 663
+    },
+    {
+      "id": "indexing/chunking/no-blob",
+      "order": 664
+    },
+    {
+      "id": "tooling/vfs/index-lookup",
+      "order": 665
+    },
+    {
+      "id": "tooling/config/tooling-load-preserves-lsp-and-dedicated",
+      "order": 666
+    },
+    {
+      "id": "indexing/tree-sitter/parse-determinism",
+      "order": 667
+    },
+    {
+      "id": "indexing/build/stage-progression-contract",
+      "order": 668
+    },
+    {
+      "id": "retrieval/ann/hnsw-insert-failures",
+      "order": 669
+    },
+    {
+      "id": "storage/sqlite/build-memory-guard",
+      "order": 670
+    },
+    {
+      "id": "tooling/sublime/pycompile",
+      "order": 671
+    },
+    {
+      "id": "tooling/sublime/paths-behavior",
+      "order": 672
+    },
+    {
+      "id": "tooling/sublime/index-behavior",
+      "order": 673
+    },
+    {
+      "id": "tooling/sublime/results-behavior",
+      "order": 674
+    },
+    {
+      "id": "tooling/sublime/navigation-behavior",
+      "order": 675
+    },
+    {
+      "id": "tooling/sublime/watch-behavior",
+      "order": 676
+    },
+    {
+      "id": "tooling/sublime/analysis-behavior",
+      "order": 677
+    },
+    {
+      "id": "tooling/sublime/operator-behavior",
+      "order": 678
+    },
+    {
+      "id": "tooling/sublime/settings-behavior",
+      "order": 679
+    },
+    {
+      "id": "tooling/sublime/search-behavior",
+      "order": 680
+    },
+    {
+      "id": "tooling/sublime/map-behavior",
+      "order": 681
+    },
+    {
+      "id": "tooling/sublime/api-server",
+      "order": 682
+    },
+    {
+      "id": "tooling/sublime/runner-behavior",
+      "order": 683
+    },
+    {
+      "id": "tooling/sublime/task-behavior",
+      "order": 684
+    },
+    {
+      "id": "tooling/sublime/visibility-behavior",
+      "order": 685
+    },
+    {
+      "id": "tooling/sublime/package-release-sanity",
+      "order": 686
+    },
+    {
+      "id": "retrieval/cache/query-signature-sharded-chunk-meta",
+      "order": 687
+    },
+    {
+      "id": "storage/vector-extension/missing",
+      "order": 688
+    },
+    {
+      "id": "tooling/lsp/adaptive-scope-plan",
+      "order": 689
+    },
+    {
+      "id": "indexing/vfs/path-map-roundtrip",
+      "order": 690
+    },
+    {
+      "id": "shared/json-stream/large-array-stream",
+      "order": 691
+    },
+    {
+      "id": "indexing/contracts/import-resolution-graph-decision-model",
+      "order": 692
+    },
+    {
+      "id": "shared/json-stream/jsonl-worker-order",
+      "order": 693
+    },
+    {
+      "id": "workspace/windows-path-canonicalization-contract",
+      "order": 694
+    },
+    {
+      "id": "indexing/workers/worker-pool-restart",
+      "order": 695
+    },
+    {
+      "id": "indexing/artifacts/artifact-formats",
+      "order": 696
+    },
+    {
+      "id": "tooling/paths/explicit-repo-root-arg",
+      "order": 697
+    },
+    {
+      "id": "indexing/vfs/compaction-atomic-swap",
+      "order": 698
+    },
+    {
+      "id": "indexing/vfs/manifest-collector-isolation",
+      "order": 699
+    },
+    {
+      "id": "tooling/download/shared-fetch-contract",
+      "order": 700
+    },
+    {
+      "id": "tooling/vfs/cold-start-cache",
+      "order": 701
+    },
+    {
+      "id": "indexing/vfs/idx-lookup-roundtrip",
+      "order": 702
+    },
+    {
+      "id": "retrieval/federation/build-pointer-invalid-clears-cache",
+      "order": 703
+    },
+    {
+      "id": "indexing/validate/manifest-path-native",
+      "order": 704
+    },
+    {
+      "id": "indexing/postings/chargram-bench-contract",
+      "order": 705
+    },
+    {
+      "id": "retrieval/pipeline/lancedb-nonstrict-fallback-without-manifest-entry",
+      "order": 706
+    },
+    {
+      "id": "indexing/embeddings/memory-plateau",
+      "order": 707
+    },
+    {
+      "id": "indexing/tree-sitter/memory-plateau",
+      "order": 708
+    },
+    {
+      "id": "tooling/triage/ingest-legacy-wrapper-compat",
+      "order": 709
+    },
+    {
+      "id": "retrieval/ann/lancedb-connection-cache",
+      "order": 710
+    },
+    {
+      "id": "indexing/embeddings/embedding-batch-throughput",
+      "order": 711
+    },
+    {
+      "id": "smoke/baseline",
+      "order": 712
+    },
+    {
+      "id": "indexing/vfs/merge-core-integration",
+      "order": 713
+    },
+    {
+      "id": "indexing/chunking/yaml",
+      "order": 714
+    },
+    {
+      "id": "tooling/providers/provider-registry-merges-deterministically",
+      "order": 715
+    },
+    {
+      "id": "indexing/vfs/manifest-streaming",
+      "order": 716
+    },
+    {
+      "id": "tooling/providers/provider-registry-ordering",
+      "order": 717
+    },
+    {
+      "id": "tooling/providers/provider-registry-ignores-legacy-keys",
+      "order": 718
+    },
+    {
+      "id": "indexing/scm/provider-selection",
+      "order": 719
+    },
+    {
+      "id": "tooling/doctor/command-profile-probe-cache-success-ttl",
+      "order": 720
+    },
+    {
+      "id": "tooling/triage/ingest-generic.exposure",
+      "order": 721
+    },
+    {
+      "id": "tooling/install/tooling",
+      "order": 722
+    },
+    {
+      "id": "tooling/lsp/configured-provider-zls-preflight-timeout",
+      "order": 723
+    },
+    {
+      "id": "retrieval/ann/lancedb-candidate-filtering",
+      "order": 724
+    },
+    {
+      "id": "indexing/artifacts/manifest/report-artifacts-driven",
+      "order": 725
+    },
+    {
+      "id": "shared/hash/xxhash-backends",
+      "order": 726
+    },
+    {
+      "id": "storage/sqlite/build-prepared-statement-reuse",
+      "order": 727
+    },
+    {
+      "id": "indexing/vfs/manifest-roundtrip",
+      "order": 728
+    },
+    {
+      "id": "shared/cache/reuse-determinism",
+      "order": 729
+    },
+    {
+      "id": "tooling/providers/provider-registry-gating",
+      "order": 730
+    },
+    {
+      "id": "retrieval/ranking/keyword-downweighting",
+      "order": 731
+    },
+    {
+      "id": "services/indexing/compressed-artifact-presence",
+      "order": 732
+    },
+    {
+      "id": "indexing/embeddings/sqlite-dense",
+      "order": 733
+    },
+    {
+      "id": "workspace/index-signature-sharded-variants",
+      "order": 734
+    },
+    {
+      "id": "indexing/type-inference/providers/type-inference-sourcekit-provider-no-sourcekit",
+      "order": 735
+    },
+    {
+      "id": "tooling/providers/preflight-overlap",
+      "order": 736
+    },
+    {
+      "id": "indexing/tooling/pyright-runnable-detection",
+      "order": 737
+    },
+    {
+      "id": "tooling/providers/provider-registry-strict-missing-chunkuid",
+      "order": 738
+    },
+    {
+      "id": "indexing/watch/promotion/safety",
+      "order": 739
+    },
+    {
+      "id": "tooling/lsp/preflight-provider-metadata-coverage",
+      "order": 740
+    },
+    {
+      "id": "tooling/vfs/io-batch-consistency",
+      "order": 741
+    },
+    {
+      "id": "tooling/ci/lsp-embeddings-gates-testing-env",
+      "order": 742
+    },
+    {
+      "id": "retrieval/cache/index-signature-bounds",
+      "order": 743
+    },
+    {
+      "id": "retrieval/pipeline/search-startup-fastpath",
+      "order": 744
+    },
+    {
+      "id": "indexing/relations/determinism-bench-contract",
+      "order": 745
+    },
+    {
+      "id": "indexing/tree-sitter/load-bench-contract",
+      "order": 746
+    },
+    {
+      "id": "retrieval/providers/provider-empty-ann-success-reset-contract",
+      "order": 747
+    },
+    {
+      "id": "storage/sqlite/build-full-transaction",
+      "order": 748
+    },
+    {
+      "id": "tooling/lsp/dedicated-provider-preflight-blocking",
+      "order": 749
+    },
+    {
+      "id": "indexing/watch/index-lock",
+      "order": 750
+    },
+    {
+      "id": "indexing/watch/index-lock-signal-cleanup",
+      "order": 751
+    },
+    {
+      "id": "tooling/lsp/failure-accounting-per-target",
+      "order": 752
+    },
+    {
+      "id": "tooling/reports/capabilities-report",
+      "order": 753
+    },
+    {
+      "id": "ci/tooling-lsp-slo-gate.smoke",
+      "order": 754
+    },
+    {
+      "id": "ci/tooling-lsp-replay-gate.smoke",
+      "order": 755
+    },
+    {
+      "id": "indexing/artifacts/sharded-meta/schema",
+      "order": 756
+    },
+    {
+      "id": "shared/runtime/thread-limits",
+      "order": 757
+    },
+    {
+      "id": "retrieval/providers/provider-retry-reset-contract",
+      "order": 758
+    },
+    {
+      "id": "retrieval/providers/provider-unnamed-state-isolation-contract",
+      "order": 759
+    },
+    {
+      "id": "indexing/postings/chargram-rolling-hash",
+      "order": 760
+    },
+    {
+      "id": "indexing/stage1/token-id-collision-policy",
+      "order": 761
+    },
+    {
+      "id": "shared/snapshots-registry",
+      "order": 762
+    },
+    {
+      "id": "tooling/lsp/dart-provider-workspace-guard",
+      "order": 763
+    },
+    {
+      "id": "services/queue/service",
+      "order": 764
+    },
+    {
+      "id": "tooling/reports/metrics-dashboard",
+      "order": 765
+    },
+    {
+      "id": "indexing/ignore/overrides",
+      "order": 766
+    },
+    {
+      "id": "tooling/install/postinstall-patch-enforcement",
+      "order": 767
+    },
+    {
+      "id": "indexing/tree-sitter/batch-by-language",
+      "order": 768
+    },
+    {
+      "id": "tooling/install/tooling-dotnet-requirement-probe",
+      "order": 769
+    },
+    {
+      "id": "tooling/install/tooling-detect-global-bin-fallbacks",
+      "order": 770
+    },
+    {
+      "id": "storage/lmdb/utils-contract",
+      "order": 771
+    },
+    {
+      "id": "shared/json-stream/wait-timeout-cleans-listeners",
+      "order": 772
+    },
+    {
+      "id": "tooling/cache/gc-preserves-recent-access",
+      "order": 773
+    },
+    {
+      "id": "tooling/lsp/jdtls-provider-workspace-guard",
+      "order": 774
+    },
+    {
+      "id": "tooling/index-stats/aggregate",
+      "order": 775
+    },
+    {
+      "id": "indexing/determinism/chunk-meta-ordering-drift",
+      "order": 776
+    },
+    {
+      "id": "tooling/install/download-dicts",
+      "order": 777
+    },
+    {
+      "id": "tooling/lsp/csharp-provider-workspace-guard",
+      "order": 778
+    },
+    {
+      "id": "storage/sqlite/build/args-parsing",
+      "order": 779
+    },
+    {
+      "id": "indexing/imports/options-forwarding-flowmode",
+      "order": 780
+    },
+    {
+      "id": "tooling/lsp/jdtls-provider-launch-contract-invalid",
+      "order": 781
+    },
+    {
+      "id": "tooling/lsp/phpactor-provider-workspace-guard",
+      "order": 782
+    },
+    {
+      "id": "tooling/lsp/solargraph-provider-workspace-guard",
+      "order": 783
+    },
+    {
+      "id": "retrieval/providers/provider-adaptive-ordering-contract",
+      "order": 784
+    },
+    {
+      "id": "storage/sqlite/chunk-meta-streaming",
+      "order": 785
+    },
+    {
+      "id": "tooling/install/tooling-go-requirement-probe",
+      "order": 786
+    },
+    {
+      "id": "tooling/install/tooling-registry-cache-install-paths",
+      "order": 787
+    },
+    {
+      "id": "lang/registry/selection",
+      "order": 788
+    },
+    {
+      "id": "lang/registry/import-entries",
+      "order": 789
+    },
+    {
+      "id": "indexing/imports/import-resolver-relative",
+      "order": 790
+    },
+    {
+      "id": "indexing/shards/shard-plan",
+      "order": 791
+    },
+    {
+      "id": "indexing/validate/resolve-index-dir-artifact-variants",
+      "order": 792
+    },
+    {
+      "id": "tooling/lsp/csharp-provider-launch-contract-invalid",
+      "order": 793
+    },
+    {
+      "id": "indexing/artifacts/symbols/symbol-links-by-chunkuid",
+      "order": 794
+    },
+    {
+      "id": "indexing/imports/cache-hints-reuse",
+      "order": 795
+    },
+    {
+      "id": "tooling/lsp/csharp-provider-launch-bootstrap-missing",
+      "order": 796
+    },
+    {
+      "id": "indexing/imports/esmodule-lexer-init",
+      "order": 797
+    },
+    {
+      "id": "indexing/artifacts/symbols/symbol-edges-ambiguous",
+      "order": 798
+    },
+    {
+      "id": "indexing/validate/index-manifest-safety",
+      "order": 799
+    },
+    {
+      "id": "indexing/imports/proto-safe-module-keys",
+      "order": 800
+    },
+    {
+      "id": "indexing/records/discovery",
+      "order": 801
+    },
+    {
+      "id": "indexing/artifacts/minhash-packed-bench-contract",
+      "order": 802
+    },
+    {
+      "id": "shared/config/normalization-quality-threads",
+      "order": 803
+    },
+    {
+      "id": "indexing/imports/import-resolution-budget-policy-adaptive",
+      "order": 804
+    },
+    {
+      "id": "graph/memory-plateau",
+      "order": 805
+    },
+    {
+      "id": "indexing/type-inference/providers/type-inference-clangd-provider-no-clangd",
+      "order": 806
+    },
+    {
+      "id": "indexing/validate/index-manifest-symlink-escape",
+      "order": 807
+    },
+    {
+      "id": "indexing/git/meta-batch-churn",
+      "order": 808
+    },
+    {
+      "id": "shared/subprocess/process-exit-cleanup",
+      "order": 809
+    },
+    {
+      "id": "tooling/index-stats/explicit-repo-path",
+      "order": 810
+    },
+    {
+      "id": "indexing/imports/require-regex-fallback-on-lexer-failure",
+      "order": 811
+    },
+    {
+      "id": "indexing/imports/import-resolution-budget-exhaustion",
+      "order": 812
+    },
+    {
+      "id": "indexing/imports/import-resolution-fallback-depth-budget",
+      "order": 813
+    },
+    {
+      "id": "tooling/structural/search",
+      "order": 814
+    },
+    {
+      "id": "tooling/structural/binary-default-timeout",
+      "order": 815
+    },
+    {
+      "id": "indexing/imports/import-priority",
+      "order": 816
+    },
+    {
+      "id": "indexing/imports/cache-invalidation",
+      "order": 817
+    },
+    {
+      "id": "indexing/imports/import-resolution-fs-exists-index-budget-shortcircuit",
+      "order": 818
+    },
+    {
+      "id": "indexing/imports/expected-artifacts-index",
+      "order": 819
+    },
+    {
+      "id": "indexing/imports/import-resolution-stage-pipeline",
+      "order": 820
+    },
+    {
+      "id": "shared/abort/propagates-to-queues",
+      "order": 821
+    },
+    {
+      "id": "indexing/imports/import-build-context-plugins",
+      "order": 822
+    },
+    {
+      "id": "indexing/validate/index-file-name-collision",
+      "order": 823
+    },
+    {
+      "id": "indexing/imports/import-build-context-typescript-emit",
+      "order": 824
+    },
+    {
+      "id": "tooling/lsp/haskell-provider-workspace-guard",
+      "order": 825
+    },
+    {
+      "id": "indexing/imports/gate-eligibility",
+      "order": 826
+    },
+    {
+      "id": "indexing/validate/index-missing-pieces",
+      "order": 827
+    },
+    {
+      "id": "indexing/imports/import-scan-post-graph-stats",
+      "order": 828
+    },
+    {
+      "id": "indexing/imports/import-scan",
+      "order": 829
+    },
+    {
+      "id": "indexing/validate/index-chunk-meta-large-manifest-budget",
+      "order": 830
+    },
+    {
+      "id": "indexing/imports/import-scan-non-js-end-to-end",
+      "order": 831
+    },
+    {
+      "id": "storage/sqlite/build-bench-contract",
+      "order": 832
+    },
+    {
+      "id": "indexing/imports/import-graph-resolved-refresh",
+      "order": 833
+    },
+    {
+      "id": "indexing/imports/fs-exists-index",
+      "order": 834
+    },
+    {
+      "id": "indexing/imports/stage-cache-hit-miss",
+      "order": 835
+    },
+    {
+      "id": "indexing/imports/import-resolution",
+      "order": 836
+    },
+    {
+      "id": "tooling/doctor/runtime-requirements-phpactor-dedicated",
+      "order": 837
+    },
+    {
+      "id": "indexing/imports/cache-missing-file",
+      "order": 838
+    },
+    {
+      "id": "indexing/imports/replay-harness",
+      "order": 839
+    },
+    {
+      "id": "indexing/imports/import-resolution-build-context-cache-key",
+      "order": 840
+    },
+    {
+      "id": "indexing/imports/replay-harness-gate-eligible-stats",
+      "order": 841
+    },
+    {
+      "id": "indexing/imports/replay-stage-percentiles",
+      "order": 842
+    },
+    {
+      "id": "tooling/doctor/runtime-requirements-jdtls-dedicated",
+      "order": 843
+    },
+    {
+      "id": "indexing/validate/index-current-build-pointer-case-insensitive",
+      "order": 844
+    },
+    {
+      "id": "indexing/preprocess/files",
+      "order": 845
+    },
+    {
+      "id": "ci/tooling-lsp-default-enable-gate.smoke",
+      "order": 846
+    },
+    {
+      "id": "ci/tooling-lsp-slo-gate-regression-diff",
+      "order": 847
+    },
+    {
+      "id": "ci/tooling-lsp-guardrail-regression-diff",
+      "order": 848
+    },
+    {
+      "id": "indexing/imports/import-graph-unresolved-refresh",
+      "order": 849
+    },
+    {
+      "id": "indexing/imports/import-graph-incremental-reuse",
+      "order": 850
+    },
+    {
+      "id": "indexing/imports/import-graph-warning-merge",
+      "order": 851
+    },
+    {
+      "id": "indexing/filter-index/atomic-swap",
+      "order": 852
+    },
+    {
+      "id": "tooling/doctor/command-resolution-provider-overrides",
+      "order": 853
+    },
+    {
+      "id": "indexing/imports/import-graph-budget-diagnostics",
+      "order": 854
+    },
+    {
+      "id": "indexing/validate/index-unknown-artifact-fails-strict",
+      "order": 855
+    },
+    {
+      "id": "indexing/validate/index-missing-manifest",
+      "order": 856
+    },
+    {
+      "id": "tooling/doctor/detects-missing-typescript",
+      "order": 857
+    },
+    {
+      "id": "tooling/doctor/runtime-requirements-solargraph-dedicated",
+      "order": 858
+    },
+    {
+      "id": "indexing/validate/index-optional-file-meta-nonstrict",
+      "order": 859
+    },
+    {
+      "id": "workspace/build-pointer-invalid-scenarios",
+      "order": 860
+    },
+    {
+      "id": "indexing/artifacts/clean",
+      "order": 861
+    },
+    {
+      "id": "tooling/doctor/runtime-requirements-haskell-dedicated",
+      "order": 862
+    },
+    {
+      "id": "indexing/validate/index-sharded-meta-consistency",
+      "order": 863
+    },
+    {
+      "id": "services/snapshots/concurrent-registry-writers",
+      "order": 864
+    },
+    {
+      "id": "perf/bench/language-tooling-lsp-guardrail",
+      "order": 865
+    },
+    {
+      "id": "indexing/validate/index-determinism-report-required",
+      "order": 866
+    },
+    {
+      "id": "indexing/validate/determinism-line-hash",
+      "order": 867
+    },
+    {
+      "id": "tooling/doctor/command-profile-probe-timeout",
+      "order": 868
+    },
+    {
+      "id": "indexing/imports/import-scan-collector-hints",
+      "order": 869
+    },
+    {
+      "id": "indexing/imports/import-scan-cache-hints",
+      "order": 870
+    },
+    {
+      "id": "indexing/artifacts/index-state-skip-write",
+      "order": 871
+    },
+    {
+      "id": "indexing/artifacts/eager-prefetch-drain",
+      "order": 872
+    },
+    {
+      "id": "shared/config/auto-policy",
+      "order": 873
+    },
+    {
+      "id": "tooling/doctor/runtime-requirements-dedicated",
+      "order": 874
+    },
+    {
+      "id": "indexing/validate/index-strict",
+      "order": 875
+    },
+    {
+      "id": "tooling/lsp/phpactor-provider-command-fallback",
+      "order": 876
+    },
+    {
+      "id": "tooling/triage/decision",
+      "order": 877
+    },
+    {
+      "id": "tooling/ci/lsp-embeddings-gates-timeout-junit",
+      "order": 878
+    },
+    {
+      "id": "tooling/lsp/jdtls-provider-workspace-lock-unavailable",
+      "order": 879
+    },
+    {
+      "id": "ci/suite-runner.smoke",
+      "order": 880
+    },
+    {
+      "id": "embeddings/runner/helper-contracts",
+      "order": 881
+    },
+    {
+      "id": "indexing/imports/stage-pipeline-metrics",
+      "order": 882
+    },
+    {
+      "id": "indexing/imports/import-scan-cache-read",
+      "order": 883
+    },
+    {
+      "id": "indexing/validate/index-jsonl-required-keys",
+      "order": 884
+    },
+    {
+      "id": "storage/sqlite/bundle-shard-splitting",
+      "order": 885
+    },
+    {
+      "id": "tooling/doctor/runtime-requirements-elixir-dedicated",
+      "order": 886
+    },
+    {
+      "id": "indexing/piece-assembly/assemble-pieces-no-guess",
+      "order": 887
+    },
+    {
+      "id": "indexing/imports/decision-metamorphic",
+      "order": 888
+    },
+    {
+      "id": "indexing/imports/decision-model-contract",
+      "order": 889
+    },
+    {
+      "id": "indexing/validate/index-load-manifest",
+      "order": 890
+    },
+    {
+      "id": "indexing/imports/collector-hints",
+      "order": 891
+    },
+    {
+      "id": "tooling/doctor/command-profile-pyright-override",
+      "order": 892
+    },
+    {
+      "id": "tooling/triage/ingest-sources.smoke",
+      "order": 893
+    },
+    {
+      "id": "indexing/git/meta",
+      "order": 894
+    },
+    {
+      "id": "tooling/doctor/workspace-model-solargraph-detection",
+      "order": 895
+    },
+    {
+      "id": "indexing/discovery/discover-leading-space",
+      "order": 896
+    },
+    {
+      "id": "tooling/lsp/dart-provider-command-fallback",
+      "order": 897
+    },
+    {
+      "id": "tooling/workspace/catalog-json",
+      "order": 898
+    },
+    {
+      "id": "tooling/index-stats/json",
+      "order": 899
+    },
+    {
+      "id": "workspace/manifest-determinism-and-hash",
+      "order": 900
+    },
+    {
+      "id": "indexing/tree-sitter/preload-order-deterministic",
+      "order": 901
+    },
+    {
+      "id": "tooling/doctor/provider-requires-args",
+      "order": 902
+    },
+    {
+      "id": "indexing/imports/import-scan-budget-runtime-signals",
+      "order": 903
+    },
+    {
+      "id": "tooling/doctor/workspace-model-csharp-detection",
+      "order": 904
+    },
+    {
+      "id": "tooling/index-stats/missing-artifact",
+      "order": 905
+    },
+    {
+      "id": "shared/locks/file-lock-contract",
+      "order": 906
+    },
+    {
+      "id": "tooling/doctor/workspace-model-phpactor-detection",
+      "order": 907
+    },
+    {
+      "id": "indexing/validate/validator/manifest-count-sharded",
+      "order": 908
+    },
+    {
+      "id": "tooling/doctor/workspace-model-haskell-detection",
+      "order": 909
+    },
+    {
+      "id": "tooling/lsp/session-pool-reuse",
+      "order": 910
+    },
+    {
+      "id": "tooling/lsp/provider-delta-manifest",
+      "order": 911
+    },
+    {
+      "id": "tooling/doctor/workspace-model-dart-detection",
+      "order": 912
+    },
+    {
+      "id": "ci/tooling-lsp-slo-gate-tail-p95",
+      "order": 913
+    },
+    {
+      "id": "tooling/install/tooling-phpactor-phar-plan",
+      "order": 914
+    },
+    {
+      "id": "tooling/lsp/elixir-provider-command-fallback",
+      "order": 915
+    },
+    {
+      "id": "tooling/lsp/jdtls-provider-launch-script-mismatch",
+      "order": 916
+    },
+    {
+      "id": "lang/python/fallback",
+      "order": 917
+    },
+    {
+      "id": "tooling/lsp/typescript/vfs-segment-vue",
+      "order": 918
+    },
+    {
+      "id": "retrieval/ann/hnsw-candidate-set",
+      "order": 919
+    },
+    {
+      "id": "cli/general/cli",
+      "order": 920
+    },
+    {
+      "id": "indexing/embeddings/embedding-queue",
+      "order": 921
+    },
+    {
+      "id": "tooling/doctor/workspace-model-detection",
+      "order": 922
+    },
+    {
+      "id": "indexing/segments/segment-uid-derived",
+      "order": 923
+    },
+    {
+      "id": "shared/bloom/decode-length-contract",
+      "order": 924
+    },
+    {
+      "id": "tooling/lsp/haskell-provider-command-fallback",
+      "order": 925
+    },
+    {
+      "id": "tooling/lsp/typescript/node-matching-range",
+      "order": 926
+    },
+    {
+      "id": "indexing/segments/tsx-jsx-hint-preserved",
+      "order": 927
+    },
+    {
+      "id": "tooling/doctor/runtime-requirements-dart-dedicated",
+      "order": 928
+    },
+    {
+      "id": "tooling/vfs/row-trim-order",
+      "order": 929
+    },
+    {
+      "id": "tooling/install/install-phpactor-phar-network-guards",
+      "order": 930
+    },
+    {
+      "id": "tooling/lsp/typescript/ambiguous-fallback-does-not-guess",
+      "order": 931
+    },
+    {
+      "id": "indexing/validate/validator/risk-interprocedural",
+      "order": 932
+    },
+    {
+      "id": "tooling/lsp/solargraph-provider-command-fallback",
+      "order": 933
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-miss-cache-bounded",
+      "order": 934
+    },
+    {
+      "id": "tooling/lsp/typescript/destructured-param-names",
+      "order": 935
+    },
+    {
+      "id": "tooling/vfs/row-size-trim",
+      "order": 936
+    },
+    {
+      "id": "shared/subprocess/abort-kills-child",
+      "order": 937
+    },
+    {
+      "id": "tooling/doctor/workspace-model-elixir-detection",
+      "order": 938
+    },
+    {
+      "id": "indexing/validate/index-boilerplate-catalog-manifest-name",
+      "order": 939
+    },
+    {
+      "id": "tooling/type-inference/tooling-cache-root-default",
+      "order": 940
+    },
+    {
+      "id": "tooling/type-inference/tooling-configured-paths",
+      "order": 941
+    },
+    {
+      "id": "indexing/embeddings/build/explicit-index-root-missing-mode-fails-fast",
+      "order": 942
+    },
+    {
+      "id": "indexing/postings/backpressure-queue",
+      "order": 943
+    },
+    {
+      "id": "shared/artifact-io/bench-contract",
+      "order": 944
+    },
+    {
+      "id": "shared/artifact-io/binary-columnar-streaming-frames",
+      "order": 945
+    },
+    {
+      "id": "indexing/artifacts/huge-write-policy",
+      "order": 946
+    },
+    {
+      "id": "indexing/artifacts/token-postings-binary-columnar-streaming",
+      "order": 947
+    },
+    {
+      "id": "indexing/workers/worker-pool",
+      "order": 948
+    },
+    {
+      "id": "services/indexer/service-embedding-job-uses-build-root",
+      "order": 949
+    },
+    {
+      "id": "indexing/validate/symbol-integrity-strict",
+      "order": 950
+    },
+    {
+      "id": "services/snapshot-create",
+      "order": 951
+    },
+    {
+      "id": "indexing/validate/index-binary-columnar-manifest-names",
+      "order": 952
+    },
+    {
+      "id": "tooling/install/setup",
+      "order": 953
+    },
+    {
+      "id": "cli/search/symbol-boost",
+      "order": 954
+    },
+    {
+      "id": "retrieval/ann/lancedb-filter-pushdown",
+      "order": 955
+    },
+    {
+      "id": "indexing/validate/metav2-rejects-invalid-type-shapes",
+      "order": 956
+    },
+    {
+      "id": "storage/sqlite/incremental-transaction-boundary",
+      "order": 957
+    },
+    {
+      "id": "tooling/lsp/dart-provider-package-config-missing-preflight",
+      "order": 958
+    },
+    {
+      "id": "lang/javascript/paramnames",
+      "order": 959
+    },
+    {
+      "id": "tooling/lsp/haskell-provider-bootstrap",
+      "order": 960
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-lookup-reader-lease",
+      "order": 961
+    },
+    {
+      "id": "tooling/service/subprocess-cancellation-contract",
+      "order": 962
+    },
+    {
+      "id": "tooling/lsp/phpactor-provider-bootstrap",
+      "order": 963
+    },
+    {
+      "id": "shared/cache/hit-rate-contract",
+      "order": 964
+    },
+    {
+      "id": "indexing/embeddings/embedding-queue-defaults",
+      "order": 965
+    },
+    {
+      "id": "tooling/lsp/protocol-stall-initialize-timeout",
+      "order": 966
+    },
+    {
+      "id": "tooling/lsp/haskell-provider-ambiguous-cradle-preflight",
+      "order": 967
+    },
+    {
+      "id": "indexing/segments/segment-pipeline",
+      "order": 968
+    },
+    {
+      "id": "tooling/impact/seed-and-changed-behavior",
+      "order": 969
+    },
+    {
+      "id": "tooling/lsp/dart-provider-process-reuse",
+      "order": 970
+    },
+    {
+      "id": "tooling/lsp/phpactor-provider-composer-lock-missing-preflight",
+      "order": 971
+    },
+    {
+      "id": "tooling/lsp/dart-provider-bootstrap",
+      "order": 972
+    },
+    {
+      "id": "tooling/lsp/phpactor-provider-workspace-composer-invalid-preflight",
+      "order": 973
+    },
+    {
+      "id": "services/index-diff",
+      "order": 974
+    },
+    {
+      "id": "tooling/vfs/routing-by-effective-language",
+      "order": 975
+    },
+    {
+      "id": "tooling/vfs/invalid-virtual-range-regression",
+      "order": 976
+    },
+    {
+      "id": "storage/sqlite/jsonl-streaming-zstd",
+      "order": 977
+    },
+    {
+      "id": "tooling/lsp/elixir-provider-bootstrap",
+      "order": 978
+    },
+    {
+      "id": "indexing/validate/ledger-validation",
+      "order": 979
+    },
+    {
+      "id": "retrieval/ann/dense-vector-mode",
+      "order": 980
+    },
+    {
+      "id": "indexing/discovery/discover",
+      "order": 981
+    },
+    {
+      "id": "tooling/lsp/elixir-provider-workspace-guard",
+      "order": 982
+    },
+    {
+      "id": "tooling/lsp/solargraph-provider-bootstrap",
+      "order": 983
+    },
+    {
+      "id": "tooling/lsp/csharp-provider-bootstrap",
+      "order": 984
+    },
+    {
+      "id": "tooling/lsp/typescript-provider-output-shape",
+      "order": 985
+    },
+    {
+      "id": "tooling/lsp/csharp-provider-ambiguous-solution-preflight",
+      "order": 986
+    },
+    {
+      "id": "tooling/config/validate",
+      "order": 987
+    },
+    {
+      "id": "shared/io/atomic-write-contract",
+      "order": 988
+    },
+    {
+      "id": "tooling/lsp/csharp-provider-ambiguous-project-preflight",
+      "order": 989
+    },
+    {
+      "id": "tooling/lsp/solargraph-provider-gemfile-lock-missing-preflight",
+      "order": 990
+    },
+    {
+      "id": "indexing/validate/index-unknown-piece",
+      "order": 991
+    },
+    {
+      "id": "indexing/relations/segment-call-site-offsets",
+      "order": 992
+    },
+    {
+      "id": "indexing/relations/segment-language-fidelity",
+      "order": 993
+    },
+    {
+      "id": "tooling/type-inference/crossfile-tooling-runtime-stats-fail-open",
+      "order": 994
+    },
+    {
+      "id": "indexing/risk/interprocedural/summary-only-status",
+      "order": 995
+    },
+    {
+      "id": "services/snapshot-freeze",
+      "order": 996
+    },
+    {
+      "id": "tooling/lsp/shutdown",
+      "order": 997
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-plan-skip-on-parse-error",
+      "order": 998
+    },
+    {
+      "id": "retrieval/filters/lang-filter-matches-embedded-segments",
+      "order": 999
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-native-plan-contract",
+      "order": 1000
+    },
+    {
+      "id": "tooling/install/postinstall-rebuild-native",
+      "order": 1001
+    },
+    {
+      "id": "shared/subprocess/tracked-event-ledger",
+      "order": 1002
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-swift-subprocess",
+      "order": 1003
+    },
+    {
+      "id": "tooling/lsp/solargraph-provider-runtime-toolchain-missing-bundle-preflight",
+      "order": 1004
+    },
+    {
+      "id": "tooling/ingest/ctags/ingest",
+      "order": 1005
+    },
+    {
+      "id": "lang/python/ast-worker",
+      "order": 1006
+    },
+    {
+      "id": "indexing/file-processor/skip",
+      "order": 1007
+    },
+    {
+      "id": "shared/abort/propagates-to-subprocess",
+      "order": 1008
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-stage1-contract",
+      "order": 1009
+    },
+    {
+      "id": "tooling/lsp/jdtls-provider-bootstrap",
+      "order": 1010
+    },
+    {
+      "id": "shared/fs/atomic-replace-cross-device-fallback",
+      "order": 1011
+    },
+    {
+      "id": "indexing/file-processor/unsupported-language-skip",
+      "order": 1012
+    },
+    {
+      "id": "indexing/tree-sitter/plan-stale-file-resilience",
+      "order": 1013
+    },
+    {
+      "id": "indexing/validate/index-unknown-mode",
+      "order": 1014
+    },
+    {
+      "id": "indexing/validate/manifest-checks",
+      "order": 1015
+    },
+    {
+      "id": "shared/subprocess/timeout-kills-child",
+      "order": 1016
+    },
+    {
+      "id": "shared/subprocess/sync-command-timeout-opt-out",
+      "order": 1017
+    },
+    {
+      "id": "shared/process-signals/cleanup-signal-handlers",
+      "order": 1018
+    },
+    {
+      "id": "shared/runtime/records-config",
+      "order": 1019
+    },
+    {
+      "id": "tooling/config/dump",
+      "order": 1020
+    },
+    {
+      "id": "indexing/file-processor/read-failure-skip",
+      "order": 1021
+    },
+    {
+      "id": "shared/disk-space/format-bytes-contract",
+      "order": 1022
+    },
+    {
+      "id": "tooling/service/subprocess-buffer-bounds",
+      "order": 1023
+    },
+    {
+      "id": "indexing/stage1/process-files-inflight-drain",
+      "order": 1024
+    },
+    {
+      "id": "tooling/cache/gc-preserves-manifest-referenced",
+      "order": 1025
+    },
+    {
+      "id": "indexing/file-processor/scm-annotate-fast-timeout",
+      "order": 1026
+    },
+    {
+      "id": "indexing/segments/effective-identity-md-fence",
+      "order": 1027
+    },
+    {
+      "id": "indexing/workers/worker-pool-windows",
+      "order": 1028
+    },
+    {
+      "id": "shared/diffs-registry",
+      "order": 1029
+    },
+    {
+      "id": "smoke/workers",
+      "order": 1030
+    },
+    {
+      "id": "tooling/lsp/sourcekit-provider-output-shape",
+      "order": 1031
+    },
+    {
+      "id": "tooling/lsp/session-pool-max-lifetime-recycle",
+      "order": 1032
+    },
+    {
+      "id": "indexing/file-processor/effective-language-drives-docmeta",
+      "order": 1033
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-native-determinism",
+      "order": 1034
+    },
+    {
+      "id": "runner/harness/cwd-independence",
+      "order": 1035
+    },
+    {
+      "id": "indexing/scm/build-runtime-timeout-policy",
+      "order": 1036
+    },
+    {
+      "id": "indexing/scm/file-meta-snapshot-churn-optin-contract",
+      "order": 1037
+    },
+    {
+      "id": "tooling/doctor/runtime-requirements-csharp-dedicated",
+      "order": 1038
+    },
+    {
+      "id": "tooling/ingest/lsif/ingest",
+      "order": 1039
+    },
+    {
+      "id": "tooling/lsp/elixir-provider-mix-lock-missing-preflight",
+      "order": 1040
+    },
+    {
+      "id": "tooling/lsp/vfs-didopen",
+      "order": 1041
+    },
+    {
+      "id": "tooling/ingest/scip/ingest",
+      "order": 1042
+    },
+    {
+      "id": "indexing/file-processor/scm-runproc-queue-timeout",
+      "order": 1043
+    },
+    {
+      "id": "tooling/lsp/latency-microbench-contract",
+      "order": 1044
+    },
+    {
+      "id": "tooling/lsp/param-fallback-from-source",
+      "order": 1045
+    },
+    {
+      "id": "tooling/lsp/source-bootstrap-incomplete-still-requests",
+      "order": 1046
+    },
+    {
+      "id": "tooling/lsp/pyright-function-symbol-priority",
+      "order": 1047
+    },
+    {
+      "id": "tooling/lsp/protocol-fragmented-frames",
+      "order": 1048
+    },
+    {
+      "id": "tooling/lsp/signature-help-fallback",
+      "order": 1049
+    },
+    {
+      "id": "tooling/lsp/collect-shutdown-race-clean",
+      "order": 1050
+    },
+    {
+      "id": "tooling/lsp/definition-fallback",
+      "order": 1051
+    },
+    {
+      "id": "tooling/ingest/gtags/ingest",
+      "order": 1052
+    },
+    {
+      "id": "tooling/lsp/fd-pressure-backoff-contract",
+      "order": 1053
+    },
+    {
+      "id": "tooling/lsp/bychunkuid-keying",
+      "order": 1054
+    },
+    {
+      "id": "indexing/embeddings/embedding-batch-autotune",
+      "order": 1055
+    },
+    {
+      "id": "indexing/embeddings/stage3-manifest-failure-guard",
+      "order": 1056
+    },
+    {
+      "id": "tooling/lsp/configured-provider-lua-workspace-library",
+      "order": 1057
+    },
+    {
+      "id": "tooling/lsp/configured-provider-rust-proc-macro-suppression-policy-preflight",
+      "order": 1058
+    },
+    {
+      "id": "tooling/lsp/type-definition-fallback",
+      "order": 1059
+    },
+    {
+      "id": "tooling/lsp/configured-provider-lua-workspace-library-missing-path-preflight",
+      "order": 1060
+    },
+    {
+      "id": "tooling/lsp/configured-provider-runtime-requirement-preflight-degraded",
+      "order": 1061
+    },
+    {
+      "id": "runner/harness/timings-ledger",
+      "order": 1062
+    },
+    {
+      "id": "tooling/lsp/configured-provider-rust-proc-macro-diagnostic-suppression",
+      "order": 1063
+    },
+    {
+      "id": "tooling/lsp/configured-provider-yaml-schema-override-merge",
+      "order": 1064
+    },
+    {
+      "id": "tooling/lsp/configured-provider-lua-workspace-config-invalid-preflight",
+      "order": 1065
+    },
+    {
+      "id": "tooling/lsp/configured-provider-rust-workspace-metadata-preflight-degraded",
+      "order": 1066
+    },
+    {
+      "id": "tooling/lsp/hover-merge-quality",
+      "order": 1067
+    },
+    {
+      "id": "tooling/lsp/configured-provider-yaml-schema-store-remote-warning-preflight",
+      "order": 1068
+    },
+    {
+      "id": "tooling/lsp/configured-provider-rust-workspace-metadata-cache-hit",
+      "order": 1069
+    },
+    {
+      "id": "tooling/lsp/clangd-provider-output-shape",
+      "order": 1070
+    },
+    {
+      "id": "tooling/lsp/configured-provider-zls-workspace-nested-root-preflight",
+      "order": 1071
+    },
+    {
+      "id": "tooling/lsp/clangd-preflight-missing-compile-commands-inference-disabled",
+      "order": 1072
+    },
+    {
+      "id": "tooling/lsp/protocol-disconnect-document-symbol-fail-open",
+      "order": 1073
+    },
+    {
+      "id": "tooling/lsp/configured-provider-go-workspace-warmup-doc-count-gating",
+      "order": 1074
+    },
+    {
+      "id": "tooling/lsp/configured-provider-go-workspace-module-preflight-failed",
+      "order": 1075
+    },
+    {
+      "id": "tooling/lsp/provider-metrics-capability-rollup",
+      "order": 1076
+    },
+    {
+      "id": "tooling/lsp/csharp-provider-overload-signature",
+      "order": 1077
+    },
+    {
+      "id": "tooling/lsp/provider-fidelity-coverage-contract",
+      "order": 1078
+    },
+    {
+      "id": "tooling/lsp/configured-provider-go-workspace-warmup-preflight-failed",
+      "order": 1079
+    },
+    {
+      "id": "tooling/lsp/provider-metrics-envelope-aggregate",
+      "order": 1080
+    },
+    {
+      "id": "tooling/lsp/configured-provider-go-workspace-preflight-cache-hit",
+      "order": 1081
+    },
+    {
+      "id": "tooling/lsp/configured-provider-gopls-workspace-root-ambiguous-preflight",
+      "order": 1082
+    },
+    {
+      "id": "tooling/lsp/configured-provider-gopls-workspace-root-nested-preflight",
+      "order": 1083
+    },
+    {
+      "id": "tooling/lsp/document-symbol-failure-disables-remaining-docs",
+      "order": 1084
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-native-language-contract",
+      "order": 1085
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-native-smoke",
+      "order": 1086
+    },
+    {
+      "id": "tooling/lsp/references-fallback",
+      "order": 1087
+    },
+    {
+      "id": "runner/harness/redo-semantics",
+      "order": 1088
+    },
+    {
+      "id": "shared/cache/gc",
+      "order": 1089
+    },
+    {
+      "id": "tooling/type-inference/crossfile-stats.unit",
+      "order": 1090
+    },
+    {
+      "id": "tooling/lsp/elixir-provider-runtime-otp-mismatch-preflight",
+      "order": 1091
+    },
+    {
+      "id": "cli/search/help",
+      "order": 1092
+    },
+    {
+      "id": "tooling/vfs/partial-lsp-open",
+      "order": 1093
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-paged-json-gzip",
+      "order": 1094
+    },
+    {
+      "id": "tooling/lsp/configured-provider-go-rust-signature-parsing",
+      "order": 1095
+    },
+    {
+      "id": "tooling/lsp/configured-provider-rust-workspace-metadata-preflight-timeout-override",
+      "order": 1096
+    },
+    {
+      "id": "tooling/lsp/configured-provider-go-workspace-module-preflight-timeout",
+      "order": 1097
+    },
+    {
+      "id": "indexing/watch/lock-backoff",
+      "order": 1098
+    },
+    {
+      "id": "indexing/ignore/ignore-file-overrides",
+      "order": 1099
+    },
+    {
+      "id": "indexing/imports/import-scan-budget-cache-key",
+      "order": 1100
+    },
+    {
+      "id": "tooling/doctor/gating-reasons",
+      "order": 1101
+    },
+    {
+      "id": "tooling/lsp/elixir-provider-initialize-stall-fail-open",
+      "order": 1102
+    },
+    {
+      "id": "perf/bench/language-log-closeout",
+      "order": 1103
+    },
+    {
+      "id": "perf/bench/language-log-emergency-close",
+      "order": 1104
+    },
+    {
+      "id": "perf/bench/language-report-cross-repo-dedupe",
+      "order": 1105
+    },
+    {
+      "id": "perf/bench/language-report-master-dedupe",
+      "order": 1106
+    },
+    {
+      "id": "perf/bench/language-report-master-summary-recovery",
+      "order": 1107
+    },
+    {
+      "id": "perf/bench/query-runtime",
+      "order": 1108
+    },
+    {
+      "id": "perf/bench/language-timeout-profile",
+      "order": 1109
+    },
+    {
+      "id": "perf/bench/language-process-idle-timeout",
+      "order": 1110
+    },
+    {
+      "id": "perf/bench/language-process-idle-activity-probe",
+      "order": 1111
+    },
+    {
+      "id": "perf/bench/language-process-idle-activity-probe-async",
+      "order": 1112
+    },
+    {
+      "id": "shared/lifecycle/registry-unref-promise-drain",
+      "order": 1113
+    },
+    {
+      "id": "shared/bundle-io-patch-append",
+      "order": 1114
+    },
+    {
+      "id": "shared/subprocess/windows-cmd",
+      "order": 1115
+    },
+    {
+      "id": "indexing/embeddings/embedding-batcher-unref-timer",
+      "order": 1116
+    },
+    {
+      "id": "perf/bench/repo-timeout-propagation",
+      "order": 1117
+    },
+    {
+      "id": "indexing/watch/debounce",
+      "order": 1118
+    },
+    {
+      "id": "indexing/state/build-state-log-repair",
+      "order": 1119
+    },
+    {
+      "id": "indexing/state/build-state-identical-patch-repeat-logs",
+      "order": 1120
+    },
+    {
+      "id": "indexing/state/build-state-skip-write-missing-files",
+      "order": 1121
+    },
+    {
+      "id": "tooling/lsp/signature-help-timeout-adaptive-gates-next-symbol",
+      "order": 1122
+    },
+    {
+      "id": "tooling/lsp/signature-help-timeout-adaptive",
+      "order": 1123
+    },
+    {
+      "id": "runner/harness/skip-semantics",
+      "order": 1124
+    },
+    {
+      "id": "tooling/lsp/definition-timeout-adaptive",
+      "order": 1125
+    },
+    {
+      "id": "tooling/lsp/references-timeout-adaptive",
+      "order": 1126
+    },
+    {
+      "id": "tooling/lsp/provider-metrics-hover-timeout-rollup",
+      "order": 1127
+    },
+    {
+      "id": "indexing/tokenization/file-stream-reuse",
+      "order": 1128
+    },
+    {
+      "id": "perf/bench/language-closeout-exit",
+      "order": 1129
+    },
+    {
+      "id": "indexing/extracted-prose/low-yield-history-family-priors",
+      "order": 1130
+    },
+    {
+      "id": "indexing/stage1/barrier-keepalive",
+      "order": 1131
+    },
+    {
+      "id": "indexing/runtime/runtime-teardown-order",
+      "order": 1132
+    },
+    {
+      "id": "indexing/ordering/ordered-appender-retry-reset",
+      "order": 1133
+    },
+    {
+      "id": "tooling/install/tooling-signal-exit",
+      "order": 1134
+    },
+    {
+      "id": "tooling/install/tooling-resolve-preferred-enabled-fallback",
+      "order": 1135
+    },
+    {
+      "id": "tooling/analysis-wrapper-exit-propagation",
+      "order": 1136
+    },
+    {
+      "id": "tooling/vscode/windows-cmd",
+      "order": 1137
+    },
+    {
+      "id": "tooling/lsp/windows-wrapper-argv-forwarding",
+      "order": 1138
+    },
+    {
+      "id": "ci/tooling-lsp-slo-gate-attempt-ratios",
+      "order": 1139
+    },
+    {
+      "id": "ci/tooling-lsp-slo-gate-sampling",
+      "order": 1140
+    },
+    {
+      "id": "ci/tooling-lsp-slo-gate-unavailable-skip",
+      "order": 1141
+    },
+    {
+      "id": "indexing/extracted-prose/low-yield-history-doclike-reinforcement",
+      "order": 1142
+    },
+    {
+      "id": "indexing/extracted-prose/low-yield-history-unsampled-doclike-family",
+      "order": 1143
+    },
+    {
+      "id": "indexing/extracted-prose/low-yield-unsampled-doclike-family-expansion",
+      "order": 1144
+    },
+    {
+      "id": "indexing/extracted-prose/low-yield-summary-family-evidence",
+      "order": 1145
+    },
+    {
+      "id": "indexing/extracted-prose/extraction-report",
+      "order": 1146
+    },
+    {
+      "id": "indexing/workers/worker-pool-lifecycle-destroy",
+      "order": 1147
+    },
+    {
+      "id": "indexing/workers/worker-pool-lifecycle-destroy-during-restart",
+      "order": 1148
+    },
+    {
+      "id": "context-pack/risk-ranking-budget",
+      "order": 1149
+    },
+    {
+      "id": "context-pack/risk-strict-status",
+      "order": 1150
+    },
+    {
+      "id": "retrieval/output/risk-explanation-contract",
+      "order": 1151
+    },
+    {
+      "id": "retrieval/output/risk-explanation-sarif-contract",
+      "order": 1152
+    },
+    {
+      "id": "retrieval/output/composite-context-pack-render-contract",
+      "order": 1153
+    },
+    {
+      "id": "retrieval/output/composite-context-pack-sarif-contract",
+      "order": 1154
+    }
+  ]
+}

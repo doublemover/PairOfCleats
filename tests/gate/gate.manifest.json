@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "lane": "gate",
+  "selectionMode": "ordered-manifest",
+  "durationBucket": "gate",
+  "targetMaxDurationSeconds": 15,
+  "notes": "Generated from the gate lane order source; optional timing artifacts annotate entries when present.",
+  "sourceOrderFile": "tests/gate/gate.order.txt",
+  "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
+  "timingArtifactPaths": [],
+  "tests": [
+    {
+      "id": "indexing/policy/hotpath-membership-guard",
+      "order": 1
+    },
+    {
+      "id": "indexing/policy/module-cache-boundedness-contract",
+      "order": 2
+    },
+    {
+      "id": "indexing/policy/generated-matrix",
+      "order": 3
+    },
+    {
+      "id": "indexing/contracts/artifact-surface-version",
+      "order": 4
+    },
+    {
+      "id": "indexing/contracts/n-minus-one-adapter",
+      "order": 5
+    },
+    {
+      "id": "indexing/contracts/public-artifact-surface-doc",
+      "order": 6
+    },
+    {
+      "id": "indexing/contracts/index-compatibility-key-generation",
+      "order": 7
+    },
+    {
+      "id": "indexing/contracts/semver-policy-enforced",
+      "order": 8
+    },
+    {
+      "id": "indexing/contracts/index-state-dense-sidecars-present",
+      "order": 9
+    },
+    {
+      "id": "contracts/manifest-max-bytes-validation",
+      "order": 10
+    },
+    {
+      "id": "indexing/policy/repo-inventory",
+      "order": 11
+    },
+    {
+      "id": "indexing/contracts/loader-matrix-parity",
+      "order": 12
+    },
+    {
+      "id": "indexing/policy/analysis-schema",
+      "order": 13
+    },
+    {
+      "id": "indexing/contracts/snapshots",
+      "order": 14
+    },
+    {
+      "id": "indexing/contracts/builds-current-repo-head-schema",
+      "order": 15
+    },
+    {
+      "id": "indexing/contracts/call-sites-schema",
+      "order": 16
+    },
+    {
+      "id": "indexing/contracts/diffs",
+      "order": 17
+    },
+    {
+      "id": "indexing/contracts/additional-properties-policy",
+      "order": 18
+    },
+    {
+      "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+      "order": 19
+    },
+    {
+      "id": "indexing/contracts/schema-registry-single-source",
+      "order": 20
+    },
+    {
+      "id": "tooling/api-contracts/caps",
+      "order": 21
+    },
+    {
+      "id": "tooling/api-contracts/schema-validate",
+      "order": 22
+    },
+    {
+      "id": "tooling/api-contracts/fail-on-warn",
+      "order": 23
+    },
+    {
+      "id": "tooling/api-contracts/optional-params",
+      "order": 24
+    },
+    {
+      "id": "tooling/api-contracts/large-call-sites",
+      "order": 25
+    },
+    {
+      "id": "indexing/contracts/embedding-identity-gating-on-load",
+      "order": 26
+    },
+    {
+      "id": "ci/capability-gate.smoke",
+      "order": 27
+    },
+    {
+      "id": "indexing/contracts/index-compatibility-key-federation-block",
+      "order": 28
+    },
+    {
+      "id": "indexing/policy/stable-entrypoints",
+      "order": 29
+    },
+    {
+      "id": "indexing/policy/optional-deps",
+      "order": 30
+    },
+    {
+      "id": "indexing/policy/analysis-gating",
+      "order": 31
+    },
+    {
+      "id": "ci/tooling-doctor-gate.smoke",
+      "order": 32
+    },
+    {
+      "id": "tooling/api-contracts/basic",
+      "order": 33
+    },
+    {
+      "id": "contracts/module-export-surface-compat",
+      "order": 34
+    }
+  ]
+}

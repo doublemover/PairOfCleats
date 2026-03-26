@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { loadLaneManifestConfig, loadOrderedLaneManifest } from '../../runner/lane-manifests.js';
 
 const root = process.cwd();
-const ciLiteOrderPath = path.join(root, 'tests', 'ci-lite', 'ci-lite.order.txt');
-const ciOrderPath = path.join(root, 'tests', 'ci', 'ci.order.txt');
 
 const readText = (filePath) => fs.readFileSync(filePath, 'utf8');
 
@@ -13,18 +12,11 @@ const toLaneId = (testPath) => testPath
   .replace(/^tests\//, '')
   .replace(/\.test\.js$/, '');
 
-const ciLiteEntries = new Set(
-  readText(ciLiteOrderPath)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-);
-const ciEntries = new Set(
-  readText(ciOrderPath)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-);
+const manifestConfig = await loadLaneManifestConfig({ root });
+const ciLiteManifest = await loadOrderedLaneManifest({ root, lane: 'ci-lite', config: manifestConfig });
+const ciManifest = await loadOrderedLaneManifest({ root, lane: 'ci', config: manifestConfig });
+const ciLiteEntries = new Set(Array.isArray(ciLiteManifest?.tests) ? ciLiteManifest.tests.map((entry) => entry.id) : []);
+const ciEntries = new Set(Array.isArray(ciManifest?.tests) ? ciManifest.tests.map((entry) => entry.id) : []);
 
 const matrix = [
   {

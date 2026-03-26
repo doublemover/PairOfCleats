@@ -1,0 +1,697 @@
+{
+  "schemaVersion": 1,
+  "lane": "ci",
+  "selectionMode": "ordered-manifest",
+  "durationBucket": "ci",
+  "targetMaxDurationSeconds": 60,
+  "notes": "Duration-bucket manifest for the medium integration lane.",
+  "sourceOrderFile": "tests/ci/ci.order.txt",
+  "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
+  "timingArtifactPaths": [],
+  "tests": [
+    {
+      "id": "tooling/lsp/writer-closed-restart-reaps-stale-process",
+      "order": 1
+    },
+    {
+      "id": "tooling/lsp/request-timeout-sends-cancel",
+      "order": 2
+    },
+    {
+      "id": "indexing/imports/replay-corpus",
+      "order": 3
+    },
+    {
+      "id": "tooling/install/tooling-detect-generic-lsp-tools",
+      "order": 4
+    },
+    {
+      "id": "tooling/lsp/sourcekit-provider-host-lock-unavailable",
+      "order": 5
+    },
+    {
+      "id": "tooling/lsp/sourcekit-package-preflight-lock-unavailable",
+      "order": 6
+    },
+    {
+      "id": "tooling/lsp/sourcekit-package-preflight-lock-unavailable-fail-open",
+      "order": 7
+    },
+    {
+      "id": "tooling/install/tooling-detect-dedicated-lsp-tools",
+      "order": 8
+    },
+    {
+      "id": "tooling/install/tooling-detect",
+      "order": 9
+    },
+    {
+      "id": "tooling/lsp/session-pool-disposal-barrier",
+      "order": 10
+    },
+    {
+      "id": "tooling/lsp/sourcekit-provider-command-override",
+      "order": 11
+    },
+    {
+      "id": "tooling/lsp/restart-generation-safety",
+      "order": 12
+    },
+    {
+      "id": "tooling/reports/summary/report",
+      "order": 13
+    },
+    {
+      "id": "retrieval/federation/compat-cohort-defaults",
+      "order": 14
+    },
+    {
+      "id": "retrieval/federation/compat-cohort-determinism",
+      "order": 15
+    },
+    {
+      "id": "retrieval/federation/compat-cohort-explicit-selection",
+      "order": 16
+    },
+    {
+      "id": "tooling/lsp/pyright-preflight-workspace-config-invalid",
+      "order": 17
+    },
+    {
+      "id": "tooling/lsp/configured-provider-probe-fallback",
+      "order": 18
+    },
+    {
+      "id": "tooling/lsp/pyright-preflight-workspace-mono-root",
+      "order": 19
+    },
+    {
+      "id": "retrieval/federation/mode-cohort-merge-cutoff-order",
+      "order": 20
+    },
+    {
+      "id": "tooling/lsp/clangd-provider-command-override",
+      "order": 21
+    },
+    {
+      "id": "lang/contracts/language-fixture-contracts",
+      "order": 22
+    },
+    {
+      "id": "retrieval/federation/compat-cohort-availability-filtering",
+      "order": 23
+    },
+    {
+      "id": "retrieval/federation/workspace-config-snapshot",
+      "order": 24
+    },
+    {
+      "id": "tooling/doctor/command-profile-probe-cache-invalidate-launch-failure",
+      "order": 25
+    },
+    {
+      "id": "retrieval/federation/invalid-cohort-selector-error-code",
+      "order": 26
+    },
+    {
+      "id": "tooling/lsp/configured-provider-gopls-workspace-root-ambiguous-preflight",
+      "order": 27
+    },
+    {
+      "id": "retrieval/federation/workspace-config-trust-boundary",
+      "order": 28
+    },
+    {
+      "id": "tooling/lsp/configured-provider-gopls-workspace-diagnostics",
+      "order": 29
+    },
+    {
+      "id": "tooling/lsp/configured-provider-gopls-workspace-root-nested-preflight",
+      "order": 30
+    },
+    {
+      "id": "retrieval/federation/compat-cohort-all-unavailable-empty-selection",
+      "order": 31
+    },
+    {
+      "id": "retrieval/federation/non-strict-propagates-hard-failure",
+      "order": 32
+    },
+    {
+      "id": "retrieval/federation/select-object-only-no-cache-fragmentation",
+      "order": 33
+    },
+    {
+      "id": "retrieval/federation/path-redaction-diagnostic-message",
+      "order": 34
+    },
+    {
+      "id": "retrieval/federation/cache-key-workspace-metadata",
+      "order": 35
+    },
+    {
+      "id": "services/api/federated-search-repo-root-directory-validation",
+      "order": 36
+    },
+    {
+      "id": "indexing/language-fixture/postings-integrity",
+      "order": 37
+    },
+    {
+      "id": "retrieval/federation/partial-failures-not-cached",
+      "order": 38
+    },
+    {
+      "id": "tooling/install/setup-index-detection",
+      "order": 39
+    },
+    {
+      "id": "retrieval/federation/path-redaction-fields-only",
+      "order": 40
+    },
+    {
+      "id": "retrieval/federation/strict-cache-key-separation",
+      "order": 41
+    },
+    {
+      "id": "retrieval/federation/abort-does-not-cache-partial",
+      "order": 42
+    },
+    {
+      "id": "retrieval/federation/search-multi-repo-basic",
+      "order": 43
+    },
+    {
+      "id": "tooling/lsp/protocol-malformed-hover-fail-open",
+      "order": 44
+    },
+    {
+      "id": "tooling/lsp/protocol-malformed-document-symbol-fail-open",
+      "order": 45
+    },
+    {
+      "id": "tooling/lsp/protocol-capability-drift-hover-fail-open",
+      "order": 46
+    },
+    {
+      "id": "tooling/lsp/protocol-inconsistent-document-symbol-fail-open",
+      "order": 47
+    },
+    {
+      "id": "retrieval/federation/select-aliases",
+      "order": 48
+    },
+    {
+      "id": "services/api/federated-search-workspace-allowlist",
+      "order": 49
+    },
+    {
+      "id": "tooling/install/download-extensions",
+      "order": 50
+    },
+    {
+      "id": "services/api/federated-search-redacts-paths",
+      "order": 51
+    },
+    {
+      "id": "retrieval/contracts/result-shape",
+      "order": 52
+    },
+    {
+      "id": "retrieval/context-pack/risk-assembly",
+      "order": 53
+    },
+    {
+      "id": "context-pack/risk-filters-parity",
+      "order": 54
+    },
+    {
+      "id": "retrieval/filters/types",
+      "order": 55
+    },
+    {
+      "id": "retrieval/federation/raw-args-query-forwarding",
+      "order": 56
+    },
+    {
+      "id": "tooling/lsp/protocol-malformed-initialize-fail-open",
+      "order": 57
+    },
+    {
+      "id": "tooling/lsp/protocol-delayed-partial-document-symbol",
+      "order": 58
+    },
+    {
+      "id": "retrieval/federation/raw-args-mode-selection",
+      "order": 59
+    },
+    {
+      "id": "retrieval/filters/risk",
+      "order": 60
+    },
+    {
+      "id": "lang/fixtures-sample/swift-metadata",
+      "order": 61
+    },
+    {
+      "id": "retrieval/federation/per-repo-mode-eligibility",
+      "order": 62
+    },
+    {
+      "id": "retrieval/filters/type-signature-decorator",
+      "order": 63
+    },
+    {
+      "id": "retrieval/federation/search-determinism",
+      "order": 64
+    },
+    {
+      "id": "indexing/risk/interprocedural/runtime-gating",
+      "order": 65
+    },
+    {
+      "id": "retrieval/filters/control-flow",
+      "order": 66
+    },
+    {
+      "id": "tooling/lsp/pyright-provider-command-override",
+      "order": 67
+    },
+    {
+      "id": "lang/fixtures-sample/rust-metadata",
+      "order": 68
+    },
+    {
+      "id": "retrieval/filters/ext-path",
+      "order": 69
+    },
+    {
+      "id": "retrieval/filters/behavioral",
+      "order": 70
+    },
+    {
+      "id": "retrieval/filters/file-and-token/punctuation-tokenization",
+      "order": 71
+    },
+    {
+      "id": "services/api/router-smoke",
+      "order": 72
+    },
+    {
+      "id": "services/api/risk-explain-filters",
+      "order": 73
+    },
+    {
+      "id": "services/api/federated-search-per-repo-top-zero",
+      "order": 74
+    },
+    {
+      "id": "tooling/lsp/pyright-preflight-workspace-scan-outlier",
+      "order": 75
+    },
+    {
+      "id": "indexing/cache/workspace-concurrency-limits",
+      "order": 76
+    },
+    {
+      "id": "services/api/federated-search-cache-root-symlink-escape",
+      "order": 77
+    },
+    {
+      "id": "cli/general/risk-explain",
+      "order": 78
+    },
+    {
+      "id": "cli/search/missing-index",
+      "order": 79
+    },
+    {
+      "id": "indexing/config/index-dump",
+      "order": 80
+    },
+    {
+      "id": "retrieval/filters/file-selector",
+      "order": 81
+    },
+    {
+      "id": "indexing/watch/filter",
+      "order": 82
+    },
+    {
+      "id": "retrieval/filters/query-syntax/phrases-and-scorebreakdown",
+      "order": 83
+    },
+    {
+      "id": "services/api/federated-search-client-errors",
+      "order": 84
+    },
+    {
+      "id": "retrieval/federation/cli-top-zero-preserved",
+      "order": 85
+    },
+    {
+      "id": "indexing/watch/e2e-promotion",
+      "order": 86
+    },
+    {
+      "id": "indexing/risk/interprocedural/artifacts-written",
+      "order": 87
+    },
+    {
+      "id": "shared/fs/atomic-replace-stale-bak-does-not-mask-missing-temp",
+      "order": 88
+    },
+    {
+      "id": "shared/json-stream/atomic-stale-backup-protection",
+      "order": 89
+    },
+    {
+      "id": "indexing/filter-index/metrics",
+      "order": 90
+    },
+    {
+      "id": "runner/harness/timeout-kills-tree",
+      "order": 91
+    },
+    {
+      "id": "services/api/federated-search-cache-root-allowlist",
+      "order": 92
+    },
+    {
+      "id": "tooling/lsp/type-definition-timeout-adaptive",
+      "order": 93
+    },
+    {
+      "id": "services/api/federated-search-workspaceid-validation",
+      "order": 94
+    },
+    {
+      "id": "indexing/watch/shutdown",
+      "order": 95
+    },
+    {
+      "id": "services/api/no-index",
+      "order": 96
+    },
+    {
+      "id": "services/mcp/risk-explain",
+      "order": 97
+    },
+    {
+      "id": "indexing/watch/atomicity",
+      "order": 98
+    },
+    {
+      "id": "tooling/config-inventory/report-format",
+      "order": 99
+    },
+    {
+      "id": "indexing/watch/backend-selection",
+      "order": 100
+    },
+    {
+      "id": "indexing/file-processor/skip-minified-binary",
+      "order": 101
+    },
+    {
+      "id": "lang/fixtures-sample/python-metadata",
+      "order": 102
+    },
+    {
+      "id": "indexing/metrics/index-options",
+      "order": 103
+    },
+    {
+      "id": "indexing/file-caps/file-line-guard",
+      "order": 104
+    },
+    {
+      "id": "tooling/config-inventory/schema-scan",
+      "order": 105
+    },
+    {
+      "id": "tooling/structural/filters",
+      "order": 106
+    },
+    {
+      "id": "shared/encoding/unicode-offset",
+      "order": 107
+    },
+    {
+      "id": "indexing/watch/stability-guard",
+      "order": 108
+    },
+    {
+      "id": "tooling/lsp/pyright-provider-output-shape",
+      "order": 109
+    },
+    {
+      "id": "map/edge-aggregate-stability",
+      "order": 110
+    },
+    {
+      "id": "tooling/lsp/dedicated-providers-multifile-session-reuse",
+      "order": 111
+    },
+    {
+      "id": "runner/harness/log-runid",
+      "order": 112
+    },
+    {
+      "id": "indexing/metadata/external-docs",
+      "order": 113
+    },
+    {
+      "id": "indexing/git/blame-range",
+      "order": 114
+    },
+    {
+      "id": "indexing/postings/real-bench-contract",
+      "order": 115
+    },
+    {
+      "id": "map/build-streaming",
+      "order": 116
+    },
+    {
+      "id": "indexing/map/code-dot",
+      "order": 117
+    },
+    {
+      "id": "tooling/lsp/session-pool-poisoned-recycle",
+      "order": 118
+    },
+    {
+      "id": "tooling/lsp/protocol-disconnect-hover-fail-open",
+      "order": 119
+    },
+    {
+      "id": "indexing/tree-sitter/js-maxbytes",
+      "order": 120
+    },
+    {
+      "id": "indexing/map/code-graphviz-fallback",
+      "order": 121
+    },
+    {
+      "id": "indexing/shards/shard-progress-determinism",
+      "order": 122
+    },
+    {
+      "id": "map/build-determinism",
+      "order": 123
+    },
+    {
+      "id": "indexing/embeddings/build/embeddings-cache",
+      "order": 124
+    },
+    {
+      "id": "indexing/map/code-basic",
+      "order": 125
+    },
+    {
+      "id": "services/indexer/service",
+      "order": 126
+    },
+    {
+      "id": "indexer/call-sites/empty-required",
+      "order": 127
+    },
+    {
+      "id": "map/build-heap-guard",
+      "order": 128
+    },
+    {
+      "id": "indexing/map/code-determinism",
+      "order": 129
+    },
+    {
+      "id": "indexer/call-sites/emit-artifacts-none",
+      "order": 130
+    },
+    {
+      "id": "tooling/doctor/dedicated-provider-handshake-fixtures",
+      "order": 131
+    },
+    {
+      "id": "retrieval/filters/git-metadata/branch",
+      "order": 132
+    },
+    {
+      "id": "cli/search/removed-flags",
+      "order": 133
+    },
+    {
+      "id": "indexing/type-inference/crossfile/output.integration",
+      "order": 134
+    },
+    {
+      "id": "retrieval/filters/git-metadata/chunk-author",
+      "order": 135
+    },
+    {
+      "id": "indexing/scm/index-build-no",
+      "order": 136
+    },
+    {
+      "id": "ci/import-resolution-slo-gate.smoke",
+      "order": 137
+    },
+    {
+      "id": "lang/rust/prose-exclusion",
+      "order": 138
+    },
+    {
+      "id": "indexing/type-inference/crossfile/type-inference-go",
+      "order": 139
+    },
+    {
+      "id": "retrieval/filters/file-and-token/token-case",
+      "order": 140
+    },
+    {
+      "id": "retrieval/filters/query-syntax/negative-terms",
+      "order": 141
+    },
+    {
+      "id": "shared/runtime/envelope-spawn-env",
+      "order": 142
+    },
+    {
+      "id": "tooling/lsp/sourcekit-package-preflight-cache-resolved-invalidation",
+      "order": 143
+    },
+    {
+      "id": "storage/lmdb/mapsize",
+      "order": 144
+    },
+    {
+      "id": "indexer/metav2/finalization-after-inference",
+      "order": 145
+    },
+    {
+      "id": "indexing/imports/prose-skip",
+      "order": 146
+    },
+    {
+      "id": "tooling/install/tool-root",
+      "order": 147
+    },
+    {
+      "id": "cli/search/startup-profiler",
+      "order": 148
+    },
+    {
+      "id": "tooling/config-inventory/inventory-sync",
+      "order": 149
+    },
+    {
+      "id": "retrieval/filters/file-and-token/file-selector-case",
+      "order": 150
+    },
+    {
+      "id": "cli/search/contract",
+      "order": 151
+    },
+    {
+      "id": "indexing/lifecycle/index-contract",
+      "order": 152
+    },
+    {
+      "id": "retrieval/cache/query-extracted-prose",
+      "order": 153
+    },
+    {
+      "id": "tooling/lsp/dedicated-providers-abrupt-failure-cleanup",
+      "order": 154
+    },
+    {
+      "id": "cli/search/determinism",
+      "order": 155
+    },
+    {
+      "id": "retrieval/ann/hnsw",
+      "order": 156
+    },
+    {
+      "id": "indexing/embeddings/determinism",
+      "order": 157
+    },
+    {
+      "id": "indexing/determinism/symbol-artifact",
+      "order": 158
+    },
+    {
+      "id": "tooling/doctor/reports-xxhash-backend",
+      "order": 159
+    },
+    {
+      "id": "tooling/doctor/json-stable",
+      "order": 160
+    },
+    {
+      "id": "tooling/doctor/scm-none-annotate-disabled",
+      "order": 161
+    },
+    {
+      "id": "tooling/doctor/emits-report",
+      "order": 162
+    },
+    {
+      "id": "indexing/extracted-prose/core",
+      "order": 163
+    },
+    {
+      "id": "storage/sqlite/incremental/bundle-coverage-metadata-fallback",
+      "order": 164
+    },
+    {
+      "id": "indexing/extracted-prose/low-yield-history-warmup-reduction",
+      "order": 165
+    },
+    {
+      "id": "indexing/extracted-prose/low-yield-history-disable",
+      "order": 166
+    },
+    {
+      "id": "lang/contracts/misc-buildfiles",
+      "order": 167
+    },
+    {
+      "id": "lang/contracts/python",
+      "order": 168
+    },
+    {
+      "id": "lang/contracts/sql",
+      "order": 169
+    },
+    {
+      "id": "lang/contracts/typescript",
+      "order": 170
+    },
+    {
+      "id": "tooling/sublime/package-harness",
+      "order": 171
+    }
+  ]
+}
