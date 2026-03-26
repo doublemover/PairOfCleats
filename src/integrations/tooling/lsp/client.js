@@ -176,7 +176,7 @@ export function createLspClient(options) {
     ? shell
     : (process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd));
   const killTreeDetached = process.platform !== 'win32';
-  const resolvedEnv = applyToolchainDaemonPolicyEnv(env || process.env);
+  const resolvedEnv = applyToolchainDaemonPolicyEnv(env || process.env, { cwd });
   const traceRecorder = createJsonRpcTraceRecorder({
     tracePath: tracePath || resolvedEnv.POC_LSP_RPC_TRACE || '',
     providerId: providerId || cmd,

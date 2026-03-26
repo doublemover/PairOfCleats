@@ -4,6 +4,7 @@ import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { resolveEnvPath } from '../../shared/env-path.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { spawnResolvedSubprocessSync } from '../../shared/subprocess/command-invocation.js';
+import { applyToolchainDaemonPolicyEnv } from '../../shared/toolchain-env.js';
 import {
   resolveGlobalToolingBinDirs,
   resolveLocalToolingBinDirs
@@ -38,8 +39,11 @@ const runProbeCommand = (cmd, args = [], options = {}) => {
   const timeoutMs = Number.isFinite(Number(options.timeoutMs))
     ? Math.max(100, Math.floor(Number(options.timeoutMs)))
     : DEFAULT_PROBE_TIMEOUT_MS;
+  const cwd = String(options.cwd || process.cwd());
   return spawnResolvedSubprocessSync(cmd, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
+    cwd,
+    env: applyToolchainDaemonPolicyEnv(process.env, { cwd }),
     rejectOnNonZeroExit: false,
     captureStdout: true,
     captureStderr: true,
