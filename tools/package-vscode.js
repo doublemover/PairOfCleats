@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import {
   assertPinnedPackagingToolchain,
   buildDeterministicZip,
   writeArchiveChecksums
 } from './tooling/archive-determinism.js';
 import { getEditorCommandSpecs } from '../src/shared/runtime-capability-manifest.js';
+import { probeCommand } from './shared/cli-utils.js';
 
 const args = process.argv.slice(2);
 const hasFlag = (flag) => args.includes(flag);
@@ -38,21 +38,6 @@ const archivePath = path.join(outDir, 'pairofcleats.vsix');
 const checksumPath = `${archivePath}.sha256`;
 const manifestPath = `${archivePath}.manifest.json`;
 const smoke = hasFlag('--smoke');
-
-const probeNpm = () => {
-  if (process.platform === 'win32') {
-    const probe = spawnSync('cmd.exe', ['/d', '/s', '/c', 'npm --version'], { encoding: 'utf8' });
-    if (probe.status === 0) {
-      return { ok: true, command: 'npm' };
-    }
-    return { ok: false, command: null };
-  }
-  const probe = spawnSync('npm', ['--version'], { encoding: 'utf8' });
-  if (probe.status === 0) {
-    return { ok: true, command: 'npm' };
-  }
-  return { ok: false, command: null };
-};
 
 if (!fs.existsSync(sourceDir)) {
   console.error(`VS Code package source not found: ${sourceDir}`);
@@ -136,7 +121,11 @@ for (const walkthrough of packageManifest.contributes?.walkthroughs || []) {
 
 try {
   assertPinnedPackagingToolchain({ requireNpm: true });
-  const npmProbe = probeNpm();
+  const npmProbe = probeCommand('npm', ['--version'], {
+    stdio: 'ignore',
+    timeoutMs: 4000,
+    outputEncoding: 'utf8'
+  });
   if (!npmProbe.ok) {
     throw new Error('Packaging toolchain error: npm is required for VS Code packaging.');
   }

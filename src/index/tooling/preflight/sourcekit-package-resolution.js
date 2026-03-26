@@ -7,11 +7,7 @@ import { readJsonFileSafe } from '../../../shared/files.js';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { acquireFileLock, releaseFileLockOrThrow } from '../../../shared/locks/file-lock.js';
-import { spawnSubprocess } from '../../../shared/subprocess.js';
-import {
-  resolveWindowsCmdInvocation,
-  resolveWindowsCmdShimPath
-} from '../../../shared/subprocess/windows-cmd.js';
+import { spawnResolvedSubprocess } from '../../../shared/subprocess/command-invocation.js';
 import { resolveToolingCommandProfile } from '../command-resolver.js';
 import { splitPathEntries } from '../binary-utils.js';
 
@@ -36,20 +32,6 @@ const SOURCEKIT_WORKSPACE_KIND = Object.freeze({
   NONPACKAGE: 'nonpackage_workspace',
   MALFORMED: 'malformed_workspace'
 });
-
-const shouldUseShell = (cmd, env = process.env) => (
-  process.platform === 'win32' && Boolean(resolveWindowsCmdShimPath(cmd, env))
-);
-
-const resolveSpawnCommandForExec = (cmd, args) => {
-  if (!shouldUseShell(cmd, process.env)) {
-    return {
-      command: cmd,
-      args: Array.isArray(args) ? args : []
-    };
-  }
-  return resolveWindowsCmdInvocation(cmd, args, process.env);
-};
 
 const asFiniteNumber = (value) => {
   const parsed = Number(value);
@@ -358,13 +340,11 @@ const runSourcekitPackagePreflight = async ({
   signal = null
 }) => {
   const startedAt = Date.now();
-  const resolvedCommand = resolveSpawnCommandForExec(swiftCmd, ['package', 'resolve']);
   try {
-    const result = await spawnSubprocess(resolvedCommand.command, resolvedCommand.args, {
+    const result = await spawnResolvedSubprocess(swiftCmd, ['package', 'resolve'], {
       cwd: repoRoot,
       env: {
         ...process.env,
-        ...(resolvedCommand.env || {}),
         GIT_TERMINAL_PROMPT: process.env.GIT_TERMINAL_PROMPT || '0'
       },
       timeoutMs,

@@ -3,11 +3,7 @@ import path from 'node:path';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { resolveEnvPath } from '../../shared/env-path.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
-import { spawnSubprocessSync } from '../../shared/subprocess.js';
-import {
-  resolveWindowsCmdInvocation,
-  resolveWindowsCmdShimPath
-} from '../../shared/subprocess/windows-cmd.js';
+import { spawnResolvedSubprocessSync } from '../../shared/subprocess/command-invocation.js';
 import {
   resolveGlobalToolingBinDirs,
   resolveLocalToolingBinDirs
@@ -37,31 +33,13 @@ const COMMAND_PROBE_FAILURE_TTL_MS = 10_000;
 const DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS = 5 * 60_000;
 let commandProbeSuccessTtlMs = DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS;
 
-const shouldUseShell = (cmd, env = process.env) => (
-  process.platform === 'win32' && Boolean(resolveWindowsCmdShimPath(cmd, env))
-);
-
 const runProbeCommand = (cmd, args = [], options = {}) => {
   const maxOutputBytes = options.maxBuffer || (2 * 1024 * 1024);
   const timeoutMs = Number.isFinite(Number(options.timeoutMs))
     ? Math.max(100, Math.floor(Number(options.timeoutMs)))
     : DEFAULT_PROBE_TIMEOUT_MS;
-  if (!shouldUseShell(cmd)) {
-    return spawnSubprocessSync(cmd, args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      rejectOnNonZeroExit: false,
-      captureStdout: true,
-      captureStderr: true,
-      outputMode: 'string',
-      outputEncoding: 'utf8',
-      maxOutputBytes,
-      timeoutMs
-    });
-  }
-  const invocation = resolveWindowsCmdInvocation(cmd, args, process.env);
-  return spawnSubprocessSync(invocation.command, invocation.args, {
+  return spawnResolvedSubprocessSync(cmd, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: invocation.env ? { ...process.env, ...invocation.env } : process.env,
     rejectOnNonZeroExit: false,
     captureStdout: true,
     captureStderr: true,

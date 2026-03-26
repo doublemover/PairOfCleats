@@ -1,12 +1,8 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import { createCli } from '../../src/shared/cli.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
-import { resolveEnvPath } from '../../src/shared/env-path.js';
-import path from 'node:path';
 import { exitLikeCommandResult, probeCommand, runCommand } from '../shared/cli-utils.js';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
-import { splitPathEntries } from '../../src/index/tooling/binary-utils.js';
 import { getToolingConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
 
 const argv = createCli({
@@ -35,21 +31,6 @@ const stdoutGuard = createStdoutGuard({
 });
 const languageOverride = normalizeLanguageList(argv.languages);
 const toolOverride = normalizeLanguageList(argv.tools);
-const WINDOWS_EXEC_EXTS = ['.exe', '.cmd', '.bat', '.com'];
-
-const resolveSpawnCommand = (cmd) => {
-  const value = String(cmd || '').trim();
-  if (!value || process.platform !== 'win32') return value;
-  if (path.extname(value) || value.includes(path.sep) || value.includes('/')) return value;
-  const pathEntries = splitPathEntries(resolveEnvPath(process.env));
-  for (const ext of WINDOWS_EXEC_EXTS) {
-    for (const dir of pathEntries) {
-      const candidate = path.join(dir, `${value}${ext}`);
-      if (fs.existsSync(candidate)) return candidate;
-    }
-  }
-  return value;
-};
 
 const resolveRequirementCheckArgCandidates = (commandName) => {
   const normalized = String(commandName || '').trim().toLowerCase();
@@ -113,12 +94,11 @@ for (const tool of tools) {
   }
   const { cmd, args, env, requires } = selection.plan;
   if (requires) {
-    const requirementCommand = resolveSpawnCommand(requires);
     const requirementArgCandidates = resolveRequirementCheckArgCandidates(requires);
     let requirementSatisfied = false;
     const requirementChecks = [];
     for (const requirementArgs of requirementArgCandidates) {
-      const requireCheck = probeCommand(requirementCommand, requirementArgs, {
+      const requireCheck = probeCommand(requires, requirementArgs, {
         stdio: 'ignore',
         timeoutMs: 4000,
         outputEncoding: 'utf8'
@@ -166,14 +146,13 @@ if (argv['dry-run']) {
 for (const action of actions) {
   console.error(`[tooling-install] Installing ${action.id} (${action.scope})...`);
   const env = action.env ? { ...process.env, ...action.env } : process.env;
-  const command = resolveSpawnCommand(action.cmd);
   const spawnOpts = {
     env,
     // Keep JSON mode machine-parseable: suppress child stdout and stream
     // installer diagnostics through stderr only.
     stdio: argv.json ? ['inherit', 'ignore', 'inherit'] : 'inherit'
   };
-  const result = runInstallCommand(command, action.args, spawnOpts);
+  const result = runInstallCommand(action.cmd, action.args, spawnOpts);
   if (typeof result.signal === 'string' && result.signal.trim()) {
     exitLikeCommandResult({ status: null, signal: result.signal });
   }

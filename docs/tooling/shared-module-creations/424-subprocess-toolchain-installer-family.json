@@ -1,0 +1,100 @@
+{
+  "issueId": 424,
+  "title": "Shared subprocess/toolchain/command-invocation helper family",
+  "createdAt": "2026-03-26",
+  "sharedDestination": [
+    "src/shared/subprocess/command-invocation.js"
+  ],
+  "problemStatement": "Windows wrapper resolution, PATH-backed command shim lookup, and command/env normalization were duplicated across tooling probes, installer paths, setup/bootstrap, SourceKit preflight, and VS Code packaging checks. Those surfaces were all deciding independently how to launch bare commands like npm and other wrapper-backed tools.",
+  "duplicateClusters": [
+    {
+      "name": "Shared tooling subprocess helpers plus local wrapper logic",
+      "files": [
+        "tools/shared/cli-utils.js",
+        "tools/setup/bootstrap.js",
+        "tools/tooling/install.js",
+        "tools/package-vscode.js"
+      ],
+      "bestFix": "Hoist command invocation and wrapper normalization into src/shared/subprocess/command-invocation.js, then make tooling callers consume the shared helper instead of maintaining local Windows/npm logic."
+    },
+    {
+      "name": "Runtime provider probe and preflight wrapper handling",
+      "files": [
+        "src/index/tooling/command-resolver.js",
+        "src/index/tooling/preflight/sourcekit-package-resolution.js"
+      ],
+      "bestFix": "Replace local shouldUseShell / resolveSpawnCommand branches with the same shared resolved subprocess contract used by tooling surfaces."
+    },
+    {
+      "name": "Package-script-specific command probes",
+      "files": [
+        "tools/package-vscode.js"
+      ],
+      "bestFix": "Use the shared probe surface instead of bespoke npm probing so packaging checks stay aligned with the rest of the repo."
+    }
+  ],
+  "whyCurrentSharedModulesWereInsufficient": [
+    "src/shared/subprocess.js owned low-level process execution, but not wrapper-aware command normalization.",
+    "src/shared/subprocess/windows-cmd.js exposed Windows-specific primitives, but each caller still had to decide when and how to use them.",
+    "tools/shared/cli-utils.js normalized results, but did not serve as the canonical owner for src/** runtime call sites."
+  ],
+  "migrationsCompleted": [
+    {
+      "path": "src/shared/subprocess/command-invocation.js",
+      "action": "created",
+      "notes": "Now owns wrapper-aware command resolution and sync/async resolved subprocess execution."
+    },
+    {
+      "path": "tools/shared/cli-utils.js",
+      "action": "migrated",
+      "notes": "Uses the shared resolved subprocess helper for command execution."
+    },
+    {
+      "path": "src/index/tooling/command-resolver.js",
+      "action": "migrated",
+      "notes": "Command probe execution no longer carries local Windows shim handling."
+    },
+    {
+      "path": "src/index/tooling/preflight/sourcekit-package-resolution.js",
+      "action": "migrated",
+      "notes": "SourceKit preflight uses the shared async resolved subprocess helper."
+    },
+    {
+      "path": "tools/setup/bootstrap.js",
+      "action": "migrated",
+      "notes": "JSON child streaming now uses the shared resolved subprocess helper instead of a local npm branch."
+    },
+    {
+      "path": "tools/tooling/install.js",
+      "action": "simplified",
+      "notes": "Local Windows wrapper path resolution was removed."
+    },
+    {
+      "path": "tools/package-vscode.js",
+      "action": "migrated",
+      "notes": "Uses the shared command probe surface instead of bespoke npm probing."
+    }
+  ],
+  "parityPlan": {
+    "testsAdded": [
+      "tests/shared/subprocess/command-invocation.test.js"
+    ],
+    "testsToKeepGreen": [
+      "tests/shared/subprocess/windows-cmd.test.js",
+      "tests/tooling/cli-utils-windows-wrapper-fallback.test.js",
+      "tests/tooling/install/bootstrap-json-buffer-cap.test.js",
+      "tests/tooling/doctor/command-profile-probe-cache.test.js",
+      "tests/tooling/lsp/sourcekit-package-preflight-lock-unavailable.test.js",
+      "tests/tooling/release/verify-surface-archives.test.js"
+    ]
+  },
+  "nonGoals": [
+    "Move install-plan selection or package manifest validation into src/shared in this issue.",
+    "Replace every remaining subprocess wrapper in the codebase in one pass.",
+    "Unify higher-level retry/reporting semantics for all toolchain operations."
+  ],
+  "followOnDeletionTargets": [
+    "Any remaining local wrapper-resolution branches found in later H31/H32 scans.",
+    "Potential future consolidation of structured toolchain probe/report envelopes once more callers are migrated."
+  ]
+}

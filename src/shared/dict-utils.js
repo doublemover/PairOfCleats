@@ -15,6 +15,19 @@ export {
 } from './repo-paths.js';
 
 export {
+  DEFAULT_MODEL_ID,
+  applyAdaptiveDictConfig,
+  getCacheRoot,
+  getCodeDictionaryPaths,
+  getDictConfig,
+  getDictionaryPaths,
+  getEffectiveConfigHash,
+  getMetricsDir,
+  getModelConfig,
+  getToolVersion,
   getToolingConfig,
-  getToolingDir
+  getToolingDir,
+  resolveLmdbPaths,
+  resolveSqlitePaths,
+  resolveToolRoot
 } from '../../tools/shared/dict-utils.js';

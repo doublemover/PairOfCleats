@@ -9,18 +9,13 @@ const source = fs.readFileSync(sourcePath, 'utf8');
 
 assert.match(
   source,
-  /const\s+isWindowsNpm\s*=\s*process\.platform\s*===\s*'win32'/,
-  'expected bootstrap JSON-mode npm path to detect Windows npm shim usage'
+  /import\s*\{\s*spawnResolvedSubprocess\s*\}\s*from\s*'..\/..\/src\/shared\/subprocess\/command-invocation\.js'/,
+  'expected bootstrap JSON-mode child execution to use shared resolved subprocess helper'
 );
 assert.match(
   source,
-  /const\s+commandArgs\s*=\s*isWindowsNpm\s*\?\s*\['\/d',\s*'\/s',\s*'\/c',\s*'npm',\s*\.\.\.args\]\s*:\s*args;/,
-  'expected bootstrap JSON-mode npm path to run through cmd.exe shim args'
-);
-assert.match(
-  source,
-  /await\s+spawnSubprocess\(command,\s*commandArgs,/,
-  'expected bootstrap JSON-mode child execution to stream via spawnSubprocess'
+  /await\s+spawnResolvedSubprocess\(cmd,\s*args,\s*\{/,
+  'expected bootstrap JSON-mode child execution to stream via shared resolved subprocess wrapper'
 );
 assert.doesNotMatch(
   source,
