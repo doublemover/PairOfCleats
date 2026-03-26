@@ -1,9 +1,10 @@
-import { resolveStubDims, stubEmbedding } from './embedding.js';
-import { createOnnxEmbedder, normalizeEmbeddingProvider, normalizeOnnxConfig } from './onnx-embeddings.js';
+import { normalizeEmbeddingProvider, normalizeOnnxConfig } from './onnx-embeddings.js';
 import {
-  DEFAULT_EMBEDDING_POOLING,
-  normalizeEmbeddingBatchOutput
-} from './embedding-utils.js';
+  normalizeAdapterPrewarmTexts,
+  pruneCache,
+  touchEntry
+} from './embedding-adapter-helpers.js';
+import { createEmbeddingProviderAdapter } from './embedding-provider-adapters.js';
 
 const PIPELINE_CACHE_TTL_MS = 10 * 60 * 1000;
 const PIPELINE_CACHE_MAX_ENTRIES = 16;
@@ -15,63 +16,6 @@ let transformersModulePromise = null;
 const pipelineCache = new Map();
 const adapterCache = new Map();
 let adapterFactory = null;
-
-const isDlopenFailure = (err) => {
-  const code = err?.code || err?.cause?.code;
-  if (code === 'ERR_DLOPEN_FAILED') return true;
-  const message = err?.message || '';
-  return message.includes('ERR_DLOPEN_FAILED');
-};
-
-const normalizePrewarmTexts = (value) => {
-  const source = Array.isArray(value)
-    ? value
-    : (typeof value === 'string' ? value.split(/[\r\n,]+/) : null);
-  if (!source) return null;
-  const out = [];
-  const seen = new Set();
-  for (const entry of source) {
-    const text = typeof entry === 'string' ? entry.trim() : '';
-    if (!text || seen.has(text)) continue;
-    seen.add(text);
-    out.push(text);
-  }
-  return out.length ? out : null;
-};
-
-const estimateTokensHeuristic = (text) => {
-  const value = typeof text === 'string' ? text : String(text ?? '');
-  if (!value) return 1;
-  const words = value.match(/[A-Za-z0-9_]+/g)?.length || 0;
-  const punctuation = value.match(/[^\sA-Za-z0-9_]/g)?.length || 0;
-  return Math.max(1, words + Math.ceil(punctuation * 0.5));
-};
-
-const touchEntry = (entry, ttlMs, now = Date.now()) => {
-  if (!entry || typeof entry !== 'object') return;
-  entry.lastAccessAt = now;
-  entry.expiresAt = now + ttlMs;
-};
-
-const pruneCache = (cache, { maxEntries, now = Date.now() } = {}) => {
-  for (const [key, entry] of cache.entries()) {
-    if (!entry || typeof entry !== 'object') {
-      cache.delete(key);
-      continue;
-    }
-    if (entry.expiresAt && entry.expiresAt <= now) {
-      cache.delete(key);
-    }
-  }
-  if (!Number.isFinite(Number(maxEntries)) || cache.size <= maxEntries) return;
-  const overflow = cache.size - maxEntries;
-  const oldest = Array.from(cache.entries())
-    .sort((a, b) => (a[1]?.lastAccessAt || 0) - (b[1]?.lastAccessAt || 0))
-    .slice(0, overflow);
-  for (const [key] of oldest) {
-    cache.delete(key);
-  }
-};
 
 const resetEmbeddingAdapterCachesInternal = () => {
   transformersModulePromise = null;
@@ -135,184 +79,11 @@ async function loadPipeline(modelId, modelsDir) {
   return entry.promise;
 }
 
-const createXenovaAdapter = ({ modelId, modelsDir, normalize }) => {
-  let embedderPromise = null;
-  const ensureEmbedder = () => {
-    if (!embedderPromise) {
-      embedderPromise = loadPipeline(modelId, modelsDir).catch((err) => {
-        embedderPromise = null;
-        throw err;
-      });
-    }
-    return embedderPromise;
-  };
-  const pipelineOptions = {
-    pooling: DEFAULT_EMBEDDING_POOLING,
-    normalize: normalize !== false
-  };
-  const embed = async (texts) => {
-    const list = Array.isArray(texts) ? texts : [];
-    if (!list.length) return [];
-    const embedder = await ensureEmbedder();
-    const output = await embedder(list, pipelineOptions);
-    return normalizeEmbeddingBatchOutput(output, list.length);
-  };
-  const embedOne = async (text) => {
-    const list = await embed([text]);
-    return list[0] || new Float32Array(0);
-  };
-  return {
-    embed,
-    embedOne,
-    estimateTokensBatch: async (texts) => {
-      const list = Array.isArray(texts) ? texts : [];
-      return list.map((text) => estimateTokensHeuristic(text));
-    },
-    get embedderPromise() {
-      return ensureEmbedder();
-    },
-    provider: 'xenova',
-    // Xenova inference is stateless per call, so callers may dispatch
-    // independent code/doc embedding batches concurrently.
-    supportsParallelDispatch: true
-  };
-};
-
-/**
- * Create provider-specific embedding adapter with optional fallback behavior.
- *
- * @param {object} input
- * @returns {object}
- */
-const createAdapter = ({
-  rootDir,
-  useStub,
-  modelId,
-  dims,
-  modelsDir,
-  provider,
-  onnxConfig,
-  normalize
-}) => {
-  const resolvedProvider = normalizeEmbeddingProvider(provider, { strict: true });
-  if (useStub) {
-    const safeDims = resolveStubDims(dims);
-    const embed = async (texts) => {
-      const list = Array.isArray(texts) ? texts : [];
-      if (!list.length) return [];
-      return list.map((text) => stubEmbedding(text, safeDims, normalize !== false));
-    };
-    const embedOne = async (text) => stubEmbedding(text, safeDims, normalize !== false);
-    return {
-      embed,
-      embedOne,
-      estimateTokensBatch: async (texts) => {
-        const list = Array.isArray(texts) ? texts : [];
-        return list.map((text) => estimateTokensHeuristic(text));
-      },
-      embedderPromise: null,
-      provider: resolvedProvider,
-      // Stub adapter has no shared model state and is always concurrency-safe.
-      supportsParallelDispatch: true
-    };
-  }
-
-  if (resolvedProvider === 'onnx') {
-    const onnxEmbedder = createOnnxEmbedder({
-      rootDir,
-      modelId,
-      modelsDir,
-      onnxConfig,
-      normalize
-    });
-    let fallbackAdapter = null;
-    let activeProvider = resolvedProvider;
-    let warned = false;
-    const ensureFallback = () => {
-      if (!fallbackAdapter) {
-        fallbackAdapter = createXenovaAdapter({ modelId, modelsDir, normalize });
-      }
-      activeProvider = 'xenova';
-      return fallbackAdapter;
-    };
-    const warnFallback = (err) => {
-      if (warned) return;
-      warned = true;
-      const code = err?.code || err?.cause?.code || 'ERR_DLOPEN_FAILED';
-      console.warn(`[embeddings] onnxruntime-node failed to load (${code}); falling back to xenova.`);
-    };
-    return {
-      embed: async (texts) => {
-        try {
-          return await onnxEmbedder.getEmbeddings(texts);
-        } catch (err) {
-          if (isDlopenFailure(err)) {
-            warnFallback(err);
-            return ensureFallback().embed(texts);
-          }
-          throw err;
-        }
-      },
-      embedOne: async (text) => {
-        try {
-          return await onnxEmbedder.getEmbedding(text);
-        } catch (err) {
-          if (isDlopenFailure(err)) {
-            warnFallback(err);
-            return ensureFallback().embedOne(text);
-          }
-          throw err;
-        }
-      },
-      estimateTokensBatch: async (texts) => {
-        try {
-          return await onnxEmbedder.estimateTokens(texts);
-        } catch (err) {
-          if (isDlopenFailure(err)) {
-            warnFallback(err);
-            return ensureFallback().estimateTokensBatch(texts);
-          }
-          throw err;
-        }
-      },
-      prewarm: async ({
-        tokenizer = true,
-        model = false,
-        texts = null
-      } = {}) => {
-        try {
-          await onnxEmbedder.prewarm({ tokenizer, model, texts });
-        } catch (err) {
-          if (isDlopenFailure(err)) {
-            warnFallback(err);
-            const fallback = ensureFallback();
-            const warmTexts = normalizePrewarmTexts(texts);
-            const shouldWarmModel = model === true;
-            if (shouldWarmModel && warmTexts?.length) {
-              await fallback.embed(warmTexts);
-            } else {
-              const preloadPromise = fallback?.embedderPromise;
-              if (preloadPromise && typeof preloadPromise.then === 'function') {
-                await preloadPromise;
-              }
-            }
-            return;
-          }
-          throw err;
-        }
-      },
-      embedderPromise: onnxEmbedder.embedderPromise,
-      get provider() {
-        return activeProvider;
-      },
-      // ONNX adapter executes batch calls independently; callers may parallelize
-      // code/doc dispatch at the orchestration layer.
-      supportsParallelDispatch: true
-    };
-  }
-
-  return createXenovaAdapter({ modelId, modelsDir, normalize });
-};
+const createAdapter = (options) => createEmbeddingProviderAdapter({
+  ...options,
+  loadPipeline,
+  normalizeEmbeddingProvider
+});
 
 adapterFactory = createAdapter;
 
@@ -393,7 +164,7 @@ export const warmEmbeddingAdapter = async (options = {}) => {
       await adapter.prewarm({
         tokenizer: shouldPrewarmTokenizer,
         model: shouldPrewarmModel,
-        texts: normalizePrewarmTexts(options?.prewarmTexts)
+        texts: normalizeAdapterPrewarmTexts(options?.prewarmTexts)
       });
     }
   } catch {}

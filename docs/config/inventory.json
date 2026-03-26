@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-26T10:21:59.050Z",
+  "generatedAt": "2026-03-26T10:48:27.684Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2776,7 +2776,7 @@
     {
       "name": "PAIROFCLEATS_ONNX_CPU_EP_TUNING",
       "files": [
-        "src/shared/onnx-embeddings.js",
+        "src/shared/onnx-config.js",
         "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
         "tools/config/inventory.js"
       ]
@@ -2784,7 +2784,7 @@
     {
       "name": "PAIROFCLEATS_ONNX_PREWARM_MODEL",
       "files": [
-        "src/shared/onnx-embeddings.js",
+        "src/shared/onnx-config.js",
         "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
         "tools/config/inventory.js"
       ]
@@ -2792,7 +2792,7 @@
     {
       "name": "PAIROFCLEATS_ONNX_PREWARM_TEXTS",
       "files": [
-        "src/shared/onnx-embeddings.js",
+        "src/shared/onnx-config.js",
         "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
         "tools/config/inventory.js"
       ]
@@ -2800,7 +2800,7 @@
     {
       "name": "PAIROFCLEATS_ONNX_PREWARM_TOKENIZER",
       "files": [
-        "src/shared/onnx-embeddings.js",
+        "src/shared/onnx-config.js",
         "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
         "tools/config/inventory.js"
       ]
@@ -2808,7 +2808,7 @@
     {
       "name": "PAIROFCLEATS_ONNX_TOKENIZATION_CACHE",
       "files": [
-        "src/shared/onnx-embeddings.js",
+        "src/shared/onnx-config.js",
         "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
         "tools/config/inventory.js"
       ]
@@ -2816,7 +2816,7 @@
     {
       "name": "PAIROFCLEATS_ONNX_TOKENIZATION_CACHE_MAX",
       "files": [
-        "src/shared/onnx-embeddings.js",
+        "src/shared/onnx-config.js",
         "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
         "tools/config/inventory.js"
       ]
