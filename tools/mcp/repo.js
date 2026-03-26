@@ -23,7 +23,7 @@ import {
   resolveSqlitePaths
 } from '../shared/dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
-import { createRepoCacheManager } from '../shared/repo-cache-config.js';
+import { createRepoCacheManager } from '../../src/shared/repo-cache-config.js';
 
 const repoCacheManager = createRepoCacheManager({
   defaultRepo: process.cwd(),

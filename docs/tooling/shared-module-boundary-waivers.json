@@ -5,13 +5,7 @@
     {
       "ruleId": "src-imports-tools-shared",
       "description": "Runtime src/** surfaces must not depend on tools/shared/** unless the edge is explicitly waived while the owning shared-module migration remains incomplete.",
-      "waivers": [
-        {
-          "sharedPath": "tools/shared/index-state-utils.js",
-          "importer": "src/storage/sqlite/build/index-state.js",
-          "reason": "SQLite build state still depends on a tools/shared helper that will be hoisted by the shared-module adoption pass."
-        }
-      ]
+      "waivers": []
     }
   ]
 }

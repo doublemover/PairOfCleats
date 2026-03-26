@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-03-26T07:28:07.553Z",
+  "generatedAt": "2026-03-26T07:34:08.355Z",
   "generatedBy": "node tools/docs/shared-module-ledger.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "census": {
@@ -128,6 +128,7 @@
           "src/retrieval/cli/load-indexes/metadata.js",
           "src/retrieval/cli/run-search-session/mode-expansion.js",
           "src/shared/index-artifact-helpers.js",
+          "src/shared/index-state-utils.js",
           "src/storage/sqlite/build/from-artifacts/sources.js",
           "src/storage/sqlite/build/runner/chunk-meta.js",
           "src/storage/sqlite/utils.js",
@@ -158,7 +159,6 @@
           "tools/index/compact-pieces.js",
           "tools/index/stats.js",
           "tools/reports/diagnostics-report.js",
-          "tools/shared/index-state-utils.js",
           "tools/tooling/navigation.js"
         ]
       },
@@ -975,7 +975,7 @@
         },
         "consumerCount": 1,
         "importers": [
-          "tools/shared/repo-cache-config.js"
+          "src/shared/repo-cache-config.js"
         ]
       },
       {
@@ -1760,7 +1760,7 @@
           "title": "Review shared domain helper families for embeddings, indexing, search, risk, language, and type/token processing",
           "umbrella": "407"
         },
-        "consumerCount": 43,
+        "consumerCount": 44,
         "importers": [
           "src/index/build/artifacts-write/index.js",
           "src/index/build/artifacts/metrics.js",
@@ -1801,6 +1801,7 @@
           "src/retrieval/cli/load-indexes/backend.js",
           "src/retrieval/cli/run-search/plan-runner.js",
           "src/shared/dispatch/env.js",
+          "src/shared/repo-cache-config.js",
           "src/storage/sqlite/build/index-state.js",
           "src/storage/sqlite/build/runner/mode-plan.js",
           "src/storage/sqlite/build/runner/selection-planning.js",
@@ -2650,6 +2651,7 @@
           "src/shared/embedding-identity.js",
           "src/shared/encoding.js",
           "src/shared/identity.js",
+          "src/shared/index-state-utils.js",
           "src/shared/workers/bundle-transform-worker.js",
           "src/storage/sqlite/build/runner/config.js",
           "src/workspace/config.js",
@@ -2673,8 +2675,7 @@
           "tools/ci/restore-artifacts.js",
           "tools/index/compact-pieces.js",
           "tools/index/stats.js",
-          "tools/service/queue-idempotency.js",
-          "tools/shared/index-state-utils.js"
+          "tools/service/queue-idempotency.js"
         ]
       },
       {
@@ -2757,6 +2758,21 @@
         ]
       },
       {
+        "path": "src/shared/index-state-utils.js",
+        "family": "src/shared/root",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 3,
+        "importers": [
+          "src/storage/sqlite/build/index-state.js",
+          "tools/build/embeddings/state.js",
+          "tools/build/lmdb-index.js"
+        ]
+      },
+      {
         "path": "src/shared/indexing/build-pointer.js",
         "family": "src/shared/indexing",
         "primaryIssue": {
@@ -2766,10 +2782,10 @@
         },
         "consumerCount": 4,
         "importers": [
+          "src/shared/repo-cache-config.js",
           "src/shared/repo-paths.js",
           "src/workspace/manifest.js",
-          "tools/reports/compare-models.js",
-          "tools/shared/repo-cache-config.js"
+          "tools/reports/compare-models.js"
         ]
       },
       {
@@ -3056,6 +3072,7 @@
           "src/map/build-map/io.js",
           "src/shared/bundle-io.js",
           "src/shared/dense-vector-artifacts.js",
+          "src/shared/index-state-utils.js",
           "src/shared/merge.js",
           "src/storage/sqlite/build/index-state.js",
           "src/storage/sqlite/build/runner/execution-orchestration.js",
@@ -3086,8 +3103,7 @@
           "tools/build/lmdb-index.js",
           "tools/build/tantivy-index.js",
           "tools/download/dicts.js",
-          "tools/index/compact-pieces.js",
-          "tools/shared/index-state-utils.js"
+          "tools/index/compact-pieces.js"
         ]
       },
       {
@@ -3535,9 +3551,9 @@
           "src/retrieval/query-plan-cache.js",
           "src/retrieval/sqlite-cache.js",
           "src/shared/io/atomic-write.js",
+          "src/shared/repo-cache-config.js",
           "tools/api/server.js",
           "tools/mcp/runner.js",
-          "tools/shared/repo-cache-config.js",
           "tools/sqlite/vector-extension.js"
         ]
       },
@@ -4082,6 +4098,22 @@
         "consumerCount": 1,
         "importers": [
           "src/index/build/indexer/embedding-queue.js"
+        ]
+      },
+      {
+        "path": "src/shared/repo-cache-config.js",
+        "family": "src/shared/root",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 4,
+        "importers": [
+          "tools/api/router.js",
+          "tools/api/router/cache.js",
+          "tools/mcp/repo.js",
+          "tools/mcp/tools/handlers/search.js"
         ]
       },
       {
@@ -4918,7 +4950,7 @@
           "title": "Review all tools/shared modules as a first-class shared surface",
           "umbrella": "407"
         },
-        "consumerCount": 118,
+        "consumerCount": 117,
         "importers": [
           "bin/pairofcleats.js",
           "tools/analysis/delta-risk.js",
@@ -5022,7 +5054,6 @@
           "tools/setup/bootstrap.js",
           "tools/setup/setup.js",
           "tools/shared/parity-indexes.js",
-          "tools/shared/repo-cache-config.js",
           "tools/sqlite/vector-extension.js",
           "tools/sqlite/verify-extensions.js",
           "tools/tooling/detect.js",
@@ -5097,21 +5128,6 @@
         "importers": [
           "tools/index-diff.js",
           "tools/index-snapshot.js"
-        ]
-      },
-      {
-        "path": "tools/shared/index-state-utils.js",
-        "family": "tools/shared",
-        "primaryIssue": {
-          "issueId": "415",
-          "title": "Review all tools/shared modules as a first-class shared surface",
-          "umbrella": "407"
-        },
-        "consumerCount": 3,
-        "importers": [
-          "src/storage/sqlite/build/index-state.js",
-          "tools/build/embeddings/state.js",
-          "tools/build/lmdb-index.js"
         ]
       },
       {
@@ -5206,22 +5222,6 @@
         "importers": [
           "tools/reports/compare-models.js",
           "tools/reports/parity-matrix.js"
-        ]
-      },
-      {
-        "path": "tools/shared/repo-cache-config.js",
-        "family": "tools/shared",
-        "primaryIssue": {
-          "issueId": "415",
-          "title": "Review all tools/shared modules as a first-class shared surface",
-          "umbrella": "407"
-        },
-        "consumerCount": 4,
-        "importers": [
-          "tools/api/router.js",
-          "tools/api/router/cache.js",
-          "tools/mcp/repo.js",
-          "tools/mcp/tools/handlers/search.js"
         ]
       },
       {
@@ -5399,6 +5399,7 @@
           "src/retrieval/cli/load-indexes/metadata.js",
           "src/retrieval/cli/run-search-session/mode-expansion.js",
           "src/shared/index-artifact-helpers.js",
+          "src/shared/index-state-utils.js",
           "src/storage/sqlite/build/from-artifacts/sources.js",
           "src/storage/sqlite/build/runner/chunk-meta.js",
           "src/storage/sqlite/utils.js",
@@ -5429,7 +5430,6 @@
           "tools/index/compact-pieces.js",
           "tools/index/stats.js",
           "tools/reports/diagnostics-report.js",
-          "tools/shared/index-state-utils.js",
           "tools/tooling/navigation.js"
         ],
         "importerCount": 73
@@ -5910,7 +5910,7 @@
       },
       "src/shared/cache/policy.js": {
         "importers": [
-          "tools/shared/repo-cache-config.js"
+          "src/shared/repo-cache-config.js"
         ],
         "importerCount": 1
       },
@@ -6435,12 +6435,13 @@
           "src/retrieval/cli/load-indexes/backend.js",
           "src/retrieval/cli/run-search/plan-runner.js",
           "src/shared/dispatch/env.js",
+          "src/shared/repo-cache-config.js",
           "src/storage/sqlite/build/index-state.js",
           "src/storage/sqlite/build/runner/mode-plan.js",
           "src/storage/sqlite/build/runner/selection-planning.js",
           "src/workspace/manifest.js"
         ],
-        "importerCount": 43
+        "importerCount": 44
       },
       "src/shared/dictionary-wordlists.js": {
         "importers": [
@@ -7046,6 +7047,7 @@
           "src/shared/embedding-identity.js",
           "src/shared/encoding.js",
           "src/shared/identity.js",
+          "src/shared/index-state-utils.js",
           "src/shared/workers/bundle-transform-worker.js",
           "src/storage/sqlite/build/runner/config.js",
           "src/workspace/config.js",
@@ -7069,8 +7071,7 @@
           "tools/ci/restore-artifacts.js",
           "tools/index/compact-pieces.js",
           "tools/index/stats.js",
-          "tools/service/queue-idempotency.js",
-          "tools/shared/index-state-utils.js"
+          "tools/service/queue-idempotency.js"
         ],
         "importerCount": 92
       },
@@ -7125,12 +7126,20 @@
         ],
         "importerCount": 15
       },
+      "src/shared/index-state-utils.js": {
+        "importers": [
+          "src/storage/sqlite/build/index-state.js",
+          "tools/build/embeddings/state.js",
+          "tools/build/lmdb-index.js"
+        ],
+        "importerCount": 3
+      },
       "src/shared/indexing/build-pointer.js": {
         "importers": [
+          "src/shared/repo-cache-config.js",
           "src/shared/repo-paths.js",
           "src/workspace/manifest.js",
-          "tools/reports/compare-models.js",
-          "tools/shared/repo-cache-config.js"
+          "tools/reports/compare-models.js"
         ],
         "importerCount": 4
       },
@@ -7340,6 +7349,7 @@
           "src/map/build-map/io.js",
           "src/shared/bundle-io.js",
           "src/shared/dense-vector-artifacts.js",
+          "src/shared/index-state-utils.js",
           "src/shared/merge.js",
           "src/storage/sqlite/build/index-state.js",
           "src/storage/sqlite/build/runner/execution-orchestration.js",
@@ -7370,8 +7380,7 @@
           "tools/build/lmdb-index.js",
           "tools/build/tantivy-index.js",
           "tools/download/dicts.js",
-          "tools/index/compact-pieces.js",
-          "tools/shared/index-state-utils.js"
+          "tools/index/compact-pieces.js"
         ],
         "importerCount": 63
       },
@@ -7672,9 +7681,9 @@
           "src/retrieval/query-plan-cache.js",
           "src/retrieval/sqlite-cache.js",
           "src/shared/io/atomic-write.js",
+          "src/shared/repo-cache-config.js",
           "tools/api/server.js",
           "tools/mcp/runner.js",
-          "tools/shared/repo-cache-config.js",
           "tools/sqlite/vector-extension.js"
         ],
         "importerCount": 15
@@ -8046,6 +8055,15 @@
           "src/index/build/indexer/embedding-queue.js"
         ],
         "importerCount": 1
+      },
+      "src/shared/repo-cache-config.js": {
+        "importers": [
+          "tools/api/router.js",
+          "tools/api/router/cache.js",
+          "tools/mcp/repo.js",
+          "tools/mcp/tools/handlers/search.js"
+        ],
+        "importerCount": 4
       },
       "src/shared/repo-paths.js": {
         "importers": [
@@ -8690,7 +8708,6 @@
           "tools/setup/bootstrap.js",
           "tools/setup/setup.js",
           "tools/shared/parity-indexes.js",
-          "tools/shared/repo-cache-config.js",
           "tools/sqlite/vector-extension.js",
           "tools/sqlite/verify-extensions.js",
           "tools/tooling/detect.js",
@@ -8707,7 +8724,7 @@
           "tools/tui/supervisor/artifacts.js",
           "tools/workspace/catalog.js"
         ],
-        "importerCount": 118
+        "importerCount": 117
       },
       "tools/shared/download-utils.js": {
         "importers": [
@@ -8739,14 +8756,6 @@
           "tools/index-snapshot.js"
         ],
         "importerCount": 2
-      },
-      "tools/shared/index-state-utils.js": {
-        "importers": [
-          "src/storage/sqlite/build/index-state.js",
-          "tools/build/embeddings/state.js",
-          "tools/build/lmdb-index.js"
-        ],
-        "importerCount": 3
       },
       "tools/shared/input-parsers.js": {
         "importers": [
@@ -8799,15 +8808,6 @@
           "tools/reports/parity-matrix.js"
         ],
         "importerCount": 2
-      },
-      "tools/shared/repo-cache-config.js": {
-        "importers": [
-          "tools/api/router.js",
-          "tools/api/router/cache.js",
-          "tools/mcp/repo.js",
-          "tools/mcp/tools/handlers/search.js"
-        ],
-        "importerCount": 4
       },
       "tools/shared/search-cli-harness.js": {
         "importers": [
@@ -12857,6 +12857,14 @@
         ],
         "sharedImportCount": 3
       },
+      "src/shared/index-state-utils.js": {
+        "sharedImports": [
+          "src/shared/artifact-io.js",
+          "src/shared/hash.js",
+          "src/shared/json-stream.js"
+        ],
+        "sharedImportCount": 3
+      },
       "src/shared/indexing/build-pointer.js": {
         "sharedImports": [
           "src/shared/files.js"
@@ -13038,6 +13046,15 @@
         ],
         "sharedImportCount": 1
       },
+      "src/shared/repo-cache-config.js": {
+        "sharedImports": [
+          "src/shared/cache/policy.js",
+          "src/shared/dict-utils.js",
+          "src/shared/indexing/build-pointer.js",
+          "src/shared/metrics.js"
+        ],
+        "sharedImportCount": 4
+      },
       "src/shared/repo-paths.js": {
         "sharedImports": [
           "src/shared/cache-roots.js",
@@ -13218,8 +13235,8 @@
       "src/storage/sqlite/build/index-state.js": {
         "sharedImports": [
           "src/shared/dict-utils.js",
-          "src/shared/json-stream.js",
-          "tools/shared/index-state-utils.js"
+          "src/shared/index-state-utils.js",
+          "src/shared/json-stream.js"
         ],
         "sharedImportCount": 3
       },
@@ -13417,9 +13434,9 @@
         "sharedImports": [
           "src/shared/error-codes.js",
           "src/shared/observability.js",
+          "src/shared/repo-cache-config.js",
           "src/shared/runtime-capability-manifest.js",
-          "tools/shared/dict-utils.js",
-          "tools/shared/repo-cache-config.js"
+          "tools/shared/dict-utils.js"
         ],
         "sharedImportCount": 5
       },
@@ -13434,7 +13451,7 @@
       },
       "tools/api/router/cache.js": {
         "sharedImports": [
-          "tools/shared/repo-cache-config.js"
+          "src/shared/repo-cache-config.js"
         ],
         "sharedImportCount": 1
       },
@@ -14319,8 +14336,8 @@
       "tools/build/embeddings/state.js": {
         "sharedImports": [
           "src/shared/artifact-io.js",
-          "src/shared/json-stream.js",
-          "tools/shared/index-state-utils.js"
+          "src/shared/index-state-utils.js",
+          "src/shared/json-stream.js"
         ],
         "sharedImportCount": 3
       },
@@ -14336,10 +14353,10 @@
           "src/shared/cli.js",
           "src/shared/dense-vector-artifacts.js",
           "src/shared/index-artifact-helpers.js",
+          "src/shared/index-state-utils.js",
           "src/shared/json-stream.js",
           "tools/shared/cli-display.js",
-          "tools/shared/dict-utils.js",
-          "tools/shared/index-state-utils.js"
+          "tools/shared/dict-utils.js"
         ],
         "sharedImportCount": 8
       },
@@ -14902,8 +14919,8 @@
           "src/shared/error-codes.js",
           "src/shared/index-artifact-helpers.js",
           "src/shared/io/atomic-write.js",
-          "tools/shared/dict-utils.js",
-          "tools/shared/repo-cache-config.js"
+          "src/shared/repo-cache-config.js",
+          "tools/shared/dict-utils.js"
         ],
         "sharedImportCount": 7
       },
@@ -14990,7 +15007,7 @@
         "sharedImports": [
           "src/shared/error-codes.js",
           "src/shared/observability.js",
-          "tools/shared/repo-cache-config.js"
+          "src/shared/repo-cache-config.js"
         ],
         "sharedImportCount": 3
       },
@@ -15331,14 +15348,6 @@
         ],
         "sharedImportCount": 2
       },
-      "tools/shared/index-state-utils.js": {
-        "sharedImports": [
-          "src/shared/artifact-io.js",
-          "src/shared/hash.js",
-          "src/shared/json-stream.js"
-        ],
-        "sharedImportCount": 3
-      },
       "tools/shared/parity-indexes.js": {
         "sharedImports": [
           "src/shared/index-artifact-helpers.js",
@@ -15357,15 +15366,6 @@
           "src/shared/files.js"
         ],
         "sharedImportCount": 1
-      },
-      "tools/shared/repo-cache-config.js": {
-        "sharedImports": [
-          "src/shared/cache/policy.js",
-          "src/shared/indexing/build-pointer.js",
-          "src/shared/metrics.js",
-          "tools/shared/dict-utils.js"
-        ],
-        "sharedImportCount": 4
       },
       "tools/shared/search-cli-harness.js": {
         "sharedImports": [
@@ -15674,6 +15674,7 @@
           "src/shared/env.js",
           "src/shared/error-codes.js",
           "src/shared/identity.js",
+          "src/shared/index-state-utils.js",
           "src/shared/invariants.js",
           "src/shared/iterables.js",
           "src/shared/json-file.js",
@@ -15693,6 +15694,7 @@
           "src/shared/order.js",
           "src/shared/path-normalize.js",
           "src/shared/progress-events.js",
+          "src/shared/repo-cache-config.js",
           "src/shared/repo-paths.js",
           "src/shared/reuse-diagnostics.js",
           "src/shared/runtime-envelope.js",
@@ -15701,7 +15703,7 @@
           "src/shared/time-format.js",
           "src/shared/toolchain-env.js"
         ],
-        "fileCount": 35,
+        "fileCount": 37,
         "entries": [
           {
             "path": "src/shared/auto-policy.js",
@@ -15753,6 +15755,12 @@
           },
           {
             "path": "src/shared/identity.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/index-state-utils.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -15867,6 +15875,12 @@
           },
           {
             "path": "src/shared/progress-events.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/repo-cache-config.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -17325,21 +17339,19 @@
           "tools/shared/fs-utils.js",
           "tools/shared/git-state.js",
           "tools/shared/index-cli-utils.js",
-          "tools/shared/index-state-utils.js",
           "tools/shared/input-parsers.js",
           "tools/shared/json-utils.js",
           "tools/shared/parity-indexes.js",
           "tools/shared/path-utils.js",
           "tools/shared/path-within-root.js",
           "tools/shared/query-file-utils.js",
-          "tools/shared/repo-cache-config.js",
           "tools/shared/search-cli-harness.js",
           "tools/shared/search-request.js",
           "tools/shared/stats-utils.js",
           "tools/shared/text-utils.js",
           "tools/shared/tooling-gate-utils.js"
         ],
-        "fileCount": 20,
+        "fileCount": 18,
         "entries": [
           {
             "path": "tools/shared/cli-display.js",
@@ -17384,12 +17396,6 @@
             "notes": ""
           },
           {
-            "path": "tools/shared/index-state-utils.js",
-            "status": "pending-review",
-            "classification": null,
-            "notes": ""
-          },
-          {
             "path": "tools/shared/input-parsers.js",
             "status": "pending-review",
             "classification": null,
@@ -17421,12 +17427,6 @@
           },
           {
             "path": "tools/shared/query-file-utils.js",
-            "status": "pending-review",
-            "classification": null,
-            "notes": ""
-          },
-          {
-            "path": "tools/shared/repo-cache-config.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -18668,14 +18668,12 @@
             "tools/shared/fs-utils.js",
             "tools/shared/git-state.js",
             "tools/shared/index-cli-utils.js",
-            "tools/shared/index-state-utils.js",
             "tools/shared/input-parsers.js",
             "tools/shared/json-utils.js",
             "tools/shared/parity-indexes.js",
             "tools/shared/path-utils.js",
             "tools/shared/path-within-root.js",
             "tools/shared/query-file-utils.js",
-            "tools/shared/repo-cache-config.js",
             "tools/shared/search-cli-harness.js",
             "tools/shared/search-request.js",
             "tools/shared/stats-utils.js",
@@ -18705,7 +18703,7 @@
             "tools/workspace/manifest.js",
             "tools/workspace/status.js"
           ],
-          "fileCount": 305
+          "fileCount": 303
         },
         {
           "issueId": "419",
@@ -23037,6 +23035,7 @@
           "src/shared/hnsw.js",
           "src/shared/identity.js",
           "src/shared/index-artifact-helpers.js",
+          "src/shared/index-state-utils.js",
           "src/shared/indexing/build-pointer.js",
           "src/shared/indexing/progress-timeout-policy.js",
           "src/shared/indexing/stage1-watchdog-policy.js",
@@ -23095,6 +23094,7 @@
           "src/shared/promise-timeout.js",
           "src/shared/provenance.js",
           "src/shared/queue.js",
+          "src/shared/repo-cache-config.js",
           "src/shared/repo-paths.js",
           "src/shared/retry.js",
           "src/shared/reuse-diagnostics.js",
@@ -26455,14 +26455,12 @@
           "tools/shared/fs-utils.js",
           "tools/shared/git-state.js",
           "tools/shared/index-cli-utils.js",
-          "tools/shared/index-state-utils.js",
           "tools/shared/input-parsers.js",
           "tools/shared/json-utils.js",
           "tools/shared/parity-indexes.js",
           "tools/shared/path-utils.js",
           "tools/shared/path-within-root.js",
           "tools/shared/query-file-utils.js",
-          "tools/shared/repo-cache-config.js",
           "tools/shared/search-cli-harness.js",
           "tools/shared/search-request.js",
           "tools/shared/stats-utils.js",
@@ -26608,7 +26606,7 @@
             "src/index/build/artifacts/minhash-packed.js",
             "src/index/build/artifacts/piece-registry.js"
           ],
-          "fileCount": 3646
+          "fileCount": 3644
         },
         {
           "issueId": "424",
@@ -26652,7 +26650,7 @@
             "src/index/tooling/lsp-workspace-routing.js",
             "src/index/tooling/orchestrator.js"
           ],
-          "fileCount": 176
+          "fileCount": 174
         },
         {
           "issueId": "425",

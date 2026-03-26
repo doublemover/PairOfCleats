@@ -20,7 +20,7 @@ import {
 } from '../../src/shared/dense-vector-artifacts.js';
 import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
-import { updateIndexStateManifest } from '../shared/index-state-utils.js';
+import { updateIndexStateManifest } from '../../src/shared/index-state-utils.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../src/storage/lmdb/schema.js';
 import { getIndexDir, getMetricsDir, resolveIndexRoot, resolveLmdbPaths, resolveRepoConfig } from '../shared/dict-utils.js';
 import { resolveAsOfContext, resolveSingleRootForModes } from '../../src/index/as-of.js';

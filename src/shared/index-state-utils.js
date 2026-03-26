@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { MAX_JSON_BYTES, readJsonFile } from '../../src/shared/artifact-io.js';
-import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
-import { checksumFile } from '../../src/shared/hash.js';
+import { MAX_JSON_BYTES, readJsonFile } from './artifact-io.js';
+import { writeJsonObjectFile } from './json-stream.js';
+import { checksumFile } from './hash.js';
 
 /**
  * Update the index_state entry in the manifest with fresh size/checksum metadata.
@@ -40,9 +40,11 @@ export const updateIndexStateManifest = async (indexDir) => {
   if (!Number.isFinite(Number(bytes)) || Number(bytes) < 0 || !checksum) return;
   const nextChecksum = checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : null;
   const current = manifest.pieces[targetIndex] || {};
-  if (current.path === 'index_state.json'
+  if (
+    current.path === 'index_state.json'
     && Number(current.bytes) === Number(bytes)
-    && String(current.checksum || '') === String(nextChecksum || '')) {
+    && String(current.checksum || '') === String(nextChecksum || '')
+  ) {
     return;
   }
   const pieces = [...manifest.pieces];

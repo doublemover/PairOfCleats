@@ -20,7 +20,7 @@ import { createBodyParser } from './router/body.js';
 import { createRepoCacheManager } from './router/cache.js';
 import { createCorsResolver } from './router/cors.js';
 import { createRepoResolver } from './router/paths.js';
-import { getRepoCacheGenerationContext } from '../shared/repo-cache-config.js';
+import { getRepoCacheGenerationContext } from '../../src/shared/repo-cache-config.js';
 import { handleIndexDiffsRoute } from './router/index-diffs.js';
 import { handleIndexSnapshotsRoute } from './router/index-snapshots.js';
 import { handleContextPackRoute, handleRiskDeltaRoute, handleRiskExplainRoute } from './router/analysis.js';

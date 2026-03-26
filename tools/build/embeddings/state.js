@@ -2,7 +2,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { readJsonFile, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
-import { updateIndexStateManifest } from '../../shared/index-state-utils.js';
+import { updateIndexStateManifest } from '../../../src/shared/index-state-utils.js';
 
 /**
  * Load `index_state.json` defensively for embeddings updates.

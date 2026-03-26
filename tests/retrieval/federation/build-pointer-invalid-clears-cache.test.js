@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { loadUserConfig, getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
-import { createRepoCacheManager } from '../../../tools/shared/repo-cache-config.js';
+import { createRepoCacheManager } from '../../../src/shared/repo-cache-config.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-pointer-cache-clear-'));
 const cacheRoot = path.join(tempRoot, 'cache');

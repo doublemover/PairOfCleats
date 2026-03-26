@@ -1,12 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { LRUCache } from 'lru-cache';
-import { getRepoCacheRoot, loadUserConfig, resolveRepoRoot, toRealPathSync } from './dict-utils.js';
-import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
-import { createIndexCache } from '../../src/retrieval/index-cache.js';
-import { readCurrentBuildGeneration } from '../../src/shared/indexing/build-pointer.js';
-import { incCacheEviction, setCacheSize } from '../../src/shared/metrics.js';
-import { defineCachePolicy, resolveCachePolicy } from '../../src/shared/cache/policy.js';
+import { createSqliteDbCache } from '../retrieval/sqlite-cache.js';
+import { createIndexCache } from '../retrieval/index-cache.js';
+import { defineCachePolicy, resolveCachePolicy } from './cache/policy.js';
+import { loadUserConfig, getRepoCacheRoot, resolveRepoRoot, toRealPathSync } from './dict-utils.js';
+import { readCurrentBuildGeneration } from './indexing/build-pointer.js';
+import { incCacheEviction, setCacheSize } from './metrics.js';
 
 export const closeRepoCacheEntry = (entry) => {
   entry?.indexCache?.clear?.();

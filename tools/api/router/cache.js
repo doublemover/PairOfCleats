@@ -1,7 +1,7 @@
 import {
   createRepoCacheManager as createSharedRepoCacheManager,
   normalizeCacheConfig
-} from '../../shared/repo-cache-config.js';
+} from '../../../src/shared/repo-cache-config.js';
 
 export { normalizeCacheConfig };
 

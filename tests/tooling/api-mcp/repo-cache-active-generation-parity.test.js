@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { loadUserConfig, getRepoCacheRoot, toRealPathSync } from '../../../tools/shared/dict-utils.js';
-import { createRepoCacheManager } from '../../../tools/shared/repo-cache-config.js';
+import { createRepoCacheManager } from '../../../src/shared/repo-cache-config.js';
 import { createRepoCacheManager as createApiRepoCacheManager } from '../../../tools/api/router/cache.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-repo-cache-generation-parity-'));
