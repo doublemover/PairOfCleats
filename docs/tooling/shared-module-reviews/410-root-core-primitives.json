@@ -1,0 +1,418 @@
+{
+  "issueId": "410",
+  "title": "Review shared core primitives and root-level contracts in src/shared",
+  "reviewDate": "2026-03-25",
+  "scope": "Primary ownership for root-level src/shared helpers and root contracts assigned to #410 in the shared-module ledger.",
+  "summary": {
+    "ownedFileCount": 30,
+    "overallAssessment": "The root shared surface is mostly useful, but it is carrying too many neighboring responsibilities in a few high-consumer files. The main cleanup opportunities are in env/runtime policy composition, numeric normalization overlap, observability versus metrics versus ops helpers, and a few domain-specific contracts that do not belong in the root shared bucket.",
+    "clusterFindings": [
+      {
+        "cluster": "env-runtime-policy",
+        "files": [
+          "src/shared/auto-policy.js",
+          "src/shared/config.js",
+          "src/shared/env-path.js",
+          "src/shared/env.js",
+          "src/shared/runtime-envelope.js",
+          "src/shared/toolchain-env.js"
+        ],
+        "assessment": "This is the weakest root-level cluster. env.js mixes runtime, bench, TUI, and test-only parsing; runtime-envelope.js re-parses overlapping env/runtime concerns; auto-policy.js bundles repo scanning, memoization, and runtime policy derivation; and toolchain/env path helpers live nearby without one obvious ownership story."
+      },
+      {
+        "cluster": "numeric-path-ordering-primitives",
+        "files": [
+          "src/shared/invariants.js",
+          "src/shared/limits.js",
+          "src/shared/number-coerce.js",
+          "src/shared/order.js",
+          "src/shared/path-normalize.js",
+          "src/shared/sort.js"
+        ],
+        "assessment": "These helpers are individually useful, but limits.js and number-coerce.js overlap enough to create duplicate entry points for the same coercion decisions. sort.js and order.js are fine together, but their boundary should stay explicit. path-normalize.js is coherent and should remain the canonical repo-relative and platform path layer."
+      },
+      {
+        "cluster": "observability-and-ops",
+        "files": [
+          "src/shared/metrics.js",
+          "src/shared/observability.js",
+          "src/shared/ops-failure-injection.js",
+          "src/shared/ops-health.js",
+          "src/shared/ops-resource-visibility.js",
+          "src/shared/reuse-diagnostics.js"
+        ],
+        "assessment": "metrics.js and observability.js have a healthy conceptual split, but metrics.js has grown too wide. The ops-* helpers are useful but look like an undeclared family; their root-level placement hides that they are a coordinated operational diagnostics surface."
+      },
+      {
+        "cluster": "specialized-contracts",
+        "files": [
+          "src/shared/editor-config-contract.json",
+          "src/shared/native-accel.js"
+        ],
+        "assessment": "These are stable contracts, but both are specialized enough that root shared placement obscures ownership. The editor config contract is especially domain-specific and should not live in a miscellaneous root bucket."
+      }
+    ],
+    "highestPriorityFollowUps": [
+      {
+        "priority": "high",
+        "target": "src/shared/env.js",
+        "action": "split",
+        "reason": "The file is the de facto env registry for runtime, testing, bench, extractor stubs, TUI, and misc feature flags. Its size and consumer count make boundary drift likely."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/runtime-envelope.js",
+        "action": "split",
+        "reason": "The file mixes environment patching, CLI/env/config precedence, NODE_OPTIONS parsing, and thread/runtime resolution. It should keep a facade but shed parsing and policy submodules."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/auto-policy.js",
+        "action": "split",
+        "reason": "Repo scanning and memoization are distinct concerns from quality/concurrency policy derivation and huge-repo preset selection."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/metrics.js",
+        "action": "split",
+        "reason": "A single file currently owns registry initialization plus many unrelated metric families. It should be decomposed by concern while preserving one shared registry."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/limits.js",
+        "action": "merge",
+        "reason": "Its API surface overlaps heavily with number-coerce.js. One module should become the canonical numeric-normalization entry point."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/editor-config-contract.json",
+        "action": "move",
+        "reason": "This is an editor integration contract and should live with contracts or editor integrations instead of the generic root shared bucket."
+      }
+    ]
+  },
+  "entries": [
+    {
+      "path": "src/shared/auto-policy.js",
+      "consumerCount": 3,
+      "classifications": [
+        "split",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Consumed by indexing runtime bootstrap, build-index integration, and tooling config resolution; this is startup policy code rather than a narrow utility.",
+      "recommendation": "Keep buildAutoPolicy as the public facade, but split repo scanning/memoization, host sizing, and huge-repo preset selection into dedicated submodules."
+    },
+    {
+      "path": "src/shared/config.js",
+      "consumerCount": 9,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Used mainly by runtime configuration assembly and a few build-time filters as a plain-object and recursive-merge utility.",
+      "recommendation": "Keep this module tiny and focused on config-shape primitives; do not let it absorb generic merge or coercion helpers."
+    },
+    {
+      "path": "src/shared/disk-space.js",
+      "consumerCount": 15,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Artifact writers and index-space checks use this for free-space enforcement and size estimation before expensive writes.",
+      "recommendation": "Keep the module, but document that it is the canonical disk-capacity helper and avoid duplicating byte-formatting and size-estimation logic elsewhere."
+    },
+    {
+      "path": "src/shared/editor-config-contract.json",
+      "consumerCount": 0,
+      "classifications": [
+        "move",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "This is a stable cross-editor contract, but it is not a generic shared primitive and therefore has no direct runtime import consumers in the ledger.",
+      "recommendation": "Move this under a contracts or editor-integrations contract directory, then document it as the authoritative editor settings contract."
+    },
+    {
+      "path": "src/shared/env-path.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Command resolution and tooling install flows rely on it for PATH key normalization and de-duplication across Windows and POSIX environments.",
+      "recommendation": "Keep it separate from generic path normalization, but document the boundary against path-normalize.js and toolchain-env.js."
+    },
+    {
+      "path": "src/shared/env.js",
+      "consumerCount": 57,
+      "classifications": [
+        "split",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "This is one of the highest-consumer shared modules in the repo, spanning CLI, indexing, retrieval, bench, TUI, test stubs, and provider/runtime behavior.",
+      "recommendation": "Split into focused surfaces such as runtime env, testing env, bench env, and feature-specific env helpers while keeping one stable public import surface if needed."
+    },
+    {
+      "path": "src/shared/error-codes.js",
+      "consumerCount": 43,
+      "classifications": [
+        "split",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "CLI, API, context-pack, diffs, and other surfaces consume it as the canonical error-code registry and payload builder.",
+      "recommendation": "Keep the error code registry centralized, but split heuristic hint resolution from the canonical code constants and payload builder so machine contracts stay clean."
+    },
+    {
+      "path": "src/shared/identity.js",
+      "consumerCount": 7,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Identity reconciliation, symbol handling, and a few language-provider paths depend on this for chunk and symbol envelopes.",
+      "recommendation": "Keep the module, but document the intended boundary between chunk identity, symbol identity, and artifact-row normalization to avoid ad hoc helpers elsewhere."
+    },
+    {
+      "path": "src/shared/invariants.js",
+      "consumerCount": 6,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Validation, artifact helpers, and ordering checks use it for deterministic hashing and invariant enforcement.",
+      "recommendation": "Keep it small; if more invariant types accumulate, split deterministic hashing from assertion helpers rather than widening the bucket indefinitely."
+    },
+    {
+      "path": "src/shared/iterables.js",
+      "consumerCount": 37,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Graph, contracts, indexing, and retrieval code use these list-normalization helpers broadly as low-level input coercion.",
+      "recommendation": "Keep this as the canonical iterable-to-array normalization surface and avoid adding unrelated collection transforms."
+    },
+    {
+      "path": "src/shared/jsonrpc.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "LSP, MCP, CLI display, and MCP transport flows use it for framed parsing and serialized JSON-RPC writing.",
+      "recommendation": "Keep the writer/parser pairing together, but document that this module owns framing and closed-stream handling, not higher-level protocol semantics."
+    },
+    {
+      "path": "src/shared/limits.js",
+      "consumerCount": 45,
+      "classifications": [
+        "merge",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Context-pack, graph, retrieval, and several budget/cap surfaces import this as one of the main numeric normalization entry points.",
+      "recommendation": "Collapse this surface into number-coerce.js or re-export from there so the repo has one obvious home for cap, limit, depth, and numeric coercion behavior."
+    },
+    {
+      "path": "src/shared/lines.js",
+      "consumerCount": 31,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Chunking, file processing, and tree-sitter execution use it for line-index and offset conversion logic.",
+      "recommendation": "Keep it as a narrow text-offset primitive module and resist adding broader text-processing helpers."
+    },
+    {
+      "path": "src/shared/logging/warn-once.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "SCM, embeddings, LanceDB, and JSON-stream runtime paths use it to suppress duplicate warnings without central logger coupling.",
+      "recommendation": "Keep it focused on warn-once semantics and document it as the preferred duplicate-warning suppressor."
+    },
+    {
+      "path": "src/shared/merge.js",
+      "consumerCount": 15,
+      "classifications": [
+        "split",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Artifact writers, graph-relations assembly, and validation paths use it as the repo's external-run merge and JSONL merge toolkit.",
+      "recommendation": "Split heap/planner primitives from JSONL run manifest and file-writing behavior so merge mechanics are reusable without dragging file-format concerns with them."
+    },
+    {
+      "path": "src/shared/metrics.js",
+      "consumerCount": 15,
+      "classifications": [
+        "split",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Watch, worker-pool, build-index integration, and risk/context-pack metrics all share this single prom-client registry module.",
+      "recommendation": "Preserve one registry, but split metric families into smaller files such as watch, worker, cache, fallback, and risk-pack metrics to make ownership explicit."
+    },
+    {
+      "path": "src/shared/native-accel.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Capabilities and native-build tooling use it as the current no-go native-acceleration contract surface.",
+      "recommendation": "Keep the deterministic contract, but document that this is a feasibility and ABI decision module rather than a general runtime helper."
+    },
+    {
+      "path": "src/shared/number-coerce.js",
+      "consumerCount": 32,
+      "classifications": [
+        "keep",
+        "merge",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Artifact write control, pipeline checkpoints, and several concurrency/runtime paths already use this as a canonical numeric coercion helper.",
+      "recommendation": "Make this the primary numeric coercion surface and absorb or re-export overlapping limits.js helpers from here."
+    },
+    {
+      "path": "src/shared/observability.js",
+      "consumerCount": 13,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Core API, search, build-index integration, and router flows use it for correlation envelopes and observability propagation.",
+      "recommendation": "Keep this boundary distinct from metrics.js; it should continue to own correlation envelopes, context propagation, and transport headers."
+    },
+    {
+      "path": "src/shared/ops-failure-injection.js",
+      "consumerCount": 2,
+      "classifications": [
+        "move",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Only a few orchestrator and search-plan paths consume it, and its behavior is explicitly test-config-driven rather than general runtime logic.",
+      "recommendation": "Move this into a declared ops or testing family so its test-oriented failure injection role is visible from the path alone."
+    },
+    {
+      "path": "src/shared/ops-health.js",
+      "consumerCount": 2,
+      "classifications": [
+        "move",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Indexing and retrieval runners use it for stable preflight health-check records.",
+      "recommendation": "Keep the checks, but move it into an ops family alongside resource visibility so operational helpers stop living in a flat root bucket."
+    },
+    {
+      "path": "src/shared/ops-resource-visibility.js",
+      "consumerCount": 3,
+      "classifications": [
+        "move",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Indexing pipeline and retrieval telemetry use it for resource-growth thresholds and warning formatting.",
+      "recommendation": "Group this with ops-health and related operational diagnostics helpers under a dedicated ops family."
+    },
+    {
+      "path": "src/shared/optional-deps.js",
+      "consumerCount": 17,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Compression, watchers, document extractors, and other optional-tool integrations rely on it for consistent dependency probing.",
+      "recommendation": "Keep it as the canonical optional dependency probe layer and document when callers should prefer tryRequire versus tryImport."
+    },
+    {
+      "path": "src/shared/order.js",
+      "consumerCount": 12,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Artifact publication and repo-map style ordered outputs use it for stable ordering and deterministic ordering hashes.",
+      "recommendation": "Keep it as the higher-level ordering surface above sort.js, and document that compareStrings remains the low-level primitive comparator."
+    },
+    {
+      "path": "src/shared/path-normalize.js",
+      "consumerCount": 32,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Context-pack, graph, incremental indexing, and repo-path handling use this heavily for repo-relative and platform-safe path normalization.",
+      "recommendation": "Keep it as the canonical repo/path normalization layer; document the boundary against env-path.js and files.js to prevent duplicate path helpers."
+    },
+    {
+      "path": "src/shared/reuse-diagnostics.js",
+      "consumerCount": 7,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Indexer process-files, SCM snapshots, and tooling orchestrators use it to normalize and summarize reuse observations.",
+      "recommendation": "Keep it together as the reuse diagnostics surface, but document the distinction between observation normalization and summary aggregation."
+    },
+    {
+      "path": "src/shared/runtime-envelope.js",
+      "consumerCount": 7,
+      "classifications": [
+        "split",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Build runtime initialization, tree-sitter scheduler, dispatch env handling, and core build-index integration consume it for runtime resolution.",
+      "recommendation": "Retain one resolveRuntimeEnvelope facade, but split env-patch logic, node option parsing, and concurrency/runtime precedence resolution into dedicated internals."
+    },
+    {
+      "path": "src/shared/sort.js",
+      "consumerCount": 37,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Context-pack, graph, retrieval ranking, and many other surfaces use this as the default lexical comparator.",
+      "recommendation": "Keep it intentionally tiny as the primitive comparator and do not let it turn into a broader sorting utility bucket."
+    },
+    {
+      "path": "src/shared/time-format.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Bench and service progress-monitor surfaces use it for compact duration text rendering.",
+      "recommendation": "Keep it as a tiny display helper unless more time-format variants accumulate, in which case create a dedicated formatting family."
+    },
+    {
+      "path": "src/shared/toolchain-env.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "LSP client/provider startup and benchmark run loops use it to enforce Gradle daemon-off defaults.",
+      "recommendation": "Keep it small and explicit; document it as a toolchain-specific environment patch helper rather than a generic env utility."
+    }
+  ]
+}
