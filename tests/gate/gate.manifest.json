@@ -8,142 +8,217 @@
   "sourceOrderFile": "tests/gate/gate.order.txt",
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
+  "suiteCategorySummary": {
+    "hero": 30,
+    "matrix": 2,
+    "meta": 2,
+    "soak": 0,
+    "heavy-runtime": 0
+  },
   "tests": [
     {
       "id": "indexing/policy/hotpath-membership-guard",
-      "order": 1
+      "order": 1,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/policy/module-cache-boundedness-contract",
-      "order": 2
+      "order": 2,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/policy/generated-matrix",
-      "order": 3
+      "order": 3,
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
     },
     {
       "id": "indexing/contracts/artifact-surface-version",
-      "order": 4
+      "order": 4,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/contracts/n-minus-one-adapter",
-      "order": 5
+      "order": 5,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/contracts/public-artifact-surface-doc",
-      "order": 6
+      "order": 6,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/contracts/index-compatibility-key-generation",
-      "order": 7
+      "order": 7,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/contracts/semver-policy-enforced",
-      "order": 8
+      "order": 8,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/contracts/index-state-dense-sidecars-present",
-      "order": 9
+      "order": 9,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "contracts/manifest-max-bytes-validation",
-      "order": 10
+      "order": 10,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/policy/repo-inventory",
-      "order": 11
+      "order": 11,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/contracts/loader-matrix-parity",
-      "order": 12
+      "order": 12,
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
     },
     {
       "id": "indexing/policy/analysis-schema",
-      "order": 13
+      "order": 13,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/contracts/snapshots",
-      "order": 14
+      "order": 14,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/contracts/builds-current-repo-head-schema",
-      "order": 15
+      "order": 15,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/contracts/call-sites-schema",
-      "order": 16
+      "order": 16,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/contracts/diffs",
-      "order": 17
+      "order": 17,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/contracts/additional-properties-policy",
-      "order": 18
+      "order": 18,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
-      "order": 19
+      "order": 19,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/contracts/schema-registry-single-source",
-      "order": 20
+      "order": 20,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/api-contracts/caps",
-      "order": 21
+      "order": 21,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/api-contracts/schema-validate",
-      "order": 22
+      "order": 22,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/api-contracts/fail-on-warn",
-      "order": 23
+      "order": 23,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/api-contracts/optional-params",
-      "order": 24
+      "order": 24,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/api-contracts/large-call-sites",
-      "order": 25
+      "order": 25,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/contracts/embedding-identity-gating-on-load",
-      "order": 26
+      "order": 26,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "ci/capability-gate.smoke",
-      "order": 27
+      "order": 27,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "indexing/contracts/index-compatibility-key-federation-block",
-      "order": 28
+      "order": 28,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/policy/stable-entrypoints",
-      "order": 29
+      "order": 29,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/policy/optional-deps",
-      "order": 30
+      "order": 30,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/policy/analysis-gating",
-      "order": 31
+      "order": 31,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "ci/tooling-doctor-gate.smoke",
-      "order": 32
+      "order": 32,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "tooling/api-contracts/basic",
-      "order": 33
+      "order": 33,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "contracts/module-export-surface-compat",
-      "order": 34
+      "order": 34,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

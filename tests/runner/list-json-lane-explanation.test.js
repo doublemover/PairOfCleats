@@ -22,12 +22,24 @@ const manifestSelected = tests.find((entry) => entry.selectionSource === 'ordere
 assert.ok(manifestSelected, 'expected at least one manifest-selected test');
 assert.equal(manifestSelected.selectionLane, 'ci-lite', 'expected ci-lite selection lane explanation');
 assert.ok(
+  typeof manifestSelected.suiteCategory === 'string' && manifestSelected.suiteCategory.length > 0,
+  'expected suite-category metadata for manifest-selected test'
+);
+assert.ok(
+  typeof manifestSelected.suiteCategoryReason === 'string' && manifestSelected.suiteCategoryReason.length > 0,
+  'expected suite-category reason for manifest-selected test'
+);
+assert.ok(
   String(manifestSelected.selectionDetail || '').endsWith('tests/ci-lite/ci-lite.manifest.json'),
   `expected ci-lite manifest detail, got: ${String(manifestSelected.selectionDetail || '')}`
 );
 assert.ok(
   typeof manifestSelected.laneSource === 'string' && manifestSelected.laneSource.length > 0,
   'expected lane-source explanation for selected test'
+);
+assert.ok(
+  payload?.suiteCategorySummary && typeof payload.suiteCategorySummary === 'object',
+  'expected suite-category summary in list JSON payload'
 );
 
 console.log('list json lane explanation test passed');

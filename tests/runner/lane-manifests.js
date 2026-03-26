@@ -2,6 +2,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { parse as parseJsonc } from 'jsonc-parser';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
+import {
+  buildSuiteCategorySummary,
+  inferSuiteCategory
+} from './suite-taxonomy.js';
 
 const DEFAULT_ORDERED_LANE_TARGETS = {
   gate: 15,
@@ -147,6 +151,17 @@ export const buildOrderedLaneManifest = async ({ root, laneConfig }) => {
     timingArtifactPaths: laneConfig.timingArtifactPaths
   });
   const mergedTimings = mergeTimingMaps(maps);
+  const tests = orderIds.map((id, index) => {
+    const durationMs = mergedTimings.get(id);
+    const suiteCategory = inferSuiteCategory({ id, lane: laneConfig.lane });
+    return {
+      id,
+      order: index + 1,
+      suiteCategory: suiteCategory.category,
+      suiteCategoryReason: suiteCategory.reason,
+      ...(Number.isFinite(durationMs) ? { durationMs } : {})
+    };
+  });
   return {
     schemaVersion: 1,
     lane: laneConfig.lane,
@@ -157,14 +172,8 @@ export const buildOrderedLaneManifest = async ({ root, laneConfig }) => {
     sourceOrderFile: toRepoRelativePosix(root, laneConfig.orderFilePath),
     sourceConfigFile: toRepoRelativePosix(root, laneConfig.configPath),
     timingArtifactPaths: resolvedPaths.map((item) => toRepoRelativePosix(root, item)),
-    tests: orderIds.map((id, index) => {
-      const durationMs = mergedTimings.get(id);
-      return {
-        id,
-        order: index + 1,
-        ...(Number.isFinite(durationMs) ? { durationMs } : {})
-      };
-    })
+    suiteCategorySummary: buildSuiteCategorySummary(tests),
+    tests
   };
 };
 

@@ -24,6 +24,10 @@ import {
   splitCsv
 } from './runner/run-discovery.js';
 import {
+  buildSuiteCategorySummary,
+  inferSuiteCategory
+} from './runner/suite-taxonomy.js';
+import {
   loadLaneManifestConfig,
   loadOrderedLaneManifest
 } from './runner/lane-manifests.js';
@@ -317,11 +321,15 @@ const main = async () => {
   })).map((test) => {
     const laneReason = assignLaneWithReason(test.id, runRules.laneRules);
     const lane = laneReason.lane;
+    const tags = buildTags(test.id, lane, runRules.tagRules);
+    const suiteCategory = inferSuiteCategory({ id: test.id, lane, tags });
     return {
       ...test,
       lane,
       laneReason,
-      tags: buildTags(test.id, lane, runRules.tagRules)
+      tags,
+      suiteCategory: suiteCategory.category,
+      suiteCategoryReason: suiteCategory.reason
     };
   });
 
@@ -444,11 +452,13 @@ const main = async () => {
 
   if (argv.list) {
     if (argv.json) {
-      const payload = { total: selection.length, tests: selection.map((test) => ({
+      const testsPayload = selection.map((test) => ({
         id: test.id,
         path: test.relPath,
         lane: test.lane,
         tags: test.tags,
+        suiteCategory: test.suiteCategory || '',
+        suiteCategoryReason: test.suiteCategoryReason || '',
         laneSource: test.laneReason?.source || '',
         laneDetail: test.laneReason?.detail || '',
         selectionSource: test.selectionReason?.source || '',
@@ -456,7 +466,12 @@ const main = async () => {
         selectionDetail: test.selectionReason?.detail || '',
         presetStatus: test.presetStatus || '',
         skipReason: test.skipReason || ''
-      })) };
+      }));
+      const payload = {
+        total: selection.length,
+        suiteCategorySummary: buildSuiteCategorySummary(testsPayload),
+        tests: testsPayload
+      };
       process.stdout.write(`${JSON.stringify(payload)}\n`);
       return;
     }

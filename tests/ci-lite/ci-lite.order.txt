@@ -120,7 +120,6 @@ shared/fs/atomic-replace-sync-stale-bak-collision-guard
 shared/json-stream/atomic-replace
 shared/json-stream/json-encode-cycle-guard
 shared/safe-regex/flags-normalization
-ci-lite/placeholder
 indexing/type-inference/providers/type-inference-typescript-provider-no-ts
 lang/registry/collector-metamorphic-comment-placement
 retrieval/ann/backend-contract-matrix

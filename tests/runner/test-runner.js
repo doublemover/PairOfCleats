@@ -14,16 +14,18 @@ assert.equal(listResult.status, 0, `expected --list to succeed, got ${listResult
 const payload = JSON.parse(listResult.stdout.trim() || '{}');
 assert(Array.isArray(payload.tests), 'expected JSON list to include tests');
 const ids = payload.tests.map((test) => test.id);
-assert(ids.includes('test-runner'), 'expected test-runner in unit lane list');
+assert(ids.includes('runner/harness/skip-semantics'), 'expected runner harness smoke target in unit lane list');
 assert(!ids.includes('run'), 'runner entrypoint should be excluded from discovery');
+const selfEntry = payload.tests.find((test) => test.id === 'runner/harness/skip-semantics');
+assert.equal(selfEntry?.suiteCategory, 'meta', 'expected runner smoke test to be classified as meta');
 
-const matchResult = spawnSync(process.execPath, [runner, '--list', '--match', 'test-runner'], {
+const matchResult = spawnSync(process.execPath, [runner, '--list', '--lane', 'unit', '--match', 'skip-semantics'], {
   cwd: root,
   encoding: 'utf8'
 });
 assert.equal(matchResult.status, 0, `expected --match list to succeed, got ${matchResult.status}`);
 const lines = matchResult.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-assert(lines.includes('test-runner'), 'expected match list to include test-runner');
+assert(lines.includes('runner/harness/skip-semantics'), 'expected match list to include runner harness target');
 
 const badLane = spawnSync(process.execPath, [runner, '--lane', 'nope'], {
   cwd: root,
