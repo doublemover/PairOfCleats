@@ -51,7 +51,7 @@ retrieval/backend/retrieval-strict-manifest-embeddings
 cli/search/tie-order
 indexing/determinism/chunkuid
 cli/search/rrf
-cli/search/missing-flag-values
+cli/search/help-and-flag-contract-matrix
 storage/sqlite/incremental/manifest-normalization
 retrieval/cache/query
 storage/sqlite/incremental/file-manifest-updates

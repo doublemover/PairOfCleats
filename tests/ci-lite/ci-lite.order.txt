@@ -383,7 +383,7 @@ indexing/risk/interprocedural/framework-semantics
 retrieval/cache/index
 shared/artifact-io/jsonl-concurrency-order
 shared/encoding/metadata-plumbed-and-reused
-cli/search/help-fastpath
+retrieval/pipeline/query-plan-cache-contract-matrix
 graph/reporoot-warning
 indexing/embeddings/onnx-session-queue
 indexing/tree-sitter/preload-limited
@@ -475,7 +475,6 @@ indexing/vfs/segment-hash-cache-contract
 retrieval/federation/explicit-root-no-fallback
 retrieval/query/negation-compound-contract
 storage/sqlite/batch-size-adaptive
-retrieval/pipeline/query-plan-invalidates-config
 retrieval/ranking/graph-determinism
 shared/artifact-io/jsonl-fuzz
 shared/io/bundle-io-checksum-fail-closed
@@ -507,7 +506,6 @@ retrieval/ranking/rank-dense-binary-buffer
 shared/artifact-io/packed-postings-windowed-read
 retrieval/ranking/graph-membership-invariant
 indexing/signatures/signature-multi-mode
-retrieval/pipeline/query-plan-schema-version
 tooling/install/tooling-detect-pyright-path-key-fallback
 indexing/embeddings/embedding-batch-defaults
 map/build-map/spill-cleanup-retries
@@ -521,7 +519,6 @@ indexing/runtime/byte-budget-policy-contract
 shared/artifact-io/manifest-streaming
 tooling/vfs/maps-segment-offsets
 indexer/metav2/recompute-equivalence
-retrieval/pipeline/query-plan-cache-key
 indexing/build/promotion-timing-contract
 indexing/runtime/chunk-retention-sampling
 indexing/artifacts/sharded-meta/bytes
@@ -535,16 +532,12 @@ tooling/ci/run-suite-path-normalization
 tooling/ci/run-suite-output-sanitization
 indexing/tree-sitter/query-precompile-cache
 indexing/watch/build-state
-retrieval/pipeline/query-plan-disk-cache
-retrieval/pipeline/query-plan-disk-cache-size-cap
 indexing/embeddings/build/args-parsing
 storage/vector-extension/sanitize
 indexing/chunking/sql-lua
 indexing/relations/memory-budget
-retrieval/pipeline/query-plan-requirements
 storage/sqlite/dense-meta-fallback
 retrieval/pipeline/ann-optional-skip
-retrieval/pipeline/query-plan-invalidates-index
 retrieval/pipeline/ann-preflight
 ci/markdown-link-check
 tooling/doctor/command-profile-probe-timeout-tiers
@@ -1064,7 +1057,6 @@ runner/harness/redo-semantics
 shared/cache/gc
 tooling/type-inference/crossfile-stats.unit
 tooling/lsp/elixir-provider-runtime-otp-mismatch-preflight
-cli/search/help
 tooling/vfs/partial-lsp-open
 indexing/tree-sitter/scheduler-paged-json-gzip
 tooling/lsp/configured-provider-go-rust-signature-parsing
