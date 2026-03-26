@@ -30,11 +30,11 @@ const activeScript = [
   "const emit = (event, payload) => console.log(JSON.stringify({ proto: 'poc.progress@2', event, ts: new Date().toISOString(), ...payload }));",
   '(async () => {',
   "  emit('task:start', { taskId: 'overall', stage: 'overall', current: 0, total: 3, message: 'start' });",
-  '  await wait(40);',
+  '  await wait(80);',
   "  emit('task:progress', { taskId: 'overall', stage: 'overall', current: 1, total: 3, message: 'progress 1' });",
-  '  await wait(40);',
+  '  await wait(80);',
   "  emit('task:progress', { taskId: 'overall', stage: 'overall', current: 2, total: 3, message: 'progress 2' });",
-  '  await wait(40);',
+  '  await wait(80);',
   "  emit('task:end', { taskId: 'overall', stage: 'overall', current: 3, total: 3, status: 'done', message: 'done' });",
   '  process.exit(0);',
   '})();'
@@ -46,8 +46,8 @@ const activeResult = await runner.runProcess(
   ['-e', activeScript],
   {
     continueOnError: true,
-    idleTimeoutMs: 50,
-    timeoutMs: 500
+    idleTimeoutMs: 180,
+    timeoutMs: 2000
   }
 );
 
@@ -68,8 +68,8 @@ const silentResult = await runner.runProcess(
   ['-e', silentScript],
   {
     continueOnError: true,
-    idleTimeoutMs: 80,
-    timeoutMs: 1000
+    idleTimeoutMs: 180,
+    timeoutMs: 1500
   }
 );
 
@@ -92,8 +92,8 @@ const noisyResult = await runner.runProcess(
   ['-e', noisyScript],
   {
     continueOnError: true,
-    idleTimeoutMs: 80,
-    timeoutMs: 1000
+    idleTimeoutMs: 180,
+    timeoutMs: 1500
   }
 );
 

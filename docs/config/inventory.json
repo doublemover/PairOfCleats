@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-26T01:19:33.680Z",
+  "generatedAt": "2026-03-26T03:45:35.097Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3243,7 +3243,7 @@
     {
       "name": "PAIROFCLEATS_TEST_CODE_MAP_BUDGET_MS",
       "files": [
-        "tests/indexing/map/code-performance.test.js",
+        "tests/indexing/map/code-map-guardrail-matrix.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3739,8 +3739,7 @@
         "tests/indexing/file-processor/skip-minified-binary.test.js",
         "tests/indexing/incremental/cache-signature.test.js",
         "tests/indexing/incremental/tokenization-cache.test.js",
-        "tests/indexing/map/code-guardrails.test.js",
-        "tests/indexing/map/code-performance.test.js",
+        "tests/indexing/map/code-map-guardrail-matrix.test.js",
         "tests/indexing/postings/real-bench-contract.test.js",
         "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tests/indexing/postings/vector-only-service-embeddings-pending-artifacts.test.js",
@@ -5679,6 +5678,14 @@
         ]
       },
       {
+        "file": "tools/docs/shared-module-ledger.js",
+        "flags": [
+          "json",
+          "markdown",
+          "root"
+        ]
+      },
+      {
         "file": "tools/download/dicts.js",
         "flags": [
           "dir",
@@ -6290,7 +6297,7 @@
     "duplicated": [
       {
         "flag": "json",
-        "count": 71,
+        "count": 72,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -6338,6 +6345,7 @@
           "tools/docs/generated-surfaces.js",
           "tools/docs/repo-inventory.js",
           "tools/docs/script-inventory.js",
+          "tools/docs/shared-module-ledger.js",
           "tools/index/cache-gc.js",
           "tools/index/reconcile-identity.js",
           "tools/index/report-artifacts.js",
@@ -6584,7 +6592,7 @@
       },
       {
         "flag": "root",
-        "count": 11,
+        "count": 12,
         "files": [
           "tools/bench/vfs/cold-start-cache.js",
           "tools/ci/check-command-surface.js",
@@ -6593,6 +6601,7 @@
           "tools/docs/export-artifact-schema-index.js",
           "tools/docs/generated-surfaces.js",
           "tools/docs/repo-inventory.js",
+          "tools/docs/shared-module-ledger.js",
           "tools/reports/show-throughput/options.js",
           "tools/setup/setup.js",
           "tools/tooling/detect.js",
@@ -7384,6 +7393,15 @@
         ]
       },
       {
+        "flag": "markdown",
+        "count": 3,
+        "files": [
+          "tools/ci/coverage-policy-report.js",
+          "tools/docs/script-inventory.js",
+          "tools/docs/shared-module-ledger.js"
+        ]
+      },
+      {
         "flag": "maxBytes",
         "count": 3,
         "files": [
@@ -7776,14 +7794,6 @@
         "count": 2,
         "files": [
           "bin/pairofcleats.js",
-          "tools/docs/script-inventory.js"
-        ]
-      },
-      {
-        "flag": "markdown",
-        "count": 2,
-        "files": [
-          "tools/ci/coverage-policy-report.js",
           "tools/docs/script-inventory.js"
         ]
       },
