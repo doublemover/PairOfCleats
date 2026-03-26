@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { toRealPathSync } from '../workspace/identity.js';
 
 export {
   BUILD_ROOT_RESOLUTION_FAILURES,
