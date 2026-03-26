@@ -1,15 +1,11 @@
 import os from 'node:os';
 import { createCli } from '../cli.js';
 import { INDEX_BUILD_OPTIONS } from '../cli-options.js';
-import {
-  getAutoPolicy,
-  getRuntimeConfig,
-  getToolVersion,
-  loadUserConfig,
-  resolveRuntimeEnv
-} from '../dict-utils.js';
 import { resolveRuntimeEnv as resolveRuntimeEnvFromEnvelope } from '../runtime-envelope/env-patch.js';
 import { resolveRuntimeEnvelope } from '../runtime-envelope/resolve.js';
+import { loadUserConfig, getAutoPolicy } from '../../../tools/dict-utils/config.js';
+import { getRuntimeConfig, resolveRuntimeEnv } from '../../../tools/dict-utils/paths/runtime.js';
+import { getToolVersion } from '../../../tools/dict-utils/tool.js';
 
 export const resolveDispatchRuntimeEnv = async ({
   root,
