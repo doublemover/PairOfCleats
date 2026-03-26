@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-26T13:42:47.019Z",
+  "generatedAt": "2026-03-26T20:47:06.145Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2300,6 +2300,7 @@
       "name": "PAIROFCLEATS_CACHE_ROOT",
       "files": [
         "src/shared/env/runtime.js",
+        "src/shared/toolchain-env.js",
         "tests/cli/general/repo-root.test.js",
         "tests/cli/search/missing-index.test.js",
         "tests/cli/search/tie-order.test.js",
@@ -2336,6 +2337,7 @@
         "tests/shared/cache/root-versioning.test.js",
         "tests/shared/encoding/fallback.test.js",
         "tests/shared/subprocess/quoting.test.js",
+        "tests/shared/toolchain-env-applies-gradle-daemon-policy.test.js",
         "tests/storage/sqlite/build-indexes.test.js",
         "tests/storage/sqlite/bundle-missing.test.js",
         "tests/storage/sqlite/compact.test.js",
