@@ -1,6 +1,7 @@
 import { spawnSubprocess, spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import { incTimeout } from '../../src/shared/metrics.js';
+import { createProgressReporter, createStreamLineProgressForwarder } from '../../src/shared/progress-events.js';
 
 /**
  * Run a node command and return stdout.
@@ -132,12 +133,10 @@ export async function runToolWithProgress({
   doneMessage,
   env
 }) {
-  const progress = typeof context.progress === 'function' ? context.progress : null;
-  const progressLine = progress
-    ? ({ stream, line }) => progress({ message: line, stream })
-    : null;
-  if (progress && startMessage) {
-    progress({ message: startMessage, phase: 'start' });
+  const reporter = createProgressReporter(context);
+  const progressLine = createStreamLineProgressForwarder(context);
+  if (reporter && startMessage) {
+    reporter.start(startMessage);
   }
   const { stdout } = await runNodeAsync(repoPath, scriptArgs, {
     streamOutput: true,
@@ -145,8 +144,8 @@ export async function runToolWithProgress({
     env,
     signal: context.signal
   });
-  if (progress && doneMessage) {
-    progress({ message: doneMessage, phase: 'done' });
+  if (reporter && doneMessage) {
+    reporter.done(doneMessage);
   }
   return stdout || '';
 }

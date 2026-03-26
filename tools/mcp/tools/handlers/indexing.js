@@ -5,6 +5,7 @@ import {
   buildSqliteIndex as coreBuildSqliteIndex
 } from '../../../../src/integrations/core/index.js';
 import { attachObservability, buildChildObservability } from '../../../../src/shared/observability.js';
+import { createProgressReporter } from '../../../../src/shared/progress-events.js';
 import { clearRepoCaches, resolveRepoPath } from '../../repo.js';
 import { runToolWithProgress } from '../../runner.js';
 import { maybeRestoreArtifacts, resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
@@ -25,7 +26,7 @@ export async function buildIndex(args = {}, context = {}) {
   const stubEmbeddings = args.stubEmbeddings === true;
   const buildSqlite = shouldUseSqlite;
   const useArtifacts = args.useArtifacts === true;
-  const progress = typeof context.progress === 'function' ? context.progress : null;
+  const reporter = createProgressReporter(context);
   const observability = buildChildObservability(context.observability, {
     surface: 'build',
     operation: 'build_index',
@@ -38,10 +39,10 @@ export async function buildIndex(args = {}, context = {}) {
   const heartbeatIntervalMs = 15000;
   const withHeartbeat = async (label, fn) => {
     let timer = null;
-    if (progress) {
-      progress({ message: label, phase: 'start', observability });
+    if (reporter) {
+      reporter.start(label, { observability });
       timer = setInterval(() => {
-        progress({ message: `${label} (working)`, phase: 'progress', observability });
+        reporter.phase('progress', `${label} (working)`, { observability });
       }, heartbeatIntervalMs);
       timer.unref?.();
     }
@@ -80,13 +81,7 @@ export async function buildIndex(args = {}, context = {}) {
       })
     );
   }
-  if (progress) {
-    progress({
-      message: 'Index build complete.',
-      phase: 'done',
-      observability
-    });
-  }
+  reporter?.done('Index build complete.', { observability });
   clearRepoCaches(repoPath);
 
   return attachObservability({
@@ -105,10 +100,8 @@ export async function buildIndex(args = {}, context = {}) {
  */
 export async function buildSqliteIndex(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const progress = typeof context.progress === 'function' ? context.progress : null;
-  if (progress) {
-    progress({ message: 'Building SQLite index.', phase: 'start' });
-  }
+  const reporter = createProgressReporter(context);
+  reporter?.start('Building SQLite index.');
   const payload = await coreBuildSqliteIndex(repoPath, {
     mode: args.mode,
     incremental: args.incremental === true,
@@ -122,9 +115,7 @@ export async function buildSqliteIndex(args = {}, context = {}) {
     exitOnError: false
   });
   clearRepoCaches(repoPath);
-  if (progress) {
-    progress({ message: 'SQLite index build complete.', phase: 'done' });
-  }
+  reporter?.done('SQLite index build complete.');
   return payload;
 }
 

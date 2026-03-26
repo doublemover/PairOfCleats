@@ -5,6 +5,7 @@ import {
   resolveRuntimeEnv,
   resolveToolRoot
 } from '../../shared/dict-utils.js';
+import { createProgressReporter } from '../../../src/shared/progress-events.js';
 import { runNodeSync } from '../runner.js';
 
 export const toolRoot = resolveToolRoot();
@@ -23,22 +24,13 @@ export const resolveRepoRuntimeEnv = (repoPath, userConfig) => {
 export function maybeRestoreArtifacts(repoPath, artifactsDir, progress, runtimeEnv) {
   const fromDir = artifactsDir ? path.resolve(artifactsDir) : path.join(repoPath, 'ci-artifacts');
   if (!fs.existsSync(path.join(fromDir, 'manifest.json'))) return false;
-  if (progress) {
-    progress({
-      message: `Restoring CI artifacts from ${fromDir}`,
-      phase: 'start'
-    });
-  }
+  const reporter = createProgressReporter(progress);
+  reporter?.start(`Restoring CI artifacts from ${fromDir}`);
   runNodeSync(
     repoPath,
     [path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--repo', repoPath, '--from', fromDir],
     { env: runtimeEnv }
   );
-  if (progress) {
-    progress({
-      message: 'CI artifacts restored.',
-      phase: 'done'
-    });
-  }
+  reporter?.done('CI artifacts restored.');
   return true;
 }

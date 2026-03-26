@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { DEFAULT_MODEL_ID, getModelConfig, loadUserConfig } from '../../../shared/dict-utils.js';
+import { createProgressReporter, createStreamLineProgressForwarder } from '../../../../src/shared/progress-events.js';
 import { resolveRepoPath } from '../../repo.js';
 import { parseCountSummary, parseExtensionPath, runNodeAsync, runNodeSync, runToolWithProgress } from '../../runner.js';
 import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
@@ -17,22 +18,16 @@ export async function downloadModels(args = {}, context = {}) {
   const model = args.model || modelConfig.id || DEFAULT_MODEL_ID;
   const scriptArgs = [path.join(toolRoot, 'tools', 'download', 'models.js'), '--model', model, '--repo', repoPath];
   if (args.cacheDir) scriptArgs.push('--cache-dir', args.cacheDir);
-  const progress = typeof context.progress === 'function' ? context.progress : null;
-  const progressLine = progress
-    ? ({ stream, line }) => progress({ message: line, stream })
-    : null;
-  if (progress) {
-    progress({ message: `Downloading model ${model}.`, phase: 'start' });
-  }
+  const reporter = createProgressReporter(context);
+  const progressLine = createStreamLineProgressForwarder(context);
+  reporter?.start(`Downloading model ${model}.`);
   const { stdout } = await runNodeAsync(repoPath, scriptArgs, {
     streamOutput: true,
     onLine: progressLine,
     env: runtimeEnv,
     signal: context.signal
   });
-  if (progress) {
-    progress({ message: `Model download complete (${model}).`, phase: 'done' });
-  }
+  reporter?.done(`Model download complete (${model}).`);
   return { model, output: stdout.trim() };
 }
 

@@ -4,6 +4,7 @@ import { hasIndexMeta } from '../../../../src/retrieval/cli/index-loader.js';
 import { buildRiskDeltaPayload } from '../../../../src/context-pack/risk-delta.js';
 import { createError, ERROR_CODES } from '../../../../src/shared/error-codes.js';
 import { attachObservability, buildChildObservability } from '../../../../src/shared/observability.js';
+import { createProgressReporter } from '../../../../src/shared/progress-events.js';
 import { normalizeRiskFilters, validateRiskFilters } from '../../../../src/shared/risk-filters.js';
 import { buildCompositeContextPackPayload } from '../../../../src/integrations/tooling/context-pack.js';
 import { buildRiskExplainPayload } from '../../../analysis/explain-risk.js';
@@ -30,6 +31,7 @@ export async function runRiskExplain(args = {}, context = {}) {
       reason: 'invalid_risk_filters'
     });
   }
+  const reporter = createProgressReporter(context);
   const observability = buildChildObservability(context.observability, {
     surface: 'analysis',
     operation: 'risk_explain',
@@ -38,9 +40,7 @@ export async function runRiskExplain(args = {}, context = {}) {
       chunkUid
     }
   });
-  if (typeof context.progress === 'function') {
-    context.progress({ phase: 'start', message: 'Building risk explanation.', observability });
-  }
+  reporter?.start('Building risk explanation.', { observability });
   const result = await buildRiskExplainPayload({
     indexDir,
     chunkUid,
@@ -49,9 +49,7 @@ export async function runRiskExplain(args = {}, context = {}) {
     includePartialFlows: args.includePartialFlows === true,
     maxPartialFlows: args.maxPartialFlows
   });
-  if (typeof context.progress === 'function') {
-    context.progress({ phase: 'done', message: 'Risk explanation ready.', observability });
-  }
+  reporter?.done('Risk explanation ready.', { observability });
   return attachObservability(result, observability);
 }
 
@@ -60,6 +58,7 @@ export async function runContextPack(args = {}, context = {}) {
     throw createError(ERROR_CODES.CANCELLED, 'Request cancelled.');
   }
   const repoPath = resolveRepoPath(args.repoPath);
+  const reporter = createProgressReporter(context);
   const observability = buildChildObservability(context.observability, {
     surface: 'analysis',
     operation: 'context_pack',
@@ -67,9 +66,7 @@ export async function runContextPack(args = {}, context = {}) {
       repoRoot: repoPath
     }
   });
-  if (typeof context.progress === 'function') {
-    context.progress({ phase: 'start', message: 'Building context pack.', observability });
-  }
+  reporter?.start('Building context pack.', { observability });
   try {
     const result = await buildCompositeContextPackPayload({
       repoRoot: repoPath,
@@ -103,9 +100,7 @@ export async function runContextPack(args = {}, context = {}) {
       maxWorkUnits: args.maxWorkUnits,
       maxWallClockMs: args.maxWallClockMs
     }, context);
-    if (typeof context.progress === 'function') {
-      context.progress({ phase: 'done', message: 'Context pack ready.', observability });
-    }
+    reporter?.done('Context pack ready.', { observability });
     return attachObservability(result, observability);
   } catch (err) {
     if (
@@ -146,6 +141,7 @@ export async function runRiskDelta(args = {}, context = {}) {
       reason: 'invalid_risk_filters'
     });
   }
+  const reporter = createProgressReporter(context);
   const observability = buildChildObservability(context.observability, {
     surface: 'analysis',
     operation: 'risk_delta',
@@ -155,9 +151,7 @@ export async function runRiskDelta(args = {}, context = {}) {
       to: toRef
     }
   });
-  if (typeof context.progress === 'function') {
-    context.progress({ phase: 'start', message: 'Building risk delta.', observability });
-  }
+  reporter?.start('Building risk delta.', { observability });
   const userConfig = loadUserConfig(repoPath);
   const result = await buildRiskDeltaPayload({
     repoRoot: repoPath,
@@ -168,8 +162,6 @@ export async function runRiskDelta(args = {}, context = {}) {
     filters,
     includePartialFlows: args.includePartialFlows === true
   });
-  if (typeof context.progress === 'function') {
-    context.progress({ phase: 'done', message: 'Risk delta ready.', observability });
-  }
+  reporter?.done('Risk delta ready.', { observability });
   return attachObservability(result, observability);
 }
