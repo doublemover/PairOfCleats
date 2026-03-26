@@ -171,6 +171,9 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
       process.exit(1);
     }
   }
+  const prepareBlock = workflowText.match(/\n  prepare:\n([\s\S]*?)\n  build-node-packages:\n/)?.[1] || '';
+  const verifyNodeBlock = workflowText.match(/\n  verify-node-packages:\n([\s\S]*?)\n  build-tui:\n/)?.[1] || '';
+  const verifyTuiBlock = workflowText.match(/\n  verify-tui:\n([\s\S]*?)\n  release-bundle:\n/)?.[1] || '';
   const publishBlockMatch = workflowText.match(/\n  publish:\n([\s\S]*?)\n  readiness-gate:\n/);
   const publishBlock = publishBlockMatch ? publishBlockMatch[1] : '';
   if (!publishBlock) {
@@ -195,6 +198,34 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
   }
   if (!/find dist\/release\/downloads dist\/release\/bundle dist\/release\/trust -type f \| sort/.test(publishBlock)) {
     console.error(`${label} publish job must upload trust materials alongside the release bundle.`);
+    process.exit(1);
+  }
+  if (!/upload_args=\(\)[\s\S]*rel_path="\$\{file_path#dist\/release\/\}"[\s\S]*"\$\{file_path\}#\$\{rel_path\}"/.test(publishBlock)) {
+    console.error(`${label} publish job must upload release assets with unique relative-path labels.`);
+    process.exit(1);
+  }
+  if (!/name:\s*release-prepare-docs[\s\S]*docs\/tooling\/doc-contract-drift\.json[\s\S]*docs\/tooling\/doc-contract-drift\.md/.test(prepareBlock)) {
+    console.error(`${label} prepare job must upload doc drift artifacts in a dedicated artifact.`);
+    process.exit(1);
+  }
+  if (!/name:\s*release-node-packages[\s\S]*path:\s*dist/.test(verifyNodeBlock)) {
+    console.error(`${label} verify-node-packages must download packaged artifacts into dist.`);
+    process.exit(1);
+  }
+  if (!/name:\s*release-tui-\$\{\{\s*matrix\.release_id\s*\}\}[\s\S]*path:\s*dist/.test(verifyTuiBlock)) {
+    console.error(`${label} verify-tui must download build artifacts into dist.`);
+    process.exit(1);
+  }
+  if (!/name:\s*release-trust-materials[\s\S]*path:\s*\|\s*[\r\n]+\s*dist\/release\/trust\b/.test(workflowText)) {
+    console.error(`${label} trust materials artifact must preserve the trust directory root.`);
+    process.exit(1);
+  }
+  if (!/name:\s*release-prepare-docs[\s\S]*path:\s*dist\/release\/downloads\/release-prepare-docs/.test(jobBlocks['release-bundle'])) {
+    console.error(`${label} release-bundle must download prepare doc drift artifacts.`);
+    process.exit(1);
+  }
+  if (!/name:\s*release-prepare-docs[\s\S]*path:\s*dist\/release\/downloads\/release-prepare-docs/.test(jobBlocks['readiness-gate'])) {
+    console.error(`${label} readiness-gate must download prepare doc drift artifacts.`);
     process.exit(1);
   }
 };

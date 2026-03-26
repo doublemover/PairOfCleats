@@ -81,6 +81,15 @@ jobs:
           name: release-prepare
           path: |
             dist/release/prepare/**
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 0
+
+      - name: Upload prepare doc drift artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-prepare-docs
+          path: |
             docs/tooling/doc-contract-drift.json
             docs/tooling/doc-contract-drift.md
           if-no-files-found: error
@@ -189,7 +198,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: release-node-packages
-          path: .
+          path: dist
 
       - name: Verify packaged node installs
         run: >
@@ -298,7 +307,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: release-tui-${{ matrix.release_id }}
-          path: .
+          path: dist
 
       - name: Verify TUI install and wrapper boot
         run: >
@@ -348,6 +357,12 @@ jobs:
         with:
           name: release-prepare
           path: dist/release/downloads/release-prepare
+
+      - name: Download prepare doc drift artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-prepare-docs
+          path: dist/release/downloads/release-prepare-docs
 
       - name: Download packaged node artifacts
         uses: actions/download-artifact@v4
@@ -475,7 +490,7 @@ jobs:
         with:
           name: release-trust-materials
           path: |
-            dist/release/trust/**
+            dist/release/trust
           if-no-files-found: error
           include-hidden-files: true
           compression-level: 0
@@ -520,7 +535,12 @@ jobs:
             gh release create "$RELEASE_TAG" --title "PairOfCleats $RELEASE_VERSION" --notes-file "$NOTES_PATH"
           fi
           mapfile -t release_files < <(find dist/release/downloads dist/release/bundle dist/release/trust -type f | sort)
-          gh release upload "$RELEASE_TAG" "${release_files[@]}" --clobber
+          upload_args=()
+          for file_path in "${release_files[@]}"; do
+            rel_path="${file_path#dist/release/}"
+            upload_args+=("${file_path}#${rel_path}")
+          done
+          gh release upload "$RELEASE_TAG" "${upload_args[@]}" --clobber
 
   readiness-gate:
     name: readiness-gate
@@ -555,6 +575,12 @@ jobs:
         with:
           name: release-prepare
           path: dist/release/downloads/release-prepare
+
+      - name: Download prepare doc drift artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-prepare-docs
+          path: dist/release/downloads/release-prepare-docs
 
       - name: Download runtime verification artifacts
         uses: actions/download-artifact@v4
