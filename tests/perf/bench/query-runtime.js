@@ -431,6 +431,7 @@ const createSearchWorker = ({
       }
       if (message?.type === 'run-complete') {
         if (!ownsActiveRequest(session, id)) return;
+        activeRequest.lastHeartbeatAt = now();
         emitEvent({
           type: 'run-complete',
           id,

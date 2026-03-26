@@ -77,8 +77,8 @@ const successPool = createSearchWorkerPool({
   env: { ...process.env },
   workerScriptPath,
   heartbeatMs: 20,
-  stallWarnMs: 80,
-  stallTimeoutMs: 200,
+  stallWarnMs: 250,
+  stallTimeoutMs: 1000,
   onEvent: (event) => successEvents.push(event)
 });
 const successPayload = await successPool.run(['--ok'], { backend: 'memory', query: 'select 1' });

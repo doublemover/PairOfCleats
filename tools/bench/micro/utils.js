@@ -1,5 +1,5 @@
 import { build as buildHistogram } from 'hdr-histogram-js';
-import { writeJsonFileSyncResolved } from '../../src/shared/json-file.js';
+import { writeJsonFileSyncResolved } from '../../../src/shared/json-file.js';
 
 const buildLatencyHistogram = (values) => {
   if (!values.length) return null;
