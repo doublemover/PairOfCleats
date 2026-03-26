@@ -160,6 +160,38 @@
       }
     },
     {
+      "id": "shared-module-ledger",
+      "owner": "shared-module-governance",
+      "committed": true,
+      "validationMode": "registry-audited",
+      "freshnessExpectation": "regenerate after shared-module scopes, issue ownership mappings, or shared consumer surfaces change",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/docs/shared-module-ledger.js --json {output:0} --markdown {output:1}",
+        "outputs": [
+          {
+            "format": "json",
+            "omitKeys": [
+              "generatedAt"
+            ]
+          },
+          {
+            "format": "text"
+          }
+        ]
+      },
+      "outputs": [
+        "docs/tooling/shared-module-ledger.json",
+        "docs/tooling/shared-module-ledger.md"
+      ],
+      "refresh": {
+        "command": "node tools/docs/shared-module-ledger.js"
+      },
+      "audit": {
+        "command": "node tests/indexing/policy/shared-module-ledger.test.js"
+      }
+    },
+    {
       "id": "release-surfaces-guide",
       "owner": "release",
       "committed": true,

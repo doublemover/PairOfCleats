@@ -21,7 +21,8 @@ const requiredIds = [
   'doc-contract-drift',
   'config-contract',
   'config-inventory',
-  'artifact-schema-index'
+  'artifact-schema-index',
+  'shared-module-ledger'
 ];
 
 for (const id of requiredIds) {
