@@ -1,0 +1,335 @@
+{
+  "issueId": 432,
+  "title": "Shared-module findings reduction and prioritized implementation backlog",
+  "reducedAt": "2026-03-26",
+  "sourceIssues": [
+    410,
+    411,
+    412,
+    413,
+    414,
+    415,
+    416,
+    417,
+    418,
+    419,
+    420,
+    421,
+    422,
+    423,
+    424,
+    425,
+    426,
+    427,
+    428,
+    429,
+    430,
+    431
+  ],
+  "completedFoundations": [
+    {
+      "issueId": 422,
+      "summary": "Shared HTTP request helpers were created."
+    },
+    {
+      "issueId": 423,
+      "summary": "Shared repo/workspace/generation helpers were created."
+    },
+    {
+      "issueId": 424,
+      "summary": "Shared subprocess/toolchain/installer helpers were created."
+    },
+    {
+      "issueId": 425,
+      "summary": "Shared search/risk request helpers were created."
+    },
+    {
+      "issueId": 426,
+      "summary": "Shared JSON file helpers were created."
+    },
+    {
+      "issueId": 427,
+      "summary": "Shared progress-event helpers were created."
+    },
+    {
+      "issueId": 428,
+      "summary": "Shared JSON gate harness tooling was created."
+    },
+    {
+      "issueId": 430,
+      "summary": "Shared-module boundary guardrails and waivers now fail on new architecture drift."
+    },
+    {
+      "issueId": 431,
+      "summary": "Manifest-driven migration codemod support now exists for repeated import rewrites."
+    }
+  ],
+  "priorityBatches": [
+    {
+      "batchId": "P0-tools-shared-runtime-exit",
+      "priority": "P0",
+      "categories": [
+        "correctness",
+        "migration debt",
+        "maintainability"
+      ],
+      "dependsOn": [
+        430,
+        431
+      ],
+      "whyNow": "The new boundary guard is already tracking runtime src/** -> tools/shared/** debt. Eliminating the remaining waived edges gives the biggest immediate architecture payoff and lets the guard become stricter.",
+      "items": [
+        {
+          "title": "Migrate remaining runtime consumers off tools/shared/dict-utils.js",
+          "paths": [
+            "src/integrations/core/build-index/compatibility.js",
+            "src/integrations/core/build-index/index.js",
+            "src/integrations/core/build-index/stages.js",
+            "src/integrations/core/status.js",
+            "src/integrations/tooling/api-contracts.js",
+            "src/integrations/tooling/architecture-check.js",
+            "src/integrations/tooling/context-pack.js",
+            "src/integrations/tooling/graph-context.js",
+            "src/integrations/tooling/impact.js",
+            "src/integrations/tooling/suggest-tests.js",
+            "src/integrations/triage/index-records.js",
+            "src/retrieval/cli-dictionary.js",
+            "src/retrieval/cli-index.js",
+            "src/retrieval/cli/load-indexes/backend.js",
+            "src/retrieval/cli/run-search/plan-runner.js",
+            "src/shared/dict-utils.js",
+            "src/shared/dispatch/env.js",
+            "src/workspace/config.js",
+            "src/workspace/manifest.js"
+          ],
+          "bestFix": "Use the new migration codemod where possible, then shrink src/shared/dict-utils.js into a real canonical owner instead of a compatibility bridge."
+        },
+        {
+          "title": "Eliminate the last runtime import of tools/shared/search-request.js",
+          "paths": [
+            "src/retrieval/federation/args.js"
+          ],
+          "bestFix": "Move the caller fully to src/shared/search-request.js and delete the temporary wrapper once no consumers remain."
+        },
+        {
+          "title": "Hoist or replace tools/shared/index-state-utils.js for runtime sqlite usage",
+          "paths": [
+            "src/storage/sqlite/build/index-state.js",
+            "tools/shared/index-state-utils.js"
+          ],
+          "bestFix": "Move the reusable state logic into a canonical src/shared or storage-local helper so runtime storage code no longer depends on tools/shared."
+        }
+      ]
+    },
+    {
+      "batchId": "P1-root-shared-deflation",
+      "priority": "P1",
+      "categories": [
+        "maintainability",
+        "documentation/comments",
+        "migration debt"
+      ],
+      "dependsOn": [
+        410,
+        414,
+        415
+      ],
+      "whyNow": "The root src/shared bucket still mixes generic helpers, domain owners, and compatibility bridges. This is the biggest source of future drift after the explicit tools/shared runtime debt.",
+      "items": [
+        {
+          "title": "Split env/runtime/policy helpers out of src/shared root",
+          "paths": [
+            "src/shared/env.js",
+            "src/shared/runtime.js",
+            "src/shared/policy.js"
+          ],
+          "bestFix": "Create clearer family ownership for environment/runtime policy instead of leaving them in the generic root bucket."
+        },
+        {
+          "title": "Relocate root-only domain shims and re-exports",
+          "paths": [
+            "src/shared/dict-utils.js",
+            "src/shared/bench-progress.js",
+            "src/shared/embeddings-progress.js",
+            "src/shared/queue.js"
+          ],
+          "bestFix": "Remove cross-layer re-exports and move specialized helpers to their owning subsystem or shared family."
+        },
+        {
+          "title": "Split large root-level domain helpers into narrower families",
+          "paths": [
+            "src/shared/token-id.js",
+            "src/shared/tokenize.js",
+            "src/shared/onnx-embeddings.js",
+            "src/shared/embedding-adapter.js",
+            "src/shared/dense-vector-artifacts.js",
+            "src/shared/indexing/build-pointer.js",
+            "src/shared/indexing/progress-timeout-policy.js"
+          ],
+          "bestFix": "Move language, embeddings, indexing-pointer, and timeout-policy owners into domain-specific shared families so dependencies and tests become easier to reason about."
+        }
+      ]
+    },
+    {
+      "batchId": "P1-artifact-io-and-storage-split",
+      "priority": "P1",
+      "categories": [
+        "maintainability",
+        "performance",
+        "correctness"
+      ],
+      "dependsOn": [
+        411,
+        417
+      ],
+      "whyNow": "Artifact/cache/io helpers are heavily imported and currently carry too many responsibilities. Splitting them improves both reviewability and the safety of future storage/indexing changes.",
+      "items": [
+        {
+          "title": "Break up artifact-io manifest and loader cores",
+          "paths": [
+            "src/shared/artifact-io/manifest.js",
+            "src/shared/artifact-io.js",
+            "src/shared/artifact-io/loaders/shared.js",
+            "src/shared/artifact-io/cache.js",
+            "src/shared/artifact-io/fs.js"
+          ],
+          "bestFix": "Separate manifest description, cache lookup, filesystem helpers, and loader orchestration so each piece has a narrower API."
+        },
+        {
+          "title": "Split generic bundle/file/persistence helpers by responsibility",
+          "paths": [
+            "src/shared/bundle-io.js",
+            "src/shared/files.js",
+            "src/shared/io/atomic-persistence.js"
+          ],
+          "bestFix": "Untangle write orchestration, path helpers, and atomic persistence contracts into smaller focused modules."
+        },
+        {
+          "title": "Move schema-oriented helpers out of generic storage buckets",
+          "paths": [
+            "src/shared/artifact-schema-index.js",
+            "src/shared/artifact-schemas.js",
+            "src/shared/docmeta.js",
+            "src/shared/meta-v2.js"
+          ],
+          "bestFix": "Treat schema and docmeta helpers as contract-domain modules rather than generic artifact IO utilities."
+        }
+      ]
+    },
+    {
+      "batchId": "P1-concurrency-and-subprocess-core",
+      "priority": "P1",
+      "categories": [
+        "correctness",
+        "maintainability",
+        "test coverage"
+      ],
+      "dependsOn": [
+        412,
+        424
+      ],
+      "whyNow": "These modules sit on critical execution paths. Their current size and mixed responsibilities increase the risk of regressions in queueing, process supervision, and progress semantics.",
+      "items": [
+        {
+          "title": "Split correctness-critical subprocess and lock modules",
+          "paths": [
+            "src/shared/locks/file-lock.js",
+            "src/shared/subprocess/tracking.js",
+            "src/shared/subprocess/runner.js"
+          ],
+          "bestFix": "Separate state tracking, process execution, and lock-file semantics into smaller units with tighter targeted tests."
+        },
+        {
+          "title": "Deflate generic progress and scheduler-core controllers",
+          "paths": [
+            "src/shared/progress.js",
+            "src/shared/concurrency/scheduler-core/adaptive-controller.js"
+          ],
+          "bestFix": "Split event formatting from policy/control logic so concurrency tuning and progress presentation do not evolve inside the same module."
+        }
+      ]
+    },
+    {
+      "batchId": "P2-cli-dispatch-capability-cleanup",
+      "priority": "P2",
+      "categories": [
+        "maintainability",
+        "documentation/comments",
+        "test coverage"
+      ],
+      "dependsOn": [
+        413
+      ],
+      "whyNow": "This family is important, but the work is less correctness-sensitive than the runtime and storage batches above.",
+      "items": [
+        {
+          "title": "Split display/render and command registry surfaces",
+          "paths": [
+            "src/shared/cli/display.js",
+            "src/shared/cli/display/render.js",
+            "src/shared/command-registry.js",
+            "src/shared/runtime-capability-manifest.js"
+          ],
+          "bestFix": "Separate presentation, command metadata, and capability-manifest projection so UI and dispatch consumers do not depend on one giant module seam."
+        },
+        {
+          "title": "Relocate dispatch environment helpers away from tools/shared coupling",
+          "paths": [
+            "src/shared/dispatch/env.js",
+            "src/shared/dispatch/manifest.js",
+            "src/shared/dispatch/registry.js"
+          ],
+          "bestFix": "Finish the move away from tools/shared and collapse thin wrappers that do not provide independent value."
+        }
+      ]
+    },
+    {
+      "batchId": "P2-adoption-and-hoisting-follow-through",
+      "priority": "P2",
+      "categories": [
+        "migration debt",
+        "maintainability",
+        "performance"
+      ],
+      "dependsOn": [
+        416,
+        417,
+        418,
+        419,
+        420,
+        421
+      ],
+      "whyNow": "The scan artifacts identified many duplicate clusters, but not all of them deserve immediate action. This batch should target the highest-frequency seams first.",
+      "items": [
+        {
+          "title": "Prioritize repeated repo/workspace/path/env handling seams",
+          "paths": [
+            "docs/tooling/shared-module-scans/421-platform-path-env-repo-workspace.json"
+          ],
+          "bestFix": "Batch the repo/workspace identity and path/env normalization migrations first because they influence many other consumer surfaces."
+        },
+        {
+          "title": "Target repeated search/report/progress/logging clusters next",
+          "paths": [
+            "docs/tooling/shared-module-ledger.json"
+          ],
+          "bestFix": "Use the duplicate-cluster seed list from the ledger to drive the next round of narrow shared-module creation or adoption, rather than scanning ad hoc."
+        }
+      ]
+    }
+  ],
+  "deferOrDrop": [
+    {
+      "title": "Do not generalize every duplicate filename stem into a shared module",
+      "reason": "Many stem collisions in the ledger are domain-local and would create weak abstractions if hoisted prematurely."
+    },
+    {
+      "title": "Do not expand the codemod beyond exact-specifier migrations until a stable seam is proven",
+      "reason": "Broad AST rewrites would create more review risk than value at this stage."
+    },
+    {
+      "title": "Do not tighten the tools/shared boundary beyond the current waiver-backed rule until the remaining debt is removed",
+      "reason": "The current guard is intentionally narrow to avoid noisy false positives while migration work is still active."
+    }
+  ]
+}
