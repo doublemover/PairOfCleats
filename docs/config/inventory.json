@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-26T11:48:39.495Z",
+  "generatedAt": "2026-03-26T13:42:47.019Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3812,7 +3812,7 @@
     "PAIROFCLEATS_TEST_MCP_DELAY_TOOL_NAMES"
   ],
   "cliFlags": {
-    "totalFlags": 461,
+    "totalFlags": 462,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -3952,6 +3952,7 @@
       "fail-fast",
       "failOnViolation",
       "failOnWarn",
+      "fallback",
       "fanout",
       "fatal-failure-rate-max",
       "fields",
@@ -4517,6 +4518,12 @@
           "focus",
           "include",
           "onlyExported"
+        ]
+      },
+      {
+        "file": "src/shared/file-read.js",
+        "flags": [
+          "fallback"
         ]
       },
       {
@@ -6170,6 +6177,14 @@
         ]
       },
       {
+        "file": "tools/testing/shared-module-cycles.js",
+        "flags": [
+          "check",
+          "json",
+          "root"
+        ]
+      },
+      {
         "file": "tools/testing/shared-module-migration.js",
         "flags": [
           "check",
@@ -6322,7 +6337,7 @@
     "duplicated": [
       {
         "flag": "json",
-        "count": 74,
+        "count": 75,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -6389,6 +6404,7 @@
           "tools/setup/bootstrap.js",
           "tools/setup/setup.js",
           "tools/sqlite/verify-extensions.js",
+          "tools/testing/shared-module-cycles.js",
           "tools/testing/shared-module-migration.js",
           "tools/testing/shared-module-performance.js",
           "tools/tooling/detect.js",
@@ -6600,6 +6616,25 @@
         ]
       },
       {
+        "flag": "root",
+        "count": 13,
+        "files": [
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/ci/check-command-surface.js",
+          "tools/ci/coverage-policy-report.js",
+          "tools/docs/contract-drift.js",
+          "tools/docs/export-artifact-schema-index.js",
+          "tools/docs/generated-surfaces.js",
+          "tools/docs/repo-inventory.js",
+          "tools/docs/shared-module-ledger.js",
+          "tools/reports/show-throughput/options.js",
+          "tools/setup/setup.js",
+          "tools/testing/shared-module-cycles.js",
+          "tools/tooling/detect.js",
+          "tools/tooling/install.js"
+        ]
+      },
+      {
         "flag": "index-root",
         "count": 12,
         "files": [
@@ -6615,24 +6650,6 @@
           "tools/index/reconcile-identity.js",
           "tools/index/validate.js",
           "tools/reports/report-code-map.js"
-        ]
-      },
-      {
-        "flag": "root",
-        "count": 12,
-        "files": [
-          "tools/bench/vfs/cold-start-cache.js",
-          "tools/ci/check-command-surface.js",
-          "tools/ci/coverage-policy-report.js",
-          "tools/docs/contract-drift.js",
-          "tools/docs/export-artifact-schema-index.js",
-          "tools/docs/generated-surfaces.js",
-          "tools/docs/repo-inventory.js",
-          "tools/docs/shared-module-ledger.js",
-          "tools/reports/show-throughput/options.js",
-          "tools/setup/setup.js",
-          "tools/tooling/detect.js",
-          "tools/tooling/install.js"
         ]
       },
       {
@@ -7176,6 +7193,16 @@
         ]
       },
       {
+        "flag": "check",
+        "count": 4,
+        "files": [
+          "tools/docs/generated-surfaces.js",
+          "tools/testing/shared-module-cycles.js",
+          "tools/testing/shared-module-migration.js",
+          "tools/testing/shared-module-performance.js"
+        ]
+      },
+      {
         "flag": "concurrency",
         "count": 4,
         "files": [
@@ -7382,15 +7409,6 @@
           "tools/ingest/ctags.js",
           "tools/ingest/gtags.js",
           "tools/ingest/scip.js"
-        ]
-      },
-      {
-        "flag": "check",
-        "count": 3,
-        "files": [
-          "tools/docs/generated-surfaces.js",
-          "tools/testing/shared-module-migration.js",
-          "tools/testing/shared-module-performance.js"
         ]
       },
       {
@@ -8185,6 +8203,7 @@
       "tests/indexing/tree-sitter/memory-plateau.test.js",
       "tests/lang/registry/import-entries.test.js",
       "tests/perf/bench/run.test.js",
+      "tests/shared/cli-option-validators-contract.test.js",
       "tests/storage/sqlite/build-root-active-generation-plan.test.js",
       "tests/tooling/signature-parse/shared-splitter.test.js",
       "tools/analysis/delta-risk.js",
