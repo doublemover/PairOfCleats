@@ -19,10 +19,9 @@ import { spawnSubprocess } from '../../../shared/subprocess.js';
 import { resolveEmbeddingRuntime } from '../embeddings.js';
 import { buildRawArgs, buildStage2Args, normalizeStage } from '../args.js';
 import { updateEnrichmentState } from '../enrichment-state.js';
+import { getRepoCacheRoot, getRepoRoot } from '../../../shared/repo-paths.js';
 import {
   getCacheRoot,
-  getRepoCacheRoot,
-  getRepoRoot,
   getToolVersion,
   loadUserConfig,
   resolveToolRoot

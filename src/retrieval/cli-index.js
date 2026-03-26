@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
-import { getIndexDir } from '../../tools/shared/dict-utils.js';
+import { getIndexDir } from '../shared/repo-paths.js';
 import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { buildIndexSignatureInfo } from './index-cache.js';

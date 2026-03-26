@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { getCacheRoot, getDictConfig, getIndexDir, getMetricsDir, getRepoCacheRoot, getRepoRoot, loadUserConfig, resolveLmdbPaths, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
+import { getIndexDir, getRepoCacheRoot, getRepoRoot } from '../../shared/repo-paths.js';
+import { getCacheRoot, getDictConfig, getMetricsDir, loadUserConfig, resolveLmdbPaths, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { loadPiecesManifest, resolveArtifactPresence } from '../../shared/artifact-io.js';
 import { getEnvConfig } from '../../shared/env.js';
 import { getAtomicWriteDurabilityStatus } from '../../shared/io/atomic-write.js';

@@ -17,7 +17,8 @@ import { buildIndexSignature } from '../../retrieval/index-cache.js';
 import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
 import { renderApiContracts } from '../../retrieval/output/api-contracts.js';
-import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
+import { loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { resolveRepoRoot } from '../../shared/repo-paths.js';
 import { writeJsonLinesFile } from '../../shared/json-stream.js';
 
 /**

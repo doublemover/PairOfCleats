@@ -23,11 +23,13 @@ import { runBuildCleanupWithTimeout } from '../../../index/build/cleanup-timeout
 import { releaseFileLockOrThrow } from '../../../shared/locks/file-lock.js';
 import {
   BUILD_ROOT_RESOLUTION_FAILURES,
-  getCacheRoot,
   getCurrentBuildInfo,
   getIndexDir,
+  resolveCurrentBuildModeRoot
+} from '../../../shared/repo-paths.js';
+import {
+  getCacheRoot,
   getMetricsDir,
-  resolveCurrentBuildModeRoot,
   getToolVersion
 } from '../../../../tools/shared/dict-utils.js';
 import { ensureQueueDir, enqueueJob } from '../../../../tools/service/queue.js';

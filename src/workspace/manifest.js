@@ -12,10 +12,9 @@ import {
   resolveCacheScopedBuildPointerRoot
 } from '../shared/indexing/build-pointer.js';
 import { validateWorkspaceManifest } from '../contracts/validators/workspace.js';
+import { getCurrentBuildInfo, getRepoCacheRoot } from '../shared/repo-paths.js';
 import {
   getCacheRoot,
-  getCurrentBuildInfo,
-  getRepoCacheRoot,
   loadUserConfig,
   resolveSqlitePaths
 } from '../../tools/shared/dict-utils.js';

@@ -1,11 +1,11 @@
 import path from 'node:path';
+import { getRepoRoot } from '../../../shared/repo-paths.js';
 import {
   applyAdaptiveDictConfig,
   DEFAULT_MODEL_ID,
   getCacheRuntimeConfig,
   getDictConfig,
   getAutoPolicy,
-  getRepoRoot,
   getMetricsDir,
   getQueryCacheDir,
   getModelConfig,

@@ -11,7 +11,8 @@ import { validateGraphContextPack } from '../../contracts/validators/analysis.js
 import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
 import { prepareGraphIndex, prepareGraphInputs } from './graph-helpers.js';
-import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
+import { loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { resolveRepoRoot } from '../../shared/repo-paths.js';
 
 /**
  * CLI entrypoint for graph-neighborhood context pack generation.
