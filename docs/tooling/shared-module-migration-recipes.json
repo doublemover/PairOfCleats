@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1.0.0",
+  "roots": [
+    "src",
+    "tools",
+    "tests",
+    "bin"
+  ],
+  "recipes": [
+    {
+      "id": "search-request-tools-to-src",
+      "description": "Move callers off the temporary tools/shared search-request wrapper and onto the canonical src/shared module.",
+      "from": "tools/shared/search-request.js",
+      "to": "src/shared/search-request.js",
+      "roots": [
+        "src",
+        "tools",
+        "tests"
+      ],
+      "renames": {}
+    },
+    {
+      "id": "dict-utils-tools-to-src",
+      "description": "Move runtime callers away from tools/shared dict-utils and onto the compatibility surface in src/shared/dict-utils.js.",
+      "from": "tools/shared/dict-utils.js",
+      "to": "src/shared/dict-utils.js",
+      "roots": [
+        "src",
+        "tools",
+        "tests"
+      ],
+      "renames": {}
+    }
+  ]
+}

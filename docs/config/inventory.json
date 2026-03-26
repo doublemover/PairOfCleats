@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-26T03:45:35.097Z",
+  "generatedAt": "2026-03-26T06:24:44.623Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3165,6 +3165,7 @@
       "name": "PAIROFCLEATS_SUPPRESS_LEGACY_ENTRYPOINT_WARNING",
       "files": [
         "src/shared/legacy-cli-entrypoint.js",
+        "tests/cli/general/legacy-entrypoint-symlink-contract.test.js",
         "tests/cli/general/legacy-entrypoint-warning.test.js",
         "tests/cli/search/help-and-flag-contract-matrix.test.js",
         "tools/config/inventory.js"
@@ -3502,6 +3503,7 @@
         "src/shared/env.js",
         "src/shared/legacy-cli-entrypoint.js",
         "src/shared/ops-failure-injection.js",
+        "tests/cli/general/legacy-entrypoint-symlink-contract.test.js",
         "tests/cli/general/legacy-entrypoint-warning.test.js",
         "tests/cli/search/help-and-flag-contract-matrix.test.js",
         "tests/helpers/fixture-index.js",
@@ -3807,7 +3809,7 @@
     "PAIROFCLEATS_TEST_MCP_DELAY_TOOL_NAMES"
   ],
   "cliFlags": {
-    "totalFlags": 459,
+    "totalFlags": 461,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -4136,6 +4138,7 @@
       "queries-dir",
       "query",
       "queue-dir",
+      "recipe",
       "record",
       "recursive",
       "refresh",
@@ -4267,6 +4270,7 @@
       "with-sqlite",
       "workspace",
       "workspaceId",
+      "write",
       "write-report",
       "yes",
       "zoom-sensitivity"
@@ -6163,6 +6167,16 @@
         ]
       },
       {
+        "file": "tools/testing/shared-module-migration.js",
+        "flags": [
+          "check",
+          "json",
+          "only",
+          "recipe",
+          "write"
+        ]
+      },
+      {
         "file": "tools/tooling/detect.js",
         "flags": [
           "json",
@@ -6297,7 +6311,7 @@
     "duplicated": [
       {
         "flag": "json",
-        "count": 72,
+        "count": 73,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -6364,6 +6378,7 @@
           "tools/setup/bootstrap.js",
           "tools/setup/setup.js",
           "tools/sqlite/verify-extensions.js",
+          "tools/testing/shared-module-migration.js",
           "tools/tooling/detect.js",
           "tools/tooling/doctor.js",
           "tools/tooling/install.js",
@@ -7582,6 +7597,14 @@
         ]
       },
       {
+        "flag": "check",
+        "count": 2,
+        "files": [
+          "tools/docs/generated-surfaces.js",
+          "tools/testing/shared-module-migration.js"
+        ]
+      },
+      {
         "flag": "clean",
         "count": 2,
         "files": [
@@ -7843,6 +7866,14 @@
         "files": [
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js"
+        ]
+      },
+      {
+        "flag": "only",
+        "count": 2,
+        "files": [
+          "tools/bench/language-canaries.js",
+          "tools/testing/shared-module-migration.js"
         ]
       },
       {
