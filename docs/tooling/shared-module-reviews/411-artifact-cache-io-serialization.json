@@ -1,0 +1,601 @@
+{
+  "issueId": "411",
+  "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+  "reviewDate": "2026-03-26",
+  "scope": "Primary ownership for src/shared artifact, cache, IO, bundle, and serialization helpers assigned to #411 in the shared-module ledger.",
+  "summary": {
+    "ownedFileCount": 70,
+    "overallAssessment": "This shared surface is broadly useful and already owns many of the repo's right low-level seams, but it is too flat. The main cleanup opportunities are the oversized artifact-manifest and loader stack, the bundle persistence stack, the overlap between file helpers and atomic persistence helpers, the cache family layering story, and specialized metadata or contract wrappers that should move out of the generic storage/serialization bucket.",
+    "clusterFindings": [
+      {
+        "cluster": "artifact-manifest-and-loader-stack",
+        "files": [
+          "src/shared/artifact-io.js",
+          "src/shared/artifact-io/manifest.js",
+          "src/shared/artifact-io/loaders.js",
+          "src/shared/artifact-io/loaders/core.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/shared.js"
+        ],
+        "assessment": "This family is valuable and correctly shared, but manifest.js and the larger loader modules are carrying too many responsibilities at once. Manifest path safety, compatibility routing, shard layout, and fallback behavior are all coupled together, while the core loader surface mixes source resolution, materialization policy, and artifact-specific adapters."
+      },
+      {
+        "cluster": "bundle-and-persistence-stack",
+        "files": [
+          "src/shared/bundle-io.js",
+          "src/shared/bundle-checksum.js",
+          "src/shared/bundle-contract.js",
+          "src/shared/io/atomic-persistence.js",
+          "src/shared/io/atomic-write.js",
+          "src/shared/io/remove-path-with-retry.js"
+        ],
+        "assessment": "The bundle and persistence family has the right shared ownership, but bundle-io.js and atomic-persistence.js are too broad. The current layering mixes format contract enforcement, worker offload, patching, checksums, backup swap logic, long-path handling, and retry policy in files that are hard to reason about."
+      },
+      {
+        "cluster": "cache-and-cache-root-layering",
+        "files": [
+          "src/shared/cache.js",
+          "src/shared/cache-key.js",
+          "src/shared/cache-roots.js",
+          "src/shared/cache-cas.js",
+          "src/shared/cache/json-file.js",
+          "src/shared/cache/policy.js"
+        ],
+        "assessment": "The repo has the right primitives for cache policy, addressing, roots, and JSON-backed cache reads, but the story is not obvious from the paths alone. cache.js mixes byte estimation and in-memory LRU mechanics, cache-cas.js owns several distinct CAS concerns in one file, and cache-root and cache-key boundaries should be documented more explicitly."
+      },
+      {
+        "cluster": "file-and-json-stream-utility-overlap",
+        "files": [
+          "src/shared/files.js",
+          "src/shared/json-stream.js",
+          "src/shared/json-stream/streams.js",
+          "src/shared/json-stream/jsonl-batch.js",
+          "src/shared/stable-json.js",
+          "src/shared/jsonc.js"
+        ],
+        "assessment": "These helpers are all legitimate shared surfaces, but files.js and json-stream.js have become catch-all facades. files.js now spans path predicates, read-range helpers, existence probes, and JSON safety helpers. json-stream.js similarly bundles array/object writing, sharded JSONL, offsets, compression, and temp-dir replacement orchestration."
+      },
+      {
+        "cluster": "specialized-metadata-and-contract-shims",
+        "files": [
+          "src/shared/artifact-schema-index.js",
+          "src/shared/artifact-schemas.js",
+          "src/shared/docmeta.js",
+          "src/shared/meta-v2.js",
+          "src/shared/provenance.js"
+        ],
+        "assessment": "These files are useful, but several of them are not really generic storage or IO primitives. artifact-schema-index.js and artifact-schemas.js are contract-surface adapters, while docmeta.js and meta-v2.js are specialized metadata helpers that would be clearer under a dedicated metadata or contract family."
+      }
+    ],
+    "highestPriorityFollowUps": [
+      {
+        "priority": "high",
+        "target": "src/shared/artifact-io/manifest.js",
+        "action": "split",
+        "reason": "The file mixes manifest loading, path safety, compatibility routing, sidecar inference, and fallback policy in one oversized shared module."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/bundle-io.js",
+        "action": "split",
+        "reason": "The file currently owns bundle format handling, patching, checksum generation, worker offload, and locking logic. It should keep a facade but shed internal families."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/io/atomic-persistence.js",
+        "action": "split",
+        "reason": "Temp-path generation, rename retries, backup swap semantics, long-path handling, and EXDEV fallback behavior deserve narrower internal seams."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/files.js",
+        "action": "split",
+        "reason": "This is the broadest file in the family by consumer count and is now a mixed surface for path predicates, bounded JSON reads, and file-range primitives."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/cache.js",
+        "action": "split",
+        "reason": "The file combines cache layer descriptors, byte estimators, cache reporters, and LRU construction. A smaller layering story would make reuse safer."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/artifact-schema-index.js",
+        "action": "move",
+        "reason": "This is a derived contract or registry helper, not a generic persistence primitive, and its current placement hides that."
+      }
+    ]
+  },
+  "entries": [
+    {
+      "path": "src/shared/artifact-io.js",
+      "consumerCount": 73,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Main artifact-io facade for indexing, retrieval, validation, benchmarks, and tooling.",
+      "recommendation": "Keep the facade stable and push family logic down into narrower modules."
+    },
+    {
+      "path": "src/shared/artifact-io/binary-columnar.js",
+      "consumerCount": 6,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Used by binary-columnar write paths and loader adapters.",
+      "recommendation": "Keep as the binary-columnar format helper and avoid broader loader policy here."
+    },
+    {
+      "path": "src/shared/artifact-io/cache.js",
+      "consumerCount": 8,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Artifact readers and manifest helpers use this as an internal family cache.",
+      "recommendation": "Keep it artifact-local and document that it is not a second general cache surface."
+    },
+    {
+      "path": "src/shared/artifact-io/checksum.js",
+      "consumerCount": 5,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Artifact writers and loaders use it for payload integrity checks.",
+      "recommendation": "Keep as the artifact checksum primitive."
+    },
+    {
+      "path": "src/shared/artifact-io/compression.js",
+      "consumerCount": 5,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Artifact reads use it for compressed extension and transport handling.",
+      "recommendation": "Keep focused on compression transport concerns."
+    },
+    {
+      "path": "src/shared/artifact-io/constants.js",
+      "consumerCount": 16,
+      "classifications": ["keep", "document"],
+      "consumerNotes": "Family constant surface for read budgets and shared thresholds.",
+      "recommendation": "Keep as the artifact-io constant contract surface."
+    },
+    {
+      "path": "src/shared/artifact-io/fs.js",
+      "consumerCount": 6,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Manifest and layout helpers rely on it for existence and tier decisions.",
+      "recommendation": "Keep as the artifact-local filesystem helper and document its boundary against files.js."
+    },
+    {
+      "path": "src/shared/artifact-io/graph.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Graph loaders use it as the artifact-local graph format helper.",
+      "recommendation": "Keep specialized to graph artifact normalization."
+    },
+    {
+      "path": "src/shared/artifact-io/json.js",
+      "consumerCount": 11,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Higher-level artifact loaders use this as the public JSON read API.",
+      "recommendation": "Keep as the family JSON read facade over the narrower json/* helpers."
+    },
+    {
+      "path": "src/shared/artifact-io/json/fallback.js",
+      "consumerCount": 3,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Artifact JSON readers use it for bounded fallback behavior.",
+      "recommendation": "Keep internal to the artifact JSON family."
+    },
+    {
+      "path": "src/shared/artifact-io/json/line-scan.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Used for targeted JSONL line scanning inside the artifact stack.",
+      "recommendation": "Keep as the JSONL line-scan primitive."
+    },
+    {
+      "path": "src/shared/artifact-io/json/read-json.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Internal read step behind the higher-level artifact JSON facade.",
+      "recommendation": "Keep internal and prefer the public artifact JSON facade at callsites."
+    },
+    {
+      "path": "src/shared/artifact-io/json/read-jsonl-array.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Used when JSONL payloads need bounded array materialization.",
+      "recommendation": "Keep as bounded JSONL array materialization."
+    },
+    {
+      "path": "src/shared/artifact-io/json/read-jsonl-stream.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Streaming artifact readers use it for async JSONL iteration.",
+      "recommendation": "Keep specialized for streaming JSONL reads and document when to prefer it."
+    },
+    {
+      "path": "src/shared/artifact-io/json/read-plan.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Normalizes read-plan selection inside the artifact JSON family.",
+      "recommendation": "Keep internal and policy-focused."
+    },
+    {
+      "path": "src/shared/artifact-io/json/row-queue.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Streaming JSONL readers use it as an internal row buffer.",
+      "recommendation": "Keep internal and lightweight."
+    },
+    {
+      "path": "src/shared/artifact-io/jsonl.js",
+      "consumerCount": 8,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Multiple artifact loaders use it for JSONL shape hints and parsing helpers.",
+      "recommendation": "Keep as the artifact-local JSONL contract surface."
+    },
+    {
+      "path": "src/shared/artifact-io/limits.js",
+      "consumerCount": 7,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Artifact read and loader paths use it for family-specific size budgets.",
+      "recommendation": "Keep these limits artifact-specific rather than merging them into generic cache helpers."
+    },
+    {
+      "path": "src/shared/artifact-io/loaders.js",
+      "consumerCount": 4,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Public loader facade for higher-level artifact consumers.",
+      "recommendation": "Keep as the stable loader export surface."
+    },
+    {
+      "path": "src/shared/artifact-io/loaders/binary-columnar.js",
+      "consumerCount": 3,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Specialized loader adapter for binary-columnar artifacts.",
+      "recommendation": "Keep dedicated to binary-columnar reads."
+    },
+    {
+      "path": "src/shared/artifact-io/loaders/chunk-meta.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Chunk-meta consumers use it as a thin specialized loader.",
+      "recommendation": "Keep specialized and let core loaders own shared mechanics."
+    },
+    {
+      "path": "src/shared/artifact-io/loaders/core-binary-columnar.js",
+      "consumerCount": 1,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Large binary-columnar loader file handling metadata, sidecars, and read-mode choices.",
+      "recommendation": "Split metadata and sidecar resolution from payload loading and verification."
+    },
+    {
+      "path": "src/shared/artifact-io/loaders/core-source-resolution.js",
+      "consumerCount": 3,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Resolves manifest sources, cache hints, and fallback paths for the core loader family.",
+      "recommendation": "Keep as the source-resolution layer under core loaders."
+    },
+    {
+      "path": "src/shared/artifact-io/loaders/core.js",
+      "consumerCount": 3,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Largest general loader file mixing orchestration, fallback, and materialization policy.",
+      "recommendation": "Split orchestration from source-selection and row materialization logic."
+    },
+    {
+      "path": "src/shared/artifact-io/loaders/graph.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Graph artifact consumers use it as the graph-specific loader adapter.",
+      "recommendation": "Keep as the graph loader adapter."
+    },
+    {
+      "path": "src/shared/artifact-io/loaders/minhash.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Minhash consumers use it as the specialized signature loader.",
+      "recommendation": "Keep specialized to minhash artifact semantics."
+    },
+    {
+      "path": "src/shared/artifact-io/loaders/per-file.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Per-file artifact reads use it over the shared loader stack.",
+      "recommendation": "Keep as the per-file adapter rather than moving per-file policy into the core loader."
+    },
+    {
+      "path": "src/shared/artifact-io/loaders/shared.js",
+      "consumerCount": 8,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Multiple specialized artifact loaders depend on this internal helper layer.",
+      "recommendation": "Keep internal to the loader family and document what belongs here versus manifest.js."
+    },
+    {
+      "path": "src/shared/artifact-io/loaders/token-postings.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Sparse posting consumers use it as the token-postings loader adapter.",
+      "recommendation": "Keep specialized to token-postings semantics."
+    },
+    {
+      "path": "src/shared/artifact-io/manifest.js",
+      "consumerCount": 11,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Graph, integrations, and loader consumers all rely on it for manifest loading and source resolution.",
+      "recommendation": "Split path safety and compatibility routing from artifact-source resolution and fallback policy."
+    },
+    {
+      "path": "src/shared/artifact-io/offsets.js",
+      "consumerCount": 6,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Offset-aware artifact readers use it for row addressing and validation.",
+      "recommendation": "Keep as the artifact offset contract."
+    },
+    {
+      "path": "src/shared/artifact-io/telemetry.js",
+      "consumerCount": 4,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Artifact read paths use it to record observer and strategy state.",
+      "recommendation": "Keep as the family telemetry helper."
+    },
+    {
+      "path": "src/shared/artifact-io/varint.js",
+      "consumerCount": 7,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Binary-columnar and offset-aware flows use it for compact integer encoding.",
+      "recommendation": "Keep as the compact binary primitive."
+    },
+    {
+      "path": "src/shared/artifact-schema-index.js",
+      "consumerCount": 1,
+      "classifications": ["move", "document", "test"],
+      "consumerNotes": "Derives a documentation-oriented schema index from the contracts registry.",
+      "recommendation": "Move closer to contracts or tooling-contract ownership."
+    },
+    {
+      "path": "src/shared/artifact-schemas.js",
+      "consumerCount": 2,
+      "classifications": ["move", "document", "test"],
+      "consumerNotes": "Acts as a contracts registry and validator re-export shim.",
+      "recommendation": "Move or rename as an explicit contracts wrapper."
+    },
+    {
+      "path": "src/shared/bundle-checksum.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Bundle IO and integrity checks use it for checksum normalization.",
+      "recommendation": "Keep bundle checksum logic separate and deterministic."
+    },
+    {
+      "path": "src/shared/bundle-contract.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Bundle read and write paths use it for explicit size and format limits.",
+      "recommendation": "Keep bundle limits as a contract-only surface."
+    },
+    {
+      "path": "src/shared/bundle-io.js",
+      "consumerCount": 16,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Incremental indexing, SQLite build, embeddings, and benches all depend on this bundle surface.",
+      "recommendation": "Keep one public facade, but split worker transforms, patch mechanics, and persistence or lock behavior."
+    },
+    {
+      "path": "src/shared/cache-cas.js",
+      "consumerCount": 1,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Owns content-addressable object storage, metadata, and lease enumeration in one file.",
+      "recommendation": "Split object-path and metadata primitives from lease and GC-oriented helpers."
+    },
+    {
+      "path": "src/shared/cache-key.js",
+      "consumerCount": 24,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Many cache-backed surfaces use this as the cache-key normalization and hashing contract.",
+      "recommendation": "Keep as the canonical cache addressing surface and document its boundary against cache policy and cache roots."
+    },
+    {
+      "path": "src/shared/cache-roots.js",
+      "consumerCount": 18,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Runtime and cache-management flows use it to resolve stable cache roots and layout status.",
+      "recommendation": "Keep as the cache-root ownership layer."
+    },
+    {
+      "path": "src/shared/cache.js",
+      "consumerCount": 22,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Used for LRU construction, cache reporting, byte estimation, and cache-layer descriptions.",
+      "recommendation": "Split byte estimators and reporters from LRU construction."
+    },
+    {
+      "path": "src/shared/cache/json-file.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "A few cache-backed readers use it to preserve structured JSON read-failure details.",
+      "recommendation": "Keep as a tiny cache-local JSON read helper."
+    },
+    {
+      "path": "src/shared/cache/policy.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Defines and normalizes cache policy records.",
+      "recommendation": "Keep as the explicit cache policy contract."
+    },
+    {
+      "path": "src/shared/chunk-meta-cold.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Chunk-meta cold-start and fallback paths use this specialized helper.",
+      "recommendation": "Keep specialized to chunk-meta cold-path behavior."
+    },
+    {
+      "path": "src/shared/docmeta.js",
+      "consumerCount": 5,
+      "classifications": ["move", "document", "test"],
+      "consumerNotes": "Return-type extraction consumers use it as a focused metadata helper.",
+      "recommendation": "Move under a metadata or type-information family."
+    },
+    {
+      "path": "src/shared/encoding.js",
+      "consumerCount": 11,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "File processing and import/reporting paths use it for shared encoding normalization.",
+      "recommendation": "Keep as the encoding contract surface."
+    },
+    {
+      "path": "src/shared/eol.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "A small number of text-normalization paths use it for line-ending normalization.",
+      "recommendation": "Keep tiny and focused on EOL normalization only."
+    },
+    {
+      "path": "src/shared/file-signature.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "File metadata consumers use it as the canonical file-signature helper.",
+      "recommendation": "Keep as the file-signature contract."
+    },
+    {
+      "path": "src/shared/file-stats.js",
+      "consumerCount": 4,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Artifact presence and runtime stats flows use it to normalize stat behavior.",
+      "recommendation": "Keep as the file-stat normalization helper."
+    },
+    {
+      "path": "src/shared/files.js",
+      "consumerCount": 170,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "One of the most heavily imported shared modules in the repo across indexing, retrieval, tooling, and tests.",
+      "recommendation": "Split path predicates, safe JSON reads, and file-range primitives into narrower modules while preserving a small compatibility facade if needed."
+    },
+    {
+      "path": "src/shared/index-artifact-helpers.js",
+      "consumerCount": 15,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Validation, search, SQLite tooling, setup, and reports use it for optional-artifact handling and chunk-meta presence probes.",
+      "recommendation": "Split artifact presence probes from optional-artifact fallback and error helpers."
+    },
+    {
+      "path": "src/shared/io/append-writer.js",
+      "consumerCount": 5,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Append-only write flows use it as a targeted append writer.",
+      "recommendation": "Keep as a narrow append-only writer."
+    },
+    {
+      "path": "src/shared/io/atomic-persistence.js",
+      "consumerCount": 3,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Atomic write and replacement flows depend on it for temp paths, retries, backup swap, EXDEV fallback, and long-path handling.",
+      "recommendation": "Split temp-path strategy, retry policy, and replace-file or replace-dir mechanics into dedicated internals."
+    },
+    {
+      "path": "src/shared/io/atomic-write.js",
+      "consumerCount": 48,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Main shared atomic-write facade used across indexing, persistence, tooling, and reports.",
+      "recommendation": "Keep the facade and continue pushing low-level mechanics into atomic-persistence.js."
+    },
+    {
+      "path": "src/shared/io/remove-path-with-retry.js",
+      "consumerCount": 11,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Artifact cleanup, map building, bundle IO, cache GC, and install flows use it for consistent removal retries.",
+      "recommendation": "Keep as the shared removal-retry primitive."
+    },
+    {
+      "path": "src/shared/json-stream.js",
+      "consumerCount": 63,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Artifact writers, build flows, map IO, and tooling use it as the top-level streaming JSON and JSONL writer surface.",
+      "recommendation": "Keep a shared facade, but split sharded JSONL orchestration from object and array streaming helpers."
+    },
+    {
+      "path": "src/shared/json-stream/atomic.js",
+      "consumerCount": 6,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "The json-stream family uses it for temp path and atomic replace mechanics scoped to JSON output flows.",
+      "recommendation": "Keep internal to json-stream rather than turning it into another general atomic helper."
+    },
+    {
+      "path": "src/shared/json-stream/compress.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Compressed JSONL write paths use it as the shared compression adapter.",
+      "recommendation": "Keep narrowly focused on JSON-stream compression behavior."
+    },
+    {
+      "path": "src/shared/json-stream/encode.js",
+      "consumerCount": 5,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "JSON stream writers use it to encode chunks and values consistently.",
+      "recommendation": "Keep as the JSON-stream encoding primitive."
+    },
+    {
+      "path": "src/shared/json-stream/jsonl-batch.js",
+      "consumerCount": 2,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Handles JSONL batching, compression pooling, and batch-writer orchestration.",
+      "recommendation": "Split compression-pool coordination from batch-writer mechanics."
+    },
+    {
+      "path": "src/shared/json-stream/jsonl-compress-worker.js",
+      "consumerCount": 0,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Worker entrypoint used indirectly by the JSONL compression pool.",
+      "recommendation": "Keep as a worker-target module and document its family ownership."
+    },
+    {
+      "path": "src/shared/json-stream/offsets.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Offset-aware JSONL write paths use it as the dedicated offset writer helper.",
+      "recommendation": "Keep separate from general JSONL stream creation so offset behavior stays explicit."
+    },
+    {
+      "path": "src/shared/json-stream/runtime.js",
+      "consumerCount": 5,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Provides runtime abort and error behavior shared across JSON-stream writers.",
+      "recommendation": "Keep as the small json-stream runtime helper layer."
+    },
+    {
+      "path": "src/shared/json-stream/streams.js",
+      "consumerCount": 11,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Used for write-stream creation, chunk flushing, and checksum-aware output coordination.",
+      "recommendation": "Split raw stream construction from checksum and output accounting behavior."
+    },
+    {
+      "path": "src/shared/jsonc.js",
+      "consumerCount": 10,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Workspace, config, bench, docs, and tooling validation paths use it for JSONC parsing.",
+      "recommendation": "Keep as the JSONC parsing contract surface."
+    },
+    {
+      "path": "src/shared/meta-v2.js",
+      "consumerCount": 3,
+      "classifications": ["move", "document", "test"],
+      "consumerNotes": "Metadata normalization paths use it as the canonical meta-v2 read and write helper.",
+      "recommendation": "Move under a dedicated metadata or contract family."
+    },
+    {
+      "path": "src/shared/optional-artifact-fallback.js",
+      "consumerCount": 1,
+      "classifications": ["merge", "document", "test"],
+      "consumerNotes": "Thin wrapper around optional-artifact error helpers for sync fallback behavior.",
+      "recommendation": "Merge or re-export this behavior from a clearer artifact helper surface."
+    },
+    {
+      "path": "src/shared/provenance.js",
+      "consumerCount": 6,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Artifact and report flows use it to normalize provenance metadata and timestamps.",
+      "recommendation": "Keep as the provenance metadata contract surface."
+    },
+    {
+      "path": "src/shared/stable-json.js",
+      "consumerCount": 51,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Many cache, bundle, artifact, and signature paths rely on it for deterministic JSON serialization.",
+      "recommendation": "Keep as the canonical deterministic JSON primitive and document when to use stableStringify versus stableStringifyForSignature."
+    }
+  ]
+}
