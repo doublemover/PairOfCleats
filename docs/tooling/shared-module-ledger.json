@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-03-26T07:34:08.355Z",
+  "generatedAt": "2026-03-26T07:50:50.416Z",
   "generatedBy": "node tools/docs/shared-module-ledger.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "census": {
@@ -727,6 +727,46 @@
         ]
       },
       {
+        "path": "src/shared/auto-policy/build.js",
+        "family": "src/shared/auto-policy",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/auto-policy.js"
+        ]
+      },
+      {
+        "path": "src/shared/auto-policy/profile.js",
+        "family": "src/shared/auto-policy",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 2,
+        "importers": [
+          "src/shared/auto-policy/build.js",
+          "src/shared/auto-policy/repo-scan.js"
+        ]
+      },
+      {
+        "path": "src/shared/auto-policy/repo-scan.js",
+        "family": "src/shared/auto-policy",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/auto-policy/build.js"
+        ]
+      },
+      {
         "path": "src/shared/bench-progress.js",
         "family": "src/shared/root",
         "primaryIssue": {
@@ -763,7 +803,7 @@
         "consumerCount": 4,
         "importers": [
           "src/retrieval/cli/normalize-options.js",
-          "src/shared/env.js",
+          "src/shared/env/core.js",
           "tools/config/reset.js",
           "tools/index-diff.js"
         ]
@@ -989,7 +1029,7 @@
         "consumerCount": 8,
         "importers": [
           "src/index/build/watch/resolve-backend.js",
-          "src/shared/auto-policy.js",
+          "src/shared/auto-policy/build.js",
           "src/shared/runtime-capability-manifest.js",
           "tools/ci/capability-gate.js",
           "tools/config/dump.js",
@@ -1706,7 +1746,7 @@
           "src/index/build/runtime/stage.js",
           "src/index/tooling/lsp-runtime-config.js",
           "src/index/tooling/provider-utils.js",
-          "src/shared/env.js",
+          "src/shared/env/testing.js",
           "tools/bench/index/scheduler-store-format.js",
           "tools/dict-utils/config.js"
         ]
@@ -2189,11 +2229,10 @@
           "title": "Review shared core primitives and root-level contracts in src/shared",
           "umbrella": "407"
         },
-        "consumerCount": 57,
+        "consumerCount": 42,
         "importers": [
           "bin/pairofcleats-tui.js",
           "src/index/build/artifacts/filter-index.js",
-          "src/index/build/artifacts/writers/chunk-meta/writer.js",
           "src/index/build/discover.js",
           "src/index/build/file-processor.js",
           "src/index/build/incremental/autotune.js",
@@ -2201,52 +2240,129 @@
           "src/index/build/indexer/pipeline.js",
           "src/index/build/indexer/steps/process-files.js",
           "src/index/build/runtime/runtime.js",
-          "src/index/build/tree-sitter-scheduler/subprocess-exec.js",
           "src/index/build/watch/resolve-backend.js",
           "src/index/build/workers/config.js",
-          "src/index/extractors/docx.js",
-          "src/index/extractors/pdf.js",
-          "src/index/tooling/vfs/cold-start.js",
           "src/index/type-inference-crossfile/bundler.js",
           "src/integrations/core/build-index/stages.js",
           "src/integrations/core/status.js",
           "src/retrieval/cli/normalize-options.js",
           "src/retrieval/embedding.js",
           "src/retrieval/output/cache.js",
-          "src/shared/artifact-io/constants.js",
-          "src/shared/artifact-io/manifest.js",
           "src/shared/cache-key.js",
           "src/shared/cache-roots.js",
           "src/shared/cli/display.js",
           "src/shared/json-stream/streams.js",
           "src/shared/metrics.js",
-          "src/shared/ops-failure-injection.js",
           "src/storage/sqlite/build/runner/selection-planning.js",
           "src/storage/sqlite/utils.js",
-          "tools/api/server.js",
           "tools/bench/bench-runner.js",
           "tools/bench/embeddings/model-bakeoff.js",
-          "tools/bench/language-repos.js",
           "tools/build/embeddings/cli.js",
           "tools/build/embeddings/hnsw.js",
           "tools/build/embeddings/lancedb.js",
           "tools/build/embeddings/runner.js",
-          "tools/build/embeddings/sqlite-dense-isolate.js",
           "tools/ci/run-suite.js",
           "tools/config/dump.js",
           "tools/dict-utils/config.js",
           "tools/dict-utils/paths/cache.js",
-          "tools/dict-utils/paths/dictionaries.js",
           "tools/index/cache-gc.js",
           "tools/index/clean-artifacts.js",
           "tools/mcp/repo.js",
           "tools/mcp/server-config.js",
-          "tools/mcp/tools.js",
-          "tools/release/check.js",
           "tools/reports/compare-models.js",
           "tools/service/indexer-service.js",
           "tools/service/logger.js",
-          "tools/tooling/uninstall.js",
+          "tools/tooling/uninstall.js"
+        ]
+      },
+      {
+        "path": "src/shared/env/bench.js",
+        "family": "src/shared/env",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 2,
+        "importers": [
+          "src/shared/env.js",
+          "tools/bench/language-repos.js"
+        ]
+      },
+      {
+        "path": "src/shared/env/core.js",
+        "family": "src/shared/env",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 5,
+        "importers": [
+          "src/shared/env.js",
+          "src/shared/env/bench.js",
+          "src/shared/env/runtime.js",
+          "src/shared/env/testing.js",
+          "src/shared/env/tui.js"
+        ]
+      },
+      {
+        "path": "src/shared/env/runtime.js",
+        "family": "src/shared/env",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 3,
+        "importers": [
+          "src/shared/env.js",
+          "tools/api/server.js",
+          "tools/build/embeddings/lancedb.js"
+        ]
+      },
+      {
+        "path": "src/shared/env/testing.js",
+        "family": "src/shared/env",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 19,
+        "importers": [
+          "src/index/build/artifacts/writers/chunk-meta/writer.js",
+          "src/index/build/file-processor.js",
+          "src/index/build/runtime/runtime.js",
+          "src/index/build/tree-sitter-scheduler/subprocess-exec.js",
+          "src/index/extractors/docx.js",
+          "src/index/extractors/pdf.js",
+          "src/index/tooling/vfs/cold-start.js",
+          "src/integrations/core/build-index/stages.js",
+          "src/shared/artifact-io/constants.js",
+          "src/shared/artifact-io/manifest.js",
+          "src/shared/env.js",
+          "src/shared/ops-failure-injection.js",
+          "tools/build/embeddings/runner.js",
+          "tools/build/embeddings/sqlite-dense-isolate.js",
+          "tools/dict-utils/config.js",
+          "tools/dict-utils/paths/cache.js",
+          "tools/dict-utils/paths/dictionaries.js",
+          "tools/mcp/tools.js",
+          "tools/release/check.js"
+        ]
+      },
+      {
+        "path": "src/shared/env/tui.js",
+        "family": "src/shared/env",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 2,
+        "importers": [
+          "src/shared/env.js",
           "tools/tui/supervisor.js"
         ]
       },
@@ -3606,7 +3722,7 @@
           "src/shared/concurrency/scheduler-core/config.js",
           "src/shared/indexing/stage1-watchdog-policy.js",
           "src/shared/perf/histogram.js",
-          "src/shared/runtime-envelope.js",
+          "src/shared/runtime-envelope/parse.js",
           "src/storage/sqlite/build/from-artifacts/sources.js",
           "src/storage/sqlite/build/from-artifacts/token-ingest.js",
           "tools/bench/language/tooling-lsp-guardrail.js",
@@ -4241,14 +4357,56 @@
           "title": "Review shared core primitives and root-level contracts in src/shared",
           "umbrella": "407"
         },
-        "consumerCount": 7,
+        "consumerCount": 5,
         "importers": [
           "src/index/build/runtime/runtime.js",
           "src/index/build/tree-sitter-scheduler/runner.js",
           "src/integrations/core/build-index/index.js",
-          "src/shared/dispatch/env.js",
           "src/storage/sqlite/build/runner/selection-planning.js",
-          "tools/build/embeddings/scheduler.js",
+          "tools/build/embeddings/scheduler.js"
+        ]
+      },
+      {
+        "path": "src/shared/runtime-envelope/env-patch.js",
+        "family": "src/shared/runtime-envelope",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 3,
+        "importers": [
+          "src/shared/dispatch/env.js",
+          "src/shared/runtime-envelope.js",
+          "tools/dict-utils/paths/runtime.js"
+        ]
+      },
+      {
+        "path": "src/shared/runtime-envelope/parse.js",
+        "family": "src/shared/runtime-envelope",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 2,
+        "importers": [
+          "src/shared/runtime-envelope.js",
+          "src/shared/runtime-envelope/resolve.js"
+        ]
+      },
+      {
+        "path": "src/shared/runtime-envelope/resolve.js",
+        "family": "src/shared/runtime-envelope",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 3,
+        "importers": [
+          "src/shared/dispatch/env.js",
+          "src/shared/runtime-envelope.js",
           "tools/dict-utils/paths/runtime.js"
         ]
       },
@@ -4707,7 +4865,7 @@
         "consumerCount": 2,
         "importers": [
           "src/index/build/runtime/workers.js",
-          "src/shared/runtime-envelope.js"
+          "src/shared/runtime-envelope/resolve.js"
         ]
       },
       {
@@ -5300,7 +5458,7 @@
     ]
   },
   "consumerMap": {
-    "edgeCount": 2307,
+    "edgeCount": 2333,
     "bySharedFile": {
       "src/shared/abort.js": {
         "importers": [
@@ -5753,6 +5911,25 @@
         ],
         "importerCount": 3
       },
+      "src/shared/auto-policy/build.js": {
+        "importers": [
+          "src/shared/auto-policy.js"
+        ],
+        "importerCount": 1
+      },
+      "src/shared/auto-policy/profile.js": {
+        "importers": [
+          "src/shared/auto-policy/build.js",
+          "src/shared/auto-policy/repo-scan.js"
+        ],
+        "importerCount": 2
+      },
+      "src/shared/auto-policy/repo-scan.js": {
+        "importers": [
+          "src/shared/auto-policy/build.js"
+        ],
+        "importerCount": 1
+      },
       "src/shared/bench-progress.js": {
         "importers": [],
         "importerCount": 0
@@ -5768,7 +5945,7 @@
       "src/shared/boolean-normalization.js": {
         "importers": [
           "src/retrieval/cli/normalize-options.js",
-          "src/shared/env.js",
+          "src/shared/env/core.js",
           "tools/config/reset.js",
           "tools/index-diff.js"
         ],
@@ -5917,7 +6094,7 @@
       "src/shared/capabilities.js": {
         "importers": [
           "src/index/build/watch/resolve-backend.js",
-          "src/shared/auto-policy.js",
+          "src/shared/auto-policy/build.js",
           "src/shared/runtime-capability-manifest.js",
           "tools/ci/capability-gate.js",
           "tools/config/dump.js",
@@ -6361,7 +6538,7 @@
           "src/index/build/runtime/stage.js",
           "src/index/tooling/lsp-runtime-config.js",
           "src/index/tooling/provider-utils.js",
-          "src/shared/env.js",
+          "src/shared/env/testing.js",
           "tools/bench/index/scheduler-store-format.js",
           "tools/dict-utils/config.js"
         ],
@@ -6652,7 +6829,6 @@
         "importers": [
           "bin/pairofcleats-tui.js",
           "src/index/build/artifacts/filter-index.js",
-          "src/index/build/artifacts/writers/chunk-meta/writer.js",
           "src/index/build/discover.js",
           "src/index/build/file-processor.js",
           "src/index/build/incremental/autotune.js",
@@ -6660,55 +6836,97 @@
           "src/index/build/indexer/pipeline.js",
           "src/index/build/indexer/steps/process-files.js",
           "src/index/build/runtime/runtime.js",
-          "src/index/build/tree-sitter-scheduler/subprocess-exec.js",
           "src/index/build/watch/resolve-backend.js",
           "src/index/build/workers/config.js",
-          "src/index/extractors/docx.js",
-          "src/index/extractors/pdf.js",
-          "src/index/tooling/vfs/cold-start.js",
           "src/index/type-inference-crossfile/bundler.js",
           "src/integrations/core/build-index/stages.js",
           "src/integrations/core/status.js",
           "src/retrieval/cli/normalize-options.js",
           "src/retrieval/embedding.js",
           "src/retrieval/output/cache.js",
-          "src/shared/artifact-io/constants.js",
-          "src/shared/artifact-io/manifest.js",
           "src/shared/cache-key.js",
           "src/shared/cache-roots.js",
           "src/shared/cli/display.js",
           "src/shared/json-stream/streams.js",
           "src/shared/metrics.js",
-          "src/shared/ops-failure-injection.js",
           "src/storage/sqlite/build/runner/selection-planning.js",
           "src/storage/sqlite/utils.js",
-          "tools/api/server.js",
           "tools/bench/bench-runner.js",
           "tools/bench/embeddings/model-bakeoff.js",
-          "tools/bench/language-repos.js",
           "tools/build/embeddings/cli.js",
           "tools/build/embeddings/hnsw.js",
           "tools/build/embeddings/lancedb.js",
           "tools/build/embeddings/runner.js",
-          "tools/build/embeddings/sqlite-dense-isolate.js",
           "tools/ci/run-suite.js",
           "tools/config/dump.js",
           "tools/dict-utils/config.js",
           "tools/dict-utils/paths/cache.js",
-          "tools/dict-utils/paths/dictionaries.js",
           "tools/index/cache-gc.js",
           "tools/index/clean-artifacts.js",
           "tools/mcp/repo.js",
           "tools/mcp/server-config.js",
-          "tools/mcp/tools.js",
-          "tools/release/check.js",
           "tools/reports/compare-models.js",
           "tools/service/indexer-service.js",
           "tools/service/logger.js",
-          "tools/tooling/uninstall.js",
+          "tools/tooling/uninstall.js"
+        ],
+        "importerCount": 42
+      },
+      "src/shared/env/bench.js": {
+        "importers": [
+          "src/shared/env.js",
+          "tools/bench/language-repos.js"
+        ],
+        "importerCount": 2
+      },
+      "src/shared/env/core.js": {
+        "importers": [
+          "src/shared/env.js",
+          "src/shared/env/bench.js",
+          "src/shared/env/runtime.js",
+          "src/shared/env/testing.js",
+          "src/shared/env/tui.js"
+        ],
+        "importerCount": 5
+      },
+      "src/shared/env/runtime.js": {
+        "importers": [
+          "src/shared/env.js",
+          "tools/api/server.js",
+          "tools/build/embeddings/lancedb.js"
+        ],
+        "importerCount": 3
+      },
+      "src/shared/env/testing.js": {
+        "importers": [
+          "src/index/build/artifacts/writers/chunk-meta/writer.js",
+          "src/index/build/file-processor.js",
+          "src/index/build/runtime/runtime.js",
+          "src/index/build/tree-sitter-scheduler/subprocess-exec.js",
+          "src/index/extractors/docx.js",
+          "src/index/extractors/pdf.js",
+          "src/index/tooling/vfs/cold-start.js",
+          "src/integrations/core/build-index/stages.js",
+          "src/shared/artifact-io/constants.js",
+          "src/shared/artifact-io/manifest.js",
+          "src/shared/env.js",
+          "src/shared/ops-failure-injection.js",
+          "tools/build/embeddings/runner.js",
+          "tools/build/embeddings/sqlite-dense-isolate.js",
+          "tools/dict-utils/config.js",
+          "tools/dict-utils/paths/cache.js",
+          "tools/dict-utils/paths/dictionaries.js",
+          "tools/mcp/tools.js",
+          "tools/release/check.js"
+        ],
+        "importerCount": 19
+      },
+      "src/shared/env/tui.js": {
+        "importers": [
+          "src/shared/env.js",
           "tools/tui/supervisor.js"
         ],
-        "importerCount": 57
+        "importerCount": 2
       },
       "src/shared/eol.js": {
         "importers": [
@@ -7722,7 +7940,7 @@
           "src/shared/concurrency/scheduler-core/config.js",
           "src/shared/indexing/stage1-watchdog-policy.js",
           "src/shared/perf/histogram.js",
-          "src/shared/runtime-envelope.js",
+          "src/shared/runtime-envelope/parse.js",
           "src/storage/sqlite/build/from-artifacts/sources.js",
           "src/storage/sqlite/build/from-artifacts/token-ingest.js",
           "tools/bench/language/tooling-lsp-guardrail.js",
@@ -8145,12 +8363,33 @@
           "src/index/build/runtime/runtime.js",
           "src/index/build/tree-sitter-scheduler/runner.js",
           "src/integrations/core/build-index/index.js",
-          "src/shared/dispatch/env.js",
           "src/storage/sqlite/build/runner/selection-planning.js",
-          "tools/build/embeddings/scheduler.js",
+          "tools/build/embeddings/scheduler.js"
+        ],
+        "importerCount": 5
+      },
+      "src/shared/runtime-envelope/env-patch.js": {
+        "importers": [
+          "src/shared/dispatch/env.js",
+          "src/shared/runtime-envelope.js",
           "tools/dict-utils/paths/runtime.js"
         ],
-        "importerCount": 7
+        "importerCount": 3
+      },
+      "src/shared/runtime-envelope/parse.js": {
+        "importers": [
+          "src/shared/runtime-envelope.js",
+          "src/shared/runtime-envelope/resolve.js"
+        ],
+        "importerCount": 2
+      },
+      "src/shared/runtime-envelope/resolve.js": {
+        "importers": [
+          "src/shared/dispatch/env.js",
+          "src/shared/runtime-envelope.js",
+          "tools/dict-utils/paths/runtime.js"
+        ],
+        "importerCount": 3
       },
       "src/shared/safe-regex.js": {
         "importers": [
@@ -8452,7 +8691,7 @@
       "src/shared/threads.js": {
         "importers": [
           "src/index/build/runtime/workers.js",
-          "src/shared/runtime-envelope.js"
+          "src/shared/runtime-envelope/resolve.js"
         ],
         "importerCount": 2
       },
@@ -9382,7 +9621,7 @@
           "src/shared/artifact-io/binary-columnar.js",
           "src/shared/chunk-meta-cold.js",
           "src/shared/disk-space.js",
-          "src/shared/env.js",
+          "src/shared/env/testing.js",
           "src/shared/json-stream.js",
           "src/shared/merge.js",
           "src/shared/progress.js"
@@ -9556,11 +9795,12 @@
         "sharedImports": [
           "src/shared/cache.js",
           "src/shared/env.js",
+          "src/shared/env/testing.js",
           "src/shared/files.js",
           "src/shared/hash.js",
           "src/shared/progress.js"
         ],
-        "sharedImportCount": 5
+        "sharedImportCount": 6
       },
       "src/index/build/file-processor/assemble.js": {
         "sharedImports": [
@@ -10233,13 +10473,14 @@
           "src/shared/dict-utils.js",
           "src/shared/embedding-adapter.js",
           "src/shared/env.js",
+          "src/shared/env/testing.js",
           "src/shared/files.js",
           "src/shared/hash.js",
           "src/shared/postings-config.js",
           "src/shared/progress.js",
           "src/shared/runtime-envelope.js"
         ],
-        "sharedImportCount": 13
+        "sharedImportCount": 14
       },
       "src/index/build/runtime/scheduler-autotune-profile.js": {
         "sharedImports": [
@@ -10431,7 +10672,7 @@
       },
       "src/index/build/tree-sitter-scheduler/subprocess-exec.js": {
         "sharedImports": [
-          "src/shared/env.js",
+          "src/shared/env/testing.js",
           "src/shared/io/atomic-write.js",
           "src/shared/iterables.js"
         ],
@@ -10624,14 +10865,14 @@
       },
       "src/index/extractors/docx.js": {
         "sharedImports": [
-          "src/shared/env.js",
+          "src/shared/env/testing.js",
           "src/shared/optional-deps.js"
         ],
         "sharedImportCount": 2
       },
       "src/index/extractors/pdf.js": {
         "sharedImports": [
-          "src/shared/env.js",
+          "src/shared/env/testing.js",
           "src/shared/optional-deps.js"
         ],
         "sharedImportCount": 2
@@ -11070,7 +11311,7 @@
         "sharedImports": [
           "src/shared/artifact-io.js",
           "src/shared/cache-roots.js",
-          "src/shared/env.js",
+          "src/shared/env/testing.js",
           "src/shared/json-stream.js",
           "src/shared/merge.js"
         ],
@@ -11332,11 +11573,12 @@
           "src/shared/abort.js",
           "src/shared/dict-utils.js",
           "src/shared/env.js",
+          "src/shared/env/testing.js",
           "src/shared/locks/file-lock.js",
           "src/shared/progress.js",
           "src/shared/repo-paths.js"
         ],
-        "sharedImportCount": 6
+        "sharedImportCount": 7
       },
       "src/integrations/core/embeddings.js": {
         "sharedImports": [
@@ -12287,7 +12529,7 @@
       },
       "src/shared/artifact-io/constants.js": {
         "sharedImports": [
-          "src/shared/env.js"
+          "src/shared/env/testing.js"
         ],
         "sharedImportCount": 1
       },
@@ -12506,7 +12748,7 @@
           "src/shared/artifact-io/constants.js",
           "src/shared/artifact-io/fs.js",
           "src/shared/artifact-io/json.js",
-          "src/shared/env.js",
+          "src/shared/env/testing.js",
           "src/shared/files.js",
           "src/shared/path-normalize.js",
           "src/shared/progress.js"
@@ -12524,7 +12766,21 @@
       },
       "src/shared/auto-policy.js": {
         "sharedImports": [
+          "src/shared/auto-policy/build.js"
+        ],
+        "sharedImportCount": 1
+      },
+      "src/shared/auto-policy/build.js": {
+        "sharedImports": [
+          "src/shared/auto-policy/profile.js",
+          "src/shared/auto-policy/repo-scan.js",
           "src/shared/capabilities.js"
+        ],
+        "sharedImportCount": 3
+      },
+      "src/shared/auto-policy/repo-scan.js": {
+        "sharedImports": [
+          "src/shared/auto-policy/profile.js"
         ],
         "sharedImportCount": 1
       },
@@ -12748,9 +13004,10 @@
           "src/shared/cli-options.js",
           "src/shared/cli.js",
           "src/shared/dict-utils.js",
-          "src/shared/runtime-envelope.js"
+          "src/shared/runtime-envelope/env-patch.js",
+          "src/shared/runtime-envelope/resolve.js"
         ],
-        "sharedImportCount": 4
+        "sharedImportCount": 5
       },
       "src/shared/dispatch/manifest.js": {
         "sharedImports": [
@@ -12807,10 +13064,44 @@
       },
       "src/shared/env.js": {
         "sharedImports": [
-          "src/shared/boolean-normalization.js",
-          "src/shared/config.js"
+          "src/shared/env/bench.js",
+          "src/shared/env/core.js",
+          "src/shared/env/runtime.js",
+          "src/shared/env/testing.js",
+          "src/shared/env/tui.js"
+        ],
+        "sharedImportCount": 5
+      },
+      "src/shared/env/bench.js": {
+        "sharedImports": [
+          "src/shared/env/core.js"
+        ],
+        "sharedImportCount": 1
+      },
+      "src/shared/env/core.js": {
+        "sharedImports": [
+          "src/shared/boolean-normalization.js"
+        ],
+        "sharedImportCount": 1
+      },
+      "src/shared/env/runtime.js": {
+        "sharedImports": [
+          "src/shared/env/core.js"
+        ],
+        "sharedImportCount": 1
+      },
+      "src/shared/env/testing.js": {
+        "sharedImports": [
+          "src/shared/config.js",
+          "src/shared/env/core.js"
         ],
         "sharedImportCount": 2
+      },
+      "src/shared/env/tui.js": {
+        "sharedImports": [
+          "src/shared/env/core.js"
+        ],
+        "sharedImportCount": 1
       },
       "src/shared/file-stats.js": {
         "sharedImports": [
@@ -13005,7 +13296,7 @@
       },
       "src/shared/ops-failure-injection.js": {
         "sharedImports": [
-          "src/shared/env.js"
+          "src/shared/env/testing.js"
         ],
         "sharedImportCount": 1
       },
@@ -13089,7 +13380,21 @@
       },
       "src/shared/runtime-envelope.js": {
         "sharedImports": [
-          "src/shared/number-coerce.js",
+          "src/shared/runtime-envelope/env-patch.js",
+          "src/shared/runtime-envelope/parse.js",
+          "src/shared/runtime-envelope/resolve.js"
+        ],
+        "sharedImportCount": 3
+      },
+      "src/shared/runtime-envelope/parse.js": {
+        "sharedImports": [
+          "src/shared/number-coerce.js"
+        ],
+        "sharedImportCount": 1
+      },
+      "src/shared/runtime-envelope/resolve.js": {
+        "sharedImports": [
+          "src/shared/runtime-envelope/parse.js",
           "src/shared/threads.js"
         ],
         "sharedImportCount": 2
@@ -13492,7 +13797,7 @@
         "sharedImports": [
           "src/shared/cli-options.js",
           "src/shared/cli.js",
-          "src/shared/env.js",
+          "src/shared/env/runtime.js",
           "src/shared/metrics.js",
           "tools/shared/dict-utils.js",
           "tools/shared/text-utils.js"
@@ -13816,7 +14121,7 @@
       },
       "tools/bench/language-repos.js": {
         "sharedImports": [
-          "src/shared/env.js",
+          "src/shared/env/bench.js",
           "src/shared/toolchain-env.js",
           "tools/shared/cli-display.js"
         ],
@@ -14254,12 +14559,13 @@
           "src/shared/artifact-io.js",
           "src/shared/embedding-utils.js",
           "src/shared/env.js",
+          "src/shared/env/runtime.js",
           "src/shared/json-stream.js",
           "src/shared/lancedb.js",
           "src/shared/optional-deps.js",
           "src/shared/subprocess.js"
         ],
-        "sharedImportCount": 7
+        "sharedImportCount": 8
       },
       "tools/build/embeddings/manifest.js": {
         "sharedImports": [
@@ -14285,6 +14591,7 @@
           "src/shared/embeddings-progress.js",
           "src/shared/encoding.js",
           "src/shared/env.js",
+          "src/shared/env/testing.js",
           "src/shared/files.js",
           "src/shared/hash.js",
           "src/shared/hnsw.js",
@@ -14296,7 +14603,7 @@
           "src/shared/subprocess.js",
           "tools/shared/dict-utils.js"
         ],
-        "sharedImportCount": 22
+        "sharedImportCount": 23
       },
       "tools/build/embeddings/runner/mapping.js": {
         "sharedImports": [
@@ -14320,7 +14627,7 @@
       },
       "tools/build/embeddings/sqlite-dense-isolate.js": {
         "sharedImports": [
-          "src/shared/env.js",
+          "src/shared/env/testing.js",
           "src/shared/hash.js",
           "src/shared/subprocess.js"
         ],
@@ -14620,22 +14927,24 @@
           "src/shared/cache-roots.js",
           "src/shared/config.js",
           "src/shared/env.js",
+          "src/shared/env/testing.js",
           "src/shared/jsonc.js",
           "src/shared/stable-json.js"
         ],
-        "sharedImportCount": 6
+        "sharedImportCount": 7
       },
       "tools/dict-utils/paths/cache.js": {
         "sharedImports": [
           "src/shared/cache.js",
-          "src/shared/env.js"
+          "src/shared/env.js",
+          "src/shared/env/testing.js"
         ],
-        "sharedImportCount": 2
+        "sharedImportCount": 3
       },
       "tools/dict-utils/paths/dictionaries.js": {
         "sharedImports": [
           "src/shared/code-dictionaries.js",
-          "src/shared/env.js"
+          "src/shared/env/testing.js"
         ],
         "sharedImportCount": 2
       },
@@ -14647,9 +14956,10 @@
       },
       "tools/dict-utils/paths/runtime.js": {
         "sharedImports": [
-          "src/shared/runtime-envelope.js"
+          "src/shared/runtime-envelope/env-patch.js",
+          "src/shared/runtime-envelope/resolve.js"
         ],
-        "sharedImportCount": 1
+        "sharedImportCount": 2
       },
       "tools/dicts/generate-repo-dict.js": {
         "sharedImports": [
@@ -14960,7 +15270,7 @@
       },
       "tools/mcp/tools.js": {
         "sharedImports": [
-          "src/shared/env.js",
+          "src/shared/env/testing.js",
           "src/shared/error-codes.js",
           "src/shared/search-request.js"
         ],
@@ -15060,7 +15370,7 @@
       },
       "tools/release/check.js": {
         "sharedImports": [
-          "src/shared/env.js"
+          "src/shared/env/testing.js"
         ],
         "sharedImportCount": 1
       },
@@ -15563,7 +15873,7 @@
       },
       "tools/tui/supervisor.js": {
         "sharedImports": [
-          "src/shared/env.js",
+          "src/shared/env/tui.js",
           "tools/shared/dict-utils.js"
         ],
         "sharedImportCount": 2
@@ -15666,12 +15976,20 @@
         "umbrella": "407",
         "files": [
           "src/shared/auto-policy.js",
+          "src/shared/auto-policy/build.js",
+          "src/shared/auto-policy/profile.js",
+          "src/shared/auto-policy/repo-scan.js",
           "src/shared/config.js",
           "src/shared/direct-execution.js",
           "src/shared/disk-space.js",
           "src/shared/editor-config-contract.json",
           "src/shared/env-path.js",
           "src/shared/env.js",
+          "src/shared/env/bench.js",
+          "src/shared/env/core.js",
+          "src/shared/env/runtime.js",
+          "src/shared/env/testing.js",
+          "src/shared/env/tui.js",
           "src/shared/error-codes.js",
           "src/shared/identity.js",
           "src/shared/index-state-utils.js",
@@ -15698,15 +16016,36 @@
           "src/shared/repo-paths.js",
           "src/shared/reuse-diagnostics.js",
           "src/shared/runtime-envelope.js",
+          "src/shared/runtime-envelope/env-patch.js",
+          "src/shared/runtime-envelope/parse.js",
+          "src/shared/runtime-envelope/resolve.js",
           "src/shared/search-request.js",
           "src/shared/sort.js",
           "src/shared/time-format.js",
           "src/shared/toolchain-env.js"
         ],
-        "fileCount": 37,
+        "fileCount": 48,
         "entries": [
           {
             "path": "src/shared/auto-policy.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/auto-policy/build.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/auto-policy/profile.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/auto-policy/repo-scan.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -15743,6 +16082,36 @@
           },
           {
             "path": "src/shared/env.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/env/bench.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/env/core.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/env/runtime.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/env/testing.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/env/tui.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -15899,6 +16268,24 @@
           },
           {
             "path": "src/shared/runtime-envelope.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/runtime-envelope/env-patch.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/runtime-envelope/parse.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/runtime-envelope/resolve.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -21858,7 +22245,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4645
+          "fileCount": 4656
         }
       ],
       "repoCoverage": {
@@ -22941,6 +23328,9 @@
           "src/shared/artifact-schema-index.js",
           "src/shared/artifact-schemas.js",
           "src/shared/auto-policy.js",
+          "src/shared/auto-policy/build.js",
+          "src/shared/auto-policy/profile.js",
+          "src/shared/auto-policy/repo-scan.js",
           "src/shared/bench-progress.js",
           "src/shared/bloom.js",
           "src/shared/boolean-normalization.js",
@@ -23022,6 +23412,11 @@
           "src/shared/encoding.js",
           "src/shared/env-path.js",
           "src/shared/env.js",
+          "src/shared/env/bench.js",
+          "src/shared/env/core.js",
+          "src/shared/env/runtime.js",
+          "src/shared/env/testing.js",
+          "src/shared/env/tui.js",
           "src/shared/eol.js",
           "src/shared/error-codes.js",
           "src/shared/file-signature.js",
@@ -23102,6 +23497,9 @@
           "src/shared/risk-filters.js",
           "src/shared/runtime-capability-manifest.js",
           "src/shared/runtime-envelope.js",
+          "src/shared/runtime-envelope/env-patch.js",
+          "src/shared/runtime-envelope/parse.js",
+          "src/shared/runtime-envelope/resolve.js",
           "src/shared/safe-regex.js",
           "src/shared/safe-regex/backends/re2.js",
           "src/shared/safe-regex/backends/re2js.js",
@@ -26739,7 +27137,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4630
+          "fileCount": 4641
         },
         {
           "issueId": "427",

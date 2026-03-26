@@ -32,7 +32,8 @@ import {
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings.js';
 import { fromPosix, isPathWithinRoot, toPosix } from '../../../src/shared/files.js';
-import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
+import { getEnvConfig } from '../../../src/shared/env.js';
+import { isTestingEnv } from '../../../src/shared/env/testing.js';
 import { createLruCache } from '../../../src/shared/cache.js';
 import { normalizeDenseVectorMode } from '../../../src/shared/dense-vector-mode.js';
 import { formatEmbeddingsPerfLine } from '../../../src/shared/embeddings-progress.js';

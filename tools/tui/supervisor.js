@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { getTuiEnvConfig } from '../../src/shared/env.js';
+import { getTuiEnvConfig } from '../../src/shared/env/tui.js';
 import { getToolVersion, resolveToolRoot } from '../shared/dict-utils.js';
 import { FLOW_METRICS_INTERVAL_MS, SUPERVISOR_PROTOCOL } from './supervisor/constants.js';
 import { createJobController } from './supervisor/jobs.js';

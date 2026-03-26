@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getCacheRoot } from '../../../shared/cache-roots.js';
-import { isTestingEnv } from '../../../shared/env.js';
+import { isTestingEnv } from '../../../shared/env/testing.js';
 import { readJsonFile } from '../../../shared/artifact-io.js';
 import { writeJsonLinesFile, writeJsonObjectFile } from '../../../shared/json-stream.js';
 import { readJsonlRows } from '../../../shared/merge.js';

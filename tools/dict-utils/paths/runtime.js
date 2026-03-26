@@ -1,5 +1,6 @@
 import os from 'node:os';
-import { resolveRuntimeEnvelope, resolveRuntimeEnv as resolveRuntimeEnvFromEnvelope } from '../../../src/shared/runtime-envelope.js';
+import { resolveRuntimeEnv as resolveRuntimeEnvFromEnvelope } from '../../../src/shared/runtime-envelope/env-patch.js';
+import { resolveRuntimeEnvelope } from '../../../src/shared/runtime-envelope/resolve.js';
 import { loadUserConfig } from '../config.js';
 import { getToolVersion } from '../tool.js';
 

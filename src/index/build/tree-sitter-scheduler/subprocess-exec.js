@@ -3,7 +3,7 @@ import path from 'node:path';
 import { warmupNativeTreeSitterParsers } from '../../../lang/tree-sitter/native-runtime.js';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { toStringArray } from '../../../shared/iterables.js';
-import { getTreeSitterSchedulerCrashInjectionTokens } from '../../../shared/env.js';
+import { getTreeSitterSchedulerCrashInjectionTokens } from '../../../shared/env/testing.js';
 import { assertTreeSitterScheduledGroupsContract } from './contracts.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 import { executeTreeSitterSchedulerPlan } from './executor.js';

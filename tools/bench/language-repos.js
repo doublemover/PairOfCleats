@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { getBenchMirrorRefreshMs } from '../../src/shared/env.js';
+import { getBenchMirrorRefreshMs } from '../../src/shared/env/bench.js';
 import { applyToolchainDaemonPolicyEnv } from '../../src/shared/toolchain-env.js';
 import { parseBenchLanguageArgs } from './language/cli.js';
 import { loadBenchConfig } from './language/config.js';

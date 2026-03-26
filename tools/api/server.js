@@ -8,7 +8,7 @@ import { parseCommaList } from '../shared/text-utils.js';
 import { getMetricsRegistry } from '../../src/shared/metrics.js';
 import { createApiRouter } from './router.js';
 import { configureServiceLogger } from '../service/logger.js';
-import { getEnvSecrets } from '../../src/shared/env.js';
+import { getEnvSecrets } from '../../src/shared/env/runtime.js';
 import {
   evaluateApiTrustBoundary,
   formatApiTrustBoundarySummary,

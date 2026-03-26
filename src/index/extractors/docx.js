@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import zlib from 'node:zlib';
 import { tryImport } from '../../shared/optional-deps.js';
-import { getDocumentExtractorTestConfig } from '../../shared/env.js';
+import { getDocumentExtractorTestConfig } from '../../shared/env/testing.js';
 import {
   buildDocumentExtractionFidelity,
   buildFailedResult,

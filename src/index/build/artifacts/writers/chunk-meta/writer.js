@@ -21,7 +21,7 @@ import {
   writeJsonLinesShardedAsync,
   writeJsonObjectFile
 } from '../../../../../shared/json-stream.js';
-import { isTestingEnv } from '../../../../../shared/env.js';
+import { isTestingEnv } from '../../../../../shared/env/testing.js';
 import { mergeSortedRuns } from '../../../../../shared/merge.js';
 import {
   createOffsetsMeta,

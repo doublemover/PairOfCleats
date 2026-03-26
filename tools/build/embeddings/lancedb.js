@@ -11,7 +11,8 @@ import {
   normalizeMetaParts,
   readJsonFile
 } from '../../../src/shared/artifact-io.js';
-import { getEnvConfig, getLanceDbEnv } from '../../../src/shared/env.js';
+import { getEnvConfig } from '../../../src/shared/env.js';
+import { getLanceDbEnv } from '../../../src/shared/env/runtime.js';
 import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess.js';
 
 let warnedMissing = false;

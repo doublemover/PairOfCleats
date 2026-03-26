@@ -8,7 +8,8 @@ import {
   loadUserConfig,
   resolveRuntimeEnv
 } from '../dict-utils.js';
-import { resolveRuntimeEnvelope, resolveRuntimeEnv as resolveRuntimeEnvFromEnvelope } from '../runtime-envelope.js';
+import { resolveRuntimeEnv as resolveRuntimeEnvFromEnvelope } from '../runtime-envelope/env-patch.js';
+import { resolveRuntimeEnvelope } from '../runtime-envelope/resolve.js';
 
 export const resolveDispatchRuntimeEnv = async ({
   root,

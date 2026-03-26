@@ -1,6 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { getTestEnvConfig } from '../../../src/shared/env.js';
+import { getTestEnvConfig } from '../../../src/shared/env/testing.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess.js';
 import { updateSqliteDense } from './sqlite-dense.js';

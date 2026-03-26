@@ -1,4 +1,4 @@
-import { getTestEnvConfig } from './env.js';
+import { getTestEnvConfig } from './env/testing.js';
 
 export const OP_FAILURE_CLASSES = Object.freeze({
   RETRIABLE: 'retriable',

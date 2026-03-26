@@ -8,7 +8,7 @@ import {
 } from './fs.js';
 import { readJsonFile } from './json.js';
 import { readCache, writeCache } from './cache.js';
-import { getTestEnvConfig } from '../env.js';
+import { getTestEnvConfig } from '../env/testing.js';
 import { fromPosix, isAbsolutePathNative, isRelativePathEscape, toPosix } from '../files.js';
 import { logLine } from '../progress.js';
 import { joinPathSafe } from '../path-normalize.js';

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { tryImport } from '../../shared/optional-deps.js';
-import { getDocumentExtractorTestConfig } from '../../shared/env.js';
+import { getDocumentExtractorTestConfig } from '../../shared/env/testing.js';
 import {
   buildDocumentExtractionFidelity,
   buildFailedResult,

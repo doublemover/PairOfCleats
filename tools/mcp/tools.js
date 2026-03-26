@@ -7,7 +7,7 @@ import { buildIndex, buildSqliteIndex, compactSqliteIndex } from './tools/handle
 import { runSearch, runWorkspaceSearch } from './tools/handlers/search.js';
 import { triageContextPack, triageDecision, triageIngest } from './tools/handlers/triage.js';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
-import { getTestEnvConfig } from '../../src/shared/env.js';
+import { getTestEnvConfig } from '../../src/shared/env/testing.js';
 import { normalizeMetaFilters } from '../../src/shared/search-request.js';
 
 const parseTestDelayMs = () => {

@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { isTestingEnv } from '../../src/shared/env.js';
+import { isTestingEnv } from '../../src/shared/env/testing.js';
 import { getReleaseCheckSurfacePhases, getReleaseCheckSurfaceSteps, loadShippedSurfaces } from './surfaces.js';
 import { extractChangelogSection, readPackageVersion, toIso } from './metadata-support.js';
 
