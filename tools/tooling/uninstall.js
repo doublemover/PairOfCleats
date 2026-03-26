@@ -5,8 +5,9 @@ import path from 'node:path';
 import readline from 'node:readline/promises';
 import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env.js';
+import { isRootPath } from '../../src/shared/file-paths.js';
+import { isPathUnderDir } from '../../src/shared/path-normalize.js';
 import { getCacheRoot, getDictConfig, getExtensionsDir, getModelsDir, resolveRepoConfig } from '../shared/dict-utils.js';
-import { isInside, isRootPath } from '../shared/path-utils.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats tooling uninstall',
@@ -32,15 +33,15 @@ const targets = [];
 for (const cacheRoot of cacheRoots) targets.push(cacheRoot);
 
 const dictDir = dictConfig.dir;
-if (dictDir && !Array.from(cacheRoots).some((rootPath) => isInside(rootPath, dictDir))) {
+if (dictDir && !Array.from(cacheRoots).some((rootPath) => isPathUnderDir(rootPath, dictDir))) {
   targets.push(dictDir);
 }
 
-if (modelsDir && !Array.from(cacheRoots).some((rootPath) => isInside(rootPath, modelsDir))) {
+if (modelsDir && !Array.from(cacheRoots).some((rootPath) => isPathUnderDir(rootPath, modelsDir))) {
   targets.push(modelsDir);
 }
 
-if (extensionsDir && !Array.from(cacheRoots).some((rootPath) => isInside(rootPath, extensionsDir))) {
+if (extensionsDir && !Array.from(cacheRoots).some((rootPath) => isPathUnderDir(rootPath, extensionsDir))) {
   targets.push(extensionsDir);
 }
 

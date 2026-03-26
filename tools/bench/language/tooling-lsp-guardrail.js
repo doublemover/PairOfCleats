@@ -5,7 +5,7 @@ import {
   coerceClampedFraction,
   coerceNonNegativeInt
 } from '../../../src/shared/number-coerce.js';
-import { readJsonFileResolved } from '../../shared/json-utils.js';
+import { readJsonFileResolved } from '../../../src/shared/json-file.js';
 import { emitGateResult } from '../../shared/tooling-gate-utils.js';
 
 const parseArgs = () => createCli({

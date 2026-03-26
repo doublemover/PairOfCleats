@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { readJsonFileResolved } from '../../src/shared/json-file.js';
 import { emitGateResult } from '../shared/tooling-gate-utils.js';
-import { readJsonFileResolved } from '../shared/json-utils.js';
 
 const parseArgs = () => createCli({
   scriptName: 'pairofcleats bench-language-rollout-gate',

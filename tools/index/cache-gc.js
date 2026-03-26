@@ -21,11 +21,10 @@ import {
   readActiveCasLeases,
   readCasMetadata
 } from '../../src/shared/cache-cas.js';
-import { isPathWithinRoot } from '../../src/shared/files.js';
+import { isPathWithinRoot, isRootPath } from '../../src/shared/files.js';
 import { getEnvConfig } from '../../src/shared/env.js';
 import { normalizeLegacyCacheRootPath } from '../../src/shared/cache-roots.js';
 import { getCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
-import { isRootPath } from '../shared/path-utils.js';
 
 const argv = createCli({
   scriptName: 'cache-gc',

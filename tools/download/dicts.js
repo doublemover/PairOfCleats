@@ -14,7 +14,8 @@ import {
   verifyDownloadHash
 } from '../shared/download-utils.js';
 import { parseNameUrlSources } from '../shared/input-parsers.js';
-import { readJsonFileSafe, writeJsonFile } from '../shared/json-utils.js';
+import { readJsonFileSafe } from '../../src/shared/file-read.js';
+import { writeJsonFile } from '../../src/shared/json-file.js';
 
 const DEFAULT_MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024;
 

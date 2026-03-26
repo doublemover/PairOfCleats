@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { readJsonFileResolvedSafe } from '../shared/json-utils.js';
+import { readJsonFileResolvedSafe } from '../../src/shared/json-file.js';
 import {
   emitGateResult,
   mapProvidersById,

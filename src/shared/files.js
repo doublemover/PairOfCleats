@@ -2,6 +2,7 @@ export {
   fileExt,
   toPosix,
   isPathWithinRoot,
+  isRootPath,
   fromPosix,
   isAbsolutePath,
   isAbsolutePathNative,

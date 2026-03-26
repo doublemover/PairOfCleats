@@ -17,7 +17,8 @@ import {
   verifyDownloadHash
 } from '../shared/download-utils.js';
 import { parseNameUrlSources } from '../shared/input-parsers.js';
-import { readJsonFileSafe, writeJsonFile } from '../shared/json-utils.js';
+import { readJsonFileSafe } from '../../src/shared/file-read.js';
+import { writeJsonFile } from '../../src/shared/json-file.js';
 import { getBinarySuffix, getPlatformKey, getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 import { fetchDownloadUrl } from './shared-fetch.js';
 

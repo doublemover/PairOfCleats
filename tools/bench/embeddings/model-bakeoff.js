@@ -9,6 +9,7 @@ import { normalizeLegacyCacheRootPath, resolveVersionedCacheRoot } from '../../.
 import { getEnvConfig } from '../../../src/shared/env.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
+import { readJsonFileSyncSafe } from '../../../src/shared/file-read.js';
 import { sleep } from '../../../src/shared/sleep.js';
 import { spawnSubprocess, spawnSubprocessSync } from '../../../src/shared/subprocess.js';
 import {
@@ -31,7 +32,6 @@ import {
   toRealPathSync
 } from '../../shared/dict-utils.js';
 import { createToolDisplay } from '../../shared/cli-display.js';
-import { readJsonFileSyncSafe } from '../../shared/json-utils.js';
 
 const DEFAULT_BAKEOFF_MODELS = ['Xenova/bge-small-en-v1.5', 'Xenova/bge-base-en-v1.5'];
 const DEFAULT_BAKEOFF_BASELINE = 'Xenova/bge-base-en-v1.5';

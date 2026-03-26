@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveRepoCacheRoot, resolveRepoDir } from '../language/repos.js';
-import { parseCommaList } from '../../shared/text-utils.js';
+import { parseCommaList } from '../../../src/shared/comma-list.js';
 
 /**
  * @typedef {object} BenchTaskDescriptor

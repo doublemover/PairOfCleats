@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { isRootPath } from '../../../src/shared/file-paths.js';
 import { isPathUnderDir } from '../../../src/shared/path-normalize.js';
-import { isInside } from '../../../tools/shared/path-utils.js';
 
 const repoRoot = path.resolve('repo-root');
 const nestedPath = path.join(repoRoot, 'src', 'main.js');
@@ -18,7 +18,8 @@ assert.equal(isPathUnderDir(repoRoot, outsidePath), false);
 assert.equal(isPathUnderDir('', nestedPath), false);
 assert.equal(isPathUnderDir(repoRoot, ''), false);
 
-assert.equal(isInside(repoRoot, nestedPath), true);
-assert.equal(isInside(repoRoot, outsidePath), false);
+assert.equal(isPathUnderDir(repoRoot, nestedPath), true);
+assert.equal(isPathUnderDir(repoRoot, outsidePath), false);
+assert.equal(isRootPath(path.parse(repoRoot).root), true);
 
 console.log('path containment contract ok.');

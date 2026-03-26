@@ -28,6 +28,11 @@ export function isPathWithinRoot(candidatePath, rootPath, options = {}) {
     || candidateForCompare.startsWith(boundary);
 }
 
+export function isRootPath(targetPath) {
+  const resolved = path.resolve(targetPath);
+  return path.parse(resolved).root === resolved;
+}
+
 export function fromPosix(filePath) {
   if (filePath == null) return '';
   return toPosix(filePath).split('/').join(path.sep);

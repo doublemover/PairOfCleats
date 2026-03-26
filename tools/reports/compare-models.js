@@ -12,10 +12,10 @@ import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpe
 import { resolveCurrentBuildRoots } from '../../src/shared/indexing/build-pointer.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../../src/experimental/compare/config.js';
 import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../shared/query-file-utils.js';
+import { mean, meanNullable } from '../../src/shared/stats.js';
+import { readJsonFileSyncSafe } from '../../src/shared/file-read.js';
 import { runSearchCliWithSubprocessSync } from '../shared/search-cli-harness.js';
-import { mean, meanNullable } from '../shared/stats-utils.js';
 import { exitLikeCommandResult, runSubprocessOrExit } from '../shared/cli-utils.js';
-import { readJsonFileSyncSafe } from '../shared/json-utils.js';
 import {
   DEFAULT_MODEL_ID,
   bootstrapRuntime,

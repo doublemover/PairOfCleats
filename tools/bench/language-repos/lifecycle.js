@@ -4,7 +4,8 @@ import path from 'node:path';
 import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';
 import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
 import { retainCrashArtifacts } from '../../../src/index/build/crash-log.js';
-import { isInside, isRootPath } from '../../shared/path-utils.js';
+import { isRootPath } from '../../../src/shared/file-paths.js';
+import { isPathUnderDir } from '../../../src/shared/path-normalize.js';
 import { ensureRepoBenchmarkReady, tryMirrorClone } from '../language/repos.js';
 import {
   classifyRepoPreflightBlock,
@@ -257,7 +258,7 @@ export const createRepoLifecycle = ({
     if (keepCache || dryRun || !repoCacheRoot) return;
     try {
       const resolvedRepoCacheRoot = path.resolve(repoCacheRoot);
-      if (!isInside(resolvedCacheRoot, resolvedRepoCacheRoot) || isRootPath(resolvedRepoCacheRoot)) {
+      if (!isPathUnderDir(resolvedCacheRoot, resolvedRepoCacheRoot) || isRootPath(resolvedRepoCacheRoot)) {
         appendLog('[cache] skip cleanup; repo cache path escaped cache root.', 'warn', {
           fileOnlyLine: `[cache] Skip cleanup; repo cache path not under cache root (${resolvedRepoCacheRoot}).`
         });

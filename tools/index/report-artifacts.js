@@ -6,8 +6,8 @@ import { formatBytes } from '../../src/shared/disk-space.js';
 import { getStatus } from '../../src/integrations/core/status.js';
 import { validateIndexArtifacts } from '../../src/index/validate.js';
 import { loadJsonArrayArtifactRows } from '../../src/shared/artifact-io/loaders.js';
+import { readJsonFileSyncSafe } from '../../src/shared/file-read.js';
 import { getMetricsDir, resolveRepoConfig } from '../shared/dict-utils.js';
-import { readJsonFileSyncSafe } from '../shared/json-utils.js';
 import { buildScanProfile } from './report-artifacts/scan-profile.js';
 
 const argv = createCli({

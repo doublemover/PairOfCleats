@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { readJsonFileSyncSafe } from '../../shared/json-utils.js';
 import { mergeReuseSummaries } from '../../../src/shared/reuse-diagnostics.js';
+import { readJsonFileSyncSafe } from '../../../src/shared/file-read.js';
 
 export const SCAN_PROFILE_SCHEMA_VERSION = 1;
 

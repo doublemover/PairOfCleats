@@ -4,6 +4,8 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env.js';
+import { isRootPath } from '../../src/shared/file-paths.js';
+import { isPathUnderDir } from '../../src/shared/path-normalize.js';
 import {
   getCacheRoot,
   getRepoCacheRoot,
@@ -12,7 +14,6 @@ import {
   resolveRepoConfig,
   resolveSqlitePaths
 } from '../shared/dict-utils.js';
-import { isInside, isRootPath } from '../shared/path-utils.js';
 
 const argv = createCli({
   scriptName: 'clean-artifacts',
@@ -52,13 +53,13 @@ const usesDefaultDir = sqlitePaths.codePath === defaultCodePath
 
 if (usesDefaultDir) {
   const anyExists = sqliteFiles.some((filePath) => fs.existsSync(filePath));
-  if (anyExists && !isInside(base, path.resolve(defaultSqliteDir))) {
+  if (anyExists && !isPathUnderDir(base, path.resolve(defaultSqliteDir))) {
     targets.push(defaultSqliteDir);
   }
 } else {
   for (const filePath of sqliteFiles) {
     if (!fs.existsSync(filePath)) continue;
-    if (!isInside(base, path.resolve(filePath))) {
+    if (!isPathUnderDir(base, path.resolve(filePath))) {
       targets.push(filePath);
     }
   }
@@ -66,19 +67,19 @@ if (usesDefaultDir) {
 
 if (fs.existsSync(sqlitePaths.legacyPath)) {
   const legacyTarget = sqlitePaths.legacyPath === defaultLegacyPath ? defaultSqliteDir : sqlitePaths.legacyPath;
-  if (!isInside(base, path.resolve(legacyTarget))) {
+  if (!isPathUnderDir(base, path.resolve(legacyTarget))) {
     targets.push(legacyTarget);
   }
 }
 
-if (fs.existsSync(legacyRepoSqliteDir) && !isInside(base, path.resolve(legacyRepoSqliteDir))) {
+if (fs.existsSync(legacyRepoSqliteDir) && !isPathUnderDir(base, path.resolve(legacyRepoSqliteDir))) {
   targets.push(legacyRepoSqliteDir);
 }
 
 const lmdbDirs = [lmdbPaths.codePath, lmdbPaths.prosePath];
 for (const dir of lmdbDirs) {
   if (!dir || !fs.existsSync(dir)) continue;
-  if (!isInside(base, path.resolve(dir))) {
+  if (!isPathUnderDir(base, path.resolve(dir))) {
     targets.push(dir);
   }
 }

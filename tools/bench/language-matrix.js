@@ -10,7 +10,7 @@ import {
   resolveRuntimeEnv,
   resolveToolRoot
 } from '../shared/dict-utils.js';
-import { parseCommaList } from '../shared/text-utils.js';
+import { parseCommaList } from '../../src/shared/comma-list.js';
 
 const benchOptions = mergeCliOptions(
   BENCH_OPTIONS,

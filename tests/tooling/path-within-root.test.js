@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { isPathWithinRoot } from '../../tools/shared/path-within-root.js';
+import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 
 const root = path.resolve('tmp-root', 'cache');
 const child = path.join(root, 'builds', 'run-1');
