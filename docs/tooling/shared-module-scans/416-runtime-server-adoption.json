@@ -291,6 +291,66 @@
       ]
     }
   ],
+  "mappings": [
+    {
+      "problemSurface": "API route parsing, repo/workspace resolution, and client-error mapping",
+      "adoptSharedModules": [
+        "tools/api/router/body.js",
+        "tools/api/router/paths.js",
+        "tools/api/response.js",
+        "tools/api/trust-boundary.js"
+      ],
+      "preferredMigrationTargets": [
+        "tools/api/router.js",
+        "tools/api/router/analysis.js",
+        "tools/api/router/index-snapshots.js",
+        "tools/api/router/index-diffs.js"
+      ]
+    },
+    {
+      "problemSurface": "MCP handler bootstrap and runtime shaping",
+      "adoptSharedModules": [
+        "tools/mcp/tools/helpers.js",
+        "tools/shared/dict-utils.js",
+        "tools/shared/repo-cache-config.js",
+        "tools/shared/search-request.js"
+      ],
+      "preferredMigrationTargets": [
+        "tools/mcp/tools/handlers/analysis.js",
+        "tools/mcp/tools/handlers/artifacts.js",
+        "tools/mcp/tools/handlers/bootstrap.js",
+        "tools/mcp/tools/handlers/downloads.js",
+        "tools/mcp/tools/handlers/indexing.js",
+        "tools/mcp/tools/handlers/search.js",
+        "tools/mcp/tools/handlers/triage.js"
+      ]
+    },
+    {
+      "problemSurface": "Service build-root/index-dir and env normalization",
+      "adoptSharedModules": [
+        "tools/service/indexer-service-helpers.js",
+        "src/shared/indexing/build-pointer.js",
+        "src/shared/runtime-envelope.js"
+      ],
+      "preferredMigrationTargets": [
+        "tools/service/indexer-service.js",
+        "tools/service/indexer-service/job-executor.js",
+        "tools/service/indexer-service/progress-monitor.js",
+        "tools/service/embedding-replay.js",
+        "tools/service/subprocess-log.js"
+      ]
+    },
+    {
+      "problemSurface": "TUI launcher runtime env bootstrap",
+      "adoptSharedModules": [
+        "src/shared/dispatch/env.js",
+        "src/shared/runtime-envelope.js"
+      ],
+      "preferredMigrationTargets": [
+        "bin/pairofcleats-tui.js"
+      ]
+    }
+  ],
   "localExceptions": [
     {
       "path": "tools/api/trust-boundary.js",
