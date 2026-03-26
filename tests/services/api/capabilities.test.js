@@ -1,24 +1,16 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fsPromises from 'node:fs/promises';
-import path from 'node:path';
 import { MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { getCapabilities } from '../../../src/shared/capabilities.js';
 import { getApiWorkflowCapabilities, getRuntimeCapabilityManifest } from '../../../src/shared/runtime-capability-manifest.js';
 import { getToolVersion } from '../../../tools/shared/dict-utils.js';
 import { evaluateApiTrustBoundary } from '../../../tools/api/trust-boundary.js';
-import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
-import { startApiServer } from '../../helpers/api-server.js';
+import { prepareFixtureApiServerCohort } from '../../helpers/api-server.js';
 
-const cacheName = 'api-capabilities';
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', cacheName);
-await fsPromises.rm(cacheRoot, { recursive: true, force: true });
-
-const { fixtureRoot, env } = await ensureFixtureIndex({
-  fixtureName: 'sample',
-  cacheName,
-  cacheScope: 'shared'
+const cohort = await prepareFixtureApiServerCohort({
+  cacheName: 'api-capabilities'
 });
+const { fixtureRoot } = cohort;
 
 const expectedToolVersion = getToolVersion() || '0.0.0';
 const expectedRuntimeCapabilities = getCapabilities({ refresh: true });
@@ -32,10 +24,8 @@ const expectedTrustBoundary = evaluateApiTrustBoundary({
   corsAllowAny: false
 });
 
-const { serverInfo, requestJson, stop } = await startApiServer({
-  repoRoot: fixtureRoot,
-  allowedRoots: [],
-  env
+const { serverInfo, requestJson, stop } = await cohort.start({
+  allowedRoots: []
 });
 
 try {

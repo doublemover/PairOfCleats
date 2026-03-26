@@ -1,26 +1,15 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fsPromises from 'node:fs/promises';
-import path from 'node:path';
+import { prepareFixtureApiServerCohort } from '../../helpers/api-server.js';
 
-import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
-import { startApiServer } from '../../helpers/api-server.js';
-
-const cacheName = 'api-observability-correlation';
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', cacheName);
-await fsPromises.rm(cacheRoot, { recursive: true, force: true });
-
-const { fixtureRoot, env } = await ensureFixtureIndex({
-  fixtureName: 'sample',
-  cacheName,
-  cacheScope: 'shared',
-  requiredModes: ['code']
+const cohort = await prepareFixtureApiServerCohort({
+  cacheName: 'api-observability-correlation',
+  fixtureOptions: {
+    requiredModes: ['code']
+  }
 });
 
-const { serverInfo, requestJson, stop } = await startApiServer({
-  repoRoot: fixtureRoot,
-  env
-});
+const { serverInfo, requestJson, stop } = await cohort.start();
 
 try {
   const headers = {

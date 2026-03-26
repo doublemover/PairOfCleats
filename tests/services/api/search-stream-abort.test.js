@@ -1,24 +1,13 @@
 #!/usr/bin/env node
 import http from 'node:http';
-import fsPromises from 'node:fs/promises';
-import path from 'node:path';
-import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
-import { startApiServer } from '../../helpers/api-server.js';
+import { prepareFixtureApiServerCohort } from '../../helpers/api-server.js';
 
-const cacheName = 'api-search-stream-abort';
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', cacheName);
-await fsPromises.rm(cacheRoot, { recursive: true, force: true });
-
-const { fixtureRoot, env } = await ensureFixtureIndex({
-  fixtureName: 'sample',
-  cacheName,
-  cacheScope: 'shared'
+const cohort = await prepareFixtureApiServerCohort({
+  cacheName: 'api-search-stream-abort'
 });
 
-const { serverInfo, requestJson, stop } = await startApiServer({
-  repoRoot: fixtureRoot,
-  allowedRoots: [],
-  env
+const { fixtureRoot, serverInfo, requestJson, stop } = await cohort.start({
+  allowedRoots: []
 });
 
 const authHeader = { Authorization: 'Bearer test-token' };

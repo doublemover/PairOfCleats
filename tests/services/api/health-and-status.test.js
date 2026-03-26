@@ -1,23 +1,11 @@
 #!/usr/bin/env node
-import fsPromises from 'node:fs/promises';
-import path from 'node:path';
-import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
-import { startApiServer } from '../../helpers/api-server.js';
+import { prepareFixtureApiServerCohort } from '../../helpers/api-server.js';
 
-const cacheName = 'api-health-status';
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', cacheName);
-await fsPromises.rm(cacheRoot, { recursive: true, force: true });
-
-const { fixtureRoot, env } = await ensureFixtureIndex({
-  fixtureName: 'sample',
-  cacheName,
-  cacheScope: 'shared'
+const cohort = await prepareFixtureApiServerCohort({
+  cacheName: 'api-health-status'
 });
-
-const { serverInfo, requestJson, stop } = await startApiServer({
-  repoRoot: fixtureRoot,
-  allowedRoots: [],
-  env
+const { fixtureRoot, serverInfo, requestJson, stop } = await cohort.start({
+  allowedRoots: []
 });
 
 try {
@@ -62,7 +50,7 @@ try {
     throw new Error('api-server /status response missing trust boundary counts');
   }
   const statusBody = JSON.stringify(status.body);
-  if (statusBody.includes(fixtureRoot) || statusBody.includes(cacheRoot)) {
+  if (statusBody.includes(fixtureRoot) || statusBody.includes(cohort.cacheRoot)) {
     throw new Error('api-server /status response leaked absolute paths');
   }
 } catch (err) {

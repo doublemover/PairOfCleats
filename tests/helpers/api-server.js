@@ -1,10 +1,13 @@
 import http from 'node:http';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { attachSilentLogging } from './test-env.js';
-import { terminateChild, waitForChildExit } from './process-lifecycle.js';
+import { terminateChild } from './process-lifecycle.js';
 import { registerChildProcessForCleanup } from '../../src/shared/subprocess.js';
+import { ensureFixtureIndex } from './fixture-index.js';
+import { normalizeTestCacheScope, resolveTestCachePath } from './test-cache.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -292,4 +295,61 @@ export const startApiServer = async ({
   };
 
   return { server, serverInfo, requestJson, requestRaw, stop };
+};
+
+export const prepareFixtureApiServerCohort = async ({
+  fixtureName = 'sample',
+  cacheName,
+  cacheScope = 'shared',
+  resetCache = true,
+  envOverrides = {},
+  fixtureOptions = {},
+  serverDefaults = {}
+} = {}) => {
+  if (!cacheName || !String(cacheName).trim()) {
+    throw new Error('prepareFixtureApiServerCohort requires cacheName');
+  }
+  const normalizedCacheScope = normalizeTestCacheScope(cacheScope, { defaultScope: 'shared' });
+  if (resetCache && normalizedCacheScope !== 'shared') {
+    throw new Error('prepareFixtureApiServerCohort only supports resetCache for shared cacheScope');
+  }
+  const normalizedCacheName = String(cacheName).trim();
+  if (resetCache) {
+    await fsPromises.rm(resolveTestCachePath(ROOT, normalizedCacheName), {
+      recursive: true,
+      force: true
+    });
+  }
+  const fixture = await ensureFixtureIndex({
+    fixtureName,
+    cacheName: normalizedCacheName,
+    cacheScope: normalizedCacheScope,
+    envOverrides,
+    ...fixtureOptions
+  });
+  const cohort = {
+    kind: 'fixture-api-server',
+    fixtureName,
+    cacheName: normalizedCacheName,
+    cacheScope: normalizedCacheScope,
+    resetCache: Boolean(resetCache)
+  };
+  const start = async ({
+    envOverrides: runtimeEnvOverrides = {},
+    ...serverOptions
+  } = {}) => await startApiServer({
+    repoRoot: fixture.fixtureRoot,
+    env: {
+      ...fixture.env,
+      ...runtimeEnvOverrides
+    },
+    ...serverDefaults,
+    ...serverOptions
+  });
+
+  return {
+    ...fixture,
+    cohort,
+    start
+  };
 };

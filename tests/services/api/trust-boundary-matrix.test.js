@@ -2,25 +2,18 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
-import { startApiServer } from '../../helpers/api-server.js';
+import { prepareFixtureApiServerCohort } from '../../helpers/api-server.js';
 
-const cacheName = 'api-trust-boundary-matrix';
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', cacheName);
-const allowedExtraRoot = path.join(cacheRoot, 'allowed-extra');
-await fsPromises.rm(cacheRoot, { recursive: true, force: true });
-await fsPromises.mkdir(allowedExtraRoot, { recursive: true });
-
-const { fixtureRoot, env } = await ensureFixtureIndex({
-  fixtureName: 'sample',
-  cacheName,
-  cacheScope: 'shared'
+const cohort = await prepareFixtureApiServerCohort({
+  cacheName: 'api-trust-boundary-matrix'
 });
+const allowedExtraRoot = path.join(cohort.cacheRoot, 'allowed-extra');
+await fsPromises.mkdir(allowedExtraRoot, { recursive: true });
 
 const expectStartupFailure = async (options, expectedMessage) => {
   let failed = false;
   try {
-    await startApiServer(options);
+    await cohort.start(options);
   } catch (error) {
     failed = true;
     assert.match(String(error?.message || error), expectedMessage);
@@ -29,9 +22,7 @@ const expectStartupFailure = async (options, expectedMessage) => {
 };
 
 await expectStartupFailure({
-  repoRoot: fixtureRoot,
   allowedRoots: [],
-  env,
   host: '0.0.0.0',
   authToken: '',
   allowUnauthenticated: false,
@@ -39,9 +30,7 @@ await expectStartupFailure({
 }, /requires PAIROFCLEATS_API_TOKEN|requires .*--auth-token/i);
 
 await expectStartupFailure({
-  repoRoot: fixtureRoot,
   allowedRoots: [],
-  env,
   host: '0.0.0.0',
   authToken: '',
   allowUnauthenticated: true,
@@ -49,19 +38,15 @@ await expectStartupFailure({
 }, /refuses --allow-unauthenticated/i);
 
 await expectStartupFailure({
-  repoRoot: fixtureRoot,
   allowedRoots: [],
-  env,
   host: '0.0.0.0',
   authToken: 'remote-token',
   corsAllowAny: true,
   startupTimeoutMs: 5000
 }, /refuses --cors-allow-any/i);
 
-const localUnauthenticated = await startApiServer({
-  repoRoot: fixtureRoot,
+const localUnauthenticated = await cohort.start({
   allowedRoots: [allowedExtraRoot],
-  env,
   host: '127.0.0.1',
   authToken: '',
   allowUnauthenticated: true
@@ -80,10 +65,8 @@ try {
   await localUnauthenticated.stop();
 }
 
-const remoteAuthenticated = await startApiServer({
-  repoRoot: fixtureRoot,
+const remoteAuthenticated = await cohort.start({
   allowedRoots: [allowedExtraRoot],
-  env,
   host: '0.0.0.0',
   authToken: 'remote-token'
 });
