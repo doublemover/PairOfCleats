@@ -1,0 +1,473 @@
+{
+  "issueId": "414",
+  "title": "Review shared domain helper families for embeddings, indexing, search, risk, language, and type/token processing",
+  "reviewDate": "2026-03-26",
+  "scope": "Primary ownership for src/shared domain helper families assigned to #414 in the shared-module ledger, including embeddings-cache, indexing, filter, fs, hash, perf, text, validation, safe-regex, and root-level domain-specific utilities.",
+  "summary": {
+    "ownedFileCount": 52,
+    "overallAssessment": "Most of this surface is genuinely shared and domain-specific rather than a random grab-bag. The strongest parts are the small normalization helpers, backend/config facades, embeddings-cache family, safe-regex backend structure, and low-level perf/text/validation helpers. The main weaknesses are a handful of oversized mixed-responsibility modules and two cross-layer ownership seams: src/shared/dict-utils.js is only a re-export of tools/shared/dict-utils.js, and token-id.js mixes 64-bit token hashing with a specialized typed posting map implementation.",
+    "runtimeRisks": [
+      {
+        "target": "src/shared/onnx-embeddings.js",
+        "reason": "This is the largest file in the owned surface and mixes ONNX session setup, provider selection, model loading, input normalization, batch execution, and output handling."
+      },
+      {
+        "target": "src/shared/indexing/progress-timeout-policy.js",
+        "reason": "This is a policy-heavy indexing runtime module where timeout classification, budget-extension rules, and progress interpretation are coupled together."
+      },
+      {
+        "target": "src/shared/embedding-adapter.js",
+        "reason": "Adapter selection, provider normalization, request shaping, and fallback behavior are mixed in one file that directly affects embedding runtime behavior."
+      },
+      {
+        "target": "src/shared/dense-vector-artifacts.js",
+        "reason": "Artifact naming, binary serialization, JSONL sharding, binary hydration, and dense-vector materialization all live together."
+      },
+      {
+        "target": "src/shared/indexing/build-pointer.js",
+        "reason": "Active generation selection, manifest freshness, and build-root pointer semantics are correctness-critical and currently mixed in one file."
+      },
+      {
+        "target": "src/shared/tokenize.js",
+        "reason": "Stemming, identifier splitting, punctuation extraction, dictionary segmentation, and n-gram helpers are mixed into one very broad tokenization surface."
+      }
+    ],
+    "maintainabilityOnlyNotes": [
+      {
+        "target": "src/shared/dict-utils.js",
+        "reason": "This is only a cross-layer re-export of tools/shared/dict-utils.js and should not remain as a root src/shared alias."
+      },
+      {
+        "target": "src/shared/token-id.js",
+        "reason": "The typed open-addressed posting map does not belong in the same module as generic token-id hashing helpers."
+      },
+      {
+        "target": "src/shared/risk-explain.js",
+        "reason": "Useful shared logic, but it is broad enough that normalization and rendering/summary concerns should likely separate over time."
+      }
+    ],
+    "highestPriorityFollowUps": [
+      {
+        "priority": "high",
+        "target": "src/shared/dict-utils.js",
+        "action": "move",
+        "reason": "Remove the src/shared-to-tools/shared re-export seam by either moving the real implementation into src/shared or relocating callers back to the tool-side module."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/token-id.js",
+        "action": "split",
+        "reason": "Move the specialized typed posting map into a postings-focused module and leave token-id.js as the hash/id helper surface."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/onnx-embeddings.js",
+        "action": "split",
+        "reason": "Separate model/session lifecycle, runtime/provider resolution, request shaping, and output normalization."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/indexing/progress-timeout-policy.js",
+        "action": "split",
+        "reason": "Separate policy classification, budget math, and progress-state interpretation into narrower indexing runtime helpers."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/embedding-adapter.js",
+        "action": "split",
+        "reason": "Separate adapter registry, request normalization, and fallback/runtime policy so embedding provider behavior is easier to reason about."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/dense-vector-artifacts.js",
+        "action": "split",
+        "reason": "Separate artifact naming/metadata, binary write/load operations, and row materialization concerns under a denser vector-io family."
+      },
+      {
+        "priority": "medium",
+        "target": "src/shared/indexing/build-pointer.js",
+        "action": "split",
+        "reason": "Separate active-generation pointer resolution from freshness and manifest compatibility helpers."
+      },
+      {
+        "priority": "medium",
+        "target": "src/shared/tokenize.js",
+        "action": "split",
+        "reason": "Separate identifier tokenization, dictionary segmentation, punctuation extraction, and n-gram helpers into clearer submodules."
+      }
+    ]
+  },
+  "entries": [
+    {
+      "path": "src/shared/ann-similarity.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Tiny normalization helper for comparing ANN backend distance outputs.",
+      "recommendation": "Keep as the ANN distance-to-similarity conversion helper."
+    },
+    {
+      "path": "src/shared/bloom.js",
+      "consumerCount": 3,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Focused Bloom filter implementation with encode/decode support.",
+      "recommendation": "Keep as the Bloom filter primitive rather than scattering lightweight filter implementations elsewhere."
+    },
+    {
+      "path": "src/shared/boolean-normalization.js",
+      "consumerCount": 4,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Shared loose boolean normalization for config and CLI-style parsing.",
+      "recommendation": "Keep as the boolean-like input normalization helper."
+    },
+    {
+      "path": "src/shared/chargram-hash.js",
+      "consumerCount": 7,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Chargram rolling-hash helper used by indexing and tokenization-related flows.",
+      "recommendation": "Keep as the chargram hashing contract and avoid reimplementing n-gram hash schemes locally."
+    },
+    {
+      "path": "src/shared/code-dictionaries.js",
+      "consumerCount": 6,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Small language-alias and code-dictionary naming helper.",
+      "recommendation": "Keep as the code-dictionary naming and normalization helper."
+    },
+    {
+      "path": "src/shared/dense-vector-artifacts.js",
+      "consumerCount": 14,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Dense-vector naming, binary write/load, JSONL sharding, and row materialization all meet here.",
+      "recommendation": "Split naming/metadata, binary IO, and row-materialization concerns into narrower dense-vector IO helpers."
+    },
+    {
+      "path": "src/shared/dense-vector-mode.js",
+      "consumerCount": 3,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Tiny mode normalizer for dense vector selector values.",
+      "recommendation": "Keep as the dense-vector mode normalization helper."
+    },
+    {
+      "path": "src/shared/dict-utils.js",
+      "consumerCount": 28,
+      "classifications": ["move", "document", "test"],
+      "consumerNotes": "This is only a root-level re-export of tools/shared/dict-utils.js, but it is widely imported from src surfaces.",
+      "recommendation": "Remove the cross-layer alias by moving the underlying implementation into src/shared or relocating callers back to the tool-side surface."
+    },
+    {
+      "path": "src/shared/dictionary-wordlists.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Owns multi-file wordlist loading, bounded concurrency, and dictionary signature generation.",
+      "recommendation": "Keep as the dictionary-wordlist loading and signature helper family."
+    },
+    {
+      "path": "src/shared/dictionary.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "SharedArrayBuffer-based dictionary representation and lookup helper.",
+      "recommendation": "Keep as the shared dictionary representation layer."
+    },
+    {
+      "path": "src/shared/dockerfile.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Domain-specific Dockerfile parsing/normalization helper.",
+      "recommendation": "Keep as a focused Dockerfile-domain helper."
+    },
+    {
+      "path": "src/shared/embedding-adapter.js",
+      "consumerCount": 3,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Embedding adapter selection, request shaping, and provider/runtime policy are combined here.",
+      "recommendation": "Split adapter registry, provider selection, and request normalization so embedding runtime behavior is easier to audit."
+    },
+    {
+      "path": "src/shared/embedding-batch.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Small batch sizing/default helper for embeddings.",
+      "recommendation": "Keep as the embedding batch-policy helper."
+    },
+    {
+      "path": "src/shared/embedding-identity.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Identity and cache key helpers for embedding models/configurations.",
+      "recommendation": "Keep as the embedding identity helper layer."
+    },
+    {
+      "path": "src/shared/embedding-input-format.js",
+      "consumerCount": 6,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Shared input-format normalization for embedding requests and tooling.",
+      "recommendation": "Keep as the embedding request/input format normalizer."
+    },
+    {
+      "path": "src/shared/embedding-utils.js",
+      "consumerCount": 11,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Mixes vector normalization, quantization, merge behavior, and batch-output normalization in one broad helper file.",
+      "recommendation": "Split vector math/quantization from batch-output normalization while keeping a small public embeddings utility surface."
+    },
+    {
+      "path": "src/shared/embedding.js",
+      "consumerCount": 7,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Small shared embedding defaults/constants surface.",
+      "recommendation": "Keep as the embedding defaults facade."
+    },
+    {
+      "path": "src/shared/embeddings-cache/format.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Embeddings-cache serialization/format helper.",
+      "recommendation": "Keep inside the embeddings-cache family."
+    },
+    {
+      "path": "src/shared/embeddings-cache/index.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Small family index for embeddings-cache helpers.",
+      "recommendation": "Keep as the embeddings-cache facade."
+    },
+    {
+      "path": "src/shared/embeddings-cache/layout.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Embeddings-cache path/layout helper.",
+      "recommendation": "Keep under the cache family rather than duplicating cache path conventions."
+    },
+    {
+      "path": "src/shared/embeddings-cache/lru.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Small LRU helper tailored to embeddings cache behavior.",
+      "recommendation": "Keep within the embeddings-cache family."
+    },
+    {
+      "path": "src/shared/filter/merge.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Targeted helper for merging filter surfaces.",
+      "recommendation": "Keep as the filter merge primitive."
+    },
+    {
+      "path": "src/shared/fs/find-upwards.js",
+      "consumerCount": 4,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "General upward-search filesystem helper.",
+      "recommendation": "Keep as the shared upward path-discovery helper."
+    },
+    {
+      "path": "src/shared/fs/ignore.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Small filesystem ignore helper.",
+      "recommendation": "Keep focused on ignore-list behavior."
+    },
+    {
+      "path": "src/shared/hash.js",
+      "consumerCount": 92,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Canonical hashing facade with xxhash backend indirection plus legacy SHA1 helpers.",
+      "recommendation": "Keep as the shared hashing facade and avoid reimplementing hash backend selection in callers."
+    },
+    {
+      "path": "src/shared/hash/xxhash-backend.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Backend resolution and streaming hash helper for xxhash.",
+      "recommendation": "Keep as the backend-specific xxhash implementation layer."
+    },
+    {
+      "path": "src/shared/hnsw.js",
+      "consumerCount": 7,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Shared HNSW backend/config helper surface.",
+      "recommendation": "Keep as the HNSW backend contract helper."
+    },
+    {
+      "path": "src/shared/indexing/build-pointer.js",
+      "consumerCount": 4,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Active build pointer resolution and freshness logic are coupled together.",
+      "recommendation": "Split active-generation pointer resolution from compatibility/freshness helpers."
+    },
+    {
+      "path": "src/shared/indexing/progress-timeout-policy.js",
+      "consumerCount": 3,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Large timeout/degradation policy surface for indexing and bench progress handling.",
+      "recommendation": "Split budget math, classification rules, and progress-state interpretation into narrower helpers."
+    },
+    {
+      "path": "src/shared/indexing/stage1-watchdog-policy.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Stage-1 watchdog configuration/policy helper.",
+      "recommendation": "Keep under indexing policy ownership and separate from generic timeout helpers."
+    },
+    {
+      "path": "src/shared/indexing/tree-sitter-limits.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Shared tree-sitter limit configuration helper.",
+      "recommendation": "Keep as the tree-sitter limit contract."
+    },
+    {
+      "path": "src/shared/lancedb.js",
+      "consumerCount": 7,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Shared LanceDB backend/config helper surface.",
+      "recommendation": "Keep as the LanceDB config/path helper."
+    },
+    {
+      "path": "src/shared/onnx-embeddings.js",
+      "consumerCount": 7,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Oversized ONNX embedding runtime module covering session lifecycle, runtime/provider selection, batching, and result normalization.",
+      "recommendation": "Split model/session lifecycle, provider/runtime resolution, request execution, and output normalization."
+    },
+    {
+      "path": "src/shared/ownership-segment.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Small ownership segment normalization helper.",
+      "recommendation": "Keep focused on ownership-segment normalization."
+    },
+    {
+      "path": "src/shared/packed-postings.js",
+      "consumerCount": 3,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Shared packed-postings encode/decode helper surface.",
+      "recommendation": "Keep as the packed-postings helper layer."
+    },
+    {
+      "path": "src/shared/perf/eta.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Small ETA-related helper.",
+      "recommendation": "Keep in the perf helper family."
+    },
+    {
+      "path": "src/shared/perf/histogram.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Simple histogram helper for perf metrics.",
+      "recommendation": "Keep as a focused perf primitive."
+    },
+    {
+      "path": "src/shared/perf/percentiles.js",
+      "consumerCount": 4,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Shared percentile calculation helper.",
+      "recommendation": "Keep as the percentile utility surface."
+    },
+    {
+      "path": "src/shared/postings-config.js",
+      "consumerCount": 9,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Canonical postings feature and config normalization helper.",
+      "recommendation": "Keep as the postings configuration contract, but avoid letting more unrelated index-policy logic accumulate here."
+    },
+    {
+      "path": "src/shared/risk-explain.js",
+      "consumerCount": 4,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Broad risk explanation helper mixing normalization, selection, and presentation-oriented summary shaping.",
+      "recommendation": "Split normalization/filtering from explanation/summary shaping if this surface grows further."
+    },
+    {
+      "path": "src/shared/risk-filters.js",
+      "consumerCount": 9,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Healthy shared normalization, validation, and match helpers for risk flow filters.",
+      "recommendation": "Keep as the canonical risk filter contract layer."
+    },
+    {
+      "path": "src/shared/safe-regex.js",
+      "consumerCount": 5,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Backend selection, safety policy, compile behavior, and execution logic live in one file above the backend modules.",
+      "recommendation": "Keep the facade, but consider splitting backend resolution/policy checks from the public compile/exec surface if this family grows."
+    },
+    {
+      "path": "src/shared/safe-regex/backends/re2.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Focused RE2 backend adapter.",
+      "recommendation": "Keep as the RE2 backend implementation."
+    },
+    {
+      "path": "src/shared/safe-regex/backends/re2js.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Focused RE2JS backend adapter.",
+      "recommendation": "Keep as the RE2JS backend implementation."
+    },
+    {
+      "path": "src/shared/seed-ref.js",
+      "consumerCount": 6,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Shared seed-reference parsing and normalization helper.",
+      "recommendation": "Keep as the seed-ref parsing contract."
+    },
+    {
+      "path": "src/shared/tantivy.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Shared Tantivy backend/config path helper.",
+      "recommendation": "Keep as the Tantivy helper surface."
+    },
+    {
+      "path": "src/shared/text/escape-regex.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Tiny regex-escaping primitive.",
+      "recommendation": "Keep as the text-level regex escape helper."
+    },
+    {
+      "path": "src/shared/token-id.js",
+      "consumerCount": 10,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Core token-id hashing helpers are mixed with a specialized typed open-addressed posting map implementation.",
+      "recommendation": "Move the typed posting map into a postings-focused module and keep token-id.js centered on hash/id helpers."
+    },
+    {
+      "path": "src/shared/tokenize.js",
+      "consumerCount": 13,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Very broad tokenization surface covering stemming, identifier splitting, punctuation tokens, dictionary segmentation, and n-grams.",
+      "recommendation": "Split identifier tokenization, dictionary segmentation, punctuation extraction, and n-gram helpers into narrower submodules behind a shared facade."
+    },
+    {
+      "path": "src/shared/truncation.js",
+      "consumerCount": 5,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Small truncation-recorder helper used by evidence- and context-related surfaces.",
+      "recommendation": "Keep as the truncation recording primitive."
+    },
+    {
+      "path": "src/shared/type-entry-utils.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Shared type-entry normalization and merge helper built on canonicalized type text.",
+      "recommendation": "Keep as the type-entry normalization/merge helper."
+    },
+    {
+      "path": "src/shared/type-normalization.js",
+      "consumerCount": 4,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Language-aware canonicalization helper for type text.",
+      "recommendation": "Keep as the type normalization contract surface."
+    },
+    {
+      "path": "src/shared/validation/ajv-factory.js",
+      "consumerCount": 11,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Small schema-clone, dialect-selection, and compile helper for Ajv usage.",
+      "recommendation": "Keep as the shared Ajv factory helper."
+    }
+  ]
+}
