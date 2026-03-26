@@ -98,6 +98,41 @@ export const BENCH_OPTIONS = {
   quiet: { type: 'boolean', default: false }
 };
 
+export const CACHE_GC_OPTIONS = {
+  apply: { type: 'boolean', default: false },
+  'dry-run': { type: 'boolean', default: false },
+  json: { type: 'boolean', default: false },
+  'cache-root': { type: 'string' },
+  'grace-days': { type: 'number', default: 0 },
+  'max-deletes': { type: 'number', default: 0 },
+  concurrency: { type: 'number', default: 4 },
+  'max-bytes': { type: 'number' },
+  'max-gb': { type: 'number' },
+  'max-age-days': { type: 'number' },
+  repo: { type: 'string' }
+};
+
+export const COMPARE_MODELS_OPTIONS = {
+  json: { type: 'boolean', default: false },
+  build: { type: 'boolean', default: false },
+  'build-index': { type: 'boolean', default: false },
+  'build-sqlite': { type: 'boolean', default: false },
+  incremental: { type: 'boolean', default: false },
+  'stub-embeddings': { type: 'boolean', default: false },
+  ann: { type: 'boolean' },
+  'no-ann': { type: 'boolean' },
+  models: { type: 'string' },
+  baseline: { type: 'string' },
+  queries: { type: 'string' },
+  backend: { type: 'string' },
+  out: { type: 'string' },
+  mode: { type: 'string' },
+  'cache-root': { type: 'string' },
+  repo: { type: 'string' },
+  top: { type: 'number', default: 5, alias: 'n' },
+  limit: { type: 'number', default: 0 }
+};
+
 export function mergeCliOptions(...sets) {
   const merged = {};
   for (const set of sets) {

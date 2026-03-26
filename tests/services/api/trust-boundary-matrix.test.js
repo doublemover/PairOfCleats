@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { buildApiTrustBoundaryStatusView } from '../../../tools/api/trust-boundary.js';
 import { prepareFixtureApiServerCohort } from '../../helpers/api-server.js';
 
 const cohort = await prepareFixtureApiServerCohort({
@@ -76,13 +77,10 @@ try {
   assert.equal(capabilities.status, 200, 'expected authenticated remote /capabilities to succeed');
   assert.equal(remoteAuthenticated.serverInfo?.trustBoundary?.bind?.scope, 'non-local');
   assert.equal(remoteAuthenticated.serverInfo?.trustBoundary?.auth?.required, true);
-  assert.equal(capabilities.body?.trustBoundary?.effectiveBoundary?.exposure, 'non-local');
-  assert.equal(capabilities.body?.trustBoundary?.auth?.mode, 'token');
-  assert.equal(capabilities.body?.trustBoundary?.repos?.mode, 'allowlisted');
-  assert.ok(
-    Array.isArray(capabilities.body?.trustBoundary?.workspaces?.policyRoots)
-      && capabilities.body.trustBoundary.workspaces.policyRoots.length >= 2,
-    'expected /capabilities to expose workspace policy roots'
+  assert.deepEqual(
+    capabilities.body?.trustBoundary,
+    buildApiTrustBoundaryStatusView(remoteAuthenticated.serverInfo?.trustBoundary),
+    'expected /capabilities to expose a redacted trust-boundary status view'
   );
 } finally {
   await remoteAuthenticated.stop();

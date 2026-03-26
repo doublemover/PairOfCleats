@@ -1,6 +1,8 @@
 import { MCP_SCHEMA_VERSION, getToolDefs } from '../integrations/mcp/defs.js';
 import {
   BENCH_OPTIONS,
+  CACHE_GC_OPTIONS,
+  COMPARE_MODELS_OPTIONS,
   INDEX_BUILD_OPTIONS,
   SERVICE_API_OPTIONS,
   SERVICE_INDEXER_OPTIONS,
@@ -181,7 +183,9 @@ export function getRuntimeCapabilityManifest(options = {}) {
       'index.build': buildFlagSet(INDEX_BUILD_OPTIONS),
       'service.api': buildFlagSet(SERVICE_API_OPTIONS),
       'service.indexer': buildFlagSet(SERVICE_INDEXER_OPTIONS),
-      bench: buildFlagSet(BENCH_OPTIONS)
+      bench: buildFlagSet(BENCH_OPTIONS),
+      'cache.gc': buildFlagSet(CACHE_GC_OPTIONS),
+      'report.compare-models': buildFlagSet(COMPARE_MODELS_OPTIONS)
     },
     surfaces: {
       cli: {

@@ -10,11 +10,11 @@ ensureTestingEnv(process.env);
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-show-throughput-compare-'));
 
-const writePayload = async (workspaceRoot, { chunksPerSec, buildIndexMs }) => {
-  const resultsRoot = path.join(workspaceRoot, 'benchmarks', 'results', 'javascript');
-  await fs.mkdir(resultsRoot, { recursive: true });
+const writePayload = async (resultsRoot, { chunksPerSec, buildIndexMs }) => {
+  const languageRoot = path.join(resultsRoot, 'javascript');
+  await fs.mkdir(languageRoot, { recursive: true });
   await fs.writeFile(
-    path.join(resultsRoot, 'owner__repo.json'),
+    path.join(languageRoot, 'owner__repo.json'),
     JSON.stringify({
       generatedAt: '2026-03-21T00:00:00.000Z',
       repo: { root: 'C:/repo/compare' },
@@ -42,17 +42,15 @@ const writePayload = async (workspaceRoot, { chunksPerSec, buildIndexMs }) => {
     }, null, 2),
     'utf8'
   );
-  return path.join(workspaceRoot, 'benchmarks', 'results');
+  return resultsRoot;
 };
 
 try {
-  const currentRoot = path.join(tempRoot, 'current');
-  const baselineRoot = path.join(tempRoot, 'baseline');
-  const currentResults = await writePayload(currentRoot, {
+  const absoluteCurrentResults = await writePayload(path.join(tempRoot, 'absolute-current', 'benchmarks', 'results'), {
     chunksPerSec: 50,
     buildIndexMs: 100
   });
-  const baselineResults = await writePayload(baselineRoot, {
+  const absoluteBaselineResults = await writePayload(path.join(tempRoot, 'absolute-baseline', 'benchmarks', 'results'), {
     chunksPerSec: 25,
     buildIndexMs: 200
   });
@@ -61,9 +59,9 @@ try {
     process.execPath,
     [
       path.join(process.cwd(), 'tools', 'reports', 'show-throughput.js'),
-      '--root', currentResults,
+      '--root', absoluteCurrentResults,
       '--profile', 'compare',
-      '--compare', baselineResults
+      '--compare', absoluteBaselineResults
     ],
     { cwd: process.cwd(), encoding: 'utf8', env: process.env }
   );
@@ -72,6 +70,31 @@ try {
   assert.equal(output.includes('Compare Overview'), true, output);
   assert.equal(output.includes('javascript:'), true, output);
   assert.equal(output.includes('50.0 vs 25.0'), true, output);
+
+  const compareFamilyRoot = path.join(tempRoot, 'family');
+  const siblingCurrentResults = await writePayload(path.join(compareFamilyRoot, 'current'), {
+    chunksPerSec: 60,
+    buildIndexMs: 90
+  });
+  await writePayload(path.join(compareFamilyRoot, 'baseline'), {
+    chunksPerSec: 30,
+    buildIndexMs: 180
+  });
+
+  const siblingResult = spawnSync(
+    process.execPath,
+    [
+      path.join(process.cwd(), 'tools', 'reports', 'show-throughput.js'),
+      '--root', siblingCurrentResults,
+      '--profile', 'compare',
+      '--compare', 'baseline'
+    ],
+    { cwd: process.cwd(), encoding: 'utf8', env: process.env }
+  );
+  assert.equal(siblingResult.status, 0, siblingResult.stderr || siblingResult.stdout);
+  const siblingOutput = String(siblingResult.stdout || '');
+  assert.equal(siblingOutput.includes('Compare Overview'), true, siblingOutput);
+  assert.equal(siblingOutput.includes('60.0 vs 30.0'), true, siblingOutput);
 
   console.log('show-throughput compare profile test passed');
 } finally {

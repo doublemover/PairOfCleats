@@ -32,4 +32,12 @@ assert.equal(
 assert.doesNotMatch(buildConfigDump.stderr || '', /\[deprecated\] build_index\.js/);
 assert.equal(typeof JSON.parse(buildConfigDump.stdout || '{}'), 'object', 'expected config dump JSON payload');
 
+const ciSuppressed = spawnSync(
+  process.execPath,
+  [path.join(root, 'search.js'), '--help'],
+  { cwd: root, encoding: 'utf8', env: { ...baseEnv, CI: '1' } }
+);
+assert.equal(ciSuppressed.status, 0, `search legacy wrapper help under CI failed: ${getCombinedOutput(ciSuppressed, { trim: true })}`);
+assert.doesNotMatch(getCombinedOutput(ciSuppressed), /\[deprecated\] search\.js is a legacy compatibility entrypoint\./);
+
 console.log('legacy entrypoint warning test passed');

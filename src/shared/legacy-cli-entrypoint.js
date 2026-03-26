@@ -1,4 +1,5 @@
 const JSON_PROGRESS_MODES = new Set(['json', 'jsonl']);
+const FALSEY_CI_VALUES = new Set(['', '0', 'false', 'no', 'off']);
 
 const readFlagValue = (args, name) => {
   const flag = `--${name}`;
@@ -19,7 +20,8 @@ const readFlagValue = (args, name) => {
 export function shouldEmitLegacyCliEntrypointWarning({ args = [], env = process.env } = {}) {
   if (env?.PAIROFCLEATS_TESTING === '1') return false;
   if (env?.PAIROFCLEATS_SUPPRESS_LEGACY_ENTRYPOINT_WARNING === '1') return false;
-  if (env?.CI === 'true') return false;
+  const ciValue = String(env?.CI || '').trim().toLowerCase();
+  if (ciValue && !FALSEY_CI_VALUES.has(ciValue)) return false;
   if (args.includes('--json')) return false;
   if (args.includes('--config-dump')) return false;
   const progressMode = readFlagValue(args, 'progress');

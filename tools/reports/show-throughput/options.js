@@ -21,6 +21,13 @@ const toResolvedRoot = (cwd, rootValue) => {
   return path.resolve(cwd, candidate);
 };
 
+const toResolvedCompareRoot = (resultsRoot, compareValue) => {
+  const candidate = String(compareValue || '').trim();
+  if (!candidate) return null;
+  if (path.isAbsolute(candidate)) return candidate;
+  return path.resolve(path.dirname(resultsRoot), candidate);
+};
+
 const toOptionalString = (value) => {
   const text = String(value || '').trim();
   return text || null;
@@ -134,12 +141,13 @@ export const resolveShowThroughputOptions = ({
   cwd = process.cwd()
 } = {}) => {
   const parsed = createShowThroughputCli({ argv, cwd }).parse();
+  const resultsRoot = toResolvedRoot(cwd, parsed.root);
   const folder = toOptionalString(parsed.folder);
   const language = toOptionalString(parsed.language);
   const compare = toOptionalString(parsed.compare);
   return {
-    resultsRoot: toResolvedRoot(cwd, parsed.root),
-    compareRoot: compare ? path.resolve(cwd, compare) : null,
+    resultsRoot,
+    compareRoot: toResolvedCompareRoot(resultsRoot, compare),
     refreshJson: parsed['refresh-json'] === true,
     deepAnalysis: parsed['deep-analysis'] === true,
     verboseOutput: parsed.verbose === true,

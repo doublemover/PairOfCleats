@@ -234,7 +234,7 @@ export const createApiRouter = ({
             name: 'PairOfCleats',
             version: toolVersion
           },
-          trustBoundary,
+          trustBoundary: buildApiTrustBoundaryStatusView(trustBoundary),
           capabilities: getApiWorkflowCapabilities({ runtimeCapabilities: runtimeManifest.runtimeCapabilities }),
           runtimeCapabilities: runtimeManifest.runtimeCapabilities,
           runtimeManifest

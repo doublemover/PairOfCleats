@@ -4,7 +4,7 @@ import { MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { getCapabilities } from '../../../src/shared/capabilities.js';
 import { getApiWorkflowCapabilities, getRuntimeCapabilityManifest } from '../../../src/shared/runtime-capability-manifest.js';
 import { getToolVersion } from '../../../tools/shared/dict-utils.js';
-import { evaluateApiTrustBoundary } from '../../../tools/api/trust-boundary.js';
+import { buildApiTrustBoundaryStatusView, evaluateApiTrustBoundary } from '../../../tools/api/trust-boundary.js';
 import { prepareFixtureApiServerCohort } from '../../helpers/api-server.js';
 
 const cohort = await prepareFixtureApiServerCohort({
@@ -23,6 +23,7 @@ const expectedTrustBoundary = evaluateApiTrustBoundary({
   authToken: 'test-token',
   corsAllowAny: false
 });
+const expectedTrustBoundaryView = buildApiTrustBoundaryStatusView(expectedTrustBoundary);
 
 const { serverInfo, requestJson, stop } = await cohort.start({
   allowedRoots: []
@@ -59,7 +60,7 @@ try {
   );
   assert.deepEqual(
     capabilities.body?.trustBoundary,
-    expectedTrustBoundary,
+    expectedTrustBoundaryView,
     'api-server /capabilities trust boundary mismatch'
   );
 } catch (err) {

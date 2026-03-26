@@ -109,6 +109,7 @@
     "smol-toml": "^1.6.0",
     "snowball-stemmers": "0.6.0",
     "svelte": "^5.54.1",
+    "tar-stream": "^3.1.7",
     "terminal-kit": "^3.1.2",
     "three": "^0.183.1",
     "tinybench": "^6.0.0",

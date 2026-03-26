@@ -267,7 +267,7 @@ export const COMMAND_REGISTRY = Object.freeze([
     helpGroup: 'Cache',
     supportTier: 'operator',
     capability: {
-      flagSetId: 'bench'
+      flagSetId: 'cache.gc'
     }
   }),
   entry('lmdb.build', ['lmdb', 'build'], 'tools/build/lmdb-index.js', 'Build LMDB indexes.', {
@@ -287,7 +287,7 @@ export const COMMAND_REGISTRY = Object.freeze([
     helpGroup: 'Report',
     supportTier: 'experimental',
     capability: {
-      flagSetId: 'bench'
+      flagSetId: 'report.compare-models'
     }
   }),
   entry('report.throughput', ['report', 'throughput'], 'tools/reports/show-throughput.js', 'Render benchmark throughput overviews.', {
