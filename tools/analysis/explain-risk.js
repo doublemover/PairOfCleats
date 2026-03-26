@@ -12,7 +12,7 @@ import {
 import {
   buildRiskExplanationPresentationFromStandalone
 } from '../../src/retrieval/output/risk-explain.js';
-import { ERROR_CODES } from '../../src/shared/error-codes.js';
+import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import {
   buildRiskFilterInput,
   filterRiskFlows,
@@ -74,7 +74,9 @@ export async function buildRiskExplainPayload({
 
   const targetChunk = chunkByUid.get(chunkUid) || null;
   if (!targetChunk) {
-    throw new Error(`Unknown chunkUid: ${chunkUid}`);
+    throw createError(ERROR_CODES.INVALID_REQUEST, `Unknown chunkUid: ${chunkUid}`, {
+      reason: 'unknown_chunk_uid'
+    });
   }
 
   const safeLoadArray = async (name) => {
@@ -318,10 +320,13 @@ export async function runRiskExplainCli(rawArgs = process.argv.slice(2)) {
     });
   } catch (err) {
     const message = err?.message || 'Failed to build risk explanation.';
-    const details = /Unknown chunkUid/i.test(message)
+    const isUnknownChunk = (
+      err?.code === ERROR_CODES.INVALID_REQUEST && err?.reason === 'unknown_chunk_uid'
+    ) || /Unknown chunkUid/i.test(message);
+    const details = isUnknownChunk
       ? buildCliErrorDetails(ERROR_CODES.INVALID_REQUEST, 'unknown_chunk_uid')
       : buildCliErrorDetails(ERROR_CODES.INTERNAL);
-    const code = /Unknown chunkUid/i.test(message)
+    const code = isUnknownChunk
       ? 'ERR_INVALID_REQUEST'
       : 'ERR_RISK_EXPLAIN';
     return emitCliError({ format, code, message, details });

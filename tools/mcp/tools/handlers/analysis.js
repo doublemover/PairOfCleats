@@ -41,16 +41,29 @@ export async function runRiskExplain(args = {}, context = {}) {
     }
   });
   reporter?.start('Building risk explanation.', { observability });
-  const result = await buildRiskExplainPayload({
-    indexDir,
-    chunkUid,
-    max: args.max,
-    filters,
-    includePartialFlows: args.includePartialFlows === true,
-    maxPartialFlows: args.maxPartialFlows
-  });
-  reporter?.done('Risk explanation ready.', { observability });
-  return attachObservability(result, observability);
+  try {
+    const result = await buildRiskExplainPayload({
+      indexDir,
+      chunkUid,
+      max: args.max,
+      filters,
+      includePartialFlows: args.includePartialFlows === true,
+      maxPartialFlows: args.maxPartialFlows
+    });
+    reporter?.done('Risk explanation ready.', { observability });
+    return attachObservability(result, observability);
+  } catch (err) {
+    const message = err?.message || 'Failed to build risk explanation.';
+    const isUnknownChunk = (
+      err?.code === ERROR_CODES.INVALID_REQUEST && err?.reason === 'unknown_chunk_uid'
+    ) || /Unknown chunkUid/i.test(message);
+    if (isUnknownChunk) {
+      throw createError(ERROR_CODES.INVALID_REQUEST, message, {
+        reason: 'unknown_chunk_uid'
+      });
+    }
+    throw err;
+  }
 }
 
 export async function runContextPack(args = {}, context = {}) {
@@ -153,15 +166,24 @@ export async function runRiskDelta(args = {}, context = {}) {
   });
   reporter?.start('Building risk delta.', { observability });
   const userConfig = loadUserConfig(repoPath);
-  const result = await buildRiskDeltaPayload({
-    repoRoot: repoPath,
-    userConfig,
-    from: fromRef,
-    to: toRef,
-    seed,
-    filters,
-    includePartialFlows: args.includePartialFlows === true
-  });
-  reporter?.done('Risk delta ready.', { observability });
-  return attachObservability(result, observability);
+  try {
+    const result = await buildRiskDeltaPayload({
+      repoRoot: repoPath,
+      userConfig,
+      from: fromRef,
+      to: toRef,
+      seed,
+      filters,
+      includePartialFlows: args.includePartialFlows === true
+    });
+    reporter?.done('Risk delta ready.', { observability });
+    return attachObservability(result, observability);
+  } catch (err) {
+    if (err?.code === ERROR_CODES.INVALID_REQUEST) {
+      throw createError(ERROR_CODES.INVALID_REQUEST, err.message, {
+        ...(err?.reason ? { reason: err.reason } : {})
+      });
+    }
+    throw err;
+  }
 }

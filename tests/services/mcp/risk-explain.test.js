@@ -54,6 +54,21 @@ await withTemporaryEnv(env, async () => {
     sinkRule: flow?.sink?.ruleId ? [flow.sink.ruleId] : [],
     flowId: flow?.flowId ? [flow.flowId] : []
   });
+
+  let invalidChunkError = null;
+  try {
+    await handleToolCall('risk_explain', {
+      repoPath: fixtureRoot,
+      chunk: 'chunk:missing-risk-explain-test'
+    });
+  } catch (err) {
+    invalidChunkError = err;
+  }
+
+  assert.ok(invalidChunkError, 'expected unknown risk-explain chunk to fail');
+  assert.equal(invalidChunkError.code, 'INVALID_REQUEST');
+  assert.equal(invalidChunkError.reason, 'unknown_chunk_uid');
+  assert.match(String(invalidChunkError.message || ''), /unknown chunkUid/i);
 });
 
 console.log('MCP risk explain test passed');

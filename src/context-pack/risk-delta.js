@@ -334,7 +334,12 @@ export async function buildRiskDeltaPayload({
   if (!fromRef || !toRef) {
     throw invalidRequest('Both from and to refs are required.');
   }
-  const parsedSeed = parseSeedRef(seed, resolvedRepoRoot);
+  let parsedSeed;
+  try {
+    parsedSeed = parseSeedRef(seed, resolvedRepoRoot);
+  } catch (err) {
+    throw invalidRequest(err?.message || 'Invalid seed.', { reason: 'invalid_seed' });
+  }
   const normalizedFilters = normalizeRiskFilters(filters);
   const validation = validateRiskFilters(normalizedFilters);
   if (!validation.ok) {

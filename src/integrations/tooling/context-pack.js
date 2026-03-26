@@ -29,6 +29,18 @@ const createContextPackRequestError = (code, message, status = 400) => {
   return error;
 };
 
+const parseContextPackSeedRef = (rawSeed, repoRoot) => {
+  try {
+    return parseSeedRef(rawSeed, repoRoot);
+  } catch (err) {
+    throw createContextPackRequestError(
+      'ERR_CONTEXT_PACK_INVALID_REQUEST',
+      err?.message || 'Invalid seed.',
+      400
+    );
+  }
+};
+
 const normalizeFederatedRepoLimit = (value) => {
   const parsed = normalizeOptionalNumber(value);
   if (!Number.isFinite(parsed)) return DEFAULT_MAX_FEDERATED_CONTEXT_PACK_REPOS;
@@ -331,7 +343,7 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
   }
 
   const seed = typeof input.seed === 'string'
-    ? parseSeedRef(input.seed, repoRoot)
+    ? parseContextPackSeedRef(input.seed, repoRoot)
     : input.seed;
   const userConfig = loadUserConfig(repoRoot);
   const indexDir = resolveIndexDir(repoRoot, 'code', userConfig);

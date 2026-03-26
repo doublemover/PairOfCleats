@@ -153,6 +153,13 @@ const federatedSearchSchema = {
   }
 };
 
+const contextPackSelectSchema = {
+  anyOf: [
+    stringListSchema,
+    federatedSelectionSchema
+  ]
+};
+
 const riskFiltersSchema = {
   type: 'object',
   additionalProperties: false,
@@ -165,10 +172,13 @@ const riskFiltersSchema = {
     sink: stringListSchema,
     flowId: stringListSchema,
     flow_id: stringListSchema,
+    'flow-id': stringListSchema,
     sourceRule: stringListSchema,
     source_rule: stringListSchema,
+    'source-rule': stringListSchema,
     sinkRule: stringListSchema,
-    sink_rule: stringListSchema
+    sink_rule: stringListSchema,
+    'sink-rule': stringListSchema
   }
 };
 
@@ -211,7 +221,7 @@ const contextPackSchema = {
     repo: { type: 'string' },
     workspacePath: { type: 'string', minLength: 1 },
     workspaceId: { type: 'string', minLength: 1 },
-    select: federatedSelectionSchema,
+    select: contextPackSelectSchema,
     includeDisabled: { type: 'boolean' },
     maxFederatedRepos: { type: 'integer', minimum: 1 },
     seed: { type: 'string', minLength: 1 },

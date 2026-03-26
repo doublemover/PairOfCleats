@@ -83,9 +83,12 @@ export async function handleRiskExplainRoute({
     return true;
   } catch (err) {
     const message = err?.message || 'Failed to build risk explanation.';
-    const status = /Unknown chunkUid/i.test(message) ? 400 : 500;
+    const isUnknownChunk = (
+      err?.code === ERROR_CODES.INVALID_REQUEST && err?.reason === 'unknown_chunk_uid'
+    ) || /Unknown chunkUid/i.test(message);
+    const status = isUnknownChunk ? 400 : 500;
     const code = status === 400 ? ERROR_CODES.INVALID_REQUEST : ERROR_CODES.INTERNAL;
-    sendError(res, status, code, message, {}, corsHeaders || {});
+    sendError(res, status, code, message, isUnknownChunk ? { reason: 'unknown_chunk_uid' } : {}, corsHeaders || {});
     return true;
   }
 }
