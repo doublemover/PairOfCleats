@@ -10,8 +10,13 @@ const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `configured-lsp-go-rust-signatures-${process.pid}-${Date.now()}`);
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
-await fs.writeFile(path.join(tempRoot, 'Cargo.toml'), '[package]\nname = "poc-signature-test"\nversion = "0.1.0"\nedition = "2021"\n');
+await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
+await fs.writeFile(
+  path.join(tempRoot, 'Cargo.toml'),
+  '[package]\nname = "poc-signature-test"\nversion = "0.1.0"\nedition = "2021"\n\n[lib]\npath = "src/lib.rs"\n'
+);
 await fs.writeFile(path.join(tempRoot, 'go.mod'), 'module example.com/poc-signature-test\n\ngo 1.22\n');
+await fs.writeFile(path.join(tempRoot, 'src', 'lib.rs'), 'fn bootstrap() {}\n', 'utf8');
 
 const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 const docsByLanguage = {
@@ -41,10 +46,28 @@ const runSingleLanguageCase = async ({
   paramTypes,
   chunkUid
 }) => {
-  const virtualPath = `.poc-vfs/src/sample.${languageId}#seg:${mode}.txt`;
   const docConfig = docsByLanguage[languageId];
   if (!docConfig) throw new Error(`missing test doc config for ${languageId}`);
+  const fileName = `sample${docConfig.ext}`;
+  const virtualPath = `.poc-vfs/src/${fileName}#seg:${mode}.txt`;
   const docText = docConfig.text;
+  const serverConfig = {
+    id: 'test',
+    cmd: process.execPath,
+    args: [serverPath, '--mode', mode],
+    languages: [languageId],
+    uriScheme: 'poc-vfs'
+  };
+  if (languageId === 'go') {
+    // Keep the test focused on signature parsing instead of host Go toolchain state.
+    serverConfig.goWorkspaceWarmup = false;
+    serverConfig.goWorkspaceModuleCmd = process.execPath;
+    serverConfig.goWorkspaceModuleArgs = ['-e', 'process.stdout.write("ok\\n");'];
+  }
+  await fs.writeFile(path.join(tempRoot, 'src', fileName), docText, 'utf8');
+  if (languageId === 'rust') {
+    await fs.writeFile(path.join(tempRoot, 'src', 'lib.rs'), docText, 'utf8');
+  }
   const result = await runToolingProviders({
     strict: true,
     repoRoot: tempRoot,
@@ -53,13 +76,7 @@ const runSingleLanguageCase = async ({
       enabledTools: ['lsp-test'],
       lsp: {
         enabled: true,
-        servers: [{
-          id: 'test',
-          cmd: process.execPath,
-          args: [serverPath, '--mode', mode],
-          languages: [languageId],
-          uriScheme: 'poc-vfs'
-        }]
+        servers: [serverConfig]
       }
     },
     cache: {
@@ -78,7 +95,7 @@ const runSingleLanguageCase = async ({
         docId: 0,
         chunkUid,
         chunkId: `chunk_${mode}`,
-        file: `src/sample.${languageId}`,
+        file: `src/${fileName}`,
         segmentUid: null,
         segmentId: null,
         range: { start: 0, end: docText.length }

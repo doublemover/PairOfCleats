@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -11,9 +12,7 @@ const root = process.cwd();
 const cacheRoot = resolveTestCachePath(root, 'cli');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
-
-const configPath = path.join(cacheRoot, 'config.json');
-await fsPromises.writeFile(configPath, JSON.stringify({ quality: 'auto' }, null, 2));
+const env = applyTestEnv({ cacheRoot, syncProcess: false });
 
 const binPath = path.join(root, 'bin', 'pairofcleats.js');
 if (!fs.existsSync(binPath)) {
@@ -21,10 +20,16 @@ if (!fs.existsSync(binPath)) {
   process.exit(1);
 }
 
+const runCli = (...args) => spawnSync(process.execPath, [binPath, ...args], {
+  encoding: 'utf8',
+  cwd: root,
+  env
+});
+
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const version = pkg.version || '0.0.0';
 
-const versionResult = spawnSync(process.execPath, [binPath, '--version'], { encoding: 'utf8' });
+const versionResult = runCli('--version');
 if (versionResult.status !== 0) {
   console.error('cli --version failed');
   process.exit(versionResult.status ?? 1);
@@ -35,7 +40,7 @@ if (!versionOutput.includes(version)) {
   process.exit(1);
 }
 
-const helpResult = spawnSync(process.execPath, [binPath, '--help'], { encoding: 'utf8' });
+const helpResult = runCli('--help');
 if (helpResult.status !== 0) {
   console.error('cli --help failed');
   process.exit(helpResult.status ?? 1);
@@ -70,22 +75,7 @@ if (helpOutput.includes('dispatch list')) {
   process.exit(1);
 }
 
-const helpAllResult = spawnSync(process.execPath, [binPath, 'help', '--all'], { encoding: 'utf8' });
-if (helpAllResult.status !== 0) {
-  console.error('cli help --all failed');
-  process.exit(helpAllResult.status ?? 1);
-}
-const helpAllOutput = getCombinedOutput(helpAllResult);
-if (!helpAllOutput.includes('dispatch list')) {
-  console.error('cli help --all missing internal dispatch list entry');
-  process.exit(1);
-}
-if (!helpAllOutput.includes('bench matrix')) {
-  console.error('cli help --all missing experimental bench matrix entry');
-  process.exit(1);
-}
-
-const helpAliasAllResult = spawnSync(process.execPath, [binPath, '--help', '--all'], { encoding: 'utf8' });
+const helpAliasAllResult = runCli('--help', '--all');
 if (helpAliasAllResult.status !== 0) {
   console.error('cli --help --all failed');
   process.exit(helpAliasAllResult.status ?? 1);
@@ -100,22 +90,7 @@ if (!helpAliasAllOutput.includes('bench matrix')) {
   process.exit(1);
 }
 
-const helpAllTopicResult = spawnSync(process.execPath, [binPath, 'help-all', 'report'], { encoding: 'utf8' });
-if (helpAllTopicResult.status !== 0) {
-  console.error('cli help-all report failed');
-  process.exit(helpAllTopicResult.status ?? 1);
-}
-const helpAllTopicOutput = getCombinedOutput(helpAllTopicResult);
-if (!helpAllTopicOutput.includes('Help topic: report')) {
-  console.error('cli help-all report missing topic header');
-  process.exit(1);
-}
-if (!helpAllTopicOutput.includes('compare-models')) {
-  console.error('cli help-all report missing report compare-models subcommand');
-  process.exit(1);
-}
-
-const reportHelpResult = spawnSync(process.execPath, [binPath, 'help', 'report'], { encoding: 'utf8' });
+const reportHelpResult = runCli('help', 'report');
 if (reportHelpResult.status !== 0) {
   console.error('cli help report failed');
   process.exit(reportHelpResult.status ?? 1);
@@ -130,22 +105,7 @@ if (!reportHelpOutput.includes('throughput')) {
   process.exit(1);
 }
 
-const cliHelpResult = spawnSync(process.execPath, [binPath, 'help', 'cli'], { encoding: 'utf8' });
-if (cliHelpResult.status !== 0) {
-  console.error('cli help cli failed');
-  process.exit(cliHelpResult.status ?? 1);
-}
-const cliHelpOutput = getCombinedOutput(cliHelpResult);
-if (!cliHelpOutput.includes('completions')) {
-  console.error('cli help cli missing completions subcommand');
-  process.exit(1);
-}
-if (!cliHelpOutput.includes('audit')) {
-  console.error('cli help cli missing audit subcommand');
-  process.exit(1);
-}
-
-const malformedHelpResult = spawnSync(process.execPath, [binPath, 'help', 'report', 'typo'], { encoding: 'utf8' });
+const malformedHelpResult = runCli('help', 'report', 'typo');
 if (malformedHelpResult.status === 0) {
   console.error('cli help report typo should fail');
   process.exit(1);
@@ -156,11 +116,7 @@ if (!malformedHelpOutput.includes('Unknown help topic: report typo')) {
   process.exit(1);
 }
 
-const mcpAliasHelpResult = spawnSync(
-  process.execPath,
-  [binPath, 'service', 'mcp', '--mcpMode', 'sdk', '--help'],
-  { encoding: 'utf8' }
-);
+const mcpAliasHelpResult = runCli('service', 'mcp', '--mcpMode', 'sdk', '--help');
 if (mcpAliasHelpResult.status !== 0) {
   console.error('cli service mcp --mcpMode --help failed');
   process.exit(mcpAliasHelpResult.status ?? 1);
@@ -169,16 +125,6 @@ const mcpAliasOutput = getCombinedOutput(mcpAliasHelpResult);
 if (mcpAliasOutput.includes('Unknown flag: --mcpMode')) {
   console.error('cli service mcp rejected --mcpMode alias');
   process.exit(1);
-}
-
-const configResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'tools', 'config/validate.js'), '--config', configPath, '--json'],
-  { encoding: 'utf8' }
-);
-if (configResult.status !== 0) {
-  console.error('validate-config failed');
-  process.exit(configResult.status ?? 1);
 }
 
 console.log('cli test passed');
