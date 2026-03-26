@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { loadJsonArrayArtifact } from '../../src/shared/artifact-io.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { loadUserConfig } from '../dict-utils/config.js';
 import { getIndexDir, getRepoRoot } from '../dict-utils/paths/repo.js';
 
@@ -437,7 +437,7 @@ const printUsage = () => {
   );
 };
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (isDirectExecution(import.meta.url)) {
   const argv = process.argv.slice(2);
   const kind = readFlagValue(argv, 'kind');
   const query = readFlagValue(argv, 'symbol') || '';

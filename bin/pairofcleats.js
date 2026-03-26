@@ -37,7 +37,10 @@ if (command === 'help') {
 
 if (!command || isHelpCommand(command) || isHelpAllCommand(command)) {
   printHelp({
-    includeAll: isHelpAllCommand(command) || args.includes('--all')
+    includeAll: isHelpAllCommand(command) || args.includes('--all'),
+    topicTokens: (isHelpCommand(command) || isHelpAllCommand(command))
+      ? args.slice(1)
+      : []
   });
   process.exit(0);
 }
@@ -526,7 +529,7 @@ function resolveCommand(primary, rest) {
       return { script: 'tools/api/server.js', extraArgs: [], args: rest };
     }
     if (sub === 'mcp') {
-      validateArgs(rest, ['repo', 'mcp-mode'], ['repo', 'mcp-mode']);
+      validateArgs(rest, ['repo', 'mcp-mode', 'mcpMode'], ['repo', 'mcp-mode', 'mcpMode']);
       return { script: 'tools/mcp/server.js', extraArgs: [], args: rest };
     }
     if (sub === 'indexer') {
@@ -1249,6 +1252,13 @@ function printTopicHelp(topicTokens, { includeAll = false } = {}) {
     ];
     process.stderr.write(`${lines.join('\n')}\n`);
     return;
+  }
+
+  if (topicTokens.length > 1) {
+    failCli(`Unknown help topic: ${topicTokens.join(' ')}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
   }
 
   const topic = topicTokens[0];

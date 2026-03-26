@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import {
   coerceClampedFraction,
   coerceFiniteNumber,
@@ -395,7 +395,7 @@ const main = async () => {
   });
 };
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url)) {
   main().catch((error) => {
     console.error(`tooling lsp slo gate failed: ${error?.message || String(error)}`);
     process.exit(1);

@@ -85,6 +85,21 @@ if (!helpAllOutput.includes('bench matrix')) {
   process.exit(1);
 }
 
+const helpAllTopicResult = spawnSync(process.execPath, [binPath, 'help-all', 'report'], { encoding: 'utf8' });
+if (helpAllTopicResult.status !== 0) {
+  console.error('cli help-all report failed');
+  process.exit(helpAllTopicResult.status ?? 1);
+}
+const helpAllTopicOutput = getCombinedOutput(helpAllTopicResult);
+if (!helpAllTopicOutput.includes('Help topic: report')) {
+  console.error('cli help-all report missing topic header');
+  process.exit(1);
+}
+if (!helpAllTopicOutput.includes('compare-models')) {
+  console.error('cli help-all report missing report compare-models subcommand');
+  process.exit(1);
+}
+
 const reportHelpResult = spawnSync(process.execPath, [binPath, 'help', 'report'], { encoding: 'utf8' });
 if (reportHelpResult.status !== 0) {
   console.error('cli help report failed');
@@ -112,6 +127,32 @@ if (!cliHelpOutput.includes('completions')) {
 }
 if (!cliHelpOutput.includes('audit')) {
   console.error('cli help cli missing audit subcommand');
+  process.exit(1);
+}
+
+const malformedHelpResult = spawnSync(process.execPath, [binPath, 'help', 'report', 'typo'], { encoding: 'utf8' });
+if (malformedHelpResult.status === 0) {
+  console.error('cli help report typo should fail');
+  process.exit(1);
+}
+const malformedHelpOutput = getCombinedOutput(malformedHelpResult);
+if (!malformedHelpOutput.includes('Unknown help topic: report typo')) {
+  console.error('cli help report typo missing unknown-topic error');
+  process.exit(1);
+}
+
+const mcpAliasHelpResult = spawnSync(
+  process.execPath,
+  [binPath, 'service', 'mcp', '--mcpMode', 'sdk', '--help'],
+  { encoding: 'utf8' }
+);
+if (mcpAliasHelpResult.status !== 0) {
+  console.error('cli service mcp --mcpMode --help failed');
+  process.exit(mcpAliasHelpResult.status ?? 1);
+}
+const mcpAliasOutput = getCombinedOutput(mcpAliasHelpResult);
+if (mcpAliasOutput.includes('Unknown flag: --mcpMode')) {
+  console.error('cli service mcp rejected --mcpMode alias');
   process.exit(1);
 }
 

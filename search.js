@@ -1,16 +1,9 @@
 #!/usr/bin/env node
-import { pathToFileURL } from 'node:url';
-import path from 'node:path';
 import { emitLegacyCliEntrypointWarning } from './src/shared/legacy-cli-entrypoint.js';
+import { isDirectExecution } from './src/shared/direct-execution.js';
 import { runCli } from './src/retrieval/cli/search-entry.js';
 
-const isDirectExecution = () => {
-  const executedPath = process.argv[1];
-  if (!executedPath) return false;
-  return import.meta.url === pathToFileURL(path.resolve(executedPath)).href;
-};
-
-if (isDirectExecution()) {
+if (isDirectExecution(import.meta.url)) {
   emitLegacyCliEntrypointWarning({
     entrypoint: 'search.js',
     replacement: 'pairofcleats search',

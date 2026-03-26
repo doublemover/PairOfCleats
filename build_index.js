@@ -2,7 +2,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { parseBuildArgs } from './src/index/build/args.js';
 import { buildIndex } from './src/integrations/core/index.js';
 import { createDisplay } from './src/shared/cli/display.js';
@@ -11,6 +10,7 @@ import { buildAutoPolicy } from './src/shared/auto-policy.js';
 import { parseObservabilityContextEnv } from './src/shared/observability.js';
 import { resolveRuntimeEnvelope } from './src/shared/runtime-envelope.js';
 import { createAbortControllerWithHandlers, isAbortError } from './src/shared/abort.js';
+import { isDirectExecution } from './src/shared/direct-execution.js';
 import { setCacheRebuildEnv, setVerboseEnv } from './src/shared/env.js';
 import { emitLegacyCliEntrypointWarning } from './src/shared/legacy-cli-entrypoint.js';
 import { getCurrentBuildInfo, getRepoCacheRoot, getToolVersion, loadUserConfig, resolveRepoRoot } from './tools/shared/dict-utils.js';
@@ -208,13 +208,7 @@ export const runCli = async (options = {}) => {
   }
 };
 
-const isDirectExecution = () => {
-  const executedPath = process.argv[1];
-  if (!executedPath) return false;
-  return import.meta.url === pathToFileURL(path.resolve(executedPath)).href;
-};
-
-if (isDirectExecution()) {
+if (isDirectExecution(import.meta.url)) {
   emitLegacyCliEntrypointWarning({
     entrypoint: 'build_index.js',
     replacement: 'pairofcleats index build',

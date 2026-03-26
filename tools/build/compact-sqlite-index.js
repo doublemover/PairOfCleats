@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { createToolDisplay } from '../shared/cli-display.js';
 import { ensureDiskSpace } from '../../src/shared/disk-space.js';
 import { getIndexDir, resolveRepoConfig, resolveSqlitePaths } from '../shared/dict-utils.js';
@@ -505,8 +505,7 @@ export async function compactDatabase(input) {
   return { skipped: false };
 }
 
-const argvEntry = typeof process.argv[1] === 'string' ? process.argv[1] : '';
-const isDirectRun = argvEntry ? import.meta.url === pathToFileURL(argvEntry).href : false;
+const isDirectRun = isDirectExecution(import.meta.url);
 if (isDirectRun) {
   const argv = createCli({
     scriptName: 'pairofcleats sqlite compact',
