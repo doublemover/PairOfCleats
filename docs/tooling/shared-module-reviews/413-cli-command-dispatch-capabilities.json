@@ -1,0 +1,253 @@
+{
+  "issueId": "413",
+  "title": "Review shared CLI, command, dispatch, capability, and tooling support modules",
+  "reviewDate": "2026-03-26",
+  "scope": "Primary ownership for src/shared CLI, command-registry, dispatch, capability, completions, legacy entrypoint, and tooling-bin helpers assigned to #413 in the shared-module ledger.",
+  "summary": {
+    "ownedFileCount": 25,
+    "overallAssessment": "This shared surface is mostly healthy and already acts as the repo's canonical command and CLI contract layer. The main cleanup needs are not broad rewrites. They are targeted: the CLI display family is oversized, dispatch metadata is projected through too many thin layers, and one dispatch runtime-env helper still reaches back into tools/shared for policy resolution. Capability and command metadata should remain centralized here, but a few large files need clearer internal boundaries.",
+    "runtimeRisks": [
+      {
+        "target": "src/shared/cli/display.js",
+        "reason": "This is the runtime display orchestrator for interactive and JSONL progress, and it currently mixes safe-stream guards, task state, render scheduling, task lifecycle, and log routing in one file."
+      },
+      {
+        "target": "src/shared/cli/display/render.js",
+        "reason": "The rendering pipeline is large enough that palette management, layout calculation, and terminal row diffing are hard to reason about as one surface."
+      },
+      {
+        "target": "src/shared/runtime-capability-manifest.js",
+        "reason": "CLI flag metadata, API route surface declarations, editor command specs, MCP tool exposure, and runtime capability probing all meet here, so drift in any one sub-surface is expensive."
+      }
+    ],
+    "maintainabilityOnlyNotes": [
+      {
+        "target": "src/shared/dispatch/manifest.js",
+        "reason": "This is a very thin projection over dispatch registry data and likely does not need to stay separate from the dispatch facade long-term."
+      },
+      {
+        "target": "src/shared/dispatch/registry.js",
+        "reason": "It is effectively a filtered projection of command-registry data, which means command metadata is being cloned into a second shared projection layer."
+      },
+      {
+        "target": "src/shared/command-aliases.js",
+        "reason": "The current package-script replacement surface is almost empty and should either stay intentionally tiny or be folded into command-surface reporting if it remains documentation-only."
+      }
+    ],
+    "highestPriorityFollowUps": [
+      {
+        "priority": "high",
+        "target": "src/shared/cli/display.js",
+        "action": "split",
+        "reason": "Separate safe writable-stream handling, task-state mutation, and progress/log emission from the display facade."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/cli/display/render.js",
+        "action": "split",
+        "reason": "Separate palette and theme derivation, layout calculation, and terminal diff rendering into narrower helpers under the display family."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/command-registry.js",
+        "action": "split",
+        "reason": "Keep the command table authoritative here, but split registry data from query/projection helpers so completions, help, capabilities, and dispatch do not all pull through one broad module."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/runtime-capability-manifest.js",
+        "action": "split",
+        "reason": "Separate static surface specifications from manifest assembly so editor, API, and MCP surface declarations do not drift inside one large runtime file."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/dispatch/env.js",
+        "action": "move",
+        "reason": "It currently depends on tools/shared dict-utils helpers even though the file lives in src/shared. Either move the policy helpers down into src/shared or relocate this wrapper closer to the CLI entrypoint."
+      },
+      {
+        "priority": "medium",
+        "target": "src/shared/dispatch/manifest.js",
+        "action": "merge",
+        "reason": "Collapse the thin dispatch manifest projection into a smaller dispatch facade so command-registry-derived metadata is not spread across multiple near-empty wrappers."
+      }
+    ]
+  },
+  "entries": [
+    {
+      "path": "src/shared/capabilities.js",
+      "consumerCount": 8,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Used by auto-policy, capability-gate, config dump, and runtime capability manifest generation as the optional runtime probe surface.",
+      "recommendation": "Keep as the runtime capability probe facade and avoid duplicating optional-dependency checks elsewhere."
+    },
+    {
+      "path": "src/shared/cli-completions.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Single-purpose command-completion generator driven by the canonical command registry.",
+      "recommendation": "Keep, but preserve the command-registry dependency as read-only projection logic rather than letting shell-specific behavior leak into registry code."
+    },
+    {
+      "path": "src/shared/cli-options.js",
+      "consumerCount": 11,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Owns canonical CLI option schemas for build, bench, service, cache GC, and compare-models flows, plus argument validation helpers.",
+      "recommendation": "Split static option-set declarations from validation helpers so command metadata stays easy to audit and surface-specific validation logic does not accumulate in one file."
+    },
+    {
+      "path": "src/shared/cli.js",
+      "consumerCount": 128,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "The main shared yargs wrapper used across CLI and tool surfaces.",
+      "recommendation": "Keep as the canonical CLI parser facade and resist adding command-specific policy here."
+    },
+    {
+      "path": "src/shared/cli/ansi-utils.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Low-level ANSI helpers used by retrieval output formatting surfaces.",
+      "recommendation": "Keep as the ANSI primitive layer and avoid duplicating escape-handling helpers in output formatters."
+    },
+    {
+      "path": "src/shared/cli/display.js",
+      "consumerCount": 1,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Single display facade, but it owns safe writable-stream wrapping, interactive render scheduling, task lifecycle, and JSONL progress/log routing.",
+      "recommendation": "Split stream safety, state mutation, and task/log event routing into narrower internal modules while keeping createDisplay() as the public facade."
+    },
+    {
+      "path": "src/shared/cli/display/bar.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Focused bar-style and gradient construction helper used only by render.js.",
+      "recommendation": "Keep as a display-internal bar-rendering module."
+    },
+    {
+      "path": "src/shared/cli/display/colors.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Color math and ANSI composition helper for the display rendering family.",
+      "recommendation": "Keep as the shared display color primitive layer."
+    },
+    {
+      "path": "src/shared/cli/display/progress.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Owns progress-specific calculations such as overall progress and per-task extras.",
+      "recommendation": "Keep separate from raw rendering so progress math remains isolated and testable."
+    },
+    {
+      "path": "src/shared/cli/display/render.js",
+      "consumerCount": 1,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Large renderer that mixes palette derivation, layout, animated bar selection, and terminal diff writes.",
+      "recommendation": "Split theme/palette resolution, layout computation, and row-diff rendering into narrower helpers under the display family."
+    },
+    {
+      "path": "src/shared/cli/display/terminal.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Small adapter for terminal-kit normalization and terminal width resolution.",
+      "recommendation": "Keep as the terminal adapter boundary for the display family."
+    },
+    {
+      "path": "src/shared/cli/display/text.js",
+      "consumerCount": 3,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Formatting and ANSI-safe text helpers used throughout the display family.",
+      "recommendation": "Keep as the text-formatting helper layer for CLI display behavior."
+    },
+    {
+      "path": "src/shared/cli/noop-task.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Small compatibility helper for surfaces that accept optional display task factories.",
+      "recommendation": "Keep as the no-op task fallback rather than reimplementing null-task objects at callsites."
+    },
+    {
+      "path": "src/shared/cli/progress-events.js",
+      "consumerCount": 6,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Protocol definition used by CLI display, bench, TUI supervisor, and runtime capability reporting.",
+      "recommendation": "Keep as the authoritative progress protocol contract and avoid copying event names into local modules."
+    },
+    {
+      "path": "src/shared/cli/progress-stream.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Line decoder for progress protocol streams used by bench and TUI supervisor code.",
+      "recommendation": "Keep as the shared progress-line decoding helper."
+    },
+    {
+      "path": "src/shared/cli/stdout-guard.js",
+      "consumerCount": 3,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Protects JSON-mode stdout contracts in setup and install tooling.",
+      "recommendation": "Keep as the stdout JSON contract guard rather than embedding output-contract checks in each tool."
+    },
+    {
+      "path": "src/shared/command-aliases.js",
+      "consumerCount": 2,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Small documentation and audit helper for package-script replacement metadata.",
+      "recommendation": "Keep intentionally tiny, but do not let it become a second command-registry surface unless package-script replacements meaningfully expand."
+    },
+    {
+      "path": "src/shared/command-registry.js",
+      "consumerCount": 7,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Canonical command table used by the CLI entrypoint, completions, command-alias reporting, dispatch registry, capability manifest, and command-surface audit tooling.",
+      "recommendation": "Keep this as the single source of truth, but split the static registry data from query/projection helpers so dispatch, help, and completion logic do not all depend on one broad mixed module."
+    },
+    {
+      "path": "src/shared/dispatch/env.js",
+      "consumerCount": 1,
+      "classifications": ["move", "document", "test"],
+      "consumerNotes": "Only the CLI entrypoint uses this shared wrapper, and it currently depends on tools/shared dict-utils helpers plus runtime-envelope logic.",
+      "recommendation": "Either move the dict-utils runtime-policy helpers down into src/shared or relocate this wrapper closer to the CLI entrypoint so src/shared does not depend on tools/shared for dispatch env resolution."
+    },
+    {
+      "path": "src/shared/dispatch/manifest.js",
+      "consumerCount": 1,
+      "classifications": ["merge", "document", "test"],
+      "consumerNotes": "Very thin projection layer over dispatch registry data for tooling visibility.",
+      "recommendation": "Merge into a smaller dispatch facade or collapse with registry helpers so dispatch metadata is not spread across multiple near-empty wrappers."
+    },
+    {
+      "path": "src/shared/dispatch/registry.js",
+      "consumerCount": 2,
+      "classifications": ["merge", "document", "test"],
+      "consumerNotes": "Filtered command-registry projection that clones dispatch-listed entries and rebuilds path/id maps.",
+      "recommendation": "Collapse projection logic closer to command-registry or a single dispatch facade so metadata cloning is minimized."
+    },
+    {
+      "path": "src/shared/dispatch/resolve.js",
+      "consumerCount": 1,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Small command-path matcher over the dispatch registry.",
+      "recommendation": "Keep as the dispatch request resolver, but leave it thin and data-driven."
+    },
+    {
+      "path": "src/shared/legacy-cli-entrypoint.js",
+      "consumerCount": 0,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Small compatibility helper for warning suppression and migration messaging from legacy entrypoints.",
+      "recommendation": "Keep as the legacy-entrypoint compatibility shim until those wrappers are fully retired."
+    },
+    {
+      "path": "src/shared/runtime-capability-manifest.js",
+      "consumerCount": 7,
+      "classifications": ["split", "document", "test"],
+      "consumerNotes": "Capability manifest builder that assembles runtime probes, CLI flag sets, API routes, MCP tool exposure, TUI capabilities, and editor command specs.",
+      "recommendation": "Split static surface declarations from manifest assembly so editor/API/MCP/CLI sub-surfaces can evolve without growing one broad runtime metadata file."
+    },
+    {
+      "path": "src/shared/tooling-bin-dirs.js",
+      "consumerCount": 3,
+      "classifications": ["keep", "document", "test"],
+      "consumerNotes": "Shared platform-aware search path expansion for command resolution and tooling utilities.",
+      "recommendation": "Keep as the canonical tooling-bin search helper and avoid reimplementing platform-specific PATH augmentation in callers."
+    }
+  ]
+}
