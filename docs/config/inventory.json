@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-26T10:48:27.684Z",
+  "generatedAt": "2026-03-26T11:48:39.495Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3526,6 +3526,7 @@
         "tests/tooling/doctor/command-profile-probe-cache-disabled.test.js",
         "tests/tooling/doctor/command-profile-runtime-bin-dirs.test.js",
         "tests/tooling/doctor/command-profile-tooling-dir-precedence.test.js",
+        "tests/tooling/shared-module-performance.test.js",
         "tools/bench/ab-sweep.js",
         "tools/bench/index/scheduler-store-format.js",
         "tools/bench/language-repos.js",
@@ -3535,6 +3536,7 @@
         "tools/config/inventory.js",
         "tools/release/check.js",
         "tools/release/verify-surface.js",
+        "tools/testing/shared-module-performance.js",
         "tools/tooling/utils.js"
       ]
     },
@@ -6178,6 +6180,14 @@
         ]
       },
       {
+        "file": "tools/testing/shared-module-performance.js",
+        "flags": [
+          "baseline",
+          "check",
+          "json"
+        ]
+      },
+      {
         "file": "tools/tooling/detect.js",
         "flags": [
           "json",
@@ -6312,7 +6322,7 @@
     "duplicated": [
       {
         "flag": "json",
-        "count": 73,
+        "count": 74,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -6380,6 +6390,7 @@
           "tools/setup/setup.js",
           "tools/sqlite/verify-extensions.js",
           "tools/testing/shared-module-migration.js",
+          "tools/testing/shared-module-performance.js",
           "tools/tooling/detect.js",
           "tools/tooling/doctor.js",
           "tools/tooling/install.js",
@@ -6805,6 +6816,19 @@
         ]
       },
       {
+        "flag": "baseline",
+        "count": 7,
+        "files": [
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/bench/language/tooling-lsp-guardrail.js",
+          "tools/ci/tooling-lsp-replay-gate.js",
+          "tools/ci/tooling-lsp-slo-gate.js",
+          "tools/reports/combined-summary.js",
+          "tools/reports/compare-models.js",
+          "tools/testing/shared-module-performance.js"
+        ]
+      },
+      {
         "flag": "focus",
         "count": 7,
         "files": [
@@ -6890,18 +6914,6 @@
           "tools/eval/run.js",
           "tools/reports/compare-models.js",
           "tools/reports/parity-matrix.js"
-        ]
-      },
-      {
-        "flag": "baseline",
-        "count": 6,
-        "files": [
-          "tools/bench/embeddings/model-bakeoff.js",
-          "tools/bench/language/tooling-lsp-guardrail.js",
-          "tools/ci/tooling-lsp-replay-gate.js",
-          "tools/ci/tooling-lsp-slo-gate.js",
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js"
         ]
       },
       {
@@ -7373,6 +7385,15 @@
         ]
       },
       {
+        "flag": "check",
+        "count": 3,
+        "files": [
+          "tools/docs/generated-surfaces.js",
+          "tools/testing/shared-module-migration.js",
+          "tools/testing/shared-module-performance.js"
+        ]
+      },
+      {
         "flag": "dataset",
         "count": 3,
         "files": [
@@ -7595,14 +7616,6 @@
         "files": [
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js"
-        ]
-      },
-      {
-        "flag": "check",
-        "count": 2,
-        "files": [
-          "tools/docs/generated-surfaces.js",
-          "tools/testing/shared-module-migration.js"
         ]
       },
       {
