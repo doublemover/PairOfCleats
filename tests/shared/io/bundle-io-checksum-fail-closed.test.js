@@ -4,7 +4,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Packr, Unpackr } from 'msgpackr';
 import { readBundleFile, writeBundleFile } from '../../../src/shared/bundle-io.js';
+import { MAX_BUNDLE_CHECKSUM_BYTES } from '../../../src/shared/bundle-contract.js';
+import { sha1 } from '../../../src/shared/hash.js';
 import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';
+import { stableStringify } from '../../../src/shared/stable-json.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -20,6 +23,12 @@ const bundle = {
   file: 'src/sample.ts',
   chunks: [{ chunkUid: 'ck:test:1', text: 'export const answer = 42;' }]
 };
+const largeText = 'x'.repeat(MAX_BUNDLE_CHECKSUM_BYTES + 1024);
+const oversizedBundle = {
+  file: 'src/oversized.ts',
+  chunks: [{ chunkUid: 'ck:oversized:1', text: largeText }]
+};
+const checksumFor = (value) => sha1(stableStringify(value));
 
 const writeTamperedEnvelope = async (mutate) => {
   const raw = await fs.readFile(bundlePath);
@@ -78,6 +87,28 @@ try {
   assert.equal(schemaMismatch?.ok, false, 'expected unsupported checksum schema to fail closed');
   assert.equal(schemaMismatch?.reason, 'unsupported bundle checksum schema');
 
+  await writeBundleFile({
+    bundlePath,
+    bundle,
+    format: 'msgpack'
+  });
+  await writeTamperedEnvelope((envelope) => {
+    envelope.checksum = { algo: 'sha1', value: checksumFor(bundle) };
+  });
+  const legacyMsgpack = await readBundleFile(bundlePath, { format: 'msgpack' });
+  assert.equal(legacyMsgpack?.ok, true, 'expected legacy msgpack checksum envelope to remain readable');
+
+  await writeBundleFile({
+    bundlePath,
+    bundle: oversizedBundle,
+    format: 'msgpack'
+  });
+  await writeTamperedEnvelope((envelope) => {
+    envelope.checksum = { schemaVersion: 2, algo: 'sha1', value: checksumFor(oversizedBundle) };
+  });
+  const oversizedMsgpack = await readBundleFile(bundlePath, { format: 'msgpack' });
+  assert.equal(oversizedMsgpack?.ok, true, 'expected oversized msgpack bundle to load when checksum verification is skipped');
+
   const jsonWrite = await writeBundleFile({
     bundlePath: jsonBundlePath,
     bundle,
@@ -104,6 +135,60 @@ try {
   const jsonSchemaMismatch = await readBundleFile(jsonBundlePath, { format: 'json' });
   assert.equal(jsonSchemaMismatch?.ok, false, 'expected json unsupported checksum schema to fail closed');
   assert.equal(jsonSchemaMismatch?.reason, 'unsupported bundle checksum schema');
+
+  checksumPayload.checksumSchemaVersion = undefined;
+  checksumPayload.checksum = { algo: 'sha1', value: checksumFor(bundle) };
+  await fs.writeFile(jsonChecksumPath, `${JSON.stringify(checksumPayload)}\n`, 'utf8');
+  const legacyJson = await readBundleFile(jsonBundlePath, { format: 'json' });
+  assert.equal(legacyJson?.ok, true, 'expected legacy json checksum envelope to remain readable');
+
+  await writeBundleFile({
+    bundlePath: jsonBundlePath,
+    bundle: oversizedBundle,
+    format: 'json'
+  });
+  const oversizedChecksumPayload = {
+    format: 'pairofcleats.bundle',
+    version: 1,
+    checksumSchemaVersion: 2,
+    checksum: {
+      schemaVersion: 2,
+      algo: 'sha1',
+      value: checksumFor(oversizedBundle)
+    }
+  };
+  await fs.writeFile(jsonChecksumPath, `${JSON.stringify(oversizedChecksumPayload)}\n`, 'utf8');
+  const oversizedJson = await readBundleFile(jsonBundlePath, { format: 'json' });
+  assert.equal(oversizedJson?.ok, true, 'expected oversized json bundle to load when checksum verification is skipped');
+
+  await writeBundleFile({
+    bundlePath: jsonBundlePath,
+    bundle,
+    format: 'json'
+  });
+  const checksumBeforeFailedRewrite = await fs.readFile(jsonChecksumPath, 'utf8');
+  const circularBundle = {
+    file: 'src/circular.ts',
+    chunks: []
+  };
+  circularBundle.self = circularBundle;
+  await assert.rejects(
+    writeBundleFile({
+      bundlePath: jsonBundlePath,
+      bundle: circularBundle,
+      format: 'json'
+    }),
+    /circular|cyclic/i,
+    'expected circular json bundle rewrite to fail'
+  );
+  const checksumAfterFailedRewrite = await fs.readFile(jsonChecksumPath, 'utf8');
+  assert.equal(
+    checksumAfterFailedRewrite,
+    checksumBeforeFailedRewrite,
+    'expected prior checksum sidecar to remain after failed json rewrite'
+  );
+  const preservedRead = await readBundleFile(jsonBundlePath, { format: 'json' });
+  assert.equal(preservedRead?.ok, true, 'expected prior json bundle to stay readable after failed rewrite');
 
   const typedBundle = {
     file: 'src/vector.ts',

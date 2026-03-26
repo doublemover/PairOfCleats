@@ -85,6 +85,21 @@ if (!helpAllOutput.includes('bench matrix')) {
   process.exit(1);
 }
 
+const helpAliasAllResult = spawnSync(process.execPath, [binPath, '--help', '--all'], { encoding: 'utf8' });
+if (helpAliasAllResult.status !== 0) {
+  console.error('cli --help --all failed');
+  process.exit(helpAliasAllResult.status ?? 1);
+}
+const helpAliasAllOutput = getCombinedOutput(helpAliasAllResult);
+if (!helpAliasAllOutput.includes('dispatch list')) {
+  console.error('cli --help --all missing internal dispatch list entry');
+  process.exit(1);
+}
+if (!helpAliasAllOutput.includes('bench matrix')) {
+  console.error('cli --help --all missing experimental bench matrix entry');
+  process.exit(1);
+}
+
 const helpAllTopicResult = spawnSync(process.execPath, [binPath, 'help-all', 'report'], { encoding: 'utf8' });
 if (helpAllTopicResult.status !== 0) {
   console.error('cli help-all report failed');

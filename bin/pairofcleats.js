@@ -39,7 +39,7 @@ if (!command || isHelpCommand(command) || isHelpAllCommand(command)) {
   printHelp({
     includeAll: isHelpAllCommand(command) || args.includes('--all'),
     topicTokens: (isHelpCommand(command) || isHelpAllCommand(command))
-      ? args.slice(1)
+      ? args.slice(1).filter((arg) => arg !== '--all')
       : []
   });
   process.exit(0);

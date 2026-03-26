@@ -92,6 +92,54 @@ const estimatePayloadBytes = (value) => {
   return Math.floor(estimate);
 };
 
+const isSupportedChecksumSchemaVersion = (value) => (
+  value == null || value === '' || Number(value) === BUNDLE_CHECKSUM_SCHEMA_VERSION
+);
+
+const readChecksumDescriptor = (value) => {
+  if (!isPlainObject(value)) {
+    return { ok: false, reason: 'invalid bundle checksum' };
+  }
+  if (!isSupportedChecksumSchemaVersion(value.schemaVersion)) {
+    return { ok: false, reason: 'unsupported bundle checksum schema' };
+  }
+  const algo = typeof value.algo === 'string' ? value.algo.trim() : '';
+  const checksumValue = typeof value.value === 'string' ? value.value.trim() : '';
+  if (!algo || !checksumValue) {
+    return { ok: false, reason: 'invalid bundle checksum' };
+  }
+  return {
+    ok: true,
+    checksum: {
+      algo,
+      value: checksumValue
+    }
+  };
+};
+
+const verifyBundleChecksum = async ({ bundle, checksum }) => {
+  const normalized = normalizeBundlePayload(bundle);
+  const estimate = estimateJsonBytes(normalized);
+  if (estimate && estimate > MAX_BUNDLE_CHECKSUM_BYTES) {
+    return { ok: true, bundle: normalized, verificationSkipped: true };
+  }
+  if (checksum.algo === 'xxh64') {
+    const expected = await checksumBundlePayload(normalized);
+    if (!expected || expected.value !== checksum.value) {
+      return { ok: false, reason: 'bundle checksum mismatch' };
+    }
+    return { ok: true, bundle: normalized };
+  }
+  if (checksum.algo === 'sha1') {
+    const expected = sha1(stableStringify(normalized));
+    if (expected !== checksum.value) {
+      return { ok: false, reason: 'bundle checksum mismatch' };
+    }
+    return { ok: true, bundle: normalized };
+  }
+  return { ok: false, reason: 'unsupported bundle checksum algo' };
+};
+
 const shouldOffloadBundleTransform = (payloadBytes) => Number.isFinite(payloadBytes)
   && !bundleTransformWorkerDisabled
   && payloadBytes >= BUNDLE_WORKER_OFFLOAD_THRESHOLD_BYTES
@@ -695,7 +743,6 @@ export async function writeBundleFile({ bundlePath, bundle, format = 'json' }) {
       checksumAlgo: checksum?.algo ?? null
     };
   }
-  await removeFileOrThrow(resolveBundleJsonChecksumPath(bundlePath));
   await writeJsonObjectFile(bundlePath, {
     fields: bundle,
     trailingNewline: true,
@@ -731,42 +778,14 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
     }
     const checksumEnvelope = envelope.checksum;
     if (checksumEnvelope != null) {
-      if (!isPlainObject(checksumEnvelope)) {
-        return { ok: false, reason: 'invalid bundle checksum' };
+      const descriptor = readChecksumDescriptor(checksumEnvelope);
+      if (!descriptor.ok) {
+        return descriptor;
       }
-      const checksumAlgo = typeof checksumEnvelope.algo === 'string'
-        ? checksumEnvelope.algo.trim()
-        : '';
-      const checksumValue = typeof checksumEnvelope.value === 'string'
-        ? checksumEnvelope.value.trim()
-        : '';
-      const checksumSchemaVersion = Number(checksumEnvelope.schemaVersion);
-      if (checksumSchemaVersion !== BUNDLE_CHECKSUM_SCHEMA_VERSION) {
-        return { ok: false, reason: 'unsupported bundle checksum schema' };
-      }
-      if (!checksumAlgo || !checksumValue) {
-        return { ok: false, reason: 'invalid bundle checksum' };
-      }
-      const normalized = normalizeBundlePayload(payload);
-      const estimate = estimateJsonBytes(normalized);
-      if (estimate && estimate > MAX_BUNDLE_CHECKSUM_BYTES) {
-        return { ok: false, reason: 'bundle checksum unverifiable under size budget' };
-      }
-      if (checksumAlgo === 'xxh64') {
-        const expected = await checksumBundlePayload(normalized);
-        if (!expected || expected.value !== checksumValue) {
-          return { ok: false, reason: 'bundle checksum mismatch' };
-        }
-        return { ok: true, bundle: normalized };
-      }
-      if (checksumAlgo === 'sha1') {
-        const expected = sha1(stableStringify(normalized));
-        if (expected !== checksumValue) {
-          return { ok: false, reason: 'bundle checksum mismatch' };
-        }
-        return { ok: true, bundle: normalized };
-      }
-      return { ok: false, reason: 'unsupported bundle checksum algo' };
+      return verifyBundleChecksum({
+        bundle: payload,
+        checksum: descriptor.checksum
+      });
     }
     return { ok: true, bundle: payload };
   }
@@ -803,39 +822,19 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
     const rawChecksum = await fs.readFile(checksumPath, 'utf8');
     const parsedChecksum = JSON.parse(rawChecksum);
     const checksum = parsedChecksum?.checksum;
-    const checksumSchemaVersion = Number(parsedChecksum?.checksumSchemaVersion);
-    if (checksumSchemaVersion !== BUNDLE_CHECKSUM_SCHEMA_VERSION) {
+    if (!isSupportedChecksumSchemaVersion(parsedChecksum?.checksumSchemaVersion)) {
       return { ok: false, reason: 'unsupported bundle checksum schema' };
     }
-    if (!isPlainObject(checksum)) {
-      return { ok: false, reason: 'invalid bundle checksum' };
+    const descriptor = readChecksumDescriptor(checksum);
+    if (!descriptor.ok) {
+      return descriptor;
     }
-    const checksumEntrySchemaVersion = Number(checksum?.schemaVersion);
-    if (checksumEntrySchemaVersion !== BUNDLE_CHECKSUM_SCHEMA_VERSION) {
-      return { ok: false, reason: 'unsupported bundle checksum schema' };
-    }
-    const checksumAlgo = typeof checksum.algo === 'string' ? checksum.algo.trim() : '';
-    const checksumValue = typeof checksum.value === 'string' ? checksum.value.trim() : '';
-    if (!checksumAlgo || !checksumValue) {
-      return { ok: false, reason: 'invalid bundle checksum' };
-    }
-    const normalized = normalizeBundlePayload(bundle);
-    const estimate = estimateJsonBytes(normalized);
-    if (estimate && estimate > MAX_BUNDLE_CHECKSUM_BYTES) {
-      return { ok: false, reason: 'bundle checksum unverifiable under size budget' };
-    }
-    if (checksumAlgo === 'xxh64') {
-      const expected = await checksumBundlePayload(normalized);
-      if (!expected || expected.value !== checksumValue) {
-        return { ok: false, reason: 'bundle checksum mismatch' };
-      }
-    } else if (checksumAlgo === 'sha1') {
-      const expected = sha1(stableStringify(normalized));
-      if (expected !== checksumValue) {
-        return { ok: false, reason: 'bundle checksum mismatch' };
-      }
-    } else {
-      return { ok: false, reason: 'unsupported bundle checksum algo' };
+    const verified = await verifyBundleChecksum({
+      bundle,
+      checksum: descriptor.checksum
+    });
+    if (!verified.ok) {
+      return verified;
     }
   } catch (err) {
     if (err?.code !== 'ENOENT') {
