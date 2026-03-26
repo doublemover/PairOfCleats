@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { createCli } from '../../shared/cli.js';
+import { isDirectExecution } from '../../shared/direct-execution.js';
 import { toPosix } from '../../shared/files.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { readJsoncFile } from '../../shared/jsonc.js';
@@ -123,7 +123,7 @@ export async function runArchitectureCheckCli(rawArgs = process.argv.slice(2)) {
   });
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runArchitectureCheckCli().catch((err) => {
     console.error(err?.message || err);
     process.exit(err?.code === 'ERR_ARCHITECTURE_VIOLATION' ? 2 : 1);

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import {
   loadChunkMeta,
   loadJsonArrayArtifact,
@@ -328,7 +328,7 @@ export async function runRiskExplainCli(rawArgs = process.argv.slice(2)) {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   const result = await runRiskExplainCli();
   if (result?.ok === false) {
     process.exit(1);

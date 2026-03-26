@@ -5,9 +5,7 @@ import { spawnSubprocess } from '../../src/shared/subprocess.js';
 import { createCli } from '../../src/shared/cli.js';
 import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../../src/shared/cli-options.js';
 import {
-  getRuntimeConfig,
-  resolveRepoConfig,
-  resolveRuntimeEnv,
+  bootstrapRuntime,
   resolveToolRoot
 } from '../shared/dict-utils.js';
 import { parseCommaList } from '../../src/shared/comma-list.js';
@@ -45,9 +43,7 @@ const argv = createCli({
 validateBenchArgs(argv, { allowedOptions: benchOptions });
 
 const scriptRoot = resolveToolRoot();
-const { repoRoot, userConfig } = resolveRepoConfig(argv.root);
-const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
-const runtimeEnv = resolveRuntimeEnv(runtimeConfig, process.env);
+const { repoRoot, userConfig, runtimeEnv } = bootstrapRuntime(argv.root);
 const benchScript = path.join(scriptRoot, 'tools', 'bench', 'language-repos.js');
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 const resultsRoot = path.resolve(argv.results || path.join(scriptRoot, 'benchmarks', 'results'));

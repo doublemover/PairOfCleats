@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../shared/cli.js';
+import { isDirectExecution } from '../../shared/direct-execution.js';
 import { toPosix } from '../../shared/files.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { buildSuggestTestsReport } from '../../graph/suggest-tests.js';
@@ -118,7 +118,7 @@ export async function runSuggestTestsCli(rawArgs = process.argv.slice(2)) {
   });
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runSuggestTestsCli().catch((err) => {
     console.error(err?.message || err);
     process.exit(1);

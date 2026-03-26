@@ -20,14 +20,12 @@ import {
   resolveBakeoffStage4Modes
 } from './model-bakeoff-lib.js';
 import {
+  bootstrapRuntime,
   getCacheRoot,
   getDictConfig,
   getModelConfig,
   getRepoId,
   isWithinRoot,
-  getRuntimeConfig,
-  resolveRepoConfig,
-  resolveRuntimeEnv,
   resolveToolRoot,
   toRealPathSync
 } from '../../shared/dict-utils.js';
@@ -106,11 +104,9 @@ const positionalArgs = Array.isArray(argv._)
 const positionalModelsArg = positionalArgs[0] || '';
 const positionalDatasetArg = positionalArgs[1] || '';
 
-const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
+const { repoRoot: root, userConfig, runtimeEnv: baseEnv } = bootstrapRuntime(argv.repo);
 const toolRoot = resolveToolRoot();
 const envConfig = getEnvConfig();
-const runtimeConfig = getRuntimeConfig(root, userConfig);
-const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const modelConfig = getModelConfig(root, userConfig);
 const dictConfig = getDictConfig(root, userConfig);
 const sharedModelsDir = envConfig.modelsDir || modelConfig.dir;

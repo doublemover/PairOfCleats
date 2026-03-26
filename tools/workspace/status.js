@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { WORKSPACE_INDEX_MODES, generateWorkspaceManifest } from '../../src/workspace/manifest.js';
 
@@ -53,7 +53,7 @@ export async function runWorkspaceStatusCli() {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runWorkspaceStatusCli().catch((error) => {
     console.error(error?.message || error);
     process.exit(1);

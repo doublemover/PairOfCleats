@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { fileURLToPath } from 'node:url';
 import yargs from 'yargs/yargs';
+import { isDirectExecution } from '../src/shared/direct-execution.js';
 import { resolveRepoConfig } from './shared/dict-utils.js';
 import { emitJson } from './shared/cli-utils.js';
 import {
@@ -344,7 +344,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
   await parser.demandCommand(0).parseAsync();
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runDiffCli().catch((err) => {
     emitCliError(err, false);
     process.exit(1);

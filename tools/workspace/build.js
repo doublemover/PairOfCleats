@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { generateWorkspaceManifest } from '../../src/workspace/manifest.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
@@ -234,7 +235,7 @@ export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2)) {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runWorkspaceBuildCli().catch((error) => {
     console.error(error?.message || error);
     process.exit(1);

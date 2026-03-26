@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../shared/cli.js';
+import { isDirectExecution } from '../../shared/direct-execution.js';
 import { toPosix } from '../../shared/files.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { resolveProvenance } from '../../shared/provenance.js';
@@ -661,7 +661,7 @@ export async function runApiContractsCli(rawArgs = process.argv.slice(2)) {
   return report;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runApiContractsCli().catch((err) => {
     console.error(err?.message || err);
     process.exit(err?.code === 'ERR_API_CONTRACT_WARN' ? 2 : 1);

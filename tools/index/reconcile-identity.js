@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { reconcileIndexIdentity } from '../../src/index/identity/reconcile.js';
 import { getIndexDir, resolveRepoConfig } from '../shared/dict-utils.js';
 
@@ -92,7 +92,7 @@ export async function runReconcileIdentityCli(rawArgv = process.argv.slice(2)) {
   return report.ok ? 0 : 1;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runReconcileIdentityCli().then((code) => {
     process.exit(code);
   }).catch((error) => {

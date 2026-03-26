@@ -4,10 +4,9 @@ import path from 'node:path';
 import https from 'node:https';
 import { spawn } from 'node:child_process';
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import selfsigned from 'selfsigned';
-import { getRuntimeConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
+import { bootstrapRuntime, resolveToolRoot } from '../shared/dict-utils.js';
 import { exitLikeCommandResult } from '../shared/cli-utils.js';
 import { decodePathnameSafe, safeJoinUnderBase } from './map-iso-safe-join.js';
 
@@ -27,9 +26,7 @@ const argv = createCli({
 
 const toolRoot = resolveToolRoot();
 const repoArg = argv.repo || argv.dir || null;
-const { repoRoot, userConfig } = resolveRepoConfig(repoArg);
-const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
-const runtimeEnv = resolveRuntimeEnv(runtimeConfig, process.env);
+const { repoRoot, runtimeEnv } = bootstrapRuntime(repoArg);
 const mapsDir = path.join(repoRoot, '.pairofcleats', 'maps');
 const outPath = argv.out ? path.resolve(argv.out) : path.join(mapsDir, 'map.iso.html');
 const threeUrl = argv['three-url'] || '/three/three.module.js';

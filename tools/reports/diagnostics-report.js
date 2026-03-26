@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import {
   MAX_JSON_BYTES,
   loadJsonObjectArtifactSync,
@@ -617,7 +617,7 @@ export async function runDiagnosticsReportCli(rawArgs = process.argv.slice(2)) {
   return report;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runDiagnosticsReportCli().catch((err) => {
     console.error(err?.message || err);
     process.exit(1);

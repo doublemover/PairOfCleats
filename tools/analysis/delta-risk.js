@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { buildRiskDeltaPayload } from '../../src/context-pack/risk-delta.js';
 import { resolveRepoConfig } from '../shared/dict-utils.js';
 import { emitCliError, emitCliOutput, resolveFormat } from '../../src/integrations/tooling/cli-helpers.js';
@@ -134,7 +134,7 @@ export async function runRiskDeltaCli(rawArgs = process.argv.slice(2)) {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   const result = await runRiskDeltaCli();
   if (result?.ok === false) process.exitCode = 1;
 }

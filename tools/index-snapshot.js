@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { fileURLToPath } from 'node:url';
 import yargs from 'yargs/yargs';
+import { isDirectExecution } from '../src/shared/direct-execution.js';
 import { createError, ERROR_CODES } from '../src/shared/error-codes.js';
 import { resolveRepoConfig } from './shared/dict-utils.js';
 import { emitJson } from './shared/cli-utils.js';
@@ -290,7 +290,7 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
   await parser.demandCommand(1).parseAsync();
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runSnapshotCli().catch((err) => {
     emitCliError(err, false);
     process.exit(1);

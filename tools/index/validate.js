@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
 import { getIndexDir, resolveRepoConfig } from '../shared/dict-utils.js';
 import { validateIndexArtifacts } from '../../src/index/validate.js';
@@ -138,7 +138,7 @@ async function runCli() {
   process.exit(report.ok ? 0 : 1);
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runCli().catch((err) => {
     console.error(err?.message || err);
     process.exit(1);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { generateWorkspaceManifest } from '../../src/workspace/manifest.js';
 
@@ -46,7 +46,7 @@ export async function runWorkspaceManifestCli() {
   console.error(`- diagnostics: warnings=${payload.diagnostics.warnings}, errors=${payload.diagnostics.errors}`);
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runWorkspaceManifestCli().catch((error) => {
     console.error(error?.message || error);
     process.exit(1);

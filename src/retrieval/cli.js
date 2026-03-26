@@ -1,4 +1,4 @@
-import { fileURLToPath } from 'node:url';
+import { isDirectExecution } from '../shared/direct-execution.js';
 import { runSearchCli } from './cli/run-search.js';
 import {
   resolveAnnActive,
@@ -19,7 +19,7 @@ export {
   runSearchCli
 };
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runSearchCli().catch((err) => {
     console.error(err?.message || err);
     process.exit(1);

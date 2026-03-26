@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../../src/shared/cli.js';
+import { isDirectExecution } from '../../../src/shared/direct-execution.js';
 import { parseSeedRef } from '../../../src/shared/seed-ref.js';
 import { normalizeOptionalNumber } from '../../../src/shared/limits.js';
 import {
@@ -280,7 +280,7 @@ export async function runContextPackLatencyBenchCli(rawArgs = process.argv.slice
   return result;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runContextPackLatencyBenchCli().catch((err) => {
     console.error(err?.message || err);
     process.exit(1);
