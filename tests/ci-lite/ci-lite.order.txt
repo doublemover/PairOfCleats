@@ -73,7 +73,7 @@ shared/concurrency/io-cap
 ci/workflow-contract
 indexing/identity/join-precedence
 indexing/ignore/optional-defaults
-tooling/vfs/token-uri-contract
+tooling/vfs/routing-and-token-contract-matrix
 shared/path-normalize/path-containment-contract
 ci/npm-script-targets
 indexing/chunk-id/stable-id-does-not-depend-on-name-or-kind
@@ -181,7 +181,6 @@ indexing/relations/call-graph-contract-matrix
 lang/python/heuristic-chunking
 shared/concurrency/retry-with-backoff
 shared/jsonrpc/parser
-tooling/vfs/token-uri-roundtrip
 indexing/artifacts/file-meta-columnar-roundtrip
 indexing/embeddings/dims-validation
 indexing/relations/graph-chunk-id
@@ -275,7 +274,6 @@ indexing/tree-sitter/streaming-chunking
 indexing/risk/risk-contract-matrix
 indexing/risk/rules/risk-config
 shared/cache/migration
-tooling/vfs/hash-routing-contract
 indexing/artifacts/active-write-telemetry-snapshot
 indexing/artifacts/write-telemetry-thresholds
 indexing/risk/interprocedural/summaries-schema
@@ -384,7 +382,7 @@ shared/encoding/metadata-plumbed-and-reused
 retrieval/pipeline/query-plan-cache-contract-matrix
 graph/reporoot-warning
 indexing/embeddings/onnx-session-queue
-indexing/tree-sitter/preload-limited
+indexing/tree-sitter/preload-and-planning-contract-matrix
 shared/json-stream/codec-contract
 indexing/artifacts/writers/writer-common-contract
 lang/python/imports
@@ -528,7 +526,6 @@ retrieval/pipeline/ann-fallback-nonvector
 tooling/dict-utils/paths-builds-root
 tooling/ci/run-suite-path-normalization
 tooling/ci/run-suite-output-sanitization
-indexing/tree-sitter/query-precompile-cache
 indexing/watch/build-state
 indexing/embeddings/build/args-parsing
 storage/vector-extension/sanitize
@@ -592,7 +589,6 @@ storage/sqlite/bundle-dims-mismatch
 indexing/cache/workspace-global-reuse
 indexing/repo-map/roundtrip
 retrieval/graph/context-pack-caps
-tooling/vfs/hash-routing-compat
 indexing/runtime/byte-budget-default-policy
 indexing/scm/git-provider-parse
 tooling/vfs/doc-hash-skip-rewrite
@@ -608,7 +604,7 @@ retrieval/cache/query-lookup
 storage/sqlite/reader-schema-mismatch
 storage/sqlite/metav2-json-roundtrip
 storage/sqlite/build-validate-auto-fast-path
-tooling/vfs/index-negative
+tooling/vfs/lookup-contract-matrix
 storage/sqlite/token-postings-duplicate-docids
 storage/sqlite/jsonl-streaming-gzip
 indexing/artifacts/minhash-max-docs-guard
@@ -619,7 +615,6 @@ tooling/doctor/command-profile-jdtls
 indexing/postings/tokenless-chunk-preserved
 lang/registry/collector-scan-budget-diagnostics
 tooling/vfs/collector-cleanup-on-error
-tooling/vfs/hash-routing-roundtrip
 indexing/artifacts/minhash-packed-roundtrip
 tooling/config/tooling-lsp-lifecycle-and-dedicated-passthrough
 tooling/doctor/command-profile-probe-cache
@@ -653,7 +648,6 @@ indexing/postings/queue-bypass-deadlock
 storage/sqlite/incremental-memory-profile
 retrieval/cache/query-plan-bounds
 indexing/chunking/no-blob
-tooling/vfs/index-lookup
 tooling/config/tooling-load-preserves-lsp-and-dedicated
 indexing/tree-sitter/parse-determinism
 indexing/build/stage-progression-contract
@@ -869,7 +863,6 @@ indexing/discovery/discover-leading-space
 tooling/workspace/catalog-json
 tooling/index-stats/json
 workspace/manifest-determinism-and-hash
-indexing/tree-sitter/preload-order-deterministic
 tooling/doctor/provider-requires-args
 indexing/imports/import-scan-budget-runtime-signals
 tooling/index-stats/missing-artifact
