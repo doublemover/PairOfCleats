@@ -39,26 +39,9 @@ import {
   LINE_PREFIX_TRANSPARENT,
   resolveBarVariant
 } from './progress.js';
+import { moveCursorDown, moveCursorUp } from './cursor.js';
 
 const clampRatio = (value) => Math.min(1, Math.max(0, value));
-const moveCursorDown = (term, count) => {
-  if (!count || count <= 0) return;
-  if (typeof term.down === 'function') {
-    term.down(count);
-  } else {
-    term(`\x1b[${count}B`);
-  }
-  term('\r');
-};
-
-const moveCursorUp = (term, count) => {
-  if (!count || count <= 0) return;
-  if (typeof term.up === 'function') {
-    term.up(count);
-    return;
-  }
-  term(`\x1b[${count}A`);
-};
 
 export const renderDisplay = ({
   state,
