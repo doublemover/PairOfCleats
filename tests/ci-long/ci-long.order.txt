@@ -51,15 +51,17 @@ cli/search/tie-order
 indexing/determinism/chunkuid
 cli/search/rrf
 cli/search/help-and-flag-contract-matrix
-storage/sqlite/incremental/manifest-normalization
 retrieval/cache/query
+storage/sqlite/incremental/doc-id-reuse
 storage/sqlite/incremental/file-manifest-updates
+storage/sqlite/incremental/manifest-hash-fill
+storage/sqlite/incremental/manifest-normalization
+storage/sqlite/incremental/search-after-update
 indexing/chunking/comment-join
 retrieval/filters/churn-filter
 retrieval/ann/lancedb
 storage/sqlite/migrations/schema-mismatch-rebuild
 indexing/embeddings/manifest-pieces
-storage/sqlite/incremental/manifest-hash-fill
 storage/sqlite/incremental/wal-checkpoint
 smoke/retrieval
 storage/sqlite/compact
@@ -88,7 +90,6 @@ storage/sqlite/missing-dep
 indexing/embeddings/cache-identity
 indexing/embeddings/cache-partial-reuse
 retrieval/ann/hnsw-atomic
-storage/sqlite/incremental/search-after-update
 tooling/eval/quality
 storage/sqlite/incremental-no-change
 cli/general/repo-root
@@ -98,6 +99,5 @@ smoke/api-core-health
 services/sqlite-build-snapshot
 indexing/runtime/two-stage-state
 storage/sqlite/index-state-fail-closed
-storage/sqlite/incremental/doc-id-reuse
 retrieval/ranking/fielded-bm25
 indexing/contracts/golden-surface-suite

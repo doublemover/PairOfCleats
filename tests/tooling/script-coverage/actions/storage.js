@@ -6,7 +6,10 @@ export const buildStorageActions = ({ root, runNode, skipSqliteIncremental }) =>
   if (!skipSqliteIncremental) {
     actions.push({
       label: 'sqlite-incremental-test',
-      run: () => runNode('sqlite-incremental-test', path.join(root, 'tests', 'storage', 'sqlite', 'incremental', 'file-manifest-updates.test.js')),
+      run: () => runNode(
+        'sqlite-incremental-test',
+        path.join(root, 'tests', 'storage', 'sqlite', 'incremental', 'file-manifest-updates.test.js')
+      ),
       covers: ['sqlite-incremental-test']
     });
     actions.push({

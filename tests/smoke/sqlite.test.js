@@ -7,7 +7,7 @@ import { resolveTestCachePath } from '../helpers/test-cache.js';
 
 const cacheSuffix = 'smoke-sqlite';
 const cacheRoots = [
-  resolveTestCachePath(root, 'sqlite-incremental', `file-manifest-updates-${cacheSuffix}`),
+  resolveTestCachePath(root, 'sqlite-incremental'),
   resolveTestCachePath(root, `sqlite-ann-fallback-${cacheSuffix}`)
 ];
 
@@ -25,7 +25,7 @@ try {
     }
   });
   runNode(
-    'sqlite-incremental-manifest',
+    'sqlite-incremental-file-manifest-updates',
     path.join(root, 'tests', 'storage', 'sqlite', 'incremental', 'file-manifest-updates.test.js'),
     [],
     { env }

@@ -1,44 +1,12 @@
 #!/usr/bin/env node
-import fsPromises from 'node:fs/promises';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { setupIncrementalRepo } from '../../../helpers/sqlite-incremental.js';
-import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
+import { runSearchAfterUpdateScenario } from './update-contract-cases.js';
 
-const { root, repoRoot, env, run } = await setupIncrementalRepo({ name: 'search-after-update' });
-
-run(
-  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot],
-  'build index',
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
-await runSqliteBuild(repoRoot);
-
-const targetFile = path.join(repoRoot, 'src', 'index.js');
-const original = await fsPromises.readFile(targetFile, 'utf8');
-const updated = `${original}\nexport function farewell(name) {\n  return \`bye \${name}\`;\n}\n`;
-await fsPromises.writeFile(targetFile, updated);
-
-run(
-  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot],
-  'build index (incremental)',
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
-await runSqliteBuild(repoRoot, { incremental: true });
-
-const searchResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'search.js'), 'farewell', '--json', '--backend', 'sqlite-fts', '--repo', repoRoot],
-  { cwd: repoRoot, env, encoding: 'utf8' }
-);
-if (searchResult.status !== 0) {
-  console.error('Search failed after incremental update.');
-  process.exit(searchResult.status ?? 1);
-}
-const payload = JSON.parse(searchResult.stdout || '{}');
-if (!payload.code?.length && !payload.prose?.length) {
-  console.error('Incremental sqlite update produced no search results.');
+try {
+  await runSearchAfterUpdateScenario();
+} catch (error) {
+  console.error('sqlite incremental search after update failed');
+  console.error(error?.stack || error?.message || String(error));
   process.exit(1);
 }
 
-console.log('SQLite incremental search after update ok.');
+console.log('sqlite incremental search after update test passed');
