@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import { Worker } from 'node:worker_threads';
 import { Packr, Unpackr } from 'msgpackr';
 import { writeJsonObjectFile } from './json-stream.js';
+import { stableStringify } from './stable-json.js';
 import { atomicWriteJson, atomicWriteText } from './io/atomic-write.js';
 import { removePathWithRetry } from './io/remove-path-with-retry.js';
 import { acquireFileLock, releaseFileLockOrThrow } from './locks/file-lock.js';
@@ -64,6 +65,8 @@ const unpackr = new Unpackr({ useRecords: false });
 const bundleTransformWorkerUrl = new URL('./workers/bundle-transform-worker.js', import.meta.url);
 let bundleTransformWorkerTerminateFailures = 0;
 let bundleTransformWorkerDisabled = false;
+
+const isPlainObject = (value) => !!value && typeof value === 'object' && value.constructor === Object;
 
 export { BUNDLE_CHECKSUM_SCHEMA_VERSION } from './bundle-io-constants.js';
 export {
