@@ -24,6 +24,12 @@ import { getRepoCacheGenerationContext } from '../shared/repo-cache-config.js';
 import { handleIndexDiffsRoute } from './router/index-diffs.js';
 import { handleIndexSnapshotsRoute } from './router/index-snapshots.js';
 import { handleContextPackRoute, handleRiskDeltaRoute, handleRiskExplainRoute } from './router/analysis.js';
+import {
+  classifyWorkspaceRequestError,
+  parseJsonBodyOrSendError,
+  resolveRepoOrSendError,
+  sendClassifiedRequestError
+} from './router/request-helpers.js';
 import { buildSearchParams, buildSearchPayloadFromQuery, isNoIndexError } from './router/search.js';
 import { getApiWorkflowCapabilities, getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
 import { buildApiTrustBoundaryStatusView } from './trust-boundary.js';
@@ -391,23 +397,9 @@ export const createApiRouter = ({
         req.on('aborted', abortRequest);
         res.on('close', abortRequest);
         res.on('error', abortRequest);
-        let payload = null;
-        try {
-          payload = await parseJsonBody(req);
-        } catch (err) {
-          const status = err?.code === 'ERR_BODY_TOO_LARGE' ? 413
-            : err?.code === 'ERR_UNSUPPORTED_MEDIA_TYPE' ? 415
-              : 400;
-          sendError(
-            res,
-            status,
-            ERROR_CODES.INVALID_REQUEST,
-            err?.message || 'Invalid request body.',
-            {},
-            corsHeaders || {}
-          );
-          return;
-        }
+        const parsedBody = await parseJsonBodyOrSendError(req, res, parseJsonBody, corsHeaders);
+        if (!parsedBody.ok) return;
+        const payload = parsedBody.payload;
         const validation = validateFederatedPayload(payload);
         if (!validation.ok) {
           sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid federated search payload.', {
@@ -419,15 +411,10 @@ export const createApiRouter = ({
         try {
           workspaceConfig = await ensureWorkspaceAllowlist(payload);
         } catch (err) {
-          const forbidden = err?.code === ERROR_CODES.FORBIDDEN
-            || String(err?.message || '').toLowerCase().includes('not permitted');
-          sendError(
+          sendClassifiedRequestError(
             res,
-            forbidden ? 403 : 400,
-            forbidden ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST,
-            err?.message || 'Invalid workspace request.',
-            {},
-            corsHeaders || {}
+            classifyWorkspaceRequestError(err),
+            corsHeaders
           );
           return;
         }
@@ -498,15 +485,14 @@ export const createApiRouter = ({
           }, responseHeaders);
           return;
         }
-        let repoPath = '';
-        try {
-          repoPath = await resolveRepo(payload?.repoPath || payload?.repo);
-        } catch (err) {
-          const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
-          const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
-          sendError(res, status, code, err?.message || 'Invalid repo path.', {}, responseHeaders);
-          return;
-        }
+        const resolvedRepo = await resolveRepoOrSendError(
+          res,
+          resolveRepo,
+          payload?.repoPath || payload?.repo,
+          responseHeaders
+        );
+        if (!resolvedRepo.ok) return;
+        const repoPath = resolvedRepo.repoPath;
         const searchParams = buildSearchParams(repoPath, payload || {}, defaultOutput);
         if (!searchParams.ok) {
           sendError(
@@ -564,24 +550,9 @@ export const createApiRouter = ({
         req.on('aborted', abortRequest);
         res.on('close', abortRequest);
         res.on('error', abortRequest);
-        let raw;
-        try {
-          raw = await parseJsonBody(req);
-        } catch (err) {
-          const status = err?.code === 'ERR_BODY_TOO_LARGE' ? 413
-            : err?.code === 'ERR_UNSUPPORTED_MEDIA_TYPE' ? 415
-              : 400;
-          sendError(
-            res,
-            status,
-            ERROR_CODES.INVALID_REQUEST,
-            err?.message || 'Invalid request body.',
-            {},
-            responseHeaders
-          );
-          return;
-        }
-        const payload = raw;
+        const parsedBody = await parseJsonBodyOrSendError(req, res, parseJsonBody, responseHeaders);
+        if (!parsedBody.ok) return;
+        const payload = parsedBody.payload;
         const validation = validateSearchPayload(payload);
         if (!validation.ok) {
           sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
@@ -589,15 +560,14 @@ export const createApiRouter = ({
           }, responseHeaders);
           return;
         }
-        let repoPath = '';
-        try {
-          repoPath = await resolveRepo(payload?.repoPath || payload?.repo);
-        } catch (err) {
-          const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
-          const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
-          sendError(res, status, code, err?.message || 'Invalid repo path.', {}, responseHeaders);
-          return;
-        }
+        const resolvedRepo = await resolveRepoOrSendError(
+          res,
+          resolveRepo,
+          payload?.repoPath || payload?.repo,
+          responseHeaders
+        );
+        if (!resolvedRepo.ok) return;
+        const repoPath = resolvedRepo.repoPath;
         const searchParams = buildSearchParams(repoPath, payload || {}, defaultOutput);
         if (!searchParams.ok) {
           sendError(
@@ -658,23 +628,9 @@ export const createApiRouter = ({
         req.on('aborted', abortRequest);
         res.on('close', abortRequest);
         res.on('error', abortRequest);
-        let payload = null;
-        try {
-          payload = await parseJsonBody(req);
-        } catch (err) {
-          const status = err?.code === 'ERR_BODY_TOO_LARGE' ? 413
-            : err?.code === 'ERR_UNSUPPORTED_MEDIA_TYPE' ? 415
-              : 400;
-          sendError(
-            res,
-            status,
-            ERROR_CODES.INVALID_REQUEST,
-            err?.message || 'Invalid request body.',
-            {},
-            responseHeaders
-          );
-          return;
-        }
+        const parsedBody = await parseJsonBodyOrSendError(req, res, parseJsonBody, responseHeaders);
+        if (!parsedBody.ok) return;
+        const payload = parsedBody.payload;
         const validation = validateSearchPayload(payload);
         if (!validation.ok) {
           sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
@@ -682,15 +638,14 @@ export const createApiRouter = ({
           }, responseHeaders);
           return;
         }
-        let repoPath = '';
-        try {
-          repoPath = await resolveRepo(payload?.repoPath || payload?.repo);
-        } catch (err) {
-          const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
-          const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
-          sendError(res, status, code, err?.message || 'Invalid repo path.', {}, responseHeaders);
-          return;
-        }
+        const resolvedRepo = await resolveRepoOrSendError(
+          res,
+          resolveRepo,
+          payload?.repoPath || payload?.repo,
+          responseHeaders
+        );
+        if (!resolvedRepo.ok) return;
+        const repoPath = resolvedRepo.repoPath;
         const searchParams = buildSearchParams(repoPath, payload || {}, defaultOutput);
         if (!searchParams.ok) {
           sendError(

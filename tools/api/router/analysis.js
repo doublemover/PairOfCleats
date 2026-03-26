@@ -8,33 +8,11 @@ import { attachObservability, buildChildObservability } from '../../../src/share
 import { normalizeRiskFilters, validateRiskFilters } from '../../../src/shared/risk-filters.js';
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { sendError, sendJson } from '../response.js';
-
-const handleRepoResolveError = (res, err, corsHeaders) => {
-  const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
-  const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
-  sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
-};
-
-const parseBodyOrError = async (req, res, parseJsonBody, corsHeaders) => {
-  try {
-    return { ok: true, payload: await parseJsonBody(req) };
-  } catch (err) {
-    const status = err?.code === 'ERR_BODY_TOO_LARGE'
-      ? 413
-      : err?.code === 'ERR_UNSUPPORTED_MEDIA_TYPE'
-        ? 415
-        : 400;
-    sendError(
-      res,
-      status,
-      ERROR_CODES.INVALID_REQUEST,
-      err?.message || 'Invalid request body.',
-      {},
-      corsHeaders || {}
-    );
-    return { ok: false, payload: null };
-  }
-};
+import {
+  classifyWorkspaceRequestError,
+  parseJsonBodyOrSendError,
+  resolveRepoOrSendError
+} from './request-helpers.js';
 
 export async function handleRiskExplainRoute({
   req,
@@ -45,7 +23,7 @@ export async function handleRiskExplainRoute({
   resolveRepo,
   validateRiskExplainPayload
 }) {
-  const parsedBody = await parseBodyOrError(req, res, parseJsonBody, corsHeaders);
+  const parsedBody = await parseJsonBodyOrSendError(req, res, parseJsonBody, corsHeaders);
   if (!parsedBody.ok) return true;
   const payload = parsedBody.payload;
   const validation = validateRiskExplainPayload(payload);
@@ -56,13 +34,14 @@ export async function handleRiskExplainRoute({
     return true;
   }
 
-  let repoPath = '';
-  try {
-    repoPath = await resolveRepo(payload.repoPath || payload.repo || '');
-  } catch (err) {
-    handleRepoResolveError(res, err, corsHeaders);
-    return true;
-  }
+  const resolvedRepo = await resolveRepoOrSendError(
+    res,
+    resolveRepo,
+    payload.repoPath || payload.repo || '',
+    corsHeaders
+  );
+  if (!resolvedRepo.ok) return true;
+  const repoPath = resolvedRepo.repoPath;
   const userConfig = loadUserConfig(repoPath);
   const indexDir = resolveIndexDir(repoPath, 'code', userConfig);
   if (!hasIndexMeta(indexDir)) {
@@ -121,7 +100,7 @@ export async function handleContextPackRoute({
   validateContextPackPayload,
   ensureWorkspaceAllowlist
 }) {
-  const parsedBody = await parseBodyOrError(req, res, parseJsonBody, corsHeaders);
+  const parsedBody = await parseJsonBodyOrSendError(req, res, parseJsonBody, corsHeaders);
   if (!parsedBody.ok) return true;
   const payload = parsedBody.payload;
   const validation = validateContextPackPayload(payload);
@@ -140,12 +119,14 @@ export async function handleContextPackRoute({
       : '';
   let repoPath = null;
   if (!(workspaceRequested && !requestedRepo)) {
-    try {
-      repoPath = await resolveRepo(requestedRepo);
-    } catch (err) {
-      handleRepoResolveError(res, err, corsHeaders);
-      return true;
-    }
+    const resolvedRepo = await resolveRepoOrSendError(
+      res,
+      resolveRepo,
+      requestedRepo,
+      corsHeaders
+    );
+    if (!resolvedRepo.ok) return true;
+    repoPath = resolvedRepo.repoPath;
   }
   try {
     const workspaceConfig = workspaceRequested && typeof ensureWorkspaceAllowlist === 'function'
@@ -199,10 +180,9 @@ export async function handleContextPackRoute({
     return true;
   } catch (err) {
     const message = err?.message || 'Failed to build context pack.';
-    const forbidden = err?.code === ERROR_CODES.FORBIDDEN
-      || String(message).toLowerCase().includes('not permitted');
+    const workspaceRequestError = classifyWorkspaceRequestError(err);
     const status = Number.isFinite(err?.status) ? err.status
-      : forbidden ? 403
+      : workspaceRequestError.status === 403 ? 403
         : err?.code === 'ERR_CONTEXT_PACK_NO_INDEX' ? 404
           : err?.code === 'ERR_CONTEXT_PACK_INVALID_REQUEST'
               || err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID'
@@ -231,7 +211,7 @@ export async function handleRiskDeltaRoute({
   resolveRepo,
   validateRiskDeltaPayload
 }) {
-  const parsedBody = await parseBodyOrError(req, res, parseJsonBody, corsHeaders);
+  const parsedBody = await parseJsonBodyOrSendError(req, res, parseJsonBody, corsHeaders);
   if (!parsedBody.ok) return true;
   const payload = parsedBody.payload;
   const validation = validateRiskDeltaPayload(payload);
@@ -242,13 +222,14 @@ export async function handleRiskDeltaRoute({
     return true;
   }
 
-  let repoPath = '';
-  try {
-    repoPath = await resolveRepo(payload.repoPath || payload.repo || '');
-  } catch (err) {
-    handleRepoResolveError(res, err, corsHeaders);
-    return true;
-  }
+  const resolvedRepo = await resolveRepoOrSendError(
+    res,
+    resolveRepo,
+    payload.repoPath || payload.repo || '',
+    corsHeaders
+  );
+  if (!resolvedRepo.ok) return true;
+  const repoPath = resolvedRepo.repoPath;
   const filters = normalizeRiskFilters(payload.filters || null);
   const filterValidation = validateRiskFilters(filters);
   if (!filterValidation.ok) {

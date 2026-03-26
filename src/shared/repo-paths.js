@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getCacheRoot as getDefaultCacheRootShared } from './cache-roots.js';
 import { isAbsolutePathNative } from './files.js';
 import { findUpwards } from './fs/find-upwards.js';
 import { joinPathSafe } from './path-normalize.js';
@@ -39,7 +40,7 @@ const resolveConfigValue = (repoRoot, userConfig, { loadUserConfig } = {}) => {
 const resolveCacheRootValue = (repoRoot, userConfig, options = {}) => {
   const cfg = resolveConfigValue(repoRoot, userConfig, options);
   const cacheRoot = (cfg.cache && cfg.cache.root)
-    || (typeof options.getCacheRoot === 'function' ? options.getCacheRoot() : null);
+    || (typeof options.getCacheRoot === 'function' ? options.getCacheRoot() : getDefaultCacheRootShared());
   if (!cacheRoot) {
     throw new Error('Repo cache root resolution requires userConfig.cache.root or options.getCacheRoot().');
   }

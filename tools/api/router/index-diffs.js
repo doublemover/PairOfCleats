@@ -3,6 +3,7 @@ import { listDiffs, showDiff } from '../../../src/index/diffs/compute.js';
 import { loadUserConfig } from '../../shared/dict-utils.js';
 import { redactAbsolutePaths } from '../redact.js';
 import { sendError, sendJson } from '../response.js';
+import { resolveRepoOrSendError } from './request-helpers.js';
 
 const parseStringList = (value) => {
   if (Array.isArray(value)) {
@@ -121,12 +122,6 @@ const shapeDiffEvents = (events, options) => {
   return bounded;
 };
 
-const handleRepoResolveError = (res, err, corsHeaders) => {
-  const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
-  const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
-  sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
-};
-
 /**
  * Decode diff id path segments and convert malformed URI encoding into a
  * consistent INVALID_REQUEST error.
@@ -153,13 +148,14 @@ export const handleIndexDiffsRoute = async ({
   resolveRepo
 }) => {
   if (pathname === '/index/diffs' && req.method === 'GET') {
-    let repoPath = '';
-    try {
-      repoPath = await resolveRepo(requestUrl.searchParams.get('repo'));
-    } catch (err) {
-      handleRepoResolveError(res, err, corsHeaders);
-      return true;
-    }
+    const resolvedRepo = await resolveRepoOrSendError(
+      res,
+      resolveRepo,
+      requestUrl.searchParams.get('repo'),
+      corsHeaders
+    );
+    if (!resolvedRepo.ok) return true;
+    const repoPath = resolvedRepo.repoPath;
 
     try {
       const userConfig = loadUserConfig(repoPath);
@@ -185,13 +181,14 @@ export const handleIndexDiffsRoute = async ({
     return false;
   }
 
-  let repoPath = '';
-  try {
-    repoPath = await resolveRepo(requestUrl.searchParams.get('repo'));
-  } catch (err) {
-    handleRepoResolveError(res, err, corsHeaders);
-    return true;
-  }
+  const resolvedRepo = await resolveRepoOrSendError(
+    res,
+    resolveRepo,
+    requestUrl.searchParams.get('repo'),
+    corsHeaders
+  );
+  if (!resolvedRepo.ok) return true;
+  const repoPath = resolvedRepo.repoPath;
 
   const suffix = pathname.slice(diffPrefix.length);
   if (!suffix) return false;
