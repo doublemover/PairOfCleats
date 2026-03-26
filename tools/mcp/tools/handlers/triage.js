@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { isAbsolutePathNative } from '../../../../src/shared/files.js';
-import { normalizeMetaFilters } from '../../../shared/search-request.js';
+import { normalizeMetaFilters } from '../../../../src/shared/search-request.js';
 import { loadUserConfig } from '../../../shared/dict-utils.js';
 import { resolveRepoPath } from '../../repo.js';
 import { runNodeAsync, runNodeSync } from '../../runner.js';

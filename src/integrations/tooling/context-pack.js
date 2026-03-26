@@ -4,7 +4,7 @@ import { createCli } from '../../shared/cli.js';
 import { toPosix } from '../../shared/files.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { parseSeedRef } from '../../shared/seed-ref.js';
-import { normalizeRiskFilters, validateRiskFilters } from '../../shared/risk-filters.js';
+import { buildRiskFilterInput, normalizeRiskFilters, validateRiskFilters } from '../../shared/risk-filters.js';
 import { emitCliError, emitCliOutput, mergeCaps, resolveFormat } from './cli-helpers.js';
 import { assembleCompositeContextPack, buildChunkIndex } from '../../context-pack/assemble.js';
 import { renderCompositeContextPack, renderCompositeContextPackJson } from '../../retrieval/output/composite-context-pack.js';
@@ -21,18 +21,6 @@ import { selectWorkspaceRepos } from '../../retrieval/federation/select.js';
 
 const DEFAULT_MAX_FEDERATED_CONTEXT_PACK_REPOS = 4;
 const MAX_FEDERATED_CONTEXT_PACK_REPOS = 16;
-
-const buildRiskFilterInput = (input = {}) => ({
-  rule: input.rule,
-  category: input.category,
-  severity: input.severity,
-  tag: input.tag,
-  source: input.source,
-  sink: input.sink,
-  flowId: input.flowId ?? input.flow_id ?? input['flow-id'],
-  sourceRule: input.sourceRule ?? input.source_rule ?? input['source-rule'],
-  sinkRule: input.sinkRule ?? input.sink_rule ?? input['sink-rule']
-});
 
 const createContextPackRequestError = (code, message, status = 400) => {
   const error = new Error(message);

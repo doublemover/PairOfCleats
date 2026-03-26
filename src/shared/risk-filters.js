@@ -49,6 +49,18 @@ const normalizeRiskFilterObject = (filters) => {
 
 export const normalizeRiskFilters = (filters) => normalizeRiskFilterObject(filters);
 
+export const buildRiskFilterInput = (input = {}) => ({
+  rule: input.rule,
+  category: input.category,
+  severity: input.severity,
+  tag: input.tag,
+  source: input.source,
+  sink: input.sink,
+  flowId: input.flowId ?? input.flow_id ?? input['flow-id'],
+  sourceRule: input.sourceRule ?? input.source_rule ?? input['source-rule'],
+  sinkRule: input.sinkRule ?? input.sink_rule ?? input['sink-rule']
+});
+
 export const materializeRiskFilters = (filters) => {
   const normalized = normalizeRiskFilterObject(filters);
   return normalized ? {

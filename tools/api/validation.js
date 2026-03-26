@@ -3,7 +3,7 @@ import {
   INTEGER_MIN_ZERO_FLAG_FIELDS,
   REPEATED_LIST_FIELDS,
   STRING_FLAG_FIELDS
-} from '../shared/search-request.js';
+} from '../../src/shared/search-request.js';
 
 const stringListSchema = {
   anyOf: [

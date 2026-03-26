@@ -5,7 +5,7 @@ import { buildRiskDeltaPayload } from '../../src/context-pack/risk-delta.js';
 import { resolveRepoConfig } from '../shared/dict-utils.js';
 import { emitCliError, emitCliOutput, resolveFormat } from '../../src/integrations/tooling/cli-helpers.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
-import { normalizeRiskFilters, validateRiskFilters } from '../../src/shared/risk-filters.js';
+import { buildRiskFilterInput, normalizeRiskFilters, validateRiskFilters } from '../../src/shared/risk-filters.js';
 
 const RISK_DELTA_OPTIONS = Object.freeze({
   repo: { type: 'string' },
@@ -26,17 +26,7 @@ const RISK_DELTA_OPTIONS = Object.freeze({
   json: { type: 'boolean', default: false }
 });
 
-const buildRiskDeltaFilters = (argv) => normalizeRiskFilters({
-  rule: argv.rule,
-  category: argv.category,
-  severity: argv.severity,
-  tag: argv.tag,
-  source: argv.source,
-  sink: argv.sink,
-  flowId: argv['flow-id'],
-  sourceRule: argv['source-rule'],
-  sinkRule: argv['sink-rule']
-});
+const buildRiskDeltaFilters = (argv) => normalizeRiskFilters(buildRiskFilterInput(argv));
 
 const renderRiskDeltaMarkdown = (payload) => {
   const lines = [

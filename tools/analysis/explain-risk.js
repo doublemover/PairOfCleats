@@ -14,6 +14,7 @@ import {
 } from '../../src/retrieval/output/risk-explain.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import {
+  buildRiskFilterInput,
   filterRiskFlows,
   filterRiskPartialFlows,
   normalizeRiskFilters,
@@ -40,17 +41,7 @@ const RISK_EXPLAIN_OPTIONS = Object.freeze({
   json: { type: 'boolean', default: false }
 });
 
-const buildRiskExplainFilters = (argv) => normalizeRiskFilters({
-  rule: argv.rule,
-  category: argv.category,
-  severity: argv.severity,
-  tag: argv.tag,
-  source: argv.source,
-  sink: argv.sink,
-  flowId: argv['flow-id'],
-  sourceRule: argv['source-rule'],
-  sinkRule: argv['sink-rule']
-});
+const buildRiskExplainFilters = (argv) => normalizeRiskFilters(buildRiskFilterInput(argv));
 
 const buildCliErrorDetails = (canonicalCode, reason = null) => {
   const details = {

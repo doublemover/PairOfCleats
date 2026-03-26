@@ -8,7 +8,7 @@ import { runSearch, runWorkspaceSearch } from './tools/handlers/search.js';
 import { triageContextPack, triageDecision, triageIngest } from './tools/handlers/triage.js';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { getTestEnvConfig } from '../../src/shared/env.js';
-import { normalizeMetaFilters } from '../shared/search-request.js';
+import { normalizeMetaFilters } from '../../src/shared/search-request.js';
 
 const parseTestDelayMs = () => {
   const testEnv = getTestEnvConfig();

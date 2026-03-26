@@ -1,7 +1,7 @@
 import { parseSearchArgs } from '../cli-args.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { normalizeNonNegativeInt, normalizePositiveInt } from '../../shared/limits.js';
-import { buildSearchRequestArgs } from '../../../tools/shared/search-request.js';
+import { buildSearchRequestArgs } from '../../shared/search-request.js';
 
 const WORKSPACE_VALUE_FLAGS = new Set([
   'workspace',
