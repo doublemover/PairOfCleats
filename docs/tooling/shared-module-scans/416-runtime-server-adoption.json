@@ -1,0 +1,222 @@
+{
+  "issueId": "416",
+  "title": "Scan runtime and server surfaces for missed adoption of existing shared modules",
+  "scanDate": "2026-03-26",
+  "scope": "H31 runtime/server scan across tools/api/**, tools/mcp/**, tools/service/**, src/workspace/**, and bin/**, excluding src/integrations/** per issue ownership.",
+  "summary": {
+    "overallAssessment": "These surfaces already rely on shared modules in several critical places, but adoption is still inconsistent inside each runtime family. The biggest missed opportunities are API route lifecycle helpers that remain partly duplicated across router files, MCP handler setup that still repeats config/runtime bootstrap patterns despite local helper modules, service job/build-root handling that is split across multiple files without one canonical normalization path, and the TUI launcher bypassing the shared dispatch/runtime env path already used by the main CLI.",
+    "strongExistingAnchors": [
+      "tools/api/router/body.js",
+      "tools/api/router/paths.js",
+      "tools/api/response.js",
+      "tools/api/trust-boundary.js",
+      "tools/shared/repo-cache-config.js",
+      "tools/shared/dict-utils.js",
+      "src/shared/dispatch/env.js",
+      "src/shared/runtime-envelope.js",
+      "src/shared/indexing/build-pointer.js",
+      "src/workspace/config.js",
+      "src/workspace/manifest.js",
+      "tools/service/indexer-service-helpers.js",
+      "tools/mcp/tools/helpers.js"
+    ],
+    "highestPriorityHotspots": [
+      {
+        "category": "api-route-lifecycle",
+        "whyItMatters": "Request parsing, repo/workspace resolution, and client-error/status mapping still repeat across API route files, which is exactly where misclassified 500s have already occurred.",
+        "bestExistingSharedModules": [
+          "tools/api/router/body.js",
+          "tools/api/router/paths.js",
+          "tools/api/response.js",
+          "tools/api/trust-boundary.js"
+        ]
+      },
+      {
+        "category": "service-job-runtime-normalization",
+        "whyItMatters": "Build-root/index-dir/env handling is spread across the service runtime and can drift into contradictory behavior between execution, monitoring, and replay paths.",
+        "bestExistingSharedModules": [
+          "tools/service/indexer-service-helpers.js",
+          "src/shared/runtime-envelope.js",
+          "src/shared/indexing/build-pointer.js"
+        ]
+      },
+      {
+        "category": "bin-and-mcp-runtime-bootstrap",
+        "whyItMatters": "The main CLI already uses shared dispatch/runtime env logic, but adjacent launch surfaces and MCP handlers still duplicate setup work and local env shaping.",
+        "bestExistingSharedModules": [
+          "src/shared/dispatch/env.js",
+          "tools/mcp/tools/helpers.js",
+          "tools/shared/dict-utils.js"
+        ]
+      }
+    ]
+  },
+  "adoptionMatrix": [
+    {
+      "name": "API route body parsing, repo/workspace resolution, and error envelope flow",
+      "sharedModules": [
+        "tools/api/router/body.js",
+        "tools/api/router/paths.js",
+        "tools/api/response.js",
+        "tools/api/trust-boundary.js"
+      ],
+      "localImplementations": [
+        "tools/api/router.js",
+        "tools/api/router/analysis.js",
+        "tools/api/router/index-snapshots.js",
+        "tools/api/router/index-diffs.js"
+      ],
+      "recommendedAction": "Push more route-local parsing and repo/workspace resolution through the existing body/paths/response helpers, and standardize client-error classification at that shared layer before introducing any new HTTP helper family.",
+      "whyThisWayIsBest": "These helpers already exist within the API surface and are closer to the current route semantics than inventing a new abstraction immediately. Using them more consistently addresses the known 400/403/413/415 versus 500 drift with less disruption.",
+      "testsToRequire": [
+        "service/api route-specific error classification regressions whenever local parsing/resolution logic is hoisted",
+        "surface-parity tests for any helperized path that touches federated search or analysis routing"
+      ]
+    },
+    {
+      "name": "API cache/build identity and trust-boundary redaction flow",
+      "sharedModules": [
+        "tools/shared/repo-cache-config.js",
+        "tools/api/trust-boundary.js",
+        "src/workspace/config.js",
+        "src/workspace/manifest.js"
+      ],
+      "localImplementations": [
+        "tools/api/router.js",
+        "tools/api/router/cache.js",
+        "tools/api/server.js"
+      ],
+      "recommendedAction": "Keep trust and HTTP response policy local, but route cache/build identity resolution and workspace-manifest interpretation through the existing shared cache/workspace modules rather than ad hoc router-level shaping.",
+      "whyThisWayIsBest": "The router must keep HTTP-specific semantics, but generation identity and workspace/build-root interpretation should not fork from the existing shared contracts.",
+      "testsToRequire": [
+        "capabilities/status trust-boundary redaction parity",
+        "search/build identity observability regressions"
+      ]
+    },
+    {
+      "name": "MCP handler config/runtime bootstrap duplication",
+      "sharedModules": [
+        "tools/mcp/tools/helpers.js",
+        "tools/shared/dict-utils.js",
+        "tools/shared/repo-cache-config.js",
+        "tools/shared/search-request.js"
+      ],
+      "localImplementations": [
+        "tools/mcp/tools/handlers/analysis.js",
+        "tools/mcp/tools/handlers/artifacts.js",
+        "tools/mcp/tools/handlers/bootstrap.js",
+        "tools/mcp/tools/handlers/downloads.js",
+        "tools/mcp/tools/handlers/indexing.js",
+        "tools/mcp/tools/handlers/search.js",
+        "tools/mcp/tools/handlers/triage.js"
+      ],
+      "recommendedAction": "Expand the existing MCP helper layer and route repeated loadUserConfig/runtime env/search-request bootstrap through it instead of duplicating setup in each handler.",
+      "whyThisWayIsBest": "MCP already has a local helper surface. Strengthening that one is lower risk than making each handler import a larger grab-bag of unrelated shared modules directly.",
+      "testsToRequire": [
+        "MCP handler contract tests for argument normalization and runtime env inheritance",
+        "search/build identity observability tests where handler outputs depend on cache generation context"
+      ]
+    },
+    {
+      "name": "Service job build-root/index-dir normalization",
+      "sharedModules": [
+        "tools/service/indexer-service-helpers.js",
+        "src/shared/indexing/build-pointer.js"
+      ],
+      "localImplementations": [
+        "tools/service/indexer-service.js",
+        "tools/service/indexer-service/job-executor.js",
+        "tools/service/indexer-service/progress-monitor.js",
+        "tools/service/embedding-replay.js"
+      ],
+      "recommendedAction": "Converge buildRoot/indexDir derivation on the existing service helper first, and only introduce a broader shared repo/workspace/generation abstraction later if the current helper proves too local.",
+      "whyThisWayIsBest": "Service execution, monitoring, and replay already share one helper family. Tightening that seam is safer than immediately pushing service-specific job assumptions into a repo-global shared module.",
+      "testsToRequire": [
+        "service replay/progress-monitor parity for buildRoot and indexDir derivation",
+        "queue/job-executor regressions where missing or escaped buildRoot values are involved"
+      ]
+    },
+    {
+      "name": "Service subprocess env shaping",
+      "sharedModules": [
+        "src/shared/runtime-envelope.js",
+        "tools/shared/dict-utils.js"
+      ],
+      "localImplementations": [
+        "tools/service/indexer-service.js",
+        "tools/service/indexer-service/job-executor.js",
+        "tools/service/subprocess-log.js"
+      ],
+      "recommendedAction": "Use shared runtime env/envelope shaping for policy decisions and keep local env merging only for service-specific payload injection or logging decoration.",
+      "whyThisWayIsBest": "The service runtime has legitimate extra env fields, but not its own separate NODE_OPTIONS and threadpool precedence rules.",
+      "testsToRequire": [
+        "service runtime env inheritance tests",
+        "existing shared runtime envelope precedence tests when service integration changes"
+      ]
+    },
+    {
+      "name": "TUI launcher bypasses shared dispatch/runtime env path",
+      "sharedModules": [
+        "src/shared/dispatch/env.js",
+        "src/shared/runtime-envelope.js"
+      ],
+      "localImplementations": [
+        "bin/pairofcleats-tui.js"
+      ],
+      "recommendedAction": "Adopt the shared dispatch/runtime env baseline in the TUI launcher, then layer TUI-specific variables on top rather than starting from a raw process.env merge.",
+      "whyThisWayIsBest": "The main CLI already proves this path. Keeping one runtime env baseline between the main wrapper and the TUI wrapper reduces cross-entrypoint drift.",
+      "testsToRequire": [
+        "TUI wrapper env-behavior and startup-handshake regressions",
+        "release verify-surface runtime/archive checks"
+      ]
+    }
+  ],
+  "localExceptions": [
+    {
+      "path": "tools/api/trust-boundary.js",
+      "reasonToRemainLocal": "This owns HTTP/API authz and redaction semantics and should not move into generic src/shared helpers."
+    },
+    {
+      "path": "tools/api/sse.js",
+      "reasonToRemainLocal": "SSE framing and stream semantics are API-transport-specific even if error-envelope helpers become more shared."
+    },
+    {
+      "path": "tools/mcp/transport.js",
+      "reasonToRemainLocal": "MCP transport framing and queueing semantics are MCP-specific and should not be forced into generic runtime helpers."
+    },
+    {
+      "path": "tools/service/queue.js",
+      "reasonToRemainLocal": "Queue durability, repair, and lease semantics are service-specific and should not be generalized just because they touch runtime/build metadata."
+    },
+    {
+      "path": "src/workspace/config.js",
+      "reasonToRemainLocal": "This is already one of the authoritative shared anchors for workspace identity; it should be adopted, not hoisted away."
+    },
+    {
+      "path": "src/workspace/manifest.js",
+      "reasonToRemainLocal": "This is already the authoritative workspace/build-pointer manifest interpreter and should stay local to the workspace domain."
+    }
+  ],
+  "recommendedFollowUps": [
+    {
+      "issueId": "418",
+      "why": "The tooling/setup/bench scan should absorb the runtime env and direct-exec follow-ons that are not limited to server surfaces."
+    },
+    {
+      "issueId": "420",
+      "why": "The editor/integration scan should handle the extension-side parallels to the API/MCP/runtime seams identified here."
+    },
+    {
+      "issueId": "422",
+      "why": "If API route lifecycle hoisting runs into the limits of the current router/body/response helpers, formalize a dedicated shared HTTP/request helper family."
+    },
+    {
+      "issueId": "423",
+      "why": "If service and API build-root/workspace adoption still feel fragmented after H31, extract a stronger shared repo/workspace/generation helper family."
+    },
+    {
+      "issueId": "424",
+      "why": "If MCP/service/bin env and subprocess adoption still leave too much local glue after H31, formalize the larger subprocess/toolchain helper family."
+    }
+  ]
+}
