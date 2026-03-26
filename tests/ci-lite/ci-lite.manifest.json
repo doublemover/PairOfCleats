@@ -3058,7 +3058,7 @@
       "order": 762
     },
     {
-      "id": "tooling/lsp/dart-provider-workspace-guard",
+      "id": "tooling/lsp/dedicated-provider-workspace-guard-matrix",
       "order": 763
     },
     {
@@ -3102,1540 +3102,1428 @@
       "order": 773
     },
     {
-      "id": "tooling/lsp/jdtls-provider-workspace-guard",
+      "id": "tooling/index-stats/aggregate",
       "order": 774
     },
     {
-      "id": "tooling/index-stats/aggregate",
+      "id": "indexing/determinism/chunk-meta-ordering-drift",
       "order": 775
     },
     {
-      "id": "indexing/determinism/chunk-meta-ordering-drift",
+      "id": "tooling/install/download-dicts",
       "order": 776
     },
     {
-      "id": "tooling/install/download-dicts",
+      "id": "storage/sqlite/build/args-parsing",
       "order": 777
     },
     {
-      "id": "tooling/lsp/csharp-provider-workspace-guard",
+      "id": "indexing/imports/options-forwarding-flowmode",
       "order": 778
     },
     {
-      "id": "storage/sqlite/build/args-parsing",
+      "id": "tooling/lsp/jdtls-provider-launch-contract-invalid",
       "order": 779
     },
     {
-      "id": "indexing/imports/options-forwarding-flowmode",
+      "id": "retrieval/providers/provider-adaptive-ordering-contract",
       "order": 780
     },
     {
-      "id": "tooling/lsp/jdtls-provider-launch-contract-invalid",
+      "id": "storage/sqlite/chunk-meta-streaming",
       "order": 781
     },
     {
-      "id": "tooling/lsp/phpactor-provider-workspace-guard",
+      "id": "tooling/install/tooling-go-requirement-probe",
       "order": 782
     },
     {
-      "id": "tooling/lsp/solargraph-provider-workspace-guard",
+      "id": "tooling/install/tooling-registry-cache-install-paths",
       "order": 783
     },
     {
-      "id": "retrieval/providers/provider-adaptive-ordering-contract",
+      "id": "lang/registry/selection",
       "order": 784
     },
     {
-      "id": "storage/sqlite/chunk-meta-streaming",
+      "id": "lang/registry/import-entries",
       "order": 785
     },
     {
-      "id": "tooling/install/tooling-go-requirement-probe",
+      "id": "indexing/imports/import-resolver-relative",
       "order": 786
     },
     {
-      "id": "tooling/install/tooling-registry-cache-install-paths",
+      "id": "indexing/shards/shard-plan",
       "order": 787
     },
     {
-      "id": "lang/registry/selection",
+      "id": "indexing/validate/resolve-index-dir-artifact-variants",
       "order": 788
     },
     {
-      "id": "lang/registry/import-entries",
+      "id": "tooling/lsp/csharp-provider-launch-contract-invalid",
       "order": 789
     },
     {
-      "id": "indexing/imports/import-resolver-relative",
+      "id": "indexing/artifacts/symbols/symbol-links-by-chunkuid",
       "order": 790
     },
     {
-      "id": "indexing/shards/shard-plan",
+      "id": "indexing/imports/cache-hints-reuse",
       "order": 791
     },
     {
-      "id": "indexing/validate/resolve-index-dir-artifact-variants",
+      "id": "tooling/lsp/csharp-provider-launch-bootstrap-missing",
       "order": 792
     },
     {
-      "id": "tooling/lsp/csharp-provider-launch-contract-invalid",
+      "id": "indexing/imports/esmodule-lexer-init",
       "order": 793
     },
     {
-      "id": "indexing/artifacts/symbols/symbol-links-by-chunkuid",
+      "id": "indexing/artifacts/symbols/symbol-edges-ambiguous",
       "order": 794
     },
     {
-      "id": "indexing/imports/cache-hints-reuse",
+      "id": "indexing/validate/index-manifest-safety",
       "order": 795
     },
     {
-      "id": "tooling/lsp/csharp-provider-launch-bootstrap-missing",
+      "id": "indexing/imports/proto-safe-module-keys",
       "order": 796
     },
     {
-      "id": "indexing/imports/esmodule-lexer-init",
+      "id": "indexing/records/discovery",
       "order": 797
     },
     {
-      "id": "indexing/artifacts/symbols/symbol-edges-ambiguous",
+      "id": "indexing/artifacts/minhash-packed-bench-contract",
       "order": 798
     },
     {
-      "id": "indexing/validate/index-manifest-safety",
+      "id": "shared/config/normalization-quality-threads",
       "order": 799
     },
     {
-      "id": "indexing/imports/proto-safe-module-keys",
+      "id": "indexing/imports/import-resolution-budget-policy-adaptive",
       "order": 800
     },
     {
-      "id": "indexing/records/discovery",
+      "id": "graph/memory-plateau",
       "order": 801
     },
     {
-      "id": "indexing/artifacts/minhash-packed-bench-contract",
+      "id": "indexing/type-inference/providers/type-inference-clangd-provider-no-clangd",
       "order": 802
     },
     {
-      "id": "shared/config/normalization-quality-threads",
+      "id": "indexing/validate/index-manifest-symlink-escape",
       "order": 803
     },
     {
-      "id": "indexing/imports/import-resolution-budget-policy-adaptive",
+      "id": "indexing/git/meta-batch-churn",
       "order": 804
     },
     {
-      "id": "graph/memory-plateau",
+      "id": "shared/subprocess/process-exit-cleanup",
       "order": 805
     },
     {
-      "id": "indexing/type-inference/providers/type-inference-clangd-provider-no-clangd",
+      "id": "tooling/index-stats/explicit-repo-path",
       "order": 806
     },
     {
-      "id": "indexing/validate/index-manifest-symlink-escape",
+      "id": "indexing/imports/require-regex-fallback-on-lexer-failure",
       "order": 807
     },
     {
-      "id": "indexing/git/meta-batch-churn",
+      "id": "indexing/imports/import-resolution-budget-exhaustion",
       "order": 808
     },
     {
-      "id": "shared/subprocess/process-exit-cleanup",
+      "id": "indexing/imports/import-resolution-fallback-depth-budget",
       "order": 809
     },
     {
-      "id": "tooling/index-stats/explicit-repo-path",
+      "id": "tooling/structural/search",
       "order": 810
     },
     {
-      "id": "indexing/imports/require-regex-fallback-on-lexer-failure",
+      "id": "tooling/structural/binary-default-timeout",
       "order": 811
     },
     {
-      "id": "indexing/imports/import-resolution-budget-exhaustion",
+      "id": "indexing/imports/import-priority",
       "order": 812
     },
     {
-      "id": "indexing/imports/import-resolution-fallback-depth-budget",
+      "id": "indexing/imports/cache-invalidation",
       "order": 813
     },
     {
-      "id": "tooling/structural/search",
+      "id": "indexing/imports/import-resolution-fs-exists-index-budget-shortcircuit",
       "order": 814
     },
     {
-      "id": "tooling/structural/binary-default-timeout",
+      "id": "indexing/imports/expected-artifacts-index",
       "order": 815
     },
     {
-      "id": "indexing/imports/import-priority",
+      "id": "indexing/imports/import-resolution-stage-pipeline",
       "order": 816
     },
     {
-      "id": "indexing/imports/cache-invalidation",
+      "id": "shared/abort/propagates-to-queues",
       "order": 817
     },
     {
-      "id": "indexing/imports/import-resolution-fs-exists-index-budget-shortcircuit",
+      "id": "indexing/imports/import-build-context-plugins",
       "order": 818
     },
     {
-      "id": "indexing/imports/expected-artifacts-index",
+      "id": "indexing/validate/index-file-name-collision",
       "order": 819
     },
     {
-      "id": "indexing/imports/import-resolution-stage-pipeline",
+      "id": "indexing/imports/import-build-context-typescript-emit",
       "order": 820
     },
     {
-      "id": "shared/abort/propagates-to-queues",
+      "id": "indexing/imports/gate-eligibility",
       "order": 821
     },
     {
-      "id": "indexing/imports/import-build-context-plugins",
+      "id": "indexing/validate/index-missing-pieces",
       "order": 822
     },
     {
-      "id": "indexing/validate/index-file-name-collision",
+      "id": "indexing/imports/import-scan-post-graph-stats",
       "order": 823
     },
     {
-      "id": "indexing/imports/import-build-context-typescript-emit",
+      "id": "indexing/imports/import-scan",
       "order": 824
     },
     {
-      "id": "tooling/lsp/haskell-provider-workspace-guard",
+      "id": "indexing/validate/index-chunk-meta-large-manifest-budget",
       "order": 825
     },
     {
-      "id": "indexing/imports/gate-eligibility",
+      "id": "indexing/imports/import-scan-non-js-end-to-end",
       "order": 826
     },
     {
-      "id": "indexing/validate/index-missing-pieces",
+      "id": "storage/sqlite/build-bench-contract",
       "order": 827
     },
     {
-      "id": "indexing/imports/import-scan-post-graph-stats",
+      "id": "indexing/imports/import-graph-resolved-refresh",
       "order": 828
     },
     {
-      "id": "indexing/imports/import-scan",
+      "id": "indexing/imports/fs-exists-index",
       "order": 829
     },
     {
-      "id": "indexing/validate/index-chunk-meta-large-manifest-budget",
+      "id": "indexing/imports/stage-cache-hit-miss",
       "order": 830
     },
     {
-      "id": "indexing/imports/import-scan-non-js-end-to-end",
+      "id": "indexing/imports/import-resolution",
       "order": 831
     },
     {
-      "id": "storage/sqlite/build-bench-contract",
+      "id": "tooling/doctor/runtime-requirements-provider-matrix",
       "order": 832
     },
     {
-      "id": "indexing/imports/import-graph-resolved-refresh",
+      "id": "indexing/imports/cache-missing-file",
       "order": 833
     },
     {
-      "id": "indexing/imports/fs-exists-index",
+      "id": "indexing/imports/replay-harness",
       "order": 834
     },
     {
-      "id": "indexing/imports/stage-cache-hit-miss",
+      "id": "indexing/imports/import-resolution-build-context-cache-key",
       "order": 835
     },
     {
-      "id": "indexing/imports/import-resolution",
+      "id": "indexing/imports/replay-harness-gate-eligible-stats",
       "order": 836
     },
     {
-      "id": "tooling/doctor/runtime-requirements-phpactor-dedicated",
+      "id": "indexing/imports/replay-stage-percentiles",
       "order": 837
     },
     {
-      "id": "indexing/imports/cache-missing-file",
+      "id": "indexing/validate/index-current-build-pointer-case-insensitive",
       "order": 838
     },
     {
-      "id": "indexing/imports/replay-harness",
+      "id": "indexing/preprocess/files",
       "order": 839
     },
     {
-      "id": "indexing/imports/import-resolution-build-context-cache-key",
+      "id": "ci/tooling-lsp-default-enable-gate.smoke",
       "order": 840
     },
     {
-      "id": "indexing/imports/replay-harness-gate-eligible-stats",
+      "id": "ci/tooling-lsp-slo-gate-regression-diff",
       "order": 841
     },
     {
-      "id": "indexing/imports/replay-stage-percentiles",
+      "id": "ci/tooling-lsp-guardrail-regression-diff",
       "order": 842
     },
     {
-      "id": "tooling/doctor/runtime-requirements-jdtls-dedicated",
+      "id": "indexing/imports/import-graph-unresolved-refresh",
       "order": 843
     },
     {
-      "id": "indexing/validate/index-current-build-pointer-case-insensitive",
+      "id": "indexing/imports/import-graph-incremental-reuse",
       "order": 844
     },
     {
-      "id": "indexing/preprocess/files",
+      "id": "indexing/imports/import-graph-warning-merge",
       "order": 845
     },
     {
-      "id": "ci/tooling-lsp-default-enable-gate.smoke",
+      "id": "indexing/filter-index/atomic-swap",
       "order": 846
     },
     {
-      "id": "ci/tooling-lsp-slo-gate-regression-diff",
+      "id": "tooling/doctor/command-resolution-provider-overrides",
       "order": 847
     },
     {
-      "id": "ci/tooling-lsp-guardrail-regression-diff",
+      "id": "indexing/imports/import-graph-budget-diagnostics",
       "order": 848
     },
     {
-      "id": "indexing/imports/import-graph-unresolved-refresh",
+      "id": "indexing/validate/index-unknown-artifact-fails-strict",
       "order": 849
     },
     {
-      "id": "indexing/imports/import-graph-incremental-reuse",
+      "id": "indexing/validate/index-missing-manifest",
       "order": 850
     },
     {
-      "id": "indexing/imports/import-graph-warning-merge",
+      "id": "tooling/doctor/detects-missing-typescript",
       "order": 851
     },
     {
-      "id": "indexing/filter-index/atomic-swap",
+      "id": "indexing/validate/index-optional-file-meta-nonstrict",
       "order": 852
     },
     {
-      "id": "tooling/doctor/command-resolution-provider-overrides",
+      "id": "workspace/build-pointer-invalid-scenarios",
       "order": 853
     },
     {
-      "id": "indexing/imports/import-graph-budget-diagnostics",
+      "id": "indexing/artifacts/clean",
       "order": 854
     },
     {
-      "id": "indexing/validate/index-unknown-artifact-fails-strict",
+      "id": "indexing/validate/index-sharded-meta-consistency",
       "order": 855
     },
     {
-      "id": "indexing/validate/index-missing-manifest",
+      "id": "services/snapshots/concurrent-registry-writers",
       "order": 856
     },
     {
-      "id": "tooling/doctor/detects-missing-typescript",
+      "id": "perf/bench/language-tooling-lsp-guardrail",
       "order": 857
     },
     {
-      "id": "tooling/doctor/runtime-requirements-solargraph-dedicated",
+      "id": "indexing/validate/index-determinism-report-required",
       "order": 858
     },
     {
-      "id": "indexing/validate/index-optional-file-meta-nonstrict",
+      "id": "indexing/validate/determinism-line-hash",
       "order": 859
     },
     {
-      "id": "workspace/build-pointer-invalid-scenarios",
+      "id": "tooling/doctor/command-profile-probe-timeout",
       "order": 860
     },
     {
-      "id": "indexing/artifacts/clean",
+      "id": "indexing/imports/import-scan-collector-hints",
       "order": 861
     },
     {
-      "id": "tooling/doctor/runtime-requirements-haskell-dedicated",
+      "id": "indexing/imports/import-scan-cache-hints",
       "order": 862
     },
     {
-      "id": "indexing/validate/index-sharded-meta-consistency",
+      "id": "indexing/artifacts/index-state-skip-write",
       "order": 863
     },
     {
-      "id": "services/snapshots/concurrent-registry-writers",
+      "id": "indexing/artifacts/eager-prefetch-drain",
       "order": 864
     },
     {
-      "id": "perf/bench/language-tooling-lsp-guardrail",
+      "id": "shared/config/auto-policy",
       "order": 865
     },
     {
-      "id": "indexing/validate/index-determinism-report-required",
+      "id": "indexing/validate/index-strict",
       "order": 866
     },
     {
-      "id": "indexing/validate/determinism-line-hash",
+      "id": "tooling/lsp/dedicated-provider-command-fallback-matrix",
       "order": 867
     },
     {
-      "id": "tooling/doctor/command-profile-probe-timeout",
+      "id": "tooling/triage/decision",
       "order": 868
     },
     {
-      "id": "indexing/imports/import-scan-collector-hints",
+      "id": "tooling/ci/lsp-embeddings-gates-timeout-junit",
       "order": 869
     },
     {
-      "id": "indexing/imports/import-scan-cache-hints",
+      "id": "tooling/lsp/jdtls-provider-workspace-lock-unavailable",
       "order": 870
     },
     {
-      "id": "indexing/artifacts/index-state-skip-write",
+      "id": "ci/suite-runner.smoke",
       "order": 871
     },
     {
-      "id": "indexing/artifacts/eager-prefetch-drain",
+      "id": "embeddings/runner/helper-contracts",
       "order": 872
     },
     {
-      "id": "shared/config/auto-policy",
+      "id": "indexing/imports/stage-pipeline-metrics",
       "order": 873
     },
     {
-      "id": "tooling/doctor/runtime-requirements-dedicated",
+      "id": "indexing/imports/import-scan-cache-read",
       "order": 874
     },
     {
-      "id": "indexing/validate/index-strict",
+      "id": "indexing/validate/index-jsonl-required-keys",
       "order": 875
     },
     {
-      "id": "tooling/lsp/phpactor-provider-command-fallback",
+      "id": "storage/sqlite/bundle-shard-splitting",
       "order": 876
     },
     {
-      "id": "tooling/triage/decision",
+      "id": "indexing/piece-assembly/assemble-pieces-no-guess",
       "order": 877
     },
     {
-      "id": "tooling/ci/lsp-embeddings-gates-timeout-junit",
+      "id": "indexing/imports/decision-metamorphic",
       "order": 878
     },
     {
-      "id": "tooling/lsp/jdtls-provider-workspace-lock-unavailable",
+      "id": "indexing/imports/decision-model-contract",
       "order": 879
     },
     {
-      "id": "ci/suite-runner.smoke",
+      "id": "indexing/validate/index-load-manifest",
       "order": 880
     },
     {
-      "id": "embeddings/runner/helper-contracts",
+      "id": "indexing/imports/collector-hints",
       "order": 881
     },
     {
-      "id": "indexing/imports/stage-pipeline-metrics",
+      "id": "tooling/doctor/command-profile-pyright-override",
       "order": 882
     },
     {
-      "id": "indexing/imports/import-scan-cache-read",
+      "id": "tooling/triage/ingest-sources.smoke",
       "order": 883
     },
     {
-      "id": "indexing/validate/index-jsonl-required-keys",
+      "id": "indexing/git/meta",
       "order": 884
     },
     {
-      "id": "storage/sqlite/bundle-shard-splitting",
+      "id": "tooling/doctor/workspace-model-provider-matrix",
       "order": 885
     },
     {
-      "id": "tooling/doctor/runtime-requirements-elixir-dedicated",
+      "id": "indexing/discovery/discover-leading-space",
       "order": 886
     },
     {
-      "id": "indexing/piece-assembly/assemble-pieces-no-guess",
+      "id": "tooling/workspace/catalog-json",
       "order": 887
     },
     {
-      "id": "indexing/imports/decision-metamorphic",
+      "id": "tooling/index-stats/json",
       "order": 888
     },
     {
-      "id": "indexing/imports/decision-model-contract",
+      "id": "workspace/manifest-determinism-and-hash",
       "order": 889
     },
     {
-      "id": "indexing/validate/index-load-manifest",
+      "id": "indexing/tree-sitter/preload-order-deterministic",
       "order": 890
     },
     {
-      "id": "indexing/imports/collector-hints",
+      "id": "tooling/doctor/provider-requires-args",
       "order": 891
     },
     {
-      "id": "tooling/doctor/command-profile-pyright-override",
+      "id": "indexing/imports/import-scan-budget-runtime-signals",
       "order": 892
     },
     {
-      "id": "tooling/triage/ingest-sources.smoke",
+      "id": "tooling/index-stats/missing-artifact",
       "order": 893
     },
     {
-      "id": "indexing/git/meta",
+      "id": "shared/locks/file-lock-contract",
       "order": 894
     },
     {
-      "id": "tooling/doctor/workspace-model-solargraph-detection",
+      "id": "indexing/validate/validator/manifest-count-sharded",
       "order": 895
     },
     {
-      "id": "indexing/discovery/discover-leading-space",
+      "id": "tooling/lsp/session-pool-reuse",
       "order": 896
     },
     {
-      "id": "tooling/lsp/dart-provider-command-fallback",
+      "id": "tooling/lsp/provider-delta-manifest",
       "order": 897
     },
     {
-      "id": "tooling/workspace/catalog-json",
+      "id": "ci/tooling-lsp-slo-gate-tail-p95",
       "order": 898
     },
     {
-      "id": "tooling/index-stats/json",
+      "id": "tooling/install/tooling-phpactor-phar-plan",
       "order": 899
     },
     {
-      "id": "workspace/manifest-determinism-and-hash",
+      "id": "tooling/lsp/jdtls-provider-launch-script-mismatch",
       "order": 900
     },
     {
-      "id": "indexing/tree-sitter/preload-order-deterministic",
+      "id": "lang/python/fallback",
       "order": 901
     },
     {
-      "id": "tooling/doctor/provider-requires-args",
+      "id": "tooling/lsp/typescript/vfs-segment-vue",
       "order": 902
     },
     {
-      "id": "indexing/imports/import-scan-budget-runtime-signals",
+      "id": "retrieval/ann/hnsw-candidate-set",
       "order": 903
     },
     {
-      "id": "tooling/doctor/workspace-model-csharp-detection",
+      "id": "cli/general/cli",
       "order": 904
     },
     {
-      "id": "tooling/index-stats/missing-artifact",
+      "id": "indexing/embeddings/embedding-queue",
       "order": 905
     },
     {
-      "id": "shared/locks/file-lock-contract",
+      "id": "indexing/segments/segment-uid-derived",
       "order": 906
     },
     {
-      "id": "tooling/doctor/workspace-model-phpactor-detection",
+      "id": "shared/bloom/decode-length-contract",
       "order": 907
     },
     {
-      "id": "indexing/validate/validator/manifest-count-sharded",
+      "id": "tooling/lsp/typescript/node-matching-range",
       "order": 908
     },
     {
-      "id": "tooling/doctor/workspace-model-haskell-detection",
+      "id": "indexing/segments/tsx-jsx-hint-preserved",
       "order": 909
     },
     {
-      "id": "tooling/lsp/session-pool-reuse",
+      "id": "tooling/vfs/row-trim-order",
       "order": 910
     },
     {
-      "id": "tooling/lsp/provider-delta-manifest",
+      "id": "tooling/install/install-phpactor-phar-network-guards",
       "order": 911
     },
     {
-      "id": "tooling/doctor/workspace-model-dart-detection",
+      "id": "tooling/lsp/typescript/ambiguous-fallback-does-not-guess",
       "order": 912
     },
     {
-      "id": "ci/tooling-lsp-slo-gate-tail-p95",
+      "id": "indexing/validate/validator/risk-interprocedural",
       "order": 913
     },
     {
-      "id": "tooling/install/tooling-phpactor-phar-plan",
+      "id": "indexing/tree-sitter/scheduler-miss-cache-bounded",
       "order": 914
     },
     {
-      "id": "tooling/lsp/elixir-provider-command-fallback",
+      "id": "tooling/lsp/typescript/destructured-param-names",
       "order": 915
     },
     {
-      "id": "tooling/lsp/jdtls-provider-launch-script-mismatch",
+      "id": "tooling/vfs/row-size-trim",
       "order": 916
     },
     {
-      "id": "lang/python/fallback",
+      "id": "shared/subprocess/abort-kills-child",
       "order": 917
     },
     {
-      "id": "tooling/lsp/typescript/vfs-segment-vue",
+      "id": "indexing/validate/index-boilerplate-catalog-manifest-name",
       "order": 918
     },
     {
-      "id": "retrieval/ann/hnsw-candidate-set",
+      "id": "tooling/type-inference/tooling-cache-root-default",
       "order": 919
     },
     {
-      "id": "cli/general/cli",
+      "id": "tooling/type-inference/tooling-configured-paths",
       "order": 920
     },
     {
-      "id": "indexing/embeddings/embedding-queue",
+      "id": "indexing/embeddings/build/explicit-index-root-missing-mode-fails-fast",
       "order": 921
     },
     {
-      "id": "tooling/doctor/workspace-model-detection",
+      "id": "indexing/postings/backpressure-queue",
       "order": 922
     },
     {
-      "id": "indexing/segments/segment-uid-derived",
+      "id": "shared/artifact-io/bench-contract",
       "order": 923
     },
     {
-      "id": "shared/bloom/decode-length-contract",
+      "id": "shared/artifact-io/binary-columnar-streaming-frames",
       "order": 924
     },
     {
-      "id": "tooling/lsp/haskell-provider-command-fallback",
+      "id": "indexing/artifacts/huge-write-policy",
       "order": 925
     },
     {
-      "id": "tooling/lsp/typescript/node-matching-range",
+      "id": "indexing/artifacts/token-postings-binary-columnar-streaming",
       "order": 926
     },
     {
-      "id": "indexing/segments/tsx-jsx-hint-preserved",
+      "id": "indexing/workers/worker-pool",
       "order": 927
     },
     {
-      "id": "tooling/doctor/runtime-requirements-dart-dedicated",
+      "id": "services/indexer/service-embedding-job-uses-build-root",
       "order": 928
     },
     {
-      "id": "tooling/vfs/row-trim-order",
+      "id": "indexing/validate/symbol-integrity-strict",
       "order": 929
     },
     {
-      "id": "tooling/install/install-phpactor-phar-network-guards",
+      "id": "services/snapshot-create",
       "order": 930
     },
     {
-      "id": "tooling/lsp/typescript/ambiguous-fallback-does-not-guess",
+      "id": "indexing/validate/index-binary-columnar-manifest-names",
       "order": 931
     },
     {
-      "id": "indexing/validate/validator/risk-interprocedural",
+      "id": "tooling/install/setup",
       "order": 932
     },
     {
-      "id": "tooling/lsp/solargraph-provider-command-fallback",
+      "id": "cli/search/symbol-boost",
       "order": 933
     },
     {
-      "id": "indexing/tree-sitter/scheduler-miss-cache-bounded",
+      "id": "retrieval/ann/lancedb-filter-pushdown",
       "order": 934
     },
     {
-      "id": "tooling/lsp/typescript/destructured-param-names",
+      "id": "indexing/validate/metav2-rejects-invalid-type-shapes",
       "order": 935
     },
     {
-      "id": "tooling/vfs/row-size-trim",
+      "id": "storage/sqlite/incremental-transaction-boundary",
       "order": 936
     },
     {
-      "id": "shared/subprocess/abort-kills-child",
+      "id": "tooling/lsp/dart-provider-package-config-missing-preflight",
       "order": 937
     },
     {
-      "id": "tooling/doctor/workspace-model-elixir-detection",
+      "id": "lang/javascript/paramnames",
       "order": 938
     },
     {
-      "id": "indexing/validate/index-boilerplate-catalog-manifest-name",
+      "id": "tooling/lsp/dedicated-provider-bootstrap-matrix",
       "order": 939
     },
     {
-      "id": "tooling/type-inference/tooling-cache-root-default",
+      "id": "indexing/tree-sitter/scheduler-lookup-reader-lease",
       "order": 940
     },
     {
-      "id": "tooling/type-inference/tooling-configured-paths",
+      "id": "tooling/service/subprocess-cancellation-contract",
       "order": 941
     },
     {
-      "id": "indexing/embeddings/build/explicit-index-root-missing-mode-fails-fast",
+      "id": "shared/cache/hit-rate-contract",
       "order": 942
     },
     {
-      "id": "indexing/postings/backpressure-queue",
+      "id": "indexing/embeddings/embedding-queue-defaults",
       "order": 943
     },
     {
-      "id": "shared/artifact-io/bench-contract",
+      "id": "tooling/lsp/protocol-stall-initialize-timeout",
       "order": 944
     },
     {
-      "id": "shared/artifact-io/binary-columnar-streaming-frames",
+      "id": "tooling/lsp/haskell-provider-ambiguous-cradle-preflight",
       "order": 945
     },
     {
-      "id": "indexing/artifacts/huge-write-policy",
+      "id": "indexing/segments/segment-pipeline",
       "order": 946
     },
     {
-      "id": "indexing/artifacts/token-postings-binary-columnar-streaming",
+      "id": "tooling/impact/seed-and-changed-behavior",
       "order": 947
     },
     {
-      "id": "indexing/workers/worker-pool",
+      "id": "tooling/lsp/dart-provider-process-reuse",
       "order": 948
     },
     {
-      "id": "services/indexer/service-embedding-job-uses-build-root",
+      "id": "tooling/lsp/phpactor-provider-composer-lock-missing-preflight",
       "order": 949
     },
     {
-      "id": "indexing/validate/symbol-integrity-strict",
+      "id": "tooling/lsp/phpactor-provider-workspace-composer-invalid-preflight",
       "order": 950
     },
     {
-      "id": "services/snapshot-create",
+      "id": "services/index-diff",
       "order": 951
     },
     {
-      "id": "indexing/validate/index-binary-columnar-manifest-names",
+      "id": "tooling/vfs/routing-by-effective-language",
       "order": 952
     },
     {
-      "id": "tooling/install/setup",
+      "id": "tooling/vfs/invalid-virtual-range-regression",
       "order": 953
     },
     {
-      "id": "cli/search/symbol-boost",
+      "id": "storage/sqlite/jsonl-streaming-zstd",
       "order": 954
     },
     {
-      "id": "retrieval/ann/lancedb-filter-pushdown",
+      "id": "indexing/validate/ledger-validation",
       "order": 955
     },
     {
-      "id": "indexing/validate/metav2-rejects-invalid-type-shapes",
+      "id": "retrieval/ann/dense-vector-mode",
       "order": 956
     },
     {
-      "id": "storage/sqlite/incremental-transaction-boundary",
+      "id": "indexing/discovery/discover",
       "order": 957
     },
     {
-      "id": "tooling/lsp/dart-provider-package-config-missing-preflight",
+      "id": "tooling/lsp/typescript-provider-output-shape",
       "order": 958
     },
     {
-      "id": "lang/javascript/paramnames",
+      "id": "tooling/lsp/csharp-provider-ambiguous-solution-preflight",
       "order": 959
     },
     {
-      "id": "tooling/lsp/haskell-provider-bootstrap",
+      "id": "tooling/config/validate",
       "order": 960
     },
     {
-      "id": "indexing/tree-sitter/scheduler-lookup-reader-lease",
+      "id": "shared/io/atomic-write-contract",
       "order": 961
     },
     {
-      "id": "tooling/service/subprocess-cancellation-contract",
+      "id": "tooling/lsp/csharp-provider-ambiguous-project-preflight",
       "order": 962
     },
     {
-      "id": "tooling/lsp/phpactor-provider-bootstrap",
+      "id": "tooling/lsp/solargraph-provider-gemfile-lock-missing-preflight",
       "order": 963
     },
     {
-      "id": "shared/cache/hit-rate-contract",
+      "id": "indexing/validate/index-unknown-piece",
       "order": 964
     },
     {
-      "id": "indexing/embeddings/embedding-queue-defaults",
+      "id": "indexing/relations/segment-call-site-offsets",
       "order": 965
     },
     {
-      "id": "tooling/lsp/protocol-stall-initialize-timeout",
+      "id": "indexing/relations/segment-language-fidelity",
       "order": 966
     },
     {
-      "id": "tooling/lsp/haskell-provider-ambiguous-cradle-preflight",
+      "id": "tooling/type-inference/crossfile-tooling-runtime-stats-fail-open",
       "order": 967
     },
     {
-      "id": "indexing/segments/segment-pipeline",
+      "id": "indexing/risk/interprocedural/summary-only-status",
       "order": 968
     },
     {
-      "id": "tooling/impact/seed-and-changed-behavior",
+      "id": "services/snapshot-freeze",
       "order": 969
     },
     {
-      "id": "tooling/lsp/dart-provider-process-reuse",
+      "id": "tooling/lsp/shutdown",
       "order": 970
     },
     {
-      "id": "tooling/lsp/phpactor-provider-composer-lock-missing-preflight",
+      "id": "indexing/tree-sitter/scheduler-plan-skip-on-parse-error",
       "order": 971
     },
     {
-      "id": "tooling/lsp/dart-provider-bootstrap",
+      "id": "retrieval/filters/lang-filter-matches-embedded-segments",
       "order": 972
     },
     {
-      "id": "tooling/lsp/phpactor-provider-workspace-composer-invalid-preflight",
+      "id": "indexing/tree-sitter/scheduler-native-plan-contract",
       "order": 973
     },
     {
-      "id": "services/index-diff",
+      "id": "tooling/install/postinstall-rebuild-native",
       "order": 974
     },
     {
-      "id": "tooling/vfs/routing-by-effective-language",
+      "id": "shared/subprocess/tracked-event-ledger",
       "order": 975
     },
     {
-      "id": "tooling/vfs/invalid-virtual-range-regression",
+      "id": "indexing/tree-sitter/scheduler-swift-subprocess",
       "order": 976
     },
     {
-      "id": "storage/sqlite/jsonl-streaming-zstd",
+      "id": "tooling/lsp/solargraph-provider-runtime-toolchain-missing-bundle-preflight",
       "order": 977
     },
     {
-      "id": "tooling/lsp/elixir-provider-bootstrap",
+      "id": "tooling/ingest/ctags/ingest",
       "order": 978
     },
     {
-      "id": "indexing/validate/ledger-validation",
+      "id": "lang/python/ast-worker",
       "order": 979
     },
     {
-      "id": "retrieval/ann/dense-vector-mode",
+      "id": "indexing/file-processor/skip",
       "order": 980
     },
     {
-      "id": "indexing/discovery/discover",
+      "id": "shared/abort/propagates-to-subprocess",
       "order": 981
     },
     {
-      "id": "tooling/lsp/elixir-provider-workspace-guard",
+      "id": "indexing/tree-sitter/scheduler-stage1-contract",
       "order": 982
     },
     {
-      "id": "tooling/lsp/solargraph-provider-bootstrap",
+      "id": "tooling/lsp/jdtls-provider-bootstrap",
       "order": 983
     },
     {
-      "id": "tooling/lsp/csharp-provider-bootstrap",
+      "id": "shared/fs/atomic-replace-cross-device-fallback",
       "order": 984
     },
     {
-      "id": "tooling/lsp/typescript-provider-output-shape",
+      "id": "indexing/file-processor/unsupported-language-skip",
       "order": 985
     },
     {
-      "id": "tooling/lsp/csharp-provider-ambiguous-solution-preflight",
+      "id": "indexing/tree-sitter/plan-stale-file-resilience",
       "order": 986
     },
     {
-      "id": "tooling/config/validate",
+      "id": "indexing/validate/index-unknown-mode",
       "order": 987
     },
     {
-      "id": "shared/io/atomic-write-contract",
+      "id": "indexing/validate/manifest-checks",
       "order": 988
     },
     {
-      "id": "tooling/lsp/csharp-provider-ambiguous-project-preflight",
+      "id": "shared/subprocess/timeout-kills-child",
       "order": 989
     },
     {
-      "id": "tooling/lsp/solargraph-provider-gemfile-lock-missing-preflight",
+      "id": "shared/subprocess/sync-command-timeout-opt-out",
       "order": 990
     },
     {
-      "id": "indexing/validate/index-unknown-piece",
+      "id": "shared/process-signals/cleanup-signal-handlers",
       "order": 991
     },
     {
-      "id": "indexing/relations/segment-call-site-offsets",
+      "id": "shared/runtime/records-config",
       "order": 992
     },
     {
-      "id": "indexing/relations/segment-language-fidelity",
+      "id": "tooling/config/dump",
       "order": 993
     },
     {
-      "id": "tooling/type-inference/crossfile-tooling-runtime-stats-fail-open",
+      "id": "indexing/file-processor/read-failure-skip",
       "order": 994
     },
     {
-      "id": "indexing/risk/interprocedural/summary-only-status",
+      "id": "shared/disk-space/format-bytes-contract",
       "order": 995
     },
     {
-      "id": "services/snapshot-freeze",
+      "id": "tooling/service/subprocess-buffer-bounds",
       "order": 996
     },
     {
-      "id": "tooling/lsp/shutdown",
+      "id": "indexing/stage1/process-files-inflight-drain",
       "order": 997
     },
     {
-      "id": "indexing/tree-sitter/scheduler-plan-skip-on-parse-error",
+      "id": "tooling/cache/gc-preserves-manifest-referenced",
       "order": 998
     },
     {
-      "id": "retrieval/filters/lang-filter-matches-embedded-segments",
+      "id": "indexing/file-processor/scm-annotate-fast-timeout",
       "order": 999
     },
     {
-      "id": "indexing/tree-sitter/scheduler-native-plan-contract",
+      "id": "indexing/segments/effective-identity-md-fence",
       "order": 1000
     },
     {
-      "id": "tooling/install/postinstall-rebuild-native",
+      "id": "indexing/workers/worker-pool-windows",
       "order": 1001
     },
     {
-      "id": "shared/subprocess/tracked-event-ledger",
+      "id": "shared/diffs-registry",
       "order": 1002
     },
     {
-      "id": "indexing/tree-sitter/scheduler-swift-subprocess",
+      "id": "smoke/workers",
       "order": 1003
     },
     {
-      "id": "tooling/lsp/solargraph-provider-runtime-toolchain-missing-bundle-preflight",
+      "id": "tooling/lsp/sourcekit-provider-output-shape",
       "order": 1004
     },
     {
-      "id": "tooling/ingest/ctags/ingest",
+      "id": "tooling/lsp/session-pool-max-lifetime-recycle",
       "order": 1005
     },
     {
-      "id": "lang/python/ast-worker",
+      "id": "indexing/file-processor/effective-language-drives-docmeta",
       "order": 1006
     },
     {
-      "id": "indexing/file-processor/skip",
+      "id": "indexing/tree-sitter/scheduler-native-determinism",
       "order": 1007
     },
     {
-      "id": "shared/abort/propagates-to-subprocess",
+      "id": "runner/harness/cwd-independence",
       "order": 1008
     },
     {
-      "id": "indexing/tree-sitter/scheduler-stage1-contract",
+      "id": "indexing/scm/build-runtime-timeout-policy",
       "order": 1009
     },
     {
-      "id": "tooling/lsp/jdtls-provider-bootstrap",
+      "id": "indexing/scm/file-meta-snapshot-churn-optin-contract",
       "order": 1010
     },
     {
-      "id": "shared/fs/atomic-replace-cross-device-fallback",
+      "id": "tooling/ingest/lsif/ingest",
       "order": 1011
     },
     {
-      "id": "indexing/file-processor/unsupported-language-skip",
+      "id": "tooling/lsp/elixir-provider-mix-lock-missing-preflight",
       "order": 1012
     },
     {
-      "id": "indexing/tree-sitter/plan-stale-file-resilience",
+      "id": "tooling/lsp/vfs-didopen",
       "order": 1013
     },
     {
-      "id": "indexing/validate/index-unknown-mode",
+      "id": "tooling/ingest/scip/ingest",
       "order": 1014
     },
     {
-      "id": "indexing/validate/manifest-checks",
+      "id": "indexing/file-processor/scm-runproc-queue-timeout",
       "order": 1015
     },
     {
-      "id": "shared/subprocess/timeout-kills-child",
+      "id": "tooling/lsp/latency-microbench-contract",
       "order": 1016
     },
     {
-      "id": "shared/subprocess/sync-command-timeout-opt-out",
+      "id": "tooling/lsp/param-fallback-from-source",
       "order": 1017
     },
     {
-      "id": "shared/process-signals/cleanup-signal-handlers",
+      "id": "tooling/lsp/source-bootstrap-incomplete-still-requests",
       "order": 1018
     },
     {
-      "id": "shared/runtime/records-config",
+      "id": "tooling/lsp/pyright-function-symbol-priority",
       "order": 1019
     },
     {
-      "id": "tooling/config/dump",
+      "id": "tooling/lsp/protocol-fragmented-frames",
       "order": 1020
     },
     {
-      "id": "indexing/file-processor/read-failure-skip",
+      "id": "tooling/lsp/signature-help-fallback",
       "order": 1021
     },
     {
-      "id": "shared/disk-space/format-bytes-contract",
+      "id": "tooling/lsp/collect-shutdown-race-clean",
       "order": 1022
     },
     {
-      "id": "tooling/service/subprocess-buffer-bounds",
+      "id": "tooling/lsp/definition-fallback",
       "order": 1023
     },
     {
-      "id": "indexing/stage1/process-files-inflight-drain",
+      "id": "tooling/ingest/gtags/ingest",
       "order": 1024
     },
     {
-      "id": "tooling/cache/gc-preserves-manifest-referenced",
+      "id": "tooling/lsp/fd-pressure-backoff-contract",
       "order": 1025
     },
     {
-      "id": "indexing/file-processor/scm-annotate-fast-timeout",
+      "id": "tooling/lsp/bychunkuid-keying",
       "order": 1026
     },
     {
-      "id": "indexing/segments/effective-identity-md-fence",
+      "id": "indexing/embeddings/embedding-batch-autotune",
       "order": 1027
     },
     {
-      "id": "indexing/workers/worker-pool-windows",
+      "id": "indexing/embeddings/stage3-manifest-failure-guard",
       "order": 1028
     },
     {
-      "id": "shared/diffs-registry",
+      "id": "tooling/lsp/configured-provider-lua-workspace-library",
       "order": 1029
     },
     {
-      "id": "smoke/workers",
+      "id": "tooling/lsp/configured-provider-rust-proc-macro-suppression-policy-preflight",
       "order": 1030
     },
     {
-      "id": "tooling/lsp/sourcekit-provider-output-shape",
+      "id": "tooling/lsp/type-definition-fallback",
       "order": 1031
     },
     {
-      "id": "tooling/lsp/session-pool-max-lifetime-recycle",
+      "id": "tooling/lsp/configured-provider-lua-workspace-library-missing-path-preflight",
       "order": 1032
     },
     {
-      "id": "indexing/file-processor/effective-language-drives-docmeta",
+      "id": "tooling/lsp/configured-provider-runtime-requirement-preflight-degraded",
       "order": 1033
     },
     {
-      "id": "indexing/tree-sitter/scheduler-native-determinism",
+      "id": "runner/harness/timings-ledger",
       "order": 1034
     },
     {
-      "id": "runner/harness/cwd-independence",
+      "id": "runner/harness/stability-schema-validation",
       "order": 1035
     },
     {
-      "id": "indexing/scm/build-runtime-timeout-policy",
+      "id": "runner/stability-classification",
       "order": 1036
     },
     {
-      "id": "indexing/scm/file-meta-snapshot-churn-optin-contract",
+      "id": "runner/harness/stability-artifact-contract",
       "order": 1037
     },
     {
-      "id": "tooling/doctor/runtime-requirements-csharp-dedicated",
+      "id": "tooling/lsp/configured-provider-rust-proc-macro-diagnostic-suppression",
       "order": 1038
     },
     {
-      "id": "tooling/ingest/lsif/ingest",
+      "id": "tooling/lsp/configured-provider-yaml-schema-override-merge",
       "order": 1039
     },
     {
-      "id": "tooling/lsp/elixir-provider-mix-lock-missing-preflight",
+      "id": "tooling/lsp/configured-provider-lua-workspace-config-invalid-preflight",
       "order": 1040
     },
     {
-      "id": "tooling/lsp/vfs-didopen",
+      "id": "tooling/lsp/configured-provider-rust-workspace-metadata-preflight-degraded",
       "order": 1041
     },
     {
-      "id": "tooling/ingest/scip/ingest",
+      "id": "tooling/lsp/hover-merge-quality",
       "order": 1042
     },
     {
-      "id": "indexing/file-processor/scm-runproc-queue-timeout",
+      "id": "tooling/lsp/configured-provider-yaml-schema-store-remote-warning-preflight",
       "order": 1043
     },
     {
-      "id": "tooling/lsp/latency-microbench-contract",
+      "id": "tooling/lsp/configured-provider-rust-workspace-metadata-cache-hit",
       "order": 1044
     },
     {
-      "id": "tooling/lsp/param-fallback-from-source",
+      "id": "tooling/lsp/clangd-provider-output-shape",
       "order": 1045
     },
     {
-      "id": "tooling/lsp/source-bootstrap-incomplete-still-requests",
+      "id": "tooling/lsp/configured-provider-zls-workspace-nested-root-preflight",
       "order": 1046
     },
     {
-      "id": "tooling/lsp/pyright-function-symbol-priority",
+      "id": "tooling/lsp/clangd-preflight-missing-compile-commands-inference-disabled",
       "order": 1047
     },
     {
-      "id": "tooling/lsp/protocol-fragmented-frames",
+      "id": "tooling/lsp/protocol-disconnect-document-symbol-fail-open",
       "order": 1048
     },
     {
-      "id": "tooling/lsp/signature-help-fallback",
+      "id": "tooling/lsp/configured-provider-go-workspace-warmup-doc-count-gating",
       "order": 1049
     },
     {
-      "id": "tooling/lsp/collect-shutdown-race-clean",
+      "id": "tooling/lsp/configured-provider-go-workspace-module-preflight-failed",
       "order": 1050
     },
     {
-      "id": "tooling/lsp/definition-fallback",
+      "id": "tooling/lsp/provider-metrics-capability-rollup",
       "order": 1051
     },
     {
-      "id": "tooling/ingest/gtags/ingest",
+      "id": "tooling/lsp/csharp-provider-overload-signature",
       "order": 1052
     },
     {
-      "id": "tooling/lsp/fd-pressure-backoff-contract",
+      "id": "tooling/lsp/provider-fidelity-coverage-contract",
       "order": 1053
     },
     {
-      "id": "tooling/lsp/bychunkuid-keying",
+      "id": "tooling/lsp/configured-provider-go-workspace-warmup-preflight-failed",
       "order": 1054
     },
     {
-      "id": "indexing/embeddings/embedding-batch-autotune",
+      "id": "tooling/lsp/provider-metrics-envelope-aggregate",
       "order": 1055
     },
     {
-      "id": "indexing/embeddings/stage3-manifest-failure-guard",
+      "id": "tooling/lsp/configured-provider-go-workspace-preflight-cache-hit",
       "order": 1056
     },
     {
-      "id": "tooling/lsp/configured-provider-lua-workspace-library",
+      "id": "tooling/lsp/configured-provider-gopls-workspace-root-ambiguous-preflight",
       "order": 1057
     },
     {
-      "id": "tooling/lsp/configured-provider-rust-proc-macro-suppression-policy-preflight",
+      "id": "tooling/lsp/configured-provider-gopls-workspace-root-nested-preflight",
       "order": 1058
     },
     {
-      "id": "tooling/lsp/type-definition-fallback",
+      "id": "tooling/lsp/document-symbol-failure-disables-remaining-docs",
       "order": 1059
     },
     {
-      "id": "tooling/lsp/configured-provider-lua-workspace-library-missing-path-preflight",
+      "id": "indexing/tree-sitter/scheduler-native-language-contract",
       "order": 1060
     },
     {
-      "id": "tooling/lsp/configured-provider-runtime-requirement-preflight-degraded",
+      "id": "indexing/tree-sitter/scheduler-native-smoke",
       "order": 1061
     },
     {
-      "id": "runner/harness/timings-ledger",
+      "id": "tooling/lsp/references-fallback",
       "order": 1062
     },
     {
-      "id": "runner/harness/stability-schema-validation",
+      "id": "runner/harness/redo-semantics",
       "order": 1063
     },
     {
-      "id": "runner/stability-classification",
+      "id": "shared/cache/gc",
       "order": 1064
     },
     {
-      "id": "runner/harness/stability-artifact-contract",
+      "id": "tooling/type-inference/crossfile-stats.unit",
       "order": 1065
     },
     {
-      "id": "tooling/lsp/configured-provider-rust-proc-macro-diagnostic-suppression",
+      "id": "tooling/lsp/elixir-provider-runtime-otp-mismatch-preflight",
       "order": 1066
     },
     {
-      "id": "tooling/lsp/configured-provider-yaml-schema-override-merge",
+      "id": "cli/search/help",
       "order": 1067
     },
     {
-      "id": "tooling/lsp/configured-provider-lua-workspace-config-invalid-preflight",
+      "id": "tooling/vfs/partial-lsp-open",
       "order": 1068
     },
     {
-      "id": "tooling/lsp/configured-provider-rust-workspace-metadata-preflight-degraded",
+      "id": "indexing/tree-sitter/scheduler-paged-json-gzip",
       "order": 1069
     },
     {
-      "id": "tooling/lsp/hover-merge-quality",
+      "id": "tooling/lsp/configured-provider-go-rust-signature-parsing",
       "order": 1070
     },
     {
-      "id": "tooling/lsp/configured-provider-yaml-schema-store-remote-warning-preflight",
+      "id": "tooling/lsp/configured-provider-rust-workspace-metadata-preflight-timeout-override",
       "order": 1071
     },
     {
-      "id": "tooling/lsp/configured-provider-rust-workspace-metadata-cache-hit",
+      "id": "tooling/lsp/configured-provider-go-workspace-module-preflight-timeout",
       "order": 1072
     },
     {
-      "id": "tooling/lsp/clangd-provider-output-shape",
+      "id": "indexing/watch/lock-backoff",
       "order": 1073
     },
     {
-      "id": "tooling/lsp/configured-provider-zls-workspace-nested-root-preflight",
+      "id": "indexing/ignore/ignore-file-overrides",
       "order": 1074
     },
     {
-      "id": "tooling/lsp/clangd-preflight-missing-compile-commands-inference-disabled",
+      "id": "indexing/imports/import-scan-budget-cache-key",
       "order": 1075
     },
     {
-      "id": "tooling/lsp/protocol-disconnect-document-symbol-fail-open",
+      "id": "tooling/doctor/gating-reasons",
       "order": 1076
     },
     {
-      "id": "tooling/lsp/configured-provider-go-workspace-warmup-doc-count-gating",
+      "id": "tooling/lsp/elixir-provider-initialize-stall-fail-open",
       "order": 1077
     },
     {
-      "id": "tooling/lsp/configured-provider-go-workspace-module-preflight-failed",
+      "id": "perf/bench/language-log-closeout",
       "order": 1078
     },
     {
-      "id": "tooling/lsp/provider-metrics-capability-rollup",
+      "id": "perf/bench/language-log-emergency-close",
       "order": 1079
     },
     {
-      "id": "tooling/lsp/csharp-provider-overload-signature",
+      "id": "perf/bench/language-report-cross-repo-dedupe",
       "order": 1080
     },
     {
-      "id": "tooling/lsp/provider-fidelity-coverage-contract",
+      "id": "perf/bench/language-report-master-dedupe",
       "order": 1081
     },
     {
-      "id": "tooling/lsp/configured-provider-go-workspace-warmup-preflight-failed",
+      "id": "perf/bench/language-report-master-summary-recovery",
       "order": 1082
     },
     {
-      "id": "tooling/lsp/provider-metrics-envelope-aggregate",
+      "id": "perf/bench/query-runtime",
       "order": 1083
     },
     {
-      "id": "tooling/lsp/configured-provider-go-workspace-preflight-cache-hit",
+      "id": "perf/bench/language-timeout-profile",
       "order": 1084
     },
     {
-      "id": "tooling/lsp/configured-provider-gopls-workspace-root-ambiguous-preflight",
+      "id": "perf/bench/language-process-idle-timeout",
       "order": 1085
     },
     {
-      "id": "tooling/lsp/configured-provider-gopls-workspace-root-nested-preflight",
+      "id": "perf/bench/language-process-idle-activity-probe",
       "order": 1086
     },
     {
-      "id": "tooling/lsp/document-symbol-failure-disables-remaining-docs",
+      "id": "perf/bench/language-process-idle-activity-probe-async",
       "order": 1087
     },
     {
-      "id": "indexing/tree-sitter/scheduler-native-language-contract",
+      "id": "shared/lifecycle/registry-unref-promise-drain",
       "order": 1088
     },
     {
-      "id": "indexing/tree-sitter/scheduler-native-smoke",
+      "id": "shared/bundle-io-patch-append",
       "order": 1089
     },
     {
-      "id": "tooling/lsp/references-fallback",
+      "id": "shared/subprocess/windows-cmd",
       "order": 1090
     },
     {
-      "id": "runner/harness/redo-semantics",
+      "id": "indexing/embeddings/embedding-batcher-unref-timer",
       "order": 1091
     },
     {
-      "id": "shared/cache/gc",
+      "id": "perf/bench/repo-timeout-propagation",
       "order": 1092
     },
     {
-      "id": "tooling/type-inference/crossfile-stats.unit",
+      "id": "indexing/watch/debounce",
       "order": 1093
     },
     {
-      "id": "tooling/lsp/elixir-provider-runtime-otp-mismatch-preflight",
+      "id": "indexing/state/build-state-log-repair",
       "order": 1094
     },
     {
-      "id": "cli/search/help",
+      "id": "indexing/state/build-state-identical-patch-repeat-logs",
       "order": 1095
     },
     {
-      "id": "tooling/vfs/partial-lsp-open",
+      "id": "indexing/state/build-state-skip-write-missing-files",
       "order": 1096
     },
     {
-      "id": "indexing/tree-sitter/scheduler-paged-json-gzip",
+      "id": "tooling/lsp/signature-help-timeout-adaptive-gates-next-symbol",
       "order": 1097
     },
     {
-      "id": "tooling/lsp/configured-provider-go-rust-signature-parsing",
+      "id": "tooling/lsp/signature-help-timeout-adaptive",
       "order": 1098
     },
     {
-      "id": "tooling/lsp/configured-provider-rust-workspace-metadata-preflight-timeout-override",
+      "id": "runner/harness/skip-semantics",
       "order": 1099
     },
     {
-      "id": "tooling/lsp/configured-provider-go-workspace-module-preflight-timeout",
+      "id": "tooling/lsp/definition-timeout-adaptive",
       "order": 1100
     },
     {
-      "id": "indexing/watch/lock-backoff",
+      "id": "tooling/lsp/references-timeout-adaptive",
       "order": 1101
     },
     {
-      "id": "indexing/ignore/ignore-file-overrides",
+      "id": "tooling/lsp/provider-metrics-hover-timeout-rollup",
       "order": 1102
     },
     {
-      "id": "indexing/imports/import-scan-budget-cache-key",
+      "id": "indexing/tokenization/file-stream-reuse",
       "order": 1103
     },
     {
-      "id": "tooling/doctor/gating-reasons",
+      "id": "perf/bench/language-closeout-exit",
       "order": 1104
     },
     {
-      "id": "tooling/lsp/elixir-provider-initialize-stall-fail-open",
+      "id": "indexing/extracted-prose/low-yield-history-family-priors",
       "order": 1105
     },
     {
-      "id": "perf/bench/language-log-closeout",
+      "id": "indexing/stage1/barrier-keepalive",
       "order": 1106
     },
     {
-      "id": "perf/bench/language-log-emergency-close",
+      "id": "indexing/runtime/runtime-teardown-order",
       "order": 1107
     },
     {
-      "id": "perf/bench/language-report-cross-repo-dedupe",
+      "id": "indexing/ordering/ordered-appender-retry-reset",
       "order": 1108
     },
     {
-      "id": "perf/bench/language-report-master-dedupe",
+      "id": "tooling/install/tooling-signal-exit",
       "order": 1109
     },
     {
-      "id": "perf/bench/language-report-master-summary-recovery",
+      "id": "tooling/install/tooling-resolve-preferred-enabled-fallback",
       "order": 1110
     },
     {
-      "id": "perf/bench/query-runtime",
+      "id": "tooling/analysis-wrapper-exit-propagation",
       "order": 1111
     },
     {
-      "id": "perf/bench/language-timeout-profile",
+      "id": "tooling/vscode/windows-cmd",
       "order": 1112
     },
     {
-      "id": "perf/bench/language-process-idle-timeout",
+      "id": "tooling/lsp/windows-wrapper-argv-forwarding",
       "order": 1113
     },
     {
-      "id": "perf/bench/language-process-idle-activity-probe",
+      "id": "ci/tooling-lsp-slo-gate-attempt-ratios",
       "order": 1114
     },
     {
-      "id": "perf/bench/language-process-idle-activity-probe-async",
+      "id": "ci/tooling-lsp-slo-gate-sampling",
       "order": 1115
     },
     {
-      "id": "shared/lifecycle/registry-unref-promise-drain",
+      "id": "ci/tooling-lsp-slo-gate-unavailable-skip",
       "order": 1116
     },
     {
-      "id": "shared/bundle-io-patch-append",
+      "id": "indexing/extracted-prose/low-yield-history-doclike-reinforcement",
       "order": 1117
     },
     {
-      "id": "shared/subprocess/windows-cmd",
+      "id": "indexing/extracted-prose/low-yield-history-unsampled-doclike-family",
       "order": 1118
     },
     {
-      "id": "indexing/embeddings/embedding-batcher-unref-timer",
+      "id": "indexing/extracted-prose/low-yield-unsampled-doclike-family-expansion",
       "order": 1119
     },
     {
-      "id": "perf/bench/repo-timeout-propagation",
+      "id": "indexing/extracted-prose/low-yield-summary-family-evidence",
       "order": 1120
     },
     {
-      "id": "indexing/watch/debounce",
+      "id": "indexing/extracted-prose/extraction-report",
       "order": 1121
     },
     {
-      "id": "indexing/state/build-state-log-repair",
+      "id": "indexing/workers/worker-pool-lifecycle-destroy",
       "order": 1122
     },
     {
-      "id": "indexing/state/build-state-identical-patch-repeat-logs",
+      "id": "indexing/workers/worker-pool-lifecycle-destroy-during-restart",
       "order": 1123
     },
     {
-      "id": "indexing/state/build-state-skip-write-missing-files",
+      "id": "context-pack/risk-ranking-budget",
       "order": 1124
     },
     {
-      "id": "tooling/lsp/signature-help-timeout-adaptive-gates-next-symbol",
+      "id": "context-pack/risk-strict-status",
       "order": 1125
     },
     {
-      "id": "tooling/lsp/signature-help-timeout-adaptive",
+      "id": "retrieval/output/risk-explanation-contract",
       "order": 1126
     },
     {
-      "id": "runner/harness/skip-semantics",
+      "id": "retrieval/output/risk-explanation-sarif-contract",
       "order": 1127
     },
     {
-      "id": "tooling/lsp/definition-timeout-adaptive",
+      "id": "retrieval/output/composite-context-pack-render-contract",
       "order": 1128
     },
     {
-      "id": "tooling/lsp/references-timeout-adaptive",
-      "order": 1129
-    },
-    {
-      "id": "tooling/lsp/provider-metrics-hover-timeout-rollup",
-      "order": 1130
-    },
-    {
-      "id": "indexing/tokenization/file-stream-reuse",
-      "order": 1131
-    },
-    {
-      "id": "perf/bench/language-closeout-exit",
-      "order": 1132
-    },
-    {
-      "id": "indexing/extracted-prose/low-yield-history-family-priors",
-      "order": 1133
-    },
-    {
-      "id": "indexing/stage1/barrier-keepalive",
-      "order": 1134
-    },
-    {
-      "id": "indexing/runtime/runtime-teardown-order",
-      "order": 1135
-    },
-    {
-      "id": "indexing/ordering/ordered-appender-retry-reset",
-      "order": 1136
-    },
-    {
-      "id": "tooling/install/tooling-signal-exit",
-      "order": 1137
-    },
-    {
-      "id": "tooling/install/tooling-resolve-preferred-enabled-fallback",
-      "order": 1138
-    },
-    {
-      "id": "tooling/analysis-wrapper-exit-propagation",
-      "order": 1139
-    },
-    {
-      "id": "tooling/vscode/windows-cmd",
-      "order": 1140
-    },
-    {
-      "id": "tooling/lsp/windows-wrapper-argv-forwarding",
-      "order": 1141
-    },
-    {
-      "id": "ci/tooling-lsp-slo-gate-attempt-ratios",
-      "order": 1142
-    },
-    {
-      "id": "ci/tooling-lsp-slo-gate-sampling",
-      "order": 1143
-    },
-    {
-      "id": "ci/tooling-lsp-slo-gate-unavailable-skip",
-      "order": 1144
-    },
-    {
-      "id": "indexing/extracted-prose/low-yield-history-doclike-reinforcement",
-      "order": 1145
-    },
-    {
-      "id": "indexing/extracted-prose/low-yield-history-unsampled-doclike-family",
-      "order": 1146
-    },
-    {
-      "id": "indexing/extracted-prose/low-yield-unsampled-doclike-family-expansion",
-      "order": 1147
-    },
-    {
-      "id": "indexing/extracted-prose/low-yield-summary-family-evidence",
-      "order": 1148
-    },
-    {
-      "id": "indexing/extracted-prose/extraction-report",
-      "order": 1149
-    },
-    {
-      "id": "indexing/workers/worker-pool-lifecycle-destroy",
-      "order": 1150
-    },
-    {
-      "id": "indexing/workers/worker-pool-lifecycle-destroy-during-restart",
-      "order": 1151
-    },
-    {
-      "id": "context-pack/risk-ranking-budget",
-      "order": 1152
-    },
-    {
-      "id": "context-pack/risk-strict-status",
-      "order": 1153
-    },
-    {
-      "id": "retrieval/output/risk-explanation-contract",
-      "order": 1154
-    },
-    {
-      "id": "retrieval/output/risk-explanation-sarif-contract",
-      "order": 1155
-    },
-    {
-      "id": "retrieval/output/composite-context-pack-render-contract",
-      "order": 1156
-    },
-    {
       "id": "retrieval/output/composite-context-pack-sarif-contract",
-      "order": 1157
+      "order": 1129
     }
   ]
 }
