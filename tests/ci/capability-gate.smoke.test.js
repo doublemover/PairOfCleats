@@ -1,33 +1,23 @@
 #!/usr/bin/env node
-import fsPromises from 'node:fs/promises';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { createJsonGateHarness } from '../helpers/json-gate.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const gatePath = path.join(ROOT, 'tools', 'ci', 'capability-gate.js');
-
-const tmpDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-cap-'));
-const jsonPath = path.join(tmpDir, 'capabilities.json');
-
-const result = spawnSync(process.execPath, [gatePath, '--mode', 'ci', '--json', jsonPath], {
-  encoding: 'utf8'
+const harness = await createJsonGateHarness({
+  rootDir: ROOT,
+  scriptRelativePath: path.join('tools', 'ci', 'capability-gate.js'),
+  tempPrefix: 'pairofcleats-cap-',
+  jsonFileName: 'capabilities.json'
 });
 
-if (result.status !== 0) {
-  console.error('capability gate smoke test failed');
-  if (result.stderr) console.error(result.stderr.trim());
-  process.exit(result.status ?? 1);
-}
+const result = harness.run(['--mode', 'ci'], { label: 'capability gate smoke test' });
+if (result.status !== 0) process.exit(result.status ?? 1);
 
-let payload;
-try {
-  payload = JSON.parse(await fsPromises.readFile(jsonPath, 'utf8'));
-} catch (error) {
+const payload = await harness.readPayload().catch(() => {
   console.error('capability gate did not write valid JSON');
   process.exit(1);
-}
+});
 
 const expectedTopLevel = ['mode', 'timestamp', 'capabilities', 'probes'];
 for (const key of expectedTopLevel) {
@@ -46,3 +36,4 @@ for (const name of expectedProbes) {
 }
 
 console.log('capability gate smoke test passed');
+await harness.cleanup();

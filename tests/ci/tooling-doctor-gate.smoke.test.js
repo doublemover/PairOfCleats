@@ -1,40 +1,31 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { writeJsonFile } from '../../src/shared/json-file.js';
+import { createJsonGateHarness } from '../helpers/json-gate.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const gatePath = path.join(ROOT, 'tools', 'ci', 'tooling-doctor-gate.js');
-
-const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-tooling-doctor-gate-'));
+const harness = await createJsonGateHarness({
+  rootDir: ROOT,
+  scriptRelativePath: path.join('tools', 'ci', 'tooling-doctor-gate.js'),
+  tempPrefix: 'pairofcleats-tooling-doctor-gate-',
+  jsonFileName: 'tooling-doctor-gate.json'
+});
+const { tempRoot } = harness;
 const repoRoot = path.join(tempRoot, 'repo');
 await fsPromises.mkdir(repoRoot, { recursive: true });
-await fsPromises.writeFile(
+await writeJsonFile(
   path.join(repoRoot, '.pairofcleats.json'),
-  `${JSON.stringify({ tooling: { enabledTools: ['typescript'] } }, null, 2)}\n`,
-  'utf8'
+  { tooling: { enabledTools: ['typescript'] } }
 );
-const jsonPath = path.join(tempRoot, 'tooling-doctor-gate.json');
+const result = harness.run(['--mode', 'ci', '--repo', repoRoot], { label: 'tooling doctor gate smoke test' });
+if (result.status !== 0) process.exit(result.status ?? 1);
 
-const result = spawnSync(process.execPath, [gatePath, '--mode', 'ci', '--repo', repoRoot, '--json', jsonPath], {
-  encoding: 'utf8'
-});
-
-if (result.status !== 0) {
-  console.error('tooling doctor gate smoke test failed');
-  if (result.stderr) console.error(result.stderr.trim());
-  process.exit(result.status ?? 1);
-}
-
-let payload;
-try {
-  payload = JSON.parse(await fsPromises.readFile(jsonPath, 'utf8'));
-} catch {
+const payload = await harness.readPayload().catch(() => {
   console.error('tooling doctor gate did not emit valid JSON');
   process.exit(1);
-}
+});
 
 if (payload.status !== 'ok') {
   console.error(`expected tooling doctor gate status=ok, received ${String(payload.status)}`);
@@ -67,3 +58,4 @@ if (report.reportFile !== 'tooling_doctor_report.json') {
 }
 
 console.log('tooling doctor gate smoke test passed');
+await harness.cleanup();
