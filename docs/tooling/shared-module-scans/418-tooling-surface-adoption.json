@@ -1,0 +1,220 @@
+{
+  "issueId": "418",
+  "title": "Scan CLI, setup, download, install, doctor, dispatch, and maintenance tooling for missed shared-module adoption",
+  "scanDate": "2026-03-26",
+  "scope": "H31 tooling-surface scan across tools/setup/**, tools/download/**, tools/tooling/**, tools/dispatch/**, tools/analysis/**, tools/bench/**, tools/triage/**, plus related root-level tool scripts.",
+  "summary": {
+    "overallAssessment": "These tool surfaces already have a substantial shared layer under tools/shared plus a few src/shared runtime/platform helpers. The strongest missed-adoption cases are symlink-unsafe direct-execution guards still scattered across tool entrypoints, setup/bootstrap scripts that still carry bespoke Windows wrapper launching instead of converging on the shared subprocess wrapper path, and repeated runtime-env shaping across triage, analysis, setup, and bench scripts. Download and install surfaces are comparatively healthy: they already use shared CLI display, input parsing, download-utils, and json-utils and should mostly stay on that path.",
+    "highestPriorityHotspots": [
+      {
+        "category": "tool-entrypoint direct execution",
+        "whyItMatters": "Tool scripts are frequently invoked through wrappers and generated launchers. Exact argv/url equality checks can silently skip execution under symlinks.",
+        "bestExistingSharedModule": "src/shared/direct-execution.js"
+      },
+      {
+        "category": "setup/bootstrap Windows wrapper launching",
+        "whyItMatters": "npm/cmd.exe wrapper handling is correctness-sensitive on Windows and recently produced real bugs elsewhere in the repo.",
+        "bestExistingSharedModules": [
+          "src/shared/subprocess/windows-cmd.js",
+          "tools/shared/cli-utils.js"
+        ]
+      },
+      {
+        "category": "runtime env shaping across tool surfaces",
+        "whyItMatters": "Bench/setup/triage/analysis scripts repeatedly shape runtime env from config, and drift here changes real execution behavior.",
+        "bestExistingSharedModules": [
+          "tools/shared/dict-utils.js",
+          "src/shared/runtime-envelope.js"
+        ]
+      }
+    ]
+  },
+  "hotspotMatrix": [
+    {
+      "name": "Symlink-unsafe direct-execution guards remain in tool entrypoints",
+      "sharedModule": "src/shared/direct-execution.js",
+      "localImplementations": [
+        "tools/index-diff.js",
+        "tools/index-snapshot.js",
+        "tools/tooling/doctor.js",
+        "tools/analysis/explain-risk.js",
+        "tools/analysis/delta-risk.js",
+        "tools/bench/graph-caps-harness.js",
+        "tools/bench/graph/context-pack-latency.js",
+        "tools/bench/graph/neighborhood-index-dir.js"
+      ],
+      "recommendedAction": "Replace exact process.argv[1] versus fileURLToPath(import.meta.url) checks with the shared direct-execution helper unless a script intentionally accepts basename-style wrapper invocation.",
+      "whyThisWayIsBest": "This is the same bug class already fixed in other entrypoints. Using the shared helper removes repeated path-comparison logic and keeps tool launch behavior consistent.",
+      "testsToRequire": [
+        "CLI or tool wrapper contract tests where entrypoint execution is user-facing",
+        "targeted symlink or shim launch regressions when a tool surface is moved to the helper"
+      ]
+    },
+    {
+      "name": "Setup/bootstrap scripts still carry bespoke Windows wrapper launching",
+      "sharedModules": [
+        "src/shared/subprocess/windows-cmd.js",
+        "tools/shared/cli-utils.js"
+      ],
+      "localImplementations": [
+        "tools/setup/bootstrap.js",
+        "tools/setup/rebuild-native.js",
+        "tools/analysis/map-iso-serve.js"
+      ],
+      "recommendedAction": "Use the shared Windows wrapper resolution path and shared command-running helpers for setup/bootstrap flows, leaving only script-specific command selection local.",
+      "whyThisWayIsBest": "The wrapper and shell-fallback behavior has already been fixed centrally. Re-implementing it in setup scripts reintroduces the same Windows fragility.",
+      "testsToRequire": [
+        "existing windows-wrapper and bootstrap contract tests",
+        "cross-platform setup smoke tests where wrapper selection changes"
+      ]
+    },
+    {
+      "name": "Runtime env shaping repeats across setup, triage, analysis, and bench tools",
+      "sharedModules": [
+        "tools/shared/dict-utils.js",
+        "src/shared/runtime-envelope.js"
+      ],
+      "localImplementations": [
+        "tools/setup/setup.js",
+        "tools/setup/bootstrap.js",
+        "tools/triage/context-pack.js",
+        "tools/triage/ingest.js",
+        "tools/analysis/map-iso-serve.js",
+        "tools/bench/language-matrix.js",
+        "tools/bench/language-repos/run-loop.js",
+        "tools/bench/embeddings/model-bakeoff.js"
+      ],
+      "recommendedAction": "Keep using the current shared runtime-config/env helpers and reduce raw process.env shaping to script-local payload overrides only.",
+      "whyThisWayIsBest": "These tools do need local env injection, but not their own independent config-to-env policy. Shared runtime env shaping is already available and proven.",
+      "testsToRequire": [
+        "bench and triage runtime env inheritance tests",
+        "setup/tooling env contract tests where NODE_OPTIONS or cache-root shaping can drift"
+      ]
+    },
+    {
+      "name": "Tooling install/uninstall/download surfaces already share the right CLI and IO helpers",
+      "sharedModules": [
+        "tools/shared/cli-utils.js",
+        "tools/shared/cli-display.js",
+        "tools/shared/download-utils.js",
+        "tools/shared/input-parsers.js",
+        "tools/shared/json-utils.js"
+      ],
+      "localImplementations": [
+        "tools/download/extensions.js",
+        "tools/download/dicts.js",
+        "tools/download/models.js",
+        "tools/tooling/install.js",
+        "tools/tooling/uninstall.js"
+      ],
+      "recommendedAction": "Treat this as a mostly healthy shared-adoption area. Prefer targeted helper expansion over refactoring these scripts into a new abstraction.",
+      "whyThisWayIsBest": "These surfaces already demonstrate the intended tools/shared usage pattern. Additional hoisting would mostly move script semantics around without reducing much drift."
+    },
+    {
+      "name": "Bench/report helper adoption is mixed but should stay selective",
+      "sharedModules": [
+        "tools/shared/cli-display.js",
+        "tools/shared/json-utils.js",
+        "tools/shared/text-utils.js",
+        "src/shared/json-stream.js"
+      ],
+      "localImplementations": [
+        "tools/bench/language/cli.js",
+        "tools/bench/language/tooling-lsp-guardrail.js",
+        "tools/bench/query-generator.js",
+        "tools/bench/sqlite/build-from-artifacts.js",
+        "tools/bench/index/graph-relations.js",
+        "tools/bench/index/index-state-write.js"
+      ],
+      "recommendedAction": "Keep sharing low-level CLI/text/JSON helpers, but leave benchmark semantics and artifact-shaping logic local unless duplication is proven substantial.",
+      "whyThisWayIsBest": "Bench scripts often differ mainly in workload semantics, not in low-level helper needs. Over-consolidation would reduce debuggability without much drift payoff."
+    }
+  ],
+  "mappings": [
+    {
+      "problemSurface": "Tool entrypoint direct execution",
+      "adoptSharedModules": [
+        "src/shared/direct-execution.js"
+      ],
+      "preferredMigrationTargets": [
+        "tools/index-diff.js",
+        "tools/index-snapshot.js",
+        "tools/tooling/doctor.js",
+        "tools/analysis/explain-risk.js",
+        "tools/analysis/delta-risk.js",
+        "tools/bench/graph-caps-harness.js",
+        "tools/bench/graph/context-pack-latency.js",
+        "tools/bench/graph/neighborhood-index-dir.js"
+      ]
+    },
+    {
+      "problemSurface": "Windows wrapper launching in setup/bootstrap tools",
+      "adoptSharedModules": [
+        "src/shared/subprocess/windows-cmd.js",
+        "tools/shared/cli-utils.js"
+      ],
+      "preferredMigrationTargets": [
+        "tools/setup/bootstrap.js",
+        "tools/setup/rebuild-native.js",
+        "tools/analysis/map-iso-serve.js"
+      ]
+    },
+    {
+      "problemSurface": "Runtime env shaping in setup/triage/bench/analysis tools",
+      "adoptSharedModules": [
+        "tools/shared/dict-utils.js",
+        "src/shared/runtime-envelope.js"
+      ],
+      "preferredMigrationTargets": [
+        "tools/setup/setup.js",
+        "tools/setup/bootstrap.js",
+        "tools/triage/context-pack.js",
+        "tools/triage/ingest.js",
+        "tools/analysis/map-iso-serve.js",
+        "tools/bench/language-matrix.js",
+        "tools/bench/language-repos/run-loop.js",
+        "tools/bench/embeddings/model-bakeoff.js"
+      ]
+    }
+  ],
+  "localExceptions": [
+    {
+      "path": "tools/download/extensions.js",
+      "reasonToRemainMostlyLocal": "Already follows the healthy tools/shared pattern and still needs script-specific extension archive semantics."
+    },
+    {
+      "path": "tools/download/dicts.js",
+      "reasonToRemainMostlyLocal": "Same rationale as extension downloads: shared download/input/json helpers are already in place."
+    },
+    {
+      "path": "tools/tooling/install.js",
+      "reasonToRemainMostlyLocal": "Installer plan semantics are tooling-specific; the right cleanup is helper reuse, not flattening the whole script."
+    },
+    {
+      "path": "tools/tooling/uninstall.js",
+      "reasonToRemainMostlyLocal": "Uninstall policy and safety checks are tooling-specific even when path/CLI helpers are shared."
+    },
+    {
+      "path": "tools/bench/**",
+      "reasonToRemainSelective": "Bench scripts should share low-level helper primitives, but not be over-consolidated into generic benchmark abstractions without clear duplicate evidence."
+    },
+    {
+      "path": "tools/analysis/map-iso-serve.js",
+      "reasonToRemainPartlyLocal": "Browser-opening behavior and map-serve UX are analysis-tool specific even if wrapper/env setup should converge."
+    }
+  ],
+  "recommendedFollowUps": [
+    {
+      "issueId": "420",
+      "why": "Editor and integration surfaces should absorb the same direct-execution/runtime/bootstrap cleanup patterns where they appear again."
+    },
+    {
+      "issueId": "424",
+      "why": "If setup/bootstrap/tooling wrapper cleanup still feels fragmented after H31 adoption, formalize a stronger shared subprocess/toolchain helper family."
+    },
+    {
+      "issueId": "426",
+      "why": "If report-writing and small JSON/file IO duplication continues to appear in benches and tooling, capture it in the filesystem/JSON/persistence helper issue."
+    }
+  ]
+}
