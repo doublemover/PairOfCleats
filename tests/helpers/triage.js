@@ -9,7 +9,7 @@ import { formatCommandFailure } from './command-failure.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-export const getTriageContext = async ({ name }) => {
+export const getTriageContext = async ({ name, testConfig } = {}) => {
   const repoRoot = path.join(ROOT, 'tests', 'fixtures', 'sample');
   const triageFixtureRoot = path.join(ROOT, 'tests', 'fixtures', 'triage');
   const { dir: cacheRootBase } = resolveTestCacheDir(name, { root: ROOT });
@@ -33,6 +33,7 @@ export const getTriageContext = async ({ name }) => {
   const env = applyTestEnv({
     cacheRoot,
     embeddings: 'stub',
+    testConfig,
     syncProcess: false,
     extraEnv: {
       PAIROFCLEATS_TRACE_ARTIFACT_IO: traceArtifactIo ? '1' : undefined
@@ -86,4 +87,3 @@ export const run = (label, args, options = {}) => {
     process.exit(result.status ?? 1);
   }
 };
-

@@ -5,7 +5,21 @@ import path from 'node:path';
 import { getTriageContext, run, runJson } from '../../helpers/triage.js';
 
 const { root, repoRoot, triageFixtureRoot, env, cacheRoot, writeTestLog } = await getTriageContext({
-  name: 'triage-context-pack'
+  name: 'triage-context-pack',
+  testConfig: {
+    indexing: {
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: {
+        enabled: false
+      }
+    }
+  }
 });
 
 const ingestGeneric = runJson('ingest-generic', [
@@ -34,13 +48,7 @@ runJson('decision', [
 
 run('build-index', [
   path.join(root, 'build_index.js'),
-  '--stub-embeddings',
-  '--repo', repoRoot
-], { cwd: repoRoot, env });
-
-run('build-records-index', [
-  path.join(root, 'build_index.js'),
-  '--mode', 'records',
+  '--stage', 'stage2',
   '--stub-embeddings',
   '--repo', repoRoot
 ], { cwd: repoRoot, env });

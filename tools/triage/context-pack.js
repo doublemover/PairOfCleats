@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { createCli } from '../../src/shared/cli.js';
-import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
+import { search } from '../../src/integrations/core/search.js';
+import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, resolveRepoConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
 import { resolveRecordPathSafe } from './context-pack-paths.js';
 
 const argv = createCli({
@@ -49,8 +49,9 @@ const maxEvidencePerQuery = Number.isFinite(Number(contextPackConfig.maxEvidence
   : 5;
 
 const warnings = [];
+const indexCache = new Map();
+const sqliteCache = new Map();
 const history = await buildHistory({
-  repoRoot,
   recordsDir,
   recordId,
   finding,
@@ -93,55 +94,38 @@ console.log(JSON.stringify({
  * @param {object} input
  * @returns {Promise<object[]>}
  */
-async function buildHistory({ repoRoot, recordsDir, recordId, finding, maxHistory, warnings }) {
-  const historyMap = new Map();
+async function buildHistory({ recordsDir, recordId, finding, maxHistory, warnings }) {
   const vulnId = finding?.vuln?.cve || finding?.vuln?.vulnId || null;
   const packageName = finding?.package?.name || null;
   const manifestName = finding?.package?.manifestPath
     ? path.basename(finding.package.manifestPath)
     : null;
-  const routeQuery = [finding?.service, finding?.env].filter(Boolean).join(' ').trim();
+  const candidates = await loadHistoryCandidates({
+    recordsDir,
+    recordId,
+    finding,
+    vulnId,
+    packageName,
+    manifestName,
+    warnings
+  });
+  if (!candidates.length) return [];
 
-  const baseMeta = ['recordType=decision'];
-  const routeMeta = [...baseMeta];
-  if (finding?.service) routeMeta.push(`service=${finding.service}`);
-  if (finding?.env) routeMeta.push(`env=${finding.env}`);
-
-  const queryList = Array.from(new Set([vulnId, packageName, manifestName, routeQuery].filter(Boolean)));
-  if (!queryList.length) return [];
-
-  const runQueries = async (metaFilters) => {
-    for (const query of queryList) {
-      const result = runSearchJson({
-        repoRoot,
-        query,
-        mode: 'records',
-        metaFilters,
-        top: maxHistory
-      });
-      if (!result.ok) {
-        warnings.push({ step: 'history-search', query, error: result.error });
-        continue;
-      }
-      const hits = Array.isArray(result.payload?.records) ? result.payload.records : [];
-      for (const hit of hits) {
-        const hitId = extractRecordId(hit);
-        if (!hitId || hitId === recordId || historyMap.has(hitId)) continue;
-        const record = await loadRecord(recordsDir, hitId);
-        if (!record) continue;
-        historyMap.set(hitId, record);
-        if (historyMap.size >= maxHistory) break;
-      }
-      if (historyMap.size >= maxHistory) break;
+  const routeScoped = [];
+  const relaxed = [];
+  for (const candidate of candidates) {
+    if (candidate.routeMatch) {
+      routeScoped.push(candidate);
+    } else {
+      relaxed.push(candidate);
     }
-  };
-
-  await runQueries(routeMeta);
-  if (historyMap.size < maxHistory && routeMeta.length > baseMeta.length) {
-    await runQueries(baseMeta);
   }
 
-  return Array.from(historyMap.values()).slice(0, maxHistory);
+  routeScoped.sort(compareHistoryCandidate);
+  relaxed.sort(compareHistoryCandidate);
+  return [...routeScoped, ...relaxed]
+    .slice(0, maxHistory)
+    .map((candidate) => candidate.record);
 }
 
 /**
@@ -155,7 +139,7 @@ async function buildRepoEvidence({ repoRoot, finding, maxEvidencePerQuery, warni
   const results = [];
   for (const query of queries) {
     for (const mode of ['code', 'prose', 'extracted-prose']) {
-      const result = runSearchJson({
+      const result = await runSearchJson({
         repoRoot,
         query,
         mode,
@@ -236,9 +220,102 @@ function extractRecordId(hit) {
   return null;
 }
 
+async function loadHistoryCandidates({ recordsDir, recordId, finding, vulnId, packageName, manifestName, warnings }) {
+  let entries;
+  try {
+    entries = await fsPromises.readdir(recordsDir, { withFileTypes: true });
+  } catch (err) {
+    warnings.push({ step: 'history-scan', error: err?.message || 'failed to read records directory' });
+    return [];
+  }
+
+  const candidates = await Promise.all(entries
+    .filter((entry) => entry.isFile() && path.extname(entry.name) === '.json')
+    .map(async (entry) => {
+      const filePath = path.join(recordsDir, entry.name);
+      const record = await loadJsonFile(filePath);
+      if (!record || record.recordType !== 'decision' || record.recordId === recordId) return null;
+      const candidate = scoreHistoryCandidate({
+        record,
+        recordId,
+        finding,
+        vulnId,
+        packageName,
+        manifestName
+      });
+      return candidate?.score > 0 ? candidate : null;
+    }));
+
+  return candidates.filter(Boolean);
+}
+
+function scoreHistoryCandidate({ record, recordId, finding, vulnId, packageName, manifestName }) {
+  let score = 0;
+  const decisionFindingId = record?.decision?.findingRecordId || null;
+  const recordVulnId = record?.vuln?.cve || record?.vuln?.vulnId || null;
+  const recordPackageName = record?.package?.name || null;
+  const recordManifestName = record?.package?.manifestPath
+    ? path.basename(record.package.manifestPath)
+    : null;
+  const serviceMatch = valuesEqual(record?.service, finding?.service);
+  const envMatch = valuesEqual(record?.env, finding?.env);
+
+  if (decisionFindingId && decisionFindingId === recordId) score += 8;
+  if (vulnId && valuesEqual(recordVulnId, vulnId)) score += 4;
+  if (packageName && valuesEqual(recordPackageName, packageName)) score += 3;
+  if (manifestName && valuesEqual(recordManifestName, manifestName)) score += 2;
+  if (serviceMatch) score += 1;
+  if (envMatch) score += 1;
+
+  if (score <= 0) return null;
+
+  return {
+    record,
+    score,
+    routeMatch: matchesRoute(record, finding),
+    timestamp: parseHistoryTimestamp(record)
+  };
+}
+
+function matchesRoute(record, finding) {
+  let constrained = false;
+  if (finding?.service) {
+    constrained = true;
+    if (!valuesEqual(record?.service, finding.service)) return false;
+  }
+  if (finding?.env) {
+    constrained = true;
+    if (!valuesEqual(record?.env, finding.env)) return false;
+  }
+  return constrained;
+}
+
+function compareHistoryCandidate(left, right) {
+  return (
+    (right.score - left.score)
+    || (right.timestamp - left.timestamp)
+    || String(left.record?.recordId || '').localeCompare(String(right.record?.recordId || ''))
+  );
+}
+
+function parseHistoryTimestamp(record) {
+  const value = record?.updatedAt || record?.createdAt || null;
+  const timestamp = Date.parse(value || '');
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function valuesEqual(left, right) {
+  if (!left || !right) return false;
+  return String(left).trim() === String(right).trim();
+}
+
 async function loadRecord(recordsDir, recordId) {
   const filePath = resolveRecordPathSafe(recordsDir, recordId);
   if (!filePath) return null;
+  return loadJsonFile(filePath);
+}
+
+async function loadJsonFile(filePath) {
   try {
     const raw = await fsPromises.readFile(filePath, 'utf8');
     return JSON.parse(raw);
@@ -248,15 +325,13 @@ async function loadRecord(recordsDir, recordId) {
 }
 
 /**
- * Run `tools/search.js` and return JSON payload/error as a tagged result.
+ * Run search in-process and return JSON payload/error as a tagged result.
  *
  * @param {{repoRoot:string,query:string,mode:string,metaFilters:string[],top:number}} input
- * @returns {{ok:boolean,payload?:object|null,error?:string}}
+ * @returns {Promise<{ok:boolean,payload?:object|null,error?:string}>}
  */
-function runSearchJson({ repoRoot, query, mode, metaFilters, top }) {
-  const scriptRoot = resolveToolRoot();
-  const searchPath = path.join(scriptRoot, 'search.js');
-  const args = [searchPath, query, '--mode', mode, '--json', '--top', String(top), '--repo', repoRoot];
+async function runSearchJson({ repoRoot, query, mode, metaFilters, top }) {
+  const args = ['--mode', mode, '--json', '-n', String(top)];
   if (Array.isArray(metaFilters)) {
     metaFilters.forEach((filter) => {
       args.push('--meta', filter);
@@ -264,23 +339,44 @@ function runSearchJson({ repoRoot, query, mode, metaFilters, top }) {
   }
   if (annFlagPresent && argv.ann === true) args.push('--ann');
   if (annFlagPresent && argv.ann === false) args.push('--no-ann');
-  const env = { ...baseEnv };
-  if (argv['stub-embeddings']) env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-  const result = spawnSubprocessSync(process.execPath, args, {
-    cwd: repoRoot,
-    env,
-    captureStdout: true,
-    captureStderr: true,
-    outputMode: 'string',
-    rejectOnNonZeroExit: false
-  });
-  if (result.exitCode !== 0) {
-    return { ok: false, error: result.stderr || result.stdout || 'search failed', payload: null };
-  }
   try {
-    const payload = JSON.parse(result.stdout || '{}');
+    const payload = await withSearchEnv(async () => await search(repoRoot, {
+      query,
+      args,
+      emitOutput: false,
+      exitOnError: false,
+      indexCache,
+      sqliteCache
+    }));
     return { ok: true, payload };
   } catch (err) {
-    return { ok: false, error: err?.message || 'failed to parse search output', payload: null };
+    return { ok: false, error: err?.message || 'search failed', payload: null };
+  }
+}
+
+async function withSearchEnv(callback) {
+  const originalEnv = new Map();
+  for (const [key, value] of Object.entries(baseEnv)) {
+    originalEnv.set(key, process.env[key]);
+    if (value === undefined || value === null) {
+      delete process.env[key];
+    } else {
+      process.env[key] = String(value);
+    }
+  }
+  if (argv['stub-embeddings']) {
+    originalEnv.set('PAIROFCLEATS_EMBEDDINGS', process.env.PAIROFCLEATS_EMBEDDINGS);
+    process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+  }
+  try {
+    return await callback();
+  } finally {
+    for (const [key, value] of originalEnv.entries()) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
   }
 }
