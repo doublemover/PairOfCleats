@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-24T02:39:29.293Z",
+  "generatedAt": "2026-03-26T01:19:33.680Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3148,6 +3148,8 @@
     {
       "name": "PAIROFCLEATS_SUITE_MODE",
       "files": [
+        "tests/runner/run-stability.js",
+        "tests/runner/stability-classification.test.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js"
       ]
@@ -3164,7 +3166,7 @@
       "files": [
         "src/shared/legacy-cli-entrypoint.js",
         "tests/cli/general/legacy-entrypoint-warning.test.js",
-        "tests/cli/search/help.test.js",
+        "tests/cli/search/help-and-flag-contract-matrix.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3230,6 +3232,7 @@
         "tests/run.js",
         "tests/runner/harness/redo-target.test.js",
         "tests/runner/run-execution.js",
+        "tests/services/api/fixture-api-server-cohort.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/smoke/sqlite.test.js",
         "tests/storage/sqlite/ann/sqlite-fallback.test.js",
@@ -3500,7 +3503,7 @@
         "src/shared/legacy-cli-entrypoint.js",
         "src/shared/ops-failure-injection.js",
         "tests/cli/general/legacy-entrypoint-warning.test.js",
-        "tests/cli/search/help.test.js",
+        "tests/cli/search/help-and-flag-contract-matrix.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/lane-default-test-config.test.js",
         "tests/helpers/test-env-sync-option.test.js",
@@ -3508,6 +3511,8 @@
         "tests/indexing/crash-log-retention.test.js",
         "tests/indexing/embeddings/sqlite-dense-isolate.test.js",
         "tests/ops/failure-injection/retrieval-hotpath.test.js",
+        "tests/perf/bench/language-report-environment-metadata.test.js",
+        "tests/perf/bench/language-run-ledger-summary.test.js",
         "tests/retrieval/parity/equivalence.test.js",
         "tests/services/core-observability.test.js",
         "tests/services/mcp/repo-path-resolution.test.js",
@@ -3741,6 +3746,7 @@
         "tests/indexing/postings/vector-only-service-embeddings-pending-artifacts.test.js",
         "tests/indexing/scm/no-build-id.test.js",
         "tests/indexing/tree-sitter/js-maxbytes.test.js",
+        "tests/perf/bench/language-run-loop-crash-quarantine.test.js",
         "tests/perf/sqlite-p95-latency.test.js",
         "tests/retrieval/ann/hnsw.test.js",
         "tests/services/advanced-surface-goldens.test.js",
@@ -3753,6 +3759,7 @@
         "tests/storage/sqlite/auto-backend.test.js",
         "tests/storage/sqlite/incremental-no-change.test.js",
         "tests/storage/sqlite/missing-dep.test.js",
+        "tools/bench/language-repos/run-loop.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js"
       ]
@@ -3801,7 +3808,7 @@
     "PAIROFCLEATS_TEST_MCP_DELAY_TOOL_NAMES"
   ],
   "cliFlags": {
-    "totalFlags": 454,
+    "totalFlags": 459,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -3858,6 +3865,7 @@
       "baseline-json",
       "batch",
       "bench",
+      "benchmark-report",
       "bin-dir",
       "bits",
       "build",
@@ -4013,6 +4021,7 @@
       "limit",
       "list-groups",
       "list-packs",
+      "live-summary",
       "load",
       "lod-edge-high",
       "lod-edge-low",
@@ -4092,6 +4101,7 @@
       "non-interactive",
       "non-strict",
       "notes-out",
+      "only",
       "only-exported",
       "onlyExported",
       "onlyExports",
@@ -4139,10 +4149,12 @@
       "report",
       "requestedBatchSize",
       "require",
+      "require-closure",
       "require-dicts",
       "require-index",
       "require-provider",
       "require-sqlite",
+      "require-target",
       "required",
       "resolver-gap-rate-drift-warn-max",
       "resolver-gap-rate-warn-max",
@@ -5006,6 +5018,25 @@
           "repeats",
           "treeSitter",
           "useQueries"
+        ]
+      },
+      {
+        "file": "tools/bench/language-blocker-closure.js",
+        "flags": [
+          "benchmark-report",
+          "live-summary",
+          "out-json",
+          "out-md",
+          "require-closure"
+        ]
+      },
+      {
+        "file": "tools/bench/language-canaries.js",
+        "flags": [
+          "only",
+          "out-json",
+          "out-md",
+          "require-target"
         ]
       },
       {
@@ -7238,6 +7269,26 @@
         ]
       },
       {
+        "flag": "out-json",
+        "count": 4,
+        "files": [
+          "tools/bench/language-blocker-closure.js",
+          "tools/bench/language-canaries.js",
+          "tools/docs/contract-drift.js",
+          "tools/release/readiness-gate.js"
+        ]
+      },
+      {
+        "flag": "out-md",
+        "count": 4,
+        "files": [
+          "tools/bench/language-blocker-closure.js",
+          "tools/bench/language-canaries.js",
+          "tools/docs/contract-drift.js",
+          "tools/release/readiness-gate.js"
+        ]
+      },
+      {
         "flag": "port",
         "count": 4,
         "files": [
@@ -7814,22 +7865,6 @@
         "files": [
           "tools/release/generate-trust-materials.js",
           "tools/reports/parity-matrix.js"
-        ]
-      },
-      {
-        "flag": "out-json",
-        "count": 2,
-        "files": [
-          "tools/docs/contract-drift.js",
-          "tools/release/readiness-gate.js"
-        ]
-      },
-      {
-        "flag": "out-md",
-        "count": 2,
-        "files": [
-          "tools/docs/contract-drift.js",
-          "tools/release/readiness-gate.js"
         ]
       },
       {
