@@ -2,6 +2,7 @@ retrieval/pipeline/candidates-early-cutoff
 indexing/ordering/ordered-appender-bucketed-watermark
 shared/limits/normalization
 shared/json-file
+shared/cli-option-validators-contract
 indexing/chunking/comment-boundary
 indexing/ignore/path-safety
 retrieval/pipeline/candidates-memory-plateau
@@ -122,6 +123,7 @@ tooling/lsp/elixir-signature-parse
 indexing/imports/warning-dispositions
 retrieval/output/explain-color-fallback
 shared/fs/atomic-replace-sync-stale-bak-collision-guard
+shared/io/atomic-persistence-contract
 shared/json-stream/atomic-replace
 shared/json-stream/json-encode-cycle-guard
 shared/safe-regex/flags-normalization

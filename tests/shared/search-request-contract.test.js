@@ -18,6 +18,14 @@ assert.deepEqual(normalizeMetaFilters(['x', { y: 2 }, { z: '' }]), ['x', 'y=2', 
 assert.equal(normalizeMetaJson({ alpha: 1 }), '{"alpha":1}');
 assert.equal(normalizeMetaJson('{"beta":2}'), '{"beta":2}');
 
+const invalidPayload = buildSearchRequestArgs(null);
+assert.equal(invalidPayload.ok, false);
+assert.match(invalidPayload.message, /Invalid search payload/i);
+
+const missingQuery = buildSearchRequestArgs({ query: '   ' });
+assert.equal(missingQuery.ok, false);
+assert.match(missingQuery.message, /Missing query/i);
+
 const canonical = buildSearchRequestArgs({
   query: 'needle',
   output: 'compact',

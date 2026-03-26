@@ -36,6 +36,19 @@ try {
   assert.deepEqual(await readJsonFileResolvedSafe(resolvedPath), { gamma: 3 });
   assert.deepEqual(await readJsonFileResolvedSafe(path.join(tempRoot, 'missing.json'), { missing: true }), { missing: true });
 
+  const invalidPath = path.join(tempRoot, 'invalid.json');
+  await fs.writeFile(invalidPath, '{"broken":', 'utf8');
+  await assert.rejects(
+    readJsonFileResolved(invalidPath),
+    SyntaxError,
+    'readJsonFileResolved should preserve raw parse failures'
+  );
+  assert.deepEqual(
+    await readJsonFileResolvedSafe(invalidPath, { parseFallback: true }),
+    { parseFallback: true },
+    'readJsonFileResolvedSafe should keep the safe fallback contract on parse errors'
+  );
+
   const syncPath = writeJsonFileSyncResolved(path.join(tempRoot, 'sync', 'payload.json'), { delta: 4 }, {
     spaces: 0,
     finalNewline: false

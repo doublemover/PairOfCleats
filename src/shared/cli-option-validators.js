@@ -52,20 +52,31 @@ const findUnknownArgs = (argv, keys, aliases) => {
 export const INDEX_BUILD_SCHEMA = buildSchemaFromOptions(INDEX_BUILD_OPTIONS);
 export const BENCH_SCHEMA = buildSchemaFromOptions(BENCH_OPTIONS);
 
-const throwOnErrors = (label, errors) => {
+const createCliValidationError = (code, message, details = []) => {
+  const error = new Error(message);
+  error.code = code;
+  error.details = Array.isArray(details) ? [...details] : [];
+  return error;
+};
+
+const throwOnErrors = (label, errors, code) => {
   if (!errors.length) return;
   const message = errors.join('; ');
-  throw new Error(`${label} validation failed: ${message}`);
+  throw createCliValidationError(code, `${label} validation failed: ${message}`, errors);
 };
 
 export function validateBuildArgs(argv) {
   const { keys, aliases } = resolveOptionKeys(INDEX_BUILD_OPTIONS);
   const unknown = findUnknownArgs(argv, keys, aliases);
   if (unknown.length) {
-    throw new Error(`build-index args include unknown options: ${unknown.join(', ')}`);
+    throw createCliValidationError(
+      'ERR_BUILD_ARG_VALIDATION',
+      `build-index args include unknown options: ${unknown.join(', ')}`,
+      unknown.map((entry) => `unknown option: ${entry}`)
+    );
   }
   const result = validateConfig(INDEX_BUILD_SCHEMA, extractKnownArgs(argv, keys));
-  if (!result.ok) throwOnErrors('build-index args', result.errors);
+  if (!result.ok) throwOnErrors('build-index args', result.errors, 'ERR_BUILD_ARG_VALIDATION');
 }
 
 export function validateBenchArgs(argv, { allowedOptions } = {}) {
@@ -73,11 +84,15 @@ export function validateBenchArgs(argv, { allowedOptions } = {}) {
   const { keys, aliases } = resolveOptionKeys(allowed);
   const unknown = findUnknownArgs(argv, keys, aliases);
   if (unknown.length) {
-    throw new Error(`bench args include unknown options: ${unknown.join(', ')}`);
+    throw createCliValidationError(
+      'ERR_BENCH_ARG_VALIDATION',
+      `bench args include unknown options: ${unknown.join(', ')}`,
+      unknown.map((entry) => `unknown option: ${entry}`)
+    );
   }
   const { keys: benchKeys } = resolveOptionKeys(BENCH_OPTIONS);
   const result = validateConfig(BENCH_SCHEMA, extractKnownArgs(argv, benchKeys));
-  if (!result.ok) throwOnErrors('bench args', result.errors);
+  if (!result.ok) throwOnErrors('bench args', result.errors, 'ERR_BENCH_ARG_VALIDATION');
   const conflicts = [];
   if (argv.ann && argv['no-ann']) {
     conflicts.push('ann and no-ann cannot both be set');
@@ -85,5 +100,5 @@ export function validateBenchArgs(argv, { allowedOptions } = {}) {
   if (argv['stub-embeddings'] && argv['real-embeddings']) {
     conflicts.push('stub-embeddings and real-embeddings cannot both be set');
   }
-  throwOnErrors('bench args', conflicts);
+  throwOnErrors('bench args', conflicts, 'ERR_BENCH_ARG_VALIDATION');
 }
