@@ -13,6 +13,7 @@ tooling/lsp/restart-generation-safety
 tooling/reports/summary/report
 retrieval/federation/compat-cohort-policy-matrix
 tooling/lsp/pyright-preflight-workspace-config-invalid
+tooling/lsp/dedicated-provider-bootstrap-matrix
 tooling/lsp/configured-provider-probe-fallback
 tooling/lsp/pyright-preflight-workspace-mono-root
 retrieval/federation/mode-cohort-merge-cutoff-order

@@ -912,7 +912,6 @@ indexing/validate/metav2-rejects-invalid-type-shapes
 storage/sqlite/incremental-transaction-boundary
 tooling/lsp/dart-provider-package-config-missing-preflight
 lang/javascript/paramnames
-tooling/lsp/dedicated-provider-bootstrap-matrix
 indexing/tree-sitter/scheduler-lookup-reader-lease
 tooling/service/subprocess-cancellation-contract
 shared/cache/hit-rate-contract
