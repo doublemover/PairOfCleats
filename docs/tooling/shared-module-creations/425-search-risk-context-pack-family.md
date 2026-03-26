@@ -6,8 +6,8 @@
 
 ## What landed
 
-- New canonical shared owner: [search-request.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\search-request.js)
-- Compatibility wrapper preserved: [search-request.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\search-request.js)
+- New canonical shared owner: [search-request.js](/src/shared/search-request.js)
+- Compatibility wrapper preserved during migration as `tools/shared/search-request.js`
 - Shared risk filter alias normalizer extended in: [risk-filters.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\risk-filters.js)
 
 ## Duplicate clusters addressed
@@ -19,7 +19,7 @@
 
 - `search-request` is a true cross-surface contract. Moving ownership into `src/shared` fixes the layering problem without forcing every tool caller to migrate at once.
 - `risk-filters.js` already owned normalization and validation. Adding `buildRiskFilterInput()` there keeps alias handling adjacent to the rest of the risk filter contract instead of leaving every caller to reinterpret `flow-id`, `flow_id`, and `flowId`.
-- Keeping `tools/shared/search-request.js` as a thin wrapper preserves compatibility while making the canonical owner explicit.
+- Keeping `tools/shared/search-request.js` as a thin wrapper during migration preserved compatibility while making the canonical owner explicit.
 
 ## Migrations completed
 
@@ -41,5 +41,5 @@ That file is still a VS Code-specific adapter with CommonJS/editor-setting conce
 
 ## Follow-on cleanup
 
-- reduce remaining wrapper-only imports of [search-request.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\search-request.js) when those surfaces are already `src/**` or otherwise safe to point at the shared owner directly
+- reduce remaining wrapper-only imports of `tools/shared/search-request.js` when those surfaces are already `src/**` or otherwise safe to point at the shared owner directly
 - continue hoisting other cross-surface payload builders when later H32 scans identify a clear canonical owner

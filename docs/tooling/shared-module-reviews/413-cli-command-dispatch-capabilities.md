@@ -12,7 +12,7 @@ This shared surface is mostly healthy and already acts as the repo's canonical c
 - split [command-registry.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/command-registry.js)
 - split [runtime-capability-manifest.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/runtime-capability-manifest.js)
 - move or relocate [env.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/dispatch/env.js)
-- collapse thin dispatch projection wrappers around [manifest.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/dispatch/manifest.js) and [registry.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/dispatch/registry.js)
+- collapse thin dispatch projection wrappers around `src/shared/dispatch/manifest.js` and [registry.js](/src/shared/dispatch/registry.js)
 
 ## Runtime-Risk Notes
 
@@ -22,7 +22,7 @@ This shared surface is mostly healthy and already acts as the repo's canonical c
 
 ## Maintainability Notes
 
-- [manifest.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/dispatch/manifest.js) is a very thin projection over dispatch registry data.
+- `src/shared/dispatch/manifest.js` was a very thin projection over dispatch registry data.
 - [registry.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/dispatch/registry.js) is effectively a filtered clone of command-registry metadata.
 - [command-aliases.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/command-aliases.js) is intentionally tiny today and should stay that way unless package-script replacements genuinely expand.
 

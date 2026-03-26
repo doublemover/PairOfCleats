@@ -72,7 +72,7 @@ Shared modules to prefer:
 - [helpers.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\mcp\tools\helpers.js)
 - [dict-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\dict-utils.js)
 - [repo-cache-config.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\repo-cache-config.js)
-- [search-request.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\search-request.js)
+- [search-request.js](/src/shared/search-request.js)
 
 Representative local implementations:
 - [analysis.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\mcp\tools\handlers\analysis.js)
