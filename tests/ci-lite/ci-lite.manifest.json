@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1044,
+    "hero": 1042,
     "matrix": 20,
     "meta": 34,
     "soak": 0,
@@ -4391,2216 +4391,2204 @@
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "retrieval/cache/index-signature-bounds",
+      "id": "retrieval/pipeline/search-startup-fastpath",
       "order": 730,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/pipeline/search-startup-fastpath",
+      "id": "indexing/relations/determinism-bench-contract",
       "order": 731,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/relations/determinism-bench-contract",
+      "id": "indexing/tree-sitter/load-bench-contract",
       "order": 732,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/load-bench-contract",
+      "id": "retrieval/providers/provider-empty-ann-success-reset-contract",
       "order": 733,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/providers/provider-empty-ann-success-reset-contract",
+      "id": "storage/sqlite/build-full-transaction",
       "order": 734,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/build-full-transaction",
+      "id": "tooling/lsp/dedicated-provider-preflight-blocking",
       "order": 735,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/dedicated-provider-preflight-blocking",
+      "id": "indexing/watch/index-lock",
       "order": 736,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/watch/index-lock",
+      "id": "indexing/watch/index-lock-signal-cleanup",
       "order": 737,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/watch/index-lock-signal-cleanup",
+      "id": "tooling/lsp/failure-accounting-per-target",
       "order": 738,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/failure-accounting-per-target",
+      "id": "tooling/reports/capabilities-report",
       "order": 739,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/capabilities-report",
-      "order": 740,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
       "id": "ci/tooling-lsp-slo-gate.smoke",
-      "order": 741,
+      "order": 740,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "ci/tooling-lsp-replay-gate.smoke",
-      "order": 742,
+      "order": 741,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "indexing/artifacts/sharded-meta/schema",
-      "order": 743,
+      "order": 742,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/runtime/thread-limits",
-      "order": 744,
+      "order": 743,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "retrieval/providers/provider-retry-reset-contract",
-      "order": 745,
+      "order": 744,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "retrieval/providers/provider-unnamed-state-isolation-contract",
-      "order": 746,
+      "order": 745,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/postings/chargram-rolling-hash",
-      "order": 747,
+      "order": 746,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/stage1/token-id-collision-policy",
-      "order": 748,
+      "order": 747,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/snapshots-registry",
-      "order": 749,
+      "order": 748,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/dedicated-provider-workspace-guard-matrix",
-      "order": 750,
+      "order": 749,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
       "id": "services/queue/service",
-      "order": 751,
+      "order": 750,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/reports/metrics-dashboard",
-      "order": 752,
+      "order": 751,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/ignore/overrides",
-      "order": 753,
+      "order": 752,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/install/postinstall-patch-enforcement",
-      "order": 754,
+      "order": 753,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-surface"
     },
     {
       "id": "indexing/tree-sitter/batch-by-language",
-      "order": 755,
+      "order": 754,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/install/tooling-dotnet-requirement-probe",
-      "order": 756,
+      "order": 755,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-surface"
     },
     {
       "id": "tooling/install/tooling-detect-global-bin-fallbacks",
-      "order": 757,
+      "order": 756,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-surface"
     },
     {
       "id": "storage/lmdb/utils-contract",
-      "order": 758,
+      "order": 757,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/json-stream/wait-timeout-cleans-listeners",
-      "order": 759,
+      "order": 758,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/cache/gc-preserves-recent-access",
-      "order": 760,
+      "order": 759,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/index-stats/aggregate",
-      "order": 761,
+      "order": 760,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/determinism/chunk-meta-ordering-drift",
-      "order": 762,
+      "order": 761,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/install/download-dicts",
-      "order": 763,
+      "order": 762,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-surface"
     },
     {
       "id": "storage/sqlite/build/args-parsing",
-      "order": 764,
+      "order": 763,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/options-forwarding-flowmode",
-      "order": 765,
+      "order": 764,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/jdtls-provider-launch-contract-invalid",
-      "order": 766,
+      "order": 765,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "retrieval/providers/provider-adaptive-ordering-contract",
-      "order": 767,
+      "order": 766,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "storage/sqlite/chunk-meta-streaming",
-      "order": 768,
+      "order": 767,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/install/tooling-go-requirement-probe",
-      "order": 769,
+      "order": 768,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-surface"
     },
     {
       "id": "tooling/install/tooling-registry-cache-install-paths",
-      "order": 770,
+      "order": 769,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-surface"
     },
     {
       "id": "lang/registry/selection",
-      "order": 771,
+      "order": 770,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "lang/registry/import-entries",
-      "order": 772,
+      "order": 771,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-resolver-relative",
-      "order": 773,
+      "order": 772,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/shards/shard-plan",
-      "order": 774,
+      "order": 773,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/resolve-index-dir-artifact-variants",
-      "order": 775,
+      "order": 774,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/csharp-provider-launch-contract-invalid",
-      "order": 776,
+      "order": 775,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/artifacts/symbols/symbol-links-by-chunkuid",
-      "order": 777,
+      "order": 776,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/cache-hints-reuse",
-      "order": 778,
+      "order": 777,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/csharp-provider-launch-bootstrap-missing",
-      "order": 779,
+      "order": 778,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/esmodule-lexer-init",
-      "order": 780,
+      "order": 779,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/artifacts/symbols/symbol-edges-ambiguous",
-      "order": 781,
+      "order": 780,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/index-contract-matrix",
-      "order": 782,
+      "order": 781,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
       "id": "indexing/imports/proto-safe-module-keys",
-      "order": 783,
+      "order": 782,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/records/discovery",
-      "order": 784,
+      "order": 783,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/artifacts/minhash-packed-bench-contract",
-      "order": 785,
+      "order": 784,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/config/normalization-quality-threads",
-      "order": 786,
+      "order": 785,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-resolution-budget-policy-adaptive",
-      "order": 787,
+      "order": 786,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "graph/memory-plateau",
-      "order": 788,
+      "order": 787,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/type-inference/providers/type-inference-clangd-provider-no-clangd",
-      "order": 789,
+      "order": 788,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/git/meta-batch-churn",
-      "order": 790,
+      "order": 789,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/subprocess/process-exit-cleanup",
-      "order": 791,
+      "order": 790,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/index-stats/explicit-repo-path",
-      "order": 792,
+      "order": 791,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/require-regex-fallback-on-lexer-failure",
-      "order": 793,
+      "order": 792,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-resolution-budget-exhaustion",
-      "order": 794,
+      "order": 793,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-resolution-fallback-depth-budget",
-      "order": 795,
+      "order": 794,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/structural/search",
-      "order": 796,
+      "order": 795,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/structural/binary-default-timeout",
-      "order": 797,
+      "order": 796,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-priority",
-      "order": 798,
+      "order": 797,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/cache-invalidation",
-      "order": 799,
+      "order": 798,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-resolution-fs-exists-index-budget-shortcircuit",
-      "order": 800,
+      "order": 799,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/expected-artifacts-index",
-      "order": 801,
+      "order": 800,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-resolution-stage-pipeline",
-      "order": 802,
+      "order": 801,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/abort/propagates-to-queues",
-      "order": 803,
+      "order": 802,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-build-context-plugins",
-      "order": 804,
+      "order": 803,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/index-file-name-collision",
-      "order": 805,
+      "order": 804,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-build-context-typescript-emit",
-      "order": 806,
+      "order": 805,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/gate-eligibility",
-      "order": 807,
+      "order": 806,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-scan-post-graph-stats",
-      "order": 808,
+      "order": 807,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-scan",
-      "order": 809,
+      "order": 808,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/index-chunk-meta-large-manifest-budget",
-      "order": 810,
+      "order": 809,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-scan-non-js-end-to-end",
-      "order": 811,
+      "order": 810,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "storage/sqlite/build-bench-contract",
-      "order": 812,
+      "order": 811,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-graph-resolved-refresh",
-      "order": 813,
+      "order": 812,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/fs-exists-index",
-      "order": 814,
+      "order": 813,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-cache-contract-matrix",
-      "order": 815,
+      "order": 814,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
       "id": "indexing/imports/import-resolution",
-      "order": 816,
+      "order": 815,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/doctor/runtime-requirements-provider-matrix",
-      "order": 817,
+      "order": 816,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
       "id": "indexing/imports/cache-missing-file",
-      "order": 818,
+      "order": 817,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/replay-harness",
-      "order": 819,
+      "order": 818,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-resolution-build-context-cache-key",
-      "order": 820,
+      "order": 819,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/replay-harness-gate-eligible-stats",
-      "order": 821,
+      "order": 820,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/replay-stage-percentiles",
-      "order": 822,
+      "order": 821,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/index-current-build-pointer-case-insensitive",
-      "order": 823,
+      "order": 822,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/preprocess/files",
-      "order": 824,
+      "order": 823,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "ci/tooling-lsp-default-enable-gate.smoke",
-      "order": 825,
+      "order": 824,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "ci/tooling-lsp-slo-gate-regression-diff",
-      "order": 826,
+      "order": 825,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "ci/tooling-lsp-guardrail-regression-diff",
-      "order": 827,
+      "order": 826,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "indexing/imports/import-graph-unresolved-refresh",
-      "order": 828,
+      "order": 827,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-graph-incremental-reuse",
-      "order": 829,
+      "order": 828,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-graph-warning-merge",
-      "order": 830,
+      "order": 829,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/filter-index/atomic-swap",
-      "order": 831,
+      "order": 830,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/doctor/command-resolution-provider-overrides",
-      "order": 832,
+      "order": 831,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-graph-budget-diagnostics",
-      "order": 833,
+      "order": 832,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/doctor/detects-missing-typescript",
-      "order": 834,
+      "order": 833,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "workspace/build-pointer-invalid-scenarios",
-      "order": 835,
+      "order": 834,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/artifacts/clean",
-      "order": 836,
+      "order": 835,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/index-sharded-meta-consistency",
-      "order": 837,
+      "order": 836,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "services/snapshots/concurrent-registry-writers",
-      "order": 838,
+      "order": 837,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "perf/bench/language-tooling-lsp-guardrail",
-      "order": 839,
+      "order": 838,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/index-determinism-report-required",
-      "order": 840,
+      "order": 839,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/determinism-line-hash",
-      "order": 841,
+      "order": 840,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/doctor/command-profile-probe-timeout",
-      "order": 842,
+      "order": 841,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/artifacts/index-state-skip-write",
-      "order": 843,
+      "order": 842,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/artifacts/eager-prefetch-drain",
-      "order": 844,
+      "order": 843,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/config/auto-policy",
-      "order": 845,
+      "order": 844,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/dedicated-provider-command-fallback-matrix",
-      "order": 846,
+      "order": 845,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
       "id": "tooling/triage/decision",
-      "order": 847,
+      "order": 846,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/ci/lsp-embeddings-gates-timeout-junit",
-      "order": 848,
+      "order": 847,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "tooling/lsp/jdtls-provider-workspace-lock-unavailable",
-      "order": 849,
+      "order": 848,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "ci/suite-runner.smoke",
-      "order": 850,
+      "order": 849,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "embeddings/runner/helper-contracts",
-      "order": 851,
+      "order": 850,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/stage-pipeline-metrics",
-      "order": 852,
+      "order": 851,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/index-jsonl-required-keys",
-      "order": 853,
+      "order": 852,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "storage/sqlite/bundle-shard-splitting",
-      "order": 854,
+      "order": 853,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/piece-assembly/assemble-pieces-no-guess",
-      "order": 855,
+      "order": 854,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/decision-metamorphic",
-      "order": 856,
+      "order": 855,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/decision-model-contract",
-      "order": 857,
+      "order": 856,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/index-load-manifest",
-      "order": 858,
+      "order": 857,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/collector-hints",
-      "order": 859,
+      "order": 858,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/doctor/command-profile-pyright-override",
-      "order": 860,
+      "order": 859,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/triage/ingest-sources.smoke",
-      "order": 861,
+      "order": 860,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/git/meta",
-      "order": 862,
+      "order": 861,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/doctor/workspace-model-provider-matrix",
-      "order": 863,
+      "order": 862,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
       "id": "indexing/discovery/discover-leading-space",
-      "order": 864,
+      "order": 863,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/workspace/catalog-json",
-      "order": 865,
+      "order": 864,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/index-stats/json",
-      "order": 866,
+      "order": 865,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "workspace/manifest-determinism-and-hash",
-      "order": 867,
+      "order": 866,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/doctor/provider-requires-args",
-      "order": 868,
+      "order": 867,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/imports/import-scan-budget-runtime-signals",
-      "order": 869,
+      "order": 868,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/index-stats/missing-artifact",
-      "order": 870,
+      "order": 869,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/locks/file-lock-contract",
-      "order": 871,
+      "order": 870,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/validator/manifest-count-sharded",
-      "order": 872,
+      "order": 871,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/session-pool-reuse",
-      "order": 873,
+      "order": 872,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/provider-delta-manifest",
-      "order": 874,
+      "order": 873,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "ci/tooling-lsp-slo-gate-tail-p95",
-      "order": 875,
+      "order": 874,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "tooling/install/tooling-phpactor-phar-plan",
-      "order": 876,
+      "order": 875,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-surface"
     },
     {
       "id": "tooling/lsp/jdtls-provider-launch-script-mismatch",
-      "order": 877,
+      "order": 876,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "lang/python/fallback",
-      "order": 878,
+      "order": 877,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/typescript/vfs-segment-vue",
-      "order": 879,
+      "order": 878,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "retrieval/ann/hnsw-candidate-set",
-      "order": 880,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "cli/general/cli",
-      "order": 881,
+      "order": 879,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/segments/segment-uid-derived",
-      "order": 882,
+      "order": 880,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/bloom/decode-length-contract",
-      "order": 883,
+      "order": 881,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/typescript/node-matching-range",
-      "order": 884,
+      "order": 882,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/segments/tsx-jsx-hint-preserved",
-      "order": 885,
+      "order": 883,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/vfs/row-trim-order",
-      "order": 886,
+      "order": 884,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/install/install-phpactor-phar-network-guards",
-      "order": 887,
+      "order": 885,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-surface"
     },
     {
       "id": "tooling/lsp/typescript/ambiguous-fallback-does-not-guess",
-      "order": 888,
+      "order": 886,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/validator/risk-interprocedural",
-      "order": 889,
+      "order": 887,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/tree-sitter/scheduler-miss-cache-bounded",
-      "order": 890,
+      "order": 888,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/typescript/destructured-param-names",
-      "order": 891,
+      "order": 889,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/vfs/row-size-trim",
-      "order": 892,
+      "order": 890,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/subprocess/abort-kills-child",
-      "order": 893,
+      "order": 891,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/index-boilerplate-catalog-manifest-name",
-      "order": 894,
+      "order": 892,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/type-inference/tooling-cache-root-default",
-      "order": 895,
+      "order": 893,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/type-inference/tooling-configured-paths",
-      "order": 896,
+      "order": 894,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/embeddings/build/explicit-index-root-missing-mode-fails-fast",
-      "order": 897,
+      "order": 895,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/postings/backpressure-queue",
-      "order": 898,
+      "order": 896,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/artifact-io/bench-contract",
-      "order": 899,
+      "order": 897,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/artifact-io/binary-columnar-streaming-frames",
-      "order": 900,
+      "order": 898,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/artifacts/huge-write-policy",
-      "order": 901,
+      "order": 899,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/artifacts/token-postings-binary-columnar-streaming",
-      "order": 902,
+      "order": 900,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/workers/worker-pool",
-      "order": 903,
+      "order": 901,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "services/indexer/service-embedding-job-uses-build-root",
-      "order": 904,
+      "order": 902,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/symbol-integrity-strict",
-      "order": 905,
+      "order": 903,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "services/snapshot-create",
-      "order": 906,
+      "order": 904,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/index-binary-columnar-manifest-names",
-      "order": 907,
+      "order": 905,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/install/setup",
-      "order": 908,
+      "order": 906,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-surface"
     },
     {
       "id": "cli/search/symbol-boost",
-      "order": 909,
+      "order": 907,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "retrieval/ann/lancedb-filter-pushdown",
-      "order": 910,
+      "order": 908,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/metav2-rejects-invalid-type-shapes",
-      "order": 911,
+      "order": 909,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "storage/sqlite/incremental-transaction-boundary",
-      "order": 912,
+      "order": 910,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/dart-provider-package-config-missing-preflight",
-      "order": 913,
+      "order": 911,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "lang/javascript/paramnames",
-      "order": 914,
+      "order": 912,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/tree-sitter/scheduler-lookup-reader-lease",
-      "order": 915,
+      "order": 913,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/service/subprocess-cancellation-contract",
-      "order": 916,
+      "order": 914,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/cache/hit-rate-contract",
-      "order": 917,
+      "order": 915,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/protocol-stall-initialize-timeout",
-      "order": 918,
+      "order": 916,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/haskell-provider-ambiguous-cradle-preflight",
-      "order": 919,
+      "order": 917,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/segments/segment-pipeline",
-      "order": 920,
+      "order": 918,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/impact/seed-and-changed-behavior",
-      "order": 921,
+      "order": 919,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/dart-provider-process-reuse",
-      "order": 922,
+      "order": 920,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/phpactor-provider-composer-lock-missing-preflight",
-      "order": 923,
+      "order": 921,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/phpactor-provider-workspace-composer-invalid-preflight",
-      "order": 924,
+      "order": 922,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "services/index-diff",
-      "order": 925,
+      "order": 923,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/vfs/routing-by-effective-language",
-      "order": 926,
+      "order": 924,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/vfs/invalid-virtual-range-regression",
-      "order": 927,
+      "order": 925,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "storage/sqlite/jsonl-streaming-zstd",
-      "order": 928,
+      "order": 926,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/ledger-validation",
-      "order": 929,
+      "order": 927,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "retrieval/ann/dense-vector-mode",
-      "order": 930,
+      "order": 928,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/discovery/discover",
-      "order": 931,
+      "order": 929,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/typescript-provider-output-shape",
-      "order": 932,
+      "order": 930,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/csharp-provider-ambiguous-solution-preflight",
-      "order": 933,
+      "order": 931,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/config/validate",
-      "order": 934,
+      "order": 932,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/io/atomic-write-contract",
-      "order": 935,
+      "order": 933,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/csharp-provider-ambiguous-project-preflight",
-      "order": 936,
+      "order": 934,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/solargraph-provider-gemfile-lock-missing-preflight",
-      "order": 937,
+      "order": 935,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/relations/segment-call-site-offsets",
-      "order": 938,
+      "order": 936,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/relations/segment-language-fidelity",
-      "order": 939,
+      "order": 937,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/type-inference/crossfile-tooling-runtime-stats-fail-open",
-      "order": 940,
+      "order": 938,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/risk/interprocedural/summary-only-status",
-      "order": 941,
+      "order": 939,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "services/snapshot-freeze",
-      "order": 942,
+      "order": 940,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/shutdown",
-      "order": 943,
+      "order": 941,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/tree-sitter/scheduler-plan-skip-on-parse-error",
-      "order": 944,
+      "order": 942,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "retrieval/filters/lang-filter-matches-embedded-segments",
-      "order": 945,
+      "order": 943,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/tree-sitter/scheduler-native-plan-contract",
-      "order": 946,
+      "order": 944,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/install/postinstall-rebuild-native",
-      "order": 947,
+      "order": 945,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-surface"
     },
     {
       "id": "shared/subprocess/tracked-event-ledger",
-      "order": 948,
+      "order": 946,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/tree-sitter/scheduler-swift-subprocess",
-      "order": 949,
+      "order": 947,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/solargraph-provider-runtime-toolchain-missing-bundle-preflight",
-      "order": 950,
+      "order": 948,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/ingest/ctags/ingest",
-      "order": 951,
+      "order": 949,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "lang/python/ast-worker",
-      "order": 952,
+      "order": 950,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/file-processor/skip",
-      "order": 953,
+      "order": 951,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/abort/propagates-to-subprocess",
-      "order": 954,
+      "order": 952,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/tree-sitter/scheduler-stage1-contract",
-      "order": 955,
+      "order": 953,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/jdtls-provider-bootstrap",
-      "order": 956,
+      "order": 954,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/fs/atomic-replace-cross-device-fallback",
-      "order": 957,
+      "order": 955,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/file-processor/unsupported-language-skip",
-      "order": 958,
+      "order": 956,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/tree-sitter/plan-stale-file-resilience",
-      "order": 959,
+      "order": 957,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/index-unknown-mode",
-      "order": 960,
+      "order": 958,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/validate/manifest-checks",
-      "order": 961,
+      "order": 959,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/subprocess/timeout-kills-child",
-      "order": 962,
+      "order": 960,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/subprocess/sync-command-timeout-opt-out",
-      "order": 963,
+      "order": 961,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/process-signals/cleanup-signal-handlers",
-      "order": 964,
+      "order": 962,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/runtime/records-config",
-      "order": 965,
+      "order": 963,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/config/dump",
-      "order": 966,
+      "order": 964,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/file-processor/read-failure-skip",
-      "order": 967,
+      "order": 965,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/disk-space/format-bytes-contract",
-      "order": 968,
+      "order": 966,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/service/subprocess-buffer-bounds",
-      "order": 969,
+      "order": 967,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/stage1/process-files-inflight-drain",
-      "order": 970,
+      "order": 968,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/cache/gc-preserves-manifest-referenced",
-      "order": 971,
+      "order": 969,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/file-processor/scm-annotate-fast-timeout",
-      "order": 972,
+      "order": 970,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/segments/effective-identity-md-fence",
-      "order": 973,
+      "order": 971,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/workers/worker-pool-windows",
-      "order": 974,
+      "order": 972,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/diffs-registry",
-      "order": 975,
+      "order": 973,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "smoke/workers",
-      "order": 976,
+      "order": 974,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/sourcekit-provider-output-shape",
-      "order": 977,
+      "order": 975,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/session-pool-max-lifetime-recycle",
-      "order": 978,
+      "order": 976,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/file-processor/effective-language-drives-docmeta",
-      "order": 979,
+      "order": 977,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/tree-sitter/scheduler-native-determinism",
-      "order": 980,
+      "order": 978,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "runner/harness/cwd-independence",
-      "order": 981,
+      "order": 979,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "indexing/scm/build-runtime-timeout-policy",
-      "order": 982,
+      "order": 980,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/scm/file-meta-snapshot-churn-optin-contract",
-      "order": 983,
+      "order": 981,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/ingest/lsif/ingest",
-      "order": 984,
+      "order": 982,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/elixir-provider-mix-lock-missing-preflight",
-      "order": 985,
+      "order": 983,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/vfs-didopen",
-      "order": 986,
+      "order": 984,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/ingest/scip/ingest",
-      "order": 987,
+      "order": 985,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/file-processor/scm-runproc-queue-timeout",
-      "order": 988,
+      "order": 986,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/latency-microbench-contract",
-      "order": 989,
+      "order": 987,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/param-fallback-from-source",
-      "order": 990,
+      "order": 988,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/source-bootstrap-incomplete-still-requests",
-      "order": 991,
+      "order": 989,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/pyright-function-symbol-priority",
-      "order": 992,
+      "order": 990,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/protocol-fragmented-frames",
-      "order": 993,
+      "order": 991,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/signature-help-fallback",
-      "order": 994,
+      "order": 992,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/collect-shutdown-race-clean",
-      "order": 995,
+      "order": 993,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/definition-fallback",
-      "order": 996,
+      "order": 994,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/ingest/gtags/ingest",
-      "order": 997,
+      "order": 995,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/fd-pressure-backoff-contract",
-      "order": 998,
+      "order": 996,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/bychunkuid-keying",
-      "order": 999,
+      "order": 997,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/embeddings/stage3-manifest-failure-guard",
-      "order": 1000,
+      "order": 998,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-lua-workspace-library",
-      "order": 1001,
+      "order": 999,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-rust-proc-macro-suppression-policy-preflight",
-      "order": 1002,
+      "order": 1000,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/type-definition-fallback",
-      "order": 1003,
+      "order": 1001,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-lua-workspace-library-missing-path-preflight",
-      "order": 1004,
+      "order": 1002,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-runtime-requirement-preflight-degraded",
-      "order": 1005,
+      "order": 1003,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "runner/harness/timings-ledger",
-      "order": 1006,
+      "order": 1004,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "runner/harness/stability-schema-validation",
-      "order": 1007,
+      "order": 1005,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "runner/stability-classification",
-      "order": 1008,
+      "order": 1006,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "runner/harness/stability-artifact-contract",
-      "order": 1009,
+      "order": 1007,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "tooling/lsp/configured-provider-rust-proc-macro-diagnostic-suppression",
-      "order": 1010,
+      "order": 1008,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-yaml-schema-override-merge",
-      "order": 1011,
+      "order": 1009,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-lua-workspace-config-invalid-preflight",
-      "order": 1012,
+      "order": 1010,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-rust-workspace-metadata-preflight-degraded",
-      "order": 1013,
+      "order": 1011,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/hover-merge-quality",
-      "order": 1014,
+      "order": 1012,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-yaml-schema-store-remote-warning-preflight",
-      "order": 1015,
+      "order": 1013,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-rust-workspace-metadata-cache-hit",
-      "order": 1016,
+      "order": 1014,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/clangd-provider-output-shape",
-      "order": 1017,
+      "order": 1015,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-zls-workspace-nested-root-preflight",
-      "order": 1018,
+      "order": 1016,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/clangd-preflight-missing-compile-commands-inference-disabled",
-      "order": 1019,
+      "order": 1017,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/protocol-disconnect-document-symbol-fail-open",
-      "order": 1020,
+      "order": 1018,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-go-workspace-warmup-doc-count-gating",
-      "order": 1021,
+      "order": 1019,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-go-workspace-module-preflight-failed",
-      "order": 1022,
+      "order": 1020,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/provider-metrics-capability-rollup",
-      "order": 1023,
+      "order": 1021,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/csharp-provider-overload-signature",
-      "order": 1024,
+      "order": 1022,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/provider-fidelity-coverage-contract",
-      "order": 1025,
+      "order": 1023,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-go-workspace-warmup-preflight-failed",
-      "order": 1026,
+      "order": 1024,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/provider-metrics-envelope-aggregate",
-      "order": 1027,
+      "order": 1025,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-go-workspace-preflight-cache-hit",
-      "order": 1028,
+      "order": 1026,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-gopls-workspace-root-ambiguous-preflight",
-      "order": 1029,
+      "order": 1027,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-gopls-workspace-root-nested-preflight",
-      "order": 1030,
+      "order": 1028,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/document-symbol-failure-disables-remaining-docs",
-      "order": 1031,
+      "order": 1029,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/tree-sitter/scheduler-native-language-contract",
-      "order": 1032,
+      "order": 1030,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/tree-sitter/scheduler-native-smoke",
-      "order": 1033,
+      "order": 1031,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/references-fallback",
-      "order": 1034,
+      "order": 1032,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "runner/harness/redo-semantics",
-      "order": 1035,
+      "order": 1033,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "shared/cache/gc",
-      "order": 1036,
+      "order": 1034,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/type-inference/crossfile-stats.unit",
-      "order": 1037,
+      "order": 1035,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/elixir-provider-runtime-otp-mismatch-preflight",
-      "order": 1038,
+      "order": 1036,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/vfs/partial-lsp-open",
-      "order": 1039,
+      "order": 1037,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/tree-sitter/scheduler-paged-json-gzip",
-      "order": 1040,
+      "order": 1038,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-go-rust-signature-parsing",
-      "order": 1041,
+      "order": 1039,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-rust-workspace-metadata-preflight-timeout-override",
-      "order": 1042,
+      "order": 1040,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/configured-provider-go-workspace-module-preflight-timeout",
-      "order": 1043,
+      "order": 1041,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/watch/lock-backoff",
-      "order": 1044,
+      "order": 1042,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/ignore/ignore-file-overrides",
-      "order": 1045,
+      "order": 1043,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/doctor/gating-reasons",
-      "order": 1046,
+      "order": 1044,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/elixir-provider-initialize-stall-fail-open",
-      "order": 1047,
+      "order": 1045,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "perf/bench/language-log-closeout",
-      "order": 1048,
+      "order": 1046,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "perf/bench/language-log-emergency-close",
-      "order": 1049,
+      "order": 1047,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "perf/bench/language-report-cross-repo-dedupe",
-      "order": 1050,
+      "order": 1048,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "perf/bench/language-report-master-dedupe",
-      "order": 1051,
+      "order": 1049,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "perf/bench/language-report-master-summary-recovery",
-      "order": 1052,
+      "order": 1050,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "perf/bench/query-runtime",
-      "order": 1053,
+      "order": 1051,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "perf/bench/language-timeout-profile",
-      "order": 1054,
+      "order": 1052,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "perf/bench/language-process-idle-timeout",
-      "order": 1055,
+      "order": 1053,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "perf/bench/language-process-idle-activity-probe",
-      "order": 1056,
+      "order": 1054,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "perf/bench/language-process-idle-activity-probe-async",
-      "order": 1057,
+      "order": 1055,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/lifecycle/registry-unref-promise-drain",
-      "order": 1058,
+      "order": 1056,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/bundle-io-patch-append",
-      "order": 1059,
+      "order": 1057,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "shared/subprocess/windows-cmd",
-      "order": 1060,
+      "order": 1058,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/embeddings/embedding-batcher-unref-timer",
-      "order": 1061,
+      "order": 1059,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "perf/bench/repo-timeout-propagation",
-      "order": 1062,
+      "order": 1060,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/watch/debounce",
-      "order": 1063,
+      "order": 1061,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/state/build-state-log-repair",
-      "order": 1064,
+      "order": 1062,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/state/build-state-identical-patch-repeat-logs",
-      "order": 1065,
+      "order": 1063,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/state/build-state-skip-write-missing-files",
-      "order": 1066,
+      "order": 1064,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/signature-help-timeout-adaptive-gates-next-symbol",
-      "order": 1067,
+      "order": 1065,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/signature-help-timeout-adaptive",
-      "order": 1068,
+      "order": 1066,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "runner/harness/skip-semantics",
-      "order": 1069,
+      "order": 1067,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "tooling/lsp/definition-timeout-adaptive",
-      "order": 1070,
+      "order": 1068,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/references-timeout-adaptive",
-      "order": 1071,
+      "order": 1069,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/provider-metrics-hover-timeout-rollup",
-      "order": 1072,
+      "order": 1070,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/tokenization/file-stream-reuse",
-      "order": 1073,
+      "order": 1071,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "perf/bench/language-closeout-exit",
-      "order": 1074,
+      "order": 1072,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/stage1/barrier-keepalive",
-      "order": 1075,
+      "order": 1073,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/runtime/runtime-teardown-order",
-      "order": 1076,
+      "order": 1074,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/ordering/ordered-appender-retry-reset",
-      "order": 1077,
+      "order": 1075,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/install/tooling-signal-exit",
-      "order": 1078,
+      "order": 1076,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-surface"
     },
     {
       "id": "tooling/install/tooling-resolve-preferred-enabled-fallback",
-      "order": 1079,
+      "order": 1077,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-surface"
     },
     {
       "id": "tooling/analysis-wrapper-exit-propagation",
-      "order": 1080,
+      "order": 1078,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/vscode/windows-cmd",
-      "order": 1081,
+      "order": 1079,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-surface"
     },
     {
       "id": "tooling/lsp/windows-wrapper-argv-forwarding",
-      "order": 1082,
+      "order": 1080,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "ci/tooling-lsp-slo-gate-attempt-ratios",
-      "order": 1083,
+      "order": 1081,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "ci/tooling-lsp-slo-gate-sampling",
-      "order": 1084,
+      "order": 1082,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "ci/tooling-lsp-slo-gate-unavailable-skip",
-      "order": 1085,
+      "order": 1083,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "indexing/extracted-prose/low-yield-history-doclike-reinforcement",
-      "order": 1086,
+      "order": 1084,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/extracted-prose/low-yield-history-unsampled-doclike-family",
-      "order": 1087,
+      "order": 1085,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/extracted-prose/low-yield-unsampled-doclike-family-expansion",
-      "order": 1088,
+      "order": 1086,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/extracted-prose/low-yield-summary-family-evidence",
-      "order": 1089,
+      "order": 1087,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/extracted-prose/extraction-report",
-      "order": 1090,
+      "order": 1088,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/workers/worker-pool-lifecycle-destroy",
-      "order": 1091,
+      "order": 1089,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/workers/worker-pool-lifecycle-destroy-during-restart",
-      "order": 1092,
+      "order": 1090,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "context-pack/risk-ranking-budget",
-      "order": 1093,
+      "order": 1091,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "context-pack/risk-strict-status",
-      "order": 1094,
+      "order": 1092,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "retrieval/output/risk-explanation-contract",
-      "order": 1095,
+      "order": 1093,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "retrieval/output/risk-explanation-sarif-contract",
-      "order": 1096,
+      "order": 1094,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "retrieval/output/composite-context-pack-render-contract",
-      "order": 1097,
+      "order": 1095,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "retrieval/output/composite-context-pack-sarif-contract",
-      "order": 1098,
+      "order": 1096,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

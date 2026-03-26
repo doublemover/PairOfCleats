@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 
+import { withLspTestPath } from '../../helpers/lsp-runtime.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -126,40 +127,42 @@ const runSingleLanguageCase = async ({
   }
 };
 
-await runSingleLanguageCase({
-  languageId: 'go',
-  mode: 'go',
-  symbolName: 'Add',
-  returnType: 'int',
-  paramTypes: { a: 'int', b: 'int' },
-  chunkUid: 'ck64:v1:test:src/sample.go:go-signature'
-});
+await withLspTestPath({ repoRoot: root }, async () => {
+  await runSingleLanguageCase({
+    languageId: 'go',
+    mode: 'go',
+    symbolName: 'Add',
+    returnType: 'int',
+    paramTypes: { a: 'int', b: 'int' },
+    chunkUid: 'ck64:v1:test:src/sample.go:go-signature'
+  });
 
-await runSingleLanguageCase({
-  languageId: 'rust',
-  mode: 'rust',
-  symbolName: 'add',
-  returnType: 'i32',
-  paramTypes: { a: 'i32', b: 'i32' },
-  chunkUid: 'ck64:v1:test:src/sample.rs:rust-signature'
-});
+  await runSingleLanguageCase({
+    languageId: 'rust',
+    mode: 'rust',
+    symbolName: 'add',
+    returnType: 'i32',
+    paramTypes: { a: 'i32', b: 'i32' },
+    chunkUid: 'ck64:v1:test:src/sample.rs:rust-signature'
+  });
 
-await runSingleLanguageCase({
-  languageId: 'lua',
-  mode: 'lua',
-  symbolName: 'greet',
-  returnType: 'string',
-  paramTypes: { name: 'string' },
-  chunkUid: 'ck64:v1:test:src/sample.lua:lua-signature'
-});
+  await runSingleLanguageCase({
+    languageId: 'lua',
+    mode: 'lua',
+    symbolName: 'greet',
+    returnType: 'string',
+    paramTypes: { name: 'string' },
+    chunkUid: 'ck64:v1:test:src/sample.lua:lua-signature'
+  });
 
-await runSingleLanguageCase({
-  languageId: 'zig',
-  mode: 'zig',
-  symbolName: 'add',
-  returnType: 'i32',
-  paramTypes: { a: 'i32', b: 'i32' },
-  chunkUid: 'ck64:v1:test:src/sample.zig:zig-signature'
+  await runSingleLanguageCase({
+    languageId: 'zig',
+    mode: 'zig',
+    symbolName: 'add',
+    returnType: 'i32',
+    paramTypes: { a: 'i32', b: 'i32' },
+    chunkUid: 'ck64:v1:test:src/sample.zig:zig-signature'
+  });
 });
 
 console.log('configured LSP go/rust/lua/zig signature parsing test passed');

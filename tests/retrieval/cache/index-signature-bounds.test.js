@@ -7,7 +7,9 @@ import { buildIndexSignature } from '../../../src/retrieval/index-cache.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-index-signature-cache-'));
 const dirs = [];
-for (let i = 0; i < 300; i += 1) {
+// Only exceed the 256-entry cap by one so the test proves eviction without
+// paying for avoidable filesystem churn in lite lanes.
+for (let i = 0; i < 257; i += 1) {
   const dir = path.join(root, `idx-${i}`);
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(

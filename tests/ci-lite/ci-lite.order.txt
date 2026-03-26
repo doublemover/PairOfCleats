@@ -727,7 +727,6 @@ indexing/watch/promotion/safety
 tooling/lsp/preflight-provider-metadata-coverage
 tooling/vfs/io-batch-consistency
 tooling/ci/lsp-embeddings-gates-testing-env
-retrieval/cache/index-signature-bounds
 retrieval/pipeline/search-startup-fastpath
 indexing/relations/determinism-bench-contract
 indexing/tree-sitter/load-bench-contract
@@ -878,7 +877,6 @@ tooling/lsp/jdtls-provider-launch-script-mismatch
 lang/python/fallback
 tooling/lsp/typescript/vfs-segment-vue
 retrieval/ann/hnsw-candidate-set
-cli/general/cli
 indexing/segments/segment-uid-derived
 shared/bloom/decode-length-contract
 tooling/lsp/typescript/node-matching-range

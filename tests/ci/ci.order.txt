@@ -23,6 +23,8 @@ retrieval/federation/workspace-config-snapshot
 tooling/doctor/command-profile-probe-cache-invalidate-launch-failure
 retrieval/federation/invalid-cohort-selector-error-code
 tooling/lsp/configured-provider-gopls-workspace-root-ambiguous-preflight
+retrieval/cache/index-signature-bounds
+cli/general/cli
 retrieval/federation/workspace-config-trust-boundary
 tooling/lsp/configured-provider-gopls-workspace-diagnostics
 tooling/lsp/configured-provider-gopls-workspace-root-nested-preflight
