@@ -1,0 +1,56 @@
+{
+  "issueId": 430,
+  "title": "Shared-module architecture guardrails and CI enforcement",
+  "createdAt": "2026-03-26",
+  "sharedDestination": [
+    "tests/indexing/policy/shared-module-boundary-guard.test.js",
+    "docs/tooling/shared-module-boundary-waivers.json"
+  ],
+  "problemStatement": "The H30/H31/H32 review program produced a durable shared-module census and consumer map, but nothing in CI was turning that inventory into enforceable architecture rules. That left the repo vulnerable to new ownership drift, stale consumer-map artifacts, and fresh runtime dependencies on tools/shared that would quietly bypass the review findings.",
+  "duplicateClusters": [
+    {
+      "name": "Shared-module policy checks spread across partial validators",
+      "files": [
+        "tests/indexing/policy/shared-module-ledger.test.js",
+        "tests/indexing/policy/shared-module-review-files.test.js",
+        "tests/indexing/policy/shared-module-scan-files.test.js"
+      ],
+      "bestFix": "Add one boundary guard that consumes the same generated ledger and enforces exact ownership, consumer-map consistency, and a waiver-backed src/** -> tools/shared/** boundary rule."
+    }
+  ],
+  "whyCurrentSharedModulesWereInsufficient": [
+    "The generated ledger already knew ownership and consumer edges, but existing tests only validated artifact presence and basic gap counts.",
+    "There was no machine-readable waiver surface for currently-known runtime dependencies on tools/shared."
+  ],
+  "migrationsCompleted": [
+    {
+      "path": "tests/indexing/policy/shared-module-boundary-guard.test.js",
+      "action": "created",
+      "notes": "Now enforces ownership uniqueness, consumer-map consistency, and the waiver-backed src/** -> tools/shared/** boundary rule."
+    },
+    {
+      "path": "docs/tooling/shared-module-boundary-waivers.json",
+      "action": "created",
+      "notes": "Records the currently-approved boundary exceptions and fails on stale or missing waivers."
+    }
+  ],
+  "parityPlan": {
+    "testsAdded": [
+      "tests/indexing/policy/shared-module-boundary-guard.test.js"
+    ],
+    "testsToKeepGreen": [
+      "tests/indexing/policy/shared-module-ledger.test.js",
+      "tests/indexing/policy/shared-module-review-files.test.js",
+      "tests/indexing/policy/shared-module-scan-files.test.js"
+    ]
+  },
+  "nonGoals": [
+    "Automatically migrating the waived runtime imports in the same change.",
+    "Creating a generic import-linting framework for every architectural boundary in the repository.",
+    "Blocking all src/** -> tools/** imports regardless of current ownership evidence."
+  ],
+  "followOnDeletionTargets": [
+    "Remove waiver entries as H31/H32 adoption work migrates the remaining runtime consumers away from tools/shared.",
+    "Tighten the boundary guard further once the waived edges are eliminated."
+  ]
+}
