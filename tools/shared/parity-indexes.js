@@ -45,7 +45,7 @@ const hasChunkMetaArtifact = (dir, chunkMetaCandidates) => {
  * @param {{chunkMetaCandidates?:string[]}} [options]
  * @returns {string}
  */
-export function resolveParityIndexDir(root, mode, userConfig, options = {}) {
+function resolveParityIndexDir(root, mode, userConfig, options = {}) {
   const chunkMetaCandidates = normalizeList(
     options.chunkMetaCandidates,
     DEFAULT_PARITY_CHUNK_META_CANDIDATES
@@ -63,7 +63,7 @@ export function resolveParityIndexDir(root, mode, userConfig, options = {}) {
  * @param {{chunkMetaCandidates?:string[]}} [options]
  * @returns {string}
  */
-export function resolveParityChunkMetaPath(indexDir, options = {}) {
+function resolveParityChunkMetaPath(indexDir, options = {}) {
   const chunkMetaCandidates = normalizeList(
     options.chunkMetaCandidates,
     DEFAULT_PARITY_CHUNK_META_CANDIDATES

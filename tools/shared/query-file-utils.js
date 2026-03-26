@@ -79,7 +79,7 @@ export async function readQueryFileSafe(filePath, options = {}) {
  * @param {number} [fallback]
  * @returns {number}
  */
-export function parseTopN(value, fallback = 5) {
+function parseTopN(value, fallback = 5) {
   const parsed = parseInt(value, 10);
   return Math.max(1, parsed || fallback);
 }
@@ -90,7 +90,7 @@ export function parseTopN(value, fallback = 5) {
  * @param {number} [fallback]
  * @returns {number}
  */
-export function parseLimit(value, fallback = 0) {
+function parseLimit(value, fallback = 0) {
   const parsed = parseInt(value, 10);
   return Math.max(0, parsed || fallback);
 }

@@ -30,5 +30,3 @@ export function createTaskFactory(display) {
   }
   return () => createNoopTask();
 }
-
-export { createNoopTask };

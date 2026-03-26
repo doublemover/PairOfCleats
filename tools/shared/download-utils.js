@@ -5,7 +5,7 @@ import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
  * @param {string|undefined|null} value
  * @returns {string|null}
  */
-export function normalizeHash(value) {
+function normalizeHash(value) {
   if (!value) return null;
   const trimmed = String(value).trim().toLowerCase();
   if (!trimmed) return null;

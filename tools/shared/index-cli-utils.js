@@ -7,7 +7,7 @@ const isPlainRecord = (value) => (
   && !Array.isArray(value)
 );
 
-export const DEFAULT_SNAPSHOT_RETENTION = Object.freeze({
+const DEFAULT_SNAPSHOT_RETENTION = Object.freeze({
   keepPointer: 25,
   keepFrozen: 10,
   maxAgeDays: 30,
@@ -15,12 +15,12 @@ export const DEFAULT_SNAPSHOT_RETENTION = Object.freeze({
   stagingMaxAgeHours: 24
 });
 
-export const DEFAULT_DIFF_RETENTION = Object.freeze({
+const DEFAULT_DIFF_RETENTION = Object.freeze({
   keep: 50,
   maxAgeDays: 30
 });
 
-export const DEFAULT_DIFF_COMPUTE = Object.freeze({
+const DEFAULT_DIFF_COMPUTE = Object.freeze({
   modes: ['code'],
   detectRenames: true,
   includeRelations: true,
@@ -54,7 +54,7 @@ export const emitCliError = (err, asJson) => {
  * @param {number} [minimum]
  * @returns {number}
  */
-export const normalizeWholeNumber = (value, fallback, minimum = 0) => {
+const normalizeWholeNumber = (value, fallback, minimum = 0) => {
   const num = Number(value);
   if (!Number.isFinite(num)) return fallback;
   return Math.max(minimum, Math.floor(num));
@@ -66,7 +66,7 @@ export const normalizeWholeNumber = (value, fallback, minimum = 0) => {
  * @param {boolean} [fallback]
  * @returns {boolean}
  */
-export const normalizeBooleanFlag = (value, fallback = false) => {
+const normalizeBooleanFlag = (value, fallback = false) => {
   if (value == null) return fallback;
   if (typeof value === 'boolean') return value;
   const normalized = String(value).trim().toLowerCase();
