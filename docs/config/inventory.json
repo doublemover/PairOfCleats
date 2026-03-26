@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-26T06:24:44.623Z",
+  "generatedAt": "2026-03-26T08:15:59.296Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2209,7 +2209,7 @@
       "name": "PAIROFCLEATS_API_TOKEN",
       "files": [
         "extensions/vscode/extension.js",
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/retrieval/filters/filter-index-config-hash.test.js",
         "tests/services/api/trust-boundary-matrix.test.js",
         "tests/tooling/vscode/search-env-runtime.test.js",
@@ -2220,28 +2220,29 @@
     {
       "name": "PAIROFCLEATS_BENCH_ANTIVIRUS_STATE",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_BENCH_CPU_GOVERNOR",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_BENCH_MIRROR_REFRESH_MS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/bench.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_BENCH_RUN",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/perf/bench/run.test.js",
         "tests/perf/bench/scenarios/matrix.test.js",
         "tools/config/inventory.js"
@@ -2250,21 +2251,21 @@
     {
       "name": "PAIROFCLEATS_BUILD_INDEX_LOCK_POLL_MS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_BUILD_INDEX_LOCK_WAIT_MS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_BUNDLE_THREADS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/storage/sqlite/ann/sqlite-extension.test.js",
         "tools/bench/ab-sweep.js",
@@ -2275,21 +2276,21 @@
     {
       "name": "PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_CACHE_NAMESPACE",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_CACHE_REBUILD",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/shared/cache/migration.test.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
         "tools/config/inventory.js"
@@ -2298,7 +2299,7 @@
     {
       "name": "PAIROFCLEATS_CACHE_ROOT",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/cli/general/repo-root.test.js",
         "tests/cli/search/missing-index.test.js",
         "tests/cli/search/tie-order.test.js",
@@ -2369,21 +2370,21 @@
     {
       "name": "PAIROFCLEATS_CI_USE_LSP_FIXTURES",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_COMPRESSION",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_CRASH_LOG_ANNOUNCE",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/indexing/crash-log-announcement.test.js",
         "tools/bench/language-repos/run-loop.js",
         "tools/bench/language/logging.js",
@@ -2408,7 +2409,7 @@
     {
       "name": "PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/indexing/type-inference/crossfile/propagation-parallel-mode.test.js",
         "tools/config/inventory.js"
       ]
@@ -2416,7 +2417,7 @@
     {
       "name": "PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL_MIN_BUNDLE",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/indexing/type-inference/crossfile/propagation-parallel-mode.test.js",
         "tools/config/inventory.js"
       ]
@@ -2424,7 +2425,7 @@
     {
       "name": "PAIROFCLEATS_DEBUG_CRASH",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
         "tools/config/inventory.js"
       ]
@@ -2432,35 +2433,35 @@
     {
       "name": "PAIROFCLEATS_DEBUG_HANG_PROBE_HEARTBEAT_MS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_DEBUG_HANG_PROBE_WARN_MS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_DEBUG_HANG_PROBES",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_DEBUG_ORDERED",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_DEBUG_PERF_EVENTS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
         "tools/config/inventory.js"
       ]
@@ -2468,7 +2469,7 @@
     {
       "name": "PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
         "tests/storage/sqlite/utils-dense-binary-load.test.js",
         "tools/config/inventory.js"
@@ -2477,7 +2478,7 @@
     {
       "name": "PAIROFCLEATS_DICT_DIR",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/bench/embeddings/model-bakeoff.js",
         "tools/config/inventory.js",
         "tools/reports/compare-models.js"
@@ -2486,21 +2487,21 @@
     {
       "name": "PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_DOC_EXTRACT",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_EMBEDDINGS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "src/shared/error-codes.js",
         "tests/cli/general/repo-root.test.js",
         "tests/cli/search/missing-index.test.js",
@@ -2538,7 +2539,7 @@
     {
       "name": "PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/bench/embeddings/model-bakeoff.js",
         "tools/config/inventory.js"
       ]
@@ -2546,7 +2547,7 @@
     {
       "name": "PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/bench/embeddings/model-bakeoff.js",
         "tools/config/inventory.js"
       ]
@@ -2561,14 +2562,14 @@
     {
       "name": "PAIROFCLEATS_EXTENSIONS_DIR",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_FILE_CACHE_MAX",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2582,7 +2583,7 @@
     {
       "name": "PAIROFCLEATS_HOME",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/helpers/mcp-client.js",
         "tests/services/mcp/sdk-mode.test.js",
         "tests/shared/cache/root-versioning.test.js",
@@ -2594,14 +2595,14 @@
     {
       "name": "PAIROFCLEATS_IMPORT_GRAPH",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/indexing/incremental/crossfile-bundle-metav2-rewrite.test.js",
         "tests/indexing/incremental/crossfile-bundle-patch-write.test.js",
         "tests/indexing/incremental/crossfile-bundle-reuse.test.js",
@@ -2613,42 +2614,42 @@
     {
       "name": "PAIROFCLEATS_INDEX_DAEMON",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_INDEX_DAEMON_SESSION",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_INDEXER_SERVICE_EXECUTION",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_IO_OVERSUBSCRIBE",
       "files": [
-        "src/shared/runtime-envelope.js",
+        "src/shared/runtime-envelope/resolve.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_JSON_STREAM_WAIT_TIMEOUT_MS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_LANCEDB_CHILD",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/build/embeddings/lancedb.js",
         "tools/config/inventory.js"
       ]
@@ -2656,14 +2657,14 @@
     {
       "name": "PAIROFCLEATS_LANCEDB_ISOLATE",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_LANCEDB_PAYLOAD",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/build/embeddings/lancedb.js",
         "tools/config/inventory.js"
       ]
@@ -2671,21 +2672,21 @@
     {
       "name": "PAIROFCLEATS_LOG_FORMAT",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_LOG_LEVEL",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_MAX_OLD_SPACE_MB",
       "files": [
-        "src/shared/runtime-envelope.js",
+        "src/shared/runtime-envelope/resolve.js",
         "tests/helpers/sqlite-incremental.js",
         "tests/perf/bench/run.test.js",
         "tests/shared/runtime/env-envelope-overrides.test.js",
@@ -2699,14 +2700,14 @@
     {
       "name": "PAIROFCLEATS_MCP_MAX_BUFFER_BYTES",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_MCP_MODE",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/services/mcp/mode-selection.test.js",
         "tools/config/contract-doc.js",
         "tools/config/inventory.js",
@@ -2716,7 +2717,7 @@
     {
       "name": "PAIROFCLEATS_MCP_QUEUE_MAX",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/services/mcp/lane-reservation-fairness.test.js",
         "tests/services/mcp/robustness.test.js",
         "tools/config/inventory.js"
@@ -2725,7 +2726,7 @@
     {
       "name": "PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/services/mcp/robustness.test.js",
         "tools/config/inventory.js"
       ]
@@ -2733,7 +2734,7 @@
     {
       "name": "PAIROFCLEATS_MCP_TRANSPORT",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2749,7 +2750,7 @@
     {
       "name": "PAIROFCLEATS_MODELS_DIR",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/bench/embeddings/model-bakeoff.js",
         "tools/config/inventory.js",
         "tools/reports/compare-models.js"
@@ -2758,7 +2759,7 @@
     {
       "name": "PAIROFCLEATS_NODE_OPTIONS",
       "files": [
-        "src/shared/runtime-envelope.js",
+        "src/shared/runtime-envelope/resolve.js",
         "tests/shared/runtime/env-envelope-overrides.test.js",
         "tests/shared/runtime/envelope-node-options-merge.test.js",
         "tests/shared/runtime/envelope-spawn-env.test.js",
@@ -2823,7 +2824,7 @@
     {
       "name": "PAIROFCLEATS_PREFER_MEMORY_BACKEND_ON_CACHE_HIT",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2838,7 +2839,7 @@
     {
       "name": "PAIROFCLEATS_PROGRESS_CONTEXT",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "src/shared/progress.js",
         "tests/tui/progress-context-propagation.test.js",
         "tools/config/inventory.js"
@@ -2847,42 +2848,42 @@
     {
       "name": "PAIROFCLEATS_QUERY_CACHE_MEMORY_FRESH_MS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_QUERY_CACHE_PREWARM",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_QUERY_CACHE_PREWARM_MAX_ENTRIES",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_QUERY_CACHE_STRATEGY",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_REGEX_ENGINE",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tests/perf/indexing/runtime/scheduler-no-output-regression.test.js",
         "tools/bench/index/scheduler-build.js",
@@ -2893,21 +2894,21 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_ADAPTIVE",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_ADAPTIVE_STEP",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_CPU",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tools/bench/ab-sweep.js",
         "tools/config/inventory.js"
@@ -2916,7 +2917,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_IO",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tools/bench/ab-sweep.js",
         "tools/config/inventory.js"
@@ -2925,35 +2926,35 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_LOW_RESOURCE",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_MAX_CPU",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_MAX_IO",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_MAX_MEM",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_MEM",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tools/bench/ab-sweep.js",
         "tools/config/inventory.js"
@@ -2962,42 +2963,42 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_MEMORY_PER_TOKEN_MB",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_MEMORY_RESERVE_MB",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_STARVATION_MS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_TARGET_UTILIZATION",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_TARGET",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_WINDOW_MS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3084,35 +3085,35 @@
     {
       "name": "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_CHUNK_SIZE",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_ROW_CAP",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_TIME_BUDGET_MS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SQLITE_TAIL_LATENCY_TUNING",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_STAGE",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tools/config/inventory.js"
       ]
@@ -3120,7 +3121,7 @@
     {
       "name": "PAIROFCLEATS_STORAGE_TIER",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3157,7 +3158,7 @@
     {
       "name": "PAIROFCLEATS_SUMMARY_CACHE_MAX",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3174,7 +3175,7 @@
     {
       "name": "PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/testing.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/test-env.js",
         "tests/run.js",
@@ -3251,8 +3252,8 @@
     {
       "name": "PAIROFCLEATS_TEST_CONFIG",
       "files": [
-        "src/shared/env.js",
-        "src/shared/ops-failure-injection.js",
+        "src/shared/env/testing.js",
+        "src/shared/ops/failure-injection.js",
         "tests/helpers/fixture-index-risk-config.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/lane-default-test-config.test.js",
@@ -3288,7 +3289,7 @@
     {
       "name": "PAIROFCLEATS_TEST_FORCE_DOCX_MISSING",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/testing.js",
         "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
         "tests/indexing/extracted-prose/document-extraction-quality-sensitive-coverage.test.js",
         "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
@@ -3299,7 +3300,7 @@
     {
       "name": "PAIROFCLEATS_TEST_FORCE_PDF_MISSING",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/testing.js",
         "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
         "tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js",
         "tools/config/inventory.js"
@@ -3347,7 +3348,7 @@
     {
       "name": "PAIROFCLEATS_TEST_MAX_JSON_BYTES",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/testing.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/validate/index-chunk-meta-large-manifest-budget.test.js",
         "tests/retrieval/pipeline/index-loader-binary-chunk-meta-budget-fallback.test.js",
@@ -3366,7 +3367,7 @@
     {
       "name": "PAIROFCLEATS_TEST_MCP_DELAY_MS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/testing.js",
         "tests/services/mcp/fairness.test.js",
         "tests/services/mcp/lane-reservation-fairness.test.js",
         "tests/services/mcp/observability-correlation.test.js",
@@ -3378,7 +3379,7 @@
     {
       "name": "PAIROFCLEATS_TEST_MCP_DELAY_TOOL_NAMES",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/testing.js",
         "tests/services/mcp/fairness.test.js",
         "tests/services/mcp/lane-reservation-fairness.test.js"
       ]
@@ -3420,7 +3421,7 @@
     {
       "name": "PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/testing.js",
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
         "tests/indexing/extracted-prose/documents-included-when-available.test.js",
@@ -3432,7 +3433,7 @@
     {
       "name": "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/testing.js",
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js",
         "tests/indexing/extracted-prose/document-extraction-cache-hit-reason.test.js",
@@ -3453,7 +3454,7 @@
     {
       "name": "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/testing.js",
         "tests/indexing/extracted-prose/document-security-guardrails.test.js",
         "tools/config/inventory.js"
       ]
@@ -3484,7 +3485,7 @@
     {
       "name": "PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/testing.js",
         "tests/indexing/tree-sitter/scheduler-crash-fallback.test.js",
         "tests/lang/perl/scheduler-crash-recovery.test.js",
         "tools/config/inventory.js"
@@ -3500,9 +3501,9 @@
     {
       "name": "PAIROFCLEATS_TESTING",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/testing.js",
         "src/shared/legacy-cli-entrypoint.js",
-        "src/shared/ops-failure-injection.js",
+        "src/shared/ops/failure-injection.js",
         "tests/cli/general/legacy-entrypoint-symlink-contract.test.js",
         "tests/cli/general/legacy-entrypoint-warning.test.js",
         "tests/cli/search/help-and-flag-contract-matrix.test.js",
@@ -3540,8 +3541,8 @@
     {
       "name": "PAIROFCLEATS_THREADS",
       "files": [
-        "src/shared/env.js",
-        "src/shared/runtime-envelope.js",
+        "src/shared/env/runtime.js",
+        "src/shared/runtime-envelope/resolve.js",
         "src/shared/threads.js",
         "tests/embeddings/runner/scheduler-env-config-envelope.test.js",
         "tests/helpers/search-filters-repo.js",
@@ -3577,7 +3578,7 @@
     {
       "name": "PAIROFCLEATS_TRACE_ARTIFACT_IO",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/helpers/triage.js",
         "tools/config/inventory.js"
       ]
@@ -3631,7 +3632,7 @@
       "name": "PAIROFCLEATS_TUI_EVENT_LOG_DIR",
       "files": [
         "bin/pairofcleats-tui.js",
-        "src/shared/env.js",
+        "src/shared/env/tui.js",
         "tests/tui/observability/replay-determinism.test.js",
         "tests/tui/observability/run-id-path-safety.test.js",
         "tests/tui/observability/session-correlation.test.js",
@@ -3642,7 +3643,7 @@
       "name": "PAIROFCLEATS_TUI_INSTALL_ROOT",
       "files": [
         "bin/pairofcleats-tui.js",
-        "src/shared/env.js",
+        "src/shared/env/tui.js",
         "tests/tui/session-snapshot-recovery.test.js",
         "tests/tui/wrapper-behavior.test.js",
         "tools/config/inventory.js",
@@ -3660,7 +3661,7 @@
       "name": "PAIROFCLEATS_TUI_RUN_ID",
       "files": [
         "bin/pairofcleats-tui.js",
-        "src/shared/env.js",
+        "src/shared/env/tui.js",
         "tests/tui/observability/replay-determinism.test.js",
         "tests/tui/observability/run-id-path-safety.test.js",
         "tests/tui/observability/session-correlation.test.js",
@@ -3684,7 +3685,7 @@
     {
       "name": "PAIROFCLEATS_UV_THREADPOOL_SIZE",
       "files": [
-        "src/shared/runtime-envelope.js",
+        "src/shared/runtime-envelope/resolve.js",
         "tests/shared/runtime/env-envelope-overrides.test.js",
         "tests/shared/runtime/envelope-spawn-env.test.js",
         "tests/shared/runtime/envelope-uv-threadpool-precedence.test.js",
@@ -3694,7 +3695,7 @@
     {
       "name": "PAIROFCLEATS_VERBOSE",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
         "tools/config/inventory.js"
       ]
@@ -3702,7 +3703,7 @@
     {
       "name": "PAIROFCLEATS_WATCHER_BACKEND",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/indexing/watch/backend-selection.test.js",
         "tools/config/inventory.js"
       ]
@@ -3711,7 +3712,7 @@
       "name": "PAIROFCLEATS_WORKER_POOL",
       "files": [
         "src/index/build/failure-taxonomy.js",
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tests/cli/search/explain-symbol.test.js",
         "tests/cli/search/windows-path-filter.test.js",
         "tests/helpers/fixture-index.js",
@@ -3768,28 +3769,28 @@
     {
       "name": "PAIROFCLEATS_WORKER_POOL_HEAP_MAX_MB",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_WORKER_POOL_HEAP_MIN_MB",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_WORKER_POOL_HEAP_TARGET_MB",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_WORKER_POOL_MAX_WORKERS",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/bench/ab-sweep.js",
         "tools/config/inventory.js"
       ]
@@ -3797,7 +3798,7 @@
     {
       "name": "PAIROFCLEATS_XXHASH_BACKEND",
       "files": [
-        "src/shared/env.js",
+        "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
     }
