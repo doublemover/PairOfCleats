@@ -166,7 +166,8 @@ export const runSearchAfterUpdateScenario = async () => {
     root: scenario.root,
     repoRoot: scenario.repoRoot,
     env: scenario.env,
-    query: 'farewell'
+    query: 'farewell',
+    mode: 'code'
   });
   assert.equal(searchResult.status, 0, 'search should succeed after incremental update');
   assert.ok(

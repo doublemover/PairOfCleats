@@ -81,10 +81,22 @@ export const appendFixtureExport = async (
   return { targetPath, original, updated };
 };
 
-export const runRepoSearchJson = ({ root, repoRoot, env, query, backend = 'sqlite-fts' }) => {
+export const runRepoSearchJson = ({
+  root,
+  repoRoot,
+  env,
+  query,
+  backend = 'sqlite-fts',
+  mode = null
+}) => {
+  const args = [path.join(root, 'search.js'), query, '--json', '--backend', backend];
+  if (mode) {
+    args.push('--mode', mode);
+  }
+  args.push('--repo', repoRoot);
   const result = spawnSync(
     process.execPath,
-    [path.join(root, 'search.js'), query, '--json', '--backend', backend, '--repo', repoRoot],
+    args,
     { cwd: repoRoot, env, encoding: 'utf8' }
   );
   return {
