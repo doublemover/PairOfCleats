@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { runWithConcurrency } from './concurrency.js';
-import { toPosix } from './files.js';
+import { toPosix } from './file-paths.js';
 
 export async function countFileLines(filePath) {
   return new Promise((resolve) => {

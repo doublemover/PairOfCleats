@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import { checksumString } from '../hash.js';
-import { estimateJsonBytes } from '../cache.js';
+import { estimateJsonBytes } from '../cache/size.js';
 import { canonicalizeBundlePayloadForChecksum } from '../bundle-checksum.js';
 import { stableStringify } from '../stable-json.js';
 import { MAX_BUNDLE_CHECKSUM_BYTES } from '../bundle-contract.js';

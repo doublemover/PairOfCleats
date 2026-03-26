@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_EMBEDDING_TRUNCATION, normalizeEmbeddingVectorInPlace } from './embedding-utils.js';
-import { isAbsolutePathNative } from './files.js';
+import { isAbsolutePathNative } from './file-paths.js';
 
 const GRAPH_LEVELS = new Set(['disabled', 'basic', 'extended', 'all']);
 const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on', 'enabled']);

@@ -3,7 +3,7 @@ import fsPromises from 'node:fs/promises';
 import chardet from 'chardet';
 import iconv from 'iconv-lite';
 import { sha1 } from './hash.js';
-import { fileExt, toPosix } from './files.js';
+import { fileExt, toPosix } from './file-paths.js';
 
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 

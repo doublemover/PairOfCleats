@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { isRelativePathEscape, toPosix } from '../files.js';
+import { isRelativePathEscape, toPosix } from '../file-paths.js';
 
 export const buildIgnoredMatcher = ({ root, ignoreMatcher }) => (targetPath, stats) => {
   const relPosix = toPosix(path.relative(root, targetPath));

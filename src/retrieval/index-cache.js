@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createLruCache } from '../shared/cache.js';
+import { createLruCache } from '../shared/cache/lru.js';
 import { runWithConcurrency } from '../shared/concurrency.js';
 import { incCacheEviction, setCacheSize } from '../shared/metrics/core.js';
 import { probeFileSignature } from '../shared/file-signature.js';

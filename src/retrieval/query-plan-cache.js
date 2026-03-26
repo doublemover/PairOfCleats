@@ -1,10 +1,10 @@
 import fs from 'node:fs';
-import { createLruCache } from '../shared/cache.js';
+import { createLruCache } from '../shared/cache/lru.js';
 import { incCacheEvent, incCacheEviction, setCacheSize } from '../shared/metrics/core.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { atomicWriteText } from '../shared/io/atomic-write.js';
 import { sortAndTrimEntriesByNewest } from './cache-trim.js';
-import { readJsonFileSyncSafe } from '../shared/files.js';
+import { readJsonFileSyncSafe } from '../shared/file-read.js';
 import {
   QUERY_PLAN_SCHEMA_VERSION,
   QUERY_PARSER_VERSION,

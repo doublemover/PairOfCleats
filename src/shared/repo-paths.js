@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getCacheRoot as getDefaultCacheRootShared } from './cache-roots.js';
-import { isAbsolutePathNative } from './files.js';
+import { isAbsolutePathNative } from './file-paths.js';
 import { findUpwards } from './fs/find-upwards.js';
 import { joinPathSafe } from './path-normalize.js';
 import { normalizeIdentityPath, toRealPathSync } from '../workspace/identity.js';

@@ -1,6 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { pathExists } from './files.js';
+import { pathExists } from './file-read.js';
 import {
   MAX_JSON_BYTES,
   loadPiecesManifest,

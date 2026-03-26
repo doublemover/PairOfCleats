@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { atomicWriteText } from './io/atomic-write.js';
 import { stableStringify } from './stable-json.js';
-import { readJsonFileSafe } from './files.js';
+import { readJsonFileSafe } from './file-read.js';
 
 const CAS_HASH_PATTERN = /^[a-f0-9]{64}$/;
 const CAS_JSON_MAX_BYTES = 2 * 1024 * 1024;

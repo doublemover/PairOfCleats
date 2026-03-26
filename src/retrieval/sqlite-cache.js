@@ -1,5 +1,5 @@
 import fsSync from 'node:fs';
-import { createLruCache } from '../shared/cache.js';
+import { createLruCache } from '../shared/cache/lru.js';
 import { incCacheEviction, setCacheSize } from '../shared/metrics/core.js';
 import { stableStringifyForSignature } from '../shared/stable-json.js';
 

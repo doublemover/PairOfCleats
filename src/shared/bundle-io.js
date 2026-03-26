@@ -1,16 +1,41 @@
 import fs from 'node:fs/promises';
-import path from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { Packr, Unpackr } from 'msgpackr';
-import { sha1, checksumString } from './hash.js';
-import { estimateJsonBytes } from './cache.js';
-import { canonicalizeBundlePayloadForChecksum } from './bundle-checksum.js';
-import { stableStringify } from './stable-json.js';
 import { writeJsonObjectFile } from './json-stream.js';
 import { atomicWriteJson, atomicWriteText } from './io/atomic-write.js';
 import { removePathWithRetry } from './io/remove-path-with-retry.js';
 import { acquireFileLock, releaseFileLockOrThrow } from './locks/file-lock.js';
 import { createTimeoutError, runWithTimeout } from './promise-timeout.js';
+import {
+  BUNDLE_CHECKSUM_SCHEMA_VERSION,
+  BUNDLE_FORMAT_TAG,
+  BUNDLE_PATCH_FORMAT_TAG,
+  BUNDLE_PATCH_VERSION,
+  BUNDLE_VERSION,
+  BUNDLE_WORKER_MAX_TERMINATE_FAILURES,
+  BUNDLE_WORKER_TERMINATE_TIMEOUT_MS,
+  BUNDLE_WORKER_TIMEOUT_MS
+} from './bundle-io-constants.js';
+import {
+  checksumBundlePayloadLocal,
+  estimatePayloadBytes,
+  normalizeBundlePayload,
+  readChecksumDescriptor,
+  verifyBundleChecksum,
+  isSupportedChecksumSchemaVersion
+} from './bundle-io-checksum.js';
+import {
+  normalizeBundleFormat,
+  resolveBundleFilename,
+  resolveBundleFormatFromName,
+  resolveBundleJsonChecksumPath,
+  resolveBundlePatchLockPath,
+  resolveBundlePatchMetaPath,
+  resolveBundlePatchPath,
+  resolveBundleShardFilename,
+  resolveManifestBundleNames,
+  resolveManifestBundleNamesResult
+} from './bundle-io-paths.js';
 import {
   MAX_BUNDLE_BYTES,
   MAX_BUNDLE_CHECKSUM_BYTES,
@@ -21,19 +46,6 @@ import {
   BUNDLE_WORKER_MAX_PAYLOAD_BYTES
 } from './bundle-contract.js';
 
-const BUNDLE_FORMAT_TAG = 'pairofcleats.bundle';
-const BUNDLE_VERSION = 1;
-const MSGPACK_EXTENSIONS = new Set(['.mpk', '.msgpack', '.msgpackr']);
-const BUNDLE_PATCH_FORMAT_TAG = 'pairofcleats.bundle.patch';
-const BUNDLE_PATCH_VERSION = 1;
-const BUNDLE_PATCH_SUFFIX = '.patch.jsonl';
-const BUNDLE_PATCH_LOCK_SUFFIX = '.lock';
-const BUNDLE_PATCH_META_SUFFIX = '.meta.json';
-const BUNDLE_JSON_CHECKSUM_SUFFIX = '.checksum.json';
-export const BUNDLE_CHECKSUM_SCHEMA_VERSION = 2;
-const BUNDLE_WORKER_TIMEOUT_MS = 15000;
-const BUNDLE_WORKER_TERMINATE_TIMEOUT_MS = 5000;
-const BUNDLE_WORKER_MAX_TERMINATE_FAILURES = 3;
 const BUNDLE_PATCH_FIELD_KEYS = [
   'file',
   'hash',
@@ -53,21 +65,18 @@ const bundleTransformWorkerUrl = new URL('./workers/bundle-transform-worker.js',
 let bundleTransformWorkerTerminateFailures = 0;
 let bundleTransformWorkerDisabled = false;
 
-const isPlainObject = (value) => !!value && typeof value === 'object' && value.constructor === Object;
-
-const normalizeBundlePayload = (value) => {
-  if (Array.isArray(value)) {
-    return value.map((entry) => normalizeBundlePayload(entry));
-  }
-  if (!value || typeof value !== 'object' || value.constructor !== Object) {
-    return value;
-  }
-  const out = {};
-  for (const key of Object.keys(value).sort()) {
-    out[key] = normalizeBundlePayload(value[key]);
-  }
-  return out;
-};
+export { BUNDLE_CHECKSUM_SCHEMA_VERSION } from './bundle-io-constants.js';
+export {
+  normalizeBundleFormat,
+  resolveBundleFilename,
+  resolveBundleShardFilename,
+  resolveManifestBundleNames,
+  resolveManifestBundleNamesResult,
+  resolveBundleFormatFromName,
+  resolveBundlePatchPath,
+  resolveBundlePatchLockPath,
+  resolveBundlePatchMetaPath
+} from './bundle-io-paths.js';
 
 const checksumBundlePayload = async (payload) => {
   const estimate = estimatePayloadBytes(payload);
@@ -82,62 +91,9 @@ const checksumBundlePayload = async (payload) => {
       if (checksum && typeof checksum === 'object') return checksum;
     }
   }
-  const canonical = canonicalizeBundlePayloadForChecksum(payload);
-  return checksumString(stableStringify(canonical));
-};
-
-const estimatePayloadBytes = (value) => {
-  const estimate = estimateJsonBytes(value);
-  if (!Number.isFinite(estimate) || estimate <= 0) return 0;
-  return Math.floor(estimate);
-};
-
-const isSupportedChecksumSchemaVersion = (value) => (
-  value == null || value === '' || Number(value) === BUNDLE_CHECKSUM_SCHEMA_VERSION
-);
-
-const readChecksumDescriptor = (value) => {
-  if (!isPlainObject(value)) {
-    return { ok: false, reason: 'invalid bundle checksum' };
-  }
-  if (!isSupportedChecksumSchemaVersion(value.schemaVersion)) {
-    return { ok: false, reason: 'unsupported bundle checksum schema' };
-  }
-  const algo = typeof value.algo === 'string' ? value.algo.trim() : '';
-  const checksumValue = typeof value.value === 'string' ? value.value.trim() : '';
-  if (!algo || !checksumValue) {
-    return { ok: false, reason: 'invalid bundle checksum' };
-  }
-  return {
-    ok: true,
-    checksum: {
-      algo,
-      value: checksumValue
-    }
-  };
-};
-
-const verifyBundleChecksum = async ({ bundle, checksum }) => {
-  const normalized = normalizeBundlePayload(bundle);
-  const estimate = estimateJsonBytes(normalized);
-  if (estimate && estimate > MAX_BUNDLE_CHECKSUM_BYTES) {
-    return { ok: true, bundle: normalized, verificationSkipped: true };
-  }
-  if (checksum.algo === 'xxh64') {
-    const expected = await checksumBundlePayload(normalized);
-    if (!expected || expected.value !== checksum.value) {
-      return { ok: false, reason: 'bundle checksum mismatch' };
-    }
-    return { ok: true, bundle: normalized };
-  }
-  if (checksum.algo === 'sha1') {
-    const expected = sha1(stableStringify(normalized));
-    if (expected !== checksum.value) {
-      return { ok: false, reason: 'bundle checksum mismatch' };
-    }
-    return { ok: true, bundle: normalized };
-  }
-  return { ok: false, reason: 'unsupported bundle checksum algo' };
+  return checksumBundlePayloadLocal(payload, {
+    maxChecksumBytes: MAX_BUNDLE_CHECKSUM_BYTES
+  });
 };
 
 const shouldOffloadBundleTransform = (payloadBytes) => Number.isFinite(payloadBytes)
@@ -414,118 +370,11 @@ const readBundlePatches = async (bundlePath) => {
   return { ok: true, patches };
 };
 
-export function normalizeBundleFormat(raw) {
-  if (typeof raw !== 'string') return 'json';
-  const normalized = raw.trim().toLowerCase();
-  if (normalized === 'msgpack' || normalized === 'msgpackr' || normalized === 'mpk') {
-    return 'msgpack';
-  }
-  return 'json';
-}
-
-export function resolveBundleFilename(relKey, format) {
-  const ext = format === 'msgpack' ? 'mpk' : 'json';
-  return `${sha1(relKey)}.${ext}`;
-}
-
-export function resolveBundleShardFilename(relKey, format, shardIndex = 0) {
-  const baseName = resolveBundleFilename(relKey, format);
-  const index = Number.isFinite(Number(shardIndex))
-    ? Math.max(0, Math.floor(Number(shardIndex)))
-    : 0;
-  if (index <= 0) return baseName;
-  const parsed = path.parse(baseName);
-  return `${parsed.name}.part${String(index).padStart(4, '0')}${parsed.ext}`;
-}
-
-export function resolveManifestBundleNames(entry) {
-  return resolveManifestBundleNamesResult(entry).names;
-}
-
-export function resolveManifestBundleNamesResult(entry) {
-  if (!entry || typeof entry !== 'object') {
-    return {
-      ok: false,
-      reason: 'bundle manifest entry missing or invalid',
-      names: []
-    };
-  }
-  const legacyBundle = typeof entry.bundle === 'string'
-    ? entry.bundle.trim()
-    : '';
-  const rawBundleNames = Array.isArray(entry.bundles) && entry.bundles.length
-    ? entry.bundles
-    : (legacyBundle ? [legacyBundle] : []);
-  if (!rawBundleNames.length) {
-    return {
-      ok: false,
-      reason: 'missing bundle entries',
-      names: []
-    };
-  }
-  const names = [];
-  const seen = new Set();
-  for (const value of rawBundleNames) {
-    if (typeof value !== 'string') {
-      return {
-        ok: false,
-        reason: 'bundle entry names must be strings',
-        names: []
-      };
-    }
-    const name = value.trim();
-    if (!name) {
-      return {
-        ok: false,
-        reason: 'bundle entry names must be non-empty strings',
-        names: []
-      };
-    }
-    if (name.includes('/') || name.includes('\\')) {
-      return {
-        ok: false,
-        reason: 'bundle entry names must not contain path separators',
-        names: []
-      };
-    }
-    if (seen.has(name)) continue;
-    seen.add(name);
-    names.push(name);
-  }
-  return {
-    ok: true,
-    reason: null,
-    names
-  };
-}
-
-export function resolveBundleFormatFromName(bundleName, fallback = 'json') {
-  if (typeof bundleName !== 'string' || !bundleName) return fallback;
-  const ext = path.extname(bundleName).toLowerCase();
-  return MSGPACK_EXTENSIONS.has(ext) ? 'msgpack' : 'json';
-}
-
-export function resolveBundlePatchPath(bundlePath) {
-  return `${bundlePath}${BUNDLE_PATCH_SUFFIX}`;
-}
-
-export function resolveBundlePatchLockPath(bundlePath) {
-  return `${resolveBundlePatchPath(bundlePath)}${BUNDLE_PATCH_LOCK_SUFFIX}`;
-}
-
-export function resolveBundlePatchMetaPath(bundlePath) {
-  return `${resolveBundlePatchPath(bundlePath)}${BUNDLE_PATCH_META_SUFFIX}`;
-}
-
 export async function removeBundleWriteArtifacts(bundlePath) {
   await removeFileOrThrow(bundlePath);
   await removeFileOrThrow(resolveBundleJsonChecksumPath(bundlePath));
   await clearBundlePatchFile(bundlePath);
 }
-
-const resolveBundleJsonChecksumPath = (bundlePath) => (
-  `${bundlePath}${BUNDLE_JSON_CHECKSUM_SUFFIX}`
-);
 
 const readBundlePatchMeta = async (bundlePath) => {
   const metaPath = resolveBundlePatchMetaPath(bundlePath);
@@ -778,13 +627,19 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
     }
     const checksumEnvelope = envelope.checksum;
     if (checksumEnvelope != null) {
-      const descriptor = readChecksumDescriptor(checksumEnvelope);
+      const descriptor = readChecksumDescriptor(
+        checksumEnvelope,
+        BUNDLE_CHECKSUM_SCHEMA_VERSION
+      );
       if (!descriptor.ok) {
         return descriptor;
       }
       return verifyBundleChecksum({
         bundle: payload,
-        checksum: descriptor.checksum
+        checksum: descriptor.checksum,
+        supportedVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION,
+        maxChecksumBytes: MAX_BUNDLE_CHECKSUM_BYTES,
+        checksumBundlePayload
       });
     }
     return { ok: true, bundle: payload };
@@ -822,16 +677,22 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
     const rawChecksum = await fs.readFile(checksumPath, 'utf8');
     const parsedChecksum = JSON.parse(rawChecksum);
     const checksum = parsedChecksum?.checksum;
-    if (!isSupportedChecksumSchemaVersion(parsedChecksum?.checksumSchemaVersion)) {
+    if (!isSupportedChecksumSchemaVersion(
+      parsedChecksum?.checksumSchemaVersion,
+      BUNDLE_CHECKSUM_SCHEMA_VERSION
+    )) {
       return { ok: false, reason: 'unsupported bundle checksum schema' };
     }
-    const descriptor = readChecksumDescriptor(checksum);
+    const descriptor = readChecksumDescriptor(checksum, BUNDLE_CHECKSUM_SCHEMA_VERSION);
     if (!descriptor.ok) {
       return descriptor;
     }
     const verified = await verifyBundleChecksum({
       bundle,
-      checksum: descriptor.checksum
+      checksum: descriptor.checksum,
+      supportedVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION,
+      maxChecksumBytes: MAX_BUNDLE_CHECKSUM_BYTES,
+      checksumBundlePayload
     });
     if (!verified.ok) {
       return verified;
