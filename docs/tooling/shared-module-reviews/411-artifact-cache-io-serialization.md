@@ -20,7 +20,7 @@ Highest-priority follow-ups:
 - split [atomic-persistence.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/io/atomic-persistence.js)
 - split [files.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/files.js)
 - split [cache.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/cache.js)
-- move [artifact-schema-index.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/artifact-schema-index.js) and [artifact-schemas.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/artifact-schemas.js) closer to contracts/tooling ownership
+- move [artifact-schema-index.js](C:/Users/sneak/Development/DOUBLECLEAT/src/contracts/artifact-schema-index.js) and [artifact-schemas.js](C:/Users/sneak/Development/DOUBLECLEAT/src/contracts/artifact-schemas.js) closer to contracts/tooling ownership
 
 ## Cluster Notes
 
@@ -50,8 +50,8 @@ Highest-priority follow-ups:
 
 ### Specialized Metadata And Contract Wrappers
 
-- [artifact-schema-index.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/artifact-schema-index.js) and [artifact-schemas.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/artifact-schemas.js) are specialized contract adapters, not generic persistence primitives.
-- [docmeta.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/docmeta.js) and [meta-v2.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/meta-v2.js) are metadata helpers and would be clearer under a dedicated metadata family.
+- [artifact-schema-index.js](C:/Users/sneak/Development/DOUBLECLEAT/src/contracts/artifact-schema-index.js) and [artifact-schemas.js](C:/Users/sneak/Development/DOUBLECLEAT/src/contracts/artifact-schemas.js) are specialized contract adapters, not generic persistence primitives.
+- [docmeta.js](C:/Users/sneak/Development/DOUBLECLEAT/src/index/metadata/docmeta.js) and [meta-v2.js](C:/Users/sneak/Development/DOUBLECLEAT/src/index/metadata/meta-v2.js) are metadata helpers and would be clearer under a dedicated metadata family.
 
 ## File Ledger
 
@@ -90,8 +90,6 @@ Highest-priority follow-ups:
 | `src/shared/artifact-io/offsets.js` | `keep`, `document`, `test` | Keep as the artifact offset contract. |
 | `src/shared/artifact-io/telemetry.js` | `keep`, `document`, `test` | Keep as the artifact-read telemetry helper. |
 | `src/shared/artifact-io/varint.js` | `keep`, `document`, `test` | Keep as the compact integer encoding primitive. |
-| `src/shared/artifact-schema-index.js` | `move`, `document`, `test` | Move closer to contracts/tooling ownership. |
-| `src/shared/artifact-schemas.js` | `move`, `document`, `test` | Move or rename as an explicit contracts wrapper. |
 | `src/shared/bundle-checksum.js` | `keep`, `document`, `test` | Keep bundle checksum logic separate and deterministic. |
 | `src/shared/bundle-contract.js` | `keep`, `document`, `test` | Keep bundle limits as a contract-only surface. |
 | `src/shared/bundle-io.js` | `split`, `document`, `test` | Split worker offload, patching, and persistence internals. |
@@ -102,7 +100,6 @@ Highest-priority follow-ups:
 | `src/shared/cache/json-file.js` | `keep`, `document`, `test` | Keep as a tiny structured JSON-read helper. |
 | `src/shared/cache/policy.js` | `keep`, `document`, `test` | Keep as the explicit cache policy contract. |
 | `src/shared/chunk-meta-cold.js` | `keep`, `document`, `test` | Keep as a specialized chunk-meta cold-path helper. |
-| `src/shared/docmeta.js` | `move`, `document`, `test` | Move under a metadata or type-information family. |
 | `src/shared/encoding.js` | `keep`, `document`, `test` | Keep as the shared encoding contract surface. |
 | `src/shared/eol.js` | `keep`, `document`, `test` | Keep tiny and focused on EOL normalization. |
 | `src/shared/file-signature.js` | `keep`, `document`, `test` | Keep as the file-signature contract. |
@@ -123,7 +120,6 @@ Highest-priority follow-ups:
 | `src/shared/json-stream/runtime.js` | `keep`, `document`, `test` | Keep as the json-stream runtime helper. |
 | `src/shared/json-stream/streams.js` | `split`, `document`, `test` | Split stream creation from checksum/accounting behavior. |
 | `src/shared/jsonc.js` | `keep`, `document`, `test` | Keep as the JSONC parsing contract surface. |
-| `src/shared/meta-v2.js` | `move`, `document`, `test` | Move under a dedicated metadata or contract family. |
 | `src/shared/optional-artifact-fallback.js` | `merge`, `document`, `test` | Merge or re-export this thin wrapper from a clearer helper surface. |
 | `src/shared/provenance.js` | `keep`, `document`, `test` | Keep as the provenance metadata contract. |
 | `src/shared/stable-json.js` | `keep`, `document`, `test` | Keep as the canonical deterministic JSON primitive. |

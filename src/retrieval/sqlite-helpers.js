@@ -6,7 +6,7 @@ import { fetchVocabRows as fetchSqliteVocabRows } from '../storage/sqlite/vocab.
 import { parseArrayField, parseJson } from './query-cache.js';
 import { buildFtsBm25Expr } from './fts.js';
 import { buildFilterIndex } from './filter-index.js';
-import { normalizeMetaV2ForRead } from '../shared/meta-v2.js';
+import { normalizeMetaV2ForRead } from '../index/metadata/meta-v2.js';
 
 const SQLITE_IN_LIMIT = 900;
 const FTS_TOKEN_SAFE = /^[\p{L}\p{N}_]+$/u;

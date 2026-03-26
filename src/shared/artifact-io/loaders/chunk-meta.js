@@ -8,7 +8,7 @@ import {
 } from '../manifest.js';
 import { decodeVarint64List } from '../varint.js';
 import { mergeChunkMetaColdFields } from '../../chunk-meta-cold.js';
-import { normalizeMetaV2ForRead } from '../../meta-v2.js';
+import { normalizeMetaV2ForRead } from '../../../index/metadata/meta-v2.js';
 import { formatHash64 } from '../../token-id.js';
 import {
   createLoaderError,

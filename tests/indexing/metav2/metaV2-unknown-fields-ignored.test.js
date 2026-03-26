@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { normalizeMetaV2ForRead } from '../../../src/shared/meta-v2.js';
+import { normalizeMetaV2ForRead } from '../../../src/index/metadata/meta-v2.js';
 
 const input = {
   schemaVersion: 99,

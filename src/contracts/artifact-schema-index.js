@@ -1,4 +1,4 @@
-import { ARTIFACT_SCHEMA_DEFS, ARTIFACT_SCHEMA_HASH } from '../contracts/registry.js';
+import { ARTIFACT_SCHEMA_DEFS, ARTIFACT_SCHEMA_HASH } from './registry.js';
 
 const resolveObjectSchema = (schema) => {
   if (!schema || typeof schema !== 'object') return null;

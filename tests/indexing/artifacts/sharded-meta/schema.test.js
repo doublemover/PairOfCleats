@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createChunkMetaIterator, enqueueChunkMetaArtifacts } from '../../../../src/index/build/artifacts/writers/chunk-meta.js';
 import { enqueueFileRelationsArtifacts } from '../../../../src/index/build/artifacts/writers/file-relations.js';
 import { enqueueCallSitesArtifacts } from '../../../../src/index/build/artifacts/writers/call-sites.js';
-import { validateArtifact } from '../../../../src/shared/artifact-schemas.js';
+import { validateArtifact } from '../../../../src/contracts/artifact-schemas.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 

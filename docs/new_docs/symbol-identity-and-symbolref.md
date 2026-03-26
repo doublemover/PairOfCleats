@@ -305,7 +305,7 @@ Inputs required:
 - `docmeta.signature` when present
 
 ### 11.2 Add schemas and strict validation
-- Update `src/shared/artifact-schemas.js` for new symbol artifacts (see symbol artifacts spec)
+- Update `src/contracts/artifact-schemas.js` for new symbol artifacts (see symbol artifacts spec)
 - Update `src/index/validate.js` to ensure `metaV2.symbol.scopedId` exists when `metaV2.chunkUid` exists (strict mode).
 
 ---

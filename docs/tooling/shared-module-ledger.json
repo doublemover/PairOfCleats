@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-03-26T07:56:23.190Z",
+  "generatedAt": "2026-03-26T09:01:29.832Z",
   "generatedBy": "node tools/docs/shared-module-ledger.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "census": {
@@ -188,7 +188,7 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 8,
+        "consumerCount": 9,
         "importers": [
           "src/shared/artifact-io/compression.js",
           "src/shared/artifact-io/fs.js",
@@ -197,7 +197,8 @@
           "src/shared/artifact-io/json/read-jsonl-stream.js",
           "src/shared/artifact-io/loaders/core-source-resolution.js",
           "src/shared/artifact-io/loaders/shared.js",
-          "src/shared/artifact-io/manifest.js"
+          "src/shared/artifact-io/manifest-read.js",
+          "src/shared/artifact-io/manifest-sources.js"
         ]
       },
       {
@@ -212,7 +213,7 @@
         "importers": [
           "src/index/build/artifacts-write/family-dispatch.js",
           "src/index/build/artifacts-write/index.js",
-          "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-checksum.js",
           "src/shared/artifact-io/loaders/minhash.js",
           "src/shared/artifact-io/loaders/token-postings.js"
         ]
@@ -242,7 +243,7 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 16,
+        "consumerCount": 19,
         "importers": [
           "src/graph/store.js",
           "src/index/build/indexer/signatures.js",
@@ -252,13 +253,16 @@
           "src/shared/artifact-io/json/read-jsonl-stream.js",
           "src/shared/artifact-io/loaders/binary-columnar.js",
           "src/shared/artifact-io/loaders/chunk-meta.js",
+          "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core-source-resolution.js",
           "src/shared/artifact-io/loaders/core.js",
           "src/shared/artifact-io/loaders/graph.js",
           "src/shared/artifact-io/loaders/minhash.js",
           "src/shared/artifact-io/loaders/per-file.js",
           "src/shared/artifact-io/loaders/token-postings.js",
-          "src/shared/artifact-io/manifest.js",
+          "src/shared/artifact-io/manifest-paths.js",
+          "src/shared/artifact-io/manifest-read.js",
+          "src/shared/artifact-io/manifest-sources.js",
           "src/shared/artifact-io/offsets.js"
         ]
       },
@@ -270,13 +274,14 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 6,
+        "consumerCount": 7,
         "importers": [
           "src/index/validate/manifest.js",
           "src/shared/artifact-io/loaders/binary-columnar.js",
           "src/shared/artifact-io/loaders/per-file.js",
           "src/shared/artifact-io/loaders/token-postings.js",
-          "src/shared/artifact-io/manifest.js",
+          "src/shared/artifact-io/manifest-read.js",
+          "src/shared/artifact-io/manifest-sources.js",
           "tools/bench/index/jsonl-offset-index.js"
         ]
       },
@@ -301,16 +306,20 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 11,
+        "consumerCount": 15,
         "importers": [
           "src/shared/artifact-io.js",
           "src/shared/artifact-io/loaders/chunk-meta.js",
-          "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-array-payload.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-context.js",
+          "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core.js",
           "src/shared/artifact-io/loaders/graph.js",
           "src/shared/artifact-io/loaders/shared.js",
           "src/shared/artifact-io/loaders/token-postings.js",
-          "src/shared/artifact-io/manifest.js",
+          "src/shared/artifact-io/manifest-paths.js",
+          "src/shared/artifact-io/manifest-read.js",
+          "src/shared/artifact-io/manifest-sources.js",
           "tools/bench/artifact-io/artifact-io-throughput.js",
           "tools/bench/artifact-io/jsonl-offset-index.js",
           "tools/bench/index/jsonl-offset-index.js"
@@ -418,12 +427,13 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 8,
+        "consumerCount": 9,
         "importers": [
           "src/shared/artifact-io.js",
           "src/shared/artifact-io/json/line-scan.js",
           "src/shared/artifact-io/json/read-jsonl-array.js",
           "src/shared/artifact-io/loaders/chunk-meta.js",
+          "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core.js",
           "src/shared/artifact-io/loaders/graph.js",
           "src/shared/artifact-io/loaders/per-file.js",
@@ -494,7 +504,61 @@
         ]
       },
       {
+        "path": "src/shared/artifact-io/loaders/core-array-payload.js",
+        "family": "src/shared/artifact-io",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 2,
+        "importers": [
+          "src/shared/artifact-io/loaders/core-file-meta.js",
+          "src/shared/artifact-io/loaders/core.js"
+        ]
+      },
+      {
+        "path": "src/shared/artifact-io/loaders/core-binary-columnar-checksum.js",
+        "family": "src/shared/artifact-io",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 2,
+        "importers": [
+          "src/shared/artifact-io/loaders/core-binary-columnar-context.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar.js"
+        ]
+      },
+      {
+        "path": "src/shared/artifact-io/loaders/core-binary-columnar-context.js",
+        "family": "src/shared/artifact-io",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/artifact-io/loaders/core-binary-columnar.js"
+        ]
+      },
+      {
         "path": "src/shared/artifact-io/loaders/core-binary-columnar.js",
+        "family": "src/shared/artifact-io",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/artifact-io/loaders/core-array-payload.js"
+        ]
+      },
+      {
+        "path": "src/shared/artifact-io/loaders/core-file-meta.js",
         "family": "src/shared/artifact-io",
         "primaryIssue": {
           "issueId": "411",
@@ -514,9 +578,11 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 3,
+        "consumerCount": 5,
         "importers": [
-          "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-array-payload.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-context.js",
+          "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core.js",
           "src/shared/artifact-io/loaders/minhash.js"
         ]
@@ -583,11 +649,15 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 8,
+        "consumerCount": 12,
         "importers": [
           "src/shared/artifact-io/loaders/binary-columnar.js",
           "src/shared/artifact-io/loaders/chunk-meta.js",
+          "src/shared/artifact-io/loaders/core-array-payload.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-checksum.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-context.js",
           "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core-source-resolution.js",
           "src/shared/artifact-io/loaders/core.js",
           "src/shared/artifact-io/loaders/minhash.js",
@@ -609,6 +679,48 @@
         ]
       },
       {
+        "path": "src/shared/artifact-io/manifest-paths.js",
+        "family": "src/shared/artifact-io",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 2,
+        "importers": [
+          "src/shared/artifact-io/manifest-sources.js",
+          "src/shared/artifact-io/manifest.js"
+        ]
+      },
+      {
+        "path": "src/shared/artifact-io/manifest-read.js",
+        "family": "src/shared/artifact-io",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 2,
+        "importers": [
+          "src/shared/artifact-io/manifest-sources.js",
+          "src/shared/artifact-io/manifest.js"
+        ]
+      },
+      {
+        "path": "src/shared/artifact-io/manifest-sources.js",
+        "family": "src/shared/artifact-io",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 2,
+        "importers": [
+          "src/shared/artifact-io/loaders/core-binary-columnar-checksum.js",
+          "src/shared/artifact-io/manifest.js"
+        ]
+      },
+      {
         "path": "src/shared/artifact-io/manifest.js",
         "family": "src/shared/artifact-io",
         "primaryIssue": {
@@ -622,7 +734,7 @@
           "src/integrations/tooling/api-contracts.js",
           "src/shared/artifact-io.js",
           "src/shared/artifact-io/loaders/chunk-meta.js",
-          "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core-source-resolution.js",
           "src/shared/artifact-io/loaders/core.js",
           "src/shared/artifact-io/loaders/graph.js",
@@ -682,33 +794,6 @@
           "src/shared/artifact-io/loaders/binary-columnar.js",
           "src/shared/artifact-io/loaders/chunk-meta.js",
           "src/shared/artifact-io/loaders/per-file.js"
-        ]
-      },
-      {
-        "path": "src/shared/artifact-schema-index.js",
-        "family": "src/shared/root",
-        "primaryIssue": {
-          "issueId": "411",
-          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
-          "umbrella": "407"
-        },
-        "consumerCount": 1,
-        "importers": [
-          "tools/docs/export-artifact-schema-index.js"
-        ]
-      },
-      {
-        "path": "src/shared/artifact-schemas.js",
-        "family": "src/shared/root",
-        "primaryIssue": {
-          "issueId": "411",
-          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
-          "umbrella": "407"
-        },
-        "consumerCount": 2,
-        "importers": [
-          "src/index/validate/schema.js",
-          "tools/build/embeddings/manifest.js"
         ]
       },
       {
@@ -831,7 +916,7 @@
         },
         "consumerCount": 2,
         "importers": [
-          "src/shared/bundle-io.js",
+          "src/shared/bundle-io-checksum.js",
           "src/shared/workers/bundle-transform-worker.js"
         ]
       },
@@ -847,6 +932,46 @@
         "importers": [
           "src/shared/bundle-io.js",
           "src/shared/workers/bundle-transform-worker.js"
+        ]
+      },
+      {
+        "path": "src/shared/bundle-io-checksum.js",
+        "family": "src/shared/root",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/bundle-io.js"
+        ]
+      },
+      {
+        "path": "src/shared/bundle-io-constants.js",
+        "family": "src/shared/root",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 2,
+        "importers": [
+          "src/shared/bundle-io-paths.js",
+          "src/shared/bundle-io.js"
+        ]
+      },
+      {
+        "path": "src/shared/bundle-io-paths.js",
+        "family": "src/shared/root",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/bundle-io.js"
         ]
       },
       {
@@ -965,7 +1090,7 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 22,
+        "consumerCount": 17,
         "importers": [
           "src/index/build/artifacts-write/family-dispatch.js",
           "src/index/build/artifacts-write/index.js",
@@ -980,12 +1105,7 @@
           "src/index/build/tree-sitter-scheduler/lookup.js",
           "src/index/build/vfs-segment-hash-cache.js",
           "src/index/git.js",
-          "src/retrieval/index-cache.js",
           "src/retrieval/output/cache.js",
-          "src/retrieval/query-plan-cache.js",
-          "src/retrieval/sqlite-cache.js",
-          "src/shared/bundle-io.js",
-          "src/shared/workers/bundle-transform-worker.js",
           "tools/build/embeddings/runner.js",
           "tools/dict-utils/paths/cache.js",
           "tools/index/cache-gc.js"
@@ -1006,6 +1126,35 @@
         ]
       },
       {
+        "path": "src/shared/cache/layers.js",
+        "family": "src/shared/cache",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/cache.js"
+        ]
+      },
+      {
+        "path": "src/shared/cache/lru.js",
+        "family": "src/shared/cache",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 4,
+        "importers": [
+          "src/retrieval/index-cache.js",
+          "src/retrieval/query-plan-cache.js",
+          "src/retrieval/sqlite-cache.js",
+          "src/shared/cache.js"
+        ]
+      },
+      {
         "path": "src/shared/cache/policy.js",
         "family": "src/shared/cache",
         "primaryIssue": {
@@ -1016,6 +1165,22 @@
         "consumerCount": 1,
         "importers": [
           "src/shared/repo-cache-config.js"
+        ]
+      },
+      {
+        "path": "src/shared/cache/size.js",
+        "family": "src/shared/cache",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 4,
+        "importers": [
+          "src/shared/bundle-io-checksum.js",
+          "src/shared/cache.js",
+          "src/shared/cache/lru.js",
+          "src/shared/workers/bundle-transform-worker.js"
         ]
       },
       {
@@ -1987,23 +2152,6 @@
         ]
       },
       {
-        "path": "src/shared/docmeta.js",
-        "family": "src/shared/root",
-        "primaryIssue": {
-          "issueId": "411",
-          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
-          "umbrella": "407"
-        },
-        "consumerCount": 5,
-        "importers": [
-          "src/index/metadata-v2.js",
-          "src/index/type-inference-crossfile/extract.js",
-          "src/index/type-inference.js",
-          "src/retrieval/output/filters/meta.js",
-          "src/retrieval/output/format/full.js"
-        ]
-      },
-      {
         "path": "src/shared/embedding-adapter.js",
         "family": "src/shared/root",
         "primaryIssue": {
@@ -2329,7 +2477,7 @@
           "src/index/tooling/vfs/cold-start.js",
           "src/integrations/core/build-index/stages.js",
           "src/shared/artifact-io/constants.js",
-          "src/shared/artifact-io/manifest.js",
+          "src/shared/artifact-io/manifest-read.js",
           "src/shared/env.js",
           "src/shared/ops/failure-injection.js",
           "tools/build/embeddings/runner.js",
@@ -2426,6 +2574,43 @@
         ]
       },
       {
+        "path": "src/shared/file-paths.js",
+        "family": "src/shared/root",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 7,
+        "importers": [
+          "src/shared/encoding.js",
+          "src/shared/file-stats.js",
+          "src/shared/files.js",
+          "src/shared/fs/ignore.js",
+          "src/shared/onnx-embeddings.js",
+          "src/shared/path-normalize.js",
+          "src/shared/repo-paths.js"
+        ]
+      },
+      {
+        "path": "src/shared/file-read.js",
+        "family": "src/shared/root",
+        "primaryIssue": {
+          "issueId": "410",
+          "title": "Review shared core primitives and root-level contracts in src/shared",
+          "umbrella": "407"
+        },
+        "consumerCount": 6,
+        "importers": [
+          "src/retrieval/query-plan-cache.js",
+          "src/shared/cache-cas.js",
+          "src/shared/cache/json-file.js",
+          "src/shared/dense-vector-artifacts.js",
+          "src/shared/files.js",
+          "src/shared/index-artifact-helpers.js"
+        ]
+      },
+      {
         "path": "src/shared/file-signature.js",
         "family": "src/shared/root",
         "primaryIssue": {
@@ -2463,7 +2648,7 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 170,
+        "consumerCount": 160,
         "importers": [
           "src/context-pack/excerpt-cache.js",
           "src/graph/indexes.js",
@@ -2579,20 +2764,10 @@
           "src/retrieval/cli/persist.js",
           "src/retrieval/cli/run-search/plan-runner.js",
           "src/retrieval/output/summary.js",
-          "src/retrieval/query-plan-cache.js",
           "src/shared/artifact-io/loaders/per-file.js",
-          "src/shared/artifact-io/manifest.js",
-          "src/shared/cache-cas.js",
-          "src/shared/cache/json-file.js",
-          "src/shared/dense-vector-artifacts.js",
-          "src/shared/encoding.js",
-          "src/shared/file-stats.js",
-          "src/shared/fs/ignore.js",
-          "src/shared/index-artifact-helpers.js",
+          "src/shared/artifact-io/manifest-paths.js",
+          "src/shared/artifact-io/manifest-sources.js",
           "src/shared/indexing/build-pointer.js",
-          "src/shared/onnx-embeddings.js",
-          "src/shared/path-normalize.js",
-          "src/shared/repo-paths.js",
           "src/workspace/identity.js",
           "src/workspace/manifest.js",
           "tools/analysis/map-iso-safe-join.js",
@@ -2687,7 +2862,7 @@
           "title": "Review shared domain helper families for embeddings, indexing, search, risk, language, and type/token processing",
           "umbrella": "407"
         },
-        "consumerCount": 92,
+        "consumerCount": 93,
         "importers": [
           "src/context-pack/excerpt-cache.js",
           "src/context-pack/risk-delta.js",
@@ -2751,7 +2926,8 @@
           "src/map/build-map/symbols.js",
           "src/retrieval/federation/query-cache.js",
           "src/retrieval/output/format/display-meta.js",
-          "src/shared/bundle-io.js",
+          "src/shared/bundle-io-checksum.js",
+          "src/shared/bundle-io-paths.js",
           "src/shared/cache-key.js",
           "src/shared/embedding-identity.js",
           "src/shared/encoding.js",
@@ -3046,6 +3222,21 @@
         ]
       },
       {
+        "path": "src/shared/io/persistence-helpers.js",
+        "family": "src/shared/io",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 3,
+        "importers": [
+          "src/shared/io/replace-dir.js",
+          "src/shared/io/replace-file.js",
+          "src/shared/io/temp-path.js"
+        ]
+      },
+      {
         "path": "src/shared/io/remove-path-with-retry.js",
         "family": "src/shared/io",
         "primaryIssue": {
@@ -3062,10 +3253,50 @@
           "src/map/build-map.js",
           "src/map/build-map/io.js",
           "src/shared/bundle-io.js",
-          "src/shared/json-stream.js",
+          "src/shared/json-stream/jsonl-sharded.js",
           "tools/bench/language-repos/lifecycle.js",
           "tools/index/cache-gc.js",
           "tools/tui/install.js"
+        ]
+      },
+      {
+        "path": "src/shared/io/replace-dir.js",
+        "family": "src/shared/io",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/io/atomic-persistence.js"
+        ]
+      },
+      {
+        "path": "src/shared/io/replace-file.js",
+        "family": "src/shared/io",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/io/atomic-persistence.js"
+        ]
+      },
+      {
+        "path": "src/shared/io/temp-path.js",
+        "family": "src/shared/io",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 2,
+        "importers": [
+          "src/shared/io/atomic-persistence.js",
+          "src/shared/io/replace-dir.js"
         ]
       },
       {
@@ -3219,11 +3450,12 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 6,
+        "consumerCount": 7,
         "importers": [
           "src/index/build/artifacts/helpers.js",
           "src/index/build/crash-log.js",
           "src/shared/json-stream.js",
+          "src/shared/json-stream/jsonl-sharded.js",
           "src/shared/json-stream/offsets.js",
           "src/shared/json-stream/streams.js",
           "src/storage/sqlite/build/core.js"
@@ -3251,13 +3483,14 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 5,
+        "consumerCount": 6,
         "importers": [
           "src/index/build/artifacts/writers/vfs-manifest.js",
           "src/index/build/tree-sitter-scheduler/executor.js",
           "src/index/build/vfs-manifest-collector.js",
           "src/map/build-map/io.js",
-          "src/shared/json-stream.js"
+          "src/shared/json-stream.js",
+          "src/shared/json-stream/jsonl-write.js"
         ]
       },
       {
@@ -3268,9 +3501,10 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 2,
+        "consumerCount": 3,
         "importers": [
-          "src/shared/json-stream.js",
+          "src/shared/json-stream/jsonl-sharded.js",
+          "src/shared/json-stream/jsonl-write.js",
           "src/shared/merge.js"
         ]
       },
@@ -3286,7 +3520,20 @@
         "importers": []
       },
       {
-        "path": "src/shared/json-stream/offsets.js",
+        "path": "src/shared/json-stream/jsonl-sharded.js",
+        "family": "src/shared/json-stream",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 1,
+        "importers": [
+          "src/shared/json-stream.js"
+        ]
+      },
+      {
+        "path": "src/shared/json-stream/jsonl-write.js",
         "family": "src/shared/json-stream",
         "primaryIssue": {
           "issueId": "411",
@@ -3295,8 +3542,23 @@
         },
         "consumerCount": 2,
         "importers": [
+          "src/shared/json-stream.js",
+          "src/shared/json-stream/jsonl-sharded.js"
+        ]
+      },
+      {
+        "path": "src/shared/json-stream/offsets.js",
+        "family": "src/shared/json-stream",
+        "primaryIssue": {
+          "issueId": "411",
+          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
+          "umbrella": "407"
+        },
+        "consumerCount": 3,
+        "importers": [
           "src/index/build/artifacts/helpers.js",
-          "src/shared/json-stream.js"
+          "src/shared/json-stream/jsonl-sharded.js",
+          "src/shared/json-stream/jsonl-write.js"
         ]
       },
       {
@@ -3307,12 +3569,14 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 5,
+        "consumerCount": 7,
         "importers": [
           "src/shared/json-stream.js",
           "src/shared/json-stream/compress.js",
           "src/shared/json-stream/encode.js",
           "src/shared/json-stream/jsonl-batch.js",
+          "src/shared/json-stream/jsonl-sharded.js",
+          "src/shared/json-stream/jsonl-write.js",
           "src/shared/json-stream/streams.js"
         ]
       },
@@ -3621,21 +3885,6 @@
         ]
       },
       {
-        "path": "src/shared/meta-v2.js",
-        "family": "src/shared/root",
-        "primaryIssue": {
-          "issueId": "411",
-          "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
-          "umbrella": "407"
-        },
-        "consumerCount": 3,
-        "importers": [
-          "src/index/metadata-v2.js",
-          "src/retrieval/sqlite-helpers.js",
-          "src/shared/artifact-io/loaders/chunk-meta.js"
-        ]
-      },
-      {
         "path": "src/shared/metrics/core.js",
         "family": "src/shared/metrics",
         "primaryIssue": {
@@ -3643,7 +3892,7 @@
           "title": "Review shared core primitives and root-level contracts in src/shared",
           "umbrella": "407"
         },
-        "consumerCount": 13,
+        "consumerCount": 15,
         "importers": [
           "src/context-pack/assemble/risk-slice.js",
           "src/index/build/watch.js",
@@ -3655,6 +3904,8 @@
           "src/retrieval/index-cache.js",
           "src/retrieval/query-plan-cache.js",
           "src/retrieval/sqlite-cache.js",
+          "src/shared/io/atomic-write.js",
+          "src/shared/repo-cache-config.js",
           "tools/api/server.js",
           "tools/mcp/runner.js",
           "tools/sqlite/vector-extension.js"
@@ -3928,10 +4179,10 @@
           "src/retrieval/output/filters.js",
           "src/retrieval/output/filters/file.js",
           "src/shared/artifact-io/loaders/binary-columnar.js",
-          "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-context.js",
           "src/shared/artifact-io/loaders/per-file.js",
           "src/shared/artifact-io/loaders/token-postings.js",
-          "src/shared/artifact-io/manifest.js",
+          "src/shared/artifact-io/manifest-paths.js",
           "src/shared/dense-vector-artifacts.js",
           "src/shared/index-artifact-helpers.js",
           "src/shared/io/atomic-write.js",
@@ -4065,7 +4316,7 @@
           "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
           "umbrella": "407"
         },
-        "consumerCount": 57,
+        "consumerCount": 59,
         "importers": [
           "src/index/analysis.js",
           "src/index/build/artifacts-write/index.js",
@@ -4116,7 +4367,9 @@
           "src/integrations/core/build-index/stages.js",
           "src/integrations/triage/index-records.js",
           "src/shared/artifact-io/loaders/shared.js",
-          "src/shared/artifact-io/manifest.js",
+          "src/shared/artifact-io/manifest-paths.js",
+          "src/shared/artifact-io/manifest-read.js",
+          "src/shared/artifact-io/manifest-sources.js",
           "src/storage/sqlite/incremental.js",
           "src/storage/sqlite/utils.js",
           "tools/bench/language/logging.js",
@@ -4564,7 +4817,7 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 51,
+        "consumerCount": 52,
         "importers": [
           "src/context-pack/risk-delta.js",
           "src/contracts/compatibility.js",
@@ -4601,6 +4854,7 @@
           "src/retrieval/index-cache.js",
           "src/retrieval/output/format/display-meta.js",
           "src/retrieval/sqlite-cache.js",
+          "src/shared/bundle-io-checksum.js",
           "src/shared/bundle-io.js",
           "src/shared/cache-cas.js",
           "src/shared/cache-key.js",
@@ -5446,7 +5700,7 @@
     ]
   },
   "consumerMap": {
-    "edgeCount": 2332,
+    "edgeCount": 2382,
     "bySharedFile": {
       "src/shared/abort.js": {
         "importers": [
@@ -5600,15 +5854,16 @@
           "src/shared/artifact-io/json/read-jsonl-stream.js",
           "src/shared/artifact-io/loaders/core-source-resolution.js",
           "src/shared/artifact-io/loaders/shared.js",
-          "src/shared/artifact-io/manifest.js"
+          "src/shared/artifact-io/manifest-read.js",
+          "src/shared/artifact-io/manifest-sources.js"
         ],
-        "importerCount": 8
+        "importerCount": 9
       },
       "src/shared/artifact-io/checksum.js": {
         "importers": [
           "src/index/build/artifacts-write/family-dispatch.js",
           "src/index/build/artifacts-write/index.js",
-          "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-checksum.js",
           "src/shared/artifact-io/loaders/minhash.js",
           "src/shared/artifact-io/loaders/token-postings.js"
         ],
@@ -5634,16 +5889,19 @@
           "src/shared/artifact-io/json/read-jsonl-stream.js",
           "src/shared/artifact-io/loaders/binary-columnar.js",
           "src/shared/artifact-io/loaders/chunk-meta.js",
+          "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core-source-resolution.js",
           "src/shared/artifact-io/loaders/core.js",
           "src/shared/artifact-io/loaders/graph.js",
           "src/shared/artifact-io/loaders/minhash.js",
           "src/shared/artifact-io/loaders/per-file.js",
           "src/shared/artifact-io/loaders/token-postings.js",
-          "src/shared/artifact-io/manifest.js",
+          "src/shared/artifact-io/manifest-paths.js",
+          "src/shared/artifact-io/manifest-read.js",
+          "src/shared/artifact-io/manifest-sources.js",
           "src/shared/artifact-io/offsets.js"
         ],
-        "importerCount": 16
+        "importerCount": 19
       },
       "src/shared/artifact-io/fs.js": {
         "importers": [
@@ -5651,10 +5909,11 @@
           "src/shared/artifact-io/loaders/binary-columnar.js",
           "src/shared/artifact-io/loaders/per-file.js",
           "src/shared/artifact-io/loaders/token-postings.js",
-          "src/shared/artifact-io/manifest.js",
+          "src/shared/artifact-io/manifest-read.js",
+          "src/shared/artifact-io/manifest-sources.js",
           "tools/bench/index/jsonl-offset-index.js"
         ],
-        "importerCount": 6
+        "importerCount": 7
       },
       "src/shared/artifact-io/graph.js": {
         "importers": [
@@ -5666,17 +5925,21 @@
         "importers": [
           "src/shared/artifact-io.js",
           "src/shared/artifact-io/loaders/chunk-meta.js",
-          "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-array-payload.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-context.js",
+          "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core.js",
           "src/shared/artifact-io/loaders/graph.js",
           "src/shared/artifact-io/loaders/shared.js",
           "src/shared/artifact-io/loaders/token-postings.js",
-          "src/shared/artifact-io/manifest.js",
+          "src/shared/artifact-io/manifest-paths.js",
+          "src/shared/artifact-io/manifest-read.js",
+          "src/shared/artifact-io/manifest-sources.js",
           "tools/bench/artifact-io/artifact-io-throughput.js",
           "tools/bench/artifact-io/jsonl-offset-index.js",
           "tools/bench/index/jsonl-offset-index.js"
         ],
-        "importerCount": 11
+        "importerCount": 15
       },
       "src/shared/artifact-io/json/fallback.js": {
         "importers": [
@@ -5729,12 +5992,13 @@
           "src/shared/artifact-io/json/line-scan.js",
           "src/shared/artifact-io/json/read-jsonl-array.js",
           "src/shared/artifact-io/loaders/chunk-meta.js",
+          "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core.js",
           "src/shared/artifact-io/loaders/graph.js",
           "src/shared/artifact-io/loaders/per-file.js",
           "src/shared/artifact-io/offsets.js"
         ],
-        "importerCount": 8
+        "importerCount": 9
       },
       "src/shared/artifact-io/limits.js": {
         "importers": [
@@ -5771,7 +6035,33 @@
         ],
         "importerCount": 1
       },
+      "src/shared/artifact-io/loaders/core-array-payload.js": {
+        "importers": [
+          "src/shared/artifact-io/loaders/core-file-meta.js",
+          "src/shared/artifact-io/loaders/core.js"
+        ],
+        "importerCount": 2
+      },
+      "src/shared/artifact-io/loaders/core-binary-columnar-checksum.js": {
+        "importers": [
+          "src/shared/artifact-io/loaders/core-binary-columnar-context.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar.js"
+        ],
+        "importerCount": 2
+      },
+      "src/shared/artifact-io/loaders/core-binary-columnar-context.js": {
+        "importers": [
+          "src/shared/artifact-io/loaders/core-binary-columnar.js"
+        ],
+        "importerCount": 1
+      },
       "src/shared/artifact-io/loaders/core-binary-columnar.js": {
+        "importers": [
+          "src/shared/artifact-io/loaders/core-array-payload.js"
+        ],
+        "importerCount": 1
+      },
+      "src/shared/artifact-io/loaders/core-file-meta.js": {
         "importers": [
           "src/shared/artifact-io/loaders/core.js"
         ],
@@ -5779,11 +6069,13 @@
       },
       "src/shared/artifact-io/loaders/core-source-resolution.js": {
         "importers": [
-          "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-array-payload.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-context.js",
+          "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core.js",
           "src/shared/artifact-io/loaders/minhash.js"
         ],
-        "importerCount": 3
+        "importerCount": 5
       },
       "src/shared/artifact-io/loaders/core.js": {
         "importers": [
@@ -5815,14 +6107,18 @@
         "importers": [
           "src/shared/artifact-io/loaders/binary-columnar.js",
           "src/shared/artifact-io/loaders/chunk-meta.js",
+          "src/shared/artifact-io/loaders/core-array-payload.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-checksum.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-context.js",
           "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core-source-resolution.js",
           "src/shared/artifact-io/loaders/core.js",
           "src/shared/artifact-io/loaders/minhash.js",
           "src/shared/artifact-io/loaders/per-file.js",
           "src/shared/artifact-io/loaders/token-postings.js"
         ],
-        "importerCount": 8
+        "importerCount": 12
       },
       "src/shared/artifact-io/loaders/token-postings.js": {
         "importers": [
@@ -5830,13 +6126,34 @@
         ],
         "importerCount": 1
       },
+      "src/shared/artifact-io/manifest-paths.js": {
+        "importers": [
+          "src/shared/artifact-io/manifest-sources.js",
+          "src/shared/artifact-io/manifest.js"
+        ],
+        "importerCount": 2
+      },
+      "src/shared/artifact-io/manifest-read.js": {
+        "importers": [
+          "src/shared/artifact-io/manifest-sources.js",
+          "src/shared/artifact-io/manifest.js"
+        ],
+        "importerCount": 2
+      },
+      "src/shared/artifact-io/manifest-sources.js": {
+        "importers": [
+          "src/shared/artifact-io/loaders/core-binary-columnar-checksum.js",
+          "src/shared/artifact-io/manifest.js"
+        ],
+        "importerCount": 2
+      },
       "src/shared/artifact-io/manifest.js": {
         "importers": [
           "src/graph/store.js",
           "src/integrations/tooling/api-contracts.js",
           "src/shared/artifact-io.js",
           "src/shared/artifact-io/loaders/chunk-meta.js",
-          "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core-source-resolution.js",
           "src/shared/artifact-io/loaders/core.js",
           "src/shared/artifact-io/loaders/graph.js",
@@ -5877,19 +6194,6 @@
           "src/shared/artifact-io/loaders/per-file.js"
         ],
         "importerCount": 7
-      },
-      "src/shared/artifact-schema-index.js": {
-        "importers": [
-          "tools/docs/export-artifact-schema-index.js"
-        ],
-        "importerCount": 1
-      },
-      "src/shared/artifact-schemas.js": {
-        "importers": [
-          "src/index/validate/schema.js",
-          "tools/build/embeddings/manifest.js"
-        ],
-        "importerCount": 2
       },
       "src/shared/auto-policy.js": {
         "importers": [
@@ -5947,7 +6251,7 @@
       },
       "src/shared/bundle-checksum.js": {
         "importers": [
-          "src/shared/bundle-io.js",
+          "src/shared/bundle-io-checksum.js",
           "src/shared/workers/bundle-transform-worker.js"
         ],
         "importerCount": 2
@@ -5958,6 +6262,25 @@
           "src/shared/workers/bundle-transform-worker.js"
         ],
         "importerCount": 2
+      },
+      "src/shared/bundle-io-checksum.js": {
+        "importers": [
+          "src/shared/bundle-io.js"
+        ],
+        "importerCount": 1
+      },
+      "src/shared/bundle-io-constants.js": {
+        "importers": [
+          "src/shared/bundle-io-paths.js",
+          "src/shared/bundle-io.js"
+        ],
+        "importerCount": 2
+      },
+      "src/shared/bundle-io-paths.js": {
+        "importers": [
+          "src/shared/bundle-io.js"
+        ],
+        "importerCount": 1
       },
       "src/shared/bundle-io.js": {
         "importers": [
@@ -6054,17 +6377,12 @@
           "src/index/build/tree-sitter-scheduler/lookup.js",
           "src/index/build/vfs-segment-hash-cache.js",
           "src/index/git.js",
-          "src/retrieval/index-cache.js",
           "src/retrieval/output/cache.js",
-          "src/retrieval/query-plan-cache.js",
-          "src/retrieval/sqlite-cache.js",
-          "src/shared/bundle-io.js",
-          "src/shared/workers/bundle-transform-worker.js",
           "tools/build/embeddings/runner.js",
           "tools/dict-utils/paths/cache.js",
           "tools/index/cache-gc.js"
         ],
-        "importerCount": 22
+        "importerCount": 17
       },
       "src/shared/cache/json-file.js": {
         "importers": [
@@ -6073,11 +6391,35 @@
         ],
         "importerCount": 2
       },
+      "src/shared/cache/layers.js": {
+        "importers": [
+          "src/shared/cache.js"
+        ],
+        "importerCount": 1
+      },
+      "src/shared/cache/lru.js": {
+        "importers": [
+          "src/retrieval/index-cache.js",
+          "src/retrieval/query-plan-cache.js",
+          "src/retrieval/sqlite-cache.js",
+          "src/shared/cache.js"
+        ],
+        "importerCount": 4
+      },
       "src/shared/cache/policy.js": {
         "importers": [
           "src/shared/repo-cache-config.js"
         ],
         "importerCount": 1
+      },
+      "src/shared/cache/size.js": {
+        "importers": [
+          "src/shared/bundle-io-checksum.js",
+          "src/shared/cache.js",
+          "src/shared/cache/lru.js",
+          "src/shared/workers/bundle-transform-worker.js"
+        ],
+        "importerCount": 4
       },
       "src/shared/capabilities.js": {
         "importers": [
@@ -6683,16 +7025,6 @@
         ],
         "importerCount": 2
       },
-      "src/shared/docmeta.js": {
-        "importers": [
-          "src/index/metadata-v2.js",
-          "src/index/type-inference-crossfile/extract.js",
-          "src/index/type-inference.js",
-          "src/retrieval/output/filters/meta.js",
-          "src/retrieval/output/format/full.js"
-        ],
-        "importerCount": 5
-      },
       "src/shared/embedding-adapter.js": {
         "importers": [
           "src/index/build/runtime/runtime.js",
@@ -6892,7 +7224,7 @@
           "src/index/tooling/vfs/cold-start.js",
           "src/integrations/core/build-index/stages.js",
           "src/shared/artifact-io/constants.js",
-          "src/shared/artifact-io/manifest.js",
+          "src/shared/artifact-io/manifest-read.js",
           "src/shared/env.js",
           "src/shared/ops/failure-injection.js",
           "tools/build/embeddings/runner.js",
@@ -6967,6 +7299,29 @@
           "tools/shared/index-cli-utils.js"
         ],
         "importerCount": 44
+      },
+      "src/shared/file-paths.js": {
+        "importers": [
+          "src/shared/encoding.js",
+          "src/shared/file-stats.js",
+          "src/shared/files.js",
+          "src/shared/fs/ignore.js",
+          "src/shared/onnx-embeddings.js",
+          "src/shared/path-normalize.js",
+          "src/shared/repo-paths.js"
+        ],
+        "importerCount": 7
+      },
+      "src/shared/file-read.js": {
+        "importers": [
+          "src/retrieval/query-plan-cache.js",
+          "src/shared/cache-cas.js",
+          "src/shared/cache/json-file.js",
+          "src/shared/dense-vector-artifacts.js",
+          "src/shared/files.js",
+          "src/shared/index-artifact-helpers.js"
+        ],
+        "importerCount": 6
       },
       "src/shared/file-signature.js": {
         "importers": [
@@ -7100,20 +7455,10 @@
           "src/retrieval/cli/persist.js",
           "src/retrieval/cli/run-search/plan-runner.js",
           "src/retrieval/output/summary.js",
-          "src/retrieval/query-plan-cache.js",
           "src/shared/artifact-io/loaders/per-file.js",
-          "src/shared/artifact-io/manifest.js",
-          "src/shared/cache-cas.js",
-          "src/shared/cache/json-file.js",
-          "src/shared/dense-vector-artifacts.js",
-          "src/shared/encoding.js",
-          "src/shared/file-stats.js",
-          "src/shared/fs/ignore.js",
-          "src/shared/index-artifact-helpers.js",
+          "src/shared/artifact-io/manifest-paths.js",
+          "src/shared/artifact-io/manifest-sources.js",
           "src/shared/indexing/build-pointer.js",
-          "src/shared/onnx-embeddings.js",
-          "src/shared/path-normalize.js",
-          "src/shared/repo-paths.js",
           "src/workspace/identity.js",
           "src/workspace/manifest.js",
           "tools/analysis/map-iso-safe-join.js",
@@ -7157,7 +7502,7 @@
           "tools/tooling/utils.js",
           "tools/triage/context-pack-paths.js"
         ],
-        "importerCount": 170
+        "importerCount": 160
       },
       "src/shared/filter/merge.js": {
         "importers": [
@@ -7244,7 +7589,8 @@
           "src/map/build-map/symbols.js",
           "src/retrieval/federation/query-cache.js",
           "src/retrieval/output/format/display-meta.js",
-          "src/shared/bundle-io.js",
+          "src/shared/bundle-io-checksum.js",
+          "src/shared/bundle-io-paths.js",
           "src/shared/cache-key.js",
           "src/shared/embedding-identity.js",
           "src/shared/encoding.js",
@@ -7275,7 +7621,7 @@
           "tools/index/stats.js",
           "tools/service/queue-idempotency.js"
         ],
-        "importerCount": 92
+        "importerCount": 93
       },
       "src/shared/hash/xxhash-backend.js": {
         "importers": [
@@ -7448,6 +7794,14 @@
         ],
         "importerCount": 48
       },
+      "src/shared/io/persistence-helpers.js": {
+        "importers": [
+          "src/shared/io/replace-dir.js",
+          "src/shared/io/replace-file.js",
+          "src/shared/io/temp-path.js"
+        ],
+        "importerCount": 3
+      },
       "src/shared/io/remove-path-with-retry.js": {
         "importers": [
           "src/index/build/artifacts-write/family-dispatch.js",
@@ -7457,12 +7811,31 @@
           "src/map/build-map.js",
           "src/map/build-map/io.js",
           "src/shared/bundle-io.js",
-          "src/shared/json-stream.js",
+          "src/shared/json-stream/jsonl-sharded.js",
           "tools/bench/language-repos/lifecycle.js",
           "tools/index/cache-gc.js",
           "tools/tui/install.js"
         ],
         "importerCount": 11
+      },
+      "src/shared/io/replace-dir.js": {
+        "importers": [
+          "src/shared/io/atomic-persistence.js"
+        ],
+        "importerCount": 1
+      },
+      "src/shared/io/replace-file.js": {
+        "importers": [
+          "src/shared/io/atomic-persistence.js"
+        ],
+        "importerCount": 1
+      },
+      "src/shared/io/temp-path.js": {
+        "importers": [
+          "src/shared/io/atomic-persistence.js",
+          "src/shared/io/replace-dir.js"
+        ],
+        "importerCount": 2
       },
       "src/shared/iterables.js": {
         "importers": [
@@ -7591,11 +7964,12 @@
           "src/index/build/artifacts/helpers.js",
           "src/index/build/crash-log.js",
           "src/shared/json-stream.js",
+          "src/shared/json-stream/jsonl-sharded.js",
           "src/shared/json-stream/offsets.js",
           "src/shared/json-stream/streams.js",
           "src/storage/sqlite/build/core.js"
         ],
-        "importerCount": 6
+        "importerCount": 7
       },
       "src/shared/json-stream/compress.js": {
         "importers": [
@@ -7610,27 +7984,43 @@
           "src/index/build/tree-sitter-scheduler/executor.js",
           "src/index/build/vfs-manifest-collector.js",
           "src/map/build-map/io.js",
-          "src/shared/json-stream.js"
+          "src/shared/json-stream.js",
+          "src/shared/json-stream/jsonl-write.js"
         ],
-        "importerCount": 5
+        "importerCount": 6
       },
       "src/shared/json-stream/jsonl-batch.js": {
         "importers": [
-          "src/shared/json-stream.js",
+          "src/shared/json-stream/jsonl-sharded.js",
+          "src/shared/json-stream/jsonl-write.js",
           "src/shared/merge.js"
         ],
-        "importerCount": 2
+        "importerCount": 3
       },
       "src/shared/json-stream/jsonl-compress-worker.js": {
         "importers": [],
         "importerCount": 0
       },
+      "src/shared/json-stream/jsonl-sharded.js": {
+        "importers": [
+          "src/shared/json-stream.js"
+        ],
+        "importerCount": 1
+      },
+      "src/shared/json-stream/jsonl-write.js": {
+        "importers": [
+          "src/shared/json-stream.js",
+          "src/shared/json-stream/jsonl-sharded.js"
+        ],
+        "importerCount": 2
+      },
       "src/shared/json-stream/offsets.js": {
         "importers": [
           "src/index/build/artifacts/helpers.js",
-          "src/shared/json-stream.js"
+          "src/shared/json-stream/jsonl-sharded.js",
+          "src/shared/json-stream/jsonl-write.js"
         ],
-        "importerCount": 2
+        "importerCount": 3
       },
       "src/shared/json-stream/runtime.js": {
         "importers": [
@@ -7638,9 +8028,11 @@
           "src/shared/json-stream/compress.js",
           "src/shared/json-stream/encode.js",
           "src/shared/json-stream/jsonl-batch.js",
+          "src/shared/json-stream/jsonl-sharded.js",
+          "src/shared/json-stream/jsonl-write.js",
           "src/shared/json-stream/streams.js"
         ],
-        "importerCount": 5
+        "importerCount": 7
       },
       "src/shared/json-stream/streams.js": {
         "importers": [
@@ -7862,14 +8254,6 @@
         ],
         "importerCount": 15
       },
-      "src/shared/meta-v2.js": {
-        "importers": [
-          "src/index/metadata-v2.js",
-          "src/retrieval/sqlite-helpers.js",
-          "src/shared/artifact-io/loaders/chunk-meta.js"
-        ],
-        "importerCount": 3
-      },
       "src/shared/metrics/core.js": {
         "importers": [
           "src/context-pack/assemble/risk-slice.js",
@@ -7882,11 +8266,13 @@
           "src/retrieval/index-cache.js",
           "src/retrieval/query-plan-cache.js",
           "src/retrieval/sqlite-cache.js",
+          "src/shared/io/atomic-write.js",
+          "src/shared/repo-cache-config.js",
           "tools/api/server.js",
           "tools/mcp/runner.js",
           "tools/sqlite/vector-extension.js"
         ],
-        "importerCount": 13
+        "importerCount": 15
       },
       "src/shared/native-accel.js": {
         "importers": [
@@ -8064,10 +8450,10 @@
           "src/retrieval/output/filters.js",
           "src/retrieval/output/filters/file.js",
           "src/shared/artifact-io/loaders/binary-columnar.js",
-          "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-context.js",
           "src/shared/artifact-io/loaders/per-file.js",
           "src/shared/artifact-io/loaders/token-postings.js",
-          "src/shared/artifact-io/manifest.js",
+          "src/shared/artifact-io/manifest-paths.js",
           "src/shared/dense-vector-artifacts.js",
           "src/shared/index-artifact-helpers.js",
           "src/shared/io/atomic-write.js",
@@ -8196,7 +8582,9 @@
           "src/integrations/core/build-index/stages.js",
           "src/integrations/triage/index-records.js",
           "src/shared/artifact-io/loaders/shared.js",
-          "src/shared/artifact-io/manifest.js",
+          "src/shared/artifact-io/manifest-paths.js",
+          "src/shared/artifact-io/manifest-read.js",
+          "src/shared/artifact-io/manifest-sources.js",
           "src/storage/sqlite/incremental.js",
           "src/storage/sqlite/utils.js",
           "tools/bench/language/logging.js",
@@ -8205,7 +8593,7 @@
           "tools/service/logger.js",
           "tools/tui/supervisor/jobs.js"
         ],
-        "importerCount": 57
+        "importerCount": 59
       },
       "src/shared/promise-keepalive.js": {
         "importers": [
@@ -8513,6 +8901,7 @@
           "src/retrieval/index-cache.js",
           "src/retrieval/output/format/display-meta.js",
           "src/retrieval/sqlite-cache.js",
+          "src/shared/bundle-io-checksum.js",
           "src/shared/bundle-io.js",
           "src/shared/cache-cas.js",
           "src/shared/cache-key.js",
@@ -8530,7 +8919,7 @@
           "tools/tui/supervisor/protocol-flow.js",
           "tools/tui/targets.js"
         ],
-        "importerCount": 51
+        "importerCount": 52
       },
       "src/shared/subprocess.js": {
         "importers": [
@@ -10919,13 +11308,6 @@
         ],
         "sharedImportCount": 1
       },
-      "src/index/metadata-v2.js": {
-        "sharedImports": [
-          "src/shared/docmeta.js",
-          "src/shared/meta-v2.js"
-        ],
-        "sharedImportCount": 2
-      },
       "src/index/registry-lock.js": {
         "sharedImports": [
           "src/shared/locks/file-lock.js",
@@ -11372,12 +11754,6 @@
         ],
         "sharedImportCount": 4
       },
-      "src/index/type-inference-crossfile/extract.js": {
-        "sharedImports": [
-          "src/shared/docmeta.js"
-        ],
-        "sharedImportCount": 1
-      },
       "src/index/type-inference-crossfile/pipeline.js": {
         "sharedImports": [
           "src/shared/dict-utils.js"
@@ -11405,12 +11781,6 @@
           "src/shared/path-normalize.js"
         ],
         "sharedImportCount": 3
-      },
-      "src/index/type-inference.js": {
-        "sharedImports": [
-          "src/shared/docmeta.js"
-        ],
-        "sharedImportCount": 1
       },
       "src/index/validate.js": {
         "sharedImports": [
@@ -11501,10 +11871,9 @@
       },
       "src/index/validate/schema.js": {
         "sharedImports": [
-          "src/shared/artifact-schemas.js",
           "src/shared/files.js"
         ],
-        "sharedImportCount": 2
+        "sharedImportCount": 1
       },
       "src/index/validate/sqlite-report.js": {
         "sharedImports": [
@@ -12287,7 +12656,7 @@
       },
       "src/retrieval/index-cache.js": {
         "sharedImports": [
-          "src/shared/cache.js",
+          "src/shared/cache/lru.js",
           "src/shared/concurrency.js",
           "src/shared/file-signature.js",
           "src/shared/metrics/core.js",
@@ -12345,12 +12714,6 @@
         ],
         "sharedImportCount": 2
       },
-      "src/retrieval/output/filters/meta.js": {
-        "sharedImports": [
-          "src/shared/docmeta.js"
-        ],
-        "sharedImportCount": 1
-      },
       "src/retrieval/output/format/ansi.js": {
         "sharedImports": [
           "src/shared/cli/ansi-utils.js"
@@ -12364,12 +12727,6 @@
           "src/shared/stable-json.js"
         ],
         "sharedImportCount": 3
-      },
-      "src/retrieval/output/format/full.js": {
-        "sharedImports": [
-          "src/shared/docmeta.js"
-        ],
-        "sharedImportCount": 1
       },
       "src/retrieval/output/risk-explain.js": {
         "sharedImports": [
@@ -12441,8 +12798,8 @@
       "src/retrieval/query-plan-cache.js": {
         "sharedImports": [
           "src/shared/cache-key.js",
-          "src/shared/cache.js",
-          "src/shared/files.js",
+          "src/shared/cache/lru.js",
+          "src/shared/file-read.js",
           "src/shared/io/atomic-write.js",
           "src/shared/metrics/core.js"
         ],
@@ -12462,7 +12819,7 @@
       },
       "src/retrieval/sqlite-cache.js": {
         "sharedImports": [
-          "src/shared/cache.js",
+          "src/shared/cache/lru.js",
           "src/shared/metrics/core.js",
           "src/shared/stable-json.js"
         ],
@@ -12471,10 +12828,9 @@
       "src/retrieval/sqlite-helpers.js": {
         "sharedImports": [
           "src/shared/chargram-hash.js",
-          "src/shared/meta-v2.js",
           "src/shared/tokenize.js"
         ],
-        "sharedImportCount": 3
+        "sharedImportCount": 2
       },
       "src/shared/artifact-io.js": {
         "sharedImports": [
@@ -12626,20 +12982,55 @@
           "src/shared/artifact-io/manifest.js",
           "src/shared/artifact-io/varint.js",
           "src/shared/chunk-meta-cold.js",
-          "src/shared/meta-v2.js",
           "src/shared/token-id.js"
         ],
-        "sharedImportCount": 10
+        "sharedImportCount": 9
+      },
+      "src/shared/artifact-io/loaders/core-array-payload.js": {
+        "sharedImports": [
+          "src/shared/artifact-io/json.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-source-resolution.js",
+          "src/shared/artifact-io/loaders/shared.js"
+        ],
+        "sharedImportCount": 4
+      },
+      "src/shared/artifact-io/loaders/core-binary-columnar-checksum.js": {
+        "sharedImports": [
+          "src/shared/artifact-io/checksum.js",
+          "src/shared/artifact-io/loaders/shared.js",
+          "src/shared/artifact-io/manifest-sources.js"
+        ],
+        "sharedImportCount": 3
+      },
+      "src/shared/artifact-io/loaders/core-binary-columnar-context.js": {
+        "sharedImports": [
+          "src/shared/artifact-io/json.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-checksum.js",
+          "src/shared/artifact-io/loaders/core-source-resolution.js",
+          "src/shared/artifact-io/loaders/shared.js",
+          "src/shared/path-normalize.js"
+        ],
+        "sharedImportCount": 5
       },
       "src/shared/artifact-io/loaders/core-binary-columnar.js": {
         "sharedImports": [
-          "src/shared/artifact-io/checksum.js",
-          "src/shared/artifact-io/json.js",
           "src/shared/artifact-io/loaders/binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-checksum.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-context.js",
+          "src/shared/artifact-io/loaders/shared.js"
+        ],
+        "sharedImportCount": 4
+      },
+      "src/shared/artifact-io/loaders/core-file-meta.js": {
+        "sharedImports": [
+          "src/shared/artifact-io/constants.js",
+          "src/shared/artifact-io/json.js",
+          "src/shared/artifact-io/jsonl.js",
+          "src/shared/artifact-io/loaders/core-array-payload.js",
           "src/shared/artifact-io/loaders/core-source-resolution.js",
           "src/shared/artifact-io/loaders/shared.js",
-          "src/shared/artifact-io/manifest.js",
-          "src/shared/path-normalize.js"
+          "src/shared/artifact-io/manifest.js"
         ],
         "sharedImportCount": 7
       },
@@ -12657,12 +13048,13 @@
           "src/shared/artifact-io/constants.js",
           "src/shared/artifact-io/json.js",
           "src/shared/artifact-io/jsonl.js",
-          "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-array-payload.js",
+          "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core-source-resolution.js",
           "src/shared/artifact-io/loaders/shared.js",
           "src/shared/artifact-io/manifest.js"
         ],
-        "sharedImportCount": 7
+        "sharedImportCount": 8
       },
       "src/shared/artifact-io/loaders/graph.js": {
         "sharedImports": [
@@ -12725,18 +13117,47 @@
         ],
         "sharedImportCount": 10
       },
-      "src/shared/artifact-io/manifest.js": {
+      "src/shared/artifact-io/manifest-paths.js": {
+        "sharedImports": [
+          "src/shared/artifact-io/constants.js",
+          "src/shared/artifact-io/json.js",
+          "src/shared/files.js",
+          "src/shared/path-normalize.js",
+          "src/shared/progress.js"
+        ],
+        "sharedImportCount": 5
+      },
+      "src/shared/artifact-io/manifest-read.js": {
         "sharedImports": [
           "src/shared/artifact-io/cache.js",
           "src/shared/artifact-io/constants.js",
           "src/shared/artifact-io/fs.js",
           "src/shared/artifact-io/json.js",
           "src/shared/env/testing.js",
+          "src/shared/progress.js"
+        ],
+        "sharedImportCount": 6
+      },
+      "src/shared/artifact-io/manifest-sources.js": {
+        "sharedImports": [
+          "src/shared/artifact-io/cache.js",
+          "src/shared/artifact-io/constants.js",
+          "src/shared/artifact-io/fs.js",
+          "src/shared/artifact-io/json.js",
+          "src/shared/artifact-io/manifest-paths.js",
+          "src/shared/artifact-io/manifest-read.js",
           "src/shared/files.js",
-          "src/shared/path-normalize.js",
           "src/shared/progress.js"
         ],
         "sharedImportCount": 8
+      },
+      "src/shared/artifact-io/manifest.js": {
+        "sharedImports": [
+          "src/shared/artifact-io/manifest-paths.js",
+          "src/shared/artifact-io/manifest-read.js",
+          "src/shared/artifact-io/manifest-sources.js"
+        ],
+        "sharedImportCount": 3
       },
       "src/shared/artifact-io/offsets.js": {
         "sharedImports": [
@@ -12767,12 +13188,28 @@
         ],
         "sharedImportCount": 1
       },
-      "src/shared/bundle-io.js": {
+      "src/shared/bundle-io-checksum.js": {
         "sharedImports": [
           "src/shared/bundle-checksum.js",
-          "src/shared/bundle-contract.js",
-          "src/shared/cache.js",
+          "src/shared/cache/size.js",
           "src/shared/hash.js",
+          "src/shared/stable-json.js"
+        ],
+        "sharedImportCount": 4
+      },
+      "src/shared/bundle-io-paths.js": {
+        "sharedImports": [
+          "src/shared/bundle-io-constants.js",
+          "src/shared/hash.js"
+        ],
+        "sharedImportCount": 2
+      },
+      "src/shared/bundle-io.js": {
+        "sharedImports": [
+          "src/shared/bundle-contract.js",
+          "src/shared/bundle-io-checksum.js",
+          "src/shared/bundle-io-constants.js",
+          "src/shared/bundle-io-paths.js",
           "src/shared/io/atomic-write.js",
           "src/shared/io/remove-path-with-retry.js",
           "src/shared/json-stream.js",
@@ -12784,7 +13221,7 @@
       },
       "src/shared/cache-cas.js": {
         "sharedImports": [
-          "src/shared/files.js",
+          "src/shared/file-read.js",
           "src/shared/io/atomic-write.js",
           "src/shared/stable-json.js"
         ],
@@ -12804,9 +13241,23 @@
         ],
         "sharedImportCount": 1
       },
+      "src/shared/cache.js": {
+        "sharedImports": [
+          "src/shared/cache/layers.js",
+          "src/shared/cache/lru.js",
+          "src/shared/cache/size.js"
+        ],
+        "sharedImportCount": 3
+      },
       "src/shared/cache/json-file.js": {
         "sharedImports": [
-          "src/shared/files.js"
+          "src/shared/file-read.js"
+        ],
+        "sharedImportCount": 1
+      },
+      "src/shared/cache/lru.js": {
+        "sharedImports": [
+          "src/shared/cache/size.js"
         ],
         "sharedImportCount": 1
       },
@@ -12970,7 +13421,7 @@
       },
       "src/shared/dense-vector-artifacts.js": {
         "sharedImports": [
-          "src/shared/files.js",
+          "src/shared/file-read.js",
           "src/shared/json-stream.js",
           "src/shared/path-normalize.js"
         ],
@@ -13040,7 +13491,7 @@
       },
       "src/shared/encoding.js": {
         "sharedImports": [
-          "src/shared/files.js",
+          "src/shared/file-paths.js",
           "src/shared/hash.js"
         ],
         "sharedImportCount": 2
@@ -13089,13 +13540,20 @@
       "src/shared/file-stats.js": {
         "sharedImports": [
           "src/shared/concurrency.js",
-          "src/shared/files.js"
+          "src/shared/file-paths.js"
+        ],
+        "sharedImportCount": 2
+      },
+      "src/shared/files.js": {
+        "sharedImports": [
+          "src/shared/file-paths.js",
+          "src/shared/file-read.js"
         ],
         "sharedImportCount": 2
       },
       "src/shared/fs/ignore.js": {
         "sharedImports": [
-          "src/shared/files.js"
+          "src/shared/file-paths.js"
         ],
         "sharedImportCount": 1
       },
@@ -13126,7 +13584,7 @@
       "src/shared/index-artifact-helpers.js": {
         "sharedImports": [
           "src/shared/artifact-io.js",
-          "src/shared/files.js",
+          "src/shared/file-read.js",
           "src/shared/path-normalize.js"
         ],
         "sharedImportCount": 3
@@ -13157,24 +13615,51 @@
         ],
         "sharedImportCount": 1
       },
+      "src/shared/io/atomic-persistence.js": {
+        "sharedImports": [
+          "src/shared/io/replace-dir.js",
+          "src/shared/io/replace-file.js",
+          "src/shared/io/temp-path.js"
+        ],
+        "sharedImportCount": 3
+      },
       "src/shared/io/atomic-write.js": {
         "sharedImports": [
           "src/shared/io/atomic-persistence.js",
+          "src/shared/metrics/core.js",
           "src/shared/path-normalize.js"
+        ],
+        "sharedImportCount": 3
+      },
+      "src/shared/io/replace-dir.js": {
+        "sharedImports": [
+          "src/shared/io/persistence-helpers.js",
+          "src/shared/io/temp-path.js"
         ],
         "sharedImportCount": 2
       },
+      "src/shared/io/replace-file.js": {
+        "sharedImports": [
+          "src/shared/io/persistence-helpers.js"
+        ],
+        "sharedImportCount": 1
+      },
+      "src/shared/io/temp-path.js": {
+        "sharedImports": [
+          "src/shared/io/persistence-helpers.js"
+        ],
+        "sharedImportCount": 1
+      },
       "src/shared/json-stream.js": {
         "sharedImports": [
-          "src/shared/io/remove-path-with-retry.js",
           "src/shared/json-stream/atomic.js",
           "src/shared/json-stream/encode.js",
-          "src/shared/json-stream/jsonl-batch.js",
-          "src/shared/json-stream/offsets.js",
+          "src/shared/json-stream/jsonl-sharded.js",
+          "src/shared/json-stream/jsonl-write.js",
           "src/shared/json-stream/runtime.js",
           "src/shared/json-stream/streams.js"
         ],
-        "sharedImportCount": 7
+        "sharedImportCount": 6
       },
       "src/shared/json-stream/atomic.js": {
         "sharedImports": [
@@ -13202,6 +13687,26 @@
           "src/shared/json-stream/runtime.js",
           "src/shared/json-stream/streams.js",
           "src/shared/promise-timeout.js"
+        ],
+        "sharedImportCount": 4
+      },
+      "src/shared/json-stream/jsonl-sharded.js": {
+        "sharedImports": [
+          "src/shared/io/remove-path-with-retry.js",
+          "src/shared/json-stream/atomic.js",
+          "src/shared/json-stream/jsonl-batch.js",
+          "src/shared/json-stream/jsonl-write.js",
+          "src/shared/json-stream/offsets.js",
+          "src/shared/json-stream/runtime.js"
+        ],
+        "sharedImportCount": 6
+      },
+      "src/shared/json-stream/jsonl-write.js": {
+        "sharedImports": [
+          "src/shared/json-stream/encode.js",
+          "src/shared/json-stream/jsonl-batch.js",
+          "src/shared/json-stream/offsets.js",
+          "src/shared/json-stream/runtime.js"
         ],
         "sharedImportCount": 4
       },
@@ -13278,7 +13783,7 @@
       "src/shared/onnx-embeddings.js": {
         "sharedImports": [
           "src/shared/embedding-utils.js",
-          "src/shared/files.js"
+          "src/shared/file-paths.js"
         ],
         "sharedImportCount": 2
       },
@@ -13302,7 +13807,7 @@
       },
       "src/shared/path-normalize.js": {
         "sharedImports": [
-          "src/shared/files.js"
+          "src/shared/file-paths.js"
         ],
         "sharedImportCount": 1
       },
@@ -13329,14 +13834,15 @@
         "sharedImports": [
           "src/shared/cache/policy.js",
           "src/shared/dict-utils.js",
-          "src/shared/indexing/build-pointer.js"
+          "src/shared/indexing/build-pointer.js",
+          "src/shared/metrics/core.js"
         ],
-        "sharedImportCount": 3
+        "sharedImportCount": 4
       },
       "src/shared/repo-paths.js": {
         "sharedImports": [
           "src/shared/cache-roots.js",
-          "src/shared/files.js",
+          "src/shared/file-paths.js",
           "src/shared/fs/find-upwards.js",
           "src/shared/indexing/build-pointer.js",
           "src/shared/path-normalize.js"
@@ -13464,7 +13970,7 @@
         "sharedImports": [
           "src/shared/bundle-checksum.js",
           "src/shared/bundle-contract.js",
-          "src/shared/cache.js",
+          "src/shared/cache/size.js",
           "src/shared/hash.js",
           "src/shared/stable-json.js"
         ],
@@ -14557,12 +15063,11 @@
       "tools/build/embeddings/manifest.js": {
         "sharedImports": [
           "src/shared/artifact-io.js",
-          "src/shared/artifact-schemas.js",
           "src/shared/files.js",
           "src/shared/hash.js",
           "src/shared/json-stream.js"
         ],
-        "sharedImportCount": 5
+        "sharedImportCount": 4
       },
       "tools/build/embeddings/runner.js": {
         "sharedImports": [
@@ -14974,10 +15479,9 @@
       },
       "tools/docs/export-artifact-schema-index.js": {
         "sharedImports": [
-          "src/shared/artifact-schema-index.js",
           "src/shared/cli.js"
         ],
-        "sharedImportCount": 2
+        "sharedImportCount": 1
       },
       "tools/docs/generated-surfaces.js": {
         "sharedImports": [
@@ -15966,6 +16470,9 @@
           "src/shared/auto-policy/build.js",
           "src/shared/auto-policy/profile.js",
           "src/shared/auto-policy/repo-scan.js",
+          "src/shared/bundle-io-checksum.js",
+          "src/shared/bundle-io-constants.js",
+          "src/shared/bundle-io-paths.js",
           "src/shared/config.js",
           "src/shared/direct-execution.js",
           "src/shared/disk-space.js",
@@ -15977,6 +16484,8 @@
           "src/shared/env/testing.js",
           "src/shared/env/tui.js",
           "src/shared/error-codes.js",
+          "src/shared/file-paths.js",
+          "src/shared/file-read.js",
           "src/shared/identity.js",
           "src/shared/index-state-utils.js",
           "src/shared/invariants.js",
@@ -16010,7 +16519,7 @@
           "src/shared/time-format.js",
           "src/shared/toolchain-env.js"
         ],
-        "fileCount": 47,
+        "fileCount": 52,
         "entries": [
           {
             "path": "src/shared/auto-policy.js",
@@ -16032,6 +16541,24 @@
           },
           {
             "path": "src/shared/auto-policy/repo-scan.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/bundle-io-checksum.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/bundle-io-constants.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/bundle-io-paths.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -16098,6 +16625,18 @@
           },
           {
             "path": "src/shared/error-codes.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/file-paths.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/file-read.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -16322,7 +16861,11 @@
           "src/shared/artifact-io/loaders.js",
           "src/shared/artifact-io/loaders/binary-columnar.js",
           "src/shared/artifact-io/loaders/chunk-meta.js",
+          "src/shared/artifact-io/loaders/core-array-payload.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-checksum.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-context.js",
           "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core-source-resolution.js",
           "src/shared/artifact-io/loaders/core.js",
           "src/shared/artifact-io/loaders/graph.js",
@@ -16330,12 +16873,13 @@
           "src/shared/artifact-io/loaders/per-file.js",
           "src/shared/artifact-io/loaders/shared.js",
           "src/shared/artifact-io/loaders/token-postings.js",
+          "src/shared/artifact-io/manifest-paths.js",
+          "src/shared/artifact-io/manifest-read.js",
+          "src/shared/artifact-io/manifest-sources.js",
           "src/shared/artifact-io/manifest.js",
           "src/shared/artifact-io/offsets.js",
           "src/shared/artifact-io/telemetry.js",
           "src/shared/artifact-io/varint.js",
-          "src/shared/artifact-schema-index.js",
-          "src/shared/artifact-schemas.js",
           "src/shared/bundle-checksum.js",
           "src/shared/bundle-contract.js",
           "src/shared/bundle-io.js",
@@ -16344,9 +16888,11 @@
           "src/shared/cache-roots.js",
           "src/shared/cache.js",
           "src/shared/cache/json-file.js",
+          "src/shared/cache/layers.js",
+          "src/shared/cache/lru.js",
           "src/shared/cache/policy.js",
+          "src/shared/cache/size.js",
           "src/shared/chunk-meta-cold.js",
-          "src/shared/docmeta.js",
           "src/shared/encoding.js",
           "src/shared/eol.js",
           "src/shared/file-signature.js",
@@ -16356,23 +16902,28 @@
           "src/shared/io/append-writer.js",
           "src/shared/io/atomic-persistence.js",
           "src/shared/io/atomic-write.js",
+          "src/shared/io/persistence-helpers.js",
           "src/shared/io/remove-path-with-retry.js",
+          "src/shared/io/replace-dir.js",
+          "src/shared/io/replace-file.js",
+          "src/shared/io/temp-path.js",
           "src/shared/json-stream.js",
           "src/shared/json-stream/atomic.js",
           "src/shared/json-stream/compress.js",
           "src/shared/json-stream/encode.js",
           "src/shared/json-stream/jsonl-batch.js",
           "src/shared/json-stream/jsonl-compress-worker.js",
+          "src/shared/json-stream/jsonl-sharded.js",
+          "src/shared/json-stream/jsonl-write.js",
           "src/shared/json-stream/offsets.js",
           "src/shared/json-stream/runtime.js",
           "src/shared/json-stream/streams.js",
           "src/shared/jsonc.js",
-          "src/shared/meta-v2.js",
           "src/shared/optional-artifact-fallback.js",
           "src/shared/provenance.js",
           "src/shared/stable-json.js"
         ],
-        "fileCount": 70,
+        "fileCount": 82,
         "entries": [
           {
             "path": "src/shared/artifact-io.js",
@@ -16501,7 +17052,31 @@
             "notes": ""
           },
           {
+            "path": "src/shared/artifact-io/loaders/core-array-payload.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/artifact-io/loaders/core-binary-columnar-checksum.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/artifact-io/loaders/core-binary-columnar-context.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
             "path": "src/shared/artifact-io/loaders/core-binary-columnar.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/artifact-io/loaders/core-file-meta.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -16549,6 +17124,24 @@
             "notes": ""
           },
           {
+            "path": "src/shared/artifact-io/manifest-paths.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/artifact-io/manifest-read.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/artifact-io/manifest-sources.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
             "path": "src/shared/artifact-io/manifest.js",
             "status": "pending-review",
             "classification": null,
@@ -16568,18 +17161,6 @@
           },
           {
             "path": "src/shared/artifact-io/varint.js",
-            "status": "pending-review",
-            "classification": null,
-            "notes": ""
-          },
-          {
-            "path": "src/shared/artifact-schema-index.js",
-            "status": "pending-review",
-            "classification": null,
-            "notes": ""
-          },
-          {
-            "path": "src/shared/artifact-schemas.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -16633,19 +17214,31 @@
             "notes": ""
           },
           {
+            "path": "src/shared/cache/layers.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/cache/lru.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
             "path": "src/shared/cache/policy.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
           },
           {
-            "path": "src/shared/chunk-meta-cold.js",
+            "path": "src/shared/cache/size.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
           },
           {
-            "path": "src/shared/docmeta.js",
+            "path": "src/shared/chunk-meta-cold.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -16705,7 +17298,31 @@
             "notes": ""
           },
           {
+            "path": "src/shared/io/persistence-helpers.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
             "path": "src/shared/io/remove-path-with-retry.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/io/replace-dir.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/io/replace-file.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/io/temp-path.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -16747,6 +17364,18 @@
             "notes": ""
           },
           {
+            "path": "src/shared/json-stream/jsonl-sharded.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
+            "path": "src/shared/json-stream/jsonl-write.js",
+            "status": "pending-review",
+            "classification": null,
+            "notes": ""
+          },
+          {
             "path": "src/shared/json-stream/offsets.js",
             "status": "pending-review",
             "classification": null,
@@ -16766,12 +17395,6 @@
           },
           {
             "path": "src/shared/jsonc.js",
-            "status": "pending-review",
-            "classification": null,
-            "notes": ""
-          },
-          {
-            "path": "src/shared/meta-v2.js",
             "status": "pending-review",
             "classification": null,
             "notes": ""
@@ -18350,6 +18973,8 @@
             "src/index/language-registry/simple-relations.js",
             "src/index/language-registry/special-files.js",
             "src/index/metadata-v2.js",
+            "src/index/metadata/docmeta.js",
+            "src/index/metadata/meta-v2.js",
             "src/index/minhash.js",
             "src/index/registry-lock.js",
             "src/index/risk-interprocedural/config.js",
@@ -18728,7 +19353,7 @@
             "src/storage/sqlite/vector.js",
             "src/storage/sqlite/vocab.js"
           ],
-          "fileCount": 801
+          "fileCount": 803
         },
         {
           "issueId": "418",
@@ -22225,7 +22850,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4656
+          "fileCount": 4677
         }
       ],
       "repoCoverage": {
@@ -22300,6 +22925,8 @@
           "src/context-pack/risk-support.js",
           "src/context-pack/seed-resolution.js",
           "src/contracts/adapters/index.js",
+          "src/contracts/artifact-schema-index.js",
+          "src/contracts/artifact-schemas.js",
           "src/contracts/compatibility.js",
           "src/contracts/context-pack-risk-contract.js",
           "src/contracts/editor-config-contract.json",
@@ -22769,6 +23396,8 @@
           "src/index/language-registry/simple-relations.js",
           "src/index/language-registry/special-files.js",
           "src/index/metadata-v2.js",
+          "src/index/metadata/docmeta.js",
+          "src/index/metadata/meta-v2.js",
           "src/index/minhash.js",
           "src/index/registry-lock.js",
           "src/index/risk-interprocedural/config.js",
@@ -23294,7 +23923,11 @@
           "src/shared/artifact-io/loaders.js",
           "src/shared/artifact-io/loaders/binary-columnar.js",
           "src/shared/artifact-io/loaders/chunk-meta.js",
+          "src/shared/artifact-io/loaders/core-array-payload.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-checksum.js",
+          "src/shared/artifact-io/loaders/core-binary-columnar-context.js",
           "src/shared/artifact-io/loaders/core-binary-columnar.js",
+          "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core-source-resolution.js",
           "src/shared/artifact-io/loaders/core.js",
           "src/shared/artifact-io/loaders/graph.js",
@@ -23302,12 +23935,13 @@
           "src/shared/artifact-io/loaders/per-file.js",
           "src/shared/artifact-io/loaders/shared.js",
           "src/shared/artifact-io/loaders/token-postings.js",
+          "src/shared/artifact-io/manifest-paths.js",
+          "src/shared/artifact-io/manifest-read.js",
+          "src/shared/artifact-io/manifest-sources.js",
           "src/shared/artifact-io/manifest.js",
           "src/shared/artifact-io/offsets.js",
           "src/shared/artifact-io/telemetry.js",
           "src/shared/artifact-io/varint.js",
-          "src/shared/artifact-schema-index.js",
-          "src/shared/artifact-schemas.js",
           "src/shared/auto-policy.js",
           "src/shared/auto-policy/build.js",
           "src/shared/auto-policy/profile.js",
@@ -23318,13 +23952,19 @@
           "src/shared/bounded-object-pool.js",
           "src/shared/bundle-checksum.js",
           "src/shared/bundle-contract.js",
+          "src/shared/bundle-io-checksum.js",
+          "src/shared/bundle-io-constants.js",
+          "src/shared/bundle-io-paths.js",
           "src/shared/bundle-io.js",
           "src/shared/cache-cas.js",
           "src/shared/cache-key.js",
           "src/shared/cache-roots.js",
           "src/shared/cache.js",
           "src/shared/cache/json-file.js",
+          "src/shared/cache/layers.js",
+          "src/shared/cache/lru.js",
           "src/shared/cache/policy.js",
+          "src/shared/cache/size.js",
           "src/shared/capabilities.js",
           "src/shared/chargram-hash.js",
           "src/shared/chunk-meta-cold.js",
@@ -23377,7 +24017,6 @@
           "src/shared/dispatch/registry.js",
           "src/shared/dispatch/resolve.js",
           "src/shared/dockerfile.js",
-          "src/shared/docmeta.js",
           "src/shared/embedding-adapter.js",
           "src/shared/embedding-batch.js",
           "src/shared/embedding-identity.js",
@@ -23399,6 +24038,8 @@
           "src/shared/env/tui.js",
           "src/shared/eol.js",
           "src/shared/error-codes.js",
+          "src/shared/file-paths.js",
+          "src/shared/file-read.js",
           "src/shared/file-signature.js",
           "src/shared/file-stats.js",
           "src/shared/files.js",
@@ -23419,7 +24060,11 @@
           "src/shared/io/append-writer.js",
           "src/shared/io/atomic-persistence.js",
           "src/shared/io/atomic-write.js",
+          "src/shared/io/persistence-helpers.js",
           "src/shared/io/remove-path-with-retry.js",
+          "src/shared/io/replace-dir.js",
+          "src/shared/io/replace-file.js",
+          "src/shared/io/temp-path.js",
           "src/shared/iterables.js",
           "src/shared/json-file.js",
           "src/shared/json-stream.js",
@@ -23428,6 +24073,8 @@
           "src/shared/json-stream/encode.js",
           "src/shared/json-stream/jsonl-batch.js",
           "src/shared/json-stream/jsonl-compress-worker.js",
+          "src/shared/json-stream/jsonl-sharded.js",
+          "src/shared/json-stream/jsonl-write.js",
           "src/shared/json-stream/offsets.js",
           "src/shared/json-stream/runtime.js",
           "src/shared/json-stream/streams.js",
@@ -23442,7 +24089,6 @@
           "src/shared/locks/file-lock.js",
           "src/shared/logging/warn-once.js",
           "src/shared/merge.js",
-          "src/shared/meta-v2.js",
           "src/shared/metrics/core.js",
           "src/shared/native-accel.js",
           "src/shared/number-coerce.js",
@@ -26984,7 +27630,7 @@
             "src/index/build/artifacts/minhash-packed.js",
             "src/index/build/artifacts/piece-registry.js"
           ],
-          "fileCount": 3644
+          "fileCount": 3646
         },
         {
           "issueId": "424",
@@ -27117,7 +27763,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4641
+          "fileCount": 4662
         },
         {
           "issueId": "427",
@@ -27160,7 +27806,7 @@
             "src/index/build/artifacts/minhash-packed.js",
             "src/index/build/artifacts/piece-registry.js"
           ],
-          "fileCount": 855
+          "fileCount": 857
         },
         {
           "issueId": "428",
@@ -27872,6 +28518,19 @@
         ]
       },
       {
+        "stem": "docmeta",
+        "paths": [
+          "src/index/metadata/docmeta.js",
+          "src/lang/javascript/docmeta.js",
+          "src/lang/python/docmeta.js"
+        ],
+        "count": 3,
+        "issueHints": [
+          "#417",
+          "#421"
+        ]
+      },
+      {
         "stem": "edges",
         "paths": [
           "src/index/risk-interprocedural/edges.js",
@@ -28408,17 +29067,6 @@
         "count": 2,
         "issueHints": [
           "#417"
-        ]
-      },
-      {
-        "stem": "docmeta",
-        "paths": [
-          "src/lang/javascript/docmeta.js",
-          "src/lang/python/docmeta.js"
-        ],
-        "count": 2,
-        "issueHints": [
-          "#421"
         ]
       },
       {

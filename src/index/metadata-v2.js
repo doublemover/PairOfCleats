@@ -1,7 +1,7 @@
 import { buildChunkId } from './chunk-id.js';
 import { buildSymbolIdentity } from './identity/symbol.js';
-import { collectDeclaredReturnTypes, pickDeclaredReturnType } from '../shared/docmeta.js';
-import { META_V2_SCHEMA_VERSION, normalizeMetaV2ForWrite } from '../shared/meta-v2.js';
+import { collectDeclaredReturnTypes, pickDeclaredReturnType } from './metadata/docmeta.js';
+import { META_V2_SCHEMA_VERSION, normalizeMetaV2ForWrite } from './metadata/meta-v2.js';
 
 const normalizeString = (value) => {
   if (value === null || value === undefined) return null;

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { MAX_JSON_BYTES, loadPiecesManifest, readJsonFile } from '../../../src/shared/artifact-io.js';
-import { ARTIFACT_SCHEMA_DEFS, MANIFEST_ONLY_ARTIFACT_NAMES } from '../../../src/shared/artifact-schemas.js';
+import { ARTIFACT_SCHEMA_DEFS, MANIFEST_ONLY_ARTIFACT_NAMES } from '../../../src/contracts/artifact-schemas.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { checksumFile } from '../../../src/shared/hash.js';

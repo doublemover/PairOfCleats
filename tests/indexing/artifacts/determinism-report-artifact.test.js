@@ -5,7 +5,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
 import { getCurrentBuildInfo } from '../../../tools/shared/dict-utils.js';
-import { validateArtifact } from '../../../src/shared/artifact-schemas.js';
+import { validateArtifact } from '../../../src/contracts/artifact-schemas.js';
 
 const { fixtureRoot, userConfig } = await ensureFixtureIndex({
   fixtureName: 'languages',

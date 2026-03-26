@@ -259,7 +259,7 @@ Validation should also report:
 - top N unresolved names by frequency
 
 Implementation touchpoints:
-- `src/shared/artifact-schemas.js` (add schemas)
+- `src/contracts/artifact-schemas.js` (add schemas)
 - `src/index/validate.js` (add cross-artifact checks)
 
 ---

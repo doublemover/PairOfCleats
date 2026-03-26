@@ -36,12 +36,11 @@ These are reasonable `tools/shared` residents because they wrap CLI, display, an
 ### Modules That Are Really Cross-Surface Shared Code
 
 - [`tools/shared/dict-utils.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/dict-utils.js)
-- [`src/shared/index-state-utils.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/index-state-utils.js)
 - [`tools/shared/json-utils.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/json-utils.js)
 - [`src/shared/repo-cache-config.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/repo-cache-config.js)
 - [`tools/shared/search-request.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/search-request.js)
 
-These should not stay hidden in `tools/shared` long-term because they are either imported from `src/**` or define behavior shared by API, MCP, retrieval, or storage runtime code.
+These should not stay hidden in `tools/shared` long-term because they either already have a real `src/shared` home or define behavior shared by API, MCP, retrieval, or storage runtime code.
 
 ### Thin or Weak Shared Modules
 
@@ -63,14 +62,12 @@ These are either effectively compatibility shims or only shared by one report-st
 | `tools/shared/fs-utils.js` | `move`, `merge`, `document`, `test` | Generic filesystem helpers that overlap with shared file primitives. |
 | `tools/shared/git-state.js` | `keep`, `document`, `test` | Reasonable tool-local git metadata wrapper. |
 | `tools/shared/index-cli-utils.js` | `keep`, `document`, `test` | Coherent index-CLI helper surface. |
-| `tools/shared/index-state-utils.js` | `move`, `document`, `test` | Already used from `src/**`; should move to a true shared runtime location. |
 | `tools/shared/input-parsers.js` | `keep`, `merge`, `document`, `test` | Keep tool-local, but merge tiny parsing overlap with other text/input helpers. |
 | `tools/shared/json-utils.js` | `move`, `merge`, `document`, `test` | Generic JSON file helper surface that overlaps with shared IO helpers. |
 | `tools/shared/parity-indexes.js` | `move`, `deprecate`, `document` | Weak shared module with one report consumer. |
 | `tools/shared/path-utils.js` | `merge`, `deprecate`, `document` | Mostly alias-style wrapping over shared path logic. |
 | `tools/shared/path-within-root.js` | `deprecate`, `document` | Zero-consumer one-line re-export. |
 | `tools/shared/query-file-utils.js` | `keep`, `document`, `test` | Reasonable report/query tooling helper, but should stay narrow. |
-| `tools/shared/repo-cache-config.js` | `move`, `document`, `test` | Runtime cache coordination should not live in `tools/shared`. |
 | `tools/shared/search-cli-harness.js` | `move`, `deprecate`, `document`, `test` | Single-consumer report harness, not a convincing general shared module. |
 | `tools/shared/search-request.js` | `move`, `document`, `test` | Shared request-building behavior should move to a canonical cross-surface contract location. |
 | `tools/shared/stats-utils.js` | `deprecate`, `document` | Too small and weakly shared to remain a standalone shared module. |

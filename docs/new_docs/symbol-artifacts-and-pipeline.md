@@ -57,7 +57,7 @@ If validator needs loaders:
 ### 4) Schema registry
 - `src/contracts/schemas/artifacts.js`
   - add schema defs + versions for the new artifacts
-- `src/shared/artifact-schemas.js`
+- `src/contracts/artifact-schemas.js`
   - re-export is automatic, but keep it as the stable public import.
 
 ### 5) Validator referential integrity checks

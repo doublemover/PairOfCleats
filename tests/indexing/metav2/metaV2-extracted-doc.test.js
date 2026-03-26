@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { buildMetaV2 } from '../../../src/index/metadata-v2.js';
-import { META_V2_SCHEMA_VERSION } from '../../../src/shared/meta-v2.js';
+import { META_V2_SCHEMA_VERSION } from '../../../src/index/metadata/meta-v2.js';
 
 const chunk = {
   file: 'docs/sample.pdf',

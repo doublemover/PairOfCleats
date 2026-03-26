@@ -4,8 +4,8 @@
   "reviewDate": "2026-03-25",
   "scope": "Primary ownership for every file under tools/shared/** assigned to #415 in the shared-module ledger.",
   "summary": {
-    "ownedFileCount": 20,
-    "overallAssessment": "tools/shared is doing three jobs at once: it houses real tool-local adapters, generic helpers that should probably live under src/shared, and a few one-off report or compatibility shims that are not strong shared modules at all. The main cleanup goal is to make those three categories explicit so the bucket stops growing ambiguously.",
+    "ownedFileCount": 18,
+    "overallAssessment": "tools/shared is doing three jobs at once: it houses real tool-local adapters, generic helpers that should probably live under src/shared, and a few one-off report or compatibility shims that are not strong shared modules at all. The main cleanup goal is to make those three categories explicit so the bucket stops growing ambiguously, while preserving the hard cutovers that already moved runtime-grade helpers out.",
     "clusterFindings": [
       {
         "cluster": "tool-local-cli-and-gate-adapters",
@@ -21,12 +21,10 @@
         "cluster": "real-cross-surface-modules-hiding-in-tools-shared",
         "files": [
           "tools/shared/dict-utils.js",
-          "tools/shared/index-state-utils.js",
           "tools/shared/json-utils.js",
-          "tools/shared/repo-cache-config.js",
           "tools/shared/search-request.js"
         ],
-        "assessment": "These are not merely tool-local helpers. Several are consumed by src/** runtime code or define behavior that belongs closer to shared runtime/cache/request contracts. Their current placement hides important architecture."
+        "assessment": "These are not merely tool-local helpers. Several either already have a canonical src/shared replacement or define behavior that belongs closer to shared runtime, cache, and request contracts. Their current placement hides important architecture."
       },
       {
         "cluster": "thin-compatibility-or-single-consumer-shims",
@@ -60,9 +58,9 @@
       },
       {
         "priority": "high",
-        "target": "tools/shared/repo-cache-config.js",
+        "target": "tools/shared/search-request.js",
         "action": "move",
-        "reason": "It is used by API, MCP, and retrieval/cache runtime paths and should live closer to shared cache/runtime infrastructure."
+        "reason": "There is already a canonical src/shared replacement, so this legacy tool-local copy should be removed rather than preserved."
       },
       {
         "priority": "high",
@@ -107,7 +105,7 @@
     },
     {
       "path": "tools/shared/cli-utils.js",
-      "consumerCount": 22,
+      "consumerCount": 23,
       "classifications": [
         "keep",
         "document",
@@ -123,7 +121,7 @@
     },
     {
       "path": "tools/shared/dict-utils.js",
-      "consumerCount": 137,
+      "consumerCount": 117,
       "classifications": [
         "split",
         "move",
@@ -199,22 +197,6 @@
         "src/shared/error-codes.js"
       ],
       "recommendation": "Keep it tool-local as an index-CLI helper surface, but avoid letting it turn into a generic numeric or flag-normalization bucket."
-    },
-    {
-      "path": "tools/shared/index-state-utils.js",
-      "consumerCount": 3,
-      "classifications": [
-        "move",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "It is used by both src storage code and tool-side build flows, which means it is already a cross-surface runtime helper rather than a pure tool helper.",
-      "overlapReferences": [
-        "#411",
-        "src/shared/artifact-io.js",
-        "src/shared/json-stream.js"
-      ],
-      "recommendation": "Move this into a shared index-state or artifact-state surface so src code does not depend on tools/shared."
     },
     {
       "path": "tools/shared/input-parsers.js",
@@ -307,23 +289,6 @@
       "recommendation": "Keep it tool-local for report/query tooling, but keep the surface narrow and avoid growing it into a generic text/JSON parsing bucket."
     },
     {
-      "path": "tools/shared/repo-cache-config.js",
-      "consumerCount": 4,
-      "classifications": [
-        "move",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "API and MCP surfaces use it to manage repo-level index and sqlite caches, which is runtime behavior rather than incidental tool glue.",
-      "overlapReferences": [
-        "#411",
-        "#412",
-        "src/shared/cache/policy.js",
-        "src/retrieval/index-cache.js"
-      ],
-      "recommendation": "Move this closer to shared cache/runtime infrastructure so server surfaces stop depending on tools/shared for core cache behavior."
-    },
-    {
       "path": "tools/shared/search-cli-harness.js",
       "consumerCount": 1,
       "classifications": [
@@ -341,7 +306,7 @@
     },
     {
       "path": "tools/shared/search-request.js",
-      "consumerCount": 6,
+      "consumerCount": 0,
       "classifications": [
         "move",
         "document",

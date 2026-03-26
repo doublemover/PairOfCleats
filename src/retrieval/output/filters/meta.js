@@ -1,4 +1,4 @@
-import { collectDeclaredReturnTypes, collectMetaV2ReturnTypes } from '../../../shared/docmeta.js';
+import { collectDeclaredReturnTypes, collectMetaV2ReturnTypes } from '../../../index/metadata/docmeta.js';
 import { defaultNormalize, matchList } from './predicates.js';
 
 const asObject = (value) => (value && typeof value === 'object' ? value : null);

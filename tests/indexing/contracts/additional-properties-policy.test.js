@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { validateArtifact } from '../../../src/shared/artifact-schemas.js';
+import { validateArtifact } from '../../../src/contracts/artifact-schemas.js';
 import {
   ARTIFACT_SURFACE_VERSION,
   SHARDED_JSONL_META_SCHEMA_VERSION

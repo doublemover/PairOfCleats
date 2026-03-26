@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
-import { validateArtifact } from '../../../src/shared/artifact-schemas.js';
+import { validateArtifact } from '../../../src/contracts/artifact-schemas.js';
 
 applyTestEnv();
 

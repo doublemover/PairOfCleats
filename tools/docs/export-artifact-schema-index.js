@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { buildArtifactSchemaIndex } from '../../src/shared/artifact-schema-index.js';
+import { buildArtifactSchemaIndex } from '../../src/contracts/artifact-schema-index.js';
 
 const parseArgs = () => createCli({
   scriptName: 'pairofcleats artifact-schema-index',

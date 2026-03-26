@@ -4,7 +4,7 @@ import {
   ARTIFACT_SCHEMA_DEFS,
   MANIFEST_ONLY_ARTIFACT_NAMES,
   validateArtifact
-} from '../../shared/artifact-schemas.js';
+} from '../../contracts/artifact-schemas.js';
 import { fromPosix } from '../../shared/files.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import { addIssue } from './issues.js';

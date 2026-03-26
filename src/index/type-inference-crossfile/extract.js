@@ -1,5 +1,5 @@
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
-import { collectDeclaredReturnTypes } from '../../shared/docmeta.js';
+import { collectDeclaredReturnTypes } from '../metadata/docmeta.js';
 import { RETURN_BARE_TARGET_RX, RETURN_CALL_RX, RETURN_NEW_RX } from './constants.js';
 import { isTypeDeclaration } from './symbols.js';
 

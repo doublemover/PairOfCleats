@@ -1,4 +1,4 @@
-import { collectDeclaredReturnTypes } from '../../../shared/docmeta.js';
+import { collectDeclaredReturnTypes } from '../../../index/metadata/docmeta.js';
 import { formatScoreBreakdown } from '../explain.js';
 import { getBodySummary } from '../summary.js';
 import { getFormatFullCache } from '../cache.js';

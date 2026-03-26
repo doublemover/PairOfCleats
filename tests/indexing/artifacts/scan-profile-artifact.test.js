@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { validateArtifact } from '../../../src/shared/artifact-schemas.js';
+import { validateArtifact } from '../../../src/contracts/artifact-schemas.js';
 import { buildScanProfile } from '../../../tools/index/report-artifacts/scan-profile.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-scan-profile-artifact-'));

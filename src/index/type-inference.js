@@ -1,4 +1,4 @@
-import { collectDeclaredReturnTypes } from '../shared/docmeta.js';
+import { collectDeclaredReturnTypes } from './metadata/docmeta.js';
 
 const TYPE_SOURCES = {
   annotation: 'annotation',
