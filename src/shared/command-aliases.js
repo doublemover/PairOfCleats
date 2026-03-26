@@ -1,4 +1,4 @@
-import { describeCommandRegistryEntry } from './command-registry.js';
+import { describeCommandRegistryEntry } from './command-registry-query.js';
 
 const PACKAGE_SCRIPT_REPLACEMENT_ENTRIES = Object.freeze([]);
 

@@ -4,7 +4,7 @@ import {
   COMMAND_REGISTRY,
   cloneCommandRegistryEntry,
   commandPathKey
-} from '../command-registry.js';
+} from '../command-registry-data.js';
 
 const toDispatchEntry = (entry) => ({
   id: entry.id,

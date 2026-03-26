@@ -1,6 +1,6 @@
 import os from 'node:os';
 import { createCli } from '../cli.js';
-import { INDEX_BUILD_OPTIONS } from '../cli-options.js';
+import { INDEX_BUILD_OPTIONS } from '../cli-option-sets.js';
 import { resolveRuntimeEnv as resolveRuntimeEnvFromEnvelope } from '../runtime-envelope/env-patch.js';
 import { resolveRuntimeEnvelope } from '../runtime-envelope/resolve.js';
 import { loadUserConfig, getAutoPolicy } from '../../../tools/dict-utils/config.js';

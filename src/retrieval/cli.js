@@ -1,5 +1,5 @@
 import { isDirectExecution } from '../shared/direct-execution.js';
-import { runSearchCli } from './cli/run-search.js';
+import { runSearchCli } from './cli/run-search/plan-runner.js';
 import {
   resolveAnnActive,
   resolveProfileCohortModes,

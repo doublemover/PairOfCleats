@@ -5,7 +5,7 @@ import {
   listCommandRegistry,
   listHelpSections
 } from '../../src/shared/command-registry.js';
-import { listDispatchManifest } from '../../src/shared/dispatch/manifest.js';
+import { listDispatchManifest } from '../../src/shared/dispatch/registry.js';
 import { getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
 
 const registry = listCommandRegistry();

@@ -15,7 +15,7 @@ const DEFAULT_MODULES = Object.freeze([
   { id: 'shared.runtime-capability-manifest', path: 'src/shared/runtime-capability-manifest.js' },
   { id: 'shared.artifact-io', path: 'src/shared/artifact-io.js' },
   { id: 'shared.subprocess', path: 'src/shared/subprocess.js' },
-  { id: 'retrieval.run-search', path: 'src/retrieval/cli/run-search.js' }
+  { id: 'retrieval.cli', path: 'src/retrieval/cli.js' }
 ]);
 
 const DEFAULT_COMMANDS = Object.freeze([

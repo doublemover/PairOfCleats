@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { listDispatchManifest } from '../../src/shared/dispatch/manifest.js';
+import { listDispatchManifest } from '../../src/shared/dispatch/registry.js';
 
 const manifest = listDispatchManifest();
 assert(Array.isArray(manifest), 'manifest list must be an array');

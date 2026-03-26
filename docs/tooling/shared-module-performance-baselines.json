@@ -14,7 +14,7 @@
     "shared.runtime-capability-manifest": {
       "path": "src/shared/runtime-capability-manifest.js",
       "maxDirectLocalImportCount": 5,
-      "maxTransitiveLocalModuleCount": 73
+      "maxTransitiveLocalModuleCount": 70
     },
     "shared.artifact-io": {
       "path": "src/shared/artifact-io.js",
@@ -26,10 +26,10 @@
       "maxDirectLocalImportCount": 5,
       "maxTransitiveLocalModuleCount": 16
     },
-    "retrieval.run-search": {
-      "path": "src/retrieval/cli/run-search.js",
-      "maxDirectLocalImportCount": 4,
-      "maxTransitiveLocalModuleCount": 1135
+    "retrieval.cli": {
+      "path": "src/retrieval/cli.js",
+      "maxDirectLocalImportCount": 3,
+      "maxTransitiveLocalModuleCount": 1134
     }
   }
 }

@@ -1,6 +1,6 @@
 import { getToolDefs } from '../integrations/mcp/defs.js';
-import { listCommandRegistry } from './command-registry.js';
-import { resolveCliOptionFlagSets } from './cli-options.js';
+import { listCommandRegistry } from './command-registry-query.js';
+import { resolveCliOptionFlagSets } from './cli-option-sets.js';
 import { EDITOR_COMMAND_SPECS } from './runtime-capability-specs.js';
 
 export const buildFlagSet = (options) => {

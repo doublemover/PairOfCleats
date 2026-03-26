@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { describeDispatchCommand } from '../../src/shared/dispatch/manifest.js';
+import { describeDispatchCommand } from '../../src/shared/dispatch/registry.js';
 
 const byId = describeDispatchCommand('search');
 assert(byId, 'expected search command in dispatch manifest');

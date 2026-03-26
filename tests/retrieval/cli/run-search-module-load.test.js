@@ -4,8 +4,8 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv();
 
-const runSearchModule = await import('../../../src/retrieval/cli/run-search.js');
-assert.equal(typeof runSearchModule.runSearchCli, 'function', 'expected run-search module to export runSearchCli');
+const planRunnerModule = await import('../../../src/retrieval/cli/run-search/plan-runner.js');
+assert.equal(typeof planRunnerModule.runSearchCli, 'function', 'expected plan-runner module to export runSearchCli');
 
 const retrievalCliModule = await import('../../../src/retrieval/cli.js');
 assert.equal(typeof retrievalCliModule.runSearchCli, 'function', 'expected retrieval cli module to export runSearchCli');

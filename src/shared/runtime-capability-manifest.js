@@ -6,7 +6,7 @@ import {
   INDEX_BUILD_OPTIONS,
   SERVICE_API_OPTIONS,
   SERVICE_INDEXER_OPTIONS
-} from './cli-options.js';
+} from './cli-option-sets.js';
 import { getCapabilities } from './capabilities.js';
 import {
   API_ROUTE_SPECS,

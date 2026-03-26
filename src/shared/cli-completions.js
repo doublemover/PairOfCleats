@@ -1,4 +1,4 @@
-import { listCommandRegistry } from './command-registry.js';
+import { listCommandRegistry } from './command-registry-query.js';
 
 export const SUPPORTED_COMPLETION_SHELLS = Object.freeze(['bash', 'powershell', 'zsh']);
 

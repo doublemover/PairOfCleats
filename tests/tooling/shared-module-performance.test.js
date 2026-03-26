@@ -32,7 +32,7 @@ for (const expectedId of [
   'shared.runtime-capability-manifest',
   'shared.artifact-io',
   'shared.subprocess',
-  'retrieval.run-search'
+  'retrieval.cli'
 ]) {
   assert.equal(moduleIds.has(expectedId), true, `missing module metric for ${expectedId}`);
 }
