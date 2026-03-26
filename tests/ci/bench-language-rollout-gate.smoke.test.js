@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { writeJsonFile } from '../../src/shared/json-file.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 
 const ROOT = process.cwd();
@@ -23,7 +24,7 @@ const writeReport = async (filePath, {
   buildSqliteMs,
   queryWallMsPerSearch
 }) => {
-  await fs.writeFile(filePath, JSON.stringify({
+  await writeJsonFile(filePath, {
     generatedAt: '2026-03-18T00:00:00.000Z',
     run: {
       aggregateResultClass,
@@ -54,7 +55,7 @@ const writeReport = async (filePath, {
       },
       queryWallMsPerSearch
     }
-  }, null, 2), 'utf8');
+  }, { finalNewline: false });
 };
 
 try {

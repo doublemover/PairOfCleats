@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { getIndexDir, resolveRepoConfig } from '../../../../tools/shared/dict-utils.js';
 import { MAX_JSON_BYTES, loadChunkMeta, loadPiecesManifest } from '../../../../src/shared/artifact-io.js';
+import { readJsonFile } from '../../../../src/shared/json-file.js';
 import { buildCodeMap } from '../../../../src/map/build-map.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
@@ -57,7 +58,7 @@ const indexDir = getIndexDir(repoRoot, 'code', userConfig, {});
 assert.ok(indexDir, 'expected code indexDir');
 const buildRoot = path.dirname(indexDir);
 const repoCacheRoot = path.dirname(path.dirname(buildRoot));
-const readJson = async (filePath) => JSON.parse(await fsPromises.readFile(filePath, 'utf8'));
+const readJson = (filePath) => readJsonFile(filePath);
 
 const buildState = await readJson(path.join(buildRoot, 'build_state.json'));
 assert.equal(buildState.stage, 'stage4', 'expected Stage4 completion in build_state');

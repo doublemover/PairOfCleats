@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readJsonFile, writeJsonFile } from '../../../src/shared/json-file.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const CONFIG_PATH = path.join(ROOT, 'docs', 'config', 'usr-guardrails', 'item-38-catalog-contract.json');
@@ -23,11 +23,7 @@ const parseArgs = () => {
   return out;
 };
 
-const readJson = async (relativePath) => {
-  const absolutePath = path.join(ROOT, relativePath);
-  const raw = await fs.readFile(absolutePath, 'utf8');
-  return JSON.parse(raw);
-};
+const readJson = (relativePath) => readJsonFile(path.join(ROOT, relativePath));
 
 const ensureArray = (value) => (Array.isArray(value) ? value : []);
 const isObjectRecord = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -47,7 +43,7 @@ const normalizeEmbeddingPolicy = (value) => ({
 
 const main = async () => {
   const argv = parseArgs();
-  const config = JSON.parse(await fs.readFile(CONFIG_PATH, 'utf8'));
+  const config = await readJsonFile(CONFIG_PATH);
 
   const languageProfilesJson = await readJson(config.inputs.languageProfiles);
   const frameworkProfilesJson = await readJson(config.inputs.frameworkProfiles);
@@ -336,8 +332,7 @@ const main = async () => {
 
   const defaultOut = path.join(ROOT, '.diagnostics', 'usr', config.report);
   const outPath = argv.out ? path.resolve(argv.out) : defaultOut;
-  await fs.mkdir(path.dirname(outPath), { recursive: true });
-  await fs.writeFile(outPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  await writeJsonFile(outPath, report);
 
   if (report.ok) {
     console.error('item 38 gate passed');

@@ -7,6 +7,7 @@ import path from 'node:path';
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
 import { buildRiskDeltaPayload } from '../../src/context-pack/risk-delta.js';
 import { getRepoCacheRoot } from '../../src/shared/dict-utils.js';
+import { writeJsonFile } from '../../src/shared/json-file.js';
 import { createAnalysisSurfaceHarness } from '../helpers/analysis-surface-parity.js';
 import { applyTestEnv, withTemporaryEnv } from '../helpers/test-env.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
@@ -24,10 +25,7 @@ const userConfig = {
 };
 const env = applyTestEnv({ cacheRoot });
 
-const writeJson = async (filePath, value) => {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-};
+const writeJson = (filePath, value) => writeJsonFile(filePath, value);
 
 const sha1Value = (value) => crypto.createHash('sha1').update(String(value)).digest('hex');
 
