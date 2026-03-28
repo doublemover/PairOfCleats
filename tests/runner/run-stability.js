@@ -1,6 +1,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { normalizePathForRepo } from '../../src/shared/path-normalize.js';
+import { inferSuiteCategory } from './suite-taxonomy.js';
 
 const DEFAULT_HISTORY_LIMIT = 12;
 const SLOW_WARN_FRACTION = 0.5;
@@ -169,10 +170,18 @@ export const buildStabilityArtifact = ({
   retries = 0,
   history,
   timeoutResolver,
-  baseEnv
+  baseEnv,
+  diagnosticsGovernance
 }) => {
   const environment = buildEnvironmentFingerprint({ laneLabel, baseEnv });
   const historyArtifacts = Array.isArray(history?.artifacts) ? history.artifacts : [];
+  const governance = diagnosticsGovernance && typeof diagnosticsGovernance === 'object'
+    ? diagnosticsGovernance
+    : {
+      expectedNegativeStderrIds: new Set(),
+      diagnosticsClasses: ['clean', 'expected-negative-stderr', 'unexpected-stderr'],
+      retryPolicyBySuiteCategory: {}
+    };
   const historyById = new Map();
   for (const artifact of historyArtifacts) {
     const previousTests = Array.isArray(artifact?.tests) ? artifact.tests : [];
@@ -196,6 +205,14 @@ export const buildStabilityArtifact = ({
       const timeoutBudgetMs = Number(timeoutResolver?.(result)) || 0;
       const outcomeClass = toOutcomeClass(result);
       const historyRows = historyById.get(result.id) || [];
+      const suiteCategory = String(result?.suiteCategory || '').trim()
+        || inferSuiteCategory({ id: result.id, lane: result.lane, tags: result.tags }).category;
+      const stderrText = String(result?.stderr || '').trim();
+      const diagnosticsClass = stderrText.length === 0
+        ? 'clean'
+        : (outcomeClass === 'passed' && governance.expectedNegativeStderrIds?.has?.(result.id)
+          ? 'expected-negative-stderr'
+          : 'unexpected-stderr');
       const stabilityClass = classifyHistory({
         currentOutcomeClass: outcomeClass,
         currentEnvironmentFingerprint: environment.fingerprint,
@@ -214,10 +231,12 @@ export const buildStabilityArtifact = ({
         path: normalizePathForRepo(result.relPath || '', root, { stripDot: true }) || '',
         lane: String(result.lane || ''),
         family: deriveFamilyId(result),
+        suiteCategory,
         status: String(result.status || ''),
         durationMs: toRoundedMs(result.durationMs),
         timeoutBudgetMs: toRoundedMs(timeoutBudgetMs),
         stabilityClass,
+        diagnosticsClass,
         outcomeClass,
         historyWindow: historyRows.length,
         historyOutcomes,
@@ -299,7 +318,14 @@ export const buildStabilityArtifact = ({
         flaky: 'owner-review-and-repeat-run',
         slow: 'budget-review-shard-or-harness-reuse',
         environmentSensitive: 'fingerprint-review-and-environment-normalization'
-      }
+      },
+      retryBySuiteCategory: governance.retryPolicyBySuiteCategory || {}
+    },
+    diagnostics: {
+      expectedNegativeStderrIds: Array.from(governance.expectedNegativeStderrIds || []).sort(),
+      diagnosticsClasses: Array.isArray(governance.diagnosticsClasses)
+        ? governance.diagnosticsClasses
+        : ['clean', 'expected-negative-stderr', 'unexpected-stderr']
     },
     summary: {
       tests: tests.length,
@@ -309,8 +335,18 @@ export const buildStabilityArtifact = ({
       environmentSensitive: tests.filter((row) => row.stabilityClass === 'environment-sensitive').length,
       failed: tests.filter((row) => row.outcomeClass === 'failed').length,
       timedOut: tests.filter((row) => row.outcomeClass === 'timed_out').length,
-      redo: tests.filter((row) => row.outcomeClass === 'redo').length
+      redo: tests.filter((row) => row.outcomeClass === 'redo').length,
+      expectedNegativeStderr: tests.filter((row) => row.diagnosticsClass === 'expected-negative-stderr').length,
+      unexpectedStderr: tests.filter((row) => row.diagnosticsClass === 'unexpected-stderr').length
     },
+    suiteCategories: {
+      hero: tests.filter((row) => row.suiteCategory === 'hero').length,
+      matrix: tests.filter((row) => row.suiteCategory === 'matrix').length,
+      meta: tests.filter((row) => row.suiteCategory === 'meta').length,
+      soak: tests.filter((row) => row.suiteCategory === 'soak').length,
+      'heavy-runtime': tests.filter((row) => row.suiteCategory === 'heavy-runtime').length
+    },
+    familyTrends: families,
     families,
     tests
   };

@@ -1,6 +1,17 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import path from 'node:path';
+
+import { buildFilterIndex } from '../../../src/retrieval/filter-index.js';
+import {
+  mergeExtFilters,
+  mergeLangFilters,
+  normalizeExtFilter,
+  normalizeLangFilter
+} from '../../../src/retrieval/filters.js';
+import { filterChunks } from '../../../src/retrieval/output.js';
 import { createInProcessSearchRunner, ensureFixtureIndex } from '../../helpers/fixture-index.js';
+import { ensureSearchFiltersRepo, runFilterSearch } from '../../helpers/search-filters-repo.js';
 
 const languageFixture = await ensureFixtureIndex({
   fixtureName: 'languages',
@@ -23,8 +34,67 @@ const runSampleSearch = createInProcessSearchRunner({
   fixtureRoot: sampleFixture.fixtureRoot,
   env: sampleFixture.env
 });
+const filterRepoContext = await ensureSearchFiltersRepo();
+if (!filterRepoContext) process.exit(0);
+
+const { repoRoot: filterRepoRoot, env: filterRepoEnv } = filterRepoContext;
+const extractFiles = (payload, key = 'prose') => new Set((payload[key] || []).map((hit) => path.basename(hit.file || '')));
 
 const cases = [
+  {
+    name: 'ext filter normalization lowercases and dedupes extensions',
+    async run() {
+      const result = normalizeExtFilter(['*.js', 'JS', '.Md']);
+      assert.deepEqual((result || []).slice().sort(), ['.js', '.md']);
+    }
+  },
+  {
+    name: 'lang filter normalization and merging preserve canonical values',
+    async run() {
+      const js = normalizeLangFilter('js');
+      assert.ok(js && js.includes('javascript'));
+
+      const mixed = normalizeLangFilter('ts,python');
+      assert.ok(mixed && mixed.includes('typescript'));
+      assert.ok(mixed && mixed.includes('python'));
+
+      const extFilterInfo = mergeExtFilters(['.ts'], ['.tsx']);
+      assert.equal(extFilterInfo.impossible, true);
+      assert.equal(extFilterInfo.values, null);
+
+      const langFilterInfo = mergeLangFilters(normalizeLangFilter('typescript'), normalizeLangFilter('ts'));
+      assert.equal(langFilterInfo.impossible, false);
+      assert.deepEqual(langFilterInfo.values, ['typescript']);
+
+      const unknown = normalizeLangFilter('unknown');
+      assert.ok(unknown && unknown.includes('unknown'));
+    }
+  },
+  {
+    name: 'file filter case sensitivity preserves strict versus loose matches',
+    async run() {
+      const chunkMeta = [
+        { id: 0, file: 'src/Foo.js', ext: '.js', metaV2: { lang: 'javascript', effective: { languageId: 'javascript' } } },
+        { id: 1, file: 'src/foo.js', ext: '.js', metaV2: { lang: 'javascript', effective: { languageId: 'javascript' } } }
+      ];
+      const filterIndex = buildFilterIndex(chunkMeta, { fileChargramN: 3 });
+
+      const strictHits = filterChunks(chunkMeta, {
+        file: 'Foo.js',
+        caseFile: true,
+        filePrefilter: { enabled: true, chargramN: 3 }
+      }, filterIndex);
+      assert.equal(strictHits.length, 1);
+      assert.equal(strictHits[0].file, 'src/Foo.js');
+
+      const looseHits = filterChunks(chunkMeta, {
+        file: 'Foo.js',
+        caseFile: false,
+        filePrefilter: { enabled: true, chargramN: 3 }
+      }, filterIndex);
+      assert.equal(looseHits.length, 2);
+    }
+  },
   {
     name: 'behavioral returns filter',
     async run() {
@@ -130,6 +200,38 @@ const cases = [
         args: ['--backend', 'memory', '--decorator', 'available']
       });
       assert.ok((payload.code || []).length > 0);
+    }
+  },
+  {
+    name: 'negative token and phrase syntax filters prose hits',
+    async run() {
+      const negativeToken = runFilterSearch({ repoRoot: filterRepoRoot, env: filterRepoEnv, query: 'alpha -gamma' });
+      const negativeTokenFiles = extractFiles(negativeToken);
+      assert.equal(negativeTokenFiles.has('alpha.txt'), true);
+      assert.equal(negativeTokenFiles.has('beta.txt'), false);
+
+      const negativePhrase = runFilterSearch({
+        repoRoot: filterRepoRoot,
+        env: filterRepoEnv,
+        query: 'alpha -"alpha beta"'
+      });
+      const negativePhraseFiles = extractFiles(negativePhrase);
+      assert.equal(negativePhraseFiles.has('beta.txt'), true);
+      assert.equal(negativePhraseFiles.has('alpha.txt'), false);
+    }
+  },
+  {
+    name: 'quoted phrase explain output carries phrase score breakdown',
+    async run() {
+      const phraseSearch = runFilterSearch({
+        repoRoot: filterRepoRoot,
+        env: filterRepoEnv,
+        query: '"alpha beta"',
+        args: ['--explain']
+      });
+      const phraseHits = phraseSearch.prose || [];
+      assert.ok(phraseHits.length > 0);
+      assert.equal((phraseHits[0]?.scoreBreakdown?.phrase?.matches || 0) > 0, true);
     }
   }
 ];

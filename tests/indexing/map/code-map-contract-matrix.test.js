@@ -188,6 +188,61 @@ const cases = [
       assert.equal(payload.format, 'dot');
       assert.ok(String(payload.outPath || '').endsWith('.dot'));
     }
+  },
+  {
+    name: 'map builder prefers symbolId over chunkUid for member identity',
+    async run() {
+      const tempRoot = resolveTestCachePath(root, 'code-map-contract-symbol-identity');
+      const indexRoot = path.join(tempRoot, 'index');
+      await fsPromises.rm(tempRoot, { recursive: true, force: true });
+      await fsPromises.mkdir(indexRoot, { recursive: true });
+
+      const chunkMeta = [
+        {
+          id: 1,
+          start: 0,
+          end: 10,
+          file: 'src/alpha.js',
+          name: 'alpha',
+          kind: 'function',
+          chunkUid: 'uid-alpha',
+          metaV2: {
+            chunkUid: 'uid-alpha',
+            file: 'src/alpha.js',
+            name: 'alpha',
+            kind: 'function',
+            symbol: {
+              v: 1,
+              scheme: 'heur',
+              kindGroup: 'function',
+              qualifiedName: 'alpha',
+              symbolKey: 'src/alpha.js::alpha::function',
+              signatureKey: null,
+              scopedId: 'function|src/alpha.js::alpha::function|uid-alpha',
+              symbolId: 'sym1:heur:alpha'
+            }
+          }
+        }
+      ];
+
+      const { writePiecesManifest } = await import('../../helpers/artifact-io-fixture.js');
+      const { buildCodeMap } = await import('../../../src/map/build-map.js');
+      await fsPromises.writeFile(path.join(indexRoot, 'chunk_meta.json'), JSON.stringify(chunkMeta, null, 2));
+      await writePiecesManifest(indexRoot, [
+        { name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' }
+      ]);
+
+      const mapModel = await buildCodeMap({
+        repoRoot: root,
+        indexDir: indexRoot,
+        options: { include: [], strict: false }
+      });
+
+      const member = mapModel.nodes?.[0]?.members?.[0];
+      assert.ok(member, 'expected member in map');
+      assert.equal(member.id, 'sym1:heur:alpha', 'expected member id to prefer symbolId');
+      assert.notEqual(member.id, 'uid-alpha', 'expected member id to differ from chunkUid');
+    }
   }
 ];
 

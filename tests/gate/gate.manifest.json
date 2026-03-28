@@ -7,7 +7,9 @@
   "notes": "Generated from the gate lane order source; optional timing artifacts annotate entries when present.",
   "sourceOrderFile": "tests/gate/gate.order.txt",
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
-  "timingArtifactPaths": [],
+  "timingArtifactPaths": [
+    ".testLogs/gate-testRunTimes.txt"
+  ],
   "suiteCategorySummary": {
     "hero": 31,
     "matrix": 2,

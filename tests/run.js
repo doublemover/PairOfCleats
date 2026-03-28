@@ -62,6 +62,7 @@ import {
   loadStabilityHistory,
   writeStabilityArtifact
 } from './runner/run-stability.js';
+import { loadDiagnosticsGovernance } from './runner/diagnostics-governance.js';
 import {
   buildCoverageArtifact,
   collectV8CoverageEntries,
@@ -772,6 +773,7 @@ const main = async () => {
     });
   }
   if (stabilityPath || stabilityHistoryDir) {
+    const diagnosticsGovernance = await loadDiagnosticsGovernance({ root: ROOT });
     const stabilityHistory = await loadStabilityHistory({
       historyDir: stabilityHistoryDir,
       historyLimit: stabilityHistoryLimit
@@ -800,7 +802,8 @@ const main = async () => {
       retries,
       history: stabilityHistory,
       timeoutResolver: resolveStabilityTimeoutBudget,
-      baseEnv
+      baseEnv,
+      diagnosticsGovernance: diagnosticsGovernance.payload
     });
     const stabilityValidation = validateTestStabilityArtifact(stabilityArtifact);
     if (!stabilityValidation.ok) {

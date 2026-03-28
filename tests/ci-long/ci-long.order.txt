@@ -1,5 +1,6 @@
 indexing/imports/replay-perf-budget
 services/soak/operational-recovery
+cli/search/contract-matrix
 tooling/lsp/provider-fidelity-coverage-contract
 retrieval/pipeline/ann-lazy-import
 retrieval/pipeline/index-loader-lazy
@@ -13,7 +14,7 @@ cli/search/startup-checkpoints-order
 services/api/search-validation
 services/api/search-stream-abort
 retrieval/contracts/compact-json
-services/api/search-happy-path
+services/api/search-contract-matrix
 services/api/repo-authorization
 services/api/health-and-status
 services/api/cors-allow
@@ -24,10 +25,8 @@ cli/search/explain-symbol
 indexer/call-sites/determinism
 indexing/scm/index-build-git-provider
 storage/sqlite/build-indexes
-cli/search/windows-path-filter
 indexing/scm/no-build-id
 indexing/type-inference/providers/type-inference-lsp-enrichment
-retrieval/ann/hnsw
 retrieval/filters/filter-index-artifact
 cli/build-index/all
 indexing/file-caps/file-size-guard
@@ -85,7 +84,6 @@ storage/sqlite/auto-backend
 indexing/piece-assembly/core
 indexing/embeddings/cache-index-append-only
 smoke/embeddings
-cli/search/topn-filters
 storage/sqlite/missing-dep
 indexing/embeddings/cache-identity
 indexing/embeddings/cache-partial-reuse

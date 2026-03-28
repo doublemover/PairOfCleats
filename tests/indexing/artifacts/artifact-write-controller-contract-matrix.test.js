@@ -15,7 +15,11 @@ import {
   selectMicroWriteBatch,
   selectTailWorkerWriteEntry
 } from '../../../src/index/build/artifacts-write.js';
+import { createArtifactWriter } from '../../../src/index/build/artifacts/writer.js';
+import { recordArtifactMetricRow } from '../../../src/index/build/artifacts/write-telemetry.js';
 import { loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const writeConcurrencyCases = [
   {
@@ -388,5 +392,99 @@ try {
 } finally {
   await fs.rm(configTempRoot, { recursive: true, force: true });
 }
+
+applyTestEnv({ testing: '1' });
+
+const writerOutDir = resolveTestCachePath(process.cwd(), 'artifact-write-controller-matrix-heuristics');
+const writes = [];
+const writer = createArtifactWriter({
+  outDir: writerOutDir,
+  enqueueWrite: (label, job, meta = {}) => {
+    writes.push({ label, job, meta });
+  },
+  addPieceFile: () => {},
+  formatArtifactLabel: (filePath) => path.relative(writerOutDir, filePath).replace(/\\/g, '/'),
+  compressionEnabled: true,
+  compressionMode: 'gzip',
+  compressionKeepRaw: false,
+  compressionGzipOptions: null,
+  compressionMinBytes: 1024,
+  compressionMaxBytes: 128 * 1024 * 1024,
+  compressibleArtifacts: new Set(['tiny', 'normal', 'huge', 'arr']),
+  compressionOverrides: {},
+  jsonArraySerializeShardThresholdMs: 1,
+  jsonArraySerializeShardMaxBytes: 64 * 1024
+});
+
+writer.enqueueJsonArray('tiny', [{ a: 1 }], {
+  compressible: true,
+  estimatedBytes: 256
+});
+assert.ok(writes.at(-1)?.label?.endsWith('tiny.json'));
+
+writer.enqueueJsonArray('normal', Array.from({ length: 256 }, (_, index) => ({ index, text: 'x'.repeat(64) })), {
+  compressible: true,
+  estimatedBytes: 512 * 1024
+});
+assert.ok(writes.at(-1)?.label?.endsWith('normal.json.gz'));
+
+writer.enqueueJsonArray('huge', [{ a: 1 }], {
+  compressible: true,
+  estimatedBytes: 1024 * 1024 * 1024
+});
+assert.ok(writes.at(-1)?.label?.endsWith('huge.json'));
+
+const marker = writes.length;
+writer.enqueueJsonArraySharded(
+  'arr',
+  Array.from({ length: 2000 }, (_, index) => ({ index, text: 'y'.repeat(80) })),
+  {
+    maxBytes: 0,
+    estimatedBytes: 4 * 1024 * 1024,
+    piece: { type: 'chunks', name: 'arr' }
+  }
+);
+assert.equal(writes.slice(marker).some((entry) => entry.label.endsWith('arr.parts')), true);
+
+const fallbackMarker = writes.length;
+writer.enqueueJsonArraySharded(
+  'arr-fallback',
+  [{ index: 1, text: 'z'.repeat(16) }],
+  {
+    maxBytes: 8 * 1024 * 1024,
+    estimatedBytes: 1024,
+    piece: { type: 'chunks', name: 'arr-fallback' }
+  }
+);
+assert.equal(writes[fallbackMarker]?.meta?.estimatedBytes, 1024);
+
+const artifactMetrics = new Map();
+const artifactQueueDelaySamples = new Map();
+recordArtifactMetricRow({
+  label: 'chunk_meta.binary-columnar.bundle',
+  metric: {
+    queueDelayMs: 5,
+    durationMs: 40,
+    phaseTimings: {
+      serializationMs: 7,
+      flushMs: 11,
+      fsyncMs: 13,
+      publishMs: 17,
+      backpressureWaitMs: 19
+    }
+  },
+  artifactMetrics,
+  artifactQueueDelaySamples
+});
+
+const metric = artifactMetrics.get('chunk_meta.binary-columnar.bundle');
+assert.ok(metric, 'expected metric row to be recorded');
+assert.ok(metric.phaseTimings && typeof metric.phaseTimings === 'object');
+assert.equal(metric.serializationMs, 7);
+assert.equal(metric.flushMs, 11);
+assert.equal(metric.fsyncMs, 13);
+assert.equal(metric.publishMs, 17);
+assert.equal(metric.backpressureWaitMs, 19);
+assert.equal(metric.diskMs, 41);
 
 console.log('artifact write controller contract matrix test passed');

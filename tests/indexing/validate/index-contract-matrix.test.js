@@ -141,6 +141,23 @@ const cases = [
       assert.ok(!report.ok);
       assert.ok(report.issues.some((issue) => issue.includes('unknown artifact name')));
     }
+  },
+  {
+    name: 'strict validation fails when manifest checksum does not match piece contents',
+    async run() {
+      const tempRoot = await createTempRoot('index-validate-contract-checksum-mismatch');
+      const manifestPieces = [
+        { type: 'chunks', name: 'chunk_meta', format: 'json', path: 'chunk_meta.json', checksum: 'sha1:deadbeef' },
+        { type: 'postings', name: 'token_postings', format: 'json', path: 'token_postings.json' },
+        { type: 'stats', name: 'index_state', format: 'json', path: 'index_state.json' },
+        { type: 'stats', name: 'filelists', format: 'json', path: '.filelists.json' }
+      ];
+      const { repoRoot, indexRoot } = await createBaseIndex({ rootDir: tempRoot, manifestPieces });
+
+      const report = await runValidation({ repoRoot, indexRoot, strict: true });
+      assert.equal(report.ok, false, 'expected manifest checksum mismatch to fail validation');
+      assert.ok(report.issues.some((issue) => issue.includes('piece checksum mismatch')));
+    }
   }
 ];
 

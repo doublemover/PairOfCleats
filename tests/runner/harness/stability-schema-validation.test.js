@@ -35,7 +35,18 @@ const valid = validateTestStabilityArtifact({
       flaky: 'owner-review-and-repeat-run',
       slow: 'budget-review-shard-or-harness-reuse',
       environmentSensitive: 'fingerprint-review-and-environment-normalization'
+    },
+    retryBySuiteCategory: {
+      hero: { maxRetries: 0, quarantine: 'manual', note: 'hero' },
+      matrix: { maxRetries: 1, quarantine: 'owner', note: 'matrix' },
+      meta: { maxRetries: 0, quarantine: 'none', note: 'meta' },
+      soak: { maxRetries: 0, quarantine: 'manual', note: 'soak' },
+      'heavy-runtime': { maxRetries: 1, quarantine: 'owner', note: 'heavy' }
     }
+  },
+  diagnostics: {
+    expectedNegativeStderrIds: ['cli/error-contract'],
+    diagnosticsClasses: ['clean', 'expected-negative-stderr', 'unexpected-stderr']
   },
   summary: {
     tests: 1,
@@ -45,8 +56,32 @@ const valid = validateTestStabilityArtifact({
     environmentSensitive: 0,
     failed: 0,
     timedOut: 0,
-    redo: 0
+    redo: 0,
+    expectedNegativeStderr: 1,
+    unexpectedStderr: 0
   },
+  suiteCategories: {
+    hero: 1,
+    matrix: 0,
+    meta: 0,
+    soak: 0,
+    'heavy-runtime': 0
+  },
+  familyTrends: [
+    {
+      id: 'runner/harness',
+      tests: 1,
+      unstable: 1,
+      flaky: 1,
+      slow: 0,
+      environmentSensitive: 0,
+      failed: 0,
+      timedOut: 0,
+      redo: 0,
+      avgDurationMs: 1,
+      maxDurationMs: 1
+    }
+  ],
   families: [
     {
       id: 'runner/harness',
@@ -68,10 +103,12 @@ const valid = validateTestStabilityArtifact({
       path: 'tests/runner/harness/pass-target.test.js',
       lane: 'unit',
       family: 'runner/harness',
+      suiteCategory: 'hero',
       status: 'passed',
       durationMs: 1,
       timeoutBudgetMs: 15000,
       stabilityClass: 'flaky',
+      diagnosticsClass: 'expected-negative-stderr',
       outcomeClass: 'passed',
       historyWindow: 1,
       historyOutcomes: ['failed'],
@@ -120,7 +157,18 @@ const invalid = validateTestStabilityArtifact({
       flaky: 'review',
       slow: 'review',
       environmentSensitive: 'review'
+    },
+    retryBySuiteCategory: {
+      hero: { maxRetries: 0, quarantine: 'manual', note: 'hero' },
+      matrix: { maxRetries: 1, quarantine: 'owner', note: 'matrix' },
+      meta: { maxRetries: 0, quarantine: 'none', note: 'meta' },
+      soak: { maxRetries: 0, quarantine: 'manual', note: 'soak' },
+      'heavy-runtime': { maxRetries: 1, quarantine: 'owner', note: 'heavy' }
     }
+  },
+  diagnostics: {
+    expectedNegativeStderrIds: [],
+    diagnosticsClasses: ['clean', 'expected-negative-stderr', 'unexpected-stderr']
   },
   summary: {
     tests: 0,
@@ -130,8 +178,18 @@ const invalid = validateTestStabilityArtifact({
     environmentSensitive: 0,
     failed: 0,
     timedOut: 0,
-    redo: 0
+    redo: 0,
+    expectedNegativeStderr: 0,
+    unexpectedStderr: 0
   },
+  suiteCategories: {
+    hero: 0,
+    matrix: 0,
+    meta: 0,
+    soak: 0,
+    'heavy-runtime': 0
+  },
+  familyTrends: [],
   families: [],
   tests: [
     {
@@ -139,10 +197,12 @@ const invalid = validateTestStabilityArtifact({
       path: 'tests/runner/harness/pass-target.test.js',
       lane: 'unit',
       family: 'runner/harness',
+      suiteCategory: 'hero',
       status: 'passed',
       durationMs: 1,
       timeoutBudgetMs: 15000,
       stabilityClass: 'unknown',
+      diagnosticsClass: 'clean',
       outcomeClass: 'passed',
       historyWindow: 0,
       historyOutcomes: [],

@@ -1,0 +1,1882 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-03-28T12:32:52.830Z",
+  "summary": {
+    "lanes": 4,
+    "tests": 1346,
+    "exactDuplicates": 1,
+    "hotspotKinds": 4,
+    "families": 293,
+    "timingCoverage": {
+      "freshArtifactTests": 114,
+      "historicalFallbackTests": 0,
+      "missingTests": 1232
+    }
+  },
+  "lanes": [
+    {
+      "lane": "gate",
+      "targetMaxDurationSeconds": 15,
+      "orderFile": "tests/gate/gate.order.txt",
+      "timingArtifactPath": ".testLogs/gate-testRunTimes.txt",
+      "totalTests": 35,
+      "knownDurationTests": 0,
+      "knownDurationMs": 0,
+      "resolvedTimingArtifactPaths": [
+        ".testLogs/gate-testRunTimes.txt"
+      ],
+      "timingSources": {
+        "missing": 35
+      }
+    },
+    {
+      "lane": "ci-lite",
+      "targetMaxDurationSeconds": 15,
+      "orderFile": "tests/ci-lite/ci-lite.order.txt",
+      "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
+      "totalTests": 1070,
+      "knownDurationTests": 67,
+      "knownDurationMs": 17030,
+      "resolvedTimingArtifactPaths": [
+        ".testLogs/ci-lite-testRunTimes.txt"
+      ],
+      "timingSources": {
+        "timing-artifact": 67,
+        "missing": 1003
+      }
+    },
+    {
+      "lane": "ci",
+      "targetMaxDurationSeconds": 60,
+      "orderFile": "tests/ci/ci.order.txt",
+      "timingArtifactPath": ".testLogs/ci-testRunTimes.txt",
+      "totalTests": 141,
+      "knownDurationTests": 21,
+      "knownDurationMs": 76590,
+      "resolvedTimingArtifactPaths": [
+        ".testLogs/ci-testRunTimes.txt"
+      ],
+      "timingSources": {
+        "timing-artifact": 21,
+        "missing": 120
+      }
+    },
+    {
+      "lane": "ci-long",
+      "targetMaxDurationSeconds": 180,
+      "orderFile": "tests/ci-long/ci-long.order.txt",
+      "timingArtifactPath": ".testLogs/ci-long-testRunTimes.txt",
+      "totalTests": 100,
+      "knownDurationTests": 26,
+      "knownDurationMs": 121470,
+      "resolvedTimingArtifactPaths": [
+        ".testLogs/ci-long-testRunTimes.txt"
+      ],
+      "timingSources": {
+        "timing-artifact": 26,
+        "missing": 74
+      }
+    }
+  ],
+  "exactDuplicates": [
+    {
+      "id": "tooling/lsp/provider-fidelity-coverage-contract",
+      "path": "tooling/lsp/provider-fidelity-coverage-contract.test.js",
+      "lanes": [
+        "ci-lite",
+        "ci-long"
+      ],
+      "durationsByLane": {}
+    }
+  ],
+  "families": [
+    {
+      "key": "retrieval/filters",
+      "count": 17,
+      "knownDurationMs": 40020,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "storage/sqlite",
+      "count": 65,
+      "knownDurationMs": 35910,
+      "unknownDurationCount": 54
+    },
+    {
+      "key": "services/api",
+      "count": 15,
+      "knownDurationMs": 13420,
+      "unknownDurationCount": 11
+    },
+    {
+      "key": "tooling/triage",
+      "count": 6,
+      "knownDurationMs": 10970,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/chunking",
+      "count": 11,
+      "knownDurationMs": 10530,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "indexing/file-caps",
+      "count": 5,
+      "knownDurationMs": 10030,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "tooling/install",
+      "count": 22,
+      "knownDurationMs": 9670,
+      "unknownDurationCount": 16
+    },
+    {
+      "key": "indexing/shards",
+      "count": 4,
+      "knownDurationMs": 8870,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/file-processor",
+      "count": 9,
+      "knownDurationMs": 8370,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "indexing/imports",
+      "count": 45,
+      "knownDurationMs": 6050,
+      "unknownDurationCount": 42
+    },
+    {
+      "key": "indexing/type-inference",
+      "count": 13,
+      "knownDurationMs": 5700,
+      "unknownDurationCount": 6
+    },
+    {
+      "key": "cli/general",
+      "count": 4,
+      "knownDurationMs": 5410,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/runtime",
+      "count": 12,
+      "knownDurationMs": 5150,
+      "unknownDurationCount": 9
+    },
+    {
+      "key": "retrieval/ann",
+      "count": 16,
+      "knownDurationMs": 5140,
+      "unknownDurationCount": 13
+    },
+    {
+      "key": "lang/contracts",
+      "count": 2,
+      "knownDurationMs": 5030,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/language-fixture",
+      "count": 1,
+      "knownDurationMs": 5030,
+      "unknownDurationCount": 0
+    },
+    {
+      "key": "shared/encoding",
+      "count": 5,
+      "knownDurationMs": 5020,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "indexing/metadata",
+      "count": 1,
+      "knownDurationMs": 5020,
+      "unknownDurationCount": 0
+    },
+    {
+      "key": "retrieval/ranking",
+      "count": 8,
+      "knownDurationMs": 5010,
+      "unknownDurationCount": 7
+    },
+    {
+      "key": "retrieval/contracts",
+      "count": 2,
+      "knownDurationMs": 4180,
+      "unknownDurationCount": 0
+    },
+    {
+      "key": "indexing/artifacts",
+      "count": 37,
+      "knownDurationMs": 2990,
+      "unknownDurationCount": 31
+    },
+    {
+      "key": "indexing/workers",
+      "count": 5,
+      "knownDurationMs": 1770,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "indexing/discovery",
+      "count": 2,
+      "knownDurationMs": 930,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/segments",
+      "count": 4,
+      "knownDurationMs": 910,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "shared/runtime",
+      "count": 8,
+      "knownDurationMs": 600,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "lang/registry",
+      "count": 6,
+      "knownDurationMs": 510,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "tooling/reports",
+      "count": 5,
+      "knownDurationMs": 510,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "lang/javascript",
+      "count": 4,
+      "knownDurationMs": 380,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/typescript",
+      "count": 3,
+      "knownDurationMs": 320,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "shared/hash",
+      "count": 1,
+      "knownDurationMs": 250,
+      "unknownDurationCount": 0
+    },
+    {
+      "key": "shared/config",
+      "count": 3,
+      "knownDurationMs": 230,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "shared/json-stream",
+      "count": 17,
+      "knownDurationMs": 220,
+      "unknownDurationCount": 15
+    },
+    {
+      "key": "tooling/type-inference",
+      "count": 5,
+      "knownDurationMs": 200,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "indexing/watch",
+      "count": 15,
+      "knownDurationMs": 160,
+      "unknownDurationCount": 14
+    },
+    {
+      "key": "indexing/postings",
+      "count": 22,
+      "knownDurationMs": 90,
+      "unknownDurationCount": 21
+    },
+    {
+      "key": "indexing/tokenization",
+      "count": 5,
+      "knownDurationMs": 90,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "tooling/dict-utils",
+      "count": 3,
+      "knownDurationMs": 80,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/relations",
+      "count": 17,
+      "knownDurationMs": 70,
+      "unknownDurationCount": 16
+    },
+    {
+      "key": "indexing/metav2",
+      "count": 2,
+      "knownDurationMs": 70,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/embeddings",
+      "count": 37,
+      "knownDurationMs": 60,
+      "unknownDurationCount": 36
+    },
+    {
+      "key": "tooling/docs",
+      "count": 7,
+      "knownDurationMs": 60,
+      "unknownDurationCount": 6
+    },
+    {
+      "key": "retrieval/backend",
+      "count": 4,
+      "knownDurationMs": 60,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "tooling/lsp",
+      "count": 117,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 117
+    },
+    {
+      "key": "indexing/tree-sitter",
+      "count": 31,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 31
+    },
+    {
+      "key": "retrieval/federation",
+      "count": 28,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 28
+    },
+    {
+      "key": "retrieval/pipeline",
+      "count": 27,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 27
+    },
+    {
+      "key": "tooling/doctor",
+      "count": 24,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 24
+    },
+    {
+      "key": "tooling/vfs",
+      "count": 23,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 23
+    },
+    {
+      "key": "tooling/vscode",
+      "count": 21,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 21
+    },
+    {
+      "key": "indexing/validate",
+      "count": 20,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 20
+    },
+    {
+      "key": "indexing/contracts",
+      "count": 18,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 18
+    },
+    {
+      "key": "indexing/risk",
+      "count": 18,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 18
+    },
+    {
+      "key": "shared/artifact-io",
+      "count": 17,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 17
+    },
+    {
+      "key": "tooling/sublime",
+      "count": 17,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 17
+    },
+    {
+      "key": "indexing/scm",
+      "count": 14,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 14
+    },
+    {
+      "key": "indexing/vfs",
+      "count": 13,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 13
+    },
+    {
+      "key": "perf/bench",
+      "count": 13,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 13
+    },
+    {
+      "key": "shared/concurrency",
+      "count": 13,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 13
+    },
+    {
+      "key": "cli/search",
+      "count": 11,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 11
+    },
+    {
+      "key": "retrieval/output",
+      "count": 11,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 11
+    },
+    {
+      "key": "shared/subprocess",
+      "count": 11,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 11
+    },
+    {
+      "key": "indexing/extracted-prose",
+      "count": 10,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 10
+    },
+    {
+      "key": "indexing/state",
+      "count": 10,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 10
+    },
+    {
+      "key": "retrieval/graph",
+      "count": 10,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 10
+    },
+    {
+      "key": "runner/harness",
+      "count": 10,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 10
+    },
+    {
+      "key": "indexing/policy",
+      "count": 9,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 9
+    },
+    {
+      "key": "shared/cache",
+      "count": 9,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 9
+    },
+    {
+      "key": "indexing/identity",
+      "count": 8,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 8
+    },
+    {
+      "key": "retrieval/cache",
+      "count": 7,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 7
+    },
+    {
+      "key": "shared/merge",
+      "count": 7,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 7
+    },
+    {
+      "key": "tooling/api-contracts",
+      "count": 6,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 6
+    },
+    {
+      "key": "tooling/providers",
+      "count": 6,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 6
+    },
+    {
+      "key": "indexing/determinism",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "indexing/ignore",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "indexing/incremental",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "indexing/stage1",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "lang/python",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "shared/progress",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "storage/lmdb",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "tooling/config",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "indexing/build",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "indexing/map",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "indexing/ordering",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "retrieval/context-expansion",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "retrieval/providers",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "shared/io",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "shared/safe-regex",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "storage/vector-extension",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "tooling/architecture",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "tooling/ci",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "tooling/index-stats",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "tooling/ingest",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "tooling/test-selection",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "indexer/call-sites",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "indexing/cache",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "indexing/chunk-meta",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "indexing/filter-index",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "indexing/git",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "retrieval/query",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "shared/lifecycle",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "shared/order",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "tooling/config-inventory",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "tooling/structural",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "indexer/incremental",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexer/metav2",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexer/signatures",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/build-state",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/lifecycle",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/piece-assembly",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/records",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/signatures",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/tooling",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "map/build-map",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "retrieval/context-pack",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "services/indexer",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "shared/abort",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "shared/fs",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "shared/logging",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "tooling/cache",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "tooling/eval",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "tooling/paths",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "tooling/service",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "tooling/signature-parse",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "ci/capability-gate.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/import-resolution-slo-gate.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/markdown-link-check",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/npm-script-targets",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/suite-runner.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-doctor-gate.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-default-enable-gate.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-guardrail-regression-diff",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-replay-gate.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-slo-gate-attempt-ratios",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-slo-gate-regression-diff",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-slo-gate-sampling",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-slo-gate-tail-p95",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-slo-gate-unavailable-skip",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-slo-gate.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/workflow-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "cli/build-index",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/assembly-memory",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/contracts",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/excerpt-cache",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/excerpt-dedupe",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/excerpt-file-cache",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/excerpt-range",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/range-reads",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/risk-assembly",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/risk-filters-parity",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/risk-ranking-budget",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/risk-seed-anchoring",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/risk-strict-status",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/seed-normalization",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/shared-index",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "contracts/manifest-max-bytes-validation",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "contracts/module-export-surface-compat",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "embeddings/runner",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/adjacency-deterministic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/adjacency-presorted",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/architecture-output-deterministic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/architecture-rules-cache",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/context-pack-skip-resort",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/contracts",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/count-mismatch-warning",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/csr-neighbors-deterministic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/edge-bucket-determinism",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/edge-dedupe-policy",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/edge-type-inclusion",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/filter-predicate-deterministic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/filter-warnings",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/id-remap-roundtrip",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/import-missing-file-warning",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/index-cache-reuse",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/index-mismatch-warning",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/lazy-edge-load",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/memory-plateau",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/multiseed-bfs-deterministic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/neighborhood-cache",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/output-deterministic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/reporoot-warning",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/spill-merge-deterministic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/store-cache-eviction",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/store-csr-artifact-load",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/suggest-tests-cache",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/suggest-tests-output-deterministic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/symbol-direction",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/truncation-deterministic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/truncation-order-deterministic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/witness-path-lazy",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexer/determinism",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/build-cleanup-pending-timeout",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/callsite-id",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/chunk-id",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/config",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/failure-taxonomy-null-shard",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/graphs",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/metrics",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/preprocess",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/repo-map",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "integrations/lsp",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/clike",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/fixtures-sample",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/kotlin",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/php",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/ruby",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/rust",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/build-determinism",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/build-heap-guard",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/build-streaming",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/config-merge-behavior",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/edge-aggregate-stability",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/filter-api-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/html-escape-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/isometric",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/viewer-culling-correctness",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/viewer-display-limits",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/viewer-instancing-count",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/viewer-lod-switch",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/viewer-selection-stability",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/viewer-telemetry",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "retrieval/cli",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "retrieval/context",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "retrieval/filter-index",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "runner/stability-classification",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/api-search-asof",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/asof-explicit-root-no-fallback",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/embeddings",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/index-diff",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/indexing",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/mcp",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/queue",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/snapshot-create",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/snapshot-freeze",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/snapshot-query",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/snapshots",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/soak",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/sqlite-build-snapshot",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/async",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/bloom",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/bundle-io-patch-append",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/cli",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/cli-option-validators-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/diffs-registry",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/direct-execution-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/disk-space",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/embeddings-cache",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/files",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/h33-hard-cutover-boundaries",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/index-ref",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/json-file",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/jsonl",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/jsonrpc",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/limits",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/locks",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/no-path-leak",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/path-handling",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/path-normalize",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/process-signals",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/provenance",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/risk-filters",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/runtime-capability-manifest-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/search-request-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/seed-ref",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/snapshots-registry",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/truncation",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/validation",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/api-core-health",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/baseline",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/e2e",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/embeddings",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/retrieval",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/services",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/sqlite",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/tantivy",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/workers",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "storage/backend",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "storage/embeddings",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/analysis-wrapper-exit-propagation",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/download",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/editors",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/fixtures",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/impact",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/logging",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/workspace",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "workspace/alias-uniqueness-and-tags-normalization",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "workspace/build-pointer-invalid-scenarios",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "workspace/config-parsing",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "workspace/index-signature-sharded-variants",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "workspace/manifest-determinism-and-hash",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "workspace/repo-canonicalization-dedup",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "workspace/repo-root-must-be-directory",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "workspace/repo-set-id-determinism",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "workspace/windows-path-canonicalization-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    }
+  ],
+  "hotspots": [
+    {
+      "key": "index-build-heavy",
+      "count": 484,
+      "knownDurationMs": 82860,
+      "unknownDurationCount": 432,
+      "note": "Index construction, replay, and build-heavy setup overlap."
+    },
+    {
+      "key": "api-server-boot",
+      "count": 15,
+      "knownDurationMs": 13420,
+      "unknownDurationCount": 11,
+      "note": "HTTP server startup, routing, and streaming harness reuse."
+    },
+    {
+      "key": "cli-cold-start",
+      "count": 16,
+      "knownDurationMs": 5410,
+      "unknownDurationCount": 14,
+      "note": "CLI process startup and argument-routing overlap."
+    },
+    {
+      "key": "lsp-bootstrap",
+      "count": 117,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 117,
+      "note": "Dedicated/configured provider bootstrap and session reuse."
+    }
+  ]
+}

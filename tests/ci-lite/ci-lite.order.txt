@@ -58,8 +58,7 @@ lang/registry/collector-utils-comment-aware
 shared/subprocess/shell-metachar-quoting
 map/filter-api-contract
 map/isometric/member-id-zero-contract
-tooling/lsp/python-signature-parse
-retrieval/filters/lang-filter
+tooling/lsp/signature-parse-matrix
 retrieval/output/clean-context-nonstring-guard
 runner/harness/copy-fixture
 shared/concurrency/scheduler-config-parse
@@ -92,7 +91,6 @@ retrieval/backend/retrieval-policy
 shared/fs/find-upwards-contract
 shared/safe-regex/program-size-cap
 indexing/identity/symbolkey-scopedid
-retrieval/filters/ext-filter
 shared/concurrency/io-cap-uv-threadpool
 indexing/chunking/limits
 indexing/embeddings/writer-and-queue-contract-matrix
@@ -112,17 +110,15 @@ indexing/tree-sitter/vfs-language-routing
 retrieval/filters/active
 retrieval/graph/impact-analysis-upstream
 shared/safe-regex/input-length-cap
-tooling/lsp/zig-signature-parse
 indexing/artifacts/file-meta
 indexing/build/id-nonce-contract
 indexing/chunk-meta/id-alignment
 shared/cli/noop-task
 shared/embeddings-cache/decode-vector-bounds
 shared/jsonl/read-row-max-bytes-enforced
-tooling/lsp/elixir-signature-parse
 indexing/imports/warning-dispositions
 retrieval/output/explain-color-fallback
-shared/fs/atomic-replace-sync-stale-bak-collision-guard
+shared/fs/atomic-replace-contract-matrix
 shared/io/atomic-persistence-contract
 shared/json-stream/atomic-replace
 shared/json-stream/json-encode-cycle-guard
@@ -157,7 +153,6 @@ indexing/artifacts/file-meta-stable-ids
 indexing/type-inference/crossfile/extract
 retrieval/context-expansion/determinism
 shared/concurrency/run-with-queue-error-propagation
-tooling/lsp/haskell-signature-parse
 graph/truncation-deterministic
 indexing/callsite-id/zero-based
 indexing/identity/chunkuid-collision-disambiguation
@@ -194,8 +189,6 @@ retrieval/pipeline/context-skips
 indexing/scm/file-meta-snapshot-partial-fallback
 services/embeddings/mode-root-divergence-maintenance
 shared/json-stream/compress-options
-tooling/lsp/ruby-signature-parse
-tooling/lsp/swift-signature-parse
 indexing/artifacts/file-meta-membership-performance
 indexing/identity/chunkuid-ordinal-fallback
 indexing/tree-sitter/timeout-disable
@@ -227,8 +220,6 @@ graph/architecture-rules-cache
 tooling/docs/jsdoc-standards-sync
 tooling/lsp/target-index
 indexing/tree-sitter/chunk-cache-persistent
-shared/fs/atomic-replace-restores-backup-on-missing-temp
-shared/fs/atomic-replace-final-committed-missing-temp
 shared/seed-ref/parse
 storage/sqlite/build-pragmas-restore
 indexing/postings/token-id-parse-resilience
@@ -290,7 +281,6 @@ shared/merge/determinism
 indexing/filter-index/release
 lang/php/methods-unique
 shared/path-handling
-tooling/vfs/hash-routing
 retrieval/federation/cli-mode-forwarding
 retrieval/federation/raw-args-end-of-options
 indexing/runtime/caps-policy-merge
@@ -311,7 +301,6 @@ shared/order/stability
 shared/progress/show-total-zero
 indexing/risk/interprocedural/summaries-determinism
 retrieval/ranking/rank-dense-dims
-shared/fs/atomic-replace-cleans-bak
 indexing/tree-sitter/eviction-determinism
 retrieval/pipeline/ranking-fastpath
 shared/order/hash
@@ -435,7 +424,6 @@ indexing/risk/interprocedural/config-normalization
 map/build-map/temp-cleanup-on-failure
 indexing/file-caps/cached-bundle-respects-caps
 cli/general/cli-options-schema-drift
-indexing/map/build-symbol-identity
 retrieval/graph/context-pack-streaming-assembly
 shared/artifact-io/jsonl-stream-roundtrip
 shared/subprocess/capture-bounds
@@ -468,8 +456,6 @@ retrieval/pipeline/artifact-gating-deps
 indexing/relations/call-sites-ordering
 shared/artifact-io/minhash-checksum-validation
 indexing/runtime/byte-budget-enforcement
-retrieval/filters/file-case-sensitive
-tooling/vfs/virtualpath-deterministic
 indexing/postings/spill-merge-unified
 indexing/vfs/segment-hash-cache-contract
 retrieval/federation/explicit-root-no-fallback
@@ -545,7 +531,7 @@ tooling/dict-utils/paths-repo-root
 tooling/vfs/parallel-manifest-deterministic
 retrieval/pipeline/candidates-buffer-reuse
 storage/sqlite/token-text-materialization-skip
-tooling/doctor/command-profile-probe-cache-negative
+tooling/doctor/command-profile-probe-cache-matrix
 tooling/vfs/merge-heap-deterministic
 tooling/doctor/command-profile-tooling-dir-precedence
 tooling/doctor/command-profile-runtime-bin-dirs
@@ -620,7 +606,6 @@ lang/registry/collector-scan-budget-diagnostics
 tooling/vfs/collector-cleanup-on-error
 indexing/artifacts/minhash-packed-roundtrip
 tooling/config/tooling-lsp-lifecycle-and-dedicated-passthrough
-tooling/doctor/command-profile-probe-cache
 shared/artifact-io/broken-offsets-fallback
 tooling/vfs/fastpath-telemetry-contract
 indexing/shards/shard-runtime-uses-threadlimits-io
@@ -643,7 +628,6 @@ indexing/postings/vocab-order-determinism
 storage/sqlite/build-rowcount-contract
 storage/sqlite/ann/sqlite-mode-scope
 storage/sqlite/fts-contentless-schema
-tooling/doctor/command-profile-gopls
 indexing/chunking/smartchunk-yaml
 indexing/relations/keyword-skip-heuristics
 indexing/postings/queue-bypass-deadlock
@@ -704,7 +688,6 @@ indexing/vfs/manifest-streaming
 tooling/providers/provider-registry-ordering
 tooling/providers/provider-registry-ignores-legacy-keys
 indexing/scm/provider-selection
-tooling/doctor/command-profile-probe-cache-success-ttl
 tooling/triage/ingest-generic.exposure
 tooling/install/tooling
 tooling/lsp/configured-provider-zls-preflight-timeout
@@ -854,7 +837,6 @@ storage/sqlite/bundle-shard-splitting
 indexing/piece-assembly/assemble-pieces-no-guess
 indexing/imports/decision-metamorphic
 indexing/imports/decision-model-contract
-indexing/validate/index-load-manifest
 indexing/imports/collector-hints
 tooling/doctor/command-profile-pyright-override
 tooling/triage/ingest-sources.smoke
@@ -869,7 +851,6 @@ indexing/imports/import-scan-budget-runtime-signals
 tooling/index-stats/missing-artifact
 shared/locks/file-lock-contract
 indexing/validate/validator/manifest-count-sharded
-tooling/lsp/session-pool-reuse
 tooling/lsp/provider-delta-manifest
 ci/tooling-lsp-slo-gate-tail-p95
 tooling/install/tooling-phpactor-phar-plan
@@ -921,7 +902,6 @@ tooling/lsp/dart-provider-process-reuse
 tooling/lsp/phpactor-provider-composer-lock-missing-preflight
 tooling/lsp/phpactor-provider-workspace-composer-invalid-preflight
 services/index-diff
-tooling/vfs/routing-by-effective-language
 tooling/vfs/invalid-virtual-range-regression
 storage/sqlite/jsonl-streaming-zstd
 indexing/validate/ledger-validation
@@ -952,11 +932,9 @@ indexing/file-processor/skip
 shared/abort/propagates-to-subprocess
 indexing/tree-sitter/scheduler-stage1-contract
 tooling/lsp/jdtls-provider-bootstrap
-shared/fs/atomic-replace-cross-device-fallback
 indexing/file-processor/unsupported-language-skip
 indexing/tree-sitter/plan-stale-file-resilience
 indexing/validate/index-unknown-mode
-indexing/validate/manifest-checks
 shared/subprocess/timeout-kills-child
 shared/subprocess/sync-command-timeout-opt-out
 shared/process-signals/cleanup-signal-handlers
@@ -973,7 +951,6 @@ indexing/workers/worker-pool-windows
 shared/diffs-registry
 smoke/workers
 tooling/lsp/sourcekit-provider-output-shape
-tooling/lsp/session-pool-max-lifetime-recycle
 indexing/file-processor/effective-language-drives-docmeta
 indexing/tree-sitter/scheduler-native-determinism
 runner/harness/cwd-independence
@@ -1017,15 +994,13 @@ tooling/lsp/configured-provider-zls-workspace-nested-root-preflight
 tooling/lsp/clangd-preflight-missing-compile-commands-inference-disabled
 tooling/lsp/protocol-disconnect-document-symbol-fail-open
 tooling/lsp/configured-provider-go-workspace-warmup-doc-count-gating
-tooling/lsp/configured-provider-go-workspace-module-preflight-failed
+tooling/lsp/configured-provider-preflight-matrix
 tooling/lsp/provider-metrics-capability-rollup
 tooling/lsp/csharp-provider-overload-signature
 tooling/lsp/provider-fidelity-coverage-contract
 tooling/lsp/configured-provider-go-workspace-warmup-preflight-failed
 tooling/lsp/provider-metrics-envelope-aggregate
 tooling/lsp/configured-provider-go-workspace-preflight-cache-hit
-tooling/lsp/configured-provider-gopls-workspace-root-ambiguous-preflight
-tooling/lsp/configured-provider-gopls-workspace-root-nested-preflight
 tooling/lsp/document-symbol-failure-disables-remaining-docs
 indexing/tree-sitter/scheduler-native-language-contract
 indexing/tree-sitter/scheduler-native-smoke
@@ -1038,7 +1013,6 @@ tooling/vfs/partial-lsp-open
 indexing/tree-sitter/scheduler-paged-json-gzip
 tooling/lsp/configured-provider-go-rust-signature-parsing
 tooling/lsp/configured-provider-rust-workspace-metadata-preflight-timeout-override
-tooling/lsp/configured-provider-go-workspace-module-preflight-timeout
 indexing/watch/lock-backoff
 indexing/ignore/ignore-file-overrides
 tooling/doctor/gating-reasons
@@ -1063,10 +1037,7 @@ indexing/state/build-state-log-repair
 indexing/state/build-state-identical-patch-repeat-logs
 indexing/state/build-state-skip-write-missing-files
 tooling/lsp/signature-help-timeout-adaptive-gates-next-symbol
-tooling/lsp/signature-help-timeout-adaptive
 runner/harness/skip-semantics
-tooling/lsp/definition-timeout-adaptive
-tooling/lsp/references-timeout-adaptive
 tooling/lsp/provider-metrics-hover-timeout-rollup
 indexing/tokenization/file-stream-reuse
 perf/bench/language-closeout-exit

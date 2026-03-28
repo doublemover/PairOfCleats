@@ -1,0 +1,331 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-03-28T12:32:52.823Z",
+  "summary": {
+    "totalTests": 2609,
+    "byCategory": {
+      "hero": 2459,
+      "matrix": 47,
+      "meta": 102,
+      "soak": 1,
+      "heavy-runtime": 0
+    },
+    "peripheralGroups": 4,
+    "ownershipSuites": 16,
+    "replacementIds": 58
+  },
+  "lanes": [
+    {
+      "lane": "gate",
+      "totalTests": 35,
+      "byCategory": {
+        "hero": 31,
+        "matrix": 2,
+        "meta": 2,
+        "soak": 0,
+        "heavy-runtime": 0
+      }
+    },
+    {
+      "lane": "ci-lite",
+      "totalTests": 1070,
+      "byCategory": {
+        "hero": 1009,
+        "matrix": 27,
+        "meta": 34,
+        "soak": 0,
+        "heavy-runtime": 0
+      }
+    },
+    {
+      "lane": "ci",
+      "totalTests": 141,
+      "byCategory": {
+        "hero": 128,
+        "matrix": 7,
+        "meta": 6,
+        "soak": 0,
+        "heavy-runtime": 0
+      }
+    },
+    {
+      "lane": "ci-long",
+      "totalTests": 100,
+      "byCategory": {
+        "hero": 0,
+        "matrix": 3,
+        "meta": 0,
+        "soak": 1,
+        "heavy-runtime": 96
+      }
+    }
+  ],
+  "peripheralGroups": [
+    {
+      "key": "tooling/install",
+      "totalTests": 35,
+      "byCategory": {
+        "hero": 35,
+        "matrix": 0,
+        "meta": 0,
+        "soak": 0,
+        "heavy-runtime": 0
+      }
+    },
+    {
+      "key": "tooling/vscode",
+      "totalTests": 29,
+      "byCategory": {
+        "hero": 29,
+        "matrix": 0,
+        "meta": 0,
+        "soak": 0,
+        "heavy-runtime": 0
+      }
+    },
+    {
+      "key": "tooling/sublime",
+      "totalTests": 22,
+      "byCategory": {
+        "hero": 22,
+        "matrix": 0,
+        "meta": 0,
+        "soak": 0,
+        "heavy-runtime": 0
+      }
+    },
+    {
+      "key": "tooling/config-inventory",
+      "totalTests": 4,
+      "byCategory": {
+        "hero": 0,
+        "matrix": 0,
+        "meta": 4,
+        "soak": 0,
+        "heavy-runtime": 0
+      }
+    }
+  ],
+  "ownership": {
+    "suites": [
+      {
+        "id": "lang/contracts/language-fixture-contracts",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared language-fixture docmeta contract coverage for Go, JavaScript, Python, SQL, and TypeScript.",
+        "replacementIds": [
+          "indexing/language-fixture/chunk-meta-exists",
+          "lang/contracts/go",
+          "lang/contracts/javascript",
+          "lang/contracts/python",
+          "lang/contracts/sql",
+          "lang/contracts/typescript"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-fixture-index",
+        "processIsolationRequired": false
+      },
+      {
+        "id": "lang/fixtures-sample/metadata-matrix",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared fixture-sample metadata coverage for Python, Rust, and Swift.",
+        "replacementIds": [
+          "lang/fixtures-sample/python-metadata",
+          "lang/fixtures-sample/rust-metadata",
+          "lang/fixtures-sample/swift-metadata"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-search-fixture",
+        "processIsolationRequired": false
+      },
+      {
+        "id": "tooling/vfs/routing-and-token-contract-matrix",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared VFS routing, token, effective-language, and deterministic virtual-path coverage.",
+        "replacementIds": [
+          "tooling/vfs/hash-routing",
+          "tooling/vfs/routing-by-effective-language",
+          "tooling/vfs/virtualpath-deterministic"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-vfs-routing-contract",
+        "processIsolationRequired": false
+      },
+      {
+        "id": "tooling/lsp/configured-provider-preflight-matrix",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared configured-provider workspace preflight coverage for multi-root routing, nested-root acceptance, probe failures, and probe timeouts.",
+        "replacementIds": [
+          "tooling/lsp/configured-provider-go-workspace-module-preflight-failed",
+          "tooling/lsp/configured-provider-go-workspace-module-preflight-timeout",
+          "tooling/lsp/configured-provider-gopls-workspace-root-ambiguous-preflight",
+          "tooling/lsp/configured-provider-gopls-workspace-root-nested-preflight"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-configured-provider-preflight-fixture",
+        "processIsolationRequired": false
+      },
+      {
+        "id": "tooling/lsp/signature-parse-matrix",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared parser-level LSP signature coverage for Python, Ruby, Swift, Haskell, Elixir, and Zig.",
+        "replacementIds": [
+          "tooling/lsp/elixir-signature-parse",
+          "tooling/lsp/haskell-signature-parse",
+          "tooling/lsp/python-signature-parse",
+          "tooling/lsp/ruby-signature-parse",
+          "tooling/lsp/swift-signature-parse",
+          "tooling/lsp/zig-signature-parse"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-language-parser-contract",
+        "processIsolationRequired": false
+      },
+      {
+        "id": "tooling/lsp/adaptive-timeout-matrix",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared adaptive-timeout coverage for signatureHelp, definition, references, and typeDefinition stages.",
+        "replacementIds": [
+          "tooling/lsp/definition-timeout-adaptive",
+          "tooling/lsp/references-timeout-adaptive",
+          "tooling/lsp/signature-help-timeout-adaptive",
+          "tooling/lsp/type-definition-timeout-adaptive"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-provider-timeout-fixture",
+        "processIsolationRequired": false
+      },
+      {
+        "id": "tooling/lsp/protocol-fail-open-matrix",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared malformed-protocol fail-open coverage for hover, documentSymbol, and initialize stages.",
+        "replacementIds": [
+          "tooling/lsp/protocol-malformed-document-symbol-fail-open",
+          "tooling/lsp/protocol-malformed-hover-fail-open",
+          "tooling/lsp/protocol-malformed-initialize-fail-open"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-stub-protocol-fixture",
+        "processIsolationRequired": false
+      },
+      {
+        "id": "tooling/lsp/session-pool-lifecycle-matrix",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared LSP session-pool lifecycle coverage for reuse, poisoned recycle, max lifetime, disposal barrier, and background expiry.",
+        "replacementIds": [
+          "tooling/lsp/session-pool-background-lifetime-expiry",
+          "tooling/lsp/session-pool-disposal-barrier",
+          "tooling/lsp/session-pool-max-lifetime-recycle",
+          "tooling/lsp/session-pool-poisoned-recycle",
+          "tooling/lsp/session-pool-reuse"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-session-pool-lifecycle-fixture",
+        "processIsolationRequired": false
+      },
+      {
+        "id": "tooling/doctor/command-profile-probe-cache-matrix",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared doctor command-profile probe cache coverage for direct gopls resolution, hit/miss behavior, negative caching, and ttl expiry.",
+        "replacementIds": [
+          "tooling/doctor/command-profile-gopls",
+          "tooling/doctor/command-profile-probe-cache",
+          "tooling/doctor/command-profile-probe-cache-negative",
+          "tooling/doctor/command-profile-probe-cache-success-ttl"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-command-profile-cache-fixture",
+        "processIsolationRequired": false
+      },
+      {
+        "id": "retrieval/filters/search-filter-contract-matrix",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared search filter coverage for normalization, file-case behavior, semantic filters, and query-syntax negation/phrase scoring.",
+        "replacementIds": [
+          "retrieval/filters/ext-filter",
+          "retrieval/filters/file-case-sensitive",
+          "retrieval/filters/lang-filter",
+          "retrieval/filters/query-syntax/negative-terms",
+          "retrieval/filters/query-syntax/phrases-and-scorebreakdown"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-search-filter-contract",
+        "processIsolationRequired": false
+      },
+      {
+        "id": "cli/search/contract-matrix",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared CLI search coverage for payload contract, top-N filtering, and Windows-style path selectors.",
+        "replacementIds": [
+          "cli/search/contract",
+          "cli/search/topn-filters",
+          "cli/search/windows-path-filter"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-search-lifecycle-fixture",
+        "processIsolationRequired": false
+      },
+      {
+        "id": "services/api/search-contract-matrix",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared API search contract coverage for the adapter-neutral compact search corpus plus query-param alias handling.",
+        "replacementIds": [
+          "services/api/search-happy-path"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-search-contract-fixture",
+        "processIsolationRequired": false
+      },
+      {
+        "id": "indexing/map/code-map-contract-matrix",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared code-map coverage for output contracts, determinism, graphviz fallback, and symbol identity selection.",
+        "replacementIds": [
+          "indexing/map/build-symbol-identity"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-code-map-builder",
+        "processIsolationRequired": false
+      },
+      {
+        "id": "indexing/validate/index-contract-matrix",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared index validation coverage for healthy baselines, manifest safety, missing pieces, unknown artifacts, and checksum mismatch.",
+        "replacementIds": [
+          "indexing/validate/index-load-manifest",
+          "indexing/validate/manifest-checks"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-index-validate-builder",
+        "processIsolationRequired": false
+      },
+      {
+        "id": "indexing/artifacts/artifact-write-controller-contract-matrix",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared artifact write-controller coverage for concurrency policies, writer heuristics, and flattened phase timing telemetry.",
+        "replacementIds": [
+          "indexing/artifacts/artifact-write-phase-timings",
+          "indexing/artifacts/artifact-writer-heuristics"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-artifact-controller-policy",
+        "processIsolationRequired": false
+      },
+      {
+        "id": "shared/fs/atomic-replace-contract-matrix",
+        "suiteCategory": "matrix",
+        "coverageOwner": "Shared atomic replace coverage for success cleanup, missing-temp restore behavior, stale backups, sync collision guards, committed finals, and EXDEV fallback.",
+        "replacementIds": [
+          "shared/fs/atomic-replace-cleans-bak",
+          "shared/fs/atomic-replace-cross-device-fallback",
+          "shared/fs/atomic-replace-final-committed-missing-temp",
+          "shared/fs/atomic-replace-restores-backup-on-missing-temp",
+          "shared/fs/atomic-replace-stale-bak-does-not-mask-missing-temp",
+          "shared/fs/atomic-replace-sync-stale-bak-collision-guard"
+        ],
+        "overlapPolicy": "legacy-removed-after-direct-parity",
+        "matrixStrategy": "shared-atomic-persistence-failure-matrix",
+        "processIsolationRequired": false
+      }
+    ]
+  }
+}

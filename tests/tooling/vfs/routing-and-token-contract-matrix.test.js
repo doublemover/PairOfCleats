@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { checksumString } from '../../../src/shared/hash.js';
+import { discoverSegments, assignSegmentUids, chunkSegments } from '../../../src/index/segments.js';
+import { assignChunkUids } from '../../../src/index/identity/chunk-uid.js';
 import * as hashRouting from '../../../src/index/tooling/vfs-hash-routing.js';
 import {
   buildToolingVirtualDocuments,
@@ -31,6 +33,13 @@ assert.equal(hashRouting.VFS_HASH_ROUTING_SCHEMA_VERSION, '1.0.0');
 
   assert.equal(token, expectedHash?.value || '');
   assert.ok(/^[0-9a-f]{16}$/.test(token));
+
+  const expectedDocOnly = (await checksumString(docHash)).value;
+  const tokenDocOnly = await buildVfsRoutingToken({ virtualPath, docHash, mode: 'docHash' });
+  assert.equal(tokenDocOnly, expectedDocOnly);
+
+  const missing = await buildVfsRoutingToken({ virtualPath, docHash: null });
+  assert.equal(missing, null);
 }
 
 {
@@ -108,6 +117,80 @@ assert.equal(hashRouting.VFS_HASH_ROUTING_SCHEMA_VERSION, '1.0.0');
   });
   assert.equal(plain.documents[0].legacyVirtualPath, null);
   assert.equal(plain.documents[0].virtualPath, '.poc-vfs/src/App.vue#seg:segu:v1:hash.ts');
+}
+
+{
+  const relPath = 'src/App.vue';
+  const text = [
+    '<template>',
+    '  <div>{{ msg }}</div>',
+    '</template>',
+    '<script lang="ts">',
+    'export const msg: string = "hi";',
+    '</script>'
+  ].join('\n');
+
+  let segments = discoverSegments({
+    text,
+    ext: '.vue',
+    relPath,
+    mode: 'code',
+    languageId: 'vue'
+  });
+  segments = await assignSegmentUids({ text, segments, ext: '.vue', mode: 'code' });
+
+  const chunks = chunkSegments({
+    text,
+    ext: '.vue',
+    relPath,
+    mode: 'code',
+    segments
+  });
+  for (const chunk of chunks) {
+    chunk.file = relPath;
+  }
+
+  await assignChunkUids({ chunks, fileText: text, fileRelPath: relPath, strict: true });
+
+  const { documents } = await buildToolingVirtualDocuments({
+    chunks,
+    fileTextByPath: new Map([[relPath, text]]),
+    strict: true
+  });
+
+  const tsDocs = documents.filter((doc) => doc.effectiveExt === '.ts');
+  assert.equal(tsDocs.length, 1, 'expected exactly one TypeScript virtual document');
+  assert.equal(tsDocs[0].languageId, 'typescript');
+  assert.ok(tsDocs[0].virtualPath.startsWith('.poc-vfs/'));
+}
+
+{
+  const relPath = 'src/app.js';
+  const fileText = 'function ping() { return 1; }\n';
+  const chunk = {
+    file: relPath,
+    ext: '.js',
+    lang: 'javascript',
+    start: 0,
+    end: fileText.length,
+    name: 'ping',
+    kind: 'FunctionDeclaration'
+  };
+
+  await assignChunkUids({ chunks: [chunk], fileText, fileRelPath: relPath, strict: true });
+
+  const buildOnce = async () => buildToolingVirtualDocuments({
+    chunks: [chunk],
+    fileTextByPath: new Map([[relPath, fileText]]),
+    strict: true
+  });
+
+  const first = await buildOnce();
+  const second = await buildOnce();
+
+  assert.equal(first.documents.length, 1, 'expected one document');
+  assert.equal(second.documents.length, 1, 'expected one document');
+  assert.equal(first.documents[0].virtualPath, second.documents[0].virtualPath, 'expected deterministic virtualPath');
 }
 
 {

@@ -2,9 +2,11 @@
 import assert from 'node:assert/strict';
 import { buildStabilityArtifact, stabilitySlowThresholdsForTests } from './run-stability.js';
 import { repoRoot } from '../helpers/root.js';
+import { loadDiagnosticsGovernance } from './diagnostics-governance.js';
 
 const ROOT = repoRoot();
 const currentFingerprint = `${process.platform}|${process.arch}|${process.version}|ci|ci-lite|ci`;
+const diagnosticsGovernance = (await loadDiagnosticsGovernance({ root: ROOT })).payload;
 
 const makeHistoryArtifact = ({ fingerprint, rows }) => ({
   schemaVersion: 1,
@@ -87,8 +89,19 @@ const artifact = buildStabilityArtifact({
       status: 'failed',
       durationMs: 100,
       timedOut: false
+    },
+    {
+      id: 'cli/error-contract',
+      relPath: 'cli/error-contract.test.js',
+      lane: 'ci-lite',
+      suiteCategory: 'hero',
+      status: 'passed',
+      durationMs: 80,
+      timedOut: false,
+      stderr: '[INVALID_REQUEST] expected contract'
     }
-  ]
+  ],
+  diagnosticsGovernance
 });
 
 const byId = new Map(artifact.tests.map((row) => [row.id, row]));
@@ -96,6 +109,7 @@ const byId = new Map(artifact.tests.map((row) => [row.id, row]));
 assert.equal(byId.get('services/api/flaky')?.stabilityClass, 'flaky');
 assert.equal(byId.get('services/api/slow')?.stabilityClass, 'slow');
 assert.equal(byId.get('services/api/env-sensitive')?.stabilityClass, 'environment-sensitive');
+assert.equal(byId.get('cli/error-contract')?.diagnosticsClass, 'expected-negative-stderr');
 assert.equal(
   byId.get('services/api/slow')?.timeoutBudgetMs,
   15000,
@@ -111,6 +125,9 @@ assert.equal(
   3,
   'expected family rollup to count all service API rows'
 );
+assert.equal(artifact.summary.expectedNegativeStderr, 1);
+assert.ok(artifact.suiteCategories.hero >= 1, 'expected hero suite category count to be recorded');
+assert.equal(artifact.policy.retryBySuiteCategory.matrix.maxRetries, 1);
 assert.equal(stabilitySlowThresholdsForTests.warnFraction, 0.5);
 
 console.log('stability classification test passed');
