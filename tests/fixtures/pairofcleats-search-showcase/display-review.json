@@ -29,6 +29,7 @@
         "human-code-rich",
         "human-prose-heading",
         "human-extracted-prose",
+        "human-records-hit",
         "human-no-results",
         "human-matched",
         "human-case-sensitive",
@@ -45,6 +46,7 @@
       "caseIds": [
         "human-stats",
         "human-explain",
+        "human-explain-full",
         "human-explain-prose"
       ]
     },
@@ -65,6 +67,9 @@
       "stability": "stable",
       "category": "help",
       "commandArgs": ["--help"],
+      "reviewExpect": {
+        "contains": ["PairOfCleats Search", "Usage", "Starter Recipes", "Notes"]
+      },
       "why": "Exercises the full help screen layout at each terminal size."
     },
     {
@@ -100,6 +105,9 @@
       "category": "human",
       "mode": "all",
       "query": "chunk",
+      "reviewExpect": {
+        "contains": ["Search Results", "Code Results (", "Code Comments Results (", "Text Results ("]
+      },
       "why": "Broad mixed result set that typically produces code, comments, and prose sections."
     },
     {
@@ -127,7 +135,22 @@
       "category": "human",
       "mode": "extracted-prose",
       "query": "\"Collect LSP-derived signature/hover metadata\"",
+      "reviewExpect": {
+        "contains": ["Code Comments Results ("]
+      },
       "why": "Exercises comment/extracted-prose rendering."
+    },
+    {
+      "id": "human-records-hit",
+      "title": "Records positive-hit output",
+      "stability": "stable",
+      "category": "human",
+      "mode": "records",
+      "query": "decision",
+      "reviewExpect": {
+        "contains": ["Records Results ("]
+      },
+      "why": "Provides a stable positive records hit for terminal review coverage."
     },
     {
       "id": "human-no-results",
@@ -136,6 +159,9 @@
       "category": "human",
       "mode": "code",
       "query": "definitely-no-match-token-xyz-nohit",
+      "reviewExpect": {
+        "contains": ["No matches", "Try broader terms"]
+      },
       "why": "Exercises the no-results state cleanly."
     },
     {
@@ -156,7 +182,23 @@
       "mode": "code",
       "query": "scoreBreakdown",
       "args": ["--path", "src/retrieval/output", "--explain"],
+      "reviewExpect": {
+        "contains": ["Code Results ("]
+      },
       "why": "Exercises score-breakdown-heavy result rendering."
+    },
+    {
+      "id": "human-explain-full",
+      "title": "Human explain full rendering",
+      "stability": "stable",
+      "category": "explain",
+      "mode": "code",
+      "query": "scoreBreakdown",
+      "args": ["--path", "src/retrieval/output", "--why"],
+      "reviewExpect": {
+        "contains": ["Call Summary", "Reads:"]
+      },
+      "why": "Shows the full explain tier with deeper relation and dataflow sections."
     },
     {
       "id": "human-explain-prose",
@@ -236,6 +278,9 @@
       "mode": "code",
       "query": "scoreBreakdown",
       "args": ["--path", "src/retrieval/output", "--json", "--compact"],
+      "reviewExpect": {
+        "contains": ["\"backend\":", "\"code\":"]
+      },
       "why": "Contrasts the human surface with compact JSON output."
     },
     {
@@ -246,6 +291,9 @@
       "mode": "code",
       "query": "parseSearchArgs",
       "args": ["--json", "--explain", "--stats"],
+      "reviewExpect": {
+        "contains": ["\"backend\":", "\"stats\":", "\"code\":"]
+      },
       "why": "Captures the heaviest machine-output shape for comparison."
     }
   ]

@@ -78,7 +78,7 @@ const captured = await withTemporaryEnv({ COLUMNS: '72' }, async () => await cap
     runCode: true,
     runProse: true,
     runExtractedProse: true,
-    runRecords: false,
+    runRecords: true,
     topN: 3,
     queryTokens: ['renderSearchOutput'],
     highlightRegex: /renderSearchOutput/g,
@@ -156,6 +156,7 @@ assert.match(cleanStdout, /Text Results \(1\)/);
 assert.doesNotMatch(cleanStdout, /Code Comments Results/);
 assert.match(cleanStdout, /backend sqlite/);
 assert.match(cleanStdout, /hits 1 code/);
+assert.doesNotMatch(cleanStdout, /modes .*records/u, 'expected header modes to omit suppressed empty sections');
 assert.equal(captured.stderr.trim(), '', 'expected diagnostics stderr to remain empty for normal human output');
 
 console.log('human render layout test passed');

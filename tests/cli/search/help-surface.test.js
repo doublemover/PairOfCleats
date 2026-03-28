@@ -21,6 +21,7 @@ assert.match(output, /--uses <symbol>/);
 assert.match(output, /--author <name>/);
 assert.match(output, /--import <path-or-symbol>/);
 assert.match(output, /--explain/);
+assert.match(output, /--why/);
 assert.match(output, /pairofcleats index build/);
 
 console.log('search help surface test passed');

@@ -33,7 +33,7 @@ export const buildSearchActions = ({ root, runNode }) => [
   },
   {
     label: 'lang-filter-test',
-    run: () => runNode('lang-filter-test', path.join(root, 'tests', 'retrieval', 'filters', 'lang-filter.test.js')),
+    run: () => runNode('lang-filter-test', path.join(root, 'tests', 'retrieval', 'filters', 'search-filter-contract-matrix.test.js')),
     covers: ['lang-filter-test']
   },
   {
@@ -48,7 +48,7 @@ export const buildSearchActions = ({ root, runNode }) => [
   },
   {
     label: 'ext-filter-test',
-    run: () => runNode('ext-filter-test', path.join(root, 'tests', 'retrieval', 'filters', 'ext-filter.test.js')),
+    run: () => runNode('ext-filter-test', path.join(root, 'tests', 'retrieval', 'filters', 'search-filter-contract-matrix.test.js')),
     covers: ['ext-filter-test']
   },
   {
@@ -83,7 +83,7 @@ export const buildSearchActions = ({ root, runNode }) => [
   },
   {
     label: 'search-windows-path-filter-test',
-    run: () => runNode('search-windows-path-filter-test', path.join(root, 'tests', 'cli', 'search', 'windows-path-filter.test.js')),
+    run: () => runNode('search-windows-path-filter-test', path.join(root, 'tests', 'cli', 'search', 'contract-matrix.test.js')),
     covers: []
   },
   {

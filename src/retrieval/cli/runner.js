@@ -1,5 +1,29 @@
 import { createError, ERROR_CODES, isErrorCode } from '../../shared/error-codes.js';
 import { formatHealthFailure, runRetrievalHealthChecks } from '../../shared/ops/health.js';
+import { ANSI } from '../../shared/cli/ansi-utils.js';
+
+const humanErrorHeader = (title) => `${ANSI.bold}${ANSI.fgRed}${title}${ANSI.reset}`;
+const humanErrorLabel = (label) => `${ANSI.fgDarkGray}${label}${ANSI.reset}`;
+
+export const formatHumanError = (message, errorCode) => {
+  const text = String(message || 'Search failed.').trim();
+  const lines = [
+    humanErrorHeader('Search Error'),
+    `${humanErrorLabel('code')} ${String(errorCode || ERROR_CODES.INTERNAL).toLowerCase()}`
+  ];
+  if (/was removed \(use ([^)]+)\)/u.test(text)) {
+    const match = text.match(/(--[a-z-]+) was removed \(use ([^)]+)\)\./iu);
+    if (match) {
+      lines.push(`${humanErrorLabel('flag')} ${match[1]}`);
+      lines.push(`${humanErrorLabel('next')} switch to ${match[2]}`);
+      return `${lines.join('\n')}\n${text}`;
+    }
+  }
+  if (/^Invalid --mode /u.test(text)) {
+    lines.push(`${humanErrorLabel('next')} choose one of code, prose, both, extracted-prose, records, or all`);
+  }
+  return `${lines.join('\n')}\n${text}`;
+};
 
 export const inferJsonOutputFromArgs = (rawArgs) => {
   if (!Array.isArray(rawArgs)) return { jsonOutput: false };
@@ -22,7 +46,7 @@ export const createRunnerHelpers = ({ emitOutput, exitOnError, jsonOutput, recor
     if (jsonOutput) {
       console.log(JSON.stringify({ ok: false, code: errorCode, message }, null, 2));
     } else {
-      console.error(message);
+      console.error(formatHumanError(message, errorCode));
     }
   };
 

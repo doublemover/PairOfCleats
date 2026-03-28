@@ -455,6 +455,9 @@ export function normalizeSearchOptions({
     || userConfig?.search?.sqliteFtsStemming === true;
 
   const explain = argv.explain === true || argv.why === true;
+  const explainTier = explain
+    ? (argv.why === true ? 'full' : 'summary')
+    : 'summary';
   const configDenseVectorRaw = userConfig?.search?.denseVectorMode;
   const configDenseVectorMode = normalizeDenseVectorMode(configDenseVectorRaw, 'merged');
   const cliDenseVectorRaw = argv['dense-vector-mode'];
@@ -565,6 +568,7 @@ export function normalizeSearchOptions({
     sqliteReadPragmas,
     fieldWeightsConfig: searchConfig.fieldWeights || null,
     explain,
+    explainTier,
     denseVectorMode,
     strict,
     backendArg,

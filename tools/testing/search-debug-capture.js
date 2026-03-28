@@ -3,6 +3,10 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { stripAnsi } from '../../src/shared/cli/ansi-utils.js';
 import * as nodePty from 'node-pty';
+import {
+  reconstructTerminalScreen,
+  summarizeRenderedTerminal
+} from './terminal-screen.js';
 
 const DEFAULT_TERM = 'xterm-256color';
 const DEFAULT_LOG_DIR_NAME = 'search-debug';
@@ -493,6 +497,8 @@ export const captureCommandTerminalRun = async ({
   const files = {
     terminalRaw: path.join(outputDir, 'terminal.ansi.log'),
     terminalPlain: path.join(outputDir, 'terminal.txt'),
+    screenTxt: path.join(outputDir, 'screen.txt'),
+    screenJson: path.join(outputDir, 'screen.json'),
     eventsJsonl: path.join(outputDir, 'events.jsonl'),
     commandTxt: path.join(outputDir, 'command.txt'),
     summaryTxt: path.join(outputDir, 'summary.txt'),
@@ -502,6 +508,25 @@ export const captureCommandTerminalRun = async ({
   const terminalBuffer = await writeBuffer(files.terminalRaw, chunks);
   const terminalText = terminalBuffer.toString('utf8');
   await writeText(files.terminalPlain, terminalText ? `${stripTerminalSequences(terminalText)}\n`.replace(/\n\n$/u, '\n') : '');
+  const reconstructedScreen = reconstructTerminalScreen(terminalText, {
+    columns: terminalColumns,
+    rows: terminalRows
+  });
+  await writeText(files.screenTxt, reconstructedScreen.text);
+  const baseScreenSummary = summarizeRenderedTerminal(reconstructedScreen.text, {
+    columns: terminalColumns
+  });
+  const screenSummary = {
+    ...baseScreenSummary,
+    overflowCount: Math.max(
+      Number(baseScreenSummary.overflowCount) || 0,
+      Number(reconstructedScreen.stats.wrapCount) || 0
+    )
+  };
+  await writeText(files.screenJson, `${JSON.stringify({
+    ...reconstructedScreen.stats,
+    ...screenSummary
+  }, null, 2)}\n`);
   await writeText(
     files.eventsJsonl,
     events.map((event) => `${JSON.stringify(event)}\n`).join('')
@@ -529,6 +554,10 @@ export const captureCommandTerminalRun = async ({
       rows: terminalRows,
       bytes: terminalBuffer.length
     },
+    screen: {
+      ...reconstructedScreen.stats,
+      ...screenSummary
+    },
     startedAt: new Date(startedAt).toISOString(),
     finishedAt: new Date(startedAt + wallMs).toISOString(),
     wallMs,
@@ -549,6 +578,8 @@ export const captureCommandTerminalRun = async ({
     `outputDir: ${outputDir}`,
     `terminalRaw: ${files.terminalRaw}`,
     `terminalPlain: ${files.terminalPlain}`,
+    `screenTxt: ${files.screenTxt}`,
+    `screenJson: ${files.screenJson}`,
     `eventsJsonl: ${files.eventsJsonl}`,
     `metaJson: ${files.metaJson}`,
     ''

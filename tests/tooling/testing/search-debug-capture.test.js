@@ -77,8 +77,31 @@ assert.match(
 );
 const terminalRaw = await fs.readFile(ptyCapture.files.terminalRaw, 'utf8');
 const terminalPlain = await fs.readFile(ptyCapture.files.terminalPlain, 'utf8');
+const screenTxt = await fs.readFile(ptyCapture.files.screenTxt, 'utf8');
+const screenJson = JSON.parse(await fs.readFile(ptyCapture.files.screenJson, 'utf8'));
 assert.match(terminalRaw, /\u001b\[36m/u, 'expected PTY raw log to preserve ANSI codes');
 assert.doesNotMatch(terminalPlain, /\u001b\[/u, 'expected PTY plain log to strip ANSI codes');
+assert.equal(screenTxt.trim(), 'pty', 'expected reconstructed PTY screen to preserve visible terminal content');
+assert.equal(screenJson.usedWidth >= 3, true, 'expected PTY screen summary to record visible width');
+
+const alignedPtyCapture = await captureCommandTerminalRun({
+  command: process.execPath,
+  args: [
+    '-e',
+    'process.stdout.write("\\u001b[2J\\u001b[HSearch Results\\u001b[20Celapsed 10ms\\r\\n");'
+  ],
+  cwd: root,
+  logsRoot,
+  label: 'aligned-pty',
+  env: {
+    ...process.env,
+    COLUMNS: '60',
+    LINES: '12'
+  },
+  trackedEnvKeys: ['COLUMNS', 'LINES']
+});
+const alignedScreen = await fs.readFile(alignedPtyCapture.files.screenTxt, 'utf8');
+assert.match(alignedScreen, /Search Results\s+elapsed 10ms/u, 'expected reconstructed PTY screen to preserve aligned spacing');
 
 const cliLabel = 'search-help';
 const beforeEntries = new Set(await fs.readdir(logsRoot));
@@ -129,5 +152,6 @@ const ptyCliDir = path.join(logsRoot, afterPtyEntries[0]);
 const ptyCliMeta = JSON.parse(await fs.readFile(path.join(ptyCliDir, 'meta.json'), 'utf8'));
 assert.equal(ptyCliMeta.mode, 'pty', 'expected PTY search debug capture status mode=pty');
 assert.equal(typeof ptyCliMeta.files.terminalRaw, 'string', 'expected PTY capture to persist terminal transcript');
+assert.equal(typeof ptyCliMeta.files.screenTxt, 'string', 'expected PTY capture to persist reconstructed screen');
 
 console.log('search debug capture test passed');

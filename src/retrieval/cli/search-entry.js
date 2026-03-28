@@ -29,6 +29,7 @@ const wrapParagraph = (text, width, indent = '') => {
 
 const heading = (text) => `${ANSI.bold}${text}${ANSI.reset}`;
 const dim = (text) => `${ANSI.fgDarkGray}${text}${ANSI.reset}`;
+const cyan = (text) => `${ANSI.fgCyan}${text}${ANSI.reset}`;
 
 const formatFlagList = (items, width) => items.flatMap((item) => wrapParagraph(item, width, '  '));
 
@@ -91,7 +92,8 @@ export function printHelp(stdout = process.stdout) {
     heading('Output'),
     ...formatFlagList([
       '--json / --compact  Emit machine-readable payloads.',
-      '--stats / --explain  Show retrieval metadata or ranking explanation.',
+      '--stats / --explain  Show retrieval metadata or summary ranking explanation.',
+      '--why  Show full explain detail, including deeper relation and dataflow sections.',
       '--ann / --no-ann / --backend <auto|sqlite|sqlite-fts|lmdb>'
     ], width),
     '',
@@ -100,6 +102,7 @@ export function printHelp(stdout = process.stdout) {
     '  pairofcleats search "Search Pipeline" --mode prose',
     '  pairofcleats search withLspSession --calls startProvider',
     '  pairofcleats search risk --risk severity=high --explain',
+    '  pairofcleats search scoreBreakdown --path src/retrieval/output --why',
     '',
     heading('Notes'),
     ...wrapParagraph(
@@ -113,5 +116,6 @@ export function printHelp(stdout = process.stdout) {
 }
 
 export function printVersion(stdout = process.stdout) {
-  stdout.write(`${getToolVersion() || '0.0.0'}\n`);
+  const version = getToolVersion() || '0.0.0';
+  stdout.write(`${heading('PairOfCleats Search')} ${cyan(`v${version}`)}\n`);
 }

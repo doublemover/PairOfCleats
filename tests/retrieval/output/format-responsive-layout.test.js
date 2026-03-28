@@ -56,8 +56,9 @@ const wide = formatShortChunk({
 
 assert.notEqual(narrow, wide, 'expected width-specific rendering to differ');
 assert.match(narrow, /\n  .*src\/retrieval\/cli\/render\.js/u);
-assert.match(stripAnsi(wide), /\n  .*src\/retrieval\/cli\/render\.js.*just now/u);
+assert.match(stripAnsi(wide), /\n  .*src\/retrieval\/cli\/render\.js.*(?:just now|ago|AM|PM)/u);
 assert.match(stripAnsi(wide), /\n  .*renderSearchOutput\(options\)/u);
+assert.doesNotMatch(stripAnsi(narrow), /src\/retrieval\/cli\/render\.js.* • .*?(?:just now|ago|AM|PM)/u);
 assert.doesNotMatch(stripAnsi(wide), /\n\s*\n/u, 'expected compact formatter output to avoid blank spacer lines');
 
 console.log('responsive short-format layout test passed');

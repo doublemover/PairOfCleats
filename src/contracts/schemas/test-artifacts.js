@@ -289,7 +289,10 @@ export const TEST_STABILITY_ARTIFACT_SCHEMA = {
     'history',
     'environment',
     'policy',
+    'diagnostics',
     'summary',
+    'suiteCategories',
+    'familyTrends',
     'families',
     'tests'
   ],
@@ -326,7 +329,7 @@ export const TEST_STABILITY_ARTIFACT_SCHEMA = {
     policy: {
       type: 'object',
       additionalProperties: false,
-      required: ['retry', 'quarantine', 'escalation'],
+      required: ['retry', 'quarantine', 'escalation', 'retryBySuiteCategory'],
       properties: {
         retry: {
           type: 'object',
@@ -356,6 +359,78 @@ export const TEST_STABILITY_ARTIFACT_SCHEMA = {
             slow: { type: 'string' },
             environmentSensitive: { type: 'string' }
           }
+        },
+        retryBySuiteCategory: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['hero', 'matrix', 'meta', 'soak', 'heavy-runtime'],
+          properties: {
+            hero: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['maxRetries', 'quarantine', 'note'],
+              properties: {
+                maxRetries: { type: 'integer' },
+                quarantine: { type: 'string' },
+                note: { type: 'string' }
+              }
+            },
+            matrix: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['maxRetries', 'quarantine', 'note'],
+              properties: {
+                maxRetries: { type: 'integer' },
+                quarantine: { type: 'string' },
+                note: { type: 'string' }
+              }
+            },
+            meta: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['maxRetries', 'quarantine', 'note'],
+              properties: {
+                maxRetries: { type: 'integer' },
+                quarantine: { type: 'string' },
+                note: { type: 'string' }
+              }
+            },
+            soak: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['maxRetries', 'quarantine', 'note'],
+              properties: {
+                maxRetries: { type: 'integer' },
+                quarantine: { type: 'string' },
+                note: { type: 'string' }
+              }
+            },
+            'heavy-runtime': {
+              type: 'object',
+              additionalProperties: false,
+              required: ['maxRetries', 'quarantine', 'note'],
+              properties: {
+                maxRetries: { type: 'integer' },
+                quarantine: { type: 'string' },
+                note: { type: 'string' }
+              }
+            }
+          }
+        }
+      }
+    },
+    diagnostics: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['expectedNegativeStderrIds', 'diagnosticsClasses'],
+      properties: {
+        expectedNegativeStderrIds: {
+          type: 'array',
+          items: { type: 'string' }
+        },
+        diagnosticsClasses: {
+          type: 'array',
+          items: { type: 'string' }
         }
       }
     },
@@ -370,7 +445,9 @@ export const TEST_STABILITY_ARTIFACT_SCHEMA = {
         'environmentSensitive',
         'failed',
         'timedOut',
-        'redo'
+        'redo',
+        'expectedNegativeStderr',
+        'unexpectedStderr'
       ],
       properties: {
         tests: { type: 'integer' },
@@ -380,7 +457,54 @@ export const TEST_STABILITY_ARTIFACT_SCHEMA = {
         environmentSensitive: { type: 'integer' },
         failed: { type: 'integer' },
         timedOut: { type: 'integer' },
-        redo: { type: 'integer' }
+        redo: { type: 'integer' },
+        expectedNegativeStderr: { type: 'integer' },
+        unexpectedStderr: { type: 'integer' }
+      }
+    },
+    suiteCategories: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['hero', 'matrix', 'meta', 'soak', 'heavy-runtime'],
+      properties: {
+        hero: { type: 'integer' },
+        matrix: { type: 'integer' },
+        meta: { type: 'integer' },
+        soak: { type: 'integer' },
+        'heavy-runtime': { type: 'integer' }
+      }
+    },
+    familyTrends: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'id',
+          'tests',
+          'unstable',
+          'flaky',
+          'slow',
+          'environmentSensitive',
+          'failed',
+          'timedOut',
+          'redo',
+          'avgDurationMs',
+          'maxDurationMs'
+        ],
+        properties: {
+          id: { type: 'string' },
+          tests: { type: 'integer' },
+          unstable: { type: 'integer' },
+          flaky: { type: 'integer' },
+          slow: { type: 'integer' },
+          environmentSensitive: { type: 'integer' },
+          failed: { type: 'integer' },
+          timedOut: { type: 'integer' },
+          redo: { type: 'integer' },
+          avgDurationMs: { type: 'number' },
+          maxDurationMs: { type: 'number' }
+        }
       }
     },
     families: {
@@ -426,10 +550,12 @@ export const TEST_STABILITY_ARTIFACT_SCHEMA = {
           'path',
           'lane',
           'family',
+          'suiteCategory',
           'status',
           'durationMs',
           'timeoutBudgetMs',
           'stabilityClass',
+          'diagnosticsClass',
           'outcomeClass',
           'historyWindow',
           'historyOutcomes',
@@ -441,12 +567,17 @@ export const TEST_STABILITY_ARTIFACT_SCHEMA = {
           path: { type: 'string' },
           lane: { type: 'string' },
           family: { type: 'string' },
+          suiteCategory: { type: 'string', enum: ['hero', 'matrix', 'meta', 'soak', 'heavy-runtime'] },
           status: { type: 'string' },
           durationMs: { type: 'number' },
           timeoutBudgetMs: { type: 'number' },
           stabilityClass: {
             type: 'string',
             enum: ['stable', 'slow', 'flaky', 'environment-sensitive']
+          },
+          diagnosticsClass: {
+            type: 'string',
+            enum: ['clean', 'expected-negative-stderr', 'unexpected-stderr']
           },
           outcomeClass: {
             type: 'string',

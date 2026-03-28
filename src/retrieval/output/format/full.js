@@ -31,8 +31,69 @@ import {
   formatLastModified,
   formatSignature,
   formatWrappedList,
+  truncatePathMiddle,
   toArray
 } from './display-meta.js';
+
+const normalizeSnippet = (value, maxLength = 220) => {
+  const raw = String(value || '').replace(/\s+/gu, ' ').trim();
+  if (!raw) return '';
+  return raw.length > maxLength ? `${raw.slice(0, Math.max(0, maxLength - 3))}...` : raw;
+};
+
+const looksKeywordish = (value) => {
+  const text = normalizeSnippet(value, 240);
+  if (!text) return false;
+  if (/[.?!:;]/u.test(text)) return false;
+  const tokens = text.split(/\s+/u).filter(Boolean);
+  return tokens.length >= 4 && tokens.every((token) => /^[a-z0-9_\-/]+$/iu.test(token));
+};
+
+const normalizeExcerptInfo = ({ chunk, mode, primaryTitle, displayName }) => {
+  const commentEntries = Array.isArray(chunk?.docmeta?.commentExcerpts)
+    ? chunk.docmeta.commentExcerpts
+    : [];
+  const commentExcerpt = commentEntries[0]?.text || chunk?.docmeta?.commentExcerpt || '';
+  if (mode === 'records') {
+    const summary = normalizeSnippet(
+      chunk?.docmeta?.doc
+      || chunk?.headline
+      || chunk?.docmeta?.record?.summary
+      || chunk?.docmeta?.record?.message,
+      220
+    );
+    return summary ? { label: 'summary', text: summary } : null;
+  }
+  if (mode === 'extracted-prose') {
+    const comment = normalizeSnippet(commentExcerpt || chunk?.headline, 220);
+    if (!comment) return null;
+    return {
+      label: looksKeywordish(comment) ? 'keywords' : 'comment',
+      text: comment
+    };
+  }
+  if (mode === 'prose') {
+    const excerpt = normalizeSnippet(chunk?.headline || chunk?.docmeta?.doc, 220);
+    if (!excerpt) return null;
+    const title = normalizeSnippet(primaryTitle || displayName, 220);
+    if (excerpt.toLowerCase() === title.toLowerCase()) {
+      return { label: 'section', text: excerpt };
+    }
+    return { label: 'excerpt', text: excerpt };
+  }
+  return null;
+};
+
+const summarizeItems = (items, limit) => {
+  const values = toArray(items).map((entry) => String(entry).trim()).filter(Boolean);
+  if (!values.length) return [];
+  const cap = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : values.length;
+  const trimmed = values.slice(0, cap);
+  if (values.length > trimmed.length) {
+    trimmed.push(`+${values.length - trimmed.length} more`);
+  }
+  return trimmed;
+};
 
 /**
  * Render a full, human-readable result entry.
@@ -46,6 +107,7 @@ export function formatFullChunk({
   score,
   scoreType,
   explain = false,
+  explainTier = 'summary',
   color,
   queryTokens = [],
   rx,
@@ -74,6 +136,7 @@ export function formatFullChunk({
   let out = '';
   const columns = Number.isFinite(layout?.columns) ? layout.columns : 108;
   const wrapWidth = Math.max(42, Math.min(Number.isFinite(layout?.contentWidth) ? layout.contentWidth : 104, columns - 6));
+  const fullExplain = explain && explainTier === 'full';
   const joinInlineParts = (parts, { indent = INDENT, maxWidth = wrapWidth, separator = ` ${colorText('•', ANSI.fgDarkGray)} ` } = {}) => {
     const filtered = parts.filter(Boolean);
     if (!filtered.length) return [];
@@ -128,8 +191,10 @@ export function formatFullChunk({
     ? formatSignature(signatureLabel, nameLabel || displayName)
     : '';
   const lastModLabel = formatLastModified(chunk.last_modified);
+  const maxFileWidth = Math.max(22, columns - (stripAnsi(INDENT).length + (lastModLabel ? lastModLabel.length + 2 : 0)));
+  const shortenedFilePath = truncatePathMiddle(chunk.file, Math.max(12, maxFileWidth - (lineRange ? lineRange.length + 1 : 0)));
   const filePathStyled = hyperlinkFileLabel({
-    label: italicColor(chunk.file, ANSI.fgLight),
+    label: italicColor(shortenedFilePath, ANSI.fgLight),
     filePath: chunk.file,
     line: chunk.startLine,
     rootDir: rootDir || process.cwd(),
@@ -159,18 +224,19 @@ export function formatFullChunk({
     if (!raw) return '';
     return rx ? raw.replace(rx, (match) => c.bold(c.yellow(match))) : raw;
   };
-  const proseLead = highlightHeadline(
-    chunk.headline
-    || ((mode === 'extracted-prose' || mode === 'prose') && primaryTitle !== displayName ? displayName : '')
-  );
-  if ((mode === 'prose' || mode === 'extracted-prose') && proseLead) {
-    const proseLabel = mode === 'extracted-prose'
-      ? metaChip({ label: '', value: 'comment', valueColor: ANSI.fgYellow })
-      : metaChip({ label: '', value: 'excerpt', valueColor: ANSI.fgCyan });
-    out += `${INDENT}${proseLabel} ${colorText(proseLead, ANSI.fgBrightWhite)}\n`;
+  const excerptInfo = normalizeExcerptInfo({ chunk, mode, primaryTitle, displayName });
+  if (excerptInfo?.text) {
+    const proseLabel = metaChip({
+      label: '',
+      value: excerptInfo.label,
+      valueColor: excerptInfo.label === 'comment'
+        ? ANSI.fgYellow
+        : (excerptInfo.label === 'keywords' ? ANSI.fgOrange : ANSI.fgCyan)
+    });
+    out += `${INDENT}${proseLabel} ${colorText(highlightHeadline(excerptInfo.text), ANSI.fgBrightWhite)}\n`;
   }
 
-  if (explain) {
+  if (fullExplain) {
     const chunkAuthors = Array.isArray(chunk.chunk_authors)
       ? chunk.chunk_authors
       : (Array.isArray(chunk.chunkAuthors) ? chunk.chunkAuthors : []);
@@ -310,7 +376,7 @@ export function formatFullChunk({
     }
     const entries = Array.from(calleeCounts.entries())
       .sort((a, b) => (b[1] - a[1]) || compareText(a[0], b[0]));
-    const maxEntries = 8;
+    const maxEntries = fullExplain ? 8 : 4;
     const rendered = entries.slice(0, maxEntries).map(([callee, count]) => (
       count > 1 ? `${callee} (${count})` : callee
     ));
@@ -332,7 +398,7 @@ export function formatFullChunk({
   }
   const callSummaries = toArray(chunk.codeRelations?.callSummaries);
   if (callSummaries.length) {
-    const summaries = callSummaries.slice(0, 3).map((summary) => {
+    const summaries = callSummaries.slice(0, fullExplain ? 3 : 2).map((summary) => {
       const args = Array.isArray(summary.args) && summary.args.length ? summary.args.join(', ') : '';
       const returns = Array.isArray(summary.returnTypes) && summary.returnTypes.length
         ? ` -> ${summary.returnTypes.join(' | ')}`
@@ -377,15 +443,15 @@ export function formatFullChunk({
   const visibility = chunk.docmeta?.visibility || modifiers?.visibility || null;
   if (visibility) modifierParts.push(`visibility=${visibility}`);
   if (chunk.docmeta?.methodKind) modifierParts.push(`kind=${chunk.docmeta.methodKind}`);
-  if (modifierParts.length) {
+  if (fullExplain && modifierParts.length) {
     out += formatWrappedList(labelToken('Modifiers', ANSI.fgDarkGray), modifierParts, { maxWidth: wrapWidth });
   }
   const decorators = toArray(chunk.docmeta?.decorators);
-  if (decorators.length) {
+  if (fullExplain && decorators.length) {
     out += formatWrappedList(labelToken('Decorators', ANSI.fgMagenta), decorators, { maxWidth: wrapWidth });
   }
   const bases = chunk.docmeta?.extends || chunk.docmeta?.bases || [];
-  if (Array.isArray(bases) && bases.length) {
+  if (fullExplain && Array.isArray(bases) && bases.length) {
     out += formatWrappedList(labelToken('Extends', ANSI.fgMagenta), bases, { maxWidth: wrapWidth });
   }
 
@@ -449,7 +515,10 @@ export function formatFullChunk({
     if (recordMeta.packageName) recordParts.push(`package=${recordMeta.packageName}`);
     if (recordMeta.packageEcosystem) recordParts.push(`ecosystem=${recordMeta.packageEcosystem}`);
     if (recordParts.length) {
-      out += c.yellow('   Record: ') + recordParts.join(', ') + '\n';
+      out += `${INDENT}${recordParts.map((entry) => metaChip({
+        value: entry,
+        valueColor: ANSI.fgYellow
+      })).join(' ')}\n`;
     }
     const routeParts = [];
     if (recordMeta.service) routeParts.push(`service=${recordMeta.service}`);
@@ -457,11 +526,11 @@ export function formatFullChunk({
     if (recordMeta.team) routeParts.push(`team=${recordMeta.team}`);
     if (recordMeta.owner) routeParts.push(`owner=${recordMeta.owner}`);
     if (recordMeta.assetId) routeParts.push(`asset=${recordMeta.assetId}`);
-    if (routeParts.length) {
+    if (fullExplain && routeParts.length) {
       out += c.gray('   Route: ') + routeParts.join(', ') + '\n';
     }
-    if (chunk.docmeta?.doc) {
-      out += `${INDENT}${labelToken('Summary', ANSI.fgDarkGray)} ${chunk.docmeta.doc}\n`;
+    if (chunk.docmeta?.doc && !excerptInfo?.text) {
+      out += `${INDENT}${labelToken('Summary', ANSI.fgDarkGray)} ${normalizeSnippet(chunk.docmeta.doc, 220)}\n`;
     }
   }
 
@@ -472,12 +541,12 @@ export function formatFullChunk({
   const commentText = (commentEntries && commentEntries.length)
     ? commentEntries[0]?.text
     : chunk.docmeta?.commentExcerpt;
-  if (commentText) {
+  if (fullExplain && commentText && mode === 'code') {
     const normalized = String(commentText).replace(/\s+/g, ' ').trim();
     const snippet = normalized.length > 240 ? `${normalized.slice(0, 240)}...` : normalized;
     out += c.gray('   Comment: ') + snippet + '\n';
   }
-  if (explain) {
+  if (fullExplain) {
     const inferredTypes = chunk.docmeta?.inferredTypes || null;
     if (inferredTypes) {
       const inferredParams = formatInferredMap(inferredTypes.params);
@@ -499,41 +568,41 @@ export function formatFullChunk({
     }
   }
   const awaits = toArray(chunk.docmeta?.awaits);
-  if (awaits.length) {
+  if (fullExplain && awaits.length) {
     out += formatWrappedList(labelToken('Awaits', ANSI.fgBlue), awaits.slice(0, 6), { maxWidth: wrapWidth });
   }
-  if (chunk.docmeta?.yields) {
+  if (fullExplain && chunk.docmeta?.yields) {
     out += c.blue(`${INDENT}Yields: `) + 'yes' + '\n';
   }
   const dataflow = chunk.docmeta?.dataflow || null;
   if (dataflow) {
     const reads = toArray(dataflow.reads);
     if (reads.length) {
-      out += formatWrappedList(labelToken('Reads', ANSI.fgDarkGray), reads.slice(0, 6), { maxWidth: wrapWidth });
+      out += formatWrappedList(labelToken('Reads', ANSI.fgDarkGray), summarizeItems(reads, fullExplain ? 6 : 4), { maxWidth: wrapWidth });
     }
     const writes = toArray(dataflow.writes);
     if (writes.length) {
-      out += formatWrappedList(labelToken('Writes', ANSI.fgDarkGray), writes.slice(0, 6), { maxWidth: wrapWidth });
+      out += formatWrappedList(labelToken('Writes', ANSI.fgDarkGray), summarizeItems(writes, fullExplain ? 6 : 4), { maxWidth: wrapWidth });
     }
     const mutations = toArray(dataflow.mutations);
-    if (mutations.length) {
-      out += formatWrappedList(labelToken('Mutates', ANSI.fgDarkGray), mutations.slice(0, 6), { maxWidth: wrapWidth });
+    if (fullExplain && mutations.length) {
+      out += formatWrappedList(labelToken('Mutates', ANSI.fgDarkGray), summarizeItems(mutations, 6), { maxWidth: wrapWidth });
     }
     const aliases = toArray(dataflow.aliases);
-    if (aliases.length) {
-      out += formatWrappedList(labelToken('Aliases', ANSI.fgDarkGray), aliases.slice(0, 6), { maxWidth: wrapWidth });
+    if (fullExplain && aliases.length) {
+      out += formatWrappedList(labelToken('Aliases', ANSI.fgDarkGray), summarizeItems(aliases, 6), { maxWidth: wrapWidth });
     }
     const globals = toArray(dataflow.globals);
-    if (globals.length) {
+    if (fullExplain && globals.length) {
       out += formatWrappedList(labelToken('Globals', ANSI.fgDarkGray), globals.slice(0, 6), { maxWidth: wrapWidth });
     }
     const nonlocals = toArray(dataflow.nonlocals);
-    if (nonlocals.length) {
+    if (fullExplain && nonlocals.length) {
       out += formatWrappedList(labelToken('Nonlocals', ANSI.fgDarkGray), nonlocals.slice(0, 6), { maxWidth: wrapWidth });
     }
   }
   const risk = chunk.docmeta?.risk || null;
-  if (risk) {
+  if (fullExplain && risk) {
     if (risk.severity) {
       out += c.red(`${INDENT}RiskLevel: ${risk.severity}`) + '\n';
     }
@@ -551,17 +620,17 @@ export function formatFullChunk({
   }
 
   const lintIssues = toArray(chunk.lint);
-  if (lintIssues.length) {
+  if (fullExplain && lintIssues.length) {
     out += c.red(`${INDENT}Lint: ${lintIssues.length} issues`) +
       (lintIssues.length ? c.gray(' | ') + lintIssues.slice(0, 2).map((lintMsg) => JSON.stringify(lintMsg.message)).join(', ') : '') + '\n';
   }
 
   const externalDocs = toArray(chunk.externalDocs);
-  if (externalDocs.length) {
+  if (fullExplain && externalDocs.length) {
     out += formatWrappedList(labelToken('Docs', ANSI.fgBlue), externalDocs, { maxWidth: wrapWidth });
   }
 
-  if (summaryState && rootDir && !chunk.docmeta?.record && allowSummary) {
+  if (summaryState && rootDir && !chunk.docmeta?.record && allowSummary && (!excerptInfo?.text || mode === 'code')) {
     if (index === 0) summaryState.lastCount = 0;
     if (index < 5) {
       let maxWords = 10;
@@ -573,7 +642,7 @@ export function formatFullChunk({
         maxWords = summaryWords;
       }
       summaryState.lastCount = summaryWords;
-      out += `${INDENT}${labelToken('Summary', ANSI.fgDarkGray)} ${bodySummary}\n`;
+      out += `${INDENT}${labelToken('Summary', ANSI.fgDarkGray)} ${normalizeSnippet(bodySummary, Math.max(36, wrapWidth - 14))}\n`;
     }
   }
 

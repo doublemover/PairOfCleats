@@ -3,7 +3,7 @@ import { getSearchUsage, parseSearchArgs } from '../../cli-args.js';
 import { runFederatedSearch } from '../../federation/coordinator.js';
 import { parseFederatedCliRequest } from '../../federation/args.js';
 import { stableStringify } from '../../../shared/stable-json.js';
-import { inferJsonOutputFromArgs } from '../runner.js';
+import { formatHumanError, inferJsonOutputFromArgs } from '../runner.js';
 
 /**
  * Parse CLI args and preserve legacy parse-error emission behavior.
@@ -35,7 +35,7 @@ export const parseCliArgsOrThrow = ({
       if (jsonOutput) {
         console.log(JSON.stringify({ ok: false, code: ERROR_CODES.INVALID_REQUEST, message }));
       } else {
-        console.error(message);
+        console.error(formatHumanError(message, ERROR_CODES.INVALID_REQUEST));
       }
     }
 
@@ -86,7 +86,7 @@ export const emitMissingQueryAndThrow = ({
     if (jsonOutput) {
       console.log(JSON.stringify({ ok: false, code: ERROR_CODES.INVALID_REQUEST, message }));
     } else {
-      console.error(message);
+      console.error(formatHumanError(message, ERROR_CODES.INVALID_REQUEST));
     }
   }
   if (exitOnError) process.exit(1);

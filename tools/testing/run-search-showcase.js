@@ -246,6 +246,153 @@ const ensureDir = (dirPath) => {
 
 const timestampToken = () => new Date().toISOString().replace(/[:.]/g, '-');
 
+const toFiniteNumber = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const isSectionLine = (line) => {
+  const text = String(line || '').trim();
+  if (!text) return false;
+  if (text.includes('Results (') || text.includes('Diagnostics (')) return true;
+  return text === 'Usage'
+    || text === 'Modes'
+    || text === 'Filters'
+    || text === 'Output'
+    || text === 'Starter Recipes'
+    || text === 'Notes';
+};
+
+const countRenderedSections = (text) => String(text || '')
+  .split(/\r?\n/u)
+  .filter((line) => isSectionLine(line))
+  .length;
+
+const countEmptyRenderedSections = (text) => {
+  const lines = String(text || '').split(/\r?\n/u);
+  let emptyCount = 0;
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!isSectionLine(lines[index])) continue;
+    let cursor = index + 1;
+    let hasContent = false;
+    while (cursor < lines.length && !isSectionLine(lines[cursor])) {
+      if (String(lines[cursor] || '').trim()) {
+        hasContent = true;
+        break;
+      }
+      cursor += 1;
+    }
+    if (!hasContent) emptyCount += 1;
+  }
+  return emptyCount;
+};
+
+const loadReviewSurfaceText = (meta, captureMode) => {
+  if (captureMode === 'pty') {
+    const terminalPlain = meta?.files?.terminalPlain;
+    return terminalPlain && fs.existsSync(terminalPlain) ? fs.readFileSync(terminalPlain, 'utf8') : '';
+  }
+  const stdoutPlain = meta?.files?.stdoutPlain;
+  const stderrPlain = meta?.files?.stderrPlain;
+  const stdoutText = stdoutPlain && fs.existsSync(stdoutPlain) ? fs.readFileSync(stdoutPlain, 'utf8') : '';
+  const stderrText = stderrPlain && fs.existsSync(stderrPlain) ? fs.readFileSync(stderrPlain, 'utf8') : '';
+  return `${stdoutText}${stderrText}`;
+};
+
+const evaluateReviewExpectations = (text, reviewExpect = null) => {
+  const contains = toArray(reviewExpect?.contains).map((entry) => String(entry));
+  const missingExpected = contains.filter((entry) => !text.includes(entry));
+  return {
+    missingExpected,
+    missingExpectedCount: missingExpected.length,
+    sectionCount: countRenderedSections(text),
+    emptySectionCount: countEmptyRenderedSections(text)
+  };
+};
+
+const deriveRunReview = (run) => {
+  const review = run?.review && typeof run.review === 'object' ? run.review : {};
+  const overflowCount = toFiniteNumber(review.overflowCount, 0);
+  const blankPairCount = toFiniteNumber(review.blankPairCount, 0);
+  const usedWidth = toFiniteNumber(review.usedWidth, 0);
+  const columns = toFiniteNumber(run?.terminalSize?.columns, 0);
+  const diagnosticPollution = toFiniteNumber(review.diagnosticPollution, 0);
+  const missingExpectedCount = toFiniteNumber(review.missingExpectedCount, 0);
+  const emptySectionCount = toFiniteNumber(review.emptySectionCount, 0);
+  const sectionCount = toFiniteNumber(review.sectionCount, 0);
+  const widthOverflow = columns > 0 && usedWidth > columns ? usedWidth - columns : 0;
+  const score = (run?.status !== 'ok' ? 1000 : 0)
+    + (overflowCount * 10)
+    + (blankPairCount * 20)
+    + (diagnosticPollution * 30)
+    + (missingExpectedCount * 40)
+    + (emptySectionCount * 50)
+    + widthOverflow;
+  return {
+    overflowCount,
+    blankPairCount,
+    usedWidth,
+    widthOverflow,
+    diagnosticPollution,
+    missingExpectedCount,
+    emptySectionCount,
+    sectionCount,
+    score
+  };
+};
+
+export const buildSearchShowcaseReviewReport = (summary) => {
+  const runs = Array.isArray(summary?.runs) ? summary.runs : [];
+  const scoredRuns = runs.map((run) => ({
+    id: run.id,
+    terminalSize: run.terminalSize?.id || 'default',
+    captureMode: run.captureMode || 'pipe',
+    status: run.status || 'unknown',
+    outputDir: run.outputDir,
+    ...deriveRunReview(run)
+  }));
+  const worstRuns = [...scoredRuns]
+    .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
+    .slice(0, 20);
+  return {
+    generatedAt: new Date().toISOString(),
+    suiteDir: summary?.suiteDir || null,
+    totalRuns: runs.length,
+    overflowCount: scoredRuns.reduce((total, run) => total + run.overflowCount, 0),
+    blankPairCount: scoredRuns.reduce((total, run) => total + run.blankPairCount, 0),
+    diagnosticPollutionCount: scoredRuns.reduce((total, run) => total + run.diagnosticPollution, 0),
+    missingExpectedCount: scoredRuns.reduce((total, run) => total + run.missingExpectedCount, 0),
+    emptySectionCount: scoredRuns.reduce((total, run) => total + run.emptySectionCount, 0),
+    worstRuns
+  };
+};
+
+const formatSearchShowcaseReviewReport = (report) => {
+  const lines = [
+    'Search Display Review',
+    `suiteDir: ${report?.suiteDir || '(unknown)'}`,
+    `totalRuns: ${report?.totalRuns || 0}`,
+    `overflowCount: ${report?.overflowCount || 0}`,
+    `blankPairCount: ${report?.blankPairCount || 0}`,
+    `diagnosticPollutionCount: ${report?.diagnosticPollutionCount || 0}`,
+    `missingExpectedCount: ${report?.missingExpectedCount || 0}`,
+    `emptySectionCount: ${report?.emptySectionCount || 0}`,
+    'worstRuns:'
+  ];
+  const worstRuns = Array.isArray(report?.worstRuns) ? report.worstRuns : [];
+  if (!worstRuns.length) {
+    lines.push('  (none)');
+  } else {
+    for (const run of worstRuns) {
+      lines.push(
+        `  ${run.id}@${run.terminalSize} score=${run.score} overflow=${run.overflowCount} blankPairs=${run.blankPairCount} missing=${run.missingExpectedCount} emptySections=${run.emptySectionCount} outputDir=${run.outputDir}`
+      );
+    }
+  }
+  lines.push('');
+  return lines.join('\n');
+};
+
 const hasUsableIndex = (repoRoot) => {
   const userConfig = loadUserConfig(repoRoot);
   const dirs = [
@@ -358,6 +505,8 @@ export const runSearchShowcaseCli = async (argv = process.argv.slice(2)) => {
           args: [entrypoint, ...commandArgs],
           parseStdoutAsJson: false
         });
+      const reviewText = loadReviewSurfaceText(meta, meta.mode || 'pipe');
+      const expectationReview = evaluateReviewExpectations(reviewText, entry.reviewExpect || null);
       const status = meta.exitCode === expectedExitCode ? 'ok' : 'failed';
       if (status !== 'ok') failures += 1;
       runs.push({
@@ -373,6 +522,21 @@ export const runSearchShowcaseCli = async (argv = process.argv.slice(2)) => {
         outputDir: meta.outputDir,
         query: entry.query || null,
         mode: entry.mode || null,
+        review: meta.mode === 'pty'
+          ? {
+            overflowCount: Number(meta.screen?.overflowCount) || 0,
+            blankPairCount: Number(meta.screen?.blankPairCount) || 0,
+            usedWidth: Number(meta.screen?.usedWidth) || 0,
+            ...expectationReview
+          }
+          : {
+            diagnosticPollution: entry.category === 'machine'
+              && meta.stdout?.parsedAsJson === false
+              && Number(meta.stderr?.bytes || 0) > 0
+              ? 1
+              : 0,
+            ...expectationReview
+          },
         terminalSize: {
           id: terminalSize.id,
           columns: terminalSize.columns,
@@ -397,6 +561,9 @@ export const runSearchShowcaseCli = async (argv = process.argv.slice(2)) => {
     runs
   };
   fs.writeFileSync(path.join(suiteDir, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
+  const reviewReport = buildSearchShowcaseReviewReport(summary);
+  fs.writeFileSync(path.join(suiteDir, 'review-report.json'), `${JSON.stringify(reviewReport, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(path.join(suiteDir, 'review-report.txt'), formatSearchShowcaseReviewReport(reviewReport), 'utf8');
 
   if (options.jsonSummary) {
     console.log(JSON.stringify(summary, null, 2));

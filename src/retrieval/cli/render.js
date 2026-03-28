@@ -32,8 +32,8 @@ const resolveHumanLayout = (stream = process.stdout) => {
   return {
     columns,
     contentWidth: Math.max(54, columns - 4),
-    isNarrow: columns <= 88,
-    isMedium: columns > 88 && columns <= 128,
+    isNarrow: columns <= 80,
+    isMedium: columns > 80 && columns <= 120,
     isWide: columns >= 160,
     cacheKey: `cols:${columns}`
   };
@@ -112,6 +112,34 @@ const makeSectionHeader = ({ label, count, color, layout }) => {
   return `${title} ${colorText('─'.repeat(ruleWidth), ANSI.fgDarkGray)}`;
 };
 
+const buildNoResultsLines = ({
+  color,
+  layout,
+  queryLabel,
+  renderedModeLabels
+}) => {
+  const lines = [
+    color.bold('No matches'),
+    ...wrapWords(
+      `Nothing matched ${queryLabel ? `"${queryLabel}"` : 'the current query'} in ${renderedModeLabels.join(', ') || 'the selected modes'}.`,
+      {
+        width: layout.columns,
+        firstPrefix: '  ',
+        restPrefix: '  '
+      }
+    ),
+    ...wrapWords(
+      'Try broader terms, relax filters, switch mode, or rebuild indexes if the corpus changed.',
+      {
+        width: layout.columns,
+        firstPrefix: '  ',
+        restPrefix: '  '
+      }
+    )
+  ];
+  return lines;
+};
+
 const parseDiagnosticKv = (text) => {
   const pairs = {};
   const pattern = /(\w+)=("([^"]*)"|[^\s]+)/gu;
@@ -147,6 +175,21 @@ const normalizeDiagnosticEntries = (profileInfo) => {
       next: parsed.next || null
     };
   });
+};
+
+const applyJsonDiagnosticNormalization = (payload, profileInfo) => {
+  if (!payload?.stats) return;
+  const diagnostics = normalizeDiagnosticEntries(profileInfo);
+  if (!diagnostics.length) return;
+  payload.stats.diagnostics = diagnostics;
+  if (payload.stats.profile && typeof payload.stats.profile === 'object') {
+    payload.stats.profile = {
+      ...payload.stats.profile,
+      warnings: diagnostics
+        .filter((entry) => entry.kind === 'warning' && entry.message)
+        .map((entry) => entry.message)
+    };
+  }
 };
 
 const formatDiagnosticEntry = (entry, { layout, color }) => {
@@ -221,6 +264,12 @@ const buildHumanSections = ({
   return sections;
 };
 
+const sectionModeLabel = (mode) => {
+  if (mode === 'extracted-prose') return 'comments';
+  if (mode === 'prose') return 'text';
+  return mode;
+};
+
 /**
  * Render retrieval results in JSON or TTY format and append derived output
  * sections (bundles, stats, explain/trust surfaces) before emission.
@@ -234,6 +283,7 @@ export function renderSearchOutput({
   jsonOutput,
   jsonCompact,
   explain,
+  explainTier = 'summary',
   color,
   rootDir,
   backendLabel,
@@ -244,6 +294,7 @@ export function renderSearchOutput({
   runExtractedProse,
   runRecords,
   topN,
+  rawQuery = null,
   queryTokens,
   highlightRegex,
   contextExpansionEnabled,
@@ -477,6 +528,8 @@ export function renderSearchOutput({
     });
   }
 
+  applyJsonDiagnosticNormalization(payload, profileInfo);
+
   const budgetPolicy = normalizeOutputBudgetPolicy(outputBudget);
   const outputPayload = applyOutputBudgetPolicy(payload, budgetPolicy);
 
@@ -576,17 +629,23 @@ export function renderSearchOutput({
         layout.columns
       )
     );
-    if (queryTokens.length) {
-      writeLine(outputStream, `${colorText('query', ANSI.fgDarkGray)} ${color.bold(queryTokens.join(' '))}`);
+    const queryLabel = typeof rawQuery === 'string' && rawQuery.trim()
+      ? rawQuery.trim()
+      : queryTokens.join(' ');
+    if (queryLabel) {
+      writeLine(outputStream, `${colorText('query', ANSI.fgDarkGray)} ${color.bold(queryLabel)}`);
     }
-    const backendModeLines = buildWrappedSummaryLines([
-      `${colorText('backend', ANSI.fgDarkGray)} ${backendLabel}`,
-      `${colorText('modes', ANSI.fgDarkGray)} ${[
+    const renderedModeLabels = sectionInputs.length
+      ? [...new Set(sectionInputs.map((section) => sectionModeLabel(section.mode)).filter(Boolean))]
+      : [
         runCode ? 'code' : null,
         runExtractedProse ? 'comments' : null,
         runProse ? 'text' : null,
         runRecords ? 'records' : null
-      ].filter(Boolean).join(', ')}`
+      ].filter(Boolean);
+    const backendModeLines = buildWrappedSummaryLines([
+      `${colorText('backend', ANSI.fgDarkGray)} ${backendLabel}`,
+      `${colorText('modes', ANSI.fgDarkGray)} ${renderedModeLabels.join(', ')}`
     ], { width: layout.columns });
     backendModeLines.forEach((line) => writeLine(outputStream, line));
     if (countSummary) {
@@ -603,7 +662,14 @@ export function renderSearchOutput({
     writeLine(outputStream);
 
     if (!sectionInputs.length) {
-      writeLine(outputStream, color.yellow('No results matched the current query.'));
+      for (const line of buildNoResultsLines({
+        color,
+        layout,
+        queryLabel,
+        renderedModeLabels
+      })) {
+        writeLine(outputStream, line);
+      }
       writeLine(outputStream);
     }
 
@@ -623,6 +689,7 @@ export function renderSearchOutput({
           score: hit.score,
           scoreType: hit.scoreType,
           explain,
+          explainTier,
           color,
           queryTokens,
           rx: highlightRegex,

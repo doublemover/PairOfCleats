@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
+  buildSearchShowcaseReviewReport,
   loadSearchShowcaseDataset,
   selectSearchShowcaseCases,
   resolveTerminalSizeMatrix
@@ -95,5 +96,35 @@ const { dataset: displayReview } = loadSearchShowcaseDataset(displayReviewPath);
 assert.ok(Array.isArray(displayReview.cases) && displayReview.cases.length >= 12, 'expected broad display review catalog');
 assert.ok(displayReview.cases.some((entry) => entry.id === 'cli-help'), 'expected help case in display review dataset');
 assert.ok(displayReview.cases.some((entry) => entry.id === 'human-no-results'), 'expected empty-state case in display review dataset');
+assert.ok(displayReview.cases.some((entry) => entry.id === 'human-records-hit'), 'expected positive records case in display review dataset');
+assert.ok(
+  displayReview.cases.some((entry) => entry.id === 'human-default-mixed' && Array.isArray(entry.reviewExpect?.contains)),
+  'expected review expectations on mixed human output case'
+);
+
+const reviewReport = buildSearchShowcaseReviewReport({
+  suiteDir: path.join(root, '.testLogs', 'fake-search-review'),
+  runs: [
+    {
+      id: 'demo',
+      status: 'ok',
+      captureMode: 'pty',
+      outputDir: path.join(root, '.testLogs', 'fake-search-review', 'demo'),
+      terminalSize: { id: '72x20', columns: 72, lines: 20 },
+      review: {
+        overflowCount: 2,
+        blankPairCount: 1,
+        missingExpectedCount: 1,
+        emptySectionCount: 0,
+        sectionCount: 3,
+        usedWidth: 72
+      }
+    }
+  ]
+});
+assert.equal(reviewReport.overflowCount, 2, 'expected review report to aggregate overflow counts');
+assert.equal(reviewReport.blankPairCount, 1, 'expected review report to aggregate blank pairs');
+assert.equal(reviewReport.missingExpectedCount, 1, 'expected review report to aggregate missing expected content');
+assert.equal(reviewReport.worstRuns[0].id, 'demo', 'expected review report to rank captured runs');
 
 console.log('search showcase fixture test passed');

@@ -281,6 +281,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       sqliteReadPragmas,
       fieldWeightsConfig,
       explain,
+      explainTier,
       allowSparseFallback,
       allowUnsafeMix,
       denseVectorMode,
@@ -519,11 +520,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       annEnabledEffective = true;
     }
     syncAnnFlags();
-    if (emitOutput && profileWarnings.length) {
-      for (const warning of profileWarnings) {
-        console.warn(`[search] ${warning}`);
-      }
-    }
     const sqliteCodePathExists = !sqliteRootsMixed && await pathExists(sqliteCodePath);
     const sqliteProsePathExists = !sqliteRootsMixed && await pathExists(sqliteProsePath);
     const sqliteExtractedPathExists = !sqliteRootsMixed && await pathExists(sqliteExtractedProsePath);
@@ -1112,6 +1108,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       jsonOutput,
       jsonCompact,
       explain,
+      explainTier,
       rootDir,
       userConfig,
       metricsDir,
@@ -1232,9 +1229,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   } finally {
     if (telemetry?.emitResourceWarnings) {
       telemetry.emitResourceWarnings({
-        warn: (message) => {
-          if (emitOutput) console.warn(message);
-        }
+        warn: () => {}
       });
     }
     if (typeof queryPlanCache?.persist === 'function') {

@@ -13,8 +13,23 @@ import {
   buildFormatCacheKey,
   buildQueryHash,
   formatLastModified,
-  formatSignature
+  formatSignature,
+  truncatePathMiddle
 } from './display-meta.js';
+
+const normalizeSnippet = (value, maxLength = 140) => {
+  const raw = String(value || '').replace(/\s+/gu, ' ').trim();
+  if (!raw) return '';
+  return raw.length > maxLength ? `${raw.slice(0, Math.max(0, maxLength - 3))}...` : raw;
+};
+
+const looksKeywordish = (value) => {
+  const text = normalizeSnippet(value, 180);
+  if (!text) return false;
+  if (/[.?!:;]/u.test(text)) return false;
+  const tokens = text.split(/\s+/u).filter(Boolean);
+  return tokens.length >= 4 && tokens.every((token) => /^[a-z0-9_\-/]+$/iu.test(token));
+};
 
 /**
  * Render a compact, single-line result entry.
@@ -28,6 +43,7 @@ export function formatShortChunk({
   score,
   scoreType,
   explain = false,
+  explainTier = 'summary',
   color,
   queryTokens = [],
   rx,
@@ -53,14 +69,14 @@ export function formatShortChunk({
   let out = '';
   const isNarrow = Boolean(layout?.isNarrow);
   const columns = Number.isFinite(layout?.columns) ? layout.columns : 108;
-  const bullet = colorText(' • ', ANSI.fgDarkGray);
+  const fullExplain = explain && explainTier === 'full';
   const rightAlign = (left, right, indent = '') => {
     if (!right) return `${indent}${left}`;
     const maxWidth = Math.max(24, columns - stripAnsi(indent).length);
     const leftWidth = stripAnsi(left).length;
     const rightWidth = stripAnsi(right).length;
     if (leftWidth + rightWidth + 2 > maxWidth) {
-      return `${indent}${left}${bullet}${right}`;
+      return `${indent}${left}\n${indent}${right}`;
     }
     return `${indent}${left}${' '.repeat(Math.max(1, maxWidth - leftWidth - rightWidth))}${right}`;
   };
@@ -80,8 +96,10 @@ export function formatShortChunk({
     ? formatSignature(signatureLabel, nameLabel || displayName)
     : '';
   const lastModLabel = formatLastModified(chunk.last_modified);
+  const maxFileWidth = Math.max(18, columns - (2 + (lastModLabel ? lastModLabel.length + 2 : 0)));
+  const shortenedFilePath = truncatePathMiddle(chunk.file, Math.max(12, maxFileWidth - (lineRange ? lineRange.length + 1 : 0)));
   const filePathStyled = hyperlinkFileLabel({
-    label: italicColor(chunk.file, ANSI.fgLight),
+    label: italicColor(shortenedFilePath, ANSI.fgLight),
     filePath: chunk.file,
     line: chunk.startLine,
     rootDir,
@@ -122,25 +140,35 @@ export function formatShortChunk({
     if (vulnId) recordBits.push(vulnId);
     if (recordMeta.packageName) recordBits.push(recordMeta.packageName);
     if (recordBits.length) {
-      out += color.yellow(` [${recordBits.join(' | ')}]`);
+      out += `\n  ${recordBits.map((entry) => metaChip({ value: entry, valueColor: ANSI.fgYellow })).join(' ')}`;
     }
   }
-  if (explain && chunk.last_author) out += color.green(` by ${chunk.last_author}`);
+  if (fullExplain && chunk.last_author) out += color.green(` by ${chunk.last_author}`);
   const highlightSnippet = (text) => (
     rx ? String(text || '').replace(rx, (m) => color.bold(color.yellow(m))) : String(text || '')
   );
-  const snippet = (mode === 'prose' || mode === 'extracted-prose')
-    ? (
-      chunk.headline
-        ? highlightSnippet(chunk.headline)
-        : (primaryTitle !== displayName ? highlightSnippet(displayName) : '')
-    )
-    : '';
-  if (snippet) {
-    const snippetLabel = mode === 'extracted-prose'
-      ? metaChip({ value: 'comment', valueColor: ANSI.fgYellow })
-      : metaChip({ value: 'excerpt', valueColor: ANSI.fgCyan });
-    out += `\n  ${snippetLabel} ${snippet}`;
+  const rawSnippet = mode === 'records'
+    ? normalizeSnippet(chunk.docmeta?.doc || chunk.headline)
+    : (
+      mode === 'extracted-prose'
+        ? normalizeSnippet(chunk.docmeta?.commentExcerpts?.[0]?.text || chunk.docmeta?.commentExcerpt || chunk.headline)
+        : (mode === 'prose' ? normalizeSnippet(chunk.headline || chunk.docmeta?.doc) : '')
+    );
+  const snippetLabel = mode === 'records'
+    ? 'summary'
+    : (mode === 'extracted-prose'
+        ? (looksKeywordish(rawSnippet) ? 'keywords' : 'comment')
+        : 'excerpt');
+  const displaySnippet = rawSnippet && normalizeSnippet(primaryTitle).toLowerCase() === rawSnippet.toLowerCase()
+    ? ''
+    : rawSnippet;
+  if (displaySnippet) {
+    out += `\n  ${metaChip({
+      value: snippetLabel,
+      valueColor: snippetLabel === 'comment'
+        ? ANSI.fgYellow
+        : (snippetLabel === 'keywords' ? ANSI.fgOrange : ANSI.fgCyan)
+    })} ${highlightSnippet(displaySnippet)}`;
   }
 
   if (matched && queryTokens.length && chunk.headline) {
