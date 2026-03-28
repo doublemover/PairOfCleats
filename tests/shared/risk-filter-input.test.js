@@ -33,8 +33,8 @@ const aliased = buildRiskFilterInput({
   tag: 'sql',
   source: 'req body',
   sink: 'db.query',
-  flow_id: 'sha1:abc',
-  source_rule: 'source.req.body',
+  'flow-id': 'sha1:abc',
+  'source-rule': 'source.req.body',
   'sink-rule': 'sink.sql.query'
 });
 

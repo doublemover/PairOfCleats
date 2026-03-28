@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 
-import { withLspTestPath } from '../../helpers/lsp-runtime.js';
+import { cleanupLspTestRuntime, withLspTestPath } from '../../helpers/lsp-runtime.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -47,13 +47,19 @@ const runSingleLanguageCase = async ({
   paramTypes,
   chunkUid
 }) => {
+  await cleanupLspTestRuntime({
+    reason: `configured_lsp_signature_case_${mode}_start`,
+    strict: true
+  });
   const docConfig = docsByLanguage[languageId];
   if (!docConfig) throw new Error(`missing test doc config for ${languageId}`);
   const fileName = `sample${docConfig.ext}`;
   const virtualPath = `.poc-vfs/src/${fileName}#seg:${mode}.txt`;
   const docText = docConfig.text;
+  const configuredServerId = `test-${mode}`;
+  const configuredProviderId = `lsp-${configuredServerId}`;
   const serverConfig = {
-    id: 'test',
+    id: configuredServerId,
     cmd: process.execPath,
     args: [serverPath, '--mode', mode],
     languages: [languageId],
@@ -74,7 +80,7 @@ const runSingleLanguageCase = async ({
     repoRoot: tempRoot,
     buildRoot: tempRoot,
     toolingConfig: {
-      enabledTools: ['lsp-test'],
+      enabledTools: [configuredProviderId],
       lsp: {
         enabled: true,
         servers: [serverConfig]
@@ -113,11 +119,15 @@ const runSingleLanguageCase = async ({
   assert.equal(hit.payload?.returnType, returnType, `unexpected returnType for ${languageId}`);
   assert.equal(result.metrics?.providersExecuted, 1, `expected one executed provider for ${languageId}`);
   assert.equal(
-    Number(result.metrics?.providerRuntime?.['lsp-test']?.requests?.requests || 0) > 0,
+    Number(result.metrics?.providerRuntime?.[configuredProviderId]?.requests?.requests || 0) > 0,
     true,
     `expected request metrics for ${languageId}`
   );
-  assert.equal(result.metrics?.providerRuntime?.['lsp-test']?.degraded?.active, false, `unexpected degraded mode for ${languageId}`);
+  assert.equal(
+    result.metrics?.providerRuntime?.[configuredProviderId]?.degraded?.active,
+    false,
+    `unexpected degraded mode for ${languageId}`
+  );
   for (const [name, expectedType] of Object.entries(paramTypes)) {
     assert.equal(
       hit.payload?.paramTypes?.[name]?.[0]?.type,

@@ -40,9 +40,9 @@ const normalizeRiskFilterObject = (filters) => {
     tag: normalizeFilterList(filters.tag ?? filters.tags),
     source: normalizeFilterList(filters.source),
     sink: normalizeFilterList(filters.sink),
-    sourceRule: normalizeFilterList(filters.sourceRule ?? filters.source_rule),
-    sinkRule: normalizeFilterList(filters.sinkRule ?? filters.sink_rule),
-    flowId: normalizeFilterList(filters.flowId ?? filters.flow_id)
+    sourceRule: normalizeFilterList(filters.sourceRule ?? filters.source_rule ?? filters['source-rule']),
+    sinkRule: normalizeFilterList(filters.sinkRule ?? filters.sink_rule ?? filters['sink-rule']),
+    flowId: normalizeFilterList(filters.flowId ?? filters.flow_id ?? filters['flow-id'])
   };
   return Object.values(normalized).some((entry) => entry.length) ? normalized : null;
 };
@@ -167,7 +167,6 @@ export const matchesRiskPartialFilters = (flow, filters) => {
   const sinkRuleSet = new Set(filters.sinkRule || []);
   const flowIdSet = new Set(filters.flowId || []);
 
-  if (flowIdSet.size && !flowIdSet.has(flow?.partialFlowId || '')) return false;
   if (sourceSet.size && !includesAny(sourceSet, collectEndpointLabels(flow?.source))) return false;
   if (sinkSet.size) {
     const frontierLabels = [

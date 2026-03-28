@@ -278,6 +278,7 @@ const main = () => {
   const startedAt = toIso(startedAtMs);
   const steps = [];
   const shippedSurfaceRegistry = loadShippedSurfaces(root);
+  const { version: packageVersion } = readPackageVersion(root);
   const selectedSurfaces = parseSelectorSet(surfacesArg);
   const selectedPhases = parseSelectorSet(phasesArg);
   const knownSurfaceIds = new Set(shippedSurfaceRegistry.surfaces.map((surface) => surface.id.toLowerCase()));
@@ -286,23 +287,24 @@ const main = () => {
       throw new Error(`release-check: unknown surface id ${surfaceId}.`);
     }
   }
-  const availableSurfacePhases = getReleaseCheckSurfacePhases(root);
-  const knownPhases = new Set([...BASELINE_PHASES, ...availableSurfacePhases]);
+  const allSurfacePhases = getReleaseCheckSurfacePhases(root);
+  const knownPhases = new Set([...BASELINE_PHASES, ...allSurfacePhases]);
   for (const phase of selectedPhases || []) {
     if (!knownPhases.has(phase)) {
       throw new Error(`release-check: unknown phase ${phase}.`);
     }
   }
   const selectedSurfacePhases = selectedPhases
-    ? availableSurfacePhases.filter((phase) => selectedPhases.has(phase))
+    ? allSurfacePhases.filter((phase) => selectedPhases.has(phase))
     : null;
   const releaseSteps = getReleaseCheckSurfaceSteps(root, {
     surfaceIds: selectedSurfaces ? Array.from(selectedSurfaces) : null,
     phases: selectedSurfacePhases
   });
+  const availableSelectedSurfacePhases = Array.from(new Set(releaseSteps.map((step) => step.phase)));
   const executedPhases = [];
   const includePhase = (phase) => !selectedPhases || selectedPhases.has(phase);
-  let version = null;
+  let version = packageVersion;
   let ok = true;
 
   if (includePhase('changelog')) {
@@ -384,7 +386,7 @@ const main = () => {
     if (pythonToolchainStep.status === 'failed') ok = false;
   }
 
-  for (const stepPhase of availableSurfacePhases) {
+  for (const stepPhase of availableSelectedSurfacePhases) {
     if (includePhase(stepPhase) && !executedPhases.includes(stepPhase)) {
       executedPhases.push(stepPhase);
     }
