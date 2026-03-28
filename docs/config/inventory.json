@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-28T09:37:53.349Z",
+  "generatedAt": "2026-03-28T12:41:50.052Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3728,8 +3728,8 @@
       "files": [
         "src/index/build/failure-taxonomy.js",
         "src/shared/env/runtime.js",
+        "tests/cli/search/contract-matrix.test.js",
         "tests/cli/search/explain-symbol.test.js",
-        "tests/cli/search/windows-path-filter.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/search-filters-repo.js",
         "tests/helpers/sqlite-incremental.js",
@@ -4598,14 +4598,14 @@
         ]
       },
       {
-        "file": "tests/indexing/map/build-symbol-identity.test.js",
+        "file": "tests/indexing/map/chunkuid-join.test.js",
         "flags": [
           "include",
           "strict"
         ]
       },
       {
-        "file": "tests/indexing/map/chunkuid-join.test.js",
+        "file": "tests/indexing/map/code-map-contract-matrix.test.js",
         "flags": [
           "include",
           "strict"
@@ -6735,8 +6735,8 @@
         "count": 9,
         "files": [
           "src/map/build-map.js",
-          "tests/indexing/map/build-symbol-identity.test.js",
           "tests/indexing/map/chunkuid-join.test.js",
+          "tests/indexing/map/code-map-contract-matrix.test.js",
           "tests/shared/cache/reuse-determinism.test.js",
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
@@ -6998,8 +6998,8 @@
         "flag": "strict",
         "count": 6,
         "files": [
-          "tests/indexing/map/build-symbol-identity.test.js",
           "tests/indexing/map/chunkuid-join.test.js",
+          "tests/indexing/map/code-map-contract-matrix.test.js",
           "tools/index/reconcile-identity.js",
           "tools/index/validate.js",
           "tools/tooling/doctor.js",
