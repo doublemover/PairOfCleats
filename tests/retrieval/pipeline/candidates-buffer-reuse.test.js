@@ -114,17 +114,54 @@ const idx = {
 
 const pipeline = createSearchPipeline(context);
 
-await pipeline(idx, 'code', null);
-const allocationsAfterFirst = {
-  candidate: candidatePool.stats.allocations,
-  score: scoreBufferPool.stats.allocations
-};
+const cases = [
+  {
+    name: 'pipeline reuse avoids new candidate and score buffer allocations',
+    async run() {
+      await pipeline(idx, 'code', null);
+      const allocationsAfterFirst = {
+        candidate: candidatePool.stats.allocations,
+        score: scoreBufferPool.stats.allocations
+      };
 
-await pipeline(idx, 'code', null);
+      await pipeline(idx, 'code', null);
 
-assert.ok(candidatePool.stats.reuses > 0, 'expected candidate pool reuse');
-assert.ok(scoreBufferPool.stats.reuses > 0, 'expected score buffer reuse');
-assert.equal(candidatePool.stats.allocations, allocationsAfterFirst.candidate, 'no extra candidate allocations');
-assert.equal(scoreBufferPool.stats.allocations, allocationsAfterFirst.score, 'no extra score allocations');
+      assert.ok(candidatePool.stats.reuses > 0, 'expected candidate pool reuse');
+      assert.ok(scoreBufferPool.stats.reuses > 0, 'expected score buffer reuse');
+      assert.equal(candidatePool.stats.allocations, allocationsAfterFirst.candidate, 'no extra candidate allocations');
+      assert.equal(scoreBufferPool.stats.allocations, allocationsAfterFirst.score, 'no extra score allocations');
+    }
+  },
+  {
+    name: 'pool release drops oversized objects and clears reused state',
+    async run() {
+      const tinyCandidatePool = createCandidatePool({ maxSets: 1, maxEntries: 2 });
+      const oversized = tinyCandidatePool.acquire();
+      oversized.add(1);
+      oversized.add(2);
+      oversized.add(3);
+      tinyCandidatePool.release(oversized);
+      assert.ok(tinyCandidatePool.stats.drops > 0);
+
+      const reused = tinyCandidatePool.acquire();
+      assert.equal(reused.size, 0);
+      tinyCandidatePool.release(reused);
+
+      const tinyScorePool = createScoreBufferPool({ maxBuffers: 1, maxEntries: 2 });
+      const buffer = tinyScorePool.acquire({
+        fields: ['idx', 'score'],
+        numericFields: ['idx', 'score'],
+        capacity: 5
+      });
+      buffer.push({ idx: 1, score: 0.1 });
+      tinyScorePool.release(buffer);
+      assert.ok(tinyScorePool.stats.drops > 0);
+    }
+  }
+];
+
+for (const testCase of cases) {
+  await testCase.run();
+}
 
 console.log('candidates buffer reuse test passed');

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { buildEmbeddingsArgs, normalizeEmbeddingJob } from '../../../tools/service/indexer-service-helpers.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -15,6 +16,29 @@ const configPath = path.join(tempRoot, 'service.json');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
+
+const buildRoot = path.join(repoRoot, 'builds', 'b1');
+const indexDir = path.join(buildRoot, 'index-code');
+const normalized = normalizeEmbeddingJob({
+  repoRoot,
+  buildRoot,
+  indexDir,
+  mode: 'code',
+  embeddingPayloadFormatVersion: 2
+});
+assert.equal(normalized.buildRoot, path.resolve(buildRoot));
+assert.equal(normalized.indexDir, path.resolve(indexDir));
+
+const buildPath = path.join(root, 'tools', 'build', 'embeddings.js');
+const args = buildEmbeddingsArgs({
+  buildPath,
+  repoPath: repoRoot,
+  mode: 'code',
+  indexRoot: normalized.buildRoot
+});
+const indexFlag = args.indexOf('--index-root');
+assert.ok(indexFlag >= 0, 'expected --index-root arg');
+assert.equal(args[indexFlag + 1], normalized.buildRoot);
 
 const config = {
   queueDir,

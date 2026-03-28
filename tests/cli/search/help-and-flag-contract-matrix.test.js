@@ -36,6 +36,14 @@ assertCondition(
   helpIndex < importIndex && versionIndex < importIndex,
   'help/version checks should occur before dynamic import'
 );
+assertCondition(
+  !/from ['"]\.\.\/\.\.\/integrations\/core\/index\.js['"]/.test(source),
+  'expected canonical search entry to avoid static core-index imports'
+);
+assertCondition(
+  /import\(['"]\.\.\/\.\.\/integrations\/core\/index\.js['"]\)/.test(source),
+  'expected canonical search entry to lazy-load core index dynamically'
+);
 
 const helpCases = [
   {

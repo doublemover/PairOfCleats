@@ -43,6 +43,82 @@ const cases = [
       returnType: 'int',
       paramTypes: { a: 'int', b: 'int' }
     })
+  },
+  {
+    mode: 'disconnect-on-document-symbol',
+    expectedCheck: 'tooling_document_symbol_failed',
+    unexpectedChecks: ['tooling_initialize_failed'],
+    expectFailedMetric: true,
+    timeoutMs: 1500,
+    parseSignature: (detail) => ({
+      signature: detail,
+      returnType: 'int',
+      paramTypes: { a: 'int', b: 'int' }
+    })
+  },
+  {
+    mode: 'capability-drift-hover',
+    expectedCheck: null,
+    unexpectedChecks: ['tooling_initialize_failed'],
+    expectFailedMetric: true,
+    timeoutMs: 1500,
+    hoverRequireMissingReturn: true,
+    parseSignature: () => null
+  },
+  {
+    mode: 'inconsistent-document-symbol',
+    expectedCheck: null,
+    unexpectedChecks: ['tooling_initialize_failed'],
+    expectFailedMetric: false,
+    timeoutMs: 1500,
+    parseSignature: () => null
+  },
+  {
+    mode: 'disconnect-on-hover',
+    expectedCheck: null,
+    unexpectedChecks: ['tooling_initialize_failed', 'tooling_document_symbol_failed'],
+    expectFailedMetric: true,
+    timeoutMs: 1500,
+    hoverRequireMissingReturn: true,
+    parseSignature: () => null
+  },
+  {
+    mode: 'stall-initialize',
+    expectedCheck: 'tooling_initialize_failed',
+    unexpectedChecks: [],
+    expectFailedMetric: false,
+    expectTimedOutMetric: true,
+    timeoutMs: 250,
+    parseSignature: (detail) => ({
+      signature: detail,
+      returnType: 'int',
+      paramTypes: { a: 'int', b: 'int' }
+    })
+  },
+  {
+    mode: 'delayed-partial-document-symbol',
+    expectedCheck: null,
+    unexpectedChecks: ['tooling_document_symbol_failed', 'tooling_initialize_failed'],
+    expectChunk: true,
+    timeoutMs: 2000,
+    parseSignature: (detail) => ({
+      signature: String(detail || 'add'),
+      returnType: 'int',
+      paramTypes: { a: 'int', b: 'int' }
+    })
+  },
+  {
+    mode: 'fragmented-responses',
+    expectedCheck: null,
+    unexpectedChecks: ['tooling_initialize_failed'],
+    expectChunk: true,
+    timeoutMs: 2000,
+    args: ['--fragment-size', '3'],
+    parseSignature: (detail) => ({
+      signature: detail,
+      returnType: 'int',
+      paramTypes: { a: 'int', b: 'int' }
+    })
   }
 ];
 
@@ -76,14 +152,18 @@ for (const [index, testCase] of cases.entries()) {
       symbolHint: { name: 'add', kind: 'function' }
     }],
     cmd: process.execPath,
-    args: [serverPath, '--mode', testCase.mode],
+    args: [serverPath, '--mode', testCase.mode, ...(Array.isArray(testCase.args) ? testCase.args : [])],
     parseSignature: testCase.parseSignature,
     retries: 0,
     timeoutMs: testCase.timeoutMs,
     hoverRequireMissingReturn: testCase.hoverRequireMissingReturn || false
   });
 
-  assert.equal(Object.keys(result.byChunkUid || {}).length, 0, `expected ${testCase.mode} to fail open`);
+  if (testCase.expectChunk) {
+    assert.equal(Object.keys(result.byChunkUid || {}).length >= 1, true, `expected ${testCase.mode} to enrich at least one chunk`);
+  } else {
+    assert.equal(Object.keys(result.byChunkUid || {}).length, 0, `expected ${testCase.mode} to fail open`);
+  }
   if (testCase.expectedCheck) {
     assert.equal(result.checks.some((check) => check?.name === testCase.expectedCheck), true);
   }
@@ -92,6 +172,9 @@ for (const [index, testCase] of cases.entries()) {
   }
   if (testCase.expectFailedMetric) {
     assert.equal(Number(result.runtime?.requests?.failed || 0) >= 1, true);
+  }
+  if (testCase.expectTimedOutMetric) {
+    assert.equal(Number(result.runtime?.requests?.timedOut || 0) >= 1, true);
   }
 }
 

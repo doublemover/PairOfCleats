@@ -81,6 +81,24 @@ const cases = [
     }
   },
   {
+    name: 'in-memory cache returns hits for matching config and index signatures',
+    run() {
+      const cache = createQueryPlanCache({ maxEntries: 5, ttlMs: 60_000 });
+      const { plan, configSignature, indexSignature, keyInfo } = buildEntryContext();
+
+      cache.set(keyInfo.key, createQueryPlanEntry({
+        plan,
+        configSignature,
+        indexSignature,
+        keyPayload: keyInfo.payload
+      }));
+
+      const cached = cache.get(keyInfo.key, { configSignature, indexSignature });
+      assert.ok(cached);
+      assert.equal(cached.plan, plan);
+    }
+  },
+  {
     name: 'in-memory cache invalidates on schema version mismatch',
     run() {
       const cache = createQueryPlanCache({ maxEntries: 5, ttlMs: 60_000 });
@@ -130,6 +148,85 @@ const cases = [
       }));
       cache.resetIfConfigChanged(`${configSignature}-changed`);
       assert.equal(cache.get(keyInfo.key, { configSignature, indexSignature }), null);
+    }
+  },
+  {
+    name: 'in-memory cache evicts oldest entries when max size is exceeded',
+    run() {
+      const cache = createQueryPlanCache({ maxEntries: 1, ttlMs: 60_000 });
+
+      const entryA = buildEntryContext({
+        query: 'alpha',
+        indexSignatureValue: { backend: 'memory', code: 'sig-a' }
+      });
+      cache.set(entryA.keyInfo.key, createQueryPlanEntry({
+        plan: entryA.plan,
+        configSignature: entryA.configSignature,
+        indexSignature: entryA.indexSignature,
+        keyPayload: entryA.keyInfo.payload
+      }));
+
+      const entryB = buildEntryContext({
+        query: 'beta',
+        indexSignatureValue: { backend: 'memory', code: 'sig-b' }
+      });
+      cache.set(entryB.keyInfo.key, createQueryPlanEntry({
+        plan: entryB.plan,
+        configSignature: entryB.configSignature,
+        indexSignature: entryB.indexSignature,
+        keyPayload: entryB.keyInfo.payload
+      }));
+
+      assert.equal(
+        cache.get(entryA.keyInfo.key, {
+          configSignature: entryA.configSignature,
+          indexSignature: entryA.indexSignature
+        }),
+        null
+      );
+      assert.ok(
+        cache.get(entryB.keyInfo.key, {
+          configSignature: entryB.configSignature,
+          indexSignature: entryB.indexSignature
+        })
+      );
+    }
+  },
+  {
+    name: 'in-memory cache size never exceeds configured max entries',
+    run() {
+      const cache = createQueryPlanCache({ maxEntries: 2, ttlMs: 1_000 });
+
+      const makeEntry = (query) => {
+        const ctx = buildEntryContext({
+          query,
+          indexSignatureValue: { code: `sig:${query}` }
+        });
+        return {
+          key: ctx.keyInfo.key,
+          configSignature: ctx.configSignature,
+          indexSignature: ctx.indexSignature,
+          entry: createQueryPlanEntry({
+            plan: ctx.plan,
+            configSignature: ctx.configSignature,
+            indexSignature: ctx.indexSignature,
+            keyPayload: ctx.keyInfo.payload
+          })
+        };
+      };
+
+      const a = makeEntry('alpha');
+      const b = makeEntry('beta');
+      const c = makeEntry('gamma');
+
+      cache.set(a.key, a.entry);
+      cache.set(b.key, b.entry);
+      cache.set(c.key, c.entry);
+
+      assert.ok(cache.size() <= 2);
+      assert.equal(cache.get(a.key, { configSignature: a.configSignature, indexSignature: a.indexSignature }), null);
+      assert.ok(cache.get(b.key, { configSignature: b.configSignature, indexSignature: b.indexSignature }));
+      assert.ok(cache.get(c.key, { configSignature: c.configSignature, indexSignature: c.indexSignature }));
     }
   },
   {

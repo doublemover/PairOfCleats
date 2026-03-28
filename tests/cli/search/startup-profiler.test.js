@@ -84,4 +84,43 @@ if (!stages.has('startup.backend') || !stages.has('startup.search')) {
   process.exit(1);
 }
 
+const orderedStages = pipeline.map((entry) => entry.stage);
+const indexOf = (name) => orderedStages.indexOf(name);
+if (indexOf('startup.backend') < 0) {
+  console.error('Expected startup.backend stage in pipeline stats.');
+  process.exit(1);
+}
+if (indexOf('startup.dictionary') < 0) {
+  console.error('Expected startup.dictionary stage in pipeline stats.');
+  process.exit(1);
+}
+if (indexOf('startup.query-plan') < 0) {
+  console.error('Expected startup.query-plan stage in pipeline stats.');
+  process.exit(1);
+}
+if (indexOf('startup.indexes') < 0) {
+  console.error('Expected startup.indexes stage in pipeline stats.');
+  process.exit(1);
+}
+if (!(indexOf('startup.backend') < indexOf('startup.dictionary'))) {
+  console.error('Expected startup.backend to precede startup.dictionary.');
+  process.exit(1);
+}
+if (!(indexOf('startup.dictionary') < indexOf('startup.query-plan'))) {
+  console.error('Expected startup.dictionary to precede startup.query-plan.');
+  process.exit(1);
+}
+if (!(indexOf('startup.query-plan') < indexOf('startup.indexes'))) {
+  console.error('Expected startup.query-plan to precede startup.indexes.');
+  process.exit(1);
+}
+if (!(indexOf('startup.indexes') < indexOf('startup.search'))) {
+  console.error('Expected startup.indexes to precede startup.search.');
+  process.exit(1);
+}
+if (indexOf('filter') >= 0 && !(indexOf('startup.indexes') < indexOf('filter'))) {
+  console.error('Expected startup.indexes to precede filter.');
+  process.exit(1);
+}
+
 console.log('search startup profiler test passed');

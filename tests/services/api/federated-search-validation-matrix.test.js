@@ -211,6 +211,91 @@ const cases = [
         }
       };
     }
+  },
+  {
+    name: 'empty federated selections redact absolute paths from responses',
+    async setup() {
+      const tempRoot = await createFederatedTempRoot('pairofcleats-api-fed-validation-redaction-');
+      const repoRoot = path.join(tempRoot, 'repo');
+      const cacheRoot = path.join(tempRoot, 'cache');
+      const workspacePath = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
+
+      await fs.mkdir(repoRoot, { recursive: true });
+      await writeFederatedWorkspaceConfig(workspacePath, {
+        schemaVersion: 1,
+        cacheRoot: './cache',
+        repos: [
+          { root: './repo', alias: 'sample' }
+        ]
+      });
+
+      return {
+        repoRoot,
+        allowedRoots: [tempRoot],
+        envOverrides: {
+          PAIROFCLEATS_CACHE_ROOT: cacheRoot
+        },
+        body: {
+          workspacePath,
+          query: 'greet',
+          select: {
+            tags: ['does-not-exist']
+          },
+          search: {
+            mode: 'code',
+            top: 5
+          }
+        },
+        assertResponse(response) {
+          assert.equal(response.status, 200);
+          assert.equal(response.body?.ok, true);
+          assert.deepEqual(response.body?.code || [], []);
+          const serialized = JSON.stringify(response.body);
+          assert.equal(serialized.includes(repoRoot), false);
+          assert.equal(serialized.includes(workspacePath), false);
+          assert.equal(serialized.includes(cacheRoot), false);
+        }
+      };
+    }
+  },
+  {
+    name: 'limits.perRepoTop accepts zero without becoming an invalid request',
+    async setup() {
+      const tempRoot = await createFederatedTempRoot('pairofcleats-api-fed-validation-top-zero-');
+      const allowedRoot = path.join(tempRoot, 'allowed');
+      const repoRoot = path.join(allowedRoot, 'repo');
+      const workspacePath = path.join(allowedRoot, '.pairofcleats-workspace.jsonc');
+
+      await fs.mkdir(repoRoot, { recursive: true });
+      await writeFederatedWorkspaceConfig(workspacePath, {
+        schemaVersion: 1,
+        cacheRoot: './cache',
+        repos: [
+          { root: './repo', alias: 'sample' }
+        ]
+      });
+
+      return {
+        repoRoot,
+        allowedRoots: [allowedRoot],
+        body: {
+          workspacePath,
+          query: 'per-repo-top-zero',
+          limits: {
+            perRepoTop: 0,
+            concurrency: 1
+          }
+        },
+        assertResponse(response) {
+          assert.notEqual(response.status, 400);
+          assert.notEqual(response.body?.code, 'INVALID_REQUEST');
+          if (response.status === 200) {
+            assert.equal(response.body?.ok, true);
+            assert.equal(response.body?.backend, 'federated');
+          }
+        }
+      };
+    }
   }
 ];
 
@@ -218,7 +303,8 @@ for (const entry of cases) {
   const setup = await entry.setup();
   const { serverInfo, requestJson, stop } = await startFederatedApiServer({
     repoRoot: setup.repoRoot,
-    allowedRoots: setup.allowedRoots
+    allowedRoots: setup.allowedRoots,
+    envOverrides: setup.envOverrides
   });
   try {
     const response = await requestJson(
