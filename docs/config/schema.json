@@ -753,6 +753,10 @@
       "additionalProperties": false,
       "properties": {
         "annDefault": { "type": "boolean" },
+        "hyperlinks": {
+          "type": "string",
+          "enum": ["auto", "off", "file", "vscode"]
+        },
         "denseVectorMode": {
           "type": "string",
           "enum": ["merged", "code", "doc", "auto"]

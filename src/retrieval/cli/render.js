@@ -1,13 +1,225 @@
 import { compactHit } from './render-output.js';
 import {
   buildResultBundles,
+  colorText,
   formatFullChunk,
   formatShortChunk,
-  getOutputCacheReporter
+  getOutputCacheReporter,
+  stripAnsi
 } from '../output.js';
 import { applyOutputBudgetPolicy, normalizeOutputBudgetPolicy } from '../output/score-breakdown.js';
 import { buildTrustSurface } from '../output/explain.js';
 import { buildRetrievalMetadata } from '../output/retrieval-metadata.js';
+import { ANSI } from '../../shared/cli/ansi-utils.js';
+
+const FALLBACK_TERMINAL_COLUMNS = 108;
+const INDENT = '  ';
+
+const resolveTerminalColumns = (stream = process.stdout) => {
+  const envColumns = Number.parseInt(String(process.env.COLUMNS || ''), 10);
+  if (Number.isFinite(envColumns) && envColumns >= 40) {
+    return envColumns;
+  }
+  const streamColumns = Number.parseInt(String(stream?.columns ?? ''), 10);
+  if (Number.isFinite(streamColumns) && streamColumns >= 40) {
+    return streamColumns;
+  }
+  return FALLBACK_TERMINAL_COLUMNS;
+};
+
+const resolveHumanLayout = (stream = process.stdout) => {
+  const columns = resolveTerminalColumns(stream);
+  return {
+    columns,
+    contentWidth: Math.max(54, columns - 4),
+    isNarrow: columns <= 88,
+    isMedium: columns > 88 && columns <= 128,
+    isWide: columns >= 160,
+    cacheKey: `cols:${columns}`
+  };
+};
+
+const writeLine = (stream, value = '') => {
+  stream.write(`${value}\n`);
+};
+
+const wrapWords = (text, { width, firstPrefix = '', restPrefix = firstPrefix } = {}) => {
+  const words = String(text || '').trim().split(/\s+/u).filter(Boolean);
+  if (!words.length) return [firstPrefix.trimEnd()];
+  const lines = [];
+  let prefix = firstPrefix;
+  let line = prefix;
+  for (const word of words) {
+    const separator = line === prefix ? '' : ' ';
+    const candidate = `${line}${separator}${word}`;
+    if (stripAnsi(candidate).length > width && line !== prefix) {
+      lines.push(line);
+      prefix = restPrefix;
+      line = `${prefix}${word}`;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+};
+
+const buildWrappedSummaryLines = (parts, { width }) => {
+  const lines = [];
+  const separator = colorText('  •  ', ANSI.fgDarkGray);
+  let line = '';
+  for (const part of parts.filter(Boolean)) {
+    if (!line) {
+      line = part;
+      continue;
+    }
+    const candidate = `${line}${separator}${part}`;
+    if (stripAnsi(candidate).length > width && line) {
+      lines.push(line);
+      line = part;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+};
+
+const formatCountSummary = (entries, color) => entries
+  .filter((entry) => entry && entry.count > 0)
+  .map((entry) => (
+    `${color.bold(String(entry.count))} ${colorText(entry.label, ANSI.fgDarkGray)}`
+  ))
+  .join(colorText('  •  ', ANSI.fgDarkGray));
+
+const makeRule = (columns) => colorText('─'.repeat(Math.max(12, columns)), ANSI.fgDarkGray);
+
+const alignLine = (left, right, width) => {
+  if (!right) return left;
+  const leftWidth = stripAnsi(left).length;
+  const rightWidth = stripAnsi(right).length;
+  if (leftWidth + rightWidth + 2 > width) {
+    return `${left}\n${right}`;
+  }
+  return `${left}${' '.repeat(Math.max(1, width - leftWidth - rightWidth))}${right}`;
+};
+
+const makeSectionHeader = ({ label, count, color, layout }) => {
+  const title = color.bold(`${label} (${count})`);
+  const titleWidth = stripAnsi(title).length;
+  const ruleWidth = Math.max(0, layout.columns - titleWidth - 1);
+  if (ruleWidth <= 0) return title;
+  return `${title} ${colorText('─'.repeat(ruleWidth), ANSI.fgDarkGray)}`;
+};
+
+const parseDiagnosticKv = (text) => {
+  const pairs = {};
+  const pattern = /(\w+)=("([^"]*)"|[^\s]+)/gu;
+  for (const match of text.matchAll(pattern)) {
+    pairs[match[1]] = match[3] ?? match[2];
+  }
+  return pairs;
+};
+
+const formatMiB = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? `${numeric.toFixed(1)} MiB` : null;
+};
+
+const normalizeDiagnosticEntries = (profileInfo) => {
+  const rawEntries = Array.isArray(profileInfo?.warnings)
+    ? profileInfo.warnings.map((entry) => String(entry || '').trim()).filter(Boolean)
+    : [];
+  return rawEntries.map((entry) => {
+    if (!entry.startsWith('[ops-resource]')) {
+      return { kind: 'warning', message: entry };
+    }
+    const parsed = parseDiagnosticKv(entry);
+    return {
+      kind: 'resource',
+      code: parsed.code || null,
+      component: parsed.component || null,
+      metric: parsed.metric || null,
+      baselineMiB: formatMiB(parsed.baselineMiB),
+      currentMiB: formatMiB(parsed.currentMiB),
+      deltaMiB: formatMiB(parsed.deltaMiB),
+      ratio: parsed.ratio ? `${parsed.ratio}x` : null,
+      next: parsed.next || null
+    };
+  });
+};
+
+const formatDiagnosticEntry = (entry, { layout, color }) => {
+  if (entry.kind === 'resource') {
+    const detail = [
+      entry.component ? `component ${entry.component}` : null,
+      entry.metric ? `metric ${entry.metric}` : null,
+      entry.ratio ? `growth ${entry.ratio}` : null,
+      entry.deltaMiB ? `delta +${entry.deltaMiB}` : null,
+      entry.baselineMiB && entry.currentMiB ? `${entry.baselineMiB} -> ${entry.currentMiB}` : null
+    ].filter(Boolean).join('  •  ');
+    const lines = [];
+    lines.push(...wrapWords(
+      detail || 'resource warning',
+      {
+        width: layout.columns,
+        firstPrefix: `${color.yellow('!')} ${color.bold('Resource')}: `,
+        restPrefix: '    '
+      }
+    ));
+    if (entry.next) {
+      lines.push(...wrapWords(
+        entry.next,
+        {
+          width: layout.columns,
+          firstPrefix: `    ${colorText('next', ANSI.fgDarkGray)} `,
+          restPrefix: '         '
+        }
+      ));
+    }
+    return lines;
+  }
+  return wrapWords(entry.message, {
+    width: layout.columns,
+    firstPrefix: `${color.yellow('!')} `,
+    restPrefix: '  '
+  });
+};
+
+const buildHumanSections = ({
+  runCode,
+  runExtractedProse,
+  runProse,
+  runRecords,
+  explain,
+  backendLabel,
+  codeHits,
+  extractedProseHits,
+  proseHits,
+  recordHits
+}) => {
+  const backendSuffix = explain ? ` (${backendLabel})` : '';
+  const sections = [];
+  if (runCode && codeHits.length) {
+    sections.push({ key: 'code', label: `Code Results${backendSuffix}`, mode: 'code', hits: codeHits, fullCount: 1 });
+  }
+  if (runExtractedProse && extractedProseHits.length) {
+    sections.push({
+      key: 'extracted-prose',
+      label: `Code Comments Results${backendSuffix}`,
+      mode: 'extracted-prose',
+      hits: extractedProseHits,
+      fullCount: 2
+    });
+  }
+  if (runProse && proseHits.length) {
+    sections.push({ key: 'prose', label: `Text Results${backendSuffix}`, mode: 'prose', hits: proseHits, fullCount: 2 });
+  }
+  if (runRecords && recordHits.length) {
+    sections.push({ key: 'records', label: `Records Results${backendSuffix}`, mode: 'records', hits: recordHits, fullCount: 2 });
+  }
+  return sections;
+};
 
 /**
  * Render retrieval results in JSON or TTY format and append derived output
@@ -69,7 +281,8 @@ export function renderSearchOutput({
   outputBudget = null,
   asOfContext = null,
   streamJson = false,
-  generationContext = null
+  generationContext = null,
+  hyperlinkMode = null
 }) {
   const outputStart = stageTracker?.mark?.();
   const proseHitsFinal = expandedHits.prose.hits;
@@ -314,18 +527,8 @@ export function renderSearchOutput({
   }
 
   if (emitOutput && !jsonOutput) {
-    if (asOfContext?.provided) {
-      const shortHash = asOfContext.identityHashShort || String(asOfContext.identityHash || '').slice(0, 8);
-      console.error(`[search] as-of: ${asOfContext.ref || 'latest'} (identity ${shortHash})`);
-    }
-    const makeSectionHeader = (label) => {
-      const bar = '─';
-      const width = 94;
-      const text = ` ${label} `;
-      const left = Math.max(1, Math.floor((width - text.length) / 2));
-      const right = Math.max(1, width - text.length - left);
-      return `${bar.repeat(left)}${text}${bar.repeat(right)}`;
-    };
+    const outputStream = process.stdout;
+    const layout = resolveHumanLayout(outputStream);
     let showProse = runProse ? topN : 0;
     let showExtractedProse = runExtractedProse ? topN : 0;
     let showCode = runCode ? topN : 0;
@@ -346,157 +549,102 @@ export function renderSearchOutput({
       showRecords += expandedHits.records.contextHits.length;
     }
 
-    if (runCode) {
-      const backendSuffix = explain ? ` (${backendLabel})` : '';
-      console.error(color.bold(`\n${makeSectionHeader(`Code Results${backendSuffix}`)}`));
-      const summaryState = { lastCount: 0 };
-      codeHitsFinal.slice(0, showCode).forEach((hit, index) => {
-        if (index < 1) {
-          process.stderr.write(formatFullChunk({
-            chunk: hit,
-            index,
-            mode: 'code',
-            score: hit.score,
-            scoreType: hit.scoreType,
-            explain,
-            color,
-            queryTokens,
-            rx: highlightRegex,
-            matched: showMatched,
-            rootDir,
+    const sectionInputs = buildHumanSections({
+      runCode,
+      runExtractedProse,
+      runProse,
+      runRecords,
+      explain,
+      backendLabel,
+      codeHits: codeHitsFinal.slice(0, showCode),
+      extractedProseHits: extractedProseHitsFinal.slice(0, showExtractedProse),
+      proseHits: proseHitsFinal.slice(0, showProse),
+      recordHits: recordHitsFinal.slice(0, showRecords)
+    });
+
+    const countSummary = formatCountSummary([
+      { label: 'code', count: codeHitsFinal.length },
+      { label: 'comments', count: extractedProseHitsFinal.length },
+      { label: 'text', count: proseHitsFinal.length },
+      { label: 'records', count: recordHitsFinal.length }
+    ], color);
+    writeLine(
+      outputStream,
+      alignLine(
+        color.bold('Search Results'),
+        `${colorText('elapsed', ANSI.fgDarkGray)} ${color.bold(`${elapsedMs}ms`)}`,
+        layout.columns
+      )
+    );
+    if (queryTokens.length) {
+      writeLine(outputStream, `${colorText('query', ANSI.fgDarkGray)} ${color.bold(queryTokens.join(' '))}`);
+    }
+    const backendModeLines = buildWrappedSummaryLines([
+      `${colorText('backend', ANSI.fgDarkGray)} ${backendLabel}`,
+      `${colorText('modes', ANSI.fgDarkGray)} ${[
+        runCode ? 'code' : null,
+        runExtractedProse ? 'comments' : null,
+        runProse ? 'text' : null,
+        runRecords ? 'records' : null
+      ].filter(Boolean).join(', ')}`
+    ], { width: layout.columns });
+    backendModeLines.forEach((line) => writeLine(outputStream, line));
+    if (countSummary) {
+      writeLine(outputStream, `${colorText('hits', ANSI.fgDarkGray)} ${countSummary}`);
+    }
+    if (asOfContext?.provided) {
+      const shortHash = asOfContext.identityHashShort || String(asOfContext.identityHash || '').slice(0, 8);
+      writeLine(
+        outputStream,
+        `${colorText('as-of', ANSI.fgDarkGray)} ${asOfContext.ref || 'latest'} ${colorText(`(${shortHash})`, ANSI.fgDarkGray)}`
+      );
+    }
+    writeLine(outputStream, makeRule(layout.columns));
+    writeLine(outputStream);
+
+    if (!sectionInputs.length) {
+      writeLine(outputStream, color.yellow('No results matched the current query.'));
+      writeLine(outputStream);
+    }
+
+    for (const section of sectionInputs) {
+      writeLine(outputStream, makeSectionHeader({
+        label: section.label,
+        count: section.hits.length,
+        color,
+        layout
+      }));
+      const summaryState = section.mode === 'records' ? null : { lastCount: 0 };
+      section.hits.forEach((hit, index) => {
+        const formatArgs = {
+          chunk: hit,
+          index,
+          mode: section.mode,
+          score: hit.score,
+          scoreType: hit.scoreType,
+          explain,
+          color,
+          queryTokens,
+          rx: highlightRegex,
+          matched: showMatched,
+          layout,
+          hyperlinkMode
+        };
+        if (index < section.fullCount) {
+          outputStream.write(formatFullChunk({
+            ...formatArgs,
+            rootDir: section.mode === 'records' ? null : rootDir,
             summaryState,
             allowSummary
           }));
         } else {
-          process.stderr.write(formatShortChunk({
-            chunk: hit,
-            index,
-            mode: 'code',
-            score: hit.score,
-            scoreType: hit.scoreType,
-            explain,
-            color,
-            queryTokens,
-            rx: highlightRegex,
-            matched: showMatched
+          outputStream.write(formatShortChunk({
+            ...formatArgs,
+            rootDir: section.mode === 'records' ? null : rootDir
           }));
         }
       });
-      console.error('\n');
-    }
-
-    if (runExtractedProse) {
-      const backendSuffix = explain ? ` (${backendLabel})` : '';
-      console.error(color.bold(makeSectionHeader(`Code Comments Results${backendSuffix}`)));
-      const summaryState = { lastCount: 0 };
-      extractedProseHitsFinal.slice(0, showExtractedProse).forEach((hit, index) => {
-        if (index < 2) {
-          process.stderr.write(formatFullChunk({
-            chunk: hit,
-            index,
-            mode: 'extracted-prose',
-            score: hit.score,
-            scoreType: hit.scoreType,
-            explain,
-            color,
-            queryTokens,
-            rx: highlightRegex,
-            matched: showMatched,
-            rootDir,
-            summaryState,
-            allowSummary
-          }));
-        } else {
-          process.stderr.write(formatShortChunk({
-            chunk: hit,
-            index,
-            mode: 'extracted-prose',
-            score: hit.score,
-            scoreType: hit.scoreType,
-            explain,
-            color,
-            queryTokens,
-            rx: highlightRegex,
-            matched: showMatched
-          }));
-        }
-      });
-      console.error('\n');
-    }
-
-    if (runProse) {
-      const backendSuffix = explain ? ` (${backendLabel})` : '';
-      console.error(color.bold(makeSectionHeader(`Text Search Results${backendSuffix}`)));
-      const summaryState = { lastCount: 0 };
-      proseHitsFinal.slice(0, showProse).forEach((hit, index) => {
-        if (index < 2) {
-          process.stderr.write(formatFullChunk({
-            chunk: hit,
-            index,
-            mode: 'prose',
-            score: hit.score,
-            scoreType: hit.scoreType,
-            explain,
-            color,
-            queryTokens,
-            rx: highlightRegex,
-            matched: showMatched,
-            rootDir,
-            summaryState,
-            allowSummary
-          }));
-        } else {
-          process.stderr.write(formatShortChunk({
-            chunk: hit,
-            index,
-            mode: 'prose',
-            score: hit.score,
-            scoreType: hit.scoreType,
-            explain,
-            color,
-            queryTokens,
-            rx: highlightRegex,
-            matched: showMatched
-          }));
-        }
-      });
-      console.error('\n');
-    }
-
-    if (runRecords) {
-      console.error(color.bold(`===== Records Results (${backendLabel}) =====`));
-      recordHitsFinal.slice(0, showRecords).forEach((hit, index) => {
-        if (index < 2) {
-          process.stderr.write(formatFullChunk({
-            chunk: hit,
-            index,
-            mode: 'records',
-            score: hit.score,
-            scoreType: hit.scoreType,
-            explain,
-            color,
-            queryTokens,
-            rx: highlightRegex,
-            matched: showMatched,
-            rootDir: null,
-            summaryState: null
-          }));
-        } else {
-          process.stderr.write(formatShortChunk({
-            chunk: hit,
-            index,
-            mode: 'records',
-            score: hit.score,
-            scoreType: hit.scoreType,
-            explain,
-            color,
-            queryTokens,
-            rx: highlightRegex,
-            matched: showMatched
-          }));
-        }
-      });
-      console.error('\n');
+      writeLine(outputStream);
     }
 
     if (showStats) {
@@ -516,7 +664,23 @@ export function renderSearchOutput({
         statsParts.push(`backend=${backendLabel}`);
         statsParts.push(`policy=${backendPolicyInfo.reason}`);
       }
-      console.error(color.gray(`Stats: ${statsParts.join(', ')}`));
+      writeLine(outputStream, color.gray(`Stats: ${statsParts.join(', ')}`));
+    }
+
+    const diagnostics = normalizeDiagnosticEntries(profileInfo);
+    if (diagnostics.length) {
+      writeLine(outputStream, makeSectionHeader({
+        label: 'Diagnostics',
+        count: diagnostics.length,
+        color,
+        layout
+      }));
+      for (const entry of diagnostics) {
+        for (const line of formatDiagnosticEntry(entry, { layout, color })) {
+          writeLine(outputStream, line);
+        }
+      }
+      writeLine(outputStream);
     }
   }
 

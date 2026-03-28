@@ -1,6 +1,7 @@
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import {
+  REPLACE_COMMITTED_FINAL_GRACE_MS,
   REPLACE_FILE_RENAME_BASE_DELAY_MS,
   REPLACE_FILE_RENAME_RETRY_ATTEMPTS,
   REPLACE_TEMP_WAIT_ATTEMPTS,
@@ -18,6 +19,11 @@ import {
   renameWithRetrySync,
   waitForPath
 } from './persistence-helpers.js';
+
+const resolveCommittedFinalGraceWithTempWaitMs = () => (
+  REPLACE_COMMITTED_FINAL_GRACE_MS
+  + (REPLACE_TEMP_WAIT_BASE_DELAY_MS * ((REPLACE_TEMP_WAIT_ATTEMPTS - 1) * REPLACE_TEMP_WAIT_ATTEMPTS) / 2)
+);
 
 const renameWithBackupSwap = async (tempPath, targetPath) => {
   const backupPath = createSiblingBackupPath(targetPath);
@@ -96,10 +102,11 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   const finalExistedAtStart = finalExists;
   let backupAvailable = false;
   let backupCreatedForReplace = false;
+  const committedFinalGraceMs = resolveCommittedFinalGraceWithTempWaitMs();
   const commitSucceeded = () => {
     if (!fsSync.existsSync(finalPath)) return false;
     if (!backupCreatedForReplace) {
-      return finalExistedAtStart === false || hasRecentlyCommittedFinalPath(finalPath);
+      return finalExistedAtStart === false || hasRecentlyCommittedFinalPath(finalPath, committedFinalGraceMs);
     }
     return !fsSync.existsSync(backupPath);
   };

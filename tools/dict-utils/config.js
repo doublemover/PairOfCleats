@@ -339,6 +339,12 @@ function normalizeUserConfig(baseConfig, repoRoot = null) {
   }
   if (isPlainObject(baseConfig.search)) {
     const search = {};
+    if (typeof baseConfig.search.hyperlinks === 'string' && baseConfig.search.hyperlinks.trim()) {
+      const hyperlinks = baseConfig.search.hyperlinks.trim().toLowerCase();
+      if (['auto', 'off', 'file', 'vscode'].includes(hyperlinks)) {
+        search.hyperlinks = hyperlinks;
+      }
+    }
     if (baseConfig.search.sqliteAutoChunkThreshold !== undefined) {
       const chunkThreshold = Number(baseConfig.search.sqliteAutoChunkThreshold);
       if (Number.isFinite(chunkThreshold)) {

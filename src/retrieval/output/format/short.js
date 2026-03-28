@@ -4,7 +4,10 @@ import {
   ANSI,
   boldText,
   colorText,
-  italicColor
+  hyperlinkFileLabel,
+  italicColor,
+  metaChip,
+  stripAnsi
 } from './ansi.js';
 import {
   buildFormatCacheKey,
@@ -29,6 +32,9 @@ export function formatShortChunk({
   queryTokens = [],
   rx,
   matched = false,
+  rootDir = process.cwd(),
+  hyperlinkMode = null,
+  layout = null,
   _skipCache = false
 }) {
   if (!chunk || !chunk.file) {
@@ -37,13 +43,27 @@ export function formatShortChunk({
   const canCache = !_skipCache && !explain;
   const formatCache = canCache ? getFormatShortCache() : null;
   const queryHash = canCache ? buildQueryHash(queryTokens, rx) : '';
+  const layoutSignature = `${layout?.cacheKey || ''}|links:${hyperlinkMode || 'auto'}`;
   let cacheKey = null;
   if (canCache && formatCache) {
-    cacheKey = buildFormatCacheKey({ chunk, index, mode, queryHash, matched, explain });
+    cacheKey = buildFormatCacheKey({ chunk, index, mode, queryHash, matched, explain, layoutSignature });
     const cached = formatCache.get(cacheKey);
     if (cached) return cached;
   }
   let out = '';
+  const isNarrow = Boolean(layout?.isNarrow);
+  const columns = Number.isFinite(layout?.columns) ? layout.columns : 108;
+  const bullet = colorText(' • ', ANSI.fgDarkGray);
+  const rightAlign = (left, right, indent = '') => {
+    if (!right) return `${indent}${left}`;
+    const maxWidth = Math.max(24, columns - stripAnsi(indent).length);
+    const leftWidth = stripAnsi(left).length;
+    const rightWidth = stripAnsi(right).length;
+    if (leftWidth + rightWidth + 2 > maxWidth) {
+      return `${indent}${left}${bullet}${right}`;
+    }
+    return `${indent}${left}${' '.repeat(Math.max(1, maxWidth - leftWidth - rightWidth))}${right}`;
+  };
   const lineRange = Number.isFinite(chunk.startLine) && Number.isFinite(chunk.endLine)
     ? `[${chunk.startLine}-${chunk.endLine}]`
     : '';
@@ -60,19 +80,39 @@ export function formatShortChunk({
     ? formatSignature(signatureLabel, nameLabel || displayName)
     : '';
   const lastModLabel = formatLastModified(chunk.last_modified);
-  const filePathStyled = italicColor(chunk.file, ANSI.fgLight);
+  const filePathStyled = hyperlinkFileLabel({
+    label: italicColor(chunk.file, ANSI.fgLight),
+    filePath: chunk.file,
+    line: chunk.startLine,
+    rootDir,
+    mode: hyperlinkMode
+  });
   const rangeStyled = lineRange ? colorText(lineRange, ANSI.fgLight) : '';
   const fileStyled = lineRange
     ? `${filePathStyled}${colorText(':', ANSI.fgLight)}${rangeStyled}`
     : filePathStyled;
-  const timeStyled = lastModLabel ? colorText(lastModLabel, ANSI.fgBlack) : '';
-  const line1Parts = [
-    `${index + 1}. ${boldText(displayName)}`,
-    signaturePart,
-    displayName === fileLabel ? '' : fileStyled,
-    timeStyled
-  ].filter(Boolean);
-  out += line1Parts.join(' - ');
+  const timeStyled = lastModLabel ? colorText(lastModLabel, ANSI.fgDarkGray) : '';
+  const primaryTitle = mode === 'extracted-prose'
+    ? fileLabel
+    : (mode === 'prose' ? (nameLabel || fileLabel) : displayName);
+  const titleLine = primaryTitle === fileLabel
+    ? `${colorText(`${index + 1}.`, ANSI.fgYellow)} ${fileStyled}`
+    : `${colorText(`${index + 1}.`, ANSI.fgYellow)} ${boldText(primaryTitle)}`;
+  if (primaryTitle === fileLabel) {
+    out += rightAlign(titleLine, timeStyled);
+  } else if (isNarrow) {
+    out += titleLine;
+    out += `\n${rightAlign(fileStyled, timeStyled, '  ')}`;
+    if (signaturePart) {
+      out += `\n  ${signaturePart}`;
+    }
+  } else {
+    out += titleLine;
+    out += `\n${rightAlign(fileStyled, timeStyled, '  ')}`;
+    if (signaturePart) {
+      out += `\n  ${signaturePart}`;
+    }
+  }
   const recordMeta = chunk.docmeta?.record || null;
   if (recordMeta) {
     const recordBits = [];
@@ -86,14 +126,27 @@ export function formatShortChunk({
     }
   }
   if (explain && chunk.last_author) out += color.green(` by ${chunk.last_author}`);
-  if (chunk.headline && rx) {
-    out += ' - ' + chunk.headline.replace(rx, (m) => color.bold(color.yellow(m)));
+  const highlightSnippet = (text) => (
+    rx ? String(text || '').replace(rx, (m) => color.bold(color.yellow(m))) : String(text || '')
+  );
+  const snippet = (mode === 'prose' || mode === 'extracted-prose')
+    ? (
+      chunk.headline
+        ? highlightSnippet(chunk.headline)
+        : (primaryTitle !== displayName ? highlightSnippet(displayName) : '')
+    )
+    : '';
+  if (snippet) {
+    const snippetLabel = mode === 'extracted-prose'
+      ? metaChip({ value: 'comment', valueColor: ANSI.fgYellow })
+      : metaChip({ value: 'excerpt', valueColor: ANSI.fgCyan });
+    out += `\n  ${snippetLabel} ${snippet}`;
   }
 
   if (matched && queryTokens.length && chunk.headline) {
     const matchedTokens = queryTokens.filter((tok) => chunk.headline.includes(tok));
     if (matchedTokens.length) {
-      out += color.gray(` Matched: ${matchedTokens.join(', ')}`);
+      out += `\n  ${color.gray(`Matched: ${matchedTokens.join(', ')}`)}`;
     }
   }
 
@@ -104,6 +157,7 @@ export function formatShortChunk({
     }
   }
 
+  out = out.replace(/\n+$/u, '');
   out += '\n';
   if (canCache && formatCache && cacheKey) {
     formatCache.set(cacheKey, out);

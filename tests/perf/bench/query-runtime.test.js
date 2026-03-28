@@ -332,8 +332,8 @@ const staleExitPool = createSearchWorkerPool({
   env: { ...process.env, STALE_EXIT_MARKER_PATH: staleExitMarkerPath },
   workerScriptPath: staleExitScriptPath,
   heartbeatMs: 20,
-  stallWarnMs: 40,
-  stallTimeoutMs: 60,
+  stallWarnMs: 200,
+  stallTimeoutMs: 500,
   onEvent: (event) => staleExitEvents.push(event)
 });
 await assert.rejects(

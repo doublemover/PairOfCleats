@@ -12,8 +12,10 @@ import {
   applyLineBackground,
   boldText,
   colorText,
+  hyperlinkFileLabel,
   italicColor,
   labelToken,
+  metaChip,
   stripAnsi
 } from './ansi.js';
 import {
@@ -49,8 +51,10 @@ export function formatFullChunk({
   rx,
   matched = false,
   rootDir,
+  hyperlinkMode = null,
   summaryState,
   allowSummary = true,
+  layout = null,
   _skipCache = false
 }) {
   if (!chunk || !chunk.file) {
@@ -59,14 +63,54 @@ export function formatFullChunk({
   const canCache = !_skipCache && !explain && (!summaryState || !allowSummary);
   const formatCache = canCache ? getFormatFullCache() : null;
   const queryHash = canCache ? buildQueryHash(queryTokens, rx) : '';
+  const layoutSignature = `${layout?.cacheKey || ''}|links:${hyperlinkMode || 'auto'}`;
   let cacheKey = null;
   if (canCache && formatCache) {
-    cacheKey = buildFormatCacheKey({ chunk, index, mode, queryHash, matched, explain });
+    cacheKey = buildFormatCacheKey({ chunk, index, mode, queryHash, matched, explain, layoutSignature });
     const cached = formatCache.get(cacheKey);
     if (cached) return cached;
   }
   const c = color;
   let out = '';
+  const columns = Number.isFinite(layout?.columns) ? layout.columns : 108;
+  const wrapWidth = Math.max(42, Math.min(Number.isFinite(layout?.contentWidth) ? layout.contentWidth : 104, columns - 6));
+  const joinInlineParts = (parts, { indent = INDENT, maxWidth = wrapWidth, separator = ` ${colorText('•', ANSI.fgDarkGray)} ` } = {}) => {
+    const filtered = parts.filter(Boolean);
+    if (!filtered.length) return [];
+    const lines = [];
+    let line = `${indent}${filtered[0]}`;
+    for (const part of filtered.slice(1)) {
+      const candidate = `${line}${separator}${part}`;
+      if (stripAnsi(candidate).length > maxWidth && line) {
+        lines.push(line);
+        line = `${indent}${part}`;
+      } else {
+        line = candidate;
+      }
+    }
+    if (line) lines.push(line);
+    return lines;
+  };
+  const alignRight = (left, right) => {
+    if (!right) return `${INDENT}${left}\n`;
+    const maxWidth = Math.max(24, columns - stripAnsi(INDENT).length);
+    const leftWidth = stripAnsi(left).length;
+    const rightWidth = stripAnsi(right).length;
+    if (leftWidth + rightWidth + 2 > maxWidth) {
+      return `${INDENT}${left}\n${INDENT}${right}\n`;
+    }
+    return `${INDENT}${left}${' '.repeat(Math.max(1, maxWidth - leftWidth - rightWidth))}${right}\n`;
+  };
+  const alignInline = (left, right) => {
+    if (!right) return `${left}\n`;
+    const maxWidth = Math.max(24, columns);
+    const leftWidth = stripAnsi(left).length;
+    const rightWidth = stripAnsi(right).length;
+    if (leftWidth + rightWidth + 2 > maxWidth) {
+      return `${left}\n${INDENT}${right}\n`;
+    }
+    return `${left}${' '.repeat(Math.max(1, maxWidth - leftWidth - rightWidth))}${right}\n`;
+  };
 
   const lineRange = Number.isFinite(chunk.startLine) && Number.isFinite(chunk.endLine)
     ? `[${chunk.startLine}-${chunk.endLine}]`
@@ -84,19 +128,47 @@ export function formatFullChunk({
     ? formatSignature(signatureLabel, nameLabel || displayName)
     : '';
   const lastModLabel = formatLastModified(chunk.last_modified);
-  const filePathStyled = italicColor(chunk.file, ANSI.fgLight);
+  const filePathStyled = hyperlinkFileLabel({
+    label: italicColor(chunk.file, ANSI.fgLight),
+    filePath: chunk.file,
+    line: chunk.startLine,
+    rootDir: rootDir || process.cwd(),
+    mode: hyperlinkMode
+  });
   const rangeStyled = lineRange ? colorText(lineRange, ANSI.fgLight) : '';
   const fileStyled = lineRange
     ? `${filePathStyled}${colorText(':', ANSI.fgLight)}${rangeStyled}`
     : filePathStyled;
-  const timeStyled = lastModLabel ? colorText(lastModLabel, ANSI.fgBlack) : '';
-  const line1Parts = [
-    `${index + 1}. ${boldText(displayName)}`,
-    signaturePart,
-    displayName === fileLabel ? '' : fileStyled,
-    timeStyled
-  ].filter(Boolean);
-  out += line1Parts.join(' - ') + '\n';
+  const timeStyled = lastModLabel ? colorText(lastModLabel, ANSI.fgDarkGray) : '';
+  const rankStyled = colorText(`${index + 1}.`, ANSI.fgYellow);
+  const primaryTitle = mode === 'extracted-prose'
+    ? fileLabel
+    : (mode === 'prose' ? (nameLabel || fileLabel) : displayName);
+  const primaryTitleStyled = primaryTitle === fileLabel
+    ? `${filePathStyled}${lineRange ? `${colorText(':', ANSI.fgLight)}${rangeStyled}` : ''}`
+    : boldText(primaryTitle);
+  out += primaryTitle === fileLabel
+    ? alignInline(`${rankStyled} ${primaryTitleStyled}`, timeStyled)
+    : `${rankStyled} ${primaryTitleStyled}\n`;
+  if (primaryTitle !== fileLabel) {
+    out += alignRight(fileStyled, timeStyled);
+  }
+
+  const highlightHeadline = (text) => {
+    const raw = String(text || '').trim();
+    if (!raw) return '';
+    return rx ? raw.replace(rx, (match) => c.bold(c.yellow(match))) : raw;
+  };
+  const proseLead = highlightHeadline(
+    chunk.headline
+    || ((mode === 'extracted-prose' || mode === 'prose') && primaryTitle !== displayName ? displayName : '')
+  );
+  if ((mode === 'prose' || mode === 'extracted-prose') && proseLead) {
+    const proseLabel = mode === 'extracted-prose'
+      ? metaChip({ label: '', value: 'comment', valueColor: ANSI.fgYellow })
+      : metaChip({ label: '', value: 'excerpt', valueColor: ANSI.fgCyan });
+    out += `${INDENT}${proseLabel} ${colorText(proseLead, ANSI.fgBrightWhite)}\n`;
+  }
 
   if (explain) {
     const chunkAuthors = Array.isArray(chunk.chunk_authors)
@@ -115,21 +187,34 @@ export function formatFullChunk({
   }
 
   const summaryBits = [];
-  const pipeSeparator = ` ${colorText('|', ANSI.fgBlack)} `;
   const declaredReturns = collectDeclaredReturnTypes(chunk.docmeta);
   if (declaredReturns.length) {
     summaryBits.push(
-      `${labelToken('Returns', ANSI.fgDarkGreen)} ${colorText(declaredReturns.join(' | '), ANSI.fgLightGreen)}`
+      metaChip({
+        label: 'returns',
+        value: declaredReturns.join(' | '),
+        labelColor: ANSI.fgDarkGreen,
+        valueColor: ANSI.fgLightGreen
+      })
     );
   } else if (chunk.docmeta?.returnsValue) {
     summaryBits.push(
-      `${labelToken('Returns', ANSI.fgDarkGreen)} ${colorText('value', ANSI.fgLightGreen)}`
+      metaChip({
+        label: 'returns',
+        value: 'value',
+        labelColor: ANSI.fgDarkGreen,
+        valueColor: ANSI.fgLightGreen
+      })
     );
   }
   const throwsList = toArray(chunk.docmeta?.throws);
   if (throwsList.length) {
     summaryBits.push(
-      `${labelToken('Throws', ANSI.fgDarkOrange)} ${throwsList.slice(0, 6).join(', ')}`
+      metaChip({
+        label: 'throws',
+        value: throwsList.slice(0, 6).join(', '),
+        labelColor: ANSI.fgDarkOrange
+      })
     );
   }
   const controlParts = formatControlFlow(chunk.docmeta?.controlFlow || null);
@@ -148,17 +233,34 @@ export function formatFullChunk({
       const renderedLabel = labelColor ? colorText(label, labelColor) : label;
       return `${count} ${renderedLabel}`;
     }).join(', ');
-    summaryBits.push(`${labelToken('Control', ANSI.fgDarkerCyan)} ${controlValue}`);
+    summaryBits.push(metaChip({
+      label: 'control',
+      value: controlValue,
+      labelColor: ANSI.fgDarkerCyan
+    }));
   }
-  if (summaryBits.length) {
-    out += `${INDENT}${summaryBits.join(pipeSeparator)}\n`;
+  const codeMetaLines = mode === 'code'
+    ? joinInlineParts([
+      signaturePart ? metaChip({ label: 'sig', value: signaturePart, labelColor: ANSI.fgLightBlue }) : '',
+      ...summaryBits
+    ], { maxWidth: wrapWidth, separator: ' ' })
+    : [];
+  if (mode === 'code' && codeMetaLines.length) {
+    out += `${codeMetaLines.join('\n')}\n`;
+  } else if (summaryBits.length) {
+    out += `${INDENT}${summaryBits.join(' ')}\n`;
   }
 
   const backgroundSections = [];
   const pushBackgroundSection = (lines, bg) => {
     if (lines.length) backgroundSections.push({ lines, bg });
   };
-  const formatFileItem = (item) => italicColor(String(item), ANSI.fgLight);
+  const formatFileItem = (item) => hyperlinkFileLabel({
+    label: italicColor(String(item), ANSI.fgLight),
+    filePath: String(item),
+    rootDir: rootDir || process.cwd(),
+    mode: hyperlinkMode
+  });
   const formatExportItem = (item) => colorText(String(item), ANSI.fgBrightWhite);
   const formatCallValue = (value) => {
     const raw = String(value).trim();
@@ -168,15 +270,15 @@ export function formatFullChunk({
     if (match) {
       const name = match[1].trim();
       const count = match[3];
-      return `${colorText(name, ANSI.fgBlack)} ${colorText(`(${count})`, ANSI.fgBrightWhite)}`;
+      return `${colorText(name, ANSI.fgBrightWhite)} ${colorText(`(${count})`, ANSI.fgLightBlue)}`;
     }
-    return colorText(raw, ANSI.fgBlack);
+    return colorText(raw, ANSI.fgBrightWhite);
   };
   const formatCallSummary = (text) => {
     const raw = String(text);
     const match = raw.match(/^([A-Za-z0-9_$\.]+)(.*)$/);
     if (match) {
-      return `${colorText(match[1], ANSI.fgBlue)}${colorText(match[2], ANSI.fgBrightWhite)}`;
+      return `${colorText(match[1], ANSI.fgLightBlue)}${colorText(match[2], ANSI.fgBrightWhite)}`;
     }
     return colorText(raw, ANSI.fgBrightWhite);
   };
@@ -185,7 +287,7 @@ export function formatFullChunk({
     ? toArray(chunk.imports)
     : toArray(chunk.codeRelations?.imports);
   const importLines = importItems.length
-    ? buildWrappedLines(labelToken('Imports', ANSI.fgPink), importItems.map(formatFileItem))
+    ? buildWrappedLines(labelToken('Imports', ANSI.fgPink), importItems.map(formatFileItem), { maxWidth: wrapWidth })
     : [];
   pushBackgroundSection(importLines, BG_IMPORTS);
 
@@ -193,7 +295,7 @@ export function formatFullChunk({
     ? toArray(chunk.exports)
     : toArray(chunk.codeRelations?.exports);
   const exportLines = exportItems.length
-    ? buildWrappedLines(labelToken('Exports', ANSI.fgCyan), exportItems.map(formatExportItem))
+    ? buildWrappedLines(labelToken('Exports', ANSI.fgCyan), exportItems.map(formatExportItem), { maxWidth: wrapWidth })
     : [];
   pushBackgroundSection(exportLines, BG_EXPORTS);
 
@@ -215,18 +317,16 @@ export function formatFullChunk({
     const trimmed = entries.length > rendered.length;
     if (rendered.length) {
       const callerName = callers.size === 1 ? Array.from(callers)[0] : '';
-      const callerPrefixPlain = callerName ? `${callerName}->` : '';
       const callerPrefixStyled = callerName
-        ? `${colorText(callerName, ANSI.fgBlue)}${colorText('->', ANSI.fgBrightWhite)}`
+        ? `${colorText(callerName, ANSI.fgLightBlue)}${colorText(' ->', ANSI.fgBrightWhite)}`
         : '';
       const values = rendered.map(formatCallValue);
       if (trimmed) values.push(formatCallValue('...'));
-      const callLabel = labelToken('Calls', ANSI.fgBlue);
-      const prefixVisible = stripAnsi(`${INDENT}${callLabel} ${callerPrefixPlain}`).length;
-      const pad = ' '.repeat(prefixVisible);
-      const firstLine = `${INDENT}${callLabel} ${callerPrefixStyled}${values[0]}`;
-      const rest = values.slice(1).map((value) => `${pad}${value}`);
-      const callLines = [firstLine, ...rest];
+      const callLines = buildWrappedLines(
+        `${labelToken('Calls', ANSI.fgBlue)}${callerPrefixStyled ? ` ${callerPrefixStyled}` : ''}`,
+        values,
+        { maxWidth: wrapWidth }
+      );
       pushBackgroundSection(callLines, BG_CALLS);
     }
   }
@@ -247,7 +347,7 @@ export function formatFullChunk({
     ? toArray(chunk.importLinks)
     : toArray(chunk.codeRelations?.importLinks);
   const importLinkLines = importLinkItems.length
-    ? buildWrappedLines(labelToken('Import Links', ANSI.fgGreen), importLinkItems.map(formatFileItem))
+    ? buildWrappedLines(labelToken('Import Links', ANSI.fgGreen), importLinkItems.map(formatFileItem), { maxWidth: wrapWidth })
     : [];
   pushBackgroundSection(importLinkLines, BG_IMPORT_LINKS);
 
@@ -278,15 +378,15 @@ export function formatFullChunk({
   if (visibility) modifierParts.push(`visibility=${visibility}`);
   if (chunk.docmeta?.methodKind) modifierParts.push(`kind=${chunk.docmeta.methodKind}`);
   if (modifierParts.length) {
-    out += formatWrappedList(labelToken('Modifiers', ANSI.fgDarkGray), modifierParts);
+    out += formatWrappedList(labelToken('Modifiers', ANSI.fgDarkGray), modifierParts, { maxWidth: wrapWidth });
   }
   const decorators = toArray(chunk.docmeta?.decorators);
   if (decorators.length) {
-    out += formatWrappedList(labelToken('Decorators', ANSI.fgMagenta), decorators);
+    out += formatWrappedList(labelToken('Decorators', ANSI.fgMagenta), decorators, { maxWidth: wrapWidth });
   }
   const bases = chunk.docmeta?.extends || chunk.docmeta?.bases || [];
   if (Array.isArray(bases) && bases.length) {
-    out += formatWrappedList(labelToken('Extends', ANSI.fgMagenta), bases);
+    out += formatWrappedList(labelToken('Extends', ANSI.fgMagenta), bases, { maxWidth: wrapWidth });
   }
 
   const usages = toArray(chunk.usages);
@@ -307,7 +407,7 @@ export function formatFullChunk({
       return c.cyan(`${usage} (${count})`);
     }).join(', ');
 
-    if (usageStr.length) out += formatWrappedList(labelToken('Usages', ANSI.fgCyan), usageStr.split(', '));
+    if (usageStr.length) out += formatWrappedList(labelToken('Usages', ANSI.fgCyan), usageStr.split(', '), { maxWidth: wrapWidth });
   } else {
     const relationUsages = toArray(chunk.codeRelations?.usages);
     if (relationUsages.length) {
@@ -327,7 +427,7 @@ export function formatFullChunk({
         return c.cyan(`${usage} (${count})`);
       }).join(', ');
 
-      if (usageStr.length) out += formatWrappedList(labelToken('Usages', ANSI.fgCyan), usageStr.split(', '));
+      if (usageStr.length) out += formatWrappedList(labelToken('Usages', ANSI.fgCyan), usageStr.split(', '), { maxWidth: wrapWidth });
     }
   }
 
@@ -400,7 +500,7 @@ export function formatFullChunk({
   }
   const awaits = toArray(chunk.docmeta?.awaits);
   if (awaits.length) {
-    out += formatWrappedList(labelToken('Awaits', ANSI.fgBlue), awaits.slice(0, 6));
+    out += formatWrappedList(labelToken('Awaits', ANSI.fgBlue), awaits.slice(0, 6), { maxWidth: wrapWidth });
   }
   if (chunk.docmeta?.yields) {
     out += c.blue(`${INDENT}Yields: `) + 'yes' + '\n';
@@ -409,27 +509,27 @@ export function formatFullChunk({
   if (dataflow) {
     const reads = toArray(dataflow.reads);
     if (reads.length) {
-      out += formatWrappedList(labelToken('Reads', ANSI.fgDarkGray), reads.slice(0, 6));
+      out += formatWrappedList(labelToken('Reads', ANSI.fgDarkGray), reads.slice(0, 6), { maxWidth: wrapWidth });
     }
     const writes = toArray(dataflow.writes);
     if (writes.length) {
-      out += formatWrappedList(labelToken('Writes', ANSI.fgDarkGray), writes.slice(0, 6));
+      out += formatWrappedList(labelToken('Writes', ANSI.fgDarkGray), writes.slice(0, 6), { maxWidth: wrapWidth });
     }
     const mutations = toArray(dataflow.mutations);
     if (mutations.length) {
-      out += formatWrappedList(labelToken('Mutates', ANSI.fgDarkGray), mutations.slice(0, 6));
+      out += formatWrappedList(labelToken('Mutates', ANSI.fgDarkGray), mutations.slice(0, 6), { maxWidth: wrapWidth });
     }
     const aliases = toArray(dataflow.aliases);
     if (aliases.length) {
-      out += formatWrappedList(labelToken('Aliases', ANSI.fgDarkGray), aliases.slice(0, 6));
+      out += formatWrappedList(labelToken('Aliases', ANSI.fgDarkGray), aliases.slice(0, 6), { maxWidth: wrapWidth });
     }
     const globals = toArray(dataflow.globals);
     if (globals.length) {
-      out += formatWrappedList(labelToken('Globals', ANSI.fgDarkGray), globals.slice(0, 6));
+      out += formatWrappedList(labelToken('Globals', ANSI.fgDarkGray), globals.slice(0, 6), { maxWidth: wrapWidth });
     }
     const nonlocals = toArray(dataflow.nonlocals);
     if (nonlocals.length) {
-      out += formatWrappedList(labelToken('Nonlocals', ANSI.fgDarkGray), nonlocals.slice(0, 6));
+      out += formatWrappedList(labelToken('Nonlocals', ANSI.fgDarkGray), nonlocals.slice(0, 6), { maxWidth: wrapWidth });
     }
   }
   const risk = chunk.docmeta?.risk || null;
@@ -439,14 +539,14 @@ export function formatFullChunk({
     }
     const riskTags = toArray(risk.tags);
     if (riskTags.length) {
-      out += formatWrappedList(labelToken('RiskTags', ANSI.fgRed), riskTags.slice(0, 6));
+      out += formatWrappedList(labelToken('RiskTags', ANSI.fgRed), riskTags.slice(0, 6), { maxWidth: wrapWidth });
     }
     const riskFlows = toArray(risk.flows);
     if (riskFlows.length) {
       const flowList = riskFlows.slice(0, 3).map((flow) =>
         `${flow.source}->${flow.sink} (${flow.category})`
       );
-      out += formatWrappedList(labelToken('RiskFlows', ANSI.fgRed), flowList);
+      out += formatWrappedList(labelToken('RiskFlows', ANSI.fgRed), flowList, { maxWidth: wrapWidth });
     }
   }
 
@@ -458,7 +558,7 @@ export function formatFullChunk({
 
   const externalDocs = toArray(chunk.externalDocs);
   if (externalDocs.length) {
-    out += formatWrappedList(labelToken('Docs', ANSI.fgBlue), externalDocs);
+    out += formatWrappedList(labelToken('Docs', ANSI.fgBlue), externalDocs, { maxWidth: wrapWidth });
   }
 
   if (summaryState && rootDir && !chunk.docmeta?.record && allowSummary) {
@@ -483,6 +583,7 @@ export function formatFullChunk({
       out += explainLines.join('\n') + '\n';
     }
   }
+  out = out.replace(/\n+$/u, '');
   out += '\n';
   if (canCache && formatCache && cacheKey) {
     formatCache.set(cacheKey, out);

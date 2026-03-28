@@ -1,4 +1,36 @@
 import { getToolVersion } from '../../../tools/dict-utils/tool.js';
+import { ANSI } from '../../shared/cli/ansi-utils.js';
+
+const resolveHelpWidth = (stdout = process.stdout) => {
+  const envColumns = Number.parseInt(String(process.env.COLUMNS || ''), 10);
+  if (Number.isFinite(envColumns) && envColumns >= 48) return envColumns;
+  const streamColumns = Number.parseInt(String(stdout?.columns ?? ''), 10);
+  if (Number.isFinite(streamColumns) && streamColumns >= 48) return streamColumns;
+  return 100;
+};
+
+const wrapParagraph = (text, width, indent = '') => {
+  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [indent.trimEnd()];
+  const lines = [];
+  let line = indent;
+  for (const word of words) {
+    const candidate = line.trim().length ? `${line} ${word}` : `${indent}${word}`;
+    if (candidate.length > width && line.trim().length) {
+      lines.push(line);
+      line = `${indent}${word}`;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line.trim().length) lines.push(line);
+  return lines;
+};
+
+const heading = (text) => `${ANSI.bold}${text}${ANSI.reset}`;
+const dim = (text) => `${ANSI.fgDarkGray}${text}${ANSI.reset}`;
+
+const formatFlagList = (items, width) => items.flatMap((item) => wrapParagraph(item, width, '  '));
 
 export async function runCli({
   rawArgs = process.argv.slice(2),
@@ -32,25 +64,52 @@ export function hasVersionArg(values) {
 }
 
 export function printHelp(stdout = process.stdout) {
-  stdout.write(`Usage: search "<query>" [options]
-
-Common options:
-  --mode <code|prose|records|extracted-prose|default>
-  --repo <path>
-  --as-of <IndexRef>
-  --snapshot <snapshotId>
-  --backend <auto|sqlite|sqlite-fts|lmdb>
-  --json
-  --compact
-  --stats
-  --ann / --no-ann
-
-Examples:
-  search "needle"
-  search --mode code "symbol"
-  search --help
-  search --version
-`);
+  const width = resolveHelpWidth(stdout);
+  const lines = [
+    heading('PairOfCleats Search'),
+    dim('Search code, prose, extracted comments, and records from a built PairOfCleats index.'),
+    '',
+    heading('Usage'),
+    '  Usage: search <query> [options]',
+    '  pairofcleats search <query> [options]',
+    '  search <query> [options]',
+    '',
+    heading('Modes'),
+    ...formatFlagList([
+      '--mode <code|prose|records|extracted-prose|default>  Select the search surface.',
+      '--repo <path>  Search a specific repo root.',
+      '--as-of <IndexRef> / --snapshot <snapshotId>  Query a stable index view.'
+    ], width),
+    '',
+    heading('Filters'),
+    ...formatFlagList([
+      '--path <glob> / --file <path> / --ext <ext> / --lang <lang>',
+      '--author <name> / --modified-since <date> / --type <symbol-kind>',
+      '--calls <symbol> / --uses <symbol> / --import <path-or-symbol> / --risk <filter>'
+    ], width),
+    '',
+    heading('Output'),
+    ...formatFlagList([
+      '--json / --compact  Emit machine-readable payloads.',
+      '--stats / --explain  Show retrieval metadata or ranking explanation.',
+      '--ann / --no-ann / --backend <auto|sqlite|sqlite-fts|lmdb>'
+    ], width),
+    '',
+    heading('Starter Recipes'),
+    '  pairofcleats search parseSearchArgs --mode code',
+    '  pairofcleats search "Search Pipeline" --mode prose',
+    '  pairofcleats search withLspSession --calls startProvider',
+    '  pairofcleats search risk --risk severity=high --explain',
+    '',
+    heading('Notes'),
+    ...wrapParagraph(
+      'If no index is present, run `pairofcleats index build` first. Use `search --version` to print the tool version.',
+      width,
+      '  '
+    ),
+    ''
+  ];
+  stdout.write(`${lines.join('\n')}`);
 }
 
 export function printVersion(stdout = process.stdout) {

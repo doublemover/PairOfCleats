@@ -305,6 +305,7 @@ export async function executeSearchAndEmit(input) {
     elapsedMs,
     stageTracker,
     outputBudget: userConfig?.search?.outputBudget || null,
+    hyperlinkMode: userConfig?.search?.hyperlinks || null,
     asOfContext,
     generationContext
   });

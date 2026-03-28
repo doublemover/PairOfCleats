@@ -42,7 +42,9 @@ export const colorize = (text, color, enabled = true) => (
   enabled ? `${color}${text}${ANSI.reset}` : text
 );
 
-export const stripAnsi = (text) => String(text).replace(/\x1b\[[0-9;]*m/g, '');
+export const stripAnsi = (text) => String(text)
+  .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/gu, '')
+  .replace(/\x1b\[[0-9;]*m/gu, '');
 
 export const padEndVisible = (text, width) => {
   const visible = stripAnsi(text).length;

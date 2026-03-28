@@ -55,7 +55,7 @@ export const formatLastModified = (value) => {
   return `${month}/${day}/${year} ${hours}:${minutes}${period}`;
 };
 
-export const INDENT = '     ';
+export const INDENT = '  ';
 
 /**
  * Locale-neutral comparator for deterministic ordering across environments.
@@ -126,7 +126,8 @@ export const buildFormatCacheKey = ({
   mode,
   queryHash,
   matched,
-  explain
+  explain,
+  layoutSignature = ''
 }) => buildLocalCacheKey({
   namespace: 'format',
   payload: {
@@ -138,6 +139,7 @@ export const buildFormatCacheKey = ({
     matched: Boolean(matched),
     explain: Boolean(explain),
     queryHash,
+    layoutSignature,
     chunkVersion: resolveFormatChunkVersion(chunk)
   }
 }).key;

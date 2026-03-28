@@ -3,6 +3,8 @@ export { filterChunks, filterChunkIds } from './output/filters.js';
 export { cleanContext } from './output/context.js';
 export {
   buildResultBundles,
+  colorText,
   formatFullChunk,
-  formatShortChunk
+  formatShortChunk,
+  stripAnsi
 } from './output/format.js';

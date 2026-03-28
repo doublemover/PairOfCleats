@@ -231,6 +231,7 @@ const KNOWN_CONFIG_KEYS = new Set([
   'search.annDefault',
   'search.denseVectorMode',
   'search.fieldWeights',
+  'search.hyperlinks',
   'search.maxCandidates',
   'search.rrf.enabled',
   'search.rrf.k',

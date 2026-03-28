@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-26T20:47:06.145Z",
+  "generatedAt": "2026-03-28T09:37:53.349Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -401,6 +401,7 @@
       "search.annDefault",
       "search.denseVectorMode",
       "search.fieldWeights",
+      "search.hyperlinks",
       "search.maxCandidates",
       "search.rrf.enabled",
       "search.rrf.k",
@@ -486,8 +487,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 321,
-    "leafKeys": 262,
+    "totalKeys": 322,
+    "leafKeys": 263,
     "topLevel": [
       {
         "key": "cache",
@@ -515,7 +516,7 @@
       },
       {
         "key": "search",
-        "count": 15
+        "count": 16
       },
       {
         "key": "threads",
@@ -1724,6 +1725,16 @@
       "path": "search.fieldWeights",
       "type": "object",
       "enum": null
+    },
+    {
+      "path": "search.hyperlinks",
+      "type": "string",
+      "enum": [
+        "auto",
+        "off",
+        "file",
+        "vscode"
+      ]
     },
     {
       "path": "search.maxCandidates",
@@ -8191,7 +8202,6 @@
       "src/map/isometric/client/ui.js",
       "src/retrieval/cli-args.js",
       "src/retrieval/cli/run-search-session/mode-expansion.js",
-      "src/retrieval/cli/search-entry.js",
       "src/retrieval/federation/args.js",
       "src/retrieval/federation/coordinator.js",
       "src/retrieval/index-cache.js",

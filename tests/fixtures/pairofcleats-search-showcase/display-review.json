@@ -1,0 +1,252 @@
+{
+  "schemaVersion": 1,
+  "tool": "pairofcleats",
+  "repoTarget": "self",
+  "description": "Terminal display review corpus for PairOfCleats search. Focuses on human-facing rendering, help/error surfaces, explain/stats output, and machine-output contrast cases.",
+  "executionDefaults": {
+    "entrypoint": "tools/search/cli-entry.js",
+    "searchArgs": ["--top", "3"],
+    "logsFolderName": "search-display-review"
+  },
+  "featureSets": [
+    {
+      "id": "cli-surfaces",
+      "title": "CLI help and errors",
+      "description": "Observe help, version, and request-error output.",
+      "caseIds": [
+        "cli-help",
+        "cli-version",
+        "cli-invalid-mode",
+        "cli-removed-flag"
+      ]
+    },
+    {
+      "id": "human-results",
+      "title": "Human result layouts",
+      "description": "Covers default mixed output, code, prose, extracted prose, empty states, and filter-driven views.",
+      "caseIds": [
+        "human-default-mixed",
+        "human-code-rich",
+        "human-prose-heading",
+        "human-extracted-prose",
+        "human-no-results",
+        "human-matched",
+        "human-case-sensitive",
+        "human-import-filter",
+        "human-path-filter",
+        "human-async-filter",
+        "human-generator-filter"
+      ]
+    },
+    {
+      "id": "stats-and-explain",
+      "title": "Explain and stats",
+      "description": "Exercises metadata-heavy result rendering and diagnostics footer paths.",
+      "caseIds": [
+        "human-stats",
+        "human-explain",
+        "human-explain-prose"
+      ]
+    },
+    {
+      "id": "machine-output",
+      "title": "Machine output contrast",
+      "description": "Contrast human output with JSON and compact JSON payloads.",
+      "caseIds": [
+        "json-compact",
+        "json-explain-stats"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "cli-help",
+      "title": "Search help surface",
+      "stability": "stable",
+      "category": "help",
+      "commandArgs": ["--help"],
+      "why": "Exercises the full help screen layout at each terminal size."
+    },
+    {
+      "id": "cli-version",
+      "title": "Search version output",
+      "stability": "stable",
+      "category": "help",
+      "commandArgs": ["--version"],
+      "why": "Tiny but useful for observing minimal output styling and spacing."
+    },
+    {
+      "id": "cli-invalid-mode",
+      "title": "Invalid mode request",
+      "stability": "stable",
+      "category": "error",
+      "commandArgs": ["--mode", "wat", "--", "alpha"],
+      "expectedExitCode": 1,
+      "why": "Exercises typed request-error presentation."
+    },
+    {
+      "id": "cli-removed-flag",
+      "title": "Removed flag request",
+      "stability": "stable",
+      "category": "error",
+      "commandArgs": ["--human", "--", "alpha"],
+      "expectedExitCode": 1,
+      "why": "Shows removed-flag guidance in the terminal surface."
+    },
+    {
+      "id": "human-default-mixed",
+      "title": "Default mixed-surface results",
+      "stability": "stable",
+      "category": "human",
+      "mode": "all",
+      "query": "chunk",
+      "why": "Broad mixed result set that typically produces code, comments, and prose sections."
+    },
+    {
+      "id": "human-code-rich",
+      "title": "Code-rich symbol results",
+      "stability": "stable",
+      "category": "human",
+      "mode": "code",
+      "query": "renderSearchOutput",
+      "why": "High-signal code result with signature and metadata."
+    },
+    {
+      "id": "human-prose-heading",
+      "title": "Prose heading results",
+      "stability": "stable",
+      "category": "human",
+      "mode": "prose",
+      "query": "\"Search Pipeline\"",
+      "why": "Strong prose anchor for excerpt rendering."
+    },
+    {
+      "id": "human-extracted-prose",
+      "title": "Extracted prose comment results",
+      "stability": "stable",
+      "category": "human",
+      "mode": "extracted-prose",
+      "query": "\"Collect LSP-derived signature/hover metadata\"",
+      "why": "Exercises comment/extracted-prose rendering."
+    },
+    {
+      "id": "human-no-results",
+      "title": "Empty-state output",
+      "stability": "stable",
+      "category": "human",
+      "mode": "code",
+      "query": "definitely-no-match-token-xyz-nohit",
+      "why": "Exercises the no-results state cleanly."
+    },
+    {
+      "id": "human-stats",
+      "title": "Human stats footer",
+      "stability": "stable",
+      "category": "stats",
+      "mode": "code",
+      "query": "parseSearchArgs",
+      "args": ["--stats"],
+      "why": "Exercises stats emission in human mode."
+    },
+    {
+      "id": "human-explain",
+      "title": "Human explain rendering",
+      "stability": "stable",
+      "category": "explain",
+      "mode": "code",
+      "query": "scoreBreakdown",
+      "args": ["--path", "src/retrieval/output", "--explain"],
+      "why": "Exercises score-breakdown-heavy result rendering."
+    },
+    {
+      "id": "human-explain-prose",
+      "title": "Human explain prose rendering",
+      "stability": "stable",
+      "category": "explain",
+      "mode": "prose",
+      "query": "\"Minimal API Server\"",
+      "args": ["--explain"],
+      "why": "Shows explain output on prose results."
+    },
+    {
+      "id": "human-matched",
+      "title": "Matched-token annotations",
+      "stability": "stable",
+      "category": "human",
+      "mode": "code",
+      "query": "parseSearchArgs",
+      "args": ["--matched"],
+      "why": "Exercises matched-token annotations in human output."
+    },
+    {
+      "id": "human-case-sensitive",
+      "title": "Case-sensitive docs query",
+      "stability": "stable",
+      "category": "human",
+      "mode": "prose",
+      "query": "PairOfCleats",
+      "args": ["--path", "docs/", "--case-tokens"],
+      "why": "Exercises human display for case-sensitive prose searches."
+    },
+    {
+      "id": "human-import-filter",
+      "title": "Import-filtered source result",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "yargs",
+      "args": ["--path", "src/retrieval/cli-args.js", "--import", "yargs/yargs"],
+      "why": "Useful for import-heavy code result rendering."
+    },
+    {
+      "id": "human-path-filter",
+      "title": "Regex path-filtered fixture result",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "buildAliases",
+      "args": ["--path", "tests/fixtures/languages/src", "--file", "/javascript_advanced\\.js$/"],
+      "why": "Exercises file-filtered human output on a stable fixture."
+    },
+    {
+      "id": "human-async-filter",
+      "title": "Async-filtered fixture result",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "load",
+      "args": ["--path", "tests/fixtures/languages/src/javascript_advanced.js", "--async"],
+      "why": "Exercises async function display against a compact fixture."
+    },
+    {
+      "id": "human-generator-filter",
+      "title": "Generator-filtered fixture result",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "iter",
+      "args": ["--path", "tests/fixtures/languages/src/javascript_advanced.js", "--generator"],
+      "why": "Exercises generator result rendering against a compact fixture."
+    },
+    {
+      "id": "json-compact",
+      "title": "Compact JSON contrast",
+      "stability": "stable",
+      "category": "machine",
+      "mode": "code",
+      "query": "scoreBreakdown",
+      "args": ["--path", "src/retrieval/output", "--json", "--compact"],
+      "why": "Contrasts the human surface with compact JSON output."
+    },
+    {
+      "id": "json-explain-stats",
+      "title": "Explain + stats JSON contrast",
+      "stability": "stable",
+      "category": "machine",
+      "mode": "code",
+      "query": "parseSearchArgs",
+      "args": ["--json", "--explain", "--stats"],
+      "why": "Captures the heaviest machine-output shape for comparison."
+    }
+  ]
+}
