@@ -36,7 +36,16 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 const baseEnv = {
   ...process.env,  PAIROFCLEATS_EMBEDDINGS: 'stub',
   PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
-    tooling: { autoEnableOnDetect: false }
+    indexing: {
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
   })
 };
 syncProcessEnv(baseEnv, [...DEFAULT_TEST_ENV_KEYS]);

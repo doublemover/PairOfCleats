@@ -55,27 +55,27 @@ const matrix = [
   {
     editor: 'sublime',
     flow: 'search harness',
-    testPath: 'tests/tooling/sublime/search-behavior.test.js',
+    testPath: 'tests/tooling/sublime/behavior-contract-matrix.test.js',
     requiredContent: [
-      'sublime search behavior test passed'
+      "['search', 'search_behavior.py']"
     ],
     requiredLanes: ['ci-lite']
   },
   {
     editor: 'sublime',
     flow: 'index harness',
-    testPath: 'tests/tooling/sublime/index-behavior.test.js',
+    testPath: 'tests/tooling/sublime/behavior-contract-matrix.test.js',
     requiredContent: [
-      'sublime index behavior test passed'
+      "['index', 'index_behavior.py']"
     ],
     requiredLanes: ['ci-lite']
   },
   {
     editor: 'sublime',
     flow: 'context-pack and risk-explain harness',
-    testPath: 'tests/tooling/sublime/analysis-behavior.test.js',
+    testPath: 'tests/tooling/sublime/behavior-contract-matrix.test.js',
     requiredContent: [
-      'sublime analysis behavior test passed'
+      "['analysis', 'analysis_behavior.py']"
     ],
     requiredLanes: ['ci-lite']
   },

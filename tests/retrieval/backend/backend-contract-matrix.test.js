@@ -12,6 +12,20 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
+const backendMatrixTestConfig = {
+  indexing: {
+    typeInference: false,
+    typeInferenceCrossFile: false,
+    riskAnalysis: false,
+    riskAnalysisCrossFile: false
+  },
+  tooling: {
+    autoEnableOnDetect: false,
+    lsp: {
+      enabled: false
+    }
+  }
+};
 
 const runNode = (env, args, label) => {
   const result = spawnSync(process.execPath, args, {
@@ -225,7 +239,8 @@ const cases = [
       const cacheRoot = resolveTestCachePath(root, 'retrieval-backend-contract-matrix');
       const env = applyTestEnv({
         cacheRoot,
-        embeddings: 'stub'
+        embeddings: 'stub',
+        testConfig: backendMatrixTestConfig
       });
 
       await fsPromises.rm(cacheRoot, { recursive: true, force: true });

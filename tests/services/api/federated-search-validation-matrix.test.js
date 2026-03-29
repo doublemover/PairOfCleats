@@ -11,6 +11,26 @@ import {
 
 applyTestEnv();
 
+const startFederatedValidationServer = async (options) => {
+  const attempts = [];
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await startFederatedApiServer(options);
+    } catch (error) {
+      const message = String(error?.message || error || '');
+      attempts.push(message);
+      const shouldRetry = attempt === 0 && /api-server exited before startup/i.test(message);
+      if (!shouldRetry) {
+        if (attempts.length > 1) {
+          error.message = `${message}\n\nstartup attempts:\n${attempts.join('\n---\n')}`;
+        }
+        throw error;
+      }
+    }
+  }
+  throw new Error(`api-server startup failed after retry:\n${attempts.join('\n---\n')}`);
+};
+
 const cases = [
   {
     name: 'workspaceId requests are rejected until workspacePath support exists',
@@ -301,7 +321,7 @@ const cases = [
 
 for (const entry of cases) {
   const setup = await entry.setup();
-  const { serverInfo, requestJson, stop } = await startFederatedApiServer({
+  const { serverInfo, requestJson, stop } = await startFederatedValidationServer({
     repoRoot: setup.repoRoot,
     allowedRoots: setup.allowedRoots,
     envOverrides: setup.envOverrides

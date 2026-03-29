@@ -19,14 +19,14 @@ const typeFixture = await ensureFixtureIndex({
   fixtureName: 'type-filters',
   cacheName: 'type-filters',
   envOverrides: { PAIROFCLEATS_TEST_CONFIG: JSON.stringify(typeFixtureConfig) },
-  cacheScope: 'shared',
+  cacheScope: 'isolated',
   requiredModes: ['code']
 });
 const riskFixture = await ensureFixtureIndex({
   fixtureName: 'languages',
   cacheName: 'language-fixture',
   requireRiskTags: true,
-  cacheScope: 'shared',
+  cacheScope: 'isolated',
   requiredModes: ['code']
 });
 

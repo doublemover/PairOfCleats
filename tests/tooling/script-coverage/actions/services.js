@@ -18,7 +18,7 @@ export const buildServiceActions = ({ root, runNode }) => [
   },
   {
     label: 'api-server-test',
-    run: () => runNode('api-server-test', path.join(root, 'tests', 'services', 'api', 'health-and-status.test.js')),
+    run: () => runNode('api-server-test', path.join(root, 'tests', 'services', 'api', 'router-contract-matrix.test.js')),
     covers: ['api-server-test']
   },
   {

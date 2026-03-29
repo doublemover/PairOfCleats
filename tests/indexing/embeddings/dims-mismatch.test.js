@@ -21,7 +21,19 @@ await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
 const env = applyTestEnv({
   cacheRoot,
-  embeddings: 'stub'
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  }
 });
 
 const runNode = (label, args, cwd = repoRoot) => runNodeSync(args, label, cwd, env, { stdio: 'pipe' });

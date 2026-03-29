@@ -35,12 +35,22 @@ const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
   testConfig: {
+    indexing: {
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
     sqlite: {
       vectorExtension: {
         annMode: 'extension',
         enabled: true,
         path: extensionPath
       }
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
   },
   extraEnv: { PAIROFCLEATS_BUNDLE_THREADS: '1' }

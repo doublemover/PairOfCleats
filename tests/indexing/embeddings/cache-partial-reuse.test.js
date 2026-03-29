@@ -27,11 +27,19 @@ const env = applyTestEnv({
   embeddings: 'stub',
   testConfig: {
     indexing: {
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false,
       scm: { provider: 'none' },
       embeddings: {
         hnsw: { enabled: false },
         lancedb: { enabled: false }
       }
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
   }
 });

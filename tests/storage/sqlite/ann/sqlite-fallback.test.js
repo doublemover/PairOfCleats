@@ -29,7 +29,20 @@ await fsPromises.writeFile(
 
 const env = applyTestEnv({
   cacheRoot,
-  embeddings: 'stub'
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false,
+      scm: { provider: 'none' }
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  }
 });
 
 const runNode = (label, args) => {

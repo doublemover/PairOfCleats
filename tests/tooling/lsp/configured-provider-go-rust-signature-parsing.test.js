@@ -85,6 +85,15 @@ const runSingleLanguageCase = async ({
     await fs.writeFile(path.join(caseRoot, 'go.mod'), 'module example.com/poc-signature-test\n\ngo 1.22\n');
   }
   if (languageId === 'rust') {
+    const rustMetadataScriptPath = path.join(caseRoot, 'rust-metadata-ok.js');
+    await fs.writeFile(
+      rustMetadataScriptPath,
+      "process.stdout.write('{\"packages\":[]}\\n');\n",
+      'utf8'
+    );
+    serverConfig.rustWorkspaceMetadataCmd = process.execPath;
+    serverConfig.rustWorkspaceMetadataArgs = [rustMetadataScriptPath];
+    serverConfig.rustWorkspaceMetadataTimeoutMs = 5000;
     await fs.writeFile(
       path.join(caseRoot, 'Cargo.toml'),
       '[package]\nname = "poc-signature-test"\nversion = "0.1.0"\nedition = "2021"\n\n[lib]\npath = "src/lib.rs"\n'
