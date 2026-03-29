@@ -8,22 +8,22 @@ import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 const { root, repoRoot, env, userConfig, run } = await setupIncrementalRepo({ name: 'wal-checkpoint' });
 
 run(
-  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot],
+  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
   'build index',
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
-await runSqliteBuild(repoRoot);
+await runSqliteBuild(repoRoot, { mode: 'code' });
 
 const targetFile = path.join(repoRoot, 'src', 'index.js');
 const original = await fsPromises.readFile(targetFile, 'utf8');
 await fsPromises.writeFile(targetFile, `${original}\nexport const walCheck = true;\n`);
 
 run(
-  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot],
+  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
   'build index (incremental)',
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
-await runSqliteBuild(repoRoot, { incremental: true });
+await runSqliteBuild(repoRoot, { mode: 'code', incremental: true });
 
 const sqlitePaths = ensureSqlitePaths(repoRoot, userConfig);
 const walPath = `${sqlitePaths.codePath}-wal`;

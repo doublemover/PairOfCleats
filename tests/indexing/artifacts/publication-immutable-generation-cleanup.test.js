@@ -7,6 +7,8 @@ import os from 'node:os';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { prepareArtifactCleanup } from '../../../src/index/build/artifacts-write/family-dispatch.js';
 import {
+  resolveArtifactPublicationPath,
+  resolveArtifactPublicationValidationPath,
   resolveCommittedArtifactPaths,
   writeArtifactPublicationRecord,
   writeArtifactPublicationValidationReport
@@ -68,18 +70,23 @@ try {
 
   await cleanup.removeArtifact(chunkMetaPath, { policy: 'legacy' });
   const summary = await cleanup.commitArtifactCleanup({
-    immutablePaths: resolveCommittedArtifactPaths({
-      buildRoot,
-      outDir,
-      pieceEntries,
-      manifestPath
-    })
+    immutablePaths: [
+      ...resolveCommittedArtifactPaths({
+        buildRoot,
+        outDir,
+        pieceEntries,
+        manifestPath
+      }),
+      resolveArtifactPublicationValidationPath(buildRoot, 'code'),
+      resolveArtifactPublicationPath(buildRoot, 'code')
+    ]
   });
 
   assert.equal(summary.completedActions, 0);
   assert.equal(summary.failedActions, 1);
   assert.match(summary.failures[0].message, /refusing to remove committed artifact/i);
   await fs.access(chunkMetaPath);
+  await fs.access(resolveArtifactPublicationValidationPath(buildRoot, 'code'));
 
   await writeArtifactPublicationRecord({
     buildRoot,

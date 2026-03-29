@@ -254,6 +254,7 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
 export const replaceFileSync = (tempPath, finalPath, options = {}) => {
   const keepBackup = options.keepBackup === true;
   const backupPath = createSiblingBackupPath(finalPath);
+  const committedFinalGraceMs = resolveCommittedFinalGraceWithTempWaitMs();
   const isSamePath = (
     typeof tempPath === 'string'
     && typeof finalPath === 'string'
@@ -281,7 +282,7 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
   const commitSucceeded = () => {
     if (!fsSync.existsSync(finalPath)) return false;
     if (!backupCreatedForReplace) {
-      return finalExistedAtStart === false || hasRecentlyCommittedFinalPath(finalPath);
+      return finalExistedAtStart === false || hasRecentlyCommittedFinalPath(finalPath, committedFinalGraceMs);
     }
     return !fsSync.existsSync(backupPath);
   };

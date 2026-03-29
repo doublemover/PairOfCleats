@@ -6,6 +6,8 @@ import { writePiecesManifest } from '../artifacts/checksums.js';
 import {
   ARTIFACT_PUBLICATION_STATUSES,
   resolveCommittedArtifactPaths,
+  resolveArtifactPublicationPath,
+  resolveArtifactPublicationValidationPath,
   writeArtifactPublicationRecord,
   writeArtifactPublicationValidationReport
 } from '../artifact-publication.js';
@@ -228,12 +230,16 @@ export const runArtifactPublicationFinalizers = async ({
   if (typeof commitArtifactCleanup === 'function') {
     await runTrackedArtifactCloseout('artifact-cleanup-commit', async () => {
       cleanupCommit = await commitArtifactCleanup({
-        immutablePaths: resolveCommittedArtifactPaths({
-          buildRoot: publicationBuildRoot,
-          outDir,
-          pieceEntries,
-          manifestPath: publicationManifestPath
-        })
+        immutablePaths: [
+          ...resolveCommittedArtifactPaths({
+            buildRoot: publicationBuildRoot,
+            outDir,
+            pieceEntries,
+            manifestPath: publicationManifestPath
+          }),
+          resolveArtifactPublicationValidationPath(publicationBuildRoot, mode),
+          publicationRecord?.publicationPath || resolveArtifactPublicationPath(publicationBuildRoot, mode)
+        ]
       });
       if (Number(cleanupCommit?.failedActions || 0) > 0) {
         throw new Error(
