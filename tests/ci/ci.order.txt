@@ -63,11 +63,9 @@ storage/sqlite/incremental/doc-id-reuse
 storage/sqlite/incremental/file-manifest-updates
 storage/sqlite/incremental/manifest-hash-fill
 storage/sqlite/incremental/manifest-normalization
-storage/sqlite/migrations/schema-mismatch-rebuild
 smoke/services
 shared/subprocess/quoting
 services/snapshot-ref-contract-matrix
-tooling/triage/records-index-and-search
 tooling/triage/context-pack
 indexing/embeddings/validate
 indexing/embeddings/cache-identity
@@ -100,3 +98,8 @@ indexing/file-caps/contract-matrix
 indexing/postings/vector-only-policy-contract-matrix
 services/risk-explain-adapter-matrix
 indexing/config/index-dump
+services/api/router-contract-matrix
+retrieval/federation/cache-failure-contract-matrix
+workspace/manifest-contract-matrix
+runner/harness/contract-matrix
+retrieval/federation/selection-contract-matrix

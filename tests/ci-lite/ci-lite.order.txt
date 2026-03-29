@@ -46,7 +46,6 @@ shared/subprocess/shell-metachar-quoting
 map/filter-api-contract
 map/isometric/member-id-zero-contract
 tooling/lsp/signature-parse-matrix
-runner/harness/contract-matrix
 shared/concurrency/scheduler-config-parse
 indexing/embeddings/cache-layout-provider-model
 indexing/embeddings/quantization-no-wrap
@@ -370,7 +369,6 @@ tooling/vfs/disk-path-safety
 tooling/vfs/bloom-load-error-fallback
 indexing/risk/interprocedural/callsite-id
 retrieval/ann/hnsw-runtime-contract-matrix
-services/api/router-contract-matrix
 storage/sqlite/incremental/ann-existing-table
 storage/sqlite/bundle-vocab-cache-eviction
 shared/no-path-leak
@@ -446,7 +444,6 @@ indexing/vfs/manifest-collector-isolation
 tooling/download/shared-fetch-contract
 tooling/vfs/cold-start-cache
 indexing/vfs/idx-lookup-roundtrip
-retrieval/federation/cache-failure-contract-matrix
 indexing/postings/chargram-bench-contract
 indexing/embeddings/memory-plateau
 indexing/tree-sitter/memory-plateau
@@ -467,7 +464,6 @@ indexing/vfs/manifest-roundtrip
 retrieval/ranking/keyword-downweighting
 services/indexing/compressed-artifact-presence
 indexing/embeddings/sqlite-dense
-workspace/manifest-contract-matrix
 indexing/type-inference/providers/type-inference-sourcekit-provider-no-sourcekit
 indexing/tooling/pyright-runnable-detection
 indexing/watch/promotion/safety

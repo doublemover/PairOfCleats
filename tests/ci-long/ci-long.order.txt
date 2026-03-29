@@ -37,3 +37,5 @@ storage/sqlite/missing-dep
 services/sqlite-build-snapshot
 storage/sqlite/index-state-fail-closed
 retrieval/ranking/fielded-bm25
+storage/sqlite/migrations/schema-mismatch-rebuild
+tooling/triage/records-index-and-search

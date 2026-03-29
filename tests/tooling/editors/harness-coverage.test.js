@@ -15,8 +15,10 @@ const toLaneId = (testPath) => testPath
 const manifestConfig = await loadLaneManifestConfig({ root });
 const ciLiteManifest = await loadOrderedLaneManifest({ root, lane: 'ci-lite', config: manifestConfig });
 const ciManifest = await loadOrderedLaneManifest({ root, lane: 'ci', config: manifestConfig });
+const ciLongManifest = await loadOrderedLaneManifest({ root, lane: 'ci-long', config: manifestConfig });
 const ciLiteEntries = new Set(Array.isArray(ciLiteManifest?.tests) ? ciLiteManifest.tests.map((entry) => entry.id) : []);
 const ciEntries = new Set(Array.isArray(ciManifest?.tests) ? ciManifest.tests.map((entry) => entry.id) : []);
+const ciLongEntries = new Set(Array.isArray(ciLongManifest?.tests) ? ciLongManifest.tests.map((entry) => entry.id) : []);
 
 const matrix = [
   {
@@ -86,7 +88,7 @@ const matrix = [
     requiredContent: [
       'sublime package harness test passed'
     ],
-    requiredLanes: ['ci']
+    requiredLanes: ['ci-long']
   },
   {
     editor: 'sublime',
@@ -117,7 +119,11 @@ for (const entry of matrix) {
   }
   const laneId = toLaneId(entry.testPath);
   for (const lane of entry.requiredLanes) {
-    const targetSet = lane === 'ci-lite' ? ciLiteEntries : ciEntries;
+    const targetSet = lane === 'ci-lite'
+      ? ciLiteEntries
+      : lane === 'ci'
+        ? ciEntries
+        : ciLongEntries;
     if (!targetSet.has(laneId)) {
       console.error(`${entry.editor} ${entry.flow} harness is not registered in ${lane}: ${laneId}`);
       process.exit(1);
