@@ -152,11 +152,11 @@ These names are locked to avoid duplicate command surfaces and duplicate test ow
     - Align CI Node version(s) with the release target matrix, and ensure the matrix is explicitly documented.
 
 #### Tests / Verification
-- [ ] `tests/tooling/release/release-check-smoke.test.js`
+- [ ] `planned:test/tooling/release/release-check-smoke.test.js`
   - Runs `node tools/release/check.js` in a temp environment and asserts it succeeds on a healthy checkout.
-- [ ] `tests/tooling/release/release-check-json.test.js`
+- [ ] `planned:test/tooling/release/release-check-json.test.js`
   - Runs `release-check --json` and asserts stable JSON envelope fields (schemaVersion, steps[], status).
-- [ ] `tests/tooling/release/release-check-exit-codes.test.js`
+- [ ] `planned:test/tooling/release/release-check-exit-codes.test.js`
   - Failing step returns non-zero and includes the failing step name in stderr.
 - [ ] CI verification:
   - [ ] Add a job that runs the smoke check on at least Linux/macOS/Windows with pinned Node versions per the matrix.
@@ -178,8 +178,8 @@ These names are locked to avoid duplicate command surfaces and duplicate test ow
     - be explicitly deferred to a named follow-on phase (with a concrete subsection placeholder).
 - [ ] Add regression tests for path safety and quoting.
   - Touchpoints:
-    - `tests/tooling/platform/paths-with-spaces.test.js` (new)
-    - `tests/tooling/platform/windows-paths-smoke.test.js` (new; conditional when not on Windows)
+    - `planned:test/tooling/platform/paths-with-spaces.test.js` (new)
+    - `planned:test/tooling/platform/windows-paths-smoke.test.js` (new; conditional when not on Windows)
     - `src/shared/files.js` (path normalization helpers)
     - `src/shared/subprocess.js` (argument quoting + spawn safety)
   - Requirements:
@@ -189,11 +189,11 @@ These names are locked to avoid duplicate command surfaces and duplicate test ow
     - Add property-based or table-driven cases for edge paths: drive-letter prefixes (including `C:/` on POSIX), NFC/NFD normalization, and trailing dots/spaces.
 
 #### Tests / Verification
-- [ ] `tests/tooling/platform/paths-with-spaces.test.js`
+- [ ] `planned:test/tooling/platform/paths-with-spaces.test.js`
   - Creates `repo with spaces/` under a temp dir; runs build + search; asserts success.
-- [ ] `tests/tooling/platform/windows-paths-smoke.test.js`
+- [ ] `planned:test/tooling/platform/windows-paths-smoke.test.js`
   - On Windows CI, verifies key commands succeed and produce valid outputs.
-- [ ] `tests/tooling/platform/path-edge-cases.test.js`
+- [ ] `planned:test/tooling/platform/path-edge-cases.test.js`
   - Exercises drive-letter-like paths on POSIX, NFC/NFD normalization, and trailing dots/spaces.
 - [ ] Extend `tools/release/check.js` to include a `--paths` step that runs the above regression checks in quick mode.
 
@@ -221,9 +221,9 @@ These names are locked to avoid duplicate command surfaces and duplicate test ow
     - Compatibility notes (service-mode requirements, supported CLI flags, cacheRoot expectations).
 
 #### Tests / Verification
-- [ ] `tests/tooling/sublime/package-structure.test.js`
+- [ ] `planned:test/tooling/sublime/package-structure.test.js`
   - Runs the packaging script; asserts expected files exist in the output and that version metadata matches root `package.json`.
-- [ ] `tests/tooling/sublime/package-determinism.test.js` (if feasible)
+- [ ] `planned:test/tooling/sublime/package-determinism.test.js` (if feasible)
   - Packages twice; asserts the archive is byte-identical (or semantically identical with a stable file list + checksums).
 
 ---
@@ -231,7 +231,7 @@ These names are locked to avoid duplicate command surfaces and duplicate test ow
 ### Phase 18.4 — Make Python tests and tooling optional (skip cleanly when Python is missing)
 - [ ] Update Python-related tests to detect absence of Python and **skip with a clear message** (not fail).
   - Touchpoints:
-    - `tests/tooling/sublime/sublime-pycompile.test.js` (must be guarded)
+    - `planned:test/tooling/sublime/sublime-pycompile.test.js` (must be guarded)
     - `tests/tooling/sublime/test_*.py` (only if these are invoked by CI or tooling; otherwise keep as optional)
     - `tests/helpers/skip.js` (skip exit code + messaging helper)
     - `tests/helpers/test-env.js` (consistent skip env setup)
@@ -252,18 +252,18 @@ These names are locked to avoid duplicate command surfaces and duplicate test ow
     - JSON output must include `status: 'skipped'`.
 - [ ] Add a small unit test that proves the “Python missing → skipped” path is wired correctly.
   - Touchpoints:
-    - `tests/tooling/python/python-availability-skip.test.js` (new)
+    - `planned:test/tooling/python/python-availability-skip.test.js` (new)
   - Approach:
     - mock or simulate ENOENT from spawnSync and assert the test exits with the “skip” code and emits the expected message.
 
 #### Tests / Verification
-- [ ] `tests/tooling/sublime/sublime-pycompile.test.js`
+- [ ] `planned:test/tooling/sublime/sublime-pycompile.test.js`
   - Verified behavior:
     - Without Python: skips (non-failing) with a clear message.
     - With Python: compiles all `.py` files under `sublime/PairOfCleats/**` and fails on syntax errors.
-- [ ] `tests/tooling/python/python-availability-skip.test.js`
+- [ ] `planned:test/tooling/python/python-availability-skip.test.js`
   - Asserts skip-path correctness and ensures we do not “skip on real failures”.
- - [ ] `tests/tooling/python/python-skip-message.test.js`
+ - [ ] `planned:test/tooling/python/python-skip-message.test.js`
    - Ensures skip message is a single line and includes the missing executable name.
 
 ---
@@ -291,9 +291,9 @@ These names are locked to avoid duplicate command surfaces and duplicate test ow
   - If the toolchain is intentionally absent in some environments, the test must skip (not fail) with an explicit message.
 
 #### Tests / Verification
-- [ ] `tests/tooling/vscode/extension-packaging.test.js`
+- [ ] `planned:test/tooling/vscode/extension-packaging.test.js`
   - Packages a VSIX and asserts the output exists (skips if packaging toolchain is unavailable).
-- [ ] Extend `tests/tooling/vscode/vscode-extension.test.js`
+- [ ] Extend `planned:test/tooling/vscode/vscode-extension.test.js`
   - Validate required activation events/commands and required configuration keys (and add any cacheRoot-related keys if the contract requires them).
   - Validate `engines.vscode` compatibility constraints.
 
@@ -319,7 +319,7 @@ These names are locked to avoid duplicate command surfaces and duplicate test ow
   - Ensure clean shutdown of API server + worker (no leaked processes).
 
 #### Tests / Verification
-- [ ] `tests/services/service-mode-smoke.test.js`
+- [ ] `planned:test/services/service-mode-smoke.test.js`
   - Starts API server + worker in a temp environment; enqueues a small job; asserts it is processed and the API responds.
 - [ ] Extend `tools/release/check.js` to optionally run a bounded-time service-mode smoke step (`--service-mode`).
 
@@ -1124,8 +1124,8 @@ This enables the TUI to present/edit the plan before applying.
 
 #### 0.T1 Unit tests: kill-tree behavior (shared helper)
 - **New test file(s)** (Node):
-  - `tests/shared/kill-tree.posix.test.js` (skipped on win32)
-  - `tests/shared/kill-tree.windows.test.js` (skipped on non-win32)
+  - `planned:test/shared/kill-tree.posix.test.js` (skipped on win32)
+  - `planned:test/shared/kill-tree.windows.test.js` (skipped on non-win32)
 - **What to test**
   - POSIX: spawn a detached process group that ignores SIGTERM for a short interval, assert:
     - first SIGTERM sent, then SIGKILL after grace
@@ -1139,8 +1139,8 @@ This enables the TUI to present/edit the plan before applying.
 
 #### 0.T2 Tool contract tests (stdout/stderr discipline)
 - **New integration tests**
-  - `tests/tools/setup-json-output.test.js`
-  - `tests/tools/bootstrap-json-output.test.js`
+  - `planned:test/tools/setup-json-output.test.js`
+  - `planned:test/tools/bootstrap-json-output.test.js`
 - **What to test**
   - Run each tool with `--json --non-interactive --progress jsonl` (or equivalent):
     - Assert stdout parses as a **single JSON document** (no extra lines).
@@ -1411,8 +1411,8 @@ Implement a standalone Node supervisor that:
   - `tools/tui/supervisor.js` (`supervisor:hello` includes manifest summary)
   - `crates/pairofcleats-tui/` (run palette reads `supports*`, `defaultArgs`)
 - **(Tests)** Add:
-  - `tests/dispatch/manifest-list.test.js`
-  - `tests/dispatch/manifest-describe-search.test.js`
+  - `planned:test/dispatch/manifest-list.test.js`
+  - `planned:test/dispatch/manifest-describe-search.test.js`
 
 **2.3.4 Optional strict mode (CI/hardening)**
 - Add `PAIROFCLEATS_DISPATCH_STRICT=1` (or `--strict`) to enforce unknown-flag detection **only** when requested.
@@ -2274,8 +2274,8 @@ Define exactly what is supported and what blocks release.
 - `.github/workflows/nightly.yml`
 
 #### Tests
-- [ ] `tests/tooling/release-matrix-schema.test.js`
-- [ ] `tests/tooling/release-matrix-blocking-policy.test.js`
+- [ ] `planned:test/tooling/release-matrix-schema.test.js`
+- [ ] `planned:test/tooling/release-matrix-blocking-policy.test.js`
 
 ### 16.2 Deterministic `release-check` command
 
@@ -2300,9 +2300,9 @@ Create one command that validates basic release viability without hidden environ
 - `src/retrieval/cli/*` (if command wiring changes)
 
 #### Tests
-- [ ] `tests/tooling/release-check/smoke.test.js`
-- [ ] `tests/tooling/release-check/report-schema.test.js`
-- [ ] `tests/tooling/release-check/deterministic-order.test.js`
+- [ ] `planned:test/tooling/release-check/smoke.test.js`
+- [ ] `planned:test/tooling/release-check/report-schema.test.js`
+- [ ] `planned:test/tooling/release-check/deterministic-order.test.js`
 
 ### 16.3 Cross-platform path safety and spaces
 
@@ -2326,9 +2326,9 @@ Guarantee path handling works on Windows and POSIX, including spaces and separat
 - `src/retrieval/cli/*`
 
 #### Tests
-- [ ] `tests/paths/windows-spaces-index-build.test.js`
-- [ ] `tests/paths/windows-drive-letter-normalization.test.js`
-- [ ] `tests/paths/mixed-separators-cli.test.js`
+- [ ] `planned:test/paths/windows-spaces-index-build.test.js`
+- [ ] `planned:test/paths/windows-drive-letter-normalization.test.js`
+- [ ] `planned:test/paths/mixed-separators-cli.test.js`
 
 ### 16.4 Reproducible editor package outputs
 
@@ -2348,10 +2348,10 @@ Ensure editor integrations package deterministically and can be validated in CI.
 - `sublime/`
 
 #### Tests
-- [ ] `tests/tooling/package-sublime-structure.test.js`
-- [ ] `tests/tooling/package-sublime-reproducible.test.js`
-- [ ] `tests/tooling/package-vscode-structure.test.js`
-- [ ] `tests/tooling/package-vscode-toolchain-missing-policy.test.js`
+- [ ] `planned:test/tooling/package-sublime-structure.test.js`
+- [ ] `planned:test/tooling/package-sublime-reproducible.test.js`
+- [ ] `planned:test/tooling/package-vscode-structure.test.js`
+- [ ] `planned:test/tooling/package-vscode-toolchain-missing-policy.test.js`
 
 ### 16.5 Optional Python capability model
 
@@ -2369,9 +2369,9 @@ Stop false-red CI failures when Python is absent while preserving strong checks 
 - `tests/*` Python-dependent lanes
 
 #### Tests
-- [ ] `tests/tooling/python/skip-when-missing.test.js`
-- [ ] `tests/tooling/python/run-when-present.test.js`
-- [ ] `tests/tooling/python/skip-reason-contract.test.js`
+- [ ] `planned:test/tooling/python/skip-when-missing.test.js`
+- [ ] `planned:test/tooling/python/run-when-present.test.js`
+- [ ] `planned:test/tooling/python/skip-reason-contract.test.js`
 
 ### 16.6 CI gate policy and release enforcement
 
@@ -2394,8 +2394,8 @@ Make release gating rules explicit and machine-checkable.
 - `tools/release-check.js`
 
 #### Tests
-- [ ] `tests/tooling/ci-gates-required-jobs.test.js`
-- [ ] `tests/tooling/ci-gates-failure-taxonomy.test.js`
+- [ ] `planned:test/tooling/ci-gates-required-jobs.test.js`
+- [ ] `planned:test/tooling/ci-gates-failure-taxonomy.test.js`
 
 ---
 
@@ -2439,8 +2439,8 @@ Deliver a terminal-owned TUI and supervisor model with protocol v2, deterministi
 - `src/integrations/mcp/defs.js`
 
 #### Tests
-- [ ] `tests/tui/protocol-v2-schema.test.js`
-- [ ] `tests/tui/protocol-v2-ordering.test.js`
+- [ ] `planned:test/tui/protocol-v2-schema.test.js`
+- [ ] `planned:test/tui/protocol-v2-ordering.test.js`
 
 ### 20.2 Supervisor lifecycle model
 
@@ -2457,8 +2457,8 @@ Deliver a terminal-owned TUI and supervisor model with protocol v2, deterministi
 - `src/shared/cli/noop-task.js`
 
 #### Tests
-- [ ] `tests/tui/supervisor-lifecycle-state-machine.test.js`
-- [ ] `tests/tui/supervisor-retry-policy.test.js`
+- [ ] `planned:test/tui/supervisor-lifecycle-state-machine.test.js`
+- [ ] `planned:test/tui/supervisor-retry-policy.test.js`
 
 ### 20.3 Cancellation and deadlines
 
@@ -2473,7 +2473,7 @@ Deliver a terminal-owned TUI and supervisor model with protocol v2, deterministi
 - `src/integrations/core/build-index/progress.js`
 
 #### Tests
-- [ ] `tests/tui/cancel-propagation.test.js`
+- [ ] `planned:test/tui/cancel-propagation.test.js`
 
 ### 20.4 TUI rendering and responsiveness
 
@@ -2489,8 +2489,8 @@ Deliver a terminal-owned TUI and supervisor model with protocol v2, deterministi
 - `src/shared/cli/display/colors.js`
 
 #### Tests
-- [ ] `tests/tui/rendering/responsiveness-under-load.test.js`
-- [ ] `tests/tui/rendering/partial-stream-order.test.js`
+- [ ] `planned:test/tui/rendering/responsiveness-under-load.test.js`
+- [ ] `planned:test/tui/rendering/partial-stream-order.test.js`
 
 ### 20.5 Observability and replay
 
@@ -2506,8 +2506,8 @@ Deliver a terminal-owned TUI and supervisor model with protocol v2, deterministi
 - `docs/guides/metrics-dashboard.md`
 
 #### Tests
-- [ ] `tests/tui/observability/session-correlation.test.js`
-- [ ] `tests/tui/observability/replay-determinism.test.js`
+- [ ] `planned:test/tui/observability/session-correlation.test.js`
+- [ ] `planned:test/tui/observability/replay-determinism.test.js`
 
 ---
 
@@ -2548,7 +2548,7 @@ Evaluate optional native/WASM acceleration for hot paths with strict correctness
 - `tools/build-native.js` (new)
 
 #### Tests
-- [ ] `tests/retrieval/native/feasibility-parity-harness.test.js`
+- [ ] `planned:test/retrieval/native/feasibility-parity-harness.test.js`
 
 ### Subphase A - Native bitmap engine
 
@@ -2564,8 +2564,8 @@ Evaluate optional native/WASM acceleration for hot paths with strict correctness
 - `src/shared/native-accel.js` (new)
 
 #### Tests
-- [ ] `tests/retrieval/native/bitmap-equivalence.test.js`
-- [ ] `tests/retrieval/native/capability-fallback.test.js`
+- [ ] `planned:test/retrieval/native/bitmap-equivalence.test.js`
+- [ ] `planned:test/retrieval/native/capability-fallback.test.js`
 
 ### Subphase B - Native top-K and score accumulation
 
@@ -2581,9 +2581,9 @@ Evaluate optional native/WASM acceleration for hot paths with strict correctness
 - `src/shared/native-accel.js` (new)
 
 #### Tests
-- [ ] `tests/retrieval/native/topk-equivalence.test.js`
-- [ ] `tests/retrieval/native/topk-adversarial-tie-parity.test.js`
-- [ ] `tests/retrieval/native/capability-fallback.test.js`
+- [ ] `planned:test/retrieval/native/topk-equivalence.test.js`
+- [ ] `planned:test/retrieval/native/topk-adversarial-tie-parity.test.js`
+- [ ] `planned:test/retrieval/native/capability-fallback.test.js`
 
 ### Subphase C - ANN acceleration and preflight
 
@@ -2602,9 +2602,9 @@ Evaluate optional native/WASM acceleration for hot paths with strict correctness
 - `docs/specs/native-accel.md`
 
 #### Tests
-- [ ] `tests/retrieval/native/ann-equivalence.test.js`
-- [ ] `tests/retrieval/native/ann-preflight-error-taxonomy.test.js`
-- [ ] `tests/retrieval/native/capability-fallback.test.js`
+- [ ] `planned:test/retrieval/native/ann-equivalence.test.js`
+- [ ] `planned:test/retrieval/native/ann-preflight-error-taxonomy.test.js`
+- [ ] `planned:test/retrieval/native/capability-fallback.test.js`
 
 ### Subphase D - Worker-thread pipeline offload
 
@@ -2620,8 +2620,8 @@ Evaluate optional native/WASM acceleration for hot paths with strict correctness
 - `src/shared/worker-pool.js` (new or extend)
 
 #### Tests
-- [ ] `tests/retrieval/native/worker-offload-equivalence.test.js`
-- [ ] `tests/retrieval/native/worker-cancel.test.js`
+- [ ] `planned:test/retrieval/native/worker-offload-equivalence.test.js`
+- [ ] `planned:test/retrieval/native/worker-cancel.test.js`
 
 ### Subphase E - Build and release strategy
 
@@ -2638,4 +2638,4 @@ Evaluate optional native/WASM acceleration for hot paths with strict correctness
 - `docs/perf/native-accel.md`
 
 #### Tests
-- [ ] `tests/retrieval/native/capability-fallback.test.js`
+- [ ] `planned:test/retrieval/native/capability-fallback.test.js`

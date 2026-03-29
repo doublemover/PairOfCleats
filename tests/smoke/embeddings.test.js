@@ -6,7 +6,10 @@ import { resolveTestCachePath } from '../helpers/test-cache.js';
 
 const cacheRoots = [
   resolveTestCachePath(root, 'build-embeddings-cache'),
-  resolveTestCachePath(root, 'embeddings-dims-mismatch'),
+  resolveTestCachePath(root, 'embeddings-stub-fastpath-dims'),
+  resolveTestCachePath(root, 'embeddings-stub-fastpath-cross-repo'),
+  resolveTestCachePath(root, 'embeddings-stub-fastpath-append'),
+  resolveTestCachePath(root, 'embeddings-stub-fastpath-partial'),
   resolveTestCachePath(root, 'embeddings-cache-identity'),
   resolveTestCachePath(root, 'embeddings-cache-index-contract-matrix')
 ];
@@ -18,7 +21,7 @@ try {
   runNode('onnx-session-queue', path.join(root, 'tests', 'indexing', 'embeddings', 'onnx-session-queue.test.js'));
   runNode('embeddings-cache-identity', path.join(root, 'tests', 'indexing', 'embeddings', 'cache-identity.test.js'));
   runNode('embeddings-cache-index-contract-matrix', path.join(root, 'tests', 'indexing', 'embeddings', 'cache-index-contract-matrix.test.js'));
-  runNode('embeddings-dims-mismatch', path.join(root, 'tests', 'indexing', 'embeddings', 'dims-mismatch.test.js'));
+  runNode('embeddings-stub-fastpath-cache-contract-matrix', path.join(root, 'tests', 'indexing', 'embeddings', 'stub-fastpath-cache-contract-matrix.test.js'));
 } catch (err) {
   console.error(err?.message || err);
   failure = err;

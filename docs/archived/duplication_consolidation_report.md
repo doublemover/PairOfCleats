@@ -151,18 +151,18 @@ This report was re-verified against the current repository state on `ROPIARY_HED
 | 87 | `./tools/bench/map/viewer-fps.js` | `./tools/bench/map/viewer-lod-stress.js` |
 | 80 | `./src/index/build/artifacts/writers/symbol-edges.js` | `./src/index/build/artifacts/writers/symbol-occurrences.js` |
 | 74 | `./src/storage/sqlite/build/from-artifacts.js` | `./src/storage/sqlite/build/from-bundles.js` |
-| 69 | `./tests/retrieval/pipeline/ann-optional-skip.test.js` | `./tests/retrieval/pipeline/ann-preflight.test.js` |
-| 60 | `./tests/indexing/risk/interprocedural/flows-conservative.test.js` | `./tests/indexing/risk/interprocedural/flows-max-total-flows.test.js` |
-| 56 | `./tests/indexing/vfs/vfs-manifest-streaming.test.js` | `./tests/tooling/vfs/vfs-manifest-streaming.test.js` |
-| 53 | `./tests/storage/sqlite/sqlite-jsonl-streaming-gzip.test.js` | `./tests/storage/sqlite/sqlite-jsonl-streaming-zstd.test.js` |
-| 52 | `./tests/perf/graph-context-pack-latency-bench-contract.test.js` | `./tests/perf/graph-neighborhood-bench-contract.test.js` |
-| 51 | `./tests/indexing/artifacts/symbol-artifacts-smoke.test.js` | `./tests/indexing/artifacts/symbols/symbol-by-file-index.test.js` |
+| 69 | `legacy:test/retrieval/pipeline/ann-optional-skip.test.js` | `legacy:test/retrieval/pipeline/ann-preflight.test.js` |
+| 60 | `legacy:test/indexing/risk/interprocedural/flows-conservative.test.js` | `legacy:test/indexing/risk/interprocedural/flows-max-total-flows.test.js` |
+| 56 | `legacy:test/indexing/vfs/vfs-manifest-streaming.test.js` | `legacy:test/tooling/vfs/vfs-manifest-streaming.test.js` |
+| 53 | `legacy:test/storage/sqlite/sqlite-jsonl-streaming-gzip.test.js` | `legacy:test/storage/sqlite/sqlite-jsonl-streaming-zstd.test.js` |
+| 52 | `legacy:test/perf/graph-context-pack-latency-bench-contract.test.js` | `legacy:test/perf/graph-neighborhood-bench-contract.test.js` |
+| 51 | `legacy:test/indexing/artifacts/symbol-artifacts-smoke.test.js` | `legacy:test/indexing/artifacts/symbols/symbol-by-file-index.test.js` |
 | 50 | `./tools/bench/merge/merge-core-throughput.js` | `./tools/bench/merge/spill-merge-compare.js` |
-| 48 | `./tests/storage/sqlite/sqlite-chunk-meta-streaming.test.js` | `./tests/storage/sqlite/sqlite-jsonl-streaming-gzip.test.js` |
-| 48 | `./tests/storage/sqlite/sqlite-chunk-meta-streaming.test.js` | `./tests/storage/sqlite/sqlite-jsonl-streaming-zstd.test.js` |
+| 48 | `legacy:test/storage/sqlite/sqlite-chunk-meta-streaming.test.js` | `legacy:test/storage/sqlite/sqlite-jsonl-streaming-gzip.test.js` |
+| 48 | `legacy:test/storage/sqlite/sqlite-chunk-meta-streaming.test.js` | `legacy:test/storage/sqlite/sqlite-jsonl-streaming-zstd.test.js` |
 | 47 | `./src/index/build/file-processor/cpu.js` | `./src/index/build/file-processor/process-chunks/index.js` |
 | 46 | `./src/lang/javascript/relations.js` | `./src/lang/typescript/relations.js` |
-| 45 | `./tests/storage/sqlite/sqlite-build-rowcount-contract.test.js` | `./tests/storage/sqlite/sqlite-build-validate-auto-fast-path.test.js` |
+| 45 | `legacy:test/storage/sqlite/sqlite-build-rowcount-contract.test.js` | `legacy:test/storage/sqlite/sqlite-build-validate-auto-fast-path.test.js` |
 
 *(The full ranked lists are in `duplication_report.md` / `duplication_report.json`.)*
 

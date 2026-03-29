@@ -15,7 +15,7 @@ Structured JSON logging with support for worker-thread transports, redaction, an
 - Service mode: correlate logs across API/indexer processes.
 
 ## Deep links (implementation-relevant)
-1. Transports (worker-thread transports; custom targets; perf model) -- https://github.com/pinojs/pino/blob/main/docs/transports.md
+1. Transports (worker-thread transports; custom targets; perf model) -- https://github.com/pinojs/pino
 2. Redaction (safely strip secrets from logs; path-based redaction) -- https://getpino.io/#/docs/redaction
 3. Serializers & bindings (structured fields; child loggers) -- https://getpino.io/#/docs/api
 

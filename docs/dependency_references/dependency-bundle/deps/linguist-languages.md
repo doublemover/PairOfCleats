@@ -16,8 +16,8 @@ Use Linguists language metadata and heuristics to classify files for parser sel
 
 ## Deep links (implementation-relevant)
 1. Language metadata source of truth (extensions � language, filenames, interpreters)  https://github.com/github-linguist/linguist/blob/master/lib/linguist/languages.yml
-2. How Linguist works (heuristics, vendored/generated classification)  https://github.com/github-linguist/linguist/blob/master/docs/how-linguist-works.md
-3. Overrides (how to force language detection when heuristics are wrong)  https://github.com/github-linguist/linguist/blob/master/docs/overrides.md
+2. How Linguist works (heuristics, vendored/generated classification)  https://github.com/github-linguist/linguist
+3. Overrides (how to force language detection when heuristics are wrong)  https://github.com/github-linguist/linguist/wiki
 
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: load linguist-languages.json to map extensions/filenames to languageId.)

@@ -22,9 +22,18 @@ export const buildEmbeddingActions = ({ root, runNode }) => [
     covers: ['embeddings-cache-invalidation-test', 'embeddings-cache-index-contract-matrix-test']
   },
   {
-    label: 'embeddings-dims-mismatch-test',
-    run: () => runNode('embeddings-dims-mismatch-test', path.join(root, 'tests', 'indexing', 'embeddings', 'dims-mismatch.test.js')),
-    covers: ['embeddings-dims-mismatch-test']
+    label: 'embeddings-stub-fastpath-cache-contract-matrix-test',
+    run: () => runNode(
+      'embeddings-stub-fastpath-cache-contract-matrix-test',
+      path.join(root, 'tests', 'indexing', 'embeddings', 'stub-fastpath-cache-contract-matrix.test.js')
+    ),
+    covers: [
+      'embeddings-dims-mismatch-test',
+      'embeddings-cache-cross-repo-reuse-test',
+      'embeddings-cache-index-append-only-test',
+      'embeddings-cache-partial-reuse-test',
+      'embeddings-stub-fastpath-cache-contract-matrix-test'
+    ]
   },
   {
     label: 'embeddings-dims-validation-test',

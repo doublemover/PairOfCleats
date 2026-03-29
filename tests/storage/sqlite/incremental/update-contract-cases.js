@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
@@ -8,6 +9,7 @@ import {
   createIncrementalScenario,
   runRepoSearchJson
 } from '../helpers/incremental-scenarios.js';
+import { ensureSqlitePaths } from '../../../helpers/sqlite-incremental.js';
 
 export const runDocIdReuseScenario = async () => {
   const scenario = await createIncrementalScenario({ name: 'doc-id-reuse', mode: 'code' });
@@ -174,4 +176,26 @@ export const runSearchAfterUpdateScenario = async () => {
     searchResult.payload.code?.length || searchResult.payload.prose?.length,
     'expected sqlite search results after incremental update'
   );
+};
+
+export const runWalCheckpointScenario = async () => {
+  const scenario = await createIncrementalScenario({ name: 'wal-checkpoint', mode: 'code' });
+  scenario.runBuildIndex({ incremental: true });
+  await scenario.runBuildSqlite({ mode: 'code' });
+
+  const targetFile = path.join(scenario.repoRoot, 'src', 'index.js');
+  const original = await fsPromises.readFile(targetFile, 'utf8');
+  await fsPromises.writeFile(targetFile, `${original}\nexport const walCheck = true;\n`);
+
+  scenario.runBuildIndex({ incremental: true });
+  await scenario.runBuildSqlite({ mode: 'code', incremental: true });
+
+  const sqlitePaths = ensureSqlitePaths(scenario.repoRoot, scenario.userConfig);
+  const walPath = `${sqlitePaths.codePath}-wal`;
+  const shmPath = `${sqlitePaths.codePath}-shm`;
+  const walSize = fs.existsSync(walPath) ? fs.statSync(walPath).size : 0;
+  const shmSize = fs.existsSync(shmPath) ? fs.statSync(shmPath).size : 0;
+  const maxBytes = 1024;
+  assert.ok(walSize <= maxBytes, `Expected WAL to be truncated; size ${walSize} bytes.`);
+  assert.ok(shmSize <= maxBytes, `Expected SHM to be truncated; size ${shmSize} bytes.`);
 };

@@ -14,8 +14,8 @@ Compress cache bundles and index artifacts, including streaming zip/unzip for la
 - Local: rotate and compact caches.
 
 ## Deep links (implementation-relevant)
-1. Docs index (async streaming APIs; zip/unzip primitives)  https://github.com/101arrowz/fflate/blob/master/docs/README.md
-2. AsyncUnzipInflate class docs (incremental unzip example)  https://github.com/101arrowz/fflate/blob/master/docs/classes/AsyncUnzipInflate.md
+1. Docs index (async streaming APIs; zip/unzip primitives)  https://github.com/101arrowz/fflate
+2. AsyncUnzipInflate class docs (incremental unzip example)  https://github.com/101arrowz/fflate#readme
 
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: use gzip/deflate streaming APIs for large artifact compression and decompression.)

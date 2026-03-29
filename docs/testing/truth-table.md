@@ -35,7 +35,7 @@ This document maps user-visible behavior to implementation seams, primary knobs,
 - Claim: `search --backend auto` prefers sqlite when available and falls back cleanly when dependencies or thresholds do not permit it.
   - Implementation: `src/storage/backend-policy.js`, `src/retrieval/cli.js`, `src/retrieval/cli-sqlite.js`
   - Config: CLI `--backend`; `search.sqliteAutoChunkThreshold`, `search.sqliteAutoArtifactBytes`, `sqlite.use`
-  - Tests: `tests/storage/sqlite/auto-backend.test.js`, `tests/storage/sqlite/missing-dep.test.js`, `tests/storage/backend/policy.test.js`, `tests/retrieval/backend/backend-contract-matrix.test.js`
+  - Tests: `tests/storage/sqlite/search-backend-contract-matrix.test.js`, `tests/storage/backend/policy.test.js`, `tests/retrieval/backend/backend-contract-matrix.test.js`
   - Limitations: sqlite still requires `better-sqlite3` and optional ANN extension support
 
 - Claim: `--backend lmdb` uses LMDB stores when present.

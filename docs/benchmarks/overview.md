@@ -20,7 +20,7 @@ Common flags:
 
 Default outputs:
 - Text mode: `benchmarks/queries/generated-<mode>.txt`
-- JSON mode: `docs/benchmarks-queries.json`
+- JSON mode: `benchmarks/results/benchmarks-queries.json`
 
 ## Microbench suite
 

@@ -23,733 +23,735 @@
       "order": 1,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 11994
+      "durationMs": 11901
     },
     {
       "id": "tooling/install/detect-and-plan-contract-matrix",
       "order": 2,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 12642
+      "durationMs": 11363
     },
     {
       "id": "tooling/lsp/protocol-fail-open-matrix",
       "order": 3,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 22522
+      "durationMs": 17066
     },
     {
       "id": "context-pack/risk-filters-parity",
       "order": 4,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 24003
+      "durationMs": 21304
     },
     {
       "id": "retrieval/filters/semantic-filter-contract-matrix",
       "order": 5,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 35694
+      "durationMs": 29542
     },
     {
       "id": "cli/search/non-result-surfaces",
       "order": 6,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 23916
+      "durationMs": 20298
     },
     {
       "id": "tooling/config-inventory/report-format",
       "order": 7,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix",
-      "durationMs": 13443
+      "durationMs": 7345
     },
     {
       "id": "indexing/embeddings/build/embeddings-cache",
       "order": 8,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 13152
+      "durationMs": 11183
     },
     {
       "id": "ci/import-resolution-slo-gate.smoke",
       "order": 9,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix",
-      "durationMs": 16345
+      "durationMs": 13905
     },
     {
       "id": "lang/rust/prose-exclusion",
       "order": 10,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 16964
+      "durationMs": 14483
     },
     {
       "id": "shared/runtime/runtime-contract-matrix",
       "order": 11,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 27875
+      "durationMs": 22064
     },
     {
       "id": "storage/lmdb/contract-matrix",
       "order": 12,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 58673
+      "durationMs": 47101
     },
     {
       "id": "indexer/metav2/contract-matrix",
       "order": 13,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 21133
+      "durationMs": 17047
     },
     {
       "id": "indexing/imports/prose-skip",
       "order": 14,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 18535
+      "durationMs": 14241
     },
     {
       "id": "tooling/install/tool-root",
       "order": 15,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-surface",
-      "durationMs": 21864
+      "durationMs": 16406
     },
     {
       "id": "cli/search/startup-profiler",
       "order": 16,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 21130
+      "durationMs": 15729
     },
     {
       "id": "tooling/config-inventory/inventory-sync",
       "order": 17,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix",
-      "durationMs": 18235
+      "durationMs": 14745
     },
     {
       "id": "retrieval/filters/file-and-token/selector-contract-matrix",
       "order": 18,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 42439
+      "durationMs": 34621
     },
     {
       "id": "indexing/lifecycle/index-contract",
       "order": 19,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 13663
+      "durationMs": 17683
     },
     {
       "id": "tooling/lsp/dedicated-providers-abrupt-failure-cleanup",
       "order": 20,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 12634
+      "durationMs": 10924
     },
     {
       "id": "cli/search/determinism",
       "order": 21,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 29545
+      "durationMs": 24729
     },
     {
       "id": "retrieval/ann/hnsw",
       "order": 22,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 28493
+      "durationMs": 24125
     },
     {
       "id": "indexing/embeddings/determinism",
       "order": 23,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 30002
+      "durationMs": 25002
     },
     {
       "id": "indexing/determinism/symbol-artifact",
       "order": 24,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 29363
+      "durationMs": 25184
     },
     {
       "id": "tooling/doctor/report-emission-contract-matrix",
       "order": 25,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 15675
+      "durationMs": 14524
     },
     {
       "id": "tooling/lsp/session-pool-lifecycle-matrix",
       "order": 26,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 13263
+      "durationMs": 12399
     },
     {
       "id": "tooling/lsp/adaptive-timeout-matrix",
       "order": 27,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 19927
+      "durationMs": 19382
     },
     {
       "id": "tooling/doctor/scm-none-annotate-disabled",
       "order": 28,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 14236
+      "durationMs": 12785
     },
     {
       "id": "services/indexer/service",
       "order": 29,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 15843
+      "durationMs": 12596
     },
     {
       "id": "indexing/extracted-prose/core",
       "order": 30,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 34790
+      "durationMs": 27120
     },
     {
       "id": "storage/sqlite/incremental/bundle-coverage-metadata-fallback",
       "order": 31,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 27256
+      "durationMs": 21122
     },
     {
       "id": "indexing/extracted-prose/low-yield-history-warmup-reduction",
       "order": 32,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 23499
+      "durationMs": 18682
     },
     {
       "id": "indexing/extracted-prose/low-yield-history-disable",
       "order": 33,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 25042
+      "durationMs": 20180
     },
     {
       "id": "storage/sqlite/incremental/bundle-partial-chunk-fallback",
       "order": 34,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 38637
+      "durationMs": 30415
     },
     {
       "id": "storage/sqlite/incremental/bundle-partial-embeddings-fallback",
       "order": 35,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 29616
+      "durationMs": 23944
     },
     {
       "id": "storage/sqlite/incremental/bundle-count-mismatch-fallback",
       "order": 36,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 31783
+      "durationMs": 24354
     },
     {
       "id": "storage/sqlite/incremental/bundle-embeddings-stage3-refresh",
       "order": 37,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 33388
+      "durationMs": 26974
     },
     {
       "id": "services/api/search-contract-matrix",
       "order": 38,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 46580
+      "durationMs": 34165
     },
     {
       "id": "services/api/repo-authorization",
       "order": 39,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 35445
+      "durationMs": 30414
     },
     {
       "id": "indexing/imports/import-links",
       "order": 40,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 19433
+      "durationMs": 15467
     },
     {
       "id": "indexing/build/stage4-explicit-index-root-no-promotion",
       "order": 41,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 24129
+      "durationMs": 18272
     },
     {
       "id": "indexing/records/exclusion",
       "order": 42,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 20106
+      "durationMs": 17125
     },
     {
       "id": "indexer/call-sites/contract-matrix",
       "order": 43,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 53541
+      "durationMs": 44997
     },
     {
       "id": "indexing/scm/index-build-git-provider",
       "order": 44,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 20322
+      "durationMs": 16771
     },
     {
       "id": "storage/sqlite/build-indexes",
       "order": 45,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 22147
+      "durationMs": 17359
     },
     {
       "id": "indexing/scm/no-build-id",
       "order": 46,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 27793
+      "durationMs": 22041
     },
     {
       "id": "indexing/type-inference/providers/type-inference-lsp-enrichment",
       "order": 47,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 23699
+      "durationMs": 19204
     },
     {
       "id": "retrieval/filters/filter-index-artifact",
       "order": 48,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 37907
+      "durationMs": 33518
     },
     {
       "id": "cli/build-index/all",
       "order": 49,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 24034
+      "durationMs": 18928
     },
     {
       "id": "indexing/incremental/manifest",
       "order": 50,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 41472
+      "durationMs": 33784
     },
     {
       "id": "services/api/core",
       "order": 51,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 24375
+      "durationMs": 23581
     },
     {
       "id": "indexing/postings/chunk-meta-determinism",
       "order": 52,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 24598
+      "durationMs": 22813
     },
     {
       "id": "indexing/validate/index",
       "order": 53,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 30301
+      "durationMs": 24821
     },
     {
       "id": "indexing/incremental/cache-signature",
       "order": 54,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 45447
+      "durationMs": 35748
     },
     {
       "id": "storage/sqlite/bundle-missing",
       "order": 55,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 33697
+      "durationMs": 27208
     },
     {
       "id": "smoke/e2e",
       "order": 56,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 33913
+      "durationMs": 25101
     },
     {
       "id": "tooling/reports/summary/report-compare-sqlite",
       "order": 57,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 49116
+      "durationMs": 35941
     },
     {
       "id": "tooling/reports/summary/report-compare-memory",
       "order": 58,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 47535
+      "durationMs": 36379
     },
     {
       "id": "indexing/chunking/formats/format-fidelity",
       "order": 59,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 42195
+      "durationMs": 32723
     },
     {
       "id": "services/api/server-stream",
       "order": 60,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 43592
+      "durationMs": 32529
     },
     {
       "id": "cli/search/ann-rrf-contract",
       "order": 61,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 49201
+      "durationMs": 38254
     },
     {
       "id": "storage/sqlite/incremental/doc-id-reuse",
       "order": 62,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 57752
+      "durationMs": 42543
     },
     {
       "id": "storage/sqlite/incremental/file-manifest-updates",
       "order": 63,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 53896
+      "durationMs": 40852
     },
     {
       "id": "storage/sqlite/incremental/manifest-hash-fill",
       "order": 64,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 55304
+      "durationMs": 41092
     },
     {
       "id": "storage/sqlite/incremental/manifest-normalization",
       "order": 65,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 33620
+      "durationMs": 26926
     },
     {
       "id": "smoke/services",
       "order": 66,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 17816
+      "durationMs": 14942
     },
     {
       "id": "shared/subprocess/quoting",
       "order": 67,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 52194
+      "durationMs": 39503
     },
     {
       "id": "services/snapshot-ref-contract-matrix",
       "order": 68,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 38112
+      "durationMs": 26515
     },
     {
       "id": "tooling/triage/context-pack",
       "order": 69,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 40164
+      "durationMs": 31155
     },
     {
       "id": "indexing/embeddings/validate",
       "order": 70,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 45762
+      "durationMs": 35935
     },
     {
       "id": "indexing/embeddings/cache-identity",
       "order": 71,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 37029
+      "durationMs": 28416
     },
     {
       "id": "retrieval/ann/hnsw-atomic",
       "order": 72,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 58346
+      "durationMs": 41328
     },
     {
       "id": "tooling/eval/quality",
       "order": 73,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 44169
+      "durationMs": 34870
     },
     {
       "id": "storage/sqlite/incremental-no-change",
       "order": 74,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 45194
+      "durationMs": 34496
     },
     {
       "id": "cli/general/repo-root",
       "order": 75,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 56285
+      "durationMs": 42395
     },
     {
       "id": "storage/sqlite/ann/sqlite-fallback",
       "order": 76,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 50645
+      "durationMs": 41682
     },
     {
       "id": "smoke/api-core-health",
       "order": 77,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 36129
+      "durationMs": 25173
     },
     {
       "id": "indexing/runtime/two-stage-state",
       "order": 78,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 52167
+      "durationMs": 44093
     },
     {
       "id": "indexing/contracts/golden-surface-suite",
       "order": 79,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 28259
+      "durationMs": 21429
     },
     {
       "id": "indexing/extracted-prose/extraction-report",
       "order": 80,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 16745
+      "durationMs": 12664
     },
     {
       "id": "indexing/filter-index/metrics",
       "order": 81,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 9789
+      "durationMs": 7628
     },
     {
       "id": "indexing/file-processor/skip-minified-binary",
       "order": 82,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 11894
+      "durationMs": 10148
     },
     {
       "id": "indexing/metrics/index-options",
       "order": 83,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 12171
+      "durationMs": 10259
     },
     {
       "id": "tooling/config-inventory/schema-scan",
       "order": 84,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix",
-      "durationMs": 9195
+      "durationMs": 7321
     },
     {
       "id": "tooling/structural/filters",
       "order": 85,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 10883
+      "durationMs": 11153
     },
     {
       "id": "shared/encoding/unicode-offset",
       "order": 86,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 10411
+      "durationMs": 10519
     },
     {
       "id": "map/build-contract-matrix",
       "order": 87,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 38677
+      "durationMs": 36014
     },
     {
       "id": "indexing/metadata/external-docs",
       "order": 88,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 10888
+      "durationMs": 10908
     },
     {
       "id": "indexing/git/blame-range",
       "order": 89,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 12037
+      "durationMs": 11050
     },
     {
       "id": "shared/h33-hard-cutover-boundaries",
       "order": 90,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 2317
+      "durationMs": 2498
     },
     {
       "id": "indexing/postings/real-bench-contract",
       "order": 91,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 10358
+      "durationMs": 10587
     },
     {
       "id": "indexing/shards/shard-progress-determinism",
       "order": 92,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 10180
+      "durationMs": 9542
     },
     {
       "id": "indexing/type-inference/crossfile/output.integration",
       "order": 93,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 12004
+      "durationMs": 10686
     },
     {
       "id": "tooling/lsp/provider-runtime-contract-matrix",
       "order": 94,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 11049
+      "durationMs": 9373
     },
     {
       "id": "tooling/doctor/dedicated-provider-handshake-fixtures",
       "order": 95,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 4599
+      "durationMs": 5190
     },
     {
       "id": "tooling/lsp/sourcekit-package-preflight-cache-resolved-invalidation",
       "order": 96,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 11766
+      "durationMs": 10536
     },
     {
       "id": "indexing/file-caps/contract-matrix",
       "order": 97,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 34051
+      "durationMs": 31625
     },
     {
       "id": "indexing/postings/vector-only-policy-contract-matrix",
       "order": 98,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 12708
+      "durationMs": 11030
     },
     {
       "id": "services/risk-explain-adapter-matrix",
       "order": 99,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 11931
+      "durationMs": 9937
     },
     {
       "id": "indexing/config/index-dump",
       "order": 100,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 8541
+      "durationMs": 6109
     },
     {
       "id": "services/api/router-contract-matrix",
       "order": 101,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 7955
+      "durationMs": 6085
     },
     {
       "id": "retrieval/federation/cache-failure-contract-matrix",
       "order": 102,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 8782
+      "durationMs": 7767
     },
     {
       "id": "workspace/manifest-contract-matrix",
       "order": 103,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 3473
+      "durationMs": 4054
     },
     {
       "id": "runner/harness/contract-matrix",
       "order": 104,
       "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
+      "suiteCategoryReason": "matrix-filename",
+      "durationMs": 10044
     },
     {
       "id": "retrieval/federation/selection-contract-matrix",
       "order": 105,
       "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
+      "suiteCategoryReason": "matrix-filename",
+      "durationMs": 6974
     }
   ]
 }

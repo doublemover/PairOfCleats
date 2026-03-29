@@ -185,7 +185,7 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 `storage/sqlite/incremental/`:
 - `storage/sqlite/incremental/file-manifest-updates.test.js`
   - Hash changes + chunk_count present after incremental run.
-- `storage/sqlite/incremental/search-after-update.test.js`
+- `storage/sqlite/incremental/update-contract-matrix.test.js`
   - Updated content becomes searchable (backend `sqlite-fts`).
 - `storage/sqlite/incremental/manifest-normalization.test.js`
   - Backslash normalization path handling.
