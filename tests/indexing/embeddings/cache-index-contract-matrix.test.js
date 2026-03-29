@@ -5,10 +5,16 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
 import {
+  buildCacheIdentity,
+  buildCacheKey,
   flushCacheIndex,
+  isCacheValid,
   pruneCacheIndex,
   readCacheEntry,
   readCacheIndex,
+  resolveCacheIndexBinaryPath,
+  resolveCacheIndexPath,
+  shouldFastRejectCacheLookup,
   upsertCacheIndexEntry,
   writeCacheEntry,
   writeCacheIndex
@@ -25,6 +31,110 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
 
 const toIso = (value) => new Date(value).toISOString();
+
+{
+  const base = buildCacheIdentity({
+    modelId: 'model-a',
+    provider: 'provider-a',
+    mode: 'inline',
+    stub: false,
+    dims: 384,
+    scale: 0.5
+  });
+  const dimsChanged = buildCacheIdentity({
+    modelId: 'model-a',
+    provider: 'provider-a',
+    mode: 'inline',
+    stub: false,
+    dims: 768,
+    scale: 0.5
+  });
+  const providerChanged = buildCacheIdentity({
+    modelId: 'model-a',
+    provider: 'provider-b',
+    mode: 'inline',
+    stub: false,
+    dims: 384,
+    scale: 0.5
+  });
+  assert.notEqual(base.key, dimsChanged.key, 'expected cache identity to change with dims');
+  assert.notEqual(base.key, providerChanged.key, 'expected cache identity to change with provider');
+
+  const signature = 'sig-1';
+  const cached = {
+    chunkSignature: signature,
+    cacheMeta: { identityKey: base.key }
+  };
+  assert.equal(isCacheValid({ cached, signature, identityKey: base.key }), true);
+  assert.equal(isCacheValid({ cached, signature, identityKey: dimsChanged.key }), false);
+
+  const cacheKey = buildCacheKey({
+    file: 'src/index.js',
+    hash: 'hash-1',
+    signature,
+    identityKey: base.key,
+    repoId: 'repo-1',
+    mode: 'code',
+    featureFlags: ['normalize'],
+    pathPolicy: 'posix'
+  });
+  const cacheKeyOtherMode = buildCacheKey({
+    file: 'src/index.js',
+    hash: 'hash-1',
+    signature,
+    identityKey: base.key,
+    repoId: 'repo-1',
+    mode: 'prose',
+    featureFlags: ['normalize'],
+    pathPolicy: 'posix'
+  });
+  assert.ok(cacheKey, 'expected cache key for hashed file');
+  assert.notEqual(cacheKey, cacheKeyOtherMode, 'expected cache key to change with mode');
+
+  const cacheIndex = {
+    version: 1,
+    identityKey: 'identity-a',
+    entries: {
+      'key-a': {
+        key: 'key-a',
+        hash: 'hash-a',
+        chunkSignature: 'sig-a',
+        chunkHashesFingerprint: 'fp-a'
+      }
+    }
+  };
+  assert.equal(
+    shouldFastRejectCacheLookup({
+      cacheIndex,
+      cacheKey: 'key-a',
+      identityKey: 'identity-a',
+      fileHash: 'hash-a',
+      chunkSignature: 'sig-a'
+    }),
+    false
+  );
+  assert.equal(
+    shouldFastRejectCacheLookup({
+      cacheIndex,
+      cacheKey: 'key-a',
+      identityKey: 'identity-b',
+      fileHash: 'hash-a',
+      chunkSignature: 'sig-a'
+    }),
+    true
+  );
+  assert.equal(
+    shouldFastRejectCacheLookup({
+      cacheIndex,
+      cacheKey: 'key-a',
+      identityKey: 'identity-a',
+      fileHash: 'hash-a',
+      chunkSignature: 'sig-a',
+      chunkHashesFingerprint: 'fp-b'
+    }),
+    true
+  );
+}
 
 {
   const canonicalMap = buildCacheIndexFileMap({
@@ -253,6 +363,30 @@ const toIso = (value) => new Date(value).toISOString();
   assert.ok(!fs.existsSync(writeResult.path));
 
   const onDisk = buildIndex({ hits: 5, lastAccessAt: '2026-02-10T00:00:05.000Z' });
+  await writeCacheIndex(cacheDir, onDisk);
+
+  const jsonPath = resolveCacheIndexPath(cacheDir);
+  const binaryPath = resolveCacheIndexBinaryPath(cacheDir);
+  await fsPromises.access(jsonPath);
+  await fsPromises.access(binaryPath);
+
+  const jsonPreferredPayload = {
+    ...onDisk,
+    updatedAt: '2026-02-10T00:00:15.000Z',
+    entries: {
+      [cacheKey]: {
+        ...onDisk.entries[cacheKey],
+        hits: 99
+      }
+    }
+  };
+  await fsPromises.writeFile(jsonPath, JSON.stringify(jsonPreferredPayload, null, 2), 'utf8');
+  const readWithBinary = await readCacheIndex(cacheDir, identityKey);
+  assert.equal(readWithBinary.entries?.[cacheKey]?.hits, 5, 'expected binary sidecar to be preferred when present');
+
+  await fsPromises.writeFile(binaryPath, Buffer.from([0, 1, 2, 3]));
+  const readWithCorruptBinary = await readCacheIndex(cacheDir, identityKey);
+  assert.equal(readWithCorruptBinary.entries?.[cacheKey]?.hits, 99, 'expected JSON fallback when binary sidecar is unreadable');
   await writeCacheIndex(cacheDir, onDisk);
 
   const incoming = buildIndex({ hits: 5, lastAccessAt: '2026-02-10T00:00:10.000Z' });

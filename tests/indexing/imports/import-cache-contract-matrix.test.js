@@ -5,6 +5,11 @@ import path from 'node:path';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
 import { scanImports } from '../../../src/index/build/imports.js';
 import { readCachedImports } from '../../../src/index/build/incremental.js';
+import {
+  applyImportResolutionCacheFileSetDiffInvalidation,
+  loadImportResolutionCache,
+  saveImportResolutionCache
+} from '../../../src/index/build/import-resolution-cache.js';
 import { resolveBundleFilename, writeBundleFile } from '../../../src/shared/bundle-io.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -127,6 +132,211 @@ const cases = [
       });
 
       assert.equal(calls, files.length);
+    }
+  },
+  {
+    name: 'file-set invalidation clears stale resolved and unresolved edges',
+    async run() {
+      const tempRoot = await createTempRoot('imports-contract-file-set-invalidation');
+      const srcRoot = path.join(tempRoot, 'src');
+      await fs.mkdir(srcRoot, { recursive: true });
+      await fs.writeFile(path.join(srcRoot, 'main.js'), "import './later.js';\n", 'utf8');
+
+      const importsByFile = {
+        'src/main.js': ['./later.js']
+      };
+      const fileHashes = new Map([['src/main.js', 'hash-main']]);
+      const cache = {};
+      const makeStats = () => ({
+        files: 0,
+        filesHashed: 0,
+        filesReused: 0,
+        filesInvalidated: 0,
+        specs: 0,
+        specsReused: 0,
+        specsComputed: 0,
+        packageInvalidated: false,
+        fileSetInvalidated: false
+      });
+      const buildEntries = (includeLater) => {
+        const entries = [{ abs: path.join(srcRoot, 'main.js'), rel: 'src/main.js' }];
+        if (includeLater) {
+          entries.push({ abs: path.join(srcRoot, 'later.js'), rel: 'src/later.js' });
+        }
+        return entries;
+      };
+      const buildRelations = () => new Map([['src/main.js', { imports: ['./later.js'] }]]);
+      const runOnce = ({ entries, stats }) => {
+        const relations = buildRelations();
+        applyImportResolutionCacheFileSetDiffInvalidation({ cache, entries, cacheStats: stats });
+        resolveImportLinks({
+          root: tempRoot,
+          entries,
+          importsByFile,
+          fileRelations: relations,
+          enableGraph: false,
+          cache,
+          cacheStats: stats,
+          fileHashes,
+          mode: 'code'
+        });
+        return relations.get('src/main.js');
+      };
+
+      const firstStats = makeStats();
+      const first = runOnce({ entries: buildEntries(false), stats: firstStats });
+      assert.deepEqual(first.importLinks, []);
+      assert.equal(firstStats.fileSetInvalidated, true);
+
+      await fs.writeFile(path.join(srcRoot, 'later.js'), 'export const later = 1;\n', 'utf8');
+      const secondStats = makeStats();
+      const second = runOnce({ entries: buildEntries(true), stats: secondStats });
+      assert.deepEqual(second.importLinks, ['src/later.js']);
+      assert.equal(secondStats.fileSetInvalidated, true);
+      assert.ok((secondStats.staleEdgeInvalidated || 0) >= 1);
+
+      await fs.rm(path.join(srcRoot, 'later.js'));
+      const thirdStats = makeStats();
+      const third = runOnce({ entries: buildEntries(false), stats: thirdStats });
+      assert.deepEqual(third.importLinks, []);
+      assert.equal(thirdStats.fileSetInvalidated, true);
+      assert.ok((thirdStats.filesNeighborhoodInvalidated || 0) >= 1);
+    }
+  },
+  {
+    name: 'removed resolved targets invalidate cached links when files disappear',
+    async run() {
+      const tempRoot = await createTempRoot('imports-contract-missing-file-refresh');
+      const srcRoot = path.join(tempRoot, 'src');
+      await fs.mkdir(srcRoot, { recursive: true });
+      await fs.writeFile(path.join(srcRoot, 'main.js'), "import './target.js';\n", 'utf8');
+      await fs.writeFile(path.join(srcRoot, 'target.js'), 'export const target = 1;\n', 'utf8');
+
+      const importsByFile = {
+        'src/main.js': ['./target.js']
+      };
+      const fileHashes = new Map([['src/main.js', 'hash-main']]);
+      const cache = {};
+      const buildRelations = () => new Map([['src/main.js', { imports: ['./target.js'] }]]);
+      const runOnce = (entries, stats) => {
+        const relations = buildRelations();
+        applyImportResolutionCacheFileSetDiffInvalidation({ cache, entries, cacheStats: stats });
+        resolveImportLinks({
+          root: tempRoot,
+          entries,
+          importsByFile,
+          fileRelations: relations,
+          enableGraph: false,
+          cache,
+          cacheStats: stats,
+          fileHashes,
+          mode: 'code'
+        });
+        return relations.get('src/main.js');
+      };
+
+      const initialStats = {
+        files: 0,
+        filesHashed: 0,
+        filesReused: 0,
+        filesInvalidated: 0,
+        specs: 0,
+        specsReused: 0,
+        specsComputed: 0,
+        packageInvalidated: false,
+        fileSetInvalidated: false
+      };
+      const first = runOnce([
+        { abs: path.join(srcRoot, 'main.js'), rel: 'src/main.js' },
+        { abs: path.join(srcRoot, 'target.js'), rel: 'src/target.js' }
+      ], initialStats);
+      assert.deepEqual(first.importLinks, ['src/target.js']);
+
+      await fs.rm(path.join(srcRoot, 'target.js'));
+      const secondStats = { ...initialStats };
+      const second = runOnce([{ abs: path.join(srcRoot, 'main.js'), rel: 'src/main.js' }], secondStats);
+      assert.deepEqual(second.importLinks, []);
+      assert.equal(secondStats.fileSetInvalidated, true);
+      assert.ok((secondStats.filesNeighborhoodInvalidated || 0) >= 1);
+    }
+  },
+  {
+    name: 'incompatible and malformed cache files fail closed or reset safely',
+    async run() {
+      const tempRoot = await createTempRoot('imports-contract-hard-cutover');
+      const incrementalDir = path.join(tempRoot, 'incremental');
+      const cachePath = path.join(incrementalDir, 'import-resolution-cache.json');
+      await fs.mkdir(incrementalDir, { recursive: true });
+
+      const logs = [];
+      const log = (message) => logs.push(String(message || ''));
+
+      await fs.writeFile(cachePath, JSON.stringify({ version: 4 }, null, 2), 'utf8');
+      await assert.rejects(
+        () => loadImportResolutionCache({
+          incrementalState: { incrementalDir },
+          log
+        }),
+        (error) => error?.code === 'ERR_IMPORT_RESOLUTION_CACHE_INCOMPATIBLE'
+      );
+      assert.equal(logs.some((entry) => entry.includes('incompatible import resolution cache version')), true);
+
+      await fs.writeFile(cachePath, '{', 'utf8');
+      const malformedLoad = await loadImportResolutionCache({
+        incrementalState: { incrementalDir },
+        log
+      });
+      assert.equal(malformedLoad.cache?.version > 0, true);
+      assert.equal(logs.some((entry) => entry.includes('Failed to read import resolution cache')), true);
+
+      await fs.writeFile(cachePath, JSON.stringify({
+        version: malformedLoad.cache.version,
+        diagnostics: {
+          version: 4,
+          unresolvedTrend: {
+            previous: null,
+            current: {
+              total: 1,
+              actionable: 1,
+              liveSuppressed: 0,
+              gateSuppressed: 0,
+              reasonCodes: { IMP_U_NOT_REAL: 1 },
+              failureCauses: { missing_file: 1 },
+              dispositions: { actionable: 1 },
+              resolverStages: { filesystem_probe: 1 },
+              resolverBudgetExhausted: 0,
+              resolverBudgetExhaustedByType: {},
+              actionableHotspots: [],
+              actionableRate: 1
+            },
+            deltaTotal: 1,
+            deltaByReasonCode: { IMP_U_NOT_REAL: 1 },
+            deltaByFailureCause: { missing_file: 1 },
+            deltaByDisposition: { actionable: 1 },
+            deltaByResolverStage: { filesystem_probe: 1 },
+            deltaResolverBudgetExhausted: 0,
+            deltaResolverBudgetExhaustedByType: {}
+          }
+        }
+      }, null, 2), 'utf8');
+      await assert.rejects(
+        () => loadImportResolutionCache({
+          incrementalState: { incrementalDir },
+          log
+        }),
+        (error) => error?.code === 'ERR_IMPORT_RESOLUTION_CACHE_INCOMPATIBLE'
+          && String(error?.message || '').includes('Unknown reasonCode keys: IMP_U_NOT_REAL')
+      );
+
+      await saveImportResolutionCache({
+        cache: malformedLoad.cache,
+        cachePath: malformedLoad.cachePath
+      });
+      const reloaded = await loadImportResolutionCache({
+        incrementalState: { incrementalDir },
+        log
+      });
+      assert.deepEqual(reloaded.cache?.files, {});
     }
   },
   {
