@@ -86,14 +86,9 @@ export const buildStorageActions = ({ root, runNode, skipSqliteIncremental }) =>
       covers: ['hnsw-atomic-test']
     },
     {
-      label: 'hnsw-candidate-set-test',
-      run: () => runNode('hnsw-candidate-set-test', path.join(root, 'tests', 'retrieval', 'ann', 'hnsw-candidate-set.test.js')),
-      covers: ['hnsw-candidate-set-test']
-    },
-    {
-      label: 'hnsw-distance-metrics-test',
-      run: () => runNode('hnsw-distance-metrics-test', path.join(root, 'tests', 'retrieval', 'ann', 'hnsw-distance-metrics.test.js')),
-      covers: ['hnsw-distance-metrics-test']
+      label: 'ann-backend-contract-matrix-test',
+      run: () => runNode('ann-backend-contract-matrix-test', path.join(root, 'tests', 'retrieval', 'ann', 'backend-contract-matrix.test.js')),
+      covers: ['hnsw-candidate-set-test', 'hnsw-distance-metrics-test', 'ann-backend-contract-matrix-test']
     },
     {
       label: 'sqlite-chunk-id-test',
@@ -126,15 +121,15 @@ export const buildStorageActions = ({ root, runNode, skipSqliteIncremental }) =>
       covers: ['sqlite-chunk-meta-streaming-test']
     },
     {
-      label: 'lmdb-backend-test',
-      run: () => runNode('lmdb-backend-test', path.join(root, 'tests', 'storage', 'lmdb', 'backend.test.js')),
-      covers: ['build-lmdb-index', 'lmdb-backend-test'],
+      label: 'lmdb-contract-matrix-test',
+      run: () => runNode('lmdb-contract-matrix-test', path.join(root, 'tests', 'storage', 'lmdb', 'contract-matrix.test.js')),
+      covers: ['build-lmdb-index', 'lmdb-backend-test', 'lmdb-contract-matrix-test'],
       coversTierB: ['build-lmdb-index']
     },
     {
-      label: 'two-stage-state-test',
-      run: () => runNode('two-stage-state-test', path.join(root, 'tests', 'indexing', 'runtime', 'two-stage-state.test.js')),
-      covers: []
+      label: 'runtime-contract-matrix-test',
+      run: () => runNode('runtime-contract-matrix-test', path.join(root, 'tests', 'indexing', 'runtime', 'contract-matrix.test.js')),
+      covers: ['two-stage-state-test', 'runtime-contract-matrix-test']
     }
   );
 

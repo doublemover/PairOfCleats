@@ -2,9 +2,9 @@ import path from 'node:path';
 
 export const buildLanguageActions = ({ root, runNode }) => [
   {
-    label: 'language-fidelity-test',
-    run: () => runNode('language-fidelity-test', path.join(root, 'tests', 'lang', 'contracts', 'javascript.test.js')),
-    covers: ['language-fidelity-test']
+    label: 'language-fixture-contracts-test',
+    run: () => runNode('language-fixture-contracts-test', path.join(root, 'tests', 'lang', 'contracts', 'language-fixture-contracts.test.js')),
+    covers: ['language-fidelity-test', 'language-fixture-contracts-test']
   },
   {
     label: 'kotlin-perf-guard-test',
@@ -95,84 +95,29 @@ export const buildLanguageActions = ({ root, runNode }) => [
     covers: ['lsp-shutdown-test']
   },
   {
-    label: 'ts-jsx-fixtures',
-    run: () => runNode('ts-jsx-fixtures', path.join(root, 'tests', 'lang', 'typescript', 'ts-jsx-fixtures.test.js')),
-    covers: []
+    label: 'typescript-contract-matrix-test',
+    run: () => runNode('typescript-contract-matrix-test', path.join(root, 'tests', 'lang', 'typescript', 'typescript-contract-matrix.test.js')),
+    covers: ['ts-jsx-fixtures', 'typescript-imports-only-test', 'typescript-parser-selection-test', 'typescript-contract-matrix-test']
   },
   {
-    label: 'python-heuristic-chunking-test',
-    run: () => runNode(
-      'python-heuristic-chunking-test',
-      path.join(root, 'tests', 'lang', 'python', 'heuristic-chunking.test.js')
-    ),
-    covers: []
+    label: 'import-resolution-policy-contract-matrix-test',
+    run: () => runNode('import-resolution-policy-contract-matrix-test', path.join(root, 'tests', 'indexing', 'imports', 'import-resolution-policy-contract-matrix.test.js')),
+    covers: ['import-priority-test', 'import-resolution-policy-contract-matrix-test']
   },
   {
-    label: 'python-imports-test',
-    run: () => runNode(
-      'python-imports-test',
-      path.join(root, 'tests', 'lang', 'python', 'imports.test.js')
-    ),
-    covers: []
+    label: 'ignore-contract-matrix-test',
+    run: () => runNode('ignore-contract-matrix-test', path.join(root, 'tests', 'indexing', 'ignore', 'contract-matrix.test.js')),
+    covers: ['ignore-overrides-test', 'ignore-contract-matrix-test']
   },
   {
-    label: 'python-pool-test',
-    run: () => runNode(
-      'python-pool-test',
-      path.join(root, 'tests', 'lang', 'python', 'pool.test.js')
-    ),
-    covers: []
+    label: 'language-registry-contract-matrix-test',
+    run: () => runNode('language-registry-contract-matrix-test', path.join(root, 'tests', 'lang', 'registry', 'registry-contract-matrix.test.js')),
+    covers: ['language-registry-collectors-test', 'language-registry-selection-test', 'language-registry-contract-matrix-test']
   },
   {
-    label: 'js-imports-test',
-    run: () => runNode('js-imports-test', path.join(root, 'tests', 'lang', 'javascript', 'js-imports.test.js')),
-    covers: []
-  },
-  {
-    label: 'js-chunking-test',
-    run: () => runNode('js-chunking-test', path.join(root, 'tests', 'lang', 'javascript', 'js-chunking.test.js')),
-    covers: []
-  },
-  {
-    label: 'js-relations-test',
-    run: () => runNode('js-relations-test', path.join(root, 'tests', 'lang', 'javascript', 'js-relations.test.js')),
-    covers: []
-  },
-  {
-    label: 'typescript-imports-only-test',
-    run: () => runNode('typescript-imports-only-test', path.join(root, 'tests', 'lang', 'typescript', 'imports-only.test.js')),
-    covers: ['typescript-imports-only-test']
-  },
-  {
-    label: 'import-priority-test',
-    run: () => runNode('import-priority-test', path.join(root, 'tests', 'indexing', 'imports', 'import-priority.test.js')),
-    covers: ['import-priority-test']
-  },
-  {
-    label: 'ignore-overrides-test',
-    run: () => runNode('ignore-overrides-test', path.join(root, 'tests', 'indexing', 'ignore', 'overrides.test.js')),
-    covers: ['ignore-overrides-test']
-  },
-  {
-    label: 'language-registry-collectors-test',
-    run: () => runNode(
-      'language-registry-collectors-test',
-      path.join(root, 'tests', 'lang', 'registry', 'collectors.test.js')
-    ),
-    covers: ['language-registry-collectors-test']
-  },
-  {
-    label: 'language-registry-selection-test',
-    run: () => runNode(
-      'language-registry-selection-test',
-      path.join(root, 'tests', 'lang', 'registry', 'selection.test.js')
-    ),
-    covers: ['language-registry-selection-test']
-  },
-  {
-    label: 'python-fallback-test',
-    run: () => runNode('python-fallback-test', path.join(root, 'tests', 'lang', 'python', 'fallback.test.js')),
-    covers: ['python-fallback-test']
+    label: 'python-contract-matrix-test',
+    run: () => runNode('python-contract-matrix-test', path.join(root, 'tests', 'lang', 'python', 'python-contract-matrix.test.js')),
+    covers: ['python-heuristic-chunking-test', 'python-imports-test', 'python-pool-test', 'python-fallback-test', 'python-contract-matrix-test']
   },
   {
     label: 'python-ast-worker-test',
@@ -180,8 +125,8 @@ export const buildLanguageActions = ({ root, runNode }) => [
     covers: []
   },
   {
-    label: 'typescript-parser-selection-test',
-    run: () => runNode('typescript-parser-selection-test', path.join(root, 'tests', 'lang', 'typescript', 'parser-selection.test.js')),
-    covers: ['typescript-parser-selection-test']
+    label: 'javascript-contract-matrix-test',
+    run: () => runNode('javascript-contract-matrix-test', path.join(root, 'tests', 'lang', 'javascript', 'javascript-contract-matrix.test.js')),
+    covers: ['js-imports-test', 'js-chunking-test', 'js-relations-test', 'javascript-contract-matrix-test']
   }
 ];

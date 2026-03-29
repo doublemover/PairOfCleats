@@ -62,9 +62,9 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     covers: ['gtags-ingest']
   },
   {
-    label: 'vscode-extension-test',
-    run: () => runNode('vscode-extension-test', path.join(root, 'tests', 'tooling', 'vscode', 'extension.test.js')),
-    covers: ['vscode-extension-test']
+    label: 'vscode-package-contract-matrix-test',
+    run: () => runNode('vscode-package-contract-matrix-test', path.join(root, 'tests', 'tooling', 'vscode', 'package-contract-matrix.test.js')),
+    covers: ['vscode-extension-test', 'vscode-package-contract-matrix-test']
   },
   {
     label: 'repo-root-test',
@@ -82,9 +82,9 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     covers: ['jsonrpc-parser-test']
   },
   {
-    label: 'index-cache-test',
-    run: () => runNode('index-cache-test', path.join(root, 'tests', 'retrieval', 'cache', 'index.test.js')),
-    covers: ['index-cache-test']
+    label: 'index-cache-contract-matrix-test',
+    run: () => runNode('index-cache-contract-matrix-test', path.join(root, 'tests', 'retrieval', 'cache', 'index-cache-contract-matrix.test.js')),
+    covers: ['index-cache-test', 'index-cache-contract-matrix-test']
   },
   {
     label: 'worker-pool-test',
@@ -132,14 +132,14 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     covers: ['cache-gc', 'cache-gc-test']
   },
   {
-    label: 'cache-lru-test',
-    run: () => runNode('cache-lru-test', path.join(root, 'tests', 'shared', 'cache', 'lru.test.js')),
-    covers: ['cache-lru-test']
+    label: 'cache-contract-matrix-test',
+    run: () => runNode('cache-contract-matrix-test', path.join(root, 'tests', 'shared', 'cache', 'contract-matrix.test.js')),
+    covers: ['cache-lru-test', 'cache-contract-matrix-test']
   },
   {
-    label: 'discover-test',
-    run: () => runNode('discover-test', path.join(root, 'tests', 'indexing', 'discovery', 'discover.test.js')),
-    covers: ['discover-test']
+    label: 'discovery-contract-matrix-test',
+    run: () => runNode('discovery-contract-matrix-test', path.join(root, 'tests', 'indexing', 'discovery', 'contract-matrix.test.js')),
+    covers: ['discover-test', 'discovery-contract-matrix-test']
   },
   {
     label: 'watch-debounce-test',
@@ -202,9 +202,9 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     covers: ['config-validate', 'config-validate-test']
   },
   {
-    label: 'config-dump-test',
-    run: () => runNode('config-dump-test', path.join(root, 'tests', 'tooling', 'config', 'dump.test.js')),
-    covers: ['config-dump-test']
+    label: 'config-contract-matrix-dump-test',
+    run: () => runNode('config-contract-matrix-dump-test', path.join(root, 'tests', 'tooling', 'config', 'contract-matrix.test.js')),
+    covers: ['config-dump-test', 'config-contract-matrix-dump-test']
   },
   {
     label: 'structural-search-help',
@@ -296,14 +296,9 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     covers: ['shard-census']
   },
   {
-    label: 'uv-threadpool-env-test',
-    run: () => runNode('uv-threadpool-env-test', path.join(root, 'tests', 'shared', 'runtime', 'uv-threadpool-env.test.js')),
-    covers: ['uv-threadpool-env-test']
-  },
-  {
-    label: 'uv-threadpool-no-override-test',
-    run: () => runNode('uv-threadpool-no-override-test', path.join(root, 'tests', 'shared', 'runtime', 'uv-threadpool-no-override.test.js')),
-    covers: ['uv-threadpool-no-override-test']
+    label: 'shared-runtime-contract-matrix-test',
+    run: () => runNode('shared-runtime-contract-matrix-test', path.join(root, 'tests', 'shared', 'runtime', 'runtime-contract-matrix.test.js')),
+    covers: ['uv-threadpool-env-test', 'uv-threadpool-no-override-test', 'shared-runtime-contract-matrix-test']
   },
   {
     label: 'io-concurrency-cap-test',

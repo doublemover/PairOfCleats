@@ -17,34 +17,17 @@ export const buildIndexingActions = ({ root, runNode }) => [
     covers: ['chunking-guardrails-test']
   },
   {
-    label: 'code-map-basic-test',
-    run: () => runNode('code-map-basic-test', path.join(root, 'tests', 'indexing', 'map', 'code-basic.test.js')),
-    covers: ['code-map-basic-test']
-  },
-  {
-    label: 'code-map-dot-test',
-    run: () => runNode('code-map-dot-test', path.join(root, 'tests', 'indexing', 'map', 'code-dot.test.js')),
-    covers: ['code-map-dot-test']
-  },
-  {
-    label: 'code-map-graphviz-fallback-test',
-    run: () => runNode('code-map-graphviz-fallback-test', path.join(root, 'tests', 'indexing', 'map', 'code-graphviz-fallback.test.js')),
-    covers: ['code-map-graphviz-fallback-test']
-  },
-  {
-    label: 'code-map-determinism-test',
-    run: () => runNode('code-map-determinism-test', path.join(root, 'tests', 'indexing', 'map', 'code-determinism.test.js')),
-    covers: ['code-map-determinism-test']
-  },
-  {
-    label: 'code-map-guardrails-test',
-    run: () => runNode('code-map-guardrails-test', path.join(root, 'tests', 'indexing', 'map', 'code-guardrails.test.js')),
-    covers: ['code-map-guardrails-test']
-  },
-  {
-    label: 'code-map-performance-test',
-    run: () => runNode('code-map-performance-test', path.join(root, 'tests', 'indexing', 'map', 'code-performance.test.js')),
-    covers: ['code-map-performance-test']
+    label: 'code-map-contract-matrix-test',
+    run: () => runNode('code-map-contract-matrix-test', path.join(root, 'tests', 'indexing', 'map', 'code-map-contract-matrix.test.js')),
+    covers: [
+      'code-map-basic-test',
+      'code-map-dot-test',
+      'code-map-graphviz-fallback-test',
+      'code-map-determinism-test',
+      'code-map-guardrails-test',
+      'code-map-performance-test',
+      'code-map-contract-matrix-test'
+    ]
   },
   {
     label: 'e2e-smoke-test',
@@ -82,9 +65,9 @@ export const buildIndexingActions = ({ root, runNode }) => [
     covers: ['chunking-limits-test']
   },
   {
-    label: 'graph-chunk-id-test',
-    run: () => runNode('graph-chunk-id-test', path.join(root, 'tests', 'indexing', 'relations', 'graph-chunk-id.test.js')),
-    covers: ['graph-chunk-id-test']
+    label: 'call-graph-contract-matrix-test',
+    run: () => runNode('call-graph-contract-matrix-test', path.join(root, 'tests', 'indexing', 'relations', 'call-graph-contract-matrix.test.js')),
+    covers: ['graph-chunk-id-test', 'call-graph-contract-matrix-test']
   },
   {
     label: 'segment-pipeline-test',
@@ -127,14 +110,9 @@ export const buildIndexingActions = ({ root, runNode }) => [
     covers: ['artifact-bak-recovery-test']
   },
   {
-    label: 'encoding-hash-test',
-    run: () => runNode('encoding-hash-test', path.join(root, 'tests', 'shared', 'encoding', 'hash.test.js')),
-    covers: ['encoding-hash-test']
-  },
-  {
-    label: 'encoding-matrix-test',
-    run: () => runNode('encoding-matrix-test', path.join(root, 'tests', 'shared', 'encoding', 'matrix.test.js')),
-    covers: ['encoding-matrix-test']
+    label: 'encoding-contract-matrix-test',
+    run: () => runNode('encoding-contract-matrix-test', path.join(root, 'tests', 'shared', 'encoding', 'contract-matrix.test.js')),
+    covers: ['encoding-hash-test', 'encoding-matrix-test', 'encoding-contract-matrix-test']
   },
   {
     label: 'jsonl-utf8-test',
@@ -147,14 +125,9 @@ export const buildIndexingActions = ({ root, runNode }) => [
     covers: ['unicode-offset-test']
   },
   {
-    label: 'file-size-guard-test',
-    run: () => runNode('file-size-guard-test', path.join(root, 'tests', 'indexing', 'file-caps', 'file-size-guard.test.js')),
-    covers: ['file-size-guard-test']
-  },
-  {
-    label: 'file-line-guard-test',
-    run: () => runNode('file-line-guard-test', path.join(root, 'tests', 'indexing', 'file-caps', 'file-line-guard.test.js')),
-    covers: ['file-line-guard-test']
+    label: 'file-caps-contract-matrix-test',
+    run: () => runNode('file-caps-contract-matrix-test', path.join(root, 'tests', 'indexing', 'file-caps', 'contract-matrix.test.js')),
+    covers: ['file-size-guard-test', 'file-line-guard-test', 'file-caps-contract-matrix-test']
   },
   {
     label: 'skip-minified-binary-test',
@@ -197,9 +170,9 @@ export const buildIndexingActions = ({ root, runNode }) => [
     covers: ['incremental-reuse-test']
   },
   {
-    label: 'thread-limits-test',
-    run: () => runNode('thread-limits-test', path.join(root, 'tests', 'shared', 'runtime', 'thread-limits.test.js')),
-    covers: ['thread-limits-test']
+    label: 'runtime-contract-matrix-test',
+    run: () => runNode('runtime-contract-matrix-test', path.join(root, 'tests', 'shared', 'runtime', 'runtime-contract-matrix.test.js')),
+    covers: ['thread-limits-test', 'build-runtime-stage-overrides-test', 'build-runtime-content-hash-test', 'runtime-contract-matrix-test']
   },
   {
     label: 'shard-merge-test',
@@ -232,19 +205,9 @@ export const buildIndexingActions = ({ root, runNode }) => [
     covers: ['chunking-json-unit-test']
   },
   {
-    label: 'build-runtime-stage-overrides-test',
-    run: () => runNode('build-runtime-stage-overrides-test', path.join(root, 'tests', 'indexing', 'runtime', 'stage-overrides.test.js')),
-    covers: ['build-runtime-stage-overrides-test']
-  },
-  {
-    label: 'build-runtime-content-hash-test',
-    run: () => runNode('build-runtime-content-hash-test', path.join(root, 'tests', 'indexing', 'runtime', 'content-hash.test.js')),
-    covers: ['build-runtime-content-hash-test']
-  },
-  {
-    label: 'indexer-signatures-test',
-    run: () => runNode('indexer-signatures-test', path.join(root, 'tests', 'indexer', 'signatures', 'core.test.js')),
-    covers: ['indexer-signatures-test']
+    label: 'indexer-signatures-contract-matrix-test',
+    run: () => runNode('indexer-signatures-contract-matrix-test', path.join(root, 'tests', 'indexer', 'signatures', 'contract-matrix.test.js')),
+    covers: ['indexer-signatures-test', 'indexer-signatures-contract-matrix-test']
   },
   {
     label: 'indexer-sort-determinism-test',
@@ -252,9 +215,9 @@ export const buildIndexingActions = ({ root, runNode }) => [
     covers: ['indexer-sort-determinism-test']
   },
   {
-    label: 'indexer-incremental-plan-test',
-    run: () => runNode('indexer-incremental-plan-test', path.join(root, 'tests', 'indexer', 'incremental', 'plan.test.js')),
-    covers: ['indexer-incremental-plan-test']
+    label: 'indexer-incremental-contract-matrix-test',
+    run: () => runNode('indexer-incremental-contract-matrix-test', path.join(root, 'tests', 'indexer', 'incremental', 'contract-matrix.test.js')),
+    covers: ['indexer-incremental-plan-test', 'indexer-incremental-contract-matrix-test']
   },
   {
     label: 'file-processor-skip-test',
