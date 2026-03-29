@@ -152,8 +152,5 @@ Required outputs:
 
 ## 9. Required tests
 
-- `tests/indexing/cache/workspace-global-cache-reuse.test.js`
-- `tests/indexing/cache/cas-reuse-across-repos.test.js`
-- `tests/tooling/cache/cache-gc-preserves-manifest-referenced.test.js`
-- `tests/tooling/cache/cache-gc-respects-active-leases.test.js`
-- `tests/indexing/cache/workspace-concurrency-limits.test.js`
+- `tests/shared/cache/contract-matrix.test.js`
+- `tests/tooling/cache/gc-contract-matrix.test.js`

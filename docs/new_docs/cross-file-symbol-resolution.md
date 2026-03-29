@@ -24,8 +24,8 @@ Out of scope (explicitly Phase 9 non-goals):
 ## Canonical vocabulary
 
 This resolver produces **SymbolRef** objects and edges as specified in:
-- `docs/specs/symbol-identity-and-symbolref.md`
-- `docs/specs/symbol-artifacts.md`
+- `docs/specs/identity-and-symbol-contracts.md`
+- `docs/specs/symbol-artifacts-and-pipeline.md`
 
 If this draft conflicts with those specs, **those specs win**; update this draft.
 
@@ -117,7 +117,7 @@ Each candidate in the index MUST retain:
 
 ## Resolution outputs
 
-Resolution returns a **SymbolRef** per `docs/specs/symbol-identity-and-symbolref.md`, with:
+Resolution returns a **SymbolRef** per `docs/specs/identity-and-symbol-contracts.md`, with:
 - `state: "resolved" | "ambiguous" | "unresolved"`
 - `candidates[]` populated for ambiguous/unresolved, capped to a small number (default 8)
 - optional `evidence` including:

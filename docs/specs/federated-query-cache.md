@@ -173,8 +173,5 @@ Expired entries must be removed opportunistically on read and always on write.
 
 ## 9. Required tests
 
-- `tests/retrieval/federation/query-cache-key-stability.test.js`
-- `tests/retrieval/federation/query-cache-invalidation-via-manifesthash.test.js`
-- `tests/retrieval/federation/build-pointer-invalid-clears-cache.test.js`
-- `tests/retrieval/federation/strict-cache-key-separation.test.js`
-- `tests/retrieval/federation/partial-failures-not-cached.test.js`
+- `tests/retrieval/federation/query-cache-key-contract-matrix.test.js`
+- `tests/retrieval/federation/cache-failure-contract-matrix.test.js`

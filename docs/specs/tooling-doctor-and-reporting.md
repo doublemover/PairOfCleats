@@ -171,10 +171,7 @@ Doctor logs exactly one final status line:
 
 ## 7) Tests
 
-- `tests/tooling/doctor/emits-report.test.js`
-- `tests/tooling/doctor/command-resolution-report.test.js`
-- `tests/tooling/doctor/preflight-capabilities-report.test.js`
-- `tests/tooling/doctor/preflight-capabilities-configured-gopls.test.js`
-- `tests/tooling/doctor/preflight-capabilities-configured-rust.test.js`
-- `tests/tooling/lsp/preflight-provider-metadata-coverage.test.js`
+- `tests/tooling/doctor/report-emission-contract-matrix.test.js`
+- `tests/tooling/doctor/command-profile-contract-matrix.test.js`
+- `tests/tooling/lsp/preflight-contract-matrix.test.js`
 - `tests/tooling/reports/bench-language-preflight-summary-report.test.js`

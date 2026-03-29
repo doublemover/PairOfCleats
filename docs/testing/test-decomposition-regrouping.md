@@ -65,21 +65,21 @@ Sizes below are approximate (filesystem block sizes) and are used only to priori
 
 | File | Approx. size | What it currently mixes | Recommended action |
 |---|---:|---|---|
-| `tests/unified-syntax-representation/lang/contracts/*.test.js` (split suite) | 32 KB | index build, postings validation, search filters, per-language AST/docmeta assertions, risk flow assertions | Split completed across `tests/indexing/language-fixture/*.test.js`, `tests/retrieval/filters/*.test.js`, and `tests/unified-syntax-representation/lang/contracts/*.test.js` |
-| `tests/perf/bench/run.test.js` | 24 KB | benchmark harness + correctness self-checks + build orchestration | **Move to `perf/`** and split scenarios |
-| `tests/indexing/fixtures/*.test.js` (split suite) | 18 KB | fixture generation, artifact presence, minhash checks, search invariants, compact json shape, language-specific assertions | Split completed across `tests/indexing/fixtures/*.test.js`, `tests/retrieval/contracts/*.test.js`, `tests/retrieval/filters/*.test.js`, and `tests/lang/fixtures-sample/*.test.js` |
-| `tests/retrieval/parity/parity.test.js` | 13 KB | cross-backend parity runner + reporting + thresholds | Keep as tool-like test; optionally split reporting |
-| `tests/indexing/type-inference/crossfile/crossfile-output.integration.test.js` + `tests/tooling/type-inference/crossfile-stats.unit.test.js` | 12 KB | unit-ish inference stats + full index build + graph relations assertions | Split complete: keep unit + integration separation |
-| `tests/services/mcp/*.test.js` | 9 KB | protocol init, tools registry, build-index tool, search tool, filters, progress events, error behavior | Split complete across MCP contract areas |
+| legacy language fidelity split suite | 32 KB | index build, postings validation, search filters, per-language AST/docmeta assertions, risk flow assertions | Split completed across `tests/lang/contracts/language-fixture-contracts.test.js`, `tests/lang/fixtures-sample/metadata-matrix.test.js`, `tests/retrieval/filters/filter-core-contract-matrix.test.js`, and `tests/retrieval/filters/search-filter-contract-matrix.test.js` |
+| perf bench harness family | 24 KB | benchmark harness + correctness self-checks + build orchestration | Keep under `tests/perf/` and split scenarios by benchmark family |
+| `tests/indexing/fixtures/build-and-artifacts.test.js` (split suite) | 18 KB | fixture generation, artifact presence, minhash checks, search invariants, compact json shape, language-specific assertions | Split completed across `tests/indexing/fixtures/build-and-artifacts.test.js`, retrieval contract/filter matrices, and `tests/lang/fixtures-sample/metadata-matrix.test.js` |
+| `tests/retrieval/parity/equivalence.test.js` | 13 KB | cross-backend parity runner + reporting + thresholds | Keep as tool-like test; optionally split reporting |
+| `tests/indexing/type-inference/crossfile/output.integration.test.js` + `tests/tooling/type-inference/crossfile-stats.unit.test.js` | 12 KB | unit-ish inference stats + full index build + graph relations assertions | Split complete: keep unit + integration separation |
+| MCP contract family | 9 KB | protocol init, tools registry, build-index tool, search tool, filters, progress events, error behavior | Split complete across `tests/services/mcp/schema.test.js`, `tests/services/mcp/robustness.test.js`, `tests/services/mcp/tools-registry.test.js`, and related MCP contract tests |
 | `tests/storage/sqlite/incremental/*.test.js` | 8 KB | incremental index build, sqlite build, manifest normalization, schema downgrade/rebuild, search check | Split complete across incremental + schema/migration + normalization |
 | `tests/retrieval/filters/query-syntax/*.test.js` + `tests/retrieval/filters/file-and-token/*.test.js` | 8 KB | git repo setup + query parser behavior + author/time/branch filters + file/token case semantics | Split complete by filter family |
-| `tests/indexing/type-inference/crossfile/type-inference-crossfile-go.test.js` | 7 KB | Go-specific cross-file inference behavior + index build | Consider splitting similarly to JS cross-file |
+| `tests/indexing/type-inference/crossfile/type-inference-go.test.js` | 7 KB | Go-specific cross-file inference behavior + index build | Consider splitting similarly to JS cross-file |
 | `tests/tooling/triage/*.test.js` | 7 KB | triage ingest, markdown rendering, decision updates, records indexing/search, context-pack assembly | Split complete by triage pipeline stage |
 | `tests/indexing/type-inference/providers/type-inference-lsp-enrichment.test.js` | 6 KB | multi-language LSP enrichment (C++/Swift/Python) | Optional split by language; keep together if stable |
-| `tests/services/mcp/mcp-schema.test.js` | 6 KB | tool schema snapshot + server response shape snapshot | Optional: split snapshot types |
-| `tests/services/mcp/mcp-robustness.test.js` | 6 KB | queue overload + tool timeout scenarios | Split into two tests (queue vs timeout) |
-| `tests/services/api/*.test.js` | 6 KB | startup + health/status + search + request validation + repo authorization + no-index | Split complete by endpoint family |
-| `tests/services/api/api-server-stream.test.js` | 6 KB | stream-specific behavior | Keep separate; consider splitting by stream mode |
+| `tests/services/mcp/schema.test.js` | 6 KB | tool schema snapshot + server response shape snapshot | Optional: split snapshot types |
+| `tests/services/mcp/robustness.test.js` | 6 KB | queue overload + tool timeout scenarios | Split into two tests (queue vs timeout) |
+| API contract family | 6 KB | startup + health/status + search + request validation + repo authorization + no-index | Split complete across `tests/services/api/router-contract-matrix.test.js`, `tests/services/api/search-contract-matrix.test.js`, `tests/services/api/federated-search-validation-matrix.test.js`, and related endpoint families |
+| `tests/services/api/server-stream.test.js` | 6 KB | stream-specific behavior | Keep separate; consider splitting by stream mode |
 
 The remainder of the suite can be regrouped largely by path/tagging without splitting, but the above scripts are the biggest "multipliers" for confusion and should be tackled first.
 

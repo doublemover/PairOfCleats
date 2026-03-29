@@ -24,8 +24,8 @@ Each phase SHOULD list:
 - [ ] Subtask detail
 
 ### Tests
-- [ ] tests/path/to/test-a.test.js
-- [ ] tests/path/to/test-b.test.js
+- [ ] Run the exact current test ids that cover the task
+- [ ] Record the concrete commands or runner ids beside the checkbox before marking it complete
 ```
 
 ## Commit discipline

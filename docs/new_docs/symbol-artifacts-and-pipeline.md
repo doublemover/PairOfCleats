@@ -1,9 +1,9 @@
 # Phase 9 — Symbol artifacts & pipeline integration (implementation-facing)
 
 > **Source of truth (schemas/contracts):**
-> - `docs/specs/symbol-identity-and-symbolref.md`
-> - `docs/specs/symbol-artifacts.md`
-> - `SPEC_cross-file-symbol-resolution_DRAFT.md` (Phase 9 draft)
+> - `docs/specs/identity-and-symbol-contracts.md`
+> - `docs/specs/symbol-artifacts-and-pipeline.md`
+> - `docs/new_docs/cross-file-symbol-resolution.md` (Phase 9 draft)
 
 This Phase 9 note is about *integration points* in the build pipeline and validator.
 
@@ -63,7 +63,7 @@ If validator needs loaders:
 ### 5) Validator referential integrity checks
 - `src/index/validate.js`
   - load/stream the new artifacts when present
-  - enforce integrity rules from `docs/specs/symbol-artifacts.md`
+  - enforce integrity rules from `docs/specs/symbol-artifacts-and-pipeline.md`
 
 Also update:
 - `src/index/validate/artifacts.js` optional artifact list (so presence expectations match reality)

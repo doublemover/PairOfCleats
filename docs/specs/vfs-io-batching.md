@@ -117,7 +117,7 @@ Benchmarks:
 
 Tests:
 - `tests/indexing/vfs/merge-core-integration.test.js`
-- `tests/shared/merge/merge-cleanup-regression.test.js`
+- `tests/tooling/vfs/io-batch-consistency.test.js`
 
 ---
 

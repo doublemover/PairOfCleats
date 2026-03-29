@@ -37,8 +37,7 @@ These are defined in the identity spec and are validated by the identity-focused
 
 ## Tests (existing)
 
-- `tests/indexing/identity/chunkuid-stability-lineshift.test.js`
-- `tests/indexing/identity/chunkuid-collision-disambiguation.test.js`
+- `tests/indexing/identity/contract-matrix.test.js`
 
 ## Phase 9 note: do not fork the identity algorithm
 

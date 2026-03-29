@@ -148,15 +148,15 @@ If `sourceKind=pdf` and a page range is available:
   - `p<startPage>-p<endPage>`
 
 Examples:
-- `docs/spec.pdf#p3-p3`
-- `docs/spec.pdf#p12-p14`
+- `<repo-relative-pdf>#p3-p3`
+- `<repo-relative-pdf>#p12-p14`
 
 Optional refinement (if char/byte offsets are available within extracted text):
 - append `@c<start>-<end>` (char offsets)
 - or `@b<start>-<end>` (byte offsets)
 
 Example:
-- `docs/spec.pdf#p3-p3@c120-420`
+- `<repo-relative-pdf>#p3-p3@c120-420`
 
 ### 5.4 DOCX anchors
 If `sourceKind=docx` and paragraph range is available:
@@ -165,7 +165,7 @@ If `sourceKind=docx` and paragraph range is available:
   - `para<start>-para<end>`
 
 Examples:
-- `docs/design.docx#para12-para15`
+- `<repo-relative-docx>#para12-para15`
 
 Optional refinement (if run offsets exist):
 - `@r<start>-<end>`
@@ -175,7 +175,7 @@ If `sourceKind=text` and char/byte range exists:
 - `c<start>-c<end>` or `b<start>-b<end>`
 
 Examples:
-- `docs/notes.txt#c0-c800`
+- `<repo-relative-text>#c0-c800`
 
 ### 5.6 Record anchors (optional extension)
 If `sourceKind=record`, anchor fragment should be:
@@ -225,9 +225,8 @@ A chunk validator MUST reject:
 
 ## 9) Tests (recommended)
 
-- `tests/metaV2/provenance-anchor-code.test.js`
-- `tests/metaV2/provenance-anchor-pdf.test.js`
-- `tests/metaV2/provenance-anchor-docx.test.js`
+- extend [contract-matrix.test.js](/C:/Users/sneak/Development/DOUBLECLEAT/tests/indexer/metav2/contract-matrix.test.js) with primary-anchor normalization cases
+- add source-kind-specific anchor cases in the same matrix, or split them into a dedicated provenance-anchor matrix when PDF/DOCX/text anchor materialization ships
 
 Each test should:
 - build a synthetic `metaV2` object

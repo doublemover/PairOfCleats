@@ -118,13 +118,12 @@ Strict validation must verify:
 
 ## Tests (required)
 ### Unit tests
-- `tests/indexing/identity/identity-symbolkey-scopedid.test.js`
-- `tests/indexing/identity/symbol-identity.test.js`
+- [contract-matrix.test.js](/C:/Users/sneak/Development/DOUBLECLEAT/tests/indexing/identity/contract-matrix.test.js)
 
 ### Services tests
-- `tests/indexing/artifacts/symbols/symbol-artifacts-emission.test.js`
-- `tests/indexing/artifacts/symbols/symbol-edges-ambiguous.test.js`
-- `tests/indexing/artifacts/symbols/symbol-links-by-chunkuid.test.js`
-- `tests/indexing/validate/symbol-integrity-strict.test.js`
-- `tests/indexing/determinism/symbol-artifact-order.test.js`
-- `tests/indexing/determinism/symbol-artifact-determinism.test.js`
+- [symbol-artifacts-emission.test.js](/C:/Users/sneak/Development/DOUBLECLEAT/tests/indexing/artifacts/symbols/symbol-artifacts-emission.test.js)
+- [symbol-edges-ambiguous.test.js](/C:/Users/sneak/Development/DOUBLECLEAT/tests/indexing/artifacts/symbols/symbol-edges-ambiguous.test.js)
+- [symbol-links-by-chunkuid.test.js](/C:/Users/sneak/Development/DOUBLECLEAT/tests/indexing/artifacts/symbols/symbol-links-by-chunkuid.test.js)
+- [symbol-integrity-strict.test.js](/C:/Users/sneak/Development/DOUBLECLEAT/tests/indexing/validate/symbol-integrity-strict.test.js)
+- [symbol-artifact-order.test.js](/C:/Users/sneak/Development/DOUBLECLEAT/tests/indexing/determinism/symbol-artifact-order.test.js)
+- [symbol-artifact.test.js](/C:/Users/sneak/Development/DOUBLECLEAT/tests/indexing/determinism/symbol-artifact.test.js)

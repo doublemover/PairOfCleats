@@ -24,5 +24,5 @@ Standardize how tooling providers receive file content, without redundant disk r
 - `src/index/tooling/orchestrator.js` (provider execution)
 
 ## Tests
-- `tests/tooling/vfs/vfs-routing-by-effective-language.test.js`
-- `tests/tooling/vfs/vfs-virtualpath-deterministic.test.js`
+- `tests/tooling/vfs/routing-and-token-contract-matrix.test.js`
+- `tests/tooling/vfs/lookup-contract-matrix.test.js`

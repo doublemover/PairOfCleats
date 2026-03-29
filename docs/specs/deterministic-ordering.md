@@ -49,7 +49,7 @@ Helpers live in `src/shared/order.js` and must be used for new ordering logic.
   - Uses `.index-root/index-code` if present, otherwise generates synthetic rows.
 
 ## Tests
-- `tests/shared/order/order-hash.test.js` validates ordering hash stability.
+- `tests/shared/order/contract-matrix.test.js` validates ordering hash stability.
 - `tests/indexing/determinism/chunk-meta-ordering-drift.test.js` ensures drift is detected.
 - `tests/indexing/validate/ledger-validation.test.js` covers warning vs error policy.
 

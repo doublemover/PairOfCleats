@@ -277,11 +277,8 @@ Thresholds are centralized in `src/shared/ops-resource-visibility.js` as
 - Thread limits: `src/shared/threads.js`
 
 Tests:
-- `tests/shared/runtime/runtime-envelope-uv-threadpool-precedence.test.js`
-- `tests/shared/runtime/runtime-envelope-node-options-merge.test.js`
-- `tests/shared/runtime/runtime-envelope-spawn-env.test.js`
-- `tests/shared/runtime/uv-threadpool-no-override.test.js`
-- `tests/shared/runtime/uv-threadpool-env.test.js`
+- `tests/shared/runtime/runtime-contract-matrix.test.js`
+- `tests/shared/runtime/env-envelope-overrides.test.js`
 
 ## 8) Compatibility notes
 

@@ -117,7 +117,4 @@ Exit behavior:
 
 ## 8. Required tests
 
-- `tests/tooling/index-stats/index-stats-json.test.js`
-- `tests/tooling/index-stats/index-stats-missing-artifact.test.js`
-- `tests/tooling/index-stats/index-stats-aggregate.test.js`
-- `tests/tooling/index-stats/index-stats-verify-contract.test.js`
+- `tests/tooling/index-stats/contract-matrix.test.js`

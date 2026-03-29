@@ -62,7 +62,7 @@
   - `policies` (artifact -> `{ maxBytes, overflow, strict }`)
 
 ## Tests
-- `tests/indexing/runtime/byte-budget-enforcement.test.js`
+- `tests/indexing/runtime/contract-matrix.test.js`
 
 ## Breaking Changes
 No backward compatibility; budgets are enforced strictly.

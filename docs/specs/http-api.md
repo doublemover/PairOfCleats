@@ -207,9 +207,12 @@ Rules:
 
 ## 9. Required tests
 
-- `tests/api/search-asof-explicit-no-fallback.test.js`
-- `tests/api/search-redacts-paths-default.test.js`
-- `tests/api/federated-search-workspace-allowlist.test.js`
-- `tests/api/federated-search-redacts-paths.test.js`
-- `tests/api/index-diff-events-stream-contract.test.js`
-- `tests/api/index-snapshot-create-validation-required.test.js`
+Current implemented HTTP surfaces are covered by:
+
+- `tests/services/api/search-contract-matrix.test.js`
+- `tests/services/api/federated-search-validation-matrix.test.js`
+- `tests/services/api/router-contract-matrix.test.js`
+- `tests/services/api/context-pack-workspace-allowlist.test.js`
+- `tests/services/api/repo-authorization.test.js`
+
+Snapshot/diff endpoint coverage should be added alongside those routes once the pending Phase 14.6 surfaces land.

@@ -28,7 +28,7 @@ This spec defines a **tiered identity system** that is:
 
 ## 2. Glossary
 
-- **Container file**: the physical repo file on disk (e.g., `docs/guide.md`, `src/app.vue`).
+- **Container file**: the physical repo file on disk (e.g., `<repo-doc>.md`, `src/app.vue`).
 - **Segment**: an embedded-language region discovered within a container file (e.g., fenced code block in Markdown; `<script>` in Vue).
 - **Virtual document**: the synthetic, tooling-facing file representing a segment (or a whole file) used by providers (TS/LSP).
 - **Chunk**: a unit of indexing (span) derived from a container file or segment.
@@ -380,19 +380,19 @@ Until all consumers are migrated:
 
 Create tests (names are suggestions; align with repo conventions):
 
-1. `tests/indexing/identity/chunkuid-stability-lineshift.test.js`
+1. `tests/indexing/identity/contract-matrix.test.js`
    - Build fixture, record all `chunkUid`.
    - Insert text above chunks without changing chunk spans.
    - Rebuild and assert `chunkUid` unchanged for unchanged spans.
 
-2. `tests/indexing/identity/chunkuid-collision-disambiguation.test.js`
+2. `tests/indexing/identity/contract-matrix.test.js`
    - Create fixture with two identical spans in same file+segment and identical context windows.
    - Assert collision detected and `collisionOf` recorded; chunkUid disambiguated deterministically.
 
-3. `tests/indexing/identity/symbolref-envelope-required.test.js`
+3. `tests/indexing/identity/contract-matrix.test.js`
    - Ensure any emitted symbol edges/occurrences use `SymbolRef` object, not raw strings.
 
-4. `tests/indexing/identity/join-precedence.test.js`
+4. `tests/indexing/identity/contract-matrix.test.js`
    - Construct fake symbol refs with symbolId/scopedId/symbolKey and assert join policy.
 
 ---

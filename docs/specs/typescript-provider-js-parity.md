@@ -77,8 +77,6 @@ orchestrator cache.
 
 ## 8) Tests
 
-- `tests/tooling/lsp/typescript/typescript-js-parity-basic.test.js`
-- `tests/tooling/lsp/typescript/typescript-vfs-segment-vue.test.js`
-- `tests/tooling/lsp/typescript/typescript-node-matching-range.test.js`
-- `tests/tooling/lsp/typescript/typescript-ambiguous-fallback-does-not-guess.test.js`
-- `tests/tooling/lsp/typescript/typescript-destructured-param-names.test.js`
+- `tests/tooling/lsp/typescript/js-parity-basic.test.js`
+- `tests/tooling/lsp/typescript/prototype-param-names.test.js`
+- `tests/tooling/lsp/typescript-contract-matrix.test.js`

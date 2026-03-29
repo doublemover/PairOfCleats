@@ -194,7 +194,7 @@ If added later, it MUST be introduced under a schema/behavior version bump.
 ## 9) Required tests
 
 ### Golden compilation tests
-Add `tests/fts/compile-match.test.js` containing:
+Add a dedicated FTS compile-match contract test containing:
 - a table of `(inputQuery, expectedAstShape, expectedMatchString)`
 - including edge cases:
   - empty query

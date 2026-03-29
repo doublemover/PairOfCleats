@@ -452,9 +452,7 @@ Tasks:
 - Store postings as `(tokenId, postings)` pairs.
 - Merge by tokenId and map back to token strings during shard writing.
 Tests:
-- `tests/unit/spimi/token-dict-roundtrip.unit.test.js`
-- `tests/unit/spimi/token-dict-merge-order.unit.test.js`
-- `tests/unit/spimi/token-dict-compat.unit.test.js` (dictionary + postings yields identical artifacts)
+- add dedicated token-dictionary roundtrip, merge-order, and compatibility cases under a future `tests/indexing/postings/spimi/` contract family
 
 #### 9.2.2 Front-coded token compression
 Objective: reduce token storage size and IO using prefix compression.
@@ -467,8 +465,7 @@ Tasks:
 - Store prefix length + suffix bytes per token.
 - Decode lazily during merge to avoid full token materialization.
 Tests:
-- `tests/unit/spimi/frontcode-roundtrip.unit.test.js`
-- `tests/unit/spimi/frontcode-ordering.unit.test.js` (ordering preserved)
+- add front-coded token roundtrip and ordering cases under the planned `tests/indexing/postings/spimi/` contract family
 
 #### 9.2.3 Flat postings buffers
 Objective: avoid per-posting array allocation by using flat typed arrays with offsets.
@@ -482,8 +479,7 @@ Tasks:
 - Update `normalizeTfPostingList` to accept flat buffer format.
 - Ensure segment writer consumes the flat format without conversion.
 Tests:
-- `tests/unit/spimi/flat-postings-buffer.unit.test.js`
-- `tests/unit/spimi/flat-postings-to-json-shard.unit.test.js`
+- add flat-postings buffer and shard-conversion cases under the planned `tests/indexing/postings/spimi/` contract family
 
 #### 9.2.4 Worker-thread merge + write
 Objective: reduce GC pauses in the main indexer by offloading merge + shard writing.
@@ -496,8 +492,7 @@ Tasks:
 - Worker produces shard files and meta, then returns summary.
 - Main thread waits only for final completion or errors.
 Tests:
-- `tests/unit/spimi/merge-worker-smoke.unit.test.js`
-- `tests/unit/spimi/merge-worker-error-propagation.unit.test.js`
+- add merge-worker smoke and error-propagation coverage under the planned `tests/indexing/postings/spimi/` contract family
 
 #### 9.2.5 Adaptive flush sizing
 Objective: dynamically tune block size to maximize throughput without hitting heap limits.
@@ -508,7 +503,7 @@ Tasks:
 - Increase `blockTargetMb` when headroom is high; reduce when pressure increases.
 - Clamp to configured min/max.
 Tests:
-- `tests/unit/spimi/adaptive-flush-sizing.unit.test.js`
+- add adaptive flush sizing coverage under the planned `tests/indexing/postings/spimi/` contract family
 
 #### 9.2.6 Background compaction during indexing
 Objective: reduce end-of-build merge tail by compacting segments as they accumulate.
@@ -520,7 +515,7 @@ Tasks:
 - Run compaction at low priority to avoid starving indexing.
 - Ensure compaction is cancelable on abort.
 Tests:
-- `tests/unit/spimi/background-compaction.unit.test.js`
+- add background compaction coverage under the planned `tests/indexing/postings/spimi/` contract family
 
 #### 9.2.7 Large, reusable IO buffers
 Objective: reduce syscall overhead and allocation churn for segment IO.
@@ -531,7 +526,7 @@ Tasks:
 - Use reusable 256KB–1MB buffers for write and read.
 - Expose buffer size tuning in config for benchmarking.
 Tests:
-- `tests/unit/spimi/buffer-reuse.unit.test.js`
+- add reusable-buffer coverage under the planned `tests/indexing/postings/spimi/` contract family
 
 #### 9.2.8 Uncompressed segments by default
 Objective: maximize throughput by avoiding compression unless disk is the bottleneck.
@@ -543,7 +538,7 @@ Tasks:
 - Default to uncompressed binary segments.
 - Add an opt-in compression flag for experimentation.
 Tests:
-- `tests/unit/spimi/segment-compression-flag.unit.test.js`
+- add compression-flag coverage under the planned `tests/indexing/postings/spimi/` contract family
 
 ### 9.3 NDJSON debug fallback (optional)
 Binary is the default v1 format. NDJSON remains as a debug-only fallback:
@@ -573,7 +568,7 @@ All tests should run in CI deterministically; memory-sensitive tests go into per
 ### 10.1 Unit tests (fast, deterministic)
 
 #### A) Segment writer/reader roundtrip
-File: `tests/unit/spimi/segment-roundtrip.unit.test.js`
+Planned coverage: add a segment roundtrip case under a future `tests/indexing/postings/spimi/` contract family
 
 - Write a binary segment from a synthetic `Map<string, [[docId,tf],...]>`.
 - Read it back via iterator.
@@ -583,7 +578,7 @@ File: `tests/unit/spimi/segment-roundtrip.unit.test.js`
   - handles tokens with quotes, backslashes, unicode, and control chars
 
 #### B) Merge correctness (token-level)
-File: `tests/unit/spimi/merge-two-segments.unit.test.js`
+Planned coverage: add a two-segment merge correctness case under the same planned family
 
 - Build two segments with overlapping terms.
 - Merge and assert:
@@ -592,86 +587,86 @@ File: `tests/unit/spimi/merge-two-segments.unit.test.js`
   - postings content matches expected
 
 #### C) Hierarchical merge planner
-File: `tests/unit/spimi/hierarchical-merge-plan.unit.test.js`
+Planned coverage: add a hierarchical merge-plan case under the same planned family
 
 - Given N segment paths > maxOpen:
   - assert merge plan produces intermediate merges
   - final stage ≤ maxOpen
 
 #### D) Flush policy determinism
-File: `tests/unit/spimi/flush-policy.unit.test.js`
+Planned coverage: add a deterministic flush-policy case under the same planned family
 
 - Configure `blockTargetMb` extremely small and `checkEveryChunks=1`.
 - Append synthetic deltas; ensure flush triggers exactly when expected.
 
 #### E) Config normalization (spill)
-File: `tests/unit/spimi/spill-config.unit.test.js`
+Planned coverage: add spill-config normalization coverage under the same planned family
 
 - Verify `enabled: "auto"` resolves correctly for small and large repos.
 - Ensure `segmentFormat` defaults to `binary`.
 
 #### F) Binary codec (varint + delta)
-File: `tests/unit/spimi/binary-codec.unit.test.js`
+Planned coverage: add binary codec roundtrip coverage under the same planned family
 
 - Roundtrip varints and delta-encoded docId streams.
 - Assert error on malformed encodings.
 
 #### G) Binary record integrity guards
-File: `tests/unit/spimi/binary-codec.unit.test.js`
+Planned coverage: extend the same binary codec family with malformed/truncated record guards
 
 - Validate malformed/truncated binary record handling.
 - Ensure decoder failures are deterministic and surfaced with actionable errors.
 
 #### H) Streaming shard writer
-File: `tests/unit/spimi/shard-writer-streaming.unit.test.js`
+Planned coverage: add a streaming shard-writer case under the same planned family
 
 - Emit shards from iterables without building large arrays.
 - Validate shard JSON schema and part boundaries.
 
 #### I) Segment header range validation
-File: `tests/unit/spimi/segment-header-range.unit.test.js`
+Planned coverage: add a segment header range-validation case under the same planned family
 
 - Ensure merge rejects out-of-order `chunkIdStart/chunkIdEnd` when validation is enabled.
 
 #### J) Byte writer buffering
-File: `tests/unit/spimi/byte-writer-buffering.unit.test.js`
+Planned coverage: add a buffered byte-writer case under the same planned family
 
 - Verify buffered writer flushes in chunk-sized writes and preserves data integrity.
 
 #### K) Backpressure queue enforcement
-File: `tests/unit/spimi/flush-backpressure.unit.test.js`
+Planned coverage: add flush backpressure enforcement coverage under the same planned family
 
 - Ensure `maxBufferedBlocks` and `maxInFlightWrites` are enforced deterministically.
 
 #### L) Segment write failure cleanup
-File: `tests/unit/spimi/segment-write-failure.unit.test.js`
+Planned coverage: add write-failure cleanup coverage under the same planned family
 
 - Simulate a write error and verify temp files are cleaned and error surfaces.
 
 #### M) Abort handling cleanup
-File: `tests/unit/spimi/abort-cleanup.unit.test.js`
+Planned coverage: add abort cleanup coverage under the same planned family
 
 - Trigger abort during flush and confirm segment dir cleanup and no orphaned writers.
 
 #### N) Metrics emission
-File: `tests/unit/spimi/metrics-emission.unit.test.js`
+Planned coverage: add metrics-emission coverage under the same planned family
 
 - Ensure `spimi.*` metrics are recorded when spill is enabled.
 
 #### O) Logging format
-File: `tests/unit/spimi/logging-format.unit.test.js`
+Planned coverage: add logging-format coverage under the same planned family
 
 - Validate flush and merge log lines include reason, ranges, and throughput fields.
 
 #### P) Streaming postings artifact path
-File: `tests/unit/spimi/streaming-artifacts.unit.test.js`
+Planned coverage: add streaming postings artifact coverage under the same planned family
 
 - Build shards from `tokenPostingsStream` and verify `token_postings.meta.json` and shard parts are schema-valid.
 
 ### 10.2 Integration tests (end-to-end equivalence)
 
 #### E) Baseline vs SPIMI equivalence (golden)
-File: `tests/unit/spimi/e2e-equivalence.unit.test.js`
+Planned coverage: add a golden equivalence test under the same planned `tests/indexing/postings/spimi/` family
 
 - Generate synthetic “chunks” with controlled token distributions.
 - Path 1: current in-memory postings build (`buildPostings`) + artifact write.
@@ -681,7 +676,7 @@ File: `tests/unit/spimi/e2e-equivalence.unit.test.js`
 This test is the primary correctness guarantee.
 
 ### 10.3 Fuzz/property tests (weird edge cases)
-File: `tests/unit/spimi/fuzz-tokens.unit.test.js`
+Planned coverage: add a seeded fuzz-tokens case under the same planned family
 
 Generate random tokens including:
 - empty strings, whitespace-only, very long strings (bounded), unicode surrogates, separators `\u0001`, newline `\n`, `\r`
@@ -691,7 +686,7 @@ Generate random chunk postings with random flush boundaries. Assert:
 - output stable across runs (seeded RNG)
 
 ### 10.4 Regression tests for chunk pathologies
-File: `tests/unit/spimi/huge-chunk.unit.test.js`
+Planned coverage: add a huge-chunk regression case under the same planned family
 
 - One chunk with extremely high unique token count (bounded for CI).
 - Ensure:
@@ -700,7 +695,7 @@ File: `tests/unit/spimi/huge-chunk.unit.test.js`
   - optional per-chunk caps behave as configured (if enabled)
 
 ### 10.5 Perf lane tests (non-deterministic, optional)
-File: `tests/perf/spimi-memory-bounded.perf.test.js`
+Planned coverage: add a memory-bounded perf case under `tests/perf/indexing/postings/` if the spill path is implemented
 
 - Spawn a child Node process with `--max-old-space-size=256`.
 - Generate many chunks to exceed baseline memory.
@@ -807,8 +802,8 @@ await writeMeta({ vocabCount, parts, docLengths, avgDocLen, ... });
 - `tools/bench/index/postings-real.js` (Stage1 end-to-end postings baseline/current)
 - `tools/bench/index/chargram-postings.js --rolling-hash` (chargram postings throughput baseline/current)
 
-## Tests
-- `tests/shared/merge/merge-benchmark-contract.test.js`
-- `tests/shared/merge/merge-cleanup-regression.test.js`
+## Current adjacent coverage
+- [contract-matrix.test.js](/C:/Users/sneak/Development/DOUBLECLEAT/tests/shared/merge/contract-matrix.test.js)
+- [benchmark-contract.test.js](/C:/Users/sneak/Development/DOUBLECLEAT/tests/shared/merge/benchmark-contract.test.js)
 
 **End of specification.**

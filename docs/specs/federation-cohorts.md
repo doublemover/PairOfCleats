@@ -148,8 +148,5 @@ Example fragment:
 
 ## 8. Required tests
 
-- `tests/retrieval/federation/compat-cohort-defaults.test.js`
-- `tests/retrieval/federation/compat-cohort-determinism.test.js`
-- `tests/retrieval/federation/compat-cohort-explicit-selection.test.js`
-- `tests/retrieval/federation/compat-cohort-strict-error.test.js`
-- `tests/retrieval/federation/compat-cohort-all-unavailable-empty-selection.test.js`
+- `tests/retrieval/federation/selection-contract-matrix.test.js`
+- `tests/retrieval/federation/compat-cohort-policy-matrix.test.js`

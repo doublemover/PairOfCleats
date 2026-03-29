@@ -23,7 +23,7 @@ Use this checklist when adding a new language or container format.
 
 ## Tests and guardrails
 - Add fixtures under `tests/fixtures/languages/src/`.
-- Extend `tests/unified-syntax-representation/lang/contracts/*.test.js` (and `tests/indexing/language-fixture/*.test.js`) to assert chunk coverage.
+- Extend the `tests/lang/contracts/` suite and `tests/lang/fixtures-sample/metadata-matrix.test.js` to assert chunk coverage.
 - Add perf guard tests (max bytes/lines) when parsing or relations are expensive.
 
 ## Benchmarks

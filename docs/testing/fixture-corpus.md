@@ -7,7 +7,7 @@ Purpose: deterministic indexing regression checks (code + prose + embedded code 
 
 Contains:
 - `src/index.ts`, `src/component.tsx`, and `src/dup/index.ts` (duplicate basenames).
-- `docs/README.md` with fenced `tsx`.
+- `README.md` with fenced `tsx`.
 - `public/index.html` with inline `<script>`.
 - `data/config.json` and `data/config.xml`.
 

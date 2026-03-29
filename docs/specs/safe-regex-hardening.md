@@ -68,10 +68,7 @@ Program size checks are performed before compilation:
 - `src/shared/safe-regex/backends/re2js.js`
 
 Tests:
-- `tests/shared/safe-regex/program-size-cap.test.js`
-- `tests/shared/safe-regex/input-length-cap.test.js`
-- `tests/shared/safe-regex/flags-normalization.test.js`
-- `tests/shared/safe-regex/safe-regex-engine.test.js`
+- `tests/shared/safe-regex/contract-matrix.test.js`
 
 ## 7) Compatibility notes
 

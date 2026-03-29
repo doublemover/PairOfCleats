@@ -303,7 +303,7 @@ This is largely already satisfied by temp+atomic replace patterns, but the key i
 ## 8. Tests
 
 ### 8.1 Thread precedence
-Create: `tests/shared/runtime/thread-limits-precedence-cli-over-env.test.js`
+Covered by: `tests/shared/runtime/runtime-contract-matrix.test.js`
 
 * Call `resolveThreadLimits()` with:
   * `argv.threads = 8`
@@ -314,7 +314,7 @@ Also add:
 * configThreads vs envThreads precedence tests (depends on desired semantics; chosen order is CLI > config > env > default).
 
 ### 8.2 IO cap clamping
-Create: `tests/shared/concurrency/io-concurrency-cap-uv-threadpool.test.js`
+Covered by: `tests/shared/concurrency/io-cap-uv-threadpool.test.js`
 
 * Use `resolveThreadLimits()` (or the new `resolveThreadLimitsV2`) with:
   * cpuCount = 64
@@ -332,7 +332,7 @@ Create: `tests/indexing/shards/shard-runtime-uses-threadlimits-io.test.js`
 * Assert `runtimeRef.threadLimits.ioConcurrency === 12` and `runtimeRef.queues.io.concurrency === 12`.
 
 ### 8.4 runWithQueue bestEffort
-Create: `tests/shared/concurrency/concurrency-run-with-queue-best-effort.test.js`
+Covered by: `tests/shared/concurrency/run-with-queue-contract-matrix.test.js`
 * Worker fails for some items
 * With `bestEffort=true`, ensure:
   * all items processed
@@ -341,7 +341,7 @@ Create: `tests/shared/concurrency/concurrency-run-with-queue-best-effort.test.js
   * onError called exactly once per failure
 
 ### 8.5 runWithQueue abort signal
-Create: `tests/shared/concurrency/concurrency-run-with-queue-abort.test.js`
+Covered by: `tests/shared/concurrency/run-with-queue-contract-matrix.test.js`
 * Create AbortController; abort after a few items start.
 * Ensure:
   * scheduling stops

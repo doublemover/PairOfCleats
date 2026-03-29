@@ -447,5 +447,6 @@ Phase 12 implementation MUST include these artifacts in-repo:
 3. Ajv validation wiring for MCP tool inputs:
    - `src/integrations/mcp/validate.js`
 4. Conformance tests (see companion document):
-   - `tests/mcp/sdk-*.test.js`
-   - `tests/api/contract-*.test.js`
+   - `tests/services/mcp/sdk-mode.test.js`
+   - `tests/services/api/router-contract-matrix.test.js`
+   - `tests/services/api/search-contract-matrix.test.js`
