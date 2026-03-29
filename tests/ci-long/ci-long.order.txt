@@ -24,3 +24,16 @@ indexing/embeddings/cache-index-append-only
 smoke/embeddings
 indexing/embeddings/cache-partial-reuse
 storage/sqlite/ann/sqlite-extension
+indexing/map/code-map-contract-matrix
+tooling/sublime/package-harness
+shared/encoding/fallback
+indexing/artifacts/artifact-size-guardrails
+storage/sqlite/incremental/search-after-update
+retrieval/ann/lancedb
+indexing/incremental/tokenization-cache
+storage/lmdb/corruption
+storage/lmdb/report-artifacts
+storage/sqlite/missing-dep
+services/sqlite-build-snapshot
+storage/sqlite/index-state-fail-closed
+retrieval/ranking/fielded-bm25

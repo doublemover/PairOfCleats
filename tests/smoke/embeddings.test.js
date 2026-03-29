@@ -7,7 +7,8 @@ import { resolveTestCachePath } from '../helpers/test-cache.js';
 const cacheRoots = [
   resolveTestCachePath(root, 'build-embeddings-cache'),
   resolveTestCachePath(root, 'embeddings-dims-mismatch'),
-  resolveTestCachePath(root, 'embeddings-cache-identity')
+  resolveTestCachePath(root, 'embeddings-cache-identity'),
+  resolveTestCachePath(root, 'embeddings-cache-index-contract-matrix')
 ];
 
 let failure = null;
@@ -16,7 +17,7 @@ try {
   runNode('embeddings-cache', path.join(root, 'tests', 'indexing', 'embeddings', 'build', 'embeddings-cache.test.js'));
   runNode('onnx-session-queue', path.join(root, 'tests', 'indexing', 'embeddings', 'onnx-session-queue.test.js'));
   runNode('embeddings-cache-identity', path.join(root, 'tests', 'indexing', 'embeddings', 'cache-identity.test.js'));
-  runNode('embeddings-cache-invalidation', path.join(root, 'tests', 'indexing', 'embeddings', 'cache-invalidation.test.js'));
+  runNode('embeddings-cache-index-contract-matrix', path.join(root, 'tests', 'indexing', 'embeddings', 'cache-index-contract-matrix.test.js'));
   runNode('embeddings-dims-mismatch', path.join(root, 'tests', 'indexing', 'embeddings', 'dims-mismatch.test.js'));
 } catch (err) {
   console.error(err?.message || err);

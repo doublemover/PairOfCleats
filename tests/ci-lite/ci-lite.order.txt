@@ -41,7 +41,6 @@ tooling/vscode/runtime
 tooling/vscode/results-explorer-runtime
 tooling/vscode/search-contract-matrix
 indexing/postings/queue-contract-matrix
-indexing/postings/vector-only-policy-contract-matrix
 lang/registry/registry-contract-matrix
 shared/subprocess/shell-metachar-quoting
 map/filter-api-contract
@@ -55,7 +54,6 @@ indexing/identity/contract-matrix
 indexing/tooling/vfs-sort-key-numeric-order
 indexing/embeddings/cache-binary-roundtrip
 shared/provenance/contract
-shared/runtime/runtime-contract-matrix
 storage/sqlite/pragmas-restore-contract
 retrieval/context-expansion/context-expansion-contract-matrix
 shared/concurrency/io-cap
@@ -278,7 +276,6 @@ graph/lazy-edge-load
 indexing/risk/interprocedural/flows-argaware-negative
 shared/artifact-io/loader-fallbacks
 storage/sqlite/chunk-id
-indexing/file-caps/contract-matrix
 indexing/risk/interprocedural/config-normalization
 map/build-map/cleanup-contract-matrix
 cli/general/cli-options-schema-drift
@@ -334,7 +331,6 @@ shared/index-ref
 workspace/config-contract-matrix
 shared/artifact-io/manifest-streaming
 tooling/vfs/maps-segment-offsets
-indexer/metav2/contract-matrix
 indexing/build/promotion-timing-contract
 indexing/artifacts/sharded-meta/bytes
 indexing/artifacts/sharded-meta/manifest-consistency
@@ -754,8 +750,6 @@ lang/fixtures-sample/metadata-matrix
 indexing/risk/interprocedural/runtime-gating
 tooling/lsp/pyright-preflight-workspace-scan-outlier
 indexing/cache/workspace-concurrency-limits
-services/risk-explain-adapter-matrix
-indexing/config/index-dump
 indexing/watch/filter
 indexing/watch/e2e-promotion
 indexing/risk/interprocedural/artifacts-written

@@ -198,7 +198,7 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   },
   {
     label: 'config-validate-test',
-    run: () => runNode('config-validate-test', path.join(root, 'tests', 'tooling', 'config', 'validate.test.js')),
+    run: () => runNode('config-contract-matrix-test', path.join(root, 'tests', 'tooling', 'config', 'contract-matrix.test.js')),
     covers: ['config-validate', 'config-validate-test']
   },
   {

@@ -30,7 +30,7 @@ const cases = [
   {
     name: 'tests run correctly from the tests directory cwd',
     async run() {
-      const target = path.join(ROOT, 'tests', 'tooling', 'config', 'validate.test.js');
+      const target = path.join(ROOT, 'tests', 'tooling', 'config', 'contract-matrix.test.js');
       const result = spawnSync(process.execPath, [target], {
         cwd: path.join(ROOT, 'tests'),
         encoding: 'utf8'

@@ -12,10 +12,10 @@
   ],
   "suiteCategorySummary": {
     "hero": 0,
-    "matrix": 8,
+    "matrix": 9,
     "meta": 0,
     "soak": 0,
-    "heavy-runtime": 18
+    "heavy-runtime": 30
   },
   "tests": [
     {
@@ -23,182 +23,273 @@
       "order": 1,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 50972
+      "durationMs": 61568
     },
     {
       "id": "services/api/federated-search-validation-matrix",
       "order": 2,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 51355
+      "durationMs": 61240
     },
     {
       "id": "cli/search/contract-matrix",
       "order": 3,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 83781
+      "durationMs": 97872
     },
     {
       "id": "cli/search/explain-and-order-contract-matrix",
       "order": 4,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 69255
+      "durationMs": 81499
     },
     {
       "id": "retrieval/filters/search-filter-contract-matrix",
       "order": 5,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 67893
+      "durationMs": 79947
     },
     {
       "id": "retrieval/cache/query-cache-contract-matrix",
       "order": 6,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 67869
+      "durationMs": 81309
     },
     {
       "id": "indexing/map/code-map-guardrail-matrix",
       "order": 7,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 57829
+      "durationMs": 69111
     },
     {
       "id": "indexing/determinism/chunkuid",
       "order": 8,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 56324
+      "durationMs": 65524
     },
     {
       "id": "cli/search/help-and-flag-contract-matrix",
       "order": 9,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename",
-      "durationMs": 84953
+      "durationMs": 84466
     },
     {
       "id": "indexing/chunking/comment-join",
       "order": 10,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 51466
+      "durationMs": 54680
     },
     {
       "id": "indexing/embeddings/manifest-pieces",
       "order": 11,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 50571
+      "durationMs": 52757
     },
     {
       "id": "storage/sqlite/incremental/wal-checkpoint",
       "order": 12,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 41124
+      "durationMs": 42989
     },
     {
       "id": "smoke/retrieval",
       "order": 13,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 68402
+      "durationMs": 66848
     },
     {
       "id": "storage/sqlite/compact",
       "order": 14,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 103126
+      "durationMs": 96565
     },
     {
       "id": "indexing/shards/shard-merge",
       "order": 15,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 59591
+      "durationMs": 57195
     },
     {
       "id": "indexing/embeddings/dims-mismatch",
       "order": 16,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 41220
+      "durationMs": 39125
     },
     {
       "id": "services/api-search-asof",
       "order": 17,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 57405
+      "durationMs": 51009
     },
     {
       "id": "storage/sqlite/sidecar-cleanup",
       "order": 18,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 89972
+      "durationMs": 87336
     },
     {
       "id": "indexing/embeddings/cache-cross-repo-reuse",
       "order": 19,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 64003
+      "durationMs": 59237
     },
     {
       "id": "smoke/sqlite",
       "order": 20,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 82491
+      "durationMs": 84384
     },
     {
       "id": "storage/sqlite/auto-backend",
       "order": 21,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 63485
+      "durationMs": 62444
     },
     {
       "id": "indexing/piece-assembly/core",
       "order": 22,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 81769
+      "durationMs": 92774
     },
     {
       "id": "indexing/embeddings/cache-index-append-only",
       "order": 23,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 60749
+      "durationMs": 59105
     },
     {
       "id": "smoke/embeddings",
       "order": 24,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 69550
+      "durationMs": 42561
     },
     {
       "id": "indexing/embeddings/cache-partial-reuse",
       "order": 25,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 46483
+      "durationMs": 58517
     },
     {
       "id": "storage/sqlite/ann/sqlite-extension",
       "order": 26,
       "suiteCategory": "heavy-runtime",
       "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 65823
+      "durationMs": 88871
+    },
+    {
+      "id": "indexing/map/code-map-contract-matrix",
+      "order": 27,
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename",
+      "durationMs": 44555
+    },
+    {
+      "id": "tooling/sublime/package-harness",
+      "order": 28,
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag",
+      "durationMs": 55487
+    },
+    {
+      "id": "shared/encoding/fallback",
+      "order": 29,
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag",
+      "durationMs": 42279
+    },
+    {
+      "id": "indexing/artifacts/artifact-size-guardrails",
+      "order": 30,
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag",
+      "durationMs": 42300
+    },
+    {
+      "id": "storage/sqlite/incremental/search-after-update",
+      "order": 31,
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag",
+      "durationMs": 50333
+    },
+    {
+      "id": "retrieval/ann/lancedb",
+      "order": 32,
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag",
+      "durationMs": 47207
+    },
+    {
+      "id": "indexing/incremental/tokenization-cache",
+      "order": 33,
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag",
+      "durationMs": 46083
+    },
+    {
+      "id": "storage/lmdb/corruption",
+      "order": 34,
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag",
+      "durationMs": 44624
+    },
+    {
+      "id": "storage/lmdb/report-artifacts",
+      "order": 35,
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag",
+      "durationMs": 45641
+    },
+    {
+      "id": "storage/sqlite/missing-dep",
+      "order": 36,
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag",
+      "durationMs": 44607
+    },
+    {
+      "id": "services/sqlite-build-snapshot",
+      "order": 37,
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag",
+      "durationMs": 45814
+    },
+    {
+      "id": "storage/sqlite/index-state-fail-closed",
+      "order": 38,
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag",
+      "durationMs": 38447
+    },
+    {
+      "id": "retrieval/ranking/fielded-bm25",
+      "order": 39,
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag",
+      "durationMs": 38152
     }
   ]
 }
