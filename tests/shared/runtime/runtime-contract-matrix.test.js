@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 
 import { parseBuildArgs } from '../../../src/index/build/args.js';
 import { createBuildRuntime } from '../../../src/index/build/runtime.js';
+import { resolveDispatchRuntimeEnv } from '../../../src/shared/dispatch/env.js';
 import { planShardBatches } from '../../../src/index/build/shards.js';
 import { resolveRuntimeEnvelope } from '../../../src/shared/runtime-envelope.js';
 import { resolveThreadLimits } from '../../../src/shared/threads.js';
@@ -140,6 +141,46 @@ const cases = [
       assert.strictEqual(preserved.runtime.nodeOptions.effective.source, 'external-env');
       assert.ok(preserved.runtime.nodeOptions.effective.value?.includes('--trace-warnings'));
       assert.strictEqual(preserved.runtime.maxOldSpaceMb.effective.value, null);
+    }
+  },
+  {
+    name: 'dispatch runtime env keeps repo-configured runtime tuning for heavy commands',
+    async run() {
+      const root = process.cwd();
+      const tempRoot = resolveTestCachePath(root, 'dispatch-runtime-env');
+      await fsPromises.rm(tempRoot, { recursive: true, force: true });
+      await fsPromises.mkdir(tempRoot, { recursive: true });
+      await fsPromises.writeFile(path.join(tempRoot, '.pairofcleats.json'), JSON.stringify({
+        runtime: {
+          nodeOptions: '--trace-warnings',
+          maxOldSpaceMb: 1536,
+          uvThreadpoolSize: 9
+        }
+      }, null, 2));
+
+      const baseEnv = { ...process.env };
+      delete baseEnv.NODE_OPTIONS;
+      delete baseEnv.UV_THREADPOOL_SIZE;
+      delete baseEnv.PAIROFCLEATS_NODE_OPTIONS;
+      delete baseEnv.PAIROFCLEATS_MAX_OLD_SPACE_MB;
+      delete baseEnv.PAIROFCLEATS_UV_THREADPOOL_SIZE;
+
+      const heavyEnv = await resolveDispatchRuntimeEnv({
+        root: tempRoot,
+        scriptPath: 'tools/reports/throughput.js',
+        baseEnv
+      });
+      assert.equal(heavyEnv.UV_THREADPOOL_SIZE, '9');
+      assert.match(String(heavyEnv.NODE_OPTIONS || ''), /--trace-warnings/);
+      assert.match(String(heavyEnv.NODE_OPTIONS || ''), /--max-old-space-size=1536/);
+
+      const skippedEnv = await resolveDispatchRuntimeEnv({
+        root: tempRoot,
+        scriptPath: 'tools/index/cli-entry.js',
+        baseEnv
+      });
+      assert.equal(skippedEnv.UV_THREADPOOL_SIZE, '9');
+      assert.match(String(skippedEnv.NODE_OPTIONS || ''), /--max-old-space-size=1536/);
     }
   },
   {

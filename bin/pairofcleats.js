@@ -1130,13 +1130,7 @@ function extractRepoArg(args) {
 function shouldSkipDispatchRuntimeEnvResolution(scriptPath) {
   const normalized = String(scriptPath || '').trim().replace(/\\/g, '/');
   return normalized.startsWith('tools/config/')
-    || normalized.startsWith('tools/cli/')
-    || normalized.startsWith('tools/tooling/')
-    || normalized.startsWith('tools/tui/')
-    || normalized.startsWith('tools/reports/')
-    || normalized.startsWith('tools/bench/')
-    || normalized === 'tools/mcp/server.js'
-    || normalized === 'tools/build/compact-sqlite-index.js';
+    || normalized.startsWith('tools/cli/');
 }
 
 /**
@@ -1215,7 +1209,7 @@ function printHelp({ includeAll = false, topicTokens = [] } = {}) {
 
 function printRequestedHelp(helpArgs) {
   const includeAll = helpArgs.includes('--all');
-  const topicTokens = helpArgs.filter((arg) => arg !== '--all');
+  const topicTokens = helpArgs.filter((arg) => arg !== '--all' && arg !== '--help' && arg !== '-h');
   printHelp({ includeAll, topicTokens });
 }
 

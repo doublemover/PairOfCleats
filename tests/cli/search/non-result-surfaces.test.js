@@ -19,8 +19,7 @@ const runCli = (args) => spawnSync(process.execPath, [cliEntryPath, ...args], {
 
 const version = runCli(['--version']);
 assert.equal(version.status, 0);
-assert.match(stripAnsi(version.stdout), /PairOfCleats Search/);
-assert.match(stripAnsi(version.stdout), /v\d+\.\d+\.\d+/);
+assert.match(version.stdout, /^\d+\.\d+\.\d+(?:[-+][^\r\n]+)?\r?\n?$/);
 
 const invalidMode = runCli(['--mode', 'wat', '--', 'alpha']);
 assert.equal(invalidMode.status, 1);

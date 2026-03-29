@@ -27,9 +27,10 @@ const wrapParagraph = (text, width, indent = '') => {
   return lines;
 };
 
-const heading = (text) => `${ANSI.bold}${text}${ANSI.reset}`;
-const dim = (text) => `${ANSI.fgDarkGray}${text}${ANSI.reset}`;
-const cyan = (text) => `${ANSI.fgCyan}${text}${ANSI.reset}`;
+const isColorAllowed = (stream = process.stdout) => Boolean(stream?.isTTY);
+const heading = (text, color = true) => color ? `${ANSI.bold}${text}${ANSI.reset}` : text;
+const dim = (text, color = true) => color ? `${ANSI.fgDarkGray}${text}${ANSI.reset}` : text;
+const cyan = (text, color = true) => color ? `${ANSI.fgCyan}${text}${ANSI.reset}` : text;
 
 const formatFlagList = (items, width) => items.flatMap((item) => wrapParagraph(item, width, '  '));
 
@@ -66,30 +67,31 @@ export function hasVersionArg(values) {
 
 export function printHelp(stdout = process.stdout) {
   const width = resolveHelpWidth(stdout);
+  const color = isColorAllowed(stdout);
   const lines = [
-    heading('PairOfCleats Search'),
-    dim('Search code, prose, extracted comments, and records from a built PairOfCleats index.'),
+    heading('PairOfCleats Search', color),
+    dim('Search code, prose, extracted comments, and records from a built PairOfCleats index.', color),
     '',
-    heading('Usage'),
+    heading('Usage', color),
     '  Usage: search <query> [options]',
     '  pairofcleats search <query> [options]',
     '  search <query> [options]',
     '',
-    heading('Modes'),
+    heading('Modes', color),
     ...formatFlagList([
       '--mode <code|prose|records|extracted-prose|default>  Select the search surface.',
       '--repo <path>  Search a specific repo root.',
       '--as-of <IndexRef> / --snapshot <snapshotId>  Query a stable index view.'
     ], width),
     '',
-    heading('Filters'),
+    heading('Filters', color),
     ...formatFlagList([
       '--path <glob> / --file <path> / --ext <ext> / --lang <lang>',
       '--author <name> / --modified-since <date> / --type <symbol-kind>',
       '--calls <symbol> / --uses <symbol> / --import <path-or-symbol> / --risk <filter>'
     ], width),
     '',
-    heading('Output'),
+    heading('Output', color),
     ...formatFlagList([
       '--json / --compact  Emit machine-readable payloads.',
       '--stats / --explain  Show retrieval metadata or summary ranking explanation.',
@@ -97,14 +99,14 @@ export function printHelp(stdout = process.stdout) {
       '--ann / --no-ann / --backend <auto|sqlite|sqlite-fts|lmdb>'
     ], width),
     '',
-    heading('Starter Recipes'),
+    heading('Starter Recipes', color),
     '  pairofcleats search parseSearchArgs --mode code',
     '  pairofcleats search "Search Pipeline" --mode prose',
     '  pairofcleats search withLspSession --calls startProvider',
     '  pairofcleats search risk --risk severity=high --explain',
     '  pairofcleats search scoreBreakdown --path src/retrieval/output --why',
     '',
-    heading('Notes'),
+    heading('Notes', color),
     ...wrapParagraph(
       'If no index is present, run `pairofcleats index build` first. Use `search --version` to print the tool version.',
       width,
@@ -112,10 +114,10 @@ export function printHelp(stdout = process.stdout) {
     ),
     ''
   ];
-  stdout.write(`${lines.join('\n')}`);
+  stdout.write(`${lines.join('\n')}\n`);
 }
 
 export function printVersion(stdout = process.stdout) {
   const version = getToolVersion() || '0.0.0';
-  stdout.write(`${heading('PairOfCleats Search')} ${cyan(`v${version}`)}\n`);
+  stdout.write(`${version}\n`);
 }

@@ -100,8 +100,8 @@ It assumes the end-state described in `docs/config/hard-cut.md` (minimal config,
 
 **Where**
 - New tests (suggested):
-  - `tests/config/minimal-schema.test.js`
-  - `tests/shared/config/auto-policy.test.js`
+  - `tests/shared/config/contract-matrix.test.js`
+  - `tests/shared/runtime/runtime-contract-matrix.test.js`
 
 **Exit criteria**
 - [ ] `pairofcleats config validate` only accepts minimal config.

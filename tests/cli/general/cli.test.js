@@ -105,6 +105,17 @@ if (!reportHelpOutput.includes('throughput')) {
   process.exit(1);
 }
 
+const helpHelpResult = runCli('help', '--help');
+if (helpHelpResult.status !== 0) {
+  console.error('cli help --help failed');
+  process.exit(helpHelpResult.status ?? 1);
+}
+const helpHelpOutput = getCombinedOutput(helpHelpResult);
+if (!helpHelpOutput.includes('Usage: pairofcleats')) {
+  console.error('cli help --help should render top-level help');
+  process.exit(1);
+}
+
 const malformedHelpResult = runCli('help', 'report', 'typo');
 if (malformedHelpResult.status === 0) {
   console.error('cli help report typo should fail');
