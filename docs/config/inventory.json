@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-28T12:41:50.052Z",
+  "generatedAt": "2026-03-28T17:13:42.191Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2221,7 +2221,7 @@
       "files": [
         "extensions/vscode/extension.js",
         "src/shared/env/runtime.js",
-        "tests/retrieval/filters/filter-index-config-hash.test.js",
+        "tests/retrieval/filters/filter-core-contract-matrix.test.js",
         "tests/services/api/trust-boundary-matrix.test.js",
         "tests/tooling/vscode/search-env-runtime.test.js",
         "tools/api/trust-boundary.js",
@@ -2313,8 +2313,7 @@
         "src/shared/env/runtime.js",
         "src/shared/toolchain-env.js",
         "tests/cli/general/repo-root.test.js",
-        "tests/cli/search/missing-index.test.js",
-        "tests/cli/search/tie-order.test.js",
+        "tests/cli/search/non-result-surfaces.test.js",
         "tests/helpers/mcp-client.js",
         "tests/helpers/search-lifecycle-env-isolation.test.js",
         "tests/helpers/test-env.js",
@@ -2332,11 +2331,10 @@
         "tests/indexing/scm/no-build-id.test.js",
         "tests/indexing/shards/shard-merge.test.js",
         "tests/perf/baseline-artifacts.test.js",
-        "tests/retrieval/filters/churn-filter.test.js",
         "tests/retrieval/parity/equivalence.test.js",
         "tests/run.js",
         "tests/services/api/core.test.js",
-        "tests/services/api/federated-search-redacts-paths.test.js",
+        "tests/services/api/federated-search-validation-matrix.test.js",
         "tests/services/core-observability.test.js",
         "tests/services/mcp/repo-path-resolution.test.js",
         "tests/services/mcp/schema.test.js",
@@ -2357,8 +2355,8 @@
         "tests/storage/vector-extension/missing.test.js",
         "tests/tooling/dict-utils/paths-builds-root.test.js",
         "tests/tooling/dict-utils/repo-current-case-insensitive.test.js",
+        "tests/tooling/doctor/command-profile-contract-matrix.test.js",
         "tests/tooling/doctor/command-profile-probe-cache-disabled.test.js",
-        "tests/tooling/doctor/command-profile-tooling-dir-precedence.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/index-stats/explicit-repo-path.test.js",
         "tests/tooling/install/bootstrap-json-output.test.js",
@@ -2517,8 +2515,7 @@
         "src/shared/env/runtime.js",
         "src/shared/error-codes.js",
         "tests/cli/general/repo-root.test.js",
-        "tests/cli/search/missing-index.test.js",
-        "tests/cli/search/tie-order.test.js",
+        "tests/cli/search/non-result-surfaces.test.js",
         "tests/helpers/search-lifecycle-env-isolation.test.js",
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env-sync-option.test.js",
@@ -2529,7 +2526,6 @@
         "tests/indexing/piece-assembly/core.test.js",
         "tests/indexing/scm/no-build-id.test.js",
         "tests/perf/bench/run.test.js",
-        "tests/retrieval/filters/churn-filter.test.js",
         "tests/retrieval/parity/equivalence.test.js",
         "tests/services/api/core.test.js",
         "tests/services/core-observability.test.js",
@@ -3282,7 +3278,7 @@
         "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tests/indexing/postings/vector-only-service-embeddings-pending-artifacts.test.js",
         "tests/ops/failure-injection/retrieval-hotpath.test.js",
-        "tests/retrieval/filters/types.test.js",
+        "tests/retrieval/filters/semantic-filter-contract-matrix.test.js",
         "tests/services/mcp/mode-selection.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tools/bench/ab-sweep.js",
@@ -3363,9 +3359,8 @@
       "files": [
         "src/shared/env/testing.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
-        "tests/indexing/validate/index-chunk-meta-large-manifest-budget.test.js",
-        "tests/retrieval/pipeline/index-loader-binary-chunk-meta-budget-fallback.test.js",
-        "tests/retrieval/pipeline/index-loader-binary-file-meta-budget-fallback.test.js",
+        "tests/indexing/validate/index-contract-matrix.test.js",
+        "tests/retrieval/pipeline/index-loader-contract-matrix.test.js",
         "tests/storage/sqlite/chunk-meta-binary-columnar-budget-hardening.test.js",
         "tools/config/inventory.js"
       ]
@@ -3535,10 +3530,8 @@
         "tests/storage/sqlite/build-indexes.test.js",
         "tests/tooling/ci/lsp-embeddings-gates-testing-env.test.js",
         "tests/tooling/ci/run-suite-path-normalization.test.js",
-        "tests/tooling/doctor/command-profile-global-bin-fallbacks.test.js",
+        "tests/tooling/doctor/command-profile-contract-matrix.test.js",
         "tests/tooling/doctor/command-profile-probe-cache-disabled.test.js",
-        "tests/tooling/doctor/command-profile-runtime-bin-dirs.test.js",
-        "tests/tooling/doctor/command-profile-tooling-dir-precedence.test.js",
         "tests/tooling/shared-module-performance.test.js",
         "tools/bench/ab-sweep.js",
         "tools/bench/index/scheduler-store-format.js",
@@ -3729,7 +3722,7 @@
         "src/index/build/failure-taxonomy.js",
         "src/shared/env/runtime.js",
         "tests/cli/search/contract-matrix.test.js",
-        "tests/cli/search/explain-symbol.test.js",
+        "tests/cli/search/explain-and-order-contract-matrix.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/search-filters-repo.js",
         "tests/helpers/sqlite-incremental.js",
@@ -3768,7 +3761,7 @@
         "tests/retrieval/ann/hnsw.test.js",
         "tests/services/advanced-surface-goldens.test.js",
         "tests/services/api-search-asof.test.js",
-        "tests/services/snapshot-query.test.js",
+        "tests/services/snapshot-ref-contract-matrix.test.js",
         "tests/services/soak/operational-recovery.test.js",
         "tests/services/sqlite-build-snapshot.test.js",
         "tests/services/sqlite-hydration-metaV2-parity.test.js",
@@ -4571,7 +4564,7 @@
         ]
       },
       {
-        "file": "tests/indexing/imports/options-forwarding-flowmode.test.js",
+        "file": "tests/indexing/imports/import-resolution-policy-contract-matrix.test.js",
         "flags": [
           "flowMode"
         ]
@@ -4766,47 +4759,14 @@
         ]
       },
       {
-        "file": "tests/retrieval/context-expansion/determinism.test.js",
-        "flags": [
-          "includeCalls",
-          "maxPerHit",
-          "maxTotal"
-        ]
-      },
-      {
-        "file": "tests/retrieval/context-expansion/no-candidate-explosion.test.js",
-        "flags": [
-          "includeCalls",
-          "maxPerHit",
-          "maxTotal",
-          "maxWorkUnits"
-        ]
-      },
-      {
-        "file": "tests/retrieval/context-expansion/reason-precedence.test.js",
-        "flags": [
-          "includeCalls",
-          "includeUsages",
-          "maxPerHit",
-          "maxTotal"
-        ]
-      },
-      {
-        "file": "tests/retrieval/context-expansion/shuffled-chunkmeta.test.js",
-        "flags": [
-          "includeCalls",
-          "maxPerHit",
-          "maxTotal"
-        ]
-      },
-      {
-        "file": "tests/retrieval/context/expansion.test.js",
+        "file": "tests/retrieval/context-expansion/context-expansion-contract-matrix.test.js",
         "flags": [
           "includeCalls",
           "includeImports",
           "includeUsages",
           "maxPerHit",
-          "maxTotal"
+          "maxTotal",
+          "maxWorkUnits"
         ]
       },
       {
@@ -7085,17 +7045,6 @@
         ]
       },
       {
-        "flag": "includeCalls",
-        "count": 5,
-        "files": [
-          "tests/retrieval/context-expansion/determinism.test.js",
-          "tests/retrieval/context-expansion/no-candidate-explosion.test.js",
-          "tests/retrieval/context-expansion/reason-precedence.test.js",
-          "tests/retrieval/context-expansion/shuffled-chunkmeta.test.js",
-          "tests/retrieval/context/expansion.test.js"
-        ]
-      },
-      {
         "flag": "max-edges",
         "count": 5,
         "files": [
@@ -7129,28 +7078,6 @@
         ]
       },
       {
-        "flag": "maxPerHit",
-        "count": 5,
-        "files": [
-          "tests/retrieval/context-expansion/determinism.test.js",
-          "tests/retrieval/context-expansion/no-candidate-explosion.test.js",
-          "tests/retrieval/context-expansion/reason-precedence.test.js",
-          "tests/retrieval/context-expansion/shuffled-chunkmeta.test.js",
-          "tests/retrieval/context/expansion.test.js"
-        ]
-      },
-      {
-        "flag": "maxTotal",
-        "count": 5,
-        "files": [
-          "tests/retrieval/context-expansion/determinism.test.js",
-          "tests/retrieval/context-expansion/no-candidate-explosion.test.js",
-          "tests/retrieval/context-expansion/reason-precedence.test.js",
-          "tests/retrieval/context-expansion/shuffled-chunkmeta.test.js",
-          "tests/retrieval/context/expansion.test.js"
-        ]
-      },
-      {
         "flag": "maxWorkUnits",
         "count": 5,
         "files": [
@@ -7158,7 +7085,7 @@
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js",
-          "tests/retrieval/context-expansion/no-candidate-explosion.test.js"
+          "tests/retrieval/context-expansion/context-expansion-contract-matrix.test.js"
         ]
       },
       {
@@ -7440,15 +7367,6 @@
           "tools/bench/symbol-resolution-bench.js",
           "tools/bench/vfs/coalesce-docs.js",
           "tools/bench/vfs/io-batching.js"
-        ]
-      },
-      {
-        "flag": "includeUsages",
-        "count": 3,
-        "files": [
-          "src/integrations/tooling/context-pack.js",
-          "tests/retrieval/context-expansion/reason-precedence.test.js",
-          "tests/retrieval/context/expansion.test.js"
         ]
       },
       {
@@ -7806,7 +7724,7 @@
         "count": 2,
         "files": [
           "src/integrations/tooling/context-pack.js",
-          "tests/retrieval/context/expansion.test.js"
+          "tests/retrieval/context-expansion/context-expansion-contract-matrix.test.js"
         ]
       },
       {
@@ -7815,6 +7733,14 @@
         "files": [
           "src/integrations/tooling/context-pack.js",
           "src/integrations/tooling/graph-context.js"
+        ]
+      },
+      {
+        "flag": "includeUsages",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "tests/retrieval/context-expansion/context-expansion-contract-matrix.test.js"
         ]
       },
       {
@@ -8217,7 +8143,7 @@
       "tests/perf/bench/run.test.js",
       "tests/shared/cli-option-validators-contract.test.js",
       "tests/storage/sqlite/build-root-active-generation-plan.test.js",
-      "tests/tooling/signature-parse/shared-splitter.test.js",
+      "tests/tooling/signature-parse/signature-contract-matrix.test.js",
       "tools/analysis/delta-risk.js",
       "tools/analysis/explain-risk.js",
       "tools/api/server.js",
