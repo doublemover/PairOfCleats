@@ -76,9 +76,31 @@ const cases = [
       await fsPromises.writeFile(path.join(repoB, 'src', 'alpha.js'), fileContents);
 
       const env = createStubEnv(cacheRoot);
-      runNode(repoA, env, 'build_index A', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoA]);
+      runNode(repoA, env, 'build_index A', [
+        path.join(root, 'build_index.js'),
+        '--stub-embeddings',
+        '--stage',
+        'stage1',
+        '--mode',
+        'code',
+        '--scm-provider',
+        'none',
+        '--repo',
+        repoA
+      ]);
       runNode(repoA, env, 'build_embeddings A', [path.join(root, 'tools', 'build', 'embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoA]);
-      runNode(repoB, env, 'build_index B', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoB]);
+      runNode(repoB, env, 'build_index B', [
+        path.join(root, 'build_index.js'),
+        '--stub-embeddings',
+        '--stage',
+        'stage1',
+        '--mode',
+        'code',
+        '--scm-provider',
+        'none',
+        '--repo',
+        repoB
+      ]);
       runNode(repoB, env, 'build_embeddings B', [path.join(root, 'tools', 'build', 'embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoB]);
 
       assert.deepEqual(await findCacheIndexPaths(cacheRoot), []);

@@ -80,13 +80,43 @@ await fsPromises.mkdir(tempRoot, { recursive: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
   await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'const alpha = 1;\n');
   await fsPromises.writeFile(path.join(repoRoot, 'beta.js'), 'const beta = 2;\n');
-  const env = applyTestEnv({ cacheRoot, embeddings: 'stub' });
+  const env = applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    testConfig: {
+      indexing: {
+        scm: { provider: 'none' },
+        typeInference: false,
+        typeInferenceCrossFile: false,
+        riskAnalysis: false,
+        riskAnalysisCrossFile: false
+      },
+      tooling: {
+        autoEnableOnDetect: false,
+        lsp: { enabled: false }
+      }
+    },
+    extraEnv: {
+      PAIROFCLEATS_WORKER_POOL: 'off'
+    }
+  });
 
   const runNode = (label, args) => {
     const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });
     assert.equal(result.status, 0, `Failed: ${label}`);
   };
-  runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
+  runNode('build_index', [
+    path.join(root, 'build_index.js'),
+    '--stub-embeddings',
+    '--stage',
+    'stage1',
+    '--mode',
+    'code',
+    '--scm-provider',
+    'none',
+    '--repo',
+    repoRoot
+  ]);
   runNode('build_lmdb_index', [path.join(root, 'tools', 'build/lmdb-index.js'), '--mode', 'code', '--repo', repoRoot]);
 
   const lmdbPaths = resolveLmdbPaths(repoRoot, {});

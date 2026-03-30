@@ -9,8 +9,10 @@ import { formatCommandFailure } from './command-failure.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-export const getTriageContext = async ({ name, testConfig } = {}) => {
-  const repoRoot = path.join(ROOT, 'tests', 'fixtures', 'sample');
+export const getTriageContext = async ({ name, testConfig, fixtureBuilder } = {}) => {
+  const repoRoot = typeof fixtureBuilder === 'function'
+    ? path.join((resolveTestCacheDir(`${name || 'triage'}-repo`, { root: ROOT })).dir, 'repo')
+    : path.join(ROOT, 'tests', 'fixtures', 'sample');
   const triageFixtureRoot = path.join(ROOT, 'tests', 'fixtures', 'triage');
   const { dir: cacheRootBase } = resolveTestCacheDir(name, { root: ROOT });
   const cacheSuffix = `${Date.now()}-${process.pid}-${Math.random().toString(16).slice(2, 8)}`;
@@ -29,6 +31,11 @@ export const getTriageContext = async ({ name, testConfig } = {}) => {
     console.log(`[triage-test] ready cache root: ${cacheRoot}`);
   }
   await fsPromises.mkdir(cacheRoot, { recursive: true });
+  if (typeof fixtureBuilder === 'function') {
+    await rmDirRecursive(repoRoot, { retries: 20, delayMs: 40 });
+    await fsPromises.mkdir(repoRoot, { recursive: true });
+    await fixtureBuilder(repoRoot);
+  }
 
   const env = applyTestEnv({
     cacheRoot,

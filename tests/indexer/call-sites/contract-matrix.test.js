@@ -6,7 +6,6 @@ import { spawnSync } from 'node:child_process';
 
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 import { loadUserConfig } from '../../../tools/shared/dict-utils.js';
-import { copyFixtureToTemp } from '../../helpers/fixtures.js';
 import { resolveIndexDirFromBuildResult } from '../../helpers/index-build-output.js';
 import { repoRoot } from '../../helpers/root.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
@@ -17,19 +16,49 @@ applyTestEnv();
 const ROOT = repoRoot();
 const BUILD_INDEX = path.join(ROOT, 'build_index.js');
 
+const CALL_SITES_FIXTURES = Object.freeze({
+  empty: [['index.js', 'const env = process.env.SECRET;\n']],
+  determinism: [[
+    'index.js',
+    `function alpha() {
+  return 1;
+}
+
+function beta() {
+  return alpha();
+}
+
+class Widget {
+  constructor() {
+    this.value = beta();
+  }
+
+  method() {
+    return alpha();
+  }
+}
+
+const widget = new Widget();
+widget.method();
+`
+  ]]
+});
+
 const buildCallSitesFixture = async ({
-  fixtureName,
   fixturePrefix,
-  files = [],
+  fixtureKey = 'empty',
+  files = null,
   testConfig,
   label
 }) => {
-  const fixtureRoot = await copyFixtureToTemp(fixtureName, { prefix: fixturePrefix });
-  const fixtureParent = path.dirname(fixtureRoot);
+  const fixtureRoot = await makeTempDir(fixturePrefix);
   const cacheRoot = await makeTempDir(`pairofcleats-cache-${label}-`);
+  const effectiveFiles = Array.isArray(files)
+    ? files
+    : (CALL_SITES_FIXTURES[fixtureKey] || []);
 
   try {
-    for (const [relPath, contents] of files) {
+    for (const [relPath, contents] of effectiveFiles) {
       const absolutePath = path.join(fixtureRoot, relPath);
       await fs.mkdir(path.dirname(absolutePath), { recursive: true });
       await fs.writeFile(absolutePath, contents, 'utf8');
@@ -59,10 +88,10 @@ const buildCallSitesFixture = async ({
 
     const userConfig = loadUserConfig(fixtureRoot);
     const codeDir = resolveIndexDirFromBuildResult(fixtureRoot, userConfig, result, { mode: 'code' });
-    return { fixtureParent, cacheRoot, codeDir };
+    return { fixtureRoot, cacheRoot, codeDir };
   } catch (error) {
     await rmDirRecursive(cacheRoot);
-    await rmDirRecursive(fixtureParent);
+    await rmDirRecursive(fixtureRoot);
     throw error;
   }
 };
@@ -93,9 +122,8 @@ const cases = [
         }
       };
       const resources = await buildCallSitesFixture({
-        fixtureName: 'empty',
         fixturePrefix: 'pairofcleats-call-sites-empty-',
-        files: [['index.js', 'const env = process.env.SECRET;\n']],
+        fixtureKey: 'empty',
         testConfig,
         label: 'call-sites-empty'
       });
@@ -106,7 +134,7 @@ const cases = [
         assert.equal(callSites.length, 0);
       } finally {
         await rmDirRecursive(resources.cacheRoot);
-        await rmDirRecursive(resources.fixtureParent);
+        await rmDirRecursive(resources.fixtureRoot);
       }
     }
   },
@@ -122,8 +150,8 @@ const cases = [
         }
       };
       const resources = await buildCallSitesFixture({
-        fixtureName: 'call-sites-determinism',
         fixturePrefix: 'pairofcleats-call-sites-none-',
+        fixtureKey: 'determinism',
         testConfig,
         label: 'call-sites-none'
       });
@@ -134,7 +162,7 @@ const cases = [
         assert.ok(!names.includes('call_sites_meta'));
       } finally {
         await rmDirRecursive(resources.cacheRoot);
-        await rmDirRecursive(resources.fixtureParent);
+        await rmDirRecursive(resources.fixtureRoot);
       }
     }
   },
@@ -149,14 +177,14 @@ const cases = [
         }
       };
       const first = await buildCallSitesFixture({
-        fixtureName: 'call-sites-determinism',
         fixturePrefix: 'pairofcleats-determinism-first-',
+        fixtureKey: 'determinism',
         testConfig,
         label: 'call-sites-first'
       });
       const second = await buildCallSitesFixture({
-        fixtureName: 'call-sites-determinism',
         fixturePrefix: 'pairofcleats-determinism-second-',
+        fixtureKey: 'determinism',
         testConfig,
         label: 'call-sites-second'
       });
@@ -165,9 +193,9 @@ const cases = [
         assert.deepEqual(await readCallSiteLines(first.codeDir), await readCallSiteLines(second.codeDir));
       } finally {
         await rmDirRecursive(first.cacheRoot);
-        await rmDirRecursive(first.fixtureParent);
+        await rmDirRecursive(first.fixtureRoot);
         await rmDirRecursive(second.cacheRoot);
-        await rmDirRecursive(second.fixtureParent);
+        await rmDirRecursive(second.fixtureRoot);
       }
     }
   }

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
-import { copyFixtureToTemp } from '../../helpers/fixtures.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
@@ -28,7 +28,23 @@ try {
 }
 const python = pythonInfo?.python || process.env.PYTHON || 'python';
 const script = path.join(root, 'tests', 'helpers', 'sublime', 'package_harness.py');
-const fixtureRepo = await copyFixtureToTemp('sample', { prefix: 'pairofcleats-sublime-package-' });
+const fixtureRepo = path.join((await prepareIsolatedTestCacheDir('sublime-package-fixture', { root, clean: true })).dir, 'repo');
+await fsPromises.mkdir(path.join(fixtureRepo, 'src'), { recursive: true });
+await fsPromises.writeFile(
+  path.join(fixtureRepo, 'src', 'index.js'),
+  [
+    'export function greet(name = "world") {',
+    '  return `hello ${name}`;',
+    '}',
+    ''
+  ].join('\n'),
+  'utf8'
+);
+await fsPromises.writeFile(
+  path.join(fixtureRepo, 'README.md'),
+  '# Sublime package fixture\n\nminimal repo for package harness\n',
+  'utf8'
+);
 const cacheRoot = (await prepareIsolatedTestCacheDir('sublime-package-harness', { root })).dir;
 const env = applyTestEnv({
   cacheRoot,

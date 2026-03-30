@@ -8,23 +8,49 @@ import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js
 import { normalizeLanceDbConfig } from '../../../src/shared/lancedb.js';
 import { requireLanceDb } from '../../helpers/optional-deps.js';
 
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = resolveTestCachePath(root, 'lancedb-ann');
+const { dir: tempRoot } = await prepareIsolatedTestCacheDir('lancedb-ann', { root });
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
 await requireLanceDb({ reason: 'lancedb not available; skipping lancedb-ann test.' });
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(tempRoot, { recursive: true });
-await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
+await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+await fsPromises.writeFile(
+  path.join(repoRoot, 'src', 'main.js'),
+  'export function indexItem(value) { return value + 1; }\n',
+  'utf8'
+);
+await fsPromises.writeFile(
+  path.join(repoRoot, 'README.md'),
+  '# LanceDB Fixture\n\nThis fixture provides prose chunks for ANN backend validation.\n',
+  'utf8'
+);
 
 const env = applyTestEnv({
   cacheRoot: cacheRoot,
-  embeddings: 'stub'
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      embeddings: {
+        lancedb: {
+          enabled: true,
+          isolate: false
+        }
+      },
+      typeInference: false,
+      typeInferenceCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  },
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  }
 });
 
 const run = (args, label) => {
@@ -39,7 +65,12 @@ const run = (args, label) => {
   }
 };
 
-run([path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot], 'build index');
+run(
+  [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--stage', 'stage1', '--repo', repoRoot],
+  'build index'
+);
+run([path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot], 'build embeddings (code)');
+run([path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'prose', '--repo', repoRoot], 'build embeddings (prose)');
 
 const userConfig = loadUserConfig(repoRoot);
 const lanceConfig = normalizeLanceDbConfig(userConfig.indexing?.embeddings?.lancedb || {});
