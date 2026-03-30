@@ -28,7 +28,19 @@ await fsPromises.writeFile(path.join(tempRoot, 'sample.js'), sampleCode);
 const buildTestEnv = (testConfig = null, extraEnv = {}) => applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
-  testConfig: testConfig ?? null,
+  testConfig: testConfig ?? {
+    indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  },
   extraEnv: {
     PAIROFCLEATS_WORKER_POOL: 'off',
     ...extraEnv
@@ -49,7 +61,7 @@ const run = (args, label, { testConfig = null, extraEnv = {}, allowFailure = fal
   return result;
 };
 
-run([buildIndexPath, '--stub-embeddings', '--repo', tempRoot], 'build index');
+run([buildIndexPath, '--stub-embeddings', '--mode', 'code', '--repo', tempRoot], 'build index');
 await runSqliteBuild(tempRoot, { mode: 'code' });
 
 const cases = [

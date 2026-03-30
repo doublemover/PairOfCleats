@@ -4,28 +4,46 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 
 const createFixture = async (name) => {
   const tempRoot = resolveTestCachePath(root, name);
   const repoRoot = path.join(tempRoot, 'repo');
   const cacheRoot = path.join(tempRoot, 'cache');
   await fsPromises.rm(tempRoot, { recursive: true, force: true });
-  await fsPromises.mkdir(tempRoot, { recursive: true });
-  await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
+  await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+  await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-  const env = {
-    ...process.env,
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub'
-  };
-  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-  process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+  const env = applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    testConfig: {
+      indexing: {
+        scm: { provider: 'none' },
+        typeInference: false,
+        typeInferenceCrossFile: false,
+        riskAnalysis: false,
+        riskAnalysisCrossFile: false
+      },
+      tooling: {
+        autoEnableOnDetect: false,
+        lsp: { enabled: false }
+      }
+    },
+    extraEnv: {
+      PAIROFCLEATS_WORKER_POOL: 'off'
+    }
+  });
+
+  await fsPromises.writeFile(
+    path.join(repoRoot, 'src', 'base.js'),
+    'export function sqliteMaintenanceBase() { return "sqlite-maintenance-base"; }\n'
+  );
 
   const run = (args, label) => {
     const result = spawnSync(process.execPath, args, {
@@ -53,20 +71,20 @@ const runCompactScenario = async () => {
   await fsPromises.writeFile(renameFile, 'export function renameToken() { return "renametoken"; }\n');
 
   run(
-    [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot],
+    [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
     'build index'
   );
-  await runSqliteBuild(repoRoot);
+  await runSqliteBuild(repoRoot, { mode: 'code', env });
 
   const renamedFile = path.join(repoRoot, 'src', 'renamed.js');
   await fsPromises.rm(deletableFile, { force: true });
   await fsPromises.rename(renameFile, renamedFile);
 
   run(
-    [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot],
+    [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
     'build index (incremental)'
   );
-  await runSqliteBuild(repoRoot, { incremental: true });
+  await runSqliteBuild(repoRoot, { mode: 'code', incremental: true, env });
   run(
     [path.join(root, 'tools', 'build', 'compact-sqlite-index.js'), '--repo', repoRoot],
     'compact sqlite index'
@@ -114,7 +132,7 @@ const runCompactScenario = async () => {
 
 const runSidecarCleanupScenario = async () => {
   const { repoRoot, run } = await createFixture('sqlite-maintenance-sidecar-cleanup');
-  run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], 'build index');
+  run([path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot], 'build index');
   await runSqliteBuild(repoRoot, { mode: 'code' });
 
   const userConfig = loadUserConfig(repoRoot);
@@ -136,7 +154,7 @@ const runSidecarCleanupScenario = async () => {
   }
 
   run(
-    [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot],
+    [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
     'build index (incremental)'
   );
   sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
