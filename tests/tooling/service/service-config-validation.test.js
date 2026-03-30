@@ -23,23 +23,26 @@ const indexerScriptPath = path.join(root, 'tools', 'service', 'indexer-service.j
 fs.writeFileSync(validConfigPath, `${JSON.stringify({
   queueDir: path.join(tempRoot, 'queue'),
   queue: {
-    maxQueued: 4,
-    maxRetries: 2
+    maxQueued: '4',
+    maxRetries: '2'
   },
   worker: {
-    concurrency: 0,
-    shutdownTimeoutMs: 500
+    concurrency: '0',
+    shutdownTimeoutMs: '500'
   },
   embeddings: {
+    queue: {
+      maxQueued: '3'
+    },
     worker: {
-      concurrency: 1,
-      maxMemoryMb: 2048,
-      shutdownTimeoutMs: 500
+      concurrency: '1',
+      maxMemoryMb: '2048',
+      shutdownTimeoutMs: '500'
     }
   },
   sync: {
     policy: 'fetch',
-    intervalMs: 60000
+    intervalMs: '60000'
   },
   security: {
     allowShell: false,
@@ -52,12 +55,17 @@ fs.writeFileSync(invalidConfigPath, `${JSON.stringify({
     maxQueued: -1
   },
   sync: {
-    policy: 'push'
+    policy: 'fetch'
   }
 }, null, 2)}\n`);
 
 const loaded = loadServiceConfig(validConfigPath);
+assert.equal(typeof loaded.queue.maxQueued, 'number', 'expected queue.maxQueued to be coerced to a number');
+assert.equal(loaded.queue.maxQueued, 4, 'expected maxQueued string to be normalized');
 assert.equal(loaded.worker.concurrency, 0, 'expected explicit zero concurrency to survive service-config loading');
+assert.equal(typeof loaded.worker.concurrency, 'number', 'expected worker concurrency to be numeric after load');
+assert.equal(typeof loaded.embeddings.worker.maxMemoryMb, 'number', 'expected embeddings maxMemoryMb to be numeric after load');
+assert.equal(typeof loaded.sync.intervalMs, 'number', 'expected sync interval to be numeric after load');
 assert.equal(loaded.sync.policy, 'fetch', 'expected valid sync policy to load');
 
 assert.throws(

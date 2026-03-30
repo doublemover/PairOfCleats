@@ -71,6 +71,68 @@ export const SERVICE_API_OPTIONS = {
   'max-body-bytes': { type: 'number' }
 };
 
+export const TOOLING_DETECT_OPTIONS = {
+  json: { type: 'boolean', default: false },
+  root: { type: 'string' },
+  repo: { type: 'string' },
+  languages: { type: 'string' }
+};
+
+export const TOOLING_INSTALL_OPTIONS = {
+  json: { type: 'boolean', default: false },
+  'dry-run': { type: 'boolean', default: false },
+  'no-fallback': { type: 'boolean', default: false },
+  root: { type: 'string' },
+  repo: { type: 'string' },
+  scope: { type: 'string' },
+  languages: { type: 'string' },
+  tools: { type: 'string' }
+};
+
+export const CONTEXT_PACK_OPTIONS = {
+  repo: { type: 'string' },
+  seed: { type: 'string' },
+  hops: { type: 'number' },
+  maxTokens: { type: 'number' },
+  maxBytes: { type: 'number' },
+  includeGraph: { type: 'boolean', default: true },
+  includeTypes: { type: 'boolean', default: false },
+  includeRisk: { type: 'boolean', default: false },
+  includeRiskPartialFlows: { type: 'boolean', default: false },
+  strictRisk: { type: 'boolean', default: false },
+  strictEvidence: { type: 'boolean', default: false },
+  rule: { type: 'string' },
+  category: { type: 'string' },
+  severity: { type: 'string' },
+  tag: { type: 'string' },
+  source: { type: 'string' },
+  sink: { type: 'string' },
+  'flow-id': { type: 'string' },
+  'source-rule': { type: 'string' },
+  'sink-rule': { type: 'string' },
+  includeImports: { type: 'boolean', default: true },
+  includeUsages: { type: 'boolean', default: true },
+  includeCallersCallees: { type: 'boolean', default: true },
+  includePaths: { type: 'boolean', default: false },
+  maxTypeEntries: { type: 'number' },
+  format: { type: 'string' },
+  json: { type: 'boolean', default: false },
+  maxDepth: { type: 'number' },
+  maxFanoutPerNode: { type: 'number' },
+  maxNodes: { type: 'number' },
+  maxEdges: { type: 'number' },
+  maxPaths: { type: 'number' },
+  maxCandidates: { type: 'number' },
+  maxWorkUnits: { type: 'number' },
+  maxWallClockMs: { type: 'number' },
+  workspace: { type: 'string' },
+  workspaceId: { type: 'string' },
+  select: { type: 'string' },
+  'repo-filter': { type: 'string' },
+  includeDisabled: { type: 'boolean', default: false },
+  maxFederatedRepos: { type: 'number' }
+};
+
 export const BENCH_OPTIONS = {
   ann: { type: 'boolean' },
   'no-ann': { type: 'boolean' },

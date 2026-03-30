@@ -62,12 +62,12 @@ const configResetPayload = JSON.parse(configReset.stdout || '{}');
 assert.equal(configResetPayload.ok, true, 'expected config reset to report ok=true');
 assert.equal(fs.existsSync(resetConfigPath), true, 'expected config reset to rewrite the config file');
 
-const toolingDetect = runCli(['tooling', 'detect', '--repo', fixtureRoot, '--json']);
+const toolingDetect = runCli(['tooling', 'detect', '--root', fixtureRoot, '--json']);
 assert.equal(toolingDetect.status, 0, `expected tooling detect to succeed: ${toolingDetect.stderr || toolingDetect.stdout}`);
 const toolingDetectPayload = JSON.parse(toolingDetect.stdout || '{}');
 assert.ok(toolingDetectPayload.languages?.python, 'expected tooling detect to report python');
 
-const toolingInstall = runCli(['tooling', 'install', '--repo', fixtureRoot, '--tools', 'clangd', '--dry-run', '--json']);
+const toolingInstall = runCli(['tooling', 'install', '--root', fixtureRoot, '--tools', 'clangd', '--dry-run', '--json']);
 assert.equal(toolingInstall.status, 0, `expected tooling install dry-run to succeed: ${toolingInstall.stderr || toolingInstall.stdout}`);
 const toolingInstallPayload = JSON.parse(toolingInstall.stdout || '{}');
 assert.ok(Array.isArray(toolingInstallPayload.results), 'expected tooling install to return results array');

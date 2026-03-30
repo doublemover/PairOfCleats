@@ -53,6 +53,84 @@ const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && 
 
 const SERVICE_SYNC_POLICIES = new Set(['pull', 'fetch', 'none']);
 
+const coerceIntegerIfFinite = (value) => {
+  if (value == null || value === '') return value;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return value;
+  return Math.floor(parsed);
+};
+
+const normalizeRetentionConfig = (retention) => {
+  if (!isPlainObject(retention)) return retention;
+  return {
+    ...retention,
+    doneJobs: coerceIntegerIfFinite(retention.doneJobs),
+    failedJobs: coerceIntegerIfFinite(retention.failedJobs),
+    quarantinedJobs: coerceIntegerIfFinite(retention.quarantinedJobs),
+    retriedQuarantinedJobs: coerceIntegerIfFinite(retention.retriedQuarantinedJobs)
+  };
+};
+
+const normalizeQueueConfig = (queueConfig) => {
+  if (!isPlainObject(queueConfig)) return queueConfig;
+  return {
+    ...queueConfig,
+    maxQueued: coerceIntegerIfFinite(queueConfig.maxQueued),
+    maxRetries: coerceIntegerIfFinite(queueConfig.maxRetries),
+    maxRunning: coerceIntegerIfFinite(queueConfig.maxRunning),
+    maxTotal: coerceIntegerIfFinite(queueConfig.maxTotal),
+    resourceBudgetUnits: coerceIntegerIfFinite(queueConfig.resourceBudgetUnits),
+    retention: normalizeRetentionConfig(queueConfig.retention)
+  };
+};
+
+const normalizeWorkerConfig = (workerConfig) => {
+  if (!isPlainObject(workerConfig)) return workerConfig;
+  const normalized = {
+    ...workerConfig,
+    concurrency: coerceIntegerIfFinite(workerConfig.concurrency),
+    shutdownTimeoutMs: coerceIntegerIfFinite(workerConfig.shutdownTimeoutMs),
+    maxMemoryMb: coerceIntegerIfFinite(workerConfig.maxMemoryMb)
+  };
+  if (isPlainObject(workerConfig.daemon)) {
+    normalized.daemon = {
+      ...workerConfig.daemon
+    };
+  }
+  return normalized;
+};
+
+const normalizeRepoEntry = (entry) => {
+  if (!isPlainObject(entry)) return entry;
+  return {
+    ...entry,
+    cloneDepth: coerceIntegerIfFinite(entry.cloneDepth)
+  };
+};
+
+const normalizeServiceConfigPayload = (payload) => {
+  if (!isPlainObject(payload)) return payload;
+  return {
+    ...payload,
+    repos: Array.isArray(payload.repos) ? payload.repos.map((entry) => normalizeRepoEntry(entry)) : payload.repos,
+    queue: normalizeQueueConfig(payload.queue),
+    worker: normalizeWorkerConfig(payload.worker),
+    embeddings: isPlainObject(payload.embeddings)
+      ? {
+        ...payload.embeddings,
+        queue: normalizeQueueConfig(payload.embeddings.queue),
+        worker: normalizeWorkerConfig(payload.embeddings.worker)
+      }
+      : payload.embeddings,
+    sync: isPlainObject(payload.sync)
+      ? {
+        ...payload.sync,
+        intervalMs: coerceIntegerIfFinite(payload.sync.intervalMs)
+      }
+      : payload.sync
+  };
+};
+
 const createServiceConfigError = (message, {
   configPath = null,
   path: fieldPath = null,
@@ -223,7 +301,7 @@ export function loadServiceConfig(configPath) {
       hint: 'Fix the JSON syntax in the service config and retry.'
     });
   }
-  const payload = raw;
+  const payload = normalizeServiceConfigPayload(raw);
   validateServiceConfig(payload, configPath);
   return {
     ...cloneDefaultServiceConfig(),

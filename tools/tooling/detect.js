@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createCli } from '../../src/shared/cli.js';
+import { TOOLING_DETECT_OPTIONS } from '../../src/shared/cli-options.js';
 import path from 'node:path';
 import { buildToolingReport, normalizeLanguageList } from './utils.js';
 import { resolveRepoRootArg } from '../shared/dict-utils.js';
@@ -7,12 +8,7 @@ import { emitJson } from '../shared/cli-utils.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats tooling detect',
-  options: {
-    json: { type: 'boolean', default: false },
-    root: { type: 'string' },
-    repo: { type: 'string' },
-    languages: { type: 'string' }
-  }
+  options: TOOLING_DETECT_OPTIONS
 }).parse();
 
 const explicitRoot = argv.root || argv.repo;

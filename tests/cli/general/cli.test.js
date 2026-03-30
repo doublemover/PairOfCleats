@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -10,6 +12,7 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
 const cacheRoot = resolveTestCachePath(root, 'cli');
+const fixtureRoot = path.join(root, 'tests', 'fixtures', 'languages');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 const env = applyTestEnv({ cacheRoot, syncProcess: false });
@@ -19,6 +22,7 @@ if (!fs.existsSync(binPath)) {
   console.error(`Missing CLI entrypoint: ${binPath}`);
   process.exit(1);
 }
+const { extractDispatchRootArg } = await import(pathToFileURL(binPath).href);
 
 const runCli = (...args) => spawnSync(process.execPath, [binPath, ...args], {
   encoding: 'utf8',
@@ -137,6 +141,80 @@ if (mcpAliasOutput.includes('Unknown flag: --mcpMode')) {
   console.error('cli service mcp rejected --mcpMode alias');
   process.exit(1);
 }
+
+const contextPackFederatedHelp = runCli(
+  'context-pack',
+  '--help',
+  '--strictEvidence',
+  '--workspace', fixtureRoot,
+  '--workspaceId', 'ws-demo',
+  '--select', 'repo-a',
+  '--repo-filter', 'repo',
+  '--includeDisabled',
+  '--maxFederatedRepos', '2'
+);
+if (contextPackFederatedHelp.status !== 0) {
+  console.error('cli context-pack federated help failed');
+  process.exit(contextPackFederatedHelp.status ?? 1);
+}
+const contextPackFederatedOutput = getCombinedOutput(contextPackFederatedHelp);
+if (contextPackFederatedOutput.includes('Unknown flag: --strictEvidence')) {
+  console.error('cli context-pack rejected --strictEvidence');
+  process.exit(1);
+}
+if (contextPackFederatedOutput.includes('Unknown flag: --workspace')) {
+  console.error('cli context-pack rejected --workspace');
+  process.exit(1);
+}
+if (contextPackFederatedOutput.includes('Unknown flag: --workspaceId')) {
+  console.error('cli context-pack rejected --workspaceId');
+  process.exit(1);
+}
+if (contextPackFederatedOutput.includes('Unknown flag: --repo-filter')) {
+  console.error('cli context-pack rejected --repo-filter');
+  process.exit(1);
+}
+if (contextPackFederatedOutput.includes('Unknown flag: --includeDisabled')) {
+  console.error('cli context-pack rejected --includeDisabled');
+  process.exit(1);
+}
+if (contextPackFederatedOutput.includes('Unknown flag: --maxFederatedRepos')) {
+  console.error('cli context-pack rejected --maxFederatedRepos');
+  process.exit(1);
+}
+
+const toolingDetectRootHelp = runCli('tooling', 'detect', '--root', fixtureRoot, '--help');
+if (toolingDetectRootHelp.status !== 0) {
+  console.error('cli tooling detect --root --help failed');
+  process.exit(toolingDetectRootHelp.status ?? 1);
+}
+const toolingDetectRootOutput = getCombinedOutput(toolingDetectRootHelp);
+if (toolingDetectRootOutput.includes('Unknown flag: --root')) {
+  console.error('cli tooling detect rejected --root');
+  process.exit(1);
+}
+
+const toolingInstallRootHelp = runCli('tooling', 'install', '--root', fixtureRoot, '--tools', 'clangd', '--help');
+if (toolingInstallRootHelp.status !== 0) {
+  console.error('cli tooling install --root --help failed');
+  process.exit(toolingInstallRootHelp.status ?? 1);
+}
+const toolingInstallRootOutput = getCombinedOutput(toolingInstallRootHelp);
+if (toolingInstallRootOutput.includes('Unknown flag: --root')) {
+  console.error('cli tooling install rejected --root');
+  process.exit(1);
+}
+
+assert.equal(
+  extractDispatchRootArg(['--repo', path.join(root, 'repo-a')]),
+  path.join(root, 'repo-a'),
+  'expected repo override extraction to remain supported'
+);
+assert.equal(
+  extractDispatchRootArg(['--repo', path.join(root, 'repo-a'), '--root', path.join(root, 'repo-b')]),
+  path.join(root, 'repo-b'),
+  'expected explicit --root to win over --repo for runtime-env resolution'
+);
 
 console.log('cli test passed');
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createCli } from '../../src/shared/cli.js';
+import { TOOLING_INSTALL_OPTIONS } from '../../src/shared/cli-options.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
 import { exitLikeCommandResult, probeCommand, runCommand } from '../shared/cli-utils.js';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
@@ -7,16 +8,7 @@ import { getToolingConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats tooling install',
-  options: {
-    json: { type: 'boolean', default: false },
-    'dry-run': { type: 'boolean', default: false },
-    'no-fallback': { type: 'boolean', default: false },
-    root: { type: 'string' },
-    repo: { type: 'string' },
-    scope: { type: 'string' },
-    languages: { type: 'string' },
-    tools: { type: 'string' }
-  }
+  options: TOOLING_INSTALL_OPTIONS
 }).parse();
 
 const explicitRoot = argv.root || argv.repo;

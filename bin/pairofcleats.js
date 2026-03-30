@@ -7,9 +7,12 @@ import {
   resolveToolRoot
 } from '../tools/shared/dict-utils.js';
 import {
+  CONTEXT_PACK_OPTIONS,
   INDEX_BUILD_OPTIONS,
   SERVICE_API_OPTIONS,
   SERVICE_INDEXER_OPTIONS,
+  TOOLING_DETECT_OPTIONS,
+  TOOLING_INSTALL_OPTIONS,
   resolveCliOptionFlagSets
 } from '../src/shared/cli-options.js';
 import {
@@ -24,48 +27,45 @@ import { spawnSubprocessSync } from '../src/shared/subprocess.js';
 import { exitLikeChild } from '../src/tui/wrapper-exit.js';
 import { buildErrorPayload, ERROR_CODES, isErrorCode } from '../src/shared/error-codes.js';
 import { resolveDispatchRuntimeEnv } from '../src/shared/dispatch/env.js';
+import { isDirectExecution } from '../src/shared/direct-execution.js';
 
 const ROOT = resolveToolRoot();
 
-const args = process.argv.slice(2);
-const command = args[0];
+export async function main(rawArgs = process.argv.slice(2)) {
+  const args = [...rawArgs];
+  const command = args[0];
 
-if (command === 'help') {
-  printRequestedHelp(args.slice(1));
-  process.exit(0);
+  if (command === 'help') {
+    printRequestedHelp(args.slice(1));
+    process.exit(0);
+  }
+
+  if (!command || isHelpCommand(command) || isHelpAllCommand(command)) {
+    printHelp({
+      includeAll: isHelpAllCommand(command) || args.includes('--all'),
+      topicTokens: (isHelpCommand(command) || isHelpAllCommand(command))
+        ? args.slice(1).filter((arg) => arg !== '--all')
+        : []
+    });
+    process.exit(0);
+  }
+
+  if (isVersionCommand(command)) {
+    console.error(getToolVersion() || '0.0.0');
+    process.exit(0);
+  }
+
+  const primary = args.shift();
+  const resolved = resolveCommand(primary, args);
+  if (!resolved) {
+    failCli(`Unknown command: ${primary}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
+  }
+
+  await runScript(resolved.script, resolved.extraArgs, resolved.args);
 }
-
-if (!command || isHelpCommand(command) || isHelpAllCommand(command)) {
-  printHelp({
-    includeAll: isHelpAllCommand(command) || args.includes('--all'),
-    topicTokens: (isHelpCommand(command) || isHelpAllCommand(command))
-      ? args.slice(1).filter((arg) => arg !== '--all')
-      : []
-  });
-  process.exit(0);
-}
-
-if (isVersionCommand(command)) {
-  console.error(getToolVersion() || '0.0.0');
-  process.exit(0);
-}
-
-const primary = args.shift();
-const resolved = resolveCommand(primary, args);
-if (!resolved) {
-  failCli(`Unknown command: ${primary}`, {
-    code: ERROR_CODES.INVALID_REQUEST,
-    showHelp: true
-  });
-}
-
-runScript(resolved.script, resolved.extraArgs, resolved.args).catch((err) => {
-  const code = isErrorCode(err?.code) ? err.code : ERROR_CODES.INTERNAL;
-  failCli(err?.message || String(err), {
-    code,
-    hint: err?.hint || null
-  });
-});
 
 /**
  * Resolve CLI command + subcommand matrix into a script dispatch target.
@@ -721,77 +721,8 @@ function resolveCommand(primary, rest) {
     return { script: 'tools/analysis/suggest-tests.js', extraArgs: [], args: rest };
   }
   if (primary === 'context-pack') {
-    validateArgs(
-      rest,
-      [
-        'repo',
-        'seed',
-        'hops',
-        'maxTokens',
-        'maxBytes',
-        'includeGraph',
-        'includeTypes',
-        'includeRisk',
-        'includeRiskPartialFlows',
-        'strictRisk',
-        'rule',
-        'category',
-        'severity',
-        'tag',
-        'source',
-        'sink',
-        'flowId',
-        'flow-id',
-        'sourceRule',
-        'source-rule',
-        'sinkRule',
-        'sink-rule',
-        'includeImports',
-        'includeUsages',
-        'includeCallersCallees',
-        'includePaths',
-        'maxTypeEntries',
-        'format',
-        'json',
-        'maxDepth',
-        'maxFanoutPerNode',
-        'maxNodes',
-        'maxEdges',
-        'maxPaths',
-        'maxCandidates',
-        'maxWorkUnits',
-        'maxWallClockMs'
-      ],
-      [
-        'repo',
-        'seed',
-        'hops',
-        'maxTokens',
-        'maxBytes',
-        'rule',
-        'category',
-        'severity',
-        'tag',
-        'source',
-        'sink',
-        'flowId',
-        'flow-id',
-        'sourceRule',
-        'source-rule',
-        'sinkRule',
-        'sink-rule',
-        'maxTypeEntries',
-        'format',
-        'maxDepth',
-        'maxFanoutPerNode',
-        'maxNodes',
-        'maxEdges',
-        'maxPaths',
-        'maxCandidates',
-        'maxWorkUnits',
-        'maxWallClockMs'
-      ]
-    );
+    const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(CONTEXT_PACK_OPTIONS);
+    validateArgs(rest, optionNames, valueOptionNames);
     return { script: 'tools/analysis/context-pack.js', extraArgs: [], args: rest };
   }
   if (primary === 'api-contracts') {
@@ -874,11 +805,13 @@ function resolveCommand(primary, rest) {
       return { script: 'tools/tooling/doctor.js', extraArgs: [], args: rest };
     }
     if (sub === 'detect') {
-      validateArgs(rest, ['json', 'root', 'repo', 'languages'], ['root', 'repo', 'languages']);
+      const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(TOOLING_DETECT_OPTIONS);
+      validateArgs(rest, optionNames, valueOptionNames);
       return { script: 'tools/tooling/detect.js', extraArgs: [], args: rest };
     }
     if (sub === 'install') {
-      validateArgs(rest, ['json', 'dry-run', 'no-fallback', 'root', 'repo', 'scope', 'languages', 'tools'], ['root', 'repo', 'scope', 'languages', 'tools']);
+      const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(TOOLING_INSTALL_OPTIONS);
+      validateArgs(rest, optionNames, valueOptionNames);
       return { script: 'tools/tooling/install.js', extraArgs: [], args: rest };
     }
     if (sub === 'navigate') {
@@ -1076,7 +1009,7 @@ async function runScript(scriptPath, extraArgs, restArgs) {
       code: ERROR_CODES.NOT_FOUND
     });
   }
-  const repoOverride = extractRepoArg(restArgs);
+  const repoOverride = extractDispatchRootArg(restArgs);
   const repoRoot = repoOverride ? path.resolve(repoOverride) : resolveRepoRoot(process.cwd());
   const env = shouldSkipDispatchRuntimeEnvResolution(scriptPath)
     ? { ...process.env }
@@ -1106,9 +1039,17 @@ async function runScript(scriptPath, extraArgs, restArgs) {
  * @param {string[]} args
  * @returns {string|null}
  */
-function extractRepoArg(args) {
+export function extractDispatchRootArg(args) {
   const endOfOptions = args.indexOf('--');
   const scanArgs = endOfOptions === -1 ? args : args.slice(0, endOfOptions);
+  for (let i = 0; i < scanArgs.length; i += 1) {
+    const arg = scanArgs[i];
+    if (arg === '--root' && scanArgs[i + 1]) return scanArgs[i + 1];
+    if (arg.startsWith('--root=')) {
+      const value = arg.slice('--root='.length);
+      if (value) return value;
+    }
+  }
   for (let i = 0; i < scanArgs.length; i += 1) {
     const arg = scanArgs[i];
     if (arg === '--repo' && scanArgs[i + 1]) return scanArgs[i + 1];
@@ -1155,6 +1096,16 @@ function isVersionCommand(value) {
 
 function isHelpAllCommand(value) {
   return value === '--help-all' || value === 'help-all';
+}
+
+if (isDirectExecution(import.meta.url)) {
+  main().catch((err) => {
+    const code = isErrorCode(err?.code) ? err.code : ERROR_CODES.INTERNAL;
+    failCli(err?.message || String(err), {
+      code,
+      hint: err?.hint || null
+    });
+  });
 }
 
 /**
