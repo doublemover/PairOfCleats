@@ -14,7 +14,16 @@ const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `dart-provider-process-reuse-${process.pid}-${Date.now()}`);
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'lib'), { recursive: true });
+await fs.mkdir(path.join(tempRoot, '.dart_tool'), { recursive: true });
 await fs.writeFile(path.join(tempRoot, 'pubspec.yaml'), 'name: dart_fixture\n', 'utf8');
+await fs.writeFile(
+  path.join(tempRoot, '.dart_tool', 'package_config.json'),
+  JSON.stringify({
+    configVersion: 2,
+    packages: []
+  }, null, 2),
+  'utf8'
+);
 
 const counterPath = path.join(tempRoot, 'dart-lsp.counter');
 const restorePath = prependLspTestPath({ repoRoot: root });
@@ -40,7 +49,8 @@ try {
         enabledTools: ['dart'],
         dart: {
           enabled: true,
-          cmd: fixtureDartCmd
+          cmd: fixtureDartCmd,
+          sessionIdleTimeoutMs: 60_000
         }
       },
       cache: {
@@ -99,6 +109,8 @@ try {
     assert.equal(spawnCount, 1, 'expected one dart language-server process spawn across reused provider runs');
     assert.equal(firstPass.byChunkUid.size, 2, 'expected both Dart chunks enriched (first pass)');
     assert.equal(secondPass.byChunkUid.size, 2, 'expected both Dart chunks enriched (second pass)');
+    assert.equal(firstPass.diagnostics?.dart?.runtime?.pooling?.reused, false, 'expected first pass to create the pooled dart session');
+    assert.equal(secondPass.diagnostics?.dart?.runtime?.pooling?.reused, true, 'expected second pass to reuse the pooled dart session');
     assert.equal(
       Number(firstPass.diagnostics?.dart?.runtime?.requests?.byMethod?.initialize?.requests || 0),
       1,
