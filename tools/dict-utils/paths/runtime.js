@@ -8,16 +8,18 @@ import { getToolVersion } from '../tool.js';
  * Resolve runtime configuration for a repo.
  * @param {string} repoRoot
  * @param {object|null} userConfig
+ * @param {Record<string, string|undefined>} [env]
  * @returns {{maxOldSpaceMb:number|null,nodeOptions:string,uvThreadpoolSize:number|null}}
  */
-export function getRuntimeConfig(repoRoot, userConfig = null) {
+export function getRuntimeConfig(repoRoot, userConfig = null, env = process.env) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const cpuCount = os.cpus().length;
+  const resolvedEnv = env && typeof env === 'object' ? env : process.env;
   const envelope = resolveRuntimeEnvelope({
     argv: {},
     rawArgv: [],
     userConfig: cfg,
-    env: process.env,
+    env: resolvedEnv,
     execArgv: process.execArgv,
     cpuCount,
     processInfo: {

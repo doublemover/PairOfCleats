@@ -225,7 +225,7 @@ A chunk validator MUST reject:
 
 ## 9) Tests (recommended)
 
-- extend [contract-matrix.test.js](/C:/Users/sneak/Development/DOUBLECLEAT/tests/indexer/metav2/contract-matrix.test.js) with primary-anchor normalization cases
+- extend [contract-matrix.test.js](../../tests/indexer/metav2/contract-matrix.test.js) with primary-anchor normalization cases
 - add source-kind-specific anchor cases in the same matrix, or split them into a dedicated provenance-anchor matrix when PDF/DOCX/text anchor materialization ships
 
 Each test should:

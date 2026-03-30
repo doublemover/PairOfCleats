@@ -88,7 +88,7 @@ const matrix = [
     requiredContent: [
       'sublime package harness test passed'
     ],
-    requiredLanes: ['ci-long']
+    requiredLanes: ['ci']
   },
   {
     editor: 'sublime',

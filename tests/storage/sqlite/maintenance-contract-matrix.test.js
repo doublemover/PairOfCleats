@@ -58,13 +58,14 @@ const createFixture = async (name) => {
   };
 
   return {
+    env,
     repoRoot,
     run
   };
 };
 
 const runCompactScenario = async () => {
-  const { repoRoot, run } = await createFixture('sqlite-maintenance-compact');
+  const { env, repoRoot, run } = await createFixture('sqlite-maintenance-compact');
   const deletableFile = path.join(repoRoot, 'src', 'deletable.js');
   const renameFile = path.join(repoRoot, 'src', 'rename_me.js');
   await fsPromises.writeFile(deletableFile, 'export const xqzflorb = "xqzflorb";\n');

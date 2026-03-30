@@ -44,6 +44,6 @@ export const resolveDispatchRuntimeEnv = async ({
     });
     return resolveRuntimeEnvFromEnvelope(envelope, baseEnv);
   }
-  const runtimeConfig = getRuntimeConfig(root, userConfig);
+  const runtimeConfig = getRuntimeConfig(root, userConfig, baseEnv);
   return resolveRuntimeEnv(runtimeConfig, baseEnv);
 };

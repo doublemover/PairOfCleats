@@ -803,7 +803,7 @@ await writeMeta({ vocabCount, parts, docLengths, avgDocLen, ... });
 - `tools/bench/index/chargram-postings.js --rolling-hash` (chargram postings throughput baseline/current)
 
 ## Current adjacent coverage
-- [contract-matrix.test.js](/C:/Users/sneak/Development/DOUBLECLEAT/tests/shared/merge/contract-matrix.test.js)
-- [benchmark-contract.test.js](/C:/Users/sneak/Development/DOUBLECLEAT/tests/shared/merge/benchmark-contract.test.js)
+- [contract-matrix.test.js](../../tests/shared/merge/contract-matrix.test.js)
+- [benchmark-contract.test.js](../../tests/shared/merge/benchmark-contract.test.js)
 
 **End of specification.**
