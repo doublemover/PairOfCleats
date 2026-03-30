@@ -71,11 +71,42 @@ const argv = createCli({
   options: SERVICE_INDEXER_OPTIONS
 }).parse();
 
+function printBootstrapErrorJson(message, err = null) {
+  const payload = {
+    ok: false,
+    error: message
+  };
+  if (err?.code) payload.code = err.code;
+  if (err?.hint) payload.hint = err.hint;
+  if (err?.configPath) payload.configPath = err.configPath;
+  if (err?.fieldPath) payload.fieldPath = err.fieldPath;
+  console.log(JSON.stringify(payload));
+}
+
 const command = argv.command || String(argv._[0] || '');
 const configPath = getServiceConfigPath(argv.config || null);
-const config = loadServiceConfig(configPath);
 const envConfig = getEnvConfig();
-const repoEntries = resolveRepoRegistry(config, configPath);
+const loadServiceBootstrapState = () => {
+  const config = loadServiceConfig(configPath);
+  return {
+    config,
+    repoEntries: resolveRepoRegistry(config, configPath)
+  };
+};
+let config = null;
+let repoEntries = [];
+try {
+  ({ config, repoEntries } = loadServiceBootstrapState());
+} catch (err) {
+  const message = err?.message || String(err);
+  if (argv.json) {
+    printBootstrapErrorJson(message, err);
+  } else {
+    console.error(message);
+    if (err?.hint) console.error(`hint: ${err.hint}`);
+  }
+  process.exit(1);
+}
 const baseDir = config.baseDir
   ? path.resolve(config.baseDir)
   : path.join(getCacheRoot(), 'service', 'repos');
