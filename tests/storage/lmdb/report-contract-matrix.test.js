@@ -23,7 +23,31 @@ const unpackr = new Unpackr();
 const decode = (value) => (value == null ? null : unpackr.unpack(value));
 
 const root = process.cwd();
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
+const createTestConfig = (extraTestConfig = null) => ({
+  indexing: {
+    scm: { provider: 'none' },
+    typeInference: false,
+    typeInferenceCrossFile: false,
+    riskAnalysis: false,
+    riskAnalysisCrossFile: false,
+    embeddings: {
+      enabled: false,
+      mode: 'off',
+      lancedb: { enabled: false },
+      hnsw: { enabled: false }
+    }
+  },
+  tooling: {
+    autoEnableOnDetect: false,
+    lsp: {
+      enabled: false
+    }
+  },
+  lmdb: {
+    use: true
+  },
+  ...(extraTestConfig || {})
+});
 
 const createFixture = async (name, extraTestConfig = null) => {
   const tempRoot = resolveTestCachePath(root, name);
@@ -32,12 +56,30 @@ const createFixture = async (name, extraTestConfig = null) => {
   await fsPromises.rm(tempRoot, { recursive: true, force: true });
   await fsPromises.mkdir(tempRoot, { recursive: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
-  await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
+  await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+  await fsPromises.writeFile(
+    path.join(repoRoot, 'src', 'sample.js'),
+    [
+      'export function greet(name = "world") {',
+      '  return `hello ${name}`;',
+      '}',
+      ''
+    ].join('\n'),
+    'utf8'
+  );
+  await fsPromises.writeFile(
+    path.join(repoRoot, 'README.md'),
+    '# LMDB report fixture\n\nhello prose fixture\n',
+    'utf8'
+  );
 
   const env = applyTestEnv({
     cacheRoot,
     embeddings: 'stub',
-    testConfig: extraTestConfig
+    testConfig: createTestConfig(extraTestConfig),
+    extraEnv: {
+      PAIROFCLEATS_WORKER_POOL: 'off'
+    }
   });
 
   const run = (args, label, options = {}) => {
@@ -56,7 +98,14 @@ const createFixture = async (name, extraTestConfig = null) => {
   };
 
   run(
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
+    [
+      path.join(root, 'build_index.js'),
+      '--stub-embeddings',
+      '--stage',
+      'stage1',
+      '--repo',
+      repoRoot
+    ],
     'build index',
     { stdio: 'inherit' }
   );
@@ -166,7 +215,7 @@ const runCorruptionScenario = async (fixture) => {
   }
 };
 
-const fixture = await createFixture('lmdb-report-contract-matrix', { lmdb: { use: true } });
+const fixture = await createFixture('lmdb-report-contract-matrix');
 const codeSnapshotPath = path.join(fixture.tempRoot, 'code-snapshot');
 await snapshotPathTree(fixture.lmdbPaths.codePath, codeSnapshotPath);
 
