@@ -29,7 +29,10 @@ import { resolveNumaPinningPlan } from './pool/numa-plan.js';
 import { createWorkerPoolQueue } from './pool/queue.js';
 import { createWorkerPoolLifecycle } from './pool/lifecycle.js';
 import { createWorkerProcessCoordinator } from './pool/worker-coordination.js';
-import { resolveBuildCleanupTimeoutMs } from '../cleanup-timeout.js';
+import {
+  resolveBuildCleanupTimeoutMs,
+  runBuildCleanupWithTimeout
+} from '../cleanup-timeout.js';
 import {
   buildQuantizeRunPayload,
   normalizeCodeDictLanguages,
@@ -45,6 +48,20 @@ export {
   resolveLanguageThrottleLimit,
   evictDeterministicPressureCacheEntries
 };
+
+export const destroyWorkerPoolLifecycleWithTimeout = async ({
+  lifecycle,
+  poolLabel = 'tokenize',
+  timeoutMs = null,
+  log = defaultLog
+} = {}) => (
+  runBuildCleanupWithTimeout({
+    label: `worker-pool.${poolLabel}.lifecycle-destroy`,
+    cleanup: () => lifecycle?.destroy?.(),
+    timeoutMs,
+    log
+  })
+);
 
 /**
  * Create a single indexer worker pool with crash logging, restart handling,
@@ -608,7 +625,12 @@ export async function createIndexerWorkerPool(input = {}) {
       },
       async destroy() {
         queueController.notifyThrottleWaiters();
-        await lifecycle.destroy();
+        await destroyWorkerPoolLifecycleWithTimeout({
+          lifecycle,
+          poolLabel,
+          timeoutMs: resolvedCleanupTimeoutMs,
+          log
+        });
       }
     };
   } catch (err) {

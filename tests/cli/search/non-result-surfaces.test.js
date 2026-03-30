@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { stripAnsi } from '../../../src/shared/cli/ansi-utils.js';
+import { SEARCH_VALUE_FLAGS } from '../../../src/retrieval/cli-args.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -71,21 +72,7 @@ assert.match(stripAnsi(removedFlag.stderr), /Search Error/);
 assert.match(stripAnsi(removedFlag.stderr), /flag --human/);
 assert.match(stripAnsi(removedFlag.stderr), /next switch to --json/);
 
-for (const flag of [
-  '--type',
-  '--author',
-  '--import',
-  '--repo',
-  '--modified-since',
-  '--bm25-k1',
-  '--path',
-  '--lang',
-  '--ext',
-  '--ann-backend',
-  '--graph-ranking-max-work',
-  '--fts-weights',
-  '--risk'
-]) {
+for (const flag of [...SEARCH_VALUE_FLAGS].sort()) {
   const result = runLegacySearch(['test', flag], env);
   assert.notEqual(result.status, 0, `expected non-zero exit for ${flag}`);
   assert.match(`${result.stdout || ''}${result.stderr || ''}`, new RegExp(`Missing value for ${flag.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}`));

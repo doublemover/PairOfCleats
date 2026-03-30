@@ -1,6 +1,31 @@
 import { getToolVersion } from '../../shared/dict-utils.js';
 
-export const MCP_SCHEMA_VERSION = '1.4.0';
+export const MCP_SCHEMA_VERSION = '1.4.1';
+
+const STRING_OR_STRING_ARRAY_SCHEMA = Object.freeze({
+  anyOf: [
+    { type: 'string' },
+    { type: 'array', items: { type: 'string' } }
+  ]
+});
+
+const MCP_RISK_FILTER_SCHEMA_PROPERTIES = Object.freeze({
+  rule: STRING_OR_STRING_ARRAY_SCHEMA,
+  category: STRING_OR_STRING_ARRAY_SCHEMA,
+  severity: STRING_OR_STRING_ARRAY_SCHEMA,
+  tag: STRING_OR_STRING_ARRAY_SCHEMA,
+  source: STRING_OR_STRING_ARRAY_SCHEMA,
+  sink: STRING_OR_STRING_ARRAY_SCHEMA,
+  flowId: STRING_OR_STRING_ARRAY_SCHEMA,
+  flow_id: STRING_OR_STRING_ARRAY_SCHEMA,
+  'flow-id': STRING_OR_STRING_ARRAY_SCHEMA,
+  sourceRule: STRING_OR_STRING_ARRAY_SCHEMA,
+  source_rule: STRING_OR_STRING_ARRAY_SCHEMA,
+  'source-rule': STRING_OR_STRING_ARRAY_SCHEMA,
+  sinkRule: STRING_OR_STRING_ARRAY_SCHEMA,
+  sink_rule: STRING_OR_STRING_ARRAY_SCHEMA,
+  'sink-rule': STRING_OR_STRING_ARRAY_SCHEMA
+});
 
 /**
  * Build MCP tool definitions for the server.
@@ -156,17 +181,7 @@ export function getToolDefs(defaultModelId) {
           maxWallClockMs: { type: 'number' },
           filters: {
             type: 'object',
-            properties: {
-              rule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              category: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              severity: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              tag: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              source: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              sink: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              flowId: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              sourceRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              sinkRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] }
-            }
+            properties: MCP_RISK_FILTER_SCHEMA_PROPERTIES
           }
         },
         required: ['seed', 'hops']
@@ -185,17 +200,7 @@ export function getToolDefs(defaultModelId) {
           maxPartialFlows: { type: 'number', description: 'Maximum number of partial flows to return.' },
           filters: {
             type: 'object',
-            properties: {
-              rule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              category: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              severity: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              tag: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              source: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              sink: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              flowId: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              sourceRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              sinkRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] }
-            }
+            properties: MCP_RISK_FILTER_SCHEMA_PROPERTIES
           }
         },
         required: ['chunk']
@@ -214,17 +219,7 @@ export function getToolDefs(defaultModelId) {
           includePartialFlows: { type: 'boolean', description: 'Compare partial frontier flows in addition to full flows.' },
           filters: {
             type: 'object',
-            properties: {
-              rule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              category: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              severity: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              tag: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              source: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              sink: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              flowId: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              sourceRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              sinkRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] }
-            }
+            properties: MCP_RISK_FILTER_SCHEMA_PROPERTIES
           }
         },
         required: ['seed', 'from', 'to']

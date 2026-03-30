@@ -121,6 +121,28 @@ await withTemporaryEnv(env, async () => {
     assert.deepEqual(normalizeRisk(apiResponse.parsed?.result), expected, 'expected API context-pack risk output to match CLI');
     assert.deepEqual(normalizeRisk(mcpPayload.result), expected, 'expected MCP context-pack risk output to match CLI');
 
+    const snakeCaseMcpPayload = await harness.runMcp('context_pack', {
+      ...args,
+      filters: {
+        flow_id: flow?.flowId,
+        source_rule: flow?.source?.ruleId,
+        sink_rule: flow?.sink?.ruleId
+      }
+    });
+    assert.equal(snakeCaseMcpPayload.ok, true, 'expected snake_case MCP context-pack request to succeed');
+    assert.deepEqual(normalizeRisk(snakeCaseMcpPayload.result), expected, 'expected snake_case MCP context-pack risk output to match CLI');
+
+    const kebabCaseMcpPayload = await harness.runMcp('context_pack', {
+      ...args,
+      filters: {
+        'flow-id': flow?.flowId,
+        'source-rule': flow?.source?.ruleId,
+        'sink-rule': flow?.sink?.ruleId
+      }
+    });
+    assert.equal(kebabCaseMcpPayload.ok, true, 'expected kebab-case MCP context-pack request to succeed');
+    assert.deepEqual(normalizeRisk(kebabCaseMcpPayload.result), expected, 'expected kebab-case MCP context-pack risk output to match CLI');
+
     const emptyArgs = {
       ...args,
       filters: { flowId: 'sha1:ffffffffffffffffffffffffffffffffffffffff' }

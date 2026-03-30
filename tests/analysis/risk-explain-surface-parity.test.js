@@ -83,6 +83,28 @@ await withTemporaryEnv(env, async () => {
     assert.deepEqual(normalizeRiskExplain(apiResponse.parsed?.result), expected, 'expected API risk explain output to match CLI');
     assert.deepEqual(normalizeRiskExplain(mcpPayload.result), expected, 'expected MCP risk explain output to match CLI');
 
+    const snakeCaseMcp = await harness.runMcp('risk_explain', {
+      ...args,
+      filters: {
+        flow_id: flow?.flowId,
+        source_rule: flow?.source?.ruleId,
+        sink_rule: flow?.sink?.ruleId
+      }
+    });
+    assert.equal(snakeCaseMcp.ok, true, 'expected snake_case MCP risk explain request to succeed');
+    assert.deepEqual(normalizeRiskExplain(snakeCaseMcp.result), expected, 'expected snake_case MCP risk explain output to match CLI');
+
+    const kebabCaseMcp = await harness.runMcp('risk_explain', {
+      ...args,
+      filters: {
+        'flow-id': flow?.flowId,
+        'source-rule': flow?.source?.ruleId,
+        'sink-rule': flow?.sink?.ruleId
+      }
+    });
+    assert.equal(kebabCaseMcp.ok, true, 'expected kebab-case MCP risk explain request to succeed');
+    assert.deepEqual(normalizeRiskExplain(kebabCaseMcp.result), expected, 'expected kebab-case MCP risk explain output to match CLI');
+
     const emptyArgs = {
       ...args,
       filters: { flowId: 'sha1:ffffffffffffffffffffffffffffffffffffffff' }

@@ -465,6 +465,34 @@ await withTemporaryEnv(env, async () => {
     const expected = normalizeDelta(cliRun.parsed);
     assert.deepEqual(normalizeDelta(apiRun.parsed?.result), expected, 'expected API risk delta output to match CLI');
     assert.deepEqual(normalizeDelta(mcpRun.result), expected, 'expected MCP risk delta output to match CLI');
+
+    const snakeCaseMcp = await harness.runMcp('risk_delta', {
+      repoPath: repoRoot,
+      from: 'snap:snap-20260319000000-riska',
+      to: 'snap:snap-20260319000000-riskb',
+      seed: 'file:src/a.js',
+      includePartialFlows: true,
+      filters: {
+        flow_id: 'sha1:ffffffffffffffffffffffffffffffffffffffff',
+        source_rule: 'source.rule.synthetic',
+        sink_rule: 'sink.rule.synthetic'
+      }
+    });
+    assert.equal(snakeCaseMcp.ok, true, 'expected snake_case MCP risk delta call to succeed');
+
+    const kebabCaseMcp = await harness.runMcp('risk_delta', {
+      repoPath: repoRoot,
+      from: 'snap:snap-20260319000000-riska',
+      to: 'snap:snap-20260319000000-riskb',
+      seed: 'file:src/a.js',
+      includePartialFlows: true,
+      filters: {
+        'flow-id': 'sha1:ffffffffffffffffffffffffffffffffffffffff',
+        'source-rule': 'source.rule.synthetic',
+        'sink-rule': 'sink.rule.synthetic'
+      }
+    });
+    assert.equal(kebabCaseMcp.ok, true, 'expected kebab-case MCP risk delta call to succeed');
   } finally {
     await harness.close();
   }

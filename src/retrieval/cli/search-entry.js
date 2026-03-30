@@ -1,24 +1,8 @@
 import { getToolVersion } from '../../../tools/dict-utils/tool.js';
 import { ANSI } from '../../shared/cli/ansi-utils.js';
 import { ERROR_CODES } from '../../shared/error-codes.js';
-import { getSearchUsage, parseSearchArgs, resolveSearchMode } from '../cli-args.js';
+import { getSearchUsage, parseSearchArgs, resolveSearchMode, SEARCH_VALUE_FLAGS } from '../cli-args.js';
 import { formatHumanError, inferJsonOutputFromArgs } from './runner.js';
-
-const VALUE_FLAGS = new Set([
-  '--type',
-  '--author',
-  '--import',
-  '--repo',
-  '--modified-since',
-  '--bm25-k1',
-  '--path',
-  '--lang',
-  '--ext',
-  '--ann-backend',
-  '--graph-ranking-max-work',
-  '--fts-weights',
-  '--risk'
-]);
 
 const resolveHelpWidth = (stdout = process.stdout) => {
   const envColumns = Number.parseInt(String(process.env.COLUMNS || ''), 10);
@@ -64,7 +48,7 @@ const emitCliError = ({ stdout, message, jsonOutput }) => {
 const findMissingValueFlag = (args) => {
   for (let index = 0; index < args.length; index += 1) {
     const current = String(args[index] || '');
-    if (!VALUE_FLAGS.has(current)) continue;
+    if (!SEARCH_VALUE_FLAGS.has(current)) continue;
     const next = index + 1 < args.length ? String(args[index + 1] || '') : '';
     if (!next || next === '--' || next.startsWith('--')) {
       return current;
