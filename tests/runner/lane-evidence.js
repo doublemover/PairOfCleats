@@ -36,6 +36,23 @@ const toRoundedMs = (value) => {
   return Math.max(0, Number(numeric.toFixed(3)));
 };
 
+const quantile = (values, ratio) => {
+  if (!Array.isArray(values) || !values.length) return null;
+  const numericRatio = Number(ratio);
+  if (!Number.isFinite(numericRatio)) return null;
+  const sorted = values
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  const boundedRatio = Math.min(1, Math.max(0, numericRatio));
+  const index = Math.min(
+    sorted.length - 1,
+    Math.max(0, Math.ceil(sorted.length * boundedRatio) - 1)
+  );
+  return toRoundedMs(sorted[index]);
+};
+
 const familyFromId = (id) => {
   const parts = String(id || '').split('/').filter(Boolean);
   return parts.slice(0, Math.min(2, parts.length)).join('/');
@@ -210,6 +227,19 @@ export const buildLaneEvidenceReport = ({ laneRows = [] } = {}) => {
     ));
 
   const families = summarizeRows(allRows, (row) => familyFromId(row.id));
+  const topSlowest = allRows
+    .filter((row) => Number.isFinite(row.durationMs))
+    .sort((a, b) => (
+      Number(b.durationMs) - Number(a.durationMs)
+    ) || String(a.id).localeCompare(String(b.id)))
+    .slice(0, 10)
+    .map((row) => ({
+      id: row.id,
+      path: row.path,
+      durationMs: row.durationMs,
+      family: familyFromId(row.id),
+      hotspotKind: hotspotKindForId(row.id)
+    }));
   const hotspots = summarizeRows(
     allRows.filter((row) => hotspotKindForId(row.id) !== 'other'),
     (row) => hotspotKindForId(row.id)
@@ -227,6 +257,7 @@ export const buildLaneEvidenceReport = ({ laneRows = [] } = {}) => {
       exactDuplicates: exactDuplicates.length,
       hotspotKinds: hotspots.length,
       families: families.length,
+      topSlowest: topSlowest.length,
       timingCoverage: {
         freshArtifactTests: allRows.filter((row) => row.timingSource === 'timing-artifact').length,
         historicalFallbackTests: allRows.filter((row) => row.timingSource === 'historical-test-times').length,
@@ -243,6 +274,14 @@ export const buildLaneEvidenceReport = ({ laneRows = [] } = {}) => {
       knownDurationMs: toRoundedMs(
         lane.rows.reduce((sum, row) => sum + (Number.isFinite(row.durationMs) ? Number(row.durationMs) : 0), 0)
       ),
+      p50DurationMs: quantile(
+        lane.rows.filter((row) => Number.isFinite(row.durationMs)).map((row) => row.durationMs),
+        0.5
+      ),
+      p95DurationMs: quantile(
+        lane.rows.filter((row) => Number.isFinite(row.durationMs)).map((row) => row.durationMs),
+        0.95
+      ),
       resolvedTimingArtifactPaths: Array.isArray(lane.resolvedTimingArtifactPaths)
         ? lane.resolvedTimingArtifactPaths
         : [],
@@ -253,7 +292,8 @@ export const buildLaneEvidenceReport = ({ laneRows = [] } = {}) => {
     })),
     exactDuplicates,
     families,
-    hotspots
+    hotspots,
+    topSlowest
   };
 };
 
@@ -277,7 +317,9 @@ const renderMarkdown = ({ report, root, historicalTimingsPath }) => {
   for (const lane of report.lanes) {
     lines.push(
       `- \`${lane.lane}\`: ${lane.totalTests} tests, ${lane.knownDurationTests} with timings, `
-      + `${lane.knownDurationMs ?? 0} ms known duration, target ${lane.targetMaxDurationSeconds}s`
+      + `${lane.knownDurationMs ?? 0} ms known duration, `
+      + `p50=${lane.p50DurationMs ?? 'n/a'} ms, p95=${lane.p95DurationMs ?? 'n/a'} ms, `
+      + `target ${lane.targetMaxDurationSeconds}s`
     );
     if (lane.resolvedTimingArtifactPaths?.length) {
       lines.push(`  fresh artifacts: ${lane.resolvedTimingArtifactPaths.map((item) => `\`${item}\``).join(', ')}`);
@@ -299,6 +341,12 @@ const renderMarkdown = ({ report, root, historicalTimingsPath }) => {
   for (const entry of report.hotspots) {
     lines.push(`- \`${entry.key}\`: ${entry.count} tests, ${entry.knownDurationMs} ms known duration`);
     if (entry.note) lines.push(`  ${entry.note}`);
+  }
+  lines.push('', '## Top Slowest Tests', '');
+  for (const entry of report.topSlowest) {
+    lines.push(`- \`${entry.id}\`: ${entry.durationMs} ms`);
+    if (entry.family) lines.push(`  family: \`${entry.family}\``);
+    if (entry.hotspotKind && entry.hotspotKind !== 'other') lines.push(`  hotspot: \`${entry.hotspotKind}\``);
   }
   lines.push('');
   return `${lines.join('\n')}\n`;

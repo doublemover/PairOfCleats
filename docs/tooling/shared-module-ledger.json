@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-03-29T23:22:55.566Z",
+  "generatedAt": "2026-03-30T06:05:16.365Z",
   "generatedBy": "node tools/docs/shared-module-ledger.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "census": {
@@ -19909,6 +19909,7 @@
             "tools/service/indexer-service/job-completion.js",
             "tools/service/indexer-service/job-executor.js",
             "tools/service/indexer-service/progress-monitor.js",
+            "tools/service/indexer-service/queue-identity.js",
             "tools/service/indexer-service/queue-worker.js",
             "tools/service/lease-policy.js",
             "tools/service/logger.js",
@@ -19922,7 +19923,7 @@
             "tools/service/shutdown-state.js",
             "tools/service/subprocess-log.js"
           ],
-          "fileCount": 59
+          "fileCount": 60
         },
         {
           "issueId": "417",
@@ -21177,6 +21178,7 @@
             "tests/cli/general/tui-build-install.test.js",
             "tests/cli/general/tui-install-missing-cargo.test.js",
             "tests/cli/search/ann-rrf-contract.test.js",
+            "tests/cli/search/code-contract-matrix.test.js",
             "tests/cli/search/contract-matrix.test.js",
             "tests/cli/search/determinism.test.js",
             "tests/cli/search/help-surface.test.js",
@@ -22684,6 +22686,7 @@
             "tests/services/indexer/load-shedding-cli.test.js",
             "tests/services/indexer/metrics-contract-cli.test.js",
             "tests/services/indexer/quarantine-cli.test.js",
+            "tests/services/indexer/queue-identity-cli.test.js",
             "tests/services/indexer/repair-cli.test.js",
             "tests/services/indexer/service-repos-failure-reason.test.js",
             "tests/services/indexer/service-sync-failure-exit.test.js",
@@ -23636,6 +23639,7 @@
             "tools/testing/generate-lane-manifests.js",
             "tools/testing/generate-suite-taxonomy-report.js",
             "tools/testing/lane-audit.js",
+            "tools/testing/refresh-governance.js",
             "tools/testing/run-search-showcase.js",
             "tools/testing/search-debug-capture.js",
             "tools/testing/shared-module-cycles.js",
@@ -23643,7 +23647,7 @@
             "tools/testing/shared-module-performance.js",
             "tools/testing/terminal-screen.js"
           ],
-          "fileCount": 2545
+          "fileCount": 2548
         },
         {
           "issueId": "420",
@@ -23795,7 +23799,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4275
+          "fileCount": 4279
         }
       ],
       "repoCoverage": {
@@ -25246,6 +25250,7 @@
           "tests/cli/general/tui-build-install.test.js",
           "tests/cli/general/tui-install-missing-cargo.test.js",
           "tests/cli/search/ann-rrf-contract.test.js",
+          "tests/cli/search/code-contract-matrix.test.js",
           "tests/cli/search/contract-matrix.test.js",
           "tests/cli/search/determinism.test.js",
           "tests/cli/search/help-surface.test.js",
@@ -26753,6 +26758,7 @@
           "tests/services/indexer/load-shedding-cli.test.js",
           "tests/services/indexer/metrics-contract-cli.test.js",
           "tests/services/indexer/quarantine-cli.test.js",
+          "tests/services/indexer/queue-identity-cli.test.js",
           "tests/services/indexer/repair-cli.test.js",
           "tests/services/indexer/service-repos-failure-reason.test.js",
           "tests/services/indexer/service-sync-failure-exit.test.js",
@@ -27994,6 +28000,7 @@
           "tools/service/indexer-service/job-completion.js",
           "tools/service/indexer-service/job-executor.js",
           "tools/service/indexer-service/progress-monitor.js",
+          "tools/service/indexer-service/queue-identity.js",
           "tools/service/indexer-service/queue-worker.js",
           "tools/service/lease-policy.js",
           "tools/service/logger.js",
@@ -28042,6 +28049,7 @@
           "tools/testing/generate-lane-manifests.js",
           "tools/testing/generate-suite-taxonomy-report.js",
           "tools/testing/lane-audit.js",
+          "tools/testing/refresh-governance.js",
           "tools/testing/run-search-showcase.js",
           "tools/testing/search-debug-capture.js",
           "tools/testing/shared-module-cycles.js",
@@ -28130,7 +28138,7 @@
             "src/integrations/core/embeddings.js",
             "src/integrations/core/enrichment-state.js"
           ],
-          "fileCount": 126
+          "fileCount": 127
         },
         {
           "issueId": "423",
@@ -28173,7 +28181,7 @@
             "src/index/build/artifacts/minhash-packed.js",
             "src/index/build/artifacts/piece-registry.js"
           ],
-          "fileCount": 3191
+          "fileCount": 3193
         },
         {
           "issueId": "424",
@@ -28306,7 +28314,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4260
+          "fileCount": 4264
         },
         {
           "issueId": "427",
@@ -28349,7 +28357,7 @@
             "src/index/build/artifacts/minhash-packed.js",
             "src/index/build/artifacts/piece-registry.js"
           ],
-          "fileCount": 857
+          "fileCount": 858
         },
         {
           "issueId": "428",
@@ -28393,7 +28401,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 2545
+          "fileCount": 2548
         }
       ]
     }

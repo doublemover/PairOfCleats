@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-03-28T12:32:52.823Z",
+  "generatedAt": "2026-03-30T06:06:17.185Z",
   "summary": {
-    "totalTests": 2609,
+    "totalTests": 2170,
     "byCategory": {
-      "hero": 2459,
-      "matrix": 47,
-      "meta": 102,
+      "hero": 1917,
+      "matrix": 153,
+      "meta": 91,
       "soak": 1,
-      "heavy-runtime": 0
+      "heavy-runtime": 8
     },
     "peripheralGroups": 4,
     "ownershipSuites": 16,
@@ -28,45 +28,45 @@
     },
     {
       "lane": "ci-lite",
-      "totalTests": 1070,
+      "totalTests": 770,
       "byCategory": {
-        "hero": 1009,
-        "matrix": 27,
-        "meta": 34,
-        "soak": 0,
+        "hero": 639,
+        "matrix": 106,
+        "meta": 24,
+        "soak": 1,
         "heavy-runtime": 0
       }
     },
     {
       "lane": "ci",
-      "totalTests": 141,
+      "totalTests": 120,
       "byCategory": {
-        "hero": 128,
-        "matrix": 7,
-        "meta": 6,
+        "hero": 89,
+        "matrix": 27,
+        "meta": 4,
         "soak": 0,
         "heavy-runtime": 0
       }
     },
     {
       "lane": "ci-long",
-      "totalTests": 100,
+      "totalTests": 18,
       "byCategory": {
         "hero": 0,
-        "matrix": 3,
+        "matrix": 10,
         "meta": 0,
-        "soak": 1,
-        "heavy-runtime": 96
+        "soak": 0,
+        "heavy-runtime": 8
       }
     }
   ],
   "peripheralGroups": [
     {
       "key": "tooling/install",
-      "totalTests": 35,
+      "totalTests": 25,
       "byCategory": {
-        "hero": 35,
-        "matrix": 0,
+        "hero": 24,
+        "matrix": 1,
         "meta": 0,
         "soak": 0,
         "heavy-runtime": 0
@@ -74,10 +74,10 @@
     },
     {
       "key": "tooling/vscode",
-      "totalTests": 29,
+      "totalTests": 25,
       "byCategory": {
-        "hero": 29,
-        "matrix": 0,
+        "hero": 22,
+        "matrix": 3,
         "meta": 0,
         "soak": 0,
         "heavy-runtime": 0
@@ -85,10 +85,10 @@
     },
     {
       "key": "tooling/sublime",
-      "totalTests": 22,
+      "totalTests": 9,
       "byCategory": {
-        "hero": 22,
-        "matrix": 0,
+        "hero": 8,
+        "matrix": 1,
         "meta": 0,
         "soak": 0,
         "heavy-runtime": 0

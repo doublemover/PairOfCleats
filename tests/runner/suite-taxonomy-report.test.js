@@ -31,6 +31,7 @@ const report = buildSuiteTaxonomyReport({
 
 assert.equal(report.summary.totalTests, 5);
 assert.equal(report.summary.byCategory.hero, 1);
+assert.equal(report.summary.byCategory['heavy-runtime'], 1);
 assert.equal(report.peripheralGroups.find((entry) => entry.key === 'tooling/vscode')?.byCategory?.matrix, 1);
 assert.equal(report.ownership.suites[0].replacementIds[0], 'lang/fixtures-sample/python-metadata');
 

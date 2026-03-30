@@ -112,6 +112,20 @@ export const generateSuiteTaxonomyReport = async ({
   outputJsonPath = path.join(process.cwd(), 'docs', 'testing', 'suite-taxonomy.json'),
   outputMarkdownPath = path.join(process.cwd(), 'docs', 'testing', 'suite-taxonomy.md')
 } = {}) => {
+  const manifestConfig = await loadLaneManifestConfig({ root });
+  const manifests = new Map();
+  const laneById = new Map();
+  for (const lane of manifestConfig.orderedLanes.keys()) {
+    const manifest = await loadOrderedLaneManifest({ root, lane, config: manifestConfig });
+    if (!manifest) continue;
+    manifests.set(lane, manifest);
+    for (const entry of Array.isArray(manifest.tests) ? manifest.tests : []) {
+      const id = String(entry?.id || '').trim();
+      if (!id || laneById.has(id)) continue;
+      laneById.set(id, lane);
+    }
+  }
+
   const runRules = loadRunRules({ root });
   const discovered = await discoverTests({
     testsDir: path.join(root, 'tests'),
@@ -120,14 +134,8 @@ export const generateSuiteTaxonomyReport = async ({
   });
   const tests = discovered.map((test) => ({
     ...test,
-    suiteCategory: inferSuiteCategory({ id: test.id }).category
+    suiteCategory: inferSuiteCategory({ id: test.id, lane: laneById.get(test.id) || '' }).category
   }));
-  const manifestConfig = await loadLaneManifestConfig({ root });
-  const manifests = new Map();
-  for (const lane of manifestConfig.orderedLanes.keys()) {
-    const manifest = await loadOrderedLaneManifest({ root, lane, config: manifestConfig });
-    if (manifest) manifests.set(lane, manifest);
-  }
   const ownership = await loadConsolidationOwnership({ root });
   const report = buildSuiteTaxonomyReport({
     tests,

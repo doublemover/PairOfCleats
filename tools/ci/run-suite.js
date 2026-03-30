@@ -216,7 +216,8 @@ const main = async () => {
       { label: 'Lint', command: npmCommand, args: [...npmPrefix, 'run', 'lint'] },
       { label: 'Config budget', command: npmCommand, args: [...npmPrefix, 'run', 'config:budget'] },
       { label: 'Env usage guardrail', command: npmCommand, args: [...npmPrefix, 'run', 'env:check'] },
-      { label: 'Command surface audit', command: process.execPath, args: ['tools/ci/check-command-surface.js'] }
+      { label: 'Command surface audit', command: process.execPath, args: ['tools/ci/check-command-surface.js'] },
+      { label: 'Lane governance audit', command: process.execPath, args: ['tools/testing/lane-audit.js'] }
     ];
 
   const steps = [

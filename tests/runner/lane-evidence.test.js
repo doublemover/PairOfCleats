@@ -40,6 +40,9 @@ assert.equal(report.summary.exactDuplicates, 1);
 assert.equal(report.exactDuplicates[0].id, 'tooling/lsp/a');
 assert.equal(report.families[0].key, 'tooling/lsp');
 assert.equal(report.hotspots[0].key, 'lsp-bootstrap');
+assert.equal(report.topSlowest[0].id, 'storage/sqlite/c');
+assert.equal(report.lanes[0].p50DurationMs, 800);
+assert.equal(report.lanes[1].p95DurationMs, 2200);
 assert.equal(report.summary.timingCoverage.freshArtifactTests, 1);
 assert.deepEqual(report.lanes[0].resolvedTimingArtifactPaths, ['.testLogs/ci-testRunTimes.txt']);
 

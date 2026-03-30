@@ -1,14 +1,14 @@
 # Suite Taxonomy Report
 
-Generated: 2026-03-28T12:32:52.823Z
+Generated: 2026-03-30T06:06:17.185Z
 
 ## Summary
 
-- `hero`: 2459
-- `matrix`: 47
-- `meta`: 102
+- `hero`: 1917
+- `matrix`: 153
+- `meta`: 91
 - `soak`: 1
-- `heavy-runtime`: 0
+- `heavy-runtime`: 8
 - ownership suites tracked: 16
 - replacement ids tracked: 58
 
@@ -18,27 +18,30 @@ Generated: 2026-03-28T12:32:52.823Z
   hero: 31
   matrix: 2
   meta: 2
-- `ci-lite`: 1070 tests
-  hero: 1009
-  matrix: 27
-  meta: 34
-- `ci`: 141 tests
-  hero: 128
-  matrix: 7
-  meta: 6
-- `ci-long`: 100 tests
-  matrix: 3
+- `ci-lite`: 770 tests
+  hero: 639
+  matrix: 106
+  meta: 24
   soak: 1
-  heavy-runtime: 96
+- `ci`: 120 tests
+  hero: 89
+  matrix: 27
+  meta: 4
+- `ci-long`: 18 tests
+  matrix: 10
+  heavy-runtime: 8
 
 ## Peripheral Tooling Groups
 
-- `tooling/install`: 35 tests
-  hero: 35
-- `tooling/vscode`: 29 tests
-  hero: 29
-- `tooling/sublime`: 22 tests
+- `tooling/install`: 25 tests
+  hero: 24
+  matrix: 1
+- `tooling/vscode`: 25 tests
   hero: 22
+  matrix: 3
+- `tooling/sublime`: 9 tests
+  hero: 8
+  matrix: 1
 - `tooling/config-inventory`: 4 tests
   meta: 4
 
