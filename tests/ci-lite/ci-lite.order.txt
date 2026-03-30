@@ -167,7 +167,6 @@ indexing/build-cleanup-pending-timeout
 indexing/embeddings/cache-index-contract-matrix
 indexing/cache/cas-reuse-across-repos
 indexing/postings/quantize
-retrieval/federation/selection-contract-matrix
 lang/ruby/end-comment
 shared/artifact-io/varint-safe-bounds
 graph/context-pack-skip-resort

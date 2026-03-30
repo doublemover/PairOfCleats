@@ -9,6 +9,8 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
 const cliEntryPath = path.join(root, 'tools', 'search', 'cli-entry.js');
+const searchPath = path.join(root, 'search.js');
+const searchEntryPath = path.join(root, 'src', 'retrieval', 'cli', 'search-entry.js');
 const env = applyTestEnv({ syncProcess: false });
 
 const runCli = (args) => spawnSync(process.execPath, [cliEntryPath, ...args], {
@@ -17,9 +19,44 @@ const runCli = (args) => spawnSync(process.execPath, [cliEntryPath, ...args], {
   env
 });
 
+const runLegacySearch = (args, localEnv = env) => spawnSync(process.execPath, [searchPath, ...args], {
+  cwd: root,
+  encoding: 'utf8',
+  env: localEnv
+});
+
+const helpEnv = { ...process.env };
+delete helpEnv.PAIROFCLEATS_TESTING;
+delete helpEnv.PAIROFCLEATS_SUPPRESS_LEGACY_ENTRYPOINT_WARNING;
+delete helpEnv.CI;
+
+const source = await fsPromises.readFile(searchEntryPath, 'utf8');
+const helpIndex = source.indexOf('hasHelpArg(args)');
+const versionIndex = source.indexOf('hasVersionArg(args)');
+const importIndex = source.indexOf("await import('../../integrations/core/index.js')");
+
+assert.notEqual(helpIndex, -1);
+assert.notEqual(versionIndex, -1);
+assert.notEqual(importIndex, -1);
+assert.ok(helpIndex < importIndex && versionIndex < importIndex);
+assert.ok(!/from ['"]\.\.\/\.\.\/integrations\/core\/index\.js['"]/.test(source));
+assert.ok(/import\(['"]\.\.\/\.\.\/integrations\/core\/index\.js['"]\)/.test(source));
+
 const version = runCli(['--version']);
 assert.equal(version.status, 0);
 assert.match(version.stdout, /^\d+\.\d+\.\d+(?:[-+][^\r\n]+)?\r?\n?$/);
+
+const bareHelp = runLegacySearch([], helpEnv);
+assert.notEqual(bareHelp.status, 0);
+const bareHelpOutput = `${bareHelp.stdout || ''}\n${bareHelp.stderr || ''}`;
+assert.match(bareHelpOutput, /\[deprecated\] search\.js/);
+for (const flag of ['--calls', '--uses', '--author', '--import', '--explain']) {
+  assert.match(bareHelpOutput, new RegExp(flag.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')));
+}
+
+const cliHelp = spawnSync(process.execPath, [cliEntryPath, '--help'], { encoding: 'utf8' });
+assert.equal(cliHelp.status, 0);
+assert.match(`${cliHelp.stdout || ''}${cliHelp.stderr || ''}`, /Usage: search/);
 
 const invalidMode = runCli(['--mode', 'wat', '--', 'alpha']);
 assert.equal(invalidMode.status, 1);
@@ -33,6 +70,34 @@ assert.equal(removedFlag.status, 1);
 assert.match(stripAnsi(removedFlag.stderr), /Search Error/);
 assert.match(stripAnsi(removedFlag.stderr), /flag --human/);
 assert.match(stripAnsi(removedFlag.stderr), /next switch to --json/);
+
+for (const flag of [
+  '--type',
+  '--author',
+  '--import',
+  '--repo',
+  '--modified-since',
+  '--bm25-k1',
+  '--path',
+  '--lang',
+  '--ext',
+  '--ann-backend',
+  '--graph-ranking-max-work',
+  '--fts-weights',
+  '--risk'
+]) {
+  const result = runLegacySearch(['test', flag], env);
+  assert.notEqual(result.status, 0, `expected non-zero exit for ${flag}`);
+  assert.match(`${result.stdout || ''}${result.stderr || ''}`, new RegExp(`Missing value for ${flag.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}`));
+}
+
+for (const flag of ['--human', '--headline']) {
+  const result = runLegacySearch(['test', flag], helpEnv);
+  assert.notEqual(result.status, 0, `expected non-zero exit for ${flag}`);
+  const output = `${result.stdout || ''}${result.stderr || ''}`.toLowerCase();
+  assert.match(output, /removed/);
+  assert.match(output, new RegExp(flag.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&').toLowerCase()));
+}
 
 const tempRoot = resolveTestCachePath(root, 'search-non-result-missing-index');
 const repoRoot = path.join(tempRoot, 'repo');

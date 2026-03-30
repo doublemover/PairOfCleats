@@ -68,8 +68,11 @@ function run(args, label) {
   }
 }
 
-run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index');
-await runSqliteBuild(repoRoot);
+run(
+  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
+  'build index'
+);
+await runSqliteBuild(repoRoot, { mode: 'code' });
 
 const userConfig = loadUserConfig(repoRoot);
 const sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
@@ -124,6 +127,8 @@ const searchResult = spawnSync(
     'index',
     '--json',
     '--stats',
+    '--mode',
+    'code',
     '--ann',
     '--ann-backend',
     'sqlite-extension',
@@ -154,7 +159,10 @@ if (!stats.annExtension?.available?.code) {
 }
 
 await fsPromises.rm(deletableFile, { force: true });
-run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index (incremental)');
+run(
+  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
+  'build index (incremental)'
+);
 await runSqliteBuild(repoRoot, { mode: 'code', incremental: true });
 
 const sqlitePathsAfter = resolveSqlitePaths(repoRoot, userConfig);

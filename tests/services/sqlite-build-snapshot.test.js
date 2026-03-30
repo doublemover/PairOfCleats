@@ -14,25 +14,33 @@ import { resolveTestCachePath } from '../helpers/test-cache.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'sqlite-build-snapshot-service');
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
-await fs.cp(fixtureRoot, repoRoot, { recursive: true });
+await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+await fs.mkdir(cacheRoot, { recursive: true });
 
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
   testConfig: {
     indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false,
       embeddings: {
         enabled: false,
         mode: 'off',
         lancedb: { enabled: false },
         hnsw: { enabled: false }
       }
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
   },
   extraEnv: { PAIROFCLEATS_WORKER_POOL: 'off' }

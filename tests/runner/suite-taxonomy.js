@@ -12,6 +12,7 @@ const META_IDS = Object.freeze(new Set([
 ]));
 
 const HERO_PREFIXES = Object.freeze([
+  'smoke/',
   'tooling/install/',
   'tooling/vscode/',
   'tooling/sublime/'
@@ -49,15 +50,15 @@ export const inferSuiteCategory = ({ id, lane = '', tags = [] } = {}) => {
   if (META_IDS.has(normalizedId) || META_PREFIXES.some((prefix) => normalizedId.startsWith(prefix))) {
     return { category: 'meta', reason: 'meta-cohort-prefix' };
   }
+  if (HERO_PREFIXES.some((prefix) => normalizedId.startsWith(prefix))) {
+    return { category: 'hero', reason: 'peripheral-tooling-or-smoke-surface' };
+  }
   if (
     normalizedLane === 'ci-long'
     || normalizedTags.includes('long')
     || testIdHasSegment(normalizedId, 'heavy-runtime')
   ) {
     return { category: 'heavy-runtime', reason: 'long-lane-or-tag' };
-  }
-  if (HERO_PREFIXES.some((prefix) => normalizedId.startsWith(prefix))) {
-    return { category: 'hero', reason: 'peripheral-tooling-surface' };
   }
   return { category: 'hero', reason: 'default-standalone-behavior' };
 };

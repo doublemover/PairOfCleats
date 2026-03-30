@@ -1,5 +1,24 @@
 import { getToolVersion } from '../../../tools/dict-utils/tool.js';
 import { ANSI } from '../../shared/cli/ansi-utils.js';
+import { ERROR_CODES } from '../../shared/error-codes.js';
+import { getSearchUsage, parseSearchArgs, resolveSearchMode } from '../cli-args.js';
+import { formatHumanError, inferJsonOutputFromArgs } from './runner.js';
+
+const VALUE_FLAGS = new Set([
+  '--type',
+  '--author',
+  '--import',
+  '--repo',
+  '--modified-since',
+  '--bm25-k1',
+  '--path',
+  '--lang',
+  '--ext',
+  '--ann-backend',
+  '--graph-ranking-max-work',
+  '--fts-weights',
+  '--risk'
+]);
 
 const resolveHelpWidth = (stdout = process.stdout) => {
   const envColumns = Number.parseInt(String(process.env.COLUMNS || ''), 10);
@@ -34,6 +53,26 @@ const cyan = (text, color = true) => color ? `${ANSI.fgCyan}${text}${ANSI.reset}
 
 const formatFlagList = (items, width) => items.flatMap((item) => wrapParagraph(item, width, '  '));
 
+const emitCliError = ({ stdout, message, jsonOutput }) => {
+  if (jsonOutput) {
+    stdout.write(`${JSON.stringify({ ok: false, code: ERROR_CODES.INVALID_REQUEST, message })}\n`);
+    return;
+  }
+  process.stderr.write(formatHumanError(message, ERROR_CODES.INVALID_REQUEST));
+};
+
+const findMissingValueFlag = (args) => {
+  for (let index = 0; index < args.length; index += 1) {
+    const current = String(args[index] || '');
+    if (!VALUE_FLAGS.has(current)) continue;
+    const next = index + 1 < args.length ? String(args[index + 1] || '') : '';
+    if (!next || next === '--' || next.startsWith('--')) {
+      return current;
+    }
+  }
+  return null;
+};
+
 export async function runCli({
   rawArgs = process.argv.slice(2),
   stdout = process.stdout
@@ -46,6 +85,52 @@ export async function runCli({
   if (hasVersionArg(args)) {
     printVersion(stdout);
     return 0;
+  }
+
+  const { jsonOutput } = inferJsonOutputFromArgs(args);
+  const missingValueFlag = findMissingValueFlag(args);
+  if (missingValueFlag) {
+    emitCliError({
+      stdout,
+      jsonOutput,
+      message: `Missing value for ${missingValueFlag}.`
+    });
+    return 1;
+  }
+
+  let argv;
+  try {
+    argv = parseSearchArgs(args);
+  } catch (error) {
+    emitCliError({
+      stdout,
+      jsonOutput,
+      message: error?.message || 'Invalid arguments.'
+    });
+    return 1;
+  }
+
+  const query = Array.isArray(argv?._)
+    ? argv._.map((value) => String(value || '').trim()).filter(Boolean).join(' ').trim()
+    : '';
+  if (!query) {
+    emitCliError({
+      stdout,
+      jsonOutput,
+      message: getSearchUsage()
+    });
+    return 1;
+  }
+
+  try {
+    resolveSearchMode(argv.mode);
+  } catch (error) {
+    emitCliError({
+      stdout,
+      jsonOutput,
+      message: error?.message || 'Invalid --mode.'
+    });
+    return 1;
   }
 
   const { search } = await import('../../integrations/core/index.js');

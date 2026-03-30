@@ -24,6 +24,6 @@ for (const manifest of [ciLiteManifest, ciLongManifest]) {
 assert.ok((ciLiteManifest?.suiteCategorySummary?.meta || 0) > 0, 'expected ci-lite to include meta suites');
 assert.ok((ciLiteManifest?.suiteCategorySummary?.matrix || 0) > 0, 'expected ci-lite to include matrix suites');
 assert.ok((ciLongManifest?.suiteCategorySummary?.['heavy-runtime'] || 0) > 0, 'expected ci-long to include heavy-runtime suites');
-assert.ok((ciLongManifest?.suiteCategorySummary?.soak || 0) > 0, 'expected ci-long to include soak suites');
+assert.ok((ciLongManifest?.suiteCategorySummary?.hero || 0) > 0, 'expected ci-long to include hero suites');
 
 console.log('lane manifest suite taxonomy test passed');

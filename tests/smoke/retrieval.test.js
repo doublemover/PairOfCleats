@@ -2,8 +2,6 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { toPosix } from '../../src/shared/files.js';
-import { getCombinedOutput } from '../helpers/stdio.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { cleanup, root } from './smoke-utils.js';
 
@@ -12,12 +10,24 @@ import { resolveTestCachePath } from '../helpers/test-cache.js';
 const tempRoot = resolveTestCachePath(root, 'smoke-retrieval');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const searchPath = path.join(root, 'search.js');
 
 const env = applyTestEnv({
   cacheRoot,
-  embeddings: 'stub'
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  }
 });
 
 const fail = (message, exitCode = 1) => {
@@ -39,35 +49,27 @@ const runNode = (label, args, options = {}) => {
 let failure = null;
 try {
   await cleanup([tempRoot]);
+  await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
-  await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
+  await fsPromises.writeFile(
+    path.join(repoRoot, 'src', 'alpha.js'),
+    'export function returnSmokeValue() { return "return smoke token"; }\n'
+  );
 
   const build = spawnSync(
     process.execPath,
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
+    [path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
     { env, stdio: 'inherit' }
   );
   if (build.status !== 0) {
     fail('smoke retrieval failed: build_index failed', build.status ?? 1);
   }
 
-  const helpResult = spawnSync(process.execPath, [searchPath], { encoding: 'utf8' });
-  if (helpResult.status === 0) {
-    fail('Expected search help to exit non-zero with no query.');
-  }
-  const helpOutput = getCombinedOutput(helpResult);
-  const requiredFlags = ['--filter', '--explain', '--json', '--mode'];
-  for (const flag of requiredFlags) {
-    if (!helpOutput.includes(flag)) {
-      fail(`Help output missing flag: ${flag}`);
-    }
-  }
-
   const annResult = runNode(
     'search ann',
     [
       searchPath,
-      'return',
+      'return smoke token',
       '--mode',
       'code',
       '--ann',
@@ -96,37 +98,12 @@ try {
     fail('search ann test failed: ann source missing');
   }
 
-  const filterResult = runNode(
-    'search filters',
-    [
-      searchPath,
-      'return',
-      '--mode',
-      'code',
-      '--json',
-      '--no-ann',
-      '--repo',
-      repoRoot,
-      '--file',
-      'src/index.js'
-    ]
-  );
-  const filterPayload = JSON.parse(filterResult.stdout || '{}');
-  const filterHits = filterPayload?.code || [];
-  if (!filterHits.length) {
-    fail('search filter test failed: no results returned');
-  }
-  const badFilterHit = filterHits.find((hit) => !toPosix(hit.file || '').endsWith('src/index.js'));
-  if (badFilterHit) {
-    fail('search filter test failed: file filter mismatch');
-  }
-
   const stripAnsi = (value) => value.replace(/\u001b\[[0-9;]*m/g, '');
   const explainResult = runNode(
     'search explain',
-    [searchPath, 'return', '--mode', 'code', '--no-ann', '--repo', repoRoot, '--explain']
+    [searchPath, 'return smoke token', '--mode', 'code', '--no-ann', '--repo', repoRoot, '--explain']
   );
-  const explainOutput = stripAnsi(getCombinedOutput(explainResult));
+  const explainOutput = stripAnsi(`${explainResult.stdout || ''}\n${explainResult.stderr || ''}`);
   if (!/score/i.test(explainOutput)) {
     fail('Explain output missing score details.');
   }

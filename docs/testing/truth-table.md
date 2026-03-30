@@ -103,7 +103,7 @@ This document maps user-visible behavior to implementation seams, primary knobs,
 - Claim: explain output includes score breakdowns and routing hints.
   - Implementation: `src/retrieval/output/explain.js`, `src/retrieval/output/format.js`, `src/retrieval/cli/render.js`
   - Config: CLI `--explain`, `--why`
-  - Tests: `tests/cli/search/explain-and-order-contract-matrix.test.js`, `tests/cli/search/ann-rrf-contract.test.js`, `tests/retrieval/contracts/result-shape.test.js`, `tests/retrieval/query/query-contract-matrix.test.js`
+  - Tests: `tests/cli/search/contract-matrix.test.js`, `tests/cli/search/ann-rrf-contract.test.js`, `tests/retrieval/contracts/result-shape.test.js`, `tests/retrieval/query/query-contract-matrix.test.js`
 
 - Claim: query parsing is grammar-first with recoverable fallback.
   - Implementation: `src/retrieval/query.js`, `src/retrieval/cli/query-plan.js`, `src/retrieval/query-intent.js`

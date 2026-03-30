@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-03-29T22:53:43.949Z",
+  "generatedAt": "2026-03-29T23:22:55.566Z",
   "generatedBy": "node tools/docs/shared-module-ledger.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "census": {
@@ -2750,7 +2750,7 @@
           "title": "Review shared core primitives and root-level contracts in src/shared",
           "umbrella": "407"
         },
-        "consumerCount": 44,
+        "consumerCount": 45,
         "importers": [
           "bin/pairofcleats.js",
           "src/context-pack/risk-delta.js",
@@ -2768,6 +2768,7 @@
           "src/retrieval/cli/run-search/options.js",
           "src/retrieval/cli/run-search/plan-runner.js",
           "src/retrieval/cli/runner.js",
+          "src/retrieval/cli/search-entry.js",
           "src/retrieval/cli/search-runner.js",
           "src/retrieval/federation/args.js",
           "src/retrieval/federation/coordinator.js",
@@ -6242,7 +6243,7 @@
     ]
   },
   "consumerMap": {
-    "edgeCount": 2489,
+    "edgeCount": 2490,
     "bySharedFile": {
       "src/shared/abort.js": {
         "importers": [
@@ -7938,6 +7939,7 @@
           "src/retrieval/cli/run-search/options.js",
           "src/retrieval/cli/run-search/plan-runner.js",
           "src/retrieval/cli/runner.js",
+          "src/retrieval/cli/search-entry.js",
           "src/retrieval/cli/search-runner.js",
           "src/retrieval/federation/args.js",
           "src/retrieval/federation/coordinator.js",
@@ -7967,7 +7969,7 @@
           "tools/shared/download-utils.js",
           "tools/shared/index-cli-utils.js"
         ],
-        "importerCount": 44
+        "importerCount": 45
       },
       "src/shared/file-paths.js": {
         "importers": [
@@ -13430,9 +13432,10 @@
       },
       "src/retrieval/cli/search-entry.js": {
         "sharedImports": [
-          "src/shared/cli/ansi-utils.js"
+          "src/shared/cli/ansi-utils.js",
+          "src/shared/error-codes.js"
         ],
-        "sharedImportCount": 1
+        "sharedImportCount": 2
       },
       "src/retrieval/cli/search-runner.js": {
         "sharedImports": [
@@ -21176,8 +21179,6 @@
             "tests/cli/search/ann-rrf-contract.test.js",
             "tests/cli/search/contract-matrix.test.js",
             "tests/cli/search/determinism.test.js",
-            "tests/cli/search/explain-and-order-contract-matrix.test.js",
-            "tests/cli/search/help-and-flag-contract-matrix.test.js",
             "tests/cli/search/help-surface.test.js",
             "tests/cli/search/non-result-surfaces.test.js",
             "tests/cli/search/startup-profiler.test.js",
@@ -22625,6 +22626,8 @@
             "tests/runner/harness/timeout-target.test.js",
             "tests/runner/harness/timings-schema-validation.test.js",
             "tests/runner/harness/watchdog-kills-tree.test.js",
+            "tests/runner/lane-audit.js",
+            "tests/runner/lane-audit.test.js",
             "tests/runner/lane-evidence.js",
             "tests/runner/lane-evidence.test.js",
             "tests/runner/lane-manifest-generation.test.js",
@@ -22948,8 +22951,7 @@
             "tests/storage/backend/policy.test.js",
             "tests/storage/embeddings/backend-resilience.test.js",
             "tests/storage/lmdb/contract-matrix.test.js",
-            "tests/storage/lmdb/corruption.test.js",
-            "tests/storage/lmdb/report-artifacts.test.js",
+            "tests/storage/lmdb/report-contract-matrix.test.js",
             "tests/storage/sqlite/ann/sqlite-extension.test.js",
             "tests/storage/sqlite/ann/sqlite-fallback.test.js",
             "tests/storage/sqlite/ann/sqlite-mode-scope.test.js",
@@ -23633,6 +23635,7 @@
             "tools/testing/generate-lane-evidence.js",
             "tools/testing/generate-lane-manifests.js",
             "tools/testing/generate-suite-taxonomy-report.js",
+            "tools/testing/lane-audit.js",
             "tools/testing/run-search-showcase.js",
             "tools/testing/search-debug-capture.js",
             "tools/testing/shared-module-cycles.js",
@@ -25245,8 +25248,6 @@
           "tests/cli/search/ann-rrf-contract.test.js",
           "tests/cli/search/contract-matrix.test.js",
           "tests/cli/search/determinism.test.js",
-          "tests/cli/search/explain-and-order-contract-matrix.test.js",
-          "tests/cli/search/help-and-flag-contract-matrix.test.js",
           "tests/cli/search/help-surface.test.js",
           "tests/cli/search/non-result-surfaces.test.js",
           "tests/cli/search/startup-profiler.test.js",
@@ -26694,6 +26695,8 @@
           "tests/runner/harness/timeout-target.test.js",
           "tests/runner/harness/timings-schema-validation.test.js",
           "tests/runner/harness/watchdog-kills-tree.test.js",
+          "tests/runner/lane-audit.js",
+          "tests/runner/lane-audit.test.js",
           "tests/runner/lane-evidence.js",
           "tests/runner/lane-evidence.test.js",
           "tests/runner/lane-manifest-generation.test.js",
@@ -27017,8 +27020,7 @@
           "tests/storage/backend/policy.test.js",
           "tests/storage/embeddings/backend-resilience.test.js",
           "tests/storage/lmdb/contract-matrix.test.js",
-          "tests/storage/lmdb/corruption.test.js",
-          "tests/storage/lmdb/report-artifacts.test.js",
+          "tests/storage/lmdb/report-contract-matrix.test.js",
           "tests/storage/sqlite/ann/sqlite-extension.test.js",
           "tests/storage/sqlite/ann/sqlite-fallback.test.js",
           "tests/storage/sqlite/ann/sqlite-mode-scope.test.js",
@@ -28039,6 +28041,7 @@
           "tools/testing/generate-lane-evidence.js",
           "tools/testing/generate-lane-manifests.js",
           "tools/testing/generate-suite-taxonomy-report.js",
+          "tools/testing/lane-audit.js",
           "tools/testing/run-search-showcase.js",
           "tools/testing/search-debug-capture.js",
           "tools/testing/shared-module-cycles.js",
@@ -28170,7 +28173,7 @@
             "src/index/build/artifacts/minhash-packed.js",
             "src/index/build/artifacts/piece-registry.js"
           ],
-          "fileCount": 3192
+          "fileCount": 3191
         },
         {
           "issueId": "424",

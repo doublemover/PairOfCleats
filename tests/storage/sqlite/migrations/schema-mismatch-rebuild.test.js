@@ -10,11 +10,11 @@ const { root, repoRoot, env, userConfig, run, runCapture } = await setupIncremen
 });
 
 run(
-  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot],
+  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
   'build index',
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
-await runSqliteBuild(repoRoot);
+await runSqliteBuild(repoRoot, { mode: 'code' });
 
 let Database;
 try {
@@ -32,6 +32,7 @@ dbDowngrade.close();
 
 const rebuildLogs = [];
 await runSqliteBuild(repoRoot, {
+  mode: 'code',
   incremental: true,
   logger: {
     log: (message) => rebuildLogs.push(message),

@@ -1,6 +1,6 @@
 # Lane Evidence
 
-Generated: 2026-03-28T12:32:52.830Z
+Generated: 2026-03-30T00:03:33.390Z
 
 ## How To Use
 
@@ -14,43 +14,55 @@ Generated: 2026-03-28T12:32:52.830Z
 
 - `gate`: 35 tests, 0 with timings, 0 ms known duration, target 15s
   fresh artifacts: `.testLogs/gate-testRunTimes.txt`
-- `ci-lite`: 1070 tests, 67 with timings, 17030 ms known duration, target 15s
+- `ci-lite`: 770 tests, 770 with timings, 1232069 ms known duration, target 15s
   fresh artifacts: `.testLogs/ci-lite-testRunTimes.txt`
-- `ci`: 141 tests, 21 with timings, 76590 ms known duration, target 60s
+- `ci`: 119 tests, 108 with timings, 2185627 ms known duration, target 60s
   fresh artifacts: `.testLogs/ci-testRunTimes.txt`
-- `ci-long`: 100 tests, 26 with timings, 121470 ms known duration, target 180s
+- `ci-long`: 18 tests, 18 with timings, 1242951 ms known duration, target 180s
   fresh artifacts: `.testLogs/ci-long-testRunTimes.txt`
 
 ## Exact Cross-Lane Duplicates
 
-- `tooling/lsp/provider-fidelity-coverage-contract` in ci-lite, ci-long
+- None
 
 ## Top Families
 
-- `retrieval/filters`: 17 tests, 40020 ms known duration
-- `storage/sqlite`: 65 tests, 35910 ms known duration
-- `services/api`: 15 tests, 13420 ms known duration
-- `tooling/triage`: 6 tests, 10970 ms known duration
-- `indexing/chunking`: 11 tests, 10530 ms known duration
-- `indexing/file-caps`: 5 tests, 10030 ms known duration
-- `tooling/install`: 22 tests, 9670 ms known duration
-- `indexing/shards`: 4 tests, 8870 ms known duration
-- `indexing/file-processor`: 9 tests, 8370 ms known duration
-- `indexing/imports`: 45 tests, 6050 ms known duration
-- `indexing/type-inference`: 13 tests, 5700 ms known duration
-- `cli/general`: 4 tests, 5410 ms known duration
-- `indexing/runtime`: 12 tests, 5150 ms known duration
-- `retrieval/ann`: 16 tests, 5140 ms known duration
-- `lang/contracts`: 2 tests, 5030 ms known duration
+- `storage/sqlite`: 62 tests, 766167 ms known duration
+- `tooling/lsp`: 79 tests, 299621 ms known duration
+- `cli/search`: 6 tests, 181817 ms known duration
+- `services/api`: 6 tests, 174907 ms known duration
+- `retrieval/filters`: 5 tests, 169950 ms known duration
+- `storage/lmdb`: 2 tests, 131904 ms known duration
+- `indexing/embeddings`: 31 tests, 119740 ms known duration
+- `indexing/incremental`: 5 tests, 112519 ms known duration
+- `indexing/determinism`: 5 tests, 91583 ms known duration
+- `indexing/piece-assembly`: 2 tests, 89851 ms known duration
+- `indexing/chunking`: 11 tests, 83169 ms known duration
+- `indexing/imports`: 32 tests, 82722 ms known duration
+- `indexing/extracted-prose`: 6 tests, 80404 ms known duration
+- `retrieval/cache`: 2 tests, 79423 ms known duration
+- `tooling/reports`: 5 tests, 75691 ms known duration
 
 ## Setup Hotspots
 
-- `index-build-heavy`: 484 tests, 82860 ms known duration
+- `index-build-heavy`: 354 tests, 1344557 ms known duration
   Index construction, replay, and build-heavy setup overlap.
-- `api-server-boot`: 15 tests, 13420 ms known duration
-  HTTP server startup, routing, and streaming harness reuse.
-- `cli-cold-start`: 16 tests, 5410 ms known duration
-  CLI process startup and argument-routing overlap.
-- `lsp-bootstrap`: 117 tests, 0 ms known duration
+- `sqlite-heavy`: 62 tests, 766167 ms known duration
+  SQLite maintenance, fail-closed, and migration tests often rebuild the same sample fixture.
+- `lsp-bootstrap`: 79 tests, 299621 ms known duration
   Dedicated/configured provider bootstrap and session reuse.
+- `search-cli-contract`: 6 tests, 181817 ms known duration
+  Search CLI help, explain, and contract surfaces share fixture/index bootstrap.
+- `api-server-boot`: 6 tests, 174907 ms known duration
+  HTTP server startup, routing, and streaming harness reuse.
+- `lmdb-report`: 2 tests, 131904 ms known duration
+  LMDB report/corruption tests can often share one built fixture and diverge only in tamper steps.
+- `embeddings-cache`: 31 tests, 119740 ms known duration
+  Embedding cache and stub fast-path families frequently overlap on the same fixture/setup.
+- `cli-cold-start`: 4 tests, 72467 ms known duration
+  CLI process startup and argument-routing overlap.
+- `smoke-wiring`: 9 tests, 66675 ms known duration
+  Smoke suites should stay thin and avoid chaining lower-level contract tests.
+- `map-build`: 4 tests, 62746 ms known duration
+  Code-map suites often share the same repo build and render pipeline.
 

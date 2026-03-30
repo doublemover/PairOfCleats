@@ -7,6 +7,12 @@ import { loadLaneManifestConfig } from './lane-manifests.js';
 const DEFAULT_HISTORICAL_TIMINGS_PATH = 'tools/test_times/TEST_TIMES.md';
 
 const HOTSPOT_RULES = [
+  { kind: 'search-cli-contract', match: /^cli\/search\//u, note: 'Search CLI help, explain, and contract surfaces share fixture/index bootstrap.' },
+  { kind: 'smoke-wiring', match: /^smoke\//u, note: 'Smoke suites should stay thin and avoid chaining lower-level contract tests.' },
+  { kind: 'sqlite-heavy', match: /^storage\/sqlite\//u, note: 'SQLite maintenance, fail-closed, and migration tests often rebuild the same sample fixture.' },
+  { kind: 'lmdb-report', match: /^storage\/lmdb\//u, note: 'LMDB report/corruption tests can often share one built fixture and diverge only in tamper steps.' },
+  { kind: 'embeddings-cache', match: /^indexing\/embeddings\//u, note: 'Embedding cache and stub fast-path families frequently overlap on the same fixture/setup.' },
+  { kind: 'map-build', match: /^indexing\/map\//u, note: 'Code-map suites often share the same repo build and render pipeline.' },
   { kind: 'lsp-bootstrap', match: /^tooling\/lsp\//u, note: 'Dedicated/configured provider bootstrap and session reuse.' },
   { kind: 'api-server-boot', match: /^services\/api\//u, note: 'HTTP server startup, routing, and streaming harness reuse.' },
   { kind: 'cli-cold-start', match: /^cli\//u, note: 'CLI process startup and argument-routing overlap.' },

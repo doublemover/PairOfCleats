@@ -9,19 +9,38 @@ import { loadPiecesManifestPieces, resolvePiecesManifestPath } from '../../helpe
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const cacheRoot = resolveTestCachePath(root, 'manifest-embeddings-pieces');
+const tempRoot = resolveTestCachePath(root, 'manifest-embeddings-pieces');
+const repoRoot = path.join(tempRoot, 'repo');
+const cacheRoot = path.join(tempRoot, 'cache');
 
 const env = applyTestEnv({
   cacheRoot,
-  embeddings: 'stub'
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  }
 });
 
-await fsPromises.rm(cacheRoot, { recursive: true, force: true });
+await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+await fsPromises.writeFile(
+  path.join(repoRoot, 'src', 'alpha.js'),
+  'export function manifestEmbeddingsSmoke() { return "manifest embeddings token"; }\n'
+);
 
 const run = (args, label) => {
-  const result = spawnSync(process.execPath, args, { env, encoding: 'utf8' });
+  const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, encoding: 'utf8' });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     if (result.stderr) console.error(result.stderr.trim());
@@ -30,11 +49,11 @@ const run = (args, label) => {
   return result.stdout || '';
 };
 
-run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot], 'build index');
-run([path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--repo', fixtureRoot], 'build embeddings');
+run([path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot], 'build index');
+run([path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot], 'build embeddings');
 
-const userConfig = loadUserConfig(fixtureRoot);
-const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
+const userConfig = loadUserConfig(repoRoot);
+const codeDir = getIndexDir(repoRoot, 'code', userConfig);
 const manifestPath = resolvePiecesManifestPath(codeDir);
 if (!fs.existsSync(manifestPath)) {
   console.error(`Missing pieces manifest at ${manifestPath}`);
