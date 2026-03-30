@@ -31,11 +31,15 @@ import {
   queueSummary,
   purgeQuarantinedJobs,
   retryQuarantinedJob,
-  resolveQueueName,
   requeueStaleJobs,
   touchJobHeartbeat
 } from './queue.js';
 import { ensureRepo, resolveRepoEntry, resolveRepoPath } from './repos.js';
+import {
+  isEmbeddingsQueueName,
+  isMonitoredIndexQueueName,
+  resolveServiceQueueName
+} from './indexer-service/queue-identity.js';
 import { startBuildProgressMonitor } from './indexer-service/progress-monitor.js';
 import { createJobCompletion } from './indexer-service/job-completion.js';
 import { createJobExecutor } from './indexer-service/job-executor.js';
@@ -79,8 +83,9 @@ const queueDir = config.queueDir
   ? path.resolve(config.queueDir)
   : path.join(getCacheRoot(), 'service', 'queue');
 const queueName = argv.queue || 'index';
-const resolvedQueueName = resolveQueueName(queueName, {
-  reason: queueName === 'embeddings' ? 'embeddings' : null,
+const resolvedQueueName = resolveServiceQueueName({
+  queueName,
+  reason: argv.reason || (queueName === 'embeddings' ? 'embeddings' : null),
   stage: argv.stage || null,
   mode: argv.mode || null
 });
@@ -90,8 +95,8 @@ const serviceExecutionModeRaw = envConfig.indexerServiceExecutionMode
 const serviceExecutionMode = String(serviceExecutionModeRaw || '').trim().toLowerCase() === 'daemon'
   ? 'daemon'
   : 'subprocess';
-const isEmbeddingsQueue = queueName === 'embeddings';
-const monitorBuildProgress = queueName === 'index';
+const isEmbeddingsQueue = isEmbeddingsQueueName(resolvedQueueName);
+const monitorBuildProgress = isMonitoredIndexQueueName(resolvedQueueName);
 const queueConfig = isEmbeddingsQueue
   ? (config.embeddings?.queue || {})
   : (config.queue || {});
@@ -395,7 +400,7 @@ const handleEnqueue = async () => {
     stage: argv.stage || null,
     maxRetries: queueMaxRetries ?? null,
     observability
-  }, queueConfig.maxQueued ?? null, queueName, {
+  }, queueConfig.maxQueued ?? null, resolvedQueueName, {
     admissionPolicy: queueAdmissionPolicy,
     sloPolicy: queueOperationalEnvelope.slo
   });

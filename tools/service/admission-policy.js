@@ -103,7 +103,7 @@ export function resolveQueueAdmissionPolicy({
     ? queueName.trim()
     : 'index';
   const isEmbeddings = normalizedQueueName === 'embeddings' || normalizedQueueName.startsWith('embeddings-');
-  const workerConcurrency = toNonNegativeIntOrNull(workerConfig?.concurrency) || 1;
+  const workerConcurrency = toNonNegativeIntOrNull(workerConfig?.concurrency) ?? 1;
   const maxQueued = toNonNegativeIntOrNull(queueConfig?.maxQueued);
   const maxRunning = toNonNegativeIntOrNull(queueConfig?.maxRunning) ?? workerConcurrency;
   const maxTotal = toNonNegativeIntOrNull(queueConfig?.maxTotal)

@@ -188,4 +188,14 @@ assert.equal(embeddingsPolicy.queueClass, 'embeddings', 'expected embeddings-* q
 assert.equal(embeddingsPolicy.maxTotal, 5, 'expected embeddings queue defaults to diverge from index totals');
 assert.equal(resolveQueueSloPolicy({ queueName: 'embeddings-stage3' }).queueClass, 'embeddings', 'expected embeddings queue SLO policy to retain class-specific defaults');
 
+const zeroConcurrencyPolicy = resolveQueueAdmissionPolicy({
+  queueName: 'index-stage2',
+  queueConfig: {},
+  workerConfig: {
+    concurrency: 0
+  }
+});
+assert.equal(zeroConcurrencyPolicy.maxRunning, 0, 'expected explicit zero worker concurrency to remain zero');
+assert.equal(zeroConcurrencyPolicy.maxTotal, 20, 'expected zero worker concurrency to preserve derived queue totals');
+
 console.log('service queue admission policy test passed');
