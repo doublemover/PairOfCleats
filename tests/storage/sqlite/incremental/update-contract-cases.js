@@ -11,6 +11,14 @@ import {
 } from '../helpers/incremental-scenarios.js';
 import { ensureSqlitePaths } from '../../../helpers/sqlite-incremental.js';
 
+const getPreparedCodeScenario = async (scenario, name) => {
+  if (scenario) return scenario;
+  const preparedScenario = await createIncrementalScenario({ name, mode: 'code' });
+  preparedScenario.runBuildIndex();
+  await preparedScenario.runBuildSqlite();
+  return preparedScenario;
+};
+
 export const runDocIdReuseScenario = async () => {
   const scenario = await createIncrementalScenario({ name: 'doc-id-reuse', mode: 'code' });
   scenario.runBuildIndex();
@@ -154,20 +162,17 @@ export const runManifestNormalizationScenario = async () => {
   );
 };
 
-export const runSearchAfterUpdateScenario = async () => {
-  const scenario = await createIncrementalScenario({ name: 'search-after-update', mode: 'code' });
-  scenario.runBuildIndex();
-  await scenario.runBuildSqlite();
+export const runSearchAfterUpdateScenario = async (scenario = null) => {
+  const activeScenario = await getPreparedCodeScenario(scenario, 'search-after-update');
+  await appendFixtureExport(activeScenario.repoRoot);
 
-  await appendFixtureExport(scenario.repoRoot);
-
-  scenario.runBuildIndex({ incremental: true });
-  await scenario.runBuildSqlite({ incremental: true });
+  activeScenario.runBuildIndex({ incremental: true });
+  await activeScenario.runBuildSqlite({ incremental: true });
 
   const searchResult = runRepoSearchJson({
-    root: scenario.root,
-    repoRoot: scenario.repoRoot,
-    env: scenario.env,
+    root: activeScenario.root,
+    repoRoot: activeScenario.repoRoot,
+    env: activeScenario.env,
     query: 'farewell',
     mode: 'code'
   });
@@ -178,19 +183,17 @@ export const runSearchAfterUpdateScenario = async () => {
   );
 };
 
-export const runWalCheckpointScenario = async () => {
-  const scenario = await createIncrementalScenario({ name: 'wal-checkpoint', mode: 'code' });
-  scenario.runBuildIndex({ incremental: true });
-  await scenario.runBuildSqlite({ mode: 'code' });
+export const runWalCheckpointScenario = async (scenario = null) => {
+  const activeScenario = await getPreparedCodeScenario(scenario, 'wal-checkpoint');
 
-  const targetFile = path.join(scenario.repoRoot, 'src', 'index.js');
+  const targetFile = path.join(activeScenario.repoRoot, 'src', 'index.js');
   const original = await fsPromises.readFile(targetFile, 'utf8');
   await fsPromises.writeFile(targetFile, `${original}\nexport const walCheck = true;\n`);
 
-  scenario.runBuildIndex({ incremental: true });
-  await scenario.runBuildSqlite({ mode: 'code', incremental: true });
+  activeScenario.runBuildIndex({ incremental: true });
+  await activeScenario.runBuildSqlite({ mode: 'code', incremental: true });
 
-  const sqlitePaths = ensureSqlitePaths(scenario.repoRoot, scenario.userConfig);
+  const sqlitePaths = ensureSqlitePaths(activeScenario.repoRoot, activeScenario.userConfig);
   const walPath = `${sqlitePaths.codePath}-wal`;
   const shmPath = `${sqlitePaths.codePath}-shm`;
   const walSize = fs.existsSync(walPath) ? fs.statSync(walPath).size : 0;

@@ -7,6 +7,35 @@ import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 
 let DatabaseCtor = null;
 
+const writeMinimalIncrementalFixture = async (repoRoot) => {
+  await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+  await fsPromises.writeFile(
+    path.join(repoRoot, 'src', 'index.js'),
+    [
+      'export function greet(name = "world") {',
+      '  return `hello ${name}`;',
+      '}',
+      ''
+    ].join('\n'),
+    'utf8'
+  );
+  await fsPromises.writeFile(
+    path.join(repoRoot, 'src', 'util.js'),
+    [
+      'export function utilValue() {',
+      '  return 7;',
+      '}',
+      ''
+    ].join('\n'),
+    'utf8'
+  );
+  await fsPromises.writeFile(
+    path.join(repoRoot, 'README.md'),
+    '# Incremental sqlite fixture\n\nsmall synthetic fixture\n',
+    'utf8'
+  );
+};
+
 export const loadDatabaseCtorOrExit = async () => {
   if (DatabaseCtor) return DatabaseCtor;
   try {
@@ -23,12 +52,38 @@ export const createIncrementalScenario = async ({
   mode = null,
   scmProvider = null
 } = {}) => {
-  const fixture = await setupIncrementalRepo({ name });
+  const fixture = await setupIncrementalRepo({
+    name,
+    fixtureBuilder: writeMinimalIncrementalFixture,
+    testConfig: {
+      indexing: {
+        scm: { provider: 'none' },
+        typeInference: false,
+        typeInferenceCrossFile: false,
+        riskAnalysis: false,
+        riskAnalysisCrossFile: false,
+        embeddings: {
+          enabled: false,
+          mode: 'off',
+          lancedb: { enabled: false },
+          hnsw: { enabled: false }
+        }
+      },
+      tooling: {
+        autoEnableOnDetect: false,
+        lsp: {
+          enabled: false
+        }
+      }
+    }
+  });
 
   const runBuildIndex = ({ incremental = false } = {}) => {
     const args = [
       path.join(fixture.root, 'build_index.js'),
       '--incremental',
+      '--stage',
+      'stage1',
       '--stub-embeddings'
     ];
     if (mode) {

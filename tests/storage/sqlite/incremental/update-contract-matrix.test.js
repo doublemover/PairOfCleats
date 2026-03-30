@@ -3,10 +3,18 @@ import {
   runSearchAfterUpdateScenario,
   runWalCheckpointScenario
 } from './update-contract-cases.js';
+import { createIncrementalScenario } from '../helpers/incremental-scenarios.js';
+
+const sharedScenario = await createIncrementalScenario({
+  name: 'update-contract-matrix-shared',
+  mode: 'code'
+});
+sharedScenario.runBuildIndex();
+await sharedScenario.runBuildSqlite();
 
 const cases = [
-  { name: 'search after update', run: runSearchAfterUpdateScenario },
-  { name: 'wal checkpoint', run: runWalCheckpointScenario }
+  { name: 'search after update', run: () => runSearchAfterUpdateScenario(sharedScenario) },
+  { name: 'wal checkpoint', run: () => runWalCheckpointScenario(sharedScenario) }
 ];
 
 for (const testCase of cases) {

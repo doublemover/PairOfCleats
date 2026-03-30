@@ -47,7 +47,11 @@ const run = (args, label, options) => {
   return result;
 };
 
-export const setupIncrementalRepo = async ({ name, testConfig = null }) => {
+export const setupIncrementalRepo = async ({
+  name,
+  testConfig = null,
+  fixtureBuilder = null
+}) => {
   if (!name) throw new Error('name is required');
   const suffixRaw = typeof process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX === 'string'
     ? process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX.trim()
@@ -63,7 +67,12 @@ export const setupIncrementalRepo = async ({ name, testConfig = null }) => {
 
   await rmDirRecursive(tempRoot, { retries: 10, delayMs: 100 });
   await fsPromises.mkdir(tempRoot, { recursive: true });
-  await fsPromises.cp(FIXTURE_ROOT, repoRoot, { recursive: true });
+  if (typeof fixtureBuilder === 'function') {
+    await fsPromises.mkdir(repoRoot, { recursive: true });
+    await fixtureBuilder(repoRoot);
+  } else {
+    await fsPromises.cp(FIXTURE_ROOT, repoRoot, { recursive: true });
+  }
 
   const nodeOptions = stripMaxOldSpaceFlag(process.env.NODE_OPTIONS || '');
   const effectiveTestConfig =
@@ -96,4 +105,3 @@ export const setupIncrementalRepo = async ({ name, testConfig = null }) => {
 };
 
 export const ensureSqlitePaths = (repoRoot, userConfig) => resolveSqlitePaths(repoRoot, userConfig);
-
