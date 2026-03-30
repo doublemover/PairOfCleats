@@ -1,10 +1,10 @@
 # Suite Taxonomy Report
 
-Generated: 2026-03-30T06:06:17.185Z
+Generated: 2026-03-30T08:30:57.823Z
 
 ## Summary
 
-- `hero`: 1917
+- `hero`: 1918
 - `matrix`: 153
 - `meta`: 91
 - `soak`: 1
@@ -18,13 +18,13 @@ Generated: 2026-03-30T06:06:17.185Z
   hero: 31
   matrix: 2
   meta: 2
-- `ci-lite`: 770 tests
-  hero: 639
+- `ci-lite`: 769 tests
+  hero: 638
   matrix: 106
   meta: 24
   soak: 1
-- `ci`: 120 tests
-  hero: 89
+- `ci`: 121 tests
+  hero: 90
   matrix: 27
   meta: 4
 - `ci-long`: 18 tests

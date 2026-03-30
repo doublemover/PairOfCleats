@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-03-30T06:05:16.365Z",
+  "generatedAt": "2026-03-30T08:31:03.947Z",
   "generatedBy": "node tools/docs/shared-module-ledger.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "census": {
@@ -23450,6 +23450,7 @@
             "tests/tooling/service/indexer-job-executor-daemon-session-budget.test.js",
             "tests/tooling/service/indexer-job-executor-embedding-guards.test.js",
             "tests/tooling/service/indexer-queue-worker-contract.test.js",
+            "tests/tooling/service/service-config-validation.test.js",
             "tests/tooling/service/subprocess-contract-matrix.test.js",
             "tests/tooling/shared-adoption-contract.test.js",
             "tests/tooling/shared-module-cycles.test.js",
@@ -23647,7 +23648,7 @@
             "tools/testing/shared-module-performance.js",
             "tools/testing/terminal-screen.js"
           ],
-          "fileCount": 2548
+          "fileCount": 2549
         },
         {
           "issueId": "420",
@@ -23799,7 +23800,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4279
+          "fileCount": 4280
         }
       ],
       "repoCoverage": {
@@ -27522,6 +27523,7 @@
           "tests/tooling/service/indexer-job-executor-daemon-session-budget.test.js",
           "tests/tooling/service/indexer-job-executor-embedding-guards.test.js",
           "tests/tooling/service/indexer-queue-worker-contract.test.js",
+          "tests/tooling/service/service-config-validation.test.js",
           "tests/tooling/service/subprocess-contract-matrix.test.js",
           "tests/tooling/shared-adoption-contract.test.js",
           "tests/tooling/shared-module-cycles.test.js",
@@ -28181,7 +28183,7 @@
             "src/index/build/artifacts/minhash-packed.js",
             "src/index/build/artifacts/piece-registry.js"
           ],
-          "fileCount": 3193
+          "fileCount": 3194
         },
         {
           "issueId": "424",
@@ -28314,7 +28316,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4264
+          "fileCount": 4265
         },
         {
           "issueId": "427",
@@ -28401,7 +28403,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 2548
+          "fileCount": 2549
         }
       ]
     }

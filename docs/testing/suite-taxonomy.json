@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-03-30T06:06:17.185Z",
+  "generatedAt": "2026-03-30T08:30:57.823Z",
   "summary": {
-    "totalTests": 2170,
+    "totalTests": 2171,
     "byCategory": {
-      "hero": 1917,
+      "hero": 1918,
       "matrix": 153,
       "meta": 91,
       "soak": 1,
@@ -28,9 +28,9 @@
     },
     {
       "lane": "ci-lite",
-      "totalTests": 770,
+      "totalTests": 769,
       "byCategory": {
-        "hero": 639,
+        "hero": 638,
         "matrix": 106,
         "meta": 24,
         "soak": 1,
@@ -39,9 +39,9 @@
     },
     {
       "lane": "ci",
-      "totalTests": 120,
+      "totalTests": 121,
       "byCategory": {
-        "hero": 89,
+        "hero": 90,
         "matrix": 27,
         "meta": 4,
         "soak": 0,

@@ -760,7 +760,6 @@ retrieval/federation/path-redaction-contract-matrix
 tooling/lsp/metrics-contract-matrix
 indexing/tree-sitter/js-maxbytes
 lang/fixtures-sample/metadata-matrix
-retrieval/contracts/compact-json
 indexing/scm/index-build-no
 indexing/tokenization/file-stream-reuse
 indexing/cache/workspace-concurrency-limits
