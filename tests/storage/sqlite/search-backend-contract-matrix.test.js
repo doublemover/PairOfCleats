@@ -12,6 +12,7 @@ import { resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'sqlite-search-backend-contract-matrix');
 const cacheRoot = path.join(tempRoot, '.cache');
+const snapshotRoot = path.join(tempRoot, '.sqlite-snapshot');
 const searchPath = path.join(root, 'search.js');
 const buildIndexPath = path.join(root, 'build_index.js');
 
@@ -61,8 +62,11 @@ const run = (args, label, { testConfig = null, extraEnv = {}, allowFailure = fal
   return result;
 };
 
-run([buildIndexPath, '--stub-embeddings', '--mode', 'code', '--repo', tempRoot], 'build index');
+run([buildIndexPath, '--stub-embeddings', '--stage', 'stage1', '--mode', 'code', '--repo', tempRoot], 'build index');
 await runSqliteBuild(tempRoot, { mode: 'code' });
+const initialSqlitePaths = resolveSqlitePaths(tempRoot, null);
+await fsPromises.rm(snapshotRoot, { recursive: true, force: true });
+await fsPromises.cp(initialSqlitePaths.dbDir, snapshotRoot, { recursive: true });
 
 const cases = [
   {
@@ -119,7 +123,7 @@ const cases = [
       const backend = JSON.parse(result.stdout || '{}').backend;
       assert.equal(backend, 'memory');
 
-      await runSqliteBuild(tempRoot, { mode: 'code' });
+      await fsPromises.cp(snapshotRoot, sqlitePaths.dbDir, { recursive: true });
     }
   },
   {

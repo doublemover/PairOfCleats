@@ -72,7 +72,7 @@ const runCompactScenario = async () => {
   await fsPromises.writeFile(renameFile, 'export function renameToken() { return "renametoken"; }\n');
 
   run(
-    [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
+    [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--stage', 'stage1', '--mode', 'code', '--repo', repoRoot],
     'build index'
   );
   await runSqliteBuild(repoRoot, { mode: 'code', env });
@@ -82,7 +82,7 @@ const runCompactScenario = async () => {
   await fsPromises.rename(renameFile, renamedFile);
 
   run(
-    [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
+    [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--stage', 'stage1', '--mode', 'code', '--repo', repoRoot],
     'build index (incremental)'
   );
   await runSqliteBuild(repoRoot, { mode: 'code', incremental: true, env });
@@ -133,7 +133,7 @@ const runCompactScenario = async () => {
 
 const runSidecarCleanupScenario = async () => {
   const { repoRoot, run } = await createFixture('sqlite-maintenance-sidecar-cleanup');
-  run([path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot], 'build index');
+  run([path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage1', '--mode', 'code', '--repo', repoRoot], 'build index');
   await runSqliteBuild(repoRoot, { mode: 'code' });
 
   const userConfig = loadUserConfig(repoRoot);
@@ -155,12 +155,13 @@ const runSidecarCleanupScenario = async () => {
   }
 
   run(
-    [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
+    [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--stage', 'stage1', '--mode', 'code', '--repo', repoRoot],
     'build index (incremental)'
   );
   sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
   walPath = `${sqlitePaths.codePath}-wal`;
   shmPath = `${sqlitePaths.codePath}-shm`;
+  await fsPromises.mkdir(path.dirname(walPath), { recursive: true });
   await fsPromises.writeFile(walPath, 'stale-wal');
   await fsPromises.writeFile(shmPath, 'stale-shm');
   await runSqliteBuild(repoRoot, { mode: 'code', incremental: true });

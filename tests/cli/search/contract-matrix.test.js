@@ -5,14 +5,84 @@ import path from 'node:path';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 import { createSearchLifecycle } from '../../helpers/search-lifecycle.js';
 import {
-  prepareSharedSearchContractFixture,
   SHARED_SEARCH_CONTRACT_CASES
 } from '../../helpers/search-contract-cases.js';
 
-const runPayloadContractCase = async () => {
-  const { runSearchPayload } = await prepareSharedSearchContractFixture({
-    cacheName: 'search-contract-matrix-shared'
+const createContractFixture = async () => {
+  const lifecycle = await createSearchLifecycle({
+    cacheScope: 'isolated',
+    cacheName: 'search-contract-matrix',
+    embeddings: '0',
+    extraEnv: {
+      PAIROFCLEATS_WORKER_POOL: 'off'
+    }
   });
+  const { repoRoot, buildIndex, env } = lifecycle;
+
+  await fsPromises.mkdir(path.join(repoRoot, 'src', 'nested'), { recursive: true });
+  await fsPromises.writeFile(
+    path.join(repoRoot, 'src', 'answer.js'),
+    [
+      'export function answer(value = 42) {',
+      '  return value;',
+      '}',
+      '',
+      'export function returnValue() {',
+      '  return answer();',
+      '}',
+      ''
+    ].join('\n')
+  );
+  await fsPromises.writeFile(
+    path.join(repoRoot, 'src', 'nested', 'util.js'),
+    'export function winPathFilter() { return "windows path filter"; }\n'
+  );
+  await fsPromises.writeFile(
+    path.join(repoRoot, 'symbol.js'),
+    'export function boostExample() { return "symbol boost test"; }\n'
+  );
+  await fsPromises.writeFile(
+    path.join(repoRoot, 'README.md'),
+    '# Sample\n\nalpha bravo\nreturn value documentation\n',
+    'utf8'
+  );
+
+  const allowedFiles = ['allowed-1.txt', 'allowed-2.txt'];
+  const blockedContent = `${Array.from({ length: 200 }, () => 'alpha').join(' ')}\n`;
+  for (const file of allowedFiles) {
+    await fsPromises.writeFile(path.join(repoRoot, file), 'alpha beta gamma\nalpha beta\n');
+  }
+  for (let i = 0; i < 12; i += 1) {
+    await fsPromises.writeFile(path.join(repoRoot, `blocked-${i + 1}.txt`), blockedContent);
+  }
+
+  const tieContent = '# Title\n\ntiealpha beta gamma\ntiealpha beta gamma\n';
+  const tieFiles = ['alpha-1.md', 'alpha-2.md', 'alpha-3.md'];
+  for (const file of tieFiles) {
+    await fsPromises.writeFile(path.join(repoRoot, file), tieContent);
+  }
+
+  buildIndex({
+    label: 'build search contract matrix (code)',
+    mode: 'code',
+    stage: 'stage1'
+  });
+  buildIndex({
+    label: 'build search contract matrix (prose)',
+    mode: 'prose',
+    stage: 'stage1'
+  });
+  await runSqliteBuild(repoRoot, { mode: 'code', env });
+  await runSqliteBuild(repoRoot, { mode: 'prose', env });
+
+  return {
+    ...lifecycle,
+    allowedFiles
+  };
+};
+
+const runPayloadContractCase = async (fixture) => {
+  const { runSearchPayload } = fixture;
 
   for (const entry of SHARED_SEARCH_CONTRACT_CASES) {
     const payload = runSearchPayload(entry.query, {
@@ -26,25 +96,8 @@ const runPayloadContractCase = async () => {
   }
 };
 
-const runTopNFilterCase = async () => {
-  const lifecycle = await createSearchLifecycle({
-    cacheScope: 'shared',
-    cacheName: 'search-contract-matrix-topn'
-  });
-  const { repoRoot, runSearchPayload, buildIndex, env } = lifecycle;
-
-  const allowedFiles = ['allowed-1.txt', 'allowed-2.txt'];
-  const blockedContent = `${Array.from({ length: 200 }, () => 'alpha').join(' ')}\n`;
-
-  for (const file of allowedFiles) {
-    await fsPromises.writeFile(path.join(repoRoot, file), 'alpha beta gamma\nalpha beta\n');
-  }
-  for (let i = 0; i < 12; i += 1) {
-    await fsPromises.writeFile(path.join(repoRoot, `blocked-${i + 1}.txt`), blockedContent);
-  }
-
-  buildIndex();
-  await runSqliteBuild(repoRoot, { env });
+const runTopNFilterCase = async (fixture) => {
+  const { allowedFiles, runSearchPayload } = fixture;
 
   for (const backend of ['memory', 'sqlite-fts']) {
     const payload = runSearchPayload('alpha', {
@@ -64,26 +117,8 @@ const runTopNFilterCase = async () => {
   }
 };
 
-const runWindowsPathCase = async () => {
-  const { repoRoot, buildIndex, runSearchPayload } = await createSearchLifecycle({
-    cacheScope: 'shared',
-    cacheName: 'search-contract-matrix-winpath',
-    extraEnv: {
-      PAIROFCLEATS_WORKER_POOL: 'off'
-    }
-  });
-
-  await fsPromises.mkdir(path.join(repoRoot, 'src', 'nested'), { recursive: true });
-  await fsPromises.writeFile(
-    path.join(repoRoot, 'src', 'nested', 'util.js'),
-    'export function winPathFilter() { return "windows path filter"; }\n'
-  );
-
-  buildIndex({
-    label: 'build_index for search contract matrix windows path',
-    mode: 'code'
-  });
-
+const runWindowsPathCase = async (fixture) => {
+  const { runSearchPayload } = fixture;
   const runSearch = (extraArgs) => runSearchPayload('windows path filter', {
     label: 'search contract matrix windows path',
     mode: 'code',
@@ -102,26 +137,8 @@ const runWindowsPathCase = async () => {
   }
 };
 
-const runExplainSymbolCase = async () => {
-  const { repoRoot, buildIndex, runSearch } = await createSearchLifecycle({
-    cacheScope: 'shared',
-    cacheName: 'search-contract-matrix-explain-symbol',
-    embeddings: '0',
-    extraEnv: {
-      PAIROFCLEATS_WORKER_POOL: 'off'
-    }
-  });
-
-  await fsPromises.writeFile(
-    path.join(repoRoot, 'symbol.js'),
-    'export function boostExample() { return "symbol boost test"; }\n'
-  );
-
-  buildIndex({
-    label: 'build_index for search contract matrix explain-symbol',
-    mode: 'code'
-  });
-
+const runExplainSymbolCase = async (fixture) => {
+  const { repoRoot, runSearch } = fixture;
   const searchResult = runSearch(
     [
       'boostExample',
@@ -148,28 +165,10 @@ const runExplainSymbolCase = async () => {
   }
 };
 
-const runTieOrderCase = async () => {
-  const lifecycle = await createSearchLifecycle({
-    cacheScope: 'shared',
-    cacheName: 'search-contract-matrix-tie-order',
-    embeddings: '0'
-  });
-  const { repoRoot, buildIndex, env, runSearchPayload } = lifecycle;
-
-  const content = '# Title\n\nalpha beta gamma\nalpha beta gamma\n';
-  const files = ['alpha-1.md', 'alpha-2.md', 'alpha-3.md'];
-  for (const file of files) {
-    await fsPromises.writeFile(path.join(repoRoot, file), content);
-  }
-
-  buildIndex({
-    label: 'build index for search contract matrix tie-order',
-    extraArgs: ['--sqlite']
-  });
-  await runSqliteBuild(repoRoot, { env });
-
+const runTieOrderCase = async (fixture) => {
+  const { runSearchPayload } = fixture;
   const runTieSearch = (backend) => {
-    const payload = runSearchPayload('alpha', {
+    const payload = runSearchPayload('tiealpha', {
       label: `search contract matrix tie-order (${backend})`,
       mode: 'prose',
       topN: 3,
@@ -209,10 +208,11 @@ const runTieOrderCase = async () => {
   }
 };
 
-await runPayloadContractCase();
-await runTopNFilterCase();
-await runWindowsPathCase();
-await runExplainSymbolCase();
-await runTieOrderCase();
+const fixture = await createContractFixture();
+await runPayloadContractCase(fixture);
+await runTopNFilterCase(fixture);
+await runWindowsPathCase(fixture);
+await runExplainSymbolCase(fixture);
+await runTieOrderCase(fixture);
 
 console.log('CLI search contract matrix test passed');
