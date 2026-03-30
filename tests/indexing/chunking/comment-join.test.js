@@ -25,12 +25,41 @@ await fsPromises.writeFile(path.join(srcDir, 'sample.js'), source);
 
 const env = applyTestEnv({
   cacheRoot: path.join(tempRoot, 'cache'),
-  embeddings: 'stub'
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: {
+        enabled: false
+      }
+    }
+  },
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  }
 });
 
 const buildResult = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--scm-provider', 'none', '--repo', repoRoot, '--mode', 'all', '--stub-embeddings'],
+  [
+    path.join(root, 'build_index.js'),
+    '--stage',
+    'stage1',
+    '--scm-provider',
+    'none',
+    '--repo',
+    repoRoot,
+    '--mode',
+    'all',
+    '--stub-embeddings'
+  ],
   { env, encoding: 'utf8' }
 );
 if (buildResult.status !== 0) {

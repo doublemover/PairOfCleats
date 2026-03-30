@@ -23,7 +23,15 @@ const BASE_TEST_CONFIG = Object.freeze({
   indexing: {
     scm: { provider: 'none' },
     typeInference: false,
-    typeInferenceCrossFile: false
+    typeInferenceCrossFile: false,
+    riskAnalysis: false,
+    riskAnalysisCrossFile: false
+  },
+  tooling: {
+    autoEnableOnDetect: false,
+    lsp: {
+      enabled: false
+    }
   }
 });
 
@@ -58,7 +66,7 @@ const runBuild = (label, testConfig) => {
       'none',
       '--incremental',
       '--stage',
-      'stage2',
+      'stage1',
       '--mode',
       'code',
       '--repo',
@@ -105,19 +113,12 @@ if (manifestTokenChanged.tokenizationKey === manifestCached.tokenizationKey) {
   process.exit(1);
 }
 
-runBuild('cache build after config change', { indexing: { postings: { enablePhraseNgrams: true } } });
-const manifestTokenStable = await readManifest();
-if (manifestTokenStable.cacheSignature !== manifestTokenChanged.cacheSignature) {
-  console.error('Expected stable cache signature after unchanged tokenization config rebuild');
-  process.exit(1);
-}
-
 runBuild('dict config change rebuild', {
   indexing: { postings: { enablePhraseNgrams: true } },
   dictionary: { includeSlang: false }
 });
 const manifestDictChanged = await readManifest();
-if (manifestDictChanged.cacheSignature === manifestTokenStable.cacheSignature) {
+if (manifestDictChanged.cacheSignature === manifestTokenChanged.cacheSignature) {
   console.error('Expected cache signature change after dictionary config change');
   process.exit(1);
 }

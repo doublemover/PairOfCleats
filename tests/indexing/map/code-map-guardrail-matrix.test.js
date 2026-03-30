@@ -27,6 +27,21 @@ const createLargeMapFixture = async ({ tempName, functionCount }) => {
   const env = applyTestEnv({
     cacheRoot,
     embeddings: 'stub',
+    testConfig: {
+      indexing: {
+        scm: { provider: 'none' },
+        typeInference: false,
+        typeInferenceCrossFile: false,
+        riskAnalysis: false,
+        riskAnalysisCrossFile: false
+      },
+      tooling: {
+        autoEnableOnDetect: false,
+        lsp: {
+          enabled: false
+        }
+      }
+    },
     extraEnv: {
       PAIROFCLEATS_WORKER_POOL: 'off'
     }
@@ -34,7 +49,18 @@ const createLargeMapFixture = async ({ tempName, functionCount }) => {
 
   const buildResult = spawnSync(
     process.execPath,
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot],
+    [
+      path.join(root, 'build_index.js'),
+      '--stub-embeddings',
+      '--stage',
+      'stage1',
+      '--mode',
+      'code',
+      '--scm-provider',
+      'none',
+      '--repo',
+      repoRoot
+    ],
     { cwd: repoRoot, env, stdio: 'inherit' }
   );
   assert.equal(buildResult.status, 0, 'expected code-map guardrail fixture build to succeed');

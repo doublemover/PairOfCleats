@@ -31,11 +31,25 @@ const runBuild = (cacheRoot, label, testConfig) => {
   const env = applyTestEnv({
     cacheRoot,
     embeddings: 'stub',
-    testConfig: testConfig ?? null
+    testConfig: testConfig ?? null,
+    extraEnv: {
+      PAIROFCLEATS_WORKER_POOL: 'off'
+    }
   });
   const result = spawnSync(
     process.execPath,
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot],
+    [
+      path.join(root, 'build_index.js'),
+      '--stub-embeddings',
+      '--stage',
+      'stage1',
+      '--mode',
+      'code',
+      '--scm-provider',
+      'none',
+      '--repo',
+      repoRoot
+    ],
     { cwd: repoRoot, env, stdio: 'inherit' }
   );
   if (result.status !== 0) {
@@ -273,10 +287,16 @@ runBuild(cacheRootA, 'baseline build', {
   indexing: {
     fileListSampleSize: 10,
     shards: { enabled: false },
-    treeSitter: { enabled: false }
+    treeSitter: { enabled: false },
+    scm: { provider: 'none' },
+    typeInference: false,
+    typeInferenceCrossFile: false,
+    riskAnalysis: false,
+    riskAnalysisCrossFile: false
   },
   tooling: {
-    autoEnableOnDetect: false
+    autoEnableOnDetect: false,
+    lsp: { enabled: false }
   }
 });
 const baseline = await readIndex(cacheRootA);
@@ -290,10 +310,16 @@ runBuild(cacheRootB, 'sharded build', {
       maxWorkers: 1,
       minFiles: 1
     },
-    treeSitter: { enabled: false }
+    treeSitter: { enabled: false },
+    scm: { provider: 'none' },
+    typeInference: false,
+    typeInferenceCrossFile: false,
+    riskAnalysis: false,
+    riskAnalysisCrossFile: false
   },
   tooling: {
-    autoEnableOnDetect: false
+    autoEnableOnDetect: false,
+    lsp: { enabled: false }
   }
 });
 const sharded = await readIndex(cacheRootB);

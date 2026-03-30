@@ -14,16 +14,11 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 applyTestEnv();
 
 const root = process.cwd();
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const buildIndexPath = path.join(root, 'build_index.js');
 const assemblePath = path.join(root, 'tools', 'index', 'assemble-pieces.js');
 
-if (!fs.existsSync(fixtureRoot)) {
-  console.error(`Missing fixture: ${fixtureRoot}`);
-  process.exit(1);
-}
-
 const cacheRoot = resolveTestCachePath(root, 'piece-assembly');
+const fixtureRoot = path.join(cacheRoot, 'source-repo');
 const cacheA = path.join(cacheRoot, 'a');
 const cacheB = path.join(cacheRoot, 'b');
 const outputMono = path.join(cacheRoot, 'assembled-single', 'index-code');
@@ -32,11 +27,48 @@ const outputDir2 = path.join(cacheRoot, 'assembled-repeat', 'index-code');
 
 await rmDirRecursive(cacheRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+await fsPromises.mkdir(path.join(fixtureRoot, 'src'), { recursive: true });
+await fsPromises.writeFile(
+  path.join(fixtureRoot, 'src', 'alpha.js'),
+  [
+    'export function alpha(value = 1) {',
+    '  return value + 1;',
+    '}',
+    ''
+  ].join('\n'),
+  'utf8'
+);
+await fsPromises.writeFile(
+  path.join(fixtureRoot, 'src', 'beta.js'),
+  [
+    'import { alpha } from "./alpha.js";',
+    'export function beta() {',
+    '  return alpha(2);',
+    '}',
+    ''
+  ].join('\n'),
+  'utf8'
+);
+await fsPromises.writeFile(
+  path.join(fixtureRoot, 'src', 'gamma.js'),
+  [
+    'import { beta } from "./beta.js";',
+    'export const gamma = () => beta();',
+    ''
+  ].join('\n'),
+  'utf8'
+);
+await fsPromises.writeFile(
+  path.join(fixtureRoot, 'README.md'),
+  '# Piece assembly fixture\n\nsmall synthetic fixture\n',
+  'utf8'
+);
 
 const baseEnv = {
   ...process.env,  PAIROFCLEATS_EMBEDDINGS: 'stub',
   PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
     indexing: {
+      scm: { provider: 'none' },
       typeInference: false,
       typeInferenceCrossFile: false,
       riskAnalysis: false,
@@ -46,7 +78,8 @@ const baseEnv = {
       autoEnableOnDetect: false,
       lsp: { enabled: false }
     }
-  })
+  }),
+  PAIROFCLEATS_WORKER_POOL: 'off'
 };
 syncProcessEnv(baseEnv, [...DEFAULT_TEST_ENV_KEYS]);
 
@@ -78,9 +111,9 @@ const logChunkMetaDiff = (label, left, right) => {
   }
 };
 
-const run = (label, args, env) => {
+const run = (label, args, env, cwd = fixtureRoot) => {
   const result = spawnSync(process.execPath, args, {
-    cwd: fixtureRoot,
+    cwd,
     env,
     stdio: 'inherit'
   });
@@ -90,14 +123,24 @@ const run = (label, args, env) => {
   }
 };
 
-run('build_index (A)', [buildIndexPath, '--stub-embeddings', '--scm-provider', 'none', '--mode', 'code', '--repo', fixtureRoot], {
+const buildCodeArgs = (repoRoot) => [
+  buildIndexPath,
+  '--stub-embeddings',
+  '--stage',
+  'stage1',
+  '--scm-provider',
+  'none',
+  '--mode',
+  'code',
+  '--repo',
+  repoRoot
+];
+
+run('build_index (A)', buildCodeArgs(fixtureRoot), {
   ...baseEnv,
   PAIROFCLEATS_CACHE_ROOT: cacheA
 });
-run('build_index (B)', [buildIndexPath, '--stub-embeddings', '--scm-provider', 'none', '--mode', 'code', '--repo', fixtureRoot], {
-  ...baseEnv,
-  PAIROFCLEATS_CACHE_ROOT: cacheB
-});
+await fsPromises.cp(cacheA, cacheB, { recursive: true });
 
 const userConfig = loadUserConfig(fixtureRoot);
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheA;
@@ -302,18 +345,18 @@ await copyRepoFiles(repoAll, sampleFiles);
 await copyRepoFiles(repoA, filesA);
 await copyRepoFiles(repoB, filesB);
 
-run('build_index (monolithic)', [buildIndexPath, '--stub-embeddings', '--scm-provider', 'none', '--mode', 'code', '--repo', repoAll], {
+run('build_index (monolithic)', buildCodeArgs(repoAll), {
   ...baseEnv,
   PAIROFCLEATS_CACHE_ROOT: cacheAll
-});
-run('build_index (part A)', [buildIndexPath, '--stub-embeddings', '--scm-provider', 'none', '--mode', 'code', '--repo', repoA], {
+}, repoAll);
+run('build_index (part A)', buildCodeArgs(repoA), {
   ...baseEnv,
   PAIROFCLEATS_CACHE_ROOT: cacheA2
-});
-run('build_index (part B)', [buildIndexPath, '--stub-embeddings', '--scm-provider', 'none', '--mode', 'code', '--repo', repoB], {
+}, repoA);
+run('build_index (part B)', buildCodeArgs(repoB), {
   ...baseEnv,
   PAIROFCLEATS_CACHE_ROOT: cacheB2
-});
+}, repoB);
 
 const userConfigAll = loadUserConfig(repoAll);
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheAll;

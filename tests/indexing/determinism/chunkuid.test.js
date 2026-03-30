@@ -31,11 +31,40 @@ await fsPromises.writeFile(
 const buildIndex = (cacheRoot) => {
   const env = applyTestEnv({
     cacheRoot,
-    embeddings: 'stub'
+    embeddings: 'stub',
+    testConfig: {
+      indexing: {
+        scm: { provider: 'none' },
+        typeInference: false,
+        typeInferenceCrossFile: false,
+        riskAnalysis: false,
+        riskAnalysisCrossFile: false
+      },
+      tooling: {
+        autoEnableOnDetect: false,
+        lsp: {
+          enabled: false
+        }
+      }
+    },
+    extraEnv: {
+      PAIROFCLEATS_WORKER_POOL: 'off'
+    }
   });
   return spawnSync(
     process.execPath,
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
+    [
+      path.join(root, 'build_index.js'),
+      '--stub-embeddings',
+      '--stage',
+      'stage1',
+      '--mode',
+      'code',
+      '--scm-provider',
+      'none',
+      '--repo',
+      repoRoot
+    ],
     { cwd: repoRoot, env, stdio: 'inherit' }
   );
 };
