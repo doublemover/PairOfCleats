@@ -157,8 +157,8 @@ export function formatShortChunk({
   const snippetLabel = mode === 'records'
     ? 'summary'
     : (mode === 'extracted-prose'
-        ? (looksKeywordish(rawSnippet) ? 'keywords' : 'comment')
-        : 'excerpt');
+      ? (looksKeywordish(rawSnippet) ? 'keywords' : 'comment')
+      : 'excerpt');
   const displaySnippet = rawSnippet && normalizeSnippet(primaryTitle).toLowerCase() === rawSnippet.toLowerCase()
     ? ''
     : rawSnippet;

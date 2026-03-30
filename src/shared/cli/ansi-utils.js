@@ -42,9 +42,12 @@ export const colorize = (text, color, enabled = true) => (
   enabled ? `${color}${text}${ANSI.reset}` : text
 );
 
+const ANSI_OSC_SEQUENCE_RE = new RegExp('\\x1b\\][^\\x07\\x1b]*(?:\\x07|\\x1b\\\\)', 'gu');
+const ANSI_SGR_SEQUENCE_RE = new RegExp('\\x1b\\[[0-9;]*m', 'gu');
+
 export const stripAnsi = (text) => String(text)
-  .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/gu, '')
-  .replace(/\x1b\[[0-9;]*m/gu, '');
+  .replace(ANSI_OSC_SEQUENCE_RE, '')
+  .replace(ANSI_SGR_SEQUENCE_RE, '');
 
 export const padEndVisible = (text, width) => {
   const visible = stripAnsi(text).length;

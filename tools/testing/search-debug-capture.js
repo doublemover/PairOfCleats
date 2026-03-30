@@ -78,9 +78,12 @@ const ensureDir = async (dirPath) => {
   await fs.mkdir(dirPath, { recursive: true });
 };
 
+const ANSI_OSC_SEQUENCE_RE = new RegExp('\\x1B\\][^\\x07]*(?:\\x07|\\x1B\\\\)', 'gu');
+const ANSI_CSI_SEQUENCE_RE = new RegExp('\\x1B(?:[@-Z\\\\-_]|\\[[0-?]*[ -/]*[@-~])', 'gu');
+
 const stripTerminalSequences = (value) => stripAnsi(String(value ?? ''))
-  .replace(/\x1B\][^\x07]*(?:\x07|\x1B\\)/gu, '')
-  .replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/gu, '');
+  .replace(ANSI_OSC_SEQUENCE_RE, '')
+  .replace(ANSI_CSI_SEQUENCE_RE, '');
 
 const writeBuffer = async (filePath, chunks) => {
   const buffer = Buffer.concat(Array.isArray(chunks) ? chunks : []);

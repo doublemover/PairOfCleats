@@ -22,71 +22,71 @@ const runSearchAndHealthCase = async () => {
     maxBodyBytes: 512
   });
   try {
-  for (const entry of SHARED_SEARCH_CONTRACT_CASES) {
-    const response = await requestJson('POST', '/search', {
-      query: entry.query,
-      mode: entry.mode,
-      top: entry.top
-    }, serverInfo);
-    if (response.status !== 200 || response.body?.ok !== true) {
-      throw new Error(`api ${entry.id} expected ok response`);
+    for (const entry of SHARED_SEARCH_CONTRACT_CASES) {
+      const response = await requestJson('POST', '/search', {
+        query: entry.query,
+        mode: entry.mode,
+        top: entry.top
+      }, serverInfo);
+      if (response.status !== 200 || response.body?.ok !== true) {
+        throw new Error(`api ${entry.id} expected ok response`);
+      }
+      entry.assertPayload(response.body?.result || {}, { source: 'api' });
     }
-    entry.assertPayload(response.body?.result || {}, { source: 'api' });
-  }
 
-  const getWithMetaJsonAlias = await requestJson(
-    'GET',
-    `/search?q=return&mode=code&meta-json=${encodeURIComponent(JSON.stringify({ source: 'query-meta-alias' }))}`,
-    null,
-    serverInfo
-  );
-  if (getWithMetaJsonAlias.status !== 200 || getWithMetaJsonAlias.body?.ok !== true) {
-    throw new Error('api search contract matrix should accept meta-json query param alias');
-  }
+    const getWithMetaJsonAlias = await requestJson(
+      'GET',
+      `/search?q=return&mode=code&meta-json=${encodeURIComponent(JSON.stringify({ source: 'query-meta-alias' }))}`,
+      null,
+      serverInfo
+    );
+    if (getWithMetaJsonAlias.status !== 200 || getWithMetaJsonAlias.body?.ok !== true) {
+      throw new Error('api search contract matrix should accept meta-json query param alias');
+    }
 
-  const invalid = await requestJson('POST', '/search', {}, serverInfo);
-  if (invalid.status !== 400 || invalid.body?.ok !== false || invalid.body?.code !== 'INVALID_REQUEST') {
-    throw new Error('api search contract matrix should reject missing query');
-  }
+    const invalid = await requestJson('POST', '/search', {}, serverInfo);
+    if (invalid.status !== 400 || invalid.body?.ok !== false || invalid.body?.code !== 'INVALID_REQUEST') {
+      throw new Error('api search contract matrix should reject missing query');
+    }
 
-  const missingContentType = await requestRaw(
-    'POST',
-    '/search',
-    JSON.stringify({ query: 'return' }),
-    serverInfo,
-    { headers: {} }
-  );
-  if (missingContentType.status !== 415 || missingContentType.json?.code !== 'INVALID_REQUEST') {
-    throw new Error('api search contract matrix should reject missing content-type');
-  }
+    const missingContentType = await requestRaw(
+      'POST',
+      '/search',
+      JSON.stringify({ query: 'return' }),
+      serverInfo,
+      { headers: {} }
+    );
+    if (missingContentType.status !== 415 || missingContentType.json?.code !== 'INVALID_REQUEST') {
+      throw new Error('api search contract matrix should reject missing content-type');
+    }
 
-  const oversizedPayload = { query: 'return', extra: 'x'.repeat(600) };
-  const tooLarge = await requestRaw(
-    'POST',
-    '/search',
-    JSON.stringify(oversizedPayload),
-    serverInfo,
-    { headers: { 'Content-Type': 'application/json' } }
-  );
-  if (tooLarge.status !== 413 || tooLarge.json?.code !== 'INVALID_REQUEST') {
-    throw new Error('api search contract matrix should enforce body size limits');
-  }
+    const oversizedPayload = { query: 'return', extra: 'x'.repeat(600) };
+    const tooLarge = await requestRaw(
+      'POST',
+      '/search',
+      JSON.stringify(oversizedPayload),
+      serverInfo,
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    if (tooLarge.status !== 413 || tooLarge.json?.code !== 'INVALID_REQUEST') {
+      throw new Error('api search contract matrix should enforce body size limits');
+    }
 
-  const unknownField = await requestJson('POST', '/search', {
-    query: 'return',
-    extraField: true
-  }, serverInfo);
-  if (unknownField.status !== 400 || unknownField.body?.code !== 'INVALID_REQUEST') {
-    throw new Error('api search contract matrix should reject unknown fields');
-  }
+    const unknownField = await requestJson('POST', '/search', {
+      query: 'return',
+      extraField: true
+    }, serverInfo);
+    if (unknownField.status !== 400 || unknownField.body?.code !== 'INVALID_REQUEST') {
+      throw new Error('api search contract matrix should reject unknown fields');
+    }
 
-  const noIndex = await requestJson('POST', '/search', {
-    repoPath: emptyRepo,
-    query: 'return'
-  }, serverInfo);
-  if (noIndex.status !== 409 || noIndex.body?.code !== 'NO_INDEX') {
-    throw new Error('api search contract matrix should return NO_INDEX for allowed roots without an index');
-  }
+    const noIndex = await requestJson('POST', '/search', {
+      repoPath: emptyRepo,
+      query: 'return'
+    }, serverInfo);
+    if (noIndex.status !== 409 || noIndex.body?.code !== 'NO_INDEX') {
+      throw new Error('api search contract matrix should return NO_INDEX for allowed roots without an index');
+    }
 
     const unauthorized = await requestJson('GET', '/health', null, serverInfo, { auth: false });
     if (unauthorized.status !== 401 || unauthorized.body?.code !== 'UNAUTHORIZED') {
