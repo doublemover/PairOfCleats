@@ -96,11 +96,18 @@ const cases = [
       const repoRoot = path.join(tempRoot, 'repo');
       const cacheRoot = path.join(tempRoot, 'cache');
       const cacheRootResolved = resolveVersionedCacheRoot(cacheRoot);
-      const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 
       await rmDirRecursive(tempRoot, { retries: 6, delayMs: 120 });
-      await fsPromises.mkdir(repoRoot, { recursive: true });
-      await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
+      await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+      await fsPromises.writeFile(
+        path.join(repoRoot, 'src', 'cache-sample.js'),
+        [
+          'export function greet(name = "world") {',
+          '  return `greet ${name}`;',
+          '}',
+          ''
+        ].join('\n')
+      );
 
       const env = applyTestEnv({
         cacheRoot,
@@ -108,10 +115,21 @@ const cases = [
         testConfig: { quality: 'max' }
       });
 
-      runNode(repoRoot, env, [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], 'build index');
+      runNode(repoRoot, env, [
+        path.join(root, 'build_index.js'),
+        '--stub-embeddings',
+        '--repo',
+        repoRoot,
+        '--stage',
+        'stage1',
+        '--mode',
+        'code'
+      ], 'build index');
       const searchArgs = [
         path.join(root, 'search.js'),
         'greet',
+        '--mode',
+        'code',
         '--json',
         '--stats',
         '--backend',

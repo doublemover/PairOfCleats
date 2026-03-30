@@ -14,13 +14,17 @@ import { resolveTestCachePath } from '../helpers/test-cache.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'api-search-asof-service');
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
-await fs.cp(fixtureRoot, repoRoot, { recursive: true });
+await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+await fs.writeFile(
+  path.join(repoRoot, 'src', 'base.js'),
+  'export function baseApiSearchAsofValue() { return "base"; }\n',
+  'utf8'
+);
 
 const env = applyTestEnv({
   cacheRoot,

@@ -67,14 +67,24 @@ const createFixture = async (name, extraTestConfig = null) => {
   );
 
   return {
+    tempRoot,
     repoRoot,
     run,
     lmdbPaths: resolveLmdbPaths(repoRoot, loadUserConfig(repoRoot))
   };
 };
 
-const runHealthyReportScenario = async () => {
-  const fixture = await createFixture('lmdb-report-contract-matrix', { lmdb: { use: true } });
+const snapshotPathTree = async (sourcePath, snapshotPath) => {
+  await fsPromises.rm(snapshotPath, { recursive: true, force: true });
+  await fsPromises.cp(sourcePath, snapshotPath, { recursive: true });
+};
+
+const restorePathTree = async (snapshotPath, targetPath) => {
+  await fsPromises.rm(targetPath, { recursive: true, force: true });
+  await fsPromises.cp(snapshotPath, targetPath, { recursive: true });
+};
+
+const runHealthyReportScenario = async (fixture) => {
   const report = fixture.run(
     [path.join(root, 'tools', 'index', 'report-artifacts.js'), '--json', '--repo', fixture.repoRoot],
     'report artifacts'
@@ -120,8 +130,7 @@ const runHealthyReportScenario = async () => {
   }
 };
 
-const runCorruptionScenario = async () => {
-  const fixture = await createFixture('lmdb-corruption-contract-matrix');
+const runCorruptionScenario = async (fixture) => {
   const db = open({ path: fixture.lmdbPaths.codePath, readOnly: false });
   if (typeof db.removeSync === 'function') {
     db.removeSync(LMDB_META_KEYS.schemaVersion);
@@ -157,19 +166,18 @@ const runCorruptionScenario = async () => {
   }
 };
 
-const cases = [
-  { name: 'healthy report and missing artifact detection', run: runHealthyReportScenario },
-  { name: 'schema corruption detection', run: runCorruptionScenario }
-];
+const fixture = await createFixture('lmdb-report-contract-matrix', { lmdb: { use: true } });
+const codeSnapshotPath = path.join(fixture.tempRoot, 'code-snapshot');
+await snapshotPathTree(fixture.lmdbPaths.codePath, codeSnapshotPath);
 
-for (const testCase of cases) {
-  try {
-    await testCase.run();
-  } catch (error) {
-    console.error(`lmdb report contract matrix failed: ${testCase.name}`);
-    console.error(error?.stack || error?.message || String(error));
-    process.exit(1);
-  }
+try {
+  await runHealthyReportScenario(fixture);
+  await restorePathTree(codeSnapshotPath, fixture.lmdbPaths.codePath);
+  await runCorruptionScenario(fixture);
+} catch (error) {
+  console.error('lmdb report contract matrix failed');
+  console.error(error?.stack || error?.message || String(error));
+  process.exit(1);
 }
 
-console.log(`lmdb report contract matrix passed (${cases.length} cases)`);
+console.log('lmdb report contract matrix passed (2 cases)');

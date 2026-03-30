@@ -79,6 +79,8 @@ const buildIndex = (repoRoot, env) => {
       '--stub-embeddings',
       '--stage',
       'stage2',
+      '--mode',
+      'prose',
       '--repo',
       repoRoot
     ],

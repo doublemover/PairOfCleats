@@ -11,10 +11,20 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'fielded-bm25');
 const cacheRoot = path.join(tempRoot, 'cache');
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
+const fixtureRoot = path.join(tempRoot, 'repo');
+await fsPromises.mkdir(path.join(fixtureRoot, 'src'), { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+await fsPromises.writeFile(
+  path.join(fixtureRoot, 'src', 'greet.js'),
+  [
+    'export function greet(name = "world") {',
+    '  return `greet ${name}`;',
+    '}',
+    ''
+  ].join('\n')
+);
 
 const env = applyTestEnv({
   cacheRoot,
@@ -23,7 +33,17 @@ const env = applyTestEnv({
 
 const buildResult = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot],
+  [
+    path.join(root, 'build_index.js'),
+    '--stub-embeddings',
+    '--repo',
+    fixtureRoot,
+    '--stage',
+    'stage1',
+    '--mode',
+    'code',
+    '--no-sqlite'
+  ],
   { env, stdio: 'inherit' }
 );
 if (buildResult.status !== 0) {

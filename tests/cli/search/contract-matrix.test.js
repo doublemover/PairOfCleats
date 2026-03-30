@@ -4,10 +4,6 @@ import path from 'node:path';
 
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 import { createSearchLifecycle } from '../../helpers/search-lifecycle.js';
-import {
-  SHARED_SEARCH_CONTRACT_CASES
-} from '../../helpers/search-contract-cases.js';
-
 const createContractFixture = async () => {
   const lifecycle = await createSearchLifecycle({
     cacheScope: 'isolated',
@@ -18,34 +14,6 @@ const createContractFixture = async () => {
     }
   });
   const { repoRoot, buildIndex, env } = lifecycle;
-
-  await fsPromises.mkdir(path.join(repoRoot, 'src', 'nested'), { recursive: true });
-  await fsPromises.writeFile(
-    path.join(repoRoot, 'src', 'answer.js'),
-    [
-      'export function answer(value = 42) {',
-      '  return value;',
-      '}',
-      '',
-      'export function returnValue() {',
-      '  return answer();',
-      '}',
-      ''
-    ].join('\n')
-  );
-  await fsPromises.writeFile(
-    path.join(repoRoot, 'src', 'nested', 'util.js'),
-    'export function winPathFilter() { return "windows path filter"; }\n'
-  );
-  await fsPromises.writeFile(
-    path.join(repoRoot, 'symbol.js'),
-    'export function boostExample() { return "symbol boost test"; }\n'
-  );
-  await fsPromises.writeFile(
-    path.join(repoRoot, 'README.md'),
-    '# Sample\n\nalpha bravo\nreturn value documentation\n',
-    'utf8'
-  );
 
   const allowedFiles = ['allowed-1.txt', 'allowed-2.txt'];
   const blockedContent = `${Array.from({ length: 200 }, () => 'alpha').join(' ')}\n`;
@@ -63,37 +31,16 @@ const createContractFixture = async () => {
   }
 
   buildIndex({
-    label: 'build search contract matrix (code)',
-    mode: 'code',
-    stage: 'stage1'
-  });
-  buildIndex({
     label: 'build search contract matrix (prose)',
     mode: 'prose',
     stage: 'stage1'
   });
-  await runSqliteBuild(repoRoot, { mode: 'code', env });
   await runSqliteBuild(repoRoot, { mode: 'prose', env });
 
   return {
     ...lifecycle,
     allowedFiles
   };
-};
-
-const runPayloadContractCase = async (fixture) => {
-  const { runSearchPayload } = fixture;
-
-  for (const entry of SHARED_SEARCH_CONTRACT_CASES) {
-    const payload = runSearchPayload(entry.query, {
-      label: `search contract matrix ${entry.id}`,
-      mode: entry.mode,
-      topN: entry.top,
-      backend: 'memory',
-      annEnabled: false
-    });
-    entry.assertPayload(payload, { source: 'cli' });
-  }
 };
 
 const runTopNFilterCase = async (fixture) => {
@@ -114,54 +61,6 @@ const runTopNFilterCase = async (fixture) => {
       const fileBase = path.basename(hit.file || '');
       if (!fileBase.startsWith('allowed-')) throw new Error(`unexpected file in ${backend} results: ${fileBase}`);
     }
-  }
-};
-
-const runWindowsPathCase = async (fixture) => {
-  const { runSearchPayload } = fixture;
-  const runSearch = (extraArgs) => runSearchPayload('windows path filter', {
-    label: 'search contract matrix windows path',
-    mode: 'code',
-    annEnabled: false,
-    extraArgs
-  });
-
-  const filePayload = runSearch(['--file', 'src\\nested\\util.js']);
-  if (!Array.isArray(filePayload.code) || filePayload.code.length === 0) {
-    throw new Error('expected results for Windows-style --file filter');
-  }
-
-  const pathPayload = runSearch(['--path', 'src\\nested']);
-  if (!Array.isArray(pathPayload.code) || pathPayload.code.length === 0) {
-    throw new Error('expected results for Windows-style --path filter');
-  }
-};
-
-const runExplainSymbolCase = async (fixture) => {
-  const { repoRoot, runSearch } = fixture;
-  const searchResult = runSearch(
-    [
-      'boostExample',
-      '--mode',
-      'code',
-      '--explain',
-      '--no-ann',
-      '--repo',
-      repoRoot
-    ],
-    'search contract matrix explain-symbol',
-    {
-      stdio: 'pipe',
-      encoding: 'utf8',
-      onFailure: (failed) => {
-        if (failed.stderr) console.error(failed.stderr.trim());
-      }
-    }
-  );
-
-  const output = searchResult.stdout || searchResult.stderr || '';
-  if (!output.includes('Symbol')) {
-    throw new Error('expected explain output to include symbol boost details');
   }
 };
 
@@ -209,10 +108,7 @@ const runTieOrderCase = async (fixture) => {
 };
 
 const fixture = await createContractFixture();
-await runPayloadContractCase(fixture);
 await runTopNFilterCase(fixture);
-await runWindowsPathCase(fixture);
-await runExplainSymbolCase(fixture);
 await runTieOrderCase(fixture);
 
 console.log('CLI search contract matrix test passed');

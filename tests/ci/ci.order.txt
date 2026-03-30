@@ -13,6 +13,7 @@ indexing/shards/shard-progress-determinism
 runner/harness/contract-matrix
 indexing/metrics/index-options
 indexing/postings/real-bench-contract
+cli/search/code-contract-matrix
 cli/search/non-result-surfaces
 tooling/lsp/provider-runtime-contract-matrix
 shared/encoding/unicode-offset

@@ -235,19 +235,46 @@ const cases = [
   {
     name: 'strict and non-strict searches both fail once manifest embeddings are missing after cutover',
     async run() {
-      const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-      const cacheRoot = resolveTestCachePath(root, 'retrieval-backend-contract-matrix');
+      const tempRoot = resolveTestCachePath(root, 'retrieval-backend-contract-matrix');
+      const fixtureRoot = path.join(tempRoot, 'repo');
+      const cacheRoot = path.join(tempRoot, 'cache');
       const env = applyTestEnv({
         cacheRoot,
         embeddings: 'stub',
         testConfig: backendMatrixTestConfig
       });
 
-      await fsPromises.rm(cacheRoot, { recursive: true, force: true });
+      await fsPromises.rm(tempRoot, { recursive: true, force: true });
+      await fsPromises.mkdir(path.join(fixtureRoot, 'src'), { recursive: true });
       await fsPromises.mkdir(cacheRoot, { recursive: true });
+      await fsPromises.writeFile(
+        path.join(fixtureRoot, 'src', 'token.js'),
+        [
+          'export function tokenMarker() {',
+          '  return "token manifest backend";',
+          '}',
+          ''
+        ].join('\n')
+      );
 
-      runNode(env, [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot], 'build index');
-      runNode(env, [path.join(root, 'tools', 'build', 'embeddings.js'), '--stub-embeddings', '--repo', fixtureRoot], 'build embeddings');
+      runNode(env, [
+        path.join(root, 'build_index.js'),
+        '--stub-embeddings',
+        '--repo',
+        fixtureRoot,
+        '--stage',
+        'stage1',
+        '--mode',
+        'code'
+      ], 'build index');
+      runNode(env, [
+        path.join(root, 'tools', 'build', 'embeddings.js'),
+        '--stub-embeddings',
+        '--repo',
+        fixtureRoot,
+        '--mode',
+        'code'
+      ], 'build embeddings');
 
       const userConfig = loadUserConfig(fixtureRoot);
       const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
@@ -258,6 +285,8 @@ const cases = [
       const searchArgs = [
         path.join(root, 'search.js'),
         'token',
+        '--mode',
+        'code',
         '--backend',
         'memory',
         '--json',
