@@ -55,6 +55,13 @@ public configuration contract unless explicitly called out.
 - `PAIROFCLEATS_UV_THREADPOOL_SIZE`
 - `PAIROFCLEATS_IO_OVERSUBSCRIBE`
 
+These apply to heavy dispatched commands as well as direct tool entrypoints when
+the dispatch layer preserves the runtime envelope. Treat them as operator-facing
+resource controls for:
+- index/build flows
+- search/report/bench flows
+- service and API launch paths
+
 ## Tooling/bench/CI overrides (non-secret, internal)
 - `PAIROFCLEATS_BENCH_RUN`
 - `PAIROFCLEATS_SKIP_BENCH`
@@ -89,3 +96,5 @@ public configuration contract unless explicitly called out.
 - For runtime envelope fields, precedence is generally: CLI > config > env >
   defaults/AutoPolicy.
 - Test overrides are ignored unless `PAIROFCLEATS_TESTING=1`.
+- Service config is validated before queue or worker actions run; invalid config
+  should fail fast with a path-aware error instead of silently defaulting.

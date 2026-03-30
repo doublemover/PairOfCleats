@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-26T06:24:28.226Z",
+  "generatedAt": "2026-03-30T08:30:43.408Z",
   "scripts": [
     {
       "name": "bootstrap",
@@ -80,7 +80,19 @@
       "replacement": null
     },
     {
+      "name": "test:lane-audit",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
       "name": "test:perf",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:refresh-governance",
       "category": "test",
       "ciAllowed": true,
       "replacement": null
@@ -101,6 +113,12 @@
       "name": "verify",
       "category": "tooling",
       "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "verify:production",
+      "category": "tooling",
+      "ciAllowed": false,
       "replacement": null
     }
   ],

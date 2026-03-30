@@ -111,8 +111,11 @@ See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.
 | `test:ci` | test | yes |  |
 | `test:ci-lite` | test | yes |  |
 | `test:ci-long` | test | yes |  |
+| `test:lane-audit` | test | yes |  |
 | `test:perf` | test | yes |  |
+| `test:refresh-governance` | test | yes |  |
 | `test:services` | test | yes |  |
 | `test:storage` | test | yes |  |
 | `verify` | tooling | yes |  |
+| `verify:production` | tooling | no |  |
 
