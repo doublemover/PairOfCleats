@@ -146,7 +146,10 @@ export const resolveCommandProfilePreflightResult = ({
  * @param {{
  *   preflight?: object | null,
  *   fallbackRequestedCommand?: {cmd?:string,args?:string[]} | null,
- *   missingProfileCheck?: object | null
+ *   missingProfileCheck?: object | null,
+ *   providerId?: string | null,
+ *   repoRoot?: string | null,
+ *   toolingConfig?: object | null
  * }} input
  * @returns {{
  *   requestedCommand:{cmd:string,args:string[]},
@@ -161,7 +164,10 @@ export const resolveCommandProfilePreflightResult = ({
 export const resolveRuntimeCommandFromPreflight = ({
   preflight = null,
   fallbackRequestedCommand = null,
-  missingProfileCheck = null
+  missingProfileCheck = null,
+  providerId = null,
+  repoRoot = null,
+  toolingConfig = null
 } = {}) => {
   const requestedCommand = preflight?.requestedCommand && typeof preflight.requestedCommand === 'object'
     ? {
@@ -172,9 +178,18 @@ export const resolveRuntimeCommandFromPreflight = ({
       cmd: String(fallbackRequestedCommand?.cmd || '').trim(),
       args: Array.isArray(fallbackRequestedCommand?.args) ? fallbackRequestedCommand.args : []
     };
-  const commandProfile = preflight?.commandProfile && typeof preflight.commandProfile === 'object'
+  let commandProfile = preflight?.commandProfile && typeof preflight.commandProfile === 'object'
     ? preflight.commandProfile
     : null;
+  if (!commandProfile && requestedCommand.cmd) {
+    commandProfile = resolveToolingCommandProfile({
+      providerId: String(providerId || '').trim() || requestedCommand.cmd,
+      cmd: requestedCommand.cmd,
+      args: requestedCommand.args,
+      repoRoot: repoRoot || process.cwd(),
+      toolingConfig: toolingConfig || {}
+    });
+  }
   const cmd = String(commandProfile?.resolved?.cmd || requestedCommand.cmd || '').trim();
   const args = Array.isArray(commandProfile?.resolved?.args)
     ? commandProfile.resolved.args

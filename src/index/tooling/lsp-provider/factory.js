@@ -173,6 +173,9 @@ export const createConfiguredLspProvider = (server) => {
           commandProfile
         },
         fallbackRequestedCommand: requestedCommand,
+        providerId,
+        repoRoot: ctx?.repoRoot || process.cwd(),
+        toolingConfig: ctx?.toolingConfig || {},
         missingProfileCheck: {
           name: 'lsp_preflight_command_profile_missing',
           status: 'warn',

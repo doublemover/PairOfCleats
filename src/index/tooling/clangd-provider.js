@@ -672,6 +672,9 @@ export const createClangdProvider = () => ({
     const runtimeCommand = resolveRuntimeCommandFromPreflight({
       preflight,
       fallbackRequestedCommand: requestedCommand,
+      providerId: 'clangd',
+      repoRoot: ctx?.repoRoot || process.cwd(),
+      toolingConfig: ctx?.toolingConfig || {},
       missingProfileCheck: {
         name: 'clangd_preflight_command_profile_missing',
         status: 'warn',

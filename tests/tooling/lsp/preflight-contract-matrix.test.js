@@ -166,9 +166,26 @@ const runCommandProfileHelperCase = () => {
     missingProfileCheck: { name: 'fixture_preflight_command_profile_missing', status: 'warn', message: 'missing profile' }
   });
   assert.equal(runtimeUnknownProbe.cmd, process.execPath);
-  assert.equal(runtimeUnknownProbe.probeKnown, false);
-  assert.equal(runtimeUnknownProbe.probeOk, false);
+  assert.equal(runtimeUnknownProbe.probeKnown, true);
+  assert.equal(runtimeUnknownProbe.probeOk, true);
   assert.equal(runtimeUnknownProbe.checks.length, 0);
+
+  const runtimeResolvedFromFallback = resolveRuntimeCommandFromPreflight({
+    preflight: {
+      state: 'degraded',
+      reasonCode: 'timeout',
+      requestedCommand: { cmd: 'pyright-langserver', args: ['--stdio'] }
+    },
+    fallbackRequestedCommand: { cmd: '', args: [] },
+    providerId: 'pyright',
+    repoRoot: root,
+    toolingConfig: {},
+    missingProfileCheck: { name: 'fixture_preflight_command_profile_missing', status: 'warn', message: 'missing profile' }
+  });
+  assert.equal(path.basename(runtimeResolvedFromFallback.cmd).toLowerCase().startsWith('pyright-langserver'), true);
+  assert.deepEqual(runtimeResolvedFromFallback.args, ['--stdio']);
+  assert.equal(runtimeResolvedFromFallback.probeKnown, true);
+  assert.equal(runtimeResolvedFromFallback.commandProfile?.resolved?.cmd?.length > 0, true);
 
   const dedupedChecks = mergePreflightChecks(
     [{ name: 'a', status: 'warn', message: 'm' }, { name: 'a', status: 'warn', message: 'm' }],

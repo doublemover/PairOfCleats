@@ -681,6 +681,9 @@ export const createSourcekitProvider = () => ({
     const runtimeCommand = resolveRuntimeCommandFromPreflight({
       preflight,
       fallbackRequestedCommand: requestedCommand,
+      providerId: 'sourcekit',
+      repoRoot: ctx?.repoRoot || process.cwd(),
+      toolingConfig: ctx?.toolingConfig || {},
       missingProfileCheck: {
         name: 'sourcekit_preflight_command_profile_missing',
         status: 'warn',

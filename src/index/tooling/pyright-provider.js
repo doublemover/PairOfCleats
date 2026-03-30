@@ -348,6 +348,9 @@ export const createPyrightProvider = () => ({
     const runtimeCommand = resolveRuntimeCommandFromPreflight({
       preflight,
       fallbackRequestedCommand: requestedCommand,
+      providerId: 'pyright',
+      repoRoot: ctx?.repoRoot || process.cwd(),
+      toolingConfig: ctx?.toolingConfig || {},
       missingProfileCheck: {
         name: 'pyright_preflight_command_profile_missing',
         status: 'warn',

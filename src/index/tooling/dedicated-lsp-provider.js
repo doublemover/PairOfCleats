@@ -277,6 +277,9 @@ export const createDedicatedLspProvider = (descriptor) => {
       const runtimeCommand = resolveRuntimeCommandFromPreflight({
         preflight,
         fallbackRequestedCommand: requested,
+        providerId: descriptor.id,
+        repoRoot: ctx?.repoRoot || process.cwd(),
+        toolingConfig: ctx?.toolingConfig || {},
         missingProfileCheck: {
           name: `${descriptor.id}_preflight_command_profile_missing`,
           status: 'warn',
