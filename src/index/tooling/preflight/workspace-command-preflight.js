@@ -1,6 +1,4 @@
-import {
-  spawnSubprocess
-} from '../../../shared/subprocess.js';
+import { spawnResolvedSubprocess } from '../../../shared/subprocess/command-invocation.js';
 import { TOOLING_PREFLIGHT_REASON_CODES } from './contract.js';
 import {
   buildWorkspaceCommandPreflightFingerprint,
@@ -150,7 +148,7 @@ export const runWorkspaceCommandPreflight = async ({
   }
   try {
     const workingDir = String(cwd || ctx?.repoRoot || process.cwd());
-    const result = await spawnSubprocess(command, commandArgs, {
+    const result = await spawnResolvedSubprocess(command, commandArgs, {
       cwd: workingDir,
       stdio: ['ignore', 'pipe', 'pipe'],
       rejectOnNonZeroExit: false,

@@ -4,6 +4,7 @@ import {
   buildGoWorkspacePartitionKey,
   normalizeWorkspaceRootRel
 } from '../go-workspace-partitioning.js';
+import { resolveToolingCommandProfile } from '../command-resolver.js';
 import { runWorkspaceCommandPreflight } from './workspace-command-preflight.js';
 import { findWorkspaceMarkersNearPaths } from '../workspace-model.js';
 
@@ -34,8 +35,25 @@ const isGoWorkspacePreflightServer = (server) => {
   return id === 'gopls' || cmd === 'gopls' || languages.includes('go');
 };
 
-const resolveModuleCommand = (server) => {
-  const cmd = String(server?.goWorkspaceModuleCmd || 'go').trim() || 'go';
+const resolveManagedGoCommand = ({
+  ctx,
+  server,
+  requestedCmd,
+  requestedArgs,
+  probeSuffix
+}) => {
+  const profile = resolveToolingCommandProfile({
+    providerId: `${String(server?.id || 'gopls').trim() || 'gopls'}-${String(probeSuffix || 'go-workspace')}`,
+    cmd: String(requestedCmd || 'go').trim() || 'go',
+    args: Array.isArray(requestedArgs) ? requestedArgs.map((entry) => String(entry)) : [],
+    repoRoot: String(ctx?.repoRoot || process.cwd()),
+    toolingConfig: ctx?.toolingConfig || {}
+  });
+  return String(profile?.resolved?.cmd || requestedCmd || 'go').trim() || 'go';
+};
+
+const resolveModuleCommand = (ctx, server) => {
+  const requestedCmd = String(server?.goWorkspaceModuleCmd || 'go').trim() || 'go';
   const args = Array.isArray(server?.goWorkspaceModuleArgs) && server.goWorkspaceModuleArgs.length
     ? server.goWorkspaceModuleArgs.map((entry) => String(entry))
     : Array.from(DEFAULT_MODULE_ARGS);
@@ -43,11 +61,21 @@ const resolveModuleCommand = (server) => {
   const timeoutMs = Number.isFinite(timeoutRaw)
     ? Math.max(500, Math.floor(timeoutRaw))
     : DEFAULT_MODULE_TIMEOUT_MS;
-  return { cmd, args, timeoutMs };
+  return {
+    cmd: resolveManagedGoCommand({
+      ctx,
+      server,
+      requestedCmd,
+      requestedArgs: args,
+      probeSuffix: 'go-workspace-module'
+    }),
+    args,
+    timeoutMs
+  };
 };
 
-const resolveWarmupCommand = (server) => {
-  const cmd = String(server?.goWorkspaceWarmupCmd || 'go').trim() || 'go';
+const resolveWarmupCommand = (ctx, server) => {
+  const requestedCmd = String(server?.goWorkspaceWarmupCmd || 'go').trim() || 'go';
   const args = Array.isArray(server?.goWorkspaceWarmupArgs) && server.goWorkspaceWarmupArgs.length
     ? server.goWorkspaceWarmupArgs.map((entry) => String(entry))
     : Array.from(DEFAULT_WARMUP_ARGS);
@@ -55,7 +83,17 @@ const resolveWarmupCommand = (server) => {
   const timeoutMs = Number.isFinite(timeoutRaw)
     ? Math.max(500, Math.floor(timeoutRaw))
     : DEFAULT_WARMUP_TIMEOUT_MS;
-  return { cmd, args, timeoutMs };
+  return {
+    cmd: resolveManagedGoCommand({
+      ctx,
+      server,
+      requestedCmd,
+      requestedArgs: args,
+      probeSuffix: 'go-workspace-warmup'
+    }),
+    args,
+    timeoutMs
+  };
 };
 
 const resolveWarmupScanOptions = (server) => {
@@ -351,7 +389,7 @@ const resolveGoWorkspaceWarmupPreflight = async ({
   if (!shouldRunGoWorkspaceWarmupPreflight(repoRoot, server, documents)) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
-  const warmupCommand = resolveWarmupCommand(server);
+  const warmupCommand = resolveWarmupCommand(ctx, server);
   const negativeCacheTtlMs = resolveGoWorkspaceNegativeCacheTtlMs(server);
   return await runWorkspaceCommandPreflight({
     ctx,
@@ -534,7 +572,7 @@ export const resolveGoWorkspaceModulePreflight = async ({
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
 
-  const command = resolveModuleCommand(server);
+  const command = resolveModuleCommand(ctx, server);
   const negativeCacheTtlMs = resolveGoWorkspaceNegativeCacheTtlMs(server);
   const blockedPartitions = [];
   const readyPartitions = [];
