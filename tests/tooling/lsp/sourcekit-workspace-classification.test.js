@@ -11,12 +11,14 @@ const tempRoot = resolveTestCachePath(root, `sourcekit-workspace-classification-
 const packageRoot = path.join(tempRoot, 'package-workspace');
 const xcodeRoot = path.join(tempRoot, 'xcode-workspace');
 const mixedRoot = path.join(tempRoot, 'mixed-workspace');
+const mixedDependenciesRoot = path.join(tempRoot, 'mixed-workspace-dependencies');
 
 try {
   await fs.rm(tempRoot, { recursive: true, force: true });
   await fs.mkdir(packageRoot, { recursive: true });
   await fs.mkdir(xcodeRoot, { recursive: true });
   await fs.mkdir(mixedRoot, { recursive: true });
+  await fs.mkdir(mixedDependenciesRoot, { recursive: true });
 
   await fs.writeFile(
     path.join(packageRoot, 'Package.swift'),
@@ -52,6 +54,25 @@ try {
     'utf8'
   );
   await fs.mkdir(path.join(mixedRoot, 'Demo.xcodeproj'), { recursive: true });
+  await fs.writeFile(
+    path.join(mixedDependenciesRoot, 'Package.swift'),
+    [
+      '// swift-tools-version: 6.0',
+      'import PackageDescription',
+      'let package = Package(',
+      '  name: "MixedDependencies",',
+      '  dependencies: [',
+      '    .package(url: "https://example.com/demo.git", from: "1.0.0")',
+      '  ],',
+      '  targets: [',
+      '    .target(name: "MixedDependencies")',
+      '  ]',
+      ')',
+      ''
+    ].join('\n'),
+    'utf8'
+  );
+  await fs.mkdir(path.join(mixedDependenciesRoot, 'Demo.xcodeproj'), { recursive: true });
 
   const packageResult = await ensureSourcekitPackageResolutionPreflight({
     repoRoot: packageRoot,
@@ -68,6 +89,11 @@ try {
     log: () => {},
     sourcekitConfig: {}
   });
+  const mixedDependenciesResult = await ensureSourcekitPackageResolutionPreflight({
+    repoRoot: mixedDependenciesRoot,
+    log: () => {},
+    sourcekitConfig: {}
+  });
 
   assert.equal(packageResult.workspaceKind, 'package_managed_workspace');
   assert.equal(packageResult.dependencyState, 'not_needed');
@@ -80,6 +106,11 @@ try {
   assert.equal(mixedResult.workspaceKind, 'mixed_workspace');
   assert.equal(mixedResult.dependencyState, 'not_needed');
   assert.equal(mixedResult.preflightState, 'ready');
+
+  assert.equal(mixedDependenciesResult.workspaceKind, 'mixed_workspace');
+  assert.equal(mixedDependenciesResult.dependencyState, 'optional');
+  assert.equal(mixedDependenciesResult.preflightState, 'ready');
+  assert.equal(mixedDependenciesResult.reasonCode, 'sourcekit_mixed_workspace_dependencies_optional');
 
   console.log('sourcekit workspace classification test passed');
 } finally {

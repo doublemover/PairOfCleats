@@ -2,30 +2,32 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-
 import { fileURLToPath } from 'node:url';
+
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 import { getToolingProvider } from '../../../src/index/tooling/provider-registry.js';
 import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';
+import { countNonEmptyLines, parseJsonLinesFile } from '../../helpers/lsp-signature-fixtures.js';
 import { createSourcekitPreflightFixture } from '../../helpers/sourcekit-preflight-fixture.js';
-import { parseJsonLinesFile } from '../../helpers/lsp-signature-fixtures.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const fixture = await createSourcekitPreflightFixture({
   root,
-  name: 'sourcekit-package-workspace-high-cost-request-suppression',
+  name: 'sourcekit-mixed-workspace-optional-dependencies',
   includeDependencies: true,
   dependencyVersion: '1.0.0',
-  resolveExitCode: 0
+  resolveExitCode: 7,
+  resolveStderr: 'forced mixed-workspace resolve failure'
 });
 const logs = [];
-const { ctx } = fixture.contextFor(logs);
+const { ctx, document, target } = fixture.contextFor(logs);
 const stubServerPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 const launcherPath = path.join(fixture.tempRoot, 'stub-launcher.js');
 const modePath = path.join(fixture.tempRoot, 'mode.txt');
 const tracePath = path.join(fixture.tempRoot, 'trace.jsonl');
 
+await fs.mkdir(path.join(fixture.tempRoot, 'Demo.xcodeproj'), { recursive: true });
 await fs.writeFile(
   launcherPath,
   `import fs from 'node:fs';\n`
@@ -38,34 +40,6 @@ await fs.writeFile(
   'utf8'
 );
 await fs.writeFile(modePath, 'all-capabilities', 'utf8');
-
-const document = {
-  virtualPath: 'src/one.swift',
-  effectiveExt: '.swift',
-  languageId: 'swift',
-  text: 'func add(a: Int, b: Int) -> Int { return a + b }\n',
-  docHash: 'doc-sourcekit-package-workspace',
-  containerPath: 'src/one.swift'
-};
-const target = {
-  virtualPath: 'src/one.swift',
-  languageId: 'swift',
-  chunkRef: {
-    chunkUid: 'ck:test:sourcekit:package-workspace-high-cost',
-    chunkId: 'chunk_sourcekit_package_workspace_high_cost',
-    file: 'src/one.swift',
-    start: 0,
-    end: document.text.length
-  },
-  virtualRange: {
-    start: 0,
-    end: document.text.length
-  },
-  symbolHint: {
-    name: 'add',
-    kind: 'function'
-  }
-};
 
 try {
   await withTemporaryEnv({ POC_SWIFT_PREFLIGHT_COUNTER: fixture.counterPath, POC_LSP_TRACE: tracePath }, async () => {
@@ -92,33 +66,27 @@ try {
       targets: [target]
     });
 
-    assert.equal(output?.diagnostics?.preflight?.workspaceKind, 'package_managed_workspace');
-    assert.equal(output?.diagnostics?.preflight?.dependencyState, 'required');
+    assert.equal(output?.diagnostics?.preflight?.workspaceKind, 'mixed_workspace');
+    assert.equal(output?.diagnostics?.preflight?.dependencyState, 'optional');
+    assert.equal(output?.diagnostics?.preflight?.preflightState, 'ready');
+    assert.equal(output?.diagnostics?.preflight?.reasonCode, 'sourcekit_mixed_workspace_dependencies_optional');
     assert.equal(
       Array.isArray(output?.diagnostics?.checks)
-      && output.diagnostics.checks.some((check) => check?.name === 'sourcekit_package_workspace_high_cost_request_suppression'),
-      true,
-      'expected explicit package-workspace suppression check'
-    );
-    assert.equal(
-      Array.isArray(output?.diagnostics?.fidelity?.runtimeIssues)
-      && output.diagnostics.fidelity.runtimeIssues.includes('package_workspace_high_cost_requests_suppressed'),
-      true,
-      'expected fidelity runtime issue for package-workspace suppression'
-    );
-    assert.equal(
-      Array.isArray(output?.diagnostics?.fidelity?.requestSuppression?.suppressedRequestClasses)
-      && output.diagnostics.fidelity.requestSuppression.suppressedRequestClasses.includes('semanticTokens')
-      && output.diagnostics.fidelity.requestSuppression.suppressedRequestClasses.includes('inlayHints'),
-      true,
-      'expected package-workspace suppression to record the skipped request classes'
+      && output.diagnostics.checks.some((check) => check?.name === 'sourcekit_package_preflight_failed'),
+      false,
+      'expected mixed workspace not to fail closed on skipped SwiftPM dependency resolution'
     );
 
+    const count = await countNonEmptyLines(fixture.counterPath);
+    assert.equal(count, 0, 'expected no swift package resolve invocation for mixed workspaces');
     const events = await parseJsonLinesFile(tracePath);
-    const semanticTokenRequests = events.filter((entry) => entry.kind === 'request' && entry.method === 'textDocument/semanticTokens/full').length;
-    const inlayHintRequests = events.filter((entry) => entry.kind === 'request' && entry.method === 'textDocument/inlayHint').length;
-    assert.equal(semanticTokenRequests, 0, 'expected semantic tokens to be suppressed for package-managed high-cost workspaces');
-    assert.equal(inlayHintRequests, 0, 'expected inlay hints to be suppressed for package-managed high-cost workspaces');
+    const runtimeRequests = events.filter((entry) => entry.kind === 'request' && entry.method !== 'initialize');
+    assert.equal(runtimeRequests.length > 0, true, 'expected mixed Swift workspace to continue issuing SourceKit requests after optional dependency preflight');
+    assert.equal(
+      logs.some((line) => line.includes('sourcekit package preflight: running')),
+      false,
+      'expected mixed workspace dependencies to remain optional and skip package resolve'
+    );
   });
 } finally {
   await fixture.restorePath();
@@ -130,4 +98,4 @@ try {
   if (!cleanup.ok) throw cleanup.error;
 }
 
-console.log('sourcekit package workspace high-cost request suppression test passed');
+console.log('sourcekit mixed workspace optional dependencies test passed');

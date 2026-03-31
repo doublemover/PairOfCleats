@@ -302,7 +302,9 @@ const resolveSourcekitPackageWorkspaceRequestSuppression = ({
   }
   const workspaceKind = String(preflight?.workspaceKind || '').trim().toLowerCase();
   const dependencyState = String(preflight?.dependencyState || '').trim().toLowerCase();
-  if (workspaceKind !== 'package_managed_workspace' || dependencyState !== 'required') {
+  const packageWorkspace = workspaceKind === 'package_managed_workspace' || workspaceKind === 'mixed_workspace';
+  const dependencyManagedWorkspace = dependencyState === 'required' || dependencyState === 'optional';
+  if (!packageWorkspace || !dependencyManagedWorkspace) {
     return {
       active: false,
       reasonCode: null,
@@ -312,7 +314,7 @@ const resolveSourcekitPackageWorkspaceRequestSuppression = ({
   }
   const minTargets = Math.max(
     1,
-    asFiniteInteger(sourcekitConfig?.packageWorkspaceHighCostRequestMinTargets) ?? 24
+    asFiniteInteger(sourcekitConfig?.packageWorkspaceHighCostRequestMinTargets) ?? 1
   );
   const selectedTargetCount = Array.isArray(targets) ? targets.length : 0;
   const selectedDocumentCount = Array.isArray(documents) ? documents.length : 0;
@@ -328,7 +330,7 @@ const resolveSourcekitPackageWorkspaceRequestSuppression = ({
   return {
     active: true,
     reasonCode: 'sourcekit_package_workspace_high_cost_request_suppression',
-    message: `sourcekit suppressed optional high-cost semantic requests for a package-managed workspace (targets=${selectedTargetCount}, docs=${selectedDocumentCount}, threshold=${minTargets}).`,
+    message: `sourcekit suppressed optional high-cost semantic requests for a Swift package workspace (kind=${workspaceKind}, dependencyState=${dependencyState}, targets=${selectedTargetCount}, docs=${selectedDocumentCount}, threshold=${minTargets}).`,
     suppressedRequestClasses: ['semanticTokens', 'inlayHints']
   };
 };

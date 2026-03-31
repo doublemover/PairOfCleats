@@ -244,15 +244,19 @@ const classifySourcekitWorkspace = async ({ repoRoot }) => {
   fingerprintHash.update(`manifest:${packageManifest}`);
   fingerprintHash.update(`resolved:${packageResolved || '<missing>'}`);
   fingerprintHash.update(`markers:${JSON.stringify(xcodeMarkers)}`);
-  const dependencyResolutionRequired = hasPackageDependencies;
-  const dependencyState = hasPackageDependencies ? 'required' : 'not_needed';
+  const dependencyResolutionRequired = hasPackageDependencies && xcodeMarkers.length <= 0;
+  const dependencyState = hasPackageDependencies
+    ? (xcodeMarkers.length > 0 ? 'optional' : 'required')
+    : 'not_needed';
   return {
     workspaceKind,
     dependencyResolutionRequired,
     dependencyState,
     preflightState: SOURCEKIT_PREFLIGHT_STATE.READY,
     reasonCode: hasPackageDependencies
-      ? 'sourcekit_swiftpm_dependencies_detected'
+      ? (workspaceKind === SOURCEKIT_WORKSPACE_KIND.MIXED
+        ? 'sourcekit_mixed_workspace_dependencies_optional'
+        : 'sourcekit_swiftpm_dependencies_detected')
       : 'sourcekit_package_workspace_no_dependencies',
     message: '',
     packageManifestPath,
