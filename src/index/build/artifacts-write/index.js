@@ -144,6 +144,27 @@ export {
   selectMicroWriteBatch
 };
 
+const FIELD_POSTINGS_SHARD_PREFIX = '{"fields":{';
+
+const extractFieldPostingsShardBody = (content, shardPath) => {
+  const text = String(content ?? '');
+  if (!text.startsWith(FIELD_POSTINGS_SHARD_PREFIX)) {
+    throw new Error(`[field-postings] Invalid shard payload (missing prefix): ${shardPath}`);
+  }
+  let endIndex = -1;
+  if (text.endsWith('}}\n')) {
+    endIndex = text.length - 3;
+  } else if (text.endsWith('}}\r\n')) {
+    endIndex = text.length - 4;
+  } else if (text.endsWith('}}')) {
+    endIndex = text.length - 2;
+  }
+  if (endIndex < FIELD_POSTINGS_SHARD_PREFIX.length) {
+    throw new Error(`[field-postings] Invalid shard payload (missing suffix): ${shardPath}`);
+  }
+  return text.slice(FIELD_POSTINGS_SHARD_PREFIX.length, endIndex);
+};
+
 /**
  * Adaptive write-concurrency controller for artifact writes.
  *
@@ -1654,6 +1675,7 @@ export async function writeIndexArtifacts(input) {
         1,
         Math.floor(fieldPostingsEstimatedBytes / Math.max(1, partFiles.length))
       );
+      const partWriteCompletions = [];
       /**
        * Write one field-postings shard and collect per-part metrics.
        *
@@ -1721,9 +1743,24 @@ export async function writeIndexArtifacts(input) {
         }
       };
       for (const part of partFiles) {
+        let resolvePartWrite = null;
+        let rejectPartWrite = null;
+        partWriteCompletions.push(new Promise((resolve, reject) => {
+          resolvePartWrite = resolve;
+          rejectPartWrite = reject;
+        }));
         enqueueWrite(
           part.relPath,
-          () => writeFieldPostingsPartition(part),
+          async () => {
+            try {
+              const result = await writeFieldPostingsPartition(part);
+              resolvePartWrite?.();
+              return result;
+            } catch (err) {
+              rejectPartWrite?.(err);
+              throw err;
+            }
+          },
           {
             priority: 206,
             estimatedBytes: partEstimatedBytes,
@@ -1789,10 +1826,10 @@ export async function writeIndexArtifacts(input) {
        *
        * @returns {Promise<void>}
        */
-      const writeLegacyFieldPostingsFromShards = async () => {
+      const writeLegacyFieldPostingsFromShards = async ({ setPhase } = {}) => {
         const targetPath = path.join(outDir, 'field_postings.json');
         const startedAt = Date.now();
-        let serializationMs = 0;
+        let computeMs = 0;
         let flushMs = 0;
         let backpressureWaitMs = 0;
         const {
@@ -1803,22 +1840,22 @@ export async function writeIndexArtifacts(input) {
           checksumAlgo
         } = createJsonWriteStream(targetPath, { atomic: true, checksumAlgo: 'sha1' });
         try {
+          setPhase?.('publish:field-postings-shard-merge');
+          await Promise.all(partWriteCompletions);
           let chunkTiming = await writeChunkWithTiming(stream, '{"fields":{');
           flushMs += chunkTiming.flushMs;
           backpressureWaitMs += chunkTiming.backpressureWaitMs;
           let first = true;
           for (const part of partFiles) {
-            for (let index = part.start; index < part.end; index += 1) {
-              const field = fieldNames[index];
-              const value = fieldPostingsObject[field];
-              const serializeStart = Date.now();
-              const row = `${first ? '' : ','}${JSON.stringify(field)}:${JSON.stringify(value)}`;
-              serializationMs += Math.max(0, Date.now() - serializeStart);
-              chunkTiming = await writeChunkWithTiming(stream, row);
-              flushMs += chunkTiming.flushMs;
-              backpressureWaitMs += chunkTiming.backpressureWaitMs;
-              first = false;
-            }
+            const readStartedAt = Date.now();
+            const shardContent = await fs.readFile(part.absPath, 'utf8');
+            const shardBody = extractFieldPostingsShardBody(shardContent, part.absPath);
+            computeMs += Math.max(0, Date.now() - readStartedAt);
+            if (!shardBody) continue;
+            chunkTiming = await writeChunkWithTiming(stream, first ? shardBody : `,${shardBody}`);
+            flushMs += chunkTiming.flushMs;
+            backpressureWaitMs += chunkTiming.backpressureWaitMs;
+            first = false;
           }
           chunkTiming = await writeChunkWithTiming(stream, '}}\n');
           flushMs += chunkTiming.flushMs;
@@ -1831,11 +1868,11 @@ export async function writeIndexArtifacts(input) {
             bytes: Number.isFinite(getBytesWritten?.()) ? getBytesWritten() : null,
             checksum: typeof getChecksum === 'function' ? getChecksum() : null,
             checksumAlgo: checksumAlgo || null,
-            serializationMs,
+            serializationMs: 0,
             diskMs: flushMs + publishMs,
             phaseTimings: {
-              computeMs: 0,
-              serializationMs,
+              computeMs,
+              serializationMs: 0,
               compressionMs: 0,
               flushMs,
               fsyncMs: 0,
