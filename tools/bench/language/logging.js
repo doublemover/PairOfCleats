@@ -139,6 +139,33 @@ const parseToolingFields = (raw) => {
   return out;
 };
 
+const parseRustWorkspaceSuppressionCounts = (message) => ({
+  repoInvalidity: toNonNegativeCount(/\brepo-invalidity=(\d+)/iu.exec(String(message || ''))?.[1]) || 0,
+  toolchainNoise: toNonNegativeCount(/\btoolchain-noise=(\d+)/iu.exec(String(message || ''))?.[1]) || 0
+});
+
+const shouldEmitToolingWarningSuppressed = ({ providerId = null, failureClass = null, message = '' } = {}) => {
+  const normalizedProviderId = String(providerId || '').trim().toLowerCase();
+  const normalizedFailureClass = String(failureClass || '').trim().toLowerCase();
+  if (normalizedProviderId === 'rust-analyzer' && normalizedFailureClass === 'stderr:duplicate workspace') {
+    const counts = parseRustWorkspaceSuppressionCounts(message);
+    if (counts.repoInvalidity <= 0 && counts.toolchainNoise > 0) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const shouldEmitImportSuppressionSignal = ({
+  policy = null,
+  degradedRun = false,
+  actionableCount = 0
+} = {}) => {
+  const normalizedPolicy = String(policy || '').trim().toLowerCase();
+  if (normalizedPolicy !== 'live') return true;
+  return degradedRun === true || (Number(actionableCount) || 0) > 0;
+};
+
 const toPositiveCount = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.max(1, Math.floor(parsed)) : null;
@@ -674,18 +701,26 @@ export const createBenchDiagnosticClassifier = () => {
       const providerId = String(toolingWarningSuppressedMatch.groups?.providerId || '').trim();
       const count = String(toolingWarningSuppressedMatch.groups?.count || '').trim();
       const kind = normalizeDiagnosticField(toolingWarningSuppressedMatch.groups?.kind || '', 96) || 'stderr';
+      const failureClass = `stderr:${kind}`;
+      if (!shouldEmitToolingWarningSuppressed({
+        providerId,
+        failureClass,
+        message: text
+      })) {
+        return [];
+      }
       const signal = buildDiagnosticSignal({
         eventType: 'warning_suppressed',
         message: text,
         source,
         providerId,
-        failureClass: `stderr:${kind}`,
+        failureClass,
         stage: event?.stage || null,
         taskId: event?.taskId || null,
         level: event?.level || null,
         severity: resolveBenchDiagnosticSeverity({
           eventType: 'warning_suppressed',
-          failureClass: `stderr:${kind}:${count}`
+          failureClass: `${failureClass}:${count}`
         })
       });
       return signal ? [signal] : [];
@@ -693,21 +728,7 @@ export const createBenchDiagnosticClassifier = () => {
 
     const importPolicySuppressedMatch = IMPORT_WARNING_SUPPRESSED_POLICY_PATTERN.exec(text);
     if (importPolicySuppressedMatch) {
-      const count = String(importPolicySuppressedMatch.groups?.count || '').trim();
-      const signal = buildDiagnosticSignal({
-        eventType: 'warning_suppressed',
-        message: text,
-        source,
-        failureClass: `imports_live_policy:${count || 'unknown'}`,
-        stage: event?.stage || null,
-        taskId: event?.taskId || null,
-        level: event?.level || null,
-        severity: resolveBenchDiagnosticSeverity({
-          eventType: 'warning_suppressed',
-          failureClass: `imports_live_policy:${count || 'unknown'}`
-        })
-      });
-      return signal ? [signal] : [];
+      return [];
     }
 
     const importSuppressionEventMatch = IMPORT_WARNING_SUPPRESSION_EVENT_PATTERN.exec(text);
@@ -718,6 +739,15 @@ export const createBenchDiagnosticClassifier = () => {
         .split(',')
         .map((entry) => normalizeDiagnosticField(entry, 48))
         .filter(Boolean);
+      const degradedRun = String(importSuppressionEventMatch.groups?.degraded || '') === '1';
+      const actionableCount = Number(importSuppressionEventMatch.groups?.actionable || 0);
+      if (!shouldEmitImportSuppressionSignal({
+        policy,
+        degradedRun,
+        actionableCount
+      })) {
+        return [];
+      }
       const signal = buildDiagnosticSignal({
         eventType: 'warning_suppressed',
         message: text,
@@ -726,9 +756,9 @@ export const createBenchDiagnosticClassifier = () => {
         suppressedCount: Number(count || 0),
         suppressionPolicy: policy,
         omittedSampleClasses,
-        degradedRun: String(importSuppressionEventMatch.groups?.degraded || '') === '1',
+        degradedRun,
         visibleSampleCount: Number(importSuppressionEventMatch.groups?.visible || 0),
-        actionableCount: Number(importSuppressionEventMatch.groups?.actionable || 0),
+        actionableCount,
         totalCount: Number(importSuppressionEventMatch.groups?.total || 0),
         stage: event?.stage || null,
         taskId: event?.taskId || null,
@@ -743,21 +773,7 @@ export const createBenchDiagnosticClassifier = () => {
 
     const importCountSuppressedMatch = IMPORT_WARNING_SUPPRESSED_COUNT_PATTERN.exec(text);
     if (importCountSuppressedMatch) {
-      const count = String(importCountSuppressedMatch.groups?.count || '').trim();
-      const signal = buildDiagnosticSignal({
-        eventType: 'warning_suppressed',
-        message: text,
-        source,
-        failureClass: `imports_warning_count:${count || 'unknown'}`,
-        stage: event?.stage || null,
-        taskId: event?.taskId || null,
-        level: event?.level || null,
-        severity: resolveBenchDiagnosticSeverity({
-          eventType: 'warning_suppressed',
-          failureClass: `imports_warning_count:${count || 'unknown'}`
-        })
-      });
-      return signal ? [signal] : [];
+      return [];
     }
 
     const reuseObservation = parseBenchReuseObservation(text);
