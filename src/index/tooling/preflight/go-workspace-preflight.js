@@ -177,6 +177,52 @@ const normalizeSelectedGoPath = (value) => (
     .replace(/^\/+([a-z]:\/)/iu, '$1')
 );
 
+const splitNormalizedPathSegments = (value) => (
+  normalizeSelectedGoPath(value)
+    .split('/')
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean)
+);
+
+const countSharedPathPrefixSegments = (leftValue, rightValue) => {
+  const left = splitNormalizedPathSegments(leftValue);
+  const right = splitNormalizedPathSegments(rightValue);
+  let count = 0;
+  while (count < left.length && count < right.length && left[count] === right[count]) {
+    count += 1;
+  }
+  return count;
+};
+
+const selectNearestNestedGoWorkspaceRoot = (selectedPath, nestedRoots) => {
+  const candidates = Array.isArray(nestedRoots) ? nestedRoots : [];
+  if (!candidates.length) return null;
+  const containing = candidates.filter((entry) => (
+    selectedPath === entry.rootRel || selectedPath.startsWith(`${entry.rootRel}/`)
+  ));
+  if (containing.length > 0) return containing[0] || null;
+  const scored = candidates
+    .map((entry) => ({
+      entry,
+      score: countSharedPathPrefixSegments(selectedPath, entry.rootRel)
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => {
+      if (right.score !== left.score) return right.score - left.score;
+      const leftDepth = splitNormalizedPathSegments(left.entry.rootRel).length;
+      const rightDepth = splitNormalizedPathSegments(right.entry.rootRel).length;
+      if (rightDepth !== leftDepth) return rightDepth - leftDepth;
+      return String(left.entry.rootRel || '').localeCompare(String(right.entry.rootRel || ''));
+    });
+  if (!scored.length) return null;
+  if (scored.length > 1 && scored[0].score === scored[1].score) {
+    const firstDepth = splitNormalizedPathSegments(scored[0].entry.rootRel).length;
+    const secondDepth = splitNormalizedPathSegments(scored[1].entry.rootRel).length;
+    if (firstDepth === secondDepth) return null;
+  }
+  return scored[0].entry || null;
+};
+
 const scanNestedGoMarkerRoots = (
   repoRoot,
   {
@@ -242,13 +288,8 @@ const buildFallbackGoWorkspacePartitions = (repoRoot, selectedGoPaths, nestedRoo
   for (const selectedPathRaw of Array.isArray(selectedGoPaths) ? selectedGoPaths : []) {
     const selectedPath = normalizeSelectedGoPath(selectedPathRaw);
     if (!selectedPath) continue;
-    let matches = normalizedRoots.filter((entry) => (
-      selectedPath === entry.rootRel || selectedPath.startsWith(`${entry.rootRel}/`)
-    ));
-    if (!matches.length && normalizedRoots.length === 1) {
-      matches = normalizedRoots.slice(0, 1);
-    }
-    const match = matches[0] || null;
+    const match = selectNearestNestedGoWorkspaceRoot(selectedPath, normalizedRoots)
+      || (normalizedRoots.length === 1 ? normalizedRoots[0] : null);
     if (!match) continue;
     const scope = classifyGoPathScope(selectedPath);
     const partition = partitionByRoot.get(match.rootRel) || {
