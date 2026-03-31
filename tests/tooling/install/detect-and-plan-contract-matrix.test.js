@@ -168,7 +168,7 @@ const runRequirementCases = async () => {
 const runPlanCase = () => {
   const payload = runCliJson({
     scriptPath: path.join(root, 'tools', 'tooling', 'install.js'),
-    args: ['--root', fixtureRoot, '--tools', 'yaml-language-server,zls', '--dry-run', '--json'],
+    args: ['--root', fixtureRoot, '--tools', 'yaml-language-server,lua-language-server,zls', '--dry-run', '--json'],
     label: 'tooling-install generic lsp plans'
   });
 
@@ -182,6 +182,21 @@ const runPlanCase = () => {
   }
   if (yamlResult) {
     assert.notEqual(yamlResult.status, 'manual');
+  }
+
+  const luaAction = actions.find((entry) => entry?.id === 'lua-language-server');
+  const luaResult = results.find((entry) => entry?.id === 'lua-language-server');
+  assert.ok(luaAction || luaResult, 'expected lua-language-server action or result');
+  if (luaAction) {
+    assert.equal(String(luaAction.cmd || ''), process.execPath);
+    assert.equal(
+      Array.isArray(luaAction.args) && luaAction.args.some((entry) => String(entry).includes('install-lua-language-server.js')),
+      true,
+      'expected lua-language-server plan to invoke the managed installer'
+    );
+  }
+  if (luaResult) {
+    assert.notEqual(luaResult.status, 'manual');
   }
 
   const zlsAction = actions.find((entry) => entry?.id === 'zls');
@@ -234,6 +249,13 @@ const runRegistryContractCases = () => {
   const toolingRootIndex = phpactorArgs.indexOf('--tooling-root');
   assert.notEqual(toolingRootIndex, -1, 'phpactor cache install must include --tooling-root');
   assert.ok(isAbsolute(String(phpactorArgs[toolingRootIndex + 1] || '')), 'phpactor cache install must use an absolute tooling root');
+
+  const luaLanguageServer = registry.find((entry) => entry?.id === 'lua-language-server');
+  assert.ok(luaLanguageServer, 'expected lua-language-server entry in tooling registry');
+  const luaArgs = Array.isArray(luaLanguageServer.install?.cache?.args) ? luaLanguageServer.install.cache.args : [];
+  const luaToolingRootIndex = luaArgs.indexOf('--tooling-root');
+  assert.notEqual(luaToolingRootIndex, -1, 'lua-language-server cache install must include --tooling-root');
+  assert.ok(isAbsolute(String(luaArgs[luaToolingRootIndex + 1] || '')), 'lua-language-server cache install must use an absolute tooling root');
 };
 
 const runPhpactorPlanCase = () => {

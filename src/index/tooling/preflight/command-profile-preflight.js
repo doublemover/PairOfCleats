@@ -35,6 +35,9 @@ const resolveUnavailableMessage = ({
   if (typeof unavailableMessage === 'string' && unavailableMessage.trim()) {
     return unavailableMessage.trim();
   }
+  if (typeof commandProfile?.probe?.validationFailure?.message === 'string' && commandProfile.probe.validationFailure.message.trim()) {
+    return commandProfile.probe.validationFailure.message.trim();
+  }
   if (typeof check?.message === 'string' && check.message.trim()) {
     return check.message.trim();
   }
@@ -110,6 +113,8 @@ export const resolveCommandProfilePreflightResult = ({
     };
   }
   const definitelyMissing = isProbeCommandDefinitelyMissing(commandProfile.probe);
+  const validationReasonCode = String(commandProfile?.probe?.validationFailure?.reasonCode || '').trim();
+  const invalidLayout = validationReasonCode === 'broken-layout';
   const rawCheck = typeof unavailableCheck === 'function'
     ? unavailableCheck({
       providerId: String(providerId || ''),
@@ -118,7 +123,7 @@ export const resolveCommandProfilePreflightResult = ({
       definitelyMissing
     })
     : unavailableCheck;
-  const check = normalizeCheck(rawCheck);
+  let check = normalizeCheck(rawCheck);
   const message = resolveUnavailableMessage({
     unavailableMessage,
     check,
@@ -127,10 +132,16 @@ export const resolveCommandProfilePreflightResult = ({
     definitelyMissing,
     providerId: String(providerId || '')
   });
-  const blocked = blockWhenDefinitelyMissing === true && definitelyMissing;
+  if (invalidLayout && check) {
+    check = {
+      ...check,
+      message
+    };
+  }
+  const blocked = invalidLayout || (blockWhenDefinitelyMissing === true && definitelyMissing);
   return {
     state: blocked ? 'blocked' : 'degraded',
-    reasonCode: 'preflight_command_unavailable',
+    reasonCode: invalidLayout ? 'preflight_command_invalid_layout' : 'preflight_command_unavailable',
     message,
     requestedCommand: normalizedRequested,
     commandProfile,

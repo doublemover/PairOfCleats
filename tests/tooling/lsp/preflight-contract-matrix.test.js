@@ -158,6 +158,34 @@ const runCommandProfileHelperCase = () => {
   assert.equal(blocked.blockSourcekit, true);
   assert.equal(blocked.definitelyMissing, true);
 
+  const luaCaseRoot = path.join(root, '.tmp', `lua-preflight-invalid-layout-${process.pid}-${Date.now()}`);
+  const luaToolingRoot = path.join(luaCaseRoot, 'tooling-root');
+  const luaBinDir = path.join(luaToolingRoot, 'bin');
+  fs.mkdirSync(luaBinDir, { recursive: true });
+  if (process.platform === 'win32') {
+    fs.writeFileSync(
+      path.join(luaBinDir, 'lua-language-server.cmd'),
+      '@echo off\r\nif "%1"=="-v" exit /b 0\r\nif "%1"=="--version" exit /b 0\r\nexit /b 0\r\n',
+      'utf8'
+    );
+  } else {
+    fs.writeFileSync(path.join(luaBinDir, 'lua-language-server'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  }
+  const invalidLayout = resolveCommandProfilePreflightResult({
+    providerId: 'lua-language-server',
+    requestedCommand: { cmd: 'lua-language-server', args: ['-v'] },
+    ctx: {
+      repoRoot: root,
+      toolingConfig: { dir: luaToolingRoot }
+    },
+    unavailableCheck: { name: 'fixture_command_unavailable', status: 'warn', message: 'fixture command unavailable' }
+  });
+  assert.equal(invalidLayout.state, 'blocked');
+  assert.equal(invalidLayout.reasonCode, 'preflight_command_invalid_layout');
+  assert.equal(invalidLayout.commandProfile?.probe?.validationFailure?.reasonCode, 'broken-layout');
+  assert.match(String(invalidLayout.message || ''), /missing runtime entry/u);
+  fs.rmSync(luaCaseRoot, { recursive: true, force: true });
+
   const runtimeUnknownProbe = resolveRuntimeCommandFromPreflight({
     preflight: {
       requestedCommand: { cmd: process.execPath, args: ['--version'] }

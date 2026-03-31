@@ -562,7 +562,10 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       languages: ['lua'],
       detect: { cmd: 'lua-language-server', args: ['-v'], binDirs: [binDir] },
       install: {
-        manual: true
+        cache: {
+          cmd: process.execPath,
+          args: [path.join(repoRoot, 'tools', 'tooling', 'install-lua-language-server.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot]
+        }
       },
       docs: TOOL_DOCS['lua-language-server']
     },
