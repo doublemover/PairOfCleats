@@ -254,11 +254,20 @@ export const buildSelectedRustWorkspacePartitions = (repoRoot, selectedRustPaths
       rootRel
     });
     if (
-      classification.validSessionRoot === true
-      && classification.parentWorkspace?.found === true
+      classification.parentWorkspace?.found === true
       && (
-        classification.role === 'workspace_member'
-        || classification.role === 'example_fragment'
+        (
+          classification.validSessionRoot === true
+          && (
+            classification.role === 'workspace_member'
+            || classification.role === 'example_fragment'
+          )
+        )
+        || (
+          classification.validSessionRoot !== true
+          && classification.role === 'broken_member'
+          && classification.exampleLike === true
+        )
       )
     ) {
       rootDir = String(classification.parentWorkspace.rootDir || rootDir);
