@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-30T06:38:02.848Z",
+  "generatedAt": "2026-03-31T08:20:36.877Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3819,7 +3819,7 @@
     "PAIROFCLEATS_TEST_MCP_DELAY_TOOL_NAMES"
   ],
   "cliFlags": {
-    "totalFlags": 462,
+    "totalFlags": 463,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -4156,6 +4156,7 @@
       "refresh-json",
       "refs",
       "registry",
+      "release-tag",
       "repeats",
       "repo-current",
       "repo-filter",
@@ -4291,31 +4292,120 @@
       "allow-unauthenticated",
       "allowed-repo-roots",
       "auth-token",
+      "category",
       "command",
       "concurrency",
       "config",
       "cors-allow-any",
       "cors-allowed-origins",
       "dry-run",
+      "flow-id",
+      "format",
+      "hops",
       "host",
+      "includeCallersCallees",
+      "includeDisabled",
+      "includeGraph",
+      "includeImports",
+      "includePaths",
+      "includeRisk",
+      "includeRiskPartialFlows",
+      "includeTypes",
+      "includeUsages",
       "interval",
       "job",
       "json",
+      "languages",
       "lock",
       "max-body-bytes",
+      "maxBytes",
+      "maxCandidates",
+      "maxDepth",
+      "maxEdges",
+      "maxFanoutPerNode",
+      "maxFederatedRepos",
+      "maxNodes",
+      "maxPaths",
+      "maxTokens",
+      "maxTypeEntries",
+      "maxWallClockMs",
+      "maxWorkUnits",
       "mode",
+      "no-fallback",
       "output",
       "port",
       "queue",
       "quiet",
       "reason",
       "repo",
+      "repo-filter",
+      "root",
+      "rule",
+      "scope",
+      "seed",
+      "select",
+      "severity",
       "shutdown-mode",
+      "sink",
+      "sink-rule",
+      "source",
+      "source-rule",
       "stage",
+      "strictEvidence",
+      "strictRisk",
+      "tag",
       "timeout-ms",
-      "watch"
+      "tools",
+      "watch",
+      "workspace",
+      "workspaceId"
     ],
-    "publicUnknown": [],
+    "publicUnknown": [
+      "category",
+      "flow-id",
+      "format",
+      "hops",
+      "includeCallersCallees",
+      "includeDisabled",
+      "includeGraph",
+      "includeImports",
+      "includePaths",
+      "includeRisk",
+      "includeRiskPartialFlows",
+      "includeTypes",
+      "includeUsages",
+      "languages",
+      "maxBytes",
+      "maxCandidates",
+      "maxDepth",
+      "maxEdges",
+      "maxFanoutPerNode",
+      "maxFederatedRepos",
+      "maxNodes",
+      "maxPaths",
+      "maxTokens",
+      "maxTypeEntries",
+      "maxWallClockMs",
+      "maxWorkUnits",
+      "no-fallback",
+      "repo-filter",
+      "root",
+      "rule",
+      "scope",
+      "seed",
+      "select",
+      "severity",
+      "sink",
+      "sink-rule",
+      "source",
+      "source-rule",
+      "strictEvidence",
+      "strictRisk",
+      "tag",
+      "tools",
+      "workspace",
+      "workspaceId"
+    ],
     "byFile": [
       {
         "file": "bin/pairofcleats.js",
@@ -4324,29 +4414,73 @@
           "allow-unauthenticated",
           "allowed-repo-roots",
           "auth-token",
+          "category",
           "command",
           "concurrency",
           "config",
           "cors-allow-any",
           "cors-allowed-origins",
           "dry-run",
+          "flow-id",
+          "format",
+          "hops",
           "host",
+          "includeCallersCallees",
+          "includeDisabled",
+          "includeGraph",
+          "includeImports",
+          "includePaths",
+          "includeRisk",
+          "includeRiskPartialFlows",
+          "includeTypes",
+          "includeUsages",
           "interval",
           "job",
           "json",
+          "languages",
           "lock",
           "max-body-bytes",
+          "maxBytes",
+          "maxCandidates",
+          "maxDepth",
+          "maxEdges",
+          "maxFanoutPerNode",
+          "maxFederatedRepos",
+          "maxNodes",
+          "maxPaths",
+          "maxTokens",
+          "maxTypeEntries",
+          "maxWallClockMs",
+          "maxWorkUnits",
           "mode",
+          "no-fallback",
           "output",
           "port",
           "queue",
           "quiet",
           "reason",
           "repo",
+          "repo-filter",
+          "root",
+          "rule",
+          "scope",
+          "seed",
+          "select",
+          "severity",
           "shutdown-mode",
+          "sink",
+          "sink-rule",
+          "source",
+          "source-rule",
           "stage",
+          "strictEvidence",
+          "strictRisk",
+          "tag",
           "timeout-ms",
-          "watch"
+          "tools",
+          "watch",
+          "workspace",
+          "workspaceId"
         ]
       },
       {
@@ -4391,52 +4525,6 @@
           "maxViolations",
           "repo",
           "rules"
-        ]
-      },
-      {
-        "file": "src/integrations/tooling/context-pack.js",
-        "flags": [
-          "category",
-          "flow-id",
-          "format",
-          "hops",
-          "includeCallersCallees",
-          "includeDisabled",
-          "includeGraph",
-          "includeImports",
-          "includePaths",
-          "includeRisk",
-          "includeRiskPartialFlows",
-          "includeTypes",
-          "includeUsages",
-          "json",
-          "maxBytes",
-          "maxCandidates",
-          "maxDepth",
-          "maxEdges",
-          "maxFanoutPerNode",
-          "maxFederatedRepos",
-          "maxNodes",
-          "maxPaths",
-          "maxTokens",
-          "maxTypeEntries",
-          "maxWallClockMs",
-          "maxWorkUnits",
-          "repo",
-          "repo-filter",
-          "rule",
-          "seed",
-          "select",
-          "severity",
-          "sink",
-          "sink-rule",
-          "source",
-          "source-rule",
-          "strictEvidence",
-          "strictRisk",
-          "tag",
-          "workspace",
-          "workspaceId"
         ]
       },
       {
@@ -6152,21 +6240,25 @@
         ]
       },
       {
-        "file": "tools/tooling/detect.js",
-        "flags": [
-          "json",
-          "languages",
-          "repo",
-          "root"
-        ]
-      },
-      {
         "file": "tools/tooling/doctor.js",
         "flags": [
           "json",
           "non-strict",
           "repo",
           "strict"
+        ]
+      },
+      {
+        "file": "tools/tooling/install-lua-language-server.js",
+        "flags": [
+          "release-tag",
+          "retries",
+          "retry-base-ms",
+          "retry-jitter-ms",
+          "scope",
+          "timeout-ms",
+          "tooling-root",
+          "url"
         ]
       },
       {
@@ -6182,19 +6274,6 @@
           "timeout-ms",
           "tooling-root",
           "url"
-        ]
-      },
-      {
-        "file": "tools/tooling/install.js",
-        "flags": [
-          "dry-run",
-          "json",
-          "languages",
-          "no-fallback",
-          "repo",
-          "root",
-          "scope",
-          "tools"
         ]
       },
       {
@@ -6286,12 +6365,11 @@
     "duplicated": [
       {
         "flag": "json",
-        "count": 75,
+        "count": 72,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
-          "src/integrations/tooling/context-pack.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js",
@@ -6356,9 +6434,7 @@
           "tools/testing/shared-module-cycles.js",
           "tools/testing/shared-module-migration.js",
           "tools/testing/shared-module-performance.js",
-          "tools/tooling/detect.js",
           "tools/tooling/doctor.js",
-          "tools/tooling/install.js",
           "tools/tui/install.js",
           "tools/workspace/catalog.js",
           "tools/workspace/manifest.js",
@@ -6367,12 +6443,11 @@
       },
       {
         "flag": "repo",
-        "count": 67,
+        "count": 64,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
-          "src/integrations/tooling/context-pack.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js",
@@ -6429,9 +6504,7 @@
           "tools/setup/bootstrap.js",
           "tools/setup/setup.js",
           "tools/sqlite/verify-extensions.js",
-          "tools/tooling/detect.js",
           "tools/tooling/doctor.js",
-          "tools/tooling/install.js",
           "tools/tooling/uninstall.js",
           "tools/triage/context-pack.js",
           "tools/triage/decision.js",
@@ -6543,7 +6616,7 @@
         "flag": "seed",
         "count": 16,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "tests/fixtures/medium/generate.js",
@@ -6559,25 +6632,6 @@
           "tools/bench/vfs/segment-hash-cache.js",
           "tools/bench/vfs/token-uri-encode.js",
           "tools/bench/vfs/vfsidx-lookup.js"
-        ]
-      },
-      {
-        "flag": "root",
-        "count": 13,
-        "files": [
-          "tools/bench/vfs/cold-start-cache.js",
-          "tools/ci/check-command-surface.js",
-          "tools/ci/coverage-policy-report.js",
-          "tools/docs/contract-drift.js",
-          "tools/docs/export-artifact-schema-index.js",
-          "tools/docs/generated-surfaces.js",
-          "tools/docs/repo-inventory.js",
-          "tools/docs/shared-module-ledger.js",
-          "tools/reports/show-throughput/options.js",
-          "tools/setup/setup.js",
-          "tools/testing/shared-module-cycles.js",
-          "tools/tooling/detect.js",
-          "tools/tooling/install.js"
         ]
       },
       {
@@ -6599,6 +6653,24 @@
         ]
       },
       {
+        "flag": "root",
+        "count": 12,
+        "files": [
+          "bin/pairofcleats.js",
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/ci/check-command-surface.js",
+          "tools/ci/coverage-policy-report.js",
+          "tools/docs/contract-drift.js",
+          "tools/docs/export-artifact-schema-index.js",
+          "tools/docs/generated-surfaces.js",
+          "tools/docs/repo-inventory.js",
+          "tools/docs/shared-module-ledger.js",
+          "tools/reports/show-throughput/options.js",
+          "tools/setup/setup.js",
+          "tools/testing/shared-module-cycles.js"
+        ]
+      },
+      {
         "flag": "samples",
         "count": 11,
         "files": [
@@ -6613,22 +6685,6 @@
           "tools/bench/vfs/segment-hash-cache.js",
           "tools/bench/vfs/token-uri-encode.js",
           "tools/bench/vfs/vfsidx-lookup.js"
-        ]
-      },
-      {
-        "flag": "dry-run",
-        "count": 10,
-        "files": [
-          "bin/pairofcleats.js",
-          "tools/build/compact-sqlite-index.js",
-          "tools/ci/run-suite.js",
-          "tools/docs/script-inventory.js",
-          "tools/index/cache-gc.js",
-          "tools/index/clean-artifacts.js",
-          "tools/index/compact-pieces.js",
-          "tools/reports/parity-matrix.js",
-          "tools/tooling/install.js",
-          "tools/tooling/uninstall.js"
         ]
       },
       {
@@ -6664,6 +6720,21 @@
         ]
       },
       {
+        "flag": "dry-run",
+        "count": 9,
+        "files": [
+          "bin/pairofcleats.js",
+          "tools/build/compact-sqlite-index.js",
+          "tools/ci/run-suite.js",
+          "tools/docs/script-inventory.js",
+          "tools/index/cache-gc.js",
+          "tools/index/clean-artifacts.js",
+          "tools/index/compact-pieces.js",
+          "tools/reports/parity-matrix.js",
+          "tools/tooling/uninstall.js"
+        ]
+      },
+      {
         "flag": "include",
         "count": 9,
         "files": [
@@ -6694,6 +6765,21 @@
         ]
       },
       {
+        "flag": "scope",
+        "count": 9,
+        "files": [
+          "bin/pairofcleats.js",
+          "tests/shared/cache/contract-matrix.test.js",
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js",
+          "tools/tooling/install-lua-language-server.js",
+          "tools/tooling/install-phpactor-phar.js"
+        ]
+      },
+      {
         "flag": "verbose",
         "count": 9,
         "files": [
@@ -6712,9 +6798,9 @@
         "flag": "format",
         "count": 8,
         "files": [
+          "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
-          "src/integrations/tooling/context-pack.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js",
@@ -6765,17 +6851,17 @@
         ]
       },
       {
-        "flag": "scope",
+        "flag": "timeout-ms",
         "count": 8,
         "files": [
-          "tests/shared/cache/contract-matrix.test.js",
-          "tools/bench/map/build-map-memory.js",
-          "tools/bench/map/build-map-streaming.js",
-          "tools/bench/map/viewer-fps.js",
-          "tools/bench/map/viewer-lod-stress.js",
-          "tools/reports/report-code-map.js",
-          "tools/tooling/install-phpactor-phar.js",
-          "tools/tooling/install.js"
+          "bin/pairofcleats.js",
+          "tests/tooling/fixtures/fixture-parity.test.js",
+          "tools/docs/script-inventory.js",
+          "tools/ingest/ctags.js",
+          "tools/ingest/gtags.js",
+          "tools/ingest/scip.js",
+          "tools/tooling/install-lua-language-server.js",
+          "tools/tooling/install-phpactor-phar.js"
         ]
       },
       {
@@ -6828,19 +6914,6 @@
           "tools/setup/bootstrap.js",
           "tools/setup/setup.js",
           "tools/triage/ingest.js"
-        ]
-      },
-      {
-        "flag": "timeout-ms",
-        "count": 7,
-        "files": [
-          "bin/pairofcleats.js",
-          "tests/tooling/fixtures/fixture-parity.test.js",
-          "tools/docs/script-inventory.js",
-          "tools/ingest/ctags.js",
-          "tools/ingest/gtags.js",
-          "tools/ingest/scip.js",
-          "tools/tooling/install-phpactor-phar.js"
         ]
       },
       {
@@ -7054,7 +7127,7 @@
         "flag": "maxWorkUnits",
         "count": 5,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js",
@@ -7156,16 +7229,6 @@
         ]
       },
       {
-        "flag": "languages",
-        "count": 4,
-        "files": [
-          "tools/bench/index/tree-sitter-load.js",
-          "tools/bench/vfs/coalesce-docs.js",
-          "tools/tooling/detect.js",
-          "tools/tooling/install.js"
-        ]
-      },
-      {
         "flag": "lookups",
         "count": 4,
         "files": [
@@ -7179,7 +7242,7 @@
         "flag": "maxCandidates",
         "count": 4,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js"
@@ -7189,7 +7252,7 @@
         "flag": "maxDepth",
         "count": 4,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js"
@@ -7199,7 +7262,7 @@
         "flag": "maxEdges",
         "count": 4,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js"
@@ -7209,7 +7272,7 @@
         "flag": "maxNodes",
         "count": 4,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js"
@@ -7219,7 +7282,7 @@
         "flag": "maxPaths",
         "count": 4,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js"
@@ -7229,7 +7292,7 @@
         "flag": "maxWallClockMs",
         "count": 4,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js"
@@ -7286,6 +7349,16 @@
         ]
       },
       {
+        "flag": "retries",
+        "count": 4,
+        "files": [
+          "tests/runner/all.js",
+          "tests/tooling/script-coverage/script-coverage.runner.js",
+          "tools/tooling/install-lua-language-server.js",
+          "tools/tooling/install-phpactor-phar.js"
+        ]
+      },
+      {
         "flag": "runs",
         "count": 4,
         "files": [
@@ -7306,10 +7379,20 @@
         ]
       },
       {
+        "flag": "url",
+        "count": 4,
+        "files": [
+          "tools/download/dicts.js",
+          "tools/download/extensions.js",
+          "tools/tooling/install-lua-language-server.js",
+          "tools/tooling/install-phpactor-phar.js"
+        ]
+      },
+      {
         "flag": "workspace",
         "count": 4,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "tools/workspace/catalog.js",
           "tools/workspace/manifest.js",
           "tools/workspace/status.js"
@@ -7343,6 +7426,15 @@
         ]
       },
       {
+        "flag": "languages",
+        "count": 3,
+        "files": [
+          "bin/pairofcleats.js",
+          "tools/bench/index/tree-sitter-load.js",
+          "tools/bench/vfs/coalesce-docs.js"
+        ]
+      },
+      {
         "flag": "log-dir",
         "count": 3,
         "files": [
@@ -7364,7 +7456,7 @@
         "flag": "maxBytes",
         "count": 3,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "tests/indexing/vfs/cdc-min-file-bytes.test.js",
           "tests/indexing/vfs/cdc-segmentation-contract.test.js"
         ]
@@ -7373,7 +7465,7 @@
         "flag": "maxFanoutPerNode",
         "count": 3,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js"
         ]
@@ -7415,15 +7507,6 @@
         ]
       },
       {
-        "flag": "retries",
-        "count": 3,
-        "files": [
-          "tests/runner/all.js",
-          "tests/tooling/script-coverage/script-coverage.runner.js",
-          "tools/tooling/install-phpactor-phar.js"
-        ]
-      },
-      {
         "flag": "run",
         "count": 3,
         "files": [
@@ -7443,15 +7526,6 @@
       },
       {
         "flag": "sha256",
-        "count": 3,
-        "files": [
-          "tools/download/dicts.js",
-          "tools/download/extensions.js",
-          "tools/tooling/install-phpactor-phar.js"
-        ]
-      },
-      {
-        "flag": "url",
         "count": 3,
         "files": [
           "tools/download/dicts.js",
@@ -7680,7 +7754,7 @@
         "flag": "includeImports",
         "count": 2,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "tests/retrieval/context-expansion/context-expansion-contract-matrix.test.js"
         ]
       },
@@ -7688,7 +7762,7 @@
         "flag": "includePaths",
         "count": 2,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "src/integrations/tooling/graph-context.js"
         ]
       },
@@ -7696,7 +7770,7 @@
         "flag": "includeUsages",
         "count": 2,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "tests/retrieval/context-expansion/context-expansion-contract-matrix.test.js"
         ]
       },
@@ -7885,10 +7959,26 @@
         ]
       },
       {
+        "flag": "retry-base-ms",
+        "count": 2,
+        "files": [
+          "tools/tooling/install-lua-language-server.js",
+          "tools/tooling/install-phpactor-phar.js"
+        ]
+      },
+      {
+        "flag": "retry-jitter-ms",
+        "count": 2,
+        "files": [
+          "tools/tooling/install-lua-language-server.js",
+          "tools/tooling/install-phpactor-phar.js"
+        ]
+      },
+      {
         "flag": "rule",
         "count": 2,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "tools/analysis/structural-search.js"
         ]
       },
@@ -7968,7 +8058,7 @@
         "flag": "source",
         "count": 2,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "tools/triage/ingest.js"
         ]
       },
@@ -7984,7 +8074,7 @@
         "flag": "tag",
         "count": 2,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "bin/pairofcleats.js",
           "tools/release/metadata.js"
         ]
       },
@@ -8002,6 +8092,14 @@
         "files": [
           "tools/analysis/map-iso-serve.js",
           "tools/reports/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "tooling-root",
+        "count": 2,
+        "files": [
+          "tools/tooling/install-lua-language-server.js",
+          "tools/tooling/install-phpactor-phar.js"
         ]
       },
       {
@@ -8079,6 +8177,7 @@
       "src/index/language-registry/registry.js",
       "src/index/segments.js",
       "src/index/tooling/typescript-provider.js",
+      "src/integrations/tooling/context-pack.js",
       "src/integrations/tooling/lsp/client.js",
       "src/lang/tree-sitter/chunking.js",
       "src/lang/workers/tree-sitter-worker.js",
@@ -8110,7 +8209,9 @@
       "tools/service/indexer-service.js",
       "tools/service/subprocess-log.js",
       "tools/shared/search-cli-harness.js",
-      "tools/sqlite/vector-extension.js"
+      "tools/sqlite/vector-extension.js",
+      "tools/tooling/detect.js",
+      "tools/tooling/install.js"
     ]
   }
 }
