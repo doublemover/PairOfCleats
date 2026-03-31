@@ -540,6 +540,29 @@ export const resolveGoWorkspaceModulePreflight = async ({
   }
 
   if (selectedGoPaths.length > 0 && !partitions.length) {
+    const hasNestedRoots = Array.isArray(rootShape.nestedMarkerRoots) && rootShape.nestedMarkerRoots.length > 0;
+    if (!repoHasWorkspaceMarker && !hasNestedRoots) {
+      const message = 'gopls found Go documents, but no go.mod/go.work roots were found anywhere in the repo; failing open without Go workspace coverage.';
+      return {
+        state: 'degraded',
+        reasonCode: 'go_workspace_missing_root_fail_open',
+        message,
+        check: {
+          name: 'go_workspace_missing_root_fail_open',
+          status: 'warn',
+          message
+        },
+        checks: [
+          {
+            name: 'gopls_workspace_model_missing',
+            status: 'warn',
+            message: 'gopls workspace markers (go.mod/go.work) were not found for the selected Go documents.'
+          },
+          ...(rootShape.check ? [rootShape.check] : []),
+          ...extraChecks
+        ]
+      };
+    }
     const reasonCode = repoHasWorkspaceMarker
       ? 'go_workspace_blocked_incompatible_partition'
       : (rootShape.reasonCode === 'go_workspace_module_root_ambiguous'

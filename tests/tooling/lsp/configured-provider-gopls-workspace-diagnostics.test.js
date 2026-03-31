@@ -62,11 +62,22 @@ const result = await runToolingProviders({
 });
 
 const checks = result.diagnostics?.['lsp-gopls']?.checks || [];
+const fidelity = result.diagnostics?.['lsp-gopls']?.fidelity || null;
 assert.ok(Array.isArray(checks), 'expected diagnostics checks for configured gopls provider');
 assert.equal(
-  checks.some((check) => check?.name === 'go_workspace_blocked_missing_root'),
+  checks.some((check) => check?.name === 'go_workspace_missing_root_fail_open'),
   true,
-  'expected partition-local missing-root warning when workspace markers are absent'
+  'expected fail-open missing-root warning when no Go workspace markers exist'
+);
+assert.equal(
+  checks.some((check) => check?.name === 'gopls_workspace_model_missing'),
+  true,
+  'expected generic workspace-model-missing warning to remain visible'
+);
+assert.equal(
+  fidelity?.state,
+  'degraded',
+  'expected gopls missing-root repos to fail open as degraded rather than blocked'
 );
 
 console.log('configured LSP gopls workspace diagnostics test passed');

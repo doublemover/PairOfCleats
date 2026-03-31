@@ -309,12 +309,22 @@ export const resolveLspWorkspaceRouting = ({
   let reasonCode = null;
 
   if (!partitions.length) {
-    state = policy === 'block' ? 'blocked' : 'degraded';
+    const missingRoots = scanWorkspaceMarkerRoots(normalizedRepoRoot, markerOptions);
+    const failOpenMissingGoWorkspace = (
+      isGoWorkspaceProviderId(providerId)
+      && requireWorkspaceModel
+      && missingRoots.length <= 0
+    );
+    state = failOpenMissingGoWorkspace
+      ? 'degraded'
+      : (policy === 'block' ? 'blocked' : 'degraded');
     reasonCode = `${String(providerId || 'lsp')}_workspace_model_missing`;
     checks.push({
       name: reasonCode,
       status: 'warn',
-      message: `${providerId} workspace markers were not found for the selected documents.`
+      message: failOpenMissingGoWorkspace
+        ? `${providerId} found candidate source files, but no workspace markers exist anywhere in the repo; failing open without workspace coverage.`
+        : `${providerId} workspace markers were not found for the selected documents.`
     });
   } else if (
     requireWorkspaceModel
