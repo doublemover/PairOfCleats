@@ -144,12 +144,16 @@ const parity = output?.diagnostics?.parity;
 assert.ok(parity && typeof parity === 'object', 'expected diagnostics parity summary');
 assert.equal(parity.status, 'ok', 'expected parity summary to agree when logs and stream match');
 assert.equal(parity.mismatchCount, 0, 'expected zero diagnostics parity mismatches');
+assert.equal(parity.countScopes?.countsFromLogs, 'event_presence', 'expected event-scope parity labeling');
+assert.equal(parity.countScopes?.repoCountsFromLogs, 'repo_presence', 'expected repo-scope parity labeling');
 assert.equal(parity.countsFromLogs.provider_preflight_blocked, 1, 'expected blocked preflight parity count');
 assert.equal(parity.countsFromLogs.provider_request_timeout, 1, 'expected request timeout parity count');
 assert.equal(parity.countsFromLogs.provider_degraded_mode_entered, 1, 'expected degraded mode parity count');
 assert.equal(parity.countsFromLogs.warning_suppressed, 1, 'expected warning suppression parity count');
 assert.equal(parity.countsFromDiagnosticsStream.provider_request_failed, 1, 'expected request failed stream parity count');
 assert.equal(parity.countsFromDiagnosticsStream.warning_suppressed, 1, 'expected warning suppression stream parity count');
+assert.equal(parity.repoCountsFromLogs.provider_preflight_blocked, 1, 'expected repo-scoped blocked preflight parity count');
+assert.equal(parity.repoCountsFromDiagnosticsStream.provider_preflight_blocked, 1, 'expected repo-scoped blocked preflight stream parity count');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 

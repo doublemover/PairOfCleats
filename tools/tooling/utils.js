@@ -4,6 +4,7 @@ import path from 'node:path';
 import { canRunCommand, probeCommand } from '../shared/cli-utils.js';
 import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../../src/index/constants.js';
 import { findBinaryInDirs, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
+import { validateResolvedToolingCommandLayout } from '../../src/index/tooling/command-resolver.js';
 import { toPosix } from '../../src/shared/files.js';
 import {
   resolveGlobalComposerBinDirs,
@@ -207,6 +208,49 @@ function probeWithArgCandidates(cmd, argCandidates) {
     outcome: preferred,
     attempts
   };
+}
+
+function applyToolLayoutValidation(tool, detectedPath, probe) {
+  let validation = validateResolvedToolingCommandLayout({
+    providerId: tool?.id || tool?.detect?.cmd || '',
+    resolvedCmd: detectedPath,
+    toolingConfig: null
+  });
+  if (
+    validation.ok === true
+    && String(tool?.id || '').trim() === 'lua-language-server'
+    && detectedPath
+    && Array.isArray(tool?.detect?.binDirs)
+  ) {
+    const normalizedDetectedPath = path.resolve(String(detectedPath));
+    const insideManagedBinDir = tool.detect.binDirs.some((dir) => {
+      const candidateDir = String(dir || '').trim();
+      if (!candidateDir) return false;
+      const normalizedCandidateDir = path.resolve(candidateDir);
+      const left = process.platform === 'win32' ? normalizedDetectedPath.toLowerCase() : normalizedDetectedPath;
+      const right = process.platform === 'win32' ? normalizedCandidateDir.toLowerCase() : normalizedCandidateDir;
+      return left === right || left.startsWith(`${right}${path.sep}`);
+    });
+    if (insideManagedBinDir) {
+      const expectedMainLua = path.join(path.dirname(detectedPath), 'main.lua');
+      if (!fs.existsSync(expectedMainLua)) {
+        validation = {
+          ok: false,
+          reasonCode: 'broken-layout',
+          message: `lua-language-server managed install is missing runtime entry "${expectedMainLua}".`
+        };
+      }
+    }
+  }
+  if (probe?.ok === true && validation.ok === false) {
+    return {
+      ...probe,
+      ok: false,
+      outcome: 'broken-layout',
+      validationFailure: validation
+    };
+  }
+  return probe;
 }
 
 async function scanRepo(root) {
@@ -616,24 +660,37 @@ export function detectTool(tool) {
   const detectCmd = String(tool?.detect?.cmd || '');
   const detectArgCandidates = resolveDetectArgCandidates(tool);
   const binDirs = tool.detect?.binDirs || [];
+  let lastProbe = null;
+  const rememberProbe = (probe) => {
+    if (!probe || typeof probe !== 'object') return;
+    if (!lastProbe) {
+      lastProbe = probe;
+      return;
+    }
+    if (lastProbe.validationFailure && !probe.validationFailure) return;
+    lastProbe = probe;
+  };
   const binPath = binDirs.length ? findBinaryInDirs(tool.detect.cmd, binDirs) : null;
   if (binPath) {
-    const probe = probeWithArgCandidates(binPath, detectArgCandidates);
+    const probe = applyToolLayoutValidation(tool, binPath, probeWithArgCandidates(binPath, detectArgCandidates));
+    rememberProbe(probe);
     if (probe.ok === true) {
       return { found: true, path: binPath, source: 'cache', probe };
     }
   }
-  const probe = probeWithArgCandidates(tool.detect.cmd, detectArgCandidates);
+  const probe = applyToolLayoutValidation(tool, tool.detect.cmd, probeWithArgCandidates(tool.detect.cmd, detectArgCandidates));
+  rememberProbe(probe);
   if (probe.ok === true) return { found: true, path: tool.detect.cmd, source: 'path', probe };
   const pathEntries = splitPathEntries(resolveEnvPath(process.env));
   const pathFound = findBinaryInDirs(detectCmd, pathEntries);
   if (pathFound) {
-    const pathProbe = probeWithArgCandidates(pathFound, detectArgCandidates);
+    const pathProbe = applyToolLayoutValidation(tool, pathFound, probeWithArgCandidates(pathFound, detectArgCandidates));
+    rememberProbe(pathProbe);
     if (pathProbe.ok === true) {
       return { found: true, path: pathFound, source: 'path', probe: pathProbe };
     }
   }
-  return { found: false, path: null, source: null, probe };
+  return { found: false, path: null, source: null, probe: lastProbe };
 }
 
 export function selectInstallPlan(tool, scope, allowFallback) {

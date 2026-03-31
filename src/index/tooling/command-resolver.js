@@ -83,6 +83,8 @@ const extractProbeVersionText = (attempts) => {
 const summarizeProbeFailureReasons = (probe) => {
   const reasons = new Set();
   if (isProbeCommandDefinitelyMissing(probe)) reasons.add('missing-command');
+  const validationReasonCode = String(probe?.validationFailure?.reasonCode || '').trim();
+  if (validationReasonCode) reasons.add(validationReasonCode);
   for (const attempt of Array.isArray(probe?.attempted) ? probe.attempted : []) {
     const errorCode = String(attempt?.errorCode || '').trim().toUpperCase();
     const output = `${String(attempt?.stderr || '')} ${String(attempt?.stdout || '')}`.toLowerCase();
@@ -392,6 +394,59 @@ const resolveRuntimeToolDirs = ({ repoRoot, toolingConfig, includeGlobal = true 
   const localToolingDirs = toolingConfig?.dir ? resolveLocalToolingBinDirs(toolingConfig.dir) : [];
   const globalToolingDirs = includeGlobal ? resolveGlobalToolingBinDirs() : [];
   return [repoBin, ...localToolingDirs, ...globalToolingDirs].filter(Boolean);
+};
+
+const normalizeComparablePath = (value) => {
+  const resolved = path.resolve(String(value || '').trim() || '.');
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+};
+
+const isPathInside = (candidate, parent) => {
+  const normalizedCandidate = normalizeComparablePath(candidate);
+  const normalizedParent = normalizeComparablePath(parent);
+  return normalizedCandidate === normalizedParent
+    || normalizedCandidate.startsWith(`${normalizedParent}${path.sep}`);
+};
+
+const looksLikeManagedLuaLanguageServerPath = ({ resolvedCmd, toolingConfig }) => {
+  const commandPath = String(resolvedCmd || '').trim();
+  if (!commandPath || !isExplicitCommandPath(commandPath)) return false;
+  const normalizedCommand = normalizeComparablePath(commandPath);
+  const configuredToolingRoot = String(toolingConfig?.dir || '').trim();
+  if (configuredToolingRoot) {
+    const localToolingBinDirs = resolveLocalToolingBinDirs(configuredToolingRoot);
+    if (localToolingBinDirs.some((dir) => isPathInside(normalizedCommand, dir))) return true;
+  }
+  const parentDir = path.dirname(commandPath);
+  const grandParentDir = path.dirname(parentDir);
+  const greatGrandParentDir = path.dirname(grandParentDir);
+  return path.basename(parentDir).toLowerCase() === 'bin'
+    && path.basename(grandParentDir).toLowerCase() === 'tooling'
+    && path.basename(greatGrandParentDir).toLowerCase() === 'pairofcleats';
+};
+
+export const validateResolvedToolingCommandLayout = ({
+  providerId = '',
+  resolvedCmd = '',
+  toolingConfig = null
+} = {}) => {
+  const normalizedProviderId = normalizeProviderId(providerId || resolvedCmd || '');
+  const commandPath = String(resolvedCmd || '').trim();
+  if (!commandPath || normalizedProviderId !== 'lua-language-server') {
+    return { ok: true, reasonCode: null, message: '' };
+  }
+  if (!looksLikeManagedLuaLanguageServerPath({ resolvedCmd: commandPath, toolingConfig })) {
+    return { ok: true, reasonCode: null, message: '' };
+  }
+  const expectedMainLua = path.join(path.dirname(commandPath), 'main.lua');
+  if (fsSync.existsSync(expectedMainLua)) {
+    return { ok: true, reasonCode: null, message: '' };
+  }
+  return {
+    ok: false,
+    reasonCode: 'broken-layout',
+    message: `lua-language-server managed install is missing runtime entry "${expectedMainLua}".`
+  };
 };
 
 const resolveScopedCommand = ({ cmd, repoRoot, toolingConfig }) => {
@@ -720,6 +775,15 @@ export const resolveToolingCommandProfile = (input) => {
     timeoutMs: probeTimeoutMs,
     toolingConfig
   });
+  const validation = validateResolvedToolingCommandLayout({
+    providerId,
+    resolvedCmd: resolvedCmd || requestedCmd,
+    toolingConfig
+  });
+  if (probe.ok === true && validation.ok === false) {
+    probe.ok = false;
+    probe.validationFailure = validation;
+  }
 
   const resolved = {
     cmd: resolvedCmd || requestedCmd,

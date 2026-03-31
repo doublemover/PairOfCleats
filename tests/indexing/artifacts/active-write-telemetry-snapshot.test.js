@@ -6,7 +6,8 @@ import {
   recordArtifactFamilyCloseoutCompletion,
   recordArtifactFamilyCloseoutStart,
   recordArtifactFamilyCloseoutStall,
-  resolveActiveWritePhaseLabel
+  resolveActiveWritePhaseLabel,
+  resolveArtifactWriteStallCauseHint
 } from '../../../src/index/build/artifacts/write-telemetry.js';
 
 const activeWrites = new Map([
@@ -95,6 +96,16 @@ assert.equal(
   resolveActiveWritePhaseLabel('token_postings.shards/part-0001.bin'),
   'write:binary',
   'expected shard binary labels to classify into binary write phases'
+);
+assert.equal(
+  resolveArtifactWriteStallCauseHint('materialize:chunk-meta-binary-columnar'),
+  'heavy-serialization',
+  'expected chunk-meta binary-columnar writes to surface a heavy-serialization stall hint'
+);
+assert.equal(
+  resolveArtifactWriteStallCauseHint('closeout:pieces-manifest'),
+  'publish-or-filesystem-flush',
+  'expected closeout writes to surface a publish/filesystem stall hint'
 );
 
 const familyLedger = new Map();

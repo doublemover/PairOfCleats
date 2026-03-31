@@ -450,6 +450,8 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
   const countsByReuseSource = new Map();
   const countsByQualityImpact = new Map();
   const uniqueEventIds = new Set();
+  const repoEventIds = new Set();
+  const repoTypePresence = new Set();
   const knownTypes = new Set(BENCH_DIAGNOSTIC_EVENT_TYPES);
   const perFile = [];
   let rawEventCount = 0;
@@ -480,9 +482,13 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
       rawEventCount += 1;
       fileEventCount += 1;
       const scope = parsed.label || resolveBenchStreamScope(filePath);
-      const eventKey = buildSyntheticEventKey([scope, parsed.eventId]);
+      const masterFile = isMasterBenchStreamFile(filePath);
+      const eventKey = buildSyntheticEventKey([masterFile ? 'master' : scope, parsed.eventId]);
+      if (masterFile && repoEventIds.has(parsed.eventId)) return;
       if (uniqueEventIds.has(eventKey)) return;
       uniqueEventIds.add(eventKey);
+      if (!masterFile) repoEventIds.add(parsed.eventId);
+      repoTypePresence.add(buildSyntheticEventKey([scope, parsed.eventType]));
       countsByType.set(parsed.eventType, (countsByType.get(parsed.eventType) || 0) + 1);
       countsBySeverity.set(parsed.severity, (countsBySeverity.get(parsed.severity) || 0) + 1);
       if (parsed.failureClass) {
@@ -520,6 +526,13 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
   const required = Object.fromEntries(
     BENCH_DIAGNOSTIC_EVENT_TYPES.map((type) => [type, countsByType.get(type) || 0])
   );
+  const repoCountsByType = new Map();
+  for (const presenceKey of repoTypePresence) {
+    const parsed = JSON.parse(String(presenceKey || '[]'));
+    const eventType = String(parsed?.[1] || '').trim();
+    if (!eventType) continue;
+    repoCountsByType.set(eventType, (repoCountsByType.get(eventType) || 0) + 1);
+  }
   let unknownTypeCount = 0;
   for (const [type, count] of countsByType.entries()) {
     if (knownTypes.has(type)) continue;
@@ -534,8 +547,15 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
     rawEventCount,
     duplicateEventCount: Math.max(0, rawEventCount - uniqueEventIds.size),
     uniqueEventCount: uniqueEventIds.size,
+    countScopes: {
+      countsByType: 'event_presence',
+      repoCountsByType: 'repo_presence'
+    },
     countsByType: Object.fromEntries(
       Array.from(countsByType.entries()).sort(([left], [right]) => left.localeCompare(right))
+    ),
+    repoCountsByType: Object.fromEntries(
+      Array.from(repoCountsByType.entries()).sort(([left], [right]) => left.localeCompare(right))
     ),
     countsBySeverity: Object.fromEntries(
       BENCH_DIAGNOSTIC_SEVERITY_LEVELS.map((severity) => [severity, countsBySeverity.get(severity) || 0])
@@ -567,8 +587,10 @@ const buildDiagnosticsParitySummary = async (resultsRoot, diagnosticsStream, opt
   const materialTypes = new Set(BENCH_DIAGNOSTIC_MATERIAL_PARITY_EVENT_TYPES);
   const fallbackNegativePattern = /\b(?:no|without)\s+fallback\b|\bfallback\s+(?:disabled|off)\b/i;
   const countsFromLogs = new Map();
+  const repoCountsFromLogs = new Map();
   const uniqueEventKeys = new Set();
   const repoEventKeys = new Set();
+  const repoTypePresence = new Set();
   let rawEventCount = 0;
 
   for (const filePath of orderedFiles) {
@@ -628,12 +650,22 @@ const buildDiagnosticsParitySummary = async (resultsRoot, diagnosticsStream, opt
         uniqueEventKeys.add(scopedKey);
         if (!masterFile) repoEventKeys.add(eventId);
         countsFromLogs.set(signal.eventType, (countsFromLogs.get(signal.eventType) || 0) + 1);
+        repoTypePresence.add(buildSyntheticEventKey([scope, signal.eventType]));
       }
     });
+  }
+  for (const presenceKey of repoTypePresence) {
+    const parsed = JSON.parse(String(presenceKey || '[]'));
+    const eventType = String(parsed?.[1] || '').trim();
+    if (!eventType) continue;
+    repoCountsFromLogs.set(eventType, (repoCountsFromLogs.get(eventType) || 0) + 1);
   }
 
   const streamCounts = diagnosticsStream?.countsByType && typeof diagnosticsStream.countsByType === 'object'
     ? diagnosticsStream.countsByType
+    : {};
+  const streamRepoCounts = diagnosticsStream?.repoCountsByType && typeof diagnosticsStream.repoCountsByType === 'object'
+    ? diagnosticsStream.repoCountsByType
     : {};
   const mismatches = BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => {
     const logCount = countsFromLogs.get(eventType) || 0;
@@ -646,13 +678,33 @@ const buildDiagnosticsParitySummary = async (resultsRoot, diagnosticsStream, opt
       material: materialTypes.has(eventType)
     };
   }).filter((entry) => entry.aggregateLogCount !== entry.diagnosticsStreamCount);
+  const repoMismatches = BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => {
+    const logCount = repoCountsFromLogs.get(eventType) || 0;
+    const streamCount = Number(streamRepoCounts[eventType]) || 0;
+    return {
+      eventType,
+      aggregateLogRepoCount: logCount,
+      diagnosticsStreamRepoCount: streamCount,
+      delta: streamCount - logCount,
+      material: materialTypes.has(eventType)
+    };
+  }).filter((entry) => entry.aggregateLogRepoCount !== entry.diagnosticsStreamRepoCount);
 
   const materialMismatchCount = mismatches.filter((entry) => entry.material).length;
+  const materialRepoMismatchCount = repoMismatches.filter((entry) => entry.material).length;
+  const totalMaterialMismatchCount = materialMismatchCount + materialRepoMismatchCount;
+  const totalMismatchCount = mismatches.length + repoMismatches.length;
 
   return {
     schemaVersion: 1,
     trackedTypes: BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.slice(),
     materialTypes: BENCH_DIAGNOSTIC_MATERIAL_PARITY_EVENT_TYPES.slice(),
+    countScopes: {
+      countsFromLogs: 'event_presence',
+      countsFromDiagnosticsStream: 'event_presence',
+      repoCountsFromLogs: 'repo_presence',
+      repoCountsFromDiagnosticsStream: 'repo_presence'
+    },
     rawAggregateLogEventCount: rawEventCount,
     aggregateLogEventCount: uniqueEventKeys.size,
     countsFromLogs: Object.fromEntries(
@@ -661,10 +713,19 @@ const buildDiagnosticsParitySummary = async (resultsRoot, diagnosticsStream, opt
     countsFromDiagnosticsStream: Object.fromEntries(
       BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => [eventType, Number(streamCounts[eventType]) || 0])
     ),
-    mismatchCount: mismatches.length,
-    materialMismatchCount,
-    status: materialMismatchCount > 0 ? 'error' : (mismatches.length > 0 ? 'warn' : 'ok'),
-    mismatches
+    repoCountsFromLogs: Object.fromEntries(
+      BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => [eventType, repoCountsFromLogs.get(eventType) || 0])
+    ),
+    repoCountsFromDiagnosticsStream: Object.fromEntries(
+      BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => [eventType, Number(streamRepoCounts[eventType]) || 0])
+    ),
+    mismatchCount: totalMismatchCount,
+    materialMismatchCount: totalMaterialMismatchCount,
+    eventMismatchCount: mismatches.length,
+    repoMismatchCount: repoMismatches.length,
+    status: totalMaterialMismatchCount > 0 ? 'error' : (totalMismatchCount > 0 ? 'warn' : 'ok'),
+    mismatches,
+    repoMismatches
   };
 };
 
@@ -1573,9 +1634,13 @@ export const printSummary = (
 
 export const buildBenchRunDiagnosticsSummaryLines = (output) => {
   const lines = [];
-  const countsByType = output?.diagnostics?.stream?.countsByType && typeof output.diagnostics.stream.countsByType === 'object'
-    ? output.diagnostics.stream.countsByType
-    : {};
+  const countsByType = output?.diagnostics?.stream?.repoCountsByType && typeof output.diagnostics.stream.repoCountsByType === 'object'
+    ? output.diagnostics.stream.repoCountsByType
+    : (
+      output?.diagnostics?.stream?.countsByType && typeof output.diagnostics.stream.countsByType === 'object'
+        ? output.diagnostics.stream.countsByType
+        : {}
+    );
   const countsBySeverity = output?.diagnostics?.stream?.countsBySeverity && typeof output.diagnostics.stream.countsBySeverity === 'object'
     ? output.diagnostics.stream.countsBySeverity
     : {};

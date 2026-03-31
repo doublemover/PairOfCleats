@@ -304,6 +304,35 @@ const runPyrightPathFallbackCase = async () => {
   });
 };
 
+const runLuaBrokenManagedLayoutCase = async () => {
+  const caseRoot = path.join(tempRoot, 'lua-broken-managed-layout');
+  const toolingRoot = path.join(caseRoot, 'tooling-root');
+  const binDir = path.join(toolingRoot, 'bin');
+
+  await fs.rm(caseRoot, { recursive: true, force: true });
+  await fs.mkdir(binDir, { recursive: true });
+
+  if (process.platform === 'win32') {
+    await fs.writeFile(
+      path.join(binDir, 'lua-language-server.cmd'),
+      '@echo off\r\nif "%1"=="-v" exit /b 0\r\nexit /b 0\r\n',
+      'utf8'
+    );
+  } else {
+    await makeScript(path.join(binDir, 'lua-language-server'), '#!/bin/sh\nexit 0\n');
+  }
+
+  const registry = getToolingRegistry(toolingRoot, root);
+  const luaLanguageServer = registry.find((entry) => entry?.id === 'lua-language-server');
+  assert.ok(luaLanguageServer, 'expected lua-language-server registry entry');
+
+  await withTemporaryEnv({ PATH: path.dirname(process.execPath), Path: path.dirname(process.execPath) }, async () => {
+    const status = detectTool(luaLanguageServer);
+    assert.equal(status?.found, false, 'expected broken managed Lua layout to be rejected during detection');
+    assert.equal(status?.probe?.validationFailure?.reasonCode, 'broken-layout');
+  });
+};
+
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
@@ -315,6 +344,7 @@ try {
   runRegistryContractCases();
   runPhpactorPlanCase();
   await runPyrightPathFallbackCase();
+  await runLuaBrokenManagedLayoutCase();
   console.log('tooling install detect/plan contract matrix test passed');
 } finally {
   await fs.rm(tempRoot, { recursive: true, force: true });

@@ -54,6 +54,24 @@ export const resolveActiveWritePhaseLabel = (label, phaseHint = null) => {
   return 'write:artifact';
 };
 
+export const resolveArtifactWriteStallCauseHint = (phase) => {
+  const normalized = String(phase || '').trim().toLowerCase();
+  if (!normalized) return 'unknown';
+  if (normalized.startsWith('closeout:') || normalized.startsWith('publish:')) {
+    return 'publish-or-filesystem-flush';
+  }
+  if (normalized.startsWith('prefetch')) {
+    return 'prefetch-or-upstream-backpressure';
+  }
+  if (normalized.includes('binary-columnar') || normalized.includes('field-postings') || normalized.includes('token-postings')) {
+    return 'heavy-serialization';
+  }
+  if (normalized.startsWith('materialize:') || normalized.startsWith('write:') || normalized.startsWith('write-')) {
+    return 'materialization-or-serialization';
+  }
+  return 'unknown';
+};
+
 /**
  * Resolve readable stall-threshold level label for telemetry.
  *
@@ -501,6 +519,7 @@ export const createWriteHeartbeatController = ({
         const family = normalizeArtifactFamilyName(meta?.family);
         const lane = typeof meta?.lane === 'string' ? meta.lane.trim() : null;
         const phase = typeof meta?.phase === 'string' ? meta.phase.trim() : null;
+        const causeHint = resolveArtifactWriteStallCauseHint(phase || snapshot.phaseByLabel.get(label) || null);
         for (let thresholdIndex = 0; thresholdIndex < resolvedThresholds.length; thresholdIndex += 1) {
           const thresholdSec = resolvedThresholds[thresholdIndex];
           if (alerts.has(thresholdSec) || elapsedSec < thresholdSec) continue;
@@ -517,7 +536,7 @@ export const createWriteHeartbeatController = ({
           });
           logLine(
             `[perf] artifact write stall ${levelName}: ${label} in-flight for ${elapsedSec}s ` +
-            `(threshold=${thresholdSec}s${family ? `, family=${family}` : ''}${lane ? `, lane=${lane}` : ''}${phase ? `, phase=${phase}` : ''})`,
+            `(threshold=${thresholdSec}s${family ? `, family=${family}` : ''}${lane ? `, lane=${lane}` : ''}${phase ? `, phase=${phase}` : ''}${causeHint ? `, causeHint=${causeHint}` : ''})`,
             { kind: thresholdSec >= 30 ? 'error' : 'warning' }
           );
           if (stageCheckpoints?.record) {
@@ -530,7 +549,8 @@ export const createWriteHeartbeatController = ({
                 thresholdSec,
                 level: levelName,
                 estimatedBytes,
-                phase: snapshot.phaseByLabel.get(label) || resolveActiveWritePhaseLabel(label)
+                phase: snapshot.phaseByLabel.get(label) || resolveActiveWritePhaseLabel(label),
+                causeHint
               }
             });
           }

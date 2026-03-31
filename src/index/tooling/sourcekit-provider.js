@@ -286,6 +286,53 @@ const shouldSuppressSourcekitSemanticTokensForStartup = (preflight, sourcekitCon
   };
 };
 
+const resolveSourcekitPackageWorkspaceRequestSuppression = ({
+  preflight = null,
+  sourcekitConfig = null,
+  documents = [],
+  targets = []
+} = {}) => {
+  if (sourcekitConfig?.allowPackageWorkspaceHighCostRequests === true) {
+    return {
+      active: false,
+      reasonCode: null,
+      message: '',
+      suppressedRequestClasses: []
+    };
+  }
+  const workspaceKind = String(preflight?.workspaceKind || '').trim().toLowerCase();
+  const dependencyState = String(preflight?.dependencyState || '').trim().toLowerCase();
+  if (workspaceKind !== 'package_managed_workspace' || dependencyState !== 'required') {
+    return {
+      active: false,
+      reasonCode: null,
+      message: '',
+      suppressedRequestClasses: []
+    };
+  }
+  const minTargets = Math.max(
+    1,
+    asFiniteInteger(sourcekitConfig?.packageWorkspaceHighCostRequestMinTargets) ?? 24
+  );
+  const selectedTargetCount = Array.isArray(targets) ? targets.length : 0;
+  const selectedDocumentCount = Array.isArray(documents) ? documents.length : 0;
+  const workloadSize = Math.max(selectedTargetCount, selectedDocumentCount);
+  if (workloadSize < minTargets) {
+    return {
+      active: false,
+      reasonCode: null,
+      message: '',
+      suppressedRequestClasses: []
+    };
+  }
+  return {
+    active: true,
+    reasonCode: 'sourcekit_package_workspace_high_cost_request_suppression',
+    message: `sourcekit suppressed optional high-cost semantic requests for a package-managed workspace (targets=${selectedTargetCount}, docs=${selectedDocumentCount}, threshold=${minTargets}).`,
+    suppressedRequestClasses: ['semanticTokens', 'inlayHints']
+  };
+};
+
 const resolveSourcekitStartupMode = ({
   preflight = null,
   hostLockUnavailable = false,
@@ -373,6 +420,7 @@ const resolveSourcekitRuntimeIssueClasses = ({
   preflight = null,
   checks = [],
   semanticTokenStartupPolicy = null,
+  packageWorkspaceSuppression = null,
   runtime = null,
   admissionPolicy = null
 } = {}) => {
@@ -402,6 +450,9 @@ const resolveSourcekitRuntimeIssueClasses = ({
   }
   if (Array.isArray(admissionPolicy?.suppressedRequestClasses) && admissionPolicy.suppressedRequestClasses.length > 0) {
     issueClasses.add('weak_startup_request_suppression');
+  }
+  if (packageWorkspaceSuppression?.active === true) {
+    issueClasses.add('package_workspace_high_cost_requests_suppressed');
   }
   if (Array.isArray(checks) && checks.some((check) => check?.name === 'sourcekit_host_lock_unavailable')) {
     issueClasses.add('host_lock_unavailable');
@@ -774,14 +825,26 @@ export const createSourcekitProvider = () => ({
       sourcekitConfig,
       runtimeConfig
     );
+    const packageWorkspaceSuppression = resolveSourcekitPackageWorkspaceRequestSuppression({
+      preflight,
+      sourcekitConfig,
+      documents: docs,
+      targets
+    });
     const admissionPolicy = resolveSourcekitAdmissionPolicy({ preflight });
+    const suppressedRequestClasses = new Set([
+      ...admissionPolicy.suppressedRequestClasses,
+      ...(Array.isArray(packageWorkspaceSuppression.suppressedRequestClasses)
+        ? packageWorkspaceSuppression.suppressedRequestClasses
+        : [])
+    ]);
     const semanticTokensEnabled = semanticTokenStartupPolicy.suppress !== true
-      && !admissionPolicy.suppressedRequestClasses.includes('semanticTokens');
+      && !suppressedRequestClasses.has('semanticTokens');
     const signatureHelpAdmissionEnabled = !admissionPolicy.suppressedRequestClasses.includes('signatureHelp');
     const inlayHintsEnabled = runtimeConfig.inlayHintsEnabled !== false
       && sourcekitConfig.inlayHintsEnabled !== false
       && sourcekitConfig.inlayHints !== false
-      && !admissionPolicy.suppressedRequestClasses.includes('inlayHints');
+      && !suppressedRequestClasses.has('inlayHints');
     if (semanticTokenStartupPolicy.suppress && semanticTokenStartupPolicy.reasonCode === 'sourcekit_semantic_tokens_suppressed_weak_startup') {
       checks.push({
         name: 'sourcekit_semantic_tokens_suppressed_weak_startup',
@@ -789,6 +852,14 @@ export const createSourcekitProvider = () => ({
         message: semanticTokenStartupPolicy.message
       });
       log(`[tooling] ${semanticTokenStartupPolicy.message}`);
+    }
+    if (packageWorkspaceSuppression.active === true) {
+      checks.push({
+        name: 'sourcekit_package_workspace_high_cost_request_suppression',
+        status: 'warn',
+        message: packageWorkspaceSuppression.message
+      });
+      log(`[tooling] ${packageWorkspaceSuppression.message}`);
     }
     for (const check of admissionPolicy.checks) {
       checks.push(check);
@@ -856,11 +927,19 @@ export const createSourcekitProvider = () => ({
         checks: [...checks, ...(Array.isArray(result.checks) ? result.checks : [])],
         captureDiagnostics: false,
         byChunkUid: result.byChunkUid,
-        skippedRequestClasses: runtimeAdmissionPolicy.suppressedRequestClasses,
+        skippedRequestClasses: Array.from(new Set([
+          ...(Array.isArray(runtimeAdmissionPolicy.suppressedRequestClasses)
+            ? runtimeAdmissionPolicy.suppressedRequestClasses
+            : []),
+          ...(Array.isArray(packageWorkspaceSuppression.suppressedRequestClasses)
+            ? packageWorkspaceSuppression.suppressedRequestClasses
+            : [])
+        ])),
         runtimeIssueClasses: resolveSourcekitRuntimeIssueClasses({
           preflight,
           checks: [...checks, ...(Array.isArray(result.checks) ? result.checks : [])],
           semanticTokenStartupPolicy,
+          packageWorkspaceSuppression,
           runtime: result.runtime,
           admissionPolicy: runtimeAdmissionPolicy
         })

@@ -17,6 +17,8 @@ const DEFAULT_WARMUP_SCAN_MAX_DEPTH = 7;
 const DEFAULT_NEGATIVE_CACHE_TTL_MS = 15_000;
 const GO_ROOT_MARKER_NAMES = new Set(['go.mod', 'go.work']);
 const GO_SOURCE_EXTS = new Set(['.go']);
+const GO_WORKSPACE_SCAN_MAX_DEPTH = 6;
+const GO_WORKSPACE_SCAN_MAX_MATCHES = 24;
 
 const normalizeGoLanguages = (server) => {
   if (!Array.isArray(server?.languages)) return [];
@@ -125,6 +127,114 @@ const classifyGoPathScope = (value) => {
     return 'generated';
   }
   return 'module';
+};
+
+const normalizeSelectedGoPath = (value) => (
+  String(value || '')
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/#.*$/u, '')
+    .replace(/^\.poc-vfs\//u, '')
+    .replace(/^file:\/+/u, '')
+    .replace(/^\/+([a-z]:\/)/iu, '$1')
+);
+
+const scanNestedGoMarkerRoots = (
+  repoRoot,
+  {
+    maxDepth = GO_WORKSPACE_SCAN_MAX_DEPTH,
+    maxMatches = GO_WORKSPACE_SCAN_MAX_MATCHES
+  } = {}
+) => {
+  const root = String(repoRoot || '').trim();
+  if (!root) return [];
+  const matches = [];
+  const queue = [{ dir: root, rootRel: '.', depth: 0 }];
+  while (queue.length > 0 && matches.length < maxMatches) {
+    const next = queue.shift();
+    if (!next) break;
+    let entries = [];
+    try {
+      entries = fsSync.readdirSync(next.dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    const markerEntry = entries.find((entry) => (
+      entry?.isFile?.() && GO_ROOT_MARKER_NAMES.has(String(entry.name || '').toLowerCase())
+    ));
+    if (markerEntry && next.rootRel !== '.') {
+      matches.push({
+        rootRel: next.rootRel,
+        rootDir: next.dir,
+        markerName: String(markerEntry.name || '').trim() || 'go.mod'
+      });
+      continue;
+    }
+    if (next.depth >= maxDepth) continue;
+    for (const entry of entries) {
+      if (!entry?.isDirectory?.()) continue;
+      const entryName = String(entry.name || '').trim();
+      const lowerName = entryName.toLowerCase();
+      if (!entryName || entryName.startsWith('.')) continue;
+      if (lowerName === 'node_modules' || lowerName === 'vendor' || lowerName === '.git') continue;
+      queue.push({
+        dir: path.join(next.dir, entryName),
+        rootRel: normalizeWorkspaceRootRel(
+          next.rootRel === '.'
+            ? entryName
+            : path.posix.join(next.rootRel, entryName)
+        ),
+        depth: next.depth + 1
+      });
+    }
+  }
+  return matches.sort((left, right) => left.rootRel.localeCompare(right.rootRel));
+};
+
+const buildFallbackGoWorkspacePartitions = (repoRoot, selectedGoPaths, nestedRoots) => {
+  const normalizedRoots = Array.isArray(nestedRoots) ? nestedRoots : [];
+  if (!normalizedRoots.length) {
+    return {
+      partitions: [],
+      usedFallback: false,
+      narrowedRootRels: []
+    };
+  }
+  const partitionByRoot = new Map();
+  for (const selectedPathRaw of Array.isArray(selectedGoPaths) ? selectedGoPaths : []) {
+    const selectedPath = normalizeSelectedGoPath(selectedPathRaw);
+    if (!selectedPath) continue;
+    let matches = normalizedRoots.filter((entry) => (
+      selectedPath === entry.rootRel || selectedPath.startsWith(`${entry.rootRel}/`)
+    ));
+    if (!matches.length && normalizedRoots.length === 1) {
+      matches = normalizedRoots.slice(0, 1);
+    }
+    const match = matches[0] || null;
+    if (!match) continue;
+    const scope = classifyGoPathScope(selectedPath);
+    const partition = partitionByRoot.get(match.rootRel) || {
+      rootRel: match.rootRel,
+      rootDir: match.rootDir,
+      markerName: match.markerName,
+      workspaceKey: buildGoWorkspacePartitionKey({
+        repoRoot,
+        rootRel: match.rootRel,
+        markerName: match.markerName,
+        scope
+      }),
+      scope,
+      selectedPaths: []
+    };
+    partition.selectedPaths.push(String(selectedPathRaw));
+    partitionByRoot.set(match.rootRel, partition);
+  }
+  return {
+    partitions: Array.from(partitionByRoot.values())
+      .sort((left, right) => String(left.rootRel || '.').localeCompare(String(right.rootRel || '.'))),
+    usedFallback: partitionByRoot.size > 0,
+    narrowedRootRels: Array.from(partitionByRoot.keys()).sort((left, right) => left.localeCompare(right))
+  };
 };
 
 const buildSelectedGoWorkspacePartitions = (repoRoot, selectedGoPaths) => {
@@ -283,21 +393,18 @@ const resolveGoWorkspaceRootShapePreflight = (repoRoot) => {
   if (rootHasMarker) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
-  const nestedMarkerDirs = [];
-  for (const entry of rootEntries) {
-    if (!entry?.isDirectory?.()) continue;
-    try {
-      const childEntries = fsSync.readdirSync(path.join(repoRoot, entry.name), { withFileTypes: true });
-      const hasMarker = childEntries.some((child) => (
-        child?.isFile?.() && GO_ROOT_MARKER_NAMES.has(String(child.name || '').toLowerCase())
-      ));
-      if (hasMarker) nestedMarkerDirs.push(String(entry.name || ''));
-    } catch {
-      // Ignore unreadable child directories for advisory root-shape classification.
-    }
-  }
+  const nestedMarkerRoots = scanNestedGoMarkerRoots(repoRoot);
+  const nestedMarkerDirs = nestedMarkerRoots.map((entry) => entry.rootRel);
   if (rootHasMarker || !nestedMarkerDirs.length) {
-    return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
+    return {
+      state: 'ready',
+      reasonCode: null,
+      message: '',
+      check: null,
+      checks: [],
+      nestedMarkerDirs,
+      nestedMarkerRoots
+    };
   }
   if (nestedMarkerDirs.length === 1) {
     const message = `go workspace marker found only in nested directory "${nestedMarkerDirs[0]}"; module root may need explicit narrowing.`;
@@ -310,7 +417,9 @@ const resolveGoWorkspaceRootShapePreflight = (repoRoot) => {
         status: 'warn',
         message
       },
-      checks: []
+      checks: [],
+      nestedMarkerDirs,
+      nestedMarkerRoots
     };
   }
   const sample = nestedMarkerDirs.slice(0, 4).join(', ');
@@ -325,7 +434,9 @@ const resolveGoWorkspaceRootShapePreflight = (repoRoot) => {
       status: 'warn',
       message
     },
-    checks: []
+    checks: [],
+    nestedMarkerDirs,
+    nestedMarkerRoots
   };
 };
 
@@ -348,6 +459,11 @@ export const resolveGoWorkspaceModulePreflight = async ({
   const goWorkPath = path.join(repoRoot, 'go.work');
   const repoHasWorkspaceMarker = fsSync.existsSync(goModPath) || fsSync.existsSync(goWorkPath);
   const selectedWorkspace = buildSelectedGoWorkspacePartitions(repoRoot, selectedGoPaths);
+  const rootShape = resolveGoWorkspaceRootShapePreflight(repoRoot);
+  const extraChecks = [];
+  let unmatchedSelectedGoPaths = Array.isArray(selectedWorkspace.unmatchedPaths)
+    ? selectedWorkspace.unmatchedPaths.slice()
+    : [];
   let partitions = selectedWorkspace.partitions;
   if (!partitions.length && repoHasWorkspaceMarker) {
     partitions = [{
@@ -364,9 +480,28 @@ export const resolveGoWorkspaceModulePreflight = async ({
       selectedPaths: selectedGoPaths.slice()
     }];
   }
+  if (!partitions.length && selectedGoPaths.length > 0 && !repoHasWorkspaceMarker) {
+    const fallbackPartitions = buildFallbackGoWorkspacePartitions(
+      repoRoot,
+      selectedGoPaths,
+      rootShape.nestedMarkerRoots || []
+    );
+    if (fallbackPartitions.usedFallback) {
+      partitions = fallbackPartitions.partitions;
+      unmatchedSelectedGoPaths = [];
+      const narrowedList = fallbackPartitions.narrowedRootRels.slice(0, 4).join(', ');
+      const suffix = fallbackPartitions.narrowedRootRels.length > 4
+        ? ` (+${fallbackPartitions.narrowedRootRels.length - 4} more)`
+        : '';
+      extraChecks.push({
+        name: 'go_workspace_root_scan_narrowed',
+        status: 'warn',
+        message: `gopls narrowed selected Go documents to nested workspace roots (${narrowedList}${suffix || ''}) instead of treating the repo root as a blocked workspace.`
+      });
+    }
+  }
 
   if (selectedGoPaths.length > 0 && !partitions.length) {
-    const rootShape = resolveGoWorkspaceRootShapePreflight(repoRoot);
     const reasonCode = repoHasWorkspaceMarker
       ? 'go_workspace_blocked_incompatible_partition'
       : (rootShape.reasonCode === 'go_workspace_module_root_ambiguous'
@@ -387,7 +522,10 @@ export const resolveGoWorkspaceModulePreflight = async ({
         status: 'warn',
         message
       },
-      checks: rootShape.check ? [rootShape.check] : [],
+      checks: [
+        ...(rootShape.check ? [rootShape.check] : []),
+        ...extraChecks
+      ],
       blockProvider: true
     };
   }
@@ -400,7 +538,7 @@ export const resolveGoWorkspaceModulePreflight = async ({
   const negativeCacheTtlMs = resolveGoWorkspaceNegativeCacheTtlMs(server);
   const blockedPartitions = [];
   const readyPartitions = [];
-  const checks = [];
+  const checks = extraChecks.slice();
   let cachedPartitionCount = 0;
   for (const partition of partitions) {
     const workspaceRoot = partition.rootDir;
@@ -488,8 +626,8 @@ export const resolveGoWorkspaceModulePreflight = async ({
     };
   }
 
-  if (selectedWorkspace.unmatchedPaths.length || blockedPartitions.length) {
-    const message = `gopls achieved only partial repo coverage: ready=${readyPartitions.length}, blocked=${blockedPartitions.length}, unmatched=${selectedWorkspace.unmatchedPaths.length}.`;
+  if (unmatchedSelectedGoPaths.length || blockedPartitions.length) {
+    const message = `gopls achieved only partial repo coverage: ready=${readyPartitions.length}, blocked=${blockedPartitions.length}, unmatched=${unmatchedSelectedGoPaths.length}.`;
     return {
       state: 'degraded',
       reasonCode: 'go_workspace_partial_repo_coverage',

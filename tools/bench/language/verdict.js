@@ -518,6 +518,7 @@ export const evaluateBenchVerdict = ({ tasks, policy, methodology = null }) => {
       },
       countsByResultClass: countMapToObject(resultClassCounts),
       countsByFailureClass: countMapToObject(failureClassCounts),
+      countsByDiagnosticTypeScope: 'repo_presence',
       countsByDiagnosticType: countMapToObject(diagnosticTypeCounts),
       countsByDiagnosticSeverity: countMapToObject(diagnosticSeverityCounts),
       issues: {

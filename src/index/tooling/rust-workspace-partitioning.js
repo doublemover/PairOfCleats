@@ -240,25 +240,44 @@ export const buildSelectedRustWorkspacePartitions = (repoRoot, selectedRustPaths
       unmatchedPaths.push(String(selectedPath));
       continue;
     }
-    const rootRel = normalizeRustWorkspaceRootRel(match.markerDirRel || '.');
-    if (partitionByRoot.has(rootRel)) {
-      partitionByRoot.get(rootRel).selectedPaths.push(String(selectedPath));
+    const selectedRootRel = normalizeRustWorkspaceRootRel(match.markerDirRel || '.');
+    if (partitionByRoot.has(selectedRootRel)) {
+      partitionByRoot.get(selectedRootRel).selectedPaths.push(String(selectedPath));
       continue;
     }
-    const rootDir = String(match.markerDirAbs || resolvedRepoRoot);
-    const classification = classifyRustWorkspaceManifest({
+    let rootDir = String(match.markerDirAbs || resolvedRepoRoot);
+    let rootRel = normalizeRustWorkspaceRootRel(match.markerDirRel || '.');
+    let markerName = String(match.markerName || 'Cargo.toml').trim() || 'Cargo.toml';
+    let classification = classifyRustWorkspaceManifest({
       repoRoot: resolvedRepoRoot,
       rootDir,
       rootRel
     });
+    if (
+      classification.validSessionRoot === true
+      && classification.parentWorkspace?.found === true
+      && (
+        classification.role === 'workspace_member'
+        || classification.role === 'example_fragment'
+      )
+    ) {
+      rootDir = String(classification.parentWorkspace.rootDir || rootDir);
+      rootRel = normalizeRustWorkspaceRootRel(classification.parentWorkspace.rootRel || rootRel);
+      markerName = 'Cargo.toml';
+      classification = classifyRustWorkspaceManifest({
+        repoRoot: resolvedRepoRoot,
+        rootDir,
+        rootRel
+      });
+    }
     partitionByRoot.set(rootRel, {
       rootRel,
       rootDir,
-      markerName: String(match.markerName || 'Cargo.toml').trim() || 'Cargo.toml',
+      markerName,
       workspaceKey: buildRustWorkspacePartitionKey({
         repoRoot: resolvedRepoRoot,
         rootRel,
-        markerName: match.markerName || 'Cargo.toml',
+        markerName,
         role: classification.role
       }),
       role: classification.role,

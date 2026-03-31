@@ -144,6 +144,8 @@ assert.equal(stream.rawEventCount, 7, 'expected raw event count to include dupli
 assert.equal(stream.duplicateEventCount, 1, 'expected one duplicate event across the merged streams');
 assert.equal(stream.uniqueEventCount, 6, 'expected unique event count across both streams');
 assert.equal(stream.malformedLines, 1, 'expected malformed master stream line to be tracked');
+assert.equal(stream.countScopes?.countsByType, 'event_presence', 'expected explicit event scope labeling');
+assert.equal(stream.countScopes?.repoCountsByType, 'repo_presence', 'expected explicit repo scope labeling');
 
 assert.equal(stream.countsByType.parser_crash || 0, 1, 'expected master-only parser_crash to be preserved');
 assert.equal(stream.countsByType.scm_timeout, 1, 'expected scm_timeout count');
@@ -151,6 +153,9 @@ assert.equal(stream.countsByType.queue_delay_hotspot, 1, 'expected queue_delay_h
 assert.equal(stream.countsByType.artifact_tail_stall, 1, 'expected artifact_tail_stall count');
 assert.equal(stream.countsByType.warning_suppressed, 1, 'expected warning_suppressed count');
 assert.equal(stream.countsByType.fallback_used || 0, 1, 'expected fallback duplicates to be deduped, not dropped');
+assert.equal(stream.repoCountsByType.parser_crash || 0, 1, 'expected parser crash repo count');
+assert.equal(stream.repoCountsByType.fallback_used || 0, 1, 'expected fallback repo count');
+assert.equal(stream.repoCountsByType.warning_suppressed || 0, 1, 'expected warning suppression repo count');
 assert.equal(stream.unknownTypeCount, 0, 'expected no unknown event types');
 assert.deepEqual(
   stream.countsBySeverity,
@@ -169,10 +174,14 @@ const parity = output?.diagnostics?.parity;
 assert.ok(parity && typeof parity === 'object', 'expected diagnostics parity summary');
 assert.equal(parity.status, 'ok', 'expected diagnostics parity to agree with aggregate logs');
 assert.equal(parity.materialMismatchCount, 0, 'expected no material diagnostics parity mismatches');
+assert.equal(parity.countScopes?.countsFromLogs, 'event_presence', 'expected parity event scope label');
+assert.equal(parity.countScopes?.repoCountsFromLogs, 'repo_presence', 'expected parity repo scope label');
 assert.equal(parity.countsFromLogs.fallback_used, 1, 'expected fallback parity count from aggregate logs');
 assert.equal(parity.countsFromDiagnosticsStream.fallback_used, 1, 'expected fallback parity count from stream');
 assert.equal(parity.countsFromLogs.warning_suppressed, 1, 'expected warning suppression parity count from aggregate logs');
 assert.equal(parity.countsFromDiagnosticsStream.warning_suppressed, 1, 'expected warning suppression parity count from stream');
+assert.equal(parity.repoCountsFromLogs.fallback_used, 1, 'expected repo-scoped fallback parity count from aggregate logs');
+assert.equal(parity.repoCountsFromDiagnosticsStream.fallback_used, 1, 'expected repo-scoped fallback parity count from stream');
 
 assert.equal(
   stream.files.some((entry) => entry.path === streamB && entry.eventCount === 4),

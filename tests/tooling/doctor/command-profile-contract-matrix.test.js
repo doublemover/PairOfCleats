@@ -365,6 +365,42 @@ const runProbeTimeoutCase = async () => {
   assert.equal(elapsedMs < 2_000, true, `expected probe attempts to be bounded by timeout (elapsed=${elapsedMs}ms)`);
 };
 
+const runLuaManagedLayoutValidationCase = async () => {
+  const caseRoot = path.join(testRoot, 'lua-managed-layout-validation');
+  const toolingRoot = path.join(caseRoot, 'tooling-root');
+  const binDir = path.join(toolingRoot, 'bin');
+
+  await fs.rm(caseRoot, { recursive: true, force: true });
+  await fs.mkdir(binDir, { recursive: true });
+
+  if (process.platform === 'win32') {
+    await fs.writeFile(
+      path.join(binDir, 'lua-language-server.cmd'),
+      '@echo off\r\nif "%1"=="-v" exit /b 0\r\nif "%1"=="--version" exit /b 0\r\nexit /b 0\r\n',
+      'utf8'
+    );
+  } else {
+    await makeExecutable(path.join(binDir, 'lua-language-server'), '#!/bin/sh\nexit 0\n');
+  }
+
+  await withTemporaryEnv({ PATH: path.dirname(process.execPath), Path: path.dirname(process.execPath) }, async () => {
+    const profile = resolveToolingCommandProfile({
+      providerId: 'lua-language-server',
+      cmd: 'lua-language-server',
+      args: ['-v'],
+      repoRoot: root,
+      toolingConfig: { dir: toolingRoot }
+    });
+    assert.equal(profile.probe.ok, false, 'expected broken managed Lua layout to fail validation');
+    assert.equal(profile.probe.validationFailure?.reasonCode, 'broken-layout');
+    assert.equal(
+      Array.isArray(profile.probe.failureReasons) && profile.probe.failureReasons.includes('broken-layout'),
+      true,
+      'expected broken layout failure reason to be surfaced'
+    );
+  });
+};
+
 const runProviderOverrideCase = async () => {
   registerDefaultToolingProviders();
   const requestedByProvider = new Map();
@@ -437,6 +473,7 @@ try {
   await runDirectProbeCases();
   await runPyrightOverrideCases();
   await runProbeTimeoutCase();
+  await runLuaManagedLayoutValidationCase();
   await runProviderOverrideCase();
   console.log('tooling doctor command profile contract matrix test passed');
 } finally {

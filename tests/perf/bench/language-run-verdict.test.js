@@ -76,6 +76,7 @@ assert.equal(output.methodology?.mode, 'warm', 'expected methodology payload in 
 assert.equal(output.overallSummary?.metricTags?.cacheMode, 'warm', 'expected report metric tags to carry cache mode');
 assert.equal(output.run.repoCounts.passed, 1, 'expected one clean passing repo');
 assert.equal(output.run.repoCounts.passedWithDegradation, 1, 'expected one degraded passing repo');
+assert.equal(output.run.countsByDiagnosticTypeScope, 'repo_presence', 'expected explicit diagnostic count scope');
 assert.equal(output.run.countsByDiagnosticType.fallback_used, 1, 'expected diagnostic type counted once at repo level');
 assert.equal(output.run.countsByDiagnosticType.queue_delay_hotspot, 1, 'expected hotspot diagnostic counted once at repo level');
 assert.equal(output.run.countsByDiagnosticSeverity.warn, 3, 'expected severity counts to aggregate across task diagnostics');
