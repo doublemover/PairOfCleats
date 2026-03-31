@@ -145,6 +145,35 @@ assert.equal(spawnFail.ok, false);
 assert.match(summarizeSpawnFailure('PairOfCleats search', spawnFail.error).message, /failed to start/i);
 
 const revealCalls = [];
+class FakeUri {
+  constructor({ scheme, path: uriPath, fsPath, authority = '', query = '', fragment = '' }) {
+    this.scheme = scheme;
+    this.path = uriPath;
+    this.fsPath = fsPath;
+    this.authority = authority;
+    this.query = query;
+    this.fragment = fragment;
+  }
+
+  with(changes = {}) {
+    const nextPath = Object.prototype.hasOwnProperty.call(changes, 'path')
+      ? changes.path
+      : this.path;
+    return new FakeUri({
+      scheme: Object.prototype.hasOwnProperty.call(changes, 'scheme') ? changes.scheme : this.scheme,
+      path: nextPath,
+      fsPath: this.scheme === 'file' ? String(nextPath || '').replace(/\//g, path.sep) : nextPath,
+      authority: Object.prototype.hasOwnProperty.call(changes, 'authority') ? changes.authority : this.authority,
+      query: Object.prototype.hasOwnProperty.call(changes, 'query') ? changes.query : this.query,
+      fragment: Object.prototype.hasOwnProperty.call(changes, 'fragment') ? changes.fragment : this.fragment
+    });
+  }
+
+  toString() {
+    return `${this.scheme}:${this.path || this.fsPath || ''}`;
+  }
+}
+
 const fakeVscode = {
   workspace: {
     async openTextDocument(uri) {
@@ -163,39 +192,33 @@ const fakeVscode = {
   },
   Uri: {
     file(filePath) {
-      return {
+      return new FakeUri({
         scheme: 'file',
         fsPath: filePath,
-        path: filePath,
-        toString() {
-          return `file:${this.path}`;
-        }
-      };
+        path: filePath
+      });
     },
     parse(value) {
       const text = String(value || '');
       const match = text.match(/^([a-z0-9+.-]+):(.*)$/i);
       const scheme = match ? match[1] : 'file';
       const uriPath = match ? match[2] : text;
-      return {
+      return new FakeUri({
         scheme,
         path: uriPath,
-        fsPath: scheme === 'file' ? uriPath.replace(/\//g, path.sep) : uriPath,
-        toString() {
-          return `${this.scheme}:${this.path || this.fsPath || ''}`;
-        }
-      };
+        fsPath: scheme === 'file' ? uriPath.replace(/\//g, path.sep) : uriPath
+      });
     },
     joinPath(base, ...segments) {
       const joined = path.posix.join(base.path || '', ...segments);
-      return {
-        ...base,
+      return new FakeUri({
+        scheme: base.scheme,
         path: joined,
         fsPath: joined.replace(/\//g, path.sep),
-        toString() {
-          return `${this.scheme}:${this.path || this.fsPath || ''}`;
-        }
-      };
+        authority: base.authority || '',
+        query: base.query || '',
+        fragment: base.fragment || ''
+      });
     }
   },
   Position: class Position {
@@ -250,17 +273,18 @@ assert.equal(openRemote.filePath, path.join(path.sep, 'workspace', 'repo', 'src'
 
 const remoteAbsoluteTarget = resolveValidatedHitTarget(fakeVscode, {
   repoRoot: null,
-  repoUri: { scheme: 'vscode-remote', path: '/workspace/repo', fsPath: '/workspace/repo', toString() { return 'vscode-remote:/workspace/repo'; } }
+  repoUri: new FakeUri({ scheme: 'vscode-remote', path: '/workspace/repo', fsPath: '/workspace/repo' })
 }, {
   file: '/workspace/repo/src/absolute.ts'
 });
 assert.equal(remoteAbsoluteTarget.ok, true);
+assert.equal(remoteAbsoluteTarget.targetUri instanceof FakeUri, true, 'expected remote absolute hit to return a real Uri instance');
 assert.equal(remoteAbsoluteTarget.targetUri.scheme, 'vscode-remote');
 assert.equal(remoteAbsoluteTarget.targetUri.path, '/workspace/repo/src/absolute.ts');
 
 const remoteOutsideTarget = resolveValidatedHitTarget(fakeVscode, {
   repoRoot: null,
-  repoUri: { scheme: 'vscode-remote', path: '/workspace/repo', fsPath: '/workspace/repo', toString() { return 'vscode-remote:/workspace/repo'; } }
+  repoUri: new FakeUri({ scheme: 'vscode-remote', path: '/workspace/repo', fsPath: '/workspace/repo' })
 }, {
   file: '/workspace/other/outside.ts'
 });

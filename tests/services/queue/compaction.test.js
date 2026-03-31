@@ -156,6 +156,17 @@ await fsPromises.writeFile(path.join(reportsDir, 'orphan.json'), '{"orphan":true
 
 await saveQueue(queueDir, { jobs: queueJobs }, 'index');
 await saveQuarantine(queueDir, { jobs: quarantineJobs }, 'index');
+await saveQuarantine(queueDir, { jobs: [] }, 'embeddings-stage3');
+
+const otherQueueJob = makeJob('job-other-queue', 'done', '2026-03-18T11:00:00.000Z', {
+  finishedAt: '2026-03-18T11:05:00.000Z'
+});
+delete otherQueueJob.logPath;
+delete otherQueueJob.reportPath;
+otherQueueJob.queueName = 'embeddings-stage3';
+await fsPromises.writeFile(path.join(logsDir, 'job-other-queue.log'), 'log:job-other-queue\n', 'utf8');
+await fsPromises.writeFile(path.join(reportsDir, 'job-other-queue.json'), JSON.stringify({ id: 'job-other-queue' }), 'utf8');
+await saveQueue(queueDir, { jobs: [otherQueueJob] }, 'embeddings-stage3');
 
 const compacted = await compactQueueState(queueDir, 'index', {
   retentionPolicy: {
@@ -195,6 +206,8 @@ assert.equal(fsSync.existsSync(path.join(logsDir, 'orphan.log')), false);
 assert.equal(fsSync.existsSync(path.join(reportsDir, 'orphan.json')), false);
 assert.equal(fsSync.existsSync(path.join(logsDir, 'job-running.log')), true);
 assert.equal(fsSync.existsSync(path.join(reportsDir, 'job-retried-new.json')), true);
+assert.equal(fsSync.existsSync(path.join(logsDir, 'job-other-queue.log')), true, 'expected compaction to preserve other queue log artifacts');
+assert.equal(fsSync.existsSync(path.join(reportsDir, 'job-other-queue.json')), true, 'expected compaction to preserve other queue report artifacts');
 
 const journalEntries = await readQueueJournal(queueDir, 'index');
 assert.equal(journalEntries.length, 7, 'expected one compaction event plus retained snapshots');
@@ -217,5 +230,40 @@ await fsPromises.rm(quarantinePath, { force: true });
 const replayedWithoutPrimaryFiles = await replayQueueStateFromJournal(queueDir, 'index');
 assert.equal(replayedWithoutPrimaryFiles.queue.jobs.length, 4);
 assert.equal(replayedWithoutPrimaryFiles.quarantine.jobs.length, 2);
+
+const partialRoot = resolveTestCachePath(root, 'service-queue-compaction-partial-policy');
+const partialQueueDir = path.join(partialRoot, 'queue');
+const partialLogsDir = path.join(partialQueueDir, 'logs');
+const partialReportsDir = path.join(partialQueueDir, 'reports');
+await fsPromises.rm(partialRoot, { recursive: true, force: true });
+await ensureQueueDir(partialQueueDir);
+await fsPromises.mkdir(partialLogsDir, { recursive: true });
+await fsPromises.mkdir(partialReportsDir, { recursive: true });
+const partialDoneJobs = [
+  makeJob('job-partial-done-old', 'done', '2026-03-18T05:00:00.000Z', {
+    finishedAt: '2026-03-18T05:05:00.000Z'
+  }),
+  makeJob('job-partial-done-new', 'done', '2026-03-18T05:30:00.000Z', {
+    finishedAt: '2026-03-18T05:35:00.000Z'
+  })
+];
+for (const job of partialDoneJobs) {
+  job.logPath = path.join(partialLogsDir, `${job.id}.log`);
+  job.reportPath = path.join(partialReportsDir, `${job.id}.json`);
+}
+await writeArtifactsFor(partialDoneJobs);
+await saveQueue(partialQueueDir, { jobs: partialDoneJobs }, 'index');
+await saveQuarantine(partialQueueDir, { jobs: [] }, 'index');
+const partialCompaction = await compactQueueState(partialQueueDir, 'index', {
+  retentionPolicy: {
+    doneJobs: 1,
+    cleanupLogs: true,
+    cleanupReports: true,
+    rewriteJournal: true
+  }
+});
+assert.equal(partialCompaction.retentionPolicy.doneJobs, 1, 'expected explicit partial doneJobs override');
+assert.equal(partialCompaction.retentionPolicy.failedJobs, 50, 'expected missing retention counts to normalize to defaults');
+assert.equal(partialCompaction.removed.queue, 1, 'expected partial retention policy to still trim old done jobs');
 
 console.log('service queue compaction test passed');

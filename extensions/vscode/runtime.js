@@ -402,11 +402,24 @@ function resolveHitUri(vscodeApi, repoContext, hitFile) {
   if (path.isAbsolute(hitFile)) {
     if (repoContext.repoUri && repoContext.repoUri.scheme && repoContext.repoUri.scheme !== 'file') {
       const remotePath = String(hitFile || '').replace(/\\/g, '/');
-      return {
-        ...repoContext.repoUri,
-        path: remotePath,
-        fsPath: remotePath
-      };
+      if (typeof repoContext.repoUri.with === 'function') {
+        return repoContext.repoUri.with({ path: remotePath });
+      }
+      if (typeof vscodeApi.Uri?.from === 'function') {
+        return vscodeApi.Uri.from({
+          ...repoContext.repoUri,
+          path: remotePath
+        });
+      }
+      if (typeof vscodeApi.Uri?.parse === 'function') {
+        const authority = repoContext.repoUri.authority
+          ? `//${repoContext.repoUri.authority}`
+          : '';
+        const query = repoContext.repoUri.query ? `?${repoContext.repoUri.query}` : '';
+        const fragment = repoContext.repoUri.fragment ? `#${repoContext.repoUri.fragment}` : '';
+        return vscodeApi.Uri.parse(`${repoContext.repoUri.scheme}:${authority}${remotePath}${query}${fragment}`);
+      }
+      return repoContext.repoUri;
     }
     return vscodeApi.Uri.file(hitFile);
   }

@@ -6,6 +6,7 @@ import { resolveQueueLeasePolicy } from './lease-policy.js';
 import {
   buildQueueJobDeliveryContract,
   getQueuePaths,
+  listQueuePartitions,
   listDuplicateJobGroups,
   loadQueue,
   loadQuarantine,
@@ -42,12 +43,14 @@ const readDirFiles = async (dirPath) => {
   }
 };
 
-const collectReferencedArtifacts = (jobs = []) => {
+const collectReferencedArtifacts = (dirPath, jobs = []) => {
   const logs = new Set();
   const reports = new Set();
   for (const job of jobs) {
-    const logPath = normalizePathValue(job?.logPath);
-    const reportPath = normalizePathValue(job?.reportPath);
+    const legacyLogPath = job?.id ? path.join(dirPath, 'logs', `${job.id}.log`) : null;
+    const legacyReportPath = job?.id ? path.join(dirPath, 'reports', `${job.id}.json`) : null;
+    const logPath = normalizePathValue(job?.logPath) || normalizePathValue(legacyLogPath);
+    const reportPath = normalizePathValue(job?.reportPath) || normalizePathValue(legacyReportPath);
     if (logPath) logs.add(logPath);
     if (reportPath) reports.add(reportPath);
   }
@@ -139,7 +142,7 @@ export async function describeRepairLocks(dirPath, queueName = null) {
       stale,
       ownerPid,
       ownerAlive,
-      safeToUnlock: exists && (stale || ownerAlive === false || !info),
+      safeToUnlock: exists && (stale || ownerAlive === false),
       info
     });
   }
@@ -147,14 +150,17 @@ export async function describeRepairLocks(dirPath, queueName = null) {
 }
 
 export async function describeOrphanArtifacts(dirPath, queueName = null) {
-  const [queue, quarantine] = await Promise.all([
-    loadQueue(dirPath, queueName),
-    loadQuarantine(dirPath, queueName)
-  ]);
-  const referenced = collectReferencedArtifacts([
-    ...queue.jobs,
-    ...quarantine.jobs
-  ]);
+  const partitions = await listQueuePartitions(dirPath);
+  const referencedJobs = (
+    await Promise.all(partitions.map(async (partitionName) => {
+      const [queue, quarantine] = await Promise.all([
+        loadQueue(dirPath, partitionName),
+        loadQuarantine(dirPath, partitionName)
+      ]);
+      return [...queue.jobs, ...quarantine.jobs];
+    }))
+  ).flat();
+  const referenced = collectReferencedArtifacts(dirPath, referencedJobs);
   const logsDir = path.join(dirPath, 'logs');
   const reportsDir = path.join(dirPath, 'reports');
   const logFiles = await readDirFiles(logsDir);

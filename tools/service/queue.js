@@ -480,12 +480,22 @@ const recordProgress = (job, { at, kind, note = null }) => {
 
 const isActiveJobStatus = (status) => status === 'queued' || status === 'running';
 
-const findActiveDuplicateJob = (jobs, idempotencyKey, excludeJobId = null) => jobs.find((entry) => (
-  entry.id !== excludeJobId
-  && entry.idempotencyKey
-  && entry.idempotencyKey === idempotencyKey
-  && isActiveJobStatus(entry.status)
-));
+const findActiveDuplicateJob = (jobs, idempotencyKey, excludeJobId = null) => {
+  let queuedMatch = null;
+  for (const entry of Array.isArray(jobs) ? jobs : []) {
+    if (
+      entry?.id === excludeJobId
+      || !entry?.idempotencyKey
+      || entry.idempotencyKey !== idempotencyKey
+      || !isActiveJobStatus(entry.status)
+    ) {
+      continue;
+    }
+    if (entry.status === 'running') return entry;
+    if (!queuedMatch) queuedMatch = entry;
+  }
+  return queuedMatch;
+};
 
 const suppressQueuedDuplicateJob = (job, { at, duplicateOfJob, reason }) => {
   if (!job || job.status !== 'queued') return null;
@@ -573,16 +583,54 @@ const normalizePathValue = (value) => {
   return path.resolve(value);
 };
 
-const collectRetainedArtifactPaths = (jobs = []) => {
+const collectRetainedArtifactPaths = (dirPath, jobs = []) => {
   const keepLogs = new Set();
   const keepReports = new Set();
   for (const job of jobs) {
-    const logPath = normalizePathValue(job?.logPath);
-    const reportPath = normalizePathValue(job?.reportPath);
+    const legacyLogPath = job?.id ? path.join(dirPath, 'logs', `${job.id}.log`) : null;
+    const legacyReportPath = job?.id ? path.join(dirPath, 'reports', `${job.id}.json`) : null;
+    const logPath = normalizePathValue(job?.logPath) || normalizePathValue(legacyLogPath);
+    const reportPath = normalizePathValue(job?.reportPath) || normalizePathValue(legacyReportPath);
     if (logPath) keepLogs.add(logPath);
     if (reportPath) keepReports.add(reportPath);
   }
   return { keepLogs, keepReports };
+};
+
+export async function listQueuePartitions(dirPath) {
+  const partitions = new Set([null]);
+  let entries = [];
+  try {
+    entries = await fs.readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return [null];
+  }
+  for (const entry of entries) {
+    if (!entry?.isFile?.()) continue;
+    const name = String(entry.name || '').trim().toLowerCase();
+    let match = name.match(/^queue(?:-([a-z0-9_-]+))?\.json$/u);
+    if (!match) match = name.match(/^quarantine(?:-([a-z0-9_-]+))?\.json$/u);
+    if (!match) continue;
+    partitions.add(normalizeQueueName(match[1] || null));
+  }
+  return Array.from(partitions.values()).sort((left, right) => {
+    if (left === right) return 0;
+    if (left === null) return -1;
+    if (right === null) return 1;
+    return String(left).localeCompare(String(right));
+  });
+}
+
+const loadQueuePartitionState = async (dirPath, queueName = null) => {
+  const [queue, quarantine] = await Promise.all([
+    loadQueue(dirPath, queueName),
+    loadQuarantine(dirPath, queueName)
+  ]);
+  return {
+    queueName,
+    queue,
+    quarantine
+  };
 };
 
 const pruneDirectoryArtifacts = async (dirPath, keepSet) => {
@@ -1051,10 +1099,11 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
 }
 
 export async function claimNextJob(dirPath, queueName = null, options = {}) {
-  const { lockPath } = getQueuePaths(dirPath, queueName);
+  const resolvedQueueName = resolveQueueName(queueName, null);
+  const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
     const { logsDir, reportsDir } = await ensureJobDirs(dirPath);
-    const queue = await loadQueue(dirPath, queueName);
+    const queue = await loadQueue(dirPath, resolvedQueueName);
     const now = Date.now();
     const nowIso = new Date(now).toISOString();
     const journalEntries = [];
@@ -1073,7 +1122,7 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
             journalEntries.push(buildJournalEntry({
               eventType: 'duplicate-suppressed',
               job: suppressed,
-              queueName,
+              queueName: resolvedQueueName,
               reason: 'duplicate-running-suppressed',
               workerId: runningDuplicate?.lease?.owner || null
             }));
@@ -1091,7 +1140,13 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
         break;
       }
     }
-    if (!job) return null;
+    if (!job) {
+      if (journalEntries.length > 0) {
+        await appendQueueJournalEntries(dirPath, resolvedQueueName, journalEntries);
+        await saveQueue(dirPath, queue, resolvedQueueName);
+      }
+      return null;
+    }
     if (!job.logPath) job.logPath = path.join(logsDir, `${job.id}.log`);
     if (!job.reportPath) job.reportPath = path.join(reportsDir, `${job.id}.json`);
     const previousStatus = assertAllowedTransition(job, 'running');
@@ -1106,7 +1161,7 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
       renewIntervalMs: options.renewIntervalMs,
       progressIntervalMs: options.progressIntervalMs,
       at: nowIso,
-      queueName,
+      queueName: resolvedQueueName,
       incrementVersion: true
     });
     appendAttemptHistory(job, {
@@ -1122,7 +1177,7 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
       journalEntries.push(buildJournalEntry({
         eventType: 'duplicate-suppressed',
         job: suppressed,
-        queueName,
+        queueName: resolvedQueueName,
         reason: 'duplicate-claim-suppressed',
         workerId: options.ownerId || job?.lease?.owner || null
       }));
@@ -1130,22 +1185,23 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
     journalEntries.push(buildJournalEntry({
       eventType: 'claim',
       job,
-      queueName,
+      queueName: resolvedQueueName,
       reason: 'claim',
       workerId: options.ownerId || job?.lease?.owner || null,
       at: nowIso
     }));
-    await appendQueueJournalEntries(dirPath, queueName, journalEntries);
-    await saveQueue(dirPath, queue, queueName);
+    await appendQueueJournalEntries(dirPath, resolvedQueueName, journalEntries);
+    await saveQueue(dirPath, queue, resolvedQueueName);
     return job;
   });
 }
 
 export async function completeJob(dirPath, jobId, status, result, queueName = null, options = {}) {
-  const { lockPath } = getQueuePaths(dirPath, queueName);
+  const resolvedQueueName = resolveQueueName(queueName, null);
+  const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
     const { reportsDir } = await ensureJobDirs(dirPath);
-    const queue = await loadQueue(dirPath, queueName);
+    const queue = await loadQueue(dirPath, resolvedQueueName);
     const job = queue.jobs.find((entry) => entry.id === jobId);
     if (!job) return null;
     const nextStatus = VALID_JOB_STATUSES.has(status) ? status : null;
@@ -1193,17 +1249,17 @@ export async function completeJob(dirPath, jobId, status, result, queueName = nu
       outcome: nextStatus === 'queued' ? 'retry-scheduled' : 'completed',
       reason: nextStatus === 'queued' ? 'retry' : 'complete'
     });
-    await appendQueueJournalEntries(dirPath, queueName, [
+    await appendQueueJournalEntries(dirPath, resolvedQueueName, [
       buildJournalEntry({
         eventType: nextStatus === 'queued' ? 'retry-scheduled' : 'complete',
         job,
-        queueName,
+        queueName: resolvedQueueName,
         reason: nextStatus === 'queued' ? 'retry' : 'complete',
         workerId: options.ownerId || job?.lease?.lastOwner || null,
         at: nowIso
       })
     ]);
-    await saveQueue(dirPath, queue, queueName);
+    await saveQueue(dirPath, queue, resolvedQueueName);
     const reportPath = job.reportPath || path.join(reportsDir, `${job.id}.json`);
     try {
       await atomicWriteJson(reportPath, {
@@ -1218,11 +1274,12 @@ export async function completeJob(dirPath, jobId, status, result, queueName = nu
 }
 
 export async function quarantineJob(dirPath, jobId, reason, queueName = null, options = {}) {
-  const { lockPath } = getQueuePaths(dirPath, queueName);
+  const resolvedQueueName = resolveQueueName(queueName, null);
+  const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
     const { reportsDir } = await ensureJobDirs(dirPath);
-    const queue = await loadQueue(dirPath, queueName);
-    const quarantine = await loadQuarantine(dirPath, queueName);
+    const queue = await loadQueue(dirPath, resolvedQueueName);
+    const quarantine = await loadQuarantine(dirPath, resolvedQueueName);
     const jobIndex = queue.jobs.findIndex((entry) => entry.id === jobId);
     if (jobIndex < 0) return null;
     const job = queue.jobs[jobIndex];
@@ -1281,7 +1338,7 @@ export async function quarantineJob(dirPath, jobId, reason, queueName = null, op
       at: nowIso,
       reason: quarantineReason,
       sourceStatus,
-      sourceQueueName: queueName || job.queueName || 'index'
+      sourceQueueName: resolvedQueueName || job.queueName || 'index'
     });
     queue.jobs.splice(jobIndex, 1);
     const existingIndex = quarantine.jobs.findIndex((entry) => entry.id === job.id);
@@ -1290,19 +1347,19 @@ export async function quarantineJob(dirPath, jobId, reason, queueName = null, op
     } else {
       quarantine.jobs.push(job);
     }
-    await appendQueueJournalEntries(dirPath, queueName, [
+    await appendQueueJournalEntries(dirPath, resolvedQueueName, [
       buildJournalEntry({
         eventType: 'quarantine',
         job,
-        queueName,
+        queueName: resolvedQueueName,
         target: 'quarantine',
         reason: quarantineReason,
         workerId: options.ownerId || job?.lease?.lastOwner || null,
         at: nowIso
       })
     ]);
-    await saveQueue(dirPath, queue, queueName);
-    await saveQuarantine(dirPath, quarantine, queueName);
+    await saveQueue(dirPath, queue, resolvedQueueName);
+    await saveQuarantine(dirPath, quarantine, resolvedQueueName);
     const reportPath = job.reportPath || path.join(reportsDir, `${job.id}.json`);
     try {
       await atomicWriteJson(reportPath, {
@@ -1318,9 +1375,10 @@ export async function quarantineJob(dirPath, jobId, reason, queueName = null, op
 }
 
 export async function touchJobHeartbeat(dirPath, jobId, queueName = null, options = {}) {
-  const { lockPath } = getQueuePaths(dirPath, queueName);
+  const resolvedQueueName = resolveQueueName(queueName, null);
+  const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
-    const queue = await loadQueue(dirPath, queueName);
+    const queue = await loadQueue(dirPath, resolvedQueueName);
     const job = queue.jobs.find((entry) => entry.id === jobId);
     if (!job) return null;
     if (job.status !== 'running') return job;
@@ -1346,7 +1404,7 @@ export async function touchJobHeartbeat(dirPath, jobId, queueName = null, option
       renewIntervalMs: options.renewIntervalMs,
       progressIntervalMs: options.progressIntervalMs,
       at: nowIso,
-      queueName,
+      queueName: resolvedQueueName,
       incrementVersion: false
     });
     recordProgress(job, {
@@ -1360,17 +1418,17 @@ export async function touchJobHeartbeat(dirPath, jobId, queueName = null, option
         updatedAt: nowIso
       };
     }
-    await appendQueueJournalEntries(dirPath, queueName, [
+    await appendQueueJournalEntries(dirPath, resolvedQueueName, [
       buildJournalEntry({
         eventType: 'heartbeat',
         job,
-        queueName,
+        queueName: resolvedQueueName,
         reason: options.progress?.kind || 'renewal',
         workerId: options.ownerId || job?.lease?.owner || null,
         at: nowIso
       })
     ]);
-    await saveQueue(dirPath, queue, queueName);
+    await saveQueue(dirPath, queue, resolvedQueueName);
     return job;
   });
 }
@@ -1394,16 +1452,17 @@ const resolveRetryDelayMs = (attempts) => {
  * @returns {Promise<{stale:number,retried:number,failed:number,quarantined:number}>}
  */
 export async function requeueStaleJobs(dirPath, queueName = null, options = {}) {
-  const { lockPath } = getQueuePaths(dirPath, queueName);
+  const resolvedQueueName = resolveQueueName(queueName, null);
+  const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
     const { reportsDir } = await ensureJobDirs(dirPath);
-    const queue = await loadQueue(dirPath, queueName);
-    const quarantine = await loadQuarantine(dirPath, queueName);
+    const queue = await loadQueue(dirPath, resolvedQueueName);
+    const quarantine = await loadQuarantine(dirPath, resolvedQueueName);
     const now = Date.now();
     const stale = [];
     for (const job of queue.jobs) {
       if (job.status !== 'running') continue;
-      if (!isLeaseExpired(job, now, queueName)) continue;
+      if (!isLeaseExpired(job, now, resolvedQueueName)) continue;
       stale.push(job);
     }
     if (!stale.length) return { stale: 0, retried: 0, failed: 0, quarantined: 0 };
@@ -1449,7 +1508,7 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
         journalEntries.push(buildJournalEntry({
           eventType: 'stale-retry',
           job,
-          queueName,
+          queueName: resolvedQueueName,
           reason: 'lease-expired-retry',
           workerId: job?.lease?.lastOwner || null,
           at: nowIso
@@ -1489,7 +1548,7 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
           at: nowIso,
           reason: 'lease-expired-fail',
           sourceStatus: 'running',
-          sourceQueueName: queueName || job.queueName || 'index'
+          sourceQueueName: resolvedQueueName || job.queueName || 'index'
         });
         const existingIndex = quarantine.jobs.findIndex((entry) => entry.id === job.id);
         if (existingIndex >= 0) {
@@ -1501,7 +1560,7 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
         journalEntries.push(buildJournalEntry({
           eventType: 'quarantine',
           job,
-          queueName,
+          queueName: resolvedQueueName,
           target: 'quarantine',
           reason: 'lease-expired-fail',
           workerId: job?.lease?.lastOwner || null,
@@ -1515,12 +1574,12 @@ export async function requeueStaleJobs(dirPath, queueName = null, options = {}) 
       }
       job.lastHeartbeatAt = null;
     }
-    await appendQueueJournalEntries(dirPath, queueName, journalEntries);
+    await appendQueueJournalEntries(dirPath, resolvedQueueName, journalEntries);
     if (quarantinedIds.size > 0) {
       queue.jobs = queue.jobs.filter((job) => !quarantinedIds.has(job.id));
-      await saveQuarantine(dirPath, quarantine, queueName);
+      await saveQuarantine(dirPath, quarantine, resolvedQueueName);
     }
-    await saveQueue(dirPath, queue, queueName);
+    await saveQueue(dirPath, queue, resolvedQueueName);
     for (const update of reportUpdates) {
       const reportPath = update.job.reportPath || path.join(reportsDir, `${update.job.id}.json`);
       try {
@@ -1620,11 +1679,11 @@ export async function inspectJobReplayState(dirPath, jobId, queueName = null) {
 }
 
 export async function retryQuarantinedJob(dirPath, jobId, queueName = null, options = {}) {
-  const { lockPath } = getQueuePaths(dirPath, queueName);
+  const resolvedQueueName = resolveQueueName(queueName, null);
+  const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
     await ensureQueueDir(dirPath);
     const { logsDir, reportsDir } = await ensureJobDirs(dirPath);
-    const resolvedQueueName = resolveQueueName(queueName, null);
     const queue = await loadQueue(dirPath, resolvedQueueName);
     const quarantine = await loadQuarantine(dirPath, resolvedQueueName);
     const quarantinedJob = quarantine.jobs.find((entry) => (
@@ -1719,9 +1778,10 @@ export async function retryQuarantinedJob(dirPath, jobId, queueName = null, opti
 }
 
 export async function purgeQuarantinedJobs(dirPath, queueName = null, options = {}) {
-  const { lockPath } = getQueuePaths(dirPath, queueName);
+  const resolvedQueueName = resolveQueueName(queueName, null);
+  const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
-    const quarantine = await loadQuarantine(dirPath, queueName);
+    const quarantine = await loadQuarantine(dirPath, resolvedQueueName);
     const before = quarantine.jobs.length;
     const removedJobs = [];
     if (options.jobId) {
@@ -1736,14 +1796,14 @@ export async function purgeQuarantinedJobs(dirPath, queueName = null, options = 
     } else {
       return { removed: 0, jobs: quarantine.jobs };
     }
-    await appendQueueJournalEntries(dirPath, queueName, removedJobs.map((job) => buildJournalEntry({
+    await appendQueueJournalEntries(dirPath, resolvedQueueName, removedJobs.map((job) => buildJournalEntry({
       eventType: 'quarantine-purged',
       job,
-      queueName,
+      queueName: resolvedQueueName,
       target: 'purge',
       reason: options.all === true ? 'manual-purge-all' : 'manual-purge'
     })));
-    await saveQuarantine(dirPath, quarantine, queueName);
+    await saveQuarantine(dirPath, quarantine, resolvedQueueName);
     return {
       removed: before - quarantine.jobs.length,
       jobs: quarantine.jobs
@@ -1760,7 +1820,10 @@ export async function compactQueueState(dirPath, queueName = null, options = {})
     const queue = await loadQueue(dirPath, resolvedQueueName);
     const quarantine = await loadQuarantine(dirPath, resolvedQueueName);
     const retentionPolicy = options.retentionPolicy && typeof options.retentionPolicy === 'object'
-      ? options.retentionPolicy
+      ? resolveQueueRetentionPolicy({
+        queueName: resolvedQueueName || 'index',
+        queueConfig: { retention: options.retentionPolicy }
+      })
       : resolveQueueRetentionPolicy({
         queueName: resolvedQueueName || 'index',
         queueConfig: options.queueConfig || {}
@@ -1803,10 +1866,19 @@ export async function compactQueueState(dirPath, queueName = null, options = {})
       ...retainedQuarantined.removed,
       ...retainedRetried.removed
     ];
-    const retainedArtifacts = collectRetainedArtifactPaths([
-      ...retainedQueueJobs,
-      ...retainedQuarantineJobs
-    ]);
+    const allPartitions = await listQueuePartitions(dirPath);
+    const retainedArtifacts = collectRetainedArtifactPaths(
+      dirPath,
+      (
+        await Promise.all(allPartitions.map(async (partitionName) => {
+          if (partitionName === resolvedQueueName) {
+            return [...retainedQueueJobs, ...retainedQuarantineJobs];
+          }
+          const snapshot = await loadQueuePartitionState(dirPath, partitionName);
+          return [...snapshot.queue.jobs, ...snapshot.quarantine.jobs];
+        }))
+      ).flat()
+    );
     const nowIso = new Date().toISOString();
     await saveQueue(dirPath, { jobs: retainedQueueJobs }, resolvedQueueName);
     await saveQuarantine(dirPath, { jobs: retainedQuarantineJobs }, resolvedQueueName);

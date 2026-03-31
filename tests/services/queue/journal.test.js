@@ -17,6 +17,7 @@ import {
   replayQueueStateFromJournal,
   touchJobHeartbeat
 } from '../../../tools/service/queue.js';
+import { getQueueJournalPath } from '../../../tools/service/queue-journal.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -97,6 +98,14 @@ assert.equal(
   journal.every((entry) => entry.observability?.correlation?.correlationId === 'queue-correlation-test'),
   true,
   'expected queue journal entries to preserve observability correlation'
+);
+
+await fsPromises.appendFile(getQueueJournalPath(queueDir, 'index'), '{not-json}\n', 'utf8');
+const journalWithMalformedLine = await readQueueJournal(queueDir, 'index');
+assert.equal(
+  journalWithMalformedLine.length,
+  journal.length,
+  'expected malformed journal line to be ignored instead of discarding the full journal'
 );
 
 const liveQueue = await loadQueue(queueDir, 'index');

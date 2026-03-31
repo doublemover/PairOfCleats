@@ -79,11 +79,17 @@ export async function loadQueueJournal(dirPath, queueName = null) {
   const journalPath = getQueueJournalPath(dirPath, queueName);
   try {
     const raw = await fs.readFile(journalPath, 'utf8');
-    return raw
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => JSON.parse(line));
+    const entries = [];
+    for (const rawLine of raw.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      try {
+        entries.push(JSON.parse(line));
+      } catch {
+        continue;
+      }
+    }
+    return entries;
   } catch {
     return [];
   }

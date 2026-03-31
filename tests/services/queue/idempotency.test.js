@@ -114,4 +114,33 @@ const duplicateGroups = await listDuplicateJobGroups(queueDir, 'index');
 assert.equal(duplicateGroups.length, 1, 'expected duplicate inspection to group logical duplicates');
 assert.equal(duplicateGroups[0]?.jobs?.length, 2, 'expected duplicate group to include suppressed duplicate');
 
+const runningDupRoot = resolveTestCachePath(root, 'service-queue-idempotency-running-duplicate');
+const runningDupQueueDir = path.join(runningDupRoot, 'queue');
+await fsPromises.rm(runningDupRoot, { recursive: true, force: true });
+await ensureQueueDir(runningDupQueueDir);
+await enqueueJob(runningDupQueueDir, {
+  ...baseJob,
+  id: 'job-running-original',
+  buildId: 'build-running-dup'
+}, null, 'index');
+const runningOriginal = await claimNextJob(runningDupQueueDir, 'index', { ownerId: 'worker-running-dup' });
+await enqueueJob(runningDupQueueDir, {
+  ...baseJob,
+  id: 'job-running-duplicate',
+  buildId: 'build-running-dup'
+}, null, 'index', { forceDuplicate: true });
+const runningDuplicateQueue = await loadQueue(runningDupQueueDir, 'index');
+runningDuplicateQueue.jobs.sort((left, right) => String(left.id || '').localeCompare(String(right.id || '')));
+await saveQueue(runningDupQueueDir, runningDuplicateQueue, 'index');
+const suppressedOnlyClaim = await claimNextJob(runningDupQueueDir, 'index', { ownerId: 'worker-running-dup-2' });
+assert.equal(suppressedOnlyClaim, null, 'expected duplicate-only claim pass to suppress and return no work');
+const runningDuplicateAfterClaim = await loadQueue(runningDupQueueDir, 'index');
+const persistedSuppressed = runningDuplicateAfterClaim.jobs.find((job) => job.id === 'job-running-duplicate');
+assert.equal(persistedSuppressed?.status, 'failed', 'expected queued duplicate behind running work to persist as failed');
+assert.equal(
+  persistedSuppressed?.result?.reason,
+  'duplicate-running-suppressed',
+  'expected persisted duplicate suppression reason when no job is claimed'
+);
+
 console.log('service queue idempotency test passed');
