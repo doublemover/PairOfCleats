@@ -86,12 +86,13 @@ try {
   assert.deepEqual(perFileCalls, [
     { filePosix: 'src/b.js', includeChurn: true }
   ]);
-  assert.equal(snapshot?.stats?.source, 'fresh-fallback');
+  assert.equal(snapshot?.stats?.source, 'fresh');
   assert.equal(snapshot?.fileMetaByPath?.['src/a.js']?.lastAuthor, 'batch-author-a');
   assert.equal(snapshot?.fileMetaByPath?.['src/b.js']?.lastAuthor, 'fallback-author-b');
   assert.equal(snapshot?.fileMetaByPath?.['src/b.js']?.churnAdded, 8);
   assert.equal(snapshot?.fileMetaByPath?.['src/b.js']?.churnDeleted, 3);
   assert.equal(snapshot?.fileMetaByPath?.['src/b.js']?.churnCommits, 3);
+  assert.equal(snapshot?.stats?.reuse?.countsByCause?.cache_miss, 1, 'expected successful recovery to classify as cache miss, not provider fallback');
 } finally {
   fs.rmSync(cacheRoot, { recursive: true, force: true });
 }

@@ -289,6 +289,14 @@ const runPerFileFetch = async ({
   return fileMetaByPath;
 };
 
+const hasCompleteFetchedMeta = (fileMetaByPath, filesPosix, { includeChurn = false } = {}) => (
+  Array.isArray(filesPosix)
+  && filesPosix.every((filePosix) => {
+    const meta = fileMetaByPath?.[filePosix];
+    return !isIncompleteFileMeta(meta, { includeChurn });
+  })
+);
+
 export const resolveScmFileMetaSnapshotPath = (repoCacheRoot) => (
   path.join(repoCacheRoot, 'scm', SCM_FILE_META_SNAPSHOT_NAME)
 );
@@ -441,6 +449,15 @@ export const prepareScmFileMetaSnapshot = async ({
         headId
       });
       source = reused > 0 ? 'mixed-fallback' : 'fallback';
+    }
+    const recoveredAllMissing = hasCompleteFetchedMeta(fetchedMap, missing, { includeChurn });
+    const unresolvedDiagnostics = (
+      batchDiagnostics.timeoutCount > 0
+      || batchDiagnostics.cooldownSkips > 0
+      || batchDiagnostics.unavailableChunks > 0
+    );
+    if (recoveredAllMissing && !unresolvedDiagnostics) {
+      source = reused > 0 ? 'mixed' : 'fresh';
     }
   } else {
     source = 'cache';
