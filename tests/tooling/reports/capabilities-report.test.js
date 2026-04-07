@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getCapabilities } from '../../../src/shared/capabilities.js';
+import { describeCommandRegistryEntry } from '../../../src/shared/command-registry.js';
 import { getRuntimeCapabilityManifest } from '../../../src/shared/runtime-capability-manifest.js';
 
 const caps = getCapabilities({ refresh: true });
@@ -11,6 +12,7 @@ const repoRoot = process.cwd();
 const workspaceRoute = manifest.surfaces?.api?.routes?.find((route) => route.id === 'search.workspace');
 const contextPackCommand = manifest.surfaces?.cli?.commands?.find((command) => command.id === 'context-pack');
 const riskExplainCommand = manifest.surfaces?.cli?.commands?.find((command) => command.id === 'risk.explain');
+const serviceMcpCommand = describeCommandRegistryEntry('service mcp');
 const cacheGcCommand = manifest.surfaces?.cli?.commands?.find((command) => command.id === 'cache.gc');
 const compareModelsCommand = manifest.surfaces?.cli?.commands?.find((command) => command.id === 'report.compare-models');
 
@@ -40,9 +42,11 @@ assert.ok(manifest.flags?.['report.compare-models']?.flags?.some((flag) => flag.
 assert.equal(workspaceRoute?.path, '/search/federated', 'workspace search capability should advertise the live federated search route');
 assert.equal(contextPackCommand?.script, 'tools/analysis/context-pack.js', 'context-pack command should point at the live script');
 assert.equal(riskExplainCommand?.script, 'tools/analysis/explain-risk.js', 'risk.explain command should point at the live script');
+assert.equal(serviceMcpCommand?.script, 'tools/mcp/cli-entry.js', 'service.mcp command should use the lightweight CLI entry');
 assert.equal(cacheGcCommand?.flagSetId, 'cache.gc', 'cache.gc command should advertise its cache-gc flag set');
 assert.equal(compareModelsCommand?.flagSetId, 'report.compare-models', 'compare-models command should advertise its dedicated flag set');
 assert.equal(fs.existsSync(path.join(repoRoot, contextPackCommand.script)), true, 'context-pack command script should exist');
 assert.equal(fs.existsSync(path.join(repoRoot, riskExplainCommand.script)), true, 'risk.explain command script should exist');
+assert.equal(fs.existsSync(path.join(repoRoot, serviceMcpCommand.script)), true, 'service.mcp command script should exist');
 
 console.log('capabilities report tests passed');

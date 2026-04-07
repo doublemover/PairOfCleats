@@ -164,7 +164,7 @@ export const COMMAND_REGISTRY = Object.freeze([
   entry('service.api', ['service', 'api'], 'tools/api/server.js', 'Run local API service.', {
     helpGroup: 'Service'
   }),
-  entry('service.mcp', ['service', 'mcp'], 'tools/mcp/server.js', 'Run local MCP service.', {
+  entry('service.mcp', ['service', 'mcp'], 'tools/mcp/cli-entry.js', 'Run local MCP service.', {
     helpGroup: 'Service',
     capability: false,
     supportTier: 'operator'

@@ -50,6 +50,31 @@ const compositeContextPack = {
     excerpt: 'const alpha = 1;',
     excerptHash: 'sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   },
+  evidence: {
+    schemaVersion: 1,
+    policy: {
+      strictEvidence: false
+    },
+    primary: {
+      state: 'file-backed',
+      source: 'file',
+      fileBacked: true,
+      substituted: false,
+      missing: false,
+      truncated: false,
+      truncatedBytes: false,
+      truncatedTokens: false,
+      warningCodes: []
+    },
+    types: {
+      included: true,
+      state: 'complete',
+      count: 1,
+      truncated: false,
+      warningCodes: []
+    },
+    complete: true
+  },
   risk: {
     version: CONTEXT_PACK_RISK_SCHEMA_VERSION,
     contractVersion: CONTEXT_PACK_RISK_CONTRACT_VERSION,
@@ -457,7 +482,26 @@ const suggestTests = {
   version: '1.0.0',
   provenance,
   changed: [],
-  suggestions: []
+  suggestions: [],
+  fidelity: {
+    schemaVersion: 1,
+    source: 'heuristic',
+    state: 'fallback',
+    reasonCodes: [],
+    graph: {
+      available: false,
+      used: false,
+      matchedSuggestions: 0,
+      visitedNodes: 0,
+      edgesVisited: 0,
+      workUnits: 0,
+      traversalCapsHit: [],
+      candidateTruncated: false
+    },
+    heuristic: {
+      used: true
+    }
+  }
 };
 
 const validators = [
@@ -474,5 +518,23 @@ for (const [label, validator, payload] of validators) {
   const result = validator(payload);
   assert.equal(result.ok, true, `expected ${label} to validate: ${result.errors.join(', ')}`);
 }
+
+const minimalEvidencePayload = structuredClone(compositeContextPack);
+minimalEvidencePayload.evidence = {
+  schemaVersion: 1
+};
+minimalEvidencePayload.risk.futureField = {
+  statusDetail: 'forward-compatible'
+};
+minimalEvidencePayload.evidence.futureField = {
+  producer: 'older-or-newer-runtime'
+};
+
+const minimalEvidenceValidation = validateCompositeContextPack(minimalEvidencePayload);
+assert.equal(
+  minimalEvidenceValidation.ok,
+  true,
+  `expected minimal context-pack evidence to validate: ${minimalEvidenceValidation.errors.join(', ')}`
+);
 
 console.log('analysis schema validation tests passed');

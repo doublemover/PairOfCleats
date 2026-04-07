@@ -90,11 +90,11 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
         ,
         partialFlows: { type: 'array', items: riskPartialFlowSummarySchema }
       },
-      additionalProperties: false
+      additionalProperties: true
     },
     evidence: {
       type: 'object',
-      required: ['schemaVersion', 'policy', 'primary', 'types', 'complete'],
+      required: ['schemaVersion'],
       properties: {
         schemaVersion: { type: 'number' },
         policy: {
@@ -145,7 +145,7 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
         },
         complete: { type: 'boolean' }
       },
-      additionalProperties: false
+      additionalProperties: true
     },
     truncation: { type: ['array', 'null'], items: truncationRecordSchema },
     warnings: { type: ['array', 'null'], items: warningRecordSchema },

@@ -141,6 +141,35 @@ if (mcpAliasOutput.includes('Unknown flag: --mcpMode')) {
   console.error('cli service mcp rejected --mcpMode alias');
   process.exit(1);
 }
+if (!mcpAliasOutput.includes('--mcp-mode, --mcpMode')) {
+  console.error('cli service mcp --help should render mcp mode options through the lightweight entry');
+  process.exit(1);
+}
+
+const mcpVersionResult = runCli('service', 'mcp', '--version');
+if (mcpVersionResult.status !== 0) {
+  console.error('cli service mcp --version failed');
+  process.exit(mcpVersionResult.status ?? 1);
+}
+const mcpVersionOutput = getCombinedOutput(mcpVersionResult, { trim: true });
+if (!mcpVersionOutput.includes(version)) {
+  console.error('cli service mcp --version should stay lightweight and machine-parseable');
+  process.exit(1);
+}
+
+const invalidConfigRepo = path.join(cacheRoot, 'invalid-config-repo');
+await fsPromises.mkdir(invalidConfigRepo, { recursive: true });
+await fsPromises.writeFile(path.join(invalidConfigRepo, '.pairofcleats.json'), '{ invalid json');
+const mcpHelpInvalidConfigResult = runCli('service', 'mcp', '--repo', invalidConfigRepo, '--help');
+if (mcpHelpInvalidConfigResult.status !== 0) {
+  console.error('cli service mcp --help should not load invalid repo config');
+  process.exit(mcpHelpInvalidConfigResult.status ?? 1);
+}
+const mcpHelpInvalidConfigOutput = getCombinedOutput(mcpHelpInvalidConfigResult);
+if (!mcpHelpInvalidConfigOutput.includes('--mcp-mode, --mcpMode')) {
+  console.error('cli service mcp --help should still print lightweight help under invalid repo config');
+  process.exit(1);
+}
 
 const contextPackFederatedHelp = runCli(
   'context-pack',

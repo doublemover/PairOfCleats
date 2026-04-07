@@ -530,7 +530,7 @@ function resolveCommand(primary, rest) {
     }
     if (sub === 'mcp') {
       validateArgs(rest, ['repo', 'mcp-mode', 'mcpMode'], ['repo', 'mcp-mode', 'mcpMode']);
-      return { script: 'tools/mcp/server.js', extraArgs: [], args: rest };
+      return { script: 'tools/mcp/cli-entry.js', extraArgs: [], args: rest };
     }
     if (sub === 'indexer') {
       const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(SERVICE_INDEXER_OPTIONS);
@@ -941,7 +941,7 @@ function validateArgs(args, allowedFlags, valueFlags) {
     const arg = String(args[i] || '');
     if (arg === '--') break;
     if (!arg.startsWith('-')) continue;
-    if (arg === '--help' || arg === '-h') continue;
+    if (arg === '--help' || arg === '-h' || arg === '--version' || arg === '-v') continue;
     if (arg.startsWith('--')) {
       const eqIndex = arg.indexOf('=');
       const flag = eqIndex === -1 ? arg.slice(2) : arg.slice(2, eqIndex);
@@ -1011,7 +1011,7 @@ async function runScript(scriptPath, extraArgs, restArgs) {
   }
   const repoOverride = extractDispatchRootArg(restArgs);
   const repoRoot = repoOverride ? path.resolve(repoOverride) : resolveRepoRoot(process.cwd());
-  const env = shouldSkipDispatchRuntimeEnvResolution(scriptPath)
+  const env = shouldSkipDispatchRuntimeEnvResolution(scriptPath, restArgs)
     ? { ...process.env }
     : await resolveDispatchRuntimeEnv({
       root: repoRoot,
@@ -1066,12 +1066,17 @@ export function extractDispatchRootArg(args) {
  * wrapper-side runtime envelope shaping should launch with the caller env.
  *
  * @param {string} scriptPath
+ * @param {string[]} restArgs
  * @returns {boolean}
  */
-function shouldSkipDispatchRuntimeEnvResolution(scriptPath) {
+function shouldSkipDispatchRuntimeEnvResolution(scriptPath, restArgs = []) {
   const normalized = String(scriptPath || '').trim().replace(/\\/g, '/');
   return normalized.startsWith('tools/config/')
-    || normalized.startsWith('tools/cli/');
+    || normalized.startsWith('tools/cli/')
+    || (
+      normalized === 'tools/mcp/cli-entry.js'
+      && restArgs.some((arg) => isHelpCommand(arg) || isVersionCommand(arg))
+    );
 }
 
 /**
