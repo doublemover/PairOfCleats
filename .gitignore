@@ -4,6 +4,11 @@ index-code/
 index-prose/
 ci-artifacts/
 /artifacts/
+temp/
+dist/
+.c8/
+release-manifest.json
+release_check_report.json
 tests/.cache/
 tests/.logs/
 benchmarks/repos/
