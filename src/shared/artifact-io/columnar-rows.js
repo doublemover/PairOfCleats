@@ -7,24 +7,28 @@ const resolveColumnarRowsContext = (payload) => {
   const length = Number.isFinite(payload.length)
     ? payload.length
     : (Array.isArray(arrays[columns[0]]) ? arrays[columns[0]].length : 0);
+  const columnPlan = columns.map((column) => ({
+    column,
+    values: Array.isArray(arrays[column]) ? arrays[column] : null,
+    table: tables && Array.isArray(tables[column]) ? tables[column] : null
+  }));
   return {
     arrays,
     columns,
+    columnPlan,
     tables,
     length
   };
 };
 
 const createColumnarRow = ({
-  arrays,
-  columns,
-  tables
+  columnPlan
 }, index) => {
   const row = {};
-  for (const column of columns) {
-    const values = arrays[column];
-    const value = Array.isArray(values) ? (values[index] ?? null) : null;
-    const table = tables && Array.isArray(tables[column]) ? tables[column] : null;
+  for (const entry of columnPlan) {
+    const value = entry.values ? (entry.values[index] ?? null) : null;
+    const table = entry.table;
+    const column = entry.column;
     row[column] = table && Number.isInteger(value) ? (table[value] ?? null) : value;
   }
   return row;

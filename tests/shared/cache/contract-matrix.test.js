@@ -6,7 +6,12 @@ import path from 'node:path';
 
 import { createLruCache } from '../../../src/shared/cache/lru.js';
 import { estimateStringBytes } from '../../../src/shared/cache/size.js';
-import { buildCacheKey, buildCacheKeyPayload, normalizeCacheNamespace } from '../../../src/shared/cache-key.js';
+import {
+  buildCacheKey,
+  buildCacheKeyPayload,
+  buildLocalCacheKey,
+  normalizeCacheNamespace
+} from '../../../src/shared/cache-key.js';
 import {
   normalizeLegacyCacheRootPath,
   CACHE_ROOT_LAYOUT_VERSION,
@@ -245,6 +250,26 @@ assert.equal(mapKeyA, mapKeyB);
 const queryKeyA = buildQueryCacheKey({ query: 'foo', filters: ['a', 'b'] });
 const queryKeyB = buildQueryCacheKey({ filters: ['a', 'b'], query: 'foo' });
 assert.equal(queryKeyA.key, queryKeyB.key);
+
+const localKeyA = buildLocalCacheKey({
+  namespace: 'Bench Cache',
+  payload: { b: 2, a: 1, omitted: undefined }
+});
+const localKeyB = buildLocalCacheKey({
+  namespace: 'bench-cache',
+  payload: { a: 1, b: 2 }
+});
+assert.equal(localKeyA.serialized, '{"namespace":"bench-cache","payload":{"a":1,"b":2},"version":"lk1"}');
+assert.equal(localKeyA.key, localKeyB.key);
+
+const localArrayKey = buildLocalCacheKey({
+  namespace: 'array',
+  payload: [1, undefined, { z: true, a: null }]
+});
+assert.equal(
+  localArrayKey.serialized,
+  '{"namespace":"array","payload":[1,null,{"a":null,"z":true}],"version":"lk1"}'
+);
 
 const planKeyA = buildQueryPlanCacheKey({ query: 'foo', configSignature: 'cfg', indexSignature: 'idx' });
 const planKeyB = buildQueryPlanCacheKey({ query: 'foo', configSignature: 'cfg', indexSignature: 'idx' });

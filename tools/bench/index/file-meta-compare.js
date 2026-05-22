@@ -1,27 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import { buildFileMetaColumnar } from '../../../src/index/build/artifacts/file-meta.js';
+import { inflateColumnarRows } from '../../../src/shared/artifact-io/columnar-rows.js';
 import { parseSimpleBenchArgs } from '../shared.js';
-
-const inflateColumnarRows = (payload) => {
-  if (!payload || payload.format !== 'columnar') return null;
-  const columns = Array.isArray(payload.columns) ? payload.columns : null;
-  const length = Number.isFinite(payload.length) ? payload.length : 0;
-  const arrays = payload.arrays && typeof payload.arrays === 'object' ? payload.arrays : null;
-  if (!columns || !arrays || !length) return null;
-  const tables = payload.tables && typeof payload.tables === 'object' ? payload.tables : null;
-  const rows = new Array(length);
-  for (let i = 0; i < length; i += 1) {
-    const row = {};
-    for (const column of columns) {
-      const values = arrays[column];
-      const value = values ? values[i] : null;
-      const table = tables ? tables[column] : null;
-      row[column] = table && Number.isInteger(value) ? (table[value] ?? null) : value;
-    }
-    rows[i] = row;
-  }
-  return rows;
-};
 
 const args = parseSimpleBenchArgs();
 const files = Number(args.files) || 50000;

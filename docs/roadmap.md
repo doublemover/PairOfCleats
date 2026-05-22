@@ -229,7 +229,7 @@ Active roadmap/spec finalization follow-up, 2026-05-21: the final active-doc sca
 
 ## Canonical Next Queue
 
-1. Run one current Sweet16 benchmark pass when perf work starts, log it under `temp/`, and use that report to pick the next measured performance batch. Do not infer Sweet16 status from stale sibling checkboxes. The current runner is `node tools/bench/bench-runner.js --suite sweet16-ci --json .testLogs/bench-sweet16.json --quiet`.
+1. Continue Sweet16 from the current measured report, not stale sibling checkboxes. The first current pass and report-contract follow-ups were run on 2026-05-22; the latest post-optimization pass is `temp/validation/sweet16-ci-post-cache-filemeta-20260522.log` with JSON report `.testLogs/bench-sweet16.json`. Current next measured targets are cache local-key overhead, SQLite build-from-artifacts current-path overhead, file-meta columnar inflation, and small artifact-IO deltas; postings-real is the dominant absolute critical-path script but currently beats its one-thread baseline in the latest report.
 2. Keep the new full-language conformance execution surface green. Implemented on 2026-05-22: `usr-artifact-expectations`, `tools/usr/conformance-surface.js`, and the `usr-full-conformance` lane now prove profile, fixture, artifact-expectation, and shard coverage.
 3. Keep `docs/roadmap.md` current by blocking new references to missing historical roadmap files.
 4. Shared-module reduction is no longer a broad open-ended cleanup queue. Continue only from concrete signals in `docs/tooling/shared-module-reductions/432-prioritized-implementation-backlog.md`, a fresh governance failure, or a new measured cold-import/perf regression; artifact-IO root deflation, env facade deflation, P1 concurrency/subprocess, P1 artifact/storage, and P2 CLI-dispatch-capability cleanup have current validation evidence.
@@ -638,6 +638,17 @@ Current `sweet16-ci` entries:
 | `sqlite-build-from-artifacts` | `tools/bench/sqlite/build-from-artifacts.js` | Stage4 SQLite build from artifact streams. | baseline/current/delta |
 | `vfs-parallel-manifest-build` | `tools/bench/vfs/parallel-manifest-build.js` | VFS manifest parallel build behavior. | JSON output |
 | `tree-sitter-load` | `tools/bench/index/tree-sitter-load.js` | Tree-sitter cold/warm loading and batching policy. | JSON output |
+
+Current Sweet16 checkpoint, 2026-05-22:
+
+- Evidence: `temp/validation/sweet16-ci-delta-contract-rerun-20260522.log` proved the corrected report parser and explicit delta-line contract; `temp/validation/sweet16-ci-post-cache-filemeta-20260522.log` is the latest post-optimization suite run, writing `.testLogs/bench-sweet16.json`.
+- Report contract work completed in this batch: runner results now retain suite `id`, resolved `args`, `expect`, `skipped`, `skipReason`, `parsedOk`, `errors`, and structured `summary.regressionSignals`; current lines with inline `delta=...` are no longer misclassified as delta rows; relation, filter-index, and repo-map Sweet16 scripts now emit explicit `[bench] delta ...` rows.
+- Production-path optimization completed in this batch: local cache keys now use exact-byte-preserving fast serialization plus bounded memoization for simple JSON-like payloads, and shared columnar row inflation precomputes column/table access plans before the row loop. The file-meta benchmark now uses the shared production loader instead of a local duplicate.
+- Latest classification: 14 entries passed, 0 failed, 0 timed out, and 0 skipped. Baseline/current/delta shape is present for every compare entry. VFS and tree-sitter intentionally remain JSON-output entries with parsed JSON and no baseline/current/delta claim.
+- Latest positive deltas to keep working: `cache-hit-rate` +313.9ms, `sqlite-build-from-artifacts` +151.9ms, `file-meta-compare` +41.4ms, `artifact-io-throughput` +10.9ms, and `artifact-io-streaming-vs-materialize` +10.1ms. Treat the artifact-IO deltas as small/noisy until a repeat or code-path audit proves they are real.
+- Latest current-pass wins: `postings-real` -125.9ms versus its one-thread baseline, `chargram-postings` -3.1ms, `relations-build` -954.7ms, `filter-index-build` -7.8ms, `repo-map-compress` -156.4ms, `index-state-write` -6.7ms, and `minhash-packed` -12.3ms.
+- Critical path by wall time remains `postings-real` at 24.349s, then SQLite build-from-artifacts at 2.174s, relations-build at 1.922s, cache-hit-rate at 612ms, and tree-sitter-load at 514ms. Because postings-real currently beats its configured baseline, the next implementation batch should prioritize the positive-delta production paths first, then return to postings absolute-time reduction.
+- Graph/context-pack is covered as a roadmap candidate but is not currently a `sweet16-ci` entry. Keep it as a separate perf lane unless a fresh graph/context-pack regression or missing-suite signal proves it should enter Sweet16.
 
 Implementation sequence:
 

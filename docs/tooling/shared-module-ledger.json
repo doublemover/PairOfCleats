@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-05-22T05:26:48.502Z",
+  "generatedAt": "2026-05-22T19:16:39.336Z",
   "generatedBy": "node tools/docs/shared-module-ledger.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "census": {
@@ -179,13 +179,14 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 5,
+        "consumerCount": 6,
         "importers": [
           "src/shared/artifact-io/loaders/chunk-meta.js",
           "src/shared/artifact-io/loaders/core-array-payload.js",
           "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core-row-stream.js",
-          "src/storage/sqlite/build/from-artifacts/sources.js"
+          "src/storage/sqlite/build/from-artifacts/sources.js",
+          "tools/bench/index/file-meta-compare.js"
         ]
       },
       {
@@ -6835,7 +6836,7 @@
     ]
   },
   "consumerMap": {
-    "edgeCount": 2736,
+    "edgeCount": 2737,
     "bySharedFile": {
       "src/shared/abort.js": {
         "importers": [
@@ -6956,9 +6957,10 @@
           "src/shared/artifact-io/loaders/core-array-payload.js",
           "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core-row-stream.js",
-          "src/storage/sqlite/build/from-artifacts/sources.js"
+          "src/storage/sqlite/build/from-artifacts/sources.js",
+          "tools/bench/index/file-meta-compare.js"
         ],
-        "importerCount": 5
+        "importerCount": 6
       },
       "src/shared/artifact-io/compression.js": {
         "importers": [
@@ -16821,6 +16823,12 @@
           "src/shared/json-stream/jsonl-write.js"
         ],
         "sharedImportCount": 2
+      },
+      "tools/bench/index/file-meta-compare.js": {
+        "sharedImports": [
+          "src/shared/artifact-io/columnar-rows.js"
+        ],
+        "sharedImportCount": 1
       },
       "tools/bench/index/file-meta-streaming-load.js": {
         "sharedImports": [
