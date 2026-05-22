@@ -9,6 +9,7 @@ import { estimateStringBytes } from '../../../src/shared/cache/size.js';
 import {
   buildCacheKey,
   buildCacheKeyPayload,
+  createLocalCacheKeyBuilder,
   buildLocalCacheKey,
   normalizeCacheNamespace
 } from '../../../src/shared/cache-key.js';
@@ -269,6 +270,21 @@ const localArrayKey = buildLocalCacheKey({
 assert.equal(
   localArrayKey.serialized,
   '{"namespace":"array","payload":[1,null,{"a":null,"z":true}],"version":"lk1"}'
+);
+
+const localBuilder = createLocalCacheKeyBuilder({ namespace: 'Bench Cache' });
+const builtLocal = localBuilder.build({ b: 2, a: 1 });
+assert.equal(localBuilder.namespace, 'bench-cache');
+assert.equal(localBuilder.version, 'lk1');
+assert.equal(builtLocal.key, localKeyA.key);
+assert.equal(localBuilder.key({ a: 1, b: 2 }), localKeyA.key);
+assert.equal(
+  localBuilder.keyForProperty('id', 42),
+  buildLocalCacheKey({ namespace: 'bench-cache', payload: { id: 42 } }).key
+);
+assert.equal(
+  localBuilder.keyForProperty('omitted', undefined),
+  buildLocalCacheKey({ namespace: 'bench-cache', payload: {} }).key
 );
 
 const planKeyA = buildQueryPlanCacheKey({ query: 'foo', configSignature: 'cfg', indexSignature: 'idx' });

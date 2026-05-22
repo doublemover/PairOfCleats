@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { performance } from 'node:perf_hooks';
-import { buildLocalCacheKey } from '../../src/shared/cache-key.js';
+import { createLocalCacheKeyBuilder } from '../../src/shared/cache-key.js';
 import { createBoundedWriterQueue } from '../build/embeddings/writer-queue.js';
 import { parseSimpleBenchArgs } from './shared.js';
 
@@ -18,12 +18,10 @@ const writerDelayMs = Number(args.writerDelayMs) || 0;
 const writerMaxPending = Number(args.writerMaxPending) || 2;
 
 const hitThreshold = Math.round(hitRate * 100);
+const currentKeyBuilder = createLocalCacheKeyBuilder({ namespace: 'bench-cache' });
 
 const buildKeyBaseline = (id) => `key:${id}`;
-const buildKeyCurrent = (id) => buildLocalCacheKey({
-  namespace: 'bench-cache',
-  payload: { id }
-}).key;
+const buildKeyCurrent = (id) => currentKeyBuilder.keyForProperty('id', id);
 
 const runBench = (label, buildKey) => {
   const cache = new Map();

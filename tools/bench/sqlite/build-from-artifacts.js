@@ -35,6 +35,25 @@ const statementStrategy = typeof args['statement-strategy'] === 'string' && args
   ? args['statement-strategy'].trim()
   : null;
 
+const sumFileTreeBytes = async (dir) => {
+  let total = 0;
+  const stack = [dir];
+  while (stack.length) {
+    const current = stack.pop();
+    const entries = await fs.readdir(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+      } else if (entry.isFile()) {
+        const stat = await fs.stat(fullPath);
+        total += stat.size;
+      }
+    }
+  }
+  return total;
+};
+
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 await fs.mkdir(baselineIndexDir, { recursive: true });
@@ -157,10 +176,11 @@ const buildBaselineIndex = async () => {
   };
 };
 
+const inputBytes = await sumFileTreeBytes(indexDir);
+
 const runBuild = async ({ label, outPath: targetPath, index, indexDir: targetIndexDir, buildPragmas, optimize }) => {
   const stats = {};
-  const start = performance.now();
-  const count = await buildDatabaseFromArtifacts({
+  const buildOptions = {
     Database,
     outPath: targetPath,
     index,
@@ -171,11 +191,14 @@ const runBuild = async ({ label, outPath: targetPath, index, indexDir: targetInd
     validateMode: 'off',
     vectorConfig: { enabled: false },
     modelConfig: { id: null },
-    buildPragmas,
-    optimize,
+    inputBytes,
     stats,
     statementStrategy
-  });
+  };
+  if (typeof buildPragmas === 'boolean') buildOptions.buildPragmas = buildPragmas;
+  if (typeof optimize === 'boolean') buildOptions.optimize = optimize;
+  const start = performance.now();
+  const count = await buildDatabaseFromArtifacts(buildOptions);
   const durationMs = performance.now() - start;
   if (!fsSync.existsSync(targetPath)) {
     console.error('Expected sqlite DB to be created.');
@@ -184,6 +207,9 @@ const runBuild = async ({ label, outPath: targetPath, index, indexDir: targetInd
   console.log(`[bench] build-from-artifacts ${label} chunks=${count} ms=${durationMs.toFixed(1)}`);
   console.log(
     `[bench] ${label} statementStrategy=${stats.statementStrategy} batchSize=${stats.batchSize} prepares=${stats?.prepare?.total ?? 0}`
+  );
+  console.log(
+    `[bench] ${label} inputBytes=${inputBytes} buildPragmas=${Boolean(stats.pragmas)} optimize=${Boolean(stats.optimize || stats.ftsOptimize)}`
   );
   if (stats.transaction) {
     console.log(`[bench] ${label} transaction`, stats.transaction);
@@ -225,9 +251,7 @@ if (mode !== 'baseline') {
     label: 'current',
     outPath: outPathCurrent,
     index: indexPieces,
-    indexDir,
-    buildPragmas: true,
-    optimize: true
+    indexDir
   });
 }
 if (baselineResult && currentResult) {

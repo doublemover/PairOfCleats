@@ -114,6 +114,111 @@ const rememberSimpleLocalCacheKey = (memoKey, entry) => {
   }
 };
 
+const buildResolvedLocalCacheKey = ({
+  resolvedNamespace,
+  resolvedVersion,
+  payload,
+  keyOnly = false
+}) => {
+  const memoKey = tryBuildSimpleLocalCacheMemoKey({
+    namespace: resolvedNamespace,
+    version: resolvedVersion,
+    payload: payload ?? null
+  });
+  const cached = memoKey ? localCacheSimpleKeyMemo.get(memoKey) : null;
+  if (cached) {
+    if (keyOnly) return cached.key;
+    return {
+      key: cached.key,
+      namespace: resolvedNamespace,
+      version: resolvedVersion,
+      digest: cached.digest,
+      serialized: cached.serialized,
+      payload
+    };
+  }
+  const serialized = serializeLocalCacheInput({
+    namespace: resolvedNamespace,
+    version: resolvedVersion,
+    payload: payload ?? null
+  });
+  const digest = hashMemoizedSerialized(serialized);
+  const key = `${resolvedNamespace}:${resolvedVersion}:${digest}`;
+  rememberSimpleLocalCacheKey(memoKey, { key, digest, serialized });
+  if (keyOnly) return key;
+  return {
+    key,
+    namespace: resolvedNamespace,
+    version: resolvedVersion,
+    digest,
+    serialized,
+    payload
+  };
+};
+
+const buildResolvedSinglePropertyLocalCacheKey = ({
+  resolvedNamespace,
+  resolvedVersion,
+  property,
+  value,
+  keyOnly = false
+}) => {
+  const propertyName = String(property ?? '');
+  if (!propertyName) {
+    return buildResolvedLocalCacheKey({
+      resolvedNamespace,
+      resolvedVersion,
+      payload: {},
+      keyOnly
+    });
+  }
+  const serializedValue = tryStringifySignaturePrimitive(value);
+  if (serializedValue === null) {
+    const payload = { [propertyName]: value };
+    return buildResolvedLocalCacheKey({
+      resolvedNamespace,
+      resolvedVersion,
+      payload,
+      keyOnly
+    });
+  }
+  const prefix = `${resolvedNamespace.length}:${resolvedNamespace}|${resolvedVersion.length}:${resolvedVersion}|`;
+  const memoValue = tryPrimitiveMemoToken(value);
+  const memoKey = serializedValue === undefined
+    ? `${prefix}{}`
+    : (memoValue === null
+      ? null
+      : `${prefix}{${propertyName.length}:${propertyName}=${memoValue}}`);
+  const cached = memoKey ? localCacheSimpleKeyMemo.get(memoKey) : null;
+  if (cached) {
+    if (keyOnly) return cached.key;
+    return {
+      key: cached.key,
+      namespace: resolvedNamespace,
+      version: resolvedVersion,
+      digest: cached.digest,
+      serialized: cached.serialized,
+      payload: serializedValue === undefined ? {} : { [propertyName]: value }
+    };
+  }
+  const serializedPayload = serializedValue === undefined
+    ? '{}'
+    : `{${JSON.stringify(propertyName)}:${serializedValue}}`;
+  const serialized = `{"namespace":${JSON.stringify(resolvedNamespace)},"payload":${serializedPayload},"version":${JSON.stringify(resolvedVersion)}}`;
+  const digest = hashMemoizedSerialized(serialized);
+  const key = `${resolvedNamespace}:${resolvedVersion}:${digest}`;
+  rememberSimpleLocalCacheKey(memoKey, { key, digest, serialized });
+  if (keyOnly) return key;
+  return {
+    key,
+    namespace: resolvedNamespace,
+    version: resolvedVersion,
+    digest,
+    serialized,
+    payload: serializedValue === undefined ? {} : { [propertyName]: value }
+  };
+};
+
 export const normalizeCacheNamespace = (value) => {
   const raw = normalizeToken(value).toLowerCase();
   if (!raw) return DEFAULT_CACHE_NAMESPACE;
@@ -217,36 +322,34 @@ export const buildCacheKey = (options = {}) => {
 export const buildLocalCacheKey = ({ namespace = 'local', version, payload } = {}) => {
   const resolvedNamespace = normalizeCacheNamespace(namespace || 'local');
   const resolvedVersion = normalizeToken(version) || LOCAL_CACHE_KEY_VERSION;
-  const memoKey = tryBuildSimpleLocalCacheMemoKey({
+  return buildResolvedLocalCacheKey({ resolvedNamespace, resolvedVersion, payload });
+};
+
+export const createLocalCacheKeyBuilder = ({ namespace = 'local', version } = {}) => {
+  const resolvedNamespace = normalizeCacheNamespace(namespace || 'local');
+  const resolvedVersion = normalizeToken(version) || LOCAL_CACHE_KEY_VERSION;
+  return Object.freeze({
     namespace: resolvedNamespace,
     version: resolvedVersion,
-    payload: payload ?? null
+    build(payload) {
+      return buildResolvedLocalCacheKey({ resolvedNamespace, resolvedVersion, payload });
+    },
+    key(payload) {
+      return buildResolvedLocalCacheKey({
+        resolvedNamespace,
+        resolvedVersion,
+        payload,
+        keyOnly: true
+      });
+    },
+    keyForProperty(property, value) {
+      return buildResolvedSinglePropertyLocalCacheKey({
+        resolvedNamespace,
+        resolvedVersion,
+        property,
+        value,
+        keyOnly: true
+      });
+    }
   });
-  const cached = memoKey ? localCacheSimpleKeyMemo.get(memoKey) : null;
-  if (cached) {
-    return {
-      key: cached.key,
-      namespace: resolvedNamespace,
-      version: resolvedVersion,
-      digest: cached.digest,
-      serialized: cached.serialized,
-      payload
-    };
-  }
-  const serialized = serializeLocalCacheInput({
-    namespace: resolvedNamespace,
-    version: resolvedVersion,
-    payload: payload ?? null
-  });
-  const digest = hashMemoizedSerialized(serialized);
-  const key = `${resolvedNamespace}:${resolvedVersion}:${digest}`;
-  rememberSimpleLocalCacheKey(memoKey, { key, digest, serialized });
-  return {
-    key,
-    namespace: resolvedNamespace,
-    version: resolvedVersion,
-    digest,
-    serialized,
-    payload
-  };
 };

@@ -8,7 +8,7 @@ import {
 } from '../../utils.js';
 import { normalizeManifestFiles } from '../manifest.js';
 import { MAX_JSON_BYTES } from '../../../../shared/artifact-io/constants.js';
-import { readJsonLinesEachAwait } from '../../../../shared/artifact-io/json.js';
+import { readJsonLinesArraySync, readJsonLinesEachAwait } from '../../../../shared/artifact-io/json.js';
 import { resolveJsonlRequiredKeys } from '../../../../shared/artifact-io/jsonl.js';
 import { loadChunkMetaRows } from '../../../../shared/artifact-io/loaders/chunk-meta.js';
 import { loadTokenPostings } from '../../../../shared/artifact-io/loaders/token-postings.js';
@@ -30,6 +30,7 @@ import {
 import { inflateColumnarRows } from '../../../../shared/artifact-io/columnar-rows.js';
 
 const SQLITE_TOKEN_CARDINALITY_ERROR_CODE = 'ERR_SQLITE_TOKEN_CARDINALITY';
+const JSONL_SYNC_CALLBACK_MAX_BYTES = 1024 * 1024;
 
 const readJsonWithBudget = (filePath, {
   maxBytes = MAX_JSON_BYTES,
@@ -318,8 +319,23 @@ export const CHUNK_META_REQUIRED_KEYS = resolveJsonlRequiredKeys('chunk_meta');
 export const readJsonLinesFile = async (
   filePath,
   onEntry,
-  { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
-) => readJsonLinesEachAwait(filePath, onEntry, { maxBytes, requiredKeys });
+  { maxBytes = MAX_JSON_BYTES, requiredKeys = null, validationMode = 'strict' } = {}
+) => {
+  const stat = fsSync.statSync(filePath);
+  if (stat.size <= JSONL_SYNC_CALLBACK_MAX_BYTES) {
+    const rows = readJsonLinesArraySync(filePath, {
+      maxBytes,
+      requiredKeys,
+      validationMode
+    });
+    for (const row of rows) {
+      const result = onEntry(row);
+      if (result && typeof result.then === 'function') await result;
+    }
+    return;
+  }
+  await readJsonLinesEachAwait(filePath, onEntry, { maxBytes, requiredKeys, validationMode });
+};
 
 export const iterateChunkMetaSources = async (
   sources,
@@ -344,10 +360,10 @@ export const iterateChunkMetaSources = async (
       if (result && typeof result.then === 'function') await result;
     }
   };
-  const emitEntry = async (entry) => {
+  const emitEntry = (entry) => {
     const result = onEntry(entry, count);
-    if (result && typeof result.then === 'function') await result;
     count += 1;
+    return result;
   };
   if (sourceKind === 'json') {
     const sourcePath = paths[0];
@@ -359,7 +375,8 @@ export const iterateChunkMetaSources = async (
       });
       if (Array.isArray(rows)) {
         for (const row of rows) {
-          await emitEntry(row);
+          const result = emitEntry(row);
+          if (result && typeof result.then === 'function') await result;
         }
       }
     }
@@ -375,7 +392,8 @@ export const iterateChunkMetaSources = async (
       }));
       if (Array.isArray(rows)) {
         for (const row of rows) {
-          await emitEntry(row);
+          const result = emitEntry(row);
+          if (result && typeof result.then === 'function') await result;
         }
       }
     }
@@ -397,16 +415,15 @@ export const iterateChunkMetaSources = async (
       preferBinaryColumnar: true,
       enforceBinaryDataBudget: true
     })) {
-      await emitEntry(row);
+      const result = emitEntry(row);
+      if (result && typeof result.then === 'function') await result;
     }
     return { sourceKind, sourceFiles, count };
   }
   for (const sourcePath of paths) {
     if (!sourcePath) continue;
     await emitSourceFile(sourcePath);
-    await readJsonLinesFile(sourcePath, async (entry) => {
-      await emitEntry(entry);
-    }, { requiredKeys });
+    await readJsonLinesFile(sourcePath, (entry) => emitEntry(entry), { requiredKeys });
   }
   return { sourceKind, sourceFiles, count };
 };
