@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { resolveRepoRootArg } from '../shared/dict-utils.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
+import { writeTextIfChanged } from '../shared/generated-report.js';
+import { requireRepoContainedOutputPath } from './file-walk.js';
 import { loadShippedSurfaces } from './surfaces.js';
 import {
   extractChangelogSection,
@@ -16,16 +18,13 @@ const argv = createCli({
   scriptName: 'pairofcleats release metadata',
   options: {
     tag: { type: 'string', default: '' },
+    'git-sha': { type: 'string', default: '' },
     out: { type: 'string', default: '' },
     'notes-out': { type: 'string', default: '' }
   }
 }).parse();
 
 const root = resolveRepoRootArg(null, process.cwd());
-
-const ensureParentDir = (filePath) => {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-};
 
 const run = async () => {
   const { version, packagePath, packageName } = readPackageVersion(root);
@@ -54,7 +53,7 @@ const run = async () => {
     releaseTag: releaseTag || null,
     gitRef: String(process.env.GITHUB_REF || '').trim() || null,
     gitRefName: String(process.env.GITHUB_REF_NAME || '').trim() || null,
-    gitSha: String(process.env.GITHUB_SHA || '').trim() || null,
+    gitSha: String(argv['git-sha'] || process.env.RELEASE_GIT_SHA || process.env.GITHUB_SHA || '').trim() || null,
     publishEligible: Boolean(releaseTag),
     packageVersionSource: path.relative(root, packagePath).replace(/\\/g, '/'),
     changelogPath: path.relative(root, changelogPath).replace(/\\/g, '/'),
@@ -63,19 +62,17 @@ const run = async () => {
   };
 
   const outPath = String(argv.out || '').trim()
-    ? path.resolve(root, String(argv.out).trim())
+    ? requireRepoContainedOutputPath(root, String(argv.out).trim(), 'output path')
     : '';
   const notesOutPath = String(argv['notes-out'] || '').trim()
-    ? path.resolve(root, String(argv['notes-out']).trim())
+    ? requireRepoContainedOutputPath(root, String(argv['notes-out']).trim(), 'notes output path')
     : '';
 
   if (outPath) {
-    ensureParentDir(outPath);
-    fs.writeFileSync(outPath, `${JSON.stringify(payload, null, 2)}\n`);
+    await writeJsonFileResolved(outPath, payload, { trailingNewline: true });
   }
   if (notesOutPath) {
-    ensureParentDir(notesOutPath);
-    fs.writeFileSync(notesOutPath, `${section}\n`);
+    await writeTextIfChanged(notesOutPath, `${section}\n`, { encoding: 'utf8' });
   }
 
   process.stdout.write(`${JSON.stringify(payload)}\n`);

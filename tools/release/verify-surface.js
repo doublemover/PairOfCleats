@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import http from 'node:http';
@@ -9,11 +10,9 @@ import AdmZip from 'adm-zip';
 import { createCli } from '../../src/shared/cli.js';
 import { createFramedJsonRpcParser, writeFramedJsonRpc } from '../../src/shared/jsonrpc.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
-import {
-  registerChildProcessForCleanup,
-  terminateTrackedSubprocesses
-} from '../../src/shared/subprocess.js';
+import { registerChildProcessForCleanup, terminateTrackedSubprocesses } from '../../src/shared/subprocess/tracking.js';
 import { resolveToolRoot } from '../shared/dict-utils.js';
+import { resolveRepoContainedOutputPath } from './file-walk.js';
 
 const root = resolveToolRoot();
 const cli = createCli({
@@ -45,12 +44,27 @@ if (!allowedStages.has(stage)) {
 }
 
 const defaultOutPath = path.join(root, 'dist', 'release-verification', surfaceId, stage, 'verification.json');
-const outPath = path.resolve(root, String(argv.out || '').trim() || defaultOutPath);
+const outPathResolution = resolveRepoContainedOutputPath(
+  root,
+  String(argv.out || '').trim() || defaultOutPath,
+  'out path'
+);
+if (!outPathResolution.ok) {
+  console.error(`release verify-surface: ${outPathResolution.error}`);
+  process.exit(1);
+}
+const outPath = outPathResolution.path;
 const outDir = path.dirname(outPath);
 
 const normalizePath = (value) => path.relative(root, value).replace(/\\/g, '/');
 const ensureParentDir = async (filePath) => {
   await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
+};
+
+const sha256File = (filePath) => {
+  const hash = crypto.createHash('sha256');
+  hash.update(fs.readFileSync(filePath));
+  return hash.digest('hex');
 };
 
 const writeResult = async (payload) => {
@@ -69,6 +83,125 @@ const fail = async (message, details = {}) => {
   };
   await writeResult(payload);
   process.exit(1);
+};
+
+const resolveArchiveEntryTarget = (unpackRoot, entryName) => {
+  const text = String(entryName || '').trim();
+  if (!text) {
+    throw new Error('archive contains an empty entry name');
+  }
+  if (text.includes('\0')) {
+    throw new Error(`archive entry contains a null byte: ${text}`);
+  }
+  if (text.includes('\\')) {
+    throw new Error(`archive entry must use POSIX separators: ${text}`);
+  }
+  if (path.posix.isAbsolute(text) || path.win32.isAbsolute(text)) {
+    throw new Error(`archive entry must be relative: ${text}`);
+  }
+  const normalized = path.posix.normalize(text);
+  if (normalized === '.' || normalized === '..' || normalized.startsWith('../')) {
+    throw new Error(`archive entry must stay within unpack root: ${text}`);
+  }
+  const unpackBase = path.resolve(unpackRoot);
+  const resolved = path.resolve(unpackBase, ...normalized.split('/').filter(Boolean));
+  const relative = path.relative(unpackBase, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`archive entry must stay within unpack root: ${text}`);
+  }
+  return resolved;
+};
+
+const isArchiveSymlinkEntry = (entry) => {
+  const externalAttributes = Number(entry?.header?.attr || 0);
+  const unixMode = Math.floor(externalAttributes / 0x10000);
+  const fileType = unixMode - (unixMode % 0o10000);
+  return fileType === 0o120000;
+};
+
+const archiveEntryMode = (entry) => Math.floor(Number(entry?.header?.attr || 0) / 0x10000) || 0o644;
+
+const archiveEntrySizeBytes = (entry) => Number(entry?.header?.size ?? entry.getData().length);
+
+const readArchiveManifest = (manifestPath) => {
+  try {
+    return JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  } catch (error) {
+    throw new Error(`archive manifest is invalid JSON: ${normalizePath(manifestPath)}: ${error?.message || error}`);
+  }
+};
+
+const validateArchiveManifest = ({
+  archivePath,
+  archiveEntries,
+  expectedEntries,
+  manifest,
+  manifestPath
+}) => {
+  if (manifest?.schemaVersion !== 1) {
+    throw new Error(`archive manifest schemaVersion must be 1: ${normalizePath(manifestPath)}`);
+  }
+  const archiveRel = normalizePath(archivePath);
+  if (manifest.archive !== archiveRel) {
+    throw new Error(`archive manifest archive mismatch: expected ${archiveRel}`);
+  }
+  const checksum = sha256File(archivePath);
+  if (manifest.checksumSha256 !== checksum) {
+    throw new Error(`archive manifest checksum mismatch: ${normalizePath(manifestPath)}`);
+  }
+  const manifestEntries = Array.isArray(manifest.entries) ? manifest.entries : null;
+  if (!manifestEntries) {
+    throw new Error(`archive manifest entries must be an array: ${normalizePath(manifestPath)}`);
+  }
+  const manifestByPath = new Map();
+  for (const entry of manifestEntries) {
+    const entryPath = String(entry?.path || '').trim();
+    if (!entryPath) {
+      throw new Error(`archive manifest entry is missing path: ${normalizePath(manifestPath)}`);
+    }
+    resolveArchiveEntryTarget(path.dirname(archivePath), entryPath);
+    if (manifestByPath.has(entryPath)) {
+      throw new Error(`archive manifest contains duplicate entry: ${entryPath}`);
+    }
+    if (!Number.isInteger(entry?.sizeBytes) || entry.sizeBytes < 0) {
+      throw new Error(`archive manifest entry is missing sizeBytes: ${entryPath}`);
+    }
+    if (!Number.isInteger(entry?.mode)) {
+      throw new Error(`archive manifest entry is missing mode: ${entryPath}`);
+    }
+    manifestByPath.set(entryPath, entry);
+  }
+  const archiveByPath = new Map();
+  for (const entry of archiveEntries.filter((archiveEntry) => !archiveEntry.isDirectory)) {
+    if (archiveByPath.has(entry.entryName)) {
+      throw new Error(`archive contains duplicate entry: ${entry.entryName}`);
+    }
+    archiveByPath.set(entry.entryName, entry);
+  }
+  for (const [entryPath, archiveEntry] of archiveByPath) {
+    const manifestEntry = manifestByPath.get(entryPath);
+    if (!manifestEntry) {
+      throw new Error(`archive manifest missing archive entry: ${entryPath}`);
+    }
+    const actualSizeBytes = archiveEntrySizeBytes(archiveEntry);
+    if (manifestEntry.sizeBytes !== actualSizeBytes) {
+      throw new Error(`archive manifest sizeBytes mismatch for ${entryPath}: expected ${actualSizeBytes}`);
+    }
+    const actualMode = archiveEntryMode(archiveEntry);
+    if (manifestEntry.mode !== actualMode) {
+      throw new Error(`archive manifest mode mismatch for ${entryPath}: expected ${actualMode}`);
+    }
+  }
+  for (const entry of manifestByPath.keys()) {
+    if (!archiveByPath.has(entry)) {
+      throw new Error(`archive manifest includes entry not present in archive: ${entry}`);
+    }
+  }
+  for (const entry of expectedEntries) {
+    if (!manifestByPath.has(entry)) {
+      throw new Error(`archive manifest missing required entry: ${entry}`);
+    }
+  }
 };
 
 const runNodeChecked = (args, { cwd = root, env = process.env, timeoutMs = 30000 } = {}) => {
@@ -435,8 +568,23 @@ const verifyArchiveInstall = async ({
   if (!fs.existsSync(manifestPath)) {
     throw new Error(`missing archive manifest: ${normalizePath(manifestPath)}`);
   }
+  const manifest = readArchiveManifest(manifestPath);
   const zip = new AdmZip(archivePath);
-  const entries = zip.getEntries().map((entry) => entry.entryName);
+  const archiveEntries = zip.getEntries();
+  const entries = archiveEntries.map((entry) => entry.entryName);
+  for (const entry of archiveEntries) {
+    if (isArchiveSymlinkEntry(entry)) {
+      throw new Error(`archive entry must not be a symlink: ${entry.entryName}`);
+    }
+    resolveArchiveEntryTarget(unpackRoot, entry.entryName);
+  }
+  validateArchiveManifest({
+    archivePath,
+    archiveEntries,
+    expectedEntries,
+    manifest,
+    manifestPath
+  });
   for (const entry of expectedEntries) {
     if (!entries.includes(entry)) {
       throw new Error(`archive missing required entry: ${entry}`);
@@ -632,11 +780,24 @@ const verifySublime = async () => {
 };
 
 const verifyTui = async () => {
-  const installRoot = path.resolve(root, String(argv['install-root'] || '').trim() || path.join('dist', 'tui', 'install-smoke'));
-  const captureOutDir = path.resolve(
+  const installRootResolution = resolveRepoContainedOutputPath(
     root,
-    String(argv['capture-out-dir'] || '').trim() || path.join(outDir, 'capture')
+    String(argv['install-root'] || '').trim() || path.join('dist', 'tui', 'install-smoke'),
+    'install-root'
   );
+  const captureOutDirResolution = resolveRepoContainedOutputPath(
+    root,
+    String(argv['capture-out-dir'] || '').trim() || path.join(outDir, 'capture'),
+    'capture-out-dir'
+  );
+  if (!installRootResolution.ok) {
+    throw new Error(installRootResolution.error);
+  }
+  if (!captureOutDirResolution.ok) {
+    throw new Error(captureOutDirResolution.error);
+  }
+  const installRoot = installRootResolution.path;
+  const captureOutDir = captureOutDirResolution.path;
   const fixturePath = path.join(root, 'tests', 'tui', 'fixtures', 'supervised-session.json');
   const result = spawnSync(process.execPath, [path.join(root, 'bin', 'pairofcleats-tui.js')], {
     cwd: root,

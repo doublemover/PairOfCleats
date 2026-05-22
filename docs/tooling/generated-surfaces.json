@@ -147,7 +147,7 @@
       "freshnessExpectation": "regenerate after artifact schema registry changes",
       "freshness": {
         "mode": "audit-command",
-        "command": "node tests/tooling/docs/artifact-schema-index.test.js"
+        "command": "node tests/tooling/docs/contract-matrix.test.js"
       },
       "outputs": [
         "docs/contracts/artifact-schema-index.json"
@@ -156,7 +156,7 @@
         "command": "node tools/docs/export-artifact-schema-index.js"
       },
       "audit": {
-        "command": "node tests/tooling/docs/artifact-schema-index.test.js"
+        "command": "node tests/tooling/docs/contract-matrix.test.js"
       }
     },
     {

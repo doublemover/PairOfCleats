@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createCli } from '../../src/shared/cli.js';
+import { writeJsonFileSyncResolved } from '../../src/shared/json-file.js';
 import { resolveRepoRootArg } from '../shared/dict-utils.js';
+import { resolveRepoContainedOutputPath, resolveRepoContainedPath } from './file-walk.js';
 import { toIso } from './metadata-support.js';
 
 const argv = createCli({
@@ -19,16 +21,50 @@ const argv = createCli({
 }).parse();
 
 const root = resolveRepoRootArg(null, process.cwd());
-const bundleDir = path.resolve(root, String(argv['bundle-dir'] || 'dist/release/bundle'));
-const metadataPath = path.resolve(root, String(argv.metadata || 'dist/release/downloads/release-prepare/metadata.json'));
-const outDir = path.resolve(root, String(argv['out-dir'] || 'dist/release/trust'));
-const nodeSbomInput = String(argv['node-sbom-input'] || '').trim()
-  ? path.resolve(root, String(argv['node-sbom-input']).trim())
-  : '';
-const cargoSbomInput = String(argv['cargo-sbom-input'] || '').trim()
-  ? path.resolve(root, String(argv['cargo-sbom-input']).trim())
-  : '';
-const cargoManifestPath = path.resolve(root, String(argv['cargo-manifest-path'] || 'crates/pairofcleats-tui/Cargo.toml'));
+const bundleDirResolution = resolveRepoContainedPath(
+  root,
+  String(argv['bundle-dir'] || 'dist/release/bundle'),
+  'bundle directory'
+);
+const metadataPathResolution = resolveRepoContainedPath(
+  root,
+  String(argv.metadata || 'dist/release/downloads/release-prepare/metadata.json'),
+  'metadata path'
+);
+const outDirResolution = resolveRepoContainedOutputPath(
+  root,
+  String(argv['out-dir'] || 'dist/release/trust'),
+  'output directory'
+);
+const nodeSbomInputResolution = resolveRepoContainedPath(
+  root,
+  String(argv['node-sbom-input'] || '').trim(),
+  'node SBOM input'
+);
+const cargoSbomInputResolution = resolveRepoContainedPath(
+  root,
+  String(argv['cargo-sbom-input'] || '').trim(),
+  'cargo SBOM input'
+);
+const cargoManifestPathResolution = resolveRepoContainedPath(
+  root,
+  String(argv['cargo-manifest-path'] || 'crates/pairofcleats-tui/Cargo.toml'),
+  'cargo manifest path'
+);
+const bundleDir = bundleDirResolution.path;
+const metadataPath = metadataPathResolution.path;
+const outDir = outDirResolution.path;
+const nodeSbomInput = nodeSbomInputResolution.path;
+const cargoSbomInput = cargoSbomInputResolution.path;
+const cargoManifestPath = cargoManifestPathResolution.path;
+const pathResolutions = [
+  bundleDirResolution,
+  metadataPathResolution,
+  outDirResolution,
+  nodeSbomInputResolution,
+  cargoSbomInputResolution,
+  cargoManifestPathResolution
+];
 
 const toPosixRelative = (filePath) => path.relative(root, filePath).replace(/\\/g, '/');
 
@@ -39,8 +75,7 @@ const ensureDir = (dirPath) => {
 const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, 'utf8'));
 
 const writeJson = (filePath, payload) => {
-  ensureDir(path.dirname(filePath));
-  fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`);
+  writeJsonFileSyncResolved(filePath, payload, { trailingNewline: true });
 };
 
 const loadBundleArtifacts = () => {
@@ -139,6 +174,11 @@ const runCargoSbom = (outputPath) => {
 };
 
 const run = async () => {
+  for (const resolution of pathResolutions) {
+    if (!resolution.ok) {
+      throw new Error(`release trust materials: ${resolution.error}`);
+    }
+  }
   ensureDir(outDir);
   const metadata = fs.existsSync(metadataPath) ? readJson(metadataPath) : {};
   const { bundleManifest, manifestPath, checksumsPath, checksumLines } = loadBundleArtifacts();

@@ -3,7 +3,15 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { resolveRepoRootArg } from '../shared/dict-utils.js';
+import { writeTextIfChanged } from '../shared/generated-report.js';
+import {
+  collectSortedFiles,
+  resolveRepoContainedOutputPath,
+  resolveRepoContainedPath,
+  toPosixRelative
+} from './file-walk.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats release assemble-bundle',
@@ -15,47 +23,39 @@ const argv = createCli({
 }).parse();
 
 const root = resolveRepoRootArg(null, process.cwd());
-const artifactRoot = path.resolve(root, String(argv['artifact-root'] || 'dist/release/downloads'));
-const outDir = path.resolve(root, String(argv.out || 'dist/release/bundle'));
-const metadataPath = String(argv.metadata || '').trim()
-  ? path.resolve(root, String(argv.metadata).trim())
-  : '';
+const outDirResolution = resolveRepoContainedOutputPath(root, String(argv.out || 'dist/release/bundle'), 'output directory');
+const outDir = outDirResolution.path;
+const artifactRootInput = String(argv['artifact-root'] || 'dist/release/downloads');
+const artifactRootResolution = resolveRepoContainedPath(root, artifactRootInput, 'artifact root');
+const metadataInput = String(argv.metadata || '').trim();
+const metadataResolution = metadataInput
+  ? resolveRepoContainedPath(root, metadataInput, 'metadata path')
+  : { ok: true, path: '', relative: '' };
+const artifactRoot = artifactRootResolution.path;
+const metadataPath = metadataResolution.path;
 
 const sha256File = (filePath) => crypto
   .createHash('sha256')
   .update(fs.readFileSync(filePath))
   .digest('hex');
 
-const toPosixRelative = (baseDir, filePath) => path.relative(baseDir, filePath).replace(/\\/g, '/');
-
-const collectFiles = (dirPath) => {
-  if (!fs.existsSync(dirPath)) return [];
-  const files = [];
-  const stack = [dirPath];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      const resolved = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        stack.push(resolved);
-        continue;
-      }
-      files.push(resolved);
-    }
-  }
-  return files.sort((a, b) => a.localeCompare(b));
-};
-
 const run = async () => {
+  if (!outDirResolution.ok) {
+    throw new Error(`release bundle: ${outDirResolution.error}`);
+  }
+  if (!artifactRootResolution.ok) {
+    throw new Error(`release bundle: ${artifactRootResolution.error}`);
+  }
+  if (!metadataResolution.ok) {
+    throw new Error(`release bundle: ${metadataResolution.error}`);
+  }
   if (!fs.existsSync(artifactRoot)) {
     throw new Error(`release bundle: artifact root not found: ${toPosixRelative(root, artifactRoot)}`);
   }
-  const releaseFiles = collectFiles(artifactRoot);
+  const releaseFiles = collectSortedFiles(artifactRoot);
   if (releaseFiles.length === 0) {
     throw new Error(`release bundle: no files found under ${toPosixRelative(root, artifactRoot)}`);
   }
-  fs.mkdirSync(outDir, { recursive: true });
-
   const metadata = metadataPath && fs.existsSync(metadataPath)
     ? JSON.parse(fs.readFileSync(metadataPath, 'utf8'))
     : null;
@@ -85,10 +85,11 @@ const run = async () => {
 
   const manifestPath = path.join(outDir, 'release-artifacts.json');
   const checksumsPath = path.join(outDir, 'release-checksums.txt');
-  fs.writeFileSync(manifestPath, `${JSON.stringify(bundleManifest, null, 2)}\n`);
-  fs.writeFileSync(
+  await writeJsonFileResolved(manifestPath, bundleManifest, { trailingNewline: true });
+  await writeTextIfChanged(
     checksumsPath,
-    `${artifacts.map((artifact) => `${artifact.sha256}  ${artifact.path}`).join('\n')}\n`
+    `${artifacts.map((artifact) => `${artifact.sha256}  ${artifact.path}`).join('\n')}\n`,
+    { encoding: 'utf8' }
   );
 
   process.stdout.write(`${JSON.stringify({

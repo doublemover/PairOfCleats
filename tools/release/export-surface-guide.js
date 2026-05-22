@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { resolveToolRoot } from '../shared/dict-utils.js';
+import { writeTextIfChanged } from '../shared/generated-report.js';
 import { loadShippedSurfaces } from './surfaces.js';
 
 const ROOT = resolveToolRoot();
@@ -72,7 +72,7 @@ const renderSurface = (surface) => {
   return lines.join('\n');
 };
 
-const main = () => {
+const main = async () => {
   const argv = parseArgs();
   const outPath = path.resolve(ROOT, argv.out || DEFAULT_OUTPUT);
   const registry = loadShippedSurfaces(ROOT);
@@ -87,9 +87,11 @@ const main = () => {
     '',
     ...registry.surfaces.map((surface) => renderSurface(surface))
   ].join('\n');
-  fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  fs.writeFileSync(outPath, `${content.trimEnd()}\n`);
+  await writeTextIfChanged(outPath, `${content.trimEnd()}\n`, { encoding: 'utf8' });
   console.log(`wrote ${path.relative(ROOT, outPath).replace(/\\/g, '/')}`);
 };
 
-main();
+main().catch((error) => {
+  console.error(error?.message || String(error));
+  process.exit(1);
+});

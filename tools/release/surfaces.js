@@ -16,6 +16,23 @@ const normalizeStringArray = (value) => (Array.isArray(value) ? value : [])
   .map((entry) => normalizeString(entry))
   .filter(Boolean);
 
+const normalizeRepoRelativePath = (root, value, label) => {
+  const text = normalizeString(value);
+  if (!text) return '';
+  if (path.isAbsolute(text)) {
+    throw new Error(`${label} must be repo-relative: ${text}`);
+  }
+  const resolved = path.resolve(root, text);
+  const relative = path.relative(root, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`${label} must stay within repo root: ${text}`);
+  }
+  return relative.replace(/\\/g, '/');
+};
+
+const normalizeRepoRelativePathArray = (root, value, label) => normalizeStringArray(value)
+  .map((entry) => normalizeRepoRelativePath(root, entry, label));
+
 const normalizeSelectorSet = (value) => {
   if (value == null || value === '') return null;
   const entries = Array.isArray(value)
@@ -37,12 +54,12 @@ const resolveCommandToken = (part) => {
   return typeof resolver === 'function' ? resolver() : text;
 };
 
-const normalizeReleaseCheckStep = (surfaceId, step, index) => {
+const normalizeReleaseCheckStep = (root, surfaceId, step, index) => {
   const id = normalizeString(step?.id);
   const label = normalizeString(step?.label);
   const phase = normalizeString(step?.phase || 'smoke').toLowerCase();
   const command = normalizeStringArray(step?.command).map((part) => resolveCommandToken(part));
-  const artifacts = normalizeStringArray(step?.artifacts);
+  const artifacts = normalizeRepoRelativePathArray(root, step?.artifacts, `${surfaceId}:${id || index} artifact`);
   if (!id || !label || command.length === 0) {
     throw new Error(`invalid releaseCheck step for ${surfaceId} at index ${index}`);
   }
@@ -58,7 +75,7 @@ const normalizeReleaseCheckStep = (surfaceId, step, index) => {
   };
 };
 
-const normalizeSurface = (surface, index) => {
+const normalizeSurface = (root, surface, index) => {
   const id = normalizeString(surface?.id);
   const name = normalizeString(surface?.name);
   const owner = normalizeString(surface?.owner);
@@ -70,8 +87,8 @@ const normalizeSurface = (surface, index) => {
   const platforms = normalizeStringArray(surface?.platforms);
   const build = surface?.build && typeof surface.build === 'object' ? {
     kind: normalizeString(surface.build.kind),
-    sourcePaths: normalizeStringArray(surface.build.sourcePaths),
-    outputs: normalizeStringArray(surface.build.outputs)
+    sourcePaths: normalizeRepoRelativePathArray(root, surface.build.sourcePaths, `${id || index} build source path`),
+    outputs: normalizeRepoRelativePathArray(root, surface.build.outputs, `${id || index} build output path`)
   } : {
     kind: '',
     sourcePaths: [],
@@ -90,7 +107,7 @@ const normalizeSurface = (surface, index) => {
   const releaseCheck = {
     enabled: releaseCheckConfig.enabled === true,
     steps: (Array.isArray(releaseCheckConfig.steps) ? releaseCheckConfig.steps : [])
-      .map((step, stepIndex) => normalizeReleaseCheckStep(id || `surface-${index}`, step, stepIndex))
+      .map((step, stepIndex) => normalizeReleaseCheckStep(root, id || `surface-${index}`, step, stepIndex))
   };
   if (!id || !name || !owner || !supportLevel || !packagingBoundary || !publishBoundary || !versionSource) {
     throw new Error(`invalid shipped surface metadata at index ${index}`);
@@ -122,7 +139,7 @@ export const loadShippedSurfaces = (root = resolveToolRoot()) => {
   const registryPath = getShippedSurfacesRegistryPath(root);
   const payload = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
   const surfaces = (Array.isArray(payload?.surfaces) ? payload.surfaces : [])
-    .map((surface, index) => normalizeSurface(surface, index));
+    .map((surface, index) => normalizeSurface(root, surface, index));
   const ids = new Set();
   const stepIds = new Set();
   for (const surface of surfaces) {

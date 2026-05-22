@@ -26,11 +26,13 @@ Language ID: <language-id>
 - `<language-id>::baseline::coverage-001`
 
 ## 14. Approval checklist
-- [ ] Owner-role review completed.
-- [ ] Backup-owner review completed.
-- [ ] Matrix linkage verified against language/version/embedding registries.
-- [ ] Required fixture families assigned with concrete fixture IDs.
-- [ ] Required conformance levels mapped to executable lanes.
+Template placeholder rows are not active checklist state. When instantiating a concrete language contract, copy these rows as Markdown checkboxes and complete or leave them pending according to technical rollout readiness:
+
+- Owner-role review completed.
+- Backup-owner review completed.
+- Matrix linkage verified against language/version/embedding registries.
+- Required fixture families assigned with concrete fixture IDs.
+- Required conformance levels mapped to executable lanes.
 
 ## 15. Completion evidence artifacts
 - `usr-conformance-summary.json` language row updated for this profile.

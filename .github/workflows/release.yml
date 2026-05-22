@@ -48,17 +48,6 @@ jobs:
       - name: Install deps
         run: npm run bootstrap:ci
 
-      - name: Resolve release metadata
-        id: release-metadata
-        shell: bash
-        env:
-          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-        run: |
-          mkdir -p dist/release/prepare
-          node tools/release/metadata.js --tag "$RELEASE_TAG" --out dist/release/prepare/metadata.json --notes-out dist/release/prepare/notes.md
-          echo "release_tag=$(node -e "const fs=require('fs');const payload=JSON.parse(fs.readFileSync('dist/release/prepare/metadata.json','utf8'));process.stdout.write(payload.releaseTag||'');")" >> "$GITHUB_OUTPUT"
-          echo "release_version=$(node -e "const fs=require('fs');const payload=JSON.parse(fs.readFileSync('dist/release/prepare/metadata.json','utf8'));process.stdout.write(payload.releaseVersion||'');")" >> "$GITHUB_OUTPUT"
-
       - name: Resolve checked out release revision
         id: release-revision
         shell: bash
@@ -67,6 +56,18 @@ jobs:
         run: |
           echo "release_git_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "release_ref=$RELEASE_REF" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve release metadata
+        id: release-metadata
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          RELEASE_GIT_SHA: ${{ steps.release-revision.outputs.release_git_sha }}
+        run: |
+          mkdir -p dist/release/prepare
+          node tools/release/metadata.js --tag "$RELEASE_TAG" --git-sha "$RELEASE_GIT_SHA" --out dist/release/prepare/metadata.json --notes-out dist/release/prepare/notes.md
+          echo "release_tag=$(node -e "const fs=require('fs');const payload=JSON.parse(fs.readFileSync('dist/release/prepare/metadata.json','utf8'));process.stdout.write(payload.releaseTag||'');")" >> "$GITHUB_OUTPUT"
+          echo "release_version=$(node -e "const fs=require('fs');const payload=JSON.parse(fs.readFileSync('dist/release/prepare/metadata.json','utf8'));process.stdout.write(payload.releaseVersion||'');")" >> "$GITHUB_OUTPUT"
 
       - name: Release prepare gates
         run: >
@@ -314,6 +315,7 @@ jobs:
           node tools/release/check.js
           --surfaces tui
           --phases install,boot
+          --runtime-target ${{ matrix.release_id }}
           --report dist/release/verify-tui-${{ matrix.release_id }}/release_check_report.json
           --manifest dist/release/verify-tui-${{ matrix.release_id }}/release-manifest.json
 
@@ -382,12 +384,23 @@ jobs:
           name: release-node-package-verify
           path: dist/release/downloads/release-node-package-verify
 
-      - name: Download TUI build artifacts
+      - name: Download TUI build artifacts for ubuntu
         uses: actions/download-artifact@v4
         with:
-          pattern: release-tui-*
-          path: dist/release/downloads
-          merge-multiple: false
+          name: release-tui-ubuntu
+          path: dist/release/downloads/release-tui-ubuntu
+
+      - name: Download TUI build artifacts for windows
+        uses: actions/download-artifact@v4
+        with:
+          name: release-tui-windows
+          path: dist/release/downloads/release-tui-windows
+
+      - name: Download TUI build artifacts for macos
+        uses: actions/download-artifact@v4
+        with:
+          name: release-tui-macos
+          path: dist/release/downloads/release-tui-macos
 
       - name: Download TUI verification artifacts
         uses: actions/download-artifact@v4
@@ -435,7 +448,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: release-trust-materials
-          path: dist/release
+          path: dist/release/trust
 
       - name: Attest release bundle provenance
         uses: actions/attest-build-provenance@v2
@@ -517,7 +530,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: release-trust-materials
-          path: dist/release
+          path: dist/release/trust
 
       - name: Publish verified artifacts
         shell: bash
@@ -525,14 +538,35 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.release_version }}
+          RELEASE_GIT_SHA: ${{ needs.prepare.outputs.release_git_sha }}
         run: |
           if [ -z "$RELEASE_TAG" ]; then
-            echo "release tag is required for publish"
+            echo "release tag is required for publish" >&2
+            exit 1
+          fi
+          if [ -z "$RELEASE_GIT_SHA" ]; then
+            echo "release git SHA is required for publish" >&2
+            exit 1
+          fi
+          tag_ref_json=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG")
+          tag_object_sha=$(node -e "const payload=JSON.parse(process.argv[1]);process.stdout.write(payload.object?.sha || '');" "$tag_ref_json")
+          tag_object_type=$(node -e "const payload=JSON.parse(process.argv[1]);process.stdout.write(payload.object?.type || '');" "$tag_ref_json")
+          if [ "$tag_object_type" = "tag" ]; then
+            tag_json=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_object_sha")
+            current_tag_sha=$(node -e "const payload=JSON.parse(process.argv[1]);process.stdout.write(payload.object?.sha || '');" "$tag_json")
+          elif [ "$tag_object_type" = "commit" ]; then
+            current_tag_sha="$tag_object_sha"
+          else
+            echo "release tag $RELEASE_TAG resolved to unsupported object type: ${tag_object_type:-missing}" >&2
+            exit 1
+          fi
+          if [ "${current_tag_sha,,}" != "${RELEASE_GIT_SHA,,}" ]; then
+            echo "release tag $RELEASE_TAG points at $current_tag_sha, not verified SHA $RELEASE_GIT_SHA" >&2
             exit 1
           fi
           NOTES_PATH='dist/release/downloads/release-prepare/notes.md'
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release create "$RELEASE_TAG" --title "PairOfCleats $RELEASE_VERSION" --notes-file "$NOTES_PATH"
+            gh release create "$RELEASE_TAG" --verify-tag --title "PairOfCleats $RELEASE_VERSION" --notes-file "$NOTES_PATH"
           fi
           mapfile -t release_files < <(find dist/release/downloads dist/release/bundle dist/release/trust -type f | sort)
           upload_args=()
@@ -554,7 +588,7 @@ jobs:
       - attest
     permissions:
       contents: read
-      actions: read
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -605,7 +639,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: release-trust-materials
-          path: dist/release
+          path: dist/release/trust
 
       - name: Resolve CI workflow status and quality artifacts
         shell: bash
@@ -637,8 +671,8 @@ jobs:
             if [ "$existing_count" != "0" ]; then
               return 0
             fi
-            echo "dispatching $workflow for $target_ref ($target_sha)"
-            gh workflow run "$workflow" --ref "$target_ref"
+            echo "dispatching $workflow for $target_ref ($target_sha)" >&2
+            gh workflow run "$workflow" --ref "$target_ref" >&2
           }
 
           wait_for_successful_run() {
@@ -660,27 +694,29 @@ jobs:
                   return 0
                   ;;
                 failed:*)
-                  echo "workflow $workflow did not succeed for $target_sha ($result)"
+                  echo "workflow $workflow did not succeed for $target_sha ($result)" >&2
                   return 1
                   ;;
                 pending:*)
-                  echo "waiting for $workflow on $target_sha ($result)"
+                  echo "waiting for $workflow on $target_sha ($result)" >&2
                   ;;
                 *)
-                  echo "waiting for $workflow to appear for $target_sha"
+                  echo "waiting for $workflow to appear for $target_sha" >&2
                   ;;
               esac
               attempt=$((attempt + 1))
               sleep "$poll_interval_seconds"
             done
-            echo "timed out waiting for $workflow on $target_sha"
+            echo "timed out waiting for $workflow on $target_sha" >&2
             return 1
           }
 
           ci_run_id=$(wait_for_successful_run 'ci.yml' 'dispatch')
           ci_long_run_id=$(wait_for_successful_run 'ci-long.yml' 'dispatch')
+          case "$ci_run_id" in ''|*[!0-9]*) echo "invalid CI run id: $ci_run_id" >&2; exit 1 ;; esac
+          case "$ci_long_run_id" in ''|*[!0-9]*) echo "invalid CI Long run id: $ci_long_run_id" >&2; exit 1 ;; esac
           gh run download "$ci_run_id" -n ci-quality-artifacts-ubuntu -D dist/release/ci-quality
-          node -e "const fs=require('fs');const payload={targetSha:process.argv[3],workflows:[{workflow:'CI',runId:Number(process.argv[1]),conclusion:'success'},{workflow:'CI Long',runId:Number(process.argv[2]),conclusion:'success'}]};fs.writeFileSync('dist/release/readiness/ci-statuses.json', JSON.stringify(payload, null, 2)+'\n');" "$ci_run_id" "$ci_long_run_id" "$target_sha"
+          node -e "const fs=require('fs');const payload={schemaVersion:1,generatedAt:new Date().toISOString(),targetSha:process.argv[3],workflows:[{workflow:'CI',runId:Number(process.argv[1]),conclusion:'success'},{workflow:'CI Long',runId:Number(process.argv[2]),conclusion:'success'}]};fs.writeFileSync('dist/release/readiness/ci-statuses.json', JSON.stringify(payload, null, 2)+'\n');" "$ci_run_id" "$ci_long_run_id" "$target_sha"
 
       - name: Generate integrated readiness summary
         run: >
@@ -692,6 +728,7 @@ jobs:
           --trust-root dist/release/trust
           --ci-statuses dist/release/readiness/ci-statuses.json
           --ci-test-summary dist/release/ci-quality/.diagnostics/test-summary.json
+          --release-git-sha ${{ needs.prepare.outputs.release_git_sha }}
           --coverage-dir dist/release/ci-quality/.diagnostics/coverage
           --attested
           --out-json dist/release/readiness/readiness-summary.json

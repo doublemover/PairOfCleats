@@ -106,6 +106,13 @@ const assertWorkflowDispatchPresent = ({ workflowText, label }) => {
   }
 };
 
+const assertReleaseTagTriggerPresent = ({ workflowText, label }) => {
+  if (!/push:\s*\n(?:\s*branches:\s*\[[^\n]+\]\s*\n)?\s*tags:\s*\n\s*-\s*'v\*'/.test(workflowText)) {
+    console.error(`${label} must auto-trigger on release tags.`);
+    process.exit(1);
+  }
+};
+
 const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
   const checkoutRefs = workflowText.match(/uses:\s*actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*github\.event_name == 'workflow_dispatch' && inputs\.tag \|\| github\.ref\s*\}\}/g) || [];
   if (checkoutRefs.length < 9) {
@@ -139,6 +146,7 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
     /wait_for_successful_run 'ci\.yml' 'dispatch'/,
     /wait_for_successful_run 'ci-long\.yml' 'dispatch'/,
     /gh run download "\$ci_run_id" -n ci-quality-artifacts-ubuntu/,
+    /tools\/release\/readiness-gate\.js[\s\S]*--release-git-sha\s+\$\{\{\s*needs\.prepare\.outputs\.release_git_sha\s*\}\}/,
     /uses:\s*actions\/download-artifact@v4/,
     /uses:\s*actions\/upload-artifact@v4/,
     /uses:\s*actions\/attest-build-provenance@v2/,
@@ -153,6 +161,7 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
     }
   }
   const jobBlocks = {
+    attest: workflowText.match(/\n  attest:\n([\s\S]*?)\n  trust-materials:\n/)?.[1] || '',
     'release-bundle': workflowText.match(/\n  release-bundle:\n([\s\S]*?)\n  attest:\n/)?.[1] || '',
     'trust-materials': workflowText.match(/\n  trust-materials:\n([\s\S]*?)\n  publish:\n/)?.[1] || '',
     'readiness-gate': workflowText.match(/\n  readiness-gate:\n([\s\S]*)$/)?.[1] || ''
@@ -162,12 +171,34 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
       console.error(`${label} is missing job block for ${jobName}.`);
       process.exit(1);
     }
+    if (jobName === 'attest') continue;
     if (!/node-version:\s*['"]?24\.13\.0['"]?[\s\S]*cache:\s*npm/.test(jobBlock)) {
       console.error(`${label} ${jobName} must enable npm cache in setup-node.`);
       process.exit(1);
     }
     if (!/- name:\s*Install deps[\s\S]*npm run bootstrap:ci/.test(jobBlock)) {
       console.error(`${label} ${jobName} must install dependencies before running Node-based release tooling.`);
+      process.exit(1);
+    }
+  }
+  const readinessBlock = jobBlocks['readiness-gate'];
+  if (/gh workflow run "\$workflow" --ref "\$target_ref"/.test(readinessBlock)) {
+    if (!/permissions:\s*\n\s*contents:\s*read\s*\n\s*actions:\s*write/.test(readinessBlock)) {
+      console.error(`${label} readiness-gate must grant actions: write when it can dispatch CI workflows.`);
+      process.exit(1);
+    }
+  }
+  const readinessRunIdPurityPatterns = [
+    /echo "dispatching \$workflow for \$target_ref \(\$target_sha\)" >&2/,
+    /gh workflow run "\$workflow" --ref "\$target_ref" >&2/,
+    /echo "waiting for \$workflow on \$target_sha \(\$result\)" >&2/,
+    /echo "timed out waiting for \$workflow on \$target_sha" >&2/,
+    /case "\$ci_run_id" in ''\|\*\[!0-9\]\*\)/,
+    /case "\$ci_long_run_id" in ''\|\*\[!0-9\]\*\)/
+  ];
+  for (const pattern of readinessRunIdPurityPatterns) {
+    if (!pattern.test(readinessBlock)) {
+      console.error(`${label} readiness-gate must keep wait progress off run-id stdout and assert numeric run ids: ${pattern}`);
       process.exit(1);
     }
   }
@@ -200,12 +231,37 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
     console.error(`${label} publish job must upload trust materials alongside the release bundle.`);
     process.exit(1);
   }
+  if (!/RELEASE_GIT_SHA:\s*\$\{\{\s*needs\.prepare\.outputs\.release_git_sha\s*\}\}/.test(publishBlock)) {
+    console.error(`${label} publish job must bind publishing to the verified release git SHA.`);
+    process.exit(1);
+  }
+  const publishTagBindingPatterns = [
+    /gh api "repos\/\$GITHUB_REPOSITORY\/git\/ref\/tags\/\$RELEASE_TAG"/,
+    /gh api "repos\/\$GITHUB_REPOSITORY\/git\/tags\/\$tag_object_sha"/,
+    /\$\{current_tag_sha,,\}" != "\$\{RELEASE_GIT_SHA,,\}/,
+    /release tag \$RELEASE_TAG points at \$current_tag_sha, not verified SHA \$RELEASE_GIT_SHA/,
+    /gh release create "\$RELEASE_TAG" --verify-tag/
+  ];
+  for (const pattern of publishTagBindingPatterns) {
+    if (!pattern.test(publishBlock)) {
+      console.error(`${label} publish job must verify the release tag still points at the prepared SHA: ${pattern}`);
+      process.exit(1);
+    }
+  }
   if (!/upload_args=\(\)[\s\S]*rel_path="\$\{file_path#dist\/release\/\}"[\s\S]*"\$\{file_path\}#\$\{rel_path\}"/.test(publishBlock)) {
     console.error(`${label} publish job must upload release assets with unique relative-path labels.`);
     process.exit(1);
   }
   if (!/name:\s*release-prepare-docs[\s\S]*docs\/tooling\/doc-contract-drift\.json[\s\S]*docs\/tooling\/doc-contract-drift\.md/.test(prepareBlock)) {
     console.error(`${label} prepare job must upload doc drift artifacts in a dedicated artifact.`);
+    process.exit(1);
+  }
+  if (!/id:\s*release-revision[\s\S]*git rev-parse HEAD[\s\S]*id:\s*release-metadata/.test(prepareBlock)) {
+    console.error(`${label} prepare job must resolve the checked-out release SHA before generating metadata.`);
+    process.exit(1);
+  }
+  if (!/RELEASE_GIT_SHA:\s*\$\{\{\s*steps\.release-revision\.outputs\.release_git_sha\s*\}\}[\s\S]*node tools\/release\/metadata\.js[\s\S]*--git-sha "\$RELEASE_GIT_SHA"/.test(prepareBlock)) {
+    console.error(`${label} release metadata must be bound to the checked-out release SHA.`);
     process.exit(1);
   }
   if (!/name:\s*release-node-packages[\s\S]*path:\s*dist/.test(verifyNodeBlock)) {
@@ -216,12 +272,37 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
     console.error(`${label} verify-tui must download build artifacts into dist.`);
     process.exit(1);
   }
+  if (!/--runtime-target\s+\$\{\{\s*matrix\.release_id\s*\}\}/.test(verifyTuiBlock)) {
+    console.error(`${label} verify-tui release reports must record the matrix runtime target.`);
+    process.exit(1);
+  }
   if (!/name:\s*release-trust-materials[\s\S]*path:\s*\|\s*[\r\n]+\s*dist\/release\/trust\b/.test(workflowText)) {
     console.error(`${label} trust materials artifact must preserve the trust directory root.`);
     process.exit(1);
   }
+  for (const [jobName, jobBlock] of [
+    ['attest', jobBlocks.attest],
+    ['publish', publishBlock],
+    ['readiness-gate', jobBlocks['readiness-gate']]
+  ]) {
+    if (!/name:\s*release-trust-materials[\s\S]*path:\s*dist\/release\/trust/.test(jobBlock)) {
+      console.error(`${label} ${jobName} must download trust materials to dist/release/trust.`);
+      process.exit(1);
+    }
+  }
   if (!/name:\s*release-prepare-docs[\s\S]*path:\s*dist\/release\/downloads\/release-prepare-docs/.test(jobBlocks['release-bundle'])) {
     console.error(`${label} release-bundle must download prepare doc drift artifacts.`);
+    process.exit(1);
+  }
+  for (const releaseId of ['ubuntu', 'windows', 'macos']) {
+    const pattern = new RegExp(`name:\\s*release-tui-${releaseId}[\\s\\S]*path:\\s*dist\\/release\\/downloads\\/release-tui-${releaseId}`);
+    if (!pattern.test(jobBlocks['release-bundle'])) {
+      console.error(`${label} release-bundle must download release-tui-${releaseId} by exact artifact name.`);
+      process.exit(1);
+    }
+  }
+  if (/pattern:\s*release-tui-\*/.test(jobBlocks['release-bundle'])) {
+    console.error(`${label} release-bundle must not use the overlapping release-tui-* artifact pattern.`);
     process.exit(1);
   }
   if (!/name:\s*release-prepare-docs[\s\S]*path:\s*dist\/release\/downloads\/release-prepare-docs/.test(jobBlocks['readiness-gate'])) {
@@ -244,6 +325,7 @@ assertWorkflowScriptsExist({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertNodePinned({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertHiddenArtifactUploadsConfigured({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertWorkflowDispatchPresent({ workflowText: ciWorkflow, label: 'CI workflow' });
+assertReleaseTagTriggerPresent({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertRustValidationPresent({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertGeneratedFreshnessGatePresent({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertCommandSurfaceAuditPresent({ workflowText: ciWorkflow, label: 'CI workflow' });
@@ -267,10 +349,7 @@ if (!/--lane\s+ci-long/.test(ciLongWorkflow)) {
   console.error('CI-long workflow does not pass --lane ci-long');
   process.exit(1);
 }
-if (!/push:\s*\n\s*tags:\s*\n\s*-\s*'v\*'/.test(ciLongWorkflow)) {
-  console.error('CI-long workflow must auto-trigger on release tags.');
-  process.exit(1);
-}
+assertReleaseTagTriggerPresent({ workflowText: ciLongWorkflow, label: 'CI-long workflow' });
 assertCommandSurfaceAuditPresent({ workflowText: ciLongWorkflow, label: 'CI-long workflow' });
 
 const releaseWorkflow = readWorkflow('release.yml');

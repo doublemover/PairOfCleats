@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { isTestingEnv } from '../../src/shared/env/testing.js';
+import { writeJsonFileSyncResolved } from '../../src/shared/json-file.js';
+import { resolveRepoContainedOutputPath, resolveRepoContainedPath } from './file-walk.js';
 import { getReleaseCheckSurfacePhases, getReleaseCheckSurfaceSteps, loadShippedSurfaces } from './surfaces.js';
 import { extractChangelogSection, readPackageVersion, toIso } from './metadata-support.js';
 
@@ -34,11 +36,13 @@ const normalizePath = (value) => String(value || '').replace(/\\/g, '/');
 const TESTING_ENV_KEY = 'PAIROFCLEATS_TESTING';
 const MAX_OUTPUT_CHARS = 4000;
 const BASELINE_PHASES = ['changelog', 'contracts', 'toolchain'];
+const RELEASE_CHECK_SURFACE_PHASES = ['build', 'install', 'boot', 'smoke'];
 
 const reportPathArg = readOption('report').trim();
 const manifestPathArg = readOption('manifest').trim();
 const surfacesArg = readOption('surfaces').trim();
 const phasesArg = readOption('phases').trim();
+const runtimeTargetArg = readOption('runtime-target').trim();
 const reportPathInput = reportPathArg || 'release_check_report.json';
 const manifestPathInput = manifestPathArg || 'release-manifest.json';
 const requireBreaking = hasFlag('--breaking');
@@ -67,14 +71,30 @@ if (hasFlag('--help') || hasFlag('-h')) {
   console.error('  --manifest <path>              Release manifest output path.');
   console.error('  --surfaces <ids>               Restrict release-check to selected shipped surface ids.');
   console.error('  --phases <names>               Restrict release-check to selected phases.');
+  console.error('  --runtime-target <id>          Record the release runtime target for matrix-specific reports.');
   console.error('  --dry-run                      Validate flow/order without executing commands.');
   console.error('  --dry-run-fail-step <id>       Force one named step to fail in --dry-run mode.');
   process.exit(0);
 }
 
 const root = process.cwd();
-const reportPath = path.resolve(root, reportPathInput);
-const manifestPath = path.resolve(root, manifestPathInput);
+const runtimeTarget = runtimeTargetArg ? runtimeTargetArg.toLowerCase() : null;
+if (runtimeTargetArg && !/^[a-z0-9._-]+$/i.test(runtimeTargetArg)) {
+  console.error(`release-check: runtime target is malformed: ${runtimeTargetArg}.`);
+  process.exit(1);
+}
+const reportPathResolution = resolveRepoContainedOutputPath(root, reportPathInput, 'report path');
+const manifestPathResolution = resolveRepoContainedOutputPath(root, manifestPathInput, 'manifest path');
+if (!reportPathResolution.ok) {
+  console.error(`release-check: ${reportPathResolution.error}`);
+  process.exit(1);
+}
+if (!manifestPathResolution.ok) {
+  console.error(`release-check: ${manifestPathResolution.error}`);
+  process.exit(1);
+}
+const reportPath = reportPathResolution.path;
+const manifestPath = manifestPathResolution.path;
 
 const trimOutput = (value) => {
   const text = String(value || '').trim();
@@ -88,10 +108,6 @@ const sha256File = (filePath) => {
   return hash.digest('hex');
 };
 
-const ensureParentDir = (filePath) => {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-};
-
 const parseSelectorSet = (value) => {
   const text = String(value || '').trim();
   if (!text) return null;
@@ -101,6 +117,21 @@ const parseSelectorSet = (value) => {
     .filter(Boolean);
   return entries.length ? new Set(entries) : null;
 };
+
+const projectReleaseCheckSurfaceFields = (surface) => ({
+  releaseCheckEnabled: surface.releaseCheck.enabled,
+  releaseCheckStepIds: surface.releaseCheck.steps.map((step) => step.id),
+  releaseCheckStepsByPhase: Object.fromEntries(
+    RELEASE_CHECK_SURFACE_PHASES
+      .map((phase) => [
+        phase,
+        surface.releaseCheck.steps
+          .filter((step) => step.phase === phase)
+          .map((step) => step.id)
+      ])
+      .filter(([, ids]) => ids.length > 0)
+  )
+});
 
 /**
  * Execute one release-check step and capture normalized result metadata.
@@ -209,10 +240,8 @@ const validateChangelog = () => {
 };
 
 const writeOutputs = (reportPayload, manifestPayload) => {
-  ensureParentDir(reportPath);
-  ensureParentDir(manifestPath);
-  fs.writeFileSync(reportPath, `${JSON.stringify(reportPayload, null, 2)}\n`);
-  fs.writeFileSync(manifestPath, `${JSON.stringify(manifestPayload, null, 2)}\n`);
+  writeJsonFileSyncResolved(reportPath, reportPayload, { trailingNewline: true });
+  writeJsonFileSyncResolved(manifestPath, manifestPayload, { trailingNewline: true });
 };
 
 /**
@@ -231,13 +260,21 @@ const collectManifestArtifacts = (steps) => {
   ]);
   for (const step of steps) {
     for (const artifact of step.artifacts || []) {
-      inventory.add(normalizePath(artifact));
+      const artifactPath = resolveRepoContainedPath(root, artifact, 'manifest artifact path');
+      if (!artifactPath.ok) {
+        throw new Error(`release-check: ${artifactPath.error}`);
+      }
+      inventory.add(artifactPath.relative);
     }
   }
   return Array.from(inventory)
     .sort((a, b) => a.localeCompare(b))
     .map((relPath) => {
-      const absPath = path.resolve(root, relPath);
+      const artifactPath = resolveRepoContainedPath(root, relPath, 'manifest artifact path');
+      if (!artifactPath.ok) {
+        throw new Error(`release-check: ${artifactPath.error}`);
+      }
+      const absPath = artifactPath.path;
       const exists = fs.existsSync(absPath);
       if (!exists) {
         return {
@@ -247,6 +284,10 @@ const collectManifestArtifacts = (steps) => {
           sizeBytes: null,
           sha256: null
         };
+      }
+      const lstat = fs.lstatSync(absPath);
+      if (lstat.isSymbolicLink()) {
+        throw new Error(`release-check: manifest artifact path must not be a symlink: ${relPath}`);
       }
       const stat = fs.statSync(absPath);
       if (stat.isDirectory()) {
@@ -301,6 +342,21 @@ const main = () => {
     surfaceIds: selectedSurfaces ? Array.from(selectedSurfaces) : null,
     phases: selectedSurfacePhases
   });
+  const requestedSurfacePhases = selectedPhases
+    ? Array.from(selectedPhases).filter((phase) => allSurfacePhases.includes(phase))
+    : [];
+  const missingRequestedSurfacePhases = requestedSurfacePhases
+    .filter((phase) => !releaseSteps.some((step) => step.phase === phase));
+  if (missingRequestedSurfacePhases.length > 0) {
+    throw new Error(
+      `release-check: selected scope has no executable checks for phase(s): ${missingRequestedSurfacePhases.join(', ')}.`
+    );
+  }
+  if (selectedSurfaces && releaseSteps.length === 0) {
+    throw new Error(
+      `release-check: selected surfaces have no executable release checks: ${Array.from(selectedSurfaces).sort().join(', ')}.`
+    );
+  }
   const availableSelectedSurfacePhases = Array.from(new Set(releaseSteps.map((step) => step.phase)));
   const executedPhases = [];
   const includePhase = (phase) => !selectedPhases || selectedPhases.has(phase);
@@ -420,7 +476,8 @@ const main = () => {
     releaseVersion: version,
     scope: {
       surfaces: selectedSurfaces ? Array.from(selectedSurfaces).sort() : null,
-      phases: selectedPhases ? Array.from(selectedPhases).sort() : null
+      phases: selectedPhases ? Array.from(selectedPhases).sort() : null,
+      runtimeTarget
     },
     strict: {
       skipModesDisabled: true,
@@ -434,18 +491,7 @@ const main = () => {
       packagingBoundary: surface.packagingBoundary,
       publishBoundary: surface.publishBoundary,
       versionSource: surface.versionSource,
-      releaseCheckEnabled: surface.releaseCheck.enabled,
-      releaseCheckStepIds: surface.releaseCheck.steps.map((step) => step.id),
-      releaseCheckStepsByPhase: Object.fromEntries(
-        ['build', 'install', 'boot', 'smoke']
-          .map((phase) => [
-            phase,
-            surface.releaseCheck.steps
-              .filter((step) => step.phase === phase)
-              .map((step) => step.id)
-          ])
-          .filter(([, ids]) => ids.length > 0)
-      )
+      ...projectReleaseCheckSurfaceFields(surface)
     })),
     summary: {
       total: steps.length,
@@ -485,18 +531,7 @@ const main = () => {
       build: surface.build,
       install: surface.install,
       smoke: surface.smoke,
-      releaseCheckEnabled: surface.releaseCheck.enabled,
-      releaseCheckStepIds: surface.releaseCheck.steps.map((step) => step.id),
-      releaseCheckStepsByPhase: Object.fromEntries(
-        ['build', 'install', 'boot', 'smoke']
-          .map((phase) => [
-            phase,
-            surface.releaseCheck.steps
-              .filter((step) => step.phase === phase)
-              .map((step) => step.id)
-          ])
-          .filter(([, ids]) => ids.length > 0)
-      )
+      ...projectReleaseCheckSurfaceFields(surface)
     })),
     artifacts: []
   };
