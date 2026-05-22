@@ -1,26 +1,43 @@
 #!/usr/bin/env node
 import { performance } from 'node:perf_hooks';
-import { createLocalCacheKeyBuilder } from '../../src/shared/cache-key.js';
+import { buildLocalCacheKey, createLocalCacheKeyBuilder } from '../../src/shared/cache-key.js';
 import { createBoundedWriterQueue } from '../build/embeddings/writer-queue.js';
 import { parseSimpleBenchArgs } from './shared.js';
 
 const args = parseSimpleBenchArgs();
-const ops = Number(args.ops) || 200000;
-const keys = Number(args.keys) || 20000;
-const hitRate = Math.min(1, Math.max(0, Number(args.hitRate) || 0.85));
-const iterations = Number(args.iterations) || 1;
+const parseNumberOption = (value, fallback) => {
+  if (value === undefined || value === null) return fallback;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+};
+const parseBooleanOption = (value, fallback) => {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  return fallback;
+};
+
+const ops = parseNumberOption(args.ops, 200000) || 200000;
+const keys = parseNumberOption(args.keys, 20000) || 20000;
+const hitRate = Math.min(1, Math.max(0, parseNumberOption(args.hitRate, 0.85)));
+const iterations = parseNumberOption(args.iterations, 1) || 1;
 const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
   ? String(args.mode).toLowerCase()
   : 'compare';
-const includeWriter = args.writer !== undefined ? Boolean(args.writer) : true;
-const writerOps = Number(args.writerOps) || 5000;
-const writerDelayMs = Number(args.writerDelayMs) || 0;
-const writerMaxPending = Number(args.writerMaxPending) || 2;
+const includeWriter = parseBooleanOption(args.writer, true);
+const writerOps = parseNumberOption(args.writerOps, 5000) || 5000;
+const writerDelayMs = parseNumberOption(args.writerDelayMs, 0) || 0;
+const writerMaxPending = parseNumberOption(args.writerMaxPending, 2) || 2;
 
 const hitThreshold = Math.round(hitRate * 100);
 const currentKeyBuilder = createLocalCacheKeyBuilder({ namespace: 'bench-cache' });
 
-const buildKeyBaseline = (id) => `key:${id}`;
+const buildKeyBaseline = (id) => buildLocalCacheKey({
+  namespace: 'bench-cache',
+  payload: { id }
+}).key;
 const buildKeyCurrent = (id) => currentKeyBuilder.keyForProperty('id', id);
 
 const runBench = (label, buildKey) => {

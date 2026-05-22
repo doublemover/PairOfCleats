@@ -8,7 +8,6 @@ import {
   detectCompression,
   readBuffer
 } from '../compression.js';
-import { parseJsonlLine } from '../jsonl.js';
 import {
   canUseFallbackAfterPrimaryError,
   captureFallbackReadError,
@@ -20,6 +19,7 @@ import {
 } from '../limits.js';
 import { hasArtifactReadObserver, recordArtifactRead } from '../telemetry.js';
 import { readJsonLinesIterator } from './read-jsonl-stream.js';
+import { scanJsonlBuffer } from './line-scan.js';
 
 /**
  * Materialize JSONL entries from one or more sources.
@@ -103,28 +103,71 @@ export const readJsonLinesArraySync = (
     recoveryFallback = false
   } = {}
 ) => {
-  const useCache = !requiredKeys;
+  return readJsonLinesSyncWithFallback(filePath, {
+    maxBytes,
+    requiredKeys,
+    validationMode,
+    recoveryFallback,
+    useCache: !requiredKeys
+  });
+};
+
+/**
+ * Synchronously parse JSONL entries and invoke `onEntry` for each parsed row.
+ *
+ * @param {string} filePath
+ * @param {(entry:any)=>void} onEntry
+ * @param {{
+ *   maxBytes?: number,
+ *   requiredKeys?: string[]|null,
+ *   validationMode?: 'strict'|'trusted',
+ *   recoveryFallback?:boolean
+ * }} [options]
+ * @returns {number}
+ */
+export const readJsonLinesEachSync = (
+  filePath,
+  onEntry,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    requiredKeys = null,
+    validationMode = 'strict',
+    recoveryFallback = false
+  } = {}
+) => {
+  if (typeof onEntry !== 'function') return 0;
+  return readJsonLinesSyncWithFallback(filePath, {
+    maxBytes,
+    requiredKeys,
+    validationMode,
+    recoveryFallback,
+    onEntry
+  });
+};
+
+const readJsonLinesSyncWithFallback = (
+  filePath,
+  {
+    maxBytes,
+    requiredKeys,
+    validationMode,
+    recoveryFallback,
+    useCache = false,
+    onEntry = null
+  }
+) => {
+  const collectRows = typeof onEntry !== 'function';
   const readCached = (targetPath) => (useCache ? readCache(targetPath) : null);
   const readJsonlFromBuffer = (buffer, sourcePath) => {
-    if (buffer.length > maxBytes) {
-      throw toJsonTooLargeError(sourcePath, buffer.length);
-    }
-    const parsed = [];
-    const raw = buffer.toString('utf8');
-    if (!raw.trim()) return parsed;
-    const lines = raw.split(/\r?\n/);
-    for (let index = 0; index < lines.length; index += 1) {
-      const entry = parseJsonlLine(
-        lines[index],
-        sourcePath,
-        index + 1,
-        maxBytes,
-        requiredKeys,
-        validationMode
-      );
-      if (entry !== null) parsed.push(entry);
-    }
-    return parsed;
+    const parsed = collectRows ? [] : null;
+    const scan = scanJsonlBuffer(buffer, sourcePath, {
+      maxBytes,
+      requiredKeys,
+      validationMode,
+      collect: parsed,
+      onEntry
+    });
+    return collectRows ? parsed : scan.rows;
   };
   const tryRead = (targetPath, cleanup = false) => {
     const cached = readCached(targetPath);
@@ -149,34 +192,22 @@ export const readJsonLinesArraySync = (
           compression,
           rawBytes: buffer.length,
           bytes: decompressed.length,
+          rows: Array.isArray(parsed) ? parsed.length : parsed,
           durationMs: performance.now() - start
         });
       }
       return parsed;
     }
-    let raw = '';
+    let raw = null;
     try {
-      raw = fs.readFileSync(targetPath, 'utf8');
+      raw = fs.readFileSync(targetPath);
     } catch (err) {
       if (shouldTreatAsTooLarge(err)) {
         throw toJsonTooLargeError(targetPath, stat.size);
       }
       throw err;
     }
-    if (!raw.trim()) return [];
-    const parsed = [];
-    const lines = raw.split(/\r?\n/);
-    for (let index = 0; index < lines.length; index += 1) {
-      const entry = parseJsonlLine(
-        lines[index],
-        targetPath,
-        index + 1,
-        maxBytes,
-        requiredKeys,
-        validationMode
-      );
-      if (entry !== null) parsed.push(entry);
-    }
+    const parsed = readJsonlFromBuffer(raw, targetPath);
     if (cleanup) cleanupBak(targetPath);
     if (useCache) writeCache(targetPath, parsed);
     if (shouldMeasure) {
@@ -186,6 +217,7 @@ export const readJsonLinesArraySync = (
         compression: null,
         rawBytes: stat.size,
         bytes: stat.size,
+        rows: Array.isArray(parsed) ? parsed.length : parsed,
         durationMs: performance.now() - start
       });
     }

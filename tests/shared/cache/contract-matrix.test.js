@@ -286,6 +286,10 @@ assert.equal(
   localBuilder.keyForProperty('omitted', undefined),
   buildLocalCacheKey({ namespace: 'bench-cache', payload: {} }).key
 );
+assert.equal(
+  localBuilder.keyForProperty('id', Number.NaN),
+  buildLocalCacheKey({ namespace: 'bench-cache', payload: { id: Number.NaN } }).key
+);
 
 const planKeyA = buildQueryPlanCacheKey({ query: 'foo', configSignature: 'cfg', indexSignature: 'idx' });
 const planKeyB = buildQueryPlanCacheKey({ query: 'foo', configSignature: 'cfg', indexSignature: 'idx' });

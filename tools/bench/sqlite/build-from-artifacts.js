@@ -178,12 +178,24 @@ const buildBaselineIndex = async () => {
 
 const inputBytes = await sumFileTreeBytes(indexDir);
 
-const runBuild = async ({ label, outPath: targetPath, index, indexDir: targetIndexDir, buildPragmas, optimize }) => {
+const runBuild = async ({
+  label,
+  outPath: targetPath,
+  index,
+  indexLoader = null,
+  indexDir: targetIndexDir,
+  buildPragmas,
+  optimize
+}) => {
+  const start = performance.now();
+  const loadStart = performance.now();
+  const resolvedIndex = typeof indexLoader === 'function' ? await indexLoader() : index;
+  const loadMs = performance.now() - loadStart;
   const stats = {};
   const buildOptions = {
     Database,
     outPath: targetPath,
-    index,
+    index: resolvedIndex,
     indexDir: targetIndexDir,
     mode: 'code',
     manifestFiles: null,
@@ -197,7 +209,6 @@ const runBuild = async ({ label, outPath: targetPath, index, indexDir: targetInd
   };
   if (typeof buildPragmas === 'boolean') buildOptions.buildPragmas = buildPragmas;
   if (typeof optimize === 'boolean') buildOptions.optimize = optimize;
-  const start = performance.now();
   const count = await buildDatabaseFromArtifacts(buildOptions);
   const durationMs = performance.now() - start;
   if (!fsSync.existsSync(targetPath)) {
@@ -207,6 +218,9 @@ const runBuild = async ({ label, outPath: targetPath, index, indexDir: targetInd
   console.log(`[bench] build-from-artifacts ${label} chunks=${count} ms=${durationMs.toFixed(1)}`);
   console.log(
     `[bench] ${label} statementStrategy=${stats.statementStrategy} batchSize=${stats.batchSize} prepares=${stats?.prepare?.total ?? 0}`
+  );
+  console.log(
+    `[bench] ${label} loadMs=${loadMs.toFixed(1)} buildMs=${(durationMs - loadMs).toFixed(1)}`
   );
   console.log(
     `[bench] ${label} inputBytes=${inputBytes} buildPragmas=${Boolean(stats.pragmas)} optimize=${Boolean(stats.optimize || stats.ftsOptimize)}`
@@ -235,22 +249,20 @@ const runBuild = async ({ label, outPath: targetPath, index, indexDir: targetInd
 let baselineResult = null;
 let currentResult = null;
 if (mode !== 'current') {
-  const baselineIndex = await buildBaselineIndex();
   baselineResult = await runBuild({
     label: 'baseline',
     outPath: outPathBaseline,
-    index: baselineIndex,
+    indexLoader: buildBaselineIndex,
     indexDir: indexDir === generatedIndexDir ? baselineIndexDir : indexDir,
     buildPragmas: false,
     optimize: false
   });
 }
 if (mode !== 'baseline') {
-  const indexPieces = await loadIndexPieces(indexDir, null);
   currentResult = await runBuild({
     label: 'current',
     outPath: outPathCurrent,
-    index: indexPieces,
+    indexLoader: () => loadIndexPieces(indexDir, null),
     indexDir
   });
 }

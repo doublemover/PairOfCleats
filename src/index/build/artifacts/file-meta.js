@@ -2,6 +2,13 @@ import { sha1 } from '../../../shared/hash.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import { fileExt } from '../../../shared/file-paths.js';
 
+const REQUIRED_FILE_META_COLUMNS = new Set(['id', 'file', 'ext']);
+
+const shouldKeepFileMetaColumn = (column, values) => {
+  if (REQUIRED_FILE_META_COLUMNS.has(column)) return true;
+  return Array.isArray(values) && values.some((value) => value !== null && value !== undefined);
+};
+
 export const computeFileMetaFingerprint = ({ files, fileInfoByPath }) => {
   const list = files.map((file) => {
     const info = fileInfoByPath?.get?.(file) || null;
@@ -69,11 +76,18 @@ export const buildFileMetaColumnar = (fileMeta) => {
     arrays.churn_deleted.push(row?.churn_deleted ?? null);
     arrays.churn_commits.push(row?.churn_commits ?? null);
   }
+  const columns = [];
+  const compactArrays = {};
+  for (const [column, values] of Object.entries(arrays)) {
+    if (!shouldKeepFileMetaColumn(column, values)) continue;
+    columns.push(column);
+    compactArrays[column] = values;
+  }
   return {
     format: 'columnar',
-    columns: Object.keys(arrays),
+    columns,
     length: rows.length,
-    arrays,
+    arrays: compactArrays,
     tables: {
       file: fileTable,
       ext: extTable

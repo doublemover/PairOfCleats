@@ -1,7 +1,8 @@
 export { readJsonFile } from './json/read-json.js';
 export {
   readJsonLinesArray,
-  readJsonLinesArraySync
+  readJsonLinesArraySync,
+  readJsonLinesEachSync
 } from './json/read-jsonl-array.js';
 export {
   readJsonLinesEach,

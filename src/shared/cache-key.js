@@ -8,6 +8,8 @@ export const LOCAL_CACHE_KEY_VERSION = 'lk1';
 const LOCAL_CACHE_DIGEST_MEMO_MAX = 65536;
 const localCacheDigestMemo = new Map();
 const localCacheSimpleKeyMemo = new Map();
+const BUILDER_EMPTY_PROPERTY_VALUE = Symbol('builder-empty-property-value');
+const BUILDER_UNSUPPORTED_PROPERTY_VALUE = Symbol('builder-unsupported-property-value');
 
 const normalizeToken = (value) => {
   if (value == null) return '';
@@ -89,6 +91,58 @@ const tryBuildSimpleLocalCacheMemoKey = ({ namespace, version, payload }) => {
     parts.push(`${key.length}:${key}=${serialized}`);
   }
   return `${prefix}{${parts.join(',')}}`;
+};
+
+const normalizeBuilderPropertyValue = (value) => {
+  if (value === undefined) return BUILDER_EMPTY_PROPERTY_VALUE;
+  if (value === null) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string' || typeof value === 'boolean' || typeof value === 'bigint') return value;
+  return BUILDER_UNSUPPORTED_PROPERTY_VALUE;
+};
+
+const createSinglePropertyKeyMemo = () => {
+  const buckets = new Map();
+  const order = new Map();
+  let nextOrderId = 0;
+  let size = 0;
+
+  const getBucket = (propertyName, create = false) => {
+    let bucket = buckets.get(propertyName);
+    if (!bucket && create) {
+      bucket = new Map();
+      buckets.set(propertyName, bucket);
+    }
+    return bucket || null;
+  };
+
+  return {
+    get(propertyName, value) {
+      return getBucket(propertyName)?.get(value) || null;
+    },
+    set(propertyName, value, key) {
+      let bucket = getBucket(propertyName);
+      if (!bucket?.has(value)) {
+        if (size >= LOCAL_CACHE_DIGEST_MEMO_MAX) return;
+        bucket = getBucket(propertyName, true);
+        size += 1;
+        order.set(nextOrderId, { propertyName, value });
+        nextOrderId += 1;
+      }
+      bucket.set(value, key);
+      while (size > LOCAL_CACHE_DIGEST_MEMO_MAX) {
+        const oldestOrderId = order.keys().next().value;
+        if (oldestOrderId === undefined) break;
+        const oldest = order.get(oldestOrderId);
+        order.delete(oldestOrderId);
+        const oldestBucket = getBucket(oldest.propertyName);
+        if (oldestBucket?.delete(oldest.value)) {
+          size -= 1;
+          if (!oldestBucket.size) buckets.delete(oldest.propertyName);
+        }
+      }
+    }
+  };
 };
 
 const hashMemoizedSerialized = (serialized) => {
@@ -328,6 +382,46 @@ export const buildLocalCacheKey = ({ namespace = 'local', version, payload } = {
 export const createLocalCacheKeyBuilder = ({ namespace = 'local', version } = {}) => {
   const resolvedNamespace = normalizeCacheNamespace(namespace || 'local');
   const resolvedVersion = normalizeToken(version) || LOCAL_CACHE_KEY_VERSION;
+  const singlePropertyKeyMemo = createSinglePropertyKeyMemo();
+  const serializedNamespace = JSON.stringify(resolvedNamespace);
+  const serializedVersion = JSON.stringify(resolvedVersion);
+  const serializedEmptyPayload = `{"namespace":${serializedNamespace},"payload":{},"version":${serializedVersion}}`;
+  const serializedPayloadPrefix = `{"namespace":${serializedNamespace},"payload":{`;
+  const serializedPayloadSuffix = `},"version":${serializedVersion}}`;
+
+  const buildDirectSinglePropertyKey = (propertyName, value) => {
+    let serialized = serializedEmptyPayload;
+    if (propertyName && value !== undefined) {
+      const serializedValue = tryStringifySignaturePrimitive(value);
+      if (serializedValue === null) return null;
+      serialized = `${serializedPayloadPrefix}${JSON.stringify(propertyName)}:${serializedValue}${serializedPayloadSuffix}`;
+    }
+    const digest = sha1(serialized);
+    return `${resolvedNamespace}:${resolvedVersion}:${digest}`;
+  };
+
+  const keyForSingleProperty = (property, value) => {
+    const propertyName = String(property ?? '');
+    const memoValue = propertyName
+      ? normalizeBuilderPropertyValue(value)
+      : BUILDER_EMPTY_PROPERTY_VALUE;
+    if (memoValue !== BUILDER_UNSUPPORTED_PROPERTY_VALUE) {
+      const memoPropertyName = memoValue === BUILDER_EMPTY_PROPERTY_VALUE ? '' : propertyName;
+      const cached = singlePropertyKeyMemo.get(memoPropertyName, memoValue);
+      if (cached) return cached;
+      const key = buildDirectSinglePropertyKey(propertyName, value);
+      singlePropertyKeyMemo.set(memoPropertyName, memoValue, key);
+      return key;
+    }
+    return buildResolvedSinglePropertyLocalCacheKey({
+      resolvedNamespace,
+      resolvedVersion,
+      property,
+      value,
+      keyOnly: true
+    });
+  };
+
   return Object.freeze({
     namespace: resolvedNamespace,
     version: resolvedVersion,
@@ -343,13 +437,7 @@ export const createLocalCacheKeyBuilder = ({ namespace = 'local', version } = {}
       });
     },
     keyForProperty(property, value) {
-      return buildResolvedSinglePropertyLocalCacheKey({
-        resolvedNamespace,
-        resolvedVersion,
-        property,
-        value,
-        keyOnly: true
-      });
+      return keyForSingleProperty(property, value);
     }
   });
 };

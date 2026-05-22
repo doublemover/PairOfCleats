@@ -12,6 +12,7 @@ const vocabSize = Number(args.vocab) || 250000;
 const docs = Number(args.docs) || 50000;
 const postingsPerToken = Number(args.postings) || 3;
 const spillThreshold = Number(args.spill) || 100000;
+const samples = Math.max(1, Math.floor(Number(args.samples) || 3));
 const enableRollingHash = args.rolling === true || args['rolling-hash'] === true;
 const mode = resolveCompareMode(args.mode);
 
@@ -33,9 +34,9 @@ const buildChargramKey = (i) => {
   return i.toString(36).padStart(4, '0');
 };
 
-const runOnce = (label, spillMaxUnique) => runPostingsBenchOnce({
+const runOnce = (label, spillMaxUnique, sampleIndex = 0) => runPostingsBenchOnce({
   benchRoot,
-  label,
+  label: samples > 1 ? `${label}-sample-${sampleIndex}` : label,
   spillMaxUnique,
   vocabSize,
   docs,
@@ -45,6 +46,24 @@ const runOnce = (label, spillMaxUnique) => runPostingsBenchOnce({
     algorithm: enableRollingHash ? 'rolling-hash' : 'substring'
   })
 });
+
+const runBest = async (label, spillMaxUnique) => {
+  let best = null;
+  for (let sample = 0; sample < samples; sample += 1) {
+    const result = await runOnce(label, spillMaxUnique, sample);
+    if (!best || result.durationMs < best.durationMs) {
+      best = {
+        ...result,
+        label,
+        sample
+      };
+    }
+  }
+  return {
+    ...best,
+    samples
+  };
+};
 
 const formatStats = (label, stats) => {
   if (!stats) return `${label} stats=none`;
@@ -62,7 +81,8 @@ const printResult = (result, baseline = null) => {
     `algo=${result.algorithm}`,
     `ms=${result.durationMs.toFixed(1)}`,
     `heapΔ=${formatHeapDeltaMb(result.heapDelta)}MB`,
-    `vocab=${result.vocab}`
+    `vocab=${result.vocab}`,
+    `sample=${(result.sample ?? 0) + 1}/${result.samples || 1}`
   ];
   if (baseline) {
     const delta = result.durationMs - baseline.durationMs;
@@ -76,12 +96,12 @@ let baseline = null;
 let current = null;
 
 if (mode !== 'current') {
-  baseline = await runOnce('baseline', 0);
+  baseline = await runBest('baseline', 0);
   printResult(baseline);
 }
 
 if (mode !== 'baseline') {
-  current = await runOnce('current', spillThreshold);
+  current = await runBest('current', spillThreshold);
   printResult(current, baseline);
 }
 
@@ -98,6 +118,7 @@ const summary = {
   docs,
   postingsPerToken,
   spillThreshold,
+  samples,
   baseline,
   current
 };

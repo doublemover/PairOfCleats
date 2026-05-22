@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-05-22T19:16:39.336Z",
+  "generatedAt": "2026-05-22T19:48:47.706Z",
   "generatedBy": "node tools/docs/shared-module-ledger.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "census": {
@@ -385,8 +385,9 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 1,
+        "consumerCount": 2,
         "importers": [
+          "src/shared/artifact-io/json/read-jsonl-array.js",
           "src/shared/artifact-io/json/read-jsonl-stream.js"
         ]
       },
@@ -464,12 +465,11 @@
           "title": "Review shared artifact, cache, IO, bundle, and serialization module families",
           "umbrella": "407"
         },
-        "consumerCount": 11,
+        "consumerCount": 10,
         "importers": [
           "src/index/build/artifacts/writer.js",
           "src/shared/artifact-io.js",
           "src/shared/artifact-io/json/line-scan.js",
-          "src/shared/artifact-io/json/read-jsonl-array.js",
           "src/shared/artifact-io/loaders/chunk-meta.js",
           "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core.js",
@@ -7110,9 +7110,10 @@
       },
       "src/shared/artifact-io/json/line-scan.js": {
         "importers": [
+          "src/shared/artifact-io/json/read-jsonl-array.js",
           "src/shared/artifact-io/json/read-jsonl-stream.js"
         ],
-        "importerCount": 1
+        "importerCount": 2
       },
       "src/shared/artifact-io/json/read-json.js": {
         "importers": [
@@ -7150,7 +7151,6 @@
           "src/index/build/artifacts/writer.js",
           "src/shared/artifact-io.js",
           "src/shared/artifact-io/json/line-scan.js",
-          "src/shared/artifact-io/json/read-jsonl-array.js",
           "src/shared/artifact-io/loaders/chunk-meta.js",
           "src/shared/artifact-io/loaders/core-file-meta.js",
           "src/shared/artifact-io/loaders/core.js",
@@ -7159,7 +7159,7 @@
           "src/shared/artifact-io/offsets.js",
           "src/storage/sqlite/build/from-artifacts/sources.js"
         ],
-        "importerCount": 11
+        "importerCount": 10
       },
       "src/shared/artifact-io/limits.js": {
         "importers": [
@@ -14895,8 +14895,8 @@
           "src/shared/artifact-io/compression.js",
           "src/shared/artifact-io/constants.js",
           "src/shared/artifact-io/json/fallback.js",
+          "src/shared/artifact-io/json/line-scan.js",
           "src/shared/artifact-io/json/read-jsonl-stream.js",
-          "src/shared/artifact-io/jsonl.js",
           "src/shared/artifact-io/limits.js",
           "src/shared/artifact-io/telemetry.js"
         ],

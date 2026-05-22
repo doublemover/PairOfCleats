@@ -8,8 +8,8 @@ import {
 } from '../../utils.js';
 import { normalizeManifestFiles } from '../manifest.js';
 import { MAX_JSON_BYTES } from '../../../../shared/artifact-io/constants.js';
-import { readJsonLinesArraySync, readJsonLinesEachAwait } from '../../../../shared/artifact-io/json.js';
-import { resolveJsonlRequiredKeys } from '../../../../shared/artifact-io/jsonl.js';
+import { readJsonLinesEachAwait, readJsonLinesEachSync } from '../../../../shared/artifact-io/json.js';
+import { parseJsonlLine, resolveJsonlRequiredKeys } from '../../../../shared/artifact-io/jsonl.js';
 import { loadChunkMetaRows } from '../../../../shared/artifact-io/loaders/chunk-meta.js';
 import { loadTokenPostings } from '../../../../shared/artifact-io/loaders/token-postings.js';
 import {
@@ -31,6 +31,52 @@ import { inflateColumnarRows } from '../../../../shared/artifact-io/columnar-row
 
 const SQLITE_TOKEN_CARDINALITY_ERROR_CODE = 'ERR_SQLITE_TOKEN_CARDINALITY';
 const JSONL_SYNC_CALLBACK_MAX_BYTES = 1024 * 1024;
+
+const isPlainJsonlPath = (filePath) => (
+  typeof filePath === 'string'
+  && !filePath.endsWith('.gz')
+  && !filePath.endsWith('.zst')
+);
+
+const readDeclaredJsonlShardSync = (
+  filePath,
+  onEntry,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    requiredKeys = null,
+    validationMode = 'strict'
+  } = {}
+) => {
+  const stat = fsSync.statSync(filePath);
+  if (stat.size > JSONL_SYNC_CALLBACK_MAX_BYTES) return null;
+  if (stat.size > maxBytes) {
+    const err = new Error(
+      `[sqlite] chunk_meta jsonl shard exceeds size budget (${stat.size} bytes > ${maxBytes} bytes): ${filePath}`
+    );
+    err.code = 'ERR_SQLITE_ARTIFACT_TOO_LARGE';
+    throw err;
+  }
+  const raw = fsSync.readFileSync(filePath, 'utf8');
+  if (!raw.trim()) return { rows: 0, pending: [] };
+  const pending = [];
+  let rows = 0;
+  const lines = raw.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const entry = parseJsonlLine(
+      lines[index],
+      filePath,
+      index + 1,
+      maxBytes,
+      requiredKeys,
+      validationMode
+    );
+    if (entry === null) continue;
+    rows += 1;
+    const result = onEntry(entry);
+    if (result && typeof result.then === 'function') pending.push(result);
+  }
+  return { rows, pending };
+};
 
 const readJsonWithBudget = (filePath, {
   maxBytes = MAX_JSON_BYTES,
@@ -323,15 +369,18 @@ export const readJsonLinesFile = async (
 ) => {
   const stat = fsSync.statSync(filePath);
   if (stat.size <= JSONL_SYNC_CALLBACK_MAX_BYTES) {
-    const rows = readJsonLinesArraySync(filePath, {
+    const pending = [];
+    readJsonLinesEachSync(filePath, (row) => {
+      const result = onEntry(row);
+      if (result && typeof result.then === 'function') {
+        pending.push(result);
+      }
+    }, {
       maxBytes,
       requiredKeys,
       validationMode
     });
-    for (const row of rows) {
-      const result = onEntry(row);
-      if (result && typeof result.then === 'function') await result;
-    }
+    for (const result of pending) await result;
     return;
   }
   await readJsonLinesEachAwait(filePath, onEntry, { maxBytes, requiredKeys, validationMode });
@@ -419,6 +468,28 @@ export const iterateChunkMetaSources = async (
       if (result && typeof result.then === 'function') await result;
     }
     return { sourceKind, sourceFiles, count };
+  }
+  if (sourceKind === 'jsonl' && paths.length > 1 && paths.every(isPlainJsonlPath)) {
+    const allSmall = paths.every((sourcePath) => {
+      if (!sourcePath) return true;
+      const stat = fsSync.statSync(sourcePath);
+      return stat.size <= JSONL_SYNC_CALLBACK_MAX_BYTES;
+    });
+    if (allSmall) {
+      const pending = [];
+      for (const sourcePath of paths) {
+        if (!sourcePath) continue;
+        await emitSourceFile(sourcePath);
+        const result = readDeclaredJsonlShardSync(
+          sourcePath,
+          (entry) => emitEntry(entry),
+          { requiredKeys }
+        );
+        if (result?.pending?.length) pending.push(...result.pending);
+      }
+      for (const result of pending) await result;
+      return { sourceKind, sourceFiles, count };
+    }
   }
   for (const sourcePath of paths) {
     if (!sourcePath) continue;
