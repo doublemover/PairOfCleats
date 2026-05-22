@@ -112,12 +112,19 @@ const printCurrent = (result, baseline = null) => {
     `ms=${result.durationMs.toFixed(1)}`,
     `fileBitmaps=${result.fileBitmaps}`
   ];
+  let delta = null;
+  let pct = null;
   if (baseline) {
-    const delta = result.durationMs - baseline.durationMs;
-    const pct = baseline.durationMs > 0 ? (delta / baseline.durationMs) * 100 : null;
+    delta = result.durationMs - baseline.durationMs;
+    pct = baseline.durationMs > 0 ? (delta / baseline.durationMs) * 100 : null;
     parts.push(`delta=${delta.toFixed(1)}ms (${pct?.toFixed(1)}%)`);
   }
   console.log(`[bench] current ${parts.join(' ')}`);
+  if (baseline) {
+    console.log(
+      `[bench] delta ms=${delta.toFixed(1)} (${pct?.toFixed(1)}%) fileBitmaps=${result.fileBitmaps - baseline.fileBitmaps}`
+    );
+  }
 };
 
 let baseline = null;

@@ -22,11 +22,26 @@
     },
     "summary": {
       "type": "object",
-      "required": ["ok", "error", "timeout"],
+      "required": ["ok", "error", "timeout", "skipped", "regressionSignals"],
       "properties": {
         "ok": { "type": "integer", "minimum": 0 },
         "error": { "type": "integer", "minimum": 0 },
         "timeout": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "regressionSignals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "script", "metric", "deltaMs"],
+            "properties": {
+              "id": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+              "script": { "type": "string" },
+              "metric": { "type": "string" },
+              "deltaMs": { "type": "number" }
+            },
+            "additionalProperties": true
+          }
+        },
         "artifactStallDurationMs": {
           "anyOf": [
             { "type": "null" },
@@ -121,9 +136,16 @@
       "items": {
         "type": "object",
         "required": [
+          "id",
           "script",
           "absScript",
+          "args",
+          "expect",
           "ok",
+          "skipped",
+          "skipReason",
+          "parsedOk",
+          "errors",
           "timedOut",
           "exitCode",
           "durationMs",
@@ -133,9 +155,16 @@
           "stderr"
         ],
         "properties": {
+          "id": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
           "script": { "type": "string" },
           "absScript": { "type": "string" },
+          "args": { "type": "array", "items": { "type": "string" } },
+          "expect": { "anyOf": [{ "type": "object" }, { "type": "null" }] },
           "ok": { "type": "boolean" },
+          "skipped": { "type": "boolean" },
+          "skipReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "parsedOk": { "type": "boolean" },
+          "errors": { "type": "array", "items": { "type": "string" } },
           "timedOut": { "type": "boolean" },
           "exitCode": { "anyOf": [{ "type": "integer" }, { "type": "null" }] },
           "durationMs": { "type": "number", "minimum": 0 },

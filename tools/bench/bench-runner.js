@@ -116,7 +116,11 @@ const parseKeyValueMetrics = (line) => {
   while (match) {
     const key = match[1];
     const raw = match[2];
-    const numeric = Number(raw.replace(/[^0-9.+-]/g, ''));
+    const cleaned = raw.replace(/[),;]+$/g, '');
+    const numeric = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:%|ms|s|sec|secs|seconds|b|kb|mb|gb|kib|mib|gib|\/s)?$/i
+      .test(cleaned)
+      ? Number(cleaned.replace(/[^0-9.+-]/g, ''))
+      : null;
     metrics[key] = Number.isFinite(numeric) ? numeric : raw;
     match = re.exec(line);
   }
@@ -142,18 +146,24 @@ const parseBenchOutput = (output) => {
     .map((line) => line.trim())
     .filter(Boolean);
   const benchLines = lines.filter((line) => line.startsWith('[bench]'));
-  const classify = (label) => (
-    benchLines.find((line) => (
-      /^\[bench\]\s+(?:[^\s]+\s+)*?(baseline|current|delta)\b/i.test(line)
-      && line.toLowerCase().includes(` ${label}`)
-    )) || null
-  );
-  const baselineLine = benchLines.find((line) => /^\[bench\]\s+baseline\b/i.test(line))
-    || classify('baseline');
-  const currentLine = benchLines.find((line) => /^\[bench\]\s+current\b/i.test(line))
-    || classify('current');
-  const deltaLine = benchLines.find((line) => /^\[bench\]\s+delta\b/i.test(line))
-    || classify('delta');
+  const resolveLabel = (line) => {
+    const body = line.replace(/^\[bench\]\s+/i, '');
+    for (const token of body.split(/\s+/g)) {
+      const normalized = token.replace(/[:;,]+$/g, '').toLowerCase();
+      if (normalized === 'baseline' || normalized === 'current' || normalized === 'delta') {
+        return normalized;
+      }
+      if (token.includes('=') || token === '|' || token.startsWith('{') || token.startsWith('[')) {
+        return null;
+      }
+    }
+    return null;
+  };
+  const records = benchLines.map((line) => ({ line, label: resolveLabel(line) }));
+  const findLabel = (label) => records.find((entry) => entry.label === label)?.line || null;
+  const baselineLine = findLabel('baseline');
+  const currentLine = findLabel('current');
+  const deltaLine = findLabel('delta');
   return {
     baseline: baselineLine
       ? { line: baselineLine, metrics: parseKeyValueMetrics(baselineLine) }
@@ -199,6 +209,26 @@ const resolvePercentile = (values, ratio) => {
 const toFiniteNumber = (value) => {
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
+};
+
+const resolveDeltaDurationMs = (entry) => {
+  const metrics = entry?.parsed?.delta?.metrics;
+  if (!metrics || typeof metrics !== 'object') return null;
+  for (const key of ['ms', 'durationMs', 'totalMs', 'parseMs', 'loadMs']) {
+    const value = toFiniteNumber(metrics[key]);
+    if (Number.isFinite(value)) return value;
+  }
+  const duration = toFiniteNumber(metrics.duration);
+  return Number.isFinite(duration) ? duration : null;
+};
+
+const resolveSkipReason = (result) => {
+  const lines = `${result?.stdout || ''}\n${result?.stderr || ''}`
+    .split(/\r?\n/g)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const reason = lines.find((line) => /\bskipp(?:ed|ing)\b/i.test(line));
+  return reason || null;
 };
 
 const toPercent = (value, scale = 100) => {
@@ -461,6 +491,13 @@ const main = async () => {
       timeoutMs: argv.timeoutMs,
       tokens
     });
+    result.id = entry.id || path.basename(entry.script);
+    result.args = Array.isArray(entry.args)
+      ? entry.args.map((value) => substituteTokens(value, tokens))
+      : [];
+    result.expect = entry.expect && typeof entry.expect === 'object'
+      ? { ...entry.expect }
+      : null;
 
     const errors = [];
     const expect = entry.expect && typeof entry.expect === 'object' ? entry.expect : null;
@@ -486,6 +523,7 @@ const main = async () => {
       const looksSkipped = combined.includes('skipping') || combined.includes('skipped');
       if (allowSkip && looksSkipped) {
         result.skipped = true;
+        result.skipReason = resolveSkipReason(result);
       } else {
         result.ok = false;
       }
@@ -496,10 +534,10 @@ const main = async () => {
   }
 
   const summary = results.reduce((acc, entry) => {
-    const status = entry.timedOut ? 'timeout' : (entry.ok ? 'ok' : 'error');
+    const status = entry.timedOut ? 'timeout' : (entry.skipped ? 'skipped' : (entry.ok ? 'ok' : 'error'));
     acc[status] = (acc[status] || 0) + 1;
     return acc;
-  }, { ok: 0, error: 0, timeout: 0 });
+  }, { ok: 0, error: 0, timeout: 0, skipped: 0 });
   const artifactDurations = [];
   const stageOverlapRows = [];
   const utilizationSamples = [];
@@ -610,12 +648,20 @@ const main = async () => {
   if (artifactStallDurationMs && artifactStallDurationMs.p95 >= 30000) {
     triageHints.push('Artifact write tails are high (p95 >= 30s); inspect shard sizing, write queue pressure, and IO caps.');
   }
+  const regressionSignals = [];
   for (const entry of results) {
-    const deltaDuration = Number(entry?.parsed?.delta?.metrics?.duration);
+    const deltaDuration = resolveDeltaDurationMs(entry);
     if (Number.isFinite(deltaDuration) && deltaDuration > 0) {
-      triageHints.push(`Regression signal in ${entry.script}: positive delta duration=${deltaDuration}.`);
+      regressionSignals.push({
+        id: entry.id || null,
+        script: entry.script,
+        metric: 'durationMs',
+        deltaMs: deltaDuration
+      });
+      triageHints.push(`Regression signal in ${entry.script}: positive delta duration=${deltaDuration}ms.`);
     }
   }
+  summary.regressionSignals = regressionSignals;
   summary.artifactStallDurationMs = artifactStallDurationMs;
   summary.stageOverlap = stageOverlap;
   summary.perCoreUtilization = perCoreUtilization;
@@ -658,9 +704,16 @@ const main = async () => {
     },
     summary,
     results: results.map((entry) => ({
+      id: entry.id || null,
       script: entry.script,
       absScript: entry.absScript,
+      args: entry.args || [],
+      expect: entry.expect || null,
       ok: entry.ok,
+      skipped: entry.skipped === true,
+      skipReason: entry.skipReason || null,
+      parsedOk: entry.parsedOk === true,
+      errors: Array.isArray(entry.errors) ? entry.errors : [],
       timedOut: entry.timedOut,
       exitCode: entry.exitCode,
       durationMs: entry.durationMs,
