@@ -171,6 +171,88 @@ function capabilityRows(normalizedLanguages) {
   return rows;
 }
 
+const CAPABILITY_ARTIFACTS = Object.freeze({
+  ast: 'chunk_meta',
+  controlFlow: 'graph_relations',
+  dataFlow: 'risk_flows',
+  docmeta: 'chunk_meta',
+  graphRelations: 'graph_relations',
+  imports: 'file_relations',
+  relations: 'graph_relations',
+  riskInterprocedural: 'risk_flows',
+  riskLocal: 'risk_summaries',
+  symbolGraph: 'symbols'
+});
+
+const FRAMEWORK_ARTIFACT_CAPABILITIES = Object.freeze([
+  Object.freeze({
+    capability: 'framework-segmentation',
+    artifactId: 'vfs_manifest',
+    isRequired: () => true,
+    notes: 'Virtual document and segment routing expectations for framework overlays.'
+  }),
+  Object.freeze({
+    capability: 'framework-binding',
+    artifactId: 'graph_relations',
+    isRequired: (profile) => asArray(profile?.bindingSemantics?.requiredEdgeKinds).length > 0,
+    notes: 'Framework binding edges should materialize through graph relations.'
+  }),
+  Object.freeze({
+    capability: 'framework-routing',
+    artifactId: 'file_relations',
+    isRequired: (profile) => profile?.routeSemantics?.enabled === true,
+    notes: 'Route-bearing framework profiles should expose route/file linkage.'
+  }),
+  Object.freeze({
+    capability: 'framework-hydration',
+    artifactId: 'graph_relations',
+    isRequired: (profile) => profile?.hydrationSemantics?.required === true,
+    notes: 'Hydration boundary expectations should materialize through graph relations.'
+  })
+]);
+
+const asArray = (value) => (Array.isArray(value) ? value : []);
+
+function artifactExpectationRows(normalizedLanguages) {
+  const rows = [];
+  for (const language of normalizedLanguages) {
+    for (const capability of SORTED_CAPABILITIES) {
+      const state = language.requiredCapabilities[capability] || 'unsupported';
+      const expectation = state === 'unsupported' ? 'deterministic-empty' : 'required';
+      rows.push({
+        id: `language:${language.id}:${capability}`,
+        profileType: 'language',
+        profileId: language.id,
+        capability,
+        artifactId: CAPABILITY_ARTIFACTS[capability] || 'chunk_meta',
+        expectation,
+        requiredConformance: language.requiredConformance,
+        blocking: expectation === 'required' && BLOCKING_CAPABILITIES.has(capability),
+        notes: `${state} ${capability} coverage for ${language.id}.`
+      });
+    }
+  }
+
+  for (const profile of frameworkProfiles) {
+    for (const definition of FRAMEWORK_ARTIFACT_CAPABILITIES) {
+      const required = definition.isRequired(profile);
+      rows.push({
+        id: `framework:${profile.id}:${definition.capability}`,
+        profileType: 'framework',
+        profileId: profile.id,
+        capability: definition.capability,
+        artifactId: definition.artifactId,
+        expectation: required ? 'required' : 'deterministic-empty',
+        requiredConformance: [...profile.requiredConformance],
+        blocking: required,
+        notes: definition.notes
+      });
+    }
+  }
+
+  return rows.sort((a, b) => a.id.localeCompare(b.id));
+}
+
 function conformanceRows(normalizedLanguages) {
   const frameworkRows = [...frameworkProfiles]
     .sort((a, b) => a.id.localeCompare(b.id))
@@ -278,6 +360,7 @@ function buildRegistryRecords(normalizedLanguages, matrixDir) {
     ['usr-node-kind-mapping', nodeKindMappings],
     ['usr-edge-kind-constraints', edgeKindConstraints],
     ['usr-capability-matrix', capabilityRows(normalizedLanguages)],
+    ['usr-artifact-expectations', artifactExpectationRows(normalizedLanguages)],
     ['usr-conformance-levels', conformanceRows(normalizedLanguages)],
     ['usr-backcompat-matrix', backcompatMatrix],
     ['usr-framework-edge-cases', frameworkEdgeCases],
@@ -359,6 +442,7 @@ export {
   languageVersionPolicyRows,
   languageEmbeddingPolicyRows,
   capabilityRows,
+  artifactExpectationRows,
   conformanceRows,
   riskRows,
   buildRegistryPayload,

@@ -1,6 +1,6 @@
 # Lane Evidence
 
-Generated: 2026-05-21T14:00:11.450Z
+Generated: 2026-05-22T05:26:37.160Z
 
 ## How To Use
 
@@ -20,6 +20,7 @@ Generated: 2026-05-21T14:00:11.450Z
   fresh artifacts: `.testLogs/ci-testRunTimes.txt`
 - `ci-long`: 18 tests, 18 with timings, 566195 ms known duration, p50=33522 ms, p95=59026 ms, target 180s
   fresh artifacts: `.testLogs/ci-long-testRunTimes.txt`
+- `usr-full-conformance`: 11 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 60s
 
 ## Exact Cross-Lane Duplicates
 

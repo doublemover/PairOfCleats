@@ -260,7 +260,7 @@ export const GRAPH_IMPACT_SCHEMA = {
   properties: {
     version: semverString,
     seed: seedRefSchema,
-    direction: { enum: ['upstream', 'downstream'] },
+    direction: { enum: ['upstream', 'downstream', 'both'] },
     depth: { type: 'number' },
     impacted: { type: 'array', items: impactedNodeSchema },
     truncation: { type: ['array', 'null'], items: truncationRecordSchema },

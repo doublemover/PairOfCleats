@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "lane": "usr-full-conformance",
+  "selectionMode": "ordered-manifest",
+  "durationBucket": "ci",
+  "targetMaxDurationSeconds": 60,
+  "notes": "Ordered USR all-language conformance surface lane.",
+  "sourceOrderFile": "tests/usr-full-conformance/usr-full-conformance.order.txt",
+  "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
+  "timingArtifactPaths": [],
+  "suiteCategorySummary": {
+    "hero": 10,
+    "matrix": 0,
+    "meta": 1,
+    "soak": 0,
+    "heavy-runtime": 0
+  },
+  "tests": [
+    {
+      "id": "tooling/usr/full-conformance-surface",
+      "order": 1,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "conformance/language-shards/foundation/validation",
+      "order": 2,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "conformance/language-shards/javascript-typescript/validation",
+      "order": 3,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "conformance/language-shards/systems-languages/validation",
+      "order": 4,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "conformance/language-shards/managed-languages/validation",
+      "order": 5,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "conformance/language-shards/dynamic-languages/validation",
+      "order": 6,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "conformance/language-shards/markup-style-template/validation",
+      "order": 7,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "conformance/language-shards/data-interface-dsl/validation",
+      "order": 8,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "conformance/language-shards/build-infra-dsl/validation",
+      "order": 9,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "conformance/language-shards/cross-language-integration/validation",
+      "order": 10,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/docs/usr-contract-checklists",
+      "order": 11,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    }
+  ]
+}

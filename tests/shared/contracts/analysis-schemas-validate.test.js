@@ -490,6 +490,17 @@ for (const [label, validator, payload] of validators) {
   assert.equal(result.ok, true, `expected ${label} to validate: ${result.errors.join(', ')}`);
 }
 
+const graphImpactBoth = {
+  ...graphImpact,
+  direction: 'both'
+};
+const graphImpactBothValidation = validateGraphImpact(graphImpactBoth);
+assert.equal(
+  graphImpactBothValidation.ok,
+  true,
+  `expected graph impact both direction to validate: ${graphImpactBothValidation.errors.join(', ')}`
+);
+
 const minimalEvidencePayload = structuredClone(compositeContextPack);
 minimalEvidencePayload.evidence = {
   schemaVersion: 1

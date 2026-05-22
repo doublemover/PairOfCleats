@@ -53,11 +53,11 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
 
   try {
     if (!Number.isFinite(argv.depth)) throw new Error('Missing --depth <n>.');
-    if (!argv.direction) throw new Error('Missing --direction <upstream|downstream>.');
+    if (!argv.direction) throw new Error('Missing --direction <upstream|downstream|both>.');
 
     const direction = String(argv.direction).trim().toLowerCase();
-    if (!['upstream', 'downstream'].includes(direction)) {
-      throw new Error('Invalid --direction value. Use upstream|downstream.');
+    if (!['upstream', 'downstream', 'both'].includes(direction)) {
+      throw new Error('Invalid --direction value. Use upstream|downstream|both.');
     }
 
     const seed = argv.seed ? parseSeedRef(argv.seed, repoRoot) : null;

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-22T03:04:09.674Z",
+  "generatedAt": "2026-05-22T05:29:28.690Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -121,6 +121,7 @@
       "PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB",
       "PAIROFCLEATS_DICT_DIR",
       "PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY",
+      "PAIROFCLEATS_DISPATCH_STRICT",
       "PAIROFCLEATS_DOC_EXTRACT",
       "PAIROFCLEATS_EMBEDDINGS",
       "PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES",
@@ -2335,6 +2336,16 @@
       "name": "PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY",
       "files": [
         "src/shared/env/runtime.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_DISPATCH_STRICT",
+      "files": [
+        "bin/pairofcleats.js",
+        "src/retrieval/cli-args.js",
+        "tests/cli/general/cli.test.js",
+        "tests/tooling/docs/contract-matrix.test.js",
         "tools/config/inventory.js"
       ]
     },

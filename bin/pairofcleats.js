@@ -28,6 +28,11 @@ import {
 import { spawnSubprocessSync } from '../src/shared/subprocess/runner.js';
 import { exitLikeChild } from '../src/tui/wrapper-exit.js';
 import { buildErrorPayload, ERROR_CODES, isErrorCode } from '../src/shared/error-codes.js';
+import {
+  SEARCH_OPTION_NAMES,
+  SEARCH_SHORT_VALUE_FLAG_NAMES,
+  SEARCH_VALUE_FLAG_NAMES
+} from '../src/retrieval/cli-args.js';
 import { resolveDispatchRuntimeEnv } from './dispatch-runtime-env.js';
 import { isDirectExecution } from '../src/shared/direct-execution.js';
 import { readFlagValue } from '../src/shared/cli/argv.js';
@@ -212,7 +217,14 @@ function resolveCommand(primary, rest) {
     return { script: 'tools/index/cli-entry.js', extraArgs: [], args: [sub, ...rest] };
   }
   if (primary === 'search') {
-    return { script: 'tools/search/cli-entry.js', extraArgs: [], args: rest };
+    const searchDispatch = resolveSearchDispatchArgs(rest);
+    if (searchDispatch.strict) {
+      validateArgs(searchDispatch.args, SEARCH_OPTION_NAMES, SEARCH_VALUE_FLAG_NAMES, {
+        allowedShortFlags: SEARCH_SHORT_VALUE_FLAG_NAMES,
+        shortValueFlags: SEARCH_SHORT_VALUE_FLAG_NAMES
+      });
+    }
+    return { script: 'tools/search/cli-entry.js', extraArgs: [], args: searchDispatch.args };
   }
   if (primary === 'config') {
     const sub = rest.shift();
@@ -937,9 +949,11 @@ function resolveWorkspaceBuildCommand(rest) {
  * @param {string[]} valueFlags
  * @returns {void}
  */
-function validateArgs(args, allowedFlags, valueFlags) {
+function validateArgs(args, allowedFlags, valueFlags, options = {}) {
   const allowed = new Set(allowedFlags);
   const expectsValue = new Set(valueFlags);
+  const allowedShort = new Set(options.allowedShortFlags || []);
+  const shortExpectsValue = new Set(options.shortValueFlags || []);
   const errors = [];
   for (let i = 0; i < args.length; i += 1) {
     const arg = String(args[i] || '');
@@ -949,7 +963,8 @@ function validateArgs(args, allowedFlags, valueFlags) {
     if (arg.startsWith('--')) {
       const eqIndex = arg.indexOf('=');
       const flag = eqIndex === -1 ? arg.slice(2) : arg.slice(2, eqIndex);
-      if (!allowed.has(flag)) {
+      const positiveBooleanFlag = flag.startsWith('no-') ? flag.slice(3) : '';
+      if (!allowed.has(flag) && !(positiveBooleanFlag && allowed.has(positiveBooleanFlag) && !expectsValue.has(positiveBooleanFlag))) {
         errors.push(`Unknown flag: --${flag}`);
         continue;
       }
@@ -965,7 +980,21 @@ function validateArgs(args, allowedFlags, valueFlags) {
       continue;
     }
     if (arg.startsWith('-')) {
-      errors.push(`Unknown short flag: ${arg}`);
+      const eqIndex = arg.indexOf('=');
+      const flag = eqIndex === -1 ? arg.slice(1) : arg.slice(1, eqIndex);
+      if (!allowedShort.has(flag)) {
+        errors.push(`Unknown short flag: ${arg}`);
+        continue;
+      }
+      if (shortExpectsValue.has(flag)) {
+        if (eqIndex !== -1) continue;
+        const next = args[i + 1];
+        if (!next || String(next).startsWith('-')) {
+          errors.push(`Missing value for ${arg}`);
+        } else {
+          i += 1;
+        }
+      }
     }
   }
   if (errors.length) {
@@ -973,6 +1002,39 @@ function validateArgs(args, allowedFlags, valueFlags) {
       code: ERROR_CODES.INVALID_REQUEST
     });
   }
+}
+
+function resolveSearchDispatchArgs(rest) {
+  const strict = isStrictDispatchEnvEnabled(process.env.PAIROFCLEATS_DISPATCH_STRICT);
+  const result = {
+    strict,
+    args: []
+  };
+  for (let i = 0; i < rest.length; i += 1) {
+    const arg = String(rest[i] || '');
+    if (arg === '--') {
+      result.args.push(...rest.slice(i));
+      break;
+    }
+    if (arg === '--strict-dispatch') {
+      result.strict = true;
+      continue;
+    }
+    if (arg.startsWith('--strict-dispatch=')) {
+      const value = arg.slice('--strict-dispatch='.length).trim().toLowerCase();
+      if (['1', 'true', 'yes', 'on'].includes(value)) {
+        result.strict = true;
+      }
+      continue;
+    }
+    result.args.push(rest[i]);
+  }
+  return result;
+}
+
+function isStrictDispatchEnvEnabled(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['1', 'true', 'yes', 'on'].includes(normalized);
 }
 
 /**

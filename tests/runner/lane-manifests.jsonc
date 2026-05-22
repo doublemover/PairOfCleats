@@ -39,6 +39,14 @@
         ".testLogs/ci-long-testRunTimes.txt"
       ],
       "notes": "Duration-bucket manifest for the long lane."
+    },
+    "usr-full-conformance": {
+      "durationBucket": "ci",
+      "targetMaxDurationSeconds": 60,
+      "orderFile": "tests/usr-full-conformance/usr-full-conformance.order.txt",
+      "manifestFile": "tests/usr-full-conformance/usr-full-conformance.manifest.json",
+      "timingArtifactPaths": [],
+      "notes": "Ordered USR all-language conformance surface lane."
     }
   }
 }

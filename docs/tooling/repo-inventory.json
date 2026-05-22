@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-22T03:04:38.203Z",
+  "generatedAt": "2026-05-22T05:29:35.575Z",
   "generatedBy": "node tools/docs/repo-inventory.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "docs": {
@@ -2242,6 +2242,7 @@
       "tools/tui/supervisor/request-utils.js",
       "tools/tui/supervisor/watchdog.js",
       "tools/tui/targets.js",
+      "tools/usr/conformance-surface.js",
       "tools/workspace/build.js",
       "tools/workspace/catalog.js",
       "tools/workspace/manifest.js",
@@ -2845,9 +2846,11 @@
       "docs/perf/bench-language-rollout-discipline.md",
       "docs/perf/graph-caps.md",
       "docs/perf/graph-context-pack.md",
+      "docs/perf/index-artifact-pipelines.md",
       "docs/perf/map-pipeline.md",
       "docs/perf/native-accel.md",
       "docs/perf/retrieval-pipeline.md",
+      "docs/perf/sqlite-build.md",
       "docs/roadmap-release-validation-evidence-20260521.md",
       "docs/roadmap-release-validation-plan.md",
       "docs/roadmap.md",
@@ -2867,6 +2870,7 @@
       "docs/specs/editor-packaging-determinism.md",
       "docs/specs/embeddings-cache.md",
       "docs/specs/federated-query-cache.md",
+      "docs/specs/file-meta.md",
       "docs/specs/graph-caps.md",
       "docs/specs/graph-filtering-and-dedupe.md",
       "docs/specs/graph-product-surfaces.md",
@@ -3066,12 +3070,10 @@
       "docs/language/fidelity.md",
       "docs/language/symbol-sources.md",
       "docs/language/tree-sitter-package-audit-2026-02-22.md",
-      "docs/perf/index-artifact-pipelines.md",
       "docs/perf/index-state-file-meta.md",
       "docs/perf/indexing-stage-audit.md",
       "docs/perf/shared-component-audit.md",
       "docs/perf/shared-io-serialization.md",
-      "docs/perf/sqlite-build.md",
       "docs/perf/test-runner-profile-artifacts.md",
       "docs/perf/usr-guardrails.md",
       "docs/schemas/usr/README.md",
@@ -3079,7 +3081,6 @@
       "docs/specs/config-defaults.md",
       "docs/specs/federated-search.md",
       "docs/specs/federation-cohorts.md",
-      "docs/specs/file-meta.md",
       "docs/specs/generated-vendor-indexing-policy.md",
       "docs/specs/graph-explainability.md",
       "docs/specs/index-checkpoint-resume.md",
@@ -3378,6 +3379,7 @@
       "tools/tui/capture-fixtures.js",
       "tools/tui/install.js",
       "tools/tui/supervisor.js",
+      "tools/usr/conformance-surface.js",
       "tools/workspace/build.js",
       "tools/workspace/catalog.js",
       "tools/workspace/manifest.js",
@@ -3679,7 +3681,8 @@
       "tools/triage/context-pack.js",
       "tools/triage/decision.js",
       "tools/triage/ingest.js",
-      "tools/tui/capture-fixtures.js"
+      "tools/tui/capture-fixtures.js",
+      "tools/usr/conformance-surface.js"
     ]
   },
   "scripts": {

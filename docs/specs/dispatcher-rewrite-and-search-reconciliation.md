@@ -3,13 +3,15 @@
 ## Status
 - **Spec version:** 1
 - **Audience:** PairOfCleats contributors maintaining the TUI + Node supervisor boundary
-- **Implementation status:** active / implemented for search flag pass-through.
-- **Last audited:** 2026-05-21
+- **Implementation status:** active / implemented for search flag pass-through and opt-in strict dispatch validation.
+- **Last audited:** 2026-05-22
 - **Primary goals:** stop blocking valid search flags, and keep `bin/pairofcleats.js` aligned with the shared command registry used by TUI/supervisor surfaces.
 
 Current implementation note: the `search` dispatcher now passes arguments through
-to `tools/search/cli-entry.js`, and command metadata lives in
-`src/shared/command-registry-data.js` plus `src/shared/command-registry-query.js`.
+to `tools/search/cli-entry.js` by default. Opt-in strict dispatch validation is
+available via `PAIROFCLEATS_DISPATCH_STRICT=1` or `--strict-dispatch`, and command
+metadata lives in `src/shared/command-registry-data.js` plus
+`src/shared/command-registry-query.js`.
 The historical problem statement below describes the pre-fix state and remains
 useful as regression context.
 
@@ -133,12 +135,27 @@ Rationale:
 - Backend selection is already validated/fallback-handled by `src/retrieval/cli/policy.js`.
 - This unblocks implemented functionality including `-n`, `--backend tantivy`, `--backend memory`, and `--backend sqlite-fts`.
 
-### 3.2 Regression coverage
+### 3.2 Strict dispatch mode
+
+Implemented in `bin/pairofcleats.js`:
+
+- `pairofcleats search ...` stays permissive by default.
+- `PAIROFCLEATS_DISPATCH_STRICT=1` enables dispatcher-side unknown-flag detection.
+- `--strict-dispatch` enables strict validation for a single search invocation and
+  is stripped before launching `tools/search/cli-entry.js`.
+- Strict validation uses the live search option declarations exported from
+  `src/retrieval/cli-args.js`, including `-n` as the supported short value flag
+  and `--no-*` forms for known boolean options.
+
+### 3.3 Regression coverage
 
 Current focused coverage:
 
-- `tests/dispatch/search-flag-passthrough.test.js` verifies `node bin/pairofcleats.js search --help --backend tantivy -n 10` succeeds through dispatcher pass-through.
-- `tests/dispatch/manifest-describe-search.test.js`, `tests/dispatch/manifest-list.test.js`, and `tests/dispatch/command-registry-parity.test.js` verify command registry and manifest coverage.
+- `tests/cli/general/cli.test.js` verifies default permissive search pass-through,
+  strict flag/env unknown-flag rejection, strict acceptance of `--backend tantivy`
+  and `-n`, and `dispatch describe search --json` metadata.
+- `tests/cli/search/non-result-surfaces.test.js` verifies search's own value-flag
+  and removed-flag errors.
 
 ---
 
@@ -176,19 +193,20 @@ For search:
   - Filters: meta/file/time
   - Filters: risk/struct/complexity/traits
 
-### 4.4 Optional strict validation mode (future extension)
-Possible future env/flag:
-- `PAIROFCLEATS_DISPATCH_STRICT=1` or `pairofcleats --strict …`
+### 4.4 Optional strict validation mode
+Active env/flag:
+- `PAIROFCLEATS_DISPATCH_STRICT=1` or `pairofcleats search --strict-dispatch …`
 
 In strict mode:
 - use per-command option definitions to detect unknown flags
 - for search, strict mode relies on a formal options set:
-  - update `src/retrieval/cli-args.js` to explicitly declare the full option surface (still `strict(false)` by default, but strict dispatch can check the registry’s list).
+  - `src/retrieval/cli-args.js` explicitly declares the full option surface (still
+    `strict(false)` by default, but strict dispatch checks the exported list).
 
 ---
 
-## 5. Follow-up: formalize `parseSearchArgs()` option list (future extension)
-To support better help output and manifest generation, expand the `options` object in:
+## 5. Follow-up: enrich `parseSearchArgs()` option descriptions
+To support better help output and manifest generation, keep expanding descriptions in:
 - `src/retrieval/cli-args.js::parseSearchArgs`
 
 Add definitions (types + describes) for the flags enumerated in section 2.2.
@@ -202,10 +220,9 @@ This is strongly recommended even if we keep yargs `strict(false)`:
 ## 6. Regression and future testing
 
 ### 6.1 Current tests
-- `tests/dispatch/search-flag-passthrough.test.js`
-- `tests/dispatch/manifest-list.test.js`
-- `tests/dispatch/manifest-describe-search.test.js`
-- `tests/dispatch/command-registry-parity.test.js`
+- `tests/cli/general/cli.test.js`
+- `tests/cli/search/non-result-surfaces.test.js`
+- `tests/cli/general/cli-completions-and-audit.test.js`
 
 ### 6.2 Future unit tests
 - registry resolution:

@@ -86,7 +86,7 @@ Minimum fields:
 Schema: `GRAPH_IMPACT_SCHEMA`
 
 Purpose:
-- Bounded upstream/downstream impact sets with witness paths.
+- Bounded upstream/downstream/bidirectional impact sets with witness paths.
 
 Minimum fields:
 - `version`

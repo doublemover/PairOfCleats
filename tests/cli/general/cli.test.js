@@ -162,6 +162,54 @@ if (!mcpVersionOutput.includes(version)) {
   process.exit(1);
 }
 
+const permissiveSearchHelp = runCli(['search', '--definitely-not-a-search-flag', '--help']);
+if (permissiveSearchHelp.status !== 0) {
+  console.error('cli search should stay permissive by default');
+  process.exit(permissiveSearchHelp.status ?? 1);
+}
+
+const strictSearchHelp = runCli(['search', '--strict-dispatch', '--backend', 'tantivy', '-n', '10', '--help']);
+if (strictSearchHelp.status !== 0) {
+  console.error('cli search strict dispatch should accept registered search flags and -n alias');
+  process.exit(strictSearchHelp.status ?? 1);
+}
+
+const strictSearchUnknown = runCli(['search', '--strict-dispatch', '--definitely-not-a-search-flag', '--help'], {
+  allowFailure: true
+});
+if (strictSearchUnknown.status === 0) {
+  console.error('cli search strict dispatch should reject unknown flags');
+  process.exit(1);
+}
+const strictSearchUnknownOutput = getCombinedOutput(strictSearchUnknown);
+if (!strictSearchUnknownOutput.includes('Unknown flag: --definitely-not-a-search-flag')) {
+  console.error('cli search strict dispatch missing unknown-flag error');
+  process.exit(1);
+}
+
+const envStrictSearchUnknown = runNode(
+  [binPath, 'search', '--definitely-not-a-search-flag', '--help'],
+  'pairofcleats search strict env unknown flag',
+  root,
+  { ...env, PAIROFCLEATS_DISPATCH_STRICT: '1' },
+  { stdio: 'pipe', allowFailure: true }
+);
+if (envStrictSearchUnknown.status === 0) {
+  console.error('cli search env strict dispatch should reject unknown flags');
+  process.exit(1);
+}
+
+const dispatchDescribeSearch = runCli(['dispatch', 'describe', 'search', '--json']);
+if (dispatchDescribeSearch.status !== 0) {
+  console.error('dispatch describe search failed');
+  process.exit(dispatchDescribeSearch.status ?? 1);
+}
+const dispatchDescribePayload = JSON.parse(dispatchDescribeSearch.stdout || '{}');
+assert.equal(dispatchDescribePayload.metadata?.strictDispatch?.env, 'PAIROFCLEATS_DISPATCH_STRICT');
+assert.equal(dispatchDescribePayload.metadata?.strictDispatch?.flag, '--strict-dispatch');
+assert.ok(dispatchDescribePayload.metadata?.optionMetadata?.valueFlags?.includes('backend'));
+assert.ok(dispatchDescribePayload.metadata?.optionMetadata?.shortValueFlags?.includes('n'));
+
 const invalidConfigRepo = path.join(cacheRoot, 'invalid-config-repo');
 await fsPromises.mkdir(invalidConfigRepo, { recursive: true });
 await fsPromises.writeFile(path.join(invalidConfigRepo, '.pairofcleats.json'), '{ invalid json');

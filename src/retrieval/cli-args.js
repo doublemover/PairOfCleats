@@ -103,11 +103,40 @@ const SEARCH_OPTIONS = {
   'non-strict': { type: 'boolean', default: false }
 };
 
-export const SEARCH_VALUE_FLAGS = new Set(
+export const SEARCH_OPTION_NAMES = Object.freeze(Object.keys(SEARCH_OPTIONS));
+
+export const SEARCH_VALUE_FLAG_NAMES = Object.freeze(
   Object.entries(SEARCH_OPTIONS)
     .filter(([, option]) => option?.type === 'string' || option?.type === 'number')
-    .map(([name]) => `--${name}`)
+    .map(([name]) => name)
 );
+
+export const SEARCH_BOOLEAN_FLAG_NAMES = Object.freeze(
+  Object.entries(SEARCH_OPTIONS)
+    .filter(([, option]) => option?.type === 'boolean')
+    .map(([name]) => name)
+);
+
+export const SEARCH_SHORT_VALUE_FLAG_NAMES = Object.freeze(['n']);
+
+export const SEARCH_VALUE_FLAGS = new Set(
+  SEARCH_VALUE_FLAG_NAMES.map((name) => `--${name}`)
+);
+
+export const SEARCH_DISPATCH_METADATA = Object.freeze({
+  strictDispatch: Object.freeze({
+    env: 'PAIROFCLEATS_DISPATCH_STRICT',
+    flag: '--strict-dispatch'
+  }),
+  optionMetadata: Object.freeze({
+    source: 'src/retrieval/cli-args.js',
+    allowedFlags: SEARCH_OPTION_NAMES,
+    valueFlags: SEARCH_VALUE_FLAG_NAMES,
+    booleanFlags: SEARCH_BOOLEAN_FLAG_NAMES,
+    shortValueFlags: SEARCH_SHORT_VALUE_FLAG_NAMES,
+    removedFlags: Object.freeze(REMOVED_FLAGS.map((entry) => entry.flag))
+  })
+});
 
 /**
  * Parse CLI arguments for search.

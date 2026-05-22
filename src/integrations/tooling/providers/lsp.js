@@ -41,6 +41,7 @@ import {
 import { resolveAdaptiveLspScopePlanForTests as __resolveAdaptiveLspScopePlanForTests } from './lsp/scope-plan.js';
 import { buildTargetLookupIndex, findTargetForOffsets } from './lsp/target-index.js';
 import {
+  createVfsQueuedWriteBatcher,
   ensureVirtualFilesBatch,
   normalizeUriScheme,
   resolveDocumentUri,
@@ -95,7 +96,7 @@ const buildEmptyCollectResult = (checks, runtime = null) => ({
     : runtime
 });
 
-export { resolveVfsIoBatching, ensureVirtualFilesBatch };
+export { createVfsQueuedWriteBatcher, resolveVfsIoBatching, ensureVirtualFilesBatch };
 export {
   __resolveAdaptiveLspRequestBudgetPlanForTests,
   __resolveAdaptiveLspScopePlanForTests

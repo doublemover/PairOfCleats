@@ -1,3 +1,5 @@
+import { SEARCH_DISPATCH_METADATA } from '../retrieval/cli-args.js';
+
 const entry = (id, commandPath, script, description, extras = {}) => Object.freeze({
   id,
   commandPath: Object.freeze(commandPath.slice()),
@@ -146,7 +148,8 @@ export const COMMAND_REGISTRY = Object.freeze([
     expectedArtifacts: ['metrics:search'],
     helpExamples: ['pairofcleats search --repo . foo'],
     metadata: {
-      backendEnum: ['auto', 'sqlite', 'sqlite-fts', 'fts', 'lmdb', 'tantivy', 'memory']
+      backendEnum: ['auto', 'sqlite', 'sqlite-fts', 'fts', 'lmdb', 'tantivy', 'memory'],
+      ...SEARCH_DISPATCH_METADATA
     }
   }),
   entry('workspace.manifest', ['workspace', 'manifest'], 'tools/workspace/manifest.js', 'Generate workspace manifest.', {

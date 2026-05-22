@@ -221,25 +221,27 @@ Continuation hardening guard, 2026-05-21: `tools/release/readiness-gate.js` now 
 
 Current completion audit, 2026-05-21: active roadmap, release-plan, release-evidence, archived approval-lock, shared-module backlog, and duplicate-code status docs have no missing exact evidence-artifact paths. The latest corrected backtick-exact audit logged 1266 concrete `temp/validation`, `temp/jscpd`, `.testLogs`, and root release artifact references with 0 missing paths in `temp/validation/roadmap-current-completion-audit-20260521.log`; wildcard examples such as `temp/validation/**` and historical removed-source examples remain documentation patterns or history rather than concrete evidence files. A follow-up evidence-path refresh updated stale detailed-status references to live owners, then checked 2015 concrete filesystem paths with 0 missing active paths, 27 historical moved/removed examples classified as history, and current docs/generated-surface validation passing in `temp/validation/roadmap-evidence-path-audit-corrected-rerun-20260521.log`. The same filesystem-reference policy is now enforced by `tests/tooling/docs/contract-matrix.test.js` for the active roadmap/status handoff docs, with syntax, focused docs guard, markdown-link validation, generated-surface freshness, and whitespace validation logged in `temp/validation/roadmap-reference-guard-handoff-final-20260521.log`. The latest hardening also expands simple brace-grouped active paths and rejects stale duplicate-status residual wording; syntax, focused docs guards, generated-surface freshness, and whitespace validation passed in `temp/validation/roadmap-dup-ledger-brace-guard-final-20260522.log`. The final evidence-citation guard is logged in `temp/validation/readiness-evidence-citation-final-20260522.log` and keeps that current readiness proof reachable from the roadmap, release plan, release evidence, and archived approval-lock note.
 
-Active spec status refresh, 2026-05-21: stale active-draft wording was reconciled against the current implementation for external sparse backends, index stats, context packs, graph impact analysis, graph ranking, file metadata, identity, indexing memory pressure, workspace config, workspace manifests, and search dispatcher reconciliation. The former standalone SPIMI spill spec was archived as `docs/archived/spimi-spill.md` with a deprecation header because the current Stage1/backpressure/artifact-IO path supersedes that standalone module plan. The follow-up non-USR draft sweep archived superseded Phase 3 analysis policy, build-state integrity, import-resolution, and watch-atomicity drafts; promoted signature, segmentation performance, VFS routing, VFS index, hash routing, token URI, cold-start cache, CDC segmentation, and segment-hash-cache docs to active contracts; and split VFS IO batching into live bounded-provider batching plus future queued-write extensions. Focused contract validation, generated-surface freshness, stale active-doc marker scanning, and whitespace checks passed in `temp/validation/roadmap-active-doc-status-refresh-20260521.log`. This creates no new implementation queue; future action should start only from a fresh spec/code drift finding, contract failure, or current roadmap evidence gap.
+Active spec status refresh, 2026-05-21: stale active-draft wording was reconciled against the current implementation for external sparse backends, index stats, context packs, graph impact analysis, graph ranking, file metadata, identity, indexing memory pressure, workspace config, workspace manifests, and search dispatcher reconciliation. The former standalone SPIMI spill spec was archived as `docs/archived/spimi-spill.md` with a deprecation header because the current Stage1/backpressure/artifact-IO path supersedes that standalone module plan. The follow-up non-USR draft sweep archived superseded Phase 3 analysis policy, build-state integrity, import-resolution, and watch-atomicity drafts; promoted signature, segmentation performance, VFS routing, VFS index, hash routing, token URI, cold-start cache, CDC segmentation, and segment-hash-cache docs to active contracts; and initially split VFS IO batching into live bounded-provider batching plus future queued-write extensions. The 2026-05-22 implementation pass promoted queued VFS write coalescing to active behavior in `docs/specs/vfs-io-batching.md`. Focused contract validation, generated-surface freshness, stale active-doc marker scanning, and whitespace checks passed in `temp/validation/roadmap-active-doc-status-refresh-20260521.log`. This creates no new implementation queue; future action should start only from a fresh spec/code drift finding, contract failure, or current roadmap evidence gap.
 
 Active API/MCP spec status follow-up, 2026-05-21: the final active-doc scan found and repaired stale pre-implementation wording in `docs/specs/tooling-and-api-contract.md` and `docs/specs/http-api.md`. The tooling/API contract now records active implemented status, the current MCP schema version, the real source-of-truth module, and the resolved search context shadowing note. The HTTP API spec now records implemented snapshot, diff, as-of search, and workspacePath-based federated search surfaces, with standalone workspaceId lookup classified outside the active contract. Guard coverage is in `tests/tooling/docs/contract-matrix.test.js`, with validation logged in `temp/validation/roadmap-final-active-doc-audit-validation-20260521.log`. This creates no new implementation queue.
 
-Active roadmap/spec finalization follow-up, 2026-05-21: the final active-doc scan also reconciled `docs/specs/dispatcher-rewrite-and-search-reconciliation.md`, `docs/specs/spill-merge-framework.md`, `docs/guides/architecture.md`, and `docs/specs/unified-syntax-representation.md`. Dispatcher search pass-through is now documented as completed with current registry/manifest tests and optional strict dispatch work explicitly future-only; the spill/merge spec now names the live shared merge, row-spill, and map-sorter APIs plus focused tests; the architecture guide labels archived watch-atomicity as historical context; and the USR umbrella now records active umbrella status with local technical rollout evidence green. Guard coverage is in `tests/tooling/docs/contract-matrix.test.js`, with validation logged in `temp/validation/roadmap-final-active-doc-audit-validation-20260521.log`. This creates no new implementation queue beyond keeping current technical validation green.
+Active roadmap/spec finalization follow-up, 2026-05-21: the final active-doc scan also reconciled `docs/specs/dispatcher-rewrite-and-search-reconciliation.md`, `docs/specs/spill-merge-framework.md`, `docs/guides/architecture.md`, and `docs/specs/unified-syntax-representation.md`. Dispatcher search pass-through was documented as completed with current registry/manifest tests; the 2026-05-22 implementation pass adds opt-in strict dispatch validation as active behavior through `PAIROFCLEATS_DISPATCH_STRICT=1` and `--strict-dispatch`. The spill/merge spec now names the live shared merge, row-spill, and map-sorter APIs plus focused tests; the architecture guide labels archived watch-atomicity as historical context; and the USR umbrella now records active umbrella status with local technical rollout evidence green. Guard coverage is in `tests/tooling/docs/contract-matrix.test.js`, with validation logged in `temp/validation/roadmap-final-active-doc-audit-validation-20260521.log`. This creates no new implementation queue beyond keeping current technical validation green.
 
 ## Canonical Next Queue
 
-1. Keep `docs/roadmap.md` current by blocking new references to missing historical roadmap files.
-2. Shared-module reduction is no longer a broad open-ended cleanup queue. Continue only from concrete signals in `docs/tooling/shared-module-reductions/432-prioritized-implementation-backlog.md`, a fresh governance failure, or a new measured cold-import/perf regression; artifact-IO root deflation, env facade deflation, P1 concurrency/subprocess, P1 artifact/storage, and P2 CLI-dispatch-capability cleanup have current validation evidence.
-3. Duplicate-code reduction is checkpoint-clean against the saved `temp/jscpd/jscpd-report.json`: the exact-current refresh returns 0 fragments in `temp/validation/saved-jscpd-exact-current-fragments-refresh-20260521.log`. Do not keep reworking stale report entries; the next duplicate-code action is a future intentional full audit refresh when this branch needs a new baseline.
-4. Keep USR rollout status synchronized against the active technical guardrails and archived approval-lock note. Latest reconciliation: Gate A/B evidence is green in `temp/validation/usr-gate-reconciliation-20260520-130953.log`; Gate C technical rollout criteria are locally satisfied for the current branch, the former approval lock is archived as non-blocking history, and `tools/release/readiness-gate.js` now evaluates release readiness from technical evidence only.
-5. Keep release validation evidence current for implemented release-sensitive areas. Current proof includes the targeted Stage1/risk/snapshot/lexicon pass in `temp/validation/roadmap-release-proof-refresh-rerun-20260521.log`, broader docs/USR and Stage1/risk/snapshot release lanes in `temp/validation/release-lanes-docs-usr-20260521.log` and `temp/validation/release-lanes-stage1-risk-snapshot-20260521.log`, release runtime proof in `temp/validation/release-runtime-split-20260521.log`, release readiness hardening in `temp/validation/release-readiness-technical-validation-20260522.log`, the final evidence-citation guard in `temp/validation/readiness-evidence-citation-final-20260522.log`, and final perf-quality proof in `temp/validation/perf-lane-final-20260521.log`.
-6. Keep `npm run verify:production` green before release-oriented PRs. Latest successful run: `temp/validation/production-verify-final-20260521.log`.
-7. Old generic Phase 10/Phase 14 implementation plans and the standalone SPIMI spill plan are archived with deprecation headers. Keep future roadmap hygiene limited to newly discovered stale roadmap/spec references.
+1. Run one current Sweet16 benchmark pass when perf work starts, log it under `temp/`, and use that report to pick the next measured performance batch. Do not infer Sweet16 status from stale sibling checkboxes. The current runner is `node tools/bench/bench-runner.js --suite sweet16-ci --json .testLogs/bench-sweet16.json --quiet`.
+2. Keep the new full-language conformance execution surface green. Implemented on 2026-05-22: `usr-artifact-expectations`, `tools/usr/conformance-surface.js`, and the `usr-full-conformance` lane now prove profile, fixture, artifact-expectation, and shard coverage.
+3. Keep `docs/roadmap.md` current by blocking new references to missing historical roadmap files.
+4. Shared-module reduction is no longer a broad open-ended cleanup queue. Continue only from concrete signals in `docs/tooling/shared-module-reductions/432-prioritized-implementation-backlog.md`, a fresh governance failure, or a new measured cold-import/perf regression; artifact-IO root deflation, env facade deflation, P1 concurrency/subprocess, P1 artifact/storage, and P2 CLI-dispatch-capability cleanup have current validation evidence.
+5. Duplicate-code reduction is checkpoint-clean against the saved `temp/jscpd/jscpd-report.json`: the exact-current refresh returns 0 fragments in `temp/validation/saved-jscpd-exact-current-fragments-refresh-20260521.log`. Do not keep reworking stale report entries; the next duplicate-code action is a future intentional full audit refresh when this branch needs a new baseline.
+6. Keep USR rollout status synchronized against the active technical guardrails and archived approval-lock note. Latest reconciliation: Gate A/B evidence is green in `temp/validation/usr-gate-reconciliation-20260520-130953.log`; Gate C technical rollout criteria are locally satisfied for the current branch, the former approval lock is archived as non-blocking history, and `tools/release/readiness-gate.js` now evaluates release readiness from technical evidence only.
+7. Keep release validation evidence current for implemented release-sensitive areas. Current proof includes the targeted Stage1/risk/snapshot/lexicon pass in `temp/validation/roadmap-release-proof-refresh-rerun-20260521.log`, broader docs/USR and Stage1/risk/snapshot release lanes in `temp/validation/release-lanes-docs-usr-20260521.log` and `temp/validation/release-lanes-stage1-risk-snapshot-20260521.log`, release runtime proof in `temp/validation/release-runtime-split-20260521.log`, release readiness hardening in `temp/validation/release-readiness-technical-validation-20260522.log`, the final evidence-citation guard in `temp/validation/readiness-evidence-citation-final-20260522.log`, and final perf-quality proof in `temp/validation/perf-lane-final-20260521.log`.
+8. Keep `npm run verify:production` green before release-oriented PRs. Latest successful run: `temp/validation/production-verify-final-20260521.log`.
+9. Old generic Phase 10/Phase 14 implementation plans and the standalone SPIMI spill plan are archived with deprecation headers. Keep future roadmap hygiene limited to newly discovered stale roadmap/spec references.
 
 ## Checkpoint And Future Work Execution Model
 
-No local shared-module or duplicate-code implementation lane is currently open. Future work should proceed as a small number of high-signal implementation lanes only when live code, generated guardrails, a fresh duplicate audit, or release validation exposes concrete value. Do not start by inventing new tracker files. Start from this roadmap, the active focused specs, and the live code. Every reopened lane below must end with a concrete doc/status update in this file or in the linked specialist status doc.
+No local shared-module or duplicate-code implementation lane is currently open. The only currently identified non-cleanup implementation queue is Lane 7, Sweet16 performance continuation; Lane 6 is now an implemented surface to keep green. Future additional work should proceed as a small number of high-signal implementation lanes only when live code, generated guardrails, a fresh duplicate audit, or release validation exposes concrete value. Do not start by inventing new tracker files. Start from this roadmap, the active focused specs, and the live code. Every reopened lane below must end with a concrete doc/status update in this file or in the linked specialist status doc.
 
 ### Cross-Lane Engineering Rules
 
@@ -521,6 +523,153 @@ git diff --check
 node tools/testing/refresh-governance.js
 ```
 
+### Lane 6: Full-Language Conformance Closure
+
+Source: sibling audit of `C:\Users\sneak\Development\PairOfCleats_CODEX\TES_LAYN_ROADMAP.md` on 2026-05-22. The useful work is folded into current USR surfaces; do not resurrect the historical TES_LAYN file names.
+
+Status as of 2026-05-22: implemented on this branch. The closure consists of generated `usr-artifact-expectations`, the aggregate `tools/usr/conformance-surface.js` report/check command, the `tooling/usr/full-conformance-surface` test, and the ordered `usr-full-conformance` runner lane. Keep this section as maintenance guidance for future USR drift, not as an open implementation queue.
+
+Implemented surface:
+
+- `tools/usr/generate-usr-matrix-baselines/builders.mjs` now generates `tests/lang/matrix/usr-artifact-expectations.json` from the current language capabilities and framework profiles.
+- `src/contracts/schemas/usr-matrix.js` and `src/contracts/validators/usr-matrix/readiness.js` now validate artifact-expectation coverage together with language profiles, framework profiles, capability rows, conformance rows, fixture-governance rows, batch shards, and known runner lanes.
+- `tools/usr/conformance-surface.js` emits a validated `usr-conformance-summary` payload with profile counts, shard selectors, artifact-expectation counts, and row-level pass/fail diagnostics.
+- `tests/run.rules.jsonc`, `tests/runner/lane-manifests.jsonc`, and `tests/usr-full-conformance/` define the aggregate ordered lane.
+- `tests/tooling/usr/full-conformance-surface.test.js` is the focused guard for the aggregate report.
+
+Project fit and decision:
+
+- Best fit is a thin aggregate validation/reporting surface over the current USR registries and conformance shards, not a second language-lane system. The product is a hybrid semantic indexer/search tool; language coverage must prove predictable artifact/query/risk behavior across supported languages without creating a parallel fixture taxonomy.
+- Keep `src/index/language-registry/registry-data.js` as the active language registry source, `tools/usr/generate-usr-matrix-baselines.mjs` as the generated-matrix owner, and `src/contracts/validators/usr-matrix/readiness.js` as the validator home for cross-matrix coverage checks.
+- Prefer one generated registry/report extension over hand-maintained per-language checklists. If artifact expectations become a generated registry, append it through `tools/usr/generate-usr-matrix-baselines/builders.mjs` so generator order remains explicit and drift-checkable.
+- Do not force optional persisted USR artifacts into production before they have user value. The first pass should prove current artifact surfaces and deterministic empty behavior, then separately mark optional persisted USR artifacts from `docs/specs/unified-syntax-representation.md` as disabled, optional, or required.
+
+Current live anchors:
+
+- Source registry and routing: `src/index/language-registry/registry-data.js`, `src/index/language-registry.js`, `src/index/language-registry/registry.js`, `src/index/language-registry/descriptors.js`, and `tests/lang/registry/registry-contract-matrix.test.js`.
+- Matrix generator and generated rows: `tools/usr/generate-usr-matrix-baselines.mjs`, `tools/usr/generate-usr-matrix-baselines/datasets.mjs`, `tools/usr/generate-usr-matrix-baselines/builders.mjs`, `tools/usr/generate-usr-matrix-baselines/io.mjs`, and `tests/lang/matrix/usr-*.json`.
+- Existing matrix contracts: `src/contracts/validators/usr-matrix.js`, `src/contracts/validators/usr-matrix/registry.js`, `src/contracts/validators/usr-matrix/readiness.js`, `src/contracts/validators/usr-matrix/scenarios.js`, `src/contracts/validators/usr-matrix/governance.js`, and `src/contracts/validators/usr.js`.
+- Current shard surface: `tests/lang/matrix/usr-language-batch-shards.json`, `tests/conformance/language-shards/assert-language-shard.js`, `tests/conformance/language-shards/README.md`, and the nine shard validation tests under `tests/conformance/language-shards/`.
+- Current checklist and docs proof: `tests/tooling/docs/usr-contract-checklists.test.js`, `docs/specs/unified-syntax-representation.md`, `docs/specs/usr-core-quality-conformance-testing.md`, `docs/specs/usr-core-artifact-schema-catalog.md`, `docs/specs/usr/languages/`, and `docs/specs/usr/frameworks/`.
+
+Known shard groups to aggregate:
+
+| Shard | Existing selector | Coverage role |
+| --- | --- | --- |
+| `B0` | `conformance/language-shards/foundation/validation` | Harness readiness and C0/C1 foundation contract. |
+| `B1` | `conformance/language-shards/javascript-typescript/validation` | JavaScript/TypeScript C0-C4 and framework overlay baseline. |
+| `B2` | `conformance/language-shards/systems-languages/validation` | C-like, Go, Rust, and Swift systems-language coverage. |
+| `B3` | `conformance/language-shards/managed-languages/validation` | C#, Dart, Groovy, Java, Kotlin, and Scala managed-language coverage. |
+| `B4` | `conformance/language-shards/dynamic-languages/validation` | Julia, Lua, Perl, PHP, Python, R, Ruby, and Shell coverage. |
+| `B5` | `conformance/language-shards/markup-style-template/validation` | CSS, HTML, Handlebars, Jinja, Mustache, and Razor C0/C1/C4 coverage. |
+| `B6` | `conformance/language-shards/data-interface-dsl/validation` | GraphQL, Proto, and SQL data/interface DSL coverage. |
+| `B7` | `conformance/language-shards/build-infra-dsl/validation` | CMake, Dockerfile, INI, JSON, Makefile, Nix, Starlark, TOML, XML, and YAML coverage. |
+| `B8` | `conformance/language-shards/cross-language-integration/validation` | Cross-batch C0-C4 integration and regression coverage. |
+
+Maintenance sequence for future changes:
+
+1. Reuse `tests/lang/matrix/usr-language-batch-shards.json` and each shard `orderManifest`; do not copy language lists into a new hand-written file. The aggregate surface must keep deriving shard selectors from the matrix.
+2. Keep artifact expectations generated through `tools/usr/generate-usr-matrix-baselines.mjs`. Do not hand-edit `tests/lang/matrix/usr-artifact-expectations.json`.
+3. When language capabilities or framework profiles change, update the generator inputs and let `node tools/usr/generate-usr-matrix-baselines.mjs --check` enforce drift.
+4. If optional persisted USR artifacts become production outputs, update the artifact-expectation model in the generator and validator in the same change.
+5. If the aggregate command becomes public instead of internal validation, add it through the command inventory flow and update `docs/guides/commands.md`.
+
+Acceptance:
+
+- Every active language registry id has profile, capability, fixture-governance, artifact-presence or artifact-expectation rows, and conformance shard coverage.
+- One command or manifest can run or expand the complete all-language coverage surface deterministically (`node tools/usr/conformance-surface.js --check` and `node tests/run.js --lane usr-full-conformance`).
+- CI can shard the surface without changing per-language order.
+- Missing or extra registry language rows fail fast.
+- Existing USR Gate A/B/C technical checks stay green.
+- The aggregate report does not claim optional persisted USR artifacts are produced unless production code actually emits them.
+- New generated matrix rows are regenerated by `node tools/usr/generate-usr-matrix-baselines.mjs`, and `--check` fails on drift.
+- Any new checked-in generated surface is covered by `node tools/docs/generated-surfaces.js --check-freshness` or a focused equivalent.
+
+Primary validation commands:
+
+```powershell
+node tools/usr/conformance-surface.js --check --json temp/validation/usr-full-conformance.json
+node tests/run.js --lane usr-full-conformance --timeout-ms 30000
+node tests/run.js conformance/language-shards/foundation/validation conformance/language-shards/javascript-typescript/validation conformance/language-shards/systems-languages/validation conformance/language-shards/managed-languages/validation conformance/language-shards/dynamic-languages/validation conformance/language-shards/markup-style-template/validation conformance/language-shards/data-interface-dsl/validation conformance/language-shards/build-infra-dsl/validation conformance/language-shards/cross-language-integration/validation tooling/docs/usr-contract-checklists --lane=all --timeout-ms 30000
+node tools/usr/generate-usr-matrix-baselines.mjs --check
+node tools/testing/refresh-governance.js
+git diff --check
+```
+
+Add the new aggregate command, manifest check, or drift check to this list in the same change that implements it. If the implementation adds a runner lane, also run `node tools/testing/generate-lane-manifests.js`, `node tools/testing/refresh-governance.js`, and the relevant `tests/runner/*` manifest/governance selectors.
+
+### Lane 7: Sweet16 Performance Continuation
+
+Source: sibling audit of `C:\Users\sneak\Development\PairOfCleats_CODEX\SWEET16_ROADMAP.md` on 2026-05-22. Current truth starts from `tools/bench/suites/sweet16.js`, not the sibling roadmap's stale checkbox state.
+
+Project fit and decision:
+
+- Best fit is measurement-led production-path optimization. PairOfCleats is an indexing/search utility, so the perf queue should improve real build, artifact, retrieval, and tooling paths while preserving deterministic outputs, bounded memory, and Windows-safe subprocess/file behavior.
+- Do not optimize for benchmark-only wins. Every accepted change must map the benchmark signal to production modules and focused tests.
+- Keep `tools/bench/suites/sweet16.js` small enough for a CI-adjacent signal. Add new suite entries only when they cover a production bottleneck that is not already represented by a focused benchmark.
+- Treat `tools/bench/bench-runner.js` as the report owner. Its JSON report already records runner environment, failures/timeouts, critical path scripts/artifacts, stage overlap, utilization samples, and triage hints; downstream analysis should consume that shape rather than inventing a second report format.
+
+Current live anchors:
+
+- Suite and report contract: `tools/bench/suites/sweet16.js`, `tools/bench/bench-runner.js`, `tools/bench/bench-diff.js`, `docs/schemas/bench-runner-report.schema.json`, `tests/perf/tooling/bench/runner-contract.test.js`, `tests/perf/tooling/bench/output-schema.test.js`, `tests/perf/tooling/bench/per-output-schema.test.js`, and `tests/ci/suite-runner.smoke.test.js`.
+- Artifact IO and loader paths: `docs/specs/artifact-io-pipeline.md`, `docs/perf/index-artifact-pipelines.md`, `src/shared/artifact-io/`, `src/index/build/artifacts/`, `tools/bench/artifact-io/`, `tests/shared/artifact-io/`, and `tests/perf/artifact-io/`.
+- Cache and invalidation paths: `docs/specs/cache-key-invalidation.md`, `src/shared/cache/`, `src/shared/cache-key.js`, `src/shared/cache-cas/`, `src/retrieval/query-cache.js`, `src/retrieval/query-plan-cache.js`, `src/retrieval/index-cache.js`, `tools/bench/cache-hit-rate.js`, and `tests/shared/cache/`.
+- Stage1, postings, and chargram paths: `docs/specs/build-scheduler.md`, `docs/specs/byte-budget-policy.md`, `docs/specs/deterministic-ordering.md`, `src/index/build/postings.js`, `src/index/build/postings/`, `src/index/build/indexer/steps/postings.js`, `src/index/build/indexer/steps/process-files/postings-queue.js`, `tools/bench/index/postings-real.js`, `tools/bench/index/chargram-postings.js`, `tests/indexing/postings/`, `tests/indexing/stage1/`, and `tests/perf/indexing/postings/`.
+- Relations, filters, repo-map, file-meta, and minhash paths: `docs/specs/spill-merge-framework.md`, `docs/specs/file-meta.md`, `src/index/build/artifacts/filter-index.js`, `src/index/build/artifacts/filter-index-reuse.js`, `src/index/build/artifacts/repo-map.js`, `src/index/build/artifacts/file-meta.js`, `src/index/build/artifacts/minhash-packed.js`, `src/index/scm/file-meta.js`, `src/index/scm/file-meta-snapshot.js`, `tools/bench/index/relations-build.js`, `tools/bench/index/filter-index-build.js`, `tools/bench/index/repo-map-compress.js`, `tools/bench/index/file-meta-compare.js`, `tools/bench/index/minhash-packed.js`, and the matching `tests/indexing/artifacts/`, `tests/indexing/filter-index/`, and `tests/perf/indexing/artifacts/` coverage.
+- SQLite build paths: `docs/perf/sqlite-build.md`, `src/storage/sqlite/build/`, `src/storage/sqlite/build/from-artifacts/`, `tools/bench/sqlite/build-from-artifacts.js`, and `tests/storage/sqlite/`.
+- VFS and tree-sitter paths: `docs/specs/segmentation-perf.md`, `docs/specs/vfs-*.md`, `src/index/tooling/vfs/`, `src/index/build/vfs-manifest-collector.js`, `src/index/chunking/tree-sitter.js`, `src/index/build/tree-sitter-scheduler/`, `tools/bench/vfs/parallel-manifest-build.js`, `tools/bench/index/tree-sitter-load.js`, `tests/tooling/vfs/`, and `tests/indexing/tree-sitter/`.
+- Graph/context-pack candidate paths: `docs/perf/graph-context-pack.md`, `docs/specs/graph-filtering-and-dedupe.md`, `src/retrieval/output/graph-context-pack.js`, `tools/bench/graph/context-pack-latency.js`, and `tests/perf/graph-context-pack-latency-bench-contract.test.js`.
+
+Current `sweet16-ci` entries:
+
+| Entry | Bench script | Production owner family | Required report shape |
+| --- | --- | --- | --- |
+| `artifact-io-throughput` | `tools/bench/artifact-io/artifact-io-throughput.js` | Artifact writer/reader throughput and byte guards. | baseline/current/delta |
+| `artifact-io-streaming-vs-materialize` | `tools/bench/artifact-io/streaming-vs-materialize.js` | Streaming JSONL loaders versus materialized reads. | baseline/current/delta |
+| `cache-hit-rate` | `tools/bench/cache-hit-rate.js` | Shared cache behavior and invalidation pressure. | baseline/current/delta |
+| `postings-real` | `tools/bench/index/postings-real.js` | Stage1 sparse postings and worker/thread scaling. | baseline/current/delta |
+| `chargram-postings` | `tools/bench/index/chargram-postings.js` | Chargram postings build and spill behavior. | baseline/current/delta |
+| `relations-build` | `tools/bench/index/relations-build.js` | Relation artifact build and bounded merge behavior. | baseline/current/delta |
+| `filter-index-build` | `tools/bench/index/filter-index-build.js` | Filter bitmap/index artifact build; skip is allowed only with explicit reason. | baseline/current/delta or intentional skip |
+| `repo-map-compress` | `tools/bench/index/repo-map-compress.js` | Repo-map compression and stable ordering. | baseline/current/delta |
+| `index-state-write` | `tools/bench/index/index-state-write.js` | Build-state/index-state write pressure. | baseline/current/delta |
+| `file-meta-compare` | `tools/bench/index/file-meta-compare.js` | SCM/file metadata compare and snapshot reuse. | baseline/current/delta |
+| `minhash-packed` | `tools/bench/index/minhash-packed.js` | Packed minhash artifact size/allocation contract. | baseline/current/delta |
+| `sqlite-build-from-artifacts` | `tools/bench/sqlite/build-from-artifacts.js` | Stage4 SQLite build from artifact streams. | baseline/current/delta |
+| `vfs-parallel-manifest-build` | `tools/bench/vfs/parallel-manifest-build.js` | VFS manifest parallel build behavior. | JSON output |
+| `tree-sitter-load` | `tools/bench/index/tree-sitter-load.js` | Tree-sitter cold/warm loading and batching policy. | JSON output |
+
+Implementation sequence:
+
+1. Run the current Sweet16 suite once and preserve both the JSON report and terminal log. Use the suite report to identify failures, timeouts, positive duration deltas, missing report fields, critical path scripts, artifact stall tails, stage overlap, and low utilization.
+2. Classify each suite entry as current/pass, regression, missing benchmark, missing production feature, or intentional skip with a concrete reason. The classification should cite the bench entry id, script, parsed metrics, and production owner family.
+3. Fix report-contract gaps before performance tuning if they block interpretation. In particular, VFS and tree-sitter currently require JSON output rather than baseline/current/delta; upgrade only if the benchmark can provide a meaningful before/after comparison without fake baselines.
+4. Implement the first measured bottleneck with bounded scope. If results tie, default priority is Stage1 postings/chargram, artifact IO/loader, cache invalidation, relations/filter/repo-map, SQLite, VFS, tree-sitter, graph/context-pack, then bench-output contract closure.
+5. Add candidate-specific tests or benchmark assertions for the touched production path. Benchmark-only code must not diverge from production behavior, and production tests must cover determinism, cache invalidation, memory/byte-budget behavior, and stable output shape where relevant.
+6. Keep benchmark data comparable. Do not change suite arguments, fixture sizes, or thread counts in the same commit as a production optimization unless the change is explicitly a benchmark-contract fix.
+7. Update the relevant focused spec/perf docs and this roadmap with measured before/after evidence. If graph/context-pack remains a roadmap candidate but not a `sweet16-ci` entry after classification, record whether it should be added to the suite or left as a separate perf lane.
+
+Acceptance:
+
+- The bench report has baseline/current/delta data or an explicit skip reason for every `sweet16-ci` entry.
+- The selected implementation batch improves a measured result or fixes a concrete correctness/performance failure without weakening deterministic artifact contracts.
+- No benchmark-only code path diverges from production path behavior.
+- Production verification and release-sensitive checks remain green before release work.
+- The classification explicitly covers VFS, tree-sitter, and graph/context-pack so they do not stay ambiguous roadmap labels.
+- Any benchmark suite change includes schema/runner tests where report shape changes.
+- Any production optimization includes focused tests in the production owner family, not only a benchmark rerun.
+
+Primary validation commands:
+
+```powershell
+node tools/bench/bench-runner.js --suite sweet16-ci --json .testLogs/bench-sweet16.json --quiet
+node tests/run.js ci/markdown-link-check tooling/docs/contract-matrix tooling/docs/usr-contract-checklists --lane=all --timeout-ms 30000
+node tools/docs/generated-surfaces.js --check-freshness
+git diff --check
+```
+
+After choosing a measured implementation batch, add the batch-specific focused selectors here before moving any status to `done`.
+
 ## Audited Sources
 
 | Source | Disposition |
@@ -543,6 +692,11 @@ node tools/testing/refresh-governance.js
 | `docs/specs/unified-syntax-representation.md` and `docs/specs/usr-core-*.md` | Active USR normative contract set. Roadmap status is consolidated here. |
 | `docs/archived/usr-rollout-approval-lock.md` | Archived historical approval-lock note; not an active release blocker. |
 | `docs/specs/lexicon-*.md`, `docs/specs/language-lexicon-wordlists.md`, `docs/specs/chargram-enrichment-and-ann-fallback.md` | Active lexicon/retrieval contracts replacing old `LEXI.md` references. |
+| `C:\Users\sneak\Development\PairOfCleats_CODEX\TES_LAYN_ROADMAP.md` | Sibling historical roadmap audited on 2026-05-22. Useful all-language coverage work is folded into Lane 6 using current USR matrices and conformance shards; the old TES_LAYN file names remain deprecated. |
+| `C:\Users\sneak\Development\PairOfCleats_CODEX\SWEET16_ROADMAP.md` | Sibling historical performance roadmap audited on 2026-05-22. Useful performance continuation work is folded into Lane 7 and must start from the current Sweet16 bench suite output. |
+| `C:\Users\sneak\Development\PairOfCleats_CODEX\GIGAROADMAP_2.md` | Sibling historical Phase 14/15 roadmap audited on 2026-05-22. Current work is represented by active snapshots, diffs, as-of retrieval, workspace, federation, cache, and index-stats specs/code. |
+| `C:\Users\sneak\Development\PairOfCleats_CODEX\FUTUREROADMAP.md` | Sibling historical roadmap audited on 2026-05-22. Current work maps to active prose extraction, vector-only, release/platform, lexicon, TUI, supervisor, and native-accel no-go docs/code. |
+| `C:\Users\sneak\Development\PairOfCleats_CODEX\NIKE_SB_CHUNK_ROADMAP.md` | Sibling historical roadmap audited on 2026-05-22. Its content is already preserved in `docs/archived/FUTUREROADMAP-legacy.md`; live equivalents exist for test-runner coverage options, ingest commands, workspace manifests, determinism reports, trim policy versioning, and startup profiling. |
 | `docs/archived/FUTUREROADMAP-legacy.md` | Historical only. Replaced by this file for roadmap/status. |
 | `docs/archived/phase-11.9-lexicon-aware-relations-and-retrieval-enrichment.md` | Historical only. Replaced by this file for status and active lexicon specs for behavior. |
 | `docs/archived/spec-chargram-enrichment-and-ann-fallback.md` | Historical only. Replaced by `docs/specs/chargram-enrichment-and-ann-fallback.md`. |

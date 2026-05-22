@@ -452,13 +452,13 @@ const expandSimpleBraceAlternates = (value) => {
   );
   assert.match(
     dispatcherSpec,
-    /## 3\. Completed reconciliation[\s\S]*tests\/dispatch\/search-flag-passthrough\.test\.js/,
+    /## 3\. Completed reconciliation[\s\S]*tests\/cli\/general\/cli\.test\.js/,
     'dispatcher reconciliation spec must record search pass-through as completed with regression coverage'
   );
   assert.match(
     dispatcherSpec,
-    /Optional strict validation mode \(future extension\)/,
-    'dispatcher strict-mode work must be classified as future extension, not active immediate work'
+    /### 3\.2 Strict dispatch mode[\s\S]*PAIROFCLEATS_DISPATCH_STRICT=1[\s\S]*--strict-dispatch/,
+    'dispatcher strict-mode work must be recorded as active opt-in behavior'
   );
   assert.doesNotMatch(
     dispatcherSpec,

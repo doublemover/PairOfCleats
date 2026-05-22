@@ -50,6 +50,38 @@ const cases = [
     }
   },
   {
+    name: 'both direction traces upstream and downstream dependencies',
+    run() {
+      const impact = buildImpactAnalysis({
+        seed: { type: 'chunk', chunkUid: 'chunk-b' },
+        graphRelations: {
+          version: 1,
+          generatedAt: '2026-01-01T00:00:00.000Z',
+          callGraph: {
+            nodeCount: 3,
+            edgeCount: 2,
+            nodes: [
+              { id: 'chunk-a', file: 'src/a.js', name: 'alpha', kind: 'function', chunkId: 'a', out: ['chunk-b'], in: [] },
+              { id: 'chunk-b', file: 'src/b.js', name: 'beta', kind: 'function', chunkId: 'b', out: ['chunk-c'], in: ['chunk-a'] },
+              { id: 'chunk-c', file: 'src/c.js', name: 'gamma', kind: 'function', chunkId: 'c', out: [], in: ['chunk-b'] }
+            ]
+          },
+          usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [] },
+          importGraph: { nodeCount: 0, edgeCount: 0, nodes: [] }
+        },
+        direction: 'both',
+        depth: 1,
+        caps: { maxWorkUnits: 100 },
+        indexCompatKey: 'compat-impact-both'
+      });
+
+      assert.equal(impact.direction, 'both');
+      const impacted = impact.impacted.map((entry) => entry.ref?.chunkUid).filter(Boolean);
+      assert.ok(impacted.includes('chunk-a'));
+      assert.ok(impacted.includes('chunk-c'));
+    }
+  },
+  {
     name: 'changed file lists synthesize file seeds and reach impacted files',
     run() {
       const impact = buildImpactAnalysis({

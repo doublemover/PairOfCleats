@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-05-21T14:00:11.450Z",
+  "generatedAt": "2026-05-22T05:26:37.160Z",
   "summary": {
-    "lanes": 4,
-    "tests": 943,
+    "lanes": 5,
+    "tests": 954,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 251,
+    "families": 253,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 810,
       "historicalFallbackTests": 0,
-      "missingTests": 133
+      "missingTests": 144
     }
   },
   "lanes": [
@@ -82,6 +82,21 @@
       ],
       "timingSources": {
         "timing-artifact": 18
+      }
+    },
+    {
+      "lane": "usr-full-conformance",
+      "targetMaxDurationSeconds": 60,
+      "orderFile": "tests/usr-full-conformance/usr-full-conformance.order.txt",
+      "timingArtifactPath": "",
+      "totalTests": 11,
+      "knownDurationTests": 0,
+      "knownDurationMs": 0,
+      "p50DurationMs": null,
+      "p95DurationMs": null,
+      "resolvedTimingArtifactPaths": [],
+      "timingSources": {
+        "missing": 11
       }
     }
   ],
@@ -1061,9 +1076,9 @@
     },
     {
       "key": "tooling/docs",
-      "count": 1,
+      "count": 2,
       "knownDurationMs": 206,
-      "unknownDurationCount": 0
+      "unknownDurationCount": 1
     },
     {
       "key": "graph/contracts",
@@ -1414,6 +1429,12 @@
       "unknownDurationCount": 0
     },
     {
+      "key": "conformance/language-shards",
+      "count": 9,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 9
+    },
+    {
       "key": "indexing/policy",
       "count": 9,
       "knownDurationMs": 0,
@@ -1583,6 +1604,12 @@
     },
     {
       "key": "smoke/sqlite",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/usr",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

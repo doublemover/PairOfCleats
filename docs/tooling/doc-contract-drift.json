@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-20T21:19:42.884Z",
+  "generatedAt": "2026-05-22T05:30:21.401Z",
   "ok": true,
   "checks": {
     "searchCliFlags": {
@@ -115,16 +115,16 @@
     "testRunnerLanes": {
       "doc": "docs/testing/test-runner-interface.md",
       "source": "tests/run.rules.jsonc",
-      "sourceCount": 16,
-      "docCount": 16,
+      "sourceCount": 17,
+      "docCount": 17,
       "missingInDocs": [],
       "extraInDocs": []
     },
     "testRegroupingLanes": {
       "doc": "docs/testing/test-decomposition-regrouping.md",
       "source": "tests/run.rules.jsonc",
-      "sourceCount": 16,
-      "docCount": 16,
+      "sourceCount": 17,
+      "docCount": 17,
       "missingInDocs": [],
       "extraInDocs": []
     }

@@ -111,7 +111,7 @@ Edge type notes:
 ## 3) `pairofcleats impact`
 
 ### Purpose
-Return upstream/downstream impact radius from a seed with witness paths.
+Return upstream/downstream/bidirectional impact radius from a seed with witness paths.
 
 ### Command
 ```bash
@@ -119,7 +119,7 @@ pairofcleats impact --repo . --seed symbol:<symbolId> --direction downstream --d
 ```
 
 ### Required flags
-- `--direction upstream|downstream`
+- `--direction upstream|downstream|both`
 - `--depth <n>`
 
 ### Optional flags

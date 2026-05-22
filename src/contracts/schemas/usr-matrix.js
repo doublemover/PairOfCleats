@@ -396,6 +396,22 @@ export const USR_MATRIX_ROW_SCHEMAS = Object.freeze({
       blocking: BOOL
     }
   },
+  'usr-artifact-expectations': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'profileType', 'profileId', 'capability', 'artifactId', 'expectation', 'requiredConformance', 'blocking', 'notes'],
+    properties: {
+      id: STRING,
+      profileType: { type: 'string', enum: ['language', 'framework'] },
+      profileId: STRING,
+      capability: STRING,
+      artifactId: STRING,
+      expectation: { type: 'string', enum: ['required', 'deterministic-empty', 'optional-disabled'] },
+      requiredConformance: stringArray,
+      blocking: BOOL,
+      notes: STRING
+    }
+  },
   'usr-conformance-levels': {
     type: 'object',
     additionalProperties: false,

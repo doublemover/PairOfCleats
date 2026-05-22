@@ -1,0 +1,6502 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-artifact-expectations",
+  "rows": [
+    {
+      "id": "framework:angular:framework-binding",
+      "profileType": "framework",
+      "profileId": "angular",
+      "capability": "framework-binding",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Framework binding edges should materialize through graph relations."
+    },
+    {
+      "id": "framework:angular:framework-hydration",
+      "profileType": "framework",
+      "profileId": "angular",
+      "capability": "framework-hydration",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Hydration boundary expectations should materialize through graph relations."
+    },
+    {
+      "id": "framework:angular:framework-routing",
+      "profileType": "framework",
+      "profileId": "angular",
+      "capability": "framework-routing",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Route-bearing framework profiles should expose route/file linkage."
+    },
+    {
+      "id": "framework:angular:framework-segmentation",
+      "profileType": "framework",
+      "profileId": "angular",
+      "capability": "framework-segmentation",
+      "artifactId": "vfs_manifest",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Virtual document and segment routing expectations for framework overlays."
+    },
+    {
+      "id": "framework:astro:framework-binding",
+      "profileType": "framework",
+      "profileId": "astro",
+      "capability": "framework-binding",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Framework binding edges should materialize through graph relations."
+    },
+    {
+      "id": "framework:astro:framework-hydration",
+      "profileType": "framework",
+      "profileId": "astro",
+      "capability": "framework-hydration",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Hydration boundary expectations should materialize through graph relations."
+    },
+    {
+      "id": "framework:astro:framework-routing",
+      "profileType": "framework",
+      "profileId": "astro",
+      "capability": "framework-routing",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Route-bearing framework profiles should expose route/file linkage."
+    },
+    {
+      "id": "framework:astro:framework-segmentation",
+      "profileType": "framework",
+      "profileId": "astro",
+      "capability": "framework-segmentation",
+      "artifactId": "vfs_manifest",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Virtual document and segment routing expectations for framework overlays."
+    },
+    {
+      "id": "framework:next:framework-binding",
+      "profileType": "framework",
+      "profileId": "next",
+      "capability": "framework-binding",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Framework binding edges should materialize through graph relations."
+    },
+    {
+      "id": "framework:next:framework-hydration",
+      "profileType": "framework",
+      "profileId": "next",
+      "capability": "framework-hydration",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Hydration boundary expectations should materialize through graph relations."
+    },
+    {
+      "id": "framework:next:framework-routing",
+      "profileType": "framework",
+      "profileId": "next",
+      "capability": "framework-routing",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Route-bearing framework profiles should expose route/file linkage."
+    },
+    {
+      "id": "framework:next:framework-segmentation",
+      "profileType": "framework",
+      "profileId": "next",
+      "capability": "framework-segmentation",
+      "artifactId": "vfs_manifest",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Virtual document and segment routing expectations for framework overlays."
+    },
+    {
+      "id": "framework:nuxt:framework-binding",
+      "profileType": "framework",
+      "profileId": "nuxt",
+      "capability": "framework-binding",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Framework binding edges should materialize through graph relations."
+    },
+    {
+      "id": "framework:nuxt:framework-hydration",
+      "profileType": "framework",
+      "profileId": "nuxt",
+      "capability": "framework-hydration",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Hydration boundary expectations should materialize through graph relations."
+    },
+    {
+      "id": "framework:nuxt:framework-routing",
+      "profileType": "framework",
+      "profileId": "nuxt",
+      "capability": "framework-routing",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Route-bearing framework profiles should expose route/file linkage."
+    },
+    {
+      "id": "framework:nuxt:framework-segmentation",
+      "profileType": "framework",
+      "profileId": "nuxt",
+      "capability": "framework-segmentation",
+      "artifactId": "vfs_manifest",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Virtual document and segment routing expectations for framework overlays."
+    },
+    {
+      "id": "framework:react:framework-binding",
+      "profileType": "framework",
+      "profileId": "react",
+      "capability": "framework-binding",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Framework binding edges should materialize through graph relations."
+    },
+    {
+      "id": "framework:react:framework-hydration",
+      "profileType": "framework",
+      "profileId": "react",
+      "capability": "framework-hydration",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Hydration boundary expectations should materialize through graph relations."
+    },
+    {
+      "id": "framework:react:framework-routing",
+      "profileType": "framework",
+      "profileId": "react",
+      "capability": "framework-routing",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Route-bearing framework profiles should expose route/file linkage."
+    },
+    {
+      "id": "framework:react:framework-segmentation",
+      "profileType": "framework",
+      "profileId": "react",
+      "capability": "framework-segmentation",
+      "artifactId": "vfs_manifest",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Virtual document and segment routing expectations for framework overlays."
+    },
+    {
+      "id": "framework:svelte:framework-binding",
+      "profileType": "framework",
+      "profileId": "svelte",
+      "capability": "framework-binding",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Framework binding edges should materialize through graph relations."
+    },
+    {
+      "id": "framework:svelte:framework-hydration",
+      "profileType": "framework",
+      "profileId": "svelte",
+      "capability": "framework-hydration",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Hydration boundary expectations should materialize through graph relations."
+    },
+    {
+      "id": "framework:svelte:framework-routing",
+      "profileType": "framework",
+      "profileId": "svelte",
+      "capability": "framework-routing",
+      "artifactId": "file_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "Route-bearing framework profiles should expose route/file linkage."
+    },
+    {
+      "id": "framework:svelte:framework-segmentation",
+      "profileType": "framework",
+      "profileId": "svelte",
+      "capability": "framework-segmentation",
+      "artifactId": "vfs_manifest",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Virtual document and segment routing expectations for framework overlays."
+    },
+    {
+      "id": "framework:sveltekit:framework-binding",
+      "profileType": "framework",
+      "profileId": "sveltekit",
+      "capability": "framework-binding",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Framework binding edges should materialize through graph relations."
+    },
+    {
+      "id": "framework:sveltekit:framework-hydration",
+      "profileType": "framework",
+      "profileId": "sveltekit",
+      "capability": "framework-hydration",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Hydration boundary expectations should materialize through graph relations."
+    },
+    {
+      "id": "framework:sveltekit:framework-routing",
+      "profileType": "framework",
+      "profileId": "sveltekit",
+      "capability": "framework-routing",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Route-bearing framework profiles should expose route/file linkage."
+    },
+    {
+      "id": "framework:sveltekit:framework-segmentation",
+      "profileType": "framework",
+      "profileId": "sveltekit",
+      "capability": "framework-segmentation",
+      "artifactId": "vfs_manifest",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Virtual document and segment routing expectations for framework overlays."
+    },
+    {
+      "id": "framework:vue:framework-binding",
+      "profileType": "framework",
+      "profileId": "vue",
+      "capability": "framework-binding",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Framework binding edges should materialize through graph relations."
+    },
+    {
+      "id": "framework:vue:framework-hydration",
+      "profileType": "framework",
+      "profileId": "vue",
+      "capability": "framework-hydration",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Hydration boundary expectations should materialize through graph relations."
+    },
+    {
+      "id": "framework:vue:framework-routing",
+      "profileType": "framework",
+      "profileId": "vue",
+      "capability": "framework-routing",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Route-bearing framework profiles should expose route/file linkage."
+    },
+    {
+      "id": "framework:vue:framework-segmentation",
+      "profileType": "framework",
+      "profileId": "vue",
+      "capability": "framework-segmentation",
+      "artifactId": "vfs_manifest",
+      "expectation": "required",
+      "requiredConformance": [
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "Virtual document and segment routing expectations for framework overlays."
+    },
+    {
+      "id": "language:clike:ast",
+      "profileType": "language",
+      "profileId": "clike",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for clike."
+    },
+    {
+      "id": "language:clike:controlFlow",
+      "profileType": "language",
+      "profileId": "clike",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for clike."
+    },
+    {
+      "id": "language:clike:dataFlow",
+      "profileType": "language",
+      "profileId": "clike",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported dataFlow coverage for clike."
+    },
+    {
+      "id": "language:clike:docmeta",
+      "profileType": "language",
+      "profileId": "clike",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for clike."
+    },
+    {
+      "id": "language:clike:graphRelations",
+      "profileType": "language",
+      "profileId": "clike",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for clike."
+    },
+    {
+      "id": "language:clike:imports",
+      "profileType": "language",
+      "profileId": "clike",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for clike."
+    },
+    {
+      "id": "language:clike:relations",
+      "profileType": "language",
+      "profileId": "clike",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for clike."
+    },
+    {
+      "id": "language:clike:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "clike",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for clike."
+    },
+    {
+      "id": "language:clike:riskLocal",
+      "profileType": "language",
+      "profileId": "clike",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for clike."
+    },
+    {
+      "id": "language:clike:symbolGraph",
+      "profileType": "language",
+      "profileId": "clike",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for clike."
+    },
+    {
+      "id": "language:cmake:ast",
+      "profileType": "language",
+      "profileId": "cmake",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for cmake."
+    },
+    {
+      "id": "language:cmake:controlFlow",
+      "profileType": "language",
+      "profileId": "cmake",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial controlFlow coverage for cmake."
+    },
+    {
+      "id": "language:cmake:dataFlow",
+      "profileType": "language",
+      "profileId": "cmake",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial dataFlow coverage for cmake."
+    },
+    {
+      "id": "language:cmake:docmeta",
+      "profileType": "language",
+      "profileId": "cmake",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for cmake."
+    },
+    {
+      "id": "language:cmake:graphRelations",
+      "profileType": "language",
+      "profileId": "cmake",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for cmake."
+    },
+    {
+      "id": "language:cmake:imports",
+      "profileType": "language",
+      "profileId": "cmake",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported imports coverage for cmake."
+    },
+    {
+      "id": "language:cmake:relations",
+      "profileType": "language",
+      "profileId": "cmake",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for cmake."
+    },
+    {
+      "id": "language:cmake:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "cmake",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for cmake."
+    },
+    {
+      "id": "language:cmake:riskLocal",
+      "profileType": "language",
+      "profileId": "cmake",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for cmake."
+    },
+    {
+      "id": "language:cmake:symbolGraph",
+      "profileType": "language",
+      "profileId": "cmake",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for cmake."
+    },
+    {
+      "id": "language:csharp:ast",
+      "profileType": "language",
+      "profileId": "csharp",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for csharp."
+    },
+    {
+      "id": "language:csharp:controlFlow",
+      "profileType": "language",
+      "profileId": "csharp",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for csharp."
+    },
+    {
+      "id": "language:csharp:dataFlow",
+      "profileType": "language",
+      "profileId": "csharp",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported dataFlow coverage for csharp."
+    },
+    {
+      "id": "language:csharp:docmeta",
+      "profileType": "language",
+      "profileId": "csharp",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for csharp."
+    },
+    {
+      "id": "language:csharp:graphRelations",
+      "profileType": "language",
+      "profileId": "csharp",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for csharp."
+    },
+    {
+      "id": "language:csharp:imports",
+      "profileType": "language",
+      "profileId": "csharp",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for csharp."
+    },
+    {
+      "id": "language:csharp:relations",
+      "profileType": "language",
+      "profileId": "csharp",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for csharp."
+    },
+    {
+      "id": "language:csharp:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "csharp",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for csharp."
+    },
+    {
+      "id": "language:csharp:riskLocal",
+      "profileType": "language",
+      "profileId": "csharp",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for csharp."
+    },
+    {
+      "id": "language:csharp:symbolGraph",
+      "profileType": "language",
+      "profileId": "csharp",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for csharp."
+    },
+    {
+      "id": "language:css:ast",
+      "profileType": "language",
+      "profileId": "css",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for css."
+    },
+    {
+      "id": "language:css:controlFlow",
+      "profileType": "language",
+      "profileId": "css",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported controlFlow coverage for css."
+    },
+    {
+      "id": "language:css:dataFlow",
+      "profileType": "language",
+      "profileId": "css",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported dataFlow coverage for css."
+    },
+    {
+      "id": "language:css:docmeta",
+      "profileType": "language",
+      "profileId": "css",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for css."
+    },
+    {
+      "id": "language:css:graphRelations",
+      "profileType": "language",
+      "profileId": "css",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for css."
+    },
+    {
+      "id": "language:css:imports",
+      "profileType": "language",
+      "profileId": "css",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported imports coverage for css."
+    },
+    {
+      "id": "language:css:relations",
+      "profileType": "language",
+      "profileId": "css",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for css."
+    },
+    {
+      "id": "language:css:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "css",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for css."
+    },
+    {
+      "id": "language:css:riskLocal",
+      "profileType": "language",
+      "profileId": "css",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for css."
+    },
+    {
+      "id": "language:css:symbolGraph",
+      "profileType": "language",
+      "profileId": "css",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for css."
+    },
+    {
+      "id": "language:dart:ast",
+      "profileType": "language",
+      "profileId": "dart",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for dart."
+    },
+    {
+      "id": "language:dart:controlFlow",
+      "profileType": "language",
+      "profileId": "dart",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for dart."
+    },
+    {
+      "id": "language:dart:dataFlow",
+      "profileType": "language",
+      "profileId": "dart",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported dataFlow coverage for dart."
+    },
+    {
+      "id": "language:dart:docmeta",
+      "profileType": "language",
+      "profileId": "dart",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for dart."
+    },
+    {
+      "id": "language:dart:graphRelations",
+      "profileType": "language",
+      "profileId": "dart",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for dart."
+    },
+    {
+      "id": "language:dart:imports",
+      "profileType": "language",
+      "profileId": "dart",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for dart."
+    },
+    {
+      "id": "language:dart:relations",
+      "profileType": "language",
+      "profileId": "dart",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for dart."
+    },
+    {
+      "id": "language:dart:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "dart",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for dart."
+    },
+    {
+      "id": "language:dart:riskLocal",
+      "profileType": "language",
+      "profileId": "dart",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for dart."
+    },
+    {
+      "id": "language:dart:symbolGraph",
+      "profileType": "language",
+      "profileId": "dart",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for dart."
+    },
+    {
+      "id": "language:dockerfile:ast",
+      "profileType": "language",
+      "profileId": "dockerfile",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for dockerfile."
+    },
+    {
+      "id": "language:dockerfile:controlFlow",
+      "profileType": "language",
+      "profileId": "dockerfile",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial controlFlow coverage for dockerfile."
+    },
+    {
+      "id": "language:dockerfile:dataFlow",
+      "profileType": "language",
+      "profileId": "dockerfile",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial dataFlow coverage for dockerfile."
+    },
+    {
+      "id": "language:dockerfile:docmeta",
+      "profileType": "language",
+      "profileId": "dockerfile",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for dockerfile."
+    },
+    {
+      "id": "language:dockerfile:graphRelations",
+      "profileType": "language",
+      "profileId": "dockerfile",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for dockerfile."
+    },
+    {
+      "id": "language:dockerfile:imports",
+      "profileType": "language",
+      "profileId": "dockerfile",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported imports coverage for dockerfile."
+    },
+    {
+      "id": "language:dockerfile:relations",
+      "profileType": "language",
+      "profileId": "dockerfile",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for dockerfile."
+    },
+    {
+      "id": "language:dockerfile:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "dockerfile",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for dockerfile."
+    },
+    {
+      "id": "language:dockerfile:riskLocal",
+      "profileType": "language",
+      "profileId": "dockerfile",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for dockerfile."
+    },
+    {
+      "id": "language:dockerfile:symbolGraph",
+      "profileType": "language",
+      "profileId": "dockerfile",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for dockerfile."
+    },
+    {
+      "id": "language:go:ast",
+      "profileType": "language",
+      "profileId": "go",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for go."
+    },
+    {
+      "id": "language:go:controlFlow",
+      "profileType": "language",
+      "profileId": "go",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for go."
+    },
+    {
+      "id": "language:go:dataFlow",
+      "profileType": "language",
+      "profileId": "go",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported dataFlow coverage for go."
+    },
+    {
+      "id": "language:go:docmeta",
+      "profileType": "language",
+      "profileId": "go",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for go."
+    },
+    {
+      "id": "language:go:graphRelations",
+      "profileType": "language",
+      "profileId": "go",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for go."
+    },
+    {
+      "id": "language:go:imports",
+      "profileType": "language",
+      "profileId": "go",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for go."
+    },
+    {
+      "id": "language:go:relations",
+      "profileType": "language",
+      "profileId": "go",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for go."
+    },
+    {
+      "id": "language:go:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "go",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for go."
+    },
+    {
+      "id": "language:go:riskLocal",
+      "profileType": "language",
+      "profileId": "go",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for go."
+    },
+    {
+      "id": "language:go:symbolGraph",
+      "profileType": "language",
+      "profileId": "go",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for go."
+    },
+    {
+      "id": "language:graphql:ast",
+      "profileType": "language",
+      "profileId": "graphql",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for graphql."
+    },
+    {
+      "id": "language:graphql:controlFlow",
+      "profileType": "language",
+      "profileId": "graphql",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported controlFlow coverage for graphql."
+    },
+    {
+      "id": "language:graphql:dataFlow",
+      "profileType": "language",
+      "profileId": "graphql",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported dataFlow coverage for graphql."
+    },
+    {
+      "id": "language:graphql:docmeta",
+      "profileType": "language",
+      "profileId": "graphql",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for graphql."
+    },
+    {
+      "id": "language:graphql:graphRelations",
+      "profileType": "language",
+      "profileId": "graphql",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for graphql."
+    },
+    {
+      "id": "language:graphql:imports",
+      "profileType": "language",
+      "profileId": "graphql",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial imports coverage for graphql."
+    },
+    {
+      "id": "language:graphql:relations",
+      "profileType": "language",
+      "profileId": "graphql",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for graphql."
+    },
+    {
+      "id": "language:graphql:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "graphql",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for graphql."
+    },
+    {
+      "id": "language:graphql:riskLocal",
+      "profileType": "language",
+      "profileId": "graphql",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for graphql."
+    },
+    {
+      "id": "language:graphql:symbolGraph",
+      "profileType": "language",
+      "profileId": "graphql",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for graphql."
+    },
+    {
+      "id": "language:groovy:ast",
+      "profileType": "language",
+      "profileId": "groovy",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for groovy."
+    },
+    {
+      "id": "language:groovy:controlFlow",
+      "profileType": "language",
+      "profileId": "groovy",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for groovy."
+    },
+    {
+      "id": "language:groovy:dataFlow",
+      "profileType": "language",
+      "profileId": "groovy",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported dataFlow coverage for groovy."
+    },
+    {
+      "id": "language:groovy:docmeta",
+      "profileType": "language",
+      "profileId": "groovy",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for groovy."
+    },
+    {
+      "id": "language:groovy:graphRelations",
+      "profileType": "language",
+      "profileId": "groovy",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for groovy."
+    },
+    {
+      "id": "language:groovy:imports",
+      "profileType": "language",
+      "profileId": "groovy",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for groovy."
+    },
+    {
+      "id": "language:groovy:relations",
+      "profileType": "language",
+      "profileId": "groovy",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for groovy."
+    },
+    {
+      "id": "language:groovy:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "groovy",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for groovy."
+    },
+    {
+      "id": "language:groovy:riskLocal",
+      "profileType": "language",
+      "profileId": "groovy",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for groovy."
+    },
+    {
+      "id": "language:groovy:symbolGraph",
+      "profileType": "language",
+      "profileId": "groovy",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for groovy."
+    },
+    {
+      "id": "language:handlebars:ast",
+      "profileType": "language",
+      "profileId": "handlebars",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for handlebars."
+    },
+    {
+      "id": "language:handlebars:controlFlow",
+      "profileType": "language",
+      "profileId": "handlebars",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported controlFlow coverage for handlebars."
+    },
+    {
+      "id": "language:handlebars:dataFlow",
+      "profileType": "language",
+      "profileId": "handlebars",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported dataFlow coverage for handlebars."
+    },
+    {
+      "id": "language:handlebars:docmeta",
+      "profileType": "language",
+      "profileId": "handlebars",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for handlebars."
+    },
+    {
+      "id": "language:handlebars:graphRelations",
+      "profileType": "language",
+      "profileId": "handlebars",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for handlebars."
+    },
+    {
+      "id": "language:handlebars:imports",
+      "profileType": "language",
+      "profileId": "handlebars",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial imports coverage for handlebars."
+    },
+    {
+      "id": "language:handlebars:relations",
+      "profileType": "language",
+      "profileId": "handlebars",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for handlebars."
+    },
+    {
+      "id": "language:handlebars:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "handlebars",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for handlebars."
+    },
+    {
+      "id": "language:handlebars:riskLocal",
+      "profileType": "language",
+      "profileId": "handlebars",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for handlebars."
+    },
+    {
+      "id": "language:handlebars:symbolGraph",
+      "profileType": "language",
+      "profileId": "handlebars",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for handlebars."
+    },
+    {
+      "id": "language:html:ast",
+      "profileType": "language",
+      "profileId": "html",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for html."
+    },
+    {
+      "id": "language:html:controlFlow",
+      "profileType": "language",
+      "profileId": "html",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported controlFlow coverage for html."
+    },
+    {
+      "id": "language:html:dataFlow",
+      "profileType": "language",
+      "profileId": "html",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported dataFlow coverage for html."
+    },
+    {
+      "id": "language:html:docmeta",
+      "profileType": "language",
+      "profileId": "html",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for html."
+    },
+    {
+      "id": "language:html:graphRelations",
+      "profileType": "language",
+      "profileId": "html",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for html."
+    },
+    {
+      "id": "language:html:imports",
+      "profileType": "language",
+      "profileId": "html",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial imports coverage for html."
+    },
+    {
+      "id": "language:html:relations",
+      "profileType": "language",
+      "profileId": "html",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for html."
+    },
+    {
+      "id": "language:html:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "html",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for html."
+    },
+    {
+      "id": "language:html:riskLocal",
+      "profileType": "language",
+      "profileId": "html",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for html."
+    },
+    {
+      "id": "language:html:symbolGraph",
+      "profileType": "language",
+      "profileId": "html",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for html."
+    },
+    {
+      "id": "language:ini:ast",
+      "profileType": "language",
+      "profileId": "ini",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for ini."
+    },
+    {
+      "id": "language:ini:controlFlow",
+      "profileType": "language",
+      "profileId": "ini",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported controlFlow coverage for ini."
+    },
+    {
+      "id": "language:ini:dataFlow",
+      "profileType": "language",
+      "profileId": "ini",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported dataFlow coverage for ini."
+    },
+    {
+      "id": "language:ini:docmeta",
+      "profileType": "language",
+      "profileId": "ini",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for ini."
+    },
+    {
+      "id": "language:ini:graphRelations",
+      "profileType": "language",
+      "profileId": "ini",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for ini."
+    },
+    {
+      "id": "language:ini:imports",
+      "profileType": "language",
+      "profileId": "ini",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial imports coverage for ini."
+    },
+    {
+      "id": "language:ini:relations",
+      "profileType": "language",
+      "profileId": "ini",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for ini."
+    },
+    {
+      "id": "language:ini:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "ini",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for ini."
+    },
+    {
+      "id": "language:ini:riskLocal",
+      "profileType": "language",
+      "profileId": "ini",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for ini."
+    },
+    {
+      "id": "language:ini:symbolGraph",
+      "profileType": "language",
+      "profileId": "ini",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for ini."
+    },
+    {
+      "id": "language:java:ast",
+      "profileType": "language",
+      "profileId": "java",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for java."
+    },
+    {
+      "id": "language:java:controlFlow",
+      "profileType": "language",
+      "profileId": "java",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for java."
+    },
+    {
+      "id": "language:java:dataFlow",
+      "profileType": "language",
+      "profileId": "java",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported dataFlow coverage for java."
+    },
+    {
+      "id": "language:java:docmeta",
+      "profileType": "language",
+      "profileId": "java",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for java."
+    },
+    {
+      "id": "language:java:graphRelations",
+      "profileType": "language",
+      "profileId": "java",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for java."
+    },
+    {
+      "id": "language:java:imports",
+      "profileType": "language",
+      "profileId": "java",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for java."
+    },
+    {
+      "id": "language:java:relations",
+      "profileType": "language",
+      "profileId": "java",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for java."
+    },
+    {
+      "id": "language:java:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "java",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for java."
+    },
+    {
+      "id": "language:java:riskLocal",
+      "profileType": "language",
+      "profileId": "java",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for java."
+    },
+    {
+      "id": "language:java:symbolGraph",
+      "profileType": "language",
+      "profileId": "java",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for java."
+    },
+    {
+      "id": "language:javascript:ast",
+      "profileType": "language",
+      "profileId": "javascript",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for javascript."
+    },
+    {
+      "id": "language:javascript:controlFlow",
+      "profileType": "language",
+      "profileId": "javascript",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for javascript."
+    },
+    {
+      "id": "language:javascript:dataFlow",
+      "profileType": "language",
+      "profileId": "javascript",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "supported dataFlow coverage for javascript."
+    },
+    {
+      "id": "language:javascript:docmeta",
+      "profileType": "language",
+      "profileId": "javascript",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for javascript."
+    },
+    {
+      "id": "language:javascript:graphRelations",
+      "profileType": "language",
+      "profileId": "javascript",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for javascript."
+    },
+    {
+      "id": "language:javascript:imports",
+      "profileType": "language",
+      "profileId": "javascript",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for javascript."
+    },
+    {
+      "id": "language:javascript:relations",
+      "profileType": "language",
+      "profileId": "javascript",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for javascript."
+    },
+    {
+      "id": "language:javascript:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "javascript",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for javascript."
+    },
+    {
+      "id": "language:javascript:riskLocal",
+      "profileType": "language",
+      "profileId": "javascript",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for javascript."
+    },
+    {
+      "id": "language:javascript:symbolGraph",
+      "profileType": "language",
+      "profileId": "javascript",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for javascript."
+    },
+    {
+      "id": "language:jinja:ast",
+      "profileType": "language",
+      "profileId": "jinja",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for jinja."
+    },
+    {
+      "id": "language:jinja:controlFlow",
+      "profileType": "language",
+      "profileId": "jinja",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported controlFlow coverage for jinja."
+    },
+    {
+      "id": "language:jinja:dataFlow",
+      "profileType": "language",
+      "profileId": "jinja",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported dataFlow coverage for jinja."
+    },
+    {
+      "id": "language:jinja:docmeta",
+      "profileType": "language",
+      "profileId": "jinja",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for jinja."
+    },
+    {
+      "id": "language:jinja:graphRelations",
+      "profileType": "language",
+      "profileId": "jinja",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for jinja."
+    },
+    {
+      "id": "language:jinja:imports",
+      "profileType": "language",
+      "profileId": "jinja",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial imports coverage for jinja."
+    },
+    {
+      "id": "language:jinja:relations",
+      "profileType": "language",
+      "profileId": "jinja",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for jinja."
+    },
+    {
+      "id": "language:jinja:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "jinja",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for jinja."
+    },
+    {
+      "id": "language:jinja:riskLocal",
+      "profileType": "language",
+      "profileId": "jinja",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for jinja."
+    },
+    {
+      "id": "language:jinja:symbolGraph",
+      "profileType": "language",
+      "profileId": "jinja",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for jinja."
+    },
+    {
+      "id": "language:json:ast",
+      "profileType": "language",
+      "profileId": "json",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for json."
+    },
+    {
+      "id": "language:json:controlFlow",
+      "profileType": "language",
+      "profileId": "json",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported controlFlow coverage for json."
+    },
+    {
+      "id": "language:json:dataFlow",
+      "profileType": "language",
+      "profileId": "json",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported dataFlow coverage for json."
+    },
+    {
+      "id": "language:json:docmeta",
+      "profileType": "language",
+      "profileId": "json",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for json."
+    },
+    {
+      "id": "language:json:graphRelations",
+      "profileType": "language",
+      "profileId": "json",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for json."
+    },
+    {
+      "id": "language:json:imports",
+      "profileType": "language",
+      "profileId": "json",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial imports coverage for json."
+    },
+    {
+      "id": "language:json:relations",
+      "profileType": "language",
+      "profileId": "json",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for json."
+    },
+    {
+      "id": "language:json:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "json",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for json."
+    },
+    {
+      "id": "language:json:riskLocal",
+      "profileType": "language",
+      "profileId": "json",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for json."
+    },
+    {
+      "id": "language:json:symbolGraph",
+      "profileType": "language",
+      "profileId": "json",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for json."
+    },
+    {
+      "id": "language:julia:ast",
+      "profileType": "language",
+      "profileId": "julia",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for julia."
+    },
+    {
+      "id": "language:julia:controlFlow",
+      "profileType": "language",
+      "profileId": "julia",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for julia."
+    },
+    {
+      "id": "language:julia:dataFlow",
+      "profileType": "language",
+      "profileId": "julia",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial dataFlow coverage for julia."
+    },
+    {
+      "id": "language:julia:docmeta",
+      "profileType": "language",
+      "profileId": "julia",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for julia."
+    },
+    {
+      "id": "language:julia:graphRelations",
+      "profileType": "language",
+      "profileId": "julia",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for julia."
+    },
+    {
+      "id": "language:julia:imports",
+      "profileType": "language",
+      "profileId": "julia",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for julia."
+    },
+    {
+      "id": "language:julia:relations",
+      "profileType": "language",
+      "profileId": "julia",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for julia."
+    },
+    {
+      "id": "language:julia:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "julia",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for julia."
+    },
+    {
+      "id": "language:julia:riskLocal",
+      "profileType": "language",
+      "profileId": "julia",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for julia."
+    },
+    {
+      "id": "language:julia:symbolGraph",
+      "profileType": "language",
+      "profileId": "julia",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for julia."
+    },
+    {
+      "id": "language:kotlin:ast",
+      "profileType": "language",
+      "profileId": "kotlin",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for kotlin."
+    },
+    {
+      "id": "language:kotlin:controlFlow",
+      "profileType": "language",
+      "profileId": "kotlin",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for kotlin."
+    },
+    {
+      "id": "language:kotlin:dataFlow",
+      "profileType": "language",
+      "profileId": "kotlin",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported dataFlow coverage for kotlin."
+    },
+    {
+      "id": "language:kotlin:docmeta",
+      "profileType": "language",
+      "profileId": "kotlin",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for kotlin."
+    },
+    {
+      "id": "language:kotlin:graphRelations",
+      "profileType": "language",
+      "profileId": "kotlin",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for kotlin."
+    },
+    {
+      "id": "language:kotlin:imports",
+      "profileType": "language",
+      "profileId": "kotlin",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for kotlin."
+    },
+    {
+      "id": "language:kotlin:relations",
+      "profileType": "language",
+      "profileId": "kotlin",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for kotlin."
+    },
+    {
+      "id": "language:kotlin:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "kotlin",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for kotlin."
+    },
+    {
+      "id": "language:kotlin:riskLocal",
+      "profileType": "language",
+      "profileId": "kotlin",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for kotlin."
+    },
+    {
+      "id": "language:kotlin:symbolGraph",
+      "profileType": "language",
+      "profileId": "kotlin",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for kotlin."
+    },
+    {
+      "id": "language:lua:ast",
+      "profileType": "language",
+      "profileId": "lua",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for lua."
+    },
+    {
+      "id": "language:lua:controlFlow",
+      "profileType": "language",
+      "profileId": "lua",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for lua."
+    },
+    {
+      "id": "language:lua:dataFlow",
+      "profileType": "language",
+      "profileId": "lua",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial dataFlow coverage for lua."
+    },
+    {
+      "id": "language:lua:docmeta",
+      "profileType": "language",
+      "profileId": "lua",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for lua."
+    },
+    {
+      "id": "language:lua:graphRelations",
+      "profileType": "language",
+      "profileId": "lua",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for lua."
+    },
+    {
+      "id": "language:lua:imports",
+      "profileType": "language",
+      "profileId": "lua",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for lua."
+    },
+    {
+      "id": "language:lua:relations",
+      "profileType": "language",
+      "profileId": "lua",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for lua."
+    },
+    {
+      "id": "language:lua:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "lua",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for lua."
+    },
+    {
+      "id": "language:lua:riskLocal",
+      "profileType": "language",
+      "profileId": "lua",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for lua."
+    },
+    {
+      "id": "language:lua:symbolGraph",
+      "profileType": "language",
+      "profileId": "lua",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for lua."
+    },
+    {
+      "id": "language:makefile:ast",
+      "profileType": "language",
+      "profileId": "makefile",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for makefile."
+    },
+    {
+      "id": "language:makefile:controlFlow",
+      "profileType": "language",
+      "profileId": "makefile",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial controlFlow coverage for makefile."
+    },
+    {
+      "id": "language:makefile:dataFlow",
+      "profileType": "language",
+      "profileId": "makefile",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial dataFlow coverage for makefile."
+    },
+    {
+      "id": "language:makefile:docmeta",
+      "profileType": "language",
+      "profileId": "makefile",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for makefile."
+    },
+    {
+      "id": "language:makefile:graphRelations",
+      "profileType": "language",
+      "profileId": "makefile",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for makefile."
+    },
+    {
+      "id": "language:makefile:imports",
+      "profileType": "language",
+      "profileId": "makefile",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported imports coverage for makefile."
+    },
+    {
+      "id": "language:makefile:relations",
+      "profileType": "language",
+      "profileId": "makefile",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for makefile."
+    },
+    {
+      "id": "language:makefile:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "makefile",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for makefile."
+    },
+    {
+      "id": "language:makefile:riskLocal",
+      "profileType": "language",
+      "profileId": "makefile",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for makefile."
+    },
+    {
+      "id": "language:makefile:symbolGraph",
+      "profileType": "language",
+      "profileId": "makefile",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for makefile."
+    },
+    {
+      "id": "language:mustache:ast",
+      "profileType": "language",
+      "profileId": "mustache",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for mustache."
+    },
+    {
+      "id": "language:mustache:controlFlow",
+      "profileType": "language",
+      "profileId": "mustache",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported controlFlow coverage for mustache."
+    },
+    {
+      "id": "language:mustache:dataFlow",
+      "profileType": "language",
+      "profileId": "mustache",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported dataFlow coverage for mustache."
+    },
+    {
+      "id": "language:mustache:docmeta",
+      "profileType": "language",
+      "profileId": "mustache",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for mustache."
+    },
+    {
+      "id": "language:mustache:graphRelations",
+      "profileType": "language",
+      "profileId": "mustache",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for mustache."
+    },
+    {
+      "id": "language:mustache:imports",
+      "profileType": "language",
+      "profileId": "mustache",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial imports coverage for mustache."
+    },
+    {
+      "id": "language:mustache:relations",
+      "profileType": "language",
+      "profileId": "mustache",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for mustache."
+    },
+    {
+      "id": "language:mustache:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "mustache",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for mustache."
+    },
+    {
+      "id": "language:mustache:riskLocal",
+      "profileType": "language",
+      "profileId": "mustache",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for mustache."
+    },
+    {
+      "id": "language:mustache:symbolGraph",
+      "profileType": "language",
+      "profileId": "mustache",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for mustache."
+    },
+    {
+      "id": "language:nix:ast",
+      "profileType": "language",
+      "profileId": "nix",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for nix."
+    },
+    {
+      "id": "language:nix:controlFlow",
+      "profileType": "language",
+      "profileId": "nix",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial controlFlow coverage for nix."
+    },
+    {
+      "id": "language:nix:dataFlow",
+      "profileType": "language",
+      "profileId": "nix",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial dataFlow coverage for nix."
+    },
+    {
+      "id": "language:nix:docmeta",
+      "profileType": "language",
+      "profileId": "nix",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for nix."
+    },
+    {
+      "id": "language:nix:graphRelations",
+      "profileType": "language",
+      "profileId": "nix",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for nix."
+    },
+    {
+      "id": "language:nix:imports",
+      "profileType": "language",
+      "profileId": "nix",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported imports coverage for nix."
+    },
+    {
+      "id": "language:nix:relations",
+      "profileType": "language",
+      "profileId": "nix",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for nix."
+    },
+    {
+      "id": "language:nix:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "nix",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for nix."
+    },
+    {
+      "id": "language:nix:riskLocal",
+      "profileType": "language",
+      "profileId": "nix",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for nix."
+    },
+    {
+      "id": "language:nix:symbolGraph",
+      "profileType": "language",
+      "profileId": "nix",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for nix."
+    },
+    {
+      "id": "language:perl:ast",
+      "profileType": "language",
+      "profileId": "perl",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for perl."
+    },
+    {
+      "id": "language:perl:controlFlow",
+      "profileType": "language",
+      "profileId": "perl",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for perl."
+    },
+    {
+      "id": "language:perl:dataFlow",
+      "profileType": "language",
+      "profileId": "perl",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial dataFlow coverage for perl."
+    },
+    {
+      "id": "language:perl:docmeta",
+      "profileType": "language",
+      "profileId": "perl",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for perl."
+    },
+    {
+      "id": "language:perl:graphRelations",
+      "profileType": "language",
+      "profileId": "perl",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for perl."
+    },
+    {
+      "id": "language:perl:imports",
+      "profileType": "language",
+      "profileId": "perl",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for perl."
+    },
+    {
+      "id": "language:perl:relations",
+      "profileType": "language",
+      "profileId": "perl",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for perl."
+    },
+    {
+      "id": "language:perl:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "perl",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for perl."
+    },
+    {
+      "id": "language:perl:riskLocal",
+      "profileType": "language",
+      "profileId": "perl",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for perl."
+    },
+    {
+      "id": "language:perl:symbolGraph",
+      "profileType": "language",
+      "profileId": "perl",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for perl."
+    },
+    {
+      "id": "language:php:ast",
+      "profileType": "language",
+      "profileId": "php",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for php."
+    },
+    {
+      "id": "language:php:controlFlow",
+      "profileType": "language",
+      "profileId": "php",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for php."
+    },
+    {
+      "id": "language:php:dataFlow",
+      "profileType": "language",
+      "profileId": "php",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial dataFlow coverage for php."
+    },
+    {
+      "id": "language:php:docmeta",
+      "profileType": "language",
+      "profileId": "php",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for php."
+    },
+    {
+      "id": "language:php:graphRelations",
+      "profileType": "language",
+      "profileId": "php",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for php."
+    },
+    {
+      "id": "language:php:imports",
+      "profileType": "language",
+      "profileId": "php",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for php."
+    },
+    {
+      "id": "language:php:relations",
+      "profileType": "language",
+      "profileId": "php",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for php."
+    },
+    {
+      "id": "language:php:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "php",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for php."
+    },
+    {
+      "id": "language:php:riskLocal",
+      "profileType": "language",
+      "profileId": "php",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for php."
+    },
+    {
+      "id": "language:php:symbolGraph",
+      "profileType": "language",
+      "profileId": "php",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for php."
+    },
+    {
+      "id": "language:proto:ast",
+      "profileType": "language",
+      "profileId": "proto",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for proto."
+    },
+    {
+      "id": "language:proto:controlFlow",
+      "profileType": "language",
+      "profileId": "proto",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported controlFlow coverage for proto."
+    },
+    {
+      "id": "language:proto:dataFlow",
+      "profileType": "language",
+      "profileId": "proto",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported dataFlow coverage for proto."
+    },
+    {
+      "id": "language:proto:docmeta",
+      "profileType": "language",
+      "profileId": "proto",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for proto."
+    },
+    {
+      "id": "language:proto:graphRelations",
+      "profileType": "language",
+      "profileId": "proto",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for proto."
+    },
+    {
+      "id": "language:proto:imports",
+      "profileType": "language",
+      "profileId": "proto",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial imports coverage for proto."
+    },
+    {
+      "id": "language:proto:relations",
+      "profileType": "language",
+      "profileId": "proto",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for proto."
+    },
+    {
+      "id": "language:proto:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "proto",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for proto."
+    },
+    {
+      "id": "language:proto:riskLocal",
+      "profileType": "language",
+      "profileId": "proto",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for proto."
+    },
+    {
+      "id": "language:proto:symbolGraph",
+      "profileType": "language",
+      "profileId": "proto",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for proto."
+    },
+    {
+      "id": "language:python:ast",
+      "profileType": "language",
+      "profileId": "python",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for python."
+    },
+    {
+      "id": "language:python:controlFlow",
+      "profileType": "language",
+      "profileId": "python",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for python."
+    },
+    {
+      "id": "language:python:dataFlow",
+      "profileType": "language",
+      "profileId": "python",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial dataFlow coverage for python."
+    },
+    {
+      "id": "language:python:docmeta",
+      "profileType": "language",
+      "profileId": "python",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for python."
+    },
+    {
+      "id": "language:python:graphRelations",
+      "profileType": "language",
+      "profileId": "python",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for python."
+    },
+    {
+      "id": "language:python:imports",
+      "profileType": "language",
+      "profileId": "python",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for python."
+    },
+    {
+      "id": "language:python:relations",
+      "profileType": "language",
+      "profileId": "python",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for python."
+    },
+    {
+      "id": "language:python:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "python",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for python."
+    },
+    {
+      "id": "language:python:riskLocal",
+      "profileType": "language",
+      "profileId": "python",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for python."
+    },
+    {
+      "id": "language:python:symbolGraph",
+      "profileType": "language",
+      "profileId": "python",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for python."
+    },
+    {
+      "id": "language:r:ast",
+      "profileType": "language",
+      "profileId": "r",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for r."
+    },
+    {
+      "id": "language:r:controlFlow",
+      "profileType": "language",
+      "profileId": "r",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for r."
+    },
+    {
+      "id": "language:r:dataFlow",
+      "profileType": "language",
+      "profileId": "r",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial dataFlow coverage for r."
+    },
+    {
+      "id": "language:r:docmeta",
+      "profileType": "language",
+      "profileId": "r",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for r."
+    },
+    {
+      "id": "language:r:graphRelations",
+      "profileType": "language",
+      "profileId": "r",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for r."
+    },
+    {
+      "id": "language:r:imports",
+      "profileType": "language",
+      "profileId": "r",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for r."
+    },
+    {
+      "id": "language:r:relations",
+      "profileType": "language",
+      "profileId": "r",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for r."
+    },
+    {
+      "id": "language:r:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "r",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for r."
+    },
+    {
+      "id": "language:r:riskLocal",
+      "profileType": "language",
+      "profileId": "r",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for r."
+    },
+    {
+      "id": "language:r:symbolGraph",
+      "profileType": "language",
+      "profileId": "r",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for r."
+    },
+    {
+      "id": "language:razor:ast",
+      "profileType": "language",
+      "profileId": "razor",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for razor."
+    },
+    {
+      "id": "language:razor:controlFlow",
+      "profileType": "language",
+      "profileId": "razor",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported controlFlow coverage for razor."
+    },
+    {
+      "id": "language:razor:dataFlow",
+      "profileType": "language",
+      "profileId": "razor",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported dataFlow coverage for razor."
+    },
+    {
+      "id": "language:razor:docmeta",
+      "profileType": "language",
+      "profileId": "razor",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for razor."
+    },
+    {
+      "id": "language:razor:graphRelations",
+      "profileType": "language",
+      "profileId": "razor",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for razor."
+    },
+    {
+      "id": "language:razor:imports",
+      "profileType": "language",
+      "profileId": "razor",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial imports coverage for razor."
+    },
+    {
+      "id": "language:razor:relations",
+      "profileType": "language",
+      "profileId": "razor",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for razor."
+    },
+    {
+      "id": "language:razor:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "razor",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for razor."
+    },
+    {
+      "id": "language:razor:riskLocal",
+      "profileType": "language",
+      "profileId": "razor",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for razor."
+    },
+    {
+      "id": "language:razor:symbolGraph",
+      "profileType": "language",
+      "profileId": "razor",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for razor."
+    },
+    {
+      "id": "language:ruby:ast",
+      "profileType": "language",
+      "profileId": "ruby",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for ruby."
+    },
+    {
+      "id": "language:ruby:controlFlow",
+      "profileType": "language",
+      "profileId": "ruby",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for ruby."
+    },
+    {
+      "id": "language:ruby:dataFlow",
+      "profileType": "language",
+      "profileId": "ruby",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial dataFlow coverage for ruby."
+    },
+    {
+      "id": "language:ruby:docmeta",
+      "profileType": "language",
+      "profileId": "ruby",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for ruby."
+    },
+    {
+      "id": "language:ruby:graphRelations",
+      "profileType": "language",
+      "profileId": "ruby",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for ruby."
+    },
+    {
+      "id": "language:ruby:imports",
+      "profileType": "language",
+      "profileId": "ruby",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for ruby."
+    },
+    {
+      "id": "language:ruby:relations",
+      "profileType": "language",
+      "profileId": "ruby",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for ruby."
+    },
+    {
+      "id": "language:ruby:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "ruby",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for ruby."
+    },
+    {
+      "id": "language:ruby:riskLocal",
+      "profileType": "language",
+      "profileId": "ruby",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for ruby."
+    },
+    {
+      "id": "language:ruby:symbolGraph",
+      "profileType": "language",
+      "profileId": "ruby",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for ruby."
+    },
+    {
+      "id": "language:rust:ast",
+      "profileType": "language",
+      "profileId": "rust",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for rust."
+    },
+    {
+      "id": "language:rust:controlFlow",
+      "profileType": "language",
+      "profileId": "rust",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for rust."
+    },
+    {
+      "id": "language:rust:dataFlow",
+      "profileType": "language",
+      "profileId": "rust",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported dataFlow coverage for rust."
+    },
+    {
+      "id": "language:rust:docmeta",
+      "profileType": "language",
+      "profileId": "rust",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for rust."
+    },
+    {
+      "id": "language:rust:graphRelations",
+      "profileType": "language",
+      "profileId": "rust",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for rust."
+    },
+    {
+      "id": "language:rust:imports",
+      "profileType": "language",
+      "profileId": "rust",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for rust."
+    },
+    {
+      "id": "language:rust:relations",
+      "profileType": "language",
+      "profileId": "rust",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for rust."
+    },
+    {
+      "id": "language:rust:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "rust",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for rust."
+    },
+    {
+      "id": "language:rust:riskLocal",
+      "profileType": "language",
+      "profileId": "rust",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for rust."
+    },
+    {
+      "id": "language:rust:symbolGraph",
+      "profileType": "language",
+      "profileId": "rust",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for rust."
+    },
+    {
+      "id": "language:scala:ast",
+      "profileType": "language",
+      "profileId": "scala",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for scala."
+    },
+    {
+      "id": "language:scala:controlFlow",
+      "profileType": "language",
+      "profileId": "scala",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for scala."
+    },
+    {
+      "id": "language:scala:dataFlow",
+      "profileType": "language",
+      "profileId": "scala",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported dataFlow coverage for scala."
+    },
+    {
+      "id": "language:scala:docmeta",
+      "profileType": "language",
+      "profileId": "scala",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for scala."
+    },
+    {
+      "id": "language:scala:graphRelations",
+      "profileType": "language",
+      "profileId": "scala",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for scala."
+    },
+    {
+      "id": "language:scala:imports",
+      "profileType": "language",
+      "profileId": "scala",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for scala."
+    },
+    {
+      "id": "language:scala:relations",
+      "profileType": "language",
+      "profileId": "scala",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for scala."
+    },
+    {
+      "id": "language:scala:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "scala",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for scala."
+    },
+    {
+      "id": "language:scala:riskLocal",
+      "profileType": "language",
+      "profileId": "scala",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for scala."
+    },
+    {
+      "id": "language:scala:symbolGraph",
+      "profileType": "language",
+      "profileId": "scala",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for scala."
+    },
+    {
+      "id": "language:shell:ast",
+      "profileType": "language",
+      "profileId": "shell",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for shell."
+    },
+    {
+      "id": "language:shell:controlFlow",
+      "profileType": "language",
+      "profileId": "shell",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for shell."
+    },
+    {
+      "id": "language:shell:dataFlow",
+      "profileType": "language",
+      "profileId": "shell",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial dataFlow coverage for shell."
+    },
+    {
+      "id": "language:shell:docmeta",
+      "profileType": "language",
+      "profileId": "shell",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for shell."
+    },
+    {
+      "id": "language:shell:graphRelations",
+      "profileType": "language",
+      "profileId": "shell",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for shell."
+    },
+    {
+      "id": "language:shell:imports",
+      "profileType": "language",
+      "profileId": "shell",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for shell."
+    },
+    {
+      "id": "language:shell:relations",
+      "profileType": "language",
+      "profileId": "shell",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for shell."
+    },
+    {
+      "id": "language:shell:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "shell",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for shell."
+    },
+    {
+      "id": "language:shell:riskLocal",
+      "profileType": "language",
+      "profileId": "shell",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for shell."
+    },
+    {
+      "id": "language:shell:symbolGraph",
+      "profileType": "language",
+      "profileId": "shell",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for shell."
+    },
+    {
+      "id": "language:sql:ast",
+      "profileType": "language",
+      "profileId": "sql",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for sql."
+    },
+    {
+      "id": "language:sql:controlFlow",
+      "profileType": "language",
+      "profileId": "sql",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "unsupported controlFlow coverage for sql."
+    },
+    {
+      "id": "language:sql:dataFlow",
+      "profileType": "language",
+      "profileId": "sql",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "unsupported dataFlow coverage for sql."
+    },
+    {
+      "id": "language:sql:docmeta",
+      "profileType": "language",
+      "profileId": "sql",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for sql."
+    },
+    {
+      "id": "language:sql:graphRelations",
+      "profileType": "language",
+      "profileId": "sql",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for sql."
+    },
+    {
+      "id": "language:sql:imports",
+      "profileType": "language",
+      "profileId": "sql",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial imports coverage for sql."
+    },
+    {
+      "id": "language:sql:relations",
+      "profileType": "language",
+      "profileId": "sql",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for sql."
+    },
+    {
+      "id": "language:sql:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "sql",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for sql."
+    },
+    {
+      "id": "language:sql:riskLocal",
+      "profileType": "language",
+      "profileId": "sql",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for sql."
+    },
+    {
+      "id": "language:sql:symbolGraph",
+      "profileType": "language",
+      "profileId": "sql",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for sql."
+    },
+    {
+      "id": "language:starlark:ast",
+      "profileType": "language",
+      "profileId": "starlark",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for starlark."
+    },
+    {
+      "id": "language:starlark:controlFlow",
+      "profileType": "language",
+      "profileId": "starlark",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial controlFlow coverage for starlark."
+    },
+    {
+      "id": "language:starlark:dataFlow",
+      "profileType": "language",
+      "profileId": "starlark",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial dataFlow coverage for starlark."
+    },
+    {
+      "id": "language:starlark:docmeta",
+      "profileType": "language",
+      "profileId": "starlark",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for starlark."
+    },
+    {
+      "id": "language:starlark:graphRelations",
+      "profileType": "language",
+      "profileId": "starlark",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for starlark."
+    },
+    {
+      "id": "language:starlark:imports",
+      "profileType": "language",
+      "profileId": "starlark",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported imports coverage for starlark."
+    },
+    {
+      "id": "language:starlark:relations",
+      "profileType": "language",
+      "profileId": "starlark",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for starlark."
+    },
+    {
+      "id": "language:starlark:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "starlark",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for starlark."
+    },
+    {
+      "id": "language:starlark:riskLocal",
+      "profileType": "language",
+      "profileId": "starlark",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for starlark."
+    },
+    {
+      "id": "language:starlark:symbolGraph",
+      "profileType": "language",
+      "profileId": "starlark",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for starlark."
+    },
+    {
+      "id": "language:swift:ast",
+      "profileType": "language",
+      "profileId": "swift",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for swift."
+    },
+    {
+      "id": "language:swift:controlFlow",
+      "profileType": "language",
+      "profileId": "swift",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for swift."
+    },
+    {
+      "id": "language:swift:dataFlow",
+      "profileType": "language",
+      "profileId": "swift",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported dataFlow coverage for swift."
+    },
+    {
+      "id": "language:swift:docmeta",
+      "profileType": "language",
+      "profileId": "swift",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for swift."
+    },
+    {
+      "id": "language:swift:graphRelations",
+      "profileType": "language",
+      "profileId": "swift",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for swift."
+    },
+    {
+      "id": "language:swift:imports",
+      "profileType": "language",
+      "profileId": "swift",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for swift."
+    },
+    {
+      "id": "language:swift:relations",
+      "profileType": "language",
+      "profileId": "swift",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for swift."
+    },
+    {
+      "id": "language:swift:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "swift",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for swift."
+    },
+    {
+      "id": "language:swift:riskLocal",
+      "profileType": "language",
+      "profileId": "swift",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for swift."
+    },
+    {
+      "id": "language:swift:symbolGraph",
+      "profileType": "language",
+      "profileId": "swift",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for swift."
+    },
+    {
+      "id": "language:toml:ast",
+      "profileType": "language",
+      "profileId": "toml",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for toml."
+    },
+    {
+      "id": "language:toml:controlFlow",
+      "profileType": "language",
+      "profileId": "toml",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported controlFlow coverage for toml."
+    },
+    {
+      "id": "language:toml:dataFlow",
+      "profileType": "language",
+      "profileId": "toml",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported dataFlow coverage for toml."
+    },
+    {
+      "id": "language:toml:docmeta",
+      "profileType": "language",
+      "profileId": "toml",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for toml."
+    },
+    {
+      "id": "language:toml:graphRelations",
+      "profileType": "language",
+      "profileId": "toml",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for toml."
+    },
+    {
+      "id": "language:toml:imports",
+      "profileType": "language",
+      "profileId": "toml",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial imports coverage for toml."
+    },
+    {
+      "id": "language:toml:relations",
+      "profileType": "language",
+      "profileId": "toml",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for toml."
+    },
+    {
+      "id": "language:toml:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "toml",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for toml."
+    },
+    {
+      "id": "language:toml:riskLocal",
+      "profileType": "language",
+      "profileId": "toml",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for toml."
+    },
+    {
+      "id": "language:toml:symbolGraph",
+      "profileType": "language",
+      "profileId": "toml",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for toml."
+    },
+    {
+      "id": "language:typescript:ast",
+      "profileType": "language",
+      "profileId": "typescript",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "supported ast coverage for typescript."
+    },
+    {
+      "id": "language:typescript:controlFlow",
+      "profileType": "language",
+      "profileId": "typescript",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "supported controlFlow coverage for typescript."
+    },
+    {
+      "id": "language:typescript:dataFlow",
+      "profileType": "language",
+      "profileId": "typescript",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "supported dataFlow coverage for typescript."
+    },
+    {
+      "id": "language:typescript:docmeta",
+      "profileType": "language",
+      "profileId": "typescript",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for typescript."
+    },
+    {
+      "id": "language:typescript:graphRelations",
+      "profileType": "language",
+      "profileId": "typescript",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "supported graphRelations coverage for typescript."
+    },
+    {
+      "id": "language:typescript:imports",
+      "profileType": "language",
+      "profileId": "typescript",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "supported imports coverage for typescript."
+    },
+    {
+      "id": "language:typescript:relations",
+      "profileType": "language",
+      "profileId": "typescript",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "supported relations coverage for typescript."
+    },
+    {
+      "id": "language:typescript:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "typescript",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "partial riskInterprocedural coverage for typescript."
+    },
+    {
+      "id": "language:typescript:riskLocal",
+      "profileType": "language",
+      "profileId": "typescript",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": false,
+      "notes": "supported riskLocal coverage for typescript."
+    },
+    {
+      "id": "language:typescript:symbolGraph",
+      "profileType": "language",
+      "profileId": "typescript",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blocking": true,
+      "notes": "supported symbolGraph coverage for typescript."
+    },
+    {
+      "id": "language:xml:ast",
+      "profileType": "language",
+      "profileId": "xml",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for xml."
+    },
+    {
+      "id": "language:xml:controlFlow",
+      "profileType": "language",
+      "profileId": "xml",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported controlFlow coverage for xml."
+    },
+    {
+      "id": "language:xml:dataFlow",
+      "profileType": "language",
+      "profileId": "xml",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported dataFlow coverage for xml."
+    },
+    {
+      "id": "language:xml:docmeta",
+      "profileType": "language",
+      "profileId": "xml",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for xml."
+    },
+    {
+      "id": "language:xml:graphRelations",
+      "profileType": "language",
+      "profileId": "xml",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for xml."
+    },
+    {
+      "id": "language:xml:imports",
+      "profileType": "language",
+      "profileId": "xml",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial imports coverage for xml."
+    },
+    {
+      "id": "language:xml:relations",
+      "profileType": "language",
+      "profileId": "xml",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for xml."
+    },
+    {
+      "id": "language:xml:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "xml",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for xml."
+    },
+    {
+      "id": "language:xml:riskLocal",
+      "profileType": "language",
+      "profileId": "xml",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for xml."
+    },
+    {
+      "id": "language:xml:symbolGraph",
+      "profileType": "language",
+      "profileId": "xml",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for xml."
+    },
+    {
+      "id": "language:yaml:ast",
+      "profileType": "language",
+      "profileId": "yaml",
+      "capability": "ast",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial ast coverage for yaml."
+    },
+    {
+      "id": "language:yaml:controlFlow",
+      "profileType": "language",
+      "profileId": "yaml",
+      "capability": "controlFlow",
+      "artifactId": "graph_relations",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported controlFlow coverage for yaml."
+    },
+    {
+      "id": "language:yaml:dataFlow",
+      "profileType": "language",
+      "profileId": "yaml",
+      "capability": "dataFlow",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported dataFlow coverage for yaml."
+    },
+    {
+      "id": "language:yaml:docmeta",
+      "profileType": "language",
+      "profileId": "yaml",
+      "capability": "docmeta",
+      "artifactId": "chunk_meta",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "supported docmeta coverage for yaml."
+    },
+    {
+      "id": "language:yaml:graphRelations",
+      "profileType": "language",
+      "profileId": "yaml",
+      "capability": "graphRelations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial graphRelations coverage for yaml."
+    },
+    {
+      "id": "language:yaml:imports",
+      "profileType": "language",
+      "profileId": "yaml",
+      "capability": "imports",
+      "artifactId": "file_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial imports coverage for yaml."
+    },
+    {
+      "id": "language:yaml:relations",
+      "profileType": "language",
+      "profileId": "yaml",
+      "capability": "relations",
+      "artifactId": "graph_relations",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial relations coverage for yaml."
+    },
+    {
+      "id": "language:yaml:riskInterprocedural",
+      "profileType": "language",
+      "profileId": "yaml",
+      "capability": "riskInterprocedural",
+      "artifactId": "risk_flows",
+      "expectation": "deterministic-empty",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "unsupported riskInterprocedural coverage for yaml."
+    },
+    {
+      "id": "language:yaml:riskLocal",
+      "profileType": "language",
+      "profileId": "yaml",
+      "capability": "riskLocal",
+      "artifactId": "risk_summaries",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": false,
+      "notes": "partial riskLocal coverage for yaml."
+    },
+    {
+      "id": "language:yaml:symbolGraph",
+      "profileType": "language",
+      "profileId": "yaml",
+      "capability": "symbolGraph",
+      "artifactId": "symbols",
+      "expectation": "required",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blocking": true,
+      "notes": "partial symbolGraph coverage for yaml."
+    }
+  ]
+}

@@ -40,11 +40,12 @@ type ChangeSeed =
 
 - `downstream`: callers/users depend on the seed (who breaks if seed changes)
 - `upstream`: dependencies of the seed (what seed relies on)
-- Current CLI/runtime support is `upstream` or `downstream`. A combined `both`
-  mode would be a future extension and is not part of the active contract.
+- `both`: combined upstream and downstream traversal from the same seed set.
 
 The implementation maps `downstream` to outbound graph traversal and `upstream`
-to inbound graph traversal after graph artifacts have been normalized.
+to inbound graph traversal after graph artifacts have been normalized. `both`
+uses the graph-neighborhood `both` traversal mode and deduplicates impacted
+nodes deterministically.
 
 ---
 
@@ -96,7 +97,7 @@ type ImpactRequest = {
   seed?: string;
   changed?: string | string[];
   changedFile?: string;
-  direction: "downstream" | "upstream";
+  direction: "downstream" | "upstream" | "both";
   depth: number;
   edgeTypes?: string;
   maxDepth?: number;
@@ -158,7 +159,7 @@ type Edge = {
 - `buildGraphNeighborhood()` performs bounded traversal over the selected graph
   artifacts.
 - `direction=upstream` traverses inbound edges; `direction=downstream` traverses
-  outbound edges.
+  outbound edges; `direction=both` traverses inbound and outbound edges.
 - `includePaths=true` requests witness paths for impacted nodes.
 
 ### 5.3 Output selection
@@ -177,6 +178,7 @@ type Edge = {
 Flags:
 - `--seed <symbolId|chunkUid|file>`
 - `--changed <path>` / `--changed-file <path>`
+- `--direction upstream|downstream|both`
 - `--edge-types call,usage,import`
 - `--max-paths N`
 - graph cap flags from `buildGraphCliOptions()`, including max depth, nodes,

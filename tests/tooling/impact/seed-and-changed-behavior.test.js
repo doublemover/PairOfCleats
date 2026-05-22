@@ -33,6 +33,25 @@ const changedFixture = createImpactRepoFixture({
   }
 });
 
+const bothFixture = createImpactRepoFixture({
+  prefix: 'impact-both-',
+  compatibilityKey: 'compat-impact-both',
+  graphRelations: {
+    version: 1,
+    callGraph: {
+      nodeCount: 3,
+      edgeCount: 2,
+      nodes: [
+        { id: 'chunk-a', file: 'src/a.js', out: ['chunk-b'], in: [] },
+        { id: 'chunk-b', file: 'src/b.js', out: ['chunk-c'], in: ['chunk-a'] },
+        { id: 'chunk-c', file: 'src/c.js', out: [], in: ['chunk-b'] }
+      ]
+    },
+    usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [] },
+    importGraph: { nodeCount: 0, edgeCount: 0, nodes: [] }
+  }
+});
+
 try {
   const seedPayload = await runImpactCli([
     '--repo',
@@ -65,9 +84,26 @@ try {
     true,
     'expected warning when --changed is ignored because --seed is present'
   );
+
+  const bothPayload = await runImpactCli([
+    '--repo',
+    bothFixture.repoRoot,
+    '--seed',
+    'chunk:chunk-b',
+    '--depth',
+    '1',
+    '--direction',
+    'both',
+    '--json'
+  ]);
+  assert.equal(bothPayload.direction, 'both');
+  const impacted = bothPayload.impacted.map((entry) => entry.ref?.chunkUid).filter(Boolean);
+  assert.ok(impacted.includes('chunk-a'), 'expected both direction to include upstream chunk');
+  assert.ok(impacted.includes('chunk-c'), 'expected both direction to include downstream chunk');
 } finally {
   removeImpactRepoFixture(seedFixture.repoRoot);
   removeImpactRepoFixture(changedFixture.repoRoot);
+  removeImpactRepoFixture(bothFixture.repoRoot);
 }
 
 console.log('impact seed/changed behavior test passed');

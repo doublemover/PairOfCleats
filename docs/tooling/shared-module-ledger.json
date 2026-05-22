@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-05-22T03:04:43.757Z",
+  "generatedAt": "2026-05-22T05:26:48.502Z",
   "generatedBy": "node tools/docs/shared-module-ledger.js",
   "root": "C:/Users/sneak/Development/DOUBLECLEAT",
   "census": {
@@ -2604,7 +2604,7 @@
           "title": "Review shared core primitives and root-level contracts in src/shared",
           "umbrella": "407"
         },
-        "consumerCount": 39,
+        "consumerCount": 40,
         "importers": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -2642,6 +2642,7 @@
           "tools/tooling/doctor.js",
           "tools/tooling/install-lua-language-server.js",
           "tools/tooling/navigation.js",
+          "tools/usr/conformance-surface.js",
           "tools/workspace/build.js",
           "tools/workspace/manifest.js",
           "tools/workspace/status.js"
@@ -6834,7 +6835,7 @@
     ]
   },
   "consumerMap": {
-    "edgeCount": 2735,
+    "edgeCount": 2736,
     "bySharedFile": {
       "src/shared/abort.js": {
         "importers": [
@@ -8474,11 +8475,12 @@
           "tools/tooling/doctor.js",
           "tools/tooling/install-lua-language-server.js",
           "tools/tooling/navigation.js",
+          "tools/usr/conformance-surface.js",
           "tools/workspace/build.js",
           "tools/workspace/manifest.js",
           "tools/workspace/status.js"
         ],
-        "importerCount": 39
+        "importerCount": 40
       },
       "src/shared/disk-space.js": {
         "importers": [
@@ -18928,6 +18930,12 @@
         ],
         "sharedImportCount": 2
       },
+      "tools/usr/conformance-surface.js": {
+        "sharedImports": [
+          "src/shared/direct-execution.js"
+        ],
+        "sharedImportCount": 1
+      },
       "tools/usr/generate-usr-matrix-baselines/io.mjs": {
         "sharedImports": [
           "src/shared/eol.js"
@@ -22693,6 +22701,7 @@
             "tools/triage/decision.js",
             "tools/triage/ingest.js",
             "tools/triage/record-writer.js",
+            "tools/usr/conformance-surface.js",
             "tools/usr/generate-usr-matrix-baselines.mjs",
             "tools/usr/generate-usr-matrix-baselines/builders.mjs",
             "tools/usr/generate-usr-matrix-baselines/datasets.mjs",
@@ -22702,7 +22711,7 @@
             "tools/workspace/manifest.js",
             "tools/workspace/status.js"
           ],
-          "fileCount": 327
+          "fileCount": 328
         },
         {
           "issueId": "419",
@@ -23906,6 +23915,7 @@
             "tests/lang/lua/modules.test.js",
             "tests/lang/matrix/README.md",
             "tests/lang/matrix/usr-alert-policies.json",
+            "tests/lang/matrix/usr-artifact-expectations.json",
             "tests/lang/matrix/usr-backcompat-matrix.json",
             "tests/lang/matrix/usr-benchmark-policy.json",
             "tests/lang/matrix/usr-capability-matrix.json",
@@ -25237,6 +25247,7 @@
             "tests/tooling/typescript-loader-parity.test.js",
             "tests/tooling/typescript-provider-planner-skips-do-not-degrade.test.js",
             "tests/tooling/typescript-provider-runtime-unavailable-degrades.test.js",
+            "tests/tooling/usr/full-conformance-surface.test.js",
             "tests/tooling/vfs/bloom-load-error-fallback.test.js",
             "tests/tooling/vfs/bloom-negative-lookup.test.js",
             "tests/tooling/vfs/cdc-segmentation-stability.test.js",
@@ -25352,6 +25363,8 @@
             "tests/unit/retrieval-index-signature-token-binary-columnar.unit.js",
             "tests/unit/shared-file-signature-legacy-mtime.unit.js",
             "tests/unit/shared-iterables-shape-guards.unit.js",
+            "tests/usr-full-conformance/usr-full-conformance.manifest.json",
+            "tests/usr-full-conformance/usr-full-conformance.order.txt",
             "tests/workspace/config-contract-matrix.test.js",
             "tests/workspace/is-within-root-dotdot-prefix.test.js",
             "tests/workspace/manifest-contract-matrix.test.js",
@@ -25403,7 +25416,7 @@
             "tools/testing/shared-module-performance.js",
             "tools/testing/terminal-screen.js"
           ],
-          "fileCount": 2682
+          "fileCount": 2686
         },
         {
           "issueId": "420",
@@ -25557,7 +25570,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4496
+          "fileCount": 4501
         }
       ],
       "repoCoverage": {
@@ -28166,6 +28179,7 @@
           "tests/lang/lua/modules.test.js",
           "tests/lang/matrix/README.md",
           "tests/lang/matrix/usr-alert-policies.json",
+          "tests/lang/matrix/usr-artifact-expectations.json",
           "tests/lang/matrix/usr-backcompat-matrix.json",
           "tests/lang/matrix/usr-benchmark-policy.json",
           "tests/lang/matrix/usr-capability-matrix.json",
@@ -29497,6 +29511,7 @@
           "tests/tooling/typescript-loader-parity.test.js",
           "tests/tooling/typescript-provider-planner-skips-do-not-degrade.test.js",
           "tests/tooling/typescript-provider-runtime-unavailable-degrades.test.js",
+          "tests/tooling/usr/full-conformance-surface.test.js",
           "tests/tooling/vfs/bloom-load-error-fallback.test.js",
           "tests/tooling/vfs/bloom-negative-lookup.test.js",
           "tests/tooling/vfs/cdc-segmentation-stability.test.js",
@@ -29612,6 +29627,8 @@
           "tests/unit/retrieval-index-signature-token-binary-columnar.unit.js",
           "tests/unit/shared-file-signature-legacy-mtime.unit.js",
           "tests/unit/shared-iterables-shape-guards.unit.js",
+          "tests/usr-full-conformance/usr-full-conformance.manifest.json",
+          "tests/usr-full-conformance/usr-full-conformance.order.txt",
           "tests/workspace/config-contract-matrix.test.js",
           "tests/workspace/is-within-root-dotdot-prefix.test.js",
           "tests/workspace/manifest-contract-matrix.test.js",
@@ -30059,6 +30076,7 @@
           "tools/tui/supervisor/watchdog.js",
           "tools/tui/targets.js",
           "tools/tui/targets.json",
+          "tools/usr/conformance-surface.js",
           "tools/usr/generate-usr-matrix-baselines.mjs",
           "tools/usr/generate-usr-matrix-baselines/builders.mjs",
           "tools/usr/generate-usr-matrix-baselines/datasets.mjs",
@@ -30156,7 +30174,7 @@
             "src/index/build/artifacts/minhash-packed.js",
             "src/index/build/artifacts/piece-registry.js"
           ],
-          "fileCount": 3345
+          "fileCount": 3349
         },
         {
           "issueId": "424",
@@ -30289,7 +30307,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4479
+          "fileCount": 4484
         },
         {
           "issueId": "427",
@@ -30376,7 +30394,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 2680
+          "fileCount": 2684
         }
       ]
     }

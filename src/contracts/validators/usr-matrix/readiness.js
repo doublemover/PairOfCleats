@@ -699,6 +699,329 @@ export function validateUsrMatrixDrivenHarnessCoverage({
   };
 }
 
+const REQUIRED_FRAMEWORK_ARTIFACT_CAPABILITIES = Object.freeze([
+  'framework-binding',
+  'framework-hydration',
+  'framework-routing',
+  'framework-segmentation'
+]);
+
+const stateToExpectedArtifactExpectation = (state) => (
+  state === 'unsupported' ? 'deterministic-empty' : 'required'
+);
+
+const profileKey = (profileType, profileId) => `${profileType}:${profileId}`;
+
+export function validateUsrArtifactExpectationCoverage({
+  languageProfilesPayload,
+  frameworkProfilesPayload,
+  capabilityMatrixPayload,
+  conformanceLevelsPayload,
+  fixtureGovernancePayload,
+  batchShardsPayload,
+  artifactExpectationsPayload,
+  knownLanes = []
+} = {}) {
+  const languageValidation = validateUsrMatrixRegistry('usr-language-profiles', languageProfilesPayload);
+  if (!languageValidation.ok) return buildMatrixRegistryFailureResult(languageValidation);
+
+  const frameworkValidation = validateUsrMatrixRegistry('usr-framework-profiles', frameworkProfilesPayload);
+  if (!frameworkValidation.ok) return buildMatrixRegistryFailureResult(frameworkValidation);
+
+  const capabilityValidation = validateUsrMatrixRegistry('usr-capability-matrix', capabilityMatrixPayload);
+  if (!capabilityValidation.ok) return buildMatrixRegistryFailureResult(capabilityValidation);
+
+  const conformanceValidation = validateUsrMatrixRegistry('usr-conformance-levels', conformanceLevelsPayload);
+  if (!conformanceValidation.ok) return buildMatrixRegistryFailureResult(conformanceValidation);
+
+  const fixtureValidation = validateUsrMatrixRegistry('usr-fixture-governance', fixtureGovernancePayload);
+  if (!fixtureValidation.ok) return buildMatrixRegistryFailureResult(fixtureValidation);
+
+  const artifactValidation = validateUsrMatrixRegistry('usr-artifact-expectations', artifactExpectationsPayload);
+  if (!artifactValidation.ok) return buildMatrixRegistryFailureResult(artifactValidation);
+
+  const batchValidation = validateUsrLanguageBatchShards({
+    batchShardsPayload,
+    languageProfilesPayload
+  });
+
+  const harnessValidation = validateUsrMatrixDrivenHarnessCoverage({
+    languageProfilesPayload,
+    frameworkProfilesPayload,
+    fixtureGovernancePayload,
+    batchShardsPayload,
+    knownLanes
+  });
+
+  const errors = [
+    ...batchValidation.errors.map((message) => `batch-shards ${message}`),
+    ...harnessValidation.errors.map((message) => `harness ${message}`)
+  ];
+  const warnings = [
+    ...batchValidation.warnings.map((message) => `batch-shards ${message}`),
+    ...harnessValidation.warnings.map((message) => `harness ${message}`)
+  ];
+  const rows = [];
+
+  const languageRows = Array.isArray(languageProfilesPayload?.rows) ? languageProfilesPayload.rows : [];
+  const frameworkRows = Array.isArray(frameworkProfilesPayload?.rows) ? frameworkProfilesPayload.rows : [];
+  const capabilityRows = Array.isArray(capabilityMatrixPayload?.rows) ? capabilityMatrixPayload.rows : [];
+  const conformanceRows = Array.isArray(conformanceLevelsPayload?.rows) ? conformanceLevelsPayload.rows : [];
+  const fixtureRows = Array.isArray(fixtureGovernancePayload?.rows) ? fixtureGovernancePayload.rows : [];
+  const artifactRows = Array.isArray(artifactExpectationsPayload?.rows) ? artifactExpectationsPayload.rows : [];
+
+  const languageById = new Map(languageRows.map((row) => [row.id, row]));
+  const frameworkById = new Map(frameworkRows.map((row) => [row.id, row]));
+  const conformanceByProfile = new Map(conformanceRows.map((row) => [profileKey(row.profileType, row.profileId), row]));
+  const fixtureCountsByProfile = new Map();
+  for (const row of fixtureRows) {
+    const key = profileKey(row.profileType, row.profileId);
+    fixtureCountsByProfile.set(key, (fixtureCountsByProfile.get(key) || 0) + 1);
+  }
+
+  const artifactByProfileCapability = new Map();
+  const artifactIdCounts = new Map();
+  for (const row of artifactRows) {
+    artifactIdCounts.set(row.id, (artifactIdCounts.get(row.id) || 0) + 1);
+    const key = `${profileKey(row.profileType, row.profileId)}:${row.capability}`;
+    const list = artifactByProfileCapability.get(key) || [];
+    list.push(row);
+    artifactByProfileCapability.set(key, list);
+  }
+
+  for (const [id, count] of artifactIdCounts.entries()) {
+    if (count > 1) errors.push(`artifact-expectations duplicate id: ${id}`);
+  }
+
+  const capabilityByLanguageCapability = new Map();
+  for (const row of capabilityRows) {
+    const key = `${row.languageId}:${row.capability}`;
+    capabilityByLanguageCapability.set(key, row);
+  }
+
+  for (const languageRow of languageRows) {
+    const rowErrors = [];
+    const rowWarnings = [];
+    const conformanceKey = profileKey('language', languageRow.id);
+    const conformanceRow = conformanceByProfile.get(conformanceKey);
+    const requiredConformance = asStringArray(languageRow.requiredConformance);
+    const requiredCapabilities = languageRow.requiredCapabilities && typeof languageRow.requiredCapabilities === 'object'
+      ? languageRow.requiredCapabilities
+      : {};
+    let artifactExpectationCount = 0;
+
+    if (!conformanceRow) {
+      rowErrors.push('missing conformance-levels row');
+    } else if (!equalStringSets(conformanceRow.requiredLevels, requiredConformance)) {
+      rowErrors.push('conformance-levels requiredLevels do not match language profile requiredConformance');
+    }
+
+    if ((fixtureCountsByProfile.get(conformanceKey) || 0) === 0) {
+      rowErrors.push('missing fixture-governance row');
+    }
+
+    for (const capability of Object.keys(requiredCapabilities).sort()) {
+      const state = requiredCapabilities[capability];
+      const capabilityRow = capabilityByLanguageCapability.get(`${languageRow.id}:${capability}`);
+      if (!capabilityRow) {
+        rowErrors.push(`missing capability-matrix row for ${capability}`);
+        continue;
+      }
+      if (capabilityRow.state !== state) {
+        rowErrors.push(`capability-matrix state mismatch for ${capability}: expected ${state}`);
+      }
+      const expectationRows = artifactByProfileCapability.get(`${conformanceKey}:${capability}`) || [];
+      artifactExpectationCount += expectationRows.length;
+      if (expectationRows.length === 0) {
+        rowErrors.push(`missing artifact expectation for ${capability}`);
+        continue;
+      }
+      if (expectationRows.length > 1) {
+        rowErrors.push(`duplicate artifact expectations for ${capability}`);
+      }
+      const expectationRow = expectationRows[0];
+      const expectedExpectation = stateToExpectedArtifactExpectation(state);
+      if (expectationRow.expectation !== expectedExpectation) {
+        rowErrors.push(`artifact expectation mismatch for ${capability}: expected ${expectedExpectation}`);
+      }
+      if (!equalStringSets(expectationRow.requiredConformance, requiredConformance)) {
+        rowErrors.push(`artifact expectation requiredConformance mismatch for ${capability}`);
+      }
+      if (expectationRow.expectation === 'required' && !expectationRow.artifactId) {
+        rowErrors.push(`required artifact expectation missing artifactId for ${capability}`);
+      }
+    }
+
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: languageRow.id
+    });
+
+    rows.push({
+      rowType: 'artifact-expectation-profile',
+      profileType: 'language',
+      profileId: languageRow.id,
+      capabilityCount: Object.keys(requiredCapabilities).length,
+      artifactExpectationCount,
+      pass: rowErrors.length === 0,
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
+    });
+  }
+
+  for (const frameworkRow of frameworkRows) {
+    const rowErrors = [];
+    const rowWarnings = [];
+    const conformanceKey = profileKey('framework', frameworkRow.id);
+    const conformanceRow = conformanceByProfile.get(conformanceKey);
+    const requiredConformance = asStringArray(frameworkRow.requiredConformance);
+    let artifactExpectationCount = 0;
+
+    if (!conformanceRow) {
+      rowErrors.push('missing conformance-levels row');
+    } else if (!equalStringSets(conformanceRow.requiredLevels, requiredConformance)) {
+      rowErrors.push('conformance-levels requiredLevels do not match framework requiredConformance');
+    }
+
+    if ((fixtureCountsByProfile.get(conformanceKey) || 0) === 0) {
+      rowErrors.push('missing fixture-governance row');
+    }
+
+    for (const capability of REQUIRED_FRAMEWORK_ARTIFACT_CAPABILITIES) {
+      const expectationRows = artifactByProfileCapability.get(`${conformanceKey}:${capability}`) || [];
+      artifactExpectationCount += expectationRows.length;
+      if (expectationRows.length === 0) {
+        rowErrors.push(`missing framework artifact expectation for ${capability}`);
+        continue;
+      }
+      if (expectationRows.length > 1) {
+        rowErrors.push(`duplicate framework artifact expectations for ${capability}`);
+      }
+      if (!equalStringSets(expectationRows[0].requiredConformance, requiredConformance)) {
+        rowErrors.push(`framework artifact expectation requiredConformance mismatch for ${capability}`);
+      }
+    }
+
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: frameworkRow.id
+    });
+
+    rows.push({
+      rowType: 'artifact-expectation-profile',
+      profileType: 'framework',
+      profileId: frameworkRow.id,
+      capabilityCount: REQUIRED_FRAMEWORK_ARTIFACT_CAPABILITIES.length,
+      artifactExpectationCount,
+      pass: rowErrors.length === 0,
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
+    });
+  }
+
+  for (const row of artifactRows) {
+    const rowErrors = [];
+    const rowWarnings = [];
+    const profileExists = row.profileType === 'language'
+      ? languageById.has(row.profileId)
+      : frameworkById.has(row.profileId);
+    if (!profileExists) {
+      rowErrors.push(`unknown ${row.profileType} profileId: ${row.profileId}`);
+    }
+    for (const level of asStringArray(row.requiredConformance)) {
+      if (!CONFORMANCE_LEVELS.includes(level)) {
+        rowErrors.push(`unsupported conformance level: ${level}`);
+      }
+    }
+    if (row.expectation === 'optional-disabled' && row.blocking) {
+      rowWarnings.push('optional-disabled artifact expectations should not be blocking');
+    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: row.id
+    });
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors: Object.freeze([...errors]),
+    warnings: Object.freeze([...warnings]),
+    rows: Object.freeze(rows)
+  };
+}
+
+export function buildUsrFullConformanceSurfaceReport({
+  languageProfilesPayload,
+  frameworkProfilesPayload,
+  capabilityMatrixPayload,
+  conformanceLevelsPayload,
+  fixtureGovernancePayload,
+  batchShardsPayload,
+  artifactExpectationsPayload,
+  knownLanes = [],
+  generatedAt = new Date().toISOString(),
+  producerId = 'usr-full-conformance-surface',
+  producerVersion = null,
+  runId = 'run-usr-full-conformance-surface',
+  lane = 'usr-full-conformance',
+  buildId = null,
+  scope = { scopeType: 'lane', scopeId: 'usr-full-conformance' }
+} = {}) {
+  const evaluation = validateUsrArtifactExpectationCoverage({
+    languageProfilesPayload,
+    frameworkProfilesPayload,
+    capabilityMatrixPayload,
+    conformanceLevelsPayload,
+    fixtureGovernancePayload,
+    batchShardsPayload,
+    artifactExpectationsPayload,
+    knownLanes
+  });
+
+  const rows = cloneRowsWithDiagnostics(evaluation.rows);
+  const payload = buildReportPayload({
+    artifactId: 'usr-conformance-summary',
+    generatedAt,
+    producerId,
+    producerVersion,
+    runId,
+    lane,
+    buildId,
+    status: buildReportStatus(evaluation),
+    scope: normalizeReportScope(scope, 'lane', lane),
+    summary: {
+      dashboard: 'full-language-conformance-surface',
+      profileCount: rows.length,
+      languageProfileCount: rows.filter((row) => row.profileType === 'language').length,
+      frameworkProfileCount: rows.filter((row) => row.profileType === 'framework').length,
+      shardCount: Array.isArray(batchShardsPayload?.rows) ? batchShardsPayload.rows.length : 0,
+      artifactExpectationRowCount: Array.isArray(artifactExpectationsPayload?.rows) ? artifactExpectationsPayload.rows.length : 0,
+      passCount: rows.filter((row) => row.pass).length,
+      failCount: rows.filter((row) => !row.pass).length,
+      warningCount: evaluation.warnings.length,
+      errorCount: evaluation.errors.length
+    },
+    blockingFindings: buildReportFindings(evaluation.errors, 'full-conformance'),
+    advisoryFindings: buildReportFindings(evaluation.warnings, 'full-conformance'),
+    rows
+  });
+
+  return {
+    ok: evaluation.ok,
+    errors: evaluation.errors,
+    warnings: evaluation.warnings,
+    rows,
+    payload
+  };
+}
+
 export function validateUsrConformanceLevelCoverage({
   targetLevel,
   languageProfilesPayload,

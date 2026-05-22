@@ -1,6 +1,6 @@
 # Suite Taxonomy Report
 
-Generated: 2026-05-22T00:58:59.576Z
+Generated: 2026-05-22T05:26:37.271Z
 
 ## Summary
 
@@ -30,6 +30,9 @@ Generated: 2026-05-22T00:58:59.576Z
 - `ci-long`: 18 tests
   matrix: 10
   heavy-runtime: 8
+- `usr-full-conformance`: 11 tests
+  hero: 10
+  meta: 1
 
 ## Peripheral Tooling Groups
 
