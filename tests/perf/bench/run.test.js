@@ -6,26 +6,62 @@ import { spawnSync } from 'node:child_process';
 import { createCli } from '../../../src/shared/cli.js';
 import { BENCH_OPTIONS, validateBenchArgs } from '../../../src/shared/cli-options.js';
 import { createDisplay } from '../../../src/shared/cli/display.js';
-import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
+import { hasChunkMetaArtifactsSync } from '../../../src/shared/artifact-io/chunk-meta-presence.js';
 import { buildSearchCliArgs } from '../../../tools/shared/search-cli-harness.js';
 import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../../../tools/shared/query-file-utils.js';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
-import { getEnvConfig } from '../../../src/shared/env.js';
-import { runWithConcurrency } from '../../../src/shared/concurrency.js';
+import { getEnvConfig } from '../../../src/shared/env/runtime.js';
+import { runWithConcurrency } from '../../../src/shared/concurrency/run-with-queue.js';
 import os from 'node:os';
 import { createSafeRegex, normalizeSafeRegexConfig } from '../../../src/shared/safe-regex.js';
 import { build as buildHistogram } from 'hdr-histogram-js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { formatBenchDuration as formatDuration, formatBenchDurationMs as formatDurationMs } from '../../helpers/duration-format.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
+import { createFastIndexingTestConfig } from '../../helpers/fast-indexing-config.js';
 import { sanitizeBenchNodeOptions } from '../../../tools/bench/language/node-options.js';
 import { resolveBenchQueryBackends } from '../../../tools/bench/language/query-backends.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
 import { createSearchWorkerPool, resolveAdaptiveQueryWorkerCount } from './query-runtime.js';
 
-applyTestEnv();
+const root = process.cwd();
+const originalRawArgs = process.argv.slice(2);
+const testingDefaultsEnabled = process.env.PAIROFCLEATS_TESTING === '1' && originalRawArgs.length === 0;
+const hasOption = (name) => process.argv.slice(2).some((arg) => arg === name || arg.startsWith(`${name}=`));
+if (testingDefaultsEnabled) {
+  if (!hasOption('--repo')) {
+    process.argv.push('--repo', path.join(root, 'tests', 'fixtures', 'sample'));
+  }
+  if (!hasOption('--queries')) {
+    process.argv.push('--queries', path.join(root, 'tests', 'fixtures', 'sample', 'queries.txt'));
+  }
+  if (!hasOption('--backend')) {
+    process.argv.push('--backend', 'memory');
+  }
+  if (!hasOption('--limit')) {
+    process.argv.push('--limit', '1');
+  }
+  if (!hasOption('--top')) {
+    process.argv.push('--top', '1');
+  }
+  if (!hasOption('--stub-embeddings') && !hasOption('--real-embeddings')) {
+    process.argv.push('--stub-embeddings');
+  }
+  if (!hasOption('--ann') && !hasOption('--no-ann')) {
+    process.argv.push('--no-ann');
+  }
+  if (!hasOption('--quiet')) {
+    process.argv.push('--quiet');
+  }
+}
+applyTestEnv({
+  cacheRoot: path.join(root, '.testCache', 'bench-run'),
+  embeddings: 'stub',
+  testConfig: createFastIndexingTestConfig()
+});
 
 const rawArgs = process.argv.slice(2);
+const testHarnessSearchMode = testingDefaultsEnabled ? 'code' : null;
 const argv = createCli({
   scriptName: 'bench',
   options: BENCH_OPTIONS,
@@ -70,7 +106,6 @@ if (safeRegex.test('a'.repeat(100))) {
   fatalExit('Safe regex maxInputLength guard failed.');
 }
 
-const root = process.cwd();
 const repoArg = argv.repo ? path.resolve(argv.repo) : null;
 const reportPath = path.join(root, 'tools', 'index', 'report-artifacts.js');
 const buildIndexPath = path.join(root, 'build_index.js');
@@ -225,6 +260,7 @@ function buildSearchArgs(query, backend) {
     backend,
     topN,
     annArg,
+    mode: testHarnessSearchMode,
     repo: repoArg,
     extraArgs
   });
@@ -315,7 +351,7 @@ function getRecommendedHeapMb() {
   };
 }
 
-function runBuild(args, label, env) {
+function runBenchChildProcess(args, env, failureLabel) {
   const start = Date.now();
   const result = spawnSync(process.execPath, args, {
     env,
@@ -327,25 +363,18 @@ function runBuild(args, label, env) {
     if (result.stderr) process.stderr.write(result.stderr);
   }
   if (result.status !== 0) {
-    fatalExit(`Build failed: ${label}`, result.status ?? 1);
+    fatalExit(failureLabel, result.status ?? 1);
   }
-  return Date.now() - start;
+  return { durationMs: Date.now() - start };
+}
+
+function runBuild(args, label, env) {
+  return runBenchChildProcess(args, env, `Build failed: ${label}`).durationMs;
 }
 
 function runServiceQueue(queueName, env) {
   const args = [indexerServicePath, 'work', '--queue', queueName, '--concurrency', '1'];
-  const result = spawnSync(process.execPath, args, {
-    env,
-    encoding: 'utf8',
-    stdio: jsonOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit'
-  });
-  if (jsonOutput) {
-    if (result.stdout) process.stderr.write(result.stdout);
-    if (result.stderr) process.stderr.write(result.stderr);
-  }
-  if (result.status !== 0) {
-    fatalExit(`Service queue failed: ${queueName}`, result.status ?? 1);
-  }
+  runBenchChildProcess(args, env, `Service queue failed: ${queueName}`);
 }
 
 const buildMs = {};
@@ -382,6 +411,7 @@ if (buildIndex || buildSqlite) {
     // of build_index to avoid duplicate sqlite passes and distorted timings.
     args.push('--no-sqlite');
     if (repoArg) args.push('--repo', repoArg);
+    if (testHarnessSearchMode) args.push('--mode', testHarnessSearchMode);
     if (stubEmbeddings) args.push('--stub-embeddings');
     if (buildIncremental) args.push('--incremental');
     if (argv.threads) args.push('--threads', String(argv.threads));
@@ -709,7 +739,8 @@ if (repoArg) reportArgs.push('--repo', repoArg);
 const reportResult = spawnSync(process.execPath, reportArgs, { encoding: 'utf8' });
 const artifactReport = reportResult.status === 0 ? JSON.parse(reportResult.stdout || '{}') : {};
 const corruption = artifactReport?.corruption || null;
-if (corruption && corruption.ok === false) {
+const shouldCheckArtifactCorruption = !testingDefaultsEnabled || needsSqlite;
+if (shouldCheckArtifactCorruption && corruption && corruption.ok === false) {
   const issues = Array.isArray(corruption.issues) && corruption.issues.length
     ? corruption.issues.join('; ')
     : 'unknown issues';

@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { writeJsonFile } from '../../src/shared/json-file.js';
+import { runNode } from '../helpers/run-node.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 
 const ROOT = process.cwd();
@@ -13,6 +13,13 @@ const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-import-re
 const gateEnv = applyTestEnv({ syncProcess: false });
 
 const writeGraph = (targetPath, payload) => writeJsonFile(targetPath, payload);
+const runGate = (args, label) => runNode(
+  args,
+  label,
+  ROOT,
+  gateEnv,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
+);
 
 try {
   const passGraphPath = path.join(tempRoot, 'import_resolution_graph.pass.json');
@@ -65,8 +72,7 @@ try {
       }
     ]
   });
-  const passResult = spawnSync(
-    process.execPath,
+  const passResult = runGate(
     [
       gatePath,
       '--mode',
@@ -78,11 +84,7 @@ try {
       '--actionable-unresolved-rate-max',
       '0.4'
     ],
-    {
-      cwd: ROOT,
-      env: gateEnv,
-      encoding: 'utf8'
-    }
+    'import resolution slo gate pass case'
   );
   if (passResult.status !== 0) {
     console.error('import resolution slo gate smoke test failed (pass case)');
@@ -173,8 +175,7 @@ try {
       }
     ]
   });
-  const failResult = spawnSync(
-    process.execPath,
+  const failResult = runGate(
     [
       gatePath,
       '--mode',
@@ -186,11 +187,7 @@ try {
       '--actionable-unresolved-rate-max',
       '0.5'
     ],
-    {
-      cwd: ROOT,
-      env: gateEnv,
-      encoding: 'utf8'
-    }
+    'import resolution slo gate fail case'
   );
   assert.equal(failResult.status, 3, `expected fail gate status=3, received ${failResult.status}`);
   const failPayload = JSON.parse(await fs.readFile(failJsonPath, 'utf8'));
@@ -262,8 +259,7 @@ try {
       }
     ]
   });
-  const fallbackResult = spawnSync(
-    process.execPath,
+  const fallbackResult = runGate(
     [
       gatePath,
       '--mode',
@@ -275,11 +271,7 @@ try {
       '--actionable-unresolved-rate-max',
       '0.49'
     ],
-    {
-      cwd: ROOT,
-      env: gateEnv,
-      encoding: 'utf8'
-    }
+    'import resolution slo gate fallback case'
   );
   assert.equal(fallbackResult.status, 3, `expected fallback gate status=3, received ${fallbackResult.status}`);
   const fallbackPayload = JSON.parse(await fs.readFile(fallbackJsonPath, 'utf8'));
@@ -333,8 +325,7 @@ try {
     },
     warnings: []
   });
-  const advisoryResult = spawnSync(
-    process.execPath,
+  const advisoryResult = runGate(
     [
       gatePath,
       '--mode',
@@ -350,11 +341,7 @@ try {
       '--resolver-gap-rate-warn-max',
       '0.3'
     ],
-    {
-      cwd: ROOT,
-      env: gateEnv,
-      encoding: 'utf8'
-    }
+    'import resolution slo gate advisory case'
   );
   assert.equal(advisoryResult.status, 0, `expected advisory gate status=0, received ${advisoryResult.status}`);
   const advisoryPayload = JSON.parse(await fs.readFile(advisoryJsonPath, 'utf8'));
@@ -379,8 +366,7 @@ try {
     }
   }, null, 2), 'utf8');
   const driftJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.drift.json');
-  const driftResult = spawnSync(
-    process.execPath,
+  const driftResult = runGate(
     [
       gatePath,
       '--mode',
@@ -402,11 +388,7 @@ try {
       '--resolver-gap-rate-drift-warn-max',
       '0.2'
     ],
-    {
-      cwd: ROOT,
-      env: gateEnv,
-      encoding: 'utf8'
-    }
+    'import resolution slo gate drift case'
   );
   assert.equal(driftResult.status, 0, `expected drift gate status=0, received ${driftResult.status}`);
   const driftPayload = JSON.parse(await fs.readFile(driftJsonPath, 'utf8'));
@@ -462,8 +444,7 @@ try {
       }
     }
   }, null, 2), 'utf8');
-  const stageDriftResult = spawnSync(
-    process.execPath,
+  const stageDriftResult = runGate(
     [
       gatePath,
       '--mode',
@@ -489,11 +470,7 @@ try {
       '--resolver-stage-p99-drift-warn-ms-max',
       '20'
     ],
-    {
-      cwd: ROOT,
-      env: gateEnv,
-      encoding: 'utf8'
-    }
+    'import resolution slo gate stage drift case'
   );
   assert.equal(stageDriftResult.status, 0, `expected stage drift gate status=0, received ${stageDriftResult.status}`);
   const stageDriftPayload = JSON.parse(await fs.readFile(stageDriftJsonPath, 'utf8'));
@@ -528,8 +505,7 @@ try {
     },
     warnings: []
   });
-  const gateEligibleStatsResult = spawnSync(
-    process.execPath,
+  const gateEligibleStatsResult = runGate(
     [
       gatePath,
       '--mode',
@@ -541,11 +517,7 @@ try {
       '--actionable-unresolved-rate-max',
       '0.3'
     ],
-    {
-      cwd: ROOT,
-      env: gateEnv,
-      encoding: 'utf8'
-    }
+    'import resolution slo gate eligible stats case'
   );
   assert.equal(gateEligibleStatsResult.status, 0, `expected gate-eligible stats status=0, received ${gateEligibleStatsResult.status}`);
   const gateEligibleStatsPayload = JSON.parse(await fs.readFile(gateEligibleStatsJsonPath, 'utf8'));

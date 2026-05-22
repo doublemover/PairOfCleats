@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path, { isAbsolute } from 'node:path';
 
 import { detectTool, getToolingRegistry } from '../../../tools/tooling/utils.js';
+import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 
@@ -13,7 +13,7 @@ const fixtureRoot = path.join(root, 'tests', 'fixtures', 'languages');
 const tempRoot = resolveTestCachePath(root, `tooling-install-detect-plan-matrix-${process.pid}-${Date.now()}`);
 
 const runCliJson = ({ scriptPath, args, env = process.env, cwd = root, label }) => {
-  const result = spawnSync(process.execPath, [scriptPath, ...args], { encoding: 'utf8', env, cwd });
+  const result = runNode([scriptPath, ...args], label, cwd, env, { stdio: 'pipe', allowFailure: true });
   assert.equal(result.status, 0, `${label} exited non-zero\n${result.stderr || result.stdout}`);
   try {
     return JSON.parse(String(result.stdout || '{}'));

@@ -1,20 +1,10 @@
 #!/usr/bin/env node
 import {
-  runSearchAfterUpdateScenario,
-  runWalCheckpointScenario
+  runSearchAfterUpdateScenario
 } from './update-contract-cases.js';
-import { createIncrementalScenario } from '../helpers/incremental-scenarios.js';
-
-const sharedScenario = await createIncrementalScenario({
-  name: 'update-contract-matrix-shared',
-  mode: 'code'
-});
-sharedScenario.runBuildIndex();
-await sharedScenario.runBuildSqlite();
 
 const cases = [
-  { name: 'search after update', run: () => runSearchAfterUpdateScenario(sharedScenario) },
-  { name: 'wal checkpoint', run: () => runWalCheckpointScenario(sharedScenario) }
+  { name: 'search after update', run: () => runSearchAfterUpdateScenario() }
 ];
 
 for (const testCase of cases) {

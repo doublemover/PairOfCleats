@@ -4,6 +4,7 @@ import {
   createPostingsQueue,
   estimatePostingsPayload
 } from '../../../src/index/build/indexer/steps/process-files/postings-queue.js';
+import { createPostingsQueueBackpressureCase } from './helpers/build-postings-fixture.js';
 
 const legacyResult = {
   chunks: [
@@ -35,22 +36,17 @@ const measured = estimatePostingsPayload(metadataResult);
 assert.deepEqual(measured, legacyPayload, 'precomputed payload should preserve legacy rows/bytes');
 assert.equal(serialized, false, 'expected metadata path to bypass fallback stringify estimation');
 
-const queue = createPostingsQueue({
-  maxPending: 2,
-  maxPendingRows: measured.rows,
-  maxPendingBytes: measured.bytes,
-  maxHeapFraction: 1
+const {
+  first,
+  queue,
+  secondPromise,
+  secondResolved
+} = await createPostingsQueueBackpressureCase({
+  createPostingsQueue,
+  payload: measured
 });
 
-const first = await queue.reserve(measured);
-let secondResolved = false;
-const secondPromise = queue.reserve({ rows: 1, bytes: 1 }).then((reservation) => {
-  secondResolved = true;
-  return reservation;
-});
-
-await new Promise((resolve) => setTimeout(resolve, 50));
-assert.equal(secondResolved, false, 'expected reservation accounting to match legacy backpressure behavior');
+assert.equal(secondResolved(), false, 'expected reservation accounting to match legacy backpressure behavior');
 
 first.release();
 const second = await secondPromise;

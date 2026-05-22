@@ -9,7 +9,7 @@ import {
   updateBundlesWithChunks,
   writeIncrementalBundle
 } from '../../../src/index/build/incremental.js';
-import { resolveBundleShardFilename } from '../../../src/shared/bundle-io.js';
+import { resolveBundleShardFilename } from '../../../src/shared/bundle-io-paths.js';
 
 applyTestEnv({
   testing: '1',

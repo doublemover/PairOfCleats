@@ -4,9 +4,12 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { getIndexDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
-import { applyTestEnv } from './test-env.js';
+import { applyTestEnv, withTemporaryEnv } from './test-env.js';
 import { withDirectoryLock } from './directory-lock.js';
 import { formatCommandFailure } from './command-failure.js';
+import { runNode } from './run-node.js';
+import { runSearchCli } from '../../src/retrieval/cli.js';
+import { buildSearchCliArgs } from '../../tools/shared/search-cli-harness.js';
 
 import { normalizeTestCacheScope, resolveTestCachePath } from './test-cache.js';
 
@@ -24,8 +27,8 @@ const FIXTURE_COMMIT_MESSAGES = Object.freeze([
   'add alpha'
 ]);
 const GIT_COMMAND_TIMEOUT_MS = 15000;
-const BUILD_INDEX_TIMEOUT_MS = 10 * 60 * 1000;
-const SEARCH_TIMEOUT_MS = 2 * 60 * 1000;
+const BUILD_INDEX_TIMEOUT_MS = 30 * 1000;
+const SEARCH_TIMEOUT_MS = 30 * 1000;
 
 /**
  * Run git command for fixture setup and fail fast on non-zero exit.
@@ -72,25 +75,21 @@ const hasChunkMeta = (repoRoot) => {
 };
 
 const buildIndex = (repoRoot, env) => {
-  const result = spawnSync(
-    process.execPath,
-    [
-      path.join(ROOT, 'build_index.js'),
-      '--stub-embeddings',
-      '--stage',
-      'stage2',
-      '--mode',
-      'prose',
-      '--repo',
-      repoRoot
-    ],
-    {
-      cwd: repoRoot,
-      env,
-      stdio: 'inherit',
-      timeout: BUILD_INDEX_TIMEOUT_MS
-    }
-  );
+  const args = [
+    path.join(ROOT, 'build_index.js'),
+    '--stub-embeddings',
+    '--stage',
+    'stage2',
+    '--mode',
+    'prose',
+    '--repo',
+    repoRoot
+  ];
+  const result = runNode(args, 'build_index', repoRoot, env, {
+    stdio: 'inherit',
+    timeoutMs: BUILD_INDEX_TIMEOUT_MS,
+    allowFailure: true
+  });
   if (result.status !== 0) {
     const command = [
       process.execPath,
@@ -241,10 +240,18 @@ export const ensureSearchFiltersRepo = async ({ cacheScope = 'shared' } = {}) =>
       embeddings: 'stub',
       testConfig: {
         indexing: {
+          typeInference: false,
+          typeInferenceCrossFile: false,
+          riskAnalysis: false,
+          riskAnalysisCrossFile: false,
           embeddings: {
             hnsw: { enabled: false },
             lancedb: { enabled: false }
           }
+        },
+        tooling: {
+          autoEnableOnDetect: false,
+          lsp: { enabled: false }
         }
       },
       extraEnv: process.platform === 'win32'
@@ -298,41 +305,25 @@ export const runFilterSearch = ({
   mode = 'prose',
   backend = 'memory'
 }) => {
-  const result = spawnSync(
-    process.execPath,
-    [
-      path.join(root, 'search.js'),
-      query,
-      '--mode',
-      mode,
-      '--json',
-      '--no-ann',
-      '--repo',
-      repoRoot,
-      ...(backend ? ['--backend', backend] : []),
-      ...args
-    ],
-    {
-      cwd: repoRoot,
-      env,
-      encoding: 'utf8',
-      timeout: SEARCH_TIMEOUT_MS
-    }
-  );
+  const searchArgs = [
+    path.join(root, 'search.js'),
+    query,
+    '--mode',
+    mode,
+    '--json',
+    '--no-ann',
+    '--repo',
+    repoRoot,
+    ...(backend ? ['--backend', backend] : []),
+    ...args
+  ];
+  const result = runNode(searchArgs, 'search', repoRoot, env, {
+    stdio: 'pipe',
+    timeoutMs: SEARCH_TIMEOUT_MS,
+    allowFailure: true
+  });
   if (result.status !== 0) {
-    const command = [
-      process.execPath,
-      path.join(root, 'search.js'),
-      query,
-      '--mode',
-      mode,
-      '--json',
-      '--no-ann',
-      '--repo',
-      repoRoot,
-      ...(backend ? ['--backend', backend] : []),
-      ...args
-    ].join(' ');
+    const command = [process.execPath, ...searchArgs].join(' ');
     console.error(formatCommandFailure({
       label: 'search',
       command,
@@ -347,4 +338,54 @@ export const runFilterSearch = ({
     console.error(`Failed to parse search output: ${err?.message || err}`);
     process.exit(1);
   }
+};
+
+/**
+ * Create an in-process JSON search runner for the deterministic filter fixture.
+ * This preserves production CLI parsing/search behavior without paying Node
+ * startup cost for every assertion in contract-matrix tests.
+ *
+ * @param {{root?:string,repoRoot:string,env:object}} input
+ * @returns {(input:{query:string,args?:string[],mode?:string,backend?:string})=>Promise<object>}
+ */
+export const createInProcessFilterSearch = ({
+  root = null,
+  repoRoot,
+  env
+}) => {
+  const indexCache = new Map();
+  const sqliteCache = new Map();
+  return async ({
+    query,
+    args = [],
+    mode = 'prose',
+    backend = 'memory'
+  } = {}) => {
+    const rawArgs = buildSearchCliArgs({
+      query,
+      json: true,
+      annEnabled: false,
+      mode,
+      backend,
+      repo: repoRoot,
+      extraArgs: Array.isArray(args) ? args : []
+    });
+    try {
+      const runOptions = {
+        emitOutput: false,
+        exitOnError: false,
+        indexCache,
+        sqliteCache
+      };
+      if (typeof root === 'string' && root.trim()) {
+        runOptions.root = root;
+      }
+      return await withTemporaryEnv(env, async () => runSearchCli(rawArgs, {
+        ...runOptions
+      }));
+    } catch (err) {
+      console.error(`Filter fixture search failed: ${err?.message || err}`);
+      process.exit(1);
+    }
+  };
 };

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildChunksFromBundles } from '../../../tools/build/embeddings/chunks.js';
-import { resolveBundleShardFilename, writeBundleFile } from '../../../src/shared/bundle-io.js';
+import { resolveBundleShardFilename } from '../../../src/shared/bundle-io-paths.js';
+import { writeBundleFile } from '../../../src/shared/bundle-io.js';
 import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 

@@ -1,15 +1,22 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode } from '../../../helpers/run-node.js';
+import { applyTestEnv } from '../../../helpers/test-env.js';
 
 const root = process.cwd();
 const scriptPath = path.join(root, 'tools', 'reports', 'combined-summary.js');
+const env = applyTestEnv({ syncProcess: false });
 
-const run = spawnSync(
-  process.execPath,
+const run = runNode(
   [scriptPath, '--json', '--models', 'model-a,model-b', '--baseline', 'missing-model'],
-  { encoding: 'utf8' }
+  'summary report json error contract',
+  root,
+  env,
+  {
+    stdio: 'pipe',
+    allowFailure: true
+  }
 );
 
 assert.equal(run.status, 1, 'expected invalid baseline to fail');

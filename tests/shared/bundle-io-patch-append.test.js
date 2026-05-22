@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+import { resolveBundlePatchMetaPath } from '../../src/shared/bundle-io-paths.js';
 import {
   readBundleFile,
-  resolveBundlePatchMetaPath,
   writeBundlePatch,
   writeBundleFile
 } from '../../src/shared/bundle-io.js';

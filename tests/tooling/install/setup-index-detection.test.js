@@ -2,10 +2,10 @@
 import { applyTestEnv, syncProcessEnv } from '../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
+import { runNode } from '../../helpers/run-node.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
 const root = process.cwd();
@@ -26,8 +26,7 @@ async function resetIndexDir() {
 }
 
 function runSetup(label) {
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     [
       path.join(root, 'tools', 'setup', 'setup.js'),
       '--repo',
@@ -43,11 +42,10 @@ function runSetup(label) {
       '--skip-sqlite',
       '--skip-artifacts'
     ],
-    {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      env: { ...testEnv, PAIROFCLEATS_CACHE_ROOT: cacheRoot }
-    }
+    `setup index detection ${label}`,
+    repoRoot,
+    { ...testEnv, PAIROFCLEATS_CACHE_ROOT: cacheRoot },
+    { stdio: 'pipe' }
   );
   if (result.status !== 0) {
     console.error(`setup index detection failed: ${label}`);
@@ -72,14 +70,12 @@ const repoRoot = toRealPathSync(process.argv[1]);
 const userConfig = loadUserConfig(repoRoot);
 process.stdout.write(getIndexDir(repoRoot, process.argv[2], userConfig));
 `;
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     ['--input-type=module', '-e', script, repoRoot, mode],
-    {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      env: { ...testEnv, PAIROFCLEATS_CACHE_ROOT: cacheRoot }
-    }
+    `setup index dir ${mode}`,
+    repoRoot,
+    { ...testEnv, PAIROFCLEATS_CACHE_ROOT: cacheRoot },
+    { stdio: 'pipe' }
   );
   if (result.status !== 0) {
     console.error('setup index detection failed: unable to resolve setup index dir');

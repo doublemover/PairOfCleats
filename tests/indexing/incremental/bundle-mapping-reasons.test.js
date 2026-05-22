@@ -4,8 +4,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   normalizeBundleFormat,
+  resolveBundleFormatFromName
+} from '../../../src/shared/bundle-io-paths.js';
+import {
   readBundleFile,
-  resolveBundleFormatFromName,
   writeBundleFile
 } from '../../../src/shared/bundle-io.js';
 import { getIncrementalPaths } from '../../../src/storage/sqlite/incremental.js';

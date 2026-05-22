@@ -6,29 +6,11 @@ import {
   classifyBodyParseError,
   classifyRepoResolveError,
   classifyWorkspaceRequestError,
+  decodeRoutePathSegment,
   parseJsonBodyOrSendError,
   resolveRepoOrSendError
 } from '../../../tools/api/router/request-helpers.js';
-
-const createResponseCapture = () => {
-  const capture = {
-    statusCode: null,
-    headers: null,
-    body: null
-  };
-  return {
-    capture,
-    response: {
-      writeHead(statusCode, headers) {
-        capture.statusCode = statusCode;
-        capture.headers = headers;
-      },
-      end(body) {
-        capture.body = body;
-      }
-    }
-  };
-};
+import { createResponseCapture } from './response-capture.js';
 
 const oversized = new Error('too large');
 oversized.code = 'ERR_BODY_TOO_LARGE';
@@ -63,6 +45,18 @@ assert.deepEqual(
     message: 'Workspace path not permitted by server configuration.'
   },
   'expected workspace allowlist violations to map to 403 FORBIDDEN'
+);
+
+assert.equal(
+  decodeRoutePathSegment('snapshot%201', 'snapshot id'),
+  'snapshot 1',
+  'expected route path segment helper to decode valid URI segments'
+);
+assert.throws(
+  () => decodeRoutePathSegment('%E0%A4%A', 'diff id'),
+  (err) => err?.code === ERROR_CODES.INVALID_REQUEST
+    && err?.message === 'Invalid diff id: malformed URI encoding.',
+  'expected malformed route path segment encoding to map to INVALID_REQUEST'
 );
 
 {

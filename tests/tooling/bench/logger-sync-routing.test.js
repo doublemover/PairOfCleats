@@ -39,11 +39,16 @@ const logger = createBenchLogger({
 });
 
 logger.appendLogSync('[bench-language] Fatal: simulated', 'error', { forceOutput: true });
+logger.appendLogSync('[bench-language] Status: simulated', 'info', { kind: 'status', forceOutput: true });
 
 const masterText = await fs.readFile(masterLogPath, 'utf8');
 assert.match(masterText, /\[bench-language\] Fatal: simulated/, 'expected sync append to write the master log');
-assert.equal(displayEvents.length, 1, 'expected one display event');
+assert.match(masterText, /\[bench-language\] Status: simulated/, 'expected status append to write the master log');
+assert.equal(displayEvents.length, 2, 'expected two display events');
 assert.equal(displayEvents[0].level, 'error', 'expected sync append to route through display.error');
 assert.equal(displayEvents[0].message, '[bench-language] Fatal: simulated');
+assert.equal(displayEvents[1].level, 'status', 'expected status meta to route through display.logLine');
+assert.equal(displayEvents[1].message, '[bench-language] Status: simulated');
+assert.equal(displayEvents[1].meta?.kind, 'status');
 
 console.log('bench logger sync routing test passed');

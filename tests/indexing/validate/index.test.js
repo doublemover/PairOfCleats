@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { repoRoot } from '../../helpers/root.js';
 import { copyFixtureToTemp } from '../../helpers/fixtures.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = repoRoot();
 const fixtureRoot = await copyFixtureToTemp('sample');
@@ -27,20 +27,27 @@ const env = applyTestEnv({
 const validatorPath = path.join(root, 'tools', 'index', 'validate.js');
 const buildPath = path.join(root, 'build_index.js');
 
-const missingResult = spawnSync(
-  process.execPath,
+const missingResult = runNode(
   [validatorPath, '--repo', fixtureRoot, '--json'],
-  { env, encoding: 'utf8' }
+  'index validate missing index',
+  root,
+  env,
+  {
+    stdio: 'pipe',
+    allowFailure: true
+  }
 );
 if (missingResult.status === 0) {
   console.error('Expected index-validate to fail when indexes are missing.');
   process.exit(1);
 }
 
-const buildResult = spawnSync(
-  process.execPath,
+const buildResult = runNode(
   [buildPath, '--stub-embeddings', '--stage', 'stage2', '--mode', 'code', '--repo', fixtureRoot],
-  { env, encoding: 'utf8' }
+  'index validate build fixture',
+  root,
+  env,
+  { stdio: 'pipe' }
 );
 if (buildResult.status !== 0) {
   console.error('Failed to build fixture index for index-validate test.');
@@ -57,10 +64,12 @@ try {
   process.exit(1);
 }
 
-const okResult = spawnSync(
-  process.execPath,
+const okResult = runNode(
   [validatorPath, '--repo', fixtureRoot, '--json'],
-  { env, encoding: 'utf8' }
+  'index validate built index',
+  root,
+  env,
+  { stdio: 'pipe' }
 );
 if (okResult.status !== 0) {
   console.error('Expected index-validate to pass after building index.');

@@ -1,40 +1,92 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'search-ann-rrf-contract');
 const cacheRoot = path.join(tempRoot, 'cache');
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
+const fixtureRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await fsPromises.mkdir(path.join(fixtureRoot, 'src'), { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+await fsPromises.writeFile(
+  path.join(fixtureRoot, 'src', 'greet.js'),
+  [
+    'export function greet(name = "world") {',
+    '  return `hello ${name}`;',
+    '}',
+    ''
+  ].join('\n')
+);
 
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
   testConfig: {
+    indexing: {
+      embeddings: {
+        hnsw: {
+          enabled: true,
+          isolate: false
+        }
+      },
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
     tooling: {
-      autoEnableOnDetect: false
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
+  },
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', fixtureRoot],
-  { env, stdio: 'inherit' }
+runNode(
+  [
+    path.join(root, 'build_index.js'),
+    '--stub-embeddings',
+    '--stage',
+    'stage1',
+    '--mode',
+    'code',
+    '--no-sqlite',
+    '--scm-provider',
+    'none',
+    '--repo',
+    fixtureRoot
+  ],
+  'search ann rrf contract build',
+  root,
+  env,
+  { stdio: 'inherit' }
 );
-if (buildResult.status !== 0) {
-  throw new Error(`search ann rrf contract build failed with status=${buildResult.status}`);
-}
 
-const result = spawnSync(
-  process.execPath,
+runNode(
+  [
+    path.join(root, 'tools', 'build', 'embeddings.js'),
+    '--stub-embeddings',
+    '--mode',
+    'code',
+    '--repo',
+    fixtureRoot
+  ],
+  'search ann rrf contract embeddings',
+  root,
+  env,
+  { stdio: 'inherit' }
+);
+
+const result = runNode(
   [
     path.join(root, 'search.js'),
     'greet',
@@ -51,15 +103,11 @@ const result = spawnSync(
     '--repo',
     fixtureRoot
   ],
-  { env, encoding: 'utf8' }
+  'search ann rrf contract',
+  root,
+  env,
+  { stdio: 'pipe' }
 );
-
-if (result.status !== 0) {
-  if (result.error) console.error(result.error);
-  if (result.stdout) console.error(result.stdout.trim());
-  if (result.stderr) console.error(result.stderr.trim());
-  throw new Error(`search ann rrf contract failed with status=${result.status}`);
-}
 
 let payload = null;
 try {

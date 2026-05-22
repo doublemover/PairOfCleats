@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 
-import { runContextPackCli } from '../../src/integrations/tooling/context-pack.js';
 import { loadChunkMeta, MAX_JSON_BYTES } from '../../src/shared/artifact-io.js';
 import {
   createAnalysisSurfaceHarness,
@@ -11,16 +10,6 @@ import { ensureFixtureIndex } from '../helpers/fixture-index.js';
 import { applyTestEnv, withTemporaryEnv } from '../helpers/test-env.js';
 
 applyTestEnv();
-
-const runCliSilently = async (args) => {
-  const originalLog = console.log;
-  try {
-    console.log = () => {};
-    return await runContextPackCli(args);
-  } finally {
-    console.log = originalLog;
-  }
-};
 
 const { fixtureRoot, codeDir, env } = await ensureFixtureIndex({
   fixtureName: 'risk-interprocedural/js-simple',
@@ -53,7 +42,8 @@ await withTemporaryEnv(env, async () => {
       maxTokens: 1
     };
 
-    const cliRun = await runCliSilently([
+    const cliRun = harness.runCli([
+      'context-pack',
       '--json',
       '--repo', fixtureRoot,
       '--seed', args.seed,
@@ -65,12 +55,12 @@ await withTemporaryEnv(env, async () => {
       '--strictEvidence',
       '--maxTokens', '1'
     ]);
-    assert.equal(cliRun?.ok, false, 'expected strict evidence CLI request to fail');
-    assert.deepEqual(normalizeSurfaceError(cliRun), {
+    assert.equal(cliRun.status, 1, `expected strict evidence CLI request to fail: ${cliRun.stderr}`);
+    assert.deepEqual(normalizeSurfaceError(cliRun.parsed), {
       code: 'INVALID_REQUEST',
       reason: 'strict_evidence_incomplete'
     });
-    assert.equal(cliRun?.evidence?.complete, false, 'expected CLI strict evidence failure to expose evidence details');
+    assert.equal(cliRun.parsed?.evidence?.complete, false, 'expected CLI strict evidence failure to expose evidence details');
 
     const apiResponse = await harness.runApi('/analysis/context-pack', args);
     assert.equal(apiResponse.status, 400, 'expected strict evidence API request to fail');

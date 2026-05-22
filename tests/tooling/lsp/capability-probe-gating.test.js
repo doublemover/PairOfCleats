@@ -1,55 +1,14 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { collectLspTypes } from '../../../src/integrations/tooling/providers/lsp.js';
 
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { createStubLspCollectFixture } from './helpers/stub-lsp-collect-fixture.js';
 
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, `lsp-capability-gating-${process.pid}-${Date.now()}`);
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
-
-const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
-const docText = 'int add(int a, int b) { return a + b; }\n';
-const virtualPath = '.poc-vfs/src/sample.cpp#seg:stub.cpp';
-const documents = [{
-  virtualPath,
-  text: docText,
-  languageId: 'cpp',
-  effectiveExt: '.cpp'
-}];
-
-const chunkUid = 'ck64:v1:test:src/sample.cpp:deadbeef';
-const targets = [{
-  chunkRef: {
-    docId: 0,
-    chunkUid,
-    chunkId: 'chunk_deadbeef',
-    file: 'src/sample.cpp',
-    segmentUid: null,
-    segmentId: null,
-    range: { start: 0, end: docText.length }
-  },
-  virtualPath,
-  virtualRange: { start: 0, end: docText.length },
-  symbolHint: { name: 'add', kind: 'function' }
-}];
-
-const withNoHover = await collectLspTypes({
-  rootDir: tempRoot,
-  vfsRoot: tempRoot,
-  documents,
-  targets,
-  cmd: process.execPath,
-  args: [serverPath, '--mode', 'no-hover'],
-  parseSignature: (detail) => ({
-    signature: detail,
-    returnType: 'int',
-    paramTypes: { a: 'int', b: 'int' }
-  })
-});
+const { chunkUid, collect } = await createStubLspCollectFixture('lsp-capability-gating');
+const capabilityProbeOptions = {
+  semanticTokensEnabled: false,
+  inlayHintsEnabled: false
+};
+const withNoHover = await collect('no-hover', capabilityProbeOptions);
 
 assert.ok(withNoHover.byChunkUid[chunkUid], 'expected enrichment to continue when hover capability is missing');
 assert.equal(
@@ -63,19 +22,7 @@ assert.deepEqual(
   'expected missing-capability list in runtime gate envelope'
 );
 
-const withoutDocumentSymbol = await collectLspTypes({
-  rootDir: tempRoot,
-  vfsRoot: tempRoot,
-  documents,
-  targets,
-  cmd: process.execPath,
-  args: [serverPath, '--mode', 'no-document-symbol'],
-  parseSignature: (detail) => ({
-    signature: detail,
-    returnType: 'int',
-    paramTypes: { a: 'int', b: 'int' }
-  })
-});
+const withoutDocumentSymbol = await collect('no-document-symbol', capabilityProbeOptions);
 
 assert.equal(
   Object.keys(withoutDocumentSymbol.byChunkUid).length,

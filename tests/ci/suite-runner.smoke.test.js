@@ -1,21 +1,22 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../helpers/stdio.js';
+import { runNode } from '../helpers/run-node.js';
+import { applyTestEnv } from '../helpers/test-env.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const runnerPath = path.join(ROOT, 'tools', 'ci', 'run-suite.js');
+const env = applyTestEnv({ syncProcess: false });
 
 const runDrySuite = (mode) => {
-  const result = spawnSync(process.execPath, [runnerPath, '--mode', mode, '--dry-run'], {
-    encoding: 'utf8'
-  });
-  if (result.status !== 0) {
-    console.error(`suite runner dry-run failed for mode=${mode}`);
-    if (result.stderr) console.error(result.stderr.trim());
-    process.exit(result.status ?? 1);
-  }
+  const result = runNode(
+    [runnerPath, '--mode', mode, '--dry-run'],
+    `suite runner dry-run mode=${mode}`,
+    ROOT,
+    env,
+    { stdio: 'pipe' }
+  );
   return getCombinedOutput(result);
 };
 

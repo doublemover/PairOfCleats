@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonLinesSharded } from '../../../src/shared/json-stream.js';
-import { fromPosix } from '../../../src/shared/files.js';
+import { writeJsonLinesSharded } from '../../../src/shared/json-stream/jsonl-sharded.js';
+import { fromPosix } from '../../../src/shared/file-paths.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 

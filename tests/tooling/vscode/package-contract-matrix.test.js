@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { getEditorCommandSpecs } from '../../../src/shared/runtime-capability-manifest.js';
+import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -259,10 +259,13 @@ if (configProps['pairofcleats.env']?.type !== 'object') {
 }
 
 const outDir = resolveTestCachePath(root, 'package-vscode-structure');
-const run = spawnSync(process.execPath, [path.join(root, 'tools', 'package-vscode.js'), '--out-dir', outDir, '--smoke'], {
-  cwd: root,
-  encoding: 'utf8'
-});
+const run = runNode(
+  [path.join(root, 'tools', 'package-vscode.js'), '--out-dir', outDir, '--smoke'],
+  'package-vscode contract matrix',
+  root,
+  process.env,
+  { stdio: 'pipe', allowFailure: true }
+);
 if (run.status !== 0) {
   console.error('package-contract-matrix failed: package-vscode command failed');
   if (run.stderr) console.error(run.stderr.trim());

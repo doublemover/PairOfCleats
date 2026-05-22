@@ -3,113 +3,63 @@ import assert from 'node:assert/strict';
 
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import {
-  handleContextPackRoute,
-  handleRiskDeltaRoute,
-  handleRiskExplainRoute
-} from '../../../tools/api/router/analysis.js';
-import {
-  createContextPackValidator,
-  createRiskDeltaValidator,
-  createRiskExplainValidator
-} from '../../../tools/api/validation.js';
-
-const validateContextPackPayload = createContextPackValidator();
-const validateRiskDeltaPayload = createRiskDeltaValidator();
-const validateRiskExplainPayload = createRiskExplainValidator();
-
-const createResponseCapture = () => {
-  const capture = {
-    statusCode: null,
-    headers: null,
-    body: null
-  };
-  return {
-    capture,
-    response: {
-      writeHead(statusCode, headers) {
-        capture.statusCode = statusCode;
-        capture.headers = headers;
-      },
-      end(body) {
-        capture.body = body;
-      }
-    }
-  };
-};
+  analysisErrorRoutes,
+  createAnalysisErrorResponseCapture
+} from './analysis-error-classification-fixture.js';
 
 const cases = [
   {
     name: 'risk explain invalid repo returns 400',
-    handler: handleRiskExplainRoute,
+    ...analysisErrorRoutes.riskExplain,
     payload: { repoPath: 'bad-repo', chunk: 'chunk:test' },
     errorCode: ERROR_CODES.INVALID_REQUEST,
     expectedStatus: 400,
-    expectedBodyCode: ERROR_CODES.INVALID_REQUEST,
-    routeArgs: {
-      validateRiskExplainPayload
-    }
+    expectedBodyCode: ERROR_CODES.INVALID_REQUEST
   },
   {
     name: 'risk explain forbidden repo returns 403',
-    handler: handleRiskExplainRoute,
+    ...analysisErrorRoutes.riskExplain,
     payload: { repoPath: 'forbidden-repo', chunk: 'chunk:test' },
     errorCode: ERROR_CODES.FORBIDDEN,
     expectedStatus: 403,
-    expectedBodyCode: ERROR_CODES.FORBIDDEN,
-    routeArgs: {
-      validateRiskExplainPayload
-    }
+    expectedBodyCode: ERROR_CODES.FORBIDDEN
   },
   {
     name: 'context pack invalid repo returns 400',
-    handler: handleContextPackRoute,
+    ...analysisErrorRoutes.contextPack,
     payload: { repoPath: 'bad-repo', seed: 'chunk:test', hops: 0 },
     errorCode: ERROR_CODES.INVALID_REQUEST,
     expectedStatus: 400,
-    expectedBodyCode: ERROR_CODES.INVALID_REQUEST,
-    routeArgs: {
-      validateContextPackPayload,
-      ensureWorkspaceAllowlist: async () => null
-    }
+    expectedBodyCode: ERROR_CODES.INVALID_REQUEST
   },
   {
     name: 'context pack forbidden repo returns 403',
-    handler: handleContextPackRoute,
+    ...analysisErrorRoutes.contextPack,
     payload: { repoPath: 'forbidden-repo', seed: 'chunk:test', hops: 0 },
     errorCode: ERROR_CODES.FORBIDDEN,
     expectedStatus: 403,
-    expectedBodyCode: ERROR_CODES.FORBIDDEN,
-    routeArgs: {
-      validateContextPackPayload,
-      ensureWorkspaceAllowlist: async () => null
-    }
+    expectedBodyCode: ERROR_CODES.FORBIDDEN
   },
   {
     name: 'risk delta invalid repo returns 400',
-    handler: handleRiskDeltaRoute,
+    ...analysisErrorRoutes.riskDelta,
     payload: { repoPath: 'bad-repo', seed: 'chunk:test', from: 'a', to: 'b' },
     errorCode: ERROR_CODES.INVALID_REQUEST,
     expectedStatus: 400,
-    expectedBodyCode: ERROR_CODES.INVALID_REQUEST,
-    routeArgs: {
-      validateRiskDeltaPayload
-    }
+    expectedBodyCode: ERROR_CODES.INVALID_REQUEST
   },
   {
     name: 'risk delta forbidden repo returns 403',
-    handler: handleRiskDeltaRoute,
+    ...analysisErrorRoutes.riskDelta,
     payload: { repoPath: 'forbidden-repo', seed: 'chunk:test', from: 'a', to: 'b' },
     errorCode: ERROR_CODES.FORBIDDEN,
     expectedStatus: 403,
-    expectedBodyCode: ERROR_CODES.FORBIDDEN,
-    routeArgs: {
-      validateRiskDeltaPayload
-    }
+    expectedBodyCode: ERROR_CODES.FORBIDDEN
   }
 ];
 
 for (const testCase of cases) {
-  const { capture, response } = createResponseCapture();
+  const { capture, response } = createAnalysisErrorResponseCapture();
   const repoErr = new Error(`${testCase.name} repo failure`);
   repoErr.code = testCase.errorCode;
 

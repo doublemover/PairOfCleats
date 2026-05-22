@@ -2,7 +2,7 @@
 import { applyTestEnv } from '../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -46,32 +46,29 @@ const env = applyTestEnv({
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [
-    path.join(root, 'build_index.js'),
-    '--stage',
-    'stage1',
-    '--scm-provider',
-    'none',
-    '--repo',
-    repoRoot,
-    '--mode',
-    'all',
-    '--stub-embeddings'
-  ],
-  { env, encoding: 'utf8' }
-);
+const runCli = (args, label) => runNode(args, label, root, env, { stdio: 'pipe' });
+
+const buildResult = runCli([
+  path.join(root, 'build_index.js'),
+  '--stage',
+  'stage1',
+  '--scm-provider',
+  'none',
+  '--repo',
+  repoRoot,
+  '--mode',
+  'all',
+  '--stub-embeddings'
+], 'comment join build index');
 if (buildResult.status !== 0) {
   console.error('comment join test failed: build_index error.');
   if (buildResult.stderr) console.error(buildResult.stderr.trim());
   process.exit(buildResult.status ?? 1);
 }
 
-const searchCodeComment = spawnSync(
-  process.execPath,
+const searchCodeComment = runCli(
   [path.join(root, 'search.js'), '--repo', repoRoot, '--mode', 'code', '--no-ann', '--json', commentPhrase],
-  { env, encoding: 'utf8' }
+  'comment join code comment search'
 );
 if (searchCodeComment.status !== 0) {
   console.error('comment join test failed: code search error.');
@@ -91,10 +88,9 @@ if (codeCommentHits.length !== 0) {
   process.exit(1);
 }
 
-const searchExtracted = spawnSync(
-  process.execPath,
+const searchExtracted = runCli(
   [path.join(root, 'search.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--json', commentPhrase],
-  { env, encoding: 'utf8' }
+  'comment join extracted-prose search'
 );
 if (searchExtracted.status !== 0) {
   console.error('comment join test failed: extracted-prose search error.');
@@ -114,10 +110,9 @@ if (!extractedHits.some((hit) => hit?.file === 'src/sample.js')) {
   process.exit(1);
 }
 
-const searchCodeFn = spawnSync(
-  process.execPath,
+const searchCodeFn = runCli(
   [path.join(root, 'search.js'), '--repo', repoRoot, '--mode', 'code', '--no-ann', '--json', fnName],
-  { env, encoding: 'utf8' }
+  'comment join code function search'
 );
 if (searchCodeFn.status !== 0) {
   console.error('comment join test failed: code search for function error.');
@@ -142,10 +137,9 @@ if (!commentExcerpt.includes(commentPhrase)) {
   process.exit(1);
 }
 
-const searchCodeNoComments = spawnSync(
-  process.execPath,
+const searchCodeNoComments = runCli(
   [path.join(root, 'search.js'), '--repo', repoRoot, '--mode', 'code', '--no-comments', '--no-ann', '--json', fnName],
-  { env, encoding: 'utf8' }
+  'comment join code no-comments search'
 );
 if (searchCodeNoComments.status !== 0) {
   console.error('comment join test failed: code search --no-comments error.');

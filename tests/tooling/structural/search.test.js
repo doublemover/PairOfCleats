@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'structural-search');
@@ -33,8 +33,7 @@ const env = {
   PAIROFCLEATS_PROFILE: 'full'
 };
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     path.join(root, 'tools', 'analysis', 'structural-search.js'),
     '--repo', repoRoot,
@@ -43,7 +42,10 @@ const result = spawnSync(
     '--pack', 'comby-docs',
     '--format', 'json'
   ],
-  { encoding: 'utf8', env }
+  'structural search',
+  root,
+  env,
+  { stdio: 'pipe', allowFailure: true }
 );
 
 if (result.status !== 0) {

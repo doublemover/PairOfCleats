@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
+import { runRustAnalyzerWorkspaceFixture } from '../../helpers/lsp-provider-fixture.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -45,34 +45,16 @@ await fs.writeFile(
   'utf8'
 );
 
-const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 const docText = 'pub fn add(a: i32, b: i32) -> i32 { a + b }\n';
 
-const createContext = () => ({
-  strict: true,
-  repoRoot: tempRoot,
-  buildRoot: tempRoot,
-  toolingConfig: {
-    enabledTools: ['lsp-rust-analyzer'],
-    lsp: {
-      enabled: true,
-      servers: [{
-        id: 'rust-analyzer',
-        preset: 'rust-analyzer',
-        cmd: process.execPath,
-        args: [serverPath, '--mode', 'rust'],
-        languages: ['rust'],
-        uriScheme: 'poc-vfs',
-        rustWorkspaceMetadataCmd: process.execPath,
-        rustWorkspaceMetadataArgs: [metadataScriptPath, metadataCounterPath]
-      }]
-    }
-  },
+const runRustWorkspace = (inputs) => runRustAnalyzerWorkspaceFixture({
+  tempRoot,
+  metadataArgs: [metadataScriptPath, metadataCounterPath],
   cache: {
     enabled: true,
     dir: toolingCacheDir
   }
-});
+}, inputs);
 
 const createInputs = (suffix) => ({
   documents: [
@@ -126,7 +108,7 @@ const createInputs = (suffix) => ({
   kinds: ['types']
 });
 
-const first = await runToolingProviders(createContext(), createInputs('a'));
+const first = await runRustWorkspace(createInputs('a'));
 assert.equal(first.metrics?.preflights?.cached || 0, 0, 'expected first rust workspace run to be uncached');
 assert.equal(
   Number.parseInt(await fs.readFile(metadataCounterPath, 'utf8'), 10),
@@ -134,7 +116,7 @@ assert.equal(
   'expected first rust workspace run to probe both partitions'
 );
 
-const second = await runToolingProviders(createContext(), createInputs('b'));
+const second = await runRustWorkspace(createInputs('b'));
 assert.equal(second.metrics?.preflights?.cached, 1, 'expected second rust workspace run to hit persistent preflight cache');
 assert.equal(
   Number.parseInt(await fs.readFile(metadataCounterPath, 'utf8'), 10),

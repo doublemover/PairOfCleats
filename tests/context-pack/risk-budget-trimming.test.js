@@ -40,6 +40,9 @@ assert.equal(selected.omittedFlows, 3);
 assert.equal(truncation.some((entry) => entry.cap === 'maxFlows'), true);
 assert.equal(referencedCallSiteIds.has('call-0'), true);
 
+const partialTruncation = [];
+const partialRiskTruncation = [];
+const partialCapHits = new Set();
 const partialSelected = selectRiskPartialFlowsWithinBudget({
   rankedPartialFlows: flows.map((entry) => ({
     rank: entry.rank,
@@ -53,13 +56,16 @@ const partialSelected = selectRiskPartialFlowsWithinBudget({
       notes: { hopCount: entry.rank, capsHit: [] }
     }
   })),
-  truncation: [],
-  riskTruncation: [],
+  truncation: partialTruncation,
+  riskTruncation: partialRiskTruncation,
   referencedCallSiteIds: new Set(),
-  riskCapHits: new Set()
+  riskCapHits: partialCapHits
 });
 
 assert.equal(partialSelected.selectedRawPartialFlows.length, 5);
 assert.equal(partialSelected.omittedPartialFlows, 3);
+assert.equal(partialTruncation.some((entry) => entry.cap === 'maxPartialFlows'), true);
+assert.equal(partialRiskTruncation.some((entry) => entry.cap === 'maxPartialFlows'), true);
+assert.equal(partialCapHits.has('maxPartialFlows'), true);
 
 console.log('risk budget trimming test passed');

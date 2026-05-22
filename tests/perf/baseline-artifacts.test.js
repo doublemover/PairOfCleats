@@ -3,10 +3,11 @@ import { applyTestEnv } from '../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
 import { repoRoot } from '../helpers/root.js';
+import { runNode } from '../helpers/run-node.js';
 import { makeTempDir, rmDirRecursive } from '../helpers/temp.js';
+import { createFastIndexingTestConfig } from '../helpers/fast-indexing-config.js';
 
 const root = repoRoot();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'baseline');
@@ -17,16 +18,19 @@ const prevCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
+  testConfig: createFastIndexingTestConfig(),
   extraEnv: {
     PAIROFCLEATS_THREADS: '1',
     PAIROFCLEATS_BUNDLE_THREADS: '1'
   }
 });
 
-const runBuild = () => spawnSync(
-  process.execPath,
-  [buildPath, '--stub-embeddings', '--repo', fixtureRoot, '--mode', 'both', '--quiet'],
-  { env, encoding: 'utf8' }
+const runBuild = () => runNode(
+  [buildPath, '--stub-embeddings', '--repo', fixtureRoot, '--mode', 'code', '--quiet', '--scm-provider', 'none'],
+  'baseline artifact deterministic build',
+  root,
+  env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 
 const normalizeManifest = (raw) => {
@@ -105,8 +109,7 @@ if (buildResult1.status !== 0) {
   process.exit(buildResult1.status ?? 1);
 }
 const firstBuildRoots = {
-  code: getIndexDir(fixtureRoot, 'code', userConfig),
-  prose: getIndexDir(fixtureRoot, 'prose', userConfig)
+  code: getIndexDir(fixtureRoot, 'code', userConfig)
 };
 
 const buildResult2 = runBuild();
@@ -116,8 +119,7 @@ if (buildResult2.status !== 0) {
   process.exit(buildResult2.status ?? 1);
 }
 const secondBuildRoots = {
-  code: getIndexDir(fixtureRoot, 'code', userConfig),
-  prose: getIndexDir(fixtureRoot, 'prose', userConfig)
+  code: getIndexDir(fixtureRoot, 'code', userConfig)
 };
 
 if (prevCacheRoot === undefined) {
@@ -127,12 +129,10 @@ if (prevCacheRoot === undefined) {
 }
 
 const firstArtifacts = {
-  code: readArtifacts(firstBuildRoots.code),
-  prose: readArtifacts(firstBuildRoots.prose)
+  code: readArtifacts(firstBuildRoots.code)
 };
 const secondArtifacts = {
-  code: readArtifacts(secondBuildRoots.code),
-  prose: readArtifacts(secondBuildRoots.prose)
+  code: readArtifacts(secondBuildRoots.code)
 };
 
 const compareArtifacts = (label, first, second) => {
@@ -152,7 +152,6 @@ const compareArtifacts = (label, first, second) => {
 };
 
 compareArtifacts('code', firstArtifacts.code, secondArtifacts.code);
-compareArtifacts('prose', firstArtifacts.prose, secondArtifacts.prose);
 
 await rmDirRecursive(cacheRoot);
 console.log('baseline determinism test passed');

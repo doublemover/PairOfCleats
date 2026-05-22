@@ -5,10 +5,10 @@ import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
 import {
   getTrackedSubprocessCount,
-  spawnSubprocess,
   terminateTrackedSubprocesses,
   withTrackedSubprocessSignalScope
-} from '../../../src/shared/subprocess.js';
+} from '../../../src/shared/subprocess/tracking.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import {
   buildStage1FileSubprocessOwnershipId,
   resolveProcessCleanupTimeoutMs,

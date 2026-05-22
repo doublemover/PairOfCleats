@@ -1,7 +1,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { parse as parseJsonc } from 'jsonc-parser';
-import { isAbsolutePathNative } from '../../src/shared/files.js';
+import { isAbsolutePathNative } from '../../src/shared/file-paths.js';
 import {
   buildSuiteCategorySummary,
   inferSuiteCategory

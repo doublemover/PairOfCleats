@@ -2,9 +2,9 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -34,8 +34,7 @@ const env = applyTestEnv({
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
+runNode(
   [
     path.join(root, 'build_index.js'),
     '--stub-embeddings',
@@ -44,12 +43,11 @@ const buildResult = spawnSync(
     '--repo',
     repoRoot
   ],
-  { cwd: repoRoot, env, stdio: 'inherit' }
+  'import-links build index',
+  repoRoot,
+  env,
+  { stdio: 'inherit' }
 );
-if (buildResult.status !== 0) {
-  console.error('import-links test failed: build_index failed');
-  process.exit(buildResult.status ?? 1);
-}
 
 const userConfig = loadUserConfig(repoRoot);
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);

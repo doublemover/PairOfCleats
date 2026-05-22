@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 
 import { applyGraphRanking } from '../../../src/retrieval/pipeline/graph-ranking.js';
+import { graphFromEdges } from '../../graph/helpers/graph-fixtures.js';
 
 const baseConfig = {
   enabled: true,
@@ -10,17 +11,24 @@ const baseConfig = {
   seedSelection: 'top1'
 };
 
+const createEntries = (chunkUids) => chunkUids.map((chunkUid, index) => ({
+  idx: index,
+  score: 1 - (index * 0.1),
+  chunk: { chunkUid },
+  scoreBreakdown: {}
+}));
+
+const createCallGraphRelations = (edges = []) => ({
+  callGraph: graphFromEdges(edges),
+  usageGraph: { nodes: [] }
+});
+
 const cases = [
   {
     name: 'explain mode emits graph breakdown',
     run() {
-      const entries = [
-        { idx: 0, score: 1, chunk: { chunkUid: 'a' }, scoreBreakdown: {} }
-      ];
-      const graphRelations = {
-        callGraph: { nodes: [{ id: 'a', out: [], in: [] }] },
-        usageGraph: { nodes: [] }
-      };
+      const entries = createEntries(['a']);
+      const graphRelations = createCallGraphRelations([['a', []]]);
       const result = applyGraphRanking({
         entries,
         graphRelations,
@@ -33,19 +41,8 @@ const cases = [
   {
     name: 'determinism holds across repeated runs',
     run() {
-      const entries = [
-        { idx: 0, score: 1, chunk: { chunkUid: 'a' }, scoreBreakdown: {} },
-        { idx: 1, score: 0.9, chunk: { chunkUid: 'b' }, scoreBreakdown: {} }
-      ];
-      const graphRelations = {
-        callGraph: {
-          nodes: [
-            { id: 'a', out: ['b'], in: [] },
-            { id: 'b', out: [], in: ['a'] }
-          ]
-        },
-        usageGraph: { nodes: [] }
-      };
+      const entries = createEntries(['a', 'b']);
+      const graphRelations = createCallGraphRelations([['a', 'b']]);
       const first = JSON.stringify(applyGraphRanking({ entries, graphRelations, config: baseConfig, explain: true }));
       const second = JSON.stringify(applyGraphRanking({ entries, graphRelations, config: baseConfig, explain: true }));
       assert.equal(first, second);
@@ -54,21 +51,8 @@ const cases = [
   {
     name: 'membership remains invariant after graph ranking',
     run() {
-      const entries = [
-        { idx: 0, score: 1, chunk: { chunkUid: 'a' }, scoreBreakdown: {} },
-        { idx: 1, score: 0.9, chunk: { chunkUid: 'b' }, scoreBreakdown: {} },
-        { idx: 2, score: 0.8, chunk: { chunkUid: 'c' }, scoreBreakdown: {} }
-      ];
-      const graphRelations = {
-        callGraph: {
-          nodes: [
-            { id: 'a', out: ['b', 'c'], in: [] },
-            { id: 'b', out: [], in: ['a'] },
-            { id: 'c', out: [], in: ['a'] }
-          ]
-        },
-        usageGraph: { nodes: [] }
-      };
+      const entries = createEntries(['a', 'b', 'c']);
+      const graphRelations = createCallGraphRelations([['a', ['b', 'c']]]);
       const result = applyGraphRanking({ entries, graphRelations, config: baseConfig });
       const before = entries.map((entry) => entry.idx).sort().join(',');
       const after = result.entries.map((entry) => entry.idx).sort().join(',');
@@ -78,19 +62,8 @@ const cases = [
   {
     name: 'disabled mode is a no-op while enabled mode preserves entry count',
     run() {
-      const entries = [
-        { idx: 0, score: 1, chunk: { chunkUid: 'a' }, scoreBreakdown: {} },
-        { idx: 1, score: 0.9, chunk: { chunkUid: 'b' }, scoreBreakdown: {} }
-      ];
-      const graphRelations = {
-        callGraph: {
-          nodes: [
-            { id: 'a', out: ['b'], in: [] },
-            { id: 'b', out: [], in: ['a'] }
-          ]
-        },
-        usageGraph: { nodes: [] }
-      };
+      const entries = createEntries(['a', 'b']);
+      const graphRelations = createCallGraphRelations([['a', 'b']]);
       const disabled = applyGraphRanking({
         entries,
         graphRelations,

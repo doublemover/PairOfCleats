@@ -1,46 +1,14 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 
-import { applyTestEnv } from '../../../helpers/test-env.js';
+import {
+  consoleLogFixtureSource,
+  createBenchRunnerFixture
+} from './bench-runner-fixture.js';
 
-import { resolveTestCachePath } from '../../../helpers/test-cache.js';
-
-const testEnv = applyTestEnv({ testing: '1' });
-
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'bench-runner-contract');
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
-
-const benchRunner = path.join(root, 'tools', 'bench', 'bench-runner.js');
+const benchFixture = await createBenchRunnerFixture('bench-runner-contract');
 const runFixture = async (name, lines) => {
-  const fixtureScript = path.join(tempRoot, `${name}.fixture.js`);
-  await fs.writeFile(
-    fixtureScript,
-    [
-      '#!/usr/bin/env node',
-      ...lines.map((line) => `console.log(${JSON.stringify(line)});`),
-      ''
-    ].join('\n'),
-    'utf8'
-  );
-
-  const result = spawnSync(
-    process.execPath,
-    [benchRunner, '--scripts', fixtureScript, '--timeout-ms', '2000'],
-    { cwd: root, env: testEnv, encoding: 'utf8' }
-  );
-
-  if (result.status !== 0) {
-    console.error(result.stdout || '');
-    console.error(result.stderr || '');
-    process.exit(result.status ?? 1);
-  }
-
-  const report = JSON.parse(String(result.stdout || '{}'));
+  const report = await benchFixture.runFixture(name, consoleLogFixtureSource(lines));
   assert.equal(report.schemaVersion, 1);
   assert.equal(typeof report?.runner?.configHash, 'string', 'expected configHash reproducibility metadata');
   assert.ok(report?.runner?.storagePath, 'expected storagePath reproducibility metadata');

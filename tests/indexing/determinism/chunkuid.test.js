@@ -2,9 +2,9 @@
 import { applyTestEnv } from '../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { MAX_JSON_BYTES, loadJsonArrayArtifactSync } from '../../../src/shared/artifact-io.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -51,8 +51,7 @@ const buildIndex = (cacheRoot) => {
       PAIROFCLEATS_WORKER_POOL: 'off'
     }
   });
-  return spawnSync(
-    process.execPath,
+  return runNode(
     [
       path.join(root, 'build_index.js'),
       '--stub-embeddings',
@@ -65,7 +64,10 @@ const buildIndex = (cacheRoot) => {
       '--repo',
       repoRoot
     ],
-    { cwd: repoRoot, env, stdio: 'inherit' }
+    'chunkUid determinism build index',
+    repoRoot,
+    env,
+    { stdio: 'inherit', allowFailure: true }
   );
 };
 

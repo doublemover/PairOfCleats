@@ -3,9 +3,9 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 
+import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -32,15 +32,12 @@ const env = applyTestEnv({
   }
 });
 
-const result = spawnSync(
-  process.execPath,
+runNode(
   [path.join(root, 'build_index.js'), '--mode', 'all', '--stub-embeddings', '--repo', repoRoot],
-  { env, stdio: 'inherit' }
+  'build_index --mode all',
+  root,
+  env
 );
-if (result.status !== 0) {
-  console.error('Failed: build_index --mode all');
-  process.exit(result.status ?? 1);
-}
 
 const userConfig = loadUserConfig(repoRoot);
 const modes = ['code', 'prose', 'extracted-prose', 'records'];

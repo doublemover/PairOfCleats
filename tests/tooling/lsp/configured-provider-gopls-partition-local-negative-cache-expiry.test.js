@@ -5,6 +5,11 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import {
+  buildGoplsWorkspaceContext,
+  buildGoplsWorkspaceInputs,
+  goplsSampleDocText
+} from './helpers/gopls-workspace-case.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `configured-lsp-gopls-partition-local-negative-cache-expiry-${process.pid}-${Date.now()}`);
@@ -31,62 +36,27 @@ await fs.writeFile(
 );
 
 const moduleCountPath = path.join(tempRoot, 'module-counts.json');
-const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
-const docText = 'package main\nfunc Add(a int, b int) int { return a + b }\n';
 
-const createContext = () => ({
-  strict: true,
-  repoRoot: tempRoot,
-  buildRoot: tempRoot,
-  toolingConfig: {
-    enabledTools: ['lsp-gopls-partition-local-negative-cache-expiry'],
-    lsp: {
-      enabled: true,
-      servers: [{
-        id: 'gopls-partition-local-negative-cache-expiry',
-        preset: 'gopls',
-        cmd: process.execPath,
-        args: [serverPath, '--mode', 'go'],
-        languages: ['go'],
-        uriScheme: 'poc-vfs',
-        preflightRuntimeRequirements: [],
-        goWorkspaceModuleCmd: process.execPath,
-        goWorkspaceModuleArgs: [selectiveProbePath, moduleCountPath],
-        goWorkspaceWarmup: false,
-        goWorkspaceNegativeCacheTtlMs: 1
-      }]
-    }
-  },
+const createContext = () => buildGoplsWorkspaceContext({
+  root,
+  tempRoot,
+  providerId: 'lsp-gopls-partition-local-negative-cache-expiry',
+  serverId: 'gopls-partition-local-negative-cache-expiry',
+  probePath: selectiveProbePath,
+  probeArgs: [moduleCountPath],
   cache: {
     enabled: true,
     dir: toolingCacheDir
+  },
+  serverConfig: {
+    goWorkspaceNegativeCacheTtlMs: 1
   }
 });
 
-const createInputs = (suffix) => ({
-  documents: [{
-    virtualPath: `.poc-vfs/svc-bad/src/sample.go#seg:gopls-partition-local-negative-cache-expiry-${suffix}.txt`,
-    text: docText,
-    languageId: 'go',
-    effectiveExt: '.go',
-    docHash: `hash-gopls-partition-local-negative-cache-expiry-${suffix}`
-  }],
-  targets: [{
-    chunkRef: {
-      docId: 0,
-      chunkUid: `ck64:v1:test:svc-bad/src/sample.go:gopls-partition-local-negative-cache-expiry:${suffix}`,
-      chunkId: `chunk_gopls_partition_local_negative_cache_expiry_${suffix}`,
-      file: 'svc-bad/src/sample.go',
-      segmentUid: null,
-      segmentId: null,
-      range: { start: 0, end: docText.length }
-    },
-    virtualPath: `.poc-vfs/svc-bad/src/sample.go#seg:gopls-partition-local-negative-cache-expiry-${suffix}.txt`,
-    virtualRange: { start: 0, end: docText.length },
-    symbolHint: { name: 'Add', kind: 'function' },
-    languageId: 'go'
-  }],
-  kinds: ['types']
+const createInputs = (suffix) => buildGoplsWorkspaceInputs({
+  scenario: 'gopls-partition-local-negative-cache-expiry',
+  docText: goplsSampleDocText,
+  partitions: [{ service: 'svc-bad', suffix }]
 });
 
 const readCounts = async () => {

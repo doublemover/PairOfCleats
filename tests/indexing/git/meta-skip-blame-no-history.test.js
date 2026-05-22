@@ -1,25 +1,14 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import { getGitMetaForFile } from '../../../src/index/git.js';
-import { setScmCommandRunner } from '../../../src/index/scm/runner.js';
-import { ensureTestingEnv } from '../../helpers/test-env.js';
+import { ensureGitMetaReadmeTarget, withScmCommandRunner } from './git-meta-fixture.js';
 
-ensureTestingEnv(process.env);
-
-const root = process.cwd();
-const target = path.join(root, 'README.md');
-
-if (!fs.existsSync(target)) {
-  console.error(`Missing README.md at ${target}`);
-  process.exit(1);
-}
+const { root, target } = ensureGitMetaReadmeTarget();
 
 let logCalls = 0;
 let blameCalls = 0;
 
-setScmCommandRunner(async (_command, args) => {
+await withScmCommandRunner(async (_command, args) => {
   const argv = Array.isArray(args) ? args : [];
   if (argv.includes('--format=%H%x00%aI%x00%an') || argv.includes('--format=%aI%x00%an')) {
     logCalls += 1;
@@ -38,9 +27,7 @@ setScmCommandRunner(async (_command, args) => {
     };
   }
   return { exitCode: 0, stdout: '', stderr: '' };
-});
-
-try {
+}, async () => {
   const meta = await getGitMetaForFile(target, {
     blame: true,
     includeChurn: false,
@@ -52,8 +39,6 @@ try {
   assert.equal(meta.last_modified, null, 'expected no-history file to have null last_modified');
   assert.equal(meta.last_author, null, 'expected no-history file to have null last_author');
   assert.equal(Object.hasOwn(meta, 'lineAuthors'), false, 'expected no lineAuthors when blame is skipped');
-} finally {
-  setScmCommandRunner(null);
-}
+});
 
 console.log('git no-history blame skip test passed');

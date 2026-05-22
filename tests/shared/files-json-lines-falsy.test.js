@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { ensureTestingEnv } from '../helpers/test-env.js';
-import { readJsonLinesSyncSafe } from '../../src/shared/files.js';
+import { readJsonLinesSyncSafe } from '../../src/shared/file-read.js';
 
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 

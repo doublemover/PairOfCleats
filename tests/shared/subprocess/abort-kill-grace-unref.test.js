@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 
 const script = `
-import { spawnSubprocess } from './src/shared/subprocess.js';
+import { spawnSubprocess } from './src/shared/subprocess/runner.js';
 const controller = new AbortController();
 setTimeout(() => controller.abort(), 25);
 const startedAt = Date.now();

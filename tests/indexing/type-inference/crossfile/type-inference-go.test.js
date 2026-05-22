@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { MAX_JSON_BYTES, loadChunkMeta, loadJsonArrayArtifact } from '../../../../src/shared/artifact-io.js';
-import { getIndexDir, loadUserConfig } from '../../../../tools/shared/dict-utils.js';
 import { repoRoot } from '../../../helpers/root.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { runNode } from '../../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+import { loadCodeChunkArtifacts } from './artifact-fixture.js';
 
 const root = repoRoot();
 const tempRoot = resolveTestCachePath(root, 'type-inference-crossfile-go');
@@ -76,7 +75,7 @@ const env = applyTestEnv({
   }
 });
 
-const result = spawnSync(process.execPath, [
+const result = runNode([
   path.join(root, 'build_index.js'),
   '--stub-embeddings',
   '--stage',
@@ -85,31 +84,16 @@ const result = spawnSync(process.execPath, [
   'code',
   '--repo',
   repoDir
-], {
-  cwd: repoDir,
-  env,
-  stdio: 'inherit'
+], 'cross-file inference Go/Rust build index', repoDir, env, {
+  stdio: 'inherit',
+  allowFailure: true
 });
 if (result.status !== 0) {
   console.error('Cross-file inference test failed: build_index failed.');
   process.exit(result.status ?? 1);
 }
 
-const userConfig = loadUserConfig(repoDir);
-const codeDir = getIndexDir(repoDir, 'code', userConfig);
-let chunkMeta = [];
-let fileMeta = [];
-try {
-  chunkMeta = await loadChunkMeta(codeDir, { maxBytes: MAX_JSON_BYTES, strict: true });
-  fileMeta = await loadJsonArrayArtifact(codeDir, 'file_meta', { maxBytes: MAX_JSON_BYTES, strict: true });
-} catch (err) {
-  console.error(`Failed to load cross-file artifacts at ${codeDir}: ${err?.message || err}`);
-  process.exit(1);
-}
-const fileById = new Map(
-  (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
-);
-const resolveChunkFile = (chunk) => chunk?.file || fileById.get(chunk?.fileId) || null;
+const { chunkMeta, resolveChunkFile } = await loadCodeChunkArtifacts(repoDir, 'cross-file');
 
 const buildGo = chunkMeta.find((chunk) =>
   resolveChunkFile(chunk) === 'src/builder.go' &&

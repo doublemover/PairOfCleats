@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { buildPostings } from '../../../src/index/build/postings.js';
 import { writeIndexArtifacts } from '../../../src/index/build/artifacts.js';
-import { fromPosix } from '../../../src/shared/files.js';
+import { fromPosix } from '../../../src/shared/file-paths.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { createCanonicalTestChunkUid } from '../../helpers/chunk-uid.js';
 

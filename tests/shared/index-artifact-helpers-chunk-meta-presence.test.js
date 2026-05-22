@@ -5,7 +5,7 @@ import path from 'node:path';
 import {
   hasChunkMetaArtifactsAsync,
   hasChunkMetaArtifactsSync
-} from '../../src/shared/index-artifact-helpers.js';
+} from '../../src/shared/artifact-io/chunk-meta-presence.js';
 import { writePiecesManifest } from '../helpers/artifact-io-fixture.js';
 
 import { resolveTestCachePath } from '../helpers/test-cache.js';

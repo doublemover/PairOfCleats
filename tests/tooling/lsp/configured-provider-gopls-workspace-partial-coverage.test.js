@@ -4,6 +4,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import {
+  buildGoplsWorkspaceContext,
+  buildGoplsWorkspaceInputs,
+  goplsSampleDocText
+} from './helpers/gopls-workspace-case.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `configured-lsp-gopls-workspace-partial-${process.pid}-${Date.now()}`);
@@ -28,90 +33,22 @@ await fs.writeFile(
   'utf8'
 );
 
-const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
-const docText = 'package main\nfunc Add(a int, b int) int { return a + b }\n';
-const chunkUidOk = 'ck64:v1:test:svc-ok/src/sample.go:gopls-workspace-partial:ok';
-const chunkUidBad = 'ck64:v1:test:svc-bad/src/sample.go:gopls-workspace-partial:bad';
-
-const result = await runToolingProviders({
-  strict: true,
-  repoRoot: tempRoot,
-  buildRoot: tempRoot,
-  toolingConfig: {
-    enabledTools: ['lsp-gopls'],
-    lsp: {
-      enabled: true,
-      servers: [{
-        id: 'gopls',
-        preset: 'gopls',
-        cmd: process.execPath,
-        args: [serverPath, '--mode', 'go'],
-        languages: ['go'],
-        uriScheme: 'poc-vfs',
-        preflightRuntimeRequirements: [],
-        goWorkspaceModuleCmd: process.execPath,
-        goWorkspaceModuleArgs: [selectiveProbePath],
-        goWorkspaceWarmup: false
-      }]
-    }
-  },
-  cache: {
-    enabled: false
-  }
-}, {
-  documents: [
-    {
-      virtualPath: '.poc-vfs/svc-ok/src/sample.go#seg:gopls-workspace-partial-ok.txt',
-      text: docText,
-      languageId: 'go',
-      effectiveExt: '.go',
-      docHash: 'hash-gopls-workspace-partial-ok'
-    },
-    {
-      virtualPath: '.poc-vfs/svc-bad/src/sample.go#seg:gopls-workspace-partial-bad.txt',
-      text: docText,
-      languageId: 'go',
-      effectiveExt: '.go',
-      docHash: 'hash-gopls-workspace-partial-bad'
-    }
-  ],
-  targets: [
-    {
-      chunkRef: {
-        docId: 0,
-        chunkUid: chunkUidOk,
-        chunkId: 'chunk_gopls_workspace_partial_ok',
-        file: 'svc-ok/src/sample.go',
-        segmentUid: null,
-        segmentId: null,
-        range: { start: 0, end: docText.length }
-      },
-      virtualPath: '.poc-vfs/svc-ok/src/sample.go#seg:gopls-workspace-partial-ok.txt',
-      virtualRange: { start: 0, end: docText.length },
-      symbolHint: { name: 'Add', kind: 'function' },
-      languageId: 'go'
-    },
-    {
-      chunkRef: {
-        docId: 1,
-        chunkUid: chunkUidBad,
-        chunkId: 'chunk_gopls_workspace_partial_bad',
-        file: 'svc-bad/src/sample.go',
-        segmentUid: null,
-        segmentId: null,
-        range: { start: 0, end: docText.length }
-      },
-      virtualPath: '.poc-vfs/svc-bad/src/sample.go#seg:gopls-workspace-partial-bad.txt',
-      virtualRange: { start: 0, end: docText.length },
-      symbolHint: { name: 'Add', kind: 'function' },
-      languageId: 'go'
-    }
-  ],
-  kinds: ['types']
+const inputs = buildGoplsWorkspaceInputs({
+  scenario: 'gopls-workspace-partial',
+  docText: goplsSampleDocText,
+  partitions: [
+    { key: 'ok', service: 'svc-ok', suffix: 'ok' },
+    { key: 'bad', service: 'svc-bad', suffix: 'bad' }
+  ]
 });
 
-assert.equal(result.byChunkUid.has(chunkUidOk), true, 'expected healthy gopls partition to contribute');
-assert.equal(result.byChunkUid.has(chunkUidBad), false, 'expected blocked gopls partition to be isolated');
+const result = await runToolingProviders(
+  buildGoplsWorkspaceContext({ root, tempRoot, probePath: selectiveProbePath }),
+  inputs
+);
+
+assert.equal(result.byChunkUid.has(inputs.chunkUids.ok), true, 'expected healthy gopls partition to contribute');
+assert.equal(result.byChunkUid.has(inputs.chunkUids.bad), false, 'expected blocked gopls partition to be isolated');
 const diagnostics = result.diagnostics?.['lsp-gopls'] || {};
 assert.equal(diagnostics?.preflight?.state, 'degraded', 'expected mixed partition preflight degraded state');
 assert.equal(diagnostics?.fidelity?.state, 'degraded', 'expected fidelity contract to classify partial workspace coverage as degraded');

@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { applyTestEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -17,6 +16,10 @@ import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { buildSearchParams, buildSearchPayloadFromQuery } from '../../tools/api/router/search.js';
 import { getRepoCacheRoot, loadUserConfig } from '../../tools/shared/dict-utils.js';
 import { startApiServer } from '../helpers/api-server.js';
+import {
+  createCodeBuildNoEmbeddingsEnv,
+  runStage2CodeNoSqliteBuild
+} from '../helpers/build-index-fixture.js';
 import { writeFederatedWorkspaceConfig } from '../helpers/federated-api.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 
@@ -30,53 +33,14 @@ const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const markerFile = 'src/phase14-advanced-surface.js';
 
-const env = applyTestEnv({
-  cacheRoot,
-  embeddings: 'stub',
-  testConfig: {
-    indexing: {
-      embeddings: {
-        enabled: false,
-        mode: 'off',
-        lancedb: { enabled: false },
-        hnsw: { enabled: false }
-      }
-    }
-  },
-  extraEnv: { PAIROFCLEATS_WORKER_POOL: 'off' }
-});
+const env = createCodeBuildNoEmbeddingsEnv({ cacheRoot });
 
 const writeJson = async (filePath, value) => {
   await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
   await fsPromises.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 };
 
-const runBuild = () => {
-  const result = spawnSync(
-    process.execPath,
-    [
-      path.join(root, 'build_index.js'),
-      '--repo',
-      repoRoot,
-      '--stage',
-      'stage2',
-      '--mode',
-      'code',
-      '--stub-embeddings',
-      '--no-sqlite',
-      '--progress',
-      'off'
-    ],
-    {
-      cwd: repoRoot,
-      env,
-      encoding: 'utf8'
-    }
-  );
-  if (result.status !== 0) {
-    throw new Error(`build_index failed: ${result.stderr || result.stdout || 'unknown error'}`);
-  }
-};
+const runBuild = () => runStage2CodeNoSqliteBuild({ root, repoRoot, env });
 
 const normalizeSearchHit = (hit) => ({
   file: hit?.file || null,

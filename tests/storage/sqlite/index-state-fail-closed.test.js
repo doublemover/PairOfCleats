@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 import { getIndexDir, getRepoCacheRoot, loadUserConfig, resolveIndexRoot } from '../../../tools/shared/dict-utils.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
@@ -47,7 +47,7 @@ const env = applyTestEnv({
 });
 
 const run = (args, label) => {
-  const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });
+  const result = runNode(args, label, repoRoot, env, { stdio: 'inherit', allowFailure: true });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     process.exit(result.status ?? 1);

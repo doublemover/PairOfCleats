@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
+import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -47,8 +47,7 @@ const createLargeMapFixture = async ({ tempName, functionCount }) => {
     }
   });
 
-  const buildResult = spawnSync(
-    process.execPath,
+  const buildResult = runNode(
     [
       path.join(root, 'build_index.js'),
       '--stub-embeddings',
@@ -61,7 +60,10 @@ const createLargeMapFixture = async ({ tempName, functionCount }) => {
       '--repo',
       repoRoot
     ],
-    { cwd: repoRoot, env, stdio: 'inherit' }
+    'build code-map guardrail fixture',
+    repoRoot,
+    env,
+    { stdio: 'inherit', allowFailure: true }
   );
   assert.equal(buildResult.status, 0, 'expected code-map guardrail fixture build to succeed');
 
@@ -76,8 +78,7 @@ const cases = [
         tempName: 'code-map-guardrails-matrix-guardrails',
         functionCount: 120
       });
-      const mapResult = spawnSync(
-        process.execPath,
+      const mapResult = runNode(
         [
           path.join(root, 'tools', 'reports/report-code-map.js'),
           '--format',
@@ -91,7 +92,10 @@ const cases = [
           '--max-edges',
           '2'
         ],
-        { cwd: repoRoot, env, encoding: 'utf8' }
+        'report-code-map guardrail truncation',
+        repoRoot,
+        env,
+        { stdio: 'pipe', allowFailure: true }
       );
       assert.equal(mapResult.status, 0);
       const payload = JSON.parse(mapResult.stdout || '{}');
@@ -111,10 +115,12 @@ const cases = [
       const budgetMs = Number(process.env.PAIROFCLEATS_TEST_CODE_MAP_BUDGET_MS);
       const maxMs = Number.isFinite(budgetMs) ? budgetMs : 8000;
       const startedAt = performance.now();
-      const mapResult = spawnSync(
-        process.execPath,
+      const mapResult = runNode(
         [path.join(root, 'tools', 'reports/report-code-map.js'), '--format', 'json', '--repo', repoRoot],
-        { cwd: repoRoot, env, encoding: 'utf8' }
+        'report-code-map performance budget',
+        repoRoot,
+        env,
+        { stdio: 'pipe', allowFailure: true }
       );
       const elapsedMs = performance.now() - startedAt;
       assert.equal(mapResult.status, 0);

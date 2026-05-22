@@ -8,6 +8,7 @@ import { SCHEDULER_QUEUE_NAMES } from '../../../../src/index/build/runtime/sched
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+import { createFastIndexingTestConfig } from '../../../helpers/fast-indexing-config.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'scheduler-stage-wiring');
@@ -20,7 +21,7 @@ await fsPromises.writeFile(path.join(repoRoot, 'index.js'), 'export const answer
 applyTestEnv({
   cacheRoot: tempRoot,
   embeddings: 'off',
-  testConfig: {
+  testConfig: createFastIndexingTestConfig({
     indexing: {
       scheduler: {
         enabled: true,
@@ -43,7 +44,7 @@ applyTestEnv({
       riskAnalysis: false,
       riskAnalysisCrossFile: false
     }
-  }
+  })
 });
 
 const defaults = parseBuildArgs([]).argv;

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode } from '../helpers/run-node.js';
 
 ensureTestingEnv(process.env);
 
@@ -13,16 +13,12 @@ const captureScript = path.join(root, 'tools', 'tui', 'capture-fixtures.js');
 const outputRoot = path.join(root, '.testLogs', 'tui', 'frame-capture-test');
 await fsPromises.rm(outputRoot, { recursive: true, force: true });
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [captureScript, '--out-dir', outputRoot],
-  {
-    cwd: root,
-    encoding: 'utf8',
-    env: {
-      ...process.env
-    }
-  }
+  'tui frame capture harness',
+  root,
+  process.env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 
 if (result.status !== 0) {

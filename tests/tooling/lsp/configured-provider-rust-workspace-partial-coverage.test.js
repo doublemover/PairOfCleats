@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
+import { runRustAnalyzerWorkspaceFixture } from '../../helpers/lsp-provider-fixture.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -40,33 +40,12 @@ await fs.writeFile(
   'utf8'
 );
 
-const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 const goodChunkUid = 'ck64:v1:test:src/lib.rs:rust-workspace-partial-coverage:good';
 const badChunkUid = 'ck64:v1:test:examples/broken/src/main.rs:rust-workspace-partial-coverage:bad';
 
-const result = await runToolingProviders({
-  strict: true,
-  repoRoot: tempRoot,
-  buildRoot: tempRoot,
-  toolingConfig: {
-    enabledTools: ['lsp-rust-analyzer'],
-    lsp: {
-      enabled: true,
-      servers: [{
-        id: 'rust-analyzer',
-        preset: 'rust-analyzer',
-        cmd: process.execPath,
-        args: [serverPath, '--mode', 'rust'],
-        languages: ['rust'],
-        uriScheme: 'poc-vfs',
-        rustWorkspaceMetadataCmd: process.execPath,
-        rustWorkspaceMetadataArgs: [metadataScriptPath, metadataCounterPath]
-      }]
-    }
-  },
-  cache: {
-    enabled: false
-  }
+const result = await runRustAnalyzerWorkspaceFixture({
+  tempRoot,
+  metadataArgs: [metadataScriptPath, metadataCounterPath]
 }, {
   documents: [
     {

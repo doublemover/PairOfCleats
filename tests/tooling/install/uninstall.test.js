@@ -3,7 +3,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode } from '../../helpers/run-node.js';
 import { setupToolingInstallWorkspace } from '../../helpers/tooling-install-fixture.js';
 
 applyTestEnv();
@@ -42,10 +42,12 @@ const env = applyTestEnv({
   }
 });
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [path.join(root, 'tools', 'tooling', 'uninstall.js'), '--yes', '--repo', repoDir],
-  { env, stdio: 'inherit', cwd: repoDir }
+  'tooling uninstall',
+  repoDir,
+  env,
+  { stdio: 'inherit' }
 );
 
 if (result.status !== 0) {

@@ -3,11 +3,15 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { MAX_JSON_BYTES, loadJsonArrayArtifact, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
-import { enqueueGraphRelationsArtifacts } from '../../../src/index/build/artifacts/graph-relations.js';
-import { fromPosix } from '../../../src/shared/files.js';
+import { fromPosix } from '../../../src/shared/file-paths.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import {
+  buildRelationBenchChunks,
+  buildRelationBenchFileRelations
+} from '../../../tools/bench/index/relations-fixture.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { writeAndLoadRelationBenchGraphArtifacts } from './helpers/graph-relations-artifact-fixture.js';
 
 applyTestEnv({ testing: '1' });
 
@@ -23,80 +27,20 @@ const outDir = path.join(testRoot, 'index-code');
 await fs.rm(testRoot, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 
-const buildChunks = ({ chunkCount = 250, edgesFromFirst = 1500 } = {}) => {
-  const chunks = new Array(chunkCount);
-  for (let i = 0; i < chunkCount; i += 1) {
-    const file = `src/file-${String(i % 20).padStart(3, '0')}.js`;
-    const uid = `u${i}`;
-    const callDetails = [];
-    const edgeCount = i === 0 ? edgesFromFirst : 2;
-    for (let j = 1; j <= edgeCount; j += 1) {
-      callDetails.push({ targetChunkUid: `u${(i + j) % chunkCount}` });
-    }
-    chunks[i] = {
-      file,
-      ext: '.js',
-      name: `sym${i}`,
-      kind: 'FunctionDeclaration',
-      chunkUid: uid,
-      metaV2: {
-        chunkUid: uid,
-        lang: 'javascript',
-        effective: { languageId: 'javascript' },
-        symbol: { symbolId: `sym-${i}` }
-      },
-      codeRelations: { callDetails }
-    };
-  }
-  return chunks;
-};
-
-const fileRelations = new Map([
-  ['src/file-000.js', { importLinks: ['src/file-001.js'] }],
-  ['src/file-001.js', { importLinks: ['src/file-000.js'] }]
-]);
-const chunks = buildChunks();
+const fileRelations = buildRelationBenchFileRelations();
+const chunks = buildRelationBenchChunks({
+  chunkCount: 250,
+  edgesPerChunk: 2,
+  fileModulo: 20,
+  edgeCountForChunk: (chunkIndex) => (chunkIndex === 0 ? 1500 : 2)
+});
 
 const runBuild = async ({ maxJsonBytes }) => {
-  const pieces = [];
-  const toPosix = (value) => value.split(path.sep).join('/');
-  const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
-  const removeArtifact = async (targetPath) => {
-    await fs.rm(targetPath, { recursive: true, force: true }).catch(() => {});
-  };
-
-  await enqueueGraphRelationsArtifacts({
-    graphRelations: null,
+  const { pieces, rows } = await writeAndLoadRelationBenchGraphArtifacts({
+    outDir,
     chunks,
     fileRelations,
-    callSites: null,
-    caps: null,
-    outDir,
-    maxJsonBytes,
-    byteBudget: null,
-    log: null,
-    enqueueWrite: () => {
-      throw new Error('enqueueWrite should not be called by streaming graph_relations build');
-    },
-    addPieceFile: (entry, filePath) => {
-      pieces.push({ ...entry, path: formatArtifactLabel(filePath) });
-    },
-    formatArtifactLabel,
-    removeArtifact,
-    stageCheckpoints: null
-  });
-
-  const manifest = {
-    version: 2,
-    generatedAt: new Date().toISOString(),
-    mode: 'code',
-    stage: 'stage2',
-    pieces
-  };
-  const rows = await loadJsonArrayArtifact(outDir, 'graph_relations', {
-    manifest,
-    strict: true,
-    maxBytes: MAX_JSON_BYTES
+    maxJsonBytes
   });
   return { pieces, rows };
 };

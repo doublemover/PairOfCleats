@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 import Module from 'node:module';
 import { EventEmitter } from 'node:events';
 import { createRequire } from 'node:module';
@@ -37,6 +39,23 @@ export async function createVsCodeFixtureRepo(
   return (await prepareVsCodeFixtureWorkspace(fixtureName, options)).root;
 }
 
+export function createVsCodeRuntimeTempRepo({
+  prefix = 'poc-vscode-runtime-',
+  toolScripts = []
+} = {}) {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  fs.mkdirSync(path.join(repoRoot, 'bin'), { recursive: true });
+  fs.mkdirSync(path.join(repoRoot, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(repoRoot, 'bin', 'pairofcleats.js'), 'console.log("ok");');
+  fs.writeFileSync(path.join(repoRoot, 'src', 'app.ts'), 'export const value = 1;\n');
+  for (const scriptPath of toolScripts) {
+    const fullPath = path.join(repoRoot, scriptPath);
+    fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+    fs.writeFileSync(fullPath, 'console.log("ok");');
+  }
+  return repoRoot;
+}
+
 function loadExtensionWithMocks({ fakeVscode, fakeChildProcess }) {
   const originalLoad = Module._load;
   delete require.cache[extensionPath];
@@ -59,7 +78,6 @@ function createFakeSpawn(spawnCalls, queuedResults, killCalls) {
       if (result?.throw) {
         throw result.throw;
       }
-      spawnCalls.push({ command, args, options });
       const child = new EventEmitter();
       child.stdout = new EventEmitter();
       child.stderr = new EventEmitter();
@@ -67,8 +85,13 @@ function createFakeSpawn(spawnCalls, queuedResults, killCalls) {
       child.kill = (signal) => {
         child.killed = true;
         killCalls.push({ command, args, signal });
+        if (result?.persistent && !result.closed) {
+          result.closed = true;
+          setImmediate(() => child.emit('close', result.killCode ?? 0));
+        }
         return true;
       };
+      spawnCalls.push({ command, args, options, child });
       setImmediate(() => {
         if (!result) {
           child.emit('close', 0);

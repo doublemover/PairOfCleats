@@ -1,47 +1,95 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'eval-quality');
+const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const datasetPath = path.join(tempRoot, 'eval-code-only.json');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
-const fullDataset = JSON.parse(await fsPromises.readFile(path.join(fixtureRoot, 'eval.json'), 'utf8'));
-const codeOnlyDataset = Array.isArray(fullDataset)
-  ? fullDataset.filter((entry) => String(entry?.mode || 'code').toLowerCase() === 'code')
-  : [];
+await fsPromises.writeFile(
+  path.join(repoRoot, 'src', 'index.js'),
+  [
+    'export function greet(name) {',
+    '  return `hello ${name}`;',
+    '}',
+    '',
+    'export function sum(left, right) {',
+    '  return left + right;',
+    '}',
+    ''
+  ].join('\n')
+);
+await fsPromises.writeFile(
+  path.join(repoRoot, 'src', 'util.js'),
+  [
+    'export function clamp(value, min, max) {',
+    '  return Math.max(min, Math.min(max, value));',
+    '}',
+    ''
+  ].join('\n')
+);
+const codeOnlyDataset = [
+  { query: 'greet', mode: 'code', expect: [{ file: 'src/index.js', name: 'greet' }] },
+  { query: 'sum', mode: 'code', expect: [{ file: 'src/index.js', name: 'sum' }] },
+  { query: 'clamp', mode: 'code', expect: [{ file: 'src/util.js', name: 'clamp' }] }
+];
 await fsPromises.writeFile(datasetPath, JSON.stringify(codeOnlyDataset, null, 2));
 
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false,
+      workerPool: { enabled: false }
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  },
   syncProcess: false
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'code', '--repo', fixtureRoot],
-  { env, stdio: 'inherit' }
+const buildResult = runNode(
+  [
+    path.join(root, 'build_index.js'),
+    '--stub-embeddings',
+    '--stage',
+    'stage1',
+    '--mode',
+    'code',
+    '--repo',
+    repoRoot
+  ],
+  'eval quality build',
+  repoRoot,
+  env,
+  { stdio: 'inherit', allowFailure: true }
 );
 if (buildResult.status !== 0) {
   console.error('eval quality test failed: build_index failed');
   process.exit(buildResult.status ?? 1);
 }
 
-const evalResult = spawnSync(
-  process.execPath,
+const evalResult = runNode(
   [
     path.join(root, 'tools', 'eval', 'run.js'),
     '--repo',
-    fixtureRoot,
+    repoRoot,
     '--dataset',
     datasetPath,
     '--backend',
@@ -50,7 +98,10 @@ const evalResult = spawnSync(
     '--top',
     '5'
   ],
-  { env, encoding: 'utf8' }
+  'eval quality run',
+  root,
+  env,
+  { stdio: 'pipe', allowFailure: true }
 );
 
 if (evalResult.status !== 0) {

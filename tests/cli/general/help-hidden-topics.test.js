@@ -1,23 +1,21 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 
 const root = process.cwd();
 const binPath = path.join(root, 'bin', 'pairofcleats.js');
 const env = applyTestEnv({ syncProcess: false });
 
-const runCli = (args) => spawnSync(
-  process.execPath,
+const runCli = (args) => runNode(
   [binPath, ...args],
-  {
-    encoding: 'utf8',
-    env,
-    cwd: root
-  }
+  `pairofcleats ${args.join(' ')}`,
+  root,
+  env,
+  { stdio: 'pipe' }
 );
 
 for (const topic of ['dispatch', 'bench']) {

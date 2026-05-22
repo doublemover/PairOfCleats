@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
+import { runRustAnalyzerWorkspaceFixture } from '../../helpers/lsp-provider-fixture.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -45,35 +45,21 @@ await fs.writeFile(
   'utf8'
 );
 
-const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 const docText = 'pub fn add(a: i32, b: i32) -> i32 { a + b }\n';
 
-const createContext = () => ({
-  strict: true,
-  repoRoot: tempRoot,
-  buildRoot: tempRoot,
-  toolingConfig: {
-    enabledTools: ['lsp-rust-timeout-local-cache'],
-    lsp: {
-      enabled: true,
-      servers: [{
-        id: 'rust-timeout-local-cache',
-        preset: 'rust-analyzer',
-        cmd: process.execPath,
-        args: [serverPath, '--mode', 'rust'],
-        languages: ['rust'],
-        uriScheme: 'poc-vfs',
-        rustWorkspaceMetadataCmd: process.execPath,
-        rustWorkspaceMetadataArgs: [metadataScriptPath, metadataCountsPath],
-        rustWorkspaceMetadataTimeoutMs: 500
-      }]
-    }
+const runRustWorkspace = (inputs) => runRustAnalyzerWorkspaceFixture({
+  tempRoot,
+  providerId: 'lsp-rust-timeout-local-cache',
+  serverId: 'rust-timeout-local-cache',
+  metadataArgs: [metadataScriptPath, metadataCountsPath],
+  serverConfig: {
+    rustWorkspaceMetadataTimeoutMs: 500
   },
   cache: {
     enabled: true,
     dir: toolingCacheDir
   }
-});
+}, inputs);
 
 const createInputs = ({ targetPath, suffix }) => ({
   documents: [{
@@ -109,7 +95,7 @@ const readCounts = async () => {
   }
 };
 
-const slowFirst = await runToolingProviders(createContext(), createInputs({
+const slowFirst = await runRustWorkspace(createInputs({
   targetPath: 'examples/slow/src/main.rs',
   suffix: 'slow-a'
 }));
@@ -126,7 +112,7 @@ assert.deepEqual(
   'expected timed out partition to probe once'
 );
 
-const okSecond = await runToolingProviders(createContext(), createInputs({
+const okSecond = await runRustWorkspace(createInputs({
   targetPath: 'crate-ok/src/lib.rs',
   suffix: 'ok-a'
 }));
@@ -142,7 +128,7 @@ assert.deepEqual(
   'expected healthy partition probe to run independently of timed-out partition cache'
 );
 
-const slowThird = await runToolingProviders(createContext(), createInputs({
+const slowThird = await runRustWorkspace(createInputs({
   targetPath: 'examples/slow/src/main.rs',
   suffix: 'slow-b'
 }));

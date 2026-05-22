@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 
-import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import {
   ARTIFACT_PUBLICATION_FAMILY_CONTRACTS_VERSION,
   ARTIFACT_PUBLICATION_STATUSES,

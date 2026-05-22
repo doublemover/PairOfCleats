@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { getCasLeasesRoot, touchCasObject, writeCasObject } from '../../../src/shared/cache-cas.js';
+import { getCasLeasesRoot } from '../../../src/shared/cache-cas/paths.js';
+import { touchCasObject, writeCasObject } from '../../../src/shared/cache-cas/objects.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 applyTestEnv();
 
@@ -17,10 +18,12 @@ const cacheRoot = path.join(tempRoot, 'cache');
 await fs.mkdir(cacheRoot, { recursive: true });
 
 const runGc = (graceDays) => {
-  const run = spawnSync(
-    process.execPath,
+  const run = runNode(
     [toolPath, '--dry-run', '--json', '--cache-root', cacheRoot, '--grace-days', String(graceDays)],
-    { encoding: 'utf8', env: applyTestEnv({ syncProcess: false }) }
+    `cache gc grace-days ${graceDays}`,
+    root,
+    applyTestEnv({ syncProcess: false }),
+    { stdio: 'pipe', allowFailure: true }
   );
   assert.equal(run.status, 0, run.stderr || run.stdout);
   return JSON.parse(run.stdout);

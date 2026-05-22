@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getCapabilities } from '../../../src/shared/capabilities.js';
-import { describeCommandRegistryEntry } from '../../../src/shared/command-registry.js';
+import { describeCommandRegistryEntry } from '../../../src/shared/command-registry-query.js';
 import { getRuntimeCapabilityManifest } from '../../../src/shared/runtime-capability-manifest.js';
 
 const caps = getCapabilities({ refresh: true });

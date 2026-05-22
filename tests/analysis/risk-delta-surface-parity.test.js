@@ -55,6 +55,23 @@ const writePiecesManifest = async (indexDir, files) => {
   });
 };
 
+const RISK_ARTIFACT_MANIFEST_ENTRIES = Object.freeze([
+  { type: 'meta', name: 'file_meta', path: 'file_meta.json' },
+  { type: 'chunks', name: 'chunk_meta', path: 'chunk_meta.json' },
+  { type: 'analysis', name: 'risk_summaries', path: 'risk_summaries.json' },
+  { type: 'analysis', name: 'risk_flows', path: 'risk_flows.json' },
+  { type: 'analysis', name: 'risk_partial_flows', path: 'risk_partial_flows.json' },
+  { type: 'analysis', name: 'risk_interprocedural_stats', path: 'risk_interprocedural_stats.json' }
+]);
+
+const writeRiskPiecesManifest = (indexDir) => writePiecesManifest(indexDir, RISK_ARTIFACT_MANIFEST_ENTRIES);
+
+const writeCurrentBuildPointer = (repoCacheRoot, buildId) => writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
+  buildId,
+  buildRoot: `builds/${buildId}`,
+  buildRoots: { code: `builds/${buildId}` }
+});
+
 const buildFlow = ({
   flowId,
   confidence,
@@ -141,6 +158,49 @@ const buildPartialFlow = ({
   }
 });
 
+const createRiskSummary = ({
+  chunkUid,
+  sinkCategory = 'execution',
+  sinkTags = ['exec'],
+  sinkCount,
+  sinkSignals
+}) => {
+  const sinks = Array.isArray(sinkSignals)
+    ? sinkSignals.map((signal) => ({
+      category: signal.category,
+      tags: Array.isArray(signal.tags) ? [...signal.tags] : []
+    }))
+    : Array.from({ length: Number.isFinite(sinkCount) ? sinkCount : 1 }, () => ({
+      category: sinkCategory,
+      tags: [...sinkTags]
+    }));
+
+  return {
+    chunkUid,
+    file: 'src/a.js',
+    languageId: 'javascript',
+    totals: {
+      sources: 1,
+      sinks: Number.isFinite(sinkCount) ? sinkCount : sinks.length,
+      sanitizers: 0,
+      localFlows: 0
+    },
+    truncated: {
+      sources: false,
+      sinks: false,
+      sanitizers: false,
+      localFlows: false,
+      evidence: false
+    },
+    signals: {
+      sources: [{ category: 'input', tags: ['http'] }],
+      sinks,
+      sanitizers: [],
+      localFlows: []
+    }
+  };
+};
+
 const seedBuild = async ({
   repoCacheRoot,
   buildId,
@@ -182,30 +242,10 @@ const seedBuild = async ({
       }
     }
   }];
-  const riskSummary = [{
+  const riskSummary = [createRiskSummary({
     chunkUid,
-    file: 'src/a.js',
-    languageId: 'javascript',
-    totals: {
-      sources: 1,
-      sinks: flows.length,
-      sanitizers: 0,
-      localFlows: 0
-    },
-    truncated: {
-      sources: false,
-      sinks: false,
-      sanitizers: false,
-      localFlows: false,
-      evidence: false
-    },
-    signals: {
-      sources: [{ category: 'input', tags: ['http'] }],
-      sinks: flows.map((flow) => ({ category: flow.sink.category, tags: flow.sink.tags })),
-      sanitizers: [],
-      localFlows: []
-    }
-  }];
+    sinkSignals: flows.map((flow) => ({ category: flow.sink.category, tags: flow.sink.tags }))
+  })];
   const riskStats = {
     status: 'ok',
     counts: {
@@ -239,14 +279,7 @@ const seedBuild = async ({
   await writeJson(path.join(indexDir, 'risk_flows.json'), flows);
   await writeJson(path.join(indexDir, 'risk_partial_flows.json'), partialFlows);
   await writeJson(path.join(indexDir, 'risk_interprocedural_stats.json'), riskStats);
-  await writePiecesManifest(indexDir, [
-    { type: 'meta', name: 'file_meta', path: 'file_meta.json' },
-    { type: 'chunks', name: 'chunk_meta', path: 'chunk_meta.json' },
-    { type: 'analysis', name: 'risk_summaries', path: 'risk_summaries.json' },
-    { type: 'analysis', name: 'risk_flows', path: 'risk_flows.json' },
-    { type: 'analysis', name: 'risk_partial_flows', path: 'risk_partial_flows.json' },
-    { type: 'analysis', name: 'risk_interprocedural_stats', path: 'risk_interprocedural_stats.json' }
-  ]);
+  await writeRiskPiecesManifest(indexDir);
   await writeJson(path.join(buildRoot, 'build_state.json'), {
     schemaVersion: 1,
     buildId,
@@ -334,11 +367,7 @@ await seedBuild({
   flows: [flowStableA, flowRemoved],
   partialFlows: [partialStableA]
 });
-await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
-  buildId: 'build-a',
-  buildRoot: 'builds/build-a',
-  buildRoots: { code: 'builds/build-a' }
-});
+await writeCurrentBuildPointer(repoCacheRoot, 'build-a');
 await createPointerSnapshot({
   repoRoot,
   userConfig,
@@ -386,11 +415,7 @@ await seedBuild({
   flows: [flowStableB, flowAdded],
   partialFlows: [partialStableB, partialAdded]
 });
-await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
-  buildId: 'build-b',
-  buildRoot: 'builds/build-b',
-  buildRoots: { code: 'builds/build-b' }
-});
+await writeCurrentBuildPointer(repoCacheRoot, 'build-b');
 await createPointerSnapshot({
   repoRoot,
   userConfig,
@@ -602,32 +627,19 @@ await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-a', 'index-code'
   }
 ]);
 await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-a', 'index-code', 'risk_summaries.json'), [
-  {
+  createRiskSummary({
     chunkUid: 'chunk-beta-a',
-    file: 'src/a.js',
-    languageId: 'javascript',
-    totals: { sources: 1, sinks: 1, sanitizers: 0, localFlows: 0 },
-    truncated: { sources: false, sinks: false, sanitizers: false, localFlows: false, evidence: false },
-    signals: { sources: [{ category: 'input', tags: ['http'] }], sinks: [{ category: 'filesystem', tags: ['fs'] }], sanitizers: [], localFlows: [] }
-  },
-  {
+    sinkCategory: 'filesystem',
+    sinkTags: ['fs']
+  }),
+  createRiskSummary({
     chunkUid: 'chunk-gamma-a',
-    file: 'src/a.js',
-    languageId: 'javascript',
-    totals: { sources: 1, sinks: 1, sanitizers: 0, localFlows: 0 },
-    truncated: { sources: false, sinks: false, sanitizers: false, localFlows: false, evidence: false },
-    signals: { sources: [{ category: 'input', tags: ['http'] }], sinks: [{ category: 'network', tags: ['net'] }], sanitizers: [], localFlows: [] }
-  }
+    sinkCategory: 'network',
+    sinkTags: ['net']
+  })
 ]);
 await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-a', 'index-code', 'risk_flows.json'), [multiChunkFlowA, multiChunkFlowBStableA]);
-await writePiecesManifest(path.join(repoCacheRoot, 'builds', 'build-multi-a', 'index-code'), [
-  { type: 'meta', name: 'file_meta', path: 'file_meta.json' },
-  { type: 'chunks', name: 'chunk_meta', path: 'chunk_meta.json' },
-  { type: 'analysis', name: 'risk_summaries', path: 'risk_summaries.json' },
-  { type: 'analysis', name: 'risk_flows', path: 'risk_flows.json' },
-  { type: 'analysis', name: 'risk_partial_flows', path: 'risk_partial_flows.json' },
-  { type: 'analysis', name: 'risk_interprocedural_stats', path: 'risk_interprocedural_stats.json' }
-]);
+await writeRiskPiecesManifest(path.join(repoCacheRoot, 'builds', 'build-multi-a', 'index-code'));
 
 await seedBuild({
   repoCacheRoot,
@@ -696,32 +708,21 @@ await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-b', 'index-code'
   }
 ]);
 await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-b', 'index-code', 'risk_summaries.json'), [
-  {
+  createRiskSummary({
     chunkUid: 'chunk-beta-b',
-    file: 'src/a.js',
-    languageId: 'javascript',
-    totals: { sources: 1, sinks: 1, sanitizers: 0, localFlows: 0 },
-    truncated: { sources: false, sinks: false, sanitizers: false, localFlows: false, evidence: false },
-    signals: { sources: [{ category: 'input', tags: ['http'] }], sinks: [{ category: 'filesystem', tags: ['fs'] }], sanitizers: [], localFlows: [] }
-  },
-  {
+    sinkCategory: 'filesystem',
+    sinkTags: ['fs']
+  }),
+  createRiskSummary({
     chunkUid: 'chunk-gamma-b',
-    file: 'src/a.js',
-    languageId: 'javascript',
-    totals: { sources: 1, sinks: 2, sanitizers: 0, localFlows: 0 },
-    truncated: { sources: false, sinks: false, sanitizers: false, localFlows: false, evidence: false },
-    signals: { sources: [{ category: 'input', tags: ['http'] }], sinks: [{ category: 'network', tags: ['net'] }, { category: 'execution', tags: ['exec'] }], sanitizers: [], localFlows: [] }
-  }
+    sinkSignals: [
+      { category: 'network', tags: ['net'] },
+      { category: 'execution', tags: ['exec'] }
+    ]
+  })
 ]);
 await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-b', 'index-code', 'risk_flows.json'), [multiChunkFlowBStableB, multiChunkFlowAdded]);
-await writePiecesManifest(path.join(repoCacheRoot, 'builds', 'build-multi-b', 'index-code'), [
-  { type: 'meta', name: 'file_meta', path: 'file_meta.json' },
-  { type: 'chunks', name: 'chunk_meta', path: 'chunk_meta.json' },
-  { type: 'analysis', name: 'risk_summaries', path: 'risk_summaries.json' },
-  { type: 'analysis', name: 'risk_flows', path: 'risk_flows.json' },
-  { type: 'analysis', name: 'risk_partial_flows', path: 'risk_partial_flows.json' },
-  { type: 'analysis', name: 'risk_interprocedural_stats', path: 'risk_interprocedural_stats.json' }
-]);
+await writeRiskPiecesManifest(path.join(repoCacheRoot, 'builds', 'build-multi-b', 'index-code'));
 
 await withTemporaryEnv(env, async () => {
   const multiChunkPayload = await buildRiskDeltaPayload({

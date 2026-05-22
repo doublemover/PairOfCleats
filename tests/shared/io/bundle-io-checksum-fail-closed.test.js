@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Packr, Unpackr } from 'msgpackr';
-import { readBundleFile, writeBundleFile } from '../../../src/shared/bundle-io.js';
+import {
+  readBundleFile,
+  writeBundleFile
+} from '../../../src/shared/bundle-io.js';
 import { MAX_BUNDLE_CHECKSUM_BYTES } from '../../../src/shared/bundle-contract.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';

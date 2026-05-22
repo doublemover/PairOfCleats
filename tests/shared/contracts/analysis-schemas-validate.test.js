@@ -14,6 +14,7 @@ import {
   CONTEXT_PACK_RISK_SCHEMA_VERSION
 } from '../../../src/contracts/context-pack-risk-contract.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
+import { createRiskWatchStep } from '../../helpers/risk-explanation-fixtures.js';
 
 const provenance = {
   generatedAt: '2026-02-01T00:00:00Z',
@@ -253,22 +254,7 @@ const compositeContextPack = {
         path: {
           nodes: [{ type: 'chunk', chunkUid: 'chunk-1' }],
           truncatedSteps: 0,
-          watchByStep: [{
-            taintIn: ['req.body'],
-            taintOut: ['input'],
-            propagatedArgIndices: [0],
-            boundParams: ['input'],
-            calleeNormalized: 'query',
-            semanticIds: ['sem.callback.register-handler-payload'],
-            semanticKinds: ['callback'],
-            sanitizerPolicy: 'terminate',
-            sanitizerBarrierApplied: false,
-            sanitizerBarriersBefore: 0,
-            sanitizerBarriersAfter: 0,
-            confidenceBefore: 0.6,
-            confidenceAfter: 0.51,
-            confidenceDelta: -0.09
-          }]
+          watchByStep: [createRiskWatchStep()]
         },
         evidence: {
           callSitesByStep: []
@@ -311,22 +297,7 @@ const compositeContextPack = {
             { type: 'chunk', chunkUid: 'chunk-2' }
           ],
           callSiteIdsByStep: [[]],
-          watchByStep: [{
-            taintIn: ['req.body'],
-            taintOut: ['input'],
-            propagatedArgIndices: [0],
-            boundParams: ['input'],
-            calleeNormalized: 'query',
-            semanticIds: ['sem.callback.register-handler-payload'],
-            semanticKinds: ['callback'],
-            sanitizerPolicy: 'terminate',
-            sanitizerBarrierApplied: false,
-            sanitizerBarriersBefore: 0,
-            sanitizerBarriersAfter: 0,
-            confidenceBefore: 0.6,
-            confidenceAfter: 0.51,
-            confidenceDelta: -0.09
-          }]
+          watchByStep: [createRiskWatchStep()]
         },
         confidence: 0.7,
         notes: {

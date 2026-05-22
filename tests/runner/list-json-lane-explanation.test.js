@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { runNode } from '../helpers/run-node.js';
+import { applyTestEnv } from '../helpers/test-env.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const runnerPath = path.join(ROOT, 'tests', 'run.js');
+const env = applyTestEnv({ syncProcess: false });
 
-const result = spawnSync(process.execPath, [runnerPath, '--lane', 'ci-lite', '--list', '--json'], {
-  cwd: ROOT,
-  encoding: 'utf8'
+const result = runNode([runnerPath, '--lane', 'ci-lite', '--list', '--json'], 'ci-lite list json lane explanation', ROOT, env, {
+  stdio: 'pipe'
 });
 
 assert.equal(result.status, 0, `expected ci-lite list to succeed, got ${result.status}`);

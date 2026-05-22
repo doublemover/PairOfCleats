@@ -8,11 +8,13 @@ import { resolveIndexRef } from '../../src/index/index-ref.js';
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
 import { getRepoCacheRoot, loadUserConfig } from '../../tools/shared/dict-utils.js';
 import { loadChunkMeta } from '../../src/shared/artifact-io.js';
-import { replaceDir } from '../../src/shared/json-stream/atomic.js';
 import { runSearchCli } from '../../src/retrieval/cli.js';
 
-import { createBaseIndex } from '../indexing/validate/helpers.js';
 import { ensureFixtureIndex } from '../helpers/fixture-index.js';
+import {
+  seedCodeSnapshotBuildRoot,
+  setCurrentCodeSnapshotBuild
+} from '../helpers/snapshot-build-fixture.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 
 const runSnapshotQueryCase = async () => {
@@ -39,58 +41,40 @@ const runSnapshotQueryCase = async () => {
     extraEnv: { PAIROFCLEATS_WORKER_POOL: 'off' }
   });
 
-  const writeJson = async (filePath, value) => {
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  };
-
   const seedBuildRoot = async ({
     repoCacheRoot,
     buildId,
     token,
     end
-  }) => {
-    const buildRoot = path.join(repoCacheRoot, 'builds', buildId);
-    await fs.mkdir(buildRoot, { recursive: true });
-    const { indexDir } = await createBaseIndex({
-      rootDir: buildRoot,
-      chunkMeta: [
-        {
-          id: 0,
-          file: 'src/phase14-snapshot-query.js',
-          start: 0,
-          end,
-          text: `export const phase14_marker = "${token}";`
-        }
-      ],
-      fileMeta: [
-        {
-          id: 0,
-          file: 'src/phase14-snapshot-query.js',
-          ext: '.js'
-        }
-      ],
-      tokenPostings: {
-        vocab: [token],
-        postings: [
-          [[0, 1]]
-        ],
-        docLengths: [1],
-        avgDocLen: 1,
-        totalDocs: 1
+  }) => seedCodeSnapshotBuildRoot({
+    repoCacheRoot,
+    buildId,
+    chunkMeta: [
+      {
+        id: 0,
+        file: 'src/phase14-snapshot-query.js',
+        start: 0,
+        end,
+        text: `export const phase14_marker = "${token}";`
       }
-    });
-    const modeDir = path.join(buildRoot, 'index-code');
-    await replaceDir(indexDir, modeDir);
-    await fs.rm(path.join(buildRoot, '.index-root'), { recursive: true, force: true });
-    await writeJson(path.join(buildRoot, 'build_state.json'), {
-      schemaVersion: 1,
-      buildId,
-      configHash: `cfg-${buildId}`,
-      tool: { version: '1.0.0' },
-      validation: { ok: true, issueCount: 0, warningCount: 0, issues: [] }
-    });
-  };
+    ],
+    fileMeta: [
+      {
+        id: 0,
+        file: 'src/phase14-snapshot-query.js',
+        ext: '.js'
+      }
+    ],
+    tokenPostings: {
+      vocab: [token],
+      postings: [
+        [[0, 1]]
+      ],
+      docLengths: [1],
+      avgDocLen: 1,
+      totalDocs: 1
+    }
+  });
 
   const markerPath = path.join(repoRoot, 'src', 'phase14-snapshot-query.js');
   await fs.mkdir(path.dirname(markerPath), { recursive: true });
@@ -106,13 +90,7 @@ const runSnapshotQueryCase = async () => {
     token: 'alpha',
     end: 38
   });
-  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
-    buildId: 'build-alpha',
-    buildRoot: 'builds/build-alpha',
-    buildRoots: {
-      code: 'builds/build-alpha'
-    }
-  });
+  await setCurrentCodeSnapshotBuild({ repoCacheRoot, buildId: 'build-alpha' });
 
   const snapshotA = 'snap-20260212000000-snapqa';
   await createPointerSnapshot({
@@ -129,13 +107,7 @@ const runSnapshotQueryCase = async () => {
     token: 'beta',
     end: 37
   });
-  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
-    buildId: 'build-beta',
-    buildRoot: 'builds/build-beta',
-    buildRoots: {
-      code: 'builds/build-beta'
-    }
-  });
+  await setCurrentCodeSnapshotBuild({ repoCacheRoot, buildId: 'build-beta' });
 
   const snapshotB = 'snap-20260212000000-snapqb';
   await createPointerSnapshot({

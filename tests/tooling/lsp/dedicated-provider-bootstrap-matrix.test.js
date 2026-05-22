@@ -1,12 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import {
-  buildSingleSymbolInputs,
-  createLspProviderTempRepo,
-  resolveLspFixtureCommand,
-  runDedicatedProviderFixture
-} from '../../helpers/lsp-provider-fixture.js';
 import { withLspTestPath } from '../../helpers/lsp-runtime.js';
+import { runDedicatedProviderMatrixCase } from './helpers/dedicated-provider-matrix-case.js';
 
 const root = process.cwd();
 
@@ -100,29 +95,7 @@ const cases = [
 
 await withLspTestPath({ repoRoot: root }, async () => {
   for (const entry of cases) {
-    const tempRoot = await createLspProviderTempRepo({
-      repoRoot: root,
-      name: entry.fixtureName,
-      directories: entry.directories,
-      files: entry.files
-    });
-    const inputs = buildSingleSymbolInputs({
-      scenarioName: entry.fixtureName,
-      virtualPath: entry.virtualPath,
-      text: entry.docText,
-      languageId: entry.languageId,
-      effectiveExt: entry.effectiveExt,
-      symbolName: entry.symbolName
-    });
-    const result = await runDedicatedProviderFixture({
-      tempRoot,
-      providerId: entry.providerId,
-      providerConfigKey: entry.providerConfigKey,
-      providerConfig: {
-        cmd: resolveLspFixtureCommand(entry.fixtureCommand, { repoRoot: root })
-      },
-      inputs
-    });
+    const { result, inputs } = await runDedicatedProviderMatrixCase({ root, entry });
 
     assert.equal(result.byChunkUid.has(inputs.chunkUid), true, `expected ${entry.providerId} to enrich its symbol`);
     const hit = result.byChunkUid.get(inputs.chunkUid);

@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { repoRoot } from '../../helpers/root.js';
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const ROOT = repoRoot();
 const runnerPath = path.join(ROOT, 'tests', 'run.js');
+const env = applyTestEnv({ syncProcess: false });
 
-const result = spawnSync(process.execPath, [
+const result = runNode([
   runnerPath,
   '--list',
   '--lane',
@@ -15,15 +17,7 @@ const result = spawnSync(process.execPath, [
   '--coverage-merge',
   '.c8',
   '--coverage-changed'
-], {
-  encoding: 'utf8'
-});
-
-if (result.status !== 0) {
-  console.error('coverage flags test failed: expected parse/list success');
-  if (result.stderr) console.error(result.stderr.trim());
-  process.exit(result.status ?? 1);
-}
+], 'runner coverage flags list', ROOT, env, { stdio: 'pipe' });
 
 const lines = String(result.stdout || '')
   .split(/\r?\n/)

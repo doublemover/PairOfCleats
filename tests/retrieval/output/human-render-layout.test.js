@@ -4,6 +4,11 @@ import { renderSearchOutput } from '../../../src/retrieval/cli/render.js';
 import { color } from '../../../src/retrieval/cli/ansi.js';
 import { stripAnsi } from '../../../src/shared/cli/ansi-utils.js';
 import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
+import {
+  captureSearchOutputStreams,
+  createSearchOutputHitState,
+  createSearchOutputOptions
+} from '../helpers/search-output-fixture.js';
 
 applyTestEnv();
 
@@ -40,41 +45,16 @@ const proseHits = [
   }
 ];
 
-const captureStreams = async (callback) => {
-  const stdoutChunks = [];
-  const stderrChunks = [];
-  const originalStdoutWrite = process.stdout.write.bind(process.stdout);
-  const originalStderrWrite = process.stderr.write.bind(process.stderr);
-  process.stdout.write = (chunk) => {
-    stdoutChunks.push(String(chunk));
-    return true;
-  };
-  process.stderr.write = (chunk) => {
-    stderrChunks.push(String(chunk));
-    return true;
-  };
-  try {
-    await callback();
-  } finally {
-    process.stdout.write = originalStdoutWrite;
-    process.stderr.write = originalStderrWrite;
-  }
-  return {
-    stdout: stdoutChunks.join(''),
-    stderr: stderrChunks.join('')
-  };
-};
-
-const captured = await withTemporaryEnv({ COLUMNS: '72' }, async () => await captureStreams(async () => {
-  renderSearchOutput({
+const captured = await withTemporaryEnv({ COLUMNS: '72' }, async () => await captureSearchOutputStreams(async () => {
+  renderSearchOutput(createSearchOutputOptions({
     emitOutput: true,
     jsonOutput: false,
     jsonCompact: false,
     explain: false,
     color,
-    rootDir: process.cwd(),
     backendLabel: 'sqlite',
     backendPolicyInfo: null,
+    routingPolicy: null,
     runCode: true,
     runProse: true,
     runExtractedProse: true,
@@ -82,67 +62,17 @@ const captured = await withTemporaryEnv({ COLUMNS: '72' }, async () => await cap
     topN: 3,
     queryTokens: ['renderSearchOutput'],
     highlightRegex: /renderSearchOutput/g,
-    contextExpansionEnabled: false,
-    expandedHits: {
-      prose: { hits: proseHits, contextHits: [] },
-      extractedProse: { hits: [], contextHits: [] },
-      code: { hits: codeHits, contextHits: [] },
-      records: { hits: [], contextHits: [] }
-    },
-    baseHits: {
-      proseHits,
-      extractedProseHits: [],
-      codeHits,
-      recordHits: []
-    },
-    annEnabled: false,
-    annActive: false,
+    ...createSearchOutputHitState({ proseHits, codeHits }),
     annBackend: 'js',
     vectorExtension: { annMode: 'dense', provider: null, table: null },
-    vectorAnnEnabled: false,
-    vectorAnnState: {
-      code: { available: false },
-      prose: { available: false },
-      records: { available: false },
-      'extracted-prose': { available: false }
-    },
-    vectorAnnUsed: {
-      code: false,
-      prose: false,
-      records: false,
-      'extracted-prose': false
-    },
-    hnswConfig: { enabled: false },
-    hnswAnnState: {
-      code: { available: false },
-      prose: { available: false },
-      records: { available: false },
-      'extracted-prose': { available: false }
-    },
-    lanceAnnState: {
-      code: { available: false },
-      prose: { available: false },
-      records: { available: false },
-      'extracted-prose': { available: false }
-    },
     modelIds: { code: null, prose: null, extractedProse: null, records: null },
     embeddingProvider: null,
     embeddingOnnx: { modelPath: null, tokenizerId: null },
-    cacheInfo: { enabled: false, hit: false, key: null },
-    profileInfo: null,
     intentInfo: null,
     resolvedDenseVectorMode: 'merged',
-    fieldWeights: null,
     contextExpansionStats: { enabled: false },
-    idxProse: { chunkMeta: proseHits },
-    idxExtractedProse: { chunkMeta: [] },
-    idxCode: { chunkMeta: codeHits },
-    idxRecords: { chunkMeta: [] },
-    showStats: false,
-    showMatched: false,
-    verboseCache: false,
     elapsedMs: 17
-  });
+  }));
 }));
 
 const cleanStdout = stripAnsi(captured.stdout);

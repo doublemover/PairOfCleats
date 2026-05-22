@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
+import { runRustAnalyzerWorkspaceFixture } from '../../helpers/lsp-provider-fixture.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -30,35 +30,23 @@ await fs.writeFile(
   'utf8'
 );
 
-const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 const docText = 'fn add(a: i32, b: i32) -> i32 { a + b }\n';
 const chunkUid = 'ck64:v1:test:src/lib.rs:rust-workspace-metadata-cache-hit';
 
-const createContext = () => ({
-  strict: true,
-  repoRoot: tempRoot,
-  buildRoot: tempRoot,
-  toolingConfig: {
-    enabledTools: ['lsp-rust-workspace-metadata-cache-hit'],
-    lsp: {
-      enabled: true,
-      servers: [{
-        id: 'rust-workspace-metadata-cache-hit',
-        preset: 'rust-analyzer',
-        cmd: process.execPath,
-        args: [serverPath, '--mode', 'rust'],
-        languages: ['rust'],
-        preflightRuntimeRequirements: [],
-        rustWorkspaceMetadataCmd: process.execPath,
-        rustWorkspaceMetadataArgs: [counterScriptPath, metadataCountPath]
-      }]
-    }
+const runRustWorkspace = (inputs) => runRustAnalyzerWorkspaceFixture({
+  tempRoot,
+  providerId: 'lsp-rust-workspace-metadata-cache-hit',
+  serverId: 'rust-workspace-metadata-cache-hit',
+  metadataArgs: [counterScriptPath, metadataCountPath],
+  uriScheme: null,
+  serverConfig: {
+    preflightRuntimeRequirements: []
   },
   cache: {
     enabled: true,
     dir: toolingCacheDir
   }
-});
+}, inputs);
 
 const providerInputs = {
   documents: [{
@@ -110,11 +98,11 @@ const readCount = async (targetPath) => {
   }
 };
 
-const first = await runToolingProviders(createContext(), providerInputs);
+const first = await runRustWorkspace(providerInputs);
 assert.equal(first.metrics?.preflights?.cached || 0, 0, 'expected first rust metadata preflight run to be uncached');
 assert.equal(await readCount(metadataCountPath), 1, 'expected first rust metadata preflight to execute once');
 
-const second = await runToolingProviders(createContext(), providerInputsCacheMiss);
+const second = await runRustWorkspace(providerInputsCacheMiss);
 assert.equal(second.metrics?.preflights?.cached, 1, 'expected second rust metadata preflight run to hit persistent cache');
 assert.equal(await readCount(metadataCountPath), 1, 'expected cached rust metadata preflight to skip rerun');
 assert.equal(

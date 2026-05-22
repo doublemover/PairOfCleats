@@ -3,10 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { ensureTestingEnv } from '../../helpers/test-env.js';
-
-ensureTestingEnv(process.env);
+import { runShowThroughputReport } from './show-throughput-report-fixture.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-show-throughput-stats-'));
 
@@ -98,11 +95,7 @@ try {
     sqliteP95: 22
   });
 
-  const result = spawnSync(
-    process.execPath,
-    [path.join(process.cwd(), 'tools', 'reports', 'show-throughput.js')],
-    { cwd: runRoot, encoding: 'utf8', env: process.env }
-  );
+  const result = runShowThroughputReport([], { cwd: runRoot });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.equal(String(result.stderr || '').trim(), '', 'expected overview text on stdout only');
   const output = String(result.stdout || '').replace(/\u001b\[[0-9;]*m/g, '');

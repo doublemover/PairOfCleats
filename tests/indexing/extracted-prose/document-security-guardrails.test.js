@@ -2,11 +2,11 @@
 import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { extractPdf } from '../../../src/index/extractors/pdf.js';
 import { extractDocx, loadDocxExtractorRuntime } from '../../../src/index/extractors/docx.js';
 import { buildEncryptedDocxBuffer, buildMinimalDocxBuffer, buildMinimalPdfBuffer } from '../../helpers/document-fixtures.js';
+import { runNode } from '../../helpers/run-node.js';
 applyTestEnv();
 const root = process.cwd();
 const PDF_STUB_SUBPROCESS_TIMEOUT_MS = 20_000;
@@ -21,18 +21,22 @@ const result = await extractPdf({
 });
 process.stdout.write(JSON.stringify(result));
 `;
-  const child = spawnSync(
-    process.execPath,
+  const child = runNode(
     ['--input-type=module', '--eval', script],
-    {
-      cwd: root,
-      env: {
-        ...process.env,        PAIROFCLEATS_TEST_STUB_PDF_EXTRACT: '1',
+    'pdf stub extraction guardrail',
+    root,
+    applyTestEnv({
+      syncProcess: false,
+      extraEnv: {
+        PAIROFCLEATS_TEST_STUB_PDF_EXTRACT: '1',
         PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS: String(delayMs)
-      },
+      }
+    }),
+    {
       stdio: ['ignore', 'pipe', 'inherit'],
       encoding: 'utf8',
-      timeout: PDF_STUB_SUBPROCESS_TIMEOUT_MS
+      timeoutMs: PDF_STUB_SUBPROCESS_TIMEOUT_MS,
+      allowFailure: true
     }
   );
   assert.equal(child.status, 0, 'expected subprocess extraction to succeed');

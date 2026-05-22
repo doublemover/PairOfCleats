@@ -2,16 +2,18 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { spawnSync } from 'node:child_process';
 import { repoRoot } from '../../helpers/root.js';
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const ROOT = repoRoot();
 const runnerPath = path.join(ROOT, 'tests', 'run.js');
+const env = applyTestEnv({ syncProcess: false });
 
 const tmpDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-coverage-equals-'));
 const coveragePath = path.join(tmpDir, 'coverage.json');
 
-const result = spawnSync(process.execPath, [
+runNode([
   runnerPath,
   '--lane',
   'all',
@@ -19,15 +21,7 @@ const result = spawnSync(process.execPath, [
   'harness/pass-target',
   `--coverage=${coveragePath}`,
   '--json'
-], {
-  encoding: 'utf8'
-});
-
-if (result.status !== 0) {
-  console.error('coverage equals-form test failed: runner exited non-zero');
-  if (result.stderr) console.error(result.stderr.trim());
-  process.exit(result.status ?? 1);
-}
+], 'runner coverage equals-form', ROOT, env, { stdio: 'pipe' });
 
 let artifact;
 try {

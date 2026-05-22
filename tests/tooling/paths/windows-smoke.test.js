@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { isUncPath } from '../../../src/shared/files.js';
+import { isUncPath } from '../../../src/shared/file-paths.js';
 import { normalizePathForPlatform } from '../../../src/shared/path-normalize.js';
 
 const mixed = 'c:/workspace\\repo//src\\index.js';

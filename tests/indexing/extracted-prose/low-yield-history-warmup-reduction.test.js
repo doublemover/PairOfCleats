@@ -14,7 +14,7 @@ const { root, repoRoot, cacheRoot } = await setupExtractedProseFixture(
 );
 const srcDir = path.join(repoRoot, 'src');
 await fs.mkdir(srcDir, { recursive: true });
-for (let i = 1; i <= 64; i += 1) {
+for (let i = 1; i <= 24; i += 1) {
   await fs.writeFile(
     path.join(srcDir, `never-yield-${i}.js`),
     `const value${i} = ${i};\nexport default value${i};\n`
@@ -47,10 +47,10 @@ const env = applyTestEnv({
   }
 });
 
-runExtractedProseBuild({ root, repoRoot, env, noSqlite: true });
-runExtractedProseBuild({ root, repoRoot, env, noSqlite: true });
+runExtractedProseBuild({ root, repoRoot, env, noSqlite: true, stage: 'stage2' });
+runExtractedProseBuild({ root, repoRoot, env, noSqlite: true, stage: 'stage2' });
 
-const { extractionReport: report, fileLists } = await readExtractedProseArtifacts(repoRoot);
+const { extractionReport: report } = await readExtractedProseArtifacts(repoRoot);
 assert.ok(report, 'expected extraction_report artifact');
 const lowYieldMarker = report?.quality?.lowYieldBailout;
 assert.ok(lowYieldMarker && typeof lowYieldMarker === 'object', 'expected low-yield quality marker');
@@ -62,8 +62,10 @@ assert.ok(
   'expected reduced warmup sample count in extraction report'
 );
 
-const skipped = Array.isArray(fileLists?.skipped?.sample) ? fileLists.skipped.sample : [];
-const bailoutSkips = skipped.filter((entry) => entry?.reason === 'extracted-prose-low-yield-bailout');
-assert.ok(bailoutSkips.length >= 1, 'expected low-yield bailout skips after reduced warmup');
+assert.equal(lowYieldMarker.suppressedCohortCount, 1, 'expected low-yield bailout to suppress one cohort');
+assert.ok(
+  Number(lowYieldMarker.estimatedSuppressedFiles) >= 1,
+  'expected low-yield bailout to estimate suppressed files after reduced warmup'
+);
 
 console.log('extracted prose low-yield history warmup reduction test passed');

@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { createFileScanner } from '../../../src/index/build/file-scan.js';
 import { resolvePreReadSkip } from '../../../src/index/build/file-processor/skip.js';
 import { reuseCachedBundle } from '../../../src/index/build/file-processor/cached-bundle.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { runNode } from '../../helpers/run-node.js';
 import { getIndexDir, getMetricsDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
@@ -138,7 +138,14 @@ for (const scenario of [
     expectedFile: 'big.js',
     testConfig: {
       indexing: {
-        scm: { provider: 'none' }
+        scm: { provider: 'none' },
+        typeInference: false,
+        typeInferenceCrossFile: false,
+        treeSitter: { enabled: false }
+      },
+      tooling: {
+        autoEnableOnDetect: false,
+        lsp: { enabled: false }
       }
     }
   }
@@ -157,10 +164,23 @@ for (const scenario of [
     embeddings: 'stub',
     testConfig: scenario.testConfig
   });
-  const buildArgs = scenario.name === 'file-line-guard'
-    ? [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage1', '--mode', 'code', '--repo', repoRoot]
-    : [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot];
-  const buildResult = spawnSync(process.execPath, buildArgs, { cwd: repoRoot, env, stdio: 'inherit' });
+  const buildArgs = [
+    path.join(root, 'build_index.js'),
+    '--stub-embeddings',
+    '--stage',
+    'stage1',
+    '--mode',
+    'code',
+    '--repo',
+    repoRoot
+  ];
+  const buildResult = runNode(
+    buildArgs,
+    `file-caps ${scenario.name} build index`,
+    repoRoot,
+    env,
+    { stdio: 'inherit', allowFailure: true }
+  );
   assert.equal(buildResult.status, 0, `Failed: ${scenario.name} build_index`);
 
   const userConfig = loadUserConfig(repoRoot);

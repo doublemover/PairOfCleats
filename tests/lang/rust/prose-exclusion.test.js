@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { loadChunkMeta, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -27,21 +27,41 @@ const env = applyTestEnv({
   embeddings: 'stub',
   testConfig: {
     indexing: {
-      scm: { provider: 'none' }
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
+  },
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--repo', repoRoot, '--stage', 'stage2', '--mode', 'prose', '--stub-embeddings'],
-  { env, encoding: 'utf8' }
+runNode(
+  [
+    path.join(root, 'build_index.js'),
+    '--repo',
+    repoRoot,
+    '--stage',
+    'stage1',
+    '--mode',
+    'prose',
+    '--no-sqlite',
+    '--scm-provider',
+    'none',
+    '--stub-embeddings'
+  ],
+  'prose rust exclusion build index',
+  root,
+  env,
+  { stdio: 'pipe' }
 );
-if (buildResult.status !== 0) {
-  console.error('prose rust exclusion test failed: build_index error.');
-  if (buildResult.stderr) console.error(buildResult.stderr.trim());
-  process.exit(buildResult.status ?? 1);
-}
 
 const userConfig = loadUserConfig(repoRoot);
 const proseDir = getIndexDir(repoRoot, 'prose', userConfig);

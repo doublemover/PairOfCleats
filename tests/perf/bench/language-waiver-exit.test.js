@@ -1,37 +1,13 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { evaluateBenchVerdict, loadBenchPolicy } from '../../../tools/bench/language/verdict.js';
+import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'bench-language-waiver-exit');
-const reposRoot = path.join(tempRoot, 'repos');
-const cacheRoot = path.join(tempRoot, 'cache');
-const resultsRoot = path.join(tempRoot, 'results');
-const configPath = path.join(tempRoot, 'repos.json');
-const queriesPath = path.join(root, 'tests', 'fixtures', 'sample', 'queries.txt');
+const { dir: tempRoot } = await prepareIsolatedTestCacheDir('bench-language-waiver-exit');
 const waiverPath = path.join(tempRoot, 'waivers.json');
 const repoId = 'test/waiver-exit';
-const repoPath = path.join(reposRoot, 'javascript', repoId.replace('/', '__'));
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(repoPath, { recursive: true });
-await fsPromises.mkdir(cacheRoot, { recursive: true });
-await fsPromises.mkdir(resultsRoot, { recursive: true });
-await fsPromises.writeFile(path.join(repoPath, 'README.md'), 'bench waiver exit test');
-
-const config = {
-  javascript: {
-    label: 'JavaScript',
-    queries: queriesPath,
-    repos: {
-      small: [repoId]
-    }
-  }
-};
-await fsPromises.writeFile(configPath, JSON.stringify(config, null, 2));
 await fsPromises.writeFile(
   waiverPath,
   JSON.stringify({
@@ -51,49 +27,30 @@ await fsPromises.writeFile(
   }, null, 2)
 );
 
-const scriptPath = path.join(root, 'tools', 'bench', 'language-repos.js');
-const baseArgs = [
-  scriptPath,
-  '--config',
-  configPath,
-  '--root',
-  reposRoot,
-  '--cache-root',
-  cacheRoot,
-  '--results',
-  resultsRoot,
-  '--no-clone',
-  '--build-index',
-  '--backend',
-  'sqlite',
-  '--json'
-];
-
-const failedRun = spawnSync(process.execPath, baseArgs, {
-  encoding: 'utf8',
-  timeout: 30000
+const failedVerdict = evaluateBenchVerdict({
+  tasks: [
+    {
+      repo: repoId,
+      language: 'javascript',
+      tier: 'small',
+      failed: true,
+      failureReason: 'bench'
+    }
+  ],
+  policy: await loadBenchPolicy()
 });
-if (!failedRun.stdout) {
-  console.error(failedRun.stderr || 'expected bench-language JSON output on unwaived failure');
+if (failedVerdict.run.aggregateResultClass !== 'repo_failed') {
+  console.error(`expected repo_failed aggregate verdict, got ${failedVerdict.run.aggregateResultClass}`);
   process.exit(1);
 }
-if ((failedRun.status ?? 0) === 0) {
-  console.error('expected unwaived benchmark failure to exit non-zero');
-  process.exit(1);
-}
-const failedPayload = JSON.parse(failedRun.stdout);
-if (failedPayload.run.aggregateResultClass !== 'repo_failed') {
-  console.error(`expected repo_failed aggregate verdict, got ${failedPayload.run.aggregateResultClass}`);
-  process.exit(1);
-}
-if ((failedPayload.run.issues.unwaivedCount || 0) !== 1) {
-  console.error(`expected exactly one unwaived issue, got ${failedPayload.run.issues.unwaivedCount}`);
+if ((failedVerdict.run.issues.unwaivedCount || 0) !== 1) {
+  console.error(`expected exactly one unwaived issue, got ${failedVerdict.run.issues.unwaivedCount}`);
   process.exit(1);
 }
 
 const policy = await loadBenchPolicy({ waiverFile: waiverPath });
 const waivedVerdict = evaluateBenchVerdict({
-  tasks: failedPayload.tasks,
+  tasks: failedVerdict.tasks,
   policy
 });
 if (waivedVerdict.run.aggregateResultClass !== 'passed_with_degradation') {

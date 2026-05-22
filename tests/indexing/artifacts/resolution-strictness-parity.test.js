@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { resolveJsonlExtension as resolveFromShared } from '../../../src/shared/json-stream.js';
+import { resolveJsonlExtension as resolveFromShared } from '../../../src/shared/json-stream/jsonl-write.js';
 import { resolveJsonlExtension as resolveFromWriters } from '../../../src/index/build/artifacts/writers/_common.js';
 
 const cases = [

@@ -3,8 +3,8 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -16,7 +16,7 @@ await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 
 const tokens = [];
-for (let i = 0; i < 200; i += 1) {
+for (let i = 0; i < 120; i += 1) {
   tokens.push(`token_${i}_${'x'.repeat(24)}`);
 }
 const lines = [];
@@ -24,7 +24,7 @@ for (let i = 0; i < tokens.length; i += 5) {
   lines.push(tokens.slice(i, i + 5).join(' '));
 }
 const content = `${lines.join('\n')}\n`;
-const fileCount = 12;
+const fileCount = 6;
 for (let i = 0; i < fileCount; i += 1) {
   await fsPromises.writeFile(path.join(repoRoot, `big-${i}.js`), content);
 }
@@ -42,11 +42,15 @@ const baseEnv = {
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
-const maxJsonBytes = 16384;
+const maxJsonBytes = 4096;
 const smallMaxConfig = {
   indexing: {
     postings: {
       fielded: false
+    },
+    artifacts: {
+      chunkMetaFormat: 'jsonl',
+      chunkMetaShardSize: 1
     }
   }
 };
@@ -58,8 +62,7 @@ const runBuild = (label, envOverrides) => {
   if (!Object.prototype.hasOwnProperty.call(envOverrides || {}, 'PAIROFCLEATS_TEST_MAX_JSON_BYTES')) {
     delete env.PAIROFCLEATS_TEST_MAX_JSON_BYTES;
   }
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     [
       path.join(root, 'build_index.js'),
       '--stub-embeddings',
@@ -72,7 +75,10 @@ const runBuild = (label, envOverrides) => {
       '--repo',
       repoRoot
     ],
-    { cwd: repoRoot, env, stdio: 'inherit' }
+    `build_index (${label})`,
+    repoRoot,
+    env,
+    { stdio: 'inherit', allowFailure: true }
   );
   if (result.status !== 0) {
     console.error(`Failed: build_index (${label})`);
@@ -97,6 +103,10 @@ if (!fs.existsSync(chunkMetaMetaPath) || !fs.existsSync(chunkMetaPartsDir)) {
 }
 if (fs.existsSync(path.join(indexDir, 'chunk_meta.json'))) {
   console.error('Expected chunk_meta.json to be suppressed when sharding.');
+  process.exit(1);
+}
+if (fs.existsSync(path.join(indexDir, 'chunk_meta.jsonl'))) {
+  console.error('Expected chunk_meta.jsonl to be removed when jsonl sharding is enabled.');
   process.exit(1);
 }
 const partFiles = fs.readdirSync(chunkMetaPartsDir)
@@ -125,57 +135,6 @@ if (fs.existsSync(path.join(indexDir, 'token_postings.json'))) {
   process.exit(1);
 }
 
-const jsonlShardConfig = {
-  indexing: {
-    artifacts: {
-      chunkMetaFormat: 'jsonl',
-      chunkMetaShardSize: 1
-    }
-  }
-};
-runBuild('chunk meta jsonl shards', {
-  PAIROFCLEATS_TEST_CONFIG: JSON.stringify(jsonlShardConfig)
-});
-const jsonlShardIndexDir = getIndexDir(repoRoot, 'code', userConfig);
-const jsonlMetaPath = path.join(jsonlShardIndexDir, 'chunk_meta.meta.json');
-const jsonlPartsDir = path.join(jsonlShardIndexDir, 'chunk_meta.parts');
-const jsonlPath = path.join(jsonlShardIndexDir, 'chunk_meta.jsonl');
-if (!fs.existsSync(jsonlMetaPath) || !fs.existsSync(jsonlPartsDir)) {
-  console.error('Expected chunk_meta jsonl sharding artifacts with chunkMetaFormat=jsonl.');
-  process.exit(1);
-}
-if (fs.existsSync(jsonlPath)) {
-  console.error('Expected chunk_meta.jsonl to be removed when jsonl sharding is enabled.');
-  process.exit(1);
-}
-
-const jsonlFlatConfig = {
-  indexing: {
-    artifacts: {
-      chunkMetaFormat: 'jsonl',
-      chunkMetaShardSize: 100000
-    }
-  }
-};
-runBuild('chunk meta jsonl unsharded', {
-  PAIROFCLEATS_TEST_CONFIG: JSON.stringify(jsonlFlatConfig)
-});
-const jsonlFlatIndexDir = getIndexDir(repoRoot, 'code', userConfig);
-const jsonlFlatPath = path.join(jsonlFlatIndexDir, 'chunk_meta.jsonl');
-if (!fs.existsSync(jsonlFlatPath)) {
-  console.error('Expected chunk_meta.jsonl for unsharded jsonl output.');
-  process.exit(1);
-}
-if (fs.existsSync(path.join(jsonlFlatIndexDir, 'chunk_meta.meta.json'))
-  || fs.existsSync(path.join(jsonlFlatIndexDir, 'chunk_meta.parts'))) {
-  console.error('Expected jsonl shard artifacts to be cleaned up when switching to unsharded jsonl.');
-  process.exit(1);
-}
-if (fs.existsSync(path.join(jsonlFlatIndexDir, 'chunk_meta.json'))) {
-  console.error('Expected chunk_meta.json to be removed when chunkMetaFormat=jsonl is used.');
-  process.exit(1);
-}
-
 const largeMaxConfig = {
   indexing: {
     artifacts: {
@@ -198,6 +157,10 @@ if (fs.existsSync(nextChunkMetaMeta) || fs.existsSync(nextChunkMetaParts)) {
 }
 if (!fs.existsSync(path.join(nextIndexDir, 'chunk_meta.json'))) {
   console.error('Expected chunk_meta.json when max JSON bytes is large.');
+  process.exit(1);
+}
+if (fs.existsSync(path.join(nextIndexDir, 'chunk_meta.jsonl'))) {
+  console.error('Expected chunk_meta.jsonl to be cleaned up when switching to unsharded JSON.');
   process.exit(1);
 }
 

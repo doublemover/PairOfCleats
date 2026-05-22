@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { createDisplay } from '../../../src/shared/cli/display.js';
-import { configureLogger, getRecentLogEvents, log, showProgress } from '../../../src/shared/progress.js';
+import { configureLogger, getRecentLogEvents, log, showProgress } from '../../../src/shared/progress-runtime.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 

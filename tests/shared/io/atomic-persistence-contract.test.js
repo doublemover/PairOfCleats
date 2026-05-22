@@ -4,7 +4,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { replaceDir, replaceFile, replaceFileSync } from '../../../src/shared/io/atomic-persistence.js';
+import { replaceFile, replaceFileSync } from '../../../src/shared/io/replace-file.js';
+import { replaceDir } from '../../../src/shared/io/replace-dir.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-atomic-persistence-'));
 

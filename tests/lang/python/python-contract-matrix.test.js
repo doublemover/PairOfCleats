@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { runNode } from '../../helpers/run-node.js';
 
 import {
   buildPythonHeuristicChunks,
@@ -110,17 +111,15 @@ const cases = [
         'assert.equal(ast, null);',
         'await shutdownPythonAstPool();'
       ].join('\n');
-      const failOpen = spawnSync(
-        process.execPath,
+      const failOpen = runNode(
         ['--input-type=module', '--eval', failOpenScript],
+        'python AST fail-open without python',
+        process.cwd(),
         {
-          cwd: process.cwd(),
-          encoding: 'utf8',
-          env: {
-            ...process.env,
-            PATH: ''
-          }
-        }
+          ...process.env,
+          PATH: ''
+        },
+        { stdio: 'pipe', allowFailure: true }
       );
       assert.equal(failOpen.status, 0, failOpen.stderr || failOpen.stdout || 'python fail-open subprocess failed');
     }

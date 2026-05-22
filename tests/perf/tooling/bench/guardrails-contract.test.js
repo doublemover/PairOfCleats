@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { runNode } from '../../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 
@@ -49,8 +49,7 @@ await fs.writeFile(
 );
 
 const scriptPath = path.join(root, 'tools', 'bench', 'check-guardrails.js');
-const passing = spawnSync(
-  process.execPath,
+const passing = runNode(
   [
     scriptPath,
     '--report',
@@ -65,7 +64,10 @@ const passing = spawnSync(
     '10',
     '--json'
   ],
-  { cwd: root, env: testEnv, encoding: 'utf8' }
+  'bench guardrails passing contract',
+  root,
+  testEnv,
+  { stdio: 'pipe', allowFailure: true }
 );
 if (passing.status !== 0) {
   console.error(passing.stdout || '');
@@ -75,8 +77,7 @@ if (passing.status !== 0) {
 const passPayload = JSON.parse(String(passing.stdout || '{}'));
 assert.equal(passPayload.ok, true, 'expected guardrails pass');
 
-const failing = spawnSync(
-  process.execPath,
+const failing = runNode(
   [
     scriptPath,
     '--report',
@@ -85,7 +86,10 @@ const failing = spawnSync(
     '80',
     '--json'
   ],
-  { cwd: root, env: testEnv, encoding: 'utf8' }
+  'bench guardrails failing contract',
+  root,
+  testEnv,
+  { stdio: 'pipe', allowFailure: true }
 );
 assert.equal(failing.status, 1, 'expected guardrails failure exit code');
 const failPayload = JSON.parse(String(failing.stdout || '{}'));

@@ -5,6 +5,7 @@ import {
   renderCompositeContextPack,
   renderCompositeContextPackJson
 } from '../../../src/retrieval/output/composite-context-pack.js';
+import { createRiskWatchStep } from '../../helpers/risk-explanation-fixtures.js';
 
 const payload = {
   primary: {
@@ -84,22 +85,7 @@ const payload = {
             { type: 'chunk', chunkUid: 'chunk-risk' },
             { type: 'chunk', chunkUid: 'chunk-sink' }
           ],
-          watchByStep: [{
-            taintIn: ['req.body'],
-            taintOut: ['input'],
-            propagatedArgIndices: [0],
-            boundParams: ['input'],
-            calleeNormalized: 'query',
-            semanticIds: ['sem.callback.register-handler-payload'],
-            semanticKinds: ['callback'],
-            sanitizerPolicy: 'terminate',
-            sanitizerBarrierApplied: false,
-            sanitizerBarriersBefore: 0,
-            sanitizerBarriersAfter: 0,
-            confidenceBefore: 0.6,
-            confidenceAfter: 0.51,
-            confidenceDelta: -0.09
-          }]
+          watchByStep: [createRiskWatchStep()]
         },
         evidence: {
           callSitesByStep: [[{
@@ -136,22 +122,7 @@ const payload = {
           { type: 'chunk', chunkUid: index === 4 ? 'chunk-tail' : 'chunk-mid' }
         ],
         callSiteIdsByStep: [['cs-1']],
-        watchByStep: [{
-          taintIn: ['req.body'],
-          taintOut: ['input'],
-          propagatedArgIndices: [0],
-          boundParams: ['input'],
-          calleeNormalized: 'query',
-          semanticIds: ['sem.callback.register-handler-payload'],
-          semanticKinds: ['callback'],
-          sanitizerPolicy: 'terminate',
-          sanitizerBarrierApplied: false,
-          sanitizerBarriersBefore: 0,
-          sanitizerBarriersAfter: 0,
-          confidenceBefore: 0.6,
-          confidenceAfter: 0.51,
-          confidenceDelta: -0.09
-        }]
+        watchByStep: [createRiskWatchStep()]
       },
       evidence: {
         callSitesByStep: [[{

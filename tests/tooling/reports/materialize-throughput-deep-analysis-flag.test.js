@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { ensureTestingEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
-ensureTestingEnv(process.env);
+const env = applyTestEnv({ syncProcess: false });
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-materialize-throughput-deep-analysis-'));
 
@@ -39,13 +39,15 @@ try {
     'utf8'
   );
 
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     [
       path.join(process.cwd(), 'tools', 'reports', 'materialize-throughput.js'),
       '--deep-analysis'
     ],
-    { cwd: runRoot, encoding: 'utf8', env: process.env }
+    'materialize throughput deep analysis',
+    runRoot,
+    env,
+    { stdio: 'pipe' }
   );
 
   assert.equal(result.status, 0, result.stderr || result.stdout);

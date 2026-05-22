@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { buildSharedModuleLedger } from '../../../tools/docs/shared-module-ledger.js';
+import { writeStableGeneratedJsonReport, writeTextIfChanged } from '../../../tools/shared/generated-report.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -14,35 +15,9 @@ await fs.mkdir(tempRoot, { recursive: true });
 const outputJsonPath = path.join(tempRoot, 'shared-module-ledger.json');
 const outputMdPath = path.join(tempRoot, 'shared-module-ledger.md');
 
-const normalizeGeneratedPayload = (payload) => ({
-  ...payload,
-  generatedAt: null
-});
-
 const writeLedgerOutputs = async ({ report, markdown }) => {
-  let existingPayload = null;
-  let existingJsonText = null;
-  try {
-    existingJsonText = await fs.readFile(outputJsonPath, 'utf8');
-    existingPayload = JSON.parse(existingJsonText);
-  } catch {}
-
-  const nextReport = typeof existingPayload?.generatedAt === 'string'
-    && JSON.stringify(normalizeGeneratedPayload(existingPayload)) === JSON.stringify(normalizeGeneratedPayload(report))
-    ? { ...report, generatedAt: existingPayload.generatedAt }
-    : report;
-  const nextJsonText = `${JSON.stringify(nextReport, null, 2)}\n`;
-  if (existingJsonText !== nextJsonText) {
-    await fs.writeFile(outputJsonPath, nextJsonText, 'utf8');
-  }
-
-  let existingMarkdown = null;
-  try {
-    existingMarkdown = await fs.readFile(outputMdPath, 'utf8');
-  } catch {}
-  if (existingMarkdown !== markdown) {
-    await fs.writeFile(outputMdPath, markdown, 'utf8');
-  }
+  await writeStableGeneratedJsonReport(outputJsonPath, report);
+  await writeTextIfChanged(outputMdPath, markdown);
 };
 
 await writeLedgerOutputs(await buildSharedModuleLedger(root));

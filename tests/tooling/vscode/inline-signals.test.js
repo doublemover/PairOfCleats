@@ -11,6 +11,38 @@ const flush = async () => {
   await new Promise((resolve) => setImmediate(resolve));
 };
 
+const createPackWarning = (code, message) => ({ code, message });
+
+const queueInlineSignalsContextPackResult = (harness, {
+  warnings = [createPackWarning('PACK_WARN', 'warning emitted')]
+} = {}) => {
+  harness.queuedResults.push({
+    code: 0,
+    stdout: JSON.stringify({
+      risk: {
+        status: 'ok',
+        analysisStatus: { code: 'ok' },
+        flows: [
+          { flowId: 'flow-a', confidence: 0.91 },
+          { flowId: 'flow-b', confidence: 0.73 },
+          { flowId: 'flow-c', confidence: 0.61 }
+        ]
+      },
+      types: {
+        facts: [
+          { role: 'return', type: 'number' },
+          { role: 'param', type: 'string' },
+          { role: 'param', type: 'boolean' }
+        ]
+      },
+      warnings,
+      truncation: [
+        { cap: 'maxFlows', limit: 2, observed: 3 }
+      ]
+    })
+  });
+};
+
 const workspace = await prepareVsCodeFixtureWorkspace('vscode/workspace-root', {
   prefix: 'poc-vscode-inline-signals-'
 });
@@ -54,33 +86,11 @@ const harness = createVsCodeRuntimeHarness({
 });
 
 try {
-  harness.queuedResults.push({
-    code: 0,
-    stdout: JSON.stringify({
-      risk: {
-        status: 'ok',
-        analysisStatus: { code: 'ok' },
-        flows: [
-          { flowId: 'flow-a', confidence: 0.91 },
-          { flowId: 'flow-b', confidence: 0.73 },
-          { flowId: 'flow-c', confidence: 0.61 }
-        ]
-      },
-      types: {
-        facts: [
-          { role: 'return', type: 'number' },
-          { role: 'param', type: 'string' },
-          { role: 'param', type: 'boolean' }
-        ]
-      },
-      warnings: [
-        { code: 'PACK_WARN', message: 'warning emitted' },
-        { code: 'PACK_WARN_2', message: 'second warning emitted' }
-      ],
-      truncation: [
-        { cap: 'maxFlows', limit: 2, observed: 3 }
-      ]
-    })
+  queueInlineSignalsContextPackResult(harness, {
+    warnings: [
+      createPackWarning('PACK_WARN', 'warning emitted'),
+      createPackWarning('PACK_WARN_2', 'second warning emitted')
+    ]
   });
 
   harness.activate();
@@ -97,33 +107,7 @@ try {
   assert.equal(harness.decorationApplications.length > 0, true, 'expected decoration application');
   assert.match(harness.decorationTypes[0].options.after.contentText, /PairOfCleats: 3 risk flows/i);
 
-  harness.queuedResults.push({
-    code: 0,
-    stdout: JSON.stringify({
-      risk: {
-        status: 'ok',
-        analysisStatus: { code: 'ok' },
-        flows: [
-          { flowId: 'flow-a', confidence: 0.91 },
-          { flowId: 'flow-b', confidence: 0.73 },
-          { flowId: 'flow-c', confidence: 0.61 }
-        ]
-      },
-      types: {
-        facts: [
-          { role: 'return', type: 'number' },
-          { role: 'param', type: 'string' },
-          { role: 'param', type: 'boolean' }
-        ]
-      },
-      warnings: [
-        { code: 'PACK_WARN', message: 'warning emitted' }
-      ],
-      truncation: [
-        { cap: 'maxFlows', limit: 2, observed: 3 }
-      ]
-    })
-  });
+  queueInlineSignalsContextPackResult(harness);
 
   const hover = await harness.hoverProviders[0].provider.provideHover(
     document,

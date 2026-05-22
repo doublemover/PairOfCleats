@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { buildActions } from './actions.js';
 import { applyActionCoverage, createCoverageState, finalizeCoverage, reportCoverage } from './report.js';
 import { repoRoot } from '../../helpers/root.js';
-import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
+import {
+  collectUnknownActionCovers,
+  createScriptCoverageActionsFixture
+} from './coverage-fixture.js';
 
 const unknownState = createCoverageState({ scriptNames: ['build-index'] });
 applyActionCoverage(unknownState, { label: 'unknown', covers: ['missing-script'] });
@@ -26,31 +28,9 @@ assert.equal(tierOverrideSummary.missingTierB.length, 0, 'expected tier B overri
 assert.equal(tierOverrideSummary.coveredTierB.length, 1, 'expected tier B override to mark covered');
 
 const root = repoRoot();
-const baseCacheRoot = await makeTempDir('pairofcleats-script-coverage-');
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const mergeDir = path.join(baseCacheRoot, 'merge');
-await fsPromises.mkdir(mergeDir, { recursive: true });
-const scripts = JSON.parse(await fsPromises.readFile(path.join(root, 'package.json'), 'utf8')).scripts || {};
-const scriptNames = new Set(Object.keys(scripts));
-const actions = await buildActions({
-  root,
-  fixtureRoot,
-  repoEnv: { ...process.env },
-  baseCacheRoot,
-  mergeDir,
-  runNode: () => {},
-  scriptNames
-});
-const unknown = new Set();
-for (const action of actions) {
-  for (const key of ['covers', 'coversTierB']) {
-    const values = Array.isArray(action[key]) ? action[key] : [];
-    for (const name of values) {
-      if (!scriptNames.has(name)) unknown.add(name);
-    }
-  }
-}
-await rmDirRecursive(baseCacheRoot);
+const { actions, scriptNames, cleanup } = await createScriptCoverageActionsFixture();
+const unknown = collectUnknownActionCovers(actions, scriptNames);
+await cleanup();
 assert.equal(unknown.size, 0, `expected no unknown covers (found: ${Array.from(unknown).join(', ')})`);
 
 const executableRefRegex = /['"`]((?:[^'"`\n]*?)tests[\\/][^'"`\n]+\.test\.js)['"`]/g;

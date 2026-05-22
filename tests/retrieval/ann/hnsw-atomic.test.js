@@ -2,12 +2,12 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../../../src/shared/hnsw.js';
 import { loadChunkMeta, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { requireHnswLib } from '../../helpers/optional-deps.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
@@ -56,8 +56,7 @@ const env = applyTestEnv({
   }
 });
 
-const buildIndex = spawnSync(
-  process.execPath,
+runNode(
   [
     path.join(root, 'build_index.js'),
     '--stub-embeddings',
@@ -70,12 +69,11 @@ const buildIndex = spawnSync(
     '--repo',
     repoRoot
   ],
-  { cwd: repoRoot, env, stdio: 'inherit' }
+  'hnsw atomic build index',
+  repoRoot,
+  env,
+  { stdio: 'inherit' }
 );
-if (buildIndex.status !== 0) {
-  console.error('hnsw atomic test failed: build_index failed');
-  process.exit(buildIndex.status ?? 1);
-}
 
 const userConfig = loadUserConfig(repoRoot);
 const codeIndexDir = getIndexDir(repoRoot, 'code', userConfig);
@@ -84,15 +82,13 @@ const { indexPath: hnswIndexPath, metaPath: hnswMetaPath } = resolveHnswPaths(co
 await fsPromises.writeFile(hnswIndexPath, 'stub-index');
 await fsPromises.writeFile(hnswMetaPath, JSON.stringify({ version: 1, dims: 1, count: 0 }));
 
-const buildEmbeddings = spawnSync(
-  process.execPath,
+runNode(
   [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
-  { cwd: repoRoot, env, stdio: 'inherit' }
+  'hnsw atomic build embeddings',
+  repoRoot,
+  env,
+  { stdio: 'inherit' }
 );
-if (buildEmbeddings.status !== 0) {
-  console.error('hnsw atomic test failed: build-embeddings failed');
-  process.exit(buildEmbeddings.status ?? 1);
-}
 
 await fsPromises.copyFile(hnswIndexPath, `${hnswIndexPath}.bak`);
 

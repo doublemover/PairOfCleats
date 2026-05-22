@@ -4,12 +4,14 @@ import { prepareFixtureApiServerCohort } from '../../helpers/api-server.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const sharedOne = await prepareFixtureApiServerCohort({
+  fixtureName: 'call-sites-determinism',
   cacheName: 'api-cohort-contract',
   fixtureOptions: {
     requiredModes: ['code']
   }
 });
 const sharedTwo = await prepareFixtureApiServerCohort({
+  fixtureName: 'call-sites-determinism',
   cacheName: 'api-cohort-contract',
   resetCache: false,
   fixtureOptions: {
@@ -34,9 +36,11 @@ let isolatedOne = null;
 let isolatedTwo = null;
 await withTemporaryEnv({ PAIROFCLEATS_TEST_CACHE_SUFFIX: 'api-cohort-one' }, async () => {
   isolatedOne = await prepareFixtureApiServerCohort({
+    fixtureName: 'call-sites-determinism',
     cacheName: 'api-cohort-isolated',
     cacheScope: 'isolated',
     resetCache: false,
+    indexFixture: false,
     fixtureOptions: {
       requiredModes: ['code']
     }
@@ -44,9 +48,11 @@ await withTemporaryEnv({ PAIROFCLEATS_TEST_CACHE_SUFFIX: 'api-cohort-one' }, asy
 });
 await withTemporaryEnv({ PAIROFCLEATS_TEST_CACHE_SUFFIX: 'api-cohort-two' }, async () => {
   isolatedTwo = await prepareFixtureApiServerCohort({
+    fixtureName: 'call-sites-determinism',
     cacheName: 'api-cohort-isolated',
     cacheScope: 'isolated',
     resetCache: false,
+    indexFixture: false,
     fixtureOptions: {
       requiredModes: ['code']
     }

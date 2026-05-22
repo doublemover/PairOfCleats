@@ -4,23 +4,20 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode } from '../../helpers/run-node.js';
 
 applyTestEnv();
 
 const repoRoot = process.cwd();
 const releaseCheckScript = path.join(repoRoot, 'tools', 'release', 'check.js');
+const env = applyTestEnv({ syncProcess: false });
 
-const runReleaseCheck = ({ cwd, args = [] }) => spawnSync(
-  process.execPath,
+const runReleaseCheck = ({ cwd, args = [] }) => runNode(
   [releaseCheckScript, ...args],
-  {
-    cwd,
-    encoding: 'utf8',
-    env: {
-      ...process.env
-    }
-  }
+  'release check unsupported blocker flags',
+  cwd,
+  env,
+  { stdio: 'pipe', allowFailure: true }
 );
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-release-gates-'));

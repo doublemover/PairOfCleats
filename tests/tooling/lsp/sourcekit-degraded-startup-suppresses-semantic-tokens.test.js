@@ -4,13 +4,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { acquireFileLock } from '../../../src/shared/locks/file-lock.js';
-import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
-import { getToolingProvider } from '../../../src/index/tooling/provider-registry.js';
 import { resolveSourcekitPreflightLockPath } from '../../../src/index/tooling/sourcekit-provider.js';
 import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';
-import { createSourcekitPreflightFixture } from '../../helpers/sourcekit-preflight-fixture.js';
+import {
+  createSourcekitPreflightFixture,
+  withSourcekitPreflightProvider
+} from '../../helpers/sourcekit-preflight-fixture.js';
 import { parseJsonLinesFile } from '../../helpers/lsp-signature-fixtures.js';
-import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const fixture = await createSourcekitPreflightFixture({
@@ -81,11 +81,12 @@ try {
   });
   assert.ok(heldLock, 'expected test to acquire sourcekit preflight lock');
 
-  await withTemporaryEnv({ POC_SWIFT_PREFLIGHT_COUNTER: fixture.counterPath, POC_LSP_TRACE: tracePath }, async () => {
-    registerDefaultToolingProviders();
-    const provider = getToolingProvider('sourcekit');
-    assert.ok(provider, 'expected sourcekit provider');
-
+  await withSourcekitPreflightProvider({
+    fixture,
+    logs,
+    env: { POC_LSP_TRACE: tracePath },
+    context: { ctx, document, target }
+  }, async ({ provider }) => {
     const output = await provider.run({
       ...ctx,
       toolingConfig: {

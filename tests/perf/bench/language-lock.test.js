@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode } from '../../helpers/run-node.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -44,8 +44,7 @@ await fsPromises.writeFile(
 );
 
 const scriptPath = path.join(root, 'tools', 'bench/language-repos.js');
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     scriptPath,
     '--config',
@@ -62,7 +61,10 @@ const result = spawnSync(
     'fail-fast',
     '--json'
   ],
-  { encoding: 'utf8' }
+  'bench language lock dry-run',
+  root,
+  process.env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 
 if (result.status !== 0) {

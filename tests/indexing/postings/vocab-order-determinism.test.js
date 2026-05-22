@@ -1,26 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { createIndexState, appendChunk } from '../../../src/index/build/state.js';
-import { buildPostings } from '../../../src/index/build/postings.js';
 import { createOrderingHasher } from '../../../src/shared/order.js';
+import { buildPostingsFromTokens } from './helpers/build-postings-fixture.js';
 
 const buildVocab = async (tokens) => {
-  const state = createIndexState();
-  appendChunk(state, { tokens, seq: tokens, file: 'sample.txt' }, {});
-  const postings = await buildPostings({
-    chunks: state.chunks,
-    df: state.df,
-    tokenPostings: state.tokenPostings,
-    tokenIdMap: state.tokenIdMap,
-    docLengths: state.docLengths,
-    fieldPostings: state.fieldPostings,
-    fieldDocLengths: state.fieldDocLengths,
-    phrasePost: state.phrasePost,
-    triPost: state.triPost,
-    postingsConfig: {},
-    postingsGuard: state.postingsGuard,
-    embeddingsEnabled: false
-  });
+  const postings = await buildPostingsFromTokens({ tokens });
   return postings.tokenVocab;
 };
 

@@ -2,10 +2,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const projectRoot = process.cwd();
+const env = applyTestEnv({ syncProcess: false });
 const tempRoot = resolveTestCachePath(projectRoot, 'get-last-failure-latest-pointer');
 await fs.rm(tempRoot, { recursive: true, force: true });
 
@@ -20,10 +22,7 @@ const latestPointerValue = path.relative(tempRoot, latestRunDir).replace(/\\/g, 
 await fs.writeFile(latestPointerPath, `${latestPointerValue}\n`, 'utf8');
 
 const scriptPath = path.join(projectRoot, 'tools', 'ci', 'get-last-failure.js');
-const result = spawnSync(process.execPath, [scriptPath], {
-  cwd: tempRoot,
-  encoding: 'utf8'
-});
+const result = runNode([scriptPath], 'get last failure latest pointer', tempRoot, env, { stdio: 'pipe' });
 
 assert.equal(result.status, 0, `expected script to succeed, stderr=${result.stderr || ''}`);
 const stderrLines = String(result.stderr || '')

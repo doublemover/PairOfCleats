@@ -5,7 +5,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
-import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { assembleCompositeContextPack } from '../../../src/context-pack/assemble.js';
 import { getMetricsRegistry } from '../../../src/shared/metrics/core.js';
 import { createApiRouter } from '../../../tools/api/router.js';

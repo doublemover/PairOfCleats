@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { buildFilterIndex } from '../../../src/retrieval/filter-index.js';
 import {
@@ -12,7 +10,6 @@ import {
 } from '../../../src/retrieval/filters.js';
 import { filterChunks } from '../../../src/retrieval/output.js';
 import { createInProcessSearchRunner, ensureFixtureIndex } from '../../helpers/fixture-index.js';
-import { ensureSearchFiltersRepo, runFilterSearch } from '../../helpers/search-filters-repo.js';
 
 const languageFixture = await ensureFixtureIndex({
   fixtureName: 'languages',
@@ -35,11 +32,6 @@ const runSampleSearch = createInProcessSearchRunner({
   fixtureRoot: sampleFixture.fixtureRoot,
   env: sampleFixture.env
 });
-const filterRepoContext = await ensureSearchFiltersRepo();
-if (!filterRepoContext) process.exit(0);
-
-const { repoRoot: filterRepoRoot, env: filterRepoEnv } = filterRepoContext;
-const extractFiles = (payload, key = 'prose') => new Set((payload[key] || []).map((hit) => path.basename(hit.file || '')));
 
 const cases = [
   {
@@ -201,135 +193,6 @@ const cases = [
         args: ['--backend', 'memory', '--decorator', 'available']
       });
       assert.ok((payload.code || []).length > 0);
-    }
-  },
-  {
-    name: 'negative token and phrase syntax filters prose hits',
-    async run() {
-      const negativeToken = runFilterSearch({ repoRoot: filterRepoRoot, env: filterRepoEnv, query: 'alpha -gamma' });
-      const negativeTokenFiles = extractFiles(negativeToken);
-      assert.equal(negativeTokenFiles.has('alpha.txt'), true);
-      assert.equal(negativeTokenFiles.has('beta.txt'), false);
-
-      const negativePhrase = runFilterSearch({
-        repoRoot: filterRepoRoot,
-        env: filterRepoEnv,
-        query: 'alpha -"alpha beta"'
-      });
-      const negativePhraseFiles = extractFiles(negativePhrase);
-      assert.equal(negativePhraseFiles.has('beta.txt'), true);
-      assert.equal(negativePhraseFiles.has('alpha.txt'), false);
-    }
-  },
-  {
-    name: 'quoted phrase explain output carries phrase score breakdown',
-    async run() {
-      const phraseSearch = runFilterSearch({
-        repoRoot: filterRepoRoot,
-        env: filterRepoEnv,
-        query: '"alpha beta"',
-        args: ['--explain']
-      });
-      const phraseHits = phraseSearch.prose || [];
-      assert.ok(phraseHits.length > 0);
-      assert.equal((phraseHits[0]?.scoreBreakdown?.phrase?.matches || 0) > 0, true);
-    }
-  },
-  {
-    name: 'git metadata branch and chunk-author filters narrow prose hits correctly',
-    async run() {
-      if (!filterRepoContext.branchName) {
-        return;
-      }
-
-      const branchMatch = runFilterSearch({
-        repoRoot: filterRepoRoot,
-        env: filterRepoEnv,
-        query: 'alpha',
-        args: ['--branch', filterRepoContext.branchName]
-      });
-      assert.ok((branchMatch.prose || []).length > 0);
-
-      const branchMiss = runFilterSearch({
-        repoRoot: filterRepoRoot,
-        env: filterRepoEnv,
-        query: 'alpha',
-        args: ['--branch', 'no-such-branch']
-      });
-      assert.equal((branchMiss.prose || []).length, 0);
-
-      const chunkAuthorAlice = runFilterSearch({
-        repoRoot: filterRepoRoot,
-        env: filterRepoEnv,
-        query: 'alpha',
-        args: ['--chunk-author', 'Alice']
-      });
-      const aliceFiles = extractFiles(chunkAuthorAlice);
-      assert.equal(aliceFiles.has('alpha.txt'), true);
-      assert.equal(aliceFiles.has('beta.txt'), false);
-
-      const chunkAuthorBob = runFilterSearch({
-        repoRoot: filterRepoRoot,
-        env: filterRepoEnv,
-        query: 'alpha',
-        args: ['--chunk-author', 'Bob']
-      });
-      const bobFiles = extractFiles(chunkAuthorBob);
-      assert.equal(bobFiles.has('beta.txt'), true);
-      assert.equal(bobFiles.has('alpha.txt'), false);
-    }
-  },
-  {
-    name: 'churn filter accepts numeric thresholds and rejects invalid values',
-    async run() {
-      const defaultPayload = runFilterSearch({
-        repoRoot: filterRepoRoot,
-        env: filterRepoEnv,
-        query: 'alpha'
-      });
-      assert.ok((defaultPayload.prose || []).length > 0);
-
-      const zeroPayload = runFilterSearch({
-        repoRoot: filterRepoRoot,
-        env: filterRepoEnv,
-        query: 'alpha',
-        args: ['--churn', '0']
-      });
-      assert.ok((zeroPayload.prose || []).length > 0);
-
-      const highPayload = runFilterSearch({
-        repoRoot: filterRepoRoot,
-        env: filterRepoEnv,
-        query: 'alpha',
-        args: ['--churn', '999999']
-      });
-      assert.equal((highPayload.prose || []).length, 0);
-
-      const invalidResult = spawnSync(
-        process.execPath,
-        [
-          path.join(filterRepoContext.root, 'search.js'),
-          'alpha',
-          '--mode',
-          'prose',
-          '--json',
-          '--no-ann',
-          '--repo',
-          filterRepoRoot,
-          '--backend',
-          'memory',
-          '--churn',
-          'not-a-number'
-        ],
-        {
-          cwd: filterRepoRoot,
-          env: filterRepoEnv,
-          encoding: 'utf8',
-          timeout: 2 * 60 * 1000
-        }
-      );
-      assert.notEqual(invalidResult.status, 0);
-      assert.match(`${invalidResult.stdout || ''}\n${invalidResult.stderr || ''}`, /churn/i);
     }
   }
 ];

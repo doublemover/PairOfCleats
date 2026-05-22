@@ -2,7 +2,7 @@
 import { ensureTestingEnv } from '../helpers/test-env.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode } from '../helpers/run-node.js';
 
 ensureTestingEnv(process.env);
 
@@ -16,14 +16,16 @@ const checksumPath = `${manifestPath}.sha256`;
 fs.rmSync(testDistDir, { recursive: true, force: true });
 fs.mkdirSync(invokeCwd, { recursive: true });
 
-const result = spawnSync(process.execPath, [buildScript, '--smoke'], {
-  cwd: invokeCwd,
-  encoding: 'utf8',
-  env: {
+const result = runNode(
+  [buildScript, '--smoke'],
+  'tui headless smoke build',
+  invokeCwd,
+  {
     ...process.env,
     PAIROFCLEATS_TUI_DIST_DIR: testDistRel
-  }
-});
+  },
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
+);
 
 if (result.status !== 0) {
   console.error('tui headless smoke test failed: build script exited non-zero');

@@ -1,24 +1,13 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
 import { resolveSqliteFtsRoutingByMode } from '../../../src/retrieval/routing-policy.js';
-
-const makeAnnState = () => ({
-  code: { available: false },
-  prose: { available: false },
-  records: { available: false },
-  'extracted-prose': { available: false }
-});
-
-const makeAnnUsed = () => ({
-  code: false,
-  prose: false,
-  records: false,
-  'extracted-prose': false
-});
+import {
+  createAlphaSearchIndex,
+  createSearchPipelineFixture
+} from '../helpers/search-pipeline-fixture.js';
 
 let sqliteCalls = 0;
-const pipeline = createSearchPipeline({
+const pipeline = createSearchPipelineFixture({
   useSqlite: true,
   sqliteFtsRequested: true,
   sqliteFtsRoutingByMode: resolveSqliteFtsRoutingByMode({
@@ -30,33 +19,6 @@ const pipeline = createSearchPipeline({
     runExtractedProse: false,
     runRecords: false
   }),
-  sqliteFtsVariantConfig: {
-    explicitTrigram: false,
-    substringMode: false,
-    stemming: false
-  },
-  sqliteFtsNormalize: false,
-  sqliteFtsProfile: 'balanced',
-  sqliteFtsWeights: [0, 1, 1, 1, 1, 1, 1, 1],
-  query: 'alpha',
-  queryTokens: ['alpha'],
-  queryAst: null,
-  bm25K1: 1.2,
-  bm25B: 0.75,
-  fieldWeights: null,
-  postingsConfig: { enablePhraseNgrams: false, enableChargrams: false },
-  phraseNgramSet: null,
-  phraseRange: null,
-  explain: true,
-  symbolBoost: { enabled: false },
-  filters: {},
-  filtersActive: false,
-  topN: 5,
-  annEnabled: false,
-  annBackend: 'auto',
-  scoreBlend: null,
-  minhashMaxDocs: null,
-  sparseBackend: 'auto',
   profilePolicyByMode: {
     code: {
       profileId: 'default',
@@ -64,13 +26,6 @@ const pipeline = createSearchPipeline({
       allowSparseFallback: false
     }
   },
-  vectorAnnState: makeAnnState(),
-  vectorAnnUsed: makeAnnUsed(),
-  hnswAnnState: makeAnnState(),
-  hnswAnnUsed: makeAnnUsed(),
-  lanceAnnState: makeAnnState(),
-  lanceAnnUsed: makeAnnUsed(),
-  lancedbConfig: {},
   buildCandidateSetSqlite: () => {
     throw new Error('bm25 fallback should not run when sqlite-fts is healthy');
   },
@@ -81,22 +36,11 @@ const pipeline = createSearchPipeline({
     sqliteCalls += 1;
     return [{ idx: 0, score: 2 }];
   },
-  rankVectorAnnSqlite: () => [],
   sqliteHasFts: () => true,
-  sqliteHasTable: (_mode, tableName) => tableName === 'chunks' || tableName === 'chunks_fts',
-  signal: null,
-  rrf: { enabled: false }
+  sqliteHasTable: (_mode, tableName) => tableName === 'chunks' || tableName === 'chunks_fts'
 });
 
-const idx = {
-  chunkMeta: [{ id: 0, file: 'src/a.js', tokens: ['alpha'], weight: 1 }],
-  tokenIndex: null,
-  filterIndex: null,
-  fileRelations: null,
-  phraseNgrams: null,
-  minhash: null,
-  denseVec: null
-};
+const idx = createAlphaSearchIndex({ tokenIndex: null });
 
 const hits = await pipeline(idx, 'code', null);
 

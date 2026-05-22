@@ -2,7 +2,6 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { evaluateAutoSqliteThresholds } from '../../../src/retrieval/cli/auto-sqlite.js';
 import { resolveBackendSelection } from '../../../src/retrieval/cli/policy.js';
@@ -10,6 +9,7 @@ import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const backendMatrixTestConfig = {
@@ -27,17 +27,8 @@ const backendMatrixTestConfig = {
   }
 };
 
-const runNode = (env, args, label) => {
-  const result = spawnSync(process.execPath, args, {
-    env,
-    encoding: 'utf8'
-  });
-  if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
-    if (result.stderr) console.error(result.stderr.trim());
-    if (result.stdout) console.error(result.stdout.trim());
-    process.exit(result.status ?? 1);
-  }
+const runNodeScript = (env, args, label, options = {}) => {
+  const result = runNode(args, label, root, env, { stdio: 'pipe', ...options });
   return result.stdout || '';
 };
 
@@ -257,7 +248,7 @@ const cases = [
         ].join('\n')
       );
 
-      runNode(env, [
+      runNodeScript(env, [
         path.join(root, 'build_index.js'),
         '--stub-embeddings',
         '--repo',
@@ -267,7 +258,7 @@ const cases = [
         '--mode',
         'code'
       ], 'build index');
-      runNode(env, [
+      runNodeScript(env, [
         path.join(root, 'tools', 'build', 'embeddings.js'),
         '--stub-embeddings',
         '--repo',
@@ -294,14 +285,26 @@ const cases = [
         fixtureRoot
       ];
 
-      const strictResult = spawnSync(process.execPath, searchArgs, { env, encoding: 'utf8' });
+      const strictResult = runNode(searchArgs, 'strict search missing manifest', root, env, {
+        stdio: 'pipe',
+        allowFailure: true
+      });
       assert.notEqual(strictResult.status, 0);
       const strictMessage = (() => {
         try { return JSON.parse(strictResult.stdout || '').message || ''; } catch { return strictResult.stdout || strictResult.stderr || ''; }
       })();
       assert.match(String(strictMessage), /manifest/i);
 
-      const nonStrictResult = spawnSync(process.execPath, [...searchArgs, '--non-strict'], { env, encoding: 'utf8' });
+      const nonStrictResult = runNode(
+        [...searchArgs, '--non-strict'],
+        'non-strict search missing manifest',
+        root,
+        env,
+        {
+          stdio: 'pipe',
+          allowFailure: true
+        }
+      );
       assert.notEqual(nonStrictResult.status, 0);
       const nonStrictMessage = (() => {
         try { return JSON.parse(nonStrictResult.stdout || '').message || ''; } catch { return nonStrictResult.stdout || nonStrictResult.stderr || ''; }

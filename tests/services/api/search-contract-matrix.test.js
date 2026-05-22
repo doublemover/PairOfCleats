@@ -19,7 +19,8 @@ const runSearchAndHealthCase = async () => {
     repoRoot: fixture.repoRoot,
     env: fixture.env,
     allowedRoots: [emptyRepo],
-    maxBodyBytes: 512
+    maxBodyBytes: 512,
+    corsAllowedOrigins: ['example.com']
   });
   try {
     for (const entry of SHARED_SEARCH_CONTRACT_CASES) {
@@ -94,7 +95,7 @@ const runSearchAndHealthCase = async () => {
     }
 
     const corsBlocked = await requestJson('GET', '/health', null, serverInfo, {
-      headers: { Origin: 'https://example.com' }
+      headers: { Origin: 'https://blocked.example' }
     });
     if (corsBlocked.status !== 403 || corsBlocked.body?.code !== 'FORBIDDEN') {
       throw new Error('api search contract matrix should reject disallowed CORS origins');
@@ -102,12 +103,24 @@ const runSearchAndHealthCase = async () => {
 
     const preflightBlocked = await requestJson('OPTIONS', '/health', null, serverInfo, {
       headers: {
-        Origin: 'https://example.com',
+        Origin: 'https://blocked.example',
         'Access-Control-Request-Method': 'GET'
       }
     });
     if (preflightBlocked.status !== 403 || preflightBlocked.body?.code !== 'FORBIDDEN') {
       throw new Error('api search contract matrix should reject disallowed CORS preflight');
+    }
+
+    const origin = 'https://example.com';
+    const allowed = await requestJson('GET', '/health', null, serverInfo, {
+      headers: { Origin: origin }
+    });
+    if (allowed.status !== 200) {
+      throw new Error('api search contract matrix expected allowed origin to succeed');
+    }
+    const allowHeader = allowed.headers?.['access-control-allow-origin'];
+    if (allowHeader !== origin) {
+      throw new Error('api search contract matrix expected access-control-allow-origin header to match origin');
     }
 
     const health = await requestJson('GET', '/health', null, serverInfo);
@@ -137,31 +150,6 @@ const runSearchAndHealthCase = async () => {
   }
 };
 
-const runCorsAllowCase = async () => {
-  const origin = 'https://example.com';
-  const { serverInfo, requestJson, stop } = await startApiServer({
-    repoRoot: fixture.repoRoot,
-    env: fixture.env,
-    allowedRoots: [emptyRepo],
-    corsAllowedOrigins: ['example.com']
-  });
-  try {
-    const allowed = await requestJson('GET', '/health', null, serverInfo, {
-      headers: { Origin: origin }
-    });
-    if (allowed.status !== 200) {
-      throw new Error('api search contract matrix expected allowed origin to succeed');
-    }
-    const allowHeader = allowed.headers?.['access-control-allow-origin'];
-    if (allowHeader !== origin) {
-      throw new Error('api search contract matrix expected access-control-allow-origin header to match origin');
-    }
-  } finally {
-    await stop();
-  }
-};
-
 await runSearchAndHealthCase();
-await runCorsAllowCase();
 
 console.log('API search contract matrix test passed');

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
 import { assembleCompositeContextPack } from '../../src/context-pack/assemble.js';
 import { CONTEXT_PACK_RISK_CONTRACT_VERSION } from '../../src/contracts/context-pack-risk-contract.js';
 import { renderCompositeContextPack, renderCompositeContextPackJson } from '../../src/retrieval/output/composite-context-pack.js';
@@ -10,6 +10,7 @@ import { validateCompositeContextPack } from '../../src/contracts/validators/ana
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
+import { createRiskWatchStep } from '../helpers/risk-explanation-fixtures.js';
 
 applyTestEnv({ testing: '1' });
 
@@ -101,22 +102,7 @@ const flowRow = {
   path: {
     chunkUids: ['chunk-risk', 'chunk-risk-sink'],
     callSiteIdsByStep: [['cs-1']],
-    watchByStep: [{
-      taintIn: ['req.body'],
-      taintOut: ['input'],
-      propagatedArgIndices: [0],
-      boundParams: ['input'],
-      calleeNormalized: 'query',
-      semanticIds: ['sem.callback.register-handler-payload'],
-      semanticKinds: ['callback'],
-      sanitizerPolicy: 'terminate',
-      sanitizerBarrierApplied: false,
-      sanitizerBarriersBefore: 0,
-      sanitizerBarriersAfter: 0,
-      confidenceBefore: 0.6,
-      confidenceAfter: 0.51,
-      confidenceDelta: -0.09
-    }]
+    watchByStep: [createRiskWatchStep()]
   },
   confidence: 0.88,
   notes: {
@@ -155,22 +141,7 @@ const partialFlowRow = {
   path: {
     chunkUids: ['chunk-risk', 'chunk-risk-sink'],
     callSiteIdsByStep: [['cs-1']],
-    watchByStep: [{
-      taintIn: ['req.body'],
-      taintOut: ['input'],
-      propagatedArgIndices: [0],
-      boundParams: ['input'],
-      calleeNormalized: 'query',
-      semanticIds: ['sem.callback.register-handler-payload'],
-      semanticKinds: ['callback'],
-      sanitizerPolicy: 'terminate',
-      sanitizerBarrierApplied: false,
-      sanitizerBarriersBefore: 0,
-      sanitizerBarriersAfter: 0,
-      confidenceBefore: 0.6,
-      confidenceAfter: 0.51,
-      confidenceDelta: -0.09
-    }]
+    watchByStep: [createRiskWatchStep()]
   },
   confidence: 0.64,
   notes: {
@@ -217,20 +188,7 @@ const rankedPathOnlyFlow = {
   path: {
     chunkUids: ['chunk-helper', 'chunk-risk', 'chunk-helper-sink'],
     callSiteIdsByStep: [['cs-1']],
-    watchByStep: [{
-      taintIn: ['req.body'],
-      taintOut: ['input'],
-      propagatedArgIndices: [0],
-      boundParams: ['input'],
-      calleeNormalized: 'query',
-      sanitizerPolicy: 'terminate',
-      sanitizerBarrierApplied: false,
-      sanitizerBarriersBefore: 0,
-      sanitizerBarriersAfter: 0,
-      confidenceBefore: 0.6,
-      confidenceAfter: 0.51,
-      confidenceDelta: -0.09
-    }]
+    watchByStep: [createRiskWatchStep({ includeSemantics: false })]
   },
   confidence: 0.95,
   notes: {

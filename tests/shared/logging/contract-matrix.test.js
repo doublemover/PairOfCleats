@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 
 import { createWarnOnce, normalizeWarnOnceKey } from '../../../src/shared/logging/warn-once.js';
-import { spawnSubprocessSync } from '../../../src/shared/subprocess.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 applyTestEnv();
 
@@ -32,14 +32,14 @@ applyTestEnv();
 {
   const root = process.cwd();
   const binPath = path.join(root, 'bin', 'pairofcleats.js');
-  const result = spawnSubprocessSync(process.execPath, [binPath, 'version'], {
-    env: applyTestEnv({ syncProcess: false }),
-    captureStdout: true,
-    captureStderr: true,
-    outputMode: 'string',
-    rejectOnNonZeroExit: false
-  });
-  assert.equal(result.exitCode, 0);
+  const result = runNode(
+    [binPath, 'version'],
+    'pairofcleats version warning contract',
+    root,
+    applyTestEnv({ syncProcess: false }),
+    { stdio: 'pipe', allowFailure: true }
+  );
+  assert.equal(result.status, 0);
   assert.equal((result.stdout || '').trim(), '');
   assert.ok((result.stderr || '').trim().length > 0);
 }

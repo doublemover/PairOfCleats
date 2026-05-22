@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
-applyTestEnv();
+const env = applyTestEnv();
 
 const root = process.cwd();
 const scriptPath = path.join(root, 'tools', 'setup', 'postinstall.js');
@@ -50,10 +50,7 @@ fs.writeFileSync(${JSON.stringify(markerPath)}, 'ran', 'utf8');
     'utf8'
   );
 
-  const result = spawnSync(process.execPath, [scriptPath], {
-    cwd: workingRoot,
-    encoding: 'utf8'
-  });
+  const result = runNode([scriptPath], 'postinstall rebuild native contract', workingRoot, env, { stdio: 'pipe' });
   assert.equal(result.status, 0, `postinstall should succeed, got ${result.status}`);
 
   const marker = await fs.readFile(markerPath, 'utf8');

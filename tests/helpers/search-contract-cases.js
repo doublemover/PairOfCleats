@@ -8,7 +8,11 @@ export const prepareSharedSearchContractFixture = async ({
 } = {}) => {
   const lifecycle = await createSearchLifecycle({
     cacheScope: 'shared',
-    cacheName
+    cacheName,
+    embeddings: '0',
+    extraEnv: {
+      PAIROFCLEATS_WORKER_POOL: 'off'
+    }
   });
   const { repoRoot, buildIndex } = lifecycle;
   await fsPromises.mkdir(path.join(repoRoot, 'src', 'nested'), { recursive: true });
@@ -36,7 +40,8 @@ export const prepareSharedSearchContractFixture = async ({
   );
   buildIndex({
     label: 'build shared search contract fixture',
-    stage: 'stage2'
+    mode: 'code',
+    stage: 'stage1'
   });
   return lifecycle;
 };

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { resolveManifestBundleNames } from '../../../src/shared/bundle-io.js';
+import { resolveManifestBundleNames } from '../../../src/shared/bundle-io-paths.js';
 import { validateIncrementalManifest } from '../../../src/storage/sqlite/build/manifest.js';
 
 const legacyOnly = resolveManifestBundleNames({ bundle: 'abc123.json' });

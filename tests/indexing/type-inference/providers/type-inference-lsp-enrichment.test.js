@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { MAX_JSON_BYTES, loadChunkMeta, loadJsonArrayArtifact } from '../../../../src/shared/artifact-io.js';
-import { getIndexDir, loadUserConfig } from '../../../../tools/shared/dict-utils.js';
 import { repoRoot } from '../../../helpers/root.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { runNode } from '../../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+import { loadCodeChunkArtifacts } from '../crossfile/artifact-fixture.js';
 
 const root = repoRoot();
 const tempRoot = resolveTestCachePath(root, 'lsp-enrichment');
@@ -59,10 +58,12 @@ const env = applyTestEnv({
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
+const buildResult = runNode(
   [path.join(root, 'build_index.js'), '--repo', repoDir, '--stub-embeddings', '--stage', 'stage2'],
-  { cwd: repoDir, env, encoding: 'utf8' }
+  'LSP enrichment build index',
+  repoDir,
+  env,
+  { encoding: 'utf8', stdio: 'pipe', allowFailure: true }
 );
 
 if (buildResult.status !== 0) {
@@ -71,21 +72,7 @@ if (buildResult.status !== 0) {
   process.exit(buildResult.status ?? 1);
 }
 
-const userConfig = loadUserConfig(repoDir);
-const indexDir = getIndexDir(repoDir, 'code', userConfig);
-let chunks = [];
-let fileMeta = [];
-try {
-  chunks = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
-  fileMeta = await loadJsonArrayArtifact(indexDir, 'file_meta', { maxBytes: MAX_JSON_BYTES, strict: true });
-} catch (err) {
-  console.error(`LSP enrichment test failed: unable to load artifacts (${err?.message || err}).`);
-  process.exit(1);
-}
-const fileById = new Map(
-  (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
-);
-const resolveChunkFile = (chunk) => chunk?.file || fileById.get(chunk?.fileId) || null;
+const { chunkMeta: chunks, resolveChunkFile } = await loadCodeChunkArtifacts(repoDir, 'LSP enrichment');
 
 const cppChunk = chunks.find((chunk) => resolveChunkFile(chunk) === 'src/sample.cpp' && chunk.name === 'add');
 const swiftChunk = chunks.find((chunk) => resolveChunkFile(chunk) === 'src/sample.swift' && chunk.name === 'greet');

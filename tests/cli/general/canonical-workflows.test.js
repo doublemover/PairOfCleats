@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const binPath = path.join(root, 'bin', 'pairofcleats.js');
@@ -13,14 +13,12 @@ const fixtureRoot = path.join(root, 'tests', 'fixtures', 'languages');
 const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-cli-canonical-'));
 const env = applyTestEnv({ syncProcess: false });
 
-const runCli = (args, options = {}) => spawnSync(
-  process.execPath,
+const runCli = (args, options = {}) => runNode(
   [binPath, ...args],
-  {
-    encoding: 'utf8',
-    env,
-    cwd: options.cwd || root
-  }
+  `pairofcleats ${args.join(' ')}`,
+  options.cwd || root,
+  env,
+  { stdio: 'pipe' }
 );
 
 const expectHelpRoute = (args) => {

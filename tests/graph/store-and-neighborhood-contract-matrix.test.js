@@ -4,6 +4,7 @@ import assert from 'node:assert';
 import { buildGraphNeighborhood } from '../../src/graph/neighborhood.js';
 import { buildGraphIndex } from '../../src/graph/store.js';
 import { applyTestEnv } from '../helpers/test-env.js';
+import { chunkCallGraphRelations, cloneJson } from './helpers/graph-fixtures.js';
 
 applyTestEnv({ testing: '1' });
 
@@ -48,31 +49,26 @@ const cases = [
     name: 'csr neighborhood output matches legacy traversal deterministically',
     run() {
       const seed = { type: 'chunk', chunkUid: 'chunk-a' };
-      const graphRelations = {
-        version: 1,
+      const graphRelations = chunkCallGraphRelations({
         generatedAt: '2026-02-01T00:00:00.000Z',
-        callGraph: {
-          nodeCount: 3,
-          edgeCount: 4,
-          nodes: [
-            { id: 'chunk-a', out: ['chunk-b', 'chunk-c', 'chunk-c'], in: ['chunk-b'] },
-            { id: 'chunk-b', out: ['chunk-a'], in: ['chunk-a'] },
-            { id: 'chunk-c', out: [], in: ['chunk-a'] }
-          ]
-        },
-        usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [] },
-        importGraph: { nodeCount: 0, edgeCount: 0, nodes: [] }
-      };
+        nodeCount: 3,
+        edgeCount: 4,
+        nodes: [
+          { id: 'chunk-a', out: ['chunk-b', 'chunk-c', 'chunk-c'], in: ['chunk-b'] },
+          { id: 'chunk-b', out: ['chunk-a'], in: ['chunk-a'] },
+          { id: 'chunk-c', out: [], in: ['chunk-a'] }
+        ]
+      });
       const buildLegacy = (direction) => buildGraphNeighborhood({
         seed,
-        graphRelations: JSON.parse(JSON.stringify(graphRelations)),
+        graphRelations: cloneJson(graphRelations),
         direction,
         depth: 2,
         includePaths: true,
         caps: { maxDepth: 3, maxFanoutPerNode: 25, maxNodes: 50, maxEdges: 50, maxPaths: 25, maxWorkUnits: 1000 }
       });
       const graphIndex = buildGraphIndex({
-        graphRelations: JSON.parse(JSON.stringify(graphRelations)),
+        graphRelations: cloneJson(graphRelations),
         repoRoot: null,
         includeCsr: true
       });
@@ -85,7 +81,7 @@ const cases = [
         caps: { maxDepth: 3, maxFanoutPerNode: 25, maxNodes: 50, maxEdges: 50, maxPaths: 25, maxWorkUnits: 1000 }
       });
       const stripStats = (value) => {
-        const cloned = JSON.parse(JSON.stringify(value));
+        const cloned = cloneJson(value);
         delete cloned.stats;
         return cloned;
       };
@@ -164,19 +160,7 @@ const cases = [
   {
     name: 'unknown filters and empty matches emit warnings',
     run() {
-      const graphRelations = {
-        version: 1,
-        callGraph: {
-          nodeCount: 2,
-          edgeCount: 1,
-          nodes: [
-            { id: 'chunk-a', out: ['chunk-b'], in: [] },
-            { id: 'chunk-b', out: [], in: ['chunk-a'] }
-          ]
-        },
-        usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [] },
-        importGraph: { nodeCount: 0, edgeCount: 0, nodes: [] }
-      };
+      const graphRelations = chunkCallGraphRelations();
 
       const unknownFilters = buildGraphNeighborhood({
         seed: { type: 'chunk', chunkUid: 'chunk-a' },
@@ -205,32 +189,13 @@ const cases = [
   {
     name: 'mismatched graph index warns and still prefers supplied graph relations',
     run() {
-      const graphA = {
-        version: 1,
-        callGraph: {
-          nodeCount: 2,
-          edgeCount: 1,
-          nodes: [
-            { id: 'chunk-a', out: ['chunk-b'], in: [] },
-            { id: 'chunk-b', out: [], in: ['chunk-a'] }
-          ]
-        },
-        usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [] },
-        importGraph: { nodeCount: 0, edgeCount: 0, nodes: [] }
-      };
-      const graphB = {
-        version: 1,
-        callGraph: {
-          nodeCount: 2,
-          edgeCount: 1,
-          nodes: [
-            { id: 'chunk-a', out: ['chunk-c'], in: [] },
-            { id: 'chunk-c', out: [], in: ['chunk-a'] }
-          ]
-        },
-        usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [] },
-        importGraph: { nodeCount: 0, edgeCount: 0, nodes: [] }
-      };
+      const graphA = chunkCallGraphRelations();
+      const graphB = chunkCallGraphRelations({
+        nodes: [
+          { id: 'chunk-a', out: ['chunk-c'], in: [] },
+          { id: 'chunk-c', out: [], in: ['chunk-a'] }
+        ]
+      });
 
       const graphIndex = buildGraphIndex({ graphRelations: graphA });
       const result = buildGraphNeighborhood({

@@ -2,13 +2,13 @@
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { loadUserConfig, resolveSqlitePaths } from '../../../../tools/shared/dict-utils.js';
 import {
   getVectorExtensionConfig,
   resolveVectorExtensionConfigForMode
 } from '../../../../tools/sqlite/vector-extension.js';
 import { requireSqliteVec } from '../../../helpers/optional-deps.js';
+import { runNode } from '../../../helpers/run-node.js';
 import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
@@ -75,11 +75,7 @@ const env = applyTestEnv({
 });
 
 function run(args, label) {
-  const result = spawnSync(process.execPath, args, {
-    cwd: repoRoot,
-    env,
-    stdio: 'inherit'
-  });
+  const result = runNode(args, label, repoRoot, env, { stdio: 'inherit', allowFailure: true });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     process.exit(result.status ?? 1);
@@ -161,8 +157,7 @@ const denseCountBefore = db.prepare(
 const annCountBefore = countRow.count;
 db.close();
 
-const searchResult = spawnSync(
-  process.execPath,
+const searchResult = runNode(
   [
     path.join(root, 'search.js'),
     'index',
@@ -176,7 +171,10 @@ const searchResult = spawnSync(
     '--repo',
     repoRoot
   ],
-  { cwd: repoRoot, env, encoding: 'utf8' }
+  'sqlite ann extension search',
+  repoRoot,
+  env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 if (searchResult.status !== 0) {
   console.error('search.js failed for sqlite ann extension test.');

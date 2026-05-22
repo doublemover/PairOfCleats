@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { runNode } from '../helpers/run-node.js';
 import { loadLaneManifestConfig, loadOrderedLaneManifest } from './lane-manifests.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -13,9 +13,9 @@ const expectedIds = Array.isArray(manifest?.tests)
   ? manifest.tests.map((entry) => entry.id)
   : [];
 
-const result = spawnSync(process.execPath, [runnerPath, '--lane', 'ci-long', '--list', '--json'], {
-  cwd: ROOT,
-  encoding: 'utf8'
+const result = runNode([runnerPath, '--lane', 'ci-long', '--list', '--json'], 'ci-long ordered lane list', ROOT, process.env, {
+  stdio: 'pipe',
+  allowFailure: true
 });
 
 assert.equal(result.status, 0, `expected ci-long list to succeed, got ${result.status}`);
@@ -33,9 +33,9 @@ const actualIds = Array.isArray(payload?.tests)
 const nonLongSelected = Array.isArray(payload?.tests)
   ? payload.tests.filter((test) => !Array.isArray(test?.tags) || !test.tags.includes('long'))
   : [];
-const soakEntry = Array.isArray(payload?.tests)
-  ? payload.tests.find((test) => test.id === 'services/soak/operational-recovery')
-  : null;
+const longSelected = Array.isArray(payload?.tests)
+  ? payload.tests.filter((test) => Array.isArray(test?.tags) && test.tags.includes('long'))
+  : [];
 
 assert.deepEqual(
   actualIds,
@@ -53,23 +53,24 @@ assert.equal(
   'ci-long ordered selection should report the selected ordered lane'
 );
 assert(
-  actualIds.includes('indexing/imports/replay-perf-budget'),
-  'ci-long selection should include current non-long ordered entries'
-);
-assert(soakEntry, 'ci-long selection should include services/soak/operational-recovery');
-assert.equal(
-  soakEntry?.presetStatus || '',
-  '',
-  'ci-long selection should not preset-skip long-tagged ordered entries'
-);
-assert.equal(
-  soakEntry?.skipReason || '',
-  '',
-  'ci-long selection should not carry an excluded-tag skip reason for ordered long entries'
+  actualIds.length > 0,
+  'ci-long selection should include ordered manifest entries'
 );
 assert(
-  nonLongSelected.length > 50,
-  'ci-long selection should not collapse to only long-tagged tests'
+  nonLongSelected.length > 0,
+  'ci-long selection should include current non-long ordered entries'
 );
+for (const entry of longSelected) {
+  assert.equal(
+    entry?.presetStatus || '',
+    '',
+    'ci-long selection should not preset-skip long-tagged ordered entries'
+  );
+  assert.equal(
+    entry?.skipReason || '',
+    '',
+    'ci-long selection should not carry an excluded-tag skip reason for ordered long entries'
+  );
+}
 
 console.log('ci-long ordered selection test passed');

@@ -1,29 +1,21 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fsPromises from 'node:fs/promises';
-import path from 'node:path';
 
-import { writeBundleFile } from '../../../src/shared/bundle-io.js';
-import { validateSqliteMetaV2Parity } from '../../../src/index/validate/checks.js';
-import { buildDatabaseFromBundles } from '../../../src/storage/sqlite/build/from-bundles.js';
+import {
+  assertMetaV2Parity,
+  buildBundleDatabase,
+  createBundleManifest,
+  loadSqliteBundleDatabase,
+  prepareBundleBuildFixture,
+  readBundleRows,
+  writeSingleChunkBundle
+} from './helpers/bundle-fixture.js';
 
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
-
-let Database;
-try {
-  ({ default: Database } = await import('better-sqlite3'));
-} catch {
-  console.error('better-sqlite3 is required for sqlite bundle parity tests.');
-  process.exit(1);
-}
-
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'sqlite-bundle-metav2-fallback-order-parity');
-const bundleDir = path.join(tempRoot, 'bundles');
-const dbPath = path.join(tempRoot, 'index-prose.db');
-
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(bundleDir, { recursive: true });
+const Database = await loadSqliteBundleDatabase('sqlite bundle parity tests');
+const { bundleDir, dbPath } = await prepareBundleBuildFixture({
+  label: 'sqlite-bundle-metav2-fallback-order-parity',
+  dbName: 'index-prose.db'
+});
 
 const firstFile = 'z/README.md';
 const secondFile = 'a/README.md';
@@ -49,76 +41,57 @@ const secondMeta = {
   segment: null
 };
 
-await writeBundleFile({
-  bundlePath: path.join(bundleDir, firstBundleName),
-  format: 'json',
-  bundle: {
+await writeSingleChunkBundle({
+  bundleDir,
+  bundleName: firstBundleName,
+  file: firstFile,
+  chunk: {
     file: firstFile,
-    chunks: [{
-      file: firstFile,
-      start: 1,
-      end: 10,
-      ext: '.md',
-      tokens: ['alpha'],
-      chunkId: firstMeta.chunkId,
-      metaV2: firstMeta
-    }]
+    start: 1,
+    end: 10,
+    ext: '.md',
+    tokens: ['alpha'],
+    chunkId: firstMeta.chunkId,
+    metaV2: firstMeta
   }
 });
-await writeBundleFile({
-  bundlePath: path.join(bundleDir, secondBundleName),
-  format: 'json',
-  bundle: {
+await writeSingleChunkBundle({
+  bundleDir,
+  bundleName: secondBundleName,
+  file: secondFile,
+  chunk: {
     file: secondFile,
-    chunks: [{
-      file: secondFile,
-      start: 11,
-      end: 20,
-      ext: '.md',
-      tokens: ['beta'],
-      chunkId: secondMeta.chunkId,
-      metaV2: secondMeta
-    }]
+    start: 11,
+    end: 20,
+    ext: '.md',
+    tokens: ['beta'],
+    chunkId: secondMeta.chunkId,
+    metaV2: secondMeta
   }
 });
 
-const manifest = {
-  files: {
-    [firstFile]: { bundles: [firstBundleName], mtimeMs: 10, size: 10, hash: 'hash-z' },
-    [secondFile]: { bundles: [secondBundleName], mtimeMs: 20, size: 20, hash: 'hash-a' }
-  }
-};
+const manifest = createBundleManifest([
+  { file: firstFile, bundles: [firstBundleName], mtimeMs: 10, size: 10, hash: 'hash-z' },
+  { file: secondFile, bundles: [secondBundleName], mtimeMs: 20, size: 20, hash: 'hash-a' }
+]);
 
-const result = await buildDatabaseFromBundles({
+const result = await buildBundleDatabase({
   Database,
-  outPath: dbPath,
+  dbPath,
   mode: 'prose',
-  incrementalData: { manifest, bundleDir },
-  envConfig: { bundleThreads: 1 },
-  threadLimits: { fileConcurrency: 1 },
-  emitOutput: false,
-  validateMode: 'off',
-  vectorConfig: { enabled: false },
-  modelConfig: { id: null },
-  workerPath: null
+  manifest,
+  bundleDir
 });
 
 assert.equal(result.count, 2, `expected 2 indexed chunks, got ${result.count}`);
 
-const db = new Database(dbPath, { readonly: true });
-const rows = db
-  .prepare('SELECT id, chunk_id, metaV2_json FROM chunks WHERE mode = ? ORDER BY id')
-  .all('prose');
-db.close();
-
-const report = { issues: [], warnings: [], hints: [] };
+const rows = readBundleRows({ Database, dbPath, mode: 'prose' });
 const chunkMeta = [
   { id: 0, metaV2: firstMeta },
   { id: 1, metaV2: secondMeta }
 ];
-validateSqliteMetaV2Parity(report, 'prose', chunkMeta, rows, { maxErrors: 10 });
+assertMetaV2Parity({ mode: 'prose', chunkMeta, rows });
 
-assert.equal(report.issues.length, 0, `expected no sqlite metaV2 parity issues: ${report.issues.join(', ')}`);
 assert.deepEqual(
   rows.map((row) => row.chunk_id),
   ['chunk-z', 'chunk-a'],

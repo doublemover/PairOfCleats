@@ -1,44 +1,15 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
 import { createLspClient } from '../../../src/integrations/tooling/lsp/client.js';
 import { sleep } from '../../../src/shared/sleep.js';
+import { createTrackedFakeChildProcessSpawner } from './helpers/fake-child-process.js';
 
-class FakeChildProcess extends EventEmitter {
-  constructor() {
-    super();
-    this.pid = 0;
-    this.killed = false;
-    this.exitCode = null;
-    this.stdin = new PassThrough();
-    this.stdout = new PassThrough();
-    this.stderr = new PassThrough();
-  }
-
-  kill(signal = null) {
-    this.killed = true;
-    this.exitCode = this.exitCode === null ? 0 : this.exitCode;
-    queueMicrotask(() => {
-      this.emit('exit', this.exitCode, signal);
-      this.emit('close', this.exitCode, signal);
-    });
-    return true;
-  }
-
-  unref() {}
-}
-
-const spawnedChildren = [];
+const { spawnedChildren, spawnProcess } = createTrackedFakeChildProcessSpawner();
 const client = createLspClient({
   cmd: 'fake-lsp',
   args: ['--stdio'],
   log: () => {},
-  spawnProcess: () => {
-    const child = new FakeChildProcess();
-    spawnedChildren.push(child);
-    return child;
-  }
+  spawnProcess
 });
 
 try {

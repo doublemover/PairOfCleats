@@ -3,10 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { ensureTestingEnv } from '../../helpers/test-env.js';
-
-ensureTestingEnv(process.env);
+import { runShowThroughputReport } from './show-throughput-report-fixture.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-show-throughput-profiles-'));
 
@@ -62,53 +59,43 @@ try {
     queryMs: 45
   });
 
-  const overview = spawnSync(
-    process.execPath,
-    [path.join(process.cwd(), 'tools', 'reports', 'show-throughput.js')],
-    { cwd: runRoot, encoding: 'utf8', env: process.env }
-  );
+  const overview = runShowThroughputReport([], { cwd: runRoot });
   assert.equal(overview.status, 0, overview.stderr || overview.stdout);
   assert.equal(String(overview.stderr || '').trim(), '', 'expected overview text on stdout only');
   const overviewText = String(overview.stdout || '').replace(/\u001b\[[0-9;]*m/g, '');
   assert.equal(overviewText.includes('Throughput Totals'), true, overviewText);
   assert.equal(overviewText.includes('Scan Outcome Totals'), true, overviewText);
 
-  const family = spawnSync(
-    process.execPath,
+  const family = runShowThroughputReport(
     [
-      path.join(process.cwd(), 'tools', 'reports', 'show-throughput.js'),
       '--profile', 'family',
       '--sort', 'build',
       '--top', '1'
     ],
-    { cwd: runRoot, encoding: 'utf8', env: process.env }
+    { cwd: runRoot }
   );
   assert.equal(family.status, 0, family.stderr || family.stdout);
   assert.equal(String(family.stdout).includes('Family Overview'), true, family.stdout);
   assert.equal(String(family.stdout).includes('python:'), true, family.stdout);
 
-  const repo = spawnSync(
-    process.execPath,
+  const repo = runShowThroughputReport(
     [
-      path.join(process.cwd(), 'tools', 'reports', 'show-throughput.js'),
       '--profile', 'repo',
       '--repo', 'fast'
     ],
-    { cwd: runRoot, encoding: 'utf8', env: process.env }
+    { cwd: runRoot }
   );
   assert.equal(repo.status, 0, repo.stderr || repo.stdout);
   assert.equal(String(repo.stdout).includes('Repo Overview'), true, repo.stdout);
   assert.equal(String(repo.stdout).includes('javascript/fast'), true, repo.stdout);
 
-  const raw = spawnSync(
-    process.execPath,
+  const raw = runShowThroughputReport(
     [
-      path.join(process.cwd(), 'tools', 'reports', 'show-throughput.js'),
       '--profile', 'raw',
       '--json',
       '--folder', 'javascript'
     ],
-    { cwd: runRoot, encoding: 'utf8', env: process.env }
+    { cwd: runRoot }
   );
   assert.equal(raw.status, 0, raw.stderr || raw.stdout);
   const rawPayload = JSON.parse(String(raw.stdout || '{}'));
@@ -116,15 +103,13 @@ try {
   assert.equal(rawPayload.folders.length, 1);
   assert.equal(rawPayload.folders[0].folder, 'javascript');
 
-  const csv = spawnSync(
-    process.execPath,
+  const csv = runShowThroughputReport(
     [
-      path.join(process.cwd(), 'tools', 'reports', 'show-throughput.js'),
       '--profile', 'family',
       '--csv',
       '--top', '1'
     ],
-    { cwd: runRoot, encoding: 'utf8', env: process.env }
+    { cwd: runRoot }
   );
   assert.equal(csv.status, 0, csv.stderr || csv.stdout);
   assert.equal(String(csv.stdout).split(/\r?\n/)[0].includes('folder,label,runs'), true, csv.stdout);

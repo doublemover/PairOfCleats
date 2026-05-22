@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 
 import { createLifecycleRegistry } from '../../../src/shared/lifecycle/registry.js';
+import { runNode } from '../../helpers/run-node.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -111,10 +112,10 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     'await registry.drain();',
     'console.log("registry keepalive ok");'
   ].join('\n'), 'utf8');
-  const result = spawnSync(process.execPath, [scriptPath], {
-    cwd: root,
-    encoding: 'utf8',
-    timeout: 5000
+  const result = runNode([scriptPath], 'registry unref promise drain', root, process.env, {
+    stdio: 'pipe',
+    timeoutMs: 5000,
+    allowFailure: true
   });
   assert.equal(result.status, 0, `expected child to exit cleanly, stderr=${result.stderr}`);
   assert.match(result.stdout, /registry keepalive ok/);

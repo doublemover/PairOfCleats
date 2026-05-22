@@ -2,25 +2,28 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../../src/shared/cli.js';
+import { summarizeRetrievalHitComparison } from '../../../src/retrieval/hit-comparison.js';
 import { mean, meanNullable } from '../../../src/shared/stats.js';
 import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../../../tools/shared/query-file-utils.js';
 import { runSearchCliWithSpawnSync } from '../../../tools/shared/search-cli-harness.js';
 import { loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { ensureParityArtifacts } from '../../../tools/shared/parity-indexes.js';
 import { formatParityDuration } from '../../helpers/duration-format.js';
+import { runNode } from '../../helpers/run-node.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 import { ensureTestingEnv, syncProcessEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
+const isTestRun = process.env.PAIROFCLEATS_TESTING === '1';
+
 const argv = createCli({
   scriptName: 'parity',
   options: {
-    ann: { type: 'boolean', default: true },
+    ann: { type: 'boolean', default: !isTestRun },
     'write-report': { type: 'boolean', default: false },
     enforce: { type: 'boolean', default: false },
     'enforce-fts': { type: 'boolean', default: false },
@@ -30,30 +33,78 @@ const argv = createCli({
     'min-overlap-single': { type: 'number' },
     queries: { type: 'string' },
     out: { type: 'string' },
+    repo: { type: 'string' },
     search: { type: 'string' },
     'sqlite-backend': { type: 'string', default: 'sqlite' },
-    top: { type: 'number', default: 5 },
-    limit: { type: 'number', default: 0 }
+    top: { type: 'number', default: isTestRun ? 2 : 5 },
+    limit: { type: 'number', default: isTestRun ? 1 : 0 }
   },
   aliases: { n: 'top', q: 'queries' }
 }).parse();
 
-const root = process.cwd();
+const workspaceRoot = process.cwd();
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const isTestRun = process.env.PAIROFCLEATS_TESTING === '1';
+const createTestParityRepo = async () => {
+  const repoRoot = path.join(resolveTestCachePath(workspaceRoot, 'retrieval-parity'), 'repo');
+  await fs.rm(repoRoot, { recursive: true, force: true });
+  await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+  await fs.mkdir(path.join(repoRoot, 'docs'), { recursive: true });
+  await fs.writeFile(
+    path.join(repoRoot, 'src', 'index.js'),
+    [
+      'export function searchIndex(items, needle) {',
+      '  return items.filter((item) => item.includes(needle));',
+      '}',
+      '',
+      'export const sqliteDictionary = new Map([["index", "chunk"]]);',
+      ''
+    ].join('\n'),
+    'utf8'
+  );
+  await fs.writeFile(
+    path.join(repoRoot, 'docs', 'retrieval.md'),
+    [
+      '# Retrieval fixture',
+      '',
+      'The sqlite search index stores dictionary chunk metadata for parity checks.',
+      ''
+    ].join('\n'),
+    'utf8'
+  );
+  return repoRoot;
+};
+const root = argv.repo
+  ? path.resolve(argv.repo)
+  : (isTestRun ? await createTestParityRepo() : workspaceRoot);
+const testCacheRoot = path.join(resolveTestCachePath(workspaceRoot, 'retrieval-parity'), 'cache');
 if (isTestRun && !process.env.PAIROFCLEATS_CACHE_ROOT) {
-  syncProcessEnv({ PAIROFCLEATS_CACHE_ROOT: resolveTestCachePath(root, 'retrieval-parity') });
+  syncProcessEnv({ PAIROFCLEATS_CACHE_ROOT: testCacheRoot });
 }
 const userConfig = loadUserConfig(root);
 const parityEnv = ensureTestingEnv({ ...process.env });
 if (!parityEnv.PAIROFCLEATS_EMBEDDINGS) {
   parityEnv.PAIROFCLEATS_EMBEDDINGS = 'stub';
 }
+if (isTestRun && !parityEnv.PAIROFCLEATS_TEST_CONFIG) {
+  parityEnv.PAIROFCLEATS_TEST_CONFIG = JSON.stringify({
+    indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  });
+}
 const resolveSqlitePathsForRoot = () => resolveSqlitePaths(root, userConfig);
 
 const searchPath = argv.search
   ? path.resolve(argv.search)
-  : path.join(root, 'search.js');
+  : path.join(scriptRoot, 'search.js');
 if (!fsSync.existsSync(searchPath)) {
   console.error(`search.js not found at ${searchPath}`);
   process.exit(1);
@@ -68,10 +119,12 @@ const parityArtifacts = await ensureParityArtifacts({
   buildSqliteAfterIndexBuild: true,
   buildIndex: () => {
     const env = { ...parityEnv };
-    const runBuildStage = (stage) => spawnSync(
-      process.execPath,
+    const runBuildStage = (stage) => runNode(
       [path.join(scriptRoot, 'build_index.js'), '--stage', stage, '--stub-embeddings', '--repo', root],
-      { env, cwd: root, stdio: 'inherit' }
+      `parity build index stage ${stage}`,
+      root,
+      env,
+      { stdio: 'inherit', allowFailure: true }
     );
     const annWanted = argv.ann !== false;
     const stages = annWanted ? ['1', '3'] : ['1'];
@@ -84,7 +137,7 @@ const parityArtifacts = await ensureParityArtifacts({
     }
   },
   buildSqlite: async () => {
-    await runSqliteBuild(root);
+    await runSqliteBuild(root, { env: parityEnv });
   }
 });
 const sqlitePaths = parityArtifacts.sqlitePaths || resolveSqlitePathsForRoot();
@@ -106,7 +159,7 @@ if (missing.length) {
   process.exit(1);
 }
 
-const defaultQueriesPath = path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
+const defaultQueriesPath = path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
 const queriesPath = argv.queries ? path.resolve(argv.queries) : defaultQueriesPath;
 if (argv.queries && !fsSync.existsSync(queriesPath)) {
   console.error(`Query file not found at ${queriesPath}`);
@@ -171,78 +224,23 @@ function runSearch(query, backend) {
   }
 }
 
-function hitKey(hit, index) {
-  if (hit && (hit.id || hit.id === 0)) return String(hit.id);
-  if (hit && hit.file) {
-    const start = hit.startLine ?? hit.start ?? 0;
-    const end = hit.endLine ?? hit.end ?? 0;
-    return `${hit.file}:${start}:${end}:${hit.kind || ''}:${hit.name || ''}`;
-  }
-  return String(index);
-}
-
-function hitScore(hit) {
-  if (!hit || typeof hit !== 'object') return 0;
-  if (Number.isFinite(hit.score)) return hit.score;
-  const selected = hit.scoreBreakdown?.selected?.score;
-  if (Number.isFinite(selected)) return selected;
-  if (Number.isFinite(hit.sparseScore)) return hit.sparseScore;
-  if (Number.isFinite(hit.annScore)) return hit.annScore;
-  return 0;
-}
-
 function summarizeMatch(memoryHits, sqliteHits) {
-  const mem = memoryHits.slice(0, topN);
-  const sql = sqliteHits.slice(0, topN);
-  if (!mem.length && !sql.length) {
-    return {
-      overlap: 1,
-      avgDelta: 0,
-      missingFromSqlite: [],
-      missingFromMemory: [],
-      rankCorr: null,
-      topMemory: [],
-      topSqlite: [],
-      zeroHits: true
-    };
-  }
-  const memKeys = mem.map(hitKey);
-  const sqlKeys = sql.map(hitKey);
-  const memRanks = new Map(memKeys.map((key, idx) => [key, idx + 1]));
-  const sqlRanks = new Map(sqlKeys.map((key, idx) => [key, idx + 1]));
-  const memSet = new Set(memKeys);
-  const sqlSet = new Set(sqlKeys);
-  const intersection = memKeys.filter((key) => sqlSet.has(key));
-  const overlap = intersection.length / Math.max(1, Math.min(memKeys.length, sqlKeys.length));
-
-  const memScores = new Map(mem.map((hit, idx) => [hitKey(hit, idx), hitScore(hit)]));
-  const sqlScores = new Map(sql.map((hit, idx) => [hitKey(hit, idx), hitScore(hit)]));
-  const deltas = intersection.map((key) => Math.abs((memScores.get(key) || 0) - (sqlScores.get(key) || 0)));
-  const avgDelta = deltas.length ? deltas.reduce((a, b) => a + b, 0) / deltas.length : 0;
-
-  const missingFromSqlite = memKeys.filter((key) => !sqlSet.has(key));
-  const missingFromMemory = sqlKeys.filter((key) => !memSet.has(key));
-
-  let rankCorr = null;
-  if (intersection.length >= 2) {
-    let sum = 0;
-    for (const key of intersection) {
-      const d = (memRanks.get(key) || 0) - (sqlRanks.get(key) || 0);
-      sum += d * d;
-    }
-    const n = intersection.length;
-    rankCorr = 1 - (6 * sum) / (n * (n * n - 1));
-  }
-
-  return {
-    overlap,
-    avgDelta,
-    missingFromSqlite: missingFromSqlite.slice(0, 5),
-    missingFromMemory: missingFromMemory.slice(0, 5),
-    rankCorr,
-    topMemory: memKeys,
-    topSqlite: sqlKeys
+  const comparison = summarizeRetrievalHitComparison(memoryHits, sqliteHits, {
+    topN,
+    missingLimit: 5,
+    treatBothEmptyAsPerfect: true
+  });
+  const summary = {
+    overlap: comparison.overlap,
+    avgDelta: comparison.avgDelta,
+    missingFromSqlite: comparison.missingFromOther,
+    missingFromMemory: comparison.missingFromBase,
+    rankCorr: comparison.rankCorr,
+    topMemory: comparison.baseKeys,
+    topSqlite: comparison.otherKeys
   };
+  if (comparison.zeroHits) summary.zeroHits = true;
+  return summary;
 }
 
 function toMb(bytes) {
@@ -348,7 +346,7 @@ const report = {
 if (argv['write-report']) {
   const outPath = argv.out
     ? path.resolve(argv.out)
-    : path.join(root, 'docs', 'phase3-parity-report.json');
+    : path.join(scriptRoot, 'docs', 'phase3-parity-report.json');
   await fs.writeFile(outPath, JSON.stringify(report, null, 2));
   console.log(`Report written to ${outPath}`);
 }

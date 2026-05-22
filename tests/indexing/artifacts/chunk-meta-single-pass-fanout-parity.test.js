@@ -9,7 +9,7 @@ import {
 } from '../../../src/index/build/artifacts/writers/chunk-meta.js';
 import { stripChunkMetaColdFields, extractChunkMetaColdFields } from '../../../src/shared/chunk-meta-cold.js';
 import { decodeBinaryRowFrameLengths, decodeU64Offsets } from '../../../src/shared/artifact-io/binary-columnar.js';
-import { toPosix } from '../../../src/shared/files.js';
+import { toPosix } from '../../../src/shared/file-paths.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 

@@ -57,27 +57,29 @@ const crashLogger = await createCrashLogger({
   enabled: true
 });
 
+const runDenseBoundary = (overrides = {}) => runSqliteDenseWithBoundary({
+  root: tempRoot,
+  userConfig: { sqlite: { use: true, vectorExtension: { enabled: false } } },
+  indexRoot: tempRoot,
+  repoCacheRoot,
+  mode: 'code',
+  vectorsPath: vectorsBasePath,
+  dims: 3,
+  scale: 1,
+  modelId: 'model-a',
+  quantization: { minVal: -1, maxVal: 1, levels: 256 },
+  dbPath,
+  sharedDb: false,
+  writeBatchSize: 64,
+  emitOutput: false,
+  warnOnMissing: false,
+  crashLogger,
+  workerIdentity: 'stage3-sqlite:code',
+  ...overrides
+});
+
 try {
-  const success = await runSqliteDenseWithBoundary({
-    root: tempRoot,
-    userConfig: { sqlite: { use: true, vectorExtension: { enabled: false } } },
-    indexRoot: tempRoot,
-    repoCacheRoot,
-    mode: 'code',
-    vectorsPath: vectorsBasePath,
-    dims: 3,
-    scale: 1,
-    modelId: 'model-a',
-    quantization: { minVal: -1, maxVal: 1, levels: 256 },
-    dbPath,
-    sharedDb: false,
-    writeBatchSize: 64,
-    emitOutput: false,
-    warnOnMissing: false,
-    crashLogger,
-    buildId: 'build-success',
-    workerIdentity: 'stage3-sqlite:code'
-  });
+  const success = await runDenseBoundary({ buildId: 'build-success' });
   assert.equal(success.skipped, false, 'expected isolate success path to update sqlite dense rows');
   assert.equal(success.count, vectors.length, 'expected isolate success path to preserve vector count');
 
@@ -100,25 +102,8 @@ try {
     })
   }, async () => {
     try {
-      await runSqliteDenseWithBoundary({
-        root: tempRoot,
-        userConfig: { sqlite: { use: true, vectorExtension: { enabled: false } } },
-        indexRoot: tempRoot,
-        repoCacheRoot,
-        mode: 'code',
-        vectorsPath: vectorsBasePath,
-        dims: 3,
-        scale: 1,
-        modelId: 'model-a',
-        quantization: { minVal: -1, maxVal: 1, levels: 256 },
-        dbPath,
-        sharedDb: false,
-        writeBatchSize: 64,
-        emitOutput: false,
-        warnOnMissing: false,
-        crashLogger,
+      await runDenseBoundary({
         buildId: 'build-crash',
-        workerIdentity: 'stage3-sqlite:code',
         enableWindowsCrashCapture: true
       });
     } catch (err) {

@@ -1,13 +1,57 @@
 #!/usr/bin/env node
 import { validateTestStabilityArtifact } from '../../../src/contracts/validators/test-artifacts.js';
 
-const valid = validateTestStabilityArtifact({
+const GENERATED_AT = new Date().toISOString();
+const RETRY_BY_SUITE_CATEGORY = {
+  hero: { maxRetries: 0, quarantine: 'manual', note: 'hero' },
+  matrix: { maxRetries: 1, quarantine: 'owner', note: 'matrix' },
+  meta: { maxRetries: 0, quarantine: 'none', note: 'meta' },
+  soak: { maxRetries: 0, quarantine: 'manual', note: 'soak' },
+  'heavy-runtime': { maxRetries: 1, quarantine: 'owner', note: 'heavy' }
+};
+const RUNNER_HARNESS_FAMILY = {
+  id: 'runner/harness',
+  tests: 1,
+  unstable: 1,
+  flaky: 1,
+  slow: 0,
+  environmentSensitive: 0,
+  failed: 0,
+  timedOut: 0,
+  redo: 0,
+  avgDurationMs: 1,
+  maxDurationMs: 1
+};
+
+const createStabilityArtifact = ({
+  history,
+  environment,
+  policy,
+  diagnostics,
+  summary,
+  suiteCategories,
+  familyTrends,
+  families,
+  tests
+}) => ({
   schemaVersion: 1,
-  generatedAt: new Date().toISOString(),
+  generatedAt: GENERATED_AT,
   runId: 'run-1',
   pathPolicy: 'repo-relative-posix',
   timeUnit: 'ms',
   lane: 'ci-lite',
+  history,
+  environment,
+  policy,
+  diagnostics,
+  summary,
+  suiteCategories,
+  familyTrends,
+  families,
+  tests
+});
+
+const valid = validateTestStabilityArtifact(createStabilityArtifact({
   history: {
     sourceDir: '.testLogs/stability-history/ci-lite',
     loadedArtifacts: 1,
@@ -36,13 +80,7 @@ const valid = validateTestStabilityArtifact({
       slow: 'budget-review-shard-or-harness-reuse',
       environmentSensitive: 'fingerprint-review-and-environment-normalization'
     },
-    retryBySuiteCategory: {
-      hero: { maxRetries: 0, quarantine: 'manual', note: 'hero' },
-      matrix: { maxRetries: 1, quarantine: 'owner', note: 'matrix' },
-      meta: { maxRetries: 0, quarantine: 'none', note: 'meta' },
-      soak: { maxRetries: 0, quarantine: 'manual', note: 'soak' },
-      'heavy-runtime': { maxRetries: 1, quarantine: 'owner', note: 'heavy' }
-    }
+    retryBySuiteCategory: RETRY_BY_SUITE_CATEGORY
   },
   diagnostics: {
     expectedNegativeStderrIds: ['cli/error-contract'],
@@ -67,36 +105,8 @@ const valid = validateTestStabilityArtifact({
     soak: 0,
     'heavy-runtime': 0
   },
-  familyTrends: [
-    {
-      id: 'runner/harness',
-      tests: 1,
-      unstable: 1,
-      flaky: 1,
-      slow: 0,
-      environmentSensitive: 0,
-      failed: 0,
-      timedOut: 0,
-      redo: 0,
-      avgDurationMs: 1,
-      maxDurationMs: 1
-    }
-  ],
-  families: [
-    {
-      id: 'runner/harness',
-      tests: 1,
-      unstable: 1,
-      flaky: 1,
-      slow: 0,
-      environmentSensitive: 0,
-      failed: 0,
-      timedOut: 0,
-      redo: 0,
-      avgDurationMs: 1,
-      maxDurationMs: 1
-    }
-  ],
+  familyTrends: [RUNNER_HARNESS_FAMILY],
+  families: [RUNNER_HARNESS_FAMILY],
   tests: [
     {
       id: 'runner/harness/pass-target',
@@ -116,20 +126,14 @@ const valid = validateTestStabilityArtifact({
       environmentFingerprint: 'win32|x64|v1|ci|ci-lite'
     }
   ]
-});
+}));
 
 if (!valid.ok) {
   console.error('stability schema validation test failed: expected valid payload pass');
   process.exit(1);
 }
 
-const invalid = validateTestStabilityArtifact({
-  schemaVersion: 1,
-  generatedAt: new Date().toISOString(),
-  runId: 'run-1',
-  pathPolicy: 'repo-relative-posix',
-  timeUnit: 'ms',
-  lane: 'ci-lite',
+const invalid = validateTestStabilityArtifact(createStabilityArtifact({
   history: {
     sourceDir: null,
     loadedArtifacts: 0,
@@ -158,13 +162,7 @@ const invalid = validateTestStabilityArtifact({
       slow: 'review',
       environmentSensitive: 'review'
     },
-    retryBySuiteCategory: {
-      hero: { maxRetries: 0, quarantine: 'manual', note: 'hero' },
-      matrix: { maxRetries: 1, quarantine: 'owner', note: 'matrix' },
-      meta: { maxRetries: 0, quarantine: 'none', note: 'meta' },
-      soak: { maxRetries: 0, quarantine: 'manual', note: 'soak' },
-      'heavy-runtime': { maxRetries: 1, quarantine: 'owner', note: 'heavy' }
-    }
+    retryBySuiteCategory: RETRY_BY_SUITE_CATEGORY
   },
   diagnostics: {
     expectedNegativeStderrIds: [],
@@ -210,7 +208,7 @@ const invalid = validateTestStabilityArtifact({
       environmentFingerprint: 'x'
     }
   ]
-});
+}));
 
 if (invalid.ok) {
   console.error('stability schema validation test failed: expected invalid payload fail');

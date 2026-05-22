@@ -2,73 +2,33 @@
 import assert from 'node:assert/strict';
 
 import {
-  handleContextPackRoute,
-  handleRiskDeltaRoute,
-  handleRiskExplainRoute
-} from '../../../tools/api/router/analysis.js';
-import {
-  createContextPackValidator,
-  createRiskDeltaValidator,
-  createRiskExplainValidator
-} from '../../../tools/api/validation.js';
-
-const validateContextPackPayload = createContextPackValidator();
-const validateRiskDeltaPayload = createRiskDeltaValidator();
-const validateRiskExplainPayload = createRiskExplainValidator();
-
-const createResponseCapture = () => {
-  const capture = {
-    statusCode: null,
-    headers: null,
-    body: null
-  };
-  return {
-    capture,
-    response: {
-      writeHead(statusCode, headers) {
-        capture.statusCode = statusCode;
-        capture.headers = headers;
-      },
-      end(body) {
-        capture.body = body;
-      }
-    }
-  };
-};
+  analysisErrorRoutes,
+  createAnalysisErrorResponseCapture
+} from './analysis-error-classification-fixture.js';
 
 const cases = [
   {
     name: 'risk explain malformed json returns 400',
-    handler: handleRiskExplainRoute,
+    ...analysisErrorRoutes.riskExplain,
     expectedStatus: 400,
-    errorCode: null,
-    routeArgs: {
-      validateRiskExplainPayload
-    }
+    errorCode: null
   },
   {
     name: 'context pack unsupported media type returns 415',
-    handler: handleContextPackRoute,
+    ...analysisErrorRoutes.contextPack,
     expectedStatus: 415,
-    errorCode: 'ERR_UNSUPPORTED_MEDIA_TYPE',
-    routeArgs: {
-      validateContextPackPayload,
-      ensureWorkspaceAllowlist: async () => null
-    }
+    errorCode: 'ERR_UNSUPPORTED_MEDIA_TYPE'
   },
   {
     name: 'risk delta oversized body returns 413',
-    handler: handleRiskDeltaRoute,
+    ...analysisErrorRoutes.riskDelta,
     expectedStatus: 413,
-    errorCode: 'ERR_BODY_TOO_LARGE',
-    routeArgs: {
-      validateRiskDeltaPayload
-    }
+    errorCode: 'ERR_BODY_TOO_LARGE'
   }
 ];
 
 for (const testCase of cases) {
-  const { capture, response } = createResponseCapture();
+  const { capture, response } = createAnalysisErrorResponseCapture();
   let resolveRepoCalled = false;
   const err = new Error(`${testCase.name} parse failure`);
   if (testCase.errorCode) err.code = testCase.errorCode;

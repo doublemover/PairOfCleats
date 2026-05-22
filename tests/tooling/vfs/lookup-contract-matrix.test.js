@@ -4,32 +4,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import {
-  buildVfsManifestRowsForFile,
   compareVfsManifestRows,
   loadVfsManifestRowByPath
 } from '../../../src/index/tooling/vfs.js';
 import { buildVfsIndexRows } from '../../../src/index/tooling/vfs-index.js';
-import { enqueueVfsManifestArtifacts } from '../../../src/index/build/artifacts/writers/vfs-manifest.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
-
-const runWriter = async ({ outDir, mode, rows }) => {
-  const writes = [];
-  await enqueueVfsManifestArtifacts({
-    outDir,
-    mode,
-    rows,
-    maxJsonBytes: 1000000,
-    compression: null,
-    gzipOptions: null,
-    hashRouting: false,
-    enqueueWrite: (label, fn) => writes.push({ label, fn }),
-    addPieceFile: () => {},
-    formatArtifactLabel: (value) => value
-  });
-  for (const write of writes) {
-    await write.fn();
-  }
-};
+import { createSingleSegmentVfsManifestFixture } from '../../helpers/vfs-streaming-fixture.js';
 
 {
   const rows = [
@@ -81,59 +61,39 @@ const runWriter = async ({ outDir, mode, rows }) => {
 }
 
 {
-  const tempRoot = await makeTempDir('poc-vfs-lookup-contract-');
-  const outDir = path.join(tempRoot, 'out');
-  await fs.mkdir(outDir, { recursive: true });
+  const fixture = await createSingleSegmentVfsManifestFixture({
+    tempPrefix: 'poc-vfs-lookup-contract-'
+  });
 
   try {
-    const fileText = 'console.log(1);\n';
-    const rows = await buildVfsManifestRowsForFile({
-      chunks: [
-        {
-          file: 'a.md',
-          lang: 'javascript',
-          segment: {
-            segmentUid: 'segu:v1:a',
-            segmentId: 'seg-a',
-            start: 0,
-            end: fileText.length,
-            languageId: 'javascript',
-            ext: null
-          },
-          start: 0,
-          end: fileText.length
-        }
-      ],
-      fileText,
-      containerPath: 'a.md',
-      containerExt: '.md',
-      containerLanguageId: 'markdown'
-    });
-
-    await runWriter({ outDir, mode: 'code', rows });
-
-    const manifestPath = path.join(outDir, 'vfs_manifest.jsonl');
-    const indexPath = path.join(outDir, 'vfs_manifest.vfsidx');
-    const bloomPath = path.join(outDir, 'vfs_manifest.vfsbloom.json');
+    await fixture.writeManifest();
     const missingPath = '.poc-vfs/missing.md#seg:missing';
 
     const notFound = await loadVfsManifestRowByPath({
-      manifestPath,
-      indexPath,
-      bloomPath,
+      manifestPath: fixture.manifestPath,
+      indexPath: fixture.indexPath,
+      bloomPath: fixture.bloomPath,
       virtualPath: missingPath
     });
     assert.equal(notFound, null);
     assert.equal(
-      await loadVfsManifestRowByPath({ manifestPath, virtualPath: missingPath, allowScan: false }),
+      await loadVfsManifestRowByPath({
+        manifestPath: fixture.manifestPath,
+        virtualPath: missingPath,
+        allowScan: false
+      }),
       null
     );
     assert.equal(
-      await loadVfsManifestRowByPath({ manifestPath, virtualPath: missingPath, allowScan: true }),
+      await loadVfsManifestRowByPath({
+        manifestPath: fixture.manifestPath,
+        virtualPath: missingPath,
+        allowScan: true
+      }),
       null
     );
   } finally {
-    await rmDirRecursive(tempRoot);
+    await fixture.cleanup();
   }
 }
 

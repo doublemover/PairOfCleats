@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   getIndexDir,
@@ -36,6 +35,7 @@ import {
   resolveDefaultTestCacheScope,
   resolveTestCachePath
 } from './test-cache.js';
+import { runNode } from './run-node.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -397,7 +397,12 @@ const canUseFixtureHealthStamp = (
 };
 
 const run = (args, label, options) => {
-  const result = spawnSync(process.execPath, args, options);
+  const result = runNode(args, label, options?.cwd || process.cwd(), options?.env || process.env, {
+    stdio: options?.stdio,
+    encoding: options?.encoding,
+    timeoutMs: options?.timeout,
+    allowFailure: true
+  });
   if (result.status !== 0) {
     const command = [process.execPath, ...(Array.isArray(args) ? args : [])].join(' ');
     console.error(formatCommandFailure({
@@ -723,24 +728,13 @@ export const runSearch = ({
   args = [],
   mode = 'code'
 }) => {
-  const result = spawnSync(
-    process.execPath,
-    [path.join(root, 'search.js'), query, '--mode', mode, '--json', '--no-ann', '--repo', fixtureRoot, ...args],
-    { cwd: fixtureRoot, env, encoding: 'utf8' }
-  );
+  const searchArgs = [path.join(root, 'search.js'), query, '--mode', mode, '--json', '--no-ann', '--repo', fixtureRoot, ...args];
+  const result = runNode(searchArgs, 'search', fixtureRoot, env, {
+    stdio: 'pipe',
+    allowFailure: true
+  });
   if (result.status !== 0) {
-    const command = [
-      process.execPath,
-      path.join(root, 'search.js'),
-      query,
-      '--mode',
-      mode,
-      '--json',
-      '--no-ann',
-      '--repo',
-      fixtureRoot,
-      ...args
-    ].join(' ');
+    const command = [process.execPath, ...searchArgs].join(' ');
     console.error(formatCommandFailure({
       label: 'search',
       command,

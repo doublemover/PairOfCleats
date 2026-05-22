@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const testEnv = applyTestEnv({ testing: '1' });
 
@@ -11,8 +11,7 @@ const root = process.cwd();
 const benchScript = path.join(root, 'tools', 'bench', 'index', 'tree-sitter-load.js');
 
 const runBenchPayload = () => {
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     [
       benchScript,
       '--languages',
@@ -23,7 +22,10 @@ const runBenchPayload = () => {
       '1',
       '--json'
     ],
-    { cwd: root, env: testEnv, encoding: 'utf8' }
+    'tree-sitter load bench payload',
+    root,
+    testEnv,
+    { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
   );
   if (result.status !== 0) {
     console.error(result.stdout || '');

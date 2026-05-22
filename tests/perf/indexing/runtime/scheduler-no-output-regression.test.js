@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { loadChunkMeta, MAX_JSON_BYTES } from '../../../../src/shared/artifact-io.js';
 import { getIndexDir, loadUserConfig } from '../../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { runNode } from '../../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+import { createFastIndexingTestConfig } from '../../../helpers/fast-indexing-config.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'scheduler-output-regression');
@@ -17,7 +18,7 @@ await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'export const alpha = 1;\n');
 await fsPromises.writeFile(path.join(repoRoot, 'beta.js'), 'export const beta = 2;\n');
 
-const baseConfig = {
+const baseConfig = createFastIndexingTestConfig({
   indexing: {
     scheduler: {
       enabled: true,
@@ -38,7 +39,7 @@ const baseConfig = {
     riskAnalysis: false,
     riskAnalysisCrossFile: false
   }
-};
+});
 
 const runBuild = async (label, schedulerEnabled) => {
   const cacheRoot = path.join(tempRoot, label);
@@ -60,10 +61,12 @@ const runBuild = async (label, schedulerEnabled) => {
     }
   });
 
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     [path.join(root, 'build_index.js'), '--repo', repoRoot, '--stub-embeddings', '--scm-provider', 'none'],
-    { cwd: repoRoot, env: testEnv, stdio: 'inherit' }
+    `scheduler output regression ${label}`,
+    repoRoot,
+    testEnv,
+    { stdio: 'inherit', allowFailure: true }
   );
   if (result.status !== 0) {
     console.error(`scheduler output regression test failed: build_index ${label} failed`);

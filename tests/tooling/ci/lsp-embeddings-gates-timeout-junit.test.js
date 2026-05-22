@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testLogs', `lsp-embeddings-gates-timeout-${process.pid}-${Date.now()}`);
@@ -33,8 +33,7 @@ await fs.writeFile(
   'utf8'
 );
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     gatePath,
     '--tests-json',
@@ -44,12 +43,10 @@ const result = spawnSync(
     '--diagnostics',
     diagnosticsPath
   ],
-  {
-    cwd: root,
-    env: applyTestEnv({ syncProcess: false }),
-    encoding: 'utf8',
-    timeout: GATE_TIMEOUT_MS
-  }
+  'lsp embeddings gates timeout junit',
+  root,
+  applyTestEnv({ syncProcess: false }),
+  { stdio: 'pipe', timeoutMs: GATE_TIMEOUT_MS, allowFailure: true }
 );
 
 assert.equal(result.status, 124, `expected gate timeout exit code 124, received ${result.status}`);

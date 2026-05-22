@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
-applyTestEnv();
+const env = applyTestEnv();
 
 const root = process.cwd();
 const scriptPath = path.join(root, 'tools', 'setup', 'postinstall.js');
@@ -18,9 +18,9 @@ try {
   await fs.mkdir(path.join(withPatchDir, 'patches'), { recursive: true });
   await fs.writeFile(path.join(withPatchDir, 'patches', 'sample+1.0.0.patch'), 'diff --git a/x b/x\n');
 
-  const missingPatchPkgWithPatches = spawnSync(process.execPath, [scriptPath], {
-    cwd: withPatchDir,
-    encoding: 'utf8'
+  const missingPatchPkgWithPatches = runNode([scriptPath], 'postinstall patches without patch-package', withPatchDir, env, {
+    stdio: 'pipe',
+    allowFailure: true
   });
   assert.equal(
     missingPatchPkgWithPatches.status,
@@ -32,14 +32,19 @@ try {
     /patch-package is required/i
   );
 
-  const missingPatchPkgWithPatchesOmittedDev = spawnSync(process.execPath, [scriptPath], {
-    cwd: withPatchDir,
-    encoding: 'utf8',
-    env: {
-      ...process.env,
+  const missingPatchPkgWithPatchesOmittedDev = runNode(
+    [scriptPath],
+    'postinstall patches without patch-package omitted dev',
+    withPatchDir,
+    {
+      ...env,
       npm_config_omit: 'dev'
+    },
+    {
+      stdio: 'pipe',
+      allowFailure: true
     }
-  });
+  );
   assert.equal(
     missingPatchPkgWithPatchesOmittedDev.status,
     1,
@@ -50,9 +55,8 @@ try {
     /required patches exist/i
   );
 
-  const missingPatchPkgNoPatches = spawnSync(process.execPath, [scriptPath], {
-    cwd: withoutPatchDir,
-    encoding: 'utf8'
+  const missingPatchPkgNoPatches = runNode([scriptPath], 'postinstall no patches without patch-package', withoutPatchDir, env, {
+    stdio: 'pipe'
   });
   assert.equal(
     missingPatchPkgNoPatches.status,

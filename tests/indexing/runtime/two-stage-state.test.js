@@ -3,8 +3,8 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -20,18 +20,43 @@ await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'const alpha = 1;\n'
 
 const env = applyTestEnv({
   cacheRoot: cacheRoot,
-  embeddings: 'stub'
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false,
+      workerPool: { enabled: false }
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  }
 });
 
 const runBuild = (label, args) => {
-  const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });
+  const result = runNode(args, label, repoRoot, env, { stdio: 'inherit', allowFailure: true });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     process.exit(result.status ?? 1);
   }
 };
 
-runBuild('stage1', [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--stage', 'stage1', '--repo', repoRoot]);
+runBuild('stage1', [
+  path.join(root, 'build_index.js'),
+  '--stub-embeddings',
+  '--scm-provider',
+  'none',
+  '--stage',
+  'stage1',
+  '--mode',
+  'code',
+  '--repo',
+  repoRoot
+]);
 const userConfig = loadUserConfig(repoRoot);
 const resolveStagePaths = () => {
   const codeDir = getIndexDir(repoRoot, 'code', userConfig);
@@ -69,7 +94,18 @@ if (enrichmentStage1.status !== 'pending') {
   process.exit(1);
 }
 
-runBuild('stage2', [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--stage', 'stage2', '--repo', repoRoot]);
+runBuild('stage2', [
+  path.join(root, 'build_index.js'),
+  '--stub-embeddings',
+  '--scm-provider',
+  'none',
+  '--stage',
+  'stage2',
+  '--mode',
+  'code',
+  '--repo',
+  repoRoot
+]);
 
 ({ codeDir, statePath, relationsPath } = resolveStagePaths());
 const stateStage2 = JSON.parse(await fsPromises.readFile(statePath, 'utf8'));
@@ -87,12 +123,19 @@ if (enrichmentStage2.status !== 'done') {
   process.exit(1);
 }
 
-runBuild('stage3', [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--stage', 'stage3', '--repo', repoRoot]);
+runBuild('stage3 embeddings', [
+  path.join(root, 'tools', 'build', 'embeddings.js'),
+  '--stub-embeddings',
+  '--mode',
+  'code',
+  '--repo',
+  repoRoot
+]);
 
 ({ codeDir, statePath, relationsPath } = resolveStagePaths());
 const stateStage3 = JSON.parse(await fsPromises.readFile(statePath, 'utf8'));
 if (stateStage3.embeddings?.ready !== true) {
-  console.error('Expected stage3 to mark embeddings ready');
+  console.error('Expected stage3 embeddings build to mark embeddings ready');
   process.exit(1);
 }
 const denseArtifacts = resolveDenseArtifacts(codeDir);

@@ -4,10 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { killProcessTree } from '../../../src/shared/kill-tree.js';
-import {
-  SubprocessTimeoutError,
-  spawnSubprocessSync
-} from '../../../src/shared/subprocess.js';
+import { SubprocessTimeoutError, spawnSubprocessSync } from '../../../src/shared/subprocess/runner.js';
 
 const sleep = (ms) => new Promise((resolve) => {
   setTimeout(resolve, ms);
@@ -63,7 +60,7 @@ try {
       stdio: ['ignore', 'ignore', 'ignore'],
       captureStdout: false,
       captureStderr: false,
-      timeoutMs: 400
+      timeoutMs: 2000
     }),
     (error) => error instanceof SubprocessTimeoutError,
     'expected sync subprocess timeout error'

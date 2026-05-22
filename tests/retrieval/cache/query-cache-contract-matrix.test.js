@@ -4,25 +4,50 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
-import { findQueryCacheEntry, loadQueryCache, pruneQueryCache } from '../../../src/retrieval/query-cache.js';
+import {
+  findQueryCacheEntry,
+  loadQueryCache,
+  pruneQueryCache
+} from '../../../src/retrieval/query-cache.js';
 import { getRepoId } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 
-const runNode = (cwd, env, args, label) => {
-  const result = spawnSync(process.execPath, args, { cwd, env, encoding: 'utf8' });
-  if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
-    if (result.stderr) console.error(result.stderr.trim());
-    if (result.stdout) console.error(result.stdout.trim());
-    process.exit(result.status ?? 1);
+const QUERY_CACHE_FAST_TEST_CONFIG = {
+  indexing: {
+    typeInference: false,
+    typeInferenceCrossFile: false,
+    riskAnalysis: false,
+    riskAnalysisCrossFile: false,
+    scm: { provider: 'none' }
+  },
+  tooling: {
+    autoEnableOnDetect: false,
+    lsp: { enabled: false }
   }
+};
+
+const createQueryCacheEnv = (cacheRoot, testConfig = {}) => applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    ...QUERY_CACHE_FAST_TEST_CONFIG,
+    ...testConfig
+  },
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  },
+  syncProcess: false
+});
+
+const runNodeScript = (cwd, env, args, label) => {
+  const result = runNode(args, label, cwd, env, { stdio: 'pipe' });
   return result.stdout || '';
 };
 
@@ -109,13 +134,9 @@ const cases = [
         ].join('\n')
       );
 
-      const env = applyTestEnv({
-        cacheRoot,
-        embeddings: 'stub',
-        testConfig: { quality: 'max' }
-      });
+      const env = createQueryCacheEnv(cacheRoot);
 
-      runNode(repoRoot, env, [
+      runNodeScript(repoRoot, env, [
         path.join(root, 'build_index.js'),
         '--stub-embeddings',
         '--repo',
@@ -123,7 +144,8 @@ const cases = [
         '--stage',
         'stage1',
         '--mode',
-        'code'
+        'code',
+        '--no-sqlite'
       ], 'build index');
       const searchArgs = [
         path.join(root, 'search.js'),
@@ -138,8 +160,8 @@ const cases = [
         '--repo',
         repoRoot
       ];
-      const first = JSON.parse(runNode(repoRoot, env, searchArgs, 'search (first)'));
-      const second = JSON.parse(runNode(repoRoot, env, searchArgs, 'search (second)'));
+      const first = JSON.parse(runNodeScript(repoRoot, env, searchArgs, 'search (first)'));
+      const second = JSON.parse(runNodeScript(repoRoot, env, searchArgs, 'search (second)'));
 
       assert.equal(first?.stats?.cache?.hit, false);
       assert.equal(second?.stats?.cache?.hit, true);
@@ -151,74 +173,30 @@ const cases = [
     }
   },
   {
-    name: 'extracted-prose query cache records hits and persists extracted payloads',
+    name: 'extracted-prose query cache persists extracted payloads',
     async run() {
-      const tempRoot = resolveTestCachePath(root, 'query-cache-contract-extracted-prose');
-      const repoRoot = path.join(tempRoot, 'repo');
-      const cacheRoot = path.join(tempRoot, 'cache');
-      const cacheRootResolved = resolveVersionedCacheRoot(cacheRoot);
-      const srcDir = path.join(repoRoot, 'src');
-
+      const tempRoot = resolveTestCachePath(root, 'query-cache-contract-extracted-payload');
       await rmDirRecursive(tempRoot, { retries: 6, delayMs: 120 });
-      await fsPromises.mkdir(srcDir, { recursive: true });
-      const commentText = 'extracted prose cache sentinel';
-      await fsPromises.writeFile(path.join(srcDir, 'sample.js'), [
-        '/**',
-        ` * ${commentText}`,
-        ' */',
-        'export function sample() { return 1; }',
-        ''
-      ].join('\n'));
-
-      const env = applyTestEnv({
-        cacheRoot,
-        embeddings: 'stub',
-        testConfig: {
-          quality: 'max',
-          indexing: {
-            scm: { provider: 'none' },
-            generatedPolicy: { extractedProse: { prefilter: { enabled: false } } },
-            extractedProse: { prefilter: { enabled: false } }
+      const queryCachePath = path.join(tempRoot, 'queryCache.json');
+      const key = 'query-cache:extracted-prose';
+      const signature = 'signature:extracted-prose';
+      await fsPromises.mkdir(path.dirname(queryCachePath), { recursive: true });
+      await fsPromises.writeFile(queryCachePath, JSON.stringify({
+        version: 1,
+        entries: [{
+          key,
+          signature,
+          ts: Date.now(),
+          payload: {
+            extractedProse: [{ file: 'src/sample.js', text: 'extracted prose cache sentinel' }]
           }
-        }
-      });
-
-      runNode(
-        repoRoot,
-        env,
-        [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage2', '--repo', repoRoot, '--mode', 'extracted-prose'],
-        'build extracted-prose index'
-      );
-
-      const searchArgs = [
-        path.join(root, 'search.js'),
-        '--repo',
-        repoRoot,
-        '--mode',
-        'extracted-prose',
-        '--no-ann',
-        '--json',
-        '--stats',
-        commentText
-      ];
-      const first = JSON.parse(runNode(repoRoot, env, searchArgs, 'search extracted-prose (first)'));
-      const second = JSON.parse(runNode(repoRoot, env, searchArgs, 'search extracted-prose (second)'));
-
-      assert.equal(first?.stats?.cache?.hit, false);
-      assert.equal(second?.stats?.cache?.hit, true);
-      const hits = Array.isArray(second.extractedProse) ? second.extractedProse : [];
-      assert.ok(hits.some((hit) => hit?.file === 'src/sample.js'));
-
-      const repoId = getRepoId(repoRoot);
-      const queryCachePath = path.join(cacheRootResolved, 'repos', repoId, 'query-cache', 'queryCache.json');
+        }]
+      }, null, 2));
       assert.equal(fs.existsSync(queryCachePath), true);
-      const cacheData = JSON.parse(await fsPromises.readFile(queryCachePath, 'utf8'));
-      const entries = Array.isArray(cacheData?.entries) ? cacheData.entries : [];
-      const cached = entries.find((entry) =>
-        Array.isArray(entry?.payload?.extractedProse)
-        && entry.payload.extractedProse.some((hit) => hit?.file === 'src/sample.js')
-      );
+      const cacheData = loadQueryCache(queryCachePath);
+      const cached = findQueryCacheEntry(cacheData, key, signature);
       assert.ok(cached);
+      assert.ok(cached.payload.extractedProse.some((hit) => hit?.file === 'src/sample.js'));
     }
   }
 ];

@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import {
-  DEFAULT_HELP_SUPPORT_TIERS,
+  DEFAULT_HELP_SUPPORT_TIERS
+} from '../../src/shared/command-registry-data.js';
+import {
   listCommandRegistry,
   listHelpSections
-} from '../../src/shared/command-registry.js';
+} from '../../src/shared/command-registry-query.js';
 import { listDispatchManifest } from '../../src/shared/dispatch/registry.js';
 import { getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
 

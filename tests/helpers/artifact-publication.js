@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
 import { writeArtifactPublicationRecord } from '../../src/index/build/artifact-publication.js';
 
 export const seedPublishedArtifacts = async ({

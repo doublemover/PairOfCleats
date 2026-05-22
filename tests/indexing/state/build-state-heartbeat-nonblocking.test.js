@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { setProgressHandlers } from '../../../src/shared/progress.js';
+import { setProgressHandlers } from '../../../src/shared/progress-runtime.js';
 import { startHeartbeat } from '../../../src/index/build/build-state/heartbeat.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

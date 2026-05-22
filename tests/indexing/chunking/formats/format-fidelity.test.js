@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { runNode } from '../../../helpers/run-node.js';
 import { loadChunkMeta, MAX_JSON_BYTES } from '../../../../src/shared/artifact-io.js';
 import { getIndexDir, loadUserConfig } from '../../../../tools/shared/dict-utils.js';
 
@@ -22,11 +22,13 @@ const env = applyTestEnv({
   embeddings: 'stub'
 });
 
-const result = spawnSync(process.execPath, [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot], {
-  cwd: fixtureRoot,
+const result = runNode(
+  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot],
+  'format fidelity build index',
+  fixtureRoot,
   env,
-  stdio: 'inherit'
-});
+  { stdio: 'inherit' }
+);
 if (result.status !== 0) {
   console.error('Failed to build format fixture index.');
   process.exit(result.status ?? 1);

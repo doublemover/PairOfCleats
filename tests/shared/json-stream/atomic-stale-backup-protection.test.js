@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { replaceFile } from '../../../src/shared/json-stream.js';
+import { replaceFile } from '../../../src/shared/json-stream/atomic.js';
 
 applyTestEnv();
 

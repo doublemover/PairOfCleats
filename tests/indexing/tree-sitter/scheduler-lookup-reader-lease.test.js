@@ -112,6 +112,25 @@ const resultsPathC = paths.resultsPathForGrammarKey(grammarC, 'binary-v1');
 const resultsPathD = paths.resultsPathForGrammarKey(grammarD, 'binary-v1');
 
 const originalOpen = fs.open;
+const installDelayedCloseForPath = (delayedPath, delayMs = 75) => {
+  fs.open = async (...args) => {
+    const [targetPath] = args;
+    const handle = await originalOpen(...args);
+    const shouldDelayClose = String(targetPath) === String(delayedPath);
+    return new Proxy(handle, {
+      get(target, prop, receiver) {
+        if (prop === 'close' && shouldDelayClose) {
+          return async () => {
+            await sleep(delayMs);
+            return target.close();
+          };
+        }
+        const value = Reflect.get(target, prop, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      }
+    });
+  };
+};
 try {
   // Regression: overlapping reads with maxOpenReaders=1 must not close an
   // in-use reader and surface "file closed".
@@ -160,23 +179,7 @@ try {
   // leased again for a same-manifest request. The retried request should wait
   // for close settlement and reopen cleanly instead of surfacing "reader is
   // closed" from the retiring reader instance.
-  fs.open = async (...args) => {
-    const [targetPath] = args;
-    const handle = await originalOpen(...args);
-    const shouldDelayClose = String(targetPath) === String(resultsPathA);
-    return new Proxy(handle, {
-      get(target, prop, receiver) {
-        if (prop === 'close' && shouldDelayClose) {
-          return async () => {
-            await sleep(75);
-            return target.close();
-          };
-        }
-        const value = Reflect.get(target, prop, receiver);
-        return typeof value === 'function' ? value.bind(target) : value;
-      }
-    });
-  };
+  installDelayedCloseForPath(resultsPathA);
   const sameManifestRetryLookup = createTreeSitterSchedulerLookup({
     outDir,
     index: new Map([
@@ -201,23 +204,7 @@ try {
   // Regression: idle-reader eviction must be identity-based. Concurrent reader
   // creation can keep map size unchanged even after the targeted idle entry was
   // evicted, which used to trip a false "eviction did not settle" failure.
-  fs.open = async (...args) => {
-    const [targetPath] = args;
-    const handle = await originalOpen(...args);
-    const shouldDelayClose = String(targetPath) === String(resultsPathA);
-    return new Proxy(handle, {
-      get(target, prop, receiver) {
-        if (prop === 'close' && shouldDelayClose) {
-          return async () => {
-            await sleep(75);
-            return target.close();
-          };
-        }
-        const value = Reflect.get(target, prop, receiver);
-        return typeof value === 'function' ? value.bind(target) : value;
-      }
-    });
-  };
+  installDelayedCloseForPath(resultsPathA);
   const identityEvictionLookup = createTreeSitterSchedulerLookup({
     outDir,
     index: new Map([

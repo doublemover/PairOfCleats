@@ -1,7 +1,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { compileSafeRegex } from '../../src/shared/safe-regex.js';
-import { toPosix } from '../../src/shared/files.js';
+import { toPosix } from '../../src/shared/file-paths.js';
 
 export const splitCsv = (values) => values
   .flatMap((value) => String(value).split(','))
@@ -21,6 +21,13 @@ const isExcludedFile = (relPath, excludedDirs, excludedFiles) => {
   return excludedFiles.has(base);
 };
 
+const TEST_FILE_SUFFIXES = Object.freeze(['.test.js', '.unit.js']);
+
+const resolveTestId = (relPath) => {
+  const suffix = TEST_FILE_SUFFIXES.find((candidate) => relPath.endsWith(candidate));
+  return suffix ? relPath.slice(0, -suffix.length) : relPath;
+};
+
 export const discoverTests = async ({ testsDir, excludedDirs, excludedFiles }) => {
   const results = [];
   const walk = async (dir, relDir) => {
@@ -32,7 +39,7 @@ export const discoverTests = async ({ testsDir, excludedDirs, excludedFiles }) =
         await walk(path.join(dir, entry.name), relPath);
         continue;
       }
-      if (!entry.isFile() || !entry.name.endsWith('.test.js')) continue;
+      if (!entry.isFile() || !TEST_FILE_SUFFIXES.some((suffix) => entry.name.endsWith(suffix))) continue;
       if (isExcludedFile(relPath, excludedDirs, excludedFiles)) continue;
       results.push({
         path: path.join(dir, entry.name),
@@ -44,7 +51,7 @@ export const discoverTests = async ({ testsDir, excludedDirs, excludedFiles }) =
   results.sort((a, b) => a.relPath.localeCompare(b.relPath));
   return results.map((entry) => ({
     ...entry,
-    id: entry.relPath.replace(/\.test\.js$/, ''),
+    id: resolveTestId(entry.relPath),
     relPath: normalizeSegments(entry.relPath)
   }));
 };

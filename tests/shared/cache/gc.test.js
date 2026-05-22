@@ -2,8 +2,9 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -12,10 +13,7 @@ const cacheRoot = path.join(tempRoot, 'cache');
 const repoRoot = path.join(cacheRoot, 'repos');
 const toolPath = path.join(root, 'tools', 'index', 'cache-gc.js');
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot
-};
+const env = applyTestEnv({ cacheRoot, syncProcess: false });
 
 const makeRepo = async (name, bytes, mtimeMs) => {
   const repoPath = path.join(repoRoot, name);
@@ -28,12 +26,7 @@ const makeRepo = async (name, bytes, mtimeMs) => {
 };
 
 const run = (args, label) => {
-  const result = spawnSync(process.execPath, [toolPath, ...args], { env, encoding: 'utf8' });
-  if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
-    if (result.stderr) console.error(result.stderr.trim());
-    process.exit(result.status ?? 1);
-  }
+  const result = runNode([toolPath, ...args], label, root, env, { stdio: 'pipe' });
   return result.stdout || '';
 };
 

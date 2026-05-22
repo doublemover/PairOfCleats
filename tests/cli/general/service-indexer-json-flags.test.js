@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 import { runServiceIndexerJson } from '../../helpers/service-indexer-json-fixture.js';
 
 ensureTestingEnv(process.env);
@@ -32,10 +32,15 @@ await fs.writeFile(configPath, JSON.stringify({
   repos: []
 }, null, 2), 'utf8');
 const scriptPath = path.join(process.cwd(), 'tools', 'service', 'indexer-service.js');
-const invalidCommand = spawnSync(
-  process.execPath,
+const invalidCommand = runNode(
   [scriptPath, 'invalid-command', '--json', '--config', configPath],
-  { encoding: 'utf8' }
+  'indexer-service invalid command JSON',
+  process.cwd(),
+  process.env,
+  {
+    stdio: 'pipe',
+    allowFailure: true
+  }
 );
 assert.equal(invalidCommand.status, 1, 'expected invalid command to exit 1');
 const invalidPayload = JSON.parse(String(invalidCommand.stdout || '{}') || '{}');

@@ -4,12 +4,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { fileURLToPath } from 'node:url';
-import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
-import { getToolingProvider } from '../../../src/index/tooling/provider-registry.js';
 import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';
-import { createSourcekitPreflightFixture } from '../../helpers/sourcekit-preflight-fixture.js';
+import {
+  createSourcekitPreflightFixture,
+  withSourcekitPreflightProvider
+} from '../../helpers/sourcekit-preflight-fixture.js';
 import { parseJsonLinesFile } from '../../helpers/lsp-signature-fixtures.js';
-import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const fixture = await createSourcekitPreflightFixture({
@@ -68,11 +68,12 @@ const target = {
 };
 
 try {
-  await withTemporaryEnv({ POC_SWIFT_PREFLIGHT_COUNTER: fixture.counterPath, POC_LSP_TRACE: tracePath }, async () => {
-    registerDefaultToolingProviders();
-    const provider = getToolingProvider('sourcekit');
-    assert.ok(provider, 'expected sourcekit provider');
-
+  await withSourcekitPreflightProvider({
+    fixture,
+    logs,
+    env: { POC_LSP_TRACE: tracePath },
+    context: { ctx }
+  }, async ({ provider }) => {
     const output = await provider.run({
       ...ctx,
       toolingConfig: {

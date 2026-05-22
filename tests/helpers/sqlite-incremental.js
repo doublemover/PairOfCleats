@@ -1,11 +1,10 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { loadUserConfig, resolveSqlitePaths } from '../../tools/shared/dict-utils.js';
 import { applyTestEnv } from './test-env.js';
-import { formatCommandFailure } from './command-failure.js';
+import { runNode } from './run-node.js';
 import { rmDirRecursive } from './temp.js';
 import { resolveTestCacheDir } from './test-cache.js';
 
@@ -32,19 +31,21 @@ const compactLabel = (value, maxLen = 32) => {
   return normalized.length > maxLen ? normalized.slice(0, maxLen) : normalized;
 };
 
-const run = (args, label, options) => {
-  const result = spawnSync(process.execPath, args, options);
-  if (result.status !== 0) {
-    const command = [process.execPath, ...(Array.isArray(args) ? args : [])].join(' ');
-    console.error(formatCommandFailure({
-      label,
-      command,
-      cwd: options?.cwd || process.cwd(),
-      result
-    }));
-    process.exit(result.status ?? 1);
-  }
-  return result;
+const run = (args, label, options = {}) => {
+  const {
+    cwd = process.cwd(),
+    env = process.env,
+    encoding = 'utf8',
+    stdio = 'pipe',
+    timeout,
+    ...spawnOptions
+  } = options;
+  return runNode(args, label, cwd, env, {
+    encoding,
+    stdio,
+    timeoutMs: timeout,
+    spawnOptions
+  });
 };
 
 export const setupIncrementalRepo = async ({

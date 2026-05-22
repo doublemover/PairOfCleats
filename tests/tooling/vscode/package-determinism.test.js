@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
+import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
 const outA = resolveTestCachePath(root, 'package-vscode-determinism-a');
 const outB = resolveTestCachePath(root, 'package-vscode-determinism-b');
 
-const runPack = (outDir) => spawnSync(
-  process.execPath,
+const runPack = (outDir) => runNode(
   [path.join(root, 'tools', 'package-vscode.js'), '--out-dir', outDir],
-  { cwd: root, encoding: 'utf8' }
+  'package-vscode determinism',
+  root,
+  process.env,
+  { stdio: 'pipe', allowFailure: true }
 );
 
 const first = runPack(outA);

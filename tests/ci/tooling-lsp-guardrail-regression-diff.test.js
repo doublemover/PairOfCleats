@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../helpers/test-env.js';
+import { runNode } from '../helpers/run-node.js';
 
 const ROOT = process.cwd();
 const gatePath = path.join(ROOT, 'tools', 'bench', 'language', 'tooling-lsp-guardrail.js');
@@ -35,14 +35,12 @@ await fs.writeFile(baselinePath, `${JSON.stringify({
 }, null, 2)}\n`, 'utf8');
 
 try {
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     [gatePath, '--report', reportPath, '--baseline', baselinePath, '--json', jsonPath],
-    {
-      cwd: ROOT,
-      env: applyTestEnv({ syncProcess: false }),
-      encoding: 'utf8'
-    }
+    'tooling lsp guardrail regression diff',
+    ROOT,
+    applyTestEnv({ syncProcess: false }),
+    { stdio: 'pipe', allowFailure: true }
   );
 
   if (result.status !== 0) {

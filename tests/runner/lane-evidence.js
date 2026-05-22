@@ -3,6 +3,7 @@ import path from 'node:path';
 import { discoverTests } from './run-discovery.js';
 import { loadRunRules } from './run-config.js';
 import { loadLaneManifestConfig } from './lane-manifests.js';
+import { writeStableGeneratedJsonReport, writeTextIfChanged } from '../../tools/shared/generated-report.js';
 
 const DEFAULT_HISTORICAL_TIMINGS_PATH = 'tools/test_times/TEST_TIMES.md';
 
@@ -398,22 +399,19 @@ export const generateLaneEvidence = async ({
       rows
     });
     if (writeTimingArtifacts && timingArtifactPath) {
-      await fsPromises.mkdir(path.dirname(timingArtifactPath), { recursive: true });
       const timingLines = rows
         .filter((row) => Number.isFinite(row.durationMs))
         .map((row) => `${Math.round(Number(row.durationMs))}ms\t${row.id}`);
-      await fsPromises.writeFile(timingArtifactPath, `${timingLines.join('\n')}\n`, 'utf8');
+      await writeTextIfChanged(timingArtifactPath, `${timingLines.join('\n')}\n`, { encoding: 'utf8' });
     }
   }
 
-  const report = buildLaneEvidenceReport({ laneRows });
-  await fsPromises.mkdir(path.dirname(outputJsonPath), { recursive: true });
-  await fsPromises.writeFile(outputJsonPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-  await fsPromises.mkdir(path.dirname(outputMarkdownPath), { recursive: true });
-  await fsPromises.writeFile(
+  const initialReport = buildLaneEvidenceReport({ laneRows });
+  const report = await writeStableGeneratedJsonReport(outputJsonPath, initialReport);
+  await writeTextIfChanged(
     outputMarkdownPath,
     renderMarkdown({ report, root, historicalTimingsPath }),
-    'utf8'
+    { encoding: 'utf8' }
   );
   return {
     report,

@@ -129,3 +129,65 @@ export const runDedicatedProviderFixture = async ({
     kinds: inputs.kinds
   });
 };
+
+export const resolveLspStubServerPath = ({ repoRoot = process.cwd() } = {}) => path.join(
+  repoRoot,
+  'tests',
+  'fixtures',
+  'lsp',
+  'stub-lsp-server.js'
+);
+
+export const buildRustAnalyzerWorkspaceContext = ({
+  tempRoot,
+  providerId = 'lsp-rust-analyzer',
+  serverId = providerId === 'lsp-rust-analyzer' ? 'rust-analyzer' : providerId,
+  serverPath = resolveLspStubServerPath(),
+  metadataCmd = process.execPath,
+  metadataArgs = [],
+  uriScheme = 'poc-vfs',
+  cache = { enabled: false },
+  strict = true,
+  serverConfig = {},
+  ctxOverrides = null
+}) => {
+  const resolvedCtxOverrides = ctxOverrides && typeof ctxOverrides === 'object'
+    ? ctxOverrides
+    : {};
+  const server = {
+    id: serverId,
+    preset: 'rust-analyzer',
+    cmd: process.execPath,
+    args: [serverPath, '--mode', 'rust'],
+    languages: ['rust'],
+    rustWorkspaceMetadataCmd: metadataCmd,
+    rustWorkspaceMetadataArgs: Array.isArray(metadataArgs) ? metadataArgs : [],
+    ...serverConfig
+  };
+  if (typeof uriScheme === 'string' && uriScheme.trim()) {
+    server.uriScheme = uriScheme;
+  }
+  return {
+    ...resolvedCtxOverrides,
+    strict,
+    repoRoot: tempRoot,
+    buildRoot: tempRoot,
+    toolingConfig: {
+      enabledTools: [providerId],
+      lsp: {
+        enabled: true,
+        servers: [server]
+      }
+    },
+    cache
+  };
+};
+
+export const runRustAnalyzerWorkspaceFixture = async (options, inputs) => {
+  registerDefaultToolingProviders();
+  return runToolingProviders(buildRustAnalyzerWorkspaceContext(options), {
+    documents: inputs.documents,
+    targets: inputs.targets,
+    kinds: inputs.kinds
+  });
+};

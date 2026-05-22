@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 
-import { createLruCache, estimateStringBytes } from '../../../src/shared/cache.js';
+import { createLruCache } from '../../../src/shared/cache/lru.js';
+import { estimateStringBytes } from '../../../src/shared/cache/size.js';
 import { buildCacheKey, buildCacheKeyPayload, normalizeCacheNamespace } from '../../../src/shared/cache-key.js';
 import {
   normalizeLegacyCacheRootPath,

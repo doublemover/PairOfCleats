@@ -3,17 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { normalizeCommentConfig } from '../../../src/index/comments.js';
-import { getLanguageForFile } from '../../../src/index/language-registry.js';
-import { normalizeSegmentsConfig } from '../../../src/index/segments.js';
 import { processFileCpu } from '../../../src/index/build/file-processor/cpu.js';
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
 import { runTreeSitterScheduler } from '../../../src/index/build/tree-sitter-scheduler/runner.js';
-import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
-
+import { withTemporaryEnv } from '../../helpers/test-env.js';
+import { createTreeSitterProcessFileCpuFixture } from '../file-processor/tree-sitter-process-file-cpu-fixture.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
-
-applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'tree-sitter-scheduler-crash-fallback');
@@ -135,25 +130,6 @@ try {
       'expected planner snapshot quarantine decisions'
     );
 
-    const rel = path.relative(root, perlAbs);
-    const relKey = rel.split(path.sep).join('/');
-    const text = await fs.readFile(perlAbs, 'utf8');
-    const fileStat = await fs.stat(perlAbs);
-    const languageHint = getLanguageForFile('.pl', relKey);
-    const noop = () => {};
-    const timing = {
-      metricsCollector: null,
-      addSettingMetric: noop,
-      addLineSpan: noop,
-      addParseDuration: noop,
-      addTokenizeDuration: noop,
-      addEnrichDuration: noop,
-      addEmbeddingDuration: noop,
-      addLintDuration: noop,
-      addComplexityDuration: noop,
-      setGitDuration: noop,
-      setPythonAstDuration: noop
-    };
     const schedulerNoLoad = {
       ...scheduler,
       loadChunks: async () => {
@@ -163,82 +139,21 @@ try {
         throw new Error('scheduler loadChunksBatch should not run for degraded virtual paths');
       }
     };
+    const { createContext } = await createTreeSitterProcessFileCpuFixture({
+      fileHash: 'tree-sitter-crash-fallback',
+      fixtureParts: ['tests', 'fixtures', 'languages', 'src', 'perl_advanced.pl']
+    });
 
-    const cpuResult = await processFileCpu({
-      abs: perlAbs,
-      root,
-      mode: 'code',
-      fileEntry: { abs: perlAbs, rel: relKey },
-      fileIndex: 1,
-      ext: '.pl',
-      rel,
-      relKey,
-      text,
-      fileStat,
-      fileHash: 'testhash',
-      fileHashAlgo: 'sha1',
-      fileCaps: null,
-      fileStructural: null,
-      scmProvider: null,
-      scmProviderImpl: null,
-      scmRepoRoot: null,
-      scmConfig: null,
+    const cpuResult = await processFileCpu(createContext({
       languageOptions: {
         treeSitter: {
           enabled: true,
           strict: true
         }
       },
-      astDataflowEnabled: false,
-      controlFlowEnabled: false,
-      normalizedSegmentsConfig: normalizeSegmentsConfig(null),
-      normalizedCommentsConfig: normalizeCommentConfig(null),
-      tokenDictWords: new Set(),
-      dictConfig: {},
-      tokenContext: {
-        dictWords: new Set(),
-        dictConfig: {},
-        codeDictCache: new Map(),
-        tokenClassification: { enabled: false },
-        phraseEnabled: false,
-        chargramEnabled: false
-      },
-      postingsConfig: {},
-      contextWin: {},
-      relationsEnabled: false,
-      lintEnabled: false,
-      complexityEnabled: false,
-      typeInferenceEnabled: false,
-      riskAnalysisEnabled: false,
-      riskConfig: {},
-      gitBlameEnabled: false,
-      analysisPolicy: null,
-      workerPool: null,
-      workerDictOverride: null,
-      workerState: {},
-      tokenizationStats: null,
-      embeddingEnabled: false,
-      embeddingNormalize: false,
-      embeddingBatchSize: 0,
-      getChunkEmbedding: null,
-      getChunkEmbeddings: null,
-      runEmbedding: (fn) => fn(),
-      runProc: (fn) => fn(),
-      runTreeSitterSerial: (fn) => fn(),
-      runIo: (fn) => fn(),
-      log: noop,
-      logLine: noop,
-      showLineProgress: false,
-      toolInfo: null,
       treeSitterScheduler: schedulerNoLoad,
-      timing,
-      languageHint,
-      crashLogger,
-      vfsManifestConcurrency: 1,
-      complexityCache: null,
-      lintCache: null,
-      buildStage: 'stage1'
-    });
+      crashLogger
+    }));
 
     assert.ok(Array.isArray(cpuResult?.chunks) && cpuResult.chunks.length > 0, 'expected fallback chunks');
     assert.equal(cpuResult?.skip, null, 'expected no skip despite injected parser crash');

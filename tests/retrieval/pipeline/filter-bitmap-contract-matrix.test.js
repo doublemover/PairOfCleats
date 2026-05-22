@@ -9,53 +9,70 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv();
 
+const createFilterContractMeta = ({
+  thirdFile,
+  thirdExt,
+  thirdKind = 'FunctionDeclaration',
+  thirdAuthor = 'Alice',
+  thirdVisibility = 'public',
+  thirdLang
+}) => [
+  {
+    id: 0,
+    file: 'src/a.js',
+    ext: '.js',
+    kind: 'FunctionDeclaration',
+    last_author: 'Alice',
+    chunk_authors: ['Alice'],
+    docmeta: { visibility: 'public' },
+    metaV2: { lang: 'javascript', effective: { languageId: 'javascript' } }
+  },
+  {
+    id: 1,
+    file: 'src/b.js',
+    ext: '.js',
+    kind: 'ClassDeclaration',
+    last_author: 'Bob',
+    chunk_authors: ['Bob'],
+    docmeta: { visibility: 'private' },
+    metaV2: { lang: 'javascript', effective: { languageId: 'javascript' } }
+  },
+  {
+    id: 2,
+    file: thirdFile,
+    ext: thirdExt,
+    kind: thirdKind,
+    last_author: thirdAuthor,
+    chunk_authors: [thirdAuthor],
+    docmeta: { visibility: thirdVisibility },
+    metaV2: { lang: thirdLang, effective: { languageId: thirdLang } }
+  }
+];
+
+const toSortedAllowedIds = (allowed, meta) => {
+  const allowedIds = allowed == null
+    ? meta.map((entry) => entry.id)
+    : (allowed instanceof Set ? Array.from(allowed) : bitmapToArray(allowed));
+  allowedIds.sort((a, b) => a - b);
+  return allowedIds;
+};
+
 const cases = [
   {
     name: 'bitmap allowlist matches filterChunks results',
     run() {
-      const meta = [
-        {
-          id: 0,
-          file: 'src/a.js',
-          ext: '.js',
-          kind: 'FunctionDeclaration',
-          last_author: 'Alice',
-          chunk_authors: ['Alice'],
-          docmeta: { visibility: 'public' },
-          metaV2: { lang: 'javascript', effective: { languageId: 'javascript' } }
-        },
-        {
-          id: 1,
-          file: 'src/b.js',
-          ext: '.js',
-          kind: 'ClassDeclaration',
-          last_author: 'Bob',
-          chunk_authors: ['Bob'],
-          docmeta: { visibility: 'private' },
-          metaV2: { lang: 'javascript', effective: { languageId: 'javascript' } }
-        },
-        {
-          id: 2,
-          file: 'src/c.py',
-          ext: '.py',
-          kind: 'FunctionDeclaration',
-          last_author: 'Alice',
-          chunk_authors: ['Alice'],
-          docmeta: { visibility: 'public' },
-          metaV2: { lang: 'python', effective: { languageId: 'python' } }
-        }
-      ];
+      const meta = createFilterContractMeta({
+        thirdFile: 'src/c.py',
+        thirdExt: '.py',
+        thirdLang: 'python'
+      });
       const index = buildFilterIndex(meta);
       const filters = { ext: '.js', author: 'alice' };
       const expected = filterChunks(meta, filters, index)
         .map((entry) => entry.id)
         .sort((a, b) => a - b);
       const allowed = filterChunkIds(meta, filters, index, null, { preferBitmap: true });
-      const allowedIds = allowed == null
-        ? meta.map((entry) => entry.id)
-        : (allowed instanceof Set ? Array.from(allowed) : bitmapToArray(allowed));
-      allowedIds.sort((a, b) => a - b);
-      assert.deepEqual(allowedIds, expected);
+      assert.deepEqual(toSortedAllowedIds(allowed, meta), expected);
     }
   },
   {
@@ -124,38 +141,11 @@ const cases = [
   {
     name: 'compiled filter predicates stay reusable while matching chunk filtering results',
     run() {
-      const meta = [
-        {
-          id: 0,
-          file: 'src/a.js',
-          ext: '.js',
-          kind: 'FunctionDeclaration',
-          last_author: 'Alice',
-          chunk_authors: ['Alice'],
-          docmeta: { visibility: 'public' },
-          metaV2: { lang: 'javascript', effective: { languageId: 'javascript' } }
-        },
-        {
-          id: 1,
-          file: 'src/b.js',
-          ext: '.js',
-          kind: 'ClassDeclaration',
-          last_author: 'Bob',
-          chunk_authors: ['Bob'],
-          docmeta: { visibility: 'private' },
-          metaV2: { lang: 'javascript', effective: { languageId: 'javascript' } }
-        },
-        {
-          id: 2,
-          file: 'tests/c.ts',
-          ext: '.ts',
-          kind: 'FunctionDeclaration',
-          last_author: 'Alice',
-          chunk_authors: ['Alice'],
-          docmeta: { visibility: 'public' },
-          metaV2: { lang: 'typescript', effective: { languageId: 'typescript' } }
-        }
-      ];
+      const meta = createFilterContractMeta({
+        thirdFile: 'tests/c.ts',
+        thirdExt: '.ts',
+        thirdLang: 'typescript'
+      });
       const index = buildFilterIndex(meta);
       const filters = {
         file: '/src/.*\\.js$/',
@@ -171,12 +161,7 @@ const cases = [
         .sort((a, b) => a - b);
 
       const allowed = filterChunkIds(meta, filters, index, null, { compiled, preferBitmap: true });
-      const allowedIds = allowed == null
-        ? meta.map((entry) => entry.id)
-        : (allowed instanceof Set ? Array.from(allowed) : bitmapToArray(allowed));
-      allowedIds.sort((a, b) => a - b);
-
-      assert.deepEqual(allowedIds, expected);
+      assert.deepEqual(toSortedAllowedIds(allowed, meta), expected);
       assert.equal(compiled.fileMatchers, matcherRef);
     }
   }

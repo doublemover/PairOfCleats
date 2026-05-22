@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
-import { readJsonFileSafe, readJsonFileSyncSafe } from '../../../src/shared/files.js';
+import { readJsonFileSafe, readJsonFileSyncSafe } from '../../../src/shared/file-read.js';
 
 const originalStatSync = fs.statSync;
 const originalReadFileSync = fs.readFileSync;

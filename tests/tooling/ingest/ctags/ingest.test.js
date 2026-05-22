@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+import { runNode } from '../../../helpers/run-node.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'ctags-ingest');
@@ -17,10 +17,12 @@ const outPath = path.join(tempRoot, 'ctags.jsonl');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [cliPath, 'ingest', 'ctags', '--repo', repoRoot, '--input', inputPath, '--out', outPath, '--json'],
-  { encoding: 'utf8' }
+  'ctags ingest',
+  root,
+  process.env,
+  { stdio: 'pipe', allowFailure: true }
 );
 if (result.status !== 0) {
   console.error(result.stderr || result.stdout || 'ctags-ingest failed');
@@ -54,10 +56,12 @@ await fsPromises.writeFile(escapeInputPath, [
   JSON.stringify({ _type: 'tag', name: 'escaped', path: '../outside.js', line: 2, kind: 'function' }),
   JSON.stringify({ _type: 'tag', name: 'absolute', path: outsidePath, line: 3, kind: 'function' })
 ].join('\n'));
-const escapeResult = spawnSync(
-  process.execPath,
+const escapeResult = runNode(
   [cliPath, 'ingest', 'ctags', '--repo', repoRoot, '--input', escapeInputPath, '--out', escapeOutPath, '--json'],
-  { encoding: 'utf8' }
+  'ctags escape ingest',
+  root,
+  process.env,
+  { stdio: 'pipe', allowFailure: true }
 );
 if (escapeResult.status !== 0) {
   console.error(escapeResult.stderr || escapeResult.stdout || 'ctags escape ingest failed');

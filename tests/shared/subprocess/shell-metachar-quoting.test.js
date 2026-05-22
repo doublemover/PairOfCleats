@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSubprocess, spawnSubprocessSync } from '../../../src/shared/subprocess.js';
+import { spawnSubprocess, spawnSubprocessSync } from '../../../src/shared/subprocess/runner.js';
 
 const script = 'process.stdout.write("ok");';
 

@@ -2,9 +2,16 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 
+import { DEFAULT_EDGE_WEIGHTS, VIEWER_DEFAULTS } from '../../src/map/constants.js';
 import { applyBucketCulling, forceBucketVisible } from '../../src/map/isometric/client/culling.js';
 import { applyDisplayLimits } from '../../src/map/isometric/client/display-limits.js';
-import { performanceDefaults, visualDefaults } from '../../src/map/isometric/client/defaults.js';
+import {
+  controlDefaults,
+  defaultEdgeWeights,
+  layoutDefaults,
+  performanceDefaults,
+  visualDefaults
+} from '../../src/map/isometric/client/defaults.js';
 import { resolveLodTier } from '../../src/map/isometric/client/lod.js';
 import { buildMeshes } from '../../src/map/isometric/client/meshes.js';
 import { state } from '../../src/map/isometric/client/state.js';
@@ -59,6 +66,24 @@ const resetState = () => {
 };
 
 const cases = [
+  {
+    name: 'shared isometric defaults preserve aligned values and intentional client overrides',
+    run() {
+      assert.deepEqual(layoutDefaults, VIEWER_DEFAULTS.layout);
+      assert.deepEqual(defaultEdgeWeights, DEFAULT_EDGE_WEIGHTS);
+      assert.deepEqual(visualDefaults.glass, VIEWER_DEFAULTS.visuals.glass);
+      assert.deepEqual(controlDefaults.wasd, VIEWER_DEFAULTS.controls.wasd);
+
+      assert.equal(visualDefaults.enableFlowLights, false);
+      assert.equal(VIEWER_DEFAULTS.visuals.enableFlowLights, true);
+      assert.equal(visualDefaults.enableExtraLights, false);
+      assert.equal(VIEWER_DEFAULTS.visuals.enableExtraLights, true);
+      assert.equal(controlDefaults.zoomSensitivity, 18);
+      assert.equal(VIEWER_DEFAULTS.controls.zoomSensitivity, 6);
+      assert.equal(controlDefaults.zoomMin, 0.05);
+      assert.equal(VIEWER_DEFAULTS.controls.zoomMin, 1);
+    }
+  },
   {
     name: 'bucket culling hides and restores instances and force-visible overrides culling',
     run() {

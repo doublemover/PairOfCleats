@@ -3,33 +3,11 @@ import assert from 'node:assert/strict';
 
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { buildReportOutput } from '../../../tools/bench/language/report.js';
+import { createCleanSdkBenchmarkReport } from '../../tooling/bench/bench-runtime-fixture.js';
 
 ensureTestingEnv(process.env);
 
-const cleanOutput = await buildReportOutput({
-  configPath: '/tmp/repos.json',
-  cacheRoot: '/tmp/cache',
-  resultsRoot: '/tmp/results',
-  runLabel: 'bench-language small',
-  config: {
-    python: { label: 'Python' }
-  },
-  results: [
-    {
-      language: 'python',
-      tier: 'medium',
-      repo: 'basedosdados/sdk',
-      summary: {
-        backends: ['memory'],
-        latencyMsAvg: { memory: 4 },
-        hitRate: { memory: 1 },
-        resultCountAvg: { memory: 3 },
-        memoryRss: { memory: { mean: 1024 } },
-        buildMs: { index: 50 }
-      }
-    }
-  ]
-});
+const cleanOutput = await createCleanSdkBenchmarkReport();
 
 const cleanConfirmation = cleanOutput.blockerConfirmations?.summary?.canaries?.find((entry) => entry.id === 'sdk-artifact-tail-live');
 assert.ok(cleanConfirmation, 'expected blocker confirmation entry for sdk');

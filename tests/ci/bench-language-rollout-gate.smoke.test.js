@@ -3,14 +3,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { writeJsonFile } from '../../src/shared/json-file.js';
 import { applyTestEnv } from '../helpers/test-env.js';
+import { runNode } from '../helpers/run-node.js';
 
 const ROOT = process.cwd();
 const gatePath = path.join(ROOT, 'tools', 'ci', 'bench-language-rollout-gate.js');
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-bench-language-rollout-gate-'));
 const jsonPath = path.join(tempRoot, 'rollout-gate.json');
+const env = applyTestEnv({ syncProcess: false });
 
 const writeReport = async (filePath, {
   aggregateResultClass,
@@ -151,14 +152,12 @@ try {
     ]
   }, null, 2), 'utf8');
 
-  const runGate = (planPath, extraArgs = []) => spawnSync(
-    process.execPath,
+  const runGate = (planPath, extraArgs = []) => runNode(
     [gatePath, '--plan', planPath, '--json', jsonPath, ...extraArgs],
-    {
-      cwd: ROOT,
-      env: applyTestEnv({ syncProcess: false }),
-      encoding: 'utf8'
-    }
+    'bench language rollout gate',
+    ROOT,
+    env,
+    { stdio: 'pipe', allowFailure: true }
   );
 
   const successResult = runGate(successPlanPath);

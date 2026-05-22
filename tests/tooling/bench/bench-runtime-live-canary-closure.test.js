@@ -8,9 +8,8 @@ import { prepareTestCacheDir } from '../../helpers/test-cache.js';
 import {
   BENCH_RUNTIME_LIVE_CANARY_STATUS,
   buildBenchRuntimeLiveCanarySummary,
-  loadBenchRuntimeCanaryManifest,
-  runBenchRuntimeLiveCanary
 } from '../../../tools/bench/language/canaries.js';
+import { runSdkTargetLiveCanary } from './bench-runtime-fixture.js';
 
 const root = process.cwd();
 const scriptPath = path.join(root, 'tools', 'bench', 'language-canaries.js');
@@ -59,23 +58,8 @@ const requireTargetSummary = JSON.parse(requireTargetRun.stdout);
 assert.equal(requireTargetSummary.ok, false, 'expected require-target summary to fail');
 assert.deepEqual(requireTargetSummary.blockedIssues, [379], 'expected blocker issue 379 to remain open in require-target mode');
 
-const { manifest } = await loadBenchRuntimeCanaryManifest(root);
-const sdkEntry = manifest.liveCanaries.find((entry) => entry.id === 'sdk-artifact-tail-live');
+const { sdkEntry, targetResult } = await runSdkTargetLiveCanary(root);
 assert.ok(sdkEntry, 'expected sdk live canary entry');
-const targetEntry = {
-  ...sdkEntry,
-  runner: {
-    ...sdkEntry.runner,
-    args: [
-      '--fixture',
-      'sdk-artifact-tail-live-target',
-      '--out',
-      '{outJson}'
-    ]
-  }
-};
-
-const targetResult = await runBenchRuntimeLiveCanary(targetEntry, root);
 assert.equal(targetResult.status, BENCH_RUNTIME_LIVE_CANARY_STATUS.TARGET_ACHIEVED);
 assert.equal(targetResult.closureReady, true, 'expected target fixture to satisfy closure contract');
 

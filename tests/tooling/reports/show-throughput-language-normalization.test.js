@@ -3,13 +3,8 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { ensureTestingEnv } from '../../helpers/test-env.js';
+import { runShowThroughputReport } from './show-throughput-report-fixture.js';
 
-ensureTestingEnv(process.env);
-
-const root = process.cwd();
-const scriptPath = path.join(root, 'tools', 'reports', 'show-throughput.js');
 const tmpRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'show-throughput-lang-normalize-'));
 const runRoot = path.join(tmpRoot, 'workspace');
 const resultsRoot = path.join(runRoot, 'benchmarks', 'results');
@@ -104,11 +99,7 @@ await fsPromises.writeFile(
 
 const stripAnsi = (value) => String(value || '').replace(/\u001b\[[0-9;]*m/g, '');
 
-const result = spawnSync(
-  process.execPath,
-  [scriptPath],
-  { cwd: runRoot, encoding: 'utf8' }
-);
+const result = runShowThroughputReport([], { cwd: runRoot });
 assert.equal(result.status, 0, result.stderr || result.stdout);
 assert.equal(stripAnsi(result.stderr).trim(), '', 'expected overview text on stdout only');
 const output = stripAnsi(result.stdout);

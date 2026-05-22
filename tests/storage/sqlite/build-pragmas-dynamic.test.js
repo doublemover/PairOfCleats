@@ -1,26 +1,14 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { applyBuildPragmas, restoreBuildPragmas } from '../../../src/storage/sqlite/build/pragmas.js';
 
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { loadSqlitePragmaDatabase, preparePragmaTestRoot } from './helpers/pragmas-fixture.js';
 
-let Database = null;
-try {
-  ({ default: Database } = await import('better-sqlite3'));
-} catch (err) {
-  console.error(`better-sqlite3 missing: ${err?.message || err}`);
-  process.exit(1);
-}
-
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'sqlite-build-pragmas-dynamic');
+const Database = await loadSqlitePragmaDatabase();
+const tempRoot = await preparePragmaTestRoot('sqlite-build-pragmas-dynamic');
 const smallPath = path.join(tempRoot, 'small.db');
 const largePath = path.join(tempRoot, 'large.db');
-
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
 
 const smallDb = new Database(smallPath);
 const smallState = applyBuildPragmas(smallDb, { inputBytes: 10 * 1024 * 1024, stats: {} });

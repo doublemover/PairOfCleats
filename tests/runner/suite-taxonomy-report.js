@@ -1,10 +1,10 @@
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { discoverTests } from './run-discovery.js';
 import { loadRunRules } from './run-config.js';
 import { loadLaneManifestConfig, loadOrderedLaneManifest } from './lane-manifests.js';
 import { buildSuiteCategorySummary, inferSuiteCategory, TEST_SUITE_CATEGORIES } from './suite-taxonomy.js';
 import { loadConsolidationOwnership } from './consolidation-ownership.js';
+import { writeStableGeneratedJsonReport, writeTextIfChanged } from '../../tools/shared/generated-report.js';
 
 const toPosix = (value) => String(value || '').replace(/\\/g, '/');
 
@@ -137,19 +137,17 @@ export const generateSuiteTaxonomyReport = async ({
     suiteCategory: inferSuiteCategory({ id: test.id, lane: laneById.get(test.id) || '' }).category
   }));
   const ownership = await loadConsolidationOwnership({ root });
-  const report = buildSuiteTaxonomyReport({
+  const initialReport = buildSuiteTaxonomyReport({
     tests,
     manifests,
     ownership: ownership.payload
   });
 
-  await fsPromises.mkdir(path.dirname(outputJsonPath), { recursive: true });
-  await fsPromises.writeFile(outputJsonPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-  await fsPromises.mkdir(path.dirname(outputMarkdownPath), { recursive: true });
-  await fsPromises.writeFile(
+  const report = await writeStableGeneratedJsonReport(outputJsonPath, initialReport);
+  await writeTextIfChanged(
     outputMarkdownPath,
     renderMarkdown({ report, ownershipPath: ownership.path, root }),
-    'utf8'
+    { encoding: 'utf8' }
   );
 
   return {

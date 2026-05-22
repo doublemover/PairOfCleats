@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fsPromises from 'node:fs/promises';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import {
   claimNextJob,
   completeJob,
@@ -14,31 +10,21 @@ import {
   requeueStaleJobs,
   saveQueue
 } from '../../../tools/service/queue.js';
+import { createIndexerServiceCliFixture } from './indexer-service-cli-fixture.js';
 
 applyTestEnv();
 
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'indexer-service-metrics-contract');
-const repoRoot = path.join(tempRoot, 'repo');
-const queueDir = path.join(tempRoot, 'queue');
-const configPath = path.join(tempRoot, 'service.json');
-
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(repoRoot, { recursive: true });
-
-const config = {
-  queueDir,
-  queue: {
-    maxQueued: 1,
-    maxRunning: 1,
-    maxTotal: 2,
-    resourceBudgetUnits: 2
-  },
-  repos: [
-    { id: 'repo', path: repoRoot, syncPolicy: 'none' }
-  ]
-};
-await fsPromises.writeFile(configPath, JSON.stringify(config, null, 2));
+const { repoRoot, queueDir, configPath, runCli, parseCliJson } = await createIndexerServiceCliFixture({
+  cacheName: 'indexer-service-metrics-contract',
+  config: {
+    queue: {
+      maxQueued: 1,
+      maxRunning: 1,
+      maxTotal: 2,
+      resourceBudgetUnits: 2
+    }
+  }
+});
 await ensureQueueDir(queueDir);
 
 await enqueueJob(queueDir, {
@@ -90,18 +76,14 @@ await saveQueue(queueDir, queue, 'index');
 const staleSweep = await requeueStaleJobs(queueDir, 'index', { maxRetries: 0 });
 assert.equal(staleSweep.quarantined, 1, 'expected stale lease to quarantine once retry budget is exhausted');
 
-const status = spawnSync(
-  process.execPath,
-  [path.join(root, 'tools', 'service', 'indexer-service.js'), 'status', '--config', configPath, '--json'],
-  { encoding: 'utf8', env: process.env }
-);
+const status = runCli('status', '--config', configPath, '--json');
 assert.equal(
   status.status,
   0,
   `expected status command to succeed; stderr=${status.stderr || '<empty>'}; stdout=${status.stdout || '<empty>'}`
 );
 
-const payload = JSON.parse(status.stdout || '{}');
+const payload = parseCliJson(status);
 assert.equal(payload.ok, true, 'expected status payload to succeed');
 assert.equal(payload.metrics?.retryRate?.value, 1, 'expected retry rate to reflect one retried active job');
 assert.equal(payload.metrics?.retryRate?.retriedActiveJobs, 1, 'expected retried active job count');

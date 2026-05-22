@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
-import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
+import { writeJsonLinesFile } from '../../../src/shared/json-stream/jsonl-write.js';
 import { createRowSpillCollector } from '../../../src/index/build/artifacts/helpers.js';
 import { createSpillSorter } from '../../../src/map/build-map/io.js';
 import {

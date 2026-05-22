@@ -4,11 +4,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
 import { computeIndexDiff } from '../../src/index/diffs/compute.js';
-import { loadUserConfig } from '../../tools/shared/dict-utils.js';
+import { getRepoCacheRoot, loadUserConfig } from '../../tools/shared/dict-utils.js';
 import { startApiServer } from '../helpers/api-server.js';
+import {
+  seedCodeSnapshotBuildRoot,
+  setCurrentCodeSnapshotBuild
+} from '../helpers/snapshot-build-fixture.js';
 
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 
@@ -16,6 +19,28 @@ const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'api-search-asof-service');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
+const markerRelativePath = 'src/phase14-api-asof.js';
+
+const apiAsofTestConfig = {
+  sqlite: { use: false },
+  indexing: {
+    typeInference: false,
+    typeInferenceCrossFile: false,
+    riskAnalysis: false,
+    riskAnalysisCrossFile: false,
+    embeddings: {
+      enabled: false,
+      mode: 'off',
+      lancedb: { enabled: false },
+      hnsw: { enabled: false }
+    }
+  },
+  tooling: {
+    lsp: {
+      enabled: false
+    }
+  }
+};
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
@@ -29,45 +54,58 @@ await fs.writeFile(
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
-  testConfig: {
-    indexing: {
-      embeddings: {
-        enabled: false,
-        mode: 'off',
-        lancedb: { enabled: false },
-        hnsw: { enabled: false }
-      }
-    }
-  },
-  extraEnv: { PAIROFCLEATS_WORKER_POOL: 'off' }
+  testConfig: apiAsofTestConfig,
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  }
 });
 
-const runBuild = () => {
-  const result = spawnSync(
-    process.execPath,
-    [
-      path.join(root, 'build_index.js'),
-      '--repo',
-      repoRoot,
-      '--stage',
-      'stage2',
-      '--mode',
-      'code',
-      '--stub-embeddings',
-      '--no-sqlite',
-      '--progress',
-      'off'
-    ],
+const seedSearchAsofBuildRoot = async ({
+  repoCacheRoot,
+  buildId,
+  token,
+  text,
+  end,
+  hash,
+  size
+}) => seedCodeSnapshotBuildRoot({
+  repoCacheRoot,
+  buildId,
+  manifestOverrides: {
+    compatibilityKey: `api-search-asof:${buildId}`
+  },
+  buildStateOverrides: {
+    configHash: 'cfg-api-search-asof'
+  },
+  chunkMeta: [
     {
-      cwd: repoRoot,
-      env,
-      encoding: 'utf8'
+      id: 0,
+      file: markerRelativePath,
+      start: 0,
+      end,
+      text,
+      tokens: [token]
     }
-  );
-  if (result.status !== 0) {
-    throw new Error(`build_index failed: ${result.stderr || result.stdout || 'unknown error'}`);
+  ],
+  fileMeta: [
+    {
+      id: 0,
+      file: markerRelativePath,
+      ext: '.js',
+      hash,
+      size
+    }
+  ],
+  tokenPostings: {
+    vocab: [token],
+    postings: [
+      [[0, 1]]
+    ],
+    docLengths: [1],
+    avgDocLen: 1,
+    totalDocs: 1
   }
-};
+});
 
 const requestText = (serverInfo, requestPath, authToken = 'test-token') => new Promise((resolve, reject) => {
   const req = http.request(
@@ -94,12 +132,25 @@ const requestText = (serverInfo, requestPath, authToken = 'test-token') => new P
   req.end();
 });
 
-const markerPath = path.join(repoRoot, 'src', 'phase14-api-asof.js');
+const markerPath = path.join(repoRoot, markerRelativePath);
 await fs.mkdir(path.dirname(markerPath), { recursive: true });
-await fs.writeFile(markerPath, 'export const phase14_api_marker = "phase14alpha";\n', 'utf8');
-runBuild();
+const textA = 'export const phase14_api_marker = "phase14alpha";\n';
+await fs.writeFile(markerPath, textA, 'utf8');
 
 const userConfig = loadUserConfig(repoRoot);
+const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
+await seedSearchAsofBuildRoot({
+  repoCacheRoot,
+  buildId: 'build-alpha',
+  token: 'phase14alpha',
+  text: textA,
+  end: textA.length,
+  hash: 'sha1-alpha',
+  size: textA.length
+});
+await setCurrentCodeSnapshotBuild({ repoCacheRoot, buildId: 'build-alpha' });
+
 const snapshotA = 'snap-20260212000000-apiaa';
 await createPointerSnapshot({
   repoRoot,
@@ -108,8 +159,18 @@ await createPointerSnapshot({
   snapshotId: snapshotA
 });
 
-await fs.writeFile(markerPath, 'export const phase14_api_marker = "phase14beta";\n', 'utf8');
-runBuild();
+const textB = 'export const phase14_api_marker = "phase14beta";\nexport const phase14_api_version = 2;\n';
+await fs.writeFile(markerPath, textB, 'utf8');
+await seedSearchAsofBuildRoot({
+  repoCacheRoot,
+  buildId: 'build-beta',
+  token: 'phase14beta',
+  text: textB,
+  end: textB.length,
+  hash: 'sha1-beta',
+  size: textB.length
+});
+await setCurrentCodeSnapshotBuild({ repoCacheRoot, buildId: 'build-beta' });
 
 const snapshotB = 'snap-20260212000000-apibb';
 await createPointerSnapshot({

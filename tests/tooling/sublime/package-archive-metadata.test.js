@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const outDir = resolveTestCachePath(root, 'package-sublime-metadata');
 
-const run = spawnSync(
-  process.execPath,
+const run = runNode(
   [path.join(root, 'tools', 'package-sublime.js'), '--out-dir', outDir],
-  { cwd: root, encoding: 'utf8' }
+  'sublime package archive metadata',
+  root,
+  process.env,
+  { stdio: 'pipe', allowFailure: true }
 );
 if (run.status !== 0) {
   console.error('package-archive-metadata test failed: package-sublime command failed');

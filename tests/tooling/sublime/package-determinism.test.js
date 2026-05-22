@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const outA = resolveTestCachePath(root, 'package-sublime-determinism-a');
 const outB = resolveTestCachePath(root, 'package-sublime-determinism-b');
 
-const runPack = (outDir) => spawnSync(
-  process.execPath,
+const runPack = (outDir) => runNode(
   [path.join(root, 'tools', 'package-sublime.js'), '--out-dir', outDir],
-  { cwd: root, encoding: 'utf8' }
+  `sublime package determinism ${path.basename(outDir)}`,
+  root,
+  process.env,
+  { stdio: 'pipe', allowFailure: true }
 );
 
 const first = runPack(outA);

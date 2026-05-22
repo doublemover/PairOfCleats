@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { createBoundedObjectPool } from '../../../src/shared/bounded-object-pool.js';
+import { createBoundedObjectPool } from '../../../src/shared/workers/bounded-object-pool.js';
 
 const pool = createBoundedObjectPool({
   maxSize: 2,

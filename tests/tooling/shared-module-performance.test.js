@@ -1,19 +1,18 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode } from '../helpers/run-node.js';
+import { applyTestEnv } from '../helpers/test-env.js';
 
 const root = process.cwd();
 const toolPath = path.join(root, 'tools', 'testing', 'shared-module-performance.js');
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [toolPath, '--check', '--json'],
-  {
-    cwd: root,
-    encoding: 'utf8',
-    env: { ...process.env, PAIROFCLEATS_TESTING: '1' }
-  }
+  'shared-module performance check',
+  root,
+  applyTestEnv(),
+  { stdio: 'pipe', allowFailure: true }
 );
 
 assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -28,10 +27,10 @@ assert.equal(payload.regressions.length, 0, 'expected current metrics to satisfy
 const moduleIds = new Set(payload.modules.map((entry) => entry.id));
 for (const expectedId of [
   'shared.search-request',
-  'shared.command-registry',
+  'shared.command-registry.query',
   'shared.runtime-capability-manifest',
   'shared.artifact-io',
-  'shared.subprocess',
+  'shared.subprocess.runner',
   'retrieval.cli'
 ]) {
   assert.equal(moduleIds.has(expectedId), true, `missing module metric for ${expectedId}`);

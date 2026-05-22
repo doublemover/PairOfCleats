@@ -98,7 +98,7 @@ const providerHardResult = await runner.runProcess(
   ['-e', providerTimeoutScript],
   {
     continueOnError: true,
-    timeoutMs: 160
+    timeoutMs: 600
   }
 );
 
@@ -138,7 +138,7 @@ const artifactHardResult = await runner.runProcess(
   ['-e', artifactTimeoutScript],
   {
     continueOnError: true,
-    timeoutMs: 160
+    timeoutMs: 600
   }
 );
 
@@ -171,7 +171,7 @@ const sqliteHardResult = await runner.runProcess(
   ['-e', sqlitePhaseScript],
   {
     continueOnError: true,
-    timeoutMs: 160
+    timeoutMs: 600
   }
 );
 

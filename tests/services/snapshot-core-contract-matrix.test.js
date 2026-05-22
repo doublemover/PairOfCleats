@@ -28,6 +28,25 @@ const writeJson = async (filePath, value) => {
   await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 };
 
+const createSnapshotServiceFixture = async (name) => {
+  applyTestEnv();
+  const root = process.cwd();
+  const tempRoot = resolveTestCachePath(root, name);
+  const repoRoot = path.join(tempRoot, 'repo');
+  const cacheRoot = path.join(tempRoot, 'cache');
+  const userConfig = {
+    cache: { root: cacheRoot },
+    sqlite: { use: false },
+    lmdb: { use: false }
+  };
+
+  await fs.rm(tempRoot, { recursive: true, force: true });
+  await fs.mkdir(repoRoot, { recursive: true });
+  const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+  await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
+  return { tempRoot, repoRoot, userConfig, repoCacheRoot };
+};
+
 const writeBuildState = async ({
   repoCacheRoot,
   buildId,
@@ -189,6 +208,43 @@ const seedDiffBuild = async ({
     validation: { ok: true, issueCount: 0, warningCount: 0, issues: [] }
   });
   return buildRoot;
+};
+
+const writeCurrentBuildPointer = (repoCacheRoot, buildId) => writeJson(
+  path.join(repoCacheRoot, 'builds', 'current.json'),
+  {
+    buildId,
+    buildRoot: `builds/${buildId}`,
+    buildRoots: { code: `builds/${buildId}` }
+  }
+);
+
+const seedDiffBuildSnapshot = async ({
+  repoRoot,
+  userConfig,
+  repoCacheRoot,
+  buildId,
+  snapshotId,
+  files,
+  chunkSignature,
+  configHash,
+  toolVersion
+}) => {
+  await seedDiffBuild({
+    repoCacheRoot,
+    buildId,
+    files,
+    chunkSignature,
+    configHash,
+    toolVersion
+  });
+  await writeCurrentBuildPointer(repoCacheRoot, buildId);
+  return createPointerSnapshot({
+    repoRoot,
+    userConfig,
+    modes: ['code'],
+    snapshotId
+  });
 };
 
 const runSnapshotCreateCase = async () => {
@@ -400,22 +456,7 @@ const runSnapshotCreateCase = async () => {
 };
 
 const runSnapshotFreezeCase = async () => {
-  applyTestEnv();
-
-  const root = process.cwd();
-  const tempRoot = resolveTestCachePath(root, 'snapshot-freeze-service');
-  const repoRoot = path.join(tempRoot, 'repo');
-  const cacheRoot = path.join(tempRoot, 'cache');
-  const userConfig = {
-    cache: { root: cacheRoot },
-    sqlite: { use: false },
-    lmdb: { use: false }
-  };
-
-  await fs.rm(tempRoot, { recursive: true, force: true });
-  await fs.mkdir(repoRoot, { recursive: true });
-  const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
-  await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
+  const { tempRoot, repoRoot, userConfig, repoCacheRoot } = await createSnapshotServiceFixture('snapshot-freeze-service');
 
   const goodBuildRoot = await seedFreezeBuildRoot({
     repoCacheRoot,
@@ -573,26 +614,14 @@ const runSnapshotFreezeCase = async () => {
 };
 
 const runIndexDiffCase = async () => {
-  applyTestEnv();
+  const { repoRoot, userConfig, repoCacheRoot } = await createSnapshotServiceFixture('index-diff-service');
 
-  const root = process.cwd();
-  const tempRoot = resolveTestCachePath(root, 'index-diff-service');
-  const repoRoot = path.join(tempRoot, 'repo');
-  const cacheRoot = path.join(tempRoot, 'cache');
-  const userConfig = {
-    cache: { root: cacheRoot },
-    sqlite: { use: false },
-    lmdb: { use: false }
-  };
-
-  await fs.rm(tempRoot, { recursive: true, force: true });
-  await fs.mkdir(repoRoot, { recursive: true });
-  const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
-  await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
-
-  await seedDiffBuild({
+  await seedDiffBuildSnapshot({
+    repoRoot,
+    userConfig,
     repoCacheRoot,
     buildId: 'build-a',
+    snapshotId: 'snap-20260212000000-diffa',
     files: [
       { file: 'src/a.js', content: 'export const a = 1;', chunkId: 'chunk-a' }
     ],
@@ -600,21 +629,13 @@ const runIndexDiffCase = async () => {
     configHash: 'cfg-shared',
     toolVersion: '1.0.0'
   });
-  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
-    buildId: 'build-a',
-    buildRoot: 'builds/build-a',
-    buildRoots: { code: 'builds/build-a' }
-  });
-  await createPointerSnapshot({
+
+  await seedDiffBuildSnapshot({
     repoRoot,
     userConfig,
-    modes: ['code'],
-    snapshotId: 'snap-20260212000000-diffa'
-  });
-
-  await seedDiffBuild({
     repoCacheRoot,
     buildId: 'build-b',
+    snapshotId: 'snap-20260212000000-diffb',
     files: [
       { file: 'src/a.js', content: 'export const a = 2;', chunkId: 'chunk-a' },
       { file: 'src/b.js', content: 'export const b = 1;', chunkId: 'chunk-b' }
@@ -622,17 +643,6 @@ const runIndexDiffCase = async () => {
     chunkSignature: { 'src/a.js': 'sig-b', 'src/b.js': 'sig-new' },
     configHash: 'cfg-shared',
     toolVersion: '1.0.0'
-  });
-  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
-    buildId: 'build-b',
-    buildRoot: 'builds/build-b',
-    buildRoots: { code: 'builds/build-b' }
-  });
-  await createPointerSnapshot({
-    repoRoot,
-    userConfig,
-    modes: ['code'],
-    snapshotId: 'snap-20260212000000-diffb'
   });
 
   const first = await computeIndexDiff({

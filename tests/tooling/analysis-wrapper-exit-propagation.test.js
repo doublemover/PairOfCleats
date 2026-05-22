@@ -3,20 +3,22 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { applyTestEnv } from '../helpers/test-env.js';
-
-applyTestEnv();
+import { runNode } from '../helpers/run-node.js';
 
 const root = process.cwd();
 const binPath = path.join(root, 'bin', 'pairofcleats.js');
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'analysis-wrapper-exit-'));
+const env = applyTestEnv({ syncProcess: false });
 
-const runCli = (args) => spawnSync(process.execPath, [binPath, ...args], {
-  encoding: 'utf8',
-  env: process.env
-});
+const runCli = (args) => runNode(
+  [binPath, ...args],
+  'analysis wrapper exit propagation',
+  root,
+  env,
+  { stdio: 'pipe', allowFailure: true }
+);
 
 const graphContext = runCli([
   'graph-context',

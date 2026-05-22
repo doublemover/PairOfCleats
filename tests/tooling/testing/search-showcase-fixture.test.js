@@ -2,13 +2,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import {
   buildSearchShowcaseReviewReport,
   loadSearchShowcaseDataset,
   selectSearchShowcaseCases,
   resolveTerminalSizeMatrix
 } from '../../../tools/testing/run-search-showcase.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const fixtureDir = path.join(root, 'tests', 'fixtures', 'pairofcleats-search-showcase');
@@ -66,29 +67,29 @@ assert.deepEqual(
 const evalCases = JSON.parse(fs.readFileSync(evalPath, 'utf8'));
 assert.ok(Array.isArray(evalCases) && evalCases.length >= 8, 'expected stable eval subset');
 
-const listRun = spawnSync(process.execPath, [
-  path.join(root, 'tools', 'testing', 'run-search-showcase.js'),
+const runShowcase = (args) => runNode(
+  [path.join(root, 'tools', 'testing', 'run-search-showcase.js'), ...args],
+  'search showcase fixture',
+  root,
+  applyTestEnv({ syncProcess: false }),
+  { stdio: 'pipe' }
+);
+
+const listRun = runShowcase([
   '--dataset',
   showcasePath,
   '--list'
-], {
-  cwd: root,
-  encoding: 'utf8'
-});
+]);
 assert.equal(listRun.status, 0, `expected --list to succeed: ${listRun.stderr}`);
 assert.match(listRun.stdout, /code-parse-search-args/, 'expected list output to include a stable case');
 assert.match(listRun.stdout, /output-json-compact-score-breakdown/, 'expected list output to include an output case');
 
-const ptyListRun = spawnSync(process.execPath, [
-  path.join(root, 'tools', 'testing', 'run-search-showcase.js'),
+const ptyListRun = runShowcase([
   '--dataset',
   showcasePath,
   '--pty',
   '--list'
-], {
-  cwd: root,
-  encoding: 'utf8'
-});
+]);
 assert.equal(ptyListRun.status, 0, `expected --pty --list to succeed: ${ptyListRun.stderr}`);
 assert.match(ptyListRun.stdout, /prose-search-pipeline/, 'expected PTY list output to include a stable prose case');
 

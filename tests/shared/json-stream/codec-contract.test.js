@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readJsonFile } from '../../../src/shared/artifact-io.js';
-import { writeJsonArrayFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonArrayFile, writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { tryRequire } from '../../../src/shared/optional-deps.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';

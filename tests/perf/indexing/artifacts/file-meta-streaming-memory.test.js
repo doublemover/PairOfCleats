@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { loadFileMetaRows } from '../../../../src/shared/artifact-io.js';
 import { buildFileMetaColumnar } from '../../../../src/index/build/artifacts/file-meta.js';
-import { writeJsonLinesFile } from '../../../../src/shared/json-stream.js';
+import { writeJsonLinesFile } from '../../../../src/shared/json-stream/jsonl-write.js';
 import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';

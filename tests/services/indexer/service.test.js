@@ -3,16 +3,30 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { buildEmbeddingsArgs, normalizeEmbeddingJob } from '../../../tools/service/indexer-service-helpers.js';
+import {
+  buildEmbeddingsArgs,
+  normalizeEmbeddingJob,
+  resolveEmbeddingBackendStageDir
+} from '../../../tools/service/indexer-service-helpers.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'indexer-service');
 const repoRoot = path.join(tempRoot, 'repo');
 const queueDir = path.join(tempRoot, 'queue');
 const configPath = path.join(tempRoot, 'service.json');
+const env = applyTestEnv({ syncProcess: false });
+const servicePath = path.join(root, 'tools', 'service', 'indexer-service.js');
+const runServiceCli = (args, label) => runNode(
+  [servicePath, ...args],
+  label,
+  root,
+  env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
+);
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
@@ -28,6 +42,41 @@ const normalized = normalizeEmbeddingJob({
 });
 assert.equal(normalized.buildRoot, path.resolve(buildRoot));
 assert.equal(normalized.indexDir, path.resolve(indexDir));
+assert.equal(normalized.indexDirUnderBuildRoot, true);
+
+const normalizedIndexOnly = normalizeEmbeddingJob({
+  repoRoot,
+  indexDir,
+  mode: 'code',
+  embeddingPayloadFormatVersion: 2
+});
+assert.equal(normalizedIndexOnly.buildRoot, path.resolve(buildRoot));
+assert.equal(normalizedIndexOnly.indexDir, path.resolve(indexDir));
+assert.equal(normalizedIndexOnly.indexDirUnderBuildRoot, true);
+assert.equal(
+  resolveEmbeddingBackendStageDir(normalizedIndexOnly, 'code'),
+  path.join(buildRoot, '.embeddings-backend-staging', 'index-code')
+);
+
+const legacyIndexRoot = normalizeEmbeddingJob({
+  repoRoot,
+  indexRoot: indexDir,
+  mode: 'code',
+  embeddingPayloadFormatVersion: 1
+});
+assert.equal(legacyIndexRoot.buildRoot, path.resolve(buildRoot));
+assert.equal(legacyIndexRoot.indexDir, path.resolve(indexDir));
+assert.equal(legacyIndexRoot.legacyIndexRoot, path.resolve(indexDir));
+
+const outsideIndexDir = path.join(repoRoot, 'outside', 'index-code');
+const normalizedOutside = normalizeEmbeddingJob({
+  repoRoot,
+  buildRoot,
+  indexDir: outsideIndexDir,
+  mode: 'code',
+  embeddingPayloadFormatVersion: 2
+});
+assert.equal(normalizedOutside.indexDirUnderBuildRoot, false);
 
 const buildPath = path.join(root, 'tools', 'build', 'embeddings.js');
 const args = buildEmbeddingsArgs({
@@ -48,10 +97,9 @@ const config = {
 };
 await fsPromises.writeFile(configPath, JSON.stringify(config, null, 2));
 
-const enqueue = spawnSync(
-  process.execPath,
-  [path.join(root, 'tools', 'service', 'indexer-service.js'), 'enqueue', '--config', configPath, '--repo', repoRoot, '--mode', 'code'],
-  { encoding: 'utf8' }
+const enqueue = runServiceCli(
+  ['enqueue', '--config', configPath, '--repo', repoRoot, '--mode', 'code'],
+  'indexer-service enqueue'
 );
 if (enqueue.status !== 0) {
   console.error(enqueue.stderr || enqueue.stdout || 'indexer-service enqueue failed');
@@ -62,10 +110,9 @@ assert.equal(enqueuePayload.ok, true);
 assert.equal(enqueuePayload.duplicate, false);
 assert.ok(typeof enqueuePayload.idempotencyKey === 'string' && enqueuePayload.idempotencyKey.length > 0);
 
-const duplicateEnqueue = spawnSync(
-  process.execPath,
-  [path.join(root, 'tools', 'service', 'indexer-service.js'), 'enqueue', '--config', configPath, '--repo', repoRoot, '--mode', 'code'],
-  { encoding: 'utf8' }
+const duplicateEnqueue = runServiceCli(
+  ['enqueue', '--config', configPath, '--repo', repoRoot, '--mode', 'code'],
+  'indexer-service duplicate enqueue'
 );
 if (duplicateEnqueue.status !== 0) {
   console.error(duplicateEnqueue.stderr || duplicateEnqueue.stdout || 'indexer-service duplicate enqueue failed');
@@ -77,10 +124,9 @@ assert.equal(duplicatePayload.duplicate, true);
 assert.equal(duplicatePayload.replaySuppressed, true);
 assert.equal(duplicatePayload.job?.id, enqueuePayload.job?.id);
 
-const status = spawnSync(
-  process.execPath,
-  [path.join(root, 'tools', 'service', 'indexer-service.js'), 'status', '--config', configPath],
-  { encoding: 'utf8' }
+const status = runServiceCli(
+  ['status', '--config', configPath],
+  'indexer-service status'
 );
 if (status.status !== 0) {
   console.error(status.stderr || status.stdout || 'indexer-service status failed');

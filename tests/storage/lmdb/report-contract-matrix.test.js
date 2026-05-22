@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { Packr, Unpackr } from 'msgpackr';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS } from '../../../src/storage/lmdb/schema.js';
 import { loadUserConfig, resolveLmdbPaths } from '../../../tools/shared/dict-utils.js';
@@ -83,11 +83,10 @@ const createFixture = async (name, extraTestConfig = null) => {
   });
 
   const run = (args, label, options = {}) => {
-    const result = spawnSync(process.execPath, args, {
-      cwd: repoRoot,
-      env,
-      encoding: 'utf8',
-      ...options
+    const result = runNode(args, label, repoRoot, env, {
+      stdio: options.stdio || 'pipe',
+      encoding: options.encoding || 'utf8',
+      allowFailure: true
     });
     if (result.status !== 0) {
       console.error(`Failed: ${label}`);

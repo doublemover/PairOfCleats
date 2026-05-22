@@ -3,10 +3,10 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { normalizeHnswConfig, rankHnswIndex } from '../../../src/shared/hnsw.js';
 import { requireHnswLib } from '../../helpers/optional-deps.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
@@ -81,15 +81,7 @@ const env = applyTestEnv({
 });
 
 function run(args, label) {
-  const result = spawnSync(process.execPath, args, {
-    cwd: repoRoot,
-    env,
-    stdio: 'inherit'
-  });
-  if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
-    process.exit(result.status ?? 1);
-  }
+  runNode(args, label, repoRoot, env, { stdio: 'inherit' });
 }
 
 run([path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--stage', 'stage1', '--repo', repoRoot], 'build index');
@@ -160,8 +152,7 @@ if (proseMetaPayload.space !== hnswConfig.space) {
   process.exit(1);
 }
 
-const searchResult = spawnSync(
-  process.execPath,
+const searchResult = runNode(
   [
     path.join(root, 'search.js'),
     'index',
@@ -175,13 +166,11 @@ const searchResult = spawnSync(
     '--repo',
     repoRoot
   ],
-  { cwd: repoRoot, env, encoding: 'utf8' }
+  'hnsw ann search',
+  repoRoot,
+  env,
+  { stdio: 'pipe' }
 );
-if (searchResult.status !== 0) {
-  console.error('search.js failed for HNSW ANN test.');
-  if (searchResult.stderr) console.error(searchResult.stderr.trim());
-  process.exit(searchResult.status ?? 1);
-}
 
 const payload = JSON.parse(searchResult.stdout || '{}');
 const stats = payload.stats || {};

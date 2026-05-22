@@ -2,9 +2,9 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { repoRoot } from '../../helpers/root.js';
+import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
@@ -36,15 +36,12 @@ try {
     }
   });
 
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     [buildIndexPath, '--stub-embeddings', '--stage', 'stage2', '--mode', 'code', '--repo', repoDir],
-    {
-      cwd: repoDir,
-      env,
-      encoding: 'utf8',
-      timeout: 30000
-    }
+    'build entry success no-unsettled warning',
+    repoDir,
+    env,
+    { stdio: 'pipe', timeoutMs: 30000 }
   );
 
   assert.equal(result.status, 0, `expected build entry success exit 0, stderr=${result.stderr || ''}`);

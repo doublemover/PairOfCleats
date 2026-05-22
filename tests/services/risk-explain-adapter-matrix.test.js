@@ -2,10 +2,10 @@
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { applyTestEnv, withTemporaryEnv } from '../helpers/test-env.js';
 import { ensureFixtureIndex } from '../helpers/fixture-index.js';
+import { runNode } from '../helpers/run-node.js';
 import { loadJsonArrayArtifact } from '../../src/shared/artifact-io.js';
 import { createApiRouter } from '../../tools/api/router.js';
 import { handleToolCall } from '../../tools/mcp/tools.js';
@@ -136,28 +136,34 @@ await withTemporaryEnv(env, async () => {
 
   {
     const binPath = path.join(root, 'bin', 'pairofcleats.js');
-    const result = spawnSync(
-      process.execPath,
+    const result = runNode(
       [binPath, 'risk', 'explain', '--index', codeDir, '--chunk', chunkUid, '--max', '1'],
-      { encoding: 'utf8', env }
+      'risk explain CLI text output',
+      root,
+      env,
+      { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
     );
     assert.equal(result.status, 0);
     const output = getCombinedOutput(result, { trim: true });
     assert.ok(output.includes(flow.flowId));
     assert.ok(output.includes('src/index.js'));
 
-    const filteredResult = spawnSync(
-      process.execPath,
+    const filteredResult = runNode(
       [binPath, 'risk', 'explain', '--index', codeDir, '--chunk', chunkUid, '--max', '5', '--flow-id', flow.flowId],
-      { encoding: 'utf8', env }
+      'risk explain CLI filtered output',
+      root,
+      env,
+      { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
     );
     assert.equal(filteredResult.status, 0);
     assert.ok(getCombinedOutput(filteredResult, { trim: true }).includes(flow.flowId));
 
-    const jsonResult = spawnSync(
-      process.execPath,
+    const jsonResult = runNode(
       [binPath, 'risk', 'explain', '--index', codeDir, '--chunk', chunkUid, '--max', '1', '--json', '--includePartialFlows', '--maxPartialFlows', '2'],
-      { encoding: 'utf8', env }
+      'risk explain CLI JSON output',
+      root,
+      env,
+      { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
     );
     assert.equal(jsonResult.status, 0);
     const jsonPayload = JSON.parse(getCombinedOutput(jsonResult, { trim: true }));

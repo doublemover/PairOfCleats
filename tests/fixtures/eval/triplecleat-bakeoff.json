@@ -12,14 +12,14 @@
   { "query": "python", "mode": "code", "relevant": [{ "file": "src/integrations/tooling/lsp/client.js" }] },
   { "query": "metrics", "mode": "code", "relevant": [{ "file": "src/shared/metrics/core.js" }] },
   { "query": "incremental", "mode": "code", "relevant": [{ "file": "bin/pairofcleats.js" }] },
-  { "query": "index", "mode": "prose", "relevant": [{ "file": "docs/specs/implementation-checklist.md" }] },
+  { "query": "index", "mode": "prose", "relevant": [{ "file": "docs/archived/implementation-checklist.md" }] },
   { "query": "search", "mode": "prose", "relevant": [{ "file": "docs/dependency_references/sourcebot.md" }] },
   { "query": "sqlite", "mode": "prose", "relevant": [{ "file": "docs/benchmarks/model-comparison.md" }] },
   { "query": "dictionary", "mode": "prose", "relevant": [{ "file": "docs/sqlite/index-schema.md" }] },
-  { "query": "chunk", "mode": "prose", "relevant": [{ "file": "docs/new_docs/identity-contracts.md" }] },
+  { "query": "chunk", "mode": "prose", "relevant": [{ "file": "docs/specs/identity-contracts.md" }] },
   { "query": "minhash", "mode": "prose", "relevant": [{ "file": "docs/perf/index-state-file-meta.md" }] },
   { "query": "cache", "mode": "prose", "relevant": [{ "file": "docs/specs/embeddings-cache.md" }] },
   { "query": "incremental", "mode": "prose", "relevant": [{ "file": "docs/contracts/sqlite.md" }] },
   { "query": "fts", "mode": "prose", "relevant": [{ "file": "docs/specs/prose-routing.md" }] },
-  { "query": "docstring", "mode": "prose", "relevant": [{ "file": "AINTKNOWMAP.md" }] }
+  { "query": "docstring", "mode": "prose", "relevant": [{ "file": "docs/roadmap.md" }] }
 ]

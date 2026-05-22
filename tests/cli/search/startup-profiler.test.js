@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -15,28 +15,48 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-await fsPromises.writeFile(path.join(repoRoot, 'alpha.txt'), 'alpha beta gamma\n');
+await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'export const alpha = "alpha beta gamma";\n');
 
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
   testConfig: {
     indexing: {
-      scm: { provider: 'none' }
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
+  },
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage2', '--mode', 'code', '--repo', repoRoot],
-  { cwd: repoRoot, env, stdio: 'inherit' }
+runNode(
+  [
+    path.join(root, 'build_index.js'),
+    '--stub-embeddings',
+    '--stage',
+    'stage1',
+    '--mode',
+    'code',
+    '--no-sqlite',
+    '--scm-provider',
+    'none',
+    '--repo',
+    repoRoot
+  ],
+  'search startup profiler build index',
+  repoRoot,
+  env,
+  { stdio: 'inherit' }
 );
-
-if (buildResult.status !== 0) {
-  console.error('Failed: build index');
-  process.exit(buildResult.status ?? 1);
-}
 
 const searchArgs = [
   path.join(root, 'search.js'),
@@ -52,17 +72,9 @@ const searchArgs = [
   repoRoot
 ];
 
-const result = spawnSync(process.execPath, searchArgs, {
-  cwd: repoRoot,
-  env,
-  encoding: 'utf8'
+const result = runNode(searchArgs, 'search startup profiler', repoRoot, env, {
+  stdio: 'pipe'
 });
-
-if (result.status !== 0) {
-  console.error('Failed: search startup profiler');
-  if (result.stderr) console.error(result.stderr.trim());
-  process.exit(result.status ?? 1);
-}
 
 let payload;
 try {

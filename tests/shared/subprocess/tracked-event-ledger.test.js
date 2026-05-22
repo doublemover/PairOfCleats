@@ -7,7 +7,7 @@ import {
   resetTrackedSubprocessEvents,
   snapshotTrackedSubprocessEvents,
   terminateTrackedSubprocesses
-} from '../../../src/shared/subprocess.js';
+} from '../../../src/shared/subprocess/tracking.js';
 
 const ownershipId = `event-ledger-${process.pid}-${Date.now()}`;
 

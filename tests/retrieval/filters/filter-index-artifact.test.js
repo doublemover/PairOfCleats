@@ -2,13 +2,13 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
-import { getEnvConfig } from '../../../src/shared/env.js';
+import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { buildContentConfigHash } from '../../../src/index/build/runtime/hash.js';
 import { MAX_JSON_BYTES, readJsonFile, loadJsonObjectArtifact } from '../../../src/shared/artifact-io.js';
 import { loadIndex } from '../../../src/retrieval/cli-index.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -27,17 +27,25 @@ const env = applyTestEnv({
   embeddings: 'stub',
   testConfig: {
     indexing: {
-      scm: { provider: 'none' }
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
   }
 });
 
-const buildResult = spawnSync(process.execPath, [
+const buildResult = runNode([
   path.join(root, 'build_index.js'),
   '--stub-embeddings',
   '--repo',
   repoRoot
-], { encoding: 'utf8', env });
+], 'filter index artifact build index', repoRoot, env, { stdio: 'pipe', encoding: 'utf8', allowFailure: true });
 if (buildResult.status !== 0) {
   console.error(buildResult.stderr || buildResult.stdout || 'build_index failed');
   process.exit(buildResult.status ?? 1);

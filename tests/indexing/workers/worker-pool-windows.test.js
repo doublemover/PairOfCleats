@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { normalizePostingsConfig } from '../../../src/shared/postings-config.js';
-import { createTokenizationContext, tokenizeChunkText } from '../../../src/index/build/tokenization.js';
-import { createIndexerWorkerPool, normalizeWorkerPoolConfig } from '../../../src/index/build/worker-pool.js';
+import {
+  createWorkerPoolTestResources,
+  WORKER_POOL_SAMPLE
+} from './worker-pool-fixture.js';
 
 if (process.platform !== 'win32') {
   console.log('worker pool windows test skipped (non-windows).');
@@ -17,47 +18,20 @@ await fs.mkdir(deepDir, { recursive: true });
 const originalCwd = process.cwd();
 try {
   process.chdir(deepDir);
-  const postingsConfig = normalizePostingsConfig({
-    enablePhraseNgrams: true,
-    phraseMinN: 2,
-    phraseMaxN: 3,
-    enableChargrams: true,
-    chargramMinN: 3,
-    chargramMaxN: 3
-  });
-  const dictWords = new Set(['hello', 'world', 'foo', 'bar']);
-  const dictConfig = { segmentation: 'greedy' };
-  const workerConfig = normalizeWorkerPoolConfig({
-    enabled: true,
-    maxWorkers: 1,
-    maxFileBytes: 4096,
-    quantizeBatchSize: 2,
-    taskTimeoutMs: 5000
-  }, { cpuLimit: 1 });
-
-  const workerPool = await createIndexerWorkerPool({
-    config: workerConfig,
-    dictWords,
-    dictConfig,
-    postingsConfig
-  });
+  const { syncTokens, workerPool } = await createWorkerPoolTestResources();
   if (!workerPool) {
     console.log('worker pool windows test skipped (worker pool unavailable).');
     process.exit(0);
   }
 
-  const context = createTokenizationContext({ dictWords, dictConfig, postingsConfig });
-  const sample = 'helloWorld fooBar';
-  const syncTokens = tokenizeChunkText({ text: sample, mode: 'code', ext: '.js', context });
-
   const runs = [];
   for (let i = 0; i < 50; i += 1) {
     runs.push(workerPool.tokenizeChunk({
-      text: sample,
+      text: WORKER_POOL_SAMPLE,
       mode: 'code',
       ext: '.js',
       file: `task-${i}`,
-      size: sample.length
+      size: WORKER_POOL_SAMPLE.length
     }));
   }
   const results = await Promise.all(runs);
@@ -75,19 +49,19 @@ try {
   if (workerPool.pool?.destroy) {
     await workerPool.pool.destroy();
     await workerPool.tokenizeChunk({
-      text: sample,
+      text: WORKER_POOL_SAMPLE,
       mode: 'code',
       ext: '.js',
       file: 'restart',
-      size: sample.length
+      size: WORKER_POOL_SAMPLE.length
     });
     await new Promise((resolve) => setTimeout(resolve, 1200));
     const restarted = await workerPool.tokenizeChunk({
-      text: sample,
+      text: WORKER_POOL_SAMPLE,
       mode: 'code',
       ext: '.js',
       file: 'restart-2',
-      size: sample.length
+      size: WORKER_POOL_SAMPLE.length
     });
     if (!restarted) {
       console.error('worker pool windows test failed: restart did not recover.');

@@ -15,18 +15,24 @@ const stripGeneratedFields = (payload) => {
   return clone;
 };
 
+const sharedFixture = await prepareMapBuildFixture({
+  tempName: 'map-build-contract-matrix',
+  files: [
+    ['src/one.js', 'export function one() { return 1; }\n'],
+    ['src/two.js', 'import { one } from "./one.js";\nexport function two() { return one(); }\n'],
+    [
+      'src/three.js',
+      'import { one } from "./one.js";\nimport { two } from "./two.js";\nexport function three() { return one() + two(); }\n'
+    ]
+  ],
+  buildIndexArgs: ['--stage', 'stage2', '--mode', 'code']
+});
+
 const cases = [
   {
     name: 'builds are deterministic across repeated runs',
     async run() {
-      const { repoRoot, indexDir } = await prepareMapBuildFixture({
-        tempName: 'map-build-determinism',
-        files: [
-          ['src/one.js', 'export function one() { return 1; }\n'],
-          ['src/two.js', 'import { one } from "./one.js";\nexport function two() { return one(); }\n']
-        ],
-        buildIndexArgs: ['--stage', 'stage1', '--mode', 'code']
-      });
+      const { repoRoot, indexDir } = sharedFixture;
 
       const first = stripGeneratedFields(await buildCodeMap({ repoRoot, indexDir, options: { mode: 'code' } }));
       const second = stripGeneratedFields(await buildCodeMap({ repoRoot, indexDir, options: { mode: 'code' } }));
@@ -36,14 +42,7 @@ const cases = [
   {
     name: 'streamed map output matches in-memory map output',
     async run() {
-      const { repoRoot, indexDir, tempRoot } = await prepareMapBuildFixture({
-        tempName: 'map-build-streaming',
-        files: [
-          ['src/alpha.js', 'export function alpha() { return 1; }\n'],
-          ['src/beta.js', 'import { alpha } from "./alpha.js";\nexport function beta() { return alpha(); }\n']
-        ],
-        buildIndexArgs: ['--stage', 'stage1', '--mode', 'code']
-      });
+      const { repoRoot, indexDir, tempRoot } = sharedFixture;
 
       const mapModel = await buildCodeMap({ repoRoot, indexDir, options: { mode: 'code' } });
       const outPath = path.join(tempRoot, 'map-stream.json');
@@ -66,17 +65,7 @@ const cases = [
   {
     name: 'edge aggregates stay consistent with emitted edge weights',
     async run() {
-      const { repoRoot, indexDir } = await prepareMapBuildFixture({
-        tempName: 'map-edge-aggregate-stability',
-        files: [
-          ['src/one.js', 'export function one() { return 1; }\n'],
-          ['src/two.js', 'import { one } from "./one.js";\nexport function two() { return one(); }\n'],
-          [
-            'src/three.js',
-            'import { one } from "./one.js";\nimport { two } from "./two.js";\nexport function three() { return one() + two(); }\n'
-          ]
-        ]
-      });
+      const { repoRoot, indexDir } = sharedFixture;
 
       const mapModel = await buildCodeMap({ repoRoot, indexDir, options: { mode: 'code' } });
       const aggregateMap = new Map();
@@ -124,14 +113,7 @@ const cases = [
   {
     name: 'edge guardrails fail loudly when the byte budget is exceeded',
     async run() {
-      const { repoRoot, indexDir } = await prepareMapBuildFixture({
-        tempName: 'map-build-heap-guard',
-        files: [
-          ['src/alpha.js', 'export function alpha() { return 1; }\n'],
-          ['src/beta.js', 'import { alpha } from "./alpha.js";\nexport function beta() { return alpha(); }\n']
-        ],
-        buildIndexArgs: ['--stage', 'stage2', '--mode', 'code']
-      });
+      const { repoRoot, indexDir } = sharedFixture;
 
       await assert.rejects(
         () => buildCodeMap({

@@ -2,10 +2,10 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { loadChunkMeta, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { filterChunks } from '../../../src/retrieval/output.js';
+import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -28,7 +28,8 @@ const env = applyTestEnv({
     indexing: {
       scm: { provider: 'none' },
       typeInference: false,
-      typeInferenceCrossFile: false
+      typeInferenceCrossFile: false,
+      workerPool: { enabled: false }
     },
     tooling: {
       autoEnableOnDetect: false,
@@ -57,7 +58,7 @@ await fsPromises.writeFile(
   'utf8'
 );
 
-const buildResult = spawnSync(process.execPath, [
+const buildResult = runNode([
   path.join(root, 'build_index.js'),
   '--stub-embeddings',
   '--stage',
@@ -66,7 +67,7 @@ const buildResult = spawnSync(process.execPath, [
   'code',
   '--repo',
   repoRoot
-], { encoding: 'utf8', env });
+], 'build structural filter fixture', root, env, { stdio: 'pipe', allowFailure: true });
 if (buildResult.status !== 0) {
   console.error(buildResult.stderr || buildResult.stdout || 'build_index failed');
   process.exit(buildResult.status ?? 1);

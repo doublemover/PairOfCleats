@@ -2,9 +2,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { saveQueue } from '../../../tools/service/queue.js';
 
 const root = process.cwd();
@@ -12,6 +13,8 @@ const tempRoot = resolveTestCachePath(root, 'indexer-service-load-shedding');
 const repoRoot = path.join(tempRoot, 'repo');
 const queueDir = path.join(tempRoot, 'queue');
 const configPath = path.join(tempRoot, 'service.json');
+const env = applyTestEnv({ syncProcess: false });
+const servicePath = path.join(root, 'tools', 'service', 'indexer-service.js');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(repoRoot, { recursive: true });
@@ -67,10 +70,12 @@ await saveQueue(queueDir, {
   ]
 }, 'index');
 
-const runCli = (...args) => spawnSync(
-  process.execPath,
-  [path.join(root, 'tools', 'service', 'indexer-service.js'), ...args],
-  { encoding: 'utf8' }
+const runCli = (...args) => runNode(
+  [servicePath, ...args],
+  `indexer-service ${args[0] || 'cli'}`,
+  root,
+  env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 
 const enqueue = runCli('enqueue', '--config', configPath, '--repo', repoRoot, '--mode', 'both', '--stage', 'stage3', '--json');

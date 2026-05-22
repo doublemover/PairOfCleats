@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
 import { applyTestEnv } from '../helpers/test-env.js';
+import { runNode } from '../helpers/run-node.js';
 import { createWorkspaceFixture, removeWorkspaceFixture, writeIndexArtifacts } from '../helpers/workspace-fixture.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
@@ -37,6 +37,44 @@ const hasInvalidPointerWarning = (manifest, expectedSnippet = null) => (
   ))
 );
 
+const writeRepoConfig = async (repoRoot, cacheRoot) => {
+  await fs.mkdir(repoRoot, { recursive: true });
+  await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({
+    cache: { root: cacheRoot }
+  }, null, 2), 'utf8');
+};
+
+const writeCurrentBuildMetadata = async (repoCacheRoot, payload, { raw = false } = {}) => {
+  const buildsRoot = path.join(repoCacheRoot, 'builds');
+  await fs.mkdir(buildsRoot, { recursive: true });
+  await fs.writeFile(path.join(buildsRoot, 'current.json'), raw ? payload : JSON.stringify(payload), 'utf8');
+  return buildsRoot;
+};
+
+const assertInvalidBuildPointer = (manifest, expected = {}) => {
+  const repo = manifest.repos[0];
+  if (Object.hasOwn(expected, 'currentJsonExists')) {
+    assert.equal(repo.build.currentJsonExists, expected.currentJsonExists);
+  }
+  if (Object.hasOwn(expected, 'parseOk')) {
+    assert.equal(repo.build.parseOk, expected.parseOk);
+  }
+  if (Object.hasOwn(expected, 'buildId')) {
+    assert.equal(repo.build.buildId, expected.buildId);
+  }
+  if (Object.hasOwn(expected, 'buildRoot')) {
+    assert.equal(repo.build.buildRoot, expected.buildRoot);
+  }
+  assert.equal(repo.indexes.code.availabilityReason, 'invalid-pointer');
+  assert.equal(repo.indexes.code.indexSignatureHash, null);
+  if (Object.hasOwn(expected, 'present')) {
+    assert.equal(repo.indexes.code.present, expected.present);
+  }
+  if (expected.warning === true || Object.hasOwn(expected, 'warningSnippet')) {
+    assert.equal(hasInvalidPointerWarning(manifest, expected.warningSnippet), true);
+  }
+};
+
 const runBuildPointerScenarios = async () => {
   const scenarios = [
     {
@@ -44,20 +82,17 @@ const runBuildPointerScenarios = async () => {
       async setup({ tempRoot, repoCacheRoot }) {
         const externalBuildRoot = path.join(tempRoot, 'external-build');
         await writeIndexArtifacts({ buildRoot: externalBuildRoot, compatibilityKey: 'compat-external' });
-        const buildsRoot = path.join(repoCacheRoot, 'builds');
-        await fs.mkdir(buildsRoot, { recursive: true });
-        await fs.writeFile(path.join(buildsRoot, 'current.json'), JSON.stringify({
+        await writeCurrentBuildMetadata(repoCacheRoot, {
           buildId: externalBuildRoot,
           modes: ['code']
-        }), 'utf8');
+        });
       },
       verify(manifest) {
-        const repo = manifest.repos[0];
-        assert.equal(repo.build.parseOk, true);
-        assert.equal(repo.build.buildRoot, null);
-        assert.equal(repo.indexes.code.availabilityReason, 'invalid-pointer');
-        assert.equal(repo.indexes.code.indexSignatureHash, null);
-        assert.equal(hasInvalidPointerWarning(manifest, 'buildId points outside repo cache'), true);
+        assertInvalidBuildPointer(manifest, {
+          parseOk: true,
+          buildRoot: null,
+          warningSnippet: 'buildId points outside repo cache'
+        });
       }
     },
     {
@@ -66,21 +101,19 @@ const runBuildPointerScenarios = async () => {
         const buildsRoot = path.join(repoCacheRoot, 'builds');
         const externalBuildRoot = path.join(tempRoot, 'external-build');
         await writeIndexArtifacts({ buildRoot: externalBuildRoot, compatibilityKey: 'compat-external' });
-        await fs.mkdir(buildsRoot, { recursive: true });
         const escapedBuildId = path.relative(buildsRoot, externalBuildRoot);
-        await fs.writeFile(path.join(buildsRoot, 'current.json'), JSON.stringify({
+        await writeCurrentBuildMetadata(repoCacheRoot, {
           buildId: escapedBuildId,
           modes: ['code']
-        }), 'utf8');
+        });
       },
       verify(manifest) {
-        const repo = manifest.repos[0];
-        assert.equal(repo.build.parseOk, true);
-        assert.equal(repo.build.buildRoot, null);
-        assert.equal(repo.indexes.code.availabilityReason, 'invalid-pointer');
-        assert.equal(repo.indexes.code.present, false);
-        assert.equal(repo.indexes.code.indexSignatureHash, null);
-        assert.equal(hasInvalidPointerWarning(manifest, 'buildId points outside repo cache'), true);
+        assertInvalidBuildPointer(manifest, {
+          parseOk: true,
+          buildRoot: null,
+          present: false,
+          warningSnippet: 'buildId points outside repo cache'
+        });
       }
     },
     {
@@ -90,21 +123,18 @@ const runBuildPointerScenarios = async () => {
         await writeIndexArtifacts({ buildRoot: externalBuildRoot, compatibilityKey: 'compat-external' });
         const localBuildRoot = path.join(repoCacheRoot, 'builds', 'build-external');
         await writeIndexArtifacts({ buildRoot: localBuildRoot, compatibilityKey: 'compat-local' });
-        const buildsRoot = path.join(repoCacheRoot, 'builds');
-        await fs.mkdir(buildsRoot, { recursive: true });
-        await fs.writeFile(path.join(buildsRoot, 'current.json'), JSON.stringify({
+        await writeCurrentBuildMetadata(repoCacheRoot, {
           buildId: 'build-external',
           buildRoot: externalBuildRoot
-        }), 'utf8');
+        });
       },
       verify(manifest) {
-        const repo = manifest.repos[0];
-        assert.equal(repo.build.parseOk, true);
-        assert.equal(repo.build.buildRoot, null);
-        assert.equal(repo.indexes.code.availabilityReason, 'invalid-pointer');
-        assert.equal(repo.indexes.code.indexSignatureHash, null);
-        assert.equal(repo.indexes.code.present, false);
-        assert.equal(hasInvalidPointerWarning(manifest), true);
+        assertInvalidBuildPointer(manifest, {
+          parseOk: true,
+          buildRoot: null,
+          present: false,
+          warning: true
+        });
       }
     },
     {
@@ -112,17 +142,14 @@ const runBuildPointerScenarios = async () => {
       async setup({ repoCacheRoot }) {
         const buildRoot = path.join(repoCacheRoot, 'builds', 'build-1');
         await writeIndexArtifacts({ buildRoot, compatibilityKey: 'compat-a' });
-        const buildsRoot = path.join(repoCacheRoot, 'builds');
-        await fs.mkdir(buildsRoot, { recursive: true });
-        await fs.writeFile(path.join(buildsRoot, 'current.json'), '{invalid json', 'utf8');
+        await writeCurrentBuildMetadata(repoCacheRoot, '{invalid json', { raw: true });
       },
       verify(manifest) {
-        const repo = manifest.repos[0];
-        assert.equal(repo.build.currentJsonExists, true);
-        assert.equal(repo.build.parseOk, false);
-        assert.equal(repo.build.buildId, null);
-        assert.equal(repo.indexes.code.availabilityReason, 'invalid-pointer');
-        assert.equal(repo.indexes.code.indexSignatureHash, null);
+        assertInvalidBuildPointer(manifest, {
+          currentJsonExists: true,
+          parseOk: false,
+          buildId: null
+        });
       }
     },
     {
@@ -134,11 +161,10 @@ const runBuildPointerScenarios = async () => {
         await writeIndexArtifacts({ buildRoot: canonicalBuildRoot, compatibilityKey: 'compat-builds' });
         const rogueBuildRoot = path.join(repoCacheRoot, buildId);
         await writeIndexArtifacts({ buildRoot: rogueBuildRoot, compatibilityKey: 'compat-rogue' });
-        await fs.mkdir(buildsRoot, { recursive: true });
-        await fs.writeFile(path.join(buildsRoot, 'current.json'), JSON.stringify({
+        await writeCurrentBuildMetadata(repoCacheRoot, {
           buildId,
           modes: ['code']
-        }), 'utf8');
+        });
       },
       verify(manifest, { repoCacheRoot }) {
         const repo = manifest.repos[0];
@@ -164,17 +190,7 @@ const runBuildPointerScenarios = async () => {
 };
 
 const runIndexSignatureVariantCase = async () => {
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-workspace-signature-variants-'));
-  const cacheRoot = path.join(tempRoot, 'cache');
-  const repoRoot = path.join(tempRoot, 'repo');
-  const workspacePath = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
-
-  await fs.mkdir(repoRoot, { recursive: true });
-  await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({
-    cache: { root: cacheRoot }
-  }, null, 2), 'utf8');
-
-  const repoCacheRoot = getRepoCacheRoot(toRealPathSync(repoRoot));
+  const { repoCacheRoot, workspacePath } = await createWorkspaceFixture('pairofcleats-workspace-signature-variants-');
   const buildRoot = path.join(repoCacheRoot, 'builds', 'build-1');
   const indexDir = path.join(buildRoot, 'index-code');
   await fs.mkdir(path.join(indexDir, 'chunk_meta.parts'), { recursive: true });
@@ -183,12 +199,7 @@ const runIndexSignatureVariantCase = async () => {
   await fs.writeFile(path.join(indexDir, 'chunk_meta.parts', 'chunk_meta.part-00001.jsonl'), '{"id":1}\n', 'utf8');
   await fs.writeFile(path.join(indexDir, 'token_postings.meta.json'), '{"parts":1}', 'utf8');
   await fs.writeFile(path.join(indexDir, 'token_postings.shards', 'token_postings.part-00001.jsonl'), '{"token":"a"}\n', 'utf8');
-  await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({ buildId: 'build-1', buildRoot }), 'utf8');
-  await fs.writeFile(workspacePath, `{
-    "schemaVersion": 1,
-    "cacheRoot": "./cache",
-    "repos": [{ "root": "./repo" }]
-  }`, 'utf8');
+  await writeCurrentBuildMetadata(repoCacheRoot, { buildId: 'build-1', buildRoot });
 
   const workspaceConfig = loadWorkspaceConfig(workspacePath);
   const first = await generateWorkspaceManifest(workspaceConfig, { write: false });
@@ -217,24 +228,15 @@ const runManifestDeterminismAndHashCase = async () => {
     const repoB = path.join(tempRoot, 'repo-b');
     const workspacePath = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
 
-    const writeRepoConfig = async (repoRoot) => {
-      await fs.mkdir(repoRoot, { recursive: true });
-      await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({ cache: { root: cacheRoot } }, null, 2), 'utf8');
-    };
     const writeRepoBuild = async (repoRoot, buildId) => {
       const repoCacheRoot = getRepoCacheRoot(toRealPathSync(repoRoot));
       const buildRoot = path.join(repoCacheRoot, 'builds', buildId);
-      const indexDir = path.join(buildRoot, 'index-code');
-      await fs.mkdir(indexDir, { recursive: true });
-      await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[]', 'utf8');
-      await fs.writeFile(path.join(indexDir, 'token_postings.json'), '{}', 'utf8');
-      await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({ compatibilityKey: `compat-${buildId}` }), 'utf8');
-      await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
-      await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({ buildId, buildRoot }), 'utf8');
+      await writeIndexArtifacts({ buildRoot, compatibilityKey: `compat-${buildId}` });
+      await writeCurrentBuildMetadata(repoCacheRoot, { buildId, buildRoot });
     };
 
-    await writeRepoConfig(repoA);
-    await writeRepoConfig(repoB);
+    await writeRepoConfig(repoA, cacheRoot);
+    await writeRepoConfig(repoB, cacheRoot);
     await writeRepoBuild(repoA, 'build-a');
     await writeRepoBuild(repoB, 'build-b');
     await fs.writeFile(workspacePath, `{
@@ -255,20 +257,13 @@ const runManifestDeterminismAndHashCase = async () => {
   }
 
   {
-    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-workspace-manifest-hash-'));
-    const cacheRoot = path.join(tempRoot, 'cache');
-    const repoRoot = path.join(tempRoot, 'repo');
-    const workspacePath = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
-    await fs.mkdir(repoRoot, { recursive: true });
-    await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({ cache: { root: cacheRoot } }, null, 2), 'utf8');
-    const repoCacheRoot = getRepoCacheRoot(toRealPathSync(repoRoot));
+    const { cacheRoot, repoCacheRoot, workspacePath } = await createWorkspaceFixture('pairofcleats-workspace-manifest-hash-');
     const buildRoot = path.join(repoCacheRoot, 'builds', 'build-1');
     const indexDir = path.join(buildRoot, 'index-code');
     await fs.mkdir(indexDir, { recursive: true });
     await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[]', 'utf8');
     await fs.writeFile(path.join(indexDir, 'token_postings.json'), '{"a":[1]}', 'utf8');
-    await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
-    await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({ buildId: 'build-1', buildRoot }), 'utf8');
+    await writeCurrentBuildMetadata(repoCacheRoot, { buildId: 'build-1', buildRoot });
     await fs.writeFile(workspacePath, `{
       "schemaVersion": 1,
       "cacheRoot": "./cache",
@@ -317,20 +312,12 @@ const runCatalogJsonCase = async () => {
   const expectedFederationCacheRoot = path.resolve(tempRoot, 'workspace-cache');
   const toolPath = path.join(root, 'tools', 'workspace', 'catalog.js');
 
-  await fs.mkdir(repoRoot, { recursive: true });
-  await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({
-    cache: { root: path.join(tempRoot, 'repo-cache-root') }
-  }, null, 2), 'utf8');
+  await writeRepoConfig(repoRoot, path.join(tempRoot, 'repo-cache-root'));
 
   const repoCacheRoot = getRepoCacheRoot(toRealPathSync(repoRoot));
   const buildRoot = path.join(repoCacheRoot, 'builds', 'build-1');
-  const indexDir = path.join(buildRoot, 'index-code');
-  await fs.mkdir(indexDir, { recursive: true });
-  await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[]', 'utf8');
-  await fs.writeFile(path.join(indexDir, 'token_postings.json'), '{}', 'utf8');
-  await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({ compatibilityKey: 'compat-build-1' }, null, 2), 'utf8');
-  await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
-  await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({ buildId: 'build-1', buildRoot }, null, 2), 'utf8');
+  await writeIndexArtifacts({ buildRoot, compatibilityKey: 'compat-build-1' });
+  await writeCurrentBuildMetadata(repoCacheRoot, { buildId: 'build-1', buildRoot });
 
   await fs.writeFile(workspacePath, `{
     "schemaVersion": 1,
@@ -341,10 +328,13 @@ const runCatalogJsonCase = async () => {
     ]
   }`, 'utf8');
 
-  const run = spawnSync(process.execPath, [toolPath, '--workspace', workspacePath, '--json'], {
-    encoding: 'utf8',
-    env: applyTestEnv({ syncProcess: false })
-  });
+  const run = runNode(
+    [toolPath, '--workspace', workspacePath, '--json'],
+    'workspace catalog manifest json',
+    root,
+    applyTestEnv({ syncProcess: false }),
+    { stdio: 'pipe' }
+  );
   assert.equal(run.status, 0, run.stderr || run.stdout);
   const payload = JSON.parse(run.stdout);
   assert.equal(payload.ok, true);

@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { runNode } from '../../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 import { rmDirRecursive } from '../../../helpers/temp.js';
@@ -35,8 +35,7 @@ const env = applyTestEnv({
   }
 });
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     path.join(root, 'tools', 'build/embeddings.js'),
     '--repo', repoRoot,
@@ -44,11 +43,13 @@ const result = spawnSync(
     '--stub-embeddings',
     '--index-root', explicitIndexRoot
   ],
+  'build-embeddings explicit index-root fail-fast',
+  repoRoot,
+  env,
   {
-    cwd: repoRoot,
-    env,
     encoding: 'utf8',
-    stdio: 'pipe'
+    stdio: 'pipe',
+    allowFailure: true
   }
 );
 

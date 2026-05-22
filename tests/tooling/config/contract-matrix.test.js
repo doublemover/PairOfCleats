@@ -4,11 +4,14 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { getToolingConfig, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { repoRoot } from '../../helpers/root.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
+
+const rootEnv = applyTestEnv({ syncProcess: false });
 
 {
   const repo = process.cwd();
@@ -156,15 +159,22 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
   const validatorPath = path.join(root, 'tools', 'config/validate.js');
   assert.ok(fs.existsSync(validatorPath), `Missing validator script: ${validatorPath}`);
 
-  const okResult = spawnSync(process.execPath, [validatorPath, '--config', validPath, '--json'], { encoding: 'utf8' });
+  const okResult = runNode([validatorPath, '--config', validPath, '--json'], 'config validator valid fixture', root, rootEnv, {
+    stdio: 'pipe'
+  });
   assert.equal(okResult.status, 0, okResult.stderr || okResult.stdout);
   assert.equal(JSON.parse(okResult.stdout || '{}').ok, true);
 
-  const anyOfResult = spawnSync(process.execPath, [validatorPath, '--config', validAnyOfPath, '--json'], { encoding: 'utf8' });
+  const anyOfResult = runNode([validatorPath, '--config', validAnyOfPath, '--json'], 'config validator anyOf fixture', root, rootEnv, {
+    stdio: 'pipe'
+  });
   assert.equal(anyOfResult.status, 0, anyOfResult.stderr || anyOfResult.stdout);
   assert.equal(JSON.parse(anyOfResult.stdout || '{}').ok, true);
 
-  const badResult = spawnSync(process.execPath, [validatorPath, '--config', invalidPath, '--json'], { encoding: 'utf8' });
+  const badResult = runNode([validatorPath, '--config', invalidPath, '--json'], 'config validator invalid fixture', root, rootEnv, {
+    stdio: 'pipe',
+    allowFailure: true
+  });
   assert.notEqual(badResult.status, 0);
   const badPayload = JSON.parse(badResult.stdout || '{}');
   assert.equal(badPayload.ok, false);
@@ -174,7 +184,7 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 {
   const repo = repoRoot();
   const scriptPath = path.join(repo, 'tools', 'config', 'dump.js');
-  const result = spawnSync(process.execPath, [scriptPath, '--json'], { encoding: 'utf8', cwd: repo });
+  const result = runNode([scriptPath, '--json'], 'config dump json', repo, rootEnv, { stdio: 'pipe' });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const payload = JSON.parse(result.stdout || '{}');
   assert.ok(payload.repoRoot);

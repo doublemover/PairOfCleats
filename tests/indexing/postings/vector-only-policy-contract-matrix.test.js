@@ -1,100 +1,23 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fsSync from 'node:fs';
-import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../src/contracts/index-profile.js';
-import { writeIndexArtifacts } from '../../../src/index/build/artifacts.js';
-import { buildPostings } from '../../../src/index/build/postings.js';
 import { resolveVectorOnlyShortcutPolicy, buildFeatureSettings } from '../../../src/index/build/indexer/pipeline.js';
 import { resolveChunkProcessingFeatureFlags } from '../../../src/index/build/indexer/steps/process-files.js';
 import { applyTestEnv, ensureTestingEnv } from '../../helpers/test-env.js';
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { runNode } from '../../helpers/run-node.js';
+import {
+  createVectorOnlyBuildEnv,
+  createVectorOnlyBuildRoots,
+  createVectorOnlyCleanupWriteContext,
+  hasTokenPostingsArtifacts
+} from './helpers/vector-only-cleanup-fixture.js';
 
 applyTestEnv();
 
-const root = process.cwd();
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const fixtureRoot = path.join(repoRoot, 'tests', 'fixtures', 'sample');
-const buildScript = path.join(repoRoot, 'build_index.js');
-
-const createWriteContext = async (name) => {
-  const testRoot = resolveTestCachePath(root, name);
-  const outDir = path.join(testRoot, 'index-code');
-  await fs.rm(testRoot, { recursive: true, force: true });
-  await fs.mkdir(outDir, { recursive: true });
-  const state = {
-    chunks: [],
-    scannedFilesTimes: [],
-    scannedFiles: [],
-    skippedFiles: [],
-    totalTokens: 0,
-    fileRelations: new Map(),
-    fileInfoByPath: new Map(),
-    fileDetailsByPath: new Map(),
-    chunkUidToFile: new Map(),
-    docLengths: [],
-    vfsManifestRows: [],
-    vfsManifestCollector: null,
-    fieldTokens: [],
-    importResolutionGraph: null
-  };
-  const postings = await buildPostings({
-    chunks: [],
-    df: new Map(),
-    tokenPostings: new Map(),
-    docLengths: [],
-    fieldPostings: {},
-    fieldDocLengths: {},
-    phrasePost: new Map(),
-    triPost: new Map(),
-    postingsConfig: {},
-    embeddingsEnabled: false,
-    modelId: 'stub',
-    useStubEmbeddings: true,
-    log: () => {}
-  });
-  const runWrite = async ({ profileId }) => {
-    await writeIndexArtifacts({
-      outDir,
-      mode: 'code',
-      state,
-      postings,
-      postingsConfig: {},
-      modelId: 'stub',
-      useStubEmbeddings: true,
-      dictSummary: null,
-      timing: { start: Date.now() },
-      root: testRoot,
-      userConfig: {
-        indexing: {
-          profile: profileId,
-          embeddings: { enabled: profileId === INDEX_PROFILE_VECTOR_ONLY }
-        }
-      },
-      incrementalEnabled: false,
-      fileCounts: { candidates: 0 },
-      perfProfile: null,
-      indexState: {
-        generatedAt: new Date().toISOString(),
-        mode: 'code',
-        profile: { id: profileId, schemaVersion: 1 }
-      },
-      graphRelations: null,
-      stageCheckpoints: null
-    });
-  };
-  return { testRoot, outDir, runWrite };
-};
-
-const hasSparseArtifacts = (outDir) => (
-  fsSync.existsSync(path.join(outDir, 'token_postings.json'))
-  || fsSync.existsSync(path.join(outDir, 'token_postings.json.gz'))
-  || fsSync.existsSync(path.join(outDir, 'token_postings.json.zst'))
-);
+const { buildScript, fixtureRoot } = createVectorOnlyBuildRoots('postings-vector-only-policy-contract-matrix');
 
 const cases = [
   {
@@ -143,16 +66,16 @@ const cases = [
   {
     name: 'vector-only writes omit sparse artifacts on a clean output root',
     async run() {
-      const { outDir, runWrite } = await createWriteContext('postings-vector-only-clean-write');
+      const { outDir, runWrite } = await createVectorOnlyCleanupWriteContext('postings-vector-only-clean-write');
       await runWrite({ profileId: INDEX_PROFILE_VECTOR_ONLY });
-      assert.equal(hasSparseArtifacts(outDir), false);
+      assert.equal(hasTokenPostingsArtifacts(outDir), false);
       assert.equal(fsSync.existsSync(path.join(outDir, 'token_postings.shards')), false);
     }
   },
   {
     name: 'vector-only builds fail closed when embeddings are disabled',
     async run() {
-      const cacheRoot = resolveTestCachePath(root, 'postings-vector-only-missing-embeddings');
+      const { cacheRoot } = createVectorOnlyBuildRoots('postings-vector-only-missing-embeddings');
       const testConfig = {
         indexing: {
           profile: INDEX_PROFILE_VECTOR_ONLY,
@@ -166,22 +89,15 @@ const cases = [
         sqlite: { use: false },
         lmdb: { use: false }
       };
-      const baseEnv = Object.fromEntries(
-        Object.entries(process.env).filter(([key]) => !/^pairofcleats_/i.test(key))
-      );
-      const env = {
-        ...baseEnv,
-        PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-        PAIROFCLEATS_STAGE: '',
-        PAIROFCLEATS_WORKER_POOL: 'off',
-        PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig)
-      };
+      const env = createVectorOnlyBuildEnv({ cacheRoot, testConfig, stage: '' });
       ensureTestingEnv(env);
 
-      const result = spawnSync(
-        process.execPath,
+      const result = runNode(
         [buildScript, '--repo', fixtureRoot, '--mode', 'code', '--stage', 'stage2'],
-        { cwd: fixtureRoot, env, encoding: 'utf8' }
+        'vector-only missing embeddings build index',
+        fixtureRoot,
+        env,
+        { encoding: 'utf8', stdio: 'pipe', allowFailure: true }
       );
       assert.notEqual(result.status, 0);
       const output = `${result.stderr || ''}\n${result.stdout || ''}`;

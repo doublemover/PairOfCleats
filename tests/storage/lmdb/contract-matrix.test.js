@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { Packr, Unpackr } from 'msgpackr';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { requireOrSkip } from '../../helpers/require-or-skip.js';
+import { runNode } from '../../helpers/run-node.js';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../../src/storage/lmdb/schema.js';
@@ -101,11 +101,11 @@ await fsPromises.mkdir(tempRoot, { recursive: true });
     }
   });
 
-  const runNode = (label, args) => {
-    const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });
+  const runNodeCommand = (label, args) => {
+    const result = runNode(args, label, repoRoot, env, { stdio: 'inherit', allowFailure: true });
     assert.equal(result.status, 0, `Failed: ${label}`);
   };
-  runNode('build_index', [
+  runNodeCommand('build_index', [
     path.join(root, 'build_index.js'),
     '--stub-embeddings',
     '--stage',
@@ -117,7 +117,7 @@ await fsPromises.mkdir(tempRoot, { recursive: true });
     '--repo',
     repoRoot
   ]);
-  runNode('build_lmdb_index', [path.join(root, 'tools', 'build/lmdb-index.js'), '--mode', 'code', '--repo', repoRoot]);
+  runNodeCommand('build_lmdb_index', [path.join(root, 'tools', 'build/lmdb-index.js'), '--mode', 'code', '--repo', repoRoot]);
 
   const lmdbPaths = resolveLmdbPaths(repoRoot, {});
   const dbPath = lmdbPaths.codePath;
@@ -133,10 +133,12 @@ await fsPromises.mkdir(tempRoot, { recursive: true });
   assert.ok(Number.isFinite(mapSizeEstimatedBytes) && mapSizeEstimatedBytes >= 0);
   assert.ok(mapSizeBytes >= mapSizeEstimatedBytes);
 
-  const searchResult = spawnSync(
-    process.execPath,
+  const searchResult = runNode(
     [path.join(root, 'search.js'), 'alpha', '--json', '--backend', 'lmdb', '--mode', 'code', '--no-ann', '--repo', repoRoot],
-    { encoding: 'utf8', env }
+    'lmdb search',
+    repoRoot,
+    env,
+    { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
   );
   assert.equal(searchResult.status, 0);
   const payload = JSON.parse(String(searchResult.stdout || '{}').trim());
@@ -145,10 +147,12 @@ await fsPromises.mkdir(tempRoot, { recursive: true });
   const dbWrite = open({ path: dbPath, readOnly: false });
   dbWrite.putSync(LMDB_META_KEYS.schemaVersion, encode(LMDB_SCHEMA_VERSION + 1));
   dbWrite.close();
-  const badSearch = spawnSync(
-    process.execPath,
+  const badSearch = runNode(
     [path.join(root, 'search.js'), 'alpha', '--json', '--backend', 'lmdb', '--mode', 'code', '--no-ann', '--repo', repoRoot],
-    { encoding: 'utf8', env }
+    'lmdb bad schema search',
+    repoRoot,
+    env,
+    { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
   );
   assert.notEqual(badSearch.status, 0);
   assert.ok(getCombinedOutput(badSearch).includes('schema mismatch'));

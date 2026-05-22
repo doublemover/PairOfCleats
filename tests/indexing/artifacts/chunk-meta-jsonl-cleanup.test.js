@@ -10,7 +10,7 @@ import {
 } from '../../../src/index/build/artifacts/writers/chunk-meta.js';
 import { writePiecesManifest } from '../../../src/index/build/artifacts/checksums.js';
 import { loadChunkMeta } from '../../../src/shared/artifact-io.js';
-import { toPosix } from '../../../src/shared/files.js';
+import { toPosix } from '../../../src/shared/file-paths.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 

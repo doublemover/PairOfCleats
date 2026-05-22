@@ -4,31 +4,7 @@ import assert from 'node:assert/strict';
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { handleIndexDiffsRoute } from '../../../tools/api/router/index-diffs.js';
 import { handleIndexSnapshotsRoute } from '../../../tools/api/router/index-snapshots.js';
-
-const createMockResponse = () => {
-  const state = {
-    statusCode: 0,
-    headers: {},
-    body: ''
-  };
-  return {
-    res: {
-      writeHead(statusCode, headers) {
-        state.statusCode = Number(statusCode) || 0;
-        state.headers = headers || {};
-      },
-      end(chunk = '') {
-        state.body += String(chunk || '');
-      }
-    },
-    get statusCode() {
-      return state.statusCode;
-    },
-    get json() {
-      return state.body ? JSON.parse(state.body) : null;
-    }
-  };
-};
+import { invokeRouteWithMockResponse } from './response-capture.js';
 
 const invalidRepoError = new Error('bad repo');
 invalidRepoError.code = ERROR_CODES.INVALID_REQUEST;
@@ -38,13 +14,9 @@ const oversizedBodyError = new Error('body too large');
 oversizedBodyError.code = 'ERR_BODY_TOO_LARGE';
 
 {
-  const response = createMockResponse();
-  const handled = await handleIndexDiffsRoute({
-    req: { method: 'GET' },
-    res: response.res,
+  const { handled, response } = await invokeRouteWithMockResponse(handleIndexDiffsRoute, {
     requestUrl: new URL('http://127.0.0.1/index/diffs?repo=bad'),
     pathname: '/index/diffs',
-    corsHeaders: {},
     resolveRepo: async () => {
       throw invalidRepoError;
     }
@@ -55,13 +27,9 @@ oversizedBodyError.code = 'ERR_BODY_TOO_LARGE';
 }
 
 {
-  const response = createMockResponse();
-  const handled = await handleIndexSnapshotsRoute({
-    req: { method: 'GET' },
-    res: response.res,
+  const { handled, response } = await invokeRouteWithMockResponse(handleIndexSnapshotsRoute, {
     requestUrl: new URL('http://127.0.0.1/index/snapshots?repo=forbidden'),
     pathname: '/index/snapshots',
-    corsHeaders: {},
     resolveRepo: async () => {
       throw forbiddenRepoError;
     },
@@ -73,13 +41,10 @@ oversizedBodyError.code = 'ERR_BODY_TOO_LARGE';
 }
 
 {
-  const response = createMockResponse();
-  const handled = await handleIndexSnapshotsRoute({
-    req: { method: 'POST' },
-    res: response.res,
+  const { handled, response } = await invokeRouteWithMockResponse(handleIndexSnapshotsRoute, {
+    method: 'POST',
     requestUrl: new URL('http://127.0.0.1/index/snapshots'),
     pathname: '/index/snapshots',
-    corsHeaders: {},
     resolveRepo: async () => process.cwd(),
     parseJsonBody: async () => {
       throw oversizedBodyError;

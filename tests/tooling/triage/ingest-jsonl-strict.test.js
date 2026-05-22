@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getTriageContext } from '../../helpers/triage.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const { root, repoRoot, cacheRoot, env } = await getTriageContext({
   name: 'triage-ingest-jsonl-strict'
@@ -24,16 +24,19 @@ await fsPromises.writeFile(inputPath, [
   })
 ].join('\n'));
 
-const result = spawnSync(process.execPath, [
-  path.join(root, 'tools', 'triage', 'ingest.js'),
-  '--source', 'generic',
-  '--in', inputPath,
-  '--repo', repoRoot,
-  '--strict'
-], {
-  encoding: 'utf8',
-  env
-});
+const result = runNode(
+  [
+    path.join(root, 'tools', 'triage', 'ingest.js'),
+    '--source', 'generic',
+    '--in', inputPath,
+    '--repo', repoRoot,
+    '--strict'
+  ],
+  'triage ingest strict JSONL',
+  repoRoot,
+  env,
+  { stdio: 'pipe', allowFailure: true }
+);
 
 if (result.status === 0) {
   console.error('Expected strict ingest to fail on malformed JSONL input.');

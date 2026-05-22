@@ -5,12 +5,12 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import {
   readTargetsManifestSync,
   resolveHostTargetTriple,
   resolveTargetForTriple
 } from '../../tools/tui/targets.js';
+import { runNode } from '../helpers/run-node.js';
 
 ensureTestingEnv(process.env);
 
@@ -18,14 +18,16 @@ const root = process.cwd();
 const wrapperPath = path.join(root, 'bin', 'pairofcleats-tui.js');
 const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-tui-wrapper-'));
 
-const runWrapper = () => spawnSync(process.execPath, [wrapperPath], {
-  cwd: root,
-  encoding: 'utf8',
-  env: {
+const runWrapper = () => runNode(
+  [wrapperPath],
+  'tui wrapper behavior',
+  root,
+  {
     ...process.env,
     PAIROFCLEATS_TUI_INSTALL_ROOT: tempRoot
-  }
-});
+  },
+  { stdio: 'pipe', allowFailure: true }
+);
 
 try {
   const missingManifest = runWrapper();

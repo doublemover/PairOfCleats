@@ -1,69 +1,42 @@
 #!/usr/bin/env node
 import assert from 'node:assert';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 import { buildGraphIndexCacheKey, createGraphStore } from '../../src/graph/store.js';
+import { chunkCallGraphRelations, createGraphStoreFixture } from './helpers/graph-fixtures.js';
 
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'graph-store-csr-'));
-const piecesDir = path.join(tmpDir, 'pieces');
-fs.mkdirSync(piecesDir, { recursive: true });
-
-const manifest = {
+const generatedAt = new Date().toISOString();
+const { tmpDir } = createGraphStoreFixture({
+  prefix: 'graph-store-csr-',
   compatibilityKey: 'compat-graph-store-csr',
-  pieces: [
-    { name: 'graph_relations', path: 'pieces/graph_relations.json' },
-    { name: 'graph_relations_csr', path: 'pieces/graph_relations.csr.json' }
-  ]
-};
-
-fs.writeFileSync(path.join(piecesDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
-
-fs.writeFileSync(
-  path.join(piecesDir, 'graph_relations.json'),
-  JSON.stringify(
-    {
-      version: 2,
-      generatedAt: new Date().toISOString(),
-      callGraph: {
-        nodeCount: 2,
-        edgeCount: 1,
-        nodes: [
-          { id: 'chunk-a', out: ['chunk-b'], in: [] },
-          { id: 'chunk-b', out: [], in: ['chunk-a'] }
-        ]
-      },
-      usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [] },
-      importGraph: { nodeCount: 0, edgeCount: 0, nodes: [] }
-    },
-    null,
-    2
-  )
-);
-
-fs.writeFileSync(
-  path.join(piecesDir, 'graph_relations.csr.json'),
-  JSON.stringify(
-    {
-      version: 2,
-      generatedAt: new Date().toISOString(),
-      graphs: {
-        callGraph: {
-          nodeCount: 2,
-          edgeCount: 1,
-          nodes: ['chunk-a', 'chunk-b'],
-          offsets: [0, 1, 1],
-          edges: [1]
+  graphRelations: chunkCallGraphRelations({ version: 2, generatedAt }),
+  extraPieces: [{ name: 'graph_relations_csr', path: 'pieces/graph_relations.csr.json' }],
+  writeExtraPieces({ piecesDir }) {
+    fs.writeFileSync(
+      path.join(piecesDir, 'graph_relations.csr.json'),
+      JSON.stringify(
+        {
+          version: 2,
+          generatedAt,
+          graphs: {
+            callGraph: {
+              nodeCount: 2,
+              edgeCount: 1,
+              nodes: ['chunk-a', 'chunk-b'],
+              offsets: [0, 1, 1],
+              edges: [1]
+            },
+            usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [], offsets: [0], edges: [] },
+            importGraph: { nodeCount: 0, edgeCount: 0, nodes: [], offsets: [0], edges: [] }
+          }
         },
-        usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [], offsets: [0], edges: [] },
-        importGraph: { nodeCount: 0, edgeCount: 0, nodes: [], offsets: [0], edges: [] }
-      }
-    },
-    null,
-    2
-  )
-);
+        null,
+        2
+      )
+    );
+  }
+});
 
 const store = createGraphStore({ indexDir: tmpDir, strict: true });
 assert.ok(store.hasArtifact('graph_relations_csr'), 'expected graph_relations_csr to be present');

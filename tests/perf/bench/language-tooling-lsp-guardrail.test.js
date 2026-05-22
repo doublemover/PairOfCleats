@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testLogs', `bench-tooling-guardrail-${process.pid}-${Date.now()}`);
@@ -12,10 +12,12 @@ const scriptPath = path.join(root, 'tools', 'bench', 'language', 'tooling-lsp-gu
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
-const runGuardrail = (reportPath, jsonPath, extraArgs = []) => spawnSync(
-  process.execPath,
+const runGuardrail = (reportPath, jsonPath, extraArgs = []) => runNode(
   [scriptPath, '--report', reportPath, '--json', jsonPath, ...extraArgs],
-  { cwd: root, env: applyTestEnv({ syncProcess: false }), encoding: 'utf8' }
+  'bench language tooling lsp guardrail',
+  root,
+  applyTestEnv({ syncProcess: false }),
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 
 const benchReportPath = path.join(tempRoot, 'bench-report.json');

@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { registerChildProcessForCleanup } from '../../src/shared/subprocess.js';
+import { registerChildProcessForCleanup } from '../../src/shared/subprocess/tracking.js';
 
 const DEFAULT_POLL_MS = 20;
 

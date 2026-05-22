@@ -16,33 +16,67 @@ import {
 } from '../../../src/index/build/imports.js';
 import { mergeImportGraphWarnings } from '../../../src/index/build/indexer/steps/relations/import-scan.js';
 import { sha1 } from '../../../src/shared/hash.js';
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import {
+  createImportResolutionCacheStats,
+  createImportResolutionTempRoot
+} from '../../helpers/import-resolution-fixture.js';
 
-const root = process.cwd();
+const buildManifestFiles = (fileHashes) => (
+  Object.fromEntries(Array.from(fileHashes.entries()).map(([rel, hash]) => [rel, { hash }]))
+);
 
-const createTempRoot = async (name) => {
-  const tempRoot = resolveTestCachePath(root, name);
-  await fs.rm(tempRoot, { recursive: true, force: true });
-  await fs.mkdir(tempRoot, { recursive: true });
-  return tempRoot;
+const createImportRefreshFixture = async (name) => {
+  const tempRoot = await createImportResolutionTempRoot(name);
+  const srcRoot = path.join(tempRoot, 'src');
+  const incrementalDir = path.join(tempRoot, '.incremental');
+  const fileHashes = new Map();
+  const writeFile = async (rel, content) => {
+    const abs = path.join(tempRoot, rel);
+    await fs.writeFile(abs, content, 'utf8');
+    fileHashes.set(rel.replace(/\\/g, '/'), sha1(content));
+  };
+  const createEntry = (rel) => ({
+    abs: path.join(tempRoot, rel),
+    rel
+  });
+  const createIncrementalState = () => ({
+    enabled: true,
+    incrementalDir,
+    manifest: {
+      files: buildManifestFiles(fileHashes)
+    }
+  });
+  const refreshIncrementalManifest = (incrementalState) => {
+    incrementalState.manifest.files = buildManifestFiles(fileHashes);
+  };
+
+  await fs.mkdir(srcRoot, { recursive: true });
+  await fs.mkdir(incrementalDir, { recursive: true });
+  return {
+    tempRoot,
+    srcRoot,
+    incrementalDir,
+    fileHashes,
+    writeFile,
+    createEntry,
+    createIncrementalState,
+    refreshIncrementalManifest,
+    manifestFiles: () => buildManifestFiles(fileHashes)
+  };
 };
 
 const cases = [
   {
     name: 'resolved links refresh when a previously-resolved target disappears',
     async run() {
-      const tempRoot = await createTempRoot('imports-graph-resolved-refresh');
-      const srcRoot = path.join(tempRoot, 'src');
-      const incrementalDir = path.join(tempRoot, '.incremental');
-      await fs.mkdir(srcRoot, { recursive: true });
-      await fs.mkdir(incrementalDir, { recursive: true });
-
-      const fileHashes = new Map();
-      const writeFile = async (rel, content) => {
-        const abs = path.join(tempRoot, rel);
-        await fs.writeFile(abs, content, 'utf8');
-        fileHashes.set(rel.replace(/\\/g, '/'), sha1(content));
-      };
+      const {
+        tempRoot,
+        fileHashes,
+        writeFile,
+        createEntry,
+        createIncrementalState,
+        refreshIncrementalManifest
+      } = await createImportRefreshFixture('imports-graph-resolved-refresh');
 
       await writeFile('src/main.js', "import './util';\n");
       await writeFile('src/util.js', 'export const ok = true;\n');
@@ -51,13 +85,7 @@ const cases = [
       const importsByFile = {
         'src/main.js': ['./util']
       };
-      const incrementalState = {
-        enabled: true,
-        incrementalDir,
-        manifest: {
-          files: Object.fromEntries(Array.from(fileHashes.entries()).map(([rel, hash]) => [rel, { hash }]))
-        }
-      };
+      const incrementalState = createIncrementalState();
       const runResolution = async (entries) => {
         const { cache, cachePath } = await loadImportResolutionCache({ incrementalState });
         const relations = new Map([['src/main.js', { imports: ['./util'] }]]);
@@ -76,18 +104,18 @@ const cases = [
 
       assert.deepEqual(
         await runResolution([
-          { abs: path.join(srcRoot, 'main.js'), rel: 'src/main.js' },
-          { abs: path.join(srcRoot, 'util.js'), rel: 'src/util.js' }
+          createEntry('src/main.js'),
+          createEntry('src/util.js')
         ]),
         ['src/util.js']
       );
 
-      await fs.rm(path.join(srcRoot, 'util.js'));
+      await fs.rm(path.join(tempRoot, 'src/util.js'));
       fileHashes.delete('src/util.js');
-      incrementalState.manifest.files = Object.fromEntries(Array.from(fileHashes.entries()).map(([rel, hash]) => [rel, { hash }]));
+      refreshIncrementalManifest(incrementalState);
 
       assert.deepEqual(
-        await runResolution([{ abs: path.join(srcRoot, 'main.js'), rel: 'src/main.js' }]),
+        await runResolution([createEntry('src/main.js')]),
         []
       );
     }
@@ -95,53 +123,25 @@ const cases = [
   {
     name: 'unresolved taxonomy diagnostics refresh when missing files appear',
     async run() {
-      const tempRoot = await createTempRoot('imports-graph-unresolved-refresh');
-      const srcRoot = path.join(tempRoot, 'src');
-      const incrementalDir = path.join(tempRoot, '.incremental');
-      await fs.mkdir(srcRoot, { recursive: true });
-      await fs.mkdir(incrementalDir, { recursive: true });
-
-      const fileHashes = new Map();
-      const writeFile = async (rel, content) => {
-        const abs = path.join(tempRoot, rel);
-        await fs.writeFile(abs, content, 'utf8');
-        fileHashes.set(rel.replace(/\\/g, '/'), sha1(content));
-      };
+      const {
+        tempRoot,
+        fileHashes,
+        writeFile,
+        createEntry,
+        createIncrementalState,
+        refreshIncrementalManifest
+      } = await createImportRefreshFixture('imports-graph-unresolved-refresh');
 
       await writeFile('src/main.js', "import './missing';\n");
       await writeFile('package.json', '{"name":"import-graph-unresolved-refresh"}\n');
 
-      const incrementalState = {
-        enabled: true,
-        incrementalDir,
-        manifest: {
-          files: Object.fromEntries(Array.from(fileHashes.entries()).map(([rel, hash]) => [rel, { hash }]))
-        }
-      };
+      const incrementalState = createIncrementalState();
       const importsByFile = {
         'src/main.js': ['./missing']
       };
       const runResolution = async (entries) => {
         const { cache, cachePath } = await loadImportResolutionCache({ incrementalState });
-        const cacheStats = {
-          files: 0,
-          filesHashed: 0,
-          filesReused: 0,
-          filesInvalidated: 0,
-          specs: 0,
-          specsReused: 0,
-          specsComputed: 0,
-          packageInvalidated: false,
-          fileSetInvalidated: false,
-          lookupReused: false,
-          lookupInvalidated: false,
-          invalidationReasons: Object.create(null),
-          fileSetDelta: { added: 0, removed: 0 },
-          filesNeighborhoodInvalidated: 0,
-          staleEdgeInvalidated: 0,
-          staleEdgeChecks: 0,
-          staleEdgeBudgetExhausted: false
-        };
+        const cacheStats = createImportResolutionCacheStats();
         applyImportResolutionCacheFileSetDiffInvalidation({ cache, entries, cacheStats });
         const relations = new Map([['src/main.js', { imports: ['./missing'] }]]);
         const result = resolveImportLinks({
@@ -168,16 +168,16 @@ const cases = [
         };
       };
 
-      const first = await runResolution([{ abs: path.join(srcRoot, 'main.js'), rel: 'src/main.js' }]);
+      const first = await runResolution([createEntry('src/main.js')]);
       assert.deepEqual(first.links, []);
       assert.equal(first.diagnostics?.unresolvedTrend?.current?.total, 1);
 
       await writeFile('src/missing.js', 'export const ok = true;\n');
-      incrementalState.manifest.files = Object.fromEntries(Array.from(fileHashes.entries()).map(([rel, hash]) => [rel, { hash }]));
+      refreshIncrementalManifest(incrementalState);
 
       const second = await runResolution([
-        { abs: path.join(srcRoot, 'main.js'), rel: 'src/main.js' },
-        { abs: path.join(srcRoot, 'missing.js'), rel: 'src/missing.js' }
+        createEntry('src/main.js'),
+        createEntry('src/missing.js')
       ]);
       assert.deepEqual(second.links, ['src/missing.js']);
       assert.equal(second.diagnostics?.unresolvedTrend?.current?.total, 0);
@@ -233,26 +233,18 @@ const cases = [
   {
     name: 'resolver budget diagnostics track exhaustion deltas by stage',
     async run() {
-      const tempRoot = await createTempRoot('imports-graph-budget-diagnostics');
-      const srcRoot = path.join(tempRoot, 'src');
-      const incrementalDir = path.join(tempRoot, '.incremental');
-      await fs.mkdir(srcRoot, { recursive: true });
-      await fs.mkdir(incrementalDir, { recursive: true });
-      await fs.writeFile(path.join(srcRoot, 'main.js'), "import './missing';\n", 'utf8');
-      await fs.writeFile(path.join(tempRoot, 'package.json'), '{"name":"import-graph-budget-diagnostics"}\n', 'utf8');
+      const {
+        tempRoot,
+        fileHashes,
+        writeFile,
+        createEntry,
+        createIncrementalState
+      } = await createImportRefreshFixture('imports-graph-budget-diagnostics');
+      await writeFile('src/main.js', "import './missing';\n");
+      await writeFile('package.json', '{"name":"import-graph-budget-diagnostics"}\n');
 
-      const fileHashes = new Map([
-        ['src/main.js', sha1("import './missing';\n")],
-        ['package.json', sha1('{"name":"import-graph-budget-diagnostics"}\n')]
-      ]);
-      const incrementalState = {
-        enabled: true,
-        incrementalDir,
-        manifest: {
-          files: Object.fromEntries(Array.from(fileHashes.entries()).map(([rel, hash]) => [rel, { hash }]))
-        }
-      };
-      const entries = [{ abs: path.join(srcRoot, 'main.js'), rel: 'src/main.js' }];
+      const incrementalState = createIncrementalState();
+      const entries = [createEntry('src/main.js')];
       const importsByFile = { 'src/main.js': ['./missing'] };
       const runResolution = async (resolverPlugins) => {
         const { cache, cachePath } = await loadImportResolutionCache({ incrementalState });

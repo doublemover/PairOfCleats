@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { writeJsonArrayFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonArrayFile, writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -159,7 +159,7 @@ export const runGraphBenchCompare = ({
   depth = 2
 }) => {
   const env = applyTestEnv({ syncProcess: false });
-  const result = spawnSync(process.execPath, [
+  const result = runNode([
     benchScript,
     '--mode',
     'compare',
@@ -171,7 +171,7 @@ export const runGraphBenchCompare = ({
     String(iterations),
     '--depth',
     String(depth)
-  ], { cwd: root, env, encoding: 'utf8' });
+  ], 'graph bench compare', root, env, { stdio: 'pipe', encoding: 'utf8', allowFailure: true });
 
   if (result.status !== 0) {
     const stdout = result.stdout || '';

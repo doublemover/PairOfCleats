@@ -5,8 +5,8 @@ import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { replaceFile as replaceJsonFile } from '../../../src/shared/json-stream.js';
-import { replaceFile as replacePersistentFile, replaceFileSync } from '../../../src/shared/io/atomic-persistence.js';
+import { replaceFile as replaceJsonFile } from '../../../src/shared/json-stream/atomic.js';
+import { replaceFile as replacePersistentFile, replaceFileSync } from '../../../src/shared/io/replace-file.js';
 
 const cases = [
   {

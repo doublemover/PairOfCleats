@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { buildRepoInventory } from '../../../tools/docs/repo-inventory.js';
+import { writeStableGeneratedJsonReport } from '../../../tools/shared/generated-report.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -13,36 +14,14 @@ await fs.mkdir(tempRoot, { recursive: true });
 
 const outputJsonPath = path.join(tempRoot, 'repo-inventory.json');
 
-const writeStableJsonReport = async (outputPath, report) => {
-  let existingText = null;
-  let existingPayload = null;
-  try {
-    existingText = await fs.readFile(outputPath, 'utf8');
-    existingPayload = JSON.parse(existingText);
-  } catch {}
-
-  const normalizedExisting = existingPayload && typeof existingPayload === 'object'
-    ? { ...existingPayload, generatedAt: null }
-    : existingPayload;
-  const normalizedNext = { ...report, generatedAt: null };
-  const nextReport = typeof existingPayload?.generatedAt === 'string'
-    && JSON.stringify(normalizedExisting) === JSON.stringify(normalizedNext)
-    ? { ...report, generatedAt: existingPayload.generatedAt }
-    : report;
-  const nextText = `${JSON.stringify(nextReport, null, 2)}\n`;
-  if (existingText !== nextText) {
-    await fs.writeFile(outputPath, nextText, 'utf8');
-  }
-};
-
-await writeStableJsonReport(outputJsonPath, await buildRepoInventory(root));
+await writeStableGeneratedJsonReport(outputJsonPath, await buildRepoInventory(root));
 
 const firstJsonText = await fs.readFile(outputJsonPath, 'utf8');
 const firstJson = JSON.parse(firstJsonText);
 
 await new Promise((resolve) => setTimeout(resolve, 20));
 
-await writeStableJsonReport(outputJsonPath, await buildRepoInventory(root));
+await writeStableGeneratedJsonReport(outputJsonPath, await buildRepoInventory(root));
 
 const secondJsonText = await fs.readFile(outputJsonPath, 'utf8');
 const secondJson = JSON.parse(secondJsonText);

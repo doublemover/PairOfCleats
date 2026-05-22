@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -30,8 +30,7 @@ const env = applyTestEnv({
   }
 });
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     path.join(root, 'build_index.js'),
     '--repo',
@@ -46,7 +45,10 @@ const result = spawnSync(
     'jsonl',
     '--verbose'
   ],
-  { encoding: 'utf8', env }
+  'shard progress determinism build index',
+  repoRoot,
+  env,
+  { encoding: 'utf8', stdio: 'pipe', allowFailure: true }
 );
 
 if (result.status !== 0) {

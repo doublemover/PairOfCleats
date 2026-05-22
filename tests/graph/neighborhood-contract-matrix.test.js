@@ -3,9 +3,11 @@ import assert from 'node:assert';
 
 import { buildGraphNeighborhood } from '../../src/graph/neighborhood.js';
 import { buildGraphIndex, buildGraphIndexCacheKey, createGraphStore } from '../../src/graph/store.js';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import {
+  chunkCallGraphRelations,
+  createGraphStoreFixture,
+  emptyGraphRelations
+} from './helpers/graph-fixtures.js';
 
 {
   const buildGraph = (neighbors) => ({
@@ -59,29 +61,10 @@ import path from 'node:path';
 }
 
 {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'graph-index-cache-'));
-  const piecesDir = path.join(tmpDir, 'pieces');
-  fs.mkdirSync(piecesDir, { recursive: true });
-  const manifest = {
-    compatibilityKey: 'compat-graph-index-cache',
-    pieces: [
-      { name: 'graph_relations', path: 'pieces/graph_relations.json' },
-      { name: 'symbol_edges', path: 'pieces/symbol_edges.json' },
-      { name: 'call_sites', path: 'pieces/call_sites.json' }
-    ]
-  };
-  fs.writeFileSync(path.join(piecesDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
-  fs.writeFileSync(
-    path.join(piecesDir, 'graph_relations.json'),
-    JSON.stringify({
-      version: 1,
-      callGraph: { nodeCount: 0, edgeCount: 0, nodes: [] },
-      usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [] },
-      importGraph: { nodeCount: 0, edgeCount: 0, nodes: [] }
-    }, null, 2)
-  );
-  fs.writeFileSync(path.join(piecesDir, 'symbol_edges.json'), JSON.stringify([], null, 2));
-  fs.writeFileSync(path.join(piecesDir, 'call_sites.json'), JSON.stringify([], null, 2));
+  const { tmpDir } = createGraphStoreFixture({
+    prefix: 'graph-index-cache-',
+    compatibilityKey: 'compat-graph-index-cache'
+  });
 
   const store = createGraphStore({ indexDir: tmpDir, strict: true });
   const cacheKey = buildGraphIndexCacheKey({
@@ -94,19 +77,7 @@ import path from 'node:path';
 }
 
 {
-  const baseGraph = {
-    version: 1,
-    callGraph: {
-      nodeCount: 2,
-      edgeCount: 1,
-      nodes: [
-        { id: 'chunk-a', out: ['chunk-b'], in: [] },
-        { id: 'chunk-b', out: [], in: ['chunk-a'] }
-      ]
-    },
-    usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [] },
-    importGraph: { nodeCount: 0, edgeCount: 0, nodes: [] }
-  };
+  const baseGraph = chunkCallGraphRelations();
   const graphForIndex = JSON.parse(JSON.stringify(baseGraph));
   const graphForCall = JSON.parse(JSON.stringify(baseGraph));
   graphForCall.callGraph.nodes.push({ id: 'chunk-c', out: [], in: [] });
@@ -125,16 +96,13 @@ import path from 'node:path';
 }
 
 {
-  const graphRelations = {
-    version: 1,
+  const graphRelations = emptyGraphRelations({
     callGraph: {
       nodeCount: 1,
       edgeCount: 0,
       nodes: [{ id: 'chunk-a', out: [], in: [] }]
-    },
-    usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [] },
-    importGraph: { nodeCount: 0, edgeCount: 0, nodes: [] }
-  };
+    }
+  });
   const graphIndex = buildGraphIndex({ graphRelations, repoRoot: 'C:/repo-a' });
   const result = buildGraphNeighborhood({
     seed: { type: 'chunk', chunkUid: 'chunk-a' },

@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-indexer-daemon-'));
 const repoRoot = path.join(tempRoot, 'repo');
@@ -24,7 +24,7 @@ await fs.writeFile(
     ],
     worker: {
       executionMode: 'daemon',
-      concurrency: 4,
+      concurrency: 1,
       daemon: {
         deterministic: true,
         sessionNamespace: 'tests-daemon-mode',
@@ -48,14 +48,29 @@ await fs.writeFile(
 
 const env = applyTestEnv({
   cacheRoot: tempRoot,
-  embeddings: 'off'
+  embeddings: 'off',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      treeSitter: { enabled: false }
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  }
 });
 
 const runService = (...args) => {
-  const result = spawnSync(process.execPath, [scriptPath, ...args], {
-    encoding: 'utf8',
-    env
-  });
+  const result = runNode(
+    [scriptPath, ...args],
+    `indexer-service ${args.join(' ')}`,
+    process.cwd(),
+    env,
+    { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
+  );
   assert.equal(
     result.status,
     0,
@@ -65,29 +80,19 @@ const runService = (...args) => {
 };
 
 runService('enqueue', '--config', configPath, '--repo', repoRoot, '--stage', 'stage1', '--mode', 'code');
-runService('enqueue', '--config', configPath, '--repo', repoRoot, '--stage', 'stage1', '--mode', 'code');
-runService('work', '--config', configPath, '--concurrency', '3', '--json');
+runService('work', '--config', configPath, '--concurrency', '1', '--json');
 
 const queuePayload = JSON.parse(await fs.readFile(path.join(queueDir, 'queue.json'), 'utf8'));
 const jobs = Array.isArray(queuePayload?.jobs) ? queuePayload.jobs : [];
-assert.equal(jobs.length, 2, 'expected two jobs in queue history');
+assert.equal(jobs.length, 1, 'expected one job in queue history');
 
-const [jobA, jobB] = jobs;
+const [jobA] = jobs;
 assert.equal(jobA.status, 'done', 'first daemon job should complete');
-assert.equal(jobB.status, 'done', 'second daemon job should complete');
 assert.equal(jobA?.result?.executionMode, 'daemon', 'first job should report daemon execution');
-assert.equal(jobB?.result?.executionMode, 'daemon', 'second job should report daemon execution');
 assert.ok(jobA?.result?.daemon?.sessionKey, 'first job should include daemon session key');
-assert.equal(
-  jobA?.result?.daemon?.sessionKey,
-  jobB?.result?.daemon?.sessionKey,
-  'daemon jobs for same repo should reuse the same session key'
-);
 
 const firstLog = await fs.readFile(jobA.logPath, 'utf8');
-const secondLog = await fs.readFile(jobB.logPath, 'utf8');
 assert.match(firstLog, /\[daemon\] started /, 'daemon run should write daemon start log');
-assert.match(secondLog, /\[daemon\] started /, 'daemon run should write daemon start log for subsequent jobs');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 

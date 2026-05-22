@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const script = path.join(root, 'tools', 'bench', 'index', 'chargram-postings.js');
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [script, '--vocab', '2000', '--docs', '1000', '--postings', '4', '--spill', '500', '--rolling-hash', '--mode', 'compare'],
-  { cwd: root, encoding: 'utf8' }
+  'chargram postings bench contract',
+  root,
+  process.env,
+  { stdio: 'pipe', allowFailure: true }
 );
 
 if (result.status !== 0) {

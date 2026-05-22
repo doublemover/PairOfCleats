@@ -79,6 +79,29 @@ const cases = [
     }
   },
   {
+    name: 'unit suffix tests are discoverable by runner selector',
+    async run() {
+      const result = spawnSync(process.execPath, [
+        runnerPath,
+        '--lane', 'unit',
+        '--match', 'unit/retrieval-cache-key-asof',
+        '--list',
+        '--json'
+      ], { encoding: 'utf8' });
+      if (result.status !== 0) {
+        throw new Error(result.stderr?.trim() || 'unit suffix discovery failed');
+      }
+      const payload = JSON.parse(result.stdout || '{}');
+      const test = payload.tests?.find((entry) => entry.id === 'unit/retrieval-cache-key-asof');
+      if (!test) {
+        throw new Error('expected .unit.js test to be discoverable as unit/retrieval-cache-key-asof');
+      }
+      if (test.lane !== 'unit' || test.laneSource !== 'rule') {
+        throw new Error('expected .unit.js test to be assigned to the unit lane by rule');
+      }
+    }
+  },
+  {
     name: 'redo targets are retried once and reported cleanly',
     async run() {
       if (process.platform !== 'win32') {

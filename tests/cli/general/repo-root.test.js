@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { ensureGitAvailableOrSkip, initGitRepo, runGit } from '../../helpers/git-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { prepareTestCacheDir } from '../../helpers/test-cache.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const { dir: tempRoot } = await prepareTestCacheDir('repo-root');
@@ -57,8 +57,7 @@ const env = applyTestEnv({
   syncProcess: false
 });
 
-const buildResult = spawnSync(
-  process.execPath,
+runNode(
   [
     path.join(root, 'build_index.js'),
     '--stub-embeddings',
@@ -69,25 +68,20 @@ const buildResult = spawnSync(
     '--scm-provider',
     'none'
   ],
-  { cwd: repoRoot, env, stdio: 'inherit' }
+  'build_index repo-root fixture',
+  repoRoot,
+  env
 );
-if (buildResult.status !== 0) {
-  console.error('Failed: build_index');
-  process.exit(buildResult.status ?? 1);
-}
 
 const searchPath = path.join(root, 'search.js');
 function runSearch(cwd) {
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     [searchPath, 'return', '--mode', 'code', '--json', '--no-ann'],
-    { cwd, env, encoding: 'utf8' }
+    `search repo-root fixture cwd=${cwd}`,
+    cwd,
+    env,
+    { stdio: 'pipe' }
   );
-  if (result.status !== 0) {
-    console.error(`Failed: search (cwd=${cwd})`);
-    console.error(result.stderr || result.stdout || '');
-    process.exit(result.status ?? 1);
-  }
   return JSON.parse(result.stdout || '{}');
 }
 

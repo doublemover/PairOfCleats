@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { loadPiecesManifestPieces, resolvePiecesManifestPath } from '../../helpers/pieces-manifest.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -22,7 +22,8 @@ const env = applyTestEnv({
       typeInference: false,
       typeInferenceCrossFile: false,
       riskAnalysis: false,
-      riskAnalysisCrossFile: false
+      riskAnalysisCrossFile: false,
+      workerPool: { enabled: false }
     },
     tooling: {
       autoEnableOnDetect: false,
@@ -40,7 +41,7 @@ await fsPromises.writeFile(
 );
 
 const run = (args, label) => {
-  const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, encoding: 'utf8' });
+  const result = runNode(args, label, repoRoot, env, { stdio: 'pipe', allowFailure: true });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     if (result.stderr) console.error(result.stderr.trim());

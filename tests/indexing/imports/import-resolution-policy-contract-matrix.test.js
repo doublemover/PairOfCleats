@@ -13,16 +13,7 @@ import {
   sortImportScanItems
 } from '../../../src/index/build/imports.js';
 import { collectLanguageImports } from '../../../src/index/language-registry.js';
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
-
-const root = process.cwd();
-
-const createTempRoot = async (name) => {
-  const tempRoot = resolveTestCachePath(root, name);
-  await fs.rm(tempRoot, { recursive: true, force: true });
-  await fs.mkdir(tempRoot, { recursive: true });
-  return tempRoot;
-};
+import { createImportResolutionTempRoot } from '../../helpers/import-resolution-fixture.js';
 
 const cases = [
   {
@@ -179,7 +170,7 @@ const cases = [
   {
     name: 'filesystem probe exhaustion reports budgeted unresolved samples',
     async run() {
-      const tempRoot = await createTempRoot('imports-contract-budget-exhaustion');
+      const tempRoot = await createImportResolutionTempRoot('imports-contract-budget-exhaustion');
       const srcRoot = path.join(tempRoot, 'src');
       await fs.mkdir(srcRoot, { recursive: true });
       await fs.writeFile(
@@ -234,7 +225,7 @@ const cases = [
   {
     name: 'fallback depth budgets are reported independently from filesystem probe budgets',
     async run() {
-      const tempRoot = await createTempRoot('imports-contract-fallback-depth');
+      const tempRoot = await createImportResolutionTempRoot('imports-contract-fallback-depth');
       const nestedRoot = path.join(tempRoot, 'src', 'nested');
       await fs.mkdir(nestedRoot, { recursive: true });
       await fs.writeFile(path.join(nestedRoot, 'main.js'), "import '../../../missing';\n", 'utf8');
@@ -280,7 +271,7 @@ const cases = [
   {
     name: 'fs-exists index exact hits bypass exhausted filesystem probe budgets',
     async run() {
-      const tempRoot = await createTempRoot('imports-contract-fs-index-shortcircuit');
+      const tempRoot = await createImportResolutionTempRoot('imports-contract-fs-index-shortcircuit');
       const srcRoot = path.join(tempRoot, 'src');
       const depsRoot = path.join(tempRoot, 'deps');
       await fs.mkdir(srcRoot, { recursive: true });
@@ -335,7 +326,7 @@ const cases = [
   {
     name: 'stage pipeline counters reflect successful and unresolved build-system passes',
     async run() {
-      const tempRoot = await createTempRoot('imports-contract-stage-pipeline');
+      const tempRoot = await createImportResolutionTempRoot('imports-contract-stage-pipeline');
       await fs.mkdir(path.join(tempRoot, 'go'), { recursive: true });
       await fs.writeFile(path.join(tempRoot, 'MODULE.bazel'), 'module(name = "demo")\n', 'utf8');
       await fs.writeFile(path.join(tempRoot, 'go', 'extensions.bzl'), 'def go_deps():\n  pass\n', 'utf8');

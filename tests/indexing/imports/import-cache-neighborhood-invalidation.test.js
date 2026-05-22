@@ -5,31 +5,12 @@ import path from 'node:path';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
 import { applyImportResolutionCacheFileSetDiffInvalidation } from '../../../src/index/build/import-resolution-cache.js';
 
+import { createImportResolutionCacheStats } from '../../helpers/import-resolution-fixture.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'import-cache-neighborhood-invalidation');
 const srcRoot = path.join(tempRoot, 'src');
-
-const makeStats = () => ({
-  files: 0,
-  filesHashed: 0,
-  filesReused: 0,
-  filesInvalidated: 0,
-  specs: 0,
-  specsReused: 0,
-  specsComputed: 0,
-  packageInvalidated: false,
-  fileSetInvalidated: false,
-  lookupReused: false,
-  lookupInvalidated: false,
-  invalidationReasons: Object.create(null),
-  fileSetDelta: { added: 0, removed: 0 },
-  filesNeighborhoodInvalidated: 0,
-  staleEdgeInvalidated: 0,
-  staleEdgeChecks: 0,
-  staleEdgeBudgetExhausted: false
-});
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(srcRoot, { recursive: true });
@@ -69,7 +50,7 @@ const runResolution = ({
   fileRelations,
   maxStaleEdgeChecks = null
 }) => {
-  const cacheStats = makeStats();
+  const cacheStats = createImportResolutionCacheStats();
   applyImportResolutionCacheFileSetDiffInvalidation({
     cache,
     entries,

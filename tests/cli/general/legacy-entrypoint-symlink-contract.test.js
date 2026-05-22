@@ -2,9 +2,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { getCombinedOutput } from '../../helpers/stdio.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'legacy-entrypoint-symlink-contract');
@@ -36,21 +36,25 @@ const env = { ...process.env };
 delete env.PAIROFCLEATS_TESTING;
 delete env.PAIROFCLEATS_SUPPRESS_LEGACY_ENTRYPOINT_WARNING;
 
-const searchResult = spawnSync(process.execPath, [searchLink, '--help'], {
-  cwd: root,
-  encoding: 'utf8',
-  env
-});
+const searchResult = runNode(
+  [searchLink, '--help'],
+  'symlinked search.js help',
+  root,
+  env,
+  { stdio: 'pipe' }
+);
 assert.equal(searchResult.status, 0, `symlinked search.js wrapper failed: ${getCombinedOutput(searchResult, { trim: true })}`);
 const searchOutput = getCombinedOutput(searchResult);
 assert.match(searchOutput, /\[deprecated\] search\.js/, 'expected symlinked search wrapper to execute legacy warning path');
 assert.match(searchOutput, /Usage:/, 'expected symlinked search wrapper to execute CLI help');
 
-const buildResult = spawnSync(process.execPath, [buildLink, '--config-dump', '--json'], {
-  cwd: root,
-  encoding: 'utf8',
-  env
-});
+const buildResult = runNode(
+  [buildLink, '--config-dump', '--json'],
+  'symlinked build_index.js config dump',
+  root,
+  env,
+  { stdio: 'pipe' }
+);
 assert.equal(buildResult.status, 0, `symlinked build_index.js wrapper failed: ${getCombinedOutput(buildResult, { trim: true })}`);
 assert.equal(typeof JSON.parse(buildResult.stdout || '{}'), 'object', 'expected symlinked build wrapper to emit config dump JSON');
 

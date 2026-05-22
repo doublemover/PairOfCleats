@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 
-import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { prepareArtifactCleanup } from '../../../src/index/build/artifacts-write/family-dispatch.js';
 import {
   resolveArtifactPublicationPath,

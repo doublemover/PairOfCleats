@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const checker = path.join(root, 'tools', 'tooling', 'python-check.js');
+const env = applyTestEnv({ syncProcess: false });
 
-const okRun = spawnSync(process.execPath, [checker, '--json'], {
-  cwd: root,
-  encoding: 'utf8'
+const okRun = runNode([checker, '--json'], 'python-check normal environment', root, env, {
+  stdio: 'pipe'
 });
 if (okRun.status !== 0) {
   console.error('python-toolchain-policy test failed: expected python-check to succeed in normal environment');
@@ -16,16 +18,23 @@ if (okRun.status !== 0) {
   process.exit(okRun.status ?? 1);
 }
 
-const missingRun = spawnSync(process.execPath, [checker, '--json'], {
-  cwd: root,
-  encoding: 'utf8',
-  env: {
-    ...process.env,
-    PATH: '',
-    Path: '',
-    PYTHON: ''
+const missingRun = runNode(
+  [checker, '--json'],
+  'python-check missing toolchain',
+  root,
+  applyTestEnv({
+    extraEnv: {
+      PATH: '',
+      Path: '',
+      PYTHON: ''
+    },
+    syncProcess: false
+  }),
+  {
+    stdio: 'pipe',
+    allowFailure: true
   }
-});
+);
 if (missingRun.status === 0) {
   console.error('python-toolchain-policy test failed: expected missing-toolchain run to fail');
   process.exit(1);

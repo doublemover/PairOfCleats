@@ -4,10 +4,10 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { ensureTestingEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
-ensureTestingEnv(process.env);
+const env = applyTestEnv({ syncProcess: false });
 
 const root = process.cwd();
 const scriptPath = path.join(root, 'tools', 'bench', 'language-summarize.js');
@@ -113,8 +113,7 @@ await fsPromises.writeFile(
   'utf8'
 );
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     scriptPath,
     '--results',
@@ -129,7 +128,10 @@ const result = spawnSync(
     outMdPath,
     '--json'
   ],
-  { encoding: 'utf8' }
+  'bench language summarize',
+  root,
+  env,
+  { stdio: 'pipe' }
 );
 
 assert.equal(result.status, 0, result.stderr || result.stdout);

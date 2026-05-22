@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveLspWorkspaceRouting } from '../../../src/index/tooling/lsp-workspace-routing.js';
+import { normalizeWorkspaceRootRel } from '../../../src/index/tooling/workspace-model.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -14,6 +15,11 @@ await fs.mkdir(path.join(tempRoot, 'nested', 'project', 'src'), { recursive: tru
 await fs.writeFile(path.join(tempRoot, 'svc-a', 'app.csproj'), '<Project />\n', 'utf8');
 await fs.writeFile(path.join(tempRoot, 'svc-b', 'app.csproj'), '<Project />\n', 'utf8');
 await fs.writeFile(path.join(tempRoot, 'nested', 'project', 'app.csproj'), '<Project />\n', 'utf8');
+
+assert.equal(normalizeWorkspaceRootRel(''), '.', 'expected empty workspace root to normalize to repo root');
+assert.equal(normalizeWorkspaceRootRel('.'), '.', 'expected dot workspace root to stay repo root');
+assert.equal(normalizeWorkspaceRootRel('\\nested\\project\\'), 'nested/project', 'expected backslash roots to normalize');
+assert.equal(normalizeWorkspaceRootRel('/nested//project/'), 'nested/project', 'expected slashes to normalize');
 
 const multiRoot = resolveLspWorkspaceRouting({
   repoRoot: tempRoot,

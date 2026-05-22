@@ -13,9 +13,15 @@ const directExecutionTargets = [
   'tools/workspace/build.js',
   'tools/build/embeddings.js',
   'tools/tooling/doctor.js',
+  'tools/tooling/install-lua-language-server.js',
+  'tools/ci/run-suite.js',
+  'tools/config/contract-doc.js',
   'tools/index/validate.js',
   'tools/index/reconcile-identity.js',
+  'tools/eval/risk-pack.js',
+  'tools/mcp/server-sdk.js',
   'tools/reports/diagnostics-report.js',
+  'tools/bench/query-generator.js',
   'tools/bench/graph-caps-harness.js',
   'tools/bench/graph/neighborhood-index-dir.js',
   'tools/bench/graph/context-pack-latency.js',
@@ -35,6 +41,24 @@ const runtimeBootstrapTargets = [
   'tools/bench/language-matrix.js',
   'tools/bench/embeddings/model-bakeoff.js'
 ];
+
+const scanJsFiles = (relativeDir) => {
+  const absoluteDir = path.join(root, relativeDir);
+  const entries = fs.readdirSync(absoluteDir, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const relativePath = path.join(relativeDir, entry.name);
+    if (entry.isDirectory()) {
+      if (['.testLogs', '.testCache', 'fixtures', 'suggest-tests'].includes(entry.name)) continue;
+      files.push(...scanJsFiles(relativePath));
+      continue;
+    }
+    if (entry.isFile() && entry.name.endsWith('.js')) {
+      files.push(relativePath.split(path.sep).join('/'));
+    }
+  }
+  return files;
+};
 
 for (const relativePath of directExecutionTargets) {
   const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
@@ -56,6 +80,24 @@ for (const relativePath of runtimeBootstrapTargets) {
     source,
     /\bbootstrapRuntime\s*\(/,
     `${relativePath} should use bootstrapRuntime for repo/runtime env shaping`
+  );
+}
+
+{
+  const rootEnvImports = [];
+  const rootEnvImportPattern = /(?:\bfrom\s+|\bimport\s+|\bimport\s*\(\s*)['"][^'"]*shared\/env\.js['"]/;
+  for (const scanRoot of ['bin', 'src', 'tools', 'tests']) {
+    for (const relativePath of scanJsFiles(scanRoot)) {
+      const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
+      if (rootEnvImportPattern.test(source)) {
+        rootEnvImports.push(relativePath);
+      }
+    }
+  }
+  assert.deepEqual(
+    rootEnvImports,
+    [],
+    'internal callers should import src/shared/env leaf modules instead of the root facade'
   );
 }
 

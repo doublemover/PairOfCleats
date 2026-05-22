@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
-import { createFileProcessor } from '../../../src/index/build/file-processor.js';
+import {
+  createFileProcessorForTest,
+  createScannedFileEntry
+} from './file-processor-fixture.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -54,59 +57,27 @@ const astroText = [
 ].join('\n');
 await fs.writeFile(astroPath, astroText, 'utf8');
 
-const { processFile } = createFileProcessor({
+const { processFile } = createFileProcessorForTest({
   root: repoRoot,
-  mode: 'code',
-  dictConfig: {},
-  dictWords: new Set(),
   languageOptions: {
     skipUnknownLanguages: false,
-    astDataflowEnabled: false,
-    controlFlowEnabled: false,
     treeSitter: { enabled: false }
   },
-  postingsConfig: {},
-  segmentsConfig: {},
-  commentsConfig: {},
-  contextWin: 0,
-  incrementalState: {
-    enabled: false,
-    manifest: { files: {} },
-    bundleDir: '',
-    bundleFormat: 'json'
-  },
-  getChunkEmbedding: async () => null,
-  getChunkEmbeddings: async () => null,
-  typeInferenceEnabled: false,
-  riskAnalysisEnabled: false,
-  riskConfig: {},
-  relationsEnabled: true,
-  seenFiles: new Set(),
-  gitBlameEnabled: false,
-  lintEnabled: false,
-  complexityEnabled: false,
-  structuralMatches: null,
-  cacheConfig: {},
-  cacheReporter: null,
-  queues: null,
-  workerPool: null,
-  crashLogger: null,
-  skippedFiles: [],
-  embeddingEnabled: false,
-  tokenizeEnabled: false,
-  toolInfo: { tool: 'pairofcleats', version: '0.0.0-test' },
-  tokenizationStats: null
+  overrides: {
+    relationsEnabled: true,
+    tokenizeEnabled: false,
+    toolInfo: { tool: 'pairofcleats', version: '0.0.0-test' }
+  }
 });
 
 const processAndCollectImports = async (absPath, relPath, text) => {
   const stat = await fs.stat(absPath);
-  const fileEntry = {
+  const fileEntry = createScannedFileEntry({
     abs: absPath,
     rel: relPath,
     stat,
-    lines: text.split('\n').length,
-    scan: { checkedBinary: true, checkedMinified: true }
-  };
+    lines: text.split('\n').length
+  });
   const out = await processFile(fileEntry, 0);
   assert.ok(out?.chunks?.length, `expected chunks for ${relPath}`);
   const imports = new Set();

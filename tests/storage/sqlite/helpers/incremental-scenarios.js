@@ -1,8 +1,8 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { setupIncrementalRepo, ensureSqlitePaths } from '../../../helpers/sqlite-incremental.js';
+import { runNode } from '../../../helpers/run-node.js';
 import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 
 let DatabaseCtor = null;
@@ -149,10 +149,12 @@ export const runRepoSearchJson = ({
     args.push('--mode', mode);
   }
   args.push('--repo', repoRoot);
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     args,
-    { cwd: repoRoot, env, encoding: 'utf8' }
+    'sqlite incremental repo search',
+    repoRoot,
+    env,
+    { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
   );
   return {
     ...result,

@@ -1,68 +1,22 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
-import { cleanup, root } from './smoke-utils.js';
+import { cleanup, createSmokeIndexFixture, root, runSmokeNode } from './smoke-utils.js';
 import { runSqliteBuild } from '../helpers/sqlite-builder.js';
-import { applyTestEnv } from '../helpers/test-env.js';
-import { resolveTestCachePath } from '../helpers/test-cache.js';
 
-const tempRoot = resolveTestCachePath(root, 'smoke-sqlite');
-const repoRoot = path.join(tempRoot, 'repo');
-const cacheRoot = path.join(tempRoot, 'cache');
-
-const env = applyTestEnv({
-  cacheRoot,
-  embeddings: 'stub',
-  testConfig: {
-    indexing: {
-      typeInference: false,
-      typeInferenceCrossFile: false,
-      riskAnalysis: false,
-      riskAnalysisCrossFile: false,
-      scm: { provider: 'none' }
-    },
-    tooling: {
-      autoEnableOnDetect: false,
-      lsp: { enabled: false }
-    }
-  }
-});
-
-const fail = (message, exitCode = 1) => {
-  const error = new Error(message);
-  error.exitCode = exitCode;
-  throw error;
-};
-
-const run = (label, args, options = {}) => {
-  const result = spawnSync(process.execPath, args, {
-    cwd: repoRoot,
-    env,
-    encoding: 'utf8',
-    ...options
-  });
-  if (result.status !== 0) {
-    const stderr = result.stderr?.trim();
-    const stdout = result.stdout?.trim();
-    if (stderr) console.error(stderr);
-    if (stdout) console.error(stdout);
-    fail(`Failed: ${label}`, result.status ?? 1);
-  }
-  return result;
-};
+let tempRoot = null;
 
 let failure = null;
 try {
-  await cleanup([tempRoot]);
-  await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
-  await fsPromises.mkdir(cacheRoot, { recursive: true });
-  await fsPromises.writeFile(
-    path.join(repoRoot, 'src', 'alpha.js'),
-    'export const alpha = () => "sqlite_smoke_token";\n'
-  );
+  const fixture = await createSmokeIndexFixture({
+    name: 'smoke-sqlite',
+    token: 'sqlite_smoke_token'
+  });
+  tempRoot = fixture.tempRoot;
+  const { env, repoRoot } = fixture;
+  const run = (label, args, options = {}) =>
+    runSmokeNode(label, args, { cwd: repoRoot, env, options });
 
   run('build_index', [
     path.join(root, 'build_index.js'),
@@ -97,7 +51,9 @@ try {
   console.error(err?.message || err);
   failure = err;
 }
-await cleanup([tempRoot]);
+if (tempRoot) {
+  await cleanup([tempRoot]);
+}
 
 if (failure) {
   process.exit(failure.exitCode ?? 1);

@@ -1,22 +1,24 @@
 #!/usr/bin/env node
 import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
+import { runNode } from '../../helpers/run-node.js';
 
-applyTestEnv();
+const env = applyTestEnv({ syncProcess: false });
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const searchScript = path.join(ROOT, 'search.js');
 
 const repoDir = await makeTempDir('pairofcleats-search-help-');
 try {
-  const helpResult = spawnSync(
-    process.execPath,
+  const helpResult = runNode(
     [searchScript, '--help', '--repo', repoDir],
-    { encoding: 'utf8' }
+    'search startup fastpath help',
+    ROOT,
+    env,
+    { stdio: 'pipe' }
   );
   assert.equal(helpResult.status, 0, 'expected search --help to exit 0');
   assert.ok(
@@ -24,10 +26,12 @@ try {
     'expected help output'
   );
 
-  const versionResult = spawnSync(
-    process.execPath,
+  const versionResult = runNode(
     [searchScript, '--version'],
-    { encoding: 'utf8' }
+    'search startup fastpath version',
+    ROOT,
+    env,
+    { stdio: 'pipe' }
   );
   assert.equal(versionResult.status, 0, 'expected search --version to exit 0');
   assert.ok(versionResult.stdout.trim().length > 0, 'expected version output');

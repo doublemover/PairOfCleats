@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 
 const maxOutputBytes = 512;
 const script = `process.stdout.write('a'.repeat(${maxOutputBytes * 3}));`;

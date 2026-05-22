@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode as runNodeHelper } from '../helpers/run-node.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { cleanup, root } from './smoke-utils.js';
 
@@ -27,7 +27,11 @@ const env = applyTestEnv({
       autoEnableOnDetect: false,
       lsp: { enabled: false }
     }
-  }
+  },
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  },
+  syncProcess: false
 });
 
 const fail = (message, exitCode = 1) => {
@@ -37,7 +41,18 @@ const fail = (message, exitCode = 1) => {
 };
 
 const runNode = (label, args, options = {}) => {
-  const result = spawnSync(process.execPath, args, { env, encoding: 'utf8', ...options });
+  const {
+    cwd = root,
+    stdio = 'pipe',
+    timeout,
+    ...spawnOptions
+  } = options;
+  const result = runNodeHelper(args, label, cwd, env, {
+    stdio,
+    timeoutMs: timeout,
+    allowFailure: true,
+    spawnOptions
+  });
   if (result.status !== 0) {
     const stderr = result.stderr ? result.stderr.trim() : '';
     if (stderr) console.error(stderr);
@@ -56,10 +71,20 @@ try {
     'export function returnSmokeValue() { return "return smoke token"; }\n'
   );
 
-  const build = spawnSync(
-    process.execPath,
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
-    { env, stdio: 'inherit' }
+  const build = runNode(
+    'build index',
+    [
+      path.join(root, 'build_index.js'),
+      '--stub-embeddings',
+      '--stage',
+      'stage1',
+      '--mode',
+      'code',
+      '--repo',
+      repoRoot,
+      '--no-sqlite'
+    ],
+    { stdio: 'inherit' }
   );
   if (build.status !== 0) {
     fail('smoke retrieval failed: build_index failed', build.status ?? 1);

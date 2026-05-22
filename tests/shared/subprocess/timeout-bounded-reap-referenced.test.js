@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 
 const script = `
-import { spawnSubprocess } from './src/shared/subprocess.js';
+import { spawnSubprocess } from './src/shared/subprocess/runner.js';
 const startedAt = Date.now();
 try {
   await spawnSubprocess(

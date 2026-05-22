@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { loadJsonArrayArtifactRows } from '../../../src/shared/artifact-io.js';
-import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
+import { writeJsonLinesFile } from '../../../src/shared/json-stream/jsonl-write.js';
 import {
   prepareArtifactIoTestDir,
   writePiecesManifest

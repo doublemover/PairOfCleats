@@ -8,7 +8,7 @@ import PQueue from 'p-queue';
 
 import { scanImports } from '../../../src/index/build/imports.js';
 import { isAbortError } from '../../../src/shared/abort.js';
-import { spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { resolveSilentStdio } from '../../helpers/test-env.js';
 
 const makeFixtureRepo = async (count = 80) => {

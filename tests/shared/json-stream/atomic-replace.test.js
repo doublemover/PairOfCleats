@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { replaceFile, createTempPath } from '../../../src/shared/json-stream.js';
+import { replaceFile, createTempPath } from '../../../src/shared/json-stream/atomic.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 

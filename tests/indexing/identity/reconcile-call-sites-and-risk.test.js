@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
+import { writeJsonLinesFile } from '../../../src/shared/json-stream/jsonl-write.js';
 import { reconcileIndexIdentity } from '../../../src/index/identity/reconcile.js';
 import { createBaseIndex } from '../validate/helpers.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';

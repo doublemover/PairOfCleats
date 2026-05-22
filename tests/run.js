@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { isAbsolutePathNative } from '../src/shared/files.js';
+import { isAbsolutePathNative } from '../src/shared/file-paths.js';
 import { stableStringify } from '../src/shared/stable-json.js';
 import { normalizePathForRepo } from '../src/shared/path-normalize.js';
 import {

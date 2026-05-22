@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
 import { assembleCompositeContextPack } from '../../src/context-pack/assemble.js';
 import { validateCompositeContextPack } from '../../src/contracts/validators/analysis.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';

@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { buildAutoPolicy } from '../../../src/shared/auto-policy.js';
+import { buildAutoPolicy } from '../../../src/shared/auto-policy/build.js';
 import { validateConfig } from '../../../src/config/validate.js';
-import { resolveRuntimeEnvelope } from '../../../src/shared/runtime-envelope.js';
+import { resolveRuntimeEnvelope } from '../../../src/shared/runtime-envelope/resolve.js';
 import { loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 

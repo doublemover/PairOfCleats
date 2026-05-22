@@ -305,9 +305,40 @@ const renderCapturedOutput = ({ context, result, mode }) => {
   consoleStream.write(`${applyLineBackground('', { useColor, columns: consoleStream.columns })}\n`);
 };
 
+const completeReportedRender = ({ context, result, render }) => {
+  if (context.initReporter) {
+    context.initReporter.complete(result.id, render);
+  } else {
+    render();
+  }
+};
+
+const renderFailureResultBlock = ({ context, result, line }) => {
+  const { consoleStream, useColor, captureOutput, root } = context;
+  consoleStream.write(`${applyLineBackground(line, {
+    useColor,
+    columns: consoleStream.columns,
+    bg: ANSI.bgFailLine
+  })}\n`);
+  let wroteLog = false;
+  if (result.logs && result.logs.length) {
+    const logLine = formatLogLine(result.logs[result.logs.length - 1], { useColor, root });
+    consoleStream.write(`${applyLineBackground(logLine, {
+      useColor,
+      columns: consoleStream.columns,
+      bg: ANSI.bgLogLine
+    })}\n`);
+    wroteLog = true;
+  }
+  if (captureOutput && !context.argv.json) {
+    renderCapturedOutput({ context, result, mode: 'failure' });
+  } else if (wroteLog) {
+    consoleStream.write(`${applyLineBackground('', { useColor, columns: consoleStream.columns })}\n`);
+  }
+};
+
 export const reportTestResult = ({ context, result }) => {
   const { consoleStream, useColor, showFailures, showPass, showSkip, captureOutput, root } = context;
-  const initReporter = context.initReporter;
   if (result.timedOut && showFailures) {
     const duration = formatDurationBadge(result.durationMs, {
       useColor,
@@ -322,32 +353,9 @@ export const reportTestResult = ({ context, result }) => {
     const timeoutClass = String(result.timeoutClass || '').trim();
     const timeoutLine = `${label}${gap}${duration} ${result.id} - timeout${timeoutClass ? ` (${timeoutClass})` : ''}`;
     const render = () => {
-      consoleStream.write(`${applyLineBackground(timeoutLine, {
-        useColor,
-        columns: consoleStream.columns,
-        bg: ANSI.bgFailLine
-      })}\n`);
-      let wroteLog = false;
-      if (result.logs && result.logs.length) {
-        const logLine = formatLogLine(result.logs[result.logs.length - 1], { useColor, root });
-        consoleStream.write(`${applyLineBackground(logLine, {
-          useColor,
-          columns: consoleStream.columns,
-          bg: ANSI.bgLogLine
-        })}\n`);
-        wroteLog = true;
-      }
-      if (captureOutput && !context.argv.json) {
-        renderCapturedOutput({ context, result, mode: 'failure' });
-      } else if (wroteLog) {
-        consoleStream.write(`${applyLineBackground('', { useColor, columns: consoleStream.columns })}\n`);
-      }
+      renderFailureResultBlock({ context, result, line: timeoutLine });
     };
-    if (initReporter) {
-      initReporter.complete(result.id, render);
-    } else {
-      render();
-    }
+    completeReportedRender({ context, result, render });
   } else if (result.status === 'redo' && showFailures) {
     const duration = formatDurationBadge(result.durationMs, { useColor });
     const detail = formatFailure(result);
@@ -362,11 +370,7 @@ export const reportTestResult = ({ context, result }) => {
         columns: consoleStream.columns
       })}\n`);
     };
-    if (initReporter) {
-      initReporter.complete(result.id, render);
-    } else {
-      render();
-    }
+    completeReportedRender({ context, result, render });
   } else if (result.status === 'failed' && showFailures) {
     const duration = formatDurationBadge(result.durationMs, { useColor, bg: ANSI.bgFailLine });
     const detail = formatFailure(result);
@@ -375,32 +379,9 @@ export const reportTestResult = ({ context, result }) => {
     const gap = ' ';
     const failLine = `${label}${gap}${duration} ${result.id} ${detail}${attemptInfo}`;
     const render = () => {
-      consoleStream.write(`${applyLineBackground(failLine, {
-        useColor,
-        columns: consoleStream.columns,
-        bg: ANSI.bgFailLine
-      })}\n`);
-      let wroteLog = false;
-      if (result.logs && result.logs.length) {
-        const logLine = formatLogLine(result.logs[result.logs.length - 1], { useColor, root });
-        consoleStream.write(`${applyLineBackground(logLine, {
-          useColor,
-          columns: consoleStream.columns,
-          bg: ANSI.bgLogLine
-        })}\n`);
-        wroteLog = true;
-      }
-      if (captureOutput && !context.argv.json) {
-        renderCapturedOutput({ context, result, mode: 'failure' });
-      } else if (wroteLog) {
-        consoleStream.write(`${applyLineBackground('', { useColor, columns: consoleStream.columns })}\n`);
-      }
+      renderFailureResultBlock({ context, result, line: failLine });
     };
-    if (initReporter) {
-      initReporter.complete(result.id, render);
-    } else {
-      render();
-    }
+    completeReportedRender({ context, result, render });
   } else if (result.status === 'passed' && showPass) {
     const duration = formatDurationBadge(result.durationMs, { useColor });
     const label = formatLabel('PASS', { useColor, mode: 'pass' });
@@ -413,11 +394,7 @@ export const reportTestResult = ({ context, result }) => {
         renderCapturedOutput({ context, result, mode: 'success' });
       }
     };
-    if (initReporter) {
-      initReporter.complete(result.id, render);
-    } else {
-      render();
-    }
+    completeReportedRender({ context, result, render });
   } else if (result.status === 'skipped' && showSkip) {
     const reason = formatSkipReason(result.skipReason, { useColor });
     const label = formatLabel('SKIP', { useColor, mode: 'skip' });
@@ -428,11 +405,7 @@ export const reportTestResult = ({ context, result }) => {
     const render = () => {
       consoleStream.write(`${applyLineBackground(skipLine, { useColor, columns: consoleStream.columns })}\n`);
     };
-    if (initReporter) {
-      initReporter.complete(result.id, render);
-    } else {
-      render();
-    }
+    completeReportedRender({ context, result, render });
   }
 };
 

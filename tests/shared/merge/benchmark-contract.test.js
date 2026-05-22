@@ -1,19 +1,17 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const script = path.join(root, 'tools', 'bench', 'merge', 'merge-core-throughput.js');
-const result = spawnSync(process.execPath, [script, '--runs', '4', '--run-size', '50'], {
-  cwd: root,
-  encoding: 'utf8'
-});
-
-if (result.status !== 0) {
-  console.error(result.stdout || '');
-  console.error(result.stderr || '');
-  process.exit(1);
-}
+const result = runNode(
+  [script, '--runs', '4', '--run-size', '50'],
+  'merge benchmark contract',
+  root,
+  applyTestEnv({ syncProcess: false }),
+  { stdio: 'pipe' }
+);
 
 const output = `${result.stdout || ''}${result.stderr || ''}`;
 assert.ok(output.includes('[bench] baseline'), 'missing baseline output');

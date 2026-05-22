@@ -3,11 +3,11 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { MAX_JSON_BYTES, loadChunkMeta, loadTokenPostings } from '../../../src/shared/artifact-io.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -36,8 +36,7 @@ const runBuild = (cacheRoot, label, testConfig) => {
       PAIROFCLEATS_WORKER_POOL: 'off'
     }
   });
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     [
       path.join(root, 'build_index.js'),
       '--stub-embeddings',
@@ -50,7 +49,10 @@ const runBuild = (cacheRoot, label, testConfig) => {
       '--repo',
       repoRoot
     ],
-    { cwd: repoRoot, env, stdio: 'inherit' }
+    `shard merge ${label}`,
+    repoRoot,
+    env,
+    { stdio: 'inherit', allowFailure: true }
   );
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);

@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 import { resolveHostTargetTriple, readTargetsManifestSync, resolveTargetForTriple } from '../../../tools/tui/targets.js';
 
 const root = process.cwd();
@@ -54,13 +54,13 @@ const env = applyTestEnv({
   }
 });
 
-const installResult = spawnSync(
-  process.execPath,
+const installResult = runNode(
   [binPath, 'tui', 'install', '--target', triple, '--install-root', installRoot, '--json'],
+  'pairofcleats tui install',
+  root,
+  env,
   {
-    cwd: root,
-    encoding: 'utf8',
-    env
+    stdio: 'pipe'
   }
 );
 assert.equal(installResult.status, 0, installResult.stderr || installResult.stdout || 'expected tui install to succeed');
@@ -70,13 +70,13 @@ assert.equal(installPayload.built, true, 'expected tui install to auto-build the
 assert.equal(fs.existsSync(path.join(distDir, target.artifactName)), true, 'expected tui install to stage the target artifact');
 assert.equal(fs.existsSync(path.join(installRoot, triple, 'bin', target.artifactName)), true, 'expected tui install to place the built artifact');
 
-const explicitBuildResult = spawnSync(
-  process.execPath,
+const explicitBuildResult = runNode(
   [binPath, 'tui', 'build', '--target', triple, '--smoke'],
+  'pairofcleats tui build',
+  root,
+  env,
   {
-    cwd: root,
-    encoding: 'utf8',
-    env
+    stdio: 'pipe'
   }
 );
 assert.equal(explicitBuildResult.status, 0, explicitBuildResult.stderr || explicitBuildResult.stdout || 'expected explicit tui build to succeed');

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { getEnvConfig } from '../../src/shared/env.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
 
 const config = getEnvConfig({
   PAIROFCLEATS_CACHE_REBUILD: 'TRUE',

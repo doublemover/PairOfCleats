@@ -53,7 +53,7 @@ const env = applyTestEnv({
   }
 });
 
-runExtractedProseBuild({ root, repoRoot, env });
+runExtractedProseBuild({ root, repoRoot, env, stage: 'stage2' });
 
 const { state, extractionReport: report } = await readExtractedProseArtifacts(repoRoot);
 assert.ok(state?.indexDir, 'expected extracted-prose index dir');

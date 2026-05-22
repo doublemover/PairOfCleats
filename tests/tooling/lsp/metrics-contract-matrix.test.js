@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { EventEmitter } from 'node:events';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { PassThrough } from 'node:stream';
 
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 import { resolveLspServerPresetByKey } from '../../../src/index/tooling/lsp-presets.js';
@@ -18,30 +16,7 @@ import { createLspClient } from '../../../src/integrations/tooling/lsp/client.js
 import { createToolingGuard } from '../../../src/integrations/tooling/providers/shared.js';
 import { createFramedJsonRpcParser, getJsonRpcWriter } from '../../../src/shared/jsonrpc.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
-
-class FakeChildProcess extends EventEmitter {
-  constructor() {
-    super();
-    this.pid = 0;
-    this.killed = false;
-    this.exitCode = null;
-    this.stdin = new PassThrough();
-    this.stdout = new PassThrough();
-    this.stderr = new PassThrough();
-  }
-
-  kill(signal = null) {
-    this.killed = true;
-    this.exitCode = this.exitCode === null ? 0 : this.exitCode;
-    queueMicrotask(() => {
-      this.emit('exit', this.exitCode, signal);
-      this.emit('close', this.exitCode, signal);
-    });
-    return true;
-  }
-
-  unref() {}
-}
+import { FakeChildProcess } from './helpers/fake-child-process.js';
 
 const root = process.cwd();
 const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');

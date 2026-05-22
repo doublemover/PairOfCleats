@@ -6,6 +6,22 @@ import { ANN_PROVIDER_IDS } from '../../../src/retrieval/ann/types.js';
 import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
 import { buildAnnPipelineFixture } from '../pipeline/helpers/ann-scenarios.js';
 
+const withMockedNow = async (action) => {
+  const originalNow = Date.now;
+  let now = originalNow();
+  Date.now = () => now;
+  try {
+    return await action({
+      advance: (ms) => {
+        now += ms;
+        return now;
+      }
+    });
+  } finally {
+    Date.now = originalNow;
+  }
+};
+
 const cases = [
   {
     name: 'empty ANN success resets retry cadence after transient failures',
@@ -27,16 +43,13 @@ const cases = [
         createAnnProviders: () => new Map([[ANN_PROVIDER_IDS.DENSE, provider]])
       });
       const pipeline = createSearchPipeline(context);
-      const originalNow = Date.now;
-      let now = originalNow();
-      Date.now = () => now;
-      try {
+      await withMockedNow(async (clock) => {
         const run1 = await pipeline(idx, 'code', [0.1, 0.2]);
         const run2 = await pipeline(idx, 'code', [0.1, 0.2]);
-        now += 1100;
+        clock.advance(1100);
         const run3 = await pipeline(idx, 'code', [0.1, 0.2]);
         const run4 = await pipeline(idx, 'code', [0.1, 0.2]);
-        now += 1100;
+        clock.advance(1100);
         const run5 = await pipeline(idx, 'code', [0.1, 0.2]);
         assert.ok(Array.isArray(run1) && run1.length > 0);
         assert.ok(Array.isArray(run2) && run2.length > 0);
@@ -45,9 +58,7 @@ const cases = [
         assert.ok(Array.isArray(run5) && run5.length > 0);
         assert.equal(queryCalls, 4);
         assert.ok(run5.some((entry) => entry.annSource === ANN_PROVIDER_IDS.DENSE));
-      } finally {
-        Date.now = originalNow;
-      }
+      });
     }
   },
   {
@@ -71,13 +82,10 @@ const cases = [
         createAnnProviders: () => new Map([[ANN_PROVIDER_IDS.DENSE, provider]])
       });
       const pipeline = createSearchPipeline(context);
-      const originalNow = Date.now;
-      let now = originalNow();
-      Date.now = () => now;
-      try {
+      await withMockedNow(async (clock) => {
         const run1 = await pipeline(idx, 'code', [0.1, 0.2]);
         const run2 = await pipeline(idx, 'code', [0.1, 0.2]);
-        now += 1500;
+        clock.advance(1500);
         const run3 = await pipeline(idx, 'code', [0.1, 0.2]);
         assert.ok(Array.isArray(run1) && run1.length > 0);
         assert.ok(Array.isArray(run2) && run2.length > 0);
@@ -88,9 +96,7 @@ const cases = [
         assert.ok(run3.some((entry) => entry.annType === 'vector'));
         const annStages = stageTracker.stages.filter((entry) => entry.stage === 'ann');
         assert.ok(annStages.length >= 3);
-      } finally {
-        Date.now = originalNow;
-      }
+      });
     }
   },
   {
@@ -168,21 +174,16 @@ const cases = [
       context.annBackend = 'auto';
       context.annAdaptiveProviders = true;
       const pipeline = createSearchPipeline(context);
-      const originalNow = Date.now;
-      let now = originalNow();
-      Date.now = () => now;
-      try {
+      await withMockedNow(async (clock) => {
         const run1 = await pipeline(idx, 'code', [0.1, 0.2]);
-        now += 1100;
+        clock.advance(1100);
         const run2 = await pipeline(idx, 'code', [0.1, 0.2]);
         assert.ok(Array.isArray(run1) && run1.length > 0);
         assert.ok(Array.isArray(run2) && run2.length > 0);
         assert.equal(primaryCalls, 1);
         assert.equal(fallbackCalls, 2);
         assert.ok(run2.some((entry) => entry.annSource === ANN_PROVIDER_IDS.SQLITE_VECTOR));
-      } finally {
-        Date.now = originalNow;
-      }
+      });
     }
   }
 ];

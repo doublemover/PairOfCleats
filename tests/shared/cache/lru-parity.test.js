@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { createLruCache } from '../../../src/shared/cache.js';
+import { createLruCache } from '../../../src/shared/cache/lru.js';
 import { createIndexCache } from '../../../src/retrieval/index-cache.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
 

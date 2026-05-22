@@ -1,34 +1,53 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const cacheRoot = resolveTestCachePath(root, 'embeddings-validate');
+const repoRoot = path.join(cacheRoot, 'repo');
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
   testConfig: {
     indexing: {
-      scm: { provider: 'none' }
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false,
+      workerPool: { enabled: false }
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
   }
 });
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
+await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+await fsPromises.writeFile(
+  path.join(repoRoot, 'src', 'alpha.js'),
+  [
+    'export function alphaVector(value) {',
+    '  return `alpha-${value}`;',
+    '}',
+    ''
+  ].join('\n')
+);
 
 const buildPath = path.join(root, 'build_index.js');
 const embeddingsPath = path.join(root, 'tools', 'build/embeddings.js');
 
 const run = (args, label) => {
-  const result = spawnSync(process.execPath, args, { env, encoding: 'utf8' });
+  const result = runNode(args, label, root, env, { stdio: 'pipe', allowFailure: true });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     if (result.stderr) console.error(result.stderr.trim());
@@ -37,13 +56,13 @@ const run = (args, label) => {
   return result.stdout || '';
 };
 
-run([buildPath, '--stub-embeddings', '--stage', 'stage2', '--repo', fixtureRoot], 'build index');
-run([embeddingsPath, '--stub-embeddings', '--repo', fixtureRoot], 'build embeddings');
+run([buildPath, '--stub-embeddings', '--stage', 'stage2', '--mode', 'code', '--repo', repoRoot], 'build index');
+run([embeddingsPath, '--stub-embeddings', '--mode', 'code', '--repo', repoRoot], 'build embeddings');
 
 const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-const userConfig = loadUserConfig(fixtureRoot);
-const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
+const userConfig = loadUserConfig(repoRoot);
+const codeDir = getIndexDir(repoRoot, 'code', userConfig);
 const indexRoot = path.dirname(codeDir);
 if (previousCacheRoot === undefined) {
   delete process.env.PAIROFCLEATS_CACHE_ROOT;
@@ -51,9 +70,9 @@ if (previousCacheRoot === undefined) {
   process.env.PAIROFCLEATS_CACHE_ROOT = previousCacheRoot;
 }
 const payload = await validateIndexArtifacts({
-  root: fixtureRoot,
+  root: repoRoot,
   indexRoot,
-  modes: ['code', 'prose', 'extracted-prose', 'records'],
+  modes: ['code'],
   userConfig,
   sqliteEnabled: false,
   strict: true

@@ -2,17 +2,14 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
-import {
-  resetTrackedSubprocessEvents,
-  snapshotTrackedSubprocessEvents
-} from '../../../src/shared/subprocess.js';
+import { resetTrackedSubprocessEvents, snapshotTrackedSubprocessEvents } from '../../../src/shared/subprocess/tracking.js';
 import {
   buildSingleSymbolInputs,
   createLspProviderTempRepo,
   runDedicatedProviderFixture
 } from '../../helpers/lsp-provider-fixture.js';
 import { cleanupLspTestRuntime } from '../../helpers/lsp-runtime.js';
-import { getTrackedSubprocessCount } from '../../../src/shared/subprocess.js';
+import { getTrackedSubprocessCount } from '../../../src/shared/subprocess/tracking.js';
 
 const root = process.cwd();
 const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');

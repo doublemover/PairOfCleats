@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { cleanupLspTestRuntime } from '../../helpers/lsp-runtime.js';
-import { getTrackedSubprocessCount, spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { getTrackedSubprocessCount } from '../../../src/shared/subprocess/tracking.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { sleep } from '../../../src/shared/sleep.js';
 
 const childPromise = spawnSubprocess(

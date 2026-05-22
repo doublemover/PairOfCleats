@@ -1,10 +1,13 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
+import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
+import { inspectExtractedProseState } from '../../helpers/extracted-prose-fixture.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -53,10 +56,12 @@ const env = applyTestEnv({
   embeddings: 'stub'
 });
 
-const buildResult = spawnSync(
-  process.execPath,
+const buildResult = runNode(
   [path.join(root, 'build_index.js'), '--scm-provider', 'none', '--repo', repoRoot, '--stage', 'stage2', '--mode', 'extracted-prose', '--stub-embeddings'],
-  { env, encoding: 'utf8' }
+  'extracted-prose build',
+  root,
+  env,
+  { stdio: 'pipe', allowFailure: true }
 );
 if (buildResult.status !== 0) {
   console.error('Extracted-prose test failed: build_index error.');
@@ -64,10 +69,12 @@ if (buildResult.status !== 0) {
   process.exit(buildResult.status ?? 1);
 }
 
-const searchResult = spawnSync(
-  process.execPath,
+const searchResult = runNode(
   [path.join(root, 'search.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--no-ann', '--json', commentText],
-  { env, encoding: 'utf8' }
+  'extracted-prose JS search',
+  root,
+  env,
+  { stdio: 'pipe', allowFailure: true }
 );
 if (searchResult.status !== 0) {
   console.error('Extracted-prose test failed: search error.');
@@ -91,79 +98,20 @@ if (!matched) {
   process.exit(1);
 }
 
-const swiftResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'search.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--no-ann', '--json', swiftCommentText],
-  { env, encoding: 'utf8' }
-);
-if (swiftResult.status !== 0) {
-  console.error('Extracted-prose Swift test failed: search error.');
-  if (swiftResult.stderr) console.error(swiftResult.stderr.trim());
-  process.exit(swiftResult.status ?? 1);
-}
-let swiftPayload;
-try {
-  swiftPayload = JSON.parse(swiftResult.stdout || '{}');
-} catch {
-  console.error('Extracted-prose Swift test failed: invalid JSON output.');
-  if (swiftResult.stdout) console.error(swiftResult.stdout.trim());
-  process.exit(1);
-}
-const swiftHits = Array.isArray(swiftPayload.extractedProse) ? swiftPayload.extractedProse : [];
-const swiftMatched = swiftHits.some((hit) => hit?.file === 'src/sample.swift');
-if (!swiftMatched) {
-  console.error('Extracted-prose Swift test failed: expected Swift hit missing.');
-  process.exit(1);
-}
+const state = inspectExtractedProseState(repoRoot);
+assert.ok(state.indexDir, 'expected extracted-prose index dir');
+const chunks = await loadJsonArrayArtifact(state.indexDir, 'chunk_meta', { strict: true });
+const textFor = (chunk) => [
+  chunk?.headline,
+  ...(Array.isArray(chunk?.docmeta?.comments)
+    ? chunk.docmeta.comments.map((comment) => comment?.text)
+    : [])
+].filter(Boolean).join('\n');
+const byFile = new Map(chunks.map((chunk) => [chunk?.file, chunk]));
 
-const mdResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'search.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--no-ann', '--json', mdCommentText],
-  { env, encoding: 'utf8' }
-);
-if (mdResult.status !== 0) {
-  console.error('Extracted-prose markdown test failed: search error.');
-  if (mdResult.stderr) console.error(mdResult.stderr.trim());
-  process.exit(mdResult.status ?? 1);
-}
-let mdPayload;
-try {
-  mdPayload = JSON.parse(mdResult.stdout || '{}');
-} catch {
-  console.error('Extracted-prose markdown test failed: invalid JSON output.');
-  if (mdResult.stdout) console.error(mdResult.stdout.trim());
-  process.exit(1);
-}
-const mdHits = Array.isArray(mdPayload.extractedProse) ? mdPayload.extractedProse : [];
-const mdMatched = mdHits.some((hit) => hit?.file === 'docs/notes.md');
-if (!mdMatched) {
-  console.error('Extracted-prose markdown test failed: expected markdown comment hit missing.');
-  process.exit(1);
-}
-
-const mdPlainResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'search.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--no-ann', '--json', mdPlainText],
-  { env, encoding: 'utf8' }
-);
-if (mdPlainResult.status !== 0) {
-  console.error('Extracted-prose markdown plain test failed: search error.');
-  if (mdPlainResult.stderr) console.error(mdPlainResult.stderr.trim());
-  process.exit(mdPlainResult.status ?? 1);
-}
-let mdPlainPayload;
-try {
-  mdPlainPayload = JSON.parse(mdPlainResult.stdout || '{}');
-} catch {
-  console.error('Extracted-prose markdown plain test failed: invalid JSON output.');
-  if (mdPlainResult.stdout) console.error(mdPlainResult.stdout.trim());
-  process.exit(1);
-}
-const mdPlainHits = Array.isArray(mdPlainPayload.extractedProse) ? mdPlainPayload.extractedProse : [];
-if (mdPlainHits.length !== 0) {
-  console.error('Extracted-prose markdown plain test failed: expected no hits.');
-  process.exit(1);
-}
+assert.ok(textFor(byFile.get('src/sample.swift')).includes(swiftCommentText), 'expected Swift comment extraction');
+assert.ok(textFor(byFile.get('docs/notes.md')).includes(mdCommentText), 'expected markdown comment extraction');
+assert.equal(byFile.has('docs/plain.md'), false, 'expected markdown plain prose to stay out of extracted-prose chunks');
 
 console.log('Extracted-prose test passed.');
 

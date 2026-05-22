@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode } from '../helpers/run-node.js';
+import { applyTestEnv } from '../helpers/test-env.js';
 
 const root = process.cwd();
 const cliPath = path.join(root, 'bin', 'pairofcleats.js');
+const env = applyTestEnv({ syncProcess: false });
 
-const result = spawnSync(process.execPath, [
+const result = runNode([
   cliPath,
   'search',
   '--help',
@@ -13,10 +15,7 @@ const result = spawnSync(process.execPath, [
   'tantivy',
   '-n',
   '10'
-], {
-  cwd: root,
-  encoding: 'utf8'
-});
+], 'dispatch search help passthrough', root, env, { stdio: 'pipe' });
 
 if (result.status !== 0) {
   console.error('search passthrough test failed: expected help invocation to succeed');

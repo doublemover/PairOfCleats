@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { loadMinhashSignatures } from '../../../src/shared/artifact-io/loaders.js';
 import {
   prepareArtifactIoTestDir,

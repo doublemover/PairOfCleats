@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const binPath = path.join(root, 'bin', 'pairofcleats.js');
@@ -11,7 +11,15 @@ if (!fs.existsSync(binPath)) {
   process.exit(1);
 }
 
-const setupHelp = spawnSync(process.execPath, [binPath, 'setup', '--help'], { encoding: 'utf8' });
+const runCli = (args) => runNode(
+  [binPath, ...args],
+  `pairofcleats ${args.join(' ')}`,
+  root,
+  process.env,
+  { stdio: 'pipe' }
+);
+
+const setupHelp = runCli(['setup', '--help']);
 if (setupHelp.status !== 0) {
   console.error('setup --help should pass through wrapper validation');
   process.exit(setupHelp.status ?? 1);
@@ -22,7 +30,7 @@ if (/Unknown flag:\s+--help/.test(setupOutput)) {
   process.exit(1);
 }
 
-const bootstrapHelp = spawnSync(process.execPath, [binPath, 'bootstrap', '--help'], { encoding: 'utf8' });
+const bootstrapHelp = runCli(['bootstrap', '--help']);
 if (bootstrapHelp.status !== 0) {
   console.error('bootstrap --help should pass through wrapper validation');
   process.exit(bootstrapHelp.status ?? 1);

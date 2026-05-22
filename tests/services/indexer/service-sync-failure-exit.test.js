@@ -2,13 +2,15 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'indexer-service-sync-failure');
 const configPath = path.join(tempRoot, 'service.json');
+const env = applyTestEnv({ syncProcess: false });
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
@@ -21,10 +23,12 @@ const config = {
 };
 await fsPromises.writeFile(configPath, JSON.stringify(config, null, 2));
 
-const run = spawnSync(
-  process.execPath,
+const run = runNode(
   [path.join(root, 'tools', 'service', 'indexer-service.js'), 'sync', '--config', configPath, '--json'],
-  { encoding: 'utf8' }
+  'indexer-service sync failure',
+  root,
+  env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 
 assert.equal(run.status, 1, `expected sync failures to exit 1, got ${run.status}`);

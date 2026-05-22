@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { readTextFile } from '../../../src/shared/encoding.js';
 
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -29,32 +30,56 @@ if (encoding && !allowedEncodings.has(encoding)) {
   process.exit(1);
 }
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PAIROFCLEATS_WORKER_POOL: 'off'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: {
+        enabled: false
+      }
+    }
+  },
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  },
+  syncProcess: false
+});
 
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot],
-  { cwd: fixtureRoot, env, stdio: 'inherit' }
+const buildResult = runNode(
+  [
+    path.join(root, 'build_index.js'),
+    '--stub-embeddings',
+    '--stage',
+    'stage1',
+    '--mode',
+    'code',
+    '--scm-provider',
+    'none',
+    '--repo',
+    fixtureRoot
+  ],
+  'encoding fallback build index',
+  fixtureRoot,
+  env,
+  { stdio: 'inherit' }
 );
-if (buildResult.status !== 0) {
-  console.error('Failed: build_index');
-  process.exit(buildResult.status ?? 1);
-}
 
-const searchResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'search.js'), '--json', '--repo', fixtureRoot, 'café'],
-  { cwd: fixtureRoot, env, encoding: 'utf8' }
+const searchResult = runNode(
+  [path.join(root, 'search.js'), '--json', '--mode', 'code', '--repo', fixtureRoot, 'café'],
+  'encoding fallback search',
+  fixtureRoot,
+  env,
+  { stdio: 'pipe', encoding: 'utf8' }
 );
-if (searchResult.status !== 0) {
-  console.error('Failed: search');
-  process.exit(searchResult.status ?? 1);
-}
 let payload = null;
 try {
   payload = JSON.parse(searchResult.stdout || '{}');

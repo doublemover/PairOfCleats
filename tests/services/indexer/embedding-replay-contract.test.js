@@ -64,6 +64,14 @@ assert.equal(before.artifacts.presentCount >= 2, true, 'expected embedding artif
 assert.equal(before.buildState?.stage, 'stage3');
 assert.equal(before.buildState?.progress?.completed, 12);
 
+const indexDirOnlyBefore = await collectEmbeddingReplayState({
+  ...job,
+  buildRoot: undefined
+});
+assert.equal(indexDirOnlyBefore.buildRoot, buildRoot, 'expected replay state to infer build root from indexDir-only jobs');
+assert.equal(indexDirOnlyBefore.backendStage.path, backendStageDir);
+assert.equal(indexDirOnlyBefore.backendStage.exists, true);
+
 const repair = await repairEmbeddingReplayState(job);
 assert.equal(repair.repaired, true, 'expected repair to take action');
 assert.equal(repair.actions.some((entry) => entry.type === 'remove-backend-stage-dir'), true);

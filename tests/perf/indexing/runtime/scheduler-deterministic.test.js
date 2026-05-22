@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createBuildScheduler } from '../../../../src/shared/concurrency.js';
+import { createBuildScheduler } from '../../../../src/shared/concurrency/scheduler-core.js';
 
 const scheduler = createBuildScheduler({
   cpuTokens: 0,

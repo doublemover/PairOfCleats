@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const script = path.join(root, 'tools', 'bench', 'index', 'postings-real.js');
@@ -13,10 +13,12 @@ const env = applyTestEnv({
     PAIROFCLEATS_WORKER_POOL: 'off'
   }
 });
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [script, '--count', '1', '--seed', 'postings-real-contract', '--mode', 'baseline', '--threads-baseline', '1'],
-  { cwd: root, env, encoding: 'utf8', timeout: MAX_RUNTIME_MS }
+  'postings real bench contract',
+  root,
+  env,
+  { stdio: 'pipe', encoding: 'utf8', timeoutMs: MAX_RUNTIME_MS, allowFailure: true }
 );
 
 if (result.error?.code === 'ETIMEDOUT') {

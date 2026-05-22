@@ -10,24 +10,19 @@ import {
   loadImportResolutionCache,
   saveImportResolutionCache
 } from '../../../src/index/build/import-resolution-cache.js';
-import { resolveBundleFilename, writeBundleFile } from '../../../src/shared/bundle-io.js';
+import { resolveBundleFilename } from '../../../src/shared/bundle-io-paths.js';
+import { writeBundleFile } from '../../../src/shared/bundle-io.js';
 import { sha1 } from '../../../src/shared/hash.js';
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
-
-const root = process.cwd();
-
-const createTempRoot = async (name) => {
-  const tempRoot = resolveTestCachePath(root, name);
-  await fs.rm(tempRoot, { recursive: true, force: true });
-  await fs.mkdir(tempRoot, { recursive: true });
-  return tempRoot;
-};
+import {
+  createImportResolutionCacheStats,
+  createImportResolutionTempRoot
+} from '../../helpers/import-resolution-fixture.js';
 
 const cases = [
   {
     name: 'collector hints are emitted for direct scans',
     async run() {
-      const tempRoot = await createTempRoot('imports-contract-collector-hints');
+      const tempRoot = await createImportResolutionTempRoot('imports-contract-collector-hints');
       await fs.mkdir(path.join(tempRoot, 'repo'), { recursive: true });
       const starlarkPath = path.join(tempRoot, 'repo', 'MODULE.bazel');
       const nixPath = path.join(tempRoot, 'repo', 'flake.nix');
@@ -54,7 +49,7 @@ const cases = [
   {
     name: 'cached scan entries preserve hints and rebuild legacy hint-less entries',
     async run() {
-      const tempRoot = await createTempRoot('imports-contract-cache-hints');
+      const tempRoot = await createImportResolutionTempRoot('imports-contract-cache-hints');
       await fs.mkdir(path.join(tempRoot, 'repo'), { recursive: true });
 
       const cachedHintPath = path.join(tempRoot, 'repo', 'MODULE.bazel');
@@ -101,7 +96,7 @@ const cases = [
   {
     name: 'incremental scans read cached imports once per file',
     async run() {
-      const tempRoot = await createTempRoot('imports-contract-cache-read');
+      const tempRoot = await createImportResolutionTempRoot('imports-contract-cache-read');
       const srcRoot = path.join(tempRoot, 'src');
       await fs.mkdir(srcRoot, { recursive: true });
 
@@ -137,7 +132,7 @@ const cases = [
   {
     name: 'file-set invalidation clears stale resolved and unresolved edges',
     async run() {
-      const tempRoot = await createTempRoot('imports-contract-file-set-invalidation');
+      const tempRoot = await createImportResolutionTempRoot('imports-contract-file-set-invalidation');
       const srcRoot = path.join(tempRoot, 'src');
       await fs.mkdir(srcRoot, { recursive: true });
       await fs.writeFile(path.join(srcRoot, 'main.js'), "import './later.js';\n", 'utf8');
@@ -147,17 +142,6 @@ const cases = [
       };
       const fileHashes = new Map([['src/main.js', 'hash-main']]);
       const cache = {};
-      const makeStats = () => ({
-        files: 0,
-        filesHashed: 0,
-        filesReused: 0,
-        filesInvalidated: 0,
-        specs: 0,
-        specsReused: 0,
-        specsComputed: 0,
-        packageInvalidated: false,
-        fileSetInvalidated: false
-      });
       const buildEntries = (includeLater) => {
         const entries = [{ abs: path.join(srcRoot, 'main.js'), rel: 'src/main.js' }];
         if (includeLater) {
@@ -183,20 +167,20 @@ const cases = [
         return relations.get('src/main.js');
       };
 
-      const firstStats = makeStats();
+      const firstStats = createImportResolutionCacheStats();
       const first = runOnce({ entries: buildEntries(false), stats: firstStats });
       assert.deepEqual(first.importLinks, []);
       assert.equal(firstStats.fileSetInvalidated, true);
 
       await fs.writeFile(path.join(srcRoot, 'later.js'), 'export const later = 1;\n', 'utf8');
-      const secondStats = makeStats();
+      const secondStats = createImportResolutionCacheStats();
       const second = runOnce({ entries: buildEntries(true), stats: secondStats });
       assert.deepEqual(second.importLinks, ['src/later.js']);
       assert.equal(secondStats.fileSetInvalidated, true);
       assert.ok((secondStats.staleEdgeInvalidated || 0) >= 1);
 
       await fs.rm(path.join(srcRoot, 'later.js'));
-      const thirdStats = makeStats();
+      const thirdStats = createImportResolutionCacheStats();
       const third = runOnce({ entries: buildEntries(false), stats: thirdStats });
       assert.deepEqual(third.importLinks, []);
       assert.equal(thirdStats.fileSetInvalidated, true);
@@ -206,7 +190,7 @@ const cases = [
   {
     name: 'removed resolved targets invalidate cached links when files disappear',
     async run() {
-      const tempRoot = await createTempRoot('imports-contract-missing-file-refresh');
+      const tempRoot = await createImportResolutionTempRoot('imports-contract-missing-file-refresh');
       const srcRoot = path.join(tempRoot, 'src');
       await fs.mkdir(srcRoot, { recursive: true });
       await fs.writeFile(path.join(srcRoot, 'main.js'), "import './target.js';\n", 'utf8');
@@ -235,17 +219,7 @@ const cases = [
         return relations.get('src/main.js');
       };
 
-      const initialStats = {
-        files: 0,
-        filesHashed: 0,
-        filesReused: 0,
-        filesInvalidated: 0,
-        specs: 0,
-        specsReused: 0,
-        specsComputed: 0,
-        packageInvalidated: false,
-        fileSetInvalidated: false
-      };
+      const initialStats = createImportResolutionCacheStats();
       const first = runOnce([
         { abs: path.join(srcRoot, 'main.js'), rel: 'src/main.js' },
         { abs: path.join(srcRoot, 'target.js'), rel: 'src/target.js' }
@@ -253,7 +227,7 @@ const cases = [
       assert.deepEqual(first.importLinks, ['src/target.js']);
 
       await fs.rm(path.join(srcRoot, 'target.js'));
-      const secondStats = { ...initialStats };
+      const secondStats = createImportResolutionCacheStats();
       const second = runOnce([{ abs: path.join(srcRoot, 'main.js'), rel: 'src/main.js' }], secondStats);
       assert.deepEqual(second.importLinks, []);
       assert.equal(secondStats.fileSetInvalidated, true);
@@ -263,7 +237,7 @@ const cases = [
   {
     name: 'incompatible and malformed cache files fail closed or reset safely',
     async run() {
-      const tempRoot = await createTempRoot('imports-contract-hard-cutover');
+      const tempRoot = await createImportResolutionTempRoot('imports-contract-hard-cutover');
       const incrementalDir = path.join(tempRoot, 'incremental');
       const cachePath = path.join(incrementalDir, 'import-resolution-cache.json');
       await fs.mkdir(incrementalDir, { recursive: true });
@@ -342,7 +316,7 @@ const cases = [
   {
     name: 'import scan fingerprints gate cache reuse while ignoring runtime-only options',
     async run() {
-      const tempRoot = await createTempRoot('imports-contract-budget-cache-key');
+      const tempRoot = await createImportResolutionTempRoot('imports-contract-budget-cache-key');
       const repoRoot = path.join(tempRoot, 'repo');
       const filePath = path.join(repoRoot, 'src', 'main.ts');
       const relKey = 'src/main.ts';
@@ -475,7 +449,7 @@ const cases = [
   {
     name: 'stage cache hits skip expensive resolver stages while preserving unresolved warnings',
     async run() {
-      const tempRoot = await createTempRoot('imports-contract-stage-cache-hit-miss');
+      const tempRoot = await createImportResolutionTempRoot('imports-contract-stage-cache-hit-miss');
       const srcRoot = path.join(tempRoot, 'src');
       const importerAbs = path.join(srcRoot, 'main.js');
       const importerRel = 'src/main.js';

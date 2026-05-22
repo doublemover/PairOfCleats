@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { getTrackedSubprocessCount, spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { getTrackedSubprocessCount } from '../../../src/shared/subprocess/tracking.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 
 let trackedAtSpawn = -1;
 let timedOut = false;

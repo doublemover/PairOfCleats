@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
-import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { assembleCompositeContextPack, assembleCompositeContextPackStreaming } from '../../../src/context-pack/assemble.js';
 import { buildGraphContextPack } from '../../../src/graph/context-pack.js';
 import { validateGraphContextPack } from '../../../src/contracts/validators/analysis.js';

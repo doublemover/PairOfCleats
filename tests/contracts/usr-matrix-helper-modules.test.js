@@ -11,6 +11,13 @@ import {
   resolveObservedRedactionResult
 } from '../../src/contracts/validators/usr-matrix/profile-helpers.js';
 import {
+  appendPrefixedRowDiagnostics,
+  buildMatrixRegistryFailureResult,
+  buildReportFindings,
+  buildReportPayload,
+  buildReportStatus,
+  cloneRowsWithDiagnostics,
+  freezeRowDiagnostics,
   normalizeReportScope,
   toFixedDays,
   toIsoDate
@@ -94,6 +101,67 @@ assert.equal(resolveObservedGatePass({ status: 'pass' }), true);
 assert.deepEqual(resolveObservedRedactionResult({ pass: false, misses: 3 }), { pass: false, misses: 3 });
 
 assert.deepEqual(normalizeReportScope(null, 'lane', 'ci'), { scopeType: 'lane', scopeId: 'ci' });
+assert.equal(buildReportStatus({ errors: [], warnings: [] }), 'pass');
+assert.equal(buildReportStatus({ errors: [], warnings: ['warn'] }), 'warn');
+assert.equal(buildReportStatus({ errors: ['fail'], warnings: [] }), 'fail');
+assert.deepEqual(buildReportFindings(['missing row'], 'coverage'), [{ class: 'coverage', message: 'missing row' }]);
+assert.deepEqual(buildMatrixRegistryFailureResult({ errors: ['bad registry'] }), {
+  ok: false,
+  errors: Object.freeze(['bad registry']),
+  warnings: Object.freeze([]),
+  rows: Object.freeze([])
+});
+const aggregateErrors = [];
+const aggregateWarnings = [];
+appendPrefixedRowDiagnostics({
+  errors: aggregateErrors,
+  warnings: aggregateWarnings,
+  rowErrors: ['missing fixture'],
+  rowWarnings: ['weak coverage'],
+  messagePrefix: 'USR-001'
+});
+assert.deepEqual(aggregateErrors, ['USR-001 missing fixture']);
+assert.deepEqual(aggregateWarnings, ['USR-001 weak coverage']);
+assert.deepEqual(freezeRowDiagnostics({ errors: ['e'], warnings: ['w'] }), {
+  errors: Object.freeze(['e']),
+  warnings: Object.freeze(['w'])
+});
+const originalRows = [
+  {
+    id: 'row-a',
+    pass: true,
+    errors: Object.freeze(['e']),
+    warnings: Object.freeze(['w'])
+  }
+];
+const clonedRows = cloneRowsWithDiagnostics(originalRows);
+assert.deepEqual(clonedRows, [
+  {
+    id: 'row-a',
+    pass: true,
+    errors: Object.freeze(['e']),
+    warnings: Object.freeze(['w'])
+  }
+]);
+assert.notEqual(clonedRows[0], originalRows[0]);
+const reportPayload = buildReportPayload({
+  artifactId: 'usr-validation-report',
+  generatedAt: '2026-05-20T00:00:00.000Z',
+  producerId: 'test-producer',
+  producerVersion: null,
+  runId: 'run-test',
+  lane: 'ci',
+  buildId: null,
+  status: 'pass',
+  scope: { scopeType: 'lane', scopeId: 'ci' },
+  summary: { rowCount: 1 },
+  blockingFindings: [],
+  advisoryFindings: [],
+  rows: clonedRows
+});
+assert.equal(reportPayload.schemaVersion, 'usr-1.0.0');
+assert.equal(reportPayload.artifactId, 'usr-validation-report');
+assert.equal(reportPayload.rows, clonedRows);
 assert.equal(toFixedDays(3 * 24 * 60 * 60 * 1000), 3);
 assert.equal(toIsoDate('2026-03-19T05:00:00.000Z') instanceof Date, true);
 

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
@@ -52,13 +52,14 @@ await fs.writeFile(
 const runWithScenario = async ({ steps, args }) => {
   const scenarioPath = path.join(tempRoot, `scenario-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
   await fs.writeFile(scenarioPath, `${JSON.stringify({ steps }, null, 2)}\n`, 'utf8');
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     [fetchHarnessPath, scenarioPath, scriptPath, ...args],
+    'install phpactor phar network guard scenario',
+    root,
+    applyTestEnv({ syncProcess: false }),
     {
-      cwd: root,
-      env: applyTestEnv({ syncProcess: false }),
-      encoding: 'utf8'
+      stdio: 'pipe',
+      allowFailure: true
     }
   );
   return result;

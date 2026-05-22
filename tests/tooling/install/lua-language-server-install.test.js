@@ -2,14 +2,16 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import AdmZip from 'adm-zip';
 
 import { validateLuaLanguageServerPackageLayout } from '../../../tools/tooling/install-lua-language-server.js';
+import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `lua-language-server-install-${process.pid}-${Date.now()}`);
+const env = applyTestEnv({ syncProcess: false });
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
@@ -27,8 +29,7 @@ const createArchive = async ({ archivePath, includeMainLua }) => {
   await fs.writeFile(archivePath, zip.toBuffer());
 };
 
-const runInstaller = ({ toolingRoot, archivePath }) => spawnSync(
-  process.execPath,
+const runInstaller = ({ toolingRoot, archivePath, allowFailure = false }) => runNode(
   [
     path.join(root, 'tools', 'tooling', 'install-lua-language-server.js'),
     '--scope',
@@ -38,9 +39,12 @@ const runInstaller = ({ toolingRoot, archivePath }) => spawnSync(
     '--url',
     archivePath
   ],
+  'install lua language server',
+  root,
+  env,
   {
-    cwd: root,
-    encoding: 'utf8'
+    stdio: 'pipe',
+    allowFailure
   }
 );
 
@@ -57,7 +61,11 @@ try {
   const brokenArchivePath = path.join(tempRoot, 'lua-language-server-broken.zip');
   const brokenToolingRoot = path.join(tempRoot, 'tooling-broken');
   await createArchive({ archivePath: brokenArchivePath, includeMainLua: false });
-  const brokenResult = runInstaller({ toolingRoot: brokenToolingRoot, archivePath: brokenArchivePath });
+  const brokenResult = runInstaller({
+    toolingRoot: brokenToolingRoot,
+    archivePath: brokenArchivePath,
+    allowFailure: true
+  });
   assert.notEqual(brokenResult.status, 0, 'expected installer to reject archive missing bin/main.lua');
   assert.match(String(brokenResult.stderr || brokenResult.stdout || ''), /expected bin\/main\.lua package layout/u);
 

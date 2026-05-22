@@ -4,8 +4,36 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getTriageContext, run, runJson } from '../../helpers/triage.js';
 
+const buildTriageEvidenceRepo = async (repoRoot) => {
+  await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+  await fsPromises.writeFile(
+    path.join(repoRoot, '.pairofcleats.json'),
+    `${JSON.stringify({
+      indexing: {
+        embeddings: {
+          enabled: false
+        }
+      }
+    }, null, 2)}\n`,
+    'utf8'
+  );
+  await fsPromises.writeFile(
+    path.join(repoRoot, 'src', 'util.js'),
+    [
+      "import addHelper from 'add-helper';",
+      '',
+      'export function handlePublicApiInput(left, right) {',
+      '  return addHelper(left, right);',
+      '}',
+      ''
+    ].join('\n'),
+    'utf8'
+  );
+};
+
 const { root, repoRoot, triageFixtureRoot, env, cacheRoot, writeTestLog } = await getTriageContext({
   name: 'triage-context-pack',
+  fixtureBuilder: buildTriageEvidenceRepo,
   testConfig: {
     indexing: {
       typeInference: false,
@@ -49,6 +77,7 @@ runJson('decision', [
 run('build-index', [
   path.join(root, 'build_index.js'),
   '--stage', 'stage2',
+  '--mode', 'code',
   '--stub-embeddings',
   '--repo', repoRoot
 ], { cwd: repoRoot, env });

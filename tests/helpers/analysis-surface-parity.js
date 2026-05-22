@@ -1,9 +1,9 @@
-import { spawnSync } from 'node:child_process';
 import http from 'node:http';
 import path from 'node:path';
 
 import { createApiRouter } from '../../tools/api/router.js';
 import { handleToolCall } from '../../tools/mcp/tools.js';
+import { runNode } from './run-node.js';
 
 const root = process.cwd();
 const binPath = path.join(root, 'bin', 'pairofcleats.js');
@@ -24,10 +24,17 @@ export const normalizeSurfaceError = (payload) => ({
 });
 
 export const runCliJson = (args, { env = process.env } = {}) => {
-  const result = spawnSync(process.execPath, [binPath, ...args], {
-    encoding: 'utf8',
-    env
-  });
+  const result = runNode(
+    [binPath, ...args],
+    'analysis surface parity CLI',
+    root,
+    env,
+    {
+      stdio: 'pipe',
+      encoding: 'utf8',
+      allowFailure: true
+    }
+  );
   const stdout = result.stdout?.trim() || '';
   const stderr = result.stderr?.trim() || '';
   return {

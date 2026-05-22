@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { runNode } from '../../../helpers/run-node.js';
 import { getRepoId } from '../../../../tools/shared/dict-utils.js';
 import { resolveVersionedCacheRoot } from '../../../../src/shared/cache-roots.js';
 
@@ -66,8 +66,7 @@ const testEnv = applyTestEnv({
 });
 
 const buildIndexPath = path.join(root, 'build_index.js');
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     buildIndexPath,
     '--mode',
@@ -85,7 +84,10 @@ const result = spawnSync(
     '--progress',
     'off'
   ],
-  { cwd: repoRoot, env: testEnv, encoding: 'utf8' }
+  'stage1 memory budget build',
+  repoRoot,
+  testEnv,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 
 if (result.status !== 0) {

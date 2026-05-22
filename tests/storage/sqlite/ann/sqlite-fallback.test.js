@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { loadUserConfig, getIndexDir } from '../../../../tools/shared/dict-utils.js';
 import { loadChunkMeta, MAX_JSON_BYTES } from '../../../../src/shared/artifact-io.js';
 import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { runNode } from '../../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 
@@ -45,21 +45,32 @@ const env = applyTestEnv({
   }
 });
 
-const runNode = (label, args) => {
-  const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });
+const runChildNode = (label, args) => {
+  const result = runNode(args, label, repoRoot, env, { stdio: 'inherit', allowFailure: true });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     process.exit(result.status ?? 1);
   }
 };
 
-runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-await runSqliteBuild(repoRoot);
+runChildNode('build_index', [
+  path.join(root, 'build_index.js'),
+  '--stage',
+  'stage2',
+  '--mode',
+  'code',
+  '--stub-embeddings',
+  '--repo',
+  repoRoot
+]);
+await runSqliteBuild(repoRoot, { mode: 'code', env, emitOutput: false });
 
-const searchResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'search.js'), 'ann_fallback_token', '--ann', '--json', '--repo', repoRoot],
-  { env, encoding: 'utf8' }
+const searchResult = runNode(
+  [path.join(root, 'search.js'), 'ann_fallback_token', '--mode', 'code', '--ann', '--json', '--repo', repoRoot],
+  'sqlite ann fallback search',
+  repoRoot,
+  env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 if (searchResult.status !== 0) {
   console.error('sqlite ann fallback test failed: search returned error');

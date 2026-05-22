@@ -8,10 +8,8 @@ import {
   updateBundlesWithChunks,
   writeIncrementalBundle
 } from '../../../src/index/build/incremental.js';
-import {
-  readBundleFile,
-  resolveBundleFormatFromName
-} from '../../../src/shared/bundle-io.js';
+import { resolveBundleFormatFromName } from '../../../src/shared/bundle-io-paths.js';
+import { readBundleFile } from '../../../src/shared/bundle-io.js';
 import { sleep } from '../../../src/shared/sleep.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';

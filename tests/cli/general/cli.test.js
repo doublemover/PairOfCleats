@@ -4,9 +4,9 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -24,16 +24,21 @@ if (!fs.existsSync(binPath)) {
 }
 const { extractDispatchRootArg } = await import(pathToFileURL(binPath).href);
 
-const runCli = (...args) => spawnSync(process.execPath, [binPath, ...args], {
-  encoding: 'utf8',
-  cwd: root,
-  env
-});
+const runCli = (args, options = {}) => runNode(
+  [binPath, ...args],
+  `pairofcleats ${args.join(' ')}`,
+  root,
+  env,
+  {
+    stdio: 'pipe',
+    allowFailure: options.allowFailure === true
+  }
+);
 
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const version = pkg.version || '0.0.0';
 
-const versionResult = runCli('--version');
+const versionResult = runCli(['--version']);
 if (versionResult.status !== 0) {
   console.error('cli --version failed');
   process.exit(versionResult.status ?? 1);
@@ -44,7 +49,7 @@ if (!versionOutput.includes(version)) {
   process.exit(1);
 }
 
-const helpResult = runCli('--help');
+const helpResult = runCli(['--help']);
 if (helpResult.status !== 0) {
   console.error('cli --help failed');
   process.exit(helpResult.status ?? 1);
@@ -79,7 +84,7 @@ if (helpOutput.includes('dispatch list')) {
   process.exit(1);
 }
 
-const helpAliasAllResult = runCli('--help', '--all');
+const helpAliasAllResult = runCli(['--help', '--all']);
 if (helpAliasAllResult.status !== 0) {
   console.error('cli --help --all failed');
   process.exit(helpAliasAllResult.status ?? 1);
@@ -94,7 +99,7 @@ if (!helpAliasAllOutput.includes('bench matrix')) {
   process.exit(1);
 }
 
-const reportHelpResult = runCli('help', 'report');
+const reportHelpResult = runCli(['help', 'report']);
 if (reportHelpResult.status !== 0) {
   console.error('cli help report failed');
   process.exit(reportHelpResult.status ?? 1);
@@ -109,7 +114,7 @@ if (!reportHelpOutput.includes('throughput')) {
   process.exit(1);
 }
 
-const helpHelpResult = runCli('help', '--help');
+const helpHelpResult = runCli(['help', '--help']);
 if (helpHelpResult.status !== 0) {
   console.error('cli help --help failed');
   process.exit(helpHelpResult.status ?? 1);
@@ -120,7 +125,7 @@ if (!helpHelpOutput.includes('Usage: pairofcleats')) {
   process.exit(1);
 }
 
-const malformedHelpResult = runCli('help', 'report', 'typo');
+const malformedHelpResult = runCli(['help', 'report', 'typo'], { allowFailure: true });
 if (malformedHelpResult.status === 0) {
   console.error('cli help report typo should fail');
   process.exit(1);
@@ -131,7 +136,7 @@ if (!malformedHelpOutput.includes('Unknown help topic: report typo')) {
   process.exit(1);
 }
 
-const mcpAliasHelpResult = runCli('service', 'mcp', '--mcpMode', 'sdk', '--help');
+const mcpAliasHelpResult = runCli(['service', 'mcp', '--mcpMode', 'sdk', '--help']);
 if (mcpAliasHelpResult.status !== 0) {
   console.error('cli service mcp --mcpMode --help failed');
   process.exit(mcpAliasHelpResult.status ?? 1);
@@ -146,7 +151,7 @@ if (!mcpAliasOutput.includes('--mcp-mode, --mcpMode')) {
   process.exit(1);
 }
 
-const mcpVersionResult = runCli('service', 'mcp', '--version');
+const mcpVersionResult = runCli(['service', 'mcp', '--version']);
 if (mcpVersionResult.status !== 0) {
   console.error('cli service mcp --version failed');
   process.exit(mcpVersionResult.status ?? 1);
@@ -160,7 +165,7 @@ if (!mcpVersionOutput.includes(version)) {
 const invalidConfigRepo = path.join(cacheRoot, 'invalid-config-repo');
 await fsPromises.mkdir(invalidConfigRepo, { recursive: true });
 await fsPromises.writeFile(path.join(invalidConfigRepo, '.pairofcleats.json'), '{ invalid json');
-const mcpHelpInvalidConfigResult = runCli('service', 'mcp', '--repo', invalidConfigRepo, '--help');
+const mcpHelpInvalidConfigResult = runCli(['service', 'mcp', '--repo', invalidConfigRepo, '--help']);
 if (mcpHelpInvalidConfigResult.status !== 0) {
   console.error('cli service mcp --help should not load invalid repo config');
   process.exit(mcpHelpInvalidConfigResult.status ?? 1);
@@ -171,7 +176,7 @@ if (!mcpHelpInvalidConfigOutput.includes('--mcp-mode, --mcpMode')) {
   process.exit(1);
 }
 
-const contextPackFederatedHelp = runCli(
+const contextPackFederatedHelp = runCli([
   'context-pack',
   '--help',
   '--strictEvidence',
@@ -181,7 +186,7 @@ const contextPackFederatedHelp = runCli(
   '--repo-filter', 'repo',
   '--includeDisabled',
   '--maxFederatedRepos', '2'
-);
+]);
 if (contextPackFederatedHelp.status !== 0) {
   console.error('cli context-pack federated help failed');
   process.exit(contextPackFederatedHelp.status ?? 1);
@@ -212,7 +217,7 @@ if (contextPackFederatedOutput.includes('Unknown flag: --maxFederatedRepos')) {
   process.exit(1);
 }
 
-const toolingDetectRootHelp = runCli('tooling', 'detect', '--root', fixtureRoot, '--help');
+const toolingDetectRootHelp = runCli(['tooling', 'detect', '--root', fixtureRoot, '--help']);
 if (toolingDetectRootHelp.status !== 0) {
   console.error('cli tooling detect --root --help failed');
   process.exit(toolingDetectRootHelp.status ?? 1);
@@ -223,7 +228,7 @@ if (toolingDetectRootOutput.includes('Unknown flag: --root')) {
   process.exit(1);
 }
 
-const toolingInstallRootHelp = runCli('tooling', 'install', '--root', fixtureRoot, '--tools', 'clangd', '--help');
+const toolingInstallRootHelp = runCli(['tooling', 'install', '--root', fixtureRoot, '--tools', 'clangd', '--help']);
 if (toolingInstallRootHelp.status !== 0) {
   console.error('cli tooling install --root --help failed');
   process.exit(toolingInstallRootHelp.status ?? 1);

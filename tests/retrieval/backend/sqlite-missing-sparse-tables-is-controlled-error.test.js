@@ -1,22 +1,11 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
+import {
+  createAlphaSearchIndex,
+  createSearchPipelineFixture
+} from '../helpers/search-pipeline-fixture.js';
 
-const makeAnnState = () => ({
-  code: { available: false },
-  prose: { available: false },
-  records: { available: false },
-  'extracted-prose': { available: false }
-});
-
-const makeAnnUsed = () => ({
-  code: false,
-  prose: false,
-  records: false,
-  'extracted-prose': false
-});
-
-const pipeline = createSearchPipeline({
+const pipeline = createSearchPipelineFixture({
   useSqlite: true,
   sqliteFtsRequested: false,
   sqliteFtsRoutingByMode: {
@@ -34,28 +23,7 @@ const pipeline = createSearchPipeline({
     substringMode: false,
     stemming: false
   },
-  sqliteFtsNormalize: false,
-  sqliteFtsProfile: 'balanced',
-  sqliteFtsWeights: [0, 1, 1, 1, 1, 1, 1, 1],
-  query: 'alpha',
-  queryTokens: ['alpha'],
-  queryAst: null,
-  bm25K1: 1.2,
-  bm25B: 0.75,
-  fieldWeights: null,
   postingsConfig: { enablePhraseNgrams: true, enableChargrams: true },
-  phraseNgramSet: null,
-  phraseRange: null,
-  explain: true,
-  symbolBoost: { enabled: false },
-  filters: {},
-  filtersActive: false,
-  topN: 5,
-  annEnabled: false,
-  annBackend: 'auto',
-  scoreBlend: null,
-  minhashMaxDocs: null,
-  sparseBackend: 'auto',
   profilePolicyByMode: {
     code: {
       profileId: 'default',
@@ -63,32 +31,11 @@ const pipeline = createSearchPipeline({
       allowSparseFallback: false
     }
   },
-  vectorAnnState: makeAnnState(),
-  vectorAnnUsed: makeAnnUsed(),
-  hnswAnnState: makeAnnState(),
-  hnswAnnUsed: makeAnnUsed(),
-  lanceAnnState: makeAnnState(),
-  lanceAnnUsed: makeAnnUsed(),
-  lancedbConfig: {},
-  buildCandidateSetSqlite: () => null,
-  getTokenIndexForQuery: () => null,
-  rankSqliteFts: () => [],
-  rankVectorAnnSqlite: () => [],
   sqliteHasFts: () => false,
-  sqliteHasTable: (_mode, _table) => false,
-  signal: null,
-  rrf: { enabled: false }
+  sqliteHasTable: (_mode, _table) => false
 });
 
-const idx = {
-  chunkMeta: [{ id: 0, file: 'src/a.js', tokens: ['alpha'], weight: 1 }],
-  tokenIndex: null,
-  filterIndex: null,
-  fileRelations: null,
-  phraseNgrams: null,
-  minhash: null,
-  denseVec: null
-};
+const idx = createAlphaSearchIndex({ tokenIndex: null });
 
 let failed = false;
 try {

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 
 import path from 'node:path';
 
 import { repoRoot } from '../../helpers/root.js';
+import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = repoRoot();
@@ -14,15 +14,12 @@ const env = applyTestEnv({
   syncProcess: false
 });
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [buildIndexPath, '--not-a-real-flag'],
-  {
-    cwd: root,
-    env,
-    encoding: 'utf8',
-    timeout: 15000
-  }
+  'build entry failure no-unsettled warning',
+  root,
+  env,
+  { stdio: 'pipe', timeoutMs: 15000, allowFailure: true }
 );
 
 assert.equal(result.status, 1, `expected build entry failure exit 1, stdout=${result.stdout || ''}`);

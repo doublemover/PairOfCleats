@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 import { resolveHostTargetTriple } from '../../../tools/tui/targets.js';
 
 const root = process.cwd();
@@ -22,13 +22,14 @@ const env = applyTestEnv({
   }
 });
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [binPath, 'tui', 'install', '--target', triple, '--install-root', installRoot],
+  'pairofcleats tui install missing cargo',
+  root,
+  env,
   {
-    cwd: root,
-    encoding: 'utf8',
-    env
+    stdio: 'pipe',
+    allowFailure: true
   }
 );
 

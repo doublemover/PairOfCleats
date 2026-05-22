@@ -3,17 +3,68 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { getRepoCacheRoot, getRepoId, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 applyTestEnv();
 
 const root = process.cwd();
 const toolPath = path.join(root, 'tools', 'index', 'stats.js');
+
+const runStats = (args, {
+  env = applyTestEnv({ syncProcess: false }),
+  allowFailure = false
+} = {}) => runNode(
+  [toolPath, ...args],
+  'index stats contract matrix',
+  root,
+  env,
+  { stdio: 'pipe', allowFailure }
+);
+
+const writeJson = (filePath, value) => fs.writeFile(filePath, JSON.stringify(value, null, 2), 'utf8');
+
+const createIndexStatsRepoFixture = async (prefix, {
+  repoDirName = 'repo',
+  configCacheRootName = 'cache'
+} = {}) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), `pairofcleats-${prefix}-`));
+  const cacheRoot = path.join(tempRoot, 'cache');
+  const configCacheRoot = path.join(tempRoot, configCacheRootName);
+  const repoRoot = path.join(tempRoot, repoDirName);
+  await fs.mkdir(repoRoot, { recursive: true });
+  await writeJson(path.join(repoRoot, '.pairofcleats.json'), {
+    cache: { root: configCacheRoot }
+  });
+  const userConfig = loadUserConfig(repoRoot);
+  const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+  const createBuildIndexDir = async (buildId, mode = 'code') => {
+    const buildRoot = path.join(repoCacheRoot, 'builds', buildId);
+    const indexDir = path.join(buildRoot, `index-${mode}`);
+    await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true });
+    return { buildRoot, indexDir };
+  };
+  const writeCurrentBuild = (buildId, buildRoot) => writeJson(
+    path.join(repoCacheRoot, 'builds', 'current.json'),
+    {
+      buildId,
+      buildRoot
+    }
+  );
+  return {
+    tempRoot,
+    cacheRoot,
+    repoRoot,
+    userConfig,
+    repoCacheRoot,
+    createBuildIndexDir,
+    writeCurrentBuild
+  };
+};
 
 {
   const tempRoot = resolveTestCachePath(root, 'index-stats-aggregate');
@@ -62,10 +113,7 @@ const toolPath = path.join(root, 'tools', 'index', 'stats.js');
     callSites: 20, callRows: 1, fileMeta: 5, fileRows: 2, denseVectors: 22, denseCount: 3, hnsw: 24, lancedb: 26
   });
 
-  const run = spawnSync(process.execPath, [toolPath, '--index-dir', indexRoot, '--json'], {
-    encoding: 'utf8',
-    env: applyTestEnv({ syncProcess: false })
-  });
+  const run = runStats(['--index-dir', indexRoot, '--json']);
   assert.equal(run.status, 0, run.stderr || run.stdout);
   const payload = JSON.parse(run.stdout);
   assert.deepEqual(Object.keys(payload.modes), ['code', 'prose']);
@@ -80,25 +128,23 @@ const toolPath = path.join(root, 'tools', 'index', 'stats.js');
 }
 
 {
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-index-stats-explicit-repo-'));
-  const cacheRoot = path.join(tempRoot, 'cache');
-  const explicitRepoPath = path.join(tempRoot, 'explicit-repo');
-  await fs.mkdir(explicitRepoPath, { recursive: true });
-  await fs.writeFile(path.join(explicitRepoPath, '.pairofcleats.json'), JSON.stringify({
-    cache: { root: path.join(tempRoot, 'parent-cache-root') }
-  }, null, 2), 'utf8');
-
-  const explicitUserConfig = loadUserConfig(explicitRepoPath);
-  const explicitRepoCacheRoot = getRepoCacheRoot(explicitRepoPath, explicitUserConfig);
-  const buildRoot = path.join(explicitRepoCacheRoot, 'builds', 'build-child');
-  const indexDir = path.join(buildRoot, 'index-code');
-  await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true });
+  const {
+    tempRoot,
+    cacheRoot,
+    repoRoot: explicitRepoPath,
+    createBuildIndexDir,
+    writeCurrentBuild
+  } = await createIndexStatsRepoFixture('index-stats-explicit-repo', {
+    repoDirName: 'explicit-repo',
+    configCacheRootName: 'parent-cache-root'
+  });
+  const { buildRoot, indexDir } = await createBuildIndexDir('build-child');
   await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[{"id":1}]', 'utf8');
   await fs.writeFile(path.join(indexDir, 'token_postings.json'), '{"tokens":["alpha"]}', 'utf8');
-  await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({
+  await writeJson(path.join(indexDir, 'index_state.json'), {
     compatibilityKey: 'compat-child'
-  }, null, 2), 'utf8');
-  await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify({
+  });
+  await writeJson(path.join(indexDir, 'pieces', 'manifest.json'), {
     version: 2,
     repoId: getRepoId(explicitRepoPath),
     buildId: 'build-child',
@@ -108,16 +154,11 @@ const toolPath = path.join(root, 'tools', 'index', 'stats.js');
       { name: 'chunk_meta', path: 'chunk_meta.json', bytes: Buffer.byteLength('[{"id":1}]', 'utf8'), count: 1 },
       { name: 'token_postings', path: 'token_postings.json', bytes: Buffer.byteLength('{"tokens":["alpha"]}', 'utf8'), count: 1 }
     ]
-  }, null, 2), 'utf8');
-  await fs.mkdir(path.join(explicitRepoCacheRoot, 'builds'), { recursive: true });
-  await fs.writeFile(path.join(explicitRepoCacheRoot, 'builds', 'current.json'), JSON.stringify({
-    buildId: 'build-child',
-    buildRoot
-  }, null, 2), 'utf8');
+  });
+  await writeCurrentBuild('build-child', buildRoot);
 
-  const run = spawnSync(process.execPath, [toolPath, '--repo', explicitRepoPath, '--json'], {
-    encoding: 'utf8',
-    env: { ...process.env, PAIROFCLEATS_CACHE_ROOT: cacheRoot }
+  const run = runStats(['--repo', explicitRepoPath, '--json'], {
+    env: applyTestEnv({ cacheRoot, syncProcess: false })
   });
 
   assert.equal(run.status, 0, run.stderr || run.stdout);
@@ -127,25 +168,18 @@ const toolPath = path.join(root, 'tools', 'index', 'stats.js');
 }
 
 {
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-index-stats-json-'));
-  const cacheRoot = path.join(tempRoot, 'cache');
-  const repoRoot = path.join(tempRoot, 'repo');
-  await fs.mkdir(repoRoot, { recursive: true });
-  await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({
-    cache: { root: cacheRoot }
-  }, null, 2), 'utf8');
-
-  const userConfig = loadUserConfig(repoRoot);
-  const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
-  const buildRoot = path.join(repoCacheRoot, 'builds', 'build-1');
-  const indexDir = path.join(buildRoot, 'index-code');
-  await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true });
+  const {
+    repoRoot,
+    createBuildIndexDir,
+    writeCurrentBuild
+  } = await createIndexStatsRepoFixture('index-stats-json');
+  const { buildRoot, indexDir } = await createBuildIndexDir('build-1');
   await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[{"id":1},{"id":2}]', 'utf8');
   await fs.writeFile(path.join(indexDir, 'token_postings.json'), '{"tokens":["alpha"]}', 'utf8');
   await fs.writeFile(path.join(indexDir, 'phrase_ngrams.json'), '{"rows":1}', 'utf8');
   await fs.writeFile(path.join(indexDir, 'chargram_postings.json'), '{"rows":1}', 'utf8');
   await fs.writeFile(path.join(indexDir, 'file_meta.json'), '[{"path":"a.js"},{"path":"b.js"}]', 'utf8');
-  await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({ compatibilityKey: 'compat-build-1' }, null, 2), 'utf8');
+  await writeJson(path.join(indexDir, 'index_state.json'), { compatibilityKey: 'compat-build-1' });
 
   const chunkBytes = Buffer.byteLength('[{"id":1},{"id":2}]', 'utf8');
   const tokenBytes = Buffer.byteLength('{"tokens":["alpha"]}', 'utf8');
@@ -153,7 +187,7 @@ const toolPath = path.join(root, 'tools', 'index', 'stats.js');
   const chargramBytes = Buffer.byteLength('{"rows":1}', 'utf8');
   const fileMetaBytes = Buffer.byteLength('[{"path":"a.js"},{"path":"b.js"}]', 'utf8');
 
-  await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify({
+  await writeJson(path.join(indexDir, 'pieces', 'manifest.json'), {
     version: 2,
     repoId: 'repo-manifest-id',
     buildId: 'build-1',
@@ -166,17 +200,10 @@ const toolPath = path.join(root, 'tools', 'index', 'stats.js');
       { name: 'chargram_postings', path: 'chargram_postings.json', bytes: chargramBytes, count: 1 },
       { name: 'file_meta', path: 'file_meta.json', bytes: fileMetaBytes, count: 2 }
     ]
-  }, null, 2), 'utf8');
-  await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
-  await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({
-    buildId: 'build-1',
-    buildRoot
-  }, null, 2), 'utf8');
-
-  const run = spawnSync(process.execPath, [toolPath, '--repo', repoRoot, '--json'], {
-    encoding: 'utf8',
-    env: applyTestEnv({ syncProcess: false })
   });
+  await writeCurrentBuild('build-1', buildRoot);
+
+  const run = runStats(['--repo', repoRoot, '--json']);
   assert.equal(run.status, 0, run.stderr || run.stdout);
   const payload = JSON.parse(run.stdout);
   assert.equal(payload.schemaVersion, 1);
@@ -194,22 +221,15 @@ const toolPath = path.join(root, 'tools', 'index', 'stats.js');
 }
 
 {
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-index-stats-missing-'));
-  const cacheRoot = path.join(tempRoot, 'cache');
-  const repoRoot = path.join(tempRoot, 'repo');
-  await fs.mkdir(repoRoot, { recursive: true });
-  await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({
-    cache: { root: cacheRoot }
-  }, null, 2), 'utf8');
-
-  const userConfig = loadUserConfig(repoRoot);
-  const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
-  const buildRoot = path.join(repoCacheRoot, 'builds', 'build-verify');
-  const indexDir = path.join(buildRoot, 'index-code');
-  await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true });
+  const {
+    repoRoot,
+    createBuildIndexDir,
+    writeCurrentBuild
+  } = await createIndexStatsRepoFixture('index-stats-missing');
+  const { buildRoot, indexDir } = await createBuildIndexDir('build-verify');
   await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[{"id":1}]', 'utf8');
-  await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({ compatibilityKey: 'compat-verify' }, null, 2), 'utf8');
-  await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify({
+  await writeJson(path.join(indexDir, 'index_state.json'), { compatibilityKey: 'compat-verify' });
+  await writeJson(path.join(indexDir, 'pieces', 'manifest.json'), {
     version: 2,
     buildId: 'build-verify',
     compatibilityKey: 'compat-verify',
@@ -217,17 +237,10 @@ const toolPath = path.join(root, 'tools', 'index', 'stats.js');
       { name: 'chunk_meta', path: 'chunk_meta.json', bytes: 10, count: 1, checksum: 'xxh64:deadbeef' },
       { name: 'token_postings', path: 'token_postings.json', bytes: 24, count: 2 }
     ]
-  }, null, 2), 'utf8');
-  await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
-  await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({
-    buildId: 'build-verify',
-    buildRoot
-  }, null, 2), 'utf8');
-
-  const run = spawnSync(process.execPath, [toolPath, '--repo', repoRoot, '--verify', '--json'], {
-    encoding: 'utf8',
-    env: applyTestEnv({ syncProcess: false })
   });
+  await writeCurrentBuild('build-verify', buildRoot);
+
+  const run = runStats(['--repo', repoRoot, '--verify', '--json'], { allowFailure: true });
   assert.equal(run.status, 1);
   const payload = JSON.parse(run.stdout);
   assert.equal(payload.verify?.ok, false);

@@ -70,6 +70,29 @@ const callSiteId = buildCallSiteId({
   calleeRaw: 'sink'
 });
 
+const createCallbackWatchStep = () => ({
+  taintIn: ['req.body'],
+  taintOut: [],
+  propagatedArgIndices: [],
+  boundParams: [],
+  calleeNormalized: 'sink',
+  semanticIds: ['sem.callback.register-handler-payload'],
+  semanticKinds: ['callback'],
+  sanitizerPolicy: 'terminate',
+  sanitizerBarrierApplied: false,
+  sanitizerBarriersBefore: 0,
+  sanitizerBarriersAfter: 0,
+  confidenceBefore: 0.6,
+  confidenceAfter: 0.51,
+  confidenceDelta: -0.09
+});
+
+const createRiskPath = () => ({
+  chunkUids: [sourceChunkUid, sinkChunkUid],
+  callSiteIdsByStep: [[callSiteId]],
+  watchByStep: [createCallbackWatchStep()]
+});
+
 const callSites = [
   {
     callSiteId,
@@ -189,26 +212,7 @@ const riskFlows = [
       severity: 'high',
       confidence: 0.8
     },
-    path: {
-      chunkUids: [sourceChunkUid, sinkChunkUid],
-      callSiteIdsByStep: [[callSiteId]],
-      watchByStep: [{
-        taintIn: ['req.body'],
-        taintOut: [],
-        propagatedArgIndices: [],
-        boundParams: [],
-        calleeNormalized: 'sink',
-        semanticIds: ['sem.callback.register-handler-payload'],
-        semanticKinds: ['callback'],
-        sanitizerPolicy: 'terminate',
-        sanitizerBarrierApplied: false,
-        sanitizerBarriersBefore: 0,
-        sanitizerBarriersAfter: 0,
-        confidenceBefore: 0.6,
-        confidenceAfter: 0.51,
-        confidenceDelta: -0.09
-      }]
-    },
+    path: createRiskPath(),
     confidence: 0.5,
     notes: {
       strictness: 'conservative',
@@ -245,26 +249,7 @@ const riskPartialFlows = [
         }
       ]
     },
-    path: {
-      chunkUids: [sourceChunkUid, sinkChunkUid],
-      callSiteIdsByStep: [[callSiteId]],
-      watchByStep: [{
-        taintIn: ['req.body'],
-        taintOut: [],
-        propagatedArgIndices: [],
-        boundParams: [],
-        calleeNormalized: 'sink',
-        semanticIds: ['sem.callback.register-handler-payload'],
-        semanticKinds: ['callback'],
-        sanitizerPolicy: 'terminate',
-        sanitizerBarrierApplied: false,
-        sanitizerBarriersBefore: 0,
-        sanitizerBarriersAfter: 0,
-        confidenceBefore: 0.6,
-        confidenceAfter: 0.51,
-        confidenceDelta: -0.09
-      }]
-    },
+    path: createRiskPath(),
     confidence: 0.45,
     notes: {
       strictness: 'conservative',

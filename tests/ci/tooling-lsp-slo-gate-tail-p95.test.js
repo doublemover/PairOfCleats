@@ -1,64 +1,35 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { applyTestEnv } from '../helpers/test-env.js';
+import {
+  cleanupGateFixture,
+  doctorReport,
+  lspProvider,
+  prepareGateFixture,
+  readGatePayload,
+  runGate
+} from '../helpers/tooling-lsp-slo-gate.js';
 
-const ROOT = process.cwd();
-const gatePath = path.join(ROOT, 'tools', 'ci', 'tooling-lsp-slo-gate.js');
-const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-tooling-lsp-slo-tail-p95-'));
-const jsonPath = path.join(tempRoot, 'tooling-lsp-slo-gate.json');
-const doctorPath = path.join(tempRoot, 'tooling-doctor-report.json');
-
-const doctorPayload = {
-  schemaVersion: 2,
-  providers: [
-    {
-      id: 'clangd',
-      enabled: true,
-      available: true,
-      languages: ['c', 'cpp'],
-      handshake: { ok: true, latencyMs: 40, errorCode: null, errorMessage: null }
-    },
-    {
-      id: 'pyright',
-      enabled: true,
-      available: true,
-      languages: ['python'],
-      handshake: { ok: true, latencyMs: 50, errorCode: null, errorMessage: null }
-    },
-    {
-      id: 'sourcekit',
-      enabled: true,
-      available: true,
-      languages: ['swift'],
-      handshake: { ok: true, latencyMs: 5000, errorCode: null, errorMessage: null }
-    }
-  ]
-};
-await fs.writeFile(doctorPath, `${JSON.stringify(doctorPayload, null, 2)}\n`, 'utf8');
+const fixture = await prepareGateFixture({
+  prefix: 'poc-tooling-lsp-slo-tail-p95-',
+  doctorPayload: doctorReport([
+    lspProvider({ id: 'clangd', latencyMs: 40 }),
+    lspProvider({ id: 'pyright', latencyMs: 50 }),
+    lspProvider({ id: 'sourcekit', latencyMs: 5000 })
+  ])
+});
 
 try {
-  const resultInformational = spawnSync(
-    process.execPath,
+  const resultInformational = runGate(
     [
-      gatePath,
       '--mode',
       'ci',
       '--doctor',
-      doctorPath,
+      fixture.doctorPath,
       '--json',
-      jsonPath,
+      fixture.jsonPath,
       '--max-p95-ms',
       '1000'
-    ],
-    {
-      cwd: ROOT,
-      env: applyTestEnv({ syncProcess: false }),
-      encoding: 'utf8'
-    }
+    ]
   );
 
   assert.equal(
@@ -67,8 +38,7 @@ try {
     `expected informational status=0 without --enforce, received ${resultInformational.status}`
   );
 
-  const raw = await fs.readFile(jsonPath, 'utf8');
-  const payload = JSON.parse(raw);
+  const payload = await readGatePayload(fixture.jsonPath);
   assert.equal(payload?.status, 'warn', 'expected gate status=warn without enforce');
   assert.equal(Number(payload?.metrics?.maxP95Ms), 5000, 'expected p95 to preserve tail latency');
   assert.equal(
@@ -76,31 +46,24 @@ try {
     true,
     'expected max p95 failure'
   );
-  const resultEnforced = spawnSync(
-    process.execPath,
+  const resultEnforced = runGate(
     [
-      gatePath,
       '--mode',
       'ci',
       '--doctor',
-      doctorPath,
+      fixture.doctorPath,
       '--json',
-      jsonPath,
+      fixture.jsonPath,
       '--max-p95-ms',
       '1000',
       '--enforce'
-    ],
-    {
-      cwd: ROOT,
-      env: applyTestEnv({ syncProcess: false }),
-      encoding: 'utf8'
-    }
+    ]
   );
   assert.equal(resultEnforced.status, 3, `expected enforced gate failure status=3, received ${resultEnforced.status}`);
-  const enforcedPayload = JSON.parse(await fs.readFile(jsonPath, 'utf8'));
+  const enforcedPayload = await readGatePayload(fixture.jsonPath);
   assert.equal(enforcedPayload?.status, 'error', 'expected gate status=error with --enforce');
 
   console.log('tooling lsp slo gate tail p95 test passed');
 } finally {
-  await fs.rm(tempRoot, { recursive: true, force: true });
+  await cleanupGateFixture(fixture);
 }

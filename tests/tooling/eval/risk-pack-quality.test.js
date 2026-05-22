@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { createRiskPackEvalFixtureSet } from '../../helpers/risk-pack-eval.js';
+import { runNode } from '../../helpers/run-node.js';
 
 applyTestEnv();
 
@@ -13,8 +13,7 @@ const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'eval-risk-pack-quality');
 const { datasetPath, gatesPath } = await createRiskPackEvalFixtureSet(tempRoot);
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     path.join(root, 'tools', 'eval', 'risk-pack.js'),
     '--dataset',
@@ -23,10 +22,10 @@ const result = spawnSync(
     gatesPath,
     '--enforce-gates'
   ],
-  {
-    env: process.env,
-    encoding: 'utf8'
-  }
+  'risk-pack quality eval',
+  root,
+  process.env,
+  { stdio: 'pipe', allowFailure: true }
 );
 
 assert.equal(result.status, 0, `expected risk-pack eval gates to pass: ${result.stderr || result.stdout}`);

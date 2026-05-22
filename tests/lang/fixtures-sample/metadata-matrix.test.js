@@ -1,20 +1,6 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
 import { createInProcessSearchRunner, ensureFixtureIndex } from '../../helpers/fixture-index.js';
-
-const fail = (message) => {
-  console.error(message);
-  process.exit(1);
-};
-
-const hasPython = () => {
-  const candidates = ['python', 'python3'];
-  for (const cmd of candidates) {
-    const result = spawnSync(cmd, ['-c', 'import sys; sys.stdout.write("ok")'], { encoding: 'utf8' });
-    if (result.status === 0 && result.stdout.trim() === 'ok') return true;
-  }
-  return false;
-};
+import { fail, findSafely, hasPython, runEnabledCases } from '../helpers/fixture-metadata.js';
 
 const { fixtureRoot, env } = await ensureFixtureIndex({
   fixtureName: 'sample',
@@ -25,13 +11,7 @@ const { fixtureRoot, env } = await ensureFixtureIndex({
 const runSearch = createInProcessSearchRunner({ fixtureRoot, env });
 const pythonEnabled = hasPython();
 
-const findCodeHit = (payload, predicate) => (payload.code || []).find((entry) => {
-  try {
-    return predicate(entry);
-  } catch {
-    return false;
-  }
-});
+const findCodeHit = (payload, predicate) => findSafely(payload.code || [], predicate);
 
 const cases = [
   {
@@ -106,9 +86,6 @@ if (!pythonEnabled) {
   console.log('Skipping Python sample metadata checks (python not available).');
 }
 
-for (const testCase of cases) {
-  if (!testCase.enabled) continue;
-  await testCase.validate();
-}
+await runEnabledCases(cases);
 
 console.log('Fixture sample metadata matrix ok.');

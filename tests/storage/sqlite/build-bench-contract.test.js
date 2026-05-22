@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 import { setupSqliteBuildFixture } from './helpers/build-fixture.js';
 
 const root = process.cwd();
@@ -15,15 +15,21 @@ const fixture = await setupSqliteBuildFixture({
 });
 
 const benchScript = path.join(root, 'tools', 'bench', 'sqlite', 'build-from-artifacts.js');
-const result = spawnSync(process.execPath, [
-  benchScript,
-  '--mode',
-  'current',
-  '--index-dir',
-  fixture.indexDir,
-  '--statement-strategy',
-  'prepared'
-], { cwd: root, env, encoding: 'utf8' });
+const result = runNode(
+  [
+    benchScript,
+    '--mode',
+    'current',
+    '--index-dir',
+    fixture.indexDir,
+    '--statement-strategy',
+    'prepared'
+  ],
+  'sqlite build bench contract',
+  root,
+  env,
+  { stdio: 'pipe', allowFailure: true }
+);
 
 if (result.status !== 0) {
   console.error(result.stdout || '');

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { readJsonFile } from '../../../src/shared/artifact-io.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
-import { writeJsonArrayFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonArrayFile, writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { createBaseIndex, defaultUserConfig } from './helpers.js';
 import { updatePiecesManifest } from '../../helpers/pieces-manifest.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -25,12 +25,27 @@ const runValidation = async ({ repoRoot, indexRoot, strict = true }) => validate
   lmdbEnabled: false
 });
 
+const assertValidationIssue = (report, expectedText, message) => {
+  assert.equal(report.ok, false, message || `expected validation failure containing ${expectedText}`);
+  assert.ok(
+    report.issues.some((issue) => issue.includes(expectedText)),
+    `expected validation issue containing ${expectedText}; got: ${report.issues.join('; ')}`
+  );
+};
+
 const createTempRoot = async (name) => {
   const tempRoot = resolveTestCachePath(root, name);
   await fs.rm(tempRoot, { recursive: true, force: true });
   await fs.mkdir(tempRoot, { recursive: true });
   return tempRoot;
 };
+
+const createManifestPieces = (overridesByName = {}) => [
+  { type: 'chunks', name: 'chunk_meta', format: 'json', path: 'chunk_meta.json', ...overridesByName.chunk_meta },
+  { type: 'postings', name: 'token_postings', format: 'json', path: 'token_postings.json', ...overridesByName.token_postings },
+  { type: 'stats', name: 'index_state', format: 'json', path: 'index_state.json', ...overridesByName.index_state },
+  { type: 'stats', name: 'filelists', format: 'json', path: '.filelists.json', ...overridesByName.filelists }
+];
 
 const cases = [
   {
@@ -86,12 +101,7 @@ const cases = [
       const tempRoot = await createTempRoot('index-validate-contract-optional-file-meta');
       const { indexRoot } = await createBaseIndex({
         rootDir: tempRoot,
-        manifestPieces: [
-          { type: 'chunks', name: 'chunk_meta', format: 'json', path: 'chunk_meta.json' },
-          { type: 'postings', name: 'token_postings', format: 'json', path: 'token_postings.json' },
-          { type: 'stats', name: 'index_state', format: 'json', path: 'index_state.json' },
-          { type: 'stats', name: 'filelists', format: 'json', path: '.filelists.json' }
-        ]
+        manifestPieces: createManifestPieces()
       });
       const report = await runValidation({ repoRoot: tempRoot, indexRoot, strict: false });
       const fileMetaLoadIssue = report.issues.find((entry) => String(entry).includes('file_meta load failed'));
@@ -114,8 +124,7 @@ const cases = [
       });
 
       const report = await runValidation({ repoRoot, indexRoot, strict: true });
-      assert.equal(report.ok, false);
-      assert.ok(report.issues.some((issue) => issue.includes('ERR_ID_COLLISION')));
+      assertValidationIssue(report, 'ERR_ID_COLLISION');
     }
   },
   {
@@ -252,8 +261,7 @@ const cases = [
       const { repoRoot, indexRoot, indexDir } = await createBaseIndex({ rootDir: tempRoot });
       await fs.rm(path.join(indexDir, 'pieces', 'manifest.json'), { force: true });
       const report = await runValidation({ repoRoot, indexRoot, strict: true });
-      assert.ok(!report.ok);
-      assert.ok(report.issues.some((issue) => issue.includes('pieces/manifest.json missing')));
+      assertValidationIssue(report, 'pieces/manifest.json missing');
     }
   },
   {
@@ -263,24 +271,23 @@ const cases = [
       const { repoRoot, indexRoot, indexDir } = await createBaseIndex({ rootDir: tempRoot });
       await fs.rm(path.join(indexDir, 'chunk_meta.json'), { force: true });
       const report = await runValidation({ repoRoot, indexRoot, strict: true });
-      assert.ok(!report.ok);
-      assert.ok(report.issues.some((issue) => issue.includes('chunk_meta.json') && issue.includes('missing')));
+      assert.equal(report.ok, false, 'expected missing manifest-declared piece to fail validation');
+      assert.ok(
+        report.issues.some((issue) => issue.includes('chunk_meta.json') && issue.includes('missing')),
+        `expected missing chunk_meta issue; got: ${report.issues.join('; ')}`
+      );
     }
   },
   {
     name: 'strict validation fails on manifest paths that are not safe',
     async run() {
       const tempRoot = await createTempRoot('index-validate-contract-manifest-safety');
-      const manifestPieces = [
-        { type: 'chunks', name: 'chunk_meta', format: 'json', path: '..\\chunk_meta.json' },
-        { type: 'postings', name: 'token_postings', format: 'json', path: 'token_postings.json' },
-        { type: 'stats', name: 'index_state', format: 'json', path: 'index_state.json' },
-        { type: 'stats', name: 'filelists', format: 'json', path: '.filelists.json' }
-      ];
+      const manifestPieces = createManifestPieces({
+        chunk_meta: { path: '..\\chunk_meta.json' }
+      });
       const { repoRoot, indexRoot } = await createBaseIndex({ rootDir: tempRoot, manifestPieces });
       const report = await runValidation({ repoRoot, indexRoot, strict: true });
-      assert.ok(!report.ok);
-      assert.ok(report.issues.some((issue) => issue.includes('manifest path is not safe')));
+      assertValidationIssue(report, 'manifest path is not safe');
     }
   },
   {
@@ -314,8 +321,7 @@ const cases = [
       await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 
       const report = await runValidation({ repoRoot, indexRoot, strict: true });
-      assert.equal(report.ok, false);
-      assert.ok(report.issues.some((issue) => issue.includes('manifest path escapes index root')));
+      assertValidationIssue(report, 'manifest path escapes index root');
     }
   },
   {
@@ -329,25 +335,20 @@ const cases = [
       });
 
       const report = await runValidation({ repoRoot, indexRoot, strict: true });
-      assert.ok(!report.ok);
-      assert.ok(report.issues.some((issue) => issue.includes('unknown artifact name')));
+      assertValidationIssue(report, 'unknown artifact name');
     }
   },
   {
     name: 'strict validation fails when manifest checksum does not match piece contents',
     async run() {
       const tempRoot = await createTempRoot('index-validate-contract-checksum-mismatch');
-      const manifestPieces = [
-        { type: 'chunks', name: 'chunk_meta', format: 'json', path: 'chunk_meta.json', checksum: 'sha1:deadbeef' },
-        { type: 'postings', name: 'token_postings', format: 'json', path: 'token_postings.json' },
-        { type: 'stats', name: 'index_state', format: 'json', path: 'index_state.json' },
-        { type: 'stats', name: 'filelists', format: 'json', path: '.filelists.json' }
-      ];
+      const manifestPieces = createManifestPieces({
+        chunk_meta: { checksum: 'sha1:deadbeef' }
+      });
       const { repoRoot, indexRoot } = await createBaseIndex({ rootDir: tempRoot, manifestPieces });
 
       const report = await runValidation({ repoRoot, indexRoot, strict: true });
-      assert.equal(report.ok, false, 'expected manifest checksum mismatch to fail validation');
-      assert.ok(report.issues.some((issue) => issue.includes('piece checksum mismatch')));
+      assertValidationIssue(report, 'piece checksum mismatch', 'expected manifest checksum mismatch to fail validation');
     }
   }
 ];

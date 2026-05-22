@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { getRepoCacheRoot } from '../../tools/dict-utils/paths/repo.js';
 import { queryNavigationData } from '../../tools/tooling/navigation.js';
+import { runNode } from '../helpers/run-node.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-navigation-query-'));
 const repoRoot = path.join(tempRoot, 'repo');
@@ -183,13 +183,12 @@ assert.equal(completions.results[0].name, 'WidgetBuilder');
 assert.equal(completions.results[0].virtualPath, 'src/defs.js');
 
 const cliPath = path.join(process.cwd(), 'bin', 'pairofcleats.js');
-const cliReferences = spawnSync(
-  process.execPath,
+const cliReferences = runNode(
   [cliPath, 'tooling', 'navigate', '--repo', repoRoot, '--kind', 'references', '--symbol', 'WidgetBuilder', '--file', 'src/refs.js', '--top', '10', '--json'],
-  {
-    cwd: outsideRoot,
-    encoding: 'utf8'
-  }
+  'tooling navigate references CLI',
+  outsideRoot,
+  process.env,
+  { stdio: 'pipe', allowFailure: true }
 );
 assert.equal(cliReferences.status, 0, cliReferences.stderr || 'expected CLI tooling navigate to succeed');
 const cliPayload = JSON.parse(cliReferences.stdout || '{}');

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { toPosix } from '../../src/shared/files.js';
+import { toPosix } from '../../src/shared/file-paths.js';
 import { assignLane } from '../runner/run-discovery.js';
 import { loadRunRules } from '../runner/run-config.js';
 

@@ -13,32 +13,9 @@ import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
+import { writeFederationRepoFixture } from './repo-fixture.js';
 
 applyTestEnv();
-
-const writeRepo = async ({ repoRoot, cacheRoot, modes = ['code'] }) => {
-  await fs.mkdir(repoRoot, { recursive: true });
-  await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({
-    cache: { root: cacheRoot }
-  }, null, 2), 'utf8');
-  const repoCacheRoot = getRepoCacheRoot(repoRoot);
-  const buildRoot = path.join(repoCacheRoot, 'builds', 'test-build');
-  await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
-  await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({
-    buildId: 'test-build',
-    buildRoot,
-    modes
-  }, null, 2), 'utf8');
-  for (const mode of modes) {
-    const indexDir = path.join(buildRoot, `index-${mode}`);
-    await fs.mkdir(indexDir, { recursive: true });
-    await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[]', 'utf8');
-    await fs.writeFile(path.join(indexDir, 'token_postings.json'), '{}', 'utf8');
-    await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({
-      compatibilityKey: `compat-${mode}`
-    }, null, 2), 'utf8');
-  }
-};
 
 const withTempRoot = async (prefix, run) => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
@@ -132,7 +109,7 @@ const cases = [
       await withTempRoot('poc-fed-select-invalid-cohort-', async ({ tempRoot, cacheRoot }) => {
         const repoRoot = path.join(tempRoot, 'repo');
         const workspacePath = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
-        await writeRepo({ repoRoot, cacheRoot, modes: ['code'] });
+        await writeFederationRepoFixture({ repoRoot, cacheRoot, modes: ['code'] });
         await fs.writeFile(workspacePath, `{
   "schemaVersion": 1,
   "cacheRoot": "./cache",
@@ -276,8 +253,8 @@ const cases = [
         const repoAliasA = path.join(tempRoot, 'repo-a');
         const repoAliasB = path.join(tempRoot, 'repo-b');
         const aliasWorkspacePath = path.join(tempRoot, '.pairofcleats-workspace-aliases.jsonc');
-        await writeRepo({ repoRoot: repoAliasA, cacheRoot, modes: ['code'] });
-        await writeRepo({ repoRoot: repoAliasB, cacheRoot, modes: ['code'] });
+        await writeFederationRepoFixture({ repoRoot: repoAliasA, cacheRoot, modes: ['code'] });
+        await writeFederationRepoFixture({ repoRoot: repoAliasB, cacheRoot, modes: ['code'] });
 
         await fs.writeFile(aliasWorkspacePath, `{
   "schemaVersion": 1,
@@ -319,8 +296,8 @@ const cases = [
         const repoCode = path.join(tempRoot, 'repo-code');
         const repoProse = path.join(tempRoot, 'repo-prose');
         const workspacePath = path.join(tempRoot, '.pairofcleats-workspace-modes.jsonc');
-        await writeRepo({ repoRoot: repoCode, cacheRoot, modes: ['code'] });
-        await writeRepo({ repoRoot: repoProse, cacheRoot, modes: ['prose'] });
+        await writeFederationRepoFixture({ repoRoot: repoCode, cacheRoot, modes: ['code'] });
+        await writeFederationRepoFixture({ repoRoot: repoProse, cacheRoot, modes: ['prose'] });
         await fs.writeFile(workspacePath, `{
   "schemaVersion": 1,
   "cacheRoot": "./cache",
@@ -393,8 +370,8 @@ const cases = [
         const workspacePathPrimary = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
         const workspacePathAlt = path.join(tempRoot, '.pairofcleats-workspace-alt.jsonc');
 
-        await writeRepo({ repoRoot: repoA, cacheRoot, modes: ['code'] });
-        await writeRepo({ repoRoot: repoB, cacheRoot, modes: ['code'] });
+        await writeFederationRepoFixture({ repoRoot: repoA, cacheRoot, modes: ['code'] });
+        await writeFederationRepoFixture({ repoRoot: repoB, cacheRoot, modes: ['code'] });
 
         await fs.writeFile(workspacePathPrimary, `{
   "schemaVersion": 1,
@@ -504,8 +481,8 @@ const cases = [
         const repoA = path.join(tempRoot, 'repo-a');
         const repoB = path.join(tempRoot, 'repo-b');
         const workspacePath = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
-        await writeRepo({ repoRoot: repoA, cacheRoot, modes: ['code'] });
-        await writeRepo({ repoRoot: repoB, cacheRoot, modes: ['code'] });
+        await writeFederationRepoFixture({ repoRoot: repoA, cacheRoot, modes: ['code'] });
+        await writeFederationRepoFixture({ repoRoot: repoB, cacheRoot, modes: ['code'] });
 
         await fs.writeFile(workspacePath, `{
   "schemaVersion": 1,

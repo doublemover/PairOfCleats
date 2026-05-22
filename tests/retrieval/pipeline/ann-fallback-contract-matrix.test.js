@@ -4,8 +4,11 @@ import assert from 'node:assert/strict';
 import { getBitmapSize, isRoaringAvailable } from '../../../src/retrieval/bitmap.js';
 import { buildFilterIndex } from '../../../src/retrieval/filter-index.js';
 import { ANN_PROVIDER_IDS } from '../../../src/retrieval/ann/types.js';
-import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import {
+  createAvailableDenseAnnProvider,
+  createInMemorySearchPipeline
+} from './helpers/in-memory-search-pipeline-fixture.js';
 
 applyTestEnv();
 
@@ -43,53 +46,12 @@ const createBasePipeline = ({
   annCandidateCap = 1,
   filters = { ext: ['js'] },
   filtersActive = true
-}) => createSearchPipeline({
-  useSqlite: false,
-  sqliteFtsRequested: false,
-  sqliteFtsNormalize: false,
-  sqliteFtsProfile: null,
-  sqliteFtsWeights: null,
-  bm25K1: 1.2,
-  bm25B: 0.75,
-  fieldWeights: null,
-  postingsConfig: { enablePhraseNgrams: false, enableChargrams: false },
-  query: 'alpha',
-  queryTokens: ['alpha'],
-  queryAst: null,
-  phraseNgramSet: null,
-  phraseRange: null,
-  explain: false,
-  symbolBoost: { enabled: false },
-  relationBoost: { enabled: false },
+}) => createInMemorySearchPipeline({
+  provider,
   filters,
   filtersActive,
-  filterPredicates: null,
   topN: 3,
-  maxCandidates: 50,
-  annEnabled: true,
-  annBackend: ANN_PROVIDER_IDS.DENSE,
   annCandidateCap,
-  annCandidateMinDocCount: 1,
-  annCandidateMaxDocCount: 100,
-  scoreBlend: { enabled: false },
-  minhashMaxDocs: null,
-  sparseBackend: 'auto',
-  vectorAnnState: { code: { available: false } },
-  vectorAnnUsed: null,
-  hnswAnnState: { code: { available: false } },
-  hnswAnnUsed: null,
-  lanceAnnState: { code: { available: false } },
-  lanceAnnUsed: null,
-  lancedbConfig: {},
-  buildCandidateSetSqlite: () => null,
-  getTokenIndexForQuery: () => null,
-  rankSqliteFts: () => ({ hits: [], type: 'fts' }),
-  rankVectorAnnSqlite: () => [],
-  sqliteHasFts: () => false,
-  signal: null,
-  rrf: { enabled: false },
-  graphRankingConfig: { enabled: false },
-  createAnnProviders: () => new Map([[ANN_PROVIDER_IDS.DENSE, provider]])
 });
 
 const sortedCandidateSet = (candidateSet) => (
@@ -98,51 +60,33 @@ const sortedCandidateSet = (candidateSet) => (
     : null
 );
 
+const runFallbackRetryScenario = async (annCandidateCap) => {
+  const annCandidateSets = [];
+  const provider = createAvailableDenseAnnProvider(async ({ candidateSet }) => {
+    annCandidateSets.push(sortedCandidateSet(candidateSet));
+    if (candidateSet && candidateSet.has(2)) {
+      return [{ idx: 2, sim: 0.95 }];
+    }
+    return [];
+  });
+  const pipeline = createBasePipeline({ provider, annCandidateCap });
+  const results = await pipeline(baseIndex(), 'code', [0.4, 0.4]);
+  return { annCandidateSets, results };
+};
+
+const assertFallbackRetryResult = ({ annCandidateSets, results }) => {
+  assert.equal(annCandidateSets.length, 2);
+  assert.deepEqual(annCandidateSets[0], [0, 1]);
+  assert.deepEqual(annCandidateSets[1], [0, 1, 2]);
+  assert.ok(results.some((entry) => entry.id === 2 && entry.annSource === ANN_PROVIDER_IDS.DENSE));
+};
+
 const cases = [
   {
     name: 'nonvector mode never initializes ANN providers',
     async run() {
       let initCount = 0;
-      const searchPipeline = createSearchPipeline({
-        useSqlite: false,
-        sqliteFtsRequested: false,
-        sqliteFtsNormalize: false,
-        sqliteFtsProfile: null,
-        sqliteFtsWeights: null,
-        bm25K1: 1.2,
-        bm25B: 0.75,
-        fieldWeights: null,
-        postingsConfig: { enablePhraseNgrams: false, enableChargrams: false },
-        queryTokens: ['alpha'],
-        queryAst: null,
-        phraseNgramSet: null,
-        phraseRange: null,
-        explain: false,
-        symbolBoost: { enabled: false },
-        filters: {},
-        filtersActive: false,
-        topN: 2,
-        maxCandidates: 50,
-        annEnabled: true,
-        annBackend: 'dense',
-        scoreBlend: { enabled: false },
-        minhashMaxDocs: null,
-        sparseBackend: 'auto',
-        vectorAnnState: { code: { available: false } },
-        vectorAnnUsed: null,
-        hnswAnnState: { code: { available: false } },
-        hnswAnnUsed: null,
-        lanceAnnState: { code: { available: false } },
-        lanceAnnUsed: null,
-        lancedbConfig: {},
-        buildCandidateSetSqlite: () => null,
-        getTokenIndexForQuery: () => null,
-        rankSqliteFts: () => ({ hits: [], type: 'fts' }),
-        rankVectorAnnSqlite: () => [],
-        sqliteHasFts: () => false,
-        signal: null,
-        rrf: { enabled: false },
-        graphRankingConfig: { enabled: false },
+      const searchPipeline = createInMemorySearchPipeline({
         createAnnProviders: () => {
           initCount += 1;
           return new Map([[
@@ -173,47 +117,13 @@ const cases = [
   {
     name: 'fallback retries from filtered BM candidates to full allowed set',
     async run() {
-      const annCandidateSets = [];
-      const provider = {
-        id: ANN_PROVIDER_IDS.DENSE,
-        isAvailable: () => true,
-        query: async ({ candidateSet }) => {
-          annCandidateSets.push(sortedCandidateSet(candidateSet));
-          if (candidateSet && candidateSet.has(2)) {
-            return [{ idx: 2, sim: 0.95 }];
-          }
-          return [];
-        }
-      };
-      const pipeline = createBasePipeline({ provider, annCandidateCap: 1 });
-      const results = await pipeline(baseIndex(), 'code', [0.4, 0.4]);
-      assert.equal(annCandidateSets.length, 2);
-      assert.deepEqual(annCandidateSets[0], [0, 1]);
-      assert.deepEqual(annCandidateSets[1], [0, 1, 2]);
-      assert.ok(results.some((entry) => entry.id === 2 && entry.annSource === ANN_PROVIDER_IDS.DENSE));
+      assertFallbackRetryResult(await runFallbackRetryScenario(1));
     }
   },
   {
     name: 'fractional candidate cap still retries after clamp',
     async run() {
-      const annCandidateSets = [];
-      const provider = {
-        id: ANN_PROVIDER_IDS.DENSE,
-        isAvailable: () => true,
-        query: async ({ candidateSet }) => {
-          annCandidateSets.push(sortedCandidateSet(candidateSet));
-          if (candidateSet && candidateSet.has(2)) {
-            return [{ idx: 2, sim: 0.95 }];
-          }
-          return [];
-        }
-      };
-      const pipeline = createBasePipeline({ provider, annCandidateCap: 0.5 });
-      const results = await pipeline(baseIndex(), 'code', [0.4, 0.4]);
-      assert.equal(annCandidateSets.length, 2);
-      assert.deepEqual(annCandidateSets[0], [0, 1]);
-      assert.deepEqual(annCandidateSets[1], [0, 1, 2]);
-      assert.ok(results.some((entry) => entry.id === 2 && entry.annSource === ANN_PROVIDER_IDS.DENSE));
+      assertFallbackRetryResult(await runFallbackRetryScenario(0.5));
     }
   },
   {
@@ -230,18 +140,14 @@ const cases = [
         if (typeof candidateSet.includes === 'function') return candidateSet.includes(id);
         return false;
       };
-      const provider = {
-        id: ANN_PROVIDER_IDS.DENSE,
-        isAvailable: () => true,
-        query: async ({ candidateSet }) => {
-          providerCandidateKinds.push(candidateSet instanceof Set ? 'set' : 'bitmap');
-          providerCandidateSizes.push(getBitmapSize(candidateSet));
-          if (hasCandidateId(candidateSet, 2)) {
-            return [{ idx: 2, sim: 0.95 }];
-          }
-          return [];
+      const provider = createAvailableDenseAnnProvider(async ({ candidateSet }) => {
+        providerCandidateKinds.push(candidateSet instanceof Set ? 'set' : 'bitmap');
+        providerCandidateSizes.push(getBitmapSize(candidateSet));
+        if (hasCandidateId(candidateSet, 2)) {
+          return [{ idx: 2, sim: 0.95 }];
         }
-      };
+        return [];
+      });
       const idx = baseIndex();
       idx.filterIndex = buildFilterIndex(idx.chunkMeta);
       idx.filterIndex.bitmap = null;

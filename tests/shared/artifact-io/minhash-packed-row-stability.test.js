@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { loadMinhashSignatureRows } from '../../../src/shared/artifact-io/loaders.js';
 import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 

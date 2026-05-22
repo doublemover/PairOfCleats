@@ -2,14 +2,19 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const checker = path.join(root, 'tools', 'tooling', 'python-check.js');
 
-const pythonPolicy = spawnSync(process.execPath, [checker, '--json'], {
-  cwd: root,
-  encoding: 'utf8'
-});
+const pythonPolicy = runNode(
+  [checker, '--json'],
+  'sublime python policy check',
+  root,
+  applyTestEnv({ syncProcess: false }),
+  { stdio: 'pipe' }
+);
 
 if (pythonPolicy.status !== 0) {
   if (pythonPolicy.stdout) console.error(pythonPolicy.stdout.trim());

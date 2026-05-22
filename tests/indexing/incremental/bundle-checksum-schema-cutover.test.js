@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { BUNDLE_CHECKSUM_SCHEMA_VERSION } from '../../../src/shared/bundle-io.js';
+import { BUNDLE_CHECKSUM_SCHEMA_VERSION } from '../../../src/shared/bundle-io-constants.js';
 import { SIGNATURE_VERSION } from '../../../src/index/build/indexer/signatures.js';
 import { loadIncrementalState } from '../../../src/index/build/incremental/planning.js';
 import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';

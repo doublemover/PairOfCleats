@@ -5,7 +5,7 @@ import {
   createDeterministicFileStreamSampler,
   selectDeterministicFileSample
 } from '../../../tools/build/embeddings/sampling.js';
-import { toPosix } from '../../../src/shared/files.js';
+import { toPosix } from '../../../src/shared/file-paths.js';
 
 const buildEntries = (files) => files.map((filePath) => [
   filePath,

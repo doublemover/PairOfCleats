@@ -14,128 +14,12 @@ import {
   renderRiskExplanationJson
 } from '../../../src/retrieval/output/risk-explain.js';
 import { renderRiskExplanationSarif } from '../../../src/retrieval/output/risk-sarif.js';
-
-const baseCallSiteDetails = {
-  file: 'src/full.js',
-  startLine: 18,
-  startCol: 4,
-  calleeNormalized: 'query',
-  args: ['req.body'],
-  excerpt: 'query(req.body)'
-};
-
-const baseFlow = {
-  flowId: 'flow-full',
-  confidence: 0.91,
-  category: 'injection',
-  source: { ruleId: 'SRC', ruleRole: 'source', tags: ['input', 'http'] },
-  sink: { ruleId: 'SNK', ruleRole: 'sink', severity: 'high', tags: ['sql'] },
-  path: {
-    labels: ['chunk:src', 'chunk:sink'],
-    nodes: [
-      { type: 'chunk', chunkUid: 'chunk-full' },
-      { type: 'chunk', chunkUid: 'chunk-sink' }
-    ],
-    callSiteIdsByStep: [['cs-1']],
-    watchByStep: [{
-      taintIn: ['req.body'],
-      taintOut: ['input'],
-      propagatedArgIndices: [0],
-      boundParams: ['input'],
-      calleeNormalized: 'query',
-      semanticIds: ['sem.callback.register-handler-payload'],
-      semanticKinds: ['callback'],
-      sanitizerPolicy: 'terminate',
-      sanitizerBarrierApplied: false,
-      sanitizerBarriersBefore: 0,
-      sanitizerBarriersAfter: 0,
-      confidenceBefore: 0.6,
-      confidenceAfter: 0.51,
-      confidenceDelta: -0.09
-    }]
-  },
-  evidence: {
-    callSitesByStep: [[{
-      callSiteId: 'cs-1',
-      details: baseCallSiteDetails
-    }]]
-  },
-  callSitesByStep: [[{
-    callSiteId: 'cs-1',
-    details: baseCallSiteDetails
-  }]]
-};
-
-const basePartialFlow = {
-  partialFlowId: 'partial-a',
-  confidence: 0.72,
-  source: { ruleId: 'SRC', chunkUid: 'chunk-full' },
-  frontier: {
-    chunkUid: 'chunk-mid',
-    terminalReason: 'maxDepth',
-    blockedExpansions: [{
-      reason: 'maxEdgeExpansions',
-      targetChunkUid: 'chunk-sink',
-      callSiteIds: ['cs-1']
-    }]
-  },
-  path: {
-    labels: ['chunk:src', 'chunk:mid'],
-    nodes: [
-      { type: 'chunk', chunkUid: 'chunk-full' },
-      { type: 'chunk', chunkUid: 'chunk-mid' }
-    ],
-    callSiteIdsByStep: [['cs-1']],
-    watchByStep: baseFlow.path.watchByStep
-  },
-  evidence: baseFlow.evidence,
-  notes: {
-    hopCount: 1,
-    terminalReason: 'maxDepth',
-    capsHit: ['maxDepth']
-  }
-};
-
-const baseSummary = {
-  chunkUid: 'chunk-full',
-  file: 'src/full.js',
-  symbol: {
-    name: 'full',
-    kind: 'function'
-  },
-  totals: {
-    sources: 1,
-    sinks: 1,
-    sanitizers: 0,
-    localFlows: 1
-  },
-  ruleRoles: {
-    sources: 1,
-    sinks: 1,
-    sanitizers: 0
-  },
-  propagatorLikeRoles: [{ role: 'callback', count: 1 }],
-  topCategories: [{ category: 'injection', count: 1 }],
-  topTags: [{ tag: 'sql', count: 1 }]
-};
-
-const baseProvenance = {
-  generatedAt: '2026-03-12T00:00:00.000Z',
-  ruleBundle: {
-    version: '1.0.0',
-    fingerprint: 'sha1:bundle',
-    roleModel: {
-      version: '1.0.0',
-      directRoles: ['source', 'sink', 'sanitizer'],
-      propagatorLikeRoles: ['propagator', 'wrapper', 'builder', 'callback', 'asyncHandoff'],
-      propagatorLikeEncoding: 'watch-semantics'
-    }
-  },
-  effectiveConfigFingerprint: 'sha1:config',
-  artifactRefs: {
-    flows: { entrypoint: 'risk_flows.jsonl' }
-  }
-};
+import {
+  createCappedRiskSliceInput,
+  createFullRiskSliceInput,
+  createFullRiskStandaloneInput,
+  createMinimalRiskStandaloneInput
+} from '../../helpers/risk-explanation-fixtures.js';
 
 const cases = [
   {
@@ -396,22 +280,7 @@ const cases = [
   {
     name: 'JSON and markdown contracts stay stable for minimal, full, and capped flows',
     run() {
-      const minimalModel = buildRiskExplanationModelFromStandalone({
-        chunk: { chunkUid: 'chunk-min', file: 'src/min.js', name: 'minimal', kind: 'function' },
-        summary: {
-          totals: { sources: 0, sinks: 0, sanitizers: 0, localFlows: 0 },
-          topCategories: [],
-          topTags: []
-        },
-        stats: {
-          status: 'ok',
-          flowsEmitted: 0,
-          summariesEmitted: 1,
-          uniqueCallSitesReferenced: 0,
-          capsHit: []
-        },
-        flows: []
-      });
+      const minimalModel = buildRiskExplanationModelFromStandalone(createMinimalRiskStandaloneInput());
       const minimalJson = renderRiskExplanationJson(minimalModel, {
         title: 'Risk Explain',
         maxFlows: 1,
@@ -436,30 +305,7 @@ const cases = [
       assert.equal(minimalJson.summary?.totals?.sources, 0);
       assert.match(renderRiskExplanation(minimalModel, { maxFlows: 1, maxEvidencePerFlow: 2 }), /Risk Flows\n- \(none\)/);
 
-      const fullModel = buildRiskExplanationModelFromRiskSlice({
-        summary: baseSummary,
-        stats: {
-          status: 'ok',
-          flowsEmitted: 1,
-          partialFlowsEmitted: 2,
-          summariesEmitted: 1,
-          uniqueCallSitesReferenced: 1,
-          capsHit: []
-        },
-        analysisStatus: { status: 'ok', code: 'ok' },
-        caps: {
-          maxFlows: 3,
-          maxPartialFlows: 5,
-          maxBytes: 512,
-          maxTokens: 128,
-          maxPartialBytes: 100,
-          maxPartialTokens: 50,
-          hits: []
-        },
-        provenance: baseProvenance,
-        flows: [baseFlow],
-        partialFlows: [basePartialFlow]
-      }, {
+      const fullModel = buildRiskExplanationModelFromRiskSlice(createFullRiskSliceInput(), {
         subject: { chunkUid: 'chunk-full', file: 'src/full.js', name: 'full', kind: 'function' }
       });
       const fullJson = renderRiskExplanationJson(fullModel, {
@@ -513,34 +359,7 @@ const cases = [
       assert.match(fullMarkdown, /Partial Risk Flows/);
       assert.match(fullMarkdown, /partial-a/);
 
-      const cappedModel = buildRiskExplanationModelFromRiskSlice({
-        summary: {
-          totals: { sources: 2, sinks: 2, sanitizers: 0, localFlows: 2 },
-          topCategories: [{ category: 'injection', count: 2 }],
-          topTags: []
-        },
-        truncation: [{ cap: 'maxFlows', limit: 1, observed: 2, omitted: 1 }],
-        flows: [
-          {
-            flowId: 'flow-a',
-            confidence: 0.7,
-            category: 'injection',
-            source: { ruleId: 'SRC-A' },
-            sink: { ruleId: 'SNK-A' },
-            path: { labels: ['chunk:a', 'chunk:b'] },
-            evidence: { callSitesByStep: [[{ callSiteId: 'cs-a' }]] }
-          },
-          {
-            flowId: 'flow-b',
-            confidence: 0.6,
-            category: 'injection',
-            source: { ruleId: 'SRC-B' },
-            sink: { ruleId: 'SNK-B' },
-            path: { labels: ['chunk:b', 'chunk:c'] },
-            evidence: { callSitesByStep: [[{ callSiteId: 'cs-b' }]] }
-          }
-        ]
-      });
+      const cappedModel = buildRiskExplanationModelFromRiskSlice(createCappedRiskSliceInput());
       const cappedJson = renderRiskExplanationJson(cappedModel, {
         title: 'Risk Explain',
         maxFlows: 1,
@@ -563,22 +382,7 @@ const cases = [
   {
     name: 'SARIF contract stays stable for minimal, full, and capped flows',
     run() {
-      const minimalModel = buildRiskExplanationModelFromStandalone({
-        chunk: { chunkUid: 'chunk-min', file: 'src/min.js', name: 'minimal', kind: 'function' },
-        summary: {
-          totals: { sources: 0, sinks: 0, sanitizers: 0, localFlows: 0 },
-          topCategories: [],
-          topTags: []
-        },
-        stats: {
-          status: 'ok',
-          flowsEmitted: 0,
-          summariesEmitted: 1,
-          uniqueCallSitesReferenced: 0,
-          capsHit: []
-        },
-        flows: []
-      });
+      const minimalModel = buildRiskExplanationModelFromStandalone(createMinimalRiskStandaloneInput());
       const minimalSarif = renderRiskExplanationSarif(minimalModel, {
         title: 'Risk Explain',
         maxFlows: 1,
@@ -601,16 +405,7 @@ const cases = [
         maxEvidencePerFlow: 2
       });
 
-      const fullModel = buildRiskExplanationModelFromStandalone({
-        chunk: { chunkUid: 'chunk-full', file: 'src/full.js', name: 'full', kind: 'function' },
-        provenance: {
-          generatedAt: '2026-03-12T00:00:00.000Z',
-          ruleBundle: { version: '1.0.0', fingerprint: 'sha1:bundle' },
-          effectiveConfigFingerprint: 'sha1:config'
-        },
-        partialFlows: [basePartialFlow],
-        flows: [baseFlow]
-      });
+      const fullModel = buildRiskExplanationModelFromStandalone(createFullRiskStandaloneInput());
       const fullSarif = renderRiskExplanationSarif(fullModel, {
         title: 'Risk Explain',
         maxFlows: 3,
@@ -655,29 +450,7 @@ const cases = [
         ['callback']
       );
 
-      const cappedModel = buildRiskExplanationModelFromRiskSlice({
-        truncation: [{ cap: 'maxFlows', limit: 1, observed: 2, omitted: 1 }],
-        flows: [
-          {
-            flowId: 'flow-a',
-            confidence: 0.7,
-            category: 'injection',
-            source: { ruleId: 'SRC-A' },
-            sink: { ruleId: 'SNK-A' },
-            path: { labels: ['chunk:a', 'chunk:b'] },
-            evidence: { callSitesByStep: [[{ callSiteId: 'cs-a' }]] }
-          },
-          {
-            flowId: 'flow-b',
-            confidence: 0.6,
-            category: 'injection',
-            source: { ruleId: 'SRC-B' },
-            sink: { ruleId: 'SNK-B' },
-            path: { labels: ['chunk:b', 'chunk:c'] },
-            evidence: { callSitesByStep: [[{ callSiteId: 'cs-b' }]] }
-          }
-        ]
-      });
+      const cappedModel = buildRiskExplanationModelFromRiskSlice(createCappedRiskSliceInput());
       const cappedSarif = renderRiskExplanationSarif(cappedModel, {
         title: 'Risk Explain',
         maxFlows: 1,

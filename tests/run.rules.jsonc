@@ -63,6 +63,7 @@
     {
       "lane": "unit",
       "match": [
+        "^unit/",
         "^shared/",
         "^tooling/",
         "^lang/",

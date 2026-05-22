@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+
+import { runNode } from '../helpers/run-node.js';
+import { applyTestEnv } from '../helpers/test-env.js';
 
 const repoRoot = process.cwd();
 const toolPath = path.join(repoRoot, 'tools', 'testing', 'shared-module-migration.js');
@@ -56,12 +58,13 @@ const writeFixture = async (rootDir) => {
   );
 };
 
-const runTool = (cwd, args) => {
-  return spawnSync(process.execPath, [toolPath, ...args], {
-    cwd,
-    encoding: 'utf8'
-  });
-};
+const runTool = (cwd, args, { allowFailure = false } = {}) => runNode(
+  [toolPath, ...args],
+  'shared-module migration tool',
+  cwd,
+  applyTestEnv({ syncProcess: false }),
+  { stdio: 'pipe', allowFailure }
+);
 
 const tempRoot = await makeTempDir();
 
@@ -81,7 +84,7 @@ try {
   const beforeWrite = fs.readFileSync(path.join(tempRoot, 'src', 'consumer.js'), 'utf8');
   assert.match(beforeWrite, /tools\/shared\/dict-utils\.js/, 'fixture should keep original import before write mode');
 
-  const checkRun = runTool(tempRoot, ['--recipe', 'recipe.json', '--check', '--json']);
+  const checkRun = runTool(tempRoot, ['--recipe', 'recipe.json', '--check', '--json'], { allowFailure: true });
   assert.equal(checkRun.status, 1, 'check mode should fail when changes are pending');
   const checkSummary = JSON.parse(checkRun.stdout);
   assert.equal(checkSummary.filesChanged, 1, 'check mode should still report pending changes');

@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createLspClient } from '../../../src/integrations/tooling/lsp/client.js';
-import { getTrackedSubprocessCount } from '../../../src/shared/subprocess.js';
+import { getTrackedSubprocessCount } from '../../../src/shared/subprocess/tracking.js';
 import { sleep } from '../../../src/shared/sleep.js';
 import { countNonEmptyLines } from '../../helpers/lsp-signature-fixtures.js';
 import { applyTestEnv } from '../../helpers/test-env.js';

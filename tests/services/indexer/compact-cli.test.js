@@ -2,7 +2,6 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import {
   ensureQueueDir,
@@ -12,6 +11,8 @@ import {
   saveQueue
 } from '../../../tools/service/queue.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'indexer-service-compact-cli');
@@ -20,6 +21,7 @@ const queueDir = path.join(tempRoot, 'queue');
 const logsDir = path.join(queueDir, 'logs');
 const reportsDir = path.join(queueDir, 'reports');
 const configPath = path.join(tempRoot, 'service.json');
+const env = applyTestEnv({ syncProcess: false });
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
@@ -120,10 +122,12 @@ const config = {
 };
 await fsPromises.writeFile(configPath, JSON.stringify(config, null, 2));
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [path.join(root, 'tools', 'service', 'indexer-service.js'), 'compact', '--config', configPath, '--json'],
-  { encoding: 'utf8' }
+  'indexer-service compact',
+  root,
+  env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 if (result.status !== 0) {
   console.error(result.stderr || result.stdout || 'indexer-service compact failed');

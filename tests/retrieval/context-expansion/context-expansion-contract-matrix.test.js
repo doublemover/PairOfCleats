@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { buildContextIndex, expandContext } from '../../../src/retrieval/context-expansion.js';
+import { graphRelationsFromEdges } from '../../graph/helpers/graph-fixtures.js';
 
 const fixtureRoot = path.join(
   process.cwd(),
@@ -12,6 +13,44 @@ const fixtureRoot = path.join(
   'retrieval',
   'context-expansion'
 );
+
+const GRAPH_GENERATED_AT = '2026-01-01T00:00:00.000Z';
+const DEFAULT_EXPAND_OPTIONS = {
+  maxPerHit: 5,
+  maxTotal: 5
+};
+
+const createSeedTargetChunkMeta = () => [
+  { id: 0, chunkUid: 'seed', file: 'src/a.js', name: 'alpha' },
+  { id: 1, chunkUid: 'target', file: 'src/b.js', name: 'beta' }
+];
+
+const createGraphRelations = (options = {}) => graphRelationsFromEdges({
+  generatedAt: GRAPH_GENERATED_AT,
+  ...options
+});
+
+const runExpandContextCase = ({
+  hits = [{ id: 0 }],
+  chunkMeta,
+  fileRelations = null,
+  graphRelations = null,
+  contextIndex = null,
+  allowedIds = null,
+  options = {}
+}) => expandContext({
+  hits,
+  chunkMeta,
+  fileRelations,
+  graphRelations,
+  repoMap: null,
+  contextIndex,
+  allowedIds,
+  options: {
+    ...DEFAULT_EXPAND_OPTIONS,
+    ...options
+  }
+});
 
 const cases = [
   {
@@ -27,39 +66,27 @@ const cases = [
       ]);
       const hits = [{ id: 0, file: 'src/a.js' }];
       const contextIndex = buildContextIndex({ chunkMeta, repoMap: null });
-
-      const expanded = expandContext({
+      const expansionCase = {
         hits,
         chunkMeta,
         fileRelations,
-        repoMap: null,
         contextIndex,
         options: {
-          maxPerHit: 5,
           maxTotal: 10,
           includeCalls: true,
           includeImports: true,
           includeUsages: true
         }
-      });
+      };
+
+      const expanded = runExpandContextCase(expansionCase);
       const ids = new Set(expanded.contextHits.map((hit) => hit.id));
       assert.equal(ids.has(1), true);
       assert.equal(ids.has(2), true);
 
-      const filtered = expandContext({
-        hits,
-        chunkMeta,
-        fileRelations,
-        repoMap: null,
-        contextIndex,
-        allowedIds: new Set([2]),
-        options: {
-          maxPerHit: 5,
-          maxTotal: 10,
-          includeCalls: true,
-          includeImports: true,
-          includeUsages: true
-        }
+      const filtered = runExpandContextCase({
+        ...expansionCase,
+        allowedIds: new Set([2])
       });
       const filteredIds = new Set(filtered.contextHits.map((hit) => hit.id));
       assert.deepEqual([...filteredIds], [2]);
@@ -74,7 +101,7 @@ const cases = [
       const graphRelations = JSON.parse(
         fs.readFileSync(path.join(fixtureRoot, 'graph-relations-basic.json'), 'utf8')
       );
-      const result = expandContext({
+      const result = runExpandContextCase({
         hits: [{ id: 7 }],
         chunkMeta,
         graphRelations,
@@ -91,38 +118,15 @@ const cases = [
   {
     name: 'call reason takes precedence over usage',
     run() {
-      const chunkMeta = [
-        { id: 0, chunkUid: 'seed', file: 'src/a.js', name: 'alpha' },
-        { id: 1, chunkUid: 'target', file: 'src/b.js', name: 'beta' }
-      ];
-      const graphRelations = {
-        version: 1,
-        generatedAt: '2026-01-01T00:00:00.000Z',
-        callGraph: {
-          nodeCount: 2,
-          edgeCount: 1,
-          nodes: [
-            { id: 'seed', out: ['target'], in: [] },
-            { id: 'target', out: [], in: ['seed'] }
-          ]
-        },
-        usageGraph: {
-          nodeCount: 2,
-          edgeCount: 1,
-          nodes: [
-            { id: 'seed', out: ['target'], in: [] },
-            { id: 'target', out: [], in: ['seed'] }
-          ]
-        },
-        importGraph: { nodeCount: 0, edgeCount: 0, nodes: [] }
-      };
-      const result = expandContext({
-        hits: [{ id: 0 }],
+      const chunkMeta = createSeedTargetChunkMeta();
+      const graphRelations = createGraphRelations({
+        callEdges: [['seed', 'target']],
+        usageEdges: [['seed', 'target']]
+      });
+      const result = runExpandContextCase({
         chunkMeta,
         graphRelations,
         options: {
-          maxPerHit: 5,
-          maxTotal: 5,
           includeCalls: true,
           includeUsages: true
         }
@@ -144,22 +148,10 @@ const cases = [
           name: id
         }))
       ];
-      const graphRelations = {
-        version: 1,
-        generatedAt: '2026-01-01T00:00:00.000Z',
-        callGraph: {
-          nodeCount: neighborCount + 1,
-          edgeCount: neighborCount,
-          nodes: [
-            { id: 'seed', out: neighbors, in: [] },
-            ...neighbors.map((id) => ({ id, out: [], in: ['seed'] }))
-          ]
-        },
-        usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [] },
-        importGraph: { nodeCount: 0, edgeCount: 0, nodes: [] }
-      };
-      const result = expandContext({
-        hits: [{ id: 0 }],
+      const graphRelations = createGraphRelations({
+        callEdges: [['seed', neighbors]]
+      });
+      const result = runExpandContextCase({
         chunkMeta,
         graphRelations,
         options: {
@@ -177,31 +169,14 @@ const cases = [
   {
     name: 'output is deterministic for identical inputs',
     run() {
-      const chunkMeta = [
-        { id: 0, chunkUid: 'seed', file: 'src/a.js', name: 'alpha' },
-        { id: 1, chunkUid: 'target', file: 'src/b.js', name: 'beta' }
-      ];
-      const graphRelations = {
-        version: 1,
-        generatedAt: '2026-01-01T00:00:00.000Z',
-        callGraph: {
-          nodeCount: 2,
-          edgeCount: 1,
-          nodes: [
-            { id: 'seed', out: ['target'], in: [] },
-            { id: 'target', out: [], in: ['seed'] }
-          ]
-        },
-        usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [] },
-        importGraph: { nodeCount: 0, edgeCount: 0, nodes: [] }
-      };
-      const buildOnce = () => expandContext({
-        hits: [{ id: 0 }],
+      const chunkMeta = createSeedTargetChunkMeta();
+      const graphRelations = createGraphRelations({
+        callEdges: [['seed', 'target']]
+      });
+      const buildOnce = () => runExpandContextCase({
         chunkMeta,
         graphRelations,
         options: {
-          maxPerHit: 5,
-          maxTotal: 5,
           includeCalls: true
         }
       });

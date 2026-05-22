@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { TOOLING_PROVIDERS, registerToolingProvider } from '../../../src/index/tooling/provider-registry.js';
-import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
+import {
+  createToolingProviderLogCollector,
+  runToolingProviderFixture
+} from './provider-run-fixture.js';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -26,31 +29,8 @@ registerToolingProvider({
   }
 });
 
-const logs = [];
-const result = await runToolingProviders({
-  strict: true,
-  toolingConfig: {},
-  cache: { enabled: false },
-  logger: (line) => logs.push(String(line || ''))
-}, {
-  documents: [{
-    virtualPath: 'src/sample.fixture',
-    languageId: 'fixture',
-    docHash: 'hash-1'
-  }],
-  targets: [{
-    chunkRef: {
-      docId: 0,
-      chunkUid: 'chunk-1',
-      chunkId: 'chunk-1',
-      file: 'src/sample.fixture',
-      range: { start: 0, end: 1 }
-    },
-    name: 'sample',
-    virtualPath: 'src/sample.fixture',
-    virtualRange: { start: 0, end: 1 }
-  }]
-});
+const { logs, logger } = createToolingProviderLogCollector();
+const result = await runToolingProviderFixture({ logger });
 
 assert.equal(preflightCalls, 1, 'expected kickoff + provider execution to reuse one preflight run');
 assert.ok(result?.metrics?.preflights, 'expected preflight metrics envelope');
