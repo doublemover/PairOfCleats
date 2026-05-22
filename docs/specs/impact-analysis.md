@@ -1,19 +1,24 @@
-# Spec -- Impact Analysis Paths (Refined, Implementation-Ready)
+# Spec -- Graph Impact Analysis (Active Contract)
 
-**Status:** Draft / implementation-ready  
-**Phase:** GigaRoadmap Phase 11 -- Graph-powered product features  
-**Primary goal:** Provide deterministic, explainable impact analysis ("blast radius") using SymbolId-keyed graphs and evidence-rich paths.
+**Status:** Active implemented contract v1.0
+**Last audited:** 2026-05-21
+**Roadmap area:** Graph-powered product features; current status is tracked in `docs/roadmap.md`.
+**Implementation anchors:** `src/graph/impact.js`, `src/graph/neighborhood.js`,
+`src/integrations/tooling/impact.js`, `src/retrieval/output/graph-impact.js`, and
+`tools/analysis/impact.js`.
+**Authoritative schema:** `GRAPH_IMPACT_SCHEMA` in `src/contracts/schemas/analysis/graph.js`.
+**Primary goal:** Provide deterministic, bounded impact analysis ("blast radius") using stable graph node identities and witness paths when available.
 
 ---
 
 ## 0. Non-negotiable properties
 
-1. **Path-first output**: Every "impacted" result must include at least one path from seed → impacted.
+1. **Witness-path output**: Every impacted result attempts to include a stable witness path; if the path is unavailable, the result is marked `partial`.
 2. **Deterministic**: Stable ordering and stable path selection given identical inputs.
 3. **Bounded**: Explicit caps on graph traversal, number of paths, and output size.
 4. **Evidence-rich**: Paths must reference callsite/import/usage evidence where available.
-5. **Confidence-scored**: Each path has a confidence score derived from evidence completeness and link strength.
-6. **Fail-closed on contract mismatch** in strict mode.
+5. **Confidence-scored**: Impacted nodes carry confidence when the graph layer can provide it.
+6. **Fail-closed on contract mismatch** through schema validation in the CLI.
 
 ---
 
@@ -35,106 +40,74 @@ type ChangeSeed =
 
 - `downstream`: callers/users depend on the seed (who breaks if seed changes)
 - `upstream`: dependencies of the seed (what seed relies on)
-- `both`
+- Current CLI/runtime support is `upstream` or `downstream`. A combined `both`
+  mode would be a future extension and is not part of the active contract.
 
-Note: For call edges, "downstream" means "callers of seed", i.e., reverse traversal. This is a common confusion; lock it explicitly.
+The implementation maps `downstream` to outbound graph traversal and `upstream`
+to inbound graph traversal after graph artifacts have been normalized.
 
 ---
 
-## 2. Output contract
+## 2. Output Contract
 
-### 2.1 ImpactReport
+### 2.1 GraphImpact
 
 ```json
 {
-  "formatVersion": 1,
-  "schema": "ImpactReport",
-  "schemaVersion": "1.0.0",
-  "indexSignature": "...",
-  "createdAt": "...",
-  "request": { "...": "ImpactRequest" },
-  "seed": { "...": "ChangeSeedResolved" },
-  "paths": [ { "...": "ImpactPath" } ],
-  "summary": { "...": "ImpactSummary" },
+  "version": "1.0.0",
+  "seed": { "type": "file", "path": "src/index.js" },
+  "direction": "downstream",
+  "depth": 2,
+  "impacted": [ { "...": "ImpactedNode" } ],
+  "truncation": [ { "...": "TruncationRecord" } ],
+  "warnings": [ { "...": "WarningRecord" } ],
+  "provenance": { "...": "Provenance" },
   "stats": { "...": "ImpactStats" }
 }
 ```
 
-### 2.2 ImpactPath
+### 2.2 ImpactedNode
 
-Each path is a sequence of nodes connected by edges.
+Each impacted node is a graph node with distance and optional witness-path evidence.
 
 ```json
 {
-  "pathId": "sha256:....",
-  "direction": "downstream",
-  "score": 0.77,
-  "scoreBreakdown": {
-    "evidence": 0.6,
-    "distance": 0.2,
-    "edgeWeights": 0.2
-  },
-  "hops": [
-    {
-      "from": { "symbolId": "...", "chunkUid": "...", "fileRelPath": "...", "lines": {"start":10,"end":12} },
-      "edge": { "type": "call", "evidenceId": "callsite:...", "confidence": 0.85 },
-      "to":   { "symbolId": "...", "chunkUid": "...", "fileRelPath": "...", "lines": {"start":30,"end":55} }
-    }
-  ],
-  "impacted": {
-    "kind": "symbol",
-    "symbolId": "...",
-    "chunkUid": "...",
-    "fileRelPath": "..."
-  },
-  "why": {
-    "impactReason": "call-chain",
-    "explainRefs": [ "evidence:...", "graph:..." ]
-  }
+  "ref": { "type": "chunk", "chunkUid": "xxh64:..." },
+  "distance": 1,
+  "confidence": 0.85,
+  "witnessPath": { "...": "WitnessPath" },
+  "partial": false
 }
 ```
 
 **Invariants**
-- `pathId` must be stable: computed from normalized hop list.
-- Each hop must include either an evidenceId or a `evidenceMissing:true` marker with a reason.
+- `ref` uses the shared node-reference schema: chunk, symbol, or file.
+- `distance` is required and stable for identical graph inputs.
+- `witnessPath` follows `witnessPathSchema` when available.
+- `partial=true` means the node was impacted but no complete witness path survived caps or artifact availability.
 
 ---
 
-## 3. ImpactRequest contract
+## 3. Request Contract
 
 ```ts
 type ImpactRequest = {
-  repoId: string;
-  indexRoot: string;
-  indexSignature: string;
-
-  seed: ChangeSeed;
-
-  direction: "downstream" | "upstream" | "both";
-  edgeTypes: Array<"call"|"usage"|"import"|"export"|"dataflow">;
-
-  maxDepth: number;              // default 4; hard max 8
-  maxPaths: number;              // default 200; hard max 5000
-  maxPathsPerImpacted: number;   // default 3; hard max 20
-  maxImpacted: number;           // default 100; hard max 2000
-
-  strictness: "strict" | "warn" | "loose";
-  includeExplain: boolean;
-
-  /** path selection policy */
-  policy: {
-    preferEvidenceRich: boolean;       // default true
-    preferShorterPaths: boolean;       // default true
-    allowAmbiguousEdges: boolean;      // default false in strict/warn, true in loose
-    includeUnresolvedCandidates: boolean; // default false
-  };
-
-  /** output shaping */
-  output: {
-    includeSnippets: boolean;        // default true
-    snippetMaxBytes: number;         // default 2048; hard max 16384
-    groupBy: "file"|"symbol"|"none"; // default "symbol"
-  };
+  repo?: string;
+  seed?: string;
+  changed?: string | string[];
+  changedFile?: string;
+  direction: "downstream" | "upstream";
+  depth: number;
+  edgeTypes?: string;
+  maxDepth?: number;
+  maxFanoutPerNode?: number;
+  maxNodes?: number;
+  maxEdges?: number;
+  maxPaths?: number;
+  maxCandidates?: number;
+  maxWorkUnits?: number;
+  maxWallClockMs?: number;
+  json?: boolean;
 };
 ```
 
@@ -171,72 +144,45 @@ type Edge = {
 
 ---
 
-## 5. Algorithms
+## 5. Algorithm
 
-### 5.1 Graph traversal
+### 5.1 Seed resolution
 
-Use bounded BFS/beam search depending on `preferEvidenceRich`:
+- `--seed` is parsed with `parseSeedRef()` and takes precedence.
+- `--changed` / `--changed-file` are normalized to a deterministic changed-set
+  seed envelope when no explicit seed is provided.
+- Empty changed sets fail with `ERR_EMPTY_CHANGED_SET`.
 
-- Default: BFS with a priority queue where priority favors:
-  1) higher evidence confidence
-  2) shorter distance
-  3) stable tie-break
+### 5.2 Graph traversal
 
-### 5.2 Path generation
+- `buildGraphNeighborhood()` performs bounded traversal over the selected graph
+  artifacts.
+- `direction=upstream` traverses inbound edges; `direction=downstream` traverses
+  outbound edges.
+- `includePaths=true` requests witness paths for impacted nodes.
 
-- Generate candidate paths up to `maxDepth`.
-- De-duplicate by `impactedId` and by `pathId`.
-- Keep top `maxPathsPerImpacted` paths per impacted target by score.
+### 5.3 Output selection
 
-### 5.3 Scoring
-
-Recommended scoring components:
-
-- `distanceScore = 1 / (1 + hops)`
-- `evidenceScore = geometricMean(edge.confidence || fallback)` across hops
-  - fallback confidence:
-    - resolved edge w/o evidence: 0.55
-    - ambiguous edge: 0.30
-    - unresolved edge: 0.0 (must be excluded unless loose)
-- `edgeWeightScore`: configurable weights per edge type:
-  - call: 1.0, usage: 0.8, import: 0.6, export: 0.6, dataflow: 1.0
-
-Final:
-`score = clamp01( 0.45*evidenceScore + 0.35*distanceScore + 0.20*edgeWeightScore )`
-
-### 5.4 Output selection
-
-- Select impacted results as:
-  - top impacted nodes by best path score
-  - stable tie-breakers:
-    - bestPath.score desc
-    - bestPath.hops asc
-    - impacted.fileRelPath
-    - impacted.symbolId/chunkUid
+- Nodes at distance `0` are seeds and are excluded from `impacted`.
+- Impacted nodes are sorted by the shared graph-node comparator.
+- The best stable witness path for each impacted node is selected with
+  `compareWitnessPaths()`.
 
 ---
 
-## 6. CLI + MCP
+## 6. CLI
 
-### 6.1 CLI
-
-`pairofcleats impact --repo <path> --seed <symbolId|chunkUid|file> --direction downstream --json --explain`
+`pairofcleats impact --repo <path> --seed <symbolId|chunkUid|file> --direction downstream --depth <n> --json`
 
 Flags:
-- `--seed-symbol <symbolId>`
-- `--seed-chunk <chunkUid>`
-- `--seed-file <relPath>`
+- `--seed <symbolId|chunkUid|file>`
+- `--changed <path>` / `--changed-file <path>`
 - `--edge-types call,usage,import`
-- `--max-depth N`
-- `--max-impacted N`
 - `--max-paths N`
-- `--strict|--warn|--loose`
+- graph cap flags from `buildGraphCliOptions()`, including max depth, nodes,
+  edges, candidates, work units, and wall-clock milliseconds.
 
-### 6.2 MCP
-
-Tool: `impact.analyze`
-- Inputs: `ImpactRequest` (minus local-only `indexRoot`)
-- Output: `ImpactReport`
+There is no dedicated MCP graph-impact tool in the current MCP catalog.
 
 ---
 
@@ -253,36 +199,23 @@ Record in `stats`:
 
 ---
 
-## 8. Tests (must be implemented)
+## 8. Contract Coverage
 
-### 8.1 Unit tests
-- stable `pathId` computation
-- scoring determinism
-- ambiguity gating behavior
-
-### 8.2 Integration tests
-Fixture repo:
-- A calls B calls C
-- D imports A
-- E references B (usage)
-Cases:
-- downstream from B includes A and D via call/import edges
-- upstream from B includes C via call edges
-- ambiguous edge case (two candidates) is excluded in strict and included in loose
-
-Golden snapshot:
-- canonicalize report JSON and compare.
+- `tests/retrieval/graph/impact-analysis-contract-matrix.test.js`
+- `tests/retrieval/graph/impact-analysis-empty-changed-set-error.test.js`
+- `tests/retrieval/graph/impact-analysis-changed-set-iterable.test.js`
+- `tests/tooling/impact/seed-and-changed-behavior.test.js`
+- `tests/shared/contracts/analysis-schemas-validate.test.js`
 
 ---
 
-## 9. Implementation checklist
+## 9. Implementation Touchpoints
 
-Minimum modules:
-- `src/retrieval/impact/` (new): graph traversal, scoring, output shaping
-- `src/shared/explain/` (shared with context packs)
-- `src/shared/artifact-io.js` for optional artifact write/read
-- CLI wiring under `src/retrieval/cli/*`
-- MCP tool wiring
+- `src/graph/impact.js`: seed resolution, traversal orchestration, GraphImpact payload construction.
+- `src/graph/neighborhood.js`: bounded graph traversal and witness-path collection.
+- `src/integrations/tooling/impact.js`: CLI argument handling and schema validation.
+- `src/retrieval/output/graph-impact.js`: human output rendering.
+- `tools/analysis/impact.js`: CLI wrapper.
 
 Non-goals (v1):
 - No full semantic diffing (that's Phase 14 snapshot diffing)

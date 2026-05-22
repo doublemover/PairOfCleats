@@ -1,6 +1,7 @@
 # Spec: JSON Streaming Writers, Sharding-by-Compressed-Bytes, and Atomic Replace Hygiene (Phase 4.6 + 4.11)
 
-Status: Draft (implementation-ready)
+Status: Implemented active contract
+Last audited: 2026-05-21
 
 This spec covers:
 
@@ -19,49 +20,56 @@ This spec covers:
 
 ---
 
-## 2. Current implementation (validated)
+## 2. Current implementation
 
-Primary module: `src/shared/json-stream.js`
+Primary modules:
 
-Key functions:
-* `createFflateGzipStream(options)` -- currently forwards only `level`
-* `createJsonWriteStream(filePath, options)` -- returns `{ stream, done }`
-* `writeJsonLinesSharded(records, outDir, options)` -- current sharding logic increments `bytesWritten` based on pre-compression line lengths
-* `replaceFile(tmpPath, finalPath)` -- renames existing final to `.bak`, renames tmp to final, does not clean `.bak`
+* `src/shared/json-stream/compress.js`
+  * `normalizeGzipOptions()` supports the deterministic gzip subset (`level`, `mem`, `mtime`), defaults `level` to 6, defaults `mtime` to 0, clamps invalid levels, and warns once for unsupported keys.
+  * `createFflateGzipStream(options)` passes normalized gzip options to `fflate.Gzip`.
+* `src/shared/json-stream/byte-counter.js`
+  * `createByteCounter(maxBytes, highWaterMark, checksumAlgo)` counts post-transform bytes, optionally computes checksums, and fails fast when the emitted byte stream exceeds `maxBytes`.
+* `src/shared/json-stream/streams.js`
+  * `createJsonWriteStream(filePath, options)` returns `{ stream, getBytesWritten, checksumAlgo, getChecksum, done }`.
+  * Compression pipelines count bytes after gzip/zstd and before the file stream.
+  * Atomic writes use temp files and `replaceFile()` after stream completion.
+* `src/shared/json-stream/jsonl-sharded.js`
+  * `writeJsonLinesSharded()` and `writeJsonLinesShardedAsync()` write into a sibling temp parts directory, record finalized shard sizes from `getBytesWritten()`, and swap the complete directory into place through `replaceDir()`.
+* `src/shared/io/replace-file.js`
+  * `replaceFile(tempPath, finalPath, { keepBackup = false })` removes the transient `.bak` after a successful replace unless explicitly retained.
+* `src/shared/io/replace-dir.js`
+  * `replaceDir(tempPath, finalPath, { keepBackup = false })` swaps sharded output directories atomically where possible, falls back to durable copy/rollback when needed, and removes transient backups unless explicitly retained.
 
 ---
 
 ## 3. Forward gzip options correctly
 
 ### 3.1 Supported gzip options
-We must decide what "gzipOptions" includes.
 
-**Best-version choice:** support a safe subset that is:
+`gzipOptions` supports a safe subset that is:
 * available in `fflate` gzip stream
 * deterministic
 * useful
 
-Minimum required:
+Supported:
 * `level` (0-9)
-
-Optional (if supported by `fflate`):
-* `mem` / `memLevel`
-* `mtime` (should default to 0 for deterministic output if used)
-* `filename` (discouraged)
-* `comment` (discouraged)
+* `mem`
+* `mtime`
 
 If `fflate` does not support a requested option, we must:
-* ignore it AND emit a warning (preferably once per run), OR
-* throw a config error early
+* ignore it
+* emit a warning once per run
 
-**Recommendation:** ignore unsupported options but warn once. This keeps configs portable while making the limitation visible.
+This keeps configs portable while making the limitation visible.
 
 ### 3.2 Implementation details
-Update:
-* `createFflateGzipStream(options)` so it passes `options.gzipOptions` as-is (after normalization) into the fflate Gzip constructor (to the extent supported).
-* Normalize:
-  * if `options.gzipOptions.level` is undefined, default to 6 (current default)
-  * clamp out-of-range levels and warn
+
+`createFflateGzipStream(options)` passes normalized `options.gzipOptions` into the fflate Gzip constructor.
+
+Normalization:
+* if `options.gzipOptions.level` is undefined, default to 6
+* clamp out-of-range levels and warn once
+* if `options.gzipOptions.mtime` is not finite, default to 0
 
 ---
 
@@ -74,23 +82,28 @@ For `compress = null`:
 For `compress = 'gzip' | 'zstd'`:
 * post-compression bytes == bytes emitted by the compression stream and passed to the file stream.
 
-We will use a byte-counting transform on the data path *after* compression, *before* `fs.WriteStream`.
+The implementation uses a byte-counting transform on the data path *after* compression, *before* `fs.WriteStream`.
 
 ### 4.2 ByteCounter transform
-Implement internal helper in `json-stream.js`:
+Implemented in `src/shared/json-stream/byte-counter.js`:
 
 ```js
-function createByteCounter() {
+function createByteCounter(maxBytes, highWaterMark, checksumAlgo = null) {
   let bytes = 0;
   const counter = new Transform({
     transform(chunk, _enc, cb) {
       bytes += chunk.length;
+      if (maxBytes > 0 && bytes > maxBytes) {
+        cb(new Error(`JSON stream exceeded maxBytes (${bytes} > ${maxBytes}).`));
+        return;
+      }
       cb(null, chunk);
     }
   });
   return {
     counter,
     getBytes: () => bytes,
+    isOverLimit: () => bytes > maxBytes,
   };
 }
 ```
@@ -105,37 +118,39 @@ No compression:
 byteCounter.counter -> fsWriteStream
 ```
 
-### 4.3 Expose bytesWritten from createJsonWriteStream
-Change `createJsonWriteStream()` to return:
+### 4.3 Bytes written contract
+
+`createJsonWriteStream()` returns:
 ```ts
 {
   stream: Writable;       // what callers write JSON to (gzip/zstd/counter)
   done: Promise<void>;    // resolves after fsWriteStream finishes
   getBytesWritten: () => number; // post-compression bytes produced so far
+  checksumAlgo: string | null;
+  getChecksum: () => string | null;
 }
 ```
 
 ### 4.4 Shard-roll algorithm
-Within `writeJsonLinesSharded`:
+Within `writeJsonLinesSharded` and `writeJsonLinesShardedAsync`:
 
 * Maintain `currentWriter` for current shard.
 * After writing each record (including newline), call:
-  * `await drainIfNeeded(stream)` (existing)
-  * `const shardBytes = writer.getBytesWritten()`
-* If `shardBytes >= maxBytes` and there are remaining records:
-  * close shard (`stream.end(); await writer.done`)
-  * promote temp file to final (atomic replace)
+  * `await current.writeLine(lineBuffer, lineBytes)`
+  * `const shardBytes = current.getBytesWritten()`
+* If the current shard reaches its item or byte boundary and there are remaining records:
+  * close the shard
   * start next shard
+* After all shards complete:
+  * swap the complete temp parts directory into place through `replaceDir(tempPartsDir, partsDir)`
 
 **Shard boundary rule:** never split a record across shards. Shards roll only between records.
 
 ### 4.5 Metadata semantics
-Update shard metadata produced by `writeJsonLinesSharded` to ensure:
+Shard metadata produced by `writeJsonLinesSharded` ensures:
 * `bytes[i]` equals the on-disk bytes of shard file i after compression.
 
-This will change:
-* `src/index/build/artifacts.js` metadata (it currently stores pre-compression bytes).
-Callers that treat "bytes" as a rough metric should continue to work; callers that use it for budget enforcement become correct.
+Callers that treat "bytes" as a rough metric continue to work; callers that use it for budget enforcement use the corrected on-disk metric.
 
 ### 4.6 Zstd specifics
 `createZstdStream` is chunked; output is emitted incrementally. The byte counter will naturally track what is written.
@@ -145,7 +160,9 @@ Callers that treat "bytes" as a rough metric should continue to work; callers th
 ## 5. Atomic replace and `.bak` hygiene
 
 ### 5.1 Problem definition
-`replaceFile(tmpPath, finalPath)` currently:
+Historical problem:
+
+`replaceFile(tmpPath, finalPath)` previously:
 1. renames existing final to `finalPath + '.bak'`
 2. renames tmp to final
 3. leaves `.bak` indefinitely
@@ -156,7 +173,7 @@ For JSONL shards and meta files, leaving `.bak`:
 * can cause future tooling to pick up wrong files if globbing is naive
 
 ### 5.2 Best-version choice: keep backups opt-in
-Add options:
+Current contract:
 ```ts
 replaceFile(tmpPath, finalPath, { keepBackup?: boolean } = {})
 ```
@@ -175,10 +192,10 @@ Only remove `.bak` if:
 * replace succeeded AND
 * finalPath exists
 
-Implementation can reuse existing helper patterns from SQLite and HNSW subsystems (which already implement cleanup carefully).
+Implementation cleanup is gated on a successful replace and uses the shared persistence helper cleanup path.
 
 ### 5.4 Sharded directory swaps
-Sharded JSONL outputs must be swapped atomically as a **directory**, not by deleting the existing shard set up front.
+Sharded JSONL outputs are swapped atomically as a **directory**, not by deleting the existing shard set up front.
 
 Rules:
 * Write shards into a temp directory sibling of the final parts directory.
@@ -188,57 +205,42 @@ Rules:
 
 ---
 
-## 6. Tests
+## 6. Test Coverage
 
 ### 6.1 Sharding uses compressed bytes
-Create: `tests/json-stream-shard-maxbytes-compressed.js`
+Covered by:
 
-* Write a large set of repeated strings (highly compressible).
-* Use `compress='gzip'`, `maxBytes` small (e.g., 2 KB).
-* Assert:
-  * multiple shards were produced
-  * every shard file size on disk (`fs.statSync(path).size`) is **<= maxBytes + smallOverhead**
-    * Overhead allowance should be small (gzip footer/header).  
-    * If the implementation is strict and checks bytesWritten after each record, overhead should be minimal.
+* `tests/shared/json-stream/maxbytes-enforced.test.js`
+* `tests/shared/json-stream/typedarray-sharded.test.js`
+* `tests/indexing/repo-map/roundtrip.test.js`
+* `tests/shared/artifact-io/manifest-streaming.test.js`
 
-**Note:** if strict <= maxBytes is required, enforce a "finalize-then-check" approach, but that is typically not necessary and can complicate streaming. Prefer record-boundary checks and allow a small overhead margin, and document it.
+The tests assert sharding, max-byte enforcement, typed-array serialization, and artifact manifest byte metadata.
+
+**Note:** shard rolling remains record-boundary based. A single row larger than `maxBytes` fails with `ERR_JSON_TOO_LARGE`; rows are never split across shards.
 
 ### 6.2 gzip options forwarded
-Create: `tests/json-stream-gzip-level-affects-size.js`
+Covered by:
 
-* Write a large repeated dataset.
-* Run `writeJsonLines` twice with `gzipOptions.level=1` and `gzipOptions.level=9`.
-* Assert size(level=9) <= size(level=1).
+* `tests/shared/json-stream/gzip-options-forwarded.test.js`
+* `tests/shared/json-stream/compress-options.test.js`
 
 ### 6.3 replaceFile cleanup
-Create: `tests/replace-file-cleans-bak-by-default.js`
+Covered by:
 
-* Create `finalPath` with content A.
-* Write tempPath with content B.
-* Call `replaceFile(tempPath, finalPath)` (no keepBackup option).
-* Assert:
-  * finalPath contains content B
-  * `finalPath + '.bak'` does not exist
-
-Add keepBackup case:
-* Call with `{ keepBackup: true }` and assert `.bak` exists and contains content A.
+* `tests/shared/json-stream/atomic-replace.test.js`
+* `tests/shared/json-stream/atomic-stale-backup-protection.test.js`
+* `tests/shared/json-stream/atomic-dir-replace-fallback-rollback.test.js`
 
 ---
 
-## 7. Files to modify
+## 7. Maintenance Rules
 
-* `src/shared/json-stream.js`
-  * forward gzip options
-  * add ByteCounter
-  * expose `getBytesWritten`
-  * update sharding logic to use post-compression bytes
-  * update `replaceFile` to accept keepBackup option and clean `.bak` by default
-  * add `replaceDir` to atomically swap sharded outputs
-
-* `src/index/build/artifacts.js`
-  * if any code relies on bytes being uncompressed, document or adjust; otherwise just accept the corrected metric
-
-* Add tests under `tests/` as described above.
+* Keep the split owner modules authoritative. Do not recreate the removed `src/shared/json-stream.js` facade.
+* New artifact writers that use JSONL shards must route through `writeJsonLinesSharded()` or `writeJsonLinesShardedAsync()` instead of hand-rolling per-shard temp files.
+* New compressed JSONL writers must pass gzip/zstd options through the normalized compression helpers.
+* New atomic JSON or JSONL writes should keep backups opt-in. Default successful writes must not leave transient `.bak` artifacts.
+* Add focused tests under `tests/shared/json-stream/**` or a caller-specific artifact test when changing byte-accounting, compression, or atomic replacement semantics.
 
 ## 8. Reader notes
 

@@ -64,13 +64,7 @@ indexing.embeddings.onnx.intraOpNumThreads (number)
 indexing.embeddings.provider (string)
 indexing.fileCaps (object)
 indexing.fileCaps.byExt (object)
-indexing.fileCaps.byExt.* (object)
-indexing.fileCaps.byExt.*.maxBytes (number)
-indexing.fileCaps.byExt.*.maxLines (number)
 indexing.fileCaps.byLanguage (object)
-indexing.fileCaps.byLanguage.* (object)
-indexing.fileCaps.byLanguage.*.maxBytes (number)
-indexing.fileCaps.byLanguage.*.maxLines (number)
 indexing.fileCaps.byMode (object)
 indexing.fileCaps.byMode.code (object)
 indexing.fileCaps.byMode.code.maxBytes (number)
@@ -96,15 +90,6 @@ indexing.ioConcurrencyCap (number)
 indexing.lexicon (object)
 indexing.lexicon.enabled (boolean)
 indexing.lexicon.languageOverrides (object)
-indexing.lexicon.languageOverrides.* (object)
-indexing.lexicon.languageOverrides.*.relations (object)
-indexing.lexicon.languageOverrides.*.relations.drop (object)
-indexing.lexicon.languageOverrides.*.relations.drop.builtins (boolean)
-indexing.lexicon.languageOverrides.*.relations.drop.keywords (boolean)
-indexing.lexicon.languageOverrides.*.relations.drop.literals (boolean)
-indexing.lexicon.languageOverrides.*.relations.drop.types (boolean)
-indexing.lexicon.languageOverrides.*.relations.enabled (boolean)
-indexing.lexicon.languageOverrides.*.relations.stableDedupe (boolean)
 indexing.lexicon.relations (object)
 indexing.lexicon.relations.drop (object)
 indexing.lexicon.relations.drop.builtins (boolean)
@@ -146,16 +131,6 @@ indexing.riskInterprocedural.emitArtifacts (string) enum=none|jsonl|off
 indexing.riskInterprocedural.enabled (boolean)
 indexing.riskInterprocedural.sanitizerPolicy (string) enum=terminate|weaken
 indexing.riskInterprocedural.semantics (array)
-indexing.riskInterprocedural.semantics[] (object)
-indexing.riskInterprocedural.semantics[].frameworks (array)
-indexing.riskInterprocedural.semantics[].fromArgs (array)
-indexing.riskInterprocedural.semantics[].id (string)
-indexing.riskInterprocedural.semantics[].kind (string) enum=wrapper|propagator|builder|callback|asyncHandoff
-indexing.riskInterprocedural.semantics[].languages (array)
-indexing.riskInterprocedural.semantics[].name (string)
-indexing.riskInterprocedural.semantics[].patterns (array)
-indexing.riskInterprocedural.semantics[].taintHints (array)
-indexing.riskInterprocedural.semantics[].toParams (array)
 indexing.riskInterprocedural.strictness (string) enum=conservative|argAware
 indexing.riskInterprocedural.summaryOnly (boolean)
 indexing.scheduler (object)
@@ -165,9 +140,6 @@ indexing.scheduler.ioTokens (number)
 indexing.scheduler.lowResourceMode (boolean)
 indexing.scheduler.memoryTokens (number)
 indexing.scheduler.queues (object)
-indexing.scheduler.queues.* (object)
-indexing.scheduler.queues.*.maxPending (number)
-indexing.scheduler.queues.*.priority (number)
 indexing.scheduler.starvationMs (number)
 indexing.scm (object)
 indexing.scm.annotate (object)
@@ -249,6 +221,7 @@ search (object)
 search.annDefault (boolean)
 search.denseVectorMode (string) enum=merged|code|doc|auto
 search.fieldWeights (object)
+search.hyperlinks (string) enum=auto|off|file|vscode
 search.maxCandidates (number)
 search.rrf (object)
 search.rrf.enabled (boolean)
@@ -292,17 +265,6 @@ tooling.lsp.enabled (boolean)
 tooling.lsp.lifecycle (object)
 tooling.lsp.maxRetries (number)
 tooling.lsp.servers (array)
-tooling.lsp.servers[] (object)
-tooling.lsp.servers[].args
-tooling.lsp.servers[].cmd (string)
-tooling.lsp.servers[].id (string)
-tooling.lsp.servers[].label (string)
-tooling.lsp.servers[].languages
-tooling.lsp.servers[].priority (number)
-tooling.lsp.servers[].retries (number)
-tooling.lsp.servers[].timeoutMs (number)
-tooling.lsp.servers[].uriScheme (string) enum=file|poc-vfs
-tooling.lsp.servers[].version (string)
 tooling.lsp.timeoutMs (number)
 tooling.maxRetries (number)
 tooling.phpactor (object)
@@ -359,113 +321,11 @@ tooling.vfs.tokenMode (string)
 
 ## Env overrides (runtime)
 
-- MCP_MODE -> mcpMode
-- PAIROFCLEATS_API_TOKEN -> apiToken
-- PAIROFCLEATS_BENCH_ANTIVIRUS_STATE -> benchAntivirusState
-- PAIROFCLEATS_BENCH_CPU_GOVERNOR -> benchCpuGovernor
-- PAIROFCLEATS_BENCH_MIRROR_REFRESH_MS -> benchMirrorRefreshMs
-- PAIROFCLEATS_BENCH_RUN -> benchRun
-- PAIROFCLEATS_BUILD_INDEX_LOCK_POLL_MS -> buildIndexLockPollMs
-- PAIROFCLEATS_BUILD_INDEX_LOCK_WAIT_MS -> buildIndexLockWaitMs
-- PAIROFCLEATS_BUNDLE_THREADS -> bundleThreads
-- PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE -> cacheMetricsSampleRate
-- PAIROFCLEATS_CACHE_NAMESPACE -> cacheNamespace
-- PAIROFCLEATS_CACHE_REBUILD -> cacheRebuild
-- PAIROFCLEATS_CACHE_ROOT -> cacheRoot
-- PAIROFCLEATS_CI_USE_LSP_FIXTURES -> ciUseLspFixtures
-- PAIROFCLEATS_COMPRESSION -> compression
-- PAIROFCLEATS_CRASH_LOG_ANNOUNCE -> crashLogAnnounce
-- PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL -> crossfilePropagationParallel
-- PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL_MIN_BUNDLE -> crossfilePropagationParallelMinBundle
-- PAIROFCLEATS_DEBUG_CRASH -> debugCrash
-- PAIROFCLEATS_DEBUG_HANG_PROBES -> debugHangProbes
-- PAIROFCLEATS_DEBUG_HANG_PROBE_HEARTBEAT_MS -> debugHangProbeHeartbeatMs
-- PAIROFCLEATS_DEBUG_HANG_PROBE_WARN_MS -> debugHangProbeWarnMs
-- PAIROFCLEATS_DEBUG_ORDERED -> debugOrdered
-- PAIROFCLEATS_DEBUG_PERF_EVENTS -> debugPerfEvents
-- PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB -> denseBinaryMaxInlineMb
-- PAIROFCLEATS_DICT_DIR -> dictDir
-- PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY -> discoveryStatConcurrency
-- PAIROFCLEATS_DOC_EXTRACT -> docExtract
-- PAIROFCLEATS_EMBEDDINGS -> embeddings
-- PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES -> embeddingsSampleFiles
-- PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED -> embeddingsSampleSeed
-- PAIROFCLEATS_EXTENSIONS_DIR -> extensionsDir
-- PAIROFCLEATS_FILE_CACHE_MAX -> fileCacheMax
-- PAIROFCLEATS_HOME -> homeRoot
-- PAIROFCLEATS_IMPORT_GRAPH -> importGraph
-- PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY -> incrementalBundleUpdateConcurrency
-- PAIROFCLEATS_INDEXER_SERVICE_EXECUTION -> indexerServiceExecutionMode
-- PAIROFCLEATS_INDEX_DAEMON -> indexDaemon
-- PAIROFCLEATS_INDEX_DAEMON_SESSION -> indexDaemonSession
-- PAIROFCLEATS_JSON_STREAM_WAIT_TIMEOUT_MS -> jsonStreamWaitTimeoutMs
-- PAIROFCLEATS_LANCEDB_CHILD -> child
-- PAIROFCLEATS_LANCEDB_ISOLATE -> isolate
-- PAIROFCLEATS_LANCEDB_PAYLOAD -> payload
-- PAIROFCLEATS_LOG_FORMAT -> logFormat
-- PAIROFCLEATS_LOG_LEVEL -> logLevel
-- PAIROFCLEATS_MCP_MAX_BUFFER_BYTES -> mcpMaxBufferBytes
-- PAIROFCLEATS_MCP_MODE -> mcpMode
-- PAIROFCLEATS_MCP_QUEUE_MAX -> mcpQueueMax
-- PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS -> mcpToolTimeoutMs
-- PAIROFCLEATS_MCP_TRANSPORT -> mcpTransport
-- PAIROFCLEATS_MODELS_DIR -> modelsDir
-- PAIROFCLEATS_PREFER_MEMORY_BACKEND_ON_CACHE_HIT -> preferMemoryBackendOnCacheHit
-- PAIROFCLEATS_PROGRESS_CONTEXT -> progressContext
-- PAIROFCLEATS_QUERY_CACHE_MEMORY_FRESH_MS -> queryCacheMemoryFreshMs
-- PAIROFCLEATS_QUERY_CACHE_PREWARM -> queryCachePrewarm
-- PAIROFCLEATS_QUERY_CACHE_PREWARM_MAX_ENTRIES -> queryCachePrewarmMaxEntries
-- PAIROFCLEATS_QUERY_CACHE_STRATEGY -> queryCacheStrategy
-- PAIROFCLEATS_REGEX_ENGINE -> regexEngine
-- PAIROFCLEATS_SCHEDULER -> schedulerEnabled
-- PAIROFCLEATS_SCHEDULER_ADAPTIVE -> schedulerAdaptive
-- PAIROFCLEATS_SCHEDULER_ADAPTIVE_STEP -> schedulerAdaptiveStep
-- PAIROFCLEATS_SCHEDULER_CPU -> schedulerCpuTokens
-- PAIROFCLEATS_SCHEDULER_IO -> schedulerIoTokens
-- PAIROFCLEATS_SCHEDULER_LOW_RESOURCE -> schedulerLowResource
-- PAIROFCLEATS_SCHEDULER_MAX_CPU -> schedulerMaxCpuTokens
-- PAIROFCLEATS_SCHEDULER_MAX_IO -> schedulerMaxIoTokens
-- PAIROFCLEATS_SCHEDULER_MAX_MEM -> schedulerMaxMemoryTokens
-- PAIROFCLEATS_SCHEDULER_MEM -> schedulerMemoryTokens
-- PAIROFCLEATS_SCHEDULER_MEMORY_PER_TOKEN_MB -> schedulerMemoryPerTokenMb
-- PAIROFCLEATS_SCHEDULER_MEMORY_RESERVE_MB -> schedulerMemoryReserveMb
-- PAIROFCLEATS_SCHEDULER_STARVATION_MS -> schedulerStarvationMs
-- PAIROFCLEATS_SCHEDULER_TARGET_UTILIZATION -> schedulerTargetUtilization
-- PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_TARGET -> schedulerUtilizationAlertTarget
-- PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_WINDOW_MS -> schedulerUtilizationAlertWindowMs
-- PAIROFCLEATS_SQLITE_FTS_OVERFETCH_CHUNK_SIZE -> sqliteFtsOverfetchChunkSize
-- PAIROFCLEATS_SQLITE_FTS_OVERFETCH_ROW_CAP -> sqliteFtsOverfetchRowCap
-- PAIROFCLEATS_SQLITE_FTS_OVERFETCH_TIME_BUDGET_MS -> sqliteFtsOverfetchTimeBudgetMs
-- PAIROFCLEATS_SQLITE_TAIL_LATENCY_TUNING -> sqliteTailLatencyTuning
-- PAIROFCLEATS_STAGE -> stage
-- PAIROFCLEATS_STORAGE_TIER -> storageTier
-- PAIROFCLEATS_SUMMARY_CACHE_MAX -> summaryCacheMax
-- PAIROFCLEATS_THREADS -> threads
-- PAIROFCLEATS_TRACE_ARTIFACT_IO -> traceArtifactIo
-- PAIROFCLEATS_TUI_EVENT_LOG_DIR -> eventLogDir
-- PAIROFCLEATS_TUI_INSTALL_ROOT -> installRoot
-- PAIROFCLEATS_TUI_RUN_ID -> runId
-- PAIROFCLEATS_VERBOSE -> verbose
-- PAIROFCLEATS_WATCHER_BACKEND -> watcherBackend
-- PAIROFCLEATS_WORKER_POOL -> workerPool
-- PAIROFCLEATS_WORKER_POOL_HEAP_MAX_MB -> workerPoolHeapMaxMb
-- PAIROFCLEATS_WORKER_POOL_HEAP_MIN_MB -> workerPoolHeapMinMb
-- PAIROFCLEATS_WORKER_POOL_HEAP_TARGET_MB -> workerPoolHeapTargetMb
-- PAIROFCLEATS_WORKER_POOL_MAX_WORKERS -> workerPoolMaxWorkers
-- PAIROFCLEATS_XXHASH_BACKEND -> xxhashBackend
+- (none)
 
 ## Env overrides (test-only, require PAIROFCLEATS_TESTING=1)
 
-- PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY -> allowMissingCompatKey
-- PAIROFCLEATS_TEST_CONFIG
-- PAIROFCLEATS_TEST_FORCE_DOCX_MISSING -> forceDocxMissing
-- PAIROFCLEATS_TEST_FORCE_PDF_MISSING -> forcePdfMissing
-- PAIROFCLEATS_TEST_MAX_JSON_BYTES -> maxJsonBytes
-- PAIROFCLEATS_TEST_MCP_DELAY_MS -> mcpDelayMs
-- PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT -> stubDocxExtract
-- PAIROFCLEATS_TEST_STUB_PDF_EXTRACT -> stubPdfExtract
-- PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS -> stubPdfExtractDelayMs
-- PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH
+- (none)
 
 ## CLI flags
 
@@ -507,100 +367,6 @@ tooling.vfs.tokenMode (string)
 
 ### search / pairofcleats search
 
-- --alias
-- --allow-sparse-fallback
-- --allow-unsafe-mix
-- --ann
-- --ann-backend
-- --as-of
-- --async
-- --author
-- --awaits
-- --backend
-- --bm25-b
-- --bm25-k1
-- --branch
-- --branches
-- --breaks
-- --calls
-- --case
-- --case-file
-- --case-tokens
-- --chunk-author
-- --churn
-- --cohort
-- --comments
-- --compact
-- --concurrency
-- --continues
-- --debug-include-paths
-- --decorator
-- --dense-vector-mode
-- --explain
-- --ext
-- --extends
-- --federated-strict
-- --file
-- --filter
-- --fts-profile
-- --fts-stemming
-- --fts-trigram
-- --fts-weights
-- --generator
-- --graph-ranking-max-ms
-- --graph-ranking-max-work
-- --graph-ranking-seed-k
-- --graph-ranking-seeds
-- --import
-- --include-disabled
-- --inferred-type
-- --json
-- --lang
-- --lint
-- --loops
-- --matched
-- --merge
-- --meta
-- --meta-json
-- --mode
-- --model
-- --modified-after
-- --modified-since
-- --mutates
-- --n
-- --non-strict
-- --param
-- --path
-- --reads
-- --repo
-- --repo-filter
-- --return-type
-- --returns
-- --risk
-- --risk-category
-- --risk-flow
-- --risk-sink
-- --risk-source
-- --risk-tag
-- --rrf-k
-- --select
-- --signature
-- --snapshot
-- --stats
-- --struct-pack
-- --struct-rule
-- --struct-tag
-- --stub-embeddings
-- --tag
-- --throws
-- --top
-- --top-per-repo
-- --type
-- --uses
-- --visibility
-- --why
-- --workspace
-- --writes
 
 Notes:
 - Boolean flags accept `--no-<flag>` unless a command overrides negation behavior.

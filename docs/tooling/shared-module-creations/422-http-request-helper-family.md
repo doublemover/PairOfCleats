@@ -45,7 +45,9 @@
 
 Those remain local because this issue was about stable invalid-request helpers, not a generic server abstraction.
 
-## Follow-on cleanup
+## Historical follow-up notes
 
-- migrate any remaining API GET/SSE repo-resolution branches if they start drifting
-- consider a later narrow helper for request observability/header merge only if more duplication emerges
+These are not active roadmap tasks. Reopen this family only from a fresh API-router duplication signal or route-contract drift:
+
+- migrate API GET/SSE repo-resolution branches only if they start drifting again
+- consider a narrow request-observability/header helper only if measured duplication emerges

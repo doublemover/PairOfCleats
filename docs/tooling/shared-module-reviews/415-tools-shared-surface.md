@@ -60,10 +60,12 @@ These are either effectively compatibility shims or only shared by one report-st
 | `tools/shared/dict-utils.js` | `split`, `move`, `deprecate`, `document`, `test` | Large compatibility barrel that hides real ownership across bin, src, and tools. |
 | `tools/shared/download-utils.js` | `keep`, `document`, `test` | Reasonable tool-local download policy and hash helper surface. |
 | `tools/shared/fs-utils.js` | `move`, `merge`, `document`, `test` | Generic filesystem helpers that overlap with shared file primitives. |
+| `tools/shared/generated-report.js` | `keep`, `document`, `test` | Canonical generated-report persistence helper for byte-stable JSON, generatedAt preservation, and write-if-changed text output. |
 | `tools/shared/git-state.js` | `keep`, `document`, `test` | Reasonable tool-local git metadata wrapper. |
 | `tools/shared/index-cli-utils.js` | `keep`, `document`, `test` | Coherent index-CLI helper surface. |
 | `tools/shared/input-parsers.js` | `keep`, `merge`, `document`, `test` | Keep tool-local, but merge tiny parsing overlap with other text/input helpers. |
 | `tools/shared/json-utils.js` | `move`, `merge`, `document`, `test` | Generic JSON file helper surface that overlaps with shared IO helpers. |
+| `tools/shared/map-build-options.js` | `keep`, `document`, `test` | Keep map-build option projection narrow and avoid turning it into a broad tool option parser. |
 | `tools/shared/parity-indexes.js` | `move`, `deprecate`, `document` | Weak shared module with one report consumer. |
 | `tools/shared/path-utils.js` | `merge`, `deprecate`, `document` | Mostly alias-style wrapping over shared path logic. |
 | `tools/shared/path-within-root.js` | `deprecate`, `document` | Zero-consumer one-line re-export. |

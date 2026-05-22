@@ -14,20 +14,23 @@ This surface already has strong shared anchors:
 - [trust-boundary.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\trust-boundary.js)
 - [repo-cache-config.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\repo-cache-config.js)
 - [dict-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\dict-utils.js)
-- [env.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\dispatch\env.js)
-- [runtime-envelope.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope.js)
+- [dispatch-runtime-env.js](C:\Users\sneak\Development\DOUBLECLEAT\bin\dispatch-runtime-env.js)
+- [runtime-envelope/resolve.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope\resolve.js)
 - [build-pointer.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\indexing\build-pointer.js)
 - [config.js](C:\Users\sneak\Development\DOUBLECLEAT\src\workspace\config.js)
 - [manifest.js](C:\Users\sneak\Development\DOUBLECLEAT\src\workspace\manifest.js)
 - [indexer-service-helpers.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\service\indexer-service-helpers.js)
 - [helpers.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\mcp\tools\helpers.js)
 
-The remaining work is mainly adoption:
+Current follow-through status:
 
-- API route lifecycle helpers are still partly duplicated across router files.
-- MCP handlers still repeat config/runtime bootstrap despite an existing helper surface.
-- Service build-root/index-dir/env handling is still split across multiple runtime files.
-- [pairofcleats-tui.js](C:\Users\sneak\Development\DOUBLECLEAT\bin\pairofcleats-tui.js) still bypasses the shared dispatch/runtime env path used by the main CLI.
+- API snapshot/diff route-id decoding now shares `decodeRoutePathSegment()` from `tools/api/router/request-helpers.js`; broader route lifecycle parsing remains a candidate only where it preserves API-local trust/response semantics.
+- API `/status` and `/status/stream` repo-resolution failures now share `classifyRepoResolveError()` and `resolveRepoOrSendError()` from `tools/api/router/request-helpers.js`, so invalid repo paths continue to return `INVALID_REQUEST` while forbidden repo paths return `FORBIDDEN` across JSON and SSE status envelopes.
+- MCP handlers now share `resolveMcpRepoContext()` from `tools/mcp/tools/helpers.js` for artifact-aware repo resolution, config loading, runtime config, and runtime env derivation.
+- MCP analysis handlers now share handler-local observability envelope construction for risk explain, context pack, and risk delta, while preserving tool-specific progress labels and error mapping.
+- Risk explain/delta API, MCP, and CLI surfaces now share pure request projection through `tools/analysis/risk-request.js`; API response status mapping, MCP `createError()` semantics, progress events, and index existence checks remain local.
+- Service embedding queue path handling now shares build-root/index-dir inference and backend-stage directory resolution through `tools/service/indexer-service-helpers.js`; the same helper owner now also centralizes service runtime-env resolution, repo-config mtime cache invalidation, runtime cache key normalization, UV threadpool diagnostics, and service build-state snapshot reads for progress monitoring/replay diagnostics.
+- [pairofcleats-tui.js](C:\Users\sneak\Development\DOUBLECLEAT\bin\pairofcleats-tui.js) now uses the shared dispatch/runtime env baseline through `bin/tui-wrapper-env.js` before layering TUI-specific variables.
 
 ## Adoption Matrix
 
@@ -46,7 +49,7 @@ Representative local implementations:
 - [index-diffs.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\router\index-diffs.js)
 
 Best action:
-- Hoist more parsing, repo/workspace resolution, and client-error classification onto the current API helper layer before introducing any new generic HTTP helper family.
+- Continue hoisting only narrow parsing, repo/workspace resolution, and client-error classification onto the current API helper layer before introducing any new generic HTTP helper family. Route-id decoding and status-route repo error classification are complete.
 
 Why this is best:
 - The recent API 500-misclassification bugs happened exactly here. The current API-local helpers are close to the real semantics already.
@@ -84,7 +87,8 @@ Representative local implementations:
 - [triage.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\mcp\tools\handlers\triage.js)
 
 Best action:
-- Expand the existing MCP helper surface and use it for repeated config/runtime/search bootstrap rather than letting each handler accumulate its own setup logic.
+- Completed for repo/config/runtime bootstrap: `resolveMcpRepoContext()` now centralizes artifact-aware repo resolution, config loading, runtime config, and runtime env derivation for repeated handler setup.
+- Completed for MCP analysis observability: risk explain, context pack, and risk delta now share handler-local analysis envelope construction without moving MCP transport errors or progress text into a generic helper. Search-specific payload shaping remains a separate candidate only if it preserves the existing MCP search contract.
 
 ### 4. Service build-root and job normalization drift
 
@@ -99,7 +103,8 @@ Representative local implementations:
 - [embedding-replay.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\service\embedding-replay.js)
 
 Best action:
-- Tighten the existing service helper family first so execution, progress-monitoring, and replay all derive buildRoot/indexDir the same way.
+- Completed for embedding execution/replay path normalization: the existing service helper family now derives buildRoot/indexDir and backend-stage directories consistently for embedding jobs.
+- Completed for progress/replay build-state reads: `tools/service/indexer-service-helpers.js` now owns `build_state.json` path and snapshot parsing for both `indexer-service/progress-monitor.js` and `embedding-replay.js`.
 
 Why this is best:
 - These surfaces already share service-specific assumptions. Fixing that seam locally is safer than prematurely hoisting service runtime behavior into a generic global module.
@@ -107,7 +112,7 @@ Why this is best:
 ### 5. Service subprocess env shaping
 
 Shared modules to prefer:
-- [runtime-envelope.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope.js)
+- [runtime-envelope/resolve.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope\resolve.js)
 - [dict-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\dict-utils.js)
 
 Representative local implementations:
@@ -116,19 +121,19 @@ Representative local implementations:
 - [subprocess-log.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\service\subprocess-log.js)
 
 Best action:
-- Keep service-local payload envs, but treat runtime envelope/env precedence as shared policy.
+- Completed for the indexer service: `tools/service/indexer-service-helpers.js` now owns `createServiceRuntimeEnvResolver()` and `logThreadpoolInfo()`, so runtime envelope/env precedence, repo-config mtime cache invalidation, and startup UV diagnostics are shared inside the service owner while service-local payload envs remain local.
 
 ### 6. TUI launcher bypasses shared dispatch/runtime env
 
 Shared modules to prefer:
-- [env.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\dispatch\env.js)
-- [runtime-envelope.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope.js)
+- [dispatch-runtime-env.js](C:\Users\sneak\Development\DOUBLECLEAT\bin\dispatch-runtime-env.js)
+- [runtime-envelope/resolve.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope\resolve.js)
 
 Representative local implementation:
 - [pairofcleats-tui.js](C:\Users\sneak\Development\DOUBLECLEAT\bin\pairofcleats-tui.js)
 
 Best action:
-- Start from the same dispatch/runtime env baseline as [pairofcleats.js](C:\Users\sneak\Development\DOUBLECLEAT\bin\pairofcleats.js), then layer TUI-specific variables on top.
+- Completed: `bin/tui-wrapper-env.js` starts from the same dispatch/runtime env baseline as [pairofcleats.js](C:\Users\sneak\Development\DOUBLECLEAT\bin\pairofcleats.js), then layers TUI-specific variables on top.
 
 ## Cases That Should Remain Local
 

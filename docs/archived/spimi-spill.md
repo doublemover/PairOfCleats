@@ -1,3 +1,25 @@
+# DEPRECATED
+
+Canonical replacement docs:
+- `docs/roadmap.md`
+- `docs/specs/stage1-hard-cutover-plan.md`
+- `docs/specs/stage1-backpressure-controller.md`
+- `docs/specs/build-scheduler.md`
+- `docs/specs/artifact-io-pipeline.md`
+- `docs/specs/byte-budget-policy.md`
+
+Reason: superseded by the current Stage1 ordered throughput implementation,
+bounded postings queue/backpressure controls, artifact IO policy, and the
+existing spill/merge utilities used by graph and map paths. This standalone
+SPIMI module plan still describes useful historical design ideas, but it is not
+the active roadmap implementation path for the current branch.
+
+Date: 2026-05-21
+
+PR/commit: pending branch update on `NEON_TIDE`
+
+Historical content follows.
+
 # PairOfCleats: SPIMI Spill-to-Disk Token Postings Builder (Defensive + High-Throughput Spec)
 
 **Status:** implementation-ready specification  

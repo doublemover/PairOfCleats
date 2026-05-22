@@ -1,3 +1,22 @@
+# DEPRECATED
+
+Canonical replacement docs:
+- `docs/roadmap.md`
+- `docs/roadmap-release-validation-plan.md`
+- `docs/specs/risk-interprocedural-config.md`
+- `docs/specs/risk-summaries.md`
+- `docs/specs/risk-flows-and-call-sites.md`
+- `docs/specs/risk-callsite-id-and-stats.md`
+- `docs/specs/risk-interprocedural-stats.md`
+
+Reason: superseded by live Phase 10 implementation, focused risk specs, schema-backed validators, and release-validation evidence recorded in `docs/roadmap.md`.
+
+Date: 2026-05-21
+
+PR/commit: pending branch update on `NEON_TIDE`
+
+Historical content follows.
+
 # Phase 10 (Interprocedural Risk Flows) -- Refined Implementation Plan (PairOfCleats)
 
 ## 1) Purpose

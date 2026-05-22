@@ -1,3 +1,20 @@
+# DEPRECATED
+
+Canonical replacement docs:
+- `docs/guides/architecture.md`
+- `docs/specs/build-truth-ledger.md`
+- `docs/specs/deterministic-ordering.md`
+
+Reason: superseded by the implemented watch attempt manager, validation-before-
+promotion barrier, lock backoff, abort handling, and watch atomicity tests. This
+Phase 3 draft is historical implementation context only.
+
+Date: 2026-05-21
+
+PR/commit: pending branch update on `NEON_TIDE`
+
+Historical content follows.
+
 # Phase 3 Watch Atomicity Spec (Draft)
 
 ## Goal

@@ -143,7 +143,12 @@ Required outputs:
 
 ## 8. Touchpoints
 
-- `src/shared/cache.js`
+- `src/shared/cache-cas/paths.js`
+- `src/shared/cache-cas/metadata.js`
+- `src/shared/cache-cas/objects.js`
+- `src/shared/cache-cas/gc.js`
+- `src/shared/cache-cas/leases.js`
+- `src/shared/cache/layers.js`
 - `tools/index/cache-gc.js`
 - `tools/shared/dict-utils.js`
 - `docs/guides/commands.md`

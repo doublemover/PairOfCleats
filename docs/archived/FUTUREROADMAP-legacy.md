@@ -1,9 +1,9 @@
 # DEPRECATED
 
-- Canonical replacement doc(s): `AINTKNOWMAP.md`
-- Reason: Active roadmap content was duplicated and divergent across multiple planning docs; `AINTKNOWMAP.md` is now the single authoritative execution sequence.
-- Date: 2026-02-20T22:35:00Z
-- Commit/PR: Pending (OBSIDIAN_RECKONING)
+- Canonical replacement doc(s): `docs/roadmap.md`
+- Reason: Active roadmap content was duplicated and divergent across multiple planning docs; `docs/roadmap.md` is now the single authoritative execution/status sequence.
+- Date: 2026-05-20T00:00:00Z
+- Commit/PR: Pending (NEON_TIDE)
 
 ---
 # PairOfCleats FutureRoadmap
@@ -17,7 +17,7 @@ Checkboxes represent the state of the work, update them to reflect the state of 
 - [?] There is a correctness gap **or** there is missing/insufficient test proving behavior
 - [ ] Not complete
 
-Completed Phases: `COMPLETED_PHASES.md`
+Completed phase status is now consolidated in `docs/roadmap.md`.
 
 ---
 

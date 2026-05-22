@@ -98,6 +98,7 @@ See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.
 
 | Script | Category | CI Allowed | Replacement |
 | --- | --- | --- | --- |
+| `audit:duplicates` | tooling | no |  |
 | `bootstrap` | tooling | no |  |
 | `bootstrap:ci` | tooling | no |  |
 | `config:budget` | config | yes |  |

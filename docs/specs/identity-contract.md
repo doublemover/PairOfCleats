@@ -1,6 +1,11 @@
 # Spec -- Identity Contract (v1, refined)
 
-Status: Draft  
+Status: Active implemented identity contract v1.0
+Last audited: 2026-05-21
+Implementation anchors: `src/index/identity/chunk-uid.js`,
+`src/index/identity/reconcile.js`, `src/index/build/artifacts/writers/chunk-uid-map.js`,
+`src/index/build/artifacts/writers/symbols.js`, and
+`src/index/build/artifacts/writers/symbol-occurrences.js`.
 Applies to: PairOfCleats index build pipeline  
 Primary goal: eliminate `file::name` collisions by introducing stable, collision-safe identity primitives.
 
@@ -260,12 +265,12 @@ For segment chunks, meta MUST also include:
 
 ---
 
-## 7. Code touchpoints (implementation checklist)
+## 7. Implementation touchpoints
 
-This spec is intended to map cleanly onto existing code:
+This spec maps to the current implementation:
 
-### 7.1 New module
-- Add `src/index/identity/chunk-uid.js` exporting:
+### 7.1 Identity module
+- `src/index/identity/chunk-uid.js` exports:
   - `normalizeForUid(text)`
   - `computeSegmentUid({segmentText, segmentType, languageId})`
   - `computeChunkUid({namespaceKey, virtualPath, fileText, startOffset, endOffset, langSalt})`

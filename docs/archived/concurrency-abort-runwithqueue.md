@@ -1,3 +1,29 @@
+# DEPRECATED
+
+Canonical replacement docs:
+- `docs/roadmap.md`
+- `docs/tooling/shared-module-reductions/432-prioritized-implementation-backlog.md`
+- `docs/specs/build-scheduler.md`
+- `docs/specs/stage1-cancellation-and-shutdown.md`
+- `docs/specs/runtime-envelope.md`
+- `docs/guides/perfplan-execution.md`
+
+Canonical implementation contracts:
+- `src/shared/concurrency/run-with-queue.js`
+- `src/shared/concurrency/task-queues.js`
+- `src/shared/concurrency/queue-adapter.js`
+- `src/shared/concurrency/scheduler-core.js`
+- `src/index/build/runtime/workers.js`
+- `src/index/build/runtime/scheduler.js`
+
+Reason: superseded by the live concurrency implementation split under `src/shared/concurrency/**`, Stage1/runtime scheduler specs, and the consolidated roadmap/shared-module checkpoint. This file described Phase 4.2-4.4 implementation work and referenced the removed `src/shared/concurrency.js` root facade.
+
+Date: 2026-05-21
+
+PR/commit: pending branch update on `NEON_TIDE`
+
+Historical content follows.
+
 # Spec: Concurrency, Cancellation, and `runWithQueue` Semantics (Phase 4.2-4.4 + 4.3)
 
 Status: Draft (implementation-ready)

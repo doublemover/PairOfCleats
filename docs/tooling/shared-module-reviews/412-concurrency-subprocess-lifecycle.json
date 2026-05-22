@@ -4,24 +4,24 @@
   "reviewDate": "2026-03-26",
   "scope": "Primary ownership for src/shared concurrency, queue, subprocess, lifecycle, lock, worker, and progress helpers assigned to #412 in the shared-module ledger.",
   "summary": {
-    "ownedFileCount": 53,
+    "ownedFileCount": 61,
     "overallAssessment": "This shared surface contains several of the repo's most correctness-critical runtime helpers. The main risks are not duplication alone; they are policy and mechanism being entangled inside lock ownership, tracked subprocess cleanup, adaptive scheduling, and progress/logging helpers. The strongest cleanup opportunities are splitting the correctness-critical large files while preserving stable facades and removing a few root-level wrappers that are too caller-specific.",
     "runtimeRisks": [
       {
         "target": "src/shared/locks/file-lock.js",
-        "reason": "Stale lock reclamation, Windows-specific PID checks, and release semantics are correctness-critical and currently live in one oversized file."
+        "reason": "File locking remains correctness-critical, but constants, timing, info parsing, owner probing, stale cleanup, release errors, and metrics now live in focused leaves behind the acquisition facade; startup-sensitive callers lazy-load lock behavior."
       },
       {
         "target": "src/shared/subprocess/tracking.js",
-        "reason": "Tracked ownership scopes, AsyncLocalStorage, cleanup hooks, and termination audits are tightly coupled and directly affect process cleanup correctness."
+        "reason": "Tracked subprocess cleanup remains correctness-critical; scope propagation, child registration, runtime bookkeeping, and termination flow now live in focused leaves behind the tracking facade."
       },
       {
         "target": "src/shared/subprocess/runner.js",
-        "reason": "Async and sync spawn behavior, timeout or abort termination, capture policy, and tracked cleanup registration are all critical runtime behavior in one file."
+        "reason": "Subprocess runner behavior remains correctness-critical; async spawn, sync spawn, isolated-node helpers, and subprocess errors are already split behind the runner facade."
       },
       {
         "target": "src/shared/concurrency/scheduler-core/adaptive-controller.js",
-        "reason": "Scheduler token adaptation mixes queue pressure, system signal sampling, and policy response in one file, which makes fairness regressions harder to isolate."
+        "reason": "Adaptive scheduling remains correctness-critical; signal sampling, surface snapshots, surface decisions, and token scaling are already split behind the adaptive-controller composition layer."
       }
     ],
     "maintainabilityOnlyNotes": [
@@ -36,44 +36,48 @@
       {
         "target": "src/shared/queue.js",
         "reason": "The file is only a re-export of tools/service/queue.js and creates an odd src/shared-to-tools ownership seam."
+      },
+      {
+        "target": "src/shared/progress-context.js",
+        "reason": "The helper moved to tools/tui/supervisor/progress-context.js because only supervisor job spawning owns progress-context env propagation."
       }
     ],
     "highestPriorityFollowUps": [
       {
-        "priority": "high",
+        "priority": "completed",
         "target": "src/shared/locks/file-lock.js",
         "action": "split",
-        "reason": "Separate lock info parsing, stale-owner detection, and release semantics from acquisition flow and Windows owner probing."
+        "reason": "The acquisition facade now delegates to focused lock constants, timing, info, owner, stale cleanup, release, and metrics leaves; retrieval/build startup paths lazy-load lock behavior and stay under the shared-module performance baseline."
       },
       {
-        "priority": "high",
+        "priority": "completed",
         "target": "src/shared/subprocess/tracking.js",
         "action": "split",
-        "reason": "Separate AsyncLocalStorage scope propagation from tracked-child registry and termination-audit logic."
+        "reason": "Scope propagation now lives in tracking-scope.js, child registration in tracking-register.js, runtime bookkeeping in tracking-runtime.js, and termination flow in tracking-terminate.js."
       },
       {
-        "priority": "high",
+        "priority": "completed",
         "target": "src/shared/subprocess/runner.js",
         "action": "split",
-        "reason": "Separate async spawn orchestration, sync spawn behavior, and isolated-node helpers behind one facade."
+        "reason": "The runner facade now re-exports async runner, sync runner, isolated-node helpers, and subprocess errors from focused leaves."
       },
       {
-        "priority": "high",
+        "priority": "completed",
         "target": "src/shared/progress.js",
-        "action": "split",
-        "reason": "The file currently mixes TTY progress lines, structured logging, ring-buffer capture, and progress-context env propagation."
+        "action": "removed",
+        "reason": "The root facade has been removed. Shared progress runtime behavior lives in src/shared/progress-runtime.js; supervisor-only context env propagation moved to tools/tui/supervisor/progress-context.js."
       },
       {
-        "priority": "high",
+        "priority": "completed",
         "target": "src/shared/concurrency/scheduler-core/adaptive-controller.js",
         "action": "split",
-        "reason": "Separate signal sampling, adaptive state snapshots, and token adjustment policy so scheduler tuning is easier to reason about."
+        "reason": "Signal sampling, adaptive surface snapshots, per-surface scaling decisions, and token adjustment policy already live in focused adaptive-controller leaves."
       },
       {
-        "priority": "high",
+        "priority": "completed",
         "target": "src/shared/queue.js",
-        "action": "move",
-        "reason": "It is only a cross-layer re-export of tools/service/queue.js and should not remain in a generic src/shared namespace."
+        "action": "removed",
+        "reason": "The generic src/shared queue alias has been removed; tools/service/queue.js remains the canonical service queue owner."
       }
     ]
   },
@@ -90,28 +94,6 @@
       "recommendation": "Keep as the abort primitive surface and avoid duplicating abort helpers elsewhere."
     },
     {
-      "path": "src/shared/bounded-object-pool.js",
-      "consumerCount": 1,
-      "classifications": [
-        "keep",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "Worker-pool metadata uses it as a small bounded object pool helper.",
-      "recommendation": "Keep small and focused on bounded pooling semantics."
-    },
-    {
-      "path": "src/shared/concurrency.js",
-      "consumerCount": 24,
-      "classifications": [
-        "keep",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "This is the public concurrency facade used by many runtime and build flows.",
-      "recommendation": "Keep as the stable facade over the concurrency family."
-    },
-    {
       "path": "src/shared/concurrency/adaptive-surfaces.js",
       "consumerCount": 1,
       "classifications": [
@@ -124,7 +106,7 @@
     },
     {
       "path": "src/shared/concurrency/ordered-completion.js",
-      "consumerCount": 2,
+      "consumerCount": 1,
       "classifications": [
         "keep",
         "document",
@@ -146,7 +128,7 @@
     },
     {
       "path": "src/shared/concurrency/run-with-queue.js",
-      "consumerCount": 1,
+      "consumerCount": 20,
       "classifications": [
         "keep",
         "document",
@@ -201,7 +183,7 @@
     },
     {
       "path": "src/shared/concurrency/scheduler-core.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -214,12 +196,12 @@
       "path": "src/shared/concurrency/scheduler-core/adaptive-controller.js",
       "consumerCount": 1,
       "classifications": [
-        "split",
+        "keep",
         "document",
         "test"
       ],
-      "consumerNotes": "Large scheduler adaptation module mixing signal sampling, queue snapshots, and token adjustment policy.",
-      "recommendation": "Split system-signal sampling, adaptive snapshots, and token-scaling policy into narrower internals."
+      "consumerNotes": "Adaptive-controller now composes dedicated signal, snapshot, surface-controller, and token-controller leaves.",
+      "recommendation": "Keep as the adaptive scheduler composition layer and avoid moving signal sampling or token policy back into this facade."
     },
     {
       "path": "src/shared/concurrency/scheduler-core/adaptive-signals.js",
@@ -344,14 +326,14 @@
     },
     {
       "path": "src/shared/kill-tree.js",
-      "consumerCount": 7,
+      "consumerCount": 15,
       "classifications": [
-        "split",
+        "keep",
         "document",
         "test"
       ],
-      "consumerNotes": "LSP, subprocess, Python pool, and bench flows depend on it for process-tree termination.",
-      "recommendation": "Split platform-specific kill behavior from generic process-tree orchestration and diagnostics."
+      "consumerNotes": "Process-tree termination now delegates platform-specific behavior to kill-tree/posix.js, kill-tree/windows.js, and shared defaults.",
+      "recommendation": "Keep as the process-tree facade while preserving platform-specific termination details in the kill-tree leaves."
     },
     {
       "path": "src/shared/lifecycle/registry.js",
@@ -366,25 +348,102 @@
     },
     {
       "path": "src/shared/locks/file-lock-runtime.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Runtime is now an internal barrel over focused file-lock leaves instead of the owner for all lock side effects.",
+      "recommendation": "Keep as a transitional internal aggregation surface while file-lock.js imports the stable runtime surface."
+    },
+    {
+      "path": "src/shared/locks/file-lock-constants.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "File-lock defaults, invalid-lock grace bounds, metadata key policy, and benign stale-removal race codes live here.",
+      "recommendation": "Keep lock constants isolated so parsing, owner probing, and stale cleanup share one policy source without pulling in file IO."
+    },
+    {
+      "path": "src/shared/locks/file-lock-timing.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Abort-aware polling sleep, numeric coercion, and invalid-lock reclaim grace resolution live here.",
+      "recommendation": "Keep timing and numeric coercion separate from lock ownership and stale cleanup side effects."
+    },
+    {
+      "path": "src/shared/locks/file-lock-metrics.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Runtime lock metrics and hook warning safety live here instead of being coupled to stale cleanup or acquisition flow.",
+      "recommendation": "Keep metrics mutation centralized and avoid ad hoc counters in lock leaves."
+    },
+    {
+      "path": "src/shared/locks/file-lock-info.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Lock payload creation, metadata sanitization, lock info reads, PID extraction, and stale snapshot fingerprinting live here.",
+      "recommendation": "Keep lock-file parsing and payload construction independent of owner probing and removal side effects."
+    },
+    {
+      "path": "src/shared/locks/file-lock-owner.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "PID liveness checks, Windows tasklist probing, ownership matching, and owned lock-file removal live here.",
+      "recommendation": "Keep platform owner probing and removal logic separate from stale-policy decisions."
+    },
+    {
+      "path": "src/shared/locks/file-lock-stale.js",
       "consumerCount": 1,
       "classifications": [
         "keep",
         "document",
         "test"
       ],
-      "consumerNotes": "File-lock internals were split so stale-owner detection, release semantics, and runtime metrics are no longer buried inside the acquisition loop.",
-      "recommendation": "Keep runtime lock ownership and cleanup details here and preserve file-lock.js as the narrow acquisition facade."
+      "consumerNotes": "Stale-lock detection, invalid-lock grace decisions, owner-first stale removal, force fallback, and stale cleanup error shaping live here.",
+      "recommendation": "Keep stale cleanup policy here and preserve owner-first removal semantics before forced cleanup."
     },
     {
-      "path": "src/shared/locks/file-lock.js",
-      "consumerCount": 20,
+      "path": "src/shared/locks/file-lock-release.js",
+      "consumerCount": 1,
       "classifications": [
-        "split",
+        "keep",
         "document",
         "test"
       ],
-      "consumerNotes": "Build state, snapshots, diffs, tooling providers, and service queue flows all depend on this correctness-critical lock implementation.",
-      "recommendation": "Split lock info parsing, stale-owner detection, Windows owner probing, and release semantics from the main acquire flow."
+      "consumerNotes": "Release result normalization and lock release failure error shaping live here.",
+      "recommendation": "Keep release failure behavior independent of acquisition and stale cleanup flow."
+    },
+    {
+      "path": "src/shared/locks/file-lock.js",
+      "consumerCount": 21,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Build state, snapshots, diffs, tooling providers, service queue flows, tools, and tests depend on this public acquisition facade. Startup-sensitive retrieval/build imports lazy-load the lock facade only when lock behavior executes.",
+      "recommendation": "Keep acquisition and withFileLock orchestration here; route lock constants, timing, info parsing, owner probing, stale cleanup, release errors, and metrics to the focused leaves, and keep build/tooling startup paths lazy where they only need lock behavior at execution time."
     },
     {
       "path": "src/shared/piscina-cleanup.js",
@@ -399,7 +458,7 @@
     },
     {
       "path": "src/shared/process-signals.js",
-      "consumerCount": 3,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -407,17 +466,6 @@
       ],
       "consumerNotes": "Lock and Python pool flows use it for process-signal coordination.",
       "recommendation": "Keep as the process-signal helper layer and document the boundary against subprocess/signals.js."
-    },
-    {
-      "path": "src/shared/progress.js",
-      "consumerCount": 59,
-      "classifications": [
-        "split",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "This is one of the highest-consumer runtime helpers, used across indexing, services, bench, and TUI logging flows.",
-      "recommendation": "Split TTY progress rendering, structured logging, ring-buffer capture, and progress-context env handling behind a smaller facade."
     },
     {
       "path": "src/shared/promise-keepalive.js",
@@ -475,19 +523,8 @@
       "recommendation": "Keep as the tiny sleep helper rather than embedding sleep loops in callsites."
     },
     {
-      "path": "src/shared/subprocess.js",
-      "consumerCount": 50,
-      "classifications": [
-        "keep",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "Many runtime, tooling, bench, release, and service flows use this as the main subprocess facade.",
-      "recommendation": "Keep as the stable subprocess facade over the narrower subprocess family."
-    },
-    {
       "path": "src/shared/subprocess/command-invocation.js",
-      "consumerCount": 4,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -506,6 +543,17 @@
       ],
       "consumerNotes": "Subprocess runner internals now share a dedicated error-shape leaf instead of redefining subprocess failure formatting inside runner flow control.",
       "recommendation": "Keep subprocess error normalization isolated here and avoid reintroducing ad hoc error-shape helpers in runner variants."
+    },
+    {
+      "path": "src/shared/subprocess/exit-semantics.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Shared subprocess exit-code and signal interpretation helper used by runner and command wrappers.",
+      "recommendation": "Keep exit semantics isolated from runner flow control so async, sync, and wrapper callers share one failure interpretation contract."
     },
     {
       "path": "src/shared/subprocess/options.js",
@@ -542,14 +590,14 @@
     },
     {
       "path": "src/shared/subprocess/runner.js",
-      "consumerCount": 1,
+      "consumerCount": 50,
       "classifications": [
-        "split",
+        "keep",
         "document",
         "test"
       ],
-      "consumerNotes": "Core subprocess runner mixes async spawn, sync spawn, timeout or abort handling, output capture, and tracked cleanup registration.",
-      "recommendation": "Split async runner, sync runner, and isolated-node helpers behind one facade."
+      "consumerNotes": "Runner is now a narrow facade over async runner, sync runner, isolated-node helpers, and subprocess error types.",
+      "recommendation": "Keep as the public subprocess runner surface and preserve focused implementation leaves for async, sync, and error behavior."
     },
     {
       "path": "src/shared/subprocess/signals.js",
@@ -564,7 +612,7 @@
     },
     {
       "path": "src/shared/subprocess/snapshot.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -585,37 +633,59 @@
       "recommendation": "Keep sync-command timeout behavior separate from the async runner."
     },
     {
-      "path": "src/shared/subprocess/tracking-runtime.js",
-      "consumerCount": 2,
+      "path": "src/shared/subprocess/tracking-register.js",
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
         "test"
       ],
-      "consumerNotes": "Tracked subprocess runtime state and ownership matching logic now live in a dedicated leaf instead of being interleaved with termination flow.",
+      "consumerNotes": "Tracked child-process registration now owns entry creation, cleanup hook installation, inherited ownership resolution, and close/unregister bookkeeping.",
+      "recommendation": "Keep tracked-child registration here and avoid recombining it with AsyncLocalStorage scope propagation or termination flow."
+    },
+    {
+      "path": "src/shared/subprocess/tracking-runtime.js",
+      "consumerCount": 6,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Tracked subprocess runtime state and ownership matching logic live in a dedicated leaf shared by scope, registration, and termination owners.",
       "recommendation": "Keep tracked runtime bookkeeping here and preserve tracking.js as the narrow public facade."
     },
     {
-      "path": "src/shared/subprocess/tracking-terminate.js",
+      "path": "src/shared/subprocess/tracking-scope.js",
       "consumerCount": 1,
       "classifications": [
         "keep",
         "document",
         "test"
       ],
-      "consumerNotes": "Tracked subprocess termination and cleanup flow now live in a dedicated leaf instead of being entangled with scope propagation.",
+      "consumerNotes": "AsyncLocalStorage signal-scope binding now lives in its own leaf. Heavy startup modules lazy-load this owner so retrieval CLI startup does not pay for scope-only code.",
+      "recommendation": "Keep scope propagation here so nested signal-scope behavior can be validated independently of child registration and termination."
+    },
+    {
+      "path": "src/shared/subprocess/tracking-terminate.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Tracked subprocess termination and cleanup flow live in a dedicated leaf instead of being entangled with scope propagation or registration.",
       "recommendation": "Keep tracked-child termination flow here and avoid recombining it with AsyncLocalStorage ownership plumbing."
     },
     {
       "path": "src/shared/subprocess/tracking.js",
-      "consumerCount": 3,
+      "consumerCount": 20,
       "classifications": [
-        "split",
+        "keep",
         "document",
         "test"
       ],
-      "consumerNotes": "Tracked subprocess cleanup, AsyncLocalStorage scope propagation, and termination audits all live in this large correctness-critical file.",
-      "recommendation": "Split scope propagation from tracked-child registry and termination-audit logic."
+      "consumerNotes": "Tracking is now a public and test-facing facade over runtime bookkeeping, termination flow, child registration, and AsyncLocalStorage scope propagation leaves; startup-sensitive src paths import the narrow leaves directly.",
+      "recommendation": "Keep as the public tracking surface and route implementation changes to tracking-runtime, tracking-terminate, tracking-register, or tracking-scope."
     },
     {
       "path": "src/shared/subprocess/windows-cmd-core.cjs",
@@ -649,6 +719,28 @@
       ],
       "consumerNotes": "Runtime worker configuration flows use it for thread-count resolution.",
       "recommendation": "Keep as the small thread-resolution helper."
+    },
+    {
+      "path": "src/shared/workers/node-argv.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Worker-family helper for deriving Node argv used by worker launch and subprocess execution paths.",
+      "recommendation": "Keep Node argv derivation under the worker family and avoid duplicating execArgv filtering in launch callsites."
+    },
+    {
+      "path": "src/shared/workers/bounded-object-pool.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Worker-pool metadata uses it as a small bounded object pool helper.",
+      "recommendation": "Keep small and focused on bounded pooling semantics under src/shared/workers."
     },
     {
       "path": "src/shared/workers/bundle-transform-worker.js",

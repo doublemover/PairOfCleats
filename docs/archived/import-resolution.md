@@ -1,3 +1,19 @@
+# DEPRECATED
+
+Canonical replacement docs:
+- `docs/language/import-links.md`
+- `docs/contracts/artifact-schemas.md`
+
+Reason: superseded by the implemented import-resolution engine, artifact
+schemas, replay/SLO tooling, and active import-link guide. This Phase 3 draft
+is historical implementation context only.
+
+Date: 2026-05-21
+
+PR/commit: pending branch update on `NEON_TIDE`
+
+Historical content follows.
+
 # Phase 3 Import Resolution Spec (Draft)
 
 ## Goal

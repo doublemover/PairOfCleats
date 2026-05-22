@@ -62,6 +62,7 @@ Machine-readable index:
 - `field_tokens_meta` (object): sharded JSONL metadata for `field_tokens`.
 - `minhash_signatures` (object): requires `signatures` (array of int arrays).
 - `dense_vectors`, `dense_vectors_doc`, `dense_vectors_code` (object): requires `dims`, `vectors`. Optional: `model`, `scale`, `minVal`, `maxVal`, `levels`.
+- `dense_vectors_binary_meta`, `dense_vectors_doc_binary_meta`, `dense_vectors_code_binary_meta` (object): requires `dims`, `count`, `path`. Optional: `schemaVersion`, `artifact`, `format`, `generatedAt`, `model`, `bytes`, `scale`, `minVal`, `maxVal`, `levels`.
 - `dense_vectors_hnsw_meta`, `dense_vectors_doc_hnsw_meta`, `dense_vectors_code_hnsw_meta` (object): requires `dims`, `count`, `space`, `m`, `efConstruction`, `efSearch`. Optional: `scale`, `minVal`, `maxVal`, `levels`.
 - `dense_vectors_lancedb_meta`, `dense_vectors_doc_lancedb_meta`, `dense_vectors_code_lancedb_meta` (object): requires `dims`, `count`, `metric`, `table`, `embeddingColumn`, `idColumn`. Optional: `scale`, `minVal`, `maxVal`, `levels`.
 - `dense_vectors_sqlite_vec_meta` (object): requires `dims`, `count`, `table`. Optional: `embeddingColumn`, `idColumn`, `scale`, `minVal`, `maxVal`, `levels`.
@@ -74,6 +75,7 @@ Machine-readable index:
 - `index_state` (object): requires `generatedAt`, `mode`, `artifactSurfaceVersion`. Optional: `profile` (requires `id`, `schemaVersion=1`), `compatibilityKey`, `cohortKey`, `repoId`, `buildId`, `stage`, `assembled`, `embeddings`, `features`, `shards`, `enrichment`, `filterIndex`, `sqlite`, `lmdb`, `artifacts` (requires `schemaVersion=1`, `present`, `omitted`, `requiredForSearch`), `riskInterprocedural` (requires `enabled`, `summaryOnly`, `emitArtifacts`), `riskRules`, `extensions`.
 - `determinism_report` (object): requires `schemaVersion`, `generatedAt`, `normalizedStateHash`, `metrics`; optional run-variant fields are excluded from stable hash computation.
 - `extraction_report` (object): requires `schemaVersion`, `generatedAt`, `mode`, `counts`, `timings`.
+- `scan_profile` (object): requires `schemaVersion`, `generatedAt`, `source`, `repo`, `modes`, `totals`, `languageLines`, and `reuse`.
 - `boilerplate_catalog` (array): extracted boilerplate signature rows for reuse/skip heuristics.
 - `builds_current` (object): requires `buildId`, `buildRoot`, `promotedAt`, `artifactSurfaceVersion`. Optional: `buildRoots`, `buildRootsByMode`, `buildRootsByStage`, `stage`, `modes`, `configHash`, `compatibilityKey`, `tool`, `repo`, `extensions`.
   - When `repo.head` is present, supported keys include `commitId`, `changeId`, `operationId`, `branch`, `bookmarks`, `author`, and `timestamp`.

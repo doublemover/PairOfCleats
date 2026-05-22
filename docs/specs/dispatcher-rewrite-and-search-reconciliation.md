@@ -2,31 +2,37 @@
 
 ## Status
 - **Spec version:** 1
-- **Audience:** PairOfCleats contributors working on the TUI + Node supervisor boundary
-- **Primary goals:** stop blocking valid search flags, and restructure `bin/pairofcleats.js` into an implementation-ready dispatcher module usable by the TUI supervisor.
+- **Audience:** PairOfCleats contributors maintaining the TUI + Node supervisor boundary
+- **Implementation status:** active / implemented for search flag pass-through.
+- **Last audited:** 2026-05-21
+- **Primary goals:** stop blocking valid search flags, and keep `bin/pairofcleats.js` aligned with the shared command registry used by TUI/supervisor surfaces.
 
-This spec references existing code paths extensively and proposes concrete changes.
+Current implementation note: the `search` dispatcher now passes arguments through
+to `tools/search/cli-entry.js`, and command metadata lives in
+`src/shared/command-registry-data.js` plus `src/shared/command-registry-query.js`.
+The historical problem statement below describes the pre-fix state and remains
+useful as regression context.
 
 ---
 
-## 1. Problem statement (current repo state)
+## 1. Historical problem statement (pre-fix repo state)
 
 ### 1.1 `bin/pairofcleats.js` is a dispatcher with brittle validation
-`bin/pairofcleats.js` currently:
+Before the 2026-05-21 reconciliation, `bin/pairofcleats.js`:
 - resolves a command/subcommand → script path
 - spawns Node to run that script (sync)
 - **manually validates flags** via `validateArgs(...)` for several commands
 
-The `search` command is the worst offender:
+The `search` command was the worst offender:
 
-- It only allows flags: `repo, mode, top, json, explain, filter, backend`
-- It rejects all short flags (e.g. `-n`), even though search supports `-n` via yargs alias.
-- It rejects backends beyond `auto|sqlite|lmdb` even though the real search backend policy supports:
+- It only allowed flags: `repo, mode, top, json, explain, filter, backend`
+- It rejected all short flags (e.g. `-n`), even though search supports `-n` via yargs alias.
+- It rejected backends beyond `auto|sqlite|lmdb` even though the real search backend policy supports:
   - `sqlite-fts` / `fts`
   - `memory`
   - `tantivy`
 
-Code location:
+Historical code location:
 - `bin/pairofcleats.js`:
   - `validateArgs(rest, [...])` inside `if (primary === 'search')`
   - manual backend allowlist: `['auto','sqlite','lmdb']`
@@ -38,7 +44,7 @@ The search pipeline consumes many flags across:
 - `src/retrieval/cli/query-plan.js` (filters: risk/struct/complexity/etc)
 - `src/storage/backend-policy.js` (backend selection)
 
-If `bin/pairofcleats.js` blocks flags, **features exist but are unreachable via the main CLI entrypoint** — and the planned TUI (which aligns to dispatch jobs) inherits those limitations.
+If `bin/pairofcleats.js` blocks flags, **features exist but are unreachable via the main CLI entrypoint** — and the TUI/supervisor dispatch surfaces inherit those limitations. The current search dispatcher no longer applies this allowlist.
 
 ---
 
@@ -114,38 +120,29 @@ Therefore, dispatcher-level allowlists are **not** providing robust unknown-flag
 
 ---
 
-## 3. Required changes (immediate reconciliation)
+## 3. Completed reconciliation
 
-### 3.1 Minimal safe fix for `pairofcleats search`
-In `bin/pairofcleats.js`:
-- remove the call to `validateArgs(...)` inside the `search` command handler
-- remove the manual backend allowlist check
+### 3.1 `pairofcleats search` pass-through
 
-Replace with pass-through:
+Implemented in `bin/pairofcleats.js`:
 
-- `return { script: 'search.js', extraArgs: [], args: rest };`
+- `return { script: 'tools/search/cli-entry.js', extraArgs: [], args: rest };`
 
 Rationale:
 - Search already handles parsing and emits helpful errors.
 - Backend selection is already validated/fallback-handled by `src/retrieval/cli/policy.js`.
-- This instantly unblocks all implemented functionality (including `-n`, `--backend tantivy`, etc).
+- This unblocks implemented functionality including `-n`, `--backend tantivy`, `--backend memory`, and `--backend sqlite-fts`.
 
-### 3.2 Correctness tests to add immediately
-Add a new integration test script (fits current test harness pattern) that executes:
+### 3.2 Regression coverage
 
-1) `node bin/pairofcleats.js search --help --backend tantivy`
-- **Pass:** exit code is 0 (help printed), and dispatcher did not reject backend.
-- **Fail:** exit code 1 with “Unsupported --backend …”
+Current focused coverage:
 
-2) `node bin/pairofcleats.js search --help -n 10`
-- **Pass:** exit code is 0
-- **Fail:** exit code 1 with “Unknown short flag: -n”
-
-(Using `--help` avoids needing indexes; we are testing dispatch acceptance.)
+- `tests/dispatch/search-flag-passthrough.test.js` verifies `node bin/pairofcleats.js search --help --backend tantivy -n 10` succeeds through dispatcher pass-through.
+- `tests/dispatch/manifest-describe-search.test.js`, `tests/dispatch/manifest-list.test.js`, and `tests/dispatch/command-registry-parity.test.js` verify command registry and manifest coverage.
 
 ---
 
-## 4. Dispatcher rewrite plan (structural improvement)
+## 4. Dispatcher structural status
 
 ### 4.1 Goals
 1. Make dispatch logic reusable by:
@@ -156,34 +153,18 @@ Add a new integration test script (fits current test harness pattern) that execu
 3. Provide optional “strict dispatch validation” mode for CI/hardening.
 4. Provide a machine-readable command manifest for the Rust TUI.
 
-### 4.2 Proposed module structure
+### 4.2 Implemented module structure
 
-Create `src/shared/dispatch/`:
+Current command metadata lives in:
 
-- `registry.js`
-  - data-only registry of commands:
-    - name/subcommands
-    - script path
-    - description
-    - recommended progress mode (`jsonl`)
-    - expected outputs (json vs text)
-    - artifact kinds expected (for artifact indexing pass)
-- `resolve.js`
-  - parses argv to resolve command/subcommand
-- `env.js`
-  - computes runtime env for the resolved command:
-    - for `build_index.js`: retain current runtime-envelope path used in `bin/pairofcleats.js`
-    - otherwise: `getRuntimeConfig(...)` + `resolveRuntimeEnv(...)`
-- `spawn.js`
-  - shared spawn helper (async + streaming friendly; supervisor will need async)
-- `manifest.js`
-  - exports manifest JSON schema + `describeCommand(name)` outputs options schema and expected artifacts
+- `src/shared/command-registry-data.js`
+- `src/shared/command-registry-query.js`
+- `tools/dispatch/manifest.js`
 
-Then:
-- rewrite `bin/pairofcleats.js` as a thin wrapper that calls into `src/shared/dispatch/*`.
+`bin/pairofcleats.js` imports that registry and uses the registry-backed search path. Some legacy dispatcher cases still perform command-local validation where the underlying tools do not expose their own full option parser; that is intentional and not part of the search flag pass-through gap.
 
 ### 4.3 Manifest requirements (for TUI)
-Expose:
+Current manifest surfaces expose:
 - `pairofcleats dispatch list --json`
 - `pairofcleats dispatch describe <command> --json`
 
@@ -195,8 +176,8 @@ For search:
   - Filters: meta/file/time
   - Filters: risk/struct/complexity/traits
 
-### 4.4 Optional strict validation mode
-Add env/flag:
+### 4.4 Optional strict validation mode (future extension)
+Possible future env/flag:
 - `PAIROFCLEATS_DISPATCH_STRICT=1` or `pairofcleats --strict …`
 
 In strict mode:
@@ -206,7 +187,7 @@ In strict mode:
 
 ---
 
-## 5. Follow-up: formalize `parseSearchArgs()` option list
+## 5. Follow-up: formalize `parseSearchArgs()` option list (future extension)
 To support better help output and manifest generation, expand the `options` object in:
 - `src/retrieval/cli-args.js::parseSearchArgs`
 
@@ -218,9 +199,15 @@ This is strongly recommended even if we keep yargs `strict(false)`:
 
 ---
 
-## 6. Testing plan (dispatcher rewrite)
+## 6. Regression and future testing
 
-### 6.1 Unit tests
+### 6.1 Current tests
+- `tests/dispatch/search-flag-passthrough.test.js`
+- `tests/dispatch/manifest-list.test.js`
+- `tests/dispatch/manifest-describe-search.test.js`
+- `tests/dispatch/command-registry-parity.test.js`
+
+### 6.2 Future unit tests
 - registry resolution:
   - `index build`, `index watch`, `index validate` map correctly
   - unknown command prints help and exits 1
@@ -228,7 +215,7 @@ This is strongly recommended even if we keep yargs `strict(false)`:
   - build_index goes through runtime envelope path
   - others go through runtime config path
 
-### 6.2 Integration tests
+### 6.3 Future integration tests
 - `pairofcleats search` accepts:
   - `--backend tantivy`, `--backend memory`, `--backend sqlite-fts`, `--backend fts`
   - `-n`

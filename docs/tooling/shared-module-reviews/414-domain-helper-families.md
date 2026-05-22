@@ -26,7 +26,7 @@ The main cleanup seams are concentrated in a handful of oversized files and two 
 
 ## Runtime-Risk Notes
 
-- [onnx-embeddings.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/onnx-embeddings.js): session lifecycle, runtime/provider selection, batch execution, and output handling all live together.
+- [onnx-embeddings.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/onnx-embeddings.js): session lifecycle, runtime/provider selection, batch execution, and output handling still live together; ONNX config, run-queue, and tokenization helpers now live under `src/shared/onnx-embeddings/**` instead of the shared root.
 - [progress-timeout-policy.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/indexing/progress-timeout-policy.js): timeout classification, budget-extension rules, and progress interpretation are coupled together.
 - [embedding-adapter.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/embedding-adapter.js): adapter selection, provider normalization, request shaping, and fallback behavior are combined.
 - [dense-vector-artifacts.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/dense-vector-artifacts.js): artifact naming, binary serialization, JSONL sharding, hydration, and row materialization all meet in one file.
@@ -36,8 +36,9 @@ The main cleanup seams are concentrated in a handful of oversized files and two 
 ## Maintainability Notes
 
 - [dict-utils.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/dict-utils.js) is only a root-level re-export of `tools/shared/dict-utils.js`.
+- ONNX helper roots `src/shared/onnx-config.js`, `src/shared/onnx-run-queue.js`, and `src/shared/onnx-tokenization.js` have been removed; their owners are `src/shared/onnx-embeddings/config.js`, `run-queue.js`, and `tokenization.js`.
 - [token-id.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/token-id.js) mixes generic token hashing with a specialized typed posting map.
-- [risk-explain.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/risk-explain.js) is still useful shared logic, but it is broad enough that normalization and summary-shaping should separate if it grows further.
+- The old `src/shared/risk-explain.js` facade has been removed; [risk-explain-summary.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/risk-explain-summary.js) and [risk-explain-model.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/risk-explain-model.js) now own summary shaping and explanation model behavior directly.
 
 ## File Ledger
 
@@ -73,16 +74,17 @@ The main cleanup seams are concentrated in a handful of oversized files and two 
 | `src/shared/indexing/build-pointer.js` | `split`, `document`, `test` | Split active pointer resolution from freshness/compatibility helpers. |
 | `src/shared/indexing/progress-timeout-policy.js` | `split`, `document`, `test` | Split budget math, classification rules, and progress-state interpretation. |
 | `src/shared/indexing/stage1-watchdog-policy.js` | `keep`, `document`, `test` | Keep under indexing policy ownership. |
+| `src/shared/indexing/stages.js` | `keep`, `document`, `test` | Keep stage identity under the indexing helper family and avoid scattering stage-name literals across build and report code. |
 | `src/shared/indexing/tree-sitter-limits.js` | `keep`, `document`, `test` | Keep as the tree-sitter limit contract. |
 | `src/shared/lancedb.js` | `keep`, `document`, `test` | Keep as the LanceDB helper surface. |
-| `src/shared/onnx-embeddings.js` | `split`, `document`, `test` | Split model/session lifecycle, runtime selection, execution, and output normalization. |
+| `src/shared/onnx-embeddings.js` | `split`, `document`, `test` | Config, run queue, and tokenization helpers have moved under `src/shared/onnx-embeddings/**`; remaining split work is model/session lifecycle, execution, and output normalization. |
 | `src/shared/ownership-segment.js` | `keep`, `document`, `test` | Keep focused on ownership-segment normalization. |
 | `src/shared/packed-postings.js` | `keep`, `document`, `test` | Keep as the packed-postings helper layer. |
 | `src/shared/perf/eta.js` | `keep`, `document`, `test` | Keep in the perf helper family. |
 | `src/shared/perf/histogram.js` | `keep`, `document`, `test` | Keep as a focused histogram helper. |
 | `src/shared/perf/percentiles.js` | `keep`, `document`, `test` | Keep as the percentile utility surface. |
 | `src/shared/postings-config.js` | `keep`, `document`, `test` | Keep as the postings configuration contract. |
-| `src/shared/risk-explain.js` | `split`, `document`, `test` | Split normalization/filtering from explanation/summary shaping if this grows further. |
+| `src/shared/risk-explain.js` | `removed`, `document`, `test` | Root facade removed after consumers moved to `risk-explain-summary.js` and `risk-explain-model.js`. |
 | `src/shared/risk-filters.js` | `keep`, `document`, `test` | Keep as the canonical risk filter contract layer. |
 | `src/shared/safe-regex.js` | `split`, `document`, `test` | Keep the facade, but separate backend resolution/policy checks if the family grows. |
 | `src/shared/safe-regex/backends/re2.js` | `keep`, `document`, `test` | Keep as the RE2 backend implementation. |

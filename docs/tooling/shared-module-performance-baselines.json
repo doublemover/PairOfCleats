@@ -6,9 +6,9 @@
       "maxDirectLocalImportCount": 0,
       "maxTransitiveLocalModuleCount": 0
     },
-    "shared.command-registry": {
-      "path": "src/shared/command-registry.js",
-      "maxDirectLocalImportCount": 2,
+    "shared.command-registry.query": {
+      "path": "src/shared/command-registry-query.js",
+      "maxDirectLocalImportCount": 1,
       "maxTransitiveLocalModuleCount": 2
     },
     "shared.runtime-capability-manifest": {
@@ -21,15 +21,15 @@
       "maxDirectLocalImportCount": 8,
       "maxTransitiveLocalModuleCount": 73
     },
-    "shared.subprocess": {
-      "path": "src/shared/subprocess.js",
-      "maxDirectLocalImportCount": 5,
-      "maxTransitiveLocalModuleCount": 16
+    "shared.subprocess.runner": {
+      "path": "src/shared/subprocess/runner.js",
+      "maxDirectLocalImportCount": 3,
+      "maxTransitiveLocalModuleCount": 14
     },
     "retrieval.cli": {
       "path": "src/retrieval/cli.js",
-      "maxDirectLocalImportCount": 3,
-      "maxTransitiveLocalModuleCount": 1134
+      "maxDirectLocalImportCount": 2,
+      "maxTransitiveLocalModuleCount": 60
     }
   }
 }

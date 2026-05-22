@@ -1,7 +1,7 @@
 # Phase 8 -- Canonical Identity + Symbol Reference Contracts (Refined)
 
-> **Status:** Draft spec (implementation-oriented)  
-> **Scope:** PairOfCleats Phase 8 workstreams that need collision-safe joining and deterministic tooling outputs.  
+> **Status:** Historical implementation-oriented reference; active identity status is tracked in `docs/specs/identity-contract.md` and `docs/roadmap.md`.
+> **Scope:** PairOfCleats Phase 8 workstreams that need collision-safe joining and deterministic tooling outputs.
 > **Primary audience:** Codex / implementation agents and reviewers.
 
 ---
@@ -376,7 +376,7 @@ Until all consumers are migrated:
 
 ---
 
-## 9. Acceptance tests (exact, implementation-ready)
+## 9. Acceptance tests (exact)
 
 Create tests (names are suggestions; align with repo conventions):
 

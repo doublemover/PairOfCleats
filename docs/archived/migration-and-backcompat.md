@@ -1,3 +1,10 @@
+> [!WARNING]
+> DEPRECATED
+> - Canonical replacement docs: `docs/specs/migration-and-backcompat.md`, `docs/specs/identity-and-symbol-contracts.md`, `docs/specs/symbol-artifacts-and-pipeline.md`, and `docs/roadmap.md`.
+> - Reason: Superseded by promoted migration/backcompat and identity/symbol specs; retained as historical Phase 9 implementation-facing notes.
+> - Date: 2026-05-21
+> - PR/commit: pending branch update on `NEON_TIDE`.
+
 # Phase 9 — Migration & backward compatibility (implementation-facing)
 
 This document focuses on **how Phase 9 ships without breaking existing consumers**, while still allowing strict mode to enforce collision-safe identity.

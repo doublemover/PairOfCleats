@@ -1,6 +1,14 @@
-# Spec: VFS segment hash cache (draft)
+# Spec: VFS segment hash cache (active contract)
 
-Status: Draft (Milestone A). Optional performance cache.
+Status: Active implemented optional performance cache.
+Last audited: 2026-05-21
+Implementation anchors: `src/index/build/vfs-segment-hash-cache.js`,
+`src/index/tooling/vfs/doc-hash.js`.
+Contract coverage: `tests/tooling/vfs/segment-hash-cache.test.js`.
+
+Implementation note: the contract helper and the production doc-hash cache are
+split by ownership. Both preserve the same `docHash` definition and bypass
+behavior when required identity inputs are unavailable.
 
 Goal: reuse segment `docHash` computations across repeated VFS runs, without changing the hash definition.
 

@@ -1,3 +1,10 @@
+> [!WARNING]
+> DEPRECATED
+> - Canonical replacement docs: `docs/specs/jj-provider-commands-and-parsing.md`, `docs/specs/scm-provider-contract.md`, `docs/specs/scm-provider-config-and-state-schema.md`, and `docs/roadmap.md`.
+> - Reason: Superseded by promoted SCM/JJ provider specs and the consolidated roadmap; retained as historical Phase 13 draft material.
+> - Date: 2026-05-21
+> - PR/commit: pending branch update on `NEON_TIDE`.
+
 # Draft: JJ Provider Spec (Comprehensive) — Commands, Pinning, Parsing, and Safety
 
 This document is the standalone “JJ provider” draft for Phase 13. It expands the existing reference material and is intended to be sufficiently detailed to implement without mid-phase rescoping.

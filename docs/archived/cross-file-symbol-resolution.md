@@ -1,3 +1,10 @@
+> [!WARNING]
+> DEPRECATED
+> - Canonical replacement docs: `docs/specs/identity-and-symbol-contracts.md`, `docs/specs/symbol-artifacts-and-pipeline.md`, `docs/specs/import-resolution.md`, and `docs/roadmap.md`.
+> - Reason: Superseded by promoted symbol/identity/import-resolution specs and the consolidated roadmap; legacy D11 required promoting implemented drafts and archiving the rest from `docs/new_docs`.
+> - Date: 2026-05-21
+> - PR/commit: pending branch update on `NEON_TIDE`.
+
 # Cross-file symbol resolution (native heuristic resolver) — Draft v1
 
 > **Status:** Draft for Phase 9. Needs another pass once the first implementation exists and we can validate real-world failure modes + performance.

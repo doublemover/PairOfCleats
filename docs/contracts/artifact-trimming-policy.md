@@ -1,7 +1,7 @@
 # Artifact Trimming Policy Contract
 
-Status: Draft v1.0  
-Last updated: 2026-02-20T00:00:00Z
+Status: Active contract v1.0
+Last audited: 2026-05-21
 
 ## Purpose
 

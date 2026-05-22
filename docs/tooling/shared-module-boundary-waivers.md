@@ -8,11 +8,16 @@
 - `src-imports-tools-shared`
   - Runtime `src/**` code must not depend on `tools/shared/**` unless the exact importer/shared edge is listed in the waiver JSON.
 
+## Current status
+
+- As of 2026-05-20, the waiver list is empty.
+- `P0-tools-shared-runtime-exit` has no remaining waived `src/** -> tools/shared/**` runtime edges.
+
 ## Why this exists
 
 - The shared-module review and scan program found a small number of still-live runtime imports from `tools/shared/**`.
-- Those edges are real migration debt, but they should not block the enforcement rollout for newly introduced drift.
-- This file makes the remaining exceptions auditable and lets the guard fail when:
+- Those edges were migration debt, and the waiver registry now remains as a guardrail against regressions.
+- This file makes any future exceptions auditable and lets the guard fail when:
   - a new unapproved edge appears
   - a stale waiver remains after the edge is removed
 

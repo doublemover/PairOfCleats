@@ -13,7 +13,7 @@
 
 - The repeated seam in the current shared-module program is exact import-specifier replacement, not broad semantic AST rewriting.
 - A manifest-driven codemod keeps the automation reviewable, dry-runnable, and easy to constrain to proven migration patterns.
-- `--check` mode turns the same tooling into a validation helper for follow-on migration work.
+- `--check` mode turned the same tooling into a validation helper for migration slices and remains reusable when a fresh roadmap/audit item reopens a concrete migration.
 
 ## Initial recipes
 

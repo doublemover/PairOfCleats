@@ -27,10 +27,13 @@
 	- There is a helper you can import to handle this boilerplate.
 
 ## Script Policy References
+- `docs/roadmap.md` (canonical execution/status roadmap)
 - `docs/tooling/script-inventory.json` (generated inventory)
 - `docs/guides/commands.md` (generated commands list)
 
 ## Spec deprecation + archival process
+- `docs/roadmap.md` is the single source for roadmap status, execution order, and "what remains" summaries.
+- Do not add or revive root roadmap files such as `AINTKNOWMAP.md`, `LEXI.md`, or `TES_LAYN_ROADMAP.md`; link to `docs/roadmap.md` instead.
 - Move deprecated or superseded spec docs to `docs/archived/` (do not delete them).
 - Preserve the original filename whenever possible.
 - Add a DEPRECATED header block at the top of the archived file with:

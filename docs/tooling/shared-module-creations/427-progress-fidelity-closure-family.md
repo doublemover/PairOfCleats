@@ -35,7 +35,9 @@
 
 Those domains still have stronger specialized owners and should not be forced into the progress helper.
 
-## Follow-on cleanup
+## Historical follow-up notes
 
-- extend the shared progress-event helper only when another surface shows the same tight repeated event-shape seam
-- keep fidelity and closure-evidence helpers separate unless a future pass proves a comparable cross-surface contract
+These are not active roadmap tasks. Reopen this family only from a fresh event-shape duplication signal or progress-contract drift:
+
+- extend the shared progress-event helper only when another current surface shows the same tight repeated event-shape seam
+- keep fidelity and closure-evidence helpers separate unless a current pass proves a comparable cross-surface contract

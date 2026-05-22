@@ -1,10 +1,11 @@
-# Index stats spec (Phase 15.7)
+# Index stats contract
 
 ## Status
 
 - **Spec version:** 1
-- **Audience:** contributors implementing index stats reporting.
-- **Implementation status:** planned.
+- **Audience:** contributors maintaining index stats reporting.
+- **Implementation status:** active / implemented.
+- **Last audited:** 2026-05-21
 
 ---
 
@@ -22,10 +23,11 @@ Preferred command:
 pairofcleats index stats --repo <path> [--mode <mode>] [--json] [--verify]
 ```
 
-Alternate implementation path:
+Implemented path:
 
-- extend `tools/index/report-artifacts.js` with a strict `--stats-json` surface,
-- add dedicated `tools/index/stats.js` only if separation is needed.
+- `bin/pairofcleats.js` dispatches `pairofcleats index stats` to `tools/index/stats.js`.
+- `src/shared/command-registry-data.js` exposes the command as `index.stats`.
+- `tools/index/stats.js` owns manifest-first aggregation, verify mode, fixed ordering, and JSON/human output.
 
 Inputs:
 
@@ -107,14 +109,15 @@ Exit behavior:
 
 ## 7. Touchpoints
 
-- `tools/index/report-artifacts.js`
-- `tools/index/stats.js` (optional)
+- `bin/pairofcleats.js`
+- `src/shared/command-registry-data.js`
+- `tools/index/stats.js`
 - `tools/shared/dict-utils.js`
 - `src/shared/artifact-io/manifest.js`
 - `src/integrations/core/status.js`
 
 ---
 
-## 8. Required tests
+## 8. Contract coverage
 
 - `tests/tooling/index-stats/contract-matrix.test.js`

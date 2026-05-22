@@ -1,3 +1,22 @@
+# DEPRECATED
+
+Canonical replacement docs:
+- `docs/roadmap.md`
+- `docs/roadmap-release-validation-plan.md`
+- `docs/specs/index-refs-and-snapshots.md`
+- `docs/specs/index-diffs.md`
+- `docs/specs/as-of-retrieval-integration.md`
+- `docs/contracts/indexing.md`
+- `docs/contracts/search-contract.md`
+
+Reason: superseded by live Phase 14 implementation, focused snapshot/diff/as-of specs, schema-backed contracts, and release-validation evidence recorded in `docs/roadmap.md`.
+
+Date: 2026-05-21
+
+PR/commit: pending branch update on `NEON_TIDE`
+
+Historical content follows.
+
 # SPEC -- Phase 14: Implementation Checklist (Codex‑Ready)
 
 This document is an execution checklist to minimize ambiguity while implementing Phase 14:

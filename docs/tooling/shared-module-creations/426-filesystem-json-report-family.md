@@ -40,7 +40,9 @@
 
 Those have different semantics and should stay with their more specialized owners.
 
-## Follow-on cleanup
+## Historical follow-up notes
 
-- migrate other repeated generic JSON fixture/report helpers where the behavior matches [json-file.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\json-file.js)
-- keep avoiding a broad all-purpose filesystem helper unless a future scan shows a tighter repeated family
+These are not active roadmap tasks. Reopen this family only from a fresh generated-output duplication signal or report-writing contract drift:
+
+- migrate repeated generic JSON fixture/report helpers only when their behavior matches [json-file.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\json-file.js)
+- keep avoiding a broad all-purpose filesystem helper unless a current scan shows a tighter repeated family

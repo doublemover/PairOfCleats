@@ -10,14 +10,17 @@ The codebase already has the right shared anchors for several cross-cutting conc
 
 - [direct-execution.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\direct-execution.js)
 - [windows-cmd.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\subprocess\windows-cmd.js)
-- [runtime-envelope.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope.js)
-- [env.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\dispatch\env.js)
+- [runtime-envelope/resolve.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope\resolve.js)
+- [dispatch-runtime-env.js](C:\Users\sneak\Development\DOUBLECLEAT\bin\dispatch-runtime-env.js)
 - [build-pointer.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\indexing\build-pointer.js)
+- [repo-paths.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\repo-paths.js)
 - [config.js](C:\Users\sneak\Development\DOUBLECLEAT\src\workspace\config.js)
 - [manifest.js](C:\Users\sneak\Development\DOUBLECLEAT\src\workspace\manifest.js)
-- [files.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\files.js)
+- [file-paths.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\file-paths.js)
 
 The highest-value work is adopting those consistently, not inventing new abstractions first.
+
+2026-05-21 follow-through status: the direct-execution candidate set is closed, MCP handlers now share repo/config/runtime bootstrap through `tools/mcp/tools/helpers.js`, integration tooling commands now use `getRepoRoot()` from `src/shared/repo-paths.js` for CLI repo-root identity, context-pack API/MCP/CLI request projection now routes through `src/shared/context-pack-request.js`, risk explain/delta API/MCP/CLI projection now routes through `tools/analysis/risk-request.js`, show-throughput current-build selection now routes `builds/current.json` through the shared build-pointer generation/canonical resolver, API federated workspace path/cache-root policy now routes through `tools/api/router/workspace-allowlist.js`, LSP Go/Rust/routing workspace-root relative normalization now routes through `normalizeWorkspaceRootRel()` in `src/index/tooling/workspace-model.js`, and ingest repo-relative path filtering now delegates containment/platform normalization to `src/shared/path-normalize.js` while keeping LSIF `/repo/...` virtual-root handling local. Remaining repo/workspace work should focus on allowlist/build-root interpretation outside those completed seams.
 
 ## Hotspots
 
@@ -66,8 +69,8 @@ Why this is best:
 ### 3. Runtime env shaping and propagation drift
 
 Best shared modules:
-- [runtime-envelope.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope.js)
-- [env.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\dispatch\env.js)
+- [runtime-envelope/resolve.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope\resolve.js)
+- [dispatch-runtime-env.js](C:\Users\sneak\Development\DOUBLECLEAT\bin\dispatch-runtime-env.js)
 - [dict-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\dict-utils.js)
 
 Representative local implementations:
@@ -103,9 +106,14 @@ Best action:
 Why this is best:
 - Build-root freshness and generation identity have already been a correctness problem. One canonical resolver is safer than local fallbacks.
 
+Current adoption:
+- Show-throughput current-build selection now routes cache-scoped `builds/current.json` interpretation through the shared build-pointer generation/canonical resolver.
+- Ingest adapters now route repo-relative containment and mixed-separator normalization through `src/shared/path-normalize.js`; `tools/ingest/shared.js` remains the local owner only for LSIF `/repo/...` virtual-root stripping. Evidence: `temp/validation/ingest-path-normalizer-helper-20260521.log`.
+
 ### 5. Repo/workspace allowlist and identity handling drift
 
 Best shared modules:
+- [repo-paths.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\repo-paths.js)
 - [config.js](C:\Users\sneak\Development\DOUBLECLEAT\src\workspace\config.js)
 - [manifest.js](C:\Users\sneak\Development\DOUBLECLEAT\src\workspace\manifest.js)
 
@@ -118,6 +126,10 @@ Representative local implementations:
 
 Best action:
 - Keep API trust and editor UX policy local, but centralize workspace identity normalization and manifest/build-root interpretation on shared workspace helpers.
+
+Current adoption:
+- Integration tooling command repo-root selection now routes through `getRepoRoot()` in `src/shared/repo-paths.js` for `suggest-tests`, `impact`, `graph-context`, `context-pack`, `architecture-check`, and `api-contracts`. Context-pack's federated workspace realpath membership check intentionally remains local because it enforces a separate allowlist/trust contract.
+- API federated search now routes workspace path, repo, cache-root, and workspaceId validation through `tools/api/router/workspace-allowlist.js`. The policy remains API-local, but the path/cache-root interpretation no longer lives as ad hoc closures in the main router.
 
 Why this is best:
 - These surfaces have legitimate policy differences, but they should not each reinterpret workspace identity and build roots from scratch.

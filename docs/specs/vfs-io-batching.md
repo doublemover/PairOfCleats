@@ -1,6 +1,9 @@
-# Spec: VFS IO batching (draft)
+# Spec: VFS IO batching (active/future split)
 
-Status: Draft (Milestone A). Optional performance layer.
+Status: Active bounded-provider batching contract with future queued-write extensions.
+Last audited: 2026-05-21
+Implementation anchors: `src/integrations/tooling/providers/lsp/vfs-batching.js`.
+Contract coverage: `tests/tooling/vfs/io-batch-consistency.test.js`.
 
 Goal: reduce disk IO churn when writing VFS-backed documents and avoid excessive parallel writes during tooling runs.
 
@@ -10,9 +13,26 @@ Non-goals:
 
 ---
 
-## 1) Batching model
+## 1) Live batching model
 
-A VFS IO batcher collects pending writes and flushes them with bounded concurrency.
+The live implementation batches LSP VFS document materialization/open work with
+bounded concurrency and bounded queue length. It preserves document content,
+`docHash`, routing identity, and provider-visible ordering while avoiding
+unbounded write/open pressure during tooling runs.
+
+Live rules:
+- Concurrency is capped by `maxInflight`.
+- Queue length is capped by `maxQueueEntries`.
+- The final on-disk content MUST match the result of sequential document
+  materialization for the same input set.
+
+## 1.1) Future queued-write extension
+
+The queued write model below is a future performance extension. It is not part
+of the current live acceptance contract until implemented and validated.
+
+A future VFS IO batcher may collect pending writes and flush them with bounded
+concurrency.
 
 Each queued entry:
 
@@ -25,7 +45,7 @@ type VfsIoWriteRequest = {
 };
 ```
 
-Rules:
+Future extension rules:
 - Requests are keyed by `path`.
 - If multiple writes target the same `path` in one batch, the last write wins.
 - Flush when `maxBatchBytes` or `flushIntervalMs` is reached.
@@ -33,7 +53,7 @@ Rules:
 
 ---
 
-## 2) Configuration (draft)
+## 2) Configuration (live plus future keys)
 
 ```json
 {
@@ -52,7 +72,11 @@ Rules:
 }
 ```
 
-`writeMode`:
+`maxInflight` and `maxQueueEntries` are live provider-batching controls.
+`maxBatchBytes`, `flushIntervalMs`, and `writeMode` are reserved for the future
+queued-write extension.
+
+Future `writeMode`:
 - `atomic`: write temp file + rename.
 - `direct`: write directly to final path.
 
@@ -90,7 +114,7 @@ Tooling targets include a `virtualRange` mapping into virtual document text. Imp
 
 ## 5) Observability
 
-Emit counters:
+Future queued-write counters:
 - `vfs_io_batches`
 - `vfs_io_bytes`
 - `vfs_io_coalesced`

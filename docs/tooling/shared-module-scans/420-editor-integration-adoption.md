@@ -56,7 +56,7 @@ Best action:
 
 Shared modules to prefer:
 - [dict-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\dict-utils.js)
-- [runtime-envelope.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope.js)
+- [runtime-envelope/resolve.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope\resolve.js)
 - [stable-json.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\stable-json.js)
 - [windows-cmd.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\subprocess\windows-cmd.js)
 

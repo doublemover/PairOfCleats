@@ -1,9 +1,9 @@
 {
   "_deprecated": {
-    "replacement": "LEXI.md",
-    "reason": "Absorbed into LEXI roadmap.",
-    "date": "2026-02-03",
-    "commit": "75d70209"
+    "replacement": "src/lang/lexicon/language-lexicon-wordlist.schema.json",
+    "reason": "Replaced by the active lexicon schema under src/lang/lexicon and tracked in docs/roadmap.md.",
+    "date": "2026-05-20",
+    "commit": "Pending (NEON_TIDE)"
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "PairOfCleats Language Lexicon Wordlist (v1)",

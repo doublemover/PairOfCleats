@@ -1,6 +1,11 @@
-# Spec: file_meta artifact (draft)
+# Spec: file_meta artifact
 
-Status: Draft (Milestone A). Core indexing artifact.
+Status: Active implemented artifact contract v1.0
+Last audited: 2026-05-21
+Implementation anchors: `src/index/build/artifacts/file-meta.js`,
+`src/index/build/artifacts-write/family-dispatch.js`,
+`src/shared/artifact-io/loaders/core-file-meta.js`, and
+`src/contracts/schemas/artifacts/core.js`.
 
 Goal: store per-file metadata used by downstream tooling (language, sizes, paths, and derived stats) in a reusable, cacheable artifact.
 

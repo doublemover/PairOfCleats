@@ -1,3 +1,21 @@
+# DEPRECATED
+
+Canonical replacement docs:
+- `docs/roadmap.md`
+- `docs/config/contract.md`
+- `docs/config/inventory.md`
+- `docs/config/inventory.json`
+- `docs/guides/commands.md`
+- `docs/guides/release-discipline.md`
+
+Reason: superseded by the live config contract, generated config inventory, command-surface docs, and consolidated roadmap status. This file described a planned future hard-cut config simplification and does not represent the current branch execution queue.
+
+Date: 2026-05-21
+
+PR/commit: pending branch update on `NEON_TIDE`
+
+Historical content follows.
+
 # PairOfCleats -- Config/Flags/Env Simplification Execution Plan (Phased, Big-Bang Outcome)
 
 This document is a **planned future** execution outline. It does **not** describe current behavior.

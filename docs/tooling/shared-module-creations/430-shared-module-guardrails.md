@@ -29,7 +29,9 @@
 - turning every architecture preference into a hard CI failure
 - enforcing broader `src/** -> tools/**` rules before the shared-module adoption work finishes
 
-## Follow-on cleanup
+## Historical follow-up notes
 
-- remove waiver entries as the remaining `tools/shared` migrations land
-- tighten the boundary policy after the current exceptions are gone
+These are not active roadmap tasks. Reopen this family only from a fresh guardrail failure, waiver drift, or shared-module governance refresh:
+
+- remove waiver entries only when current generated ledgers prove the waived edges are gone
+- tighten the boundary policy only after current exceptions are proved absent

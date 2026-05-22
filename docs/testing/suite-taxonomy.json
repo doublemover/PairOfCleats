@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-03-30T08:30:57.823Z",
+  "generatedAt": "2026-05-22T00:58:59.576Z",
   "summary": {
-    "totalTests": 2171,
+    "totalTests": 2231,
     "byCategory": {
-      "hero": 1918,
+      "hero": 1977,
       "matrix": 153,
-      "meta": 91,
+      "meta": 92,
       "soak": 1,
       "heavy-runtime": 8
     },
@@ -63,9 +63,9 @@
   "peripheralGroups": [
     {
       "key": "tooling/install",
-      "totalTests": 25,
+      "totalTests": 27,
       "byCategory": {
-        "hero": 24,
+        "hero": 26,
         "matrix": 1,
         "meta": 0,
         "soak": 0,

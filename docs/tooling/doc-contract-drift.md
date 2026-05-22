@@ -1,6 +1,6 @@
 # Doc Contract Drift
 
-Status: DRIFT
+Status: OK
 
 ## searchCliFlags
 - doc: docs/contracts/search-cli.md
@@ -18,8 +18,8 @@ Status: DRIFT
 ## artifactSchemas
 - doc: docs/contracts/artifact-schemas.md
 - source: src/contracts/schemas/artifacts.js
-- missing in docs (4): dense_vectors_binary_meta, dense_vectors_code_binary_meta, dense_vectors_doc_binary_meta, scan_profile
-- extra in docs (7): author, bookmarks, branch, changeId, commitId, operationId, timestamp
+- missing in docs: none
+- extra in docs: none
 
 ## scoreBreakdown
 - doc: docs/contracts/search-contract.md

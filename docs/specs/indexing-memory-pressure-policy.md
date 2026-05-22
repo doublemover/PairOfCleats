@@ -1,7 +1,10 @@
 # Spec: Indexing Memory Pressure Policy
 
-Status: Draft v1.0  
-Last updated: 2026-02-20T00:00:00Z
+Status: Active implemented policy v1.0
+Last audited: 2026-05-21
+Implementation anchors: `src/index/build/workers/pool/pressure-controls.js`,
+`src/index/build/workers/config.js`, `src/shared/concurrency/scheduler-core/*`,
+and `src/index/build/indexer/steps/process-files/postings-queue.js`.
 
 ## Purpose
 

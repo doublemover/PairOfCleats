@@ -7,7 +7,7 @@ This spec defines the **stdio protocol** between the Rust Ratatui TUI (parent) a
 > - `docs/specs/tui-tool-contract.md` (tool stdout/stderr + exit codes)
 > - `docs/specs/supervisor-artifacts-indexing-pass.md` (artifact discovery + `job:artifacts`)
 > - `bin/pairofcleats.js` (command dispatch + env shaping)
-> - `src/shared/subprocess.js` + `src/shared/kill-tree.js` (spawn + tree kill)
+> - `src/shared/subprocess/runner.js` + `src/shared/kill-tree.js` (spawn + tree kill)
 
 ---
 
@@ -228,7 +228,7 @@ For each decoded line:
   - POSIX (SIGTERM/SIGKILL; prefer process group kills)
 
 ### 7.2 Preferred implementation approach
-Use repo’s existing `spawnSubprocess()` (`src/shared/subprocess.js`) per job:
+Use repo’s existing `spawnSubprocess()` (`src/shared/subprocess/runner.js`) per job:
 - provide `signal: abortController.signal`
 - keep reference to child PID via `onSpawn(child)` callback
 - on cancel, call `abortController.abort("cancel")`
@@ -236,7 +236,7 @@ Use repo’s existing `spawnSubprocess()` (`src/shared/subprocess.js`) per job:
 **Windows behavior alignment**
 - Shared helper `src/shared/kill-tree.js` must:
   - `taskkill /T` then `taskkill /T /F` after grace
-- `src/shared/subprocess.js` should delegate to the shared helper so all call sites behave consistently.
+- `src/shared/subprocess/runner.js` delegates to the shared kill-tree helper so all call sites behave consistently.
 
 ### 7.3 Supervisor lifecycle
 - On `shutdown` or stdin close:

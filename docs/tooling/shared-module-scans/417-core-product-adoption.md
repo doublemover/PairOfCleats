@@ -19,9 +19,9 @@ The strongest shared anchors already in use are:
 - [limits.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\limits.js)
 - [sort.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\sort.js)
 - [provenance.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\provenance.js)
-- [files.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\files.js)
+- [file-paths.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\file-paths.js)
 - [path-normalize.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\path-normalize.js)
-- [runtime-envelope.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope.js)
+- [runtime-envelope/resolve.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope\resolve.js)
 
 The main missed-adoption work is:
 
@@ -36,7 +36,7 @@ The main missed-adoption work is:
 Shared modules to prefer:
 - [truncation.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\truncation.js)
 - [risk-filters.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\risk-filters.js)
-- [risk-explain.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\risk-explain.js)
+- [risk-explain-model.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\risk-explain-model.js)
 
 Representative local implementations:
 - [budgets.js](C:\Users\sneak\Development\DOUBLECLEAT\src\context-pack\assemble\budgets.js)
@@ -50,10 +50,13 @@ Best action:
 Why this is best:
 - Graph and retrieval surfaces already use the recorder. Reusing it here reduces evidence drift without inventing a second truncation contract.
 
+Current adoption:
+- 2026-05-21 follow-through: composite context-pack risk truncation now uses `createTruncationRecorder()` for pack-level and risk-level truncation records. The risk budget selector owns one recorder-backed sink for direct helper callers and assembled packs, the risk slice shares that sink across full-flow, partial-flow, and call-site-excerpt caps, and the final pack still exposes the same `truncation[] | null` API shape. Partial-flow truncation records now use the partial cap names that already existed in `risk.caps.hits`. Evidence: `temp/validation/context-pack-truncation-recorder-focused-20260521.log` and `temp/validation/context-pack-truncation-recorder-contracts-20260521.log`.
+
 ### 2. Path-normalization wrappers
 
 Shared modules to prefer:
-- [files.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\files.js)
+- [file-paths.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\file-paths.js)
 - [path-normalize.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\path-normalize.js)
 
 Representative local implementations:

@@ -1,3 +1,10 @@
+> [!WARNING]
+> DEPRECATED
+> - Canonical replacement docs: `docs/specs/identity-and-symbol-contracts.md`, `docs/specs/identity-contracts.md`, `docs/specs/symbol-artifacts-and-pipeline.md`, and `docs/roadmap.md`.
+> - Reason: Superseded by promoted identity/symbol contract specs and live validators; retained as historical Phase 9 draft material.
+> - Date: 2026-05-21
+> - PR/commit: pending branch update on `NEON_TIDE`.
+
 # Spec -- Symbol Identity & SymbolRef (v1, refined)
 
 Status: Draft  

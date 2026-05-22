@@ -1,3 +1,10 @@
+> [!WARNING]
+> DEPRECATED
+> - Canonical replacement docs: `docs/specs/tooling-and-api-contract.md`, `docs/specs/node-supervisor-protocol.md`, `docs/api/mcp-server.md`, `docs/contracts/mcp-api.md`, `docs/contracts/mcp-tools.schema.json`, and `docs/roadmap.md`.
+> - Reason: Superseded by promoted tooling/API/MCP contracts and node-supervisor process semantics; retained as historical draft material.
+> - Date: 2026-05-21
+> - PR/commit: pending branch update on `NEON_TIDE`.
+
 # Draft: MCP Tool Schema Stability Spec + Process-Tree Kill Semantics
 
 This document contains:
@@ -5,7 +12,7 @@ This document contains:
 1) A **public stability spec** for PairOfCleats’ MCP tool surface (“what’s stable across releases”).  
 2) A small **internal-only** spec for process-tree kill semantics across Windows vs POSIX.
 
-> Authority: Per current direction, GIGAMAP/GIGAROADMAP is authoritative. Any docs under `docs/` should be kept consistent with this spec once finalized.
+> Authority: Current roadmap/status authority lives in `docs/roadmap.md`; MCP/API behavior must stay consistent with `docs/specs/tooling-and-api-contract.md`, `docs/api/mcp-server.md`, and the implemented definitions in `src/integrations/mcp/defs.js` if this draft is finalized.
 
 ---
 
@@ -261,7 +268,7 @@ This section is internal implementation guidance to ensure timeouts/cancellation
 
 Use the existing primitive:
 
-- `src/shared/subprocess.js` (`spawnSubprocess`, `killProcessTree` behavior)
+- `src/shared/subprocess/runner.js` (`spawnSubprocess`) plus `src/shared/kill-tree.js` (`killProcessTree` behavior)
 
 Do NOT reimplement ad-hoc kill logic in MCP modules. Instead:
 - thread `AbortSignal` to `spawnSubprocess({ signal })`,

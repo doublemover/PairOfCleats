@@ -1,3 +1,20 @@
+# DEPRECATED
+
+Canonical replacement docs:
+- `docs/specs/build-truth-ledger.md`
+- `docs/specs/deterministic-ordering.md`
+- `docs/contracts/artifact-schemas.md`
+
+Reason: superseded by the implemented `build_state.json` schema, patch queue,
+ordering ledger, deterministic ordering validation, and promotion containment
+contracts. This Phase 3 draft is historical implementation context only.
+
+Date: 2026-05-21
+
+PR/commit: pending branch update on `NEON_TIDE`
+
+Historical content follows.
+
 # Phase 3 Build-State Integrity Spec (Draft)
 
 ## Goal

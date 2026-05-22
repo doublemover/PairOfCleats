@@ -2,6 +2,9 @@
 
 > **Purpose:** Provide segment-aware "virtual documents" to tooling providers (TypeScript, LSP), so embedded-language chunks are analyzed as if they lived in real `.ts/.js/.tsx/.jsx` files -- and so results can be joined back to chunks deterministically.
 
+Status: Implemented for the required acceptance criteria in the current branch; active canonical VFS routing contract. Focused validation passed 7 selected LSP/VFS checks with 0 failures, 0 timeouts, and 0 skipped in `temp/validation/lsp-vfs-focused-spec-acceptance-20260521.log`.
+Last audited: 2026-05-21
+
 This document refines the previous draft by:
 - Making identity explicit (`docId`, `chunkId`, `chunkUid`)
 - Defining container-vs-effective language fields
@@ -18,12 +21,17 @@ This document refines the previous draft by:
   - `effectiveLanguageId`, `effectiveExt`
   - `containerLanguageId`, `containerExt`
 
-Optional extensions:
+Implemented optional extensions:
 - `docs/specs/vfs-index.md`
 - `docs/specs/vfs-token-uris.md`
 - `docs/specs/vfs-hash-routing.md`
 - `docs/specs/vfs-cdc-segmentation.md`
 - `docs/specs/vfs-cold-start-cache.md`
+- `docs/specs/vfs-segment-hash-cache.md`
+
+Active/future split:
+- `docs/specs/vfs-io-batching.md` documents the live bounded-provider batching
+  controls and reserves queued-write coalescing details as future extensions.
 
 ---
 
@@ -114,7 +122,7 @@ When materializing VFS docs on disk, the resolved path MUST be safe for the host
 Implementations SHOULD use the shared disk-path resolver in tooling VFS to ensure
 Windows-safe paths and prevent traversal.
 
-### 2.5 Optional routing enhancements (draft)
+### 2.5 Implemented optional routing enhancements
 
 - Hash routing MAY prepend a hash-derived prefix for disk paths and token URIs; see `docs/specs/vfs-hash-routing.md`.
 - Token URIs MAY use `poc-vfs://` with a token derived from `docHash`; see `docs/specs/vfs-token-uris.md`.
@@ -227,9 +235,9 @@ Guardrails:
 
 ---
 
-## 6. Building virtual documents and targets (implementation plan)
+## 6. Building virtual documents and targets (implementation ownership)
 
-Create `src/index/tooling/vfs.js` (or similar) exposing:
+`src/index/tooling/vfs.js` owns:
 
 - `buildToolingVirtualDocuments(chunks, fileTextByPath, options) -> { documents, targets }`
 
@@ -265,7 +273,7 @@ If not available, re-slice from container text using segment `{start,end}`:
 
 This must match the chunk offsets after segment adjustment.
 
-### 6.4 Optional lookup accelerators (draft)
+### 6.4 Implemented optional lookup accelerators
 
 - `vfs_index` MAY be used to resolve `virtualPath` without scanning `vfs_manifest` (see `docs/specs/vfs-index.md`).
 - Segment hashing MAY reuse a cache keyed by file hash + segment range (see `docs/specs/vfs-segment-hash-cache.md`).
@@ -303,18 +311,18 @@ This ensures:
 - any change in virtual doc content invalidates cache
 - ordering is deterministic
 
-## 8.1 Operational performance extensions (draft)
+## 8.1 Operational performance extensions
 
 - Cold-start cache MAY reuse VFS disk docs across runs; see `docs/specs/vfs-cold-start-cache.md`.
-- IO batching MAY reduce disk write churn during VFS materialization; see `docs/specs/vfs-io-batching.md`.
+- IO batching MAY reduce disk write churn during VFS materialization; see `docs/specs/vfs-io-batching.md` for the live bounded-provider batching controls and future queued-write extension.
 
 ---
 
 ## 9. Acceptance criteria
 
-- [ ] Embedded TS/JS segments inside `.md/.vue/.svelte/.astro` are routed to the correct provider.
-- [ ] All tool outputs can be joined back to chunks by `chunkUid`.
-- [ ] Offset mapping is validated and fails closed in strict mode.
+- [x] Embedded TS/JS segments inside `.md/.vue/.svelte/.astro` are routed to the correct provider.
+- [x] All tool outputs can be joined back to chunks by `chunkUid`.
+- [x] Offset mapping is validated and fails closed in strict mode.
 
 ---
 
@@ -330,5 +338,16 @@ This ensures:
 3. `tests/tooling/vfs/routing-and-token-contract-matrix.test.js`
    - `.vue` with `<script lang="ts">` and `<template>`.
    - Ensure TS tooling runs only on TS virtual doc, not on template.
+
+4. `tests/tooling/vfs/invalid-virtual-range-regression.test.js`
+   - Invalid segment/chunk offsets fail closed and emit diagnostics instead of silently dropping work.
+
+Current validation:
+
+```powershell
+node tests/run.js tooling/lsp/bychunkuid-keying tooling/lsp/restart-generation-safety tooling/lsp/vfs-didopen tooling/lsp/metrics-contract-matrix tooling/vfs/maps-segment-offsets tooling/vfs/routing-and-token-contract-matrix tooling/vfs/invalid-virtual-range-regression --lane=all --timeout-ms 30000
+```
+
+Evidence: `temp/validation/lsp-vfs-focused-spec-acceptance-20260521.log`.
 
 

@@ -1,3 +1,10 @@
+> [!WARNING]
+> DEPRECATED
+> - Canonical replacement docs: `docs/specs/metadata-schema-v2.md`, `docs/specs/document-extraction.md`, `docs/specs/context-packs.md`, and `docs/roadmap.md`.
+> - Reason: Retained as historical metaV2 provenance/anchor planning detail; current metadata behavior is owned by promoted specs, validators, and live code.
+> - Date: 2026-05-21
+> - PR/commit: pending branch update on `NEON_TIDE`.
+
 # Draft Spec: Document Provenance Fields in `metaV2` + Anchor Computation
 
 This spec defines how PairOfCleats records **document provenance** for non-code sources (PDF/DOCX, extracted prose, etc.) inside `metaV2`, and how stable **anchors** are computed.

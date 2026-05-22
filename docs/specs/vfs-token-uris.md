@@ -1,6 +1,10 @@
-# Spec: VFS token URIs (draft)
+# Spec: VFS token URIs (active contract)
 
-Status: Draft (Milestone A). Optional tooling enhancement.
+Status: Active implemented optional tooling enhancement.
+Last audited: 2026-05-21
+Implementation anchors: `src/integrations/tooling/lsp/uris.js`,
+`src/integrations/tooling/providers/lsp/vfs-batching.js`.
+Contract coverage: `tests/tooling/vfs/routing-and-token-contract-matrix.test.js`.
 
 Goal: provide stable, deterministic URIs for LSP servers that change when document content changes, while preserving human-readable virtual paths.
 

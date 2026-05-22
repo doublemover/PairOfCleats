@@ -1,6 +1,11 @@
-# Spec: VFS hash routing (draft)
+# Spec: VFS hash routing (active contract)
 
-Status: Draft (Milestone A). Optional extension to VFS routing.
+Status: Active implemented optional VFS routing extension.
+Last audited: 2026-05-21
+Implementation anchors: `src/index/tooling/vfs/virtual-path.js`,
+`src/index/build/artifacts/writers/vfs-manifest.js`.
+Contract coverage: `tests/indexing/vfs/path-map-roundtrip.test.js`,
+`tests/tooling/vfs/routing-and-token-contract-matrix.test.js`.
 
 Goal: deterministically shard VFS disk paths and token URIs to avoid huge directories, reduce path length pressure, and provide stable routing for tooling providers.
 

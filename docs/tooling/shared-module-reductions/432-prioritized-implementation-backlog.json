@@ -68,6 +68,8 @@
     {
       "batchId": "P0-tools-shared-runtime-exit",
       "priority": "P0",
+      "status": "done",
+      "completedAt": "2026-05-20",
       "categories": [
         "correctness",
         "migration debt",
@@ -77,10 +79,11 @@
         430,
         431
       ],
-      "whyNow": "The new boundary guard is already tracking runtime src/** -> tools/shared/** debt. Eliminating the remaining waived edges gives the biggest immediate architecture payoff and lets the guard become stricter.",
+      "whyNow": "The boundary guard now has an empty waiver list and should remain in place to prevent new runtime src/** -> tools/shared/** drift.",
       "items": [
         {
           "title": "Migrate remaining runtime consumers off tools/shared/dict-utils.js",
+          "status": "done",
           "paths": [
             "src/integrations/core/build-index/compatibility.js",
             "src/integrations/core/build-index/index.js",
@@ -106,6 +109,7 @@
         },
         {
           "title": "Eliminate the last runtime import of tools/shared/search-request.js",
+          "status": "done",
           "paths": [
             "src/retrieval/federation/args.js"
           ],
@@ -113,6 +117,7 @@
         },
         {
           "title": "Hoist or replace tools/shared/index-state-utils.js for runtime sqlite usage",
+          "status": "done",
           "paths": [
             "src/storage/sqlite/build/index-state.js",
             "tools/shared/index-state-utils.js"
@@ -124,6 +129,8 @@
     {
       "batchId": "P1-root-shared-deflation",
       "priority": "P1",
+      "status": "in_progress",
+      "updatedAt": "2026-05-20",
       "categories": [
         "maintainability",
         "documentation/comments",
@@ -135,6 +142,149 @@
         415
       ],
       "whyNow": "The root src/shared bucket still mixes generic helpers, domain owners, and compatibility bridges. This is the biggest source of future drift after the explicit tools/shared runtime debt.",
+      "progress": [
+        {
+          "date": "2026-05-20",
+          "summary": "First facade-deflation pass completed. Internal production code imports narrow concurrency and subprocess owners instead of root facades, deflated helper modules were moved into already-loaded owners or lazy async paths, and retrieval.cli stayed at the 1,134-module shared-module performance baseline.",
+          "evidence": [
+            "temp/validation/p1-root-shared-deflation-boundary-20260520-070415.log",
+            "temp/validation/p1-root-shared-deflation-focused-tests-20260520-070608.log",
+            "temp/validation/p1-root-shared-deflation-helper-relocation-tests-20260520-070655.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Subprocess facade consumer follow-through completed. Tools, tests, and the bin entrypoint now import narrow subprocess owners directly; the only remaining root-facade mention is the intentional shared-module performance baseline descriptor.",
+          "evidence": [
+            "temp/validation/subprocess-facade-import-migration-boundary-20260520-071712.log",
+            "temp/validation/subprocess-facade-import-migration-focused-tests-clean-20260520-071631.log",
+            "temp/validation/subprocess-facade-import-migration-syntax-20260520-071404.log",
+            "temp/validation/subprocess-facade-import-migration-eslint-20260520-071416.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Dead concurrency facade removed after all consumers moved to narrow concurrency owner modules.",
+          "evidence": [
+            "temp/validation/concurrency-facade-removal-20260520-071900.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Dead progress facade removed after consumers moved to progress-runtime and progress-context owners.",
+          "evidence": [
+            "temp/validation/progress-facade-removal-syntax-clean-20260520-072842.log",
+            "temp/validation/progress-facade-removal-eslint-clean-20260520-072842.log",
+            "temp/validation/progress-facade-removal-boundary-no-migration-20260520-073158.log",
+            "temp/validation/progress-facade-removal-focused-tests-clean-20260520-073235.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Progress-context env helper moved from src/shared/progress-context.js to tools/tui/supervisor/progress-context.js because the TUI supervisor is its only live owner.",
+          "evidence": [
+            "temp/validation/progress-context-supervisor-owner-clean-20260520-104500.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Dead runtime-envelope facade removed after consumers moved to runtime-envelope/resolve and runtime-envelope/env-patch owners; retrieval.cli measured 1,131 transitive local modules.",
+          "evidence": [
+            "temp/validation/runtime-envelope-facade-removal-clean-20260520-073705.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Dead risk-explain facade removed after consumers moved to risk-explain-summary and risk-explain-model owners; retrieval.cli remained 1,131 transitive local modules.",
+          "evidence": [
+            "temp/validation/risk-explain-facade-removal-20260520-074411.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Dead cache facade removed after consumers moved to cache/layers, cache/lru, and cache/size owners; syntax, ESLint, focused cache/indexing/retrieval tests, boundary checks, docs checks, cycles, and shared-module performance passed.",
+          "evidence": [
+            "temp/validation/cache-facade-removal-clean-20260520-075228.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Dead subprocess facade removed after active consumers moved to narrow subprocess owners and the shared-module performance metric moved to subprocess/runner.",
+          "evidence": [
+            "temp/validation/subprocess-facade-hard-cut-clean-20260520-085000.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Legacy CLI entrypoint warning helper moved from the shared root to src/shared/cli/legacy-entrypoint.js.",
+          "evidence": [
+            "temp/validation/legacy-cli-entrypoint-family-clean-20260520-090500.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Bounded object pool helper moved from the shared root to src/shared/workers/bounded-object-pool.js.",
+          "evidence": [
+            "temp/validation/bounded-object-pool-worker-family-clean-20260520-091500.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Optional artifact sync fallback helper moved from the shared root to src/shared/artifact-io/optional-fallback.js.",
+          "evidence": [
+            "temp/validation/optional-artifact-fallback-family-clean-20260520-092500.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Cache CAS helper split from the shared root into focused cache-cas paths, metadata, objects, GC enumeration, and lease modules.",
+          "evidence": [
+            "temp/validation/cache-cas-family-clean-20260520-095000.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Auto-policy root facade removed after consumers moved to src/shared/auto-policy/build.js.",
+          "evidence": [
+            "temp/validation/auto-policy-facade-removal-clean-20260520-100000.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Command-registry root facade removed after consumers moved to command-registry-data.js and command-registry-query.js; the shared-module performance probe now measures the query owner.",
+          "evidence": [
+            "temp/validation/command-registry-facade-removal-clean-20260520-101000.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "ONNX helper root files moved under src/shared/onnx-embeddings/{config,run-queue,tokenization}.js while keeping the public src/shared/onnx-embeddings.js import surface stable.",
+          "evidence": [
+            "temp/validation/onnx-embedding-helper-family-clean-20260520-102500.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "CLI completions renderer moved from src/shared/cli-completions.js to tools/cli/completions-renderer.js because its only live consumer is the completions CLI tool.",
+          "evidence": [
+            "temp/validation/cli-completions-tool-owner-clean-20260520-103500.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Runtime capability builder helpers moved from src/shared/runtime-capability-builders.js to src/shared/runtime-capability/builders.js while keeping runtime-capability-manifest.js as the public assembler.",
+          "evidence": [
+            "temp/validation/runtime-capability-builder-family-clean-20260520-105500.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Root index-artifact helper removed after chunk_meta presence probes moved to src/shared/artifact-io/chunk-meta-presence.js and optional fallback/error helpers moved to src/shared/artifact-io/optional-fallback.js.",
+          "evidence": [
+            "temp/validation/index-artifact-helper-split-clean-20260520-110119.log"
+          ]
+        }
+      ],
       "items": [
         {
           "title": "Split env/runtime/policy helpers out of src/shared root",
@@ -173,6 +323,8 @@
     {
       "batchId": "P1-artifact-io-and-storage-split",
       "priority": "P1",
+      "status": "done",
+      "updatedAt": "2026-05-20",
       "categories": [
         "maintainability",
         "performance",
@@ -183,6 +335,211 @@
         417
       ],
       "whyNow": "Artifact/cache/io helpers are heavily imported and currently carry too many responsibilities. Splitting them improves both reviewability and the safety of future storage/indexing changes.",
+      "progress": [
+        {
+          "completedAt": "2026-05-20",
+          "summary": "SQLite storage and index piece-assembly importers moved from src/shared/artifact-io.js to direct artifact-io owner modules for constants, JSON/JSONL streaming, loaders, and manifest contracts.",
+          "paths": [
+            "src/storage/sqlite/utils.js",
+            "src/storage/sqlite/build/from-artifacts/sources.js",
+            "src/storage/sqlite/build/runner/chunk-meta.js",
+            "src/index/build/piece-assembly/load.js",
+            "src/index/build/piece-assembly/helpers.js",
+            "tests/tooling/shared-module-performance.test.js"
+          ],
+          "result": "Regenerated shared-module ledger reports src/shared/artifact-io.js at 66 direct consumers, down from 71 before this slice; no root artifact-io imports remain in the storage/sqlite and piece-assembly slice.",
+          "evidence": [
+            "temp/validation/artifact-io-storage-direct-import-regenerate-20260520-110500.log",
+            "temp/validation/artifact-io-storage-direct-import-boundary-clean-20260520-111700.log",
+            "temp/validation/artifact-io-storage-direct-import-focused-tests-clean-20260520-111500.log"
+          ]
+        },
+        {
+          "completedAt": "2026-05-20",
+          "summary": "Bundle path/name/format helper consumers moved from src/shared/bundle-io.js to src/shared/bundle-io-paths.js, and checksum schema constant consumers moved to src/shared/bundle-io-constants.js.",
+          "paths": [
+            "src/index/build/file-processor/cached-bundle.js",
+            "src/index/build/incremental/planning.js",
+            "src/index/build/incremental/shared.js",
+            "src/index/build/incremental/state-reconciliation.js",
+            "src/index/build/incremental/writeback.js",
+            "src/index/build/runtime/runtime.js",
+            "src/storage/sqlite/build/bundle-loader.js",
+            "src/storage/sqlite/build/incremental-update/planner.js",
+            "src/storage/sqlite/build/manifest.js",
+            "src/storage/sqlite/build/runner/build.js",
+            "src/storage/sqlite/build/runner/incremental.js",
+            "tests/indexing/imports/import-cache-contract-matrix.test.js",
+            "tests/indexing/incremental/bundle-checksum-schema-cutover.test.js",
+            "tests/indexing/incremental/bundle-mapping-reasons.test.js",
+            "tests/indexing/incremental/crossfile-bundle-metav2-rewrite.test.js",
+            "tests/indexing/incremental/crossfile-bundle-patch-write.test.js",
+            "tests/indexing/incremental/crossfile-bundle-worker-transform.test.js",
+            "tests/indexing/incremental/crossfile-prefetch-vfs.test.js",
+            "tests/indexing/incremental/writeback-manifest-durability.test.js",
+            "tests/shared/bundle-io-patch-append.test.js",
+            "tests/shared/io/bundle-io-checksum-fail-closed.test.js",
+            "tests/storage/sqlite/bundle-loader-worker.test.js",
+            "tests/storage/sqlite/incremental/bundle-partial-fallback-helper.js",
+            "tests/storage/sqlite/manifest-legacy-bundle-key.test.js",
+            "tests/tooling/embeddings/chunks-from-bundle-shards.test.js",
+            "tools/build/embeddings/chunks.js",
+            "tools/build/embeddings/runner.js"
+          ],
+          "result": "Regenerated shared-module ledger reports src/shared/bundle-io.js at 9 direct consumers; a guard verifies path/name/format/checksum helper imports no longer come from the behavior facade.",
+          "evidence": [
+            "temp/validation/bundle-io-helper-import-regenerate-20260520-113000.log",
+            "temp/validation/bundle-io-helper-imports-clean-20260520-113300.log"
+          ]
+        },
+        {
+          "completedAt": "2026-05-20",
+          "summary": "src/shared/bundle-io.js became a re-export-only facade while read/write/patch/checksum-worker support moved into src/shared/bundle-io/{read,write,patch,support}.js.",
+          "paths": [
+            "src/shared/bundle-io.js",
+            "src/shared/bundle-io/read.js",
+            "src/shared/bundle-io/write.js",
+            "src/shared/bundle-io/patch.js",
+            "src/shared/bundle-io/support.js",
+            "tools/docs/shared-module-ledger.js"
+          ],
+          "result": "Focused bundle behavior validation passed; root bundle-io facade guard passed; shared-module cycles and performance passed with retrieval.cli at 1,133 transitive local modules, still below baseline.",
+          "evidence": [
+            "temp/validation/bundle-io-behavior-split-regenerate-20260520-114300.log",
+            "temp/validation/bundle-io-behavior-split-clean-20260520-114500.log"
+          ]
+        },
+        {
+          "completedAt": "2026-05-20",
+          "summary": "Manifest entry indexing, named path lookup, binary-columnar sidecar lookup, piece-by-path matching, and canonical variant selection moved from manifest-sources.js into manifest-entry-selection.js.",
+          "paths": [
+            "src/shared/artifact-io/manifest-entry-selection.js",
+            "src/shared/artifact-io/manifest-sources.js"
+          ],
+          "result": "Focused manifest/source-resolution validation passed; regenerated shared-module ledger classifies manifest-entry-selection.js under issue 411.",
+          "evidence": [
+            "temp/validation/manifest-entry-selection-split-clean-20260520-115800.log",
+            "temp/validation/manifest-entry-selection-regenerate-20260520-120000.log"
+          ]
+        },
+        {
+          "completedAt": "2026-05-20",
+          "summary": "Pure columnar row inflation and iteration moved from loader shared state into src/shared/artifact-io/columnar-rows.js.",
+          "paths": [
+            "src/shared/artifact-io/columnar-rows.js",
+            "src/shared/artifact-io/loaders/shared.js",
+            "src/shared/artifact-io/loaders/core.js",
+            "src/shared/artifact-io/loaders/core-array-payload.js",
+            "src/shared/artifact-io/loaders/core-file-meta.js",
+            "src/shared/artifact-io/loaders/chunk-meta.js",
+            "src/storage/sqlite/build/from-artifacts/sources.js"
+          ],
+          "result": "Loader shared support no longer owns row materialization; SQLite artifact ingest imports the artifact family owner directly instead of a loader-internal helper.",
+          "evidence": [
+            "temp/validation/columnar-rows-family-split-clean-20260520-122000.log",
+            "temp/validation/artifact-loader-splits-regenerate-20260520-122500.log"
+          ]
+        },
+        {
+          "completedAt": "2026-05-20",
+          "summary": "Binary-columnar framed payload reading was separated from the async chunk_meta domain adapter while sync token_postings decode stayed local to preserve the sync API.",
+          "paths": [
+            "src/shared/artifact-io/loaders/binary-columnar.js",
+            "src/shared/artifact-io/loaders/binary-columnar-chunk-meta.js",
+            "src/shared/artifact-io/loaders/chunk-meta.js",
+            "src/shared/artifact-io/loaders/token-postings.js"
+          ],
+          "result": "Generic binary-columnar frame reading now stays schema-agnostic; chunk_meta binary-columnar semantics live in a lazy async adapter, and token_postings keeps its synchronous binary-columnar path without expanding the cold import graph.",
+          "evidence": [
+            "temp/validation/binary-columnar-lazy-adapter-clean-20260520-124500.log",
+            "temp/validation/artifact-loader-splits-final-regenerate-20260520-135000.log"
+          ]
+        },
+        {
+          "completedAt": "2026-05-20",
+          "summary": "retrieval/import-graph artifact facade deflation moved retrieval-reachable callers to narrow artifact owners.",
+          "paths": [
+            "src/retrieval/cli-index.js",
+            "src/retrieval/cli/ann-backends.js",
+            "src/context-pack/**",
+            "src/graph/store.js",
+            "src/index/validate*.js",
+            "src/index/build/**",
+            "src/storage/sqlite/utils.js",
+            "src/storage/sqlite/build/from-artifacts/sources.js",
+            "src/shared/artifact-io/chunk-meta-presence.js",
+            "src/shared/artifact-io/optional-fallback.js",
+            "src/shared/index-state-utils.js"
+          ],
+          "result": "Shared-module performance passes with shared.artifact-io at 73 transitive local modules and retrieval.cli at 1,132, below the 1,134 baseline.",
+          "evidence": [
+            "temp/validation/sqlite-index-state-artifact-direct-import-clean-20260520-134500.log",
+            "temp/validation/artifact-loader-splits-final-regenerate-20260520-135000.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "JSONL worker compression pooling split from jsonl-batch.js into src/shared/json-stream/jsonl-compression-pool.js while batch writer lifecycle stayed in jsonl-batch.js and sharded writers import the pool directly.",
+          "paths": [
+            "src/shared/json-stream/jsonl-batch.js",
+            "src/shared/json-stream/jsonl-compression-pool.js",
+            "src/shared/json-stream/jsonl-sharded.js"
+          ],
+          "result": "JSONL batch writing no longer owns worker-pool lifecycle, preserving the existing writer API while narrowing compression-pool ownership.",
+          "evidence": [
+            "temp/validation/jsonl-compression-pool-split-clean-20260520-110833.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "JSON-stream byte accounting and checksum hashing split from streams.js into src/shared/json-stream/byte-counter.js while streams.js kept stream construction, event waits, atomic cleanup, and compression piping.",
+          "paths": [
+            "src/shared/json-stream/streams.js",
+            "src/shared/json-stream/byte-counter.js"
+          ],
+          "result": "JSON stream lifecycle and byte/checksum accounting now have separate owners without changing the createJsonWriteStream/writeChunk public API.",
+          "evidence": [
+            "temp/validation/json-stream-byte-counter-split-clean-20260520-111132.log",
+            "temp/validation/json-stream-byte-counter-regenerate-20260520-111109.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Binary-columnar JSON row decode and row-count validation moved from core-binary-columnar.js into src/shared/artifact-io/loaders/core-binary-columnar-json-rows.js.",
+          "paths": [
+            "src/shared/artifact-io/loaders/core-binary-columnar.js",
+            "src/shared/artifact-io/loaders/core-binary-columnar-json-rows.js"
+          ],
+          "result": "Materialized and streaming binary-columnar JSON row loaders now share one decode/count contract while core-binary-columnar.js stays as a coordinator over context, checksum, frame reading, and decode owners.",
+          "evidence": [
+            "temp/validation/core-binary-columnar-json-rows-clean-20260520-111507.log",
+            "temp/validation/core-binary-columnar-json-rows-regenerate-20260520-111417.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Core streaming row format dispatch moved from core.js into src/shared/artifact-io/loaders/core-row-stream.js.",
+          "paths": [
+            "src/shared/artifact-io/loaders/core.js",
+            "src/shared/artifact-io/loaders/core-row-stream.js"
+          ],
+          "result": "core.js now stays as the public loader surface over manifest/source resolution and materialized/streaming owner modules instead of owning row materialization policy directly.",
+          "evidence": [
+            "temp/validation/core-row-stream-split-clean-20260520-111843.log",
+            "temp/validation/core-row-stream-regenerate-20260520-111805.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Artifact/cache/IO review split flags cleared. manifest.js is documented as a facade, cache.js is removed, schema/docmeta helpers live under contracts or metadata owners, and loader/json-stream internals now have narrow owners.",
+          "evidence": [
+            "temp/validation/core-row-stream-split-clean-20260520-111843.log",
+            "temp/validation/core-binary-columnar-json-rows-clean-20260520-111507.log",
+            "temp/validation/json-stream-byte-counter-split-clean-20260520-111132.log",
+            "temp/validation/jsonl-compression-pool-split-clean-20260520-110833.log"
+          ]
+        }
+      ],
       "items": [
         {
           "title": "Break up artifact-io manifest and loader cores",
@@ -193,16 +550,23 @@
             "src/shared/artifact-io/cache.js",
             "src/shared/artifact-io/fs.js"
           ],
-          "bestFix": "Separate manifest description, cache lookup, filesystem helpers, and loader orchestration so each piece has a narrower API."
+          "bestFix": "Separate manifest description, cache lookup, filesystem helpers, and loader orchestration so each piece has a narrower API.",
+          "status": "done",
+          "completedAt": "2026-05-20"
         },
         {
           "title": "Split generic bundle/file/persistence helpers by responsibility",
           "paths": [
             "src/shared/bundle-io.js",
-            "src/shared/files.js",
-            "src/shared/io/atomic-persistence.js"
+            "src/shared/file-paths.js",
+            "src/shared/file-read.js",
+            "src/shared/io/temp-path.js",
+            "src/shared/io/replace-file.js",
+            "src/shared/io/replace-dir.js"
           ],
-          "bestFix": "Untangle write orchestration, path helpers, and atomic persistence contracts into smaller focused modules."
+          "bestFix": "Untangle write orchestration, the deleted files facade handoff, path/read helpers, and direct atomic persistence owner contracts into smaller focused modules.",
+          "status": "done",
+          "completedAt": "2026-05-20"
         },
         {
           "title": "Move schema-oriented helpers out of generic storage buckets",
@@ -212,9 +576,12 @@
             "src/shared/docmeta.js",
             "src/shared/meta-v2.js"
           ],
-          "bestFix": "Treat schema and docmeta helpers as contract-domain modules rather than generic artifact IO utilities."
+          "bestFix": "Treat schema and docmeta helpers as contract-domain modules rather than generic artifact IO utilities.",
+          "status": "done",
+          "completedAt": "2026-05-20"
         }
-      ]
+      ],
+      "completedAt": "2026-05-20"
     },
     {
       "batchId": "P1-concurrency-and-subprocess-core",
@@ -237,17 +604,68 @@
             "src/shared/subprocess/tracking.js",
             "src/shared/subprocess/runner.js"
           ],
-          "bestFix": "Separate state tracking, process execution, and lock-file semantics into smaller units with tighter targeted tests."
+          "bestFix": "Completed. Subprocess tracking is split into runtime, terminate, register, and scope leaves; runner.js remains a facade over async/sync/error leaves; file-lock acquisition remains in file-lock.js while constants, timing, info, owner, stale cleanup, release, and metrics live in focused lock leaves. Startup-sensitive build/tooling paths lazy-load lock behavior.",
+          "status": "done",
+          "completedPaths": [
+            "src/shared/locks/file-lock.js",
+            "src/shared/locks/file-lock-runtime.js",
+            "src/shared/locks/file-lock-constants.js",
+            "src/shared/locks/file-lock-timing.js",
+            "src/shared/locks/file-lock-metrics.js",
+            "src/shared/locks/file-lock-info.js",
+            "src/shared/locks/file-lock-owner.js",
+            "src/shared/locks/file-lock-stale.js",
+            "src/shared/locks/file-lock-release.js",
+            "src/shared/subprocess/tracking.js",
+            "src/shared/subprocess/tracking-runtime.js",
+            "src/shared/subprocess/tracking-terminate.js",
+            "src/shared/subprocess/tracking-register.js",
+            "src/shared/subprocess/tracking-scope.js",
+            "src/shared/subprocess/runner.js"
+          ],
+          "remainingPaths": []
         },
         {
           "title": "Deflate generic progress and scheduler-core controllers",
           "paths": [
-            "src/shared/progress.js",
+            "src/shared/progress-runtime.js",
+            "tools/tui/supervisor/progress-context.js",
             "src/shared/concurrency/scheduler-core/adaptive-controller.js"
           ],
-          "bestFix": "Split event formatting from policy/control logic so concurrency tuning and progress presentation do not evolve inside the same module."
+          "bestFix": "Completed. The progress root facade is removed, supervisor progress context is tool-owned, and adaptive-controller is already split into signal, snapshot, surface-decision, and token-policy leaves.",
+          "status": "done",
+          "completedPaths": [
+            "src/shared/progress.js",
+            "src/shared/concurrency/scheduler-core/adaptive-controller.js",
+            "src/shared/concurrency/scheduler-core/adaptive-signals.js",
+            "src/shared/concurrency/scheduler-core/adaptive-surface-snapshots.js",
+            "src/shared/concurrency/scheduler-core/adaptive-surface-controller.js",
+            "src/shared/concurrency/scheduler-core/adaptive-token-controller.js"
+          ],
+          "remainingPaths": []
         }
-      ]
+      ],
+      "status": "done",
+      "updatedAt": "2026-05-20",
+      "progress": [
+        {
+          "date": "2026-05-20",
+          "summary": "Tracked subprocess ownership split completed. tracking.js is now a facade over tracking-runtime.js, tracking-terminate.js, tracking-register.js, and tracking-scope.js; startup-sensitive src paths import narrow leaves directly, heavy indexing/tooling modules lazy-load the scope-only owner, and stale split flags for runner.js and adaptive-controller.js were closed because those files are already composition facades over focused leaves.",
+          "evidence": [
+            "temp/validation/tracking-split-regenerate-20260520-112726.log",
+            "temp/validation/subprocess-tracking-split-clean-20260520-112813.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "File-lock runtime split completed. file-lock.js stays the public acquisition facade; file-lock-runtime.js is now an internal aggregation surface over constants, timing, metrics, info/payload parsing, owner probing/removal, stale cleanup, and release-error leaves. Build/tooling paths imported by retrieval CLI lazy-load lock behavior at execution time, keeping retrieval.cli under the shared-module performance baseline.",
+          "evidence": [
+            "temp/validation/file-lock-runtime-split-regenerate-20260520-114241.log",
+            "temp/validation/file-lock-runtime-split-clean-20260520-114241.log"
+          ]
+        }
+      ],
+      "completedAt": "2026-05-20"
     },
     {
       "batchId": "P2-cli-dispatch-capability-cleanup",
@@ -266,22 +684,82 @@
           "title": "Split display/render and command registry surfaces",
           "paths": [
             "src/shared/cli/display.js",
+            "src/shared/cli/display/events.js",
+            "src/shared/cli/display/frame.js",
+            "src/shared/cli/display/layout.js",
+            "src/shared/cli/display/palette.js",
             "src/shared/cli/display/render.js",
-            "src/shared/command-registry.js",
-            "src/shared/runtime-capability-manifest.js"
+            "src/shared/cli/display/state.js",
+            "src/shared/command-registry-data.js",
+            "src/shared/command-registry-query.js",
+            "src/shared/dispatch/registry.js",
+            "src/shared/runtime-capability-manifest.js",
+            "src/shared/runtime-capability/surfaces.js"
           ],
-          "bestFix": "Separate presentation, command metadata, and capability-manifest projection so UI and dispatch consumers do not depend on one giant module seam."
+          "bestFix": "Complete: display state/event/layout/palette/frame ownership is split, dispatch projection helpers live in command-registry-query.js, and runtime-capability surface assembly lives in runtime-capability/surfaces.js.",
+          "status": "done"
         },
         {
           "title": "Relocate dispatch environment helpers away from tools/shared coupling",
           "paths": [
-            "src/shared/dispatch/env.js",
-            "src/shared/dispatch/manifest.js",
-            "src/shared/dispatch/registry.js"
+            "bin/dispatch-runtime-env.js",
+            "bin/pairofcleats.js",
+            "tests/shared/runtime/runtime-contract-matrix.test.js"
           ],
-          "bestFix": "Finish the move away from tools/shared and collapse thin wrappers that do not provide independent value."
+          "bestFix": "Complete: the CLI-only runtime-env adapter moved out of src/shared to bin/dispatch-runtime-env.js, where tool config helper dependencies belong.",
+          "status": "done"
         }
-      ]
+      ],
+      "status": "done",
+      "updatedAt": "2026-05-20",
+      "progress": [
+        {
+          "date": "2026-05-20",
+          "summary": "Display facade state/event split completed. src/shared/cli/display.js remains the public createDisplay facade, display task/log state mutation moved to src/shared/cli/display/state.js, and JSONL log/task event writing moved to src/shared/cli/display/events.js.",
+          "evidence": [
+            "temp/validation/cli-display-state-events-split-syntax-eslint-20260520-120352.log",
+            "temp/validation/cli-display-state-events-split-focused-tests-20260520-120403.log",
+            "temp/validation/cli-display-state-events-split-regenerate-20260520-120416.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Display render split completed. render.js remains the row assembler while layout.js owns task ordering/sizing/detail layout, palette.js owns palette/theme state, and frame.js owns frame construction plus terminal row-diff writes.",
+          "evidence": [
+            "temp/validation/cli-display-render-split-syntax-eslint-20260520-121416.log",
+            "temp/validation/cli-display-render-split-focused-tests-clean-20260520-121425.log"
+          ],
+          "skipped": [
+            "perf/bench/run exceeded the 30-second repository cutoff in temp/validation/cli-display-render-split-focused-tests-20260520-121247.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Dispatch registry projection cleanup completed. src/shared/command-registry-query.js now owns dispatch projection/query helpers and src/shared/dispatch/registry.js is a thin public facade.",
+          "evidence": [
+            "temp/validation/dispatch-registry-projection-syntax-full-20260520-121003.log",
+            "temp/validation/dispatch-registry-projection-eslint-20260520-120838.log",
+            "temp/validation/dispatch-registry-projection-focused-tests-20260520-120947.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Dispatch runtime-env adapter relocated from src/shared/dispatch/env.js to bin/dispatch-runtime-env.js, removing the src/shared dependency on tool config helpers while preserving CLI runtime behavior.",
+          "evidence": [
+            "temp/validation/dispatch-runtime-env-relocation-syntax-eslint-20260520-121550.log",
+            "temp/validation/dispatch-runtime-env-relocation-focused-tests-20260520-121559.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Runtime-capability flag-set and surface assembly moved to src/shared/runtime-capability/surfaces.js while runtime-capability-manifest.js remains the public manifest API.",
+          "evidence": [
+            "temp/validation/runtime-capability-surfaces-split-syntax-eslint-20260520-121703.log",
+            "temp/validation/runtime-capability-surfaces-split-focused-tests-20260520-121716.log"
+          ]
+        }
+      ],
+      "completedAt": "2026-05-20"
     },
     {
       "batchId": "P2-adoption-and-hoisting-follow-through",
@@ -306,14 +784,53 @@
           "paths": [
             "docs/tooling/shared-module-scans/421-platform-path-env-repo-workspace.json"
           ],
-          "bestFix": "Batch the repo/workspace identity and path/env normalization migrations first because they influence many other consumer surfaces."
+          "bestFix": "Direct-execution, repo/workspace identity, run-node helper adoption, and timeout-proof follow-through are current. Continue only when a fresh governance failure, measured regression, or duplicate-audit refresh identifies a concrete seam.",
+          "status": "watch"
         },
         {
           "title": "Target repeated search/report/progress/logging clusters next",
           "paths": [
             "docs/tooling/shared-module-ledger.json"
           ],
-          "bestFix": "Use the duplicate-cluster seed list from the ledger to drive the next round of narrow shared-module creation or adoption, rather than scanning ad hoc."
+          "bestFix": "Use a future intentional duplicate-audit refresh to drive the next round of narrow shared-module creation or adoption. Do not rework stale saved-report entries."
+        }
+      ],
+      "status": "watch",
+      "updatedAt": "2026-05-21",
+      "progress": [
+        {
+          "date": "2026-05-20",
+          "summary": "Direct-execution guard adoption completed for the first P2 follow-through slice. tools/tooling/install-lua-language-server.js, tools/ci/run-suite.js, tools/eval/risk-pack.js, tools/config/contract-doc.js, tools/mcp/server-sdk.js, and tools/bench/query-generator.js now use src/shared/direct-execution.js, and tests/tooling/shared-adoption-contract.test.js covers those entrypoints.",
+          "evidence": [
+            "temp/validation/direct-execution-adoption-focused-tests-20260520-122945.log",
+            "temp/validation/direct-execution-adoption-cli-probes-20260520-123019.log",
+            "temp/validation/direct-execution-adoption-final-checks-20260520-123210.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "VS Code Windows command mirror adoption completed. extensions/vscode/windows-cmd-core.cjs now matches the shared bare-shim resolver contract, including env-aware PATH probing and resolveWindowsCmdShimPath export, and tests/tooling/vscode/windows-cmd.test.js pins parity with src/shared/subprocess/windows-cmd.js.",
+          "evidence": [
+            "temp/validation/windows-cmd-vscode-mirror-focused-tests-20260520-123541.log",
+            "temp/validation/windows-cmd-vscode-mirror-final-checks-20260520-123632.log"
+          ]
+        },
+        {
+          "date": "2026-05-20",
+          "summary": "Native rebuild npm execution now uses spawnResolvedSubprocessSync('npm', ...) so Windows command-shim handling comes from the shared subprocess command-invocation owner while rebuild-native keeps its env and failure policy local. Package-name validation is also shared before rebuild and install-script paths diverge.",
+          "evidence": [
+            "temp/validation/rebuild-native-resolved-npm-focused-tests-20260520-123837.log",
+            "temp/validation/rebuild-native-resolved-npm-final-checks-20260520-123946.log",
+            "temp/validation/rebuild-native-package-helper-focused-tests-20260520-125613.log"
+          ]
+        },
+        {
+          "date": "2026-05-21",
+          "summary": "Run-node/helper adoption timeout-proof follow-up closed the remaining known scan-20/scan-21 proof caveats with bounded production-path fixtures and split selectors. No known behavior-proof timeout selector remains from this adoption batch.",
+          "evidence": [
+            "temp/validation/roadmap-unresolved-proof-fixes-20260521.log",
+            "temp/validation/roadmap-unresolved-proof-fixes-final-20260521.log"
+          ]
         }
       ]
     }
@@ -328,8 +845,8 @@
       "reason": "Broad AST rewrites would create more review risk than value at this stage."
     },
     {
-      "title": "Do not tighten the tools/shared boundary beyond the current waiver-backed rule until the remaining debt is removed",
-      "reason": "The current guard is intentionally narrow to avoid noisy false positives while migration work is still active."
+      "title": "Do not tighten the tools/shared boundary beyond the current waiver-backed rule without a separate policy decision",
+      "reason": "The current guard is intentionally narrow; stricter boundary policies need a separate policy decision and test update now that the waiver list is empty."
     }
   ]
 }

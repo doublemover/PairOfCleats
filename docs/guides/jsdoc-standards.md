@@ -53,7 +53,7 @@ Optional but encouraged:
 - `@remarks` for invariants or ordering constraints
 
 ## Review checklist
-- [ ] Determinism is explicit when output order matters.
-- [ ] Cache invalidation rules are documented (if cache is used).
-- [ ] Path semantics are documented (POSIX vs native).
-- [ ] Error behavior is explicit and user-facing messages are mentioned.
+- Determinism: explicit when output order matters.
+- Cache invalidation: documented when cache is used.
+- Path semantics: documented for POSIX vs native behavior.
+- Error behavior: explicit, with user-facing messages mentioned when relevant.

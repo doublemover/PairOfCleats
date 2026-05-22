@@ -39,7 +39,9 @@
 
 That file is still a VS Code-specific adapter with CommonJS/editor-setting concerns. It should be reviewed later, but it was not the right seam to hoist in this issue.
 
-## Follow-on cleanup
+## Historical follow-up notes
 
-- reduce remaining wrapper-only imports of `tools/shared/search-request.js` when those surfaces are already `src/**` or otherwise safe to point at the shared owner directly
-- continue hoisting other cross-surface payload builders when later H32 scans identify a clear canonical owner
+These are not active roadmap tasks. Reopen this family only from a fresh H32/shared-module audit, import-graph regression, or concrete cross-surface payload drift:
+
+- reduce wrapper-only imports of `tools/shared/search-request.js` only when current surfaces are safe to point at the shared owner directly
+- hoist other cross-surface payload builders only when a current scan identifies one clear canonical owner

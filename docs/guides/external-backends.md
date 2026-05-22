@@ -1,11 +1,14 @@
-# External Backends (Prototype Notes)
+# External Backends
 
 This document captures an evaluation of external sparse/vector backends and
 notes current integration status plus current backend-selection behavior.
 
 Sparse backends
 - SQLite: supported today and the default backend for most repos (auto selects SQLite when indexes are available).
-- Tantivy (Rust, Lucene-like): planned (Phase 26). No integration shipped yet.
+- Tantivy (Rust, Lucene-like): optional/experimental sparse backend. The live builder is
+  `tools/build/tantivy-index.js`; search uses `src/retrieval/sparse/providers/tantivy.js`
+  when `--backend tantivy` or config requests Tantivy and the optional module/artifacts
+  are available.
 
 Vector backends
 - LanceDB: implemented for local ANN search (optional dependency). Artifacts
@@ -31,6 +34,7 @@ Backend selection
 Recommendation
 1. Prefer LanceDB for ANN-heavy workloads; keep SQLite vector extension as a
    fallback for small repos or environments without LanceDB.
-2. Track Tantivy as the large-scale sparse option once Phase 26 lands.
+2. Treat Tantivy as the large-scale sparse option for environments that can
+   install the optional Rust-backed dependency and build its sparse artifacts.
 3. For UI-heavy use cases, evaluate Meilisearch or Typesense as a parallel
    suggestion index while retaining PairOfCleats for code-aware search.

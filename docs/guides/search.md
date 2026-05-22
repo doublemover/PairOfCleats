@@ -88,7 +88,7 @@ When structural matches are ingested (see `docs/guides/structural-search.md`), y
 
 Notes:
 - JSON output strips `tokens` fields from hits (and nested context/contextHits) to keep payloads smaller.
-- Planned output modes like `symbol-first` / `context-only` are not implemented yet.
+- Historical roadmap drafts mentioned `symbol-first` and `context-only` modes. The current supported output controls are the default human view, `--json`, `--compact`, `--stats`, and `--explain`; context expansion is controlled by `search.contextExpansion.*`.
 
 Configuration:
 - `search.rrf.enabled` (default: true)

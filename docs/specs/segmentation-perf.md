@@ -1,4 +1,12 @@
-# Phase 3 Segmentation Performance Spec (Draft)
+# Phase 3 Segmentation Performance Contract
+
+Status: Active implemented contract v1.0
+Last audited: 2026-05-21
+Implementation anchors: `src/index/segments/markdown.js`,
+`src/index/segments/frontmatter.js`, `src/index/segments.js`,
+`src/index/build/state.js`, and tree-sitter scheduler/chunk cache modules.
+Contract coverage: Markdown/segment pipeline tests, chargram posting tests, and
+tree-sitter chunk cache tests.
 
 ## Goal
 Avoid duplicate Markdown parsing by extracting fenced blocks and inline spans in a single micromark traversal while preserving existing segment outputs and ordering.

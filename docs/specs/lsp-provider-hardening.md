@@ -2,25 +2,27 @@
 
 > **Purpose:** Make the existing LSP tooling provider reliable, deterministic, and compatible with segment-aware virtual documents and canonical chunk identity (`chunkUid`).
 
+Status: Implemented for the required acceptance criteria in the current branch. Focused validation passed 7 selected LSP/VFS checks with 0 failures, 0 timeouts, and 0 skipped in `temp/validation/lsp-vfs-focused-spec-acceptance-20260521.log`.
+
 This refinement adds:
 - `chunkUid`-keyed storage (no `file::name`)
 - Virtual document support (VFS)
 - Deterministic restart semantics
 - Clear failure accounting policy
-- Token URIs + hash routing options for VFS documents (draft)
+- Token URIs + hash routing options for VFS documents
 
 ---
 
-## 0. Current baseline (grounded)
+## 0. Implementation status
 
 Provider implementation: `src/integrations/tooling/providers/lsp.js`  
 Client implementation: `src/integrations/tooling/lsp/client.js`
 
-Observed behaviors:
-- Stores results keyed by `${file}::${name}` (collision-prone).
-- Uses on-disk file paths; no notion of virtual documents.
-- Process restart handling can race due to captured `proc` ref in exit handler.
-- Tooling guard counts failures per-attempt rather than per-target.
+Historical gaps now closed:
+- Provider output is keyed by `chunkUid`, not `${file}::${name}`.
+- `.poc-vfs/...` virtual documents are opened before LSP queries.
+- Restart generation safety is covered by a focused race test.
+- Failure accounting is covered at the per-target level.
 
 ---
 
@@ -75,7 +77,7 @@ If the server supports in-memory schemes, allow `poc-vfs://...`.
 
 This must be configurable per language server.
 
-#### Token URIs (draft)
+#### Token URIs
 
 - When enabled, the provider SHOULD use `poc-vfs` URIs with a token query parameter (see `docs/specs/vfs-token-uris.md`).
 - When using `file://` URIs, hash routing SHOULD be applied to disk paths so token changes force a new on-disk path (see `docs/specs/vfs-hash-routing.md`).
@@ -163,27 +165,25 @@ If two targets share the same `chunkUid` (should not happen if chunkUid collisio
 
 ---
 
-## 8. Implementation plan
+## 8. Implementation ownership
 
-1. Refactor `src/integrations/tooling/providers/lsp.js`
-   - accept `ToolingVirtualDocument[]` and `ToolingTarget[]`
-   - open/update VFS docs before queries
-   - store results in `byChunkUid`
-2. Harden `src/integrations/tooling/lsp/client.js`
-   - generation token
-   - backoff
-   - strict shutdown
-3. Update `src/index/type-inference-crossfile/tooling.js`
-   - consume `byChunkUid` outputs
+1. `src/integrations/tooling/providers/lsp.js`
+   - accepts `ToolingVirtualDocument[]` and `ToolingTarget[]`
+   - opens VFS docs before queries
+   - stores results in `byChunkUid`
+2. `src/integrations/tooling/lsp/client.js`
+   - owns generation token behavior, backoff, and strict shutdown
+3. `src/index/type-inference-crossfile/tooling.js`
+   - consumes `byChunkUid` outputs
 
 ---
 
 ## 9. Acceptance criteria
 
-- [ ] Provider can return hover/signature results for `.poc-vfs/...` virtual paths.
-- [ ] Provider outputs are keyed by `chunkUid`.
-- [ ] Restart races do not corrupt active sessions (generation token test).
-- [ ] Failure counts reflect per-target failures, not per-attempt.
+- [x] Provider can return hover/signature results for `.poc-vfs/...` virtual paths.
+- [x] Provider outputs are keyed by `chunkUid`.
+- [x] Restart races do not corrupt active sessions (generation token test).
+- [x] Failure counts reflect per-target failures, not per-attempt.
 
 ---
 
@@ -200,4 +200,12 @@ If two targets share the same `chunkUid` (should not happen if chunkUid collisio
 
 4. `tests/tooling/lsp/metrics-contract-matrix.test.js`
    - Retry loop triggers one failure count per target.
+
+Current validation:
+
+```powershell
+node tests/run.js tooling/lsp/bychunkuid-keying tooling/lsp/restart-generation-safety tooling/lsp/vfs-didopen tooling/lsp/metrics-contract-matrix tooling/vfs/maps-segment-offsets tooling/vfs/routing-and-token-contract-matrix tooling/vfs/invalid-virtual-range-regression --lane=all --timeout-ms 30000
+```
+
+Evidence: `temp/validation/lsp-vfs-focused-spec-acceptance-20260521.log`.
 

@@ -111,7 +111,7 @@ The worker MUST refuse to run if `buildRoot` does not exist and should treat `in
 
 ## 7) Strict manifest compliance
 
-Strict tooling must only discover artifacts via `pieces/manifest.json`. Non-strict fallback is allowed only when explicitly enabled and must emit a warning. See the Phase 7 strict manifest addendum in `GIGAROADMAP_2.md`.
+Strict tooling must only discover artifacts via `pieces/manifest.json`. Non-strict fallback is allowed only when explicitly enabled and must emit a warning. See `docs/contracts/public-artifact-surface.md` and `docs/specs/artifact-schemas.md` for the current manifest-first artifact contract.
 
 ## 8) Embeddings throughput KPI gate
 

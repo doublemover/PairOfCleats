@@ -33,7 +33,9 @@
 
 Those already have tighter domain ownership and would lose clarity if they were folded into a generic gate harness.
 
-## Follow-on cleanup
+## Historical follow-up notes
 
-- migrate other gate-style smoke tests where the same JSON output harness pattern appears
+These are not active roadmap tasks. Reopen this family only from a fresh test-harness duplication scan or gate-output contract drift:
+
+- migrate gate-style smoke tests only when the same JSON output harness pattern still appears in current code
 - keep higher-signal specialized harnesses separate unless a comparably tight repeated family emerges

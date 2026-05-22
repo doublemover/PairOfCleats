@@ -64,7 +64,7 @@ Why this is best:
 
 Shared modules to prefer:
 - [dict-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\dict-utils.js)
-- [runtime-envelope.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope.js)
+- [runtime-envelope/resolve.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope\resolve.js)
 
 Representative local implementations:
 - [setup.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\setup\setup.js)

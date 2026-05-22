@@ -1,12 +1,12 @@
 # Suite Taxonomy Report
 
-Generated: 2026-03-30T08:30:57.823Z
+Generated: 2026-05-22T00:58:59.576Z
 
 ## Summary
 
-- `hero`: 1918
+- `hero`: 1977
 - `matrix`: 153
-- `meta`: 91
+- `meta`: 92
 - `soak`: 1
 - `heavy-runtime`: 8
 - ownership suites tracked: 16
@@ -33,8 +33,8 @@ Generated: 2026-03-30T08:30:57.823Z
 
 ## Peripheral Tooling Groups
 
-- `tooling/install`: 25 tests
-  hero: 24
+- `tooling/install`: 27 tests
+  hero: 26
   matrix: 1
 - `tooling/vscode`: 25 tests
   hero: 22

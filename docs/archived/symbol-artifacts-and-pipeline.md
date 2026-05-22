@@ -1,3 +1,10 @@
+> [!WARNING]
+> DEPRECATED
+> - Canonical replacement docs: `docs/specs/symbol-artifacts-and-pipeline.md`, `docs/specs/identity-and-symbol-contracts.md`, `docs/specs/identity-contracts.md`, and `docs/roadmap.md`.
+> - Reason: Superseded by promoted symbol artifact/pipeline specs and live artifact validators; retained as historical Phase 9 implementation-facing notes.
+> - Date: 2026-05-21
+> - PR/commit: pending branch update on `NEON_TIDE`.
+
 # Phase 9 — Symbol artifacts & pipeline integration (implementation-facing)
 
 > **Source of truth (schemas/contracts):**

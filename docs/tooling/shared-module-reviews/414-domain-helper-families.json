@@ -4,12 +4,12 @@
   "reviewDate": "2026-03-26",
   "scope": "Primary ownership for src/shared domain helper families assigned to #414 in the shared-module ledger, including embeddings-cache, indexing, filter, fs, hash, perf, text, validation, safe-regex, and root-level domain-specific utilities.",
   "summary": {
-    "ownedFileCount": 53,
+    "ownedFileCount": 61,
     "overallAssessment": "Most of this surface is genuinely shared and domain-specific rather than a random grab-bag. The strongest parts are the small normalization helpers, backend/config facades, embeddings-cache family, safe-regex backend structure, and low-level perf/text/validation helpers. The main weaknesses are a handful of oversized mixed-responsibility modules and two cross-layer ownership seams: src/shared/dict-utils.js is only a re-export of tools/shared/dict-utils.js, and token-id.js mixes 64-bit token hashing with a specialized typed posting map implementation.",
     "runtimeRisks": [
       {
         "target": "src/shared/onnx-embeddings.js",
-        "reason": "This is the largest file in the owned surface and mixes ONNX session setup, provider selection, model loading, input normalization, batch execution, and output handling."
+        "reason": "This remains the largest ONNX runtime surface and still mixes session setup, provider selection, model loading, batch execution, and output handling. Config, run-queue, and tokenization helpers now live under src/shared/onnx-embeddings/** instead of the shared root."
       },
       {
         "target": "src/shared/indexing/progress-timeout-policy.js",
@@ -38,6 +38,10 @@
         "reason": "This is only a cross-layer re-export of tools/shared/dict-utils.js and should not remain as a root src/shared alias."
       },
       {
+        "target": "src/shared/onnx-embeddings/**",
+        "reason": "The former root ONNX helper files have moved to src/shared/onnx-embeddings/config.js, run-queue.js, and tokenization.js; remaining ONNX work is inside the family rather than new root helpers."
+      },
+      {
         "target": "src/shared/token-id.js",
         "reason": "The typed open-addressed posting map does not belong in the same module as generic token-id hashing helpers."
       },
@@ -63,7 +67,7 @@
         "priority": "high",
         "target": "src/shared/onnx-embeddings.js",
         "action": "split",
-        "reason": "Separate model/session lifecycle, runtime/provider resolution, request shaping, and output normalization."
+        "reason": "Config, run-queue, and tokenization helpers have moved under src/shared/onnx-embeddings/**. Continue by separating model/session lifecycle, runtime/provider resolution, request shaping, and output normalization."
       },
       {
         "priority": "high",
@@ -265,7 +269,7 @@
     },
     {
       "path": "src/shared/embedding-utils.js",
-      "consumerCount": 11,
+      "consumerCount": 12,
       "classifications": [
         "split",
         "document",
@@ -364,7 +368,7 @@
     },
     {
       "path": "src/shared/hash.js",
-      "consumerCount": 93,
+      "consumerCount": 92,
       "classifications": [
         "keep",
         "document",
@@ -386,7 +390,7 @@
     },
     {
       "path": "src/shared/hnsw.js",
-      "consumerCount": 7,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -394,6 +398,28 @@
       ],
       "consumerNotes": "Shared HNSW backend/config helper surface.",
       "recommendation": "Keep as the HNSW backend contract helper."
+    },
+    {
+      "path": "src/shared/indexing/build-generation.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/indexing with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/indexing/build-pointer-roots.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/indexing with 3 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
     },
     {
       "path": "src/shared/indexing/build-pointer.js",
@@ -405,6 +431,39 @@
       ],
       "consumerNotes": "Active build pointer resolution and freshness logic are coupled together.",
       "recommendation": "Split active-generation pointer resolution from compatibility/freshness helpers."
+    },
+    {
+      "path": "src/shared/indexing/build-root-selection.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/indexing with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/indexing/progress-timeout-budget.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/indexing with 2 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/indexing/progress-timeout-evaluation.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/indexing with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
     },
     {
       "path": "src/shared/indexing/progress-timeout-policy.js",
@@ -427,6 +486,17 @@
       ],
       "consumerNotes": "Stage-1 watchdog configuration/policy helper.",
       "recommendation": "Keep under indexing policy ownership and separate from generic timeout helpers."
+    },
+    {
+      "path": "src/shared/indexing/stages.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Shared indexing stage-name and stage ordering helper used by stage orchestration and reporting surfaces.",
+      "recommendation": "Keep stage identity under the indexing helper family and avoid scattering stage-name literals across build and report code."
     },
     {
       "path": "src/shared/indexing/tree-sitter-limits.js",
@@ -452,14 +522,47 @@
     },
     {
       "path": "src/shared/onnx-embeddings.js",
-      "consumerCount": 7,
+      "consumerCount": 8,
       "classifications": [
         "split",
         "document",
         "test"
       ],
-      "consumerNotes": "Oversized ONNX embedding runtime module covering session lifecycle, runtime/provider selection, batching, and result normalization.",
-      "recommendation": "Split model/session lifecycle, provider/runtime resolution, request execution, and output normalization."
+      "consumerNotes": "Oversized ONNX embedding runtime module covering session lifecycle, runtime/provider selection, batching, and result normalization. Root ONNX helper files have moved under src/shared/onnx-embeddings/**.",
+      "recommendation": "Keep config, run-queue, and tokenization inside the ONNX family, then split model/session lifecycle, provider/runtime resolution, request execution, and output normalization."
+    },
+    {
+      "path": "src/shared/onnx-embeddings/config.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/onnx-embeddings with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/onnx-embeddings/run-queue.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/onnx-embeddings with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/onnx-embeddings/tokenization.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/onnx-embeddings with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
     },
     {
       "path": "src/shared/ownership-segment.js",
@@ -518,7 +621,7 @@
     },
     {
       "path": "src/shared/postings-config.js",
-      "consumerCount": 9,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -526,17 +629,6 @@
       ],
       "consumerNotes": "Canonical postings feature and config normalization helper.",
       "recommendation": "Keep as the postings configuration contract, but avoid letting more unrelated index-policy logic accumulate here."
-    },
-    {
-      "path": "src/shared/risk-explain.js",
-      "consumerCount": 4,
-      "classifications": [
-        "split",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "Broad risk explanation helper mixing normalization, selection, and presentation-oriented summary shaping.",
-      "recommendation": "Split normalization/filtering from explanation/summary shaping if this surface grows further."
     },
     {
       "path": "src/shared/risk-filters.js",
@@ -584,7 +676,7 @@
     },
     {
       "path": "src/shared/seed-ref.js",
-      "consumerCount": 6,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",

@@ -1,3 +1,10 @@
+> [!WARNING]
+> DEPRECATED
+> - Canonical replacement docs: `docs/specs/identity-contract.md`, `docs/specs/identity-contracts.md`, `docs/specs/identity-and-symbol-contracts.md`, and `docs/roadmap.md`.
+> - Reason: Superseded by promoted identity and symbol contract specs plus live validators; this implementation-facing Phase 9 note is historical only.
+> - Date: 2026-05-21
+> - PR/commit: pending branch update on `NEON_TIDE`.
+
 # Phase 9 — Identity contracts (implementation-facing notes)
 
 > **Source of truth:** `docs/specs/identity-contract.md`  

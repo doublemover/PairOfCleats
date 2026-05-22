@@ -48,7 +48,9 @@
 
 Those still live in `tools/shared` because this issue was about repo/workspace/cache-root/generation ownership, not a full tool-config hoist.
 
-## Follow-on cleanup
+## Historical follow-up notes
 
-- move more `src/**` callers from `tools/shared/dict-utils.js` to direct shared owners as later H32 issues land
-- eventually remove the remaining compatibility exports from [dict-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\dict-utils.js)
+These are not active roadmap tasks. Reopen this family only from a fresh H32/shared-module audit, governance failure, or import-graph regression:
+
+- move `src/**` callers from `tools/shared/dict-utils.js` only when a current scan proves the edge still exists and has a direct shared owner
+- remove compatibility exports from [dict-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\dict-utils.js) only after live consumers and generated ledgers prove they are unused

@@ -26,7 +26,7 @@ Complete Stage1 migration to order-contiguous runtime with one active behavior s
 Rollback is code-revert to pre-cutover commit. No runtime dual-path toggles are maintained in post-cutover code.
 
 ## Governance
-`STAGE1_ORDERED_THROUGHPUT_REDESIGN.md` must stay synchronized with:
+`docs/roadmap.md`, this focused spec, and `docs/worklogs/stage1-ordered-throughput-rollout.md` must stay synchronized with:
 1. Implemented touchpoints.
 2. Added/updated tests.
 3. Completed phase status.

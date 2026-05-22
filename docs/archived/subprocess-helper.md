@@ -1,3 +1,13 @@
+> DEPRECATED
+>
+> Canonical replacement docs: `docs/tooling/shared-module-reductions/432-prioritized-implementation-backlog.md`, `docs/tooling/shared-module-reviews/412-concurrency-subprocess-lifecycle.md`, and `docs/specs/node-supervisor-protocol.md`.
+>
+> Reason: the Phase 4.9 subprocess helper draft was implemented and superseded by the split subprocess family under `src/shared/subprocess/**`; the root `src/shared/subprocess.js` facade has been removed.
+>
+> Date: 2026-05-20
+>
+> PR/commit: pending branch commit
+
 # Spec: `spawnSubprocess()` Helper (Phase 4.9)
 
 Status: Draft (implementation-ready)

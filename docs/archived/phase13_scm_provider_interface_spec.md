@@ -1,3 +1,10 @@
+> [!WARNING]
+> DEPRECATED
+> - Canonical replacement docs: `docs/specs/scm-provider-contract.md`, `docs/specs/scm-provider-config-and-state-schema.md`, `docs/specs/jj-provider-commands-and-parsing.md`, and `docs/roadmap.md`.
+> - Reason: Superseded by promoted SCM provider specs and consolidated roadmap status; retained as historical Phase 13 implementation plan.
+> - Date: 2026-05-21
+> - PR/commit: pending branch update on `NEON_TIDE`.
+
 # Draft: Reworked Phase 13 — SCM Provider Abstraction + Git Migration + JJ Provider
 
 This document is a standalone draft of the fully reworked Phase 13 plan, including a **full SCM provider interface spec**.

@@ -1,7 +1,13 @@
-# Spec -- Unified Graph Explainability Contract (Refined, Implementation-Ready)
+# Spec -- Unified Graph Explainability Contract (Future Reference)
 
-**Status:** Draft / implementation-ready  
-**Phase:** GigaRoadmap Phase 11 -- Graph-powered product features  
+**Status:** Draft reference; not active roadmap work
+**Last audited:** 2026-05-21
+**Roadmap area:** Graph-powered product features; current status is tracked in `docs/roadmap.md`.
+**Current implementation note:** live graph-related surfaces use per-surface schemas
+for provenance, warnings, truncation, risk evidence, graph witness paths, and
+retrieval `scoreBreakdown`. The shared `src/shared/explain/**` module family
+described below does not exist in the current branch and should be promoted
+through `docs/roadmap.md` before implementation.
 **Primary goal:** A single shared, versioned explainability schema used by:
 - Context Packs
 - Impact Analysis
@@ -225,7 +231,7 @@ Example:
 
 ---
 
-## 7. Tests
+## 7. Future Validation Requirements
 
 ### 7.1 Unit tests
 - stable id generation
@@ -239,7 +245,7 @@ Example:
 
 ---
 
-## 8. Implementation checklist
+## 8. Future Implementation Outline
 
 - `src/shared/explain/ids.js` -- stable id helpers (sha256, canonical stringify)
 - `src/shared/explain/schema.js` -- runtime guards/validators

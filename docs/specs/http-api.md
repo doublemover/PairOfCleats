@@ -4,7 +4,7 @@
 
 - **Spec version:** 1
 - **Audience:** PairOfCleats contributors implementing HTTP surfaces for snapshots, diffs, as-of search, and federated search.
-- **Implementation status:** partial (Phase 14.6 single-repo surfaces implemented; federation pending).
+- **Implementation status:** active implemented contract for current Phase 14.6/15.3 HTTP surfaces: single-repo as-of search, snapshot routes, diff routes, and workspacePath-based federated search. Standalone workspaceId lookup without a workspacePath is not part of the active contract.
 
 This document defines API behavior only. CLI/MCP routes may expose the same semantics, but the HTTP contract here is authoritative for request/response shape, path redaction, and error behavior.
 
@@ -110,7 +110,8 @@ Federated workspace search.
 
 #### Request body
 
-- `workspaceId` (preferred) or `workspacePath` (allowlisted)
+- `workspacePath` (required, allowlisted)
+- `workspaceId` (optional cross-check against the resolved workspace)
 - `query` (required)
 - `search` (mode/top/backend/filter/etc)
 - `select` (`repos`, `tags`, `repoFilter`, `includeDisabled`)
@@ -197,11 +198,11 @@ Rules:
 ## 8. Implementation touchpoints
 
 - `tools/api/router/search.js`
-- `tools/api/router/index-snapshots.js` (new)
-- `tools/api/router/index-diffs.js` (new)
+- `tools/api/router/index-snapshots.js`
+- `tools/api/router/index-diffs.js`
 - `tools/api/validation.js`
-- `src/retrieval/federation/coordinator.js` (new)
-- `src/index/index-ref.js` (new)
+- `src/retrieval/federation/coordinator.js`
+- `src/index/index-ref.js`
 
 ---
 
@@ -212,7 +213,7 @@ Current implemented HTTP surfaces are covered by:
 - `tests/services/api/search-contract-matrix.test.js`
 - `tests/services/api/federated-search-validation-matrix.test.js`
 - `tests/services/api/router-contract-matrix.test.js`
+- `tests/services/api/index-route-client-error-classification.test.js`
+- `tests/services/api/index-route-decode-validation.test.js`
 - `tests/services/api/context-pack-workspace-allowlist.test.js`
 - `tests/services/api/repo-authorization.test.js`
-
-Snapshot/diff endpoint coverage should be added alongside those routes once the pending Phase 14.6 surfaces land.

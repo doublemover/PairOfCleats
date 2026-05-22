@@ -50,7 +50,9 @@
 
 Those are still caller-owned because this issue was about command invocation and wrapper normalization, not collapsing every subprocess call into one generic workflow helper.
 
-## Follow-on cleanup
+## Historical follow-up notes
 
-- migrate any remaining editor/release/setup surfaces with local command-wrapper logic to [command-invocation.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\subprocess\command-invocation.js)
-- consider a follow-on shared toolchain probe envelope if more scripts need structured `required tool missing / timeout / spawn error` reporting
+These are not active roadmap tasks. Reopen this family only from a fresh subprocess wrapper audit, portability bug, or measured duplication signal:
+
+- migrate editor/release/setup command-wrapper logic to [command-invocation.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\subprocess\command-invocation.js) only when current code still repeats that exact seam
+- add a shared toolchain probe envelope only if multiple live scripts need the same structured `required tool missing / timeout / spawn error` contract

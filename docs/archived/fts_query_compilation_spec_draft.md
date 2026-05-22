@@ -1,3 +1,10 @@
+> [!WARNING]
+> DEPRECATED
+> - Canonical replacement docs: `docs/guides/search.md`, `docs/specs/prose-routing.md`, `docs/specs/federated-query-cache.md`, and `docs/roadmap.md`.
+> - Reason: Retained as historical FTS planning detail; current search behavior is documented by the promoted search/query specs, live retrieval code, and the consolidated roadmap.
+> - Date: 2026-05-21
+> - PR/commit: pending branch update on `NEON_TIDE`.
+
 # Draft Spec: FTS Query Compilation (AST → SQLite FTS5 `MATCH`)
 
 This spec defines how PairOfCleats compiles its internal **query AST** into a deterministic, injection-safe SQLite FTS5 `MATCH` string.

@@ -1,8 +1,8 @@
 # Phase 12 Tooling and API Contract Spec (Refined)
 
 **Document ID:** PHASE12_TOOLING_AND_API_CONTRACT_SPEC_REFINED  
-**Status:** Proposed (Codex-ready)  
-**Last updated:** 2026-01-24 (America/Detroit)
+**Status:** Active implemented public tooling/API contract; current MCP schema version is `1.4.1`.
+**Last audited:** 2026-05-21
 
 ## 0. Purpose
 
@@ -18,7 +18,7 @@ The goals are:
 - Make schema evolution intentional (versioned) and testable.
 - Enable clients (humans and agents) to safely and deterministically integrate.
 
-This spec is written to be implemented directly by an automated coding agent (e.g., Codex) without gaps.
+This spec records the current implemented contract. Future changes must update this document, the generated MCP schema snapshot, and the focused API/MCP conformance tests together.
 
 ---
 
@@ -34,7 +34,7 @@ This spec is written to be implemented directly by an automated coding agent (e.
 
 ### 1.2 Out of scope
 - Rewriting the search engine, indexing pipeline, scoring, or retrieval algorithms.
-- Exposing the MCP server over HTTP (MCP Streamable HTTP transport is not implemented here).
+- MCP Streamable HTTP transport. The current public MCP surface is stdio-only; HTTP API routes are documented separately from MCP transport.
 - Broad CLI unification for all `tools/*.js` scripts. (Those scripts remain "internal tooling" unless explicitly wrapped.)
 
 ---
@@ -73,7 +73,7 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, **MAY** are to
 
 A single exported constant MUST exist and be used everywhere:
 
-- `src/integrations/mcp/defs.js` exporting `schemaVersion` (string).
+- `src/integrations/mcp/defs.js` exporting `MCP_SCHEMA_VERSION` and the generated tool catalog `schemaVersion` (SemVer string).
 - `package.json` `version` used as `toolVersion` (string).
 
 ---
@@ -214,6 +214,10 @@ The following tool names MUST exist (currently present in `defs.js`):
 - `triage_ingest`
 - `triage_decision`
 - `triage_context_pack`
+- `context_pack`
+- `risk_explain`
+- `risk_delta`
+- `search_workspace`
 
 If any tool is removed or renamed, schemaVersion MAJOR MUST bump.
 
@@ -433,7 +437,7 @@ The `search` MCP tool exposes `arguments` that map 1:1 to the search CLI flags u
 | `meta` | `--meta` | object/array/string | normalize to repeated `--meta key=value` |
 | `metaJson` | `--meta-json` | object|string | if object, JSON.stringify |
 
-**Explicit required code fix:** `tools/mcp/tools.js` currently redeclares a `const context` inside `runSearch`, which is a parse-time syntax error. The numeric "context lines" MUST be renamed (e.g., `contextLines`). This is a blocking fix for any MCP execution.
+Current implementation note: the MCP search handler accepts a `context` execution object while search argument normalization uses a distinct `contextLines` value for the numeric search context flag. This prevents shadowing and is guarded by the MCP search argument mapping tests.
 
 ---
 
@@ -441,9 +445,9 @@ The `search` MCP tool exposes `arguments` that map 1:1 to the search CLI flags u
 
 Phase 12 implementation MUST include these artifacts in-repo:
 
-1. `src/shared/schema-version.js` (source of truth)
+1. `src/integrations/mcp/defs.js` as the source of truth for `MCP_SCHEMA_VERSION`, tool definitions, and tool-version catalog data.
 2. A generated **tool schema snapshot** file committed to the repo:
-   - `docs/contracts/mcp-tools.schema.json` (or similar)
+   - `docs/contracts/mcp-tools.schema.json`
 3. Ajv validation wiring for MCP tool inputs:
    - `src/integrations/mcp/validate.js`
 4. Conformance tests (see companion document):
