@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { createToolDisplay } from '../shared/cli-display.js';
+import { createToolDisplayLogger } from '../shared/cli-display.js';
 import { runSubprocessOrExit } from '../shared/cli-utils.js';
 import { readRepoGitState } from '../shared/git-state.js';
 import { bootstrapRuntime, getIndexDir, resolveSqlitePaths, resolveToolRoot } from '../shared/dict-utils.js';
@@ -23,12 +23,7 @@ const argv = createCli({
   }
 }).parse();
 
-const display = createToolDisplay({ argv, stream: process.stderr });
-const logger = {
-  log: (message) => display.log(message),
-  warn: (message) => display.warn(message),
-  error: (message) => display.error(message)
-};
+const { display, logger } = createToolDisplayLogger({ argv, stream: process.stderr });
 const totalSteps = (argv['skip-build'] ? 0 : 1) + (argv['skip-sqlite'] ? 0 : 1) + 1;
 let stepIndex = 0;
 const updateProgress = (message) => {

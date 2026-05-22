@@ -1,5 +1,5 @@
 import { StringDecoder } from 'node:string_decoder';
-import { spawnSubprocess } from '../../shared/subprocess.js';
+import { spawnSubprocess } from '../../shared/subprocess/runner.js';
 
 const EMBEDDINGS_CANCEL_CODE = 0xC000013A;
 

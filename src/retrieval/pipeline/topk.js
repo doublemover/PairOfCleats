@@ -34,6 +34,17 @@ export const compareTopKEntries = (a, b) => {
   return rankA - rankB;
 };
 
+const buildTopKSortEntry = (item, { score, id, sourceRank }) => ({
+  score: score ? score(item) : (item?.score ?? item?.sim ?? 0),
+  id: id ? id(item) : (item?.idx ?? item?.id),
+  sourceRank: sourceRank ? sourceRank(item) : (item?.sourceRank ?? 0)
+});
+
+const createTopKItemComparator = (selectors) => (a, b) => compareTopKEntries(
+  buildTopKSortEntry(a, selectors),
+  buildTopKSortEntry(b, selectors)
+);
+
 const isBetter = (score, id, rank, other) => {
   if (!other) return true;
   const scoreOther = Number.isFinite(other.score) ? other.score : -Infinity;
@@ -264,14 +275,9 @@ export const selectTopK = (items, {
     });
     return empty;
   }
+  const sortByTopKEntry = createTopKItemComparator({ score, id, sourceRank });
   if (list.length <= limit) {
-    const baseline = list.slice().sort((a, b) => {
-      const entryA = { score: score ? score(a) : (a?.score ?? a?.sim ?? 0), id: id ? id(a) : (a?.idx ?? a?.id) };
-      const entryB = { score: score ? score(b) : (b?.score ?? b?.sim ?? 0), id: id ? id(b) : (b?.idx ?? b?.id) };
-      entryA.sourceRank = sourceRank ? sourceRank(a) : (a?.sourceRank ?? 0);
-      entryB.sourceRank = sourceRank ? sourceRank(b) : (b?.sourceRank ?? 0);
-      return compareTopKEntries(entryA, entryB);
-    });
+    const baseline = list.slice().sort(sortByTopKEntry);
     if (stats) {
       stats.seen = list.length;
       stats.kept = baseline.length;
@@ -293,13 +299,7 @@ export const selectTopK = (items, {
 
   const shouldUseHeap = list.length >= Math.max(minHeapSize, limit * heapThreshold);
   if (!shouldUseHeap) {
-    const baseline = list.slice().sort((a, b) => {
-      const entryA = { score: score ? score(a) : (a?.score ?? a?.sim ?? 0), id: id ? id(a) : (a?.idx ?? a?.id) };
-      const entryB = { score: score ? score(b) : (b?.score ?? b?.sim ?? 0), id: id ? id(b) : (b?.idx ?? b?.id) };
-      entryA.sourceRank = sourceRank ? sourceRank(a) : (a?.sourceRank ?? 0);
-      entryB.sourceRank = sourceRank ? sourceRank(b) : (b?.sourceRank ?? 0);
-      return compareTopKEntries(entryA, entryB);
-    });
+    const baseline = list.slice().sort(sortByTopKEntry);
     const sliced = baseline.slice(0, limit);
     if (stats) {
       stats.seen = list.length;

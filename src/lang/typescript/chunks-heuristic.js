@@ -11,6 +11,46 @@ import {
   readSignatureLines
 } from './signature.js';
 
+const buildFunctionMeta = ({ lines, lineIndex, lineNumber, start, end, signature, parsed, modifiers }) => ({
+  startLine: lineNumber + 1,
+  endLine: offsetToLine(lineIndex, Math.max(start, end - 1)),
+  signature,
+  params: extractTypeScriptParams(signature),
+  paramTypes: extractTypeScriptParamTypes(signature),
+  returns: parsed.returns,
+  modifiers,
+  visibility: extractVisibility(modifiers),
+  docstring: extractDocComment(lines, lineNumber),
+  attributes: collectAttributes(lines, lineNumber, signature)
+});
+
+const buildFunctionLikeDecl = ({
+  text,
+  lines,
+  lineIndex,
+  lineNumber,
+  line,
+  match,
+  fallbackName,
+  resolveName = (parsedName) => parsedName || fallbackName,
+  resolveKind = () => 'FunctionDeclaration'
+}) => {
+  const start = lineIndex[lineNumber] + line.indexOf(match[0]);
+  const { signature, endLine, hasBody } = readSignatureLines(lines, lineNumber);
+  const bounds = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
+  const end = bounds.bodyEnd > start ? bounds.bodyEnd : lineIndex[endLine] + lines[endLine].length;
+  const modifiers = extractTypeScriptModifiers(signature);
+  const parsed = parseTypeScriptSignature(signature);
+  const name = resolveName(parsed.name);
+  return {
+    start,
+    end,
+    name,
+    kind: resolveKind(name),
+    meta: buildFunctionMeta({ lines, lineIndex, lineNumber, start, end, signature, parsed, modifiers })
+  };
+};
+
 /**
  * Build chunk metadata for TypeScript declarations.
  * Returns null when no declarations are found.
@@ -75,72 +115,42 @@ export function buildTypeScriptChunksHeuristic(text) {
     }
     match = trimmed.match(funcRe);
     if (match) {
-      const start = lineIndex[i] + line.indexOf(match[0]);
-      const { signature, endLine, hasBody } = readSignatureLines(lines, i);
-      const bounds = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
-      const end = bounds.bodyEnd > start ? bounds.bodyEnd : lineIndex[endLine] + lines[endLine].length;
-      const modifiers = extractTypeScriptModifiers(signature);
-      const parsed = parseTypeScriptSignature(signature);
-      const meta = {
-        startLine: i + 1,
-        endLine: offsetToLine(lineIndex, Math.max(start, end - 1)),
-        signature,
-        params: extractTypeScriptParams(signature),
-        paramTypes: extractTypeScriptParamTypes(signature),
-        returns: parsed.returns,
-        modifiers,
-        visibility: extractVisibility(modifiers),
-        docstring: extractDocComment(lines, i),
-        attributes: collectAttributes(lines, i, signature)
-      };
-      decls.push({ start, end, name: parsed.name || match[1], kind: 'FunctionDeclaration', meta });
+      decls.push(buildFunctionLikeDecl({
+        text,
+        lines,
+        lineIndex,
+        lineNumber: i,
+        line,
+        match,
+        fallbackName: match[1]
+      }));
     }
 
     match = trimmed.match(assignFuncRe);
     if (match) {
-      const start = lineIndex[i] + line.indexOf(match[0]);
-      const { signature, endLine, hasBody } = readSignatureLines(lines, i);
-      const bounds = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
-      const end = bounds.bodyEnd > start ? bounds.bodyEnd : lineIndex[endLine] + lines[endLine].length;
-      const modifiers = extractTypeScriptModifiers(signature);
-      const parsed = parseTypeScriptSignature(signature);
-      const meta = {
-        startLine: i + 1,
-        endLine: offsetToLine(lineIndex, Math.max(start, end - 1)),
-        signature,
-        params: extractTypeScriptParams(signature),
-        paramTypes: extractTypeScriptParamTypes(signature),
-        returns: parsed.returns,
-        modifiers,
-        visibility: extractVisibility(modifiers),
-        docstring: extractDocComment(lines, i),
-        attributes: collectAttributes(lines, i, signature)
-      };
-      decls.push({ start, end, name: parsed.name || match[1], kind: 'FunctionDeclaration', meta });
+      decls.push(buildFunctionLikeDecl({
+        text,
+        lines,
+        lineIndex,
+        lineNumber: i,
+        line,
+        match,
+        fallbackName: match[1]
+      }));
       continue;
     }
 
     match = trimmed.match(arrowRe);
     if (match) {
-      const start = lineIndex[i] + line.indexOf(match[0]);
-      const { signature, endLine, hasBody } = readSignatureLines(lines, i);
-      const bounds = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
-      const end = bounds.bodyEnd > start ? bounds.bodyEnd : lineIndex[endLine] + lines[endLine].length;
-      const modifiers = extractTypeScriptModifiers(signature);
-      const parsed = parseTypeScriptSignature(signature);
-      const meta = {
-        startLine: i + 1,
-        endLine: offsetToLine(lineIndex, Math.max(start, end - 1)),
-        signature,
-        params: extractTypeScriptParams(signature),
-        paramTypes: extractTypeScriptParamTypes(signature),
-        returns: parsed.returns,
-        modifiers,
-        visibility: extractVisibility(modifiers),
-        docstring: extractDocComment(lines, i),
-        attributes: collectAttributes(lines, i, signature)
-      };
-      decls.push({ start, end, name: parsed.name || match[1], kind: 'FunctionDeclaration', meta });
+      decls.push(buildFunctionLikeDecl({
+        text,
+        lines,
+        lineIndex,
+        lineNumber: i,
+        line,
+        match,
+        fallbackName: match[1]
+      }));
       continue;
     }
   }
@@ -158,32 +168,17 @@ export function buildTypeScriptChunksHeuristic(text) {
       if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) continue;
       const match = trimmed.match(methodRe);
       if (!match) continue;
-      const start = lineIndex[i] + line.indexOf(match[0]);
-      const { signature, endLine: sigEndLine, hasBody } = readSignatureLines(lines, i);
-      const boundsInner = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
-      const end = boundsInner.bodyEnd > start ? boundsInner.bodyEnd : lineIndex[sigEndLine] + lines[sigEndLine].length;
-      const parsed = parseTypeScriptSignature(signature);
-      const methodName = parsed.name || match[1] || 'anonymous';
-      const modifiers = extractTypeScriptModifiers(signature);
-      const meta = {
-        startLine: i + 1,
-        endLine: offsetToLine(lineIndex, Math.max(start, end - 1)),
-        signature,
-        params: extractTypeScriptParams(signature),
-        paramTypes: extractTypeScriptParamTypes(signature),
-        returns: parsed.returns,
-        modifiers,
-        visibility: extractVisibility(modifiers),
-        docstring: extractDocComment(lines, i),
-        attributes: collectAttributes(lines, i, signature)
-      };
-      decls.push({
-        start,
-        end,
-        name: `${typeDecl.name}.${methodName}`,
-        kind: methodName === 'constructor' ? 'ConstructorDeclaration' : 'MethodDeclaration',
-        meta
-      });
+      decls.push(buildFunctionLikeDecl({
+        text,
+        lines,
+        lineIndex,
+        lineNumber: i,
+        line,
+        match,
+        fallbackName: match[1] || 'anonymous',
+        resolveName: (parsedName) => `${typeDecl.name}.${parsedName || match[1] || 'anonymous'}`,
+        resolveKind: (name) => name.endsWith('.constructor') ? 'ConstructorDeclaration' : 'MethodDeclaration'
+      }));
     }
   }
 

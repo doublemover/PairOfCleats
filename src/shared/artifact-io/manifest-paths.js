@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from './constants.js';
 import { readJsonFile } from './json.js';
-import { fromPosix, isAbsolutePathNative, isRelativePathEscape, toPosix } from '../files.js';
-import { logLine } from '../progress.js';
+import { fromPosix, isAbsolutePathNative, isRelativePathEscape, toPosix } from '../file-paths.js';
+import { logLine } from '../progress-runtime.js';
 import { joinPathSafe } from '../path-normalize.js';
 
 const warnedUnsafePaths = new Set();

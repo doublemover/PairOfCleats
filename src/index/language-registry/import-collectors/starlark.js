@@ -6,6 +6,7 @@ import {
   finalizeCollectorImportEntries,
   lineHasAny
 } from './utils.js';
+import { readBalancedDelimitedBody } from './balanced.js';
 
 const STARLARK_SOURCE_BUDGET = Object.freeze({
   maxChars: 524288
@@ -67,203 +68,101 @@ const readFirstQuotedArgument = (args) => {
   return '';
 };
 
-const parseBalancedCallBody = (source, openIndex) => {
-  let index = openIndex;
-  let depth = 0;
-  let inComment = false;
-  let inSingle = false;
-  let inDouble = false;
-  let inTripleSingle = false;
-  let inTripleDouble = false;
-  let escaped = false;
-  while (index < source.length) {
-    const char = source[index];
-    if (inComment) {
-      if (char === '\n') inComment = false;
-      index += 1;
-      continue;
-    }
-    if (inTripleSingle) {
-      if (source.startsWith("'''", index)) {
-        inTripleSingle = false;
-        index += 3;
-      } else {
-        index += 1;
-      }
-      continue;
-    }
-    if (inTripleDouble) {
-      if (source.startsWith('"""', index)) {
-        inTripleDouble = false;
-        index += 3;
-      } else {
-        index += 1;
-      }
-      continue;
-    }
-    if (inSingle) {
-      if (escaped) {
-        escaped = false;
-        index += 1;
-        continue;
-      }
-      if (char === '\\') {
-        escaped = true;
-        index += 1;
-        continue;
-      }
-      if (char === "'") inSingle = false;
-      index += 1;
-      continue;
-    }
-    if (inDouble) {
-      if (escaped) {
-        escaped = false;
-        index += 1;
-        continue;
-      }
-      if (char === '\\') {
-        escaped = true;
-        index += 1;
-        continue;
-      }
-      if (char === '"') inDouble = false;
-      index += 1;
-      continue;
-    }
-    if (char === '#') {
-      inComment = true;
-      index += 1;
-      continue;
-    }
-    if (source.startsWith("'''", index)) {
-      inTripleSingle = true;
-      index += 3;
-      continue;
-    }
-    if (source.startsWith('"""', index)) {
-      inTripleDouble = true;
-      index += 3;
-      continue;
-    }
-    if (char === "'") {
-      inSingle = true;
-      index += 1;
-      continue;
-    }
-    if (char === '"') {
-      inDouble = true;
-      index += 1;
-      continue;
-    }
-    if (char === '(') {
-      depth += 1;
-      index += 1;
-      continue;
-    }
-    if (char === ')') {
-      depth -= 1;
-      if (depth === 0) {
-        return {
-          body: source.slice(openIndex + 1, index),
-          endIndex: index + 1
-        };
-      }
-      index += 1;
-      continue;
-    }
-    index += 1;
+const createStarlarkScanState = () => ({
+  inComment: false,
+  inSingle: false,
+  inDouble: false,
+  inTripleSingle: false,
+  inTripleDouble: false,
+  escaped: false
+});
+
+const advanceIgnoredStarlarkSpan = (source, index, state) => {
+  const char = source[index];
+  if (state.inComment) {
+    if (char === '\n') state.inComment = false;
+    return index + 1;
   }
-  return null;
+  if (state.inTripleSingle) {
+    if (source.startsWith("'''", index)) {
+      state.inTripleSingle = false;
+      return index + 3;
+    }
+    return index + 1;
+  }
+  if (state.inTripleDouble) {
+    if (source.startsWith('"""', index)) {
+      state.inTripleDouble = false;
+      return index + 3;
+    }
+    return index + 1;
+  }
+  if (state.inSingle) {
+    if (state.escaped) {
+      state.escaped = false;
+      return index + 1;
+    }
+    if (char === '\\') {
+      state.escaped = true;
+      return index + 1;
+    }
+    if (char === "'") state.inSingle = false;
+    return index + 1;
+  }
+  if (state.inDouble) {
+    if (state.escaped) {
+      state.escaped = false;
+      return index + 1;
+    }
+    if (char === '\\') {
+      state.escaped = true;
+      return index + 1;
+    }
+    if (char === '"') state.inDouble = false;
+    return index + 1;
+  }
+  if (char === '#') {
+    state.inComment = true;
+    return index + 1;
+  }
+  if (source.startsWith("'''", index)) {
+    state.inTripleSingle = true;
+    return index + 3;
+  }
+  if (source.startsWith('"""', index)) {
+    state.inTripleDouble = true;
+    return index + 3;
+  }
+  if (char === "'") {
+    state.inSingle = true;
+    return index + 1;
+  }
+  if (char === '"') {
+    state.inDouble = true;
+    return index + 1;
+  }
+  return index;
+};
+
+const parseBalancedCallBody = (source, openIndex) => {
+  const parsed = readBalancedDelimitedBody(source, openIndex, {
+    createState: createStarlarkScanState,
+    advanceIgnoredSpan: advanceIgnoredStarlarkSpan
+  });
+  return parsed.closed
+    ? { body: parsed.body, endIndex: parsed.endIndex }
+    : null;
 };
 
 const collectTopLevelCalls = (source, targetNames, budget) => {
   const calls = [];
   let index = 0;
-  let inComment = false;
-  let inSingle = false;
-  let inDouble = false;
-  let inTripleSingle = false;
-  let inTripleDouble = false;
-  let escaped = false;
+  const scanState = createStarlarkScanState();
   while (index < source.length) {
     const char = source[index];
-    if (inComment) {
-      if (char === '\n') inComment = false;
-      index += 1;
-      continue;
-    }
-    if (inTripleSingle) {
-      if (source.startsWith("'''", index)) {
-        inTripleSingle = false;
-        index += 3;
-      } else {
-        index += 1;
-      }
-      continue;
-    }
-    if (inTripleDouble) {
-      if (source.startsWith('"""', index)) {
-        inTripleDouble = false;
-        index += 3;
-      } else {
-        index += 1;
-      }
-      continue;
-    }
-    if (inSingle) {
-      if (escaped) {
-        escaped = false;
-        index += 1;
-        continue;
-      }
-      if (char === '\\') {
-        escaped = true;
-        index += 1;
-        continue;
-      }
-      if (char === "'") inSingle = false;
-      index += 1;
-      continue;
-    }
-    if (inDouble) {
-      if (escaped) {
-        escaped = false;
-        index += 1;
-        continue;
-      }
-      if (char === '\\') {
-        escaped = true;
-        index += 1;
-        continue;
-      }
-      if (char === '"') inDouble = false;
-      index += 1;
-      continue;
-    }
-    if (char === '#') {
-      inComment = true;
-      index += 1;
-      continue;
-    }
-    if (source.startsWith("'''", index)) {
-      inTripleSingle = true;
-      index += 3;
-      continue;
-    }
-    if (source.startsWith('"""', index)) {
-      inTripleDouble = true;
-      index += 3;
-      continue;
-    }
-    if (char === "'") {
-      inSingle = true;
-      index += 1;
-      continue;
-    }
-    if (char === '"') {
-      inDouble = true;
-      index += 1;
+    const nextIndex = advanceIgnoredStarlarkSpan(source, index, scanState);
+    if (nextIndex !== index) {
+      index = nextIndex;
       continue;
     }
     if (!isIdentifierStart(char)) {

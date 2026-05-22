@@ -1,25 +1,25 @@
 import path from 'node:path';
 import { createCli } from '../../shared/cli.js';
 import { isDirectExecution } from '../../shared/direct-execution.js';
-import { toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/file-paths.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { resolveProvenance } from '../../shared/provenance.js';
 import { validateApiContracts } from '../../contracts/validators/analysis.js';
+import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
 import {
-  MAX_JSON_BYTES,
-  loadJsonArrayArtifactRows,
   loadPiecesManifest,
-  readCompatibilityKey
-} from '../../shared/artifact-io.js';
-import { resolveManifestArtifactSources } from '../../shared/artifact-io/manifest.js';
+  readCompatibilityKey,
+  resolveManifestArtifactSources
+} from '../../shared/artifact-io/manifest.js';
+import { loadJsonArrayArtifactRows } from '../../shared/artifact-io/loaders.js';
 import { readJsonlRows } from '../../shared/merge.js';
 import { buildIndexSignature } from '../../retrieval/index-cache.js';
 import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
 import { renderApiContracts } from '../../retrieval/output/api-contracts.js';
 import { loadUserConfig } from '../../shared/dict-utils.js';
-import { resolveRepoRoot } from '../../shared/repo-paths.js';
-import { writeJsonLinesFile } from '../../shared/json-stream.js';
+import { getRepoRoot } from '../../shared/repo-paths.js';
+import { writeJsonLinesFile } from '../../shared/json-stream/jsonl-write.js';
 
 /**
  * Build non-null API contract cap payload used in report metadata.
@@ -598,7 +598,7 @@ export async function runApiContractsCli(rawArgs = process.argv.slice(2)) {
   });
   const argv = cli.parse();
 
-  const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
+  const repoRoot = getRepoRoot(argv.repo || null, process.cwd());
   const indexDir = resolveIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));
   if (!hasIndexMeta(indexDir)) {
     throw new Error(`Code index not found at ${indexDir}.`);

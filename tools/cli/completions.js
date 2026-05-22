@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createCli } from '../../src/shared/cli.js';
-import { renderShellCompletion, SUPPORTED_COMPLETION_SHELLS } from '../../src/shared/cli-completions.js';
+import { renderShellCompletion, SUPPORTED_COMPLETION_SHELLS } from './completions-renderer.js';
 
 const parseArgs = () => createCli({
   scriptName: 'pairofcleats cli completions',

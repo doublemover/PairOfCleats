@@ -1,18 +1,4 @@
-const isPlainObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
-
-const mergeConfig = (base, overrides) => {
-  if (!isPlainObject(base)) return overrides;
-  if (!isPlainObject(overrides)) return base;
-  const next = { ...base };
-  for (const [key, value] of Object.entries(overrides)) {
-    if (isPlainObject(value) && isPlainObject(next[key])) {
-      next[key] = mergeConfig(next[key], value);
-    } else {
-      next[key] = value;
-    }
-  }
-  return next;
-};
+import { mergeConfig } from '../../../shared/config.js';
 
 export const storageKey = 'pairofcleats.isometric.config';
 

@@ -2,26 +2,13 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
-import { createCli } from '../../../src/shared/cli.js';
 import { buildCodeMap } from '../../../src/map/build-map.js';
 import { renderIsometricHtml } from '../../../src/map/isometric-viewer.js';
-import { resolveMapBenchInputs, startMapViewerStaticServer } from './shared.js';
+import { createMapBenchCli, resolveMapBenchInputs, startMapViewerStaticServer } from './shared.js';
 
-const argv = createCli({
+const argv = createMapBenchCli({
   scriptName: 'bench-map-viewer-lod',
   options: {
-    repo: { type: 'string', describe: 'Repo root.' },
-    mode: { type: 'string', default: 'code' },
-    'index-root': { type: 'string' },
-    scope: { type: 'string', default: 'repo' },
-    focus: { type: 'string' },
-    include: { type: 'string' },
-    'only-exported': { type: 'boolean', default: false },
-    collapse: { type: 'string', default: 'none' },
-    'max-files': { type: 'number' },
-    'max-members-per-file': { type: 'number' },
-    'max-edges': { type: 'number' },
-    'top-k-by-degree': { type: 'boolean', default: false },
     port: { type: 'number', default: 0 },
     out: { type: 'string' },
     'display-files': { type: 'number', default: 300 },
@@ -37,7 +24,7 @@ const argv = createCli({
     'lod-edge-low': { type: 'number', default: 2000 },
     'frame-budget': { type: 'number', default: 16 }
   }
-}).parse();
+});
 
 const { repoRoot, indexDir, buildOptions } = resolveMapBenchInputs(argv);
 const mapModel = await buildCodeMap({ repoRoot, indexDir, options: buildOptions });

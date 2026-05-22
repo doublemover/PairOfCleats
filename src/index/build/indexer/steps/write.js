@@ -8,7 +8,7 @@ import { buildIndexStateArtifactsBlock } from '../../index-state-profile.js';
 import { RISK_RULE_ROLE_MODEL, serializeRiskRulesBundle } from '../../../risk-rules.js';
 import { finalizePerfProfile } from '../../perf-profile.js';
 import { finalizeMetaV2 } from '../../../metadata-v2.js';
-import { log } from '../../../../shared/progress.js';
+import { log } from '../../../../shared/progress-runtime.js';
 import { stableStringifyForSignature } from '../../../../shared/stable-json.js';
 import { computeInterproceduralRisk } from '../../../risk-interprocedural/engine.js';
 import { getTokenIdCollisionSummary } from '../../state.js';

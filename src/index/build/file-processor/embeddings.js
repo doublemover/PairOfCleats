@@ -1,6 +1,6 @@
 import PQueue from 'p-queue';
 import { normalizeVec, quantizeVecUint8 } from '../../embedding.js';
-import { runWithQueue } from '../../../shared/concurrency.js';
+import { runWithQueue } from '../../../shared/concurrency/run-with-queue.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { isVectorLike, mergeEmbeddingVectors } from '../../../shared/embedding-utils.js';
 import { resolveEmbeddingBatchSize } from '../embedding-batch.js';

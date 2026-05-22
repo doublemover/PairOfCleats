@@ -2,11 +2,12 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
-import { collectSchemaEntries } from './inventory/schema.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
+import { collectSchemaDefaults, collectSchemaEntries } from './inventory/schema.js';
 import { INDEX_BUILD_OPTIONS } from '../../src/shared/cli-options.js';
+import { writeTextIfChanged } from '../shared/generated-report.js';
 
 const normalizeEnum = (value) => {
   if (!Array.isArray(value) || !value.length) return '';
@@ -20,23 +21,6 @@ const detectLineEnding = (text) => (text.includes('\r\n') ? '\r\n' : '\n');
 const detectBom = (text) => text.startsWith('\uFEFF');
 
 const stripBom = (text) => (detectBom(text) ? text.slice(1) : text);
-
-const collectDefaults = (schema, prefix = '', entries = []) => {
-  if (!schema || typeof schema !== 'object') return entries;
-  const properties = schema.properties && typeof schema.properties === 'object'
-    ? schema.properties
-    : null;
-  if (properties) {
-    for (const [key, child] of Object.entries(properties)) {
-      const pathKey = prefix ? `${prefix}.${key}` : key;
-      if (Object.prototype.hasOwnProperty.call(child, 'default')) {
-        entries.push({ path: pathKey, value: child.default });
-      }
-      collectDefaults(child, pathKey, entries);
-    }
-  }
-  return entries;
-};
 
 const extractSearchFlags = (source) => {
   const startToken = 'const options = {';
@@ -109,7 +93,7 @@ export const buildConfigContractDoc = (options = {}) => {
   const schemaRaw = fs.readFileSync(schemaPath, 'utf8');
   const schema = JSON.parse(schemaRaw);
   const entries = collectSchemaEntries(schema);
-  const defaults = collectDefaults(schema);
+  const defaults = collectSchemaDefaults(schema);
   const topLevel = Object.keys(schema.properties || {}).sort();
 
   const envSource = fs.readFileSync(envPath, 'utf8');
@@ -226,12 +210,10 @@ const main = async () => {
     includeBom
   });
 
-  await fsPromises.mkdir(path.dirname(outPath), { recursive: true });
-  await fsPromises.writeFile(outPath, doc);
+  await writeTextIfChanged(outPath, doc, { encoding: 'utf8' });
 };
 
-const isCli = pathToFileURL(process.argv[1] || '').href === import.meta.url;
-if (isCli) {
+if (isDirectExecution(import.meta.url)) {
   main().catch((error) => {
     console.error(error?.message || String(error));
     process.exit(1);

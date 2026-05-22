@@ -1,5 +1,6 @@
 import {
   loadIncrementalState,
+  normalizeIncrementalEmbeddingCoverageManifest,
   preloadIncrementalBundleVfsRows,
   pruneIncrementalManifest,
   shouldReuseIncrementalIndex,
@@ -7,7 +8,7 @@ import {
 } from '../../incremental.js';
 import { configureScmMetaCache } from '../../../scm/cache.js';
 import { setRecordsIncrementalCapability } from '../../../../storage/sqlite/build/index.js';
-import { log } from '../../../../shared/progress.js';
+import { log } from '../../../../shared/progress-runtime.js';
 
 /**
  * Load incremental state and decide whether current mode can be reused.
@@ -36,26 +37,7 @@ export const loadIncrementalPlan = async ({
     log
   });
   if (incrementalState?.manifest) {
-    if (incrementalState.manifest.bundleEmbeddings !== true) {
-      incrementalState.manifest.bundleEmbeddings = false;
-      incrementalState.manifest.bundleEmbeddingCoverageComplete = false;
-      incrementalState.manifest.bundleEmbeddingCoverageEligible = Math.max(
-        0,
-        Number(incrementalState.manifest.bundleEmbeddingCoverageEligible) || 0
-      );
-      incrementalState.manifest.bundleEmbeddingCoverageCovered = Math.max(
-        0,
-        Number(incrementalState.manifest.bundleEmbeddingCoverageCovered) || 0
-      );
-      incrementalState.manifest.bundleEmbeddingCoverageMissingFiles = Math.max(
-        0,
-        Number(incrementalState.manifest.bundleEmbeddingCoverageMissingFiles) || 0
-      );
-      incrementalState.manifest.bundleEmbeddingCoverageMissingChunks = Math.max(
-        0,
-        Number(incrementalState.manifest.bundleEmbeddingCoverageMissingChunks) || 0
-      );
-    }
+    normalizeIncrementalEmbeddingCoverageManifest(incrementalState.manifest);
     if (mode === 'records') {
       setRecordsIncrementalCapability(incrementalState.manifest, true);
     }

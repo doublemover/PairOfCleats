@@ -24,6 +24,28 @@ const parseTags = (value, repeated = []) => {
   return all;
 };
 
+const formatDryRunPrefix = (result) => (result?.dryRun ? '[dry-run] ' : '');
+
+const runSnapshotMaintenanceCommand = async (argv, {
+  execute,
+  toJson,
+  toText
+}) => {
+  try {
+    const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
+    const snapshotDefaults = resolveSnapshotDefaults(userConfig);
+    const result = await execute({ repoRoot, userConfig, snapshotDefaults });
+    if (argv.json) {
+      emitJson(toJson(result));
+    } else {
+      process.stderr.write(toText(result));
+    }
+  } catch (err) {
+    emitCliError(err, argv.json === true);
+    process.exitCode = 1;
+  }
+};
+
 export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
   const parser = yargs(rawArgs)
     .scriptName('index-snapshot')
@@ -137,10 +159,8 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
       .option('dry-run', { type: 'boolean', default: false })
       .option('json', { type: 'boolean', default: false }),
     async (argv) => {
-      try {
-        const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
-        const snapshotDefaults = resolveSnapshotDefaults(userConfig);
-        const result = await gcSnapshots({
+      await runSnapshotMaintenanceCommand(argv, {
+        execute: ({ repoRoot, userConfig, snapshotDefaults }) => gcSnapshots({
           repoRoot,
           userConfig,
           keepPointer: argv['keep-pointer'] ?? snapshotDefaults.keepPointer,
@@ -152,17 +172,10 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
           ),
           waitMs: argv['wait-ms'],
           dryRun: argv['dry-run'] === true
-        });
-        if (argv.json) {
-          emitJson({ ok: true, gc: result });
-        } else {
-          const prefix = result.dryRun ? '[dry-run] ' : '';
-          process.stderr.write(`${prefix}GC removed ${result.removed.length} snapshot(s)\n`);
-        }
-      } catch (err) {
-        emitCliError(err, argv.json === true);
-        process.exitCode = 1;
-      }
+        }),
+        toJson: (result) => ({ ok: true, gc: result }),
+        toText: (result) => `${formatDryRunPrefix(result)}GC removed ${result.removed.length} snapshot(s)\n`
+      });
     }
   );
 
@@ -176,26 +189,17 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
       .option('dry-run', { type: 'boolean', default: false })
       .option('json', { type: 'boolean', default: false }),
     async (argv) => {
-      try {
-        const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
-        const snapshotDefaults = resolveSnapshotDefaults(userConfig);
-        const result = await pruneSnapshots({
+      await runSnapshotMaintenanceCommand(argv, {
+        execute: ({ repoRoot, userConfig, snapshotDefaults }) => pruneSnapshots({
           repoRoot,
           userConfig,
           maxPointerSnapshots: argv['max-pointer-snapshots'] ?? snapshotDefaults.keepPointer,
           waitMs: argv['wait-ms'],
           dryRun: argv['dry-run'] === true
-        });
-        if (argv.json) {
-          emitJson({ ok: true, ...result });
-        } else {
-          const prefix = result.dryRun ? '[dry-run] ' : '';
-          process.stderr.write(`${prefix}Pruned ${result.removed.length} snapshot(s)\n`);
-        }
-      } catch (err) {
-        emitCliError(err, argv.json === true);
-        process.exitCode = 1;
-      }
+        }),
+        toJson: (result) => ({ ok: true, ...result }),
+        toText: (result) => `${formatDryRunPrefix(result)}Pruned ${result.removed.length} snapshot(s)\n`
+      });
     }
   );
 

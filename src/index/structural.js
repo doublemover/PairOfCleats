@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { readJsonFile, readJsonLinesArray } from '../shared/artifact-io.js';
+import { readJsonFile, readJsonLinesArray } from '../shared/artifact-io/json.js';
 import { normalizePathForRepo } from '../shared/path-normalize.js';
 
 const normalizePath = (repoRoot, rawPath) => (

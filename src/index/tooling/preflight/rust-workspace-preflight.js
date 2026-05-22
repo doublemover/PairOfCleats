@@ -6,27 +6,13 @@ import {
   classifyRustWorkspaceManifest
 } from '../rust-workspace-partitioning.js';
 import { runWorkspaceCommandPreflight } from './workspace-command-preflight.js';
+import {
+  formatWorkspacePartitionList as formatPartitionList,
+  toWorkspacePartitionScopedCheck as toPartitionScopedCheck
+} from './workspace-partition-checks.js';
 
 const DEFAULT_METADATA_ARGS = Object.freeze(['metadata', '--no-deps', '--format-version', '1']);
 const DEFAULT_METADATA_TIMEOUT_MS = 12000;
-
-const toPartitionScopedCheck = (check, partition) => {
-  if (!check || typeof check !== 'object') return null;
-  const rootRel = String(partition?.rootRel || '.').trim() || '.';
-  const message = String(check.message || '').trim();
-  return {
-    ...check,
-    message: message ? `${message} [partition=${rootRel}]` : `[partition=${rootRel}]`
-  };
-};
-
-const formatPartitionList = (partitions) => (
-  (Array.isArray(partitions) ? partitions : [])
-    .map((entry) => String(entry?.rootRel || '.'))
-    .filter(Boolean)
-    .slice(0, 4)
-    .join(', ')
-);
 
 const normalizeRustLanguages = (server) => {
   if (!Array.isArray(server?.languages)) return [];

@@ -1,10 +1,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import crypto from 'node:crypto';
-import { once } from 'node:events';
-import { Transform } from 'node:stream';
 import { createTempPath, replaceFile } from './atomic.js';
+import { createByteCounter } from './byte-counter.js';
 import { createFflateGzipStream, createZstdStream, normalizeHighWaterMark } from './compress.js';
 import { createAbortError } from './runtime.js';
 import { getEnvConfig } from '../env.js';
@@ -335,52 +333,6 @@ const createPreallocatedFileStream = (targetPath, highWaterMark, preallocateByte
 };
 
 /**
- * Build transform that counts bytes and optional checksum while enforcing cap.
- *
- * @param {number|null} maxBytes
- * @param {number|null} highWaterMark
- * @param {string|null} [checksumAlgo]
- * @returns {{counter:Transform,getBytes:()=>number,isOverLimit:()=>boolean,checksumAlgo:string|null,getChecksum:()=>string|null}}
- */
-const createByteCounter = (maxBytes, highWaterMark, checksumAlgo = null) => {
-  let bytes = 0;
-  let overLimit = false;
-  const resolvedChecksumAlgo = typeof checksumAlgo === 'string' && checksumAlgo.trim()
-    ? checksumAlgo.trim().toLowerCase()
-    : null;
-  const checksumHash = resolvedChecksumAlgo ? crypto.createHash(resolvedChecksumAlgo) : null;
-  let checksumValue = null;
-  const counter = new Transform({
-    ...(highWaterMark ? { highWaterMark } : {}),
-    transform(chunk, _encoding, callback) {
-      bytes += chunk.length;
-      if (Number.isFinite(Number(maxBytes)) && maxBytes > 0 && bytes > maxBytes) {
-        overLimit = true;
-        callback(new Error(`JSON stream exceeded maxBytes (${bytes} > ${maxBytes}).`));
-        return;
-      }
-      if (checksumHash) {
-        checksumHash.update(chunk);
-      }
-      callback(null, chunk);
-    }
-  });
-  return {
-    counter,
-    getBytes: () => bytes,
-    isOverLimit: () => overLimit,
-    checksumAlgo: resolvedChecksumAlgo,
-    getChecksum: () => {
-      if (!checksumHash) return null;
-      if (checksumValue == null) {
-        checksumValue = checksumHash.digest('hex');
-      }
-      return checksumValue;
-    }
-  };
-};
-
-/**
  * Create JSON write stream wrapper with compression/atomic/checksum options.
  *
  * @param {string} filePath
@@ -469,91 +421,8 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     if (counter && counter !== writer) counter.on('error', forwardToFile);
     fileStream.on('error', forwardToWriter);
   };
-  if (compression === 'gzip') {
-    const gzip = createFflateGzipStream(options);
-    writer = gzip;
-    writer[JSON_STREAM_WAIT_TIMEOUT_SYMBOL] = resolvedWaitTimeoutMs;
-    gzip.pipe(counter).pipe(fileStream);
-    streams.push(gzip, counter, fileStream);
-    attachPipelineErrorHandlers();
-    return {
-      stream: gzip,
-      getBytesWritten: getBytes,
-      checksumAlgo: resolvedChecksumAlgo,
-      getChecksum,
-      done: Promise.all([...new Set(streams)].map((entry) => (
-        waitForFinish(entry, entry === fileStream, resolvedWaitTimeoutMs, `json-stream.${entry === fileStream ? 'close' : 'finish'}`)
-      )))
-        .then(async () => {
-          if (isOverLimit()) {
-            throw new Error('JSON stream exceeded maxBytes.');
-          }
-          if (resolvedPreallocateBytes > 0) {
-            await fsPromises.truncate(targetPath, getBytes());
-          }
-          if (atomic) {
-            await replaceFile(targetPath, filePath);
-            committed = true;
-          }
-        })
-        .catch(async (err) => {
-          await removeTempFile();
-          throw err;
-        })
-        .finally(async () => {
-          if (atomic && !committed) {
-            await removeTempFile();
-          }
-          detachAbort();
-        })
-    };
-  }
-  if (compression === 'zstd') {
-    const zstd = createZstdStream(options);
-    writer = zstd;
-    writer[JSON_STREAM_WAIT_TIMEOUT_SYMBOL] = resolvedWaitTimeoutMs;
-    zstd.pipe(counter).pipe(fileStream);
-    streams.push(zstd, counter, fileStream);
-    attachPipelineErrorHandlers();
-    return {
-      stream: zstd,
-      getBytesWritten: getBytes,
-      checksumAlgo: resolvedChecksumAlgo,
-      getChecksum,
-      done: Promise.all([...new Set(streams)].map((entry) => (
-        waitForFinish(entry, entry === fileStream, resolvedWaitTimeoutMs, `json-stream.${entry === fileStream ? 'close' : 'finish'}`)
-      )))
-        .then(async () => {
-          if (isOverLimit()) {
-            throw new Error('JSON stream exceeded maxBytes.');
-          }
-          if (resolvedPreallocateBytes > 0) {
-            await fsPromises.truncate(targetPath, getBytes());
-          }
-          if (atomic) {
-            await replaceFile(targetPath, filePath);
-            committed = true;
-          }
-        })
-        .catch(async (err) => {
-          await removeTempFile();
-          throw err;
-        })
-        .finally(async () => {
-          if (atomic && !committed) {
-            await removeTempFile();
-          }
-          detachAbort();
-        })
-    };
-  }
-  writer = counter;
-  writer[JSON_STREAM_WAIT_TIMEOUT_SYMBOL] = resolvedWaitTimeoutMs;
-  counter.pipe(fileStream);
-  streams.push(counter, fileStream);
-  attachPipelineErrorHandlers();
-  return {
-    stream: counter,
+  const createWriteStreamResult = (stream) => ({
+    stream,
     getBytesWritten: getBytes,
     checksumAlgo: resolvedChecksumAlgo,
     getChecksum,
@@ -582,5 +451,29 @@ export const createJsonWriteStream = (filePath, options = {}) => {
         }
         detachAbort();
       })
-  };
+  });
+  if (compression === 'gzip') {
+    const gzip = createFflateGzipStream(options);
+    writer = gzip;
+    writer[JSON_STREAM_WAIT_TIMEOUT_SYMBOL] = resolvedWaitTimeoutMs;
+    gzip.pipe(counter).pipe(fileStream);
+    streams.push(gzip, counter, fileStream);
+    attachPipelineErrorHandlers();
+    return createWriteStreamResult(gzip);
+  }
+  if (compression === 'zstd') {
+    const zstd = createZstdStream(options);
+    writer = zstd;
+    writer[JSON_STREAM_WAIT_TIMEOUT_SYMBOL] = resolvedWaitTimeoutMs;
+    zstd.pipe(counter).pipe(fileStream);
+    streams.push(zstd, counter, fileStream);
+    attachPipelineErrorHandlers();
+    return createWriteStreamResult(zstd);
+  }
+  writer = counter;
+  writer[JSON_STREAM_WAIT_TIMEOUT_SYMBOL] = resolvedWaitTimeoutMs;
+  counter.pipe(fileStream);
+  streams.push(counter, fileStream);
+  attachPipelineErrorHandlers();
+  return createWriteStreamResult(counter);
 };

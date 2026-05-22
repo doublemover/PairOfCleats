@@ -14,12 +14,12 @@ import {
 import {
   createUint8ClampStats,
   dequantizeUint8ToFloat32,
-  isVectorEncodingCompatible,
+  formatVectorEncodingMismatchWarning,
   packUint32,
   packUint8,
   quantizeVec,
-  resolveEncodedVectorBytes,
   resolveVectorEncodingBytes,
+  resolveVectorEncodingCompatibility,
   toSqliteRowId
 } from '../vector.js';
 import { resolveQuantizationParams } from '../quantization.js';
@@ -641,19 +641,15 @@ export async function buildDatabaseFromBundles({
                 );
               const encoded = floatVec ? encodeVector(floatVec, vectorExtension) : null;
               if (encoded) {
-                const compatible = isVectorEncodingCompatible({
+                const compatibility = resolveVectorEncodingCompatibility({
                   encoded,
                   dims,
                   encoding: vectorExtension.encoding
                 });
-                if (!compatible) {
+                if (!compatibility.compatible) {
                   if (!vectorAnnInsertWarned) {
-                    const expectedBytes = resolveVectorEncodingBytes(dims, vectorExtension.encoding);
-                    const actualBytes = resolveEncodedVectorBytes(encoded);
                     warn(
-                      `[sqlite] Vector extension insert skipped for ${mode}: ` +
-                      `encoded length ${actualBytes ?? 'unknown'} != expected ${expectedBytes ?? 'unknown'} ` +
-                      `(dims=${dims}, encoding=${vectorExtension.encoding || 'float32'}).`
+                      formatVectorEncodingMismatchWarning({ mode, dims, ...compatibility })
                     );
                     vectorAnnInsertWarned = true;
                   }

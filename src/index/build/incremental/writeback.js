@@ -3,12 +3,14 @@ import path from 'node:path';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import {
   normalizeBundleFormat,
-  removeBundleWriteArtifacts,
   resolveBundleShardFilename,
-  resolveManifestBundleNames,
+  resolveManifestBundleNames
+} from '../../../shared/bundle-io-paths.js';
+import {
+  removeBundleWriteArtifacts,
   writeBundleFile
 } from '../../../shared/bundle-io.js';
-import { estimateJsonBytes } from '../../../shared/cache.js';
+import { estimateJsonBytes } from '../../../shared/cache/size.js';
 import {
   prioritizePendingCrossFileBundleUpdates,
   resolveIncrementalBundleUpdateConcurrency,

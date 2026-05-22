@@ -1,9 +1,8 @@
 import path from 'node:path';
-import { DEFAULT_MODEL_ID, getModelConfig, loadUserConfig } from '../../../shared/dict-utils.js';
+import { DEFAULT_MODEL_ID, getModelConfig } from '../../../shared/dict-utils.js';
 import { createProgressReporter, createStreamLineProgressForwarder } from '../../../../src/shared/progress-events.js';
-import { resolveRepoPath } from '../../repo.js';
 import { parseCountSummary, parseExtensionPath, runNodeAsync, runNodeSync, runToolWithProgress } from '../../runner.js';
-import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
+import { resolveMcpRepoContext, toolRoot } from '../helpers.js';
 
 /**
  * Handle the MCP download_models tool call.
@@ -11,9 +10,7 @@ import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
  * @returns {{model:string,output:string}}
  */
 export async function downloadModels(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const userConfig = loadUserConfig(repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, userConfig);
+  const { repoPath, userConfig, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const modelConfig = getModelConfig(repoPath, userConfig);
   const model = args.model || modelConfig.id || DEFAULT_MODEL_ID;
   const scriptArgs = [path.join(toolRoot, 'tools', 'download', 'models.js'), '--model', model, '--repo', repoPath];
@@ -37,8 +34,7 @@ export async function downloadModels(args = {}, context = {}) {
  * @returns {Promise<object>}
  */
 export async function downloadDictionaries(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const scriptArgs = [path.join(toolRoot, 'tools', 'download', 'dicts.js'), '--repo', repoPath];
   if (args.lang) scriptArgs.push('--lang', String(args.lang));
   const urls = Array.isArray(args.url) ? args.url : (args.url ? [args.url] : []);
@@ -68,8 +64,7 @@ export async function downloadDictionaries(args = {}, context = {}) {
  * @returns {Promise<object>}
  */
 export async function downloadExtensions(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const scriptArgs = [path.join(toolRoot, 'tools', 'download', 'extensions.js'), '--repo', repoPath];
   if (args.provider) scriptArgs.push('--provider', String(args.provider));
   if (args.dir) scriptArgs.push('--dir', String(args.dir));
@@ -104,8 +99,7 @@ export async function downloadExtensions(args = {}, context = {}) {
  * @returns {object}
  */
 export function verifyExtensions(args = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const scriptArgs = [path.join(toolRoot, 'tools', 'sqlite', 'verify-extensions.js'), '--json', '--repo', repoPath];
   if (args.provider) scriptArgs.push('--provider', String(args.provider));
   if (args.dir) scriptArgs.push('--dir', String(args.dir));

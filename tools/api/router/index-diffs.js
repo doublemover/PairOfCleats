@@ -3,22 +3,7 @@ import { listDiffs, showDiff } from '../../../src/index/diffs/compute.js';
 import { loadUserConfig } from '../../shared/dict-utils.js';
 import { redactAbsolutePaths } from '../redact.js';
 import { sendError, sendJson } from '../response.js';
-import { resolveRepoOrSendError } from './request-helpers.js';
-
-const parseStringList = (value) => {
-  if (Array.isArray(value)) {
-    return value
-      .map((entry) => String(entry || '').trim())
-      .filter(Boolean);
-  }
-  if (typeof value === 'string') {
-    return value
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-  }
-  return [];
-};
+import { decodeRoutePathSegment, parseStringList, resolveRepoOrSendError } from './request-helpers.js';
 
 const parseStringListFromSearchParams = (searchParams, keys) => {
   const values = [];
@@ -122,23 +107,6 @@ const shapeDiffEvents = (events, options) => {
   return bounded;
 };
 
-/**
- * Decode diff id path segments and convert malformed URI encoding into a
- * consistent INVALID_REQUEST error.
- *
- * @param {string} rawValue
- * @returns {string}
- */
-const decodeDiffId = (rawValue) => {
-  try {
-    return decodeURIComponent(rawValue || '');
-  } catch {
-    const err = new Error('Invalid diff id: malformed URI encoding.');
-    err.code = ERROR_CODES.INVALID_REQUEST;
-    throw err;
-  }
-};
-
 export const handleIndexDiffsRoute = async ({
   req,
   res,
@@ -195,7 +163,7 @@ export const handleIndexDiffsRoute = async ({
   const parts = suffix.split('/').filter(Boolean);
   let diffId = '';
   try {
-    diffId = decodeDiffId(parts[0] || '');
+    diffId = decodeRoutePathSegment(parts[0] || '', 'diff id');
   } catch (err) {
     sendError(res, 400, ERROR_CODES.INVALID_REQUEST, err?.message || 'Invalid diff id.', {}, corsHeaders || {});
     return true;

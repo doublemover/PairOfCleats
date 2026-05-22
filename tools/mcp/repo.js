@@ -3,10 +3,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import simpleGit from 'simple-git';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
-import { getEnvConfig } from '../../src/shared/env.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
 import { getAtomicWriteDurabilityStatus } from '../../src/shared/io/atomic-write.js';
-import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
 import {
   getCacheRoot,
   getDictConfig,

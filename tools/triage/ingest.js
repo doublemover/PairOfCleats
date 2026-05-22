@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
+import { spawnSubprocessSync } from '../../src/shared/subprocess/runner.js';
 import { createCli } from '../../src/shared/cli.js';
 import {
   getRuntimeConfig,
@@ -14,9 +14,8 @@ import { exitLikeCommandResult } from '../shared/cli-utils.js';
 import { normalizeDependabot } from '../../src/integrations/triage/normalize/dependabot.js';
 import { normalizeAwsInspector } from '../../src/integrations/triage/normalize/aws-inspector.js';
 import { normalizeGeneric } from '../../src/integrations/triage/normalize/generic.js';
-import { renderRecordMarkdown } from '../../src/integrations/triage/render.js';
 import { parseMetaArgs } from '../shared/input-parsers.js';
-import { resolveRecordArtifactPathSafe } from './context-pack-paths.js';
+import { writeTriageRecordArtifacts } from './record-writer.js';
 
 const argv = createCli({
   scriptName: 'triage-ingest',
@@ -65,8 +64,6 @@ async function main() {
   const { entries: rawEntries, audit } = await loadInputEntries(inputPath, {
     strict: argv.strict === true
   });
-  await fsPromises.mkdir(triageConfig.recordsDir, { recursive: true });
-
   const results = {
     source,
     repoRoot,
@@ -90,13 +87,7 @@ async function main() {
       if (!record || !record.recordId) {
         throw new Error('Record normalization failed or missing recordId');
       }
-      const jsonPath = resolveRecordArtifactPathSafe(triageConfig.recordsDir, record.recordId, '.json');
-      const mdPath = resolveRecordArtifactPathSafe(triageConfig.recordsDir, record.recordId, '.md');
-      if (!jsonPath || !mdPath) {
-        throw new Error(`Invalid recordId path: ${record.recordId}`);
-      }
-      await fsPromises.writeFile(jsonPath, JSON.stringify(record, null, 2));
-      await fsPromises.writeFile(mdPath, renderRecordMarkdown(record));
+      const { jsonPath, mdPath } = await writeTriageRecordArtifacts(triageConfig.recordsDir, record);
       results.recordIds.push(record.recordId);
       results.records.push({
         recordId: record.recordId,

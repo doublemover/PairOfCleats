@@ -1,5 +1,6 @@
 import fsSync from 'node:fs';
-import { readBundleFile, resolveManifestBundleNames } from '../../../../shared/bundle-io.js';
+import { resolveManifestBundleNames } from '../../../../shared/bundle-io-paths.js';
+import { readBundleFile } from '../../../../shared/bundle-io.js';
 import { toArray } from '../../../../shared/iterables.js';
 import { joinPathSafe } from '../../../../shared/path-normalize.js';
 import {

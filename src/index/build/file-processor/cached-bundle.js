@@ -1,9 +1,13 @@
-import { normalizeBundleFormat, resolveBundleShardFilename, resolveManifestBundleNames } from '../../../shared/bundle-io.js';
+import {
+  normalizeBundleFormat,
+  resolveBundleShardFilename,
+  resolveManifestBundleNames
+} from '../../../shared/bundle-io-paths.js';
 import { buildMetaV2 } from '../../metadata-v2.js';
 import { applyStructuralMatchesToChunks } from './chunk.js';
 import { pickMinLimit, resolveFileCaps } from './read.js';
 import { stripFileRelations } from './relations.js';
-import { log } from '../../../shared/progress.js';
+import { log } from '../../../shared/progress-runtime.js';
 import { buildPostingsPayloadMetadata } from '../postings-payload.js';
 
 /**

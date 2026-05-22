@@ -3,8 +3,9 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getCacheRoot } from '../../../shared/cache-roots.js';
 import { isTestingEnv } from '../../../shared/env/testing.js';
-import { readJsonFile } from '../../../shared/artifact-io.js';
-import { writeJsonLinesFile, writeJsonObjectFile } from '../../../shared/json-stream.js';
+import { readJsonFile } from '../../../shared/artifact-io/json.js';
+import { writeJsonLinesFile } from '../../../shared/json-stream/jsonl-write.js';
+import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
 import { readJsonlRows } from '../../../shared/merge.js';
 import {
   VFS_COLD_START_DATA,

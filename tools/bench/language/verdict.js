@@ -1,5 +1,7 @@
 import fsPromises from 'node:fs/promises';
 
+import { sumDiagnosticCounts } from './diagnostics.js';
+
 export const BENCH_VERDICT_SCHEMA_VERSION = 1;
 export const BENCH_POLICY_SCHEMA_VERSION = 1;
 export const BENCH_WAIVER_SCHEMA_VERSION = 1;
@@ -52,40 +54,6 @@ const countMapToObject = (map) => Object.fromEntries(
 const incrementCount = (map, key, value = 1) => {
   if (!(map instanceof Map) || !key) return;
   map.set(key, (map.get(key) || 0) + value);
-};
-
-const sumDiagnosticCounts = (entry) => {
-  const sources = [
-    entry?.diagnostics?.process?.countsByType,
-    entry?.diagnostics?.countsByType
-  ];
-  const out = {};
-  for (const source of sources) {
-    if (!source || typeof source !== 'object' || Array.isArray(source)) continue;
-    for (const [key, value] of Object.entries(source)) {
-      const count = Number(value);
-      if (!Number.isFinite(count) || count <= 0) continue;
-      out[key] = (out[key] || 0) + count;
-    }
-  }
-  return out;
-};
-
-const sumDiagnosticSeverityCounts = (entry) => {
-  const sources = [
-    entry?.diagnostics?.process?.countsBySeverity,
-    entry?.diagnostics?.countsBySeverity
-  ];
-  const out = {};
-  for (const source of sources) {
-    if (!source || typeof source !== 'object' || Array.isArray(source)) continue;
-    for (const [key, value] of Object.entries(source)) {
-      const count = Number(value);
-      if (!Number.isFinite(count) || count <= 0) continue;
-      out[key] = (out[key] || 0) + count;
-    }
-  }
-  return out;
 };
 
 const listDegradationClasses = (entry) => Object.entries(sumDiagnosticCounts(entry))
@@ -443,7 +411,7 @@ export const evaluateBenchVerdict = ({ tasks, policy, methodology = null }) => {
     for (const diagnosticType of taskStatus.degradationClasses) {
       incrementCount(diagnosticTypeCounts, diagnosticType);
     }
-    for (const [severity, count] of Object.entries(sumDiagnosticSeverityCounts(entry))) {
+    for (const [severity, count] of Object.entries(sumDiagnosticCounts(entry, 'countsBySeverity'))) {
       incrementCount(diagnosticSeverityCounts, severity, count);
     }
     const taskEntry = { ...entry, taskStatus };

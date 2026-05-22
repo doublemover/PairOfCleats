@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { isAbsolutePathNative } from '../files.js';
+import { isAbsolutePathNative } from '../file-paths.js';
 import { isWithinRoot, normalizeIdentityPath, toRealPathSync } from '../../workspace/identity.js';
 
 export const DEFAULT_BUILD_MODES = Object.freeze(['code', 'prose', 'extracted-prose', 'records']);

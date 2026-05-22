@@ -2,17 +2,15 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline';
-import { log } from '../../../../shared/progress.js';
-import { MAX_JSON_BYTES } from '../../../../shared/artifact-io.js';
+import { log } from '../../../../shared/progress-runtime.js';
+import { MAX_JSON_BYTES } from '../../../../shared/artifact-io/constants.js';
 import { ensureDiskSpace } from '../../../../shared/disk-space.js';
-import {
-  writeJsonLinesFile,
-  writeJsonLinesSharded,
-  writeJsonObjectFile
-} from '../../../../shared/json-stream.js';
+import { writeJsonLinesFile } from '../../../../shared/json-stream/jsonl-write.js';
+import { writeJsonLinesSharded } from '../../../../shared/json-stream/jsonl-sharded.js';
+import { writeJsonObjectFile } from '../../../../shared/json-stream/json-writers.js';
 import { stringifyJsonValue } from '../../../../shared/json-stream/encode.js';
 import { createJsonWriteStream, writeChunk } from '../../../../shared/json-stream/streams.js';
-import { fromPosix } from '../../../../shared/files.js';
+import { fromPosix } from '../../../../shared/file-paths.js';
 import { createBloomFilter, encodeBloomFilter } from '../../../../shared/bloom.js';
 import { mergeSortedRuns, readJsonlRows } from '../../../../shared/merge.js';
 import {

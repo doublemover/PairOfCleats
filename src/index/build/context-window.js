@@ -3,7 +3,7 @@ import { smartChunk } from '../chunking.js';
 import { buildLanguageContext } from '../language-registry.js';
 import { resolveSpecialCodeExt } from '../constants.js';
 import { readTextFile } from '../../shared/encoding.js';
-import { fileExt, toPosix } from '../../shared/files.js';
+import { fileExt, toPosix } from '../../shared/file-paths.js';
 
 /**
  * Estimate context window size from sampled chunk lengths.

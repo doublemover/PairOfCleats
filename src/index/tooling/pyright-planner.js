@@ -1,33 +1,18 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { readJsonFileSafe } from '../../shared/files.js';
+import { readJsonFileSafe } from '../../shared/file-read.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { classifyLspDocumentPathPolicy } from '../../integrations/tooling/providers/lsp/path-policy.js';
-import { findWorkspaceMarkersNearPaths } from './workspace-model.js';
+import {
+  findWorkspaceMarkersNearPaths,
+  normalizeVirtualWorkspacePath,
+  normalizeWorkspaceRootRel
+} from './workspace-model.js';
 
 const PYRIGHT_WORKSPACE_MARKER_OPTIONS = Object.freeze({
   exactNames: Object.freeze(['pyrightconfig.json', 'pyproject.toml', 'setup.py', 'setup.cfg', 'requirements.txt'])
 });
-
-const normalizeWorkspaceRootRel = (value) => {
-  const normalized = String(value || '.')
-    .replace(/\\/g, '/')
-    .replace(/^\/+/, '')
-    .replace(/\/+/g, '/')
-    .replace(/\/$/, '');
-  return normalized || '.';
-};
-
-const normalizeVirtualPath = (value) => (
-  String(value || '')
-    .trim()
-    .replace(/\\/g, '/')
-    .replace(/^\/+/, '')
-    .replace(/^\.poc-vfs\/+/iu, '')
-    .replace(/^poc-vfs\/+/iu, '')
-    .replace(/#.*$/u, '')
-);
 
 const countSymbolSeeds = (text) => {
   const source = String(text || '');
@@ -149,7 +134,7 @@ const resolveWorkspaceRootRelForDoc = ({
   virtualPath,
   workspaceRootByVirtualPath = null
 }) => {
-  const normalizedPath = normalizeVirtualPath(virtualPath);
+  const normalizedPath = normalizeVirtualWorkspacePath(virtualPath);
   if (!normalizedPath) return '.';
   if (workspaceRootByVirtualPath && typeof workspaceRootByVirtualPath === 'object') {
     const explicit = workspaceRootByVirtualPath[virtualPath] || workspaceRootByVirtualPath[normalizedPath];

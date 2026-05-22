@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { createLruCache, estimateJsonBytes } from '../../../../../shared/cache.js';
+import { createLruCache } from '../../../../../shared/cache/lru.js';
+import { estimateJsonBytes } from '../../../../../shared/cache/size.js';
 import { atomicWriteJson } from '../../../../../shared/io/atomic-write.js';
 import { normalizeExtractedProseYieldProfilePrefilterConfig } from '../../../../chunking/formats/document-common.js';
 

@@ -1,6 +1,116 @@
 import { normalizePath } from '../utils.js';
 import { resolveMemberByName } from './symbols.js';
 
+const internValue = (intern, value) => (intern ? intern(value) : value);
+
+const resolveRelationSource = ({ chunk, memberById, memberByChunkUid, intern }) => {
+  if (!chunk?.file || !chunk?.name) return null;
+  const sourceChunkUid = chunk.metaV2?.chunkUid || chunk.chunkUid || null;
+  const sourceId = sourceChunkUid ? memberByChunkUid?.get(sourceChunkUid) : null;
+  if (!sourceId || !memberById.has(sourceId)) return null;
+  const sourceMember = memberById.get(sourceId) || null;
+  return {
+    sourceId,
+    sourceFile: internValue(intern, sourceMember?.file || null)
+  };
+};
+
+const resolveRelationLinkTargetId = ({
+  link,
+  memberIndex,
+  memberByChunkUid,
+  aliasById,
+  fallbackFile = null
+}) => {
+  const ref = link?.to || link?.ref || null;
+  const resolvedUid = ref?.status === 'resolved' ? ref?.resolved?.chunkUid : null;
+  let targetId = resolvedUid ? memberByChunkUid?.get(resolvedUid) : null;
+  if (!targetId && resolvedUid) targetId = aliasById?.get(resolvedUid) || null;
+  if (!targetId && link?.legacy?.target) {
+    const legacyFile = link?.legacy?.file || fallbackFile;
+    if (legacyFile) {
+      targetId = resolveMemberByName(memberIndex, link.legacy.target, normalizePath(legacyFile))?.id || null;
+    }
+  }
+  return targetId;
+};
+
+const buildMemberEdge = ({
+  type,
+  sourceId,
+  sourceFile,
+  targetId,
+  targetMember = null,
+  memberById,
+  intern
+}) => {
+  const resolvedTargetMember = targetMember || memberById.get(targetId) || null;
+  const targetFile = internValue(intern, resolvedTargetMember?.file || null);
+  return {
+    type,
+    from: { member: sourceId, file: sourceFile },
+    to: { member: targetId, file: targetFile },
+    label: null
+  };
+};
+
+function* buildEdgesFromCodeRelations({
+  chunkMeta,
+  memberIndex,
+  memberById,
+  memberByChunkUid,
+  aliasById = null,
+  intern = null,
+  type,
+  linksKey,
+  legacyKey,
+  resolveLegacyTargetName
+}) {
+  const resolvedType = internValue(intern, type);
+  for (const chunk of chunkMeta || []) {
+    const source = resolveRelationSource({ chunk, memberById, memberByChunkUid, intern });
+    if (!source) continue;
+    const relations = chunk.codeRelations || {};
+    const links = Array.isArray(relations[linksKey]) ? relations[linksKey] : null;
+    if (links) {
+      for (const link of links) {
+        const targetId = resolveRelationLinkTargetId({
+          link,
+          memberIndex,
+          memberByChunkUid,
+          aliasById
+        });
+        if (!targetId) continue;
+        yield buildMemberEdge({
+          type: resolvedType,
+          sourceId: source.sourceId,
+          sourceFile: source.sourceFile,
+          targetId,
+          memberById,
+          intern
+        });
+      }
+      continue;
+    }
+    if (!Array.isArray(relations[legacyKey])) continue;
+    for (const entry of relations[legacyKey]) {
+      const targetName = resolveLegacyTargetName(entry);
+      if (!targetName) continue;
+      const targetMember = resolveMemberByName(memberIndex, targetName, normalizePath(chunk.file));
+      if (!targetMember) continue;
+      yield buildMemberEdge({
+        type: resolvedType,
+        sourceId: source.sourceId,
+        sourceFile: source.sourceFile,
+        targetId: targetMember.id,
+        targetMember,
+        memberById,
+        intern
+      });
+    }
+  }
+}
+
 export function* buildEdgesFromGraph({
   graph,
   type,
@@ -50,54 +160,18 @@ export function* buildEdgesFromCalls({
   aliasById = null,
   intern = null
 }) {
-  const resolvedType = intern ? intern('call') : 'call';
-  for (const chunk of chunkMeta || []) {
-    if (!chunk?.file || !chunk?.name) continue;
-    const sourceChunkUid = chunk.metaV2?.chunkUid || chunk.chunkUid || null;
-    const sourceId = sourceChunkUid ? memberByChunkUid?.get(sourceChunkUid) : null;
-    if (!sourceId) continue;
-    const sourceMember = memberById.get(sourceId) || null;
-    if (!memberById.has(sourceId)) continue;
-    const sourceFile = intern ? intern(sourceMember?.file || null) : sourceMember?.file || null;
-    const relations = chunk.codeRelations || {};
-    const links = Array.isArray(relations.callLinks) ? relations.callLinks : null;
-    if (links) {
-      for (const link of links) {
-        const ref = link?.to || link?.ref || null;
-        const resolvedUid = ref?.status === 'resolved' ? ref?.resolved?.chunkUid : null;
-        let targetId = resolvedUid ? memberByChunkUid?.get(resolvedUid) : null;
-        if (!targetId && resolvedUid) targetId = aliasById?.get(resolvedUid) || null;
-        if (!targetId && link?.legacy?.target && link?.legacy?.file) {
-          targetId = resolveMemberByName(memberIndex, link.legacy.target, normalizePath(link.legacy.file))?.id || null;
-        }
-        if (!targetId) continue;
-        const targetMember = memberById.get(targetId) || null;
-        const targetFile = intern ? intern(targetMember?.file || null) : targetMember?.file || null;
-        yield {
-          type: resolvedType,
-          from: { member: sourceId, file: sourceFile },
-          to: { member: targetId, file: targetFile },
-          label: null
-        };
-      }
-      continue;
-    }
-    if (Array.isArray(relations.calls)) {
-      for (const entry of relations.calls) {
-        const targetName = Array.isArray(entry) ? entry[1] : null;
-        if (!targetName) continue;
-        const targetMember = resolveMemberByName(memberIndex, targetName, normalizePath(chunk.file));
-        if (!targetMember) continue;
-        const targetFile = intern ? intern(targetMember?.file || null) : targetMember?.file || null;
-        yield {
-          type: resolvedType,
-          from: { member: sourceId, file: sourceFile },
-          to: { member: targetMember.id, file: targetFile },
-          label: null
-        };
-      }
-    }
-  }
+  yield* buildEdgesFromCodeRelations({
+    chunkMeta,
+    memberIndex,
+    memberById,
+    memberByChunkUid,
+    aliasById,
+    intern,
+    type: 'call',
+    linksKey: 'callLinks',
+    legacyKey: 'calls',
+    resolveLegacyTargetName: (entry) => (Array.isArray(entry) ? entry[1] : null)
+  });
 }
 
 export function* buildEdgesFromUsage({
@@ -108,52 +182,18 @@ export function* buildEdgesFromUsage({
   aliasById = null,
   intern = null
 }) {
-  const resolvedType = intern ? intern('usage') : 'usage';
-  for (const chunk of chunkMeta || []) {
-    if (!chunk?.file || !chunk?.name) continue;
-    const sourceChunkUid = chunk.metaV2?.chunkUid || chunk.chunkUid || null;
-    const sourceId = sourceChunkUid ? memberByChunkUid?.get(sourceChunkUid) : null;
-    if (!sourceId) continue;
-    const sourceMember = memberById.get(sourceId) || null;
-    if (!memberById.has(sourceId)) continue;
-    const sourceFile = intern ? intern(sourceMember?.file || null) : sourceMember?.file || null;
-    const relations = chunk.codeRelations || {};
-    const links = Array.isArray(relations.usageLinks) ? relations.usageLinks : null;
-    if (links) {
-      for (const link of links) {
-        const ref = link?.to || link?.ref || null;
-        const resolvedUid = ref?.status === 'resolved' ? ref?.resolved?.chunkUid : null;
-        let targetId = resolvedUid ? memberByChunkUid?.get(resolvedUid) : null;
-        if (!targetId && resolvedUid) targetId = aliasById?.get(resolvedUid) || null;
-        if (!targetId && link?.legacy?.target && link?.legacy?.file) {
-          targetId = resolveMemberByName(memberIndex, link.legacy.target, normalizePath(link.legacy.file))?.id || null;
-        }
-        if (!targetId) continue;
-        const targetMember = memberById.get(targetId) || null;
-        const targetFile = intern ? intern(targetMember?.file || null) : targetMember?.file || null;
-        yield {
-          type: resolvedType,
-          from: { member: sourceId, file: sourceFile },
-          to: { member: targetId, file: targetFile },
-          label: null
-        };
-      }
-      continue;
-    }
-    if (Array.isArray(relations.usages)) {
-      for (const usage of relations.usages) {
-        const targetMember = resolveMemberByName(memberIndex, usage, normalizePath(chunk.file));
-        if (!targetMember) continue;
-        const targetFile = intern ? intern(targetMember?.file || null) : targetMember?.file || null;
-        yield {
-          type: resolvedType,
-          from: { member: sourceId, file: sourceFile },
-          to: { member: targetMember.id, file: targetFile },
-          label: null
-        };
-      }
-    }
-  }
+  yield* buildEdgesFromCodeRelations({
+    chunkMeta,
+    memberIndex,
+    memberById,
+    memberByChunkUid,
+    aliasById,
+    intern,
+    type: 'usage',
+    linksKey: 'usageLinks',
+    legacyKey: 'usages',
+    resolveLegacyTargetName: (usage) => usage
+  });
 }
 
 export function* buildEdgesFromCallSummaries({ chunkMeta, memberById, memberByChunkUid, intern = null }) {

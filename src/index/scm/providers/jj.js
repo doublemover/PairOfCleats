@@ -3,10 +3,11 @@ import path from 'node:path';
 import PQueue from 'p-queue';
 import { runScmCommand } from '../runner.js';
 import { getScmRuntimeConfig } from '../runtime.js';
-import { toPosix } from '../../../shared/files.js';
+import { toUniqueRepoPosixFiles } from '../paths.js';
+import { toPosix } from '../../../shared/file-paths.js';
 import { findUpwards } from '../../../shared/fs/find-upwards.js';
 import { createWarnOnce } from '../../../shared/logging/warn-once.js';
-import { log } from '../../../shared/progress.js';
+import { log } from '../../../shared/progress-runtime.js';
 import {
   normalizeJjPathList,
   parseJjFileListOutput,
@@ -281,21 +282,10 @@ const toJjFileset = (relPath) => {
   return `root-file:"${escaped}"`;
 };
 
-const toUniquePosixFiles = (filesPosix = [], repoRoot = null) => {
-  const out = [];
-  const seen = new Set();
-  for (const raw of Array.isArray(filesPosix) ? filesPosix : []) {
-    const normalized = toPosix(String(raw || ''));
-    if (!normalized) continue;
-    const key = repoRoot
-      ? toPosix(path.relative(repoRoot, path.join(repoRoot, normalized)))
-      : normalized;
-    if (!key || key.startsWith('../') || seen.has(key)) continue;
-    seen.add(key);
-    out.push(key);
-  }
-  return out;
-};
+const toUniquePosixFiles = (filesPosix = [], repoRoot = null) => toUniqueRepoPosixFiles(filesPosix, {
+  repoRoot,
+  rejectEscape: Boolean(repoRoot)
+});
 
 export const jjProvider = {
   name: 'jj',

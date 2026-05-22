@@ -2,7 +2,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { getTestEnvConfig } from '../../../src/shared/env/testing.js';
 import { sha1 } from '../../../src/shared/hash.js';
-import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess.js';
+import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess/runner.js';
 import { updateSqliteDense } from './sqlite-dense.js';
 
 const CHILD_ENV = 'PAIROFCLEATS_SQLITE_DENSE_CHILD';

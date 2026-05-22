@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { acquireFileLock } from '../../src/shared/locks/file-lock.js';
 import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
 import { resolveQueueLeasePolicy } from './lease-policy.js';
 import { buildQueueJobIdempotencyKey } from './queue-idempotency.js';
@@ -38,6 +37,14 @@ const ALLOWED_TRANSITIONS = Object.freeze({
   failed: new Set()
 });
 
+let fileLockModulePromise = null;
+
+const acquireQueueFileLock = async (options) => {
+  fileLockModulePromise ??= import('../../src/shared/locks/file-lock.js');
+  const fileLockModule = await fileLockModulePromise;
+  return fileLockModule.acquireFileLock(options);
+};
+
 const readJson = async (filePath, fallback) => {
   try {
     const raw = await fs.readFile(filePath, 'utf8');
@@ -50,7 +57,7 @@ const readJson = async (filePath, fallback) => {
 const withLock = async (lockPath, worker) => {
   let lock = null;
   try {
-    lock = await acquireFileLock({
+    lock = await acquireQueueFileLock({
       lockPath,
       waitMs: 5000,
       pollMs: 100,

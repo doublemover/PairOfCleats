@@ -1,6 +1,32 @@
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { sendError } from '../response.js';
 
+export const parseStringList = (value) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => String(entry || '').trim())
+      .filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
+export const decodeRoutePathSegment = (rawValue, label) => {
+  try {
+    return decodeURIComponent(rawValue || '');
+  } catch {
+    const normalizedLabel = String(label || 'path segment').trim() || 'path segment';
+    const err = new Error(`Invalid ${normalizedLabel}: malformed URI encoding.`);
+    err.code = ERROR_CODES.INVALID_REQUEST;
+    throw err;
+  }
+};
+
 export const classifyBodyParseError = (err, fallbackMessage = 'Invalid request body.') => ({
   status: err?.code === 'ERR_BODY_TOO_LARGE'
     ? 413

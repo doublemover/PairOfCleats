@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { MAX_JSON_BYTES, readJsonFile } from '../../../shared/artifact-io.js';
+import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
+import { readJsonFile } from '../../../shared/artifact-io/json.js';
 import { buildIndexSignature } from '../../index-cache.js';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import {

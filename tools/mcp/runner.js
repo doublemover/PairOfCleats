@@ -1,4 +1,4 @@
-import { spawnSubprocess, spawnSubprocessSync } from '../../src/shared/subprocess.js';
+import { spawnSubprocess, spawnSubprocessSync } from '../../src/shared/subprocess/runner.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import { incTimeout } from '../../src/shared/metrics/core.js';
 import { createProgressReporter, createStreamLineProgressForwarder } from '../../src/shared/progress-events.js';

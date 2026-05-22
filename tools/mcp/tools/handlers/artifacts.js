@@ -1,9 +1,7 @@
 import path from 'node:path';
 import { status as coreStatus } from '../../../../src/integrations/core/index.js';
-import { loadUserConfig } from '../../../shared/dict-utils.js';
-import { resolveRepoPath } from '../../repo.js';
 import { runNodeSync, runToolWithProgress } from '../../runner.js';
-import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
+import { resolveMcpRepoContext, toolRoot } from '../helpers.js';
 
 /**
  * Handle the MCP cache_gc tool call.
@@ -11,8 +9,7 @@ import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
  * @returns {object}
  */
 export function cacheGc(args = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const scriptArgs = [path.join(toolRoot, 'tools', 'index', 'cache-gc.js'), '--json', '--repo', repoPath];
   if (args.dryRun === true) scriptArgs.push('--dry-run');
   if (Number.isFinite(Number(args.maxBytes))) scriptArgs.push('--max-bytes', String(args.maxBytes));
@@ -32,8 +29,7 @@ export function cacheGc(args = {}) {
  * @returns {Promise<object>}
  */
 export async function cleanArtifacts(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const scriptArgs = [path.join(toolRoot, 'tools', 'index', 'clean-artifacts.js'), '--repo', repoPath];
   if (args.all === true) scriptArgs.push('--all');
   if (args.dryRun === true) scriptArgs.push('--dry-run');
@@ -54,6 +50,9 @@ export async function cleanArtifacts(args = {}, context = {}) {
  * @returns {object}
  */
 export async function reportArtifacts(args = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
+  const { repoPath } = resolveMcpRepoContext(args.repoPath, {
+    includeRuntimeEnv: false,
+    includeUserConfig: false
+  });
   return coreStatus(repoPath);
 }

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import readline from 'node:readline';
-import { registerChildProcessForCleanup } from '../../src/shared/subprocess.js';
+import { registerChildProcessForCleanup } from '../../src/shared/subprocess/tracking.js';
 import { killChildProcessTree } from '../../src/shared/kill-tree.js';
 
 const toTimeoutMs = (value, fallback = null) => {

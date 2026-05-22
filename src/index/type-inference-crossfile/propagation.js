@@ -20,7 +20,7 @@ import {
   updateBundleSizing
 } from './bundler.js';
 import { throwIfAborted } from '../../shared/abort.js';
-import { runWithConcurrency } from '../../shared/concurrency.js';
+import { runWithConcurrency } from '../../shared/concurrency/run-with-queue.js';
 
 const LARGE_REPO_CHUNK_THRESHOLD = 3000;
 const LARGE_REPO_FILE_THRESHOLD = 500;

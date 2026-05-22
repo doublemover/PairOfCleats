@@ -1,12 +1,12 @@
 import path from 'node:path';
 import {
   acquireFileLock,
-  readLockInfo,
-  releaseFileLockOrThrow,
-  removeLockFileSyncIfOwned
+  readLockInfo
 } from '../shared/locks/file-lock.js';
-import { attachCleanupSignalHandlers } from '../shared/process-signals.js';
-import { runBuildCleanupWithTimeout } from './build/cleanup-timeout.js';
+import {
+  attachLockSignalCleanup,
+  createLockReleaseHandle
+} from './lock-release.js';
 
 const DEFAULT_STALE_MS = 30 * 60 * 1000;
 
@@ -54,54 +54,12 @@ export async function acquireRegistryLock({
     return null;
   }
 
-  let released = false;
-  const handlers = [];
-  const cleanupSync = () => {
-    if (released) return;
-    removeLockFileSyncIfOwned(lockPath, lock.payload);
-    released = true;
-  };
-  const registerHandler = (event, handler) => {
-    process.once(event, handler);
-    handlers.push({ event, handler });
-  };
-  const detachHandlers = () => {
-    for (const entry of handlers) {
-      process.off(entry.event, entry.handler);
-    }
-    handlers.length = 0;
-  };
-  registerHandler('exit', cleanupSync);
-
-  const publicLock = {
+  return createLockReleaseHandle({
+    lock,
     lockPath,
-    payload: lock.payload,
-    signalCleaned: false,
-    _onSignalCleanup: () => {
-      if (released) return;
-      released = true;
-      publicLock.signalCleaned = true;
-      detachHandlers();
-    },
-    release: async () => {
-      if (!released) {
-        if (publicLock.signalCleaned === true) {
-          released = true;
-        } else {
-          await runBuildCleanupWithTimeout({
-            label: `${normalizedDomain}-lock.release`,
-            cleanup: () => releaseFileLockOrThrow(lock),
-            log,
-            swallowTimeout: false
-          });
-          released = true;
-        }
-      }
-      detachHandlers();
-      return true;
-    }
-  };
-  return publicLock;
+    releaseLabel: `${normalizedDomain}-lock.release`,
+    log
+  });
 }
 
 export async function readRegistryLockInfo(repoCacheRoot, domain) {
@@ -116,16 +74,7 @@ export function attachRegistryLockSignalCleanup(
     reemitSignal = null
   } = {}
 ) {
-  if (!lock?.lockPath || !lock?.payload) return () => {};
-  const cleanupSync = () => {
-    const removed = removeLockFileSyncIfOwned(lock.lockPath, lock.payload);
-    if (removed) {
-      lock.signalCleaned = true;
-      lock._onSignalCleanup?.();
-    }
-  };
-  return attachCleanupSignalHandlers({
-    cleanup: cleanupSync,
+  return attachLockSignalCleanup(lock, {
     signals,
     preserveDefaultTermination,
     reemitSignal

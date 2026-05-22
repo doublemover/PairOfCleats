@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import zlib from 'node:zlib';
 import { compareStrings } from '../../../shared/sort.js';
-import { createLruCache } from '../../../shared/cache.js';
+import { createLruCache } from '../../../shared/cache/lru.js';
 import { sha1 } from '../../../shared/hash.js';
 import { readJsonlRows } from '../../../shared/merge.js';
 import { coercePositiveIntMinOne } from '../../../shared/number-coerce.js';

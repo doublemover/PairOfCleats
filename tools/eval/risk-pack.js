@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { createCli } from '../../src/shared/cli.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { buildCompositeContextPackPayload } from '../../src/integrations/tooling/context-pack.js';
 
 const average = (values) => {
@@ -148,7 +148,7 @@ export const evaluateRiskPackDataset = async ({
   };
 };
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+if (isDirectExecution(import.meta.url)) {
   const argv = createCli({
     scriptName: 'eval-risk-pack',
     options: {

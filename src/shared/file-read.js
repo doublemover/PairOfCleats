@@ -7,6 +7,21 @@ const normalizeJsonReadOptions = (options) => (
     : { fallback: options }
 );
 
+const createJsonReadErrorEmitter = ({ filePath, onError, sync }) => (phase, error) => {
+  if (typeof onError !== 'function') return;
+  try {
+    onError({ path: String(filePath), error, phase, sync });
+  } catch {}
+};
+
+const createJsonFileTooLargeError = ({ size, maxBytes }) => {
+  const error = new Error(
+    `JSON file exceeds maxBytes (${Number(size)} > ${Number(maxBytes)})`
+  );
+  error.code = 'ERR_JSON_FILE_TOO_LARGE';
+  return error;
+};
+
 export function readFileRangeSync(filePath, start, end) {
   const safeStart = Number.isFinite(start) ? Math.max(0, Math.floor(start)) : 0;
   const safeEnd = Number.isFinite(end) ? Math.max(safeStart, Math.floor(end)) : safeStart;
@@ -39,20 +54,12 @@ export async function readJsonFileSafe(
 ) {
   const { fallback = null, maxBytes = null, onError = null } = normalizeJsonReadOptions(options);
   if (!filePath) return fallback;
-  const emitError = (phase, error) => {
-    if (typeof onError !== 'function') return;
-    try {
-      onError({ path: String(filePath), error, phase, sync: false });
-    } catch {}
-  };
+  const emitError = createJsonReadErrorEmitter({ filePath, onError, sync: false });
   if (Number.isFinite(maxBytes) && maxBytes > 0) {
     try {
       const stat = await fsPromises.stat(filePath);
       if (Number(stat.size) > Number(maxBytes)) {
-        const error = new Error(
-          `JSON file exceeds maxBytes (${Number(stat.size)} > ${Number(maxBytes)})`
-        );
-        error.code = 'ERR_JSON_FILE_TOO_LARGE';
+        const error = createJsonFileTooLargeError({ size: stat.size, maxBytes });
         emitError('stat', error);
         return fallback;
       }
@@ -82,20 +89,12 @@ export function readJsonFileSyncSafe(
 ) {
   const { fallback = null, maxBytes = null, onError = null } = normalizeJsonReadOptions(options);
   if (!filePath) return fallback;
-  const emitError = (phase, error) => {
-    if (typeof onError !== 'function') return;
-    try {
-      onError({ path: String(filePath), error, phase, sync: true });
-    } catch {}
-  };
+  const emitError = createJsonReadErrorEmitter({ filePath, onError, sync: true });
   if (Number.isFinite(maxBytes) && maxBytes > 0) {
     try {
       const stat = fs.statSync(filePath);
       if (Number(stat.size) > Number(maxBytes)) {
-        const error = new Error(
-          `JSON file exceeds maxBytes (${Number(stat.size)} > ${Number(maxBytes)})`
-        );
-        error.code = 'ERR_JSON_FILE_TOO_LARGE';
+        const error = createJsonFileTooLargeError({ size: stat.size, maxBytes });
         emitError('stat', error);
         return fallback;
       }

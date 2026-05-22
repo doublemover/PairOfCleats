@@ -1,6 +1,6 @@
 import { sha1 } from '../../../shared/hash.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
-import { fileExt } from '../../../shared/files.js';
+import { fileExt } from '../../../shared/file-paths.js';
 
 export const computeFileMetaFingerprint = ({ files, fileInfoByPath }) => {
   const list = files.map((file) => {

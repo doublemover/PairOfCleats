@@ -5,14 +5,15 @@ import {
   collectLanguageImportEntries,
   collectLanguageImports
 } from '../language-registry.js';
+import { normalizeCollectorHint } from '../language-registry/import-collectors/utils.js';
 import { isJsLike, isTypeScript } from '../constants.js';
 import { normalizeImportSpecifiers, sanitizeImportSpecifier } from '../shared/import-specifier.js';
-import { runWithConcurrency, runWithQueue } from '../../shared/concurrency.js';
+import { runWithConcurrency, runWithQueue } from '../../shared/concurrency/run-with-queue.js';
 import { coerceAbortSignal, throwIfAborted } from '../../shared/abort.js';
 import { readTextFile, readTextFileWithHash } from '../../shared/encoding.js';
-import { fileExt, toPosix } from '../../shared/files.js';
+import { fileExt, toPosix } from '../../shared/file-paths.js';
 import { sha1 } from '../../shared/hash.js';
-import { showProgress } from '../../shared/progress.js';
+import { showProgress } from '../../shared/progress-runtime.js';
 import { canonicalizeForSignature, stableStringifyForSignature } from '../../shared/stable-json.js';
 import { readCachedImports } from './incremental.js';
 import {
@@ -31,23 +32,6 @@ let esModuleInitPromise = null;
 let cjsInitPromise = null;
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
-const normalizeCollectorHint = (value) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const reasonCode = typeof value.reasonCode === 'string' ? value.reasonCode.trim() : '';
-  if (!reasonCode) return null;
-  const confidenceRaw = Number(value.confidence);
-  const confidence = Number.isFinite(confidenceRaw)
-    ? Math.max(0, Math.min(1, confidenceRaw))
-    : null;
-  const detail = typeof value.detail === 'string' && value.detail.trim()
-    ? value.detail.trim()
-    : null;
-  return {
-    reasonCode,
-    confidence,
-    detail
-  };
-};
 
 const IMPORT_SCAN_FINGERPRINT_OMIT_TOP_LEVEL_KEYS = new Set([
   'rootDir',

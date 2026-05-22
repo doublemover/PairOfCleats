@@ -1,4 +1,5 @@
-import { loadJsonArrayArtifact, loadTokenPostings } from '../../shared/artifact-io.js';
+import { loadJsonArrayArtifact } from '../../shared/artifact-io/loaders/core.js';
+import { loadTokenPostings } from '../../shared/artifact-io/loaders/token-postings.js';
 import { hashDeterministicValues } from '../../shared/invariants.js';
 import { addIssue } from './issues.js';
 import {

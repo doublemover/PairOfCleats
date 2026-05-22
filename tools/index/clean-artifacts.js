@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { getEnvConfig } from '../../src/shared/env.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { isRootPath } from '../../src/shared/file-paths.js';
 import { isPathUnderDir } from '../../src/shared/path-normalize.js';
 import {

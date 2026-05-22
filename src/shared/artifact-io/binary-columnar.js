@@ -2,7 +2,8 @@ import fs from 'node:fs/promises';
 
 import { decodeVarint64List, encodeVarint64, encodeVarint64List } from './varint.js';
 import { toArray } from '../iterables.js';
-import { createTempPath, replaceFile } from '../io/atomic-persistence.js';
+import { createTempPath } from '../io/temp-path.js';
+import { replaceFile } from '../io/replace-file.js';
 
 const OFFSET_BYTES = 8;
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);

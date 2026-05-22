@@ -25,6 +25,23 @@ const resolveCommittedFinalGraceWithTempWaitMs = () => (
   + (REPLACE_TEMP_WAIT_BASE_DELAY_MS * ((REPLACE_TEMP_WAIT_ATTEMPTS - 1) * REPLACE_TEMP_WAIT_ATTEMPTS) / 2)
 );
 
+const createTempMissingError = (tempPath) => {
+  const err = new Error(`Temp file missing before replace: ${tempPath}`);
+  err.code = 'ERR_TEMP_MISSING';
+  return err;
+};
+
+const resolveSameReplacePath = (tempPath, finalPath) => {
+  const isSamePath = (
+    typeof tempPath === 'string'
+    && typeof finalPath === 'string'
+    && areComparablePathsEqual(tempPath, finalPath)
+  );
+  if (!isSamePath) return false;
+  if (fsSync.existsSync(finalPath)) return true;
+  throw createTempMissingError(tempPath);
+};
+
 const renameWithBackupSwap = async (tempPath, targetPath) => {
   const backupPath = createSiblingBackupPath(targetPath);
   let movedExistingTarget = false;
@@ -78,17 +95,7 @@ const renameWithBackupSwapSync = (tempPath, targetPath) => {
 export const replaceFile = async (tempPath, finalPath, options = {}) => {
   const keepBackup = options.keepBackup === true;
   const backupPath = createSiblingBackupPath(finalPath);
-  const isSamePath = (
-    typeof tempPath === 'string'
-    && typeof finalPath === 'string'
-    && areComparablePathsEqual(tempPath, finalPath)
-  );
-  if (isSamePath) {
-    if (fsSync.existsSync(finalPath)) return;
-    const err = new Error(`Temp file missing before replace: ${tempPath}`);
-    err.code = 'ERR_TEMP_MISSING';
-    throw err;
-  }
+  if (resolveSameReplacePath(tempPath, finalPath)) return;
   const finalExists = fsSync.existsSync(finalPath);
   if (finalExists) {
     let finalStat = null;
@@ -128,9 +135,7 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   }))) {
     if (commitSucceeded()) return;
     if (await restoreBackup()) return;
-    const err = new Error(`Temp file missing before replace: ${tempPath}`);
-    err.code = 'ERR_TEMP_MISSING';
-    throw err;
+    throw createTempMissingError(tempPath);
   }
   const copyFallback = async (reasonCode = null) => {
     try {
@@ -219,9 +224,7 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
         return;
       }
       if (await restoreBackup()) return;
-      const missingErr = new Error(`Temp file missing before replace: ${tempPath}`);
-      missingErr.code = 'ERR_TEMP_MISSING';
-      throw missingErr;
+      throw createTempMissingError(tempPath);
     }
     if (!RETRYABLE_FILE_RENAME_CODES.has(err?.code)) {
       await restoreBackup();
@@ -255,17 +258,7 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
   const keepBackup = options.keepBackup === true;
   const backupPath = createSiblingBackupPath(finalPath);
   const committedFinalGraceMs = resolveCommittedFinalGraceWithTempWaitMs();
-  const isSamePath = (
-    typeof tempPath === 'string'
-    && typeof finalPath === 'string'
-    && areComparablePathsEqual(tempPath, finalPath)
-  );
-  if (isSamePath) {
-    if (fsSync.existsSync(finalPath)) return;
-    const err = new Error(`Temp file missing before replace: ${tempPath}`);
-    err.code = 'ERR_TEMP_MISSING';
-    throw err;
-  }
+  if (resolveSameReplacePath(tempPath, finalPath)) return;
   const finalExists = fsSync.existsSync(finalPath);
   if (finalExists) {
     let finalStat = null;
@@ -288,9 +281,7 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
   };
   if (!fsSync.existsSync(tempPath)) {
     if (commitSucceeded()) return;
-    const err = new Error(`Temp file missing before replace: ${tempPath}`);
-    err.code = 'ERR_TEMP_MISSING';
-    throw err;
+    throw createTempMissingError(tempPath);
   }
   const restoreBackup = () => {
     if (!backupAvailable || !backupCreatedForReplace) return false;

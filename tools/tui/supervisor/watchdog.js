@@ -1,4 +1,4 @@
-import { captureProcessSnapshot, snapshotTrackedSubprocesses } from '../../../src/shared/subprocess.js';
+import { captureProcessSnapshot, snapshotTrackedSubprocesses } from '../../../src/shared/subprocess/snapshot.js';
 import { clampInt } from '../../../src/shared/limits.js';
 import {
   WATCHDOG_MAX_MS,

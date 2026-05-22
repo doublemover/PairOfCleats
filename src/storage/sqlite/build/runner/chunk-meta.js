@@ -1,10 +1,10 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { MAX_JSON_BYTES } from '../../../../shared/artifact-io/constants.js';
 import {
-  MAX_JSON_BYTES,
   loadPiecesManifest,
   resolveArtifactPresence
-} from '../../../../shared/artifact-io.js';
+} from '../../../../shared/artifact-io/manifest.js';
 
 const CHUNK_META_PROBE_MAX_BYTES = 64 * 1024;
 const isChunkMetaWhitespaceCode = (code) => {

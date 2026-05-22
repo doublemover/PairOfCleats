@@ -1,11 +1,21 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import os from 'node:os';
-import { fileURLToPath } from 'node:url';
 import AdmZip from 'adm-zip';
 import { createCli } from '../../src/shared/cli.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
+import {
+  computeSha256,
+  createInstallError,
+  downloadToBuffer,
+  isRetryableHttpStatus,
+  jitterForAttempt,
+  normalizeChecksum,
+  sleep,
+  toInt,
+  withTimeoutSignal
+} from './install-shared.js';
 
 const GITHUB_REPO = 'LuaLS/lua-language-server';
 const DEFAULT_TIMEOUT_MS = 45_000;
@@ -28,48 +38,6 @@ const parseArgs = () => createCli({
 })
   .strictOptions()
   .parse();
-
-const toInt = (value, fallback, min = 0) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(min, Math.floor(parsed));
-};
-
-const sleep = async (ms) => {
-  if (!Number.isFinite(ms) || ms <= 0) return;
-  await new Promise((resolve) => setTimeout(resolve, ms));
-};
-
-const jitterForAttempt = (attempt, jitterMs) => {
-  if (!Number.isFinite(jitterMs) || jitterMs <= 0) return 0;
-  const seed = (attempt * 193) + 17;
-  return seed % (Math.floor(jitterMs) + 1);
-};
-
-const withTimeoutSignal = (timeoutMs) => {
-  const abortController = new AbortController();
-  const timer = setTimeout(() => {
-    abortController.abort(new Error(`timeout after ${timeoutMs}ms`));
-  }, timeoutMs);
-  return {
-    signal: abortController.signal,
-    clear: () => clearTimeout(timer)
-  };
-};
-
-const createInstallError = (reason, message, options = {}) => {
-  const error = new Error(message);
-  error.reason = reason;
-  error.retryable = options.retryable === true;
-  if (Number.isInteger(options.statusCode)) {
-    error.statusCode = options.statusCode;
-  }
-  if (options.cause) error.cause = options.cause;
-  return error;
-};
-
-const normalizeChecksum = (value) => String(value || '').trim().toLowerCase();
-const computeSha256 = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
 
 const resolveAssetSuffix = ({ platform = process.platform, arch = process.arch } = {}) => {
   const normalizedPlatform = String(platform || '').trim().toLowerCase();
@@ -129,8 +97,6 @@ const findLuaLanguageServerPackageRoot = async (extractRoot) => {
   return nestedExists.every(Boolean) ? nested.root : null;
 };
 
-const isRetryableHttpStatus = (statusCode) => statusCode === 408 || statusCode === 429 || statusCode >= 500;
-
 const fetchJson = async (url, timeoutMs) => {
   const timeout = withTimeoutSignal(timeoutMs);
   try {
@@ -181,42 +147,23 @@ const resolveLocalArchivePath = (value) => {
 };
 
 const downloadArchive = async ({ url, timeoutMs }) => {
-  const timeout = withTimeoutSignal(timeoutMs);
-  try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'PairOfCleats lua-language-server installer'
-      },
-      redirect: 'follow',
-      signal: timeout.signal
-    });
-    if (!response.ok) {
-      throw createInstallError(
-        'download_http_error',
-        `Failed to download lua-language-server (${response.status} ${response.statusText}).`,
-        { retryable: isRetryableHttpStatus(response.status), statusCode: response.status }
-      );
+  return downloadToBuffer({
+    url,
+    timeoutMs,
+    label: 'lua-language-server',
+    headers: {
+      'User-Agent': 'PairOfCleats lua-language-server installer'
+    },
+    createErrorMessage: (reason, details) => {
+      if (reason === 'download_http_error') {
+        return `Failed to download lua-language-server (${details.statusCode} ${details.statusText}).`;
+      }
+      if (reason === 'download_empty_payload') return 'Downloaded empty lua-language-server payload.';
+      if (reason === 'download_timeout') return `Timed out downloading lua-language-server after ${details.timeoutMs}ms.`;
+      if (reason === 'download_network_error') return `Failed to download lua-language-server: ${details.message || details.errorText}`;
+      return null;
     }
-    const body = Buffer.from(await response.arrayBuffer());
-    if (!body.length) {
-      throw createInstallError('download_empty_payload', 'Downloaded empty lua-language-server payload.', { retryable: false });
-    }
-    return {
-      body,
-      sha256: computeSha256(body),
-      sourceUrl: response.url || url
-    };
-  } catch (error) {
-    if (error?.reason) throw error;
-    const timeoutTriggered = timeout.signal?.aborted === true;
-    const message = String(error?.message || '');
-    if (timeoutTriggered || error?.name === 'AbortError' || /timeout/i.test(message)) {
-      throw createInstallError('download_timeout', `Timed out downloading lua-language-server after ${timeoutMs}ms.`, { retryable: true, cause: error });
-    }
-    throw createInstallError('download_network_error', `Failed to download lua-language-server: ${message || String(error)}`, { retryable: true, cause: error });
-  } finally {
-    timeout.clear();
-  }
+  });
 };
 
 const resolveArchiveSource = async ({ url, version, timeoutMs }) => {
@@ -389,15 +336,7 @@ export const installLuaLanguageServer = async (argv) => {
   }
 };
 
-const isMainModule = (() => {
-  try {
-    return path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url);
-  } catch {
-    return false;
-  }
-})();
-
-if (isMainModule) {
+if (isDirectExecution(import.meta.url)) {
   const argv = parseArgs();
   installLuaLanguageServer(argv)
     .then((result) => {

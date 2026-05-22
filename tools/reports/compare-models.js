@@ -1,21 +1,23 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { createCli } from '../../src/shared/cli.js';
-import { getEnvConfig } from '../../src/shared/env.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { resolveEmbeddingInputFormatting } from '../../src/shared/embedding-input-format.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
 import { normalizeLegacyCacheRootPath, resolveVersionedCacheRoot } from '../../src/shared/cache-roots.js';
-import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
 import { resolveCurrentBuildRoots } from '../../src/shared/indexing/build-pointer.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
+import { COMPARE_MODELS_OPTIONS } from '../../src/shared/cli-options.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../../src/experimental/compare/config.js';
+import { summarizeRetrievalHitComparison } from '../../src/retrieval/hit-comparison.js';
 import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../shared/query-file-utils.js';
 import { mean, meanNullable } from '../../src/shared/stats.js';
 import { readJsonFileSyncSafe } from '../../src/shared/file-read.js';
 import { runSearchCliWithSubprocessSync } from '../shared/search-cli-harness.js';
-import { exitLikeCommandResult, runSubprocessOrExit } from '../shared/cli-utils.js';
+import { emitJson, exitLikeCommandResult, runSubprocessOrExit } from '../shared/cli-utils.js';
 import {
   DEFAULT_MODEL_ID,
   bootstrapRuntime,
@@ -30,26 +32,7 @@ import {
 const rawArgs = process.argv.slice(2);
 const argv = createCli({
   scriptName: 'compare-models',
-  options: {
-    json: { type: 'boolean', default: false },
-    build: { type: 'boolean', default: false },
-    'build-index': { type: 'boolean', default: false },
-    'build-sqlite': { type: 'boolean', default: false },
-    incremental: { type: 'boolean', default: false },
-    'stub-embeddings': { type: 'boolean', default: false },
-    ann: { type: 'boolean' },
-    'no-ann': { type: 'boolean' },
-    models: { type: 'string' },
-    baseline: { type: 'string' },
-    queries: { type: 'string' },
-    backend: { type: 'string' },
-    out: { type: 'string' },
-    mode: { type: 'string' },
-    'cache-root': { type: 'string' },
-    repo: { type: 'string' },
-    top: { type: 'number', default: 5 },
-    limit: { type: 'number', default: 0 }
-  },
+  options: COMPARE_MODELS_OPTIONS,
   aliases: { n: 'top', q: 'queries' }
 }).parse();
 
@@ -359,66 +342,13 @@ for (const modelId of models) {
 }
 
 /**
- * Build a stable key for a search hit.
- * @param {object} hit
- * @param {number} index
- * @returns {string}
- */
-function hitKey(hit, index) {
-  if (hit && (hit.id || hit.id === 0)) return String(hit.id);
-  if (hit && hit.file) {
-    const start = hit.startLine ?? hit.start ?? 0;
-    const end = hit.endLine ?? hit.end ?? 0;
-    return `${hit.file}:${start}:${end}:${hit.kind || ''}:${hit.name || ''}`;
-  }
-  return String(index);
-}
-
-function hitScore(hit) {
-  if (!hit || typeof hit !== 'object') return 0;
-  if (Number.isFinite(hit.score)) return hit.score;
-  const selected = hit.scoreBreakdown?.selected?.score;
-  if (Number.isFinite(selected)) return selected;
-  if (Number.isFinite(hit.sparseScore)) return hit.sparseScore;
-  if (Number.isFinite(hit.annScore)) return hit.annScore;
-  return 0;
-}
-
-/**
  * Compare top-N hit lists and compute overlap metrics.
  * @param {Array<object>} baseHits
  * @param {Array<object>} otherHits
  * @returns {{overlap:number,avgDelta:number,rankCorr:(number|null),top1Same:boolean}}
  */
 function compareHits(baseHits, otherHits) {
-  const base = baseHits.slice(0, topN);
-  const other = otherHits.slice(0, topN);
-  const baseKeys = base.map(hitKey);
-  const otherKeys = other.map(hitKey);
-  const baseRanks = new Map(baseKeys.map((key, idx) => [key, idx + 1]));
-  const otherRanks = new Map(otherKeys.map((key, idx) => [key, idx + 1]));
-  const baseSet = new Set(baseKeys);
-  const otherSet = new Set(otherKeys);
-  const intersection = baseKeys.filter((key) => otherSet.has(key));
-  const overlap = intersection.length / Math.max(1, Math.min(baseKeys.length, otherKeys.length));
-
-  const baseScores = new Map(base.map((hit, idx) => [hitKey(hit, idx), hitScore(hit)]));
-  const otherScores = new Map(other.map((hit, idx) => [hitKey(hit, idx), hitScore(hit)]));
-  const deltas = intersection.map((key) => Math.abs((baseScores.get(key) || 0) - (otherScores.get(key) || 0)));
-  const avgDelta = deltas.length ? deltas.reduce((a, b) => a + b, 0) / deltas.length : 0;
-
-  let rankCorr = null;
-  if (intersection.length >= 2) {
-    let sum = 0;
-    for (const key of intersection) {
-      const d = (baseRanks.get(key) || 0) - (otherRanks.get(key) || 0);
-      sum += d * d;
-    }
-    const n = intersection.length;
-    rankCorr = 1 - (6 * sum) / (n * (n * n - 1));
-  }
-
-  const top1Same = baseKeys[0] && otherKeys[0] ? baseKeys[0] === otherKeys[0] : false;
+  const { overlap, avgDelta, rankCorr, top1Same } = summarizeRetrievalHitComparison(baseHits, otherHits, { topN });
   return { overlap, avgDelta, rankCorr, top1Same };
 }
 
@@ -547,7 +477,7 @@ const output = {
 };
 
 if (argv.json) {
-  console.log(JSON.stringify(output, null, 2));
+  emitJson(output);
 } else {
   console.error('Model comparison summary');
   console.error(`- Backend: ${backend}`);
@@ -570,8 +500,7 @@ if (argv.json) {
 
 if (argv.out) {
   const outPath = path.resolve(argv.out);
-  await fsPromises.mkdir(path.dirname(outPath), { recursive: true });
-  await fsPromises.writeFile(outPath, JSON.stringify(output, null, 2));
+  await writeJsonFileResolved(outPath, output);
   if (!argv.json) {
     console.error(`Report written to ${outPath}`);
   }

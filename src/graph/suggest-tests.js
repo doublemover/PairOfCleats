@@ -5,7 +5,7 @@ import { normalizeCap } from '../shared/limits.js';
 import { normalizePathForRepo } from '../shared/path-normalize.js';
 import { resolveProvenance } from '../shared/provenance.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
-import { toPosix } from '../shared/files.js';
+import { toPosix } from '../shared/file-paths.js';
 import { compareStrings } from '../shared/sort.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 

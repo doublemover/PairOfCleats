@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getCacheRoot } from '../shared/dict-utils.js';
-import { isAbsolutePathNative } from '../../src/shared/files.js';
+import { isAbsolutePathNative } from '../../src/shared/file-paths.js';
 import { QUEUE_RETENTION_DEFAULTS } from './retention-policy.js';
 
 export const DEFAULT_SERVICE_CONFIG = Object.freeze({

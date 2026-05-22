@@ -1,6 +1,7 @@
 import {
   spawnResolvedSubprocessSync
 } from '../../src/shared/subprocess/command-invocation.js';
+import { exitLikeChildResult } from '../../src/shared/subprocess/exit-semantics.js';
 
 /**
  * Exit current process using child-command exit semantics.
@@ -9,25 +10,7 @@ import {
  * @param {{exit:(code?:number)=>void,kill:(pid:number,signal:string)=>void,pid:number}} [proc=process]
  * @returns {void}
  */
-export function exitLikeCommandResult(result, proc = process) {
-  const status = Number.isInteger(result?.status) ? Number(result.status) : null;
-  if (status !== null) {
-    proc.exit(status);
-    return;
-  }
-
-  const signal = typeof result?.signal === 'string' && result.signal.trim().length > 0
-    ? result.signal.trim()
-    : null;
-  if (signal) {
-    try {
-      proc.kill(proc.pid, signal);
-      return;
-    } catch {}
-  }
-
-  proc.exit(1);
-}
+export const exitLikeCommandResult = exitLikeChildResult;
 
 /**
  * Run a command and return a normalized result.
@@ -77,6 +60,39 @@ export function runCommand(cmd, args, options = {}) {
  */
 export function canRunCommand(cmd, args = ['--version'], options = {}) {
   return probeCommand(cmd, args, options).ok === true;
+}
+
+/**
+ * Build minimal flag and option readers for small tool scripts.
+ *
+ * This intentionally preserves simple legacy parsing behavior: `--name value`
+ * returns the next token as-is, and `--name=value` returns the raw suffix.
+ *
+ * @param {string[]} [argv=process.argv.slice(2)]
+ * @returns {{args:string[],hasFlag:(flag:string)=>boolean,readOption:(name:string,fallback?:string)=>string}}
+ */
+export function createArgReader(argv = process.argv.slice(2)) {
+  const args = Array.isArray(argv) ? argv.map((arg) => String(arg)) : [];
+  return {
+    args,
+    hasFlag(flag) {
+      return args.includes(flag);
+    },
+    readOption(name, fallback = '') {
+      const flag = name.startsWith('--') ? name : `--${name}`;
+      for (let i = 0; i < args.length; i += 1) {
+        const arg = args[i];
+        if (arg === flag) {
+          const next = args[i + 1];
+          return typeof next === 'string' ? next : fallback;
+        }
+        if (typeof arg === 'string' && arg.startsWith(`${flag}=`)) {
+          return arg.slice(flag.length + 1);
+        }
+      }
+      return fallback;
+    }
+  };
 }
 
 const isMissingCommandText = (stderr = '', stdout = '') => {
@@ -221,7 +237,9 @@ export function runSubprocessOrExit(options) {
  * Emit JSON to stdout with a trailing newline.
  * @param {unknown} payload
  * @param {NodeJS.WritableStream} [stream]
+ * @param {{spaces?:number}} [options]
  */
-export function emitJson(payload, stream = process.stdout) {
-  stream.write(`${JSON.stringify(payload, null, 2)}\n`);
+export function emitJson(payload, stream = process.stdout, options = {}) {
+  const spaces = Number.isInteger(options?.spaces) ? options.spaces : 2;
+  stream.write(`${JSON.stringify(payload, null, spaces)}\n`);
 }

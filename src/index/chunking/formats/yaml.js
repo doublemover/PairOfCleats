@@ -1,24 +1,6 @@
-import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
-import { toPosix } from '../../../shared/files.js';
+import { toPosix } from '../../../shared/file-paths.js';
+import { buildConfigTreeSitterChunks } from './config-tree-sitter.js';
 import { buildChunksFromLineHeadings, buildLineIndexFromLines } from '../helpers.js';
-import { getTreeSitterOptions } from '../tree-sitter.js';
-
-const normalizeConfigTreeSitterChunks = (chunks, format) => chunks.map((chunk) => {
-  const rawName = typeof chunk?.name === 'string' ? chunk.name.trim() : '';
-  const name = rawName || 'section';
-  const existingMeta = chunk?.meta && typeof chunk.meta === 'object' ? chunk.meta : {};
-  const rawTitle = typeof existingMeta.title === 'string' ? existingMeta.title.trim() : '';
-  return {
-    ...chunk,
-    name,
-    kind: chunk?.kind || 'ConfigSection',
-    meta: {
-      ...existingMeta,
-      format,
-      title: rawTitle || name
-    }
-  };
-});
 
 const chunkGitHubActions = (text) => {
   const lines = text.split('\n');
@@ -119,15 +101,14 @@ export function chunkYaml(text, relPath, context) {
   const relPosix = relPath ? toPosix(relPath) : '';
   const isWorkflow = relPosix.includes('.github/workflows/');
   if (isWorkflow) return chunkGitHubActions(text);
-  if (context?.treeSitter?.configChunking === true) {
-    const treeChunks = buildTreeSitterChunks({
-      text,
-      languageId: 'yaml',
-      ext: '.yaml',
-      options: getTreeSitterOptions(context)
-    });
-    if (treeChunks && treeChunks.length) return normalizeConfigTreeSitterChunks(treeChunks, 'yaml');
-  }
+  const treeChunks = buildConfigTreeSitterChunks({
+    text,
+    context,
+    languageId: 'yaml',
+    ext: '.yaml',
+    format: 'yaml'
+  });
+  if (treeChunks) return treeChunks;
   const mode = resolveYamlChunkMode(text, context);
   if (mode === 'top-level') {
     const chunks = chunkYamlTopLevel(text);

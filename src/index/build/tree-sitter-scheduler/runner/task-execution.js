@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { throwIfAborted } from '../../../../shared/abort.js';
-import { runWithConcurrency } from '../../../../shared/concurrency.js';
-import { spawnSubprocess } from '../../../../shared/subprocess.js';
+import { runWithConcurrency } from '../../../../shared/concurrency/run-with-queue.js';
+import { spawnSubprocess } from '../../../../shared/subprocess/runner.js';
 import {
   inferFailedGrammarKeysFromSubprocessOutput,
   isSubprocessCrashExit,

@@ -4,6 +4,11 @@ import { tryImport } from '../shared/optional-deps.js';
 import { normalizeLanceDbConfig } from '../shared/lancedb.js';
 import { createWarnOnce } from '../shared/logging/warn-once.js';
 import { normalizePositiveInt } from '../shared/limits.js';
+import {
+  candidateSetHas,
+  getCandidateSetSize,
+  normalizeCandidateSetIds
+} from './ann/candidate-set.js';
 import { normalizeEmbeddingDims } from './ann/dims.js';
 
 const CANDIDATE_PUSH_LIMIT = 500;
@@ -196,6 +201,27 @@ const readRowScore = (row, metric) => {
   return Number.isFinite(score) ? score : null;
 };
 
+const rowsToHits = (rows, idColumn, metric) => {
+  const hits = [];
+  for (const row of rows || []) {
+    const idx = readRowId(row, idColumn);
+    if (idx == null) continue;
+    const sim = readRowScore(row, metric);
+    if (sim == null) continue;
+    hits.push({ idx, sim });
+  }
+  return hits;
+};
+
+const filterSortLimitHits = ({ hits, candidateCount, canPushdown, candidateSet, limitBase }) => {
+  const filtered = !candidateCount || canPushdown
+    ? hits
+    : hits.filter((hit) => candidateSetHas(candidateSet, hit.idx));
+  return filtered
+    .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))
+    .slice(0, limitBase);
+};
+
 const isSafeIdColumn = (value) => (
   typeof value === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(value)
 );
@@ -244,36 +270,7 @@ export async function rankLanceDb({
   if (!table || typeof table.search !== 'function') return [];
 
   const limitBase = normalizePositiveInt(topN, 1) || 1;
-  const getCandidateCount = (value) => {
-    if (!value) return 0;
-    if (Number.isFinite(Number(value.size))) return Number(value.size);
-    if (typeof value.size === 'function') {
-      const resolved = Number(value.size());
-      return Number.isFinite(resolved) ? resolved : 0;
-    }
-    if (typeof value.getSize === 'function') {
-      const resolved = Number(value.getSize());
-      return Number.isFinite(resolved) ? resolved : 0;
-    }
-    if (Array.isArray(value)) return value.length;
-    return 0;
-  };
-  const candidateHas = (value, id) => {
-    if (!value) return false;
-    if (typeof value.has === 'function') return value.has(id);
-    if (typeof value.contains === 'function') return value.contains(id);
-    if (typeof value.includes === 'function') return value.includes(id);
-    return false;
-  };
-  const candidateToArray = (value) => {
-    if (!value) return [];
-    if (Array.isArray(value)) return value;
-    if (typeof value.toArray === 'function') return value.toArray();
-    if (typeof value.values === 'function') return Array.from(value.values());
-    if (typeof value[Symbol.iterator] === 'function') return Array.from(value);
-    return [];
-  };
-  const candidateCount = getCandidateCount(candidateSet);
+  const candidateCount = getCandidateSetSize(candidateSet);
   const initialLimit = candidateCount
     ? Math.min(Math.max(limitBase * 4, limitBase + 10), candidateCount)
     : limitBase;
@@ -282,9 +279,7 @@ export async function rankLanceDb({
     : initialLimit;
 
   const candidateIds = (candidateCount && candidateCount <= CANDIDATE_PUSH_LIMIT && isSafeIdColumn(idColumn))
-    ? candidateToArray(candidateSet)
-      .map((id) => Number(id))
-      .filter((id) => Number.isInteger(id))
+    ? normalizeCandidateSetIds(candidateSet)
     : [];
 
   const createBaseQuery = () => {
@@ -335,21 +330,15 @@ export async function rankLanceDb({
       );
       return [];
     }
-    const hits = [];
-    for (const row of rows || []) {
-      const idx = readRowId(row, idColumn);
-      if (idx == null) continue;
-      const sim = readRowScore(row, metric);
-      if (sim == null) continue;
-      hits.push({ idx, sim });
-    }
-    const filtered = !candidateCount || canPushdown
-      ? hits
-      : hits.filter((hit) => candidateHas(candidateSet, hit.idx));
-    if (filtered.length >= limitBase) {
-      return filtered
-        .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))
-        .slice(0, limitBase);
+    const limitedHits = filterSortLimitHits({
+      hits: rowsToHits(rows, idColumn, metric),
+      candidateCount,
+      canPushdown,
+      candidateSet,
+      limitBase
+    });
+    if (limitedHits.length >= limitBase) {
+      return limitedHits;
     }
     if (!rows || rows.length < limit) break;
     const nextLimit = Math.min(maxLimit, limit * 2);
@@ -357,18 +346,11 @@ export async function rankLanceDb({
     limit = nextLimit;
   }
 
-  const hits = [];
-  for (const row of rows || []) {
-    const idx = readRowId(row, idColumn);
-    if (idx == null) continue;
-    const sim = readRowScore(row, metric);
-    if (sim == null) continue;
-    hits.push({ idx, sim });
-  }
-  const filtered = !candidateCount || canPushdown
-    ? hits
-    : hits.filter((hit) => candidateHas(candidateSet, hit.idx));
-  return filtered
-    .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))
-    .slice(0, limitBase);
+  return filterSortLimitHits({
+    hits: rowsToHits(rows, idColumn, metric),
+    candidateCount,
+    canPushdown,
+    candidateSet,
+    limitBase
+  });
 }

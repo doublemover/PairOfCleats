@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonObjectFile } from '../../../../../shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../../../shared/json-stream/json-writers.js';
 import {
   normalizeParamNames,
   normalizeParamTypes,

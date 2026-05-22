@@ -340,17 +340,21 @@ const serializeSemanticsForConfig = (semantics) => toArray(semantics).map((entry
 
 const measureRowBytes = (row) => Buffer.byteLength(JSON.stringify(row), 'utf8');
 
+const keepFirstCallSiteIdByStep = (callSiteIdsByStep) => toArray(callSiteIdsByStep).map((list) => {
+  if (!Array.isArray(list) || !list.length) return [];
+  return [list[0]];
+});
+
+const clearCallSiteIdsByStep = (callSiteIdsByStep) => toArray(callSiteIdsByStep).map(() => []);
+
 const trimFlowRow = (row) => {
   if (measureRowBytes(row) <= MAX_FLOW_ROW_BYTES) return row;
   const trimmed = { ...row, path: { ...row.path } };
   trimmed.path.watchByStep = compactWatchByStep(trimmed.path.watchByStep);
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
-  trimmed.path.callSiteIdsByStep = toArray(trimmed.path.callSiteIdsByStep).map((list) => {
-    if (!Array.isArray(list) || !list.length) return [];
-    return [list[0]];
-  });
+  trimmed.path.callSiteIdsByStep = keepFirstCallSiteIdByStep(trimmed.path.callSiteIdsByStep);
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
-  trimmed.path.callSiteIdsByStep = toArray(trimmed.path.callSiteIdsByStep).map(() => []);
+  trimmed.path.callSiteIdsByStep = clearCallSiteIdsByStep(trimmed.path.callSiteIdsByStep);
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
   trimmed.path.watchByStep = [];
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
@@ -374,14 +378,11 @@ const trimPartialFlowRow = (row) => {
   };
   trimmed.path.watchByStep = compactWatchByStep(trimmed.path.watchByStep);
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
-  trimmed.path.callSiteIdsByStep = toArray(trimmed.path.callSiteIdsByStep).map((list) => {
-    if (!Array.isArray(list) || !list.length) return [];
-    return [list[0]];
-  });
+  trimmed.path.callSiteIdsByStep = keepFirstCallSiteIdByStep(trimmed.path.callSiteIdsByStep);
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
   trimmed.frontier.blockedExpansions = [];
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
-  trimmed.path.callSiteIdsByStep = toArray(trimmed.path.callSiteIdsByStep).map(() => []);
+  trimmed.path.callSiteIdsByStep = clearCallSiteIdsByStep(trimmed.path.callSiteIdsByStep);
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
   trimmed.path.watchByStep = [];
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
@@ -394,6 +395,19 @@ const buildArtifactRef = ({ name, format = 'jsonl', sharded, entrypoint, totalEn
   sharded: !!sharded,
   entrypoint,
   totalEntries
+});
+
+const buildFlowSourceEndpoint = (rootSource) => ({
+  chunkUid: rootSource.chunkUid,
+  ruleId: rootSource.source.ruleId,
+  ruleName: rootSource.source.ruleName || rootSource.source.ruleId,
+  ruleType: 'source',
+  category: rootSource.source.category || null,
+  severity: null,
+  confidence: Number.isFinite(rootSource.source.confidence)
+    ? rootSource.source.confidence
+    : null,
+  tags: Array.isArray(rootSource.source.tags) ? rootSource.source.tags.filter(Boolean) : []
 });
 
 export const computeInterproceduralRisk = ({
@@ -572,18 +586,7 @@ export const computeInterproceduralRisk = ({
     const partialFlow = {
       schemaVersion: ROW_SCHEMA_VERSION,
       partialFlowId,
-      source: {
-        chunkUid: state.rootSource.chunkUid,
-        ruleId: state.rootSource.source.ruleId,
-        ruleName: state.rootSource.source.ruleName || state.rootSource.source.ruleId,
-        ruleType: 'source',
-        category: state.rootSource.source.category || null,
-        severity: null,
-        confidence: Number.isFinite(state.rootSource.source.confidence)
-          ? state.rootSource.source.confidence
-          : null,
-        tags: Array.isArray(state.rootSource.source.tags) ? state.rootSource.source.tags.filter(Boolean) : []
-      },
+      source: buildFlowSourceEndpoint(state.rootSource),
       frontier: {
         chunkUid: state.chunkUid,
         terminalReason,
@@ -686,18 +689,7 @@ export const computeInterproceduralRisk = ({
             sinkRuleId: sink.ruleId,
             pathChunkUids: state.pathChunkUids
           }),
-          source: {
-            chunkUid: state.rootSource.chunkUid,
-            ruleId: state.rootSource.source.ruleId,
-            ruleName: state.rootSource.source.ruleName || state.rootSource.source.ruleId,
-            ruleType: 'source',
-            category: state.rootSource.source.category || null,
-            severity: null,
-            confidence: Number.isFinite(state.rootSource.source.confidence)
-              ? state.rootSource.source.confidence
-              : null,
-            tags: Array.isArray(state.rootSource.source.tags) ? state.rootSource.source.tags.filter(Boolean) : []
-          },
+          source: buildFlowSourceEndpoint(state.rootSource),
           sink: {
             chunkUid: state.chunkUid,
             ruleId: sink.ruleId,

@@ -1,7 +1,8 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { readJsonFile, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
-import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
+import { readJsonFile } from '../../../src/shared/artifact-io/json.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { updateIndexStateManifest } from '../../../src/shared/index-state-utils.js';
 
 /**

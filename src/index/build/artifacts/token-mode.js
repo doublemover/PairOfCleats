@@ -1,4 +1,4 @@
-import { log } from '../../../shared/progress.js';
+import { log } from '../../../shared/progress-runtime.js';
 
 /**
  * Resolve chunk token artifact mode and budgets.

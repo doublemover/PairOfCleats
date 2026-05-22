@@ -2,10 +2,12 @@ import fsSync from 'node:fs';
 import { REQUIRED_TABLES, SCHEMA_VERSION } from '../schema.js';
 import {
   checkpointSqliteWithTelemetry,
+  createSqliteTableStatRecorder,
   hasRequiredTables,
   recordSqlitePlanTelemetry,
   recordSqliteWalSnapshot,
   removeSqliteSidecars,
+  resolveExpectedDenseCount,
   resolveSqliteIngestPlan,
   bumpSqliteBatchStat
 } from '../utils.js';
@@ -34,25 +36,6 @@ const VOCAB_GROWTH_LIMITS = {
   token_vocab: { ratio: 0.4, absolute: 200000 },
   phrase_vocab: { ratio: 0.5, absolute: 150000 },
   chargram_vocab: { ratio: 1.0, absolute: 250000 }
-};
-
-/**
- * Resolve how many dense vectors a payload expects, supporting both current
- * and legacy dense metadata shapes.
- *
- * @param {object|null} denseVec
- * @returns {number}
- */
-const resolveExpectedDenseCount = (denseVec) => {
-  if (!denseVec || typeof denseVec !== 'object') return 0;
-  const fields = denseVec.fields && typeof denseVec.fields === 'object' ? denseVec.fields : null;
-  const fromCount = Number(denseVec.count ?? fields?.count);
-  if (Number.isFinite(fromCount) && fromCount > 0) return Math.floor(fromCount);
-  const fromTotalRecords = Number(denseVec.totalRecords ?? fields?.totalRecords);
-  if (Number.isFinite(fromTotalRecords) && fromTotalRecords > 0) return Math.floor(fromTotalRecords);
-  const vectors = denseVec.vectors ?? denseVec.arrays?.vectors;
-  if (Array.isArray(vectors) && vectors.length > 0) return vectors.length;
-  return 0;
 };
 
 /**
@@ -162,19 +145,7 @@ export async function incrementalUpdateDatabase({
     };
     recordSqlitePlanTelemetry(batchStats, ingestPlan, { source: 'incremental' });
   }
-  const tableStats = batchStats
-    ? (batchStats.tables || (batchStats.tables = {}))
-    : null;
-  const recordTable = (name, rows, durationMs) => {
-    if (!tableStats || !name) return;
-    const entry = tableStats[name] || { rows: 0, durationMs: 0, rowsPerSec: null };
-    entry.rows += rows;
-    entry.durationMs += durationMs;
-    entry.rowsPerSec = entry.durationMs > 0
-      ? Math.round((entry.rows / entry.durationMs) * 1000)
-      : null;
-    tableStats[name] = entry;
-  };
+  const recordTable = createSqliteTableStatRecorder(batchStats);
   if (!incrementalData?.manifest) {
     return { used: false, reason: 'missing incremental manifest' };
   }

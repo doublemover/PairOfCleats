@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import ignore from 'ignore';
 import { SKIP_DIRS, SKIP_FILES, SKIP_GLOBS } from '../constants.js';
-import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
+import { isAbsolutePathNative, toPosix } from '../../shared/file-paths.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import {
   buildGeneratedPolicyConfig,

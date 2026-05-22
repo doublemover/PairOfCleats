@@ -666,71 +666,86 @@ export const processDocumentTypes = async ({
       return inlayHintsRequest;
     };
 
-    const requestDefinition = (symbol, position) => {
+    const parseLocationSignatureInfo = (locations, allowedUris, symbol) => {
+      const sourceText = openEntry?.text || doc.text || '';
+      for (const location of locations) {
+        if (!allowedUris.has(String(location?.uri || ''))) continue;
+        const locationOffsets = rangeToOffsets(lineIndex, location?.range || null, {
+          text: docText,
+          positionEncoding
+        });
+        let candidate = buildSourceSignatureCandidate(sourceText, locationOffsets);
+        if (!candidate) {
+          const fallbackLine = Number(location?.range?.start?.line);
+          candidate = buildLineSignatureCandidate(sourceText, fallbackLine);
+        }
+        const info = parseSignatureCached(candidate, symbol?.name);
+        if (info) return info;
+      }
+      return null;
+    };
+
+    const createLocationSignatureRequester = ({
+      requestByPosition,
+      budget,
+      cacheKey,
+      method,
+      label,
+      stageKey,
+      timeoutMs,
+      limiter,
+      requestedMetric,
+      succeededMetric,
+      buildParams
+    }) => (symbol, position) => {
       throwIfAborted(abortSignal);
       const key = buildSymbolPositionCacheKey({
         position
       });
       if (!key) return Promise.resolve({ attempted: false, info: null });
-      if (definitionRequestByPosition.has(key)) return definitionRequestByPosition.get(key);
+      if (requestByPosition.has(key)) return requestByPosition.get(key);
       if (isSoftDeadlineExpired()) {
         markSoftDeadlineReached();
         recordSoftDeadlineSkip();
         return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget(definitionBudget)) return Promise.resolve({ attempted: false, info: null });
-      const cachedDefinitionInfo = tryReadRequestCache('definition', position);
-      const runDefinition = typeof definitionLimiter === 'function'
-        ? definitionLimiter
+      if (!reserveRequestBudget(budget)) return Promise.resolve({ attempted: false, info: null });
+      const cachedInfo = tryReadRequestCache(cacheKey, position);
+      const runRequest = typeof limiter === 'function'
+        ? limiter
         : hoverLimiter;
       const promise = (async () => {
-        if (cachedDefinitionInfo?.negative === true) {
+        if (cachedInfo?.negative === true) {
           return { attempted: false, info: null };
         }
-        if (cachedDefinitionInfo?.info) {
-          return { attempted: true, info: cachedDefinitionInfo.info };
+        if (cachedInfo?.info) {
+          return { attempted: true, info: cachedInfo.info };
         }
-        const timeoutOverride = Number.isFinite(resolvedDefinitionTimeout)
-          ? resolvedDefinitionTimeout
+        const timeoutOverride = Number.isFinite(timeoutMs)
+          ? timeoutMs
           : null;
-        fileHoverStats.definitionRequested += 1;
-        hoverMetrics.definitionRequested += 1;
+        fileHoverStats[requestedMetric] += 1;
+        hoverMetrics[requestedMetric] += 1;
         try {
           throwIfAborted(abortSignal);
-          const payload = await runDefinition(() => runGuarded(
-            ({ timeoutMs: guardTimeout }) => client.request('textDocument/definition', {
-              textDocument: { uri },
-              position
-            }, { timeoutMs: guardTimeout }),
-            { label: 'definition', ...(timeoutOverride ? { timeoutOverride } : {}) }
+          const payload = await runRequest(() => runGuarded(
+            ({ timeoutMs: guardTimeout }) => client.request(method, buildParams({ position }), {
+              timeoutMs: guardTimeout
+            }),
+            { label, ...(timeoutOverride ? { timeoutOverride } : {}) }
           ));
           const locations = extractDefinitionLocations(payload);
           if (!locations.length) return null;
-          const definitionUris = new Set([String(uri || '')]);
-          if (legacyUri) definitionUris.add(String(legacyUri));
-          for (const location of locations) {
-            if (!definitionUris.has(String(location?.uri || ''))) continue;
-            const locationOffsets = rangeToOffsets(lineIndex, location?.range || null, {
-              text: docText,
-              positionEncoding
-            });
-            let candidate = buildSourceSignatureCandidate(
-              openEntry?.text || doc.text || '',
-              locationOffsets
-            );
-            if (!candidate) {
-              const fallbackLine = Number(location?.range?.start?.line);
-              candidate = buildLineSignatureCandidate(openEntry?.text || doc.text || '', fallbackLine);
-            }
-            const info = parseSignatureCached(candidate, symbol?.name);
-            if (info) {
-              writePositiveRequestCache('definition', position, info);
-              fileHoverStats.definitionSucceeded += 1;
-              hoverMetrics.definitionSucceeded += 1;
-              return { attempted: true, info };
-            }
+          const allowedUris = new Set([String(uri || '')]);
+          if (legacyUri) allowedUris.add(String(legacyUri));
+          const info = parseLocationSignatureInfo(locations, allowedUris, symbol);
+          if (info) {
+            writePositiveRequestCache(cacheKey, position, info);
+            fileHoverStats[succeededMetric] += 1;
+            hoverMetrics[succeededMetric] += 1;
+            return { attempted: true, info };
           }
-          writeNegativeRequestCache('definition', position);
+          writeNegativeRequestCache(cacheKey, position);
           return { attempted: true, info: null };
         } catch (err) {
           const info = handleStageRequestError({
@@ -738,7 +753,7 @@ export const processDocumentTypes = async ({
             log,
             providerId: requestCacheProviderId,
             cmd,
-            stageKey: 'definition',
+            stageKey,
             workspaceKey: requestCacheWorkspaceKey,
             guard,
             checks,
@@ -748,194 +763,65 @@ export const processDocumentTypes = async ({
             hoverControl,
             resolvedHoverDisableAfterTimeouts
           });
-          writeNegativeRequestCache('definition', position);
+          writeNegativeRequestCache(cacheKey, position);
           return { attempted: true, info };
         }
       })();
-      definitionRequestByPosition.set(key, promise);
+      requestByPosition.set(key, promise);
       return promise;
     };
 
-    const requestTypeDefinition = (symbol, position) => {
-      throwIfAborted(abortSignal);
-      const key = buildSymbolPositionCacheKey({
+    const requestDefinition = createLocationSignatureRequester({
+      requestByPosition: definitionRequestByPosition,
+      budget: definitionBudget,
+      cacheKey: 'definition',
+      method: 'textDocument/definition',
+      label: 'definition',
+      stageKey: 'definition',
+      timeoutMs: resolvedDefinitionTimeout,
+      limiter: definitionLimiter,
+      requestedMetric: 'definitionRequested',
+      succeededMetric: 'definitionSucceeded',
+      buildParams: ({ position }) => ({
+        textDocument: { uri },
         position
-      });
-      if (!key) return Promise.resolve({ attempted: false, info: null });
-      if (typeDefinitionRequestByPosition.has(key)) return typeDefinitionRequestByPosition.get(key);
-      if (isSoftDeadlineExpired()) {
-        markSoftDeadlineReached();
-        recordSoftDeadlineSkip();
-        return Promise.resolve({ attempted: false, info: null });
-      }
-      if (!reserveRequestBudget(typeDefinitionBudget)) return Promise.resolve({ attempted: false, info: null });
-      const cachedTypeDefinitionInfo = tryReadRequestCache('type_definition', position);
-      const runTypeDefinition = typeof typeDefinitionLimiter === 'function'
-        ? typeDefinitionLimiter
-        : hoverLimiter;
-      const promise = (async () => {
-        if (cachedTypeDefinitionInfo?.negative === true) {
-          return { attempted: false, info: null };
-        }
-        if (cachedTypeDefinitionInfo?.info) {
-          return { attempted: true, info: cachedTypeDefinitionInfo.info };
-        }
-        const timeoutOverride = Number.isFinite(resolvedTypeDefinitionTimeout)
-          ? resolvedTypeDefinitionTimeout
-          : null;
-        fileHoverStats.typeDefinitionRequested += 1;
-        hoverMetrics.typeDefinitionRequested += 1;
-        try {
-          throwIfAborted(abortSignal);
-          const payload = await runTypeDefinition(() => runGuarded(
-            ({ timeoutMs: guardTimeout }) => client.request('textDocument/typeDefinition', {
-              textDocument: { uri },
-              position
-            }, { timeoutMs: guardTimeout }),
-            { label: 'typeDefinition', ...(timeoutOverride ? { timeoutOverride } : {}) }
-          ));
-          const locations = extractDefinitionLocations(payload);
-          if (!locations.length) return null;
-          const definitionUris = new Set([String(uri || '')]);
-          if (legacyUri) definitionUris.add(String(legacyUri));
-          for (const location of locations) {
-            if (!definitionUris.has(String(location?.uri || ''))) continue;
-            const locationOffsets = rangeToOffsets(lineIndex, location?.range || null, {
-              text: docText,
-              positionEncoding
-            });
-            let candidate = buildSourceSignatureCandidate(
-              openEntry?.text || doc.text || '',
-              locationOffsets
-            );
-            if (!candidate) {
-              const fallbackLine = Number(location?.range?.start?.line);
-              candidate = buildLineSignatureCandidate(openEntry?.text || doc.text || '', fallbackLine);
-            }
-            const info = parseSignatureCached(candidate, symbol?.name);
-            if (info) {
-              writePositiveRequestCache('type_definition', position, info);
-              fileHoverStats.typeDefinitionSucceeded += 1;
-              hoverMetrics.typeDefinitionSucceeded += 1;
-              return { attempted: true, info };
-            }
-          }
-          writeNegativeRequestCache('type_definition', position);
-          return { attempted: true, info: null };
-        } catch (err) {
-          const info = handleStageRequestError({
-            err,
-            log,
-            providerId: requestCacheProviderId,
-            cmd,
-            stageKey: 'type_definition',
-            workspaceKey: requestCacheWorkspaceKey,
-            guard,
-            checks,
-            checkFlags,
-            fileHoverStats,
-            hoverMetrics,
-            hoverControl,
-            resolvedHoverDisableAfterTimeouts
-          });
-          writeNegativeRequestCache('type_definition', position);
-          return { attempted: true, info };
-        }
-      })();
-      typeDefinitionRequestByPosition.set(key, promise);
-      return promise;
-    };
+      })
+    });
 
-    const requestReferences = (symbol, position) => {
-      throwIfAborted(abortSignal);
-      const key = buildSymbolPositionCacheKey({
+    const requestTypeDefinition = createLocationSignatureRequester({
+      requestByPosition: typeDefinitionRequestByPosition,
+      budget: typeDefinitionBudget,
+      cacheKey: 'type_definition',
+      method: 'textDocument/typeDefinition',
+      label: 'typeDefinition',
+      stageKey: 'type_definition',
+      timeoutMs: resolvedTypeDefinitionTimeout,
+      limiter: typeDefinitionLimiter,
+      requestedMetric: 'typeDefinitionRequested',
+      succeededMetric: 'typeDefinitionSucceeded',
+      buildParams: ({ position }) => ({
+        textDocument: { uri },
         position
-      });
-      if (!key) return Promise.resolve({ attempted: false, info: null });
-      if (referencesRequestByPosition.has(key)) return referencesRequestByPosition.get(key);
-      if (isSoftDeadlineExpired()) {
-        markSoftDeadlineReached();
-        recordSoftDeadlineSkip();
-        return Promise.resolve({ attempted: false, info: null });
-      }
-      if (!reserveRequestBudget(referencesBudget)) return Promise.resolve({ attempted: false, info: null });
-      const cachedReferencesInfo = tryReadRequestCache('references', position);
-      const runReferences = typeof referencesLimiter === 'function'
-        ? referencesLimiter
-        : hoverLimiter;
-      const promise = (async () => {
-        if (cachedReferencesInfo?.negative === true) {
-          return { attempted: false, info: null };
-        }
-        if (cachedReferencesInfo?.info) {
-          return { attempted: true, info: cachedReferencesInfo.info };
-        }
-        const timeoutOverride = Number.isFinite(resolvedReferencesTimeout)
-          ? resolvedReferencesTimeout
-          : null;
-        fileHoverStats.referencesRequested += 1;
-        hoverMetrics.referencesRequested += 1;
-        try {
-          throwIfAborted(abortSignal);
-          const payload = await runReferences(() => runGuarded(
-            ({ timeoutMs: guardTimeout }) => client.request('textDocument/references', {
-              textDocument: { uri },
-              position,
-              context: { includeDeclaration: true }
-            }, { timeoutMs: guardTimeout }),
-            { label: 'references', ...(timeoutOverride ? { timeoutOverride } : {}) }
-          ));
-          const locations = extractDefinitionLocations(payload);
-          if (!locations.length) return null;
-          const referenceUris = new Set([String(uri || '')]);
-          if (legacyUri) referenceUris.add(String(legacyUri));
-          for (const location of locations) {
-            if (!referenceUris.has(String(location?.uri || ''))) continue;
-            const locationOffsets = rangeToOffsets(lineIndex, location?.range || null, {
-              text: docText,
-              positionEncoding
-            });
-            let candidate = buildSourceSignatureCandidate(
-              openEntry?.text || doc.text || '',
-              locationOffsets
-            );
-            if (!candidate) {
-              const fallbackLine = Number(location?.range?.start?.line);
-              candidate = buildLineSignatureCandidate(openEntry?.text || doc.text || '', fallbackLine);
-            }
-            const info = parseSignatureCached(candidate, symbol?.name);
-            if (info) {
-              writePositiveRequestCache('references', position, info);
-              fileHoverStats.referencesSucceeded += 1;
-              hoverMetrics.referencesSucceeded += 1;
-              return { attempted: true, info };
-            }
-          }
-          writeNegativeRequestCache('references', position);
-          return { attempted: true, info: null };
-        } catch (err) {
-          const info = handleStageRequestError({
-            err,
-            log,
-            providerId: requestCacheProviderId,
-            cmd,
-            stageKey: 'references',
-            workspaceKey: requestCacheWorkspaceKey,
-            guard,
-            checks,
-            checkFlags,
-            fileHoverStats,
-            hoverMetrics,
-            hoverControl,
-            resolvedHoverDisableAfterTimeouts
-          });
-          writeNegativeRequestCache('references', position);
-          return { attempted: true, info };
-        }
-      })();
-      referencesRequestByPosition.set(key, promise);
-      return promise;
-    };
+      })
+    });
+
+    const requestReferences = createLocationSignatureRequester({
+      requestByPosition: referencesRequestByPosition,
+      budget: referencesBudget,
+      cacheKey: 'references',
+      method: 'textDocument/references',
+      label: 'references',
+      stageKey: 'references',
+      timeoutMs: resolvedReferencesTimeout,
+      limiter: referencesLimiter,
+      requestedMetric: 'referencesRequested',
+      succeededMetric: 'referencesSucceeded',
+      buildParams: ({ position }) => ({
+        textDocument: { uri },
+        position,
+        context: { includeDeclaration: true }
+      })
+    });
 
     for (const symbol of flattened) {
       throwIfAborted(abortSignal);

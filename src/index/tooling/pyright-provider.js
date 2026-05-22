@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fsSync from 'node:fs';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { readJsonFileSafe } from '../../shared/files.js';
+import { readJsonFileSafe } from '../../shared/file-read.js';
 import {
   appendDiagnosticChecks,
   buildDuplicateChunkUidChecks,
@@ -41,6 +41,57 @@ const PYRIGHT_WORKSPACE_MARKERS = new Set([
   'setup.cfg',
   'requirements.txt'
 ]);
+
+const buildPyrightProviderEnvelope = ({ configHash, diagnostics }) => ({
+  provider: { id: 'pyright', version: '2.0.0', configHash },
+  byChunkUid: {},
+  diagnostics
+});
+
+const buildPyrightHealthDiagnostics = (runtimeHealth) => ({
+  state: runtimeHealth.effectiveState,
+  nextState: runtimeHealth.effectiveState,
+  reasonCode: runtimeHealth.reasonCode,
+  workspaceRootRel: runtimeHealth.workspaceRootRel,
+  fingerprint: runtimeHealth.fingerprint,
+  priorState: runtimeHealth.persistedState?.state || null,
+  cooldownRemainingMs: runtimeHealth.cooldownRemainingMs,
+  documentSymbolTimedOut: 0,
+  documentSymbolFailed: 0,
+  hoverTimedOut: 0,
+  hoverFailed: 0
+});
+
+const buildPyrightFallbackProviderResult = ({
+  configHash,
+  inputs,
+  requestPlan,
+  runtimeHealth,
+  checks,
+  fallbackChecks = []
+}) => {
+  const fallback = buildPyrightFallbackContract({
+    state: runtimeHealth.effectiveState,
+    reasonCode: runtimeHealth.reasonCode,
+    workspaceRootRel: runtimeHealth.workspaceRootRel,
+    fingerprint: runtimeHealth.fingerprint,
+    captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
+    ...(fallbackChecks.length ? { checks: fallbackChecks } : {})
+  });
+  const fidelity = {
+    ...fallback,
+    state: fallback.fidelityState || fallback.state
+  };
+  return buildPyrightProviderEnvelope({
+    configHash,
+    diagnostics: appendDiagnosticChecks({
+      planning: requestPlan.diagnostics,
+      health: buildPyrightHealthDiagnostics(runtimeHealth),
+      fallback,
+      fidelity
+    }, checks)
+  });
+};
 
 const resolveWorkspaceScanOutlierThresholds = (toolingConfig) => {
   const pyrightConfig = toolingConfig?.pyright && typeof toolingConfig.pyright === 'object'
@@ -401,40 +452,13 @@ export const createPyrightProvider = () => ({
       selectedDocumentSummaries: requestPlan.selectedDocumentSummaries
     });
     if (!requestPlan.selectedDocuments.length || !requestPlan.selectedTargets.length) {
-      const fallback = buildPyrightFallbackContract({
-        state: runtimeHealth.effectiveState,
-        reasonCode: runtimeHealth.reasonCode,
-        workspaceRootRel: runtimeHealth.workspaceRootRel,
-        fingerprint: runtimeHealth.fingerprint,
-        captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds)
+      return buildPyrightFallbackProviderResult({
+        configHash: this.getConfigHash(ctx),
+        inputs,
+        requestPlan,
+        runtimeHealth,
+        checks
       });
-      const fidelity = {
-        ...fallback,
-        state: fallback.fidelityState || fallback.state
-      };
-      const diagnostics = appendDiagnosticChecks({
-        planning: requestPlan.diagnostics,
-        health: {
-          state: runtimeHealth.effectiveState,
-          nextState: runtimeHealth.effectiveState,
-          reasonCode: runtimeHealth.reasonCode,
-          workspaceRootRel: runtimeHealth.workspaceRootRel,
-          fingerprint: runtimeHealth.fingerprint,
-          priorState: runtimeHealth.persistedState?.state || null,
-          cooldownRemainingMs: runtimeHealth.cooldownRemainingMs,
-          documentSymbolTimedOut: 0,
-          documentSymbolFailed: 0,
-          hoverTimedOut: 0,
-          hoverFailed: 0
-        },
-        fallback,
-        fidelity
-      }, checks);
-      return {
-        provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
-        byChunkUid: {},
-        diagnostics
-      };
     }
     const runtimeOverrides = resolvePyrightRuntimeOverrides({
       documentSymbolConcurrency: requestPlan.documentSymbolConcurrency
@@ -452,41 +476,14 @@ export const createPyrightProvider = () => ({
         status: 'warn',
         message: `pyright workspace "${runtimeHealth.workspaceRootRel}" is quarantined for this run${runtimeHealth.cooldownRemainingMs > 0 ? ` (${runtimeHealth.cooldownRemainingMs}ms remaining)` : ''}.`
       });
-      const fallback = buildPyrightFallbackContract({
-        state: runtimeHealth.effectiveState,
-        reasonCode: runtimeHealth.reasonCode,
-        workspaceRootRel: runtimeHealth.workspaceRootRel,
-        fingerprint: runtimeHealth.fingerprint,
-        captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
-        checks
+      return buildPyrightFallbackProviderResult({
+        configHash: this.getConfigHash(ctx),
+        inputs,
+        requestPlan,
+        runtimeHealth,
+        checks,
+        fallbackChecks: checks
       });
-      const fidelity = {
-        ...fallback,
-        state: fallback.fidelityState || fallback.state
-      };
-      const diagnostics = appendDiagnosticChecks({
-        planning: requestPlan.diagnostics,
-        health: {
-          state: runtimeHealth.effectiveState,
-          nextState: runtimeHealth.effectiveState,
-          reasonCode: runtimeHealth.reasonCode,
-          workspaceRootRel: runtimeHealth.workspaceRootRel,
-          fingerprint: runtimeHealth.fingerprint,
-          priorState: runtimeHealth.persistedState?.state || null,
-          cooldownRemainingMs: runtimeHealth.cooldownRemainingMs,
-          documentSymbolTimedOut: 0,
-          documentSymbolFailed: 0,
-          hoverTimedOut: 0,
-          hoverFailed: 0
-        },
-        fallback,
-        fidelity
-      }, checks);
-      return {
-        provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
-        byChunkUid: {},
-        diagnostics
-      };
     }
     const result = await collectLspTypes({
       ...runtimeConfig,

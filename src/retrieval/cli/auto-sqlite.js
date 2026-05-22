@@ -1,6 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { readJsonFile, readJsonLinesArraySync } from '../../shared/artifact-io.js';
+import { readJsonFile, readJsonLinesArraySync } from '../../shared/artifact-io/json.js';
 import { estimateIndexBytes } from './options.js';
 
 const MAX_CHUNK_META_COUNT_PARSE_BYTES = 5 * 1024 * 1024;

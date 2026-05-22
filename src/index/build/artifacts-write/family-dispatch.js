@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { toPosix } from '../../../shared/files.js';
-import { writeJsonObjectFile } from '../../../shared/json-stream.js';
+import { toPosix } from '../../../shared/file-paths.js';
+import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
 import { createJsonWriteStream, writeChunkWithTiming } from '../../../shared/json-stream/streams.js';
-import { estimateJsonBytes } from '../../../shared/cache.js';
+import { estimateJsonBytes } from '../../../shared/cache/size.js';
 import { removePathWithRetry } from '../../../shared/io/remove-path-with-retry.js';
 import { ensureDiskSpace } from '../../../shared/disk-space.js';
 import { CHARGRAM_HASH_META } from '../../../shared/chargram-hash.js';

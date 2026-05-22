@@ -66,7 +66,7 @@ const readExtractionReportLowYieldBailout = (indexDir) => {
     : null;
 };
 
-const createEmptyModeProfile = (modeKey) => ({
+export const createEmptyModeProfile = (modeKey) => ({
   mode: modeKey,
   indexDir: null,
   cache: {

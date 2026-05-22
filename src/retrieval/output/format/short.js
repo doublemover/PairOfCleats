@@ -4,32 +4,16 @@ import {
   ANSI,
   boldText,
   colorText,
-  hyperlinkFileLabel,
-  italicColor,
-  metaChip,
-  stripAnsi
+  metaChip
 } from './ansi.js';
 import {
-  buildFormatCacheKey,
-  buildQueryHash,
-  formatLastModified,
-  formatSignature,
-  truncatePathMiddle
-} from './display-meta.js';
-
-const normalizeSnippet = (value, maxLength = 140) => {
-  const raw = String(value || '').replace(/\s+/gu, ' ').trim();
-  if (!raw) return '';
-  return raw.length > maxLength ? `${raw.slice(0, Math.max(0, maxLength - 3))}...` : raw;
-};
-
-const looksKeywordish = (value) => {
-  const text = normalizeSnippet(value, 180);
-  if (!text) return false;
-  if (/[.?!:;]/u.test(text)) return false;
-  const tokens = text.split(/\s+/u).filter(Boolean);
-  return tokens.length >= 4 && tokens.every((token) => /^[a-z0-9_\-/]+$/iu.test(token));
-};
+  alignTextColumns,
+  buildChunkDisplayMetadata,
+  looksKeywordishSnippet,
+  normalizeSnippet,
+  resolveFormatCache,
+  writeFormatCache
+} from './shared.js';
 
 /**
  * Render a compact, single-line result entry.
@@ -57,62 +41,43 @@ export function formatShortChunk({
     return color.red(`   ${index + 1}. [Invalid result - missing chunk or file]`) + '\n';
   }
   const canCache = !_skipCache && !explain;
-  const formatCache = canCache ? getFormatShortCache() : null;
-  const queryHash = canCache ? buildQueryHash(queryTokens, rx) : '';
-  const layoutSignature = `${layout?.cacheKey || ''}|links:${hyperlinkMode || 'auto'}`;
-  let cacheKey = null;
-  if (canCache && formatCache) {
-    cacheKey = buildFormatCacheKey({ chunk, index, mode, queryHash, matched, explain, layoutSignature });
-    const cached = formatCache.get(cacheKey);
-    if (cached) return cached;
-  }
+  const { formatCache, cacheKey, cached } = resolveFormatCache({
+    canCache,
+    getFormatCache: getFormatShortCache,
+    chunk,
+    index,
+    mode,
+    queryTokens,
+    rx,
+    matched,
+    explain,
+    layout,
+    hyperlinkMode
+  });
+  if (cached) return cached;
   let out = '';
   const isNarrow = Boolean(layout?.isNarrow);
   const columns = Number.isFinite(layout?.columns) ? layout.columns : 108;
   const fullExplain = explain && explainTier === 'full';
   const rightAlign = (left, right, indent = '') => {
-    if (!right) return `${indent}${left}`;
-    const maxWidth = Math.max(24, columns - stripAnsi(indent).length);
-    const leftWidth = stripAnsi(left).length;
-    const rightWidth = stripAnsi(right).length;
-    if (leftWidth + rightWidth + 2 > maxWidth) {
-      return `${indent}${left}\n${indent}${right}`;
-    }
-    return `${indent}${left}${' '.repeat(Math.max(1, maxWidth - leftWidth - rightWidth))}${right}`;
+    return alignTextColumns({ left, right, columns, indent });
   };
-  const lineRange = Number.isFinite(chunk.startLine) && Number.isFinite(chunk.endLine)
-    ? `[${chunk.startLine}-${chunk.endLine}]`
-    : '';
-  const fileLabel = lineRange ? `${chunk.file}:${lineRange}` : chunk.file;
-  const signature = chunk.docmeta?.signature || '';
-  const isPlaceholderName = chunk.name === 'blob' || chunk.name === 'root';
-  const isPlaceholderKind = chunk.kind === 'Blob' || (chunk.kind === 'Section' && !chunk.name) || (chunk.kind === 'Module' && !chunk.name);
-  const nameLabel = (!isPlaceholderName && chunk.name) ? String(chunk.name) : '';
-  const kindLabel = isPlaceholderKind ? '' : (chunk.kind ? String(chunk.kind) : '');
-  const fallbackSig = [kindLabel, nameLabel].filter(Boolean).join(' ').trim();
-  const signatureLabel = signature || fallbackSig;
-  const displayName = nameLabel || signatureLabel || fileLabel;
-  const signaturePart = signatureLabel && signatureLabel !== displayName
-    ? formatSignature(signatureLabel, nameLabel || displayName)
-    : '';
-  const lastModLabel = formatLastModified(chunk.last_modified);
-  const maxFileWidth = Math.max(18, columns - (2 + (lastModLabel ? lastModLabel.length + 2 : 0)));
-  const shortenedFilePath = truncatePathMiddle(chunk.file, Math.max(12, maxFileWidth - (lineRange ? lineRange.length + 1 : 0)));
-  const filePathStyled = hyperlinkFileLabel({
-    label: italicColor(shortenedFilePath, ANSI.fgLight),
-    filePath: chunk.file,
-    line: chunk.startLine,
+  const {
+    fileLabel,
+    signaturePart,
+    lastModLabel,
+    fileStyled,
+    primaryTitle
+  } = buildChunkDisplayMetadata({
+    chunk,
+    mode,
+    columns,
+    minFileWidth: 18,
+    pathWidthOffset: 2,
     rootDir,
-    mode: hyperlinkMode
+    hyperlinkMode
   });
-  const rangeStyled = lineRange ? colorText(lineRange, ANSI.fgLight) : '';
-  const fileStyled = lineRange
-    ? `${filePathStyled}${colorText(':', ANSI.fgLight)}${rangeStyled}`
-    : filePathStyled;
   const timeStyled = lastModLabel ? colorText(lastModLabel, ANSI.fgDarkGray) : '';
-  const primaryTitle = mode === 'extracted-prose'
-    ? fileLabel
-    : (mode === 'prose' ? (nameLabel || fileLabel) : displayName);
   const titleLine = primaryTitle === fileLabel
     ? `${colorText(`${index + 1}.`, ANSI.fgYellow)} ${fileStyled}`
     : `${colorText(`${index + 1}.`, ANSI.fgYellow)} ${boldText(primaryTitle)}`;
@@ -157,7 +122,7 @@ export function formatShortChunk({
   const snippetLabel = mode === 'records'
     ? 'summary'
     : (mode === 'extracted-prose'
-      ? (looksKeywordish(rawSnippet) ? 'keywords' : 'comment')
+      ? (looksKeywordishSnippet(rawSnippet, 180) ? 'keywords' : 'comment')
       : 'excerpt');
   const displaySnippet = rawSnippet && normalizeSnippet(primaryTitle).toLowerCase() === rawSnippet.toLowerCase()
     ? ''
@@ -187,9 +152,7 @@ export function formatShortChunk({
 
   out = out.replace(/\n+$/u, '');
   out += '\n';
-  if (canCache && formatCache && cacheKey) {
-    formatCache.set(cacheKey, out);
-  }
+  writeFormatCache({ canCache, formatCache, cacheKey, value: out });
   return out;
 }
 

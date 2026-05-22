@@ -3,9 +3,10 @@ import { resolveIndexDir } from '../../../src/retrieval/cli-index.js';
 import { hasIndexMeta } from '../../../src/retrieval/cli/index-loader.js';
 import { buildRiskDeltaPayload } from '../../../src/context-pack/risk-delta.js';
 import { buildRiskExplainPayload } from '../../analysis/explain-risk.js';
+import { projectRiskDeltaRequest, projectRiskExplainRequest } from '../../analysis/risk-request.js';
 import { buildCompositeContextPackPayload } from '../../../src/integrations/tooling/context-pack.js';
+import { buildContextPackRequestInput } from '../../../src/shared/context-pack-request.js';
 import { attachObservability, buildChildObservability } from '../../../src/shared/observability.js';
-import { normalizeRiskFilters, validateRiskFilters } from '../../../src/shared/risk-filters.js';
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { sendError, sendJson } from '../response.js';
 import {
@@ -52,8 +53,8 @@ export async function handleRiskExplainRoute({
     return true;
   }
 
-  const filters = normalizeRiskFilters(payload.filters || null);
-  const filterValidation = validateRiskFilters(filters);
+  const riskRequest = projectRiskExplainRequest(payload);
+  const { filters, filterValidation } = riskRequest;
   if (!filterValidation.ok) {
     sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid risk filters.', {
       errors: filterValidation.errors,
@@ -68,16 +69,16 @@ export async function handleRiskExplainRoute({
       operation: 'risk_explain',
       context: {
         repoRoot: repoPath,
-        chunkUid: String(payload.chunk)
+        chunkUid: riskRequest.chunkUid
       }
     });
     const result = await buildRiskExplainPayload({
       indexDir,
-      chunkUid: String(payload.chunk),
-      max: payload.max,
+      chunkUid: riskRequest.chunkUid,
+      max: riskRequest.max,
       filters,
-      includePartialFlows: payload.includePartialFlows === true,
-      maxPartialFlows: payload.maxPartialFlows
+      includePartialFlows: riskRequest.includePartialFlows,
+      maxPartialFlows: riskRequest.maxPartialFlows
     });
     sendJson(res, 200, attachObservability({ ok: true, result }, resultObservability), corsHeaders || {});
     return true;
@@ -144,41 +145,16 @@ export async function handleContextPackRoute({
         }
         : {}
     });
-    const result = await buildCompositeContextPackPayload({
-      repoRoot: repoPath,
-      seed: payload.seed,
-      hops: payload.hops,
-      includeGraph: payload.includeGraph,
-      includeTypes: payload.includeTypes,
-      includeRisk: payload.includeRisk,
-      includeRiskPartialFlows: payload.includeRiskPartialFlows,
-      strictRisk: payload.strictRisk,
-      strictEvidence: payload.strictEvidence,
-      riskFilters: payload.filters || null,
-      includeImports: payload.includeImports,
-      includeUsages: payload.includeUsages,
-      includeCallersCallees: payload.includeCallersCallees,
-      includePaths: payload.includePaths,
-      maxBytes: payload.maxBytes,
-      maxTokens: payload.maxTokens,
-      maxTypeEntries: payload.maxTypeEntries,
-      maxDepth: payload.maxDepth,
-      maxFanoutPerNode: payload.maxFanoutPerNode,
-      maxNodes: payload.maxNodes,
-      maxEdges: payload.maxEdges,
-      maxPaths: payload.maxPaths,
-      maxCandidates: payload.maxCandidates,
-      maxWorkUnits: payload.maxWorkUnits,
-      maxWallClockMs: payload.maxWallClockMs,
-      workspacePath: payload.workspacePath,
-      workspaceId: payload.workspaceId,
-      select: payload.select,
-      includeDisabled: payload.includeDisabled,
-      maxFederatedRepos: payload.maxFederatedRepos,
-      workspaceConfig
-    }, {
-      trustedWorkspaceConfig: Boolean(workspaceConfig)
-    });
+    const result = await buildCompositeContextPackPayload(
+      buildContextPackRequestInput(payload, {
+        repoRoot: repoPath,
+        riskFilters: payload.filters || null,
+        workspaceConfig
+      }),
+      {
+        trustedWorkspaceConfig: Boolean(workspaceConfig)
+      }
+    );
     sendJson(res, 200, attachObservability({ ok: true, result }, resultObservability), corsHeaders || {});
     return true;
   } catch (err) {
@@ -233,8 +209,8 @@ export async function handleRiskDeltaRoute({
   );
   if (!resolvedRepo.ok) return true;
   const repoPath = resolvedRepo.repoPath;
-  const filters = normalizeRiskFilters(payload.filters || null);
-  const filterValidation = validateRiskFilters(filters);
+  const riskRequest = projectRiskDeltaRequest(payload);
+  const { filters, filterValidation } = riskRequest;
   if (!filterValidation.ok) {
     sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid risk filters.', {
       errors: filterValidation.errors,
@@ -250,18 +226,18 @@ export async function handleRiskDeltaRoute({
       operation: 'risk_delta',
       context: {
         repoRoot: repoPath,
-        from: String(payload.from),
-        to: String(payload.to)
+        from: riskRequest.fromRef,
+        to: riskRequest.toRef
       }
     });
     const result = await buildRiskDeltaPayload({
       repoRoot: repoPath,
       userConfig,
-      from: String(payload.from),
-      to: String(payload.to),
-      seed: String(payload.seed),
+      from: riskRequest.fromRef,
+      to: riskRequest.toRef,
+      seed: riskRequest.seed,
       filters,
-      includePartialFlows: payload.includePartialFlows === true
+      includePartialFlows: riskRequest.includePartialFlows
     });
     sendJson(res, 200, attachObservability({ ok: true, result }, resultObservability), corsHeaders || {});
     return true;

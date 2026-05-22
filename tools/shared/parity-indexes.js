@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getIndexDir } from './dict-utils.js';
-import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
 
 const DEFAULT_PARITY_MODES = Object.freeze(['code', 'prose']);
 export const DEFAULT_PARITY_CHUNK_META_CANDIDATES = Object.freeze([

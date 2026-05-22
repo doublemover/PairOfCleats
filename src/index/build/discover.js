@@ -10,11 +10,11 @@ import {
   resolveSpecialCodeExt
 } from '../constants.js';
 import { getLanguageForFile } from '../language-registry.js';
-import { fileExt, isRelativePathEscape, toPosix } from '../../shared/files.js';
+import { fileExt, isRelativePathEscape, toPosix } from '../../shared/file-paths.js';
 import { createRecordsClassifier } from './records.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
-import { getEnvConfig } from '../../shared/env.js';
+import { getEnvConfig } from '../../shared/env/runtime.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { detectShebangLanguage } from './shebang.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';

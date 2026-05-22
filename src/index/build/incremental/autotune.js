@@ -1,5 +1,5 @@
 import { availableParallelism, cpus } from 'node:os';
-import { getEnvConfig } from '../../../shared/env.js';
+import { getEnvConfig } from '../../../shared/env/runtime.js';
 
 const DEFAULT_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 12;
 const MAX_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 64;

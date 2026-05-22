@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import readline from 'node:readline';
 import { pipeline } from 'node:stream/promises';
-import { getRecentLogEvents } from '../../shared/progress.js';
+import { getRecentLogEvents } from '../../shared/progress-runtime.js';
 import { createTempPath } from '../../shared/json-stream/atomic.js';
 import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
 import { atomicWriteJson, atomicWriteJsonSync, atomicWriteTextSync } from '../../shared/io/atomic-write.js';

@@ -1,52 +1,16 @@
-import { toPosix } from '../../../../shared/files.js';
-import { toRepoPosixPath } from '../../paths.js';
+import {
+  createUnavailableFileMeta,
+  hasFileMetaIdentity,
+  normalizeFileMeta
+} from '../../file-meta.js';
+import { toUniqueRepoPosixFiles } from '../../paths.js';
 
-export const toUniquePosixFiles = (filesPosix = [], repoRoot = null) => {
-  const out = [];
-  const seen = new Set();
-  for (const raw of Array.isArray(filesPosix) ? filesPosix : []) {
-    const normalized = repoRoot
-      ? toRepoPosixPath(raw, repoRoot)
-      : toPosix(String(raw || ''));
-    if (!normalized || seen.has(normalized)) continue;
-    seen.add(normalized);
-    out.push(normalized);
-  }
-  return out;
-};
+export { createUnavailableFileMeta, normalizeFileMeta } from '../../file-meta.js';
 
-export const createUnavailableFileMeta = () => ({
-  lastCommitId: null,
-  lastModifiedAt: null,
-  lastAuthor: null,
-  churn: null,
-  churnAdded: null,
-  churnDeleted: null,
-  churnCommits: null
+export const toUniquePosixFiles = (filesPosix = [], repoRoot = null) => toUniqueRepoPosixFiles(filesPosix, {
+  repoRoot,
+  rejectEscape: Boolean(repoRoot)
 });
-
-const normalizeFiniteMetaNumber = (value) => (
-  typeof value === 'number' && Number.isFinite(value) ? value : null
-);
-
-export const normalizeFileMeta = (value) => ({
-  lastCommitId: typeof value?.lastCommitId === 'string' ? value.lastCommitId : null,
-  lastModifiedAt: typeof value?.lastModifiedAt === 'string' ? value.lastModifiedAt : null,
-  lastAuthor: typeof value?.lastAuthor === 'string' ? value.lastAuthor : null,
-  churn: normalizeFiniteMetaNumber(value?.churn),
-  churnAdded: normalizeFiniteMetaNumber(value?.churnAdded),
-  churnDeleted: normalizeFiniteMetaNumber(value?.churnDeleted),
-  churnCommits: normalizeFiniteMetaNumber(value?.churnCommits)
-});
-
-const hasMetaIdentity = (meta) => Boolean(
-  meta
-  && (
-    typeof meta.lastCommitId === 'string'
-    || typeof meta.lastModifiedAt === 'string'
-    || typeof meta.lastAuthor === 'string'
-  )
-);
 
 let gitMetaPrefetchCache = new Map();
 let gitMetaPrefetchInFlight = new Map();
@@ -149,7 +113,7 @@ export const readGitMetaPrefetchValue = ({ freshnessGuard, config, filePosix }) 
   const entry = getGitMetaPrefetchEntry(freshnessGuard, config);
   if (!entry?.knownFiles?.has(filePosix)) return null;
   const meta = normalizeFileMeta(entry.fileMetaByPath[filePosix] || null);
-  return hasMetaIdentity(meta)
+  return hasFileMetaIdentity(meta)
     ? meta
     : { ok: false, reason: 'unavailable' };
 };

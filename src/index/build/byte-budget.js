@@ -1,5 +1,5 @@
-import { MAX_JSON_BYTES } from '../../shared/artifact-io.js';
-import { log } from '../../shared/progress.js';
+import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
+import { log } from '../../shared/progress-runtime.js';
 import { formatBytes } from './artifacts/helpers.js';
 
 const isObject = (value) => (

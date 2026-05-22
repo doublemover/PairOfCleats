@@ -9,6 +9,18 @@ import { loadJsonArrayArtifactRows } from '../../src/shared/artifact-io/loaders.
 import { readJsonFileSyncSafe } from '../../src/shared/file-read.js';
 import { getMetricsDir, resolveRepoConfig } from '../shared/dict-utils.js';
 import { buildScanProfile } from './report-artifacts/scan-profile.js';
+import {
+  buildIndexingSummaryFromFeatureMetrics,
+  buildIndexingSummaryFromThroughput,
+  toFiniteOrNull
+} from '../reports/show-throughput/aggregate.js';
+import {
+  createAstGraphTotals,
+  mergeAstGraphTotals,
+  sumKindsByPattern,
+  sumKindCounts
+} from '../reports/show-throughput/ast-summary.js';
+import { resolveBuildRootFromSqliteArtifacts } from '../reports/show-throughput/build-root.js';
 
 const argv = createCli({
   scriptName: 'report-artifacts',
@@ -40,7 +52,6 @@ const lmdbMetrics = {
 const featureMetrics = readJson(path.join(metricsDir, 'feature-metrics-run.json'))
   || readJson(path.join(metricsDir, 'feature-metrics.json'));
 
-const INDEXING_SCHEMA_VERSION = 1;
 const ANALYSIS_SCHEMA_VERSION = 1;
 const ANALYSIS_MODE_KEYS = ['code', 'prose', 'extracted-prose', 'records'];
 const KIND_CLASS_PATTERNS = [
@@ -60,131 +71,10 @@ const KIND_FUNCTION_PATTERNS = [
 ];
 const KIND_IMPORT_PATTERNS = ['import', 'include', 'require'];
 
-const toFiniteOrNull = (value) => {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : null;
-};
-
-const hasModeTotals = (totals) => (
-  Number.isFinite(totals?.lines) && totals.lines > 0
-) || (
-  Number.isFinite(totals?.files) && totals.files > 0
-);
-
-const buildModeIndexingSummary = (totals) => {
-  const files = toFiniteOrNull(totals?.count);
-  const lines = toFiniteOrNull(totals?.lines);
-  const bytes = toFiniteOrNull(totals?.bytes);
-  const durationMs = toFiniteOrNull(totals?.durationMs);
-  const linesPerSec = (Number.isFinite(lines) && Number.isFinite(durationMs) && durationMs > 0)
-    ? (lines / (durationMs / 1000))
-    : null;
-  return {
-    files,
-    lines,
-    bytes,
-    durationMs,
-    linesPerSec
-  };
-};
-
-const buildIndexingSummaryFromFeatureMetrics = (metrics) => {
-  if (!metrics || typeof metrics !== 'object') return null;
-  const modes = {};
-  const totals = { files: 0, lines: 0, bytes: 0, durationMs: 0 };
-  const languageLines = {};
-  let hasData = false;
-  for (const modeKey of ANALYSIS_MODE_KEYS) {
-    const modeEntry = metrics?.modes?.[modeKey];
-    const modeTotals = buildModeIndexingSummary(modeEntry?.totals || null);
-    modes[modeKey] = modeTotals;
-    if (Number.isFinite(modeTotals.files)) totals.files += modeTotals.files;
-    if (Number.isFinite(modeTotals.lines)) totals.lines += modeTotals.lines;
-    if (Number.isFinite(modeTotals.bytes)) totals.bytes += modeTotals.bytes;
-    if (Number.isFinite(modeTotals.durationMs)) totals.durationMs += modeTotals.durationMs;
-    if (hasModeTotals(modeTotals)) hasData = true;
-    for (const [language, bucket] of Object.entries(modeEntry?.languages || {})) {
-      const lines = Number(bucket?.lines);
-      if (!Number.isFinite(lines) || lines <= 0) continue;
-      languageLines[language] = (languageLines[language] || 0) + lines;
-    }
-  }
-  if (!hasData) return null;
-  const linesPerSec = totals.durationMs > 0 ? (totals.lines / (totals.durationMs / 1000)) : null;
-  return {
-    schemaVersion: INDEXING_SCHEMA_VERSION,
-    generatedAt: new Date().toISOString(),
-    source: 'feature-metrics',
-    modes,
-    totals: {
-      ...totals,
-      linesPerSec
-    },
-    languageLines
-  };
-};
-
-const THROUGHPUT_KEY_BY_MODE = {
-  code: 'code',
-  prose: 'prose',
-  'extracted-prose': 'extractedProse',
-  records: 'records'
-};
-
-const buildIndexingSummaryFromThroughput = (throughput) => {
-  if (!throughput || typeof throughput !== 'object') return null;
-  const modes = {};
-  const totals = { files: 0, lines: 0, bytes: 0, durationMs: 0 };
-  let hasData = false;
-  for (const modeKey of ANALYSIS_MODE_KEYS) {
-    const throughputKey = THROUGHPUT_KEY_BY_MODE[modeKey];
-    const entry = throughput?.[throughputKey];
-    const files = toFiniteOrNull(entry?.files);
-    const bytes = toFiniteOrNull(entry?.bytes);
-    const durationMs = toFiniteOrNull(entry?.totalMs);
-    const modeTotals = {
-      files,
-      lines: null,
-      bytes,
-      durationMs,
-      linesPerSec: null
-    };
-    modes[modeKey] = modeTotals;
-    if (Number.isFinite(files)) totals.files += files;
-    if (Number.isFinite(bytes)) totals.bytes += bytes;
-    if (Number.isFinite(durationMs)) totals.durationMs += durationMs;
-    if (hasModeTotals(modeTotals)) hasData = true;
-  }
-  if (!hasData) return null;
-  return {
-    schemaVersion: INDEXING_SCHEMA_VERSION,
-    generatedAt: new Date().toISOString(),
-    source: 'throughput',
-    modes,
-    totals: {
-      ...totals,
-      linesPerSec: null
-    },
-    languageLines: {}
-  };
-};
-
 const resolveBuildRootFromStatus = (artifactReport) => {
   const repo = artifactReport?.repo || {};
-  const sqlite = repo.sqlite || {};
-  const sqliteCandidates = [
-    sqlite?.code?.path,
-    sqlite?.prose?.path,
-    sqlite?.extractedProse?.path,
-    sqlite?.records?.path
-  ].filter((value) => typeof value === 'string' && value.trim());
-  for (const sqlitePath of sqliteCandidates) {
-    const sqliteDir = path.dirname(sqlitePath);
-    if (path.basename(sqliteDir).toLowerCase() === 'index-sqlite') {
-      const buildRoot = path.dirname(sqliteDir);
-      if (fs.existsSync(buildRoot)) return buildRoot;
-    }
-  }
+  const sqliteBuildRoot = resolveBuildRootFromSqliteArtifacts(artifactReport, { requireExisting: false });
+  if (sqliteBuildRoot && fs.existsSync(sqliteBuildRoot)) return sqliteBuildRoot;
   const cacheRoot = typeof repo?.cacheRoot === 'string' ? repo.cacheRoot : '';
   if (!cacheRoot) return null;
   const buildsRoot = path.join(cacheRoot, 'builds');
@@ -194,44 +84,6 @@ const resolveBuildRootFromStatus = (artifactReport) => {
     .map((entry) => path.join(buildsRoot, entry.name))
     .sort((a, b) => b.localeCompare(a));
   return buildDirs[0] || null;
-};
-
-const createAstGraphTotals = () => ({
-  symbols: 0,
-  classes: 0,
-  functions: 0,
-  imports: 0,
-  fileLinks: 0,
-  graphLinks: 0
-});
-
-const mergeAstGraphTotals = (target, source) => {
-  if (!target || !source) return;
-  for (const key of Object.keys(target)) {
-    const value = Number(source[key]);
-    if (!Number.isFinite(value)) continue;
-    target[key] += value;
-  }
-};
-
-const sumKindsByPattern = (kindCounts, patterns) => {
-  if (!kindCounts || !patterns?.length) return 0;
-  let total = 0;
-  for (const [kind, count] of Object.entries(kindCounts)) {
-    const lowerKind = kind.toLowerCase();
-    if (!patterns.some((pattern) => lowerKind.includes(pattern))) continue;
-    if (Number.isFinite(Number(count))) total += Number(count);
-  }
-  return total;
-};
-
-const sumKindCounts = (kindCounts) => {
-  if (!kindCounts) return 0;
-  let total = 0;
-  for (const value of Object.values(kindCounts)) {
-    if (Number.isFinite(Number(value))) total += Number(value);
-  }
-  return total;
 };
 
 const resolveModeIndexDir = ({ artifactReport, buildRoot, modeKey }) => {
@@ -408,7 +260,7 @@ const scanProfile = buildScanProfile({
   featureMetrics,
   throughput
 });
-const indexing = buildIndexingSummaryFromFeatureMetrics(featureMetrics)
+const indexing = buildIndexingSummaryFromFeatureMetrics(featureMetrics, { normalizeLanguageKeys: false })
   || buildIndexingSummaryFromThroughput(throughput);
 const analysis = await buildAnalysis({ artifactReport: status, indexingSummary: indexing });
 status.throughput = throughput;

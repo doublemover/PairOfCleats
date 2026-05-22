@@ -1,14 +1,13 @@
 import path from 'node:path';
-import { loadUserConfig } from '../../../shared/dict-utils.js';
 import {
   buildIndex as coreBuildIndex,
   buildSqliteIndex as coreBuildSqliteIndex
 } from '../../../../src/integrations/core/index.js';
 import { attachObservability, buildChildObservability } from '../../../../src/shared/observability.js';
 import { createProgressReporter } from '../../../../src/shared/progress-events.js';
-import { clearRepoCaches, resolveRepoPath } from '../../repo.js';
+import { clearRepoCaches } from '../../repo.js';
 import { runToolWithProgress } from '../../runner.js';
-import { maybeRestoreArtifacts, resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
+import { maybeRestoreArtifacts, resolveMcpRepoContext, toolRoot } from '../helpers.js';
 
 /**
  * Handle the MCP build_index tool call.
@@ -16,9 +15,7 @@ import { maybeRestoreArtifacts, resolveRepoRuntimeEnv, toolRoot } from '../helpe
  * @returns {object}
  */
 export async function buildIndex(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const userConfig = loadUserConfig(repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, userConfig);
+  const { repoPath, userConfig, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const sqliteConfigured = userConfig.sqlite?.use !== false;
   const shouldUseSqlite = typeof args.sqlite === 'boolean' ? args.sqlite : sqliteConfigured;
   const mode = args.mode || 'all';
@@ -55,7 +52,7 @@ export async function buildIndex(args = {}, context = {}) {
 
   let restoredArtifacts = false;
   if (useArtifacts) {
-    restoredArtifacts = maybeRestoreArtifacts(repoPath, args.artifactsDir, progress, runtimeEnv);
+    restoredArtifacts = maybeRestoreArtifacts(repoPath, args.artifactsDir, context, runtimeEnv);
   }
 
   if (!restoredArtifacts) {
@@ -99,7 +96,10 @@ export async function buildIndex(args = {}, context = {}) {
  * @returns {Promise<object>}
  */
 export async function buildSqliteIndex(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
+  const { repoPath } = resolveMcpRepoContext(args.repoPath, {
+    includeRuntimeEnv: false,
+    includeUserConfig: false
+  });
   const reporter = createProgressReporter(context);
   reporter?.start('Building SQLite index.');
   const payload = await coreBuildSqliteIndex(repoPath, {
@@ -125,8 +125,7 @@ export async function buildSqliteIndex(args = {}, context = {}) {
  * @returns {Promise<object>}
  */
 export async function compactSqliteIndex(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const scriptArgs = [path.join(toolRoot, 'tools', 'build', 'compact-sqlite-index.js'), '--repo', repoPath];
   if (args.mode) scriptArgs.push('--mode', String(args.mode));
   if (args.dryRun === true) scriptArgs.push('--dry-run');

@@ -11,7 +11,7 @@ import { normalizeDocumentExtractionPolicy, normalizeExtractedText } from '../..
 import { getLanguageForFile } from '../../../../src/index/language-registry.js';
 import { extractComments, normalizeCommentConfig } from '../../../../src/index/comments.js';
 import { detectFrontmatter } from '../../../../src/index/segments.js';
-import { runWithConcurrency } from '../../../../src/shared/concurrency.js';
+import { runWithConcurrency } from '../../../../src/shared/concurrency/run-with-queue.js';
 import { readTextFile } from '../../../../src/shared/encoding.js';
 import { buildLineIndex, offsetToLine } from '../../../../src/shared/lines.js';
 import { countLinesForEntries } from '../../../../src/shared/file-stats.js';

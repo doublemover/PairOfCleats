@@ -108,6 +108,31 @@ export const captureProcessMemoryRss = () => (
 );
 
 /**
+ * Normalize process memory usage to the public diagnostics shape.
+ * @param {NodeJS.MemoryUsage} [value]
+ * @returns {{heapUsed:number,rss:number,external:number,arrayBuffers:number}}
+ */
+export const snapshotProcessMemory = (value = process.memoryUsage()) => ({
+  heapUsed: value.heapUsed,
+  rss: value.rss,
+  external: value.external,
+  arrayBuffers: value.arrayBuffers
+});
+
+/**
+ * Capture peak memory across two process memory snapshots.
+ * @param {NodeJS.MemoryUsage} start
+ * @param {NodeJS.MemoryUsage} end
+ * @returns {{heapUsed:number,rss:number,external:number,arrayBuffers:number}}
+ */
+export const buildProcessMemoryPeak = (start, end) => ({
+  heapUsed: Math.max(start.heapUsed, end.heapUsed),
+  rss: Math.max(start.rss, end.rss),
+  external: Math.max(start.external, end.external),
+  arrayBuffers: Math.max(start.arrayBuffers, end.arrayBuffers)
+});
+
+/**
  * Read index artifact bytes from pieces manifest metadata. Returns null if the
  * manifest is absent or doesn't publish piece byte sizes.
  * @param {string} indexDir

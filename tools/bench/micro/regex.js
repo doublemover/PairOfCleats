@@ -5,7 +5,7 @@ import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
 import { createSafeRegex } from '../../../src/shared/safe-regex.js';
 import { tryRequire } from '../../../src/shared/optional-deps.js';
-import { formatStats, summarizeDurations } from './utils.js';
+import { formatStats, runSampledBench } from './utils.js';
 
 const argv = yargs(hideBin(process.argv))
   .option('pattern', {
@@ -144,28 +144,11 @@ function loadRe2() {
 }
 
 async function runBench(label, fn, { iterations, samples, warmup }) {
-  for (let i = 0; i < warmup; i += 1) {
-    fn();
-  }
-  const timings = [];
-  const perSample = Math.max(1, Math.floor(iterations / samples));
-  const remainder = iterations - (perSample * samples);
-  let total = 0;
-  for (let i = 0; i < samples; i += 1) {
-    const loops = perSample + (i < remainder ? 1 : 0);
-    const start = process.hrtime.bigint();
-    for (let j = 0; j < loops; j += 1) {
-      fn();
-    }
-    const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
-    timings.push(elapsed);
-    total += elapsed;
-  }
-  const stats = summarizeDurations(timings);
-  const opsPerSec = total > 0 ? (iterations / (total / 1000)) : 0;
+  const { totalMs, stats } = await runSampledBench(fn, { iterations, samples, warmup });
+  const opsPerSec = totalMs > 0 ? (iterations / (totalMs / 1000)) : 0;
   return {
     available: true,
-    totalMs: total,
+    totalMs,
     opsPerSec,
     stats
   };

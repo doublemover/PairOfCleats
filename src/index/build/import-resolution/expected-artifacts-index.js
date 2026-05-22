@@ -3,11 +3,10 @@ import { sha1 } from '../../../shared/hash.js';
 import { normalizeRelPath, sortStrings } from './path-utils.js';
 import { toSpecifierCandidatePaths } from './candidate-paths.js';
 import {
-  stripGrpcPbGeneratedBase,
-  stripPbGeneratedBase
+  OPENAPI_BASENAME_HINTS,
+  resolveGeneratedCounterpartCandidatesForPath
 } from './generated-counterpart-suffix.js';
 
-const GENERATED_DIR_SEGMENT_RX = /\/(?:__generated__|generated|gen)\//i;
 const GENERATED_DIR_HINTS = Object.freeze([
   '/generated/',
   '/gen/',
@@ -57,16 +56,6 @@ const OPENAPI_GENERATED_SUFFIXES = Object.freeze([
   '.schemas.ts',
   '.api.ts'
 ]);
-const OPENAPI_SOURCE_SUFFIXES = Object.freeze([
-  '.openapi.yaml',
-  '.openapi.yml',
-  '.openapi.json',
-  '.swagger.yaml',
-  '.swagger.yml',
-  '.swagger.json'
-]);
-const OPENAPI_SOURCE_DIRECT_EXTENSIONS = Object.freeze(['.yaml', '.yml', '.json']);
-const OPENAPI_BASENAME_HINTS = new Set(['openapi', 'swagger']);
 const GENERATED_SUBDIRS = Object.freeze(['generated', '__generated__', 'gen']);
 
 const normalizePathToken = (value) => (
@@ -87,91 +76,12 @@ const addIfSetMissing = (target, value) => {
   if (value) target.add(value);
 };
 
-const looksLikeOpenApiBase = (baseRel) => {
-  const normalized = normalizePathToken(baseRel);
-  if (!normalized) return false;
-  const base = path.posix.basename(normalized).toLowerCase();
-  return OPENAPI_BASENAME_HINTS.has(base) || base.endsWith('.openapi') || base.endsWith('.swagger');
-};
-
 const addCounterpartCandidates = (candidateRel, targetSet) => {
   if (!candidateRel) return;
-  const normalized = normalizePathToken(candidateRel);
-  if (!normalized) return;
-  const lower = normalized.toLowerCase();
-
-  const pb2Base = normalized.replace(/_pb2(?:_grpc)?\.(?:py|pyi)$/i, '');
-  if (pb2Base !== normalized) {
-    addIfSetMissing(targetSet, `${pb2Base}.proto`);
-  }
-
-  const grpcPbBase = stripGrpcPbGeneratedBase(normalized);
-  if (grpcPbBase !== normalized) {
-    addIfSetMissing(targetSet, `${grpcPbBase}.proto`);
-  }
-
-  const pbBase = stripPbGeneratedBase(normalized);
-  if (pbBase !== normalized) {
-    addIfSetMissing(targetSet, `${pbBase}.proto`);
-  }
-
-  const dartBase = normalized.replace(/\.g\.dart$/i, '');
-  if (dartBase !== normalized) {
-    addIfSetMissing(targetSet, `${dartBase}.dart`);
-  }
-
-  const generatedGraph = normalized.replace(/\.generated(?=\.[^./]+(?:\.[^./]+)?$)/i, '');
-  if (generatedGraph !== normalized) {
-    const graphStem = generatedGraph.replace(/\.[^./]+(?:\.[^./]+)?$/i, '');
-    if (graphStem) {
-      addIfSetMissing(targetSet, `${graphStem}.graphql`);
-      addIfSetMissing(targetSet, `${graphStem}.gql`);
-    }
-  }
-
-  if (GENERATED_DIR_SEGMENT_RX.test(lower)) {
-    const collapsed = normalized.replace(/\/(?:__generated__|generated|gen)\//i, '/');
-    addIfSetMissing(targetSet, collapsed);
-    if (collapsed !== normalized) {
-      addCounterpartCandidates(collapsed, targetSet);
-    }
-  }
-
-  const candidateExt = path.posix.extname(normalized);
-  const candidateBase = candidateExt
-    ? normalized.slice(0, -candidateExt.length)
-    : normalized;
-  const openApiBases = new Set([candidateBase]);
-  openApiBases.add(candidateBase.replace(/(?:[-_.](?:generated|gen))$/i, ''));
-  openApiBases.add(candidateBase.replace(/(?:[-_.](?:client|types?|schemas?|api))$/i, ''));
-  openApiBases.add(
-    candidateBase
-      .replace(/(?:[-_.](?:generated|gen))$/i, '')
-      .replace(/(?:[-_.](?:client|types?|schemas?|api))$/i, '')
-  );
-  let hasOpenApiHints = false;
-  for (const openApiBase of openApiBases) {
-    const normalizedBase = normalizePathToken(openApiBase);
-    if (!normalizedBase) continue;
-    if (looksLikeOpenApiBase(normalizedBase)) {
-      hasOpenApiHints = true;
-    }
-    for (const suffix of OPENAPI_SOURCE_SUFFIXES) {
-      addIfSetMissing(targetSet, `${normalizedBase}${suffix}`);
-    }
-    if (looksLikeOpenApiBase(normalizedBase)) {
-      for (const ext of OPENAPI_SOURCE_DIRECT_EXTENSIONS) {
-        addIfSetMissing(targetSet, `${normalizedBase}${ext}`);
-      }
-    }
-  }
-  const dir = path.posix.dirname(normalized);
-  if (hasOpenApiHints && dir && dir !== '.') {
-    for (const basenameHint of OPENAPI_BASENAME_HINTS) {
-      for (const ext of ['.yaml', '.yml', '.json']) {
-        addIfSetMissing(targetSet, normalizePathToken(path.posix.join(dir, `${basenameHint}${ext}`)));
-      }
-    }
+  for (const counterpart of resolveGeneratedCounterpartCandidatesForPath(candidateRel, {
+    includeOpenApiDirectoryHints: 'when-openapi-base'
+  })) {
+    addIfSetMissing(targetSet, counterpart);
   }
 };
 

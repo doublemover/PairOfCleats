@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { readJsonFileSafe } from '../../../shared/files.js';
+import { readJsonFileSafe } from '../../../shared/file-read.js';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 
 const WORKSPACE_COMMAND_PREFLIGHT_CACHE_SCHEMA_VERSION = 2;

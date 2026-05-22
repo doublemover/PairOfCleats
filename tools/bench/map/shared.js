@@ -1,14 +1,24 @@
-import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 
+import { createCli } from '../../../src/shared/cli.js';
 import { getIndexDir, resolveRepoConfig, resolveToolRoot } from '../../shared/dict-utils.js';
 import { decodePathnameSafe, safeJoinUnderBase } from '../../analysis/map-iso-safe-join.js';
+import { serveMapIsoStaticFileOr404 } from '../../analysis/map-iso-static.js';
+import {
+  MAP_BENCH_BUILD_OPTIONS,
+  resolveLimit
+} from '../../shared/map-build-options.js';
 
-export const resolveLimit = (value) => {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : undefined;
-};
+export { MAP_BENCH_BUILD_OPTIONS, resolveLimit };
+
+export const createMapBenchCli = ({ scriptName, options = {} }) => createCli({
+  scriptName,
+  options: {
+    ...MAP_BENCH_BUILD_OPTIONS,
+    ...options
+  }
+}).parse();
 
 export const resolveRuns = (value, fallback = 3) => (
   Number.isFinite(Number(value)) ? Math.max(1, Number(value)) : fallback
@@ -42,54 +52,6 @@ export const resolveMapBenchInputs = (argv) => {
   };
 };
 
-const contentTypeFor = (filePath) => {
-  const ext = path.extname(filePath).toLowerCase();
-  if (ext === '.html') return 'text/html; charset=utf-8';
-  if (ext === '.js') return 'application/javascript; charset=utf-8';
-  if (ext === '.json') return 'application/json; charset=utf-8';
-  if (ext === '.map') return 'application/json; charset=utf-8';
-  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
-  if (ext === '.png') return 'image/png';
-  if (ext === '.hdr') return 'application/octet-stream';
-  return 'application/octet-stream';
-};
-
-const serveStaticFileOr404 = (res, filePath, notFoundMessage) => {
-  try {
-    const stat = fs.statSync(filePath);
-    if (!stat.isFile()) {
-      res.writeHead(404);
-      res.end(notFoundMessage);
-      return;
-    }
-  } catch {
-    res.writeHead(404);
-    res.end(notFoundMessage);
-    return;
-  }
-
-  res.writeHead(200, { 'Content-Type': contentTypeFor(filePath) });
-  const stream = fs.createReadStream(filePath);
-  const onResponseClose = () => {
-    if (!stream.destroyed) {
-      stream.destroy();
-    }
-  };
-  res.once('close', onResponseClose);
-  stream.once('close', () => {
-    res.off('close', onResponseClose);
-  });
-  stream.on('error', () => {
-    if (!res.headersSent) {
-      res.writeHead(404);
-    }
-    if (!res.writableEnded) {
-      res.end(notFoundMessage);
-    }
-  });
-  stream.pipe(res);
-};
-
 export const resolveMapViewerPathUnderBase = (baseDir, requestPath, pathApi = path) => (
   safeJoinUnderBase(baseDir, requestPath, pathApi)
 );
@@ -114,7 +76,7 @@ export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
       return;
     }
     if (pathname === '/' || pathname === `/${htmlName}`) {
-      serveStaticFileOr404(res, outPath, 'bench html not found');
+      serveMapIsoStaticFileOr404(res, outPath, 'bench html not found');
       return;
     }
     if (pathname.startsWith('/three/examples/')) {
@@ -125,7 +87,7 @@ export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
         res.end('three.js example asset not found');
         return;
       }
-      serveStaticFileOr404(res, targetPath, 'three.js example asset not found');
+      serveMapIsoStaticFileOr404(res, targetPath, 'three.js example asset not found');
       return;
     }
     if (pathname.startsWith('/three/')) {
@@ -136,7 +98,7 @@ export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
         res.end('three.js asset not found');
         return;
       }
-      serveStaticFileOr404(res, targetPath, 'three.js asset not found');
+      serveMapIsoStaticFileOr404(res, targetPath, 'three.js asset not found');
       return;
     }
     if (pathname.startsWith('/assets/isomap/')) {
@@ -147,7 +109,7 @@ export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
         res.end('isomap asset not found');
         return;
       }
-      serveStaticFileOr404(res, targetPath, 'isomap asset not found');
+      serveMapIsoStaticFileOr404(res, targetPath, 'isomap asset not found');
       return;
     }
     if (pathname.startsWith('/isomap/')) {
@@ -158,7 +120,7 @@ export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
         res.end('isomap client asset not found');
         return;
       }
-      serveStaticFileOr404(res, targetPath, 'isomap client asset not found');
+      serveMapIsoStaticFileOr404(res, targetPath, 'isomap client asset not found');
       return;
     }
     res.writeHead(404);

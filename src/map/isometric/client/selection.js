@@ -393,9 +393,7 @@ const resetWireHighlights = () => {
   }
 };
 
-const boostWireframe = (mesh, color, strength) => {
-  if (!mesh) return;
-  const wire = state.wireByMesh.get(mesh);
+const boostWireMaterial = (wire, color, strength) => {
   if (!wire || !wire.material) return;
   const material = wire.material;
   const baseWidth = material.userData?.baseLinewidth || material.linewidth || 1;
@@ -407,18 +405,14 @@ const boostWireframe = (mesh, color, strength) => {
   material.needsUpdate = true;
 };
 
+const boostWireframe = (mesh, color, strength) => {
+  if (!mesh) return;
+  boostWireMaterial(state.wireByMesh.get(mesh), color, strength);
+};
+
 const boostWireframeByKey = (fileKey, color, strength) => {
   if (!fileKey) return;
-  const wire = state.fileWireByKey?.get(fileKey);
-  if (!wire || !wire.material) return;
-  const material = wire.material;
-  const baseWidth = material.userData?.baseLinewidth || material.linewidth || 1;
-  if ('linewidth' in material) {
-    material.linewidth = baseWidth * (1 + strength);
-  }
-  if (color) material.color.copy(color);
-  material.opacity = clamp(material.opacity + strength * 0.2, 0.02, 0.9);
-  material.needsUpdate = true;
+  boostWireMaterial(state.fileWireByKey?.get(fileKey), color, strength);
 };
 
 const highlightMesh = (mesh, color, intensity, wireBoost = 0) => {

@@ -3,10 +3,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getCacheRoot } from '../../../shared/cache-roots.js';
 import { resolveEnvPath } from '../../../shared/env-path.js';
-import { readJsonFileSafe } from '../../../shared/files.js';
+import { readJsonFileSafe } from '../../../shared/file-read.js';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { throwIfAborted } from '../../../shared/abort.js';
-import { acquireFileLock, releaseFileLockOrThrow } from '../../../shared/locks/file-lock.js';
 import { spawnResolvedSubprocess } from '../../../shared/subprocess/command-invocation.js';
 import { resolveToolingCommandProfile } from '../command-resolver.js';
 import { splitPathEntries } from '../binary-utils.js';
@@ -32,6 +31,13 @@ const SOURCEKIT_WORKSPACE_KIND = Object.freeze({
   NONPACKAGE: 'nonpackage_workspace',
   MALFORMED: 'malformed_workspace'
 });
+
+let fileLockModulePromise = null;
+
+const loadFileLockModule = () => {
+  fileLockModulePromise ??= import('../../../shared/locks/file-lock.js');
+  return fileLockModulePromise;
+};
 
 const asFiniteNumber = (value) => {
   const parsed = Number(value);
@@ -142,6 +148,7 @@ const acquireHostSourcekitLock = async ({
   staleMs = SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_STALE_MS,
   signal = null
 }) => {
+  const { acquireFileLock } = await loadFileLockModule();
   const lock = await acquireFileLock({
     lockPath,
     waitMs,
@@ -297,20 +304,70 @@ const readSourcekitPreflightMarker = async (markerPath) => {
   return parsed;
 };
 
-const writeSourcekitPreflightMarker = async ({ markerPath, fingerprint, swiftCmd, durationMs }) => {
-  const payload = {
+const normalizeSourcekitDurationMs = (durationMs) => (
+  Number.isFinite(Number(durationMs)) ? Math.max(0, Math.round(Number(durationMs))) : null
+);
+
+const buildSourcekitPreflightMarkerRecord = ({
+  workspace,
+  swiftCmd = '',
+  durationMs = null,
+  preflightState,
+  reasonCode,
+  message = '',
+  timeout = false
+}) => {
+  const normalizedDurationMs = normalizeSourcekitDurationMs(durationMs);
+  return {
     schemaVersion: SOURCEKIT_PACKAGE_PREFLIGHT_SCHEMA_VERSION,
     completedAt: new Date().toISOString(),
-    fingerprint,
+    fingerprint: workspace.fingerprint,
     swiftCmd: String(swiftCmd || ''),
-    durationMs: Number.isFinite(Number(durationMs)) ? Math.max(0, Math.round(Number(durationMs))) : null
+    durationMs: normalizedDurationMs,
+    classificationDurationMs: workspace.classificationDurationMs,
+    resolveDurationMs: normalizedDurationMs,
+    workspaceKind: workspace.workspaceKind,
+    dependencyState: workspace.dependencyState,
+    preflightState,
+    reasonCode,
+    message,
+    timeout: timeout === true
   };
+};
+
+const writeSourcekitPreflightMarkerRecord = async (markerPath, record) => {
   await fs.mkdir(path.dirname(markerPath), { recursive: true });
-  await atomicWriteJson(markerPath, payload, {
+  await atomicWriteJson(markerPath, record, {
     spaces: 0,
     newline: false
   });
 };
+
+const buildSourcekitPreflightResult = ({
+  blockSourcekit,
+  state,
+  reasonCode,
+  message = '',
+  cached,
+  markerPath,
+  workspace,
+  preflightState,
+  resolveDurationMs = 0,
+  check = null
+}) => ({
+  blockSourcekit,
+  state,
+  reasonCode,
+  message,
+  ...(cached !== undefined ? { cached } : {}),
+  markerPath,
+  workspaceKind: workspace.workspaceKind,
+  dependencyState: workspace.dependencyState,
+  preflightState,
+  classificationDurationMs: workspace.classificationDurationMs,
+  resolveDurationMs,
+  check
+});
 
 const resolveSourcekitPreflightMarkerPath = ({
   repoRoot,
@@ -511,36 +568,24 @@ export const ensureSourcekitPackageResolutionPreflight = async ({
       const message = workspace.message || 'sourcekit workspace preflight blocked';
       const preflightState = workspace.preflightState;
       const reasonCode = workspace.reasonCode;
-      const record = {
-        schemaVersion: SOURCEKIT_PACKAGE_PREFLIGHT_SCHEMA_VERSION,
-        completedAt: new Date().toISOString(),
-        fingerprint: workspace.fingerprint,
+      const record = buildSourcekitPreflightMarkerRecord({
+        workspace,
         swiftCmd: '',
         durationMs: 0,
-        classificationDurationMs: workspace.classificationDurationMs,
-        resolveDurationMs: 0,
-        workspaceKind: workspace.workspaceKind,
-        dependencyState: workspace.dependencyState,
         preflightState,
         reasonCode,
         message,
         timeout: false
-      };
-      await fs.mkdir(path.dirname(markerPath), { recursive: true });
-      await atomicWriteJson(markerPath, record, {
-        spaces: 0,
-        newline: false
       });
-      return {
+      await writeSourcekitPreflightMarkerRecord(markerPath, record);
+      return buildSourcekitPreflightResult({
         blockSourcekit: failClosed,
         state: failClosed ? 'blocked' : 'degraded',
         reasonCode,
         message,
         markerPath,
-        workspaceKind: workspace.workspaceKind,
-        dependencyState: workspace.dependencyState,
+        workspace,
         preflightState,
-        classificationDurationMs: workspace.classificationDurationMs,
         resolveDurationMs: 0,
         check: buildPreflightCheck({
           name: 'sourcekit_package_preflight_failed',
@@ -549,7 +594,7 @@ export const ensureSourcekitPackageResolutionPreflight = async ({
           workspaceKind: workspace.workspaceKind,
           preflightState
         })
-      };
+      });
     }
     if (workspace.dependencyResolutionRequired !== true) {
       return {
@@ -662,73 +707,51 @@ export const ensureSourcekitPackageResolutionPreflight = async ({
       if (preflight.ok) {
         try {
           throwIfAborted(signal);
-          await fs.mkdir(path.dirname(markerPath), { recursive: true });
-          await atomicWriteJson(markerPath, {
-            schemaVersion: SOURCEKIT_PACKAGE_PREFLIGHT_SCHEMA_VERSION,
-            completedAt: new Date().toISOString(),
-            fingerprint: workspace.fingerprint,
+          const record = buildSourcekitPreflightMarkerRecord({
+            workspace,
             swiftCmd: resolvedSwiftCmd,
-            durationMs: Number.isFinite(Number(preflight.durationMs)) ? Math.max(0, Math.round(Number(preflight.durationMs))) : null,
-            classificationDurationMs: workspace.classificationDurationMs,
-            resolveDurationMs: Number.isFinite(Number(preflight.durationMs)) ? Math.max(0, Math.round(Number(preflight.durationMs))) : null,
-            workspaceKind: workspace.workspaceKind,
-            dependencyState: workspace.dependencyState,
+            durationMs: preflight.durationMs,
             preflightState: SOURCEKIT_PREFLIGHT_STATE.READY,
             reasonCode: workspace.reasonCode,
             message: '',
             timeout: false
-          }, {
-            spaces: 0,
-            newline: false
           });
+          await writeSourcekitPreflightMarkerRecord(markerPath, record);
         } catch {}
         log(`[tooling] sourcekit package preflight completed in ${preflight.durationMs}ms.`);
-        return {
+        return buildSourcekitPreflightResult({
           blockSourcekit: false,
           state: 'ready',
           reasonCode: workspace.reasonCode,
           message: '',
           markerPath,
-          workspaceKind: workspace.workspaceKind,
-          dependencyState: workspace.dependencyState,
+          workspace,
           preflightState: SOURCEKIT_PREFLIGHT_STATE.READY,
-          classificationDurationMs: workspace.classificationDurationMs,
           resolveDurationMs: preflight.durationMs,
           check: null
-        };
+        });
       }
       const classifiedFailure = classifyPreflightFailure(preflight.message, preflight.timeout === true);
       const timeoutText = preflight.timeout ? 'timeout' : 'failed';
       const message = `sourcekit package preflight ${timeoutText}: ${preflight.message || 'unknown failure'}`;
-      await fs.mkdir(path.dirname(markerPath), { recursive: true });
-      await atomicWriteJson(markerPath, {
-        schemaVersion: SOURCEKIT_PACKAGE_PREFLIGHT_SCHEMA_VERSION,
-        completedAt: new Date().toISOString(),
-        fingerprint: workspace.fingerprint,
+      const failureRecord = buildSourcekitPreflightMarkerRecord({
+        workspace,
         swiftCmd: resolvedSwiftCmd,
-        durationMs: Number.isFinite(Number(preflight.durationMs)) ? Math.max(0, Math.round(Number(preflight.durationMs))) : null,
-        classificationDurationMs: workspace.classificationDurationMs,
-        resolveDurationMs: Number.isFinite(Number(preflight.durationMs)) ? Math.max(0, Math.round(Number(preflight.durationMs))) : null,
-        workspaceKind: workspace.workspaceKind,
-        dependencyState: workspace.dependencyState,
+        durationMs: preflight.durationMs,
         preflightState: classifiedFailure.preflightState,
         reasonCode: classifiedFailure.reasonCode,
         message,
         timeout: preflight.timeout === true
-      }, {
-        spaces: 0,
-        newline: false
       });
-      return {
+      await writeSourcekitPreflightMarkerRecord(markerPath, failureRecord);
+      return buildSourcekitPreflightResult({
         blockSourcekit: failClosed,
         state: failClosed ? 'blocked' : 'degraded',
         reasonCode: classifiedFailure.reasonCode,
         message,
         markerPath,
-        workspaceKind: workspace.workspaceKind,
-        dependencyState: workspace.dependencyState,
+        workspace,
         preflightState: classifiedFailure.preflightState,
-        classificationDurationMs: workspace.classificationDurationMs,
         resolveDurationMs: preflight.durationMs,
         check: buildPreflightCheck({
           name: 'sourcekit_package_preflight_failed',
@@ -738,9 +761,10 @@ export const ensureSourcekitPackageResolutionPreflight = async ({
           preflightState: classifiedFailure.preflightState,
           timeout: preflight.timeout === true
         })
-      };
+      });
     } finally {
       if (preflightLock?.release) {
+        const { releaseFileLockOrThrow } = await loadFileLockModule();
         await releaseFileLockOrThrow(preflightLock);
       }
     }

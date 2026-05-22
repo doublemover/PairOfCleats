@@ -4,7 +4,7 @@ import fsSync from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { replaceFile } from '../../src/shared/json-stream.js';
+import { replaceFile } from '../../src/shared/json-stream/atomic.js';
 import { getDictConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 import { fetchDownloadUrl } from './shared-fetch.js';
 import {

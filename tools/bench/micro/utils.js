@@ -47,6 +47,52 @@ export function hrtimeMs(start) {
   return Number(process.hrtime.bigint() - start) / 1e6;
 }
 
+const isPromiseLike = (value) => value && typeof value.then === 'function';
+
+export async function runSampledBench(fn, { iterations, samples, warmup = 0 }) {
+  let isAsync = false;
+  for (let i = 0; i < warmup; i += 1) {
+    const result = fn();
+    if (isPromiseLike(result)) {
+      isAsync = true;
+      await result;
+    }
+  }
+
+  const timings = [];
+  const perSample = Math.max(1, Math.floor(iterations / samples));
+  const remainder = iterations - (perSample * samples);
+  let totalMs = 0;
+  for (let i = 0; i < samples; i += 1) {
+    const loops = perSample + (i < remainder ? 1 : 0);
+    const start = process.hrtime.bigint();
+    if (isAsync) {
+      for (let j = 0; j < loops; j += 1) {
+        await fn();
+      }
+    } else {
+      for (let j = 0; j < loops; j += 1) {
+        const result = fn();
+        if (isPromiseLike(result)) {
+          isAsync = true;
+          await result;
+          for (let k = j + 1; k < loops; k += 1) {
+            await fn();
+          }
+          break;
+        }
+      }
+    }
+    const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
+    timings.push(elapsed);
+    totalMs += elapsed;
+  }
+  return {
+    totalMs,
+    stats: summarizeDurations(timings)
+  };
+}
+
 export function writeJsonWithDir(filePath, payload) {
   if (!filePath) return;
   writeJsonFileSyncResolved(filePath, payload, { finalNewline: true });

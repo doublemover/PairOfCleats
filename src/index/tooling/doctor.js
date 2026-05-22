@@ -13,7 +13,7 @@ import { resolveProviderCommandOverride } from './provider-command-override.js';
 import { loadTypeScript } from './typescript/load.js';
 import { getScmProviderAndRoot, resolveScmConfig } from '../scm/registry.js';
 import { setScmRuntimeConfig } from '../scm/runtime.js';
-import { isAbsolutePathNative } from '../../shared/files.js';
+import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { hasWorkspaceMarker, resolveWorkspaceModelCheckForCommand } from './workspace-model.js';
 import { listLspServerPresets } from './lsp-presets.js';

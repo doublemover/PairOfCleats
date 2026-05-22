@@ -1,5 +1,47 @@
 import fs from 'node:fs';
+import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { normalizeRepoRelativePath } from '../../shared/path-normalize.js';
+
+const GRAPH_CAP_KEYS = Object.freeze([
+  'maxDepth',
+  'maxFanoutPerNode',
+  'maxNodes',
+  'maxEdges',
+  'maxPaths',
+  'maxCandidates',
+  'maxWorkUnits',
+  'maxWallClockMs'
+]);
+
+const GRAPH_FILTER_CAP_OPTIONS = Object.freeze({
+  graphs: { type: 'string' },
+  edgeTypes: { type: 'string' },
+  minConfidence: { type: 'number' },
+  maxDepth: { type: 'number' },
+  maxFanoutPerNode: { type: 'number' },
+  maxNodes: { type: 'number' },
+  maxEdges: { type: 'number' },
+  maxPaths: { type: 'number' },
+  maxCandidates: { type: 'number' },
+  maxWorkUnits: { type: 'number' },
+  maxWallClockMs: { type: 'number' }
+});
+
+/**
+ * Build the shared option envelope for graph analysis CLIs.
+ *
+ * @param {object} [commandOptions]
+ * @returns {object}
+ */
+export const buildGraphCliOptions = (commandOptions = {}) => ({
+  repo: { type: 'string' },
+  depth: { type: 'number' },
+  direction: { type: 'string' },
+  format: { type: 'string' },
+  json: { type: 'boolean', default: false },
+  ...commandOptions,
+  ...GRAPH_FILTER_CAP_OPTIONS
+});
 
 /**
  * Resolve output format from parsed CLI args.
@@ -89,6 +131,38 @@ export const emitCliOutput = ({ format, payload, renderMarkdown, renderJson = nu
     console.log(JSON.stringify(jsonPayload, null, 2));
   }
   return payload;
+};
+
+/**
+ * Resolve graph traversal cap and filter inputs from parsed CLI args.
+ *
+ * @param {object} argv
+ * @param {object|null} userConfig
+ * @returns {{caps:object,graphs:string[],edgeTypes:string[],minConfidence:number|null,edgeFilters:object,graphSelection:string[]|null,includeAllGraphs:boolean}}
+ */
+export const resolveGraphCliCapsAndFilters = (argv, userConfig) => {
+  const baseCaps = userConfig?.retrieval?.graph?.caps || {};
+  const capOverrides = {};
+  for (const key of GRAPH_CAP_KEYS) {
+    capOverrides[key] = normalizeOptionalNumber(argv[key]);
+  }
+  const caps = mergeCaps(baseCaps, capOverrides);
+  const graphs = parseList(argv.graphs);
+  const edgeTypes = parseList(argv.edgeTypes);
+  const minConfidence = normalizeOptionalNumber(argv.minConfidence);
+  return {
+    caps,
+    graphs,
+    edgeTypes,
+    minConfidence,
+    edgeFilters: {
+      graphs: graphs.length ? graphs : null,
+      edgeTypes: edgeTypes.length ? edgeTypes : null,
+      minConfidence
+    },
+    graphSelection: graphs.length ? graphs : null,
+    includeAllGraphs: graphs.length === 0
+  };
 };
 
 /**

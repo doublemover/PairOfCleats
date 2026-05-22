@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { createCli } from '../../shared/cli.js';
 import { isDirectExecution } from '../../shared/direct-execution.js';
-import { toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/file-paths.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { buildSuggestTestsReport } from '../../graph/suggest-tests.js';
 import { renderSuggestTestsReport } from '../../retrieval/output/suggest-tests.js';
@@ -10,7 +10,7 @@ import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
 import { prepareGraphIndex, prepareGraphInputs } from './graph-helpers.js';
 import { loadUserConfig } from '../../shared/dict-utils.js';
-import { resolveRepoRoot } from '../../shared/repo-paths.js';
+import { getRepoRoot } from '../../shared/repo-paths.js';
 import {
   emitCliOutput,
   mergeCaps,
@@ -58,7 +58,7 @@ export async function runSuggestTestsCli(rawArgs = process.argv.slice(2)) {
     throw new Error('Missing --max <n>.');
   }
 
-  const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
+  const repoRoot = getRepoRoot(argv.repo || null, process.cwd());
   const format = resolveFormat(argv);
   const userConfig = loadUserConfig(repoRoot);
   const indexDir = resolveIndexDir(repoRoot, 'code', userConfig);

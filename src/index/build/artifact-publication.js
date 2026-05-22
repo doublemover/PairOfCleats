@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
-import { toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/file-paths.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 
 export const ARTIFACT_PUBLICATION_SCHEMA_VERSION = 1;

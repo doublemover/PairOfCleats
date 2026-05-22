@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
 
-import { getEnvConfig } from '../../src/shared/env.js';
-import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
+import { spawnSubprocessSync } from '../../src/shared/subprocess/runner.js';
+import { parseTrailingJson } from './output.js';
 import { resolveBenchSuite } from './suites/sweet16.js';
 
 const MAX_UTILIZATION_SAMPLES = 2048;
@@ -164,30 +165,6 @@ const parseBenchOutput = (output) => {
       ? { line: deltaLine, metrics: parseKeyValueMetrics(deltaLine) }
       : null
   };
-};
-
-/**
- * Parse trailing JSON payloads emitted by benchmark scripts that may also print
- * human-readable logs earlier in stdout.
- *
- * @param {string} text
- * @returns {any|null}
- */
-const parseTrailingJson = (text) => {
-  const raw = String(text || '').trim();
-  if (!raw) return null;
-  if (raw.startsWith('{') || raw.startsWith('[')) {
-    try {
-      return JSON.parse(raw);
-    } catch {}
-  }
-  const match = raw.match(/\{[\s\S]*\}\s*$/);
-  if (!match) return null;
-  try {
-    return JSON.parse(match[0]);
-  } catch {
-    return null;
-  }
 };
 
 const detectStorageTier = (value) => {
@@ -696,8 +673,7 @@ const main = async () => {
 
   if (argv.json) {
     const outPath = path.isAbsolute(argv.json) ? argv.json : path.join(process.cwd(), argv.json);
-    await fs.mkdir(path.dirname(outPath), { recursive: true });
-    await fs.writeFile(outPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+    await writeJsonFileResolved(outPath, report, { trailingNewline: true });
   }
 
   if (!argv.quiet) {

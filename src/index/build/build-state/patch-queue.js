@@ -1,14 +1,17 @@
 import path from 'node:path';
-import { estimateJsonBytes } from '../../../shared/cache.js';
+import { estimateJsonBytes } from '../../../shared/cache/size.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
-import { logLine } from '../../../shared/progress.js';
+import { logLine } from '../../../shared/progress-runtime.js';
 import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 import {
   BUILD_STATE_DURABILITY_CLASS,
   isRequiredBuildStateDurability,
   resolveBuildStateDurabilityClass
 } from './durability.js';
-import { isBuildStateLockUnavailableResult } from './store.js';
+import {
+  formatBuildStateLockOwner,
+  isBuildStateLockUnavailableResult
+} from './store.js';
 
 const DEFAULT_DEBOUNCE_MS = 250;
 const LONG_DEBOUNCE_MS = 500;
@@ -17,24 +20,6 @@ const LARGE_PATCH_BYTES = 64 * 1024;
 const PATCH_WAITER_TIMEOUT_MS_DEFAULT = 30000;
 const LOCK_UNAVAILABLE_RETRY_LOG_INTERVAL_MS = 5000;
 const BUILD_STATE_LOCK_UNAVAILABLE_CODE = 'ERR_BUILD_STATE_LOCK_UNAVAILABLE';
-
-const formatLockOwnerForLog = (owner) => {
-  if (!owner || typeof owner !== 'object') return null;
-  const parts = [];
-  if (Number.isFinite(Number(owner.pid)) && Number(owner.pid) > 0) {
-    parts.push(`pid=${Math.floor(Number(owner.pid))}`);
-  }
-  if (typeof owner.lockId === 'string' && owner.lockId.trim()) {
-    parts.push(`lockId=${owner.lockId.trim()}`);
-  }
-  if (typeof owner.scope === 'string' && owner.scope.trim()) {
-    parts.push(`scope=${owner.scope.trim()}`);
-  }
-  if (typeof owner.startedAt === 'string' && owner.startedAt.trim()) {
-    parts.push(`startedAt=${owner.startedAt.trim()}`);
-  }
-  return parts.length ? parts.join(', ') : null;
-};
 
 export const PATCH_QUEUE_WAIT_STATUS = Object.freeze({
   FLUSHED: 'flushed',
@@ -374,7 +359,7 @@ export const createPatchQueue = ({
         if (nowMs - lastLoggedAtMs >= LOCK_UNAVAILABLE_RETRY_LOG_INTERVAL_MS) {
           lockRetryLogAtMsByBuildRoot.set(key, nowMs);
           const lockOwner = err?.buildState?.lockOwner || err?.lockOwner || null;
-          const ownerDetail = formatLockOwnerForLog(lockOwner);
+          const ownerDetail = formatBuildStateLockOwner(lockOwner);
           logLine(
             `[build_state] state write lock unavailable for ${key}${ownerDetail ? ` (owner: ${ownerDetail})` : ''}; deferring best-effort patch flush and retrying.`,
             {

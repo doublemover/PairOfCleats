@@ -7,7 +7,7 @@ import {
   getJsonRpcWriter,
   isClosedStreamWriteError
 } from '../../../shared/jsonrpc.js';
-import { registerChildProcessForCleanup } from '../../../shared/subprocess.js';
+import { registerChildProcessForCleanup } from '../../../shared/subprocess/tracking-register.js';
 import { resolveWindowsCmdInvocation } from '../../../shared/subprocess/windows-cmd.js';
 import { killChildProcessTree, killChildProcessTreeSync } from '../../../shared/kill-tree.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';

@@ -1,4 +1,4 @@
-import { isAbsolutePathAny } from '../../src/shared/files.js';
+import { isAbsolutePathAny } from '../../src/shared/file-paths.js';
 
 const REDACTED_ABSOLUTE_PATH = '<redacted:absolute-path>';
 const REDACTED_PATH_REF = 'path:<redacted>';

@@ -2,10 +2,11 @@ import path from 'node:path';
 import { createCli } from '../../shared/cli.js';
 import { CONTEXT_PACK_OPTIONS } from '../../shared/cli-options.js';
 import { isDirectExecution } from '../../shared/direct-execution.js';
-import { toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/file-paths.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { parseSeedRef } from '../../shared/seed-ref.js';
-import { buildRiskFilterInput, normalizeRiskFilters, validateRiskFilters } from '../../shared/risk-filters.js';
+import { buildCliContextPackRequestInput } from '../../shared/context-pack-request.js';
+import { buildValidatedRiskFilters } from '../../shared/risk-filters.js';
 import { emitCliError, emitCliOutput, mergeCaps, resolveFormat } from './cli-helpers.js';
 import { assembleCompositeContextPack, buildChunkIndex } from '../../context-pack/assemble.js';
 import { renderCompositeContextPack, renderCompositeContextPackJson } from '../../retrieval/output/composite-context-pack.js';
@@ -15,7 +16,7 @@ import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
 import { prepareGraphIndex, prepareGraphInputs } from './graph-helpers.js';
 import { loadUserConfig } from '../../shared/dict-utils.js';
-import { resolveRepoRoot } from '../../shared/repo-paths.js';
+import { getRepoRoot } from '../../shared/repo-paths.js';
 import { loadWorkspaceConfig } from '../../workspace/config.js';
 import { toRealPathSync } from '../../workspace/identity.js';
 import { selectWorkspaceRepos } from '../../retrieval/federation/select.js';
@@ -82,6 +83,31 @@ const annotateRiskSourceSink = (entry, repo) => {
   };
 };
 
+const annotateRiskPath = (riskPath, repo) => {
+  if (!riskPath || typeof riskPath !== 'object') return riskPath;
+  return {
+    ...riskPath,
+    nodes: Array.isArray(riskPath.nodes) ? riskPath.nodes.map((node) => annotateRiskNode(node, repo)) : []
+  };
+};
+
+const annotateRiskEvidence = (evidence, repo) => {
+  if (!evidence || typeof evidence !== 'object') return evidence;
+  return {
+    ...evidence,
+    callSitesByStep: Array.isArray(evidence.callSitesByStep)
+      ? evidence.callSitesByStep.map((step) => (
+        Array.isArray(step)
+          ? step.map((entry) => ({
+            ...entry,
+            details: annotateRiskCallSiteDetails(entry?.details, repo)
+          }))
+          : []
+      ))
+      : evidence.callSitesByStep
+  };
+};
+
 const annotateRiskFlow = (flow, repo) => {
   if (!flow || typeof flow !== 'object') return flow || null;
   return {
@@ -89,27 +115,8 @@ const annotateRiskFlow = (flow, repo) => {
     repo,
     source: annotateRiskSourceSink(flow.source, repo),
     sink: annotateRiskSourceSink(flow.sink, repo),
-    path: flow.path && typeof flow.path === 'object'
-      ? {
-        ...flow.path,
-        nodes: Array.isArray(flow.path.nodes) ? flow.path.nodes.map((node) => annotateRiskNode(node, repo)) : []
-      }
-      : flow.path,
-    evidence: flow.evidence && typeof flow.evidence === 'object'
-      ? {
-        ...flow.evidence,
-        callSitesByStep: Array.isArray(flow.evidence.callSitesByStep)
-          ? flow.evidence.callSitesByStep.map((step) => (
-            Array.isArray(step)
-              ? step.map((entry) => ({
-                ...entry,
-                details: annotateRiskCallSiteDetails(entry?.details, repo)
-              }))
-              : []
-          ))
-          : flow.evidence.callSitesByStep
-      }
-      : flow.evidence
+    path: annotateRiskPath(flow.path, repo),
+    evidence: annotateRiskEvidence(flow.evidence, repo)
   };
 };
 
@@ -128,27 +135,8 @@ const annotateRiskPartialFlow = (flow, repo) => {
           : []
       }
       : flow.frontier,
-    path: flow.path && typeof flow.path === 'object'
-      ? {
-        ...flow.path,
-        nodes: Array.isArray(flow.path.nodes) ? flow.path.nodes.map((node) => annotateRiskNode(node, repo)) : []
-      }
-      : flow.path,
-    evidence: flow.evidence && typeof flow.evidence === 'object'
-      ? {
-        ...flow.evidence,
-        callSitesByStep: Array.isArray(flow.evidence.callSitesByStep)
-          ? flow.evidence.callSitesByStep.map((step) => (
-            Array.isArray(step)
-              ? step.map((entry) => ({
-                ...entry,
-                details: annotateRiskCallSiteDetails(entry?.details, repo)
-              }))
-              : []
-          ))
-          : flow.evidence.callSitesByStep
-      }
-      : flow.evidence
+    path: annotateRiskPath(flow.path, repo),
+    evidence: annotateRiskEvidence(flow.evidence, repo)
   };
 };
 
@@ -325,7 +313,7 @@ const mergeFederatedRiskPayloads = ({ basePayload, repoResults, workspaceConfig,
 };
 
 async function buildSingleRepoCompositeContextPackPayload(input = {}) {
-  const repoRoot = input.repoRoot ? path.resolve(input.repoRoot) : resolveRepoRoot(process.cwd());
+  const repoRoot = getRepoRoot(input.repoRoot || null, process.cwd());
   if (!input.seed) {
     throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST', 'Missing seed.', 400);
   }
@@ -333,8 +321,7 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
     throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST', 'Missing hops.', 400);
   }
 
-  const riskFilters = normalizeRiskFilters(buildRiskFilterInput(input.riskFilters || {}));
-  const filterValidation = validateRiskFilters(riskFilters);
+  const { filters: riskFilters, validation: filterValidation } = buildValidatedRiskFilters(input.riskFilters || {});
   if (!filterValidation.ok) {
     throw createContextPackRequestError(
       'ERR_CONTEXT_PACK_RISK_FILTER_INVALID',
@@ -576,43 +563,13 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
   });
   const argv = cli.parse();
 
-  const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
+  const repoRoot = getRepoRoot(argv.repo || null, process.cwd());
   const format = resolveFormat(argv);
 
   try {
-    const payload = await buildCompositeContextPackPayload({
-      repoRoot,
-      seed: argv.seed,
-      hops: argv.hops,
-      includeGraph: argv.includeGraph,
-      includeTypes: argv.includeTypes,
-      includeRisk: argv.includeRisk,
-      includeRiskPartialFlows: argv.includeRiskPartialFlows,
-      strictRisk: argv.strictRisk,
-      strictEvidence: argv.strictEvidence,
-      riskFilters: buildRiskFilterInput(argv),
-      includeImports: argv.includeImports,
-      includeUsages: argv.includeUsages,
-      includeCallersCallees: argv.includeCallersCallees,
-      includePaths: argv.includePaths,
-      maxBytes: argv.maxBytes,
-      maxTokens: argv.maxTokens,
-      maxTypeEntries: argv.maxTypeEntries,
-      maxDepth: argv.maxDepth,
-      maxFanoutPerNode: argv.maxFanoutPerNode,
-      maxNodes: argv.maxNodes,
-      maxEdges: argv.maxEdges,
-      maxPaths: argv.maxPaths,
-      maxCandidates: argv.maxCandidates,
-      maxWorkUnits: argv.maxWorkUnits,
-      maxWallClockMs: argv.maxWallClockMs,
-      workspacePath: argv.workspace,
-      workspaceId: argv.workspaceId,
-      select: argv.select,
-      repoFilter: argv['repo-filter'],
-      includeDisabled: argv.includeDisabled,
-      maxFederatedRepos: argv.maxFederatedRepos
-    });
+    const payload = await buildCompositeContextPackPayload(
+      buildCliContextPackRequestInput(argv, { repoRoot })
+    );
 
     return emitCliOutput({
       format,

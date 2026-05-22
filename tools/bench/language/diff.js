@@ -93,6 +93,22 @@ const summarizeLanguageGroup = (tasks, methodology = null) => {
   };
 };
 
+const buildSummaryDeltaFields = (beforeSummary, afterSummary) => ({
+  buildIndexMs: buildAggregateDelta(beforeSummary.buildIndexMs, afterSummary.buildIndexMs),
+  crashCount: buildAggregateDelta(beforeSummary.crashCount, afterSummary.crashCount),
+  timeoutCount: buildAggregateDelta(beforeSummary.timeoutCount, afterSummary.timeoutCount),
+  degradationCount: buildAggregateDelta(beforeSummary.degradationCount, afterSummary.degradationCount),
+  artifactTailStallCount: buildAggregateDelta(
+    beforeSummary.artifactTailStallCount,
+    afterSummary.artifactTailStallCount
+  ),
+  cacheHitRate: buildAggregateDelta(beforeSummary.cacheHitRate, afterSummary.cacheHitRate),
+  coldStartHitRate: buildAggregateDelta(beforeSummary.coldStartHitRate, afterSummary.coldStartHitRate),
+  intraRunHitRate: buildAggregateDelta(beforeSummary.intraRunHitRate, afterSummary.intraRunHitRate),
+  crossRunHitRate: buildAggregateDelta(beforeSummary.crossRunHitRate, afterSummary.crossRunHitRate),
+  sqliteRssMb: buildAggregateDelta(beforeSummary.sqliteRssMb, afterSummary.sqliteRssMb)
+});
+
 export const buildBenchRunDiff = ({ before, after }) => {
   const beforeTaskMap = buildTaskMap(before);
   const afterTaskMap = buildTaskMap(after);
@@ -107,16 +123,7 @@ export const buildBenchRunDiff = ({ before, after }) => {
       language: beforeEntry?.language || afterEntry?.language || null,
       tier: beforeEntry?.tier || afterEntry?.tier || null,
       repo: beforeEntry?.repo || afterEntry?.repo || null,
-      buildIndexMs: buildAggregateDelta(beforeSummary.buildIndexMs, afterSummary.buildIndexMs),
-      crashCount: buildAggregateDelta(beforeSummary.crashCount, afterSummary.crashCount),
-      timeoutCount: buildAggregateDelta(beforeSummary.timeoutCount, afterSummary.timeoutCount),
-      degradationCount: buildAggregateDelta(beforeSummary.degradationCount, afterSummary.degradationCount),
-      artifactTailStallCount: buildAggregateDelta(beforeSummary.artifactTailStallCount, afterSummary.artifactTailStallCount),
-      cacheHitRate: buildAggregateDelta(beforeSummary.cacheHitRate, afterSummary.cacheHitRate),
-      coldStartHitRate: buildAggregateDelta(beforeSummary.coldStartHitRate, afterSummary.coldStartHitRate),
-      intraRunHitRate: buildAggregateDelta(beforeSummary.intraRunHitRate, afterSummary.intraRunHitRate),
-      crossRunHitRate: buildAggregateDelta(beforeSummary.crossRunHitRate, afterSummary.crossRunHitRate),
-      sqliteRssMb: buildAggregateDelta(beforeSummary.sqliteRssMb, afterSummary.sqliteRssMb)
+      ...buildSummaryDeltaFields(beforeSummary, afterSummary)
     };
   });
 
@@ -135,16 +142,7 @@ export const buildBenchRunDiff = ({ before, after }) => {
       return {
         language,
         repoCount: buildAggregateDelta(beforeSummary.repoCount, afterSummary.repoCount),
-        buildIndexMs: buildAggregateDelta(beforeSummary.buildIndexMs, afterSummary.buildIndexMs),
-        crashCount: buildAggregateDelta(beforeSummary.crashCount, afterSummary.crashCount),
-        timeoutCount: buildAggregateDelta(beforeSummary.timeoutCount, afterSummary.timeoutCount),
-        degradationCount: buildAggregateDelta(beforeSummary.degradationCount, afterSummary.degradationCount),
-        artifactTailStallCount: buildAggregateDelta(beforeSummary.artifactTailStallCount, afterSummary.artifactTailStallCount),
-        cacheHitRate: buildAggregateDelta(beforeSummary.cacheHitRate, afterSummary.cacheHitRate),
-        coldStartHitRate: buildAggregateDelta(beforeSummary.coldStartHitRate, afterSummary.coldStartHitRate),
-        intraRunHitRate: buildAggregateDelta(beforeSummary.intraRunHitRate, afterSummary.intraRunHitRate),
-        crossRunHitRate: buildAggregateDelta(beforeSummary.crossRunHitRate, afterSummary.crossRunHitRate),
-        sqliteRssMb: buildAggregateDelta(beforeSummary.sqliteRssMb, afterSummary.sqliteRssMb)
+        ...buildSummaryDeltaFields(beforeSummary, afterSummary)
       };
     });
 

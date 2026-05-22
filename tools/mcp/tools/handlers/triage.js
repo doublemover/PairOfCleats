@@ -1,11 +1,9 @@
 import path from 'node:path';
-import { isAbsolutePathNative } from '../../../../src/shared/files.js';
+import { isAbsolutePathNative } from '../../../../src/shared/file-paths.js';
 import { createProgressReporter, createStreamLineProgressForwarder } from '../../../../src/shared/progress-events.js';
 import { normalizeMetaFilters } from '../../../../src/shared/search-request.js';
-import { loadUserConfig } from '../../../shared/dict-utils.js';
-import { resolveRepoPath } from '../../repo.js';
 import { runNodeAsync, runNodeSync } from '../../runner.js';
-import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
+import { resolveMcpRepoContext, toolRoot } from '../helpers.js';
 import { buildIndex } from './indexing.js';
 
 /**
@@ -14,8 +12,7 @@ import { buildIndex } from './indexing.js';
  * @returns {Promise<object>}
  */
 export async function triageIngest(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const source = String(args.source || '').trim();
   const inputPath = String(args.inputPath || '').trim();
   if (!source || !inputPath) {
@@ -63,8 +60,7 @@ export async function triageIngest(args = {}, context = {}) {
  * @returns {object}
  */
 export function triageDecision(args = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const finding = String(args.finding || '').trim();
   const status = String(args.status || '').trim();
   if (!finding || !status) {
@@ -93,8 +89,7 @@ export function triageDecision(args = {}) {
  * @returns {Promise<object>}
  */
 export async function triageContextPack(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const recordId = String(args.recordId || '').trim();
   if (!recordId) throw new Error('recordId is required.');
   const contextArgs = [path.join(toolRoot, 'tools', 'triage', 'context-pack.js'), '--record', recordId];

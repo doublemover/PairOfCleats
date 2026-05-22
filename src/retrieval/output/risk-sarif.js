@@ -1,4 +1,9 @@
-import { buildRiskExplanationModelFromRiskSlice } from '../../shared/risk-explain.js';
+import {
+  buildPartialRiskFlowSelection,
+  buildRiskFlowSelection,
+  buildRiskExplanationModelFromRiskSlice,
+  normalizeRiskWatchWindow
+} from '../../shared/risk-explain-model.js';
 
 const SARIF_VERSION = '2.1.0';
 const SARIF_SCHEMA_URL = 'https://json.schemastore.org/sarif-2.1.0.json';
@@ -98,28 +103,6 @@ const collectFlowSteps = (flow, maxEvidencePerFlow) => {
   return locations;
 };
 
-const normalizeWatchWindow = (entry) => {
-  if (!entry || typeof entry !== 'object') return null;
-  return {
-    taintIn: Array.isArray(entry.taintIn) ? entry.taintIn.filter(Boolean) : [],
-    taintOut: Array.isArray(entry.taintOut) ? entry.taintOut.filter(Boolean) : [],
-    propagatedArgIndices: Array.isArray(entry.propagatedArgIndices)
-      ? entry.propagatedArgIndices.filter((value) => Number.isFinite(value))
-      : [],
-    boundParams: Array.isArray(entry.boundParams) ? entry.boundParams.filter(Boolean) : [],
-    calleeNormalized: entry.calleeNormalized || null,
-    semanticIds: Array.isArray(entry.semanticIds) ? entry.semanticIds.filter(Boolean) : [],
-    semanticKinds: Array.isArray(entry.semanticKinds) ? entry.semanticKinds.filter(Boolean) : [],
-    sanitizerPolicy: entry.sanitizerPolicy || null,
-    sanitizerBarrierApplied: entry.sanitizerBarrierApplied === true,
-    sanitizerBarriersBefore: Number.isFinite(entry.sanitizerBarriersBefore) ? entry.sanitizerBarriersBefore : null,
-    sanitizerBarriersAfter: Number.isFinite(entry.sanitizerBarriersAfter) ? entry.sanitizerBarriersAfter : null,
-    confidenceBefore: Number.isFinite(entry.confidenceBefore) ? entry.confidenceBefore : null,
-    confidenceAfter: Number.isFinite(entry.confidenceAfter) ? entry.confidenceAfter : null,
-    confidenceDelta: Number.isFinite(entry.confidenceDelta) ? entry.confidenceDelta : null
-  };
-};
-
 const buildThreadFlowLocation = (flowStep, { uriBaseId = DEFAULT_URI_BASE_ID } = {}) => {
   const location = {
     message: { text: flowStep.message },
@@ -129,7 +112,7 @@ const buildThreadFlowLocation = (flowStep, { uriBaseId = DEFAULT_URI_BASE_ID } =
         callSiteId: flowStep.callSiteId || null,
         evidenceIndex: flowStep.evidenceIndex,
         step: flowStep.step,
-        watchWindow: normalizeWatchWindow(flowStep.watchWindow)
+        watchWindow: normalizeRiskWatchWindow(flowStep.watchWindow)
       }
     }
   };
@@ -216,13 +199,7 @@ const buildPartialFlowCompanion = (partialFlows, { maxPartialFlows = 3, maxEvide
       : []
   }));
   return {
-    partialFlowSelection: {
-      totalPartialFlows: list.length,
-      shownPartialFlows: limited.length,
-      omittedPartialFlows: Math.max(0, list.length - limited.length),
-      maxPartialFlows,
-      maxEvidencePerFlow
-    },
+    partialFlowSelection: buildPartialRiskFlowSelection(partialFlows, { maxPartialFlows, maxEvidencePerFlow }),
     partialFlows: limited
   };
 };
@@ -268,13 +245,7 @@ export const renderRiskExplanationSarif = (model, {
           caps: model?.caps || null,
           truncation: Array.isArray(model?.truncation) ? model.truncation.slice() : [],
           filters: model?.filters || null,
-          flowSelection: {
-            totalFlows: Array.isArray(model?.flows) ? model.flows.length : 0,
-            shownFlows: flows.length,
-            omittedFlows: Math.max(0, (Array.isArray(model?.flows) ? model.flows.length : 0) - flows.length),
-            maxFlows,
-            maxEvidencePerFlow
-          },
+          flowSelection: buildRiskFlowSelection(model?.flows, { maxFlows, maxEvidencePerFlow }),
           partialFlowSelection: partialCompanion.partialFlowSelection,
           partialFlows: partialCompanion.partialFlows
         }

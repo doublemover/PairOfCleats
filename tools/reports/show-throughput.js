@@ -33,6 +33,7 @@ import {
   resolveShowThroughputOptions,
   validateResultsRoot
 } from './show-throughput/options.js';
+import { emitJson } from '../shared/cli-utils.js';
 import {
   createAstGraphTotals,
   createAstGraphObserved,
@@ -378,6 +379,17 @@ const buildDistributionStatsRow = ({
   cv: Number.isFinite(summary?.count) && summary.count > 0 ? formatPct(summary.coefficientOfVariation) : 'n/a'
 });
 
+const buildDistributionStatsColumns = ({ includeCategory = false } = {}) => [
+  ...(includeCategory ? [{ key: 'category', label: 'Category' }] : []),
+  { key: 'metric', label: 'Metric' },
+  { key: 'count', label: 'n', align: 'right' },
+  { key: 'p50', label: 'p50', align: 'right' },
+  { key: 'p95', label: 'p95', align: 'right' },
+  { key: 'p99', label: 'p99', align: 'right' },
+  { key: 'minMax', label: 'min/max', align: 'right' },
+  { key: 'cv', label: 'cv', align: 'right' }
+];
+
 const printNamedSection = (title) => {
   console.log(`  ${color.bold(title)}`);
 };
@@ -481,43 +493,6 @@ const summarizeLatencyDistributions = (summaries) => {
       }
     ])
   );
-};
-
-const flattenRegressionMetrics = (entries, {
-  includeImprovements = false
-} = {}) => {
-  const rows = [];
-  for (const entry of Array.isArray(entries) ? entries : []) {
-    const metricSummaries = entry?.throughputLedgerDiff?.metrics || {};
-    for (const [metricKey, summary] of Object.entries(metricSummaries)) {
-      const regressions = includeImprovements
-        ? (summary?.improvements || [])
-        : (summary?.regressions || []);
-      for (const regression of regressions) {
-        rows.push({
-          folder: entry.folder || null,
-          repoIdentity: entry.repoIdentity,
-          metric: metricKey,
-          metricKind: regression.metricKind,
-          metricLabel: regression.metricLabel,
-          modality: regression.modality,
-          stage: regression.stage,
-          deltaPct: regression.deltaPct,
-          deltaRate: regression.deltaRate,
-          currentRate: regression.currentRate,
-          baselineRate: regression.baselineRate,
-          baselineSamples: regression.baselineSamples,
-          baselineConfidence: regression.baselineConfidence
-        });
-      }
-    }
-  }
-  rows.sort((left, right) => (
-    left.metricKind === 'duration'
-      ? (Number(right.deltaPct) - Number(left.deltaPct))
-      : (Number(left.deltaPct) - Number(right.deltaPct))
-  ) || String(left.repoIdentity || '').localeCompare(String(right.repoIdentity || '')));
-  return rows;
 };
 
 const formatRegressionDelta = (entry) => (
@@ -946,15 +921,7 @@ for (const dir of folders) {
   if (summaries.length) {
     printNamedSection('Timing');
     printTextTable(
-      [
-        { key: 'metric', label: 'Metric' },
-        { key: 'count', label: 'n', align: 'right' },
-        { key: 'p50', label: 'p50', align: 'right' },
-        { key: 'p95', label: 'p95', align: 'right' },
-        { key: 'p99', label: 'p99', align: 'right' },
-        { key: 'minMax', label: 'min/max', align: 'right' },
-        { key: 'cv', label: 'cv', align: 'right' }
-      ],
+      buildDistributionStatsColumns(),
       [
         buildDistributionStatsRow({ metric: 'Build index', summary: buildIndexMs, formatter: formatMs }),
         buildDistributionStatsRow({ metric: 'Build sqlite', summary: buildSqliteMs, formatter: formatMs }),
@@ -1302,16 +1269,7 @@ const globalLatency = summarizeLatencyDistributions(summariesGlobal);
 if (shouldRenderTextOverview) {
   console.log(color.bold('Run Distributions'));
   printTextTable(
-    [
-      { key: 'category', label: 'Category' },
-      { key: 'metric', label: 'Metric' },
-      { key: 'count', label: 'n', align: 'right' },
-      { key: 'p50', label: 'p50', align: 'right' },
-      { key: 'p95', label: 'p95', align: 'right' },
-      { key: 'p99', label: 'p99', align: 'right' },
-      { key: 'minMax', label: 'min/max', align: 'right' },
-      { key: 'cv', label: 'cv', align: 'right' }
-    ],
+    buildDistributionStatsColumns({ includeCategory: true }),
     [
       buildDistributionStatsRow({ category: 'Code', metric: 'Chunks/s', summary: globalCodeDistribution?.chunksPerSec }),
       buildDistributionStatsRow({ category: 'Code', metric: 'Files/s', summary: globalCodeDistribution?.filesPerSec }),
@@ -1340,7 +1298,8 @@ if (shouldRenderTextOverview && ledgerRegressionsGlobal.length) {
       : (Number(left.deltaPct) - Number(right.deltaPct))
   ) || String(left.repoIdentity || '').localeCompare(String(right.repoIdentity || '')));
   console.log(color.bold(
-    `Top Throughput Regressions (schema v${THROUGHPUT_LEDGER_SCHEMA_VERSION}/diff v${THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION})`
+    `Top Throughput Regressions - Ledger Regression Summary `
+    + `(schema v${THROUGHPUT_LEDGER_SCHEMA_VERSION}/diff v${THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION})`
   ));
   for (const entry of ledgerRegressionsGlobal.slice(0, 8)) {
     console.log(
@@ -1763,7 +1722,7 @@ const printCompareText = () => {
 
 if (!shouldRenderTextOverview) {
   if (jsonOutput || profile === 'raw') {
-    console.log(JSON.stringify(outputSummary, null, 2));
+    emitJson(outputSummary);
   } else if (csvOutput) {
     const rows = profile === 'repo' ? buildRepoRows() : buildFamilyRows();
     printCsv(rows);
@@ -1774,7 +1733,7 @@ if (!shouldRenderTextOverview) {
   } else if (profile === 'compare') {
     printCompareText();
   } else {
-    console.log(JSON.stringify(outputSummary, null, 2));
+    emitJson(outputSummary);
   }
 }
 

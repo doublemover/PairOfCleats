@@ -6,8 +6,9 @@ import {
   getRepoCacheRoot,
   getToolVersion
 } from '../../shared/dict-utils.js';
-import { log } from '../../shared/progress.js';
-import { isAbsolutePathNative, readJsonFileSafe, toPosix } from '../../shared/files.js';
+import { log } from '../../shared/progress-runtime.js';
+import { isAbsolutePathNative, toPosix } from '../../shared/file-paths.js';
+import { readJsonFileSafe } from '../../shared/file-read.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';

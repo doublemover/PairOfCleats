@@ -8,6 +8,7 @@ import { STOP, SYN } from '../../index/constants.js';
 import { createIndexState, appendChunk } from '../../index/build/state.js';
 import {
   loadIncrementalState,
+  normalizeIncrementalEmbeddingCoverageManifest,
   pruneIncrementalManifest,
   writeIncrementalBundle
 } from '../../index/build/incremental.js';
@@ -19,11 +20,11 @@ import { buildChunkId } from '../../index/chunk-id.js';
 import { assignChunkUids } from '../../index/identity/chunk-uid.js';
 import { getLanguageForFile } from '../../index/language-registry.js';
 import { buildIndexStateArtifactsBlock } from '../../index/build/index-state-profile.js';
-import { toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/file-paths.js';
 import { sha1 } from '../../shared/hash.js';
 import { extractNgrams, splitId, splitWordsWithDict, stem } from '../../shared/tokenize.js';
 import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
-import { log, showProgress } from '../../shared/progress.js';
+import { log, showProgress } from '../../shared/progress-runtime.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { setRecordsIncrementalCapability } from '../../storage/sqlite/build/index.js';
@@ -89,26 +90,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     log
   });
   if (incrementalState?.manifest) {
-    if (incrementalState.manifest.bundleEmbeddings !== true) {
-      incrementalState.manifest.bundleEmbeddings = false;
-      incrementalState.manifest.bundleEmbeddingCoverageComplete = false;
-      incrementalState.manifest.bundleEmbeddingCoverageEligible = Math.max(
-        0,
-        Number(incrementalState.manifest.bundleEmbeddingCoverageEligible) || 0
-      );
-      incrementalState.manifest.bundleEmbeddingCoverageCovered = Math.max(
-        0,
-        Number(incrementalState.manifest.bundleEmbeddingCoverageCovered) || 0
-      );
-      incrementalState.manifest.bundleEmbeddingCoverageMissingFiles = Math.max(
-        0,
-        Number(incrementalState.manifest.bundleEmbeddingCoverageMissingFiles) || 0
-      );
-      incrementalState.manifest.bundleEmbeddingCoverageMissingChunks = Math.max(
-        0,
-        Number(incrementalState.manifest.bundleEmbeddingCoverageMissingChunks) || 0
-      );
-    }
+    normalizeIncrementalEmbeddingCoverageManifest(incrementalState.manifest);
     setRecordsIncrementalCapability(incrementalState.manifest, true);
   }
   const seenFiles = new Set();

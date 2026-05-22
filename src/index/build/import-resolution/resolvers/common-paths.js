@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { toPosix } from '../../../../shared/files.js';
+import { toPosix } from '../../../../shared/file-paths.js';
 import { resolveFromLookup } from '../lookup.js';
 import { normalizeRelPath } from '../path-utils.js';
 import { parseBazelLabelSpecifier } from '../specifier-hints.js';

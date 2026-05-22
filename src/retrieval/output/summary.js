@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { readTextFileSync } from '../../shared/encoding.js';
-import { isAbsolutePathNative, isRelativePathEscape } from '../../shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape } from '../../shared/file-paths.js';
 import { getFileTextCache, getSummaryCache } from './cache.js';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';

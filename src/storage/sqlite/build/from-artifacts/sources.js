@@ -7,26 +7,27 @@ import {
   loadSqliteIndexOptionalArtifacts
 } from '../../utils.js';
 import { normalizeManifestFiles } from '../manifest.js';
+import { MAX_JSON_BYTES } from '../../../../shared/artifact-io/constants.js';
+import { readJsonLinesEachAwait } from '../../../../shared/artifact-io/json.js';
+import { resolveJsonlRequiredKeys } from '../../../../shared/artifact-io/jsonl.js';
+import { loadChunkMetaRows } from '../../../../shared/artifact-io/loaders/chunk-meta.js';
+import { loadTokenPostings } from '../../../../shared/artifact-io/loaders/token-postings.js';
 import {
   CHUNK_META_PARTS_DIR,
-  MAX_JSON_BYTES,
   TOKEN_POSTINGS_PART_EXTENSIONS,
   TOKEN_POSTINGS_PART_PREFIX,
   TOKEN_POSTINGS_SHARDS_DIR,
   expandMetaPartPaths,
   listShardFiles,
   locateChunkMetaShards,
-  loadChunkMetaRows,
-  loadTokenPostings,
-  readJsonLinesEachAwait,
-  resolveArtifactPresence,
-  resolveJsonlRequiredKeys
-} from '../../../../shared/artifact-io.js';
+  resolveArtifactPresence
+} from '../../../../shared/artifact-io/manifest.js';
 import {
   INTEGER_COERCE_MODE_STRICT,
   INTEGER_COERCE_MODE_TRUNCATE,
   coerceNonNegativeInt
 } from '../../../../shared/number-coerce.js';
+import { inflateColumnarRows } from '../../../../shared/artifact-io/columnar-rows.js';
 
 const SQLITE_TOKEN_CARDINALITY_ERROR_CODE = 'ERR_SQLITE_TOKEN_CARDINALITY';
 
@@ -103,30 +104,6 @@ export const createManifestLookup = (manifestFiles) => {
     map: resolveManifestByNormalized(lookup),
     conflicts: Array.isArray(lookup.conflicts) ? lookup.conflicts : []
   };
-};
-
-export const inflateColumnarRows = (payload) => {
-  if (!payload || typeof payload !== 'object') return null;
-  const arrays = payload.arrays && typeof payload.arrays === 'object' ? payload.arrays : null;
-  if (!arrays) return null;
-  const columns = Array.isArray(payload.columns) ? payload.columns : Object.keys(arrays);
-  if (!columns.length) return [];
-  const tables = payload.tables && typeof payload.tables === 'object' ? payload.tables : null;
-  const length = Number.isFinite(payload.length)
-    ? payload.length
-    : (Array.isArray(arrays[columns[0]]) ? arrays[columns[0]].length : 0);
-  const rows = new Array(length);
-  for (let i = 0; i < length; i += 1) {
-    const row = {};
-    for (const column of columns) {
-      const values = arrays[column];
-      const value = Array.isArray(values) ? (values[i] ?? null) : null;
-      const table = tables && Array.isArray(tables[column]) ? tables[column] : null;
-      row[column] = table && Number.isInteger(value) ? (table[value] ?? null) : value;
-    }
-    rows[i] = row;
-  }
-  return rows;
 };
 
 export const resolveChunkMetaSources = (dir) => {

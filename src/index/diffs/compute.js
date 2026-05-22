@@ -5,13 +5,9 @@ import { resolveIndexRef } from '../index-ref.js';
 import { getRepoCacheRoot } from '../../shared/dict-utils.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { sha1 } from '../../shared/hash.js';
-import { releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
 import { stableStringify } from '../../shared/stable-json.js';
 import { atomicWriteText } from '../../shared/io/atomic-write.js';
-import {
-  acquireRegistryLock,
-  attachRegistryLockSignalCleanup
-} from '../registry-lock.js';
+import { withRegistryLock } from '../registry-support.js';
 import {
   loadDiffInputs,
   loadDiffSummary,
@@ -55,7 +51,6 @@ const RETENTION_TIERS = ['cache', 'forensic', 'pinned'];
  */
 const invalidRequest = (message, details = null) => createError(ERROR_CODES.INVALID_REQUEST, message, details);
 const notFound = (message, details = null) => createError(ERROR_CODES.NOT_FOUND, message, details);
-const queueError = (message, details = null) => createError(ERROR_CODES.QUEUE_OVERLOADED, message, details);
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 
 const normalizeRetentionTier = (value, fallback = 'cache') => {
@@ -102,29 +97,15 @@ const ensureDiffId = (diffId) => {
  * @param {(lock:object)=>Promise<any>} worker
  * @returns {Promise<any>}
  */
-const withDiffLock = async (repoCacheRoot, options, worker) => {
-  const lock = await acquireRegistryLock({
+const withDiffLock = (repoCacheRoot, options, worker) => (
+  withRegistryLock({
     repoCacheRoot,
     domain: 'diffs',
-    waitMs: Number.isFinite(options?.waitMs) ? Number(options.waitMs) : 0,
-    pollMs: Number.isFinite(options?.pollMs) ? Number(options.pollMs) : 1000,
-    staleMs: Number.isFinite(options?.staleMs) ? Number(options.staleMs) : undefined,
-    metadata: options?.metadata && typeof options.metadata === 'object'
-      ? options.metadata
-      : null,
-    log: typeof options?.log === 'function' ? options.log : () => {}
-  });
-  if (!lock) {
-    throw queueError('Diff registry lock held; unable to mutate diffs.');
-  }
-  const detachSignalCleanup = attachRegistryLockSignalCleanup(lock);
-  try {
-    return await worker(lock);
-  } finally {
-    detachSignalCleanup();
-    await releaseFileLockOrThrow(lock);
-  }
-};
+    options,
+    lockHeldMessage: 'Diff registry lock held; unable to mutate diffs.',
+    worker
+  })
+);
 
 /**
  * Parse user-supplied limits as positive integers with fallback defaults.

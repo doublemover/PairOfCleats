@@ -1,5 +1,5 @@
 import { sha1 } from '../../../src/shared/hash.js';
-import { toPosix } from '../../../src/shared/files.js';
+import { toPosix } from '../../../src/shared/file-paths.js';
 
 const compareSampleEntries = (left, right) => (
   left.score.localeCompare(right.score)

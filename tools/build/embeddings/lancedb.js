@@ -1,19 +1,14 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
-import path from 'node:path';
 import { tryImport } from '../../../src/shared/optional-deps.js';
-import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../../../src/shared/lancedb.js';
-import {
-  loadJsonArrayArtifactRows,
-  normalizeMetaParts,
-  readJsonFile
-} from '../../../src/shared/artifact-io.js';
-import { getEnvConfig } from '../../../src/shared/env.js';
+import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { getLanceDbEnv } from '../../../src/shared/env/runtime.js';
-import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess.js';
+import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess/runner.js';
+import { resolveVectorsSource } from './vector-source.js';
 
 let warnedMissing = false;
 const CHILD_ENV = 'PAIROFCLEATS_LANCEDB_CHILD';
@@ -30,78 +25,6 @@ const loadLanceDb = async (logger) => {
     return null;
   }
   return result.mod?.default || result.mod;
-};
-
-/**
- * Build a minimal in-memory manifest for one sharded dense-vector artifact.
- *
- * This keeps LanceDB source loading independent from global manifest naming,
- * which may expose logical names (`dense_vectors`) instead of shard base names
- * (`dense_vectors_uint8`).
- *
- * @param {string} artifactBase
- * @param {object|null} meta
- * @returns {object|null}
- */
-const buildShardOnlyManifest = (artifactBase, meta) => {
-  const parts = normalizeMetaParts(meta?.parts)
-    .map((entry) => (typeof entry === 'string' ? entry.replace(/\\/g, '/') : ''))
-    .filter(Boolean);
-  if (!parts.length) return null;
-  return {
-    pieces: parts.map((partPath) => ({
-      name: artifactBase,
-      path: partPath,
-      format: 'jsonl'
-    }))
-  };
-};
-
-const resolveShardCount = (meta) => {
-  const totalRecords = Number(meta?.totalRecords);
-  if (Number.isFinite(totalRecords) && totalRecords >= 0) {
-    return Math.max(0, Math.floor(totalRecords));
-  }
-  const count = Number(meta?.count);
-  if (Number.isFinite(count) && count >= 0) {
-    return Math.max(0, Math.floor(count));
-  }
-  return 0;
-};
-
-const resolveVectorsSource = (vectorsPath) => {
-  if (!vectorsPath) return null;
-  const dir = path.dirname(vectorsPath);
-  const base = path.basename(vectorsPath, path.extname(vectorsPath));
-  const metaPath = path.join(dir, `${base}.meta.json`);
-  const hasShardedMeta = fsSync.existsSync(metaPath) || fsSync.existsSync(`${metaPath}.bak`);
-  if (hasShardedMeta) {
-    try {
-      const meta = readJsonFile(metaPath, { maxBytes: Number.POSITIVE_INFINITY });
-      const count = resolveShardCount(meta);
-      const shardManifest = buildShardOnlyManifest(base, meta);
-      if (!shardManifest) return null;
-      return {
-        count,
-        vectors: null,
-        rows: loadJsonArrayArtifactRows(dir, base, {
-          maxBytes: Number.POSITIVE_INFINITY,
-          manifest: shardManifest,
-          strict: false,
-          materialize: true
-        })
-      };
-    } catch {}
-  }
-  try {
-    const data = readJsonFile(vectorsPath, { maxBytes: Number.POSITIVE_INFINITY });
-    const vectors = Array.isArray(data?.arrays?.vectors)
-      ? data.arrays.vectors
-      : (Array.isArray(data?.vectors) ? data.vectors : null);
-    if (!Array.isArray(vectors) || !vectors.length) return null;
-    return { count: vectors.length, vectors, rows: null };
-  } catch {}
-  return null;
 };
 
 const shouldIsolateLanceDb = (config, env) => {
@@ -195,7 +118,7 @@ export async function writeLanceDbIndex({
   const lanceEnv = getLanceDbEnv();
   const vectorsSource = Array.isArray(vectors) && vectors.length
     ? { count: vectors.length, vectors, rows: null }
-    : resolveVectorsSource(vectorsPath);
+    : resolveVectorsSource(vectorsPath, { stopOnShardMetaWithoutManifest: true });
   if (TRACE_ARTIFACT_IO && vectorsPath) {
     const exists = fsSync.existsSync(vectorsPath)
       || fsSync.existsSync(`${vectorsPath}.gz`)

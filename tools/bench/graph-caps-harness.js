@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { buildGraphNeighborhood } from '../../src/graph/neighborhood.js';
-import { loadGraphRelations } from '../../src/shared/artifact-io.js';
+import { loadGraphRelations } from '../../src/shared/artifact-io/loaders.js';
 
 const resolveGraphStats = (graphRelations) => {
   const stats = {};

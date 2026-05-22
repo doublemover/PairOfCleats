@@ -4,7 +4,7 @@ import { createInterface } from 'node:readline';
 import { PYTHON_AST_SCRIPT } from './ast-script.js';
 import { findPythonExecutable } from './executable.js';
 import { attachCleanupSignalHandlers } from '../../shared/process-signals.js';
-import { registerChildProcessForCleanup } from '../../shared/subprocess.js';
+import { registerChildProcessForCleanup } from '../../shared/subprocess/tracking-register.js';
 import { killChildProcessTree } from '../../shared/kill-tree.js';
 
 const PYTHON_AST_DEFAULTS = {

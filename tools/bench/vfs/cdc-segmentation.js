@@ -3,6 +3,7 @@
 import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { writeJsonWithDir } from '../micro/utils.js';
+import { clampInt, createRng, randomAlphaText } from './shared.js';
 
 const rawArgs = process.argv.slice(2);
 const cli = createCli({
@@ -31,7 +32,7 @@ const maxSize = clampInt(argv.max, avgSize, 2048);
 const seed = Number.isFinite(argv.seed) ? Number(argv.seed) : 1;
 
 const rng = createRng(seed);
-const baseText = randomText(size, rng);
+const baseText = randomAlphaText(size, rng);
 const editedText = applyEdits(baseText, edits, rng);
 
 const fixedBase = timeSegment(() => segmentFixed(baseText, fixedChunk));
@@ -83,29 +84,6 @@ if (argv.json) {
   console.error(`- cdc churn ${(cdcChurn * 100).toFixed(2)}%`);
 }
 
-function clampInt(value, min, fallback) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(min, Math.floor(parsed));
-}
-
-function createRng(seedValue) {
-  let state = (seedValue >>> 0) || 1;
-  return () => {
-    state = (state * 1664525 + 1013904223) >>> 0;
-    return state / 0x100000000;
-  };
-}
-
-function randomText(length, rng) {
-  const chars = new Array(length);
-  for (let i = 0; i < length; i += 1) {
-    const code = 97 + Math.floor(rng() * 26);
-    chars[i] = String.fromCharCode(code);
-  }
-  return chars.join('');
-}
-
 function applyEdits(text, edits, rng) {
   let value = text;
   for (let i = 0; i < edits; i += 1) {
@@ -113,7 +91,7 @@ function applyEdits(text, edits, rng) {
     const insert = rng() < 0.5;
     const changeSize = 1 + Math.floor(rng() * 4);
     if (insert) {
-      const addition = randomText(changeSize, rng);
+      const addition = randomAlphaText(changeSize, rng);
       value = value.slice(0, index) + addition + value.slice(index);
     } else {
       const end = Math.min(value.length, index + changeSize);

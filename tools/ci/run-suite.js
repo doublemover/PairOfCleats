@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
-import fsSync from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
-import { getEnvConfig } from '../../src/shared/env.js';
-import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
+import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { resolveLocalToolingBinDirs } from '../../src/shared/tooling-bin-dirs.js';
 import { getRuntimeConfig, getToolingDir, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
 import { buildTestRuntimeEnv, normalizeEnvPathKeys, prependPathEntries } from '../tooling/utils.js';
@@ -400,24 +400,7 @@ const main = async () => {
   }
 };
 
-const isDirectExecution = () => {
-  const normalizeForCompare = (value) => {
-    if (!value) return null;
-    let canonical = null;
-    try {
-      canonical = fsSync.realpathSync.native(value);
-    } catch {
-      canonical = path.resolve(value);
-    }
-    if (!canonical) return null;
-    return process.platform === 'win32' ? canonical.toLowerCase() : canonical;
-  };
-  const entry = process.argv[1];
-  if (!entry) return false;
-  return normalizeForCompare(entry) === normalizeForCompare(fileURLToPath(import.meta.url));
-};
-
-if (isDirectExecution()) {
+if (isDirectExecution(import.meta.url)) {
   main().catch((err) => {
     console.error(err?.message || err);
     process.exit(1);

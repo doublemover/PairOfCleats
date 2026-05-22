@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { isAbsolutePathNative, isRelativePathEscape } from '../../../shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape } from '../../../shared/file-paths.js';
 import { FS_META_PREFETCH_CONCURRENCY, FS_META_TRANSIENT_ERROR_CODES } from './constants.js';
 
 const normalizeMetaPath = (targetPath) => path.resolve(String(targetPath || ''));

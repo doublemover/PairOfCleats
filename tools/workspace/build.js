@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { generateWorkspaceManifest } from '../../src/workspace/manifest.js';
-import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { exitLikeCommandResult } from '../shared/cli-utils.js';
 
 const TOOL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');

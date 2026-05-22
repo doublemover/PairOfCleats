@@ -18,7 +18,7 @@ import {
   normalizeTrackedScope,
   resolveEntryOwnershipId,
   entryMatchesTrackedFilters
-} from './tracking.js';
+} from './tracking-runtime.js';
 
 const coerceTypeName = (value) => {
   if (!value) return 'unknown';

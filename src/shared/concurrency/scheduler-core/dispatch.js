@@ -28,10 +28,16 @@ export function createSchedulerDispatch({
         }
       }
     }
+    const tokenBlocked = (kind, requested) => {
+      const pool = state.tokens[kind];
+      if (requested <= 0) return false;
+      if (pool.used + requested <= pool.total) return false;
+      return !(pool.used === 0 && requested > pool.total);
+    };
     if (
-      state.tokens.cpu.used + normalized.cpu > state.tokens.cpu.total
-      || state.tokens.io.used + normalized.io > state.tokens.io.total
-      || state.tokens.mem.used + normalized.mem > state.tokens.mem.total
+      tokenBlocked('cpu', normalized.cpu)
+      || tokenBlocked('io', normalized.io)
+      || tokenBlocked('mem', normalized.mem)
     ) {
       return false;
     }

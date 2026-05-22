@@ -1,4 +1,4 @@
-import { log as sharedLog } from '../../../../shared/progress.js';
+import { log as sharedLog } from '../../../../shared/progress-runtime.js';
 import { buildPostings } from '../../postings.js';
 import {
   applyTokenRetention,

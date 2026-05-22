@@ -2,6 +2,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { parseElixirSignature } from './signature-parse/elixir.js';
 import { createDedicatedLspProvider } from './dedicated-lsp-provider.js';
+import { resolveNonReadyPreflightResult } from './lsp-provider/non-ready-preflight-result.js';
 import { normalizeCommandArgs } from './provider-utils.js';
 import {
   resolveRuntimeProbeProfile,
@@ -88,14 +89,6 @@ const resolveElixirRuntimeMismatchPreflight = ({ ctx }) => {
   };
 };
 
-const resolveFirstNonReadyPreflight = (...entries) => {
-  for (const entry of entries) {
-    const state = String(entry?.state || 'ready').trim().toLowerCase();
-    if (state !== 'ready') return entry;
-  }
-  return { state: 'ready', reasonCode: null, message: '', checks: [] };
-};
-
 export const createElixirProvider = () => createDedicatedLspProvider({
   id: 'elixir-ls',
   label: 'elixir-ls (dedicated)',
@@ -143,19 +136,6 @@ export const createElixirProvider = () => createDedicatedLspProvider({
   preflight: async ({ ctx }) => {
     const runtimePreflight = resolveElixirRuntimeMismatchPreflight({ ctx });
     const workspacePreflight = resolveElixirWorkspaceBootstrapPreflight({ ctx });
-    const firstNonReady = resolveFirstNonReadyPreflight(runtimePreflight, workspacePreflight);
-    if (String(firstNonReady?.state || '').toLowerCase() === 'ready') {
-      return firstNonReady;
-    }
-    const checks = [
-      ...(Array.isArray(runtimePreflight?.checks) ? runtimePreflight.checks : []),
-      ...(Array.isArray(workspacePreflight?.checks) ? workspacePreflight.checks : [])
-    ];
-    return {
-      state: firstNonReady.state || 'degraded',
-      reasonCode: firstNonReady.reasonCode || null,
-      message: firstNonReady.message || '',
-      ...(checks.length ? { checks } : {})
-    };
+    return resolveNonReadyPreflightResult([runtimePreflight, workspacePreflight]);
   }
 });

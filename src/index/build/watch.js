@@ -12,8 +12,7 @@ import {
   isSpecialCodeFile,
   resolveSpecialCodeExt
 } from '../constants.js';
-import { log } from '../../shared/progress.js';
-import { releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
+import { log } from '../../shared/progress-runtime.js';
 import {
   incWatchBurst,
   incWatchDebounce,
@@ -21,8 +20,8 @@ import {
   observeWatchBuildDuration,
   setWatchBacklog
 } from '../../shared/metrics/core.js';
-import { fileExt, isRelativePathEscape, toPosix } from '../../shared/files.js';
-import { runWithConcurrency, runWithQueue } from '../../shared/concurrency.js';
+import { fileExt, isRelativePathEscape, toPosix } from '../../shared/file-paths.js';
+import { runWithConcurrency, runWithQueue } from '../../shared/concurrency/run-with-queue.js';
 import { coerceAbortSignal } from '../../shared/abort.js';
 import { createDebouncedScheduler } from '../../shared/scheduler/debounce.js';
 import { getLanguageForFile } from '../language-registry.js';
@@ -31,7 +30,6 @@ import { initBuildState, markBuildPhase, updateBuildState } from './build-state.
 import { runBuildCleanupWithTimeout } from './cleanup-timeout.js';
 import { SIGNATURE_VERSION } from './indexer/signatures.js';
 import { buildIgnoredMatcher } from '../../shared/fs/ignore.js';
-import { acquireIndexLockWithBackoff } from './watch/lock.js';
 import { resolveWatcherBackend } from './watch/resolve-backend.js';
 import { waitForStableFile } from './watch/stability.js';
 import { resolveRecordsRoot, readRecordSample } from './watch/records.js';
@@ -52,6 +50,21 @@ import {
 export { createDebouncedScheduler, acquireIndexLockWithBackoff };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+let fileLockModulePromise = null;
+let watchLockModulePromise = null;
+
+const releaseFileLockOrThrow = async (lock, options) => {
+  fileLockModulePromise ??= import('../../shared/locks/file-lock.js');
+  const fileLockModule = await fileLockModulePromise;
+  return fileLockModule.releaseFileLockOrThrow(lock, options);
+};
+
+const acquireIndexLockWithBackoff = async (options) => {
+  watchLockModulePromise ??= import('./watch/lock.js');
+  const watchLockModule = await watchLockModulePromise;
+  return watchLockModule.acquireIndexLockWithBackoff(options);
+};
 
 /**
  * Watch for file changes and rebuild indexes incrementally.

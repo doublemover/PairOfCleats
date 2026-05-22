@@ -2,10 +2,10 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import {
   normalizeBundleFormat,
-  readBundleFile,
   resolveManifestBundleNames,
   resolveBundleFormatFromName
-} from '../../../src/shared/bundle-io.js';
+} from '../../../src/shared/bundle-io-paths.js';
+import { readBundleFile } from '../../../src/shared/bundle-io.js';
 import { sha1 } from '../../../src/shared/hash.js';
 
 const normalizeRangeValue = (value) => {

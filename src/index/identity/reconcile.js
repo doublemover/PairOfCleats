@@ -1,10 +1,8 @@
 import path from 'node:path';
-import {
-  MAX_JSON_BYTES,
-  loadChunkMetaRows,
-  loadJsonArrayArtifactRows,
-  loadPiecesManifest
-} from '../../shared/artifact-io.js';
+import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
+import { loadJsonArrayArtifactRows } from '../../shared/artifact-io/loaders/core.js';
+import { loadChunkMetaRows } from '../../shared/artifact-io/loaders/chunk-meta.js';
+import { loadPiecesManifest } from '../../shared/artifact-io/manifest.js';
 import {
   assertChunkIdentityEnvelope,
   buildChunkIdentityEnvelopeFromArtifactRow

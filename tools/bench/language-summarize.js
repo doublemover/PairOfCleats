@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
+import { writeTextIfChanged } from '../shared/generated-report.js';
 import { summarizeResults } from './language/report.js';
 
 const NON_REPO_RESULTS_FOLDERS = new Set(['logs', 'usr']);
@@ -499,10 +500,8 @@ const run = async () => {
     baselineDiff,
     matrix: withSummary.map(({ _summarySource, ...row }) => row)
   };
-  await fsPromises.mkdir(path.dirname(outJsonPath), { recursive: true });
-  await fsPromises.mkdir(path.dirname(outMdPath), { recursive: true });
-  await fsPromises.writeFile(outJsonPath, JSON.stringify(output, null, 2), 'utf8');
-  await fsPromises.writeFile(outMdPath, renderMarkdown({ summary: output }), 'utf8');
+  await writeJsonFileResolved(outJsonPath, output);
+  await writeTextIfChanged(outMdPath, renderMarkdown({ summary: output }), { encoding: 'utf8' });
   if (options.jsonOutput) {
     process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
   } else {

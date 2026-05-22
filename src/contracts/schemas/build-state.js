@@ -165,6 +165,27 @@ const DOCUMENT_EXTRACTION_FILE_ENTRY = {
   }
 };
 
+const DOCUMENT_EXTRACTION_SOURCE_TYPE_COUNT = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['total', 'ok', 'skipped'],
+  properties: {
+    total: { type: 'number' },
+    ok: { type: 'number' },
+    skipped: { type: 'number' }
+  }
+};
+
+const DOCUMENT_EXTRACTION_SOURCE_TYPE_COUNTS = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['pdf', 'docx'],
+  properties: {
+    pdf: DOCUMENT_EXTRACTION_SOURCE_TYPE_COUNT,
+    docx: DOCUMENT_EXTRACTION_SOURCE_TYPE_COUNT
+  }
+};
+
 const DOCUMENT_EXTRACTION_SUMMARY = {
   type: 'object',
   additionalProperties: false,
@@ -181,31 +202,7 @@ const DOCUMENT_EXTRACTION_SUMMARY = {
         coverageLossCount: { type: 'number' },
         qualitySensitiveFailures: { type: 'number' },
         bySourceType: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['pdf', 'docx'],
-          properties: {
-            pdf: {
-              type: 'object',
-              additionalProperties: false,
-              required: ['total', 'ok', 'skipped'],
-              properties: {
-                total: { type: 'number' },
-                ok: { type: 'number' },
-                skipped: { type: 'number' }
-              }
-            },
-            docx: {
-              type: 'object',
-              additionalProperties: false,
-              required: ['total', 'ok', 'skipped'],
-              properties: {
-                total: { type: 'number' },
-                ok: { type: 'number' },
-                skipped: { type: 'number' }
-              }
-            }
-          }
+          ...DOCUMENT_EXTRACTION_SOURCE_TYPE_COUNTS
         }
       }
     },
@@ -235,31 +232,7 @@ const DOCUMENT_EXTRACTION_SUMMARY = {
           additionalProperties: { type: 'number' }
         },
         bySourceType: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['pdf', 'docx'],
-          properties: {
-            pdf: {
-              type: 'object',
-              additionalProperties: false,
-              required: ['total', 'ok', 'skipped'],
-              properties: {
-                total: { type: 'number' },
-                ok: { type: 'number' },
-                skipped: { type: 'number' }
-              }
-            },
-            docx: {
-              type: 'object',
-              additionalProperties: false,
-              required: ['total', 'ok', 'skipped'],
-              properties: {
-                total: { type: 'number' },
-                ok: { type: 'number' },
-                skipped: { type: 'number' }
-              }
-            }
-          }
+          ...DOCUMENT_EXTRACTION_SOURCE_TYPE_COUNTS
         }
       }
     }

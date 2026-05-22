@@ -2,30 +2,27 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import {
-  MAX_JSON_BYTES,
-  loadChunkMeta,
-  loadTokenPostings,
-  loadMinhashSignatureRows,
-  loadJsonArrayArtifact,
-  loadJsonArrayArtifactRows,
-  loadFileMetaRows,
-  readJsonFile
-} from '../../shared/artifact-io.js';
+import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
+import { loadJsonArrayArtifact, loadJsonArrayArtifactRows } from '../../shared/artifact-io/loaders/core.js';
+import { loadFileMetaRows } from '../../shared/artifact-io/loaders/core-file-meta.js';
+import { loadChunkMeta } from '../../shared/artifact-io/loaders/chunk-meta.js';
+import { loadMinhashSignatureRows } from '../../shared/artifact-io/loaders/minhash.js';
+import { loadTokenPostings } from '../../shared/artifact-io/loaders/token-postings.js';
+import { readJsonFile } from '../../shared/artifact-io/json.js';
 import { joinPathSafe, normalizeFilePath as normalizeFilePathShared } from '../../shared/path-normalize.js';
 import { clamp } from '../../shared/limits.js';
-import { logLine } from '../../shared/progress.js';
-import { loadOptionalSyncWithFallback } from '../../shared/optional-artifact-fallback.js';
+import { logLine } from '../../shared/progress-runtime.js';
+import { hasChunkMetaArtifactsSync } from '../../shared/artifact-io/chunk-meta-presence.js';
+import {
+  loadOptionalSyncWithFallback,
+  loadOptionalWithFallback,
+  iterateOptionalWithFallback
+} from '../../shared/artifact-io/optional-fallback.js';
 import {
   loadDenseVectorBinaryFromMetaSync,
   normalizeDenseVectorMeta
 } from '../../shared/dense-vector-artifacts.js';
-import {
-  hasChunkMetaArtifactsSync,
-  loadOptionalWithFallback,
-  iterateOptionalWithFallback
-} from '../../shared/index-artifact-helpers.js';
-import { getEnvConfig } from '../../shared/env.js';
+import { getEnvConfig } from '../../shared/env/runtime.js';
 
 /**
  * Split an array into fixed-size chunks.
@@ -45,6 +42,18 @@ export function chunkArray(items, size = 900) {
   }
   return chunks;
 }
+
+export const resolveExpectedDenseCount = (denseVec) => {
+  if (!denseVec || typeof denseVec !== 'object') return 0;
+  const fields = denseVec.fields && typeof denseVec.fields === 'object' ? denseVec.fields : null;
+  const fromCount = Number(denseVec.count ?? fields?.count);
+  if (Number.isFinite(fromCount) && fromCount > 0) return Math.floor(fromCount);
+  const fromTotalRecords = Number(denseVec.totalRecords ?? fields?.totalRecords);
+  if (Number.isFinite(fromTotalRecords) && fromTotalRecords > 0) return Math.floor(fromTotalRecords);
+  const vectors = denseVec.vectors ?? denseVec.arrays?.vectors;
+  if (Array.isArray(vectors) && vectors.length > 0) return vectors.length;
+  return 0;
+};
 
 const SQLITE_BATCH_MIN = 50;
 const SQLITE_BATCH_MAX = 2000;
@@ -605,6 +614,36 @@ export function checkpointSqliteWithTelemetry(
 export function bumpSqliteBatchStat(stats, key) {
   if (!stats || !key) return;
   stats[key] = (stats[key] || 0) + 1;
+}
+
+/**
+ * Record per-table sqlite write telemetry when a stats object is active.
+ * @param {object|null} tableStats
+ * @param {string} name
+ * @param {number} rows
+ * @param {number} durationMs
+ */
+export function recordSqliteTableStat(tableStats, name, rows, durationMs) {
+  if (!tableStats || !name) return;
+  const entry = tableStats[name] || { rows: 0, durationMs: 0, rowsPerSec: null };
+  entry.rows += rows;
+  entry.durationMs += durationMs;
+  entry.rowsPerSec = entry.durationMs > 0
+    ? Math.round((entry.rows / entry.durationMs) * 1000)
+    : null;
+  tableStats[name] = entry;
+}
+
+/**
+ * Create a no-op-safe table telemetry recorder bound to a sqlite stats object.
+ * @param {object|null} stats
+ * @returns {(name:string, rows:number, durationMs:number) => void}
+ */
+export function createSqliteTableStatRecorder(stats) {
+  const tableStats = stats && typeof stats === 'object'
+    ? (stats.tables || (stats.tables = {}))
+    : null;
+  return (name, rows, durationMs) => recordSqliteTableStat(tableStats, name, rows, durationMs);
 }
 
 /**

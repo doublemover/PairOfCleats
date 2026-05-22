@@ -6,7 +6,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { getIndexDir, resolveRepoConfig, resolveSqlitePaths } from '../shared/dict-utils.js';
 import { checksumFile, sha1File } from '../../src/shared/hash.js';
 import { readJsonFileSyncSafe } from '../../src/shared/file-read.js';
-import { fromPosix, isAbsolutePathNative, isRelativePathEscape, toPosix } from '../../src/shared/files.js';
+import { fromPosix, isAbsolutePathNative, isRelativePathEscape, toPosix } from '../../src/shared/file-paths.js';
 import { copyDirIfExists } from '../shared/fs-utils.js';
 import { readRepoGitState } from '../shared/git-state.js';
 

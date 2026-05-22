@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { emitLegacyCliEntrypointWarning } from './src/shared/legacy-cli-entrypoint.js';
+import { emitLegacyCliEntrypointWarning } from './src/shared/cli/legacy-entrypoint.js';
 import { isDirectExecution } from './src/shared/direct-execution.js';
 import { runCli } from './src/retrieval/cli/search-entry.js';
 

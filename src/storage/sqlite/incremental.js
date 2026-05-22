@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
-import { logLine } from '../../shared/progress.js';
+import { logLine } from '../../shared/progress-runtime.js';
 
 const INCREMENTAL_MANIFEST_MAX_BYTES = 8 * 1024 * 1024;
 

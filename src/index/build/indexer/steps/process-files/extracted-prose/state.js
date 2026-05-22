@@ -202,6 +202,45 @@ const buildSuppressedCohortRecallLossEstimates = ({
   });
 };
 
+const buildSampledFamilyDecisionSummary = (familyState) => {
+  const observedFiles = Math.max(0, Math.floor(Number(familyState?.observedFiles) || 0));
+  const yieldedFiles = Math.max(0, Math.floor(Number(familyState?.yieldedFiles) || 0));
+  const chunkCount = Math.max(0, Math.floor(Number(familyState?.chunkCount) || 0));
+  return {
+    key: familyState?.key,
+    ext: familyState?.ext,
+    pathFamily: familyState?.pathFamily,
+    docLike: familyState?.docLike === true,
+    sampledFiles: Math.max(0, Math.floor(Number(familyState?.sampledFiles) || 0)),
+    observedFiles,
+    yieldedFiles,
+    chunkCount,
+    yieldRatio: observedFiles > 0 ? yieldedFiles / observedFiles : 0
+  };
+};
+
+const buildSampledFamilyReportSummary = (familyState) => ({
+  key: familyState?.key,
+  ext: familyState?.ext,
+  pathFamily: familyState?.pathFamily,
+  docLike: familyState?.docLike === true,
+  sampledFiles: Math.max(0, Math.floor(Number(familyState?.sampledFiles) || 0)),
+  observedFiles: Math.max(0, Math.floor(Number(familyState?.observedFiles) || 0)),
+  yieldedFiles: Math.max(0, Math.floor(Number(familyState?.yieldedFiles) || 0)),
+  chunkCount: Math.max(0, Math.floor(Number(familyState?.chunkCount) || 0))
+});
+
+const buildHistoryFamilySummary = (familyState) => ({
+  key: familyState?.key,
+  ext: familyState?.ext,
+  pathFamily: familyState?.pathFamily,
+  docLike: familyState?.docLike === true,
+  observedFiles: Math.max(0, Math.floor(Number(familyState?.observedFiles) || 0)),
+  yieldedFiles: Math.max(0, Math.floor(Number(familyState?.yieldedFiles) || 0)),
+  chunkCount: Math.max(0, Math.floor(Number(familyState?.chunkCount) || 0)),
+  yieldRatio: Number.isFinite(Number(familyState?.yieldRatio)) ? Number(familyState.yieldRatio) : 0
+});
+
 const resolveExtractedProseLowYieldBailoutConfig = (runtime) => {
   const extractedProseConfig = runtime?.indexingConfig?.extractedProse
     && typeof runtime.indexingConfig.extractedProse === 'object'
@@ -460,34 +499,10 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
 
   const familySummaries = Object.values(bailout.sampledFamilies || {})
     .filter((familyState) => Number(familyState?.observedFiles) > 0)
-    .map((familyState) => {
-      const familyObservedFiles = Math.max(0, Math.floor(Number(familyState.observedFiles) || 0));
-      const familyYieldedFiles = Math.max(0, Math.floor(Number(familyState.yieldedFiles) || 0));
-      const familyChunkCount = Math.max(0, Math.floor(Number(familyState.chunkCount) || 0));
-      return {
-        key: familyState.key,
-        ext: familyState.ext,
-        pathFamily: familyState.pathFamily,
-        docLike: familyState.docLike === true,
-        sampledFiles: Math.max(0, Math.floor(Number(familyState.sampledFiles) || 0)),
-        observedFiles: familyObservedFiles,
-        yieldedFiles: familyYieldedFiles,
-        chunkCount: familyChunkCount,
-        yieldRatio: familyObservedFiles > 0 ? familyYieldedFiles / familyObservedFiles : 0
-      };
-    });
+    .map(buildSampledFamilyDecisionSummary);
   const historyFamilySummaries = Object.values(bailout.history?.families || {})
     .filter((familyState) => Number(familyState?.observedFiles) > 0)
-    .map((familyState) => ({
-      key: familyState.key,
-      ext: familyState.ext,
-      pathFamily: familyState.pathFamily,
-      docLike: familyState.docLike === true,
-      observedFiles: Math.max(0, Math.floor(Number(familyState.observedFiles) || 0)),
-      yieldedFiles: Math.max(0, Math.floor(Number(familyState.yieldedFiles) || 0)),
-      chunkCount: Math.max(0, Math.floor(Number(familyState.chunkCount) || 0)),
-      yieldRatio: Number.isFinite(Number(familyState.yieldRatio)) ? Number(familyState.yieldRatio) : 0
-    }));
+    .map(buildHistoryFamilySummary);
   const sampledFamilyMap = Object.fromEntries(familySummaries.map((familyState) => [familyState.key, familyState]));
   const historyFamilyMap = Object.fromEntries(historyFamilySummaries.map((familyState) => [familyState.key, familyState]));
   const warmupFamilyMap = Object.fromEntries(Object.values(bailout.warmupFamilies || {}).map((familyState) => [familyState.key, familyState]));
@@ -734,26 +749,8 @@ export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
     decisionAtOrderIndex: bailout.decisionAtOrderIndex,
     decisionAt: toIsoTimestamp(bailout.decisionAtMs),
     repoFingerprint: normalizedRepoFingerprint,
-    sampledFamilies: Object.values(bailout.sampledFamilies || {}).map((familyState) => ({
-      key: familyState.key,
-      ext: familyState.ext,
-      pathFamily: familyState.pathFamily,
-      docLike: familyState.docLike === true,
-      sampledFiles: Math.max(0, Math.floor(Number(familyState.sampledFiles) || 0)),
-      observedFiles: Math.max(0, Math.floor(Number(familyState.observedFiles) || 0)),
-      yieldedFiles: Math.max(0, Math.floor(Number(familyState.yieldedFiles) || 0)),
-      chunkCount: Math.max(0, Math.floor(Number(familyState.chunkCount) || 0))
-    })),
-    historyFamilies: Object.values(bailout.history?.families || {}).map((familyState) => ({
-      key: familyState.key,
-      ext: familyState.ext,
-      pathFamily: familyState.pathFamily,
-      docLike: familyState.docLike === true,
-      observedFiles: Math.max(0, Math.floor(Number(familyState.observedFiles) || 0)),
-      yieldedFiles: Math.max(0, Math.floor(Number(familyState.yieldedFiles) || 0)),
-      chunkCount: Math.max(0, Math.floor(Number(familyState.chunkCount) || 0)),
-      yieldRatio: Number.isFinite(Number(familyState.yieldRatio)) ? Number(familyState.yieldRatio) : 0
-    })),
+    sampledFamilies: Object.values(bailout.sampledFamilies || {}).map(buildSampledFamilyReportSummary),
+    historyFamilies: Object.values(bailout.history?.families || {}).map(buildHistoryFamilySummary),
     historyDeferredFamilies: Array.isArray(bailout.lastDecision?.historyDeferredFamilies)
       ? bailout.lastDecision.historyDeferredFamilies.map((familyState) => ({
         key: familyState.key,

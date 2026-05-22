@@ -1,4 +1,4 @@
-import { log } from '../../../../../shared/progress.js';
+import { log } from '../../../../../shared/progress-runtime.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import { mergeReuseSummaries } from '../../../../../shared/reuse-diagnostics.js';
 import { applyCrossFileInference } from '../../../../type-inference-crossfile.js';

@@ -98,6 +98,62 @@ const killPosixPidList = (pids, signal) => {
   return signaled;
 };
 
+const createPosixKillState = (pid, {
+  signal,
+  useProcessGroup,
+  killTreeRequested
+}) => {
+  const target = useProcessGroup ? -pid : pid;
+  const fallbackDescendants = killTreeRequested
+    ? discoverPosixDescendantPidsSync(pid)
+    : [];
+  const fallbackTargets = fallbackDescendants.slice().reverse();
+  let terminated = false;
+  if (killTreeRequested) {
+    terminated = killPosixPidList(fallbackTargets, signal || DEFAULT_SIGNAL) || terminated;
+  }
+  if (tryKillPosix(target, signal || DEFAULT_SIGNAL)) {
+    terminated = true;
+  } else if (useProcessGroup && tryKillPosix(pid, signal || DEFAULT_SIGNAL)) {
+    terminated = true;
+  }
+  return {
+    pid,
+    target,
+    useProcessGroup,
+    killTreeRequested,
+    fallbackDescendants,
+    fallbackTargets,
+    terminated,
+    forced: false
+  };
+};
+
+const toPosixKillResult = ({ terminated, forced }) => ({ terminated, forced });
+
+const forceKillPosixIfAlive = (state) => {
+  const {
+    pid,
+    target,
+    useProcessGroup,
+    killTreeRequested,
+    fallbackDescendants,
+    fallbackTargets
+  } = state;
+  const alive = useProcessGroup ? isAlivePosix(pid) : isAliveSinglePosix(pid);
+  const fallbackAlive = killTreeRequested && isAnyPosixPidAlive(fallbackDescendants);
+  if (!alive && !fallbackAlive) {
+    return;
+  }
+  state.forced = true;
+  if (killTreeRequested) {
+    state.terminated = killPosixPidList(fallbackTargets, 'SIGKILL') || state.terminated;
+  }
+  if (tryKillPosix(target, 'SIGKILL') || (useProcessGroup && tryKillPosix(pid, 'SIGKILL'))) {
+    state.terminated = true;
+  }
+};
+
 export const killPosixGroup = async (pid, {
   signal,
   graceMs,
@@ -105,64 +161,30 @@ export const killPosixGroup = async (pid, {
   killTreeRequested = false,
   awaitGrace = true
 }) => {
-  const target = useProcessGroup ? -pid : pid;
-  const fallbackDescendants = killTreeRequested
-    ? discoverPosixDescendantPidsSync(pid)
-    : [];
-  const fallbackTargets = fallbackDescendants.slice().reverse();
-  let terminated = false;
-  let forced = false;
-  if (killTreeRequested) {
-    terminated = killPosixPidList(fallbackTargets, signal || DEFAULT_SIGNAL) || terminated;
-  }
-  if (tryKillPosix(target, signal || DEFAULT_SIGNAL)) {
-    terminated = true;
-  } else if (useProcessGroup && tryKillPosix(pid, signal || DEFAULT_SIGNAL)) {
-    terminated = true;
-  }
+  const state = createPosixKillState(pid, { signal, useProcessGroup, killTreeRequested });
   if (graceMs > 0 && awaitGrace) {
     await wait(graceMs, { unrefTimer: false });
   }
   if (!awaitGrace) {
     if (graceMs > 0) {
       scheduleUnrefTimer(graceMs, () => {
-        const aliveLater = useProcessGroup ? isAlivePosix(pid) : isAliveSinglePosix(pid);
-        const fallbackAlive = killTreeRequested && isAnyPosixPidAlive(fallbackDescendants);
+        const aliveLater = state.useProcessGroup ? isAlivePosix(pid) : isAliveSinglePosix(pid);
+        const fallbackAlive = state.killTreeRequested && isAnyPosixPidAlive(state.fallbackDescendants);
         if (!aliveLater && !fallbackAlive) return;
-        if (killTreeRequested) {
-          killPosixPidList(fallbackTargets, 'SIGKILL');
+        if (state.killTreeRequested) {
+          killPosixPidList(state.fallbackTargets, 'SIGKILL');
         }
-        if (!tryKillPosix(target, 'SIGKILL') && useProcessGroup) {
+        if (!tryKillPosix(state.target, 'SIGKILL') && state.useProcessGroup) {
           tryKillPosix(pid, 'SIGKILL');
         }
       });
-      return { terminated, forced: false };
+      return { terminated: state.terminated, forced: false };
     }
-    const aliveNow = useProcessGroup ? isAlivePosix(pid) : isAliveSinglePosix(pid);
-    const fallbackAlive = killTreeRequested && isAnyPosixPidAlive(fallbackDescendants);
-    if (aliveNow || fallbackAlive) {
-      forced = true;
-      if (killTreeRequested) {
-        terminated = killPosixPidList(fallbackTargets, 'SIGKILL') || terminated;
-      }
-      if (tryKillPosix(target, 'SIGKILL') || (useProcessGroup && tryKillPosix(pid, 'SIGKILL'))) {
-        terminated = true;
-      }
-    }
-    return { terminated, forced };
+    forceKillPosixIfAlive(state);
+    return toPosixKillResult(state);
   }
-  const alive = useProcessGroup ? isAlivePosix(pid) : isAliveSinglePosix(pid);
-  const fallbackAlive = killTreeRequested && isAnyPosixPidAlive(fallbackDescendants);
-  if (alive || fallbackAlive) {
-    forced = true;
-    if (killTreeRequested) {
-      terminated = killPosixPidList(fallbackTargets, 'SIGKILL') || terminated;
-    }
-    if (tryKillPosix(target, 'SIGKILL') || (useProcessGroup && tryKillPosix(pid, 'SIGKILL'))) {
-      terminated = true;
-    }
-  }
-  return { terminated, forced };
+  forceKillPosixIfAlive(state);
+  return toPosixKillResult(state);
 };
 
 export const killPosixGroupSync = (pid, {
@@ -170,31 +192,7 @@ export const killPosixGroupSync = (pid, {
   useProcessGroup,
   killTreeRequested = false
 }) => {
-  const target = useProcessGroup ? -pid : pid;
-  const fallbackDescendants = killTreeRequested
-    ? discoverPosixDescendantPidsSync(pid)
-    : [];
-  const fallbackTargets = fallbackDescendants.slice().reverse();
-  let terminated = false;
-  let forced = false;
-  if (killTreeRequested) {
-    terminated = killPosixPidList(fallbackTargets, signal || DEFAULT_SIGNAL) || terminated;
-  }
-  if (tryKillPosix(target, signal || DEFAULT_SIGNAL)) {
-    terminated = true;
-  } else if (useProcessGroup && tryKillPosix(pid, signal || DEFAULT_SIGNAL)) {
-    terminated = true;
-  }
-  const alive = useProcessGroup ? isAlivePosix(pid) : isAliveSinglePosix(pid);
-  const fallbackAlive = killTreeRequested && isAnyPosixPidAlive(fallbackDescendants);
-  if (alive || fallbackAlive) {
-    forced = true;
-    if (killTreeRequested) {
-      terminated = killPosixPidList(fallbackTargets, 'SIGKILL') || terminated;
-    }
-    if (tryKillPosix(target, 'SIGKILL') || (useProcessGroup && tryKillPosix(pid, 'SIGKILL'))) {
-      terminated = true;
-    }
-  }
-  return { terminated, forced };
+  const state = createPosixKillState(pid, { signal, useProcessGroup, killTreeRequested });
+  forceKillPosixIfAlive(state);
+  return toPosixKillResult(state);
 };

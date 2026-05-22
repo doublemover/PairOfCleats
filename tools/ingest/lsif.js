@@ -1,11 +1,18 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import readline from 'node:readline';
 import { createCli } from '../../src/shared/cli.js';
-import { isAbsolutePathNative, isRelativePathEscape, toPosix } from '../../src/shared/files.js';
 import { getRepoCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
+import {
+  bumpStat,
+  emitIngestSummaryJson,
+  ensureParentDir,
+  finishWriteStream,
+  ingestJsonLineStream,
+  normalizeRepoRelativePath,
+  writeIngestSummaryReport,
+  writeJsonLine
+} from './shared.js';
 
 const argv = createCli({
   scriptName: 'lsif-ingest',
@@ -26,22 +33,7 @@ const outputPath = argv.out
 const metaPath = `${outputPath}.meta.json`;
 
 const normalizePath = (value) => {
-  if (!value) return null;
-  let raw = String(value);
-  const posixRaw = toPosix(raw);
-  if (posixRaw === '/repo') return '';
-  if (posixRaw.startsWith('/repo/')) {
-    return posixRaw.slice('/repo/'.length);
-  }
-  if (posixRaw.startsWith('/') && /^[A-Za-z]:\//.test(posixRaw.slice(1))) {
-    raw = posixRaw.slice(1);
-  }
-  const resolved = isAbsolutePathNative(raw) ? raw : path.resolve(repoRoot, raw);
-  const rel = path.relative(repoRoot, resolved);
-  const normalized = toPosix(rel || raw);
-  if (!normalized || normalized === '.') return null;
-  if (isAbsolutePathNative(normalized) || isRelativePathEscape(normalized)) return null;
-  return normalized;
+  return normalizeRepoRelativePath(repoRoot, value, { stripVirtualRepoRoot: true });
 };
 
 const stats = {
@@ -52,16 +44,6 @@ const stats = {
   errors: 0,
   kinds: {},
   languages: {}
-};
-
-const bump = (bucket, key) => {
-  if (!key) return;
-  const k = String(key);
-  bucket[k] = (bucket[k] || 0) + 1;
-};
-
-const ensureOutputDir = async () => {
-  await fsPromises.mkdir(path.dirname(outputPath), { recursive: true });
 };
 
 let writeStream = null;
@@ -96,14 +78,14 @@ const uriPathFromDocumentUri = (uri) => {
   }
 };
 
-const recordEntry = (payload) => {
-  writeStream.write(`${JSON.stringify(payload)}\n`);
+const recordEntry = async (payload) => {
+  await writeJsonLine(writeStream, payload);
 };
 
 const handleVertex = (vertex) => {
   vertexById.set(vertex.id, vertex);
   const label = vertex.label || vertex.type || null;
-  bump(stats.kinds, label || 'unknown');
+  bumpStat(stats.kinds, label || 'unknown');
   if (label === 'document' && vertex.uri) {
     docById.set(vertex.id, vertex);
   }
@@ -113,7 +95,7 @@ const handleVertex = (vertex) => {
   stats.vertices += 1;
 };
 
-const handleEdge = (edge) => {
+const handleEdge = async (edge) => {
   stats.edges += 1;
   const label = edge.label || edge.type || null;
   if (label === 'contains' && edge.outV != null && Array.isArray(edge.inVs)) {
@@ -138,8 +120,8 @@ const handleEdge = (edge) => {
           : 'other';
       if (role === 'definition') stats.definitions += 1;
       if (role === 'reference') stats.references += 1;
-      bump(stats.languages, doc?.languageId || 'unknown');
-      recordEntry({
+      bumpStat(stats.languages, doc?.languageId || 'unknown');
+      await recordEntry({
         file,
         ext: path.extname(file).toLowerCase(),
         name: range?.tag || range?.text || null,
@@ -156,35 +138,18 @@ const handleEdge = (edge) => {
 };
 
 const ingestJsonLines = async (stream) => {
-  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-  let streamError = null;
-  const onStreamError = (error) => {
-    streamError = error || new Error('Input stream failed.');
-    rl.close();
-  };
-  stream.once('error', onStreamError);
-  try {
-    for await (const line of rl) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      let parsed = null;
-      try {
-        parsed = JSON.parse(trimmed);
-      } catch {
-        stats.errors += 1;
-        continue;
-      }
+  await ingestJsonLineStream(stream, {
+    onParseError: () => {
+      stats.errors += 1;
+    },
+    onPayload: async (parsed) => {
       if (parsed && parsed.type === 'vertex') handleVertex(parsed);
-      else if (parsed && parsed.type === 'edge') handleEdge(parsed);
+      else if (parsed && parsed.type === 'edge') await handleEdge(parsed);
     }
-  } finally {
-    stream.off('error', onStreamError);
-    rl.close();
-  }
-  if (streamError) throw streamError;
+  });
 };
 
-await ensureOutputDir();
+await ensureParentDir(outputPath);
 writeStream = fs.createWriteStream(outputPath, { encoding: 'utf8' });
 if (inputPath && inputPath !== '-') {
   const inputStream = fs.createReadStream(inputPath, { encoding: 'utf8' });
@@ -194,6 +159,7 @@ if (inputPath && inputPath !== '-') {
 }
 
 writeStream.end();
+await finishWriteStream(writeStream);
 
 const summary = {
   generatedAt: new Date().toISOString(),
@@ -202,10 +168,10 @@ const summary = {
   output: path.resolve(outputPath),
   stats
 };
-await fsPromises.writeFile(metaPath, JSON.stringify(summary, null, 2));
+await writeIngestSummaryReport(metaPath, summary);
 
 if (argv.json) {
-  console.log(JSON.stringify(summary, null, 2));
+  emitIngestSummaryJson(summary);
 } else {
   console.error(`LSIF ingest: ${stats.vertices} vertices, ${stats.edges} edges`);
   console.error(`- output: ${outputPath}`);

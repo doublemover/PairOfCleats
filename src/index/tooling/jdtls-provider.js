@@ -1,13 +1,18 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { parseClikeSignature } from './signature-parse/clike.js';
-import { isAbsolutePathNative } from '../../shared/files.js';
-import { acquireFileLock, releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
+import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { createDedicatedLspProvider } from './dedicated-lsp-provider.js';
 import { ensureCommandArgPair, normalizeCommandArgs } from './provider-utils.js';
 
 const JAVA_EXTS = ['.java'];
 const JAVA_COMMAND_TOKENS = new Set(['java', 'java.exe']);
+let fileLockModulePromise = null;
+
+const loadFileLockModule = () => {
+  fileLockModulePromise ??= import('../../shared/locks/file-lock.js');
+  return fileLockModulePromise;
+};
 
 const resolveWorkspaceDataDir = (ctx, config) => {
   const configured = typeof config?.workspaceDataDir === 'string'
@@ -174,6 +179,10 @@ export const createJdtlsProvider = () => createDedicatedLspProvider({
 
     const workspaceDataDir = resolveWorkspaceDataDir(ctx, config);
     const lockPath = resolveWorkspaceBootstrapLockPath(workspaceDataDir);
+    const {
+      acquireFileLock,
+      releaseFileLockOrThrow
+    } = await loadFileLockModule();
     const lock = await acquireFileLock({
       lockPath,
       waitMs: 0,
@@ -230,6 +239,10 @@ export const createJdtlsProvider = () => createDedicatedLspProvider({
         await fsPromises.mkdir(workspaceDataDir, { recursive: true });
       } catch {}
     }
+    const {
+      acquireFileLock,
+      releaseFileLockOrThrow
+    } = await loadFileLockModule();
     const runtimeLock = await acquireFileLock({
       lockPath: resolveWorkspaceRuntimeLockPath(workspaceDataDir),
       waitMs: 0,

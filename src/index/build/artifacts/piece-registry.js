@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { toPosix } from '../../../shared/files.js';
+import { toPosix } from '../../../shared/file-paths.js';
 
 /**
  * Track committed artifact files destined for the pieces manifest.

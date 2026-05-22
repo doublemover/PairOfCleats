@@ -5,7 +5,7 @@ import { buildIndexSignature } from '../retrieval/index-cache.js';
 import { sha1 } from '../shared/hash.js';
 import { stableStringify } from '../shared/stable-json.js';
 import { atomicWriteText } from '../shared/io/atomic-write.js';
-import { readJsonFileSafe } from '../shared/files.js';
+import { readJsonFileSafe } from '../shared/file-read.js';
 import {
   buildGenerationKey,
   resolveCacheScopedBuildIdRoot,

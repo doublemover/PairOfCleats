@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { spawnResolvedSubprocessSync } from '../../src/shared/subprocess/command-invocation.js';
 import { formatSpawnFailureReason } from './rebuild-native-exit.js';
 import { listNativeTreeSitterGrammarModuleNames } from '../../src/lang/tree-sitter/native-runtime.js';
 
@@ -31,7 +32,6 @@ const TREE_SITTER_PERL_PATCH_MARKERS = [
 ];
 
 const root = process.cwd();
-const npmCommand = process.platform === 'win32' ? (process.env.ComSpec || 'cmd.exe') : 'npm';
 const verifyOnly = process.argv.includes('--verify');
 const repairOnly = process.argv.includes('--repair');
 
@@ -105,91 +105,61 @@ const buildNpmEnv = ({ buildFromSource = false } = {}) => {
   return env;
 };
 
-const buildNpmCommandArgs = (args) => {
-  if (process.platform === 'win32') {
-    return ['/d', '/s', '/c', 'npm', ...args];
+const runNpmCommand = (args, { cwd = root, buildFromSource = false } = {}) => {
+  const env = buildNpmEnv({ buildFromSource });
+  try {
+    const result = spawnResolvedSubprocessSync('npm', args, {
+      cwd,
+      stdio: 'inherit',
+      env,
+      rejectOnNonZeroExit: false
+    });
+    return {
+      ok: result.exitCode === 0,
+      message: result.exitCode === 0
+        ? null
+        : formatSpawnFailureReason({ status: result.exitCode, signal: result.signal })
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err?.message || String(err)
+    };
   }
-  return args;
+};
+
+const normalizePackageNameResult = (pkgName) => {
+  const normalizedPkgName = typeof pkgName === 'string' ? pkgName.trim() : '';
+  if (!normalizedPkgName) {
+    return {
+      ok: false,
+      message: `invalid package name: ${String(pkgName)}`
+    };
+  }
+  return { ok: true, pkgName: normalizedPkgName };
 };
 
 const rebuildPackage = (pkgName, { buildFromSource = false } = {}) => {
-  const normalizedPkgName = typeof pkgName === 'string' ? pkgName.trim() : '';
-  if (!normalizedPkgName) {
-    return {
-      ok: false,
-      message: `invalid package name: ${String(pkgName)}`
-    };
+  const packageNameResult = normalizePackageNameResult(pkgName);
+  if (!packageNameResult.ok) {
+    return packageNameResult;
   }
 
-  const args = ['rebuild', normalizedPkgName];
-  const env = buildNpmEnv({ buildFromSource });
-
-  const commandArgs = buildNpmCommandArgs(args);
-  let result;
-  try {
-    result = spawnSync(npmCommand, commandArgs, {
-      cwd: root,
-      stdio: 'inherit',
-      env
-    });
-  } catch (err) {
-    return {
-      ok: false,
-      message: err?.message || String(err)
-    };
-  }
-
-  if (result.error) {
-    return {
-      ok: false,
-      message: result.error.message
-    };
-  }
-
-  return {
-    ok: result.status === 0,
-    message: result.status === 0 ? null : formatSpawnFailureReason(result)
-  };
+  const args = ['rebuild', packageNameResult.pkgName];
+  return runNpmCommand(args, { buildFromSource });
 };
 
 const runPackageInstallScript = (pkgName, { buildFromSource = false } = {}) => {
-  const normalizedPkgName = typeof pkgName === 'string' ? pkgName.trim() : '';
-  if (!normalizedPkgName) {
-    return {
-      ok: false,
-      message: `invalid package name: ${String(pkgName)}`
-    };
+  const packageNameResult = normalizePackageNameResult(pkgName);
+  if (!packageNameResult.ok) {
+    return packageNameResult;
   }
 
-  const env = buildNpmEnv({ buildFromSource });
   const args = ['run', 'install', '--if-present'];
-
-  const commandArgs = buildNpmCommandArgs(args);
-  let result;
-  try {
-    result = spawnSync(npmCommand, commandArgs, {
-      cwd: resolveNodeModulesPath(normalizedPkgName),
-      stdio: 'inherit',
-      env
-    });
-  } catch (err) {
-    return {
-      ok: false,
-      message: err?.message || String(err)
-    };
-  }
-
-  if (result.error) {
-    return {
-      ok: false,
-      message: result.error.message
-    };
-  }
-
-  return {
-    ok: result.status === 0,
-    message: result.status === 0 ? null : formatSpawnFailureReason(result)
-  };
+  return runNpmCommand(args, {
+    cwd: resolveNodeModulesPath(packageNameResult.pkgName),
+    buildFromSource
+  });
 };
 
 const probePackage = async (pkgName) => {

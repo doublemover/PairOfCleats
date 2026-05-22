@@ -3,7 +3,7 @@ import path from 'node:path';
 import { getRepoCacheRoot, getRepoRoot } from '../../shared/repo-paths.js';
 import { sha1 } from '../../shared/hash.js';
 import { stableStringify } from '../../shared/stable-json.js';
-import { writeJsonObjectFile } from '../../shared/json-stream.js';
+import { writeJsonObjectFile } from '../../shared/json-stream/json-writers.js';
 
 export const CROSS_FILE_CACHE_SCHEMA_VERSION = 1;
 export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference';

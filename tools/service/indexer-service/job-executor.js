@@ -4,7 +4,6 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { parseBuildArgs } from '../../../src/index/build/args.js';
 import { buildIndex } from '../../../src/integrations/core/index.js';
-import { isAbsolutePathNative } from '../../../src/shared/files.js';
 import {
   applyObservabilityContextEnv,
   buildChildObservability
@@ -477,11 +476,8 @@ export const createJobExecutor = ({
     if (normalized.formatVersion && normalized.formatVersion < 2) {
       console.error(`[indexer] embedding job ${job.id} uses legacy payload; upgrading for processing.`);
     }
-    if (normalized.indexDir) {
-      const rel = path.relative(normalized.buildRoot, normalized.indexDir);
-      if (rel.startsWith('..') || isAbsolutePathNative(rel)) {
-        console.error(`[indexer] embedding job ${job.id} indexDir not under buildRoot; continuing with buildRoot only.`);
-      }
+    if (normalized.indexDirUnderBuildRoot === false) {
+      console.error(`[indexer] embedding job ${job.id} indexDir not under buildRoot; continuing with buildRoot only.`);
     }
     const replayRepair = await repairEmbeddingReplayState(job);
     job.replayState = replayRepair.after;

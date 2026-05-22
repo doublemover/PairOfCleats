@@ -1,13 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { MAX_JSON_BYTES } from '../../../../shared/artifact-io.js';
+import { MAX_JSON_BYTES } from '../../../../shared/artifact-io/constants.js';
 import { ensureDiskSpace } from '../../../../shared/disk-space.js';
-import {
-  writeJsonLinesFile,
-  writeJsonLinesSharded,
-  writeJsonObjectFile
-} from '../../../../shared/json-stream.js';
-import { fromPosix } from '../../../../shared/files.js';
+import { writeJsonLinesFile } from '../../../../shared/json-stream/jsonl-write.js';
+import { writeJsonLinesSharded } from '../../../../shared/json-stream/jsonl-sharded.js';
+import { writeJsonObjectFile } from '../../../../shared/json-stream/json-writers.js';
+import { fromPosix } from '../../../../shared/file-paths.js';
 import { applyByteBudget } from '../../byte-budget.js';
 import {
   buildJsonlVariantPaths,

@@ -5,7 +5,7 @@ import {
   MANIFEST_ONLY_ARTIFACT_NAMES,
   validateArtifact
 } from '../../contracts/artifact-schemas.js';
-import { fromPosix } from '../../shared/files.js';
+import { fromPosix } from '../../shared/file-paths.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import { addIssue } from './issues.js';
 import { isManifestPathSafe, normalizeManifestPath } from './paths.js';

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { compareStrings } from '../../../shared/sort.js';
-import { writeJsonObjectFile } from '../../../shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
 
 const PROFILE_SCHEMA_VERSION = '1.0.0';
 const PROFILE_FILE_NAME = 'adaptive-rows-per-sec.json';

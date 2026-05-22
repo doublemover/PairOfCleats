@@ -4,7 +4,7 @@ import { existsOrBak } from './fs.js';
 import { readJsonFile } from './json.js';
 import { readCache, writeCache } from './cache.js';
 import { getTestEnvConfig } from '../env/testing.js';
-import { logLine } from '../progress.js';
+import { logLine } from '../progress-runtime.js';
 
 const MIN_MANIFEST_BYTES = 64 * 1024;
 const warnedMissingCompat = new Set();

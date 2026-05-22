@@ -1,7 +1,4 @@
 import {
-  withTrackedSubprocessSignalScope
-} from '../../shared/subprocess.js';
-import {
   createTimeoutError,
   runWithTimeout
 } from '../../shared/promise-timeout.js';
@@ -48,6 +45,18 @@ import {
 } from './preflight/manager-teardown.js';
 
 const PREFLIGHT_TEARDOWN_SETTLE_TIMEOUT_MS = 1000;
+
+let trackingScopeModulePromise = null;
+
+const loadTrackingScopeModule = () => {
+  trackingScopeModulePromise ??= import('../../shared/subprocess/tracking-scope.js');
+  return trackingScopeModulePromise;
+};
+
+const withTrackedSubprocessSignalScope = async (signal, scope, operation) => {
+  const trackingScopeModule = await loadTrackingScopeModule();
+  return trackingScopeModule.withTrackedSubprocessSignalScope(signal, scope, operation);
+};
 
 const startProviderPreflight = ({
   ctx,

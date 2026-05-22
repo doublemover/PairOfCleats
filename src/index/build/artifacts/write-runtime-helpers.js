@@ -1,4 +1,4 @@
-import { readJsonFile } from '../../../shared/artifact-io.js';
+import { readJsonFile } from '../../../shared/artifact-io/json.js';
 import { sha1 } from '../../../shared/hash.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import { atomicWriteText } from '../../../shared/io/atomic-write.js';

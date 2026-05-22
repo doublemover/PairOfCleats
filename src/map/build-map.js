@@ -2,7 +2,8 @@ import path from 'node:path';
 import fsPromises from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { loadChunkMeta, MAX_JSON_BYTES } from '../shared/artifact-io.js';
+import { MAX_JSON_BYTES } from '../shared/artifact-io/constants.js';
+import { loadChunkMeta } from '../shared/artifact-io/loaders.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { stableStringify } from '../shared/stable-json.js';
 import {

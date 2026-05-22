@@ -11,10 +11,10 @@ const DEFAULT_BASELINE_PATH = path.join(ROOT, 'docs', 'tooling', 'shared-module-
 
 const DEFAULT_MODULES = Object.freeze([
   { id: 'shared.search-request', path: 'src/shared/search-request.js' },
-  { id: 'shared.command-registry', path: 'src/shared/command-registry.js' },
+  { id: 'shared.command-registry.query', path: 'src/shared/command-registry-query.js' },
   { id: 'shared.runtime-capability-manifest', path: 'src/shared/runtime-capability-manifest.js' },
   { id: 'shared.artifact-io', path: 'src/shared/artifact-io.js' },
-  { id: 'shared.subprocess', path: 'src/shared/subprocess.js' },
+  { id: 'shared.subprocess.runner', path: 'src/shared/subprocess/runner.js' },
   { id: 'retrieval.cli', path: 'src/retrieval/cli.js' }
 ]);
 

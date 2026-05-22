@@ -17,19 +17,38 @@ import {
 } from '../src/shared/cli-options.js';
 import {
   COMMAND_SUPPORT_TIER_LABELS,
-  DEFAULT_HELP_SUPPORT_TIERS,
+  DEFAULT_HELP_SUPPORT_TIERS
+} from '../src/shared/command-registry-data.js';
+import {
   describeCommandRegistryEntry,
   listCommandRegistry,
   listCommonWorkflowExamples,
   listHelpSections
-} from '../src/shared/command-registry.js';
-import { spawnSubprocessSync } from '../src/shared/subprocess.js';
+} from '../src/shared/command-registry-query.js';
+import { spawnSubprocessSync } from '../src/shared/subprocess/runner.js';
 import { exitLikeChild } from '../src/tui/wrapper-exit.js';
 import { buildErrorPayload, ERROR_CODES, isErrorCode } from '../src/shared/error-codes.js';
-import { resolveDispatchRuntimeEnv } from '../src/shared/dispatch/env.js';
+import { resolveDispatchRuntimeEnv } from './dispatch-runtime-env.js';
 import { isDirectExecution } from '../src/shared/direct-execution.js';
+import { readFlagValue } from '../src/shared/cli/argv.js';
 
 const ROOT = resolveToolRoot();
+const WORKSPACE_BUILD_FLAGS = Object.keys(INDEX_BUILD_OPTIONS).filter((flag) => flag !== 'repo');
+const WORKSPACE_BUILD_ALLOWED_FLAGS = Array.from(new Set([
+  'workspace',
+  'concurrency',
+  'strict',
+  'include-disabled',
+  'json',
+  ...WORKSPACE_BUILD_FLAGS
+]));
+const WORKSPACE_BUILD_VALUE_FLAGS = Array.from(new Set([
+  'workspace',
+  'concurrency',
+  ...WORKSPACE_BUILD_FLAGS.filter((flag) => (
+    INDEX_BUILD_OPTIONS[flag]?.type && INDEX_BUILD_OPTIONS[flag].type !== 'boolean'
+  ))
+]));
 
 export async function main(rawArgs = process.argv.slice(2)) {
   const args = [...rawArgs];
@@ -82,20 +101,7 @@ function resolveCommand(primary, rest) {
     }
     if (sub === 'build') {
       if (readFlagValue(rest, 'workspace')) {
-        const buildFlags = Object.keys(INDEX_BUILD_OPTIONS).filter((flag) => flag !== 'repo');
-        const allowed = Array.from(new Set([
-          'workspace',
-          'concurrency',
-          'strict',
-          'include-disabled',
-          'json',
-          ...buildFlags
-        ]));
-        const buildValueFlags = buildFlags.filter((flag) => (
-          INDEX_BUILD_OPTIONS[flag]?.type && INDEX_BUILD_OPTIONS[flag].type !== 'boolean'
-        ));
-        validateArgs(rest, allowed, ['workspace', 'concurrency', ...buildValueFlags]);
-        return { script: 'tools/workspace/build.js', extraArgs: [], args: rest };
+        return resolveWorkspaceBuildCommand(rest);
       }
       return { script: 'tools/index/cli-entry.js', extraArgs: [], args: rest };
     }
@@ -284,20 +290,7 @@ function resolveCommand(primary, rest) {
       return { script: 'tools/workspace/status.js', extraArgs: [], args: rest };
     }
     if (sub === 'build') {
-      const buildFlags = Object.keys(INDEX_BUILD_OPTIONS).filter((flag) => flag !== 'repo');
-      const allowed = Array.from(new Set([
-        'workspace',
-        'concurrency',
-        'strict',
-        'include-disabled',
-        'json',
-        ...buildFlags
-      ]));
-      const buildValueFlags = buildFlags.filter((flag) => (
-        INDEX_BUILD_OPTIONS[flag]?.type && INDEX_BUILD_OPTIONS[flag].type !== 'boolean'
-      ));
-      validateArgs(rest, allowed, ['workspace', 'concurrency', ...buildValueFlags]);
-      return { script: 'tools/workspace/build.js', extraArgs: [], args: rest };
+      return resolveWorkspaceBuildCommand(rest);
     }
     if (sub === 'catalog') {
       validateArgs(rest, ['workspace', 'json'], ['workspace']);
@@ -926,6 +919,17 @@ function resolveCommand(primary, rest) {
 }
 
 /**
+ * Validate and route workspace build aliases through the same dispatch contract.
+ *
+ * @param {string[]} rest
+ * @returns {{script:string,extraArgs:string[],args:string[]}}
+ */
+function resolveWorkspaceBuildCommand(rest) {
+  validateArgs(rest, WORKSPACE_BUILD_ALLOWED_FLAGS, WORKSPACE_BUILD_VALUE_FLAGS);
+  return { script: 'tools/workspace/build.js', extraArgs: [], args: rest };
+}
+
+/**
  * Validate command args against allowed/value flag sets and fail on invalid use.
  *
  * @param {string[]} args
@@ -969,29 +973,6 @@ function validateArgs(args, allowedFlags, valueFlags) {
       code: ERROR_CODES.INVALID_REQUEST
     });
   }
-}
-
-/**
- * Read flag value from argv supporting `--name value` and `--name=value`.
- *
- * @param {string[]} args
- * @param {string} name
- * @returns {string|null}
- */
-function readFlagValue(args, name) {
-  const flag = `--${name}`;
-  const flagEq = `${flag}=`;
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = String(args[i] || '');
-    if (arg === flag) {
-      const next = args[i + 1];
-      return next ? String(next) : null;
-    }
-    if (arg.startsWith(flagEq)) {
-      return arg.slice(flagEq.length);
-    }
-  }
-  return null;
 }
 
 /**

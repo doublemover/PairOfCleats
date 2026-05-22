@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { MAX_JSON_BYTES, readJsonFile } from './artifact-io.js';
-import { writeJsonObjectFile } from './json-stream.js';
+import { MAX_JSON_BYTES } from './artifact-io/constants.js';
+import { readJsonFile } from './artifact-io/json.js';
+import { writeJsonObjectFile } from './json-stream/json-writers.js';
 import { checksumFile } from './hash.js';
 
 /**

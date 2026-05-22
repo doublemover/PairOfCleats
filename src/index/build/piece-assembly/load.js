@@ -3,10 +3,12 @@ import {
   loadChunkMeta,
   loadJsonArrayArtifact,
   loadJsonObjectArtifact,
+  loadTokenPostings
+} from '../../../shared/artifact-io/loaders.js';
+import {
   loadPiecesManifest,
-  loadTokenPostings,
   readCompatibilityKey
-} from '../../../shared/artifact-io.js';
+} from '../../../shared/artifact-io/manifest.js';
 import {
   loadDenseVectorBinaryFromMetaAsync,
   resolveDenseVectorBinaryArtifact

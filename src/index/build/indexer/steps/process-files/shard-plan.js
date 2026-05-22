@@ -1,4 +1,4 @@
-import { toPosix } from '../../../../../shared/files.js';
+import { toPosix } from '../../../../../shared/file-paths.js';
 import { toArray } from '../../../../../shared/iterables.js';
 import { coercePositiveInt } from '../../../../../shared/number-coerce.js';
 import { compareStrings } from '../../../../../shared/sort.js';

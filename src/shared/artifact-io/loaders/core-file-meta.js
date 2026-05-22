@@ -2,7 +2,8 @@ import { MAX_JSON_BYTES } from '../constants.js';
 import { readJsonFile } from '../json.js';
 import { resolveJsonlRequiredKeys } from '../jsonl.js';
 import { loadPiecesManifest, resolveManifestMaxBytes } from '../manifest.js';
-import { createLoaderError, iterateColumnarRows } from './shared.js';
+import { iterateColumnarRows } from '../columnar-rows.js';
+import { createLoaderError } from './shared.js';
 import { resolveRequiredSources } from './core-source-resolution.js';
 import { streamJsonlRowsFromSources, iterateBinaryColumnarRows } from './core-array-payload.js';
 

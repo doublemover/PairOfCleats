@@ -9,6 +9,10 @@ import {
   verifyManifestChecksumFromFile
 } from './core-binary-columnar-checksum.js';
 import { resolveBinaryColumnarContext } from './core-binary-columnar-context.js';
+import {
+  assertBinaryColumnarJsonRowCount,
+  parseBinaryColumnarJsonRow
+} from './core-binary-columnar-json-rows.js';
 
 const loadBinaryColumnarJsonRows = ({
   dir,
@@ -21,7 +25,6 @@ const loadBinaryColumnarJsonRows = ({
 }) => {
   const {
     count,
-    fields,
     resolvedDataPath,
     resolvedOffsetsPath,
     resolvedLengthsPath,
@@ -77,22 +80,13 @@ const loadBinaryColumnarJsonRows = ({
   }
   const rows = new Array(payloads.length);
   for (let i = 0; i < payloads.length; i += 1) {
-    try {
-      rows[i] = JSON.parse(payloads[i].toString('utf8'));
-    } catch (err) {
-      throw createLoaderError(
-        'ERR_ARTIFACT_CORRUPT',
-        `Invalid binary-columnar row payload for ${baseName}`,
-        err instanceof Error ? err : null
-      );
-    }
+    rows[i] = parseBinaryColumnarJsonRow(payloads[i], baseName);
   }
-  if (Number.isFinite(Number(fields?.count)) && rows.length !== count) {
-    throw createLoaderError(
-      'ERR_ARTIFACT_CORRUPT',
-      `Binary-columnar row count mismatch for ${baseName}`
-    );
-  }
+  assertBinaryColumnarJsonRowCount({
+    actualCount: rows.length,
+    expectedCount: count,
+    baseName
+  });
   return rows;
 };
 
@@ -159,25 +153,15 @@ const iterateBinaryColumnarJsonRows = function* ({
   }
   let decodedCount = 0;
   for (const payload of payloads) {
-    let parsed = null;
-    try {
-      parsed = JSON.parse(payload.toString('utf8'));
-    } catch (err) {
-      throw createLoaderError(
-        'ERR_ARTIFACT_CORRUPT',
-        `Invalid binary-columnar row payload for ${baseName}`,
-        err instanceof Error ? err : null
-      );
-    }
+    const parsed = parseBinaryColumnarJsonRow(payload, baseName);
     decodedCount += 1;
     yield parsed;
   }
-  if (decodedCount !== count) {
-    throw createLoaderError(
-      'ERR_ARTIFACT_CORRUPT',
-      `Binary-columnar row count mismatch for ${baseName}`
-    );
-  }
+  assertBinaryColumnarJsonRowCount({
+    actualCount: decodedCount,
+    expectedCount: count,
+    baseName
+  });
 };
 
 export {

@@ -18,9 +18,11 @@ import {
   trackedOwnershipIdByAbortSignal,
   trackedSubprocessScopeContext,
   normalizeTrackedOwnershipId,
-  normalizeTrackedScope,
+  normalizeTrackedScope
+} from './tracking-runtime.js';
+import {
   registerChildProcessForCleanup
-} from './tracking.js';
+} from './tracking-register.js';
 import {
   SubprocessAbortError,
   SubprocessError,

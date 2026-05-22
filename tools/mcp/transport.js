@@ -9,7 +9,7 @@ import {
 } from '../../src/integrations/mcp/protocol.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import { attachObservability, normalizeObservability } from '../../src/shared/observability.js';
-import { logError } from '../../src/shared/progress.js';
+import { logError } from '../../src/shared/progress-runtime.js';
 import { withTimeout } from './runner.js';
 
 /**

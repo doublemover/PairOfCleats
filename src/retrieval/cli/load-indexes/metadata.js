@@ -1,4 +1,5 @@
-import { MAX_JSON_BYTES, loadPiecesManifest, readCompatibilityKey } from '../../../shared/artifact-io.js';
+import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
+import { loadPiecesManifest, readCompatibilityKey } from '../../../shared/artifact-io/manifest.js';
 import { requireIndexDir, resolveIndexDir } from '../../cli-index.js';
 import { hasIndexMetaAsync } from '../index-loader.js';
 

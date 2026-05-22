@@ -1,12 +1,13 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { MAX_JSON_BYTES, readJsonFile } from '../../../src/shared/artifact-io.js';
+import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
+import { readJsonFile } from '../../../src/shared/artifact-io/json.js';
 import { ARTIFACT_SCHEMA_DEFS, MANIFEST_ONLY_ARTIFACT_NAMES } from '../../../src/contracts/artifact-schemas.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
-import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { checksumFile } from '../../../src/shared/hash.js';
-import { fromPosix } from '../../../src/shared/files.js';
+import { fromPosix } from '../../../src/shared/file-paths.js';
 
 /**
  * Update pieces manifest with embedding artifacts for a given mode.

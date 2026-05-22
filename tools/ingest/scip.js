@@ -2,10 +2,20 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import readline from 'node:readline';
 import { createCli } from '../../src/shared/cli.js';
-import { isAbsolutePathNative, isRelativePathEscape, toPosix } from '../../src/shared/files.js';
 import { getRepoCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
+import {
+  bumpStat,
+  emitIngestSummaryJson,
+  ensureParentDir,
+  finishWriteStream,
+  ingestJsonLineStream,
+  normalizeRepoRelativePath,
+  normalizeTimeoutMs,
+  splitCliArgs,
+  writeIngestSummaryReport,
+  writeJsonLine
+} from './shared.js';
 import { runLineStreamingCommand } from './shared-runner.js';
 
 const argv = createCli({
@@ -31,19 +41,10 @@ const metaPath = `${outputPath}.meta.json`;
 const inputPath = argv.input ? String(argv.input) : null;
 const runScip = argv.run === true;
 const scipCmd = argv.scip || 'scip';
-const commandTimeoutMs = Number.isFinite(Number(argv['timeout-ms']))
-  ? Math.max(1000, Math.floor(Number(argv['timeout-ms'])))
-  : null;
+const commandTimeoutMs = normalizeTimeoutMs(argv['timeout-ms']);
 
 const normalizePath = (value) => {
-  if (!value) return null;
-  const raw = String(value);
-  const resolved = isAbsolutePathNative(raw) ? raw : path.resolve(repoRoot, raw);
-  const rel = path.relative(repoRoot, resolved);
-  const normalized = toPosix(rel || raw);
-  if (!normalized || normalized === '.') return null;
-  if (isAbsolutePathNative(normalized) || isRelativePathEscape(normalized)) return null;
-  return normalized;
+  return normalizeRepoRelativePath(repoRoot, value);
 };
 
 const stats = {
@@ -54,16 +55,6 @@ const stats = {
   errors: 0,
   kinds: {},
   languages: {}
-};
-
-const bump = (bucket, key) => {
-  if (!key) return;
-  const k = String(key);
-  bucket[k] = (bucket[k] || 0) + 1;
-};
-
-const ensureOutputDir = async () => {
-  await fsPromises.mkdir(path.dirname(outputPath), { recursive: true });
 };
 
 let writeStream = null;
@@ -106,7 +97,7 @@ const extractSymbolInfo = (doc) => {
   return map;
 };
 
-const writeOccurrence = (doc, occurrence, symbolInfo) => {
+const writeOccurrence = async (doc, occurrence, symbolInfo) => {
   if (!occurrence || !occurrence.symbol) return;
   const file = normalizePath(doc.relativePath || doc.path || doc.file || '');
   if (!file) return;
@@ -132,12 +123,12 @@ const writeOccurrence = (doc, occurrence, symbolInfo) => {
   stats.occurrences += 1;
   if (role.isDefinition) stats.definitions += 1;
   if (role.isReference) stats.references += 1;
-  bump(stats.kinds, entry.kind || 'unknown');
-  bump(stats.languages, entry.language || 'unknown');
-  writeStream.write(`${JSON.stringify(entry)}\n`);
+  bumpStat(stats.kinds, entry.kind || 'unknown');
+  bumpStat(stats.languages, entry.language || 'unknown');
+  await writeJsonLine(writeStream, entry);
 };
 
-const handleDocument = (doc) => {
+const handleDocument = async (doc) => {
   if (!doc || typeof doc !== 'object') return;
   const file = doc.relativePath || doc.path || doc.file || null;
   if (!file) return;
@@ -145,58 +136,39 @@ const handleDocument = (doc) => {
   const symbolInfo = extractSymbolInfo(doc);
   const occurrences = Array.isArray(doc.occurrences) ? doc.occurrences : [];
   for (const occ of occurrences) {
-    writeOccurrence(doc, occ, symbolInfo);
+    await writeOccurrence(doc, occ, symbolInfo);
   }
 };
 
-const handlePayload = (payload) => {
+const handlePayload = async (payload) => {
   if (!payload) return;
   if (Array.isArray(payload)) {
-    payload.forEach(handlePayload);
+    for (const entry of payload) await handlePayload(entry);
     return;
   }
   if (Array.isArray(payload.documents)) {
-    payload.documents.forEach(handleDocument);
+    for (const doc of payload.documents) await handleDocument(doc);
     return;
   }
   if (payload.relativePath || payload.path || payload.file) {
-    handleDocument(payload);
+    await handleDocument(payload);
   }
 };
 
 const ingestJsonLines = async (stream) => {
-  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-  let streamError = null;
-  const onStreamError = (error) => {
-    streamError = error || new Error('Input stream failed.');
-    rl.close();
-  };
-  stream.once('error', onStreamError);
-  try {
-    for await (const line of rl) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      let parsed = null;
-      try {
-        parsed = JSON.parse(trimmed);
-      } catch {
-        stats.errors += 1;
-        continue;
-      }
-      handlePayload(parsed);
-    }
-  } finally {
-    stream.off('error', onStreamError);
-    rl.close();
-  }
-  if (streamError) throw streamError;
+  await ingestJsonLineStream(stream, {
+    onParseError: () => {
+      stats.errors += 1;
+    },
+    onPayload: handlePayload
+  });
 };
 
 const ingestJsonFile = async (filePath) => {
   try {
     const raw = await fsPromises.readFile(filePath, 'utf8');
     const parsed = JSON.parse(raw);
-    handlePayload(parsed);
+    await handlePayload(parsed);
     return true;
   } catch {
     return false;
@@ -207,11 +179,7 @@ const runScipCommand = async () => {
   const args = ['print', '--format=json'];
   if (inputPath) args.push('--input', inputPath);
   if (argv.args) {
-    const extra = String(argv.args)
-      .split(/\s+/)
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-    args.push(...extra);
+    args.push(...splitCliArgs(argv.args));
   }
   await runLineStreamingCommand({
     command: scipCmd,
@@ -227,13 +195,13 @@ const runScipCommand = async () => {
         stats.errors += 1;
         return;
       }
-      handlePayload(parsed);
+      await handlePayload(parsed);
     },
     onStderrChunk: (chunk) => process.stderr.write(chunk)
   });
 };
 
-await ensureOutputDir();
+await ensureParentDir(outputPath);
 writeStream = fs.createWriteStream(outputPath, { encoding: 'utf8' });
 if (runScip) {
   await runScipCommand();
@@ -248,7 +216,7 @@ if (runScip) {
 }
 
 writeStream.end();
-await new Promise((resolve) => writeStream.once('finish', resolve));
+await finishWriteStream(writeStream);
 
 const summary = {
   generatedAt: new Date().toISOString(),
@@ -257,10 +225,10 @@ const summary = {
   output: path.resolve(outputPath),
   stats
 };
-await fsPromises.writeFile(metaPath, JSON.stringify(summary, null, 2));
+await writeIngestSummaryReport(metaPath, summary);
 
 if (argv.json) {
-  console.log(JSON.stringify(summary, null, 2));
+  emitIngestSummaryJson(summary);
 } else {
   console.error(`SCIP ingest: ${stats.occurrences} occurrences (${stats.errors} parse errors)`);
   console.error(`- output: ${outputPath}`);

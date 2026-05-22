@@ -2,10 +2,10 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getCacheRoot } from '../../../shared/dict-utils.js';
-import { log } from '../../../shared/progress.js';
+import { log } from '../../../shared/progress-runtime.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { ensureQueueDir, enqueueJob } from '../../../../tools/service/queue.js';
-import { isAbsolutePathNative, isRelativePathEscape } from '../../../shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape } from '../../../shared/file-paths.js';
 import {
   resolveQueueAdmissionPolicy,
   resolveQueueSloPolicy

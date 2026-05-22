@@ -1,4 +1,7 @@
 import path from 'node:path';
+import { loadUserConfig } from '../../tools/dict-utils/config.js';
+import { getRuntimeConfig, resolveRuntimeEnv } from '../../tools/dict-utils/paths.js';
+import { resolveRepoRoot } from './repo-paths.js';
 import { toRealPathSync } from '../workspace/identity.js';
 
 export {
@@ -49,7 +52,12 @@ export {
   resolveRuntimeEnv,
   resolveSqlitePaths
 } from '../../tools/dict-utils/paths.js';
-export { toRealPathSync } from '../workspace/identity.js';
+export {
+  isWithinRoot,
+  normalizeIdentityPath,
+  toRealPath,
+  toRealPathSync
+} from '../workspace/identity.js';
 
 /**
  * Resolve repo root + user config from an optional repo argument.

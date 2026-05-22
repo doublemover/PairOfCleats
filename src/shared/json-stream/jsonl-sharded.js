@@ -1,7 +1,8 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createTempPath, replaceDir } from './atomic.js';
-import { createJsonlBatchWriter, createJsonlCompressionPool } from './jsonl-batch.js';
+import { createJsonlBatchWriter } from './jsonl-batch.js';
+import { createJsonlCompressionPool } from './jsonl-compression-pool.js';
 import { createOffsetsWriter } from './offsets.js';
 import { throwIfAborted } from './runtime.js';
 import { removePathWithRetry } from '../io/remove-path-with-retry.js';
@@ -159,6 +160,33 @@ const createShardedWriterState = ({
   };
 };
 
+const writeItemToShard = async ({
+  state,
+  item,
+  signal,
+  resolvedMaxItems,
+  resolvedMaxBytes,
+  partsDirName
+}) => {
+  throwIfAborted(signal);
+  const line = resolveJsonlLine(item);
+  const lineBuffer = Buffer.from(line, 'utf8');
+  const lineBytes = lineBuffer.length + 1;
+  const needsNewPart = state.current
+    && ((resolvedMaxItems && state.partCount >= resolvedMaxItems)
+      || (resolvedMaxBytes && (state.partLogicalBytes + lineBytes) > resolvedMaxBytes));
+  if (!state.current || needsNewPart) {
+    await state.closePart();
+    state.openPart();
+  }
+  await state.writeItem(lineBuffer, lineBytes);
+  if (resolvedMaxBytes && lineBytes > resolvedMaxBytes && state.partCount === 1) {
+    const err = new Error(`JSONL entry exceeds maxBytes (${lineBytes} > ${resolvedMaxBytes}) in ${partsDirName}`);
+    err.code = 'ERR_JSON_TOO_LARGE';
+    throw err;
+  }
+};
+
 const runShardedWrite = async (input, useAsyncIterable) => {
   const {
     dir,
@@ -216,23 +244,14 @@ const runShardedWrite = async (input, useAsyncIterable) => {
   try {
     if (useAsyncIterable) {
       for await (const item of items) {
-        throwIfAborted(signal);
-        const line = resolveJsonlLine(item);
-        const lineBuffer = Buffer.from(line, 'utf8');
-        const lineBytes = lineBuffer.length + 1;
-        const needsNewPart = state.current
-          && ((resolvedMaxItems && state.partCount >= resolvedMaxItems)
-            || (resolvedMaxBytes && (state.partLogicalBytes + lineBytes) > resolvedMaxBytes));
-        if (!state.current || needsNewPart) {
-          await state.closePart();
-          state.openPart();
-        }
-        await state.writeItem(lineBuffer, lineBytes);
-        if (resolvedMaxBytes && lineBytes > resolvedMaxBytes && state.partCount === 1) {
-          const err = new Error(`JSONL entry exceeds maxBytes (${lineBytes} > ${resolvedMaxBytes}) in ${partsDirName}`);
-          err.code = 'ERR_JSON_TOO_LARGE';
-          throw err;
-        }
+        await writeItemToShard({
+          state,
+          item,
+          signal,
+          resolvedMaxItems,
+          resolvedMaxBytes,
+          partsDirName
+        });
         if (resolvedMaxBytes && state.partLogicalBytes >= resolvedMaxBytes) {
           await state.closePart();
         }
@@ -244,26 +263,17 @@ const runShardedWrite = async (input, useAsyncIterable) => {
       }
       let next = iterator.next();
       while (!next.done) {
-        throwIfAborted(signal);
         const item = next.value;
         next = iterator.next();
         const hasMore = !next.done;
-        const line = resolveJsonlLine(item);
-        const lineBuffer = Buffer.from(line, 'utf8');
-        const lineBytes = lineBuffer.length + 1;
-        const needsNewPart = state.current
-          && ((resolvedMaxItems && state.partCount >= resolvedMaxItems)
-            || (resolvedMaxBytes && (state.partLogicalBytes + lineBytes) > resolvedMaxBytes));
-        if (!state.current || needsNewPart) {
-          await state.closePart();
-          state.openPart();
-        }
-        await state.writeItem(lineBuffer, lineBytes);
-        if (resolvedMaxBytes && lineBytes > resolvedMaxBytes && state.partCount === 1) {
-          const err = new Error(`JSONL entry exceeds maxBytes (${lineBytes} > ${resolvedMaxBytes}) in ${partsDirName}`);
-          err.code = 'ERR_JSON_TOO_LARGE';
-          throw err;
-        }
+        await writeItemToShard({
+          state,
+          item,
+          signal,
+          resolvedMaxItems,
+          resolvedMaxBytes,
+          partsDirName
+        });
         if (resolvedMaxBytes && state.partLogicalBytes >= resolvedMaxBytes && hasMore) {
           await state.closePart();
           state.openPart();

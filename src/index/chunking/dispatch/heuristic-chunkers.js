@@ -4,6 +4,7 @@ import {
   MAX_REGEX_LINE,
   applyFormatMeta,
   chunkByLineRegex,
+  collectHeadingRows,
   splitLinesWithIndex
 } from './shared.js';
 
@@ -255,31 +256,27 @@ export const chunkNix = (text, context = null) => chunkByLineRegex(
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
 export const chunkDart = (text, context = null) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text, context);
-  const headings = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (line.length > MAX_REGEX_LINE) continue;
-    const trimmed = line.trim();
-    if (trimmed.startsWith('//')) continue;
-    if (!(line.includes('class')
+  const { headings, lineIndex } = collectHeadingRows(text, context, {
+    skipLine: (line, trimmed) => trimmed.startsWith('//'),
+    precheck: (line) => line.includes('class')
       || line.includes('mixin')
       || line.includes('enum')
       || line.includes('extension')
       || line.includes('typedef')
-      || line.includes('('))) {
-      continue;
+      || line.includes('('),
+    collect: (line, trimmed, i) => {
+      void trimmed;
+      const typeMatch = line.match(DART_TYPE_RX);
+      if (typeMatch) {
+        return { line: i, title: typeMatch[2] };
+      }
+      const funcMatch = line.match(DART_FUNC_RX);
+      if (funcMatch && !DART_SKIP_NAMES.has(funcMatch[1])) {
+        return { line: i, title: funcMatch[1] };
+      }
+      return null;
     }
-    const typeMatch = line.match(DART_TYPE_RX);
-    if (typeMatch) {
-      headings.push({ line: i, title: typeMatch[2] });
-      continue;
-    }
-    const funcMatch = line.match(DART_FUNC_RX);
-    if (funcMatch && !DART_SKIP_NAMES.has(funcMatch[1])) {
-      headings.push({ line: i, title: funcMatch[1] });
-    }
-  }
+  });
   return buildFormattedChunksFromHeadings({
     text,
     headings,
@@ -297,28 +294,23 @@ export const chunkDart = (text, context = null) => {
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
 export const chunkScala = (text, context = null) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text, context);
-  const headings = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (line.length > MAX_REGEX_LINE) continue;
-    const trimmed = line.trim();
-    if (trimmed.startsWith('//')) continue;
-    if (!(line.includes('class')
+  const { headings, lineIndex } = collectHeadingRows(text, context, {
+    skipLine: (line, trimmed) => trimmed.startsWith('//'),
+    precheck: (line) => line.includes('class')
       || line.includes('object')
       || line.includes('trait')
       || line.includes('enum')
-      || line.includes('def'))) {
-      continue;
+      || line.includes('def'),
+    collect: (line, trimmed, i) => {
+      void trimmed;
+      const typeMatch = line.match(SCALA_TYPE_RX);
+      if (typeMatch) {
+        return { line: i, title: typeMatch[1] };
+      }
+      const defMatch = line.match(SCALA_DEF_RX);
+      return defMatch ? { line: i, title: defMatch[1] } : null;
     }
-    const typeMatch = line.match(SCALA_TYPE_RX);
-    if (typeMatch) {
-      headings.push({ line: i, title: typeMatch[1] });
-      continue;
-    }
-    const defMatch = line.match(SCALA_DEF_RX);
-    if (defMatch) headings.push({ line: i, title: defMatch[1] });
-  }
+  });
   return buildFormattedChunksFromHeadings({
     text,
     headings,
@@ -336,28 +328,23 @@ export const chunkScala = (text, context = null) => {
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
 export const chunkGroovy = (text, context = null) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text, context);
-  const headings = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (line.length > MAX_REGEX_LINE) continue;
-    const trimmed = line.trim();
-    if (trimmed.startsWith('//')) continue;
-    if (!(line.includes('class')
+  const { headings, lineIndex } = collectHeadingRows(text, context, {
+    skipLine: (line, trimmed) => trimmed.startsWith('//'),
+    precheck: (line) => line.includes('class')
       || line.includes('interface')
       || line.includes('trait')
       || line.includes('enum')
-      || line.includes('def'))) {
-      continue;
+      || line.includes('def'),
+    collect: (line, trimmed, i) => {
+      void trimmed;
+      const typeMatch = line.match(GROOVY_TYPE_RX);
+      if (typeMatch) {
+        return { line: i, title: typeMatch[2] };
+      }
+      const defMatch = line.match(GROOVY_DEF_RX);
+      return defMatch ? { line: i, title: defMatch[1] } : null;
     }
-    const typeMatch = line.match(GROOVY_TYPE_RX);
-    if (typeMatch) {
-      headings.push({ line: i, title: typeMatch[2] });
-      continue;
-    }
-    const defMatch = line.match(GROOVY_DEF_RX);
-    if (defMatch) headings.push({ line: i, title: defMatch[1] });
-  }
+  });
   return buildFormattedChunksFromHeadings({
     text,
     headings,
@@ -388,17 +375,15 @@ export const chunkR = (text, context = null) => chunkByLineRegex(
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
 export const chunkJulia = (text, context = null) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text, context);
-  const headings = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (line.length > MAX_REGEX_LINE) continue;
-    const trimmed = line.trim();
-    if (trimmed.startsWith('#')) continue;
-    if (!(line.includes('module') || line.includes('function') || line.includes('macro'))) continue;
-    const match = line.match(JULIA_RX);
-    if (match) headings.push({ line: i, title: match[2] });
-  }
+  const { headings, lineIndex } = collectHeadingRows(text, context, {
+    skipLine: (line, trimmed) => trimmed.startsWith('#'),
+    precheck: (line) => line.includes('module') || line.includes('function') || line.includes('macro'),
+    collect: (line, trimmed, i) => {
+      void trimmed;
+      const match = line.match(JULIA_RX);
+      return match ? { line: i, title: match[2] } : null;
+    }
+  });
   return buildFormattedChunksFromHeadings({
     text,
     headings,

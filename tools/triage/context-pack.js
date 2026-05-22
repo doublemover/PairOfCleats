@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { search } from '../../src/integrations/core/search.js';
 import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, resolveRepoConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { resolveRecordPathSafe } from './context-pack-paths.js';
 
 const argv = createCli({
@@ -75,8 +76,7 @@ const pack = {
   warnings: warnings.length ? warnings : undefined
 };
 
-await fsPromises.mkdir(path.dirname(outPath), { recursive: true });
-await fsPromises.writeFile(outPath, JSON.stringify(pack, null, 2));
+await writeJsonFileResolved(outPath, pack);
 
 console.log(JSON.stringify({
   outPath,

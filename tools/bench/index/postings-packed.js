@@ -6,34 +6,11 @@ import {
   encodePackedOffsets,
   decodePackedOffsets
 } from '../../../src/shared/packed-postings.js';
-
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
-
-const createRng = (seed) => {
-  let t = seed >>> 0;
-  return () => {
-    t += 0x6d2b79f5;
-    let r = Math.imul(t ^ (t >>> 15), 1 | t);
-    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
-  };
-};
+import {
+  createSeededRng,
+  parseSimpleBenchArgs,
+  resolveCompareMode
+} from '../shared.js';
 
 const encodeVarint = (value, out) => {
   let v = value >>> 0;
@@ -104,8 +81,8 @@ const decodeIdPostings = (buffer, offsets, count) => {
   return lists;
 };
 
-const buildIdPostings = ({ vocabSize, docs, postingsPerToken, seed, label }) => {
-  const rng = createRng(seed);
+const buildSyntheticPostings = ({ vocabSize, docs, postingsPerToken, seed, label }, makePostingEntry) => {
+  const rng = createSeededRng(seed);
   const vocab = new Array(vocabSize);
   const postings = new Array(vocabSize);
   for (let i = 0; i < vocabSize; i += 1) {
@@ -116,32 +93,21 @@ const buildIdPostings = ({ vocabSize, docs, postingsPerToken, seed, label }) => 
     for (let j = 0; j < count; j += 1) {
       cursor += 1 + Math.floor(rng() * 12);
       if (cursor >= docs) break;
-      list.push(cursor);
+      list.push(makePostingEntry(cursor, rng));
     }
     postings[i] = list;
   }
   return { vocab, postings };
 };
 
-const buildTfPostings = ({ vocabSize, docs, postingsPerToken, seed, label }) => {
-  const rng = createRng(seed);
-  const vocab = new Array(vocabSize);
-  const postings = new Array(vocabSize);
-  for (let i = 0; i < vocabSize; i += 1) {
-    vocab[i] = `${label}-${i.toString(36)}`;
-    const list = [];
-    let cursor = Math.floor(rng() * docs);
-    const count = Math.max(1, Math.floor(postingsPerToken * (0.6 + rng())));
-    for (let j = 0; j < count; j += 1) {
-      cursor += 1 + Math.floor(rng() * 12);
-      if (cursor >= docs) break;
-      const tf = 1 + Math.floor(rng() * 3);
-      list.push([cursor, tf]);
-    }
-    postings[i] = list;
-  }
-  return { vocab, postings };
-};
+const buildIdPostings = (options) => buildSyntheticPostings(options, (cursor) => cursor);
+
+const buildTfPostings = ({ vocabSize, docs, postingsPerToken, seed, label }) => (
+  buildSyntheticPostings({ vocabSize, docs, postingsPerToken, seed, label }, (cursor, rng) => [
+    cursor,
+    1 + Math.floor(rng() * 3)
+  ])
+);
 
 const runTimed = (fn, iterations) => {
   const start = performance.now();
@@ -151,7 +117,7 @@ const runTimed = (fn, iterations) => {
   return performance.now() - start;
 };
 
-const args = parseArgs();
+const args = parseSimpleBenchArgs();
 const docs = Number(args.docs) || 100000;
 const tokenVocab = Number(args.tokens) || 20000;
 const phraseVocab = Number(args.phrases) || 6000;
@@ -159,9 +125,7 @@ const chargramVocab = Number(args.chargrams) || 12000;
 const postingsPerToken = Number(args.postings) || 8;
 const iterations = Number(args.iterations) || 8;
 const seed = Number(args.seed) || 2024;
-const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
-  ? String(args.mode).toLowerCase()
-  : 'compare';
+const mode = resolveCompareMode(args.mode);
 
 const workloads = [
   { label: 'token', vocabSize: tokenVocab, seedOffset: 1, type: 'tf' },

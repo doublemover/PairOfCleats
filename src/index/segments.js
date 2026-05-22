@@ -9,6 +9,7 @@ import {
   resolveSegmentType,
   shouldIndexSegment
 } from './segments/config.js';
+import { attachSegmentMeta } from './segments/chunk-meta.js';
 import { segmentMarkdown } from './segments/markdown.js';
 import { segmentJsx } from './segments/jsx.js';
 import { segmentAstro, segmentSvelte, segmentVue } from './segments/vue.js';
@@ -231,33 +232,17 @@ export function chunkSegments({
     if (!Array.isArray(segmentChunks) || !segmentChunks.length) continue;
     for (const chunk of segmentChunks) {
       if (!chunk) continue;
-      const adjusted = { ...chunk };
-      adjusted.start = chunk.start + segment.start;
-      adjusted.end = chunk.end + segment.start;
-      if (adjusted.meta && typeof adjusted.meta === 'object') {
-        if (Number.isFinite(adjusted.meta.startLine)) {
-          adjusted.meta.startLine = segmentStartLine + adjusted.meta.startLine - 1;
-        }
-        if (Number.isFinite(adjusted.meta.endLine)) {
-          adjusted.meta.endLine = segmentStartLine + adjusted.meta.endLine - 1;
-        }
-      }
-      if (!isBase) {
-        adjusted.segment = {
-          segmentId: segment.segmentId,
-          segmentUid,
-          type: segment.type,
-          languageId: segment.languageId || null,
-          ext: segmentExt,
-          start: segment.start,
-          end: segment.end,
-          startLine: segmentStartLine,
-          endLine: segmentEndLine,
-          parentSegmentId: segment.parentSegmentId || null,
-          embeddingContext
-        };
-      }
-      chunks.push(adjusted);
+      chunks.push(attachSegmentMeta({
+        chunk,
+        segment: isBase ? null : segment,
+        segmentUid,
+        segmentExt,
+        segmentStart: segment.start,
+        segmentEnd: segment.end,
+        segmentStartLine,
+        segmentEndLine,
+        embeddingContext
+      }));
     }
   }
   if (chunks.length > 1) {

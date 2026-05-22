@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
+import { spawnSubprocessSync } from '../../src/shared/subprocess/runner.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { getRuntimeConfig, loadUserConfig, resolveRepoRootArg, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 import { exitLikeCommandResult } from '../shared/cli-utils.js';
+import { writeTextIfChanged } from '../shared/generated-report.js';
 import { buildTestRuntimeEnv } from '../tooling/utils.js';
 
 const root = resolveToolRoot();
@@ -138,7 +139,6 @@ const runGateTest = (test, env) => {
 const writeJUnit = async (junitPath, results) => {
   if (!junitPath) return null;
   const resolved = path.resolve(junitPath);
-  await fsPromises.mkdir(path.dirname(resolved), { recursive: true });
   const failures = results.filter((entry) => entry.status !== 'passed').length;
   const totalSeconds = (results.reduce((sum, entry) => sum + (Number(entry.durationMs) || 0), 0) / 1000).toFixed(3);
   const lines = [
@@ -160,16 +160,14 @@ const writeJUnit = async (junitPath, results) => {
     lines.push('  </testcase>');
   }
   lines.push('</testsuite>');
-  await fsPromises.writeFile(resolved, `${lines.join('\n')}\n`, 'utf8');
+  await writeTextIfChanged(resolved, `${lines.join('\n')}\n`, { encoding: 'utf8' });
   return resolved;
 };
 
 const writeDiagnostics = async (diagnosticsPath, payload) => {
   if (!diagnosticsPath) return null;
   const resolved = path.resolve(diagnosticsPath);
-  await fsPromises.mkdir(path.dirname(resolved), { recursive: true });
-  await fsPromises.writeFile(resolved, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
-  return resolved;
+  return await writeJsonFileResolved(resolved, payload, { trailingNewline: true });
 };
 
 const main = async () => {

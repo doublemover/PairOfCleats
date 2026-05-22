@@ -6,42 +6,32 @@ import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import {
   loadChunkMeta,
   loadJsonArrayArtifact,
-  loadJsonObjectArtifact,
-  loadPiecesManifest
-} from '../../src/shared/artifact-io.js';
+  loadJsonObjectArtifact
+} from '../../src/shared/artifact-io/loaders.js';
+import { loadPiecesManifest } from '../../src/shared/artifact-io/manifest.js';
 import {
   buildRiskExplanationPresentationFromStandalone
 } from '../../src/retrieval/output/risk-explain.js';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import {
-  buildRiskFilterInput,
   filterRiskFlows,
-  filterRiskPartialFlows,
-  normalizeRiskFilters,
-  validateRiskFilters
+  filterRiskPartialFlows
 } from '../../src/shared/risk-filters.js';
+import { projectCliRiskExplainRequest } from './risk-request.js';
 import { emitCliError, emitCliOutput, resolveFormat } from '../../src/integrations/tooling/cli-helpers.js';
+import {
+  REPORT_FORMAT_OPTIONS,
+  RISK_FILTER_OPTIONS,
+  RISK_PARTIAL_FLOW_OPTIONS,
+  mergeCliOptions
+} from '../../src/shared/cli-options.js';
 
-const RISK_EXPLAIN_OPTIONS = Object.freeze({
+const RISK_EXPLAIN_OPTIONS = Object.freeze(mergeCliOptions({
   index: { type: 'string' },
   chunk: { type: 'string' },
   max: { type: 'number', default: 20 },
-  includePartialFlows: { type: 'boolean', default: false },
-  maxPartialFlows: { type: 'number', default: 20 },
-  rule: { type: 'string' },
-  category: { type: 'string' },
-  severity: { type: 'string' },
-  tag: { type: 'string' },
-  source: { type: 'string' },
-  sink: { type: 'string' },
-  'flow-id': { type: 'string' },
-  'source-rule': { type: 'string' },
-  'sink-rule': { type: 'string' },
-  format: { type: 'string' },
-  json: { type: 'boolean', default: false }
-});
-
-const buildRiskExplainFilters = (argv) => normalizeRiskFilters(buildRiskFilterInput(argv));
+  maxPartialFlows: { type: 'number', default: 20 }
+}, RISK_PARTIAL_FLOW_OPTIONS, RISK_FILTER_OPTIONS, REPORT_FORMAT_OPTIONS));
 
 const buildCliErrorDetails = (canonicalCode, reason = null) => {
   const details = {
@@ -146,7 +136,7 @@ export async function buildRiskExplainPayload({
     return uid || 'unknown';
   };
 
-  const buildFlowPayload = (flow) => {
+  const buildPathEvidencePayload = (flow) => {
     const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
     const stepIds = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
     const watchByStep = Array.isArray(flow?.path?.watchByStep) ? flow.path.watchByStep : [];
@@ -155,12 +145,6 @@ export async function buildRiskExplainPayload({
       details: callSiteById.get(id) || null
     })));
     return {
-      flowId: flow?.flowId || null,
-      confidence: flow?.confidence ?? null,
-      source: flow?.source || null,
-      sink: flow?.sink || null,
-      notes: flow?.notes || null,
-      category: flow?.sink?.category || flow?.source?.category || null,
       path: {
         nodes: chunkUids.map((uid) => ({ type: 'chunk', chunkUid: uid })),
         labels: chunkUids.map((uid) => formatChunkLabel(uid)),
@@ -170,6 +154,18 @@ export async function buildRiskExplainPayload({
       evidence: {
         callSitesByStep
       }
+    };
+  };
+
+  const buildFlowPayload = (flow) => {
+    return {
+      flowId: flow?.flowId || null,
+      confidence: flow?.confidence ?? null,
+      source: flow?.source || null,
+      sink: flow?.sink || null,
+      notes: flow?.notes || null,
+      category: flow?.sink?.category || flow?.source?.category || null,
+      ...buildPathEvidencePayload(flow)
     };
   };
 
@@ -190,28 +186,13 @@ export async function buildRiskExplainPayload({
   });
 
   const buildPartialFlowPayload = (flow) => {
-    const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
-    const stepIds = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
-    const watchByStep = Array.isArray(flow?.path?.watchByStep) ? flow.path.watchByStep : [];
-    const callSitesByStep = stepIds.map((ids) => (ids || []).map((id) => ({
-      callSiteId: id,
-      details: callSiteById.get(id) || null
-    })));
     return {
       partialFlowId: flow?.partialFlowId || null,
       confidence: flow?.confidence ?? null,
       source: flow?.source || null,
       frontier: flow?.frontier || null,
       notes: flow?.notes || null,
-      path: {
-        nodes: chunkUids.map((uid) => ({ type: 'chunk', chunkUid: uid })),
-        labels: chunkUids.map((uid) => formatChunkLabel(uid)),
-        callSiteIdsByStep: stepIds,
-        watchByStep: watchByStep.slice(0, stepIds.length).map((entry) => (entry && typeof entry === 'object' ? { ...entry } : null))
-      },
-      evidence: {
-        callSitesByStep
-      }
+      ...buildPathEvidencePayload(flow)
     };
   };
 
@@ -244,7 +225,8 @@ export async function runRiskExplainCli(rawArgs = process.argv.slice(2)) {
   const format = resolveFormat(argv);
 
   const indexArg = argv.index ? String(argv.index) : '';
-  const chunkArg = argv.chunk ? String(argv.chunk) : '';
+  const riskRequest = projectCliRiskExplainRequest(argv);
+  const chunkArg = riskRequest.chunkUid;
   if (!indexArg || !chunkArg) {
     if (format === 'md') {
       console.error('Usage: pairofcleats risk explain --index <dir> --chunk <chunkUid> [--max N]');
@@ -271,8 +253,7 @@ export async function runRiskExplainCli(rawArgs = process.argv.slice(2)) {
     });
   }
 
-  const filters = buildRiskExplainFilters(argv);
-  const filterValidation = validateRiskFilters(filters);
+  const filterValidation = riskRequest.filterValidation;
   if (!filterValidation.ok) {
     const message = `Invalid risk filters: ${filterValidation.errors.join('; ')}`;
     if (format === 'md') {
@@ -290,10 +271,10 @@ export async function runRiskExplainCli(rawArgs = process.argv.slice(2)) {
     const output = await buildRiskExplainPayload({
       indexDir,
       chunkUid: chunkArg,
-      max: argv.max,
-      filters,
-      includePartialFlows: argv.includePartialFlows === true,
-      maxPartialFlows: argv.maxPartialFlows
+      max: riskRequest.max,
+      filters: riskRequest.filters,
+      includePartialFlows: riskRequest.includePartialFlows,
+      maxPartialFlows: riskRequest.maxPartialFlows
     });
     const maxItems = Number.isFinite(argv.max) ? Math.max(1, Math.floor(argv.max)) : 20;
     const maxPartialItems = Number.isFinite(argv.maxPartialFlows) ? Math.max(1, Math.floor(argv.maxPartialFlows)) : 20;

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createQueuedAppendWriter } from '../../../src/shared/io/append-writer.js';
 import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
+import { createDisplayLoggerAdapter } from '../../shared/cli-display.js';
 
 const DEFAULT_LOG_HISTORY_LIMIT = 50;
 const DEFAULT_LOG_CLOSE_TIMEOUT_MS = 5000;
@@ -75,6 +76,7 @@ export const createBenchLogger = ({
   const pendingSyncWrites = new Map();
   const logsRoot = path.dirname(masterLogPath);
   const logHistory = [];
+  const displayLogger = createDisplayLoggerAdapter(display);
 
   const createLogWriter = (filePath) => createQueuedAppendWriter({
     filePath,
@@ -275,13 +277,11 @@ export const createBenchLogger = ({
 
   const emitToDisplay = (line, level, meta) => {
     if (level === 'error') {
-      display.error(line, meta);
+      displayLogger.error(line, meta);
     } else if (level === 'warn') {
-      display.warn(line, meta);
-    } else if (meta && typeof meta === 'object' && meta.kind === 'status') {
-      display.logLine(line, meta);
+      displayLogger.warn(line, meta);
     } else {
-      display.log(line, meta);
+      displayLogger.log(line, meta);
     }
   };
 

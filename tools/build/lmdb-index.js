@@ -3,27 +3,26 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { createCli } from '../../src/shared/cli.js';
-import { createToolDisplay } from '../shared/cli-display.js';
+import { MAX_JSON_BYTES } from '../../src/shared/artifact-io/constants.js';
+import { readJsonFile } from '../../src/shared/artifact-io/json.js';
 import {
   loadChunkMeta,
   loadJsonArrayArtifactSync,
   loadJsonObjectArtifact,
-  loadPiecesManifest,
-  loadTokenPostings,
-  readJsonFile,
-  MAX_JSON_BYTES
-} from '../../src/shared/artifact-io.js';
+  loadTokenPostings
+} from '../../src/shared/artifact-io/loaders.js';
+import { loadPiecesManifest } from '../../src/shared/artifact-io/manifest.js';
 import {
   loadDenseVectorBinaryFromMetaAsync,
   resolveDenseVectorBinaryArtifact
 } from '../../src/shared/dense-vector-artifacts.js';
-import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
-import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
+import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
 import { updateIndexStateManifest } from '../../src/shared/index-state-utils.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../src/storage/lmdb/schema.js';
 import { getIndexDir, getMetricsDir, resolveIndexRoot, resolveLmdbPaths, resolveRepoConfig } from '../shared/dict-utils.js';
 import { resolveAsOfContext, resolveSingleRootForModes } from '../../src/index/as-of.js';
+import { createIndexBuildToolCli } from './index-tool-cli.js';
 import { Packr } from 'msgpackr';
 
 const require = createRequire(import.meta.url);
@@ -32,7 +31,7 @@ try {
   ({ open } = require('lmdb'));
 } catch {}
 
-const argv = createCli({
+const { argv, display, log, warn, fail } = createIndexBuildToolCli({
   scriptName: 'build-lmdb-index',
   options: {
     mode: { type: 'string', default: 'all' },
@@ -45,16 +44,7 @@ const argv = createCli({
     verbose: { type: 'boolean', default: false },
     quiet: { type: 'boolean', default: false }
   }
-}).parse();
-
-const display = createToolDisplay({ argv, stream: process.stderr });
-const log = (message) => display.log(message);
-const warn = (message) => display.warn(message);
-const fail = (message, code = 1) => {
-  display.error(message);
-  display.close();
-  process.exit(code);
-};
+});
 
 if (!open) {
   fail('lmdb is required. Run npm install first.');

@@ -1,9 +1,10 @@
-import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import picomatch from 'picomatch';
-import { toPosix } from '../../../src/shared/files.js';
+import { toPosix } from '../../../src/shared/file-paths.js';
+import { writeJsonFileResolved } from '../../../src/shared/json-file.js';
+import { writeTextIfChanged } from '../../shared/generated-report.js';
 
 const POLICY_VERSION = '1.0.0';
 
@@ -371,13 +372,11 @@ export const writeCoveragePolicyReport = async ({
   markdownPath = ''
 }) => {
   const resolvedOutput = path.resolve(outputPath);
-  await fs.mkdir(path.dirname(resolvedOutput), { recursive: true });
-  await fs.writeFile(resolvedOutput, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  await writeJsonFileResolved(resolvedOutput, report, { trailingNewline: true });
   let resolvedMarkdown = '';
   if (String(markdownPath || '').trim()) {
     resolvedMarkdown = path.resolve(markdownPath);
-    await fs.mkdir(path.dirname(resolvedMarkdown), { recursive: true });
-    await fs.writeFile(resolvedMarkdown, renderCoveragePolicyMarkdown(report), 'utf8');
+    await writeTextIfChanged(resolvedMarkdown, renderCoveragePolicyMarkdown(report), { encoding: 'utf8' });
   }
   return {
     outputPath: resolvedOutput,

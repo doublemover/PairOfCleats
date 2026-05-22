@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { isRelativePathEscape, toPosix } from '../../../shared/files.js';
+import { isRelativePathEscape, toPosix } from '../../../shared/file-paths.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import { DOCUMENT_CHUNKER_VERSION } from '../../chunking/formats/document-common.js';
 import {

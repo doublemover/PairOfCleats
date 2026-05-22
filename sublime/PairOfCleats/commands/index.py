@@ -37,7 +37,17 @@ def _with_mutating_repo_root(window, action_label, on_resolved):
     )
 
 
-def _run_index_build(window, mode):
+def _append_build_args(args, stage=None, build_args=None):
+    if stage:
+        args.extend(['--stage', str(stage)])
+    if isinstance(build_args, (list, tuple)):
+        args.extend(str(value) for value in build_args if value is not None)
+    elif build_args:
+        args.extend(str(build_args).split())
+    return args
+
+
+def _run_index_build(window, mode, stage=None, build_args=None):
     settings = config.get_settings(window)
 
     def on_repo_root(repo_root):
@@ -46,7 +56,11 @@ def _run_index_build(window, mode):
             ui.show_error('PairOfCleats settings need attention:\n- {0}'.format('\n- '.join(errors)))
             return
 
-        args = indexing.build_index_args(mode, repo_root=repo_root)
+        args = _append_build_args(
+            indexing.build_index_args(mode, repo_root=repo_root),
+            stage=stage,
+            build_args=build_args,
+        )
         cli = paths.resolve_cli(settings, repo_root)
         command = cli['command']
         full_args = list(cli.get('args_prefix') or []) + args
@@ -164,18 +178,26 @@ def _run_index_watch_stop(window):
         ui.show_status('PairOfCleats: no watch to stop.')
 
 
-def _run_index_validate(window):
+def _resolve_validated_index_repo(window):
     settings = config.get_settings(window)
     repo_root, reason = _resolve_repo_root(window)
     if not repo_root:
         ui.show_error('PairOfCleats: {0}'.format(reason))
-        return
+        return None, None
     if reason:
         ui.show_status('PairOfCleats: {0}'.format(reason))
 
     errors = config.validate_settings(settings, repo_root)
     if errors:
         ui.show_error('PairOfCleats settings need attention:\n- {0}'.format('\n- '.join(errors)))
+        return None, None
+
+    return settings, repo_root
+
+
+def _run_index_validate(window):
+    settings, repo_root = _resolve_validated_index_repo(window)
+    if not repo_root:
         return
 
     args = indexing.build_validate_args(repo_root=repo_root, json_output=True)
@@ -269,17 +291,8 @@ def _format_validate_report(payload):
 
 
 def _run_open_index_dir(window):
-    settings = config.get_settings(window)
-    repo_root, reason = _resolve_repo_root(window)
+    settings, repo_root = _resolve_validated_index_repo(window)
     if not repo_root:
-        ui.show_error('PairOfCleats: {0}'.format(reason))
-        return
-    if reason:
-        ui.show_status('PairOfCleats: {0}'.format(reason))
-
-    errors = config.validate_settings(settings, repo_root)
-    if errors:
-        ui.show_error('PairOfCleats settings need attention:\n- {0}'.format('\n- '.join(errors)))
         return
 
     args = indexing.build_config_dump_args(repo_root=repo_root, json_output=True)
@@ -327,8 +340,8 @@ class PairOfCleatsIndexBuildCodeCommand(sublime_plugin.WindowCommand):
     def is_visible(self):
         return self.is_enabled()
 
-    def run(self):
-        _run_index_build(self.window, 'code')
+    def run(self, stage=None, build_args=None):
+        _run_index_build(self.window, 'code', stage=stage, build_args=build_args)
 
 
 class PairOfCleatsIndexBuildProseCommand(sublime_plugin.WindowCommand):
@@ -338,8 +351,8 @@ class PairOfCleatsIndexBuildProseCommand(sublime_plugin.WindowCommand):
     def is_visible(self):
         return self.is_enabled()
 
-    def run(self):
-        _run_index_build(self.window, 'prose')
+    def run(self, stage=None, build_args=None):
+        _run_index_build(self.window, 'prose', stage=stage, build_args=build_args)
 
 
 class PairOfCleatsIndexBuildAllCommand(sublime_plugin.WindowCommand):
@@ -349,8 +362,8 @@ class PairOfCleatsIndexBuildAllCommand(sublime_plugin.WindowCommand):
     def is_visible(self):
         return self.is_enabled()
 
-    def run(self):
-        _run_index_build(self.window, 'all')
+    def run(self, stage=None, build_args=None):
+        _run_index_build(self.window, 'all', stage=stage, build_args=build_args)
 
 
 class PairOfCleatsIndexWatchStartCommand(sublime_plugin.WindowCommand):

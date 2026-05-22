@@ -4,7 +4,8 @@ import { sha1 } from '../shared/hash.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { normalizeOptionalNumber } from '../shared/limits.js';
 import { compareStrings } from '../shared/sort.js';
-import { isRelativePathEscape, readFileRangeSync } from '../shared/files.js';
+import { isRelativePathEscape } from '../shared/file-paths.js';
+import { readFileRangeSync } from '../shared/file-read.js';
 
 const trimUtf8Buffer = (buffer) => {
   let end = buffer.length;

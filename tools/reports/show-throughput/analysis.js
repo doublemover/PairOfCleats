@@ -19,6 +19,19 @@ import {
   loadFeatureMetricsCached,
   loadFeatureMetricsForPayload
 } from './load.js';
+import { readFileStamp, toCachePathKey } from './cache-identity.js';
+import { resolveBuildRootFromArtifactReport } from './build-root.js';
+import {
+  createAstGraphTotals,
+  mergeAstGraphTotals,
+  sumKindsByPattern,
+  sumKindCounts
+} from './ast-summary.js';
+
+export {
+  createAstGraphTotals,
+  mergeAstGraphTotals
+} from './ast-summary.js';
 
 const ANALYSIS_SCHEMA_VERSION = 1;
 const MATERIALIZATION_SCHEMA_VERSION = 1;
@@ -43,24 +56,6 @@ const KIND_FUNCTION_PATTERNS = [
   'callabledeclaration'
 ];
 const KIND_IMPORT_PATTERNS = ['import', 'include', 'require'];
-
-const toCachePathKey = (value) => {
-  if (typeof value !== 'string' || !value.trim()) return '';
-  try {
-    return path.resolve(value).replace(/[\\/]+/g, '/');
-  } catch {
-    return value.replace(/[\\/]+/g, '/');
-  }
-};
-
-const readFileStamp = (filePath) => {
-  try {
-    const stat = fs.statSync(filePath);
-    return `${Math.floor(stat.mtimeMs)}:${Math.floor(stat.size)}`;
-  } catch {
-    return 'missing';
-  }
-};
 
 const appendRepoMapKindCounts = (counts, text) => {
   if (!text) return;
@@ -108,26 +103,6 @@ export const readRepoMapKindCountsSync = (repoMapPath) => {
   return counts;
 };
 
-const sumKindsByPattern = (kindCounts, patterns) => {
-  if (!kindCounts || !patterns?.length) return 0;
-  let total = 0;
-  for (const [kind, count] of Object.entries(kindCounts)) {
-    const lowerKind = kind.toLowerCase();
-    if (!patterns.some((pattern) => lowerKind.includes(pattern))) continue;
-    if (Number.isFinite(Number(count))) total += Number(count);
-  }
-  return total;
-};
-
-const sumKindCounts = (kindCounts) => {
-  if (!kindCounts) return 0;
-  let total = 0;
-  for (const value of Object.values(kindCounts)) {
-    if (Number.isFinite(Number(value))) total += Number(value);
-  }
-  return total;
-};
-
 const topKinds = (kindCounts, limit = 8) => {
   if (!kindCounts) return [];
   return Object.entries(kindCounts)
@@ -137,101 +112,6 @@ const topKinds = (kindCounts, limit = 8) => {
     .map(([kind, count]) => ({ kind, count: Number(count) }));
 };
 
-const resolveExistingDirectory = (value) => {
-  if (typeof value !== 'string' || !value.trim()) return null;
-  const candidate = path.resolve(value.trim());
-  try {
-    if (!fs.existsSync(candidate)) return null;
-    const stat = fs.statSync(candidate);
-    if (!stat.isDirectory()) return null;
-    return candidate;
-  } catch {
-    return null;
-  }
-};
-
-const resolveCurrentBuildRoot = (buildsRoot) => {
-  const currentPath = path.join(buildsRoot, 'current.json');
-  const current = loadJson(currentPath);
-  if (!current || typeof current !== 'object') return null;
-  const candidates = [
-    current?.buildRoot,
-    current?.activeRoot,
-    (typeof current?.buildId === 'string' && current.buildId.trim())
-      ? path.join(buildsRoot, current.buildId.trim())
-      : null
-  ];
-  for (const value of candidates) {
-    const resolved = resolveExistingDirectory(value);
-    if (resolved) return resolved;
-  }
-  return null;
-};
-
-const resolveBuildRootFromArtifactReport = (artifactReport) => {
-  const repo = artifactReport?.repo || {};
-
-  const explicitBuildCandidates = [
-    repo?.buildRoot,
-    repo?.build?.root,
-    repo?.build?.buildRoot,
-    repo?.build?.activeRoot
-  ];
-  for (const candidate of explicitBuildCandidates) {
-    const resolved = resolveExistingDirectory(candidate);
-    if (resolved) return resolved;
-  }
-
-  const sqlite = repo.sqlite || {};
-  const sqliteCandidates = [
-    sqlite?.code?.path,
-    sqlite?.prose?.path,
-    sqlite?.extractedProse?.path,
-    sqlite?.records?.path
-  ].filter((value) => typeof value === 'string' && value.trim());
-  for (const sqlitePath of sqliteCandidates) {
-    const sqliteDir = path.dirname(sqlitePath);
-    if (path.basename(sqliteDir).toLowerCase() === 'index-sqlite') {
-      const buildRoot = resolveExistingDirectory(path.dirname(sqliteDir));
-      if (buildRoot) return buildRoot;
-    }
-  }
-
-  const cacheRoot = typeof repo?.cacheRoot === 'string' ? repo.cacheRoot : '';
-  if (!cacheRoot) return null;
-  const buildsRoot = path.join(cacheRoot, 'builds');
-  const resolvedBuildsRoot = resolveExistingDirectory(buildsRoot);
-  if (!resolvedBuildsRoot) return null;
-
-  const currentBuildRoot = resolveCurrentBuildRoot(resolvedBuildsRoot);
-  if (currentBuildRoot) return currentBuildRoot;
-
-  const buildDirs = fs.readdirSync(resolvedBuildsRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => {
-      const buildRoot = path.join(resolvedBuildsRoot, entry.name);
-      let mtimeMs = -1;
-      try {
-        mtimeMs = fs.statSync(buildRoot).mtimeMs;
-      } catch {}
-      return { buildRoot, mtimeMs };
-    })
-    .sort((left, right) => (
-      right.mtimeMs - left.mtimeMs
-    ) || String(right.buildRoot).localeCompare(String(left.buildRoot)));
-
-  return buildDirs[0]?.buildRoot || null;
-};
-
-export const createAstGraphTotals = () => ({
-  symbols: 0,
-  classes: 0,
-  functions: 0,
-  imports: 0,
-  fileLinks: 0,
-  graphLinks: 0
-});
-
 export const createAstGraphObserved = () => ({
   symbols: 0,
   classes: 0,
@@ -240,15 +120,6 @@ export const createAstGraphObserved = () => ({
   fileLinks: 0,
   graphLinks: 0
 });
-
-export const mergeAstGraphTotals = (target, source) => {
-  if (!target || !source) return;
-  for (const key of Object.keys(target)) {
-    const value = Number(source[key]);
-    if (!Number.isFinite(value)) continue;
-    target[key] += value;
-  }
-};
 
 const hasObservedAstField = (analysis, key) => ANALYSIS_MODE_KEYS.some((modeKey) => (
   Number.isFinite(Number(analysis?.modes?.[modeKey]?.[key]))

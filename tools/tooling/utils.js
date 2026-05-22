@@ -5,7 +5,7 @@ import { canRunCommand, probeCommand } from '../shared/cli-utils.js';
 import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../../src/index/constants.js';
 import { findBinaryInDirs, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
 import { validateResolvedToolingCommandLayout } from '../../src/index/tooling/command-resolver.js';
-import { toPosix } from '../../src/shared/files.js';
+import { toPosix } from '../../src/shared/file-paths.js';
 import {
   resolveGlobalComposerBinDirs,
   resolveGlobalDotnetBinDirs,

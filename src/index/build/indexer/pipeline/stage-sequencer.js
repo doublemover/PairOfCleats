@@ -1,4 +1,4 @@
-import { showProgress } from '../../../../shared/progress.js';
+import { showProgress } from '../../../../shared/progress-runtime.js';
 
 export const INDEX_STAGE_PLAN = Object.freeze([
   Object.freeze({ id: 'discover', label: 'discovery' }),

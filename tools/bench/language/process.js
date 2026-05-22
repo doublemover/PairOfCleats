@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { composeAbortSignals } from '../../../src/shared/abort.js';
 import { killProcessTree as killPidTree } from '../../../src/shared/kill-tree.js';
 import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';

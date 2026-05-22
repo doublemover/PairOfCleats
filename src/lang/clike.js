@@ -1,5 +1,14 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
-import { collectAttributes, extractDocComment, isCommentLine, sliceSignature } from './shared.js';
+import { findBraceDelimitedBodyBounds } from './brace-bounds.js';
+import {
+  collectAttributes,
+  collectDottedCallsAndUsages,
+  collectCLikeDataflowFacts,
+  extractDocComment,
+  isCommentLine,
+  sliceSignature,
+  stripCLikeComments
+} from './shared.js';
 import { readSignatureLines } from './shared/signature-lines.js';
 import {
   CLIKE_CALL_KEYWORDS,
@@ -17,7 +26,7 @@ import {
   isCpp,
   isObjc
 } from '../index/constants.js';
-import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
 import path from 'node:path';
 
@@ -57,73 +66,7 @@ function normalizeCLikeFuncName(raw) {
  * @returns {{bodyStart:number,bodyEnd:number}}
  */
 export function findCLikeBodyBounds(text, start) {
-  let inLineComment = false;
-  let inBlockComment = false;
-  let inString = false;
-  let inChar = false;
-  let braceDepth = 0;
-  let bodyStart = -1;
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i];
-    const next = text[i + 1];
-    if (inLineComment) {
-      if (ch === '\n') inLineComment = false;
-      continue;
-    }
-    if (inBlockComment) {
-      if (ch === '*' && next === '/') {
-        inBlockComment = false;
-        i++;
-      }
-      continue;
-    }
-    if (inString) {
-      if (ch === '\\') {
-        i++;
-        continue;
-      }
-      if (ch === '"') inString = false;
-      continue;
-    }
-    if (inChar) {
-      if (ch === '\\') {
-        i++;
-        continue;
-      }
-      if (ch === '\'') inChar = false;
-      continue;
-    }
-    if (ch === '/' && next === '/') {
-      inLineComment = true;
-      i++;
-      continue;
-    }
-    if (ch === '/' && next === '*') {
-      inBlockComment = true;
-      i++;
-      continue;
-    }
-    if (ch === '"') {
-      inString = true;
-      continue;
-    }
-    if (ch === '\'') {
-      inChar = true;
-      continue;
-    }
-    if (ch === '{') {
-      if (bodyStart === -1) bodyStart = i;
-      braceDepth++;
-      continue;
-    }
-    if (ch === '}' && bodyStart !== -1) {
-      braceDepth--;
-      if (braceDepth === 0) {
-        return { bodyStart, bodyEnd: i + 1 };
-      }
-    }
-  }
-  return { bodyStart, bodyEnd: -1 };
+  return findBraceDelimitedBodyBounds(text, start, { charLiterals: true });
 }
 
 function findObjcEnd(text, start) {
@@ -281,12 +224,6 @@ export function collectCLikeImports(text) {
   return Array.from(imports);
 }
 
-function stripCLikeComments(text) {
-  return text
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/\/\/.*$/gm, ' ');
-}
-
 function resolveCLikeKeywordSets(ext, text = '') {
   const normalizedExt = String(ext || '').trim().toLowerCase();
   if (isObjcContext(normalizedExt, text)) return { callKeywords: OBJC_CALL_KEYWORDS, usageSkip: OBJC_USAGE_SKIP };
@@ -332,47 +269,21 @@ const resolveChunkBodyBounds = (text, chunk) => {
   return bounds;
 };
 
-function getLastCLikeSegment(raw) {
-  if (!raw) return '';
-  let end = raw.length;
-  while (end > 0 && (raw[end - 1] === '.' || raw[end - 1] === ':')) end -= 1;
-  if (!end) return '';
-  let idx = end - 1;
-  while (idx >= 0) {
-    const ch = raw[idx];
-    if (ch === '.' || ch === ':') break;
-    idx -= 1;
-  }
-  return raw.slice(idx + 1, end);
-}
+const CLIKE_CALL_PATTERN = /\b([A-Za-z_][A-Za-z0-9_.:]*)\s*\(/g;
+const CLIKE_MACRO_USAGE_RE = /^[A-Z0-9_]{2,}$/;
 
 function collectCLikeCallsAndUsages(text, keywordSets = {}) {
   const callKeywords = keywordSets.callKeywords || CLIKE_CALL_KEYWORDS;
   const usageSkip = keywordSets.usageSkip || CLIKE_USAGE_SKIP;
-  const calls = new Set();
-  const usages = new Set();
-  const normalized = stripCLikeComments(text).replace(/->/g, '.');
-  const callRe = /\b([A-Za-z_][A-Za-z0-9_.:]*)\s*\(/g;
-  let match;
-  while ((match = callRe.exec(normalized)) !== null) {
-    const raw = match[1];
-    if (!raw) continue;
-    const base = getLastCLikeSegment(raw);
-    if (!base || callKeywords.has(base)) continue;
-    calls.add(raw);
-    if (base !== raw) calls.add(base);
-    if (!match[0]) callRe.lastIndex += 1;
-  }
-  const usageRe = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
-  while ((match = usageRe.exec(normalized)) !== null) {
-    const name = match[1];
-    if (!name || name.length < 2) continue;
-    if (usageSkip.has(name)) continue;
-    if (/^[A-Z0-9_]{2,}$/.test(name)) continue;
-    usages.add(name);
-    if (!match[0]) usageRe.lastIndex += 1;
-  }
-  return { calls: Array.from(calls), usages: Array.from(usages) };
+  return collectDottedCallsAndUsages(text, {
+    callKeywords,
+    usageSkip,
+    stripComments: stripCLikeComments,
+    normalizeText: (value) => value.replace(/->/g, '.'),
+    shouldSkipUsage: (name) => CLIKE_MACRO_USAGE_RE.test(name),
+    callPattern: CLIKE_CALL_PATTERN,
+    segmentSeparators: '.:'
+  });
 }
 
 /**
@@ -669,27 +580,13 @@ export function computeCLikeFlow(text, chunk, options = {}) {
   };
 
   if (dataflowEnabled) {
-    out.dataflow = buildHeuristicDataflow(cleaned, {
-      skip: CLIKE_USAGE_SKIP,
-      memberOperators: ['.', '->', '::']
-    });
-    out.returnsValue = hasReturnValue(cleaned);
-    const throws = new Set();
-    const throwRe = /\bthrow\b\s+(?:new\s+)?([A-Za-z_][A-Za-z0-9_:]*)/g;
-    let match;
-    while ((match = throwRe.exec(cleaned)) !== null) {
-      const name = match[1].replace(/[({].*$/, '').trim();
-      if (name) throws.add(name);
-    }
-    out.throws = Array.from(throws);
-    const awaits = new Set();
-    const awaitRe = /\b(?:co_await|await)\b\s+([A-Za-z_][A-Za-z0-9_.:]*)/g;
-    while ((match = awaitRe.exec(cleaned)) !== null) {
-      const name = match[1].replace(/[({].*$/, '').trim();
-      if (name) awaits.add(name);
-    }
-    out.awaits = Array.from(awaits);
-    out.yields = /\bco_yield\b|\byield\b/.test(cleaned);
+    Object.assign(out, collectCLikeDataflowFacts(cleaned, {
+      usageSkip: CLIKE_USAGE_SKIP,
+      memberOperators: ['.', '->', '::'],
+      throwPattern: /\bthrow\b\s+(?:new\s+)?([A-Za-z_][A-Za-z0-9_:]*)/g,
+      awaitPattern: /\b(?:co_await|await)\b\s+([A-Za-z_][A-Za-z0-9_.:]*)/g,
+      yieldPattern: /\bco_yield\b|\byield\b/
+    }));
   }
 
   if (controlFlowEnabled) {

@@ -1,10 +1,8 @@
+import { toNonNegativeInt, toNonNegativeMs } from './counts.js';
+import { sortStrings } from './path-utils.js';
 import { isKnownResolverStage } from './reason-codes.js';
 import { normalizeNonNegativeSamples, resolveInterpolatedPercentile } from '../../../shared/perf/percentiles.js';
 
-const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
-
-const toNonNegativeInt = (value) => Math.floor(Math.max(0, Number(value) || 0));
-const toNonNegativeMs = (value) => Number(Math.max(0, Number(value) || 0).toFixed(3));
 const toPercentileLabel = (value) => `p${Math.round(Number(value) * 100)}`;
 
 const toEntries = (stages) => (

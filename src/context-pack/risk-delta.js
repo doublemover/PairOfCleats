@@ -1,13 +1,10 @@
 import { resolveIndexRef } from '../index/index-ref.js';
-import {
-  loadChunkMeta,
-  loadJsonArrayArtifact,
-  loadJsonObjectArtifact,
-  loadPiecesManifest
-} from '../shared/artifact-io.js';
+import { loadJsonArrayArtifact, loadJsonObjectArtifact } from '../shared/artifact-io/loaders/core.js';
+import { loadChunkMeta } from '../shared/artifact-io/loaders/chunk-meta.js';
+import { loadPiecesManifest } from '../shared/artifact-io/manifest.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { sha1 } from '../shared/hash.js';
-import { normalizeRiskSummary, summarizeRiskStats } from '../shared/risk-explain.js';
+import { normalizeRiskSummary, summarizeRiskStats } from '../shared/risk-explain-summary.js';
 import {
   filterRiskFlows,
   filterRiskPartialFlows,

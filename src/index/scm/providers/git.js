@@ -5,7 +5,7 @@ import {
   getGitMetaForFile,
   getRepoProvenance
 } from '../../git.js';
-import { toPosix } from '../../../shared/files.js';
+import { toPosix } from '../../../shared/file-paths.js';
 import { findUpwards } from '../../../shared/fs/find-upwards.js';
 import { runScmCommand } from '../runner.js';
 import { toRepoPosixPath } from '../paths.js';

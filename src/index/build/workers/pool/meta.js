@@ -1,4 +1,4 @@
-import { createBoundedObjectPool } from '../../../../shared/bounded-object-pool.js';
+import { createBoundedObjectPool } from '../../../../shared/workers/bounded-object-pool.js';
 
 /**
  * Create bounded object pools used by worker-pool telemetry and crash logging.

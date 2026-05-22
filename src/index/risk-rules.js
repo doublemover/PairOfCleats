@@ -1,7 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { compileSafeRegex, normalizeSafeRegexConfig } from '../shared/safe-regex.js';
-import { isAbsolutePathNative } from '../shared/files.js';
+import {
+  attachSafeRegexPrefilter,
+  compileSafeRegex,
+  normalizeSafeRegexConfig
+} from '../shared/safe-regex.js';
+import { isAbsolutePathNative } from '../shared/file-paths.js';
 import { sha1 } from '../shared/hash.js';
 import { toArray } from '../shared/iterables.js';
 import { stableStringifyForSignature } from '../shared/stable-json.js';
@@ -264,16 +268,6 @@ const buildDiagnostic = ({ error, rule, pattern, flags, field }) => ({
   flags: flags || ''
 });
 
-const extractPrefilter = (pattern) => {
-  const source = typeof pattern === 'string' ? pattern : pattern?.source;
-  if (!source) return null;
-  const scrubbed = source.replace(/\\./g, ' ');
-  const tokens = scrubbed.match(/[A-Za-z0-9_$]{3,}/g);
-  if (!tokens || !tokens.length) return null;
-  tokens.sort((a, b) => b.length - a.length);
-  return tokens[0] || null;
-};
-
 const compilePattern = (pattern, flags, regexConfig, diagnostics, rule, field) => {
   const compiledResult = compileSafeRegex(pattern, flags, regexConfig);
   const compiled = compiledResult.regex;
@@ -287,14 +281,7 @@ const compilePattern = (pattern, flags, regexConfig, diagnostics, rule, field) =
     }
     return null;
   }
-  const prefilter = extractPrefilter(pattern);
-  if (prefilter) {
-    compiled.prefilter = prefilter;
-    if (compiled.flags && compiled.flags.includes('i')) {
-      compiled.prefilterLower = prefilter.toLowerCase();
-    }
-  }
-  return compiled;
+  return attachSafeRegexPrefilter(compiled, pattern);
 };
 
 const compileRule = (rule, regexConfig, diagnostics) => ({

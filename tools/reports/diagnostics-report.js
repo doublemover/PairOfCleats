@@ -4,15 +4,16 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
+import { MAX_JSON_BYTES } from '../../src/shared/artifact-io/constants.js';
+import { loadJsonObjectArtifactSync } from '../../src/shared/artifact-io/loaders.js';
 import {
-  MAX_JSON_BYTES,
-  loadJsonObjectArtifactSync,
   loadPiecesManifest,
   resolveArtifactPresence
-} from '../../src/shared/artifact-io.js';
+} from '../../src/shared/artifact-io/manifest.js';
 import { hasIndexMeta } from '../../src/retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../src/retrieval/cli-index.js';
 import { getCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
+import { emitJson } from '../shared/cli-utils.js';
 import { getServiceConfigPath, loadServiceConfig } from '../service/config.js';
 import {
   describeQueueBackpressure,
@@ -608,7 +609,7 @@ export async function runDiagnosticsReportCli(rawArgs = process.argv.slice(2)) {
   }
 
   if (argv.json) {
-    console.log(JSON.stringify(report, null, 2));
+    emitJson(report);
   } else {
     process.stdout.write(renderDiagnosticsReportHuman(report));
   }

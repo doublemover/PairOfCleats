@@ -1,18 +1,27 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { readJsonFileSafe } from '../../../shared/files.js';
+import { readJsonFileSafe } from '../../../shared/file-read.js';
 import {
   LUA_WORKSPACE_CONFIG_MAX_BYTES,
   normalizeLuaWorkspaceLibraryEntries,
   resolveLuaWorkspaceLibraryPath
 } from './normalize.js';
 
-export const resolveLuaWorkspaceLibraryPreflight = ({ server, repoRoot }) => {
-  const serverId = String(server?.id || '').trim().toLowerCase();
-  const languages = Array.isArray(server?.languages)
+const resolveServerLanguageContext = (server) => ({
+  serverId: String(server?.id || '').trim().toLowerCase(),
+  languages: Array.isArray(server?.languages)
     ? server.languages.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)
-    : [];
-  if (serverId !== 'lua-language-server' && !languages.includes('lua')) {
+    : []
+});
+
+const isServerForLanguage = (server, { serverId, languageIds }) => {
+  const context = resolveServerLanguageContext(server);
+  const ids = Array.isArray(languageIds) ? languageIds : [];
+  return context.serverId === serverId || ids.some((languageId) => context.languages.includes(languageId));
+};
+
+export const resolveLuaWorkspaceLibraryPreflight = ({ server, repoRoot }) => {
+  if (!isServerForLanguage(server, { serverId: 'lua-language-server', languageIds: ['lua'] })) {
     return { state: 'ready', reasonCode: null, message: '', check: null };
   }
   const libraries = normalizeLuaWorkspaceLibraryEntries(server?.initializationOptions);
@@ -46,11 +55,7 @@ export const resolveLuaWorkspaceLibraryPreflight = ({ server, repoRoot }) => {
 };
 
 export const resolveLuaWorkspaceConfigPreflight = async ({ server, repoRoot }) => {
-  const serverId = String(server?.id || '').trim().toLowerCase();
-  const languages = Array.isArray(server?.languages)
-    ? server.languages.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)
-    : [];
-  if (serverId !== 'lua-language-server' && !languages.includes('lua')) {
+  if (!isServerForLanguage(server, { serverId: 'lua-language-server', languageIds: ['lua'] })) {
     return { state: 'ready', reasonCode: null, message: '', check: null };
   }
   const configPath = path.join(repoRoot || process.cwd(), '.luarc.json');
@@ -114,11 +119,7 @@ export const resolveLuaWorkspaceConfigPreflight = async ({ server, repoRoot }) =
 };
 
 export const resolveYamlSchemaModePreflight = ({ server }) => {
-  const serverId = String(server?.id || '').trim().toLowerCase();
-  const languages = Array.isArray(server?.languages)
-    ? server.languages.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)
-    : [];
-  if (serverId !== 'yaml-language-server' && !languages.includes('yaml') && !languages.includes('yml')) {
+  if (!isServerForLanguage(server, { serverId: 'yaml-language-server', languageIds: ['yaml', 'yml'] })) {
     return { state: 'ready', reasonCode: null, message: '', check: null };
   }
   const enabled = server?.initializationOptions?.settings?.yaml?.schemaStore?.enable;
@@ -141,11 +142,7 @@ export const resolveYamlSchemaModePreflight = ({ server }) => {
 const ZIG_WORKSPACE_MARKER_NAMES = new Set(['build.zig', 'build.zig.zon']);
 
 export const resolveZigWorkspaceRootPreflight = ({ server, repoRoot }) => {
-  const serverId = String(server?.id || '').trim().toLowerCase();
-  const languages = Array.isArray(server?.languages)
-    ? server.languages.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)
-    : [];
-  if (serverId !== 'zls' && !languages.includes('zig')) {
+  if (!isServerForLanguage(server, { serverId: 'zls', languageIds: ['zig'] })) {
     return { state: 'ready', reasonCode: null, message: '', check: null };
   }
   let rootEntries = [];
@@ -204,12 +201,7 @@ export const resolveZigWorkspaceRootPreflight = ({ server, repoRoot }) => {
 };
 
 export const resolveRustProcMacroSuppressionPolicyPreflight = ({ server }) => {
-  const serverId = String(server?.id || '').trim().toLowerCase();
-  const languages = Array.isArray(server?.languages)
-    ? server.languages.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)
-    : [];
-  const isRustServer = serverId === 'rust-analyzer' || languages.includes('rust');
-  if (!isRustServer) {
+  if (!isServerForLanguage(server, { serverId: 'rust-analyzer', languageIds: ['rust'] })) {
     return { state: 'ready', reasonCode: null, message: '', check: null };
   }
   if (server?.rustSuppressProcMacroDiagnostics !== true || server?.rustSuppressProcMacroDiagnosticsExplicit !== true) {

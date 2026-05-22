@@ -2,9 +2,8 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { SymbolKind } from 'vscode-languageserver-protocol';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/file-paths.js';
 import { throwIfAborted } from '../../shared/abort.js';
-import { acquireFileLock, releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
 import {
   appendDiagnosticChecks,
   buildDuplicateChunkUidChecks,
@@ -57,6 +56,13 @@ const SOURCEKIT_REQUEST_CLASSES = Object.freeze([
   'signatureHelp',
   'inlayHints'
 ]);
+
+let fileLockModulePromise = null;
+
+const loadFileLockModule = () => {
+  fileLockModulePromise ??= import('../../shared/locks/file-lock.js');
+  return fileLockModulePromise;
+};
 
 const buildRegex = (value) => {
   if (value instanceof RegExp) return value;
@@ -150,6 +156,7 @@ const acquireHostSourcekitLock = async ({
   signal = null,
   log = () => {}
 }) => {
+  const { acquireFileLock } = await loadFileLockModule();
   const lock = await acquireFileLock({
     lockPath,
     waitMs,
@@ -475,6 +482,57 @@ const resolveSourcekitRuntimeIssueClasses = ({
   return Array.from(issueClasses).sort((left, right) => left.localeCompare(right));
 };
 
+const buildSourcekitPreflightDiagnosticDetails = (preflight) => ({
+  workspaceKind: preflight?.workspaceKind || null,
+  dependencyState: preflight?.dependencyState || null,
+  preflightState: preflight?.preflightState || null,
+  reasonCode: preflight?.reasonCode || null,
+  cached: preflight?.cached === true,
+  classificationDurationMs: Number(preflight?.classificationDurationMs) || 0,
+  resolveDurationMs: Number(preflight?.resolveDurationMs) || 0,
+  markerPath: preflight?.markerPath || null
+});
+
+const buildSourcekitFidelityPreflightDetails = (preflight, { state = null } = {}) => ({
+  state: state || preflight?.preflightState || preflight?.state || 'ready',
+  workspaceKind: preflight?.workspaceKind || null,
+  dependencyState: preflight?.dependencyState || null
+});
+
+const buildSourcekitDiagnostics = ({
+  diagnosticsCount = 0,
+  preflight = null,
+  admission = null,
+  fidelity = null,
+  checks = [],
+  resultChecks = [],
+  runtime = null
+} = {}) => {
+  const details = {};
+  if (diagnosticsCount) {
+    details.diagnosticsCount = diagnosticsCount;
+  }
+  if (preflight) {
+    details.preflight = buildSourcekitPreflightDiagnosticDetails(preflight);
+  }
+  if (admission) {
+    details.admission = admission;
+  }
+  if (fidelity) {
+    details.fidelity = fidelity;
+  }
+  const diagnostics = appendDiagnosticChecks(
+    Object.keys(details).length ? details : null,
+    [
+      ...(Array.isArray(checks) ? checks : []),
+      ...(Array.isArray(resultChecks) ? resultChecks : [])
+    ]
+  );
+  return runtime
+    ? { ...(diagnostics || {}), runtime }
+    : diagnostics;
+};
+
 export const createSourcekitProvider = () => ({
   id: 'sourcekit',
   preflightId: 'sourcekit.package-resolution',
@@ -697,11 +755,7 @@ export const createSourcekitProvider = () => ({
         state: PROVIDER_FIDELITY_STATE.BLOCKED,
         preflightState: 'blocked',
         reasonCode: preflight?.reasonCode || null,
-        preflightDetails: {
-          state: 'blocked',
-          workspaceKind: preflight?.workspaceKind || null,
-          dependencyState: preflight?.dependencyState || null
-        },
+        preflightDetails: buildSourcekitFidelityPreflightDetails(preflight, { state: 'blocked' }),
         captureDiagnostics: false,
         runtimeIssueClasses: resolveSourcekitRuntimeIssueClasses({
           preflight,
@@ -712,20 +766,12 @@ export const createSourcekitProvider = () => ({
       return {
         provider: { id: 'sourcekit', version: '2.1.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
-        diagnostics: appendDiagnosticChecks({
-          preflight: {
-            workspaceKind: preflight?.workspaceKind || null,
-            dependencyState: preflight?.dependencyState || null,
-            preflightState: preflight?.preflightState || null,
-            reasonCode: preflight?.reasonCode || null,
-            cached: preflight?.cached === true,
-            classificationDurationMs: Number(preflight?.classificationDurationMs) || 0,
-            resolveDurationMs: Number(preflight?.resolveDurationMs) || 0,
-            markerPath: preflight?.markerPath || null
-          },
+        diagnostics: buildSourcekitDiagnostics({
+          preflight,
           admission: admissionPolicy,
-          fidelity
-        }, checks)
+          fidelity,
+          checks
+        })
       };
     }
     const requestedCommand = preflight?.requestedCommand && typeof preflight.requestedCommand === 'object'
@@ -803,11 +849,9 @@ export const createSourcekitProvider = () => ({
           reasonCode: 'sourcekit_host_lock_unavailable',
           captureDiagnostics: false,
           checks,
-          preflightDetails: {
-            state: preflight?.state || 'ready',
-            workspaceKind: preflight?.workspaceKind || null,
-            dependencyState: preflight?.dependencyState || null
-          },
+          preflightDetails: buildSourcekitFidelityPreflightDetails(preflight, {
+            state: preflight?.state || 'ready'
+          }),
           runtimeIssueClasses: resolveSourcekitRuntimeIssueClasses({
             preflight,
             checks,
@@ -817,7 +861,11 @@ export const createSourcekitProvider = () => ({
         return {
           provider: { id: 'sourcekit', version: '2.1.0', configHash: this.getConfigHash(ctx) },
           byChunkUid: {},
-          diagnostics: appendDiagnosticChecks({ admission: admissionPolicy, fidelity }, checks)
+          diagnostics: buildSourcekitDiagnostics({
+            admission: admissionPolicy,
+            fidelity,
+            checks
+          })
         };
       }
     }
@@ -920,11 +968,7 @@ export const createSourcekitProvider = () => ({
         providerId: 'sourcekit',
         preflightState: preflight?.state || 'ready',
         reasonCode: preflight?.reasonCode || null,
-        preflightDetails: {
-          state: preflight?.preflightState || preflight?.state || 'ready',
-          workspaceKind: preflight?.workspaceKind || null,
-          dependencyState: preflight?.dependencyState || null
-        },
+        preflightDetails: buildSourcekitFidelityPreflightDetails(preflight),
         runtime: result.runtime,
         checks: [...checks, ...(Array.isArray(result.checks) ? result.checks : [])],
         captureDiagnostics: false,
@@ -946,33 +990,22 @@ export const createSourcekitProvider = () => ({
           admissionPolicy: runtimeAdmissionPolicy
         })
       });
-      const diagnostics = appendDiagnosticChecks(
-        {
-          ...(result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : {}),
-          preflight: {
-            workspaceKind: preflight?.workspaceKind || null,
-            dependencyState: preflight?.dependencyState || null,
-            preflightState: preflight?.preflightState || null,
-            reasonCode: preflight?.reasonCode || null,
-            cached: preflight?.cached === true,
-            classificationDurationMs: Number(preflight?.classificationDurationMs) || 0,
-            resolveDurationMs: Number(preflight?.resolveDurationMs) || 0,
-            markerPath: preflight?.markerPath || null
-          },
-          admission: runtimeAdmissionPolicy,
-          fidelity
-        },
-        [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
-      );
       return {
         provider: { id: 'sourcekit', version: '2.1.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: result.byChunkUid,
-        diagnostics: result.runtime
-          ? { ...(diagnostics || {}), runtime: result.runtime }
-          : diagnostics
+        diagnostics: buildSourcekitDiagnostics({
+          diagnosticsCount: result.diagnosticsCount,
+          preflight,
+          admission: runtimeAdmissionPolicy,
+          fidelity,
+          checks,
+          resultChecks: result.checks,
+          runtime: result.runtime
+        })
       };
     } finally {
       if (hostLock?.release) {
+        const { releaseFileLockOrThrow } = await loadFileLockModule();
         await releaseFileLockOrThrow(hostLock);
       }
     }

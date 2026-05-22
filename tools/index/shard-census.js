@@ -11,6 +11,13 @@ import { buildGeneratedPolicyConfig } from '../../src/index/build/generated-poli
 import { planShardBatches, planShards } from '../../src/index/build/shards.js';
 import { countLinesForEntries } from '../../src/shared/file-stats.js';
 import { compareStrings } from '../../src/shared/sort.js';
+import {
+  normalizeCapEntry,
+  normalizeCapsByExt,
+  normalizeCapsByLanguage,
+  normalizeDepth,
+  normalizeLimit
+} from '../../src/index/build/runtime/caps.js';
 
 const argv = createCli({
   scriptName: 'shard-census',
@@ -25,68 +32,8 @@ const scriptRoot = resolveToolRoot();
 const benchConfigPath = path.join(scriptRoot, 'benchmarks', 'repos.json');
 const benchReposRoot = path.join(scriptRoot, 'benchmarks', 'repos');
 
-const normalizeLimit = (value, fallback) => {
-  if (value === 0 || value === false) return null;
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-  return fallback;
-};
-
-const normalizeDepth = (value, fallback) => {
-  if (value === 0) return 0;
-  if (value === false) return null;
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-  return fallback;
-};
-
-const normalizeCapValue = (value) => {
-  if (value === 0 || value === false) return null;
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-  return null;
-};
-
-const normalizeCapEntry = (raw) => {
-  const input = raw && typeof raw === 'object' ? raw : {};
-  const maxBytes = normalizeCapValue(input.maxBytes);
-  const maxLines = normalizeCapValue(input.maxLines);
-  return { maxBytes, maxLines };
-};
-
-const normalizeCapsByExt = (raw) => {
-  const input = raw && typeof raw === 'object' ? raw : {};
-  const output = {};
-  for (const [key, value] of Object.entries(input)) {
-    const entry = normalizeCapEntry(value);
-    if (entry.maxBytes == null && entry.maxLines == null) continue;
-    const normalizedKey = key.startsWith('.') ? key.toLowerCase() : `.${key.toLowerCase()}`;
-    output[normalizedKey] = entry;
-  }
-  return output;
-};
-
-const normalizeCapsByLanguage = (raw) => {
-  const input = raw && typeof raw === 'object' ? raw : {};
-  const output = {};
-  for (const [key, value] of Object.entries(input)) {
-    const entry = normalizeCapEntry(value);
-    if (entry.maxBytes == null && entry.maxLines == null) continue;
-    output[key.toLowerCase()] = entry;
-  }
-  return output;
-};
-
 const resolveMaxFileBytes = (indexingConfig) => {
-  const maxFileBytesRaw = indexingConfig?.maxFileBytes;
-  const maxFileBytesParsed = Number(maxFileBytesRaw);
-  if (maxFileBytesRaw === false || maxFileBytesRaw === 0) {
-    return null;
-  }
-  if (Number.isFinite(maxFileBytesParsed) && maxFileBytesParsed > 0) {
-    return maxFileBytesParsed;
-  }
-  return 5 * 1024 * 1024;
+  return normalizeLimit(indexingConfig?.maxFileBytes, 5 * 1024 * 1024);
 };
 
 const resolveFileCaps = (indexingConfig) => {

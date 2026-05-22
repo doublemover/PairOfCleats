@@ -4,6 +4,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { createCli } from '../../src/shared/cli.js';
+import { stringifyGeneratedJson } from '../shared/generated-report.js';
+import { emitJson } from '../shared/cli-utils.js';
 import { resolveToolRoot } from '../shared/dict-utils.js';
 
 const ROOT = resolveToolRoot();
@@ -42,28 +44,11 @@ const extractScriptPath = (command) => {
 
 const sanitizeRelativePath = (value) => String(value || '').replace(/[\\/]/g, '__');
 
-const normalizeJsonValue = (value, omitKeys = []) => {
-  const omit = new Set(Array.isArray(omitKeys) ? omitKeys : []);
-  if (Array.isArray(value)) {
-    return value.map((entry) => normalizeJsonValue(entry, omitKeys));
-  }
-  if (!value || typeof value !== 'object') {
-    return value;
-  }
-  return Object.keys(value)
-    .sort((a, b) => a.localeCompare(b))
-    .reduce((acc, key) => {
-      if (omit.has(key)) return acc;
-      acc[key] = normalizeJsonValue(value[key], omitKeys);
-      return acc;
-    }, {});
-};
-
 const normalizeOutput = (contents, outputConfig = {}) => {
   const format = String(outputConfig?.format || 'text').toLowerCase();
   if (format === 'json') {
     const parsed = JSON.parse(contents);
-    return `${JSON.stringify(normalizeJsonValue(parsed, outputConfig.omitKeys), null, 2)}\n`;
+    return `${stringifyGeneratedJson(parsed, { omitKeys: outputConfig.omitKeys })}\n`;
   }
   return String(contents || '')
     .replace(/\r\n/g, '\n')
@@ -349,11 +334,11 @@ const main = async () => {
   }
 
   if (argv.json) {
-    console.log(JSON.stringify({
+    emitJson({
       schemaVersion: registry.schemaVersion,
       root,
       surfaces: surfaces.map(({ resolvedOutputs, ...surface }) => surface)
-    }, null, 2));
+    });
     return;
   }
 

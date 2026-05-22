@@ -34,6 +34,7 @@ import {
 import { prepareChunkIds } from './ids.js';
 import { collectChunkComments } from './limits.js';
 import { shouldSkipPhrasePostingsForChunk } from '../../state.js';
+import { createFileProcessorCrashStageUpdater } from '../crash-stage.js';
 
 /**
  * Verify chunk byte bounds align exactly to the requested line window so token
@@ -241,22 +242,7 @@ export const processChunks = async (context) => {
 
   const containerExt = ext;
   const containerLanguageId = fileLanguageId || lang?.id || null;
-  const updateCrashStage = (substage, extra = {}) => {
-    if (!crashLogger?.enabled) return;
-    const entry = {
-      phase: 'processing',
-      mode,
-      stage: buildStage || null,
-      fileIndex: Number.isFinite(fileIndex) ? fileIndex : null,
-      file: relKey,
-      substage,
-      ...extra
-    };
-    crashLogger.updateFile(entry);
-    if (typeof crashLogger.traceFileStage === 'function') {
-      crashLogger.traceFileStage(entry);
-    }
-  };
+  const updateCrashStage = createFileProcessorCrashStageUpdater(context);
   const sourceChunks = Array.isArray(sc) ? sc : [];
   const processChunksStartedAt = Date.now();
   updateCrashStage('process-chunks:start', { totalChunks: sourceChunks.length, languageId: containerLanguageId });

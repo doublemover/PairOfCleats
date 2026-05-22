@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { createCli } from '../../src/shared/cli.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import {

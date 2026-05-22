@@ -4,7 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { normalizePathForRepo } from '../../../src/shared/path-normalize.js';
-import { toPosix } from '../../../src/shared/files.js';
+import { toPosix } from '../../../src/shared/file-paths.js';
+import { writeJsonFileResolved } from '../../../src/shared/json-file.js';
 
 const normalizeCoveragePath = (urlOrPath, root) => {
   if (!urlOrPath) return null;
@@ -237,7 +238,6 @@ export const buildCoverageArtifact = ({ runId, entries }) => {
  */
 export const writeCoverageArtifact = async ({ artifact, outputPath }) => {
   const resolved = path.resolve(outputPath);
-  await fsPromises.mkdir(path.dirname(resolved), { recursive: true });
-  await fsPromises.writeFile(resolved, `${JSON.stringify(artifact, null, 2)}\n`, 'utf8');
+  await writeJsonFileResolved(resolved, artifact, { trailingNewline: true });
   return resolved;
 };

@@ -8,7 +8,7 @@ import { createGunzip } from 'node:zlib';
 import { createCli } from '../../src/shared/cli.js';
 import { createToolDisplay } from '../shared/cli-display.js';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
-import { isAbsolutePathAny, toPosix } from '../../src/shared/files.js';
+import { isAbsolutePathAny, toPosix } from '../../src/shared/file-paths.js';
 import { resolveRepoConfig } from '../shared/dict-utils.js';
 import {
   parseHashOverrides,

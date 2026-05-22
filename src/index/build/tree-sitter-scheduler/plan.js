@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import { coerceAbortSignal } from '../../../shared/abort.js';
-import { writeJsonObjectFile, writeJsonLinesFile } from '../../../shared/json-stream.js';
+import { writeJsonLinesFile } from '../../../shared/json-stream/jsonl-write.js';
+import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 import { createTreeSitterFileVersionSignature } from './file-signature.js';
 import { shouldSkipTreeSitterPlanningForPath } from './policy.js';

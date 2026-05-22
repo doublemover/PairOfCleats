@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import { pathToFileURL } from 'node:url';
 import PQueue from 'p-queue';
 import { buildInitializeResult, formatToolError } from '../../src/integrations/mcp/protocol.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import { attachObservability, normalizeObservability } from '../../src/shared/observability.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { tryImport } from '../../src/shared/optional-deps.js';
 import { withTimeout } from './runner.js';
 import { handleToolCall } from './tools.js';
@@ -219,8 +219,7 @@ export async function startMcpSdkServer({
   await server.connect(transport);
 }
 
-const entryUrl = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
-if (entryUrl && import.meta.url === entryUrl) {
+if (isDirectExecution(import.meta.url)) {
   const capabilities = getCapabilities();
   const { getRuntimeCapabilityManifest } = await import('../../src/shared/runtime-capability-manifest.js');
   const capabilityManifest = getRuntimeCapabilityManifest({ runtimeCapabilities: capabilities });

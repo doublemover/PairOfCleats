@@ -1,8 +1,8 @@
 import path from 'node:path';
-import { spawnSubprocess } from '../../../src/shared/subprocess.js';
-import { applyProgressContextEnv } from '../../../src/shared/progress.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { clampInt } from '../../../src/shared/limits.js';
 import { collectJobArtifacts } from './artifacts.js';
+import { applyProgressContextEnv } from './progress-context.js';
 import { createJobStreamDecoder } from './progress-decoder.js';
 import {
   nowIso,

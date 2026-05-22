@@ -3,7 +3,7 @@ import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { isAbsolutePathNative } from '../../src/shared/files.js';
+import { isAbsolutePathNative } from '../../src/shared/file-paths.js';
 import { splitWordsWithDict } from '../../src/shared/tokenize.js';
 
 const argv = createCli({

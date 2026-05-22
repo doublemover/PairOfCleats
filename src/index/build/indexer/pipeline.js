@@ -1,9 +1,10 @@
 import fs from 'node:fs/promises';
 import { getIndexDir, getMetricsDir } from '../../../shared/dict-utils.js';
 import { buildRecordsIndexForRepo } from '../../../integrations/triage/index-records.js';
-import { createCacheReporter, createLruCache, estimateFileTextBytes } from '../../../shared/cache.js';
-import { getEnvConfig } from '../../../shared/env.js';
-import { log, logLine } from '../../../shared/progress.js';
+import { createCacheReporter, createLruCache } from '../../../shared/cache/lru.js';
+import { estimateFileTextBytes } from '../../../shared/cache/size.js';
+import { getEnvConfig } from '../../../shared/env/runtime.js';
+import { log, logLine } from '../../../shared/progress-runtime.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 import { createCrashLogger } from '../crash-log.js';
 import {

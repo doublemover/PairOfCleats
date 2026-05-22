@@ -174,6 +174,50 @@ export const TEST_COVERAGE_POLICY_REPORT_SCHEMA = {
   }
 };
 
+const TEST_RUN_ENTRY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'path', 'lane', 'status', 'durationMs'],
+  properties: {
+    id: { type: 'string' },
+    path: { type: 'string' },
+    lane: { type: 'string' },
+    status: { type: 'string' },
+    durationMs: { type: 'number' }
+  }
+};
+
+const TEST_STABILITY_FAMILY_SUMMARY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'id',
+    'tests',
+    'unstable',
+    'flaky',
+    'slow',
+    'environmentSensitive',
+    'failed',
+    'timedOut',
+    'redo',
+    'avgDurationMs',
+    'maxDurationMs'
+  ],
+  properties: {
+    id: { type: 'string' },
+    tests: { type: 'integer' },
+    unstable: { type: 'integer' },
+    flaky: { type: 'integer' },
+    slow: { type: 'integer' },
+    environmentSensitive: { type: 'integer' },
+    failed: { type: 'integer' },
+    timedOut: { type: 'integer' },
+    redo: { type: 'integer' },
+    avgDurationMs: { type: 'number' },
+    maxDurationMs: { type: 'number' }
+  }
+};
+
 export const TEST_TIMINGS_ARTIFACT_SCHEMA = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   title: 'test-timings-artifact',
@@ -207,18 +251,7 @@ export const TEST_TIMINGS_ARTIFACT_SCHEMA = {
     },
     tests: {
       type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['id', 'path', 'lane', 'status', 'durationMs'],
-        properties: {
-          id: { type: 'string' },
-          path: { type: 'string' },
-          lane: { type: 'string' },
-          status: { type: 'string' },
-          durationMs: { type: 'number' }
-        }
-      }
+      items: TEST_RUN_ENTRY_SCHEMA
     }
   }
 };
@@ -258,18 +291,7 @@ export const TEST_PROFILE_ARTIFACT_SCHEMA = {
     },
     tests: {
       type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['id', 'path', 'lane', 'status', 'durationMs'],
-        properties: {
-          id: { type: 'string' },
-          path: { type: 'string' },
-          lane: { type: 'string' },
-          status: { type: 'string' },
-          durationMs: { type: 'number' }
-        }
-      }
+      items: TEST_RUN_ENTRY_SCHEMA
     }
   }
 };
@@ -476,69 +498,11 @@ export const TEST_STABILITY_ARTIFACT_SCHEMA = {
     },
     familyTrends: {
       type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: [
-          'id',
-          'tests',
-          'unstable',
-          'flaky',
-          'slow',
-          'environmentSensitive',
-          'failed',
-          'timedOut',
-          'redo',
-          'avgDurationMs',
-          'maxDurationMs'
-        ],
-        properties: {
-          id: { type: 'string' },
-          tests: { type: 'integer' },
-          unstable: { type: 'integer' },
-          flaky: { type: 'integer' },
-          slow: { type: 'integer' },
-          environmentSensitive: { type: 'integer' },
-          failed: { type: 'integer' },
-          timedOut: { type: 'integer' },
-          redo: { type: 'integer' },
-          avgDurationMs: { type: 'number' },
-          maxDurationMs: { type: 'number' }
-        }
-      }
+      items: TEST_STABILITY_FAMILY_SUMMARY_SCHEMA
     },
     families: {
       type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: [
-          'id',
-          'tests',
-          'unstable',
-          'flaky',
-          'slow',
-          'environmentSensitive',
-          'failed',
-          'timedOut',
-          'redo',
-          'avgDurationMs',
-          'maxDurationMs'
-        ],
-        properties: {
-          id: { type: 'string' },
-          tests: { type: 'integer' },
-          unstable: { type: 'integer' },
-          flaky: { type: 'integer' },
-          slow: { type: 'integer' },
-          environmentSensitive: { type: 'integer' },
-          failed: { type: 'integer' },
-          timedOut: { type: 'integer' },
-          redo: { type: 'integer' },
-          avgDurationMs: { type: 'number' },
-          maxDurationMs: { type: 'number' }
-        }
-      }
+      items: TEST_STABILITY_FAMILY_SUMMARY_SCHEMA
     },
     tests: {
       type: 'array',

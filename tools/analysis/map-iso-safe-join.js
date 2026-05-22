@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { isRelativePathEscape } from '../../src/shared/files.js';
+import { isRelativePathEscape } from '../../src/shared/file-paths.js';
 
 /**
  * Resolve a request path under a fixed base directory.

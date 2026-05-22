@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadJsonArrayArtifact } from '../../src/shared/artifact-io.js';
+import { loadJsonArrayArtifact } from '../../src/shared/artifact-io/loaders.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
+import { readFlagValue } from '../../src/shared/cli/argv.js';
 import { loadUserConfig } from '../dict-utils/config.js';
 import { getIndexDir, getRepoRoot } from '../dict-utils/paths/repo.js';
 
@@ -17,22 +18,6 @@ const normalizeText = (value) => {
 };
 
 const normalizeLower = (value) => normalizeText(value).toLowerCase();
-
-const readFlagValue = (args, name) => {
-  const flag = `--${name}`;
-  const flagEq = `${flag}=`;
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = String(args[i] || '');
-    if (arg === flag) {
-      const next = args[i + 1];
-      return next ? String(next) : null;
-    }
-    if (arg.startsWith(flagEq)) {
-      return arg.slice(flagEq.length);
-    }
-  }
-  return null;
-};
 
 const hasFlag = (args, name) => args.includes(`--${name}`);
 
@@ -144,6 +129,38 @@ const compareNavigationRows = (left, right) => {
   if (fileCmp !== 0) return fileCmp;
   return normalizeText(left.name).localeCompare(normalizeText(right.name));
 };
+
+const normalizeChunkLine = (value) => (Number.isFinite(value) ? value : null);
+
+const projectSymbolNavigationRow = (row, chunk, {
+  nameFromChunkFallback = false,
+  score = 0
+} = {}) => ({
+  name: nameFromChunkFallback
+    ? normalizeText(row.name) || normalizeText(chunk?.name)
+    : normalizeText(row.name),
+  qualifiedName: normalizeText(row.qualifiedName),
+  kind: normalizeText(chunk?.kind || row.kind || row.kindGroup),
+  file: normalizeText(chunk?.file || row.file),
+  virtualPath: normalizeText(chunk?.virtualPath || row.virtualPath),
+  chunkUid: normalizeText(row.chunkUid),
+  startLine: normalizeChunkLine(chunk?.startLine),
+  endLine: normalizeChunkLine(chunk?.endLine),
+  startCol: 1,
+  endCol: 1,
+  score
+});
+
+const projectSymbolRows = (selectedSymbols, chunkByUid, {
+  project,
+  filter,
+  compare,
+  limit
+}) => selectedSymbols
+  .map((row) => project(row, chunkByUid.get(normalizeText(row.chunkUid))))
+  .filter(filter)
+  .sort(compare)
+  .slice(0, limit);
 
 const scoreCompletionMatch = (row, { query, virtualPath }) => {
   const normalizedQuery = normalizeLower(query);
@@ -286,26 +303,16 @@ export const queryNavigationData = async ({
   }
 
   if (normalizedKind === 'definitions') {
-    payload.results = selectedSymbols
-      .map((row) => {
-        const chunk = chunkByUid.get(normalizeText(row.chunkUid));
-        return {
-          name: normalizeText(row.name),
-          qualifiedName: normalizeText(row.qualifiedName),
-          kind: normalizeText(chunk?.kind || row.kind || row.kindGroup),
-          file: normalizeText(chunk?.file || row.file),
-          virtualPath: normalizeText(chunk?.virtualPath || row.virtualPath),
-          chunkUid: normalizeText(row.chunkUid),
-          startLine: Number.isFinite(chunk?.startLine) ? chunk.startLine : null,
-          endLine: Number.isFinite(chunk?.endLine) ? chunk.endLine : null,
-          startCol: 1,
-          endCol: 1,
+    payload.results = projectSymbolRows(selectedSymbols, chunkByUid, {
+      project: (row, chunk) => (
+        projectSymbolNavigationRow(row, chunk, {
           score: scoreSymbolMatch(row, { query: normalizedQuery, virtualPath: normalizedVirtualPath })
-        };
-      })
-      .filter((row) => row.file || row.virtualPath)
-      .sort(compareNavigationRows)
-      .slice(0, resolvedLimit);
+        })
+      ),
+      filter: (row) => row.file || row.virtualPath,
+      compare: compareNavigationRows,
+      limit: resolvedLimit
+    });
     return payload;
   }
 
@@ -328,29 +335,20 @@ export const queryNavigationData = async ({
   }
 
   if (normalizedKind === 'document-symbols') {
-    payload.results = selectedSymbols
-      .map((row) => {
-        const chunk = chunkByUid.get(normalizeText(row.chunkUid));
-        return {
-          name: normalizeText(row.name) || normalizeText(chunk?.name),
-          qualifiedName: normalizeText(row.qualifiedName),
-          kind: normalizeText(chunk?.kind || row.kind || row.kindGroup),
-          file: normalizeText(chunk?.file || row.file),
-          virtualPath: normalizeText(chunk?.virtualPath || row.virtualPath),
-          chunkUid: normalizeText(row.chunkUid),
-          startLine: Number.isFinite(chunk?.startLine) ? chunk.startLine : null,
-          endLine: Number.isFinite(chunk?.endLine) ? chunk.endLine : null,
-          startCol: 1,
-          endCol: 1,
+    payload.results = projectSymbolRows(selectedSymbols, chunkByUid, {
+      project: (row, chunk) => (
+        projectSymbolNavigationRow(row, chunk, {
+          nameFromChunkFallback: true,
           score: Number.isFinite(chunk?.startLine) ? -chunk.startLine : 0
-        };
-      })
-      .filter((row) => row.name && (row.file || row.virtualPath))
-      .sort((left, right) => {
+        })
+      ),
+      filter: (row) => row.name && (row.file || row.virtualPath),
+      compare: (left, right) => {
         if ((left.startLine || 0) !== (right.startLine || 0)) return (left.startLine || 0) - (right.startLine || 0);
         return normalizeText(left.name).localeCompare(normalizeText(right.name));
-      })
-      .slice(0, resolvedSymbolLimit);
+      },
+      limit: resolvedSymbolLimit
+    });
     return payload;
   }
 

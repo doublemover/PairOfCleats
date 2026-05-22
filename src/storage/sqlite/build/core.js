@@ -6,6 +6,7 @@ import { CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../schema.js';
 import {
   bumpSqliteBatchStat,
   checkpointSqliteWithTelemetry,
+  createSqliteTableStatRecorder,
   recordSqliteCommitTelemetry,
   recordSqlitePlanTelemetry,
   recordSqliteWalSnapshot,
@@ -131,20 +132,8 @@ export const createBuildExecutionContext = ({ batchSize, inputBytes, statementSt
     };
     recordSqlitePlanTelemetry(batchStats, ingestPlan);
   }
-  const tableStats = batchStats
-    ? (batchStats.tables || (batchStats.tables = {}))
-    : null;
   const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
-  const recordTable = (name, rows, durationMs) => {
-    if (!tableStats || !name) return;
-    const entry = tableStats[name] || { rows: 0, durationMs: 0, rowsPerSec: null };
-    entry.rows += rows;
-    entry.durationMs += durationMs;
-    entry.rowsPerSec = entry.durationMs > 0
-      ? Math.round((entry.rows / entry.durationMs) * 1000)
-      : null;
-    tableStats[name] = entry;
-  };
+  const recordTable = createSqliteTableStatRecorder(batchStats);
   return {
     resolvedBatchSize,
     ingestPlan,

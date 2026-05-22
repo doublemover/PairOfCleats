@@ -1,22 +1,4 @@
-import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
-import { getTreeSitterOptions } from '../tree-sitter.js';
-
-const normalizeConfigTreeSitterChunks = (chunks, format) => chunks.map((chunk) => {
-  const rawName = typeof chunk?.name === 'string' ? chunk.name.trim() : '';
-  const name = rawName || 'section';
-  const existingMeta = chunk?.meta && typeof chunk.meta === 'object' ? chunk.meta : {};
-  const rawTitle = typeof existingMeta.title === 'string' ? existingMeta.title.trim() : '';
-  return {
-    ...chunk,
-    name,
-    kind: chunk?.kind || 'ConfigSection',
-    meta: {
-      ...existingMeta,
-      format,
-      title: rawTitle || name
-    }
-  };
-});
+import { buildConfigTreeSitterChunks } from './config-tree-sitter.js';
 
 const JSON_ESCAPE_MAP = {
   '"': '"',
@@ -161,6 +143,36 @@ export const shouldBypassJsonTreeSitter = (text) => {
   return false;
 };
 
+const consumeJsonFrameValue = (text, start, frame, stack) => {
+  const ch = text[start];
+  if (ch === '{' || ch === '[') {
+    frame.state = 'commaOrEnd';
+    stack.push({
+      type: ch === '{' ? 'object' : 'array',
+      state: ch === '{' ? 'keyOrEnd' : 'valueOrEnd',
+      collectKeys: false
+    });
+    return start + 1;
+  }
+  const parsed = parseJsonPrimitive(text, start);
+  if (!parsed) return null;
+  frame.state = 'commaOrEnd';
+  return parsed.end;
+};
+
+const consumeJsonCommaOrEnd = (text, start, frame, stack, { nextState, endToken }) => {
+  if (text[start] === ',') {
+    frame.state = nextState;
+    frame.allowEnd = false;
+    return start + 1;
+  }
+  if (text[start] === endToken) {
+    stack.pop();
+    return start + 1;
+  }
+  return null;
+};
+
 /**
  * Parse a JSON value and collect top-level object key offsets without recursive descent.
  *
@@ -221,36 +233,19 @@ const parseJsonValue = (text, start, topLevelKeys) => {
         continue;
       }
       if (frame.state === 'value') {
-        const ch = text[i];
-        if (ch === '{' || ch === '[') {
-          frame.state = 'commaOrEnd';
-          stack.push({
-            type: ch === '{' ? 'object' : 'array',
-            state: ch === '{' ? 'keyOrEnd' : 'valueOrEnd',
-            collectKeys: false
-          });
-          i += 1;
-          continue;
-        }
-        const parsed = parseJsonPrimitive(text, i);
-        if (!parsed) return null;
-        frame.state = 'commaOrEnd';
-        i = parsed.end;
+        const next = consumeJsonFrameValue(text, i, frame, stack);
+        if (next === null) return null;
+        i = next;
         continue;
       }
       if (frame.state === 'commaOrEnd') {
-        if (text[i] === ',') {
-          frame.state = 'keyOrEnd';
-          frame.allowEnd = false;
-          i += 1;
-          continue;
-        }
-        if (text[i] === '}') {
-          stack.pop();
-          i += 1;
-          continue;
-        }
-        return null;
+        const next = consumeJsonCommaOrEnd(text, i, frame, stack, {
+          nextState: 'keyOrEnd',
+          endToken: '}'
+        });
+        if (next === null) return null;
+        i = next;
+        continue;
       }
       return null;
     }
@@ -261,36 +256,19 @@ const parseJsonValue = (text, start, topLevelKeys) => {
         i += 1;
         continue;
       }
-      const ch = text[i];
-      if (ch === '{' || ch === '[') {
-        frame.state = 'commaOrEnd';
-        stack.push({
-          type: ch === '{' ? 'object' : 'array',
-          state: ch === '{' ? 'keyOrEnd' : 'valueOrEnd',
-          collectKeys: false
-        });
-        i += 1;
-        continue;
-      }
-      const parsed = parseJsonPrimitive(text, i);
-      if (!parsed) return null;
-      frame.state = 'commaOrEnd';
-      i = parsed.end;
+      const next = consumeJsonFrameValue(text, i, frame, stack);
+      if (next === null) return null;
+      i = next;
       continue;
     }
     if (frame.state === 'commaOrEnd') {
-      if (text[i] === ',') {
-        frame.state = 'valueOrEnd';
-        frame.allowEnd = false;
-        i += 1;
-        continue;
-      }
-      if (text[i] === ']') {
-        stack.pop();
-        i += 1;
-        continue;
-      }
-      return null;
+      const next = consumeJsonCommaOrEnd(text, i, frame, stack, {
+        nextState: 'valueOrEnd',
+        endToken: ']'
+      });
+      if (next === null) return null;
+      i = next;
+      continue;
     }
     return null;
   }
@@ -299,18 +277,15 @@ const parseJsonValue = (text, start, topLevelKeys) => {
 };
 
 export function chunkJson(text, context) {
-  if (
-    context?.treeSitter?.configChunking === true
-    && shouldBypassJsonTreeSitter(text) !== true
-  ) {
-    const treeChunks = buildTreeSitterChunks({
-      text,
-      languageId: 'json',
-      ext: '.json',
-      options: getTreeSitterOptions(context)
-    });
-    if (treeChunks && treeChunks.length) return normalizeConfigTreeSitterChunks(treeChunks, 'json');
-  }
+  const treeChunks = buildConfigTreeSitterChunks({
+    text,
+    context,
+    languageId: 'json',
+    ext: '.json',
+    format: 'json',
+    enabled: shouldBypassJsonTreeSitter(text) !== true
+  });
+  if (treeChunks) return treeChunks;
   const topLevelKeys = [];
   const start = findNextNonWhitespace(text, 0);
   if (start < 0) return null;

@@ -94,6 +94,63 @@ export const createTokenIngestor = (ctx) => {
 
   let tokenMetaCache = null;
 
+  const insertTokenVocabRows = ({
+    targetMode,
+    vocab,
+    tokenIdOffset = 0,
+    insertTokenVocabStmt = insertTokenVocab
+  }) => {
+    if (insertTokenVocabMany) {
+      const rows = [];
+      for (let i = 0; i < vocab.length; i += 1) {
+        rows.push([targetMode, tokenIdOffset + i, vocab[i]]);
+        if (rows.length >= insertTokenVocabMany.maxRows) {
+          insertTokenVocabMany(rows);
+          rows.length = 0;
+          recordBatch('tokenVocabBatches');
+        }
+      }
+      if (rows.length) {
+        insertTokenVocabMany(rows);
+        recordBatch('tokenVocabBatches');
+      }
+      return;
+    }
+    for (let start = 0; start < vocab.length; start += resolvedBatchSize) {
+      const end = Math.min(start + resolvedBatchSize, vocab.length);
+      for (let i = start; i < end; i += 1) {
+        insertTokenVocabStmt.run(targetMode, tokenIdOffset + i, vocab[i]);
+      }
+      recordBatch('tokenVocabBatches');
+    }
+  };
+
+  const insertDocLengthRows = (targetMode, docLengths) => {
+    if (insertDocLengthMany) {
+      const rows = [];
+      for (let docId = 0; docId < docLengths.length; docId += 1) {
+        rows.push([targetMode, docId, docLengths[docId]]);
+        if (rows.length >= insertDocLengthMany.maxRows) {
+          insertDocLengthMany(rows);
+          rows.length = 0;
+          recordBatch('docLengthBatches');
+        }
+      }
+      if (rows.length) {
+        insertDocLengthMany(rows);
+        recordBatch('docLengthBatches');
+      }
+      return;
+    }
+    for (let start = 0; start < docLengths.length; start += resolvedBatchSize) {
+      const end = Math.min(start + resolvedBatchSize, docLengths.length);
+      for (let docId = start; docId < end; docId += 1) {
+        insertDocLength.run(targetMode, docId, docLengths[docId]);
+      }
+      recordBatch('docLengthBatches');
+    }
+  };
+
   const ingestTokenIndex = (tokenIndex, targetMode) => {
     if (!Array.isArray(tokenIndex?.vocab) || !Array.isArray(tokenIndex?.postings)) return;
     const vocab = tokenIndex.vocab;
@@ -122,29 +179,7 @@ export const createTokenIngestor = (ctx) => {
     }
 
     const vocabStart = performance.now();
-    if (insertTokenVocabMany) {
-      const rows = [];
-      for (let tokenId = 0; tokenId < vocab.length; tokenId += 1) {
-        rows.push([targetMode, tokenId, vocab[tokenId]]);
-        if (rows.length >= insertTokenVocabMany.maxRows) {
-          insertTokenVocabMany(rows);
-          rows.length = 0;
-          recordBatch('tokenVocabBatches');
-        }
-      }
-      if (rows.length) {
-        insertTokenVocabMany(rows);
-        recordBatch('tokenVocabBatches');
-      }
-    } else {
-      for (let start = 0; start < vocab.length; start += resolvedBatchSize) {
-        const end = Math.min(start + resolvedBatchSize, vocab.length);
-        for (let tokenId = start; tokenId < end; tokenId += 1) {
-          insertTokenVocab.run(targetMode, tokenId, vocab[tokenId]);
-        }
-        recordBatch('tokenVocabBatches');
-      }
-    }
+    insertTokenVocabRows({ targetMode, vocab });
     recordTable('token_vocab', vocab.length, performance.now() - vocabStart);
 
     const postingStart = performance.now();
@@ -193,29 +228,7 @@ export const createTokenIngestor = (ctx) => {
     recordTable('token_postings', postingRows, performance.now() - postingStart);
 
     const lengthsStart = performance.now();
-    if (insertDocLengthMany) {
-      const rows = [];
-      for (let docId = 0; docId < docLengths.length; docId += 1) {
-        rows.push([targetMode, docId, docLengths[docId]]);
-        if (rows.length >= insertDocLengthMany.maxRows) {
-          insertDocLengthMany(rows);
-          rows.length = 0;
-          recordBatch('docLengthBatches');
-        }
-      }
-      if (rows.length) {
-        insertDocLengthMany(rows);
-        recordBatch('docLengthBatches');
-      }
-    } else {
-      for (let start = 0; start < docLengths.length; start += resolvedBatchSize) {
-        const end = Math.min(start + resolvedBatchSize, docLengths.length);
-        for (let docId = start; docId < end; docId += 1) {
-          insertDocLength.run(targetMode, docId, docLengths[docId]);
-        }
-        recordBatch('docLengthBatches');
-      }
-    }
+    insertDocLengthRows(targetMode, docLengths);
     recordTable('doc_lengths', docLengths.length, performance.now() - lengthsStart);
 
     insertTokenStats.run(targetMode, avgDocLen, totalDocs);
@@ -336,29 +349,7 @@ export const createTokenIngestor = (ctx) => {
             : 0
         ));
       const lengthsStart = performance.now();
-      if (insertDocLengthMany) {
-        const rows = [];
-        for (let docId = 0; docId < docLengths.length; docId += 1) {
-          rows.push([targetMode, docId, docLengths[docId]]);
-          if (rows.length >= insertDocLengthMany.maxRows) {
-            insertDocLengthMany(rows);
-            rows.length = 0;
-            recordBatch('docLengthBatches');
-          }
-        }
-        if (rows.length) {
-          insertDocLengthMany(rows);
-          recordBatch('docLengthBatches');
-        }
-      } else {
-        for (let start = 0; start < docLengths.length; start += resolvedBatchSize) {
-          const end = Math.min(start + resolvedBatchSize, docLengths.length);
-          for (let docId = start; docId < end; docId += 1) {
-            insertDocLength.run(targetMode, docId, docLengths[docId]);
-          }
-          recordBatch('docLengthBatches');
-        }
-      }
+      insertDocLengthRows(targetMode, docLengths);
       recordTable('doc_lengths', docLengths.length, performance.now() - lengthsStart);
       insertTokenStats.run(targetMode, avgDocLen, totalDocs);
       recordTable('token_stats', 1, 0);
@@ -399,29 +390,12 @@ export const createTokenIngestor = (ctx) => {
         const postingCount = postings.length;
         const insertTokenVocabStmt = perShardTokenVocabStmt || insertTokenVocab;
         const insertTokenPostingStmt = perShardTokenPostingStmt || insertTokenPosting;
-        if (insertTokenVocabMany) {
-          const rows = [];
-          for (let i = 0; i < vocab.length; i += 1) {
-            rows.push([targetMode, tokenId + i, vocab[i]]);
-            if (rows.length >= insertTokenVocabMany.maxRows) {
-              insertTokenVocabMany(rows);
-              rows.length = 0;
-              recordBatch('tokenVocabBatches');
-            }
-          }
-          if (rows.length) {
-            insertTokenVocabMany(rows);
-            recordBatch('tokenVocabBatches');
-          }
-        } else {
-          for (let start = 0; start < vocab.length; start += resolvedBatchSize) {
-            const end = Math.min(start + resolvedBatchSize, vocab.length);
-            for (let i = start; i < end; i += 1) {
-              insertTokenVocabStmt.run(targetMode, tokenId + i, vocab[i]);
-            }
-            recordBatch('tokenVocabBatches');
-          }
-        }
+        insertTokenVocabRows({
+          targetMode,
+          vocab,
+          tokenIdOffset: tokenId,
+          insertTokenVocabStmt
+        });
         vocabRows += vocab.length;
         if (insertTokenPostingMany) {
           const rows = [];
@@ -480,67 +454,101 @@ export const createTokenIngestor = (ctx) => {
     }
   };
 
+  const createTokenChunkIngestState = (targetMode) => ({
+    targetMode,
+    tokenIdMap: new Map(),
+    tokenIdMapTrimmed: false,
+    nextTokenId: 0,
+    totalDocs: 0,
+    totalLen: 0,
+    docLengthRows: 0,
+    tokenVocabRows: 0,
+    tokenPostingRows: 0,
+    sawRows: false,
+    lengthsStart: performance.now(),
+    vocabStart: performance.now(),
+    postingStart: performance.now()
+  });
+
+  const ingestTokenBatch = ({ batch, state, getDocId, getTokens }) => {
+    const postingsByDoc = new Map();
+    for (const entry of batch) {
+      if (!entry) continue;
+      const docId = getDocId(entry);
+      if (!Number.isFinite(docId)) continue;
+      state.sawRows = true;
+      const tokensArray = getTokens(entry);
+      const docLen = tokensArray.length;
+      state.totalDocs += 1;
+      state.totalLen += docLen;
+      insertDocLength.run(state.targetMode, docId, docLen);
+      state.docLengthRows += 1;
+      if (!docLen) continue;
+      const freq = buildTokenFrequency(tokensArray);
+      for (const [token, tf] of freq.entries()) {
+        let tokenId = state.tokenIdMap.get(token);
+        if (tokenId === undefined) {
+          if (state.tokenIdMap.size >= MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES) {
+            state.tokenIdMap.clear();
+            if (!state.tokenIdMapTrimmed) {
+              warn(
+                `[sqlite] token lookup cache reached ${MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES} entries; ` +
+                'clearing cache to cap memory.'
+              );
+              state.tokenIdMapTrimmed = true;
+            }
+          }
+          tokenId = state.nextTokenId;
+          state.nextTokenId += 1;
+          state.tokenIdMap.set(token, tokenId);
+          insertTokenVocab.run(state.targetMode, tokenId, token);
+          state.tokenVocabRows += 1;
+        }
+        let docPostings = postingsByDoc.get(docId);
+        if (!docPostings) {
+          docPostings = new Map();
+          postingsByDoc.set(docId, docPostings);
+        }
+        docPostings.set(tokenId, (docPostings.get(tokenId) || 0) + tf);
+      }
+    }
+    for (const [docId, docPostings] of postingsByDoc.entries()) {
+      for (const [tokenId, tf] of docPostings.entries()) {
+        insertTokenPosting.run(state.targetMode, tokenId, docId, tf);
+        state.tokenPostingRows += 1;
+      }
+    }
+  };
+
+  const recordTokenChunkIngestTables = (state) => {
+    insertTokenStats.run(
+      state.targetMode,
+      state.totalDocs ? state.totalLen / state.totalDocs : 0,
+      state.totalDocs
+    );
+    recordTable('doc_lengths', state.docLengthRows, performance.now() - state.lengthsStart);
+    recordTable('token_vocab', state.tokenVocabRows, performance.now() - state.vocabStart);
+    recordTable('token_postings', state.tokenPostingRows, performance.now() - state.postingStart);
+    recordTable('token_stats', 1, 0);
+  };
+
   const ingestTokenIndexFromChunks = (chunks, targetMode) => {
     if (!Array.isArray(chunks) || !chunks.length) return;
-    const tokenIdMap = new Map();
-    let tokenIdMapTrimmed = false;
-    let nextTokenId = 0;
-    let totalDocs = 0;
-    let totalLen = 0;
-    let docLengthRows = 0;
-    let tokenVocabRows = 0;
-    let tokenPostingRows = 0;
-    const lengthsStart = performance.now();
-    const vocabStart = performance.now();
-    const postingStart = performance.now();
+    const state = createTokenChunkIngestState(targetMode);
     const insertTx = db.transaction((batch) => {
-      const postingsByDoc = new Map();
-      for (const entry of batch) {
-        if (!entry) continue;
-        const chunk = entry.chunk;
-        if (!chunk) continue;
-        const docId = Number.isFinite(chunk.id) ? chunk.id : entry.index;
-        const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
-        const docLen = tokensArray.length;
-        totalDocs += 1;
-        totalLen += docLen;
-        insertDocLength.run(targetMode, docId, docLen);
-        docLengthRows += 1;
-        if (!docLen) continue;
-        const freq = buildTokenFrequency(tokensArray);
-        for (const [token, tf] of freq.entries()) {
-          let tokenId = tokenIdMap.get(token);
-          if (tokenId === undefined) {
-            if (tokenIdMap.size >= MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES) {
-              tokenIdMap.clear();
-              if (!tokenIdMapTrimmed) {
-                warn(
-                  `[sqlite] token lookup cache reached ${MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES} entries; ` +
-                  'clearing cache to cap memory.'
-                );
-                tokenIdMapTrimmed = true;
-              }
-            }
-            tokenId = nextTokenId;
-            nextTokenId += 1;
-            tokenIdMap.set(token, tokenId);
-            insertTokenVocab.run(targetMode, tokenId, token);
-            tokenVocabRows += 1;
-          }
-          let docPostings = postingsByDoc.get(docId);
-          if (!docPostings) {
-            docPostings = new Map();
-            postingsByDoc.set(docId, docPostings);
-          }
-          docPostings.set(tokenId, (docPostings.get(tokenId) || 0) + tf);
+      ingestTokenBatch({
+        batch,
+        state,
+        getDocId: (entry) => {
+          const chunk = entry.chunk;
+          if (!chunk) return null;
+          return Number.isFinite(chunk.id) ? chunk.id : entry.index;
+        },
+        getTokens: (entry) => {
+          const tokens = entry.chunk?.tokens;
+          return Array.isArray(tokens) ? tokens : [];
         }
-      }
-      for (const [docId, docPostings] of postingsByDoc.entries()) {
-        for (const [tokenId, tf] of docPostings.entries()) {
-          insertTokenPosting.run(targetMode, tokenId, docId, tf);
-          tokenPostingRows += 1;
-        }
-      }
+      });
     });
     const batch = [];
     for (let i = 0; i < chunks.length; i += 1) {
@@ -561,29 +569,14 @@ export const createTokenIngestor = (ctx) => {
       recordBatch('tokenVocabBatches');
       recordBatch('docLengthBatches');
     }
-    insertTokenStats.run(targetMode, totalDocs ? totalLen / totalDocs : 0, totalDocs);
-    recordTable('doc_lengths', docLengthRows, performance.now() - lengthsStart);
-    recordTable('token_vocab', tokenVocabRows, performance.now() - vocabStart);
-    recordTable('token_postings', tokenPostingRows, performance.now() - postingStart);
-    recordTable('token_stats', 1, 0);
+    recordTokenChunkIngestTables(state);
   };
 
   const ingestTokenIndexFromStoredChunks = (targetMode) => {
     const selectChunks = db.prepare(
       'SELECT id, tokens FROM chunks WHERE mode = ? AND id > ? ORDER BY id LIMIT ?'
     );
-    const tokenIdMap = new Map();
-    let tokenIdMapTrimmed = false;
-    let nextTokenId = 0;
-    let totalDocs = 0;
-    let totalLen = 0;
-    let docLengthRows = 0;
-    let tokenVocabRows = 0;
-    let tokenPostingRows = 0;
-    let sawRows = false;
-    const lengthsStart = performance.now();
-    const vocabStart = performance.now();
-    const postingStart = performance.now();
+    const state = createTokenChunkIngestState(targetMode);
     const parseTokens = (raw) => {
       if (typeof raw !== 'string' || !raw) return [];
       try {
@@ -594,53 +587,12 @@ export const createTokenIngestor = (ctx) => {
       }
     };
     const insertTx = db.transaction((batch) => {
-      const postingsByDoc = new Map();
-      for (const entry of batch) {
-        if (!entry) continue;
-        const docId = Number.isFinite(entry.id) ? entry.id : null;
-        if (!Number.isFinite(docId)) continue;
-        sawRows = true;
-        const tokensArray = parseTokens(entry.tokens);
-        const docLen = tokensArray.length;
-        totalDocs += 1;
-        totalLen += docLen;
-        insertDocLength.run(targetMode, docId, docLen);
-        docLengthRows += 1;
-        if (!docLen) continue;
-        const freq = buildTokenFrequency(tokensArray);
-        for (const [token, tf] of freq.entries()) {
-          let tokenId = tokenIdMap.get(token);
-          if (tokenId === undefined) {
-            if (tokenIdMap.size >= MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES) {
-              tokenIdMap.clear();
-              if (!tokenIdMapTrimmed) {
-                warn(
-                  `[sqlite] token lookup cache reached ${MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES} entries; ` +
-                  'clearing cache to cap memory.'
-                );
-                tokenIdMapTrimmed = true;
-              }
-            }
-            tokenId = nextTokenId;
-            nextTokenId += 1;
-            tokenIdMap.set(token, tokenId);
-            insertTokenVocab.run(targetMode, tokenId, token);
-            tokenVocabRows += 1;
-          }
-          let docPostings = postingsByDoc.get(docId);
-          if (!docPostings) {
-            docPostings = new Map();
-            postingsByDoc.set(docId, docPostings);
-          }
-          docPostings.set(tokenId, (docPostings.get(tokenId) || 0) + tf);
-        }
-      }
-      for (const [docId, docPostings] of postingsByDoc.entries()) {
-        for (const [tokenId, tf] of docPostings.entries()) {
-          insertTokenPosting.run(targetMode, tokenId, docId, tf);
-          tokenPostingRows += 1;
-        }
-      }
+      ingestTokenBatch({
+        batch,
+        state,
+        getDocId: (entry) => (Number.isFinite(entry.id) ? entry.id : null),
+        getTokens: (entry) => parseTokens(entry.tokens)
+      });
     });
     let lastId = -1;
     while (true) {
@@ -655,12 +607,8 @@ export const createTokenIngestor = (ctx) => {
       if (!Number.isFinite(tailId)) break;
       lastId = tailId;
     }
-    if (!sawRows) return false;
-    insertTokenStats.run(targetMode, totalDocs ? totalLen / totalDocs : 0, totalDocs);
-    recordTable('doc_lengths', docLengthRows, performance.now() - lengthsStart);
-    recordTable('token_vocab', tokenVocabRows, performance.now() - vocabStart);
-    recordTable('token_postings', tokenPostingRows, performance.now() - postingStart);
-    recordTable('token_stats', 1, 0);
+    if (!state.sawRows) return false;
+    recordTokenChunkIngestTables(state);
     return true;
   };
 

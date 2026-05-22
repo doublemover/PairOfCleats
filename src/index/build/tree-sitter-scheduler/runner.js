@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
-import { resolveRuntimeEnv } from '../../../shared/runtime-envelope.js';
+import { resolveRuntimeEnv } from '../../../shared/runtime-envelope/env-patch.js';
 import {
   resolveBuildCleanupTimeoutMs,
   runBuildCleanupWithTimeout

@@ -1,23 +1,45 @@
 'use strict';
 
+const FILTER_FIELDS = Object.freeze([
+  ['rule', 'rule'],
+  ['category', 'category'],
+  ['severity', 'severity'],
+  ['tag', 'tag'],
+  ['source', 'source'],
+  ['sink', 'sink'],
+  ['sourceRule', 'sourceRule', 'source_rule'],
+  ['sinkRule', 'sinkRule', 'sink_rule'],
+  ['flowId', 'flowId', 'flow_id']
+]);
+
+const REF_PREFIX_BY_TYPE = Object.freeze({
+  chunk: ['chunk', 'chunkUid'],
+  symbol: ['symbol', 'symbolId'],
+  file: ['file', 'path']
+});
+
+const asArray = (value) => (Array.isArray(value) ? value : []);
+
+const copyArray = (value) => asArray(value).slice();
+
+const objectOrNull = (value) => (value && typeof value === 'object' ? value : null);
+
 function formatRef(ref) {
   if (!ref || typeof ref !== 'object') return 'unknown';
-  if (ref.type === 'chunk') return `chunk:${ref.chunkUid}`;
-  if (ref.type === 'symbol') return `symbol:${ref.symbolId}`;
-  if (ref.type === 'file') return `file:${ref.path}`;
+  const typedRef = REF_PREFIX_BY_TYPE[ref.type];
+  if (typedRef) return `${typedRef[0]}:${ref[typedRef[1]]}`;
   if (ref.status) {
-    const target = ref.targetName ? ` ${ref.targetName}` : '';
-    return `ref:${ref.status}${target}`;
+    return `ref:${ref.status}${ref.targetName ? ` ${ref.targetName}` : ''}`;
   }
   return 'unknown';
 }
 
 function formatPath(pathValue) {
   if (!pathValue || typeof pathValue !== 'object') return '';
-  if (Array.isArray(pathValue.nodes) && pathValue.nodes.length) {
+  if (asArray(pathValue.nodes).length) {
     return pathValue.nodes.map(formatRef).join(' -> ');
   }
-  if (Array.isArray(pathValue.labels) && pathValue.labels.length) {
+  if (asArray(pathValue.labels).length) {
     return pathValue.labels.join(' -> ');
   }
   return '';
@@ -35,35 +57,51 @@ function normalizeExplainSubject(subject) {
 
 function normalizeExplainFilters(filters) {
   if (!filters || typeof filters !== 'object') return null;
-  return {
-    rule: Array.isArray(filters.rule) ? filters.rule.slice() : [],
-    category: Array.isArray(filters.category) ? filters.category.slice() : [],
-    severity: Array.isArray(filters.severity) ? filters.severity.slice() : [],
-    tag: Array.isArray(filters.tag) ? filters.tag.slice() : [],
-    source: Array.isArray(filters.source) ? filters.source.slice() : [],
-    sink: Array.isArray(filters.sink) ? filters.sink.slice() : [],
-    sourceRule: Array.isArray(filters.sourceRule) ? filters.sourceRule.slice() : Array.isArray(filters.source_rule) ? filters.source_rule.slice() : [],
-    sinkRule: Array.isArray(filters.sinkRule) ? filters.sinkRule.slice() : Array.isArray(filters.sink_rule) ? filters.sink_rule.slice() : [],
-    flowId: Array.isArray(filters.flowId) ? filters.flowId.slice() : Array.isArray(filters.flow_id) ? filters.flow_id.slice() : []
-  };
+  const normalized = {};
+  for (const [key, camelKey, snakeKey] of FILTER_FIELDS) {
+    normalized[key] = copyArray(filters[camelKey] || filters[snakeKey]);
+  }
+  return normalized;
+}
+
+function collectCallSiteIdsByStep(pathValue, evidence) {
+  if (Array.isArray(pathValue?.callSiteIdsByStep)) {
+    return pathValue.callSiteIdsByStep;
+  }
+  if (!Array.isArray(evidence?.callSitesByStep)) {
+    return [];
+  }
+  return evidence.callSitesByStep.map((step) => (
+    asArray(step)
+      .map((entry) => entry?.callSiteId || null)
+      .filter(Boolean)
+  ));
 }
 
 function normalizeExplainPath(pathValue, evidence = null) {
-  const rawStepIds = Array.isArray(pathValue?.callSiteIdsByStep)
-    ? pathValue.callSiteIdsByStep
-    : Array.isArray(evidence?.callSitesByStep)
-      ? evidence.callSitesByStep.map((step) => step.map((entry) => entry?.callSiteId || null).filter(Boolean))
-      : [];
   return {
-    nodes: Array.isArray(pathValue?.nodes) ? pathValue.nodes.slice() : [],
-    labels: Array.isArray(pathValue?.labels) ? pathValue.labels.slice() : [],
-    callSiteIdsByStep: rawStepIds.map((step) => (Array.isArray(step) ? step.filter(Boolean) : []))
+    nodes: copyArray(pathValue?.nodes),
+    labels: copyArray(pathValue?.labels),
+    callSiteIdsByStep: collectCallSiteIdsByStep(pathValue, evidence)
+      .map((step) => asArray(step).filter(Boolean))
+  };
+}
+
+function normalizeCallSiteEvidence(evidence) {
+  if (!Array.isArray(evidence?.callSitesByStep)) return null;
+  return {
+    callSitesByStep: evidence.callSitesByStep.map((step) => (
+      asArray(step).map((entry) => ({
+        callSiteId: entry?.callSiteId || null,
+        details: entry?.details || null
+      }))
+    ))
   };
 }
 
 function normalizeExplainFlow(flow) {
   if (!flow || typeof flow !== 'object') return null;
-  const evidence = flow?.evidence && typeof flow.evidence === 'object' ? flow.evidence : null;
+  const evidence = objectOrNull(flow.evidence);
   return {
     flowId: flow.flowId || null,
     confidence: Number.isFinite(flow.confidence) ? flow.confidence : null,
@@ -71,16 +109,7 @@ function normalizeExplainFlow(flow) {
     source: flow.source || null,
     sink: flow.sink || null,
     path: normalizeExplainPath(flow.path, evidence),
-    evidence: evidence && Array.isArray(evidence.callSitesByStep)
-      ? {
-        callSitesByStep: evidence.callSitesByStep.map((step) => Array.isArray(step)
-          ? step.map((entry) => ({
-            callSiteId: entry?.callSiteId || null,
-            details: entry?.details || null
-          }))
-          : [])
-      }
-      : null
+    evidence: normalizeCallSiteEvidence(evidence)
   };
 }
 
@@ -98,15 +127,15 @@ function buildRiskExplanationModel({
 } = {}) {
   return {
     subject: normalizeExplainSubject(subject),
-    summary: summary && typeof summary === 'object' ? summary : null,
-    stats: stats && typeof stats === 'object' ? stats : null,
-    provenance: provenance && typeof provenance === 'object' ? provenance : null,
-    analysisStatus: analysisStatus && typeof analysisStatus === 'object' ? analysisStatus : null,
-    anchor: anchor && typeof anchor === 'object' ? anchor : null,
-    caps: caps && typeof caps === 'object' ? caps : null,
-    truncation: Array.isArray(truncation) ? truncation.slice() : [],
+    summary: objectOrNull(summary),
+    stats: objectOrNull(stats),
+    provenance: objectOrNull(provenance),
+    analysisStatus: objectOrNull(analysisStatus),
+    anchor: objectOrNull(anchor),
+    caps: objectOrNull(caps),
+    truncation: copyArray(truncation),
     filters: normalizeExplainFilters(filters),
-    flows: Array.isArray(flows) ? flows.map(normalizeExplainFlow).filter(Boolean) : []
+    flows: asArray(flows).map(normalizeExplainFlow).filter(Boolean)
   };
 }
 
@@ -143,46 +172,46 @@ function buildRiskExplanationModelFromRiskSlice(risk) {
   });
 }
 
+function formatSourceLocation(site) {
+  if (!Number.isFinite(site.startLine)) return '?:?';
+  return `${site.startLine}:${Number.isFinite(site.startCol) ? site.startCol : 1}`;
+}
+
 function formatCallSiteDetails(site) {
   if (!site || typeof site !== 'object') return '';
-  const file = site.file || 'unknown-file';
-  const loc = Number.isFinite(site.startLine)
-    ? `${site.startLine}:${Number.isFinite(site.startCol) ? site.startCol : 1}`
-    : '?:?';
   const callee = site.calleeNormalized || site.calleeRaw || 'call';
   const args = Array.isArray(site.args) && site.args.length ? `(${site.args.join(', ')})` : '';
   const invocation = `${callee}${args}`;
   const excerptText = typeof site.excerpt === 'string' ? site.excerpt.replace(/\s+/g, ' ').trim() : '';
   const excerpt = excerptText && excerptText !== invocation ? ` | ${excerptText}` : '';
-  return `${file}:${loc} ${invocation}${excerpt}`;
+  return `${site.file || 'unknown-file'}:${formatSourceLocation(site)} ${invocation}${excerpt}`;
+}
+
+function renderCallSiteEvidence(entry) {
+  if (entry?.details) return formatCallSiteDetails(entry.details);
+  return entry?.callSiteId || '';
+}
+
+function buildStepEvidence(step, index, maxEvidencePerFlow, renderEntry) {
+  const rendered = asArray(step)
+    .slice(0, maxEvidencePerFlow)
+    .map(renderEntry)
+    .filter(Boolean);
+  return rendered.length ? { index, rendered } : null;
 }
 
 function collectCallSiteStepEvidence(flow, maxEvidencePerFlow) {
-  const detailedSteps = Array.isArray(flow?.evidence?.callSitesByStep)
+  const detailedSteps = asArray(flow?.evidence?.callSitesByStep).length
     ? flow.evidence.callSitesByStep
-    : Array.isArray(flow?.callSitesByStep)
-      ? flow.callSitesByStep
-      : [];
+    : asArray(flow?.callSitesByStep);
   if (detailedSteps.length) {
-    return detailedSteps.map((step, index) => {
-      const rendered = (Array.isArray(step) ? step : [])
-        .slice(0, maxEvidencePerFlow)
-        .map((entry) => {
-          if (entry?.details) return formatCallSiteDetails(entry.details);
-          if (entry?.callSiteId) return entry.callSiteId;
-          return '';
-        })
-        .filter(Boolean);
-      return rendered.length ? { index, rendered } : null;
-    }).filter(Boolean);
-  }
-  const rawSteps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
-  return rawSteps.map((step, index) => {
-    const rendered = (Array.isArray(step) ? step : [])
-      .slice(0, maxEvidencePerFlow)
+    return detailedSteps
+      .map((step, index) => buildStepEvidence(step, index, maxEvidencePerFlow, renderCallSiteEvidence))
       .filter(Boolean);
-    return rendered.length ? { index, rendered } : null;
-  }).filter(Boolean);
+  }
+  return asArray(flow?.path?.callSiteIdsByStep)
+    .map((step, index) => buildStepEvidence(step, index, maxEvidencePerFlow, (entry) => entry || ''))
+    .filter(Boolean);
 }
 
 function renderRiskExplain(flows, { heading = 'Risk Flows', maxFlows = 3, maxEvidencePerFlow = 3 } = {}) {
@@ -216,96 +245,119 @@ function renderRiskExplain(flows, { heading = 'Risk Flows', maxFlows = 3, maxEvi
 }
 
 function renderAnalysisStatus(model, lines) {
-  const analysisStatus = model?.analysisStatus || null;
+  const analysisStatus = objectOrNull(model?.analysisStatus);
   if (!analysisStatus) return;
-  if (analysisStatus.status) {
-    lines.push(`- status: ${analysisStatus.status}${analysisStatus.reason ? ` (${analysisStatus.reason})` : ''}`);
+  const simpleLines = [
+    analysisStatus.status
+      ? `- status: ${analysisStatus.status}${analysisStatus.reason ? ` (${analysisStatus.reason})` : ''}`
+      : null,
+    analysisStatus.code
+      ? `- analysis code: ${analysisStatus.code}${analysisStatus.strictFailure ? ' [strict-failure]' : ''}`
+      : null,
+    asArray(analysisStatus.degradedReasons).length
+      ? `- degraded reasons: ${analysisStatus.degradedReasons.join(', ')}`
+      : null
+  ].filter(Boolean);
+  lines.push(...simpleLines);
+
+  const artifacts = Object.entries(objectOrNull(analysisStatus.artifactStatus) || {})
+    .filter(([, value]) => typeof value === 'string' && value)
+    .map(([key, value]) => `${key}=${value}`);
+  if (artifacts.length) {
+    lines.push(`- artifacts: ${artifacts.join(', ')}`);
   }
-  if (analysisStatus.code) {
-    lines.push(`- analysis code: ${analysisStatus.code}${analysisStatus.strictFailure ? ' [strict-failure]' : ''}`);
-  }
-  if (Array.isArray(analysisStatus.degradedReasons) && analysisStatus.degradedReasons.length) {
-    lines.push(`- degraded reasons: ${analysisStatus.degradedReasons.join(', ')}`);
-  }
-  if (analysisStatus.artifactStatus) {
-    const parts = Object.entries(analysisStatus.artifactStatus)
-      .filter(([, value]) => typeof value === 'string' && value)
-      .map(([key, value]) => `${key}=${value}`);
-    if (parts.length) lines.push(`- artifacts: ${parts.join(', ')}`);
-  }
+}
+
+function appendRankedSummary(lines, entries, { label, nameKey }) {
+  const ranked = asArray(entries);
+  if (!ranked.length) return;
+  lines.push(`- ${label}: ${ranked.slice(0, 3).map((entry) => `${entry[nameKey]} (${entry.count})`).join(', ')}`);
+}
+
+function renderSummaryTotals(totals) {
+  if (!totals) return '';
+  return [
+    `sources ${totals.sources || 0}`,
+    `sinks ${totals.sinks || 0}`,
+    `sanitizers ${totals.sanitizers || 0}`,
+    `localFlows ${totals.localFlows || 0}`
+  ].join(', ');
 }
 
 function renderSummary(model, lines) {
-  const summary = model?.summary || null;
-  const totals = summary?.totals || null;
-  if (!summary && !totals) return;
-  if (totals) {
-    lines.push(`- summary: sources ${totals.sources || 0}, sinks ${totals.sinks || 0}, sanitizers ${totals.sanitizers || 0}, localFlows ${totals.localFlows || 0}`);
+  const summary = objectOrNull(model?.summary);
+  const totalsText = renderSummaryTotals(summary?.totals);
+  if (totalsText) {
+    lines.push(`- summary: ${totalsText}`);
   }
-  if (Array.isArray(summary?.topCategories) && summary.topCategories.length) {
-    lines.push(`- top categories: ${summary.topCategories.slice(0, 3).map((entry) => `${entry.category} (${entry.count})`).join(', ')}`);
-  }
-  if (Array.isArray(summary?.topTags) && summary.topTags.length) {
-    lines.push(`- top tags: ${summary.topTags.slice(0, 3).map((entry) => `${entry.tag} (${entry.count})`).join(', ')}`);
-  }
+  appendRankedSummary(lines, summary?.topCategories, { label: 'top categories', nameKey: 'category' });
+  appendRankedSummary(lines, summary?.topTags, { label: 'top tags', nameKey: 'tag' });
 }
 
 function renderStats(model, lines) {
-  const stats = model?.stats || null;
+  const stats = objectOrNull(model?.stats);
   if (!stats) return;
-  const extras = [];
-  if (stats.status) extras.push(`status ${stats.status}`);
-  if (stats.flowsEmitted != null) extras.push(`flows ${stats.flowsEmitted}`);
-  if (stats.summariesEmitted != null) extras.push(`summaries ${stats.summariesEmitted}`);
-  if (stats.uniqueCallSitesReferenced != null) extras.push(`call sites ${stats.uniqueCallSitesReferenced}`);
-  if (Array.isArray(stats.capsHit) && stats.capsHit.length) extras.push(`caps ${stats.capsHit.join(', ')}`);
+  const extras = [
+    stats.status ? `status ${stats.status}` : null,
+    stats.flowsEmitted != null ? `flows ${stats.flowsEmitted}` : null,
+    stats.summariesEmitted != null ? `summaries ${stats.summariesEmitted}` : null,
+    stats.uniqueCallSitesReferenced != null ? `call sites ${stats.uniqueCallSitesReferenced}` : null,
+    asArray(stats.capsHit).length ? `caps ${stats.capsHit.join(', ')}` : null
+  ].filter(Boolean);
   if (extras.length) lines.push(`- interprocedural: ${extras.join(', ')}`);
 }
 
-function renderProvenance(model, lines) {
-  const provenance = model?.provenance || null;
-  if (!provenance) return;
+function collectProvenanceParts(provenance) {
   const parts = [];
   if (provenance.generatedAt) parts.push(`generated ${provenance.generatedAt}`);
-  if (provenance.ruleBundle?.version || provenance.ruleBundle?.fingerprint) {
-    const ruleBits = [provenance.ruleBundle.version || null, provenance.ruleBundle.fingerprint || null].filter(Boolean);
-    parts.push(`rules ${ruleBits.join(' ')}`);
-  }
+  const ruleBits = [
+    provenance.ruleBundle?.version || null,
+    provenance.ruleBundle?.fingerprint || null
+  ].filter(Boolean);
+  if (ruleBits.length) parts.push(`rules ${ruleBits.join(' ')}`);
   if (provenance.effectiveConfigFingerprint) parts.push(`config ${provenance.effectiveConfigFingerprint}`);
+  return parts;
+}
+
+function collectArtifactRefs(provenance) {
+  return Object.entries(objectOrNull(provenance.artifactRefs) || {})
+    .filter(([, value]) => value && typeof value === 'object')
+    .map(([key, value]) => `${key}=${value.entrypoint || value.name || 'present'}`);
+}
+
+function renderProvenance(model, lines) {
+  const provenance = objectOrNull(model?.provenance);
+  if (!provenance) return;
+  const parts = collectProvenanceParts(provenance);
   if (parts.length) lines.push(`- provenance: ${parts.join(', ')}`);
-  if (provenance.artifactRefs) {
-    const refs = Object.entries(provenance.artifactRefs)
-      .filter(([, value]) => value && typeof value === 'object')
-      .map(([key, value]) => `${key}=${value.entrypoint || value.name || 'present'}`);
-    if (refs.length) lines.push(`- artifact refs: ${refs.join(', ')}`);
-  }
+  const refs = collectArtifactRefs(provenance);
+  if (refs.length) lines.push(`- artifact refs: ${refs.join(', ')}`);
 }
 
 function renderFilters(model, lines) {
-  const filters = model?.filters || null;
+  const filters = objectOrNull(model?.filters);
   if (!filters) return;
-  const parts = [];
-  if (Array.isArray(filters.rule) && filters.rule.length) parts.push(`rule ${filters.rule.join(', ')}`);
-  if (Array.isArray(filters.category) && filters.category.length) parts.push(`category ${filters.category.join(', ')}`);
-  if (Array.isArray(filters.severity) && filters.severity.length) parts.push(`severity ${filters.severity.join(', ')}`);
-  if (Array.isArray(filters.tag) && filters.tag.length) parts.push(`tag ${filters.tag.join(', ')}`);
-  if (Array.isArray(filters.source) && filters.source.length) parts.push(`source ${filters.source.join(', ')}`);
-  if (Array.isArray(filters.sink) && filters.sink.length) parts.push(`sink ${filters.sink.join(', ')}`);
-  if (Array.isArray(filters.sourceRule) && filters.sourceRule.length) parts.push(`sourceRule ${filters.sourceRule.join(', ')}`);
-  if (Array.isArray(filters.sinkRule) && filters.sinkRule.length) parts.push(`sinkRule ${filters.sinkRule.join(', ')}`);
-  if (Array.isArray(filters.flowId) && filters.flowId.length) parts.push(`flowId ${filters.flowId.join(', ')}`);
+  const parts = FILTER_FIELDS
+    .map(([key]) => (asArray(filters[key]).length ? `${key} ${filters[key].join(', ')}` : null))
+    .filter(Boolean);
   if (parts.length) lines.push(`- filters: ${parts.join(', ')}`);
 }
 
+function formatAnchorParts(anchor) {
+  return [
+    anchor.kind,
+    anchor.chunkUid || null,
+    anchor.flowId ? `flow ${anchor.flowId}` : null
+  ].filter(Boolean);
+}
+
 function renderAnchor(model, lines) {
-  const anchor = model?.anchor || null;
+  const anchor = objectOrNull(model?.anchor);
   if (!anchor?.kind) return;
-  const parts = [anchor.kind];
-  if (anchor.chunkUid) parts.push(anchor.chunkUid);
-  if (anchor.flowId) parts.push(`flow ${anchor.flowId}`);
-  lines.push(`- anchor: ${parts.join(' | ')}`);
-  if (Array.isArray(anchor.alternates) && anchor.alternates.length) {
-    lines.push(`- alternate anchors: ${anchor.alternates.map((entry) => `${entry.kind}:${entry.chunkUid || 'unknown'}`).join(', ')}`);
+  lines.push(`- anchor: ${formatAnchorParts(anchor).join(' | ')}`);
+  const alternates = asArray(anchor.alternates);
+  if (alternates.length) {
+    lines.push(`- alternate anchors: ${alternates.map((entry) => `${entry.kind}:${entry.chunkUid || 'unknown'}`).join(', ')}`);
   }
 }
 
@@ -367,76 +419,63 @@ function renderRiskExplanation(model, {
 }
 
 function renderPrimary(primary) {
-  const lines = [];
-  lines.push('Primary');
+  const lines = ['Primary'];
   if (!primary) {
     lines.push('- (missing)');
     return lines;
   }
-  const file = primary.file || 'unknown';
-  const range = primary.range && primary.range.startLine != null && primary.range.endLine != null
+  const range = primary.range?.startLine != null && primary.range?.endLine != null
     ? `[${primary.range.startLine}-${primary.range.endLine}]`
     : '';
-  lines.push(`File: ${file}${range ? `:${range}` : ''}`);
-  const excerpt = primary.excerpt || '';
-  if (excerpt) {
-    lines.push('');
-    lines.push('Excerpt:');
-    lines.push(excerpt);
+  lines.push(`File: ${primary.file || 'unknown'}${range ? `:${range}` : ''}`);
+  if (primary.excerpt) {
+    lines.push('', 'Excerpt:', primary.excerpt);
   }
-  const provenance = primary && typeof primary.provenance === 'object' ? primary.provenance : null;
-  if (provenance) {
-    const parts = [];
-    if (provenance.excerptSource) parts.push(`source=${provenance.excerptSource}`);
-    if (provenance.excerptHash) parts.push(`hash=${provenance.excerptHash}`);
-    if (provenance.excerptBytes != null) parts.push(`bytes=${provenance.excerptBytes}`);
-    if (parts.length) {
-      lines.push('');
-      lines.push(`Provenance: ${parts.join(', ')}`);
-    }
-  }
+  appendPrimaryProvenance(lines, primary.provenance);
   return lines;
 }
 
+function appendPrimaryProvenance(lines, provenanceValue) {
+  const provenance = objectOrNull(provenanceValue);
+  if (!provenance) return;
+  const parts = [
+    provenance.excerptSource ? `source=${provenance.excerptSource}` : null,
+    provenance.excerptHash ? `hash=${provenance.excerptHash}` : null,
+    provenance.excerptBytes != null ? `bytes=${provenance.excerptBytes}` : null
+  ].filter(Boolean);
+  if (parts.length) lines.push('', `Provenance: ${parts.join(', ')}`);
+}
+
 function renderTypes(types) {
-  const lines = [];
-  lines.push('Types');
-  if (!types || !Array.isArray(types.facts) || !types.facts.length) {
+  const facts = asArray(types?.facts);
+  const lines = ['Types'];
+  if (!facts.length) {
     lines.push('- (none)');
     return lines;
   }
-  for (const fact of types.facts) {
-    lines.push(`- ${fact.role}: ${fact.type}`);
-  }
+  lines.push(...facts.map((fact) => `- ${fact.role}: ${fact.type}`));
   return lines;
+}
+
+function formatGraphNode(node) {
+  const parts = [node?.name, node?.kind, node?.file].filter(Boolean);
+  return `${formatRef(node?.ref)}${parts.length ? ` (${parts.join(', ')})` : ''}`;
 }
 
 function renderGraphContextPack(pack) {
   if (!pack || typeof pack !== 'object') return '';
-  const lines = [];
-  lines.push('# Graph Context Pack');
-  lines.push('');
-  lines.push('## Seed');
-  lines.push(`- ${formatRef(pack.seed)}`);
-  lines.push('');
-  lines.push('## Nodes');
-  const nodes = Array.isArray(pack.nodes) ? pack.nodes : [];
+  const lines = ['# Graph Context Pack', '', '## Seed', `- ${formatRef(pack.seed)}`, '', '## Nodes'];
+  const nodes = asArray(pack.nodes);
   if (!nodes.length) {
     lines.push('- (none)');
   } else {
     for (const node of nodes) {
-      const parts = [];
-      if (node?.name) parts.push(node.name);
-      if (node?.kind) parts.push(node.kind);
-      if (node?.file) parts.push(node.file);
-      const suffix = parts.length ? ` (${parts.join(', ')})` : '';
       const distance = Number.isFinite(node?.distance) ? node.distance : 0;
-      lines.push(`- [${distance}] ${formatRef(node?.ref)}${suffix}`);
+      lines.push(`- [${distance}] ${formatGraphNode(node)}`);
     }
   }
-  const edges = Array.isArray(pack.edges) ? pack.edges : [];
-  lines.push('');
-  lines.push('## Edges');
+  const edges = asArray(pack.edges);
+  lines.push('', '## Edges');
   if (!edges.length) {
     lines.push('- (none)');
   } else {
@@ -445,40 +484,36 @@ function renderGraphContextPack(pack) {
       lines.push(`- ${formatRef(edge?.from)} -> ${formatRef(edge?.to)} (${edge?.edgeType || 'edge'}${graph})`);
     }
   }
-  const paths = Array.isArray(pack.paths) ? pack.paths : [];
+  const paths = asArray(pack.paths);
   if (paths.length) {
-    lines.push('');
-    lines.push('## Witness Paths');
+    lines.push('', '## Witness Paths');
     for (const pathValue of paths) {
-      const nodesText = Array.isArray(pathValue?.nodes)
-        ? pathValue.nodes.map(formatRef).join(' -> ')
-        : '';
+      const nodesText = asArray(pathValue?.nodes).map(formatRef).join(' -> ');
       lines.push(`- ${formatRef(pathValue?.to)} (${pathValue?.distance ?? 0}): ${nodesText}`);
     }
   }
-  if (Array.isArray(pack.warnings) && pack.warnings.length) {
-    lines.push('');
-    lines.push('## Warnings');
-    for (const warning of pack.warnings) {
-      lines.push(`- ${warning.code}: ${warning.message}`);
-    }
-  }
+  appendWarningList(lines, pack.warnings, '## Warnings');
   lines.push('');
   return lines.join('\n');
 }
 
+function appendWarningList(lines, warnings, heading) {
+  const list = asArray(warnings);
+  if (!list.length) return;
+  lines.push('', heading);
+  for (const warning of list) {
+    lines.push(`- ${warning.code}: ${warning.message}`);
+  }
+}
+
 function renderRisk(risk) {
-  const lines = [];
-  lines.push('Risk');
+  const lines = ['Risk'];
   if (!risk) {
     lines.push('- (none)');
     return lines.join('\n');
   }
   if (risk?.anchor?.kind) {
-    const anchorParts = [risk.anchor.kind];
-    if (risk.anchor.chunkUid) anchorParts.push(risk.anchor.chunkUid);
-    if (risk.anchor.flowId) anchorParts.push(`flow ${risk.anchor.flowId}`);
-    lines.push(`- anchor: ${anchorParts.join(' | ')}`);
+    lines.push(`- anchor: ${formatAnchorParts(risk.anchor).join(' | ')}`);
   }
   lines.push('');
   lines.push(renderRiskExplanation(buildRiskExplanationModelFromRiskSlice(risk), {
@@ -491,56 +526,52 @@ function renderRisk(risk) {
   return lines.join('\n');
 }
 
+/*
+ * The remaining context-pack sections are extension-local because this module is
+ * shipped as CommonJS inside the VSIX and cannot synchronously import the ESM
+ * core renderer.
+ */
 function renderListSection(title, items, renderItem) {
-  const lines = [title];
-  const list = Array.isArray(items) ? items : [];
-  if (!list.length) {
-    lines.push('- (none)');
-    return lines.join('\n');
-  }
-  for (const item of list) {
-    lines.push(renderItem(item));
-  }
-  return lines.join('\n');
+  const list = asArray(items);
+  if (!list.length) return `${title}\n- (none)`;
+  return [title, ...list.map(renderItem)].join('\n');
 }
 
 function renderTruncationSection(payload) {
   return renderListSection(
     'Truncation',
-    payload && payload.truncation,
-    (entry) => {
-      const pieces = [`- ${entry && entry.cap ? entry.cap : 'unknown'}`];
-      if (entry && entry.limit != null) pieces.push(`limit=${entry.limit}`);
-      if (entry && entry.observed != null) pieces.push(`observed=${entry.observed}`);
-      if (entry && entry.omitted != null) pieces.push(`omitted=${entry.omitted}`);
-      return pieces.join(' ');
-    }
+    payload?.truncation,
+    (entry) => [
+      `- ${entry?.cap || 'unknown'}`,
+      entry?.limit != null ? `limit=${entry.limit}` : null,
+      entry?.observed != null ? `observed=${entry.observed}` : null,
+      entry?.omitted != null ? `omitted=${entry.omitted}` : null
+    ].filter(Boolean).join(' ')
   );
 }
 
 function renderWarningsSection(payload) {
   return renderListSection(
     'Warnings',
-    payload && payload.warnings,
-    (entry) => `- ${(entry && entry.code) || 'warning'}: ${(entry && entry.message) || 'warning emitted'}`
+    payload?.warnings,
+    (entry) => `- ${entry?.code || 'warning'}: ${entry?.message || 'warning emitted'}`
   );
 }
 
+const COMPOSITE_SECTION_RENDERERS = Object.freeze([
+  (payload) => renderPrimary(payload?.primary).join('\n'),
+  (payload) => (payload?.graph ? renderGraphContextPack(payload.graph) : ''),
+  (payload) => (payload?.types ? renderTypes(payload.types).join('\n') : ''),
+  (payload) => (payload?.risk ? renderRisk(payload.risk) : ''),
+  renderTruncationSection,
+  renderWarningsSection
+]);
+
 function renderCompositeContextPack(payload) {
-  const sections = [];
-  sections.push(renderPrimary(payload?.primary).join('\n'));
-  if (payload?.graph) {
-    sections.push(renderGraphContextPack(payload.graph));
-  }
-  if (payload?.types) {
-    sections.push(renderTypes(payload.types).join('\n'));
-  }
-  if (payload?.risk) {
-    sections.push(renderRisk(payload.risk));
-  }
-  sections.push(renderTruncationSection(payload));
-  sections.push(renderWarningsSection(payload));
-  return sections.filter(Boolean).join('\n\n');
+  return COMPOSITE_SECTION_RENDERERS
+    .map((renderSection) => renderSection(payload))
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 module.exports = {

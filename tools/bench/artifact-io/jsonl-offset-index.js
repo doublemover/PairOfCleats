@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
+import { writeJsonLinesFile } from '../../../src/shared/json-stream/jsonl-write.js';
 import { readJsonLinesArray } from '../../../src/shared/artifact-io/json.js';
 import { readJsonlRowAt } from '../../../src/shared/artifact-io/offsets.js';
 

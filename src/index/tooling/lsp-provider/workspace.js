@@ -57,6 +57,26 @@ export const resolveConfiguredWorkspaceRouting = ({
   return workspaceRouting;
 };
 
+const buildEnvironmentPreflightResult = ({
+  commandPreflight,
+  environmentPreflight,
+  checks
+}) => ({
+  ...commandPreflight,
+  state: environmentPreflight.state || 'degraded',
+  reasonCode: environmentPreflight.reasonCode || null,
+  message: environmentPreflight.message || '',
+  cached: environmentPreflight.cached === true,
+  ...(environmentPreflight?.blockProvider === true ? { blockProvider: true } : {}),
+  ...(Array.isArray(environmentPreflight?.blockedWorkspaceKeys)
+    ? { blockedWorkspaceKeys: environmentPreflight.blockedWorkspaceKeys.slice() }
+    : {}),
+  ...(Array.isArray(environmentPreflight?.blockedWorkspaceRoots)
+    ? { blockedWorkspaceRoots: environmentPreflight.blockedWorkspaceRoots.slice() }
+    : {}),
+  ...(checks.length ? { checks } : {})
+});
+
 export const resolveConfiguredWorkspacePreflight = async ({
   ctx,
   server,
@@ -116,21 +136,11 @@ export const resolveConfiguredWorkspacePreflight = async ({
 
   if (!(server.workspaceMarkerOptions && server.requireWorkspaceModel !== false)) {
     if (environmentPreflight.state !== 'ready') {
-      return {
-        ...commandPreflight,
-        state: environmentPreflight.state || 'degraded',
-        reasonCode: environmentPreflight.reasonCode || null,
-        message: environmentPreflight.message || '',
-        cached: environmentPreflight.cached === true,
-        ...(environmentPreflight?.blockProvider === true ? { blockProvider: true } : {}),
-        ...(Array.isArray(environmentPreflight?.blockedWorkspaceKeys)
-          ? { blockedWorkspaceKeys: environmentPreflight.blockedWorkspaceKeys.slice() }
-          : {}),
-        ...(Array.isArray(environmentPreflight?.blockedWorkspaceRoots)
-          ? { blockedWorkspaceRoots: environmentPreflight.blockedWorkspaceRoots.slice() }
-          : {}),
-        ...(checksWithoutWorkspaceModel.length ? { checks: checksWithoutWorkspaceModel } : {})
-      };
+      return buildEnvironmentPreflightResult({
+        commandPreflight,
+        environmentPreflight,
+        checks: checksWithoutWorkspaceModel
+      });
     }
     return {
       ...commandPreflight,
@@ -169,21 +179,11 @@ export const resolveConfiguredWorkspacePreflight = async ({
     };
   }
   if (environmentPreflight.state !== 'ready') {
-    return {
-      ...commandPreflight,
-      state: environmentPreflight.state || 'degraded',
-      reasonCode: environmentPreflight.reasonCode || null,
-      message: environmentPreflight.message || '',
-      cached: environmentPreflight.cached === true,
-      ...(environmentPreflight?.blockProvider === true ? { blockProvider: true } : {}),
-      ...(Array.isArray(environmentPreflight?.blockedWorkspaceKeys)
-        ? { blockedWorkspaceKeys: environmentPreflight.blockedWorkspaceKeys.slice() }
-        : {}),
-      ...(Array.isArray(environmentPreflight?.blockedWorkspaceRoots)
-        ? { blockedWorkspaceRoots: environmentPreflight.blockedWorkspaceRoots.slice() }
-        : {}),
-      ...(checks.length ? { checks } : {})
-    };
+    return buildEnvironmentPreflightResult({
+      commandPreflight,
+      environmentPreflight,
+      checks
+    });
   }
   return {
     state: workspacePreflight.state || 'ready',

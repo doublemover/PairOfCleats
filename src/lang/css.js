@@ -1,4 +1,4 @@
-import { buildLineIndex, offsetToLine } from '../shared/lines.js';
+import { buildLineIndex, countLines, createLineAccessor, offsetToLine } from '../shared/lines.js';
 import { extractDocComment, sliceSignature } from './shared.js';
 import { getNativeTreeSitterParser } from './tree-sitter/native-runtime.js';
 import { getNamedChild, getNamedChildCount } from './tree-sitter/ast.js';
@@ -91,32 +91,6 @@ const CSS_IMPORT_HINT = /@import/i;
 const DEFAULT_MAX_AST_NODES = 250_000;
 const DEFAULT_MAX_AST_STACK = 250_000;
 const DEFAULT_MAX_CHUNK_NODES = 5_000;
-
-function countLines(text) {
-  if (!text) return 0;
-  let count = 1;
-  for (let i = 0; i < text.length; i += 1) {
-    if (text.charCodeAt(i) === 10) count += 1;
-  }
-  return count;
-}
-
-const createLineAccessor = (text, lineIndex) => {
-  const index = Array.isArray(lineIndex) ? lineIndex : buildLineIndex(text);
-  const lineCount = index.length;
-  return {
-    length: lineCount,
-    getLine: (idx) => {
-      if (!Number.isFinite(idx) || idx < 0 || idx >= lineCount) return '';
-      const start = index[idx] ?? 0;
-      const end = index[idx + 1] ?? text.length;
-      let line = text.slice(start, end);
-      if (line.endsWith('\n')) line = line.slice(0, -1);
-      if (line.endsWith('\r')) line = line.slice(0, -1);
-      return line;
-    }
-  };
-};
 
 function resolveTraversalBudget(options) {
   const config = options?.treeSitter || {};

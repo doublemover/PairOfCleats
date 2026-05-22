@@ -1,5 +1,5 @@
 import { checksumString } from '../../shared/hash.js';
-import { toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/file-paths.js';
 import { normalizeEol } from '../../shared/eol.js';
 import { assertChunkIdentityEnvelope, isCanonicalChunkUid } from '../../shared/identity.js';
 

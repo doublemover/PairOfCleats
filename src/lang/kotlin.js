@@ -1,9 +1,19 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { normalizeCapNullOnZero } from '../shared/limits.js';
 import { findCLikeBodyBounds } from './clike.js';
-import { collectAttributes, extractDocComment, sliceSignature } from './shared.js';
+import {
+  buildDefaultDocMeta,
+  buildBraceDelimitedMethodRelations,
+  collectCLikeDataflowFacts,
+  collectAttributes,
+  collectCLikeTypeBodyMemberDeclarations,
+  collectDottedCallsAndUsages,
+  extractDocComment,
+  sliceSignature,
+  stripCLikeComments
+} from './shared.js';
 import { readSignatureLines } from './shared/signature-lines.js';
-import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
@@ -108,6 +118,9 @@ const KOTLIN_USAGE_SKIP = new Set([
   'String',
   'Unit'
 ]);
+
+const KOTLIN_RELATION_CALLABLE_KINDS = new Set(['MethodDeclaration', 'FunctionDeclaration']);
+
 const DEFAULT_KOTLIN_LIMITS = {
   flowMaxBytes: 200 * 1024,
   flowMaxLines: 3000,
@@ -185,45 +198,13 @@ function parseKotlinSignature(signature) {
   return { name, returns };
 }
 
-function stripKotlinComments(text) {
-  return text
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/\/\/.*$/gm, ' ');
-}
-
-function getLastDottedSegment(raw) {
-  if (!raw) return '';
-  let end = raw.length;
-  while (end > 0 && raw[end - 1] === '.') end -= 1;
-  if (!end) return '';
-  const idx = raw.lastIndexOf('.', end - 1);
-  return raw.slice(idx + 1, end);
-}
+const stripKotlinComments = stripCLikeComments;
 
 function collectKotlinCallsAndUsages(text) {
-  const calls = new Set();
-  const usages = new Set();
-  const normalized = stripKotlinComments(text);
-  const callRe = /\b([A-Za-z_][A-Za-z0-9_.]*)\s*\(/g;
-  let match;
-  while ((match = callRe.exec(normalized)) !== null) {
-    const raw = match[1];
-    if (!raw) continue;
-    const base = getLastDottedSegment(raw);
-    if (!base || KOTLIN_CALL_KEYWORDS.has(base)) continue;
-    calls.add(raw);
-    if (base !== raw) calls.add(base);
-    if (!match[0]) callRe.lastIndex += 1;
-  }
-  const usageRe = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
-  while ((match = usageRe.exec(normalized)) !== null) {
-    const name = match[1];
-    if (!name || name.length < 2) continue;
-    if (KOTLIN_USAGE_SKIP.has(name)) continue;
-    usages.add(name);
-    if (!match[0]) usageRe.lastIndex += 1;
-  }
-  return { calls: Array.from(calls), usages: Array.from(usages) };
+  return collectDottedCallsAndUsages(text, {
+    callKeywords: KOTLIN_CALL_KEYWORDS,
+    usageSkip: KOTLIN_USAGE_SKIP
+  });
 }
 
 function parseKotlinInheritance(signature) {
@@ -342,28 +323,22 @@ export function buildKotlinChunks(text, options = {}) {
     }
   }
 
-  for (const typeDecl of typeDecls) {
-    if (!typeDecl || typeDecl.start == null || typeDecl.end == null) continue;
-    const bounds = findCLikeBodyBounds(text, typeDecl.start);
-    if (bounds.bodyStart === -1 || bounds.bodyEnd === -1) continue;
-    const startLine = offsetToLine(lineIndex, bounds.bodyStart + 1);
-    const endLine = offsetToLine(lineIndex, bounds.bodyEnd);
-    for (let i = startLine - 1; i < Math.min(lines.length, endLine); i++) {
-      const line = lines[i];
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) continue;
-      if (!trimmed.includes('fun ')) continue;
-      const { signature, endLine: sigEndLine, hasBody } = readSignatureLines(lines, i);
-      if (!signature.includes('(')) continue;
+  decls.push(...collectCLikeTypeBodyMemberDeclarations({
+    text,
+    lines,
+    lineIndex,
+    typeDecls,
+    findBodyBounds: findCLikeBodyBounds,
+    offsetToLine,
+    readSignatureLines,
+    shouldReadLine: (trimmed) => trimmed.includes('fun '),
+    buildEntry: ({ typeDecl, lineIndex: i, signature, start, end, endLine }) => {
       const parsed = parseKotlinSignature(signature);
-      if (!parsed.name) continue;
-      const start = lineIndex[i] + line.indexOf(trimmed);
-      const boundsInner = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
-      const end = boundsInner.bodyEnd > start ? boundsInner.bodyEnd : lineIndex[sigEndLine] + lines[sigEndLine].length;
+      if (!parsed.name) return null;
       const modifiers = extractKotlinModifiers(signature);
       const meta = {
         startLine: i + 1,
-        endLine: offsetToLine(lineIndex, end),
+        endLine,
         signature,
         params: extractKotlinParams(signature),
         returns: parsed.returns,
@@ -372,15 +347,15 @@ export function buildKotlinChunks(text, options = {}) {
         docstring: extractDocComment(lines, i),
         attributes: collectAttributes(lines, i, signature)
       };
-      decls.push({
+      return {
         start,
         end,
         name: `${typeDecl.name}.${parsed.name}`,
         kind: 'MethodDeclaration',
         meta
-      });
+      };
     }
-  }
+  }));
 
   if (!decls.length) return null;
   decls.sort((a, b) => a.start - b.start);
@@ -400,35 +375,16 @@ export function buildKotlinChunks(text, options = {}) {
  * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
 export function buildKotlinRelations(text, kotlinChunks, options = {}) {
-  const imports = collectKotlinImports(text);
-  const exports = new Set();
-  const calls = [];
-  const usages = new Set();
   const stats = options.stats || getKotlinFileStats(text);
   const limits = resolveKotlinLimits(options);
   const skipRelations = exceedsLimit(stats, limits.relationsMaxBytes, limits.relationsMaxLines);
-  if (Array.isArray(kotlinChunks)) {
-    for (const chunk of kotlinChunks) {
-      if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
-      const mods = Array.isArray(chunk.meta?.modifiers) ? chunk.meta.modifiers : [];
-      if (mods.includes('public')) exports.add(chunk.name);
-      if (!['MethodDeclaration', 'FunctionDeclaration'].includes(chunk.kind)) continue;
-      if (skipRelations) continue;
-      const bounds = findCLikeBodyBounds(text, chunk.start);
-      const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
-      const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
-      const slice = text.slice(scanStart, scanEnd);
-      const { calls: chunkCalls, usages: chunkUsages } = collectKotlinCallsAndUsages(slice);
-      for (const callee of chunkCalls) calls.push([chunk.name, callee]);
-      for (const usage of chunkUsages) usages.add(usage);
-    }
-  }
-  return {
-    imports,
-    exports: Array.from(exports),
-    calls,
-    usages: Array.from(usages)
-  };
+  return buildBraceDelimitedMethodRelations(text, kotlinChunks, {
+    collectImports: collectKotlinImports,
+    collectCallsAndUsages: collectKotlinCallsAndUsages,
+    findBodyBounds: findCLikeBodyBounds,
+    callableKinds: KOTLIN_RELATION_CALLABLE_KINDS,
+    shouldScanCallable: () => !skipRelations
+  });
 }
 
 /**
@@ -438,28 +394,14 @@ export function buildKotlinRelations(text, kotlinChunks, options = {}) {
  */
 export function extractKotlinDocMeta(chunk) {
   const meta = chunk.meta || {};
-  const params = Array.isArray(meta.params) ? meta.params : [];
-  const decorators = Array.isArray(meta.attributes) ? meta.attributes : [];
-  const modifiers = Array.isArray(meta.modifiers) ? meta.modifiers : [];
   const extendsList = Array.isArray(meta.extends) ? meta.extends : [];
-  const returns = meta.returns || null;
-  return {
-    doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
-    params,
-    returns,
-    returnType: returns,
-    signature: meta.signature || null,
-    decorators,
-    modifiers,
-    visibility: meta.visibility || null,
-    extends: extendsList,
-    dataflow: meta.dataflow || null,
-    throws: meta.throws || [],
-    awaits: meta.awaits || [],
-    yields: meta.yields || false,
-    returnsValue: meta.returnsValue || false,
-    controlFlow: meta.controlFlow || null
-  };
+  return buildDefaultDocMeta(chunk, {
+    decoratorsFrom: 'attributes',
+    includeModifiers: true,
+    includeReturnType: true,
+    includeVisibility: true,
+    extraFields: { extends: extendsList }
+  });
 }
 
 /**
@@ -493,19 +435,11 @@ export function computeKotlinFlow(text, chunk, options = {}) {
   };
 
   if (dataflowEnabled) {
-    out.dataflow = buildHeuristicDataflow(cleaned, {
-      skip: KOTLIN_USAGE_SKIP,
-      memberOperators: ['.']
-    });
-    out.returnsValue = hasReturnValue(cleaned);
-    const throws = new Set();
-    const throwRe = /\bthrow\b\s+([A-Za-z_][A-Za-z0-9_.]*)/g;
-    let match;
-    while ((match = throwRe.exec(cleaned)) !== null) {
-      const name = match[1].replace(/[({].*$/, '').trim();
-      if (name) throws.add(name);
-    }
-    out.throws = Array.from(throws);
+    Object.assign(out, collectCLikeDataflowFacts(cleaned, {
+      usageSkip: KOTLIN_USAGE_SKIP,
+      memberOperators: ['.'],
+      throwPattern: /\bthrow\b\s+([A-Za-z_][A-Za-z0-9_.]*)/g
+    }));
   }
 
   if (controlFlowEnabled) {

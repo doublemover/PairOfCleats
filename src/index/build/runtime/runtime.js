@@ -14,15 +14,15 @@ import {
   loadUserConfig,
   resolveIndexRoot
 } from '../../../shared/dict-utils.js';
-import { normalizeBundleFormat } from '../../../shared/bundle-io.js';
+import { normalizeBundleFormat } from '../../../shared/bundle-io-paths.js';
 import { normalizeCommentConfig } from '../../comments.js';
 import { normalizeSegmentsConfig } from '../../segments.js';
-import { log, logLine } from '../../../shared/progress.js';
-import { getEnvConfig } from '../../../shared/env.js';
+import { log, logLine } from '../../../shared/progress-runtime.js';
+import { getEnvConfig } from '../../../shared/env/runtime.js';
 import { isTestingEnv } from '../../../shared/env/testing.js';
-import { isAbsolutePathNative } from '../../../shared/files.js';
+import { isAbsolutePathNative } from '../../../shared/file-paths.js';
 import { resolveCacheFilesystemProfile } from '../../../shared/cache-roots.js';
-import { buildAutoPolicy } from '../../../shared/auto-policy.js';
+import { buildAutoPolicy } from '../../../shared/auto-policy/build.js';
 import { warmEmbeddingAdapter } from '../../../shared/embedding-adapter.js';
 import { buildIgnoreMatcher } from '../ignore.js';
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
@@ -34,7 +34,7 @@ import { setScmRuntimeConfig } from '../../scm/runtime.js';
 import { normalizeRiskConfig } from '../../risk.js';
 import { normalizeRiskInterproceduralConfig } from '../../risk-interprocedural/config.js';
 import { normalizeRecordsConfig } from '../records.js';
-import { resolveRuntimeEnvelope } from '../../../shared/runtime-envelope.js';
+import { resolveCurrentProcessRuntimeEnvelope } from '../../../shared/runtime-envelope/resolve-current-process-envelope.js';
 import { buildContentConfigHash } from './hash.js';
 import { normalizeStage, buildStageOverrides } from './stage.js';
 import {
@@ -55,7 +55,7 @@ import {
   resolveRuntimeBuildRoot
 } from './config.js';
 import { resolveEmbeddingRuntime } from './embeddings.js';
-import { createBuildScheduler } from '../../../shared/concurrency.js';
+import { createBuildScheduler } from '../../../shared/concurrency/scheduler-core.js';
 import { resolveSchedulerConfig } from './scheduler.js';
 import { loadSchedulerAutoTuneProfile } from './scheduler-autotune-profile.js';
 import { resolveTreeSitterRuntime } from './tree-sitter.js';
@@ -337,23 +337,12 @@ export async function createBuildRuntime({
   if (daemonSession) {
     log(`[init] daemon session: ${daemonSession.key} (jobs=${daemonSession.jobsProcessed}, deterministic=${daemonSession.deterministic !== false}).`);
   }
-  const envelope = await timeInit('runtime envelope', () => resolveRuntimeEnvelope({
+  const envelope = await timeInit('runtime envelope', () => resolveCurrentProcessRuntimeEnvelope({
     argv,
     rawArgv,
     userConfig,
     autoPolicy,
     env: process.env,
-    execArgv: process.execArgv,
-    cpuCount: os.cpus().length,
-    processInfo: {
-      pid: process.pid,
-      argv: process.argv,
-      execPath: process.execPath,
-      nodeVersion: process.version,
-      platform: process.platform,
-      arch: process.arch,
-      cpuCount: os.cpus().length
-    },
     toolVersion: getToolVersion()
   }));
   const logFileRaw = typeof argv['log-file'] === 'string' ? argv['log-file'].trim() : '';

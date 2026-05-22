@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadPiecesManifestWithReadPlan } from '../../shared/artifact-io.js';
+import { loadPiecesManifestWithReadPlan } from '../../shared/artifact-io/manifest.js';
 import { existsOrBak } from '../../shared/artifact-io/fs.js';
 import { checksumFile, sha1File } from '../../shared/hash.js';
-import { fromPosix, isAbsolutePathNative, isRelativePathEscape } from '../../shared/files.js';
+import { fromPosix, isAbsolutePathNative, isRelativePathEscape } from '../../shared/file-paths.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../../contracts/versioning.js';
 import { isManifestPathSafe, normalizeManifestPath } from './paths.js';
 import { addIssue } from './issues.js';

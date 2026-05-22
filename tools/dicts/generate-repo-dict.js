@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { createCli } from '../../src/shared/cli.js';
 import ignore from 'ignore';
 import { getDictConfig, getRepoDictPath, resolveRepoConfig } from '../shared/dict-utils.js';
-import { toPosix } from '../../src/shared/files.js';
+import { toPosix } from '../../src/shared/file-paths.js';
 import { splitId } from '../../src/shared/tokenize.js';
 
 const argv = createCli({

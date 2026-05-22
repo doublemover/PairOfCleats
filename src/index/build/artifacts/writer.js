@@ -1,8 +1,9 @@
 import path from 'node:path';
 
-import { writeJsonArrayFile, writeJsonObjectFile, writeJsonLinesSharded } from '../../../shared/json-stream.js';
-import { resolveJsonlWriteShapeHints } from '../../../shared/artifact-io.js';
-import { estimateJsonBytes } from '../../../shared/cache.js';
+import { writeJsonLinesSharded } from '../../../shared/json-stream/jsonl-sharded.js';
+import { writeJsonArrayFile, writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
+import { resolveJsonlWriteShapeHints } from '../../../shared/artifact-io/jsonl.js';
+import { estimateJsonBytes } from '../../../shared/cache/size.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning.js';
 
 export const createArtifactWriter = ({

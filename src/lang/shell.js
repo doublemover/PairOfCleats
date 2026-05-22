@@ -1,6 +1,12 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { findCLikeBodyBounds } from './clike.js';
-import { extractDocComment, sliceSignature } from './shared.js';
+import {
+  buildBraceDelimitedMethodRelations,
+  buildDefaultDocMeta,
+  extractDocComment,
+  normalizeDeclarationList,
+  sliceSignature
+} from './shared.js';
 import { readSignatureLines } from './shared/signature-lines.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
@@ -72,6 +78,8 @@ const SHELL_DOC_OPTIONS = {
   blockEnd: null,
   skipLine: (line) => line.startsWith('#!')
 };
+
+const SHELL_CALLABLE_KINDS = new Set(['FunctionDeclaration']);
 
 function stripShellComments(text) {
   return text.replace(/#.*$/gm, ' ');
@@ -174,15 +182,7 @@ export function buildShellChunks(text, options = {}) {
     i = endLine;
   }
 
-  if (!decls.length) return null;
-  decls.sort((a, b) => a.start - b.start);
-  return decls.map((decl) => ({
-    start: decl.start,
-    end: decl.end,
-    name: decl.name,
-    kind: decl.kind,
-    meta: decl.meta || {}
-  }));
+  return normalizeDeclarationList(decls);
 }
 
 /**
@@ -192,29 +192,13 @@ export function buildShellChunks(text, options = {}) {
  * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
 export function buildShellRelations(text, shellChunks) {
-  const imports = collectShellImports(text);
-  const exports = new Set();
-  const calls = [];
-  const usages = new Set();
-  if (Array.isArray(shellChunks)) {
-    for (const chunk of shellChunks) {
-      if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
-      if (chunk.kind === 'FunctionDeclaration') exports.add(chunk.name);
-      const bounds = findCLikeBodyBounds(text, chunk.start);
-      const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
-      const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
-      const slice = text.slice(scanStart, scanEnd);
-      const { calls: chunkCalls, usages: chunkUsages } = collectShellCallsAndUsages(slice);
-      for (const callee of chunkCalls) calls.push([chunk.name, callee]);
-      for (const usage of chunkUsages) usages.add(usage);
-    }
-  }
-  return {
-    imports,
-    exports: Array.from(exports),
-    calls,
-    usages: Array.from(usages)
-  };
+  return buildBraceDelimitedMethodRelations(text, shellChunks, {
+    collectImports: collectShellImports,
+    collectCallsAndUsages: collectShellCallsAndUsages,
+    findBodyBounds: findCLikeBodyBounds,
+    callableKinds: SHELL_CALLABLE_KINDS,
+    isExported: (chunk) => chunk.kind === 'FunctionDeclaration'
+  });
 }
 
 /**
@@ -223,19 +207,10 @@ export function buildShellRelations(text, shellChunks) {
  * @returns {{doc:string,params:string[],returns:(string|null),signature:(string|null)}}
  */
 export function extractShellDocMeta(chunk) {
-  const meta = chunk.meta || {};
-  return {
-    doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
+  return buildDefaultDocMeta(chunk, {
     params: [],
-    returns: null,
-    signature: meta.signature || null,
-    dataflow: meta.dataflow || null,
-    throws: meta.throws || [],
-    awaits: meta.awaits || [],
-    yields: meta.yields || false,
-    returnsValue: meta.returnsValue || false,
-    controlFlow: meta.controlFlow || null
-  };
+    returns: null
+  });
 }
 
 /**

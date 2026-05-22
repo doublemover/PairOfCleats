@@ -31,31 +31,26 @@ const buildComparator = (selectors = []) => {
   };
 };
 
+const stableSortWithComparator = (list, comparator) => list
+  .map((item, index) => ({ item, index }))
+  .sort((left, right) => {
+    const cmp = comparator(left.item, right.item);
+    if (cmp !== 0) return cmp;
+    return left.index - right.index;
+  })
+  .map((entry) => entry.item);
+
 export const stableOrder = (items, selectors = []) => {
   const list = Array.isArray(items) ? items.slice() : [];
   if (!selectors || selectors.length === 0) return list;
   const comparator = buildComparator(selectors);
-  return list
-    .map((item, index) => ({ item, index }))
-    .sort((left, right) => {
-      const cmp = comparator(left.item, right.item);
-      if (cmp !== 0) return cmp;
-      return left.index - right.index;
-    })
-    .map((entry) => entry.item);
+  return stableSortWithComparator(list, comparator);
 };
 
 export const stableOrderWithComparator = (items, comparator) => {
   const list = Array.isArray(items) ? items.slice() : [];
   if (typeof comparator !== 'function') return list;
-  return list
-    .map((item, index) => ({ item, index }))
-    .sort((left, right) => {
-      const cmp = comparator(left.item, right.item);
-      if (cmp !== 0) return cmp;
-      return left.index - right.index;
-    })
-    .map((entry) => entry.item);
+  return stableSortWithComparator(list, comparator);
 };
 
 export const stableBucketOrder = (items, bucketSelector, selectors = []) => {

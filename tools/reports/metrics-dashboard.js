@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { readJsonFileSyncSafe, readJsonLinesSyncSafe } from '../../src/shared/files.js';
+import { readJsonFileSyncSafe, readJsonLinesSyncSafe } from '../../src/shared/file-read.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { getMetricsDir, resolveRepoConfig } from '../shared/dict-utils.js';
+import { emitJson } from '../shared/cli-utils.js';
 
 const argv = createCli({
   scriptName: 'metrics-dashboard',
@@ -97,7 +98,8 @@ if (termRows.length) {
 }
 
 if (argv.json) {
-  console.log(`\n${JSON.stringify(dashboard, null, 2)}`);
+  process.stdout.write('\n');
+  emitJson(dashboard);
 }
 
 if (argv.out) {

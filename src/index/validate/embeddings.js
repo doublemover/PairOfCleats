@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { readJsonFile } from '../../shared/artifact-io/json.js';
 import {
-  readJsonFile,
   resolveBinaryArtifactPath,
   resolveDirArtifactPath
-} from '../../shared/artifact-io.js';
+} from '../../shared/artifact-io/manifest.js';
 import { normalizeDenseVectorMeta } from '../../shared/dense-vector-artifacts.js';
 import { joinPathSafe } from '../../shared/path-normalize.js';
 import { resolveLanceDbPaths } from '../../shared/lancedb.js';

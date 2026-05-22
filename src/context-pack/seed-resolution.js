@@ -1,5 +1,5 @@
 import { normalizePathForRepo } from '../shared/path-normalize.js';
-import { loadJsonArrayArtifactRows } from '../shared/artifact-io.js';
+import { loadJsonArrayArtifactRows } from '../shared/artifact-io/loaders/core.js';
 
 export const resolveSeedRef = (seed) => {
   if (!seed || typeof seed !== 'object') return null;

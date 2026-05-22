@@ -72,7 +72,6 @@ export const readSqliteDenseModeCount = ({ Database, dbPath, mode }) => {
     }
   }
 };
-
 /**
  * Read total table row count from sqlite db.
  * Returns null when db/table is unreadable.
@@ -118,21 +117,4 @@ export const hasVectorTableAtPath = ({ Database, dbPath, tableName, hasVectorTab
       } catch {}
     }
   }
-};
-
-/**
- * Resolve expected dense vector count from index pieces payload.
- * @param {object|null|undefined} denseVec
- * @returns {number}
- */
-export const resolveExpectedDenseCount = (denseVec) => {
-  if (!denseVec || typeof denseVec !== 'object') return 0;
-  const fields = denseVec.fields && typeof denseVec.fields === 'object' ? denseVec.fields : null;
-  const fromCount = Number(denseVec.count ?? fields?.count);
-  if (Number.isFinite(fromCount) && fromCount > 0) return Math.floor(fromCount);
-  const fromTotalRecords = Number(denseVec.totalRecords ?? fields?.totalRecords);
-  if (Number.isFinite(fromTotalRecords) && fromTotalRecords > 0) return Math.floor(fromTotalRecords);
-  const vectors = denseVec.vectors ?? denseVec.arrays?.vectors;
-  if (Array.isArray(vectors) && vectors.length > 0) return vectors.length;
-  return 0;
 };

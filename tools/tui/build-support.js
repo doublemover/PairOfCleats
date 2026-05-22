@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
+import { spawnSubprocessSync } from '../../src/shared/subprocess/runner.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import {
   TUI_BUILD_MANIFEST_SCHEMA_VERSION,

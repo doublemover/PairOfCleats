@@ -4,7 +4,7 @@ import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfi
 import { loadTypeScript } from './typescript/load.js';
 import { createVirtualCompilerHost } from './typescript/host.js';
 import { buildScopedSymbolId, buildSignatureKey, buildSymbolId, buildSymbolKey } from '../../shared/identity.js';
-import { isAbsolutePathNative } from '../../shared/files.js';
+import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { findUpwards } from '../../shared/fs/find-upwards.js';
 
 const normalizePathKey = (value, useCaseSensitive) => {

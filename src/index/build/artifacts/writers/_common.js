@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
-import { resolveJsonlExtension, writeJsonObjectFile } from '../../../../shared/json-stream.js';
+import { resolveJsonlExtension } from '../../../../shared/json-stream/jsonl-write.js';
+import { writeJsonObjectFile } from '../../../../shared/json-stream/json-writers.js';
 import { removePathWithRetry } from '../../../../shared/io/remove-path-with-retry.js';
 export { resolveJsonlExtension };
 

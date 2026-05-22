@@ -1,14 +1,9 @@
 import { collectDeclaredReturnTypes, collectMetaV2ReturnTypes } from '../../../index/metadata/docmeta.js';
 import { defaultNormalize, matchList } from './predicates.js';
 
-const asObject = (value) => (value && typeof value === 'object' ? value : null);
-const asNonEmptyArray = (value) => (Array.isArray(value) && value.length ? value : null);
-const asNonEmptyObject = (value) => {
-  const objectValue = asObject(value);
-  if (!objectValue) return null;
-  return Object.keys(objectValue).length ? objectValue : null;
-};
-const mergeObjectWithFallback = (preferred, fallback) => {
+export const asObject = (value) => (value && typeof value === 'object' ? value : null);
+
+export const mergeObjectWithFallback = (preferred, fallback) => {
   const preferredObject = asObject(preferred);
   const fallbackObject = asObject(fallback);
   if (!preferredObject && !fallbackObject) return null;
@@ -38,6 +33,14 @@ const mergeObjectWithFallback = (preferred, fallback) => {
   return merged;
 };
 
+export const resolveChunkDocmeta = (chunk) => mergeObjectWithFallback(chunk?.docmeta, chunk?.metaV2);
+
+const asNonEmptyArray = (value) => (Array.isArray(value) && value.length ? value : null);
+const asNonEmptyObject = (value) => {
+  const objectValue = asObject(value);
+  if (!objectValue) return null;
+  return Object.keys(objectValue).length ? objectValue : null;
+};
 const resolveMetaField = (record, key) => {
   if (!record || typeof record !== 'object' || !key) return undefined;
   if (!key.includes('.')) return record[key];
@@ -83,8 +86,6 @@ const matchInferredType = (inferred, value, normalize = defaultNormalize) => {
   if (!types.length) return false;
   return types.some((entry) => normalize(entry).includes(needle));
 };
-
-const resolveChunkDocmeta = (chunk) => mergeObjectWithFallback(chunk?.docmeta, chunk?.metaV2);
 
 const resolveChunkRecordMeta = (chunk, docmeta) => (
   mergeObjectWithFallback(chunk?.docmeta?.record, chunk?.metaV2?.record)

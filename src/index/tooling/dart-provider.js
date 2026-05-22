@@ -1,7 +1,7 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { parseClikeSignature } from './signature-parse/clike.js';
-import { readJsonFileSafe } from '../../shared/files.js';
+import { readJsonFileSafe } from '../../shared/file-read.js';
 import { createDedicatedLspProvider } from './dedicated-lsp-provider.js';
 import { ensureCommandArgToken, normalizeCommandArgs } from './provider-utils.js';
 

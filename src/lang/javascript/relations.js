@@ -7,7 +7,13 @@ import {
   visibilityFor
 } from './ast-utils.js';
 import { parseJavaScriptAst } from './parse.js';
-import { resolveCalleeParts, resolveCallLocation, truncateCallText } from '../js-ts/relations-shared.js';
+import {
+  buildCallDetail,
+  formatJsTsCallArg,
+  resolveAstMemberName,
+  resolveCallLocation,
+  truncateCallText
+} from '../js-ts/relations-shared.js';
 
 const WALK_SKIP_KEYS = new Set([
   'loc',
@@ -44,24 +50,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
   const functionStack = [];
   const classStack = [];
 
-  const getMemberName = (node) => {
-    if (!node) return null;
-    if (node.type === 'Identifier') return node.name;
-    if (node.type === 'PrivateName' && node.id?.name) return `#${node.id.name}`;
-    if (node.type === 'ThisExpression') return 'this';
-    if (node.type === 'Super') return 'super';
-    if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
-      const obj = getMemberName(node.object);
-      const prop = node.computed
-        ? (node.property?.type === 'Literal' || node.property?.type === 'StringLiteral'
-          ? String(node.property.value)
-          : null)
-        : (node.property?.name || node.property?.id?.name || null);
-      if (obj && prop) return `${obj}.${prop}`;
-      return obj || prop;
-    }
-    return null;
-  };
+  const getMemberName = (node) => resolveAstMemberName(node);
 
   const getCalleeName = (callee) => {
     if (!callee) return null;
@@ -379,33 +368,6 @@ export function buildCodeRelations(text, relPath, options = {}) {
 
   const MAX_CALL_ARGS = 5;
   const MAX_CALL_ARG_LEN = 80;
-  const MAX_CALL_ARG_DEPTH = 2;
-
-  const formatCallArg = (arg, depth = 0) => {
-    if (!arg || depth > MAX_CALL_ARG_DEPTH) return '...';
-    if (arg.type === 'Identifier') return arg.name;
-    if (arg.type === 'Literal') return JSON.stringify(arg.value);
-    if (arg.type === 'StringLiteral' || arg.type === 'NumericLiteral' || arg.type === 'BooleanLiteral') {
-      return JSON.stringify(arg.value);
-    }
-    if (arg.type === 'MemberExpression' || arg.type === 'OptionalMemberExpression') {
-      return getMemberName(arg) || 'member';
-    }
-    if (arg.type === 'CallExpression' || arg.type === 'OptionalCallExpression') {
-      const callee = getCalleeName(arg.callee);
-      return callee ? `${callee}(...)` : 'call(...)';
-    }
-    if (arg.type === 'ArrowFunctionExpression' || arg.type === 'FunctionExpression') return 'fn(...)';
-    if (arg.type === 'ObjectExpression') return '{...}';
-    if (arg.type === 'ArrayExpression') return '[...]';
-    if (arg.type === 'TemplateLiteral') return '`...`';
-    if (arg.type === 'SpreadElement') {
-      const inner = formatCallArg(arg.argument, depth + 1);
-      return inner ? `...${inner}` : '...';
-    }
-    return '...';
-  };
-
   const walk = (root) => {
     const stack = [{ node: root, parent: null, phase: 0, exitType: null }];
     while (stack.length) {
@@ -509,29 +471,15 @@ export function buildCodeRelations(text, relPath, options = {}) {
           const args = [];
           if (Array.isArray(node.arguments)) {
             for (let i = 0; i < node.arguments.length && args.length < MAX_CALL_ARGS; i += 1) {
-              const value = truncateCallText(formatCallArg(node.arguments[i]), MAX_CALL_ARG_LEN);
+              const value = truncateCallText(formatJsTsCallArg(node.arguments[i], {
+                getCalleeName,
+                getMemberName
+              }), MAX_CALL_ARG_LEN);
               if (value) args.push(value);
             }
           }
           const location = resolveCallLocation(node);
-          const calleeParts = resolveCalleeParts(calleeName);
-          const detail = {
-            caller: callerName,
-            callee: calleeName,
-            calleeRaw: calleeParts.calleeRaw || calleeName,
-            calleeNormalized: calleeParts.calleeNormalized || calleeName,
-            receiver: calleeParts.receiver || null,
-            args
-          };
-          if (location) {
-            detail.start = location.start;
-            detail.end = location.end;
-            detail.startLine = location.startLine;
-            detail.startCol = location.startCol;
-            detail.endLine = location.endLine;
-            detail.endCol = location.endCol;
-          }
-          callDetails.push(detail);
+          callDetails.push(buildCallDetail({ callerName, calleeName, args, location }));
         }
       }
 

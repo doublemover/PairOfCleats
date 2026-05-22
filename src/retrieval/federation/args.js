@@ -2,6 +2,7 @@ import { parseSearchArgs } from '../cli-args.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { normalizeNonNegativeInt, normalizePositiveInt } from '../../shared/limits.js';
 import { buildSearchRequestArgs } from '../../shared/search-request.js';
+import { normalizeFederationList } from './normalize.js';
 
 const WORKSPACE_VALUE_FLAGS = new Set([
   'workspace',
@@ -21,16 +22,6 @@ const WORKSPACE_BOOLEAN_FLAGS = new Set([
   'federated-strict',
   'debug-include-paths'
 ]);
-
-const normalizeList = (value) => {
-  if (Array.isArray(value)) {
-    return value
-      .map((entry) => String(entry ?? '').trim())
-      .filter(Boolean);
-  }
-  if (value == null || value === '') return [];
-  return [String(value).trim()].filter(Boolean);
-};
 
 /**
  * Normalize CLI `--mode` input to a single non-empty token.
@@ -223,12 +214,12 @@ export const parseFederatedCliRequest = (rawArgs = []) => {
       rrfK: normalizePositiveInt(argv['rrf-k'], 60)
     },
     select: {
-      repos: normalizeList(argv.select),
-      tags: normalizeList(argv.tag),
-      repoFilter: normalizeList(argv['repo-filter']),
+      repos: normalizeFederationList(argv.select),
+      tags: normalizeFederationList(argv.tag),
+      repoFilter: normalizeFederationList(argv['repo-filter']),
       includeDisabled: argv['include-disabled'] === true
     },
-    cohort: normalizeList(argv.cohort),
+    cohort: normalizeFederationList(argv.cohort),
     allowUnsafeMix: argv['allow-unsafe-mix'] === true,
     strict: argv['federated-strict'] === true,
     debug: {

@@ -4,6 +4,7 @@ import { toArray } from '../../shared/iterables.js';
 import { normalizeImportSpecifiers } from '../shared/import-specifier.js';
 import { LANGUAGE_REGISTRY } from './registry-data.js';
 import { LANGUAGE_ROUTE_DESCRIPTORS } from './descriptors.js';
+import { normalizeCollectorHint } from './import-collectors/utils.js';
 const LANGUAGE_BY_ID = new Map(LANGUAGE_REGISTRY.map((lang) => [lang.id, lang]));
 const normalizeLinguistName = (value) => String(value || '').trim().toLowerCase();
 const LINGUIST_NAME_TO_ID = new Map([
@@ -139,24 +140,6 @@ const resolveDescriptorLanguage = (ext, relPath) => {
     }
   }
   return null;
-};
-
-const normalizeCollectorHint = (value) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const reasonCode = typeof value.reasonCode === 'string' ? value.reasonCode.trim() : '';
-  if (!reasonCode) return null;
-  const confidenceRaw = Number(value.confidence);
-  const confidence = Number.isFinite(confidenceRaw)
-    ? Math.max(0, Math.min(1, confidenceRaw))
-    : null;
-  const detail = typeof value.detail === 'string' && value.detail.trim()
-    ? value.detail.trim()
-    : null;
-  return {
-    reasonCode,
-    confidence,
-    detail
-  };
 };
 
 const coerceImportEntry = (value) => {

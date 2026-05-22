@@ -3,26 +3,32 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { runWithConcurrency } from '../../src/shared/concurrency.js';
+import { runWithConcurrency } from '../../src/shared/concurrency/run-with-queue.js';
 import { formatBytes, sizeOfPath } from '../../src/shared/disk-space.js';
 import {
   DEFAULT_CACHE_GC_POLICY,
   DEFAULT_CAS_DESIGN_GATE,
   describeCacheLayers
-} from '../../src/shared/cache.js';
+} from '../../src/shared/cache/layers.js';
 import { removePathWithRetry } from '../../src/shared/io/remove-path-with-retry.js';
 import {
   getCasMetaPath,
   getCasObjectPath,
   getCasObjectsRoot,
   getCasRoot,
-  listCasObjectHashes,
-  normalizeCasHash,
-  readActiveCasLeases,
+  normalizeCasHash
+} from '../../src/shared/cache-cas/paths.js';
+import {
+  listCasObjectHashes
+} from '../../src/shared/cache-cas/gc.js';
+import {
+  readActiveCasLeases
+} from '../../src/shared/cache-cas/leases.js';
+import {
   readCasMetadata
-} from '../../src/shared/cache-cas.js';
-import { isPathWithinRoot, isRootPath } from '../../src/shared/files.js';
-import { getEnvConfig } from '../../src/shared/env.js';
+} from '../../src/shared/cache-cas/metadata.js';
+import { isPathWithinRoot, isRootPath } from '../../src/shared/file-paths.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { normalizeLegacyCacheRootPath } from '../../src/shared/cache-roots.js';
 import { getCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 

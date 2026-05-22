@@ -1,5 +1,6 @@
 import { loadIndexWithCache } from '../index-cache.js';
-import { MAX_JSON_BYTES, loadJsonArrayArtifact } from '../../shared/artifact-io.js';
+import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
+import { loadJsonArrayArtifact } from '../../shared/artifact-io/loaders/core.js';
 import { hasLmdbStore } from '../../storage/lmdb/utils.js';
 import { hasChunkMetaArtifacts, hasChunkMetaArtifactsAsync, resolveIndexDir } from '../cli-index.js';
 

@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
-import { acquireIndexLock, attachIndexLockSignalCleanup } from '../../../index/build/lock.js';
 import { preprocessFiles, writePreprocessStats } from '../../../index/build/preprocess.js';
 import { buildIndexForMode } from '../../../index/build/indexer.js';
 import { SIGNATURE_VERSION } from '../../../index/build/indexer/signatures.js';
@@ -14,14 +13,13 @@ import {
 } from '../../../index/build/build-state.js';
 import { promoteBuild } from '../../../index/build/promotion.js';
 import { validateIndexArtifacts } from '../../../index/validate.js';
-import { logError as defaultLogError, logLine, showProgress } from '../../../shared/progress.js';
+import { logError as defaultLogError, logLine, showProgress } from '../../../shared/progress-runtime.js';
 import { coerceAbortSignal, isAbortError, throwIfAborted } from '../../../shared/abort.js';
-import { getEnvConfig } from '../../../shared/env.js';
+import { getEnvConfig } from '../../../shared/env/runtime.js';
 import { isTestingEnv } from '../../../shared/env/testing.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../index/build/runtime/scheduler.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../../index/build/feature-metrics.js';
 import { runBuildCleanupWithTimeout } from '../../../index/build/cleanup-timeout.js';
-import { releaseFileLockOrThrow } from '../../../shared/locks/file-lock.js';
 import {
   BUILD_ROOT_RESOLUTION_FAILURES,
   getCurrentBuildInfo,
@@ -60,6 +58,26 @@ const BUILD_INDEX_LOCK_POLL_MS = Math.max(
     DEFAULT_BUILD_INDEX_LOCK_POLL_MS
   )
 );
+
+let buildLockModulePromise = null;
+let buildLockModule = null;
+
+const loadBuildLockModule = async () => {
+  if (buildLockModule) return buildLockModule;
+  buildLockModulePromise ??= import('../../../index/build/lock.js');
+  buildLockModule = await buildLockModulePromise;
+  return buildLockModule;
+};
+
+const acquireIndexLock = async (options) => {
+  const lockModule = await loadBuildLockModule();
+  return lockModule.acquireIndexLock(options);
+};
+
+const attachIndexLockSignalCleanup = (lock, options) => {
+  if (!buildLockModule) return () => {};
+  return buildLockModule.attachIndexLockSignalCleanup(lock, options);
+};
 
 /**
  * Acquire the build/index global lock using environment-configured wait/poll.
@@ -355,7 +373,7 @@ export const runEmbeddingsStage = async ({
       detachSignalCleanup();
       await runBuildCleanupWithTimeout({
         label: 'stage3.lock.release',
-        cleanup: () => releaseFileLockOrThrow(lock),
+        cleanup: () => lock.release(),
         log,
         swallowTimeout: false
       });
@@ -596,7 +614,7 @@ export const runSqliteStage = async ({
       if (lock?.release) {
         await runBuildCleanupWithTimeout({
           label: 'stage4.lock.release',
-          cleanup: () => releaseFileLockOrThrow(lock),
+          cleanup: () => lock.release(),
           log,
           swallowTimeout: false
         });
@@ -1010,7 +1028,7 @@ export const runStage = async (
           if (!lock?.release) return null;
           const releaseResult = await runBuildCleanupWithTimeout({
             label: `${phaseStage}.lock.release`,
-            cleanup: () => releaseFileLockOrThrow(lock),
+            cleanup: () => lock.release(),
             log,
             swallowTimeout: false
           });

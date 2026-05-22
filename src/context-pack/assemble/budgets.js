@@ -3,6 +3,7 @@ import {
   CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_BYTES,
   CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_TOKENS
 } from './call-sites.js';
+import { createTruncationRecorder } from '../../shared/truncation.js';
 import { normalizeRiskPathNodes } from './risk-load.js';
 
 export const CONTEXT_PACK_MAX_RISK_FLOWS = 5;
@@ -52,13 +53,75 @@ export const buildRiskCaps = ({ stats, counts, hits }) => ({
   hits: Array.from(hits)
 });
 
+const normalizeRiskEndpointForBudget = (endpoint) => {
+  if (!endpoint || typeof endpoint !== 'object') return null;
+  return {
+    chunkUid: endpoint.chunkUid || null,
+    ruleId: endpoint.ruleId || null,
+    ruleName: endpoint.ruleName || null,
+    ruleType: endpoint.ruleType || null,
+    ruleRole: endpoint.ruleType || null,
+    category: endpoint.category || null,
+    severity: endpoint.severity || null,
+    confidence: Number.isFinite(endpoint.confidence) ? endpoint.confidence : null,
+    tags: Array.isArray(endpoint.tags) ? endpoint.tags.filter(Boolean) : []
+  };
+};
+
+const buildRiskBudgetScore = (entry, flow, { includeSeverity = false } = {}) => {
+  const score = {
+    seedRelevance: entry.score.seedRelevance
+  };
+  if (includeSeverity) score.severity = entry.score.severity;
+  score.confidence = Number.isFinite(entry.score.confidence) ? entry.score.confidence : null;
+  score.hopCount = Number.isFinite(flow?.notes?.hopCount) ? flow.notes.hopCount : null;
+  return score;
+};
+
+const normalizeRiskBudgetNotes = (notes, { includeTerminalReason = false, terminalReason = null } = {}) => {
+  if (!notes || typeof notes !== 'object') return null;
+  const out = {
+    strictness: notes.strictness || null,
+    sanitizerPolicy: notes.sanitizerPolicy || null,
+    hopCount: Number.isFinite(notes.hopCount) ? notes.hopCount : null,
+    sanitizerBarriersHit: Number.isFinite(notes.sanitizerBarriersHit)
+      ? notes.sanitizerBarriersHit
+      : null,
+    capsHit: Array.isArray(notes.capsHit) ? notes.capsHit.slice() : []
+  };
+  if (includeTerminalReason) {
+    out.terminalReason = notes.terminalReason || terminalReason || null;
+  }
+  return out;
+};
+
+const createRiskTruncationSink = ({
+  truncation,
+  riskTruncation,
+  recordRiskTruncation = null
+}) => {
+  if (typeof recordRiskTruncation === 'function') return recordRiskTruncation;
+  const packRecorder = createTruncationRecorder({ scope: 'risk', target: truncation });
+  const riskRecorder = createTruncationRecorder({ scope: 'risk', target: riskTruncation });
+  return (cap, detail = {}) => {
+    packRecorder.record(cap, detail);
+    riskRecorder.record(cap, detail);
+  };
+};
+
 export const selectRiskFlowsWithinBudget = ({
   rankedFlows,
   truncation,
   riskTruncation,
   referencedCallSiteIds,
-  riskCapHits
+  riskCapHits,
+  recordRiskTruncation: recordRiskTruncationInput = null
 }) => {
+  const recordRiskTruncation = createRiskTruncationSink({
+    truncation,
+    riskTruncation,
+    recordRiskTruncation: recordRiskTruncationInput
+  });
   const selectedRawFlows = [];
   let emittedBytes = 0;
   let emittedTokens = 0;
@@ -73,16 +136,12 @@ export const selectRiskFlowsWithinBudget = ({
     if (selectedRawFlows.length >= CONTEXT_PACK_MAX_RISK_FLOWS) {
       omittedFlows += 1;
       if (!maxFlowTruncationRecorded) {
-        const record = {
-          scope: 'risk',
-          cap: 'maxFlows',
+        recordRiskTruncation('maxFlows', {
           limit: CONTEXT_PACK_MAX_RISK_FLOWS,
           observed: rankedFlows.length,
           omitted: rankedFlows.length - CONTEXT_PACK_MAX_RISK_FLOWS,
           note: 'Risk flows truncated for composite context pack.'
-        };
-        truncation.push(record);
-        riskTruncation.push(record);
+        });
         maxFlowTruncationRecorded = true;
       }
       riskCapHits.add('maxFlows');
@@ -96,16 +155,12 @@ export const selectRiskFlowsWithinBudget = ({
       const omitted = rawSteps.length - limitedSteps.length;
       omittedSteps += omitted;
       riskCapHits.add('maxStepsPerFlow');
-      const record = {
-        scope: 'risk',
-        cap: 'maxStepsPerFlow',
+      recordRiskTruncation('maxStepsPerFlow', {
         limit: CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW,
         observed: rawSteps.length,
         omitted,
         note: `Risk flow ${flow?.flowId || 'flow'} truncated to the configured step budget.`
-      };
-      truncation.push(record);
-      riskTruncation.push(record);
+      });
     }
 
     const rawWatchSteps = Array.isArray(flow?.path?.watchByStep) ? flow.path.watchByStep : [];
@@ -116,16 +171,12 @@ export const selectRiskFlowsWithinBudget = ({
         const omitted = sourceIds.length - limitedIds.length;
         omittedCallSites += omitted;
         riskCapHits.add('maxCallSitesPerStep');
-        const record = {
-          scope: 'risk',
-          cap: 'maxCallSitesPerStep',
+        recordRiskTruncation('maxCallSitesPerStep', {
           limit: CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP,
           observed: sourceIds.length,
           omitted,
           note: `Risk flow ${flow?.flowId || 'flow'} truncated call-site evidence for one path step.`
-        };
-        truncation.push(record);
-        riskTruncation.push(record);
+        });
       }
       for (const callSiteId of limitedIds) {
         if (callSiteId) referencedCallSiteIds.add(callSiteId);
@@ -136,41 +187,12 @@ export const selectRiskFlowsWithinBudget = ({
     const candidate = {
       rank: entry.rank,
       flowId: flow?.flowId || null,
-      source: flow?.source && typeof flow.source === 'object'
-        ? {
-          chunkUid: flow.source.chunkUid || null,
-          ruleId: flow.source.ruleId || null,
-          ruleName: flow.source.ruleName || null,
-          ruleType: flow.source.ruleType || null,
-          ruleRole: flow.source.ruleType || null,
-          category: flow.source.category || null,
-          severity: flow.source.severity || null,
-          confidence: Number.isFinite(flow.source.confidence) ? flow.source.confidence : null,
-          tags: Array.isArray(flow.source.tags) ? flow.source.tags.filter(Boolean) : []
-        }
-        : null,
-      sink: flow?.sink && typeof flow.sink === 'object'
-        ? {
-          chunkUid: flow.sink.chunkUid || null,
-          ruleId: flow.sink.ruleId || null,
-          ruleName: flow.sink.ruleName || null,
-          ruleType: flow.sink.ruleType || null,
-          ruleRole: flow.sink.ruleType || null,
-          category: flow.sink.category || null,
-          severity: flow.sink.severity || null,
-          confidence: Number.isFinite(flow.sink.confidence) ? flow.sink.confidence : null,
-          tags: Array.isArray(flow.sink.tags) ? flow.sink.tags.filter(Boolean) : []
-        }
-        : null,
+      source: normalizeRiskEndpointForBudget(flow?.source),
+      sink: normalizeRiskEndpointForBudget(flow?.sink),
       category: flow?.sink?.category || flow?.source?.category || null,
       severity: flow?.sink?.severity || flow?.source?.severity || null,
       confidence: Number.isFinite(flow?.confidence) ? flow.confidence : null,
-      score: {
-        seedRelevance: entry.score.seedRelevance,
-        severity: entry.score.severity,
-        confidence: Number.isFinite(entry.score.confidence) ? entry.score.confidence : null,
-        hopCount: Number.isFinite(flow?.notes?.hopCount) ? flow.notes.hopCount : null
-      },
+      score: buildRiskBudgetScore(entry, flow, { includeSeverity: true }),
       path: {
         nodes: normalizeRiskPathNodes(flow),
         stepCount: rawSteps.length,
@@ -186,17 +208,7 @@ export const selectRiskFlowsWithinBudget = ({
           details: null
         })))
       },
-      notes: flow?.notes && typeof flow.notes === 'object'
-        ? {
-          strictness: flow.notes.strictness || null,
-          sanitizerPolicy: flow.notes.sanitizerPolicy || null,
-          hopCount: Number.isFinite(flow.notes.hopCount) ? flow.notes.hopCount : null,
-          sanitizerBarriersHit: Number.isFinite(flow.notes.sanitizerBarriersHit)
-            ? flow.notes.sanitizerBarriersHit
-            : null,
-          capsHit: Array.isArray(flow.notes.capsHit) ? flow.notes.capsHit.slice() : []
-        }
-        : null
+      notes: normalizeRiskBudgetNotes(flow?.notes)
     };
 
     const candidateBytes = estimateRiskByteSize(candidate);
@@ -210,29 +222,21 @@ export const selectRiskFlowsWithinBudget = ({
         const byteOmitted = (emittedBytes + candidateBytes) > CONTEXT_PACK_MAX_RISK_BYTES;
         const tokenOmitted = (emittedTokens + candidateTokens) > CONTEXT_PACK_MAX_RISK_TOKENS;
         if (byteOmitted) {
-          const record = {
-            scope: 'risk',
-            cap: 'maxRiskBytes',
+          recordRiskTruncation('maxRiskBytes', {
             limit: CONTEXT_PACK_MAX_RISK_BYTES,
             observed: emittedBytes + candidateBytes,
             omitted: candidateBytes,
             note: 'Risk flow budget hit the total serialized byte cap.'
-          };
-          truncation.push(record);
-          riskTruncation.push(record);
+          });
           riskCapHits.add('maxRiskBytes');
         }
         if (tokenOmitted) {
-          const record = {
-            scope: 'risk',
-            cap: 'maxRiskTokens',
+          recordRiskTruncation('maxRiskTokens', {
             limit: CONTEXT_PACK_MAX_RISK_TOKENS,
             observed: emittedTokens + candidateTokens,
             omitted: candidateTokens,
             note: 'Risk flow budget hit the total token cap.'
-          };
-          truncation.push(record);
-          riskTruncation.push(record);
+          });
           riskCapHits.add('maxRiskTokens');
         }
         budgetTruncationRecorded = true;
@@ -262,8 +266,14 @@ export const selectRiskPartialFlowsWithinBudget = ({
   truncation,
   riskTruncation,
   referencedCallSiteIds,
-  riskCapHits
+  riskCapHits,
+  recordRiskTruncation: recordRiskTruncationInput = null
 }) => {
+  const recordRiskTruncation = createRiskTruncationSink({
+    truncation,
+    riskTruncation,
+    recordRiskTruncation: recordRiskTruncationInput
+  });
   const selectedRawPartialFlows = [];
   let partialBytes = 0;
   let partialTokens = 0;
@@ -275,16 +285,12 @@ export const selectRiskPartialFlowsWithinBudget = ({
     if (selectedRawPartialFlows.length >= CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS) {
       omittedPartialFlows += 1;
       if (!maxPartialFlowTruncationRecorded) {
-        const record = {
-          scope: 'risk',
-          cap: 'maxFlows',
+        recordRiskTruncation('maxPartialFlows', {
           limit: CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
           observed: rankedPartialFlows.length,
           omitted: rankedPartialFlows.length - CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
           note: 'Partial risk flows truncated for composite context pack.'
-        };
-        truncation.push(record);
-        riskTruncation.push(record);
+        });
         maxPartialFlowTruncationRecorded = true;
       }
       riskCapHits.add('maxPartialFlows');
@@ -310,25 +316,9 @@ export const selectRiskPartialFlowsWithinBudget = ({
     const candidate = {
       rank: entry.rank,
       partialFlowId: flow?.partialFlowId || null,
-      source: flow?.source && typeof flow.source === 'object'
-        ? {
-          chunkUid: flow.source.chunkUid || null,
-          ruleId: flow.source.ruleId || null,
-          ruleName: flow.source.ruleName || null,
-          ruleType: flow.source.ruleType || null,
-          ruleRole: flow.source.ruleType || null,
-          category: flow.source.category || null,
-          severity: flow.source.severity || null,
-          confidence: Number.isFinite(flow.source.confidence) ? flow.source.confidence : null,
-          tags: Array.isArray(flow.source.tags) ? flow.source.tags.filter(Boolean) : []
-        }
-        : null,
+      source: normalizeRiskEndpointForBudget(flow?.source),
       confidence: Number.isFinite(flow?.confidence) ? flow.confidence : null,
-      score: {
-        seedRelevance: entry.score.seedRelevance,
-        confidence: Number.isFinite(entry.score.confidence) ? entry.score.confidence : null,
-        hopCount: Number.isFinite(flow?.notes?.hopCount) ? flow.notes.hopCount : null
-      },
+      score: buildRiskBudgetScore(entry, flow),
       frontier: {
         chunkUid: flow?.frontier?.chunkUid || null,
         terminalReason: flow?.frontier?.terminalReason || null,
@@ -353,18 +343,10 @@ export const selectRiskPartialFlowsWithinBudget = ({
           details: null
         })))
       },
-      notes: flow?.notes && typeof flow.notes === 'object'
-        ? {
-          strictness: flow.notes.strictness || null,
-          sanitizerPolicy: flow.notes.sanitizerPolicy || null,
-          hopCount: Number.isFinite(flow.notes.hopCount) ? flow.notes.hopCount : null,
-          sanitizerBarriersHit: Number.isFinite(flow.notes.sanitizerBarriersHit)
-            ? flow.notes.sanitizerBarriersHit
-            : null,
-          capsHit: Array.isArray(flow.notes.capsHit) ? flow.notes.capsHit.slice() : [],
-          terminalReason: flow.notes.terminalReason || flow?.frontier?.terminalReason || null
-        }
-        : null
+      notes: normalizeRiskBudgetNotes(flow?.notes, {
+        includeTerminalReason: true,
+        terminalReason: flow?.frontier?.terminalReason || null
+      })
     };
 
     const candidateBytes = estimateRiskByteSize(candidate);
@@ -376,29 +358,21 @@ export const selectRiskPartialFlowsWithinBudget = ({
       omittedPartialFlows += 1;
       if (!partialBudgetTruncationRecorded) {
         if ((partialBytes + candidateBytes) > CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES) {
-          const record = {
-            scope: 'risk',
-            cap: 'maxRiskBytes',
+          recordRiskTruncation('maxPartialBytes', {
             limit: CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES,
             observed: partialBytes + candidateBytes,
             omitted: candidateBytes,
             note: 'Partial risk flow budget hit the total serialized byte cap.'
-          };
-          truncation.push(record);
-          riskTruncation.push(record);
+          });
           riskCapHits.add('maxPartialBytes');
         }
         if ((partialTokens + candidateTokens) > CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS) {
-          const record = {
-            scope: 'risk',
-            cap: 'maxRiskTokens',
+          recordRiskTruncation('maxPartialTokens', {
             limit: CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS,
             observed: partialTokens + candidateTokens,
             omitted: candidateTokens,
             note: 'Partial risk flow budget hit the total token cap.'
-          };
-          truncation.push(record);
-          riskTruncation.push(record);
+          });
           riskCapHits.add('maxPartialTokens');
         }
         partialBudgetTruncationRecorded = true;

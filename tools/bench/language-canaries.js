@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import path from 'node:path';
 
 import { createCli } from '../../src/shared/cli.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { resolveRepoRootArg } from '../shared/dict-utils.js';
+import { writeTextIfChanged } from '../shared/generated-report.js';
 import {
   buildBenchRuntimeLiveCanarySummary,
   formatBenchRuntimeLiveCanarySummaryMarkdown,
@@ -23,9 +24,6 @@ const argv = createCli({
 }).parse();
 
 const root = resolveRepoRootArg(null, process.cwd());
-const ensureParentDir = (filePath) => {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-};
 
 const selectedIds = new Set(
   String(argv.only || '')
@@ -62,12 +60,10 @@ const run = async () => {
     : '';
 
   if (outJsonPath) {
-    ensureParentDir(outJsonPath);
-    fs.writeFileSync(outJsonPath, `${JSON.stringify(summary, null, 2)}\n`);
+    await writeJsonFileResolved(outJsonPath, summary, { trailingNewline: true });
   }
   if (outMdPath) {
-    ensureParentDir(outMdPath);
-    fs.writeFileSync(outMdPath, formatBenchRuntimeLiveCanarySummaryMarkdown(summary));
+    await writeTextIfChanged(outMdPath, formatBenchRuntimeLiveCanarySummaryMarkdown(summary), { encoding: 'utf8' });
   }
 
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);

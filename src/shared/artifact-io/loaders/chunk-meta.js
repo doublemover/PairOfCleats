@@ -10,13 +10,13 @@ import { decodeVarint64List } from '../varint.js';
 import { mergeChunkMetaColdFields } from '../../chunk-meta-cold.js';
 import { normalizeMetaV2ForRead } from '../../../index/metadata/meta-v2.js';
 import { formatHash64 } from '../../token-id.js';
-import {
-  createLoaderError,
-  inflateColumnarRows
-} from './shared.js';
-import {
-  iterateChunkMetaBinaryColumnarRows
-} from './binary-columnar.js';
+import { inflateColumnarRows } from '../columnar-rows.js';
+import { createLoaderError } from './shared.js';
+
+const iterateChunkMetaBinaryColumnarRowsLazy = async (dir, options) => {
+  const { iterateChunkMetaBinaryColumnarRows } = await import('./binary-columnar-chunk-meta.js');
+  return iterateChunkMetaBinaryColumnarRows(dir, options);
+};
 
 const inflatePackedTokenIdsEntry = (entry) => {
   if (!entry || typeof entry !== 'object') return entry;
@@ -181,7 +181,7 @@ export const loadChunkMetaRows = async function* (
     materializeTokenIds
   });
   if (useBinaryColumnar) {
-    const binaryRows = iterateChunkMetaBinaryColumnarRows(dir, {
+    const binaryRows = await iterateChunkMetaBinaryColumnarRowsLazy(dir, {
       maxBytes,
       enforceDataBudget: enforceBinaryDataBudget
     });
@@ -220,7 +220,7 @@ export const loadChunkMetaRows = async function* (
     return;
   }
   if (sources.format === 'binary-columnar') {
-    const binaryRows = iterateChunkMetaBinaryColumnarRows(dir, {
+    const binaryRows = await iterateChunkMetaBinaryColumnarRowsLazy(dir, {
       maxBytes,
       enforceDataBudget: enforceBinaryDataBudget
     });

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import { sha1 } from '../../../shared/hash.js';
-import { normalizeBundleFormat } from '../../../shared/bundle-io.js';
+import { normalizeBundleFormat } from '../../../shared/bundle-io-paths.js';
 import {
   entryStatsMatch,
   pathExists,

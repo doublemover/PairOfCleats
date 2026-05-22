@@ -7,6 +7,7 @@ import {
   finalizeCollectorImportEntries,
   lineHasAny
 } from './utils.js';
+import { readBalancedDelimitedBody } from './balanced.js';
 
 const NIX_SOURCE_BUDGET = Object.freeze({
   maxChars: 524288
@@ -93,82 +94,61 @@ const readIndentedString = (source, start) => {
   };
 };
 
-const readParenthesizedExpression = (source, start) => {
-  let index = start;
-  let depth = 0;
-  let inComment = false;
-  let inSingle = false;
-  let inDouble = false;
-  let escaped = false;
-  while (index < source.length) {
-    const char = source[index];
-    if (inComment) {
-      if (char === '\n') inComment = false;
-      index += 1;
-      continue;
-    }
-    if (inSingle) {
-      if (source.startsWith("''", index)) {
-        inSingle = false;
-        index += 2;
-      } else {
-        index += 1;
-      }
-      continue;
-    }
-    if (inDouble) {
-      if (escaped) {
-        escaped = false;
-        index += 1;
-        continue;
-      }
-      if (char === '\\') {
-        escaped = true;
-        index += 1;
-        continue;
-      }
-      if (char === '"') inDouble = false;
-      index += 1;
-      continue;
-    }
-    if (char === '#') {
-      inComment = true;
-      index += 1;
-      continue;
-    }
-    if (source.startsWith("''", index)) {
-      inSingle = true;
-      index += 2;
-      continue;
-    }
-    if (char === '"') {
-      inDouble = true;
-      index += 1;
-      continue;
-    }
-    if (char === '(') {
-      depth += 1;
-      index += 1;
-      continue;
-    }
-    if (char === ')') {
-      depth -= 1;
-      index += 1;
-      if (depth === 0) {
-        const inner = source.slice(start + 1, index - 1);
-        return {
-          token: inner,
-          nextIndex: index
-        };
-      }
-      continue;
-    }
-    index += 1;
+const createNixLexicalState = () => ({
+  inComment: false,
+  inSingle: false,
+  inDouble: false,
+  escaped: false
+});
+
+const advanceIgnoredNixSpan = (source, index, state) => {
+  const char = source[index];
+  if (state.inComment) {
+    if (char === '\n') state.inComment = false;
+    return index + 1;
   }
-  const inner = source.slice(start + 1);
+  if (state.inSingle) {
+    if (source.startsWith("''", index)) {
+      state.inSingle = false;
+      return index + 2;
+    }
+    return index + 1;
+  }
+  if (state.inDouble) {
+    if (state.escaped) {
+      state.escaped = false;
+      return index + 1;
+    }
+    if (char === '\\') {
+      state.escaped = true;
+      return index + 1;
+    }
+    if (char === '"') state.inDouble = false;
+    return index + 1;
+  }
+  if (char === '#') {
+    state.inComment = true;
+    return index + 1;
+  }
+  if (source.startsWith("''", index)) {
+    state.inSingle = true;
+    return index + 2;
+  }
+  if (char === '"') {
+    state.inDouble = true;
+    return index + 1;
+  }
+  return null;
+};
+
+const readParenthesizedExpression = (source, start) => {
+  const parsed = readBalancedDelimitedBody(source, start, {
+    createState: createNixLexicalState,
+    advanceIgnoredSpan: advanceIgnoredNixSpan
+  });
   return {
-    token: inner,
-    nextIndex: source.length
+    token: parsed.body,
+    nextIndex: parsed.endIndex
   };
 };
 
@@ -333,54 +313,12 @@ export const collectNixImportEntries = (text, options = {}) => {
   try {
     if (!precheck(sourceText)) return [];
     let index = 0;
-    let inComment = false;
-    let inSingle = false;
-    let inDouble = false;
-    let escaped = false;
+    const lexicalState = createNixLexicalState();
     while (index < sourceText.length) {
       const char = sourceText[index];
-      if (inComment) {
-        if (char === '\n') inComment = false;
-        index += 1;
-        continue;
-      }
-      if (inSingle) {
-        if (sourceText.startsWith("''", index)) {
-          inSingle = false;
-          index += 2;
-        } else {
-          index += 1;
-        }
-        continue;
-      }
-      if (inDouble) {
-        if (escaped) {
-          escaped = false;
-          index += 1;
-          continue;
-        }
-        if (char === '\\') {
-          escaped = true;
-          index += 1;
-          continue;
-        }
-        if (char === '"') inDouble = false;
-        index += 1;
-        continue;
-      }
-      if (char === '#') {
-        inComment = true;
-        index += 1;
-        continue;
-      }
-      if (sourceText.startsWith("''", index)) {
-        inSingle = true;
-        index += 2;
-        continue;
-      }
-      if (char === '"') {
-        inDouble = true;
-        index += 1;
+      const ignoredEnd = advanceIgnoredNixSpan(sourceText, index, lexicalState);
+      if (ignoredEnd !== null) {
+        index = ignoredEnd;
         continue;
       }
       if (!isIdentifierStart(char)) {

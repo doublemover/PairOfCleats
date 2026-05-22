@@ -6,13 +6,13 @@ import path from 'node:path';
 
 import { createCli } from '../../../src/shared/cli.js';
 import { normalizeLegacyCacheRootPath, resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
-import { getEnvConfig } from '../../../src/shared/env.js';
+import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
-import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
+import { hasChunkMetaArtifactsSync } from '../../../src/shared/artifact-io/chunk-meta-presence.js';
 import { readJsonFileSyncSafe } from '../../../src/shared/file-read.js';
 import { writeJsonFileResolved } from '../../../src/shared/json-file.js';
 import { sleep } from '../../../src/shared/sleep.js';
-import { spawnSubprocess, spawnSubprocessSync } from '../../../src/shared/subprocess.js';
+import { spawnSubprocess, spawnSubprocessSync } from '../../../src/shared/subprocess/runner.js';
 import {
   resolveBakeoffFastPathDefaults,
   resolveBakeoffBuildPlan,
@@ -223,6 +223,17 @@ const streamChildOutputToStderr = argv.json === true;
 const isIndexLockContentionMessage = (value) => (
   /index lock (held|unavailable)/i.test(String(value || ''))
 );
+
+const throwIfSubprocessFailed = (result, label) => {
+  if (result.exitCode === 0 && !result.signal) return;
+  const stderr = String(result.stderr || '').trim();
+  const suffix = stderr ? `\n${stderr}` : '';
+  const reason = result.signal
+    ? `signal=${result.signal}`
+    : `exit=${result.exitCode ?? 'unknown'}`;
+  throw new Error(`${label} failed (${reason})${suffix}`);
+};
+
 const runNode = async (args, env, label) => {
   const result = await spawnSubprocess(process.execPath, args, {
     cwd: root,
@@ -240,14 +251,7 @@ const runNode = async (args, env, label) => {
       : null,
     rejectOnNonZeroExit: false
   });
-  if (result.exitCode !== 0 || result.signal) {
-    const stderr = String(result.stderr || '').trim();
-    const suffix = stderr ? `\n${stderr}` : '';
-    const reason = result.signal
-      ? `signal=${result.signal}`
-      : `exit=${result.exitCode ?? 'unknown'}`;
-    throw new Error(`${label} failed (${reason})${suffix}`);
-  }
+  throwIfSubprocessFailed(result, label);
   return result;
 };
 
@@ -298,14 +302,7 @@ const runJsonNode = (args, env, label) => {
     outputMode: 'string',
     rejectOnNonZeroExit: false
   });
-  if (result.exitCode !== 0 || result.signal) {
-    const stderr = String(result.stderr || '').trim();
-    const suffix = stderr ? `\n${stderr}` : '';
-    const reason = result.signal
-      ? `signal=${result.signal}`
-      : `exit=${result.exitCode ?? 'unknown'}`;
-    throw new Error(`${label} failed (${reason})${suffix}`);
-  }
+  throwIfSubprocessFailed(result, label);
   const stdout = String(result.stdout || '{}').trim() || '{}';
   try {
     return JSON.parse(stdout);

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { log, logError } from '../../../src/shared/progress.js';
+import { log, logError } from '../../../src/shared/progress-runtime.js';
 import {
   normalizeReuseSource,
   normalizeReuseSurface,

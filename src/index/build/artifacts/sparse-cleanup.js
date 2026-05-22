@@ -1,7 +1,7 @@
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { runWithConcurrency } from '../../../shared/concurrency.js';
+import { runWithConcurrency } from '../../../shared/concurrency/run-with-queue.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 
 export const VECTOR_ONLY_SPARSE_PIECE_DENYLIST = new Set([
@@ -113,7 +113,7 @@ export const cleanupVectorOnlySparseArtifacts = async ({
         return;
       }
       if (recursive && !VECTOR_ONLY_SPARSE_RECURSIVE_ALLOWLIST.has(artifactName)) return;
-      await removeArtifact(targetPath, { recursive, policy: 'vector_only_allowlist' });
+      await removeArtifact(targetPath, { recursive, policy: 'vector_only_allowlist', immediate: true });
     },
     {
       collectResults: false,

@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
-import { createToolDisplay } from '../shared/cli-display.js';
+import { createToolDisplayLogger } from '../shared/cli-display.js';
 import { ensureDiskSpace } from '../../src/shared/disk-space.js';
 import { getIndexDir, resolveRepoConfig, resolveSqlitePaths } from '../shared/dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from '../sqlite/vector-extension.js';
@@ -521,12 +521,7 @@ if (isDirectRun) {
     }
   }).parse();
 
-  const display = createToolDisplay({ argv, stream: process.stderr });
-  const logger = {
-    log: (message) => display.log(message),
-    warn: (message) => display.warn(message),
-    error: (message) => display.error(message)
-  };
+  const { display, logger } = createToolDisplayLogger({ argv, stream: process.stderr });
 
   const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
   const indexRoot = typeof argv['index-root'] === 'string' && argv['index-root']

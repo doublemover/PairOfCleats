@@ -1,4 +1,10 @@
-import { configureLogger } from '../../../shared/progress.js';
+import { configureLogger } from '../../../shared/progress-runtime.js';
+import {
+  normalizeLogFormat,
+  normalizeLogLevel,
+  normalizeLogRingMax,
+  normalizeLogRingMaxBytes
+} from '../../../shared/logging/config.js';
 
 export const configureRuntimeLogger = ({
   envConfig,
@@ -11,22 +17,12 @@ export const configureRuntimeLogger = ({
   logFormatOverride,
   observability = null
 }) => {
-  const logFormatRaw = logFormatOverride || envConfig.logFormat || loggingConfig.format || 'text';
-  const logFormat = ['text', 'json', 'pretty'].includes(logFormatRaw)
-    ? logFormatRaw
-    : 'text';
+  const logFormat = normalizeLogFormat(logFormatOverride || envConfig.logFormat || loggingConfig.format);
   const destination = logDestination || loggingConfig.destination || loggingConfig.dest || null;
   const effectiveFormat = destination && logFormat === 'text' ? 'json' : logFormat;
-  const logLevelRaw = envConfig.logLevel || loggingConfig.level || 'info';
-  const logLevel = typeof logLevelRaw === 'string' && logLevelRaw.trim()
-    ? logLevelRaw.trim().toLowerCase()
-    : 'info';
-  const ringMax = Number.isFinite(Number(loggingConfig.ringMax))
-    ? Math.max(1, Math.floor(Number(loggingConfig.ringMax)))
-    : 200;
-  const ringMaxBytes = Number.isFinite(Number(loggingConfig.ringMaxBytes))
-    ? Math.max(1024, Math.floor(Number(loggingConfig.ringMaxBytes)))
-    : 2 * 1024 * 1024;
+  const logLevel = normalizeLogLevel(envConfig.logLevel || loggingConfig.level);
+  const ringMax = normalizeLogRingMax(loggingConfig.ringMax);
+  const ringMaxBytes = normalizeLogRingMaxBytes(loggingConfig.ringMaxBytes);
   configureLogger({
     enabled: effectiveFormat !== 'text',
     pretty: effectiveFormat === 'pretty',

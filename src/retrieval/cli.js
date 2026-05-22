@@ -1,5 +1,4 @@
 import { isDirectExecution } from '../shared/direct-execution.js';
-import { runSearchCli } from './cli/run-search/plan-runner.js';
 import {
   resolveAnnActive,
   resolveProfileCohortModes,
@@ -9,14 +8,18 @@ import {
   resolveSparsePreflightModes
 } from './cli/preflight.js';
 
+export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
+  const { runSearchCli: runSearchCliImpl } = await import('./cli/run-search/plan-runner.js');
+  return runSearchCliImpl(rawArgs, options);
+}
+
 export {
   resolveAnnActive,
   resolveProfileCohortModes,
   resolveProfileForState,
   resolveSparseFallbackModesWithoutAnn,
   resolveSparsePreflightMissingTables,
-  resolveSparsePreflightModes,
-  runSearchCli
+  resolveSparsePreflightModes
 };
 
 if (isDirectExecution(import.meta.url)) {

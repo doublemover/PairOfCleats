@@ -1,3 +1,4 @@
+import { buildGraphNodeIndex } from '../../graph/indexes.js';
 import { createWorkBudget } from '../../graph/work-budget.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { compareStrings } from '../../shared/sort.js';
@@ -31,16 +32,6 @@ const normalizeExpansionPolicy = (expansion) => ({
   maxWidthPerNode: normalizeBoundedInt(expansion?.maxWidthPerNode, DEFAULT_MAX_WIDTH_PER_NODE, { min: 1, max: 64 }),
   maxVisitedNodes: normalizeBoundedInt(expansion?.maxVisitedNodes, DEFAULT_MAX_VISITED_NODES, { min: 8, max: 2048 })
 });
-
-const buildGraphIndex = (graph) => {
-  const map = new Map();
-  const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-  for (const node of nodes) {
-    if (!node || typeof node.id !== 'string' || !node.id) continue;
-    map.set(node.id, node);
-  }
-  return map;
-};
 
 const resolveChunkUid = (chunk) => (
   chunk?.chunkUid || chunk?.metaV2?.chunkUid || null
@@ -212,8 +203,8 @@ export const applyGraphRanking = ({
   const maxWallClockMs = normalizeOptionalNumber(config?.maxWallClockMs);
   const expansionPolicy = normalizeExpansionPolicy(config?.expansion);
 
-  const callIndex = buildGraphIndex(graphRelations?.callGraph);
-  const usageIndex = buildGraphIndex(graphRelations?.usageGraph);
+  const callIndex = buildGraphNodeIndex(graphRelations?.callGraph);
+  const usageIndex = buildGraphNodeIndex(graphRelations?.usageGraph);
   const resolveMergedNeighbors = createNeighborResolver(callIndex, usageIndex);
 
   const seedList = resolveSeeds(entries, seedSelection, seedK);

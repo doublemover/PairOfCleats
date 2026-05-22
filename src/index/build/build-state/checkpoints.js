@@ -3,7 +3,7 @@ import path from 'node:path';
 import { atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { sha1 } from '../../../shared/hash.js';
 import { compareStrings } from '../../../shared/sort.js';
-import { readJsonFileSafe } from '../../../shared/files.js';
+import { readJsonFileSafe } from '../../../shared/file-read.js';
 import {
   STAGE_CHECKPOINTS_SIDECAR_VERSION,
   STAGE_CHECKPOINTS_INDEX_BASENAME,

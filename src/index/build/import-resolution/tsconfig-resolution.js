@@ -2,7 +2,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { readJsoncFile } from '../../../shared/jsonc.js';
 import { sha1 } from '../../../shared/hash.js';
-import { isAbsolutePathNative, isRelativePathEscape } from '../../../shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape } from '../../../shared/file-paths.js';
 import { escapeRegex } from '../../../shared/text/escape-regex.js';
 import { createFsMemo } from './fs-meta.js';
 import { resolveCandidate, resolveWithinRoot } from './lookup.js';

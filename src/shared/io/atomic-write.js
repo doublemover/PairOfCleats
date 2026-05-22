@@ -1,7 +1,8 @@
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createTempPath, replaceFile, replaceFileSync } from './atomic-persistence.js';
+import { createTempPath } from './temp-path.js';
+import { replaceFile, replaceFileSync } from './replace-file.js';
 import { joinPathSafe, normalizePathForPlatform } from '../path-normalize.js';
 import { incAtomicPersistenceFallback } from '../metrics/core.js';
 
@@ -115,6 +116,21 @@ const syncParentDirectory = async (targetPath) => {
   }
 };
 
+const resolveAtomicWriteTarget = (targetPath) => {
+  if (!targetPath) return null;
+  const normalizedTargetPath = normalizePathForPlatform(targetPath);
+  if (!normalizedTargetPath) {
+    throw createAtomicWriteError('normalize target path', String(targetPath || ''), new Error('Invalid target path.'));
+  }
+  const targetAbsolutePath = path.resolve(normalizedTargetPath);
+  const parent = path.dirname(targetAbsolutePath);
+  const safeTargetPath = joinPathSafe(parent, [path.basename(targetAbsolutePath)]);
+  if (!safeTargetPath) {
+    throw createAtomicWriteError('validate target path', targetAbsolutePath, new Error('Target path escaped parent boundary.'));
+  }
+  return { parent, safeTargetPath };
+};
+
 /**
  * Write payload to a temporary sibling file, fsync it, rename into place, and
  * fsync the parent directory to maximize durability across crashes.
@@ -132,17 +148,9 @@ const writeAtomicPayload = async (targetPath, payload, {
   mode = undefined,
   encoding = 'utf8'
 } = {}) => {
-  if (!targetPath) return null;
-  const normalizedTargetPath = normalizePathForPlatform(targetPath);
-  if (!normalizedTargetPath) {
-    throw createAtomicWriteError('normalize target path', String(targetPath || ''), new Error('Invalid target path.'));
-  }
-  const targetAbsolutePath = path.resolve(normalizedTargetPath);
-  const parent = path.dirname(targetAbsolutePath);
-  const safeTargetPath = joinPathSafe(parent, [path.basename(targetAbsolutePath)]);
-  if (!safeTargetPath) {
-    throw createAtomicWriteError('validate target path', targetAbsolutePath, new Error('Target path escaped parent boundary.'));
-  }
+  const resolvedTarget = resolveAtomicWriteTarget(targetPath);
+  if (!resolvedTarget) return null;
+  const { parent, safeTargetPath } = resolvedTarget;
   if (mkdir) {
     await fs.mkdir(parent, { recursive: true });
   }
@@ -208,17 +216,9 @@ const writeAtomicPayloadSync = (targetPath, payload, {
   encoding = 'utf8',
   durable = true
 } = {}) => {
-  if (!targetPath) return null;
-  const normalizedTargetPath = normalizePathForPlatform(targetPath);
-  if (!normalizedTargetPath) {
-    throw createAtomicWriteError('normalize target path', String(targetPath || ''), new Error('Invalid target path.'));
-  }
-  const targetAbsolutePath = path.resolve(normalizedTargetPath);
-  const parent = path.dirname(targetAbsolutePath);
-  const safeTargetPath = joinPathSafe(parent, [path.basename(targetAbsolutePath)]);
-  if (!safeTargetPath) {
-    throw createAtomicWriteError('validate target path', targetAbsolutePath, new Error('Target path escaped parent boundary.'));
-  }
+  const resolvedTarget = resolveAtomicWriteTarget(targetPath);
+  if (!resolvedTarget) return null;
+  const { parent, safeTargetPath } = resolvedTarget;
   if (mkdir) {
     fsSync.mkdirSync(parent, { recursive: true });
   }
@@ -260,6 +260,36 @@ const writeAtomicPayloadSync = (targetPath, payload, {
   }
 };
 
+const buildAtomicTextPayload = (text, { newline = false } = {}) => {
+  if (Buffer.isBuffer(text)) {
+    if (!newline) return text;
+    if (text.length > 0 && text[text.length - 1] === 0x0a) return text;
+    return Buffer.concat([text, Buffer.from('\n')]);
+  }
+  const source = text == null ? '' : String(text);
+  if (!newline) return source;
+  return source.endsWith('\n') ? source : `${source}\n`;
+};
+
+const buildAtomicJsonPayload = (targetPath, value, {
+  replacer = null,
+  spaces = 2,
+  newline = true
+} = {}) => {
+  const resolvedSpaces = toNonNegativeInt(spaces, 2);
+  let payload = null;
+  try {
+    payload = JSON.stringify(value, replacer, resolvedSpaces);
+  } catch (err) {
+    throw createAtomicWriteError('serialize JSON', targetPath, err);
+  }
+  if (payload === undefined) {
+    const err = new Error('JSON payload resolved to undefined.');
+    throw createAtomicWriteError('serialize JSON', targetPath, err);
+  }
+  return newline ? `${payload}\n` : payload;
+};
+
 /**
  * Atomically write UTF-8 text to disk (temp file -> fsync -> rename).
  * @param {string} targetPath
@@ -272,17 +302,7 @@ export const atomicWriteText = async (targetPath, text, options = {}) => {
     newline = false,
     encoding = 'utf8'
   } = options;
-  const payload = Buffer.isBuffer(text)
-    ? (() => {
-      if (!newline) return text;
-      if (text.length > 0 && text[text.length - 1] === 0x0a) return text;
-      return Buffer.concat([text, Buffer.from('\n')]);
-    })()
-    : (() => {
-      const source = text == null ? '' : String(text);
-      if (!newline) return source;
-      return source.endsWith('\n') ? source : `${source}\n`;
-    })();
+  const payload = buildAtomicTextPayload(text, { newline });
   return writeAtomicPayload(targetPath, payload, { ...options, encoding });
 };
 
@@ -294,27 +314,7 @@ export const atomicWriteText = async (targetPath, text, options = {}) => {
  * @returns {Promise<string|null>}
  */
 export const atomicWriteJson = async (targetPath, value, options = {}) => {
-  const {
-    replacer = null,
-    spaces = 2,
-    newline = true
-  } = options;
-  const resolvedSpaces = toNonNegativeInt(spaces, 2);
-  let payload = null;
-  try {
-    payload = JSON.stringify(value, replacer, resolvedSpaces);
-  } catch (err) {
-    throw createAtomicWriteError('serialize JSON', targetPath, err);
-  }
-  if (payload === undefined) {
-    const err = new Error('JSON payload resolved to undefined.');
-    throw createAtomicWriteError('serialize JSON', targetPath, err);
-  }
-  return writeAtomicPayload(
-    targetPath,
-    newline ? `${payload}\n` : payload,
-    options
-  );
+  return writeAtomicPayload(targetPath, buildAtomicJsonPayload(targetPath, value, options), options);
 };
 
 /**
@@ -329,17 +329,7 @@ export const atomicWriteTextSync = (targetPath, text, options = {}) => {
     newline = false,
     encoding = 'utf8'
   } = options;
-  const payload = Buffer.isBuffer(text)
-    ? (() => {
-      if (!newline) return text;
-      if (text.length > 0 && text[text.length - 1] === 0x0a) return text;
-      return Buffer.concat([text, Buffer.from('\n')]);
-    })()
-    : (() => {
-      const source = text == null ? '' : String(text);
-      if (!newline) return source;
-      return source.endsWith('\n') ? source : `${source}\n`;
-    })();
+  const payload = buildAtomicTextPayload(text, { newline });
   return writeAtomicPayloadSync(targetPath, payload, { ...options, encoding });
 };
 
@@ -351,27 +341,7 @@ export const atomicWriteTextSync = (targetPath, text, options = {}) => {
  * @returns {string|null}
  */
 export const atomicWriteJsonSync = (targetPath, value, options = {}) => {
-  const {
-    replacer = null,
-    spaces = 2,
-    newline = true
-  } = options;
-  const resolvedSpaces = toNonNegativeInt(spaces, 2);
-  let payload = null;
-  try {
-    payload = JSON.stringify(value, replacer, resolvedSpaces);
-  } catch (err) {
-    throw createAtomicWriteError('serialize JSON', targetPath, err);
-  }
-  if (payload === undefined) {
-    const err = new Error('JSON payload resolved to undefined.');
-    throw createAtomicWriteError('serialize JSON', targetPath, err);
-  }
-  return writeAtomicPayloadSync(
-    targetPath,
-    newline ? `${payload}\n` : payload,
-    options
-  );
+  return writeAtomicPayloadSync(targetPath, buildAtomicJsonPayload(targetPath, value, options), options);
 };
 
 export const getAtomicWriteRuntimeMetrics = () => ({

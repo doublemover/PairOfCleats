@@ -1,10 +1,15 @@
 import path from 'node:path';
 import { createCli } from '../../shared/cli.js';
 import { isDirectExecution } from '../../shared/direct-execution.js';
-import { toPosix } from '../../shared/files.js';
-import { normalizeOptionalNumber } from '../../shared/limits.js';
+import { toPosix } from '../../shared/file-paths.js';
 import { parseSeedRef } from '../../shared/seed-ref.js';
-import { emitCliError, emitCliOutput, mergeCaps, parseList, resolveFormat } from './cli-helpers.js';
+import {
+  buildGraphCliOptions,
+  emitCliError,
+  emitCliOutput,
+  resolveFormat,
+  resolveGraphCliCapsAndFilters
+} from './cli-helpers.js';
 import { buildGraphContextPack } from '../../graph/context-pack.js';
 import { renderGraphContextPack } from '../../retrieval/output/graph-context-pack.js';
 import { validateGraphContextPack } from '../../contracts/validators/analysis.js';
@@ -12,7 +17,7 @@ import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
 import { prepareGraphIndex, prepareGraphInputs } from './graph-helpers.js';
 import { loadUserConfig } from '../../shared/dict-utils.js';
-import { resolveRepoRoot } from '../../shared/repo-paths.js';
+import { getRepoRoot } from '../../shared/repo-paths.js';
 
 /**
  * CLI entrypoint for graph-neighborhood context pack generation.
@@ -27,30 +32,14 @@ export async function runGraphContextCli(rawArgs = process.argv.slice(2)) {
   const cli = createCli({
     scriptName: 'graph-context',
     argv: ['node', 'graph-context', ...rawArgs],
-    options: {
-      repo: { type: 'string' },
+    options: buildGraphCliOptions({
       seed: { type: 'string' },
-      depth: { type: 'number' },
-      direction: { type: 'string' },
-      format: { type: 'string' },
-      json: { type: 'boolean', default: false },
-      includePaths: { type: 'boolean', default: false },
-      graphs: { type: 'string' },
-      edgeTypes: { type: 'string' },
-      minConfidence: { type: 'number' },
-      maxDepth: { type: 'number' },
-      maxFanoutPerNode: { type: 'number' },
-      maxNodes: { type: 'number' },
-      maxEdges: { type: 'number' },
-      maxPaths: { type: 'number' },
-      maxCandidates: { type: 'number' },
-      maxWorkUnits: { type: 'number' },
-      maxWallClockMs: { type: 'number' }
-    }
+      includePaths: { type: 'boolean', default: false }
+    })
   });
   const argv = cli.parse();
 
-  const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
+  const repoRoot = getRepoRoot(argv.repo || null, process.cwd());
   const format = resolveFormat(argv);
 
   try {
@@ -70,35 +59,13 @@ export async function runGraphContextCli(rawArgs = process.argv.slice(2)) {
     }
 
     const seed = parseSeedRef(argv.seed, repoRoot);
-    const baseCaps = userConfig?.retrieval?.graph?.caps || {};
-    const capOverrides = {
-      maxDepth: normalizeOptionalNumber(argv.maxDepth),
-      maxFanoutPerNode: normalizeOptionalNumber(argv.maxFanoutPerNode),
-      maxNodes: normalizeOptionalNumber(argv.maxNodes),
-      maxEdges: normalizeOptionalNumber(argv.maxEdges),
-      maxPaths: normalizeOptionalNumber(argv.maxPaths),
-      maxCandidates: normalizeOptionalNumber(argv.maxCandidates),
-      maxWorkUnits: normalizeOptionalNumber(argv.maxWorkUnits),
-      maxWallClockMs: normalizeOptionalNumber(argv.maxWallClockMs)
-    };
-    const caps = mergeCaps(baseCaps, capOverrides);
-
-    const graphs = parseList(argv.graphs);
-    const edgeTypes = parseList(argv.edgeTypes);
-    const includeAllGraphs = graphs.length === 0;
-    const minConfidence = normalizeOptionalNumber(argv.minConfidence);
-    const edgeFilters = {
-      graphs: graphs.length ? graphs : null,
-      edgeTypes: edgeTypes.length ? edgeTypes : null,
-      minConfidence
-    };
+    const { caps, edgeFilters, graphSelection } = resolveGraphCliCapsAndFilters(argv, userConfig);
 
     const graphInputs = await prepareGraphInputs({
       repoRoot,
       indexDir,
       strict: true
     });
-    const graphSelection = includeAllGraphs ? null : graphs;
     const { graphIndex } = await prepareGraphIndex({
       repoRoot,
       indexDir,

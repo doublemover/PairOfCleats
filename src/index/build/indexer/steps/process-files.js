@@ -1,11 +1,11 @@
+import { runWithQueue } from '../../../../shared/concurrency/run-with-queue.js';
 import {
-  runWithQueue,
   createOrderedCompletionTracker as createSharedOrderedCompletionTracker
-} from '../../../../shared/concurrency.js';
-import { getEnvConfig } from '../../../../shared/env.js';
-import { fileExt, toPosix } from '../../../../shared/files.js';
+} from '../../../../shared/concurrency/ordered-completion.js';
+import { getEnvConfig } from '../../../../shared/env/runtime.js';
+import { fileExt, toPosix } from '../../../../shared/file-paths.js';
 import { countLinesForEntries } from '../../../../shared/file-stats.js';
-import { log, logLine, showProgress } from '../../../../shared/progress.js';
+import { log, logLine, showProgress } from '../../../../shared/progress-runtime.js';
 import { awaitWithKeepalive } from '../../../../shared/promise-keepalive.js';
 import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-timeout.js';
 import { coerceNonNegativeInt, coercePositiveInt } from '../../../../shared/number-coerce.js';
@@ -24,10 +24,9 @@ import {
   evaluateProgressTimeout
 } from '../../../../shared/indexing/progress-timeout-policy.js';
 import {
-  snapshotTrackedSubprocesses,
-  terminateTrackedSubprocesses,
-  withTrackedSubprocessSignalScope
-} from '../../../../shared/subprocess.js';
+  terminateTrackedSubprocesses
+} from '../../../../shared/subprocess/tracking-terminate.js';
+import { snapshotTrackedSubprocesses } from '../../../../shared/subprocess/snapshot.js';
 import { createBuildCheckpoint } from '../../build-state.js';
 import { createFileProcessor } from '../../file-processor.js';
 import { getLanguageForFile } from '../../../language-registry.js';
@@ -144,6 +143,18 @@ import { SCHEDULER_QUEUE_NAMES } from '../../runtime/scheduler.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.js';
 import { prepareScmFileMetaSnapshot } from '../../../scm/file-meta-snapshot.js';
 import { mergeReuseSummaries } from '../../../../shared/reuse-diagnostics.js';
+
+let trackingScopeModulePromise = null;
+
+const loadTrackingScopeModule = () => {
+  trackingScopeModulePromise ??= import('../../../../shared/subprocess/tracking-scope.js');
+  return trackingScopeModulePromise;
+};
+
+const withTrackedSubprocessSignalScope = async (signal, scope, operation) => {
+  const trackingScopeModule = await loadTrackingScopeModule();
+  return trackingScopeModule.withTrackedSubprocessSignalScope(signal, scope, operation);
+};
 
 export {
   buildWatchdogNearThresholdSummary,

@@ -1,13 +1,18 @@
 import { parseBabelAst } from '../babel-parser.js';
 import { collectImportsFromAst } from '../javascript.js';
 import { findCLikeBodyBounds } from '../clike.js';
-import { resolveCalleeParts, resolveCallLocation, truncateCallText } from '../js-ts/relations-shared.js';
+import {
+  buildCallDetail,
+  formatJsTsCallArg,
+  resolveAstMemberName,
+  resolveCallLocation,
+  truncateCallText
+} from '../js-ts/relations-shared.js';
 import { TS_CALL_KEYWORDS, TS_USAGE_SKIP } from './constants.js';
 import { resolveTypeScriptParser, stripTypeScriptComments } from './parser.js';
 
 const MAX_CALL_ARGS = 5;
 const MAX_CALL_ARG_LEN = 80;
-const MAX_CALL_ARG_DEPTH = 2;
 const WALK_SKIP_KEYS = new Set([
   'loc',
   'start',
@@ -31,30 +36,7 @@ const getLastDottedSegment = (raw) => {
   return raw.slice(idx + 1, end);
 };
 
-const getMemberName = (node) => {
-  if (!node) return null;
-  if (node.type === 'Identifier') return node.name;
-  if (node.type === 'PrivateName' && node.id?.name) return `#${node.id.name}`;
-  if (node.type === 'ThisExpression') return 'this';
-  if (node.type === 'Super') return 'super';
-  if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
-    const obj = getMemberName(node.object);
-    const prop = node.computed
-      ? (node.property?.type === 'StringLiteral' || node.property?.type === 'Literal'
-        ? String(node.property.value)
-        : null)
-      : (node.property?.name || node.property?.id?.name || null);
-    if (obj && prop) return `${obj}.${prop}`;
-    return obj || prop;
-  }
-  if (node.type === 'TSQualifiedName') {
-    const left = getMemberName(node.left);
-    const right = getMemberName(node.right);
-    if (left && right) return `${left}.${right}`;
-    return left || right;
-  }
-  return null;
-};
+const getMemberName = (node) => resolveAstMemberName(node, { includeTsQualifiedName: true });
 
 const getCalleeName = (callee) => {
   if (!callee) return null;
@@ -66,31 +48,6 @@ const getCalleeName = (callee) => {
   }
   if (callee.type === 'Super') return 'super';
   return null;
-};
-
-const formatCallArg = (arg, depth = 0) => {
-  if (!arg || depth > MAX_CALL_ARG_DEPTH) return '...';
-  if (arg.type === 'Identifier') return arg.name;
-  if (arg.type === 'Literal') return JSON.stringify(arg.value);
-  if (arg.type === 'StringLiteral' || arg.type === 'NumericLiteral' || arg.type === 'BooleanLiteral') {
-    return JSON.stringify(arg.value);
-  }
-  if (arg.type === 'MemberExpression' || arg.type === 'OptionalMemberExpression') {
-    return getMemberName(arg) || 'member';
-  }
-  if (arg.type === 'CallExpression' || arg.type === 'OptionalCallExpression') {
-    const callee = getCalleeName(arg.callee);
-    return callee ? `${callee}(...)` : 'call(...)';
-  }
-  if (arg.type === 'ArrowFunctionExpression' || arg.type === 'FunctionExpression') return 'fn(...)';
-  if (arg.type === 'ObjectExpression') return '{...}';
-  if (arg.type === 'ArrayExpression') return '[...]';
-  if (arg.type === 'TemplateLiteral') return '`...`';
-  if (arg.type === 'SpreadElement') {
-    const inner = formatCallArg(arg.argument, depth + 1);
-    return inner ? `...${inner}` : '...';
-  }
-  return '...';
 };
 
 function collectTypeScriptImportsFromNormalized(normalized) {
@@ -252,28 +209,14 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
     const args = [];
     if (Array.isArray(node.arguments)) {
       for (let i = 0; i < node.arguments.length && args.length < MAX_CALL_ARGS; i += 1) {
-        const value = truncateCallText(formatCallArg(node.arguments[i]), MAX_CALL_ARG_LEN);
+        const value = truncateCallText(formatJsTsCallArg(node.arguments[i], {
+          getCalleeName,
+          getMemberName
+        }), MAX_CALL_ARG_LEN);
         if (value) args.push(value);
       }
     }
-    const calleeParts = resolveCalleeParts(calleeName);
-    const detail = {
-      caller: callerName,
-      callee: calleeName,
-      calleeRaw: calleeParts.calleeRaw || calleeName,
-      calleeNormalized: calleeParts.calleeNormalized || calleeName,
-      receiver: calleeParts.receiver || null,
-      args
-    };
-    if (location) {
-      detail.start = location.start;
-      detail.end = location.end;
-      detail.startLine = location.startLine;
-      detail.startCol = location.startCol;
-      detail.endLine = location.endLine;
-      detail.endCol = location.endCol;
-    }
-    callDetails.push(detail);
+    callDetails.push(buildCallDetail({ callerName, calleeName, args, location }));
     calls.push([callerName, calleeName]);
   };
 

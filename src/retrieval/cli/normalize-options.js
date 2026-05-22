@@ -18,7 +18,8 @@ import {
 import { resolveSearchMode } from '../cli-args.js';
 import { getMissingFlagMessages, resolveBm25Defaults } from './options.js';
 import { normalizeOptionalNumber, normalizePositiveInt } from '../../shared/limits.js';
-import { getEnvConfig, normalizeOptionalBoolean } from '../../shared/env.js';
+import { normalizeOptionalBoolean } from '../../shared/env/core.js';
+import { getEnvConfig } from '../../shared/env/runtime.js';
 import { normalizeBooleanString } from '../../shared/boolean-normalization.js';
 import { normalizeDenseVectorMode } from '../../shared/dense-vector-mode.js';
 

@@ -1,9 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { normalizeEmbeddingJob } from './indexer-service-helpers.js';
+import {
+  normalizeEmbeddingJob,
+  readServiceBuildStateSnapshot,
+  resolveEmbeddingBackendStageDir
+} from './indexer-service-helpers.js';
 import { loadIndexState, writeIndexState } from '../build/embeddings/state.js';
 
-const BUILD_STATE_FILE = 'build_state.json';
 const REPLAY_CONTRACT_VERSION = 1;
 const EMBEDDING_ARTIFACT_PATHS = [
   'dense_vectors_uint8.bin',
@@ -40,20 +43,12 @@ const pathExists = async (targetPath) => {
   }
 };
 
-const resolveBackendStageDir = (buildRoot, indexDir, mode) => {
-  if (!mode) return null;
-  const base = buildRoot || indexDir || null;
-  if (!base) return null;
-  return path.join(base, '.embeddings-backend-staging', `index-${mode}`);
-};
-
 const summarizeBuildState = async (buildRoot, mode) => {
-  if (!buildRoot) return null;
-  const statePath = path.join(buildRoot, BUILD_STATE_FILE);
-  const state = await readJson(statePath, null);
-  if (!state || typeof state !== 'object') return null;
+  const snapshot = await readServiceBuildStateSnapshot(buildRoot);
+  if (!snapshot) return null;
+  const state = snapshot.state;
   return {
-    path: statePath,
+    path: snapshot.path,
     stage: state.stage || null,
     mode,
     phaseStatus: state?.phases?.stage3?.status || null,
@@ -85,7 +80,7 @@ export async function collectEmbeddingReplayState(job = {}) {
   const normalized = normalizeEmbeddingJob(job);
   const statePath = normalized.indexDir ? path.join(normalized.indexDir, 'index_state.json') : null;
   const indexState = statePath ? loadIndexState(statePath) : {};
-  const backendStageDir = resolveBackendStageDir(normalized.buildRoot, normalized.indexDir, job?.mode || null);
+  const backendStageDir = resolveEmbeddingBackendStageDir(normalized, job?.mode || null);
   const backendStageExists = backendStageDir ? await pathExists(backendStageDir) : false;
   const artifacts = await summarizeArtifacts(normalized.indexDir);
   const buildState = await summarizeBuildState(normalized.buildRoot, job?.mode || null);

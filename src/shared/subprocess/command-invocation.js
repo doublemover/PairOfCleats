@@ -1,4 +1,4 @@
-import { spawnSubprocess, spawnSubprocessSync } from '../subprocess.js';
+import { spawnSubprocess, spawnSubprocessSync } from './runner.js';
 import {
   resolveWindowsCmdInvocation,
   resolveWindowsCmdShimPath

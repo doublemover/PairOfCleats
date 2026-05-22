@@ -1,18 +1,21 @@
 import path from 'node:path';
-import { normalizeRiskSummary, summarizeRiskStats } from '../../shared/risk-explain.js';
+import { normalizeRiskSummary, summarizeRiskStats } from '../../shared/risk-explain-summary.js';
 import { observeRiskPackMetrics } from '../../shared/metrics/core.js';
+import { createTruncationRecorder } from '../../shared/truncation.js';
 import {
   filterRiskFlows,
   filterRiskPartialFlows,
   materializeRiskFilters
 } from '../../shared/risk-filters.js';
 import {
-  MAX_JSON_BYTES,
   loadJsonArrayArtifactSync,
-  loadJsonObjectArtifactSync,
+  loadJsonObjectArtifactSync
+} from '../../shared/artifact-io/loaders/core.js';
+import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
+import {
   loadPiecesManifest,
   resolveArtifactPresence
-} from '../../shared/artifact-io.js';
+} from '../../shared/artifact-io/manifest.js';
 import { resolveChunkCandidatesBySeed } from '../seed-resolution.js';
 import { prefetchFileRanges } from '../excerpt-cache.js';
 import {
@@ -524,19 +527,27 @@ export const buildRiskSlice = ({
   const rankedPartialFlows = rankPartialRiskFlows(partialFlows, selectedAnchor);
   const referencedCallSiteIds = new Set();
   const riskCapHits = new Set(Array.isArray(stats?.capsHit) ? stats.capsHit : []);
+  const packRiskTruncationRecorder = createTruncationRecorder({ scope: 'risk', target: truncation });
+  const riskTruncationRecorder = createTruncationRecorder({ scope: 'risk', target: riskTruncation });
+  const recordRiskTruncation = (cap, detail = {}) => {
+    packRiskTruncationRecorder.record(cap, detail);
+    riskTruncationRecorder.record(cap, detail);
+  };
   const flowSelection = selectRiskFlowsWithinBudget({
     rankedFlows,
     truncation,
     riskTruncation,
     referencedCallSiteIds,
-    riskCapHits
+    riskCapHits,
+    recordRiskTruncation
   });
   const partialFlowSelection = selectRiskPartialFlowsWithinBudget({
     rankedPartialFlows,
     truncation,
     riskTruncation,
     referencedCallSiteIds,
-    riskCapHits
+    riskCapHits,
+    recordRiskTruncation
   });
 
   let truncatedCallSiteExcerptBytes = 0;
@@ -591,29 +602,21 @@ export const buildRiskSlice = ({
 
   if (truncatedCallSiteExcerptBytes > 0) {
     riskCapHits.add('maxCallSiteExcerptBytes');
-    const record = {
-      scope: 'risk',
-      cap: 'maxCallSiteExcerptBytes',
+    recordRiskTruncation('maxCallSiteExcerptBytes', {
       limit: 192,
       observed: truncatedCallSiteExcerptBytes,
       omitted: truncatedCallSiteExcerptBytes,
       note: 'Risk call-site excerpts were truncated to the configured per-call-site byte budget.'
-    };
-    truncation.push(record);
-    riskTruncation.push(record);
+    });
   }
   if (truncatedCallSiteExcerptTokens > 0) {
     riskCapHits.add('maxCallSiteExcerptTokens');
-    const record = {
-      scope: 'risk',
-      cap: 'maxCallSiteExcerptTokens',
+    recordRiskTruncation('maxCallSiteExcerptTokens', {
       limit: 24,
       observed: truncatedCallSiteExcerptTokens,
       omitted: truncatedCallSiteExcerptTokens,
       note: 'Risk call-site excerpts were truncated to the configured per-call-site token budget.'
-    };
-    truncation.push(record);
-    riskTruncation.push(record);
+    });
   }
 
   const normalizedFlows = flowSelection.selectedRawFlows.map((flow) => ({

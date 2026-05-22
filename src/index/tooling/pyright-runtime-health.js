@@ -1,12 +1,16 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { readJsonFileSafe } from '../../shared/files.js';
+import { readJsonFileSafe } from '../../shared/file-read.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import {
   buildProviderFidelityContract,
   PROVIDER_FIDELITY_STATE
 } from './provider-contract.js';
+import {
+  normalizeVirtualWorkspacePath,
+  normalizeWorkspaceRootRel
+} from './workspace-model.js';
 
 const DEFAULT_HARD_COOLDOWN_MS = 10 * 60 * 1000;
 const DEFAULT_SOFT_COOLDOWN_MS = 2 * 60 * 1000;
@@ -22,25 +26,6 @@ export const PYRIGHT_RUNTIME_HEALTH_STATE = Object.freeze({
   DEGRADED_HARD: 'degraded_hard',
   QUARANTINED_FOR_RUN: 'quarantined_for_run'
 });
-
-const normalizeWorkspaceRootRel = (value) => {
-  const normalized = String(value || '.')
-    .replace(/\\/g, '/')
-    .replace(/^\/+/, '')
-    .replace(/\/+/g, '/')
-    .replace(/\/$/, '');
-  return normalized || '.';
-};
-
-const normalizeVirtualPath = (value) => (
-  String(value || '')
-    .trim()
-    .replace(/\\/g, '/')
-    .replace(/^\/+/, '')
-    .replace(/^\.poc-vfs\/+/iu, '')
-    .replace(/^poc-vfs\/+/iu, '')
-    .replace(/#.*$/u, '')
-);
 
 const buildHealthFingerprint = ({ repoRoot, workspaceRootRel }) => crypto.createHash('sha1')
   .update(path.resolve(String(repoRoot || process.cwd())).toLowerCase())
@@ -86,7 +71,7 @@ export const buildPyrightRuntimeFingerprint = ({
 } = {}) => {
   const docs = Array.isArray(selectedDocumentSummaries)
     ? selectedDocumentSummaries
-      .map((entry) => normalizeVirtualPath(entry?.virtualPath))
+      .map((entry) => normalizeVirtualWorkspacePath(entry?.virtualPath))
       .filter(Boolean)
       .sort((left, right) => left.localeCompare(right))
     : [];

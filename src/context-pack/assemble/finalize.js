@@ -1,7 +1,13 @@
 import { normalizeLimit, normalizeOptionalNumber } from '../../shared/limits.js';
+import {
+  buildProcessMemoryPeak,
+  snapshotProcessMemory
+} from '../../shared/ops/resource-visibility.js';
 import { resolveProvenance } from '../../shared/provenance.js';
 import { normalizeRiskFilters, validateRiskFilters } from '../../shared/risk-filters.js';
-import { MAX_JSON_BYTES, loadPiecesManifest } from '../../shared/artifact-io.js';
+import { createTruncationRecorder } from '../../shared/truncation.js';
+import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
+import { loadPiecesManifest } from '../../shared/artifact-io/manifest.js';
 import { buildGraphContextPack } from '../../graph/context-pack.js';
 import {
   buildChunkIndex,
@@ -26,13 +32,6 @@ const buildGraphFilters = ({ includeCallersCallees, includeUsages, includeImport
   if (includeImports) graphs.push('importGraph');
   return graphs.length ? { graphs } : null;
 };
-
-const snapshotMemory = (value) => ({
-  heapUsed: value.heapUsed,
-  rss: value.rss,
-  external: value.external,
-  arrayBuffers: value.arrayBuffers
-});
 
 export const assembleCompositeContextPack = ({
   seed = null,
@@ -69,7 +68,8 @@ export const assembleCompositeContextPack = ({
   const timingStart = process.hrtime.bigint();
   const memoryStart = process.memoryUsage();
   const warnings = [];
-  const truncation = [];
+  const truncationRecorder = createTruncationRecorder();
+  const truncation = truncationRecorder.list;
   const seedRef = resolveSeedRef(seed);
   const normalizedRiskFilters = normalizeRiskFilters(riskFilters);
   const riskFilterValidation = validateRiskFilters(normalizedRiskFilters);
@@ -188,12 +188,7 @@ export const assembleCompositeContextPack = ({
   });
 
   const memoryEnd = process.memoryUsage();
-  const peakMemory = {
-    heapUsed: Math.max(memoryStart.heapUsed, memoryEnd.heapUsed),
-    rss: Math.max(memoryStart.rss, memoryEnd.rss),
-    external: Math.max(memoryStart.external, memoryEnd.external),
-    arrayBuffers: Math.max(memoryStart.arrayBuffers, memoryEnd.arrayBuffers)
-  };
+  const peakMemory = buildProcessMemoryPeak(memoryStart, memoryEnd);
   const elapsedMs = Number((process.hrtime.bigint() - timingStart) / 1000000n);
   const evidence = {
     schemaVersion: 1,
@@ -241,8 +236,8 @@ export const assembleCompositeContextPack = ({
     stats: {
       timing: { elapsedMs },
       memory: {
-        start: snapshotMemory(memoryStart),
-        end: snapshotMemory(memoryEnd),
+        start: snapshotProcessMemory(memoryStart),
+        end: snapshotProcessMemory(memoryEnd),
         peak: peakMemory
       },
       excerptBytes

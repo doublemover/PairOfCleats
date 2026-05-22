@@ -6,6 +6,7 @@ import {
   TEST_PROFILE_ARTIFACT_SCHEMA,
   TEST_STABILITY_ARTIFACT_SCHEMA
 } from '../schemas/test-artifacts.js';
+import { toValidationResult } from './result.js';
 
 const ajv = createAjv({
   allErrors: true,
@@ -20,36 +21,22 @@ const VALIDATE_TEST_TIMINGS = compileSchema(ajv, TEST_TIMINGS_ARTIFACT_SCHEMA);
 const VALIDATE_TEST_PROFILE = compileSchema(ajv, TEST_PROFILE_ARTIFACT_SCHEMA);
 const VALIDATE_TEST_STABILITY = compileSchema(ajv, TEST_STABILITY_ARTIFACT_SCHEMA);
 
-const formatError = (error) => {
-  const path = error.instancePath || '/';
-  const message = error.message || 'schema error';
-  return `${path} ${message}`.trim();
-};
-
-const toResult = (validator, payload) => {
-  const ok = Boolean(validator(payload));
-  return {
-    ok,
-    errors: ok || !validator.errors ? [] : validator.errors.map(formatError)
-  };
-};
-
 export const validateTestCoverageArtifact = (payload) => (
-  toResult(VALIDATE_TEST_COVERAGE, payload)
+  toValidationResult(VALIDATE_TEST_COVERAGE, payload)
 );
 
 export const validateTestCoveragePolicyReportArtifact = (payload) => (
-  toResult(VALIDATE_TEST_COVERAGE_POLICY_REPORT, payload)
+  toValidationResult(VALIDATE_TEST_COVERAGE_POLICY_REPORT, payload)
 );
 
 export const validateTestTimingsArtifact = (payload) => (
-  toResult(VALIDATE_TEST_TIMINGS, payload)
+  toValidationResult(VALIDATE_TEST_TIMINGS, payload)
 );
 
 export const validateTestProfileArtifact = (payload) => (
-  toResult(VALIDATE_TEST_PROFILE, payload)
+  toValidationResult(VALIDATE_TEST_PROFILE, payload)
 );
 
 export const validateTestStabilityArtifact = (payload) => (
-  toResult(VALIDATE_TEST_STABILITY, payload)
+  toValidationResult(VALIDATE_TEST_STABILITY, payload)
 );

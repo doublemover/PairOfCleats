@@ -2,6 +2,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { parseRubySignature } from './signature-parse/ruby.js';
 import { createDedicatedLspProvider } from './dedicated-lsp-provider.js';
+import { resolveNonReadyPreflightResult } from './lsp-provider/non-ready-preflight-result.js';
 import { ensureCommandArgToken, normalizeCommandArgs } from './provider-utils.js';
 import {
   resolveRuntimeProbeProfile,
@@ -84,14 +85,6 @@ const resolveSolargraphRuntimeToolchainPreflight = ({ ctx }) => {
   };
 };
 
-const resolveFirstNonReadyPreflight = (...entries) => {
-  for (const entry of entries) {
-    const state = String(entry?.state || 'ready').trim().toLowerCase();
-    if (state !== 'ready') return entry;
-  }
-  return { state: 'ready', reasonCode: null, message: '', checks: [] };
-};
-
 export const createSolargraphProvider = () => createDedicatedLspProvider({
   id: 'solargraph',
   label: 'solargraph (dedicated)',
@@ -139,20 +132,10 @@ export const createSolargraphProvider = () => createDedicatedLspProvider({
   preflight: async ({ ctx }) => {
     const runtimePreflight = resolveSolargraphRuntimeToolchainPreflight({ ctx });
     const workspacePreflight = resolveSolargraphWorkspaceDependencyPreflight({ ctx });
-    const firstNonReady = resolveFirstNonReadyPreflight(workspacePreflight, runtimePreflight);
-    if (String(firstNonReady?.state || '').toLowerCase() === 'ready') {
-      return firstNonReady;
-    }
-    const checks = [
-      ...(Array.isArray(runtimePreflight?.checks) ? runtimePreflight.checks : []),
-      ...(Array.isArray(workspacePreflight?.checks) ? workspacePreflight.checks : [])
-    ];
-    return {
-      state: firstNonReady.state || 'degraded',
-      reasonCode: firstNonReady.reasonCode || null,
-      message: firstNonReady.message || '',
-      ...(checks.length ? { checks } : {})
-    };
+    return resolveNonReadyPreflightResult(
+      [workspacePreflight, runtimePreflight],
+      [runtimePreflight, workspacePreflight]
+    );
   },
   prepareCollect: ({ commandProfile, requested }) => ({
     args: ensureStdioArg(commandProfile.resolved.args || requested.args)

@@ -11,6 +11,7 @@ from ..lib import results
 from ..lib import results_state
 from ..lib import runner
 from ..lib import ui
+from ..lib import views
 
 DEFAULT_CONTEXT_PACK_HOPS = 2
 DEFAULT_RISK_EXPLAIN_MAX = 5
@@ -35,18 +36,6 @@ ANALYSIS_ACTIONS = [
 
 def _resolve_repo_root(window, path_hint=None, allow_fallback=True):
     return paths.resolve_repo_root(window, return_reason=True, path_hint=path_hint, allow_fallback=allow_fallback)
-
-
-def _extract_selection(view):
-    if view is None:
-        return ''
-    for region in view.sel():
-        if getattr(region, 'empty', None):
-            if not region.empty():
-                return view.substr(region)
-        elif getattr(region, 'a', None) != getattr(region, 'b', None):
-            return view.substr(region)
-    return ''
 
 
 def _resolve_active_file_seed(window):
@@ -860,7 +849,7 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
             self._execute(chunk, max, source_rule, sink_rule, export_json, out_path)
             return
         view = self.window.active_view() if self.window else None
-        selection = _extract_selection(view)
+        selection = views.extract_selection(view)
         initial = selection.strip()
         _prompt_value(
             self.window,
@@ -1134,30 +1123,79 @@ class PairOfCleatsWorkspaceStatusCommand(PairOfCleatsWorkspaceManifestCommand):
 
 
 class PairOfCleatsWorkspaceBuildCommand(PairOfCleatsWorkspaceManifestCommand):
-    def run(self, workspace_path=None, concurrency=DEFAULT_WORKSPACE_BUILD_CONCURRENCY, export_json=False, out_path=None):
+    def run(self, workspace_path=None, concurrency=DEFAULT_WORKSPACE_BUILD_CONCURRENCY,
+            mode=None, stage=None, build_args=None, export_json=False, out_path=None):
         if workspace_path:
-            self._execute_build(workspace_path, concurrency, export_json, out_path)
+            self._execute_build(
+                workspace_path,
+                concurrency,
+                export_json,
+                out_path,
+                mode=mode,
+                stage=stage,
+                build_args=build_args,
+            )
             return
         _prompt_value(
             self.window,
             'PairOfCleats workspace path',
             _default_workspace_path(self.window),
-            lambda value: self._prompt_concurrency(value, export_json, out_path) if value else None,
+            lambda value: self._prompt_concurrency(
+                value,
+                export_json,
+                out_path,
+                mode,
+                stage,
+                build_args,
+            ) if value else None,
         )
 
-    def _prompt_concurrency(self, workspace_path, export_json, out_path):
+    def _prompt_concurrency(self, workspace_path, export_json, out_path, mode=None, stage=None, build_args=None):
         _prompt_value(
             self.window,
             'PairOfCleats workspace build concurrency',
             str(DEFAULT_WORKSPACE_BUILD_CONCURRENCY),
-            lambda value: self._execute_build(workspace_path, value or DEFAULT_WORKSPACE_BUILD_CONCURRENCY, export_json, out_path),
+            lambda value: self._execute_build(
+                workspace_path,
+                value or DEFAULT_WORKSPACE_BUILD_CONCURRENCY,
+                export_json,
+                out_path,
+                mode=mode,
+                stage=stage,
+                build_args=build_args,
+            ),
         )
 
-    def _execute_build(self, workspace_path, concurrency, export_json, out_path):
+    def _execute_build(
+        self,
+        workspace_path,
+        concurrency,
+        export_json,
+        out_path,
+        mode=None,
+        stage=None,
+        build_args=None,
+    ):
         def on_context(context):
             repo_root = context['repo_root']
             concurrency_value = int(concurrency) if str(concurrency).isdigit() else DEFAULT_WORKSPACE_BUILD_CONCURRENCY
-            args = ['workspace', 'build', '--workspace', workspace_path, '--concurrency', str(concurrency_value), '--json']
+            args = [
+                'workspace',
+                'build',
+                '--workspace',
+                workspace_path,
+                '--concurrency',
+                str(concurrency_value),
+            ]
+            if mode:
+                args.extend(['--mode', str(mode)])
+            if stage:
+                args.extend(['--stage', str(stage)])
+            if isinstance(build_args, (list, tuple)):
+                args.extend(str(value) for value in build_args if value is not None)
+            elif build_args:
+                args.extend(str(build_args).split())
+            args.append('--json')
             _execute_analysis_command(
                 self.window,
                 'PairOfCleats workspace build',

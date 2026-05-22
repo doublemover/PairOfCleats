@@ -1,7 +1,13 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { findCLikeBodyBounds } from './clike.js';
-import { extractDocComment, sliceSignature } from './shared.js';
+import {
+  buildBraceDelimitedMethodRelations,
+  buildDefaultDocMeta,
+  extractDocComment,
+  normalizeDeclarationList,
+  sliceSignature
+} from './shared.js';
 import { readSignatureLines } from './shared/signature-lines.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
 
@@ -63,6 +69,8 @@ const PERL_DOC_OPTIONS = {
   skipLine: (line) => line.startsWith('#!')
 };
 const PERL_PACKAGE_DECL_RE = /^\s*package\s+([A-Za-z_][A-Za-z0-9_:]*)\b/m;
+
+const PERL_CALLABLE_KINDS = new Set(['FunctionDeclaration']);
 
 function stripPerlComments(text) {
   return text.replace(/#.*$/gm, ' ');
@@ -203,15 +211,7 @@ export function buildPerlChunks(text, options = {}) {
     i = endLine;
   }
 
-  if (!decls.length) return null;
-  decls.sort((a, b) => a.start - b.start);
-  return decls.map((decl) => ({
-    start: decl.start,
-    end: decl.end,
-    name: decl.name,
-    kind: decl.kind,
-    meta: decl.meta || {}
-  }));
+  return normalizeDeclarationList(decls);
 }
 
 /**
@@ -221,30 +221,13 @@ export function buildPerlChunks(text, options = {}) {
  * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
 export function buildPerlRelations(text, perlChunks) {
-  const imports = collectPerlImports(text);
-  const exports = new Set();
-  const calls = [];
-  const usages = new Set();
-  if (Array.isArray(perlChunks)) {
-    for (const chunk of perlChunks) {
-      if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
-      if (chunk.kind === 'FunctionDeclaration') exports.add(chunk.name);
-      if (chunk.kind !== 'FunctionDeclaration') continue;
-      const bounds = findCLikeBodyBounds(text, chunk.start);
-      const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
-      const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
-      const slice = text.slice(scanStart, scanEnd);
-      const { calls: chunkCalls, usages: chunkUsages } = collectPerlCallsAndUsages(slice);
-      for (const callee of chunkCalls) calls.push([chunk.name, callee]);
-      for (const usage of chunkUsages) usages.add(usage);
-    }
-  }
-  return {
-    imports,
-    exports: Array.from(exports),
-    calls,
-    usages: Array.from(usages)
-  };
+  return buildBraceDelimitedMethodRelations(text, perlChunks, {
+    collectImports: collectPerlImports,
+    collectCallsAndUsages: collectPerlCallsAndUsages,
+    findBodyBounds: findCLikeBodyBounds,
+    callableKinds: PERL_CALLABLE_KINDS,
+    isExported: (chunk) => chunk.kind === 'FunctionDeclaration'
+  });
 }
 
 /**
@@ -253,19 +236,10 @@ export function buildPerlRelations(text, perlChunks) {
  * @returns {{doc:string,params:string[],returns:(string|null),signature:(string|null)}}
  */
 export function extractPerlDocMeta(chunk) {
-  const meta = chunk.meta || {};
-  return {
-    doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
+  return buildDefaultDocMeta(chunk, {
     params: [],
-    returns: null,
-    signature: meta.signature || null,
-    dataflow: meta.dataflow || null,
-    throws: meta.throws || [],
-    awaits: meta.awaits || [],
-    yields: meta.yields || false,
-    returnsValue: meta.returnsValue || false,
-    controlFlow: meta.controlFlow || null
-  };
+    returns: null
+  });
 }
 
 /**

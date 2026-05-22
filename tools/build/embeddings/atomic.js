@@ -1,3 +1,3 @@
-import { createTempPath, replaceFile } from '../../../src/shared/json-stream.js';
+import { createTempPath, replaceFile } from '../../../src/shared/json-stream/atomic.js';
 
 export { createTempPath, replaceFile };

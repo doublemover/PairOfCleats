@@ -1,5 +1,5 @@
 import { buildCacheKey } from '../../shared/cache-key.js';
-import { createLruCache } from '../../shared/cache.js';
+import { createLruCache } from '../../shared/cache/lru.js';
 
 /** Schema version for the VFS segment hash cache. */
 export const VFS_SEGMENT_HASH_CACHE_SCHEMA_VERSION = '1.0.0';

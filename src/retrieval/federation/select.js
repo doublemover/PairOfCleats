@@ -1,18 +1,9 @@
 import picomatch from 'picomatch';
 import { toRealPathSync } from '../../workspace/identity.js';
-
-const normalizeList = (value) => {
-  if (Array.isArray(value)) {
-    return value
-      .map((entry) => String(entry ?? '').trim())
-      .filter(Boolean);
-  }
-  if (value == null || value === '') return [];
-  return [String(value).trim()].filter(Boolean);
-};
+import { normalizeFederationList } from './normalize.js';
 
 const normalizeTags = (value) => (
-  normalizeList(value).map((entry) => entry.toLowerCase())
+  normalizeFederationList(value).map((entry) => entry.toLowerCase())
 );
 
 const aliasSortKey = (repo) => {
@@ -49,7 +40,7 @@ const createSelectMatcher = (token) => {
 };
 
 const createFilterMatcher = (patterns) => {
-  const matchers = normalizeList(patterns)
+  const matchers = normalizeFederationList(patterns)
     .map((pattern) => picomatch(pattern, { nocase: true, dot: true }));
   return (repo) => {
     if (!matchers.length) return true;
@@ -71,7 +62,7 @@ export const selectWorkspaceRepos = ({
     ? allRepos
     : allRepos.filter((repo) => repo.enabled !== false);
 
-  const selectMatchers = normalizeList(select).map((entry) => createSelectMatcher(entry));
+  const selectMatchers = normalizeFederationList(select).map((entry) => createSelectMatcher(entry));
   const explicitRepos = selectMatchers.length
     ? allRepos.filter((repo) => selectMatchers.some((matcher) => matcher(repo)))
     : [];
@@ -97,9 +88,9 @@ export const selectWorkspaceRepos = ({
     selectedRepos,
     selectedRepoIds,
     selectionMeta: {
-      explicitSelects: normalizeList(select),
+      explicitSelects: normalizeFederationList(select),
       tags: tagFilters.sort((a, b) => a.localeCompare(b)),
-      repoFilter: normalizeList(repoFilter),
+      repoFilter: normalizeFederationList(repoFilter),
       includeDisabled: includeDisabled === true
     },
     warnings: selectedRepos.length ? [] : ['WARN_FEDERATED_EMPTY_SELECTION']

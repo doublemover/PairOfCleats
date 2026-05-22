@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { throwIfAborted } from '../../../../shared/abort.js';
-import { toPosix } from '../../../../shared/files.js';
+import { toPosix } from '../../../../shared/file-paths.js';
 import { compareStrings } from '../../../../shared/sort.js';
-import { runWithConcurrency } from '../../../../shared/concurrency.js';
+import { runWithConcurrency } from '../../../../shared/concurrency/run-with-queue.js';
 import {
   exceedsTreeSitterLimits as exceedsSharedTreeSitterLimits,
   resolveTreeSitterLimits

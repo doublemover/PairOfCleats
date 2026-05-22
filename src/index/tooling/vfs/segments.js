@@ -1,4 +1,4 @@
-import { toPosix } from '../../../shared/files.js';
+import { toPosix } from '../../../shared/file-paths.js';
 import { computeSegmentUid } from '../../identity/chunk-uid.js';
 import { normalizeLanguageId, resolveEffectiveExt } from './virtual-path.js';
 
@@ -67,6 +67,27 @@ const buildSegmentDescriptor = ({
   };
 };
 
+const createCoalescedSegmentGroup = ({ containerPath, seg }) => ({
+  containerPath,
+  start: seg.start,
+  end: seg.end,
+  languageId: seg.languageId,
+  effectiveExt: seg.effectiveExt,
+  segmentType: seg.segmentType,
+  segments: [seg],
+  segmentUid: seg.segmentUid || null,
+  segmentId: seg.segmentId || null,
+  key: buildCoalesceGroupKey({
+    containerPath,
+    segmentStart: seg.start,
+    segmentEnd: seg.end,
+    languageId: seg.languageId,
+    effectiveExt: seg.effectiveExt
+  }),
+  coalesced: false,
+  _segmentUidPromise: null
+});
+
 /**
  * Build lookup map from raw segment descriptors to coalesced contiguous groups.
  *
@@ -125,26 +146,7 @@ export const buildCoalescedSegmentMap = (chunks) => {
     };
     for (const seg of segments) {
       if (!current) {
-        current = {
-          containerPath,
-          start: seg.start,
-          end: seg.end,
-          languageId: seg.languageId,
-          effectiveExt: seg.effectiveExt,
-          segmentType: seg.segmentType,
-          segments: [seg],
-          segmentUid: seg.segmentUid || null,
-          segmentId: seg.segmentId || null,
-          key: buildCoalesceGroupKey({
-            containerPath,
-            segmentStart: seg.start,
-            segmentEnd: seg.end,
-            languageId: seg.languageId,
-            effectiveExt: seg.effectiveExt
-          }),
-          coalesced: false,
-          _segmentUidPromise: null
-        };
+        current = createCoalescedSegmentGroup({ containerPath, seg });
         continue;
       }
       const canMerge = seg.start === current.end
@@ -153,26 +155,7 @@ export const buildCoalescedSegmentMap = (chunks) => {
         && seg.segmentType === current.segmentType;
       if (!canMerge) {
         flush();
-        current = {
-          containerPath,
-          start: seg.start,
-          end: seg.end,
-          languageId: seg.languageId,
-          effectiveExt: seg.effectiveExt,
-          segmentType: seg.segmentType,
-          segments: [seg],
-          segmentUid: seg.segmentUid || null,
-          segmentId: seg.segmentId || null,
-          key: buildCoalesceGroupKey({
-            containerPath,
-            segmentStart: seg.start,
-            segmentEnd: seg.end,
-            languageId: seg.languageId,
-            effectiveExt: seg.effectiveExt
-          }),
-          coalesced: false,
-          _segmentUidPromise: null
-        };
+        current = createCoalescedSegmentGroup({ containerPath, seg });
         continue;
       }
       current.segments.push(seg);

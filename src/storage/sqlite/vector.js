@@ -161,15 +161,52 @@ export function resolveEncodedVectorBytes(encoded) {
 }
 
 /**
+ * Resolve encoded-vector compatibility and the byte counts used in diagnostics.
+ * @param {{encoded:any,dims:number,encoding?:string}} params
+ * @returns {{compatible:boolean,expectedBytes:number|null,actualBytes:number|null,encoding:string}}
+ */
+export function resolveVectorEncodingCompatibility({ encoded, dims, encoding }) {
+  const normalizedEncoding = encoding || 'float32';
+  const expectedBytes = resolveVectorEncodingBytes(dims, normalizedEncoding);
+  if (expectedBytes == null) {
+    return {
+      compatible: true,
+      expectedBytes,
+      actualBytes: resolveEncodedVectorBytes(encoded),
+      encoding: normalizedEncoding
+    };
+  }
+  const actualBytes = resolveEncodedVectorBytes(encoded);
+  return {
+    compatible: !Number.isFinite(actualBytes) || actualBytes === expectedBytes,
+    expectedBytes,
+    actualBytes,
+    encoding: normalizedEncoding
+  };
+}
+
+/**
+ * Format the warning emitted when an encoded vector cannot fit the configured SQLite ANN extension.
+ * @param {{mode:string,dims:number,encoding?:string,expectedBytes?:number|null,actualBytes?:number|null}} input
+ * @returns {string}
+ */
+export function formatVectorEncodingMismatchWarning({
+  mode,
+  dims,
+  encoding = 'float32',
+  expectedBytes = null,
+  actualBytes = null
+}) {
+  return `[sqlite] Vector extension insert skipped for ${mode}: `
+    + `encoded length ${actualBytes ?? 'unknown'} != expected ${expectedBytes ?? 'unknown'} `
+    + `(dims=${dims}, encoding=${encoding || 'float32'}).`;
+}
+
+/**
  * Check if encoded vector payload matches the expected size.
  * @param {{encoded:any,dims:number,encoding?:string}} params
  * @returns {boolean}
  */
-export function isVectorEncodingCompatible({ encoded, dims, encoding }) {
-  if (!encoding) return true;
-  const expected = resolveVectorEncodingBytes(dims, encoding);
-  if (expected == null) return true;
-  const actual = resolveEncodedVectorBytes(encoded);
-  if (!Number.isFinite(actual)) return true;
-  return actual === expected;
+export function isVectorEncodingCompatible(params) {
+  return resolveVectorEncodingCompatibility(params).compatible;
 }

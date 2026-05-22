@@ -306,88 +306,11 @@ const collectHeuristicCallees = (text, scanBudget = null) => {
   return sortUnique(out);
 };
 
-const collectTemplateUsages = (text, scanBudget = null) => {
-  const source = String(text || '');
-  const matches = [];
-  const moustacheRef = /\{\{\s*[#/>]?\s*([A-Za-z_][A-Za-z0-9_.-]*)/g;
-  const jinjaRef = /\{%\s*(?:include|extends|import|from|call|macro|block)\s+['"]?([A-Za-z_][A-Za-z0-9_.-]*)/g;
-  const razorPartialRef = /@(?:Html\.)?Partial(?:Async)?\s*\(\s*["']([^"']+)["']/g;
-  const razorCallRef = /@([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
-  for (const matcher of [moustacheRef, jinjaRef, razorPartialRef, razorCallRef]) {
-    if (scanBudget && !scanBudget.consumeTime()) break;
-    if (scanBudget?.exhausted) break;
-    let match;
-    while (!scanBudget?.exhausted) {
-      if (scanBudget && !scanBudget.consumeTime()) break;
-      match = matcher.exec(source);
-      if (match === null) break;
-      if (scanBudget && !scanBudget.consumeMatch()) break;
-      const name = String(match[1] || '').trim();
-      if (name && !TEMPLATE_USAGE_SKIP.has(name) && (!scanBudget || scanBudget.consumeToken())) matches.push(name);
-      if (!match[0]) matcher.lastIndex += 1;
-    }
-  }
-  return sortUnique(matches);
-};
-
-const collectGraphqlUsages = (text, scanBudget = null) => {
-  const source = String(text || '');
+const collectRegexUsageCandidates = (source, matchers, scanBudget, {
+  skip = null,
+  candidatesForMatch = (match) => [match[1]]
+} = {}) => {
   const values = [];
-  const typeRef = /:\s*([A-Za-z_][A-Za-z0-9_]*)/g;
-  const fragmentRef = /\.\.\.\s*([A-Za-z_][A-Za-z0-9_]*)/g;
-  const implRef = /\b(?:on|implements)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
-  for (const matcher of [typeRef, fragmentRef, implRef]) {
-    if (scanBudget && !scanBudget.consumeTime()) break;
-    if (scanBudget?.exhausted) break;
-    let match;
-    while (!scanBudget?.exhausted) {
-      if (scanBudget && !scanBudget.consumeTime()) break;
-      match = matcher.exec(source);
-      if (match === null) break;
-      if (scanBudget && !scanBudget.consumeMatch()) break;
-      const name = String(match[1] || '').trim();
-      if (name && !GRAPHQL_USAGE_SKIP.has(name) && (!scanBudget || scanBudget.consumeToken())) values.push(name);
-      if (!match[0]) matcher.lastIndex += 1;
-    }
-  }
-  return sortUnique(values);
-};
-
-const collectProtoUsages = (text, scanBudget = null) => {
-  const source = String(text || '');
-  const values = [];
-  const rpcTypes = /\brpc\s+[A-Za-z_][A-Za-z0-9_]*\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)\s+returns\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/g;
-  const fieldTypes = /\b(?:optional|required|repeated)?\s*([A-Za-z_][A-Za-z0-9_.]*)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*\d+/g;
-  for (const matcher of [rpcTypes, fieldTypes]) {
-    if (scanBudget && !scanBudget.consumeTime()) break;
-    if (scanBudget?.exhausted) break;
-    let match;
-    while (!scanBudget?.exhausted) {
-      if (scanBudget && !scanBudget.consumeTime()) break;
-      match = matcher.exec(source);
-      if (match === null) break;
-      if (scanBudget && !scanBudget.consumeMatch()) break;
-      const candidates = matcher === rpcTypes ? [match[1], match[2]] : [match[1]];
-      for (const candidate of candidates) {
-        const name = String(candidate || '').trim();
-        if (name && !PROTO_USAGE_SKIP.has(name) && (!scanBudget || scanBudget.consumeToken())) values.push(name);
-      }
-      if (!match[0]) matcher.lastIndex += 1;
-    }
-  }
-  return sortUnique(values);
-};
-
-const collectBuildDslUsages = (text, scanBudget = null) => {
-  const source = String(text || '');
-  const values = [];
-  const cmakeCalls = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm;
-  const starlarkCalls = /\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
-  const makeDeps = /^[A-Za-z0-9_.-]+\s*:\s*([^\n#]+)/gm;
-  const dockerFrom = /^\s*FROM\s+([^\s]+)(?:\s+AS\s+[A-Za-z_][A-Za-z0-9_-]*)?/gim;
-  const dockerCopyFrom = /--from=([A-Za-z_][A-Za-z0-9_-]*)/g;
-  const nixOps = /\b(import|callPackage)\b/g;
-  const matchers = [cmakeCalls, starlarkCalls, dockerFrom, dockerCopyFrom, nixOps];
   for (const matcher of matchers) {
     if (scanBudget && !scanBudget.consumeTime()) break;
     if (scanBudget?.exhausted) break;
@@ -397,11 +320,72 @@ const collectBuildDslUsages = (text, scanBudget = null) => {
       match = matcher.exec(source);
       if (match === null) break;
       if (scanBudget && !scanBudget.consumeMatch()) break;
-      const name = String(match[1] || '').trim();
-      if (name && !BUILD_DSL_USAGE_SKIP.has(name) && (!scanBudget || scanBudget.consumeToken())) values.push(name);
+      for (const candidate of candidatesForMatch(match, matcher)) {
+        const name = String(candidate || '').trim();
+        if (name && !skip?.has(name) && (!scanBudget || scanBudget.consumeToken())) values.push(name);
+        if (scanBudget?.exhausted) break;
+      }
       if (!match[0]) matcher.lastIndex += 1;
     }
   }
+  return values;
+};
+
+const collectTemplateUsages = (text, scanBudget = null) => {
+  const source = String(text || '');
+  const moustacheRef = /\{\{\s*[#/>]?\s*([A-Za-z_][A-Za-z0-9_.-]*)/g;
+  const jinjaRef = /\{%\s*(?:include|extends|import|from|call|macro|block)\s+['"]?([A-Za-z_][A-Za-z0-9_.-]*)/g;
+  const razorPartialRef = /@(?:Html\.)?Partial(?:Async)?\s*\(\s*["']([^"']+)["']/g;
+  const razorCallRef = /@([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+  const matches = collectRegexUsageCandidates(
+    source,
+    [moustacheRef, jinjaRef, razorPartialRef, razorCallRef],
+    scanBudget,
+    { skip: TEMPLATE_USAGE_SKIP }
+  );
+  return sortUnique(matches);
+};
+
+const collectGraphqlUsages = (text, scanBudget = null) => {
+  const source = String(text || '');
+  const typeRef = /:\s*([A-Za-z_][A-Za-z0-9_]*)/g;
+  const fragmentRef = /\.\.\.\s*([A-Za-z_][A-Za-z0-9_]*)/g;
+  const implRef = /\b(?:on|implements)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+  const values = collectRegexUsageCandidates(
+    source,
+    [typeRef, fragmentRef, implRef],
+    scanBudget,
+    { skip: GRAPHQL_USAGE_SKIP }
+  );
+  return sortUnique(values);
+};
+
+const collectProtoUsages = (text, scanBudget = null) => {
+  const source = String(text || '');
+  const rpcTypes = /\brpc\s+[A-Za-z_][A-Za-z0-9_]*\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)\s+returns\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/g;
+  const fieldTypes = /\b(?:optional|required|repeated)?\s*([A-Za-z_][A-Za-z0-9_.]*)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*\d+/g;
+  const values = collectRegexUsageCandidates(
+    source,
+    [rpcTypes, fieldTypes],
+    scanBudget,
+    {
+      skip: PROTO_USAGE_SKIP,
+      candidatesForMatch: (match, matcher) => matcher === rpcTypes ? [match[1], match[2]] : [match[1]]
+    }
+  );
+  return sortUnique(values);
+};
+
+const collectBuildDslUsages = (text, scanBudget = null) => {
+  const source = String(text || '');
+  const cmakeCalls = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm;
+  const starlarkCalls = /\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+  const makeDeps = /^[A-Za-z0-9_.-]+\s*:\s*([^\n#]+)/gm;
+  const dockerFrom = /^\s*FROM\s+([^\s]+)(?:\s+AS\s+[A-Za-z_][A-Za-z0-9_-]*)?/gim;
+  const dockerCopyFrom = /--from=([A-Za-z_][A-Za-z0-9_-]*)/g;
+  const nixOps = /\b(import|callPackage)\b/g;
+  const matchers = [cmakeCalls, starlarkCalls, dockerFrom, dockerCopyFrom, nixOps];
+  const values = collectRegexUsageCandidates(source, matchers, scanBudget, { skip: BUILD_DSL_USAGE_SKIP });
   let depMatch;
   while (!scanBudget?.exhausted) {
     if (scanBudget && !scanBudget.consumeTime()) break;

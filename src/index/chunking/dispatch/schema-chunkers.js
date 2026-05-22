@@ -1,5 +1,5 @@
 import { buildChunksFromLineHeadings } from '../helpers.js';
-import { MAX_REGEX_LINE, splitLinesWithIndex } from './shared.js';
+import { collectHeadingRows } from './shared.js';
 
 const PROTO_BLOCK_RX = /^\s*(message|enum|service|oneof)\s+([A-Za-z_][A-Za-z0-9_]*)/;
 // `extend` targets may be fully qualified (for example
@@ -119,61 +119,56 @@ const buildFallbackChunk = (text, name, format) => [{
  * @returns {Array<object>}
  */
 export const chunkProto = (text, context = null) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text, context);
-  const headings = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (line.length > MAX_REGEX_LINE) continue;
-    const trimmed = line.trim();
-    if (trimmed.startsWith('//')) continue;
-    if (PROTO_SYNTAX_RX.test(line)) {
-      headings.push({ line: i, title: 'syntax', kind: 'ConfigDeclaration', definitionType: 'syntax' });
-      continue;
+  const { headings, lineIndex } = collectHeadingRows(text, context, {
+    skipLine: (line, trimmed) => trimmed.startsWith('//'),
+    collect: (line, trimmed, i) => {
+      void trimmed;
+      if (PROTO_SYNTAX_RX.test(line)) {
+        return { line: i, title: 'syntax', kind: 'ConfigDeclaration', definitionType: 'syntax' };
+      }
+      const packageMatch = line.match(PROTO_PACKAGE_RX);
+      if (packageMatch) {
+        return {
+          line: i,
+          title: `package ${packageMatch[1]}`,
+          kind: 'NamespaceDeclaration',
+          definitionType: 'package'
+        };
+      }
+      if (!hasProtoCandidate(line)) return null;
+      const rpcMatch = line.match(PROTO_RPC_RX);
+      if (rpcMatch) {
+        return {
+          line: i,
+          title: `rpc ${rpcMatch[1]}`,
+          kind: 'MethodDeclaration',
+          definitionType: 'rpc'
+        };
+      }
+      const extendMatch = line.match(PROTO_EXTEND_RX);
+      if (extendMatch) {
+        const name = extendMatch[1];
+        return {
+          line: i,
+          title: `extend ${name}`,
+          kind: 'ExtendDeclaration',
+          definitionType: 'extend'
+        };
+      }
+      const blockMatch = line.match(PROTO_BLOCK_RX);
+      if (blockMatch) {
+        const keyword = blockMatch[1];
+        const name = blockMatch[2];
+        return {
+          line: i,
+          title: `${keyword} ${name}`.trim(),
+          kind: PROTO_KIND_BY_KEYWORD[keyword] || 'Section',
+          definitionType: keyword
+        };
+      }
+      return null;
     }
-    const packageMatch = line.match(PROTO_PACKAGE_RX);
-    if (packageMatch) {
-      headings.push({
-        line: i,
-        title: `package ${packageMatch[1]}`,
-        kind: 'NamespaceDeclaration',
-        definitionType: 'package'
-      });
-      continue;
-    }
-    if (!hasProtoCandidate(line)) continue;
-    const rpcMatch = line.match(PROTO_RPC_RX);
-    if (rpcMatch) {
-      headings.push({
-        line: i,
-        title: `rpc ${rpcMatch[1]}`,
-        kind: 'MethodDeclaration',
-        definitionType: 'rpc'
-      });
-      continue;
-    }
-    const extendMatch = line.match(PROTO_EXTEND_RX);
-    if (extendMatch) {
-      const name = extendMatch[1];
-      headings.push({
-        line: i,
-        title: `extend ${name}`,
-        kind: 'ExtendDeclaration',
-        definitionType: 'extend'
-      });
-      continue;
-    }
-    const blockMatch = line.match(PROTO_BLOCK_RX);
-    if (blockMatch) {
-      const keyword = blockMatch[1];
-      const name = blockMatch[2];
-      headings.push({
-        line: i,
-        title: `${keyword} ${name}`.trim(),
-        kind: PROTO_KIND_BY_KEYWORD[keyword] || 'Section',
-        definitionType: keyword
-      });
-    }
-  }
+  });
   const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) {
     return mapChunksWithSchemaMeta(chunks, headings, 'proto');
@@ -192,53 +187,50 @@ export const chunkProto = (text, context = null) => {
  * @returns {Array<object>}
  */
 export const chunkGraphql = (text, context = null) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text, context);
-  const headings = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (line.length > MAX_REGEX_LINE) continue;
-    const trimmed = line.trim();
-    if (trimmed.startsWith('#')) continue;
-    if (!hasGraphqlCandidate(line)) continue;
-    const extendMatch = line.match(GRAPHQL_EXTEND_RX);
-    if (extendMatch) {
-      const definitionType = `extend-${extendMatch[1]}`;
-      const title = extendMatch[2]
-        ? `extend ${extendMatch[1]} ${extendMatch[2]}`
-        : `extend ${extendMatch[1]}`;
-      headings.push({
-        line: i,
-        title,
-        kind: GRAPHQL_KIND_BY_KEYWORD[extendMatch[1]] || 'Section',
-        definitionType
-      });
-      continue;
+  const { headings, lineIndex } = collectHeadingRows(text, context, {
+    skipLine: (line, trimmed) => trimmed.startsWith('#'),
+    precheck: (line) => hasGraphqlCandidate(line),
+    collect: (line, trimmed, i) => {
+      void trimmed;
+      const extendMatch = line.match(GRAPHQL_EXTEND_RX);
+      if (extendMatch) {
+        const definitionType = `extend-${extendMatch[1]}`;
+        const title = extendMatch[2]
+          ? `extend ${extendMatch[1]} ${extendMatch[2]}`
+          : `extend ${extendMatch[1]}`;
+        return {
+          line: i,
+          title,
+          kind: GRAPHQL_KIND_BY_KEYWORD[extendMatch[1]] || 'Section',
+          definitionType
+        };
+      }
+      const operationMatch = line.match(GRAPHQL_OPERATION_RX);
+      if (operationMatch) {
+        const definitionType = operationMatch[1];
+        const title = `${definitionType} ${operationMatch[2]}`;
+        return {
+          line: i,
+          title,
+          kind: GRAPHQL_KIND_BY_KEYWORD[definitionType] || 'Section',
+          definitionType
+        };
+      }
+      const blockMatch = line.match(GRAPHQL_BLOCK_RX);
+      if (blockMatch) {
+        const definitionType = blockMatch[1];
+        const name = blockMatch[2] || '';
+        const title = name ? `${definitionType} ${name}` : definitionType;
+        return {
+          line: i,
+          title,
+          kind: GRAPHQL_KIND_BY_KEYWORD[definitionType] || 'Section',
+          definitionType
+        };
+      }
+      return null;
     }
-    const operationMatch = line.match(GRAPHQL_OPERATION_RX);
-    if (operationMatch) {
-      const definitionType = operationMatch[1];
-      const title = `${definitionType} ${operationMatch[2]}`;
-      headings.push({
-        line: i,
-        title,
-        kind: GRAPHQL_KIND_BY_KEYWORD[definitionType] || 'Section',
-        definitionType
-      });
-      continue;
-    }
-    const blockMatch = line.match(GRAPHQL_BLOCK_RX);
-    if (blockMatch) {
-      const definitionType = blockMatch[1];
-      const name = blockMatch[2] || '';
-      const title = name ? `${definitionType} ${name}` : definitionType;
-      headings.push({
-        line: i,
-        title,
-        kind: GRAPHQL_KIND_BY_KEYWORD[definitionType] || 'Section',
-        definitionType
-      });
-    }
-  }
+  });
   const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) {
     return mapChunksWithSchemaMeta(chunks, headings, 'graphql');

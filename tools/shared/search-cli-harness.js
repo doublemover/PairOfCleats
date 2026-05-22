@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
+import { spawnSubprocessSync } from '../../src/shared/subprocess/runner.js';
 
 const resolveAnnArg = ({ annArg, annEnabled }) => {
   if (annArg) return String(annArg);

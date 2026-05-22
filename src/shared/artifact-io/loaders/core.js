@@ -5,17 +5,14 @@ import {
   resolveManifestArtifactSources,
   resolveManifestMaxBytes
 } from '../manifest.js';
-import { createLoaderError, iterateColumnarRows } from './shared.js';
 import { resolveRequiredSources } from './core-source-resolution.js';
 import {
-  iterateBinaryColumnarRows,
   loadArrayPayloadFromSources,
   loadArrayPayloadFromSourcesSync,
-  loadManifestJsonObjectFromSources,
-  streamJsonlRowsFromSources
+  loadManifestJsonObjectFromSources
 } from './core-array-payload.js';
+import { streamArrayArtifactRowsFromSources } from './core-row-stream.js';
 import { loadFileMetaRows } from './core-file-meta.js';
-import { readJsonFile } from '../json.js';
 
 export const loadJsonArrayArtifact = async (
   dir,
@@ -84,62 +81,30 @@ export const loadJsonArrayArtifactRows = async function* (
     maxBytes,
     strict
   });
-  if (sources.format === 'json') {
-    for (const sourcePath of sources.paths) {
-      const payload = readJsonFile(sourcePath, { maxBytes });
-      const rows = Array.isArray(payload) ? payload : [];
-      for (const row of rows) yield row;
-    }
-    return;
-  }
-  if (sources.format === 'columnar') {
-    for (const sourcePath of sources.paths) {
-      const payload = readJsonFile(sourcePath, { maxBytes });
-      const rows = iterateColumnarRows(payload);
-      if (!rows) {
-        throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
-      }
-      for (const row of rows) yield row;
-    }
-    return;
-  }
-  if (sources.format === 'binary-columnar') {
-    for (const row of iterateBinaryColumnarRows({
-      dir,
-      baseName,
-      sources,
-      manifest: resolvedManifest,
-      maxBytes,
-      strict,
-      enforceBinaryDataBudget
-    })) {
-      yield row;
-    }
-    return;
-  }
-  for await (const row of streamJsonlRowsFromSources(sources.paths, sources.offsets, {
+  yield* streamArrayArtifactRowsFromSources(sources, {
+    dir,
+    manifest: resolvedManifest,
+    strict,
+    baseName,
     maxBytes,
     requiredKeys: resolvedKeys,
     validationMode,
     maxInFlight,
     onBackpressure,
-    onResume
-  })) {
-    yield row;
-  }
+    onResume,
+    enforceBinaryDataBudget
+  });
 };
 
 export { loadFileMetaRows };
 
-export const loadJsonObjectArtifact = async (
+const loadJsonObjectArtifactFromManifest = ({
   dir,
   baseName,
-  {
-    maxBytes = MAX_JSON_BYTES,
-    manifest = null,
-    strict = true
-  } = {}
-) => {
+  maxBytes,
+  manifest,
+  strict
+}) => {
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
     { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
@@ -155,6 +120,24 @@ export const loadJsonObjectArtifact = async (
     sources,
     baseName,
     strict,
+    maxBytes
+  });
+};
+
+export const loadJsonObjectArtifact = async (
+  dir,
+  baseName,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    manifest = null,
+    strict = true
+  } = {}
+) => {
+  return loadJsonObjectArtifactFromManifest({
+    dir,
+    baseName,
+    strict,
+    manifest,
     maxBytes
   });
 };
@@ -168,21 +151,11 @@ export const loadJsonObjectArtifactSync = (
     strict = true
   } = {}
 ) => {
-  const resolvedManifest = manifest || loadPiecesManifest(
+  return loadJsonObjectArtifactFromManifest({
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
-  );
-  const sources = resolveManifestArtifactSources({
-    dir,
-    manifest: resolvedManifest,
-    name: baseName,
-    strict,
-    maxBytes
-  });
-  return loadManifestJsonObjectFromSources({
-    sources,
     baseName,
     strict,
+    manifest,
     maxBytes
   });
 };

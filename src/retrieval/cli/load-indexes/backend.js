@@ -1,7 +1,8 @@
 import path from 'node:path';
-import { spawnSubprocessSync } from '../../../shared/subprocess.js';
-import { pathExists } from '../../../shared/files.js';
-import { MAX_JSON_BYTES, readJsonFile } from '../../../shared/artifact-io.js';
+import { spawnSubprocessSync } from '../../../shared/subprocess/runner.js';
+import { pathExists } from '../../../shared/file-read.js';
+import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
+import { readJsonFile } from '../../../shared/artifact-io/json.js';
 import { tryRequire } from '../../../shared/optional-deps.js';
 import { normalizeTantivyConfig, resolveTantivyPaths } from '../../../shared/tantivy.js';
 import { getRuntimeConfig, resolveRuntimeEnv, resolveToolRoot } from '../../../shared/dict-utils.js';

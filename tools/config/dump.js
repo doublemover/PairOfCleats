@@ -2,7 +2,7 @@
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
-import { getEnvConfig } from '../../src/shared/env.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
 import {
   getCacheRoot,

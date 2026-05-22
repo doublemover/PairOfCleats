@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { checksumString } from '../../../shared/hash.js';
-import { fromPosix } from '../../../shared/files.js';
+import { fromPosix } from '../../../shared/file-paths.js';
 import { decodeBloomFilter } from '../../../shared/bloom.js';
-import { readJsonFile } from '../../../shared/artifact-io.js';
+import { readJsonFile } from '../../../shared/artifact-io/json.js';
 import { VFS_MANIFEST_HASH_MAX_BYTES } from './constants.js';
 
 const resolveVfsManifestSource = (indexDir) => {

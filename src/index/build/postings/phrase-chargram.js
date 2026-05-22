@@ -1,4 +1,4 @@
-import { estimateJsonBytes } from '../../../shared/cache.js';
+import { estimateJsonBytes } from '../../../shared/cache/size.js';
 import { createRowSpillCollector } from '../artifacts/helpers.js';
 import { maybeYield, sortStrings } from './constants.js';
 import { mergeIdListsWithNormalizedLeft, normalizeIdList } from './id-lists.js';

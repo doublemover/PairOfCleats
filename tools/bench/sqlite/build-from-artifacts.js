@@ -3,10 +3,12 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
-import { readJsonFile, readJsonLinesArray } from '../../../src/shared/artifact-io.js';
+import { writeJsonLinesSharded } from '../../../src/shared/json-stream/jsonl-sharded.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
+import { readJsonFile, readJsonLinesArray } from '../../../src/shared/artifact-io/json.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
 import { loadIndex } from '../../../src/storage/sqlite/utils.js';
+import { parseSimpleBenchArgs } from '../shared.js';
 
 let Database = null;
 try {
@@ -16,25 +18,7 @@ try {
   process.exit(1);
 }
 
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
-
-const args = parseArgs();
+const args = parseSimpleBenchArgs();
 const chunkCount = Number(args.chunks) || 100000;
 const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
   ? String(args.mode).toLowerCase()

@@ -27,6 +27,26 @@ const MCP_RISK_FILTER_SCHEMA_PROPERTIES = Object.freeze({
   'sink-rule': STRING_OR_STRING_ARRAY_SCHEMA
 });
 
+const MCP_WORKSPACE_SELECT_SCHEMA = Object.freeze({
+  type: 'object',
+  properties: Object.freeze({
+    repos: STRING_OR_STRING_ARRAY_SCHEMA,
+    tags: STRING_OR_STRING_ARRAY_SCHEMA,
+    repoFilter: STRING_OR_STRING_ARRAY_SCHEMA,
+    includeDisabled: { type: 'boolean' }
+  })
+});
+
+const buildWorkspaceToolProperties = ({
+  workspacePathDescription = 'Workspace config path (.jsonc).',
+  extraProperties = {}
+} = {}) => ({
+  workspacePath: { type: 'string', description: workspacePathDescription },
+  workspaceId: { type: 'string', description: 'Expected workspace repoSetId (optional cross-check).' },
+  select: MCP_WORKSPACE_SELECT_SCHEMA,
+  ...extraProperties
+});
+
 /**
  * Build MCP tool definitions for the server.
  * @param {string} defaultModelId
@@ -141,49 +161,41 @@ export function getToolDefs(defaultModelId) {
       description: 'Generate a composite context pack for a seed in the current code index.',
       inputSchema: {
         type: 'object',
-        properties: {
-          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
-          workspacePath: { type: 'string', description: 'Workspace config path (.jsonc) for federated risk packs.' },
-          workspaceId: { type: 'string', description: 'Expected workspace repoSetId (optional cross-check).' },
-          select: {
-            type: 'object',
-            properties: {
-              repos: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              tags: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              repoFilter: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              includeDisabled: { type: 'boolean' }
+        properties: buildWorkspaceToolProperties({
+          workspacePathDescription: 'Workspace config path (.jsonc) for federated risk packs.',
+          extraProperties: {
+            repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+            includeDisabled: { type: 'boolean' },
+            maxFederatedRepos: { type: 'number' },
+            seed: { type: 'string', description: 'Chunk/file/symbol seed reference.' },
+            hops: { type: 'number', description: 'Neighborhood depth.' },
+            includeGraph: { type: 'boolean' },
+            includeTypes: { type: 'boolean' },
+            includeRisk: { type: 'boolean' },
+            includeRiskPartialFlows: { type: 'boolean' },
+            strictRisk: { type: 'boolean' },
+            strictEvidence: { type: 'boolean' },
+            includeImports: { type: 'boolean' },
+            includeUsages: { type: 'boolean' },
+            includeCallersCallees: { type: 'boolean' },
+            includePaths: { type: 'boolean' },
+            maxBytes: { type: 'number' },
+            maxTokens: { type: 'number' },
+            maxTypeEntries: { type: 'number' },
+            maxDepth: { type: 'number' },
+            maxFanoutPerNode: { type: 'number' },
+            maxNodes: { type: 'number' },
+            maxEdges: { type: 'number' },
+            maxPaths: { type: 'number' },
+            maxCandidates: { type: 'number' },
+            maxWorkUnits: { type: 'number' },
+            maxWallClockMs: { type: 'number' },
+            filters: {
+              type: 'object',
+              properties: MCP_RISK_FILTER_SCHEMA_PROPERTIES
             }
-          },
-          includeDisabled: { type: 'boolean' },
-          maxFederatedRepos: { type: 'number' },
-          seed: { type: 'string', description: 'Chunk/file/symbol seed reference.' },
-          hops: { type: 'number', description: 'Neighborhood depth.' },
-          includeGraph: { type: 'boolean' },
-          includeTypes: { type: 'boolean' },
-          includeRisk: { type: 'boolean' },
-          includeRiskPartialFlows: { type: 'boolean' },
-          strictRisk: { type: 'boolean' },
-          strictEvidence: { type: 'boolean' },
-          includeImports: { type: 'boolean' },
-          includeUsages: { type: 'boolean' },
-          includeCallersCallees: { type: 'boolean' },
-          includePaths: { type: 'boolean' },
-          maxBytes: { type: 'number' },
-          maxTokens: { type: 'number' },
-          maxTypeEntries: { type: 'number' },
-          maxDepth: { type: 'number' },
-          maxFanoutPerNode: { type: 'number' },
-          maxNodes: { type: 'number' },
-          maxEdges: { type: 'number' },
-          maxPaths: { type: 'number' },
-          maxCandidates: { type: 'number' },
-          maxWorkUnits: { type: 'number' },
-          maxWallClockMs: { type: 'number' },
-          filters: {
-            type: 'object',
-            properties: MCP_RISK_FILTER_SCHEMA_PROPERTIES
           }
-        },
+        }),
         required: ['seed', 'hops']
       }
     },
@@ -230,55 +242,46 @@ export function getToolDefs(defaultModelId) {
       description: 'Run federated search across repos from a workspace configuration.',
       inputSchema: {
         type: 'object',
-        properties: {
-          workspacePath: { type: 'string', description: 'Workspace config path (.jsonc).' },
-          workspaceId: { type: 'string', description: 'Expected workspace repoSetId (optional cross-check).' },
-          query: { type: 'string' },
-          search: {
-            type: 'object',
-            description: 'Single-repo search knobs forwarded per repo (mode/top/backend/filter/etc).'
-          },
-          select: {
-            type: 'object',
-            properties: {
-              repos: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              tags: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              repoFilter: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              includeDisabled: { type: 'boolean' }
-            }
-          },
-          merge: {
-            type: 'object',
-            properties: {
-              strategy: { type: 'string', enum: ['rrf'] },
-              rrfK: { type: 'number' }
-            }
-          },
-          limits: {
-            type: 'object',
-            properties: {
-              perRepoTop: { type: 'number' },
-              concurrency: { type: 'number' }
-            }
-          },
-          cohort: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-          cohorts: {
-            type: 'object',
-            properties: {
-              policy: { type: 'string', enum: ['default', 'strict'] },
-              cohort: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              allowUnsafeMix: { type: 'boolean' }
-            }
-          },
-          allowUnsafeMix: { type: 'boolean' },
-          strict: { type: 'boolean' },
-          debug: {
-            type: 'object',
-            properties: {
-              includePaths: { type: 'boolean' }
+        properties: buildWorkspaceToolProperties({
+          extraProperties: {
+            query: { type: 'string' },
+            search: {
+              type: 'object',
+              description: 'Single-repo search knobs forwarded per repo (mode/top/backend/filter/etc).'
+            },
+            merge: {
+              type: 'object',
+              properties: {
+                strategy: { type: 'string', enum: ['rrf'] },
+                rrfK: { type: 'number' }
+              }
+            },
+            limits: {
+              type: 'object',
+              properties: {
+                perRepoTop: { type: 'number' },
+                concurrency: { type: 'number' }
+              }
+            },
+            cohort: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+            cohorts: {
+              type: 'object',
+              properties: {
+                policy: { type: 'string', enum: ['default', 'strict'] },
+                cohort: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+                allowUnsafeMix: { type: 'boolean' }
+              }
+            },
+            allowUnsafeMix: { type: 'boolean' },
+            strict: { type: 'boolean' },
+            debug: {
+              type: 'object',
+              properties: {
+                includePaths: { type: 'boolean' }
+              }
             }
           }
-        },
+        }),
         required: ['workspacePath', 'query']
       }
     },

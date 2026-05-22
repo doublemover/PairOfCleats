@@ -12,6 +12,7 @@ import {
   SUGGEST_TESTS_SCHEMA
 } from '../schemas/analysis.js';
 import { validateContextPackRiskContractCompatibility } from '../context-pack-risk-contract.js';
+import { formatValidatorErrors, toValidationResult } from './result.js';
 
 const ajv = createAjv({
   allErrors: true,
@@ -30,49 +31,33 @@ const API_CONTRACTS_VALIDATOR = compileSchema(ajv, API_CONTRACTS_SCHEMA);
 const ARCHITECTURE_REPORT_VALIDATOR = compileSchema(ajv, ARCHITECTURE_REPORT_SCHEMA);
 const SUGGEST_TESTS_VALIDATOR = compileSchema(ajv, SUGGEST_TESTS_SCHEMA);
 
-const formatError = (error) => {
-  const path = error.instancePath || '/';
-  const message = error.message || 'schema error';
-  return `${path} ${message}`.trim();
-};
-
-const formatErrors = (validator) => (
-  validator.errors ? validator.errors.map(formatError) : []
-);
-
 export function validateMetadataV2(payload) {
-  const ok = Boolean(META_V2_VALIDATOR(payload));
-  return { ok, errors: ok ? [] : formatErrors(META_V2_VALIDATOR) };
+  return toValidationResult(META_V2_VALIDATOR, payload);
 }
 
 export function validateRiskRulesBundle(payload) {
-  const ok = Boolean(RISK_RULES_VALIDATOR(payload));
-  return { ok, errors: ok ? [] : formatErrors(RISK_RULES_VALIDATOR) };
+  return toValidationResult(RISK_RULES_VALIDATOR, payload);
 }
 
 export function validateAnalysisPolicy(payload) {
-  const ok = Boolean(ANALYSIS_POLICY_VALIDATOR(payload));
-  return { ok, errors: ok ? [] : formatErrors(ANALYSIS_POLICY_VALIDATOR) };
+  return toValidationResult(ANALYSIS_POLICY_VALIDATOR, payload);
 }
 
 export function validateGraphContextPack(payload) {
-  const ok = Boolean(GRAPH_CONTEXT_PACK_VALIDATOR(payload));
-  return { ok, errors: ok ? [] : formatErrors(GRAPH_CONTEXT_PACK_VALIDATOR) };
+  return toValidationResult(GRAPH_CONTEXT_PACK_VALIDATOR, payload);
 }
 
 export function validateGraphImpact(payload) {
-  const ok = Boolean(GRAPH_IMPACT_VALIDATOR(payload));
-  return { ok, errors: ok ? [] : formatErrors(GRAPH_IMPACT_VALIDATOR) };
+  return toValidationResult(GRAPH_IMPACT_VALIDATOR, payload);
 }
 
 export function validateRiskDelta(payload) {
-  const ok = Boolean(RISK_DELTA_VALIDATOR(payload));
-  return { ok, errors: ok ? [] : formatErrors(RISK_DELTA_VALIDATOR) };
+  return toValidationResult(RISK_DELTA_VALIDATOR, payload);
 }
 
 export function validateCompositeContextPack(payload) {
   const schemaOk = Boolean(COMPOSITE_CONTEXT_PACK_VALIDATOR(payload));
-  const errors = schemaOk ? [] : formatErrors(COMPOSITE_CONTEXT_PACK_VALIDATOR);
+  const errors = schemaOk ? [] : formatValidatorErrors(COMPOSITE_CONTEXT_PACK_VALIDATOR);
   const compatibility = validateContextPackRiskContractCompatibility(payload);
   if (!compatibility.ok) {
     errors.push(...compatibility.errors);
@@ -81,16 +66,13 @@ export function validateCompositeContextPack(payload) {
 }
 
 export function validateApiContracts(payload) {
-  const ok = Boolean(API_CONTRACTS_VALIDATOR(payload));
-  return { ok, errors: ok ? [] : formatErrors(API_CONTRACTS_VALIDATOR) };
+  return toValidationResult(API_CONTRACTS_VALIDATOR, payload);
 }
 
 export function validateArchitectureReport(payload) {
-  const ok = Boolean(ARCHITECTURE_REPORT_VALIDATOR(payload));
-  return { ok, errors: ok ? [] : formatErrors(ARCHITECTURE_REPORT_VALIDATOR) };
+  return toValidationResult(ARCHITECTURE_REPORT_VALIDATOR, payload);
 }
 
 export function validateSuggestTests(payload) {
-  const ok = Boolean(SUGGEST_TESTS_VALIDATOR(payload));
-  return { ok, errors: ok ? [] : formatErrors(SUGGEST_TESTS_VALIDATOR) };
+  return toValidationResult(SUGGEST_TESTS_VALIDATOR, payload);
 }

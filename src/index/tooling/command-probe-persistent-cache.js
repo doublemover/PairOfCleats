@@ -2,7 +2,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import { getCacheRoot } from '../../shared/cache-roots.js';
-import { isAbsolutePathNative } from '../../shared/files.js';
+import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
 
 const COMMAND_PROBE_CACHE_SCHEMA_VERSION = 1;

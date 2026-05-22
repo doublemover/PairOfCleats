@@ -9,26 +9,21 @@ import {
   isActionableImportWarning,
   summarizeImportWarningDispositions
 } from './disposition.js';
+import {
+  bumpCount,
+  toNonNegativeIntOrNull,
+  toNonNegativeMsOrNull as toNonNegativeMs,
+  toPositiveCountMap as toCountMap,
+  toSortedCountObject,
+  toSortedHotspotEntries
+} from './counts.js';
+import { sortStrings } from './path-utils.js';
 import { resolveLanguageLabelFromImporter, resolveRepoLabelFromReportPath } from './labels.js';
 import { isKnownReasonCode, isKnownResolverStage } from './reason-codes.js';
 import { summarizeResolverPipelineStageElapsedPercentiles } from './stage-pipeline-metrics.js';
 
 export const DEFAULT_REPLAY_SCAN_ROOTS = Object.freeze(['.testCache', '.benchCache']);
 export const DEFAULT_REPLAY_MAX_REPORTS = 256;
-
-const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
-
-const toNonNegativeIntOrNull = (value) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric < 0) return null;
-  return Math.floor(numeric);
-};
-
-const toNonNegativeMs = (value) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric < 0) return null;
-  return Number(numeric.toFixed(3));
-};
 
 const clampActionableCount = ({ unresolved, actionable }) => {
   const normalizedUnresolved = Math.max(0, Math.floor(Number(unresolved) || 0));
@@ -37,46 +32,6 @@ const clampActionableCount = ({ unresolved, actionable }) => {
     unresolved: normalizedUnresolved,
     actionable: Math.min(normalizedUnresolved, normalizedActionable)
   };
-};
-
-const bumpCount = (target, key, amount = 1) => {
-  if (!key) return;
-  const current = Number(target[key]) || 0;
-  target[key] = current + Math.max(0, Math.floor(Number(amount) || 0));
-};
-
-const toSortedObject = (counts) => Object.fromEntries(
-  Object.entries(counts || {})
-    .filter(([key, value]) => key && Number.isFinite(Number(value)) && Number(value) > 0)
-    .sort((a, b) => sortStrings(a[0], b[0]))
-    .map(([key, value]) => [key, Math.floor(Number(value))])
-);
-
-const toSortedHotspots = (counts, { maxEntries = 20 } = {}) => (
-  Object.entries(counts || {})
-    .filter(([importer, value]) => importer && Number.isFinite(Number(value)) && Number(value) > 0)
-    .map(([importer, value]) => ({
-      importer,
-      count: Math.floor(Number(value))
-    }))
-    .sort((a, b) => (
-      b.count !== a.count
-        ? b.count - a.count
-        : sortStrings(a.importer, b.importer)
-    ))
-    .slice(0, Math.max(0, Math.floor(Number(maxEntries) || 0)))
-);
-
-const toCountMap = (value) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const output = Object.create(null);
-  for (const [key, raw] of Object.entries(value)) {
-    if (typeof key !== 'string' || !key) continue;
-    const count = toNonNegativeIntOrNull(raw);
-    if (count == null || count <= 0) continue;
-    output[key] = count;
-  }
-  return output;
 };
 
 const toHotspotCounts = (value) => {
@@ -195,7 +150,9 @@ const toSortedStagePipeline = (stages) => {
       elapsedMs: Number(Math.max(0, Number(entry?.elapsedMs) || 0).toFixed(3)),
       budgetExhausted: Math.floor(Math.max(0, Number(entry?.budgetExhausted) || 0)),
       degraded: Math.floor(Math.max(0, Number(entry?.degraded) || 0)),
-      reasonCodes: toSortedObject(toReasonCodeCounts(entry?.reasonCodes) || Object.create(null))
+      reasonCodes: toSortedCountObject(toReasonCodeCounts(entry?.reasonCodes) || Object.create(null), {
+        nullPrototype: false
+      })
     };
   }
   return output;
@@ -485,17 +442,17 @@ const accumulateGraphReport = (
 
 const finalizeAggregateState = (state) => ({
   totals: state.totals,
-  reasonCodeCounts: toSortedObject(state.reasonCodeCounts),
-  actionableByRepo: toSortedObject(state.totals.actionableRepoCounts),
-  actionableByLanguage: toSortedObject(state.totals.actionableLanguageCounts),
-  resolverAdapters: toSortedObject(state.totals.resolverAdapterCounts),
-  resolverStages: toSortedObject(state.totals.resolverStageCounts),
+  reasonCodeCounts: toSortedCountObject(state.reasonCodeCounts, { nullPrototype: false }),
+  actionableByRepo: toSortedCountObject(state.totals.actionableRepoCounts, { nullPrototype: false }),
+  actionableByLanguage: toSortedCountObject(state.totals.actionableLanguageCounts, { nullPrototype: false }),
+  resolverAdapters: toSortedCountObject(state.totals.resolverAdapterCounts, { nullPrototype: false }),
+  resolverStages: toSortedCountObject(state.totals.resolverStageCounts, { nullPrototype: false }),
   resolverPipelineStages: toSortedStagePipeline(state.totals.resolverPipelineStages),
   resolverPipelineStagePercentiles: summarizeResolverPipelineStageElapsedPercentiles(
     state.totals.resolverPipelineStageElapsedSamples
   ),
-  resolverBudgetPolicyProfiles: toSortedObject(state.totals.resolverBudgetPolicyProfiles),
-  actionableHotspots: toSortedHotspots(state.totals.actionableHotspotCounts),
+  resolverBudgetPolicyProfiles: toSortedCountObject(state.totals.resolverBudgetPolicyProfiles, { nullPrototype: false }),
+  actionableHotspots: toSortedHotspotEntries(state.totals.actionableHotspotCounts),
   invalidReports: state.invalidReports
 });
 

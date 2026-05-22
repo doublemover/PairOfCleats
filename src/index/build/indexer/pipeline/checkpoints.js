@@ -1,5 +1,5 @@
 import os from 'node:os';
-import { log, logLine } from '../../../../shared/progress.js';
+import { log, logLine } from '../../../../shared/progress-runtime.js';
 import { coerceUnitFraction } from '../../../../shared/number-coerce.js';
 import { runWithHangProbe } from '../hang-probe.js';
 

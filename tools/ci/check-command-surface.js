@@ -8,7 +8,7 @@ import {
   getPackageScriptReplacement,
   listPackageScriptReplacements
 } from '../../src/shared/command-aliases.js';
-import { listHelpSections, listCommandRegistry } from '../../src/shared/command-registry.js';
+import { listHelpSections, listCommandRegistry } from '../../src/shared/command-registry-query.js';
 import { getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
 import { resolveToolRoot } from '../shared/dict-utils.js';
 

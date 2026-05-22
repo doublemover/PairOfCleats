@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
-  readBundleFile,
   resolveBundleFormatFromName,
   resolveManifestBundleNames
-} from '../../../shared/bundle-io.js';
+} from '../../../shared/bundle-io-paths.js';
+import { readBundleFile } from '../../../shared/bundle-io.js';
 
 /**
  * Check whether a filesystem path is accessible.
@@ -33,6 +33,36 @@ export const entryStatsMatch = (cachedEntry, fileStat) => (
   && cachedEntry.size === fileStat?.size
   && cachedEntry.mtimeMs === fileStat?.mtimeMs
 );
+
+const normalizeNonNegativeInt = (value) => Math.max(0, Number(value) || 0);
+
+/**
+ * Backfill embedding coverage fields on manifests that do not carry bundled
+ * embeddings. Older manifests omitted these counters, while downstream SQLite
+ * and records gates expect explicit incomplete-coverage metadata.
+ *
+ * @param {object|null} manifest
+ * @returns {object|null}
+ */
+export const normalizeIncrementalEmbeddingCoverageManifest = (manifest) => {
+  if (!manifest || typeof manifest !== 'object') return manifest || null;
+  if (manifest.bundleEmbeddings === true) return manifest;
+  manifest.bundleEmbeddings = false;
+  manifest.bundleEmbeddingCoverageComplete = false;
+  manifest.bundleEmbeddingCoverageEligible = normalizeNonNegativeInt(
+    manifest.bundleEmbeddingCoverageEligible
+  );
+  manifest.bundleEmbeddingCoverageCovered = normalizeNonNegativeInt(
+    manifest.bundleEmbeddingCoverageCovered
+  );
+  manifest.bundleEmbeddingCoverageMissingFiles = normalizeNonNegativeInt(
+    manifest.bundleEmbeddingCoverageMissingFiles
+  );
+  manifest.bundleEmbeddingCoverageMissingChunks = normalizeNonNegativeInt(
+    manifest.bundleEmbeddingCoverageMissingChunks
+  );
+  return manifest;
+};
 
 /**
  * Resolve bundle shard path/format records from manifest entry.

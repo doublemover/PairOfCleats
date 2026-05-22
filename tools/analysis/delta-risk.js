@@ -5,28 +5,20 @@ import { buildRiskDeltaPayload } from '../../src/context-pack/risk-delta.js';
 import { resolveRepoConfig } from '../shared/dict-utils.js';
 import { emitCliError, emitCliOutput, resolveFormat } from '../../src/integrations/tooling/cli-helpers.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
-import { buildRiskFilterInput, normalizeRiskFilters, validateRiskFilters } from '../../src/shared/risk-filters.js';
+import { projectCliRiskDeltaRequest } from './risk-request.js';
+import {
+  REPORT_FORMAT_OPTIONS,
+  RISK_FILTER_OPTIONS,
+  RISK_PARTIAL_FLOW_OPTIONS,
+  mergeCliOptions
+} from '../../src/shared/cli-options.js';
 
-const RISK_DELTA_OPTIONS = Object.freeze({
+const RISK_DELTA_OPTIONS = Object.freeze(mergeCliOptions({
   repo: { type: 'string' },
   from: { type: 'string' },
   to: { type: 'string' },
-  seed: { type: 'string' },
-  includePartialFlows: { type: 'boolean', default: false },
-  rule: { type: 'string' },
-  category: { type: 'string' },
-  severity: { type: 'string' },
-  tag: { type: 'string' },
-  source: { type: 'string' },
-  sink: { type: 'string' },
-  'flow-id': { type: 'string' },
-  'source-rule': { type: 'string' },
-  'sink-rule': { type: 'string' },
-  format: { type: 'string' },
-  json: { type: 'boolean', default: false }
-});
-
-const buildRiskDeltaFilters = (argv) => normalizeRiskFilters(buildRiskFilterInput(argv));
+  seed: { type: 'string' }
+}, RISK_PARTIAL_FLOW_OPTIONS, RISK_FILTER_OPTIONS, REPORT_FORMAT_OPTIONS));
 
 const renderRiskDeltaMarkdown = (payload) => {
   const lines = [
@@ -83,9 +75,10 @@ export async function runRiskDeltaCli(rawArgs = process.argv.slice(2)) {
   }).parse(rawArgs);
   const format = resolveFormat(argv);
   const repoArg = typeof argv.repo === 'string' ? argv.repo.trim() : '';
-  const fromArg = typeof argv.from === 'string' ? argv.from.trim() : '';
-  const toArg = typeof argv.to === 'string' ? argv.to.trim() : '';
-  const seedArg = typeof argv.seed === 'string' ? argv.seed.trim() : '';
+  const riskRequest = projectCliRiskDeltaRequest(argv);
+  const fromArg = riskRequest.fromRef;
+  const toArg = riskRequest.toRef;
+  const seedArg = riskRequest.seed;
   if (!repoArg || !fromArg || !toArg || !seedArg) {
     return emitCliError({
       format,
@@ -94,8 +87,7 @@ export async function runRiskDeltaCli(rawArgs = process.argv.slice(2)) {
     });
   }
 
-  const filters = buildRiskDeltaFilters(argv);
-  const validation = validateRiskFilters(filters);
+  const validation = riskRequest.filterValidation;
   if (!validation.ok) {
     return emitCliError({
       format,
@@ -116,8 +108,8 @@ export async function runRiskDeltaCli(rawArgs = process.argv.slice(2)) {
       from: fromArg,
       to: toArg,
       seed: seedArg,
-      filters,
-      includePartialFlows: argv.includePartialFlows === true
+      filters: riskRequest.filters,
+      includePartialFlows: riskRequest.includePartialFlows
     });
     return emitCliOutput({
       format,

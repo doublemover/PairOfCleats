@@ -1,6 +1,8 @@
 import { coerceNonNegativeInt, coercePositiveInt } from '../../../../../shared/number-coerce.js';
 import {
   buildWatchdogNearThresholdSummary as buildWatchdogNearThresholdSummaryShared,
+  clampDurationMs,
+  coerceClampedFractionOrDefault,
   createDurationHistogram as createDurationHistogramShared,
   isNearThresholdSlowFileDuration as isNearThresholdSlowFileDurationShared,
   resolveFileLifecycleDurations as resolveFileLifecycleDurationsShared,
@@ -27,18 +29,6 @@ const FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS = 30000;
 const coerceOptionalNonNegativeInt = (value) => {
   if (value === null || value === undefined) return null;
   return coerceNonNegativeInt(value);
-};
-
-const coerceClampedFractionOrDefault = (value, fallback, { min = 0, max = 1, allowZero = false } = {}) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  if ((!allowZero && parsed <= 0) || parsed < min || parsed > max) return fallback;
-  return parsed;
-};
-
-const clampDurationMs = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 };
 
 const resolveOptionalNonNegativeIntFromValues = (...values) => {

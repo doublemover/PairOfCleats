@@ -1,7 +1,7 @@
 import { buildLineIndex, offsetToLine } from '../../../shared/lines.js';
-import { toPosix } from '../../../shared/files.js';
+import { toPosix } from '../../../shared/file-paths.js';
 import { buildChunkRef } from '../../../shared/identity.js';
-import { runWithConcurrency } from '../../../shared/concurrency.js';
+import { runWithConcurrency } from '../../../shared/concurrency/run-with-queue.js';
 import { buildDocHashCacheKey, computeDocHash } from './doc-hash.js';
 import { VFS_MANIFEST_MAX_ROW_BYTES } from './constants.js';
 import {

@@ -49,17 +49,20 @@ const normalizeRiskFilterObject = (filters) => {
 
 export const normalizeRiskFilters = (filters) => normalizeRiskFilterObject(filters);
 
-export const buildRiskFilterInput = (input = {}) => ({
-  rule: input.rule,
-  category: input.category,
-  severity: input.severity,
-  tag: input.tag,
-  source: input.source,
-  sink: input.sink,
-  flowId: input.flowId ?? input.flow_id ?? input['flow-id'],
-  sourceRule: input.sourceRule ?? input.source_rule ?? input['source-rule'],
-  sinkRule: input.sinkRule ?? input.sink_rule ?? input['sink-rule']
-});
+export const buildRiskFilterInput = (input = {}) => {
+  const source = input && typeof input === 'object' ? input : {};
+  return {
+    rule: source.rule,
+    category: source.category,
+    severity: source.severity,
+    tag: source.tag,
+    source: source.source,
+    sink: source.sink,
+    flowId: source.flowId ?? source.flow_id ?? source['flow-id'],
+    sourceRule: source.sourceRule ?? source.source_rule ?? source['source-rule'],
+    sinkRule: source.sinkRule ?? source.sink_rule ?? source['sink-rule']
+  };
+};
 
 export const materializeRiskFilters = (filters) => {
   const normalized = normalizeRiskFilterObject(filters);
@@ -97,6 +100,21 @@ export const validateRiskFilters = (filters) => {
   return { ok: errors.length === 0, errors };
 };
 
+export const buildNormalizedRiskFilters = (input = {}) => normalizeRiskFilters(buildRiskFilterInput(input));
+
+export const normalizeValidatedRiskFilters = (filters) => {
+  const normalized = normalizeRiskFilters(filters);
+  const validation = validateRiskFilters(normalized);
+  return {
+    filters: normalized,
+    validation,
+    ok: validation.ok,
+    errors: validation.errors
+  };
+};
+
+export const buildValidatedRiskFilters = (input = {}) => normalizeValidatedRiskFilters(buildRiskFilterInput(input));
+
 const includesAny = (setLike, values) => {
   if (!(setLike instanceof Set) || setLike.size === 0) return false;
   for (const value of values) {
@@ -114,17 +132,37 @@ const collectEndpointLabels = (endpoint) => {
   ].filter(Boolean);
 };
 
+const buildRiskFilterSets = (filters) => ({
+  ruleSet: new Set(filters?.rule || []),
+  categorySet: new Set(filters?.category || []),
+  severitySet: new Set(filters?.severity || []),
+  tagSet: new Set(filters?.tag || []),
+  sourceSet: new Set(filters?.source || []),
+  sinkSet: new Set(filters?.sink || []),
+  sourceRuleSet: new Set(filters?.sourceRule || []),
+  sinkRuleSet: new Set(filters?.sinkRule || []),
+  flowIdSet: new Set(filters?.flowId || [])
+});
+
+const filterRiskFlowList = (flows, filters, matcher) => {
+  if (!Array.isArray(flows) || !flows.length) return [];
+  if (!filters) return flows.slice();
+  return flows.filter((flow) => matcher(flow, filters));
+};
+
 export const matchesRiskFilters = (flow, filters) => {
   if (!filters) return true;
-  const ruleSet = new Set(filters.rule || []);
-  const categorySet = new Set(filters.category || []);
-  const severitySet = new Set(filters.severity || []);
-  const tagSet = new Set(filters.tag || []);
-  const sourceSet = new Set(filters.source || []);
-  const sinkSet = new Set(filters.sink || []);
-  const sourceRuleSet = new Set(filters.sourceRule || []);
-  const sinkRuleSet = new Set(filters.sinkRule || []);
-  const flowIdSet = new Set(filters.flowId || []);
+  const {
+    ruleSet,
+    categorySet,
+    severitySet,
+    tagSet,
+    sourceSet,
+    sinkSet,
+    sourceRuleSet,
+    sinkRuleSet,
+    flowIdSet
+  } = buildRiskFilterSets(filters);
 
   if (flowIdSet.size && !flowIdSet.has(flow?.flowId || '')) return false;
   if (sourceSet.size && !includesAny(sourceSet, collectEndpointLabels(flow?.source))) return false;
@@ -150,22 +188,21 @@ export const matchesRiskFilters = (flow, filters) => {
 };
 
 export const filterRiskFlows = (flows, filters) => {
-  if (!Array.isArray(flows) || !flows.length) return [];
-  if (!filters) return flows.slice();
-  return flows.filter((flow) => matchesRiskFilters(flow, filters));
+  return filterRiskFlowList(flows, filters, matchesRiskFilters);
 };
 
 export const matchesRiskPartialFilters = (flow, filters) => {
   if (!filters) return true;
-  const ruleSet = new Set(filters.rule || []);
-  const categorySet = new Set(filters.category || []);
-  const severitySet = new Set(filters.severity || []);
-  const tagSet = new Set(filters.tag || []);
-  const sourceSet = new Set(filters.source || []);
-  const sinkSet = new Set(filters.sink || []);
-  const sourceRuleSet = new Set(filters.sourceRule || []);
-  const sinkRuleSet = new Set(filters.sinkRule || []);
-  const flowIdSet = new Set(filters.flowId || []);
+  const {
+    ruleSet,
+    categorySet,
+    severitySet,
+    tagSet,
+    sourceSet,
+    sinkSet,
+    sourceRuleSet,
+    sinkRuleSet
+  } = buildRiskFilterSets(filters);
 
   if (sourceSet.size && !includesAny(sourceSet, collectEndpointLabels(flow?.source))) return false;
   if (sinkSet.size) {
@@ -185,7 +222,5 @@ export const matchesRiskPartialFilters = (flow, filters) => {
 };
 
 export const filterRiskPartialFlows = (flows, filters) => {
-  if (!Array.isArray(flows) || !flows.length) return [];
-  if (!filters) return flows.slice();
-  return flows.filter((flow) => matchesRiskPartialFilters(flow, filters));
+  return filterRiskFlowList(flows, filters, matchesRiskPartialFilters);
 };

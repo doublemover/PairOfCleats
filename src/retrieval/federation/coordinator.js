@@ -433,6 +433,93 @@ const toStableResponse = (response, includePaths) => {
   return JSON.parse(stableStringify(response));
 };
 
+const countRepoCompleteness = (repos = []) => ({
+  complete: repos.filter((entry) => entry.completeness === 'complete').length,
+  partial: repos.filter((entry) => entry.completeness === 'partial').length,
+  degraded: repos.filter((entry) => entry.completeness === 'degraded').length,
+  empty: repos.filter((entry) => entry.completeness === 'empty').length
+});
+
+const buildFederatedResponse = ({
+  workspaceConfig,
+  manifest,
+  selection,
+  cohortResult,
+  topN,
+  perRepoTop,
+  concurrency,
+  mergeStrategy,
+  rrfK,
+  strictFailures,
+  includePaths,
+  repos,
+  warnings,
+  modeResults = {}
+}) => {
+  const workspaceMeta = {
+    name: workspaceConfig.name || '',
+    workspaceId: workspaceConfig.repoSetId
+  };
+  if (includePaths) workspaceMeta.workspacePath = workspaceConfig.workspacePath;
+  const response = {
+    ok: true,
+    backend: 'federated',
+    status: null,
+    meta: {
+      repoSetId: workspaceConfig.repoSetId,
+      manifestHash: manifest.manifestHash,
+      manifestGeneratedAt: manifest.generatedAt,
+      workspace: workspaceMeta,
+      selection: {
+        selectedRepoIds: selection.selectedRepoIds,
+        selectedRepos: selection.selectedRepos.map((repo) => ({
+          repoId: repo.repoId,
+          alias: repo.alias || null,
+          priority: Number(repo.priority || 0),
+          enabled: repo.enabled !== false
+        })),
+        ...selection.selectionMeta
+      },
+      cohorts: cohortResult,
+      limits: {
+        top: topN,
+        perRepoTop,
+        concurrency,
+        merge: mergeStrategy,
+        rrfK
+      },
+      policy: buildPolicyMeta({ strictFailures, responseStatus: null }),
+      completeness: null
+    },
+    partialSuccess: false,
+    code: modeResults.code || [],
+    prose: modeResults.prose || [],
+    extractedProse: modeResults.extractedProse || [],
+    records: modeResults.records || [],
+    repos,
+    warnings
+  };
+  const totalHits = response.code.length
+    + response.prose.length
+    + response.extractedProse.length
+    + response.records.length;
+  response.status = resolveFederatedResponseStatus({
+    repoReports: response.repos,
+    totalHits
+  });
+  response.meta.completeness = {
+    status: response.status,
+    strict: strictFailures,
+    repoCounts: countRepoCompleteness(response.repos)
+  };
+  response.meta.policy = buildPolicyMeta({
+    strictFailures,
+    responseStatus: response.status
+  });
+  response.partialSuccess = response.status === 'partial' || response.status === 'degraded';
+  return response;
+};
+
 /**
  * Resolve workspace config for a federated request.
  *
@@ -707,68 +794,21 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   }));
 
   if (!activeRepoIds.length) {
-    const workspaceMeta = {
-      name: workspaceConfig.name || '',
-      workspaceId: workspaceConfig.repoSetId
-    };
-    if (includePaths) workspaceMeta.workspacePath = workspaceConfig.workspacePath;
-    const emptyResponse = {
-      ok: true,
-      backend: 'federated',
-      status: null,
-      meta: {
-        repoSetId: workspaceConfig.repoSetId,
-        manifestHash: manifest.manifestHash,
-        manifestGeneratedAt: manifest.generatedAt,
-        workspace: workspaceMeta,
-        selection: {
-          selectedRepoIds: selection.selectedRepoIds,
-          selectedRepos: selection.selectedRepos.map((repo) => ({
-            repoId: repo.repoId,
-            alias: repo.alias || null,
-            priority: Number(repo.priority || 0),
-            enabled: repo.enabled !== false
-          })),
-          ...selection.selectionMeta
-        },
-        cohorts: cohortResult,
-        limits: {
-          top: topN,
-          perRepoTop,
-          concurrency,
-          merge: request.merge?.strategy || 'rrf',
-          rrfK
-        },
-        policy: buildPolicyMeta({ strictFailures, responseStatus: null }),
-        completeness: null
-      },
-      partialSuccess: false,
-      code: [],
-      prose: [],
-      extractedProse: [],
-      records: [],
+    const emptyResponse = buildFederatedResponse({
+      workspaceConfig,
+      manifest,
+      selection,
+      cohortResult,
+      topN,
+      perRepoTop,
+      concurrency,
+      mergeStrategy: request.merge?.strategy || 'rrf',
+      rrfK,
+      strictFailures,
+      includePaths,
       repos: buildRepoReports(),
       warnings: [...toArray(selection.warnings), ...toArray(cohortResult?.warnings)]
-    };
-    emptyResponse.status = resolveFederatedResponseStatus({
-      repoReports: emptyResponse.repos,
-      totalHits: 0
     });
-    emptyResponse.meta.completeness = {
-      status: emptyResponse.status,
-      strict: strictFailures,
-      repoCounts: {
-        complete: emptyResponse.repos.filter((entry) => entry.completeness === 'complete').length,
-        partial: emptyResponse.repos.filter((entry) => entry.completeness === 'partial').length,
-        degraded: emptyResponse.repos.filter((entry) => entry.completeness === 'degraded').length,
-        empty: emptyResponse.repos.filter((entry) => entry.completeness === 'empty').length
-      }
-    };
-    emptyResponse.meta.policy = buildPolicyMeta({
-      strictFailures,
-      responseStatus: emptyResponse.status
-    });
-    emptyResponse.partialSuccess = emptyResponse.status === 'partial' || emptyResponse.status === 'degraded';
     const stable = toStableResponse(emptyResponse, includePaths);
     await persistCachedResult(stable);
     return stable;
@@ -960,70 +1000,22 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     rrfK
   });
 
-  const workspaceMeta = {
-    name: workspaceConfig.name || '',
-    workspaceId: workspaceConfig.repoSetId
-  };
-  if (includePaths) workspaceMeta.workspacePath = workspaceConfig.workspacePath;
-
-  const response = {
-    ok: true,
-    backend: 'federated',
-    status: null,
-    meta: {
-      repoSetId: workspaceConfig.repoSetId,
-      manifestHash: manifest.manifestHash,
-      manifestGeneratedAt: manifest.generatedAt,
-      workspace: workspaceMeta,
-      selection: {
-        selectedRepoIds: selection.selectedRepoIds,
-        selectedRepos: selection.selectedRepos.map((repo) => ({
-          repoId: repo.repoId,
-          alias: repo.alias || null,
-          priority: Number(repo.priority || 0),
-          enabled: repo.enabled !== false
-        })),
-        ...selection.selectionMeta
-      },
-      cohorts: cohortResult,
-      limits: {
-        top: topN,
-        perRepoTop,
-        concurrency,
-        merge: request.merge?.strategy || 'rrf',
-        rrfK
-      },
-      policy: buildPolicyMeta({ strictFailures, responseStatus: null }),
-      completeness: null
-    },
-    partialSuccess: false,
-    code: merged.code,
-    prose: merged.prose,
-    extractedProse: merged.extractedProse,
-    records: merged.records,
+  const response = buildFederatedResponse({
+    workspaceConfig,
+    manifest,
+    selection,
+    cohortResult,
+    topN,
+    perRepoTop,
+    concurrency,
+    mergeStrategy: request.merge?.strategy || 'rrf',
+    rrfK,
+    strictFailures,
+    includePaths,
+    modeResults: merged,
     repos: buildRepoReports(),
     warnings: [...toArray(selection.warnings), ...toArray(cohortResult?.warnings)]
-  };
-  const totalHits = response.code.length + response.prose.length + response.extractedProse.length + response.records.length;
-  response.status = resolveFederatedResponseStatus({
-    repoReports: response.repos,
-    totalHits
   });
-  response.meta.completeness = {
-    status: response.status,
-    strict: strictFailures,
-    repoCounts: {
-      complete: response.repos.filter((entry) => entry.completeness === 'complete').length,
-      partial: response.repos.filter((entry) => entry.completeness === 'partial').length,
-      degraded: response.repos.filter((entry) => entry.completeness === 'degraded').length,
-      empty: response.repos.filter((entry) => entry.completeness === 'empty').length
-    }
-  };
-  response.meta.policy = buildPolicyMeta({
-    strictFailures,
-    responseStatus: response.status
-  });
-  response.partialSuccess = response.status === 'partial' || response.status === 'degraded';
 
   const stable = toStableResponse(response, includePaths);
   // Avoid pinning degraded non-strict responses when any repo failed during fanout.

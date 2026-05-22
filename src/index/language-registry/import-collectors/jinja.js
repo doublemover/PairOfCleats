@@ -1,7 +1,8 @@
 import {
+  addBudgetedCollectorImport,
   createCollectorBudgetContext,
+  forEachBudgetedRegexMatch,
   lineHasAny,
-  sanitizeCollectorImportToken,
   shouldScanLine,
   stripTemplateCommentBlocks
 } from './utils.js';
@@ -28,38 +29,31 @@ export const collectJinjaImports = (text, options = {}) => {
     const lines = source.split('\n');
     const precheck = (value) =>
       value.includes('{%') && lineHasAny(value, ['extends', 'include', 'import']);
-    const addImport = (value) => {
-      if (!scanBudget.consumeToken()) return;
-      const token = sanitizeCollectorImportToken(value);
-      if (!token) return;
-      imports.add(token);
-    };
+    const addImport = (value) => addBudgetedCollectorImport(imports, value, scanBudget);
     for (const line of lines) {
       if (scanBudget.exhausted || !scanBudget.consumeTime()) break;
       if (shouldScanLine(line, precheck)) {
         const lineMatcher = /{%\s*(?:extends|include|import)\s+['"]([^'"]+)['"]/g;
-        let match;
-        while (!scanBudget.exhausted) {
-          if (!scanBudget.consumeTime()) break;
-          match = lineMatcher.exec(line);
-          if (match === null) break;
-          if (!scanBudget.consumeMatch()) break;
-          if (match?.[1]) addImport(match[1]);
-          if (!match[0]) lineMatcher.lastIndex += 1;
-        }
+        forEachBudgetedRegexMatch({
+          text: line,
+          matcher: lineMatcher,
+          scanBudget,
+          onMatch: (match) => {
+            if (match?.[1]) addImport(match[1]);
+          }
+        });
       }
       if (!scanBudget.consumeLine()) break;
     }
     const multilineMatcher = /{%\s*(?:extends|include|import)\s+["']([^"']+)["'][\s\S]*?%}/g;
-    let multilineMatch;
-    while (!scanBudget.exhausted) {
-      if (!scanBudget.consumeTime()) break;
-      multilineMatch = multilineMatcher.exec(source);
-      if (multilineMatch === null) break;
-      if (!scanBudget.consumeMatch()) break;
-      if (multilineMatch?.[1]) addImport(multilineMatch[1]);
-      if (!multilineMatch[0]) multilineMatcher.lastIndex += 1;
-    }
+    forEachBudgetedRegexMatch({
+      text: source,
+      matcher: multilineMatcher,
+      scanBudget,
+      onMatch: (match) => {
+        if (match?.[1]) addImport(match[1]);
+      }
+    });
     return Array.from(imports);
   } finally {
     budgetContext.finalize();

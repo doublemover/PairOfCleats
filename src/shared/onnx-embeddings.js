@@ -8,17 +8,17 @@ import {
   resolveOnnxModelPath,
   resolvePrewarmList,
   statSize
-} from './onnx-config.js';
-import { createRunQueue } from './onnx-run-queue.js';
-import { __tokenizeBatchWithCacheForTests, tokenizeBatchWithCache } from './onnx-tokenization.js';
+} from './onnx-embeddings/config.js';
+import { createRunQueue } from './onnx-embeddings/run-queue.js';
+import { __tokenizeBatchWithCacheForTests, tokenizeBatchWithCache } from './onnx-embeddings/tokenization.js';
 
 export {
   normalizeEmbeddingProvider,
   normalizeOnnxConfig,
   resolveOnnxModelPath
-} from './onnx-config.js';
-export { createRunQueue } from './onnx-run-queue.js';
-export { __tokenizeBatchWithCacheForTests } from './onnx-tokenization.js';
+} from './onnx-embeddings/config.js';
+export { createRunQueue } from './onnx-embeddings/run-queue.js';
+export { __tokenizeBatchWithCacheForTests } from './onnx-embeddings/tokenization.js';
 
 const ONNX_CACHE_TTL_MS = 15 * 60 * 1000;
 const ONNX_CACHE_MAX_ENTRIES = 8;

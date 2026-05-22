@@ -1,6 +1,13 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { findCLikeBodyBounds } from './clike.js';
-import { extractDocComment, sliceSignature } from './shared.js';
+import {
+  buildBraceDelimitedMethodRelations,
+  buildDefaultDocMeta,
+  collectDottedCallsAndUsages,
+  extractDocComment,
+  normalizeDeclarationList,
+  sliceSignature
+} from './shared.js';
 import { readSignatureLines } from './shared/signature-lines.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
@@ -93,6 +100,8 @@ const GO_DOC_OPTIONS = {
   skipLine: (line) => line.startsWith('//go:') || line.startsWith('// +build')
 };
 
+const GO_CALLABLE_KINDS = new Set(['FunctionDeclaration', 'MethodDeclaration']);
+
 function normalizeGoReceiverType(raw) {
   if (!raw) return '';
   let text = raw.trim();
@@ -143,39 +152,12 @@ function stripGoComments(text) {
     .replace(/\/\/.*$/gm, ' ');
 }
 
-function getLastDottedSegment(raw) {
-  if (!raw) return '';
-  let end = raw.length;
-  while (end > 0 && raw[end - 1] === '.') end -= 1;
-  if (!end) return '';
-  const idx = raw.lastIndexOf('.', end - 1);
-  return raw.slice(idx + 1, end);
-}
-
 function collectGoCallsAndUsages(text) {
-  const calls = new Set();
-  const usages = new Set();
-  const normalized = stripGoComments(text);
-  const callRe = /\b([A-Za-z_][A-Za-z0-9_.]*)\s*\(/g;
-  let match;
-  while ((match = callRe.exec(normalized)) !== null) {
-    const raw = match[1];
-    if (!raw) continue;
-    const base = getLastDottedSegment(raw);
-    if (!base || GO_CALL_KEYWORDS.has(base)) continue;
-    calls.add(raw);
-    if (base !== raw) calls.add(base);
-    if (!match[0]) callRe.lastIndex += 1;
-  }
-  const usageRe = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
-  while ((match = usageRe.exec(normalized)) !== null) {
-    const name = match[1];
-    if (!name || name.length < 2) continue;
-    if (GO_USAGE_SKIP.has(name)) continue;
-    usages.add(name);
-    if (!match[0]) usageRe.lastIndex += 1;
-  }
-  return { calls: Array.from(calls), usages: Array.from(usages) };
+  return collectDottedCallsAndUsages(text, {
+    callKeywords: GO_CALL_KEYWORDS,
+    usageSkip: GO_USAGE_SKIP,
+    stripComments: stripGoComments
+  });
 }
 
 /**
@@ -319,15 +301,7 @@ export function buildGoChunks(text, options = {}) {
     i = endLine;
   }
 
-  if (!decls.length) return null;
-  decls.sort((a, b) => a.start - b.start);
-  return decls.map((decl) => ({
-    start: decl.start,
-    end: decl.end,
-    name: decl.name,
-    kind: decl.kind,
-    meta: decl.meta || {}
-  }));
+  return normalizeDeclarationList(decls);
 }
 
 /**
@@ -337,31 +311,16 @@ export function buildGoChunks(text, options = {}) {
  * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
 export function buildGoRelations(text, goChunks) {
-  const imports = collectGoImports(text);
-  const exports = new Set();
-  const calls = [];
-  const usages = new Set();
-  if (Array.isArray(goChunks)) {
-    for (const chunk of goChunks) {
-      if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
+  return buildBraceDelimitedMethodRelations(text, goChunks, {
+    collectImports: collectGoImports,
+    collectCallsAndUsages: collectGoCallsAndUsages,
+    findBodyBounds: findCLikeBodyBounds,
+    callableKinds: GO_CALLABLE_KINDS,
+    isExported: (chunk) => {
       const base = chunk.name.split('.').pop();
-      if (base && /^[A-Z]/.test(base)) exports.add(chunk.name);
-      if (!['FunctionDeclaration', 'MethodDeclaration'].includes(chunk.kind)) continue;
-      const bounds = findCLikeBodyBounds(text, chunk.start);
-      const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
-      const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
-      const slice = text.slice(scanStart, scanEnd);
-      const { calls: chunkCalls, usages: chunkUsages } = collectGoCallsAndUsages(slice);
-      for (const callee of chunkCalls) calls.push([chunk.name, callee]);
-      for (const usage of chunkUsages) usages.add(usage);
+      return Boolean(base && /^[A-Z]/.test(base));
     }
-  }
-  return {
-    imports,
-    exports: Array.from(exports),
-    calls,
-    usages: Array.from(usages)
-  };
+  });
 }
 
 /**
@@ -370,20 +329,7 @@ export function buildGoRelations(text, goChunks) {
  * @returns {{doc:string,params:string[],returns:(string|null),signature:(string|null)}}
  */
 export function extractGoDocMeta(chunk) {
-  const meta = chunk.meta || {};
-  const params = Array.isArray(meta.params) ? meta.params : [];
-  return {
-    doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
-    params,
-    returns: meta.returns || null,
-    signature: meta.signature || null,
-    dataflow: meta.dataflow || null,
-    throws: meta.throws || [],
-    awaits: meta.awaits || [],
-    yields: meta.yields || false,
-    returnsValue: meta.returnsValue || false,
-    controlFlow: meta.controlFlow || null
-  };
+  return buildDefaultDocMeta(chunk);
 }
 
 /**

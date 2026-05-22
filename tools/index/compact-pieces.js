@@ -3,7 +3,8 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { writeJsonLinesFile, writeJsonObjectFile } from '../../src/shared/json-stream.js';
+import { writeJsonLinesFile } from '../../src/shared/json-stream/jsonl-write.js';
+import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
 import { checksumFile } from '../../src/shared/hash.js';
 import {
   CHUNK_META_PART_PREFIX,
@@ -12,8 +13,8 @@ import {
   TOKEN_POSTINGS_SHARDS_DIR,
   expandMetaPartPaths,
   listShardFiles
-} from '../../src/shared/artifact-io.js';
-import { fromPosix } from '../../src/shared/files.js';
+} from '../../src/shared/artifact-io/manifest.js';
+import { fromPosix } from '../../src/shared/file-paths.js';
 import {
   iterateChunkMetaSources,
   readJson,

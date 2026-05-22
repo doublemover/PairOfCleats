@@ -20,34 +20,23 @@ import {
 } from './ansi.js';
 import {
   INDENT,
-  buildFormatCacheKey,
-  buildQueryHash,
   buildVerticalLines,
   buildWrappedLines,
   compareText,
   formatControlFlow,
   formatInferredEntries,
   formatInferredMap,
-  formatLastModified,
-  formatSignature,
   formatWrappedList,
-  truncatePathMiddle,
   toArray
 } from './display-meta.js';
-
-const normalizeSnippet = (value, maxLength = 220) => {
-  const raw = String(value || '').replace(/\s+/gu, ' ').trim();
-  if (!raw) return '';
-  return raw.length > maxLength ? `${raw.slice(0, Math.max(0, maxLength - 3))}...` : raw;
-};
-
-const looksKeywordish = (value) => {
-  const text = normalizeSnippet(value, 240);
-  if (!text) return false;
-  if (/[.?!:;]/u.test(text)) return false;
-  const tokens = text.split(/\s+/u).filter(Boolean);
-  return tokens.length >= 4 && tokens.every((token) => /^[a-z0-9_\-/]+$/iu.test(token));
-};
+import {
+  alignTextColumns,
+  buildChunkDisplayMetadata,
+  looksKeywordishSnippet,
+  normalizeSnippet,
+  resolveFormatCache,
+  writeFormatCache
+} from './shared.js';
 
 const normalizeExcerptInfo = ({ chunk, mode, primaryTitle, displayName }) => {
   const commentEntries = Array.isArray(chunk?.docmeta?.commentExcerpts)
@@ -68,7 +57,7 @@ const normalizeExcerptInfo = ({ chunk, mode, primaryTitle, displayName }) => {
     const comment = normalizeSnippet(commentExcerpt || chunk?.headline, 220);
     if (!comment) return null;
     return {
-      label: looksKeywordish(comment) ? 'keywords' : 'comment',
+      label: looksKeywordishSnippet(comment, 240) ? 'keywords' : 'comment',
       text: comment
     };
   }
@@ -93,6 +82,24 @@ const summarizeItems = (items, limit) => {
     trimmed.push(`+${values.length - trimmed.length} more`);
   }
   return trimmed;
+};
+
+const formatUsageSummary = (items, c) => {
+  const usageFreq = Object.create(null);
+  items.forEach((raw) => {
+    const trimmed = typeof raw === 'string' ? raw.trim() : '';
+    if (!trimmed) return;
+    usageFreq[trimmed] = (usageFreq[trimmed] || 0) + 1;
+  });
+
+  const usageEntries = Object.entries(usageFreq).sort((a, b) => b[1] - a[1]);
+  const maxCount = usageEntries[0]?.[1] || 0;
+
+  return usageEntries.slice(0, 10).map(([usage, count]) => {
+    if (count === 1) return usage;
+    if (count === maxCount) return c.bold(c.yellow(`${usage} (${count})`));
+    return c.cyan(`${usage} (${count})`);
+  }).join(', ');
 };
 
 /**
@@ -123,15 +130,20 @@ export function formatFullChunk({
     return color.red(`   ${index + 1}. [Invalid result - missing chunk or file]`) + '\n';
   }
   const canCache = !_skipCache && !explain && (!summaryState || !allowSummary);
-  const formatCache = canCache ? getFormatFullCache() : null;
-  const queryHash = canCache ? buildQueryHash(queryTokens, rx) : '';
-  const layoutSignature = `${layout?.cacheKey || ''}|links:${hyperlinkMode || 'auto'}`;
-  let cacheKey = null;
-  if (canCache && formatCache) {
-    cacheKey = buildFormatCacheKey({ chunk, index, mode, queryHash, matched, explain, layoutSignature });
-    const cached = formatCache.get(cacheKey);
-    if (cached) return cached;
-  }
+  const { formatCache, cacheKey, cached } = resolveFormatCache({
+    canCache,
+    getFormatCache: getFormatFullCache,
+    chunk,
+    index,
+    mode,
+    queryTokens,
+    rx,
+    matched,
+    explain,
+    layout,
+    hyperlinkMode
+  });
+  if (cached) return cached;
   const c = color;
   let out = '';
   const columns = Number.isFinite(layout?.columns) ? layout.columns : 108;
@@ -155,60 +167,46 @@ export function formatFullChunk({
     return lines;
   };
   const alignRight = (left, right) => {
-    if (!right) return `${INDENT}${left}\n`;
-    const maxWidth = Math.max(24, columns - stripAnsi(INDENT).length);
-    const leftWidth = stripAnsi(left).length;
-    const rightWidth = stripAnsi(right).length;
-    if (leftWidth + rightWidth + 2 > maxWidth) {
-      return `${INDENT}${left}\n${INDENT}${right}\n`;
-    }
-    return `${INDENT}${left}${' '.repeat(Math.max(1, maxWidth - leftWidth - rightWidth))}${right}\n`;
+    return alignTextColumns({
+      left,
+      right,
+      columns,
+      indent: INDENT,
+      trailingNewline: true
+    });
   };
   const alignInline = (left, right) => {
-    if (!right) return `${left}\n`;
-    const maxWidth = Math.max(24, columns);
-    const leftWidth = stripAnsi(left).length;
-    const rightWidth = stripAnsi(right).length;
-    if (leftWidth + rightWidth + 2 > maxWidth) {
-      return `${left}\n${INDENT}${right}\n`;
-    }
-    return `${left}${' '.repeat(Math.max(1, maxWidth - leftWidth - rightWidth))}${right}\n`;
+    return alignTextColumns({
+      left,
+      right,
+      columns,
+      wrapIndent: INDENT,
+      trailingNewline: true
+    });
   };
 
-  const lineRange = Number.isFinite(chunk.startLine) && Number.isFinite(chunk.endLine)
-    ? `[${chunk.startLine}-${chunk.endLine}]`
-    : '';
-  const fileLabel = lineRange ? `${chunk.file}:${lineRange}` : chunk.file;
-  const signature = chunk.docmeta?.signature || '';
-  const isPlaceholderName = chunk.name === 'blob' || chunk.name === 'root';
-  const isPlaceholderKind = chunk.kind === 'Blob' || (chunk.kind === 'Section' && !chunk.name) || (chunk.kind === 'Module' && !chunk.name);
-  const nameLabel = (!isPlaceholderName && chunk.name) ? String(chunk.name) : '';
-  const kindLabel = isPlaceholderKind ? '' : (chunk.kind ? String(chunk.kind) : '');
-  const fallbackSig = [kindLabel, nameLabel].filter(Boolean).join(' ').trim();
-  const signatureLabel = signature || fallbackSig;
-  const displayName = nameLabel || signatureLabel || fileLabel;
-  const signaturePart = signatureLabel && signatureLabel !== displayName
-    ? formatSignature(signatureLabel, nameLabel || displayName)
-    : '';
-  const lastModLabel = formatLastModified(chunk.last_modified);
-  const maxFileWidth = Math.max(22, columns - (stripAnsi(INDENT).length + (lastModLabel ? lastModLabel.length + 2 : 0)));
-  const shortenedFilePath = truncatePathMiddle(chunk.file, Math.max(12, maxFileWidth - (lineRange ? lineRange.length + 1 : 0)));
-  const filePathStyled = hyperlinkFileLabel({
-    label: italicColor(shortenedFilePath, ANSI.fgLight),
-    filePath: chunk.file,
-    line: chunk.startLine,
+  const {
+    lineRange,
+    fileLabel,
+    nameLabel,
+    displayName,
+    signaturePart,
+    lastModLabel,
+    filePathStyled,
+    rangeStyled,
+    fileStyled,
+    primaryTitle
+  } = buildChunkDisplayMetadata({
+    chunk,
+    mode,
+    columns,
+    minFileWidth: 22,
+    pathWidthOffset: stripAnsi(INDENT).length,
     rootDir: rootDir || process.cwd(),
-    mode: hyperlinkMode
+    hyperlinkMode
   });
-  const rangeStyled = lineRange ? colorText(lineRange, ANSI.fgLight) : '';
-  const fileStyled = lineRange
-    ? `${filePathStyled}${colorText(':', ANSI.fgLight)}${rangeStyled}`
-    : filePathStyled;
   const timeStyled = lastModLabel ? colorText(lastModLabel, ANSI.fgDarkGray) : '';
   const rankStyled = colorText(`${index + 1}.`, ANSI.fgYellow);
-  const primaryTitle = mode === 'extracted-prose'
-    ? fileLabel
-    : (mode === 'prose' ? (nameLabel || fileLabel) : displayName);
   const primaryTitleStyled = primaryTitle === fileLabel
     ? `${filePathStyled}${lineRange ? `${colorText(':', ANSI.fgLight)}${rangeStyled}` : ''}`
     : boldText(primaryTitle);
@@ -457,41 +455,13 @@ export function formatFullChunk({
 
   const usages = toArray(chunk.usages);
   if (usages.length) {
-    const usageFreq = Object.create(null);
-    usages.forEach((raw) => {
-      const trimmed = typeof raw === 'string' ? raw.trim() : '';
-      if (!trimmed) return;
-      usageFreq[trimmed] = (usageFreq[trimmed] || 0) + 1;
-    });
-
-    const usageEntries = Object.entries(usageFreq).sort((a, b) => b[1] - a[1]);
-    const maxCount = usageEntries[0]?.[1] || 0;
-
-    const usageStr = usageEntries.slice(0, 10).map(([usage, count]) => {
-      if (count === 1) return usage;
-      if (count === maxCount) return c.bold(c.yellow(`${usage} (${count})`));
-      return c.cyan(`${usage} (${count})`);
-    }).join(', ');
+    const usageStr = formatUsageSummary(usages, c);
 
     if (usageStr.length) out += formatWrappedList(labelToken('Usages', ANSI.fgCyan), usageStr.split(', '), { maxWidth: wrapWidth });
   } else {
     const relationUsages = toArray(chunk.codeRelations?.usages);
     if (relationUsages.length) {
-      const usageFreq = Object.create(null);
-      relationUsages.forEach((raw) => {
-        const trimmed = typeof raw === 'string' ? raw.trim() : '';
-        if (!trimmed) return;
-        usageFreq[trimmed] = (usageFreq[trimmed] || 0) + 1;
-      });
-
-      const usageEntries = Object.entries(usageFreq).sort((a, b) => b[1] - a[1]);
-      const maxCount = usageEntries[0]?.[1] || 0;
-
-      const usageStr = usageEntries.slice(0, 10).map(([usage, count]) => {
-        if (count === 1) return usage;
-        if (count === maxCount) return c.bold(c.yellow(`${usage} (${count})`));
-        return c.cyan(`${usage} (${count})`);
-      }).join(', ');
+      const usageStr = formatUsageSummary(relationUsages, c);
 
       if (usageStr.length) out += formatWrappedList(labelToken('Usages', ANSI.fgCyan), usageStr.split(', '), { maxWidth: wrapWidth });
     }
@@ -654,9 +624,7 @@ export function formatFullChunk({
   }
   out = out.replace(/\n+$/u, '');
   out += '\n';
-  if (canCache && formatCache && cacheKey) {
-    formatCache.set(cacheKey, out);
-  }
+  writeFormatCache({ canCache, formatCache, cacheKey, value: out });
   return out;
 }
 

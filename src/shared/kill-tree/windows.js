@@ -126,24 +126,37 @@ const killWindowsOrphanDescendantsSync = (
   };
 };
 
+const applyWindowsFallbackKill = (pid, state) => {
+  if (state.terminated) return;
+  const fallback = killWindowsOrphanDescendantsSync(pid);
+  state.fallbackAttempted = fallback.attempted;
+  state.fallbackTerminated = fallback.terminatedCount;
+  if (fallback.terminatedCount > 0) {
+    state.terminated = true;
+    state.forced = true;
+  }
+};
+
 export const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
   const baseArgs = ['/PID', String(pid), '/T'];
-  let terminated = false;
-  let forced = false;
-  let fallbackAttempted = false;
-  let fallbackTerminated = 0;
+  const state = {
+    terminated: false,
+    forced: false,
+    fallbackAttempted: false,
+    fallbackTerminated: 0
+  };
   try {
     const graceful = runSyncCommandWithTimeout('taskkill', baseArgs, {
       stdio: 'ignore',
       timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
     });
     if (toSyncCommandExitCode(graceful) === 0) {
-      terminated = true;
+      state.terminated = true;
       if (graceMs > 0 && awaitGrace) await wait(graceMs, { unrefTimer: false });
     }
   } catch {}
-  if (terminated && !isWindowsPidAlive(pid)) {
-    return { terminated: true, forced: false, fallbackAttempted, fallbackTerminated };
+  if (state.terminated && !isWindowsPidAlive(pid)) {
+    return { ...state, terminated: true, forced: false };
   }
   if (!awaitGrace) {
     if (graceMs > 0) {
@@ -154,7 +167,7 @@ export const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
           timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
         });
       });
-      return { terminated, forced: false, fallbackAttempted, fallbackTerminated };
+      return { ...state, forced: false };
     }
     try {
       const forcedKill = runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
@@ -162,11 +175,11 @@ export const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
         timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
       });
       if (toSyncCommandExitCode(forcedKill) === 0) {
-        terminated = true;
-        forced = true;
+        state.terminated = true;
+        state.forced = true;
       }
     } catch {}
-    return { terminated, forced, fallbackAttempted, fallbackTerminated };
+    return state;
   }
   try {
     const forcedKill = runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
@@ -174,39 +187,33 @@ export const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
       timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
     });
     if (toSyncCommandExitCode(forcedKill) === 0) {
-      terminated = true;
-      forced = true;
+      state.terminated = true;
+      state.forced = true;
     }
   } catch {}
-  if (!terminated) {
-    const fallback = killWindowsOrphanDescendantsSync(pid);
-    fallbackAttempted = fallback.attempted;
-    fallbackTerminated = fallback.terminatedCount;
-    if (fallback.terminatedCount > 0) {
-      terminated = true;
-      forced = true;
-    }
-  }
-  return { terminated, forced, fallbackAttempted, fallbackTerminated };
+  applyWindowsFallbackKill(pid, state);
+  return state;
 };
 
 export const killWindowsTreeSync = (pid) => {
   const baseArgs = ['/PID', String(pid), '/T'];
-  let terminated = false;
-  let forced = false;
-  let fallbackAttempted = false;
-  let fallbackTerminated = 0;
+  const state = {
+    terminated: false,
+    forced: false,
+    fallbackAttempted: false,
+    fallbackTerminated: 0
+  };
   try {
     const graceful = runSyncCommandWithTimeout('taskkill', baseArgs, {
       stdio: 'ignore',
       timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
     });
     if (toSyncCommandExitCode(graceful) === 0) {
-      terminated = true;
+      state.terminated = true;
     }
   } catch {}
-  if (terminated && !isWindowsPidAlive(pid)) {
-    return { terminated: true, forced: false, fallbackAttempted, fallbackTerminated };
+  if (state.terminated && !isWindowsPidAlive(pid)) {
+    return { ...state, terminated: true, forced: false };
   }
   try {
     const forcedKill = runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
@@ -214,18 +221,10 @@ export const killWindowsTreeSync = (pid) => {
       timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
     });
     if (toSyncCommandExitCode(forcedKill) === 0) {
-      terminated = true;
-      forced = true;
+      state.terminated = true;
+      state.forced = true;
     }
   } catch {}
-  if (!terminated) {
-    const fallback = killWindowsOrphanDescendantsSync(pid);
-    fallbackAttempted = fallback.attempted;
-    fallbackTerminated = fallback.terminatedCount;
-    if (fallback.terminatedCount > 0) {
-      terminated = true;
-      forced = true;
-    }
-  }
-  return { terminated, forced, fallbackAttempted, fallbackTerminated };
+  applyWindowsFallbackKill(pid, state);
+  return state;
 };

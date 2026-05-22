@@ -1,12 +1,12 @@
 import path from 'node:path';
 import {
   acquireFileLock,
-  releaseFileLockOrThrow,
-  readLockInfo,
-  removeLockFileSyncIfOwned
+  readLockInfo
 } from '../../shared/locks/file-lock.js';
-import { attachCleanupSignalHandlers } from '../../shared/process-signals.js';
-import { runBuildCleanupWithTimeout } from './cleanup-timeout.js';
+import {
+  attachLockSignalCleanup,
+  createLockReleaseHandle
+} from '../lock-release.js';
 
 const DEFAULT_STALE_MS = 30 * 60 * 1000;
 
@@ -48,56 +48,12 @@ export async function acquireIndexLock({
     return null;
   }
 
-  let released = false;
-  const handlers = [];
-  const cleanupSync = () => {
-    if (released) return;
-    removeLockFileSyncIfOwned(lockPath, lock.payload);
-    released = true;
-  };
-  const registerHandler = (event, handler) => {
-    process.once(event, handler);
-    handlers.push({ event, handler });
-  };
-  const detachHandlers = () => {
-    for (const entry of handlers) {
-      process.off(entry.event, entry.handler);
-    }
-    handlers.length = 0;
-  };
-  // Keep library behavior non-authoritative for process lifetime: cleanup on
-  // process exit, but do not install signal handlers that force termination.
-  registerHandler('exit', cleanupSync);
-
-  const publicLock = {
+  return createLockReleaseHandle({
+    lock,
     lockPath,
-    payload: lock.payload,
-    signalCleaned: false,
-    _onSignalCleanup: () => {
-      if (released) return;
-      released = true;
-      publicLock.signalCleaned = true;
-      detachHandlers();
-    },
-    release: async () => {
-      if (!released) {
-        if (publicLock.signalCleaned === true) {
-          released = true;
-        } else {
-          await runBuildCleanupWithTimeout({
-            label: 'index-lock.release',
-            cleanup: () => releaseFileLockOrThrow(lock),
-            log,
-            swallowTimeout: false
-          });
-          released = true;
-        }
-      }
-      detachHandlers();
-      return true;
-    }
-  };
-  return publicLock;
+    releaseLabel: 'index-lock.release',
+    log
+  });
 }
 
 /**
@@ -130,16 +86,7 @@ export function attachIndexLockSignalCleanup(
     reemitSignal = null
   } = {}
 ) {
-  if (!lock?.lockPath || !lock?.payload) return () => {};
-  const cleanupSync = () => {
-    const removed = removeLockFileSyncIfOwned(lock.lockPath, lock.payload);
-    if (removed) {
-      lock.signalCleaned = true;
-      lock._onSignalCleanup?.();
-    }
-  };
-  return attachCleanupSignalHandlers({
-    cleanup: cleanupSync,
+  return attachLockSignalCleanup(lock, {
     signals,
     preserveDefaultTermination,
     reemitSignal

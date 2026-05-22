@@ -9,6 +9,10 @@ import {
 } from './indexes.js';
 import { normalizeDepth } from '../shared/limits.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
+import {
+  buildProcessMemoryPeak,
+  snapshotProcessMemory
+} from '../shared/ops/resource-visibility.js';
 import { compareStrings } from '../shared/sort.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
 import {
@@ -655,18 +659,7 @@ export const buildGraphNeighborhood = ({
   }
 
   const memoryEnd = process.memoryUsage();
-  const snapshotMemory = (value) => ({
-    heapUsed: value.heapUsed,
-    rss: value.rss,
-    external: value.external,
-    arrayBuffers: value.arrayBuffers
-  });
-  const peakMemory = {
-    heapUsed: Math.max(memoryStart.heapUsed, memoryEnd.heapUsed),
-    rss: Math.max(memoryStart.rss, memoryEnd.rss),
-    external: Math.max(memoryStart.external, memoryEnd.external),
-    arrayBuffers: Math.max(memoryStart.arrayBuffers, memoryEnd.arrayBuffers)
-  };
+  const peakMemory = buildProcessMemoryPeak(memoryStart, memoryEnd);
   const elapsedMs = Number((process.hrtime.bigint() - timingStart) / 1000000n);
 
   const truncationList = truncation.list.slice();
@@ -691,8 +684,8 @@ export const buildGraphNeighborhood = ({
       cache: cacheState,
       timing: { elapsedMs },
       memory: {
-        start: snapshotMemory(memoryStart),
-        end: snapshotMemory(memoryEnd),
+        start: snapshotProcessMemory(memoryStart),
+        end: snapshotProcessMemory(memoryEnd),
         peak: peakMemory
       },
       artifactsUsed: {

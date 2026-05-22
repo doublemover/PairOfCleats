@@ -1,4 +1,4 @@
-import { terminateTrackedSubprocesses } from '../../../shared/subprocess.js';
+import { terminateTrackedSubprocesses } from '../../../shared/subprocess/tracking-terminate.js';
 
 export const waitForPromisesWithTimeout = async (promises, timeoutMs) => {
   if (!Array.isArray(promises) || promises.length === 0) {

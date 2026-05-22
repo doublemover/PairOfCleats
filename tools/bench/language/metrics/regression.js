@@ -1,4 +1,5 @@
 import { isValidThroughputLedger } from './stage-ledger.js';
+import { summarizeNumericDistribution } from '../../../shared/numeric-distribution.js';
 
 export const THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION = 1;
 export const THROUGHPUT_LEDGER_REGRESSION_METRICS = Object.freeze([
@@ -109,58 +110,6 @@ export const computeLowHitSeverity = ({
   };
 };
 
-const meanNumeric = (values) => {
-  const numeric = (Array.isArray(values) ? values : [])
-    .map((value) => Number(value))
-    .filter(Number.isFinite);
-  if (!numeric.length) return null;
-  return numeric.reduce((sum, value) => sum + value, 0) / numeric.length;
-};
-
-const sortNumeric = (values) => (Array.isArray(values) ? values : [])
-  .map((value) => Number(value))
-  .filter(Number.isFinite)
-  .sort((left, right) => left - right);
-
-const quantileSorted = (sortedValues, percentile) => {
-  const values = Array.isArray(sortedValues) ? sortedValues : [];
-  if (!values.length) return null;
-  const p = Number(percentile);
-  if (!Number.isFinite(p)) return null;
-  const clamped = Math.max(0, Math.min(1, p));
-  if (values.length === 1) return values[0];
-  const position = clamped * (values.length - 1);
-  const lowerIndex = Math.floor(position);
-  const upperIndex = Math.ceil(position);
-  const lower = values[lowerIndex];
-  const upper = values[upperIndex];
-  if (!Number.isFinite(lower) || !Number.isFinite(upper)) return null;
-  if (lowerIndex === upperIndex) return lower;
-  return lower + ((upper - lower) * (position - lowerIndex));
-};
-
-const summarizeNumeric = (values) => {
-  const sorted = sortNumeric(values);
-  if (!sorted.length) return null;
-  const meanValue = meanNumeric(sorted);
-  const variance = Number.isFinite(meanValue)
-    ? (sorted.reduce((sum, value) => sum + ((value - meanValue) ** 2), 0) / sorted.length)
-    : null;
-  const stdDev = Number.isFinite(variance) ? Math.sqrt(variance) : null;
-  return {
-    count: sorted.length,
-    mean: meanValue,
-    median: quantileSorted(sorted, 0.5),
-    min: sorted[0],
-    max: sorted[sorted.length - 1],
-    p95: quantileSorted(sorted, 0.95),
-    stdDev,
-    coefficientOfVariation: (Number.isFinite(stdDev) && Number.isFinite(meanValue) && meanValue !== 0)
-      ? (stdDev / Math.abs(meanValue))
-      : null
-  };
-};
-
 const resolveBaselineConfidence = (summary) => {
   const count = Number(summary?.count);
   const coefficientOfVariation = Number(summary?.coefficientOfVariation);
@@ -204,7 +153,7 @@ const buildRegressionSummary = ({
       if (!Number.isFinite(currentRate) || currentRate <= 0) continue;
       const key = `${modeKey}:${stageKey}`;
       const baselineRates = baselineMap.get(key) || [];
-      const baselineSummary = summarizeNumeric(baselineRates);
+      const baselineSummary = summarizeNumericDistribution(baselineRates);
       const baselineRate = Number(baselineSummary?.median);
       if (!Number.isFinite(baselineRate) || baselineRate <= 0) continue;
       const deltaRate = currentRate - baselineRate;

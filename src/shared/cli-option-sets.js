@@ -89,6 +89,27 @@ export const TOOLING_INSTALL_OPTIONS = {
   tools: { type: 'string' }
 };
 
+export const RISK_FILTER_OPTIONS = {
+  rule: { type: 'string' },
+  category: { type: 'string' },
+  severity: { type: 'string' },
+  tag: { type: 'string' },
+  source: { type: 'string' },
+  sink: { type: 'string' },
+  'flow-id': { type: 'string' },
+  'source-rule': { type: 'string' },
+  'sink-rule': { type: 'string' }
+};
+
+export const RISK_PARTIAL_FLOW_OPTIONS = {
+  includePartialFlows: { type: 'boolean', default: false }
+};
+
+export const REPORT_FORMAT_OPTIONS = {
+  format: { type: 'string' },
+  json: { type: 'boolean', default: false }
+};
+
 export const CONTEXT_PACK_OPTIONS = {
   repo: { type: 'string' },
   seed: { type: 'string' },
@@ -101,22 +122,13 @@ export const CONTEXT_PACK_OPTIONS = {
   includeRiskPartialFlows: { type: 'boolean', default: false },
   strictRisk: { type: 'boolean', default: false },
   strictEvidence: { type: 'boolean', default: false },
-  rule: { type: 'string' },
-  category: { type: 'string' },
-  severity: { type: 'string' },
-  tag: { type: 'string' },
-  source: { type: 'string' },
-  sink: { type: 'string' },
-  'flow-id': { type: 'string' },
-  'source-rule': { type: 'string' },
-  'sink-rule': { type: 'string' },
+  ...RISK_FILTER_OPTIONS,
   includeImports: { type: 'boolean', default: true },
   includeUsages: { type: 'boolean', default: true },
   includeCallersCallees: { type: 'boolean', default: true },
   includePaths: { type: 'boolean', default: false },
   maxTypeEntries: { type: 'number' },
-  format: { type: 'string' },
-  json: { type: 'boolean', default: false },
+  ...REPORT_FORMAT_OPTIONS,
   maxDepth: { type: 'number' },
   maxFanoutPerNode: { type: 'number' },
   maxNodes: { type: 'number' },

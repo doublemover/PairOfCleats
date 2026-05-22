@@ -1,14 +1,6 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
-
-export const normalizeWorkspaceRootRel = (value) => {
-  const normalized = String(value || '.')
-    .replace(/\\/g, '/')
-    .replace(/^\/+/, '')
-    .replace(/\/+/g, '/')
-    .replace(/\/$/, '');
-  return normalized || '.';
-};
+import { normalizeWorkspaceRootRel } from './workspace-model.js';
 
 export const isGoWorkspaceProviderId = (value) => {
   const normalized = String(value || '').trim().toLowerCase();

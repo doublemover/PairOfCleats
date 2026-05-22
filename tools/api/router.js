@@ -2,8 +2,6 @@ import path from 'node:path';
 import { search, status } from '../../src/integrations/core/index.js';
 import { MCP_SCHEMA_VERSION } from '../../src/integrations/mcp/defs.js';
 import { runFederatedSearch } from '../../src/retrieval/federation/coordinator.js';
-import { loadWorkspaceConfig } from '../../src/workspace/config.js';
-import { resolveFederationCacheRoot } from '../../src/workspace/manifest.js';
 import {
   createContextPackValidator,
   createFederatedSearchValidator,
@@ -13,7 +11,7 @@ import {
 } from './validation.js';
 import { sendError, sendJson } from './response.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
-import { getToolVersion, isWithinRoot, toRealPathSync } from '../shared/dict-utils.js';
+import { getToolVersion, toRealPathSync } from '../shared/dict-utils.js';
 import { createSseResponder } from './sse.js';
 import { createAuthGuard } from './router/auth.js';
 import { createBodyParser } from './router/body.js';
@@ -25,12 +23,14 @@ import { handleIndexDiffsRoute } from './router/index-diffs.js';
 import { handleIndexSnapshotsRoute } from './router/index-snapshots.js';
 import { handleContextPackRoute, handleRiskDeltaRoute, handleRiskExplainRoute } from './router/analysis.js';
 import {
+  classifyRepoResolveError,
   classifyWorkspaceRequestError,
   parseJsonBodyOrSendError,
   resolveRepoOrSendError,
   sendClassifiedRequestError
 } from './router/request-helpers.js';
 import { buildSearchParams, buildSearchPayloadFromQuery, isNoIndexError } from './router/search.js';
+import { createWorkspaceAllowlist } from './router/workspace-allowlist.js';
 import { getApiWorkflowCapabilities, getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
 import { buildApiTrustBoundaryStatusView } from './trust-boundary.js';
 import {
@@ -99,28 +99,11 @@ export const createApiRouter = ({
       }
     }
   );
-  const canonicalConfiguredAllowedRoots = [defaultRepo, ...allowedRepoRoots]
-    .filter((entry) => typeof entry === 'string' && entry.trim())
-    .map((entry) => toRealPathSync(path.resolve(entry)));
-  const canonicalWorkspacePolicyRoots = Array.from(new Set([
-    ...canonicalConfiguredAllowedRoots,
-    // Always include the default federation cache root so explicit repo-root
-    // allowlists do not accidentally block workspace-path/cache-root workflows.
-    resolveFederationCacheRoot(null)
-  ]));
-  const isAllowedWorkspacePath = (workspacePath) => {
-    if (!canonicalWorkspacePolicyRoots.length) return true;
-    const workspaceCanonical = toRealPathSync(workspacePath);
-    return canonicalWorkspacePolicyRoots.some((root) => isWithinRoot(workspaceCanonical, root));
-  };
-
-  const resolveWorkspacePath = (payload) => {
-    const value = payload?.workspacePath;
-    if (typeof value !== 'string') return '';
-    const trimmed = value.trim();
-    if (!trimmed) return '';
-    return path.resolve(trimmed);
-  };
+  const { ensureWorkspaceAllowlist } = createWorkspaceAllowlist({
+    defaultRepo,
+    allowedRepoRoots,
+    resolveRepo
+  });
 
   /**
    * Classify federated failures caused by client input that passed schema shape
@@ -143,47 +126,22 @@ export const createApiRouter = ({
       || message.includes('multiple cohorts detected');
   };
 
-  /**
-   * Validate federated workspace inputs against server path allowlists.
-   *
-   * This enforces both repo roots and the resolved federated cache root so
-   * manifest/query-cache writes cannot escape configured allowed roots. The
-   * returned workspace config snapshot is then passed into the federated
-   * coordinator as trusted input to avoid a post-validation reload race.
-   *
-   * @param {any} payload
-   * @returns {Promise<any>}
-   */
-  const ensureWorkspaceAllowlist = async (payload) => {
-    const resolvedWorkspacePath = resolveWorkspacePath(payload);
-    if (!resolvedWorkspacePath) {
-      throw new Error('Federated search requires workspacePath.');
-    }
-    if (!isAllowedWorkspacePath(resolvedWorkspacePath)) {
-      const err = new Error('Workspace path not permitted by server configuration.');
-      err.code = ERROR_CODES.FORBIDDEN;
-      throw err;
-    }
-    const workspaceConfig = loadWorkspaceConfig(resolvedWorkspacePath);
-    for (const repo of workspaceConfig.repos) {
-      await resolveRepo(repo.repoRootCanonical);
-    }
-    const federationCacheRoot = resolveFederationCacheRoot(workspaceConfig);
-    if (!isAllowedWorkspacePath(federationCacheRoot)) {
-      const err = new Error('Workspace cache root not permitted by server configuration.');
-      err.code = ERROR_CODES.FORBIDDEN;
-      throw err;
-    }
-    if (payload?.workspaceId && payload.workspaceId !== workspaceConfig.repoSetId) {
-      throw new Error('workspaceId does not match the provided workspacePath.');
-    }
-    return workspaceConfig;
-  };
-
   const mergeResponseHeaders = (headers, observability = null) => ({
     ...(headers || {}),
     ...buildObservabilityHeaders(observability)
   });
+
+  const sendStatusStreamRepoResolveError = async (sse, err) => {
+    const classification = classifyRepoResolveError(err);
+    await sse.sendHeaders();
+    await sse.sendEvent('error', {
+      ok: false,
+      code: classification.code,
+      message: classification.message
+    });
+    await sse.sendEvent('done', { ok: false });
+    sse.end();
+  };
 
   const createRequestObservability = (req, requestUrl, operation, context = {}) => normalizeObservability({
     correlationId: req?.headers?.['x-correlation-id'] || null,
@@ -199,7 +157,127 @@ export const createApiRouter = ({
     }
   });
 
+  const prepareSearchRequest = async ({
+    req,
+    res,
+    requestUrl,
+    routeName,
+    corsHeaders,
+    parseJsonBody,
+    resolveRepo,
+    defaultOutput,
+    readPayload = null,
+    beforeBodyRead = null
+  }) => {
+    const requestObservability = createRequestObservability(req, requestUrl, routeName);
+    const responseHeaders = mergeResponseHeaders(corsHeaders, requestObservability);
+    const controller = new AbortController();
+    const abortRequest = () => controller.abort();
+    req.on('aborted', abortRequest);
+    res.on('close', abortRequest);
+    res.on('error', abortRequest);
 
+    if (typeof beforeBodyRead === 'function') {
+      await beforeBodyRead({ requestObservability, responseHeaders, controller });
+    }
+
+    const payloadResult = typeof readPayload === 'function'
+      ? await readPayload({ req, res, requestUrl, responseHeaders })
+      : await parseJsonBodyOrSendError(req, res, parseJsonBody, responseHeaders);
+    if (!payloadResult.ok) return { ok: false };
+    const payload = payloadResult.payload;
+    const validation = validateSearchPayload(payload);
+    if (!validation.ok) {
+      sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
+        errors: validation.errors
+      }, responseHeaders);
+      return { ok: false };
+    }
+    const resolvedRepo = await resolveRepoOrSendError(
+      res,
+      resolveRepo,
+      payload?.repoPath || payload?.repo,
+      responseHeaders
+    );
+    if (!resolvedRepo.ok) return { ok: false };
+    const repoPath = resolvedRepo.repoPath;
+    const searchParams = buildSearchParams(repoPath, payload || {}, defaultOutput);
+    if (!searchParams.ok) {
+      sendError(
+        res,
+        400,
+        ERROR_CODES.INVALID_REQUEST,
+        searchParams.message || 'Invalid search payload.',
+        {},
+        responseHeaders
+      );
+      return { ok: false };
+    }
+    return { ok: true, requestObservability, responseHeaders, controller, repoPath, searchParams };
+  };
+
+  const runPreparedSearch = async ({
+    requestObservability,
+    controller,
+    repoPath,
+    searchParams,
+    searchContext = {}
+  }) => {
+    const caches = getRepoCaches(repoPath);
+    await refreshBuildPointer(caches);
+    const searchObservability = buildSearchObservability(requestObservability, repoPath, caches, searchContext);
+    return await search(repoPath, {
+      args: searchParams.args,
+      query: searchParams.query,
+      emitOutput: false,
+      exitOnError: false,
+      indexCache: caches.indexCache,
+      sqliteCache: caches.sqliteCache,
+      signal: controller.signal,
+      observability: searchObservability,
+      generationContext: getRepoCacheGenerationContext(caches)
+    });
+  };
+
+  const sendPreparedJsonSearch = async ({
+    req,
+    res,
+    prepared,
+    ignoreControllerAbort = false
+  }) => {
+    const {
+      requestObservability,
+      responseHeaders,
+      controller,
+      repoPath,
+      searchParams
+    } = prepared;
+    try {
+      const body = await runPreparedSearch({
+        requestObservability,
+        controller,
+        repoPath,
+        searchParams
+      });
+      sendJson(res, 200, attachObservability({ ok: true, result: body }, requestObservability), responseHeaders);
+    } catch (err) {
+      if (req.aborted || res.writableEnded || (!ignoreControllerAbort && controller.signal.aborted)) return;
+      if (isNoIndexError(err)) {
+        sendError(res, 409, ERROR_CODES.NO_INDEX, err?.message || 'Index not found.', {
+          error: err?.message || String(err)
+        }, responseHeaders);
+        return;
+      }
+      sendError(
+        res,
+        500,
+        ERROR_CODES.INTERNAL,
+        'Search failed.',
+        { error: err?.message || String(err) },
+        responseHeaders
+      );
+    }
+  };
 
 
 
@@ -313,14 +391,7 @@ export const createApiRouter = ({
         try {
           repoPath = await resolveRepo(requestUrl.searchParams.get('repo'));
         } catch (err) {
-          await sse.sendHeaders();
-          await sse.sendEvent('error', {
-            ok: false,
-            code: err?.code || ERROR_CODES.INVALID_REQUEST,
-            message: err?.message || 'Invalid repo path.'
-          });
-          await sse.sendEvent('done', { ok: false });
-          sse.end();
+          await sendStatusStreamRepoResolveError(sse, err);
           return;
         }
         await sse.sendHeaders();
@@ -344,15 +415,14 @@ export const createApiRouter = ({
       }
 
       if (requestUrl.pathname === '/status' && req.method === 'GET') {
-        let repoPath = '';
-        try {
-          repoPath = await resolveRepo(requestUrl.searchParams.get('repo'));
-        } catch (err) {
-          const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
-          const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
-          sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
-          return;
-        }
+        const resolvedRepo = await resolveRepoOrSendError(
+          res,
+          resolveRepo,
+          requestUrl.searchParams.get('repo'),
+          corsHeaders
+        );
+        if (!resolvedRepo.ok) return;
+        const repoPath = resolvedRepo.repoPath;
         try {
           const payload = await status(repoPath);
           sendJson(res, 200, {
@@ -464,140 +534,63 @@ export const createApiRouter = ({
       }
 
       if (requestUrl.pathname === '/search' && req.method === 'GET') {
-        const requestObservability = createRequestObservability(req, requestUrl, 'search');
-        const responseHeaders = mergeResponseHeaders(corsHeaders, requestObservability);
-        const controller = new AbortController();
-        const abortRequest = () => controller.abort();
-        req.on('aborted', abortRequest);
-        res.on('close', abortRequest);
-        res.on('error', abortRequest);
-        const { payload, errors: queryErrors } = buildSearchPayloadFromQuery(requestUrl.searchParams);
-        if (Array.isArray(queryErrors) && queryErrors.length) {
-          sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
-            errors: queryErrors
-          }, responseHeaders);
-          return;
-        }
-        const validation = validateSearchPayload(payload);
-        if (!validation.ok) {
-          sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
-            errors: validation.errors
-          }, responseHeaders);
-          return;
-        }
-        const resolvedRepo = await resolveRepoOrSendError(
+        const prepared = await prepareSearchRequest({
+          req,
           res,
+          requestUrl,
+          routeName: 'search',
+          corsHeaders,
           resolveRepo,
-          payload?.repoPath || payload?.repo,
-          responseHeaders
-        );
-        if (!resolvedRepo.ok) return;
-        const repoPath = resolvedRepo.repoPath;
-        const searchParams = buildSearchParams(repoPath, payload || {}, defaultOutput);
-        if (!searchParams.ok) {
-          sendError(
-            res,
-            400,
-            ERROR_CODES.INVALID_REQUEST,
-            searchParams.message || 'Invalid search payload.',
-            {},
-            responseHeaders
-          );
-          return;
-        }
-        try {
-          const caches = getRepoCaches(repoPath);
-          await refreshBuildPointer(caches);
-          const searchObservability = buildSearchObservability(requestObservability, repoPath, caches);
-          const body = await search(repoPath, {
-            args: searchParams.args,
-            query: searchParams.query,
-            emitOutput: false,
-            exitOnError: false,
-            indexCache: caches.indexCache,
-            sqliteCache: caches.sqliteCache,
-            signal: controller.signal,
-            observability: searchObservability,
-            generationContext: getRepoCacheGenerationContext(caches)
-          });
-          sendJson(res, 200, attachObservability({ ok: true, result: body }, requestObservability), responseHeaders);
-        } catch (err) {
-          if (req.aborted || res.writableEnded || controller.signal.aborted) return;
-          if (isNoIndexError(err)) {
-            sendError(res, 409, ERROR_CODES.NO_INDEX, err?.message || 'Index not found.', {
-              error: err?.message || String(err)
-            }, responseHeaders);
-            return;
+          defaultOutput,
+          readPayload: ({ responseHeaders }) => {
+            const { payload, errors: queryErrors } = buildSearchPayloadFromQuery(requestUrl.searchParams);
+            if (Array.isArray(queryErrors) && queryErrors.length) {
+              sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
+                errors: queryErrors
+              }, responseHeaders);
+              return { ok: false };
+            }
+            return { ok: true, payload };
           }
-          sendError(
-            res,
-            500,
-            ERROR_CODES.INTERNAL,
-            'Search failed.',
-            { error: err?.message || String(err) },
-            responseHeaders
-          );
-        }
+        });
+        if (!prepared.ok) return;
+        await sendPreparedJsonSearch({ req, res, prepared });
         return;
       }
 
       if (requestUrl.pathname === '/search/stream' && req.method === 'POST') {
-        const requestObservability = createRequestObservability(req, requestUrl, 'search_stream');
-        const responseHeaders = mergeResponseHeaders(corsHeaders, requestObservability);
-        const sse = createSseResponder(req, res, { headers: responseHeaders });
-        const controller = new AbortController();
-        const abortRequest = () => controller.abort();
-        req.on('aborted', abortRequest);
-        res.on('close', abortRequest);
-        res.on('error', abortRequest);
-        const parsedBody = await parseJsonBodyOrSendError(req, res, parseJsonBody, responseHeaders);
-        if (!parsedBody.ok) return;
-        const payload = parsedBody.payload;
-        const validation = validateSearchPayload(payload);
-        if (!validation.ok) {
-          sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
-            errors: validation.errors
-          }, responseHeaders);
-          return;
-        }
-        const resolvedRepo = await resolveRepoOrSendError(
+        let sse = null;
+        const prepared = await prepareSearchRequest({
+          req,
           res,
+          requestUrl,
+          routeName: 'search_stream',
+          corsHeaders,
+          parseJsonBody,
           resolveRepo,
-          payload?.repoPath || payload?.repo,
-          responseHeaders
-        );
-        if (!resolvedRepo.ok) return;
-        const repoPath = resolvedRepo.repoPath;
-        const searchParams = buildSearchParams(repoPath, payload || {}, defaultOutput);
-        if (!searchParams.ok) {
-          sendError(
-            res,
-            400,
-            ERROR_CODES.INVALID_REQUEST,
-            searchParams.message || 'Invalid search payload.',
-            {},
-            responseHeaders
-          );
-          return;
-        }
+          defaultOutput,
+          beforeBodyRead: ({ responseHeaders }) => {
+            sse = createSseResponder(req, res, { headers: responseHeaders });
+          }
+        });
+        if (!prepared.ok) return;
+        const {
+          requestObservability,
+          controller,
+          repoPath,
+          searchParams
+        } = prepared;
         await sse.sendHeaders();
         await sse.sendEvent('start', attachObservability({ ok: true }, requestObservability));
         await sse.sendEvent('progress', attachObservability({ ok: true, phase: 'search', message: 'Searching.' }, requestObservability));
-        const caches = getRepoCaches(repoPath);
-        await refreshBuildPointer(caches);
-        const searchObservability = buildSearchObservability(requestObservability, repoPath, caches, { stream: true });
         try {
           await sse.sendEvent('progress', attachObservability({ ok: true, phase: 'search', message: 'Running search.' }, requestObservability));
-          const body = await search(repoPath, {
-            args: searchParams.args,
-            query: searchParams.query,
-            emitOutput: false,
-            exitOnError: false,
-            indexCache: caches.indexCache,
-            sqliteCache: caches.sqliteCache,
-            signal: controller.signal,
-            observability: searchObservability,
-            generationContext: getRepoCacheGenerationContext(caches)
+          const body = await runPreparedSearch({
+            requestObservability,
+            controller,
+            repoPath,
+            searchParams,
+            searchContext: { stream: true }
           });
           if (!sse.isClosed()) {
             await sse.sendEvent('result', attachObservability({ ok: true, result: body }, requestObservability));
@@ -621,76 +614,18 @@ export const createApiRouter = ({
       }
 
       if (requestUrl.pathname === '/search' && req.method === 'POST') {
-        const requestObservability = createRequestObservability(req, requestUrl, 'search');
-        const responseHeaders = mergeResponseHeaders(corsHeaders, requestObservability);
-        const controller = new AbortController();
-        const abortRequest = () => controller.abort();
-        req.on('aborted', abortRequest);
-        res.on('close', abortRequest);
-        res.on('error', abortRequest);
-        const parsedBody = await parseJsonBodyOrSendError(req, res, parseJsonBody, responseHeaders);
-        if (!parsedBody.ok) return;
-        const payload = parsedBody.payload;
-        const validation = validateSearchPayload(payload);
-        if (!validation.ok) {
-          sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
-            errors: validation.errors
-          }, responseHeaders);
-          return;
-        }
-        const resolvedRepo = await resolveRepoOrSendError(
+        const prepared = await prepareSearchRequest({
+          req,
           res,
+          requestUrl,
+          routeName: 'search',
+          corsHeaders,
+          parseJsonBody,
           resolveRepo,
-          payload?.repoPath || payload?.repo,
-          responseHeaders
-        );
-        if (!resolvedRepo.ok) return;
-        const repoPath = resolvedRepo.repoPath;
-        const searchParams = buildSearchParams(repoPath, payload || {}, defaultOutput);
-        if (!searchParams.ok) {
-          sendError(
-            res,
-            400,
-            ERROR_CODES.INVALID_REQUEST,
-            searchParams.message || 'Invalid search payload.',
-            {},
-            responseHeaders
-          );
-          return;
-        }
-        try {
-          const caches = getRepoCaches(repoPath);
-          await refreshBuildPointer(caches);
-          const searchObservability = buildSearchObservability(requestObservability, repoPath, caches);
-          const body = await search(repoPath, {
-            args: searchParams.args,
-            query: searchParams.query,
-            emitOutput: false,
-            exitOnError: false,
-            indexCache: caches.indexCache,
-            sqliteCache: caches.sqliteCache,
-            signal: controller.signal,
-            observability: searchObservability,
-            generationContext: getRepoCacheGenerationContext(caches)
-          });
-          sendJson(res, 200, attachObservability({ ok: true, result: body }, requestObservability), responseHeaders);
-        } catch (err) {
-          if (req.aborted || res.writableEnded) return;
-          if (isNoIndexError(err)) {
-            sendError(res, 409, ERROR_CODES.NO_INDEX, err?.message || 'Index not found.', {
-              error: err?.message || String(err)
-            }, responseHeaders);
-            return;
-          }
-          sendError(
-            res,
-            500,
-            ERROR_CODES.INTERNAL,
-            'Search failed.',
-            { error: err?.message || String(err) },
-            responseHeaders
-          );
-        }
+          defaultOutput
+        });
+        if (!prepared.ok) return;
+        await sendPreparedJsonSearch({ req, res, prepared, ignoreControllerAbort: true });
         return;
       }
 

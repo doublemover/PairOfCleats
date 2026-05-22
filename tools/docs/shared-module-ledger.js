@@ -2,7 +2,8 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { toPosix } from '../../src/shared/files.js';
+import { toPosix } from '../../src/shared/file-paths.js';
+import { writeStableGeneratedJsonReport, writeTextIfChanged } from '../shared/generated-report.js';
 import { listFilesRecursive } from '../shared/fs-utils.js';
 
 const DEFAULT_JSON = 'docs/tooling/shared-module-ledger.json';
@@ -162,7 +163,6 @@ const ROOT_LEVEL_ISSUE_411 = new Set([
   'bundle-checksum.js',
   'bundle-contract.js',
   'bundle-io.js',
-  'cache-cas.js',
   'cache-key.js',
   'cache-roots.js',
   'cache.js',
@@ -172,12 +172,8 @@ const ROOT_LEVEL_ISSUE_411 = new Set([
   'eol.js',
   'file-signature.js',
   'file-stats.js',
-  'files.js',
-  'index-artifact-helpers.js',
-  'json-stream.js',
   'jsonc.js',
   'meta-v2.js',
-  'optional-artifact-fallback.js',
   'provenance.js',
   'stable-json.js'
 ]);
@@ -200,11 +196,9 @@ const ROOT_LEVEL_ISSUE_412 = new Set([
 
 const ROOT_LEVEL_ISSUE_413 = new Set([
   'capabilities.js',
-  'cli-completions.js',
   'cli-options.js',
   'cli.js',
   'command-aliases.js',
-  'command-registry.js',
   'legacy-cli-entrypoint.js',
   'runtime-capability-manifest.js',
   'tooling-bin-dirs.js'
@@ -281,9 +275,11 @@ const classifyH30Issue = (relPath) => {
     return '410';
   }
   if (matchesRoot(normalized, 'src/shared/artifact-io')
+    || matchesRoot(normalized, 'src/shared/bundle-io')
     || matchesRoot(normalized, 'src/shared/io')
     || matchesRoot(normalized, 'src/shared/json-stream')
-    || matchesRoot(normalized, 'src/shared/cache')) {
+    || matchesRoot(normalized, 'src/shared/cache')
+    || matchesRoot(normalized, 'src/shared/cache-cas')) {
     return '411';
   }
   if (matchesRoot(normalized, 'src/shared/concurrency')
@@ -294,10 +290,13 @@ const classifyH30Issue = (relPath) => {
     || matchesRoot(normalized, 'src/shared/workers')) {
     return '412';
   }
-  if (matchesRoot(normalized, 'src/shared/cli') || matchesRoot(normalized, 'src/shared/dispatch')) {
+  if (matchesRoot(normalized, 'src/shared/cli')
+    || matchesRoot(normalized, 'src/shared/dispatch')
+    || matchesRoot(normalized, 'src/shared/runtime-capability')) {
     return '413';
   }
   if (matchesRoot(normalized, 'src/shared/embeddings-cache')
+    || matchesRoot(normalized, 'src/shared/onnx-embeddings')
     || matchesRoot(normalized, 'src/shared/indexing')
     || matchesRoot(normalized, 'src/shared/filter')
     || matchesRoot(normalized, 'src/shared/fs')
@@ -490,25 +489,6 @@ const toMarkdownTable = (headers, rows) => {
   const dividerLine = `| ${headers.map(() => '---').join(' | ')} |`;
   const body = rows.map((row) => `| ${row.join(' | ')} |`);
   return [headerLine, dividerLine, ...body].join('\n');
-};
-
-const normalizeGeneratedPayload = (payload) => {
-  if (!payload || typeof payload !== 'object') return payload;
-  return {
-    ...payload,
-    generatedAt: null
-  };
-};
-
-const writeIfChanged = async (outputPath, content) => {
-  let existingText = null;
-  try {
-    existingText = await fsPromises.readFile(outputPath, 'utf8');
-  } catch {}
-  if (existingText === content) return false;
-  await fsPromises.mkdir(path.dirname(outputPath), { recursive: true });
-  await fsPromises.writeFile(outputPath, content);
-  return true;
 };
 
 const renderMarkdown = (report) => {
@@ -725,19 +705,11 @@ const main = async () => {
   const root = path.resolve(argv.root || process.cwd());
   const outputJsonPath = path.resolve(root, argv.json);
   const outputMarkdownPath = path.resolve(root, argv.markdown);
-  const { report: initialReport, markdown: initialMarkdown } = await buildSharedModuleLedger(root);
-  let existingPayload = null;
-  try {
-    existingPayload = JSON.parse(await fsPromises.readFile(outputJsonPath, 'utf8'));
-  } catch {}
-  const report = typeof existingPayload?.generatedAt === 'string'
-    && JSON.stringify(normalizeGeneratedPayload(existingPayload)) === JSON.stringify(normalizeGeneratedPayload(initialReport))
-    ? { ...initialReport, generatedAt: existingPayload.generatedAt }
-    : initialReport;
+  const { report: initialReport } = await buildSharedModuleLedger(root);
+  const report = await writeStableGeneratedJsonReport(outputJsonPath, initialReport);
   const markdown = renderMarkdown(report);
 
-  await writeIfChanged(outputJsonPath, `${JSON.stringify(report, null, 2)}\n`);
-  await writeIfChanged(outputMarkdownPath, markdown);
+  await writeTextIfChanged(outputMarkdownPath, markdown);
 };
 
 main().catch((error) => {

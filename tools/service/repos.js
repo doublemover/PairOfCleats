@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { isAbsolutePathNative } from '../../src/shared/files.js';
-import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
+import { isAbsolutePathNative } from '../../src/shared/file-paths.js';
+import { spawnSubprocessSync } from '../../src/shared/subprocess/runner.js';
 
 const runGit = (args, cwd) => {
   try {

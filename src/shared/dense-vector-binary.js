@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { pathExists } from './file-read.js';
-import { createTempPath, replaceFile } from './json-stream.js';
+import { createTempPath, replaceFile } from './json-stream/atomic.js';
 import { joinPathSafe } from './path-normalize.js';
 import {
   normalizeDenseVectorMeta,

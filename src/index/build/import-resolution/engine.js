@@ -33,6 +33,12 @@ import {
 import { createPackageDirectoryResolver, parsePackageName } from './package-entry.js';
 import { resolveDartPackageName, resolveGoModulePath, resolvePackageFingerprint } from './repo-metadata.js';
 import { createImportBuildContext } from './build-context/index.js';
+import { normalizeCollectorHint as normalizeImportCollectorHint } from '../../language-registry/import-collectors/utils.js';
+import {
+  bumpCount,
+  toSortedCountObject,
+  toSortedHotspotEntries
+} from './counts.js';
 import {
   createImportResolutionBudgetPolicy,
   createImportResolutionSpecifierBudgetState,
@@ -188,59 +194,6 @@ const insertResolutionCache = (cache, key, value) => {
   }
   cache.set(key, value);
 };
-
-const normalizeCollectorHint = (value) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const reasonCode = typeof value.reasonCode === 'string' && isKnownReasonCode(value.reasonCode)
-    ? value.reasonCode.trim()
-    : '';
-  if (!reasonCode) return null;
-  const confidenceRaw = Number(value.confidence);
-  const confidence = Number.isFinite(confidenceRaw)
-    ? Math.max(0, Math.min(1, confidenceRaw))
-    : null;
-  const detail = typeof value.detail === 'string' && value.detail.trim()
-    ? value.detail.trim()
-    : null;
-  return {
-    reasonCode,
-    confidence,
-    detail
-  };
-};
-
-const bumpCount = (target, key, amount = 1) => {
-  if (!target || typeof target !== 'object') return;
-  if (!key) return;
-  const next = Number(target[key]) || 0;
-  target[key] = next + Math.max(0, Math.floor(Number(amount) || 0));
-};
-
-const toSortedCountObject = (counts) => {
-  const entries = Object.entries(counts || {})
-    .filter(([key, value]) => key && Number.isFinite(Number(value)) && Number(value) > 0)
-    .sort((a, b) => sortStrings(a[0], b[0]));
-  const output = Object.create(null);
-  for (const [key, value] of entries) {
-    output[key] = Math.floor(Number(value));
-  }
-  return output;
-};
-
-const toSortedHotspotEntries = (counts, { maxEntries = 20 } = {}) => (
-  Object.entries(counts || {})
-    .filter(([importer, value]) => importer && Number.isFinite(Number(value)) && Number(value) > 0)
-    .map(([importer, value]) => ({
-      importer,
-      count: Math.floor(Number(value))
-    }))
-    .sort((a, b) => (
-      b.count !== a.count
-        ? b.count - a.count
-        : sortStrings(a.importer, b.importer)
-    ))
-    .slice(0, Math.max(0, Math.floor(Number(maxEntries) || 0)))
-);
 
 const resolveUnresolvedReasonCode = ({
   importerRel,
@@ -671,6 +624,11 @@ export function resolveImportLinks({
     }
     return unresolvedNoiseIgnore.has(lower) || unresolvedNoiseIgnore.has(lowerRaw);
   };
+  const isParserNoiseUnresolvedImport = ({ rawSpec, importerInfo }) => {
+    const rawNormalized = typeof rawSpec === 'string' ? rawSpec.trim() : '';
+    // C-like fixture/comment artifacts can surface as quoted //./ paths.
+    return Boolean(importerInfo?.isClike && /^\/\/\.\//.test(rawNormalized));
+  };
 
   const importsEntries = importsByFile instanceof Map
     ? Array.from(importsByFile.entries())
@@ -753,10 +711,11 @@ export function resolveImportLinks({
       let tsconfigPath = null;
       let packageName = null;
       let unresolvedReasonCodeHint = null;
-      const collectorHint = normalizeCollectorHint(
+      const collectorHint = normalizeImportCollectorHint(
         importHintsForFile && typeof importHintsForFile === 'object'
           ? importHintsForFile[rawSpec]
-          : null
+          : null,
+        { isKnownReasonCode }
       );
       const collectorHintReasonCode = collectorHint?.reasonCode || null;
       let unresolvedBudgetExhaustedTypesHint = [];
@@ -1117,10 +1076,14 @@ export function resolveImportLinks({
           rawSpec,
           importerInfo
         });
+        const parserNoiseUnresolved = isParserNoiseUnresolvedImport({
+          rawSpec,
+          importerInfo
+        });
         const unresolvedDecision = stageTracker.withStage(
           IMPORT_RESOLVER_STAGES.CLASSIFY,
           () => assertUnresolvedDecision(
-            ignoredUnresolved
+            (ignoredUnresolved || parserNoiseUnresolved)
               ? createUnresolvedDecision(IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED)
               : (
                 preferUnresolvedReasonHint({

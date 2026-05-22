@@ -1,4 +1,4 @@
-import { toPosix } from '../../../../../../shared/files.js';
+import { toPosix } from '../../../../../../shared/file-paths.js';
 import { isExtractedProseDocumentLikeExtension } from '../../../../../chunking/formats/document-common.js';
 import { buildExtractedProseYieldProfileFamily } from '../../../../file-processor/skip.js';
 

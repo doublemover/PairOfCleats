@@ -2,7 +2,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { resolveEnvPath } from '../../shared/env-path.js';
-import { isAbsolutePathNative } from '../../shared/files.js';
+import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { spawnResolvedSubprocessSync } from '../../shared/subprocess/command-invocation.js';
 import { applyToolchainDaemonPolicyEnv } from '../../shared/toolchain-env.js';
 import {

@@ -3,7 +3,7 @@ import {
   formatEmbeddingInput,
   resolveEmbeddingInputFormatting
 } from '../shared/embedding-input-format.js';
-import { getEnvConfig } from '../shared/env.js';
+import { getEnvConfig } from '../shared/env/runtime.js';
 import { createWarnOnce } from '../shared/logging/warn-once.js';
 
 const warnOnce = createWarnOnce();

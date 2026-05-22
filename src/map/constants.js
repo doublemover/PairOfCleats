@@ -1,3 +1,10 @@
+import {
+  ISOMETRIC_CONTROL_DEFAULTS,
+  ISOMETRIC_EDGE_WEIGHTS,
+  ISOMETRIC_LAYOUT_DEFAULTS,
+  ISOMETRIC_VISUAL_DEFAULTS
+} from './isometric/client/default-values.js';
+
 export const MAP_MODEL_VERSION = '1.0.0';
 
 export const DEFAULT_LIMITS = {
@@ -51,14 +58,7 @@ export const DEFAULT_LEGEND = {
   }
 };
 
-export const DEFAULT_EDGE_WEIGHTS = {
-  import: 3,
-  export: 3,
-  call: 2.5,
-  usage: 2,
-  dataflow: 2,
-  alias: 1.5
-};
+export const DEFAULT_EDGE_WEIGHTS = { ...ISOMETRIC_EDGE_WEIGHTS };
 
 export const FILE_CATEGORY_RULES = {
   test: {
@@ -89,75 +89,17 @@ export const FILE_CATEGORY_COLORS = {
 };
 
 export const VIEWER_DEFAULTS = {
-  layout: {
-    style: 'flow',
-    groupDepth: 1,
-    groupSpacing: 3.2,
-    fileSpacing: 2,
-    compactness: 1,
-    baseSize: 3.2,
-    fileHeight: 1.2,
-    fileShape: 'category',
-    memberShape: 'category',
-    memberCell: 0.9,
-    memberGap: 0.2,
-    memberInset: 0.35,
-    memberHeightBase: 0.8,
-    memberHeightScale: 0.55,
-    memberHeightMax: 7,
-    edgePlane: -1,
-    routingPadding: 0.9,
-    routingStep: 1.3,
-    labelScale: 0.018,
-    labelOffset: 0.08
-  },
+  layout: { ...ISOMETRIC_LAYOUT_DEFAULTS },
   visuals: {
-    fileOpacity: 1,
-    memberOpacity: 1,
-    flowGlowBase: 0.9,
-    flowGlowRange: 0.75,
-    glowPulseSpeed: 1.4,
-    wireframeThickness: 0.08,
-    wireframeGlow: 0.18,
-    wirePulseSpeed: 0.18,
-    gridLineThickness: 0.5,
-    gridGlowBase: 0.2,
-    gridGlowRange: 0.38,
-    gridPulseSpeed: 0.2,
+    ...ISOMETRIC_VISUAL_DEFAULTS,
     enableFlowLights: true,
-    enableFog: false,
-    enableHeightFog: false,
-    fogDistance: 2.8,
-    fogColor: '#0f1115',
-    fogHeight: 4,
-    fogHeightRange: 14,
     enableExtraLights: true,
-    glass: {
-      metalness: 0.15,
-      roughness: 0.03,
-      transmission: 1,
-      ior: 1.6,
-      reflectivity: 1,
-      thickness: 3.6,
-      envMapIntensity: 5.2,
-      clearcoat: 1,
-      clearcoatRoughness: 0.03,
-      normalScale: 0.22,
-      clearcoatNormalScale: 0.16,
-      normalRepeat: 2.8
-    }
+    glass: { ...ISOMETRIC_VISUAL_DEFAULTS.glass }
   },
   controls: {
-    wasd: {
-      sensitivity: 40000,
-      acceleration: 16000,
-      maxSpeed: 120000,
-      drag: 6
-    },
+    ...ISOMETRIC_CONTROL_DEFAULTS,
     zoomSensitivity: 6,
     zoomMin: 1,
-    zoomMax: 80,
-    zoomDamping: 0.9,
-    panSensitivity: 1.5
+    wasd: { ...ISOMETRIC_CONTROL_DEFAULTS.wasd }
   }
 };

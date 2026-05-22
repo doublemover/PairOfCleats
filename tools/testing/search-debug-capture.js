@@ -65,6 +65,42 @@ const formatPowerShellCommand = ({ command, args = [] }) => (
   [quotePowerShellArg(command), ...args.map((arg) => quotePowerShellArg(arg))].join(' ')
 );
 
+const prepareCaptureEnvironment = ({
+  env = process.env,
+  forceColor = true,
+  term = DEFAULT_TERM,
+  trackedEnvKeys = []
+} = {}) => {
+  const childEnv = { ...(env || {}) };
+  const envOverrides = {};
+  if (forceColor) {
+    if (childEnv.FORCE_COLOR !== '1') {
+      childEnv.FORCE_COLOR = '1';
+      envOverrides.FORCE_COLOR = '1';
+    }
+    if (!childEnv.TERM) {
+      childEnv.TERM = term;
+      envOverrides.TERM = term;
+    }
+    if (Object.prototype.hasOwnProperty.call(childEnv, 'NO_COLOR')) {
+      delete childEnv.NO_COLOR;
+      envOverrides.NO_COLOR = '(unset)';
+    }
+    if (Object.prototype.hasOwnProperty.call(childEnv, 'NODE_DISABLE_COLORS')) {
+      delete childEnv.NODE_DISABLE_COLORS;
+      envOverrides.NODE_DISABLE_COLORS = '(unset)';
+    }
+  }
+  for (const key of Array.isArray(trackedEnvKeys) ? trackedEnvKeys : []) {
+    const name = String(key || '').trim();
+    if (!name) continue;
+    if (Object.prototype.hasOwnProperty.call(childEnv, name)) {
+      envOverrides[name] = String(childEnv[name]);
+    }
+  }
+  return { childEnv, envOverrides };
+};
+
 const deriveSearchLabel = (args) => {
   for (const arg of Array.isArray(args) ? args : []) {
     const text = String(arg || '').trim();
@@ -235,33 +271,12 @@ export const captureCommandDebugRun = async ({
   });
   await ensureDir(outputDir);
 
-  const envOverrides = {};
-  const childEnv = { ...(env || {}) };
-  if (forceColor) {
-    if (childEnv.FORCE_COLOR !== '1') {
-      childEnv.FORCE_COLOR = '1';
-      envOverrides.FORCE_COLOR = '1';
-    }
-    if (!childEnv.TERM) {
-      childEnv.TERM = term;
-      envOverrides.TERM = term;
-    }
-    if (Object.prototype.hasOwnProperty.call(childEnv, 'NO_COLOR')) {
-      delete childEnv.NO_COLOR;
-      envOverrides.NO_COLOR = '(unset)';
-    }
-    if (Object.prototype.hasOwnProperty.call(childEnv, 'NODE_DISABLE_COLORS')) {
-      delete childEnv.NODE_DISABLE_COLORS;
-      envOverrides.NODE_DISABLE_COLORS = '(unset)';
-    }
-  }
-  for (const key of Array.isArray(trackedEnvKeys) ? trackedEnvKeys : []) {
-    const name = String(key || '').trim();
-    if (!name) continue;
-    if (Object.prototype.hasOwnProperty.call(childEnv, name)) {
-      envOverrides[name] = String(childEnv[name]);
-    }
-  }
+  const { childEnv, envOverrides } = prepareCaptureEnvironment({
+    env,
+    forceColor,
+    term,
+    trackedEnvKeys
+  });
 
   const stdoutChunks = [];
   const stderrChunks = [];
@@ -415,33 +430,12 @@ export const captureCommandTerminalRun = async ({
     throw new Error('command is required');
   }
   const resolvedRoot = path.resolve(rootDir);
-  const childEnv = { ...(env || {}) };
-  const envOverrides = {};
-  if (forceColor) {
-    if (childEnv.FORCE_COLOR !== '1') {
-      childEnv.FORCE_COLOR = '1';
-      envOverrides.FORCE_COLOR = '1';
-    }
-    if (!childEnv.TERM) {
-      childEnv.TERM = term;
-      envOverrides.TERM = term;
-    }
-    if (Object.prototype.hasOwnProperty.call(childEnv, 'NO_COLOR')) {
-      delete childEnv.NO_COLOR;
-      envOverrides.NO_COLOR = '(unset)';
-    }
-    if (Object.prototype.hasOwnProperty.call(childEnv, 'NODE_DISABLE_COLORS')) {
-      delete childEnv.NODE_DISABLE_COLORS;
-      envOverrides.NODE_DISABLE_COLORS = '(unset)';
-    }
-  }
-  for (const key of Array.isArray(trackedEnvKeys) ? trackedEnvKeys : []) {
-    const name = String(key || '').trim();
-    if (!name) continue;
-    if (Object.prototype.hasOwnProperty.call(childEnv, name)) {
-      envOverrides[name] = String(childEnv[name]);
-    }
-  }
+  const { childEnv, envOverrides } = prepareCaptureEnvironment({
+    env,
+    forceColor,
+    term,
+    trackedEnvKeys
+  });
   const resolvedCols = cols != null && Number.isFinite(Number(cols))
     ? Number(cols)
     : Number.parseInt(String(childEnv.COLUMNS || ''), 10);

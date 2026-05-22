@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { toPosix } from '../../../shared/files.js';
+import { toPosix } from '../../../shared/file-paths.js';
 import { isPathUnderDir } from '../../../shared/path-normalize.js';
 
 export const normalizeParser = (raw, fallback, allowed) => {

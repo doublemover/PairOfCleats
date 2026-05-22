@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { buildArtifactSchemaIndex } from '../../src/contracts/artifact-schema-index.js';
+import { writeStableGeneratedJsonReport } from '../shared/generated-report.js';
 
 const parseArgs = () => createCli({
   scriptName: 'pairofcleats artifact-schema-index',
@@ -20,8 +20,7 @@ const main = async () => {
   const outPath = path.resolve(root, argv.out);
   const index = buildArtifactSchemaIndex();
 
-  await fsPromises.mkdir(path.dirname(outPath), { recursive: true });
-  await fsPromises.writeFile(outPath, `${JSON.stringify(index, null, 2)}\n`);
+  await writeStableGeneratedJsonReport(outPath, index);
 };
 
 main().catch((error) => {

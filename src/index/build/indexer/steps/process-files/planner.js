@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { fileExt, toPosix } from '../../../../../shared/files.js';
+import { fileExt, toPosix } from '../../../../../shared/file-paths.js';
 import { coerceNonNegativeInt, coercePositiveInt } from '../../../../../shared/number-coerce.js';
 import { getLanguageForFile } from '../../../../language-registry.js';
 import { shouldSkipTreeSitterPlanningForPath } from '../../../tree-sitter-scheduler/policy.js';

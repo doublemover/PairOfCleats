@@ -1,5 +1,5 @@
-import { log } from '../../../../../shared/progress.js';
-import { MAX_JSON_BYTES } from '../../../../../shared/artifact-io.js';
+import { log } from '../../../../../shared/progress-runtime.js';
+import { MAX_JSON_BYTES } from '../../../../../shared/artifact-io/constants.js';
 import { formatBytes } from '../../../../../shared/disk-space.js';
 import { resolveChunkMetaMaxBytes } from './shared.js';
 

@@ -1,21 +1,21 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
-import os from 'node:os';
 import { parseBuildArgs } from '../../../index/build/args.js';
 import { createBuildRuntime } from '../../../index/build/runtime.js';
 import { watchIndex } from '../../../index/build/watch.js';
-import { log as defaultLog, logError as defaultLogError, logLine } from '../../../shared/progress.js';
+import { log as defaultLog, logError as defaultLogError, logLine } from '../../../shared/progress-runtime.js';
 import { observeIndexDuration } from '../../../shared/metrics/core.js';
-import { buildAutoPolicy } from '../../../shared/auto-policy.js';
+import { buildAutoPolicy } from '../../../shared/auto-policy/build.js';
 import {
   applyObservabilityContextEnv,
   attachObservability,
   buildChildObservability,
   normalizeObservability
 } from '../../../shared/observability.js';
-import { resolveRuntimeEnvelope, resolveRuntimeEnv } from '../../../shared/runtime-envelope.js';
+import { resolveRuntimeEnv } from '../../../shared/runtime-envelope/env-patch.js';
+import { resolveCurrentProcessRuntimeEnvelope } from '../../../shared/runtime-envelope/resolve-current-process-envelope.js';
 import { coerceAbortSignal, isAbortError, throwIfAborted } from '../../../shared/abort.js';
-import { spawnSubprocess } from '../../../shared/subprocess.js';
+import { spawnSubprocess } from '../../../shared/subprocess/runner.js';
 import { resolveEmbeddingRuntime } from '../embeddings.js';
 import { buildRawArgs, buildStage2Args, normalizeStage } from '../args.js';
 import { updateEnrichmentState } from '../enrichment-state.js';
@@ -121,23 +121,12 @@ export async function buildIndex(repoRoot, options = {}) {
   const qualityOverride = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
   const policyConfig = qualityOverride ? { ...userConfig, quality: qualityOverride } : userConfig;
   const policy = await buildAutoPolicy({ repoRoot: root, config: policyConfig, logger: log });
-  const envelope = resolveRuntimeEnvelope({
+  const envelope = resolveCurrentProcessRuntimeEnvelope({
     argv,
     rawArgv,
     userConfig,
     autoPolicy: policy,
     env: process.env,
-    execArgv: process.execArgv,
-    cpuCount: os.cpus().length,
-    processInfo: {
-      pid: process.pid,
-      argv: process.argv,
-      execPath: process.execPath,
-      nodeVersion: process.version,
-      platform: process.platform,
-      arch: process.arch,
-      cpuCount: os.cpus().length
-    },
     toolVersion: getToolVersion()
   });
   const runtimeEnv = applyObservabilityContextEnv(

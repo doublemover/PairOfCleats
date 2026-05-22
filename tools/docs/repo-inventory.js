@@ -2,7 +2,8 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { toPosix } from '../../src/shared/files.js';
+import { toPosix } from '../../src/shared/file-paths.js';
+import { writeStableGeneratedJsonReport } from '../shared/generated-report.js';
 import { listFilesRecursive } from '../shared/fs-utils.js';
 
 const parseArgs = () => createCli({
@@ -134,9 +135,26 @@ const collectCliScriptPaths = async (root) => {
   }
 };
 
-const findReferencedTools = (entrypoints, scriptCommands, cliScripts) => {
+const collectCiToolScriptPaths = async (root) => {
+  const ciFiles = await listTextFiles(root, '.github', ['.yml', '.yaml', '.md']);
+  const refs = new Set();
+  const toolInvocationRegex = /\bnode\s+((?:tools|build_index)[^\s'"`]+?\.js)\b/gi;
+  for (const file of ciFiles) {
+    try {
+      const contents = await fsPromises.readFile(file, 'utf8');
+      let match;
+      while ((match = toolInvocationRegex.exec(contents)) !== null) {
+        refs.add(toPosix(match[1]));
+      }
+    } catch {}
+  }
+  return Array.from(refs).sort((a, b) => a.localeCompare(b));
+};
+
+const findReferencedTools = (entrypoints, scriptCommands, cliScripts, ciToolScripts) => {
   const referencedByScripts = new Set();
   const referencedByCli = new Set();
+  const referencedByCi = new Set();
   for (const entrypoint of entrypoints) {
     if (scriptCommands.some((command) => command.includes(entrypoint))) {
       referencedByScripts.add(entrypoint);
@@ -144,11 +162,15 @@ const findReferencedTools = (entrypoints, scriptCommands, cliScripts) => {
     if (cliScripts.some((command) => command.includes(entrypoint))) {
       referencedByCli.add(entrypoint);
     }
+    if (ciToolScripts.some((command) => command.includes(entrypoint))) {
+      referencedByCi.add(entrypoint);
+    }
   }
-  const referenced = new Set([...referencedByScripts, ...referencedByCli]);
+  const referenced = new Set([...referencedByScripts, ...referencedByCli, ...referencedByCi]);
   return {
     referencedByScripts: Array.from(referencedByScripts).sort(),
     referencedByCli: Array.from(referencedByCli).sort(),
+    referencedByCi: Array.from(referencedByCi).sort(),
     referenced: Array.from(referenced).sort()
   };
 };
@@ -238,36 +260,6 @@ const collectScriptReferences = async (root) => {
   };
 };
 
-const normalizeGeneratedPayload = (payload) => {
-  if (!payload || typeof payload !== 'object') return payload;
-  return {
-    ...payload,
-    generatedAt: null
-  };
-};
-
-const writeStableJsonReport = async (outputPath, report) => {
-  let existingText = null;
-  let existingPayload = null;
-  try {
-    existingText = await fsPromises.readFile(outputPath, 'utf8');
-    existingPayload = JSON.parse(existingText);
-  } catch {}
-
-  const previousGeneratedAt = typeof existingPayload?.generatedAt === 'string'
-    ? existingPayload.generatedAt
-    : null;
-  const nextReport = previousGeneratedAt
-    && JSON.stringify(normalizeGeneratedPayload(existingPayload)) === JSON.stringify(normalizeGeneratedPayload(report))
-    ? { ...report, generatedAt: previousGeneratedAt }
-    : report;
-  const nextText = `${JSON.stringify(nextReport, null, 2)}\n`;
-  if (existingText === nextText) return nextReport;
-  await fsPromises.mkdir(path.dirname(outputPath), { recursive: true });
-  await fsPromises.writeFile(outputPath, nextText);
-  return nextReport;
-};
-
 export const buildRepoInventory = async (root) => {
   const resolvedRoot = path.resolve(root);
   const docs = await collectDocs(resolvedRoot);
@@ -278,7 +270,8 @@ export const buildRepoInventory = async (root) => {
   const toolEntrypoints = await collectToolEntrypoints(resolvedRoot);
   const scriptInfo = await collectScriptCommands(resolvedRoot);
   const cliScripts = await collectCliScriptPaths(resolvedRoot);
-  const toolRefs = findReferencedTools(toolEntrypoints, scriptInfo.commands, cliScripts);
+  const ciToolScripts = await collectCiToolScriptPaths(resolvedRoot);
+  const toolRefs = findReferencedTools(toolEntrypoints, scriptInfo.commands, cliScripts, ciToolScripts);
   const orphanTools = toolEntrypoints.filter((entry) => !toolRefs.referenced.includes(entry));
 
   const scriptRefs = await collectScriptReferences(resolvedRoot);
@@ -298,6 +291,7 @@ export const buildRepoInventory = async (root) => {
       entrypoints: toolEntrypoints,
       referencedByScripts: toolRefs.referencedByScripts,
       referencedByCli: toolRefs.referencedByCli,
+      referencedByCi: toolRefs.referencedByCi,
       referenced: toolRefs.referenced,
       orphans: orphanTools
     },
@@ -312,7 +306,7 @@ export const buildRepoInventory = async (root) => {
     notes: [
       'Docs references are collected from docs markdown plus key source/docs entrypoints.',
       'Script references are collected from docs (excluding docs/guides/commands.md), .github workflows, tests, and pairofcleats CLI invocations.',
-      'Tool entrypoints are detected by a node shebang; only those are considered for orphan tool reporting.'
+      'Tool entrypoints are detected by a node shebang; package scripts, CLI dispatch paths, and direct workflow node tool invocations count as references.'
     ]
   };
 };
@@ -322,7 +316,7 @@ const main = async () => {
   const root = path.resolve(argv.root || process.cwd());
   const outputPath = path.resolve(root, argv.json);
   const report = await buildRepoInventory(root);
-  await writeStableJsonReport(outputPath, report);
+  await writeStableGeneratedJsonReport(outputPath, report);
 };
 
 main().catch((error) => {

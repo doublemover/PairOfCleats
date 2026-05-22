@@ -1,76 +1,21 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
-import path from 'node:path';
-import { createCli } from '../../../src/shared/cli.js';
 import { isDirectExecution } from '../../../src/shared/direct-execution.js';
-import { parseSeedRef } from '../../../src/shared/seed-ref.js';
-import { normalizeOptionalNumber } from '../../../src/shared/limits.js';
-import {
-  MAX_JSON_BYTES,
-  loadChunkMeta,
-  loadPiecesManifest,
-  readCompatibilityKey
-} from '../../../src/shared/artifact-io.js';
-import { buildIndexSignature } from '../../../src/retrieval/index-cache.js';
-import { resolveIndexDir } from '../../../src/retrieval/cli-index.js';
-import { hasIndexMeta } from '../../../src/retrieval/cli/index-loader.js';
-import { loadUserConfig } from '../../shared/dict-utils.js';
-import { buildGraphIndexCacheKey, createGraphStore } from '../../../src/graph/store.js';
+import { buildGraphIndexCacheKey } from '../../../src/graph/store.js';
 import {
   assembleCompositeContextPack,
   buildChunkIndex,
   clearContextPackCaches
 } from '../../../src/context-pack/assemble.js';
-
-const durationMs = (startNs, endNs = process.hrtime.bigint()) => Number((endNs - startNs) / 1000000n);
-
-const resolveDefaultSeed = (chunkMeta) => {
-  const first = Array.isArray(chunkMeta) ? chunkMeta[0] : null;
-  if (!first?.chunkUid) return null;
-  return { type: 'chunk', chunkUid: first.chunkUid };
-};
-
-const summarize = (values) => {
-  if (!values.length) return { min: 0, max: 0, avg: 0 };
-  const sorted = values.slice().sort((a, b) => a - b);
-  const sum = values.reduce((acc, value) => acc + value, 0);
-  const percentile = (p) => {
-    const idx = Math.max(0, Math.min(sorted.length - 1, Math.floor(sorted.length * p)));
-    return sorted[idx];
-  };
-  return {
-    min: sorted[0],
-    max: sorted[sorted.length - 1],
-    avg: sum / values.length,
-    p50: percentile(0.5),
-    p95: percentile(0.95)
-  };
-};
-
-const runIterations = ({
-  iterations,
-  buildPayload
-}) => {
-  const timings = [];
-  const rssValues = [];
-  const started = process.hrtime.bigint();
-  for (let i = 0; i < iterations; i += 1) {
-    const payload = buildPayload();
-    const elapsed = Number(payload?.stats?.timing?.elapsedMs || 0);
-    const rss = Number(payload?.stats?.memory?.peak?.rss || 0);
-    timings.push(elapsed);
-    rssValues.push(rss);
-  }
-  const durationMs = Number((process.hrtime.bigint() - started) / 1000000n);
-  const throughput = durationMs > 0 ? iterations / (durationMs / 1000) : 0;
-  return {
-    iterations,
-    timingMs: summarize(timings),
-    rssBytes: summarize(rssValues),
-    totalMs: durationMs,
-    throughput
-  };
-};
+import {
+  clearGraphTraversalCaches,
+  durationMs,
+  GRAPH_BENCH_GRAPHS,
+  loadGraphBenchInputs,
+  normalizeCompareMode,
+  parseGraphBenchStandardCli,
+  printBaselineCurrentSummary,
+  runPayloadIterations
+} from './shared.js';
 
 export async function runContextPackLatencyBench({
   indexDir,
@@ -81,42 +26,32 @@ export async function runContextPackLatencyBench({
   caps = {},
   mode = 'compare'
 }) {
-  const timings = {};
-
-  const manifestStart = process.hrtime.bigint();
-  const manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
-  timings.manifestMs = durationMs(manifestStart);
-
-  const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
-  const includeCsr = graphStore.hasArtifact('graph_relations_csr');
-
-  const chunkMetaStart = process.hrtime.bigint();
-  const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES, manifest, strict: true });
-  timings.chunkMetaMs = durationMs(chunkMetaStart);
-
-  const graphRelationsStart = process.hrtime.bigint();
-  const graphRelations = await graphStore.loadGraph();
-  timings.graphRelationsMs = durationMs(graphRelationsStart);
-
-  const compatStart = process.hrtime.bigint();
-  const { key: indexCompatKey } = readCompatibilityKey(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
-  timings.compatKeyMs = durationMs(compatStart);
-
-  const signatureStart = process.hrtime.bigint();
-  const indexSignature = await buildIndexSignature(indexDir);
-  timings.indexSignatureMs = durationMs(signatureStart);
+  const {
+    timings,
+    graphStore,
+    includeCsr,
+    chunkMeta,
+    graphRelations,
+    indexCompatKey,
+    indexSignature,
+    resolvedSeed
+  } = await loadGraphBenchInputs({
+    indexDir,
+    seed,
+    missingSeedMessage: 'Unable to resolve seed for context-pack bench.'
+  });
 
   const graphCacheKey = buildGraphIndexCacheKey({
     indexSignature,
     repoRoot,
-    graphs: ['callGraph', 'usageGraph', 'importGraph'],
+    graphs: GRAPH_BENCH_GRAPHS,
     includeCsr
   });
   const graphIndexStart = process.hrtime.bigint();
   const graphIndex = await graphStore.loadGraphIndex({
     repoRoot,
     cacheKey: graphCacheKey,
-    graphs: ['callGraph', 'usageGraph', 'importGraph'],
+    graphs: GRAPH_BENCH_GRAPHS,
     includeCsr
   });
   timings.graphIndexColdMs = durationMs(graphIndexStart);
@@ -125,7 +60,7 @@ export async function runContextPackLatencyBench({
   await graphStore.loadGraphIndex({
     repoRoot,
     cacheKey: graphCacheKey,
-    graphs: ['callGraph', 'usageGraph', 'importGraph'],
+    graphs: GRAPH_BENCH_GRAPHS,
     includeCsr
   });
   timings.graphIndexWarmMs = durationMs(graphIndexWarmStart);
@@ -133,11 +68,6 @@ export async function runContextPackLatencyBench({
   const chunkIndexStart = process.hrtime.bigint();
   const chunkIndex = buildChunkIndex(chunkMeta, { repoRoot });
   timings.chunkIndexMs = durationMs(chunkIndexStart);
-
-  const resolvedSeed = seed || resolveDefaultSeed(chunkMeta);
-  if (!resolvedSeed) {
-    throw new Error('Unable to resolve seed for context-pack bench.');
-  }
 
   const assembleArgs = {
     seed: resolvedSeed,
@@ -156,15 +86,15 @@ export async function runContextPackLatencyBench({
     indexSignature: indexSignature || null
   };
 
-  const normalizedMode = mode === 'baseline' || mode === 'current' ? mode : 'compare';
+  const normalizedMode = normalizeCompareMode(mode);
   const results = {};
 
   if (normalizedMode === 'baseline' || normalizedMode === 'compare') {
-    results.baseline = runIterations({
+    results.baseline = runPayloadIterations({
       iterations,
       buildPayload: () => {
         clearContextPackCaches();
-        if (graphIndex && graphIndex._traversalCache) graphIndex._traversalCache.clear();
+        clearGraphTraversalCaches(graphIndex);
         return assembleCompositeContextPack({
           ...assembleArgs,
           graphRelations,
@@ -176,7 +106,7 @@ export async function runContextPackLatencyBench({
   }
 
   if (normalizedMode === 'current' || normalizedMode === 'compare') {
-    results.current = runIterations({
+    results.current = runPayloadIterations({
       iterations,
       buildPayload: () => assembleCompositeContextPack({
         ...assembleArgs,
@@ -216,37 +146,16 @@ export async function runContextPackLatencyBench({
 }
 
 export async function runContextPackLatencyBenchCli(rawArgs = process.argv.slice(2)) {
-  const cli = createCli({
-    scriptName: 'context-pack-latency',
-    argv: ['node', 'context-pack-latency', ...rawArgs],
-    options: {
-      index: { type: 'string' },
-      repo: { type: 'string' },
-      seed: { type: 'string' },
-      iterations: { type: 'number', default: 5 },
-      depth: { type: 'number', default: 2 },
-      mode: { type: 'string', default: 'compare' }
-    }
+  const {
+    repoRoot,
+    indexDir,
+    seed,
+    iterations,
+    depth,
+    mode
+  } = parseGraphBenchStandardCli(rawArgs, {
+    scriptName: 'context-pack-latency'
   });
-  const argv = cli.parse();
-
-  const repoRoot = argv.repo ? path.resolve(argv.repo) : process.cwd();
-  const userConfig = loadUserConfig(repoRoot);
-  let indexDir = argv.index ? path.resolve(argv.index) : null;
-  if (!indexDir) {
-    const resolved = resolveIndexDir(repoRoot, 'code', userConfig);
-    if (resolved && hasIndexMeta(resolved)) {
-      indexDir = resolved;
-    }
-  }
-  if (!indexDir || !fs.existsSync(indexDir)) {
-    throw new Error('Missing --index <indexDir> and no built index found for repo.');
-  }
-
-  const seed = argv.seed ? parseSeedRef(argv.seed, repoRoot) : null;
-  const iterations = normalizeOptionalNumber(argv.iterations) || 5;
-  const depth = normalizeOptionalNumber(argv.depth) || 2;
-  const mode = argv.mode || 'compare';
 
   const result = await runContextPackLatencyBench({
     indexDir,
@@ -256,25 +165,7 @@ export async function runContextPackLatencyBenchCli(rawArgs = process.argv.slice
     depth,
     mode
   });
-  const formatSummary = (label, summary) => {
-    const avg = summary.timingMs.avg.toFixed(2);
-    const p95 = summary.timingMs.p95.toFixed(2);
-    const total = summary.totalMs.toFixed(1);
-    const throughput = summary.throughput.toFixed(2);
-    console.log(`[bench] ${label} total=${total}ms avg=${avg}ms p95=${p95}ms throughput=${throughput} it/s`);
-  };
-
-  if (result.baseline) formatSummary('baseline', result.baseline);
-  if (result.current) formatSummary('current', result.current);
-  if (result.baseline && result.current) {
-    const deltaMs = result.current.totalMs - result.baseline.totalMs;
-    const deltaPct = result.baseline.totalMs ? (deltaMs / result.baseline.totalMs) * 100 : 0;
-    const deltaThroughput = result.current.throughput - result.baseline.throughput;
-    console.log(
-      `[bench] delta ms=${deltaMs.toFixed(1)} throughput=${deltaThroughput.toFixed(2)} it/s ` +
-      `pct=${deltaPct.toFixed(1)} duration=${result.current.totalMs.toFixed(1)}ms`
-    );
-  }
+  printBaselineCurrentSummary(result);
 
   console.log(JSON.stringify({ ok: true, result }, null, 2));
   return result;

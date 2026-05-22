@@ -22,7 +22,7 @@ const normalizeDictSegmentation = (options = {}) => {
   return { mode, dpMaxTokenLength };
 };
 
-const getDictMaxLen = (dict) => {
+export const getDictMaxTokenLength = (dict) => {
   if (!dict || dict.size === 0) return 0;
   const cached = dict.__maxTokenLength;
   if (Number.isFinite(cached) && cached > 0) return cached;
@@ -205,7 +205,7 @@ export function splitWordsWithDict(token, dict, options = {}) {
   if (!dict || dict.size === 0 || typeof dict.has !== 'function') return [token];
   if (!token) return [];
   const { mode, dpMaxTokenLength } = normalizeDictSegmentation(options);
-  const maxLen = getDictMaxLen(dict);
+  const maxLen = getDictMaxTokenLength(dict);
   if (!maxLen) return [token];
   const greedy = splitWordsWithDictGreedy(token, dict, maxLen);
   if (mode === 'greedy') return greedy;

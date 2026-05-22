@@ -5,13 +5,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { resolveWindowsCmdInvocation } from '../../../src/shared/subprocess/windows-cmd.js';
 import { classifyBenchTask } from './verdict.js';
 import {
   buildBenchEnvironmentMetadata,
   createBenchDiagnosticClassifier
 } from './logging.js';
+import { sumDiagnosticCounts } from './diagnostics.js';
 
 const DEFAULT_CANARY_ROOT = path.join(process.cwd(), 'tests', 'fixtures', 'bench-runtime-canaries');
 const DEFAULT_LIVE_CANARY_TIMEOUT_MS = 5 * 60 * 1000;
@@ -227,23 +228,6 @@ const toNonEmptyLines = (content) => String(content || '')
   .map((line) => line.trimEnd())
   .filter((line) => line.trim());
 
-const sumTaskDiagnosticCounts = (entry) => {
-  const sources = [
-    entry?.diagnostics?.process?.countsByType,
-    entry?.diagnostics?.countsByType
-  ];
-  const out = {};
-  for (const source of sources) {
-    if (!source || typeof source !== 'object' || Array.isArray(source)) continue;
-    for (const [key, value] of Object.entries(source)) {
-      const count = Number(value);
-      if (!Number.isFinite(count) || count <= 0) continue;
-      out[key] = (out[key] || 0) + count;
-    }
-  }
-  return out;
-};
-
 const parseBenchmarkConfirmationLaneSpec = (value) => {
   const text = String(value || '').trim();
   const normalized = text.toLowerCase();
@@ -289,7 +273,7 @@ const extractBenchRuntimeTaskMetrics = (entry) => {
     resultClass: String(taskStatus?.resultClass || '').trim() || null,
     productionCleanStatus: null,
     timeoutClasses,
-    countsByDiagnosticType: normalizeCountMap(sumTaskDiagnosticCounts(entry)),
+    countsByDiagnosticType: normalizeCountMap(sumDiagnosticCounts(entry)),
     countsByFailureClass,
     crashCount: taskStatus?.resultClass === 'crashed' ? 1 : 0,
     taskCount: 1

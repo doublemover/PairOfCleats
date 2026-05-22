@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonArrayFile, writeJsonObjectFile } from '../../../shared/json-stream.js';
+import { writeJsonArrayFile, writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
 
 export async function writeFileLists({ outDir, state, userConfig, log }) {
   if (outDir) {

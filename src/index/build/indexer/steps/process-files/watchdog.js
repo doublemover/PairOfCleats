@@ -25,7 +25,7 @@ export const FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS = Object.freeze([
  * @param {{min?:number,max?:number,allowZero?:boolean}} [options]
  * @returns {number}
  */
-const coerceClampedFractionOrDefault = (
+export const coerceClampedFractionOrDefault = (
   value,
   fallback,
   { min = 0, max = 1, allowZero = false } = {}
@@ -42,7 +42,7 @@ const coerceClampedFractionOrDefault = (
  * @param {unknown} value
  * @returns {number}
  */
-const clampDurationMs = (value) => {
+export const clampDurationMs = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 };

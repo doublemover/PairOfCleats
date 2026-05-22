@@ -4,41 +4,11 @@ import { loadUserConfig } from '../../shared/dict-utils.js';
 import { redactAbsolutePaths } from '../redact.js';
 import { sendError, sendJson } from '../response.js';
 import {
+  decodeRoutePathSegment,
   parseJsonBodyOrSendError,
+  parseStringList,
   resolveRepoOrSendError
 } from './request-helpers.js';
-
-const parseStringList = (value) => {
-  if (Array.isArray(value)) {
-    return value
-      .map((entry) => String(entry || '').trim())
-      .filter(Boolean);
-  }
-  if (typeof value === 'string') {
-    return value
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-  }
-  return [];
-};
-
-/**
- * Decode snapshot id path segments and normalize malformed URI encoding into
- * INVALID_REQUEST handling.
- *
- * @param {string} rawValue
- * @returns {string}
- */
-const decodeSnapshotId = (rawValue) => {
-  try {
-    return decodeURIComponent(rawValue || '');
-  } catch {
-    const err = new Error('Invalid snapshot id: malformed URI encoding.');
-    err.code = ERROR_CODES.INVALID_REQUEST;
-    throw err;
-  }
-};
 
 /**
  * Parse JSON body and emit a consistent error response on parse failure.
@@ -151,7 +121,7 @@ export const handleIndexSnapshotsRoute = async ({
   if (pathname.startsWith(snapshotPrefix) && req.method === 'GET') {
     let snapshotId = '';
     try {
-      snapshotId = decodeSnapshotId(pathname.slice(snapshotPrefix.length));
+      snapshotId = decodeRoutePathSegment(pathname.slice(snapshotPrefix.length), 'snapshot id');
     } catch (err) {
       sendError(
         res,

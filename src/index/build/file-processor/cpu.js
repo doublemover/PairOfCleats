@@ -43,6 +43,7 @@ import { processChunks } from './process-chunks.js';
 import { resolveChunkingFileRole } from '../../chunking/limits.js';
 import { isAbortError } from '../../../shared/abort.js';
 import { createTimeoutError, runWithTimeout } from '../../../shared/promise-timeout.js';
+import { createFileProcessorCrashStageUpdater } from './crash-stage.js';
 
 /**
  * Build deterministic key for extracted-prose extras cache entries.
@@ -191,29 +192,7 @@ export const processFileCpu = async (context) => {
     setPythonAstDuration
   } = timing;
 
-  /**
-   * Record per-file CPU pipeline stage updates in crash telemetry.
-   *
-   * @param {string} substage
-   * @param {object} [extra]
-   * @returns {void}
-   */
-  const updateCrashStage = (substage, extra = {}) => {
-    if (!crashLogger?.enabled) return;
-    const entry = {
-      phase: 'processing',
-      mode,
-      stage: buildStage || null,
-      fileIndex: Number.isFinite(fileIndex) ? fileIndex : null,
-      file: relKey,
-      substage,
-      ...extra
-    };
-    crashLogger.updateFile(entry);
-    if (typeof crashLogger.traceFileStage === 'function') {
-      crashLogger.traceFileStage(entry);
-    }
-  };
+  const updateCrashStage = createFileProcessorCrashStageUpdater(context);
 
   /**
    * Build a normalized "skip this file" result payload for recoverable CPU
@@ -594,7 +573,7 @@ export const processFileCpu = async (context) => {
       && !skipScmAnnotateForProseMode
       && !skipScmAnnotateForExtractedProseMode
       && !skipScmAnnotateForGeneratedPython
-      && scmMetaUnavailableReason == null
+      && scmMetaUnavailableReason !== 'timeout'
       && typeof scmProviderImpl.annotate === 'function'
     ) {
       const maxAnnotateBytesRaw = Number(annotateConfig.maxFileSizeBytes);

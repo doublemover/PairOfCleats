@@ -1,10 +1,18 @@
-import { writeProgressEvent } from './progress-events.js';
 import { normalizeProgressMode, resolveTerminal } from './display/terminal.js';
 import { formatCount } from './display/text.js';
 import { renderDisplay } from './display/render.js';
 import { createSafeWritableStream } from './display/stream.js';
+import { writeDisplayLogEvent, writeDisplayTaskEvent } from './display/events.js';
+import {
+  applyDisplayTaskUpdate,
+  createDisplayState,
+  ensureDisplayTask,
+  pushLogLine,
+  removeDisplayTask,
+  resetDisplayTasks,
+  upsertLogLine
+} from './display/state.js';
 import { getProgressContext } from '../env.js';
-import { toArray } from '../iterables.js';
 
 export function createDisplay(options = {}) {
   const safeStream = createSafeWritableStream(options.stream || process.stderr);
@@ -40,48 +48,10 @@ export function createDisplay(options = {}) {
     }
     : {};
 
-  const state = {
-    tasks: new Map(),
-    taskOrder: [],
-    logLines: [],
-    statusLine: '',
-    lastLogKey: '',
-    lastLogCount: 0,
-    lastLogIndex: -1,
-    rendered: false,
-    renderLines: 0,
-    renderFrame: [],
-    lastRenderMs: 0,
-    lastProgressLogMs: 0,
-    paletteOffset: null,
-    paletteScheme: null,
-    paletteStep: null,
-    paletteSlots: new Map(),
-    paletteOrder: [],
-    rateMaxByTask: new Map(),
-    hueShiftByTask: new Map()
-  };
+  const state = createDisplayState();
 
   const writeJsonLog = (level, message, meta) => {
-    writeProgressEvent(stream, 'log', {
-      ...contextPatch,
-      level,
-      message,
-      meta: meta && typeof meta === 'object' ? meta : null
-    });
-  };
-
-  const pushLogLine = (line) => {
-    if (state.logLines.length >= logWindowSize) state.logLines.shift();
-    state.logLines.push(line);
-  };
-
-  const upsertLogLine = (line) => {
-    if (state.lastLogIndex >= 0 && state.lastLogIndex < state.logLines.length) {
-      state.logLines[state.lastLogIndex] = line;
-      return true;
-    }
-    return false;
+    writeDisplayLogEvent(stream, contextPatch, level, message, meta);
   };
 
   const appendLog = (level, message, meta) => {
@@ -109,12 +79,12 @@ export function createDisplay(options = {}) {
     if (key && key === state.lastLogKey) {
       state.lastLogCount += 1;
       const nextLine = `${line} (x${state.lastLogCount})`;
-      if (!upsertLogLine(nextLine)) pushLogLine(nextLine);
+      if (!upsertLogLine(state, nextLine)) pushLogLine(state, nextLine, logWindowSize);
     } else {
       state.lastLogKey = key;
       state.lastLogCount = 1;
       state.lastLogIndex = state.logLines.length;
-      pushLogLine(line);
+      pushLogLine(state, line, logWindowSize);
     }
     if (interactive && canRender) {
       scheduleRender();
@@ -142,19 +112,7 @@ export function createDisplay(options = {}) {
 
   const emitTaskEvent = (event, task, extra = {}) => {
     if (!progressEnabled) return;
-    writeProgressEvent(stream, event, {
-      ...contextPatch,
-      taskId: task.id,
-      name: task.name,
-      current: task.current,
-      total: task.total,
-      unit: task.unit || null,
-      stage: task.stage || null,
-      mode: task.mode || null,
-      status: task.status || null,
-      message: task.message || null,
-      ...extra
-    });
+    writeDisplayTaskEvent(stream, contextPatch, event, task, extra);
   };
 
   const maybeLogProgressLine = (task) => {
@@ -172,79 +130,25 @@ export function createDisplay(options = {}) {
   };
 
   const ensureTask = (id, name, meta = {}) => {
-    if (state.tasks.has(id)) return state.tasks.get(id);
-    const createdAt = Date.now();
-    const task = {
-      id,
-      name: name || id,
-      current: 0,
-      total: Number.isFinite(meta.total) ? meta.total : null,
-      unit: meta.unit || null,
-      stage: meta.stage || null,
-      mode: meta.mode || null,
-      status: 'running',
-      message: meta.message || null,
-      ephemeral: meta.ephemeral === true,
-      startedAt: createdAt,
-      lastUpdateMs: createdAt,
-      endedAt: null
-    };
-    state.tasks.set(id, task);
-    state.taskOrder.push(id);
-    if (jsonl) emitTaskEvent('task:start', task, { total: task.total });
-    scheduleRender();
+    const { task, created } = ensureDisplayTask(state, id, name, meta);
+    if (created) {
+      if (jsonl) emitTaskEvent('task:start', task, { total: task.total });
+      scheduleRender();
+    }
     return task;
   };
 
   const removeTask = (task) => {
-    if (!task || !state.tasks.has(task.id)) return;
-    state.tasks.delete(task.id);
-    const index = state.taskOrder.indexOf(task.id);
-    if (index >= 0) state.taskOrder.splice(index, 1);
+    removeDisplayTask(state, task);
   };
 
   const resetTasks = ({ preserveStages = [], preserveIds = [] } = {}) => {
-    const stageSet = new Set(
-      toArray(preserveStages)
-        .map((stage) => String(stage).trim().toLowerCase())
-        .filter(Boolean)
-    );
-    const idSet = new Set(toArray(preserveIds).map((id) => String(id)));
-    const preserved = [];
-    for (const id of state.taskOrder) {
-      const task = state.tasks.get(id);
-      if (!task) continue;
-      const stage = String(task.stage || '').trim().toLowerCase();
-      if (idSet.has(id) || (stage && stageSet.has(stage))) {
-        preserved.push(task);
-      }
-    }
-    state.tasks.clear();
-    state.taskOrder.length = 0;
-    state.paletteSlots.clear();
-    state.paletteOrder.length = 0;
-    state.rateMaxByTask.clear();
-    for (const task of preserved) {
-      state.tasks.set(task.id, task);
-      state.taskOrder.push(task.id);
-    }
+    resetDisplayTasks(state, { preserveStages, preserveIds });
     scheduleRender();
   };
 
   const updateTask = (task, update = {}) => {
-    if (Number.isFinite(update.current)) task.current = update.current;
-    if (Number.isFinite(update.total)) task.total = update.total;
-    if (typeof update.name === 'string' && update.name.trim()) task.name = update.name;
-    if (typeof update.status === 'string') task.status = update.status;
-    if (typeof update.message === 'string') task.message = update.message;
-    if (typeof update.stage === 'string') task.stage = update.stage;
-    if (typeof update.mode === 'string') task.mode = update.mode;
-    if (update.extra && typeof update.extra === 'object') task.extra = update.extra;
-    if (task.status === 'running' && update.status) task.endedAt = null;
-    if ((task.status === 'done' || task.status === 'failed') && !Number.isFinite(task.endedAt)) {
-      task.endedAt = Date.now();
-    }
-    task.lastUpdateMs = Date.now();
+    applyDisplayTaskUpdate(task, update);
     if (jsonl) emitTaskEvent('task:progress', task, update.extra || {});
     if (task.ephemeral && (task.status === 'done' || task.status === 'failed')) {
       removeTask(task);

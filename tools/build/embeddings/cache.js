@@ -14,7 +14,7 @@ import {
   resolveEmbeddingsCacheModeDir,
   resolveEmbeddingsCacheRoot
 } from '../../../src/shared/embeddings-cache/index.js';
-import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { acquireFileLock } from '../../../src/shared/locks/file-lock.js';
 import { createTempPath, replaceFile } from './atomic.js';
 import {

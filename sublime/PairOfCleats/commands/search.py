@@ -11,6 +11,7 @@ from ..lib import runner
 from ..lib import search as search_lib
 from ..lib import tasks
 from ..lib import ui
+from ..lib import views
 
 LIMIT_CHOICES = [10, 25, 50, 100, 200]
 
@@ -24,11 +25,11 @@ def _has_repo_root(window):
 
 
 def _has_selection(view):
-    return bool(_extract_selection(view).strip()) if view else False
+    return bool(views.extract_selection(view).strip()) if view else False
 
 
 def _has_symbol(view):
-    return bool(_extract_symbol(view).strip()) if view else False
+    return bool(views.extract_symbol(view).strip()) if view else False
 
 
 def _has_last_results(window):
@@ -77,6 +78,18 @@ def _resolve_defaults(settings, overrides=None):
         'as_of': as_of or '',
         'snapshot': snapshot or '',
         'advanced': advanced,
+    }
+
+
+def _search_transport_kwargs(resolved):
+    return {
+        'backend': resolved.get('backend') or None,
+        'limit': resolved.get('limit'),
+        'ann': resolved.get('ann'),
+        'allow_sparse_fallback': resolved.get('allow_sparse_fallback'),
+        'as_of': resolved.get('as_of') or None,
+        'snapshot': resolved.get('snapshot') or None,
+        'advanced': resolved.get('advanced'),
     }
 
 
@@ -421,13 +434,7 @@ def _execute_search(window, query, overrides=None, explain=False):
                 settings,
                 query,
                 resolved.get('mode'),
-                backend=resolved.get('backend') or None,
-                limit=resolved.get('limit'),
-                ann=resolved.get('ann'),
-                allow_sparse_fallback=resolved.get('allow_sparse_fallback'),
-                as_of=resolved.get('as_of') or None,
-                snapshot=resolved.get('snapshot') or None,
-                advanced=resolved.get('advanced'),
+                **_search_transport_kwargs(resolved)
             ),
             on_api_done,
             on_progress=lambda message: tasks.note_progress(window, task, details=message),
@@ -451,15 +458,8 @@ def _execute_search_cli(window, query, repo_root, settings, resolved, explain, o
         query,
         repo_root=repo_root,
         mode=resolved.get('mode'),
-        backend=resolved.get('backend') or None,
-        limit=resolved.get('limit'),
-        explain=explain
-        ,
-        ann=resolved.get('ann'),
-        allow_sparse_fallback=resolved.get('allow_sparse_fallback'),
-        as_of=resolved.get('as_of') or None,
-        snapshot=resolved.get('snapshot') or None,
-        advanced=resolved.get('advanced'),
+        explain=explain,
+        **_search_transport_kwargs(resolved)
     )
     cli = paths.resolve_cli(settings, repo_root)
     command = cli['command']
@@ -555,13 +555,7 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
                 settings,
                 query,
                 'code',
-                backend=resolved.get('backend') or None,
-                limit=resolved.get('limit'),
-                ann=resolved.get('ann'),
-                allow_sparse_fallback=resolved.get('allow_sparse_fallback'),
-                as_of=resolved.get('as_of') or None,
-                snapshot=resolved.get('snapshot') or None,
-                advanced=resolved.get('advanced'),
+                **_search_transport_kwargs(resolved)
             ),
             on_api_done,
             on_progress=lambda message: tasks.note_progress(window, task, details=message),
@@ -576,14 +570,8 @@ def _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, tit
         query,
         repo_root=repo_root,
         mode='code',
-        backend=resolved.get('backend') or None,
-        limit=resolved.get('limit'),
         explain=False,
-        ann=resolved.get('ann'),
-        allow_sparse_fallback=resolved.get('allow_sparse_fallback'),
-        as_of=resolved.get('as_of') or None,
-        snapshot=resolved.get('snapshot') or None,
-        advanced=resolved.get('advanced'),
+        **_search_transport_kwargs(resolved)
     )
     cli = paths.resolve_cli(settings, repo_root)
     command = cli['command']
@@ -602,26 +590,6 @@ def _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, tit
     )
 
 
-def _extract_selection(view):
-    if view is None:
-        return ''
-    for region in view.sel():
-        if not region.empty():
-            return view.substr(region)
-    return ''
-
-
-def _extract_symbol(view):
-    if view is None:
-        return ''
-    selection = view.sel()
-    if not selection:
-        return ''
-    region = selection[0]
-    word = view.word(region)
-    return view.substr(word)
-
-
 def _show_symbol_hit_picker(window, hits, repo_root):
     items = [results.format_quick_panel_item(hit) for hit in hits]
 
@@ -631,6 +599,45 @@ def _show_symbol_hit_picker(window, hits, repo_root):
         results.open_hit(window, hits[index], repo_root)
 
     window.show_quick_panel(items, on_select)
+
+
+def _has_file_symbol(view):
+    return bool(view and view.file_name() and _has_symbol(view))
+
+
+def _has_active_file(view):
+    return bool(view and view.file_name())
+
+
+class _FileSymbolLookupMixin(object):
+    lookup_limit = 25
+    lookup_title = 'PairOfCleats symbol lookup'
+
+    def is_enabled(self):
+        return _has_file_symbol(self.view)
+
+    def is_visible(self):
+        return _has_active_file(self.view)
+
+    def run(self, edit):
+        query = views.extract_symbol(self.view)
+        if not query:
+            ui.show_status('PairOfCleats: no symbol under cursor.')
+            return
+
+        def on_hits(hits, repo_root, resolved):
+            self.handle_symbol_hits(query, hits, repo_root, resolved)
+
+        _execute_symbol_lookup(
+            self.view.window(),
+            query,
+            on_hits,
+            limit=self.lookup_limit,
+            title=self.lookup_title,
+        )
+
+    def handle_symbol_hits(self, query, hits, repo_root, resolved):
+        raise NotImplementedError()
 
 
 def _rank_definition_hits(hits, query):
@@ -719,7 +726,7 @@ class PairOfCleatsSearchSelectionCommand(sublime_plugin.TextCommand):
         return bool(self.view)
 
     def run(self, edit):
-        query = _extract_selection(self.view)
+        query = views.extract_selection(self.view)
         if not query:
             ui.show_status('PairOfCleats: no selection to search.')
             return
@@ -734,71 +741,37 @@ class PairOfCleatsSearchSymbolUnderCursorCommand(sublime_plugin.TextCommand):
         return bool(self.view)
 
     def run(self, edit):
-        query = _extract_symbol(self.view)
+        query = views.extract_symbol(self.view)
         if not query:
             ui.show_status('PairOfCleats: no symbol under cursor.')
             return
         _search_with_query(self.view.window(), query)
 
 
-class PairOfCleatsGotoDefinitionCommand(sublime_plugin.TextCommand):
-    def is_enabled(self):
-        return bool(self.view and self.view.file_name() and _has_symbol(self.view))
+class PairOfCleatsGotoDefinitionCommand(_FileSymbolLookupMixin, sublime_plugin.TextCommand):
+    lookup_limit = 25
+    lookup_title = 'PairOfCleats goto definition'
 
-    def is_visible(self):
-        return bool(self.view and self.view.file_name())
-
-    def run(self, edit):
-        query = _extract_symbol(self.view)
-        if not query:
-            ui.show_status('PairOfCleats: no symbol under cursor.')
+    def handle_symbol_hits(self, query, hits, repo_root, _resolved):
+        if not hits:
+            ui.show_status('PairOfCleats: no indexed definitions found.')
             return
-
-        def on_hits(hits, repo_root, _resolved):
-            if not hits:
-                ui.show_status('PairOfCleats: no indexed definitions found.')
-                return
-            ranked = _rank_definition_hits(hits, query)
-            if len(ranked) == 1:
-                results.open_hit(self.view.window(), ranked[0], repo_root)
-                return
-            _show_symbol_hit_picker(self.view.window(), ranked, repo_root)
-
-        _execute_symbol_lookup(
-            self.view.window(),
-            query,
-            on_hits,
-            limit=25,
-            title='PairOfCleats goto definition',
-        )
-
-
-class PairOfCleatsFindReferencesCommand(sublime_plugin.TextCommand):
-    def is_enabled(self):
-        return bool(self.view and self.view.file_name() and _has_symbol(self.view))
-
-    def is_visible(self):
-        return bool(self.view and self.view.file_name())
-
-    def run(self, edit):
-        query = _extract_symbol(self.view)
-        if not query:
-            ui.show_status('PairOfCleats: no symbol under cursor.')
+        ranked = _rank_definition_hits(hits, query)
+        if len(ranked) == 1:
+            results.open_hit(self.view.window(), ranked[0], repo_root)
             return
+        _show_symbol_hit_picker(self.view.window(), ranked, repo_root)
 
-        def on_hits(hits, repo_root, _resolved):
-            if not hits:
-                ui.show_status('PairOfCleats: no indexed references found.')
-                return
-            _show_symbol_hit_picker(self.view.window(), hits, repo_root)
 
-        _execute_symbol_lookup(
-            self.view.window(),
-            query,
-            on_hits,
-            limit=50,
-            title='PairOfCleats find references',
-        )
+class PairOfCleatsFindReferencesCommand(_FileSymbolLookupMixin, sublime_plugin.TextCommand):
+    lookup_limit = 50
+    lookup_title = 'PairOfCleats find references'
+
+    def handle_symbol_hits(self, _query, hits, repo_root, _resolved):
+        if not hits:
+            ui.show_status('PairOfCleats: no indexed references found.')
+            return
+        _show_symbol_hit_picker(self.view.window(), hits, repo_root)
 
 
 class PairOfCleatsCompleteSymbolCommand(sublime_plugin.TextCommand):
@@ -809,7 +782,7 @@ class PairOfCleatsCompleteSymbolCommand(sublime_plugin.TextCommand):
         return bool(self.view)
 
     def run(self, edit):
-        query = _extract_symbol(self.view)
+        query = views.extract_symbol(self.view)
         if not query:
             ui.show_status('PairOfCleats: no symbol prefix under cursor.')
             return

@@ -5,6 +5,14 @@ import { parseFederatedCliRequest } from '../../federation/args.js';
 import { stableStringify } from '../../../shared/stable-json.js';
 import { formatHumanError, inferJsonOutputFromArgs } from '../runner.js';
 
+const emitInvalidRequestOutput = ({ jsonOutput, message }) => {
+  if (jsonOutput) {
+    console.log(JSON.stringify({ ok: false, code: ERROR_CODES.INVALID_REQUEST, message }));
+  } else {
+    console.error(formatHumanError(message, ERROR_CODES.INVALID_REQUEST));
+  }
+};
+
 /**
  * Parse CLI args and preserve legacy parse-error emission behavior.
  *
@@ -32,11 +40,7 @@ export const parseCliArgsOrThrow = ({
       : 'Invalid arguments.';
 
     if (emitOutput) {
-      if (jsonOutput) {
-        console.log(JSON.stringify({ ok: false, code: ERROR_CODES.INVALID_REQUEST, message }));
-      } else {
-        console.error(formatHumanError(message, ERROR_CODES.INVALID_REQUEST));
-      }
+      emitInvalidRequestOutput({ jsonOutput, message });
     }
 
     if (exitOnError) process.exit(1);
@@ -83,11 +87,7 @@ export const emitMissingQueryAndThrow = ({
   recordSearchMetrics('error');
   const message = getSearchUsage();
   if (emitOutput) {
-    if (jsonOutput) {
-      console.log(JSON.stringify({ ok: false, code: ERROR_CODES.INVALID_REQUEST, message }));
-    } else {
-      console.error(formatHumanError(message, ERROR_CODES.INVALID_REQUEST));
-    }
+    emitInvalidRequestOutput({ jsonOutput, message });
   }
   if (exitOnError) process.exit(1);
   const error = createError(ERROR_CODES.INVALID_REQUEST, message);

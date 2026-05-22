@@ -1,20 +1,14 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
-import path from 'node:path';
 import { createRequire } from 'node:module';
-import {
-  loadJsonArrayArtifactRows,
-  loadPiecesManifest,
-  normalizeMetaParts,
-  readJsonFile
-} from '../../../src/shared/artifact-io.js';
 import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
 import { normalizeHnswConfig } from '../../../src/shared/hnsw.js';
-import { getEnvConfig } from '../../../src/shared/env.js';
-import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
-import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess.js';
+import { getEnvConfig } from '../../../src/shared/env/runtime.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
+import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess/runner.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { createTempPath, replaceFile } from './atomic.js';
+import { resolveVectorsSource } from './vector-source.js';
 
 const TRACE_ARTIFACT_IO = getEnvConfig().traceArtifactIo === true;
 
@@ -31,148 +25,6 @@ const loadHnswLib = () => {
     hnswLoadError = err;
   }
   return { lib: hnswLib, error: hnswLoadError };
-};
-
-const toCanonicalArtifactBase = (base) => {
-  if (!base || typeof base !== 'string') return '';
-  if (base.endsWith('_uint8')) return base.slice(0, -('_uint8'.length));
-  if (base.endsWith('_f32')) return base.slice(0, -('_f32'.length));
-  if (base.endsWith('_float32')) return base.slice(0, -('_float32'.length));
-  if (base.endsWith('_fp32')) return base.slice(0, -('_fp32'.length));
-  return base;
-};
-
-const resolveArtifactBaseCandidates = (base) => {
-  const candidates = [];
-  const add = (value) => {
-    if (!value || candidates.includes(value)) return;
-    candidates.push(value);
-  };
-  add(base);
-  add(toCanonicalArtifactBase(base));
-  return candidates;
-};
-
-const resolveManifestAliasNames = (artifactBase) => {
-  const aliases = [];
-  const add = (value) => {
-    if (!value || aliases.includes(value)) return;
-    aliases.push(value);
-  };
-  const canonical = toCanonicalArtifactBase(artifactBase);
-  add(artifactBase);
-  add(canonical);
-  add(`${canonical}_binary`);
-  add(`${canonical}_binary_meta`);
-  return aliases;
-};
-
-/**
- * Build a minimal in-memory manifest for one sharded dense-vector artifact.
- *
- * HNSW isolate workers may only receive a base artifact hint (`dense_vectors_*`)
- * that is absent from global `pieces/manifest.json`. This synthetic manifest
- * allows shared artifact loaders to stream shard rows directly from sharded
- * metadata without falling back to monolithic JSON.
- *
- * @param {string} artifactBase
- * @param {object|null} meta
- * @returns {object|null}
- */
-const buildShardOnlyManifest = (artifactBase, meta) => {
-  const parts = normalizeMetaParts(meta?.parts)
-    .map((entry) => (typeof entry === 'string' ? entry.replace(/\\/g, '/') : ''))
-    .filter(Boolean);
-  if (!parts.length) return null;
-  return {
-    pieces: parts.map((partPath) => ({
-      name: artifactBase,
-      path: partPath,
-      format: 'jsonl'
-    }))
-  };
-};
-
-const resolveShardCount = (meta) => {
-  const totalRecords = Number(meta?.totalRecords);
-  if (Number.isFinite(totalRecords) && totalRecords >= 0) {
-    return Math.max(0, Math.floor(totalRecords));
-  }
-  const count = Number(meta?.count);
-  if (Number.isFinite(count) && count >= 0) {
-    return Math.max(0, Math.floor(count));
-  }
-  return 0;
-};
-
-const resolveVectorsSource = (vectorsPath) => {
-  if (!vectorsPath) return null;
-  const dir = path.dirname(vectorsPath);
-  const base = path.basename(vectorsPath, path.extname(vectorsPath));
-  const ext = path.extname(vectorsPath) || '.json';
-  const baseCandidates = resolveArtifactBaseCandidates(base);
-  let manifest = null;
-  try {
-    manifest = loadPiecesManifest(dir, {
-      maxBytes: Number.POSITIVE_INFINITY,
-      strict: false
-    });
-  } catch {
-    manifest = null;
-  }
-  const manifestNames = new Set(
-    Array.isArray(manifest?.pieces)
-      ? manifest.pieces
-        .map((piece) => (piece && typeof piece.name === 'string' ? piece.name : null))
-        .filter(Boolean)
-      : []
-  );
-  for (const artifactBase of baseCandidates) {
-    if (manifestNames.size) {
-      const aliases = resolveManifestAliasNames(artifactBase);
-      const declared = aliases.some((name) => manifestNames.has(name));
-      if (!declared) continue;
-    }
-    const metaPath = path.join(dir, `${artifactBase}.meta.json`);
-    const hasShardedMeta = fsSync.existsSync(metaPath) || fsSync.existsSync(`${metaPath}.bak`);
-    if (!hasShardedMeta) continue;
-    try {
-      const meta = readJsonFile(metaPath, { maxBytes: Number.POSITIVE_INFINITY });
-      const count = resolveShardCount(meta);
-      const shardManifest = buildShardOnlyManifest(artifactBase, meta);
-      if (!shardManifest) continue;
-      return {
-        count,
-        vectors: null,
-        rows: loadJsonArrayArtifactRows(dir, artifactBase, {
-          maxBytes: Number.POSITIVE_INFINITY,
-          manifest: shardManifest,
-          strict: false,
-          materialize: true
-        })
-      };
-    } catch {}
-  }
-  for (const artifactBase of baseCandidates) {
-    const candidatePath = path.join(dir, `${artifactBase}${ext}`);
-    try {
-      const data = readJsonFile(candidatePath, { maxBytes: Number.POSITIVE_INFINITY });
-      const vectors = Array.isArray(data?.arrays?.vectors)
-        ? data.arrays.vectors
-        : (Array.isArray(data?.vectors) ? data.vectors : null);
-      if (!Array.isArray(vectors) || !vectors.length) continue;
-      return { count: vectors.length, vectors, rows: null };
-    } catch {}
-  }
-  try {
-    const data = readJsonFile(vectorsPath, { maxBytes: Number.POSITIVE_INFINITY });
-    const vectors = Array.isArray(data?.arrays?.vectors)
-      ? data.arrays.vectors
-      : (Array.isArray(data?.vectors) ? data.vectors : null);
-    if (!Array.isArray(vectors) || !vectors.length) return null;
-    return { count: vectors.length, vectors, rows: null };
-  } catch {}
-  return null;
 };
 
 export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }) => {
@@ -343,7 +195,11 @@ const writeHnswIndexInProcess = async ({
 }) => {
   const vectorsSource = Array.isArray(vectors) && vectors.length
     ? { count: vectors.length, vectors, rows: null }
-    : resolveVectorsSource(vectorsPath);
+    : resolveVectorsSource(vectorsPath, {
+      includeCanonicalBase: true,
+      requireManifestDeclaration: true,
+      tryCandidateJson: true
+    });
   if (!vectorsSource || !Number.isFinite(vectorsSource.count) || vectorsSource.count <= 0) {
     return { skipped: true, reason: 'empty' };
   }

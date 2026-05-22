@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { pipeline, env } from '@xenova/transformers';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
-import { isAbsolutePathNative } from '../../src/shared/files.js';
+import { isAbsolutePathNative } from '../../src/shared/file-paths.js';
 import { DEFAULT_MODEL_ID, getModelConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({

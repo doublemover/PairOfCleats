@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { loadFileMetaRows, loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
-import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
+import { loadFileMetaRows, loadJsonArrayArtifact } from '../../../src/shared/artifact-io/loaders.js';
+import { writeJsonLinesFile } from '../../../src/shared/json-stream/jsonl-write.js';
 
 const parseArgs = (argv) => {
   const args = { rows: 50000, indexDir: null };

@@ -2,11 +2,15 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveToolRoot } from '../shared/dict-utils.js';
-import { toPosix } from '../../src/shared/files.js';
+import { toPosix } from '../../src/shared/file-paths.js';
 import * as sharedCliOptions from '../../src/shared/cli-options.js';
-import { collectSchemaEntries, getLeafEntries, mergeEntry } from './inventory/schema.js';
+import { collectSchemaDefaults, collectSchemaEntries, getLeafEntries, mergeEntry } from './inventory/schema.js';
 import { listSourceFiles, scanSourceFiles } from './inventory/scan.js';
 import { buildInventoryReportMarkdown } from './inventory/report.js';
+import {
+  writeStableGeneratedJsonReport,
+  writeTextIfChanged
+} from '../shared/generated-report.js';
 
 const defaultRoot = resolveToolRoot();
 const defaultSchemaPath = path.join(defaultRoot, 'docs', 'config', 'schema.json');
@@ -17,37 +21,81 @@ const PUBLIC_CONFIG_KEYS = new Set(['cache.root', 'quality']);
 const PUBLIC_ENV_VARS = new Set(['PAIROFCLEATS_API_TOKEN']);
 const PUBLIC_CLI_FLAGS = new Set([
   'all',
-  'repo',
-  'mode',
-  'quality',
-  'watch',
-  'top',
-  'json',
-  'explain',
-  'filter',
-  'backend',
   'allow-unauthenticated',
   'allowed-repo-roots',
   'auth-token',
+  'backend',
+  'category',
   'command',
   'concurrency',
   'config',
   'cors-allow-any',
   'cors-allowed-origins',
   'dry-run',
+  'explain',
+  'filter',
+  'flow-id',
+  'format',
+  'hops',
   'host',
+  'includeCallersCallees',
+  'includeDisabled',
+  'includeGraph',
+  'includeImports',
+  'includePaths',
+  'includeRisk',
+  'includeRiskPartialFlows',
+  'includeTypes',
+  'includeUsages',
   'interval',
   'job',
+  'json',
+  'languages',
   'lock',
   'max-body-bytes',
+  'maxBytes',
+  'maxCandidates',
+  'maxDepth',
+  'maxEdges',
+  'maxFanoutPerNode',
+  'maxFederatedRepos',
+  'maxNodes',
+  'maxPaths',
+  'maxTokens',
+  'maxTypeEntries',
+  'maxWallClockMs',
+  'maxWorkUnits',
+  'mode',
+  'no-fallback',
   'output',
   'port',
+  'quality',
   'queue',
   'quiet',
   'reason',
+  'repo',
+  'repo-filter',
+  'root',
+  'rule',
+  'scope',
+  'seed',
+  'select',
+  'severity',
   'shutdown-mode',
+  'sink',
+  'sink-rule',
+  'source',
+  'source-rule',
   'stage',
-  'timeout-ms'
+  'strictEvidence',
+  'strictRisk',
+  'tag',
+  'timeout-ms',
+  'tools',
+  'top',
+  'watch',
+  'workspace',
+  'workspaceId'
 ]);
 const KNOWN_CONFIG_KEYS = new Set([
   'cache.root',
@@ -84,8 +132,10 @@ const KNOWN_CONFIG_KEYS = new Set([
   'indexing.embeddings.onnx.interOpNumThreads',
   'indexing.embeddings.onnx.intraOpNumThreads',
   'indexing.embeddings.provider',
+  'indexing.fileCaps.byExt',
   'indexing.fileCaps.byExt.*.maxBytes',
   'indexing.fileCaps.byExt.*.maxLines',
+  'indexing.fileCaps.byLanguage',
   'indexing.fileCaps.byLanguage.*.maxBytes',
   'indexing.fileCaps.byLanguage.*.maxLines',
   'indexing.fileCaps.byMode.code.maxBytes',
@@ -103,6 +153,7 @@ const KNOWN_CONFIG_KEYS = new Set([
   'indexing.importConcurrency',
   'indexing.ioConcurrencyCap',
   'indexing.lexicon.enabled',
+  'indexing.lexicon.languageOverrides',
   'indexing.lexicon.languageOverrides.*.relations.drop.builtins',
   'indexing.lexicon.languageOverrides.*.relations.drop.keywords',
   'indexing.lexicon.languageOverrides.*.relations.drop.literals',
@@ -161,6 +212,7 @@ const KNOWN_CONFIG_KEYS = new Set([
   'indexing.scheduler.ioTokens',
   'indexing.scheduler.lowResourceMode',
   'indexing.scheduler.memoryTokens',
+  'indexing.scheduler.queues',
   'indexing.scheduler.queues.*.maxPending',
   'indexing.scheduler.queues.*.priority',
   'indexing.scheduler.starvationMs',
@@ -444,6 +496,7 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_TEST_BENCH_REPO_DELAY_MS',
   'PAIROFCLEATS_TEST_BENCH_SELF_INTERRUPT_AFTER_MS',
   'PAIROFCLEATS_TEST_MCP_DELAY_MS',
+  'PAIROFCLEATS_TEST_MCP_DELAY_TOOL_NAMES',
   'PAIROFCLEATS_TEST_MAX_JSON_BYTES',
   'PAIROFCLEATS_TEST_MAX_OLD_SPACE_MB',
   'PAIROFCLEATS_TEST_NODE_OPTIONS',
@@ -461,6 +514,7 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_SUBLIME_TEST_CLI',
   'PAIROFCLEATS_SUBLIME_TEST_FIXTURE_REPO',
   'PAIROFCLEATS_SUBLIME_TEST_NODE',
+  'PAIROFCLEATS_SUBLIME_PACKAGE_HARNESS_TRACE',
   'PAIROFCLEATS_THREADS',
   'PAIROFCLEATS_TUI_ALT_SCREEN',
   'PAIROFCLEATS_TUI_CAPTURE_FIXTURE',
@@ -489,7 +543,7 @@ const KNOWN_ENV_VARS = new Set([
 const BUDGETS = {
   configKeys: 2,
   envVars: 1,
-  cliFlags: 32
+  cliFlags: 71
 };
 const PUBLIC_FLAG_SOURCES = new Set([
   'bin/pairofcleats.js',
@@ -583,12 +637,6 @@ export const buildInventory = async (options = {}) => {
     entry.flags.forEach((flag) => publicFlagsDetected.add(flag));
   }
 
-  let existingInventory = null;
-  try {
-    const existingRaw = await fs.readFile(outputJsonPath, 'utf8');
-    existingInventory = JSON.parse(existingRaw);
-  } catch {}
-
   const knownConfigLeafKeys = [
     ...new Set([
       ...Array.from(KNOWN_CONFIG_KEYS),
@@ -680,47 +728,22 @@ export const buildInventory = async (options = {}) => {
     }
   };
 
-  let preservedGeneratedAt = nowIso;
-  if (existingInventory && typeof existingInventory.generatedAt === 'string') {
-    const candidate = { ...inventory, generatedAt: existingInventory.generatedAt };
-    if (JSON.stringify(candidate) === JSON.stringify(existingInventory)) {
-      preservedGeneratedAt = existingInventory.generatedAt;
-      inventory.generatedAt = preservedGeneratedAt;
-    }
-  }
-
-  const jsonOutput = JSON.stringify(inventory, null, 2);
-  const mdOutput = buildInventoryReportMarkdown(inventory);
+  const savedInventory = await writeStableGeneratedJsonReport(outputJsonPath, inventory);
+  const mdOutput = buildInventoryReportMarkdown(savedInventory);
   const applyLineEndings = (text, eol) => (
     typeof text === 'string' ? text.replace(/\r?\n/g, eol) : text
   );
-  let writeJson = true;
-  let writeMd = true;
-  if (existingInventory && typeof existingInventory.generatedAt === 'string') {
-    if (JSON.stringify(inventory) === JSON.stringify(existingInventory)) {
-      writeJson = false;
-    }
-  }
   let mdOutputFinal = mdOutput;
-  if (!writeJson) {
-    // Keep md in sync when json hasn't changed.
-    try {
-      const existingMd = await fs.readFile(outputMdPath, 'utf8');
-      const hasBom = existingMd.charCodeAt(0) === 0xfeff;
-      const eol = existingMd.includes('\r\n') ? '\r\n' : '\n';
-      mdOutputFinal = applyLineEndings(mdOutput, eol);
-      if (hasBom && !mdOutputFinal.startsWith('\ufeff')) {
-        mdOutputFinal = `\ufeff${mdOutputFinal}`;
-      }
-      if (existingMd === mdOutputFinal) writeMd = false;
-    } catch {}
-  }
-  if (writeJson) {
-    await fs.writeFile(outputJsonPath, jsonOutput);
-  }
-  if (writeMd) {
-    await fs.writeFile(outputMdPath, mdOutputFinal);
-  }
+  try {
+    const existingMd = await fs.readFile(outputMdPath, 'utf8');
+    const hasBom = existingMd.charCodeAt(0) === 0xfeff;
+    const eol = existingMd.includes('\r\n') ? '\r\n' : '\n';
+    mdOutputFinal = applyLineEndings(mdOutput, eol);
+    if (hasBom && !mdOutputFinal.startsWith('\ufeff')) {
+      mdOutputFinal = `\ufeff${mdOutputFinal}`;
+    }
+  } catch {}
+  await writeTextIfChanged(outputMdPath, mdOutputFinal, { encoding: 'utf8' });
 
   if (checkBudget) {
     const errors = [];
@@ -755,7 +778,7 @@ export const buildInventory = async (options = {}) => {
   }
 };
 
-export { collectSchemaEntries, getLeafEntries, mergeEntry };
+export { collectSchemaDefaults, collectSchemaEntries, getLeafEntries, mergeEntry };
 
 await buildInventory();
 

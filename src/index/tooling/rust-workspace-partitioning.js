@@ -2,16 +2,7 @@ import crypto from 'node:crypto';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { parse as parseToml } from 'smol-toml';
-import { findWorkspaceMarkersNearPaths } from './workspace-model.js';
-
-export const normalizeRustWorkspaceRootRel = (value) => {
-  const normalized = String(value || '.')
-    .replace(/\\/g, '/')
-    .replace(/^\/+/, '')
-    .replace(/\/+/g, '/')
-    .replace(/\/$/, '');
-  return normalized || '.';
-};
+import { findWorkspaceMarkersNearPaths, normalizeWorkspaceRootRel } from './workspace-model.js';
 
 export const isRustWorkspaceProviderId = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -33,7 +24,7 @@ const EXAMPLE_LIKE_SEGMENTS = new Set([
   'samples'
 ]);
 
-const normalizePathSegments = (value) => normalizeRustWorkspaceRootRel(value)
+const normalizePathSegments = (value) => normalizeWorkspaceRootRel(value)
   .split('/')
   .map((entry) => entry.trim().toLowerCase())
   .filter(Boolean);
@@ -80,7 +71,7 @@ const resolveAncestorWorkspaceRoot = (repoRoot, workspaceRoot) => {
       return {
         found: true,
         rootDir: parentDir,
-        rootRel: normalizeRustWorkspaceRootRel(path.relative(repoAbs, parentDir))
+        rootRel: normalizeWorkspaceRootRel(path.relative(repoAbs, parentDir))
       };
     }
     current = parentDir;
@@ -99,7 +90,7 @@ export const classifyRustWorkspaceManifest = ({
 } = {}) => {
   const resolvedRepoRoot = path.resolve(String(repoRoot || process.cwd()));
   const resolvedRootDir = path.resolve(String(rootDir || resolvedRepoRoot));
-  const resolvedRootRel = normalizeRustWorkspaceRootRel(rootRel);
+  const resolvedRootRel = normalizeWorkspaceRootRel(rootRel);
   const cargoTomlPath = path.join(resolvedRootDir, 'Cargo.toml');
   const cargoLockPath = path.join(resolvedRootDir, 'Cargo.lock');
   const manifest = readCargoToml(cargoTomlPath);
@@ -193,7 +184,7 @@ export const buildRustWorkspacePartitionFingerprint = ({
   const hash = crypto.createHash('sha1');
   hash.update(path.resolve(String(repoRoot || process.cwd())).toLowerCase());
   hash.update('|');
-  hash.update(normalizeRustWorkspaceRootRel(rootRel));
+  hash.update(normalizeWorkspaceRootRel(rootRel));
   hash.update('|');
   hash.update(String(markerName || 'Cargo.toml').trim().toLowerCase() || 'cargo.toml');
   hash.update('|');
@@ -240,13 +231,13 @@ export const buildSelectedRustWorkspacePartitions = (repoRoot, selectedRustPaths
       unmatchedPaths.push(String(selectedPath));
       continue;
     }
-    const selectedRootRel = normalizeRustWorkspaceRootRel(match.markerDirRel || '.');
+    const selectedRootRel = normalizeWorkspaceRootRel(match.markerDirRel || '.');
     if (partitionByRoot.has(selectedRootRel)) {
       partitionByRoot.get(selectedRootRel).selectedPaths.push(String(selectedPath));
       continue;
     }
     let rootDir = String(match.markerDirAbs || resolvedRepoRoot);
-    let rootRel = normalizeRustWorkspaceRootRel(match.markerDirRel || '.');
+    let rootRel = normalizeWorkspaceRootRel(match.markerDirRel || '.');
     let markerName = String(match.markerName || 'Cargo.toml').trim() || 'Cargo.toml';
     let classification = classifyRustWorkspaceManifest({
       repoRoot: resolvedRepoRoot,
@@ -271,7 +262,7 @@ export const buildSelectedRustWorkspacePartitions = (repoRoot, selectedRustPaths
       )
     ) {
       rootDir = String(classification.parentWorkspace.rootDir || rootDir);
-      rootRel = normalizeRustWorkspaceRootRel(classification.parentWorkspace.rootRel || rootRel);
+      rootRel = normalizeWorkspaceRootRel(classification.parentWorkspace.rootRel || rootRel);
       markerName = 'Cargo.toml';
       classification = classifyRustWorkspaceManifest({
         repoRoot: resolvedRepoRoot,

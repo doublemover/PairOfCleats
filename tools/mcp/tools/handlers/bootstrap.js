@@ -1,8 +1,6 @@
 import path from 'node:path';
-import { loadUserConfig } from '../../../shared/dict-utils.js';
-import { resolveRepoPath } from '../../repo.js';
 import { runToolWithProgress } from '../../runner.js';
-import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
+import { resolveMcpRepoContext, toolRoot } from '../helpers.js';
 
 /**
  * Handle the MCP bootstrap tool call.
@@ -10,8 +8,7 @@ import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
  * @returns {Promise<object>}
  */
 export async function runBootstrap(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const scriptArgs = [path.join(toolRoot, 'tools', 'setup', 'bootstrap.js'), '--repo', repoPath];
   if (args.skipInstall === true) scriptArgs.push('--skip-install');
   if (args.skipDicts === true) scriptArgs.push('--skip-dicts');

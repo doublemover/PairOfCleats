@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getMetricsDir, loadUserConfig } from '../../shared/dict-utils.js';
+import { readFileStamp, toCachePathKey } from './cache-identity.js';
 
 const NON_REPO_RESULTS_FOLDERS = new Set(['logs', 'usr']);
 
@@ -49,24 +50,6 @@ const loadFeatureMetrics = (repoRoot) => {
     return loadJson(runPath) || loadJson(mergedPath);
   } catch {
     return null;
-  }
-};
-
-const toCachePathKey = (value) => {
-  if (typeof value !== 'string' || !value.trim()) return '';
-  try {
-    return path.resolve(value).replace(/[\\/]+/g, '/');
-  } catch {
-    return value.replace(/[\\/]+/g, '/');
-  }
-};
-
-const readFileStamp = (filePath) => {
-  try {
-    const stat = fs.statSync(filePath);
-    return `${Math.floor(stat.mtimeMs)}:${Math.floor(stat.size)}`;
-  } catch {
-    return 'missing';
   }
 };
 

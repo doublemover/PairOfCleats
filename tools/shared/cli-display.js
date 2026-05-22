@@ -19,6 +19,37 @@ export function createToolDisplay({ argv, stream = process.stderr, progressMode,
   });
 }
 
+export function createDisplayLoggerAdapter(display) {
+  return {
+    log(message, meta = null) {
+      if (meta && typeof meta === 'object' && meta.kind === 'status') {
+        display?.logLine?.(message, meta);
+        return;
+      }
+      display?.log?.(message, meta);
+    },
+    warn(message, meta = null) {
+      display?.warn?.(message, meta);
+    },
+    error(message, meta = null) {
+      display?.error?.(message, meta);
+    }
+  };
+}
+
+/**
+ * Create a common CLI display and logger adapter for tool internals.
+ * @param {Parameters<typeof createToolDisplay>[0]} options
+ * @returns {{ display: ReturnType<typeof createToolDisplay>, logger: { log: Function, warn: Function, error: Function } }}
+ */
+export function createToolDisplayLogger(options = {}) {
+  const display = createToolDisplay(options);
+  return {
+    display,
+    logger: createDisplayLoggerAdapter(display)
+  };
+}
+
 /**
  * Create a task factory that falls back to no-op tasks.
  * @param {object|null} display

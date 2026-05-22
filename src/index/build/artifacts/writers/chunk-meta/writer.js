@@ -1,26 +1,22 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { log } from '../../../../../shared/progress.js';
+import { log } from '../../../../../shared/progress-runtime.js';
 import {
   CHUNK_META_PART_PREFIX,
   CHUNK_META_PARTS_DIR,
-  expandMetaPartPaths,
-  MAX_JSON_BYTES
-} from '../../../../../shared/artifact-io.js';
+  expandMetaPartPaths
+} from '../../../../../shared/artifact-io/manifest.js';
+import { MAX_JSON_BYTES } from '../../../../../shared/artifact-io/constants.js';
 import { writeBinaryRowFrames } from '../../../../../shared/artifact-io/binary-columnar.js';
 import { ensureDiskSpace, formatBytes } from '../../../../../shared/disk-space.js';
 import {
   extractChunkMetaColdFields,
   stripChunkMetaColdFields
 } from '../../../../../shared/chunk-meta-cold.js';
-import {
-  replaceFile,
-  writeJsonArrayFile,
-  writeJsonLinesFileAsync,
-  writeJsonLinesSharded,
-  writeJsonLinesShardedAsync,
-  writeJsonObjectFile
-} from '../../../../../shared/json-stream.js';
+import { replaceFile } from '../../../../../shared/json-stream/atomic.js';
+import { writeJsonLinesFileAsync } from '../../../../../shared/json-stream/jsonl-write.js';
+import { writeJsonLinesSharded, writeJsonLinesShardedAsync } from '../../../../../shared/json-stream/jsonl-sharded.js';
+import { writeJsonArrayFile, writeJsonObjectFile } from '../../../../../shared/json-stream/json-writers.js';
 import { isTestingEnv } from '../../../../../shared/env/testing.js';
 import { mergeSortedRuns } from '../../../../../shared/merge.js';
 import {

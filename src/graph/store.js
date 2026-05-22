@@ -1,6 +1,7 @@
 import { MAX_JSON_BYTES } from '../shared/artifact-io/constants.js';
 import { loadPiecesManifest, resolveArtifactPresence } from '../shared/artifact-io/manifest.js';
-import { loadGraphRelations, loadGraphRelationsCsr, loadJsonArrayArtifactRows } from '../shared/artifact-io/loaders.js';
+import { loadJsonArrayArtifactRows } from '../shared/artifact-io/loaders/core.js';
+import { loadGraphRelations, loadGraphRelationsCsr } from '../shared/artifact-io/loaders/graph.js';
 import {
   buildCallSiteIndex,
   buildAdjacencyIndex,

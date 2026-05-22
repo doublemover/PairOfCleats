@@ -1,18 +1,13 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { SERVICE_INDEXER_OPTIONS } from '../../src/shared/cli-options.js';
-import { getEnvConfig } from '../../src/shared/env.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { normalizeObservability } from '../../src/shared/observability.js';
-import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import {
   resolveRepoRootArg,
   getCacheRoot,
-  getRuntimeConfig,
-  loadUserConfig,
-  resolveRepoConfigPath,
-  resolveRuntimeEnv,
   resolveToolRoot
 } from '../shared/dict-utils.js';
 import { exitLikeCommandResult } from '../shared/cli-utils.js';
@@ -65,6 +60,10 @@ import {
   resumeServiceShutdown,
   updateServiceShutdownWorker
 } from './shutdown-state.js';
+import {
+  createServiceRuntimeEnvResolver,
+  logThreadpoolInfo
+} from './indexer-service-helpers.js';
 
 const argv = createCli({
   scriptName: 'indexer-service',
@@ -165,61 +164,7 @@ const shutdownTimeoutMs = Number.isFinite(Number(workerConfig.shutdownTimeoutMs)
   ? Math.max(250, Math.trunc(Number(workerConfig.shutdownTimeoutMs)))
   : 10000;
 const isDryRun = argv['dry-run'] === true;
-const runtimeConfigCache = new Map();
-const RUNTIME_CONFIG_REVALIDATE_MS = 1000;
-const RUNTIME_CONFIG_CACHE_MAX_ENTRIES = 128;
-
-/**
- * Normalize repo cache keys to avoid duplicate cache entries for equivalent
- * paths (for example mixed-case Windows drive paths).
- *
- * @param {string} repoPath
- * @returns {string}
- */
-const normalizeRuntimeConfigCacheKey = (repoPath) => {
-  const resolved = path.resolve(repoPath || process.cwd());
-  return process.platform === 'win32'
-    ? resolved.toLowerCase()
-    : resolved;
-};
-
-/**
- * Insert/update one runtime config cache entry and enforce bounded LRU size.
- *
- * @param {string} cacheKey
- * @param {object} entry
- * @returns {void}
- */
-const setRuntimeConfigCacheEntry = (cacheKey, entry) => {
-  if (runtimeConfigCache.has(cacheKey)) {
-    runtimeConfigCache.delete(cacheKey);
-  }
-  runtimeConfigCache.set(cacheKey, entry);
-  while (runtimeConfigCache.size > RUNTIME_CONFIG_CACHE_MAX_ENTRIES) {
-    const oldestKey = runtimeConfigCache.keys().next().value;
-    if (oldestKey == null) break;
-    runtimeConfigCache.delete(oldestKey);
-  }
-};
-
-/**
- * Read repo config modification time for runtime-config cache invalidation.
- *
- * @param {string} repoPath
- * @returns {{configPath:string,mtimeMs:number|null}}
- */
-const readRepoConfigMtime = (repoPath) => {
-  const configPath = resolveRepoConfigPath(repoPath, null);
-  try {
-    const stat = fs.statSync(configPath);
-    return {
-      configPath,
-      mtimeMs: Number.isFinite(stat?.mtimeMs) ? stat.mtimeMs : null
-    };
-  } catch {
-    return { configPath, mtimeMs: null };
-  }
-};
+const { resolveRepoRuntimeEnv } = createServiceRuntimeEnvResolver();
 
 /**
  * Resolve repo registry entry from CLI repo argument.
@@ -272,90 +217,6 @@ const exitWithCommandError = (message, { code = 1, payload = {} } = {}) => {
   }
   process.exit(code);
 };
-
-/**
- * Cache runtime config by resolved repo root to avoid repeated config parsing.
- *
- * @param {string} repoPath
- * @returns {object}
- */
-const getCachedRuntimeConfig = (repoPath) => {
-  const resolvedRepoPath = path.resolve(repoPath || process.cwd());
-  const cacheKey = normalizeRuntimeConfigCacheKey(resolvedRepoPath);
-  const cached = runtimeConfigCache.get(cacheKey);
-  const now = Date.now();
-  if (
-    cached?.runtimeConfig
-    && Number.isFinite(Number(cached.lastConfigCheckAtMs))
-    && (now - Number(cached.lastConfigCheckAtMs)) < RUNTIME_CONFIG_REVALIDATE_MS
-  ) {
-    setRuntimeConfigCacheEntry(cacheKey, { ...cached, lastConfigCheckAtMs: now });
-    return cached.runtimeConfig;
-  }
-  const { configPath, mtimeMs } = readRepoConfigMtime(resolvedRepoPath);
-  if (
-    cached
-    && cached.configPath === configPath
-    && cached.mtimeMs === mtimeMs
-    && cached.runtimeConfig
-  ) {
-    setRuntimeConfigCacheEntry(cacheKey, {
-      ...cached,
-      lastConfigCheckAtMs: now
-    });
-    return cached.runtimeConfig;
-  }
-  const userConfig = loadUserConfig(resolvedRepoPath);
-  const runtimeConfig = getRuntimeConfig(resolvedRepoPath, userConfig);
-  setRuntimeConfigCacheEntry(cacheKey, {
-    runtimeConfig,
-    configPath,
-    mtimeMs,
-    lastConfigCheckAtMs: now
-  });
-  return runtimeConfig;
-};
-
-/**
- * Resolve child-process runtime env for a repo with optional env overrides.
- *
- * @param {string} repoPath
- * @param {Record<string, string>} [extraEnv={}]
- * @returns {Record<string, string>}
- */
-const resolveRepoRuntimeEnv = (repoPath, extraEnv = {}) => {
-  const runtimeConfig = getCachedRuntimeConfig(repoPath);
-  const envCandidate = extraEnv && typeof extraEnv === 'object'
-    ? { ...process.env, ...extraEnv }
-    : process.env;
-  return resolveRuntimeEnv(runtimeConfig, envCandidate);
-};
-
-/**
- * Emit effective UV threadpool configuration diagnostics for service startup.
- *
- * @param {string|null} repoRoot
- * @param {string} [label='indexer']
- * @returns {void}
- */
-function logThreadpoolInfo(repoRoot, label = 'indexer') {
-  const runtimeConfig = repoRoot ? getRuntimeConfig(repoRoot) : { uvThreadpoolSize: null };
-  const effectiveUvRaw = Number(process.env.UV_THREADPOOL_SIZE);
-  const effectiveUvThreadpoolSize = Number.isFinite(effectiveUvRaw) && effectiveUvRaw > 0
-    ? Math.floor(effectiveUvRaw)
-    : null;
-  if (effectiveUvThreadpoolSize) {
-    if (runtimeConfig.uvThreadpoolSize && runtimeConfig.uvThreadpoolSize !== effectiveUvThreadpoolSize) {
-      console.error(`[${label}] UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize} (env overrides runtime.uvThreadpoolSize=${runtimeConfig.uvThreadpoolSize})`);
-    } else if (runtimeConfig.uvThreadpoolSize) {
-      console.error(`[${label}] UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize} (runtime.uvThreadpoolSize=${runtimeConfig.uvThreadpoolSize})`);
-    } else {
-      console.error(`[${label}] UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize} (env)`);
-    }
-  } else if (runtimeConfig.uvThreadpoolSize) {
-    console.error(`[${label}] UV_THREADPOOL_SIZE=default (runtime.uvThreadpoolSize=${runtimeConfig.uvThreadpoolSize} not applied; start via pairofcleats CLI or set UV_THREADPOOL_SIZE before launch)`);
-  }
-}
 
 /**
  * Synchronize configured repos according to service sync policy.

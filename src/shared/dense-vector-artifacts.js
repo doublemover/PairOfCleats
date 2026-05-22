@@ -1,8 +1,6 @@
 import path from 'node:path';
-import {
-  writeJsonLinesSharded,
-  writeJsonObjectFile
-} from './json-stream.js';
+import { writeJsonLinesSharded } from './json-stream/jsonl-sharded.js';
+import { writeJsonObjectFile } from './json-stream/json-writers.js';
 export {
   DENSE_VECTOR_BINARY_ARTIFACTS,
   loadDenseVectorBinaryFromMetaAsync,

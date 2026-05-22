@@ -56,3 +56,77 @@ export const resolveCallLocation = (node) => {
     endCol
   };
 };
+
+export const resolveAstMemberName = (node, options = {}) => {
+  if (!node) return null;
+  if (node.type === 'Identifier') return node.name;
+  if (node.type === 'PrivateName' && node.id?.name) return `#${node.id.name}`;
+  if (node.type === 'ThisExpression') return 'this';
+  if (node.type === 'Super') return 'super';
+  if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
+    const obj = resolveAstMemberName(node.object, options);
+    const prop = node.computed
+      ? (node.property?.type === 'StringLiteral' || node.property?.type === 'Literal'
+        ? String(node.property.value)
+        : null)
+      : (node.property?.name || node.property?.id?.name || null);
+    if (obj && prop) return `${obj}.${prop}`;
+    return obj || prop;
+  }
+  if (options.includeTsQualifiedName && node.type === 'TSQualifiedName') {
+    const left = resolveAstMemberName(node.left, options);
+    const right = resolveAstMemberName(node.right, options);
+    if (left && right) return `${left}.${right}`;
+    return left || right;
+  }
+  return null;
+};
+
+export const formatJsTsCallArg = (arg, options = {}) => {
+  const depth = Number.isFinite(options.depth) ? options.depth : 0;
+  const maxDepth = Number.isFinite(options.maxDepth) ? options.maxDepth : 2;
+  if (!arg || depth > maxDepth) return '...';
+  if (arg.type === 'Identifier') return arg.name;
+  if (arg.type === 'Literal') return JSON.stringify(arg.value);
+  if (arg.type === 'StringLiteral' || arg.type === 'NumericLiteral' || arg.type === 'BooleanLiteral') {
+    return JSON.stringify(arg.value);
+  }
+  if (arg.type === 'MemberExpression' || arg.type === 'OptionalMemberExpression') {
+    const memberName = options.getMemberName || ((node) => resolveAstMemberName(node, options));
+    return memberName(arg) || 'member';
+  }
+  if (arg.type === 'CallExpression' || arg.type === 'OptionalCallExpression') {
+    const callee = typeof options.getCalleeName === 'function' ? options.getCalleeName(arg.callee) : null;
+    return callee ? `${callee}(...)` : 'call(...)';
+  }
+  if (arg.type === 'ArrowFunctionExpression' || arg.type === 'FunctionExpression') return 'fn(...)';
+  if (arg.type === 'ObjectExpression') return '{...}';
+  if (arg.type === 'ArrayExpression') return '[...]';
+  if (arg.type === 'TemplateLiteral') return '`...`';
+  if (arg.type === 'SpreadElement') {
+    const inner = formatJsTsCallArg(arg.argument, { ...options, depth: depth + 1 });
+    return inner ? `...${inner}` : '...';
+  }
+  return '...';
+};
+
+export const buildCallDetail = ({ callerName, calleeName, args, location }) => {
+  const calleeParts = resolveCalleeParts(calleeName);
+  const detail = {
+    caller: callerName,
+    callee: calleeName,
+    calleeRaw: calleeParts.calleeRaw || calleeName,
+    calleeNormalized: calleeParts.calleeNormalized || calleeName,
+    receiver: calleeParts.receiver || null,
+    args
+  };
+  if (location) {
+    detail.start = location.start;
+    detail.end = location.end;
+    detail.startLine = location.startLine;
+    detail.startCol = location.startCol;
+    detail.endLine = location.endLine;
+    detail.endCol = location.endCol;
+  }
+  return detail;
+};

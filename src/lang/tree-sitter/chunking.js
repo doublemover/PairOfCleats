@@ -1,4 +1,4 @@
-import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
+import { buildLineIndex, countLines, createLineAccessor, offsetToLine } from '../../shared/lines.js';
 import { extractDocComment, sliceSignature } from '../shared.js';
 import {
   COMMON_NAME_NODE_TYPES,
@@ -9,6 +9,7 @@ import {
 import { LANG_CONFIG, LANGUAGE_GRAMMAR_KEYS } from './config.js';
 import { isTreeSitterEnabled } from './options.js';
 import { getNativeTreeSitterParser, loadNativeTreeSitterGrammar } from './native-runtime.js';
+import { resolveTreeSitterLanguageForExt } from './language-id.js';
 import { treeSitterState } from './state.js';
 import { getTreeSitterWorkerPool, sanitizeTreeSitterOptions } from './worker.js';
 import { recordNodeDensity, resolveTraversalBudget } from './chunking/budget.js';
@@ -125,43 +126,6 @@ const getTreeSitterChunkQuery = (languageId, config, options) => {
     }
     return null;
   }
-};
-
-/**
- * Count newline-delimited lines without splitting the whole string.
- * @param {string} text
- * @returns {number}
- */
-function countLines(text) {
-  if (!text) return 0;
-  let count = 1;
-  for (let i = 0; i < text.length; i += 1) {
-    if (text.charCodeAt(i) === 10) count += 1;
-  }
-  return count;
-}
-
-/**
- * Build line accessor backed by a line-start index.
- * @param {string} text
- * @param {number[]|null} lineIndex
- * @returns {{length:number,getLine:(idx:number)=>string}}
- */
-const createLineAccessor = (text, lineIndex) => {
-  const index = Array.isArray(lineIndex) ? lineIndex : buildLineIndex(text);
-  const lineCount = index.length;
-  return {
-    length: lineCount,
-    getLine: (idx) => {
-      if (!Number.isFinite(idx) || idx < 0 || idx >= lineCount) return '';
-      const start = index[idx] ?? 0;
-      const end = index[idx + 1] ?? text.length;
-      let line = text.slice(start, end);
-      if (line.endsWith('\n')) line = line.slice(0, -1);
-      if (line.endsWith('\r')) line = line.slice(0, -1);
-      return line;
-    }
-  };
 };
 
 /**
@@ -555,35 +519,6 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
 }
 
 /**
- * Resolve canonical parser language id from file extension and optional hint.
- * @param {string|null} languageId
- * @param {string|null} ext
- * @returns {string|null}
- */
-function resolveLanguageForExt(languageId, ext) {
-  const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
-  if (normalizedExt === '.tsx') return 'tsx';
-  if (normalizedExt === '.jsx') return 'jsx';
-  if (normalizedExt === '.ts' || normalizedExt === '.cts' || normalizedExt === '.mts') return 'typescript';
-  if (normalizedExt === '.js' || normalizedExt === '.mjs' || normalizedExt === '.cjs' || normalizedExt === '.jsm') {
-    return 'javascript';
-  }
-  if (normalizedExt === '.py') return 'python';
-  if (normalizedExt === '.json') return 'json';
-  if (normalizedExt === '.yaml' || normalizedExt === '.yml') return 'yaml';
-  if (normalizedExt === '.toml') return 'toml';
-  if (normalizedExt === '.xml') return 'xml';
-  if (normalizedExt === '.md' || normalizedExt === '.mdx') return 'markdown';
-  if (languageId) return languageId;
-  if (!normalizedExt) return null;
-  if (normalizedExt === '.m' || normalizedExt === '.mm') return 'objc';
-  if (normalizedExt === '.cpp' || normalizedExt === '.cc' || normalizedExt === '.cxx'
-    || normalizedExt === '.hpp' || normalizedExt === '.hh') return 'cpp';
-  if (normalizedExt === '.c' || normalizedExt === '.h') return 'clike';
-  return null;
-}
-
-/**
  * Build chunks with tree-sitter parsing in the main thread.
  *
  * Strict-mode behavior differs from default fallback behavior: when parsing is
@@ -595,7 +530,7 @@ function resolveLanguageForExt(languageId, ext) {
  * @returns {Array<object>|null}
  */
 export function buildTreeSitterChunks({ text, languageId, ext, options }) {
-  const resolvedId = resolveLanguageForExt(languageId, ext);
+  const resolvedId = resolveTreeSitterLanguageForExt(languageId, ext);
   if (!resolvedId) return null;
   if (!isTreeSitterEnabled(options, resolvedId)) return null;
   const strict = options?.treeSitter?.strict === true;
@@ -935,7 +870,7 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
     return buildTreeSitterChunks({ text, languageId, ext, options });
   }
 
-  const resolvedId = resolveLanguageForExt(languageId, ext);
+  const resolvedId = resolveTreeSitterLanguageForExt(languageId, ext);
   if (!resolvedId) return null;
 
   // Avoid spinning up / dispatching to workers when we already know we will skip tree-sitter.

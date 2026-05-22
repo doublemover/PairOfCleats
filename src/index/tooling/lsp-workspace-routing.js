@@ -10,20 +10,11 @@ import {
   isRustWorkspaceProviderId,
   resolveRustWorkspacePartitionRole
 } from './rust-workspace-partitioning.js';
-import { findWorkspaceMarkersNearPaths } from './workspace-model.js';
+import { findWorkspaceMarkersNearPaths, normalizeWorkspaceRootRel } from './workspace-model.js';
 
 const normalizePolicy = (value) => (
   String(value || '').trim().toLowerCase() === 'block' ? 'block' : 'warn'
 );
-
-const normalizeRelPath = (value) => {
-  const normalized = String(value || '.')
-    .replace(/\\/g, '/')
-    .replace(/^\/+/, '')
-    .replace(/\/+/g, '/')
-    .replace(/\/$/, '');
-  return normalized || '.';
-};
 
 const scanWorkspaceMarkerRoots = (repoRoot, markerOptions) => {
   const rootAbs = String(repoRoot || process.cwd());
@@ -117,7 +108,7 @@ export const formatLspWorkspacePartitionLogLine = ({
   if (!routing) return '';
   const partitions = Array.isArray(routing.partitions) ? routing.partitions : [];
   const primaryPartition = partitions.length === 1
-    ? normalizeRelPath(partitions[0]?.rootRel || '.')
+    ? normalizeWorkspaceRootRel(partitions[0]?.rootRel || '.')
     : (partitions.length > 1 ? 'multiple' : 'none');
   return '[tooling] workspace:partition '
     + `provider=${String(providerId || '').trim() || 'lsp'} `
@@ -211,7 +202,7 @@ export const resolveLspWorkspaceRouting = ({
       partitionByKey.get(fallbackKey).documents.push(doc);
       continue;
     }
-    const rootRel = normalizeRelPath(match.markerDirRel || '.');
+    const rootRel = normalizeWorkspaceRootRel(match.markerDirRel || '.');
     const partitionKey = rootRel;
     partitionKeyByVirtualPath.set(virtualPath, partitionKey);
     if (!partitionByKey.has(partitionKey)) {
@@ -256,7 +247,7 @@ export const resolveLspWorkspaceRouting = ({
     const uniqueRoots = scanWorkspaceMarkerRoots(normalizedRepoRoot, markerOptions);
     if (uniqueRoots.length === 1 && docs.length && targetList.length) {
       const match = uniqueRoots[0];
-      const rootRel = normalizeRelPath(match.markerDirRel || '.');
+      const rootRel = normalizeWorkspaceRootRel(match.markerDirRel || '.');
       const fallbackPartition = buildPartitionEntry({
         partitionKey: rootRel,
         rootRel,

@@ -2,8 +2,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { getEffectiveConfigHash, getMetricsDir, getToolVersion } from '../../../shared/dict-utils.js';
-import { writeJsonObjectFile } from '../../../shared/json-stream.js';
-import { logLine } from '../../../shared/progress.js';
+import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
+import { logLine } from '../../../shared/progress-runtime.js';
 
 export const writeIndexMetrics = async ({
   root,

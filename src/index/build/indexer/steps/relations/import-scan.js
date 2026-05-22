@@ -1,4 +1,4 @@
-import { log, logLine } from '../../../../../shared/progress.js';
+import { log, logLine } from '../../../../../shared/progress-runtime.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import {
   enrichUnresolvedImportSamples,
@@ -17,6 +17,7 @@ import {
   summarizeGateEligibleImportWarnings
 } from '../../../import-resolution.js';
 import { buildWarningSortKey } from '../../../import-resolution/graph.js';
+import { toSortedCountObject } from '../../../import-resolution/counts.js';
 import {
   applyImportResolutionCacheFileSetDiffInvalidation,
   loadImportResolutionCache,
@@ -28,14 +29,6 @@ import { resolveHangProbeConfig, runWithHangProbe } from '../../hang-probe.js';
 const MAX_UNRESOLVED_IMPORT_LOG_LINES = 50;
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
-const toSortedCountObject = (counts) => {
-  const entries = Object.entries(
-    counts && typeof counts === 'object' && !Array.isArray(counts) ? counts : {}
-  )
-    .filter(([key, value]) => key && Number.isFinite(Number(value)) && Number(value) > 0)
-    .sort((a, b) => sortStrings(a[0], b[0]));
-  return Object.fromEntries(entries.map(([key, value]) => [key, Math.floor(Number(value))]));
-};
 
 const normalizeUnresolvedSamples = (samples) => enrichUnresolvedImportSamples(samples);
 const MAX_DEGRADED_VISIBLE_UNRESOLVED_SAMPLES = 3;
@@ -599,22 +592,28 @@ export const postScanImports = async ({
     canonicalStatsSource.unresolvedResolverSuppressed ?? canonicalStatsSource.unresolvedSuppressed
   );
   const unresolvedReasonCodes = toSortedCountObject(
-    canonicalStatsSource.unresolvedByReasonCode || unresolvedTaxonomySample.reasonCodes
+    canonicalStatsSource.unresolvedByReasonCode || unresolvedTaxonomySample.reasonCodes,
+    { nullPrototype: false }
   );
   const unresolvedFailureCauses = toSortedCountObject(
-    canonicalStatsSource.unresolvedByFailureCause || unresolvedTaxonomySample.failureCauses
+    canonicalStatsSource.unresolvedByFailureCause || unresolvedTaxonomySample.failureCauses,
+    { nullPrototype: false }
   );
   const unresolvedDispositions = toSortedCountObject(
-    canonicalStatsSource.unresolvedByDisposition || unresolvedTaxonomySample.dispositions
+    canonicalStatsSource.unresolvedByDisposition || unresolvedTaxonomySample.dispositions,
+    { nullPrototype: false }
   );
   const unresolvedResolverStages = toSortedCountObject(
-    canonicalStatsSource.unresolvedByResolverStage || unresolvedTaxonomySample.resolverStages
+    canonicalStatsSource.unresolvedByResolverStage || unresolvedTaxonomySample.resolverStages,
+    { nullPrototype: false }
   );
   const unresolvedResolverAdapters = toSortedCountObject(
-    canonicalStatsSource.unresolvedByAdapter || unresolvedTaxonomySample.resolverAdapters
+    canonicalStatsSource.unresolvedByAdapter || unresolvedTaxonomySample.resolverAdapters,
+    { nullPrototype: false }
   );
   const unresolvedActionableByLanguage = toSortedCountObject(
-    canonicalStatsSource.unresolvedActionableByLanguage || unresolvedTaxonomySample.actionableByLanguage
+    canonicalStatsSource.unresolvedActionableByLanguage || unresolvedTaxonomySample.actionableByLanguage,
+    { nullPrototype: false }
   );
   const unresolvedActionableHotspots = Array.isArray(canonicalStatsSource.unresolvedActionableHotspots)
     ? canonicalStatsSource.unresolvedActionableHotspots
@@ -669,7 +668,8 @@ export const postScanImports = async ({
     ? Math.floor(resolverBudgetExhausted)
     : 0;
   const resolverBudgetExhaustedByType = toSortedCountObject(
-    canonicalStatsSource.unresolvedBudgetExhaustedByType || resolution?.stats?.unresolvedBudgetExhaustedByType || {}
+    canonicalStatsSource.unresolvedBudgetExhaustedByType || resolution?.stats?.unresolvedBudgetExhaustedByType || {},
+    { nullPrototype: false }
   );
   const unresolvedTaxonomy = {
     total: resolvedUnresolvedTotal,

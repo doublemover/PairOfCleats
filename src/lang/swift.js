@@ -1,7 +1,15 @@
 import { buildLineIndex, lineColToOffset, offsetToLine } from '../shared/lines.js';
-import { collectAttributes, extractDocComment, isCommentLine, sliceSignature } from './shared.js';
-import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { findBraceDelimitedBodyBounds } from './brace-bounds.js';
+import {
+  collectAttributes,
+  collectCLikeDataflowFacts,
+  extractDocComment,
+  isCommentLine,
+  sliceSignature
+} from './shared.js';
+import { summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
+import { findBestDocMetaContextChunkByKey } from './docmeta-context.js';
 
 /**
  * Swift language chunking and relations.
@@ -190,77 +198,7 @@ function extractSwiftExtensionTarget(signature) {
 }
 
 function findSwiftBodyBounds(text, start) {
-  let inLineComment = false;
-  let inBlockComment = false;
-  let inString = false;
-  let inTripleString = false;
-  let braceDepth = 0;
-  let bodyStart = -1;
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i];
-    const next = text[i + 1];
-    if (inLineComment) {
-      if (ch === '\n') inLineComment = false;
-      continue;
-    }
-    if (inBlockComment) {
-      if (ch === '*' && next === '/') {
-        inBlockComment = false;
-        i++;
-      }
-      continue;
-    }
-    if (inString) {
-      if (inTripleString) {
-        if (ch === '"' && text.startsWith('"""', i)) {
-          inString = false;
-          inTripleString = false;
-          i += 2;
-        }
-        continue;
-      }
-      if (ch === '\\') {
-        i++;
-        continue;
-      }
-      if (ch === '"') {
-        inString = false;
-      }
-      continue;
-    }
-    if (ch === '/' && next === '/') {
-      inLineComment = true;
-      i++;
-      continue;
-    }
-    if (ch === '/' && next === '*') {
-      inBlockComment = true;
-      i++;
-      continue;
-    }
-    if (ch === '"') {
-      if (text.startsWith('"""', i)) {
-        inString = true;
-        inTripleString = true;
-        i += 2;
-      } else {
-        inString = true;
-      }
-      continue;
-    }
-    if (ch === '{') {
-      if (bodyStart === -1) bodyStart = i;
-      braceDepth++;
-      continue;
-    }
-    if (ch === '}' && bodyStart !== -1) {
-      braceDepth--;
-      if (braceDepth === 0) {
-        return { bodyStart, bodyEnd: i + 1 };
-      }
-    }
-  }
-  return { bodyStart, bodyEnd: -1 };
+  return findBraceDelimitedBodyBounds(text, start, { tripleDoubleStrings: true });
 }
 
 function stripSwiftComments(text) {
@@ -529,37 +467,8 @@ export function buildSwiftRelations(text) {
  * @param {{swiftChunks?:Array<object>}|null} context
  * @returns {{doc:string,params:string[],returns:(string|null),signature:(string|null),decorators:string[],modifiers:string[],conforms:string[],generics:string[],whereClause:(string|null),extendedType:(string|null)}}
  */
-const findMatchingSwiftChunk = (chunk, context) => {
-  if (!chunk || !context || !Array.isArray(context.swiftChunks)) return null;
-  let best = null;
-  let bestScore = Number.POSITIVE_INFINITY;
-  for (const candidate of context.swiftChunks) {
-    if (!candidate || typeof candidate !== 'object') continue;
-    const sameName = chunk.name && candidate.name && chunk.name === candidate.name;
-    const overlaps = Number.isFinite(chunk.start)
-      && Number.isFinite(chunk.end)
-      && Number.isFinite(candidate.start)
-      && Number.isFinite(candidate.end)
-      && candidate.start < chunk.end
-      && chunk.start < candidate.end;
-    if (!sameName && !overlaps) continue;
-    const startDiff = Number.isFinite(chunk.start) && Number.isFinite(candidate.start)
-      ? Math.abs(chunk.start - candidate.start)
-      : 0;
-    const endDiff = Number.isFinite(chunk.end) && Number.isFinite(candidate.end)
-      ? Math.abs(chunk.end - candidate.end)
-      : 0;
-    const score = (sameName ? 0 : 10_000) + startDiff + endDiff;
-    if (score < bestScore) {
-      best = candidate;
-      bestScore = score;
-    }
-  }
-  return best;
-};
-
 export function extractSwiftDocMeta(chunk, context = null) {
-  const matched = findMatchingSwiftChunk(chunk, context);
+  const matched = findBestDocMetaContextChunkByKey(chunk, context, 'swiftChunks');
   const meta = { ...(chunk?.meta || {}), ...(matched?.meta || {}) };
   const params = Array.isArray(meta.params) ? meta.params : [];
   const attributes = Array.isArray(meta.attributes) ? meta.attributes : [];
@@ -613,26 +522,12 @@ export function computeSwiftFlow(text, chunk, options = {}) {
   };
 
   if (dataflowEnabled) {
-    out.dataflow = buildHeuristicDataflow(cleaned, {
-      skip: SWIFT_USAGE_SKIP,
-      memberOperators: ['.']
-    });
-    out.returnsValue = hasReturnValue(cleaned);
-    const throws = new Set();
-    const throwRe = /\bthrow\b\s+([A-Za-z_][A-Za-z0-9_.]*)/g;
-    let match;
-    while ((match = throwRe.exec(cleaned)) !== null) {
-      const name = match[1].replace(/[({].*$/, '').trim();
-      if (name) throws.add(name);
-    }
-    out.throws = Array.from(throws);
-    const awaits = new Set();
-    const awaitRe = /\bawait\b\s+([A-Za-z_][A-Za-z0-9_.]*)/g;
-    while ((match = awaitRe.exec(cleaned)) !== null) {
-      const name = match[1].replace(/[({].*$/, '').trim();
-      if (name) awaits.add(name);
-    }
-    out.awaits = Array.from(awaits);
+    Object.assign(out, collectCLikeDataflowFacts(cleaned, {
+      usageSkip: SWIFT_USAGE_SKIP,
+      memberOperators: ['.'],
+      throwPattern: /\bthrow\b\s+([A-Za-z_][A-Za-z0-9_.]*)/g,
+      awaitPattern: /\bawait\b\s+([A-Za-z_][A-Za-z0-9_.]*)/g
+    }));
   }
 
   if (controlFlowEnabled) {

@@ -5,14 +5,14 @@ import path from 'node:path';
 import { parseBuildArgs } from './src/index/build/args.js';
 import { buildIndex } from './src/integrations/core/index.js';
 import { createDisplay } from './src/shared/cli/display.js';
-import { setProgressHandlers } from './src/shared/progress.js';
-import { buildAutoPolicy } from './src/shared/auto-policy.js';
+import { setProgressHandlers } from './src/shared/progress-runtime.js';
+import { buildAutoPolicy } from './src/shared/auto-policy/build.js';
 import { parseObservabilityContextEnv } from './src/shared/observability.js';
-import { resolveRuntimeEnvelope } from './src/shared/runtime-envelope.js';
+import { resolveRuntimeEnvelope } from './src/shared/runtime-envelope/resolve.js';
 import { createAbortControllerWithHandlers, isAbortError } from './src/shared/abort.js';
 import { isDirectExecution } from './src/shared/direct-execution.js';
 import { setCacheRebuildEnv, setVerboseEnv } from './src/shared/env.js';
-import { emitLegacyCliEntrypointWarning } from './src/shared/legacy-cli-entrypoint.js';
+import { emitLegacyCliEntrypointWarning } from './src/shared/cli/legacy-entrypoint.js';
 import { getCurrentBuildInfo, getRepoCacheRoot, getToolVersion, loadUserConfig, resolveRepoRoot } from './tools/shared/dict-utils.js';
 
 const normalizePath = (value) => String(value || '').replace(/\//g, path.sep);

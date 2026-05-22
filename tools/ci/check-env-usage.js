@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fdir } from 'fdir';
 import { resolveToolRoot } from '../shared/dict-utils.js';
-import { toPosix } from '../../src/shared/files.js';
+import { toPosix } from '../../src/shared/file-paths.js';
 
 const root = resolveToolRoot();
 const allowedFile = toPosix(path.join(root, 'src', 'shared', 'env.js'));

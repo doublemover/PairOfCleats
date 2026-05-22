@@ -9,13 +9,14 @@ import { SCHEDULER_QUEUE_NAMES } from '../../../src/index/build/runtime/schedule
 import { loadIncrementalManifest, writeIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
+import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
 import {
   loadChunkMetaRows,
-  loadFileMetaRows,
-  MAX_JSON_BYTES
-} from '../../../src/shared/artifact-io.js';
+  loadFileMetaRows
+} from '../../../src/shared/artifact-io/loaders.js';
 import { readTextFile, readTextFileWithHash } from '../../../src/shared/encoding.js';
-import { replaceFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { replaceFile } from '../../../src/shared/json-stream/atomic.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { writeDenseVectorArtifacts } from '../../../src/shared/dense-vector-artifacts.js';
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
 import { resolveHnswPaths, resolveHnswTarget } from '../../../src/shared/hnsw.js';
@@ -31,22 +32,24 @@ import {
 } from '../../../src/shared/embedding-utils.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings.js';
-import { fromPosix, isPathWithinRoot, toPosix } from '../../../src/shared/files.js';
-import { getEnvConfig } from '../../../src/shared/env.js';
+import { fromPosix, isPathWithinRoot, toPosix } from '../../../src/shared/file-paths.js';
+import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { isTestingEnv } from '../../../src/shared/env/testing.js';
-import { createLruCache } from '../../../src/shared/cache.js';
+import { createLruCache } from '../../../src/shared/cache/lru.js';
 import { normalizeDenseVectorMode } from '../../../src/shared/dense-vector-mode.js';
 import { formatEmbeddingsPerfLine } from './perf-progress.js';
-import { spawnSubprocess } from '../../../src/shared/subprocess.js';
-import { runWithConcurrency } from '../../../src/shared/concurrency.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
+import { runWithConcurrency } from '../../../src/shared/concurrency/run-with-queue.js';
 import { coercePositiveIntMinOne } from '../../../src/shared/number-coerce.js';
 import { resolveFdConcurrencyCap } from '../../../src/index/build/workers/config.js';
 import { formatEtaSeconds } from '../../../src/shared/perf/eta.js';
 import {
   normalizeBundleFormat,
-  readBundleFile,
   resolveManifestBundleNames,
-  resolveBundleFormatFromName,
+  resolveBundleFormatFromName
+} from '../../../src/shared/bundle-io-paths.js';
+import {
+  readBundleFile,
   writeBundleFile
 } from '../../../src/shared/bundle-io.js';
 import {

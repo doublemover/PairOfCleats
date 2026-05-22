@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { createCli } from '../../src/shared/cli.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
+import { writeTextIfChanged } from '../shared/generated-report.js';
 import {
   buildBenchRuntimeBlockerClosureEvidence,
   formatBenchRuntimeBlockerClosureEvidenceMarkdown
@@ -20,9 +22,6 @@ const argv = createCli({
 }).parse();
 
 const root = process.cwd();
-const ensureParentDir = (filePath) => {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-};
 const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, 'utf8'));
 
 const run = async () => {
@@ -46,12 +45,10 @@ const run = async () => {
     ? path.resolve(root, String(argv['out-md']).trim())
     : '';
   if (outJsonPath) {
-    ensureParentDir(outJsonPath);
-    fs.writeFileSync(outJsonPath, `${JSON.stringify(evidence, null, 2)}\n`);
+    await writeJsonFileResolved(outJsonPath, evidence, { trailingNewline: true });
   }
   if (outMdPath) {
-    ensureParentDir(outMdPath);
-    fs.writeFileSync(outMdPath, formatBenchRuntimeBlockerClosureEvidenceMarkdown(evidence));
+    await writeTextIfChanged(outMdPath, formatBenchRuntimeBlockerClosureEvidenceMarkdown(evidence), { encoding: 'utf8' });
   }
   process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
   if (argv['require-closure'] === true && !evidence.ok) {

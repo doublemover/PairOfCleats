@@ -1,5 +1,6 @@
 import { readJsonFile, readJsonLinesArray, readJsonLinesArraySync, readJsonLinesIterator } from '../json.js';
-import { createLoaderError, ensureOffsetsValid, inflateColumnarRows, iterateColumnarRows } from './shared.js';
+import { inflateColumnarRows } from '../columnar-rows.js';
+import { createLoaderError, ensureOffsetsValid } from './shared.js';
 import { iterateBinaryColumnarJsonRows } from './core-binary-columnar.js';
 import {
   resolveBinaryColumnarSourcePart,
@@ -11,6 +12,67 @@ const appendRows = (target, rows) => {
     target.push(rows[i]);
   }
   return target;
+};
+
+const loadJsonArraySources = (sources, { baseName, maxBytes }) => {
+  const out = [];
+  for (const sourcePath of sources.paths) {
+    const payload = readJsonFile(sourcePath, { maxBytes });
+    if (!Array.isArray(payload)) {
+      throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid json payload for ${baseName}`);
+    }
+    appendRows(out, payload);
+  }
+  return out;
+};
+
+const loadColumnarSources = (sources, { baseName, maxBytes }) => {
+  const out = [];
+  for (const sourcePath of sources.paths) {
+    const payload = readJsonFile(sourcePath, { maxBytes });
+    const inflated = inflateColumnarRows(payload);
+    if (!inflated) {
+      throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
+    }
+    appendRows(out, inflated);
+  }
+  return out;
+};
+
+const loadBinaryColumnarSources = (sources, {
+  dir,
+  manifest,
+  strict,
+  baseName,
+  maxBytes,
+  enforceBinaryDataBudget
+}) => {
+  const out = [];
+  for (const row of iterateBinaryColumnarRows({
+    dir,
+    baseName,
+    sources,
+    manifest,
+    maxBytes,
+    strict,
+    enforceBinaryDataBudget
+  })) {
+    out.push(row);
+  }
+  return out;
+};
+
+const loadMaterializedArrayPayloadFromSources = (sources, options) => {
+  if (sources.format === 'json') {
+    return loadJsonArraySources(sources, options);
+  }
+  if (sources.format === 'columnar') {
+    return loadColumnarSources(sources, options);
+  }
+  if (sources.format === 'binary-columnar') {
+    return loadBinaryColumnarSources(sources, options);
+  }
+  return null;
 };
 
 const iterateBinaryColumnarRows = function* ({
@@ -85,43 +147,16 @@ export const loadArrayPayloadFromSources = async (
     enforceBinaryDataBudget = true
   }
 ) => {
-  if (sources.format === 'json') {
-    const out = [];
-    for (const sourcePath of sources.paths) {
-      const payload = readJsonFile(sourcePath, { maxBytes });
-      if (!Array.isArray(payload)) {
-        throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid json payload for ${baseName}`);
-      }
-      appendRows(out, payload);
-    }
-    return out;
-  }
-  if (sources.format === 'columnar') {
-    const out = [];
-    for (const sourcePath of sources.paths) {
-      const payload = readJsonFile(sourcePath, { maxBytes });
-      const inflated = inflateColumnarRows(payload);
-      if (!inflated) {
-        throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
-      }
-      appendRows(out, inflated);
-    }
-    return out;
-  }
-  if (sources.format === 'binary-columnar') {
-    const out = [];
-    for (const row of iterateBinaryColumnarRows({
-      dir,
-      baseName,
-      sources,
-      manifest,
-      maxBytes,
-      strict,
-      enforceBinaryDataBudget
-    })) {
-      out.push(row);
-    }
-    return out;
+  const materialized = loadMaterializedArrayPayloadFromSources(sources, {
+    dir,
+    manifest,
+    strict,
+    baseName,
+    maxBytes,
+    enforceBinaryDataBudget
+  });
+  if (materialized) {
+    return materialized;
   }
   return await readJsonLinesArray(sources.paths, {
     maxBytes,
@@ -144,43 +179,16 @@ export const loadArrayPayloadFromSourcesSync = (
     enforceBinaryDataBudget = true
   }
 ) => {
-  if (sources.format === 'json') {
-    const out = [];
-    for (const sourcePath of sources.paths) {
-      const payload = readJsonFile(sourcePath, { maxBytes });
-      if (!Array.isArray(payload)) {
-        throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid json payload for ${baseName}`);
-      }
-      appendRows(out, payload);
-    }
-    return out;
-  }
-  if (sources.format === 'columnar') {
-    const out = [];
-    for (const sourcePath of sources.paths) {
-      const payload = readJsonFile(sourcePath, { maxBytes });
-      const inflated = inflateColumnarRows(payload);
-      if (!inflated) {
-        throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
-      }
-      appendRows(out, inflated);
-    }
-    return out;
-  }
-  if (sources.format === 'binary-columnar') {
-    const out = [];
-    for (const row of iterateBinaryColumnarRows({
-      dir,
-      baseName,
-      sources,
-      manifest,
-      maxBytes,
-      strict,
-      enforceBinaryDataBudget
-    })) {
-      out.push(row);
-    }
-    return out;
+  const materialized = loadMaterializedArrayPayloadFromSources(sources, {
+    dir,
+    manifest,
+    strict,
+    baseName,
+    maxBytes,
+    enforceBinaryDataBudget
+  });
+  if (materialized) {
+    return materialized;
   }
   const out = [];
   for (const partPath of sources.paths) {
@@ -215,4 +223,4 @@ export const loadManifestJsonObjectFromSources = ({
   return readJsonFile(resolveReadableArtifactPath(sources.paths[0]), { maxBytes });
 };
 
-export { iterateBinaryColumnarRows, iterateColumnarRows };
+export { iterateBinaryColumnarRows };

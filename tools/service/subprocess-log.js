@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 
 const DEFAULT_MAX_OUTPUT_BYTES = 256 * 1024;
 const MIN_MAX_OUTPUT_BYTES = 1024;

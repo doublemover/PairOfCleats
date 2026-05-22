@@ -1,15 +1,12 @@
 import fs from 'node:fs';
-import path from 'node:path';
-import { MAX_JSON_BYTES } from '../constants.js';
 import { existsOrBak, resolvePathOrBak } from '../fs.js';
 import { decodeBinaryRowFrameLengths, decodeU64Offsets } from '../binary-columnar.js';
-import { decodeVarint64List } from '../varint.js';
 import { joinPathSafe } from '../../path-normalize.js';
 import {
   INTEGER_COERCE_MODE_STRICT,
   coerceNonNegativeInt
 } from '../../number-coerce.js';
-import { readJsonFileCached, resolveArtifactMetaEnvelope } from './shared.js';
+import { resolveArtifactMetaEnvelope } from './shared.js';
 
 const SUPPORTED_BINARY_COLUMNAR_FORMAT = 'binary-columnar-v1';
 const SUPPORTED_BINARY_BYTE_ORDER = new Set(['le', 'little', 'little-endian']);
@@ -161,21 +158,38 @@ const loadBinaryColumnarRowPayloads = ({
   }
   const rows = new Array(metadataCount);
   for (let i = 0; i < metadataCount; i += 1) {
-    const start = offsets[i];
-    const length = lengths[i];
-    if (!Number.isSafeInteger(start) || start < 0) {
-      throw new Error(`Invalid binary-columnar row offset: ${start}`);
-    }
-    if (!Number.isSafeInteger(length) || length < 0) {
-      throw new Error(`Invalid binary-columnar row length: ${length}`);
-    }
-    const end = start + length;
-    if (end > resolvedDataBuffer.length) {
-      throw new Error('Binary-columnar data truncated');
-    }
-    rows[i] = resolvedDataBuffer.subarray(start, end);
+    const slice = resolveBinaryColumnarRowSlice({
+      start: offsets[i],
+      length: lengths[i],
+      dataSize: resolvedDataBuffer.length
+    });
+    rows[i] = resolvedDataBuffer.subarray(slice.start, slice.end);
   }
   return rows;
+};
+
+const resolveBinaryColumnarRowSlice = ({
+  start,
+  length,
+  dataSize,
+  max = null,
+  enforceRowBudget = false,
+  requireSafeEnd = false
+}) => {
+  if (!Number.isSafeInteger(start) || start < 0) {
+    throw new Error(`Invalid binary-columnar row offset: ${start}`);
+  }
+  if (!Number.isSafeInteger(length) || length < 0) {
+    throw new Error(`Invalid binary-columnar row length: ${length}`);
+  }
+  if (enforceRowBudget && max && length > max) {
+    throw new Error(`Binary-columnar row exceeds maxBytes (${length} > ${max})`);
+  }
+  const end = start + length;
+  if ((requireSafeEnd && !Number.isSafeInteger(end)) || end > dataSize) {
+    throw new Error('Binary-columnar data truncated');
+  }
+  return { start, end };
 };
 
 /**
@@ -225,21 +239,15 @@ const iterateBinaryColumnarRowPayloads = ({
         assertWithinMaxBytes(dataSize, maxBytes, 'Binary-columnar data');
       }
       for (let i = 0; i < metadataCount; i += 1) {
-        const start = offsets[i];
-        const length = lengths[i];
-        if (!Number.isSafeInteger(start) || start < 0) {
-          throw new Error(`Invalid binary-columnar row offset: ${start}`);
-        }
-        if (!Number.isSafeInteger(length) || length < 0) {
-          throw new Error(`Invalid binary-columnar row length: ${length}`);
-        }
-        if (enforceDataBudget && max && length > max) {
-          throw new Error(`Binary-columnar row exceeds maxBytes (${length} > ${max})`);
-        }
-        const end = start + length;
-        if (!Number.isSafeInteger(end) || end > dataSize) {
-          throw new Error('Binary-columnar data truncated');
-        }
+        const { start, end } = resolveBinaryColumnarRowSlice({
+          start: offsets[i],
+          length: lengths[i],
+          dataSize,
+          max,
+          enforceRowBudget: enforceDataBudget,
+          requireSafeEnd: true
+        });
+        const length = end - start;
         const row = Buffer.allocUnsafe(length);
         let readOffset = 0;
         while (readOffset < length) {
@@ -257,242 +265,12 @@ const iterateBinaryColumnarRowPayloads = ({
   })();
 };
 
-const resolveChunkMetaBinaryColumnarLayout = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
-  const metaPath = path.join(dir, 'chunk_meta.binary-columnar.meta.json');
-  if (!existsOrBak(metaPath)) return null;
-  const metaRaw = readJsonFileCached(resolvePathOrBak(metaPath), { maxBytes });
-  try {
-    assertSupportedBinaryColumnarMeta(metaRaw, 'chunk_meta binary-columnar');
-  } catch (error) {
-    if (shouldDegradeUnsupportedMeta(error)) return null;
-    throw error;
-  }
-  const { fields: meta, arrays } = resolveArtifactMetaEnvelope(metaRaw);
-  const fileTable = Array.isArray(arrays?.fileTable) ? arrays.fileTable : [];
-  const count = meta?.count == null
-    ? 0
-    : resolveStrictNonNegativeSafeInt(meta.count, 'chunk_meta binary-columnar count');
-  const dataPath = resolveSafeLayoutPath(
-    dir,
-    meta?.data,
-    'chunk_meta.binary-columnar.bin',
-    'chunk_meta binary-columnar data'
-  );
-  const offsetsPath = resolveSafeLayoutPath(
-    dir,
-    meta?.offsets,
-    'chunk_meta.binary-columnar.offsets.bin',
-    'chunk_meta binary-columnar offsets'
-  );
-  const lengthsPath = resolveSafeLayoutPath(
-    dir,
-    meta?.lengths,
-    'chunk_meta.binary-columnar.lengths.varint',
-    'chunk_meta binary-columnar lengths'
-  );
-  return {
-    count,
-    fileTable,
-    dataPath,
-    offsetsPath,
-    lengthsPath
-  };
-};
-
-/**
- * Attempt to iterate `chunk_meta` rows from binary-columnar artifacts.
- *
- * @param {string} dir
- * @param {{ maxBytes?: number, enforceDataBudget?: boolean }} [options]
- * @returns {Generator<object, void, unknown>|null}
- */
-const iterateChunkMetaBinaryColumnarRows = (
-  dir,
-  {
-    maxBytes = MAX_JSON_BYTES,
-    enforceDataBudget = false
-  } = {}
-) => {
-  const layout = resolveChunkMetaBinaryColumnarLayout(dir, { maxBytes });
-  if (!layout) return null;
-  const {
-    count,
-    fileTable,
-    dataPath,
-    offsetsPath,
-    lengthsPath
-  } = layout;
-  if (!count) return (function* () {})();
-  const payloads = iterateBinaryColumnarRowPayloads({
-    dataPath,
-    offsetsPath,
-    lengthsPath,
-    count,
-    maxBytes,
-    enforceDataBudget
-  });
-  if (!payloads) return null;
-  return (function* () {
-    for (const payload of payloads) {
-      const row = JSON.parse(payload.toString('utf8'));
-      if (row && Number.isInteger(row.fileRef) && (row.file == null)) {
-        row.file = fileTable[row.fileRef] ?? null;
-        delete row.fileRef;
-      }
-      yield row;
-    }
-  })();
-};
-
-/**
- * Attempt to load `chunk_meta` from binary-columnar artifacts.
- *
- * @param {string} dir
- * @param {{ maxBytes?: number }} [options]
- * @returns {object[]|null}
- */
-const tryLoadChunkMetaBinaryColumnar = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
-  const rows = iterateChunkMetaBinaryColumnarRows(dir, { maxBytes, enforceDataBudget: true });
-  if (!rows) return null;
-  return Array.from(rows);
-};
-
-/**
- * Decode varint delta/tf pairs into `[docId, tf]` postings.
- *
- * @param {Uint8Array|Buffer} payload
- * @returns {Array<[number, number]>}
- */
-const decodePostingPairsVarint = (payload) => {
-  const values = decodeVarint64List(payload);
-  if (values.length % 2 !== 0) {
-    throw new Error('Invalid token_postings binary-columnar payload: odd varint pair count');
-  }
-  const postings = [];
-  let docId = 0;
-  for (let i = 0; i < values.length; i += 2) {
-    const delta = coerceStrictNonNegativeSafeInt(values[i]);
-    const tf = coerceStrictNonNegativeSafeInt(values[i + 1]);
-    if (delta == null || tf == null) {
-      throw new Error('Invalid token_postings binary-columnar payload: non-integer delta/tf');
-    }
-    docId = resolveStrictNonNegativeSafeInt(docId + delta, 'token_postings decoded docId');
-    postings.push([docId, tf]);
-  }
-  return postings;
-};
-
-const assertTokenPostingsCardinalityInvariant = ({
-  count,
-  vocab,
-  postings,
-  vocabIds,
-  contextLabel
-}) => {
-  const diagnostics = [];
-  const vocabCount = Array.isArray(vocab) ? vocab.length : 0;
-  const postingsCount = Array.isArray(postings) ? postings.length : 0;
-  const vocabIdsCount = Array.isArray(vocabIds) ? vocabIds.length : 0;
-  if (count !== vocabCount) {
-    diagnostics.push(`count=${count} does not match vocab=${vocabCount}`);
-  }
-  if (postingsCount !== vocabCount) {
-    diagnostics.push(`postings=${postingsCount} does not match vocab=${vocabCount}`);
-  }
-  if (vocabIdsCount > 0 && vocabIdsCount !== vocabCount) {
-    diagnostics.push(`vocabIds=${vocabIdsCount} does not match vocab=${vocabCount}`);
-  }
-  if (!diagnostics.length) return;
-  const error = new Error(
-    `[artifact-io] ${contextLabel} cardinality invariant failed: ${diagnostics.join('; ')}`
-  );
-  error.code = 'ERR_ARTIFACT_INVALID';
-  error.diagnostics = diagnostics;
-  throw error;
-};
-
-/**
- * Attempt to load `token_postings` from binary-columnar artifacts.
- *
- * @param {string} dir
- * @param {{ maxBytes?: number, enforceDataBudget?: boolean }} [options]
- * @returns {object|null}
- */
-const tryLoadTokenPostingsBinaryColumnar = (
-  dir,
-  {
-    maxBytes = MAX_JSON_BYTES,
-    enforceDataBudget = true
-  } = {}
-) => {
-  const metaPath = path.join(dir, 'token_postings.binary-columnar.meta.json');
-  if (!existsOrBak(metaPath)) return null;
-  const metaRaw = readJsonFileCached(resolvePathOrBak(metaPath), { maxBytes });
-  try {
-    assertSupportedBinaryColumnarMeta(metaRaw, 'token_postings binary-columnar');
-  } catch (error) {
-    if (shouldDegradeUnsupportedMeta(error)) return null;
-    throw error;
-  }
-  const { fields: meta, arrays } = resolveArtifactMetaEnvelope(metaRaw);
-  const vocab = Array.isArray(arrays.vocab) ? arrays.vocab : [];
-  const count = meta?.count == null
-    ? vocab.length
-    : resolveStrictNonNegativeSafeInt(meta.count, 'token_postings binary-columnar count');
-  const vocabIds = Array.isArray(arrays.vocabIds) ? arrays.vocabIds : [];
-  const dataPath = resolveSafeLayoutPath(
-    dir,
-    meta?.data,
-    'token_postings.binary-columnar.bin',
-    'token_postings binary-columnar data'
-  );
-  const offsetsPath = resolveSafeLayoutPath(
-    dir,
-    meta?.offsets,
-    'token_postings.binary-columnar.offsets.bin',
-    'token_postings binary-columnar offsets'
-  );
-  const lengthsPath = resolveSafeLayoutPath(
-    dir,
-    meta?.lengths,
-    'token_postings.binary-columnar.lengths.varint',
-    'token_postings binary-columnar lengths'
-  );
-  const payloads = loadBinaryColumnarRowPayloads({
-    dataPath,
-    offsetsPath,
-    lengthsPath,
-    count,
-    maxBytes,
-    enforceDataBudget
-  });
-  if (!payloads) return null;
-  const postings = new Array(payloads.length);
-  for (let i = 0; i < payloads.length; i += 1) {
-    postings[i] = decodePostingPairsVarint(payloads[i]);
-  }
-  assertTokenPostingsCardinalityInvariant({
-    count,
-    vocab,
-    postings,
-    vocabIds,
-    contextLabel: 'token_postings binary-columnar'
-  });
-  const docLengths = Array.isArray(arrays.docLengths) ? arrays.docLengths : [];
-  return {
-    ...meta,
-    vocab,
-    ...(vocabIds.length ? { vocabIds } : {}),
-    postings,
-    docLengths
-  };
-};
-
 export {
+  assertSupportedBinaryColumnarMeta,
+  coerceStrictNonNegativeSafeInt,
   loadBinaryColumnarRowPayloads,
   iterateBinaryColumnarRowPayloads,
-  iterateChunkMetaBinaryColumnarRows,
-  tryLoadChunkMetaBinaryColumnar,
-  decodePostingPairsVarint,
-  tryLoadTokenPostingsBinaryColumnar
+  resolveSafeLayoutPath,
+  resolveStrictNonNegativeSafeInt,
+  shouldDegradeUnsupportedMeta
 };

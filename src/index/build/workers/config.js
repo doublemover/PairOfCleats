@@ -1,6 +1,11 @@
 import os from 'node:os';
-import { getEnvConfig } from '../../../shared/env.js';
+import { getEnvConfig } from '../../../shared/env/runtime.js';
 import { coerceClampedFraction, coercePositiveIntMinOne } from '../../../shared/number-coerce.js';
+import {
+  buildWorkerExecArgv as buildSanitizedWorkerExecArgv,
+  collectNodeHeapArgv,
+  parseMaxOldSpaceSizeMb
+} from '../../../shared/workers/node-argv.js';
 
 const normalizeEnabled = (raw) => {
   if (raw === true || raw === false) return raw;
@@ -160,11 +165,7 @@ export const shouldDownscaleWorkersForPressure = ({
  *
  * @returns {string[]}
  */
-export const buildWorkerExecArgv = () => process.execArgv.filter((arg) => {
-  if (!arg) return false;
-  return !arg.startsWith('--max-old-space-size')
-    && !arg.startsWith('--max-semi-space-size');
-});
+export const buildWorkerExecArgv = () => buildSanitizedWorkerExecArgv();
 
 /**
  * Cap requested worker count from total host memory to avoid pathological
@@ -229,37 +230,9 @@ export const resolveWorkerHeapBudgetPolicy = (options = {}) => {
 };
 
 const parseMaxOldSpaceMb = () => {
-  // process.execArgv does NOT include NODE_OPTIONS. Since we often set
-  // --max-old-space-size via NODE_OPTIONS (e.g. from user/runtime config),
-  // include both sources when inferring the heap budget.
-  const execArgv = Array.isArray(process.execArgv) ? process.execArgv : [];
-  const nodeOptionsRaw = typeof process.env.NODE_OPTIONS === 'string'
-    ? process.env.NODE_OPTIONS
-    : '';
-  const nodeOptionsArgv = nodeOptionsRaw
-    ? nodeOptionsRaw.split(/\s+/).filter(Boolean)
-    : [];
-  const args = [...execArgv, ...nodeOptionsArgv];
-  let resolved = null;
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-    if (typeof arg !== 'string') continue;
-    if (arg.startsWith('--max-old-space-size=')) {
-      const value = Number(arg.split('=')[1]);
-      if (Number.isFinite(value) && value > 0) {
-        const mb = Math.floor(value);
-        resolved = resolved == null ? mb : Math.min(resolved, mb);
-      }
-    }
-    if (arg === '--max-old-space-size') {
-      const value = Number(args[i + 1]);
-      if (Number.isFinite(value) && value > 0) {
-        const mb = Math.floor(value);
-        resolved = resolved == null ? mb : Math.min(resolved, mb);
-      }
-    }
-  }
-  return resolved;
+  // process.execArgv does NOT include NODE_OPTIONS; include both sources when
+  // inferring the heap budget from user/runtime config.
+  return parseMaxOldSpaceSizeMb(collectNodeHeapArgv(), { strategy: 'min' });
 };
 
 /**

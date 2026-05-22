@@ -41,6 +41,24 @@ export const addCollectorImport = (imports, value, sanitizeOptions = undefined) 
   return true;
 };
 
+export const addBudgetedCollectorImport = (imports, value, scanBudget, sanitizeOptions = undefined) => {
+  if (scanBudget && !scanBudget.consumeToken()) return false;
+  return addCollectorImport(imports, value, sanitizeOptions);
+};
+
+export const forEachBudgetedRegexMatch = ({ text, matcher, scanBudget, onMatch }) => {
+  if (!(matcher instanceof RegExp) || typeof onMatch !== 'function') return;
+  let match;
+  while (!scanBudget?.exhausted) {
+    if (scanBudget && !scanBudget.consumeTime()) break;
+    match = matcher.exec(String(text || ''));
+    if (match === null) break;
+    if (scanBudget && !scanBudget.consumeMatch()) break;
+    onMatch(match);
+    if (!match[0]) matcher.lastIndex += 1;
+  }
+};
+
 export const applyCollectorSourceBudget = (
   text,
   { maxChars = 524288 } = {}
@@ -290,12 +308,13 @@ const clampUnit = (value) => {
   return Math.max(0, Math.min(1, numeric));
 };
 
-export const normalizeCollectorHint = (collectorHint) => {
+export const normalizeCollectorHint = (collectorHint, { isKnownReasonCode = null } = {}) => {
   if (!collectorHint || typeof collectorHint !== 'object' || Array.isArray(collectorHint)) return null;
   const reasonCode = typeof collectorHint.reasonCode === 'string'
     ? collectorHint.reasonCode.trim()
     : '';
   if (!reasonCode) return null;
+  if (isKnownReasonCode && !isKnownReasonCode(reasonCode)) return null;
   const confidence = clampUnit(collectorHint.confidence);
   const detail = typeof collectorHint.detail === 'string' && collectorHint.detail.trim()
     ? collectorHint.detail.trim()

@@ -1,11 +1,20 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import readline from 'node:readline';
 import { createCli } from '../../src/shared/cli.js';
-import { isAbsolutePathNative, isRelativePathEscape, toPosix } from '../../src/shared/files.js';
 import { getRepoCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
+import {
+  bumpStat,
+  emitIngestSummaryJson,
+  ensureParentDir,
+  finishWriteStream,
+  ingestJsonLineStream,
+  normalizeRepoRelativePath,
+  normalizeTimeoutMs,
+  splitCliArgs,
+  writeIngestSummaryReport,
+  writeJsonLine
+} from './shared.js';
 import { runLineStreamingCommand } from './shared-runner.js';
 
 const argv = createCli({
@@ -34,19 +43,10 @@ const inputPath = argv.input ? String(argv.input) : null;
 const runCtags = argv.run === true;
 const interactive = argv.interactive === true;
 const ctagsCmd = argv.ctags || 'ctags';
-const commandTimeoutMs = Number.isFinite(Number(argv['timeout-ms']))
-  ? Math.max(1000, Math.floor(Number(argv['timeout-ms'])))
-  : null;
+const commandTimeoutMs = normalizeTimeoutMs(argv['timeout-ms']);
 
 const normalizePath = (value) => {
-  if (!value) return null;
-  const raw = String(value);
-  const resolved = isAbsolutePathNative(raw) ? raw : path.resolve(repoRoot, raw);
-  const rel = path.relative(repoRoot, resolved);
-  const normalized = toPosix(rel || raw);
-  if (!normalized || normalized === '.') return null;
-  if (isAbsolutePathNative(normalized) || isRelativePathEscape(normalized)) return null;
-  return normalized;
+  return normalizeRepoRelativePath(repoRoot, value);
 };
 
 const mapEntry = (entry) => {
@@ -88,56 +88,34 @@ const stats = {
   languages: {}
 };
 
-const bump = (bucket, key) => {
-  if (!key) return;
-  const k = String(key);
-  bucket[k] = (bucket[k] || 0) + 1;
-};
-
-const ensureOutputDir = async () => {
-  await fsPromises.mkdir(path.dirname(outputPath), { recursive: true });
-};
-
 let writeStream = null;
-const writeLine = async (line) => {
-  if (!writeStream.write(line)) {
-    await new Promise((resolve) => writeStream.once('drain', resolve));
+
+const handleParsedEntry = async (parsed) => {
+  const mapped = mapEntry(parsed);
+  if (!mapped) {
+    stats.ignored += 1;
+    return;
   }
+  stats.entries += 1;
+  bumpStat(stats.kinds, mapped.kind || mapped.kindName || 'unknown');
+  bumpStat(stats.languages, mapped.language || 'unknown');
+  await writeJsonLine(writeStream, mapped);
 };
 
 const ingestStream = async (stream) => {
-  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-  for await (const line of rl) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    let parsed = null;
-    try {
-      parsed = JSON.parse(trimmed);
-    } catch {
+  await ingestJsonLineStream(stream, {
+    onParseError: () => {
       stats.errors += 1;
-      continue;
-    }
-    const mapped = mapEntry(parsed);
-    if (!mapped) {
-      stats.ignored += 1;
-      continue;
-    }
-    stats.entries += 1;
-    bump(stats.kinds, mapped.kind || mapped.kindName || 'unknown');
-    bump(stats.languages, mapped.language || 'unknown');
-    await writeLine(`${JSON.stringify(mapped)}\n`);
-  }
+    },
+    onPayload: handleParsedEntry
+  });
 };
 
 const runCtagsCommand = async () => {
   const args = ['--output-format=json', '--tag-relative=yes', '--recurse=yes'];
   if (argv.fields) args.push(`--fields=${argv.fields}`);
   if (argv.args) {
-    const extra = String(argv.args)
-      .split(/\s+/)
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-    args.push(...extra);
+    args.push(...splitCliArgs(argv.args));
   }
   args.push(repoRoot);
   await runLineStreamingCommand({
@@ -154,21 +132,13 @@ const runCtagsCommand = async () => {
         stats.errors += 1;
         return;
       }
-      const mapped = mapEntry(parsed);
-      if (!mapped) {
-        stats.ignored += 1;
-        return;
-      }
-      stats.entries += 1;
-      bump(stats.kinds, mapped.kind || mapped.kindName || 'unknown');
-      bump(stats.languages, mapped.language || 'unknown');
-      await writeLine(`${JSON.stringify(mapped)}\n`);
+      await handleParsedEntry(parsed);
     },
     onStderrChunk: (chunk) => process.stderr.write(chunk)
   });
 };
 
-await ensureOutputDir();
+await ensureParentDir(outputPath);
 writeStream = fs.createWriteStream(outputPath, { encoding: 'utf8' });
 if (interactive) {
   await ingestStream(process.stdin);
@@ -186,7 +156,7 @@ if (interactive) {
 }
 
 writeStream.end();
-await new Promise((resolve) => writeStream.once('finish', resolve));
+await finishWriteStream(writeStream);
 
 const summary = {
   generatedAt: new Date().toISOString(),
@@ -195,10 +165,10 @@ const summary = {
   output: path.resolve(outputPath),
   stats
 };
-await fsPromises.writeFile(metaPath, JSON.stringify(summary, null, 2));
+await writeIngestSummaryReport(metaPath, summary);
 
 if (argv.json) {
-  console.log(JSON.stringify(summary, null, 2));
+  emitIngestSummaryJson(summary);
 } else {
   console.error(`Ctags ingest: ${stats.entries} entries (${stats.errors} parse errors)`);
   console.error(`- output: ${outputPath}`);

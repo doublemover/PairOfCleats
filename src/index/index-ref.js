@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getRepoCacheRoot } from '../shared/dict-utils.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
-import { isAbsolutePathAny } from '../shared/files.js';
+import { isAbsolutePathAny } from '../shared/file-paths.js';
 import { sha1 } from '../shared/hash.js';
 import { stableStringify } from '../shared/stable-json.js';
 import { isWithinRoot, toRealPathSync } from '../workspace/identity.js';

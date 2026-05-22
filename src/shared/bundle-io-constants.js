@@ -3,6 +3,17 @@ export const BUNDLE_VERSION = 1;
 export const MSGPACK_EXTENSIONS = new Set(['.mpk', '.msgpack', '.msgpackr']);
 export const BUNDLE_PATCH_FORMAT_TAG = 'pairofcleats.bundle.patch';
 export const BUNDLE_PATCH_VERSION = 1;
+export const BUNDLE_PATCH_FIELD_KEYS = [
+  'file',
+  'hash',
+  'mtimeMs',
+  'size',
+  'fileRelations',
+  'vfsManifestRows',
+  'encoding',
+  'encodingFallback',
+  'encodingConfidence'
+];
 export const BUNDLE_PATCH_SUFFIX = '.patch.jsonl';
 export const BUNDLE_PATCH_LOCK_SUFFIX = '.lock';
 export const BUNDLE_PATCH_META_SUFFIX = '.meta.json';

@@ -1,4 +1,4 @@
-import { toPosix } from '../../../shared/files.js';
+import { toPosix } from '../../../shared/file-paths.js';
 import { LANGUAGE_ID_EXT } from '../../segments/config.js';
 import { VFS_HASH_PREFIX, VFS_PREFIX } from './constants.js';
 

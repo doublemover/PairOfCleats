@@ -1,5 +1,5 @@
 import { compareStrings } from '../../../../../shared/sort.js';
-import { showProgress } from '../../../../../shared/progress.js';
+import { showProgress } from '../../../../../shared/progress-runtime.js';
 
 /**
  * Render watchdog heartbeat progress text for stage1 processing loop.

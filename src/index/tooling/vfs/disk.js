@@ -1,7 +1,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { buildCacheKey } from '../../../shared/cache-key.js';
-import { isAbsolutePathAny, toPosix } from '../../../shared/files.js';
+import { isAbsolutePathAny, toPosix } from '../../../shared/file-paths.js';
 import { isPathUnderDir } from '../../../shared/path-normalize.js';
 
 const VFS_DISK_CACHE = new Map();

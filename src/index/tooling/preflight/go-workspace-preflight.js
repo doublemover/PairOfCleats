@@ -1,12 +1,13 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import {
-  buildGoWorkspacePartitionKey,
-  normalizeWorkspaceRootRel
-} from '../go-workspace-partitioning.js';
+import { buildGoWorkspacePartitionKey } from '../go-workspace-partitioning.js';
 import { resolveToolingCommandProfile } from '../command-resolver.js';
 import { runWorkspaceCommandPreflight } from './workspace-command-preflight.js';
-import { findWorkspaceMarkersNearPaths } from '../workspace-model.js';
+import { findWorkspaceMarkersNearPaths, normalizeWorkspaceRootRel } from '../workspace-model.js';
+import {
+  formatWorkspacePartitionList as formatPartitionList,
+  toWorkspacePartitionScopedCheck as toPartitionScopedCheck
+} from './workspace-partition-checks.js';
 
 const DEFAULT_MODULE_ARGS = Object.freeze(['list', '-m']);
 const DEFAULT_MODULE_TIMEOUT_MS = 8000;
@@ -349,24 +350,6 @@ const buildSelectedGoWorkspacePartitions = (repoRoot, selectedGoPaths) => {
     partitions: Array.from(partitionByRoot.values())
       .sort((left, right) => String(left.rootRel || '.').localeCompare(String(right.rootRel || '.'))),
     unmatchedPaths
-  };
-};
-
-const formatPartitionList = (partitions) => (
-  (Array.isArray(partitions) ? partitions : [])
-    .map((entry) => String(entry?.rootRel || '.'))
-    .filter(Boolean)
-    .slice(0, 4)
-    .join(', ')
-);
-
-const toPartitionScopedCheck = (check, partition) => {
-  if (!check || typeof check !== 'object') return null;
-  const rootRel = String(partition?.rootRel || '.').trim() || '.';
-  const message = String(check.message || '').trim();
-  return {
-    ...check,
-    message: message ? `${message} [partition=${rootRel}]` : `[partition=${rootRel}]`
   };
 };
 

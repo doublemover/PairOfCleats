@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { logLine } from '../../../shared/progress.js';
+import { logLine } from '../../../shared/progress-runtime.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
 import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 import { BUILD_STATE_DURABILITY_CLASS, resolveBuildStateDurabilityClass } from './durability.js';

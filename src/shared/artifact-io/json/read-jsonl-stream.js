@@ -79,6 +79,47 @@ const readStreamJsonlEntries = async ({
   onEntry
 });
 
+const emitBufferedJsonlEntries = async ({
+  sourcePath,
+  buffer,
+  maxBytes,
+  requiredKeys,
+  validationMode,
+  pushEntry,
+  cleanup,
+  queue,
+  shouldMeasure,
+  start,
+  compression,
+  rawBytes
+}) => {
+  const parsed = readBufferedJsonlEntries({
+    sourcePath,
+    buffer,
+    maxBytes,
+    requiredKeys,
+    validationMode
+  });
+  for (const entry of parsed.entries) {
+    await pushEntry(entry);
+  }
+  if (cleanup) cleanupBak(sourcePath);
+  queue.finish();
+  recordJsonlRead({
+    shouldMeasure,
+    start,
+    path: sourcePath,
+    compression,
+    rawBytes: rawBytes ?? parsed.bytes,
+    bytes: parsed.bytes,
+    rows: parsed.entries.length
+  });
+  return {
+    rows: parsed.entries.length,
+    bytes: parsed.bytes
+  };
+};
+
 const readJsonlIteratorSingle = async function* (
   targetPath,
   {
@@ -166,56 +207,38 @@ const readJsonlIteratorSingle = async function* (
             if (compression === 'gzip') {
               const buffer = readBuffer(sourcePath, maxBytes);
               const decompressed = decompressBuffer(buffer, 'gzip', maxBytes, sourcePath);
-              const parsed = readBufferedJsonlEntries({
+              ({ rows, bytes } = await emitBufferedJsonlEntries({
                 sourcePath,
                 buffer: decompressed,
                 maxBytes,
                 requiredKeys,
-                validationMode
-              });
-              rows = parsed.entries.length;
-              bytes = parsed.bytes;
-              for (const entry of parsed.entries) {
-                await pushEntry(entry);
-              }
-              if (cleanup) cleanupBak(sourcePath);
-              queue.finish();
-              recordJsonlRead({
+                validationMode,
+                pushEntry,
+                cleanup,
+                queue,
                 shouldMeasure,
                 start,
-                path: sourcePath,
                 compression,
-                rawBytes: rawBytes ?? bytes,
-                bytes,
-                rows
-              });
+                rawBytes
+              }));
               return;
             }
             if (!compression) {
               const buffer = readBuffer(sourcePath, maxBytes);
-              const parsed = readBufferedJsonlEntries({
+              ({ rows, bytes } = await emitBufferedJsonlEntries({
                 sourcePath,
                 buffer,
                 maxBytes,
                 requiredKeys,
-                validationMode
-              });
-              rows = parsed.entries.length;
-              bytes = parsed.bytes;
-              for (const entry of parsed.entries) {
-                await pushEntry(entry);
-              }
-              if (cleanup) cleanupBak(sourcePath);
-              queue.finish();
-              recordJsonlRead({
+                validationMode,
+                pushEntry,
+                cleanup,
+                queue,
                 shouldMeasure,
                 start,
-                path: sourcePath,
                 compression,
-                rawBytes: rawBytes ?? bytes,
-                bytes,
-                rows
-              });
+                rawBytes
+              }));
               return;
             }
           }
@@ -232,29 +255,20 @@ const readJsonlIteratorSingle = async function* (
               if (payload.length > maxBytes || shouldAbortForHeap(payload.length)) {
                 throw toJsonTooLargeError(sourcePath, payload.length);
               }
-              const parsed = readBufferedJsonlEntries({
+              ({ rows, bytes } = await emitBufferedJsonlEntries({
                 sourcePath,
                 buffer: payload,
                 maxBytes,
                 requiredKeys,
-                validationMode
-              });
-              rows = parsed.entries.length;
-              bytes = parsed.bytes;
-              for (const entry of parsed.entries) {
-                await pushEntry(entry);
-              }
-              if (cleanup) cleanupBak(sourcePath);
-              queue.finish();
-              recordJsonlRead({
+                validationMode,
+                pushEntry,
+                cleanup,
+                queue,
                 shouldMeasure,
                 start,
-                path: sourcePath,
                 compression,
-                rawBytes: rawBytes ?? bytes,
-                bytes,
-                rows
-              });
+                rawBytes
+              }));
               return;
             }
             const zstdStream = createZstdDecompress();

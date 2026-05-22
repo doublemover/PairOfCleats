@@ -44,6 +44,25 @@ const normalizeWorkspaceCandidatePath = (value) => (
     .replace(/^poc-vfs\/+/i, '')
 );
 
+export const normalizeWorkspaceRootRel = (value) => {
+  const normalized = String(value || '.')
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .replace(/\/+/g, '/')
+    .replace(/\/$/, '');
+  return normalized || '.';
+};
+
+export const normalizeVirtualWorkspacePath = (value) => (
+  String(value || '')
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .replace(/^\.poc-vfs\/+/iu, '')
+    .replace(/^poc-vfs\/+/iu, '')
+    .replace(/#.*$/u, '')
+);
+
 /**
  * Scan repo root and first-level child directories for workspace markers.
  * This keeps detection fast while still covering common monorepo layouts.

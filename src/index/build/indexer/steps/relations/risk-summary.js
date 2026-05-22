@@ -1,4 +1,4 @@
-import { log } from '../../../../../shared/progress.js';
+import { log } from '../../../../../shared/progress-runtime.js';
 import { buildRiskSummaries } from '../../../../risk-interprocedural/summaries.js';
 
 /**

@@ -1,57 +1,87 @@
-import { loadUserConfig } from '../../../shared/dict-utils.js';
 import { resolveIndexDir } from '../../../../src/retrieval/cli-index.js';
 import { hasIndexMeta } from '../../../../src/retrieval/cli/index-loader.js';
 import { buildRiskDeltaPayload } from '../../../../src/context-pack/risk-delta.js';
+import { projectRiskDeltaRequest, projectRiskExplainRequest } from '../../../analysis/risk-request.js';
 import { createError, ERROR_CODES } from '../../../../src/shared/error-codes.js';
+import { buildContextPackRequestInput } from '../../../../src/shared/context-pack-request.js';
 import { attachObservability, buildChildObservability } from '../../../../src/shared/observability.js';
 import { createProgressReporter } from '../../../../src/shared/progress-events.js';
-import { normalizeRiskFilters, validateRiskFilters } from '../../../../src/shared/risk-filters.js';
 import { buildCompositeContextPackPayload } from '../../../../src/integrations/tooling/context-pack.js';
 import { buildRiskExplainPayload } from '../../../analysis/explain-risk.js';
-import { resolveRepoPath } from '../../repo.js';
+import { resolveMcpRepoContext } from '../helpers.js';
 
-export async function runRiskExplain(args = {}, context = {}) {
+const buildAnalysisObservability = (context, operation, analysisContext = {}) => buildChildObservability(
+  context.observability,
+  {
+    surface: 'analysis',
+    operation,
+    context: analysisContext
+  }
+);
+
+const throwIfRequestCancelled = (context = {}) => {
   if (context.signal?.aborted) {
     throw createError(ERROR_CODES.CANCELLED, 'Request cancelled.');
   }
-  const repoPath = resolveRepoPath(args.repoPath);
-  const chunkUid = String(args.chunk || '').trim();
+};
+
+const throwIfInvalidRiskFilters = (filterValidation) => {
+  if (!filterValidation?.ok) {
+    const errors = Array.isArray(filterValidation?.errors) ? filterValidation.errors : ['unknown validation error'];
+    throw createError(ERROR_CODES.INVALID_REQUEST, `Invalid risk filters: ${errors.join('; ')}`, {
+      reason: 'invalid_risk_filters'
+    });
+  }
+};
+
+const runObservedAnalysisOperation = async (context, {
+  operation,
+  analysisContext = {},
+  startMessage,
+  doneMessage,
+  execute
+}) => {
+  const reporter = createProgressReporter(context);
+  const observability = buildAnalysisObservability(context, operation, analysisContext);
+  reporter?.start(startMessage, { observability });
+  const result = await execute();
+  reporter?.done(doneMessage, { observability });
+  return attachObservability(result, observability);
+};
+
+export async function runRiskExplain(args = {}, context = {}) {
+  throwIfRequestCancelled(context);
+  const { repoPath, userConfig } = resolveMcpRepoContext(args.repoPath, {
+    includeRuntimeEnv: false
+  });
+  const riskRequest = projectRiskExplainRequest(args);
+  const chunkUid = riskRequest.chunkUid;
   if (!chunkUid) {
     throw createError(ERROR_CODES.INVALID_REQUEST, 'chunk is required.');
   }
-  const userConfig = loadUserConfig(repoPath);
   const indexDir = resolveIndexDir(repoPath, 'code', userConfig);
   if (!hasIndexMeta(indexDir)) {
     throw createError(ERROR_CODES.NO_INDEX, `Code index not found at ${indexDir}.`);
   }
-  const filters = normalizeRiskFilters(args.filters || null);
-  const validation = validateRiskFilters(filters);
-  if (!validation.ok) {
-    throw createError(ERROR_CODES.INVALID_REQUEST, `Invalid risk filters: ${validation.errors.join('; ')}`, {
-      reason: 'invalid_risk_filters'
-    });
-  }
-  const reporter = createProgressReporter(context);
-  const observability = buildChildObservability(context.observability, {
-    surface: 'analysis',
-    operation: 'risk_explain',
-    context: {
-      repoRoot: repoPath,
-      chunkUid
-    }
-  });
-  reporter?.start('Building risk explanation.', { observability });
+  throwIfInvalidRiskFilters(riskRequest.filterValidation);
   try {
-    const result = await buildRiskExplainPayload({
-      indexDir,
-      chunkUid,
-      max: args.max,
-      filters,
-      includePartialFlows: args.includePartialFlows === true,
-      maxPartialFlows: args.maxPartialFlows
+    return await runObservedAnalysisOperation(context, {
+      operation: 'risk_explain',
+      analysisContext: {
+        repoRoot: repoPath,
+        chunkUid
+      },
+      startMessage: 'Building risk explanation.',
+      doneMessage: 'Risk explanation ready.',
+      execute: () => buildRiskExplainPayload({
+        indexDir,
+        chunkUid,
+        max: riskRequest.max,
+        filters: riskRequest.filters,
+        includePartialFlows: riskRequest.includePartialFlows,
+        maxPartialFlows: riskRequest.maxPartialFlows
+      })
     });
-    reporter?.done('Risk explanation ready.', { observability });
-    return attachObservability(result, observability);
   } catch (err) {
     const message = err?.message || 'Failed to build risk explanation.';
     const isUnknownChunk = (
@@ -67,54 +97,27 @@ export async function runRiskExplain(args = {}, context = {}) {
 }
 
 export async function runContextPack(args = {}, context = {}) {
-  if (context.signal?.aborted) {
-    throw createError(ERROR_CODES.CANCELLED, 'Request cancelled.');
-  }
-  const repoPath = resolveRepoPath(args.repoPath);
-  const reporter = createProgressReporter(context);
-  const observability = buildChildObservability(context.observability, {
-    surface: 'analysis',
-    operation: 'context_pack',
-    context: {
-      repoRoot: repoPath
-    }
+  throwIfRequestCancelled(context);
+  const { repoPath } = resolveMcpRepoContext(args.repoPath, {
+    includeRuntimeEnv: false,
+    includeUserConfig: false
   });
-  reporter?.start('Building context pack.', { observability });
   try {
-    const result = await buildCompositeContextPackPayload({
-      repoRoot: repoPath,
-      seed: args.seed,
-      hops: args.hops,
-      workspacePath: args.workspacePath,
-      workspaceId: args.workspaceId,
-      select: args.select,
-      includeDisabled: args.includeDisabled,
-      maxFederatedRepos: args.maxFederatedRepos,
-      includeGraph: args.includeGraph,
-      includeTypes: args.includeTypes,
-      includeRisk: args.includeRisk,
-      includeRiskPartialFlows: args.includeRiskPartialFlows,
-      strictRisk: args.strictRisk,
-      strictEvidence: args.strictEvidence,
-      riskFilters: args.filters || null,
-      includeImports: args.includeImports,
-      includeUsages: args.includeUsages,
-      includeCallersCallees: args.includeCallersCallees,
-      includePaths: args.includePaths,
-      maxBytes: args.maxBytes,
-      maxTokens: args.maxTokens,
-      maxTypeEntries: args.maxTypeEntries,
-      maxDepth: args.maxDepth,
-      maxFanoutPerNode: args.maxFanoutPerNode,
-      maxNodes: args.maxNodes,
-      maxEdges: args.maxEdges,
-      maxPaths: args.maxPaths,
-      maxCandidates: args.maxCandidates,
-      maxWorkUnits: args.maxWorkUnits,
-      maxWallClockMs: args.maxWallClockMs
-    }, context);
-    reporter?.done('Context pack ready.', { observability });
-    return attachObservability(result, observability);
+    return await runObservedAnalysisOperation(context, {
+      operation: 'context_pack',
+      analysisContext: {
+        repoRoot: repoPath
+      },
+      startMessage: 'Building context pack.',
+      doneMessage: 'Context pack ready.',
+      execute: () => buildCompositeContextPackPayload(
+        buildContextPackRequestInput(args, {
+          repoRoot: repoPath,
+          riskFilters: args.filters || null
+        }),
+        context
+      )
+    });
   } catch (err) {
     if (
       err?.code === 'ERR_CONTEXT_PACK_INVALID_REQUEST'
@@ -137,47 +140,38 @@ export async function runContextPack(args = {}, context = {}) {
 }
 
 export async function runRiskDelta(args = {}, context = {}) {
-  if (context.signal?.aborted) {
-    throw createError(ERROR_CODES.CANCELLED, 'Request cancelled.');
-  }
-  const repoPath = resolveRepoPath(args.repoPath);
-  const fromRef = String(args.from || '').trim();
-  const toRef = String(args.to || '').trim();
-  const seed = String(args.seed || '').trim();
+  throwIfRequestCancelled(context);
+  const { repoPath, userConfig } = resolveMcpRepoContext(args.repoPath, {
+    includeRuntimeEnv: false
+  });
+  const riskRequest = projectRiskDeltaRequest(args);
+  const fromRef = riskRequest.fromRef;
+  const toRef = riskRequest.toRef;
+  const seed = riskRequest.seed;
   if (!fromRef || !toRef || !seed) {
     throw createError(ERROR_CODES.INVALID_REQUEST, 'seed, from, and to are required.');
   }
-  const filters = normalizeRiskFilters(args.filters || null);
-  const validation = validateRiskFilters(filters);
-  if (!validation.ok) {
-    throw createError(ERROR_CODES.INVALID_REQUEST, `Invalid risk filters: ${validation.errors.join('; ')}`, {
-      reason: 'invalid_risk_filters'
-    });
-  }
-  const reporter = createProgressReporter(context);
-  const observability = buildChildObservability(context.observability, {
-    surface: 'analysis',
-    operation: 'risk_delta',
-    context: {
-      repoRoot: repoPath,
-      from: fromRef,
-      to: toRef
-    }
-  });
-  reporter?.start('Building risk delta.', { observability });
-  const userConfig = loadUserConfig(repoPath);
+  throwIfInvalidRiskFilters(riskRequest.filterValidation);
   try {
-    const result = await buildRiskDeltaPayload({
-      repoRoot: repoPath,
-      userConfig,
-      from: fromRef,
-      to: toRef,
-      seed,
-      filters,
-      includePartialFlows: args.includePartialFlows === true
+    return await runObservedAnalysisOperation(context, {
+      operation: 'risk_delta',
+      analysisContext: {
+        repoRoot: repoPath,
+        from: fromRef,
+        to: toRef
+      },
+      startMessage: 'Building risk delta.',
+      doneMessage: 'Risk delta ready.',
+      execute: () => buildRiskDeltaPayload({
+        repoRoot: repoPath,
+        userConfig,
+        from: fromRef,
+        to: toRef,
+        seed,
+        filters: riskRequest.filters,
+        includePartialFlows: riskRequest.includePartialFlows
+      })
     });
-    reporter?.done('Risk delta ready.', { observability });
-    return attachObservability(result, observability);
   } catch (err) {
     if (err?.code === ERROR_CODES.INVALID_REQUEST) {
       throw createError(ERROR_CODES.INVALID_REQUEST, err.message, {

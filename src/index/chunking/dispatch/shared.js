@@ -60,6 +60,47 @@ export const splitLinesWithIndex = (text, context = null) => {
 };
 
 /**
+ * Collect heading rows with the shared bounded line-scan contract used by
+ * heuristic chunkers.
+ *
+ * Grammar-specific candidate checks and heading construction stay with each
+ * caller; this helper only owns line splitting, line length guards, and skip
+ * orchestration.
+ *
+ * @param {string} text
+ * @param {object|null} context
+ * @param {object} options
+ * @param {number} [options.maxLineLength]
+ * @param {(line:string,trimmed:string,index:number)=>boolean} [options.skipLine]
+ * @param {(line:string,trimmed:string,index:number)=>boolean} [options.precheck]
+ * @param {(line:string,trimmed:string,index:number)=>object|null|undefined} options.collect
+ * @returns {{headings:Array<object>,lineIndex:number[]}}
+ */
+export const collectHeadingRows = (text, context, options) => {
+  const { lines, lineIndex } = splitLinesWithIndex(text, context);
+  const headings = [];
+  const maxLineLength = Number.isFinite(Number(options?.maxLineLength))
+    ? Math.max(0, Math.floor(Number(options.maxLineLength)))
+    : MAX_REGEX_LINE;
+  const skipLine = typeof options?.skipLine === 'function' ? options.skipLine : null;
+  const precheck = typeof options?.precheck === 'function' ? options.precheck : null;
+  const collect = typeof options?.collect === 'function' ? options.collect : null;
+  if (!collect) return { headings, lineIndex };
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (maxLineLength && line.length > maxLineLength) continue;
+    const trimmed = line.trim();
+    if (skipLine && skipLine(line, trimmed, i)) continue;
+    if (precheck && !precheck(line, trimmed, i)) continue;
+    const heading = collect(line, trimmed, i);
+    if (heading) headings.push(heading);
+  }
+
+  return { headings, lineIndex };
+};
+
+/**
  * Build chunks by scanning lines with a regex heading matcher.
  *
  * Fallback behavior is intentionally total: when no headings are found this

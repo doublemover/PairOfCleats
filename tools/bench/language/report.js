@@ -1,6 +1,6 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { log } from '../../../src/shared/progress.js';
+import { log } from '../../../src/shared/progress-runtime.js';
 import { mergeReuseSummaries, summarizeReuseObservations } from '../../../src/shared/reuse-diagnostics.js';
 import {
   STAGE_TIMING_SCHEMA_VERSION,

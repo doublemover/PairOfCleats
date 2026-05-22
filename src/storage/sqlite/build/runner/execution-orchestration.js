@@ -1,13 +1,17 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { createTempPath } from '../../../../shared/json-stream.js';
+import { createTempPath } from '../../../../shared/json-stream/atomic.js';
 import { ensureDiskSpace, estimateDirBytes } from '../../../../shared/disk-space.js';
 import { createStageCheckpointRecorder } from '../../../../index/build/stage-checkpoints.js';
 import { resolveVectorExtensionConfigForMode } from '../../../../../tools/sqlite/vector-extension.js';
 import { compactDatabase } from '../../../../../tools/build/compact-sqlite-index.js';
 import { loadIncrementalManifest } from '../../incremental.js';
-import { removeSqliteSidecars, replaceSqliteDatabase } from '../../utils.js';
+import {
+  removeSqliteSidecars,
+  replaceSqliteDatabase,
+  resolveExpectedDenseCount
+} from '../../utils.js';
 import { buildDatabaseFromArtifacts } from '../from-artifacts.js';
 import { buildDatabaseFromBundles } from '../from-bundles.js';
 import { incrementalUpdateDatabase } from '../incremental-update.js';
@@ -25,8 +29,7 @@ import {
 import {
   hasVectorTableAtPath,
   readSqliteCounts,
-  readSqliteModeCount,
-  resolveExpectedDenseCount
+  readSqliteModeCount
 } from './sqlite-probes.js';
 import {
   classifySqliteModeBuildFailure,

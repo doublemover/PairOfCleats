@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { getIndexDir } from '../shared/repo-paths.js';
-import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { buildIndexSignatureInfo } from './index-cache.js';
 import { probeFileSignature } from '../shared/file-signature.js';
@@ -9,26 +8,36 @@ import {
   loadDenseVectorBinaryFromMetaAsync,
   resolveDenseVectorBinaryArtifact
 } from '../shared/dense-vector-artifacts.js';
+import { MAX_JSON_BYTES } from '../shared/artifact-io/constants.js';
 import {
-  MAX_JSON_BYTES,
-  loadChunkMeta,
   loadJsonArrayArtifact,
   loadJsonArrayArtifactRows,
-  loadTokenPostings,
-  loadJsonObjectArtifact,
-  loadMinhashSignatures,
+  loadJsonObjectArtifact
+} from '../shared/artifact-io/loaders/core.js';
+import { loadChunkMeta } from '../shared/artifact-io/loaders/chunk-meta.js';
+import { loadMinhashSignatures } from '../shared/artifact-io/loaders/minhash.js';
+import { loadTokenPostings } from '../shared/artifact-io/loaders/token-postings.js';
+import {
   loadPiecesManifest,
   resolveBinaryArtifactPath
-} from '../shared/artifact-io.js';
-import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths, resolveHnswTarget } from '../shared/hnsw.js';
+} from '../shared/artifact-io/manifest.js';
+import { normalizeHnswConfig, resolveHnswPaths, resolveHnswTarget } from '../shared/hnsw.js';
 import {
   hasChunkMetaArtifactsSync as hasChunkMetaArtifactsShared,
-  hasChunkMetaArtifactsAsync as hasChunkMetaArtifactsAsyncShared,
+  hasChunkMetaArtifactsAsync as hasChunkMetaArtifactsAsyncShared
+} from '../shared/artifact-io/chunk-meta-presence.js';
+import {
   isOptionalArtifactMissingError,
   isOptionalArtifactTooLargeError,
   loadOptionalWithFallback,
   iterateOptionalWithFallback
-} from '../shared/index-artifact-helpers.js';
+} from '../shared/artifact-io/optional-fallback.js';
+import {
+  hydrateChunksFromFileMeta,
+  hydrateSearchIndexPostProcessing,
+  loadSearchHnswIndex,
+  requireFileMetaForFileIdChunks
+} from './index-hydration.js';
 
 export function hasChunkMetaArtifacts(dir) {
   return hasChunkMetaArtifactsShared(dir);
@@ -133,27 +142,8 @@ export async function loadIndex(dir, options) {
     fileMetaById.set(entry.id, entry);
   }
   if (!fileMetaLoaded) fileMetaById = null;
-  if (!fileMetaById) {
-    const missingMeta = chunkMeta.some((chunk) => chunk && chunk.fileId != null && !chunk.file);
-    if (missingMeta) {
-      throw new Error('file_meta.json is required for fileId-based chunk metadata.');
-    }
-  } else {
-    for (const chunk of chunkMeta) {
-      if (!chunk) continue;
-      const meta = fileMetaById.get(chunk.fileId);
-      if (!meta) continue;
-      if (!chunk.file) chunk.file = meta.file;
-      if (!chunk.ext) chunk.ext = meta.ext;
-      if (!chunk.externalDocs) chunk.externalDocs = meta.externalDocs;
-      if (!chunk.last_modified) chunk.last_modified = meta.last_modified;
-      if (!chunk.last_author) chunk.last_author = meta.last_author;
-      if (!chunk.churn) chunk.churn = meta.churn;
-      if (!chunk.churn_added) chunk.churn_added = meta.churn_added;
-      if (!chunk.churn_deleted) chunk.churn_deleted = meta.churn_deleted;
-      if (!chunk.churn_commits) chunk.churn_commits = meta.churn_commits;
-    }
-  }
+  if (!fileMetaById) requireFileMetaForFileIdChunks(chunkMeta);
+  else hydrateChunksFromFileMeta(chunkMeta, fileMetaById, { churnAssignment: 'falsy-or-nullish' });
   const fileRelationsRows = includeFileRelations
     ? loadOptionalRows('file_relations', { materialize: true })
     : null;
@@ -216,21 +206,16 @@ export async function loadIndex(dir, options) {
       strict,
       fallbackPath: hnswPaths.indexPath
     });
-    const mergedConfig = {
-      ...hnswConfig,
-      space: hnswMeta.space || hnswConfig.space,
-      efSearch: hnswMeta.efSearch || hnswConfig.efSearch
-    };
-    const expectedModel = denseVec?.model || denseVecDoc?.model || denseVecCode?.model || null;
-    const expectedDims = denseVec?.dims || denseVecDoc?.dims || denseVecCode?.dims || hnswMeta.dims;
-    hnswIndex = loadHnswIndex({
+    const loadedHnsw = loadSearchHnswIndex({
       indexPath,
-      dims: expectedDims,
-      config: mergedConfig,
-      meta: hnswMeta,
-      expectedModel
+      hnswConfig,
+      hnswMeta,
+      denseVec,
+      denseVecDoc,
+      denseVecCode
     });
-    hnswAvailable = Boolean(hnswIndex);
+    hnswIndex = loadedHnsw.index;
+    hnswAvailable = loadedHnsw.available;
   }
   const fieldPostings = await loadOptionalObject('field_postings');
   const fieldTokens = await loadOptionalArray('field_tokens');
@@ -264,24 +249,12 @@ export async function loadIndex(dir, options) {
     phraseNgrams: await loadOptionalObject('phrase_ngrams'),
     chargrams: await loadOptionalObject('chargram_postings')
   };
-  if (idx.phraseNgrams?.vocab && !idx.phraseNgrams.vocabIndex) {
-    idx.phraseNgrams.vocabIndex = new Map(idx.phraseNgrams.vocab.map((term, i) => [term, i]));
-  }
-  if (idx.chargrams?.vocab && !idx.chargrams.vocabIndex) {
-    idx.chargrams.vocabIndex = new Map(idx.chargrams.vocab.map((term, i) => [term, i]));
-  }
-  if (idx.fieldPostings?.fields) {
-    for (const field of Object.keys(idx.fieldPostings.fields)) {
-      const entry = idx.fieldPostings.fields[field];
-      if (!entry?.vocab || entry.vocabIndex) continue;
-      entry.vocabIndex = new Map(entry.vocab.map((term, i) => [term, i]));
-    }
-  }
-  idx.filterIndex = includeFilterIndex
-    ? (filterIndexRaw
-      ? (hydrateFilterIndex(filterIndexRaw) || buildFilterIndex(chunkMeta, { fileChargramN }))
-      : buildFilterIndex(chunkMeta, { fileChargramN }))
-    : null;
+  hydrateSearchIndexPostProcessing(idx, {
+    chunkMeta,
+    fileChargramN,
+    filterIndexRaw,
+    includeFilterIndex
+  });
   if (includeTokenIndexResolved) {
     try {
       idx.tokenIndex = loadTokenPostings(dir, {

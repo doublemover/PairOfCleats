@@ -7,7 +7,8 @@ import {
   resolveCliOptionFlagSets
 } from '../../src/shared/cli-options.js';
 import { getPackageScriptReplacement } from '../../src/shared/command-aliases.js';
-import { listCommandRegistry } from '../../src/shared/command-registry.js';
+import { listCommandRegistry } from '../../src/shared/command-registry-query.js';
+import { writeStableGeneratedJsonReport, writeTextIfChanged } from '../shared/generated-report.js';
 
 const parseArgs = () => createCli({
   scriptName: 'pairofcleats script-inventory',
@@ -115,16 +116,12 @@ const main = async () => {
   const cliEntrypoints = resolveCliEntrypoints();
 
   const jsonPath = path.resolve(root, argv.json);
-  await fsPromises.mkdir(path.dirname(jsonPath), { recursive: true });
-  await fsPromises.writeFile(
-    jsonPath,
-    `${JSON.stringify({
-      generatedAt: new Date().toISOString(),
-      scripts: inventory,
-      cliCommands: cliEntrypoints,
-      phaseSpecDir: phaseSpecInfo.phaseDir
-    }, null, 2)}\n`
-  );
+  await writeStableGeneratedJsonReport(jsonPath, {
+    generatedAt: new Date().toISOString(),
+    scripts: inventory,
+    cliCommands: cliEntrypoints,
+    phaseSpecDir: phaseSpecInfo.phaseDir
+  });
 
   const markdownPath = path.resolve(root, argv.markdown);
   const lines = [
@@ -175,8 +172,7 @@ const main = async () => {
     ...inventory.map((entry) => `| \`${entry.name}\` | ${entry.category} | ${entry.ciAllowed ? 'yes' : 'no'} | ${entry.replacement || ''} |`),
     ''
   ];
-  await fsPromises.mkdir(path.dirname(markdownPath), { recursive: true });
-  await fsPromises.writeFile(markdownPath, `${lines.join('\n')}\n`);
+  await writeTextIfChanged(markdownPath, `${lines.join('\n')}\n`);
 };
 
 main().catch((error) => {

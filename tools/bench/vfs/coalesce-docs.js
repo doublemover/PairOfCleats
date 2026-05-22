@@ -3,6 +3,7 @@
 import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { formatStats, summarizeDurations, writeJsonWithDir } from '../micro/utils.js';
+import { clampInt, createRng } from './shared.js';
 
 const rawArgs = process.argv.slice(2);
 const cli = createCli({
@@ -64,20 +65,6 @@ if (argv.json) {
   console.error(`[coalesce-docs] files=${fileCount} segments=${segments.length}`);
   printBench('baseline', baseline);
   printBench('coalesce', coalesce);
-}
-
-function clampInt(value, min, fallback) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(min, Math.floor(parsed));
-}
-
-function createRng(seedValue) {
-  let state = (seedValue >>> 0) || 1;
-  return () => {
-    state = (state * 1664525 + 1013904223) >>> 0;
-    return state / 0x100000000;
-  };
 }
 
 function buildSegments({ fileCount, segmentsPerFile, languageCount, mergeProb, seed }) {

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../../src/experimental/compare/config.js';
-import { runSubprocessOrExit } from '../shared/cli-utils.js';
+import { emitJson, runSubprocessOrExit } from '../shared/cli-utils.js';
 import { DEFAULT_MODEL_ID, bootstrapRuntime, resolveSqlitePaths, resolveToolRoot } from '../shared/dict-utils.js';
 import { ensureParityArtifacts } from '../shared/parity-indexes.js';
 
@@ -30,7 +30,7 @@ const argv = createCli({
 
 const exitWithSummaryError = (message, code = 1) => {
   if (argv.json) {
-    console.log(JSON.stringify({ ok: false, error: message }, null, 2));
+    emitJson({ ok: false, error: message });
   } else {
     console.error(message);
   }
@@ -239,7 +239,7 @@ const outPath = argv.out ? path.resolve(argv.out) : reportPaths.combined;
 await writeJsonFileResolved(outPath, combined);
 
 if (argv.json) {
-  console.log(JSON.stringify(combined, null, 2));
+  emitJson(combined);
 } else {
   console.error(`Combined summary written to ${outPath}`);
 }

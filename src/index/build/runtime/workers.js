@@ -1,7 +1,8 @@
 import os from 'node:os';
-import { createSchedulerQueueAdapter, createTaskQueues } from '../../../shared/concurrency.js';
+import { createSchedulerQueueAdapter } from '../../../shared/concurrency/queue-adapter.js';
+import { createTaskQueues } from '../../../shared/concurrency/task-queues.js';
 import { coercePositiveInt } from '../../../shared/number-coerce.js';
-import { logLine } from '../../../shared/progress.js';
+import { logLine } from '../../../shared/progress-runtime.js';
 import { SCHEDULER_QUEUE_NAMES } from './scheduler.js';
 import { resolveThreadLimits } from '../../../shared/threads.js';
 import { createIndexerWorkerPools, resolveWorkerPoolConfig } from '../worker-pool.js';

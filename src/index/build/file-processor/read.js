@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveSpecialCodeExt } from '../../constants.js';
-import { fileExt } from '../../../shared/files.js';
+import { fileExt } from '../../../shared/file-paths.js';
 import { decodeTextBuffer } from '../../../shared/encoding.js';
 import { pickMinLimit } from '../runtime/limits.js';
 import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';

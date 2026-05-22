@@ -182,6 +182,31 @@ const riskFlowNotesSchema = {
   additionalProperties: false
 };
 
+const riskPathWatchStepSchema = {
+  type: 'object',
+  properties: {
+    taintIn: { type: 'array', items: { type: 'string' } },
+    taintOut: { type: 'array', items: { type: 'string' } },
+    propagatedArgIndices: { type: 'array', items: nullableNumber },
+    boundParams: { type: 'array', items: { type: 'string' } },
+    calleeNormalized: nullableString,
+    ...riskWatchSemanticsSchema,
+    sanitizerPolicy: nullableString,
+    sanitizerBarrierApplied: { type: ['boolean', 'null'] },
+    sanitizerBarriersBefore: nullableNumber,
+    sanitizerBarriersAfter: nullableNumber,
+    confidenceBefore: nullableNumber,
+    confidenceAfter: nullableNumber,
+    confidenceDelta: nullableNumber
+  },
+  additionalProperties: false
+};
+
+const riskPathWatchByStepSchema = {
+  type: ['array', 'null'],
+  items: riskPathWatchStepSchema
+};
+
 export const riskFlowSummarySchema = {
   type: 'object',
   required: ['rank', 'path', 'score'],
@@ -212,28 +237,7 @@ export const riskFlowSummarySchema = {
         stepCount: nullableNumber,
         truncatedSteps: nullableNumber,
         callSiteIdsByStep: { type: ['array', 'null'], items: { type: 'array', items: { type: 'string' } } },
-        watchByStep: {
-          type: ['array', 'null'],
-          items: {
-            type: 'object',
-            properties: {
-              taintIn: { type: 'array', items: { type: 'string' } },
-              taintOut: { type: 'array', items: { type: 'string' } },
-              propagatedArgIndices: { type: 'array', items: nullableNumber },
-              boundParams: { type: 'array', items: { type: 'string' } },
-              calleeNormalized: nullableString,
-              ...riskWatchSemanticsSchema,
-              sanitizerPolicy: nullableString,
-              sanitizerBarrierApplied: { type: ['boolean', 'null'] },
-              sanitizerBarriersBefore: nullableNumber,
-              sanitizerBarriersAfter: nullableNumber,
-              confidenceBefore: nullableNumber,
-              confidenceAfter: nullableNumber,
-              confidenceDelta: nullableNumber
-            },
-            additionalProperties: false
-          }
-        }
+        watchByStep: riskPathWatchByStepSchema
       },
       additionalProperties: false
     },
@@ -308,28 +312,7 @@ export const riskPartialFlowSummarySchema = {
         stepCount: nullableNumber,
         truncatedSteps: nullableNumber,
         callSiteIdsByStep: { type: ['array', 'null'], items: { type: 'array', items: { type: 'string' } } },
-        watchByStep: {
-          type: ['array', 'null'],
-          items: {
-            type: 'object',
-            properties: {
-              taintIn: { type: 'array', items: { type: 'string' } },
-              taintOut: { type: 'array', items: { type: 'string' } },
-              propagatedArgIndices: { type: 'array', items: nullableNumber },
-              boundParams: { type: 'array', items: { type: 'string' } },
-              calleeNormalized: nullableString,
-              ...riskWatchSemanticsSchema,
-              sanitizerPolicy: nullableString,
-              sanitizerBarrierApplied: { type: ['boolean', 'null'] },
-              sanitizerBarriersBefore: nullableNumber,
-              sanitizerBarriersAfter: nullableNumber,
-              confidenceBefore: nullableNumber,
-              confidenceAfter: nullableNumber,
-              confidenceDelta: nullableNumber
-            },
-            additionalProperties: false
-          }
-        }
+        watchByStep: riskPathWatchByStepSchema
       },
       additionalProperties: false
     },

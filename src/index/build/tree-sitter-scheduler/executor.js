@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { throwIfAborted } from '../../../shared/abort.js';
-import { toPosix } from '../../../shared/files.js';
+import { toPosix } from '../../../shared/file-paths.js';
 import { buildLineIndex, offsetToLine } from '../../../shared/lines.js';
 import { sha1 } from '../../../shared/hash.js';
 import { stringifyJsonValue } from '../../../shared/json-stream/encode.js';
@@ -10,6 +10,7 @@ import { createJsonWriteStream, writeChunk } from '../../../shared/json-stream/s
 import { readTextFileWithHash } from '../../../shared/encoding.js';
 import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
 import { getNativeTreeSitterParser } from '../../../lang/tree-sitter/native-runtime.js';
+import { attachSegmentMeta } from '../../segments/chunk-meta.js';
 import { assertTreeSitterScheduledGroupsContract, assertTreeSitterScheduledJobContract } from './contracts.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 import {
@@ -36,62 +37,6 @@ const formatMemoryUsage = () => {
   const usage = process.memoryUsage();
   const toMb = (value) => (Number(value) / (1024 * 1024)).toFixed(1);
   return `rss=${toMb(usage.rss)}MB heapUsed=${toMb(usage.heapUsed)}MB ext=${toMb(usage.external)}MB ab=${toMb(usage.arrayBuffers)}MB`;
-};
-
-/**
- * Rebase chunk offsets/line metadata to container-file coordinates.
- *
- * @param {{
- *  chunk:object,
- *  segment?:object|null,
- *  segmentUid?:string|null,
- *  segmentExt?:string,
- *  segmentStart:number,
- *  segmentEnd:number,
- *  segmentStartLine:number,
- *  segmentEndLine:number,
- *  embeddingContext?:object|null
- * }} input
- * @returns {object}
- */
-const attachSegmentMeta = ({
-  chunk,
-  segment,
-  segmentUid,
-  segmentExt,
-  segmentStart,
-  segmentEnd,
-  segmentStartLine,
-  segmentEndLine,
-  embeddingContext
-}) => {
-  const adjusted = { ...chunk };
-  adjusted.start = chunk.start + segmentStart;
-  adjusted.end = chunk.end + segmentStart;
-  if (adjusted.meta && typeof adjusted.meta === 'object') {
-    if (Number.isFinite(adjusted.meta.startLine)) {
-      adjusted.meta.startLine = segmentStartLine + adjusted.meta.startLine - 1;
-    }
-    if (Number.isFinite(adjusted.meta.endLine)) {
-      adjusted.meta.endLine = segmentStartLine + adjusted.meta.endLine - 1;
-    }
-  }
-  if (segment && segmentUid) {
-    adjusted.segment = {
-      segmentId: segment.segmentId,
-      segmentUid,
-      type: segment.type,
-      languageId: segment.languageId || null,
-      ext: segmentExt,
-      start: segmentStart,
-      end: segmentEnd,
-      startLine: segmentStartLine,
-      endLine: segmentEndLine,
-      parentSegmentId: segment.parentSegmentId || null,
-      embeddingContext
-    };
-  }
-  return adjusted;
 };
 
 /**
@@ -504,7 +449,7 @@ export const executeTreeSitterSchedulerPlan = async ({
 
         const adjusted = chunks.map((chunk) => attachSegmentMeta({
           chunk,
-          segment,
+          segment: segmentUid ? segment : null,
           segmentUid,
           segmentExt,
           segmentStart,
