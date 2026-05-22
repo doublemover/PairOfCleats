@@ -11,6 +11,7 @@ export default [
       'benchmarks/results/**',
       '.testCache/**',
       '.testLogs/**',
+      'temp/**',
       'tests/.cache/**',
       '**/.worktrees/**',
       '**/worktrees/**',

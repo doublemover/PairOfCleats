@@ -41,17 +41,17 @@ export const createBenchRuntimeCanaryTargetEntry = async (root = process.cwd()) 
     sdkEntry,
     targetEntry: sdkEntry
       ? {
-          ...sdkEntry,
-          runner: {
-            ...sdkEntry.runner,
-            args: [
-              '--fixture',
-              'sdk-artifact-tail-live-target',
-              '--out',
-              '{outJson}'
-            ]
-          }
+        ...sdkEntry,
+        runner: {
+          ...sdkEntry.runner,
+          args: [
+            '--fixture',
+            'sdk-artifact-tail-live-target',
+            '--out',
+            '{outJson}'
+          ]
         }
+      }
       : null
   };
 };
