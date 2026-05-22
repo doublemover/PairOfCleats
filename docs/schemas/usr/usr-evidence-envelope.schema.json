@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "usr/usr-evidence-envelope.schema.json",
+  "title": "usr-evidence-envelope.schema.json",
+  "allOf": [
+    {
+      "$ref": "./evidence-envelope.schema.json"
+    }
+  ]
+}

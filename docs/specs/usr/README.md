@@ -33,13 +33,13 @@ Every removed split contract must map to one of the consolidated core docs above
 - `docs/specs/usr/languages/TEMPLATE.md`
 - `docs/specs/usr/frameworks/TEMPLATE.md`
 
-Templates are optional extension docs for exceptional cases. The default path is updating the consolidated catalogs and machine-readable matrices.
+Templates are optional extension docs for exceptional cases. The default path is updating the consolidated catalogs and machine-readable matrices. Template checklist rows are placeholders only and must not be treated as active contract status until copied into a concrete language or framework document.
 
 ## Supporting references
 
-- `TES_LAYN_ROADMAP.md`
-- `TES_LAYN_EXECUTION_PACKS.md`
-- `TES_LAYN_GOVERNANCE.md`
+- `docs/roadmap.md`
+- `docs/specs/usr-core-rollout-release-migration.md`
+- `docs/specs/usr-core-governance-change.md`
 - `docs/schemas/usr/README.md`
 
 ## Policy

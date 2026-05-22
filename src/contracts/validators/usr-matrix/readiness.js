@@ -8,7 +8,16 @@ import {
   findRiskOverlap,
   sortedStrings
 } from './profile-helpers.js';
-import { normalizeReportScope } from './report-shaping.js';
+import {
+  appendPrefixedRowDiagnostics,
+  buildMatrixRegistryFailureResult,
+  buildReportPayload,
+  buildReportFindings,
+  buildReportStatus,
+  cloneRowsWithDiagnostics,
+  freezeRowDiagnostics,
+  normalizeReportScope
+} from './report-shaping.js';
 import { validateUsrMatrixRegistry } from './registry.js';
 
 export function validateUsrEmbeddingBridgeCoverage({
@@ -17,12 +26,7 @@ export function validateUsrEmbeddingBridgeCoverage({
 } = {}) {
   const bridgeValidation = validateUsrMatrixRegistry('usr-embedding-bridge-cases', bridgeCasesPayload);
   if (!bridgeValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...bridgeValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(bridgeValidation);
   }
 
   const errors = [];
@@ -83,19 +87,19 @@ export function validateUsrEmbeddingBridgeCoverage({
       }
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${caseRow.id} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${caseRow.id} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: caseRow.id
+    });
 
     rows.push({
       rowType: 'embedding-bridge-coverage',
       bridgeCaseId: caseRow.id,
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
@@ -129,18 +133,11 @@ export function buildUsrEmbeddingBridgeCoverageReport({
     bridgeBundlePayload
   });
 
-  const status = evaluation.errors.length > 0
-    ? 'fail'
-    : (evaluation.warnings.length > 0 ? 'warn' : 'pass');
+  const status = buildReportStatus(evaluation);
 
-  const rows = evaluation.rows.map((row) => ({
-    ...row,
-    errors: row.errors,
-    warnings: row.warnings
-  }));
+  const rows = cloneRowsWithDiagnostics(evaluation.rows);
 
-  const payload = {
-    schemaVersion: 'usr-1.0.0',
+  const payload = buildReportPayload({
     artifactId: 'usr-validation-report',
     generatedAt,
     producerId,
@@ -158,16 +155,10 @@ export function buildUsrEmbeddingBridgeCoverageReport({
       warningCount: evaluation.warnings.length,
       errorCount: evaluation.errors.length
     },
-    blockingFindings: evaluation.errors.map((message) => ({
-      class: 'embedding-bridge',
-      message
-    })),
-    advisoryFindings: evaluation.warnings.map((message) => ({
-      class: 'embedding-bridge',
-      message
-    })),
+    blockingFindings: buildReportFindings(evaluation.errors, 'embedding-bridge'),
+    advisoryFindings: buildReportFindings(evaluation.warnings, 'embedding-bridge'),
     rows
-  };
+  });
 
   return {
     ok: evaluation.ok,
@@ -184,12 +175,7 @@ export function validateUsrGeneratedProvenanceCoverage({
 } = {}) {
   const provenanceValidation = validateUsrMatrixRegistry('usr-generated-provenance-cases', provenanceCasesPayload);
   if (!provenanceValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...provenanceValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(provenanceValidation);
   }
 
   const errors = [];
@@ -260,20 +246,20 @@ export function validateUsrGeneratedProvenanceCoverage({
       }
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${caseRow.id} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${caseRow.id} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: caseRow.id
+    });
 
     rows.push({
       rowType: 'generated-provenance-coverage',
       provenanceCaseId: caseRow.id,
       mappingExpectation: caseRow.mappingExpectation,
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
@@ -307,18 +293,11 @@ export function buildUsrGeneratedProvenanceCoverageReport({
     provenanceBundlePayload
   });
 
-  const status = evaluation.errors.length > 0
-    ? 'fail'
-    : (evaluation.warnings.length > 0 ? 'warn' : 'pass');
+  const status = buildReportStatus(evaluation);
 
-  const rows = evaluation.rows.map((row) => ({
-    ...row,
-    errors: row.errors,
-    warnings: row.warnings
-  }));
+  const rows = cloneRowsWithDiagnostics(evaluation.rows);
 
-  const payload = {
-    schemaVersion: 'usr-1.0.0',
+  const payload = buildReportPayload({
     artifactId: 'usr-validation-report',
     generatedAt,
     producerId,
@@ -337,16 +316,10 @@ export function buildUsrGeneratedProvenanceCoverageReport({
       errorCount: evaluation.errors.length,
       downgradeCaseCount: rows.filter((row) => row.mappingExpectation !== 'exact').length
     },
-    blockingFindings: evaluation.errors.map((message) => ({
-      class: 'generated-provenance',
-      message
-    })),
-    advisoryFindings: evaluation.warnings.map((message) => ({
-      class: 'generated-provenance',
-      message
-    })),
+    blockingFindings: buildReportFindings(evaluation.errors, 'generated-provenance'),
+    advisoryFindings: buildReportFindings(evaluation.warnings, 'generated-provenance'),
     rows
-  };
+  });
 
   return {
     ok: evaluation.ok,
@@ -416,22 +389,12 @@ export function validateUsrLanguageBatchShards({
 } = {}) {
   const batchValidation = validateUsrMatrixRegistry('usr-language-batch-shards', batchShardsPayload);
   if (!batchValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...batchValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(batchValidation);
   }
 
   const languageValidation = validateUsrMatrixRegistry('usr-language-profiles', languageProfilesPayload);
   if (!languageValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...languageValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(languageValidation);
   }
 
   const errors = [];
@@ -528,12 +491,13 @@ export function validateUsrLanguageBatchShards({
       rowWarnings.push('requiredConformance should include at least one level');
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${row.id} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${row.id} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: row.id
+    });
 
     rows.push({
       id: row.id,
@@ -542,8 +506,7 @@ export function validateUsrLanguageBatchShards({
       scopeType: row.scopeType,
       languageCount: sortedLanguageIds.length,
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
@@ -576,32 +539,17 @@ export function validateUsrMatrixDrivenHarnessCoverage({
 } = {}) {
   const languageValidation = validateUsrMatrixRegistry('usr-language-profiles', languageProfilesPayload);
   if (!languageValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...languageValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(languageValidation);
   }
 
   const frameworkValidation = validateUsrMatrixRegistry('usr-framework-profiles', frameworkProfilesPayload);
   if (!frameworkValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...frameworkValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(frameworkValidation);
   }
 
   const fixtureValidation = validateUsrMatrixRegistry('usr-fixture-governance', fixtureGovernancePayload);
   if (!fixtureValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...fixtureValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(fixtureValidation);
   }
 
   const batchValidation = validateUsrLanguageBatchShards({
@@ -682,12 +630,13 @@ export function validateUsrMatrixDrivenHarnessCoverage({
       rowWarnings.push('language profile with framework overlays should include C4 conformance requirement');
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${languageRow.id} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${languageRow.id} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: languageRow.id
+    });
 
     rows.push({
       profileType: 'language',
@@ -695,8 +644,7 @@ export function validateUsrMatrixDrivenHarnessCoverage({
       batchId: batchByLanguageId.get(languageRow.id) || null,
       hasFixtureCoverage: languageFixtureIds.has(languageRow.id),
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
@@ -725,12 +673,13 @@ export function validateUsrMatrixDrivenHarnessCoverage({
       }
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${frameworkRow.id} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${frameworkRow.id} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: frameworkRow.id
+    });
 
     rows.push({
       profileType: 'framework',
@@ -738,8 +687,7 @@ export function validateUsrMatrixDrivenHarnessCoverage({
       batchId: null,
       hasFixtureCoverage: frameworkFixtureIds.has(frameworkRow.id),
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
@@ -769,22 +717,12 @@ export function validateUsrConformanceLevelCoverage({
 
   const languageValidation = validateUsrMatrixRegistry('usr-language-profiles', languageProfilesPayload);
   if (!languageValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...languageValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(languageValidation);
   }
 
   const conformanceValidation = validateUsrMatrixRegistry('usr-conformance-levels', conformanceLevelsPayload);
   if (!conformanceValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...conformanceValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(conformanceValidation);
   }
 
   const errors = [];
@@ -812,15 +750,20 @@ export function validateUsrConformanceLevelCoverage({
     const conformanceRow = conformanceByLanguageId.get(languageRow.id);
     if (!conformanceRow) {
       rowErrors.push('missing conformance-levels row for language profile');
-      errors.push(...rowErrors.map((message) => `${languageRow.id} ${message}`));
+      appendPrefixedRowDiagnostics({
+        errors,
+        warnings,
+        rowErrors,
+        rowWarnings,
+        messagePrefix: languageRow.id
+      });
       rows.push({
         profileId: languageRow.id,
         targetLevel: level,
         requiresLevel,
         hasConformanceRow: false,
         pass: false,
-        errors: Object.freeze([...rowErrors]),
-        warnings: Object.freeze([...rowWarnings])
+        ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
       });
       continue;
     }
@@ -849,13 +792,13 @@ export function validateUsrConformanceLevelCoverage({
       rowWarnings.push('requiredFixtureFamilies should include resolution for C1 baseline evidence');
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${languageRow.id} ${message}`));
-    }
-
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${languageRow.id} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: languageRow.id
+    });
 
     rows.push({
       profileId: languageRow.id,
@@ -863,8 +806,7 @@ export function validateUsrConformanceLevelCoverage({
       requiresLevel,
       hasConformanceRow: true,
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
@@ -882,22 +824,12 @@ export function validateUsrLanguageRiskProfileCoverage({
 } = {}) {
   const languageValidation = validateUsrMatrixRegistry('usr-language-profiles', languageProfilesPayload);
   if (!languageValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...languageValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(languageValidation);
   }
 
   const riskValidation = validateUsrMatrixRegistry('usr-language-risk-profiles', languageRiskProfilesPayload);
   if (!riskValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...riskValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(riskValidation);
   }
 
   const errors = [];
@@ -1002,12 +934,13 @@ export function validateUsrLanguageRiskProfileCoverage({
       rowErrors.push('severityPolicy.defaultLevel must be present in severityPolicy.levels');
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${row.languageId} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${row.languageId} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: row.languageId
+    });
 
     rows.push({
       languageId: row.languageId,
@@ -1015,8 +948,7 @@ export function validateUsrLanguageRiskProfileCoverage({
       riskLocal,
       riskInterprocedural,
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
@@ -1061,9 +993,7 @@ export function buildUsrConformanceLevelSummaryReport({
     warnings: row.warnings
   }));
 
-  const status = evaluation.errors.length > 0
-    ? 'fail'
-    : (evaluation.warnings.length > 0 ? 'warn' : 'pass');
+  const status = buildReportStatus(evaluation);
 
   const normalizedScope = (
     scope && typeof scope === 'object'
@@ -1074,8 +1004,7 @@ export function buildUsrConformanceLevelSummaryReport({
       : { scopeType: 'lane', scopeId: defaultLane }
   );
 
-  const payload = {
-    schemaVersion: 'usr-1.0.0',
+  const payload = buildReportPayload({
     artifactId: 'usr-conformance-summary',
     generatedAt,
     producerId,
@@ -1094,16 +1023,10 @@ export function buildUsrConformanceLevelSummaryReport({
       warningCount: evaluation.warnings.length,
       errorCount: evaluation.errors.length
     },
-    blockingFindings: evaluation.errors.map((message) => ({
-      class: 'conformance',
-      message
-    })),
-    advisoryFindings: evaluation.warnings.map((message) => ({
-      class: 'conformance',
-      message
-    })),
+    blockingFindings: buildReportFindings(evaluation.errors, 'conformance'),
+    advisoryFindings: buildReportFindings(evaluation.warnings, 'conformance'),
     rows
-  };
+  });
 
   return {
     ok: evaluation.ok,
@@ -1232,12 +1155,13 @@ export function buildUsrLanguageConformanceDashboardReport({
       }
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${languageRow.id} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${languageRow.id} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: languageRow.id
+    });
 
     rows.push({
       rowType: 'language-conformance-dashboard',
@@ -1246,17 +1170,13 @@ export function buildUsrLanguageConformanceDashboardReport({
       frameworkProfiles: asStringArray(languageRow.frameworkProfiles),
       levelStatus,
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
-  const status = errors.length > 0
-    ? 'fail'
-    : (warnings.length > 0 ? 'warn' : 'pass');
+  const status = buildReportStatus({ errors, warnings });
 
-  const payload = {
-    schemaVersion: 'usr-1.0.0',
+  const payload = buildReportPayload({
     artifactId: 'usr-conformance-summary',
     generatedAt,
     producerId,
@@ -1279,16 +1199,10 @@ export function buildUsrLanguageConformanceDashboardReport({
         return [level, { requiredCount, passingRequiredCount }];
       }))
     },
-    blockingFindings: errors.map((message) => ({
-      class: 'conformance',
-      message
-    })),
-    advisoryFindings: warnings.map((message) => ({
-      class: 'conformance',
-      message
-    })),
+    blockingFindings: buildReportFindings(errors, 'conformance'),
+    advisoryFindings: buildReportFindings(warnings, 'conformance'),
     rows
-  };
+  });
 
   return {
     ok: errors.length === 0,
@@ -1387,12 +1301,13 @@ export function buildUsrFrameworkConformanceDashboardReport({
       }
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${frameworkRow.id} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${frameworkRow.id} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: frameworkRow.id
+    });
 
     rows.push({
       rowType: 'framework-conformance-dashboard',
@@ -1400,17 +1315,13 @@ export function buildUsrFrameworkConformanceDashboardReport({
       appliesToLanguages,
       failingLanguages: sortedStrings(failingLanguages),
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
-  const status = errors.length > 0
-    ? 'fail'
-    : (warnings.length > 0 ? 'warn' : 'pass');
+  const status = buildReportStatus({ errors, warnings });
 
-  const payload = {
-    schemaVersion: 'usr-1.0.0',
+  const payload = buildReportPayload({
     artifactId: 'usr-conformance-summary',
     generatedAt,
     producerId,
@@ -1428,16 +1339,10 @@ export function buildUsrFrameworkConformanceDashboardReport({
       warningCount: warnings.length,
       errorCount: errors.length
     },
-    blockingFindings: errors.map((message) => ({
-      class: 'framework-conformance',
-      message
-    })),
-    advisoryFindings: warnings.map((message) => ({
-      class: 'framework-conformance',
-      message
-    })),
+    blockingFindings: buildReportFindings(errors, 'framework-conformance'),
+    advisoryFindings: buildReportFindings(warnings, 'framework-conformance'),
     rows
-  };
+  });
 
   return {
     ok: errors.length === 0,

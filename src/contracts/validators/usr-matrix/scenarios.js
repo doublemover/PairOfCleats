@@ -3,6 +3,14 @@ import {
   validateUsrReasonCode
 } from '../usr.js';
 import { asStringArray } from './profile-helpers.js';
+import {
+  appendPrefixedRowDiagnostics,
+  buildMatrixRegistryFailureResult,
+  buildReportFindings,
+  buildReportStatus,
+  freezeRowDiagnostics,
+  normalizeReportScope
+} from './report-shaping.js';
 import { validateUsrMatrixRegistry } from './registry.js';
 
 const normalizeFailureScenarioResults = (results) => {
@@ -52,12 +60,7 @@ export function evaluateUsrFailureInjectionScenarios({
 } = {}) {
   const matrixValidation = validateUsrMatrixRegistry('usr-failure-injection-matrix', matrixPayload);
   if (!matrixValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...matrixValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(matrixValidation);
   }
 
   const errors = [];
@@ -238,18 +241,8 @@ export function buildUsrFailureInjectionReport({
 
   const failRows = rows.filter((row) => row.pass === false);
   const blockingFailureCount = failRows.filter((row) => row.blocking).length;
-  const status = evaluation.errors.length > 0
-    ? 'fail'
-    : (evaluation.warnings.length > 0 ? 'warn' : 'pass');
-
-  const normalizedScope = (
-    scope && typeof scope === 'object'
-      ? {
-        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-      }
-      : { scopeType: 'global', scopeId: 'global' }
-  );
+  const status = buildReportStatus(evaluation);
+  const normalizedScope = normalizeReportScope(scope, 'global', 'global');
 
   const payload = {
     schemaVersion: 'usr-1.0.0',
@@ -271,14 +264,8 @@ export function buildUsrFailureInjectionReport({
       warningCount: evaluation.warnings.length,
       errorCount: evaluation.errors.length
     },
-    blockingFindings: evaluation.errors.map((message) => ({
-      class: 'failure-injection',
-      message
-    })),
-    advisoryFindings: evaluation.warnings.map((message) => ({
-      class: 'failure-injection',
-      message
-    })),
+    blockingFindings: buildReportFindings(evaluation.errors, 'failure-injection'),
+    advisoryFindings: buildReportFindings(evaluation.warnings, 'failure-injection'),
     rows
   };
 
@@ -296,12 +283,7 @@ export function validateUsrFixtureGovernanceControls({
 } = {}) {
   const matrixValidation = validateUsrMatrixRegistry('usr-fixture-governance', fixtureGovernancePayload);
   if (!matrixValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...matrixValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(matrixValidation);
   }
 
   const errors = [];
@@ -401,12 +383,13 @@ export function validateUsrFixtureGovernanceControls({
       rowWarnings.push('owner naming does not match expected prefix convention (language-/framework-/usr-)');
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${row.fixtureId} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${row.fixtureId} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: row.fixtureId
+    });
 
     rows.push({
       fixtureId: row.fixtureId,
@@ -415,8 +398,7 @@ export function validateUsrFixtureGovernanceControls({
       blocking: Boolean(row.blocking),
       mutationPolicy: row.mutationPolicy,
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
@@ -451,18 +433,8 @@ export function buildUsrFixtureGovernanceValidationReport({
     warnings: row.warnings
   }));
 
-  const status = validation.errors.length > 0
-    ? 'fail'
-    : (validation.warnings.length > 0 ? 'warn' : 'pass');
-
-  const normalizedScope = (
-    scope && typeof scope === 'object'
-      ? {
-        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-      }
-      : { scopeType: 'global', scopeId: 'global' }
-  );
+  const status = buildReportStatus(validation);
+  const normalizedScope = normalizeReportScope(scope, 'global', 'global');
 
   const payload = {
     schemaVersion: 'usr-1.0.0',
@@ -483,14 +455,8 @@ export function buildUsrFixtureGovernanceValidationReport({
       warningCount: validation.warnings.length,
       errorCount: validation.errors.length
     },
-    blockingFindings: validation.errors.map((message) => ({
-      class: 'fixture-governance',
-      message
-    })),
-    advisoryFindings: validation.warnings.map((message) => ({
-      class: 'fixture-governance',
-      message
-    })),
+    blockingFindings: buildReportFindings(validation.errors, 'fixture-governance'),
+    advisoryFindings: buildReportFindings(validation.warnings, 'fixture-governance'),
     rows
   };
 

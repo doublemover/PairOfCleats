@@ -2,7 +2,13 @@ import { USR_REPORT_SCHEMA_DEFS } from '../../schemas/usr.js';
 import { validateUsrDiagnosticCode } from '../usr.js';
 import { asStringArray } from './profile-helpers.js';
 import {
+  appendPrefixedRowDiagnostics,
+  buildMatrixRegistryFailureResult,
+  buildReportFindings,
+  buildReportStatus,
   buildKnownCompensatingArtifacts,
+  freezeRowDiagnostics,
+  normalizeReportScope,
   toFixedDays,
   toIsoDate
 } from './report-shaping.js';
@@ -19,12 +25,7 @@ export function validateUsrBackcompatMatrixCoverage({
 } = {}) {
   const matrixValidation = validateUsrMatrixRegistry('usr-backcompat-matrix', backcompatMatrixPayload);
   if (!matrixValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...matrixValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(matrixValidation);
   }
 
   const errors = [];
@@ -97,12 +98,13 @@ export function validateUsrBackcompatMatrixCoverage({
       rowWarnings.push('accept rows are expected to remain blocking for strict compatibility guarantees');
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${row.id} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${row.id} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: row.id
+    });
 
     rows.push({
       id: row.id,
@@ -112,8 +114,7 @@ export function validateUsrBackcompatMatrixCoverage({
       readerVersionCount: readerVersions.length,
       requiredDiagnostics,
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
@@ -164,18 +165,8 @@ export function buildUsrBackcompatMatrixReport({
     warnings: row.warnings
   }));
 
-  const status = validation.errors.length > 0
-    ? 'fail'
-    : (validation.warnings.length > 0 ? 'warn' : 'pass');
-
-  const normalizedScope = (
-    scope && typeof scope === 'object'
-      ? {
-        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-      }
-      : { scopeType: 'global', scopeId: 'global' }
-  );
+  const status = buildReportStatus(validation);
+  const normalizedScope = normalizeReportScope(scope, 'global', 'global');
 
   const payload = {
     schemaVersion: 'usr-1.0.0',
@@ -197,14 +188,8 @@ export function buildUsrBackcompatMatrixReport({
       warningCount: validation.warnings.length,
       errorCount: validation.errors.length
     },
-    blockingFindings: validation.errors.map((message) => ({
-      class: 'backcompat',
-      message
-    })),
-    advisoryFindings: validation.warnings.map((message) => ({
-      class: 'backcompat',
-      message
-    })),
+    blockingFindings: buildReportFindings(validation.errors, 'backcompat'),
+    advisoryFindings: buildReportFindings(validation.warnings, 'backcompat'),
     rows
   };
 
@@ -226,52 +211,27 @@ export function validateUsrThreatModelCoverage({
 } = {}) {
   const threatValidation = validateUsrMatrixRegistry('usr-threat-model-matrix', threatModelPayload);
   if (!threatValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...threatValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(threatValidation);
   }
 
   const fixtureValidation = validateUsrMatrixRegistry('usr-fixture-governance', fixtureGovernancePayload);
   if (!fixtureValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...fixtureValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(fixtureValidation);
   }
 
   const securityValidation = validateUsrMatrixRegistry('usr-security-gates', securityGatesPayload);
   if (!securityValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...securityValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(securityValidation);
   }
 
   const alertValidation = validateUsrMatrixRegistry('usr-alert-policies', alertPoliciesPayload);
   if (!alertValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...alertValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(alertValidation);
   }
 
   const redactionValidation = validateUsrMatrixRegistry('usr-redaction-rules', redactionRulesPayload);
   if (!redactionValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...redactionValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(redactionValidation);
   }
 
   const errors = [];
@@ -341,12 +301,13 @@ export function validateUsrThreatModelCoverage({
       }
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${row.id} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${row.id} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: row.id
+    });
 
     rows.push({
       id: row.id,
@@ -357,8 +318,7 @@ export function validateUsrThreatModelCoverage({
       missingControls,
       missingFixtures,
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
@@ -405,18 +365,8 @@ export function buildUsrThreatModelCoverageReport({
     warnings: row.warnings
   }));
 
-  const status = validation.errors.length > 0
-    ? 'fail'
-    : (validation.warnings.length > 0 ? 'warn' : 'pass');
-
-  const normalizedScope = (
-    scope && typeof scope === 'object'
-      ? {
-        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-      }
-      : { scopeType: 'global', scopeId: 'global' }
-  );
+  const status = buildReportStatus(validation);
+  const normalizedScope = normalizeReportScope(scope, 'global', 'global');
 
   const payload = {
     schemaVersion: 'usr-1.0.0',
@@ -439,14 +389,8 @@ export function buildUsrThreatModelCoverageReport({
       controlGapCount: rows.reduce((sum, row) => sum + row.missingControls.length, 0),
       fixtureGapCount: rows.reduce((sum, row) => sum + row.missingFixtures.length, 0)
     },
-    blockingFindings: validation.errors.map((message) => ({
-      class: 'threat-model',
-      message
-    })),
-    advisoryFindings: validation.warnings.map((message) => ({
-      class: 'threat-model',
-      message
-    })),
+    blockingFindings: buildReportFindings(validation.errors, 'threat-model'),
+    advisoryFindings: buildReportFindings(validation.warnings, 'threat-model'),
     rows
   };
 
@@ -485,32 +429,17 @@ export function validateUsrWaiverPolicyControls({
 } = {}) {
   const waiverValidation = validateUsrMatrixRegistry('usr-waiver-policy', waiverPolicyPayload);
   if (!waiverValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...waiverValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(waiverValidation);
   }
 
   const ownershipValidation = validateUsrMatrixRegistry('usr-ownership-matrix', ownershipMatrixPayload);
   if (!ownershipValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...ownershipValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(ownershipValidation);
   }
 
   const escalationValidation = validateUsrMatrixRegistry('usr-escalation-policy', escalationPolicyPayload);
   if (!escalationValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...escalationValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(escalationValidation);
   }
 
   const evaluationDate = toIsoDate(evaluationTime);
@@ -644,12 +573,13 @@ export function validateUsrWaiverPolicyControls({
       }
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${row.id} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${row.id} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: row.id
+    });
 
     rows.push({
       id: row.id,
@@ -664,8 +594,7 @@ export function validateUsrWaiverPolicyControls({
       approvers,
       requiredCompensatingControls: compensatingControls,
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
@@ -716,18 +645,8 @@ export function buildUsrWaiverActiveReport({
     warnings: row.warnings
   }));
 
-  const status = validation.errors.length > 0
-    ? 'fail'
-    : (validation.warnings.length > 0 ? 'warn' : 'pass');
-
-  const normalizedScope = (
-    scope && typeof scope === 'object'
-      ? {
-        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-      }
-      : { scopeType: 'global', scopeId: 'global' }
-  );
+  const status = buildReportStatus(validation);
+  const normalizedScope = normalizeReportScope(scope, 'global', 'global');
 
   const payload = {
     schemaVersion: 'usr-1.0.0',
@@ -750,14 +669,8 @@ export function buildUsrWaiverActiveReport({
       warningCount: validation.warnings.length,
       errorCount: validation.errors.length
     },
-    blockingFindings: validation.errors.map((message) => ({
-      class: 'waiver-policy',
-      message
-    })),
-    advisoryFindings: validation.warnings.map((message) => ({
-      class: 'waiver-policy',
-      message
-    })),
+    blockingFindings: buildReportFindings(validation.errors, 'waiver-policy'),
+    advisoryFindings: buildReportFindings(validation.warnings, 'waiver-policy'),
     rows
   };
 
@@ -807,18 +720,8 @@ export function buildUsrWaiverExpiryReport({
     warnings: row.warnings
   }));
 
-  const status = validation.errors.length > 0
-    ? 'fail'
-    : (validation.warnings.length > 0 ? 'warn' : 'pass');
-
-  const normalizedScope = (
-    scope && typeof scope === 'object'
-      ? {
-        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-      }
-      : { scopeType: 'global', scopeId: 'global' }
-  );
+  const status = buildReportStatus(validation);
+  const normalizedScope = normalizeReportScope(scope, 'global', 'global');
 
   const payload = {
     schemaVersion: 'usr-1.0.0',
@@ -840,14 +743,8 @@ export function buildUsrWaiverExpiryReport({
       warningCount: validation.warnings.length,
       errorCount: validation.errors.length
     },
-    blockingFindings: validation.errors.map((message) => ({
-      class: 'waiver-policy',
-      message
-    })),
-    advisoryFindings: validation.warnings.map((message) => ({
-      class: 'waiver-policy',
-      message
-    })),
+    blockingFindings: buildReportFindings(validation.errors, 'waiver-policy'),
+    advisoryFindings: buildReportFindings(validation.warnings, 'waiver-policy'),
     rows
   };
 

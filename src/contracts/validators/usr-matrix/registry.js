@@ -3,6 +3,7 @@ import {
   USR_MATRIX_SCHEMA_DEFS,
   USR_MATRIX_ROW_SCHEMAS
 } from '../../schemas/usr-matrix.js';
+import { toValidationResult } from '../result.js';
 
 const ajv = createAjv({
   dialect: '2020',
@@ -10,16 +11,6 @@ const ajv = createAjv({
   allowUnionTypes: true,
   strict: true
 });
-
-const formatError = (error) => {
-  const path = error.instancePath || '/';
-  const message = error.message || 'schema error';
-  return `${path} ${message}`.trim();
-};
-
-const formatErrors = (validator) => (
-  validator.errors ? validator.errors.map(formatError) : []
-);
 
 export const USR_MATRIX_VALIDATORS = Object.freeze(
   Object.fromEntries(
@@ -32,8 +23,7 @@ export function validateUsrMatrixRegistry(registryId, payload) {
   if (!validator) {
     return { ok: false, errors: [`unknown USR matrix registry: ${registryId}`] };
   }
-  const ok = Boolean(validator(payload));
-  return { ok, errors: ok ? [] : formatErrors(validator) };
+  return toValidationResult(validator, payload);
 }
 
 export function validateUsrMatrixFile(fileName, payload) {

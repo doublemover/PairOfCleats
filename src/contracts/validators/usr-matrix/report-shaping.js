@@ -9,6 +9,88 @@ export const normalizeReportScope = (scope, fallbackScopeType = 'lane', fallback
     : { scopeType: fallbackScopeType, scopeId: fallbackScopeId }
 );
 
+export const buildMatrixRegistryFailureResult = (validation) => ({
+  ok: false,
+  errors: Object.freeze([...(Array.isArray(validation?.errors) ? validation.errors : [])]),
+  warnings: Object.freeze([]),
+  rows: Object.freeze([])
+});
+
+export const buildReportStatus = ({ errors = [], warnings = [] } = {}) => (
+  errors.length > 0
+    ? 'fail'
+    : (warnings.length > 0 ? 'warn' : 'pass')
+);
+
+export const buildReportFindings = (messages, findingClass) => (
+  messages.map((message) => ({
+    class: findingClass,
+    message
+  }))
+);
+
+export const appendPrefixedRowDiagnostics = ({
+  errors,
+  warnings,
+  rowErrors = [],
+  rowWarnings = [],
+  messagePrefix = ''
+} = {}) => {
+  const prefix = typeof messagePrefix === 'string' && messagePrefix.length > 0
+    ? `${messagePrefix} `
+    : '';
+
+  if (rowErrors.length > 0) {
+    errors.push(...rowErrors.map((message) => `${prefix}${message}`));
+  }
+  if (rowWarnings.length > 0) {
+    warnings.push(...rowWarnings.map((message) => `${prefix}${message}`));
+  }
+};
+
+export const freezeRowDiagnostics = ({ errors = [], warnings = [] } = {}) => ({
+  errors: Object.freeze([...errors]),
+  warnings: Object.freeze([...warnings])
+});
+
+export const cloneRowsWithDiagnostics = (rows) => rows.map((row) => ({
+  ...row,
+  errors: row.errors,
+  warnings: row.warnings
+}));
+
+export const buildReportPayload = ({
+  schemaVersion = 'usr-1.0.0',
+  artifactId,
+  generatedAt,
+  producerId,
+  producerVersion,
+  runId,
+  lane,
+  buildId,
+  status,
+  scope,
+  summary,
+  blockingFindings,
+  advisoryFindings,
+  rows
+}) => ({
+  schemaVersion,
+  artifactId,
+  generatedAt,
+  producerId,
+  producerVersion,
+  runId,
+  lane,
+  buildId,
+  status,
+  scope,
+  summary,
+  blockingFindings,
+  advisoryFindings,
+  rows
+});
+
 export const toIsoDate = (value) => {
   if (typeof value !== 'string') {
     return null;

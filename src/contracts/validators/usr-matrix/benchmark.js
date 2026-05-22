@@ -1,20 +1,13 @@
+import { normalizeObservedResultMap } from './profile-helpers.js';
+import {
+  appendPrefixedRowDiagnostics,
+  buildMatrixRegistryFailureResult,
+  buildReportFindings,
+  buildReportStatus,
+  freezeRowDiagnostics,
+  normalizeReportScope
+} from './report-shaping.js';
 import { validateUsrMatrixRegistry } from './registry.js';
-
-const normalizeBenchmarkObservedResults = (results) => {
-  if (Array.isArray(results)) {
-    return new Map(
-      results
-        .filter((row) => row && typeof row === 'object' && typeof row.id === 'string')
-        .map((row) => [row.id, row])
-    );
-  }
-
-  if (results && typeof results === 'object') {
-    return new Map(Object.entries(results));
-  }
-
-  return new Map();
-};
 
 const toNumber = (value) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
 
@@ -24,22 +17,12 @@ export function validateUsrBenchmarkMethodology({
 } = {}) {
   const benchmarkPolicyValidation = validateUsrMatrixRegistry('usr-benchmark-policy', benchmarkPolicyPayload);
   if (!benchmarkPolicyValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...benchmarkPolicyValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(benchmarkPolicyValidation);
   }
 
   const sloBudgetValidation = validateUsrMatrixRegistry('usr-slo-budgets', sloBudgetsPayload);
   if (!sloBudgetValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...sloBudgetValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(sloBudgetValidation);
   }
 
   const errors = [];
@@ -106,20 +89,20 @@ export function validateUsrBenchmarkMethodology({
       }
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${row.id} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${row.id} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: row.id
+    });
 
     rows.push({
       id: row.id,
       laneId: row.laneId,
       blocking: Boolean(row.blocking),
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
@@ -147,7 +130,7 @@ export function evaluateUsrBenchmarkRegression({
   const benchmarkRows = Array.isArray(benchmarkPolicyPayload?.rows) ? benchmarkPolicyPayload.rows : [];
   const sloRows = Array.isArray(sloBudgetsPayload?.rows) ? sloBudgetsPayload.rows : [];
   const sloByLane = new Map(sloRows.map((row) => [row.laneId, row]));
-  const observedById = normalizeBenchmarkObservedResults(observedResults);
+  const observedById = normalizeObservedResultMap(observedResults);
 
   const rows = [];
 
@@ -215,20 +198,20 @@ export function evaluateUsrBenchmarkRegression({
       }
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${row.id} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${row.id} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: row.id
+    });
 
     rows.push({
       id: row.id,
       laneId: row.laneId,
       blocking: Boolean(row.blocking),
       pass: rowErrors.length === 0 && rowWarnings.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings]),
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings }),
       observed: observed || null
     });
   }
@@ -269,18 +252,8 @@ export function buildUsrBenchmarkRegressionReport({
     observed: row.observed
   }));
 
-  const status = evaluation.errors.length > 0
-    ? 'fail'
-    : (evaluation.warnings.length > 0 ? 'warn' : 'pass');
-
-  const normalizedScope = (
-    scope && typeof scope === 'object'
-      ? {
-        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-      }
-      : { scopeType: 'global', scopeId: 'global' }
-  );
+  const status = buildReportStatus(evaluation);
+  const normalizedScope = normalizeReportScope(scope, 'global', 'global');
 
   const payload = {
     schemaVersion: 'usr-1.0.0',
@@ -301,14 +274,8 @@ export function buildUsrBenchmarkRegressionReport({
       errorCount: evaluation.errors.length,
       blockingFailureCount: rows.filter((row) => row.blocking && !row.pass).length
     },
-    blockingFindings: evaluation.errors.map((message) => ({
-      class: 'benchmark-regression',
-      message
-    })),
-    advisoryFindings: evaluation.warnings.map((message) => ({
-      class: 'benchmark-regression',
-      message
-    })),
+    blockingFindings: buildReportFindings(evaluation.errors, 'benchmark-regression'),
+    advisoryFindings: buildReportFindings(evaluation.warnings, 'benchmark-regression'),
     rows
   };
 

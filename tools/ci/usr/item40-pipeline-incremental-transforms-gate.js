@@ -1,40 +1,24 @@
 #!/usr/bin/env node
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { readJsonFile, writeJsonFile } from '../../../src/shared/json-file.js';
+import {
+  ensureArray,
+  finishGate,
+  parseGateArgs,
+  readConfig,
+  readJsonFromRoot,
+  repoPath,
+  writeGateReport
+} from './shared.js';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const CONFIG_PATH = path.join(ROOT, 'docs', 'config', 'usr-guardrails', 'item-40-pipeline-incremental-transforms.json');
-
-const parseArgs = () => {
-  const args = process.argv.slice(2);
-  const out = { out: '', strict: true };
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-    if (arg === '--out') {
-      out.out = args[i + 1] || '';
-      i += 1;
-      continue;
-    }
-    if (arg === '--no-strict') {
-      out.strict = false;
-    }
-  }
-  return out;
-};
-
-const readJson = (relativePath) => readJsonFile(path.join(ROOT, relativePath));
-
-const ensureArray = (value) => (Array.isArray(value) ? value : []);
+const CONFIG_PATH = repoPath('docs', 'config', 'usr-guardrails', 'item-40-pipeline-incremental-transforms.json');
 
 const main = async () => {
-  const argv = parseArgs();
-  const config = await readJsonFile(CONFIG_PATH);
+  const argv = parseGateArgs();
+  const config = await readConfig(CONFIG_PATH);
 
-  const languageProfilesJson = await readJson(config.inputs.languageProfiles);
-  const parserRuntimeLockJson = await readJson(config.inputs.parserRuntimeLock);
-  const generatedProvenanceJson = await readJson(config.inputs.generatedProvenance);
-  const failureInjectionJson = await readJson(config.inputs.failureInjection);
+  const languageProfilesJson = await readJsonFromRoot(config.inputs.languageProfiles);
+  const parserRuntimeLockJson = await readJsonFromRoot(config.inputs.parserRuntimeLock);
+  const generatedProvenanceJson = await readJsonFromRoot(config.inputs.generatedProvenance);
+  const failureInjectionJson = await readJsonFromRoot(config.inputs.failureInjection);
 
   const languageRows = ensureArray(languageProfilesJson.rows);
   const parserRows = ensureArray(parserRuntimeLockJson.rows);
@@ -193,23 +177,13 @@ const main = async () => {
     warnings
   };
 
-  const defaultOut = path.join(ROOT, '.diagnostics', 'usr', config.report);
-  const outPath = argv.out ? path.resolve(argv.out) : defaultOut;
-  await writeJsonFile(outPath, report);
-
-  if (report.ok) {
-    console.error('item 40 gate passed');
-    return;
-  }
-
-  console.error('item 40 gate failed');
-  for (const error of errors) {
-    console.error(`- ${error}`);
-  }
-
-  if (argv.strict) {
-    process.exit(1);
-  }
+  await writeGateReport({ argv, config, report });
+  finishGate({
+    report,
+    passedMessage: 'item 40 gate passed',
+    failedMessage: 'item 40 gate failed',
+    strict: argv.strict
+  });
 };
 
 main().catch((error) => {

@@ -1,40 +1,24 @@
 #!/usr/bin/env node
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { readJsonFile, writeJsonFile } from '../../../src/shared/json-file.js';
+import {
+  ensureArray,
+  finishGate,
+  parseGateArgs,
+  readConfig,
+  readJsonFromRoot,
+  repoPath,
+  writeGateReport
+} from './shared.js';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const CONFIG_PATH = path.join(ROOT, 'docs', 'config', 'usr-guardrails', 'item-35-framework-canonicalization.json');
-
-const parseArgs = () => {
-  const args = process.argv.slice(2);
-  const out = { out: '', strict: true };
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-    if (arg === '--out') {
-      out.out = args[i + 1] || '';
-      i += 1;
-      continue;
-    }
-    if (arg === '--no-strict') {
-      out.strict = false;
-    }
-  }
-  return out;
-};
-
-const readJson = (relativePath) => readJsonFile(path.join(ROOT, relativePath));
-
-const ensureArray = (value) => (Array.isArray(value) ? value : []);
+const CONFIG_PATH = repoPath('docs', 'config', 'usr-guardrails', 'item-35-framework-canonicalization.json');
 
 const main = async () => {
-  const argv = parseArgs();
-  const config = await readJsonFile(CONFIG_PATH);
+  const argv = parseGateArgs();
+  const config = await readConfig(CONFIG_PATH);
 
-  const frameworkProfilesJson = await readJson(config.inputs.frameworkProfiles);
-  const frameworkEdgeCasesJson = await readJson(config.inputs.frameworkEdgeCases);
+  const frameworkProfilesJson = await readJsonFromRoot(config.inputs.frameworkProfiles);
+  const frameworkEdgeCasesJson = await readJsonFromRoot(config.inputs.frameworkEdgeCases);
   const frameworkFixtureJson = config.inputs.frameworkFixtureBundle
-    ? await readJson(config.inputs.frameworkFixtureBundle)
+    ? await readJsonFromRoot(config.inputs.frameworkFixtureBundle)
     : { rows: [] };
 
   const frameworkRows = ensureArray(frameworkProfilesJson.rows);
@@ -197,23 +181,13 @@ const main = async () => {
     warnings
   };
 
-  const defaultOut = path.join(ROOT, '.diagnostics', 'usr', config.report);
-  const outPath = argv.out ? path.resolve(argv.out) : defaultOut;
-  await writeJsonFile(outPath, report);
-
-  if (report.ok) {
-    console.error('item 35 gate passed');
-    return;
-  }
-
-  console.error('item 35 gate failed');
-  for (const error of errors) {
-    console.error(`- ${error}`);
-  }
-
-  if (argv.strict) {
-    process.exit(1);
-  }
+  await writeGateReport({ argv, config, report });
+  finishGate({
+    report,
+    passedMessage: 'item 35 gate passed',
+    failedMessage: 'item 35 gate failed',
+    strict: argv.strict
+  });
 };
 
 main().catch((error) => {

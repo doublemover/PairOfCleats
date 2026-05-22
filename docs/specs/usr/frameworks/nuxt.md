@@ -57,7 +57,7 @@ Normative framework contract for `nuxt` under USR.
 
 ## 8. Required fixtures and evidence
 
-- `edgeCaseCaseIds`: `nuxt-pages-route-params`, `nuxt-server-route-mapping`, `nuxt-sfc-style-scope`
+- `edgeCaseCaseIds`: `nuxt-pages-route-params`, `nuxt-server-route-mapping`, `nuxt-sfc-style-scope`, `nuxt-template-composable-binding`
 - `blockingFixtureIds`: `nuxt::framework-overlay::baseline-001`
 - `requiredConformance`: `C4`
 
@@ -65,9 +65,9 @@ Normative framework contract for `nuxt` under USR.
 
 - [ ] Owner-role review completed.
 - [ ] Backup-owner review completed.
-- [ ] Matrix linkage verified against framework profile and edge-case registries.
-- [ ] Required framework fixture families assigned with concrete fixture IDs.
-- [ ] Required C4 conformance checks mapped to executable lanes.
+- [x] Matrix linkage verified against framework profile and edge-case registries.
+- [x] Required framework fixture families assigned with concrete fixture IDs.
+- [x] Required C4 conformance checks mapped to executable lanes.
 
 ## 10. Completion evidence artifacts
 

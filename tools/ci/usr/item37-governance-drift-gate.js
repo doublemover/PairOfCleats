@@ -1,10 +1,16 @@
 #!/usr/bin/env node
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { readJsonFile, writeJsonFile } from '../../../src/shared/json-file.js';
+import {
+  ensureArray,
+  finishGate,
+  parseGateArgs,
+  readConfig,
+  readJsonFromRoot,
+  readTextFromRoot,
+  repoPath,
+  writeGateReport
+} from './shared.js';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const CONFIG_PATH = path.join(ROOT, 'docs', 'config', 'usr-guardrails', 'item-37-governance-drift.json');
+const CONFIG_PATH = repoPath('docs', 'config', 'usr-guardrails', 'item-37-governance-drift.json');
 
 const REQUIRED_CORE_CONTRACTS = [
   'docs/specs/usr-core-governance-change.md',
@@ -18,32 +24,6 @@ const REQUIRED_APPROVAL_ROLES = [
   'usr-conformance',
   'usr-operations'
 ];
-
-const parseArgs = () => {
-  const args = process.argv.slice(2);
-  const out = { out: '', strict: true };
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-    if (arg === '--out') {
-      out.out = args[i + 1] || '';
-      i += 1;
-      continue;
-    }
-    if (arg === '--no-strict') {
-      out.strict = false;
-    }
-  }
-  return out;
-};
-
-const readJson = (relativePath) => readJsonFile(path.join(ROOT, relativePath));
-
-const readText = async (relativePath) => {
-  const absolutePath = path.join(ROOT, relativePath);
-  return fs.readFile(absolutePath, 'utf8');
-};
-
-const ensureArray = (value) => (Array.isArray(value) ? value : []);
 
 const escapeRegex = (value) => value.replace(/[|\\{}()[\]^$+?.]/g, '\\$&');
 const hasGlobTokens = (value) => /[*?]/.test(value);
@@ -76,12 +56,12 @@ const extractInlineCodeReferences = (text) => {
 };
 
 const main = async () => {
-  const argv = parseArgs();
-  const config = await readJsonFile(CONFIG_PATH);
+  const argv = parseGateArgs();
+  const config = await readConfig(CONFIG_PATH);
 
-  const ownershipMatrix = await readJson(config.inputs.ownershipMatrix);
-  const governanceSpec = await readText(config.inputs.governanceSpec);
-  const coverageMatrix = await readText(config.inputs.coverageMatrix);
+  const ownershipMatrix = await readJsonFromRoot(config.inputs.ownershipMatrix);
+  const governanceSpec = await readTextFromRoot(config.inputs.governanceSpec);
+  const coverageMatrix = await readTextFromRoot(config.inputs.coverageMatrix);
 
   const rows = ensureArray(ownershipMatrix.rows);
   const errors = [];
@@ -176,23 +156,13 @@ const main = async () => {
     warnings
   };
 
-  const defaultOut = path.join(ROOT, '.diagnostics', 'usr', config.report);
-  const outPath = argv.out ? path.resolve(argv.out) : defaultOut;
-  await writeJsonFile(outPath, report);
-
-  if (report.ok) {
-    console.error('item 37 gate passed');
-    return;
-  }
-
-  console.error('item 37 gate failed');
-  for (const error of errors) {
-    console.error(`- ${error}`);
-  }
-
-  if (argv.strict) {
-    process.exit(1);
-  }
+  await writeGateReport({ argv, config, report });
+  finishGate({
+    report,
+    passedMessage: 'item 37 gate passed',
+    failedMessage: 'item 37 gate failed',
+    strict: argv.strict
+  });
 };
 
 main().catch((error) => {

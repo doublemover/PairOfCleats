@@ -10,8 +10,10 @@
         "C4"
       ],
       "families": [
+        "embedded-bridge",
         "framework-overlay",
         "hydration",
+        "route-canonicalization",
         "route-semantics",
         "style-scope",
         "template-binding"
@@ -65,8 +67,10 @@
         "C4"
       ],
       "families": [
+        "embedded-bridge",
         "framework-overlay",
         "hydration",
+        "route-canonicalization",
         "route-semantics",
         "style-scope",
         "template-binding"
@@ -125,6 +129,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -156,6 +162,9 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-cmake",
@@ -187,6 +196,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -218,7 +229,10 @@
       "families": [
         "framework-overlay",
         "golden",
-        "language-baseline"
+        "language-baseline",
+        "normalization",
+        "resolution",
+        "risk"
       ],
       "owner": "language-css",
       "reviewers": [
@@ -233,6 +247,7 @@
         "appendix-c:css",
         "phase-4",
         "phase-5",
+        "phase-6",
         "phase-7"
       ]
     },
@@ -249,6 +264,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -280,6 +297,9 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-dockerfile",
@@ -311,6 +331,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -342,6 +364,9 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-graphql",
@@ -373,6 +398,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -404,7 +431,10 @@
       "families": [
         "framework-overlay",
         "golden",
-        "language-baseline"
+        "language-baseline",
+        "normalization",
+        "resolution",
+        "risk"
       ],
       "owner": "language-handlebars",
       "reviewers": [
@@ -419,6 +449,7 @@
         "appendix-c:handlebars",
         "phase-4",
         "phase-5",
+        "phase-6",
         "phase-7"
       ]
     },
@@ -434,7 +465,10 @@
       "families": [
         "framework-overlay",
         "golden",
-        "language-baseline"
+        "language-baseline",
+        "normalization",
+        "resolution",
+        "risk"
       ],
       "owner": "language-html",
       "reviewers": [
@@ -449,6 +483,7 @@
         "appendix-c:html",
         "phase-4",
         "phase-5",
+        "phase-6",
         "phase-7"
       ]
     },
@@ -464,6 +499,9 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-ini",
@@ -495,6 +533,9 @@
         "config",
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-ini",
@@ -526,6 +567,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -560,6 +603,8 @@
         "framework-overlay",
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -619,7 +664,10 @@
       "families": [
         "framework-overlay",
         "golden",
-        "language-baseline"
+        "language-baseline",
+        "normalization",
+        "resolution",
+        "risk"
       ],
       "owner": "language-jinja",
       "reviewers": [
@@ -634,6 +682,7 @@
         "appendix-c:jinja",
         "phase-4",
         "phase-5",
+        "phase-6",
         "phase-7"
       ]
     },
@@ -649,6 +698,9 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-json",
@@ -680,6 +732,9 @@
         "config",
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-json",
@@ -711,6 +766,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -743,6 +800,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -775,6 +834,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -806,6 +867,9 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-makefile",
@@ -836,7 +900,10 @@
       "families": [
         "framework-overlay",
         "golden",
-        "language-baseline"
+        "language-baseline",
+        "normalization",
+        "resolution",
+        "risk"
       ],
       "owner": "language-mustache",
       "reviewers": [
@@ -851,6 +918,7 @@
         "appendix-c:mustache",
         "phase-4",
         "phase-5",
+        "phase-6",
         "phase-7"
       ]
     },
@@ -862,8 +930,10 @@
         "C4"
       ],
       "families": [
+        "embedded-bridge",
         "framework-overlay",
         "hydration",
+        "route-canonicalization",
         "route-semantics",
         "style-scope",
         "template-binding"
@@ -895,6 +965,9 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-nix",
@@ -921,8 +994,10 @@
         "C4"
       ],
       "families": [
+        "embedded-bridge",
         "framework-overlay",
         "hydration",
+        "route-canonicalization",
         "route-semantics",
         "style-scope",
         "template-binding"
@@ -955,6 +1030,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -987,6 +1064,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -1018,6 +1097,9 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-proto",
@@ -1049,6 +1131,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -1081,6 +1165,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -1112,7 +1198,10 @@
       "families": [
         "framework-overlay",
         "golden",
-        "language-baseline"
+        "language-baseline",
+        "normalization",
+        "resolution",
+        "risk"
       ],
       "owner": "language-razor",
       "reviewers": [
@@ -1127,6 +1216,7 @@
         "appendix-c:razor",
         "phase-4",
         "phase-5",
+        "phase-6",
         "phase-7"
       ]
     },
@@ -1138,8 +1228,10 @@
         "C4"
       ],
       "families": [
+        "embedded-bridge",
         "framework-overlay",
         "hydration",
+        "route-canonicalization",
         "route-semantics",
         "style-scope",
         "template-binding"
@@ -1172,6 +1264,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -1204,6 +1298,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -1236,6 +1332,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -1268,6 +1366,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -1300,6 +1400,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -1331,6 +1433,9 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-starlark",
@@ -1357,6 +1462,7 @@
         "C4"
       ],
       "families": [
+        "embedded-bridge",
         "framework-overlay",
         "hydration",
         "style-scope",
@@ -1385,8 +1491,10 @@
         "C4"
       ],
       "families": [
+        "embedded-bridge",
         "framework-overlay",
         "hydration",
+        "route-canonicalization",
         "route-semantics",
         "style-scope",
         "template-binding"
@@ -1419,6 +1527,8 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -1450,6 +1560,9 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-toml",
@@ -1481,6 +1594,9 @@
         "config",
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-toml",
@@ -1514,6 +1630,8 @@
         "framework-overlay",
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
         "risk",
         "semantic-flow"
       ],
@@ -1863,8 +1981,10 @@
         "C4"
       ],
       "families": [
+        "embedded-bridge",
         "framework-overlay",
         "hydration",
+        "route-canonicalization",
         "route-semantics",
         "style-scope",
         "template-binding"
@@ -1950,6 +2070,9 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-xml",
@@ -1981,6 +2104,9 @@
         "config",
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-xml",
@@ -2011,6 +2137,9 @@
       "families": [
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-yaml",
@@ -2042,6 +2171,9 @@
         "config",
         "golden",
         "language-baseline",
+        "normalization",
+        "resolution",
+        "risk",
         "semantic-flow"
       ],
       "owner": "language-yaml",

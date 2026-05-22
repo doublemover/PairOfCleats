@@ -10,7 +10,16 @@ import {
   resolveObservedGatePass,
   resolveObservedRedactionResult
 } from './profile-helpers.js';
-import { normalizeReportScope } from './report-shaping.js';
+import {
+  appendPrefixedRowDiagnostics,
+  buildMatrixRegistryFailureResult,
+  buildReportFindings,
+  buildReportPayload,
+  buildReportStatus,
+  cloneRowsWithDiagnostics,
+  freezeRowDiagnostics,
+  normalizeReportScope
+} from './report-shaping.js';
 import { validateUsrMatrixRegistry } from './registry.js';
 
 export function evaluateUsrObservabilityRollup({
@@ -20,22 +29,12 @@ export function evaluateUsrObservabilityRollup({
 } = {}) {
   const sloValidation = validateUsrMatrixRegistry('usr-slo-budgets', sloBudgetsPayload);
   if (!sloValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...sloValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(sloValidation);
   }
 
   const alertValidation = validateUsrMatrixRegistry('usr-alert-policies', alertPoliciesPayload);
   if (!alertValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...alertValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(alertValidation);
   }
 
   const errors = [];
@@ -140,12 +139,13 @@ export function evaluateUsrObservabilityRollup({
       }
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${row.laneId} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${row.laneId} ${message}`));
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings,
+      messagePrefix: row.laneId
+    });
 
     rows.push({
       rowType: 'slo-budget',
@@ -153,8 +153,7 @@ export function evaluateUsrObservabilityRollup({
       scopeId: row.scopeId,
       blocking: Boolean(row.blocking),
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
@@ -207,12 +206,13 @@ export function evaluateUsrObservabilityRollup({
         }
       }
 
-      if (rowErrors.length > 0) {
-        errors.push(...rowErrors.map((message) => `${alert.id} ${laneId} ${message}`));
-      }
-      if (rowWarnings.length > 0) {
-        warnings.push(...rowWarnings.map((message) => `${alert.id} ${laneId} ${message}`));
-      }
+      appendPrefixedRowDiagnostics({
+        errors,
+        warnings,
+        rowErrors,
+        rowWarnings,
+        messagePrefix: `${alert.id} ${laneId}`
+      });
 
       rows.push({
         rowType: 'alert-evaluation',
@@ -228,8 +228,7 @@ export function evaluateUsrObservabilityRollup({
         blocking: Boolean(alert.blocking),
         triggered,
         pass: rowErrors.length === 0,
-        errors: Object.freeze([...rowErrors]),
-        warnings: Object.freeze([...rowWarnings])
+        ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
       });
     }
   }
@@ -268,9 +267,7 @@ export function buildUsrObservabilityRollupReport({
     observedLaneMetrics
   });
 
-  const status = evaluation.errors.length > 0
-    ? 'fail'
-    : (evaluation.warnings.length > 0 ? 'warn' : 'pass');
+  const status = buildReportStatus(evaluation);
 
   const rows = evaluation.rows.map((row) => ({
     ...row,
@@ -288,12 +285,7 @@ export function buildUsrObservabilityRollupReport({
     lane,
     buildId,
     status,
-    scope: scope && typeof scope === 'object'
-      ? {
-        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-      }
-      : { scopeType: 'global', scopeId: 'global' },
+    scope: normalizeReportScope(scope, 'global', 'global'),
     summary: {
       rowCount: rows.length,
       sloBudgetRowCount: rows.filter((row) => row.rowType === 'slo-budget').length,
@@ -310,14 +302,8 @@ export function buildUsrObservabilityRollupReport({
       warningCount: evaluation.warnings.length,
       errorCount: evaluation.errors.length
     },
-    blockingFindings: evaluation.errors.map((message) => ({
-      class: 'observability',
-      message
-    })),
-    advisoryFindings: evaluation.warnings.map((message) => ({
-      class: 'observability',
-      message
-    })),
+    blockingFindings: buildReportFindings(evaluation.errors, 'observability'),
+    advisoryFindings: buildReportFindings(evaluation.warnings, 'observability'),
     rows
   };
 
@@ -338,22 +324,12 @@ export function validateUsrSecurityGateControls({
 } = {}) {
   const securityValidation = validateUsrMatrixRegistry('usr-security-gates', securityGatesPayload);
   if (!securityValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...securityValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(securityValidation);
   }
 
   const redactionValidation = validateUsrMatrixRegistry('usr-redaction-rules', redactionRulesPayload);
   if (!redactionValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...redactionValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
+    return buildMatrixRegistryFailureResult(redactionValidation);
   }
 
   const errors = [];
@@ -388,12 +364,12 @@ export function validateUsrSecurityGateControls({
       }
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors);
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings);
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings
+    });
 
     rows.push({
       rowType: 'security-gate',
@@ -403,8 +379,7 @@ export function validateUsrSecurityGateControls({
       enforcement: row.enforcement,
       blocking: treatAsBlocking,
       pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
@@ -431,12 +406,12 @@ export function validateUsrSecurityGateControls({
       }
     }
 
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors);
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings);
-    }
+    appendPrefixedRowDiagnostics({
+      errors,
+      warnings,
+      rowErrors,
+      rowWarnings
+    });
 
     rows.push({
       rowType: 'redaction-rule',
@@ -445,8 +420,7 @@ export function validateUsrSecurityGateControls({
       blocking: Boolean(row.blocking),
       pass: rowErrors.length === 0,
       misses: Number.isFinite(misses) ? misses : null,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
+      ...freezeRowDiagnostics({ errors: rowErrors, warnings: rowWarnings })
     });
   }
 
@@ -478,18 +452,11 @@ export function buildUsrSecurityGateValidationReport({
     redactionResults
   });
 
-  const status = evaluation.errors.length > 0
-    ? 'fail'
-    : (evaluation.warnings.length > 0 ? 'warn' : 'pass');
+  const status = buildReportStatus(evaluation);
 
-  const rows = evaluation.rows.map((row) => ({
-    ...row,
-    errors: row.errors,
-    warnings: row.warnings
-  }));
+  const rows = cloneRowsWithDiagnostics(evaluation.rows);
 
-  const payload = {
-    schemaVersion: 'usr-1.0.0',
+  const payload = buildReportPayload({
     artifactId: 'usr-validation-report',
     generatedAt,
     producerId,
@@ -509,16 +476,10 @@ export function buildUsrSecurityGateValidationReport({
       warningCount: evaluation.warnings.length,
       errorCount: evaluation.errors.length
     },
-    blockingFindings: evaluation.errors.map((message) => ({
-      class: 'security-gate',
-      message
-    })),
-    advisoryFindings: evaluation.warnings.map((message) => ({
-      class: 'security-gate',
-      message
-    })),
+    blockingFindings: buildReportFindings(evaluation.errors, 'security-gate'),
+    advisoryFindings: buildReportFindings(evaluation.warnings, 'security-gate'),
     rows
-  };
+  });
 
   return {
     ok: evaluation.ok,

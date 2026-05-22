@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
 import { ensureFixtureIndex, loadFixtureIndexMeta } from '../../helpers/fixture-index.js';
+import { fail, findSafely, hasPython, runEnabledCases } from '../helpers/fixture-metadata.js';
 
 const { fixtureRoot, userConfig } = await ensureFixtureIndex({
   fixtureName: 'languages',
@@ -10,27 +10,7 @@ const { fixtureRoot, userConfig } = await ensureFixtureIndex({
 });
 const { chunkMeta, fileMeta, resolveChunkFile } = loadFixtureIndexMeta(fixtureRoot, userConfig);
 
-const fail = (message) => {
-  console.error(message);
-  process.exit(1);
-};
-
-const hasPython = () => {
-  const candidates = ['python', 'python3'];
-  for (const cmd of candidates) {
-    const result = spawnSync(cmd, ['-c', 'import sys; sys.stdout.write("ok")'], { encoding: 'utf8' });
-    if (result.status === 0 && result.stdout.trim() === 'ok') return true;
-  }
-  return false;
-};
-
-const findChunk = (predicate) => chunkMeta.find((chunk) => {
-  try {
-    return predicate(chunk);
-  } catch {
-    return false;
-  }
-});
+const findChunk = (predicate) => findSafely(chunkMeta, predicate);
 
 const pythonEnabled = hasPython();
 
@@ -211,9 +191,6 @@ if (!pythonEnabled) {
   console.log('Skipping Python language-fixture contract checks (python not available).');
 }
 
-for (const testCase of cases) {
-  if (!testCase.enabled) continue;
-  testCase.validate(testCase.find());
-}
+await runEnabledCases(cases);
 
 console.log('Language fixture contracts ok.');

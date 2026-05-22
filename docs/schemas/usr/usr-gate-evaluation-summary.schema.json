@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "usr/usr-gate-evaluation-summary.schema.json",
+  "title": "usr-gate-evaluation-summary.schema.json",
+  "allOf": [
+    {
+      "$ref": "./evidence-envelope.schema.json"
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "artifactId": {
+      "type": "string",
+      "const": "usr-gate-evaluation-summary"
+    },
+    "summary": {
+      "type": "object"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "unevaluatedProperties": false,
+  "required": [
+    "artifactId",
+    "summary",
+    "rows"
+  ]
+}

@@ -1,7 +1,7 @@
 # USR Consolidation Coverage Matrix
 
 Status: Approved v1.1
-Last updated: 2026-02-13T09:58:25Z
+Last updated: 2026-05-20T00:00:00Z
 
 Purpose: document the one-to-many merge of the legacy USR documentation set into the consolidated core contract set.
 
@@ -16,7 +16,7 @@ Approval record ID: `usr-traceability-approval-2026-02-12`
 Approved at: 2026-02-12T05:53:57Z
 
 Approval scope:
-- section-to-task anchors for USR sections 5 through 36 remain complete in `TES_LAYN_GOVERNANCE.md` section 3.1
+- section-to-task anchors for USR sections 5 through 36 remain represented in `docs/roadmap.md` and the consolidated USR core contract set
 - decomposition coverage between legacy and core contracts remains complete and machine-auditable
 - roadmap Phase A exit criteria may treat traceability coverage as approved only while this lock remains valid
 

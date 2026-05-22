@@ -57,7 +57,7 @@ Normative framework contract for `sveltekit` under USR.
 
 ## 8. Required fixtures and evidence
 
-- `edgeCaseCaseIds`: `sveltekit-load-data-binding`, `sveltekit-route-param`, `sveltekit-server-action-route`
+- `edgeCaseCaseIds`: `sveltekit-component-style-scope`, `sveltekit-load-data-binding`, `sveltekit-page-data-template`, `sveltekit-route-param`, `sveltekit-server-action-route`
 - `blockingFixtureIds`: `sveltekit::framework-overlay::baseline-001`
 - `requiredConformance`: `C4`
 
@@ -65,9 +65,9 @@ Normative framework contract for `sveltekit` under USR.
 
 - [ ] Owner-role review completed.
 - [ ] Backup-owner review completed.
-- [ ] Matrix linkage verified against framework profile and edge-case registries.
-- [ ] Required framework fixture families assigned with concrete fixture IDs.
-- [ ] Required C4 conformance checks mapped to executable lanes.
+- [x] Matrix linkage verified against framework profile and edge-case registries.
+- [x] Required framework fixture families assigned with concrete fixture IDs.
+- [x] Required C4 conformance checks mapped to executable lanes.
 
 ## 10. Completion evidence artifacts
 
