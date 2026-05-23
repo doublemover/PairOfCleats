@@ -155,6 +155,27 @@ export const createMcpTransport = ({
     return task || null;
   };
 
+  const resolveActiveRequestState = (idKey) => {
+    const pending = pendingById.has(idKey);
+    const running = inFlight.has(idKey);
+    if (pending && running) return 'pending-and-running';
+    if (running) return 'running';
+    if (pending) return 'pending';
+    return null;
+  };
+
+  const rejectDuplicateRequestId = (id, idKey) => {
+    const state = resolveActiveRequestState(idKey);
+    if (!state) return false;
+    sendError(id, -32600, 'Duplicate request id while prior request is still pending or running.', undefined, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      reason: 'duplicate-request-id',
+      requestId: idKey,
+      state
+    });
+    return true;
+  };
+
   const applyCancellation = (params) => {
     const cancelKey = normalizeId(params?.id);
     if (cancelKey === null) return false;
@@ -182,6 +203,7 @@ export const createMcpTransport = ({
       args,
       timeoutMs
     } = task;
+    if (rejectDuplicateRequestId(id, idKey)) return;
     const controller = new AbortController();
     const requestObservability = normalizeObservability({
       correlationId: task.meta?.correlationId || null,
@@ -320,6 +342,7 @@ export const createMcpTransport = ({
     if (method === 'tools/call') {
       if (id === null || id === undefined) return;
       const idKey = normalizeId(id);
+      if (rejectDuplicateRequestId(id, idKey)) return;
       const name = params?.name;
       const args = params?.arguments || {};
       const timeoutMs = resolveToolTimeoutMs(name, args);

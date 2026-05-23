@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { startMcpServer } from '../../helpers/mcp-client.js';
@@ -11,11 +12,13 @@ const tempRoot = resolveTestCachePath(root, 'mcp-robustness');
 const queueCache = path.join(tempRoot, 'queue-cache');
 const timeoutCache = path.join(tempRoot, 'timeout-cache');
 const cancelCache = path.join(tempRoot, 'cancel-cache');
+const duplicateIdCache = path.join(tempRoot, 'duplicate-id-cache');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(queueCache, { recursive: true });
 await fsPromises.mkdir(timeoutCache, { recursive: true });
 await fsPromises.mkdir(cancelCache, { recursive: true });
+await fsPromises.mkdir(duplicateIdCache, { recursive: true });
 
 const initializeServer = async (session, id) => {
   session.send({
@@ -126,6 +129,77 @@ async function runCancelTest() {
   }
 }
 
+async function runDuplicateRequestIdTest() {
+  const session = await startMcpServer({
+    cacheRoot: duplicateIdCache,
+    timeoutMs: 30000,
+    env: {
+      PAIROFCLEATS_TEST_MCP_DELAY_MS: '250',
+      PAIROFCLEATS_TEST_MCP_DELAY_TOOL_NAMES: 'index_status'
+    }
+  });
+  try {
+    await initializeServer(session, 40);
+
+    session.send({
+      jsonrpc: '2.0',
+      id: 41,
+      method: 'tools/call',
+      params: { name: 'index_status', arguments: { repoPath: root } }
+    });
+    session.send({
+      jsonrpc: '2.0',
+      id: 42,
+      method: 'tools/call',
+      params: { name: 'index_status', arguments: { repoPath: root } }
+    });
+    session.send({
+      jsonrpc: '2.0',
+      id: 41,
+      method: 'tools/call',
+      params: { name: 'config_status', arguments: { repoPath: root } }
+    });
+    session.send({
+      jsonrpc: '2.0',
+      id: 42,
+      method: 'tools/call',
+      params: { name: 'config_status', arguments: { repoPath: root } }
+    });
+
+    const responses = [
+      await session.readMessage(),
+      await session.readMessage(),
+      await session.readMessage(),
+      await session.readMessage()
+    ];
+    const duplicateErrors = responses.filter((message) => (
+      message?.error?.code === -32600
+      && message.error?.data?.code === ERROR_CODES.INVALID_REQUEST
+      && message.error?.data?.reason === 'duplicate-request-id'
+    ));
+    if (duplicateErrors.length !== 2) {
+      throw new Error(`Expected two duplicate request id errors, got ${duplicateErrors.length}.`);
+    }
+    const states = duplicateErrors
+      .map((message) => message.error?.data?.state)
+      .sort();
+    if (states.join(',') !== 'pending,running') {
+      throw new Error(`Expected duplicate errors for pending and running requests, got ${states.join(',')}.`);
+    }
+    const successfulIds = responses
+      .filter((message) => message?.result && !message.result?.isError)
+      .map((message) => message.id)
+      .sort((a, b) => a - b);
+    if (successfulIds.join(',') !== '41,42') {
+      throw new Error(`Expected original requests 41 and 42 to complete, got ${successfulIds.join(',')}.`);
+    }
+
+    await shutdownServer(session, 43);
+  } finally {
+    await session.shutdown();
+  }
+}
+
 async function runProgressThrottleTest() {
   const session = await startMcpServer({
     cacheRoot: cancelCache,
@@ -189,6 +263,7 @@ async function runTimeoutTest() {
 
 runQueueTest()
   .then(runCancelTest)
+  .then(runDuplicateRequestIdTest)
   .then(runProgressThrottleTest)
   .then(runTimeoutTest)
   .then(() => {
