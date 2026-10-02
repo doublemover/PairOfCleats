@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { planShards } from '../../../src/index/build/shards.js';
+import { createPerfProfile, loadPerfProfile } from '../../../src/index/build/perf-profile.js';
 
 const makeEntry = (rel) => ({
   rel,
@@ -137,5 +140,44 @@ assert.deepEqual(
 const totalEntriesE = shardsE1.reduce((sum, shard) => sum + shard.entries.length, 0);
 assert.equal(totalEntriesE, entriesE.length, 'expected all entries to be assigned');
 assert.ok(shardsE1.every((shard) => shard.costMs > 0), 'expected perf-based cost totals');
+
+const metricsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-shard-perf-profile-'));
+try {
+  const profilePath = path.join(metricsDir, 'perf-profile-code.json');
+  const originalProfile = {
+    ...createPerfProfile({ mode: 'code', configHash: 'config-a' }),
+    ...perfProfile
+  };
+  const originalBytes = JSON.stringify(originalProfile, null, 2);
+  await fs.writeFile(profilePath, originalBytes);
+  const before = await fs.stat(profilePath, { bigint: true });
+  assert.deepEqual(await loadPerfProfile({ metricsDir, mode: 'code', configHash: 'config-a' }), originalProfile);
+
+  const messages = [];
+  assert.equal(await loadPerfProfile({ metricsDir, mode: 'code', configHash: 'config-b', log: (message) => messages.push(message) }), null);
+  assert.equal(await fs.readFile(profilePath, 'utf8'), originalBytes, 'mismatch must preserve the prior valid profile');
+  const after = await fs.stat(profilePath, { bigint: true });
+  assert.equal(after.mtimeNs, before.mtimeNs, 'mismatch must not rewrite the profile');
+  assert.match(messages[0], /mismatch.*ignor/i);
+  assert.deepEqual(await loadPerfProfile({ metricsDir, mode: 'code', configHash: 'config-a' }), originalProfile);
+  assert.deepEqual(await loadPerfProfile({ metricsDir, mode: 'code' }), originalProfile, 'unspecified config keeps legacy reuse');
+
+  // A completed writer may still publish a replacement for its own config.
+  const replacement = { ...originalProfile, configHash: 'config-b', buildId: 'completed-b' };
+  await fs.writeFile(`${profilePath}.next`, JSON.stringify(replacement));
+  await fs.rename(`${profilePath}.next`, profilePath);
+  assert.deepEqual(await loadPerfProfile({ metricsDir, mode: 'code', configHash: 'config-b' }), replacement);
+  assert.equal(await loadPerfProfile({ metricsDir, mode: 'code', configHash: 'config-a' }), null);
+
+  for (const invalid of ['{invalid json', JSON.stringify({ ...replacement, version: -1 })]) {
+    await fs.writeFile(profilePath, invalid);
+    assert.equal(await loadPerfProfile({ metricsDir, mode: 'code', configHash: 'config-b' }), null);
+    assert.equal(await fs.readFile(profilePath, 'utf8'), invalid, 'reader keeps corrupt/version-incompatible handling non-destructive');
+  }
+  assert.equal(await loadPerfProfile({ metricsDir, mode: 'prose', configHash: 'config-a' }), null);
+  assert.equal(await loadPerfProfile({ metricsDir: null, mode: 'code', configHash: 'config-a' }), null);
+} finally {
+  await fs.rm(metricsDir, { recursive: true, force: true });
+}
 
 console.log('shard-plan test passed.');

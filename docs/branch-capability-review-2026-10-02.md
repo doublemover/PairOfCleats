@@ -70,6 +70,13 @@ of `mess`'s nonmerge commits; the extra `64b90824` patch was reviewed separately
    segment context, ordered parameter semantics, supported rule fields, and
    partial-result status. Historical speculative proposals are not silently
    introduced as new public contracts.
+8. A deeper comparison of `mess`'s unique `64b90824` tip recovered another lost
+   behavior: a config-mismatched shard performance profile must be ignored, not
+   deleted by its reader. The completed metrics writer still replaces profiles
+   normally. A regression reproduced the deletion and now verifies byte/mtime
+   preservation, original-config reuse, later replacement and unchanged corrupt,
+   unsupported-version and missing-file behavior. The existing shard-plan
+   selector and changed-file ESLint passed without an indexing benchmark.
 
 ## Historical Phase 23 capability disposition
 
