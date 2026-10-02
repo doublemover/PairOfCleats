@@ -12,6 +12,7 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { resolveIndexDir, isManifestPathSafe } from '../../../src/index/validate/paths.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { validateEmbeddingArtifacts } from '../../../src/index/validate/embeddings.js';
 
 const root = process.cwd();
 
@@ -48,6 +49,60 @@ const createManifestPieces = (overridesByName = {}) => [
 ];
 
 const cases = [
+  {
+    name: 'HNSW validation compares successful and expected nonempty inserts, not dense row slots',
+    async run() {
+      const dir = await createTempRoot('index-validate-hnsw-sparse-counts');
+      try {
+        for (const target of ['dense_vectors_hnsw', 'dense_vectors_doc_hnsw', 'dense_vectors_code_hnsw']) {
+          await fs.writeFile(path.join(dir, `${target}.bin`), 'fixture-index');
+          for (const [label, count, expectedCount, expectedIssue] of [
+            ['sparse nonempty count', 1, 1, null],
+            ['legacy occupancy unknown', 1, undefined, null],
+            ['full target', 3, 3, null],
+            ['failed insert count', 1, 2, 'count mismatch'],
+            ['too many indexed labels', 4, 4, 'count mismatch'],
+            ['nonnumeric count', '1', 1, 'schema invalid'],
+            ['fractional count', 1.5, 1, 'schema invalid'],
+            ['negative count', -1, 1, 'schema invalid'],
+            ['nonnumeric expected count', 1, '1', 'schema invalid'],
+            ['fractional expected count', 1, 1.5, 'schema invalid'],
+            ['negative expected count', 1, -1, 'schema invalid']
+          ]) {
+            const metadata = {
+              dims: 2, model: 'fixture-model', count, space: 'cosine',
+              m: 16, efConstruction: 200, efSearch: 50,
+              ...(expectedCount === undefined ? {} : { expectedCount })
+            };
+            const report = { issues: [], hints: [], warnings: [] };
+            const manifestCounts = [];
+            const reads = [];
+            validateEmbeddingArtifacts({
+              report, mode: 'code', dir,
+              manifest: { pieces: [{ name: target, format: 'bin', path: `${target}.bin`, count }] },
+              strict: true, modeReport: { ok: true, missing: [] },
+              chunkMeta: [{ id: 0 }, { id: 1 }, { id: 2 }],
+              validateManifestCount: (...args) => manifestCounts.push(args),
+              lanceConfig: { enabled: false },
+              readJsonArtifact: (name) => {
+                reads.push(name);
+                return name === `${target}_meta` ? metadata : null;
+              }
+            });
+            if (expectedIssue) {
+              assert.ok(report.issues.some((issue) => issue.includes(expectedIssue)), `${target}/${label}: ${report.issues.join('; ')}`);
+            } else {
+              assert.deepEqual(report.issues, [], `${target}/${label}`);
+              assert.deepEqual(manifestCounts.map(([name, value]) => [name, value]), [[`${target}_meta`, count], [target, count]]);
+            }
+            assert.ok(reads.every((name) => name.endsWith('_meta')), 'count validation must not read/materialize dense vector payloads');
+          }
+        }
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }
+  },
   {
     name: 'manifest path safety helper rejects native absolute and escape paths',
     async run() {

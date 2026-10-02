@@ -30,6 +30,7 @@ const denseVectorsHnswMetaSchema = {
     model: nullableString,
     dims: { type: 'integer', minimum: 1 },
     count: { type: 'integer', minimum: 0 },
+    expectedCount: { type: 'integer', minimum: 0 },
     space: { type: 'string' },
     m: { type: 'integer', minimum: 1 },
     efConstruction: { type: 'integer', minimum: 1 },

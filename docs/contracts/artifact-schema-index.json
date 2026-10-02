@@ -1,5 +1,5 @@
 {
-  "schemaHash": "91762b106c71460aab1148f9adceeea6f74818d2",
+  "schemaHash": "07ee68bbc37270c1576db01fe1202e6cad2f8095",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -321,6 +321,7 @@
         "space"
       ],
       "optionalFields": [
+        "expectedCount",
         "generatedAt",
         "levels",
         "maxVal",
@@ -404,6 +405,7 @@
         "space"
       ],
       "optionalFields": [
+        "expectedCount",
         "generatedAt",
         "levels",
         "maxVal",
@@ -446,6 +448,7 @@
         "space"
       ],
       "optionalFields": [
+        "expectedCount",
         "generatedAt",
         "levels",
         "maxVal",

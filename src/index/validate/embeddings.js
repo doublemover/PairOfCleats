@@ -165,8 +165,20 @@ export const validateEmbeddingArtifacts = ({
     const hnswCount = Number.isFinite(hnswMeta?.count) ? hnswMeta.count : chunkMeta.length;
     validateManifestCount(target.metaName, hnswCount, `${target.label} meta`);
     validateManifestCount(target.binName, hnswCount, `${target.label} bin`);
-    if (Number.isFinite(hnswMeta?.count) && hnswMeta.count !== chunkMeta.length) {
-      const issue = `${target.label} count mismatch (${hnswMeta.count} !== ${chunkMeta.length})`;
+    // HNSW omits empty/missing vectors. count is successful insertions and
+    // expectedCount is attempted nonempty insertions for this exact target,
+    // not the dense storage row count. Legacy metadata can lack occupancy.
+    const expectedCount = Number.isInteger(hnswMeta?.expectedCount) && hnswMeta.expectedCount >= 0
+      ? hnswMeta.expectedCount
+      : null;
+    const validCount = Number.isInteger(hnswMeta?.count) && hnswMeta.count >= 0;
+    const exceedsRows = validCount && hnswMeta.count > chunkMeta.length;
+    const incomplete = validCount && expectedCount !== null && hnswMeta.count !== expectedCount;
+    if (exceedsRows || incomplete) {
+      const detail = exceedsRows
+        ? `${hnswMeta.count} > ${chunkMeta.length} chunk rows`
+        : `${hnswMeta.count} !== ${expectedCount} expected nonempty vectors`;
+      const issue = `${target.label} count mismatch (${detail})`;
       modeReport.ok = false;
       modeReport.missing.push(issue);
       report.issues.push(`[${mode}] ${issue}`);

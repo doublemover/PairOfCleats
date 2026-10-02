@@ -84,6 +84,17 @@ of `mess`'s nonmerge commits; the extra `64b90824` patch was reviewed separately
    missing/mixed/explicit IDs, manifest permutations, within-file shard order
    and logical-file alias merging are covered by the existing bundle-shards
    regression. Its prefix failure, fixed pass and scoped ESLint are recorded.
+10. `mess`'s HNSW row-count guard was not copied blindly: the current writer
+    records successful nonempty insertions as `count` and attempts as
+    `expectedCount`, while dense row slots can include missing document vectors.
+    The proposed runtime guard was withdrawn before execution. Instead, a
+    regression confirmed that the current offline validator rejected valid sparse
+    targets by comparing `count` to every chunk row. Validation now compares
+    known per-target `expectedCount`, preserves manifest checks and the row-count
+    upper bound, and does not guess legacy occupancy. The optional producer field
+    is schema-validated as a nonnegative integer. All three HNSW target variants
+    and invalid-count cases pass in the existing validator matrix with scoped
+    ESLint, without reading dense payloads or loading native indexes.
 
 ## Historical Phase 23 capability disposition
 
