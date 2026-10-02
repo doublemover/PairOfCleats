@@ -33,6 +33,8 @@ const buildConfig = (caps) => normalizeRiskConfig({
   assert.equal(containsIdentifier('foo + bar', 'bar'), true);
   assert.equal(containsIdentifier('x foo y', 'foo', { start: 2, end: 5 }), true);
   assert.equal(containsIdentifier('x foo y', 'foo', { start: 0, end: 2 }), false);
+  assert.equal(containsIdentifier('x foo y', 'foo', { start: 2, end: null }), true);
+  assert.equal(containsIdentifier('x foo y', 'foo', { start: 0, end: 0 }), false);
 
   const pattern = /danger\(/i;
   pattern.prefilter = 'danger';
@@ -59,6 +61,13 @@ const buildConfig = (caps) => normalizeRiskConfig({
   assert.ok(capped, 'expected capped risk result');
   assert.equal(capped.analysisStatus?.status, 'capped');
   assert.ok(capped.analysisStatus?.reason?.includes('maxBytes'));
+  const cappedLines = detectRiskSignals({
+    text: 'SRC\r\nSINK\n',
+    config: buildConfig({ maxLines: 2, maxBytes: 1024 })
+  });
+  assert.equal(cappedLines.analysisStatus.lines, 3);
+  assert.equal(cappedLines.analysisStatus.reason, 'maxLines');
+  assert.deepEqual(cappedLines.sources, []);
 
   const okConfig = buildConfig({ maxBytes: 1024, maxLines: 10, maxMs: 1000 });
   const okText = 'SRC value\nconst x = 1;\nSINK(value)';
@@ -92,6 +101,34 @@ const buildConfig = (caps) => normalizeRiskConfig({
   });
   assert.ok(sanitizerRisk?.flows?.length, 'expected flow to remain after unrelated sanitizer call');
 
+  const consumingConfig = buildConfig({ maxBytes: 1024, maxLines: 50, maxMs: 1000 });
+  consumingConfig.rules.sanitizers[0].patterns = [/sanitize\s*\(/];
+  const consumingRisk = detectRiskSignals({ text: sanitizerText, config: consumingConfig });
+  assert.ok(consumingRisk?.flows?.length,
+    'a sanitizer pattern consuming the opening parenthesis must not sanitize the later sink argument');
+  const defaultRisk = detectRiskSignals({
+    text: 'const user = req.body;\nconst admin = req.body;\nescape(user); exec(admin);',
+    config: normalizeRiskConfig({ caps: { maxMs: 1000 } })
+  });
+  assert.ok(defaultRisk?.flows?.some((flow) => flow.sink === 'exec'),
+    'the shipped escape rule must preserve an unrelated exec flow');
+  const sanitizedRisk = detectRiskSignals({
+    text: 'const user = SRC;\nsanitize(user);\nSINK(user);', config: consumingConfig
+  });
+  assert.equal(sanitizedRisk.flows.length, 0, 'the matched sanitizer argument must still be handled');
+  const quotedRisk = detectRiskSignals({
+    text: 'const user = SRC;\nsanitize(")", user);\nSINK(user);', config: consumingConfig
+  });
+  assert.equal(quotedRisk.flows.length, 0, 'quoted parentheses must not terminate sanitizer arguments');
+  const malformedRisk = detectRiskSignals({
+    text: 'const user = SRC;\nsanitize(user; SINK(user);', config: consumingConfig
+  });
+  assert.ok(malformedRisk.flows.length, 'an unterminated sanitizer call must not suppress a flow');
+  const bareRisk = detectRiskSignals({
+    text: 'const user = SRC;\nsanitize user\nSINK(user);', config: taintConfig
+  });
+  assert.equal(bareRisk.flows.length, 0, 'non-call sanitizer rules retain their open-ended range');
+
   const destructuringText = [
     'const { token } = SRC;',
     'SINK(token);'
@@ -102,6 +139,20 @@ const buildConfig = (caps) => normalizeRiskConfig({
     languageId: 'javascript'
   });
   assert.ok(destructuringRisk?.flows?.length, 'expected destructured assignment to propagate taint');
+}
+
+{
+  const flowConfig = buildConfig({ maxBytes: 1024, maxLines: 10, maxMs: 1000, maxFlows: 1 });
+  flowConfig.rules.sinks.push({ ...flowConfig.rules.sinks[0], id: 'sink.two', name: 'SINK2' });
+  const partial = detectRiskSignals({ text: 'SRC SINK', config: flowConfig });
+  assert.equal(partial.flows.length, 1);
+  assert.equal(partial.analysisStatus.status, 'capped', 'omitted flows must not be reported as complete');
+  assert.equal(partial.analysisStatus.reason, 'maxFlows');
+  assert.equal(partial.analysisStatus.caps.maxFlows, 1);
+
+  flowConfig.rules.sinks.pop();
+  const exact = detectRiskSignals({ text: 'SRC SINK', config: flowConfig });
+  assert.equal(exact.analysisStatus.status, 'ok', 'exactly filling the cap does not omit any flow');
 }
 
 console.log('risk contract matrix test passed');

@@ -36,11 +36,11 @@
     {
       "id": "repo-inventory",
       "owner": "tooling-docs",
-      "committed": true,
-      "validationMode": "registry-audited",
-      "freshnessExpectation": "regenerate after docs, tool entrypoints, script references, or workflow references change",
+      "committed": false,
+      "validationMode": "local-report",
+      "freshnessExpectation": "generate locally when needed; validate reproducibility from current sources",
       "freshness": {
-        "mode": "generated-compare",
+        "mode": "generated-reproducible",
         "command": "node tools/docs/repo-inventory.js --root . --json {output:0}",
         "outputs": [
           {
@@ -162,11 +162,11 @@
     {
       "id": "shared-module-ledger",
       "owner": "shared-module-governance",
-      "committed": true,
-      "validationMode": "registry-audited",
-      "freshnessExpectation": "regenerate after shared-module scopes, issue ownership mappings, or shared consumer surfaces change",
+      "committed": false,
+      "validationMode": "local-report",
+      "freshnessExpectation": "generate locally when needed; validate reproducibility from current sources",
       "freshness": {
-        "mode": "generated-compare",
+        "mode": "generated-reproducible",
         "command": "node tools/docs/shared-module-ledger.js --json {output:0} --markdown {output:1}",
         "outputs": [
           {
@@ -214,6 +214,27 @@
       },
       "audit": {
         "command": "node tests/tooling/release/shipped-surface-registry.test.js"
+      }
+    },
+    {
+      "id": "suite-taxonomy",
+      "owner": "test-governance",
+      "committed": false,
+      "validationMode": "test-backed-local-report",
+      "freshnessExpectation": "generate locally after test discovery, lane manifest, or coverage ownership changes",
+      "freshness": {
+        "mode": "audit-command",
+        "command": "node tests/runner/suite-taxonomy-report.test.js"
+      },
+      "outputs": [
+        "docs/testing/suite-taxonomy.json",
+        "docs/testing/suite-taxonomy.md"
+      ],
+      "refresh": {
+        "command": "node tools/testing/generate-suite-taxonomy-report.js"
+      },
+      "audit": {
+        "command": "node tests/runner/suite-taxonomy-report.test.js"
       }
     }
   ]

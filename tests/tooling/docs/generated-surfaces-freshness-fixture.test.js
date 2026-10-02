@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { ensureTestingEnv } from '../../helpers/test-env.js';
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { execaSync } from 'execa';
 
 ensureTestingEnv(process.env);
@@ -22,6 +24,16 @@ const writeText = (filePath, contents) => {
 };
 
 try {
+  // Importing the builders in policy checks must not execute their writing CLIs.
+  const builderUrls = ['repo-inventory', 'shared-module-ledger'].map((name) => (
+    pathToFileURL(path.join(root, 'tools', 'docs', `${name}.js`)).href
+  ));
+  execaSync(process.execPath, ['--input-type=module', '--eval',
+    `for (const url of ${JSON.stringify(builderUrls)}) await import(url);`
+  ], { cwd: tempRoot });
+  assert.equal(fs.existsSync(path.join(tempRoot, 'docs')), false, 'builder imports must not write local reports');
+
+  writeJson(path.join(tempRoot, 'package.json'), { type: 'module' });
   writeText(
     path.join(tempRoot, 'tools', 'fixtures', 'generate-docs.js'),
     `#!/usr/bin/env node
@@ -34,11 +46,12 @@ const outMdIndex = args.indexOf('--out-md');
 const valueIndex = args.indexOf('--value');
 const outputJson = outIndex >= 0 ? args[outIndex + 1] : '';
 const outputMd = outMdIndex >= 0 ? args[outMdIndex + 1] : '';
-const value = valueIndex >= 0 ? args[valueIndex + 1] : 'ok';
+const requestedValue = valueIndex >= 0 ? args[valueIndex + 1] : 'ok';
+const value = requestedValue === 'process-id' ? String(process.pid) : requestedValue;
 
 if (outputJson) {
   fs.mkdirSync(path.dirname(outputJson), { recursive: true });
-  fs.writeFileSync(outputJson, JSON.stringify({ generatedAt: 'fresh', value }, null, 2) + '\\n');
+  fs.writeFileSync(outputJson, JSON.stringify({ generatedAt: String(process.pid), value }, null, 2) + '\\n');
 }
 if (outputMd) {
   fs.mkdirSync(path.dirname(outputMd), { recursive: true });
@@ -63,7 +76,8 @@ console.log('audit ok');
 `
   );
 
-  writeJson(path.join(tempRoot, 'docs', 'tooling', 'generated-surfaces.json'), {
+  const registryPath = path.join(tempRoot, 'docs', 'tooling', 'generated-surfaces.json');
+  const registry = {
     schemaVersion: '1.0.0',
     surfaces: [
       {
@@ -88,7 +102,7 @@ console.log('audit ok');
           command: 'node tools/fixtures/generate-docs.js --out docs/generated/fixture.json --out-md docs/generated/fixture.md --value ok'
         },
         audit: {
-          command: 'node tools/docs/generated-surfaces.js --check --surface fixture-compare'
+          command: 'node tools/fixtures/audit-generated.js --target docs/generated/fixture.json'
         }
       },
       {
@@ -110,9 +124,29 @@ console.log('audit ok');
         audit: {
           command: 'node tools/fixtures/audit-generated.js --target docs/generated/audit.flag'
         }
+      },
+      {
+        id: 'fixture-local',
+        owner: 'tests',
+        committed: false,
+        validationMode: 'local-report',
+        freshnessExpectation: 'local reports must be reproducible without a committed baseline',
+        freshness: {
+          mode: 'generated-reproducible',
+          command: 'node tools/fixtures/generate-docs.js --out {output:0} --out-md {output:1} --value ok',
+          outputs: [
+            { format: 'json', omitKeys: ['generatedAt'] },
+            { format: 'text' }
+          ]
+        },
+        outputs: ['docs/generated/local.json', 'docs/generated/local.md'],
+        refresh: {
+          command: 'node tools/fixtures/generate-docs.js --out docs/generated/local.json --out-md docs/generated/local.md --value ok'
+        }
       }
     ]
-  });
+  };
+  writeJson(registryPath, registry);
 
   writeJson(path.join(tempRoot, 'docs', 'generated', 'fixture.json'), {
     generatedAt: 'stale',
@@ -121,11 +155,43 @@ console.log('audit ok');
   writeText(path.join(tempRoot, 'docs', 'generated', 'fixture.md'), '# Fixture\n\nvalue=ok\n');
   writeText(path.join(tempRoot, 'docs', 'generated', 'audit.flag'), 'ok\n');
 
+  const localSurface = registry.surfaces.find((surface) => surface.id === 'fixture-local');
+  const localOutputs = localSurface.outputs.map((output) => path.join(tempRoot, output));
+  execaSync(process.execPath, [toolPath, '--root', tempRoot, '--check'], { cwd: root });
   const freshPass = execaSync('node', [toolPath, '--root', tempRoot, '--check-freshness'], { cwd: root });
   if (!freshPass.stdout.includes('generated surfaces freshness check passed')) {
     console.error('generated surfaces freshness fixture test failed: expected fresh pass');
     process.exit(1);
   }
+  assert.ok(localOutputs.every((output) => !fs.existsSync(output)), 'freshness checks must not create local reports');
+
+  // Optional local caches can be stale, malformed or partly absent without
+  // replacing source-derived checks or being rewritten as a side effect.
+  writeText(localOutputs[0], 'stale local cache\n');
+  execaSync(process.execPath, [toolPath, '--root', tempRoot, '--check-freshness', '--surface', 'fixture-local'], { cwd: root });
+  assert.equal(fs.readFileSync(localOutputs[0], 'utf8'), 'stale local cache\n');
+  assert.equal(fs.existsSync(localOutputs[1]), false);
+
+  const localCommand = localSurface.freshness.command;
+  localSurface.freshness.command = localCommand.replace('--value ok', '--value process-id');
+  writeJson(registryPath, registry);
+  assert.throws(
+    () => execaSync(process.execPath, [toolPath, '--root', tempRoot, '--check-freshness', '--surface', 'fixture-local'], { cwd: root }),
+    (error) => String(error.stderr).includes('fixture-local: non-reproducible output docs/generated/local.json'),
+    'local-only outputs must still be checked for reproducibility'
+  );
+  localSurface.freshness.command = localCommand.replace(' --out-md {output:1}', '');
+  writeJson(registryPath, registry);
+  assert.throws(
+    () => execaSync(process.execPath, [toolPath, '--root', tempRoot, '--check-freshness', '--surface', 'fixture-local'], { cwd: root }),
+    (error) => String(error.stderr).includes('generator did not produce expected output docs/generated/local.md'),
+    'every declared local output must be generated'
+  );
+  localSurface.freshness.command = localCommand;
+  writeJson(registryPath, registry);
+  execaSync(process.execPath, [toolPath, '--root', tempRoot, '--refresh', '--surface', 'fixture-local'], { cwd: root });
+  assert.equal(JSON.parse(fs.readFileSync(localOutputs[0], 'utf8')).value, 'ok');
+  assert.equal(fs.readFileSync(localOutputs[1], 'utf8'), '# Fixture\n\nvalue=ok\n');
 
   writeJson(path.join(tempRoot, 'docs', 'generated', 'fixture.json'), {
     generatedAt: 'stale',
@@ -178,6 +244,11 @@ console.log('audit ok');
     console.error('generated surfaces freshness fixture test failed: expected audit failure');
     process.exit(1);
   }
+  assert.throws(
+    () => execaSync(process.execPath, [toolPath, '--root', tempRoot, '--check'], { cwd: root }),
+    (error) => String(error.stderr).includes('committed output missing for fixture-audit'),
+    'registry checks must still reject missing committed outputs'
+  );
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
 }

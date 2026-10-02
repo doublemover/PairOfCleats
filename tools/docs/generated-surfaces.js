@@ -112,7 +112,7 @@ const replaceOutputPlaceholders = (command, tempOutputs) => String(command || ''
   }
 );
 
-const checkGeneratedCompareFreshness = (surface, root, freshness) => {
+const checkGeneratedCompareFreshness = (surface, root, freshness, { reproducible = false } = {}) => {
   const outputConfigs = Array.isArray(freshness.outputs) ? freshness.outputs : [];
   if (outputConfigs.length !== surface.outputs.length) {
     throw new Error(
@@ -122,55 +122,66 @@ const checkGeneratedCompareFreshness = (surface, root, freshness) => {
   }
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `pairofcleats-generated-${surface.id}-`));
   try {
-    const tempOutputs = surface.outputs.map((output, index) => {
-      const filename = `${String(index).padStart(2, '0')}-${sanitizeRelativePath(output)}`;
-      const tempOutput = path.join(tempDir, filename);
-      fs.mkdirSync(path.dirname(tempOutput), { recursive: true });
-      return tempOutput;
-    });
-    const command = replaceOutputPlaceholders(freshness.command, tempOutputs);
-    const result = runShellCommand(command, root);
-    if (result.status !== 0) {
-      return {
-        ok: false,
-        reason: 'generator-failed',
-        surfaceId: surface.id,
-        command,
-        details: renderCommandFailure(result)
-      };
-    }
-    for (const [index, output] of surface.outputs.entries()) {
-      const committedPath = path.resolve(root, output);
-      const generatedPath = tempOutputs[index];
-      if (!fs.existsSync(generatedPath)) {
+    // Local-only reports have no committed baseline. Compare two independent
+    // generations instead, without reading or updating a user's cached reports.
+    const baseline = [];
+    for (let run = 0; run < (reproducible ? 2 : 1); run += 1) {
+      const tempOutputs = surface.outputs.map((output, index) => {
+        const filename = `${String(index).padStart(2, '0')}-${sanitizeRelativePath(output)}`;
+        const tempOutput = path.join(tempDir, String(run), filename);
+        fs.mkdirSync(path.dirname(tempOutput), { recursive: true });
+        return tempOutput;
+      });
+      const command = replaceOutputPlaceholders(freshness.command, tempOutputs);
+      const result = runShellCommand(command, root);
+      if (result.status !== 0) {
         return {
           ok: false,
-          reason: 'generated-output-missing',
+          reason: 'generator-failed',
           surfaceId: surface.id,
-          output,
-          command
-        };
-      }
-      if (!fs.existsSync(committedPath)) {
-        return {
-          ok: false,
-          reason: 'committed-output-missing',
-          surfaceId: surface.id,
-          output,
-          command
-        };
-      }
-      const expected = normalizeOutput(fs.readFileSync(committedPath, 'utf8'), outputConfigs[index]);
-      const actual = normalizeOutput(fs.readFileSync(generatedPath, 'utf8'), outputConfigs[index]);
-      if (expected !== actual) {
-        return {
-          ok: false,
-          reason: 'output-drift',
-          surfaceId: surface.id,
-          output,
           command,
-          line: firstDiffLine(expected, actual)
+          details: renderCommandFailure(result)
         };
+      }
+      for (const [index, output] of surface.outputs.entries()) {
+        const committedPath = path.resolve(root, output);
+        const generatedPath = tempOutputs[index];
+        if (!fs.existsSync(generatedPath)) {
+          return {
+            ok: false,
+            reason: 'generated-output-missing',
+            surfaceId: surface.id,
+            output,
+            command
+          };
+        }
+        const actual = normalizeOutput(fs.readFileSync(generatedPath, 'utf8'), outputConfigs[index]);
+        if (reproducible && run === 0) {
+          baseline[index] = actual;
+          continue;
+        }
+        if (!reproducible && !fs.existsSync(committedPath)) {
+          return {
+            ok: false,
+            reason: 'committed-output-missing',
+            surfaceId: surface.id,
+            output,
+            command
+          };
+        }
+        const expected = reproducible
+          ? baseline[index]
+          : normalizeOutput(fs.readFileSync(committedPath, 'utf8'), outputConfigs[index]);
+        if (expected !== actual) {
+          return {
+            ok: false,
+            reason: reproducible ? 'output-not-reproducible' : 'output-drift',
+            surfaceId: surface.id,
+            output,
+            command,
+            line: firstDiffLine(expected, actual)
+          };
+        }
       }
     }
     return { ok: true, surfaceId: surface.id };
@@ -203,6 +214,9 @@ const formatFreshnessFailure = (failure, surfaces) => {
   if (failure.reason === 'output-drift') {
     return `${failure.surfaceId}: stale output ${failure.output} (first differing line ${failure.line})${refreshHint}`;
   }
+  if (failure.reason === 'output-not-reproducible') {
+    return `${failure.surfaceId}: non-reproducible output ${failure.output} (first differing line ${failure.line})`;
+  }
   if (failure.reason === 'generator-failed') {
     return `${failure.surfaceId}: generator failed (${failure.command})${failure.details ? ` | ${failure.details}` : ''}${refreshHint}`;
   }
@@ -222,6 +236,12 @@ const checkSurfaceFreshness = (surface, root) => {
   const { mode, freshness } = buildFreshnessState(surface);
   if (mode === 'generated-compare') {
     return checkGeneratedCompareFreshness(surface, root, freshness);
+  }
+  if (mode === 'generated-reproducible') {
+    if (surface.committed !== false) {
+      throw new Error(`generated surfaces check failed: ${surface.id} reproducibility mode requires committed: false`);
+    }
+    return checkGeneratedCompareFreshness(surface, root, freshness, { reproducible: true });
   }
   if (mode === 'audit-command') {
     return checkAuditCommandFreshness(surface, root, freshness);
@@ -254,6 +274,10 @@ const main = async () => {
         process.exit(1);
       }
       seenIds.add(surface.id);
+      if (typeof surface.committed !== 'boolean') {
+        console.error(`generated surfaces check failed: ${surface.id} must declare committed as a boolean`);
+        process.exit(1);
+      }
       if (!surface.owner || !surface.validationMode || !surface.freshnessExpectation) {
         console.error(`generated surfaces check failed: ${surface.id} is missing required ownership/validation metadata`);
         process.exit(1);
@@ -281,7 +305,11 @@ const main = async () => {
         console.error(`generated surfaces check failed: ${surface.id} audit script missing: ${auditScript}`);
         process.exit(1);
       }
-      if (surface.freshness.mode === 'generated-compare') {
+      if (surface.freshness.mode === 'generated-reproducible' && surface.committed !== false) {
+        console.error(`generated surfaces check failed: ${surface.id} reproducibility mode requires committed: false`);
+        process.exit(1);
+      }
+      if (['generated-compare', 'generated-reproducible'].includes(surface.freshness.mode)) {
         const outputConfigs = Array.isArray(surface.freshness?.outputs) ? surface.freshness.outputs : [];
         if (outputConfigs.length !== surface.outputs.length) {
           console.error(

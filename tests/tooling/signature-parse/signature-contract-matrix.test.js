@@ -25,6 +25,15 @@ const clike = parseClikeSignature('const std::vector<int>& build(const std::stri
 assert.equal(clike?.returnType, 'const std::vector<int>&');
 assert.deepEqual(clike?.paramNames, ['name', 'count']);
 
+const qualifiedClike = parseClikeSignature('std::string ns::Widget::render(int value)', 'render');
+assert.equal(qualifiedClike?.returnType, 'std::string');
+assert.deepEqual(qualifiedClike?.paramTypes, { value: 'int' });
+const constrainedClike = parseClikeSignature(
+  'void run(std::enable_if_t<(N == 1), int> value = 0, void (*callback)(int))', 'run'
+);
+assert.equal(constrainedClike?.paramTypes?.value, 'std::enable_if_t<(N == 1), int>');
+assert.equal(constrainedClike?.paramTypes?.callback, 'void (*)(int)');
+
 const python = parsePythonSignature('def run(name: str, options: dict[str, str] = {"a": "b"}) -> list[str]:');
 assert.equal(python?.returnType, 'list[str]');
 assert.deepEqual(python?.paramNames, ['name', 'options']);

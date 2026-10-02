@@ -12,6 +12,8 @@ const normalizeString = (value) => {
 };
 
 const normalizeNumber = (value) => {
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && !value.trim()) return null;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return null;
   return parsed;

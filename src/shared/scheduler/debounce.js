@@ -1,5 +1,11 @@
 export function createDebouncedScheduler({ debounceMs, onRun, onSchedule, onCancel, onFire, onError }) {
   let timer = null;
+  const reportError = (error) => {
+    try {
+      const result = onError?.(error);
+      if (result && typeof result.catch === 'function') result.catch(() => {});
+    } catch {}
+  };
   const schedule = () => {
     if (timer) {
       clearTimeout(timer);
@@ -7,12 +13,15 @@ export function createDebouncedScheduler({ debounceMs, onRun, onSchedule, onCanc
     }
     timer = setTimeout(() => {
       timer = null;
-      if (onFire) onFire();
+      try {
+        const result = onFire?.();
+        if (result && typeof result.catch === 'function') result.catch(reportError);
+      } catch (error) {
+        reportError(error);
+      }
       void Promise.resolve()
         .then(() => onRun())
-        .catch((err) => {
-          if (onError) onError(err);
-        });
+        .catch(reportError);
     }, debounceMs);
     if (onSchedule) onSchedule();
   };

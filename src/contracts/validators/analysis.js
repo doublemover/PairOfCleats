@@ -13,6 +13,7 @@ import {
 } from '../schemas/analysis.js';
 import { validateContextPackRiskContractCompatibility } from '../context-pack-risk-contract.js';
 import { formatValidatorErrors, toValidationResult } from './result.js';
+import { validateMetadataV2Semantics } from './metadata.js';
 
 const ajv = createAjv({
   allErrors: true,
@@ -32,7 +33,10 @@ const ARCHITECTURE_REPORT_VALIDATOR = compileSchema(ajv, ARCHITECTURE_REPORT_SCH
 const SUGGEST_TESTS_VALIDATOR = compileSchema(ajv, SUGGEST_TESTS_SCHEMA);
 
 export function validateMetadataV2(payload) {
-  return toValidationResult(META_V2_VALIDATOR, payload);
+  const result = toValidationResult(META_V2_VALIDATOR, payload);
+  if (!result.ok) return result;
+  const errors = validateMetadataV2Semantics(payload);
+  return { ok: errors.length === 0, errors };
 }
 
 export function validateRiskRulesBundle(payload) {

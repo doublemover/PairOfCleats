@@ -51,13 +51,30 @@ const lineContainsVarRange = (line, name, start = 0, end = null) => (
 
 const lineContainsVar = (line, name) => containsIdentifier(line, name);
 
-const findCallArgRange = (line, startIndex) => {
-  if (!line || !Number.isFinite(startIndex)) return null;
-  const openIndex = line.indexOf('(', Math.max(0, startIndex));
-  if (openIndex === -1) return null;
+const resolveSanitizerRange = (line, match) => {
+  if (!line || !Number.isFinite(match?.matchIndex)) return null;
+  const startIndex = Math.max(0, match.matchIndex);
+  const matchEnd = startIndex + (match.matchLength || 0);
+  // A rule may consume '(' itself. Do not skip it or scan into a later call.
+  const openIndex = line.indexOf('(', startIndex);
+  if (openIndex === -1 || (openIndex >= matchEnd && line.slice(matchEnd, openIndex).trim())) {
+    return { start: matchEnd, end: null };
+  }
   let depth = 0;
+  let quote = null;
+  let escaped = false;
   for (let i = openIndex; i < line.length; i += 1) {
     const ch = line[i];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      quote = ch;
+      continue;
+    }
     if (ch === '(') depth += 1;
     if (ch === ')') depth -= 1;
     if (depth === 0) {
@@ -183,7 +200,10 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
   const rules = riskConfig.rules || { sources: [], sinks: [], sanitizers: [], provenance: {} };
   const caps = riskConfig.caps || DEFAULT_CAPS;
   const bytes = Buffer.byteLength(text, 'utf8');
-  const lines = text.split(/\r?\n/);
+  let lineCount = 1;
+  for (let index = text.indexOf('\n'); index !== -1; index = text.indexOf('\n', index + 1)) {
+    lineCount += 1;
+  }
   const analysisStart = Date.now();
   const analysisStatus = {
     status: 'ok',
@@ -193,15 +213,16 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
       maxLines: caps.maxLines,
       maxNodes: caps.maxNodes,
       maxEdges: caps.maxEdges,
-      maxMs: caps.maxMs
+      maxMs: caps.maxMs,
+      maxFlows: caps.maxFlows
     },
     bytes,
-    lines: lines.length
+    lines: lineCount
   };
 
   const exceeded = [];
   if (caps.maxBytes && bytes > caps.maxBytes) exceeded.push('maxBytes');
-  if (caps.maxLines && lines.length > caps.maxLines) exceeded.push('maxLines');
+  if (caps.maxLines && lineCount > caps.maxLines) exceeded.push('maxLines');
   if (exceeded.length) {
     analysisStatus.status = 'capped';
     analysisStatus.reason = exceeded.join('|');
@@ -219,6 +240,8 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
     };
   }
 
+  // Allocate individual lines only after the whole-chunk safety limits pass.
+  const lines = text.split(/\r?\n/);
   const sourcesRaw = [];
   const sinksRaw = [];
   const sanitizersRaw = [];
@@ -229,7 +252,11 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
     if (!flow) return;
     const key = `${flow.source}:${flow.sink}:${flow.scope || 'local'}:${flow.via || ''}`;
     if (flowKeys.has(key)) return;
-    if (caps.maxFlows && flows.length >= caps.maxFlows) return;
+    if (caps.maxFlows && flows.length >= caps.maxFlows) {
+      analysisStatus.status = 'capped';
+      analysisStatus.reason = 'maxFlows';
+      return;
+    }
     flowKeys.add(key);
     flows.push(flow);
   };
@@ -258,23 +285,11 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
     const sanitizedVars = [];
     if (sanitizerMatches.length && taint.size) {
       const ranges = sanitizerMatches
-        .map((match) => {
-          const startIndex = Number.isFinite(match.matchIndex) ? match.matchIndex + (match.matchLength || 0) : null;
-          return findCallArgRange(line, startIndex);
-        })
+        .map((match) => resolveSanitizerRange(line, match))
         .filter(Boolean);
       for (const name of taint.keys()) {
         if (!lineContainsVar(line, name)) continue;
-        if (ranges.length) {
-          if (ranges.some((range) => lineContainsVarRange(line, name, range.start, range.end))) {
-            sanitizedVars.push(name);
-          }
-          continue;
-        }
-        if (sanitizerMatches.some((match) => {
-          const startIndex = Number.isFinite(match.matchIndex) ? match.matchIndex + (match.matchLength || 0) : 0;
-          return lineContainsVarRange(line, name, startIndex);
-        })) {
+        if (ranges.some((range) => lineContainsVarRange(line, name, range.start, range.end))) {
           sanitizedVars.push(name);
         }
       }
@@ -328,12 +343,15 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
               ruleIds: [source.rule.id, sink.rule.id],
               evidence: buildEvidence(line, lineNo, 1)
             });
+            if (analysisStatus.status !== 'ok') break;
           }
+          if (analysisStatus.status !== 'ok') break;
         }
       }
       edges += sinkMatches.length;
     }
 
+    if (analysisStatus.status !== 'ok') break;
     if (caps.maxNodes && nodes > caps.maxNodes) {
       analysisStatus.status = 'capped';
       analysisStatus.reason = 'maxNodes';

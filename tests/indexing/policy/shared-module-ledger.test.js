@@ -1,10 +1,8 @@
 #!/usr/bin/env node
-import fsPromises from 'node:fs/promises';
-import path from 'node:path';
+import { buildSharedModuleLedger } from '../../../tools/docs/shared-module-ledger.js';
 import { repoRoot } from '../../helpers/root.js';
 
 const root = repoRoot();
-const ledgerPath = path.join(root, 'docs', 'tooling', 'shared-module-ledger.json');
 
 const fail = (message) => {
   console.error(`shared module ledger policy failed: ${message}`);
@@ -17,7 +15,7 @@ const expectArray = (value, label) => {
 
 let payload;
 try {
-  payload = JSON.parse(await fsPromises.readFile(ledgerPath, 'utf8'));
+  ({ report: payload } = await buildSharedModuleLedger(root));
 } catch (error) {
   fail(error?.message || String(error));
 }

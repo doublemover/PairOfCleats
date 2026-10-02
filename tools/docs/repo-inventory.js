@@ -2,9 +2,20 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { toPosix } from '../../src/shared/file-paths.js';
 import { writeStableGeneratedJsonReport } from '../shared/generated-report.js';
 import { listFilesRecursive } from '../shared/fs-utils.js';
+
+// Optional report caches must never become inputs to the source inventory.
+// Keep this exact-path list aligned with the local-only generated surfaces.
+const LOCAL_REPORT_OUTPUTS = new Set([
+  'docs/testing/suite-taxonomy.json',
+  'docs/testing/suite-taxonomy.md',
+  'docs/tooling/repo-inventory.json',
+  'docs/tooling/shared-module-ledger.json',
+  'docs/tooling/shared-module-ledger.md'
+]);
 
 const parseArgs = () => createCli({
   scriptName: 'pairofcleats repo-inventory',
@@ -24,6 +35,7 @@ const collectDocs = async (root) => {
   return files
     .filter((file) => file.endsWith('.md'))
     .map((file) => toPosix(path.relative(root, file)))
+    .filter((file) => !LOCAL_REPORT_OUTPUTS.has(file))
     .sort();
 };
 
@@ -230,7 +242,7 @@ const extractScriptRefs = (contents) => {
 };
 
 const collectScriptReferences = async (root) => {
-  const docsExclude = new Set(['docs/guides/commands.md']);
+  const docsExclude = new Set(['docs/guides/commands.md', ...LOCAL_REPORT_OUTPUTS]);
   const docsFiles = await listTextFiles(root, 'docs', ['.md'], docsExclude);
   const ciFiles = await listTextFiles(root, '.github', ['.yml', '.yaml', '.md']);
   const testFiles = await listTextFiles(root, 'tests', ['.js', '.md']);
@@ -305,6 +317,7 @@ export const buildRepoInventory = async (root) => {
     },
     notes: [
       'Docs references are collected from docs markdown plus key source/docs entrypoints.',
+      'Local suite-taxonomy, repo-inventory, and shared-module-ledger outputs are excluded from inventory inputs.',
       'Script references are collected from docs (excluding docs/guides/commands.md), .github workflows, tests, and pairofcleats CLI invocations.',
       'Tool entrypoints are detected by a node shebang; package scripts, CLI dispatch paths, and direct workflow node tool invocations count as references.'
     ]
@@ -319,7 +332,9 @@ const main = async () => {
   await writeStableGeneratedJsonReport(outputPath, report);
 };
 
-main().catch((error) => {
-  console.error(error?.message || String(error));
-  process.exit(1);
-});
+if (isDirectExecution(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error?.message || String(error));
+    process.exit(1);
+  });
+}

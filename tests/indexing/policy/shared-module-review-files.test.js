@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { buildSharedModuleLedger } from '../../../tools/docs/shared-module-ledger.js';
 
 const repoRoot = process.cwd();
-const ledgerPath = path.join(repoRoot, 'docs', 'tooling', 'shared-module-ledger.json');
 const reviewsDir = path.join(repoRoot, 'docs', 'tooling', 'shared-module-reviews');
 
-const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+const { report: ledger } = await buildSharedModuleLedger(repoRoot);
 const sharedFiles = Array.isArray(ledger?.census?.sharedFiles) ? ledger.census.sharedFiles : [];
 const reviewFiles = fs.existsSync(reviewsDir)
   ? fs.readdirSync(reviewsDir).filter((file) => file.endsWith('.json')).sort()

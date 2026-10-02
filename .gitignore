@@ -51,6 +51,13 @@ worktrees/
 .worktrees/
 GIGAROADMAP.html
 
+# Local generated inventory reports (refresh commands remain source-controlled).
+/docs/testing/suite-taxonomy.json
+/docs/testing/suite-taxonomy.md
+/docs/tooling/repo-inventory.json
+/docs/tooling/shared-module-ledger.json
+/docs/tooling/shared-module-ledger.md
+
 # Rust
 target/
 **/target/

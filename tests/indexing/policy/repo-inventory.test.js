@@ -1,10 +1,8 @@
 #!/usr/bin/env node
-import fsPromises from 'node:fs/promises';
-import path from 'node:path';
+import { buildRepoInventory } from '../../../tools/docs/repo-inventory.js';
 import { repoRoot } from '../../helpers/root.js';
 
 const root = repoRoot();
-const inventoryPath = path.join(root, 'docs', 'tooling', 'repo-inventory.json');
 
 const fail = (message) => {
   console.error(`repo inventory policy failed: ${message}`);
@@ -18,18 +16,11 @@ const expectArray = (value, label) => {
   }
 };
 
-let raw;
-try {
-  raw = await fsPromises.readFile(inventoryPath, 'utf8');
-} catch (error) {
-  fail(error?.message || String(error));
-}
-
 let payload;
 try {
-  payload = JSON.parse(raw);
+  payload = await buildRepoInventory(root);
 } catch (error) {
-  fail(`invalid json: ${error?.message || error}`);
+  fail(error?.message || String(error));
 }
 
 if (typeof payload.generatedAt !== 'string') fail('generatedAt missing');

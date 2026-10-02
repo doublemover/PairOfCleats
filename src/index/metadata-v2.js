@@ -217,6 +217,7 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
         virtualPath: normalizeString(segment.virtualPath),
         type: normalizeString(segment.type),
         languageId: normalizeString(segment.languageId),
+        ext: normalizeString(segment.ext),
         parentSegmentId: normalizeString(segment.parentSegmentId),
         start: Number.isFinite(segment.start) ? segment.start : null,
         end: Number.isFinite(segment.end) ? segment.end : null,

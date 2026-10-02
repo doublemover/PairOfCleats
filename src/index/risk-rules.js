@@ -284,15 +284,17 @@ const compilePattern = (pattern, flags, regexConfig, diagnostics, rule, field) =
   return attachSafeRegexPrefilter(compiled, pattern);
 };
 
-const compileRule = (rule, regexConfig, diagnostics) => ({
-  ...rule,
-  patterns: rule.patterns
+const compileRule = (rule, regexConfig, diagnostics) => {
+  const patterns = rule.patterns
     .map((pattern) => compilePattern(pattern, '', regexConfig, diagnostics, rule, 'patterns'))
-    .filter(Boolean),
-  requires: rule.requires
+    .filter(Boolean);
+  const requires = rule.requires
     ? compilePattern(rule.requires, '', regexConfig, diagnostics, rule, 'requires')
-    : null
-});
+    : null;
+  // A failed condition cannot become an unconditional source, sink, or sanitizer.
+  if (rule.requires && !requires) return null;
+  return { ...rule, patterns, requires };
+};
 
 const mergeRules = (baseList, overrideList) => {
   const byId = new Map(baseList.map((entry) => [entry.id, entry]));
@@ -344,9 +346,9 @@ export const normalizeRiskRules = (input = {}, { rootDir, regexConfig } = {}) =>
 
   const bundle = {
     version: overrideBundle?.version || base.version || '1.0.0',
-    sources: sources.map((rule) => compileRule(rule, regexConfigBase, diagnostics)),
-    sinks: sinks.map((rule) => compileRule(rule, regexConfigBase, diagnostics)),
-    sanitizers: sanitizers.map((rule) => compileRule(rule, regexConfigBase, diagnostics)),
+    sources: sources.map((rule) => compileRule(rule, regexConfigBase, diagnostics)).filter(Boolean),
+    sinks: sinks.map((rule) => compileRule(rule, regexConfigBase, diagnostics)).filter(Boolean),
+    sanitizers: sanitizers.map((rule) => compileRule(rule, regexConfigBase, diagnostics)).filter(Boolean),
     regexConfig: safeRegexConfig,
     diagnostics: {
       warnings: diagnostics.warnings

@@ -23,6 +23,13 @@ import {
 } from '../../runner/run-discovery.js';
 
 const root = process.cwd();
+const generatedSurfaces = JSON.parse(fs.readFileSync(
+  path.join(root, 'docs', 'tooling', 'generated-surfaces.json'),
+  'utf8'
+));
+const localGeneratedOutputs = new Set(generatedSurfaces.surfaces
+  .filter((surface) => surface.committed === false)
+  .flatMap((surface) => surface.outputs));
 const CURRENT_READINESS_GATE_LOG = 'temp/validation/readiness-gate-current-technical-validation-20260522.log';
 const LATEST_EVIDENCE_CITATION_LOG = 'temp/validation/readiness-evidence-citation-final-20260522.log';
 const CURRENT_ROADMAP_AUDIT_DATE = '2026-05-22';
@@ -254,6 +261,8 @@ const expandSimpleBraceAlternates = (value) => {
         const normalized = candidate.replace(/\\/g, '/');
         if (!filesystemPrefixes.some((prefix) => normalized.startsWith(prefix))) continue;
         if (isHistoricalEvidencePath(normalized)) continue;
+        // Local reports are reproducible outputs, not prerequisites in a clean clone.
+        if (localGeneratedOutputs.has(normalized)) continue;
         const candidatePath = path.join(root, candidate.replace(/\//g, path.sep));
         if (fs.existsSync(candidatePath)) continue;
         const lineLower = ref.line.toLowerCase();

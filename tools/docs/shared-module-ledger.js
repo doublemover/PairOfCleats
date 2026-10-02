@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { toPosix } from '../../src/shared/file-paths.js';
 import { writeStableGeneratedJsonReport, writeTextIfChanged } from '../shared/generated-report.js';
 import { listFilesRecursive } from '../shared/fs-utils.js';
@@ -712,7 +713,9 @@ const main = async () => {
   await writeTextIfChanged(outputMarkdownPath, markdown);
 };
 
-main().catch((error) => {
-  console.error(error?.message || String(error));
-  process.exit(1);
-});
+if (isDirectExecution(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error?.message || String(error));
+    process.exit(1);
+  });
+}

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { buildSharedModuleLedger } from '../../../tools/docs/shared-module-ledger.js';
 
 const repoRoot = process.cwd();
-const ledgerPath = path.join(repoRoot, 'docs', 'tooling', 'shared-module-ledger.json');
 const waiverPath = path.join(repoRoot, 'docs', 'tooling', 'shared-module-boundary-waivers.json');
 
-const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+const { report: ledger } = await buildSharedModuleLedger(repoRoot);
 const waivers = JSON.parse(fs.readFileSync(waiverPath, 'utf8'));
 
 const sharedFiles = Array.isArray(ledger?.census?.sharedFiles) ? ledger.census.sharedFiles : [];

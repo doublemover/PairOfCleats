@@ -96,10 +96,14 @@ These are retained for compatibility with older readers that expect `lang/ext` a
 - `name` (string|null): symbol name (may be qualified)
 - `signature` (string|null)
 - `doc` (string|null)
-- `annotations` (string[]): decorators/attributes
-- `modifiers` (string[] | object): canonical is string array; legacy object map tolerated
-- `params` (string[]): parameter names
+- `annotations` (string[]|null): decorators/attributes, deduplicated in source order
+- `modifiers` (string[]|null | object): canonical is string array or null; legacy object map tolerated
+- `params` (string[]|null): parameter names in declaration order (not alphabetically sorted)
 - `returns` (string|null): a single declared return type string when available (legacy convenience; prefer `types.declared.returns[]`)
+- `generatedBy` (string|null): producer version, retained for compatibility
+- `tooling` (object|null): structured producer `tool`, `version`, and `configHash`
+- `embedded` (object|null): compatibility segment context (`parentSegmentId`,
+  `languageId`, `context`) for any segmented chunk, including top-level segments
 
 ## 5) Types
 
@@ -116,7 +120,7 @@ Example (canonical):
 ```json
 {
   "types": {
-    "inferred": {
+    "tooling": {
       "params": {
         "opts": [{ "type": "WidgetOpts", "source": "tooling" }]
       },
@@ -133,15 +137,15 @@ type TypeEntry = {
   type: string;
   source?: string | null;
   confidence?: number | null;
-  shape?: string | null;
+  shape?: object | null;
   elements?: string[] | null;
-  evidence?: string[] | null;
+  evidence?: object | null;
 };
 ```
 
 ## 6) Relations (summary)
 
-- `relations.calls` / `relations.usages`: light-weight edge lists (legacy)
+- `relations.calls`: light-weight call edge list
 - `relations.callLinks` / `relations.usageLinks`: cross-file linked targets (post-inference)
 - `relations.callSummaries`: bounded, explainable summaries (post-inference)
 
@@ -158,7 +162,9 @@ Key mapping (non-exhaustive):
 - `docmeta.params` → `metaV2.params`
 - `docmeta.paramTypes` → `metaV2.types.declared.params`
 - `docmeta.returnType` and `docmeta.returns` → `metaV2.types.declared.returns`
-- `docmeta.inferredTypes.*` → `metaV2.types.inferred.*`
+- `docmeta.inferredTypes.*` → `metaV2.types.inferred.*` for non-tooling entries;
+  entries with `source: "tooling"` move to `metaV2.types.tooling.*`, including
+  named parameter/local maps
 - `docmeta.risk.*` → `metaV2.risk.*`
 - `docmeta.controlFlow.*` → `metaV2.controlFlow.*`
 - `docmeta.dataflow.*` → `metaV2.dataflow.*`
@@ -166,7 +172,23 @@ Key mapping (non-exhaustive):
 ## 8) Contract notes
 
 - Offsets are in decoded text (UTF-16 code units). If tooling uses byte offsets, it must translate.
-- Any fields not defined above must be placed under `extensions` when strict schema enforcement is enabled.
+- Offset and line-range ends must not precede starts. When both are available,
+  chunk ranges must be contained within segment ranges. Extracted-document page
+  and paragraph bounds must also be ordered. Standalone metadata and row-based
+  chunk artifact validators apply the same checks.
+- Empty annotations, parameters, and modifiers are written as null. Empty type
+  buckets are omitted; `types` is null when every bucket is empty. Parameter
+  defaults feed local inference; they are not declared type annotations. A separate
+  `types.declared.defaults` or `types.declared.locals` contract is not emitted.
+- Schemas permit additional fields for forward compatibility; readers ignore
+  unknown fields. `src/contracts/schemas/analysis/metadata.js` and
+  `src/contracts/schemas/analysis/primitives.js` are the authoritative field schemas.
+
+### Contract change log
+
+- 2026-10-02: preserved `segment.ext` in writer output, enforced ordered/contained
+  metadata ranges, and aligned nullable collections, tooling provenance, type
+  evidence, and segment-context documentation with the existing writer contract.
 
 ## 9) File Meta Linkage (Related Artifact)
 

@@ -45,6 +45,10 @@ const suites = [
       ['func greet(name: String) -> String', 'String', { name: 'String' }],
       ['func process<T>(_ value: T, using block: @escaping (T) -> Void) -> Result<T, Error>', 'Result<T, Error>', { value: 'T', block: '(T) -> Void' }],
       ['func load() async throws -> [String: Int]', '[String: Int]', {}],
+      ['func make() -> (Int) -> String', '(Int) -> String', {}],
+      ['func run(callback: () -> Void)', 'Void', { callback: '() -> Void' }],
+      ['init(callback: () -> Void)', 'Self', { callback: '() -> Void' }],
+      ['var transform: (Int) -> String { get }', '(Int) -> String', {}],
       ['init?(rawValue: Int)', 'Self', { rawValue: 'Int' }],
       ['var title: Swift.String { get }', 'String', {}],
       ['render(view:)\nfunc render(view: View) -> Swift.Int', 'Int', { view: 'View' }]
