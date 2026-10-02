@@ -7,6 +7,7 @@ import {
 } from '../../../src/shared/bundle-io-paths.js';
 import { readBundleFile } from '../../../src/shared/bundle-io.js';
 import { sha1 } from '../../../src/shared/hash.js';
+import { compareStrings } from '../../../src/shared/sort.js';
 
 const normalizeRangeValue = (value) => {
   const parsed = Number(value);
@@ -30,7 +31,11 @@ export const buildChunksFromBundles = async (bundleDir, manifestFiles, bundleFor
   const chunksByFile = new Map();
   let maxChunkId = -1;
   let total = 0;
-  for (const [relPath, entry] of Object.entries(manifestFiles || {})) {
+  // Fallback chunk IDs and alias merging must not depend on JSON key order.
+  // Keep each file's explicit shard order and existing numeric IDs intact.
+  const manifestEntries = Object.entries(manifestFiles || {})
+    .sort(([left], [right]) => compareStrings(left, right));
+  for (const [relPath, entry] of manifestEntries) {
     const bundleNames = resolveManifestBundleNames(entry);
     if (!bundleNames.length) continue;
     const shardBundles = [];

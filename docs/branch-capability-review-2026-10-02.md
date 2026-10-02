@@ -77,6 +77,13 @@ of `mess`'s nonmerge commits; the extra `64b90824` patch was reviewed separately
    preservation, original-config reuse, later replacement and unchanged corrupt,
    unsupported-version and missing-file behavior. The existing shard-plan
    selector and changed-file ESLint passed without an indexing benchmark.
+9. The same tip sorted incremental-bundle manifest keys before assigning missing
+   chunk IDs. Current sharded-bundle support had lost that ordering, and sorting
+   files later in the embedding runner did not repair already-assigned vector
+   positions. Canonical string ordering is restored before bundle traversal;
+   missing/mixed/explicit IDs, manifest permutations, within-file shard order
+   and logical-file alias merging are covered by the existing bundle-shards
+   regression. Its prefix failure, fixed pass and scoped ESLint are recorded.
 
 ## Historical Phase 23 capability disposition
 
