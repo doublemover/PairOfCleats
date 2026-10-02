@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
@@ -10,8 +11,9 @@ import { createLmdbBackend } from '../../../src/retrieval/cli-lmdb.js';
 import { createBackendContext } from '../../../src/retrieval/cli/backend-context.js';
 import { createBackendContextWithTracking } from '../../../src/retrieval/cli/run-search/backend-context.js';
 import { createBackendDisposer } from '../../../src/retrieval/cli/backend-disposal.js';
+import { resolveIndexDir } from '../../../src/retrieval/cli-index.js';
 import { CREATE_TABLES_SQL, SCHEMA_VERSION } from '../../../src/storage/sqlite/schema.js';
-import { LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../../src/storage/lmdb/schema.js';
+import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../../src/storage/lmdb/schema.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv();
@@ -140,6 +142,68 @@ try {
   }), (error) => error === trackingFailure);
   assert.equal(closed.length, 2, 'tracking failure must dispose a successfully constructed context');
   assert.equal(closed[1].open, false);
+
+  // LMDB stores metadata internally, but its HNSW binary remains file-backed.
+  // Capture candidate probes without loading the optional native HNSW module.
+  for (const storePath of [codePath, prosePath]) {
+    const db = open({ path: storePath, mapSize: 1024 * 1024 });
+    try {
+      db.putSync(LMDB_ARTIFACT_KEYS.denseHnswMeta, packr.pack({ dims: 2, space: 'cosine' }));
+    } finally {
+      await db.close();
+    }
+  }
+  const liveDirs = Object.fromEntries(['code', 'prose'].map((mode) => [
+    mode, resolveIndexDir(temp, mode, contextOptions.userConfig)
+  ]));
+  const snapshotRoot = path.join(temp, 'frozen-snapshot');
+  const snapshotDirs = Object.fromEntries(['code', 'prose'].map((mode) => [
+    mode, path.join(snapshotRoot, `index-${mode}`)
+  ]));
+  const originalExists = fsSync.existsSync;
+  const hnswProbes = [];
+  fsSync.existsSync = (target) => {
+    if (String(target).endsWith('dense_vectors_hnsw.bin')) {
+      hnswProbes.push(target);
+      return false;
+    }
+    if (String(target).endsWith('dense_vectors_hnsw.bin.bak')) return false;
+    return originalExists(target);
+  };
+  try {
+    for (const [indexResolveOptions, needsProse, expectedDirs] of [
+      [{}, true, liveDirs],
+      [{ explicitRef: true, indexDirByMode: snapshotDirs }, true, snapshotDirs],
+      [{ explicitRef: true, indexBaseRootByMode: { code: snapshotRoot, prose: snapshotRoot } }, true, snapshotDirs],
+      [{ explicitRef: true, indexDirByMode: { code: snapshotDirs.code } }, false, { code: snapshotDirs.code }],
+      [{ explicitRef: true, indexDirByMode: { prose: snapshotDirs.prose } }, true, { prose: snapshotDirs.prose }]
+    ]) {
+      hnswProbes.length = 0;
+      const historical = await createBackendContext({
+        ...contextOptions, useSqlite: false, needsCode: 'code' in expectedDirs, needsProse, indexResolveOptions,
+        hnswConfig: { enabled: true }, denseVectorMode: 'merged'
+      });
+      liveDisposers.add(historical.dispose);
+      try {
+        for (const mode of Object.keys(expectedDirs)) {
+          historical.lmdbHelpers.loadIndexFromLmdb(mode, { includeFilterIndex: false });
+        }
+        assert.deepEqual(hnswProbes, Object.values(expectedDirs).map((dir) => (
+          path.join(dir, 'dense_vectors_hnsw.bin')
+        )), 'LMDB ANN probes must stay within the selected index roots');
+      } finally {
+        await historical.dispose();
+      }
+    }
+    await assert.rejects(createBackendContext({
+      ...contextOptions, useSqlite: false, needsProse: true,
+      indexResolveOptions: { explicitRef: true, indexDirByMode: { code: snapshotDirs.code } }
+    }), /prose index is unavailable for explicit as-of target/);
+    assert.equal(lastStore(codePath).status, 'closed');
+    assert.equal(lastStore(prosePath).status, 'closed');
+  } finally {
+    fsSync.existsSync = originalExists;
+  }
 } finally {
   releaseClose?.();
   Database.prototype.close = originalClose;

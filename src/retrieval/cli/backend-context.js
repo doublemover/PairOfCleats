@@ -45,7 +45,8 @@ export const createBackendContext = async ({
   storageTier,
   sqliteReadPragmas,
   root,
-  userConfig
+  userConfig,
+  indexResolveOptions = {}
 }) => {
   const disposers = new Set();
   const dispose = createBackendDisposer(disposers);
@@ -134,8 +135,10 @@ export const createBackendContext = async ({
     });
 
     const lmdbIndexDirs = {
-      code: resolveIndexDir(root, 'code', userConfig),
-      prose: resolveIndexDir(root, 'prose', userConfig)
+      // External ANN files must use the same historical target as the store.
+      // Do not resolve absent, unrequested modes of a partial snapshot.
+      code: useLmdb && needsCode ? resolveIndexDir(root, 'code', userConfig, indexResolveOptions) : null,
+      prose: useLmdb && needsProse ? resolveIndexDir(root, 'prose', userConfig, indexResolveOptions) : null
     };
     const lmdbHelpers = createLmdbHelpers({
       getDb: getLmdbDb,

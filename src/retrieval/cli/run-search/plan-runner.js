@@ -721,6 +721,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       sqliteReadPragmas,
       root: rootDir,
       userConfig,
+      indexResolveOptions,
       generationContext
     });
     const backendInitResult = await runWithOperationalFailurePolicy({

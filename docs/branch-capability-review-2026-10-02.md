@@ -205,6 +205,15 @@ state rewrites retain warm reuse. The index-cache, legacy dense-signature and
 federation generation-context selectors and two-file ESLint passed under the
 same bounded resource guards, without an index or embedding build.
 
+Historical LMDB retrieval also resolved its external HNSW files from the live
+index root even when the store belonged to an explicit as-of target. The runner
+now forwards its existing index-resolution options to backend helpers, which
+resolve only requested active LMDB modes. A candidate-probe regression reproduced
+the live-root leak and now covers explicit directory/base-root targets, live
+controls, partial code-only/prose-only snapshots, and cleanup when a requested
+mode is absent. The backend lifecycle, real CLI cleanup and runner module-load
+selectors plus three-file ESLint passed; no HNSW or snapshot index build ran.
+
 The two new lifecycle regressions are also registered in the ordered `ci-lite`
 lane at positions 770 and 771. Targeted manifest generation preserved all prior
 entries/order/metadata and every other lane manifest. Membership listing and
