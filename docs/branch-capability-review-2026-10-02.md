@@ -120,6 +120,17 @@ of `mess`'s nonmerge commits; the extra `64b90824` patch was reviewed separately
     checking actual `IncomingMessage` semantics; existing error-destroy behavior
     is unchanged and covered by the oversized-request control.
 
+14. Reviewing Phase23's incremental SQLite path found that early pragma, schema,
+    manifest-planning and manifest-only transaction failures bypassed handle
+    cleanup. The owned lifetime now has one outer finalizer, including all fast
+    returns, while the existing transactions retain their commit/rollback rules.
+    A tiny real-SQLite regression reproduced the open handle and now verifies
+    original-error preservation, one close, pragma restoration, rollback after a
+    real manifest write, successful updates and schema/no-change skips. The new
+    lifecycle selector, existing ANN-insert and pragma controls, and two-file
+    ESLint passed without an index build. The new case is registered in ci-lite;
+    only its runtime manifest is regenerated, with no inventory report tracking.
+
 ## Historical Phase 23 capability disposition
 
 | Historical family | Current source / contract evidence and disposition |
