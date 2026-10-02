@@ -229,6 +229,39 @@ Active roadmap/spec finalization follow-up, 2026-05-21: the final active-doc sca
 
 ## Canonical Next Queue
 
+### Live correctness and dependency/security follow-through (2026-10-02T01:25:00Z)
+
+The isolated `hydro/complete-outstanding-work` branch preserves the complete
+NEON_TIDE implementation. Main `b9398da` was verified tree-identical to NEON_TIDE
+ancestor `5932323`; an ancestry-only merge reconciles that prior squash without
+discarding newer implementation or changing either upstream branch.
+
+Fresh synthetic regressions reopened concrete correctness work:
+
+- #513: typed graph witness endpoints and incoming symbol traversal are fixed;
+  `graph/symbol-direction`, `graph/witness-path-lazy`, and
+  `graph/neighborhood-contract-matrix` pass.
+- #514: real-vector ANN candidates retain free-text semantic matches while explicit
+  Boolean/grouped queries, phrases, exclusions, structured filters, sparse-only
+  matching, and lexical MinHash fallback retain their constraints. Query rejection
+  telemetry and cache invalidation are included; `retrieval/pipeline/ann-query-semantics`
+  and parser/query-plan regressions pass.
+- #515: schema-valid configuration survives loading with false/zero values and CLI
+  precedence intact. The new loader schema/search/indexing tests and eleven related
+  focused tests pass. Unsupported `indexing.maxFileLines` emits an actionable warning.
+- #516 and #517: dimension identity and subprocess/cancellation fixes are in progress;
+  end-to-end embedding/CLI validation remains required before completion.
+- Dependency and GitHub Security backlog remediation is in progress. A clean npm
+  audit is a dependency check, not proof that all GitHub Security alerts are resolved.
+  Native/provider/platform and scanner-specific evidence remain separate gates.
+
+The seven historical lanes below remain the validation framework. Do not reopen
+archived checklists or claim a release-wide pass from these focused tests. Refresh
+generated surfaces, full-language conformance, production/readiness and affected
+performance lanes against the completed branch before a release claim.
+
+### Existing maintenance queue
+
 1. Keep Sweet16 clean from the current measured report, not stale sibling checkboxes. The first current pass and report-contract follow-ups were run on 2026-05-22; the latest clean pass is `temp/validation/sweet16-ci-clean-performance-batch-20260522.log` with JSON report `.testLogs/bench-sweet16.json`, 14 ok, 0 failed, 0 timed out, 0 skipped, and no regression signals. Future Sweet16 work should start only from a fresh positive-delta report, missing report field, timeout, failure, or newly added benchmark candidate; postings-real remains the dominant absolute critical-path script but currently beats its one-thread baseline in the latest report.
 2. Keep the new full-language conformance execution surface green. Implemented on 2026-05-22: `usr-artifact-expectations`, `tools/usr/conformance-surface.js`, and the `usr-full-conformance` lane now prove profile, fixture, artifact-expectation, and shard coverage.
 3. Keep `docs/roadmap.md` current by blocking new references to missing historical roadmap files.
@@ -738,5 +771,4 @@ node tools/testing/refresh-governance.js
 ```
 
 If any test command runs longer than 30 seconds, stop it and report it as skipped per repository guidance. Do not run `npm run audit:duplicates` for ordinary roadmap or planning-reference changes; run it only for a future intentional duplicate-code baseline refresh.
-
 

@@ -342,6 +342,8 @@ export function requireIndexDir(root, mode, userConfig, options = {}) {
 export function buildQueryCacheKey(payload) {
   const keyInfo = buildLocalCacheKey({
     namespace: 'query-cache',
+    // v2 separates free-text ANN semantics from the old all-terms lexical gate.
+    version: 2,
     payload
   });
   return { key: keyInfo.key, payload };

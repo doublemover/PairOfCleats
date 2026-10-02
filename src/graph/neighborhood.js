@@ -520,7 +520,10 @@ export const buildGraphNeighborhood = ({
         if (!allowEdge({ graph: 'symbolEdges', edgeType, confidence })) continue;
         const fromRef = { type: 'chunk', chunkUid: entry.edge.from.chunkUid };
         const symbolId = entry.symbolId;
-        const nextRef = symbolId ? { type: 'symbol', symbolId } : null;
+        const symbolRef = symbolId ? { type: 'symbol', symbolId } : null;
+        // The edge retains its source orientation even when walking incoming
+        // references. The traversal target is the opposite endpoint.
+        const nextRef = currentRef.type === 'symbol' ? fromRef : symbolRef;
         const cappedToRef = applyCandidateCap(
           entry.toRef,
           normalizedCaps.maxCandidates,
@@ -535,7 +538,8 @@ export const buildGraphNeighborhood = ({
             confidence,
             evidence: entry.edge.reason ? { note: entry.edge.reason } : null
           },
-          nextRef
+          nextRef,
+          witnessEdge: symbolRef ? { from: fromRef, to: symbolRef, edgeType } : null
         });
       }
     }
@@ -590,9 +594,9 @@ export const buildGraphNeighborhood = ({
         if (addedNode) {
           parentMap.set(nextKey, {
             parentKey: nodeKey(currentRef),
-            edge: {
-              from: edge.from?.type ? edge.from : edge.from?.resolved,
-              to: edge.to?.type ? edge.to : edge.to?.resolved,
+            edge: candidate.witnessEdge || {
+              from: edge.from,
+              to: edge.to,
               edgeType: edge.edgeType
             }
           });

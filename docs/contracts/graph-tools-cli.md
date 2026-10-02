@@ -93,6 +93,13 @@ pairofcleats graph-context --repo . --seed chunk:<chunkUid> --depth 2 --directio
 - `--minConfidence <0..1>` (when confidence exists)
 - `--edgeTypes call,usage,import` (filter edge types)
 
+Witness path edges always contain typed node references (`type` plus the node's
+identity), including resolved symbol-reference endpoints. Top-level symbol edges
+retain their reference envelopes. Incoming/both-direction symbol traversal visits
+the source chunk while preserving the original chunk-to-symbol edge orientation.
+An unresolved reference without a target remains an edge and does not invent a
+witness path or node.
+
 Edge type notes:
 - `call`, `usage`, `import` apply to `graph_relations` graphs.
 - When `--graphs` includes `symbolEdges`, `--edgeTypes` refers to `symbol_edges.type` values (default `symbol` when missing).
@@ -263,5 +270,4 @@ pairofcleats suggest-tests --repo . --changed src/a.ts --changed src/b.ts --max 
 - JSON: `SuggestTestsReport` (validated)
 - MD: deterministic:
   - list of suggested tests with rationale + witness path summaries
-
 

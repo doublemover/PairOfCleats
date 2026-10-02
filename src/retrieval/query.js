@@ -195,6 +195,7 @@ const parseBooleanQuery = (raw) => {
     if (match(BOOLEAN_TOKEN.LPAREN)) {
       const expr = parseExpression();
       if (!expect(BOOLEAN_TOKEN.RPAREN, 'Missing closing ")" in query.')) return expr;
+      if (expr) expr.grouped = true;
       return expr;
     }
     if (next.type === BOOLEAN_TOKEN.TERM || next.type === BOOLEAN_TOKEN.PHRASE) {
@@ -214,10 +215,12 @@ const parseBooleanQuery = (raw) => {
   };
   const parseAnd = () => {
     let node = parseUnary();
-    while (node && (match(BOOLEAN_TOKEN.AND) || isImplicitAnd())) {
+    while (node) {
+      const explicit = match(BOOLEAN_TOKEN.AND);
+      if (!explicit && !isImplicitAnd()) break;
       const right = parseUnary();
       if (!right) return node;
-      node = { type: BOOLEAN_TOKEN.AND, left: node, right };
+      node = { type: BOOLEAN_TOKEN.AND, left: node, right, implicit: !explicit };
     }
     return node;
   };
