@@ -730,6 +730,15 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     };
     return sharedCaches;
   };
+  const disposeOwnedCaches = () => {
+    if (!sharedCaches) return;
+    if (!context.indexCache) {
+      try { sharedCaches.indexCache.clear(); } catch {}
+    }
+    if (!context.sqliteCache) {
+      try { sharedCaches.sqliteCache.dispose(); } catch {}
+    }
+  };
   const searchFn = typeof context.searchFn === 'function' ? context.searchFn : coreSearch;
   const perRepoResults = [];
   const perRepoErrors = [];
@@ -963,6 +972,10 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     }
   });
 
+  // Strict failure remains fail-fast, but sibling workers may still be running.
+  // Keep request-local caches alive until every worker settles, then retire
+  // only caches created here. Host-provided caches keep their host ownership.
+  void Promise.allSettled(workers).then(disposeOwnedCaches).catch(() => {});
   try {
     await Promise.all(workers);
   } catch (error) {

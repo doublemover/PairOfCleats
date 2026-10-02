@@ -41,7 +41,10 @@ const entry = manager.getRepoCaches(repoRoot);
 await manager.refreshBuildPointer(entry);
 
 entry.indexCache.set('sentinel', { value: 1 });
-entry.sqliteCache.set(path.join(buildRootA, 'index.sqlite'), { close() {} });
+const sqlitePath = path.join(buildRootA, 'index.sqlite');
+await fs.writeFile(sqlitePath, 'lease-signature');
+let activeClosed = 0;
+const activeLease = entry.sqliteCache.setAndAcquire(sqlitePath, { close() { activeClosed += 1; } });
 
 assert.equal(entry.indexCache.size(), 1, 'expected warm index cache entry before generation change');
 assert.equal(entry.sqliteCache.size(), 1, 'expected warm sqlite cache entry before generation change');
@@ -60,7 +63,38 @@ assert.equal(entry.buildId, 'build-a', 'same build id should remain visible afte
 assert.equal(entry.activeBuildRoot, toRealPathSync(buildRootB), 'expected active generation root to refresh from current.json');
 assert.equal(entry.indexCache.size(), 0, 'active generation change should clear stale index cache state');
 assert.equal(entry.sqliteCache.size(), 0, 'active generation change should clear stale sqlite cache state');
+assert.equal(activeClosed, 0, 'generation refresh must not close an active request lease');
+activeLease.release();
+assert.equal(activeClosed, 1);
+let refreshedClosed = 0;
+entry.sqliteCache.set(sqlitePath, { close() { refreshedClosed += 1; } });
+assert.equal(entry.sqliteCache.size(), 1, 'generation refresh must leave the same cache reusable');
 
 manager.closeRepoCaches();
+assert.equal(refreshedClosed, 1);
+let afterShutdownClosed = 0;
+const afterShutdown = entry.sqliteCache.setAndAcquire(sqlitePath, { close() { afterShutdownClosed += 1; } });
+assert.equal(entry.sqliteCache.size(), 0, 'shutdown must retire old cache entries terminally');
+afterShutdown.release();
+assert.equal(afterShutdownClosed, 1, 'late opens through retired entries must close on release');
+
+const otherRepo = path.join(tempRoot, 'other-repo');
+await fs.mkdir(otherRepo, { recursive: true });
+await fs.writeFile(path.join(otherRepo, '.pairofcleats.json'), JSON.stringify({ cache: { root: cacheRoot } }));
+const evicting = createRepoCacheManager({ defaultRepo: repoRoot, repoCache: { maxEntries: 1 } });
+const evicted = evicting.getRepoCaches(repoRoot);
+let evictedClosed = 0;
+const evictedLease = evicted.sqliteCache.setAndAcquire(sqlitePath, { close() { evictedClosed += 1; } });
+evicting.getRepoCaches(otherRepo);
+assert.equal(evicted.sqliteCache.size(), 0);
+assert.equal(evictedClosed, 0, 'repo LRU eviction must preserve active handles');
+let lateClosed = 0;
+const lateLease = evicted.sqliteCache.setAndAcquire(sqlitePath, { close() { lateClosed += 1; } });
+assert.equal(evicted.sqliteCache.size(), 0, 'an evicted repo cache cannot be repopulated by late opens');
+lateLease.release();
+evictedLease.release();
+assert.equal(lateClosed, 1);
+assert.equal(evictedClosed, 1);
+evicting.closeRepoCaches();
 
 console.log('build pointer active generation change clears cache test passed');

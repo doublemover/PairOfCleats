@@ -7,6 +7,7 @@ import path from 'node:path';
 import { createError, ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { runFederatedSearch } from '../../../src/retrieval/federation/coordinator.js';
 import { createRepoCacheManager } from '../../../src/shared/repo-cache-config.js';
+import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
 import { getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { writeFederationRepoFixture } from './repo-fixture.js';
 
@@ -22,7 +23,138 @@ const withTempRoot = async (prefix, run) => {
   }
 };
 
+const prepareCacheLifecycleFixture = async (tempRoot, cacheRoot) => {
+  const repos = ['repo-a', 'repo-b'];
+  for (const name of repos) {
+    const repoRoot = path.join(tempRoot, name);
+    await writeFederationRepoFixture({ repoRoot, cacheRoot });
+    await fs.writeFile(path.join(repoRoot, 'lease.db'), 'fake-handle-signature');
+  }
+  const workspacePath = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
+  await fs.writeFile(workspacePath, JSON.stringify({
+    schemaVersion: 1, cacheRoot: './cache',
+    repos: repos.map((name, index) => ({ root: `./${name}`, alias: name, priority: 10 - index }))
+  }));
+  return workspacePath;
+};
+const cacheSize = (cache) => typeof cache.size === 'function' ? cache.size() : cache.size;
+const emptyRepoResult = () => ({ backend: 'memory', code: [], prose: [], extractedProse: [], records: [] });
+const tick = () => new Promise((resolve) => setImmediate(resolve));
+
 const cases = [
+  {
+    name: 'federation retires only request-owned caches',
+    async run() {
+      await withTempRoot('poc-fed-cache-ownership-', async ({ tempRoot, cacheRoot }) => {
+        const workspacePath = await prepareCacheLifecycleFixture(tempRoot, cacheRoot);
+        for (const ownership of ['owned', 'borrowed-index', 'borrowed', 'resolved']) {
+          const externalIndex = ownership === 'owned' ? null : new Map();
+          const externalSqlite = ['borrowed', 'resolved'].includes(ownership) ? createSqliteDbCache() : null;
+          const handles = [];
+          let observedSqlite;
+          let observedIndex;
+          const context = {
+            searchFn: async (repoRoot, params) => {
+              observedSqlite = params.sqliteCache;
+              observedIndex = params.indexCache;
+              const handle = { closes: 0, close() { this.closes += 1; } };
+              handles.push(handle);
+              const lease = params.sqliteCache.setAndAcquire(path.join(repoRoot, 'lease.db'), handle);
+              params.indexCache.set(path.basename(repoRoot), { value: true });
+              lease.release();
+              return emptyRepoResult();
+            }
+          };
+          if (ownership === 'resolved') {
+            context.resolveRepoCaches = () => ({ indexCache: externalIndex, sqliteCache: externalSqlite });
+          } else {
+            if (externalIndex) context.indexCache = externalIndex;
+            if (externalSqlite) context.sqliteCache = externalSqlite;
+          }
+          try {
+            await runFederatedSearch({
+              workspacePath, query: `cache-ownership-${ownership}`,
+              search: { mode: 'code' }, limits: { concurrency: 2 }
+            }, context);
+            assert.equal(handles.length, 2, 'fixture must exercise both workers instead of a cached response');
+            assert.ok(handles.every((handle) => handle.closes === (externalSqlite ? 0 : 1)));
+            assert.equal(cacheSize(observedSqlite), externalSqlite ? 2 : 0);
+            assert.equal(cacheSize(observedIndex), externalIndex ? 2 : 0);
+          } finally {
+            externalSqlite?.dispose();
+          }
+          assert.ok(handles.every((handle) => handle.closes === 1), 'every handle closes once at its owner boundary');
+        }
+      });
+    }
+  },
+  {
+    name: 'strict failure preserves active siblings until worker-settled cleanup',
+    async run() {
+      await withTempRoot('poc-fed-cache-strict-owner-', async ({ tempRoot, cacheRoot }) => {
+        const workspacePath = await prepareCacheLifecycleFixture(tempRoot, cacheRoot);
+        let started;
+        const slowStarted = new Promise((resolve) => { started = resolve; });
+        let releaseSlow;
+        const slowGate = new Promise((resolve) => { releaseSlow = resolve; });
+        let finished;
+        const slowFinished = new Promise((resolve) => { finished = resolve; });
+        const handles = [];
+        let sharedCache;
+        let slowHandle;
+        let returned = false;
+        let outcome;
+        const pending = runFederatedSearch({
+          workspacePath, query: 'strict-cache-owner', strict: true,
+          search: { mode: 'code' }, limits: { concurrency: 2 }
+        }, {
+          searchFn: async (repoRoot, params) => {
+            sharedCache = params.sqliteCache;
+            const dbPath = path.join(repoRoot, 'lease.db');
+            const handle = { closes: 0, close() { this.closes += 1; } };
+            handles.push(handle);
+            const lease = sharedCache.setAndAcquire(dbPath, handle);
+            if (path.basename(repoRoot) === 'repo-a') {
+              try {
+                await slowStarted;
+                throw new Error('strict worker failure');
+              } finally {
+                lease.release();
+              }
+            }
+            slowHandle = handle;
+            started();
+            try {
+              await slowGate;
+              assert.equal(handle.closes, 0, 'a sibling must remain usable after the strict caller rejects');
+              const late = { closes: 0, close() { this.closes += 1; } };
+              handles.push(late);
+              sharedCache.setAndAcquire(dbPath, late, { generationTag: 'late-worker' }).release();
+              return emptyRepoResult();
+            } finally {
+              lease.release();
+              finished();
+            }
+          }
+        }).then((result) => { returned = true; outcome = result; }, (error) => { returned = true; outcome = error; });
+        try {
+          await slowStarted;
+          await tick();
+          assert.equal(returned, true, 'strict failure must not wait for an unrelated worker gate');
+          assert.match(outcome.message, /strict worker failure/);
+          assert.equal(slowHandle.closes, 0);
+          assert.ok(sharedCache.size() > 0, 'request caches remain available until active siblings settle');
+        } finally {
+          releaseSlow();
+          await slowFinished;
+          await pending;
+          await tick();
+        }
+        assert.equal(sharedCache.size(), 0);
+        assert.ok(handles.every((handle) => handle.closes === 1), 'late handles also close after the final worker');
+      });
+    }
+  },
   {
     name: 'invalid build pointers clear repo cache state',
     async run() {

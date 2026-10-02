@@ -89,6 +89,16 @@ Cleanup attempts every owned resource without replacing the original operation
 error. Custom caches exposing only `get`/`set` retain external ownership and must
 adopt the lease protocol to provide active-request eviction protection.
 
+Repository-cache eviction, expiry, explicit removal and shutdown terminally
+dispose the owned SQLite cache. Build-pointer generation refresh uses reusable
+clearing instead. A request retaining an evicted repo entry therefore cannot
+repopulate an orphaned cache after an asynchronous open.
+
+Federation disposes only caches created for that request, after every worker
+promise has settled. Strict failures can still return before unrelated workers
+finish; their caches remain usable until worker settlement, including late opens.
+Host-supplied or resolver-supplied caches remain under their original ownership.
+
 ## Cache clear/rebuild behavior
 
 - `PAIROFCLEATS_CACHE_REBUILD=1` forces versioned cache root rebuild.

@@ -119,10 +119,15 @@ export const createRepoCacheManager = ({
   const indexCacheConfig = normalizeCacheConfig(indexPolicy, defaults.index);
   const sqliteCacheConfig = normalizeCacheConfig(sqlitePolicy, defaults.sqlite);
 
-  const resetRepoEntry = (entry) => {
+  const resetRepoEntry = (entry, { terminal = false } = {}) => {
     try {
       repoCacheConfig.shutdown(entry);
     } catch {}
+    if (terminal) {
+      // A request may still hold this entry after repo eviction. Late opens
+      // must receive detached leases rather than repopulating an orphan cache.
+      try { entry?.sqliteCache?.dispose?.(); } catch {}
+    }
   };
 
   const repoCaches = new LRUCache({
@@ -131,7 +136,7 @@ export const createRepoCacheManager = ({
     allowStale: false,
     updateAgeOnGet: true,
     dispose: (entry, _key, reason) => {
-      resetRepoEntry(entry);
+      resetRepoEntry(entry, { terminal: true });
       if (reason === 'evict' || reason === 'expire') {
         incCacheEviction({ cache: 'repo' });
       }

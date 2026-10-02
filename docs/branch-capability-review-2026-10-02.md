@@ -182,11 +182,18 @@ completion:
   fixture mistakes (config shape, missing manifest, cancellation-code expectation)
   were corrected without weakening production strictness or cancellation behavior.
 
-Remaining confirmed ownership work: repository-cache eviction must use terminal
-retirement so an in-flight request cannot repopulate an orphaned cache, and
-request-local federation caches need final cleanup. The terminal cache API exists,
-but those owner paths are a separate follow-through. Custom raw Map caches retain
-external ownership; only caches implementing leases provide active eviction safety.
+- Owner follow-through terminally retires SQLite caches on repo eviction,
+  removal and shutdown while preserving reusable generation refresh. Federation
+  disposes request-created caches after all workers settle, without delaying a
+  strict failure behind unrelated active workers or closing host-owned caches.
+  Gated sibling/late-open and owned/borrowed-cache regressions passed in the two
+  affected federation selectors (4.48 s; sampled peak aggregate RSS 376.25 MiB),
+  along with changed-file ESLint under the tighter resource guards.
+
+These changes close the confirmed request-handle ownership gaps inspected in
+this pass. Custom raw Map caches retain external ownership; only caches
+implementing leases provide active eviction safety. The broader release,
+platform and measured-performance boundaries below remain unchanged.
 
 The risk and generation-isolation batches passed changed-file ESLint under the same one-CPU, 512 MiB Node,
 sampled 1 GiB aggregate guard and 30-second per-test limit. These source fixes do
