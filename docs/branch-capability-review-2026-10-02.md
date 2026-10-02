@@ -5,30 +5,43 @@ NEON_TIDE, with the main squash ancestry reconciled. This is an implementation
 review with bounded affected-test validation, not a release-wide acceptance claim.
 The canonical execution queue remains [the roadmap](roadmap.md).
 
-## Remote branches and open pull requests
+## Branches and reviewed pull requests
 
-All 11 remote heads were inventoried. No branch was merged, deleted, or force-pushed,
-and no pull request was closed by this review.
+All 11 remote heads were inventoried. The original eight open pull requests were refreshed
+on 2026-10-02, including exact heads, mergeability, checks and review threads.
+The repository owner subsequently merged the two clean dependency PRs below.
+Current main is `ca04533d1ec747d998ec74c0512d3ce5135ff39c`; its ancestry is
+reconciled into the completion branch while retaining newer dependency versions.
+No historical feature branch is merged wholesale.
 
 | Branch / PR | Disposition |
 | --- | --- |
-| `main` at `b9398da2` | Already an ancestor of the completion branch; its tree is the historical NEON_TIDE squash already reconciled by `81bc5774` |
-| `NEON_TIDE` at `1938552f`, PR #218 | Entire branch is an ancestor; old PR mergeability describes that old branch, not this completion branch |
+| `main` at `ca04533d` | Includes merged PR105 and PR85; the earlier `b9398da2` squash was reconciled by `81bc5774`, and the two newer dependency changes are already superseded by the completion branch versions |
+| `NEON_TIDE` at `1938552f`, PR #218 | Entire branch is an ancestor. The PR is conflicted against main; all 88 review threads are resolved. Continue through the completion PR rather than merging its old conflicted tip |
 | `hydro/complete-outstanding-work` | Current implementation target |
-| `mess` at `64b90824`, PR #20 | 126 commits absent by ancestry; 120 nonmerge commits reviewed as capability families, including its unique 89-file tip patch |
+| `mess` at `64b90824`, PR #20 | Conflicted, with a historical failed test check. Recover positive behavior selectively as documented below; its API/backend removals would regress newer capabilities. Its sole unresolved review concern, runtime configuration for service jobs, is addressed by the current runtime-environment owner |
 | `phase23-turbo-wombat` at `85555cbb` | 237 commits absent by ancestry; 211 nonmerge commits and its 201-line historical plan reviewed as capability families |
-| Dependabot Svelte group, PR #105 | Target 5.53.5 superseded by package and lock 5.57.1 |
-| Dependabot SWC, PR #102 | Target 1.15.13 covered by package `^1.15.13`, lock 1.16.13 |
-| Dependabot c8, PR #101 | Target 10.1.3 superseded by package and lock 12.0.0 |
-| Dependabot jsdoccomment, PR #100 | Target 0.84.0 matches package and lock 0.84.0 |
-| Dependabot ESLint, PR #88 | Target 10.0.1 matches package and lock 10.0.1 |
-| Dependabot yargs, PR #85 | Target 18.0.0 covered by package `^18.0.0`, lock 18.2.0 |
+| Dependabot Svelte group, PR #105 | Merged into main as `38609577` after a clean merge-tree preview and four successful checks on the exact head; completion branch retains newer 5.57.1 |
+| Dependabot SWC, PR #102 | Historical Windows check failed. Target 1.15.13 is incorporated through package `^1.15.13` and newer lock 1.16.13; no older lockfile transplant is needed |
+| Dependabot c8, PR #101 | Historical Windows check failed. Target 10.1.3 is superseded by package and lock 12.0.0 on the completion branch |
+| Dependabot jsdoccomment, PR #100 | Historical Windows check failed. Target 0.84.0 is incorporated in both package and lock on the completion branch |
+| Dependabot ESLint, PR #88 | Historical gate failed and platform jobs were skipped. Target 10.0.1 plus rule-compatibility fixes is incorporated and locally checked on the completion branch |
+| Dependabot yargs, PR #85 | Merged into main as `ca04533d` after a clean preview against the new main and four successful checks on its exact head; completion branch retains 18.2.0 |
+| Dependabot grouped update, PR #518 at `39b0b892` | Newly opened after the first refresh. Its seven declared upgrades are met or exceeded; listed transitive security targets are patched or absent. Its additional node-gyp 13.1.0 resolution (current 13.0.2) needs separate review. Gate passed; three platform checks were running at the latest snapshot |
 
 The six dependency PRs contain no remaining version upgrade to transplant. Both
 root lock specifications and installed-package lock entries were inspected.
 This does not claim the old PR branches are mergeable or that upstream security
 alerts have already closed. The existing dependency validation report remains the
 evidence for runtime compatibility and audits.
+
+The green checks on PR105 and PR85 are their recorded February head checks, not
+new October merged-main runs. Failed checks on the other dependency tips are not
+waived or relabeled as passes. Each changes only the two dependency manifests and
+one declared package; its intended upgrade is preserved in the completion branch.
+The PR20 runtime concern is covered by `resolveRepoRuntimeEnv` in
+`tools/service/indexer-service-helpers.js` and by both index/embedding call sites
+in `tools/service/indexer-service/job-executor.js`.
 
 The two January branches predate extensive refactoring and later hardening. Raw
 tree replacement would remove newer capabilities. Their old file paths were

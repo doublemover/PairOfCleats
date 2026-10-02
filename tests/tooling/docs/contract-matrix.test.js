@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -32,7 +33,7 @@ const localGeneratedOutputs = new Set(generatedSurfaces.surfaces
   .flatMap((surface) => surface.outputs));
 const CURRENT_READINESS_GATE_LOG = 'temp/validation/readiness-gate-current-technical-validation-20260522.log';
 const LATEST_EVIDENCE_CITATION_LOG = 'temp/validation/readiness-evidence-citation-final-20260522.log';
-const CURRENT_ROADMAP_AUDIT_DATE = '2026-05-22';
+const HISTORICAL_RELEASE_AUDIT_DATE = '2026-05-22';
 
 const splitMarkdownRow = (line) => line
   .trim()
@@ -530,224 +531,94 @@ const expandSimpleBraceAlternates = (value) => {
 }
 
 {
-  const roadmapPath = path.join(root, 'docs', 'roadmap.md');
-  const roadmapText = await fsPromises.readFile(roadmapPath, 'utf8');
-  assert.ok(
-    roadmapText.includes(`Last audited: ${CURRENT_ROADMAP_AUDIT_DATE}`),
-    'roadmap header must reflect the latest current evidence-citation audit date'
-  );
-  assert.ok(
-    roadmapText.includes(`Current reconciliation, ${CURRENT_ROADMAP_AUDIT_DATE}:`),
-    'roadmap USR reconciliation heading must reflect the latest current evidence-citation audit date'
-  );
+  const roadmapText = await fsPromises.readFile(path.join(root, 'docs', 'roadmap.md'), 'utf8');
+  assert.match(roadmapText, /Last audited: 2026-10-02/, 'current roadmap must identify its consolidation date');
+  assert.match(roadmapText, /Current reconciliation, 2026-10-02:/);
   const initiativesTable = readMarkdownTableAfterHeading(roadmapText, '## Current Initiatives');
-  assert.deepEqual(
-    initiativesTable.header,
-    ['Initiative', 'Status', 'Done now', 'Remaining / next'],
-    'roadmap current initiatives table must keep the canonical status shape'
-  );
-  const initiativeRows = initiativesTable.rows;
-  const initiativeByName = new Map(initiativeRows.map((row) => [row.Initiative, row]));
-  assert.deepEqual([...initiativeByName.keys()], [
-    'Stage1 ordered throughput cutover',
-    'Phase 10 interprocedural risk flows',
-    'Phase 14 IndexRefs, snapshots, diffs, and as-of retrieval',
-    'Lexicon, relation boosts, chargram enrichment, and ANN candidate safety',
-    'USR consolidated contract and rollout program',
-    'Shared-module reduction',
-    'Duplicate-code reduction',
-    'Production readiness',
-    'Phase 0.5 language/framework execution contract',
-    'Worklogs and benchmark JSON under `docs/worklogs/**`'
-  ], 'roadmap current initiatives table must preserve the consolidated initiative set and order');
-  assert.deepEqual(
-    initiativeRows
-      .filter((row) => /`remaining`|`blocked\/unverifiable`/.test(row.Status))
-      .map((row) => row.Initiative),
-    [],
-    'roadmap must not leave local top-level initiatives in remaining or blocked/unverifiable status'
-  );
-  assert.deepEqual(
-    initiativeRows
-      .filter((row) => row.Status === '`in progress`')
-      .map((row) => row.Initiative),
-    [],
-    'roadmap must not leave approval-only top-level initiatives in progress'
-  );
-  assert.match(
-    initiativeByName.get('USR consolidated contract and rollout program')?.['Remaining / next'] || '',
-    /former approval-lock process is archived.*not a release blocker/,
-    'USR top-level remaining status must archive approval paperwork instead of blocking on it'
-  );
-  assert.match(
-    initiativeByName.get('Shared-module reduction')?.['Remaining / next'] || '',
-    /No known shared-module implementation batch remains open/,
-    'shared-module top-level row must not imply a hidden local implementation batch'
-  );
-  assert.match(
-    initiativeByName.get('Duplicate-code reduction')?.['Remaining / next'] || '',
-    /future intentional full audit refresh, not ad hoc rework of stale saved-report entries/,
-    'duplicate-code top-level row must preserve the saved-report checkpoint policy'
-  );
-  assert.match(
-    initiativeByName.get('Production readiness')?.['Remaining / next'] || '',
-    /Keep production verification and release-readiness evidence green/,
-    'production readiness row must tie release status to technical validation'
-  );
-  assert.ok(
-    (initiativeByName.get('Production readiness')?.['Done now'] || '').includes(LATEST_EVIDENCE_CITATION_LOG),
-    'production readiness top-level row must cite the final current evidence-citation validation log'
-  );
-  assert.match(
-    roadmapText,
-    new RegExp(`Keep release validation evidence current[\\s\\S]*${LATEST_EVIDENCE_CITATION_LOG.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
-    'roadmap current release-evidence checklist must cite the final current evidence-citation validation log'
-  );
-  assert.match(
-    initiativeByName.get('Stage1 ordered throughput cutover')?.['Done now'] || '',
-    /Contiguous window planning.*commit cursor ordering.*no-gap-recovery assertions.*targeted Stage1 tests/,
-    'Stage1 row must keep concrete implementation/test evidence anchors'
-  );
-  assert.match(
-    initiativeByName.get('Stage1 ordered throughput cutover')?.['Remaining / next'] || '',
-    /perf and memory budget tests in the release gate/,
-    'Stage1 row must keep its release-gate perf/memory proof anchor'
-  );
-  assert.match(
-    initiativeByName.get('Phase 10 interprocedural risk flows')?.['Done now'] || '',
-    /risk summaries\/flows\/call-sites artifacts.*risk-interprocedural validator.*perf-quality proof/,
-    'Phase 10 row must keep risk artifact implementation and release evidence anchors'
-  );
-  assert.match(
-    initiativeByName.get('Phase 14 IndexRefs, snapshots, diffs, and as-of retrieval')?.['Done now'] || '',
-    /`src\/index\/index-ref\.js`.*`tools\/index-snapshot\.js`.*API routes.*api-search-asof-release-proof-fix/,
-    'Phase 14 row must keep snapshot/diff/as-of implementation and proof anchors'
-  );
-  assert.match(
-    initiativeByName.get('Lexicon, relation boosts, chargram enrichment, and ANN candidate safety')?.['Done now'] || '',
-    /lexicon loader\/wordlists.*relation boost scoring.*chargram field\/stopword config.*ANN candidate policy.*tests are present/,
-    'lexicon/retrieval row must keep implementation/test anchors'
-  );
-  assert.match(
-    roadmapText,
-    /those TUI build smoke files are explicit no-adopt\/local-wrapper owners.*not an open shared-module batch/,
-    'roadmap must classify the abandoned TUI build-smoke wrapper migration as historical/no-adopt, not open work'
-  );
-  assert.match(
-    roadmapText,
-    /tooling\/install\/detect-and-plan-contract-matrix.*historical evidence for an intentionally abandoned wrapper migration, not as an open roadmap task/,
-    'roadmap must classify the abandoned detect-and-plan wrapper migration as historical, not open work'
-  );
+  assert.deepEqual(initiativesTable.header, ['Initiative', 'Status', 'Done now', 'Remaining / next']);
+  const expectedStatuses = new Map([
+    ['Stage1 ordered throughput cutover', 'implemented'],
+    ['Phase 10 interprocedural risk flows', 'implemented'],
+    ['Phase 14 IndexRefs, snapshots, diffs, and as-of retrieval', 'implemented'],
+    ['Lexicon, relation boosts, chargram enrichment, and ANN candidate safety', 'implemented'],
+    ['USR consolidated contract and rollout program', 'implemented'],
+    ['Shared-module reduction', 'checkpoint clean'],
+    ['Duplicate-code reduction', 'checkpoint clean'],
+    ['Production readiness', 'deferred validation'],
+    ['Phase 0.5 language/framework execution contract', 'implemented'],
+    ['Worklogs and benchmark JSON under `docs/worklogs/**`', 'historical evidence']
+  ]);
+  assert.deepEqual(initiativesTable.rows.map((row) => row.Initiative), [...expectedStatuses.keys()],
+    'preserve every initiative and its order when consolidating completed worklogs');
+  for (const row of initiativesTable.rows) {
+    assert.equal(row.Status, `\`${expectedStatuses.get(row.Initiative)}\``, `${row.Initiative}: preserve evidence-specific status`);
+    assert.ok(row['Done now'].trim().length > 30, `${row.Initiative}: identify implementation or historical evidence`);
+    assert.ok(row['Remaining / next'].trim().length > 30, `${row.Initiative}: retain a meaningful next action or reopening rule`);
+  }
+  const byName = new Map(initiativesTable.rows.map((row) => [row.Initiative, row]));
+  assert.match(byName.get('Production readiness')['Remaining / next'], /final candidate.*merge and rescan/,
+    'implementation completion must not become a current-head release or hosted-security pass');
+  assert.match(byName.get('USR consolidated contract and rollout program')['Remaining / next'],
+    /former approval-lock process is archived.*not a release blocker/);
+  assert.match(byName.get('Shared-module reduction')['Remaining / next'],
+    /No known shared-module implementation batch remains open.*concrete/);
+  assert.match(byName.get('Duplicate-code reduction')['Remaining / next'], /future intentional full audit refresh/);
+  assert.match(roadmapText, /477 tests passed[\s\S]*seven timeouts remain unverified/,
+    'preserve the incomplete aggregate run rather than rewriting it as a pass');
+  assert.match(roadmapText, /Broad gate\/CI, platform, hosted security,[\s\S]*optional-backend and measured-performance campaigns are deferred/);
+  assert.match(roadmapText, /old green results have not been relabeled as fresh proof/);
+  assert.match(roadmapText, /diagnostic callback failures can bypass full-build finalization/,
+    'consolidation must retain the concrete unverified follow-through item');
+  assert.ok(Buffer.byteLength(roadmapText) < 20000, 'keep the active roadmap concise; archive completed transcripts');
 
   const validationSection = roadmapText.match(/## Validation Commands\r?\n([\s\S]*?)$/);
-  assert.ok(validationSection, 'roadmap must define a Validation Commands section');
+  assert.ok(validationSection);
   const validationCommandBlock = validationSection[1].match(/```powershell\r?\n([\s\S]*?)\r?\n```/);
-  assert.ok(validationCommandBlock, 'roadmap validation section must include a PowerShell command block');
-  assert.doesNotMatch(
-    validationCommandBlock[1],
-    /npm run audit:duplicates/,
-    'generic roadmap validation must not rerun jscpd for ordinary doc/status changes'
-  );
-  assert.match(
-    validationCommandBlock[1],
-    /ci\/markdown-link-check/,
-    'generic roadmap validation must include markdown link checking'
-  );
-  assert.match(
-    validationCommandBlock[1],
-    /tooling\/docs\/contract-matrix/,
-    'generic roadmap validation must include the docs contract matrix guard'
-  );
-  assert.match(
-    validationCommandBlock[1],
-    /tooling\/docs\/usr-contract-checklists/,
-    'generic roadmap validation must include the USR technical checklist guard'
-  );
-  assert.match(
-    validationCommandBlock[1],
-    /node tools\/docs\/generated-surfaces\.js --check-freshness/,
-    'generic roadmap validation must check generated-surface freshness'
-  );
-  assert.match(
-    validationCommandBlock[1],
-    /git diff --check/,
-    'generic roadmap validation must include whitespace validation'
-  );
-  const duplicateLane = roadmapText.match(/### Lane 2: Duplicate-Code Reduction\r?\n([\s\S]*?)(?:\r?\n### Lane 3:|$)/);
-  assert.ok(duplicateLane, 'roadmap must keep a duplicate-code reduction lane');
-  assert.match(
-    duplicateLane[1],
-    /future intentional full (?:duplicate )?audit refresh|future intentional full duplicate baseline refresh/,
-    'duplicate lane must describe audit reruns as future intentional baseline refreshes'
-  );
-  assert.match(
-    duplicateLane[1],
-    /Do not rerun `jscpd` for this checkpoint/,
-    'duplicate lane must preserve the no-repeat-jscpd checkpoint policy'
-  );
+  assert.ok(validationCommandBlock);
+  assert.doesNotMatch(validationCommandBlock[1], /npm run audit:duplicates/);
+  for (const command of ['ci/markdown-link-check', 'tooling/docs/contract-matrix',
+    'tooling/docs/usr-contract-checklists', 'node tools/docs/generated-surfaces.js --check-freshness', 'git diff --check']) {
+    assert.ok(validationCommandBlock[1].includes(command), `documentation validation must retain ${command}`);
+  }
 
-  const duplicateStatusPath = path.join(root, 'docs', 'tooling', 'duplication-reduction-status.md');
-  const duplicateStatusText = await fsPromises.readFile(duplicateStatusPath, 'utf8');
-  assert.match(
-    duplicateStatusText,
-    /Older completed-slice notes below may preserve then-current instructions to rerun `npm run audit:duplicates`; those are historical records/,
-    'duplication status must mark older rerun instructions as historical under the current checkpoint policy'
-  );
-  assert.match(
-    duplicateStatusText,
-    /Completed-slice `Acceptance tests` and `Future constraints` sections are retained as implementation evidence and safety guidance only; do not treat them as reopened work unless a future intentional audit or live regression supplies current proof\./,
-    'duplication status must prevent completed-slice notes from being read as active reopened work'
-  );
-  assert.doesNotMatch(
-    duplicateStatusText,
-    /^\| P[23] \|/m,
-    'duplication status must not present saved-baseline residual categories as open P2/P3 implementation work'
-  );
-  assert.doesNotMatch(
-    duplicateStatusText,
-    /^### P[23]:/m,
-    'duplication status must not present saved-baseline residual sections as active P2/P3 work'
-  );
-  assert.doesNotMatch(
-    duplicateStatusText,
-    /^Current signal:/m,
-    'duplication status must not describe historical saved-baseline details as current signals'
-  );
-  assert.doesNotMatch(
-    duplicateStatusText,
-    /^- Rerun `npm run audit:duplicates`/m,
-    'duplication status must not keep active per-family rerun instructions outside future baseline policy'
-  );
-  assert.match(
-    duplicateStatusText,
-    /## Historical Saved-Baseline Candidate Details/,
-    'duplication status must label stale detailed candidate sections as historical saved-baseline detail'
-  );
-  assert.doesNotMatch(
-    duplicateStatusText,
-    /Current production hits include/,
-    'duplication status must not describe stale saved-report language residuals as current production hits'
-  );
-  assert.doesNotMatch(
-    duplicateStatusText,
-    /Remaining current hotspot counts/,
-    'duplication status must not describe historical saved-baseline hotspot counts as current remaining work'
-  );
-  assert.doesNotMatch(
-    duplicateStatusText,
-    /remain separate follow-up work|remaining duplicate hits|Remaining duplicate hits|remaining hits in those files|Remaining `[^`]+` duplicate hits|Remaining [A-Za-z].*duplicate signal/,
-    'duplication status must not describe saved-baseline duplicate residuals as active remaining work'
-  );
-  assert.match(
-    duplicateStatusText,
-    /saved-report exact-current refresh found 0 still-current fragments/,
-    'duplication status must preserve the checkpoint-clean exact-current duplicate evidence'
-  );
-  assert.match(
-    duplicateStatusText,
-    /historical\/intermediate.*not current checkpoint proof/i,
-    'duplication status must mark preserved timeout/failure logs as historical rather than current checkpoint proof'
-  );
+  const duplicateStatusText = await fsPromises.readFile(path.join(root, 'docs/tooling/duplication-reduction-status.md'), 'utf8');
+  assert.match(duplicateStatusText, /Last full duplicate audit: 2026-05-21/);
+  assert.match(duplicateStatusText, /212 clones; 3,153 duplicated lines; 36,023 duplicated tokens/);
+  assert.match(duplicateStatusText, /saved-report exact-current refresh found 0 still-current fragments/);
+  assert.match(duplicateStatusText, /fresh full-repository duplicate count[\s\S]*has not been established/);
+  assert.match(duplicateStatusText, /Do not rerun `jscpd` for this checkpoint/);
+  assert.match(duplicateStatusText, /historical\/intermediate failures are not current checkpoint proof/);
+  assert.match(duplicateStatusText, /## Historical Saved-Baseline Candidate Details/);
+  assert.ok(Buffer.byteLength(duplicateStatusText) < 12000, 'keep the active audit disposition separate from its historical worklog');
+  for (const pattern of [/^\| P[23] \|/m, /^### P[23]:/m, /^Current signal:/m, /^- Rerun `npm run audit:duplicates`/m]) {
+    assert.doesNotMatch(duplicateStatusText, pattern, 'historical residuals must not silently reopen work');
+  }
+
+  const archives = [
+    ['roadmap.md', 'docs/roadmap.md'],
+    ['duplication-reduction-status.md', 'docs/tooling/duplication-reduction-status.md'],
+    ['432-prioritized-implementation-backlog.md', 'docs/tooling/shared-module-reductions/432-prioritized-implementation-backlog.md'],
+    ['task-list-reconciliation-2026-10-02.md', 'docs/task-list-reconciliation-2026-10-02.md']
+  ];
+  for (const [archiveName, currentPath] of archives) {
+    const archive = await fsPromises.readFile(path.join(root, 'docs/archived', archiveName), 'utf8');
+    assert.match(archive, /^# DEPRECATED:/, `${archiveName}: identify archived status`);
+    assert.ok(archive.includes(`Canonical replacement: [${currentPath}]`), `${archiveName}: link current owner`);
+    assert.match(archive, /Archived: 2026-10-02, from commit `[a-f0-9]{40}`/);
+    const expectedBlob = archive.match(/Original Git blob: `([a-f0-9]{40})`/)?.[1];
+    assert.ok(expectedBlob, `${archiveName}: record original source identity`);
+    const marker = '<!-- preserved-source -->\n';
+    const boundary = archive.indexOf(marker);
+    assert.ok(boundary >= 0, `${archiveName}: mark original source boundary`);
+    let originalText = archive.slice(boundary + marker.length);
+    if (archiveName === 'task-list-reconciliation-2026-10-02.md') {
+      assert.ok(originalText.startsWith('```markdown\n') && originalText.endsWith('```\n'));
+      originalText = originalText.slice('```markdown\n'.length, -'```\n'.length);
+    }
+    const original = Buffer.from(originalText);
+    const actualBlob = createHash('sha1').update(`blob ${original.length}\0`).update(original).digest('hex');
+    assert.equal(actualBlob, expectedBlob, `${archiveName}: preserve complete original authored bytes`);
+  }
 }
 
 {
@@ -904,7 +775,7 @@ const expandSimpleBraceAlternates = (value) => {
   const releasePlanPathForTemplate = path.join(root, 'docs', 'roadmap-release-validation-plan.md');
   const releasePlanTemplateText = await fsPromises.readFile(releasePlanPathForTemplate, 'utf8');
   assert.ok(
-    releasePlanTemplateText.includes(`Latest branch evidence as of ${CURRENT_ROADMAP_AUDIT_DATE}:`),
+    releasePlanTemplateText.includes(`Latest branch evidence as of ${HISTORICAL_RELEASE_AUDIT_DATE}:`),
     'release validation plan current evidence snapshot must reflect the latest current evidence-citation audit date'
   );
   assert.ok(

@@ -1,5 +1,10 @@
 # Roadmap Release Validation Plan
 
+> Execution plan, not a current-head pass report. The May evidence cited below is
+> historical. Current implementation status, focused October results and deferred
+> acceptance are recorded in [the roadmap](roadmap.md). Run these criteria on the
+> intended release candidate before claiming release readiness.
+
 Status: Active companion plan
 Canonical status source: `docs/roadmap.md`
 Scope: release-proof validation for the roadmap initiatives that are marked done, in progress, or release-sensitive.

@@ -155,19 +155,21 @@ assert.match(
 const roadmapText = fs.readFileSync(path.join(root, 'docs', 'roadmap.md'), 'utf8');
 assert.match(
   roadmapText,
-  /Gate B1-B7 technical, compatibility, matrix, conformance, observability, quality, and security-risk controls/,
+  /Gate B1-B7 technical, compatibility, matrix, conformance,\s+observability, quality, and security-risk controls/,
   'roadmap must anchor Gate B1-B7 status named by rollout migration policy'
 );
+const historicalRoadmapText = fs.readFileSync(path.join(root, 'docs', 'archived', 'roadmap.md'), 'utf8');
+assert.match(historicalRoadmapText, /^# DEPRECATED:/);
 assert.match(
-  roadmapText,
+  historicalRoadmapText,
   /temp\/validation\/release-evidence-current-handoff-final-validation-20260521\.log/,
-  'roadmap must cite the current release evidence handoff final validation log'
+  'preserve the dated historical release handoff evidence in the archived worklog'
 );
 
 assert.match(
-  roadmapText,
+  historicalRoadmapText,
   /Gate C technical rollout criteria are locally satisfied for the current branch/,
-  'roadmap must record USR Gate C technical criteria as locally satisfied'
+  'preserve the historical Gate C result without relabeling it as a current-head pass'
 );
 assert.doesNotMatch(
   roadmapText,
@@ -205,15 +207,18 @@ const rolloutPhaseRows = [
   phase: match[1],
   lifecycle: match[2].trim()
 }));
-assert.equal(rolloutPhaseRows.length, 8, 'rollout migration policy must define Phase A-H rows');
-for (const row of rolloutPhaseRows) {
-  const escapedLifecycle = row.lifecycle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  assert.match(
-    roadmapText,
-    new RegExp(`^\\| ${row.phase} \\| ${escapedLifecycle} \\|`, 'm'),
-    `roadmap must anchor ${row.phase} rollout lifecycle`
-  );
-}
+assert.deepEqual(rolloutPhaseRows, [
+  { phase: 'Phase A', lifecycle: '`shadow-read` foundation' },
+  { phase: 'Phase B', lifecycle: '`shadow-read` hardening' },
+  { phase: 'Phase C', lifecycle: '`dual-write` language-batch rollout' },
+  { phase: 'Phase D', lifecycle: '`dual-write` framework overlay rollout' },
+  { phase: 'Phase E', lifecycle: '`strict-gate pre-cutover` semantics/risk hardening' },
+  { phase: 'Phase F', lifecycle: '`strict-gate pre-cutover` readiness authorization' },
+  { phase: 'Phase G', lifecycle: '`cutover` conformance enforcement' },
+  { phase: 'Phase H', lifecycle: '`post-cutover stabilization`' }
+], 'the authoritative policy must preserve all eight ordered rollout phases and lifecycle meanings');
+assert.ok(roadmapText.includes('specs/usr-core-rollout-release-migration.md'),
+  'the concise roadmap must link the authoritative phase policy rather than duplicate it');
 
 const assertTemplateIsPlaceholderOnly = (subdir) => {
   const templatePath = path.join(root, 'docs', 'specs', 'usr', subdir, 'TEMPLATE.md');
