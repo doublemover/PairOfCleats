@@ -100,6 +100,16 @@ of `mess`'s nonmerge commits; the extra `64b90824` patch was reviewed separately
     direct work entrypoints, effective configuration names, process-tree resource
     bounds, and separate cold/warm evidence. Example arguments, runtime-advertised
     flags and local links were checked without executing a profile or workload.
+12. Phase23's Tantivy integration survives, but its global query limit inherited a
+    filtered-recall defect: it was reduced to allowed-set cardinality before
+    post-filtering. A one-document allowed set could miss its sole eligible hit
+    below unrelated global leaders. The adapter now retains its existing bounded
+    overfetch budget and short-circuits empty allowed sets before opening/querying.
+    A stub-adapter prefix reproduced the miss; Set/bitmap, null/undefined, ranking,
+    top-k, handle-reuse and budget controls pass in the provider matrix together
+    with the Tantivy preflight selector and scoped ESLint. Native optional-backend
+    integration was not run, and recall beyond the bounded candidate budget is
+    not claimed.
 
 ## Historical Phase 23 capability disposition
 

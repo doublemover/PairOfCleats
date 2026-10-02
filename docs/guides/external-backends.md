@@ -9,6 +9,10 @@ Sparse backends
   `tools/build/tantivy-index.js`; search uses `src/retrieval/sparse/providers/tantivy.js`
   when `--backend tantivy` or config requests Tantivy and the optional module/artifacts
   are available.
+  Its adapter retrieves a bounded global candidate list and then applies allowed-ID
+  filters. Empty allowed sets produce no native query; a small nonempty allowed set
+  does not reduce the global overfetch budget. Selective filters can still return
+  fewer than the requested results when eligible documents lie beyond that budget.
 
 Vector backends
 - LanceDB: implemented for local ANN search (optional dependency). Artifacts
