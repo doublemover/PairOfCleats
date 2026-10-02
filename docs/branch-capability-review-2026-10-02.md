@@ -155,6 +155,13 @@ completion:
   scanning/copying and do not claim an end-to-end benchmark speedup. This batch
   used a tighter 512 MiB aggregate guard, 2 GiB global available-memory reserve,
   and 256 MiB free-disk reserve; scoped ESLint also passed.
+- IndexRef cache boundaries were enforced for `latest` but bypassed by explicit
+  build refs, frozen snapshot roots and some metadata paths. Those paths now
+  receive lexical and resolved-path checks; tag-selected and pre-parsed IDs are
+  validated before path construction. In-cache aliases, explicit `path:` refs
+  and pointer-only snapshot resolution remain supported. The IndexRef and
+  snapshot-registry selectors passed (2 tests, 0.446 s; sampled peak aggregate
+  RSS 121.1 MiB), with changed-file ESLint and the tighter resource guards.
 
 The risk and generation-isolation batches passed changed-file ESLint under the same one-CPU, 512 MiB Node,
 sampled 1 GiB aggregate guard and 30-second per-test limit. These source fixes do
