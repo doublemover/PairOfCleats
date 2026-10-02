@@ -11,7 +11,7 @@ const allowedResiduals = new Map([
   ['tests/perf/bench/run.test.js', { count: 2, reason: 'benchmark runner orchestration owns benchmark subprocess policy' }],
   ['tests/perf/bench/scenarios/matrix.test.js', { count: 1, reason: 'scenario driver intentionally exercises the benchmark runner process' }],
   ['tests/runner/all.js', { count: 1, reason: 'runner meta-orchestrator owns suite process execution' }],
-  ['tests/runner/harness/contract-matrix.test.js', { count: 5, reason: 'runner harness contract tests assert child-runner process semantics' }],
+  ['tests/runner/harness/contract-matrix.test.js', { count: 6, reason: 'runner harness contract tests assert child-runner process semantics' }],
   ['tests/runner/harness/timeout-kills-tree.test.js', { count: 1, reason: 'runner harness timeout/process-tree semantics' }],
   ['tests/runner/harness/timeout-pass-signal-classification.test.js', { count: 1, reason: 'runner harness timeout classification semantics' }],
   ['tests/runner/harness/watchdog-kills-tree.test.js', { count: 1, reason: 'runner harness watchdog process-tree semantics' }],

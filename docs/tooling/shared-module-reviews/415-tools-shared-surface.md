@@ -15,38 +15,38 @@ The main cleanup direction is to make those categories explicit so `tools/shared
 
 ## Highest-Priority Follow-Ups
 
-- split and deprecate [`tools/shared/dict-utils.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/dict-utils.js) as a broad compatibility barrel
-- move [`src/shared/repo-cache-config.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/repo-cache-config.js) closer to shared cache/runtime infrastructure
+- split and deprecate [`tools/shared/dict-utils.js`](../../../tools/shared/dict-utils.js) as a broad compatibility barrel
+- move [`src/shared/repo-cache-config.js`](../../../src/shared/repo-cache-config.js) closer to shared cache/runtime infrastructure
 - move [search-request.js](/src/shared/search-request.js) into a shared request/contract surface
 - move or merge [json-file.js](/src/shared/json-file.js) into a generic shared JSON/IO family
 - deprecate `tools/shared/path-within-root.js`
-- move or deprecate [`tools/shared/search-cli-harness.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/search-cli-harness.js)
+- move or deprecate [`tools/shared/search-cli-harness.js`](../../../tools/shared/search-cli-harness.js)
 
 ## Main Findings
 
 ### Legitimate Tool-Local Adapters
 
-- [`tools/shared/cli-display.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/cli-display.js)
-- [`tools/shared/cli-utils.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/cli-utils.js)
-- [`tools/shared/index-cli-utils.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/index-cli-utils.js)
-- [`tools/shared/tooling-gate-utils.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/tooling-gate-utils.js)
+- [`tools/shared/cli-display.js`](../../../tools/shared/cli-display.js)
+- [`tools/shared/cli-utils.js`](../../../tools/shared/cli-utils.js)
+- [`tools/shared/index-cli-utils.js`](../../../tools/shared/index-cli-utils.js)
+- [`tools/shared/tooling-gate-utils.js`](../../../tools/shared/tooling-gate-utils.js)
 
 These are reasonable `tools/shared` residents because they wrap CLI, display, and CI-gate behaviors that are tool-specific even when they depend on lower-level `src/shared` helpers.
 
 ### Modules That Are Really Cross-Surface Shared Code
 
-- [`tools/shared/dict-utils.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/dict-utils.js)
+- [`tools/shared/dict-utils.js`](../../../tools/shared/dict-utils.js)
 - [json-file.js](/src/shared/json-file.js)
-- [`src/shared/repo-cache-config.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/repo-cache-config.js)
+- [`src/shared/repo-cache-config.js`](../../../src/shared/repo-cache-config.js)
 - [search-request.js](/src/shared/search-request.js)
 
 These should not stay hidden in `tools/shared` long-term because they either already have a real `src/shared` home or define behavior shared by API, MCP, retrieval, or storage runtime code.
 
 ### Thin or Weak Shared Modules
 
-- [`tools/shared/parity-indexes.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/parity-indexes.js)
+- [`tools/shared/parity-indexes.js`](../../../tools/shared/parity-indexes.js)
 - `tools/shared/path-within-root.js`
-- [`tools/shared/search-cli-harness.js`](C:/Users/sneak/Development/DOUBLECLEAT/tools/shared/search-cli-harness.js)
+- [`tools/shared/search-cli-harness.js`](../../../tools/shared/search-cli-harness.js)
 - `tools/shared/stats-utils.js`
 
 These are either effectively compatibility shims or only shared by one report-style caller. They should be moved closer to the owning surface or removed.

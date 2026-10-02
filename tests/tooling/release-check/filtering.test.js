@@ -15,7 +15,8 @@ assert.equal(run.status, 0, `expected filtered release-check to pass: ${run.stde
 const { report, manifest } = await loadReleaseCheckArtifacts({ reportPath, manifestPath });
 assert.deepEqual(report.scope, {
   surfaces: ['sublime', 'vscode'],
-  phases: ['build']
+  phases: ['build'],
+  runtimeTarget: null
 }, 'expected filtered release-check scope metadata');
 assert.equal(report.releaseVersion, version, 'expected release version fallback when changelog phase is skipped');
 assert.deepEqual(report.strict.requiredChecks, ['build'], 'expected filtered required checks');

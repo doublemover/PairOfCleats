@@ -6,8 +6,8 @@
 
 ## What landed
 
-- New policy guard: [shared-module-boundary-guard.test.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\indexing\policy\shared-module-boundary-guard.test.js)
-- New waiver registry: [shared-module-boundary-waivers.json](C:\Users\sneak\Development\DOUBLECLEAT\docs\tooling\shared-module-boundary-waivers.json)
+- New policy guard: [shared-module-boundary-guard.test.js](../../../tests/indexing/policy/shared-module-boundary-guard.test.js)
+- New waiver registry: [shared-module-boundary-waivers.json](../shared-module-boundary-waivers.json)
 
 ## Why this approach is best
 

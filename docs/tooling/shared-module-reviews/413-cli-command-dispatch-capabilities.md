@@ -7,26 +7,26 @@ Scope: `src/shared` CLI, command-registry, dispatch, capability, completions, le
 
 This shared surface is mostly healthy and already acts as the repo's canonical command and CLI contract layer. The P2 cleanup items from this review are now complete:
 
-- keep [display.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/cli/display.js) as the public `createDisplay()` facade after the task state and progress-event split
-- keep [render.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/cli/display/render.js) as the display row assembler after palette/theme state, layout calculation, and terminal row-diff writing moved to focused display-internal owners
+- keep [display.js](../../../src/shared/cli/display.js) as the public `createDisplay()` facade after the task state and progress-event split
+- keep [render.js](../../../src/shared/cli/display/render.js) as the display row assembler after palette/theme state, layout calculation, and terminal row-diff writing moved to focused display-internal owners
 - keep the command-registry split centered on `src/shared/command-registry-data.js` and `src/shared/command-registry-query.js`; the old root facade is removed
-- keep [runtime-capability-manifest.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/runtime-capability-manifest.js) as the public manifest API after flag and surface assembly moved to `src/shared/runtime-capability/surfaces.js`
+- keep [runtime-capability-manifest.js](../../../src/shared/runtime-capability-manifest.js) as the public manifest API after flag and surface assembly moved to `src/shared/runtime-capability/surfaces.js`
 - keep `bin/dispatch-runtime-env.js` as the CLI-entrypoint runtime-env owner; the old `src/shared/dispatch/env.js` file is removed
 - keep [registry.js](/src/shared/dispatch/registry.js) as a thin compatibility facade over dispatch query helpers owned by `src/shared/command-registry-query.js`
 
 ## Runtime-Risk Notes
 
-- [display.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/cli/display.js): public display orchestrator now delegates task-state mutation to `src/shared/cli/display/state.js`, JSONL log/task event writing to `src/shared/cli/display/events.js`, safe-stream handling to `stream.js`, terminal resolution to `terminal.js`, and rendering to `render.js`.
-- [render.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/cli/display/render.js): display row assembly now delegates task ordering/layout to `layout.js`, palette/theme state to `palette.js`, and terminal row-diff rendering to `frame.js`.
-- [runtime-capability-manifest.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/runtime-capability-manifest.js): the public manifest API now delegates static specs to `runtime-capability-specs.js`, helper builders to `runtime-capability/builders.js`, and flag/surface projection to `runtime-capability/surfaces.js`.
+- [display.js](../../../src/shared/cli/display.js): public display orchestrator now delegates task-state mutation to `src/shared/cli/display/state.js`, JSONL log/task event writing to `src/shared/cli/display/events.js`, safe-stream handling to `stream.js`, terminal resolution to `terminal.js`, and rendering to `render.js`.
+- [render.js](../../../src/shared/cli/display/render.js): display row assembly now delegates task ordering/layout to `layout.js`, palette/theme state to `palette.js`, and terminal row-diff rendering to `frame.js`.
+- [runtime-capability-manifest.js](../../../src/shared/runtime-capability-manifest.js): the public manifest API now delegates static specs to `runtime-capability-specs.js`, helper builders to `runtime-capability/builders.js`, and flag/surface projection to `runtime-capability/surfaces.js`.
 
 ## Maintainability Notes
 
 - `src/shared/dispatch/manifest.js` is gone; keep future dispatch projection cleanup centered on the live `src/shared/dispatch/registry.js` and command-registry query owners.
-- [registry.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/dispatch/registry.js) is now a thin facade over dispatch registry helpers owned by `src/shared/command-registry-query.js`.
+- [registry.js](../../../src/shared/dispatch/registry.js) is now a thin facade over dispatch registry helpers owned by `src/shared/command-registry-query.js`.
 - The old `src/shared/cli-completions.js` root helper has moved to `tools/cli/completions-renderer.js`; shell-completion rendering is tool-owned and still reads canonical command-registry data.
 - The old `src/shared/runtime-capability-builders.js` root helper has moved to `src/shared/runtime-capability/builders.js` so static manifest assembly helpers are no longer another root shared file.
-- [command-aliases.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/command-aliases.js) is intentionally tiny today and should stay that way unless package-script replacements genuinely expand.
+- [command-aliases.js](../../../src/shared/command-aliases.js) is intentionally tiny today and should stay that way unless package-script replacements genuinely expand.
 
 ## File Ledger
 

@@ -9,26 +9,26 @@ This shared surface contains several of the repo's most correctness-critical run
 
 Highest-priority follow-ups:
 
-- keep [file-lock.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/locks/file-lock.js) as the acquisition facade; constants, timing, info parsing, owner probing, stale cleanup, release errors, and metrics now live in focused leaves, and startup-sensitive callers lazy-load lock behavior
-- keep [tracking.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/subprocess/tracking.js) as the public tracking facade; scope propagation, child registration, runtime bookkeeping, and termination flow now live in focused leaves
-- keep [runner.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/subprocess/runner.js) as the subprocess runner facade; async, sync, isolated-node, and error-shape behavior already live in focused leaves
-- keep [progress-runtime.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/progress-runtime.js) as the shared progress runtime owner; `progress-context.js` moved under the TUI supervisor because only that tool owns child-process context env propagation
-- keep [adaptive-controller.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/concurrency/scheduler-core/adaptive-controller.js) as the adaptive scheduler composition layer; signal sampling, snapshots, surface decisions, and token policy already live in focused leaves
-- keep the canonical queue implementation at [queue.js](C:/Users/sneak/Development/DOUBLECLEAT/tools/service/queue.js) and avoid reintroducing root shared aliases
+- keep [file-lock.js](../../../src/shared/locks/file-lock.js) as the acquisition facade; constants, timing, info parsing, owner probing, stale cleanup, release errors, and metrics now live in focused leaves, and startup-sensitive callers lazy-load lock behavior
+- keep [tracking.js](../../../src/shared/subprocess/tracking.js) as the public tracking facade; scope propagation, child registration, runtime bookkeeping, and termination flow now live in focused leaves
+- keep [runner.js](../../../src/shared/subprocess/runner.js) as the subprocess runner facade; async, sync, isolated-node, and error-shape behavior already live in focused leaves
+- keep [progress-runtime.js](../../../src/shared/progress-runtime.js) as the shared progress runtime owner; `progress-context.js` moved under the TUI supervisor because only that tool owns child-process context env propagation
+- keep [adaptive-controller.js](../../../src/shared/concurrency/scheduler-core/adaptive-controller.js) as the adaptive scheduler composition layer; signal sampling, snapshots, surface decisions, and token policy already live in focused leaves
+- keep the canonical queue implementation at [queue.js](../../../tools/service/queue.js) and avoid reintroducing root shared aliases
 
 ## Runtime-Risk Notes
 
-- [file-lock.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/locks/file-lock.js): file locking remains correctness-critical, but constants, timing, info parsing, owner probing, stale cleanup, release errors, and metrics are now split behind the acquisition facade; retrieval/build startup paths lazy-load lock behavior.
-- [tracking.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/subprocess/tracking.js): tracked cleanup remains correctness-critical, but scope propagation, registration, runtime bookkeeping, and termination flow are now split behind the facade.
-- [runner.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/subprocess/runner.js): async and sync spawn behavior, isolated-node helpers, and subprocess error shapes are now split behind the facade.
-- [adaptive-controller.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/concurrency/scheduler-core/adaptive-controller.js): scheduler adaptation remains correctness-critical, but signal sampling, snapshots, surface decisions, and token policy are now split behind the composition layer.
+- [file-lock.js](../../../src/shared/locks/file-lock.js): file locking remains correctness-critical, but constants, timing, info parsing, owner probing, stale cleanup, release errors, and metrics are now split behind the acquisition facade; retrieval/build startup paths lazy-load lock behavior.
+- [tracking.js](../../../src/shared/subprocess/tracking.js): tracked cleanup remains correctness-critical, but scope propagation, registration, runtime bookkeeping, and termination flow are now split behind the facade.
+- [runner.js](../../../src/shared/subprocess/runner.js): async and sync spawn behavior, isolated-node helpers, and subprocess error shapes are now split behind the facade.
+- [adaptive-controller.js](../../../src/shared/concurrency/scheduler-core/adaptive-controller.js): scheduler adaptation remains correctness-critical, but signal sampling, snapshots, surface decisions, and token policy are now split behind the composition layer.
 
 ## Maintainability Notes
 
-- [progress-format.js](C:/Users/sneak/Development/DOUBLECLEAT/tools/bench/progress-format.js) is now correctly bench-specific rather than living in the generic root shared bucket.
-- [perf-progress.js](C:/Users/sneak/Development/DOUBLECLEAT/tools/build/embeddings/perf-progress.js) is now correctly embeddings-specific rather than living in the generic root shared bucket.
-- [queue.js](C:/Users/sneak/Development/DOUBLECLEAT/tools/service/queue.js) is the canonical queue implementation now that the old `src/shared` re-export has been removed.
-- The old `src/shared/progress-context.js` helper moved to [tools/tui/supervisor/progress-context.js](C:/Users/sneak/Development/DOUBLECLEAT/tools/tui/supervisor/progress-context.js) because it is a TUI supervisor env-shaping helper, not a shared progress runtime primitive.
+- [progress-format.js](../../../tools/bench/progress-format.js) is now correctly bench-specific rather than living in the generic root shared bucket.
+- [perf-progress.js](../../../tools/build/embeddings/perf-progress.js) is now correctly embeddings-specific rather than living in the generic root shared bucket.
+- [queue.js](../../../tools/service/queue.js) is the canonical queue implementation now that the old `src/shared` re-export has been removed.
+- The old `src/shared/progress-context.js` helper moved to [tools/tui/supervisor/progress-context.js](../../../tools/tui/supervisor/progress-context.js) because it is a TUI supervisor env-shaping helper, not a shared progress runtime primitive.
 
 ## File Ledger
 

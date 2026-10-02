@@ -14,35 +14,35 @@ This surface already uses shared modules heavily. The best cleanup here is selec
 
 The strongest shared anchors already in use are:
 
-- [artifact-io.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\artifact-io.js)
-- [truncation.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\truncation.js)
-- [limits.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\limits.js)
-- [sort.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\sort.js)
-- [provenance.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\provenance.js)
-- [file-paths.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\file-paths.js)
-- [path-normalize.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\path-normalize.js)
-- [runtime-envelope/resolve.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\runtime-envelope\resolve.js)
+- [artifact-io.js](../../../src/shared/artifact-io.js)
+- [truncation.js](../../../src/shared/truncation.js)
+- [limits.js](../../../src/shared/limits.js)
+- [sort.js](../../../src/shared/sort.js)
+- [provenance.js](../../../src/shared/provenance.js)
+- [file-paths.js](../../../src/shared/file-paths.js)
+- [path-normalize.js](../../../src/shared/path-normalize.js)
+- [runtime-envelope/resolve.js](../../../src/shared/runtime-envelope/resolve.js)
 
 The main missed-adoption work is:
 
 - context-pack truncation handling
 - repeated local path-normalization wrappers
-- a cross-layer cluster of product code still depending on [dict-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\dict-utils.js), which should not spread further
+- a cross-layer cluster of product code still depending on [dict-utils.js](../../../tools/shared/dict-utils.js), which should not spread further
 
 ## Adoption Matrix
 
 ### 1. Context-pack truncation handling
 
 Shared modules to prefer:
-- [truncation.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\truncation.js)
-- [risk-filters.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\risk-filters.js)
-- [risk-explain-model.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\risk-explain-model.js)
+- [truncation.js](../../../src/shared/truncation.js)
+- [risk-filters.js](../../../src/shared/risk-filters.js)
+- [risk-explain-model.js](../../../src/shared/risk-explain-model.js)
 
 Representative local implementations:
-- [budgets.js](C:\Users\sneak\Development\DOUBLECLEAT\src\context-pack\assemble\budgets.js)
-- [finalize.js](C:\Users\sneak\Development\DOUBLECLEAT\src\context-pack\assemble\finalize.js)
-- [guidance.js](C:\Users\sneak\Development\DOUBLECLEAT\src\context-pack\assemble\guidance.js)
-- [risk-slice.js](C:\Users\sneak\Development\DOUBLECLEAT\src\context-pack\assemble\risk-slice.js)
+- [budgets.js](../../../src/context-pack/assemble/budgets.js)
+- [finalize.js](../../../src/context-pack/assemble/finalize.js)
+- [guidance.js](../../../src/context-pack/assemble/guidance.js)
+- [risk-slice.js](../../../src/context-pack/assemble/risk-slice.js)
 
 Best action:
 - Use the shared truncation recorder as the internal collection mechanism and keep raw array shaping only at the final API/schema boundary if needed.
@@ -56,16 +56,16 @@ Current adoption:
 ### 2. Path-normalization wrappers
 
 Shared modules to prefer:
-- [file-paths.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\file-paths.js)
-- [path-normalize.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\path-normalize.js)
+- [file-paths.js](../../../src/shared/file-paths.js)
+- [path-normalize.js](../../../src/shared/path-normalize.js)
 
 Representative local implementations:
-- [utils.js](C:\Users\sneak\Development\DOUBLECLEAT\src\map\utils.js)
-- [executor.js](C:\Users\sneak\Development\DOUBLECLEAT\src\index\build\tree-sitter-scheduler\executor.js)
-- [cohorts.js](C:\Users\sneak\Development\DOUBLECLEAT\src\index\build\indexer\steps\process-files\extracted-prose\cohorts.js)
-- [normalize.js](C:\Users\sneak\Development\DOUBLECLEAT\src\index\build\runtime\normalize.js)
-- [path-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\src\index\build\import-resolution\path-utils.js)
-- [utils.js](C:\Users\sneak\Development\DOUBLECLEAT\src\storage\sqlite\utils.js)
+- [utils.js](../../../src/map/utils.js)
+- [executor.js](../../../src/index/build/tree-sitter-scheduler/executor.js)
+- [cohorts.js](../../../src/index/build/indexer/steps/process-files/extracted-prose/cohorts.js)
+- [normalize.js](../../../src/index/build/runtime/normalize.js)
+- [path-utils.js](../../../src/index/build/import-resolution/path-utils.js)
+- [utils.js](../../../src/storage/sqlite/utils.js)
 
 Best action:
 - Remove trivial wrappers and keep only the ones that add real domain semantics or validation.
@@ -76,13 +76,13 @@ Why this is best:
 ### 3. Product code depending on tool-side dict-utils
 
 Representative consumers:
-- [validate.js](C:\Users\sneak\Development\DOUBLECLEAT\src\index\validate.js)
-- [attempts.js](C:\Users\sneak\Development\DOUBLECLEAT\src\index\build\watch\attempts.js)
-- [dictionaries.js](C:\Users\sneak\Development\DOUBLECLEAT\src\index\build\runtime\dictionaries.js)
-- [embeddings.js](C:\Users\sneak\Development\DOUBLECLEAT\src\index\build\runtime\embeddings.js)
-- [runtime.js](C:\Users\sneak\Development\DOUBLECLEAT\src\index\build\runtime\runtime.js)
-- [index-state.js](C:\Users\sneak\Development\DOUBLECLEAT\src\storage\sqlite\build\index-state.js)
-- [cli-dictionary.js](C:\Users\sneak\Development\DOUBLECLEAT\src\retrieval\cli-dictionary.js)
+- [validate.js](../../../src/index/validate.js)
+- [attempts.js](../../../src/index/build/watch/attempts.js)
+- [dictionaries.js](../../../src/index/build/runtime/dictionaries.js)
+- [embeddings.js](../../../src/index/build/runtime/embeddings.js)
+- [runtime.js](../../../src/index/build/runtime/runtime.js)
+- [index-state.js](../../../src/storage/sqlite/build/index-state.js)
+- [cli-dictionary.js](../../../src/retrieval/cli-dictionary.js)
 
 Best action:
 - Do not deepen this dependency.
@@ -95,12 +95,12 @@ Why this is best:
 
 These surfaces already use the right shared primitives and should mostly stay local:
 
-- [neighborhood.js](C:\Users\sneak\Development\DOUBLECLEAT\src\graph\neighborhood.js)
-- [impact.js](C:\Users\sneak\Development\DOUBLECLEAT\src\graph\impact.js)
-- [architecture.js](C:\Users\sneak\Development\DOUBLECLEAT\src\graph\architecture.js)
-- [pipeline](C:\Users\sneak\Development\DOUBLECLEAT\src\retrieval\pipeline.js) and related retrieval pipeline modules
-- [build](C:\Users\sneak\Development\DOUBLECLEAT\src\storage\sqlite\build\runner.js) and related SQLite build modules
-- [client](C:\Users\sneak\Development\DOUBLECLEAT\src\map\isometric\client\viewer.js) and related isometric client modules
+- [neighborhood.js](../../../src/graph/neighborhood.js)
+- [impact.js](../../../src/graph/impact.js)
+- [architecture.js](../../../src/graph/architecture.js)
+- [pipeline](../../../src/retrieval/pipeline.js) and related retrieval pipeline modules
+- [build](../../../src/storage/sqlite/build/runner.js) and related SQLite build modules
+- [client](../../../src/map/isometric/client/viewer.js) and related isometric client modules
 
 Rationale:
 - shared primitives are already in place

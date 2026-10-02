@@ -1,12 +1,12 @@
 # Suite Taxonomy Report
 
-Generated: 2026-05-22T05:26:37.271Z
+Generated: 2026-10-02T02:04:43.904Z
 
 ## Summary
 
-- `hero`: 1977
+- `hero`: 1986
 - `matrix`: 153
-- `meta`: 92
+- `meta`: 95
 - `soak`: 1
 - `heavy-runtime`: 8
 - ownership suites tracked: 16

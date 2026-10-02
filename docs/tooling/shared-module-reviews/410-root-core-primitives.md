@@ -14,43 +14,43 @@ The root shared surface is mostly healthy, but it contains four weak clusters th
 
 The highest-priority follow-ups are:
 
-- split [`src/shared/env.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/env.js)
-- keep [`src/shared/runtime-envelope/resolve.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/runtime-envelope/resolve.js) and [`src/shared/runtime-envelope/env-patch.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/runtime-envelope/env-patch.js) as the runtime-envelope owners
-- keep the auto-policy split centered on [`src/shared/auto-policy/build.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/auto-policy/build.js), with the old root facade removed
-- keep the metric-family split centered on [`src/shared/metrics/core.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/metrics/core.js)
-- merge the numeric normalization overlap between [`src/shared/limits.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/limits.js) and [`src/shared/number-coerce.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/number-coerce.js)
-- keep the new narrow helper surfaces such as [`src/shared/search-request.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/search-request.js), [`src/shared/repo-paths.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/repo-paths.js), and [`src/shared/json-file.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/json-file.js) from being reabsorbed into broad buckets
+- split [`src/shared/env.js`](../../../src/shared/env.js)
+- keep [`src/shared/runtime-envelope/resolve.js`](../../../src/shared/runtime-envelope/resolve.js) and [`src/shared/runtime-envelope/env-patch.js`](../../../src/shared/runtime-envelope/env-patch.js) as the runtime-envelope owners
+- keep the auto-policy split centered on [`src/shared/auto-policy/build.js`](../../../src/shared/auto-policy/build.js), with the old root facade removed
+- keep the metric-family split centered on [`src/shared/metrics/core.js`](../../../src/shared/metrics/core.js)
+- merge the numeric normalization overlap between [`src/shared/limits.js`](../../../src/shared/limits.js) and [`src/shared/number-coerce.js`](../../../src/shared/number-coerce.js)
+- keep the new narrow helper surfaces such as [`src/shared/search-request.js`](../../../src/shared/search-request.js), [`src/shared/repo-paths.js`](../../../src/shared/repo-paths.js), and [`src/shared/json-file.js`](../../../src/shared/json-file.js) from being reabsorbed into broad buckets
 
 ## Cluster Notes
 
 ### Env / Runtime / Policy
 
-- [`src/shared/env.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/env.js) is doing too much. It mixes runtime, bench, TUI, testing, document-extractor stub, and scheduler/test-only environment parsing.
-- The new leaf modules under [`src/shared/env/`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/env) are the right direction and should remain explicit instead of collapsing back into `env.js`.
+- [`src/shared/env.js`](../../../src/shared/env.js) is doing too much. It mixes runtime, bench, TUI, testing, document-extractor stub, and scheduler/test-only environment parsing.
+- The new leaf modules under [`src/shared/env/`](../../../src/shared/env) are the right direction and should remain explicit instead of collapsing back into `env.js`.
 - 2026-05-21 update: internal `bin`, `src`, `tools`, and `tests` callers now import the env leaves directly, and `src/shared/env.js` is retained as the public facade rather than the default internal import surface.
-- The old `src/shared/runtime-envelope.js` facade has been removed; [`src/shared/runtime-envelope/resolve.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/runtime-envelope/resolve.js), [`src/shared/runtime-envelope/resolve-current-process-envelope.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/runtime-envelope/resolve-current-process-envelope.js), [`src/shared/runtime-envelope/env-patch.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/runtime-envelope/env-patch.js), and [`src/shared/runtime-envelope/parse.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/runtime-envelope/parse.js) now own runtime resolution, current-process derivation, env patching, and parsing directly.
-- The split internals under [`src/shared/runtime-envelope/`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/runtime-envelope) should stay as the ownership boundary for parsing, env patching, and runtime resolution details.
-- The old root-level `src/shared/auto-policy.js` facade has been removed; callers import [`src/shared/auto-policy/build.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/auto-policy/build.js) directly.
-- The extracted helpers under [`src/shared/auto-policy/`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/auto-policy) are the ownership boundary for repo scanning and profile selection logic.
-- [`src/shared/env-path.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/env-path.js) and [`src/shared/toolchain-env.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/toolchain-env.js) are coherent, but their boundaries should be documented so they do not get reabsorbed into broader env helpers.
+- The old `src/shared/runtime-envelope.js` facade has been removed; [`src/shared/runtime-envelope/resolve.js`](../../../src/shared/runtime-envelope/resolve.js), [`src/shared/runtime-envelope/resolve-current-process-envelope.js`](../../../src/shared/runtime-envelope/resolve-current-process-envelope.js), [`src/shared/runtime-envelope/env-patch.js`](../../../src/shared/runtime-envelope/env-patch.js), and [`src/shared/runtime-envelope/parse.js`](../../../src/shared/runtime-envelope/parse.js) now own runtime resolution, current-process derivation, env patching, and parsing directly.
+- The split internals under [`src/shared/runtime-envelope/`](../../../src/shared/runtime-envelope) should stay as the ownership boundary for parsing, env patching, and runtime resolution details.
+- The old root-level `src/shared/auto-policy.js` facade has been removed; callers import [`src/shared/auto-policy/build.js`](../../../src/shared/auto-policy/build.js) directly.
+- The extracted helpers under [`src/shared/auto-policy/`](../../../src/shared/auto-policy) are the ownership boundary for repo scanning and profile selection logic.
+- [`src/shared/env-path.js`](../../../src/shared/env-path.js) and [`src/shared/toolchain-env.js`](../../../src/shared/toolchain-env.js) are coherent, but their boundaries should be documented so they do not get reabsorbed into broader env helpers.
 
 ### Numeric / Path / Ordering
 
-- [`src/shared/limits.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/limits.js) and [`src/shared/number-coerce.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/number-coerce.js) overlap too much.
-- [`src/shared/path-normalize.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/path-normalize.js) is a good canonical path layer and should stay that way.
-- [`src/shared/order.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/order.js) and [`src/shared/sort.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/sort.js) are a reasonable pair as long as `sort.js` remains the tiny primitive comparator.
+- [`src/shared/limits.js`](../../../src/shared/limits.js) and [`src/shared/number-coerce.js`](../../../src/shared/number-coerce.js) overlap too much.
+- [`src/shared/path-normalize.js`](../../../src/shared/path-normalize.js) is a good canonical path layer and should stay that way.
+- [`src/shared/order.js`](../../../src/shared/order.js) and [`src/shared/sort.js`](../../../src/shared/sort.js) are a reasonable pair as long as `sort.js` remains the tiny primitive comparator.
 
 ### Observability / Metrics / Ops
 
-- [`src/shared/metrics/core.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/metrics/core.js) has become the biggest root shared file and should be broken up by metric family behind one shared registry.
-- [`src/shared/observability.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/observability.js) has a clear purpose and should remain separate from metrics.
-- [`src/shared/ops/failure-injection.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/ops/failure-injection.js), [`src/shared/ops/health.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/ops/health.js), and [`src/shared/ops/resource-visibility.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/ops/resource-visibility.js) read like an undeclared family and should move under a dedicated ops path.
+- [`src/shared/metrics/core.js`](../../../src/shared/metrics/core.js) has become the biggest root shared file and should be broken up by metric family behind one shared registry.
+- [`src/shared/observability.js`](../../../src/shared/observability.js) has a clear purpose and should remain separate from metrics.
+- [`src/shared/ops/failure-injection.js`](../../../src/shared/ops/failure-injection.js), [`src/shared/ops/health.js`](../../../src/shared/ops/health.js), and [`src/shared/ops/resource-visibility.js`](../../../src/shared/ops/resource-visibility.js) read like an undeclared family and should move under a dedicated ops path.
 
 ### Narrow Promoted Leaves
 
-- [`src/shared/search-request.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/search-request.js), [`src/shared/repo-cache-config.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/repo-cache-config.js), [`src/shared/repo-paths.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/repo-paths.js), and [`src/shared/json-file.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/json-file.js) are good examples of hard-cutover leaf modules that should stay explicit.
-- [`src/shared/file-paths.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/file-paths.js), [`src/shared/file-read.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/file-read.js), and the `bundle-io-*` path/checksum/constants helpers should remain narrow rather than regrowing inside bigger buckets.
-- [`src/shared/native-accel.js`](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/native-accel.js) is fine as a stable feasibility contract, but it should stay clearly documented as specialized.
+- [`src/shared/search-request.js`](../../../src/shared/search-request.js), [`src/shared/repo-cache-config.js`](../../../src/shared/repo-cache-config.js), [`src/shared/repo-paths.js`](../../../src/shared/repo-paths.js), and [`src/shared/json-file.js`](../../../src/shared/json-file.js) are good examples of hard-cutover leaf modules that should stay explicit.
+- [`src/shared/file-paths.js`](../../../src/shared/file-paths.js), [`src/shared/file-read.js`](../../../src/shared/file-read.js), and the `bundle-io-*` path/checksum/constants helpers should remain narrow rather than regrowing inside bigger buckets.
+- [`src/shared/native-accel.js`](../../../src/shared/native-accel.js) is fine as a stable feasibility contract, but it should stay clearly documented as specialized.
 
 ## Selected File Ledger
 

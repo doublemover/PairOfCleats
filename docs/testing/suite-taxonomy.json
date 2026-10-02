@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-05-22T05:26:37.271Z",
+  "generatedAt": "2026-10-02T02:04:43.904Z",
   "summary": {
-    "totalTests": 2231,
+    "totalTests": 2243,
     "byCategory": {
-      "hero": 1977,
+      "hero": 1986,
       "matrix": 153,
-      "meta": 92,
+      "meta": 95,
       "soak": 1,
       "heavy-runtime": 8
     },

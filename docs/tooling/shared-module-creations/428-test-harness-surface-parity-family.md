@@ -6,7 +6,7 @@
 
 ## What landed
 
-- New canonical shared test helper: [json-gate.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\helpers\json-gate.js)
+- New canonical shared test helper: [json-gate.js](../../../tests/helpers/json-gate.js)
 
 ## Duplicate clusters addressed
 
@@ -20,10 +20,10 @@
 
 ## Migrations completed
 
-- [capability-gate.smoke.test.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\ci\capability-gate.smoke.test.js)
-- [tooling-doctor-gate.smoke.test.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\ci\tooling-doctor-gate.smoke.test.js)
-- [tooling-doctor-gate-require-provider-scope.test.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\ci\tooling-doctor-gate-require-provider-scope.test.js)
-- [tooling-lsp-replay-gate.smoke.test.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\ci\tooling-lsp-replay-gate.smoke.test.js)
+- [capability-gate.smoke.test.js](../../../tests/ci/capability-gate.smoke.test.js)
+- [tooling-doctor-gate.smoke.test.js](../../../tests/ci/tooling-doctor-gate.smoke.test.js)
+- [tooling-doctor-gate-require-provider-scope.test.js](../../../tests/ci/tooling-doctor-gate-require-provider-scope.test.js)
+- [tooling-lsp-replay-gate.smoke.test.js](../../../tests/ci/tooling-lsp-replay-gate.smoke.test.js)
 
 ## What intentionally stayed local
 

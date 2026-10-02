@@ -1,8 +1,8 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-05-22T19:48:47.706Z",
+  "generatedAt": "2026-10-02T02:04:46.836Z",
   "generatedBy": "node tools/docs/shared-module-ledger.js",
-  "root": "C:/Users/sneak/Development/DOUBLECLEAT",
+  "root": "/workspace/scratch/97f744e64755/pairofcleats-improvements",
   "census": {
     "sharedRoots": [
       "src/shared",
@@ -22783,6 +22783,8 @@
             "tests/ci/codeql-workflow-contract.test.js",
             "tests/ci/contributor-quality-contract.test.js",
             "tests/ci/dependabot-contract.test.js",
+            "tests/ci/dependency-security-contract.test.js",
+            "tests/ci/eslint-rule-compatibility.test.js",
             "tests/ci/import-resolution-slo-gate.smoke.test.js",
             "tests/ci/markdown-link-check.test.js",
             "tests/ci/npm-script-targets.test.js",
@@ -22994,6 +22996,7 @@
             "tests/fixtures/sample/src/index.js",
             "tests/fixtures/sample/src/util.js",
             "tests/fixtures/scip/index.json",
+            "tests/fixtures/security/dependency-advisories-2026-10-02.json",
             "tests/fixtures/segments/docs/guide.md",
             "tests/fixtures/segments/README.md",
             "tests/fixtures/segments/src/comments.js",
@@ -23283,8 +23286,11 @@
             "tests/indexing/discovery/shebang-shell-routing.test.js",
             "tests/indexing/discovery/typescript-declaration-skip-globs.test.js",
             "tests/indexing/embeddings/build/args-parsing.test.js",
+            "tests/indexing/embeddings/build/cli-signal-failure.test.js",
             "tests/indexing/embeddings/build/embeddings-cache.test.js",
             "tests/indexing/embeddings/build/explicit-index-root-missing-mode-fails-fast.test.js",
+            "tests/indexing/embeddings/build/inferred-dimensions-identity.test.js",
+            "tests/indexing/embeddings/build/process-outcome.test.js",
             "tests/indexing/embeddings/build/runtime-defaults.test.js",
             "tests/indexing/embeddings/cache-binary-roundtrip.test.js",
             "tests/indexing/embeddings/cache-compression-zstd.test.js",
@@ -23325,6 +23331,7 @@
             "tests/indexing/embeddings/stage3-manifest-failure-guard.test.js",
             "tests/indexing/embeddings/stage3-perf-observability.test.js",
             "tests/indexing/embeddings/stub-fastpath-cache-contract-matrix.test.js",
+            "tests/indexing/embeddings/transformers-quantized-compatibility.test.js",
             "tests/indexing/embeddings/validate.test.js",
             "tests/indexing/embeddings/vector-source.test.js",
             "tests/indexing/embeddings/writer-and-queue-contract-matrix.test.js",
@@ -24241,6 +24248,7 @@
             "tests/retrieval/pipeline/ann-availability-contract-matrix.test.js",
             "tests/retrieval/pipeline/ann-fallback-contract-matrix.test.js",
             "tests/retrieval/pipeline/ann-lazy-import.test.js",
+            "tests/retrieval/pipeline/ann-query-semantics.test.js",
             "tests/retrieval/pipeline/artifact-gating.test.js",
             "tests/retrieval/pipeline/candidates-buffer-reuse.test.js",
             "tests/retrieval/pipeline/context-skips.test.js",
@@ -24370,6 +24378,7 @@
             "tests/services/api/search-contract-matrix.test.js",
             "tests/services/api/server-stream.test.js",
             "tests/services/api/status-durability.test.js",
+            "tests/services/api/status-path-redaction.test.js",
             "tests/services/api/status-repo-error-classification.test.js",
             "tests/services/api/trust-boundary-matrix.test.js",
             "tests/services/api/workspace-allowlist.test.js",
@@ -24822,6 +24831,9 @@
             "tests/tooling/config/contract-matrix.test.js",
             "tests/tooling/config/generate-demo-config-output.test.js",
             "tests/tooling/config/indexing-profile.test.js",
+            "tests/tooling/config/loader-indexing-runtime.test.js",
+            "tests/tooling/config/loader-schema-contract.test.js",
+            "tests/tooling/config/loader-search-runtime.test.js",
             "tests/tooling/dict-utils/dict-adaptive.test.js",
             "tests/tooling/dict-utils/paths-builds-root.test.js",
             "tests/tooling/dict-utils/paths-repo-root.test.js",
@@ -24831,6 +24843,8 @@
             "tests/tooling/docs/generated-surfaces-freshness-fixture.test.js",
             "tests/tooling/docs/generated-surfaces-registry.test.js",
             "tests/tooling/docs/generated-surfaces-tool.test.js",
+            "tests/tooling/docs/historical-evidence.js",
+            "tests/tooling/docs/historical-evidence.test.js",
             "tests/tooling/docs/repo-inventory-idempotence.test.js",
             "tests/tooling/docs/shared-module-ledger-idempotence.test.js",
             "tests/tooling/docs/usr-contract-checklists.test.js",
@@ -25424,7 +25438,7 @@
             "tools/testing/shared-module-performance.js",
             "tools/testing/terminal-screen.js"
           ],
-          "fileCount": 2686
+          "fileCount": 2700
         },
         {
           "issueId": "420",
@@ -25578,7 +25592,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4501
+          "fileCount": 4515
         }
       ],
       "repoCoverage": {
@@ -27047,6 +27061,8 @@
           "tests/ci/codeql-workflow-contract.test.js",
           "tests/ci/contributor-quality-contract.test.js",
           "tests/ci/dependabot-contract.test.js",
+          "tests/ci/dependency-security-contract.test.js",
+          "tests/ci/eslint-rule-compatibility.test.js",
           "tests/ci/import-resolution-slo-gate.smoke.test.js",
           "tests/ci/markdown-link-check.test.js",
           "tests/ci/npm-script-targets.test.js",
@@ -27258,6 +27274,7 @@
           "tests/fixtures/sample/src/index.js",
           "tests/fixtures/sample/src/util.js",
           "tests/fixtures/scip/index.json",
+          "tests/fixtures/security/dependency-advisories-2026-10-02.json",
           "tests/fixtures/segments/docs/guide.md",
           "tests/fixtures/segments/README.md",
           "tests/fixtures/segments/src/comments.js",
@@ -27547,8 +27564,11 @@
           "tests/indexing/discovery/shebang-shell-routing.test.js",
           "tests/indexing/discovery/typescript-declaration-skip-globs.test.js",
           "tests/indexing/embeddings/build/args-parsing.test.js",
+          "tests/indexing/embeddings/build/cli-signal-failure.test.js",
           "tests/indexing/embeddings/build/embeddings-cache.test.js",
           "tests/indexing/embeddings/build/explicit-index-root-missing-mode-fails-fast.test.js",
+          "tests/indexing/embeddings/build/inferred-dimensions-identity.test.js",
+          "tests/indexing/embeddings/build/process-outcome.test.js",
           "tests/indexing/embeddings/build/runtime-defaults.test.js",
           "tests/indexing/embeddings/cache-binary-roundtrip.test.js",
           "tests/indexing/embeddings/cache-compression-zstd.test.js",
@@ -27589,6 +27609,7 @@
           "tests/indexing/embeddings/stage3-manifest-failure-guard.test.js",
           "tests/indexing/embeddings/stage3-perf-observability.test.js",
           "tests/indexing/embeddings/stub-fastpath-cache-contract-matrix.test.js",
+          "tests/indexing/embeddings/transformers-quantized-compatibility.test.js",
           "tests/indexing/embeddings/validate.test.js",
           "tests/indexing/embeddings/vector-source.test.js",
           "tests/indexing/embeddings/writer-and-queue-contract-matrix.test.js",
@@ -28505,6 +28526,7 @@
           "tests/retrieval/pipeline/ann-availability-contract-matrix.test.js",
           "tests/retrieval/pipeline/ann-fallback-contract-matrix.test.js",
           "tests/retrieval/pipeline/ann-lazy-import.test.js",
+          "tests/retrieval/pipeline/ann-query-semantics.test.js",
           "tests/retrieval/pipeline/artifact-gating.test.js",
           "tests/retrieval/pipeline/candidates-buffer-reuse.test.js",
           "tests/retrieval/pipeline/context-skips.test.js",
@@ -28634,6 +28656,7 @@
           "tests/services/api/search-contract-matrix.test.js",
           "tests/services/api/server-stream.test.js",
           "tests/services/api/status-durability.test.js",
+          "tests/services/api/status-path-redaction.test.js",
           "tests/services/api/status-repo-error-classification.test.js",
           "tests/services/api/trust-boundary-matrix.test.js",
           "tests/services/api/workspace-allowlist.test.js",
@@ -29086,6 +29109,9 @@
           "tests/tooling/config/contract-matrix.test.js",
           "tests/tooling/config/generate-demo-config-output.test.js",
           "tests/tooling/config/indexing-profile.test.js",
+          "tests/tooling/config/loader-indexing-runtime.test.js",
+          "tests/tooling/config/loader-schema-contract.test.js",
+          "tests/tooling/config/loader-search-runtime.test.js",
           "tests/tooling/dict-utils/dict-adaptive.test.js",
           "tests/tooling/dict-utils/paths-builds-root.test.js",
           "tests/tooling/dict-utils/paths-repo-root.test.js",
@@ -29095,6 +29121,8 @@
           "tests/tooling/docs/generated-surfaces-freshness-fixture.test.js",
           "tests/tooling/docs/generated-surfaces-registry.test.js",
           "tests/tooling/docs/generated-surfaces-tool.test.js",
+          "tests/tooling/docs/historical-evidence.js",
+          "tests/tooling/docs/historical-evidence.test.js",
           "tests/tooling/docs/repo-inventory-idempotence.test.js",
           "tests/tooling/docs/shared-module-ledger-idempotence.test.js",
           "tests/tooling/docs/usr-contract-checklists.test.js",
@@ -30182,7 +30210,7 @@
             "src/index/build/artifacts/minhash-packed.js",
             "src/index/build/artifacts/piece-registry.js"
           ],
-          "fileCount": 3349
+          "fileCount": 3363
         },
         {
           "issueId": "424",
@@ -30315,7 +30343,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 4484
+          "fileCount": 4498
         },
         {
           "issueId": "427",
@@ -30402,7 +30430,7 @@
             "benchmarks/queries/razor.txt",
             "benchmarks/queries/ruby.txt"
           ],
-          "fileCount": 2684
+          "fileCount": 2698
         }
       ]
     }

@@ -6,7 +6,7 @@
 
 ## What landed
 
-- New canonical shared owner: [progress-events.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\progress-events.js)
+- New canonical shared owner: [progress-events.js](../../../src/shared/progress-events.js)
 
 ## Duplicate clusters addressed
 
@@ -20,12 +20,12 @@
 
 ## Migrations completed
 
-- [runner.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\mcp\runner.js)
-- [helpers.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\mcp\tools\helpers.js)
-- [triage.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\mcp\tools\handlers\triage.js)
-- [downloads.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\mcp\tools\handlers\downloads.js)
-- [indexing.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\mcp\tools\handlers\indexing.js)
-- [analysis.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\mcp\tools\handlers\analysis.js)
+- [runner.js](../../../tools/mcp/runner.js)
+- [helpers.js](../../../tools/mcp/tools/helpers.js)
+- [triage.js](../../../tools/mcp/tools/handlers/triage.js)
+- [downloads.js](../../../tools/mcp/tools/handlers/downloads.js)
+- [indexing.js](../../../tools/mcp/tools/handlers/indexing.js)
+- [analysis.js](../../../tools/mcp/tools/handlers/analysis.js)
 
 ## What intentionally stayed local
 

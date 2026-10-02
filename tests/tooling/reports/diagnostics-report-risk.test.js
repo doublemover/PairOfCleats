@@ -12,10 +12,9 @@ import {
   renderDiagnosticsReportHuman
 } from '../../../tools/reports/diagnostics-report.js';
 
-applyTestEnv();
-
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'diagnostics-report-risk');
+applyTestEnv({ cacheRoot: path.join(tempRoot, 'cache') });
 const repoRoot = path.join(tempRoot, 'repo');
 const indexDir = resolveIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));
 const contextPackPath = path.join(tempRoot, 'context-pack.json');

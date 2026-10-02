@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-22T05:29:28.690Z",
+  "generatedAt": "2026-10-02T02:04:45.556Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2179,6 +2179,7 @@
         "tests/run.js",
         "tests/services/api/core.test.js",
         "tests/services/api/federated-search-validation-matrix.test.js",
+        "tests/services/api/status-path-redaction.test.js",
         "tests/services/core-observability.test.js",
         "tests/services/mcp/repo-path-resolution.test.js",
         "tests/services/mcp/schema.test.js",
@@ -3242,6 +3243,7 @@
         "src/shared/env/testing.js",
         "tests/services/mcp/fairness.test.js",
         "tests/services/mcp/lane-reservation-fairness.test.js",
+        "tests/services/mcp/robustness.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3378,6 +3380,7 @@
         "tests/perf/bench/language-run-ledger-summary.test.js",
         "tests/perf/bench/run.test.js",
         "tests/retrieval/parity/equivalence.test.js",
+        "tests/services/api/status-path-redaction.test.js",
         "tests/services/core-observability.test.js",
         "tests/services/mcp/repo-path-resolution.test.js",
         "tests/storage/sqlite/build-indexes.test.js",
@@ -3687,7 +3690,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 455,
+    "totalFlags": 457,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -3990,6 +3993,7 @@
       "nodes",
       "non-interactive",
       "non-strict",
+      "normalize",
       "notes-out",
       "only",
       "onlyExported",
@@ -4013,6 +4017,7 @@
       "plan",
       "platform",
       "policy",
+      "pooling",
       "prepare-report",
       "pretty",
       "probe-handshake",
@@ -4418,6 +4423,13 @@
           "count",
           "out",
           "seed"
+        ]
+      },
+      {
+        "file": "tests/indexing/embeddings/transformers-quantized-compatibility.test.js",
+        "flags": [
+          "normalize",
+          "pooling"
         ]
       },
       {

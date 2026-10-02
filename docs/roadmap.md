@@ -2,7 +2,7 @@
 
 Status: Active
 Last audited: 2026-05-22
-Current branch validation: 2026-10-02 (in progress; fresh coverage below)
+Current implementation checkpoint: 2026-10-02 (coverage and deferred checks below)
 Canonical for: execution order, initiative status, and roadmap-style "what next" decisions.
 
 This document consolidates the repo's scattered roadmap, implementation-plan, worklog, backlog, and readiness material into one current status surface. Focused specs still define normative behavior; this roadmap defines current initiative status and the next execution queue.
@@ -230,7 +230,7 @@ Active roadmap/spec finalization follow-up, 2026-05-21: the final active-doc sca
 
 ## Canonical Next Queue
 
-### Live correctness and dependency/security follow-through (2026-10-02T02:05:00Z)
+### Live correctness and dependency/security follow-through (2026-10-02T02:53:00Z)
 
 The isolated `hydro/complete-outstanding-work` branch preserves the complete
 NEON_TIDE implementation. Main `b9398da` was verified tree-identical to NEON_TIDE
@@ -270,8 +270,8 @@ Fresh synthetic regressions reopened concrete correctness work:
   and an approved final npm audit at zero known vulnerabilities. The authenticated
   150-alert Dependabot inventory is reconciled by package family in
   `docs/security/dependabot-inventory-2026-10-02.json`. These branch changes require
-  merge/rescan for GitHub alert closure. Local CodeQL and remaining platform/release
-  checks are separate, still-pending gates; hosted scanner settings are unchanged.
+  merge/rescan for GitHub alert closure. Additional local CodeQL, platform and
+  release campaigns are deferred; hosted scanner settings are unchanged.
   Offline RustSec review additionally identified applicable anyhow, lru and rand
   unsoundness advisories. They are patched with a 206-package lockfile audit at
   zero vulnerabilities and zero warnings. Ratatui's fixed LRU dependency requires
@@ -287,10 +287,11 @@ have targeted corrections and reruns; final aggregate lanes are still pending.
 Formatting, governance regeneration, and generated-surface freshness pass.
 The interrupted ci-lite run is not a completed pass (477 passed before resource
 pressure; two deterministic fixture failures were corrected with targeted passes,
-seven timeouts need resource-isolated verification). Broad tiers are deferred
-to meaningful coordinated checkpoints; development uses affected selectors with
-bounded CPU, process concurrency and memory. Measured Sweet16 and local
-CodeQL analysis require their remaining resource-coordinated validation windows.
+seven timeouts remain unverified). Further gate/CI, platform, CodeQL and performance
+campaigns are deferred from this implementation pass. Development uses affected
+selectors with bounded CPU, process concurrency and memory. See
+`docs/task-list-reconciliation-2026-10-02.md` for the current task-list audit and
+the distinction between implemented work and validation-only follow-through.
 Missing fixed historical May evidence remains explicitly unavailable/unverified;
 it is not reconstructed or counted as fresh evidence.
 

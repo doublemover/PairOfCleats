@@ -23,6 +23,7 @@ for (const fileName of reductionFiles) {
 
   const mdPath = reductionPath.replace(/\.json$/i, '.md');
   assert.ok(fs.existsSync(mdPath), `${fileName}: expected markdown companion ${path.basename(mdPath)}`);
+  const markdown = fs.readFileSync(mdPath, 'utf8');
 
   assert.ok(typeof reduction?.title === 'string' && reduction.title.trim().length > 0, `${fileName}: missing title`);
   assert.ok(typeof reduction?.reducedAt === 'string' && reduction.reducedAt.trim().length > 0, `${fileName}: missing reducedAt`);
@@ -36,6 +37,14 @@ for (const fileName of reductionFiles) {
   for (const batch of reduction.priorityBatches) {
     assert.ok(typeof batch?.batchId === 'string' && batch.batchId.trim().length > 0, `${fileName}: batch missing batchId`);
     assert.ok(typeof batch?.priority === 'string' && batch.priority.trim().length > 0, `${fileName}: batch ${batch?.batchId || '(unknown)'} missing priority`);
+    const escapedBatchId = batch.batchId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const currentStatus = markdown.match(new RegExp(`^\\d+\\. \\x60${escapedBatchId}\\x60 - \\x60([^\\x60]+)\\x60`, 'm'));
+    assert.ok(currentStatus, `${fileName}: batch ${batch.batchId} missing current status in markdown`);
+    assert.equal(
+      String(batch.status || '').replace(/_/g, ' '),
+      currentStatus[1],
+      `${fileName}: batch ${batch.batchId} status differs from its current markdown checkpoint`
+    );
     assert.ok(Array.isArray(batch?.categories) && batch.categories.length > 0, `${fileName}: batch ${batch.batchId} missing categories`);
     assert.ok(Array.isArray(batch?.dependsOn), `${fileName}: batch ${batch.batchId} missing dependsOn`);
     assert.ok(typeof batch?.whyNow === 'string' && batch.whyNow.trim().length > 0, `${fileName}: batch ${batch.batchId} missing whyNow`);

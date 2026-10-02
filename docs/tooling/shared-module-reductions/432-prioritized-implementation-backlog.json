@@ -129,8 +129,8 @@
     {
       "batchId": "P1-root-shared-deflation",
       "priority": "P1",
-      "status": "in_progress",
-      "updatedAt": "2026-05-20",
+      "status": "done",
+      "updatedAt": "2026-10-02",
       "categories": [
         "maintainability",
         "documentation/comments",
@@ -293,7 +293,8 @@
             "src/shared/runtime.js",
             "src/shared/policy.js"
           ],
-          "bestFix": "Create clearer family ownership for environment/runtime policy instead of leaving them in the generic root bucket."
+          "bestFix": "Create clearer family ownership for environment/runtime policy instead of leaving them in the generic root bucket.",
+          "status": "done"
         },
         {
           "title": "Relocate root-only domain shims and re-exports",
@@ -303,7 +304,8 @@
             "src/shared/embeddings-progress.js",
             "src/shared/queue.js"
           ],
-          "bestFix": "Remove cross-layer re-exports and move specialized helpers to their owning subsystem or shared family."
+          "bestFix": "Remove cross-layer re-exports and move specialized helpers to their owning subsystem or shared family.",
+          "status": "done"
         },
         {
           "title": "Split large root-level domain helpers into narrower families",
@@ -316,9 +318,11 @@
             "src/shared/indexing/build-pointer.js",
             "src/shared/indexing/progress-timeout-policy.js"
           ],
-          "bestFix": "Move language, embeddings, indexing-pointer, and timeout-policy owners into domain-specific shared families so dependencies and tests become easier to reason about."
+          "bestFix": "Move language, embeddings, indexing-pointer, and timeout-policy owners into domain-specific shared families so dependencies and tests become easier to reason about.",
+          "status": "done"
         }
-      ]
+      ],
+      "completedAt": "2026-05-21"
     },
     {
       "batchId": "P1-artifact-io-and-storage-split",
@@ -785,18 +789,19 @@
             "docs/tooling/shared-module-scans/421-platform-path-env-repo-workspace.json"
           ],
           "bestFix": "Direct-execution, repo/workspace identity, run-node helper adoption, and timeout-proof follow-through are current. Continue only when a fresh governance failure, measured regression, or duplicate-audit refresh identifies a concrete seam.",
-          "status": "watch"
+          "status": "checkpoint_clean"
         },
         {
           "title": "Target repeated search/report/progress/logging clusters next",
           "paths": [
             "docs/tooling/shared-module-ledger.json"
           ],
-          "bestFix": "Use a future intentional duplicate-audit refresh to drive the next round of narrow shared-module creation or adoption. Do not rework stale saved-report entries."
+          "bestFix": "Use a future intentional duplicate-audit refresh to drive the next round of narrow shared-module creation or adoption. Do not rework stale saved-report entries.",
+          "status": "checkpoint_clean"
         }
       ],
-      "status": "watch",
-      "updatedAt": "2026-05-21",
+      "status": "checkpoint_clean",
+      "updatedAt": "2026-10-02",
       "progress": [
         {
           "date": "2026-05-20",
@@ -848,5 +853,8 @@
       "title": "Do not tighten the tools/shared boundary beyond the current waiver-backed rule without a separate policy decision",
       "reason": "The current guard is intentionally narrow; stricter boundary policies need a separate policy decision and test update now that the waiver list is empty."
     }
-  ]
+  ],
+  "statusSource": "docs/roadmap.md",
+  "reconciledAt": "2026-10-02",
+  "reconciliationNote": "Synchronized the machine-readable backlog to the May 21 canonical checkpoint. Current shared-module boundary, cycle, ledger, migration, performance, adoption and residual process-policy checks pass; historical May transcripts are unavailable in this checkout. Future work needs a fresh concrete regression or audit signal."
 }

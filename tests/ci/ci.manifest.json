@@ -562,8 +562,7 @@
       "id": "indexing/incremental/manifest",
       "order": 89,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 22184
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/extracted-prose/core",

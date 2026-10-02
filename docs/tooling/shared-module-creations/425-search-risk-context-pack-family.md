@@ -8,7 +8,7 @@
 
 - New canonical shared owner: [search-request.js](/src/shared/search-request.js)
 - Compatibility wrapper preserved during migration as `tools/shared/search-request.js`
-- Shared risk filter alias normalizer extended in: [risk-filters.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\risk-filters.js)
+- Shared risk filter alias normalizer extended in: [risk-filters.js](../../../src/shared/risk-filters.js)
 
 ## Duplicate clusters addressed
 
@@ -23,19 +23,19 @@
 
 ## Migrations completed
 
-- [search.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\router\search.js)
-- [validation.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\validation.js)
-- [search-args.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\mcp\tools\search-args.js)
-- [tools.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\mcp\tools.js)
-- [triage.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\mcp\tools\handlers\triage.js)
-- [args.js](C:\Users\sneak\Development\DOUBLECLEAT\src\retrieval\federation\args.js)
-- [explain-risk.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\analysis\explain-risk.js)
-- [delta-risk.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\analysis\delta-risk.js)
-- [context-pack.js](C:\Users\sneak\Development\DOUBLECLEAT\src\integrations\tooling\context-pack.js)
+- [search.js](../../../tools/api/router/search.js)
+- [validation.js](../../../tools/api/validation.js)
+- [search-args.js](../../../tools/mcp/tools/search-args.js)
+- [tools.js](../../../tools/mcp/tools.js)
+- [triage.js](../../../tools/mcp/tools/handlers/triage.js)
+- [args.js](../../../src/retrieval/federation/args.js)
+- [explain-risk.js](../../../tools/analysis/explain-risk.js)
+- [delta-risk.js](../../../tools/analysis/delta-risk.js)
+- [context-pack.js](../../../src/integrations/tooling/context-pack.js)
 
 ## What intentionally stayed local
 
-- [search-contract.js](C:\Users\sneak\Development\DOUBLECLEAT\extensions\vscode\search-contract.js)
+- [search-contract.js](../../../extensions/vscode/search-contract.js)
 
 That file is still a VS Code-specific adapter with CommonJS/editor-setting concerns. It should be reviewed later, but it was not the right seam to hoist in this issue.
 

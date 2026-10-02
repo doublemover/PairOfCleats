@@ -72,6 +72,14 @@ Do not proceed to a broader release claim if a prior lane has unresolved blockin
 
 Latest branch evidence as of 2026-05-22:
 
+These are historical checkpoint claims, not fresh validation of a new checkout.
+The May 20-22 local logs and timing directories are gitignored and may be unavailable.
+The docs-contract guard reports a wholly absent historical bundle as
+`unavailable/unverified`; it still rejects partial bundles, malformed present proof,
+and missing current evidence. Passing that docs guard establishes document-contract
+validity only. A new branch needs its own complete validation evidence before any
+release claim.
+
 - Durable evidence envelope: `docs/roadmap-release-validation-evidence-20260521.md` records branch, commit, worktree state, runtime versions, lane commands, pass/fail/skip handling, blockers, waivers, and roadmap status handling. The detailed command transcripts remain in the cited `temp/validation/**` logs.
 - `docs-and-governance` and `usr-gates`: passed in `temp/validation/release-lanes-docs-usr-20260521.log`.
 - `stage1-contract`, `risk-artifacts`, and `snapshot-diff-asof`: passed in `temp/validation/release-lanes-stage1-risk-snapshot-20260521.log`.
@@ -520,7 +528,7 @@ Lexicon and retrieval:
 
 USR rollout:
 
-- Gate state cannot advance with missing approvals.
+- Gate state cannot advance with missing required technical evidence.
 - Release evidence bundles map to required schemas.
 - Waivers expire and cannot hide critical blocking failures.
 - Rollback drills and no-cut decisions are explicit.
@@ -611,4 +619,3 @@ Use this template in PR notes, release notes, or a durable evidence file:
 | Waiver | Scope | Expiry | Approver | Residual risk |
 | --- | --- | --- | --- | --- |
 ```
-

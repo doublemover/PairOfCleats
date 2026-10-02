@@ -6,14 +6,14 @@
 
 ## What landed
 
-- New canonical shared owner: [command-invocation.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\subprocess\command-invocation.js)
+- New canonical shared owner: [command-invocation.js](../../../src/shared/subprocess/command-invocation.js)
 - Migrated shared/tooling callers:
-  - [cli-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\cli-utils.js)
-  - [command-resolver.js](C:\Users\sneak\Development\DOUBLECLEAT\src\index\tooling\command-resolver.js)
-  - [sourcekit-package-resolution.js](C:\Users\sneak\Development\DOUBLECLEAT\src\index\tooling\preflight\sourcekit-package-resolution.js)
-  - [bootstrap.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\setup\bootstrap.js)
-  - [install.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\tooling\install.js)
-  - [package-vscode.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\package-vscode.js)
+  - [cli-utils.js](../../../tools/shared/cli-utils.js)
+  - [command-resolver.js](../../../src/index/tooling/command-resolver.js)
+  - [sourcekit-package-resolution.js](../../../src/index/tooling/preflight/sourcekit-package-resolution.js)
+  - [bootstrap.js](../../../tools/setup/bootstrap.js)
+  - [install.js](../../../tools/tooling/install.js)
+  - [package-vscode.js](../../../tools/package-vscode.js)
 
 ## Duplicate clusters addressed
 
@@ -29,17 +29,17 @@
 
 ## Migrations completed
 
-- [cli-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\shared\cli-utils.js)
+- [cli-utils.js](../../../tools/shared/cli-utils.js)
   - `runCommand()` and `runSubprocessOrExit()` now use the shared resolved subprocess wrapper.
-- [command-resolver.js](C:\Users\sneak\Development\DOUBLECLEAT\src\index\tooling\command-resolver.js)
+- [command-resolver.js](../../../src/index/tooling/command-resolver.js)
   - tooling probes no longer carry local Windows shim handling.
-- [sourcekit-package-resolution.js](C:\Users\sneak\Development\DOUBLECLEAT\src\index\tooling\preflight\sourcekit-package-resolution.js)
+- [sourcekit-package-resolution.js](../../../src/index/tooling/preflight/sourcekit-package-resolution.js)
   - SourceKit preflight now uses the shared resolved async subprocess path.
-- [bootstrap.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\setup\bootstrap.js)
+- [bootstrap.js](../../../tools/setup/bootstrap.js)
   - JSON-mode child streaming no longer has its own `npm`-specific Windows branch.
-- [install.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\tooling\install.js)
+- [install.js](../../../tools/tooling/install.js)
   - dropped local wrapper-path resolution; requirement probes and installs now rely on shared command helpers.
-- [package-vscode.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\package-vscode.js)
+- [package-vscode.js](../../../tools/package-vscode.js)
   - dropped bespoke `npm` probing in favor of the shared probe contract.
 
 ## What intentionally stayed local
@@ -54,5 +54,5 @@ Those are still caller-owned because this issue was about command invocation and
 
 These are not active roadmap tasks. Reopen this family only from a fresh subprocess wrapper audit, portability bug, or measured duplication signal:
 
-- migrate editor/release/setup command-wrapper logic to [command-invocation.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\subprocess\command-invocation.js) only when current code still repeats that exact seam
+- migrate editor/release/setup command-wrapper logic to [command-invocation.js](../../../src/shared/subprocess/command-invocation.js) only when current code still repeats that exact seam
 - add a shared toolchain probe envelope only if multiple live scripts need the same structured `required tool missing / timeout / spawn error` contract

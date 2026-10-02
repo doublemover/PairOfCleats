@@ -6,8 +6,8 @@
 
 ## What landed
 
-- New migration tool: [shared-module-migration.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\testing\shared-module-migration.js)
-- New recipe manifest: [shared-module-migration-recipes.json](C:\Users\sneak\Development\DOUBLECLEAT\docs\tooling\shared-module-migration-recipes.json)
+- New migration tool: [shared-module-migration.js](../../../tools/testing/shared-module-migration.js)
+- New recipe manifest: [shared-module-migration-recipes.json](../shared-module-migration-recipes.json)
 
 ## Why this approach is best
 

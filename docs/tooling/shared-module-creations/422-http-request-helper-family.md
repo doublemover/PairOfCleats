@@ -6,12 +6,12 @@
 
 ## What landed
 
-- New bounded request-helper module: [request-helpers.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\router\request-helpers.js)
+- New bounded request-helper module: [request-helpers.js](../../../tools/api/router/request-helpers.js)
 - Migrated API route surfaces:
-  - [router.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\router.js)
-  - [analysis.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\router\analysis.js)
-  - [index-snapshots.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\router\index-snapshots.js)
-  - [index-diffs.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\router\index-diffs.js)
+  - [router.js](../../../tools/api/router.js)
+  - [analysis.js](../../../tools/api/router/analysis.js)
+  - [index-snapshots.js](../../../tools/api/router/index-snapshots.js)
+  - [index-diffs.js](../../../tools/api/router/index-diffs.js)
 
 ## Duplicate clusters addressed
 
@@ -23,17 +23,17 @@
 
 - The repeated logic was small but correctness-sensitive: 400 vs 403 vs 413 vs 415 semantics, plus consistent `INVALID_REQUEST`/`FORBIDDEN` payloads.
 - Hoisting only those classifications into one helper fixes the real drift without building a generic router framework.
-- Keeping the module under `tools/api/router` is the right boundary because these helpers depend on the HTTP response contract in [response.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\response.js); MCP JSON-RPC envelopes and editor clients intentionally stay separate.
+- Keeping the module under `tools/api/router` is the right boundary because these helpers depend on the HTTP response contract in [response.js](../../../tools/api/response.js); MCP JSON-RPC envelopes and editor clients intentionally stay separate.
 
 ## Migrations completed
 
-- [analysis.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\router\analysis.js)
+- [analysis.js](../../../tools/api/router/analysis.js)
   - now uses shared parse-body and repo-resolution helpers
-- [index-snapshots.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\router\index-snapshots.js)
+- [index-snapshots.js](../../../tools/api/router/index-snapshots.js)
   - now uses shared parse-body and repo-resolution helpers
-- [index-diffs.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\router\index-diffs.js)
+- [index-diffs.js](../../../tools/api/router/index-diffs.js)
   - now uses shared repo-resolution helpers
-- [router.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\api\router.js)
+- [router.js](../../../tools/api/router.js)
   - federated/search/search-stream/search POST now use the same request-helper classifications
 
 ## What intentionally stayed local

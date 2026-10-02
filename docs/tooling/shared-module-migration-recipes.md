@@ -1,6 +1,6 @@
 # Shared Module Migration Recipes
 
-These recipes drive [shared-module-migration.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\testing\shared-module-migration.js).
+These recipes drive [shared-module-migration.js](../../tools/testing/shared-module-migration.js).
 
 ## Current recipes
 

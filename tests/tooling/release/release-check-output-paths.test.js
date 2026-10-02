@@ -201,7 +201,7 @@ try {
         '--surfaces',
         'vscode',
         '--phases',
-        'install',
+        'build',
         '--report',
         path.join(fixtureDir, 'symlink-artifact-report.json'),
         '--manifest',

@@ -8,10 +8,10 @@
 
 This surface already has good local reuse, especially in:
 
-- [tests/helpers/test-env.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\helpers\test-env.js)
-- [tests/helpers/test-cache.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\helpers\test-cache.js)
-- [tests/helpers/api-server.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\helpers\api-server.js)
-- [tests/helpers/analysis-surface-parity.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\helpers\analysis-surface-parity.js)
+- [tests/helpers/test-env.js](../../../tests/helpers/test-env.js)
+- [tests/helpers/test-cache.js](../../../tests/helpers/test-cache.js)
+- [tests/helpers/api-server.js](../../../tests/helpers/api-server.js)
+- [tests/helpers/analysis-surface-parity.js](../../../tests/helpers/analysis-surface-parity.js)
 
 The right cleanup here is not to hoist test semantics into production shared code. The real adoption work is:
 
@@ -28,15 +28,15 @@ The right cleanup here is not to hoist test semantics into production shared cod
 ### 1. Temp-root and env setup in tests
 
 Shared modules to prefer:
-- [test-cache.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\helpers\test-cache.js)
-- [test-env.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\helpers\test-env.js)
+- [test-cache.js](../../../tests/helpers/test-cache.js)
+- [test-env.js](../../../tests/helpers/test-env.js)
 
 Representative local implementations:
-- [canonical-workflows.test.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\cli\general\canonical-workflows.test.js)
-- [capability-gate.smoke.test.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\ci\capability-gate.smoke.test.js)
-- [bench-language-rollout-gate.smoke.test.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\ci\bench-language-rollout-gate.smoke.test.js)
-- [onnx-cpu-tuning-and-token-cache.test.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\indexing\embeddings\onnx-cpu-tuning-and-token-cache.test.js)
-- [paths-builds-root.test.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\tooling\dict-utils\paths-builds-root.test.js)
+- [canonical-workflows.test.js](../../../tests/cli/general/canonical-workflows.test.js)
+- [capability-gate.smoke.test.js](../../../tests/ci/capability-gate.smoke.test.js)
+- [bench-language-rollout-gate.smoke.test.js](../../../tests/ci/bench-language-rollout-gate.smoke.test.js)
+- [onnx-cpu-tuning-and-token-cache.test.js](../../../tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js)
+- [paths-builds-root.test.js](../../../tests/tooling/dict-utils/paths-builds-root.test.js)
 
 Best action:
 - Prefer the existing test helpers over raw `mkdtemp` or hand-rolled `process.env` mutation when the test is not explicitly asserting raw environment behavior.
@@ -45,20 +45,20 @@ Best action:
 ### 2. Report generator CLI scaffolding
 
 Shared modules to prefer:
-- [cli.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\cli.js)
-- [stable-json.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\stable-json.js)
-- [json-writers.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\json-stream\json-writers.js)
+- [cli.js](../../../src/shared/cli.js)
+- [stable-json.js](../../../src/shared/stable-json.js)
+- [json-writers.js](../../../src/shared/json-stream/json-writers.js)
 
 Representative local implementations:
-- [show-throughput.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\reports\show-throughput.js)
-- [diagnostics-report.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\reports\diagnostics-report.js)
-- [parity-matrix.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\reports\parity-matrix.js)
-- [combined-summary.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\reports\combined-summary.js)
-- [metrics-dashboard.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\reports\metrics-dashboard.js)
-- [report-code-map.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\reports\report-code-map.js)
-- [repo-inventory.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\docs\repo-inventory.js)
-- [script-inventory.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\docs\script-inventory.js)
-- [report.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\test_times\report.js)
+- [show-throughput.js](../../../tools/reports/show-throughput.js)
+- [diagnostics-report.js](../../../tools/reports/diagnostics-report.js)
+- [parity-matrix.js](../../../tools/reports/parity-matrix.js)
+- [combined-summary.js](../../../tools/reports/combined-summary.js)
+- [metrics-dashboard.js](../../../tools/reports/metrics-dashboard.js)
+- [report-code-map.js](../../../tools/reports/report-code-map.js)
+- [repo-inventory.js](../../../tools/docs/repo-inventory.js)
+- [script-inventory.js](../../../tools/docs/script-inventory.js)
+- [report.js](../../../tools/test_times/report.js)
 
 Best action:
 - Share CLI parsing and JSON/report-writing boilerplate where semantics are identical.
@@ -78,18 +78,18 @@ Best action:
 ### 3. Parity harnesses and API fixture setup
 
 Shared modules to prefer:
-- [analysis-surface-parity.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\helpers\analysis-surface-parity.js)
-- [api-server.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\helpers\api-server.js)
-- [run-node.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\helpers\run-node.js)
+- [analysis-surface-parity.js](../../../tests/helpers/analysis-surface-parity.js)
+- [api-server.js](../../../tests/helpers/api-server.js)
+- [run-node.js](../../../tests/helpers/run-node.js)
 
 2026-05-21 follow-through status: three CLI general route tests now use `tests/helpers/run-node.js` instead of local Node `spawnSync()` wrappers while preserving route-specific assertions. Focused validation is logged in `temp/validation/cli-general-run-node-helper-20260521.log`. A follow-up pass moved the remaining local Node subprocess wrappers in `tests/cli/general` to the same helper, preserving pipe/inherit stdio, custom env, and intentional non-zero assertions. Evidence is logged in `temp/validation/cli-general-run-node-followup-rerun-20260521.log`, with the first no-match scan wrapper failure preserved in `temp/validation/cli-general-run-node-followup-20260521.log`. API stream tests now share `parseSseEvent()`/`parseSseEvents()` and `requestSse()` from `tests/helpers/api-server.js`; syntax, ESLint, parser smoke, and the passing in-memory status SSE check are logged in `temp/validation/api-server-stream-helper-20260521.log` and `temp/validation/api-server-stream-helper-fast-final-20260521.log`, with the two slower API server selectors recorded as 30-second timeouts. Analysis surface parity tests now use `tests/helpers/run-node.js` for CLI execution while preserving intentional invalid-request assertions through `allowFailure: true`; focused validation is logged in `temp/validation/analysis-surface-run-node-helper-20260521.log`. CLI/search direct-run tests and `context-pack/strict-evidence-parity` now reuse the same helper-backed paths instead of local child-process wrappers or production CLI imports where parity harness contracts match; focused validation is logged in `temp/validation/cli-search-metrics-strict-harness-20260521.log`. Runner listing/build-index smoke tests and runner harness artifact/log wrapper tests now use the same helper where child Node execution is expected to succeed; focused validation is logged in `temp/validation/runner-ci-build-index-run-node-helper-rerun-20260521.log` and `temp/validation/runner-harness-run-node-helper-20260521.log`. Tooling config generator/validator/dump tests now use `runNode()` with test-env helpers while preserving invalid-config failure assertions; focused validation is logged in `temp/validation/tooling-config-run-node-helper-20260521.log`. Tooling install/setup JSON and outside-root smoke tests now use `runNode()` with fixture-specific env/PATH behavior preserved; focused validation is logged in `temp/validation/tooling-install-run-node-helper-20260521.log`. TUI wrapper behavior now uses `runNode()` for expected wrapper failures, while TUI build smoke wrappers remain local after their broader focused runner attempt exceeded the 30-second rule; evidence is logged in `temp/validation/tui-wrapper-run-node-helper-20260521.log` and `temp/validation/tui-run-node-helper-20260521.log`. Runner coverage harness tests now use `runNode()` for coverage artifact and coverage flag nested runner calls; focused validation is logged in `temp/validation/runner-coverage-run-node-helper-20260521.log`. Tooling CI wrapper tests now use `runNode()` for successful CI script execution while preserving stdout/stderr assertions; focused validation is logged in `temp/validation/tooling-ci-run-node-helper-20260521.log`. Postinstall patch/rebuild tests now use `runNode()` with `allowFailure` only for expected patch-package failures; focused validation is logged in `temp/validation/postinstall-run-node-helper-20260521.log`. Setup/index-detection/uninstall install-family tests now use `runNode()` while preserving setup JSON/text assertions, artifact-readiness matrix checks, inline index-dir resolution, and destructive fixture cleanup checks; focused validation is logged in `temp/validation/tooling-install-setup-run-node-helper-20260521.log`. Remaining bounded install helper tests now use `runNode()` while preserving empty-PATH failure payloads, phpactor timeout/retry assertions, and lua archive layout failure checks; focused validation is logged in `temp/validation/tooling-install-remaining-run-node-helper-20260521.log`. The synchronous verify-extensions step in the async download-extensions test now uses `runNode()` while the download child remains async `spawn()` for the in-process HTTP server; focused validation is logged in `temp/validation/download-extensions-verify-run-node-helper-20260521.log`. Show-throughput report helper tests now use `runNode()` for report CLI execution while keeping payload and output assertions local; focused validation is logged in `temp/validation/show-throughput-run-node-helper-20260521.log`, `temp/validation/show-throughput-additional-run-node-helper-20260521.log`, and `temp/validation/report-additional-run-node-helper-20260521.log`. The summary report JSON error contract and compare summary helper paths now use `runNode()` for intentional invalid-baseline and compare-models executions; compare-memory and compare-sqlite passed, while summary parity sqlite/sqlite-fts checks exceeded the 30-second cutoff after migration and were not rerun. Evidence is logged in `temp/validation/summary-report-error-run-node-helper-20260521.log` and `temp/validation/summary-report-run-node-helper-20260521.log`. Lexicon report/validate and editor toolchain policy tests now use `runNode()` plus test-env helpers, with expected invalid/missing-toolchain failures handled through `allowFailure`; direct validation with a 30-second wrapper is logged in `temp/validation/lexicon-editor-run-node-helper-20260521.log`. Shared triage, SQLite incremental, and tooling LSP SLO helper wrappers now use `runNode()` while preserving fixture setup, intentional nonzero status assertions, and pipe/inherit stdio behavior; focused validation is logged in `temp/validation/p2-shared-helper-run-node-cluster-20260521-rerun.log`, with the initial expected no-match scan exit preserved in `temp/validation/p2-shared-helper-run-node-cluster-20260521.log`. CI gate smoke tests for tooling LSP default-enable and bench-language rollout now use `runNode()` with `allowFailure` for enforced error cases; focused validation is logged in `temp/validation/ci-gate-smoke-run-node-helper-20260521.log`. The workspace manifest contract matrix now uses `runNode()` for its catalog JSON subprocess; focused validation is logged in `temp/validation/workspace-manifest-run-node-helper-20260521.log`. The reconcile-identity CLI drift test now uses `runNode()` with `allowFailure` for its expected failing report; focused validation is logged in `temp/validation/reconcile-identity-cli-run-node-helper-20260521.log`. Indexing lifecycle build-entry success/failure tests now use `runNode()` while preserving timeout and no-unsettled-warning assertions; focused validation is logged in `temp/validation/indexing-lifecycle-run-node-helper-20260521-rerun.log`. Release blocker-flag rejection and index-diff mode/compact validation tests now use `runNode()` with expected failures preserved through `allowFailure`; focused validation is logged in `temp/validation/release-index-diff-run-node-helper-20260521.log`. The index-stats contract matrix now uses a local `runStats()` wrapper backed by `runNode()`; focused validation is logged in `temp/validation/index-stats-contract-run-node-helper-20260521.log`. Analysis wrapper exit propagation, index config dump, and cache GC tests now use `runNode()` with test-env helpers; focused validation is logged in `temp/validation/analysis-indexdump-cachegc-run-node-helper-20260521.log`. Search-showcase list probes and the Sublime python-policy check now use `runNode()` while leaving Python behavior helpers on Python; focused validation is logged in `temp/validation/showcase-sublime-run-node-helper-20260521-rerun.log`, and the reverted ci-long attempt is preserved in `temp/validation/runner-showcase-sublime-run-node-helper-20260521.log`. Strict JSONL triage ingest expected-failure coverage now uses `runNode()` with `allowFailure`; focused validation is logged in `temp/validation/triage-jsonl-strict-run-node-helper-20260521.log`. Shared-module migration tooling, merge benchmark smoke, embedding-batcher keepalive, and Perl tree-sitter native reset regression tests now use `runNode()`; focused validation is logged in `temp/validation/run-node-small-wrapper-batch-20260521.log`. Search/retrieval/Rust synchronous child wrappers now use `runNode()` while preserving cwd/env, captured stdout, and inherited build output behavior; syntax, ESLint, direct-wrapper scans, compact-json pass, search-startup-fastpath lane pass, and 30-second timeout records are logged in `temp/validation/run-node-search-retrieval-wrapper-batch-20260521.log` and `temp/validation/run-node-search-retrieval-wrapper-batch-lane-followup-rerun-20260521.log`. Query-cache contract wrappers and the backend contract matrix now use `runNode()` while preserving query-cache stdout parsing and backend expected-failure assertions; syntax, ESLint, direct-wrapper scans, the backend pass, and query-cache timeout records are logged in `temp/validation/run-node-query-cache-backend-wrapper-batch-20260521.log` and `temp/validation/run-node-query-cache-wrapper-batch-20260521.log`. HNSW atomic, HNSW ANN, and LanceDB ANN tests now use `runNode()` while preserving optional native dependency gates, inherited build output, and captured search JSON assertions; focused validation is logged in `temp/validation/run-node-ann-wrapper-batch-20260521.log`. Shared build/search fixture helpers now use `runNode()` for Node subprocess execution while preserving crash-log tailing, custom throw/exit behavior, fixture cwd/env, inherited build output, search JSON parsing, and formatted command-failure output; representative caller validation is logged in `temp/validation/run-node-helper-wrapper-batch-20260521.log`. Indexing validate/import/filter/format wrapper tests now use `runNode()` while preserving expected-failure validation assertions, captured stderr/stdout checks, inherited build output, fixture cwd/env, and JSON validation parsing; focused validation is logged in `temp/validation/run-node-indexing-wrapper-batch-20260521.log`. The import-links indexing regression now uses `runNode()` while preserving repo cwd/env, inherited build output, and file-relation import-link assertions; focused validation is logged in `temp/validation/run-node-import-links-wrapper-20260521.log`. The comment-join indexing regression now uses `runNode()` while preserving captured build/search output and comment/extracted-prose/no-comments assertions; focused validation is logged in `temp/validation/run-node-comment-join-wrapper-20260521.log`.
 
 Representative local implementations:
-- [risk-explain-surface-parity.test.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\analysis\risk-explain-surface-parity.test.js)
-- [risk-delta-surface-parity.test.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\analysis\risk-delta-surface-parity.test.js)
-- [strict-evidence-parity.test.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\context-pack\strict-evidence-parity.test.js)
-- [risk-filters-parity.test.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\context-pack\risk-filters-parity.test.js)
-- [federated-risk-parity.test.js](C:\Users\sneak\Development\DOUBLECLEAT\tests\context-pack\federated-risk-parity.test.js)
+- [risk-explain-surface-parity.test.js](../../../tests/analysis/risk-explain-surface-parity.test.js)
+- [risk-delta-surface-parity.test.js](../../../tests/analysis/risk-delta-surface-parity.test.js)
+- [strict-evidence-parity.test.js](../../../tests/context-pack/strict-evidence-parity.test.js)
+- [risk-filters-parity.test.js](../../../tests/context-pack/risk-filters-parity.test.js)
+- [federated-risk-parity.test.js](../../../tests/context-pack/federated-risk-parity.test.js)
 
 Best action:
 - Keep extending these existing helpers instead of letting each parity suite grow bespoke setup.
@@ -153,13 +153,13 @@ Best action:
 
 ## Healthy No-Adopt Zones
 
-- [tests/helpers](C:\Users\sneak\Development\DOUBLECLEAT\tests\helpers)
+- [tests/helpers](../../../tests/helpers)
   - healthy local shared test surface
-- [benchmarks/repos](C:\Users\sneak\Development\DOUBLECLEAT\benchmarks\repos)
+- `benchmarks/repos` (optional local benchmark checkout directory)
   - fixture payload, not adoption target
-- [tools/bench](C:\Users\sneak\Development\DOUBLECLEAT\tools\bench)
+- [tools/bench](../../../tools/bench)
   - share low-level helpers selectively, keep workload semantics local
-- [show-throughput.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\reports\show-throughput.js)
+- [show-throughput.js](../../../tools/reports/show-throughput.js)
   - domain-specific aggregation/rendering should remain local
 
 ## Recommended Follow-On Issues

@@ -6,9 +6,9 @@
 
 ## What landed
 
-- New canonical shared owner: [repo-paths.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\repo-paths.js)
-- Tool adapter preserved: [repo.js](C:\Users\sneak\Development\DOUBLECLEAT\tools\dict-utils\paths\repo.js)
-- Compatibility shim narrowed: [dict-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\dict-utils.js)
+- New canonical shared owner: [repo-paths.js](../../../src/shared/repo-paths.js)
+- Tool adapter preserved: [repo.js](../../../tools/dict-utils/paths/repo.js)
+- Compatibility shim narrowed: [dict-utils.js](../../../src/shared/dict-utils.js)
 
 ## Duplicate clusters addressed
 
@@ -24,21 +24,21 @@
 
 ## Migrations completed
 
-- [config.js](C:\Users\sneak\Development\DOUBLECLEAT\src\workspace\config.js)
-- [manifest.js](C:\Users\sneak\Development\DOUBLECLEAT\src\workspace\manifest.js)
-- [cli-index.js](C:\Users\sneak\Development\DOUBLECLEAT\src\retrieval\cli-index.js)
-- [plan-runner.js](C:\Users\sneak\Development\DOUBLECLEAT\src\retrieval\cli\run-search\plan-runner.js)
-- [status.js](C:\Users\sneak\Development\DOUBLECLEAT\src\integrations\core\status.js)
-- [index.js](C:\Users\sneak\Development\DOUBLECLEAT\src\integrations\core\build-index\index.js)
-- [stages.js](C:\Users\sneak\Development\DOUBLECLEAT\src\integrations\core\build-index\stages.js)
-- [index-records.js](C:\Users\sneak\Development\DOUBLECLEAT\src\integrations\triage\index-records.js)
-- [architecture-check.js](C:\Users\sneak\Development\DOUBLECLEAT\src\integrations\tooling\architecture-check.js)
-- [api-contracts.js](C:\Users\sneak\Development\DOUBLECLEAT\src\integrations\tooling\api-contracts.js)
-- [context-pack.js](C:\Users\sneak\Development\DOUBLECLEAT\src\integrations\tooling\context-pack.js)
-- [graph-context.js](C:\Users\sneak\Development\DOUBLECLEAT\src\integrations\tooling\graph-context.js)
-- [impact.js](C:\Users\sneak\Development\DOUBLECLEAT\src\integrations\tooling\impact.js)
-- [suggest-tests.js](C:\Users\sneak\Development\DOUBLECLEAT\src\integrations\tooling\suggest-tests.js)
-- [cache.js](C:\Users\sneak\Development\DOUBLECLEAT\src\index\type-inference-crossfile\cache.js)
+- [config.js](../../../src/workspace/config.js)
+- [manifest.js](../../../src/workspace/manifest.js)
+- [cli-index.js](../../../src/retrieval/cli-index.js)
+- [plan-runner.js](../../../src/retrieval/cli/run-search/plan-runner.js)
+- [status.js](../../../src/integrations/core/status.js)
+- [index.js](../../../src/integrations/core/build-index/index.js)
+- [stages.js](../../../src/integrations/core/build-index/stages.js)
+- [index-records.js](../../../src/integrations/triage/index-records.js)
+- [architecture-check.js](../../../src/integrations/tooling/architecture-check.js)
+- [api-contracts.js](../../../src/integrations/tooling/api-contracts.js)
+- [context-pack.js](../../../src/integrations/tooling/context-pack.js)
+- [graph-context.js](../../../src/integrations/tooling/graph-context.js)
+- [impact.js](../../../src/integrations/tooling/impact.js)
+- [suggest-tests.js](../../../src/integrations/tooling/suggest-tests.js)
+- [cache.js](../../../src/index/type-inference-crossfile/cache.js)
 
 ## What intentionally stayed tool-local
 
@@ -53,4 +53,4 @@ Those still live in `tools/shared` because this issue was about repo/workspace/c
 These are not active roadmap tasks. Reopen this family only from a fresh H32/shared-module audit, governance failure, or import-graph regression:
 
 - move `src/**` callers from `tools/shared/dict-utils.js` only when a current scan proves the edge still exists and has a direct shared owner
-- remove compatibility exports from [dict-utils.js](C:\Users\sneak\Development\DOUBLECLEAT\src\shared\dict-utils.js) only after live consumers and generated ledgers prove they are unused
+- remove compatibility exports from [dict-utils.js](../../../src/shared/dict-utils.js) only after live consumers and generated ledgers prove they are unused

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 
 import { applyTestEnv, withTemporaryEnv } from '../helpers/test-env.js';
 import { ensureFixtureIndex } from '../helpers/fixture-index.js';
@@ -207,7 +208,7 @@ await withTemporaryEnv(env, async () => {
     const riskFlowsPresence = resolveArtifactPresence(codeDir, 'risk_flows', { manifest, strict: false });
     const riskFlowsPath = riskFlowsPresence.paths?.[0] || null;
     assert.ok(riskFlowsPath, 'expected fixture index to include risk_flows artifact');
-    const manifestPath = `${codeDir}\\pieces\\manifest.json`;
+    const manifestPath = path.join(codeDir, 'pieces', 'manifest.json');
     const manifestText = await fs.readFile(manifestPath, 'utf8');
     const manifestJson = JSON.parse(manifestText);
     const manifestBody = manifestJson?.fields && typeof manifestJson.fields === 'object'

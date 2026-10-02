@@ -15,30 +15,30 @@ Most of this surface is genuinely shared and domain-specific rather than a rando
 
 The main cleanup seams are concentrated in a handful of oversized files and two ownership problems:
 
-- move or replace [dict-utils.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/dict-utils.js)
-- split [token-id.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/token-id.js)
-- split [onnx-embeddings.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/onnx-embeddings.js)
-- split [progress-timeout-policy.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/indexing/progress-timeout-policy.js)
-- split [embedding-adapter.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/embedding-adapter.js)
-- split [dense-vector-artifacts.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/dense-vector-artifacts.js)
-- split [build-pointer.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/indexing/build-pointer.js)
-- split [tokenize.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/tokenize.js)
+- move or replace [dict-utils.js](../../../src/shared/dict-utils.js)
+- split [token-id.js](../../../src/shared/token-id.js)
+- split [onnx-embeddings.js](../../../src/shared/onnx-embeddings.js)
+- split [progress-timeout-policy.js](../../../src/shared/indexing/progress-timeout-policy.js)
+- split [embedding-adapter.js](../../../src/shared/embedding-adapter.js)
+- split [dense-vector-artifacts.js](../../../src/shared/dense-vector-artifacts.js)
+- split [build-pointer.js](../../../src/shared/indexing/build-pointer.js)
+- split [tokenize.js](../../../src/shared/tokenize.js)
 
 ## Runtime-Risk Notes
 
-- [onnx-embeddings.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/onnx-embeddings.js): session lifecycle, runtime/provider selection, batch execution, and output handling still live together; ONNX config, run-queue, and tokenization helpers now live under `src/shared/onnx-embeddings/**` instead of the shared root.
-- [progress-timeout-policy.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/indexing/progress-timeout-policy.js): timeout classification, budget-extension rules, and progress interpretation are coupled together.
-- [embedding-adapter.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/embedding-adapter.js): adapter selection, provider normalization, request shaping, and fallback behavior are combined.
-- [dense-vector-artifacts.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/dense-vector-artifacts.js): artifact naming, binary serialization, JSONL sharding, hydration, and row materialization all meet in one file.
-- [build-pointer.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/indexing/build-pointer.js): active generation selection and build freshness semantics are correctness-critical.
-- [tokenize.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/tokenize.js): stemming, identifier splitting, punctuation extraction, dictionary segmentation, and n-grams are mixed together.
+- [onnx-embeddings.js](../../../src/shared/onnx-embeddings.js): session lifecycle, runtime/provider selection, batch execution, and output handling still live together; ONNX config, run-queue, and tokenization helpers now live under `src/shared/onnx-embeddings/**` instead of the shared root.
+- [progress-timeout-policy.js](../../../src/shared/indexing/progress-timeout-policy.js): timeout classification, budget-extension rules, and progress interpretation are coupled together.
+- [embedding-adapter.js](../../../src/shared/embedding-adapter.js): adapter selection, provider normalization, request shaping, and fallback behavior are combined.
+- [dense-vector-artifacts.js](../../../src/shared/dense-vector-artifacts.js): artifact naming, binary serialization, JSONL sharding, hydration, and row materialization all meet in one file.
+- [build-pointer.js](../../../src/shared/indexing/build-pointer.js): active generation selection and build freshness semantics are correctness-critical.
+- [tokenize.js](../../../src/shared/tokenize.js): stemming, identifier splitting, punctuation extraction, dictionary segmentation, and n-grams are mixed together.
 
 ## Maintainability Notes
 
-- [dict-utils.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/dict-utils.js) is only a root-level re-export of `tools/shared/dict-utils.js`.
+- [dict-utils.js](../../../src/shared/dict-utils.js) is only a root-level re-export of `tools/shared/dict-utils.js`.
 - ONNX helper roots `src/shared/onnx-config.js`, `src/shared/onnx-run-queue.js`, and `src/shared/onnx-tokenization.js` have been removed; their owners are `src/shared/onnx-embeddings/config.js`, `run-queue.js`, and `tokenization.js`.
-- [token-id.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/token-id.js) mixes generic token hashing with a specialized typed posting map.
-- The old `src/shared/risk-explain.js` facade has been removed; [risk-explain-summary.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/risk-explain-summary.js) and [risk-explain-model.js](C:/Users/sneak/Development/DOUBLECLEAT/src/shared/risk-explain-model.js) now own summary shaping and explanation model behavior directly.
+- [token-id.js](../../../src/shared/token-id.js) mixes generic token hashing with a specialized typed posting map.
+- The old `src/shared/risk-explain.js` facade has been removed; [risk-explain-summary.js](../../../src/shared/risk-explain-summary.js) and [risk-explain-model.js](../../../src/shared/risk-explain-model.js) now own summary shaping and explanation model behavior directly.
 
 ## File Ledger
 
