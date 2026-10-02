@@ -451,6 +451,29 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         onCompatibilityWarning: addProfileWarning
       })
       : null;
+    const sqliteStatesForCache = {
+      code: sqliteStateCode,
+      prose: sqliteStateProse,
+      'extracted-prose': sqliteStateExtractedProse
+    };
+    const resolveSqliteCachePath = (dbPath) => (
+      typeof dbPath === 'string' && dbPath ? path.resolve(dbPath) : null
+    );
+    const sqlitePathByMode = {
+      code: resolveSqliteCachePath(sqliteCodePath),
+      prose: resolveSqliteCachePath(sqliteProsePath),
+      'extracted-prose': resolveSqliteCachePath(sqliteExtractedProsePath)
+    };
+    const requestedSqlitePaths = new Set(dbModeSelection.map((mode) => sqlitePathByMode[mode]));
+    // Cache identities cover every mode stored in a requested physical file.
+    // Keep these extra states out of requested-mode preflight and diagnostics.
+    for (const [mode, dbPath] of Object.entries(sqlitePathByMode)) {
+      if (!dbPath || dbModeSelection.includes(mode) || !requestedSqlitePaths.has(dbPath)) continue;
+      sqliteStatesForCache[mode] = loadIndexState(rootDir, userConfig, mode, {
+        resolveOptions: indexResolveOptions,
+        onCompatibilityWarning: () => {}
+      });
+    }
     const indexStateByMode = {
       code: sqliteStateCode,
       prose: sqliteStateProse,
@@ -676,11 +699,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       vectorExtension,
       vectorAnnEnabled,
       dbCache: sqliteCache,
-      sqliteStates: {
-        code: sqliteStateCode,
-        prose: sqliteStateProse,
-        'extracted-prose': sqliteStateExtractedProse
-      },
+      sqliteStates: sqliteStatesForCache,
       lmdbCodePath,
       lmdbProsePath,
       lmdbStates: {
@@ -1239,5 +1258,3 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
   }
 }
-
-

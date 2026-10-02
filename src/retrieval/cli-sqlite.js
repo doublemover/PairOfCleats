@@ -192,16 +192,38 @@ export async function createSqliteBackend(options) {
     dense_meta: ['mode', 'dims', 'scale', 'model', 'min_val', 'max_val', 'levels']
   };
 
-  const generationTagByMode = {
-    code: buildSqliteGenerationTag('code', sqliteStates?.code, generationContext),
-    prose: buildSqliteGenerationTag('prose', sqliteStates?.prose, generationContext),
-    'extracted-prose': buildSqliteGenerationTag('extracted-prose', sqliteStates?.['extracted-prose'], generationContext)
+  const sqlitePathByMode = {
+    code: sqliteCodePath ? path.resolve(sqliteCodePath) : null,
+    prose: sqliteProsePath ? path.resolve(sqliteProsePath) : null,
+    'extracted-prose': sqliteExtractedProsePath ? path.resolve(sqliteExtractedProsePath) : null
   };
+  const modeTagsByPath = new Map();
+  for (const [mode, dbPath] of Object.entries(sqlitePathByMode)) {
+    if (!dbPath) continue;
+    const modeTags = modeTagsByPath.get(dbPath) || {};
+    modeTags[mode] = buildSqliteGenerationTag(mode, sqliteStates?.[mode], generationContext);
+    modeTagsByPath.set(dbPath, modeTags);
+  }
+  // A cache entry owns a physical handle, so co-resident modes must share one
+  // identity. Include configured modes even when this search only needs one:
+  // changing any participating generation must invalidate the shared handle.
+  const generationTagByPath = new Map();
+  for (const [dbPath, modeTags] of modeTagsByPath) {
+    const tags = Object.values(modeTags);
+    generationTagByPath.set(dbPath, tags.length === 1 ? tags[0] : stableStringifyForSignature(modeTags));
+  }
+  const openedByPath = new Map();
 
-  const openSqlite = (dbPath, label, mode) => {
-    const generationTag = generationTagByMode[mode] || null;
+  const openSqlite = (mode) => {
+    const dbPath = sqlitePathByMode[mode];
+    const label = mode;
+    if (openedByPath.has(dbPath)) return openedByPath.get(dbPath);
+    const generationTag = generationTagByPath.get(dbPath) || null;
     const cached = dbCache?.get?.(dbPath, { generationTag });
-    if (cached) return cached;
+    if (cached) {
+      openedByPath.set(dbPath, cached);
+      return cached;
+    }
     let db;
     let dbStat = null;
     try {
@@ -263,6 +285,7 @@ export async function createSqliteBackend(options) {
       ...(sqliteReadPragmas && typeof sqliteReadPragmas === 'object' ? sqliteReadPragmas : {})
     });
     if (dbCache?.set) dbCache.set(dbPath, db, { generationTag });
+    openedByPath.set(dbPath, db);
     return db;
   };
 
@@ -292,27 +315,17 @@ export async function createSqliteBackend(options) {
     vectorAnnState[mode].column = config.column;
   };
 
-  if (needsCode) dbCode = openSqlite(sqliteCodePath, 'code', 'code');
-  if (needsProse) dbProse = openSqlite(sqliteProsePath, 'prose', 'prose');
-  if (needsExtractedProse) dbExtractedProse = openSqlite(sqliteExtractedProsePath, 'extracted-prose', 'extracted-prose');
+  if (needsCode) dbCode = openSqlite('code');
+  if (needsProse) dbProse = openSqlite('prose');
+  if (needsExtractedProse) dbExtractedProse = openSqlite('extracted-prose');
   if (needsCode) initVectorAnn(dbCode, 'code');
   if (needsProse) initVectorAnn(dbProse, 'prose');
   if (needsExtractedProse) initVectorAnn(dbExtractedProse, 'extracted-prose');
   if ((needsCode && !dbCode) || (needsProse && !dbProse) || (needsExtractedProse && !dbExtractedProse)) {
-    if (dbCode) {
+    for (const [dbPath, db] of openedByPath) {
       dbCache?.close
-        ? dbCache.close(sqliteCodePath, { generationTag: generationTagByMode.code })
-        : dbCode.close();
-    }
-    if (dbProse) {
-      dbCache?.close
-        ? dbCache.close(sqliteProsePath, { generationTag: generationTagByMode.prose })
-        : dbProse.close();
-    }
-    if (dbExtractedProse) {
-      dbCache?.close
-        ? dbCache.close(sqliteExtractedProsePath, { generationTag: generationTagByMode['extracted-prose'] })
-        : dbExtractedProse.close();
+        ? dbCache.close(dbPath, { generationTag: generationTagByPath.get(dbPath) })
+        : db.close();
     }
     dbCode = null;
     dbProse = null;

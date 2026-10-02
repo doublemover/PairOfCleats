@@ -162,6 +162,19 @@ completion:
   and pointer-only snapshot resolution remain supported. The IndexRef and
   snapshot-registry selectors passed (2 tests, 0.446 s; sampled peak aggregate
   RSS 121.1 MiB), with changed-file ESLint and the tighter resource guards.
+- Shared SQLite code/prose paths used mode-specific cache keys, so opening the
+  second mode closed the first mode's handle in the same request. Configured
+  co-resident modes now share one physical handle and a combined generation
+  identity, including unrequested co-resident state for warm single/mixed reuse.
+  Separate files, real generation invalidation, ANN mode table names and unique
+  fallback cleanup remain intact. Six focused selectors passed (3.38 s; sampled
+  peak aggregate RSS 335.7 MiB), including a schema-only SQLite fixture, loader
+  and no-sync-FS contracts; changed-file ESLint passed. No full index was built.
+
+Remaining confirmed lifecycle work is separate from that co-residency fix:
+in-flight handles still need protection from cross-file LRU/generation eviction,
+and uncached search backends need explicit request-finally cleanup. Those gaps
+are not counted as solved by sharing same-path handles.
 
 The risk and generation-isolation batches passed changed-file ESLint under the same one-CPU, 512 MiB Node,
 sampled 1 GiB aggregate guard and 30-second per-test limit. These source fixes do
