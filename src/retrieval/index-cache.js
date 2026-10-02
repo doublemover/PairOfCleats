@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { createLruCache } from '../shared/cache/lru.js';
 import { runWithConcurrency } from '../shared/concurrency/run-with-queue.js';
 import { incCacheEviction, setCacheSize } from '../shared/metrics/core.js';
@@ -135,8 +136,13 @@ export const readIndexStateSignature = async (dir) => {
         ? state.artifactSurfaceVersion
         : '';
       if (buildId || mode || artifactSurfaceVersion) {
+        // Enrichment and standalone embeddings update an existing build in
+        // place. Its identity fields alone cannot describe artifact freshness.
+        // Hash the bounded bytes already read, avoiding extra artifact probes
+        // and preserving warm reuse when identical state is rewritten.
+        const stateHash = createHash('sha256').update(raw).digest('hex');
         return {
-          signature: `build:${buildId || 'missing'}|mode:${mode || 'missing'}|surface:${artifactSurfaceVersion || 'missing'}`,
+          signature: `build:${buildId || 'missing'}|mode:${mode || 'missing'}|surface:${artifactSurfaceVersion || 'missing'}|state:${stateHash}`,
           buildId: buildId || null,
           mode: mode || null,
           artifactSurfaceVersion: artifactSurfaceVersion || null

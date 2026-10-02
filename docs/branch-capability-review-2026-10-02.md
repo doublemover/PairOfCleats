@@ -195,6 +195,16 @@ this pass. Custom raw Map caches retain external ownership; only caches
 implementing leases provide active eviction safety. The broader release,
 platform and measured-performance boundaries below remain unchanged.
 
+Same-build freshness review subsequently found that loaded file-backed indexes
+and search signatures ignored changes to embedding readiness and identity when
+the build ID, mode and artifact surface stayed constant. Standalone embeddings
+update that state in place. A regression reproduced stale pending state after
+completion; the signature now includes a digest of the already-read index-state
+bytes. This also distinguishes state changes sharing a timestamp while identical
+state rewrites retain warm reuse. The index-cache, legacy dense-signature and
+federation generation-context selectors and two-file ESLint passed under the
+same bounded resource guards, without an index or embedding build.
+
 The two new lifecycle regressions are also registered in the ordered `ci-lite`
 lane at positions 770 and 771. Targeted manifest generation preserved all prior
 entries/order/metadata and every other lane manifest. Membership listing and

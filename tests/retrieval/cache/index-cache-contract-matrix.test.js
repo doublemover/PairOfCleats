@@ -108,6 +108,62 @@ const cases = [
     }
   },
   {
+    name: 'same-build embedding state updates invalidate warm file-backed indexes',
+    async run() {
+      const indexDir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-index-state-update-'));
+      try {
+        const statePath = path.join(indexDir, 'index_state.json');
+        const state = {
+          buildId: 'same-build',
+          mode: 'code',
+          artifactSurfaceVersion: '1',
+          updatedAt: '2026-10-02T00:00:00.000Z',
+          embeddings: { enabled: true, ready: false, pending: true }
+        };
+        const writeState = () => fs.writeFile(statePath, JSON.stringify(state));
+        const cache = new Map();
+        const options = { generationTag: { buildId: state.buildId } };
+        let loads = 0;
+        const loader = async () => ({
+          loaded: ++loads,
+          state: JSON.parse(await fs.readFile(statePath, 'utf8'))
+        });
+
+        await writeState();
+        const pending = await loadIndexWithCache(cache, indexDir, options, loader);
+        assert.strictEqual(await loadIndexWithCache(cache, indexDir, options, loader), pending);
+        const pendingSignature = await buildIndexSignature(indexDir);
+
+        // Standalone embedding completion updates state in the existing build.
+        // Do not rely on a new build ID, directory, or signature-cache TTL.
+        state.updatedAt = '2026-10-02T00:00:01.000Z';
+        state.embeddings = { enabled: true, ready: true, pending: false };
+        await writeState();
+        const ready = await loadIndexWithCache(cache, indexDir, options, loader);
+        assert.equal(ready.state.embeddings.ready, true);
+        assert.equal(loads, 2, 'embedding completion must reload a warm same-build index');
+        assert.notEqual(await buildIndexSignature(indexDir), pendingSignature);
+
+        // Distinct changes can share a timestamp. The full state, not just
+        // updatedAt, must invalidate both loaded-index and search signatures.
+        const readySignature = await buildIndexSignature(indexDir);
+        state.embeddings.embeddingIdentityKey = 'replacement-model';
+        await writeState();
+        const replacement = await loadIndexWithCache(cache, indexDir, options, loader);
+        assert.equal(replacement.state.embeddings.embeddingIdentityKey, 'replacement-model');
+        assert.equal(loads, 3);
+        assert.notEqual(await buildIndexSignature(indexDir), readySignature);
+
+        // Rewriting identical state does not turn mtime-only changes into reloads.
+        await writeState();
+        assert.strictEqual(await loadIndexWithCache(cache, indexDir, options, loader), replacement);
+        assert.equal(loads, 3);
+      } finally {
+        await fs.rm(indexDir, { recursive: true, force: true });
+      }
+    }
+  },
+  {
     name: 'index signature cache evicts oldest entries beyond the 256-entry cap',
     async run() {
       const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-index-signature-cache-'));
