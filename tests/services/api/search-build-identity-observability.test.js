@@ -5,6 +5,7 @@ import path from 'node:path';
 import { readCurrentBuildGeneration } from '../../../src/shared/indexing/build-pointer.js';
 import { prepareFixtureApiServerCohort } from '../../helpers/api-server.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
+import { redactAbsolutePaths } from '../../../tools/api/redact.js';
 
 const cohort = await prepareFixtureApiServerCohort({
   cacheName: 'api-search-build-identity',
@@ -30,12 +31,12 @@ try {
   assert.equal(response.body?.result?.observability?.context?.buildId, currentInfo.buildId);
   assert.equal(
     response.body?.result?.observability?.context?.activeBuildRoot,
-    currentInfo.activeRoot,
-    'expected API search result observability to expose the active generation root'
+    '<redacted:absolute-path>',
+    'API search observability must redact the active generation root'
   );
   assert.equal(
     response.body?.result?.observability?.context?.buildGenerationKey,
-    currentInfo.generationKey,
+    redactAbsolutePaths(currentInfo.generationKey),
     'expected API search result observability to expose the active generation key'
   );
   assert.equal(
@@ -45,12 +46,12 @@ try {
   );
   assert.equal(
     response.body?.result?.retrieval?.freshness?.activeGeneration?.activeBuildRoot,
-    currentInfo.activeRoot,
-    'expected API retrieval metadata to expose the active build root'
+    '<redacted:absolute-path>',
+    'API retrieval metadata must redact the active build root'
   );
   assert.equal(
     response.body?.result?.retrieval?.freshness?.activeGeneration?.buildGenerationKey,
-    currentInfo.generationKey,
+    redactAbsolutePaths(currentInfo.generationKey),
     'expected API retrieval metadata to expose the active generation key'
   );
 } finally {

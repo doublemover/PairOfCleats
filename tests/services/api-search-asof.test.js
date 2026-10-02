@@ -331,7 +331,7 @@ try {
   assert.equal(statusResponse.body?.ok, true);
   assert.ok(statusResponse.body?.status?.repo?.root, 'status endpoint should include repo payload');
 
-  const combinedBodies = JSON.stringify({
+  const combinedBodies = {
     responseA: responseA.body,
     responseB: responseB.body,
     responseLatest: responseLatest.body,
@@ -341,8 +341,15 @@ try {
     diffShow: diffShow.body,
     statusResponse: statusResponse.body,
     eventLines
-  });
-  assert.equal(combinedBodies.includes(repoRoot), false, 'API responses should not expose absolute repo paths');
+  };
+  const assertNoRepoPath = (value, field = 'response') => {
+    if (typeof value === 'string') {
+      assert.equal(value.includes(repoRoot), false, `API response ${field} should not expose an absolute repo path: ${value}`);
+    } else if (value && typeof value === 'object') {
+      for (const [key, entry] of Object.entries(value)) assertNoRepoPath(entry, `${field}.${key}`);
+    }
+  };
+  assertNoRepoPath(combinedBodies);
 } finally {
   await stop();
 }

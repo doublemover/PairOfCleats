@@ -2,6 +2,7 @@
 
 Status: Active
 Last audited: 2026-05-22
+Current branch validation: 2026-10-02 (in progress; fresh coverage below)
 Canonical for: execution order, initiative status, and roadmap-style "what next" decisions.
 
 This document consolidates the repo's scattered roadmap, implementation-plan, worklog, backlog, and readiness material into one current status surface. Focused specs still define normative behavior; this roadmap defines current initiative status and the next execution queue.
@@ -229,7 +230,7 @@ Active roadmap/spec finalization follow-up, 2026-05-21: the final active-doc sca
 
 ## Canonical Next Queue
 
-### Live correctness and dependency/security follow-through (2026-10-02T01:25:00Z)
+### Live correctness and dependency/security follow-through (2026-10-02T02:05:00Z)
 
 The isolated `hydro/complete-outstanding-work` branch preserves the complete
 NEON_TIDE implementation. Main `b9398da` was verified tree-identical to NEON_TIDE
@@ -249,8 +250,21 @@ Fresh synthetic regressions reopened concrete correctness work:
 - #515: schema-valid configuration survives loading with false/zero values and CLI
   precedence intact. The new loader schema/search/indexing tests and eleven related
   focused tests pass. Unsupported `indexing.maxFileLines` emits an actionable warning.
-- #516 and #517: dimension identity and subprocess/cancellation fixes are in progress;
-  end-to-end embedding/CLI validation remains required before completion.
+- #516: provider dimensions are resolved before cache identities and pending state.
+  A canonical synthetic provider proves inferred dimensions and warm-cache reuse.
+  A real cached MiniLM q8 standalone build with omitted dimensions writes matching
+  384D identity/vector metadata and passes strict LanceDB ANN search.
+- #517: unexpected child signals are failures carrying the actual signal;
+  requested cancellation cannot return CLI success. Actual CLI fault injection
+  for SIGTERM and SIGKILL verifies nonzero exit, no false completion message,
+  and preservation of the previous current-build pointer. Windows signal behavior
+  remains a separate platform check.
+- HTTP privacy: status JSON now redacts absolute server paths, matching existing
+  SSE behavior. Search and analysis diagnostic metadata is redacted at the HTTP
+  boundary while local core contracts, queries, and source snippets are preserved.
+  Structured POSIX/Windows/UNC assertions prevent JSON escaping from hiding leaks;
+  status/SSE, as-of retrieval, generation metadata, correlation and risk adapter
+  regressions pass.
 - Dependency remediation is implemented with 31 focused tests, all 33 native
   grammar activations, real q8/native-ONNX inference, installed-lock consistency,
   and an approved final npm audit at zero known vulnerabilities. The authenticated
@@ -258,6 +272,18 @@ Fresh synthetic regressions reopened concrete correctness work:
   `docs/security/dependabot-inventory-2026-10-02.json`. These branch changes require
   merge/rescan for GitHub alert closure. Local CodeQL and remaining platform/release
   checks are separate, still-pending gates; hosted scanner settings are unchanged.
+  Offline RustSec review additionally identified applicable anyhow, lru and rand
+  unsoundness advisories; Rust remediation and compile validation are in progress.
+
+Fresh roadmap validation has passed full-language conformance (11), USR gates (5),
+Stage1 contracts/runtime/watchdog/memory (37), and lexicon/retrieval checks (76).
+Risk, snapshots, shared-module governance and release-readiness initial failures
+have targeted corrections and reruns; final aggregate lanes are still pending.
+Formatting, governance regeneration, and generated-surface freshness pass.
+The interrupted ci-lite run is not a completed pass. Measured Sweet16 and local
+CodeQL analysis require their remaining resource-coordinated validation windows.
+Missing fixed historical May evidence remains explicitly unavailable/unverified;
+it is not reconstructed or counted as fresh evidence.
 
 The seven historical lanes below remain the validation framework. Do not reopen
 archived checklists or claim a release-wide pass from these focused tests. Refresh

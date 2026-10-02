@@ -26,11 +26,13 @@ assert.deepEqual(
 
 const cancelled = buildStreamedStage3Result({
   embedModes: ['code'],
-  streamedEmbeddingsByMode: [{ mode: 'code', result: { embeddings: { cancelled: true } } }],
+  streamedEmbeddingsByMode: [{ mode: 'code', result: { embeddings: { cancelled: true, signal: 'SIGTERM', code: null } } }],
   streamedCancelled: true,
   repo: '/tmp/repo'
 });
 assert.equal(cancelled.embeddings.cancelled, true, 'expected cancelled stream result');
+assert.equal(cancelled.embeddings.signal, 'SIGTERM', 'stream summary must retain the cancellation signal');
+assert.equal(cancelled.embeddings.code, null);
 
 const mixed = buildStreamedStage3Result({
   embedModes: ['code', 'prose'],

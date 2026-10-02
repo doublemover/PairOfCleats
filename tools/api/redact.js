@@ -24,3 +24,9 @@ export const redactAbsolutePaths = (value) => {
   return output;
 };
 
+/** Remove server paths from diagnostic metadata without changing source content. */
+export const redactSearchResponseMetadata = (result) => ({
+  ...result,
+  observability: redactAbsolutePaths(result?.observability),
+  retrieval: redactAbsolutePaths(result?.retrieval)
+});

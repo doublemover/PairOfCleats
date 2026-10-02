@@ -122,8 +122,10 @@ export const main = async ({
     });
     if (result?.stage3?.embeddings?.cancelled) {
       closeDisplay();
-      writeLine('Index build cancelled during embeddings.');
-      return 0;
+      const cancellation = result.stage3.embeddings;
+      const signal = cancellation.signal || abortController.signal.reason;
+      writeLine(`Index build cancelled during embeddings${signal ? ` (${signal})` : ''}; validation and promotion did not complete.`);
+      return signal === 'SIGTERM' ? 143 : 130;
     }
     const preprocessPath = repoCacheRoot
       ? path.join(repoCacheRoot, 'preprocess.json')

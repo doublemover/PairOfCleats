@@ -1537,7 +1537,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const denseScale = quantLevels > 1 && Number.isFinite(quantRange) && quantRange !== 0
     ? quantRange / (quantLevels - 1)
     : 2 / 255;
-  const cacheDims = useStubEmbeddings ? resolveStubDims(configuredDims) : configuredDims;
+  let cacheDims = useStubEmbeddings ? resolveStubDims(configuredDims) : configuredDims;
   const embeddingInputFormatting = resolveEmbeddingInputFormatting(modelId);
   const resolvedOnnxModelPath = embeddingProvider === 'onnx'
     ? resolveOnnxModelPath({
@@ -1786,9 +1786,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
     throw err;
   }
   const getChunkEmbeddings = embedder.getChunkEmbeddings;
-  if (!useStubEmbeddings && embeddingProvider === 'onnx') {
+  if (!useStubEmbeddings && (embeddingProvider === 'onnx' || !cacheDims)) {
     try {
-      await getChunkEmbeddings(['pairofcleats-provider-probe']);
+      const probeVectors = await getChunkEmbeddings(['pairofcleats-provider-probe']);
+      assertVectorArrays(probeVectors, 1, 'provider-probe');
+      const probeDims = probeVectors[0].length;
+      if (cacheDims && cacheDims !== probeDims) {
+        throw new Error(`[embeddings] embedding dims mismatch (configured=${cacheDims}, observed=${probeDims}).`);
+      }
+      cacheDims = probeDims;
     } catch (err) {
       crashLogger.logError({
         phase: 'stage3:init',
@@ -1804,16 +1810,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
     if (typeof detectedProvider === 'string' && detectedProvider && detectedProvider !== runtimeEmbeddingProvider) {
       const priorProvider = runtimeEmbeddingProvider;
       runtimeEmbeddingProvider = detectedProvider;
-      ({
-        cacheIdentity,
-        cacheIdentityKey,
-        cacheKeyFlags
-      } = buildCacheIdentityForProvider(runtimeEmbeddingProvider));
       log(
         `[embeddings] provider fallback resolved before stage3 cache identity: ` +
         `${priorProvider} -> ${runtimeEmbeddingProvider}.`
       );
     }
+    // Resolve dimensions before any cache keys, pending state, or incremental
+    // bundles are written; a ready identity must never carry unknown dims=0.
+    ({ cacheIdentity, cacheIdentityKey, cacheKeyFlags } = buildCacheIdentityForProvider(runtimeEmbeddingProvider));
   }
   const resolvedRawArgv = Array.isArray(rawArgv) ? rawArgv : [];
   const {
@@ -2433,7 +2437,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           return pending;
         };
 
-        const dimsValidator = createDimsValidator({ mode, configuredDims });
+        const dimsValidator = createDimsValidator({ mode, configuredDims: cacheDims });
         const assertDims = dimsValidator.assertDims;
 
         if (configuredDims && cacheEligible) {
@@ -3912,7 +3916,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           );
         }
         const finalDims = observedDims
-        || configuredDims
+        || cacheDims
         || (useStubEmbeddings ? resolveStubDims(configuredDims) : DEFAULT_STUB_DIMS);
         fillMissingVectors(codeVectors, finalDims);
         fillMissingVectors(docVectors, finalDims);
@@ -4477,4 +4481,3 @@ export async function runBuildEmbeddingsWithConfig(config) {
     finalize();
   }
 }
-

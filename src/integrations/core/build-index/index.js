@@ -55,6 +55,7 @@ export const buildStreamedStage3Result = ({
   const queuedModeCount = perMode.filter((entry) => entry?.embeddings?.queued === true).length;
   const inlineModeCount = perMode.filter((entry) => entry?.embeddings?.inline === true).length;
   const mixedMode = queuedModeCount > 0 && inlineModeCount > 0;
+  const cancelledMode = perMode.find((entry) => entry?.embeddings?.cancelled === true)?.embeddings;
   return {
     modes: Array.isArray(embedModes) ? embedModes : [],
     embeddings: {
@@ -63,6 +64,7 @@ export const buildStreamedStage3Result = ({
       mixed: mixedMode,
       streamedFromStage2: true,
       cancelled: streamedCancelled === true,
+      ...(cancelledMode ? { code: cancelledMode.code ?? null, signal: cancelledMode.signal ?? null } : {}),
       queuedModeCount,
       inlineModeCount,
       perMode

@@ -10,6 +10,7 @@ import {
   createSearchValidator
 } from './validation.js';
 import { sendError, sendJson } from './response.js';
+import { redactAbsolutePaths, redactSearchResponseMetadata } from './redact.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import { getToolVersion, toRealPathSync } from '../shared/dict-utils.js';
 import { createSseResponder } from './sse.js';
@@ -259,7 +260,9 @@ export const createApiRouter = ({
         repoPath,
         searchParams
       });
-      sendJson(res, 200, attachObservability({ ok: true, result: body }, requestObservability), responseHeaders);
+      // Preserve source snippets and queries while sanitizing server metadata.
+      const publicBody = redactSearchResponseMetadata(body);
+      sendJson(res, 200, attachObservability({ ok: true, result: publicBody }, requestObservability), responseHeaders);
     } catch (err) {
       if (req.aborted || res.writableEnded || (!ignoreControllerAbort && controller.signal.aborted)) return;
       if (isNoIndexError(err)) {
@@ -427,7 +430,7 @@ export const createApiRouter = ({
           const payload = await status(repoPath);
           sendJson(res, 200, {
             ok: true,
-            status: payload,
+            status: redactAbsolutePaths(payload),
             trustBoundary: buildApiTrustBoundaryStatusView(trustBoundary)
           }, corsHeaders || {});
         } catch (err) {

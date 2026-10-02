@@ -9,6 +9,7 @@ import { buildContextPackRequestInput } from '../../../src/shared/context-pack-r
 import { attachObservability, buildChildObservability } from '../../../src/shared/observability.js';
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { sendError, sendJson } from '../response.js';
+import { redactAbsolutePaths } from '../redact.js';
 import {
   classifyWorkspaceRequestError,
   parseJsonBodyOrSendError,
@@ -80,7 +81,7 @@ export async function handleRiskExplainRoute({
       includePartialFlows: riskRequest.includePartialFlows,
       maxPartialFlows: riskRequest.maxPartialFlows
     });
-    sendJson(res, 200, attachObservability({ ok: true, result }, resultObservability), corsHeaders || {});
+    sendJson(res, 200, attachObservability({ ok: true, result }, redactAbsolutePaths(resultObservability)), corsHeaders || {});
     return true;
   } catch (err) {
     const message = err?.message || 'Failed to build risk explanation.';
@@ -155,7 +156,7 @@ export async function handleContextPackRoute({
         trustedWorkspaceConfig: Boolean(workspaceConfig)
       }
     );
-    sendJson(res, 200, attachObservability({ ok: true, result }, resultObservability), corsHeaders || {});
+    sendJson(res, 200, attachObservability({ ok: true, result }, redactAbsolutePaths(resultObservability)), corsHeaders || {});
     return true;
   } catch (err) {
     const message = err?.message || 'Failed to build context pack.';
@@ -239,7 +240,7 @@ export async function handleRiskDeltaRoute({
       filters,
       includePartialFlows: riskRequest.includePartialFlows
     });
-    sendJson(res, 200, attachObservability({ ok: true, result }, resultObservability), corsHeaders || {});
+    sendJson(res, 200, attachObservability({ ok: true, result }, redactAbsolutePaths(resultObservability)), corsHeaders || {});
     return true;
   } catch (err) {
     const status = err?.code === ERROR_CODES.INVALID_REQUEST ? 400
