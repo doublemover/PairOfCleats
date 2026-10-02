@@ -163,7 +163,7 @@
     "simple-git": "3.31.1",
     "smol-toml": "^1.6.0",
     "snowball-stemmers": "0.6.0",
-    "svelte": "^5.51.5",
+    "svelte": "^5.53.5",
     "tar-fs": "3.1.1",
     "terminal-kit": "^3.1.2",
     "three": "^0.183.1",
