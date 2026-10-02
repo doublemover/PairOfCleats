@@ -444,13 +444,16 @@ export function createLspClient(options) {
 
   const send = (payload) => {
     if (!writer || writerClosed) return false;
+    const currentWriter = writer;
+    const currentGen = generation;
     traceRecorder.recordOutbound(payload, {
       providerId: providerId || cmd,
       sessionKey
     });
-    const pendingWrite = writer.write(payload);
+    const pendingWrite = currentWriter.write(payload);
     if (pendingWrite && typeof pendingWrite.catch === 'function') {
       pendingWrite.catch((err) => {
+        if (writer !== currentWriter || generation !== currentGen) return;
         if (isClosedStreamWriteError(err)) {
           rejectPendingTransportClosed();
           writerClosed = true;
@@ -491,6 +494,8 @@ export function createLspClient(options) {
   };
 
   const handleRequest = async (message) => {
+    const currentWriter = writer;
+    const currentGen = generation;
     traceRecorder.recordInbound(message, {
       providerId: providerId || cmd,
       sessionKey
@@ -498,8 +503,10 @@ export function createLspClient(options) {
     if (typeof onRequest === 'function') {
       try {
         const result = await onRequest(message);
+        if (writer !== currentWriter || generation !== currentGen) return;
         send({ jsonrpc: '2.0', id: message.id, result: result ?? null });
       } catch (err) {
+        if (writer !== currentWriter || generation !== currentGen) return;
         send({
           jsonrpc: '2.0',
           id: message.id,
@@ -810,14 +817,22 @@ export function createLspClient(options) {
   };
 
   const initialize = async ({ rootUri, capabilities, initializationOptions, workspaceFolders, timeoutMs } = {}) => {
-    const result = await request('initialize', {
+    const initialization = request('initialize', {
       processId: process.pid,
       rootUri: rootUri || null,
       capabilities: mergeInitializeCapabilities(capabilities),
       initializationOptions: initializationOptions || null,
       workspaceFolders: workspaceFolders || (rootUri ? [{ uri: rootUri, name: rootUri.split('/').pop() || 'workspace' }] : null)
     }, { timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : 10000 });
-    notify('initialized', {});
+    const current = proc;
+    const currentGen = generation;
+    const result = await initialization;
+    if (proc !== current || generation !== currentGen || !isTransportRunning()) {
+      const err = new Error('LSP transport closed.');
+      err.code = 'ERR_LSP_TRANSPORT_CLOSED';
+      throw err;
+    }
+    notify('initialized', {}, { startIfNeeded: false });
     backoffMs = 0;
     nextStartAt = 0;
     return result;
@@ -825,16 +840,17 @@ export function createLspClient(options) {
 
   const shutdownAndExit = async () => {
     if (!proc) return;
+    const current = proc;
+    const currentGen = generation;
     if (isTransportRunning()) {
       try {
         await request('shutdown', null, { timeoutMs: 5000, startIfNeeded: false });
       } catch {}
+      if (proc !== current || generation !== currentGen) return;
       if (!writerClosed) {
         notify('exit', null, { startIfNeeded: false });
       }
     }
-    const current = proc;
-    const currentGen = generation;
     await new Promise((resolve) => {
       if (!isChildRunning(current)) {
         resolve();

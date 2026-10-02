@@ -82,6 +82,10 @@ SafeRegex through `indexing.riskRules.regex` (`flags`, `engine`, `maxPatternLeng
 diagnostics and are excluded. Regex input failures count as no-match. Sources,
 sinks, and sanitizers retain the first evidence location per rule; flows retain the
 first distinct source/sink/scope/via combination in source traversal order.
+Reconverging aliases deduplicate references to the same original source evidence,
+so repeated paths do not multiply stored evidence or prematurely exhaust the edge
+budget. Distinct source records and their traversal order are preserved. Explicit
+zero rule confidence is retained; only missing confidence uses the default.
 `scope`, `excludes`, `maxMatchesPerLine`, and `maxMatchesPerFile` are not supported
 rule fields and should not be used to configure this engine.
 
@@ -98,4 +102,3 @@ that fail SafeRegex compilation (code, message, ruleId, ruleName, field, pattern
 - SafeRegex evaluation is guarded; regex errors are treated as no-match.
 - A lightweight prefilter is applied before regex evaluation to reduce scan overhead.
 - See `docs/specs/analysis-schemas.md` for analysis policy defaults.
-

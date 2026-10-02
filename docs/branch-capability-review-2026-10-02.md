@@ -127,6 +127,31 @@ of `mess`'s nonmerge commits; the extra `64b90824` patch was reviewed separately
 
 ## Validation and remaining boundary
 
+### Subsequent current-source correctness checks
+
+Continued review after the initial checkpoint found and corrected two additional
+implementation gaps rather than treating branch reconciliation as product
+completion:
+
+- Reconverging local-risk aliases duplicated identical source-evidence objects
+  exponentially. A 12-alias regression reproduced premature `maxEdges` truncation
+  before the sink. Stable original-object deduplication preserves distinct source
+  records and traversal order; explicit zero confidence also retains its value.
+  The risk contract, rule configuration, and invalid-pattern diagnostic selectors
+  passed (3 tests, 0.314 s; sampled peak aggregate RSS 118.75 MiB).
+- LSP asynchronous write failures, server-request replies, initialization, and
+  shutdown could affect a replacement transport after restart. Each continuation
+  now checks its originating process/writer generation. Four focused generation,
+  closed-transport shutdown, normal shutdown, and timeout-cancellation selectors
+  passed (1.32 s; sampled peak aggregate RSS 150.05 MiB), including current-session
+  controls, reused server request IDs, and initialization failure behavior.
+
+Both batches passed changed-file ESLint under the same one-CPU, 512 MiB Node,
+sampled 1 GiB aggregate guard and 30-second per-test limit. These source fixes do
+not turn the deferred release-wide validation into a completed campaign.
+
+### Initial checkpoint evidence
+
 The 11 affected tests named for this pass all passed in three sequential groups
 (2, 3, and 6). Group test durations were 0.198 s, 4.35 s, and 2.15 s; the largest
 sampled aggregate RSS was 318.53 MiB. Every group used one CPU, one test job,

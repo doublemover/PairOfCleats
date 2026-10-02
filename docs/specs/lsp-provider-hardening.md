@@ -98,8 +98,11 @@ In `createLspClient(...)`, track a monotonically increasing `generation`:
 
 - each `start()` increments generation and associates it with the spawned process
 - exit handler only performs cleanup if the exiting process generation matches current generation
+- asynchronous write failures only reject requests belonging to their original writer and generation
+- delayed server-request handlers only reply on the transport that received the request
+- initialization only sends `initialized` and resets backoff for its original live transport; a stale continuation rejects with `ERR_LSP_TRANSPORT_CLOSED`
 
-This prevents old exit events from tearing down a newly started process.
+This prevents old exit events and asynchronous continuations from corrupting a newly started process.
 
 ### 4.2 Backoff policy (mandatory)
 
@@ -113,6 +116,7 @@ Ensure:
 - `shutdown` request is sent when possible
 - `exit` notification follows
 - hard kill after timeout
+- capture the original process and generation before awaiting shutdown; a restart ends that shutdown attempt without sending exit to, waiting on, or killing the replacement
 
 ---
 
@@ -208,4 +212,3 @@ node tests/run.js tooling/lsp/bychunkuid-keying tooling/lsp/restart-generation-s
 ```
 
 Evidence: `temp/validation/lsp-vfs-focused-spec-acceptance-20260521.log`.
-
