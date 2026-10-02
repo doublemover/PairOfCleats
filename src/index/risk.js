@@ -171,16 +171,18 @@ const isAssignment = (line) => {
 
 const combineSourceEvidence = (sourceMatches, taintedSources) => {
   const sources = [];
+  const seen = new Set();
   const ruleIds = new Set();
-  for (const match of sourceMatches || []) {
-    sources.push(match);
-    ruleIds.add(match.rule.id);
-  }
-  for (const entry of taintedSources || []) {
-    if (!entry) continue;
-    sources.push(entry);
-    if (entry.ruleId) ruleIds.add(entry.ruleId);
-    if (entry.rule?.id) ruleIds.add(entry.rule.id);
+  for (const group of [sourceMatches, taintedSources]) {
+    for (const entry of group || []) {
+      // Aliases retain original evidence objects. Reconverging paths must not
+      // multiply that same evidence, but distinct original matches stay intact.
+      if (!entry || seen.has(entry)) continue;
+      seen.add(entry);
+      sources.push(entry);
+      if (entry.ruleId) ruleIds.add(entry.ruleId);
+      if (entry.rule?.id) ruleIds.add(entry.rule.id);
+    }
   }
   return { sources, ruleIds: Array.from(ruleIds) };
 };
@@ -298,24 +300,24 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
     const assignment = isAssignment(line);
     if (assignment) {
       nodes += 1;
-      const rhsTainted = [];
+      const rhsTainted = new Set();
       for (const [name, info] of taint.entries()) {
         if (lineContainsVar(assignment.rhs, name)) {
-          rhsTainted.push(...toArray(info?.sources));
+          for (const source of toArray(info?.sources)) rhsTainted.add(source);
         }
       }
       const { sources: newSources, ruleIds } = combineSourceEvidence(sourceMatches, rhsTainted);
       if (newSources.length) {
-        const confidence = Math.max(
-          0,
-          ...newSources.map((entry) => (
+        let confidence = 0;
+        for (const entry of newSources) {
+          confidence = Math.max(confidence,
             Number.isFinite(entry?.confidence)
               ? entry.confidence
               : Number.isFinite(entry?.rule?.confidence)
                 ? entry.rule.confidence
                 : 0
-          ))
-        );
+          );
+        }
         taint.set(assignment.name, { sources: newSources, ruleIds, confidence });
         edges += newSources.length;
       }
@@ -323,10 +325,10 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
 
     if (sinkMatches.length) {
       nodes += 1;
-      const taintedSources = [];
+      const taintedSources = new Set();
       for (const [name, info] of taint.entries()) {
         if (lineContainsVar(line, name)) {
-          taintedSources.push(...toArray(info?.sources));
+          for (const source of toArray(info?.sources)) taintedSources.add(source);
         }
       }
       const { sources: lineSources } = combineSourceEvidence(sourceMatches, taintedSources);
@@ -339,7 +341,7 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
               category: sink.rule.category || null,
               severity: sink.rule.severity || null,
               scope: 'local',
-              confidence: Math.min(1, (source.rule.confidence || 0.5) * (sink.rule.confidence || 0.5) + 0.1),
+              confidence: Math.min(1, (source.rule.confidence ?? 0.5) * (sink.rule.confidence ?? 0.5) + 0.1),
               ruleIds: [source.rule.id, sink.rule.id],
               evidence: buildEvidence(line, lineNo, 1)
             });

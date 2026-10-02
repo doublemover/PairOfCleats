@@ -155,4 +155,43 @@ const buildConfig = (caps) => normalizeRiskConfig({
   assert.equal(exact.analysisStatus.status, 'ok', 'exactly filling the cap does not omit any flow');
 }
 
+{
+  const aliasConfig = buildConfig({ maxBytes: 4096, maxLines: 50, maxMs: 1000, maxEdges: 32 });
+  const names = ['value0'];
+  const lines = ['const value0 = SRC;'];
+  for (let index = 1; index <= 12; index += 1) {
+    const name = `value${index}`;
+    lines.push(`const ${name} = ${names.join(' + ')};`);
+    names.push(name);
+  }
+  lines.push('SINK(value12);');
+  const aliased = detectRiskSignals({ text: lines.join('\n'), config: aliasConfig });
+  assert.equal(aliased.analysisStatus.status, 'ok',
+    'reconverging aliases of the same source must not multiply evidence and exhaust the edge budget');
+  assert.equal(aliased.flows.length, 1, 'the sink after reconverging aliases must remain reachable');
+  assert.deepEqual(aliased.flows[0].ruleIds, ['source.one', 'sink.one']);
+  assert.equal(aliased.sources[0].evidence.line, 1, 'preserve the first original source evidence');
+
+  const distinctConfig = buildConfig({ maxBytes: 4096, maxLines: 50, maxMs: 1000 });
+  distinctConfig.rules.sources.push({
+    ...distinctConfig.rules.sources[0], id: 'source.two', name: 'SRC2', patterns: [/OTHER/]
+  });
+  const distinct = detectRiskSignals({
+    text: 'const first = SRC;\nconst second = OTHER;\nconst both = first + second;\nSINK(both);',
+    config: distinctConfig
+  });
+  assert.deepEqual(distinct.flows.map((flow) => flow.source), ['SRC', 'SRC2'],
+    'deduplication must preserve distinct source evidence and its traversal order');
+}
+
+{
+  for (const category of ['sources', 'sinks']) {
+    const zeroConfig = buildConfig({ maxMs: 1000 });
+    zeroConfig.rules[category][0].confidence = 0;
+    const zeroConfidence = detectRiskSignals({ text: 'SRC SINK', config: zeroConfig });
+    assert.equal(zeroConfidence.flows[0].confidence, 0.1,
+      'explicit zero confidence must not be replaced with the default confidence');
+  }
+}
+
 console.log('risk contract matrix test passed');
