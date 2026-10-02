@@ -195,6 +195,15 @@ this pass. Custom raw Map caches retain external ownership; only caches
 implementing leases provide active eviction safety. The broader release,
 platform and measured-performance boundaries below remain unchanged.
 
+The two new lifecycle regressions are also registered in the ordered `ci-lite`
+lane at positions 770 and 771. Targeted manifest generation preserved all prior
+entries/order/metadata and every other lane manifest. Membership listing and
+focused runner contracts passed without executing the full lane. A pre-existing
+taxonomy test required heroes in `ci-long`, despite its unchanged manifest
+containing 10 matrices and 8 heavy-runtime suites. That unsupported diversity
+assumption was replaced with exact ordered membership, per-entry classification
+and reason, and summary-total checks against the documented taxonomy.
+
 The risk and generation-isolation batches passed changed-file ESLint under the same one-CPU, 512 MiB Node,
 sampled 1 GiB aggregate guard and 30-second per-test limit. These source fixes do
 not turn the deferred release-wide validation into a completed campaign.

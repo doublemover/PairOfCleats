@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 638,
+    "hero": 640,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4680,6 +4680,18 @@
       "order": 769,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
+    },
+    {
+      "id": "retrieval/cli/backend-lifecycle",
+      "order": 770,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/cli/search-backend-finally",
+      "order": 771,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }
