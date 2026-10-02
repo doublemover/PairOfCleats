@@ -95,6 +95,11 @@ of `mess`'s nonmerge commits; the extra `64b90824` patch was reviewed separately
     is schema-validated as a nonnegative integer. All three HNSW target variants
     and invalid-count cases pass in the existing validator matrix with scoped
     ESLint, without reading dense payloads or loading native indexes.
+11. The tip's authored profiling workflow had no current equivalent. It is
+    recovered as [performance profiling](benchmarks/profiling.md), using current
+    direct work entrypoints, effective configuration names, process-tree resource
+    bounds, and separate cold/warm evidence. Example arguments, runtime-advertised
+    flags and local links were checked without executing a profile or workload.
 
 ## Historical Phase 23 capability disposition
 
