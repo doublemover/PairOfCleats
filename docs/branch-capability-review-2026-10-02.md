@@ -171,10 +171,22 @@ completion:
   peak aggregate RSS 335.7 MiB), including a schema-only SQLite fixture, loader
   and no-sync-FS contracts; changed-file ESLint passed. No full index was built.
 
-Remaining confirmed lifecycle work is separate from that co-residency fix:
-in-flight handles still need protection from cross-file LRU/generation eviction,
-and uncached search backends need explicit request-finally cleanup. Those gaps
-are not counted as solved by sharing same-path handles.
+- Subsequent lifecycle work adds SQLite request leases so eviction, expiry,
+  signature invalidation and generation replacement cannot close active handles.
+  New handles are owned before validation; forced/partial initialization failures
+  release them. SQLite/LMDB contexts now dispose idempotently, await LMDB close,
+  and the runner retains initial/reinitialized cleanup through request finally.
+  Ten intended focused selectors now pass, including direct native fixtures and
+  real CLI success, injected failure and cancellation checks. The largest sampled
+  RSS among passing groups was 413.57 MiB; twelve-file ESLint passed. Three CLI
+  fixture mistakes (config shape, missing manifest, cancellation-code expectation)
+  were corrected without weakening production strictness or cancellation behavior.
+
+Remaining confirmed ownership work: repository-cache eviction must use terminal
+retirement so an in-flight request cannot repopulate an orphaned cache, and
+request-local federation caches need final cleanup. The terminal cache API exists,
+but those owner paths are a separate follow-through. Custom raw Map caches retain
+external ownership; only caches implementing leases provide active eviction safety.
 
 The risk and generation-isolation batches passed changed-file ESLint under the same one-CPU, 512 MiB Node,
 sampled 1 GiB aggregate guard and 30-second per-test limit. These source fixes do

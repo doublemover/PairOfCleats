@@ -68,7 +68,10 @@ const handleKey = { code: 'dbCode', prose: 'dbProse', 'extracted-prose': 'dbExtr
 const backendCache = createSqliteDbCache();
 const fallbackClosed = [];
 const fallbackCache = createSqliteDbCache({ onEvict: ({ entry }) => fallbackClosed.push(entry.db) });
-const uncachedHandles = new Set();
+const limitedCache = createSqliteDbCache({ maxEntries: 1 });
+const disabledCache = createSqliteDbCache({ maxEntries: 0 });
+const backends = new Set();
+const externallyOwnedHandles = new Set();
 
 try {
   // The reader only needs the canonical schema and a few rows; no index build.
@@ -93,24 +96,28 @@ try {
     sqlite: { ready: true, pending: false }
   }]));
   let generationContext = { buildGenerationKey: 'generation-a', activeBuildRoot: '/build/a' };
-  const openBackend = (overrides = {}) => createSqliteBackend({
-    useSqlite: true,
-    needsCode: true,
-    needsProse: true,
-    needsExtractedProse: true,
-    sqliteCodePath: sharedPath,
-    // A relative spelling must still identify the same physical handle.
-    sqliteProsePath: path.relative(process.cwd(), sharedPath),
-    sqliteExtractedProsePath: sharedPath,
-    sqliteFtsRequested: false,
-    backendForcedSqlite: true,
-    vectorExtension: { table: 'custom_ann', column: 'embedding' },
-    vectorAnnEnabled: false,
-    dbCache: backendCache,
-    sqliteStates,
-    generationContext,
-    ...overrides
-  });
+  const openBackend = async (overrides = {}) => {
+    const backend = await createSqliteBackend({
+      useSqlite: true,
+      needsCode: true,
+      needsProse: true,
+      needsExtractedProse: true,
+      sqliteCodePath: sharedPath,
+      // A relative spelling must still identify the same physical handle.
+      sqliteProsePath: path.relative(process.cwd(), sharedPath),
+      sqliteExtractedProsePath: sharedPath,
+      sqliteFtsRequested: false,
+      backendForcedSqlite: true,
+      vectorExtension: { table: 'custom_ann', column: 'embedding' },
+      vectorAnnEnabled: false,
+      dbCache: backendCache,
+      sqliteStates,
+      generationContext,
+      ...overrides
+    });
+    backends.add(backend);
+    return backend;
+  };
   const selectMode = (mode) => ({
     needsCode: mode === 'code',
     needsProse: mode === 'prose',
@@ -142,8 +149,13 @@ try {
     const single = await openBackend(selectMode(mode));
     assertReadable(single, [mode]);
     assert.equal(single[handleKey[mode]], mixed.dbCode, 'single-mode search must retain the full shared identity');
+    await single.dispose();
   }
-  assert.equal((await openBackend()).dbCode, mixed.dbCode, 'mixed search after single-mode reuse must stay warm');
+  const warmAgain = await openBackend();
+  assert.equal(warmAgain.dbCode, mixed.dbCode, 'mixed search after single-mode reuse must stay warm');
+  await warmAgain.dispose();
+  await warm.dispose();
+  await mixed.dispose();
 
   let previous = mixed.dbCode;
   for (const changedMode of modes) {
@@ -156,6 +168,7 @@ try {
     assert.equal(previous.open, false, 'replacing a shared generation must close the old handle');
     assert.equal(backendCache.size(), 1);
     previous = next;
+    await replacement.dispose();
   }
   for (const changedFields of [
     { artifactSurfaceVersion: 2 },
@@ -170,14 +183,18 @@ try {
     assert.notEqual(replacement.dbCode, previous, 'all co-resident generation fields must invalidate the cache');
     assert.equal(previous.open, false);
     previous = replacement.dbCode;
+    await replacement.dispose();
   }
   await assert.rejects(openBackend(), /SQLite prose index marked pending/);
   const pending = await openBackend({ backendForcedSqlite: false });
   assert.equal(pending.useSqlite, false, 'requested pending mode must retain file-backed fallback');
   assert.equal(pending.dbCode, null);
+  await pending.dispose();
   assert.equal(previous.open, true, 'pending preflight must not close an unrelated active cached handle');
   sqliteStates.prose = { ...sqliteStates.prose, sqlite: { ready: true, pending: false } };
-  previous = (await openBackend()).dbCode;
+  const readyAgain = await openBackend();
+  previous = readyAgain.dbCode;
+  await readyAgain.dispose();
 
   for (const changedContext of [
     { buildGenerationKey: 'generation-b' },
@@ -189,17 +206,34 @@ try {
     assert.notEqual(replacement.dbCode, previous, 'build generation context must invalidate shared handles');
     assert.equal(previous.open, false);
     previous = replacement.dbCode;
+    await replacement.dispose();
   }
   const finalStat = await fs.stat(sharedPath);
   assert.equal(finalStat.size, originalStat.size);
   assert.equal(finalStat.mtimeMs, originalStat.mtimeMs, 'generation tests must not depend on file signature changes');
 
   const uncached = await openBackend({ dbCache: null });
-  uncachedHandles.add(uncached.dbCode);
-  uncachedHandles.add(uncached.dbProse);
-  uncachedHandles.add(uncached.dbExtractedProse);
   assertReadable(uncached);
-  assert.equal(uncachedHandles.size, 1, 'uncached shared paths must also open only one handle');
+  assert.equal(new Set([uncached.dbCode, uncached.dbProse, uncached.dbExtractedProse]).size, 1,
+    'uncached shared paths must also open only one handle');
+  await uncached.dispose();
+  await uncached.dispose();
+  assert.equal(uncached.dbCode.open, false, 'uncached contexts must own and close their handles');
+
+  const disabled = await openBackend({ dbCache: disabledCache });
+  assertReadable(disabled);
+  await disabled.dispose();
+  assert.equal(disabled.dbCode.open, false, 'disabled caches must provide request-owned detached leases');
+
+  for (const dbCache of [new Map(), Object.assign(new Map(), {
+    acquire() { throw new Error('partial lease protocols must not be used'); }
+  })]) {
+    const legacy = await openBackend({ dbCache });
+    externallyOwnedHandles.add(legacy.dbCode);
+    await legacy.dispose();
+    assertReadable(legacy);
+    assert.equal(dbCache.get(sharedPath), legacy.dbCode, 'plain get/set caches retain external ownership');
+  }
 
   const separate = await openBackend({ sqliteProsePath: separatePath, needsExtractedProse: false });
   assertReadable(separate, ['code', 'prose']);
@@ -207,6 +241,87 @@ try {
   assert.equal(separate.vectorAnnConfigByMode.code.table, 'custom_ann');
   assert.equal(separate.vectorAnnConfigByMode.prose.table, 'custom_ann');
   assert.equal(backendCache.size(), 2);
+  await separate.dispose();
+
+  const live = await openBackend({ dbCache: limitedCache });
+  const overlapping = await openBackend({ dbCache: limitedCache });
+  const evicting = await openBackend({
+    dbCache: limitedCache,
+    sqliteCodePath: separatePath,
+    sqliteProsePath: separatePath,
+    sqliteExtractedProsePath: separatePath
+  });
+  assert.equal(limitedCache.size(), 1);
+  assert.equal(live.dbCode, overlapping.dbCode);
+  assertReadable(live);
+  assertReadable(overlapping);
+  limitedCache.closeAll();
+  assert.equal(limitedCache.size(), 0);
+  assertReadable(evicting);
+  await live.dispose();
+  assertReadable(overlapping);
+  await overlapping.dispose();
+  assert.equal(live.dbCode.open, false, 'the last overlapping request must close an evicted handle');
+  await evicting.dispose();
+  assert.equal(evicting.dbCode.open, false, 'closeAll must defer closure until the request finishes');
+
+  const oldGeneration = await openBackend({ dbCache: limitedCache });
+  const newGeneration = await openBackend({
+    dbCache: limitedCache,
+    sqliteStates: { ...sqliteStates, code: { ...sqliteStates.code, buildId: 'live-replacement' } }
+  });
+  assert.notEqual(oldGeneration.dbCode, newGeneration.dbCode);
+  assertReadable(oldGeneration);
+  assertReadable(newGeneration);
+  await oldGeneration.dispose();
+  assert.equal(oldGeneration.dbCode.open, false);
+  assertReadable(newGeneration);
+  limitedCache.dispose();
+  assertReadable(newGeneration);
+  await newGeneration.dispose();
+  assert.equal(newGeneration.dbCode.open, false);
+
+  const oneEntryCache = createSqliteDbCache({ maxEntries: 1 });
+  try {
+    const multiplePaths = await openBackend({
+      dbCache: oneEntryCache,
+      sqliteProsePath: separatePath,
+      needsExtractedProse: false
+    });
+    assertReadable(multiplePaths, ['code', 'prose']);
+    assert.equal(oneEntryCache.size(), 1);
+    oneEntryCache.closeAll();
+    assertReadable(multiplePaths, ['code', 'prose']);
+    await multiplePaths.dispose();
+    assert.equal(multiplePaths.dbCode.open, false);
+    assert.equal(multiplePaths.dbProse.open, false);
+  } finally {
+    oneEntryCache.dispose();
+  }
+
+  const throwingCleanup = await openBackend({
+    dbCache: null,
+    sqliteProsePath: separatePath,
+    needsExtractedProse: false
+  });
+  const originalClose = throwingCleanup.dbCode.close.bind(throwingCleanup.dbCode);
+  let closeCalls = 0;
+  throwingCleanup.dbCode.close = () => {
+    closeCalls += 1;
+    originalClose();
+    throw new Error('injected first-handle close failure');
+  };
+  assert.throws(() => throwingCleanup.dispose(), AggregateError);
+  assert.equal(throwingCleanup.dbProse.open, false, 'dispose must attempt all physical handles');
+  await throwingCleanup.dispose();
+  assert.equal(closeCalls, 1, 'a failing disposer must still be idempotent');
+
+  const fallbackWarm = await openBackend({
+    sqliteExtractedProsePath: invalidPath,
+    needsExtractedProse: false,
+    dbCache: fallbackCache
+  });
+  await fallbackWarm.dispose();
 
   for (const dbCache of [fallbackCache, null]) {
     const fallback = await openBackend({
@@ -219,15 +334,19 @@ try {
     assert.equal(fallback.dbProse, null);
     assert.equal(fallback.dbExtractedProse, null);
     assert.ok(Object.values(fallback.vectorAnnState).every((state) => !state.available));
+    await fallback.dispose();
   }
   assert.equal(fallbackCache.size(), 0);
   assert.equal(fallbackClosed.length, 1, 'fallback must close the shared cache entry exactly once');
   assert.equal(fallbackClosed[0].open, false);
 } finally {
-  cache.closeAll();
-  backendCache.closeAll();
-  fallbackCache.closeAll();
-  for (const db of uncachedHandles) db.close();
+  for (const backend of backends) await backend.dispose();
+  cache.dispose();
+  backendCache.dispose();
+  fallbackCache.dispose();
+  limitedCache.dispose();
+  disabledCache.dispose();
+  for (const db of externallyOwnedHandles) db.close();
   await fs.rm(tempRoot, { recursive: true, force: true });
 }
 

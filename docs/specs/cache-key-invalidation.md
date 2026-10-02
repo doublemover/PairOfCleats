@@ -64,6 +64,31 @@ Any component change invalidates affected cache entries. Required invalidation t
 
 All layers must apply the same key schema components relevant to the cached artifact.
 
+### SQLite handle ownership
+
+SQLite cache entries are scoped to a physical path and its participating mode
+generations. `acquire(path, options)` returns a `{ db, release }` lease for a
+valid hit. `setAndAcquire(path, db, options)` pins a new handle before inserting
+it, so capacity eviction cannot close a handle still used by a request.
+
+Eviction, expiry, signature changes, and generation replacement remove cache
+discoverability immediately. Physical close occurs after the final active lease
+is released. Releases are idempotent and refer to the exact acquired entry.
+`onEvict` reports logical eviction; a leased handle may still be open at that time.
+
+`closeAll()` clears entries while leaving the cache reusable for generation
+refresh. `dispose()` terminally retires it; later `setAndAcquire` calls produce
+uncached leases that close on release. Disabled caches use the same uncached
+lease ownership. Raw `get`/`set` callers retain their existing unleased behavior.
+
+Search backends own newly opened handles before validation and release them on
+initialization failure. Backend contexts expose idempotent disposal; the search
+runner awaits cleanup on completion, failure, and cancellation, retaining both
+initial and reinitialized contexts until finalization. LMDB close is awaited.
+Cleanup attempts every owned resource without replacing the original operation
+error. Custom caches exposing only `get`/`set` retain external ownership and must
+adopt the lease protocol to provide active-request eviction protection.
+
 ## Cache clear/rebuild behavior
 
 - `PAIROFCLEATS_CACHE_REBUILD=1` forces versioned cache root rebuild.

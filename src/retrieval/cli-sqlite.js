@@ -32,7 +32,7 @@ const buildSqliteGenerationTag = (mode, state = null, generationContext = null) 
 /**
  * Initialize SQLite connections for search.
  * @param {object} options
- * @returns {Promise<{useSqlite:boolean,dbCode:(object|null),dbProse:(object|null),dbExtractedProse:(object|null),vectorAnnState:object,vectorAnnUsed:object}>}
+ * @returns {Promise<{useSqlite:boolean,dbCode:(object|null),dbProse:(object|null),dbExtractedProse:(object|null),vectorAnnState:object,vectorAnnUsed:object,dispose:Function}>}
  */
 export async function createSqliteBackend(options) {
   const {
@@ -58,6 +58,23 @@ export async function createSqliteBackend(options) {
   let dbCode = null;
   let dbProse = null;
   let dbExtractedProse = null;
+  const openedByPath = new Map();
+  const usesCacheLeases = typeof dbCache?.acquire === 'function'
+    && typeof dbCache?.setAndAcquire === 'function';
+  let disposed = false;
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    const errors = [];
+    for (const record of openedByPath.values()) {
+      try {
+        record.cleanup?.();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length) throw new AggregateError(errors, 'Failed to release SQLite backend handles.');
+  };
   const vectorAnnState = {
     code: { available: false },
     prose: { available: false },
@@ -95,9 +112,19 @@ export async function createSqliteBackend(options) {
     records: vectorExtension,
     'extracted-prose': vectorExtension
   };
+  const result = () => ({
+    useSqlite,
+    dbCode,
+    dbProse,
+    dbExtractedProse,
+    vectorAnnState,
+    vectorAnnUsed,
+    vectorAnnConfigByMode,
+    dispose
+  });
 
   if (!useSqlite) {
-    return { useSqlite, dbCode, dbProse, dbExtractedProse, vectorAnnState, vectorAnnUsed };
+    return result();
   }
 
   const isSqliteReady = (mode) => {
@@ -117,7 +144,7 @@ export async function createSqliteBackend(options) {
     }
     console.warn(message);
     useSqlite = false;
-    return { useSqlite, dbCode, dbProse, dbExtractedProse, vectorAnnState, vectorAnnUsed };
+    return result();
   }
 
   let Database;
@@ -130,7 +157,7 @@ export async function createSqliteBackend(options) {
     }
     console.warn(message);
     useSqlite = false;
-    return { useSqlite, dbCode, dbProse, dbExtractedProse, vectorAnnState, vectorAnnUsed };
+    return result();
   }
 
   const requiredTables = sqliteFtsRequested
@@ -212,16 +239,24 @@ export async function createSqliteBackend(options) {
     const tags = Object.values(modeTags);
     generationTagByPath.set(dbPath, tags.length === 1 ? tags[0] : stableStringifyForSignature(modeTags));
   }
-  const openedByPath = new Map();
-
   const openSqlite = (mode) => {
     const dbPath = sqlitePathByMode[mode];
     const label = mode;
-    if (openedByPath.has(dbPath)) return openedByPath.get(dbPath);
+    if (openedByPath.has(dbPath)) {
+      const record = openedByPath.get(dbPath);
+      return record.validated ? record.db : null;
+    }
     const generationTag = generationTagByPath.get(dbPath) || null;
-    const cached = dbCache?.get?.(dbPath, { generationTag });
+    const lease = usesCacheLeases ? dbCache.acquire(dbPath, { generationTag }) : null;
+    const cached = usesCacheLeases ? lease?.db : dbCache?.get?.(dbPath, { generationTag });
     if (cached) {
-      openedByPath.set(dbPath, cached);
+      openedByPath.set(dbPath, {
+        db: cached,
+        generationTag,
+        cached: true,
+        validated: true,
+        cleanup: lease ? () => lease.release() : null
+      });
       return cached;
     }
     let db;
@@ -229,6 +264,15 @@ export async function createSqliteBackend(options) {
     try {
       dbStat = fsSync.statSync(dbPath);
       db = new Database(dbPath, { readonly: true });
+      // Own the handle before any operation that can fail, including schema
+      // probes and pragmas. Publish only after all modes and ANN are ready.
+      openedByPath.set(dbPath, {
+        db,
+        generationTag,
+        cached: false,
+        validated: false,
+        cleanup: () => db.close()
+      });
     } catch (err) {
       const message = 'better-sqlite3 is required for the SQLite backend. Run npm install first.';
       if (backendForcedSqlite) {
@@ -246,7 +290,6 @@ export async function createSqliteBackend(options) {
         throw new Error(message);
       }
       console.warn(`${message} Falling back to file-backed indexes.`);
-      db.close();
       return null;
     }
     const columnIssues = [];
@@ -266,7 +309,6 @@ export async function createSqliteBackend(options) {
         throw new Error(message);
       }
       console.warn(`${message} Falling back to file-backed indexes.`);
-      db.close();
       return null;
     }
     const schemaVersion = db.pragma('user_version', { simple: true });
@@ -276,7 +318,6 @@ export async function createSqliteBackend(options) {
         throw new Error(message);
       }
       console.warn(`${message} Falling back to file-backed indexes.`);
-      db.close();
       return null;
     }
     applyReadPragmas(db, {
@@ -284,8 +325,7 @@ export async function createSqliteBackend(options) {
       storageTier,
       ...(sqliteReadPragmas && typeof sqliteReadPragmas === 'object' ? sqliteReadPragmas : {})
     });
-    if (dbCache?.set) dbCache.set(dbPath, db, { generationTag });
-    openedByPath.set(dbPath, db);
+    openedByPath.get(dbPath).validated = true;
     return db;
   };
 
@@ -315,36 +355,69 @@ export async function createSqliteBackend(options) {
     vectorAnnState[mode].column = config.column;
   };
 
-  if (needsCode) dbCode = openSqlite('code');
-  if (needsProse) dbProse = openSqlite('prose');
-  if (needsExtractedProse) dbExtractedProse = openSqlite('extracted-prose');
-  if (needsCode) initVectorAnn(dbCode, 'code');
-  if (needsProse) initVectorAnn(dbProse, 'prose');
-  if (needsExtractedProse) initVectorAnn(dbExtractedProse, 'extracted-prose');
-  if ((needsCode && !dbCode) || (needsProse && !dbProse) || (needsExtractedProse && !dbExtractedProse)) {
-    for (const [dbPath, db] of openedByPath) {
-      dbCache?.close
-        ? dbCache.close(dbPath, { generationTag: generationTagByPath.get(dbPath) })
-        : db.close();
+  try {
+    if (needsCode) dbCode = openSqlite('code');
+    if (needsProse) dbProse = openSqlite('prose');
+    if (needsExtractedProse) dbExtractedProse = openSqlite('extracted-prose');
+    if (needsCode) initVectorAnn(dbCode, 'code');
+    if (needsProse) initVectorAnn(dbProse, 'prose');
+    if (needsExtractedProse) initVectorAnn(dbExtractedProse, 'extracted-prose');
+    if ((needsCode && !dbCode) || (needsProse && !dbProse) || (needsExtractedProse && !dbExtractedProse)) {
+      const errors = [];
+      for (const [dbPath, record] of openedByPath) {
+        if (!record.cached) continue;
+        try {
+          if (typeof dbCache?.close === 'function') {
+            // The expected handle protects replacement generations, including
+            // a replacement under an unchanged tag. Legacy caches use get.
+            if (usesCacheLeases || dbCache.get?.(dbPath, { generationTag: record.generationTag }) === record.db) {
+              dbCache.close(dbPath, { generationTag: record.generationTag, expectedDb: record.db });
+            }
+          } else if (!usesCacheLeases) {
+            record.cleanup = () => record.db.close();
+            if (dbCache?.get?.(dbPath) === record.db) dbCache.delete?.(dbPath);
+          }
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+      try {
+        dispose();
+      } catch (error) {
+        errors.push(error);
+      }
+      if (errors.length) throw new AggregateError(errors, 'Failed to clean up SQLite fallback handles.');
+      dbCode = null;
+      dbProse = null;
+      dbExtractedProse = null;
+      useSqlite = false;
+      // Prevent partially initialized SQLite ANN availability from leaking into
+      // file-backed fallback paths.
+      resetVectorAnnAvailability();
+    } else {
+      for (const [dbPath, record] of openedByPath) {
+        if (record.cached) continue;
+        if (usesCacheLeases) {
+          const lease = dbCache.setAndAcquire(dbPath, record.db, { generationTag: record.generationTag });
+          record.cleanup = () => lease.release();
+          record.cached = true;
+        } else if (typeof dbCache?.set === 'function') {
+          dbCache.set(dbPath, record.db, { generationTag: record.generationTag });
+          record.cleanup = null;
+          record.cached = true;
+        }
+      }
     }
-    dbCode = null;
-    dbProse = null;
-    dbExtractedProse = null;
-    useSqlite = false;
-    // Prevent partially initialized SQLite ANN availability from leaking into
-    // file-backed fallback paths.
-    resetVectorAnnAvailability();
+  } catch (error) {
+    try {
+      dispose();
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], error.message, { cause: error });
+    }
+    throw error;
   }
 
-  return {
-    useSqlite,
-    dbCode,
-    dbProse,
-    dbExtractedProse,
-    vectorAnnState,
-    vectorAnnUsed,
-    vectorAnnConfigByMode
-  };
+  return result();
 }
 
 /**

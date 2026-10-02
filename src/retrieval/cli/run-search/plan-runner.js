@@ -57,6 +57,7 @@ import {
   runFederatedIfRequested
 } from './options.js';
 import { createBackendContextWithTracking } from './backend-context.js';
+import { createBackendDisposer } from '../backend-disposal.js';
 
 import {
   INDEX_PROFILE_DEFAULT,
@@ -97,6 +98,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const scoreModeOverride = options.scoreMode ?? null;
   const t0 = Date.now();
   let queryPlanCache = options.queryPlanCache ?? null;
+  const backendDisposers = new Set();
+  const disposeBackends = createBackendDisposer(backendDisposers);
 
   if (signal?.aborted) {
     const err = createError(ERROR_CODES.INVALID_REQUEST, 'Search aborted.');
@@ -723,11 +726,15 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const backendInitResult = await runWithOperationalFailurePolicy({
       target: 'retrieval.hotpath',
       operation: 'backend-context',
-      execute: async () => createBackendContextWithTracking({
-        stageTracker,
-        contextInput: buildBackendContextInput(),
-        stageName: 'startup.backend'
-      }),
+      execute: async () => {
+        const context = await createBackendContextWithTracking({
+          stageTracker,
+          contextInput: buildBackendContextInput(),
+          stageName: 'startup.backend'
+        });
+        backendDisposers.add(() => context.dispose());
+        return context;
+      },
       log: (message) => {
         if (emitOutput) console.warn(message);
       }
@@ -995,6 +1002,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         contextInput: buildBackendContextInput(),
         stageName: 'startup.backend.reinit'
       });
+      const reinitializedContext = backendContext;
+      backendDisposers.add(() => reinitializedContext.dispose());
       ({
         useSqlite,
         useLmdb,
@@ -1246,6 +1255,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     throw err;
   } finally {
+    // Release handles before telemetry or cache persistence can fail. Cleanup
+    // failures must not replace an existing search/cancellation failure.
+    try { await disposeBackends(); } catch {}
     if (telemetry?.emitResourceWarnings) {
       telemetry.emitResourceWarnings({
         warn: () => {}

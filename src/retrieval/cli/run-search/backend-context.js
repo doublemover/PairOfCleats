@@ -17,6 +17,11 @@ export const createBackendContextWithTracking = async ({
 }) => {
   const backendStart = stageTracker.mark();
   const context = await createBackendContext(contextInput);
-  stageTracker.record(stageName, backendStart, { mode: 'all' });
+  try {
+    stageTracker.record(stageName, backendStart, { mode: 'all' });
+  } catch (error) {
+    try { await context.dispose(); } catch {}
+    throw error;
+  }
   return context;
 };
