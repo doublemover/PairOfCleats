@@ -118,6 +118,20 @@ Ensure:
 - hard kill after timeout
 - capture the original process and generation before awaiting shutdown; a restart ends that shutdown attempt without sending exit to, waiting on, or killing the replacement
 
+### 4.4 Framed transport boundaries
+
+The shared JSON-RPC parser scans new header bytes once and caches the parsed
+content length while waiting for the body. Fragment consumption uses an indexed
+queue with amortized compaction. An exact-limit header remains valid when the
+four-byte CRLF delimiter is split across input chunks; only header bytes count
+toward `maxHeaderBytes`. Pending delimiter-prefix bytes do not expand that limit.
+
+Buffer and message byte caps remain enforced, and malformed or oversized input
+closes the parser after one error. Byte caps describe buffered input bytes, not a
+guaranteed total JavaScript heap footprint. Focused parser tests cover delimiter
+splits, Unicode byte fragments, adjacent frames, disposal, and deterministic
+scanning/copying work bounds without wall-clock performance thresholds.
+
 ---
 
 ## 5. Failure accounting policy (refined)

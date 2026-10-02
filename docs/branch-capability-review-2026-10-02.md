@@ -145,8 +145,18 @@ completion:
   closed-transport shutdown, normal shutdown, and timeout-cancellation selectors
   passed (1.32 s; sampled peak aggregate RSS 150.05 MiB), including current-session
   controls, reused server request IDs, and initialization failure behavior.
+- The framed JSON-RPC parser rejected exact-limit headers when their delimiter
+  arrived in fragments, repeatedly rescanned/reparsed headers while awaiting data,
+  and shifted its fragment queue on consumption. Incremental header state and an
+  indexed queue now preserve exact limits across chunk boundaries with linear
+  header work. The boundary regression reproduced its failure before the fix;
+  the parser, tooling, and protocol fail-open selectors passed (3 tests, 3.52 s;
+  sampled peak aggregate RSS 294.45 MiB). Deterministic operation counts cover
+  scanning/copying and do not claim an end-to-end benchmark speedup. This batch
+  used a tighter 512 MiB aggregate guard, 2 GiB global available-memory reserve,
+  and 256 MiB free-disk reserve; scoped ESLint also passed.
 
-Both batches passed changed-file ESLint under the same one-CPU, 512 MiB Node,
+The risk and generation-isolation batches passed changed-file ESLint under the same one-CPU, 512 MiB Node,
 sampled 1 GiB aggregate guard and 30-second per-test limit. These source fixes do
 not turn the deferred release-wide validation into a completed campaign.
 
