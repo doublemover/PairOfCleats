@@ -49,6 +49,33 @@ against the known vulnerable ranges. CI also runs `npm audit --audit-level=low`
 against current advisories. The baseline is a regression check, not a substitute
 for the live advisory database. An audit/network error is not a clean result.
 
+## Rust dependency remediation
+
+An offline cargo-audit 0.22.2 review of the TUI lockfile against the official
+RustSec snapshot `6de4455103aced2cba86e3b86e5c090b22827cf1` (2026-10-01)
+found three unsoundness advisories in the original 196-package graph:
+`RUSTSEC-2026-0190` (anyhow), `RUSTSEC-2026-0253` (lru), and
+`RUSTSEC-2026-0097` (rand). These are warnings in cargo-audit, so its original
+zero-vulnerability count alone did not mean the graph was clean.
+
+Cargo resolution updates anyhow to 1.0.104, ratatui to 0.30.2, ratatui-core to
+0.1.2, lru to 0.18.5, and rand to 0.8.8. Ratatui's patched core is needed to
+accept the fixed lru release. It requires Rust 1.88, so the TUI's declared MSRV,
+toolchain, and workflow pins are aligned to 1.88.0. Workflow triggers and
+security permissions are unchanged.
+
+The updated 206-package lock passes the same offline audit with
+`--deny warnings`: zero vulnerabilities and zero warnings, with no ignored
+advisories. The TUI toolchain/advisory contract test also passes. All 205 registry
+packages match their official sparse-index checksums and are unyanked in the
+snapshot fetched during Cargo resolution; no fresh live yanked-crate refresh is
+claimed. No declared dependency MSRV exceeds 1.88, but 65 crates omit that
+metadata, so actual compilation was also checked with Rust 1.88.0. On Linux,
+`cargo check --locked --all-targets` and `cargo test --locked --no-run` pass.
+`cargo test --locked` exits successfully, but the crate defines zero Rust unit
+tests; this is not a behavioral test-suite pass. Windows/macOS builds, interactive
+TUI behavior, formatting/clippy and local CodeQL remain separate validation.
+
 ## Native grammar peer metadata
 
 The existing `legacy-peer-deps=true` installation policy is retained because

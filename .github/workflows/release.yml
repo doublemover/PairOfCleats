@@ -249,7 +249,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.86.0
+          toolchain: 1.88.0
 
       - name: Install deps
         run: npm run bootstrap:ci
@@ -477,7 +477,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.86.0
+          toolchain: 1.88.0
 
       - name: Install deps
         run: npm run bootstrap:ci

@@ -273,14 +273,23 @@ Fresh synthetic regressions reopened concrete correctness work:
   merge/rescan for GitHub alert closure. Local CodeQL and remaining platform/release
   checks are separate, still-pending gates; hosted scanner settings are unchanged.
   Offline RustSec review additionally identified applicable anyhow, lru and rand
-  unsoundness advisories; Rust remediation and compile validation are in progress.
+  unsoundness advisories. They are patched with a 206-package lockfile audit at
+  zero vulnerabilities and zero warnings. Ratatui's fixed LRU dependency requires
+  Rust 1.88, now aligned across the TUI/toolchain/workflow pins. Linux Rust 1.88
+  locked all-target checking and test compilation pass; cargo test exits zero
+  with zero unit tests defined. Other-platform and interactive TUI checks remain
+  separate; see `docs/security/rust-dependency-validation-2026-10-02.json`.
 
 Fresh roadmap validation has passed full-language conformance (11), USR gates (5),
 Stage1 contracts/runtime/watchdog/memory (37), and lexicon/retrieval checks (76).
 Risk, snapshots, shared-module governance and release-readiness initial failures
 have targeted corrections and reruns; final aggregate lanes are still pending.
 Formatting, governance regeneration, and generated-surface freshness pass.
-The interrupted ci-lite run is not a completed pass. Measured Sweet16 and local
+The interrupted ci-lite run is not a completed pass (477 passed before resource
+pressure; two deterministic fixture failures were corrected with targeted passes,
+seven timeouts need resource-isolated verification). Broad tiers are deferred
+to meaningful coordinated checkpoints; development uses affected selectors with
+bounded CPU, process concurrency and memory. Measured Sweet16 and local
 CodeQL analysis require their remaining resource-coordinated validation windows.
 Missing fixed historical May evidence remains explicitly unavailable/unverified;
 it is not reconstructed or counted as fresh evidence.

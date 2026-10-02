@@ -14,7 +14,7 @@ Define the authoritative release support matrix for workflow targets, Node runti
 | `ubuntu-latest-node24` | `ubuntu-latest` | 24.15.0 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
 | `windows-latest-node24` | `windows-latest` | 24.15.0 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
 | `macos-latest-node24` | `macos-latest` | 24.15.0 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
-| `tui-rust-1.86` | `ubuntu-latest`, `windows-latest`, `macos-latest` release matrix | 24.15.0 | Rust 1.86.0, Cargo, Node, npm, Git |
+| `tui-rust-1.88` | `ubuntu-latest`, `windows-latest`, `macos-latest` release matrix | 24.15.0 | Rust 1.88.0, Cargo, Node, npm, Git |
 
 Notes:
 
