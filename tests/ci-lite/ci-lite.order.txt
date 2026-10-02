@@ -770,3 +770,4 @@ retrieval/federation/query-cache-key-contract-matrix
 retrieval/cli/backend-lifecycle
 retrieval/cli/search-backend-finally
 storage/sqlite/incremental/handle-lifecycle
+storage/sqlite/build/startup-lifecycle

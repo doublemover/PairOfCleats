@@ -131,6 +131,16 @@ of `mess`'s nonmerge commits; the extra `64b90824` patch was reviewed separately
     ESLint passed without an index build. The new case is registered in ci-lite;
     only its runtime manifest is regenerated, with no inventory report tracking.
 
+15. The related full-build helper also leaked a database when pragma/schema
+    initialization failed before returning ownership. It now restores captured
+    pragmas and closes before preserving the original error. Bundle builders
+    defer worker allocation until database/statement setup succeeds, and protect
+    the loader immediately against later failures. A tiny SQLite fixture with an
+    asserted no-thread pool stub reproduced both gaps and covers helper success,
+    single cleanup, secondary close errors, pool/log failures and a successful
+    one-row bundle build. Three focused selectors and scoped ESLint passed;
+    the new regression is registered in ci-lite without running the lane.
+
 ## Historical Phase 23 capability disposition
 
 | Historical family | Current source / contract evidence and disposition |

@@ -158,45 +158,59 @@ export const openSqliteBuildDatabase = ({
 }) => {
   fsSync.mkdirSync(path.dirname(outPath), { recursive: true });
   const { db, dbPath, promotePath } = openDatabaseWithFallback(Database, outPath);
-  if (batchStats) {
-    const prepareStats = batchStats.prepare || (batchStats.prepare = {});
-    if (!Number.isFinite(prepareStats.total)) prepareStats.total = 0;
-    const originalPrepare = db.prepare.bind(db);
-    db.prepare = (sql) => {
-      prepareStats.total += 1;
-      return originalPrepare(sql);
-    };
-    const txStats = batchStats.transaction || (batchStats.transaction = {});
-    if (!Number.isFinite(txStats.begin)) txStats.begin = 0;
-    if (!Number.isFinite(txStats.commit)) txStats.commit = 0;
-    if (!Number.isFinite(txStats.rollback)) txStats.rollback = 0;
-    const resolvedInputBytes = Number(inputBytes);
-    batchStats.inputBytes = Number.isFinite(resolvedInputBytes) && resolvedInputBytes > 0
-      ? resolvedInputBytes
-      : 0;
+  // Ownership transfers only after every initialization step succeeds.
+  let pragmaState = null;
+  try {
+    if (batchStats) {
+      const prepareStats = batchStats.prepare || (batchStats.prepare = {});
+      if (!Number.isFinite(prepareStats.total)) prepareStats.total = 0;
+      const originalPrepare = db.prepare.bind(db);
+      db.prepare = (sql) => {
+        prepareStats.total += 1;
+        return originalPrepare(sql);
+      };
+      const txStats = batchStats.transaction || (batchStats.transaction = {});
+      if (!Number.isFinite(txStats.begin)) txStats.begin = 0;
+      if (!Number.isFinite(txStats.commit)) txStats.commit = 0;
+      if (!Number.isFinite(txStats.rollback)) txStats.rollback = 0;
+      const resolvedInputBytes = Number(inputBytes);
+      batchStats.inputBytes = Number.isFinite(resolvedInputBytes) && resolvedInputBytes > 0
+        ? resolvedInputBytes
+        : 0;
+    }
+    pragmaState = useBuildPragmas
+      ? applyBuildPragmas(db, { inputBytes, stats: batchStats })
+      : null;
+    const pageSizeRaw = Number(db.pragma('page_size', { simple: true }));
+    const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? pageSizeRaw : null;
+    const journalModeRaw = db.pragma('journal_mode', { simple: true });
+    const journalMode = typeof journalModeRaw === 'string'
+      ? journalModeRaw.trim().toLowerCase()
+      : null;
+    const plan = batchStats?.runtimeTelemetry?.plan || null;
+    recordSqliteWalSnapshot(batchStats, {
+      stage: 'open',
+      dbPath,
+      pageSize: pageSize ?? plan?.pageSize ?? null,
+      journalMode: journalMode ?? plan?.journalMode ?? null,
+      walEnabled: plan?.walEnabled ?? (journalMode === 'wal'),
+      walPressure: plan?.walPressure ?? null,
+      source: plan?.source || null
+    });
+    db.exec(CREATE_TABLES_BASE_SQL);
+    db.pragma(`user_version = ${SCHEMA_VERSION}`);
+    return { db, pragmaState, dbPath, promotePath };
+  } catch (error) {
+    if (pragmaState) {
+      try {
+        restoreBuildPragmas(db, pragmaState);
+      } catch {}
+    }
+    try {
+      db.close();
+    } catch {}
+    throw error;
   }
-  const pragmaState = useBuildPragmas
-    ? applyBuildPragmas(db, { inputBytes, stats: batchStats })
-    : null;
-  const pageSizeRaw = Number(db.pragma('page_size', { simple: true }));
-  const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? pageSizeRaw : null;
-  const journalModeRaw = db.pragma('journal_mode', { simple: true });
-  const journalMode = typeof journalModeRaw === 'string'
-    ? journalModeRaw.trim().toLowerCase()
-    : null;
-  const plan = batchStats?.runtimeTelemetry?.plan || null;
-  recordSqliteWalSnapshot(batchStats, {
-    stage: 'open',
-    dbPath,
-    pageSize: pageSize ?? plan?.pageSize ?? null,
-    journalMode: journalMode ?? plan?.journalMode ?? null,
-    walEnabled: plan?.walEnabled ?? (journalMode === 'wal'),
-    walPressure: plan?.walPressure ?? null,
-    source: plan?.source || null
-  });
-  db.exec(CREATE_TABLES_BASE_SQL);
-  db.pragma(`user_version = ${SCHEMA_VERSION}`);
-  return { db, pragmaState, dbPath, promotePath };
 };
 
 const createOptionalMultiRowInserter = (db, enabled, options) => (
