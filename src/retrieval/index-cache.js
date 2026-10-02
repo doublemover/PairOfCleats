@@ -14,6 +14,7 @@ const INDEX_SIGNATURE_CACHE_MAX_ENTRIES = 256;
 const SHARD_SIGNATURE_CONCURRENCY = 32;
 const INDEX_STATE_READ_MAX_BYTES = 4 * 1024 * 1024;
 const indexSignatureCache = new Map();
+const managedIndexLoads = new WeakMap();
 
 /**
  * Canonicalize index directory path (realpath when available).
@@ -363,26 +364,36 @@ export function createIndexCache({
       cache: null
     };
   }
-  return {
+  const loadState = { epoch: 0, pending: new Map(), publish: cacheHandle.set };
+  const cache = {
     get(key) {
       return cacheHandle.get(key);
     },
     set(key, value) {
+      loadState.pending.delete(key);
       cacheHandle.set(key, value);
     },
     delete(key) {
+      loadState.pending.delete(key);
       cacheHandle.delete(key);
     },
     clear() {
+      loadState.epoch += 1;
+      loadState.pending.clear();
       cacheHandle.clear();
     },
     size: cacheHandle.size,
     cache: cacheHandle.cache
   };
+  managedIndexLoads.set(cache, loadState);
+  return cache;
 }
 
 /**
  * Load index artifacts with signature-based cache validation.
+ * Managed caches share pending request-independent loads by key/signature.
+ * Signal-bearing cache misses load independently without publishing, and raw
+ * external caches retain their existing ownership and loading behavior.
  *
  * @param {ReturnType<typeof createIndexCache>|null} cache
  * @param {string} dir
@@ -392,6 +403,8 @@ export function createIndexCache({
  */
 export async function loadIndexWithCache(cache, dir, options, loader) {
   if (!cache) return loader(dir, options);
+  const loadState = managedIndexLoads.get(cache);
+  const loadEpoch = loadState?.epoch;
   const resolvedDir = path.resolve(String(dir || ''));
   const canonicalDir = await fs.realpath(resolvedDir).catch(() => resolvedDir);
   const generationTag = options?.generationTag
@@ -411,8 +424,31 @@ export async function loadIndexWithCache(cache, dir, options, loader) {
   const cacheKey = `${canonicalDir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}::${denseKey}::${includeKey}::generation:${generationTag || 'default'}`;
   const signature = await buildIndexSignature(canonicalDir);
   const cached = cache.get(cacheKey);
+  // Clearing during asynchronous identity probes also retires that load.
+  if (loadState && loadEpoch !== loadState.epoch) return loader(canonicalDir, options);
+  const pending = loadState?.pending.get(cacheKey);
+  if (pending && pending.signature !== signature) loadState.pending.delete(cacheKey);
   if (cached && cached.signature === signature) {
     return cached.value;
+  }
+  if (loadState) {
+    // Request-independent production loaders can share materialization. A
+    // signal-bearing caller keeps its own loader and cannot publish aborted
+    // or caller-specific work into the shared cache.
+    if (options?.signal) return loader(canonicalDir, options);
+    if (pending?.signature === signature) return pending.promise;
+    const entry = { signature, promise: null };
+    entry.promise = Promise.resolve().then(() => loader(canonicalDir, options)).then((value) => {
+      if (loadState.epoch === loadEpoch && loadState.pending.get(cacheKey) === entry) {
+        loadState.publish(cacheKey, { signature, value });
+      }
+      return value;
+    }).finally(() => {
+      // Old completions must neither publish over nor remove a replacement.
+      if (loadState.pending.get(cacheKey) === entry) loadState.pending.delete(cacheKey);
+    });
+    loadState.pending.set(cacheKey, entry);
+    return entry.promise;
   }
   const value = await loader(canonicalDir, options);
   cache.set(cacheKey, { signature, value });

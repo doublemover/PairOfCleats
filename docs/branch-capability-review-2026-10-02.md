@@ -214,6 +214,17 @@ controls, partial code-only/prose-only snapshots, and cleanup when a requested
 mode is absent. The backend lifecycle, real CLI cleanup and runner module-load
 selectors plus three-file ESLint passed; no HNSW or snapshot index build ran.
 
+Concurrent cold requests also duplicated full index materialization before a
+completed cache entry existed. A gated regression observed two same-key loader
+calls; managed index caches now share one request-independent in-flight load per
+key/signature. Clear/delete/explicit replacement and newer signatures prevent
+late publication, and rejected loads are removed so retries remain possible.
+Different options/generations stay separate; signal-bearing misses and externally
+owned or disabled caches remain independent. Explicit loader-start gates prove
+overlap and cancellation isolation without timing sleeps. Three focused selectors
+and two-file ESLint passed. This is a deterministic duplicate-work reduction,
+not an end-to-end latency or memory benchmark claim.
+
 The two new lifecycle regressions are also registered in the ordered `ci-lite`
 lane at positions 770 and 771. Targeted manifest generation preserved all prior
 entries/order/metadata and every other lane manifest. Membership listing and
