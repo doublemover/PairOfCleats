@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { IncomingMessage } from 'node:http';
+import { PassThrough } from 'node:stream';
 
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import {
@@ -11,6 +13,84 @@ import {
   resolveRepoOrSendError
 } from '../../../tools/api/router/request-helpers.js';
 import { createResponseCapture } from './response-capture.js';
+import { createBodyParser } from '../../../tools/api/router/body.js';
+
+const createIncomingFixture = () => {
+  const socket = new PassThrough();
+  const req = new IncomingMessage(socket);
+  req.headers = { 'content-type': 'application/json' };
+  // Do not add an error listener: actual IncomingMessage destruction suppresses
+  // otherwise-unhandled request errors once the parser removes its listener.
+  const closed = new Promise((resolve) => req.once('close', resolve));
+  return { req, closed, dispose: () => { req.destroy(); socket.destroy(); } };
+};
+const assertParserListenersRemoved = (req) => {
+  for (const event of ['data', 'end', 'error', 'aborted']) {
+    assert.equal(req.listenerCount(event), 0, `parser must not retain ${event} listeners`);
+  }
+};
+
+{
+  const fixture = createIncomingFixture();
+  try {
+    fixture.req.destroy();
+    await fixture.closed;
+    assert.equal(fixture.req.aborted, true);
+    const body = createBodyParser({ maxBodyBytes: 32 }).parseJsonBody(fixture.req);
+    body.catch(() => {});
+    assertParserListenersRemoved(fixture.req);
+    await assert.rejects(body, /Request aborted/);
+  } finally {
+    fixture.dispose();
+  }
+}
+
+for (const [input, expected] of [['{"ok":true}', { ok: true }], ['', null]]) {
+  const fixture = createIncomingFixture();
+  try {
+    const body = createBodyParser({ maxBodyBytes: 32 }).parseJsonBody(fixture.req);
+    fixture.req.complete = true;
+    if (input) fixture.req.push(Buffer.from(input));
+    fixture.req.push(null);
+    assert.deepEqual(await body, expected);
+    await fixture.closed;
+    assertParserListenersRemoved(fixture.req);
+  } finally {
+    fixture.dispose();
+  }
+}
+
+{
+  const fixture = createIncomingFixture();
+  try {
+    const body = createBodyParser({ maxBodyBytes: 8 }).parseJsonBody(fixture.req);
+    fixture.req.push(Buffer.from('123456789'));
+    await assert.rejects(body, (error) => {
+      assert.equal(error.code, 'ERR_BODY_TOO_LARGE');
+      assert.equal(classifyBodyParseError(error).status, 413);
+      return true;
+    });
+    await fixture.closed;
+    assert.equal(fixture.req.destroyed, true);
+    assertParserListenersRemoved(fixture.req);
+  } finally {
+    fixture.dispose();
+  }
+}
+
+{
+  const fixture = createIncomingFixture();
+  try {
+    const body = createBodyParser({ maxBodyBytes: 32 }).parseJsonBody(fixture.req);
+    fixture.req.push(Buffer.from('{'));
+    fixture.req.destroy();
+    await assert.rejects(body, /Request aborted/);
+    await fixture.closed;
+    assertParserListenersRemoved(fixture.req);
+  } finally {
+    fixture.dispose();
+  }
+}
 
 const oversized = new Error('too large');
 oversized.code = 'ERR_BODY_TOO_LARGE';

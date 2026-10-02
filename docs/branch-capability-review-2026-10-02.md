@@ -110,6 +110,15 @@ of `mess`'s nonmerge commits; the extra `64b90824` patch was reviewed separately
     with the Tantivy preflight selector and scoped ESLint. Native optional-backend
     integration was not run, and recall beyond the bounded candidate budget is
     not claimed.
+13. Retained HTTP request-path review found that body parsing could start after
+    an `IncomingMessage` had already aborted/closed, attach fresh listeners and
+    wait for events that would never replay. An actual request-class fixture
+    reproduced the retained listeners; parsing now rejects immediately. Normal
+    and empty JSON, mid-read abort, oversized-body 413 classification and listener
+    cleanup controls pass with scoped ESLint, without starting a network service.
+    A separate generic-readable unhandled-error hypothesis was rejected after
+    checking actual `IncomingMessage` semantics; existing error-destroy behavior
+    is unchanged and covered by the oversized-request control.
 
 ## Historical Phase 23 capability disposition
 
