@@ -251,9 +251,13 @@ Fresh synthetic regressions reopened concrete correctness work:
   focused tests pass. Unsupported `indexing.maxFileLines` emits an actionable warning.
 - #516 and #517: dimension identity and subprocess/cancellation fixes are in progress;
   end-to-end embedding/CLI validation remains required before completion.
-- Dependency and GitHub Security backlog remediation is in progress. A clean npm
-  audit is a dependency check, not proof that all GitHub Security alerts are resolved.
-  Native/provider/platform and scanner-specific evidence remain separate gates.
+- Dependency remediation is implemented with 31 focused tests, all 33 native
+  grammar activations, real q8/native-ONNX inference, installed-lock consistency,
+  and an approved final npm audit at zero known vulnerabilities. The authenticated
+  150-alert Dependabot inventory is reconciled by package family in
+  `docs/security/dependabot-inventory-2026-10-02.json`. These branch changes require
+  merge/rescan for GitHub alert closure. Local CodeQL and remaining platform/release
+  checks are separate, still-pending gates; hosted scanner settings are unchanged.
 
 The seven historical lanes below remain the validation framework. Do not reopen
 archived checklists or claim a release-wide pass from these focused tests. Refresh
@@ -771,4 +775,3 @@ node tools/testing/refresh-governance.js
 ```
 
 If any test command runs longer than 30 seconds, stop it and report it as skipped per repository guidance. Do not run `npm run audit:duplicates` for ordinary roadmap or planning-reference changes; run it only for a future intentional duplicate-code baseline refresh.
-

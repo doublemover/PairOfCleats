@@ -29,7 +29,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24.13.0'
+          node-version: '24.15.0'
           cache: npm
 
       - name: Restore node_modules cache
@@ -37,7 +37,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.15.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps
         shell: bash
@@ -45,6 +45,9 @@ jobs:
           if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
             npm run bootstrap:ci
           fi
+
+      - name: Dependency security
+        run: npm audit --audit-level=low
 
       - name: Lint
         run: npm run lint
@@ -132,7 +135,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24.13.0'
+          node-version: '24.15.0'
           cache: npm
 
       - name: Restore PairOfCleats cache
@@ -151,7 +154,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.15.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
         shell: bash
@@ -233,7 +236,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24.13.0'
+          node-version: '24.15.0'
           cache: npm
 
       - name: Restore PairOfCleats cache
@@ -250,7 +253,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.15.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
         shell: pwsh
@@ -324,7 +327,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24.13.0'
+          node-version: '24.15.0'
           cache: npm
 
       - name: Restore PairOfCleats cache
@@ -341,7 +344,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.15.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
         shell: bash

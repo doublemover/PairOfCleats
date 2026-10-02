@@ -14,7 +14,7 @@ The release pipeline, artifact verification, and smoke contracts should consume 
 - packaging boundary: `node-bin`
 - publish boundary: `repo-package`
 - version source: `package.json#version`
-- runtime targets: `node>=24.13.0`
+- runtime targets: `node>=24.15.0`
 - platforms: `windows`, `linux`, `macos`
 
 Build contract: `source-entrypoint`
@@ -42,7 +42,7 @@ Smoke contract:
 - packaging boundary: `node-service`
 - publish boundary: `repo-package`
 - version source: `package.json#version`
-- runtime targets: `node>=24.13.0`
+- runtime targets: `node>=24.15.0`
 - platforms: `windows`, `linux`, `macos`
 
 Build contract: `source-service`
@@ -69,7 +69,7 @@ Smoke contract:
 - packaging boundary: `node-service`
 - publish boundary: `repo-package`
 - version source: `package.json#version`
-- runtime targets: `node>=24.13.0`
+- runtime targets: `node>=24.15.0`
 - platforms: `windows`, `linux`, `macos`
 
 Build contract: `source-service`
@@ -95,7 +95,7 @@ Smoke contract:
 - packaging boundary: `node-service`
 - publish boundary: `repo-package`
 - version source: `package.json#version`
-- runtime targets: `node>=24.13.0`
+- runtime targets: `node>=24.15.0`
 - platforms: `windows`, `linux`, `macos`
 
 Build contract: `source-service`
@@ -119,7 +119,7 @@ Smoke contract:
 - packaging boundary: `vsix`
 - publish boundary: `vsix-artifact`
 - version source: `extensions/vscode/package.json#version`
-- runtime targets: `node>=24.13.0`, `vscode-extension-host`
+- runtime targets: `node>=24.15.0`, `vscode-extension-host`
 - platforms: `windows`, `linux`, `macos`
 
 Build contract: `package-script`
@@ -179,7 +179,7 @@ Smoke contract:
 - packaging boundary: `native-binary-plus-wrapper`
 - publish boundary: `platform-artifact`
 - version source: `package.json#version`
-- runtime targets: `rust-target-artifact`, `node>=24.13.0`
+- runtime targets: `rust-target-artifact`, `node>=24.15.0`
 - platforms: `windows`, `linux`, `macos`
 
 Build contract: `cargo-plus-staging`

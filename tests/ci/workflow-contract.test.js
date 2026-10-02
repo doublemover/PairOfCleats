@@ -18,7 +18,7 @@ if (!fs.existsSync(runSuitePath)) {
 
 const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const scripts = pkg.scripts || {};
-const nodeVersionRegex = /node-version:\s*['"]?24\.13\.0['"]?/;
+const nodeVersionRegex = /node-version:\s*['"]?24\.15\.0['"]?/;
 const rustToolchainPath = path.join(ROOT, 'crates', 'pairofcleats-tui', 'rust-toolchain.toml');
 const rustToolchainText = fs.readFileSync(rustToolchainPath, 'utf8');
 const pinnedRustToolchain = rustToolchainText.match(/channel\s*=\s*"([^"]+)"/)?.[1] || '';
@@ -43,7 +43,7 @@ const assertWorkflowScriptsExist = ({ workflowText, label }) => {
 
 const assertNodePinned = ({ workflowText, label }) => {
   if (!nodeVersionRegex.test(workflowText)) {
-    console.error(`${label} does not pin Node 24.13.0`);
+    console.error(`${label} does not pin Node 24.15.0`);
     process.exit(1);
   }
 };
@@ -127,7 +127,7 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
     /name:\s*Release/,
     /push:\s*\n\s*tags:\s*\n\s*-\s*'v\*'/,
     /workflow_dispatch:/,
-    /node-version:\s*['"]?24\.13\.0['"]?/,
+    /node-version:\s*['"]?24\.15\.0['"]?/,
     /tools\/release\/metadata\.js/,
     /tools\/release\/check\.js[\s\S]*--phases\s+changelog,contracts,toolchain/,
     /tools\/release\/check\.js[\s\S]*--surfaces\s+vscode,sublime[\s\S]*--phases\s+build/,
@@ -172,7 +172,7 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
       process.exit(1);
     }
     if (jobName === 'attest') continue;
-    if (!/node-version:\s*['"]?24\.13\.0['"]?[\s\S]*cache:\s*npm/.test(jobBlock)) {
+    if (!/node-version:\s*['"]?24\.15\.0['"]?[\s\S]*cache:\s*npm/.test(jobBlock)) {
       console.error(`${label} ${jobName} must enable npm cache in setup-node.`);
       process.exit(1);
     }

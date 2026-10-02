@@ -42,7 +42,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24.13.0'
+          node-version: '24.15.0'
           cache: npm
 
       - name: Install deps
@@ -110,7 +110,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24.13.0'
+          node-version: '24.15.0'
           cache: npm
 
       - name: Install deps
@@ -149,7 +149,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24.13.0'
+          node-version: '24.15.0'
           cache: npm
 
       - name: Install deps
@@ -189,7 +189,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24.13.0'
+          node-version: '24.15.0'
           cache: npm
 
       - name: Install deps
@@ -243,7 +243,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24.13.0'
+          node-version: '24.15.0'
           cache: npm
 
       - name: Setup Rust toolchain
@@ -298,7 +298,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24.13.0'
+          node-version: '24.15.0'
           cache: npm
 
       - name: Install deps
@@ -348,7 +348,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24.13.0'
+          node-version: '24.15.0'
           cache: npm
 
       - name: Install deps
@@ -471,7 +471,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24.13.0'
+          node-version: '24.15.0'
           cache: npm
 
       - name: Setup Rust toolchain
@@ -598,7 +598,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24.13.0'
+          node-version: '24.15.0'
           cache: npm
 
       - name: Install deps

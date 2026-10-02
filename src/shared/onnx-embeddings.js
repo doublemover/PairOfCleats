@@ -1,5 +1,8 @@
 import path from 'node:path';
-import { normalizeEmbeddingVectorInPlace } from './embedding-utils.js';
+import {
+  DEFAULT_EMBEDDING_TRUNCATION,
+  normalizeEmbeddingVectorInPlace
+} from './embedding-utils.js';
 import {
   LARGE_MODEL_BYTES,
   ONNX_TOKENIZATION_CACHE_DEFAULT_MAX_ENTRIES,
@@ -264,7 +267,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
   } else {
     const sessionOptions = buildSessionOptions(normalized, { lowMemory });
     const promise = (async () => {
-      const { AutoTokenizer, env } = await import('@xenova/transformers');
+      const { AutoTokenizer, env } = await import('@huggingface/transformers');
       if (modelsDir) {
         env.cacheDir = modelsDir;
       }

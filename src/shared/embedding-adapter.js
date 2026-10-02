@@ -11,7 +11,7 @@ const PIPELINE_CACHE_MAX_ENTRIES = 16;
 const ADAPTER_CACHE_TTL_MS = 15 * 60 * 1000;
 const ADAPTER_CACHE_MAX_ENTRIES = 64;
 
-let transformersModuleLoader = () => import('@xenova/transformers');
+let transformersModuleLoader = () => import('@huggingface/transformers');
 let transformersModulePromise = null;
 const pipelineCache = new Map();
 const adapterCache = new Map();
@@ -31,7 +31,7 @@ export const __resetEmbeddingAdapterCachesForTests = () => {
 export const __setTransformersModuleLoaderForTests = (loader) => {
   transformersModuleLoader = typeof loader === 'function'
     ? loader
-    : (() => import('@xenova/transformers'));
+    : (() => import('@huggingface/transformers'));
   resetEmbeddingAdapterCachesInternal();
 };
 
@@ -66,7 +66,9 @@ async function loadPipeline(modelId, modelsDir) {
   }
   const entry = {
     promise: loadTransformersModule(modelsDir)
-      .then(({ pipeline }) => pipeline('feature-extraction', modelId))
+      // v2 selected model_quantized.onnx by default. Keep the same weights and
+      // cache identity after the Transformers.js migration (Node defaults to fp32).
+      .then(({ pipeline }) => pipeline('feature-extraction', modelId, { dtype: 'q8' }))
       .catch((err) => {
         pipelineCache.delete(cacheKey);
         throw err;

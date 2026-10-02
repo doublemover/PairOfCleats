@@ -46,7 +46,9 @@ const writeManifestForZip = (zip, overrides = {}) => {
       node: process.versions.node,
       archive: 'vsix(zip)'
     },
-    entries: zipEntryRecords(zip),
+    // Patched adm-zip rejects ambiguous duplicate-entry archives on read. An
+    // explicit manifest fixture must not parse the malicious archive first.
+    entries: Object.hasOwn(overrides, 'entries') ? overrides.entries : zipEntryRecords(zip),
     ...overrides
   };
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -332,7 +334,7 @@ try {
   const duplicateArchivePayload = JSON.parse(duplicateArchiveRun.stdout || '{}');
   assert.match(
     duplicateArchivePayload.error || '',
-    /archive contains duplicate entry/,
+    /archive contains duplicate entry|ADM-ZIP: Duplicate entry name/,
     'expected archive validation to reject duplicate archive paths'
   );
 } finally {
