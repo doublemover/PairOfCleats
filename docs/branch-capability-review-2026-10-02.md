@@ -27,7 +27,7 @@ No historical feature branch is merged wholesale.
 | Dependabot jsdoccomment, PR #100 | Historical Windows check failed. Target 0.84.0 is incorporated in both package and lock on the completion branch |
 | Dependabot ESLint, PR #88 | Historical gate failed and platform jobs were skipped. Target 10.0.1 plus rule-compatibility fixes is incorporated and locally checked on the completion branch |
 | Dependabot yargs, PR #85 | Merged into main as `ca04533d` after a clean preview against the new main and four successful checks on its exact head; completion branch retains 18.2.0 |
-| Dependabot grouped update, PR #518 at `39b0b892` | Newly opened after the first refresh. Its seven declared upgrades are met or exceeded; listed transitive security targets are patched or absent. Its additional node-gyp 13.1.0 resolution (current 13.0.2) needs separate review. Gate passed; three platform checks were running at the latest snapshot |
+| Dependabot grouped update, PR #518 at `39b0b892` | All four checks passed, but the PR retains Node >=24.13 while new native dependencies require 24.15+. Its declared/security targets are already met, exceeded or removed here. The sole distinct retained update, node-gyp 13.1.0, is selectively incorporated with lock/security/engine checks; no native rebuild is claimed |
 
 The six dependency PRs contain no remaining version upgrade to transplant. Both
 root lock specifications and installed-package lock entries were inspected.

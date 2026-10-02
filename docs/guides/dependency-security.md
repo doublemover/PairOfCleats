@@ -124,3 +124,19 @@ Relevant upstream migration references:
 
 - [Transformers.js quantized model selection](https://huggingface.co/docs/transformers.js/guides/dtypes)
 - [ESLint 10 custom-rule migration](https://eslint.org/docs/latest/use/migrate-to-10.0.0)
+
+## Grouped dependency PR follow-through
+
+PR #518 (`39b0b892c8091ead68cadb4316b3600833745d30`) was reviewed after its
+four head checks passed. Its seven declared upgrades already match or are
+superseded by this branch; its transitive security targets are patched or absent
+from the current graph. Merging that PR unchanged into main would retain a
+Node >=24.13 declaration despite updated native dependencies requiring 24.15+.
+The completion branch already declares the compatible minimum.
+
+The remaining distinct lock resolution, optional node-gyp 13.1.0, is incorporated
+from the reviewed PR lock entry. Its engine range is unchanged; its tighter tar
+floor is satisfied by the existing 7.5.22 resolution, and all dependency edges
+satisfy their ranges. The security/engine contract passes. This was a lock-only
+integration: the shared installed tree remains at node-gyp 13.0.2, and no current-
+branch native rebuild or new live audit is claimed for this follow-through.
