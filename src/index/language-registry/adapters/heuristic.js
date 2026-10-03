@@ -588,7 +588,15 @@ export const buildHeuristicAdapters = () => [
     id: 'groovy',
     match: matchByExtension.groovy,
     collectImports: collectGroovyImports,
-    symbolPatterns: GROOVY_SYMBOL_PATTERNS
+    symbolPatterns: GROOVY_SYMBOL_PATTERNS,
+    capabilityProfile: {
+      state: 'partial',
+      diagnostics: [{
+        code: 'USR-W-CAPABILITY-DOWNGRADED',
+        reasonCode: 'USR-R-HEURISTIC-ONLY',
+        detail: 'groovy-heuristic-relations'
+      }]
+    }
   }),
   createHeuristicManagedAdapter({
     id: 'r',

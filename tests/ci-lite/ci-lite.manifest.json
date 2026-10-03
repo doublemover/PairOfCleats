@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 649,
+    "hero": 650,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4744,6 +4744,12 @@
     {
       "id": "security/download-transactions",
       "order": 780,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/csharp-groovy-coverage",
+      "order": 781,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

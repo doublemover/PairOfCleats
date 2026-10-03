@@ -778,3 +778,4 @@ security/contained-file-boundaries
 security/native-download-authority
 security/editor-tui-authority
 security/download-transactions
+indexing/tree-sitter/csharp-groovy-coverage

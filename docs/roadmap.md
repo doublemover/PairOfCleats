@@ -69,6 +69,9 @@ head. None is a blanket release-readiness claim.
    preceding implementation/review and version audit, install and test one
    compatible toolchain at a time. Use the low-load profile, omit embeddings and
    model downloads, and record the exact version, fixture and accepted capabilities.
+   The [individual acceptance record](guides/language-toolchain-acceptance.md)
+   covers the C# synchronous-loader update and Groovy's explicit partial coverage;
+   these parser checks do not establish language-server or compiler acceptance.
 
 ## Current Validation Boundary
 

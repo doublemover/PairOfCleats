@@ -29,6 +29,23 @@ const loggedTraversalBudget = new Set();
 const loggedPlatformGuards = new Set();
 const MAX_TIMEOUTS_PER_RUN = 3;
 
+// The current Groovy grammar rejects some legal semicolon-free statements.
+// Keep useful recovered declaration chunks, but never imply full syntax
+// coverage or treat a recovery node as proof that the source is invalid.
+const withParserCoverage = (chunks, languageId, parserRecovered = null) => {
+  if (languageId !== 'groovy' || !Array.isArray(chunks)) return chunks;
+  return chunks.map((chunk) => ({
+    ...chunk,
+    meta: {
+      ...chunk.meta,
+      parserCoverage: 'partial',
+      parserRecovered: typeof parserRecovered === 'boolean'
+        ? parserRecovered
+        : (typeof chunk.meta?.parserRecovered === 'boolean' ? chunk.meta.parserRecovered : null)
+    }
+  }));
+};
+
 /**
  * Increment tree-sitter metric counters when metrics state is enabled.
  * @param {string} key
@@ -534,6 +551,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   if (!resolvedId) return null;
   if (!isTreeSitterEnabled(options, resolvedId)) return null;
   const strict = options?.treeSitter?.strict === true;
+  let parserRecovered = null;
   const failStrict = (reason, message, extra = {}) => {
     if (!strict) return null;
     const err = new Error(message);
@@ -543,13 +561,13 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     Object.assign(err, extra);
     throw err;
   };
-  const buildWholeFileChunk = () => ([{
+  const buildWholeFileChunk = () => withParserCoverage([{
     start: 0,
     end: text.length,
     name: 'file',
     kind: 'File',
     meta: { treeSitter: true, wholeFile: true }
-  }]);
+  }], resolvedId, parserRecovered);
   if (shouldGuardNativeParser(resolvedId, options)) {
     bumpMetric('fallbacks', 1);
     const guardKey = `${resolvedId}:native-crash-guard`;
@@ -602,7 +620,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     });
     if (cached) {
       recordMetrics();
-      return cached;
+      return withParserCoverage(cached, resolvedId);
     }
   }
   const shouldDeferMissing = options?.treeSitterMissingLanguages
@@ -708,6 +726,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     let rootNode = null;
     try {
       rootNode = tree.rootNode;
+      if (resolvedId === 'groovy') parserRecovered = rootNode.hasError === true;
     } catch {
       recordMetrics();
       bumpMetric('parseFailures', 1);
@@ -734,6 +753,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
 
     if (queryResult?.usedQuery) {
       if (Array.isArray(queryResult.chunks) && queryResult.chunks.length) {
+        queryResult.chunks = withParserCoverage(queryResult.chunks, resolvedId, parserRecovered);
         if (cacheKey && cacheRef) {
           storeCachedChunks({
             cache: cacheRef.cache,
@@ -824,6 +844,8 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
       return null;
     }
 
+    traversalResult.chunks = withParserCoverage(traversalResult.chunks, resolvedId, parserRecovered);
+
     if (cacheKey && cacheRef) {
       storeCachedChunks({
         cache: cacheRef.cache,
@@ -889,7 +911,7 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
       cacheRoot: persistentCacheRoot,
       bumpMetric
     });
-    if (cached) return cached;
+    if (cached) return withParserCoverage(cached, resolvedId);
   }
 
   const pool = await getTreeSitterWorkerPool(options?.treeSitter?.worker, options);
@@ -928,17 +950,18 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
     }
     const result = await pool.run(payload, runOptions);
     if (Array.isArray(result) && result.length) {
+      const chunks = withParserCoverage(result, resolvedId);
       if (cacheKey && cacheRef) {
         storeCachedChunks({
           cache: cacheRef.cache,
           key: cacheKey,
-          chunks: result,
+          chunks,
           maxEntries: cacheRef.maxEntries,
           cacheRoot: persistentCacheRoot,
           bumpMetric
         });
       }
-      return result;
+      return chunks;
     }
 
     // Null/empty results from a worker are treated as a failure signal; retry in-thread for determinism.
