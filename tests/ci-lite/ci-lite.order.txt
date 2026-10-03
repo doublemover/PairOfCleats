@@ -772,3 +772,4 @@ retrieval/cli/search-backend-finally
 storage/sqlite/incremental/handle-lifecycle
 storage/sqlite/build/startup-lifecycle
 storage/sqlite/build/finalization-diagnostics
+tooling/install/package-source-compatibility

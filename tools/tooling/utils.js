@@ -20,6 +20,8 @@ import {
 } from '../../src/shared/env-path.js';
 import { getToolingConfig } from '../shared/dict-utils.js';
 
+const packageMetadata = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+
 const LANGUAGE_EXTENSIONS = {
   javascript: ['.js', '.mjs', '.cjs'],
   typescript: ['.ts', '.tsx', '.mts', '.cts'],
@@ -91,7 +93,7 @@ const TOOL_DOCS = {
   'lua-language-server': 'https://github.com/LuaLS/lua-language-server',
   'yaml-language-server': 'https://github.com/redhat-developer/yaml-language-server',
   zls: 'https://github.com/zigtools/zls',
-  sqls: 'https://github.com/lighttiger2505/sqls'
+  sqls: 'https://github.com/sqls-server/sqls'
 };
 
 const PREFERRED_TOOL_BY_LANGUAGE = {
@@ -336,6 +338,9 @@ export async function detectRepoLanguages(root) {
 }
 
 export function getToolingRegistry(toolingRoot, repoRoot) {
+  // Newer TypeScript distributions may omit the tsserver/JavaScript compiler
+  // API used by our provider. Match the project's supported dependency range.
+  const typescriptPackage = `typescript@${packageMetadata.dependencies.typescript}`;
   const absoluteToolingRoot = path.resolve(toolingRoot);
   const localBinDirs = resolveLocalToolingBinDirs(absoluteToolingRoot);
   const [binDir, nodeBin, dotnetDir, composerBin] = localBinDirs;
@@ -354,8 +359,8 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       languages: ['typescript'],
       detect: { cmd: 'tsserver', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
       install: {
-        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'typescript'] },
-        user: { cmd: 'npm', args: ['install', '-g', 'typescript'] }
+        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, typescriptPackage] },
+        user: { cmd: 'npm', args: ['install', '-g', typescriptPackage] }
       },
       docs: TOOL_DOCS.tsserver
     },
@@ -607,8 +612,8 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       languages: ['sql'],
       detect: { cmd: 'sqls', args: ['version'], binDirs: [binDir] },
       install: {
-        cache: { cmd: 'go', args: ['install', 'github.com/lighttiger2505/sqls@latest'], env: { GOBIN: binDir }, requires: 'go' },
-        user: { cmd: 'go', args: ['install', 'github.com/lighttiger2505/sqls@latest'], requires: 'go' }
+        cache: { cmd: 'go', args: ['install', 'github.com/sqls-server/sqls@latest'], env: { GOBIN: binDir }, requires: 'go' },
+        user: { cmd: 'go', args: ['install', 'github.com/sqls-server/sqls@latest'], requires: 'go' }
       },
       docs: TOOL_DOCS.sqls
     }
