@@ -938,3 +938,48 @@ node tests/indexing/chunking/json.test.js
 Primary references: [official parser APIs](https://github.com/microsoft/node-jsonc-parser),
 [exact component metadata](https://registry.npmjs.org/jsonc-parser/3.3.1), and
 [pinned public parser implementation](https://github.com/microsoft/node-jsonc-parser/blob/v3.3.1/src/impl/parser.ts).
+
+## Recorded validation checkpoints
+
+These are dated Linux cloud checkpoints, not a single full-suite result on the
+current head. Source/test hashes identify what was actually checked; later
+documentation-only checkpoints do not turn earlier receipts into fresh runs.
+The detailed sections above retain component versions, provenance, controls and
+limits. Native grammar/API fixtures, live clients, collectors, compiler/runtime
+acceptance and full indexing are separate evidence categories.
+
+| Checkpoint | Exact source/test revision | Recorded outcome and boundary |
+| --- | --- | --- |
+| Recovered core | 953aac6bb697f887c69e63b3a9c379acb623e4a9 | Frozen implementation and 18 backup histories restored. Existing focused lifecycle/search/metadata/risk checks and failed/interrupted attempts remain dated evidence; recovery is not a new full-lane run. |
+| Recovery follow-through | 03d777d80cd686be172a198fb525a090cd0fe1e0 | SQLite callback-independent cleanup, compatible TypeScript install selection and canonical sqls path passed narrow native/synthetic/source checks. No model loading or full index. |
+| Authority hardening | a914c039c11520288c27e9af18a95dfc1d5b75a1; b1f3f22a33c29ac7e4442c3688ff662f4ccac657 | Five new synthetic authority/editor/archive/containment/native regressions plus affected existing fixtures passed. The archive cleanup follow-through and contained Tree-sitter reads are included. Native TUI rebuild and non-Linux acceptance remain open. |
+| C#/Groovy | 9df228385d2993674ab4d53cf0b730d228eaf0bb | Exact C# binding/loader, native preflight/chunks and truthful Groovy recovery/partial relation controls passed. No C# compiler or Groovy LSP acceptance. |
+| Node LSPs | 9913c55bc9487299c1f13b337e95b6cc443e3fb7 | Tiny actual-client YAML, TypeScript and Bash fixtures plus owned configuration/diagnostic lifetime controls passed. Explicit server/adapter scope is in the record above. |
+| Lua/Go/SQL | 4334d8884f0df88d392fdb6e3ea614d19c63c75c | Verified isolated LuaLS/gopls/sqls client/collector fixtures passed. SQLs has formatting/completion evidence, not full type/navigation or database-query acceptance. |
+| Rust/Zig authority | 30026be4da7f647082ad4c96600af1a88b839559; fb4fbba8ffea04f8da8a096f6c7f7beb575fff64; d58dd81d213a018f90284e943a764f4d8e993052 | Exact launch-owned repository guards and benign owned-root live fixtures passed. Native Rust AST remains independent; Zig is tooling-only. Build-server readiness stayed inside the bounded fixture deadline. |
+| Rust cache/partition | a22336baf38935b8e090c049753f9edad36ea603 | Three recorded baseline failures were corrected with their behavior assertions retained; blocked-state precedence, participating cache metadata and excluded-root contracts passed targeted controls. |
+| Python alternatives | ac5431c54faa470ceda5f86edf70709da0b989fa; d875531ca4af2863f45b8c64a210e73e8c470113 | Dedicated Pyright, generic ty and diagnostics-only Ruff tiny fixtures passed their stated scopes. Diagnostics-only lifecycle is covered; the default was not replaced. Exact-lock Pyright 1.1.408 subsequently passed the existing command-profile matrix. |
+| clangd | 74b29f586f387760c6d91cec1c180424731566cb | C17/C++20 actual-client/common/dedicated collector controls passed with owned compile commands and unsafe/background features disabled. Objective-C/Apple SDK and platform acceptance remain open. |
+| Java/JDT | 23a1fcf02606c2da07d171f019ad899ae18c21d0; 411958dc76ec2716603f8aa801f67e5b7ee2cef0 | Exact-root authority and standalone owned-root client/collector fixtures passed with imports/build/APT disabled. Method types use labelled source bootstrap; javac, project import/build and full SDK acceptance are not claimed. Final observed resource limits are recorded at e9e4ec9cd35531ec7ea32cb0ebef3dce8a324aa5. |
+| Dockerfile | 277dddd4d23fec3db1acfb2f30afa34d05ef4e8f; 5192b859ba9d8552e087fabd7bd1bbf3aca4c6c3 | Shared logical-instruction AST controls passed; the unchanged collector exposed and verified the separate FROM-platform compatibility correction. No Docker execution. |
+| GraphQL | d9e5ffa77fbc8e2dfee0001b41703749922ca832 | Syntax-only owner/range/import controls passed. Expanded budget fixtures use the corrected 45–130 MiB resource range recorded at 6b979ee7a3f1cd5826631b4f641af3cbfe7ac7b8. No schema execution or GraphQL17 migration. |
+| Handlebars and setup accounting | e83be78f6bfc19ca0fce210e480cca2a4ead4b90; b29da51ebb8aca7f502d09a613c4f7324e2b67ce | Public parser import route and static-partial/block controls passed. The unchanged collector exposed cold-load timing; one-time initialization is measured separately while scan deadlines remain intact. No template execution. |
+| Protobuf | 40be2053500326945f6b9adbfbfcdb04eb356846 | Seven exact-head focused owner/collector/setup/caps/taxonomy/doc checks passed. Semantic reflection and application lexical ranges have separate provenance; stricter caller deadlines win. |
+| Registry closure and Acorn correction | 40be2053500326945f6b9adbfbfcdb04eb356846; ee55ea728fe640eac5372aa22ebb54c4423f03b3 | Seven previously blocked fixtures passed with unchanged assertions. Earlier Acorn 8.18 receipts are not exact-lock claims; all seven affected fixtures were rerun with verified 8.15 at ee55ea72 and actual resolution hooks. Documentation at ee55 has identical source/tests to 40be. |
+| Mustache | aa47f83ece0ab35a8584122a32b6302db6cb5468 | Nine exact-head focused checks passed, each below 0.57 seconds/<75 MiB; formatter 27.6 seconds. Vendor parse-token ranges and syntax-only capability are explicit. |
+| Jinja/Django | 39f0f5b12a4766b62ae0ce82aac2bc65dffb9952 | Ten exact-head focused checks passed, each below 0.52 seconds/<86 MiB; formatter 29.2 seconds. Distinct lexical dialects are heuristic/partial. The verified Python reference comparison and grammar ABI gap do not imply production AST acceptance. |
+| JSONC | be388506c38d9cf9392192dce7d4040f6c2ec051 | Nine exact-head focused checks passed, each below 0.62 seconds/<94 MiB; formatter 28.0 seconds. Explicit syntax ownership, effective last-key ranges and strict/deep compatibility are covered; deep lenient JSONC remains bounded. |
+
+Historical core/dependency records remain in the
+[branch/capability review](../branch-capability-review-2026-10-02.md),
+[dependency guide](dependency-security.md), dated
+[Rust dependency receipt](../security/rust-dependency-validation-2026-10-02.json) and
+[embedding/HTTP receipt](../security/embedding-http-validation-2026-10-02.json).
+Those old embedding checks do not authorize current model downloads. The interrupted
+historical ci-lite run recorded 477 passes, two later-corrected fixture failures
+and seven unverified timeouts; focused corrections do not constitute a completed
+lane. Recorded Rust test execution had zero defined unit tests and is not behavioral
+coverage. Dated audit results are not current hosted-alert closure; the later braces
+development-tool advisory remains parked, without gate suppression.
+Broad release/platform/native-backend/TUI/performance and hosted-security acceptance
+remain deferred. No new GitHub CI check, rerun or security workflow was used here.
