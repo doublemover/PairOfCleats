@@ -653,3 +653,60 @@ bounded integration evidence rather than a whole-index or platform benchmark.
 node tests/lang/contracts/ast-parser-initialization-budget.test.js
 node tests/lang/registry/collectors.test.js
 ```
+
+## Protobuf reflection with explicit application lexical ranges
+
+The declared/locked protobufjs 8.8.0 and long 5.3.2 packages are admitted separately
+with scripts disabled. Their 757,213-byte and 26,736-byte registry tarballs match
+the project's SHA-512 integrity. Tiny parse-only fixtures accept proto2/proto3 and
+editions 2023/2024/2026; an unsupported 2025 edition and malformed syntax reject.
+This establishes parser component behavior, not protoc/compiler or full SDK acceptance.
+
+The old owners reproduced phantom message/RPC chunks, exports and request/reply
+relations from block comments. A shared bounded model now uses verified reflection
+for imports, declarations and unresolved field/RPC type strings. protobufjs
+reflection and its public tokenizer supply no source offsets. A separately owned
+application lexer therefore handles actual comment/string/token boundaries and
+UTF-16 positions; chunk metadata explicitly says application-lexer/lexicalRange,
+never a fabricated library AST range. Real nested/same-line declarations, oneofs
+and qualified extension headings retain their verified reflection identity.
+
+Failure, unavailable/unsupported loading, truncated syntax or expiration produces
+only a labelled generic section and no invented declarations/imports/relations.
+The unsafe declaration regex fallback is removed. Edition option-imports that the
+vendor drops are explicitly unsupported rather than reported as complete imports.
+Partial line windows conservatively omit positionless reflection type references;
+no positions are guessed for them. Relation/call/flow capability remains partial,
+not full type binding or a runtime call graph.
+
+Admission bounds are 786,432 characters, 5,000 lines, 32,768 lexical tokens,
+8,192 characters per token, 4,096 reflection nodes and 64 lexical brace levels.
+The application pass has a separately justified isolated 100 ms vendor/lexical
+ceiling; this is not a replacement for a caller's shorter scan deadline. Import
+and relation owners propagate their actual remaining scan time on every admission
+checkpoint, and chunks honour the configured per-language/global parse timeout.
+The effective limit is always the stricter policy. Synchronous vendor
+parsing cannot be interrupted in-process, so its overrun is checked immediately
+after return and recorded against the actual effective limit. That is not a promise
+of a timer interrupt. Existing collector scan
+deadlines still include actual parsing/extraction, with one-time setup measured
+separately. Fixtures additionally enforce one CPU, 512 MiB Node heap and a 30-second
+process limit; embeddings/models remain off. Conservative route caps and synthetic
+calibration values are unchanged, not new performance benchmarks.
+
+Focused controls cover comments, string-contained/same-name/escaped fake declarations,
+nested real declarations, UTF-16/CRLF ranges, imports, editions, malformed/truncated
+source, missing loader, source/token/node/depth bounds and lexical/vendor/collector
+expiration, including caller limits below the isolated ceiling and measured
+synchronous overshoot. Loading, resolution, type setup/codegen and RPC paths are guarded by
+fixture tripwires. The tiny component regression finishes below a second around
+50–85 MiB observed RSS. No imported file/URL is read, no schema is resolved, and
+no serialization or RPC is executed.
+
+```sh
+node tests/lang/contracts/proto-reflection-lexical-boundaries.test.js
+```
+
+Primary references: [official project](https://github.com/protobufjs/protobuf.js),
+[public parse/reflection API](https://protobufjs.github.io/protobuf.js/global.html#parse),
+and [exact package](https://registry.npmjs.org/protobufjs/8.8.0).

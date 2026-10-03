@@ -220,7 +220,7 @@ const CODE_CHUNKERS = [
   {
     id: 'proto',
     match: (ext) => ext === '.proto',
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'proto', context) || chunkProto(text, context)
+    chunk: ({ text, context }) => chunkProto(text, context)
   },
   {
     id: 'graphql',

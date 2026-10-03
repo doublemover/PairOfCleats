@@ -35,6 +35,7 @@ const ROUTE_BASELINES = Object.freeze({
   'tree-sitter-jinja': Object.freeze({ maxBytes: 224 * 1024, maxLines: 3500, maxParseMs: 1200 }),
   'tree-sitter-razor': Object.freeze({ maxBytes: 224 * 1024, maxLines: 3500, maxParseMs: 1200 }),
   'tree-sitter-proto': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 }),
+  'protobufjs-reflection+lexical-ranges': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 }),
   'line-parser-makefile': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5500, maxParseMs: 1200 }),
   'line-parser-dockerfile': Object.freeze({ maxBytes: 288 * 1024, maxLines: 4500, maxParseMs: 1200 }),
   'dockerfile-ast-or-line-parser': Object.freeze({ maxBytes: 288 * 1024, maxLines: 4500, maxParseMs: 1200 }),

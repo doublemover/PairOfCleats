@@ -1,15 +1,8 @@
 import { buildChunksFromLineHeadings } from '../helpers.js';
 import { collectHeadingRows } from './shared.js';
 import { parseGraphqlStructure } from '../../../shared/graphql-ast.js';
+import { parseProtoStructure } from '../../../shared/proto-structure.js';
 
-const PROTO_BLOCK_RX = /^\s*(message|enum|service|oneof)\s+([A-Za-z_][A-Za-z0-9_]*)/;
-// `extend` targets may be fully qualified (for example
-// `extend google.protobuf.MessageOptions`), so allow dotted paths and an
-// optional leading dot for package-qualified symbols.
-const PROTO_EXTEND_RX = /^\s*extend\s+(\.?[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)/;
-const PROTO_RPC_RX = /^\s*rpc\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
-const PROTO_SYNTAX_RX = /^\s*syntax\s*=\s*["'][^"']+["']\s*;/;
-const PROTO_PACKAGE_RX = /^\s*package\s+([A-Za-z_][A-Za-z0-9_.]*)\s*;/;
 const PROTO_KIND_BY_KEYWORD = {
   message: 'TypeDeclaration',
   enum: 'EnumDeclaration',
@@ -37,15 +30,6 @@ const GRAPHQL_KIND_BY_KEYWORD = {
   mutation: 'OperationDeclaration',
   subscription: 'OperationDeclaration'
 };
-
-const hasProtoCandidate = (line) => (
-  line.includes('message')
-  || line.includes('enum')
-  || line.includes('service')
-  || line.includes('extend')
-  || line.includes('oneof')
-  || line.includes('rpc')
-);
 
 const hasGraphqlCandidate = (line) => (
   line.includes('schema')
@@ -110,72 +94,33 @@ const buildFallbackChunk = (text, name, format) => [{
 }];
 
 /**
- * Heuristic Proto splitter for declaration boundaries.
- *
- * This is used when tree-sitter chunks are unavailable and must remain stable
- * across runs for scheduler fallback parity.
+ * Verified reflection identities with application-owned lexical heading ranges.
+ * Failed/unavailable parsing yields only a labelled generic section, never regex phantoms.
  *
  * @param {string} text
  * @param {object|null} [context]
  * @returns {Array<object>}
  */
-export const chunkProto = (text, context = null) => {
-  const { headings, lineIndex } = collectHeadingRows(text, context, {
-    skipLine: (line, trimmed) => trimmed.startsWith('//'),
-    collect: (line, trimmed, i) => {
-      void trimmed;
-      if (PROTO_SYNTAX_RX.test(line)) {
-        return { line: i, title: 'syntax', kind: 'ConfigDeclaration', definitionType: 'syntax' };
-      }
-      const packageMatch = line.match(PROTO_PACKAGE_RX);
-      if (packageMatch) {
-        return {
-          line: i,
-          title: `package ${packageMatch[1]}`,
-          kind: 'NamespaceDeclaration',
-          definitionType: 'package'
-        };
-      }
-      if (!hasProtoCandidate(line)) return null;
-      const rpcMatch = line.match(PROTO_RPC_RX);
-      if (rpcMatch) {
-        return {
-          line: i,
-          title: `rpc ${rpcMatch[1]}`,
-          kind: 'MethodDeclaration',
-          definitionType: 'rpc'
-        };
-      }
-      const extendMatch = line.match(PROTO_EXTEND_RX);
-      if (extendMatch) {
-        const name = extendMatch[1];
-        return {
-          line: i,
-          title: `extend ${name}`,
-          kind: 'ExtendDeclaration',
-          definitionType: 'extend'
-        };
-      }
-      const blockMatch = line.match(PROTO_BLOCK_RX);
-      if (blockMatch) {
-        const keyword = blockMatch[1];
-        const name = blockMatch[2];
-        return {
-          line: i,
-          title: `${keyword} ${name}`.trim(),
-          kind: PROTO_KIND_BY_KEYWORD[keyword] || 'Section',
-          definitionType: keyword
-        };
-      }
-      return null;
-    }
-  });
-  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
-  if (chunks && chunks.length) {
-    return mapChunksWithSchemaMeta(chunks, headings, 'proto');
-  }
-  return buildFallbackChunk(text, 'proto', 'proto');
+export const createProtoChunker = ({ parseStructure = parseProtoStructure } = {}) => (text, context = null) => {
+  const source = String(text || '');
+  const treeSitter = context?.treeSitter;
+  const configuredMs = treeSitter?.byLanguage?.proto?.maxParseMs ?? treeSitter?.maxParseMs;
+  const structure = parseStructure(source, { maxMs: configuredMs });
+  if (!structure.headings.length) return buildFallbackChunk(source, 'proto', 'proto').map((chunk) => ({ ...chunk,
+    meta: { ...chunk.meta, parser: structure.parser, parserCoverage: structure.coverage,
+      parserFallbackReason: structure.reason } }));
+  return structure.headings.map((heading, index) => ({ start: heading.start,
+    end: structure.headings[index + 1]?.start ?? source.length, name: heading.name,
+    kind: ['syntax', 'edition'].includes(heading.keyword) ? 'ConfigDeclaration'
+      : heading.keyword === 'package' ? 'NamespaceDeclaration'
+        : heading.keyword === 'rpc' ? 'MethodDeclaration' : PROTO_KIND_BY_KEYWORD[heading.keyword] || 'Section',
+    meta: { title: heading.name, format: 'proto', definitionType: heading.keyword,
+      parser: structure.parser, parserCoverage: structure.coverage, reflectionName: heading.reflectionName,
+      rangeSource: structure.rangeSource, lexicalRange: { start: heading.start, end: heading.end },
+      parseMetrics: structure.metrics } }));
 };
+
+export const chunkProto = createProtoChunker();
 
 /**
  * GraphQL syntax definitions own exact source offsets, including descriptions

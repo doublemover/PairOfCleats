@@ -30,7 +30,8 @@ import { collectJuliaImports } from '../import-collectors/julia.js';
 import { collectMakefileImports } from '../import-collectors/makefile.js';
 import { collectMustacheImports } from '../import-collectors/mustache.js';
 import { collectNixImportEntries, collectNixImports } from '../import-collectors/nix.js';
-import { collectProtoImports } from '../import-collectors/proto.js';
+import { createProtoImportCollector } from '../import-collectors/proto.js';
+import { parseProtoStructure } from '../../../shared/proto-structure.js';
 import { collectRazorImports } from '../import-collectors/razor.js';
 import { collectRImports } from '../import-collectors/r.js';
 import { collectScalaImports } from '../import-collectors/scala.js';
@@ -157,11 +158,6 @@ const GRAPHQL_SYMBOL_PATTERNS = Object.freeze([
   /\bfragment\s+([A-Za-z_][A-Za-z0-9_]*)\s+on\s+[A-Za-z_][A-Za-z0-9_]*/g
 ]);
 
-const PROTO_SYMBOL_PATTERNS = Object.freeze([
-  /\b(?:message|enum|service)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
-  /\brpc\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
-]);
-
 const CMAKE_SYMBOL_PATTERNS = Object.freeze([
   /\b(?:function|macro)\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)/g
 ]);
@@ -218,31 +214,6 @@ const GRAPHQL_USAGE_SKIP = new Set([
   'input',
   'scalar',
   'implements'
-]);
-
-const PROTO_USAGE_SKIP = new Set([
-  'double',
-  'float',
-  'int32',
-  'int64',
-  'uint32',
-  'uint64',
-  'sint32',
-  'sint64',
-  'fixed32',
-  'fixed64',
-  'sfixed32',
-  'sfixed64',
-  'bool',
-  'string',
-  'bytes',
-  'map',
-  'oneof',
-  'optional',
-  'required',
-  'repeated',
-  'returns',
-  'rpc'
 ]);
 
 const BUILD_DSL_USAGE_SKIP = new Set([
@@ -359,22 +330,6 @@ const collectGraphqlUsages = (text, scanBudget = null) => {
     [typeRef, fragmentRef, implRef],
     scanBudget,
     { skip: GRAPHQL_USAGE_SKIP }
-  );
-  return sortUnique(values);
-};
-
-const collectProtoUsages = (text, scanBudget = null) => {
-  const source = String(text || '');
-  const rpcTypes = /\brpc\s+[A-Za-z_][A-Za-z0-9_]*\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)\s+returns\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/g;
-  const fieldTypes = /\b(?:optional|required|repeated)?\s*([A-Za-z_][A-Za-z0-9_.]*)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*\d+/g;
-  const values = collectRegexUsageCandidates(
-    source,
-    [rpcTypes, fieldTypes],
-    scanBudget,
-    {
-      skip: PROTO_USAGE_SKIP,
-      candidatesForMatch: (match, matcher) => matcher === rpcTypes ? [match[1], match[2]] : [match[1]]
-    }
   );
   return sortUnique(values);
 };
@@ -716,6 +671,60 @@ export const createHandlebarsManagedAdapter = ({ parseStructure = parseHandlebar
   return adapter;
 };
 
+export const createProtoManagedAdapter = ({ parseStructure = parseProtoStructure } = {}) => {
+  const collectProtoImports = createProtoImportCollector({ parseStructure });
+  const adapter = createHeuristicManagedAdapter({ id: 'proto', match: matchProto,
+    collectImports: collectProtoImports, symbolPatterns: [], usageCollector: () => [],
+    capabilityProfile: { state: 'partial', diagnostics: [{ code: 'USR-W-CAPABILITY-DOWNGRADED',
+      reasonCode: 'USR-R-HEURISTIC-ONLY', detail: 'proto-reflection-with-application-lexical-ranges' }] } });
+  adapter.buildRelations = ({ text, options }) => {
+    parseStructure.initialize?.();
+    const budgetContext = createCollectorBudgetContext({ text, options,
+      collectorId: 'heuristic-adapter:proto', defaults: HEURISTIC_RELATION_SCAN_BUDGET });
+    let lineLimited = false;
+    try {
+      const structure = parseStructure(budgetContext.source, { remainingMs: () => budgetContext.budget.maxMs > 0
+        ? Math.max(0, budgetContext.budget.maxMs - budgetContext.scanBudget.elapsedMs) : Infinity });
+      if (structure.reason) return buildSimpleRelations({ imports: [] });
+      lineLimited = budgetContext.budget.maxLines > 0 && structure.sourceLines > budgetContext.budget.maxLines;
+      const symbols = [];
+      const references = [];
+      for (const definition of structure.definitions) {
+        if (budgetContext.budget.maxLines > 0 && definition.line >= budgetContext.budget.maxLines) continue;
+        if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()
+          || !budgetContext.scanBudget.consumeToken()) break;
+        symbols.push(definition.name);
+      }
+      // Reflection type strings have no library source positions. A partial line
+      // window conservatively omits these references rather than inventing ranges.
+      if (!lineLimited) for (const value of structure.references) {
+        if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()
+          || !budgetContext.scanBudget.consumeToken()) break;
+        references.push(value);
+      }
+      const exports = sortUnique(symbols);
+      const usages = sortUnique(references);
+      const calls = [];
+      for (const caller of exports.length ? exports : ['<module>']) {
+        for (const callee of usages) {
+          if (callee !== caller) calls.push([caller, callee]);
+          if (calls.length >= 96) break;
+        }
+        if (calls.length >= 96) break;
+      }
+      return { ...buildSimpleRelations({ imports: collectProtoImports(budgetContext.source, options) }), exports, usages, calls };
+    } finally {
+      if (lineLimited) for (let line = 0; line < budgetContext.budget.maxLines; line += 1) {
+        if (!budgetContext.scanBudget.consumeLine()) break;
+      }
+      budgetContext.finalize();
+    }
+  };
+  adapter.extractDocMeta = ({ chunk }) => ({ ...extractHeuristicManagedDocMeta(chunk),
+    source: chunk?.meta?.parser === 'protobufjs-reflection' ? 'managed-proto-reflection+lexical' : 'managed-proto-unavailable' });
+  return adapter;
+};
+
 export const buildHeuristicAdapters = () => [
   createHeuristicManagedAdapter({
     id: 'cmake',
@@ -803,13 +812,7 @@ export const buildHeuristicAdapters = () => [
     symbolPatterns: RAZOR_SYMBOL_PATTERNS,
     usageCollector: collectTemplateUsages
   }),
-  createHeuristicManagedAdapter({
-    id: 'proto',
-    match: matchProto,
-    collectImports: collectProtoImports,
-    symbolPatterns: PROTO_SYMBOL_PATTERNS,
-    usageCollector: collectProtoUsages
-  }),
+  createProtoManagedAdapter(),
   createHeuristicManagedAdapter({
     id: 'makefile',
     match: matchMakefile,

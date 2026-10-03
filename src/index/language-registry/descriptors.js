@@ -241,7 +241,7 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
   Object.freeze({
     id: 'proto',
     adapterId: 'proto',
-    parserRoute: 'tree-sitter-proto',
+    parserRoute: 'protobufjs-reflection+lexical-ranges',
     capsProfile: 'proto-default',
     extensions: Object.freeze(['.proto']),
     specialFilenames: Object.freeze(['buf.yaml', 'buf.gen.yaml'])

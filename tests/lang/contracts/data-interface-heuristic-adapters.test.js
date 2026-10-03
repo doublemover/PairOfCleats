@@ -26,6 +26,7 @@ const CASES = [
   },
   {
     id: 'proto',
+    expectedCapabilityState: 'partial',
     source: [
       'syntax = "proto3";',
       'import "shared.proto";',

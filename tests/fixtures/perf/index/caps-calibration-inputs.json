@@ -773,7 +773,7 @@
     },
     {
       "id": "proto",
-      "parserRoute": "tree-sitter-proto",
+      "parserRoute": "protobufjs-reflection+lexical-ranges",
       "capsProfile": "proto-default",
       "telemetry": {
         "bytes": {
