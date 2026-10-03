@@ -1,9 +1,11 @@
 import { collectLspTypes } from '../../../integrations/tooling/providers/lsp.js';
+import { resolveRustWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
 import { invalidateProbeCacheOnInitializeFailure } from '../command-resolver.js';
 import { resolveLspRuntimeConfig } from '../lsp-runtime-config.js';
 import {
   appendDiagnosticChecks,
   buildProviderFidelityContract,
+  PROVIDER_FIDELITY_STATE,
   shouldCaptureDiagnosticsForRequestedKinds
 } from '../provider-contract.js';
 import { mergeLspWorkspacePartitionResults } from '../lsp-workspace-routing.js';
@@ -380,6 +382,10 @@ export const collectConfiguredOutput = async ({
   blockedWorkspaceKeys = [],
   blockedWorkspaceRoots = []
 }) => {
+  const executionAuthority = resolveRustWorkspaceExecutionAuthority({ repoRoot: ctx?.repoRoot || process.cwd(), providerId, server });
+  if (executionAuthority) {
+    return { byChunkUid: {}, checks: [executionAuthority.check] };
+  }
   if (commandProfile?.resolved?.mode === 'blocked') {
     return { byChunkUid: {}, checks: [{ name: 'untrusted-repository-command', status: 'warn' }] };
   }
@@ -436,6 +442,12 @@ export const collectConfiguredOutput = async ({
       : (workspaceRouting.reasonCode || preflightReasonCode || null)
   );
   for (const partition of workspaceRouting.partitions) {
+    const currentAuthority = resolveRustWorkspaceExecutionAuthority({ repoRoot: ctx.repoRoot, workspaceRoot: partition.rootDir, providerId, server });
+    if (currentAuthority) {
+      skippedBlockedPartitions.push(partition);
+      preChecks.push(currentAuthority.check);
+      continue;
+    }
     if (blockedKeySet.has(String(partition.workspaceKey || '').trim()) || blockedRootSet.has(String(partition.rootRel || '').trim())) {
       skippedBlockedPartitions.push(partition);
       continue;
@@ -543,6 +555,8 @@ export const collectConfiguredOutput = async ({
       workspaceModel: workspaceRouting.workspaceModel,
       fidelity: buildProviderFidelityContract({
         providerId,
+        ...(partitionResults.length === 0 && preChecks.some((check) => check.name === 'rust_workspace_trust_required')
+          ? { state: PROVIDER_FIDELITY_STATE.BLOCKED } : {}),
         preflightState: effectivePreflightState,
         reasonCode: effectivePreflightReasonCode,
         preflightDetails: {

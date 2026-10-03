@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runRustAnalyzerWorkspaceFixture } from '../../helpers/lsp-provider-fixture.js';
@@ -10,6 +11,7 @@ const tempRoot = resolveTestCachePath(root, `configured-lsp-rust-workspace-timeo
 const toolingCacheDir = path.join(tempRoot, 'tooling-cache');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'crate-ok', 'src'), { recursive: true });
+grantFixtureRepositoryExecution(tempRoot);
 await fs.mkdir(path.join(tempRoot, 'examples', 'slow', 'src'), { recursive: true });
 await fs.writeFile(
   path.join(tempRoot, 'crate-ok', 'Cargo.toml'),

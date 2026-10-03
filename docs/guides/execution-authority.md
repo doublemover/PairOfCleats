@@ -34,6 +34,24 @@ providers remain available. A language server may itself have project-specific
 execution features; this policy is not an operating-system sandbox for third-party
 servers or a claim that arbitrary project plugins are safe.
 
+Rust workspace execution additionally requires that exact repository grant,
+including the automatic `rust-analyzer` preset, command/runtime probes, workspace
+metadata preflight and direct Rust-document collection. Installing a verified
+server or Rust component is a separate action and does not grant a workspace
+execution authority. Native Rust Tree-sitter analysis remains available without
+this grant. Denied enrichment reports `rust_workspace_trust_required` rather than
+silently falling back to another command or treating missing output as success.
+
+This boundary follows [rust-analyzer's security guidance](https://rust-analyzer.github.io/book/security.html):
+workspace analysis can execute build scripts, proc macros and repository-selected
+compiler commands. Disabling only build scripts/proc macros is not an equivalent
+trust boundary. Grant `PAIROFCLEATS_TRUSTED_REPOS` only from the launching user's
+environment after deciding that repository execution is acceptable. Nested
+workspace roots must remain canonically inside that repository or have their own
+exact grant. Trust participates in preflight/cache identity and is rechecked after
+awaited preflight and before workspace launch; changing trust is not a process
+sandbox or a guarantee that an already-running third-party process is terminated.
+
 Python and Tree-sitter worker counts are clamped before pool construction to the
 launch CPU/thread budget and a conservative maximum of four. Repository
 `allowOverCap` settings cannot remove that ceiling. A one-thread launch therefore

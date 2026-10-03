@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
@@ -9,6 +10,7 @@ const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `configured-lsp-rust-workspace-metadata-timeout-${process.pid}-${Date.now()}`);
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
+grantFixtureRepositoryExecution(tempRoot);
 await fs.writeFile(
   path.join(tempRoot, 'Cargo.toml'),
   '[package]\nname = "sample"\nversion = "0.1.0"\nedition = "2021"\n',

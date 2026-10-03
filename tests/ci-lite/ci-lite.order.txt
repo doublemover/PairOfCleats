@@ -783,3 +783,4 @@ tooling/lsp/fallback-language-ids-and-offline-presets
 tooling/lsp/configuration-request-boundary
 tooling/lsp/diagnostics-drain-boundary
 tooling/lsp/configuration-pull-and-delayed-diagnostics
+security/rust-workspace-execution-authority

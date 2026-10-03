@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
@@ -9,6 +10,7 @@ const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `configured-lsp-rust-workspace-metadata-${process.pid}-${Date.now()}`);
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
+grantFixtureRepositoryExecution(tempRoot);
 
 // Intentionally invalid Cargo.toml to force `cargo metadata` preflight failure.
 await fs.writeFile(path.join(tempRoot, 'Cargo.toml'), '[package\nname = "broken"\n', 'utf8');

@@ -2,18 +2,23 @@ import {
   isProbeCommandDefinitelyMissing,
   resolveToolingCommandProfile
 } from '../command-resolver.js';
+import { resolveRustWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
 
 /**
  * Resolve runtime prerequisite checks as a preflight classification.
  *
- * This is fail-open by design: missing/inconclusive runtime probes produce
- * degraded warnings but do not block provider execution.
+ * Missing/inconclusive runtime probes produce degraded warnings. An explicit
+ * workspace execution denial is different and must remain blocking.
  */
 export const resolveRuntimeRequirementsPreflight = ({
   ctx,
   providerId,
   requirements
 }) => {
+  const executionAuthority = resolveRustWorkspaceExecutionAuthority({
+    repoRoot: ctx?.repoRoot || process.cwd(), providerId
+  });
+  if (executionAuthority) return { ...executionAuthority, checks: [executionAuthority.check] };
   const runtimeRequirements = Array.isArray(requirements) ? requirements : [];
   if (!runtimeRequirements.length) {
     return { state: 'ready', reasonCode: null, message: '', checks: [] };

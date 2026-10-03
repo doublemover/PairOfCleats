@@ -1,4 +1,5 @@
 import { awaitToolingProviderPreflight } from '../preflight-manager.js';
+import { resolveRustWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
 import {
   mergePreflightChecks,
   resolveCommandProfilePreflightResult,
@@ -41,6 +42,18 @@ const buildCommandUnavailableCheck = (providerId, requestedCmd) => ({
 
 export const createConfiguredLspProvider = (server) => {
   const providerId = normalizeServerId(server.providerId, `lsp-${server.id}`);
+  const executionAuthorityFor = (ctx) => resolveRustWorkspaceExecutionAuthority({
+    repoRoot: ctx?.repoRoot || process.cwd(), providerId, server
+  });
+  const blockedExecutionOutput = (ctx, inputs, authority, owner) => ({
+    provider: { id: providerId, version: owner.version, configHash: owner.getConfigHash(ctx) },
+    byChunkUid: {},
+    diagnostics: appendDiagnosticChecks({ fidelity: buildProviderFidelityContract({
+      providerId, state: PROVIDER_FIDELITY_STATE.BLOCKED, preflightState: 'blocked',
+      reasonCode: authority.reasonCode, preflightDetails: { state: 'blocked' },
+      captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds)
+    }) }, [authority.check])
+  });
   const runCommandProfilePreflight = (ctx) => {
     return resolveCommandProfilePreflightResult({
       providerId: server.id || providerId,
@@ -102,6 +115,8 @@ export const createConfiguredLspProvider = (server) => {
           diagnostics: appendDiagnosticChecks(null, preChecks)
         };
       }
+      const executionAuthority = executionAuthorityFor(ctx);
+      if (executionAuthority) return blockedExecutionOutput(ctx, inputs, executionAuthority, this);
       let commandProfile = null;
       let preflightState = 'ready';
       let preflightReasonCode = null;
@@ -167,6 +182,8 @@ export const createConfiguredLspProvider = (server) => {
         blockedWorkspaceKeys = Array.isArray(preflight?.blockedWorkspaceKeys) ? preflight.blockedWorkspaceKeys : [];
         blockedWorkspaceRoots = Array.isArray(preflight?.blockedWorkspaceRoots) ? preflight.blockedWorkspaceRoots : [];
       }
+      const currentAuthority = executionAuthorityFor(ctx);
+      if (currentAuthority) return blockedExecutionOutput(ctx, inputs, currentAuthority, this);
       const runtimeCommand = resolveRuntimeCommandFromPreflight({
         preflight: {
           requestedCommand,
@@ -254,6 +271,8 @@ export const createConfiguredLspProvider = (server) => {
   provider.preflightClass = server.preflightClass
     || (server.workspaceMarkerOptions && server.requireWorkspaceModel !== false ? 'workspace' : 'probe');
   provider.preflight = async (ctx, inputs = {}) => {
+    const executionAuthority = executionAuthorityFor(ctx);
+    if (executionAuthority) return executionAuthority;
     const commandPreflight = runCommandProfilePreflight(ctx);
     const luaLibraryPreflight = resolveLuaWorkspaceLibraryPreflight({
       server,

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
@@ -52,6 +53,7 @@ const runSingleLanguageCase = async ({
   const configuredProviderId = `lsp-${configuredServerId}`;
   await fs.rm(caseRoot, { recursive: true, force: true });
   await fs.mkdir(path.join(caseRoot, 'src'), { recursive: true });
+  if (languageId === 'rust') grantFixtureRepositoryExecution(caseRoot);
   const serverConfig = {
     id: configuredServerId,
     cmd: process.execPath,

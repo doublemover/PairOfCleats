@@ -3,6 +3,7 @@ import { buildLineIndex } from '../../../shared/lines.js';
 import { languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
 import { resolveInitializeResultPositionEncoding } from '../lsp/positions.js';
 import { createLspConfigurationHandler } from '../lsp/configuration.js';
+import { resolveRustWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
 import { buildVfsUri } from '../lsp/uris.js';
 import { buildIndexSignature } from '../../../retrieval/index-cache.js';
 import {
@@ -341,6 +342,16 @@ export async function collectLspTypes({
     }))
     : [];
   const targetList = Array.isArray(targets) ? targets : [];
+  const workspaceExecutionAuthority = () => resolveRustWorkspaceExecutionAuthority({
+    repoRoot: rootDir, workspaceRoot: workspaceRootDir || rootDir, providerId,
+    server: { cmd },
+    languages: docs.flatMap((doc) => [doc.languageId,
+      languageIdForFileExt(doc.effectiveExt || path.extname(String(doc.virtualPath || '').split('#')[0]))])
+  });
+  const executionAuthority = workspaceExecutionAuthority();
+  if (executionAuthority) {
+    return buildEmptyCollectResult([executionAuthority.check], { ...runtime, executionAuthority: { state: 'blocked', reasonCode: executionAuthority.reasonCode } });
+  }
   if (!docs.length || !targetList.length) {
     runtime.selection = {
       providerId: resolvedProviderId,
@@ -477,6 +488,10 @@ export async function collectLspTypes({
     initializationOptions
   }, async (lease) => {
     const client = lease.client;
+    const currentAuthority = workspaceExecutionAuthority();
+    if (currentAuthority) {
+      return buildEmptyCollectResult([currentAuthority.check], { ...runtime, executionAuthority: { state: 'blocked', reasonCode: currentAuthority.reasonCode } });
+    }
     const guard = lease.guard;
     const lifecycleHealth = lease.lifecycleHealth;
     const killClientSafely = async () => {

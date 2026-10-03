@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 654,
+    "hero": 655,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4715,7 +4715,7 @@
       "id": "tooling/install/package-source-compatibility",
       "order": 775,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "security/repository-authority",
@@ -4774,6 +4774,12 @@
     {
       "id": "tooling/lsp/configuration-pull-and-delayed-diagnostics",
       "order": 785,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "security/rust-workspace-execution-authority",
+      "order": 786,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

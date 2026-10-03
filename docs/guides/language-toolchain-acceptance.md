@@ -110,9 +110,28 @@ node tests/tooling/lsp/live-server-smoke.mjs yaml-language-server /absolute/inst
 
 Run only the chosen server with the same outer resource limits below. The
 TypeScript installation must also contain a classic TypeScript package. This
-harness is opt-in and is not selected by the automatic test lanes. Existing
-configured-provider integration fixtures remain dependency-blocked by missing
-`smol-toml` in the isolated setup; direct client acceptance does not replace them.
+harness is opt-in and is not selected by the automatic test lanes. The small locked
+`smol-toml` dependency was subsequently installed in the isolated setup: preset
+configuration and selected Rust workspace integration fixtures now pass. These
+synthetic checks and direct client acceptance do not establish full-orchestrator
+or release-wide acceptance.
+
+### Rust workspace authority prerequisite
+
+Before a live Rust server trial, PoC now requires the launch-owned exact repository
+grant described in the [execution-authority guide](execution-authority.md). Official
+[rust-analyzer security guidance](https://rust-analyzer.github.io/book/security.html)
+states that workspace analysis may execute project build machinery. Server
+installation alone does not authorize that execution. The denial regression uses
+only a benign protocol stub and native AST input, checks preflight/probe/runtime
+entry points and pending trust changes, and confirms that untrusted native Rust
+AST chunking still works. No live Rust server/compiler acceptance is claimed here.
+Ten affected Rust workspace/proc-macro synthetic fixtures and the generic preset,
+mixed routing/signature and runtime-requirement compatibility checks pass. Three
+other Rust fixtures retain failures in negative-cache reuse, partial partition
+coverage and timeout-local cache classification. The same assertions fail against
+the preceding published source with the same explicit benign-fixture grant; they
+are not relabeled as passing or attributed to this new execution gate.
 
 ### Native and Go-SDK servers
 

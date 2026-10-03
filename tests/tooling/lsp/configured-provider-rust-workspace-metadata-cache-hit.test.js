@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runRustAnalyzerWorkspaceFixture } from '../../helpers/lsp-provider-fixture.js';
@@ -10,6 +11,7 @@ const tempRoot = resolveTestCachePath(root, `configured-lsp-rust-workspace-metad
 const toolingCacheDir = path.join(tempRoot, 'tooling-cache');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
+grantFixtureRepositoryExecution(tempRoot);
 await fs.writeFile(path.join(tempRoot, 'Cargo.toml'), '[package]\nname = "preflight"\nversion = "0.1.0"\nedition = "2021"\n', 'utf8');
 await fs.writeFile(path.join(tempRoot, 'src', 'lib.rs'), 'fn add(a: i32, b: i32) -> i32 { a + b }\n', 'utf8');
 

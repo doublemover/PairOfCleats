@@ -8,6 +8,8 @@ import {
   PREFLIGHT_POLICY
 } from '../provider-contract.js';
 import { listLspServerPresets, resolveLspServerPreset } from '../lsp-presets.js';
+import { isRepoTrusted } from '../../../shared/config-authority.js';
+import { isRustWorkspaceExecution } from '../../../shared/workspace-execution-authority.js';
 import {
   deepCloneValue,
   deepMergeObjects,
@@ -374,5 +376,7 @@ export const collectAutoPresetServers = (toolingConfig, configuredServerIds) => 
 };
 
 export const buildConfiguredProviderConfigHash = ({ server, ctx }) => (
-  hashProviderConfig({ server, lsp: ctx?.toolingConfig?.lsp || {} })
+  hashProviderConfig({ server, lsp: ctx?.toolingConfig?.lsp || {},
+    ...(isRustWorkspaceExecution({ server })
+      ? { workspaceExecutionTrusted: isRepoTrusted(ctx?.repoRoot || process.cwd()) } : {}) })
 );
