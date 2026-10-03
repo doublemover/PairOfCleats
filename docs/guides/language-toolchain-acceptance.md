@@ -1159,6 +1159,8 @@ acceptance and full indexing are separate evidence categories.
 
 | YAML | ec43c9f5c3e3adfabeb3751603630f58c3a85b3a | Eleven exact-head focused checks passed, each below 1.18 seconds/<160 MiB. Scalar phantom/import/workflow, inert alias/tag and source-range/caller-budget controls pass with root/native policies unchanged. Full formatter stopped at 30 seconds; changed-file ESLint passed in 0.57 seconds. No object/schema/workflow execution or full indexing. |
 
+| XML | aff59ae6ddda54cb24400422f94243a8ef6c8cc7 | Eleven exact-head focused checks passed, each below 0.72 seconds/<120 MiB; formatter 28.0 seconds. Shared app-owned lexical ranges remove CDATA/quoted-delimiter phantoms and recover real multiline includes. Numeric caps, literal-reference selection and explicit native config parsing remain covered. Partial syntax boundaries, not a complete XML/namespace/DTD validator or full indexing. |
+
 Historical core/dependency records remain in the
 [branch/capability review](../branch-capability-review-2026-10-02.md),
 [dependency guide](dependency-security.md), dated
