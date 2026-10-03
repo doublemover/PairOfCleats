@@ -4,8 +4,13 @@
 
 The pre-remediation npm audit reported 37 affected package entries containing
 147 distinct advisory URLs (3 critical, 22 high, 11 moderate and 1 low package
-entries). The updated complete dependency graph audits with zero known
-vulnerabilities, including development and optional dependencies.
+entries). The dated updated-graph audit at the recorded October 2 checkpoint
+reported zero known vulnerabilities, including development and optional
+dependencies. That is a historical receipt, not a current-head clean-audit claim.
+A later braces development-tool advisory has an unresolved follow-through; the
+bounded assessment did not establish a complete official version-only repair.
+Its limited exposure does not make the advisory fixed. The follow-through is
+parked, and no audit gate or advisory baseline was suppressed.
 
 The authenticated GitHub Security inventory contained **150 open Dependabot
 alerts** across 29 package families: 3 critical, 68 high, 75 moderate, and 4 low.
@@ -21,7 +26,8 @@ zero open and 46 closed findings on main, but its last scan was 2026-03-14 at
 `b9398da`; the CodeQL workflow is disabled due to inactivity and reported a
 historical alert-location-limit warning. Malware scanning is disabled. Those
 states are not a fresh clean security scan. Hosted security settings remain
-unchanged; local CodeQL validation is being prepared separately.
+unchanged. CodeQL/rescan and broader CI acceptance are deferred; no current
+preparation, monitoring or execution is implied by this historical inventory.
 
 The repair uses supported upstream releases and normal semver resolution:
 
