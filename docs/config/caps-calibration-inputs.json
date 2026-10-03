@@ -293,7 +293,7 @@
     },
     {
       "id": "handlebars",
-      "parserRoute": "tree-sitter-handlebars",
+      "parserRoute": "handlebars-parser-or-heuristic",
       "capsProfile": "handlebars-default",
       "telemetry": {
         "bytes": {

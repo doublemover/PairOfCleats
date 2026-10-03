@@ -790,3 +790,4 @@ tooling/lsp/diagnostics-only-capability-lifecycle
 security/java-workspace-execution-authority
 lang/contracts/dockerfile-ast-boundaries
 lang/contracts/graphql-ast-boundaries
+lang/contracts/handlebars-ast-boundaries

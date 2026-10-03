@@ -570,3 +570,50 @@ node tests/lang/contracts/graphql-ast-boundaries.test.js
 Primary references: [graphql-js v16 language API](https://www.graphql-js.org/api-v16/language/),
 [exact package](https://registry.npmjs.org/graphql/16.12.0), and
 [pinned parser source](https://github.com/graphql/graphql-js/blob/v16.12.0/src/language/parser.ts).
+
+## Handlebars syntax blocks and static partial ownership
+
+The already-declared @handlebars/parser 2.2.2 package is installed in isolated
+validation storage with scripts disabled. Its 127,415-byte registry tarball
+independently matches the project's SHA-512 integrity; no dependency/default
+version changes are needed. The official parser's public ESM import works, but
+its advertised require export fails because CommonJS .js files inherit the
+package's module type. On the project's supported Node >=24.15.0, an
+application-owned import.meta.resolve of the public import export plus synchronous
+ESM loading works without editing vendor files or guessing private entry paths.
+Missing or async-only/unsupported loading explicitly falls back to heuristics.
+
+One immutable bounded syntax model now feeds chunk, import and relation owners.
+The demonstrated raw-block, escaped-expression and comment phantom blocks,
+partials and inline exports are excluded. Real partial-block imports are retained.
+Outermost block chunks contain nested blocks without overlapping ranges; exact
+UTF-16 ranges support same-line blocks, emoji, LF, CRLF and bare CR. Inline partial
+definitions and their lexical block/child visibility are recognised; calls to a
+visible inline partial and the special @partial-block are not external imports.
+Dynamic partial subexpressions remain explicitly unresolved rather than inventing
+an import target. No template files or URLs are loaded.
+
+Relation exports/references come from syntax nodes, but capability stays partial.
+The retained bounded heuristic call/flow model is not helper binding, evaluation
+or a runtime call graph. parseWithoutProcessing does not compile/render templates,
+register or execute helpers, or invoke partials. Malformed-source fallback has
+explicit parser/coverage/reason metadata and no invented AST ranges; it does not
+establish raw-block or escape correctness.
+
+Character, line, AST-node, depth, entry and name bounds plus existing collector
+budgets apply. Parser resolution never takes a repository-selected module/path.
+The corrected route identity retains the previous conservative byte/line/time
+caps and synthetic calibration values; this is not a new benchmark. Direct-owner
+regression/comparison fixtures finish under a second at about 40–110 MiB observed
+RSS, using one CPU and no embeddings/models. The combined template/whole-registry
+fixture remains separately blocked by isolated missing Babel dependencies; no
+whole-index or runtime template acceptance is claimed.
+
+```sh
+node tests/lang/contracts/handlebars-ast-boundaries.test.js
+```
+
+Primary references: [official standalone parser](https://github.com/handlebars-lang/handlebars-parser),
+[exact package](https://registry.npmjs.org/@handlebars%2fparser/2.2.2),
+[partial/inline/dynamic semantics](https://handlebarsjs.com/guide/partials.html),
+and [raw-block/escape syntax](https://handlebarsjs.com/guide/expressions.html#escaping-handlebars-expressions).

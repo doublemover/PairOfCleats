@@ -30,6 +30,7 @@ const ROUTE_BASELINES = Object.freeze({
   'tree-sitter-r': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5500, maxParseMs: 1600 }),
   'tree-sitter-julia': Object.freeze({ maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 1700 }),
   'tree-sitter-handlebars': Object.freeze({ maxBytes: 192 * 1024, maxLines: 3000, maxParseMs: 1100 }),
+  'handlebars-parser-or-heuristic': Object.freeze({ maxBytes: 192 * 1024, maxLines: 3000, maxParseMs: 1100 }),
   'tree-sitter-mustache': Object.freeze({ maxBytes: 192 * 1024, maxLines: 3000, maxParseMs: 1100 }),
   'tree-sitter-jinja': Object.freeze({ maxBytes: 224 * 1024, maxLines: 3500, maxParseMs: 1200 }),
   'tree-sitter-razor': Object.freeze({ maxBytes: 224 * 1024, maxLines: 3500, maxParseMs: 1200 }),

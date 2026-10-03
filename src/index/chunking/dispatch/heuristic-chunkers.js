@@ -1,5 +1,6 @@
 import { parseDockerfileFromClause, parseDockerfileInstruction } from '../../../shared/dockerfile.js';
 import { parseDockerfileStructure } from '../../../shared/dockerfile-ast.js';
+import { parseHandlebarsStructure } from '../../../shared/handlebars-ast.js';
 import { buildChunksFromLineHeadings } from '../helpers.js';
 import {
   MAX_REGEX_LINE,
@@ -410,17 +411,36 @@ export const chunkJulia = (text, context = null) => {
 };
 
 /**
- * Heuristic Handlebars chunker by section/block tags.
+ * Handlebars syntax chunks by outermost real blocks, with honest heuristic fallback.
  * @param {string} text
  * @param {object|null} [context]
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
-export const chunkHandlebars = (text, context = null) => chunkByLineRegex(
-  text,
-  /{{[#^]\s*([A-Za-z0-9_.-]+)\b/,
-  HANDLEBARS_OPTIONS,
-  context
-);
+export const createHandlebarsChunker = ({ parseStructure = parseHandlebarsStructure } = {}) => (text, context = null) => {
+  const structure = parseStructure(text);
+  if (structure.parser === 'handlebars-parser') {
+    const blocks = structure.blocks.length ? structure.blocks : [{ start: 0, end: text.length, name: 'handlebars' }];
+    const dynamicPartials = structure.partials.filter((partial) => partial.kind === 'dynamic');
+    let cursor = 0;
+    return blocks.map((block, index) => {
+      const end = blocks[index + 1]?.start ?? text.length;
+      let unresolvedDynamicPartials = 0;
+      while (cursor < dynamicPartials.length && dynamicPartials[cursor].start < end) {
+        if (dynamicPartials[cursor].start >= block.start) unresolvedDynamicPartials += 1;
+        cursor += 1;
+      }
+      return { start: block.start, end, name: block.name, kind: 'Section', meta: { format: 'handlebars', title: block.name,
+        definitionType: block.definitionType || null, parser: structure.parser, parserCoverage: structure.coverage,
+        ...(block.definitionType ? { astRange: { start: block.start, end: block.end } } : {}),
+        unresolvedDynamicPartials } };
+    });
+  }
+  return chunkByLineRegex(text, /{{[#^]\s*([A-Za-z0-9_.-]+)\b/, HANDLEBARS_OPTIONS, context)
+    .map((chunk) => ({ ...chunk, meta: { ...chunk.meta, parser: structure.parser,
+      parserCoverage: structure.coverage, parserFallbackReason: structure.reason } }));
+};
+
+export const chunkHandlebars = createHandlebarsChunker();
 
 /**
  * Heuristic Mustache chunker by section/block tags.

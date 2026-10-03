@@ -7,6 +7,7 @@ applyTestEnv();
 const CASES = [
   {
     id: 'handlebars',
+    expectedCapabilityState: 'partial',
     source: [
       '{{> shared.header}}',
       '{{#*inline "card"}}',

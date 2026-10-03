@@ -213,7 +213,7 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
   Object.freeze({
     id: 'handlebars',
     adapterId: 'handlebars',
-    parserRoute: 'tree-sitter-handlebars',
+    parserRoute: 'handlebars-parser-or-heuristic',
     capsProfile: 'handlebars-default',
     extensions: Object.freeze(['.hbs', '.handlebars'])
   }),

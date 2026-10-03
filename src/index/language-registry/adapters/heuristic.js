@@ -23,7 +23,8 @@ import { parseDockerfileStructure } from '../../../shared/dockerfile-ast.js';
 import { createGraphqlImportCollector } from '../import-collectors/graphql.js';
 import { parseGraphqlStructure } from '../../../shared/graphql-ast.js';
 import { collectGroovyImports } from '../import-collectors/groovy.js';
-import { collectHandlebarsImports } from '../import-collectors/handlebars.js';
+import { createHandlebarsImportCollector } from '../import-collectors/handlebars.js';
+import { parseHandlebarsStructure } from '../../../shared/handlebars-ast.js';
 import { collectJinjaImports } from '../import-collectors/jinja.js';
 import { collectJuliaImports } from '../import-collectors/julia.js';
 import { collectMakefileImports } from '../import-collectors/makefile.js';
@@ -655,6 +656,63 @@ export const createGraphqlManagedAdapter = ({ parseStructure = parseGraphqlStruc
   return adapter;
 };
 
+export const createHandlebarsManagedAdapter = ({ parseStructure = parseHandlebarsStructure } = {}) => {
+  const collectHandlebarsImports = createHandlebarsImportCollector({ parseStructure });
+  const capabilityProfile = { state: 'partial', diagnostics: [{ code: 'USR-W-CAPABILITY-DOWNGRADED',
+    reasonCode: 'USR-R-HEURISTIC-ONLY', detail: 'handlebars-syntax-only-relations' }] };
+  const adapter = createHeuristicManagedAdapter({ id: 'handlebars', match: matchByExtension.handlebars,
+    collectImports: collectHandlebarsImports, symbolPatterns: HANDLEBARS_SYMBOL_PATTERNS,
+    usageCollector: collectTemplateUsages, capabilityProfile });
+  const fallbackRelations = adapter.buildRelations;
+  adapter.buildRelations = ({ text, options }) => {
+    const budgetContext = createCollectorBudgetContext({ text, options,
+      collectorId: 'heuristic-adapter:handlebars', defaults: HEURISTIC_RELATION_SCAN_BUDGET });
+    let lineLimited = false;
+    try {
+      const structure = parseStructure(budgetContext.source);
+      if (structure.parser !== 'handlebars-parser') return fallbackRelations({ text, options });
+      lineLimited = budgetContext.budget.maxLines > 0 && structure.sourceLines > budgetContext.budget.maxLines;
+      const symbols = [];
+      const references = [];
+      for (const definition of structure.definitions) {
+        if (budgetContext.budget.maxLines > 0 && definition.line >= budgetContext.budget.maxLines) continue;
+        if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()
+          || !budgetContext.scanBudget.consumeToken()) break;
+        symbols.push(definition.name);
+      }
+      for (const reference of structure.referenceEntries) {
+        if (budgetContext.budget.maxLines > 0 && reference.line >= budgetContext.budget.maxLines) continue;
+        if (TEMPLATE_USAGE_SKIP.has(reference.value) || reference.value === '@partial-block') continue;
+        if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()
+          || !budgetContext.scanBudget.consumeToken()) break;
+        references.push(reference.value);
+      }
+      const exports = sortUnique(symbols);
+      const usages = sortUnique(references);
+      const calls = [];
+      for (const caller of exports.length ? exports : ['<module>']) {
+        for (const callee of usages) {
+          if (callee !== caller) calls.push([caller, callee]);
+          if (calls.length >= 96) break;
+        }
+        if (calls.length >= 96) break;
+      }
+      return { ...buildSimpleRelations({ imports: collectHandlebarsImports(budgetContext.source, options) }),
+        exports, usages, calls };
+    } finally {
+      if (lineLimited) {
+        for (let line = 0; line < budgetContext.budget.maxLines; line += 1) {
+          if (!budgetContext.scanBudget.consumeLine()) break;
+        }
+      }
+      budgetContext.finalize();
+    }
+  };
+  adapter.extractDocMeta = ({ chunk }) => ({ ...extractHeuristicManagedDocMeta(chunk),
+    source: chunk?.meta?.parser === 'handlebars-parser' ? 'managed-handlebars-syntax' : 'managed-heuristic-adapter' });
+  return adapter;
+};
+
 export const buildHeuristicAdapters = () => [
   createHeuristicManagedAdapter({
     id: 'cmake',
@@ -720,13 +778,7 @@ export const buildHeuristicAdapters = () => [
     collectImports: collectJuliaImports,
     symbolPatterns: JULIA_SYMBOL_PATTERNS
   }),
-  createHeuristicManagedAdapter({
-    id: 'handlebars',
-    match: matchByExtension.handlebars,
-    collectImports: collectHandlebarsImports,
-    symbolPatterns: HANDLEBARS_SYMBOL_PATTERNS,
-    usageCollector: collectTemplateUsages
-  }),
+  createHandlebarsManagedAdapter(),
   createHeuristicManagedAdapter({
     id: 'mustache',
     match: matchByExtension.mustache,

@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 661,
+    "hero": 662,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4816,6 +4816,12 @@
     {
       "id": "lang/contracts/graphql-ast-boundaries",
       "order": 792,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/handlebars-ast-boundaries",
+      "order": 793,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
