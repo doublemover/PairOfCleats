@@ -525,10 +525,12 @@ export async function buildDatabaseFromArtifacts({
     succeeded = true;
   } finally {
     if (denseClampStats.totalValues > 0) {
-      warn(
-        `[sqlite] Uint8 vector values clamped while building ${mode}: ` +
-        `${denseClampStats.totalValues} value(s) across ${denseClampStats.totalVectors} vector(s).`
-      );
+      try {
+        warn(
+          `[sqlite] Uint8 vector values clamped while building ${mode}: ` +
+          `${denseClampStats.totalValues} value(s) across ${denseClampStats.totalVectors} vector(s).`
+        );
+      } catch {}
     }
     await closeSqliteBuildDatabase({
       db,

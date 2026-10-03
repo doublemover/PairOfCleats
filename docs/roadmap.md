@@ -1,7 +1,7 @@
 # PairOfCleats Roadmap
 
 Status: Active
-Last audited: 2026-10-02
+Last audited: 2026-10-03
 Canonical for: initiative status, execution order, and remaining work
 
 PairOfCleats' indexing, retrieval, tooling and integration surfaces are implemented.
@@ -42,10 +42,13 @@ head. None is a blanket release-readiness claim.
 1. **Complete branch integration and review.** Open the completion PR against current
    `main`, keep its summary current, and give every older PR an evidence-backed
    disposition. See the [branch and capability review](branch-capability-review-2026-10-02.md).
-2. **Close concrete remaining correctness questions.** The next bounded source-review
-   item is whether diagnostic callback failures can bypass full-build finalization.
-   Reproduce a supported caller before changing behavior. This has not been counted
-   as an implemented or validated fix.
+2. **Maintain concrete lifecycle fixes.** Full-build diagnostic callback failures
+   were reproduced against the frozen branch with a real one-chunk SQLite bundle:
+   a failed checkpoint plus a throwing warning callback left the database open.
+   Checkpoint/pragma warnings and the artifact clamping summary now cannot bypass
+   finalization; genuine promotion/build failures retain their original errors.
+   The finalization and prior startup-ownership fixtures pass locally. See the
+   [bounded recovery and resource guide](guides/recovery-low-load-2026-10-03.md).
 3. **Run release acceptance when scheduled.** Broad gate/CI, platform, hosted security,
    optional-backend and measured-performance campaigns are deferred. Follow the
    [release validation plan](roadmap-release-validation-plan.md); do not substitute
@@ -53,6 +56,15 @@ head. None is a blanket release-readiness claim.
 4. **Maintain documentation from evidence.** Update the affected owner/spec and this
    queue when behavior changes. Keep completed command transcripts in historical
    records rather than appending them to active task lists.
+5. **Audit every supported language's tooling.** Compare all 39 registered routes,
+   their actual parser/relation owners, dependency declarations and lock versions
+   with current stable upstream tools. Keep framework/format and tooling-only
+   coverage explicit. Evaluate replacements against required compiler APIs,
+   grammar ABI, LSP capabilities, maintenance and resource cost before adoption.
+6. **Last: trial individual toolchains on small repositories.** Only after the
+   preceding implementation/review and version audit, install and test one
+   compatible toolchain at a time. Use the low-load profile, omit embeddings and
+   model downloads, and record the exact version, fixture and accepted capabilities.
 
 ## Current Validation Boundary
 

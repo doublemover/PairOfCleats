@@ -425,21 +425,26 @@ export const closeSqliteBuildDatabase = async ({
       });
     } catch (err) {
       if (typeof warn === 'function') {
-        warn(err);
+        // Diagnostic callbacks cannot take ownership of the database or stop
+        // the finalizer before its close/promotion steps.
+        try { warn(err); } catch {}
       }
     }
   }
-  if (pragmaState) {
-    restoreBuildPragmas(db, pragmaState);
+  try {
+    if (pragmaState) {
+      restoreBuildPragmas(db, pragmaState);
+    }
+  } finally {
+    db.close();
   }
-  db.close();
   if (needsPromote) {
     try {
       await removeSqliteSidecars(outPath);
       await replaceFile(dbPath, outPath);
     } catch (err) {
       if (typeof warn === 'function') {
-        warn(err);
+        try { warn(err); } catch {}
       }
       throw err;
     } finally {

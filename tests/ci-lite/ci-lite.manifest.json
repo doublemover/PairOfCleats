@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 642,
+    "hero": 643,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4702,6 +4702,12 @@
     {
       "id": "storage/sqlite/build/startup-lifecycle",
       "order": 773,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/build/finalization-diagnostics",
+      "order": 774,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

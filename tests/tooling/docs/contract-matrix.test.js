@@ -532,7 +532,7 @@ const expandSimpleBraceAlternates = (value) => {
 
 {
   const roadmapText = await fsPromises.readFile(path.join(root, 'docs', 'roadmap.md'), 'utf8');
-  assert.match(roadmapText, /Last audited: 2026-10-02/, 'current roadmap must identify its consolidation date');
+  assert.match(roadmapText, /^Last audited: \d{4}-\d{2}-\d{2}$/m, 'current roadmap must identify its latest audit date');
   assert.match(roadmapText, /Current reconciliation, 2026-10-02:/);
   const initiativesTable = readMarkdownTableAfterHeading(roadmapText, '## Current Initiatives');
   assert.deepEqual(initiativesTable.header, ['Initiative', 'Status', 'Done now', 'Remaining / next']);
@@ -567,8 +567,10 @@ const expandSimpleBraceAlternates = (value) => {
     'preserve the incomplete aggregate run rather than rewriting it as a pass');
   assert.match(roadmapText, /Broad gate\/CI, platform, hosted security,[\s\S]*optional-backend and measured-performance campaigns are deferred/);
   assert.match(roadmapText, /old green results have not been relabeled as fresh proof/);
-  assert.match(roadmapText, /diagnostic callback failures can bypass full-build finalization/,
-    'consolidation must retain the concrete unverified follow-through item');
+  assert.match(roadmapText, /diagnostic callback failures[\s\S]*were reproduced[\s\S]*cannot bypass[\s\S]*finalization/,
+    'record the reproduced finalization correction rather than retaining a stale unverified item');
+  assert.match(roadmapText, /guides\/recovery-low-load-2026-10-03\.md/,
+    'the finalization correction must link its bounded evidence and resource configuration');
   assert.ok(Buffer.byteLength(roadmapText) < 20000, 'keep the active roadmap concise; archive completed transcripts');
 
   const validationSection = roadmapText.match(/## Validation Commands\r?\n([\s\S]*?)$/);
