@@ -5,6 +5,7 @@ const HANDLEBARS_SCAN_BUDGET = Object.freeze({ maxChars: 524288, maxLines: 3000,
   maxMatches: 768, maxTokens: 768, maxMs: 30 });
 
 export const createHandlebarsImportCollector = ({ parseStructure = parseHandlebarsStructure } = {}) => (text, options = {}) => {
+  parseStructure.initialize?.();
   const budgetContext = createCollectorBudgetContext({ text, options, collectorId: 'imports:handlebars',
     defaults: HANDLEBARS_SCAN_BUDGET });
   const imports = new Set();

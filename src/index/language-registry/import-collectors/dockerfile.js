@@ -64,6 +64,7 @@ const toLogicalDockerfileLines = (text) => {
 };
 
 export const createDockerfileImportCollector = ({ parseStructure = parseDockerfileStructure } = {}) => (text, options = {}) => {
+  parseStructure.initialize?.();
   const imports = new Set();
   const budgetContext = createCollectorBudgetContext({
     text,

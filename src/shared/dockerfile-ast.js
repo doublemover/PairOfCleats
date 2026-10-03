@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import { buildLineIndex } from './lines.js';
 import { parseDockerfileInstruction } from './dockerfile.js';
+import { createApplicationParserLoader } from './application-parser-loader.js';
 
 const require = createRequire(import.meta.url);
 const MAX_SOURCE_CHARS = 786432;
@@ -13,23 +14,22 @@ const cleanToken = (value) => {
 };
 
 /** Application-owned loading only; a factory permits deterministic unavailable-parser controls. */
-export const createDockerfileStructureParser = ({ loadParser = () => require('dockerfile-ast').DockerfileParser } = {}) => {
-  let parser;
-  let loaded = false;
+export const createDockerfileStructureParser = ({ loadParser = () => require('dockerfile-ast').DockerfileParser,
+  initializationNow } = {}) => {
+  const loader = createApplicationParserLoader({ loadParser, isSupported: (parser) => typeof parser?.parse === 'function',
+    ...(initializationNow ? { now: initializationNow } : {}) });
   let priorText;
   let priorResult;
-  return (text) => {
+  const parse = (text) => {
     const source = String(text || '');
     const fallback = (reason) => ({ parser: 'line-parser-dockerfile', coverage: 'heuristic', reason, instructions: [] });
     if (source.length > MAX_SOURCE_CHARS) return fallback('source-limit');
     if (/\r(?!\n)/u.test(source)) return fallback('unsupported-lone-cr');
     const lineIndex = buildLineIndex(source);
     if (lineIndex.length > MAX_LINES) return fallback('line-limit');
-    if (!loaded) {
-      loaded = true;
-      try { parser = loadParser(); } catch {}
-    }
-    if (typeof parser?.parse !== 'function') return fallback('parser-unavailable');
+    const initialization = loader.initialize();
+    if (!initialization.available) return fallback(initialization.reason);
+    const parser = loader.getParser();
     if (source === priorText) return priorResult;
     try {
       const document = parser.parse(source);
@@ -129,6 +129,8 @@ export const createDockerfileStructureParser = ({ loadParser = () => require('do
       return fallback('parse-failed');
     }
   };
+  parse.initialize = () => loader.initialize();
+  return parse;
 };
 
 export const parseDockerfileStructure = createDockerfileStructureParser();

@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { createApplicationParserLoader } from './application-parser-loader.js';
 
 const require = createRequire(import.meta.url);
 const MAX_CHARS = 524288;
@@ -27,26 +28,23 @@ const buildSourceLines = (source) => {
 export const createHandlebarsStructureParser = ({ loadParser = () =>
   // Node >=24.15.0 supports synchronous ESM. The package's require export is broken;
   // use its public import export from this application-owned module, not a private path.
-  require(fileURLToPath(import.meta.resolve('@handlebars/parser'))) } = {}) => {
-  let parser;
-  let loaded = false;
-  let loadReason = 'parser-unavailable';
+  require(fileURLToPath(import.meta.resolve('@handlebars/parser'))), initializationNow } = {}) => {
+  const loader = createApplicationParserLoader({ loadParser,
+    isSupported: (parser) => typeof parser?.parseWithoutProcessing === 'function', unsupportedReason: 'parser-unsupported',
+    classifyError: (error) => ['ERR_REQUIRE_ASYNC_MODULE', 'ERR_REQUIRE_ESM'].includes(error?.code)
+      ? 'parser-unsupported' : 'parser-unavailable', ...(initializationNow ? { now: initializationNow } : {}) });
   let previousText;
   let previousResult;
-  return (text) => {
+  const parse = (text) => {
     const source = String(text || '');
     const fallback = (reason) => ({ parser: 'heuristic-handlebars', coverage: 'heuristic', reason,
       blocks: [], definitions: [], partials: [], imports: [], referenceEntries: [] });
     if (source.length > MAX_CHARS) return fallback('source-limit');
     const lines = buildSourceLines(source);
     if (lines.length > MAX_LINES) return fallback('line-limit');
-    if (!loaded) {
-      loaded = true;
-      try { parser = loadParser(); } catch (error) {
-        if (['ERR_REQUIRE_ASYNC_MODULE', 'ERR_REQUIRE_ESM'].includes(error?.code)) loadReason = 'parser-unsupported';
-      }
-    }
-    if (typeof parser?.parseWithoutProcessing !== 'function') return fallback(parser ? 'parser-unsupported' : loadReason);
+    const initialization = loader.initialize();
+    if (!initialization.available) return fallback(initialization.reason);
+    const parser = loader.getParser();
     if (source === previousText) return previousResult;
     try {
       const document = parser.parseWithoutProcessing(source);
@@ -152,6 +150,8 @@ export const createHandlebarsStructureParser = ({ loadParser = () =>
       return fallback(error instanceof ParserBoundaryError ? error.message : 'parse-failed');
     }
   };
+  parse.initialize = () => loader.initialize();
+  return parse;
 };
 
 export const parseHandlebarsStructure = createHandlebarsStructureParser();

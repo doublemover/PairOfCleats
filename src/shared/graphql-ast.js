@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { buildLineIndex, offsetToLine } from './lines.js';
+import { createApplicationParserLoader } from './application-parser-loader.js';
 
 const require = createRequire(import.meta.url);
 const MAX_CHARS = 786432;
@@ -11,23 +12,21 @@ const KEYWORDS = Object.freeze({ ObjectType: 'type', InterfaceType: 'interface',
   UnionType: 'union', InputObjectType: 'input', ScalarType: 'scalar', Schema: 'schema', Directive: 'directive' });
 
 /** Parse/lex syntax only. No schema construction, resolver execution or remote reads. */
-export const createGraphqlStructureParser = ({ loadParser = () => require('graphql') } = {}) => {
-  let graphql;
-  let loaded = false;
+export const createGraphqlStructureParser = ({ loadParser = () => require('graphql'), initializationNow } = {}) => {
+  const loader = createApplicationParserLoader({ loadParser, isSupported: (parser) => typeof parser?.parse === 'function',
+    ...(initializationNow ? { now: initializationNow } : {}) });
   let previousText;
   let previousResult;
-  return (text) => {
+  const parse = (text) => {
     const source = String(text || '');
     const fallback = (reason) => ({ parser: 'heuristic-graphql', coverage: 'heuristic', reason,
       definitions: [], imports: [], references: [], importEntries: [], referenceEntries: [] });
     if (source.length > MAX_CHARS) return fallback('source-limit');
     const lineIndex = buildLineIndex(source);
     if (lineIndex.length > MAX_LINES) return fallback('line-limit');
-    if (!loaded) {
-      loaded = true;
-      try { graphql = loadParser(); } catch {}
-    }
-    if (typeof graphql?.parse !== 'function') return fallback('parser-unavailable');
+    const initialization = loader.initialize();
+    if (!initialization.available) return fallback(initialization.reason);
+    const graphql = loader.getParser();
     if (source === previousText) return previousResult;
     try {
       const document = graphql.parse(source, { maxTokens: MAX_TOKENS });
@@ -108,6 +107,8 @@ export const createGraphqlStructureParser = ({ loadParser = () => require('graph
       return fallback(tokenLimit ? 'token-limit' : 'parse-failed');
     }
   };
+  parse.initialize = () => loader.initialize();
+  return parse;
 };
 
 export const parseGraphqlStructure = createGraphqlStructureParser();

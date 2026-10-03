@@ -626,4 +626,30 @@ node tests/lang/contracts/handlebars-ast-boundaries.test.js
 Primary references: [official standalone parser](https://github.com/handlebars-lang/handlebars-parser),
 [exact package](https://registry.npmjs.org/@handlebars%2fparser/2.2.2),
 [partial/inline/dynamic semantics](https://handlebarsjs.com/guide/partials.html),
-and [raw-block/escape syntax](https://handlebarsjs.com/guide/expressions.html#escaping-handlebars-expressions).
+[raw-block/escape syntax](https://handlebarsjs.com/guide/expressions.html#escaping-handlebars-expressions),
+and [Node module-relative public export resolution](https://nodejs.org/download/release/latest-v24.x/docs/api/esm.html#importmetaresolvespecifier).
+
+## Parser setup versus document scan deadlines
+
+The unchanged shared import-collector fixture exposed cold graphql-js loading as
+another integration gap: a first call spent about 61 ms loading the application
+dependency, exhausting a 30 ms document scan clock before returning imports; the
+same warm call completed in under a millisecond. Setup is now initialized once
+before a document's scan clock for the shared GraphQL, Handlebars and Dockerfile
+owners. Its immutable initialization record exposes availability, failure reason,
+application-once scope and measured elapsed milliseconds. This is real setup cost,
+not work removed from total wall time: the corrected cold fixture took about 56 ms,
+including 53 ms recorded setup, followed by a warm call below 0.1 ms.
+
+Actual document parsing and extraction stay inside the existing configured scan
+deadline. No deadline, source/token/node/depth cap or failure label is relaxed.
+Deterministic controls verify cold setup occurs once and is measured, while
+expired parsing and extraction still stop import/relation output and emit scan
+time diagnostics. The original shared import-collector assertions now pass
+unchanged after the separate FROM-token and setup corrections. This remains local
+bounded integration evidence rather than a whole-index or platform benchmark.
+
+```sh
+node tests/lang/contracts/ast-parser-initialization-budget.test.js
+node tests/lang/registry/collectors.test.js
+```

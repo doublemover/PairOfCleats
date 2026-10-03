@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 662,
+    "hero": 663,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4822,6 +4822,12 @@
     {
       "id": "lang/contracts/handlebars-ast-boundaries",
       "order": 793,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/ast-parser-initialization-budget",
+      "order": 794,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

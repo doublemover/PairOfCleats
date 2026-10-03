@@ -16,6 +16,7 @@ const GRAPHQL_SCAN_BUDGET = Object.freeze({
 });
 
 export const createGraphqlImportCollector = ({ parseStructure = parseGraphqlStructure } = {}) => (text, options = {}) => {
+  parseStructure.initialize?.();
   const imports = new Set();
   const budgetContext = createCollectorBudgetContext({
     text,

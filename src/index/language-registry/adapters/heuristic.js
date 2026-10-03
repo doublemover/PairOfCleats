@@ -557,6 +557,7 @@ export const createDockerfileManagedAdapter = ({ parseStructure = parseDockerfil
   adapter.extractDocMeta = ({ chunk }) => ({ ...extractHeuristicManagedDocMeta(chunk),
     source: chunk?.meta?.parser === 'dockerfile-ast' ? 'managed-dockerfile-ast' : 'managed-heuristic-adapter' });
   adapter.buildRelations = ({ text, options }) => {
+    parseStructure.initialize?.();
     const budgetContext = createCollectorBudgetContext({ text, options,
       collectorId: 'heuristic-adapter:dockerfile', defaults: HEURISTIC_RELATION_SCAN_BUDGET });
     try {
@@ -610,6 +611,7 @@ export const createGraphqlManagedAdapter = ({ parseStructure = parseGraphqlStruc
     usageCollector: collectGraphqlUsages, capabilityProfile });
   const fallbackRelations = adapter.buildRelations;
   adapter.buildRelations = ({ text, options }) => {
+    parseStructure.initialize?.();
     const budgetContext = createCollectorBudgetContext({ text, options,
       collectorId: 'heuristic-adapter:graphql', defaults: HEURISTIC_RELATION_SCAN_BUDGET });
     let lineLimited = false;
@@ -665,6 +667,7 @@ export const createHandlebarsManagedAdapter = ({ parseStructure = parseHandlebar
     usageCollector: collectTemplateUsages, capabilityProfile });
   const fallbackRelations = adapter.buildRelations;
   adapter.buildRelations = ({ text, options }) => {
+    parseStructure.initialize?.();
     const budgetContext = createCollectorBudgetContext({ text, options,
       collectorId: 'heuristic-adapter:handlebars', defaults: HEURISTIC_RELATION_SCAN_BUDGET });
     let lineLimited = false;
