@@ -8,7 +8,7 @@ import { mergePreflightChecks } from '../preflight/command-profile-preflight.js'
 import { resolveGoWorkspaceModulePreflight } from '../preflight/go-workspace-preflight.js';
 import { resolveRustWorkspaceMetadataPreflight } from '../preflight/rust-workspace-preflight.js';
 import { resolveWorkspaceModelPreflight } from '../preflight/workspace-model-preflight.js';
-import { resolveFirstNonReadyPreflight } from './preflight-language.js';
+import { resolveEnvironmentPreflight } from './preflight-language.js';
 
 export const prepareConfiguredProviderInputs = ({ providerId, inputs }) => {
   const documents = Array.isArray(inputs?.documents) ? inputs.documents : [];
@@ -123,7 +123,7 @@ export const resolveConfiguredWorkspacePreflight = async ({
     rustWorkspacePreflight?.check,
     rustWorkspacePreflight?.checks
   );
-  const environmentPreflight = resolveFirstNonReadyPreflight(
+  const environmentPreflight = resolveEnvironmentPreflight(
     languagePreflights?.luaLibraryPreflight,
     languagePreflights?.luaWorkspaceConfigPreflight,
     languagePreflights?.yamlSchemaModePreflight,

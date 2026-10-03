@@ -785,3 +785,4 @@ tooling/lsp/diagnostics-drain-boundary
 tooling/lsp/configuration-pull-and-delayed-diagnostics
 security/rust-workspace-execution-authority
 security/zig-workspace-execution-authority
+tooling/lsp/environment-preflight-precedence

@@ -125,13 +125,23 @@ states that workspace analysis may execute project build machinery. Server
 installation alone does not authorize that execution. The denial regression uses
 only a benign protocol stub and native AST input, checks preflight/probe/runtime
 entry points and pending trust changes, and confirms that untrusted native Rust
-AST chunking still works. No live Rust server/compiler acceptance is claimed here.
+AST chunking still works. That initial guard regression alone does not establish
+live Rust server/compiler acceptance; the subsequent live record is separate.
 Ten affected Rust workspace/proc-macro synthetic fixtures and the generic preset,
 mixed routing/signature and runtime-requirement compatibility checks pass. Three
-other Rust fixtures retain failures in negative-cache reuse, partial partition
-coverage and timeout-local cache classification. The same assertions fail against
-the preceding published source with the same explicit benign-fixture grant; they
-are not relabeled as passing or attributed to this new execution gate.
+other Rust fixtures initially failed in negative-cache reuse, partial partition
+coverage and timeout-local cache classification. The same assertions failed against
+preceding published source with the same explicit benign-fixture grant, so the
+failures were preserved rather than attributed to the new execution gate.
+
+The subsequent connected correction identified a shared assembly bug: an earlier
+missing-runtime warning masked later Rust metadata blocks, partition exclusions
+and cache reuse. Preflight selection now prioritizes denial, then partial coverage,
+then ordinary degradation; it merges excluded keys/roots and preserves explicit
+workspace-cache participation. All warnings remain visible. The three original
+behavioral assertions now pass unchanged, including healthy-partition continuation
+and negative-cache isolation between slow and healthy roots. A pure precedence/
+aggregation fixture pins the rule without requiring a SDK or real project build.
 
 ### Rust and Zig build-capable servers
 

@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 656,
+    "hero": 657,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4786,6 +4786,12 @@
     {
       "id": "security/zig-workspace-execution-authority",
       "order": 787,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/environment-preflight-precedence",
+      "order": 788,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

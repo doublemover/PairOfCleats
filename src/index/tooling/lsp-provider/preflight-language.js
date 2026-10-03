@@ -220,12 +220,35 @@ export const resolveRustProcMacroSuppressionPolicyPreflight = ({ server }) => {
   };
 };
 
-export const resolveFirstNonReadyPreflight = (...entries) => {
-  let cachedReady = null;
-  for (const entry of entries) {
-    const state = String(entry?.state || 'ready').trim().toLowerCase() || 'ready';
-    if (state !== 'ready') return entry;
-    if (!cachedReady && entry?.cached === true) cachedReady = entry;
-  }
-  return cachedReady || { state: 'ready', reasonCode: null, message: '' };
+/** Warnings must not mask later execution denials or partition exclusions. */
+export const resolveEnvironmentPreflight = (...entries) => {
+  const results = entries.filter((entry) => entry && typeof entry === 'object');
+  const priority = (entry) => {
+    const state = String(entry.state || 'ready').trim().toLowerCase() || 'ready';
+    if (entry.blockProvider === true || entry.blockSourcekit === true || state === 'blocked') return 3;
+    if ((Array.isArray(entry.blockedWorkspaceKeys) && entry.blockedWorkspaceKeys.length)
+      || (Array.isArray(entry.blockedWorkspaceRoots) && entry.blockedWorkspaceRoots.length)) return 2;
+    return state === 'ready' ? 0 : 1;
+  };
+  const selected = results.reduce((current, entry) => (
+    !current || priority(entry) > priority(current)
+      || (priority(entry) === 0 && priority(current) === 0 && entry.cached === true && current.cached !== true)
+      ? entry : current
+  ), null) || { state: 'ready', reasonCode: null, message: '' };
+  const cacheResults = results.filter((entry) => typeof entry.cached === 'boolean');
+  const blockedWorkspaceKeys = [...new Set(results.flatMap((entry) => (
+    Array.isArray(entry.blockedWorkspaceKeys) ? entry.blockedWorkspaceKeys : []
+  )))];
+  const blockedWorkspaceRoots = [...new Set(results.flatMap((entry) => (
+    Array.isArray(entry.blockedWorkspaceRoots) ? entry.blockedWorkspaceRoots : []
+  )))];
+  return {
+    ...selected,
+    ...(priority(selected) === 3 ? { state: 'blocked', blockProvider: true } : {}),
+    // Only explicit workspace-cache participants count; a lightweight warning
+    // without cache semantics cannot erase a reused metadata result.
+    cached: cacheResults.length > 0 && cacheResults.every((entry) => entry.cached === true),
+    ...(blockedWorkspaceKeys.length ? { blockedWorkspaceKeys } : {}),
+    ...(blockedWorkspaceRoots.length ? { blockedWorkspaceRoots } : {})
+  };
 };

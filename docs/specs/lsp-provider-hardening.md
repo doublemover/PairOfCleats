@@ -48,6 +48,22 @@ Use `ToolingRunInputs.targets[]` where each target includes:
 
 Provider MUST emit `ToolingProviderOutput.byChunkUid`.
 
+### 2.3 Configured workspace preflight classification
+
+Environment preflight assembly must preserve all workspace exclusions and cannot
+allow an earlier non-blocking runtime warning to mask a later execution denial.
+Blocking state/authority wins first, then partial partition coverage, then ordinary
+degradation; equal-priority results retain their deterministic order. The combined
+checks retain each warning, even when another result supplies the primary reason.
+
+Blocked workspace keys/roots are merged without duplication. A partial result
+continues healthy partitions while excluding invalid/failed partitions; an
+all-blocked result prevents the provider launch. Explicit workspace-cache
+participants must all report reuse for the combined `cached` flag. Lightweight
+warnings without cache semantics do not erase metadata reuse, and cache reuse
+must not convert a degraded runtime into a healthy result. These rules are covered
+by the preflight-precedence and Rust negative/partial/timeout-local fixtures.
+
 ---
 
 ## 3. Virtual document support

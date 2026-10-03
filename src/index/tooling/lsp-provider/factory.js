@@ -143,6 +143,8 @@ export const createConfiguredLspProvider = (server) => {
             if (check && typeof check === 'object') preChecks.push(check);
           }
         }
+        blockedWorkspaceKeys = Array.isArray(preflight?.blockedWorkspaceKeys) ? preflight.blockedWorkspaceKeys : [];
+        blockedWorkspaceRoots = Array.isArray(preflight?.blockedWorkspaceRoots) ? preflight.blockedWorkspaceRoots : [];
         if (preflight?.blockProvider === true || preflight?.blockSourcekit === true) {
           const fidelity = buildProviderFidelityContract({
             providerId,
@@ -179,8 +181,6 @@ export const createConfiguredLspProvider = (server) => {
         }
         preflightState = String(preflight?.state || 'ready');
         preflightReasonCode = preflight?.reasonCode || null;
-        blockedWorkspaceKeys = Array.isArray(preflight?.blockedWorkspaceKeys) ? preflight.blockedWorkspaceKeys : [];
-        blockedWorkspaceRoots = Array.isArray(preflight?.blockedWorkspaceRoots) ? preflight.blockedWorkspaceRoots : [];
       }
       const currentAuthority = executionAuthorityFor(ctx);
       if (currentAuthority) return blockedExecutionOutput(ctx, inputs, currentAuthority, this);

@@ -103,6 +103,8 @@ const slowFirst = await runRustWorkspace(createInputs({
 }));
 const slowDiagnostics = slowFirst.diagnostics?.['lsp-rust-timeout-local-cache'] || {};
 assert.equal(slowDiagnostics?.preflight?.state, 'blocked', 'expected timed out partition to block when it is the only selected root');
+assert.equal(slowDiagnostics?.fidelity?.blockedPartitions?.count, 1, 'blocked fidelity retains the excluded workspace');
+assert.deepEqual(slowDiagnostics?.fidelity?.blockedPartitions?.workspaceRoots, ['examples/slow']);
 assert.equal(
   ['rust_workspace_metadata_timeout', 'rust_workspace_blocked_all_partitions'].includes(String(slowDiagnostics?.preflight?.reasonCode || '')),
   true,
