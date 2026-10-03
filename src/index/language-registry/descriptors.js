@@ -303,7 +303,7 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
   Object.freeze({
     id: 'yaml',
     adapterId: 'yaml',
-    parserRoute: 'structured-yaml',
+    parserRoute: 'yaml-syntax-nodes',
     capsProfile: 'yaml-default',
     extensions: Object.freeze(['.yaml', '.yml'])
   })

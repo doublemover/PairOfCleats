@@ -1004,6 +1004,70 @@ Primary references: [public parser API and key-safety behavior](https://github.c
 [exact component metadata](https://registry.npmjs.org/smol-toml/1.9.0), and
 [TOML string/key/table semantics](https://toml.io/en/v1.0.0).
 
+## YAML syntax-node ownership
+
+The unchanged owners at f426dcea24470a1b3baa77552841cb70f9cf2a66 produced
+phantom imports from block/quoted scalar contents, split comma-bearing filenames,
+missed escaped reference keys and created a fake workflow job inside documentation.
+The shared corrected route uses public YAML 2.9.1 Lexer/Parser/Composer APIs and
+syntax nodes. It never converts documents to JavaScript objects, expands aliases,
+loads custom tags, resolves references/schemas or executes workflows. One immutable
+bounded model supplies imports, relation imports, optional top-level sections and
+workflow job sections.
+
+Scalar keys/values and collection ranges come from actual vendor UTF-16 syntax
+nodes and are validated before publication. Key/value node ranges retain their
+individual provenance. The enclosing property span is an explicitly application-
+combined key/value span, and section boundaries remain application-owned line
+anchors; no nonexistent YAML Pair AST range is invented. Multi-document indices
+come from parsed documents rather than document-looking text inside scalars.
+Actual direct root jobs replace scanning every later indented line for job names.
+
+Ordinary YAML still defaults to a root content chunk. Existing root/top-level/auto
+selection, the 200 KiB threshold, explicit native config chunking and language
+policy caps remain unchanged. Workflow paths retain job-oriented selection, without
+executing or claiming full validation of the workflow schema. Inline flow maps do
+not silently become line-oriented top-level sections. Reference keys, sanitization
+and collector source/line/match/import-token/time defaults remain intact. Alias
+cycles and custom-tagged subtrees remain unresolved; their counts are visible.
+Public syntax warnings are retained by code, while malformed/duplicate-key input
+returns labelled generic content and empty structural facts.
+
+Admission is bounded to 786,432 UTF-16 code units, 20,000 LF-delimited lines,
+65,536 lexical tokens, 32,768 code units per lexeme, 65,536 admitted CST nodes,
+20,000 syntax nodes, collection depth 64 and 64 documents. Flow nesting is admitted
+before each CST advance; iterative CST depth/node admission precedes recursive document
+composition. Each synchronous lexer/parser/composer advance is measured, not
+described as timer-interruptible. Actual stricter caller deadlines govern the
+shared parser and chunk assembly beneath the existing 30 ms local scan ceiling;
+post-call or assembly overrun is visible. Missing/malformed/expired parsing does
+not revive the phantom-producing text fallback. One-time app initialization is
+measured separately: the small cold witness recorded about 33.8 ms of setup and
+8.2 ms of document work. These are observations, not benchmarks.
+
+The isolated exact declared/locked component was installed with scripts disabled.
+Its official 112,114-byte tarball independently matched the lock SHA-512, and all
+233 installed files matched the tarball byte-for-byte. Package/lock versions did
+not change; the rest of the validation tree is not claimed lock-identical. This
+is partial syntax/reference coverage, not schema binding, alias/merge semantics,
+every YAML dialect feature, LSP/compiler, full-index or platform acceptance.
+
+Focused controls cover scalar/comment fake facts, comma-bearing and escaped-key
+references, real workflow jobs, unchanged root/top-level/auto policies, multiple
+documents, UTF-16/CRLF ranges, inert aliases/tagged subtrees, duplicate/malformed
+syntax, missing parsers, resource admission, range/containment corruption, actual
+caller/assembly expiry, cache admission and cold initialization:
+
+```sh
+node tests/lang/contracts/yaml-syntax-node-boundaries.test.js
+node tests/indexing/chunking/yaml.test.js
+node tests/indexing/chunking/config-tree-sitter-meta-parity.test.js
+```
+
+Primary references: [public document and syntax APIs](https://eemeli.org/yaml/#documents),
+[public Lexer/Parser/Composer APIs](https://eemeli.org/yaml/#parsing-yaml), and
+[exact component metadata](https://registry.npmjs.org/yaml/2.9.1).
+
 ## Recorded validation checkpoints
 
 These are dated Linux cloud checkpoints, not a single full-suite result on the

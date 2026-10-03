@@ -797,3 +797,4 @@ lang/contracts/mustache-parse-token-boundaries
 lang/contracts/jinja-django-lexical-boundaries
 lang/contracts/jsonc-structure-boundaries
 lang/contracts/toml-semantic-lexical-boundaries
+lang/contracts/yaml-syntax-node-boundaries

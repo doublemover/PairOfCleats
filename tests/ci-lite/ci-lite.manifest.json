@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 667,
+    "hero": 669,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4858,6 +4858,12 @@
     {
       "id": "lang/contracts/toml-semantic-lexical-boundaries",
       "order": 799,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/yaml-syntax-node-boundaries",
+      "order": 800,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

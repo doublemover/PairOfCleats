@@ -1221,7 +1221,7 @@
     },
     {
       "id": "yaml",
-      "parserRoute": "structured-yaml",
+      "parserRoute": "yaml-syntax-nodes",
       "capsProfile": "yaml-default",
       "telemetry": {
         "bytes": {

@@ -49,7 +49,8 @@ const ROUTE_BASELINES = Object.freeze({
   'structured-toml': Object.freeze({ maxBytes: 224 * 1024, maxLines: 3500, maxParseMs: 900 }),
   'toml-values+lexical-ranges': Object.freeze({ maxBytes: 224 * 1024, maxLines: 3500, maxParseMs: 900 }),
   'structured-xml': Object.freeze({ maxBytes: 256 * 1024, maxLines: 4000, maxParseMs: 1200 }),
-  'structured-yaml': Object.freeze({ maxBytes: 224 * 1024, maxLines: 3500, maxParseMs: 1100 })
+  'structured-yaml': Object.freeze({ maxBytes: 224 * 1024, maxLines: 3500, maxParseMs: 1100 }),
+  'yaml-syntax-nodes': Object.freeze({ maxBytes: 224 * 1024, maxLines: 3500, maxParseMs: 1100 })
 });
 
 const DEFAULT_BASELINE = Object.freeze({ maxBytes: 256 * 1024, maxLines: 4000, maxParseMs: 1200 });
