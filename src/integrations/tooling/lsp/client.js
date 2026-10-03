@@ -65,6 +65,7 @@ const LANGUAGE_ID_BY_EXT = Object.freeze({
   '.yml': 'yaml',
   '.sh': 'shellscript',
   '.bash': 'shellscript',
+  '.sql': 'sql',
   '.graphql': 'graphql',
   '.gql': 'graphql'
 });

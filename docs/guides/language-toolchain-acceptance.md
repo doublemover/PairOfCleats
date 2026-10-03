@@ -114,6 +114,59 @@ harness is opt-in and is not selected by the automatic test lanes. Existing
 configured-provider integration fixtures remain dependency-blocked by missing
 `smol-toml` in the isolated setup; direct client acceptance does not replace them.
 
+### Native and Go-SDK servers
+
+The next isolated Linux x64 batch used official, checksum-verified portable
+distributions and source modules. No system compiler installation or PATH change
+was made. The existing `/usr/bin/go` was not the Go programming-language compiler;
+the fixture uses its explicitly selected SDK instead of relying on that name.
+
+| Tool | Exact selection | Accepted behavior | Boundary |
+| --- | --- | --- | --- |
+| LuaLS | 3.19.1, official Linux x64 asset | Auto-preset command through the actual client; initialize, symbols, hover, same-file definition | No plugin approval/execution, third-party detection, compiler execution or other-platform acceptance |
+| gopls | v0.23.0, built with portable Go 1.27.1 | Auto-preset command; initialize, symbols, hover, same-file definition on one dependency-free Go module | No project builds, external module resolution, vulnerability scan or full collector/orchestrator acceptance |
+| sqls | v0.2.48, built with Go 1.27.1 and CGO enabled | Initialize, SQL formatting and keyword completion without a database | No database/schema/query acceptance; advertised capabilities omit document symbols, so the current type collector's symbol gate is not satisfied |
+
+The LuaLS archive SHA-256 is
+`e9235d2d72ef55bc41cf8c99cda2ed64777682024b4bb81f5dea425060c5cbb8`.
+The Go 1.27.1 Linux amd64 archive SHA-256 is
+`63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445`.
+Both matched the official release metadata before bounded, staged extraction.
+Go module installation used the normal checksum database, exact module versions,
+one build job, a 384 MiB Go memory target and the same outer RSS/time envelope.
+gopls built in about 144 seconds with sampled process-tree RSS below 536 MiB.
+The initial CGO-disabled sqls attempt failed in godror; the compatible CGO-enabled
+build completed in about 124 seconds below 480 MiB. No Oracle client was installed
+and no database connection was configured or opened.
+
+The Lua fixture uses a launch-owned JSON configuration outside the synthetic
+workspace: 16 preloaded files, 64 KiB preload file size, no third-party detection,
+plugins or telemetry. Unsupported interactive approval requests receive no
+approval. The Go fixture uses `GOMAXPROCS=1`, a 256 MiB Go memory target,
+`GOTOOLCHAIN=local`, offline module resolution and no vulnerability checking.
+Telemetry configuration and caches live only in the generated fixture home.
+SQLs receives an explicit empty connection configuration. SQL extension fallback
+now supplies its proper LSP language ID.
+
+The opt-in SDK harness prints the actual executable version and SHA-256, installs
+nothing, and runs only the chosen tool. Verify its official source separately:
+
+```sh
+node tests/tooling/lsp/live-sdk-server-smoke.mjs lua-language-server /absolute/luals/bin/lua-language-server
+node tests/tooling/lsp/live-sdk-server-smoke.mjs gopls /absolute/bin/gopls /absolute/go-sdk/go
+node tests/tooling/lsp/live-sdk-server-smoke.mjs sqls /absolute/bin/sqls
+```
+
+Primary references:
+[LuaLS release](https://github.com/LuaLS/lua-language-server/releases/tag/3.19.1),
+[LuaLS configuration/CLI](https://luals.github.io/wiki/usage/),
+[Go distributions and hashes](https://go.dev/dl/),
+[gopls v0.23.0](https://pkg.go.dev/golang.org/x/tools/gopls@v0.23.0),
+[gopls settings](https://go.dev/gopls/settings), and
+[sqls v0.2.48 source](https://github.com/sqls-server/sqls/tree/v0.2.48).
+SQLs' upstream still describes its interface as under development; a version tag
+does not establish a stable interface or complete PoC enrichment compatibility.
+
 Run the affected fixture with installed native dependencies:
 
 ```sh

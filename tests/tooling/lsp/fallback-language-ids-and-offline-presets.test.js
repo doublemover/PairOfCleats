@@ -10,6 +10,7 @@ for (const ext of ['.sh', '.bash', '.SH', '.BASH']) {
 }
 assert.equal(languageIdForFileExt('.ts'), 'typescript');
 assert.equal(languageIdForFileExt('.lua'), 'lua');
+assert.equal(languageIdForFileExt('.SQL'), 'sql');
 assert.equal(languageIdForFileExt('.unknown'), 'plaintext');
 for (const key of ['yaml', 'yamlls', 'yaml-language-server']) {
   const preset = resolveLspServerPresetByKey(key);
