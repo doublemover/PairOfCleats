@@ -1068,6 +1068,62 @@ Primary references: [public document and syntax APIs](https://eemeli.org/yaml/#d
 [public Lexer/Parser/Composer APIs](https://eemeli.org/yaml/#parsing-yaml), and
 [exact component metadata](https://registry.npmjs.org/yaml/2.9.1).
 
+## XML lexical ownership
+
+The unchanged default owners at 124238b3b4de7295f991338e7483bf0dda7b3db2
+treated tag-looking CDATA as sections/imports, missed real multiline includes and
+lost later sections after a valid `>` inside a quoted attribute. Small fixtures
+demonstrated those differences against the existing application-owned native XML
+parser; its optional route remains separate from the default.
+
+The corrected default shares one bounded application-owned lexical model between
+chunks and imports/relation imports. Quoted attribute boundaries, comments,
+processing instructions, CDATA and declaration boundaries keep literal contents
+out of the element/import stream. Real multiline includes, namespaced element
+names, multiple same-line elements and selected literal reference attributes are
+retained. Existing schema-location selection, reference sanitization and direct
+root-child section policy remain intact. Exact element/name/attribute/value spans
+are UTF-16 offsets from this lexer; enclosing chunk partitions retain their
+application-owned sibling-to-next-section boundaries.
+
+This route is labelled `xml-lexical` with partial coverage, not a vendor AST or a
+complete XML/namespace/DTD validator. Declarations are opaque. Named and numeric
+references are syntax-checked but remain unresolved, including references inside
+import attributes; no guessed expansion supplies an import. There is no entity,
+DTD, schema or external-reference loading. Structural mismatches, unclosed
+boundaries, duplicate attributes, malformed references, invalid characters and
+exhausted admission return labelled generic content and empty structural facts.
+They do not revive the earlier phantom-producing regular-expression fallback.
+
+Admission is bounded to 786,432 UTF-16 code units, 20,000 LF-delimited lines,
+65,536 lexical tokens, 32,768 code units per token, 4,096 per name, 20,000 admitted
+element/attribute nodes, 4,096 reference entries and element depth 64. The local
+scan ceiling remains 30 ms; stricter actual collector/chunk-owner remaining time
+is propagated through scanning, cached-result admission and chunk assembly.
+Synchronous operations are measured at their boundaries, not described as timer-
+interruptible. Expired scans/assembly expose measured overrun. A single immutable
+last-document cache shares repeated work without an unbounded retained corpus.
+Successful repeated chunk results preserve deterministic metadata.
+
+No dependency was added and explicit native config chunking/default resource
+policies were not widened. The caps fixture identity now names the truthful
+lexical route while retaining its prior numeric policy values; this is not a new
+measured caps calibration. Controls include CDATA/comment/instruction/declaration
+fake imports, quoted delimiters, real multiline references, Unicode/CRLF ranges,
+unresolved entities, malformed input, missing-owner injection, source/token/node/
+depth/import limits, line windows, actual caller/cache/assembly expiry and an
+external-fetch tripwire:
+
+```sh
+node tests/lang/contracts/xml-lexical-boundaries.test.js
+node tests/indexing/chunking/xml.test.js
+node tests/lang/registry/collectors.test.js
+node tests/indexing/chunking/config-tree-sitter-meta-parity.test.js
+```
+
+Primary references: [XML name and character grammar](https://www.w3.org/TR/xml/#NT-Name)
+and [CDATA boundary rules](https://www.w3.org/TR/xml/#sec-cdata-sect).
+
 ## Recorded validation checkpoints
 
 These are dated Linux cloud checkpoints, not a single full-suite result on the

@@ -1189,7 +1189,7 @@
     },
     {
       "id": "xml",
-      "parserRoute": "structured-xml",
+      "parserRoute": "xml-lexical-ranges",
       "capsProfile": "xml-default",
       "telemetry": {
         "bytes": {

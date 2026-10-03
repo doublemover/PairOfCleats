@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 669,
+    "hero": 670,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4864,6 +4864,12 @@
     {
       "id": "lang/contracts/yaml-syntax-node-boundaries",
       "order": 800,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/xml-lexical-boundaries",
+      "order": 801,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
