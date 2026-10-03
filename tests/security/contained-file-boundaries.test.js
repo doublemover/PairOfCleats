@@ -5,6 +5,7 @@ import path from 'node:path';
 import { readContainedFile, openContainedFileSync } from '../../src/shared/contained-file.js';
 import { assertSafeCacheDeletion } from '../../src/shared/cache-deletion.js';
 import { buildPrimaryExcerpt, clearContextPackCaches } from '../../src/context-pack/excerpt-cache.js';
+import { readTextFileWithHash } from '../../src/shared/encoding.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-contained-'));
 const repo = path.join(tmp, 'repo');
@@ -17,6 +18,8 @@ fs.writeFileSync(file, 'safe fixture');
 fs.writeFileSync(external, 'outside fixture sentinel');
 try {
   assert.equal((await readContainedFile(repo, file)).toString(), 'safe fixture');
+  const discoveredStat = fs.lstatSync(file);
+  assert.equal((await readTextFileWithHash(file, { repoRoot: repo, stat: discoveredStat })).text, 'safe fixture');
   const fd = openContainedFileSync(repo, file);
   assert.equal(fs.readFileSync(fd, 'utf8'), 'safe fixture');
   fs.closeSync(fd);
@@ -24,6 +27,7 @@ try {
   assert.equal(first.excerpt, 'safe fixture');
   fs.unlinkSync(file);
   fs.symlinkSync(external, file);
+  await assert.rejects(() => readTextFileWithHash(file, { repoRoot: repo, stat: discoveredStat }));
   await assert.rejects(() => readContainedFile(repo, file), /authorized root|symlink/);
   assert.throws(() => openContainedFileSync(repo, file));
   clearContextPackCaches();

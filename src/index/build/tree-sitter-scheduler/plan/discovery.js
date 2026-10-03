@@ -190,7 +190,7 @@ export const discoverTreeSitterSchedulerGroups = async ({
       }
       if (!text) {
         try {
-          const decoded = await readTextFileWithHash(abs, { buffer, stat });
+          const decoded = await readTextFileWithHash(abs, { buffer, stat, repoRoot: runtime.root });
           text = decoded.text;
           buffer = decoded.buffer;
           hash = decoded.hash;
@@ -222,7 +222,7 @@ export const discoverTreeSitterSchedulerGroups = async ({
         }
       }
       if (!hash) {
-        const decoded = await readTextFileWithHash(abs, { buffer, stat });
+        const decoded = await readTextFileWithHash(abs, { buffer, stat, repoRoot: runtime.root });
         hash = decoded.hash;
         if (!text) text = decoded.text;
         if (!buffer) buffer = decoded.buffer;

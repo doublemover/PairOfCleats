@@ -385,7 +385,7 @@ export const executeTreeSitterSchedulerPlan = async ({
           currentFileVersionSignature = null;
           const abs = path.join(runtime.root, containerPath);
           const stat = await fs.stat(abs);
-          const decoded = await readTextFileWithHash(abs, { stat });
+          const decoded = await readTextFileWithHash(abs, { stat, repoRoot: runtime.root });
           currentText = decoded?.text || '';
           currentFileVersionSignature = createTreeSitterFileVersionSignature({
             size: stat?.size,

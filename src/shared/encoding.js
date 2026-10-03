@@ -4,6 +4,7 @@ import chardet from 'chardet';
 import iconv from 'iconv-lite';
 import { sha1 } from './hash.js';
 import { fileExt, toPosix } from './file-paths.js';
+import { assertNoSymlinkPath, readContainedFile } from './contained-file.js';
 
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 
@@ -224,14 +225,20 @@ const ensureNotSymlinkSync = (filePath, options = {}) => {
 };
 
 export const readTextFile = async (filePath, options = {}) => {
+  if (options.repoRoot) assertNoSymlinkPath(options.repoRoot, filePath);
   await ensureNotSymlink(filePath, options);
-  const buffer = options.buffer ?? await fsPromises.readFile(filePath);
+  const buffer = options.buffer ?? await (options.repoRoot
+    ? readContainedFile(options.repoRoot, filePath, { expectedStat: options.stat })
+    : fsPromises.readFile(filePath));
   return decodeTextBuffer(buffer, { filePath });
 };
 
 export const readTextFileWithHash = async (filePath, options = {}) => {
+  if (options.repoRoot) assertNoSymlinkPath(options.repoRoot, filePath);
   await ensureNotSymlink(filePath, options);
-  const buffer = options.buffer ?? await fsPromises.readFile(filePath);
+  const buffer = options.buffer ?? await (options.repoRoot
+    ? readContainedFile(options.repoRoot, filePath, { expectedStat: options.stat })
+    : fsPromises.readFile(filePath));
   const decoded = decodeTextBuffer(buffer, { filePath });
   const hash = sha1(buffer);
   return {
