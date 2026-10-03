@@ -1035,6 +1035,8 @@ acceptance and full indexing are separate evidence categories.
 | Jinja/Django | 39f0f5b12a4766b62ae0ce82aac2bc65dffb9952 | Ten exact-head focused checks passed, each below 0.52 seconds/<86 MiB; formatter 29.2 seconds. Distinct lexical dialects are heuristic/partial. The verified Python reference comparison and grammar ABI gap do not imply production AST acceptance. |
 | JSONC | be388506c38d9cf9392192dce7d4040f6c2ec051 | Nine exact-head focused checks passed, each below 0.62 seconds/<94 MiB; formatter 28.0 seconds. Explicit syntax ownership, effective last-key ranges and strict/deep compatibility are covered; deep lenient JSONC remains bounded. |
 
+| TOML | ba061f0f6f2a0b15b91b9c517c69def05d92ca1a | Ten exact-head focused checks passed, each below 0.62 seconds/<99 MiB; formatter 27.9 seconds. Public semantic values and app lexical ranges remove multiline-string phantoms and recover real arrays/quoted keys; INI and explicit native config parity remain covered. No vendor AST ranges or full configuration/index/platform acceptance. |
+
 Historical core/dependency records remain in the
 [branch/capability review](../branch-capability-review-2026-10-02.md),
 [dependency guide](dependency-security.md), dated
