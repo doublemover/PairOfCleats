@@ -55,6 +55,19 @@ installed for this change.
 
 ## Focused regression and resource boundary
 
+Run the affected C#/Groovy fixture with installed native dependencies:
+
+```sh
+node tests/indexing/tree-sitter/csharp-groovy-coverage.test.js
+```
+
+Trials run serially with one CPU, a 512 MiB Node heap, a 768 MiB sampled process-tree
+RSS stopping rule and 2 GiB available-RAM reserve. Tests are bounded to 30 seconds;
+installation or compilation steps are separately bounded to 180 seconds. Embeddings
+are off and model access is offline. The locked-runtime rebuild completed in about
+25 seconds, with sampled process-tree RSS below 448 MiB. Native syntax and chunking
+checks complete in under a second. These are resource observations, not benchmarks.
+
 ### Node-hosted language servers
 
 The next serial batch accepted these exact installed versions through PoC's real
@@ -342,7 +355,7 @@ The official Linux archive is 117,949,007 bytes, with published SHA-256
 `e53b1a96196095faedb7642cf64964f7fb9ad4a0c1f00dd2c172a3d9dcbafdfd`.
 It matched before bounded staged ZIP extraction: 437 entries and about 235 MB
 unpacked. The install completed within 15 seconds below 23 MiB sampled RSS; tiny
-runtime fixtures completed around a second below 256 MiB sampled process-tree RSS.
+runtime fixtures completed within five seconds below 256 MiB sampled process-tree RSS.
 These observations are not a comparative benchmark or a footprint guarantee.
 
 The fixture supplies its own fixed compilation database outside the workspace,
@@ -370,16 +383,3 @@ Primary sources: [official release](https://github.com/clangd/clangd/releases/ta
 [command/driver policy](https://clangd.llvm.org/design/compile-commands),
 [configuration](https://clangd.llvm.org/config), and
 [exact-version plugin handling](https://github.com/llvm/llvm-project/blob/llvmorg-23.1.0/clang-tools-extra/clangd/Compiler.cpp).
-
-Run the affected fixture with installed native dependencies:
-
-```sh
-node tests/indexing/tree-sitter/csharp-groovy-coverage.test.js
-```
-
-Trials run serially with one CPU, a 512 MiB Node heap, a 768 MiB sampled process-tree
-RSS stopping rule and 2 GiB available-RAM reserve. Tests are bounded to 30 seconds;
-installation or compilation steps are separately bounded to 180 seconds. Embeddings
-are off and model access is offline. The locked-runtime rebuild completed in about
-25 seconds, with sampled process-tree RSS below 448 MiB. Native syntax and chunking
-checks complete in under a second. These are resource observations, not benchmarks.
