@@ -76,19 +76,20 @@ class PairOfCleatsShowEffectiveSettingsCommand(sublime_plugin.WindowCommand):
 
 
 def _render_effective_settings(settings, overrides):
-    override_keys = set(overrides.keys()) if isinstance(overrides, dict) else set()
-    project_env = overrides.get(config.ENV_KEY) if isinstance(overrides, dict) else None
-    if not isinstance(project_env, dict):
-        project_env = overrides.get('env') if isinstance(overrides, dict) else None
-    project_env_keys = sorted(project_env.keys()) if isinstance(project_env, dict) else []
+    raw_overrides = overrides if isinstance(overrides, dict) else {}
+    effective_overrides = config.filter_project_settings(raw_overrides)
+    override_keys = set(effective_overrides).intersection(config.DEFAULT_SETTINGS)
+    ignored_keys = set(raw_overrides).intersection(config.PROJECT_IGNORED_SETTING_KEYS,
+                                                   config.DEFAULT_SETTINGS)
+    unsupported_keys = set(raw_overrides).difference(config.DEFAULT_SETTINGS)
 
     lines = [
         'PairOfCleats effective settings',
         '',
-        'Merge semantics:',
-        '- Base settings: PairOfCleats.sublime-settings + User overrides',
-        '- Project settings: settings.pairofcleats overrides base values',
-        '- env: shallow-merged, base env first and project env keys override conflicts',
+        'Settings precedence:',
+        '- Base: package defaults and User Settings',
+        '- Supported project values replace matching base values',
+        '- CLI/Node paths, API connection/mode and environment use User Settings',
         '',
     ]
 
@@ -96,15 +97,17 @@ def _render_effective_settings(settings, overrides):
         lines.append('Project override keys: {0}'.format(', '.join(sorted(override_keys))))
     else:
         lines.append('Project override keys: (none)')
-    if project_env_keys:
-        lines.append('Project env override keys: {0}'.format(', '.join(project_env_keys)))
+    if ignored_keys:
+        lines.append('Ignored project keys (use User Settings): {0}'.format(', '.join(sorted(ignored_keys))))
+    if unsupported_keys:
+        lines.append('Unsupported project keys: {0}'.format(', '.join(sorted(unsupported_keys))))
     lines.append('')
 
     for title, keys in config.SETTING_GROUPS:
         lines.append('{0}:'.format(title))
         for key in keys:
             value = settings.get(key)
-            source = _setting_source(key, overrides)
+            source = _setting_source(key, effective_overrides)
             lines.append('- {0} = {1} [{2}]'.format(key, _format_value(value), source))
         lines.append('')
 
@@ -112,11 +115,7 @@ def _render_effective_settings(settings, overrides):
 
 
 def _setting_source(key, overrides):
-    if not isinstance(overrides, dict):
-        return 'base'
-    if key == 'env':
-        if isinstance(overrides.get(config.ENV_KEY), dict) or isinstance(overrides.get('env'), dict):
-            return 'base+project'
+    if not isinstance(overrides, dict) or key in config.PROJECT_IGNORED_SETTING_KEYS:
         return 'base'
     return 'project' if key in overrides else 'base'
 

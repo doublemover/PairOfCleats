@@ -150,9 +150,11 @@ In your `.sublime-project` file:
 ```
 
 Supported project presentation/index options replace base settings key-for-key.
-CLI/Node paths, additional CLI arguments, API connection/execution settings and
-environment values come from User Settings; project values for those fields do
-not take effect. Use User Settings when configuring them.
+CLI/Node paths, API connection/execution settings and environment values come
+from User Settings; project values for those fields do not take effect.
+`cli_args` and `extra_search_args` are not supported settings in this plugin.
+The effective-settings panel distinguishes applied, ignored and unsupported
+project keys.
 Use `PairOfCleats: Show Effective Settings` to inspect the final merged settings for the current window.
 Use `PairOfCleats: Project Settings Template` to open a copy/paste starter payload for `.sublime-project`.
 
