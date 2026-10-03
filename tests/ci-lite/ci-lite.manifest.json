@@ -4854,6 +4854,12 @@
       "order": 798,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/toml-semantic-lexical-boundaries",
+      "order": 799,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

@@ -1125,7 +1125,7 @@
     },
     {
       "id": "toml",
-      "parserRoute": "structured-toml",
+      "parserRoute": "toml-values+lexical-ranges",
       "capsProfile": "toml-default",
       "telemetry": {
         "bytes": {

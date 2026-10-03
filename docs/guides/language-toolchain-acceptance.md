@@ -939,6 +939,71 @@ Primary references: [official parser APIs](https://github.com/microsoft/node-jso
 [exact component metadata](https://registry.npmjs.org/jsonc-parser/3.3.1), and
 [pinned public parser implementation](https://github.com/microsoft/node-jsonc-parser/blob/v3.3.1/src/impl/parser.ts).
 
+## TOML semantic values and application-owned ranges
+
+The unchanged owners at cc51a24b54d787a6eb4ec856253ebda0ca956c5e demonstrated
+two related defects: a multiline documentation string produced a fake dependency
+section/imports, while real multiline include arrays were missed and comma-bearing
+filenames were split incorrectly. The corrected default route uses the already
+declared public smol-toml 1.9.0 parse API for semantic values, with a separate
+application-owned string/comment-aware lexical pass for source ranges. One
+immutable model supplies default TOML sections, imports and the relation adapter's
+imports. No serializer, reference/file loading or configuration evaluation runs.
+
+The semantic parser provides values, not AST nodes or ranges. Metadata therefore
+says smol-toml-values+lexical, partial coverage and application-utf16-lexer. Header
+ranges point to actual source tokens; section boundaries remain line-anchored.
+Reference ranges belong to the containing assignment and decoded key, never to an
+invented vendor string node. Quoted/dotted keys and active nested array-table
+instances are correlated with own semantic properties. Prototype-like keys remain
+inert data; parsed objects are not merged into configuration or application objects.
+Multiline assignments crossing a configured partial line window are omitted.
+
+The existing reference-key/dependency-path selection and sanitization are retained,
+with semantic string values and equivalent quoted/dotted dependency fields replacing
+textual guesses. Version-only dependency strings remain excluded. Duplicate keys,
+malformed/truncated syntax, unsupported correlations, missing parsers and expired
+work return labelled generic content and empty structural facts. INI's existing
+line-based owner is unchanged. Explicit config Tree-sitter chunking remains a
+separate supported option; its unchanged native metadata-parity fixture passes.
+The default config Tree-sitter setting and language-policy caps are unchanged.
+
+Application admission is bounded to 786,432 UTF-16 code units, 3,500 LF-delimited
+lines, 65,536 lexical tokens, 32,768 code units per token, container/key-path/semantic
+depth 64 and 20,000 semantic values. The collector's existing 786,432-unit source,
+4,096-match, 2,048-import-token and 30 ms defaults remain intact. Actual stricter
+caller deadlines govern scanning, synchronous parsing and extraction; the local
+ceiling is 30 ms. Synchronous parsing cannot be timer-interrupted, so measured
+post-call overrun is reported honestly. One-time app dependency initialization is
+measured separately: the small cold witness recorded about 2.1 ms of setup and
+2.3 ms of document work. Those observations are not benchmarks or broader workload
+acceptance. The route-label/caps fixture update is identity parity, not calibration.
+
+The isolated exact component was installed with scripts disabled. Its 31,492-byte
+official registry tarball independently matched the project lock's SHA-512
+integrity. Package/lock versions did not change; this is component provenance,
+not a whole-validation-tree lock claim. Public parsing explicitly bounds depth,
+accepts large integer values without precision failure, and uses the existing
+legacy date representation. Upstream date/grammar limitations and bounded app
+extraction still apply; no full TOML conformance, schema binding, LSP/compiler,
+full-index or platform acceptance is claimed.
+
+Focused controls cover multiline basic/literal strings, escaped quote/line-ending
+behavior, comma-bearing names, quoted/escaped/dotted keys, nested array tables,
+comments/string-contained fake facts, duplicate keys, inert prototype names,
+UTF-16/CRLF positions, malformed/truncated input, missing parsers, depth/node/token/
+length limits, caller expiry, cache admission and measured cold initialization:
+
+```sh
+node tests/lang/contracts/toml-semantic-lexical-boundaries.test.js
+node tests/indexing/chunking/ini-toml.test.js
+node tests/indexing/chunking/config-tree-sitter-meta-parity.test.js
+```
+
+Primary references: [public parser API and key-safety behavior](https://github.com/squirrelchat/smol-toml),
+[exact component metadata](https://registry.npmjs.org/smol-toml/1.9.0), and
+[TOML string/key/table semantics](https://toml.io/en/v1.0.0).
+
 ## Recorded validation checkpoints
 
 These are dated Linux cloud checkpoints, not a single full-suite result on the

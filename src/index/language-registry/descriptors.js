@@ -288,7 +288,7 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
   Object.freeze({
     id: 'toml',
     adapterId: 'toml',
-    parserRoute: 'structured-toml',
+    parserRoute: 'toml-values+lexical-ranges',
     capsProfile: 'toml-default',
     extensions: Object.freeze(['.toml']),
     specialFilenames: Object.freeze(['pipfile'])
