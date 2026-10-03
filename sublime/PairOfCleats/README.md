@@ -4,9 +4,18 @@ PairOfCleats integration for Sublime Text 3.
 
 ## Install
 
-- Copy or symlink `sublime/PairOfCleats` into your Sublime `Packages` directory.
-- Ensure Node.js 18+ is available on PATH (or set `node_path`).
-- Install the PairOfCleats CLI (global npm install or local repo checkout).
+1. Install the CLI from the [source checkout](../../README.md#quickstart), using
+   Node.js **24.15.0 or newer** and npm with development dependencies.
+2. Copy or symlink `sublime/PairOfCleats` into your Sublime `Packages` directory.
+3. Run `PairOfCleats: Open Settings` and set `pairofcleats_path` to the absolute path
+   of that checkout's `bin/pairofcleats.js`. Set `node_path` if the required Node
+   executable is not the one available on PATH.
+4. Build the target project's index using the [first-search guide](../../docs/guides/first-search.md),
+   then use `PairOfCleats: Search` from your open project.
+
+The package is currently private; these instructions do not assume a published
+global npm package or a globally linked CLI command. CLI/Node paths belong in
+User Settings rather than `.sublime-project` overrides.
 
 ## Package Control notes
 
@@ -16,10 +25,12 @@ and the PairOfCleats CLI or local repo binaries.
 ## CLI discovery
 
 Resolution order:
-1) `pairofcleats_path` setting (absolute or repo-relative)
-2) `node_modules/.bin/pairofcleats` (repo-local)
-3) `bin/pairofcleats.js` (repo-local)
-4) `pairofcleats` on PATH
+1) The configured `pairofcleats_path` from User Settings
+2) `pairofcleats` on PATH, only when no path is configured
+
+The plugin does not discover a CLI executable from the open repository's
+`node_modules/.bin` or `bin` directory. An absolute configured path is the least
+ambiguous choice; a relative configured path resolves against the selected repo.
 
 If the selected path ends in `.js`, the plugin runs it with `node_path` (or `node`).
 
@@ -129,22 +140,19 @@ In your `.sublime-project` file:
 {
   "settings": {
     "pairofcleats": {
-      "pairofcleats_path": "./bin/pairofcleats.js",
-      "api_server_url": "http://127.0.0.1:4152",
       "open_results_in": "output_panel",
       "index_watch_scope": "folder",
       "index_watch_folder": "./src",
-      "map_stream_output": true,
-      "env": {
-        "PAIROFCLEATS_API_TOKEN": "..."
-      }
+      "map_stream_output": true
     }
   }
 }
 ```
 
-Project overrides replace base settings key-for-key.
-`env` is the only merged setting: package/user `env` values are loaded first, then project `env` values override conflicts.
+Supported project presentation/index options replace base settings key-for-key.
+CLI/Node paths, additional CLI arguments, API connection/execution settings and
+environment values come from User Settings; project values for those fields do
+not take effect. Use User Settings when configuring them.
 Use `PairOfCleats: Show Effective Settings` to inspect the final merged settings for the current window.
 Use `PairOfCleats: Project Settings Template` to open a copy/paste starter payload for `.sublime-project`.
 
