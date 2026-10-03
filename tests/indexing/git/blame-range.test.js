@@ -6,6 +6,7 @@ import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shar
 import { loadChunkMeta } from '../../../src/shared/artifact-io.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const tempRoot = await makeTempDir('pairofcleats-git-blame-range-');
@@ -59,6 +60,14 @@ try {
     syncProcess: true,
     testConfig: {
       indexing: {
+        scm: {
+          provider: 'git',
+          snapshot: { enabled: false },
+          annotate: {
+            enabled: true,
+            allowSlowTimeouts: true
+          }
+        },
         typeInference: false,
         typeInferenceCrossFile: false
       },
@@ -66,12 +75,27 @@ try {
         autoEnableOnDetect: false,
         lsp: { enabled: false }
       }
+    },
+    extraEnv: {
+      PAIROFCLEATS_WORKER_POOL: 'off'
     }
   });
-  const buildResult = spawnSync(
-    process.execPath,
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage1', '--mode', 'code', '--repo', repoRoot],
-    { cwd: repoRoot, env, stdio: 'inherit' }
+  const buildResult = runNode(
+    [
+      path.join(root, 'build_index.js'),
+      '--stub-embeddings',
+      '--scm-annotate',
+      '--stage',
+      'stage1',
+      '--mode',
+      'code',
+      '--repo',
+      repoRoot
+    ],
+    'git blame range build index',
+    repoRoot,
+    env,
+    { stdio: 'inherit', allowFailure: true }
   );
   if (buildResult.status !== 0) {
     console.error('git blame range test failed: build_index failed');

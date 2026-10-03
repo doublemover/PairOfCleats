@@ -1,22 +1,13 @@
 import path from 'node:path';
-import { readJsonFile } from '../../../shared/artifact-io.js';
+import { readJsonFile } from '../../../shared/artifact-io/json.js';
+import {
+  INDEX_BUILD_STAGE_ORDER,
+  normalizeIndexBuildStage
+} from '../../../shared/indexing/stages.js';
 
-export const STAGE_ORDER = {
-  stage1: 1,
-  stage2: 2,
-  stage3: 3,
-  stage4: 4
-};
+export const STAGE_ORDER = INDEX_BUILD_STAGE_ORDER;
 
-export const normalizeStage = (raw) => {
-  const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-  if (!value) return null;
-  if (value === '1' || value === 'stage1' || value === 'sparse') return 'stage1';
-  if (value === '2' || value === 'stage2' || value === 'enrich' || value === 'full') return 'stage2';
-  if (value === '3' || value === 'stage3' || value === 'embeddings' || value === 'embed') return 'stage3';
-  if (value === '4' || value === 'stage4' || value === 'sqlite' || value === 'ann') return 'stage4';
-  return null;
-};
+export const normalizeStage = normalizeIndexBuildStage;
 
 export const readJsonOptional = (dir, name) => {
   const filePath = path.join(dir, name);

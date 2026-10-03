@@ -1,22 +1,24 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { acquireIndexLock, attachIndexLockSignalCleanup } from '../build/lock.js';
-import { createError, ERROR_CODES } from '../../shared/error-codes.js';
-import { isAbsolutePathAny, toPosix } from '../../shared/files.js';
-import { releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
-import { atomicWriteText } from '../../shared/io/atomic-write.js';
-import { stableStringify } from '../../shared/stable-json.js';
-import { isManifestPathSafe } from '../validate/paths.js';
+import {
+  assertNoAbsolutePathLeak,
+  deepCloneRegistryJson,
+  ensureRegistryId,
+  isRegistryObject,
+  normalizeRegistryRelativePath,
+  readRegistryJsonObject,
+  registryInvalidRequest,
+  withRegistryLock,
+  writeRegistryStableJson
+} from '../registry-support.js';
 
 const SNAPSHOTS_DIR = 'snapshots';
 const SNAPSHOT_ID_RE = /^snap-[A-Za-z0-9._-]+$/;
 const DEFAULT_STAGING_MAX_AGE_HOURS = 24;
 
-const queueError = (message, details = null) => createError(ERROR_CODES.QUEUE_OVERLOADED, message, details);
-const invalidRequest = (message, details = null) => createError(ERROR_CODES.INVALID_REQUEST, message, details);
-
-const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
+const invalidRequest = registryInvalidRequest;
+const isObject = isRegistryObject;
 
 const resolveSnapshotsRoot = (repoCacheRoot) => path.join(repoCacheRoot, SNAPSHOTS_DIR);
 const resolveManifestPath = (repoCacheRoot) => path.join(resolveSnapshotsRoot(repoCacheRoot), 'manifest.json');
@@ -31,119 +33,54 @@ const resolveFrozenPath = (repoCacheRoot, snapshotId) => (
 );
 
 const ensureSnapshotId = (snapshotId) => {
-  if (typeof snapshotId !== 'string' || !SNAPSHOT_ID_RE.test(snapshotId)) {
-    throw invalidRequest(`Invalid snapshot id: ${snapshotId}`);
-  }
-};
-
-const deepClone = (value) => JSON.parse(JSON.stringify(value));
-
-const assertNoAbsolutePathLeak = (value, cursor = '$') => {
-  if (typeof value === 'string') {
-    if (isAbsolutePathAny(value)) {
-      throw invalidRequest(`Absolute path leak at ${cursor}.`);
-    }
-    return;
-  }
-  if (Array.isArray(value)) {
-    for (let i = 0; i < value.length; i += 1) {
-      assertNoAbsolutePathLeak(value[i], `${cursor}[${i}]`);
-    }
-    return;
-  }
-  if (!isObject(value)) return;
-  for (const [key, entry] of Object.entries(value)) {
-    assertNoAbsolutePathLeak(entry, `${cursor}.${key}`);
-  }
-};
-
-const normalizeRelativePath = (value, label) => {
-  if (typeof value !== 'string' || !value.trim()) {
-    throw invalidRequest(`${label} must be a non-empty path string.`);
-  }
-  const normalized = toPosix(value.trim());
-  if (!isManifestPathSafe(normalized)) {
-    throw invalidRequest(`${label} must be repo-cache-relative and traversal-safe.`);
-  }
-  return normalized;
+  ensureRegistryId(snapshotId, SNAPSHOT_ID_RE, `Invalid snapshot id: ${snapshotId}`);
 };
 
 const sanitizeSnapshotManifest = (manifest) => {
-  const next = deepClone(manifest);
+  const next = deepCloneRegistryJson(manifest);
   assertNoAbsolutePathLeak(next);
   return next;
 };
 
 const sanitizeSnapshotRecord = (snapshotJson) => {
-  const next = deepClone(snapshotJson);
+  const next = deepCloneRegistryJson(snapshotJson);
   const pointer = isObject(next.pointer) ? next.pointer : null;
   if (pointer && isObject(pointer.buildRootsByMode)) {
     for (const [mode, entry] of Object.entries(pointer.buildRootsByMode)) {
-      pointer.buildRootsByMode[mode] = normalizeRelativePath(
+      pointer.buildRootsByMode[mode] = normalizeRegistryRelativePath(
         entry,
         `pointer.buildRootsByMode.${mode}`
       );
     }
   }
   if (pointer && typeof pointer.buildRoot === 'string') {
-    pointer.buildRoot = normalizeRelativePath(pointer.buildRoot, 'pointer.buildRoot');
+    pointer.buildRoot = normalizeRegistryRelativePath(pointer.buildRoot, 'pointer.buildRoot');
   }
   if (typeof next.buildRoot === 'string') {
-    next.buildRoot = normalizeRelativePath(next.buildRoot, 'buildRoot');
+    next.buildRoot = normalizeRegistryRelativePath(next.buildRoot, 'buildRoot');
   }
   assertNoAbsolutePathLeak(next);
   return next;
 };
 
 const sanitizeFrozenRecord = (frozenJson) => {
-  const next = deepClone(frozenJson);
+  const next = deepCloneRegistryJson(frozenJson);
   if (typeof next.frozenRoot === 'string') {
-    next.frozenRoot = normalizeRelativePath(next.frozenRoot, 'frozenRoot');
+    next.frozenRoot = normalizeRegistryRelativePath(next.frozenRoot, 'frozenRoot');
   }
   assertNoAbsolutePathLeak(next);
   return next;
 };
 
-const readJsonObject = (filePath, fallback = null) => {
-  if (!fs.existsSync(filePath)) return fallback;
-  try {
-    const payload = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    if (!isObject(payload)) {
-      throw new Error('payload must be an object');
-    }
-    return payload;
-  } catch (err) {
-    throw invalidRequest(`Invalid JSON at ${filePath}: ${err?.message || err}`, { cause: err });
-  }
-};
-
-const writeStableJson = async (filePath, payload) => {
-  await atomicWriteText(filePath, stableStringify(payload), { newline: true });
-};
-
-const withIndexLock = async (repoCacheRoot, options, worker) => {
-  const lockInput = isObject(options?.lock) ? options.lock : null;
-  if (lockInput && typeof lockInput.release === 'function') {
-    return worker(lockInput);
-  }
-  const lock = await acquireIndexLock({
+const withIndexLock = async (repoCacheRoot, options, worker) => (
+  withRegistryLock({
     repoCacheRoot,
-    waitMs: Number.isFinite(options?.waitMs) ? Number(options.waitMs) : 0,
-    pollMs: Number.isFinite(options?.pollMs) ? Number(options.pollMs) : 1000,
-    staleMs: Number.isFinite(options?.staleMs) ? Number(options.staleMs) : undefined,
-    log: typeof options?.log === 'function' ? options.log : () => {}
-  });
-  if (!lock) {
-    throw queueError('Index lock held; unable to write snapshot registry.');
-  }
-  const detachSignalCleanup = attachIndexLockSignalCleanup(lock);
-  try {
-    return await worker(lock);
-  } finally {
-    detachSignalCleanup();
-    await releaseFileLockOrThrow(lock);
-  }
-};
+    domain: 'snapshots',
+    options,
+    lockHeldMessage: 'Snapshot registry lock held; unable to write snapshot registry.',
+    worker
+  })
+);
 
 export const createEmptySnapshotsManifest = () => ({
   version: 1,
@@ -153,17 +90,17 @@ export const createEmptySnapshotsManifest = () => ({
 });
 
 export const loadSnapshotsManifest = (repoCacheRoot) => (
-  readJsonObject(resolveManifestPath(repoCacheRoot), createEmptySnapshotsManifest())
+  readRegistryJsonObject(resolveManifestPath(repoCacheRoot), createEmptySnapshotsManifest())
 );
 
 export const loadSnapshot = (repoCacheRoot, snapshotId) => {
   ensureSnapshotId(snapshotId);
-  return readJsonObject(resolveSnapshotPath(repoCacheRoot, snapshotId), null);
+  return readRegistryJsonObject(resolveSnapshotPath(repoCacheRoot, snapshotId), null);
 };
 
 export const loadFrozen = (repoCacheRoot, snapshotId) => {
   ensureSnapshotId(snapshotId);
-  return readJsonObject(resolveFrozenPath(repoCacheRoot, snapshotId), null);
+  return readRegistryJsonObject(resolveFrozenPath(repoCacheRoot, snapshotId), null);
 };
 
 export const writeSnapshotsManifest = async (repoCacheRoot, manifest, options = {}) => {
@@ -174,7 +111,7 @@ export const writeSnapshotsManifest = async (repoCacheRoot, manifest, options = 
   return withIndexLock(repoCacheRoot, options, async () => {
     const manifestPath = resolveManifestPath(repoCacheRoot);
     await fsPromises.mkdir(path.dirname(manifestPath), { recursive: true });
-    await writeStableJson(manifestPath, sanitized);
+    await writeRegistryStableJson(manifestPath, sanitized);
     return manifestPath;
   });
 };
@@ -188,7 +125,7 @@ export const writeSnapshot = async (repoCacheRoot, snapshotId, snapshotJson, opt
   return withIndexLock(repoCacheRoot, options, async () => {
     const snapshotPath = resolveSnapshotPath(repoCacheRoot, snapshotId);
     await fsPromises.mkdir(path.dirname(snapshotPath), { recursive: true });
-    await writeStableJson(snapshotPath, sanitized);
+    await writeRegistryStableJson(snapshotPath, sanitized);
     return snapshotPath;
   });
 };
@@ -202,7 +139,7 @@ export const writeFrozen = async (repoCacheRoot, snapshotId, frozenJson, options
   return withIndexLock(repoCacheRoot, options, async () => {
     const frozenPath = resolveFrozenPath(repoCacheRoot, snapshotId);
     await fsPromises.mkdir(path.dirname(frozenPath), { recursive: true });
-    await writeStableJson(frozenPath, sanitized);
+    await writeRegistryStableJson(frozenPath, sanitized);
     return frozenPath;
   });
 };

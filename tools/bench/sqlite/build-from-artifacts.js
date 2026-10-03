@@ -3,10 +3,12 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
-import { readJsonFile, readJsonLinesArray } from '../../../src/shared/artifact-io.js';
+import { writeJsonLinesSharded } from '../../../src/shared/json-stream/jsonl-sharded.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
+import { readJsonFile, readJsonLinesArray } from '../../../src/shared/artifact-io/json.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
 import { loadIndex } from '../../../src/storage/sqlite/utils.js';
+import { parseSimpleBenchArgs } from '../shared.js';
 
 let Database = null;
 try {
@@ -16,25 +18,7 @@ try {
   process.exit(1);
 }
 
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
-
-const args = parseArgs();
+const args = parseSimpleBenchArgs();
 const chunkCount = Number(args.chunks) || 100000;
 const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
   ? String(args.mode).toLowerCase()
@@ -50,6 +34,25 @@ const indexDir = typeof args['index-dir'] === 'string' && args['index-dir'].trim
 const statementStrategy = typeof args['statement-strategy'] === 'string' && args['statement-strategy'].trim()
   ? args['statement-strategy'].trim()
   : null;
+
+const sumFileTreeBytes = async (dir) => {
+  let total = 0;
+  const stack = [dir];
+  while (stack.length) {
+    const current = stack.pop();
+    const entries = await fs.readdir(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+      } else if (entry.isFile()) {
+        const stat = await fs.stat(fullPath);
+        total += stat.size;
+      }
+    }
+  }
+  return total;
+};
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
@@ -173,13 +176,26 @@ const buildBaselineIndex = async () => {
   };
 };
 
-const runBuild = async ({ label, outPath: targetPath, index, indexDir: targetIndexDir, buildPragmas, optimize }) => {
-  const stats = {};
+const inputBytes = await sumFileTreeBytes(indexDir);
+
+const runBuild = async ({
+  label,
+  outPath: targetPath,
+  index,
+  indexLoader = null,
+  indexDir: targetIndexDir,
+  buildPragmas,
+  optimize
+}) => {
   const start = performance.now();
-  const count = await buildDatabaseFromArtifacts({
+  const loadStart = performance.now();
+  const resolvedIndex = typeof indexLoader === 'function' ? await indexLoader() : index;
+  const loadMs = performance.now() - loadStart;
+  const stats = {};
+  const buildOptions = {
     Database,
     outPath: targetPath,
-    index,
+    index: resolvedIndex,
     indexDir: targetIndexDir,
     mode: 'code',
     manifestFiles: null,
@@ -187,11 +203,13 @@ const runBuild = async ({ label, outPath: targetPath, index, indexDir: targetInd
     validateMode: 'off',
     vectorConfig: { enabled: false },
     modelConfig: { id: null },
-    buildPragmas,
-    optimize,
+    inputBytes,
     stats,
     statementStrategy
-  });
+  };
+  if (typeof buildPragmas === 'boolean') buildOptions.buildPragmas = buildPragmas;
+  if (typeof optimize === 'boolean') buildOptions.optimize = optimize;
+  const count = await buildDatabaseFromArtifacts(buildOptions);
   const durationMs = performance.now() - start;
   if (!fsSync.existsSync(targetPath)) {
     console.error('Expected sqlite DB to be created.');
@@ -200,6 +218,12 @@ const runBuild = async ({ label, outPath: targetPath, index, indexDir: targetInd
   console.log(`[bench] build-from-artifacts ${label} chunks=${count} ms=${durationMs.toFixed(1)}`);
   console.log(
     `[bench] ${label} statementStrategy=${stats.statementStrategy} batchSize=${stats.batchSize} prepares=${stats?.prepare?.total ?? 0}`
+  );
+  console.log(
+    `[bench] ${label} loadMs=${loadMs.toFixed(1)} buildMs=${(durationMs - loadMs).toFixed(1)}`
+  );
+  console.log(
+    `[bench] ${label} inputBytes=${inputBytes} buildPragmas=${Boolean(stats.pragmas)} optimize=${Boolean(stats.optimize || stats.ftsOptimize)}`
   );
   if (stats.transaction) {
     console.log(`[bench] ${label} transaction`, stats.transaction);
@@ -225,25 +249,21 @@ const runBuild = async ({ label, outPath: targetPath, index, indexDir: targetInd
 let baselineResult = null;
 let currentResult = null;
 if (mode !== 'current') {
-  const baselineIndex = await buildBaselineIndex();
   baselineResult = await runBuild({
     label: 'baseline',
     outPath: outPathBaseline,
-    index: baselineIndex,
+    indexLoader: buildBaselineIndex,
     indexDir: indexDir === generatedIndexDir ? baselineIndexDir : indexDir,
     buildPragmas: false,
     optimize: false
   });
 }
 if (mode !== 'baseline') {
-  const indexPieces = await loadIndexPieces(indexDir, null);
   currentResult = await runBuild({
     label: 'current',
     outPath: outPathCurrent,
-    index: indexPieces,
-    indexDir,
-    buildPragmas: true,
-    optimize: true
+    indexLoader: () => loadIndexPieces(indexDir, null),
+    indexDir
   });
 }
 if (baselineResult && currentResult) {

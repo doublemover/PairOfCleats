@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import Ajv from 'ajv';
 
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { runNode } from '../../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 
@@ -42,10 +42,12 @@ const runCase = async ({ name, lines, useJsonFile }) => {
     args.push('--json', outPath, '--quiet');
   }
 
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     args,
-    { cwd: root, env: testEnv, encoding: 'utf8' }
+    `bench output schema ${name}`,
+    root,
+    testEnv,
+    { stdio: 'pipe', allowFailure: true }
   );
 
   if (result.status !== 0) {

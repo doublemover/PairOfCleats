@@ -19,11 +19,13 @@ if (process.platform === 'win32') {
 
 const pidFile = path.join(tempRoot, 'leaked-child.pid');
 const scriptPath = path.join(tempRoot, 'spawn-leak.mjs');
-const subprocessModuleHref = pathToFileURL(path.join(root, 'src', 'shared', 'subprocess.js')).href;
+const subprocessTrackingModuleHref = pathToFileURL(
+  path.join(root, 'src', 'shared', 'subprocess', 'tracking.js')
+).href;
 const scriptBody = [
   "import fs from 'node:fs';",
   "import { spawn } from 'node:child_process';",
-  `import { registerChildProcessForCleanup } from '${subprocessModuleHref}';`,
+  `import { registerChildProcessForCleanup } from '${subprocessTrackingModuleHref}';`,
   'const pidFile = process.argv[2];',
   "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 60_000);'], {",
   "  stdio: 'ignore',",

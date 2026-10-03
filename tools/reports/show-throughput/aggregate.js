@@ -1,3 +1,12 @@
+import { summarizeNumericDistribution } from '../../shared/numeric-distribution.js';
+
+export {
+  mean,
+  sortNumeric,
+  quantileSorted,
+  summarizeNumericDistribution
+} from '../../shared/numeric-distribution.js';
+
 export const MODE_METRICS = [
   ['code', 'Code'],
   ['prose', 'Prose'],
@@ -51,6 +60,7 @@ export const MODE_SHORT_LABEL = {
 };
 
 export const INDEXING_SCHEMA_VERSION = 1;
+export const SCAN_PROFILE_SCHEMA_VERSION = 1;
 
 const THROUGHPUT_KEY_BY_MODE = {
   code: 'code',
@@ -104,33 +114,28 @@ export const sumRates = (...values) => {
   return found ? sum : null;
 };
 
-export const mean = (values) => {
-  if (!values.length) return null;
-  return values.reduce((sum, val) => sum + val, 0) / values.length;
-};
-
 export const collect = (items, selector) => items
   .map((item) => selector(item))
   .filter((value) => Number.isFinite(value));
 
-export const meanThroughput = (throughputs, pick) => {
+export const summarizeThroughputDistribution = (throughputs, pick) => {
   const entries = throughputs.map((item) => pick(item)).filter(Boolean);
   if (!entries.length) return null;
   return {
-    chunksPerSec: mean(collect(entries, (entry) => entry.chunksPerSec)),
-    tokensPerSec: mean(collect(entries, (entry) => entry.tokensPerSec)),
-    bytesPerSec: mean(collect(entries, (entry) => entry.bytesPerSec)),
-    filesPerSec: mean(collect(entries, (entry) => entry.filesPerSec))
+    chunksPerSec: summarizeNumericDistribution(collect(entries, (entry) => entry.chunksPerSec)),
+    tokensPerSec: summarizeNumericDistribution(collect(entries, (entry) => entry.tokensPerSec)),
+    bytesPerSec: summarizeNumericDistribution(collect(entries, (entry) => entry.bytesPerSec)),
+    filesPerSec: summarizeNumericDistribution(collect(entries, (entry) => entry.filesPerSec))
   };
 };
 
-export const mergeModeTotalsFromFeatureMetrics = (metrics, totalsMap) => {
-  if (!metrics || !metrics.modes || !totalsMap) return;
+const mergeResolvedModeTotals = ({ totalsMap, resolveTotals, resolveFiles }) => {
+  if (!totalsMap) return;
   for (const [modeKey] of MODE_METRICS) {
-    const totals = metrics?.modes?.[modeKey]?.totals;
+    const totals = resolveTotals(modeKey);
     if (!totals) continue;
     const lines = toFiniteOrNull(totals.lines);
-    const files = toFiniteOrNull(totals.count);
+    const files = toFiniteOrNull(resolveFiles(totals));
     const bytes = toFiniteOrNull(totals.bytes);
     const durationMs = toFiniteOrNull(totals.durationMs);
     if (!Number.isFinite(lines) && !Number.isFinite(files) && !Number.isFinite(bytes) && !Number.isFinite(durationMs)) {
@@ -144,6 +149,15 @@ export const mergeModeTotalsFromFeatureMetrics = (metrics, totalsMap) => {
     if (Number.isFinite(bytes)) bucket.bytes += bytes;
     if (Number.isFinite(durationMs) && Number.isFinite(lines) && lines > 0) bucket.durationMs += durationMs;
   }
+};
+
+export const mergeModeTotalsFromFeatureMetrics = (metrics, totalsMap) => {
+  if (!metrics || !metrics.modes || !totalsMap) return;
+  mergeResolvedModeTotals({
+    totalsMap,
+    resolveTotals: (modeKey) => metrics?.modes?.[modeKey]?.totals,
+    resolveFiles: (totals) => totals.count
+  });
 };
 
 const extractPandocFenceLanguage = (value) => {
@@ -215,7 +229,10 @@ const buildModeIndexingSummary = (totals) => {
   };
 };
 
-export const buildIndexingSummaryFromFeatureMetrics = (metrics) => {
+export const buildIndexingSummaryFromFeatureMetrics = (
+  metrics,
+  { normalizeLanguageKeys = true } = {}
+) => {
   if (!metrics || typeof metrics !== 'object') return null;
   const modes = {};
   const totals = { files: 0, lines: 0, bytes: 0, durationMs: 0 };
@@ -235,7 +252,9 @@ export const buildIndexingSummaryFromFeatureMetrics = (metrics) => {
     for (const [language, bucket] of Object.entries(languages)) {
       const lines = Number(bucket?.lines);
       if (!Number.isFinite(lines) || lines <= 0) continue;
-      const normalizedLanguage = normalizeMetricsLanguageKey(language);
+      const normalizedLanguage = normalizeLanguageKeys
+        ? normalizeMetricsLanguageKey(language)
+        : language;
       languageLines[normalizedLanguage] = (languageLines[normalizedLanguage] || 0) + lines;
     }
   }
@@ -246,6 +265,69 @@ export const buildIndexingSummaryFromFeatureMetrics = (metrics) => {
     schemaVersion: INDEXING_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
     source: 'feature-metrics',
+    modes,
+    totals: {
+      ...totals,
+      linesPerSec: totalLinesPerSec
+    },
+    languageLines
+  };
+};
+
+export const isValidScanProfile = (scanProfile) => {
+  if (!scanProfile || typeof scanProfile !== 'object') return false;
+  if (scanProfile.schemaVersion !== SCAN_PROFILE_SCHEMA_VERSION) return false;
+  const modes = scanProfile?.modes || {};
+  return MODE_METRICS.some(([modeKey]) => hasModeTotals({
+    files: toFiniteOrNull(modes?.[modeKey]?.files?.candidates),
+    lines: toFiniteOrNull(modes?.[modeKey]?.lines?.total)
+  }));
+};
+
+export const buildIndexingSummaryFromScanProfile = (scanProfile) => {
+  if (!isValidScanProfile(scanProfile)) return null;
+  const modes = {};
+  const totals = { files: 0, lines: 0, bytes: 0, durationMs: 0 };
+  const languageLines = {};
+  let hasData = false;
+
+  for (const [modeKey] of MODE_METRICS) {
+    const modeEntry = scanProfile?.modes?.[modeKey] || {};
+    const files = toFiniteOrNull(modeEntry?.files?.candidates);
+    const lines = toFiniteOrNull(modeEntry?.lines?.total);
+    const bytes = toFiniteOrNull(modeEntry?.bytes?.source ?? modeEntry?.bytes?.artifact);
+    const durationMs = toFiniteOrNull(modeEntry?.throughput?.totalMs ?? modeEntry?.timings?.totalMs);
+    const linesPerSec = (Number.isFinite(lines) && Number.isFinite(durationMs) && durationMs > 0)
+      ? (lines / (durationMs / 1000))
+      : null;
+    const modeTotals = {
+      files,
+      lines,
+      bytes,
+      durationMs,
+      linesPerSec
+    };
+    modes[modeKey] = modeTotals;
+    if (Number.isFinite(files)) totals.files += files;
+    if (Number.isFinite(lines)) totals.lines += lines;
+    if (Number.isFinite(bytes)) totals.bytes += bytes;
+    if (Number.isFinite(durationMs)) totals.durationMs += durationMs;
+    if (hasModeTotals(modeTotals)) hasData = true;
+    const modeLanguageLines = modeEntry?.lines?.byLanguage || {};
+    for (const [language, linesValue] of Object.entries(modeLanguageLines)) {
+      const normalizedLanguage = normalizeMetricsLanguageKey(language);
+      const numericLines = Number(linesValue);
+      if (!Number.isFinite(numericLines) || numericLines <= 0) continue;
+      languageLines[normalizedLanguage] = (languageLines[normalizedLanguage] || 0) + numericLines;
+    }
+  }
+
+  if (!hasData) return null;
+  const totalLinesPerSec = totals.durationMs > 0 ? (totals.lines / (totals.durationMs / 1000)) : null;
+  return {
+    schemaVersion: INDEXING_SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+    source: 'scan-profile',
     modes,
     totals: {
       ...totals,
@@ -301,24 +383,11 @@ export const isValidIndexingSummary = (indexingSummary) => {
 
 export const mergeModeTotalsFromIndexingSummary = (indexingSummary, totalsMap) => {
   if (!isValidIndexingSummary(indexingSummary) || !totalsMap) return;
-  for (const [modeKey] of MODE_METRICS) {
-    const totals = indexingSummary?.modes?.[modeKey];
-    if (!totals) continue;
-    const lines = toFiniteOrNull(totals.lines);
-    const files = toFiniteOrNull(totals.files);
-    const bytes = toFiniteOrNull(totals.bytes);
-    const durationMs = toFiniteOrNull(totals.durationMs);
-    if (!Number.isFinite(lines) && !Number.isFinite(files) && !Number.isFinite(bytes) && !Number.isFinite(durationMs)) {
-      continue;
-    }
-    const bucket = totalsMap.get(modeKey);
-    if (!bucket) continue;
-    bucket.repos += 1;
-    if (Number.isFinite(files)) bucket.files += files;
-    if (Number.isFinite(lines)) bucket.lines += lines;
-    if (Number.isFinite(bytes)) bucket.bytes += bytes;
-    if (Number.isFinite(durationMs) && Number.isFinite(lines) && lines > 0) bucket.durationMs += durationMs;
-  }
+  mergeResolvedModeTotals({
+    totalsMap,
+    resolveTotals: (modeKey) => indexingSummary?.modes?.[modeKey],
+    resolveFiles: (totals) => totals.files
+  });
 };
 
 export const collectLanguageLinesFromSummary = (indexingSummary, totals) => {

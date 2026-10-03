@@ -96,24 +96,24 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - `tools/bench/index/chargram-postings.js --rolling-hash`: microbench for chargram postings build throughput and key representation (`h64:`) with baseline/current compare.
 - `tools/bench/index/tree-sitter-load.js --json`: tree-sitter benchmark comparing cold vs warm parse/chunk throughput and file-order vs batch-by-language policies under `maxLoadedLanguages` eviction pressure.
 - Regression tests:
-- `tests/indexing/postings/postings-real-bench-contract.test.js`
+- `tests/indexing/postings/real-bench-contract.test.js`
 - `tests/indexing/postings/chargram-bench-contract.test.js`
 - `tests/indexing/postings/chunk-meta-determinism.test.js`
-- `tests/perf/indexing/postings/postings-heap-plateau.test.js`
+- `tests/perf/indexing/postings/heap-plateau.test.js`
 - `tests/perf/indexing/postings/stage1-memory-budget.test.js`
-- `tests/indexing/tree-sitter/tree-sitter-load-bench-contract.test.js`
-- `tests/indexing/tree-sitter/tree-sitter-parse-determinism.test.js`
-- `tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js`
-- `tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js`
+- `tests/indexing/tree-sitter/load-bench-contract.test.js`
+- `tests/indexing/tree-sitter/parse-determinism.test.js`
+- `tests/indexing/tree-sitter/chunk-cache-reuse.test.js`
+- `tests/indexing/tree-sitter/memory-plateau.test.js`
 
 ## Stage2 Bench + Regression Coverage
 - `tools/bench/index/filter-index-build.js`: Stage2 filter_index build microbench; compares baseline/current and prints size/throughput deltas.
 - `tools/bench/index/relations-build.js`: Stage2 graph_relations build benchmark; compares baseline graph build vs streaming spill/merge build.
 - `tools/bench/index/repo-map-compress.js`: Stage2 repo_map iterator/dedupe benchmark; compares baseline iterator vs current ordering/dedupe.
 - Regression tests:
-- `tests/perf/indexing/relations/relations-streaming-build.test.js`
-- `tests/indexing/relations/relations-determinism-bench-contract.test.js`
-- `tests/indexing/relations/relations-collision-guard.test.js`
-- `tests/indexing/relations/relations-atomicity-rollback.test.js`
-- `tests/indexing/filter-index/filter-index-atomic-swap.test.js`
-- `tests/indexing/filter-index/filter-index-metrics.test.js`
+- `tests/perf/indexing/relations/streaming-build.test.js`
+- `tests/indexing/relations/determinism-bench-contract.test.js`
+- `tests/indexing/relations/collision-guard.test.js`
+- `tests/indexing/relations/atomicity-rollback.test.js`
+- `tests/indexing/filter-index/atomic-swap.test.js`
+- `tests/indexing/filter-index/metrics.test.js`

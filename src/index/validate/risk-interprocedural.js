@@ -1,4 +1,4 @@
-import { loadJsonArrayArtifact } from '../../shared/artifact-io.js';
+import { loadJsonArrayArtifact } from '../../shared/artifact-io/loaders/core.js';
 import { toArray } from '../../shared/iterables.js';
 import { addIssue } from './issues.js';
 import { validateSchema } from './schema.js';

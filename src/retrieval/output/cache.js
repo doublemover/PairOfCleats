@@ -1,11 +1,13 @@
 import {
   createCacheReporter,
-  createLruCache,
+  createLruCache
+} from '../../shared/cache/lru.js';
+import {
   DEFAULT_CACHE_MB,
   DEFAULT_CACHE_TTL_MS,
   estimateStringBytes
-} from '../../shared/cache.js';
-import { getEnvConfig } from '../../shared/env.js';
+} from '../../shared/cache/size.js';
+import { getEnvConfig } from '../../shared/env/runtime.js';
 
 const resolveEntryLimit = (raw) => {
   const parsed = Number(raw);

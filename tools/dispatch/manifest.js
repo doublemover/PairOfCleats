@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createCli } from '../../src/shared/cli.js';
-import { describeDispatchCommand, listDispatchManifest } from '../../src/shared/dispatch/manifest.js';
+import { describeDispatchCommand, listDispatchManifest } from '../../src/shared/dispatch/registry.js';
 
 const argv = createCli({
   scriptName: 'dispatch-manifest',

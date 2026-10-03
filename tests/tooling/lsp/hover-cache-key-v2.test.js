@@ -4,39 +4,32 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import {
-  buildHoverCacheKey,
+  buildLspRequestCacheKey,
   buildSignatureParseCacheKey,
   buildSymbolPositionCacheKey,
-  loadHoverCache,
-  persistHoverCache
+  loadLspRequestCache,
+  persistLspRequestCache
 } from '../../../src/integrations/tooling/providers/lsp/hover-types.js';
 
 const baseInput = {
-  cmd: 'clangd',
+  providerId: 'clangd',
+  providerVersion: '1.2.3',
+  workspaceKey: 'repo-root',
   docHash: 'doc-hash-v2',
-  languageId: 'cpp',
+  requestKind: 'hover',
   position: { line: 7, character: 3 }
 };
 
-const alphaFunctionKey = buildHoverCacheKey({
+const alphaFunctionKey = buildLspRequestCacheKey(baseInput);
+const alphaVariableKey = buildLspRequestCacheKey(baseInput);
+const betaFunctionKey = buildLspRequestCacheKey({
   ...baseInput,
-  symbolName: 'alpha',
-  symbolKind: 12
-});
-const alphaVariableKey = buildHoverCacheKey({
-  ...baseInput,
-  symbolName: 'alpha',
-  symbolKind: 13
-});
-const betaFunctionKey = buildHoverCacheKey({
-  ...baseInput,
-  symbolName: 'beta',
-  symbolKind: 12
+  requestKind: 'signature_help'
 });
 
-assert.equal(alphaFunctionKey?.startsWith('v2|'), true, 'expected hover cache key version v2 prefix');
-assert.equal(alphaFunctionKey, alphaVariableKey, 'expected hover cache key to dedupe by position');
-assert.equal(alphaFunctionKey, betaFunctionKey, 'expected hover cache key to dedupe by position');
+assert.equal(alphaFunctionKey?.startsWith('rq1|'), true, 'expected request cache key policy prefix');
+assert.equal(alphaFunctionKey, alphaVariableKey, 'expected request cache key to stay deterministic');
+assert.notEqual(alphaFunctionKey, betaFunctionKey, 'expected request cache key to vary by request kind');
 
 const alphaPositionKey = buildSymbolPositionCacheKey({
   position: baseInput.position,
@@ -90,26 +83,27 @@ const tempRoot = path.join(root, '.testLogs', 'lsp-hover-cache-key-v2');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
-const state = await loadHoverCache(tempRoot);
+const state = await loadLspRequestCache(tempRoot);
 assert.equal(
-  state.path.endsWith(path.join('lsp', 'hover-cache-v2.json')),
+  state.path.endsWith(path.join('lsp', 'request-cache-v1.json')),
   true,
-  'expected v2 hover cache filename'
+  'expected request cache filename'
 );
 state.entries.set(alphaFunctionKey, {
+  requestKind: 'hover',
   info: {
     signature: 'int alpha()',
     returnType: 'int'
   },
   at: 1234
 });
-await persistHoverCache({
+await persistLspRequestCache({
   cachePath: state.path,
   entries: state.entries,
   maxEntries: 1000
 });
 const persisted = JSON.parse(await fs.readFile(state.path, 'utf8'));
-assert.equal(persisted?.version, 2, 'expected persisted hover cache schema version 2');
+assert.equal(persisted?.version, 1, 'expected persisted request cache schema version 1');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
-console.log('LSP hover cache key v2 test passed');
+console.log('LSP request cache key test passed');

@@ -1,75 +1,42 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { createFileProcessor } from '../../../src/index/build/file-processor.js';
 
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import {
+  createFileProcessorFixture,
+  createFileProcessorForTest,
+  createScannedFileEntry,
+  writeFixtureFile
+} from './file-processor-fixture.js';
 
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'read-failure-skip');
-const repoRoot = path.join(tempRoot, 'repo');
+const { repoRoot } = await createFileProcessorFixture('read-failure-skip');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(repoRoot, { recursive: true });
-
-const targetPath = path.join(repoRoot, 'missing.js');
-await fsPromises.writeFile(targetPath, 'console.log("hello");\n');
-const stat = await fsPromises.stat(targetPath);
-await fsPromises.unlink(targetPath);
+const target = await writeFixtureFile({
+  root: repoRoot,
+  rel: 'missing.js',
+  contents: 'console.log("hello");\n'
+});
+await fsPromises.unlink(target.targetPath);
 
 const skippedFiles = [];
-const { processFile } = createFileProcessor({
+const { processFile } = createFileProcessorForTest({
   root: repoRoot,
-  mode: 'code',
-  dictConfig: {},
-  dictWords: new Set(),
-  languageOptions: { astDataflowEnabled: false, controlFlowEnabled: false },
-  postingsConfig: {},
-  segmentsConfig: {},
-  commentsConfig: {},
-  contextWin: 0,
-  incrementalState: {
-    enabled: false,
-    manifest: { files: {} },
-    bundleDir: '',
-    bundleFormat: 'json'
-  },
-  getChunkEmbedding: async () => null,
-  getChunkEmbeddings: async () => null,
-  typeInferenceEnabled: false,
-  riskAnalysisEnabled: false,
-  riskConfig: {},
-  relationsEnabled: false,
-  seenFiles: new Set(),
-  gitBlameEnabled: false,
-  lintEnabled: false,
-  complexityEnabled: false,
-  structuralMatches: null,
-  cacheConfig: {},
-  cacheReporter: null,
-  queues: null,
-  workerPool: null,
-  crashLogger: null,
-  skippedFiles,
-  embeddingEnabled: false,
-  toolInfo: null,
-  tokenizationStats: null
+  skippedFiles
 });
 
-const fileEntry = {
-  abs: targetPath,
-  rel: 'missing.js',
-  stat,
-  lines: 1,
-  scan: { checkedBinary: true, checkedMinified: true }
-};
+const fileEntry = createScannedFileEntry({
+  abs: target.targetPath,
+  rel: target.rel,
+  stat: target.stat,
+  lines: 1
+});
 
 const result = await processFile(fileEntry, 0);
 if (result !== null) {
   console.error('Expected null result for read failure.');
   process.exit(1);
 }
-const skip = skippedFiles.find((entry) => entry?.file === targetPath && entry?.reason === 'read-failure');
+const skip = skippedFiles.find((entry) => entry?.file === target.targetPath && entry?.reason === 'read-failure');
 if (!skip) {
   console.error('Expected read-failure skip entry.');
   process.exit(1);
@@ -82,13 +49,12 @@ if (!skip.code && !skip.message) {
 const unreadableDir = path.join(repoRoot, 'unreadable');
 await fsPromises.mkdir(unreadableDir, { recursive: true });
 const unreadableStat = await fsPromises.stat(unreadableDir);
-const unreadableEntry = {
+const unreadableEntry = createScannedFileEntry({
   abs: unreadableDir,
   rel: 'unreadable',
   stat: unreadableStat,
-  lines: 1,
-  scan: { checkedBinary: true, checkedMinified: true }
-};
+  lines: 1
+});
 
 const unreadableResult = await processFile(unreadableEntry, 1);
 if (unreadableResult !== null) {

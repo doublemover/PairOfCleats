@@ -2,46 +2,25 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonLinesFile, writeJsonLinesFileAsync } from '../../../src/shared/json-stream.js';
+import { writeJsonLinesFile, writeJsonLinesFileAsync } from '../../../src/shared/json-stream/jsonl-write.js';
 import { sha1File } from '../../../src/shared/hash.js';
+import {
+  createSeededRng,
+  parseSimpleBenchArgs,
+  pickRandom,
+  resolveCompareMode
+} from '../shared.js';
+import {
+  createPeakTracker,
+  formatBenchResult,
+  runCompareBench
+} from './streaming-bench-reporting.js';
 
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
-
-const createRng = (seed) => {
-  let t = seed >>> 0;
-  return () => {
-    t += 0x6d2b79f5;
-    let r = Math.imul(t ^ (t >>> 15), 1 | t);
-    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
-  };
-};
-
-const pick = (rng, list) => list[Math.floor(rng() * list.length)];
-
-const args = parseArgs();
+const args = parseSimpleBenchArgs();
 const rowCount = Number(args.rows) || 50000;
 const seed = Number(args.seed) || 4242;
 const sampleEvery = Number(args.sampleEvery) || 500;
-const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
-  ? String(args.mode).toLowerCase()
-  : 'compare';
+const mode = resolveCompareMode(args.mode);
 
 const benchRoot = path.join(process.cwd(), '.benchCache', 'symbol-artifacts');
 await fs.mkdir(benchRoot, { recursive: true });
@@ -60,37 +39,24 @@ const createRow = (index, rng) => {
     v: 1,
     symbolId: symbolBase,
     scopedId: `scoped-${symbolBase}`,
-    scheme: pick(rng, schemes),
+    scheme: pickRandom(rng, schemes),
     symbolKey: `key-${symbolBase}`,
     signatureKey: `sig-${symbolBase}`,
     chunkUid: `chunk-${index}`,
     virtualPath: file,
     segmentUid: `seg-${index}`,
     file,
-    lang: pick(rng, langs),
-    kind: pick(rng, kinds),
-    kindGroup: pick(rng, kindGroups),
+    lang: pickRandom(rng, langs),
+    kind: pickRandom(rng, kinds),
+    kindGroup: pickRandom(rng, kindGroups),
     name,
     qualifiedName: `ns.${name}`,
     signature: `fn(${index})`
   };
 };
 
-const createPeakTracker = () => {
-  let peak = process.memoryUsage().heapUsed;
-  return {
-    sample() {
-      const used = process.memoryUsage().heapUsed;
-      if (used > peak) peak = used;
-    },
-    getPeak() {
-      return peak;
-    }
-  };
-};
-
 const buildRows = (count, seedValue, tracker) => {
-  const rng = createRng(seedValue);
+  const rng = createSeededRng(seedValue);
   const rows = new Array(count);
   for (let i = 0; i < count; i += 1) {
     rows[i] = createRow(i, rng);
@@ -101,7 +67,7 @@ const buildRows = (count, seedValue, tracker) => {
 };
 
 const buildRowStream = (count, seedValue, tracker) => {
-  const rng = createRng(seedValue);
+  const rng = createSeededRng(seedValue);
   return (async function* iterator() {
     for (let i = 0; i < count; i += 1) {
       if (tracker && i % sampleEvery === 0) tracker.sample();
@@ -147,34 +113,15 @@ const runStreaming = async () => {
   };
 };
 
-const formatResult = (result, baseline = null) => {
-  const peakMb = result.peakHeap / (1024 * 1024);
-  const parts = [
-    `rows=${rowCount}`,
-    `ms=${result.durationMs.toFixed(1)}`,
-    `heapPeak=${peakMb.toFixed(1)}MB`,
-    `hash=${result.hash.slice(0, 8)}`
-  ];
-  if (baseline) {
-    const delta = result.durationMs - baseline.durationMs;
-    const pct = baseline.durationMs > 0 ? (delta / baseline.durationMs) * 100 : null;
-    const memDelta = result.peakHeap - baseline.peakHeap;
-    parts.push(`delta=${delta.toFixed(1)}ms (${pct?.toFixed(1)}%)`);
-    parts.push(`heapΔ=${(memDelta / (1024 * 1024)).toFixed(1)}MB`);
-  }
-  return parts;
-};
+const formatResult = (result, baseline = null) => formatBenchResult({
+  result,
+  fields: [`rows=${rowCount}`],
+  baseline
+});
 
-let baseline = null;
-if (mode !== 'current') {
-  baseline = await runBaseline();
-  console.log(`[bench] baseline ${formatResult(baseline).join(' ')}`);
-}
-if (mode !== 'baseline') {
-  const current = await runStreaming();
-  console.log(`[bench] stream ${formatResult(current, baseline).join(' ')}`);
-  if (baseline) {
-    const match = baseline.hash === current.hash;
-    console.log(`[bench] hash-compare match=${match}`);
-  }
-}
+await runCompareBench({
+  mode,
+  runBaseline,
+  runCurrent: runStreaming,
+  formatResult
+});

@@ -1,12 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import {
-  writeJsonLinesFile,
-  writeJsonLinesSharded,
-  writeJsonObjectFile
-} from '../../../../shared/json-stream.js';
+import { writeJsonLinesFile } from '../../../../shared/json-stream/jsonl-write.js';
+import { writeJsonLinesSharded } from '../../../../shared/json-stream/jsonl-sharded.js';
+import { writeJsonObjectFile } from '../../../../shared/json-stream/json-writers.js';
 import { sha1 } from '../../../../shared/hash.js';
-import { fromPosix } from '../../../../shared/files.js';
+import { fromPosix } from '../../../../shared/file-paths.js';
 import { buildCallSiteId } from '../../../callsite-id.js';
 import {
   createOffsetsMeta,

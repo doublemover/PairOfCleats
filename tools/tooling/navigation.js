@@ -1,0 +1,470 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import { loadJsonArrayArtifact } from '../../src/shared/artifact-io/loaders.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
+import { readFlagValue } from '../../src/shared/cli/argv.js';
+import { loadUserConfig } from '../dict-utils/config.js';
+import { getIndexDir, getRepoRoot } from '../dict-utils/paths/repo.js';
+
+const DEFAULT_LIMIT = 25;
+const DEFAULT_SYMBOL_LIMIT = 200;
+const DEFAULT_COMPLETION_LIMIT = 40;
+const MIN_COMPLETION_QUERY_LENGTH = 2;
+
+const normalizeText = (value) => {
+  if (value === null || value === undefined) return '';
+  return String(value).trim();
+};
+
+const normalizeLower = (value) => normalizeText(value).toLowerCase();
+
+const hasFlag = (args, name) => args.includes(`--${name}`);
+
+const toPositiveInt = (value, fallback) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.max(1, Math.floor(numeric)) : fallback;
+};
+
+const buildLineIndex = (text) => {
+  const starts = [0];
+  for (let i = 0; i < text.length; i += 1) {
+    if (text.charCodeAt(i) === 10) {
+      starts.push(i + 1);
+    }
+  }
+  return starts;
+};
+
+const offsetToPosition = (starts, offset) => {
+  const safeOffset = Math.max(0, Number.isFinite(offset) ? Math.floor(offset) : 0);
+  let low = 0;
+  let high = starts.length - 1;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (starts[mid] <= safeOffset) low = mid;
+    else high = mid - 1;
+  }
+  const lineStart = starts[low] || 0;
+  return {
+    line: low + 1,
+    col: Math.max(1, safeOffset - lineStart + 1)
+  };
+};
+
+const resolveArtifactFilePath = (repoRoot, filePath) => {
+  const target = normalizeText(filePath);
+  if (!target) return '';
+  if (path.isAbsolute(target)) return path.resolve(target);
+  const root = normalizeText(repoRoot);
+  if (!root) return path.resolve(target);
+  return path.resolve(root, target);
+};
+
+const createFilePositionResolver = (repoRoot = '') => {
+  const cache = new Map();
+  return (filePath, range) => {
+    if (!filePath || !range || !Number.isFinite(range.start) || !Number.isFinite(range.end)) return null;
+    const resolved = resolveArtifactFilePath(repoRoot, filePath);
+    let entry = cache.get(resolved);
+    if (!entry) {
+      try {
+        const text = fs.readFileSync(resolved, 'utf8');
+        entry = { starts: buildLineIndex(text) };
+      } catch {
+        entry = null;
+      }
+      cache.set(resolved, entry);
+    }
+    if (!entry) return null;
+    const start = offsetToPosition(entry.starts, range.start);
+    const end = offsetToPosition(entry.starts, Math.max(range.start, range.end));
+    return {
+      startLine: start.line,
+      startCol: start.col,
+      endLine: end.line,
+      endCol: end.col
+    };
+  };
+};
+
+const matchesSymbolQuery = (row, query) => {
+  const exact = normalizeText(query);
+  if (!exact) return false;
+  const exactLower = exact.toLowerCase();
+  const candidates = [
+    row?.name,
+    row?.qualifiedName,
+    row?.symbolId,
+    row?.scopedId,
+    row?.symbolKey
+  ].map((value) => normalizeText(value)).filter(Boolean);
+  for (const candidate of candidates) {
+    if (candidate === exact) return true;
+    const lower = candidate.toLowerCase();
+    if (lower === exactLower) return true;
+    if (lower.endsWith(`.${exactLower}`)) return true;
+    if (lower.endsWith(`/${exactLower}`)) return true;
+    if (lower.endsWith(`:${exactLower}`)) return true;
+  }
+  return false;
+};
+
+const scoreSymbolMatch = (row, { query, virtualPath }) => {
+  let score = 0;
+  const exact = normalizeText(query);
+  const exactLower = exact.toLowerCase();
+  if (normalizeText(row?.name) === exact) score += 8;
+  else if (normalizeLower(row?.name) === exactLower) score += 7;
+  if (normalizeText(row?.qualifiedName) === exact) score += 6;
+  else if (normalizeLower(row?.qualifiedName).endsWith(`.${exactLower}`)) score += 5;
+  if (virtualPath && normalizeText(row?.virtualPath) === normalizeText(virtualPath)) score += 3;
+  return score;
+};
+
+const compareNavigationRows = (left, right) => {
+  if ((right.score || 0) !== (left.score || 0)) return (right.score || 0) - (left.score || 0);
+  if ((left.startLine || 0) !== (right.startLine || 0)) return (left.startLine || 0) - (right.startLine || 0);
+  const fileCmp = normalizeText(left.virtualPath || left.file).localeCompare(normalizeText(right.virtualPath || right.file));
+  if (fileCmp !== 0) return fileCmp;
+  return normalizeText(left.name).localeCompare(normalizeText(right.name));
+};
+
+const normalizeChunkLine = (value) => (Number.isFinite(value) ? value : null);
+
+const projectSymbolNavigationRow = (row, chunk, {
+  nameFromChunkFallback = false,
+  score = 0
+} = {}) => ({
+  name: nameFromChunkFallback
+    ? normalizeText(row.name) || normalizeText(chunk?.name)
+    : normalizeText(row.name),
+  qualifiedName: normalizeText(row.qualifiedName),
+  kind: normalizeText(chunk?.kind || row.kind || row.kindGroup),
+  file: normalizeText(chunk?.file || row.file),
+  virtualPath: normalizeText(chunk?.virtualPath || row.virtualPath),
+  chunkUid: normalizeText(row.chunkUid),
+  startLine: normalizeChunkLine(chunk?.startLine),
+  endLine: normalizeChunkLine(chunk?.endLine),
+  startCol: 1,
+  endCol: 1,
+  score
+});
+
+const projectSymbolRows = (selectedSymbols, chunkByUid, {
+  project,
+  filter,
+  compare,
+  limit
+}) => selectedSymbols
+  .map((row) => project(row, chunkByUid.get(normalizeText(row.chunkUid))))
+  .filter(filter)
+  .sort(compare)
+  .slice(0, limit);
+
+const scoreCompletionMatch = (row, { query, virtualPath }) => {
+  const normalizedQuery = normalizeLower(query);
+  const name = normalizeLower(row?.name);
+  const qualifiedName = normalizeLower(row?.qualifiedName);
+  let score = 0;
+  if (name === normalizedQuery) score += 10;
+  else if (name.startsWith(normalizedQuery)) score += 8;
+  else if (qualifiedName.endsWith(`.${normalizedQuery}`)) score += 6;
+  else if (qualifiedName.includes(normalizedQuery)) score += 4;
+  if (score > 0 && virtualPath && normalizeText(row?.virtualPath) === normalizeText(virtualPath)) score += 3;
+  return score;
+};
+
+const refMatchesSymbolIds = (ref, symbolIds, query) => {
+  const exact = normalizeText(query);
+  if (!ref || typeof ref !== 'object') return false;
+  const resolved = ref.resolved && typeof ref.resolved === 'object' ? ref.resolved : null;
+  const candidates = Array.isArray(ref.candidates) ? ref.candidates : [];
+  const targetName = normalizeText(ref.targetName);
+  const endpoints = [resolved, ...candidates].filter(Boolean);
+  for (const endpoint of endpoints) {
+    if (symbolIds.has(normalizeText(endpoint.symbolId))) return true;
+    if (symbolIds.has(normalizeText(endpoint.scopedId))) return true;
+    if (symbolIds.has(normalizeText(endpoint.symbolKey))) return true;
+  }
+  return targetName && targetName === exact;
+};
+
+const relativeVirtualPath = (repoRoot, filePath) => {
+  const root = normalizeText(repoRoot);
+  const target = resolveArtifactFilePath(root, filePath);
+  if (!root || !target) return '';
+  const relative = path.relative(root, target);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return '';
+  return relative.replace(/\\/g, '/');
+};
+
+export const queryNavigationData = async ({
+  repoRoot,
+  kind,
+  query = '',
+  filePath = '',
+  limit = DEFAULT_LIMIT,
+  symbolLimit = DEFAULT_SYMBOL_LIMIT,
+  completionLimit = DEFAULT_COMPLETION_LIMIT
+}) => {
+  const userConfig = loadUserConfig(repoRoot);
+  const indexDir = getIndexDir(repoRoot, 'code', userConfig);
+  const normalizedKind = normalizeText(kind).toLowerCase();
+  const normalizedQuery = normalizeText(query);
+  const normalizedFilePath = normalizeText(filePath);
+  const normalizedVirtualPath = relativeVirtualPath(repoRoot, normalizedFilePath);
+  const resolvedLimit = toPositiveInt(limit, DEFAULT_LIMIT);
+  const resolvedSymbolLimit = toPositiveInt(symbolLimit, DEFAULT_SYMBOL_LIMIT);
+  const payload = {
+    ok: true,
+    kind: normalizedKind,
+    repoRoot,
+    indexDir,
+    query: normalizedQuery,
+    filePath: normalizedFilePath || null,
+    virtualPath: normalizedVirtualPath || null,
+    degraded: [],
+    results: []
+  };
+  const readArtifact = async (name) => {
+    const legacyJsonPath = path.join(indexDir, `${name}.json`);
+    if (fs.existsSync(legacyJsonPath)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(legacyJsonPath, 'utf8'));
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    try {
+      const rows = await loadJsonArrayArtifact(indexDir, name, { strict: false });
+      return Array.isArray(rows) ? rows : [];
+    } catch {
+      return [];
+    }
+  };
+
+  if (!fs.existsSync(indexDir)) {
+    payload.ok = false;
+    payload.code = 'INDEX_MISSING';
+    payload.message = `Missing code index at ${indexDir}.`;
+    return payload;
+  }
+
+  const symbolRows = await readArtifact('symbols');
+  const selectedSymbols = [];
+  const wantedChunkUids = new Set();
+  if (normalizedKind === 'document-symbols') {
+    for (const row of symbolRows) {
+      if (!row || normalizeText(row.virtualPath) !== normalizedVirtualPath) continue;
+      selectedSymbols.push(row);
+      if (row.chunkUid) wantedChunkUids.add(String(row.chunkUid));
+      if (selectedSymbols.length >= resolvedSymbolLimit) break;
+    }
+  } else if (normalizedKind === 'completions') {
+    if (normalizedQuery.length < MIN_COMPLETION_QUERY_LENGTH) {
+      payload.results = [];
+      return payload;
+    }
+    const scoredRows = [];
+    for (const row of symbolRows) {
+      if (!row) continue;
+      const score = scoreCompletionMatch(row, { query: normalizedQuery, virtualPath: normalizedVirtualPath });
+      if (score <= 0) continue;
+      scoredRows.push({
+        ...row,
+        score
+      });
+    }
+    scoredRows.sort(compareNavigationRows);
+    const resolvedCompletionLimit = toPositiveInt(completionLimit, DEFAULT_COMPLETION_LIMIT);
+    for (const row of scoredRows.slice(0, resolvedCompletionLimit * 4)) {
+      selectedSymbols.push(row);
+      if (row.chunkUid) wantedChunkUids.add(String(row.chunkUid));
+    }
+  } else {
+    for (const row of symbolRows) {
+      if (!matchesSymbolQuery(row, normalizedQuery)) continue;
+      selectedSymbols.push(row);
+      if (row.chunkUid) wantedChunkUids.add(String(row.chunkUid));
+      if (selectedSymbols.length >= resolvedLimit * 8) break;
+    }
+  }
+
+  const chunkByUid = new Map();
+  if (wantedChunkUids.size) {
+    for (const row of await readArtifact('chunk_meta')) {
+      const chunkUid = normalizeText(row?.chunkUid);
+      if (!chunkUid || !wantedChunkUids.has(chunkUid)) continue;
+      if (!chunkByUid.has(chunkUid)) chunkByUid.set(chunkUid, row);
+      if (chunkByUid.size >= wantedChunkUids.size) break;
+    }
+  }
+
+  if (normalizedKind === 'definitions') {
+    payload.results = projectSymbolRows(selectedSymbols, chunkByUid, {
+      project: (row, chunk) => (
+        projectSymbolNavigationRow(row, chunk, {
+          score: scoreSymbolMatch(row, { query: normalizedQuery, virtualPath: normalizedVirtualPath })
+        })
+      ),
+      filter: (row) => row.file || row.virtualPath,
+      compare: compareNavigationRows,
+      limit: resolvedLimit
+    });
+    return payload;
+  }
+
+  if (normalizedKind === 'completions') {
+    const resolvedCompletionLimit = toPositiveInt(completionLimit, DEFAULT_COMPLETION_LIMIT);
+    payload.results = selectedSymbols
+      .map((row) => ({
+        name: normalizeText(row.name),
+        qualifiedName: normalizeText(row.qualifiedName),
+        kind: normalizeText(row.kind || row.kindGroup),
+        file: normalizeText(row.file),
+        virtualPath: normalizeText(row.virtualPath),
+        chunkUid: normalizeText(row.chunkUid),
+        score: scoreCompletionMatch(row, { query: normalizedQuery, virtualPath: normalizedVirtualPath })
+      }))
+      .filter((row) => row.name && row.score > 0)
+      .sort(compareNavigationRows)
+      .slice(0, resolvedCompletionLimit);
+    return payload;
+  }
+
+  if (normalizedKind === 'document-symbols') {
+    payload.results = projectSymbolRows(selectedSymbols, chunkByUid, {
+      project: (row, chunk) => (
+        projectSymbolNavigationRow(row, chunk, {
+          nameFromChunkFallback: true,
+          score: Number.isFinite(chunk?.startLine) ? -chunk.startLine : 0
+        })
+      ),
+      filter: (row) => row.name && (row.file || row.virtualPath),
+      compare: (left, right) => {
+        if ((left.startLine || 0) !== (right.startLine || 0)) return (left.startLine || 0) - (right.startLine || 0);
+        return normalizeText(left.name).localeCompare(normalizeText(right.name));
+      },
+      limit: resolvedSymbolLimit
+    });
+    return payload;
+  }
+
+  if (normalizedKind !== 'references') {
+    payload.ok = false;
+    payload.code = 'INVALID_KIND';
+    payload.message = `Unsupported navigation kind: ${normalizedKind}`;
+    return payload;
+  }
+
+  const symbolIds = new Set();
+  for (const row of selectedSymbols) {
+    for (const value of [row?.symbolId, row?.scopedId, row?.symbolKey]) {
+      const normalized = normalizeText(value);
+      if (normalized) symbolIds.add(normalized);
+    }
+  }
+  if (!symbolIds.size && !normalizedQuery) {
+    return payload;
+  }
+
+  const occurrences = [];
+  const occurrenceChunkUids = new Set();
+  for (const row of await readArtifact('symbol_occurrences')) {
+    if (!refMatchesSymbolIds(row?.ref, symbolIds, normalizedQuery)) continue;
+    occurrences.push(row);
+    const chunkUid = normalizeText(row?.host?.chunkUid);
+    if (chunkUid) occurrenceChunkUids.add(chunkUid);
+    if (occurrences.length >= resolvedLimit * 8) break;
+  }
+
+  for (const row of await readArtifact('chunk_meta')) {
+    const chunkUid = normalizeText(row?.chunkUid);
+    if (!chunkUid || !occurrenceChunkUids.has(chunkUid)) continue;
+    if (!chunkByUid.has(chunkUid)) chunkByUid.set(chunkUid, row);
+    if (occurrenceChunkUids.size === 0 || chunkByUid.size >= (wantedChunkUids.size + occurrenceChunkUids.size)) break;
+  }
+
+  const resolveFileRange = createFilePositionResolver(repoRoot);
+  const seen = new Set();
+  payload.results = occurrences
+    .map((row) => {
+      const chunkUid = normalizeText(row?.host?.chunkUid);
+      const chunk = chunkByUid.get(chunkUid);
+      const file = normalizeText(chunk?.file || row?.host?.file);
+      const virtualPath = normalizeText(chunk?.virtualPath || relativeVirtualPath(repoRoot, file));
+      const range = resolveFileRange(file, row?.range) || null;
+      return {
+        name: normalizeText(normalizedQuery),
+        qualifiedName: normalizeText(normalizedQuery),
+        kind: normalizeText(chunk?.kind),
+        file,
+        virtualPath,
+        chunkUid,
+        startLine: range?.startLine ?? (Number.isFinite(chunk?.startLine) ? chunk.startLine : null),
+        endLine: range?.endLine ?? (Number.isFinite(chunk?.endLine) ? chunk.endLine : null),
+        startCol: range?.startCol ?? 1,
+        endCol: range?.endCol ?? 1,
+        score: virtualPath === normalizedVirtualPath ? 2 : 0
+      };
+    })
+    .filter((row) => row.file || row.virtualPath)
+    .filter((row) => {
+      const key = [
+        row.file,
+        row.startLine,
+        row.startCol,
+        row.endLine,
+        row.endCol
+      ].join(':');
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort(compareNavigationRows)
+    .slice(0, resolvedLimit);
+
+  return payload;
+};
+
+const printUsage = () => {
+  process.stderr.write(
+    'Usage: pairofcleats tooling navigate --kind <definitions|references|document-symbols|completions> [--symbol <name>] [--file <path>] [--repo <root>] [--top N] [--json]\n'
+  );
+};
+
+if (isDirectExecution(import.meta.url)) {
+  const argv = process.argv.slice(2);
+  const kind = readFlagValue(argv, 'kind');
+  const query = readFlagValue(argv, 'symbol') || '';
+  const filePath = readFlagValue(argv, 'file') || '';
+  const repoOverride = readFlagValue(argv, 'repo');
+  const limit = toPositiveInt(readFlagValue(argv, 'top'), DEFAULT_LIMIT);
+  const json = hasFlag(argv, 'json');
+  if (!kind) {
+    printUsage();
+    process.exit(1);
+  }
+  if (!['document-symbols'].includes(normalizeText(kind).toLowerCase()) && !normalizeText(query)) {
+    printUsage();
+    process.exit(1);
+  }
+  const repoRoot = getRepoRoot(repoOverride || null, process.cwd());
+  const payload = await queryNavigationData({
+    repoRoot,
+    kind,
+    query,
+    filePath,
+    limit
+  });
+  if (json) {
+    process.stdout.write(`${JSON.stringify(payload)}\n`);
+  } else if (!payload.ok) {
+    process.stderr.write(`${payload.message || 'navigation query failed'}\n`);
+  } else {
+    process.stdout.write(`${payload.results.length} results\n`);
+  }
+  process.exit(payload.ok ? 0 : 1);
+}

@@ -1,4 +1,4 @@
-import { getEnvConfig } from '../../../shared/env.js';
+import { getEnvConfig } from '../../../shared/env/runtime.js';
 
 const HANG_PROBE_WARN_DEFAULT_MS = 10000;
 const HANG_PROBE_HEARTBEAT_DEFAULT_MS = 30000;

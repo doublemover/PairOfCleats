@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-import fs from 'node:fs/promises';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import seedrandom from 'seedrandom';
 import { createCli } from '../../src/shared/cli.js';
-import { loadChunkMeta } from '../../src/shared/artifact-io.js';
+import { loadChunkMeta } from '../../src/shared/artifact-io/loaders.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { sha1 } from '../../src/shared/hash.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { getIndexDir, resolveRepoConfig } from '../shared/dict-utils.js';
+import { writeTextIfChanged } from '../shared/generated-report.js';
 
 export const QUERY_INTENT_CLASSES = Object.freeze([
   'symbol',
@@ -529,8 +530,7 @@ export const runQueryGeneratorCli = async (rawArgs = process.argv.slice(2)) => {
 
   if (argv.json) {
     const outPath = argv.out ? path.resolve(argv.out) : path.join(root, 'docs', 'benchmarks-queries.json');
-    await fs.mkdir(path.dirname(outPath), { recursive: true });
-    await fs.writeFile(outPath, JSON.stringify(payload, null, 2));
+    await writeJsonFileResolved(outPath, payload);
     console.error(`Wrote ${payload.count} queries to ${outPath}`);
     return;
   }
@@ -546,14 +546,10 @@ export const runQueryGeneratorCli = async (rawArgs = process.argv.slice(2)) => {
     `# intent-weights: ${formatIntentWeightsHeader(payload.intentWeights)}`,
     ...payload.queries
   ];
-  await fs.mkdir(path.dirname(outPath), { recursive: true });
-  await fs.writeFile(outPath, lines.join('\n'));
+  await writeTextIfChanged(outPath, lines.join('\n'), { encoding: 'utf8' });
   console.error(`Wrote ${payload.count} queries to ${outPath}`);
 };
 
-const cliEntryHref = process.argv[1]
-  ? pathToFileURL(path.resolve(process.argv[1])).href
-  : '';
-if (cliEntryHref === import.meta.url) {
+if (isDirectExecution(import.meta.url)) {
   await runQueryGeneratorCli();
 }

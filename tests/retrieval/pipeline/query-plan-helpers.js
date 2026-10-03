@@ -5,6 +5,50 @@ import {
   buildQueryPlanIndexSignature
 } from '../../../src/retrieval/query-plan-cache.js';
 
+const createDefaultPlanConfigInputs = ({ dictConfig, postingsConfig }) => ({
+  dictConfig,
+  postingsConfig,
+  caseTokens: false,
+  fileFilter: null,
+  caseFile: false,
+  searchRegexConfig: null,
+  filePrefilterEnabled: true,
+  fileChargramN: postingsConfig.chargramMinN,
+  searchType: null,
+  searchAuthor: null,
+  searchImport: null,
+  chunkAuthorFilter: null,
+  branchesMin: null,
+  loopsMin: null,
+  breaksMin: null,
+  continuesMin: null,
+  churnMin: null,
+  extFilter: null,
+  langFilter: null,
+  extImpossible: null,
+  langImpossible: null,
+  metaFilters: null,
+  modifiedAfter: null,
+  modifiedSinceDays: null,
+  fieldWeightsConfig: null,
+  denseVectorMode: 'merged',
+  branchFilter: null
+});
+
+const PLAN_CONFIG_KEYS = Object.keys(createDefaultPlanConfigInputs({
+  dictConfig: null,
+  postingsConfig: { chargramMinN: null }
+}));
+
+const projectPlanConfigInputs = (inputs) => {
+  const projected = {};
+  for (const key of PLAN_CONFIG_KEYS) {
+    projected[key] = inputs[key];
+  }
+  projected.dictSize = inputs.dict?.size ?? null;
+  return projected;
+};
+
 export function createPlanInputs(overrides = {}) {
   const query = overrides.query ?? 'alpha beta';
   const argv = {
@@ -49,68 +93,13 @@ export function createPlanInputs(overrides = {}) {
     query,
     argv,
     dict,
-    dictConfig,
-    postingsConfig,
-    caseTokens: false,
-    fileFilter: null,
-    caseFile: false,
-    searchRegexConfig: null,
-    filePrefilterEnabled: true,
-    fileChargramN: postingsConfig.chargramMinN,
-    searchType: null,
-    searchAuthor: null,
-    searchImport: null,
-    chunkAuthorFilter: null,
-    branchesMin: null,
-    loopsMin: null,
-    breaksMin: null,
-    continuesMin: null,
-    churnMin: null,
-    extFilter: null,
-    langFilter: null,
-    extImpossible: null,
-    langImpossible: null,
-    metaFilters: null,
-    modifiedAfter: null,
-    modifiedSinceDays: null,
-    fieldWeightsConfig: null,
-    denseVectorMode: 'merged',
-    branchFilter: null
+    ...createDefaultPlanConfigInputs({ dictConfig, postingsConfig })
   };
   return { ...inputs, ...overrides };
 }
 
 export function buildPlanConfigSignature(inputs) {
-  return buildQueryPlanConfigSignature({
-    dictConfig: inputs.dictConfig,
-    dictSize: inputs.dict?.size ?? null,
-    postingsConfig: inputs.postingsConfig,
-    caseTokens: inputs.caseTokens,
-    fileFilter: inputs.fileFilter,
-    caseFile: inputs.caseFile,
-    searchRegexConfig: inputs.searchRegexConfig,
-    filePrefilterEnabled: inputs.filePrefilterEnabled,
-    fileChargramN: inputs.fileChargramN,
-    searchType: inputs.searchType,
-    searchAuthor: inputs.searchAuthor,
-    searchImport: inputs.searchImport,
-    chunkAuthorFilter: inputs.chunkAuthorFilter,
-    branchesMin: inputs.branchesMin,
-    loopsMin: inputs.loopsMin,
-    breaksMin: inputs.breaksMin,
-    continuesMin: inputs.continuesMin,
-    churnMin: inputs.churnMin,
-    extFilter: inputs.extFilter,
-    langFilter: inputs.langFilter,
-    extImpossible: inputs.extImpossible,
-    langImpossible: inputs.langImpossible,
-    metaFilters: inputs.metaFilters,
-    modifiedAfter: inputs.modifiedAfter,
-    modifiedSinceDays: inputs.modifiedSinceDays,
-    fieldWeightsConfig: inputs.fieldWeightsConfig,
-    denseVectorMode: inputs.denseVectorMode,
-    branchFilter: inputs.branchFilter
-  });
+  return buildQueryPlanConfigSignature(projectPlanConfigInputs(inputs));
 }
 
 export function buildPlanIndexSignature(value = null) {
@@ -131,32 +120,6 @@ export function buildTestPlan(inputs) {
     query: inputs.query,
     argv: inputs.argv,
     dict: inputs.dict,
-    dictConfig: inputs.dictConfig,
-    postingsConfig: inputs.postingsConfig,
-    caseTokens: inputs.caseTokens,
-    fileFilter: inputs.fileFilter,
-    caseFile: inputs.caseFile,
-    searchRegexConfig: inputs.searchRegexConfig,
-    filePrefilterEnabled: inputs.filePrefilterEnabled,
-    fileChargramN: inputs.fileChargramN,
-    searchType: inputs.searchType,
-    searchAuthor: inputs.searchAuthor,
-    searchImport: inputs.searchImport,
-    chunkAuthorFilter: inputs.chunkAuthorFilter,
-    branchesMin: inputs.branchesMin,
-    loopsMin: inputs.loopsMin,
-    breaksMin: inputs.breaksMin,
-    continuesMin: inputs.continuesMin,
-    churnMin: inputs.churnMin,
-    extFilter: inputs.extFilter,
-    langFilter: inputs.langFilter,
-    extImpossible: inputs.extImpossible,
-    langImpossible: inputs.langImpossible,
-    metaFilters: inputs.metaFilters,
-    modifiedAfter: inputs.modifiedAfter,
-    modifiedSinceDays: inputs.modifiedSinceDays,
-    fieldWeightsConfig: inputs.fieldWeightsConfig,
-    denseVectorMode: inputs.denseVectorMode,
-    branchFilter: inputs.branchFilter
+    ...projectPlanConfigInputs(inputs)
   });
 }

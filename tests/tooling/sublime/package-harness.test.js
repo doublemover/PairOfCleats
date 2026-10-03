@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
-import { copyFixtureToTemp } from '../../helpers/fixtures.js';
+import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
 
-const pythonPolicy = spawnSync(
-  process.execPath,
+const pythonPolicy = runNode(
   [path.join(root, 'tools', 'tooling', 'python-check.js'), '--json'],
-  { encoding: 'utf8' }
+  'python-check for sublime package harness',
+  root,
+  process.env,
+  { stdio: 'pipe', allowFailure: true }
 );
 if (pythonPolicy.status !== 0) {
   console.error('sublime-package-harness: required python toolchain is missing');
@@ -28,8 +31,24 @@ try {
 }
 const python = pythonInfo?.python || process.env.PYTHON || 'python';
 const script = path.join(root, 'tests', 'helpers', 'sublime', 'package_harness.py');
-const fixtureRepo = await copyFixtureToTemp('sample', { prefix: 'pairofcleats-sublime-package-' });
-const cacheRoot = (await prepareIsolatedTestCacheDir('sublime-package-harness', { root })).dir;
+const fixtureRepo = path.join((await prepareIsolatedTestCacheDir('sublime-package-fixture', { root, clean: true })).dir, 'repo');
+await fsPromises.mkdir(path.join(fixtureRepo, 'src'), { recursive: true });
+await fsPromises.writeFile(
+  path.join(fixtureRepo, 'src', 'index.js'),
+  [
+    'export function greet(name = "world") {',
+    '  return `hello ${name}`;',
+    '}',
+    ''
+  ].join('\n'),
+  'utf8'
+);
+await fsPromises.writeFile(
+  path.join(fixtureRepo, 'README.md'),
+  '# Sublime package fixture\n\nminimal repo for package harness\n',
+  'utf8'
+);
+const cacheRoot = (await prepareIsolatedTestCacheDir('sublime-package-harness', { root, clean: true })).dir;
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
@@ -55,7 +74,8 @@ const env = applyTestEnv({
   extraEnv: {
     PAIROFCLEATS_SUBLIME_TEST_NODE: process.execPath,
     PAIROFCLEATS_SUBLIME_TEST_CLI: path.join(root, 'bin', 'pairofcleats.js'),
-    PAIROFCLEATS_SUBLIME_TEST_FIXTURE_REPO: fixtureRepo
+    PAIROFCLEATS_SUBLIME_TEST_FIXTURE_REPO: fixtureRepo,
+    PAIROFCLEATS_SUBLIME_PACKAGE_HARNESS_TRACE: process.env.PAIROFCLEATS_SUBLIME_PACKAGE_HARNESS_TRACE || null
   },
   syncProcess: false
 });
@@ -63,6 +83,7 @@ const env = applyTestEnv({
 const result = spawnSync(python, [script], {
   encoding: 'utf8',
   env,
+  stdio: process.env.PAIROFCLEATS_TEST_LOG_SILENT ? 'inherit' : 'pipe'
 });
 
 if (result.status !== 0) {

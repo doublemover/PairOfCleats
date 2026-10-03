@@ -1,0 +1,241 @@
+{
+  "schemaVersion": "1.0.0",
+  "surfaces": [
+    {
+      "id": "script-inventory",
+      "owner": "tooling-docs",
+      "committed": true,
+      "validationMode": "registry-audited",
+      "freshnessExpectation": "regenerate after command-surface changes",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/docs/script-inventory.js --json {output:0} --markdown {output:1}",
+        "outputs": [
+          {
+            "format": "json",
+            "omitKeys": [
+              "generatedAt"
+            ]
+          },
+          {
+            "format": "text"
+          }
+        ]
+      },
+      "outputs": [
+        "docs/tooling/script-inventory.json",
+        "docs/guides/commands.md"
+      ],
+      "refresh": {
+        "command": "node tools/docs/script-inventory.js"
+      },
+      "audit": {
+        "command": "node tools/ci/check-command-surface.js"
+      }
+    },
+    {
+      "id": "repo-inventory",
+      "owner": "tooling-docs",
+      "committed": false,
+      "validationMode": "local-report",
+      "freshnessExpectation": "generate locally when needed; validate reproducibility from current sources",
+      "freshness": {
+        "mode": "generated-reproducible",
+        "command": "node tools/docs/repo-inventory.js --root . --json {output:0}",
+        "outputs": [
+          {
+            "format": "json",
+            "omitKeys": [
+              "generatedAt"
+            ]
+          }
+        ]
+      },
+      "outputs": [
+        "docs/tooling/repo-inventory.json"
+      ],
+      "refresh": {
+        "command": "node tools/docs/repo-inventory.js --root . --json docs/tooling/repo-inventory.json"
+      },
+      "audit": {
+        "command": "node tools/docs/generated-surfaces.js --check --surface repo-inventory"
+      }
+    },
+    {
+      "id": "doc-contract-drift",
+      "owner": "tooling-docs",
+      "committed": true,
+      "validationMode": "drift-report",
+      "freshnessExpectation": "regenerate after contract docs, CLI flags, artifact schema docs, or test lane docs change",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/docs/contract-drift.js --out-json {output:0} --out-md {output:1}",
+        "outputs": [
+          {
+            "format": "json",
+            "omitKeys": [
+              "generatedAt"
+            ]
+          },
+          {
+            "format": "text"
+          }
+        ]
+      },
+      "outputs": [
+        "docs/tooling/doc-contract-drift.json",
+        "docs/tooling/doc-contract-drift.md"
+      ],
+      "refresh": {
+        "command": "node tools/docs/contract-drift.js"
+      },
+      "audit": {
+        "command": "node tools/docs/contract-drift.js --fail"
+      }
+    },
+    {
+      "id": "config-contract",
+      "owner": "config",
+      "committed": true,
+      "validationMode": "registry-audited",
+      "freshnessExpectation": "regenerate after config schema, env mapping, or public CLI config surface changes",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/config/contract-doc.js --out {output:0}",
+        "outputs": [
+          {
+            "format": "text"
+          }
+        ]
+      },
+      "outputs": [
+        "docs/config/contract.md"
+      ],
+      "refresh": {
+        "command": "node tools/config/contract-doc.js"
+      },
+      "audit": {
+        "command": "node tools/docs/generated-surfaces.js --check --surface config-contract"
+      }
+    },
+    {
+      "id": "config-inventory",
+      "owner": "config",
+      "committed": true,
+      "validationMode": "sync-check",
+      "freshnessExpectation": "regenerate after config schema, env vars, or public CLI/config exposure changes",
+      "freshness": {
+        "mode": "audit-command",
+        "command": "node tools/config/inventory.js --check"
+      },
+      "outputs": [
+        "docs/config/inventory.json",
+        "docs/config/inventory.md"
+      ],
+      "refresh": {
+        "command": "node tools/config/inventory.js"
+      },
+      "audit": {
+        "command": "node tools/config/inventory.js --check"
+      }
+    },
+    {
+      "id": "artifact-schema-index",
+      "owner": "contracts",
+      "committed": true,
+      "validationMode": "test-backed-sync",
+      "freshnessExpectation": "regenerate after artifact schema registry changes",
+      "freshness": {
+        "mode": "audit-command",
+        "command": "node tests/tooling/docs/contract-matrix.test.js"
+      },
+      "outputs": [
+        "docs/contracts/artifact-schema-index.json"
+      ],
+      "refresh": {
+        "command": "node tools/docs/export-artifact-schema-index.js"
+      },
+      "audit": {
+        "command": "node tests/tooling/docs/contract-matrix.test.js"
+      }
+    },
+    {
+      "id": "shared-module-ledger",
+      "owner": "shared-module-governance",
+      "committed": false,
+      "validationMode": "local-report",
+      "freshnessExpectation": "generate locally when needed; validate reproducibility from current sources",
+      "freshness": {
+        "mode": "generated-reproducible",
+        "command": "node tools/docs/shared-module-ledger.js --json {output:0} --markdown {output:1}",
+        "outputs": [
+          {
+            "format": "json",
+            "omitKeys": [
+              "generatedAt"
+            ]
+          },
+          {
+            "format": "text"
+          }
+        ]
+      },
+      "outputs": [
+        "docs/tooling/shared-module-ledger.json",
+        "docs/tooling/shared-module-ledger.md"
+      ],
+      "refresh": {
+        "command": "node tools/docs/shared-module-ledger.js"
+      },
+      "audit": {
+        "command": "node tests/indexing/policy/shared-module-ledger.test.js"
+      }
+    },
+    {
+      "id": "release-surfaces-guide",
+      "owner": "release",
+      "committed": true,
+      "validationMode": "registry-audited",
+      "freshnessExpectation": "regenerate after shipped-surface registry or release-surface contract changes",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/release/export-surface-guide.js --out {output:0}",
+        "outputs": [
+          {
+            "format": "text"
+          }
+        ]
+      },
+      "outputs": [
+        "docs/guides/release-surfaces.md"
+      ],
+      "refresh": {
+        "command": "node tools/release/export-surface-guide.js"
+      },
+      "audit": {
+        "command": "node tests/tooling/release/shipped-surface-registry.test.js"
+      }
+    },
+    {
+      "id": "suite-taxonomy",
+      "owner": "test-governance",
+      "committed": false,
+      "validationMode": "test-backed-local-report",
+      "freshnessExpectation": "generate locally after test discovery, lane manifest, or coverage ownership changes",
+      "freshness": {
+        "mode": "audit-command",
+        "command": "node tests/runner/suite-taxonomy-report.test.js"
+      },
+      "outputs": [
+        "docs/testing/suite-taxonomy.json",
+        "docs/testing/suite-taxonomy.md"
+      ],
+      "refresh": {
+        "command": "node tools/testing/generate-suite-taxonomy-report.js"
+      },
+      "audit": {
+        "command": "node tests/runner/suite-taxonomy-report.test.js"
+      }
+    }
+  ]
+}

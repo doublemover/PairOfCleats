@@ -1,0 +1,2 @@
+[tooling] preflight:blocked provider=gopls id=gopls.workspace-model class=workspace state=blocked policy=partition-local
+[tooling] workspace:partition provider=gopls decision=blocked partition=module-a reason=blocked_workspace_partitions coverage=partial

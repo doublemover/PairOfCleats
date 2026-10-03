@@ -110,7 +110,7 @@ For a segmented document (`segmentUid != null`), `virtualPath` MUST be:
 ```
 
 Examples:
-- `.poc-vfs/docs/guide.md#seg:segu:v1:abc123.ts`
+- `.poc-vfs/<repo-doc>.md#seg:segu:v1:abc123.ts`
 - `.poc-vfs/src/App.vue#seg:segu:v1:def456.tsx`
 
 ### 3.3 Unsegmented documents

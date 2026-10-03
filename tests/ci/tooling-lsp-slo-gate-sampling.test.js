@@ -1,59 +1,29 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { applyTestEnv } from '../helpers/test-env.js';
+import {
+  cleanupGateFixture,
+  doctorReport,
+  lspProvider,
+  prepareGateFixture,
+  readGatePayload,
+  runGate
+} from '../helpers/tooling-lsp-slo-gate.js';
 
-const ROOT = process.cwd();
-const gatePath = path.join(ROOT, 'tools', 'ci', 'tooling-lsp-slo-gate.js');
-const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-tooling-lsp-slo-sampling-'));
-const jsonPath = path.join(tempRoot, 'tooling-lsp-slo-gate.json');
-const doctorPath = path.join(tempRoot, 'tooling-doctor-report.json');
-
-const doctorPayload = {
-  schemaVersion: 2,
-  providers: [
-    {
-      id: 'clangd',
-      enabled: true,
-      available: false,
-      languages: ['c', 'cpp'],
-      handshake: { ok: false, latencyMs: 0, errorCode: 'ERR_MISSING', errorMessage: 'missing' }
-    },
-    {
-      id: 'pyright',
-      enabled: true,
-      available: true,
-      languages: ['python'],
-      handshake: { ok: false, latencyMs: 0, errorCode: 'ERR_TIMEOUT', errorMessage: 'timed out' }
-    },
-    {
-      id: 'sourcekit',
-      enabled: true,
-      available: true,
-      languages: ['swift'],
-      handshake: { ok: true, latencyMs: 55, errorCode: null, errorMessage: null }
-    }
-  ]
-};
-await fs.writeFile(doctorPath, `${JSON.stringify(doctorPayload, null, 2)}\n`, 'utf8');
+const fixture = await prepareGateFixture({
+  prefix: 'pairofcleats-tooling-lsp-slo-sampling-',
+  doctorPayload: doctorReport([
+    lspProvider({ id: 'clangd', available: false, ok: false, errorCode: 'ERR_MISSING', errorMessage: 'missing' }),
+    lspProvider({ id: 'pyright', ok: false, latencyMs: 0, errorCode: 'ERR_TIMEOUT', errorMessage: 'timed out' }),
+    lspProvider({ id: 'sourcekit', latencyMs: 55 })
+  ])
+});
 
 try {
-  const result = spawnSync(
-    process.execPath,
-    [gatePath, '--mode', 'ci', '--doctor', doctorPath, '--json', jsonPath],
-    {
-      cwd: ROOT,
-      env: applyTestEnv({ syncProcess: false }),
-      encoding: 'utf8'
-    }
-  );
+  const result = runGate(['--mode', 'ci', '--doctor', fixture.doctorPath, '--json', fixture.jsonPath]);
 
   assert.equal(result.status, 0, `expected tooling lsp slo gate status=0, received ${result.status}`);
 
-  const payload = JSON.parse(await fs.readFile(jsonPath, 'utf8'));
+  const payload = await readGatePayload(fixture.jsonPath);
   assert.equal(payload?.sampleCount, 2, 'expected unavailable providers to be excluded from sampling');
   assert.equal(payload?.metrics?.measuredAttempts, 2, 'expected one attempt per available provider');
   assert.equal(payload?.metrics?.timedOut, 1, 'expected one timed out attempt');
@@ -68,5 +38,5 @@ try {
 
   console.log('tooling lsp slo gate sampling test passed');
 } finally {
-  await fs.rm(tempRoot, { recursive: true, force: true });
+  await cleanupGateFixture(fixture);
 }

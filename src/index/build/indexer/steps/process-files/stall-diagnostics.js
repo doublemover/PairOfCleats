@@ -1,7 +1,7 @@
 import {
   captureProcessSnapshot,
   snapshotTrackedSubprocesses
-} from '../../../../../shared/subprocess.js';
+} from '../../../../../shared/subprocess/snapshot.js';
 
 const STALL_DIAGNOSTIC_QUEUE_NAMES = Object.freeze(['stage1.cpu', 'stage1.io', 'stage1.postings']);
 

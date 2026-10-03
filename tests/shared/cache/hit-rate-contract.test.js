@@ -9,9 +9,16 @@ const output = execFileSync(
   [scriptPath, '--ops', '2000', '--keys', '200', '--hitRate', '0.7', '--mode', 'compare'],
   { encoding: 'utf8' }
 );
+const noWriterOutput = execFileSync(
+  'node',
+  [scriptPath, '--ops', '2000', '--keys', '200', '--hitRate', '0', '--mode', 'compare', '--writer', 'false'],
+  { encoding: 'utf8' }
+);
 
 assert.match(output, /\[bench\] baseline/, 'expected baseline output');
 assert.match(output, /\[bench\] current/, 'expected current output');
 assert.match(output, /\[bench\] delta/, 'expected delta output');
+assert.match(noWriterOutput, /hits=0 misses=2000/, 'expected hitRate=0 to force miss-only coverage');
+assert.doesNotMatch(noWriterOutput, /\[bench\] writer/, 'expected --writer false to disable writer output');
 
 console.log('cache hit rate bench contract test passed');

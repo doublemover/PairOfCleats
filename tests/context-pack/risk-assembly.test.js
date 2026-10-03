@@ -2,12 +2,15 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
 import { assembleCompositeContextPack } from '../../src/context-pack/assemble.js';
+import { CONTEXT_PACK_RISK_CONTRACT_VERSION } from '../../src/contracts/context-pack-risk-contract.js';
 import { renderCompositeContextPack, renderCompositeContextPackJson } from '../../src/retrieval/output/composite-context-pack.js';
 import { validateCompositeContextPack } from '../../src/contracts/validators/analysis.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
+import { createRiskWatchStep } from '../helpers/risk-explanation-fixtures.js';
 
 applyTestEnv({ testing: '1' });
 
@@ -15,6 +18,10 @@ const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'context-pack-risk-assembly');
 const repoRoot = path.join(tempRoot, 'repo');
 const repoFile = path.join(repoRoot, 'src', 'file.js');
+const repoTestFile = path.join(repoRoot, 'tests', 'risky.test.js');
+const repoTestFileB = path.join(repoRoot, 'tests', 'risky-b.test.js');
+const repoTestFileC = path.join(repoRoot, 'tests', 'risky-c.test.js');
+const repoTestFileD = path.join(repoRoot, 'tests', 'risky-d.test.js');
 const fixedNow = () => '2026-03-12T00:00:00.000Z';
 const repoSourceText = 'export function risky(input) {\n  return query(input);\n}\n';
 const queryExcerptText = 'query(input)';
@@ -95,22 +102,7 @@ const flowRow = {
   path: {
     chunkUids: ['chunk-risk', 'chunk-risk-sink'],
     callSiteIdsByStep: [['cs-1']],
-    watchByStep: [{
-      taintIn: ['req.body'],
-      taintOut: ['input'],
-      propagatedArgIndices: [0],
-      boundParams: ['input'],
-      calleeNormalized: 'query',
-      semanticIds: ['sem.callback.register-handler-payload'],
-      semanticKinds: ['callback'],
-      sanitizerPolicy: 'terminate',
-      sanitizerBarrierApplied: false,
-      sanitizerBarriersBefore: 0,
-      sanitizerBarriersAfter: 0,
-      confidenceBefore: 0.6,
-      confidenceAfter: 0.51,
-      confidenceDelta: -0.09
-    }]
+    watchByStep: [createRiskWatchStep()]
   },
   confidence: 0.88,
   notes: {
@@ -149,22 +141,7 @@ const partialFlowRow = {
   path: {
     chunkUids: ['chunk-risk', 'chunk-risk-sink'],
     callSiteIdsByStep: [['cs-1']],
-    watchByStep: [{
-      taintIn: ['req.body'],
-      taintOut: ['input'],
-      propagatedArgIndices: [0],
-      boundParams: ['input'],
-      calleeNormalized: 'query',
-      semanticIds: ['sem.callback.register-handler-payload'],
-      semanticKinds: ['callback'],
-      sanitizerPolicy: 'terminate',
-      sanitizerBarrierApplied: false,
-      sanitizerBarriersBefore: 0,
-      sanitizerBarriersAfter: 0,
-      confidenceBefore: 0.6,
-      confidenceAfter: 0.51,
-      confidenceDelta: -0.09
-    }]
+    watchByStep: [createRiskWatchStep()]
   },
   confidence: 0.64,
   notes: {
@@ -211,20 +188,7 @@ const rankedPathOnlyFlow = {
   path: {
     chunkUids: ['chunk-helper', 'chunk-risk', 'chunk-helper-sink'],
     callSiteIdsByStep: [['cs-1']],
-    watchByStep: [{
-      taintIn: ['req.body'],
-      taintOut: ['input'],
-      propagatedArgIndices: [0],
-      boundParams: ['input'],
-      calleeNormalized: 'query',
-      sanitizerPolicy: 'terminate',
-      sanitizerBarrierApplied: false,
-      sanitizerBarriersBefore: 0,
-      sanitizerBarriersAfter: 0,
-      confidenceBefore: 0.6,
-      confidenceAfter: 0.51,
-      confidenceDelta: -0.09
-    }]
+    watchByStep: [createRiskWatchStep({ includeSemantics: false })]
   },
   confidence: 0.95,
   notes: {
@@ -379,9 +343,187 @@ const chunkMeta = [
   }
 ];
 
+const frameworkChunkMeta = structuredClone(chunkMeta);
+frameworkChunkMeta[0].lang = 'javascript';
+frameworkChunkMeta[0].docmeta = {
+  ...frameworkChunkMeta[0].docmeta,
+  frameworkProfile: {
+    id: 'react',
+    confidence: 'heuristic',
+    signals: {
+      reactHydrationBoundary: true
+    }
+  }
+};
+
+const partialLanguageChunkMeta = structuredClone(chunkMeta);
+partialLanguageChunkMeta[0].lang = 'cmake';
+partialLanguageChunkMeta[0].docmeta = {
+  ...partialLanguageChunkMeta[0].docmeta,
+  usrCapabilities: {
+    state: 'partial',
+    source: 'cmake',
+    diagnostics: [
+      {
+        code: 'USR-W-CAPABILITY-DOWNGRADED',
+        reasonCode: 'imports-only',
+        detail: 'Heuristic adapter only supports import and symbol heuristics.'
+      }
+    ]
+  }
+};
+
+const unsupportedLanguageChunkMeta = structuredClone(chunkMeta);
+unsupportedLanguageChunkMeta[0].lang = 'unknownlang';
+
+const partialLanguageSummaryRow = {
+  ...summaryRow,
+  languageId: 'cmake'
+};
+
+const unsupportedLanguageSummaryRow = {
+  ...summaryRow,
+  languageId: 'unknownlang'
+};
+
+const graphIndex = {
+  graphRelations: {
+    importGraph: {
+      nodeCount: 2,
+      edgeCount: 1,
+      nodes: [
+        { id: 'tests/risky.test.js', file: 'tests/risky.test.js', out: ['src/file.js'], in: [] },
+        { id: 'src/file.js', file: 'src/file.js', out: [], in: ['tests/risky.test.js'] }
+      ]
+    }
+  },
+  callGraphIndex: new Map([
+    ['chunk-risk', { id: 'chunk-risk', file: 'src/file.js', name: 'risky', kind: 'function', in: ['chunk-caller'], out: ['chunk-risk-sink'] }],
+    ['chunk-risk-sink', { id: 'chunk-risk-sink', file: 'src/db.js', name: 'query', kind: 'function', in: ['chunk-caller'], out: [] }],
+    ['chunk-caller', { id: 'chunk-caller', file: 'src/controller.js', name: 'controller', kind: 'function', in: [], out: ['chunk-risk'] }]
+  ]),
+  symbolIndex: {
+    byChunk: new Map([
+      ['chunk-risk', [{
+        symbolId: 'sym:risky',
+        toRef: {
+          status: 'resolved',
+          resolved: {
+            symbolId: 'sym:risky',
+            chunkUid: 'chunk-risk',
+            path: 'src/file.js',
+            name: 'risky',
+            kind: 'function'
+          },
+          candidates: []
+        }
+      }]],
+      ['chunk-risk-sink', [{
+        symbolId: 'sym:query',
+        toRef: {
+          status: 'resolved',
+          resolved: {
+            symbolId: 'sym:query',
+            chunkUid: 'chunk-risk-sink',
+            path: 'src/db.js',
+            name: 'query',
+            kind: 'function'
+          },
+          candidates: []
+        }
+      }]]
+    ])
+  }
+};
+
+const cappedGraphIndex = {
+  graphRelations: {
+    importGraph: {
+      nodeCount: 5,
+      edgeCount: 4,
+      nodes: [
+        { id: 'tests/risky.test.js', file: 'tests/risky.test.js', out: ['src/file.js'], in: [] },
+        { id: 'tests/risky-b.test.js', file: 'tests/risky-b.test.js', out: ['src/file.js'], in: [] },
+        { id: 'tests/risky-c.test.js', file: 'tests/risky-c.test.js', out: ['src/file.js'], in: [] },
+        { id: 'tests/risky-d.test.js', file: 'tests/risky-d.test.js', out: ['src/file.js'], in: [] },
+        { id: 'src/file.js', file: 'src/file.js', out: [], in: ['tests/risky.test.js', 'tests/risky-b.test.js', 'tests/risky-c.test.js', 'tests/risky-d.test.js'] }
+      ]
+    }
+  },
+  callGraphIndex: new Map([
+    ['chunk-risk', { id: 'chunk-risk', file: 'src/file.js', name: 'risky', kind: 'function', in: ['chunk-caller-a', 'chunk-caller-b', 'chunk-caller-c', 'chunk-caller-d'], out: ['chunk-risk-sink'] }],
+    ['chunk-risk-sink', { id: 'chunk-risk-sink', file: 'src/db.js', name: 'query', kind: 'function', in: ['chunk-caller-a', 'chunk-caller-b'], out: [] }],
+    ['chunk-caller-a', { id: 'chunk-caller-a', file: 'src/controller-a.js', name: 'controllerA', kind: 'function', in: [], out: ['chunk-risk'] }],
+    ['chunk-caller-b', { id: 'chunk-caller-b', file: 'src/controller-b.js', name: 'controllerB', kind: 'function', in: [], out: ['chunk-risk'] }],
+    ['chunk-caller-c', { id: 'chunk-caller-c', file: 'src/controller-c.js', name: 'controllerC', kind: 'function', in: [], out: ['chunk-risk'] }],
+    ['chunk-caller-d', { id: 'chunk-caller-d', file: 'src/controller-d.js', name: 'controllerD', kind: 'function', in: [], out: ['chunk-risk'] }]
+  ]),
+  symbolIndex: {
+    byChunk: new Map([
+      ['chunk-risk', [
+        {
+          symbolId: 'sym:risky',
+          toRef: {
+            status: 'resolved',
+            resolved: { symbolId: 'sym:risky', chunkUid: 'chunk-risk', path: 'src/file.js', name: 'risky', kind: 'function' },
+            candidates: []
+          }
+        },
+        {
+          symbolId: 'sym:risky-helper-a',
+          toRef: {
+            status: 'resolved',
+            resolved: { symbolId: 'sym:risky-helper-a', chunkUid: 'chunk-risk', path: 'src/file.js', name: 'riskyHelperA', kind: 'function' },
+            candidates: []
+          }
+        },
+        {
+          symbolId: 'sym:risky-helper-b',
+          toRef: {
+            status: 'resolved',
+            resolved: { symbolId: 'sym:risky-helper-b', chunkUid: 'chunk-risk', path: 'src/file.js', name: 'riskyHelperB', kind: 'function' },
+            candidates: []
+          }
+        }
+      ]],
+      ['chunk-risk-sink', [
+        {
+          symbolId: 'sym:query',
+          toRef: {
+            status: 'resolved',
+            resolved: { symbolId: 'sym:query', chunkUid: 'chunk-risk-sink', path: 'src/db.js', name: 'query', kind: 'function' },
+            candidates: []
+          }
+        },
+        {
+          symbolId: 'sym:query-unsafe',
+          toRef: {
+            status: 'resolved',
+            resolved: { symbolId: 'sym:query-unsafe', chunkUid: 'chunk-risk-sink', path: 'src/db.js', name: 'queryUnsafe', kind: 'function' },
+            candidates: []
+          }
+        },
+        {
+          symbolId: 'sym:query-builder',
+          toRef: {
+            status: 'resolved',
+            resolved: { symbolId: 'sym:query-builder', chunkUid: 'chunk-risk-sink', path: 'src/db.js', name: 'queryBuilder', kind: 'function' },
+            candidates: []
+          }
+        }
+      ]]
+    ])
+  }
+};
+
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+await fs.mkdir(path.join(repoRoot, 'tests'), { recursive: true });
 await fs.writeFile(repoFile, repoSourceText, 'utf8');
+await fs.writeFile(repoTestFile, 'test(\'risky\', () => {});\n', 'utf8');
+await fs.writeFile(repoTestFileB, 'test(\'risky b\', () => {});\n', 'utf8');
+await fs.writeFile(repoTestFileC, 'test(\'risky c\', () => {});\n', 'utf8');
+await fs.writeFile(repoTestFileD, 'test(\'risky d\', () => {});\n', 'utf8');
 
 const writeJsonl = async (filePath, rows) => {
   const content = rows.map((row) => JSON.stringify(row)).join('\n');
@@ -393,7 +535,7 @@ const writeManifest = async (indexDir, pieces) => {
   await writeJsonObjectFile(path.join(indexDir, 'pieces', 'manifest.json'), {
     fields: {
       version: 2,
-      artifactSurfaceVersion: 'test',
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       compatibilityKey: 'compat-test',
       generatedAt: fixedNow(),
       mode: 'code',
@@ -411,7 +553,11 @@ const buildPack = async ({
   partialFlows = null,
   callSites = null,
   riskFilters = null,
-  includeRiskPartialFlows = false
+  includeRiskPartialFlows = false,
+  includeGraph = false,
+  includeCallersCallees = false,
+  graphIndexOverride = null,
+  chunkMetaOverride = chunkMeta
 }) => {
   const indexDir = path.join(tempRoot, name, 'index-code');
   await fs.rm(indexDir, { recursive: true, force: true });
@@ -440,19 +586,20 @@ const buildPack = async ({
   await writeManifest(indexDir, pieces);
   return assembleCompositeContextPack({
     seed: { type: 'chunk', chunkUid: 'chunk-risk' },
-    chunkMeta,
+    chunkMeta: chunkMetaOverride,
     repoRoot,
     indexDir,
+    graphIndex: graphIndexOverride,
     indexCompatKey: 'compat-test',
     now: fixedNow,
-    includeGraph: false,
+    includeGraph,
     includeTypes: false,
     includeRisk: true,
     includeRiskPartialFlows,
     riskFilters,
     includeImports: false,
     includeUsages: false,
-    includeCallersCallees: false
+    includeCallersCallees
   });
 };
 
@@ -461,10 +608,14 @@ const fullPack = await buildPack({
   stats: baseStats,
   summaries: [summaryRow],
   flows: [flowRow],
-  callSites: [callSiteRow]
+  callSites: [callSiteRow],
+  includeGraph: true,
+  includeCallersCallees: true,
+  graphIndexOverride: graphIndex
 });
 assert.equal(fullPack.risk?.status, 'ok');
 assert.equal(fullPack.risk?.version, 1);
+assert.equal(fullPack.risk?.contractVersion, CONTEXT_PACK_RISK_CONTRACT_VERSION);
 assert.equal(fullPack.risk?.summary?.chunkUid, 'chunk-risk');
 assert.deepEqual(
   fullPack.risk?.analysisStatus?.artifactStatus,
@@ -481,6 +632,9 @@ assert.equal(fullPack.risk?.provenance?.indexSignature, 'sig-risk-assembly');
 assert.equal(fullPack.risk?.provenance?.indexCompatKey, 'compat-test');
 assert.equal(fullPack.risk?.provenance?.ruleBundle?.version, '1.0.0');
 assert.equal(fullPack.risk?.provenance?.ruleBundle?.fingerprint, 'sha1:rulebundle-risk-assembly');
+assert.equal(fullPack.risk?.provenance?.ruleBundle?.roleModel?.version, '1.0.0');
+assert.deepEqual(fullPack.risk?.provenance?.ruleBundle?.roleModel?.directRoles, ['source', 'sink', 'sanitizer']);
+assert.equal(fullPack.risk?.provenance?.ruleBundle?.roleModel?.propagatorLikeEncoding, 'watch-semantics');
 assert.equal(fullPack.risk?.provenance?.effectiveConfigFingerprint, 'sha1:config-risk-assembly');
 assert.equal(fullPack.risk?.provenance?.artifactRefs?.stats?.entrypoint, 'risk_interprocedural_stats.json');
 assert.equal(fullPack.risk?.provenance?.artifactRefs?.summaries?.entrypoint, 'risk_summaries.jsonl');
@@ -491,7 +645,11 @@ assert.equal(fullPack.risk?.caps?.maxFlows, 5);
 assert.equal(fullPack.risk?.caps?.maxCallSitesPerStep, 3);
 assert.equal(fullPack.risk?.flows?.length, 1);
 assert.equal(fullPack.risk?.flows?.[0]?.source?.ruleId, 'source.req.body');
+assert.equal(fullPack.risk?.flows?.[0]?.source?.ruleRole, 'source');
+assert.deepEqual(fullPack.risk?.flows?.[0]?.source?.tags, ['input', 'request']);
 assert.equal(fullPack.risk?.flows?.[0]?.sink?.ruleId, 'sink.sql.query');
+assert.equal(fullPack.risk?.flows?.[0]?.sink?.ruleRole, 'sink');
+assert.deepEqual(fullPack.risk?.flows?.[0]?.sink?.tags, ['sql', 'exec']);
 assert.equal(fullPack.risk?.flows?.[0]?.notes?.hopCount, 1);
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.callSiteId, 'cs-1');
 assert.equal(fullPack.risk?.flows?.[0]?.path?.watchByStep?.[0]?.calleeNormalized, 'query');
@@ -501,6 +659,98 @@ assert.deepEqual(fullPack.risk?.flows?.[0]?.path?.watchByStep?.[0]?.semanticKind
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerpt, 'query(input)');
 assert.match(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerptHash || '', /^sha1:/);
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.provenance?.excerptSource, 'repo-range');
+assert.equal(fullPack.risk?.guidance?.callers?.[0]?.chunkUid, 'chunk-caller');
+assert.equal(fullPack.risk?.guidance?.symbols?.[0]?.symbolId, 'sym:query');
+assert.equal(fullPack.risk?.guidance?.tests?.[0]?.testPath, 'tests/risky.test.js');
+assert.match(fullPack.risk?.guidance?.ranking?.callers || '', /Direct inbound callers/i);
+assert.deepEqual(fullPack.risk?.guidance?.caps?.hits || [], []);
+assert.equal(fullPack.risk?.support?.language?.languageId, 'javascript');
+assert.equal(fullPack.risk?.support?.language?.state, 'supported');
+assert.equal(fullPack.risk?.support?.language?.capabilities?.riskLocal, 'supported');
+assert.equal(fullPack.risk?.support?.language?.capabilities?.riskInterprocedural, 'partial');
+assert.ok(
+  fullPack.risk?.support?.downgradedReasoningPaths?.some((entry) => entry?.code === 'risk_interprocedural_partial'),
+  'expected supported language to surface interprocedural downgrade reasoning'
+);
+const frameworkPack = await buildPack({
+  name: 'risk-ok-framework-support',
+  stats: baseStats,
+  summaries: [summaryRow],
+  flows: [flowRow],
+  callSites: [callSiteRow],
+  chunkMetaOverride: frameworkChunkMeta
+});
+assert.equal(frameworkPack.risk?.support?.framework?.frameworkId, 'react');
+assert.equal(frameworkPack.risk?.support?.framework?.state, 'partial');
+assert.ok(
+  frameworkPack.risk?.support?.downgradedReasoningPaths?.some((entry) => entry?.code === 'RISK_FRAMEWORK_BASELINE_ONLY'),
+  'expected framework baseline-only downgrade path'
+);
+const partialSupportPack = await buildPack({
+  name: 'risk-ok-language-partial',
+  stats: baseStats,
+  summaries: [partialLanguageSummaryRow],
+  flows: [flowRow],
+  callSites: [callSiteRow],
+  chunkMetaOverride: partialLanguageChunkMeta
+});
+assert.equal(partialSupportPack.risk?.support?.language?.languageId, 'cmake');
+assert.equal(partialSupportPack.risk?.support?.language?.state, 'partial');
+assert.deepEqual(partialSupportPack.risk?.support?.language?.unsupportedConstructs?.sources, ['interprocedural-source']);
+assert.ok(
+  partialSupportPack.risk?.support?.downgradedReasoningPaths?.some((entry) => entry?.code === 'USR-W-CAPABILITY-DOWNGRADED'),
+  'expected partial language diagnostics to surface as downgraded reasoning'
+);
+const unsupportedSupportPack = await buildPack({
+  name: 'risk-ok-language-unsupported',
+  stats: baseStats,
+  summaries: [unsupportedLanguageSummaryRow],
+  flows: [flowRow],
+  callSites: [callSiteRow],
+  chunkMetaOverride: unsupportedLanguageChunkMeta
+});
+assert.equal(unsupportedSupportPack.risk?.support?.language?.languageId, 'unknownlang');
+assert.equal(unsupportedSupportPack.risk?.support?.language?.state, 'unsupported');
+assert.ok(
+  unsupportedSupportPack.risk?.support?.language?.diagnostics?.some((entry) => entry?.code === 'RISK_LANGUAGE_PROFILE_MISSING'),
+  'expected unsupported language to report missing registry profile'
+);
+const noGraphPack = await buildPack({
+  name: 'risk-ok-no-graph',
+  stats: baseStats,
+  summaries: [summaryRow],
+  flows: [flowRow],
+  callSites: [callSiteRow]
+});
+assert.equal(noGraphPack.risk?.guidance, null);
+const guidanceCappedPack = await buildPack({
+  name: 'risk-ok-guidance-capped',
+  stats: baseStats,
+  summaries: [summaryRow],
+  flows: [flowRow],
+  callSites: [callSiteRow],
+  includeGraph: true,
+  includeCallersCallees: true,
+  graphIndexOverride: cappedGraphIndex
+});
+assert.equal(guidanceCappedPack.risk?.guidance?.callers?.length, 3);
+assert.equal(guidanceCappedPack.risk?.guidance?.symbols?.length, 5);
+assert.equal(guidanceCappedPack.risk?.guidance?.tests?.length, 3);
+assert.deepEqual(guidanceCappedPack.risk?.guidance?.caps?.hits, ['maxCallers', 'maxSymbols', 'maxTests']);
+assert.deepEqual(
+  fullPack.risk?.summary?.ruleRoles,
+  {
+    sources: 1,
+    sinks: 1,
+    sanitizers: 0
+  }
+);
+assert.deepEqual(
+  fullPack.risk?.summary?.propagatorLikeRoles,
+  [
+    { role: 'callback', count: 1 }
+  ]
+);
 assert.deepEqual(
   fullPack.risk?.summary?.topCategories,
   [
@@ -526,12 +776,16 @@ assert.ok(fullRendered.includes('artifact refs:'), 'expected rendered artifact r
 assert.ok(fullRendered.includes('rules: source.req.body -> sink.sql.query'), 'expected rendered rules');
 assert.ok(fullRendered.includes('semantics sem.callback.register-handler-payload'), 'expected rendered semantics labels');
 const fullRenderedJson = renderCompositeContextPackJson(fullPack);
+assert.equal(fullRenderedJson.rendered?.risk?.support?.language?.state, 'supported');
 assert.equal(fullRenderedJson.rendered?.sarif?.runs?.[0]?.results?.[0]?.properties?.pairOfCleats?.flowId, flowRow.flowId);
 assert.equal(
   fullRenderedJson.rendered?.sarif?.runs?.[0]?.results?.[0]?.codeFlows?.[0]?.threadFlows?.[0]?.locations?.[0]
     ?.location?.physicalLocation?.artifactLocation?.uri,
   'src/file.js'
 );
+const partialSupportRendered = renderCompositeContextPack(partialSupportPack);
+assert.match(partialSupportRendered, /support: language cmake partial/i);
+assert.match(partialSupportRendered, /unsupported constructs: sources interprocedural-source/i);
 
 const fullPackRepeat = await buildPack({
   name: 'full-repeat',

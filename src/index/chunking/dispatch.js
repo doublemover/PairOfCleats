@@ -220,12 +220,12 @@ const CODE_CHUNKERS = [
   {
     id: 'proto',
     match: (ext) => ext === '.proto',
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'proto', context) || chunkProto(text, context)
+    chunk: ({ text, context }) => chunkProto(text, context)
   },
   {
     id: 'graphql',
     match: (ext) => ext === '.graphql' || ext === '.gql' || ext === '.graphqls',
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'graphql', context) || chunkGraphql(text, context)
+    chunk: ({ text, context }) => chunkGraphql(text, context)
   },
   { id: 'cmake', match: (ext) => CMAKE_EXTS.has(ext), chunk: ({ text, context }) => chunkCmake(text, context) },
   { id: 'starlark', match: (ext) => STARLARK_EXTS.has(ext), chunk: ({ text, context }) => chunkStarlark(text, context) },
@@ -268,7 +268,7 @@ const CODE_CHUNKERS = [
   {
     id: 'jinja',
     match: (ext) => JINJA_EXTS.has(ext),
-    chunk: ({ text, context }) => chunkJinja(text, context)
+    chunk: ({ text, ext, relPath, context }) => chunkJinja(text, { ...context, ext, relPath })
   },
   {
     id: 'razor',
@@ -305,7 +305,7 @@ const CODE_FORMAT_CHUNKERS = [
   {
     id: 'graphql',
     match: (ext) => ext === '.graphql' || ext === '.gql',
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'graphql', context) || chunkGraphql(text, context)
+    chunk: ({ text, context }) => chunkGraphql(text, context)
   }
 ];
 

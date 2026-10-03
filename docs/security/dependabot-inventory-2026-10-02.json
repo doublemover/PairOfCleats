@@ -1,0 +1,780 @@
+{
+  "capturedAt": "2026-10-02T01:30:45Z",
+  "repository": "doublemover/PairOfCleats",
+  "source": "https://github.com/doublemover/PairOfCleats/security/dependabot",
+  "state": "open",
+  "count": 150,
+  "uniqueIds": 150,
+  "severityCounts": {
+    "critical": 3,
+    "high": 68,
+    "moderate": 75,
+    "low": 4
+  },
+  "packages": {
+    "protobufjs": [
+      74,
+      75,
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      95,
+      96,
+      97,
+      98,
+      99,
+      100,
+      101,
+      102,
+      113,
+      114,
+      121,
+      122,
+      123,
+      124,
+      137
+    ],
+    "tar": [
+      131,
+      146,
+      147,
+      148,
+      149,
+      152
+    ],
+    "@xmldom/xmldom": [
+      61,
+      76,
+      77,
+      78,
+      79,
+      180,
+      193,
+      194,
+      195,
+      196,
+      197,
+      198,
+      199,
+      200,
+      201
+    ],
+    "simple-git": [
+      71,
+      72,
+      107,
+      108
+    ],
+    "sharp": [
+      143,
+      190
+    ],
+    "nanoid": [
+      168,
+      171,
+      176,
+      178,
+      185
+    ],
+    "smol-toml": [
+      54,
+      202
+    ],
+    "piscina": [
+      130
+    ],
+    "path-to-regexp": [
+      59,
+      60
+    ],
+    "ip-address": [
+      81,
+      161,
+      207
+    ],
+    "adm-zip": [
+      134,
+      135,
+      191,
+      192,
+      205,
+      206
+    ],
+    "fast-uri": [
+      144,
+      145,
+      162,
+      173,
+      174,
+      182,
+      183,
+      211
+    ],
+    "fast-xml-parser": [
+      53,
+      70,
+      80
+    ],
+    "devalue": [
+      104,
+      109,
+      204
+    ],
+    "tmp": [
+      116
+    ],
+    "brace-expansion": [
+      58,
+      112,
+      136,
+      151,
+      157,
+      159,
+      208,
+      209,
+      210
+    ],
+    "postcss": [
+      154,
+      158,
+      172
+    ],
+    "js-yaml": [
+      133,
+      150,
+      169,
+      203
+    ],
+    "picomatch": [
+      55,
+      56,
+      63
+    ],
+    "hono": [
+      65,
+      66,
+      67,
+      68,
+      69,
+      73,
+      82,
+      83,
+      85,
+      86,
+      87,
+      117,
+      118,
+      119,
+      120,
+      125,
+      126,
+      127,
+      128,
+      129,
+      139,
+      141,
+      142,
+      160,
+      166,
+      167,
+      187,
+      188,
+      189
+    ],
+    "fflate": [
+      184
+    ],
+    "qs": [
+      115,
+      179,
+      186
+    ],
+    "re2": [
+      155,
+      156,
+      163,
+      164
+    ],
+    "svelte": [
+      105,
+      106,
+      110,
+      111
+    ],
+    "@hono/node-server": [
+      64,
+      175
+    ],
+    "@humanfs/node": [
+      181
+    ],
+    "@protobufjs/utf8": [
+      103
+    ],
+    "yaml": [
+      57
+    ],
+    "body-parser": [
+      138
+    ]
+  },
+  "otherCategories": {
+    "codeScanning": {
+      "open": 0,
+      "closed": 46,
+      "scope": "main",
+      "lastScan": "2026-03-14",
+      "lastCommit": "b9398da29d4cde3d967a7903fee11f22dac8f6ac",
+      "workflow": ".github/workflows/codeql.yml",
+      "status": "disabled_due_to_inactivity",
+      "warnings": [
+        "Locations for an alert exceeded limits",
+        "Actions workflow not enabled"
+      ]
+    },
+    "secretScanning": {
+      "open": 0,
+      "closed": 0
+    },
+    "malware": {
+      "status": "disabled",
+      "open": null
+    }
+  },
+  "remediationStatus": "Branch changes do not close default-branch alerts until merge and GitHub rescan. No alerts dismissed or repository security settings changed.",
+  "remediation": [
+    {
+      "name": "protobufjs",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/@huggingface/transformers/node_modules/protobufjs",
+          "version": "7.6.6",
+          "knownVulnerable": false
+        },
+        {
+          "path": "node_modules/protobufjs",
+          "version": "8.8.0",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        74,
+        75,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        113,
+        114,
+        121,
+        122,
+        123,
+        124,
+        137
+      ]
+    },
+    {
+      "name": "tar",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/tar",
+          "version": "7.5.22",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        131,
+        146,
+        147,
+        148,
+        149,
+        152
+      ]
+    },
+    {
+      "name": "@xmldom/xmldom",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/@xmldom/xmldom",
+          "version": "0.8.15",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        61,
+        76,
+        77,
+        78,
+        79,
+        180,
+        193,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        200,
+        201
+      ]
+    },
+    {
+      "name": "simple-git",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/simple-git",
+          "version": "3.36.0",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        71,
+        72,
+        107,
+        108
+      ]
+    },
+    {
+      "name": "sharp",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/@huggingface/transformers/node_modules/sharp",
+          "version": "0.35.5",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        143,
+        190
+      ]
+    },
+    {
+      "name": "nanoid",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/nanoid",
+          "version": "5.1.16",
+          "knownVulnerable": false
+        },
+        {
+          "path": "node_modules/postcss/node_modules/nanoid",
+          "version": "3.3.19",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        168,
+        171,
+        176,
+        178,
+        185
+      ]
+    },
+    {
+      "name": "smol-toml",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/smol-toml",
+          "version": "1.9.0",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        54,
+        202
+      ]
+    },
+    {
+      "name": "piscina",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/piscina",
+          "version": "5.3.2",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        130
+      ]
+    },
+    {
+      "name": "path-to-regexp",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/path-to-regexp",
+          "version": "8.4.2",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        59,
+        60
+      ]
+    },
+    {
+      "name": "ip-address",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/ip-address",
+          "version": "10.7.3",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        81,
+        161,
+        207
+      ]
+    },
+    {
+      "name": "adm-zip",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/adm-zip",
+          "version": "0.6.1",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        134,
+        135,
+        191,
+        192,
+        205,
+        206
+      ]
+    },
+    {
+      "name": "fast-uri",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/fast-uri",
+          "version": "3.1.8",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        144,
+        145,
+        162,
+        173,
+        174,
+        182,
+        183,
+        211
+      ]
+    },
+    {
+      "name": "fast-xml-parser",
+      "status": "absent",
+      "instances": [],
+      "alertIds": [
+        53,
+        70,
+        80
+      ]
+    },
+    {
+      "name": "devalue",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/devalue",
+          "version": "5.9.4",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        104,
+        109,
+        204
+      ]
+    },
+    {
+      "name": "tmp",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/tmp",
+          "version": "0.2.7",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        116
+      ]
+    },
+    {
+      "name": "brace-expansion",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/brace-expansion",
+          "version": "5.0.12",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        58,
+        112,
+        136,
+        151,
+        157,
+        159,
+        208,
+        209,
+        210
+      ]
+    },
+    {
+      "name": "postcss",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/postcss",
+          "version": "8.5.28",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        154,
+        158,
+        172
+      ]
+    },
+    {
+      "name": "js-yaml",
+      "status": "absent",
+      "instances": [],
+      "alertIds": [
+        133,
+        150,
+        169,
+        203
+      ]
+    },
+    {
+      "name": "picomatch",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/micromatch/node_modules/picomatch",
+          "version": "2.3.2",
+          "knownVulnerable": false
+        },
+        {
+          "path": "node_modules/picomatch",
+          "version": "4.0.7",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        55,
+        56,
+        63
+      ]
+    },
+    {
+      "name": "hono",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/hono",
+          "version": "4.13.12",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        65,
+        66,
+        67,
+        68,
+        69,
+        73,
+        82,
+        83,
+        85,
+        86,
+        87,
+        117,
+        118,
+        119,
+        120,
+        125,
+        126,
+        127,
+        128,
+        129,
+        139,
+        141,
+        142,
+        160,
+        166,
+        167,
+        187,
+        188,
+        189
+      ]
+    },
+    {
+      "name": "fflate",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/fflate",
+          "version": "0.8.3",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        184
+      ]
+    },
+    {
+      "name": "qs",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/qs",
+          "version": "6.16.0",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        115,
+        179,
+        186
+      ]
+    },
+    {
+      "name": "re2",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/re2",
+          "version": "1.27.0",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        155,
+        156,
+        163,
+        164
+      ]
+    },
+    {
+      "name": "svelte",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/svelte",
+          "version": "5.57.1",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        105,
+        106,
+        110,
+        111
+      ]
+    },
+    {
+      "name": "@hono/node-server",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/@hono/node-server",
+          "version": "1.19.17",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        64,
+        175
+      ]
+    },
+    {
+      "name": "@humanfs/node",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/@humanfs/node",
+          "version": "0.16.8",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        181
+      ]
+    },
+    {
+      "name": "@protobufjs/utf8",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/@protobufjs/utf8",
+          "version": "1.1.2",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        103
+      ]
+    },
+    {
+      "name": "yaml",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/yaml",
+          "version": "2.9.1",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        57
+      ]
+    },
+    {
+      "name": "body-parser",
+      "status": "updated",
+      "instances": [
+        {
+          "path": "node_modules/body-parser",
+          "version": "2.3.0",
+          "knownVulnerable": false
+        }
+      ],
+      "alertIds": [
+        138
+      ]
+    }
+  ]
+}

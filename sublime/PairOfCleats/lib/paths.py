@@ -205,15 +205,6 @@ def resolve_cli(settings, repo_root):
         resolved = resolve_path(repo_root, configured)
         return _cli_for_path(resolved, node_path, 'settings')
 
-    local_bin = _find_local_binary(repo_root)
-    if local_bin:
-        return _cli_for_path(local_bin, node_path, 'node_modules')
-
-    if repo_root:
-        local_js = os.path.join(repo_root, 'bin', 'pairofcleats.js')
-        if os.path.exists(local_js):
-            return _cli_for_path(local_js, node_path, 'repo-bin')
-
     return {
         'command': 'pairofcleats',
         'args_prefix': [],

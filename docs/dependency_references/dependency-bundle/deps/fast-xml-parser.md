@@ -14,7 +14,7 @@ Parse XML configs with options to preserve order, attributes, and namespacesuse
 
 ## Deep links (implementation-relevant)
 1. Parsing options (attributes, namespaces, preserveOrder)  https://naturalintelligence.github.io/fast-xml-parser/
-2. Detailed option reference (XMLParser options)  https://github.com/NaturalIntelligence/fast-xml-parser/blob/master/docs/v4/2.XMLparseOptions.md
+2. Detailed option reference (XMLParser options)  https://github.com/NaturalIntelligence/fast-xml-parser
 
 ## Suggested extraction checklist
 - [x] Confirm you can obtain stable node/section ranges (`start/end` offsets or line/column). (Prefer parser modes that retain position info; otherwise derive offsets via a parallel scan of the raw text.)

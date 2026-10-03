@@ -58,6 +58,7 @@ const resolveCommandProfile = ({ cmd, args = [] }) => {
 };
 
 const report = await runToolingDoctorFixture({
+  authorizeFixtureExecution: true,
   tempRoot,
   enabledTools: ['jdtls'],
   resolveCommandProfile

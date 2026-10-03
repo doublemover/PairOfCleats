@@ -9,13 +9,14 @@ import { SCHEDULER_QUEUE_NAMES } from '../../../src/index/build/runtime/schedule
 import { loadIncrementalManifest, writeIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
+import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
 import {
   loadChunkMetaRows,
-  loadFileMetaRows,
-  MAX_JSON_BYTES
-} from '../../../src/shared/artifact-io.js';
+  loadFileMetaRows
+} from '../../../src/shared/artifact-io/loaders.js';
 import { readTextFile, readTextFileWithHash } from '../../../src/shared/encoding.js';
-import { replaceFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { replaceFile } from '../../../src/shared/json-stream/atomic.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { writeDenseVectorArtifacts } from '../../../src/shared/dense-vector-artifacts.js';
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
 import { resolveHnswPaths, resolveHnswTarget } from '../../../src/shared/hnsw.js';
@@ -31,21 +32,24 @@ import {
 } from '../../../src/shared/embedding-utils.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings.js';
-import { fromPosix, isPathWithinRoot, toPosix } from '../../../src/shared/files.js';
-import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
-import { createLruCache } from '../../../src/shared/cache.js';
+import { fromPosix, isPathWithinRoot, toPosix } from '../../../src/shared/file-paths.js';
+import { getEnvConfig } from '../../../src/shared/env/runtime.js';
+import { isTestingEnv } from '../../../src/shared/env/testing.js';
+import { createLruCache } from '../../../src/shared/cache/lru.js';
 import { normalizeDenseVectorMode } from '../../../src/shared/dense-vector-mode.js';
-import { formatEmbeddingsPerfLine } from '../../../src/shared/embeddings-progress.js';
-import { spawnSubprocess } from '../../../src/shared/subprocess.js';
-import { runWithConcurrency } from '../../../src/shared/concurrency.js';
+import { formatEmbeddingsPerfLine } from './perf-progress.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
+import { runWithConcurrency } from '../../../src/shared/concurrency/run-with-queue.js';
 import { coercePositiveIntMinOne } from '../../../src/shared/number-coerce.js';
 import { resolveFdConcurrencyCap } from '../../../src/index/build/workers/config.js';
 import { formatEtaSeconds } from '../../../src/shared/perf/eta.js';
 import {
   normalizeBundleFormat,
-  readBundleFile,
   resolveManifestBundleNames,
-  resolveBundleFormatFromName,
+  resolveBundleFormatFromName
+} from '../../../src/shared/bundle-io-paths.js';
+import {
+  readBundleFile,
   writeBundleFile
 } from '../../../src/shared/bundle-io.js';
 import {
@@ -96,7 +100,7 @@ import { updatePieceManifest } from './manifest.js';
 import { createFileEmbeddingsProcessor } from './pipeline.js';
 import { createEmbeddingsScheduler } from './scheduler.js';
 import { createBoundedWriterQueue } from './writer-queue.js';
-import { updateSqliteDense } from './sqlite-dense.js';
+import { runSqliteDenseWithBoundary } from './sqlite-dense-isolate.js';
 import {
   createDeterministicFileStreamSampler,
   selectDeterministicFileSample
@@ -185,12 +189,6 @@ const CHUNK_META_TOO_LARGE_BYTES_PATTERN = /\((\d+)\s*>\s*(\d+)\)/;
  * @property {boolean} manifestWritten
  * @property {boolean} completeCoverage
  */
-
-let Database = null;
-try {
-  ({ default: Database } = await import('better-sqlite3'));
-} catch {}
-
 /**
  * Resolve max chunk-meta payload size used when loading chunk metadata for
  * embeddings generation.
@@ -1539,7 +1537,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const denseScale = quantLevels > 1 && Number.isFinite(quantRange) && quantRange !== 0
     ? quantRange / (quantLevels - 1)
     : 2 / 255;
-  const cacheDims = useStubEmbeddings ? resolveStubDims(configuredDims) : configuredDims;
+  let cacheDims = useStubEmbeddings ? resolveStubDims(configuredDims) : configuredDims;
   const embeddingInputFormatting = resolveEmbeddingInputFormatting(modelId);
   const resolvedOnnxModelPath = embeddingProvider === 'onnx'
     ? resolveOnnxModelPath({
@@ -1788,9 +1786,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
     throw err;
   }
   const getChunkEmbeddings = embedder.getChunkEmbeddings;
-  if (!useStubEmbeddings && embeddingProvider === 'onnx') {
+  if (!useStubEmbeddings && (embeddingProvider === 'onnx' || !cacheDims)) {
     try {
-      await getChunkEmbeddings(['pairofcleats-provider-probe']);
+      const probeVectors = await getChunkEmbeddings(['pairofcleats-provider-probe']);
+      assertVectorArrays(probeVectors, 1, 'provider-probe');
+      const probeDims = probeVectors[0].length;
+      if (cacheDims && cacheDims !== probeDims) {
+        throw new Error(`[embeddings] embedding dims mismatch (configured=${cacheDims}, observed=${probeDims}).`);
+      }
+      cacheDims = probeDims;
     } catch (err) {
       crashLogger.logError({
         phase: 'stage3:init',
@@ -1806,16 +1810,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
     if (typeof detectedProvider === 'string' && detectedProvider && detectedProvider !== runtimeEmbeddingProvider) {
       const priorProvider = runtimeEmbeddingProvider;
       runtimeEmbeddingProvider = detectedProvider;
-      ({
-        cacheIdentity,
-        cacheIdentityKey,
-        cacheKeyFlags
-      } = buildCacheIdentityForProvider(runtimeEmbeddingProvider));
       log(
         `[embeddings] provider fallback resolved before stage3 cache identity: ` +
         `${priorProvider} -> ${runtimeEmbeddingProvider}.`
       );
     }
+    // Resolve dimensions before any cache keys, pending state, or incremental
+    // bundles are written; a ready identity must never carry unknown dims=0.
+    ({ cacheIdentity, cacheIdentityKey, cacheKeyFlags } = buildCacheIdentityForProvider(runtimeEmbeddingProvider));
   }
   const resolvedRawArgv = Array.isArray(rawArgv) ? rawArgv : [];
   const {
@@ -2435,7 +2437,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           return pending;
         };
 
-        const dimsValidator = createDimsValidator({ mode, configuredDims });
+        const dimsValidator = createDimsValidator({ mode, configuredDims: cacheDims });
         const assertDims = dimsValidator.assertDims;
 
         if (configuredDims && cacheEligible) {
@@ -3914,7 +3916,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           );
         }
         const finalDims = observedDims
-        || configuredDims
+        || cacheDims
         || (useStubEmbeddings ? resolveStubDims(configuredDims) : DEFAULT_STUB_DIMS);
         fillMissingVectors(codeVectors, finalDims);
         fillMissingVectors(docVectors, finalDims);
@@ -4060,23 +4062,55 @@ export async function runBuildEmbeddingsWithConfig(config) {
           const sqliteSharedDbForMode = sqlitePathsForMode?.codePath
             && sqlitePathsForMode?.prosePath
             && path.resolve(sqlitePathsForMode.codePath) === path.resolve(sqlitePathsForMode.prosePath);
-          const sqliteResult = await scheduleIo(() => updateSqliteDense({
-            Database,
-            root,
-            userConfig,
-            indexRoot: modeIndexRoot,
-            mode,
-            vectors: mergedVectors,
-            dims: finalDims,
-            scale: denseScale,
-            modelId,
-            quantization,
-            sharedDb: sqliteSharedDbForMode,
-            writeBatchSize: sqliteDenseWriteBatchSize,
-            emitOutput: true,
-            warnOnMissing: false,
-            logger
-          }));
+          let sqliteResult;
+          try {
+            sqliteResult = await scheduleIo(() => runSqliteDenseWithBoundary({
+              root,
+              userConfig,
+              indexRoot: modeIndexRoot,
+              repoCacheRoot,
+              mode,
+              vectorsPath: mergedVectorsBasePath,
+              dims: finalDims,
+              scale: denseScale,
+              modelId,
+              quantization,
+              dbPath: mode === 'code' ? sqlitePathsForMode?.codePath : sqlitePathsForMode?.prosePath,
+              sharedDb: sqliteSharedDbForMode,
+              writeBatchSize: sqliteDenseWriteBatchSize,
+              emitOutput: true,
+              warnOnMissing: false,
+              crashLogger,
+              buildId: modeIndexRoot ? path.basename(modeIndexRoot) : null,
+              workerIdentity: `stage3-sqlite:${mode}`,
+              logger,
+              enableWindowsCrashCapture: envConfig?.benchRun === true || isTestingEnv()
+            }));
+          } catch (err) {
+            crashLogger.logError({
+              phase: `embeddings:${mode}`,
+              stage: 'sqlite-dense-isolate',
+              tool: 'sqlite-dense',
+              workerId: err?.workerId || `stage3-sqlite:${mode}`,
+              buildId: err?.buildId || (modeIndexRoot ? path.basename(modeIndexRoot) : null),
+              bundleId: err?.bundleId || (modeIndexRoot ? path.basename(modeIndexRoot) : null),
+              message: err?.message || String(err),
+              code: err?.code || null,
+              failureClass: err?.failureClass || null,
+              file: mergedVectorsBasePath,
+              indexRoot: modeIndexRoot,
+              dbPath: mode === 'code' ? sqlitePathsForMode?.codePath : sqlitePathsForMode?.prosePath,
+              replayBundlePath: err?.replayBundlePath || null,
+              nativeCrash: err?.nativeCrash === true,
+              dumpDir: err?.dumpDir || null,
+              dumpFiles: Array.isArray(err?.dumpFiles) ? err.dumpFiles : [],
+              exitCode: Number.isFinite(Number(err?.result?.exitCode)) ? Number(err.result.exitCode) : null,
+              signal: typeof err?.result?.signal === 'string' ? err.result.signal : null,
+              stderrTail: err?.result?.stderr || null,
+              stdoutTail: err?.result?.stdout || null
+            });
+            throw err;
+          }
           const vectorAnn = sqliteResult?.vectorAnn || null;
           sqliteVecState = {
             enabled: vectorAnn?.enabled === true,
@@ -4447,4 +4481,3 @@ export async function runBuildEmbeddingsWithConfig(config) {
     finalize();
   }
 }
-

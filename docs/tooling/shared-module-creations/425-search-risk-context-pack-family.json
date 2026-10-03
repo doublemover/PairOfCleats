@@ -1,0 +1,77 @@
+{
+  "issueId": 425,
+  "title": "Shared search, risk, and context-pack payload helper family",
+  "createdAt": "2026-03-26",
+  "sharedDestination": [
+    "src/shared/search-request.js",
+    "src/shared/risk-filters.js"
+  ],
+  "problemStatement": "Search-request argument shaping and risk/context-pack filter alias normalization were split across tools/shared/search-request.js, src/integrations/tooling/context-pack.js, tools/analysis/explain-risk.js, and tools/analysis/delta-risk.js. That left the canonical behavior tool-owned and duplicated cross-surface request/filter shaping in CLI, API, MCP, and retrieval-facing surfaces.",
+  "duplicateClusters": [
+    {
+      "name": "Search request payload shaping owned by tools/shared",
+      "files": [
+        "tools/shared/search-request.js",
+        "tools/api/router/search.js",
+        "tools/api/validation.js",
+        "tools/mcp/tools/search-args.js",
+        "tools/mcp/tools.js",
+        "tools/mcp/tools/handlers/triage.js",
+        "src/retrieval/federation/args.js"
+      ],
+      "bestFix": "Move canonical search-request shaping into src/shared/search-request.js and reduce tools/shared/search-request.js to a compatibility wrapper so src/** and cross-surface consumers no longer depend on tool ownership."
+    },
+    {
+      "name": "Risk filter alias normalization duplicated across analysis/context-pack surfaces",
+      "files": [
+        "src/integrations/tooling/context-pack.js",
+        "tools/analysis/explain-risk.js",
+        "tools/analysis/delta-risk.js"
+      ],
+      "bestFix": "Add a shared buildRiskFilterInput helper in src/shared/risk-filters.js so snake_case, kebab-case, and camelCase risk filter aliases normalize identically across CLI, API, MCP, and context-pack surfaces."
+    }
+  ],
+  "whyCurrentSharedModulesWereInsufficient": [
+    "src/shared/risk-filters.js normalized and validated risk filters, but did not own the alias-mapping step that several surfaces had already reimplemented.",
+    "tools/shared/search-request.js was already shared by multiple surfaces, but its ownership was wrong for src/** and cross-surface payload shaping."
+  ],
+  "migrationsCompleted": [
+    {
+      "path": "src/shared/search-request.js",
+      "action": "created",
+      "notes": "Now owns canonical search payload normalization and CLI-argument shaping."
+    },
+    {
+      "path": "tools/shared/search-request.js",
+      "action": "wrapped",
+      "notes": "Now delegates to src/shared/search-request.js for compatibility."
+    },
+    {
+      "path": "src/shared/risk-filters.js",
+      "action": "extended",
+      "notes": "Now owns shared risk filter input alias normalization through buildRiskFilterInput()."
+    }
+  ],
+  "parityPlan": {
+    "testsAdded": [
+      "tests/shared/risk-filter-input.test.js"
+    ],
+    "testsToKeepGreen": [
+      "tests/tooling/api-mcp/search-request-parity.test.js",
+      "tests/tooling/api-mcp/meta-filter-normalization.test.js",
+      "tests/services/mcp/search-arg-mapping.test.js",
+      "tests/services/mcp/tools-normalize-meta.test.js",
+      "tests/context-pack/risk-filters-parity.test.js",
+      "tests/shared/risk-filters.test.js"
+    ]
+  },
+  "nonGoals": [
+    "Replace the VS Code extension's local search-contract adapter in this issue.",
+    "Refactor result rendering or response-envelope formatting.",
+    "Move all analysis validation schemas into a single new module."
+  ],
+  "followOnDeletionTargets": [
+    "Further reduce direct tool-side search-request imports where wrapper compatibility is no longer needed.",
+    "Continue hoisting other context-pack or risk payload builders if later H32 scans show more duplication."
+  ]
+}

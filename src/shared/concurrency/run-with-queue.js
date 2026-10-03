@@ -269,6 +269,21 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     let stallTimer = null;
     let onAbort = null;
     const raceCandidates = [pendingDrain];
+    const startPendingDrainStallTimer = () => {
+      if (!onPendingDrainStall || pendingDrainStallPollMs <= 0) return null;
+      return setInterval(() => {
+        try {
+          onPendingDrainStall({
+            pending: pendingSignals.size,
+            elapsedMs: Math.max(0, Date.now() - pendingStartedAt)
+          });
+        } catch {}
+      }, pendingDrainStallPollMs);
+    };
+    const clearPendingDrainTimers = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (stallTimer) clearInterval(stallTimer);
+    };
     if (pendingDrainTimeoutMs > 0) {
       raceCandidates.push(new Promise((_, reject) => {
         timeoutId = setTimeout(() => {
@@ -287,21 +302,11 @@ export async function runWithQueue(queue, items, worker, options = {}) {
       }));
     }
     if (!signal) {
-      if (onPendingDrainStall && pendingDrainStallPollMs > 0) {
-        stallTimer = setInterval(() => {
-          try {
-            onPendingDrainStall({
-              pending: pendingSignals.size,
-              elapsedMs: Math.max(0, Date.now() - pendingStartedAt)
-            });
-          } catch {}
-        }, pendingDrainStallPollMs);
-      }
+      stallTimer = startPendingDrainStallTimer();
       try {
         await awaitWithKeepalive(Promise.race(raceCandidates));
       } finally {
-        if (timeoutId) clearTimeout(timeoutId);
-        if (stallTimer) clearInterval(stallTimer);
+        clearPendingDrainTimers();
       }
       return;
     }
@@ -310,21 +315,11 @@ export async function runWithQueue(queue, items, worker, options = {}) {
       signal.addEventListener('abort', onAbort, { once: true });
     });
     raceCandidates.push(aborted);
-    if (onPendingDrainStall && pendingDrainStallPollMs > 0) {
-      stallTimer = setInterval(() => {
-        try {
-          onPendingDrainStall({
-            pending: pendingSignals.size,
-            elapsedMs: Math.max(0, Date.now() - pendingStartedAt)
-          });
-        } catch {}
-      }, pendingDrainStallPollMs);
-    }
+    stallTimer = startPendingDrainStallTimer();
     try {
       await awaitWithKeepalive(Promise.race(raceCandidates));
     } finally {
-      if (timeoutId) clearTimeout(timeoutId);
-      if (stallTimer) clearInterval(stallTimer);
+      clearPendingDrainTimers();
       if (onAbort) signal.removeEventListener('abort', onAbort);
     }
   };

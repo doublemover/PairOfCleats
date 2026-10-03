@@ -1,0 +1,390 @@
+{
+  "issueId": "413",
+  "title": "Review shared CLI, command, dispatch, capability, and tooling support modules",
+  "reviewDate": "2026-03-26",
+  "scope": "Primary ownership for src/shared CLI, command-registry, dispatch, capability, completions, legacy entrypoint, and tooling-bin helpers assigned to #413 in the shared-module ledger.",
+  "summary": {
+    "ownedFileCount": 31,
+    "overallAssessment": "This shared surface is mostly healthy and acts as the repo's canonical command and CLI contract layer. The P2 cleanup items from this review are complete: display state/event/layout/palette/frame responsibilities are split behind the public display facade, dispatch projection helpers are owned by command-registry query code, dispatch runtime-env resolution moved to the CLI entrypoint owner, and runtime-capability flag/surface projection moved behind the public manifest API.",
+    "runtimeRisks": [
+      {
+        "target": "src/shared/cli/display.js",
+        "reason": "The public display orchestrator delegates task-state mutation, JSONL event writing, safe-stream handling, terminal resolution, and rendering to display-internal owners."
+      },
+      {
+        "target": "src/shared/cli/display/render.js",
+        "reason": "Display row assembly now delegates task ordering/layout to layout.js, palette/theme state to palette.js, and terminal row-diff rendering to frame.js."
+      },
+      {
+        "target": "src/shared/runtime-capability-manifest.js",
+        "reason": "The public manifest API now delegates static specs, helper builders, and flag/surface projection to focused runtime-capability owners."
+      }
+    ],
+    "maintainabilityOnlyNotes": [
+      {
+        "target": "src/shared/dispatch/manifest.js",
+        "reason": "This old thin projection is no longer present. Keep future dispatch projection cleanup centered on the live src/shared/dispatch/registry.js and command-registry query owners."
+      },
+      {
+        "target": "src/shared/dispatch/registry.js",
+        "reason": "Now a thin facade over dispatch registry helpers owned by src/shared/command-registry-query.js."
+      },
+      {
+        "target": "src/shared/command-aliases.js",
+        "reason": "The current package-script replacement surface is almost empty and should either stay intentionally tiny or be folded into command-surface reporting if it remains documentation-only."
+      },
+      {
+        "target": "src/shared/cli-completions.js",
+        "reason": "The root helper was moved to tools/cli/completions-renderer.js because shell-completion rendering is only used by the completions CLI tool."
+      },
+      {
+        "target": "src/shared/runtime-capability-builders.js",
+        "reason": "The root helper was moved to src/shared/runtime-capability/builders.js because it is only consumed by runtime-capability-manifest.js."
+      }
+    ],
+    "highestPriorityFollowUps": []
+  },
+  "entries": [
+    {
+      "path": "src/shared/capabilities.js",
+      "consumerCount": 8,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Used by auto-policy, capability-gate, config dump, and runtime capability manifest generation as the optional runtime probe surface.",
+      "recommendation": "Keep as the runtime capability probe facade and avoid duplicating optional-dependency checks elsewhere."
+    },
+    {
+      "path": "src/shared/cli-options.js",
+      "consumerCount": 12,
+      "classifications": [
+        "split",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Owns canonical CLI option schemas for build, bench, service, cache GC, and compare-models flows, plus argument validation helpers.",
+      "recommendation": "Split static option-set declarations from validation helpers so command metadata stays easy to audit and surface-specific validation logic does not accumulate in one file."
+    },
+    {
+      "path": "src/shared/cli.js",
+      "consumerCount": 132,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "The main shared yargs wrapper used across CLI and tool surfaces.",
+      "recommendation": "Keep as the canonical CLI parser facade and resist adding command-specific policy here."
+    },
+    {
+      "path": "src/shared/cli/ansi-utils.js",
+      "consumerCount": 6,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Low-level ANSI helpers used by retrieval output formatting surfaces.",
+      "recommendation": "Keep as the ANSI primitive layer and avoid duplicating escape-handling helpers in output formatters."
+    },
+    {
+      "path": "src/shared/cli/argv.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Shared CLI argv normalization helper used by command-dispatch and CLI wrapper surfaces.",
+      "recommendation": "Keep argv normalization small and explicit so command-specific validation stays in the owning CLI surface."
+    },
+    {
+      "path": "src/shared/cli/display.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Single public createDisplay facade; task state, event routing, safe-stream handling, terminal adapter behavior, and rendering now live in display-internal owner modules.",
+      "recommendation": "Keep as the public display facade and avoid moving renderer, state-store, or progress-event protocol logic back into this file."
+    },
+    {
+      "path": "src/shared/cli/display/events.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Display-internal progress-event writer used by createDisplay for JSONL log and task events.",
+      "recommendation": "Keep as the display family event-emission owner so createDisplay does not depend directly on the progress protocol writer."
+    },
+    {
+      "path": "src/shared/cli/display/bar.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Focused bar-style and gradient construction helper used only by render.js.",
+      "recommendation": "Keep as a display-internal bar-rendering module."
+    },
+    {
+      "path": "src/shared/cli/display/colors.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Color math and ANSI composition helper for the display rendering family.",
+      "recommendation": "Keep as the shared display color primitive layer."
+    },
+    {
+      "path": "src/shared/cli/display/frame.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Display-internal owner for frame construction and terminal row-diff writes.",
+      "recommendation": "Keep cursor movement and frame diffing here so render.js only provides row content."
+    },
+    {
+      "path": "src/shared/cli/display/layout.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Display-internal owner for task ordering, label sizing, ETA/rate/detail layout, and adaptive bar-width selection.",
+      "recommendation": "Keep layout and sizing policy here so render.js does not re-accumulate presentation-state math."
+    },
+    {
+      "path": "src/shared/cli/display/palette.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Display-internal owner for palette scheme state, task color assignment, shade scales, and background inheritance.",
+      "recommendation": "Keep palette mutation and task color derivation here so render.js only consumes resolved colors and shades."
+    },
+    {
+      "path": "src/shared/cli/display/cursor.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/cli with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/cli/display/progress.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Owns progress-specific calculations such as overall progress and per-task extras.",
+      "recommendation": "Keep separate from raw rendering so progress math remains isolated and testable."
+    },
+    {
+      "path": "src/shared/cli/display/render.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Display row assembler over task layout, palette/theme, progress, bar, and frame owners.",
+      "recommendation": "Keep as the row assembly layer and avoid moving palette state, layout sizing, or terminal row-diff writes back into it."
+    },
+    {
+      "path": "src/shared/cli/display/state.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Display-internal owner for task state, log coalescing state, reset preservation, and task mutation.",
+      "recommendation": "Keep task and log state mutation here; the createDisplay facade should only orchestrate lifecycle and rendering."
+    },
+    {
+      "path": "src/shared/cli/display/stream.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/cli with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/cli/display/terminal.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Small adapter for terminal-kit normalization and terminal width resolution.",
+      "recommendation": "Keep as the terminal adapter boundary for the display family."
+    },
+    {
+      "path": "src/shared/cli/display/text.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Formatting and ANSI-safe text helpers used throughout the display family.",
+      "recommendation": "Keep as the text-formatting helper layer for CLI display behavior."
+    },
+    {
+      "path": "src/shared/cli/legacy-entrypoint.js",
+      "consumerCount": 0,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Small CLI-family compatibility helper for warning suppression and migration messaging from legacy entrypoints.",
+      "recommendation": "Keep as the legacy-entrypoint compatibility shim in the CLI family until those wrappers are fully retired."
+    },
+    {
+      "path": "src/shared/cli/noop-task.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Small compatibility helper for surfaces that accept optional display task factories.",
+      "recommendation": "Keep as the no-op task fallback rather than reimplementing null-task objects at callsites."
+    },
+    {
+      "path": "src/shared/cli/progress-events.js",
+      "consumerCount": 6,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Protocol definition used by CLI display, bench, TUI supervisor, and runtime capability reporting.",
+      "recommendation": "Keep as the authoritative progress protocol contract and avoid copying event names into local modules."
+    },
+    {
+      "path": "src/shared/cli/progress-stream.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Line decoder for progress protocol streams used by bench and TUI supervisor code.",
+      "recommendation": "Keep as the shared progress-line decoding helper."
+    },
+    {
+      "path": "src/shared/cli/stdout-guard.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Protects JSON-mode stdout contracts in setup and install tooling.",
+      "recommendation": "Keep as the stdout JSON contract guard rather than embedding output-contract checks in each tool."
+    },
+    {
+      "path": "src/shared/command-aliases.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Small documentation and audit helper for package-script replacement metadata.",
+      "recommendation": "Keep intentionally tiny, but do not let it become a second command-registry surface unless package-script replacements meaningfully expand."
+    },
+    {
+      "path": "src/shared/dispatch/registry.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Thin dispatch facade over DISPATCH_* and dispatch query helpers owned by src/shared/command-registry-query.js.",
+      "recommendation": "Keep as a compatibility facade for dispatch consumers while command-registry-query owns the projection logic."
+    },
+    {
+      "path": "src/shared/dispatch/resolve.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Small command-path matcher over the dispatch registry.",
+      "recommendation": "Keep as the dispatch request resolver, but leave it thin and data-driven."
+    },
+    {
+      "path": "src/shared/runtime-capability-manifest.js",
+      "consumerCount": 7,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Public manifest API over runtime probes, static specs, builder helpers, and runtime-capability/surfaces.js projection assembly.",
+      "recommendation": "Keep as the public manifest facade and move new surface-specific projection logic into runtime-capability/surfaces.js or specs/builders as appropriate."
+    },
+    {
+      "path": "src/shared/runtime-capability/builders.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/runtime-capability with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/runtime-capability/surfaces.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Runtime-capability owner for flag-set projection and API/MCP/TUI/editor surface assembly.",
+      "recommendation": "Keep flag and surface assembly here so runtime-capability-manifest.js remains a small public facade."
+    },
+    {
+      "path": "src/shared/tooling-bin-dirs.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Shared platform-aware search path expansion for command resolution and tooling utilities.",
+      "recommendation": "Keep as the canonical tooling-bin search helper and avoid reimplementing platform-specific PATH augmentation in callers."
+    }
+  ]
+}

@@ -2,19 +2,20 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { createCli } from '../../src/shared/cli.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import {
   getRuntimeConfig,
   resolveRepoConfig,
   resolveRuntimeEnv,
   resolveToolRoot
 } from '../shared/dict-utils.js';
-import { parseCommaList } from '../shared/text-utils.js';
+import { parseCommaList } from '../../src/shared/comma-list.js';
 import { readQueryFile } from '../shared/query-file-utils.js';
 
 const argv = createCli({
-  scriptName: 'parity-matrix',
+  scriptName: 'pairofcleats report parity',
   options: {
     backend: { type: 'string' },
     backends: { type: 'string' },
@@ -265,7 +266,7 @@ async function main() {
     results
   };
   const matrixPath = path.join(runRoot, 'matrix.json');
-  await fsPromises.writeFile(matrixPath, JSON.stringify(matrix, null, 2));
+  await writeJsonFileResolved(matrixPath, matrix);
   console.error(`\n[parity-matrix] summary written to ${matrixPath}`);
 }
 

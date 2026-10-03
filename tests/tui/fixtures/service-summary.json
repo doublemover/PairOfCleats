@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "name": "service-summary",
+  "source_mode": "supervised",
+  "run_id": "fixture-service-summary",
+  "variants": [
+    {
+      "id": "medium-color",
+      "width": 100,
+      "height": 26,
+      "color": true,
+      "unicode": true
+    }
+  ],
+  "steps": [
+    {
+      "event": {
+        "event": "session:attach",
+        "runId": "fixture-service-summary",
+        "mode": "supervised",
+        "source": "local-supervisor",
+        "scope": "service:indexer",
+        "connection": "connected",
+        "note": "service control attached"
+      }
+    },
+    {
+      "event": {
+        "event": "runtime:metrics",
+        "runId": "fixture-service-summary",
+        "flow": {
+          "queueDepth": 7
+        },
+        "workload": {
+          "kind": "service",
+          "service": "indexer",
+          "activeWorkers": 3,
+          "activeJobs": 2,
+          "retryCount": 2,
+          "quarantineState": "repo/docs-42",
+          "shutdownState": "accepting",
+          "queueDepth": 7
+        }
+      }
+    },
+    {
+      "event": {
+        "event": "job:start",
+        "runId": "fixture-service-summary",
+        "jobId": "job-worker-pool",
+        "title": "Indexer Worker Pool"
+      }
+    },
+    {
+      "event": {
+        "event": "task:progress",
+        "runId": "fixture-service-summary",
+        "jobId": "job-worker-pool",
+        "taskId": "dispatch",
+        "status": "running",
+        "message": "dispatching queued jobs"
+      }
+    },
+    {
+      "capture_id": "service-active"
+    }
+  ]
+}

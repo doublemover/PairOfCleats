@@ -114,6 +114,112 @@ function matchesDelimiterAt(text, offset, delimiter, delimiterLength, delimiterF
   return text.startsWith(delimiter, offset);
 }
 
+function createSqlScannerState() {
+  return {
+    inSingle: false,
+    inDouble: false,
+    inLineComment: false,
+    inBlockComment: false,
+    dollarTag: null
+  };
+}
+
+function consumeActiveSqlState(text, index, state, { preserveLineCommentNewline = false, emitDollarQuoteText = false } = {}) {
+  const ch = text[index];
+  const next = text[index + 1];
+
+  if (state.dollarTag) {
+    if (text.startsWith(state.dollarTag, index)) {
+      const emit = emitDollarQuoteText ? state.dollarTag : null;
+      const nextIndex = index + state.dollarTag.length - 1;
+      state.dollarTag = null;
+      return { handled: true, nextIndex, emit };
+    }
+    return { handled: true, nextIndex: index, emit: emitDollarQuoteText ? ch : null };
+  }
+
+  if (state.inLineComment) {
+    if (ch === '\n') {
+      state.inLineComment = false;
+      return { handled: true, nextIndex: index, emit: preserveLineCommentNewline ? ch : null };
+    }
+    return { handled: true, nextIndex: index, emit: null };
+  }
+
+  if (state.inBlockComment) {
+    if (ch === '*' && next === '/') {
+      state.inBlockComment = false;
+      return { handled: true, nextIndex: index + 1, emit: null };
+    }
+    return { handled: true, nextIndex: index, emit: null };
+  }
+
+  return { handled: false, nextIndex: index, emit: null };
+}
+
+function enterSqlCommentState(text, index, state) {
+  if (state.inSingle || state.inDouble) return { handled: false, nextIndex: index };
+
+  const ch = text[index];
+  const next = text[index + 1];
+  if (ch === '-' && next === '-') {
+    state.inLineComment = true;
+    return { handled: true, nextIndex: index + 1 };
+  }
+  if (ch === '/' && next === '*') {
+    state.inBlockComment = true;
+    return { handled: true, nextIndex: index + 1 };
+  }
+  return { handled: false, nextIndex: index };
+}
+
+function advanceSqlQuoteState(text, index, state, { emitQuoteText = false } = {}) {
+  const ch = text[index];
+  const next = text[index + 1];
+
+  if (!state.inDouble && ch === '\'') {
+    if (state.inSingle) {
+      if (next === '\'') {
+        return { handled: true, nextIndex: index + 1, emit: emitQuoteText ? "''" : null };
+      }
+      if (text[index - 1] !== '\\') state.inSingle = false;
+    } else {
+      state.inSingle = true;
+    }
+    return { handled: true, nextIndex: index, emit: emitQuoteText ? ch : null };
+  }
+
+  if (!state.inSingle && ch === '"') {
+    if (state.inDouble) {
+      if (next === '"') {
+        return { handled: true, nextIndex: index + 1, emit: emitQuoteText ? '""' : null };
+      }
+      if (text[index - 1] !== '\\') state.inDouble = false;
+    } else {
+      state.inDouble = true;
+    }
+    return { handled: true, nextIndex: index, emit: emitQuoteText ? ch : null };
+  }
+
+  return { handled: false, nextIndex: index, emit: null };
+}
+
+function enterDollarQuoteState(text, index, state, { emitDollarQuoteText = false } = {}) {
+  if (state.inSingle || state.inDouble || text[index] !== '$') {
+    return { handled: false, nextIndex: index, emit: null };
+  }
+
+  const tag = readDollarTag(text, index);
+  if (!tag) return { handled: false, nextIndex: index, emit: null };
+
+  state.dollarTag = tag;
+  return {
+    handled: true,
+    nextIndex: index + tag.length - 1,
+    emit: emitDollarQuoteText ? tag : null
+  };
+}
+
 /**
  * Split SQL text into statement ranges while honoring:
  * - single/double-quoted strings
@@ -127,54 +233,28 @@ function matchesDelimiterAt(text, offset, delimiter, delimiterLength, delimiterF
 export function splitSqlStatements(text) {
   const statements = [];
   let start = 0;
-  let inSingle = false;
-  let inDouble = false;
-  let inLineComment = false;
-  let inBlockComment = false;
-  let dollarTag = null;
+  const state = createSqlScannerState();
   let delimiter = ';';
   let delimiterLength = delimiter.length;
   let delimiterFirstCode = delimiter.charCodeAt(0);
 
   for (let i = 0; i < text.length; i += 1) {
     const ch = text[i];
-    const next = text[i + 1];
     const lineStart = i === 0 || text[i - 1] === '\n' || text[i - 1] === '\r';
 
-    if (dollarTag) {
-      if (text.startsWith(dollarTag, i)) {
-        i += dollarTag.length - 1;
-        dollarTag = null;
-      }
+    const active = consumeActiveSqlState(text, i, state);
+    if (active.handled) {
+      i = active.nextIndex;
       continue;
     }
 
-    if (inLineComment) {
-      if (ch === '\n') inLineComment = false;
-      continue;
-    }
-    if (inBlockComment) {
-      if (ch === '*' && next === '/') {
-        inBlockComment = false;
-        i += 1;
-      }
+    const comment = enterSqlCommentState(text, i, state);
+    if (comment.handled) {
+      i = comment.nextIndex;
       continue;
     }
 
-    if (!inSingle && !inDouble) {
-      if (ch === '-' && next === '-') {
-        inLineComment = true;
-        i += 1;
-        continue;
-      }
-      if (ch === '/' && next === '*') {
-        inBlockComment = true;
-        i += 1;
-        continue;
-      }
-    }
-
-    if (lineStart && !inSingle && !inDouble) {
+    if (lineStart && !state.inSingle && !state.inDouble) {
       let j = i;
       while (j < text.length) {
         const code = text.charCodeAt(j);
@@ -202,39 +282,13 @@ export function splitSqlStatements(text) {
       }
     }
 
-    if (!inDouble && ch === '\'') {
-      if (inSingle) {
-        if (next === '\'') {
-          i += 1;
-          continue;
-        }
-        if (text[i - 1] !== '\\') {
-          inSingle = false;
-          continue;
-        }
-      } else {
-        inSingle = true;
-        continue;
-      }
+    const quote = advanceSqlQuoteState(text, i, state);
+    if (quote.handled) {
+      i = quote.nextIndex;
+      continue;
     }
 
-    if (!inSingle && ch === '"') {
-      if (inDouble) {
-        if (next === '"') {
-          i += 1;
-          continue;
-        }
-        if (text[i - 1] !== '\\') {
-          inDouble = false;
-          continue;
-        }
-      } else {
-        inDouble = true;
-        continue;
-      }
-    }
-
-    if (!inSingle && !inDouble) {
+    if (!state.inSingle && !state.inDouble) {
       if (matchesDelimiterAt(text, i, delimiter, delimiterLength, delimiterFirstCode)) {
         const end = i + delimiterLength;
         if (hasNonWhitespace(text, start, end)) statements.push({ start, end });
@@ -243,13 +297,10 @@ export function splitSqlStatements(text) {
         continue;
       }
 
-      if (ch === '$') {
-        const tag = readDollarTag(text, i);
-        if (tag) {
-          dollarTag = tag;
-          i += tag.length - 1;
-          continue;
-        }
+      const dollarQuote = enterDollarQuoteState(text, i, state);
+      if (dollarQuote.handled) {
+        i = dollarQuote.nextIndex;
+        continue;
       }
     }
   }
@@ -268,69 +319,40 @@ export function splitSqlStatements(text) {
  */
 export function stripSqlComments(text) {
   const out = [];
-  let inSingle = false;
-  let inDouble = false;
-  let inLineComment = false;
-  let inBlockComment = false;
+  const state = createSqlScannerState();
 
   for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i];
-    const next = text[i + 1];
-
-    if (inLineComment) {
-      if (ch === '\n') {
-        inLineComment = false;
-        out.push(ch);
-      }
+    const active = consumeActiveSqlState(text, i, state, {
+      preserveLineCommentNewline: true,
+      emitDollarQuoteText: true
+    });
+    if (active.handled) {
+      if (active.emit) out.push(active.emit);
+      i = active.nextIndex;
       continue;
     }
 
-    if (inBlockComment) {
-      if (ch === '*' && next === '/') {
-        inBlockComment = false;
-        i += 1;
-      }
+    const dollarQuote = enterDollarQuoteState(text, i, state, { emitDollarQuoteText: true });
+    if (dollarQuote.handled) {
+      out.push(dollarQuote.emit);
+      i = dollarQuote.nextIndex;
       continue;
     }
 
-    if (!inSingle && !inDouble) {
-      if (ch === '-' && next === '-') {
-        inLineComment = true;
-        i += 1;
-        continue;
-      }
-      if (ch === '/' && next === '*') {
-        inBlockComment = true;
-        i += 1;
-        continue;
-      }
+    const comment = enterSqlCommentState(text, i, state);
+    if (comment.handled) {
+      i = comment.nextIndex;
+      continue;
     }
 
-    if (!inDouble && ch === '\'') {
-      if (inSingle) {
-        if (next === '\'') {
-          out.push("''");
-          i += 1;
-          continue;
-        }
-        if (text[i - 1] !== '\\') inSingle = false;
-      } else {
-        inSingle = true;
-      }
-    } else if (!inSingle && ch === '"') {
-      if (inDouble) {
-        if (next === '"') {
-          out.push('""');
-          i += 1;
-          continue;
-        }
-        if (text[i - 1] !== '\\') inDouble = false;
-      } else {
-        inDouble = true;
-      }
+    const quote = advanceSqlQuoteState(text, i, state, { emitQuoteText: true });
+    if (quote.handled) {
+      if (quote.emit) out.push(quote.emit);
+      i = quote.nextIndex;
+      continue;
     }
 
-    out.push(ch);
+    out.push(text[i]);
   }
 
   return out.join('');

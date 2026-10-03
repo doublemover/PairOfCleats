@@ -142,10 +142,34 @@ const renderWarnings = (payload) => renderListSection(
   (entry) => `- ${entry?.code || 'warning'}: ${entry?.message || 'warning emitted'}`
 );
 
+const renderEvidence = (payload) => {
+  const evidence = payload?.evidence && typeof payload.evidence === 'object' ? payload.evidence : null;
+  const lines = ['Evidence'];
+  if (!evidence) {
+    lines.push('- (none)');
+    return lines.join('\n');
+  }
+  lines.push(`Primary: ${evidence.primary?.state || 'unknown'} (${evidence.primary?.source || 'unknown'})`);
+  if (evidence.primary?.truncated === true) {
+    const truncationKinds = [];
+    if (evidence.primary?.truncatedBytes === true) truncationKinds.push('bytes');
+    if (evidence.primary?.truncatedTokens === true) truncationKinds.push('tokens');
+    lines.push(`- primary truncated${truncationKinds.length ? ` (${truncationKinds.join(', ')})` : ''}`);
+  }
+  if (evidence.types?.included === true) {
+    lines.push(`Types: ${evidence.types?.state || 'unknown'} (count=${evidence.types?.count ?? 0})`);
+  }
+  if (evidence.policy?.strictEvidence === true) {
+    lines.push('- strict evidence policy enabled');
+  }
+  return lines.join('\n');
+};
+
 export const renderCompositeContextPackJson = (payload) => ({
   ...payload,
   rendered: {
     risk: renderRiskJson(payload),
+    evidence: payload?.evidence || null,
     sarif: renderRiskSarif(payload),
     truncation: Array.isArray(payload?.truncation) ? payload.truncation.slice() : [],
     warnings: Array.isArray(payload?.warnings) ? payload.warnings.slice() : []
@@ -164,6 +188,7 @@ export const renderCompositeContextPack = (payload) => {
   if (payload?.risk) {
     sections.push(renderRiskSection(payload));
   }
+  sections.push(renderEvidence(payload));
   sections.push(renderTruncation(payload));
   sections.push(renderWarnings(payload));
   return sections.filter(Boolean).join('\n\n');

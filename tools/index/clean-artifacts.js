@@ -3,7 +3,11 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { getEnvConfig } from '../../src/shared/env.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
+import { isRootPath } from '../../src/shared/file-paths.js';
+import { isPathUnderDir } from '../../src/shared/path-normalize.js';
+import { assertSafeCacheDeletion } from '../../src/shared/cache-deletion.js';
+import { getCacheRootBase } from '../../src/shared/cache-roots.js';
 import {
   getCacheRoot,
   getRepoCacheRoot,
@@ -12,13 +16,13 @@ import {
   resolveRepoConfig,
   resolveSqlitePaths
 } from '../shared/dict-utils.js';
-import { isInside, isRootPath } from '../shared/path-utils.js';
 
 const argv = createCli({
   scriptName: 'clean-artifacts',
   options: {
     all: { type: 'boolean', default: false },
     'dry-run': { type: 'boolean', default: false },
+    'allow-unmarked-cache': { type: 'boolean', default: false },
     repo: { type: 'string' }
   }
 }).parse();
@@ -52,13 +56,13 @@ const usesDefaultDir = sqlitePaths.codePath === defaultCodePath
 
 if (usesDefaultDir) {
   const anyExists = sqliteFiles.some((filePath) => fs.existsSync(filePath));
-  if (anyExists && !isInside(base, path.resolve(defaultSqliteDir))) {
+  if (anyExists && !isPathUnderDir(base, path.resolve(defaultSqliteDir))) {
     targets.push(defaultSqliteDir);
   }
 } else {
   for (const filePath of sqliteFiles) {
     if (!fs.existsSync(filePath)) continue;
-    if (!isInside(base, path.resolve(filePath))) {
+    if (!isPathUnderDir(base, path.resolve(filePath))) {
       targets.push(filePath);
     }
   }
@@ -66,24 +70,31 @@ if (usesDefaultDir) {
 
 if (fs.existsSync(sqlitePaths.legacyPath)) {
   const legacyTarget = sqlitePaths.legacyPath === defaultLegacyPath ? defaultSqliteDir : sqlitePaths.legacyPath;
-  if (!isInside(base, path.resolve(legacyTarget))) {
+  if (!isPathUnderDir(base, path.resolve(legacyTarget))) {
     targets.push(legacyTarget);
   }
 }
 
-if (fs.existsSync(legacyRepoSqliteDir) && !isInside(base, path.resolve(legacyRepoSqliteDir))) {
+if (fs.existsSync(legacyRepoSqliteDir) && !isPathUnderDir(base, path.resolve(legacyRepoSqliteDir))) {
   targets.push(legacyRepoSqliteDir);
 }
 
 const lmdbDirs = [lmdbPaths.codePath, lmdbPaths.prosePath];
 for (const dir of lmdbDirs) {
   if (!dir || !fs.existsSync(dir)) continue;
-  if (!isInside(base, path.resolve(dir))) {
+  if (!isPathUnderDir(base, path.resolve(dir))) {
     targets.push(dir);
   }
 }
 
 const uniqueTargets = Array.from(new Set(targets.map((target) => path.resolve(target))));
+const authorizedRoots = [getCacheRootBase(), getCacheRoot(), envConfig.cacheRoot, userConfig.cache?.root];
+const deletionPolicy = { allowUnmarked: argv['allow-unmarked-cache'] === true || argv['dry-run'] === true };
+// The fixed legacy directory is the only repository-local cleanup authority.
+authorizedRoots.push(legacyRepoSqliteDir);
+for (const target of uniqueTargets) {
+  if (fs.existsSync(target)) assertSafeCacheDeletion(target, authorizedRoots, deletionPolicy);
+}
 for (const target of uniqueTargets) {
   if (!fs.existsSync(target)) {
     console.error(`skip: ${target} (missing)`);
@@ -99,6 +110,7 @@ for (const target of uniqueTargets) {
     continue;
   }
 
+  assertSafeCacheDeletion(target, authorizedRoots, deletionPolicy);
   await fsPromises.rm(target, { recursive: true, force: true });
   console.error(`deleted: ${path.resolve(target)}`);
 }

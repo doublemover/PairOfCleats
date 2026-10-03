@@ -3,7 +3,26 @@ import { smartChunk } from '../chunking.js';
 import { buildLanguageContext } from '../language-registry.js';
 import { resolveSpecialCodeExt } from '../constants.js';
 import { readTextFile } from '../../shared/encoding.js';
-import { fileExt, toPosix } from '../../shared/files.js';
+import { fileExt, toPosix } from '../../shared/file-paths.js';
+
+/** Keep the same lexicographically first 20 files without sorting/copying all paths. */
+export const selectContextWindowSample = (files) => {
+  const selected = [];
+  if (!Array.isArray(files)) return selected;
+  for (const file of files) {
+    if (selected.length === 20 && file >= selected[19]) continue;
+    let lower = 0;
+    let upper = selected.length;
+    while (lower < upper) {
+      const middle = lower + Math.floor((upper - lower) / 2);
+      if (selected[middle] <= file) lower = middle + 1;
+      else upper = middle;
+    }
+    selected.splice(lower, 0, file);
+    if (selected.length > 20) selected.pop();
+  }
+  return selected;
+};
 
 /**
  * Estimate context window size from sampled chunk lengths.
@@ -24,8 +43,8 @@ export async function estimateContextWindow({ files, root, mode, languageOptions
     }
     : { treeSitter: { enabled: false } };
   const sampleChunkLens = [];
-  const ordered = Array.isArray(files) ? [...files].sort() : [];
-  for (let i = 0; i < Math.min(20, ordered.length); ++i) {
+  const ordered = selectContextWindowSample(files);
+  for (let i = 0; i < ordered.length; ++i) {
     try {
       const { text } = await readTextFile(ordered[i]);
       const relSample = path.relative(root, ordered[i]);

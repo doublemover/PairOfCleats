@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { createBuildScheduler } from '../../../src/shared/concurrency.js';
+import { createBuildScheduler } from '../../../src/shared/concurrency/scheduler-core.js';
 
 let nowMs = 0;
 let sampledFdPressure = 1;

@@ -2,7 +2,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
-import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonLinesSharded } from '../../../src/shared/json-stream/jsonl-sharded.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import {
   prepareArtifactIoTestDir,
   writePiecesManifest

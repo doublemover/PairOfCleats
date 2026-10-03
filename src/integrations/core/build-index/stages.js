@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
-import { acquireIndexLock, attachIndexLockSignalCleanup } from '../../../index/build/lock.js';
 import { preprocessFiles, writePreprocessStats } from '../../../index/build/preprocess.js';
 import { buildIndexForMode } from '../../../index/build/indexer.js';
 import { SIGNATURE_VERSION } from '../../../index/build/indexer/signatures.js';
@@ -14,20 +13,24 @@ import {
 } from '../../../index/build/build-state.js';
 import { promoteBuild } from '../../../index/build/promotion.js';
 import { validateIndexArtifacts } from '../../../index/validate.js';
-import { logError as defaultLogError, logLine, showProgress } from '../../../shared/progress.js';
+import { logError as defaultLogError, logLine, showProgress } from '../../../shared/progress-runtime.js';
 import { coerceAbortSignal, isAbortError, throwIfAborted } from '../../../shared/abort.js';
-import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
+import { getEnvConfig } from '../../../shared/env/runtime.js';
+import { isTestingEnv } from '../../../shared/env/testing.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../index/build/runtime/scheduler.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../../index/build/feature-metrics.js';
 import { runBuildCleanupWithTimeout } from '../../../index/build/cleanup-timeout.js';
-import { releaseFileLockOrThrow } from '../../../shared/locks/file-lock.js';
 import {
-  getCacheRoot,
+  BUILD_ROOT_RESOLUTION_FAILURES,
   getCurrentBuildInfo,
   getIndexDir,
+  resolveCurrentBuildModeRoot
+} from '../../../shared/repo-paths.js';
+import {
+  getCacheRoot,
   getMetricsDir,
   getToolVersion
-} from '../../../../tools/shared/dict-utils.js';
+} from '../../../shared/dict-utils.js';
 import { ensureQueueDir, enqueueJob } from '../../../../tools/service/queue.js';
 import { buildSqliteIndex } from './sqlite.js';
 import { computeCompatibilityKey } from './compatibility.js';
@@ -56,20 +59,44 @@ const BUILD_INDEX_LOCK_POLL_MS = Math.max(
   )
 );
 
+let buildLockModulePromise = null;
+let buildLockModule = null;
+
+const loadBuildLockModule = async () => {
+  if (buildLockModule) return buildLockModule;
+  buildLockModulePromise ??= import('../../../index/build/lock.js');
+  buildLockModule = await buildLockModulePromise;
+  return buildLockModule;
+};
+
+const acquireIndexLock = async (options) => {
+  const lockModule = await loadBuildLockModule();
+  return lockModule.acquireIndexLock(options);
+};
+
+const attachIndexLockSignalCleanup = (lock, options) => {
+  if (!buildLockModule) return () => {};
+  return buildLockModule.attachIndexLockSignalCleanup(lock, options);
+};
+
 /**
  * Acquire the build/index global lock using environment-configured wait/poll.
  *
  * Throws when the lock cannot be obtained within configured wait time so
  * callers can fail fast before mutating current build pointers.
  *
- * @param {{repoCacheRoot:string,log:(line:string)=>void}} input
+ * @param {{repoCacheRoot:string,log:(line:string)=>void,metadata?:object|null}} input
  * @returns {Promise<{release:()=>Promise<void>}>}
  */
-const acquireBuildIndexLock = async ({ repoCacheRoot, log }) => {
+const acquireBuildIndexLock = async ({ repoCacheRoot, log, metadata = null }) => {
   const lock = await acquireIndexLock({
     repoCacheRoot,
     waitMs: BUILD_INDEX_LOCK_WAIT_MS,
     pollMs: BUILD_INDEX_LOCK_POLL_MS,
+    metadata: {
+      owner: 'build-index',
+      ...(metadata && typeof metadata === 'object' ? metadata : {})
+    },
     log
   });
   if (lock) return lock;
@@ -77,6 +104,16 @@ const acquireBuildIndexLock = async ({ repoCacheRoot, log }) => {
     log(`[build] Index lock unavailable after waiting ${BUILD_INDEX_LOCK_WAIT_MS}ms.`);
   }
   throw new Error('Index lock unavailable.');
+};
+
+const createBuildRootResolutionError = (message, failureClass, context = null) => {
+  const error = new Error(message);
+  error.code = 'ERR_BUILD_ROOT_RESOLUTION_FAILED';
+  error.failureClass = failureClass || BUILD_ROOT_RESOLUTION_FAILURES.missingCurrentBuild;
+  if (context && typeof context === 'object') {
+    error.context = context;
+  }
+  return error;
 };
 
 /**
@@ -156,7 +193,13 @@ export const runEmbeddingsStage = async ({
       modeIndexRootCache.set(mode, resolved);
       return resolved;
     };
-    const lock = await acquireBuildIndexLock({ repoCacheRoot, log });
+    const lock = await acquireBuildIndexLock({
+      repoCacheRoot,
+      log,
+      metadata: {
+        operation: 'stage3-embeddings'
+      }
+    });
     const detachSignalCleanup = attachIndexLockSignalCleanup(lock);
     try {
       throwIfAborted(effectiveAbortSignal);
@@ -330,7 +373,7 @@ export const runEmbeddingsStage = async ({
       detachSignalCleanup();
       await runBuildCleanupWithTimeout({
         label: 'stage3.lock.release',
-        cleanup: () => releaseFileLockOrThrow(lock),
+        cleanup: () => lock.release(),
         log,
         swallowTimeout: false
       });
@@ -408,6 +451,7 @@ export const runSqliteStage = async ({
   log,
   abortSignal,
   recordIndexMetric,
+  observability = null,
   options,
   sqliteLogger
 }) => {
@@ -429,19 +473,28 @@ export const runSqliteStage = async ({
     const buildInfo = explicitIndexRoot
       ? null
       : getCurrentBuildInfo(root, userConfig, { mode: sqliteModes[0] || null });
-    if (!explicitIndexRoot && !buildInfo?.buildRoot) {
-      throw new Error('Missing current build for SQLite stage. Run stage2 first or pass --index-root.');
+    const runtimeIndexResolution = resolveCurrentBuildModeRoot(root, userConfig, {
+      mode: sqliteModes[0] || null,
+      indexRoot: explicitIndexRoot,
+      buildInfo,
+      requireArtifacts: !explicitIndexRoot,
+      disallowRepoRootFallback: !explicitIndexRoot
+    });
+    if (!runtimeIndexResolution.ok || !runtimeIndexResolution.root) {
+      throw createBuildRootResolutionError(
+        'Missing current build for SQLite stage. Run stage2 first or pass --index-root.',
+        runtimeIndexResolution.errorCode,
+        runtimeIndexResolution.context
+      );
     }
-    const runtimeIndexRoot = explicitIndexRoot
-      || buildInfo?.buildRoots?.[sqliteModes[0]]
-      || buildInfo?.buildRoot
-      || null;
+    const runtimeIndexRoot = runtimeIndexResolution.root;
     runtime = await createBuildRuntime({
       root,
       argv: { ...argv, stage: 'stage4' },
       rawArgv,
       policy,
-      indexRoot: runtimeIndexRoot
+      indexRoot: runtimeIndexRoot,
+      observability
     });
     const scheduleSqlite = (fn) => (runtime?.scheduler?.schedule
       ? runtime.scheduler.schedule(
@@ -468,14 +521,22 @@ export const runSqliteStage = async ({
       const sqliteModeList = resolveSqliteModeList(sqliteModes);
       for (const mode of sqliteModeList) {
         throwIfAborted(effectiveAbortSignal);
-        const indexRoot = explicitIndexRoot
-          || buildInfo?.buildRoots?.[mode]
-          || buildInfo?.buildRoot
-          || runtime?.buildRoot
-          || null;
-        if (!indexRoot) {
-          throw new Error(`Missing index root for SQLite stage (mode=${mode}).`);
+        const indexRootResolution = resolveCurrentBuildModeRoot(root, userConfig, {
+          mode,
+          indexRoot: explicitIndexRoot,
+          buildInfo,
+          runtimeBuildRoot: runtime?.buildRoot || null,
+          requireArtifacts: !explicitIndexRoot,
+          disallowRepoRootFallback: !explicitIndexRoot
+        });
+        if (!indexRootResolution.ok || !indexRootResolution.root) {
+          throw createBuildRootResolutionError(
+            `Missing index root for SQLite stage (mode=${mode}).`,
+            indexRootResolution.errorCode,
+            indexRootResolution.context
+          );
         }
+        const indexRoot = indexRootResolution.root;
         const sqliteDirs = resolveSqliteDirs(indexRoot);
         sqliteResult = await scheduleSqlite(() => buildSqliteIndex(root, {
           mode,
@@ -498,7 +559,13 @@ export const runSqliteStage = async ({
       await updateBuildState(runtime.buildRoot, { stage: 'stage4' });
       const shouldPromote = !(explicitIndexRoot && argv.stage === 'stage4');
       if (shouldPromote) {
-        lock = await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
+        lock = await acquireBuildIndexLock({
+          repoCacheRoot: runtime.repoCacheRoot,
+          log,
+          metadata: {
+            operation: 'stage4-promote'
+          }
+        });
         detachLockSignalCleanup = attachIndexLockSignalCleanup(lock);
         await markBuildPhase(runtime.buildRoot, 'promote', 'running');
         promoteRunning = true;
@@ -547,7 +614,7 @@ export const runSqliteStage = async ({
       if (lock?.release) {
         await runBuildCleanupWithTimeout({
           label: 'stage4.lock.release',
-          cleanup: () => releaseFileLockOrThrow(lock),
+          cleanup: () => lock.release(),
           log,
           swallowTimeout: false
         });
@@ -622,7 +689,13 @@ export const runStage = async (
   let result = null;
   try {
     throwIfAborted(effectiveAbortSignal);
-    runtime = await createBuildRuntime({ root, argv: stageArgv, rawArgv, policy });
+    runtime = await createBuildRuntime({
+      root,
+      argv: stageArgv,
+      rawArgv,
+      policy,
+      observability: context?.observability || null
+    });
     phaseStage = runtime.stage || phaseStage;
     runtime.featureMetrics = createFeatureMetrics({
       buildId: runtime.buildId,
@@ -867,9 +940,9 @@ export const runStage = async (
             });
           }
           if (validation.warnings?.length) {
-            logLine('[warn] Index validation warnings (first 10):');
+            logLine('Index validation warnings (first 10):', { kind: 'warning' });
             validation.warnings.slice(0, 10).forEach((warning) => {
-              logLine(`[warn] - ${warning}`);
+              logLine(`- ${warning}`, { kind: 'warning' });
             });
           }
         }
@@ -878,7 +951,13 @@ export const runStage = async (
       await markBuildPhase(runtime.buildRoot, 'validation', 'done');
       validationDone = true;
       throwIfAborted(effectiveAbortSignal);
-      lock = await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
+      lock = await acquireBuildIndexLock({
+        repoCacheRoot: runtime.repoCacheRoot,
+        log,
+        metadata: {
+          operation: `${phaseStage}-promote`
+        }
+      });
       detachLockSignalCleanup = attachIndexLockSignalCleanup(lock);
       await markBuildPhase(runtime.buildRoot, 'promote', 'running');
       promoteRunning = true;
@@ -949,7 +1028,7 @@ export const runStage = async (
           if (!lock?.release) return null;
           const releaseResult = await runBuildCleanupWithTimeout({
             label: `${phaseStage}.lock.release`,
-            cleanup: () => releaseFileLockOrThrow(lock),
+            cleanup: () => lock.release(),
             log,
             swallowTimeout: false
           });

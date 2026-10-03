@@ -72,4 +72,31 @@ assert.equal(
   'expected default estimate threshold to force JSONL for ~1MB+ payloads'
 );
 
+const oversizedBinaryPlan = resolveChunkMetaPlan({
+  chunks: Array.from({ length: largeCount, }, (_, i) => ({ id: i })),
+  chunkMetaIterator: buildIterator({ count: largeCount, payloadSize: 600_000 }),
+  artifactMode: 'auto',
+  chunkMetaFormatConfig: null,
+  chunkMetaStreaming: true,
+  chunkMetaBinaryColumnar: true,
+  chunkMetaBinaryColumnarMaxBytes: 64 * 1024 * 1024,
+  chunkMetaJsonlThreshold: 200000,
+  chunkMetaShardSize: 100,
+  chunkMetaJsonlEstimateThresholdBytes: 8 * 1024 * 1024,
+  maxJsonBytes: 32 * 1024 * 1024
+});
+
+assert.equal(oversizedBinaryPlan.chunkMetaUseJsonl, true, 'expected oversized binary test plan to use JSONL');
+assert.equal(oversizedBinaryPlan.chunkMetaUseShards, true, 'expected oversized binary test plan to require sharding');
+assert.equal(
+  oversizedBinaryPlan.chunkMetaBinaryColumnar,
+  false,
+  'expected oversized sharded chunk_meta plans to disable optional binary-columnar output'
+);
+assert.match(
+  String(oversizedBinaryPlan.chunkMetaBinaryColumnarDisabledReason || ''),
+  /exceeds binary-columnar max/i,
+  'expected disable reason for oversized binary-columnar output'
+);
+
 console.log('chunk_meta plan estimate threshold test passed');

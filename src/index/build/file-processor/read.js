@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveSpecialCodeExt } from '../../constants.js';
-import { fileExt } from '../../../shared/files.js';
+import { fileExt } from '../../../shared/file-paths.js';
 import { decodeTextBuffer } from '../../../shared/encoding.js';
 import { pickMinLimit } from '../runtime/limits.js';
 import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
@@ -84,7 +84,7 @@ export const readTextFileWithStreamingCap = async ({
   const cap = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
   if (!cap) {
     const buffer = await fs.readFile(absPath);
-    const decoded = decodeTextBuffer(buffer);
+    const decoded = decodeTextBuffer(buffer, { filePath: absPath });
     return {
       ...decoded,
       buffer,
@@ -112,7 +112,7 @@ export const readTextFileWithStreamingCap = async ({
       if (bytesRead < nextSize) break;
     }
     const buffer = buffers.length === 1 ? buffers[0] : Buffer.concat(buffers, total);
-    const decoded = decodeTextBuffer(buffer);
+    const decoded = decodeTextBuffer(buffer, { filePath: absPath });
     let truncated = false;
     if (total >= cap) {
       if (Number.isFinite(stat?.size)) {

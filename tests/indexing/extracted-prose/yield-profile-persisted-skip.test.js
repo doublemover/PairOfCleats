@@ -3,31 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
+  findFileByName,
   inspectExtractedProseState,
   readExtractedProseArtifacts,
   runExtractedProseBuild,
   setupExtractedProseFixture
 } from '../../helpers/extracted-prose-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
-
-const findFileByName = async (root, targetName) => {
-  const queue = [root];
-  while (queue.length) {
-    const current = queue.shift();
-    const entries = await fs.readdir(current, { withFileTypes: true });
-    for (const entry of entries) {
-      const abs = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        queue.push(abs);
-        continue;
-      }
-      if (entry.isFile() && entry.name === targetName) {
-        return abs;
-      }
-    }
-  }
-  return null;
-};
 
 const { root, repoRoot, cacheRoot, docsDir } = await setupExtractedProseFixture(
   'phase17-yield-profile-persisted-skip'
@@ -80,6 +62,8 @@ const profileEntries = Object.values(profile?.entries || {});
 assert.ok(profileEntries.length >= 1, 'expected at least one persisted yield profile entry');
 const jsFamilyEntry = profileEntries.find((entry) => entry?.families?.['.js|src']);
 assert.ok(jsFamilyEntry, 'expected persisted .js|src family profile entry');
+assert.ok(jsFamilyEntry?.cohorts?.['code-comment-heavy'], 'expected persisted cohort profile entry');
+assert.ok(jsFamilyEntry?.fingerprint && typeof jsFamilyEntry.fingerprint === 'object', 'expected persisted repo fingerprint');
 assert.ok(
   Number(jsFamilyEntry?.families?.['.js|src']?.observedFiles) >= 3,
   'expected persisted .js|src observed file count'

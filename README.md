@@ -570,6 +570,8 @@ Relative to the core engine:
 
 Those are maturity differences inside a codebase that is still unusually serious in its fundamentals.
 
+For current roadmap status, remaining work, and execution order, use `docs/roadmap.md`.
+
 ## Project Layout
 
 High-level structure:

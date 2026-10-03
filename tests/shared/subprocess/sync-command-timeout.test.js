@@ -4,7 +4,7 @@ import {
   isSyncCommandTimedOut,
   runSyncCommandWithTimeout,
   toSyncCommandExitCode
-} from '../../../src/shared/subprocess.js';
+} from '../../../src/shared/subprocess/sync-command.js';
 
 const startedAt = Date.now();
 const result = runSyncCommandWithTimeout(

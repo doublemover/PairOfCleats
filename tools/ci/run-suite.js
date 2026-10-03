@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
-import fsSync from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
-import { getEnvConfig } from '../../src/shared/env.js';
-import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
+import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { resolveLocalToolingBinDirs } from '../../src/shared/tooling-bin-dirs.js';
 import { getRuntimeConfig, getToolingDir, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
 import { buildTestRuntimeEnv, normalizeEnvPathKeys, prependPathEntries } from '../tooling/utils.js';
@@ -163,21 +163,35 @@ const main = async () => {
   const diagnosticsDir = path.resolve(argv.diagnostics);
   const junitPath = path.resolve(argv.junit);
   const logDir = path.resolve(argv['log-dir']);
+  const testSummaryPath = path.join(diagnosticsDir, 'test-summary.json');
+  const testTimingsPath = path.join(diagnosticsDir, 'test-timings.json');
+  const testProfilePath = path.join(diagnosticsDir, 'test-profile.json');
+  const testStabilityPath = path.join(diagnosticsDir, 'test-stability.json');
+  const testStabilityHistoryDir = path.join(logDir, 'stability-history', baseLane);
+  const coverageDir = path.join(diagnosticsDir, 'coverage');
+  const coveragePath = path.join(coverageDir, `test-coverage-${mode}.json`);
+  const coveragePolicyPath = path.join(coverageDir, `coverage-policy-${mode}.json`);
+  const coveragePolicyMarkdownPath = path.join(coverageDir, `coverage-policy-${mode}.md`);
   if (!env.PAIROFCLEATS_TEST_LOG_DIR) {
     env.PAIROFCLEATS_TEST_LOG_DIR = logDir;
   }
   const capabilityJson = path.join(diagnosticsDir, 'capabilities.json');
   const toolingDoctorJson = path.join(diagnosticsDir, 'tooling-doctor-gate.json');
   const toolingLspSloJson = path.join(diagnosticsDir, 'tooling-lsp-slo-gate.json');
+  const toolingLspReplayJson = path.join(diagnosticsDir, 'tooling-lsp-replay-gate.json');
   const toolingLspDefaultEnableJson = path.join(diagnosticsDir, 'tooling-lsp-default-enable-gate.json');
   const toolingLspGuardrailJson = path.join(diagnosticsDir, 'tooling-lsp-guardrail.json');
   const importResolutionSloJson = path.join(diagnosticsDir, 'import-resolution-slo-gate.json');
+  const toolingLspSloBaseline = String(env.PAIROFCLEATS_TOOLING_LSP_SLO_BASELINE || '').trim();
+  const toolingLspReplayBaseline = String(env.PAIROFCLEATS_TOOLING_LSP_REPLAY_BASELINE || '').trim();
+  const toolingLspGuardrailBaseline = String(env.PAIROFCLEATS_TOOLING_LSP_GUARDRAIL_BASELINE || '').trim();
   validateUsrGuardrailGates();
 
   if (!argv['dry-run']) {
     await ensureDir(path.dirname(junitPath));
     await ensureDir(diagnosticsDir);
     await ensureDir(logDir);
+    await ensureDir(coverageDir);
     if (env.PAIROFCLEATS_CACHE_ROOT) {
       await ensureDir(env.PAIROFCLEATS_CACHE_ROOT);
     }
@@ -201,7 +215,9 @@ const main = async () => {
     : [
       { label: 'Lint', command: npmCommand, args: [...npmPrefix, 'run', 'lint'] },
       { label: 'Config budget', command: npmCommand, args: [...npmPrefix, 'run', 'config:budget'] },
-      { label: 'Env usage guardrail', command: npmCommand, args: [...npmPrefix, 'run', 'env:check'] }
+      { label: 'Env usage guardrail', command: npmCommand, args: [...npmPrefix, 'run', 'env:check'] },
+      { label: 'Command surface audit', command: process.execPath, args: ['tools/ci/check-command-surface.js'] },
+      { label: 'Lane governance audit', command: process.execPath, args: ['tools/testing/lane-audit.js'] }
     ];
 
   const steps = [
@@ -226,7 +242,18 @@ const main = async () => {
         '--doctor',
         toolingDoctorJson,
         '--json',
-        toolingLspSloJson
+        toolingLspSloJson,
+        ...(toolingLspSloBaseline ? ['--baseline', toolingLspSloBaseline] : [])
+      ]
+    },
+    {
+      label: 'Tooling LSP replay gate',
+      command: process.execPath,
+      args: [
+        'tools/ci/tooling-lsp-replay-gate.js',
+        '--json',
+        toolingLspReplayJson,
+        ...(toolingLspReplayBaseline ? ['--baseline', toolingLspReplayBaseline] : [])
       ]
     },
     {
@@ -252,7 +279,8 @@ const main = async () => {
         '--report',
         toolingLspSloJson,
         '--json',
-        toolingLspGuardrailJson
+        toolingLspGuardrailJson,
+        ...(toolingLspGuardrailBaseline ? ['--baseline', toolingLspGuardrailBaseline] : [])
       ]
     },
     ...buildUsrGateSteps(diagnosticsDir),
@@ -270,6 +298,18 @@ const main = async () => {
         '600000',
         '--junit',
         junitPath,
+        '--report-file',
+        testSummaryPath,
+        '--timings-file',
+        testTimingsPath,
+        '--stability-file',
+        testStabilityPath,
+        '--stability-history-dir',
+        testStabilityHistoryDir,
+        '--profile',
+        testProfilePath,
+        '--coverage',
+        coveragePath,
         '--log-dir',
         logDir
       ]
@@ -291,6 +331,40 @@ const main = async () => {
         '5'
       ]
     },
+    {
+      label: 'Coverage policy report',
+      command: process.execPath,
+      args: [
+        'tools/ci/coverage-policy-report.js',
+        '--root',
+        ROOT,
+        '--coverage',
+        coveragePath,
+        '--out',
+        coveragePolicyPath,
+        '--markdown',
+        coveragePolicyMarkdownPath,
+        '--mode',
+        mode
+      ]
+    },
+    ...(mode === 'nightly'
+      ? [{
+        label: 'Operational soak and recovery suites',
+        command: process.execPath,
+        args: [
+          'tests/run.js',
+          '--lane',
+          'ci-long',
+          '--match',
+          'services/soak/operational-recovery',
+          '--timeout-ms',
+          '600000',
+          '--log-dir',
+          logDir
+        ]
+      }]
+      : []),
     ...(mode === 'nightly'
       ? [{
         label: 'Bench harness (sweet16-ci)',
@@ -326,24 +400,7 @@ const main = async () => {
   }
 };
 
-const isDirectExecution = () => {
-  const normalizeForCompare = (value) => {
-    if (!value) return null;
-    let canonical = null;
-    try {
-      canonical = fsSync.realpathSync.native(value);
-    } catch {
-      canonical = path.resolve(value);
-    }
-    if (!canonical) return null;
-    return process.platform === 'win32' ? canonical.toLowerCase() : canonical;
-  };
-  const entry = process.argv[1];
-  if (!entry) return false;
-  return normalizeForCompare(entry) === normalizeForCompare(fileURLToPath(import.meta.url));
-};
-
-if (isDirectExecution()) {
+if (isDirectExecution(import.meta.url)) {
   main().catch((err) => {
     console.error(err?.message || err);
     process.exit(1);

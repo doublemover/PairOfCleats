@@ -1,7 +1,11 @@
 import {
+  buildPartialRiskFlowNarrativeList,
+  buildPartialRiskFlowSelection,
+  buildRiskFlowNarrativeList,
+  buildRiskFlowSelection,
   buildRiskExplanationModelFromRiskSlice,
   buildRiskExplanationModelFromStandalone
-} from '../../shared/risk-explain.js';
+} from '../../shared/risk-explain-model.js';
 import { renderRiskExplanationSarif } from './risk-sarif.js';
 
 export const RISK_EXPLANATION_SURFACE_OPTIONS = Object.freeze({
@@ -48,110 +52,6 @@ export const getRiskExplanationSurfaceOptions = (surface = 'standalone', overrid
   };
 };
 
-const formatNodeRef = (ref) => {
-  if (!ref || typeof ref !== 'object') return 'unknown';
-  if (ref.type === 'chunk') return `chunk:${ref.chunkUid}`;
-  if (ref.type === 'symbol') return `symbol:${ref.symbolId}`;
-  if (ref.type === 'file') return `file:${ref.path}`;
-  if (ref.status) {
-    const target = ref.targetName ? ` ${ref.targetName}` : '';
-    return `ref:${ref.status}${target}`;
-  }
-  return 'unknown';
-};
-
-const formatPath = (pathValue) => {
-  if (!pathValue || typeof pathValue !== 'object') return '';
-  if (Array.isArray(pathValue.nodes) && pathValue.nodes.length) {
-    return pathValue.nodes.map(formatNodeRef).join(' -> ');
-  }
-  if (Array.isArray(pathValue.labels) && pathValue.labels.length) {
-    return pathValue.labels.join(' -> ');
-  }
-  return '';
-};
-
-const formatCallSiteDetails = (site) => {
-  if (!site || typeof site !== 'object') return '';
-  const file = site.file || 'unknown-file';
-  const loc = Number.isFinite(site.startLine)
-    ? `${site.startLine}:${Number.isFinite(site.startCol) ? site.startCol : 1}`
-    : '?:?';
-  const callee = site.calleeNormalized || site.calleeRaw || 'call';
-  const args = Array.isArray(site.args) && site.args.length ? `(${site.args.join(', ')})` : '';
-  const invocation = `${callee}${args}`;
-  const excerptText = typeof site.excerpt === 'string' ? site.excerpt.replace(/\s+/g, ' ').trim() : '';
-  const excerpt = excerptText && excerptText !== invocation ? ` | ${excerptText}` : '';
-  return `${file}:${loc} ${invocation}${excerpt}`;
-};
-
-const collectCallSiteStepEvidence = (flow, maxEvidencePerFlow) => {
-  const detailedSteps = Array.isArray(flow?.evidence?.callSitesByStep)
-    ? flow.evidence.callSitesByStep
-    : Array.isArray(flow?.callSitesByStep)
-      ? flow.callSitesByStep
-      : [];
-  if (detailedSteps.length) {
-    return detailedSteps.map((step, index) => {
-      const rendered = (Array.isArray(step) ? step : [])
-        .slice(0, maxEvidencePerFlow)
-        .map((entry) => {
-          if (entry?.details) return formatCallSiteDetails(entry.details);
-          if (entry?.callSiteId) return entry.callSiteId;
-          return '';
-        })
-        .filter(Boolean);
-      return rendered.length ? { index, rendered } : null;
-    }).filter(Boolean);
-  }
-  const rawSteps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
-  return rawSteps.map((step, index) => {
-    const rendered = (Array.isArray(step) ? step : [])
-      .slice(0, maxEvidencePerFlow)
-      .filter(Boolean);
-    return rendered.length ? { index, rendered } : null;
-  }).filter(Boolean);
-};
-
-const normalizeWatchWindow = (entry) => {
-  if (!entry || typeof entry !== 'object') return null;
-  return {
-    taintIn: Array.isArray(entry.taintIn) ? entry.taintIn.filter(Boolean) : [],
-    taintOut: Array.isArray(entry.taintOut) ? entry.taintOut.filter(Boolean) : [],
-    propagatedArgIndices: Array.isArray(entry.propagatedArgIndices)
-      ? entry.propagatedArgIndices.filter((value) => Number.isFinite(value))
-      : [],
-    boundParams: Array.isArray(entry.boundParams) ? entry.boundParams.filter(Boolean) : [],
-    calleeNormalized: entry.calleeNormalized || null,
-    semanticIds: Array.isArray(entry.semanticIds) ? entry.semanticIds.filter(Boolean) : [],
-    semanticKinds: Array.isArray(entry.semanticKinds) ? entry.semanticKinds.filter(Boolean) : [],
-    sanitizerPolicy: entry.sanitizerPolicy || null,
-    sanitizerBarrierApplied: entry.sanitizerBarrierApplied === true,
-    sanitizerBarriersBefore: Number.isFinite(entry.sanitizerBarriersBefore) ? entry.sanitizerBarriersBefore : null,
-    sanitizerBarriersAfter: Number.isFinite(entry.sanitizerBarriersAfter) ? entry.sanitizerBarriersAfter : null,
-    confidenceBefore: Number.isFinite(entry.confidenceBefore) ? entry.confidenceBefore : null,
-    confidenceAfter: Number.isFinite(entry.confidenceAfter) ? entry.confidenceAfter : null,
-    confidenceDelta: Number.isFinite(entry.confidenceDelta) ? entry.confidenceDelta : null
-  };
-};
-
-const buildNarrativeSteps = (flow, maxEvidencePerFlow) => {
-  const stepEvidence = collectCallSiteStepEvidence(flow, maxEvidencePerFlow);
-  const evidenceByIndex = new Map(stepEvidence.map((step) => [step.index, step]));
-  const rawWatchSteps = Array.isArray(flow?.path?.watchByStep) ? flow.path.watchByStep : [];
-  const stepCount = Math.max(stepEvidence.length ? Math.max(...stepEvidence.map((step) => step.index + 1)) : 0, rawWatchSteps.length);
-  return Array.from({ length: stepCount }, (_, index) => {
-    const evidence = evidenceByIndex.get(index);
-    const watchWindow = normalizeWatchWindow(rawWatchSteps[index]);
-    if (!evidence && !watchWindow) return null;
-    return {
-      step: index + 1,
-      evidence: evidence ? evidence.rendered.slice() : [],
-      watchWindow
-    };
-  }).filter(Boolean);
-};
-
 const formatWatchWindowMarkdown = (watchWindow) => {
   if (!watchWindow) return '';
   const parts = [];
@@ -183,44 +83,13 @@ const formatWatchWindowMarkdown = (watchWindow) => {
   return parts.join('; ');
 };
 
-const buildPartialFlowNarrativeList = (
-  partialFlows,
-  {
-    heading = 'Partial Risk Flows',
-    maxPartialFlows = 3,
-    maxEvidencePerFlow = 3
-  } = {}
-) => {
-  const list = Array.isArray(partialFlows) ? partialFlows : [];
-  const limited = list.slice(0, maxPartialFlows);
-  return {
-    heading,
-    totalPartialFlows: list.length,
-    shownPartialFlows: limited.length,
-    omittedPartialFlows: Math.max(0, list.length - limited.length),
-    maxPartialFlows,
-    maxEvidencePerFlow,
-    partialFlows: limited.map((flow) => {
-      const confidence = Number.isFinite(flow?.confidence) ? flow.confidence : null;
-      const path = formatPath(flow?.path) || null;
-      return {
-        partialFlowId: flow?.partialFlowId || 'partial-flow',
-        confidence,
-        confidenceLabel: Number.isFinite(confidence) ? confidence.toFixed(2) : 'n/a',
-        terminalReason: flow?.frontier?.terminalReason || flow?.notes?.terminalReason || null,
-        frontierChunkUid: flow?.frontier?.chunkUid || null,
-        blockedExpansions: Array.isArray(flow?.frontier?.blockedExpansions)
-          ? flow.frontier.blockedExpansions.slice(0, maxEvidencePerFlow).map((entry) => ({
-            targetChunkUid: entry?.targetChunkUid || null,
-            reason: entry?.reason || null,
-            callSiteIds: Array.isArray(entry?.callSiteIds) ? entry.callSiteIds.filter(Boolean) : []
-          }))
-          : [],
-        path,
-        steps: buildNarrativeSteps(flow, maxEvidencePerFlow)
-      };
-    })
-  };
+const appendRiskNarrativeSteps = (lines, steps) => {
+  for (const step of Array.isArray(steps) ? steps : []) {
+    lines.push(`  step ${step.step}: ${Array.isArray(step.evidence) ? step.evidence.join('; ') : ''}`);
+    if (step?.watchWindow) {
+      lines.push(`    watch: ${formatWatchWindowMarkdown(step.watchWindow)}`);
+    }
+  }
 };
 
 export const renderRiskExplain = (
@@ -233,42 +102,6 @@ export const renderRiskExplain = (
 ) => {
   const narrative = buildRiskFlowNarrativeList(flows, { maxFlows, maxEvidencePerFlow, heading });
   return renderRiskFlowNarrativeMarkdown(narrative);
-};
-
-const buildRiskFlowNarrativeList = (
-  flows,
-  {
-    heading = 'Risk Flows',
-    maxFlows = 3,
-    maxEvidencePerFlow = 3
-  } = {}
-) => {
-  const list = Array.isArray(flows) ? flows : [];
-  const limited = list.slice(0, maxFlows);
-  return {
-    heading,
-    totalFlows: list.length,
-    shownFlows: limited.length,
-    omittedFlows: Math.max(0, list.length - limited.length),
-    maxFlows,
-    maxEvidencePerFlow,
-    flows: limited.map((flow) => {
-      const confidence = Number.isFinite(flow?.confidence) ? flow.confidence : null;
-      const sourceRule = flow?.source?.ruleId || null;
-      const sinkRule = flow?.sink?.ruleId || null;
-      const path = formatPath(flow?.path) || null;
-      return {
-        flowId: flow?.flowId || 'flow',
-        confidence,
-        confidenceLabel: Number.isFinite(confidence) ? confidence.toFixed(2) : 'n/a',
-        category: flow?.category || null,
-        sourceRule,
-        sinkRule,
-        path,
-        steps: buildNarrativeSteps(flow, maxEvidencePerFlow)
-      };
-    })
-  };
 };
 
 const renderRiskFlowNarrativeMarkdown = (narrative) => {
@@ -290,12 +123,7 @@ const renderRiskFlowNarrativeMarkdown = (narrative) => {
     if (path) {
       lines.push(`  path: ${path}`);
     }
-    for (const step of Array.isArray(flow?.steps) ? flow.steps : []) {
-      lines.push(`  step ${step.step}: ${Array.isArray(step.evidence) ? step.evidence.join('; ') : ''}`);
-      if (step?.watchWindow) {
-        lines.push(`    watch: ${formatWatchWindowMarkdown(step.watchWindow)}`);
-      }
-    }
+    appendRiskNarrativeSteps(lines, flow?.steps);
   }
   if (narrative.omittedFlows > 0) {
     lines.push(`- truncation: omitted ${narrative.omittedFlows} additional flow(s) after maxFlows=${narrative.maxFlows}`);
@@ -317,27 +145,16 @@ export const renderRiskExplanationJson = (
   anchor: model?.anchor || null,
   analysisStatus: model?.analysisStatus || null,
   summary: model?.summary || null,
+  support: model?.support || null,
   stats: model?.stats || null,
   provenance: model?.provenance || null,
   caps: model?.caps || null,
   truncation: Array.isArray(model?.truncation) ? model.truncation.slice() : [],
   filters: model?.filters || null,
-  flowSelection: {
-    totalFlows: Array.isArray(model?.flows) ? model.flows.length : 0,
-    shownFlows: Math.min(Array.isArray(model?.flows) ? model.flows.length : 0, maxFlows),
-    omittedFlows: Math.max(0, (Array.isArray(model?.flows) ? model.flows.length : 0) - maxFlows),
-    maxFlows,
-    maxEvidencePerFlow
-  },
-  partialFlowSelection: {
-    totalPartialFlows: Array.isArray(model?.partialFlows) ? model.partialFlows.length : 0,
-    shownPartialFlows: Math.min(Array.isArray(model?.partialFlows) ? model.partialFlows.length : 0, maxPartialFlows),
-    omittedPartialFlows: Math.max(0, (Array.isArray(model?.partialFlows) ? model.partialFlows.length : 0) - maxPartialFlows),
-    maxPartialFlows,
-    maxEvidencePerFlow
-  },
+  flowSelection: buildRiskFlowSelection(model?.flows, { maxFlows, maxEvidencePerFlow }),
+  partialFlowSelection: buildPartialRiskFlowSelection(model?.partialFlows, { maxPartialFlows, maxEvidencePerFlow }),
   flows: buildRiskFlowNarrativeList(model?.flows || [], { maxFlows, maxEvidencePerFlow }).flows,
-  partialFlows: buildPartialFlowNarrativeList(model?.partialFlows || [], { maxPartialFlows, maxEvidencePerFlow }).partialFlows,
+  partialFlows: buildPartialRiskFlowNarrativeList(model?.partialFlows || [], { maxPartialFlows, maxEvidencePerFlow }).partialFlows,
   sarif: renderRiskExplanationSarif(model, { maxFlows, maxPartialFlows, maxEvidencePerFlow })
 });
 
@@ -375,6 +192,60 @@ const renderSummary = (model, lines) => {
   }
   if (Array.isArray(summary?.topTags) && summary.topTags.length) {
     lines.push(`- top tags: ${summary.topTags.slice(0, 3).map((entry) => `${entry.tag} (${entry.count})`).join(', ')}`);
+  }
+};
+
+const renderSupport = (model, lines) => {
+  const support = model?.support || null;
+  if (!support || typeof support !== 'object') return;
+  const language = support.language || null;
+  const framework = support.framework || null;
+  const downgradePaths = Array.isArray(support.downgradedReasoningPaths)
+    ? support.downgradedReasoningPaths
+    : [];
+  const languageState = language?.state || null;
+  const frameworkState = framework?.state || null;
+  const shouldRender = languageState === 'partial'
+    || languageState === 'unsupported'
+    || frameworkState === 'partial'
+    || frameworkState === 'unsupported'
+    || downgradePaths.length > 0;
+  if (!shouldRender) return;
+
+  const parts = [];
+  if (language?.languageId) {
+    const capabilityParts = [];
+    if (language?.capabilities?.riskLocal) capabilityParts.push(`local=${language.capabilities.riskLocal}`);
+    if (language?.capabilities?.riskInterprocedural) capabilityParts.push(`interprocedural=${language.capabilities.riskInterprocedural}`);
+    const suffix = capabilityParts.length ? ` (${capabilityParts.join(', ')})` : '';
+    parts.push(`language ${language.languageId} ${languageState || 'unknown'}${suffix}`);
+  }
+  if (framework?.frameworkId) {
+    parts.push(`framework ${framework.frameworkId} ${frameworkState || 'unknown'}`);
+  }
+  if (parts.length) {
+    lines.push(`- support: ${parts.join('; ')}`);
+  }
+
+  const unsupported = language?.unsupportedConstructs || null;
+  if (unsupported) {
+    const unsupportedParts = [];
+    if (Array.isArray(unsupported.sources) && unsupported.sources.length) {
+      unsupportedParts.push(`sources ${unsupported.sources.join(', ')}`);
+    }
+    if (Array.isArray(unsupported.sinks) && unsupported.sinks.length) {
+      unsupportedParts.push(`sinks ${unsupported.sinks.join(', ')}`);
+    }
+    if (Array.isArray(unsupported.sanitizers) && unsupported.sanitizers.length) {
+      unsupportedParts.push(`sanitizers ${unsupported.sanitizers.join(', ')}`);
+    }
+    if (unsupportedParts.length) {
+      lines.push(`- unsupported constructs: ${unsupportedParts.join('; ')}`);
+    }
+  }
+
+  if (downgradePaths.length) {
+    lines.push(`- downgraded reasoning: ${downgradePaths.slice(0, 4).map((entry) => entry.message || entry.code).join('; ')}`);
   }
 };
 
@@ -493,12 +364,7 @@ const renderPartialNarrativeMarkdown = (narrative) => {
       const ids = Array.isArray(blocked?.callSiteIds) && blocked.callSiteIds.length ? ` [${blocked.callSiteIds.join(', ')}]` : '';
       lines.push(`  blocked: ${blocked?.reason || 'blocked'}${target}${ids}`);
     }
-    for (const step of Array.isArray(flow?.steps) ? flow.steps : []) {
-      lines.push(`  step ${step.step}: ${Array.isArray(step.evidence) ? step.evidence.join('; ') : ''}`);
-      if (step?.watchWindow) {
-        lines.push(`    watch: ${formatWatchWindowMarkdown(step.watchWindow)}`);
-      }
-    }
+    appendRiskNarrativeSteps(lines, flow?.steps);
   }
   if (narrative.omittedPartialFlows > 0) {
     lines.push(`- truncation: omitted ${narrative.omittedPartialFlows} additional partial flow(s) after maxPartialFlows=${narrative.maxPartialFlows}`);
@@ -545,6 +411,7 @@ export const renderRiskExplanation = (
   if (includeAnchor) renderAnchor(model, lines);
   if (includeAnalysisStatus) renderAnalysisStatus(model, lines);
   if (includeSummary) renderSummary(model, lines);
+  renderSupport(model, lines);
   if (includeStats) renderStats(model, lines);
   if (includeProvenance) renderProvenance(model, lines);
   if (includeCaps) renderCaps(model, lines);

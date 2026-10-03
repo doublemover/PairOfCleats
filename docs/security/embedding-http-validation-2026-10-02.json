@@ -1,0 +1,55 @@
+{
+  "validatedAt": "2026-10-02T02:06:00Z",
+  "platform": "Linux x64",
+  "nodeVersion": "24.19.0",
+  "scope": "Focused embedding correctness and HTTP diagnostic-path privacy checkpoint; not a release-wide pass",
+  "embeddingRegressions": {
+    "inferredDimensionsAndWarmCache": "passed",
+    "subprocessOutcomeClassification": "passed",
+    "streamedCancellationSignal": "passed",
+    "cliUnexpectedSignals": ["SIGTERM", "SIGKILL"],
+    "cliNonzeroExitAndNoSuccessMessage": "passed",
+    "previousCurrentBuildPreserved": "passed",
+    "realProvider": "xenova",
+    "realModel": "Xenova/all-MiniLM-L12-v2",
+    "quantization": "q8",
+    "explicitDimensionsProvided": false,
+    "observedIdentityDimensions": 384,
+    "observedVectorDimensions": 384,
+    "strictSearchAnnSource": "lancedb",
+    "realRunTotalSeconds": 9.846,
+    "realRunMaximumChildRssKiB": 482816
+  },
+  "httpPrivacy": {
+    "statusJson": "passed",
+    "statusSse": "passed",
+    "posixWindowsUncParsedValues": "passed",
+    "asOfSearch": "passed",
+    "generationMetadata": "passed",
+    "correlationPreserved": "passed",
+    "riskExplainAdapterMatrix": "passed",
+    "sourceSnippetAndQueryPreservation": "passed",
+    "localCoreStatusIdentityPreserved": "passed"
+  },
+  "testSelectors": [
+    "indexing/embeddings/build/inferred-dimensions-identity",
+    "indexing/embeddings/build/process-outcome",
+    "indexing/embeddings/build/cli-signal-failure",
+    "indexing/build/stage3-streamed-result",
+    "services/api/status-path-redaction",
+    "services/api/status-repo-error-classification",
+    "services/api-search-asof",
+    "services/api/search-build-identity-observability",
+    "services/api/observability-correlation",
+    "services/api/context-pack-default-repo-resolution",
+    "services/risk-explain-adapter-matrix"
+  ],
+  "testCommand": "node tests/run.js <testSelectors> --lane=all --jobs 1 --timeout-ms 30000",
+  "verificationNotes": [
+    "Focused checks have zero final failures and zero timeouts; first API as-of failures exposed and drove the HTTP metadata fix.",
+    "The real fixture first rejected unsupported configuration fields, then ran sparse search without explicit --ann; both harness mistakes were corrected before the real ANN pass.",
+    "Formatting and current generated/governance freshness checks passed.",
+    "Windows native execution, aggregate ci-lite, measured Sweet16, Rust compile validation and local CodeQL analysis remain separate pending checks.",
+    "Existing historical May evidence remains unavailable/unverified in this cloud checkout."
+  ]
+}

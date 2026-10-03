@@ -1,4 +1,4 @@
-import { getEnvConfig } from '../../shared/env.js';
+import { getEnvConfig } from '../../shared/env/runtime.js';
 
 const DYNAMIC_BUNDLE_TARGET_MS = 500;
 const BUNDLE_SIZING_P95_WINDOW = 32;

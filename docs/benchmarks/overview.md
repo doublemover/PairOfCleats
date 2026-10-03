@@ -4,6 +4,9 @@ This project has two layers of benchmarking:
 - Microbenchmarks for fast component-level timing.
 - Language benchmarks for full-size repo comparisons.
 
+For bounded CPU sampling, timeline traces and CPU/I/O diagnosis, see the
+[performance profiling guide](profiling.md).
+
 ## Query generation
 
 Use `node tools/bench/query-generator.js` to generate a deterministic query suite from the
@@ -20,7 +23,7 @@ Common flags:
 
 Default outputs:
 - Text mode: `benchmarks/queries/generated-<mode>.txt`
-- JSON mode: `docs/benchmarks-queries.json`
+- JSON mode: `benchmarks/results/benchmarks-queries.json`
 
 ## Microbench suite
 

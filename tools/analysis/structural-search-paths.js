@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { isAbsolutePathNative } from '../../src/shared/files.js';
+import { isAbsolutePathNative } from '../../src/shared/file-paths.js';
 import { joinPathSafe } from '../../src/shared/path-normalize.js';
 
 /**

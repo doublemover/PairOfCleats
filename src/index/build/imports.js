@@ -5,14 +5,15 @@ import {
   collectLanguageImportEntries,
   collectLanguageImports
 } from '../language-registry.js';
+import { normalizeCollectorHint } from '../language-registry/import-collectors/utils.js';
 import { isJsLike, isTypeScript } from '../constants.js';
 import { normalizeImportSpecifiers, sanitizeImportSpecifier } from '../shared/import-specifier.js';
-import { runWithConcurrency, runWithQueue } from '../../shared/concurrency.js';
+import { runWithConcurrency, runWithQueue } from '../../shared/concurrency/run-with-queue.js';
 import { coerceAbortSignal, throwIfAborted } from '../../shared/abort.js';
 import { readTextFile, readTextFileWithHash } from '../../shared/encoding.js';
-import { fileExt, toPosix } from '../../shared/files.js';
+import { fileExt, toPosix } from '../../shared/file-paths.js';
 import { sha1 } from '../../shared/hash.js';
-import { showProgress } from '../../shared/progress.js';
+import { showProgress } from '../../shared/progress-runtime.js';
 import { canonicalizeForSignature, stableStringifyForSignature } from '../../shared/stable-json.js';
 import { readCachedImports } from './incremental.js';
 import {
@@ -31,23 +32,6 @@ let esModuleInitPromise = null;
 let cjsInitPromise = null;
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
-const normalizeCollectorHint = (value) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const reasonCode = typeof value.reasonCode === 'string' ? value.reasonCode.trim() : '';
-  if (!reasonCode) return null;
-  const confidenceRaw = Number(value.confidence);
-  const confidence = Number.isFinite(confidenceRaw)
-    ? Math.max(0, Math.min(1, confidenceRaw))
-    : null;
-  const detail = typeof value.detail === 'string' && value.detail.trim()
-    ? value.detail.trim()
-    : null;
-  return {
-    reasonCode,
-    confidence,
-    detail
-  };
-};
 
 const IMPORT_SCAN_FINGERPRINT_OMIT_TOP_LEVEL_KEYS = new Set([
   'rootDir',
@@ -150,7 +134,13 @@ const resolveSuggestedRemediation = (reasonCode) => {
     case IMPORT_REASON_CODES.MISSING_DEPENDENCY_PACKAGE:
       return 'Install or map the dependency path so import resolution can locate it.';
     case IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING:
+    case IMPORT_REASON_CODES.MAKEFILE_GENERATED_TARGET_MISSING:
       return 'Build or materialize generated artifacts before indexing this import surface.';
+    case IMPORT_REASON_CODES.BAZEL_LABEL_PACKAGE_MISSING:
+    case IMPORT_REASON_CODES.BAZEL_LABEL_TARGET_MISSING:
+      return 'Verify the Bazel package or target exists in the workspace and that the label maps to a real checked-in file.';
+    case IMPORT_REASON_CODES.BAZEL_EXTERNAL_REPOSITORY_UNAVAILABLE:
+      return 'Vendor or materialize the Bazel external repository inputs before indexing this workspace.';
     case IMPORT_REASON_CODES.RESOLVER_GAP:
     case IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED:
       return 'Extend resolver coverage/budgets for this import surface.';
@@ -196,6 +186,10 @@ export const classifyUnresolvedImportSample = (sample) => {
     failureCause: decision.failureCause,
     disposition: decision.disposition,
     resolverStage: decision.resolverStage,
+    resolverAdapter: typeof sample?.resolverAdapter === 'string' && sample.resolverAdapter.trim()
+      ? sample.resolverAdapter.trim()
+      : null,
+    resolverTrace: Array.isArray(sample?.resolverTrace) ? sample.resolverTrace.slice() : null,
     confidence,
     suggestedRemediation: resolveSuggestedRemediation(decision.reasonCode),
     suppressLive,
@@ -220,6 +214,7 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
   const failureCauseCounts = new Map();
   const dispositionCounts = new Map();
   const resolverStageCounts = new Map();
+  const resolverAdapterCounts = new Map();
   const actionableImporterCounts = new Map();
   const actionableLanguageCounts = new Map();
   let liveSuppressed = 0;
@@ -239,6 +234,12 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
     }
     if (sample.resolverStage) {
       resolverStageCounts.set(sample.resolverStage, (resolverStageCounts.get(sample.resolverStage) || 0) + 1);
+    }
+    if (sample.resolverAdapter) {
+      resolverAdapterCounts.set(
+        sample.resolverAdapter,
+        (resolverAdapterCounts.get(sample.resolverAdapter) || 0) + 1
+      );
     }
     if (isParserArtifactImportWarning(sample)) {
       parserArtifact += 1;
@@ -279,6 +280,7 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
     failureCauses: toSortedCountObject(failureCauseCounts),
     dispositions: toSortedCountObject(dispositionCounts),
     resolverStages: toSortedCountObject(resolverStageCounts),
+    resolverAdapters: toSortedCountObject(resolverAdapterCounts),
     actionableHotspots: toSortedHotspotEntries(actionableImporterCounts),
     actionableByLanguage: toSortedCountObject(actionableLanguageCounts),
     actionableRate,

@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testLogs', `lsp-embeddings-gates-testing-env-${process.pid}-${Date.now()}`);
@@ -36,8 +36,7 @@ await fs.writeFile(
   'utf8'
 );
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     gatePath,
     '--tests-json',
@@ -47,12 +46,10 @@ const result = spawnSync(
     '--diagnostics',
     diagnosticsPath
   ],
-  {
-    cwd: root,
-    env: applyTestEnv({ testing: '0', syncProcess: false }),
-    encoding: 'utf8',
-    timeout: GATE_TIMEOUT_MS
-  }
+  'lsp embeddings gates testing env',
+  root,
+  applyTestEnv({ testing: '0', syncProcess: false }),
+  { stdio: 'pipe', timeoutMs: GATE_TIMEOUT_MS, allowFailure: true }
 );
 
 if (result.status !== 0) {

@@ -6,9 +6,9 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { resolveHostTargetTriple, resolveTargetForTriple, readTargetsManifestSync } from '../../tools/tui/targets.js';
+import { runNode } from '../helpers/run-node.js';
 
 ensureTestingEnv(process.env);
 
@@ -75,17 +75,15 @@ try {
   );
 
   installRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-tui-install-'));
-  const runInstaller = () => spawnSync(
-    process.execPath,
+  const runInstaller = () => runNode(
     [installScript, '--json', '--target', triple, '--install-root', installRoot],
+    'tui installer',
+    invokeCwd,
     {
-      cwd: invokeCwd,
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        PAIROFCLEATS_TUI_DIST_DIR: testDistRel
-      }
-    }
+      ...process.env,
+      PAIROFCLEATS_TUI_DIST_DIR: testDistRel
+    },
+    { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
   );
   const result = runInstaller();
 

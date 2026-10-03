@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { ARTIFACT_SCHEMA_DEFS, ARTIFACT_SCHEMA_HASH } from '../../../src/shared/artifact-schemas.js';
+import { ARTIFACT_SCHEMA_DEFS, ARTIFACT_SCHEMA_HASH } from '../../../src/contracts/artifact-schemas.js';
 import { ARTIFACT_SCHEMAS } from '../../../src/index/build/artifacts/schema.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';

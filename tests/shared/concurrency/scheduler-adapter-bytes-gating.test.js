@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { createBuildScheduler, createSchedulerQueueAdapter, runWithQueue } from '../../../src/shared/concurrency.js';
+import { createSchedulerQueueAdapter } from '../../../src/shared/concurrency/queue-adapter.js';
+import { runWithQueue } from '../../../src/shared/concurrency/run-with-queue.js';
+import { createBuildScheduler } from '../../../src/shared/concurrency/scheduler-core.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

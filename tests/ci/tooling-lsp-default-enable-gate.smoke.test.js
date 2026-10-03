@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../helpers/test-env.js';
+import { runNode } from '../helpers/run-node.js';
 
 const ROOT = process.cwd();
 const gatePath = path.join(ROOT, 'tools', 'ci', 'tooling-lsp-default-enable-gate.js');
@@ -14,6 +14,7 @@ const doctorPath = path.join(tempRoot, 'doctor.json');
 const doctorGatePath = path.join(tempRoot, 'tooling-doctor-gate.json');
 const sloPath = path.join(tempRoot, 'slo.json');
 const jsonPath = path.join(tempRoot, 'tooling-lsp-default-enable-gate.json');
+const env = applyTestEnv({ syncProcess: false });
 
 try {
   await fs.writeFile(policyPath, JSON.stringify({
@@ -29,8 +30,7 @@ try {
   }, null, 2), 'utf8');
   await fs.writeFile(sloPath, JSON.stringify({ status: 'ok' }, null, 2), 'utf8');
 
-  const runGate = (doctorInputPath, extraArgs = []) => spawnSync(
-    process.execPath,
+  const runGate = (doctorInputPath, extraArgs = []) => runNode(
     [
       gatePath,
       '--mode',
@@ -45,11 +45,10 @@ try {
       jsonPath,
       ...extraArgs
     ],
-    {
-      cwd: ROOT,
-      env: applyTestEnv({ syncProcess: false }),
-      encoding: 'utf8'
-    }
+    'tooling lsp default-enable gate',
+    ROOT,
+    env,
+    { stdio: 'pipe', allowFailure: true }
   );
 
   const assertGateOk = async (result, label) => {

@@ -1,0 +1,46 @@
+{
+  "thresholds": [
+    {
+      "id": "risk-pack-summary-exact",
+      "metric": "summaryExactRate",
+      "operator": ">=",
+      "value": 1,
+      "blocking": true
+    },
+    {
+      "id": "risk-pack-flow-precision",
+      "metric": "flowPrecisionAvg",
+      "operator": ">=",
+      "value": 1,
+      "blocking": true
+    },
+    {
+      "id": "risk-pack-flow-recall",
+      "metric": "flowRecallAvg",
+      "operator": ">=",
+      "value": 1,
+      "blocking": true
+    },
+    {
+      "id": "risk-pack-cap-behavior",
+      "metric": "capBehaviorRate",
+      "operator": ">=",
+      "value": 1,
+      "blocking": true
+    },
+    {
+      "id": "risk-pack-latency",
+      "metric": "avgElapsedMs",
+      "operator": "<=",
+      "value": 1000,
+      "blocking": false
+    },
+    {
+      "id": "risk-pack-memory",
+      "metric": "maxPeakRssMb",
+      "operator": "<=",
+      "value": 512,
+      "blocking": false
+    }
+  ]
+}

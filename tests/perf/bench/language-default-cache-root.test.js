@@ -40,4 +40,28 @@ assert.equal(
   'expected explicit --timeout-ms to override default bench repo timeout'
 );
 
+const parsedCold = parseBenchLanguageArgs([
+  '--cache-root',
+  explicitRoot,
+  '--mode',
+  'cold'
+]);
+assert.match(
+  parsedCold.cacheRoot,
+  /bench-language-explicit-cache-root[\\/]cold[\\/]/,
+  'expected cold mode to use an isolated cold-cache namespace'
+);
+
+const parsedTooling = parseBenchLanguageArgs([
+  '--cache-root',
+  explicitRoot,
+  '--mode',
+  'tooling'
+]);
+assert.equal(
+  parsedTooling.cacheRoot,
+  path.resolve(explicitRoot, 'tooling'),
+  'expected tooling mode to use a dedicated tooling cache namespace'
+);
+
 console.log('bench-language default cache root test passed');

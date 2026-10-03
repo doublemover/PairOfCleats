@@ -1,11 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import {
-  writeJsonArrayFile,
-  writeJsonLinesSharded,
-  writeJsonObjectFile
-} from '../../../../shared/json-stream.js';
-import { fromPosix } from '../../../../shared/files.js';
+import { writeJsonLinesSharded } from '../../../../shared/json-stream/jsonl-sharded.js';
+import { writeJsonArrayFile, writeJsonObjectFile } from '../../../../shared/json-stream/json-writers.js';
+import { fromPosix } from '../../../../shared/file-paths.js';
 import { createOrderingHasher, stableOrderMapEntries } from '../../../../shared/order.js';
 import { applyByteBudget } from '../../byte-budget.js';
 import {

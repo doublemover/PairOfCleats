@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "instabilityClasses": [
+    "stable",
+    "flaky",
+    "slow",
+    "environment-sensitive"
+  ],
+  "diagnosticsClasses": [
+    "clean",
+    "expected-negative-stderr",
+    "unexpected-stderr"
+  ],
+  "expectedNegativeStderrIds": [
+    "cli/error-contract",
+    "cli/search/missing-index",
+    "shared/logging/stdout-contract",
+    "tooling/install/bootstrap-json-output",
+    "tooling/install/setup-json-output",
+    "tooling/install/tooling-json-stdio-contract"
+  ],
+  "retryPolicyBySuiteCategory": {
+    "hero": {
+      "maxRetries": 0,
+      "quarantine": "manual-owner-review",
+      "note": "Standalone hero tests should stay deterministic; retries are exceptional."
+    },
+    "matrix": {
+      "maxRetries": 1,
+      "quarantine": "case-level-owner-review",
+      "note": "Matrix suites may retry once, but unstable rows still require case-level debugging."
+    },
+    "meta": {
+      "maxRetries": 0,
+      "quarantine": "no-auto-quarantine",
+      "note": "Meta guardrails should fail loudly without retries."
+    },
+    "soak": {
+      "maxRetries": 0,
+      "quarantine": "manual-long-run-review",
+      "note": "Soak coverage is intentionally long-running and should be triaged manually."
+    },
+    "heavy-runtime": {
+      "maxRetries": 1,
+      "quarantine": "owner-review-and-harness-check",
+      "note": "Heavy-runtime tests may retry once but should still report instability explicitly."
+    }
+  }
+}

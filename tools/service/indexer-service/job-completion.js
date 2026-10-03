@@ -1,8 +1,8 @@
 /**
  * Normalize run result shape for queue completion/retry transitions.
  *
- * @param {{exitCode?:number,signal?:string|null,executionMode?:string,daemon?:object|null}|null|undefined} runResult
- * @returns {{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',daemon:object|null,status:'done'|'failed'}}
+ * @param {{exitCode?:number,signal?:string|null,executionMode?:string,executionClass?:string|null,daemon?:object|null,replay?:object|null,governance?:object|null}|null|undefined} runResult
+ * @returns {{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',executionClass:string,daemon:object|null,status:'done'|'failed',cancelled:boolean,shutdownMode:string|null,replay:object|null,governance:object|null}}
  */
 const normalizeRunResult = (runResult) => {
   const parsedExitCode = Number(runResult?.exitCode);
@@ -11,14 +11,36 @@ const normalizeRunResult = (runResult) => {
     ? runResult.signal.trim()
     : null;
   const executionMode = runResult?.executionMode === 'daemon' ? 'daemon' : 'subprocess';
+  const executionClass = typeof runResult?.executionClass === 'string' && runResult.executionClass.trim()
+    ? runResult.executionClass.trim()
+    : (executionMode === 'daemon' ? 'daemon-governed' : 'subprocess-isolated');
   const daemon = runResult?.daemon && typeof runResult.daemon === 'object'
     ? runResult.daemon
+    : null;
+  const cancelled = runResult?.cancelled === true;
+  const shutdownMode = typeof runResult?.shutdownMode === 'string' && runResult.shutdownMode.trim()
+    ? runResult.shutdownMode.trim()
+    : null;
+  const replay = runResult?.replay && typeof runResult.replay === 'object'
+    ? runResult.replay
+    : null;
+  const governance = runResult?.governance && typeof runResult.governance === 'object'
+    ? runResult.governance
+    : null;
+  const observability = runResult?.observability && typeof runResult.observability === 'object'
+    ? runResult.observability
     : null;
   return {
     exitCode,
     signal,
     executionMode,
+    executionClass,
     daemon,
+    cancelled,
+    shutdownMode,
+    replay,
+    governance,
+    observability,
     status: exitCode === 0 && !signal ? 'done' : 'failed'
   };
 };
@@ -30,39 +52,56 @@ const normalizeRunResult = (runResult) => {
  *   queueDir:string,
  *   resolvedQueueName:string|null,
  *   queueMaxRetries:number|null,
- *   completeJob:(dirPath:string,jobId:string,status:string,result:object,queueName?:string|null)=>Promise<unknown>
+ *   completeJob:(dirPath:string,jobId:string,status:string,result:object,queueName?:string|null,options?:object)=>Promise<unknown>,
+ *   quarantineJob:(dirPath:string,jobId:string,reason:string,queueName?:string|null,options?:object)=>Promise<unknown>
  * }} input
  * @returns {{
  *   completeNonRetriableFailure:(job:{id:string},error:string)=>Promise<void>,
  *   finalizeJobRun:(input:{job:object,runResult:object,metrics:{processed:number,succeeded:number,failed:number,retried:number}})=>Promise<void>,
- *   normalizeRunResult:(runResult:object|null|undefined)=>{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',daemon:object|null,status:'done'|'failed'}
+ *   normalizeRunResult:(runResult:object|null|undefined)=>{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',executionClass:string,daemon:object|null,status:'done'|'failed',cancelled:boolean,shutdownMode:string|null,replay:object|null,governance:object|null}
  * }}
  */
 export const createJobCompletion = ({
   queueDir,
   resolvedQueueName,
   queueMaxRetries,
-  completeJob
+  completeJob,
+  quarantineJob
 }) => {
   /**
    * Complete a job immediately with a non-retriable failure.
    *
-   * @param {{id:string}} job
+   * @param {{id:string,lease?:{owner?:string|null,version?:number|null}}} job
    * @param {string} error
    * @returns {Promise<void>}
    */
   const completeNonRetriableFailure = async (job, error) => {
-    await completeJob(
+    await quarantineJob(
       queueDir,
       job.id,
-      'failed',
+      'non-retriable-failure',
+      resolvedQueueName,
       {
-        exitCode: 1,
-        signal: null,
-        error,
-        executionMode: 'subprocess'
-      },
-      resolvedQueueName
+        sourceStatus: job?.status || 'running',
+        result: {
+          exitCode: 1,
+          signal: null,
+          error,
+          executionMode: 'subprocess',
+          executionClass: 'subprocess-isolated',
+          governance: {
+            policy: 'subprocess',
+            decision: 'subprocess',
+            sessionKey: null,
+            sessionEpoch: 0,
+            recycleCount: 0,
+            subprocessCooldownRemaining: 0
+          },
+          observability: job?.observability || null
+        },
+        ownerId: job?.lease?.owner || null,
+        expectedLeaseVersion: job?.lease?.version ?? null
+      }
     );
   };
 
@@ -85,6 +124,34 @@ export const createJobCompletion = ({
     const normalizedError = normalized.status === 'failed'
       ? (normalized.signal ? `signal ${normalized.signal}` : `exit ${normalized.exitCode}`)
       : null;
+    if (normalized.cancelled) {
+      await completeJob(
+        queueDir,
+        job.id,
+        'queued',
+        {
+          exitCode: normalized.exitCode,
+          signal: normalized.signal,
+          retry: false,
+          attempts,
+          error: `service shutdown cancelled job (${normalized.shutdownMode || 'cancel'})`,
+          executionMode: normalized.executionMode,
+          executionClass: normalized.executionClass,
+          daemon: normalized.daemon,
+          cancelled: true,
+          shutdownMode: normalized.shutdownMode || null,
+          replay: normalized.replay,
+          governance: normalized.governance,
+          observability: normalized.observability
+        },
+        resolvedQueueName,
+        {
+          ownerId: job?.lease?.owner || null,
+          expectedLeaseVersion: job?.lease?.version ?? null
+        }
+      );
+      return;
+    }
     if (normalized.status === 'failed' && maxRetries > attempts) {
       const nextAttempts = attempts + 1;
       metrics.retried += 1;
@@ -99,9 +166,17 @@ export const createJobCompletion = ({
           attempts: nextAttempts,
           error: normalizedError,
           executionMode: normalized.executionMode,
-          daemon: normalized.daemon
+          executionClass: normalized.executionClass,
+          daemon: normalized.daemon,
+          replay: normalized.replay,
+          governance: normalized.governance,
+          observability: normalized.observability
         },
-        resolvedQueueName
+        resolvedQueueName,
+        {
+          ownerId: job?.lease?.owner || null,
+          expectedLeaseVersion: job?.lease?.version ?? null
+        }
       );
       return;
     }
@@ -109,6 +184,31 @@ export const createJobCompletion = ({
       metrics.succeeded += 1;
     } else {
       metrics.failed += 1;
+    }
+    if (normalized.status === 'failed') {
+      await quarantineJob(
+        queueDir,
+        job.id,
+        'retry-exhausted',
+        resolvedQueueName,
+        {
+          sourceStatus: job?.status || 'running',
+          result: {
+            exitCode: normalized.exitCode,
+            signal: normalized.signal,
+            error: normalizedError,
+            executionMode: normalized.executionMode,
+            executionClass: normalized.executionClass,
+            daemon: normalized.daemon,
+            replay: normalized.replay,
+            governance: normalized.governance,
+            observability: normalized.observability
+          },
+          ownerId: job?.lease?.owner || null,
+          expectedLeaseVersion: job?.lease?.version ?? null
+        }
+      );
+      return;
     }
     await completeJob(
       queueDir,
@@ -119,9 +219,17 @@ export const createJobCompletion = ({
         signal: normalized.signal,
         error: normalizedError,
         executionMode: normalized.executionMode,
-        daemon: normalized.daemon
+        executionClass: normalized.executionClass,
+        daemon: normalized.daemon,
+        replay: normalized.replay,
+        governance: normalized.governance,
+        observability: normalized.observability
       },
-      resolvedQueueName
+      resolvedQueueName,
+      {
+        ownerId: job?.lease?.owner || null,
+        expectedLeaseVersion: job?.lease?.version ?? null
+      }
     );
   };
 

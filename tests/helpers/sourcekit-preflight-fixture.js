@@ -1,7 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { registerDefaultToolingProviders } from '../../src/index/tooling/providers/index.js';
+import { getToolingProvider } from '../../src/index/tooling/provider-registry.js';
 import { resolveTestCachePath } from './test-cache.js';
 import { prependLspTestPath } from './lsp-runtime.js';
+import { withTemporaryEnv } from './test-env.js';
 
 const buildPackageSwift = ({ dependencyVersion = '1.0.0', includeDependencies = true }) => {
   const dependencyLines = includeDependencies
@@ -185,4 +188,31 @@ export const createSourcekitPreflightFixture = async (input) => {
     writePackage,
     contextFor
   };
+};
+
+/**
+ * Run a SourceKit preflight test body with the shared fixture environment and provider bootstrap.
+ *
+ * @param {{
+ *   fixture:{counterPath:string,contextFor:(logs:string[])=>object},
+ *   logs?:string[],
+ *   env?:Record<string,string>,
+ *   context?:object
+ * }} input
+ * @param {(input:object)=>Promise<void>} run
+ * @returns {Promise<void>}
+ */
+export const withSourcekitPreflightProvider = async ({
+  fixture,
+  logs = [],
+  env = {},
+  context = null
+}, run) => {
+  const fixtureContext = context || fixture.contextFor(logs);
+  await withTemporaryEnv({ POC_SWIFT_PREFLIGHT_COUNTER: fixture.counterPath, ...env }, async () => {
+    registerDefaultToolingProviders();
+    const provider = getToolingProvider('sourcekit');
+    if (!provider) throw new Error('expected sourcekit provider');
+    await run({ provider, ...fixtureContext });
+  });
 };

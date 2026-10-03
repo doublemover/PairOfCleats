@@ -1,20 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert';
 import { buildGraphNeighborhood } from '../../src/graph/neighborhood.js';
+import { chunkCallGraphRelations } from './helpers/graph-fixtures.js';
 
-const graphRelations = {
-  version: 1,
-  callGraph: {
-    nodeCount: 2,
-    edgeCount: 1,
-    nodes: [
-      { id: 'chunk-a', out: ['chunk-b'], in: [] },
-      { id: 'chunk-b', out: [], in: ['chunk-a'] }
-    ]
-  },
-  usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [] },
-  importGraph: { nodeCount: 0, edgeCount: 0, nodes: [] }
-};
+const graphRelations = chunkCallGraphRelations();
 
 const result = buildGraphNeighborhood({
   seed: { type: 'chunk', chunkUid: 'chunk-a' },

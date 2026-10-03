@@ -1,14 +1,13 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { acquireIndexLock, attachIndexLockSignalCleanup } from '../build/lock.js';
 import { resolveIndexRef } from '../index-ref.js';
 import { getRepoCacheRoot } from '../../shared/dict-utils.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { sha1 } from '../../shared/hash.js';
-import { releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
 import { stableStringify } from '../../shared/stable-json.js';
 import { atomicWriteText } from '../../shared/io/atomic-write.js';
+import { withRegistryLock } from '../registry-support.js';
 import {
   loadDiffInputs,
   loadDiffSummary,
@@ -42,6 +41,7 @@ const DEFAULT_MAX_EVENTS = 20000;
 const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
 const DEFAULT_MAX_DIFFS = 50;
 const DEFAULT_RETAIN_DAYS = 30;
+const RETENTION_TIERS = ['cache', 'forensic', 'pinned'];
 
 /**
  * Lightweight typed error helpers used by diff command surfaces.
@@ -51,8 +51,29 @@ const DEFAULT_RETAIN_DAYS = 30;
  */
 const invalidRequest = (message, details = null) => createError(ERROR_CODES.INVALID_REQUEST, message, details);
 const notFound = (message, details = null) => createError(ERROR_CODES.NOT_FOUND, message, details);
-const queueError = (message, details = null) => createError(ERROR_CODES.QUEUE_OVERLOADED, message, details);
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
+
+const normalizeRetentionTier = (value, fallback = 'cache') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return fallback;
+  if (!RETENTION_TIERS.includes(normalized)) {
+    throw invalidRequest(`Invalid retention tier "${value}". Use ${RETENTION_TIERS.join('|')}.`);
+  }
+  return normalized;
+};
+
+const resolveDefaultDiffRetentionTier = ({ resolvedFrom, resolvedTo }) => {
+  if (resolvedFrom?.parsed?.kind === 'snapshot' && resolvedTo?.parsed?.kind === 'snapshot') {
+    return 'forensic';
+  }
+  return 'cache';
+};
+
+const retentionTierRank = (tier) => ({
+  cache: 0,
+  forensic: 1,
+  pinned: 2
+})[normalizeRetentionTier(tier, 'cache')];
 
 /**
  * Validate a diff id and throw an invalid request error when malformed.
@@ -66,7 +87,7 @@ const ensureDiffId = (diffId) => {
 };
 
 /**
- * Execute a diff-manifest mutation under the repository index lock.
+ * Execute a diff-manifest mutation under the repository diff registry lock.
  *
  * Lock acquisition failure is translated into a queue-overloaded error so CLI
  * callers can surface contention without exposing lock internals.
@@ -76,25 +97,15 @@ const ensureDiffId = (diffId) => {
  * @param {(lock:object)=>Promise<any>} worker
  * @returns {Promise<any>}
  */
-const withDiffLock = async (repoCacheRoot, options, worker) => {
-  const lock = await acquireIndexLock({
+const withDiffLock = (repoCacheRoot, options, worker) => (
+  withRegistryLock({
     repoCacheRoot,
-    waitMs: Number.isFinite(options?.waitMs) ? Number(options.waitMs) : 0,
-    pollMs: Number.isFinite(options?.pollMs) ? Number(options.pollMs) : 1000,
-    staleMs: Number.isFinite(options?.staleMs) ? Number(options.staleMs) : undefined,
-    log: typeof options?.log === 'function' ? options.log : () => {}
-  });
-  if (!lock) {
-    throw queueError('Index lock held; unable to mutate diffs.');
-  }
-  const detachSignalCleanup = attachIndexLockSignalCleanup(lock);
-  try {
-    return await worker(lock);
-  } finally {
-    detachSignalCleanup();
-    await releaseFileLockOrThrow(lock);
-  }
-};
+    domain: 'diffs',
+    options,
+    lockHeldMessage: 'Diff registry lock held; unable to mutate diffs.',
+    worker
+  })
+);
 
 /**
  * Parse user-supplied limits as positive integers with fallback defaults.
@@ -218,6 +229,7 @@ export const computeIndexDiff = async ({
   allowMismatch = false,
   persist = true,
   persistUnsafe = false,
+  retentionTier = null,
   waitMs = 0,
   dryRun = false
 } = {}) => {
@@ -338,6 +350,10 @@ export const computeIndexDiff = async ({
 
   const hasPathInputs = hasPathRef(resolvedFrom.parsed) || hasPathRef(resolvedTo.parsed);
   const persistEnabled = persist !== false && dryRun !== true && !(hasPathInputs && persistUnsafe !== true);
+  const normalizedRetentionTier = normalizeRetentionTier(
+    retentionTier,
+    resolveDefaultDiffRetentionTier({ resolvedFrom, resolvedTo })
+  );
   const repoCacheRoot = getRepoCacheRoot(resolvedRepoRoot, userConfig);
 
   if (!persistEnabled) {
@@ -352,12 +368,31 @@ export const computeIndexDiff = async ({
     };
   }
 
-  return withDiffLock(repoCacheRoot, { waitMs }, async (lock) => {
+  return withDiffLock(repoCacheRoot, {
+    waitMs,
+    metadata: {
+      owner: 'diffs',
+      operation: 'compute',
+      diffId
+    }
+  }, async (lock) => {
     const manifest = loadDiffsManifest(repoCacheRoot);
     const existingEntry = manifest.diffs?.[diffId];
     if (existingEntry) {
       const existingInputs = loadDiffInputs(repoCacheRoot, diffId);
       if (existingInputs?.identityHash === identityHash) {
+        const existingTier = normalizeRetentionTier(existingEntry?.retention?.tier, 'cache');
+        if (retentionTierRank(normalizedRetentionTier) > retentionTierRank(existingTier)) {
+          manifest.diffs[diffId] = {
+            ...existingEntry,
+            retention: {
+              tier: normalizedRetentionTier,
+              reason: normalizedRetentionTier === 'pinned' ? 'manual' : 'snapshot_compare'
+            }
+          };
+          manifest.updatedAt = createdAt;
+          await writeDiffsManifest(repoCacheRoot, manifest, { lock, persistUnsafe: persistUnsafe === true });
+        }
         return {
           diffId,
           createdAt: existingEntry.createdAt || createdAt,
@@ -365,7 +400,8 @@ export const computeIndexDiff = async ({
           reused: true,
           inputs: existingInputs,
           summary: loadDiffSummary(repoCacheRoot, diffId),
-          eventsPath: existingEntry.eventsPath || null
+          eventsPath: existingEntry.eventsPath || null,
+          retention: manifest.diffs?.[diffId]?.retention || existingEntry.retention || null
         };
       }
       throw createError(ERROR_CODES.INTERNAL, `diffId collision for ${diffId}.`);
@@ -391,7 +427,11 @@ export const computeIndexDiff = async ({
       truncated: bounded.truncated,
       maxEvents: maxEventsLimit,
       maxBytes: maxBytesLimit,
-      compat
+      compat,
+      retention: {
+        tier: normalizedRetentionTier,
+        reason: normalizedRetentionTier === 'forensic' ? 'snapshot_compare' : 'cache_default'
+      }
     };
 
     const sortedEntries = sortDiffEntries(Object.values(manifest.diffs || {}));
@@ -406,7 +446,8 @@ export const computeIndexDiff = async ({
       inputs,
       summary,
       eventsPath: eventsRelPath,
-      emittedEvents: bounded.events.length
+      emittedEvents: bounded.events.length,
+      retention: manifest.diffs[diffId].retention
     };
   });
 };
@@ -506,18 +547,50 @@ export const pruneDiffs = async ({
     : null;
   const dryRunEnabled = dryRun === true;
 
-  return withDiffLock(repoCacheRoot, { waitMs }, async (lock) => {
+  return withDiffLock(repoCacheRoot, {
+    waitMs,
+    metadata: {
+      owner: 'diffs',
+      operation: 'prune'
+    }
+  }, async (lock) => {
     const manifest = loadDiffsManifest(repoCacheRoot);
     const entries = sortDiffEntries(Object.values(manifest.diffs || {}));
     const removed = [];
+    const decisions = [];
+    let keptCache = 0;
     for (let i = 0; i < entries.length; i += 1) {
       const entry = entries[i];
+      const retentionTier = normalizeRetentionTier(
+        entry?.retention?.tier,
+        'cache'
+      );
       const createdAtMs = parseCreatedAtMs(entry.createdAt);
-      const withinKeep = i < maxCount;
+      const withinKeep = keptCache < maxCount;
       const youngerThanCutoff = cutoffMs == null || createdAtMs >= cutoffMs;
-      const keep = cutoffMs == null
-        ? withinKeep
-        : (withinKeep || youngerThanCutoff);
+      let keep = false;
+      let reason = 'cache_budget';
+      if (retentionTier === 'pinned') {
+        keep = true;
+        reason = 'pinned';
+      } else if (retentionTier === 'forensic') {
+        keep = youngerThanCutoff;
+        reason = keep ? 'max_age' : 'forensic_age_expired';
+      } else {
+        keep = cutoffMs == null
+          ? withinKeep
+          : (withinKeep || youngerThanCutoff);
+        reason = keep
+          ? (withinKeep ? 'cache_budget' : 'max_age')
+          : 'age_and_cache_budget';
+        if (keep) keptCache += 1;
+      }
+      decisions.push({
+        diffId: entry.id,
+        retentionTier,
+        action: keep ? 'keep' : 'remove',
+        reason
+      });
       if (keep) continue;
       removed.push(entry.id);
       if (!dryRunEnabled) {
@@ -534,6 +607,10 @@ export const pruneDiffs = async ({
       manifest.diffs = Object.fromEntries(nextEntries.map((entry) => [entry.id, entry]));
       await writeDiffsManifest(repoCacheRoot, manifest, { lock });
     }
-    return { dryRun: dryRunEnabled, removed };
+    return {
+      dryRun: dryRunEnabled,
+      removed,
+      decisions: decisions.sort((left, right) => String(left.diffId).localeCompare(String(right.diffId)))
+    };
   });
 };

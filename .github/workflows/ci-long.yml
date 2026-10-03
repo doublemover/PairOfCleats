@@ -4,6 +4,9 @@ permissions:
   contents: read
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 concurrency:
@@ -24,7 +27,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24.13.0'
+          node-version: '24.15.0'
           cache: npm
 
       - name: Restore PairOfCleats cache
@@ -43,7 +46,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.15.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
         shell: bash
@@ -53,9 +56,9 @@ jobs:
             npm run bootstrap:ci
           else
             echo "node_modules cache hit; verifying native modules."
-            if ! npm run verify:native; then
+            if ! node tools/setup/rebuild-native.js --verify; then
               echo "native verification failed; running targeted repair:native."
-              npm run repair:native
+              node tools/setup/rebuild-native.js --repair
             fi
           fi
           node -v

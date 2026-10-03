@@ -8,6 +8,7 @@ import { validateIndexArtifacts } from '../../../../src/index/validate.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 import { createBaseIndex, defaultUserConfig } from '../helpers.js';
 import { updatePiecesManifest } from '../../../helpers/pieces-manifest.js';
+import { createCanonicalTestChunkUid } from '../../../helpers/chunk-uid.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 
@@ -16,9 +17,18 @@ const tempRoot = resolveTestCachePath(root, 'validator-risk-interprocedural');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
+const sourceChunkUid = createCanonicalTestChunkUid({
+  virtualPath: 'src/source.js',
+  salt: 'risk-interprocedural-source'
+});
+const sinkChunkUid = createCanonicalTestChunkUid({
+  virtualPath: 'src/sink.js',
+  salt: 'risk-interprocedural-sink'
+});
+
 const chunkMeta = [
-  { id: 0, file: 'src/source.js', start: 0, end: 10, chunkUid: 'uid-source' },
-  { id: 1, file: 'src/sink.js', start: 0, end: 8, chunkUid: 'uid-sink' }
+  { id: 0, file: 'src/source.js', start: 0, end: 10, chunkUid: sourceChunkUid },
+  { id: 1, file: 'src/sink.js', start: 0, end: 8, chunkUid: sinkChunkUid }
 ];
 const indexState = {
   generatedAt: new Date().toISOString(),
@@ -47,8 +57,8 @@ const { repoRoot, indexRoot, indexDir } = await createBaseIndex({
 });
 
 const chunkUidMap = [
-  { docId: 0, chunkUid: 'uid-source', chunkId: 'chunk_source', file: 'src/source.js', start: 0, end: 10 },
-  { docId: 1, chunkUid: 'uid-sink', chunkId: 'chunk_sink', file: 'src/sink.js', start: 0, end: 8 }
+  { docId: 0, chunkUid: sourceChunkUid, chunkId: 'chunk_source', file: 'src/source.js', start: 0, end: 10 },
+  { docId: 1, chunkUid: sinkChunkUid, chunkId: 'chunk_sink', file: 'src/sink.js', start: 0, end: 8 }
 ];
 
 const callSiteId = buildCallSiteId({
@@ -60,10 +70,33 @@ const callSiteId = buildCallSiteId({
   calleeRaw: 'sink'
 });
 
+const createCallbackWatchStep = () => ({
+  taintIn: ['req.body'],
+  taintOut: [],
+  propagatedArgIndices: [],
+  boundParams: [],
+  calleeNormalized: 'sink',
+  semanticIds: ['sem.callback.register-handler-payload'],
+  semanticKinds: ['callback'],
+  sanitizerPolicy: 'terminate',
+  sanitizerBarrierApplied: false,
+  sanitizerBarriersBefore: 0,
+  sanitizerBarriersAfter: 0,
+  confidenceBefore: 0.6,
+  confidenceAfter: 0.51,
+  confidenceDelta: -0.09
+});
+
+const createRiskPath = () => ({
+  chunkUids: [sourceChunkUid, sinkChunkUid],
+  callSiteIdsByStep: [[callSiteId]],
+  watchByStep: [createCallbackWatchStep()]
+});
+
 const callSites = [
   {
     callSiteId,
-    callerChunkUid: 'uid-source',
+    callerChunkUid: sourceChunkUid,
     callerDocId: 0,
     file: 'src/source.js',
     languageId: 'javascript',
@@ -77,7 +110,7 @@ const callSites = [
     calleeNormalized: 'sink',
     args: ['value'],
     evidence: [],
-    targetChunkUid: 'uid-sink',
+    targetChunkUid: sinkChunkUid,
     targetCandidates: [],
     snippetHash: null
   }
@@ -86,7 +119,7 @@ const callSites = [
 const riskSummaries = [
   {
     schemaVersion: 1,
-    chunkUid: 'uid-source',
+    chunkUid: sourceChunkUid,
     file: 'src/source.js',
     languageId: 'javascript',
     symbol: { name: 'source', kind: 'Function', signature: null },
@@ -121,7 +154,7 @@ const riskSummaries = [
   },
   {
     schemaVersion: 1,
-    chunkUid: 'uid-sink',
+    chunkUid: sinkChunkUid,
     file: 'src/sink.js',
     languageId: 'javascript',
     symbol: { name: 'sink', kind: 'Function', signature: null },
@@ -156,13 +189,13 @@ const riskSummaries = [
   }
 ];
 
-const flowId = `sha1:${sha1('uid-source|source.req.body|uid-sink|sink.eval|uid-source>uid-sink')}`;
+const flowId = `sha1:${sha1(`${sourceChunkUid}|source.req.body|${sinkChunkUid}|sink.eval|${sourceChunkUid}>${sinkChunkUid}`)}`;
 const riskFlows = [
   {
     schemaVersion: 1,
     flowId,
     source: {
-      chunkUid: 'uid-source',
+      chunkUid: sourceChunkUid,
       ruleId: 'source.req.body',
       ruleName: 'req.body',
       ruleType: 'source',
@@ -171,7 +204,7 @@ const riskFlows = [
       confidence: 0.6
     },
     sink: {
-      chunkUid: 'uid-sink',
+      chunkUid: sinkChunkUid,
       ruleId: 'sink.eval',
       ruleName: 'eval',
       ruleType: 'sink',
@@ -179,26 +212,7 @@ const riskFlows = [
       severity: 'high',
       confidence: 0.8
     },
-    path: {
-      chunkUids: ['uid-source', 'uid-sink'],
-      callSiteIdsByStep: [[callSiteId]],
-      watchByStep: [{
-        taintIn: ['req.body'],
-        taintOut: [],
-        propagatedArgIndices: [],
-        boundParams: [],
-        calleeNormalized: 'sink',
-        semanticIds: ['sem.callback.register-handler-payload'],
-        semanticKinds: ['callback'],
-        sanitizerPolicy: 'terminate',
-        sanitizerBarrierApplied: false,
-        sanitizerBarriersBefore: 0,
-        sanitizerBarriersAfter: 0,
-        confidenceBefore: 0.6,
-        confidenceAfter: 0.51,
-        confidenceDelta: -0.09
-      }]
-    },
+    path: createRiskPath(),
     confidence: 0.5,
     notes: {
       strictness: 'conservative',
@@ -210,13 +224,13 @@ const riskFlows = [
   }
 ];
 
-const partialFlowId = `sha1:${sha1('uid-source|source.req.body|uid-sink|maxDepth|uid-source>uid-sink')}`;
+const partialFlowId = `sha1:${sha1(`${sourceChunkUid}|source.req.body|${sinkChunkUid}|maxDepth|${sourceChunkUid}>${sinkChunkUid}`)}`;
 const riskPartialFlows = [
   {
     schemaVersion: 1,
     partialFlowId,
     source: {
-      chunkUid: 'uid-source',
+      chunkUid: sourceChunkUid,
       ruleId: 'source.req.body',
       ruleName: 'req.body',
       ruleType: 'source',
@@ -225,36 +239,17 @@ const riskPartialFlows = [
       confidence: 0.6
     },
     frontier: {
-      chunkUid: 'uid-sink',
+      chunkUid: sinkChunkUid,
       terminalReason: 'maxDepth',
       blockedExpansions: [
         {
-          targetChunkUid: 'uid-sink',
+          targetChunkUid: sinkChunkUid,
           reason: 'maxEdgeExpansions',
           callSiteIds: [callSiteId]
         }
       ]
     },
-    path: {
-      chunkUids: ['uid-source', 'uid-sink'],
-      callSiteIdsByStep: [[callSiteId]],
-      watchByStep: [{
-        taintIn: ['req.body'],
-        taintOut: [],
-        propagatedArgIndices: [],
-        boundParams: [],
-        calleeNormalized: 'sink',
-        semanticIds: ['sem.callback.register-handler-payload'],
-        semanticKinds: ['callback'],
-        sanitizerPolicy: 'terminate',
-        sanitizerBarrierApplied: false,
-        sanitizerBarriersBefore: 0,
-        sanitizerBarriersAfter: 0,
-        confidenceBefore: 0.6,
-        confidenceAfter: 0.51,
-        confidenceDelta: -0.09
-      }]
-    },
+    path: createRiskPath(),
     confidence: 0.45,
     notes: {
       strictness: 'conservative',

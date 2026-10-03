@@ -1,12 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import {
-  toPosix,
-  fromPosix,
-  isAbsolutePathAny,
-  isAbsolutePathNative
-} from '../../src/shared/files.js';
+import { toPosix, fromPosix, isAbsolutePathAny, isAbsolutePathNative } from '../../src/shared/file-paths.js';
 import {
   normalizeRepoRelativePath,
   normalizePathForRepo

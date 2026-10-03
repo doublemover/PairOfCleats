@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
 import { buildGraphNeighborhood } from '../../src/graph/neighborhood.js';
 import { buildGraphIndex } from '../../src/graph/store.js';
 import { applyTestEnv } from '../helpers/test-env.js';
+import { runNode } from '../helpers/run-node.js';
 
 applyTestEnv({ testing: '1' });
 
@@ -13,12 +13,12 @@ const CHILD_FLAG = '--graph-plateau-child';
 
 if (!process.argv.includes(CHILD_FLAG) && typeof global.gc !== 'function') {
   const filePath = path.resolve(process.argv[1]);
-  const child = spawnSync(
-    process.execPath,
+  const child = runNode(
     ['--expose-gc', filePath, CHILD_FLAG],
-    {
-      encoding: 'utf8'
-    }
+    'graph memory plateau child',
+    process.cwd(),
+    applyTestEnv({ syncProcess: false }),
+    { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
   );
   if (child.status !== 0) {
     console.error(child.stdout || '');

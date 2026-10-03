@@ -3,7 +3,7 @@ import { applyTestEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { acquireIndexLock } from '../../src/index/build/lock.js';
+import { acquireRegistryLock } from '../../src/index/registry-lock.js';
 import {
   createEmptyDiffsManifest,
   loadDiffInputs,
@@ -67,13 +67,13 @@ await writeDiffSummary(repoCacheRoot, 'diff_test123', {
 assert.equal(loadDiffInputs(repoCacheRoot, 'diff_test123')?.id, 'diff_test123');
 assert.equal(loadDiffSummary(repoCacheRoot, 'diff_test123')?.id, 'diff_test123');
 
-const lock = await acquireIndexLock({ repoCacheRoot, waitMs: 0 });
-assert.ok(lock, 'expected to acquire index lock');
+const lock = await acquireRegistryLock({ repoCacheRoot, domain: 'diffs', waitMs: 0 });
+assert.ok(lock, 'expected to acquire diff lock');
 try {
   await assert.rejects(
     () => writeDiffsManifest(repoCacheRoot, createEmptyDiffsManifest(), { waitMs: 0 }),
     (err) => err?.code === 'QUEUE_OVERLOADED',
-    'diff manifest writes should fail fast when lock is held'
+    'diff manifest writes should fail fast when diff lock is held'
   );
 } finally {
   await lock.release();

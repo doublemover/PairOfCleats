@@ -3,7 +3,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { exitLikeCommandResult } from '../shared/cli-utils.js';
-import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
+import { spawnSubprocessSync } from '../../src/shared/subprocess/runner.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
+import { parseTrailingJson } from './output.js';
 
 const ROOT = process.cwd();
 const BENCH_RUNNER = path.join(ROOT, 'tools', 'bench', 'bench-runner.js');
@@ -109,23 +111,6 @@ const parseArgs = () => {
   return out;
 };
 
-const parseJson = (text) => {
-  const raw = String(text || '').trim();
-  if (!raw) return null;
-  if (raw.startsWith('{') || raw.startsWith('[')) {
-    try {
-      return JSON.parse(raw);
-    } catch {}
-  }
-  const match = raw.match(/\{[\s\S]*\}\s*$/);
-  if (!match) return null;
-  try {
-    return JSON.parse(match[0]);
-  } catch {
-    return null;
-  }
-};
-
 /**
  * Build a cartesian product of knob values. Empty knobs are treated as [null]
  * so partial sweeps only touch explicitly requested dimensions.
@@ -222,7 +207,7 @@ const runVariant = ({ argv, variant, runIndex, runRoot }) => {
   const signal = typeof result.signal === 'string' && result.signal.trim().length > 0
     ? result.signal.trim()
     : null;
-  const report = parseJson(result.stdout)
+  const report = parseTrailingJson(result.stdout)
     || ((exitCode === 0 && !signal) ? null : { summary: { error: 1, timeout: 0 }, results: [] });
   return {
     runId,
@@ -310,8 +295,7 @@ const main = async () => {
   };
   if (argv.json) {
     const outPath = path.isAbsolute(argv.json) ? argv.json : path.join(ROOT, argv.json);
-    await fs.mkdir(path.dirname(outPath), { recursive: true });
-    await fs.writeFile(outPath, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
+    await writeJsonFileResolved(outPath, output, { trailingNewline: true });
   }
   process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
 };

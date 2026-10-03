@@ -360,7 +360,7 @@ type ImpactAnalysisRequest = {
   seed?: SeedRef;
   changed?: string[];      // repo-relative paths (optional)
   changedFile?: string;    // file with newline-separated paths (optional)
-  direction: "upstream" | "downstream";
+  direction: "upstream" | "downstream" | "both";
   depth: number;
   edgeFilters?: GraphContextPackRequest["edgeFilters"];
   caps: GraphContextPackRequest["caps"];
@@ -373,7 +373,7 @@ type GraphImpactAnalysisV1 = {
   version: "1.0.0";
 
   seed: SeedRef;
-  direction: "upstream" | "downstream";
+  direction: "upstream" | "downstream" | "both";
   depth: number;
   provenance: ProvenanceRecord;
 

@@ -1,22 +1,27 @@
 #!/usr/bin/env node
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
+import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
+const env = applyTestEnv({
+  extraEnv: {
+    PATH: '',
+    Path: ''
+  },
+  syncProcess: false
+});
 
-const run = spawnSync(
-  process.execPath,
+const run = runNode(
   [path.join(root, 'tools', 'package-vscode.js'), '--out-dir', resolveTestCachePath(root, 'package-vscode-missing-toolchain')],
+  'package-vscode missing toolchain',
+  root,
+  env,
   {
-    cwd: root,
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      PATH: '',
-      Path: ''
-    }
+    stdio: 'pipe',
+    allowFailure: true
   }
 );
 

@@ -1,6 +1,8 @@
 import { search as coreSearch } from '../../../../src/integrations/core/index.js';
 import { runFederatedSearch } from '../../../../src/retrieval/federation/coordinator.js';
 import { createError, ERROR_CODES } from '../../../../src/shared/error-codes.js';
+import { attachObservability, buildChildObservability } from '../../../../src/shared/observability.js';
+import { getRepoCacheGenerationContext } from '../../../../src/shared/repo-cache-config.js';
 import { getRepoCaches, refreshRepoCaches, resolveRepoPath } from '../../repo.js';
 import { buildMcpSearchArgs } from '../search-args.js';
 
@@ -18,9 +20,16 @@ export async function runSearch(args = {}, context = {}) {
   if (!query) throw createError(ERROR_CODES.INVALID_REQUEST, 'Query is required.');
 
   const searchArgs = buildMcpSearchArgs({ ...args, repoPath });
-
   const caches = getRepoCaches(repoPath);
   await refreshRepoCaches(repoPath);
+  const observability = buildChildObservability(context.observability, {
+    surface: 'search',
+    operation: 'search',
+    context: {
+      repoRoot: repoPath,
+      ...getRepoCacheGenerationContext(caches)
+    }
+  });
   return await coreSearch(repoPath, {
     args: searchArgs,
     query,
@@ -28,7 +37,9 @@ export async function runSearch(args = {}, context = {}) {
     exitOnError: false,
     indexCache: caches.indexCache,
     sqliteCache: caches.sqliteCache,
-    signal: context.signal
+    signal: context.signal,
+    observability,
+    generationContext: getRepoCacheGenerationContext(caches)
   });
 }
 
@@ -52,5 +63,11 @@ export async function runWorkspaceSearch(args = {}, context = {}) {
     query
   }, {
     signal: context.signal
-  });
+  }).then((result) => attachObservability(result, buildChildObservability(context.observability, {
+    surface: 'search',
+    operation: 'search_workspace',
+    context: {
+      workspacePath
+    }
+  })));
 }

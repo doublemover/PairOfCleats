@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { resolveRuntimeEnvelope } from '../../../src/shared/runtime-envelope.js';
+import { resolveRuntimeEnvelope } from '../../../src/shared/runtime-envelope/resolve.js';
 import { resolveRuntimeEnv } from '../../../tools/dict-utils/paths/runtime.js';
 
 const baseEnv = { ...process.env };

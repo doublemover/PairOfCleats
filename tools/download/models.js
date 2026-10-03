@@ -3,9 +3,9 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { pipeline, env } from '@xenova/transformers';
+import { pipeline, env } from '@huggingface/transformers';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
-import { isAbsolutePathNative } from '../../src/shared/files.js';
+import { isAbsolutePathNative } from '../../src/shared/file-paths.js';
 import { DEFAULT_MODEL_ID, getModelConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({
@@ -34,7 +34,8 @@ const onnxPathOverride = argv['onnx-path'] ? path.resolve(argv['onnx-path']) : n
 await fs.mkdir(cacheDir, { recursive: true });
 env.cacheDir = cacheDir;
 
-await pipeline('feature-extraction', modelId);
+// Preserve the quantized model filename used by existing model caches.
+await pipeline('feature-extraction', modelId, { dtype: 'q8' });
 
 let onnxResolvedPath = null;
 if (wantsOnnx) {

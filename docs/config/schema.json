@@ -4,6 +4,47 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "sqlite": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "annMode": { "type": "string", "enum": ["auto", "extension", "js"] },
+        "vectorExtension": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "annMode": { "type": "string", "enum": ["auto", "extension", "js"] },
+            "provider": { "type": "string" }, "dir": { "type": "string" },
+            "path": { "type": "string" }, "filename": { "type": "string" },
+            "url": { "type": "string" }, "sha256": { "type": "string" },
+            "platform": { "type": "string" }, "arch": { "type": "string" },
+            "module": { "type": "string" }, "table": { "type": "string" },
+            "column": { "type": "string" }, "encoding": { "type": "string" },
+            "ingestEncoding": { "type": "string" }, "options": { "type": "string" },
+            "downloads": { "type": "object", "additionalProperties": {
+              "anyOf": [{ "type": "string" }, { "type": "object", "additionalProperties": false,
+                "properties": { "url": { "type": "string" }, "file": { "type": "string" }, "sha256": { "type": "string" } }
+              }]
+            } }
+          }
+        }
+      }
+    },
+    "security": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "downloads": { "type": "object", "additionalProperties": false,
+          "properties": {
+            "requireHash": { "type": "boolean" }, "warnUnsigned": { "type": "boolean" },
+            "maxBytes": { "type": "number" }, "timeoutMs": { "type": "number" },
+            "maxRedirects": { "type": "number" },
+            "allowlist": { "type": "object", "additionalProperties": { "type": "string" } }
+          }
+        },
+        "archives": { "type": "object", "additionalProperties": false,
+          "properties": { "maxBytes": { "type": "number" }, "maxEntryBytes": { "type": "number" }, "maxEntries": { "type": "number" } }
+        }
+      }
+    },
     "cache": {
       "type": "object",
       "additionalProperties": false,
@@ -753,6 +794,10 @@
       "additionalProperties": false,
       "properties": {
         "annDefault": { "type": "boolean" },
+        "hyperlinks": {
+          "type": "string",
+          "enum": ["auto", "off", "file", "vscode"]
+        },
         "denseVectorMode": {
           "type": "string",
           "enum": ["merged", "code", "doc", "auto"]

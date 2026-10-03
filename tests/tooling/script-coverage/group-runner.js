@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { repoRoot } from '../../helpers/root.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -24,10 +24,12 @@ export const runScriptCoverageGroup = (group) => {
     }
   });
 
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     [scriptCoveragePath, '--groups', group, '--cache-root', cacheRoot],
-    { cwd: root, env, stdio: 'inherit' }
+    `script coverage group ${group}`,
+    root,
+    env,
+    { stdio: 'inherit', allowFailure: true }
   );
 
   if (result.status !== 0) {

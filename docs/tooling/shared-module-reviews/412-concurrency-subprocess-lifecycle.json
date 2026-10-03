@@ -1,0 +1,757 @@
+{
+  "issueId": "412",
+  "title": "Review shared concurrency, queue, subprocess, lifecycle, and worker module families",
+  "reviewDate": "2026-03-26",
+  "scope": "Primary ownership for src/shared concurrency, queue, subprocess, lifecycle, lock, worker, and progress helpers assigned to #412 in the shared-module ledger.",
+  "summary": {
+    "ownedFileCount": 61,
+    "overallAssessment": "This shared surface contains several of the repo's most correctness-critical runtime helpers. The main risks are not duplication alone; they are policy and mechanism being entangled inside lock ownership, tracked subprocess cleanup, adaptive scheduling, and progress/logging helpers. The strongest cleanup opportunities are splitting the correctness-critical large files while preserving stable facades and removing a few root-level wrappers that are too caller-specific.",
+    "runtimeRisks": [
+      {
+        "target": "src/shared/locks/file-lock.js",
+        "reason": "File locking remains correctness-critical, but constants, timing, info parsing, owner probing, stale cleanup, release errors, and metrics now live in focused leaves behind the acquisition facade; startup-sensitive callers lazy-load lock behavior."
+      },
+      {
+        "target": "src/shared/subprocess/tracking.js",
+        "reason": "Tracked subprocess cleanup remains correctness-critical; scope propagation, child registration, runtime bookkeeping, and termination flow now live in focused leaves behind the tracking facade."
+      },
+      {
+        "target": "src/shared/subprocess/runner.js",
+        "reason": "Subprocess runner behavior remains correctness-critical; async spawn, sync spawn, isolated-node helpers, and subprocess errors are already split behind the runner facade."
+      },
+      {
+        "target": "src/shared/concurrency/scheduler-core/adaptive-controller.js",
+        "reason": "Adaptive scheduling remains correctness-critical; signal sampling, surface snapshots, surface decisions, and token scaling are already split behind the adaptive-controller composition layer."
+      }
+    ],
+    "maintainabilityOnlyNotes": [
+      {
+        "target": "src/shared/bench-progress.js",
+        "reason": "This is a useful formatter, but it is bench-specific and should not live in a generic root shared bucket."
+      },
+      {
+        "target": "src/shared/embeddings-progress.js",
+        "reason": "This is an embeddings-specific perf-line formatter and is clearer under an embeddings or bench family."
+      },
+      {
+        "target": "src/shared/queue.js",
+        "reason": "The file is only a re-export of tools/service/queue.js and creates an odd src/shared-to-tools ownership seam."
+      },
+      {
+        "target": "src/shared/progress-context.js",
+        "reason": "The helper moved to tools/tui/supervisor/progress-context.js because only supervisor job spawning owns progress-context env propagation."
+      }
+    ],
+    "highestPriorityFollowUps": [
+      {
+        "priority": "completed",
+        "target": "src/shared/locks/file-lock.js",
+        "action": "split",
+        "reason": "The acquisition facade now delegates to focused lock constants, timing, info, owner, stale cleanup, release, and metrics leaves; retrieval/build startup paths lazy-load lock behavior and stay under the shared-module performance baseline."
+      },
+      {
+        "priority": "completed",
+        "target": "src/shared/subprocess/tracking.js",
+        "action": "split",
+        "reason": "Scope propagation now lives in tracking-scope.js, child registration in tracking-register.js, runtime bookkeeping in tracking-runtime.js, and termination flow in tracking-terminate.js."
+      },
+      {
+        "priority": "completed",
+        "target": "src/shared/subprocess/runner.js",
+        "action": "split",
+        "reason": "The runner facade now re-exports async runner, sync runner, isolated-node helpers, and subprocess errors from focused leaves."
+      },
+      {
+        "priority": "completed",
+        "target": "src/shared/progress.js",
+        "action": "removed",
+        "reason": "The root facade has been removed. Shared progress runtime behavior lives in src/shared/progress-runtime.js; supervisor-only context env propagation moved to tools/tui/supervisor/progress-context.js."
+      },
+      {
+        "priority": "completed",
+        "target": "src/shared/concurrency/scheduler-core/adaptive-controller.js",
+        "action": "split",
+        "reason": "Signal sampling, adaptive surface snapshots, per-surface scaling decisions, and token adjustment policy already live in focused adaptive-controller leaves."
+      },
+      {
+        "priority": "completed",
+        "target": "src/shared/queue.js",
+        "action": "removed",
+        "reason": "The generic src/shared queue alias has been removed; tools/service/queue.js remains the canonical service queue owner."
+      }
+    ]
+  },
+  "entries": [
+    {
+      "path": "src/shared/abort.js",
+      "consumerCount": 43,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Many indexing, retrieval, LSP, and subprocess flows use this as the canonical abort helper surface.",
+      "recommendation": "Keep as the abort primitive surface and avoid duplicating abort helpers elsewhere."
+    },
+    {
+      "path": "src/shared/concurrency/adaptive-surfaces.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Scheduler-adaptation code uses it as a small adaptive-surface descriptor helper.",
+      "recommendation": "Keep internal to concurrency adaptation behavior."
+    },
+    {
+      "path": "src/shared/concurrency/ordered-completion.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ordered async completion flows use it to preserve stable result ordering.",
+      "recommendation": "Keep as the ordered completion primitive."
+    },
+    {
+      "path": "src/shared/concurrency/queue-adapter.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Bridges scheduler-core behavior into the public concurrency facade.",
+      "recommendation": "Keep as the adapter seam rather than letting callers depend on scheduler internals."
+    },
+    {
+      "path": "src/shared/concurrency/run-with-queue.js",
+      "consumerCount": 20,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Concurrency facade uses it to implement queue-backed concurrency execution.",
+      "recommendation": "Keep, but avoid letting more scheduler policy accumulate here."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-core-policy.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Scheduler family uses it for normalized policy configuration.",
+      "recommendation": "Keep as a policy helper distinct from execution mechanics."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-core-queue-state.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Scheduler-core internals use it for queue-state accounting.",
+      "recommendation": "Keep internal to scheduler state accounting."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-core-stats.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Scheduler-core uses it to aggregate internal stats and summaries.",
+      "recommendation": "Keep scheduler stats separate from policy and dispatch code."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-core-telemetry-capture.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Scheduler-core telemetry capture is isolated here for internal use.",
+      "recommendation": "Keep as the scheduler telemetry capture helper."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-core.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Small facade re-export for the scheduler-core family.",
+      "recommendation": "Keep as the scheduler facade."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-core/adaptive-controller.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Adaptive-controller now composes dedicated signal, snapshot, surface-controller, and token-controller leaves.",
+      "recommendation": "Keep as the adaptive scheduler composition layer and avoid moving signal sampling or token policy back into this facade."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-core/adaptive-signals.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Scheduler adaptation now uses this dedicated signal-sampling leaf instead of keeping host metrics and adaptive policy intertwined.",
+      "recommendation": "Keep host signal sampling isolated here so adaptive policy changes do not also rewrite system-observation logic."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-core/adaptive-surface-controller.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Scheduler adaptation now uses this leaf for per-surface concurrency decisions, cooldown rules, and decision-trace emission.",
+      "recommendation": "Keep per-surface scaling decisions localized here and avoid mixing them back with token-budget adaptation."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-core/adaptive-surface-snapshots.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Adaptive surface snapshots were split out so backlog and IO-pressure accounting no longer live inline with signal sampling and token adjustment.",
+      "recommendation": "Keep queue-snapshot construction isolated here so scheduler tuning can change policy without mutating accounting logic."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-core/adaptive-token-controller.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Adaptive token scaling now lives in its own leaf, separate from system-signal sampling and per-surface controller logic.",
+      "recommendation": "Keep token-budget scaling decisions isolated here and preserve the adaptive-controller facade as a composition layer."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-core/config.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Scheduler-core configuration normalization is centralized here.",
+      "recommendation": "Keep config resolution separate from live scheduler state."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-core/dispatch.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Scheduler dispatch mechanics are owned here.",
+      "recommendation": "Keep as the dispatch layer under the scheduler facade."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-core/index.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Entry facade for the scheduler-core family.",
+      "recommendation": "Keep as the family index surface."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-core/queue-lifecycle.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Scheduler-core uses it to own queue registration and lifecycle transitions.",
+      "recommendation": "Keep queue lifecycle separate from dispatch and telemetry."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-core/shutdown.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Scheduler shutdown coordination is isolated here.",
+      "recommendation": "Keep as the shutdown helper for scheduler-core."
+    },
+    {
+      "path": "src/shared/concurrency/scheduler-telemetry.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Scheduler-core support files use it for scheduler telemetry types and helpers.",
+      "recommendation": "Keep as the scheduler telemetry support layer."
+    },
+    {
+      "path": "src/shared/concurrency/task-queues.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Concurrency facade uses it to build queue sets.",
+      "recommendation": "Keep as the task-queue primitive layer."
+    },
+    {
+      "path": "src/shared/kill-tree.js",
+      "consumerCount": 15,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Process-tree termination now delegates platform-specific behavior to kill-tree/posix.js, kill-tree/windows.js, and shared defaults.",
+      "recommendation": "Keep as the process-tree facade while preserving platform-specific termination details in the kill-tree leaves."
+    },
+    {
+      "path": "src/shared/lifecycle/registry.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Heartbeat, patch queue, task-lifecycle, and service worker flows use it as the lifecycle registry.",
+      "recommendation": "Keep as the lifecycle registration surface."
+    },
+    {
+      "path": "src/shared/locks/file-lock-runtime.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Runtime is now an internal barrel over focused file-lock leaves instead of the owner for all lock side effects.",
+      "recommendation": "Keep as a transitional internal aggregation surface while file-lock.js imports the stable runtime surface."
+    },
+    {
+      "path": "src/shared/locks/file-lock-constants.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "File-lock defaults, invalid-lock grace bounds, metadata key policy, and benign stale-removal race codes live here.",
+      "recommendation": "Keep lock constants isolated so parsing, owner probing, and stale cleanup share one policy source without pulling in file IO."
+    },
+    {
+      "path": "src/shared/locks/file-lock-timing.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Abort-aware polling sleep, numeric coercion, and invalid-lock reclaim grace resolution live here.",
+      "recommendation": "Keep timing and numeric coercion separate from lock ownership and stale cleanup side effects."
+    },
+    {
+      "path": "src/shared/locks/file-lock-metrics.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Runtime lock metrics and hook warning safety live here instead of being coupled to stale cleanup or acquisition flow.",
+      "recommendation": "Keep metrics mutation centralized and avoid ad hoc counters in lock leaves."
+    },
+    {
+      "path": "src/shared/locks/file-lock-info.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Lock payload creation, metadata sanitization, lock info reads, PID extraction, and stale snapshot fingerprinting live here.",
+      "recommendation": "Keep lock-file parsing and payload construction independent of owner probing and removal side effects."
+    },
+    {
+      "path": "src/shared/locks/file-lock-owner.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "PID liveness checks, Windows tasklist probing, ownership matching, and owned lock-file removal live here.",
+      "recommendation": "Keep platform owner probing and removal logic separate from stale-policy decisions."
+    },
+    {
+      "path": "src/shared/locks/file-lock-stale.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Stale-lock detection, invalid-lock grace decisions, owner-first stale removal, force fallback, and stale cleanup error shaping live here.",
+      "recommendation": "Keep stale cleanup policy here and preserve owner-first removal semantics before forced cleanup."
+    },
+    {
+      "path": "src/shared/locks/file-lock-release.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Release result normalization and lock release failure error shaping live here.",
+      "recommendation": "Keep release failure behavior independent of acquisition and stale cleanup flow."
+    },
+    {
+      "path": "src/shared/locks/file-lock.js",
+      "consumerCount": 21,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Build state, snapshots, diffs, tooling providers, service queue flows, tools, and tests depend on this public acquisition facade. Startup-sensitive retrieval/build imports lazy-load the lock facade only when lock behavior executes.",
+      "recommendation": "Keep acquisition and withFileLock orchestration here; route lock constants, timing, info parsing, owner probing, stale cleanup, release errors, and metrics to the focused leaves, and keep build/tooling startup paths lazy where they only need lock behavior at execution time."
+    },
+    {
+      "path": "src/shared/piscina-cleanup.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Worker-pool and SQLite bundle-loader flows use it for Piscina cleanup behavior.",
+      "recommendation": "Keep it small and explicitly tied to Piscina cleanup semantics."
+    },
+    {
+      "path": "src/shared/process-signals.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Lock and Python pool flows use it for process-signal coordination.",
+      "recommendation": "Keep as the process-signal helper layer and document the boundary against subprocess/signals.js."
+    },
+    {
+      "path": "src/shared/promise-keepalive.js",
+      "consumerCount": 6,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ordered async processing and lifecycle flows use it to keep long-running promises observable.",
+      "recommendation": "Keep as the promise keepalive helper."
+    },
+    {
+      "path": "src/shared/promise-timeout.js",
+      "consumerCount": 17,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Timeout-guarded async operations across build, extraction, VFS, and bench flows use it as the shared timeout helper.",
+      "recommendation": "Keep as the timeout primitive and avoid reimplementing abort or timeout races elsewhere."
+    },
+    {
+      "path": "src/shared/retry.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "A small number of retry loops use it as the backoff helper.",
+      "recommendation": "Keep as the generic retry-with-backoff primitive."
+    },
+    {
+      "path": "src/shared/scheduler/debounce.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Scheduler-related flows use it as a targeted debounce helper.",
+      "recommendation": "Keep focused on debounce semantics only."
+    },
+    {
+      "path": "src/shared/sleep.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "LSP provider and bench flows use it for shared sleep behavior.",
+      "recommendation": "Keep as the tiny sleep helper rather than embedding sleep loops in callsites."
+    },
+    {
+      "path": "src/shared/subprocess/command-invocation.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Subprocess/concurrency leaf helper owned by the shared lifecycle and runtime family.",
+      "recommendation": "Keep invocation details localized here rather than widening the higher-level subprocess runner surface."
+    },
+    {
+      "path": "src/shared/subprocess/errors.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Subprocess runner internals now share a dedicated error-shape leaf instead of redefining subprocess failure formatting inside runner flow control.",
+      "recommendation": "Keep subprocess error normalization isolated here and avoid reintroducing ad hoc error-shape helpers in runner variants."
+    },
+    {
+      "path": "src/shared/subprocess/exit-semantics.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Shared subprocess exit-code and signal interpretation helper used by runner and command wrappers.",
+      "recommendation": "Keep exit semantics isolated from runner flow control so async, sync, and wrapper callers share one failure interpretation contract."
+    },
+    {
+      "path": "src/shared/subprocess/options.js",
+      "consumerCount": 7,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Subprocess helpers use it to normalize stdio, capture, and timeout options.",
+      "recommendation": "Keep as the shared subprocess option-normalization layer."
+    },
+    {
+      "path": "src/shared/subprocess/runner-async.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Async subprocess orchestration was split out of the main runner so streaming capture, abort handling, and tracking registration remain isolated.",
+      "recommendation": "Keep async spawn behavior here and preserve runner.js as a thin composition facade."
+    },
+    {
+      "path": "src/shared/subprocess/runner-sync.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Sync subprocess behavior was split away from the async runner so timeout and tree-kill policy can evolve independently.",
+      "recommendation": "Keep sync-command orchestration here and avoid mixing synchronous behavior back into the async runner implementation."
+    },
+    {
+      "path": "src/shared/subprocess/runner.js",
+      "consumerCount": 50,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Runner is now a narrow facade over async runner, sync runner, isolated-node helpers, and subprocess error types.",
+      "recommendation": "Keep as the public subprocess runner surface and preserve focused implementation leaves for async, sync, and error behavior."
+    },
+    {
+      "path": "src/shared/subprocess/signals.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Tracked subprocess support uses it to install cleanup hooks for process signals.",
+      "recommendation": "Keep as the subprocess signal-hook helper."
+    },
+    {
+      "path": "src/shared/subprocess/snapshot.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Subprocess support uses it to snapshot tracked subprocess state.",
+      "recommendation": "Keep as the subprocess snapshot helper."
+    },
+    {
+      "path": "src/shared/subprocess/sync-command.js",
+      "consumerCount": 7,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Subprocess support and a few provider or lock helpers use it for sync-command timeouts.",
+      "recommendation": "Keep sync-command timeout behavior separate from the async runner."
+    },
+    {
+      "path": "src/shared/subprocess/tracking-register.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Tracked child-process registration now owns entry creation, cleanup hook installation, inherited ownership resolution, and close/unregister bookkeeping.",
+      "recommendation": "Keep tracked-child registration here and avoid recombining it with AsyncLocalStorage scope propagation or termination flow."
+    },
+    {
+      "path": "src/shared/subprocess/tracking-runtime.js",
+      "consumerCount": 6,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Tracked subprocess runtime state and ownership matching logic live in a dedicated leaf shared by scope, registration, and termination owners.",
+      "recommendation": "Keep tracked runtime bookkeeping here and preserve tracking.js as the narrow public facade."
+    },
+    {
+      "path": "src/shared/subprocess/tracking-scope.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "AsyncLocalStorage signal-scope binding now lives in its own leaf. Heavy startup modules lazy-load this owner so retrieval CLI startup does not pay for scope-only code.",
+      "recommendation": "Keep scope propagation here so nested signal-scope behavior can be validated independently of child registration and termination."
+    },
+    {
+      "path": "src/shared/subprocess/tracking-terminate.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Tracked subprocess termination and cleanup flow live in a dedicated leaf instead of being entangled with scope propagation or registration.",
+      "recommendation": "Keep tracked-child termination flow here and avoid recombining it with AsyncLocalStorage ownership plumbing."
+    },
+    {
+      "path": "src/shared/subprocess/tracking.js",
+      "consumerCount": 20,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Tracking is now a public and test-facing facade over runtime bookkeeping, termination flow, child registration, and AsyncLocalStorage scope propagation leaves; startup-sensitive src paths import the narrow leaves directly.",
+      "recommendation": "Keep as the public tracking surface and route implementation changes to tracking-runtime, tracking-terminate, tracking-register, or tracking-scope."
+    },
+    {
+      "path": "src/shared/subprocess/windows-cmd-core.cjs",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Windows command-wrapper resolution uses this as the low-level shim probe and resolution layer.",
+      "recommendation": "Keep as the Windows-specific command core and document its contract clearly."
+    },
+    {
+      "path": "src/shared/subprocess/windows-cmd.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Command resolution and tooling flows use it for Windows cmd or shim behavior.",
+      "recommendation": "Keep as the shared Windows wrapper facade above windows-cmd-core.cjs."
+    },
+    {
+      "path": "src/shared/threads.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Runtime worker configuration flows use it for thread-count resolution.",
+      "recommendation": "Keep as the small thread-resolution helper."
+    },
+    {
+      "path": "src/shared/workers/node-argv.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Worker-family helper for deriving Node argv used by worker launch and subprocess execution paths.",
+      "recommendation": "Keep Node argv derivation under the worker family and avoid duplicating execArgv filtering in launch callsites."
+    },
+    {
+      "path": "src/shared/workers/bounded-object-pool.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Worker-pool metadata uses it as a small bounded object pool helper.",
+      "recommendation": "Keep small and focused on bounded pooling semantics under src/shared/workers."
+    },
+    {
+      "path": "src/shared/workers/bundle-transform-worker.js",
+      "consumerCount": 0,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Worker entrypoint used indirectly by bundle-io offload paths.",
+      "recommendation": "Keep as a worker-target module and document its ownership under bundle IO."
+    }
+  ]
+}

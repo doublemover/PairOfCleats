@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getTriageContext, runJson } from '../../helpers/triage.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const { root, repoRoot, triageFixtureRoot, env } = await getTriageContext({
   name: 'triage-decision-finding-path-safety'
@@ -30,18 +30,17 @@ await fsPromises.writeFile(escapedFindingPath, JSON.stringify({
   updatedAt: new Date().toISOString()
 }, null, 2));
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     path.join(root, 'tools', 'triage', 'decision.js'),
     '--repo', repoRoot,
     '--finding', '../outside-finding',
     '--status', 'accept'
   ],
-  {
-    encoding: 'utf8',
-    env
-  }
+  'triage decision path safety',
+  root,
+  env,
+  { stdio: 'pipe', allowFailure: true }
 );
 
 if (result.status === 0) {

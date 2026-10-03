@@ -6,11 +6,13 @@ import path from 'node:path';
 
 import { createCli } from '../../../src/shared/cli.js';
 import { normalizeLegacyCacheRootPath, resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
-import { getEnvConfig } from '../../../src/shared/env.js';
+import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
-import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
+import { hasChunkMetaArtifactsSync } from '../../../src/shared/artifact-io/chunk-meta-presence.js';
+import { readJsonFileSyncSafe } from '../../../src/shared/file-read.js';
+import { writeJsonFileResolved } from '../../../src/shared/json-file.js';
 import { sleep } from '../../../src/shared/sleep.js';
-import { spawnSubprocess, spawnSubprocessSync } from '../../../src/shared/subprocess.js';
+import { spawnSubprocess, spawnSubprocessSync } from '../../../src/shared/subprocess/runner.js';
 import {
   resolveBakeoffFastPathDefaults,
   resolveBakeoffBuildPlan,
@@ -19,19 +21,16 @@ import {
   resolveBakeoffStage4Modes
 } from './model-bakeoff-lib.js';
 import {
+  bootstrapRuntime,
   getCacheRoot,
   getDictConfig,
   getModelConfig,
   getRepoId,
   isWithinRoot,
-  getRuntimeConfig,
-  resolveRepoConfig,
-  resolveRuntimeEnv,
   resolveToolRoot,
   toRealPathSync
 } from '../../shared/dict-utils.js';
 import { createToolDisplay } from '../../shared/cli-display.js';
-import { readJsonFileSyncSafe } from '../../shared/json-utils.js';
 
 const DEFAULT_BAKEOFF_MODELS = ['Xenova/bge-small-en-v1.5', 'Xenova/bge-base-en-v1.5'];
 const DEFAULT_BAKEOFF_BASELINE = 'Xenova/bge-base-en-v1.5';
@@ -106,11 +105,9 @@ const positionalArgs = Array.isArray(argv._)
 const positionalModelsArg = positionalArgs[0] || '';
 const positionalDatasetArg = positionalArgs[1] || '';
 
-const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
+const { repoRoot: root, userConfig, runtimeEnv: baseEnv } = bootstrapRuntime(argv.repo);
 const toolRoot = resolveToolRoot();
 const envConfig = getEnvConfig();
-const runtimeConfig = getRuntimeConfig(root, userConfig);
-const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const modelConfig = getModelConfig(root, userConfig);
 const dictConfig = getDictConfig(root, userConfig);
 const sharedModelsDir = envConfig.modelsDir || modelConfig.dir;
@@ -226,6 +223,17 @@ const streamChildOutputToStderr = argv.json === true;
 const isIndexLockContentionMessage = (value) => (
   /index lock (held|unavailable)/i.test(String(value || ''))
 );
+
+const throwIfSubprocessFailed = (result, label) => {
+  if (result.exitCode === 0 && !result.signal) return;
+  const stderr = String(result.stderr || '').trim();
+  const suffix = stderr ? `\n${stderr}` : '';
+  const reason = result.signal
+    ? `signal=${result.signal}`
+    : `exit=${result.exitCode ?? 'unknown'}`;
+  throw new Error(`${label} failed (${reason})${suffix}`);
+};
+
 const runNode = async (args, env, label) => {
   const result = await spawnSubprocess(process.execPath, args, {
     cwd: root,
@@ -243,14 +251,7 @@ const runNode = async (args, env, label) => {
       : null,
     rejectOnNonZeroExit: false
   });
-  if (result.exitCode !== 0 || result.signal) {
-    const stderr = String(result.stderr || '').trim();
-    const suffix = stderr ? `\n${stderr}` : '';
-    const reason = result.signal
-      ? `signal=${result.signal}`
-      : `exit=${result.exitCode ?? 'unknown'}`;
-    throw new Error(`${label} failed (${reason})${suffix}`);
-  }
+  throwIfSubprocessFailed(result, label);
   return result;
 };
 
@@ -301,14 +302,7 @@ const runJsonNode = (args, env, label) => {
     outputMode: 'string',
     rejectOnNonZeroExit: false
   });
-  if (result.exitCode !== 0 || result.signal) {
-    const stderr = String(result.stderr || '').trim();
-    const suffix = stderr ? `\n${stderr}` : '';
-    const reason = result.signal
-      ? `signal=${result.signal}`
-      : `exit=${result.exitCode ?? 'unknown'}`;
-    throw new Error(`${label} failed (${reason})${suffix}`);
-  }
+  throwIfSubprocessFailed(result, label);
   const stdout = String(result.stdout || '{}').trim() || '{}';
   try {
     return JSON.parse(stdout);
@@ -627,8 +621,7 @@ const writeOutputPayload = async ({
     currentPhase,
     phaseStartedAt
   });
-  await fsPromises.mkdir(path.dirname(checkpointOutPath), { recursive: true });
-  await fsPromises.writeFile(checkpointOutPath, JSON.stringify(payload, null, 2), 'utf8');
+  await writeJsonFileResolved(checkpointOutPath, payload);
   return payload;
 };
 

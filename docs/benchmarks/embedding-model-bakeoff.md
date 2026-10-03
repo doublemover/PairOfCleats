@@ -32,7 +32,7 @@ node tools/bench/embeddings/model-bakeoff.js \
 NPM alias:
 
 ```bash
-npm run bench-embedding-models
+node tools/bench/embeddings/model-bakeoff.js
 ```
 
 Default behavior is tuned for smoke runs:

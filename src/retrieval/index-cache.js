@@ -1,9 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createLruCache } from '../shared/cache.js';
-import { runWithConcurrency } from '../shared/concurrency.js';
-import { incCacheEviction, setCacheSize } from '../shared/metrics.js';
+import { createHash } from 'node:crypto';
+import { createLruCache } from '../shared/cache/lru.js';
+import { runWithConcurrency } from '../shared/concurrency/run-with-queue.js';
+import { incCacheEviction, setCacheSize } from '../shared/metrics/core.js';
 import { probeFileSignature } from '../shared/file-signature.js';
+import { stableStringifyForSignature } from '../shared/stable-json.js';
 
 const DEFAULT_INDEX_CACHE_MAX_ENTRIES = 4;
 const DEFAULT_INDEX_CACHE_TTL_MS = 15 * 60 * 1000;
@@ -12,6 +14,7 @@ const INDEX_SIGNATURE_CACHE_MAX_ENTRIES = 256;
 const SHARD_SIGNATURE_CONCURRENCY = 32;
 const INDEX_STATE_READ_MAX_BYTES = 4 * 1024 * 1024;
 const indexSignatureCache = new Map();
+const managedIndexLoads = new WeakMap();
 
 /**
  * Canonicalize index directory path (realpath when available).
@@ -112,12 +115,12 @@ const setCachedSignature = (cacheKey, signature) => {
 };
 
 /**
- * Build index-state signature preferring semantic build metadata when present.
+ * Read semantic index-state freshness info when available.
  *
  * @param {string} dir
- * @returns {Promise<{signature:string,buildId:string|null}|null>}
+ * @returns {Promise<{signature:string,buildId:string|null,mode:string|null,artifactSurfaceVersion:string|null}|null>}
  */
-const indexStateSignature = async (dir) => {
+export const readIndexStateSignature = async (dir) => {
   if (!dir) return null;
   const statePath = path.join(dir, 'index_state.json');
   try {
@@ -130,17 +133,79 @@ const indexStateSignature = async (dir) => {
     if (state && typeof state === 'object') {
       const buildId = typeof state.buildId === 'string' ? state.buildId : '';
       const mode = typeof state.mode === 'string' ? state.mode : '';
-      const surface = typeof state.artifactSurfaceVersion === 'string' ? state.artifactSurfaceVersion : '';
-      if (buildId || mode || surface) {
+      const artifactSurfaceVersion = typeof state.artifactSurfaceVersion === 'string'
+        ? state.artifactSurfaceVersion
+        : '';
+      if (buildId || mode || artifactSurfaceVersion) {
+        // Enrichment and standalone embeddings update an existing build in
+        // place. Its identity fields alone cannot describe artifact freshness.
+        // Hash the bounded bytes already read, avoiding extra artifact probes
+        // and preserving warm reuse when identical state is rewritten.
+        const stateHash = createHash('sha256').update(raw).digest('hex');
         return {
-          signature: `build:${buildId || 'missing'}|mode:${mode || 'missing'}|surface:${surface || 'missing'}`,
-          buildId: buildId || null
+          signature: `build:${buildId || 'missing'}|mode:${mode || 'missing'}|surface:${artifactSurfaceVersion || 'missing'}|state:${stateHash}`,
+          buildId: buildId || null,
+          mode: mode || null,
+          artifactSurfaceVersion: artifactSurfaceVersion || null
         };
       }
     }
   } catch {}
   const statSig = await fileSignature(statePath);
-  return statSig ? { signature: `stat:${statSig}`, buildId: null } : null;
+  return statSig
+    ? {
+      signature: `stat:${statSig}`,
+      buildId: null,
+      mode: null,
+      artifactSurfaceVersion: null
+    }
+    : null;
+};
+
+export async function buildIndexSignatureInfo(dir) {
+  if (!dir) return null;
+  const canonicalDir = await canonicalizeIndexDir(dir);
+  if (!canonicalDir) return null;
+  const stateInfo = await readIndexStateSignature(canonicalDir);
+  if (stateInfo?.signature) {
+    const cacheKey = `${canonicalDir}|state:${stateInfo.signature}`;
+    const cached = getCachedSignature(cacheKey);
+    const signature = cached || `index_state:${stateInfo.signature}`;
+    if (!cached) {
+      setCachedSignature(cacheKey, signature);
+    }
+    return {
+      canonicalDir,
+      signature,
+      buildId: stateInfo.buildId || null,
+      mode: stateInfo.mode || null,
+      artifactSurfaceVersion: stateInfo.artifactSurfaceVersion || null
+    };
+  }
+  const [chunkMetaSig, tokenPostingsSig, fileRelationsSig, repoMapSig, ...fileSigs] = await Promise.all([
+    chunkMetaSignature(canonicalDir),
+    tokenPostingsSignature(canonicalDir),
+    jsonlArtifactSignature(canonicalDir, 'file_relations'),
+    jsonlArtifactSignature(canonicalDir, 'repo_map'),
+    ...INDEX_FILES.map(async (name) => {
+      const target = path.join(canonicalDir, name);
+      const sig = await fileSignature(target);
+      return `${name}:${sig || 'missing'}`;
+    })
+  ]);
+  return {
+    canonicalDir,
+    signature: [
+      chunkMetaSig,
+      tokenPostingsSig,
+      fileRelationsSig,
+      repoMapSig,
+      ...fileSigs
+    ].join('|'),
+    buildId: null,
+    mode: null,
+    artifactSurfaceVersion: null
+  };
 };
 
 export { probeFileSignature };
@@ -256,37 +321,7 @@ const jsonlArtifactSignature = async (dir, baseName) => {
  * @returns {Promise<string|null>}
  */
 export async function buildIndexSignature(dir) {
-  if (!dir) return null;
-  const canonicalDir = await canonicalizeIndexDir(dir);
-  if (!canonicalDir) return null;
-  const stateInfo = await indexStateSignature(canonicalDir);
-  if (stateInfo?.signature) {
-    const cacheKey = `${canonicalDir}|state:${stateInfo.signature}`;
-    const cached = getCachedSignature(cacheKey);
-    if (cached) return cached;
-    const signature = `index_state:${stateInfo.signature}`;
-    setCachedSignature(cacheKey, signature);
-    return signature;
-  }
-  const [chunkMetaSig, tokenPostingsSig, fileRelationsSig, repoMapSig, ...fileSigs] = await Promise.all([
-    chunkMetaSignature(canonicalDir),
-    tokenPostingsSignature(canonicalDir),
-    jsonlArtifactSignature(canonicalDir, 'file_relations'),
-    jsonlArtifactSignature(canonicalDir, 'repo_map'),
-    ...INDEX_FILES.map(async (name) => {
-      const target = path.join(canonicalDir, name);
-      const sig = await fileSignature(target);
-      return `${name}:${sig || 'missing'}`;
-    })
-  ]);
-  const signature = [
-    chunkMetaSig,
-    tokenPostingsSig,
-    fileRelationsSig,
-    repoMapSig,
-    ...fileSigs
-  ].join('|');
-  return signature;
+  return (await buildIndexSignatureInfo(dir))?.signature || null;
 }
 
 /**
@@ -329,26 +364,36 @@ export function createIndexCache({
       cache: null
     };
   }
-  return {
+  const loadState = { epoch: 0, pending: new Map(), publish: cacheHandle.set };
+  const cache = {
     get(key) {
       return cacheHandle.get(key);
     },
     set(key, value) {
+      loadState.pending.delete(key);
       cacheHandle.set(key, value);
     },
     delete(key) {
+      loadState.pending.delete(key);
       cacheHandle.delete(key);
     },
     clear() {
+      loadState.epoch += 1;
+      loadState.pending.clear();
       cacheHandle.clear();
     },
     size: cacheHandle.size,
     cache: cacheHandle.cache
   };
+  managedIndexLoads.set(cache, loadState);
+  return cache;
 }
 
 /**
  * Load index artifacts with signature-based cache validation.
+ * Managed caches share pending request-independent loads by key/signature.
+ * Signal-bearing cache misses load independently without publishing, and raw
+ * external caches retain their existing ownership and loading behavior.
  *
  * @param {ReturnType<typeof createIndexCache>|null} cache
  * @param {string} dir
@@ -358,8 +403,13 @@ export function createIndexCache({
  */
 export async function loadIndexWithCache(cache, dir, options, loader) {
   if (!cache) return loader(dir, options);
+  const loadState = managedIndexLoads.get(cache);
+  const loadEpoch = loadState?.epoch;
   const resolvedDir = path.resolve(String(dir || ''));
   const canonicalDir = await fs.realpath(resolvedDir).catch(() => resolvedDir);
+  const generationTag = options?.generationTag
+    ? stableStringifyForSignature(options.generationTag)
+    : null;
   const hnswKey = options?.includeHnsw ? JSON.stringify(options?.hnswConfig || {}) : 'no-hnsw';
   const denseKey = options?.denseVectorMode ? String(options.denseVectorMode) : '';
   const includeKey = [
@@ -371,11 +421,34 @@ export async function loadIndexWithCache(cache, dir, options, loader) {
     options?.includeTokenIndex !== false ? 'token' : 'no-token',
     options?.includeChunkMetaCold !== false ? 'chunk-meta-cold' : 'chunk-meta-hot'
   ].join(',');
-  const cacheKey = `${canonicalDir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}::${denseKey}::${includeKey}`;
+  const cacheKey = `${canonicalDir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}::${denseKey}::${includeKey}::generation:${generationTag || 'default'}`;
   const signature = await buildIndexSignature(canonicalDir);
   const cached = cache.get(cacheKey);
+  // Clearing during asynchronous identity probes also retires that load.
+  if (loadState && loadEpoch !== loadState.epoch) return loader(canonicalDir, options);
+  const pending = loadState?.pending.get(cacheKey);
+  if (pending && pending.signature !== signature) loadState.pending.delete(cacheKey);
   if (cached && cached.signature === signature) {
     return cached.value;
+  }
+  if (loadState) {
+    // Request-independent production loaders can share materialization. A
+    // signal-bearing caller keeps its own loader and cannot publish aborted
+    // or caller-specific work into the shared cache.
+    if (options?.signal) return loader(canonicalDir, options);
+    if (pending?.signature === signature) return pending.promise;
+    const entry = { signature, promise: null };
+    entry.promise = Promise.resolve().then(() => loader(canonicalDir, options)).then((value) => {
+      if (loadState.epoch === loadEpoch && loadState.pending.get(cacheKey) === entry) {
+        loadState.publish(cacheKey, { signature, value });
+      }
+      return value;
+    }).finally(() => {
+      // Old completions must neither publish over nor remove a replacement.
+      if (loadState.pending.get(cacheKey) === entry) loadState.pending.delete(cacheKey);
+    });
+    loadState.pending.set(cacheKey, entry);
+    return entry.promise;
   }
   const value = await loader(canonicalDir, options);
   cache.set(cacheKey, { signature, value });

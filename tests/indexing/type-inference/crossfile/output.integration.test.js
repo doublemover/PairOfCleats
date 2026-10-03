@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { MAX_JSON_BYTES, loadChunkMeta, loadJsonArrayArtifact } from '../../../../src/shared/artifact-io.js';
-import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../../tools/shared/dict-utils.js';
+import { toRealPathSync } from '../../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { runNode } from '../../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+import { loadCodeChunkArtifacts } from './artifact-fixture.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'type-inference-crossfile-integration');
@@ -64,7 +64,7 @@ const buildTimeoutMs = Number.isFinite(Number(process.env.PAIROFCLEATS_TEST_TIME
   ? Math.max(180000, Number(process.env.PAIROFCLEATS_TEST_TIMEOUT_MS))
   : 180000;
 
-const result = spawnSync(process.execPath, [
+const result = runNode([
   path.join(root, 'build_index.js'),
   '--stub-embeddings',
   '--stage',
@@ -73,33 +73,17 @@ const result = spawnSync(process.execPath, [
   'code',
   '--repo',
   repoRoot
-], {
-  cwd: repoRoot,
-  env,
-  timeout: buildTimeoutMs,
-  killSignal: 'SIGTERM',
-  stdio: 'inherit'
+], 'cross-file inference integration build index', repoRoot, env, {
+  timeoutMs: buildTimeoutMs,
+  stdio: 'inherit',
+  allowFailure: true
 });
 if (result.status !== 0) {
   console.error('Cross-file inference integration test failed: build_index failed.');
   process.exit(result.status ?? 1);
 }
 
-const userConfig = loadUserConfig(repoRoot);
-const codeDir = getIndexDir(repoRoot, 'code', userConfig);
-let chunkMeta = [];
-let fileMeta = [];
-try {
-  chunkMeta = await loadChunkMeta(codeDir, { maxBytes: MAX_JSON_BYTES, strict: true });
-  fileMeta = await loadJsonArrayArtifact(codeDir, 'file_meta', { maxBytes: MAX_JSON_BYTES, strict: true });
-} catch (err) {
-  console.error(`Failed to load inference artifacts at ${codeDir}: ${err?.message || err}`);
-  process.exit(1);
-}
-const fileById = new Map(
-  (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
-);
-const resolveChunkFile = (chunk) => chunk?.file || fileById.get(chunk?.fileId) || null;
+const { chunkMeta, resolveChunkFile } = await loadCodeChunkArtifacts(repoRoot, 'inference');
 
 const buildWidget = chunkMeta.find((chunk) =>
   resolveChunkFile(chunk) === 'src/consumer.js'

@@ -1,125 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { normalizeCommentConfig } from '../../../src/index/comments.js';
-import { getLanguageForFile } from '../../../src/index/language-registry.js';
 import { resolveScmConfig } from '../../../src/index/scm/registry.js';
-import { normalizeSegmentsConfig } from '../../../src/index/segments.js';
-import { processFileCpu } from '../../../src/index/build/file-processor/cpu.js';
-import { applyTestEnv } from '../../helpers/test-env.js';
+import { getLanguageForFile, processScmFile, readFixture } from './scm-file-processor-test-helper.js';
 
-applyTestEnv({ testing: '1' });
-
-const root = process.cwd();
-const noop = () => {};
-const timing = {
-  metricsCollector: null,
-  addSettingMetric: noop,
-  addLineSpan: noop,
-  addParseDuration: noop,
-  addTokenizeDuration: noop,
-  addEnrichDuration: noop,
-  addEmbeddingDuration: noop,
-  addLintDuration: noop,
-  addComplexityDuration: noop,
-  setGitDuration: noop,
-  setPythonAstDuration: noop
-};
-
-const createContext = ({
-  mode = 'code',
-  abs,
-  ext,
-  rel,
-  relKey,
-  text,
-  fileStat,
-  languageHint,
-  scmProviderImpl,
-  fileHash,
-  scmConfig = { annotate: {} },
-  analysisPolicy = null,
-  runIo = (fn) => fn(),
-  runProc = (fn) => fn()
-}) => ({
-  abs,
-  root,
-  mode,
-  fileEntry: { abs, rel: relKey },
-  fileIndex: 1,
-  ext,
-  rel,
-  relKey,
-  text,
-  fileStat,
-  fileHash,
-  fileHashAlgo: 'sha1',
-  fileCaps: null,
-  fileStructural: null,
-  scmProvider: 'git',
-  scmProviderImpl,
-  scmRepoRoot: root,
-  scmConfig,
-  languageOptions: { treeSitter: { enabled: false }, pythonAst: { enabled: false } },
-  astDataflowEnabled: false,
-  controlFlowEnabled: false,
-  normalizedSegmentsConfig: normalizeSegmentsConfig(null),
-  normalizedCommentsConfig: normalizeCommentConfig(null),
-  tokenDictWords: new Set(),
-  dictConfig: {},
-  tokenContext: {
-    dictWords: new Set(),
-    dictConfig: {},
-    codeDictCache: new Map(),
-    tokenClassification: { enabled: false },
-    phraseEnabled: false,
-    chargramEnabled: false
-  },
-  postingsConfig: {},
-  contextWin: {},
-  relationsEnabled: false,
-  lintEnabled: false,
-  complexityEnabled: false,
-  typeInferenceEnabled: false,
-  riskAnalysisEnabled: false,
-  riskConfig: {},
-  gitBlameEnabled: true,
-  analysisPolicy,
-  workerPool: null,
-  workerDictOverride: null,
-  workerState: {},
-  tokenizationStats: null,
-  tokenizeEnabled: true,
-  embeddingEnabled: false,
-  embeddingNormalize: false,
-  embeddingBatchSize: 0,
-  getChunkEmbedding: null,
-  getChunkEmbeddings: null,
-  runEmbedding: (fn) => fn(),
-  runProc,
-  runTreeSitterSerial: (fn) => fn(),
-  runIo,
-  log: noop,
-  logLine: noop,
-  showLineProgress: false,
-  toolInfo: null,
-  treeSitterScheduler: null,
-  timing,
-  languageHint,
-  crashLogger: { enabled: false, updateFile: noop },
-  vfsManifestConcurrency: 1,
-  complexityCache: null,
-  lintCache: null,
-  buildStage: 'stage1'
-});
-
-const yamlAbs = path.join(root, 'tests', 'fixtures', 'mixed', 'src', 'config.yml');
-const yamlRel = path.relative(root, yamlAbs);
-const yamlRelKey = yamlRel.split(path.sep).join('/');
-const yamlText = await fs.readFile(yamlAbs, 'utf8');
-const yamlStat = await fs.stat(yamlAbs);
-const yamlLanguageHint = getLanguageForFile('.yml', yamlRelKey);
+const yaml = await readFixture('tests', 'fixtures', 'mixed', 'src', 'config.yml');
 let yamlAnnotateCalls = 0;
 let yamlTimeoutMs = null;
 let yamlMetaTimeoutMs = null;
@@ -137,28 +21,17 @@ const yamlScmProvider = {
   }
 };
 
-await processFileCpu(createContext({
-  abs: yamlAbs,
-  ext: '.yml',
-  rel: yamlRel,
-  relKey: yamlRelKey,
-  text: yamlText,
-  fileStat: yamlStat,
-  languageHint: yamlLanguageHint,
+await processScmFile({
+  ...yaml,
   scmProviderImpl: yamlScmProvider,
   fileHash: 'scm-annotate-fast-timeout-yml'
-}));
+});
 assert.equal(yamlAnnotateCalls, 1, 'expected annotate to run for .yml files');
 assert.equal(yamlTimeoutMs, 5000, 'expected .yml annotate timeout to clamp to 5000ms by default');
 assert.equal(yamlMetaTimeoutMs, 250, 'expected .yml meta timeout to clamp to 250ms by default');
 assert.equal(yamlIncludeChurn, false, 'expected fast-path .yml churn metadata to be disabled');
 
-const jsAbs = path.join(root, 'tests', 'fixtures', 'tree-sitter', 'javascript.js');
-const jsRel = path.relative(root, jsAbs);
-const jsRelKey = jsRel.split(path.sep).join('/');
-const jsText = await fs.readFile(jsAbs, 'utf8');
-const jsStat = await fs.stat(jsAbs);
-const jsLanguageHint = getLanguageForFile('.js', jsRelKey);
+const js = await readFixture('tests', 'fixtures', 'tree-sitter', 'javascript.js');
 let jsAnnotateCalls = 0;
 let jsTimeoutMs = null;
 let jsMetaTimeoutMs = null;
@@ -176,17 +49,11 @@ const jsScmProvider = {
   }
 };
 
-await processFileCpu(createContext({
-  abs: jsAbs,
-  ext: '.js',
-  rel: jsRel,
-  relKey: jsRelKey,
-  text: jsText,
-  fileStat: jsStat,
-  languageHint: jsLanguageHint,
+await processScmFile({
+  ...js,
   scmProviderImpl: jsScmProvider,
   fileHash: 'scm-annotate-fast-timeout-js'
-}));
+});
 assert.equal(jsAnnotateCalls, 1, 'expected annotate to run for .js files');
 assert.equal(jsTimeoutMs, 5000, 'expected non-metadata annotate timeout to clamp to 5000ms');
 assert.equal(jsMetaTimeoutMs, 750, 'expected non-metadata meta timeout to clamp to 750ms');
@@ -212,8 +79,8 @@ const javaScmProvider = {
     return { ok: false, reason: 'timeout' };
   }
 };
-await processFileCpu(createContext({
-  abs: jsAbs,
+await processScmFile({
+  abs: js.abs,
   ext: '.java',
   rel: javaRelKey,
   relKey: javaRelKey,
@@ -222,7 +89,7 @@ await processFileCpu(createContext({
   languageHint: javaLanguageHint,
   scmProviderImpl: javaScmProvider,
   fileHash: 'scm-annotate-fast-timeout-java'
-}));
+});
 assert.equal(javaAnnotateCalls, 1, 'expected annotate to run for .java files');
 assert.equal(javaTimeoutMs, 5000, 'expected .java annotate timeout to clamp for large Java files');
 assert.equal(javaMetaTimeoutMs, 250, 'expected .java meta timeout to clamp for large Java files');
@@ -248,8 +115,8 @@ const heavyScmProvider = {
     return { ok: false, reason: 'timeout' };
   }
 };
-await processFileCpu(createContext({
-  abs: jsAbs,
+await processScmFile({
+  abs: js.abs,
   ext: '.h',
   rel: heavyRelKey,
   relKey: heavyRelKey,
@@ -258,18 +125,13 @@ await processFileCpu(createContext({
   languageHint: heavyLanguageHint,
   scmProviderImpl: heavyScmProvider,
   fileHash: 'scm-annotate-fast-timeout-heavy-path'
-}));
+});
 assert.equal(heavyAnnotateCalls, 1, 'expected annotate to run for heavy include paths');
 assert.equal(heavyTimeoutMs, 5000, 'expected heavy include paths to use 5s annotate timeout cap');
 assert.equal(heavyMetaTimeoutMs, 250, 'expected heavy include paths to keep fast metadata timeout cap');
 assert.equal(heavyIncludeChurn, false, 'expected heavy include paths to keep churn disabled on fast path');
 
-const swiftAbs = path.join(root, 'tests', 'fixtures', 'tree-sitter', 'swift.swift');
-const swiftRel = path.relative(root, swiftAbs);
-const swiftRelKey = swiftRel.split(path.sep).join('/');
-const swiftText = await fs.readFile(swiftAbs, 'utf8');
-const swiftStat = await fs.stat(swiftAbs);
-const swiftLanguageHint = getLanguageForFile('.swift', swiftRelKey);
+const swift = await readFixture('tests', 'fixtures', 'tree-sitter', 'swift.swift');
 let swiftAnnotateCalls = 0;
 let swiftTimeoutMs = null;
 let swiftMetaTimeoutMs = null;
@@ -284,27 +146,16 @@ const swiftScmProvider = {
     return { ok: false, reason: 'timeout' };
   }
 };
-await processFileCpu(createContext({
-  abs: swiftAbs,
-  ext: '.swift',
-  rel: swiftRel,
-  relKey: swiftRelKey,
-  text: swiftText,
-  fileStat: swiftStat,
-  languageHint: swiftLanguageHint,
+await processScmFile({
+  ...swift,
   scmProviderImpl: swiftScmProvider,
   fileHash: 'scm-annotate-fast-timeout-swift'
-}));
+});
 assert.equal(swiftAnnotateCalls, 1, 'expected annotate to run for .swift files');
 assert.equal(swiftTimeoutMs, 5000, 'expected .swift annotate timeout to clamp to 5000ms');
 assert.equal(swiftMetaTimeoutMs, 250, 'expected .swift meta timeout to clamp to 250ms');
 
-const pyAbs = path.join(root, 'tests', 'fixtures', 'sample', 'src', 'sample.py');
-const pyRel = path.relative(root, pyAbs);
-const pyRelKey = pyRel.split(path.sep).join('/');
-const pyText = await fs.readFile(pyAbs, 'utf8');
-const pyStat = await fs.stat(pyAbs);
-const pyLanguageHint = getLanguageForFile('.py', pyRelKey);
+const py = await readFixture('tests', 'fixtures', 'sample', 'src', 'sample.py');
 let pyAnnotateCalls = 0;
 let pyTimeoutMs = null;
 let pyMetaTimeoutMs = null;
@@ -321,17 +172,11 @@ const pyScmProvider = {
     return { ok: false, reason: 'timeout' };
   }
 };
-await processFileCpu(createContext({
-  abs: pyAbs,
-  ext: '.py',
-  rel: pyRel,
-  relKey: pyRelKey,
-  text: pyText,
-  fileStat: pyStat,
-  languageHint: pyLanguageHint,
+await processScmFile({
+  ...py,
   scmProviderImpl: pyScmProvider,
   fileHash: 'scm-annotate-fast-timeout-py'
-}));
+});
 assert.equal(pyAnnotateCalls, 1, 'expected annotate to run for .py files');
 assert.equal(pyTimeoutMs, 5000, 'expected .py annotate timeout to clamp to 5000ms');
 assert.equal(pyMetaTimeoutMs, 250, 'expected .py meta timeout to clamp to 250ms');
@@ -350,17 +195,17 @@ const pyGeneratedScmProvider = {
   }
 };
 const pyGeneratedRelKey = 'pygments/lexers/_lasso_builtins.py';
-await processFileCpu(createContext({
-  abs: pyAbs,
+await processScmFile({
+  abs: py.abs,
   ext: '.py',
   rel: pyGeneratedRelKey,
   relKey: pyGeneratedRelKey,
-  text: pyText,
-  fileStat: pyStat,
+  text: py.text,
+  fileStat: py.fileStat,
   languageHint: getLanguageForFile('.py', pyGeneratedRelKey),
   scmProviderImpl: pyGeneratedScmProvider,
   fileHash: 'scm-annotate-fast-timeout-py-generated'
-}));
+});
 assert.equal(pyGeneratedMetaCalls, 1, 'expected generated python files to keep SCM file metadata');
 assert.equal(pyGeneratedAnnotateCalls, 0, 'expected generated python files to skip SCM annotate');
 
@@ -374,18 +219,12 @@ const legacyMetaIgnoredScmProvider = {
     return { ok: false, reason: 'timeout' };
   }
 };
-await processFileCpu(createContext({
-  abs: jsAbs,
-  ext: '.js',
-  rel: jsRel,
-  relKey: jsRelKey,
-  text: jsText,
-  fileStat: jsStat,
-  languageHint: jsLanguageHint,
+await processScmFile({
+  ...js,
   scmProviderImpl: legacyMetaIgnoredScmProvider,
   fileHash: 'scm-annotate-fast-timeout-ignore-legacy-meta',
   scmConfig: { annotate: {}, meta: { includeChurn: false } }
-}));
+});
 assert.equal(
   legacyMetaIgnoredIncludeChurn,
   true,
@@ -402,19 +241,13 @@ const policyOverrideScmProvider = {
     return { ok: false, reason: 'timeout' };
   }
 };
-await processFileCpu(createContext({
-  abs: jsAbs,
-  ext: '.js',
-  rel: jsRel,
-  relKey: jsRelKey,
-  text: jsText,
-  fileStat: jsStat,
-  languageHint: jsLanguageHint,
+await processScmFile({
+  ...js,
   scmProviderImpl: policyOverrideScmProvider,
   fileHash: 'scm-annotate-fast-timeout-policy-override',
   scmConfig: { annotate: {}, meta: { includeChurn: false } },
   analysisPolicy: { git: { churn: true } }
-}));
+});
 assert.equal(
   policyOverrideIncludeChurn,
   true,
@@ -435,19 +268,13 @@ const explicitScmProvider = {
     return { ok: false, reason: 'timeout' };
   }
 };
-await processFileCpu(createContext({
-  abs: yamlAbs,
-  ext: '.yml',
-  rel: yamlRel,
-  relKey: yamlRelKey,
-  text: yamlText,
-  fileStat: yamlStat,
-  languageHint: yamlLanguageHint,
+await processScmFile({
+  ...yaml,
   scmProviderImpl: explicitScmProvider,
   fileHash: 'scm-annotate-fast-timeout-explicit',
   scmConfig: { timeoutMs: 333, annotate: { timeoutMs: 4321 } },
   analysisPolicy: { git: { churn: false } }
-}));
+});
 assert.equal(explicitTimeoutMs, 4321, 'expected explicit annotate timeout to respect 5000ms fast-path cap');
 assert.equal(explicitMetaTimeoutMs, 250, 'expected explicit meta timeout to still respect fast-path clamp');
 assert.equal(explicitIncludeChurn, false, 'expected churn flag to respect analysis policy');
@@ -464,14 +291,8 @@ const allowSlowScmProvider = {
     return { ok: false, reason: 'timeout' };
   }
 };
-await processFileCpu(createContext({
-  abs: yamlAbs,
-  ext: '.yml',
-  rel: yamlRel,
-  relKey: yamlRelKey,
-  text: yamlText,
-  fileStat: yamlStat,
-  languageHint: yamlLanguageHint,
+await processScmFile({
+  ...yaml,
   scmProviderImpl: allowSlowScmProvider,
   fileHash: 'scm-annotate-fast-timeout-allow-slow',
   scmConfig: {
@@ -479,7 +300,7 @@ await processFileCpu(createContext({
     timeoutMs: 333,
     annotate: { timeoutMs: 4321 }
   }
-}));
+});
 assert.equal(allowSlowTimeoutMs, 4321, 'expected allowSlowTimeouts to permit explicit annotate timeout');
 assert.equal(allowSlowMetaTimeoutMs, 333, 'expected allowSlowTimeouts to permit explicit meta timeout');
 
@@ -495,14 +316,8 @@ const batchDefaultScmProvider = {
     return { ok: false, reason: 'timeout' };
   }
 };
-await processFileCpu(createContext({
-  abs: yamlAbs,
-  ext: '.yml',
-  rel: yamlRel,
-  relKey: yamlRelKey,
-  text: yamlText,
-  fileStat: yamlStat,
-  languageHint: yamlLanguageHint,
+await processScmFile({
+  ...yaml,
   scmProviderImpl: batchDefaultScmProvider,
   fileHash: 'scm-annotate-fast-timeout-batch-default',
   scmConfig: resolveScmConfig({
@@ -510,7 +325,7 @@ await processFileCpu(createContext({
     analysisPolicy: null,
     workload: 'batch'
   })
-}));
+});
 assert.equal(
   batchDefaultMetaTimeoutMs,
   10000,
@@ -535,13 +350,13 @@ const forcedCapScmProvider = {
   }
 };
 const forcedCapRelKey = 'test/Sema/exhaustive_switch.swift';
-await processFileCpu(createContext({
-  abs: swiftAbs,
+await processScmFile({
+  abs: swift.abs,
   ext: '.swift',
   rel: forcedCapRelKey,
   relKey: forcedCapRelKey,
-  text: swiftText,
-  fileStat: swiftStat,
+  text: swift.text,
+  fileStat: swift.fileStat,
   languageHint: getLanguageForFile('.swift', forcedCapRelKey),
   scmProviderImpl: forcedCapScmProvider,
   fileHash: 'scm-annotate-fast-timeout-force-cap',
@@ -550,7 +365,7 @@ await processFileCpu(createContext({
     timeoutMs: 12000,
     annotate: { timeoutMs: 15000 }
   }
-}));
+});
 assert.equal(
   forcedCapAnnotateTimeoutMs,
   5000,
@@ -572,14 +387,8 @@ const scmRunIoProvider = {
     return { ok: false, reason: 'timeout' };
   }
 };
-await processFileCpu(createContext({
-  abs: yamlAbs,
-  ext: '.yml',
-  rel: yamlRel,
-  relKey: yamlRelKey,
-  text: yamlText,
-  fileStat: yamlStat,
-  languageHint: yamlLanguageHint,
+await processScmFile({
+  ...yaml,
   scmProviderImpl: scmRunIoProvider,
   fileHash: 'scm-annotate-fast-timeout-runio',
   runIo: async (fn) => {
@@ -590,7 +399,7 @@ await processFileCpu(createContext({
     scmRunProcCalls += 1;
     return fn();
   },
-}));
+});
 assert.equal(scmRunIoCalls, 0, 'expected SCM metadata/blame to avoid shared runIo queue');
 assert.equal(scmRunProcCalls, 2, 'expected SCM metadata/blame to use runProc queueing');
 
@@ -607,8 +416,8 @@ const docsCodeScmProvider = {
   }
 };
 const docsCodeRelKey = 'docs/examples/main.go';
-await processFileCpu(createContext({
-  abs: jsAbs,
+await processScmFile({
+  abs: js.abs,
   ext: '.go',
   rel: docsCodeRelKey,
   relKey: docsCodeRelKey,
@@ -617,11 +426,11 @@ await processFileCpu(createContext({
     'func main() { helper() }',
     'func helper() {}'
   ].join('\n'),
-  fileStat: jsStat,
+  fileStat: js.fileStat,
   languageHint: getLanguageForFile('.go', docsCodeRelKey),
   scmProviderImpl: docsCodeScmProvider,
   fileHash: 'scm-annotate-fast-timeout-docs-code'
-}));
+});
 assert.equal(docsCodeMetaCalls, 1, 'expected docs code files to keep SCM metadata');
 assert.equal(docsCodeAnnotateCalls, 1, 'expected docs code files to keep SCM annotate');
 
@@ -638,18 +447,18 @@ const docsProseModeScmProvider = {
   }
 };
 const docsProseModeRelKey = 'docs/reference/index.html';
-await processFileCpu(createContext({
+await processScmFile({
   mode: 'prose',
-  abs: yamlAbs,
+  abs: yaml.abs,
   ext: '.html',
   rel: docsProseModeRelKey,
   relKey: docsProseModeRelKey,
   text: '<html><body>Docs</body></html>',
-  fileStat: yamlStat,
+  fileStat: yaml.fileStat,
   languageHint: getLanguageForFile('.html', docsProseModeRelKey),
   scmProviderImpl: docsProseModeScmProvider,
   fileHash: 'scm-annotate-fast-timeout-docs-prose-mode'
-}));
+});
 assert.equal(
   docsProseModeMetaCalls,
   1,
@@ -674,9 +483,9 @@ const proseTxtScmProvider = {
   }
 };
 const proseTxtRelKey = 'test/stdlib/Inputs/NormalizationTest.txt';
-await processFileCpu(createContext({
+await processScmFile({
   mode: 'prose',
-  abs: yamlAbs,
+  abs: yaml.abs,
   ext: '.txt',
   rel: proseTxtRelKey,
   relKey: proseTxtRelKey,
@@ -685,7 +494,7 @@ await processFileCpu(createContext({
   languageHint: getLanguageForFile('.txt', proseTxtRelKey),
   scmProviderImpl: proseTxtScmProvider,
   fileHash: 'scm-annotate-fast-timeout-prose-txt'
-}));
+});
 assert.equal(proseTxtMetaCalls, 1, 'expected prose text files to keep SCM metadata');
 assert.equal(proseTxtAnnotateCalls, 0, 'expected prose text files to skip SCM annotate by default');
 
@@ -702,17 +511,17 @@ const docsProseScmProvider = {
   }
 };
 const docsProseRelKey = 'docs/guide/readme.md';
-await processFileCpu(createContext({
-  abs: yamlAbs,
+await processScmFile({
+  abs: yaml.abs,
   ext: '.md',
   rel: docsProseRelKey,
   relKey: docsProseRelKey,
   text: '# Docs\n\nParagraph text.',
-  fileStat: yamlStat,
+  fileStat: yaml.fileStat,
   languageHint: getLanguageForFile('.md', docsProseRelKey),
   scmProviderImpl: docsProseScmProvider,
   fileHash: 'scm-annotate-fast-timeout-docs-prose'
-}));
+});
 assert.equal(docsProseMetaCalls, 0, 'expected docs prose-routed files to skip SCM metadata');
 assert.equal(docsProseAnnotateCalls, 0, 'expected docs prose-routed files to skip SCM annotate');
 
@@ -729,18 +538,18 @@ const extractedCodeScmProvider = {
   }
 };
 const extractedCodeRelKey = 'src/extracted/main.js';
-await processFileCpu(createContext({
+await processScmFile({
   mode: 'extracted-prose',
-  abs: jsAbs,
+  abs: js.abs,
   ext: '.js',
   rel: extractedCodeRelKey,
   relKey: extractedCodeRelKey,
-  text: jsText,
-  fileStat: jsStat,
+  text: js.text,
+  fileStat: js.fileStat,
   languageHint: getLanguageForFile('.js', extractedCodeRelKey),
   scmProviderImpl: extractedCodeScmProvider,
   fileHash: 'scm-annotate-fast-timeout-extracted-code'
-}));
+});
 assert.equal(extractedCodeMetaCalls, 1, 'expected extracted-prose code files to keep SCM metadata');
 assert.equal(extractedCodeAnnotateCalls, 0, 'expected extracted-prose code files to skip SCM annotate by default');
 
@@ -756,19 +565,19 @@ const extractedCodeOptInScmProvider = {
     return { ok: false, reason: 'timeout' };
   }
 };
-await processFileCpu(createContext({
+await processScmFile({
   mode: 'extracted-prose',
-  abs: jsAbs,
+  abs: js.abs,
   ext: '.js',
   rel: extractedCodeRelKey,
   relKey: extractedCodeRelKey,
-  text: jsText,
-  fileStat: jsStat,
+  text: js.text,
+  fileStat: js.fileStat,
   languageHint: getLanguageForFile('.js', extractedCodeRelKey),
   scmConfig: { annotate: { extractedProse: true } },
   scmProviderImpl: extractedCodeOptInScmProvider,
   fileHash: 'scm-annotate-fast-timeout-extracted-code-opt-in'
-}));
+});
 assert.equal(extractedCodeOptInMetaCalls, 1, 'expected extracted-prose annotate opt-in to keep SCM metadata');
 assert.equal(extractedCodeOptInAnnotateCalls, 1, 'expected extracted-prose annotate opt-in to enable SCM annotate');
 
@@ -785,18 +594,18 @@ const extractedDocsProseScmProvider = {
   }
 };
 const extractedDocsProseRelKey = 'docs/reference/search.json';
-await processFileCpu(createContext({
+await processScmFile({
   mode: 'extracted-prose',
-  abs: yamlAbs,
+  abs: yaml.abs,
   ext: '.json',
   rel: extractedDocsProseRelKey,
   relKey: extractedDocsProseRelKey,
   text: '{"hits":[{"title":"docs"}]}',
-  fileStat: yamlStat,
+  fileStat: yaml.fileStat,
   languageHint: getLanguageForFile('.json', extractedDocsProseRelKey),
   scmProviderImpl: extractedDocsProseScmProvider,
   fileHash: 'scm-annotate-fast-timeout-extracted-docs-prose'
-}));
+});
 assert.equal(
   extractedDocsProseMetaCalls,
   0,
@@ -822,8 +631,8 @@ const cappedScmProvider = {
 };
 const largeRelKey = 'src/huge.cpp';
 const largeText = `int sentinel = 0;\n${'a'.repeat(600 * 1024)}`;
-await processFileCpu(createContext({
-  abs: jsAbs,
+await processScmFile({
+  abs: js.abs,
   ext: '.cpp',
   rel: largeRelKey,
   relKey: largeRelKey,
@@ -832,7 +641,7 @@ await processFileCpu(createContext({
   languageHint: getLanguageForFile('.cpp', largeRelKey),
   scmProviderImpl: cappedScmProvider,
   fileHash: 'scm-annotate-fast-timeout-default-size-cap'
-}));
+});
 assert.equal(cappedMetaCalls, 1, 'expected SCM metadata to remain enabled for large files');
 assert.equal(cappedAnnotateCalls, 0, 'expected default annotate size cap to skip large-file blame');
 

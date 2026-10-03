@@ -1,4 +1,4 @@
-import { incCacheEvent } from '../../shared/metrics.js';
+import { incCacheEvent } from '../../shared/metrics/core.js';
 import { ERROR_CODES } from '../../shared/error-codes.js';
 import { createSearchPipeline } from '../pipeline.js';
 import { runSearchByMode } from './search-runner.js';

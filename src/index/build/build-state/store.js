@@ -4,9 +4,8 @@ import zlib from 'node:zlib';
 import { promisify } from 'node:util';
 import { atomicWriteJson, atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { sha1 } from '../../../shared/hash.js';
-import { acquireFileLock } from '../../../shared/locks/file-lock.js';
-import { logLine } from '../../../shared/progress.js';
-import { readJsonFileSafe } from '../../../shared/files.js';
+import { logLine } from '../../../shared/progress-runtime.js';
+import { readJsonFileSafe } from '../../../shared/file-read.js';
 import { loadCheckpointSlices, mergeStageCheckpoints, resolveCheckpointIndexPath, writeCheckpointSlices } from './checkpoints.js';
 import { buildStageCheckpointModeBasename } from '../stage-checkpoints/sidecar.js';
 import {
@@ -46,9 +45,34 @@ const PATCH_STAGE_TRACK_MAX_PATCHES = 256;
 let patchInvocationCounter = 0;
 
 let activeStateKeyResolver = null;
+let fileLockModulePromise = null;
+
+const acquireBuildStateFileLock = async (options) => {
+  fileLockModulePromise ??= import('../../../shared/locks/file-lock.js');
+  const fileLockModule = await fileLockModulePromise;
+  return fileLockModule.acquireFileLock(options);
+};
 
 export const setActiveStateKeyResolver = (resolver) => {
   activeStateKeyResolver = typeof resolver === 'function' ? resolver : null;
+};
+
+export const formatBuildStateLockOwner = (owner) => {
+  if (!owner || typeof owner !== 'object') return null;
+  const parts = [];
+  if (Number.isFinite(Number(owner.pid)) && Number(owner.pid) > 0) {
+    parts.push(`pid=${Math.floor(Number(owner.pid))}`);
+  }
+  if (typeof owner.lockId === 'string' && owner.lockId.trim()) {
+    parts.push(`lockId=${owner.lockId.trim()}`);
+  }
+  if (typeof owner.scope === 'string' && owner.scope.trim()) {
+    parts.push(`scope=${owner.scope.trim()}`);
+  }
+  if (typeof owner.startedAt === 'string' && owner.startedAt.trim()) {
+    parts.push(`startedAt=${owner.startedAt.trim()}`);
+  }
+  return parts.length ? parts.join(', ') : null;
 };
 
 const createBuildStateWriteFailureError = ({
@@ -83,24 +107,6 @@ const normalizeBuildStateLockOwner = (info, fallbackPid = null) => {
   if (typeof info.scope === 'string' && info.scope.trim()) owner.scope = info.scope.trim();
   if (typeof info.startedAt === 'string' && info.startedAt.trim()) owner.startedAt = info.startedAt.trim();
   return Object.keys(owner).length ? owner : null;
-};
-
-const formatBuildStateLockOwner = (owner) => {
-  if (!owner || typeof owner !== 'object') return null;
-  const parts = [];
-  if (Number.isFinite(Number(owner.pid)) && Number(owner.pid) > 0) {
-    parts.push(`pid=${Math.floor(Number(owner.pid))}`);
-  }
-  if (typeof owner.lockId === 'string' && owner.lockId.trim()) {
-    parts.push(`lockId=${owner.lockId.trim()}`);
-  }
-  if (typeof owner.scope === 'string' && owner.scope.trim()) {
-    parts.push(`scope=${owner.scope.trim()}`);
-  }
-  if (typeof owner.startedAt === 'string' && owner.startedAt.trim()) {
-    parts.push(`startedAt=${owner.startedAt.trim()}`);
-  }
-  return parts.length ? parts.join(', ') : null;
 };
 
 const createBuildStateLockUnavailableError = ({
@@ -1009,7 +1015,7 @@ export const applyStatePatch = async (
   let lock = null;
   let lastBusyOwner = null;
   try {
-    lock = await acquireFileLock({
+    lock = await acquireBuildStateFileLock({
       lockPath,
       waitMs: isRequiredBuildStateDurability(resolvedDurabilityClass) ? 5000 : 0,
       pollMs: 100,

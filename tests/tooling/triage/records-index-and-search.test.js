@@ -1,11 +1,43 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getTriageContext, run, runJson } from '../../helpers/triage.js';
 import { getCurrentBuildInfo, getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
 const { root, repoRoot, triageFixtureRoot, env, writeTestLog } = await getTriageContext({
-  name: 'triage-records-index'
+  name: 'triage-records-index',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  },
+  fixtureBuilder: async (targetRepoRoot) => {
+    await fsPromises.mkdir(path.join(targetRepoRoot, 'src'), { recursive: true });
+    await fsPromises.writeFile(
+      path.join(targetRepoRoot, 'src', 'index.js'),
+      [
+        'export function greet(name = "world") {',
+        '  return `hello ${name}`;',
+        '}',
+        ''
+      ].join('\n'),
+      'utf8'
+    );
+    await fsPromises.writeFile(
+      path.join(targetRepoRoot, 'README.md'),
+      '# Triage records fixture\n\nminimal repo for triage records\n',
+      'utf8'
+    );
+  }
 });
 const testEnv = { ...env };
 const userConfig = loadUserConfig(repoRoot);
@@ -122,6 +154,7 @@ if (!Array.isArray(ingestGeneric.recordIds) || ingestGeneric.recordIds.length ==
 run('build-index', [
   path.join(root, 'build_index.js'),
   '--stub-embeddings',
+  '--stage', 'stage1',
   '--mode', 'code',
   '--repo', repoRoot
 ], { cwd: repoRoot, env: testEnv });
@@ -129,6 +162,7 @@ await logExpectedArtifacts({ label: 'post-build-index', mode: 'code' });
 
 run('build-records-index', [
   path.join(root, 'build_index.js'),
+  '--stage', 'stage1',
   '--mode', 'records',
   '--stub-embeddings',
   '--repo', repoRoot

@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const script = path.join(root, 'tools', 'bench', 'index', 'file-meta-compare.js');
-const result = spawnSync(process.execPath, [script, '--files', '2000', '--iterations', '1', '--mode', 'compare'], {
-  cwd: root,
-  encoding: 'utf8'
-});
+const result = runNode(
+  [script, '--files', '2000', '--iterations', '1', '--mode', 'compare'],
+  'file meta bench contract',
+  root,
+  process.env,
+  { stdio: 'pipe', allowFailure: true }
+);
 
 if (result.status !== 0) {
   console.error(result.stdout || '');

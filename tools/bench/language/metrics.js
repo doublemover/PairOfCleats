@@ -38,6 +38,7 @@ export {
  */
 export {
   THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
+  THROUGHPUT_LEDGER_REGRESSION_METRICS,
   getBestHitRate,
   computeLowHitSeverity,
   computeThroughputLedgerRegression

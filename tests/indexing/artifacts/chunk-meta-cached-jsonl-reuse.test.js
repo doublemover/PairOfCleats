@@ -7,7 +7,7 @@ import {
   createChunkMetaIterator,
   enqueueChunkMetaArtifacts
 } from '../../../src/index/build/artifacts/writers/chunk-meta.js';
-import { toPosix } from '../../../src/shared/files.js';
+import { toPosix } from '../../../src/shared/file-paths.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 

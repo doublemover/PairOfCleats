@@ -3,31 +3,18 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 
-import { createCli } from '../../../src/shared/cli.js';
 import { buildCodeMap } from '../../../src/map/build-map.js';
 import { writeMapJsonStream } from '../../../src/map/build-map/io.js';
-import { resolveMapBenchInputs, resolveRuns } from './shared.js';
+import { createMapBenchCli, resolveMapBenchInputs, resolveRuns } from './shared.js';
 
-const argv = createCli({
+const argv = createMapBenchCli({
   scriptName: 'bench-map-streaming',
   options: {
-    repo: { type: 'string', describe: 'Repo root.' },
-    mode: { type: 'string', default: 'code' },
-    'index-root': { type: 'string' },
-    scope: { type: 'string', default: 'repo' },
-    focus: { type: 'string' },
-    include: { type: 'string' },
-    'only-exported': { type: 'boolean', default: false },
-    collapse: { type: 'string', default: 'none' },
-    'max-files': { type: 'number' },
-    'max-members-per-file': { type: 'number' },
-    'max-edges': { type: 'number' },
-    'top-k-by-degree': { type: 'boolean', default: false },
     runs: { type: 'number', default: 3 },
     out: { type: 'string' },
     json: { type: 'boolean', default: false }
   }
-}).parse();
+});
 
 const root = process.cwd();
 const { repoRoot, indexDir, buildOptions } = resolveMapBenchInputs(argv);

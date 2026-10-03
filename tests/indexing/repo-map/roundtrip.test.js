@@ -4,7 +4,8 @@ import path from 'node:path';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../src/contracts/versioning.js';
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
-import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonLinesSharded } from '../../../src/shared/json-stream/jsonl-sharded.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { createRepoMapIterator } from '../../../src/index/build/artifacts/writers/repo-map.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 

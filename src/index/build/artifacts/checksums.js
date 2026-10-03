@@ -1,11 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { log } from '../../../shared/progress.js';
-import { runWithConcurrency } from '../../../shared/concurrency.js';
+import { log } from '../../../shared/progress-runtime.js';
+import { runWithConcurrency } from '../../../shared/concurrency/run-with-queue.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 import { checksumFile } from '../../../shared/hash.js';
-import { writeJsonObjectFile } from '../../../shared/json-stream.js';
-import { fromPosix } from '../../../shared/files.js';
+import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
+import { fromPosix } from '../../../shared/file-paths.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 
 export const writePiecesManifest = async ({

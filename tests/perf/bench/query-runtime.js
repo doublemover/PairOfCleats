@@ -1,7 +1,7 @@
 import fsSync from 'node:fs';
 import os from 'node:os';
 import { fork } from 'node:child_process';
-import { readIndexArtifactBytes } from '../../../src/shared/ops-resource-visibility.js';
+import { readIndexArtifactBytes } from '../../../src/shared/ops/resource-visibility.js';
 import { killProcessTree } from '../../../src/shared/kill-tree.js';
 import { getIndexDir, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { attachSilentLogging } from '../../helpers/test-env.js';
@@ -431,6 +431,7 @@ const createSearchWorker = ({
       }
       if (message?.type === 'run-complete') {
         if (!ownsActiveRequest(session, id)) return;
+        activeRequest.lastHeartbeatAt = now();
         emitEvent({
           type: 'run-complete',
           id,

@@ -1,7 +1,17 @@
 import path from 'node:path';
 import PQueue from 'p-queue';
-import { toPosix, readJsonFileSafe } from '../../shared/files.js';
+import { toPosix } from '../../shared/file-paths.js';
+import { readJsonFileSafe } from '../../shared/file-read.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import {
+  resolveQualityImpactForCause,
+  resolveScmFallbackCause,
+  summarizeReuseObservations
+} from '../../shared/reuse-diagnostics.js';
+import {
+  isIncompleteFileMeta,
+  normalizeFileMeta
+} from './file-meta.js';
 import { buildScmFreshnessGuard, getScmRuntimeConfigEpoch } from './runtime.js';
 
 const SCM_FILE_META_SNAPSHOT_SCHEMA_VERSION = 1;
@@ -21,49 +31,13 @@ const normalizeFileKey = (value) => {
   return normalized;
 };
 
-const normalizeFiniteMetaNumber = (value) => (
-  typeof value === 'number' && Number.isFinite(value) ? value : null
-);
-
-const normalizeMeta = (value) => ({
-  lastCommitId: typeof value?.lastCommitId === 'string' ? value.lastCommitId : null,
-  lastModifiedAt: typeof value?.lastModifiedAt === 'string' ? value.lastModifiedAt : null,
-  lastAuthor: typeof value?.lastAuthor === 'string' ? value.lastAuthor : null,
-  churn: normalizeFiniteMetaNumber(value?.churn),
-  churnAdded: normalizeFiniteMetaNumber(value?.churnAdded),
-  churnDeleted: normalizeFiniteMetaNumber(value?.churnDeleted),
-  churnCommits: normalizeFiniteMetaNumber(value?.churnCommits)
-});
-
-const hasMetaIdentity = (meta) => Boolean(
-  meta
-  && (
-    typeof meta.lastCommitId === 'string'
-    || typeof meta.lastModifiedAt === 'string'
-    || typeof meta.lastAuthor === 'string'
-  )
-);
-
-const hasResolvedChurn = (meta) => (
-  (typeof meta?.churn === 'number' && Number.isFinite(meta.churn))
-  || (typeof meta?.churnAdded === 'number' && Number.isFinite(meta.churnAdded))
-  || (typeof meta?.churnDeleted === 'number' && Number.isFinite(meta.churnDeleted))
-  || (typeof meta?.churnCommits === 'number' && Number.isFinite(meta.churnCommits))
-);
-
-const isIncompleteFileMeta = (meta, { includeChurn = false } = {}) => {
-  if (!hasMetaIdentity(meta)) return true;
-  if (includeChurn !== true) return false;
-  return !hasResolvedChurn(meta);
-};
-
 const normalizeFileMetaMap = (input) => {
   const fileMetaByPath = Object.create(null);
   if (!input || typeof input !== 'object') return fileMetaByPath;
   for (const [rawPath, rawMeta] of Object.entries(input)) {
     const key = normalizeFileKey(rawPath);
     if (!key) continue;
-    fileMetaByPath[key] = normalizeMeta(rawMeta);
+    fileMetaByPath[key] = normalizeFileMeta(rawMeta);
   }
   return fileMetaByPath;
 };
@@ -103,7 +77,7 @@ const attachGuardedMetaIndex = ({
   for (const [rawPath, rawMeta] of Object.entries(fileMetaByPath)) {
     const key = normalizeFileKey(rawPath);
     if (!key) continue;
-    index.set(key, normalizeMeta(rawMeta));
+    index.set(key, normalizeFileMeta(rawMeta));
   }
   let guardEpoch = -1;
   let guardFresh = true;
@@ -279,10 +253,18 @@ const runPerFileFetch = async ({
       headId
     });
     if (!meta || meta.ok === false) return;
-    fileMetaByPath[filePosix] = normalizeMeta(meta);
+    fileMetaByPath[filePosix] = normalizeFileMeta(meta);
   })));
   return fileMetaByPath;
 };
+
+const hasCompleteFetchedMeta = (fileMetaByPath, filesPosix, { includeChurn = false } = {}) => (
+  Array.isArray(filesPosix)
+  && filesPosix.every((filePosix) => {
+    const meta = fileMetaByPath?.[filePosix];
+    return !isIncompleteFileMeta(meta, { includeChurn });
+  })
+);
 
 export const resolveScmFileMetaSnapshotPath = (repoCacheRoot) => (
   path.join(repoCacheRoot, 'scm', SCM_FILE_META_SNAPSHOT_NAME)
@@ -298,8 +280,12 @@ export const prepareScmFileMetaSnapshot = async ({
   includeChurn = false,
   timeoutMs = null,
   maxFallbackConcurrency = 8,
-  log = null
+  log = null,
+  buildRoot = null,
+  buildId = null,
+  mode = null
 } = {}) => {
+  const startedAtMs = Date.now();
   const logFn = typeof log === 'function' ? log : null;
   const activeProvider = typeof provider === 'string' ? provider : null;
   const resolvedRepoRoot = normalizeRepoRoot(repoRoot);
@@ -390,6 +376,7 @@ export const prepareScmFileMetaSnapshot = async ({
 
   let fetchedMap = Object.create(null);
   let batchDiagnostics = normalizeBatchDiagnostics(null);
+  let usedUnavailableBatchFallback = false;
   let source = reused > 0 ? 'mixed' : 'fresh';
   if (missing.length > 0) {
     const batch = await runBatchFetch({
@@ -422,6 +409,7 @@ export const prepareScmFileMetaSnapshot = async ({
         source = reused > 0 ? 'mixed-fallback' : 'fresh-fallback';
       }
     } else {
+      usedUnavailableBatchFallback = true;
       fetchedMap = await runPerFileFetch({
         providerImpl,
         repoRoot,
@@ -432,6 +420,15 @@ export const prepareScmFileMetaSnapshot = async ({
         headId
       });
       source = reused > 0 ? 'mixed-fallback' : 'fallback';
+    }
+    const recoveredAllMissing = hasCompleteFetchedMeta(fetchedMap, missing, { includeChurn });
+    const unresolvedDiagnostics = (
+      batchDiagnostics.timeoutCount > 0
+      || batchDiagnostics.cooldownSkips > 0
+      || batchDiagnostics.unavailableChunks > 0
+    );
+    if (recoveredAllMissing && !unresolvedDiagnostics && !usedUnavailableBatchFallback) {
+      source = reused > 0 ? 'mixed' : 'fresh';
     }
   } else {
     source = 'cache';
@@ -475,6 +472,34 @@ export const prepareScmFileMetaSnapshot = async ({
     freshnessGuard
   });
   const fetched = Object.keys(fetchedMap).length;
+  const causeClass = resolveScmFallbackCause({
+    source,
+    timeoutCount: batchDiagnostics.timeoutCount,
+    cooldownSkips: batchDiagnostics.cooldownSkips,
+    unavailableChunks: batchDiagnostics.unavailableChunks
+  });
+  const generation = {
+    mode,
+    repoRoot: resolvedRepoRoot,
+    buildRoot: typeof buildRoot === 'string' ? path.resolve(buildRoot) : null,
+    buildId: typeof buildId === 'string' ? buildId : null
+  };
+  const observation = {
+    kind: 'scm_snapshot',
+    reuseSurface: 'scm-derived',
+    reuseSource: source,
+    causeClass,
+    qualityImpact: resolveQualityImpactForCause(causeClass),
+    requestedCount: targetFiles.length,
+    reusedCount: reused,
+    fetchedCount: fetched,
+    timeCostMs: Math.max(0, Date.now() - startedAtMs),
+    generation
+  };
+  const reuseSummary = {
+    ...summarizeReuseObservations([observation], { generation }),
+    observations: [observation]
+  };
   if (logFn) {
     const timeoutHeatmapLabel = Array.isArray(batchDiagnostics.timeoutHeatmap) && batchDiagnostics.timeoutHeatmap.length
       ? batchDiagnostics.timeoutHeatmap
@@ -495,7 +520,8 @@ export const prepareScmFileMetaSnapshot = async ({
         (timeoutHeatmapLabel ? ` timeoutHeatmap=${timeoutHeatmapLabel}` : '')
       : '';
     logFn(
-      `[scm] file-meta snapshot: source=${source} requested=${targetFiles.length} reused=${reused} fetched=${fetched}.${diagnosticsSuffix}`
+      `[scm] file-meta snapshot: source=${source} requested=${targetFiles.length} reused=${reused} fetched=${fetched}.`
+      + ` elapsedMs=${Math.max(0, Date.now() - startedAtMs)}${diagnosticsSuffix}`
     );
   }
   return {
@@ -506,6 +532,7 @@ export const prepareScmFileMetaSnapshot = async ({
       requested: targetFiles.length,
       reused,
       fetched,
+      reuse: reuseSummary,
       timeoutCount: batchDiagnostics.timeoutCount,
       timeoutRetries: batchDiagnostics.timeoutRetries,
       cooldownSkips: batchDiagnostics.cooldownSkips,

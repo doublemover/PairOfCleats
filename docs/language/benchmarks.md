@@ -20,7 +20,7 @@ Use the language benchmark harness to run search and performance baselines acros
 - Run only typical Python repos:
   - `node tools/bench/language-repos.js --language python --tier typical --build`
 - Write an aggregate summary for Grafana:
-  - `node tools/bench/language-repos.js --language python --build --out docs/benchmarks-python.json --json`
+  - `node tools/bench/language-repos.js --language python --build --out benchmarks/results/benchmarks-python.json --json`
 
 ## Convenience note
 The old `bench-language:*` npm scripts were removed; use `node tools/bench/language-repos.js` with flags instead.

@@ -6,6 +6,11 @@ import {
   IMPORT_RESOLUTION_STATES,
   IMPORT_RESOLVER_STAGES
 } from '../../../index/build/import-resolution/reason-codes.js';
+import { IMPORT_RESOLUTION_TRACE_STAGES } from '../../../index/build/import-resolution/trace-model.js';
+import {
+  ENCODING_FALLBACK_CLASSES,
+  ENCODING_FALLBACK_RISKS
+} from '../../../shared/encoding.js';
 
 const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
@@ -15,6 +20,7 @@ const importReasonCodeEnum = Object.freeze(Object.values(IMPORT_REASON_CODES));
 const importFailureCauseEnum = Object.freeze(Object.values(IMPORT_FAILURE_CAUSES));
 const importDispositionEnum = Object.freeze(Object.values(IMPORT_DISPOSITIONS));
 const importResolverStageEnum = Object.freeze(Object.values(IMPORT_RESOLVER_STAGES));
+const importTraceStageEnum = Object.freeze(Object.values(IMPORT_RESOLUTION_TRACE_STAGES));
 
 const nullableEnum = (values) => ({
   anyOf: [
@@ -22,6 +28,23 @@ const nullableEnum = (values) => ({
     { type: 'null' }
   ]
 });
+const encodingFallbackClassEnum = Object.freeze(Object.values(ENCODING_FALLBACK_CLASSES));
+const encodingFallbackRiskEnum = Object.freeze(Object.values(ENCODING_FALLBACK_RISKS));
+
+const importResolutionTraceEntrySchema = {
+  type: 'object',
+  required: ['stage', 'outcome'],
+  properties: {
+    stage: { type: 'string', enum: importTraceStageEnum },
+    outcome: { type: 'string' },
+    adapter: nullableString,
+    reasonCode: nullableEnum(importReasonCodeEnum),
+    importer: nullableString,
+    rawSpecifier: nullableString,
+    details: { type: ['object', 'array', 'null'] }
+  },
+  additionalProperties: false
+};
 
 const chunkMetaEntry = {
   type: 'object',
@@ -231,6 +254,7 @@ const importResolutionGraphSchema = {
           propertyNames: { enum: importResolverStageEnum },
           additionalProperties: intId
         },
+        unresolvedByAdapter: { type: 'object', additionalProperties: intId },
         unresolvedActionableByLanguage: { type: 'object', additionalProperties: intId },
         unresolvedGateEligible: intId,
         unresolvedActionableGateEligible: intId,
@@ -300,7 +324,14 @@ const importResolutionGraphSchema = {
           reasonCode: nullableEnum(importReasonCodeEnum),
           failureCause: nullableEnum(importFailureCauseEnum),
           disposition: nullableEnum(importDispositionEnum),
-          resolverStage: nullableEnum(importResolverStageEnum)
+          resolverStage: nullableEnum(importResolverStageEnum),
+          resolverAdapter: nullableString,
+          resolverTrace: {
+            anyOf: [
+              { type: 'null' },
+              { type: 'array', items: importResolutionTraceEntrySchema }
+            ]
+          }
         },
         allOf: [
           {
@@ -367,6 +398,11 @@ const importResolutionGraphSchema = {
           failureCause: { type: 'string', enum: importFailureCauseEnum },
           disposition: { type: 'string', enum: importDispositionEnum },
           resolverStage: { type: 'string', enum: importResolverStageEnum },
+          resolverAdapter: nullableString,
+          resolverTrace: {
+            type: ['array', 'null'],
+            items: importResolutionTraceEntrySchema
+          },
           confidence: { type: ['number', 'null'] }
         },
         additionalProperties: true
@@ -413,6 +449,8 @@ export const CORE_POST_VFS_ARTIFACT_SCHEMA_DEFS = {
             ext: nullableString,
             encoding: nullableString,
             encodingFallback: { type: ['boolean', 'null'] },
+            encodingFallbackClass: nullableEnum(encodingFallbackClassEnum),
+            encodingFallbackRisk: nullableEnum(encodingFallbackRiskEnum),
             encodingConfidence: { type: ['number', 'null'] }
           },
           additionalProperties: true

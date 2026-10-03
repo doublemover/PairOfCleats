@@ -1,21 +1,18 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'languages');
-const result = spawnSync(process.execPath, [
+const env = applyTestEnv({ syncProcess: false });
+const result = runNode([
   path.join(root, 'tools', 'tooling', 'install.js'),
   '--root', fixtureRoot,
   '--tools', 'clangd',
   '--dry-run',
   '--json'
-], { encoding: 'utf8' });
-
-if (result.status !== 0) {
-  console.error('tooling-install failed');
-  process.exit(result.status ?? 1);
-}
+], 'tooling install dry-run', root, env, { stdio: 'pipe' });
 
 let payload;
 try {

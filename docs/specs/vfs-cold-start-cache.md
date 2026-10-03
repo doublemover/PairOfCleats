@@ -1,6 +1,10 @@
-# Spec: VFS cold start cache (draft)
+# Spec: VFS cold start cache (active contract)
 
-Status: Draft (Milestone A). Optional performance cache.
+Status: Active implemented optional performance cache.
+Last audited: 2026-05-21
+Implementation anchors: `src/index/tooling/vfs/cold-start.js`,
+`src/index/tooling/vfs/disk.js`.
+Contract coverage: `tests/tooling/vfs/cold-start-cache.test.js`.
 
 Goal: reuse VFS disk documents and lookup metadata between runs to reduce cold-start latency and avoid rewriting unchanged virtual docs.
 

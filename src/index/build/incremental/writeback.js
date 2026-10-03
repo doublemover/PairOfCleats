@@ -3,12 +3,14 @@ import path from 'node:path';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import {
   normalizeBundleFormat,
-  removeBundleWriteArtifacts,
   resolveBundleShardFilename,
-  resolveManifestBundleNames,
+  resolveManifestBundleNames
+} from '../../../shared/bundle-io-paths.js';
+import {
+  removeBundleWriteArtifacts,
   writeBundleFile
 } from '../../../shared/bundle-io.js';
-import { estimateJsonBytes } from '../../../shared/cache.js';
+import { estimateJsonBytes } from '../../../shared/cache/size.js';
 import {
   prioritizePendingCrossFileBundleUpdates,
   resolveIncrementalBundleUpdateConcurrency,
@@ -218,6 +220,8 @@ const persistManifestAndDrainGc = async ({ manifest, manifestPath, bundleDir }) 
  *   previousManifestEntry?:object|null,
  *   fileEncoding?:string|null,
  *   fileEncodingFallback?:boolean|null,
+ *   fileEncodingFallbackClass?:string|null,
+ *   fileEncodingFallbackRisk?:string|null,
  *   fileEncodingConfidence?:number|null
  * }} input
  * @returns {Promise<object|null>}
@@ -236,6 +240,8 @@ export async function writeIncrementalBundle({
   previousManifestEntry = null,
   fileEncoding = null,
   fileEncodingFallback = null,
+  fileEncodingFallbackClass = null,
+  fileEncodingFallbackRisk = null,
   fileEncodingConfidence = null
 }) {
   if (!enabled) return null;
@@ -250,6 +256,8 @@ export async function writeIncrementalBundle({
     vfsManifestRows: Array.isArray(vfsManifestRows) ? vfsManifestRows : null,
     encoding: fileEncoding,
     encodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
+    encodingFallbackClass: typeof fileEncodingFallbackClass === 'string' ? fileEncodingFallbackClass : null,
+    encodingFallbackRisk: typeof fileEncodingFallbackRisk === 'string' ? fileEncodingFallbackRisk : null,
     encodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
   };
   let writtenBundleNames = [];
@@ -305,6 +313,8 @@ export async function writeIncrementalBundle({
       bundleChecksum,
       encoding: fileEncoding,
       encodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
+      encodingFallbackClass: typeof fileEncodingFallbackClass === 'string' ? fileEncodingFallbackClass : null,
+      encodingFallbackRisk: typeof fileEncodingFallbackRisk === 'string' ? fileEncodingFallbackRisk : null,
       encodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
     };
   } catch {
@@ -547,6 +557,8 @@ export async function updateBundlesWithChunks({
         vfsManifestRows,
         encoding: entry.encoding || null,
         encodingFallback: typeof entry.encodingFallback === 'boolean' ? entry.encodingFallback : null,
+        encodingFallbackClass: typeof entry.encodingFallbackClass === 'string' ? entry.encodingFallbackClass : null,
+        encodingFallbackRisk: typeof entry.encodingFallbackRisk === 'string' ? entry.encodingFallbackRisk : null,
         encodingConfidence: Number.isFinite(entry.encodingConfidence) ? entry.encodingConfidence : null
       };
       if (shouldReuseExistingBundle(existingBundle, bundle)) {

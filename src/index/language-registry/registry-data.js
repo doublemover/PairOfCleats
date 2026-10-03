@@ -82,8 +82,9 @@ const resolveScopedParser = (options, parserScope) => options?.[parserScope]?.pa
  * @param {object} input
  * @returns {object}
  */
-const buildChunkPrepareOptions = ({ options, relPath, parserScope, extras = null }) => ({
+const buildChunkPrepareOptions = ({ options, relPath, ext, parserScope, extras = null }) => ({
   ...toObjectOptions(options),
+  ext,
   relPath,
   parser: resolveScopedParser(options, parserScope),
   ...(extras || {})
@@ -167,6 +168,7 @@ const createParserChunkAdapter = ({
           buildChunkPrepareOptions({
             options,
             relPath,
+            ext,
             parserScope,
             extras
           })
@@ -316,7 +318,7 @@ const PARSER_CHUNK_LANGUAGE_ADAPTERS = [
     parserScope: 'sql',
     prepareExtras: sqlDialectExtras,
     relationExtras: sqlDialectExtras,
-    extractDocMeta: ({ chunk }) => extractSqlDocMeta(chunk),
+    extractDocMeta: ({ chunk, options }) => extractSqlDocMeta({ chunk, options }),
     flow: computeSqlFlow
   }),
   createParserChunkAdapter({

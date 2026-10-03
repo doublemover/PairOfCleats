@@ -229,6 +229,7 @@ const resolveExtractedProseYieldProfileSkipDecision = ({
  */
 export async function resolvePreReadSkip({
   abs,
+  repoRoot,
   rel = null,
   fileEntry,
   fileStat,
@@ -360,7 +361,7 @@ export async function resolvePreReadSkip({
       absPath: abs,
       stat: fileStat,
       ext,
-      readSample: readFileSample
+      readSample: (file, bytes) => readFileSample(file, bytes, repoRoot)
     }));
     if (scanResult?.skip) {
       const scanDecision = isRecordEntry ? null : resolvePolicyDecision(scanResult.skip);

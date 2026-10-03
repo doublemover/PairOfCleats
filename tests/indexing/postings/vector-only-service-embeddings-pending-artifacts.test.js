@@ -3,17 +3,20 @@ import { applyTestEnv, ensureTestingEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { runNode } from '../../helpers/run-node.js';
 
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import {
+  createVectorOnlyBuildEnv,
+  createVectorOnlyBuildRoots
+} from './helpers/vector-only-cleanup-fixture.js';
 
 applyTestEnv();
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const buildScript = path.join(root, 'build_index.js');
-const cacheRoot = resolveTestCachePath(root, 'phase18-vector-only-service-embeddings');
+const {
+  buildScript,
+  cacheRoot,
+  fixtureRoot
+} = createVectorOnlyBuildRoots('phase18-vector-only-service-embeddings');
 
 const testConfig = {
   indexing: {
@@ -38,25 +41,18 @@ const testConfig = {
   lmdb: { use: false }
 };
 
-const baseEnv = Object.fromEntries(
-  Object.entries(process.env).filter(([key]) => !/^pairofcleats_/i.test(key))
-);
-
-const env = {
-  ...baseEnv,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_WORKER_POOL: 'off',
-  PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig)
-};
+const env = createVectorOnlyBuildEnv({ cacheRoot, testConfig });
 ensureTestingEnv(env);
 
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [buildScript, '--repo', fixtureRoot, '--mode', 'code', '--progress', 'log'],
-  { cwd: fixtureRoot, env, encoding: 'utf8' }
+  'vector-only service embeddings pending artifacts build index',
+  fixtureRoot,
+  env,
+  { encoding: 'utf8', stdio: 'pipe', allowFailure: true }
 );
 
 const output = `${result.stderr || ''}\n${result.stdout || ''}`;

@@ -5,6 +5,7 @@ import { createBazelLabelPlugin } from './plugins/bazel-label.js';
 import { createPathContextPlugin } from './plugins/path-context.js';
 import { createGeneratedArtifactsPlugin } from './plugins/generated-artifacts.js';
 import { createNixFlakePlugin } from './plugins/nix-flake.js';
+import { createMakefileArtifactsPlugin } from './plugins/makefile-artifacts.js';
 import { createTypeScriptEmitPlugin } from './plugins/typescript-emit.js';
 
 const normalizePluginConfig = (resolverPlugins) => (
@@ -69,7 +70,7 @@ export const createImportBuildContext = ({
   const plugins = [];
 
   if (isEnabled(buildContextConfig?.bazelLabels, true)) {
-    plugins.push(createBazelLabelPlugin());
+    plugins.push(createBazelLabelPlugin({ entries }));
   }
 
   if (isEnabled(buildContextConfig?.pathContext, true)) {
@@ -78,6 +79,10 @@ export const createImportBuildContext = ({
 
   if (isEnabled(buildContextConfig?.nixFlakeReferences, true)) {
     plugins.push(createNixFlakePlugin());
+  }
+
+  if (isEnabled(buildContextConfig?.makefileArtifacts, true)) {
+    plugins.push(createMakefileArtifactsPlugin());
   }
 
   if (isEnabled(buildContextConfig?.typescriptEmit, true)) {
@@ -97,7 +102,7 @@ export const createImportBuildContext = ({
   }
 
   plugins.sort(stablePluginComparator);
-  const fingerprint = `build-context-v4|${buildPluginFingerprint(plugins)}|${buildGeneratedPolicyFingerprint(generatedPolicy)}`;
+  const fingerprint = `build-context-v5|${buildPluginFingerprint(plugins)}|${buildGeneratedPolicyFingerprint(generatedPolicy)}`;
 
   const classifyUnresolved = ({ importerRel = '', spec = '', rawSpec = '' } = {}) => {
     for (const plugin of plugins) {
@@ -108,7 +113,10 @@ export const createImportBuildContext = ({
       return {
         reasonCode: result.reasonCode,
         pluginId: result.pluginId || plugin.id || null,
-        generatedMatch: resolveGeneratedMatchForResult(result)
+        generatedMatch: resolveGeneratedMatchForResult(result),
+        traceStage: result.traceStage || null,
+        adapter: result.adapter || result.pluginId || plugin.id || null,
+        details: result.details || null
       };
     }
     return null;
@@ -124,7 +132,7 @@ export const createImportBuildContext = ({
   };
 
   return Object.freeze({
-    version: 'build-context-v4',
+    version: 'build-context-v5',
     fingerprint,
     plugins: plugins.map((plugin) => ({
       id: plugin.id,

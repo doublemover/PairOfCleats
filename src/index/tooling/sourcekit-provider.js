@@ -2,10 +2,15 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { SymbolKind } from 'vscode-languageserver-protocol';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/file-paths.js';
 import { throwIfAborted } from '../../shared/abort.js';
-import { acquireFileLock, releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
-import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
+import {
+  appendDiagnosticChecks,
+  buildDuplicateChunkUidChecks,
+  buildProviderFidelityContract,
+  hashProviderConfig,
+  PROVIDER_FIDELITY_STATE
+} from './provider-contract.js';
 import {
   invalidateProbeCacheOnInitializeFailure,
   isProbeCommandDefinitelyMissing
@@ -38,6 +43,26 @@ const SOURCEKIT_TOP_OFFENDER_LIMIT = 8;
 const SOURCEKIT_DEFAULT_EXCLUDE_PATH_REGEXES = [
   /\/test\/sourcekit\/misc\/parser-cutoff\.swift$/i
 ];
+const SOURCEKIT_ADMISSION_STARTUP_MODE = Object.freeze({
+  HEALTHY: 'healthy',
+  WEAK_STARTUP: 'weak_startup',
+  DEPENDENCY_BLOCKED: 'dependency_blocked',
+  HOST_LOCK_UNAVAILABLE: 'host_lock_unavailable',
+  RUNTIME_TIMEOUT_STORM: 'runtime_timeout_storm'
+});
+const SOURCEKIT_REQUEST_CLASSES = Object.freeze([
+  'hover',
+  'semanticTokens',
+  'signatureHelp',
+  'inlayHints'
+]);
+
+let fileLockModulePromise = null;
+
+const loadFileLockModule = () => {
+  fileLockModulePromise ??= import('../../shared/locks/file-lock.js');
+  return fileLockModulePromise;
+};
 
 const buildRegex = (value) => {
   if (value instanceof RegExp) return value;
@@ -131,6 +156,7 @@ const acquireHostSourcekitLock = async ({
   signal = null,
   log = () => {}
 }) => {
+  const { acquireFileLock } = await loadFileLockModule();
   const lock = await acquireFileLock({
     lockPath,
     waitMs,
@@ -191,13 +217,17 @@ const formatLatency = (value) => (Number.isFinite(value) ? `${Math.round(value)}
 const logHoverMetrics = (log, metrics) => {
   if (!metrics || typeof metrics !== 'object') return;
   const requested = metrics.requested || 0;
-  const timedOut = metrics.timedOut || 0;
-  if (requested <= 0 && timedOut <= 0) return;
+  const timedOut = metrics.hoverTimedOut || 0;
+  const semanticTokensTimedOut = metrics.semanticTokensTimedOut || 0;
+  const signatureHelpTimedOut = metrics.signatureHelpTimedOut || 0;
+  if (requested <= 0 && timedOut <= 0 && semanticTokensTimedOut <= 0 && signatureHelpTimedOut <= 0) return;
   log(
     '[tooling] sourcekit hover metrics '
       + `requested=${requested} `
       + `succeeded=${metrics.succeeded || 0} `
       + `timedOut=${timedOut} `
+      + `semanticTokensTimedOut=${semanticTokensTimedOut} `
+      + `signatureHelpTimedOut=${signatureHelpTimedOut} `
       + `skippedByBudget=${metrics.skippedByBudget || 0} `
       + `skippedByKind=${metrics.skippedByKind || 0} `
       + `skippedByReturnSufficient=${metrics.skippedByReturnSufficient || 0} `
@@ -216,18 +246,298 @@ const logHoverMetrics = (log, metrics) => {
         + `${entry.virtualPath || '<unknown>'} `
         + `requested=${entry.requested || 0} `
         + `succeeded=${entry.succeeded || 0} `
-        + `timedOut=${entry.timedOut || 0} `
+        + `timedOut=${entry.hoverTimedOut || 0} `
+        + `semanticTokensTimedOut=${entry.semanticTokensTimedOut || 0} `
+        + `signatureHelpTimedOut=${entry.signatureHelpTimedOut || 0} `
         + `p50=${formatLatency(entry.p50Ms)} `
         + `p95=${formatLatency(entry.p95Ms)}`
     );
   }
 };
 
+const shouldSuppressSourcekitSemanticTokensForStartup = (preflight, sourcekitConfig, runtimeConfig) => {
+  if (sourcekitConfig?.semanticTokensEnabled === false || sourcekitConfig?.semanticTokens === false) {
+    return {
+      suppress: true,
+      reasonCode: 'sourcekit_semantic_tokens_disabled',
+      message: 'sourcekit semantic tokens are disabled by configuration.'
+    };
+  }
+  if (runtimeConfig?.semanticTokensEnabled === false) {
+    return {
+      suppress: true,
+      reasonCode: 'sourcekit_semantic_tokens_disabled',
+      message: 'sourcekit semantic tokens are disabled by runtime policy.'
+    };
+  }
+  const startupState = String(
+    preflight?.state === 'degraded'
+      ? preflight.state
+      : (
+        preflight?.preflightState && String(preflight.preflightState).trim().toLowerCase() !== 'ready'
+          ? 'degraded'
+          : preflight?.state || ''
+      )
+  ).trim().toLowerCase();
+  if (startupState !== 'degraded') {
+    return {
+      suppress: false,
+      reasonCode: null,
+      message: ''
+    };
+  }
+  return {
+    suppress: true,
+    reasonCode: 'sourcekit_semantic_tokens_suppressed_weak_startup',
+    message: `sourcekit semantic tokens suppressed because startup is degraded (${String(preflight?.reasonCode || 'unknown')}).`
+  };
+};
+
+const resolveSourcekitPackageWorkspaceRequestSuppression = ({
+  preflight = null,
+  sourcekitConfig = null,
+  documents = [],
+  targets = []
+} = {}) => {
+  if (sourcekitConfig?.allowPackageWorkspaceHighCostRequests === true) {
+    return {
+      active: false,
+      reasonCode: null,
+      message: '',
+      suppressedRequestClasses: []
+    };
+  }
+  const workspaceKind = String(preflight?.workspaceKind || '').trim().toLowerCase();
+  const dependencyState = String(preflight?.dependencyState || '').trim().toLowerCase();
+  const packageWorkspace = workspaceKind === 'package_managed_workspace' || workspaceKind === 'mixed_workspace';
+  const dependencyManagedWorkspace = dependencyState === 'required' || dependencyState === 'optional';
+  if (!packageWorkspace || !dependencyManagedWorkspace) {
+    return {
+      active: false,
+      reasonCode: null,
+      message: '',
+      suppressedRequestClasses: []
+    };
+  }
+  const minTargets = Math.max(
+    1,
+    asFiniteInteger(sourcekitConfig?.packageWorkspaceHighCostRequestMinTargets) ?? 1
+  );
+  const selectedTargetCount = Array.isArray(targets) ? targets.length : 0;
+  const selectedDocumentCount = Array.isArray(documents) ? documents.length : 0;
+  const workloadSize = Math.max(selectedTargetCount, selectedDocumentCount);
+  if (workloadSize < minTargets) {
+    return {
+      active: false,
+      reasonCode: null,
+      message: '',
+      suppressedRequestClasses: []
+    };
+  }
+  return {
+    active: true,
+    reasonCode: 'sourcekit_package_workspace_high_cost_request_suppression',
+    message: `sourcekit suppressed optional high-cost semantic requests for a Swift package workspace (kind=${workspaceKind}, dependencyState=${dependencyState}, targets=${selectedTargetCount}, docs=${selectedDocumentCount}, threshold=${minTargets}).`,
+    suppressedRequestClasses: ['semanticTokens', 'inlayHints']
+  };
+};
+
+const resolveSourcekitStartupMode = ({
+  preflight = null,
+  hostLockUnavailable = false,
+  runtime = null
+} = {}) => {
+  if (hostLockUnavailable) {
+    return SOURCEKIT_ADMISSION_STARTUP_MODE.HOST_LOCK_UNAVAILABLE;
+  }
+  if (preflight?.blockSourcekit) {
+    return SOURCEKIT_ADMISSION_STARTUP_MODE.DEPENDENCY_BLOCKED;
+  }
+  if (Number(runtime?.guard?.tripCount || 0) > 0) {
+    return SOURCEKIT_ADMISSION_STARTUP_MODE.RUNTIME_TIMEOUT_STORM;
+  }
+  const startupState = String(
+    preflight?.state === 'degraded'
+      ? preflight.state
+      : (
+        preflight?.preflightState && String(preflight.preflightState).trim().toLowerCase() !== 'ready'
+          ? 'degraded'
+          : preflight?.state || ''
+      )
+  ).trim().toLowerCase();
+  if (startupState === 'degraded') {
+    return SOURCEKIT_ADMISSION_STARTUP_MODE.WEAK_STARTUP;
+  }
+  return SOURCEKIT_ADMISSION_STARTUP_MODE.HEALTHY;
+};
+
+const resolveSourcekitAdmissionPolicy = ({
+  preflight = null,
+  hostLockUnavailable = false,
+  runtime = null
+} = {}) => {
+  const startupMode = resolveSourcekitStartupMode({
+    preflight,
+    hostLockUnavailable,
+    runtime
+  });
+  const requestedRequestClasses = [...SOURCEKIT_REQUEST_CLASSES];
+  const suppressedRequestClasses = [];
+  const degradedRequestClasses = [];
+  const checks = [];
+  let blockSourcekit = false;
+  let reasonCode = null;
+  let message = '';
+  if (startupMode === SOURCEKIT_ADMISSION_STARTUP_MODE.DEPENDENCY_BLOCKED) {
+    blockSourcekit = true;
+    reasonCode = String(preflight?.reasonCode || 'sourcekit_dependency_blocked').trim() || 'sourcekit_dependency_blocked';
+    message = `sourcekit blocked because startup dependencies are not ready (${reasonCode}).`;
+  } else if (startupMode === SOURCEKIT_ADMISSION_STARTUP_MODE.HOST_LOCK_UNAVAILABLE) {
+    blockSourcekit = true;
+    reasonCode = 'sourcekit_host_lock_unavailable';
+    message = 'sourcekit blocked because the host lock is unavailable.';
+  } else if (startupMode === SOURCEKIT_ADMISSION_STARTUP_MODE.WEAK_STARTUP) {
+    reasonCode = String(preflight?.reasonCode || 'sourcekit_weak_startup').trim() || 'sourcekit_weak_startup';
+    suppressedRequestClasses.push('semanticTokens', 'signatureHelp', 'inlayHints');
+    message = `sourcekit weak startup policy active (${reasonCode}); suppressing high-cost semantic request classes.`;
+    checks.push({
+      name: 'sourcekit_weak_startup_request_suppression',
+      status: 'warn',
+      message
+    });
+  } else if (startupMode === SOURCEKIT_ADMISSION_STARTUP_MODE.RUNTIME_TIMEOUT_STORM) {
+    reasonCode = 'sourcekit_timeout_storm_truncated';
+    degradedRequestClasses.push('hover', 'semanticTokens', 'signatureHelp', 'inlayHints');
+    message = 'sourcekit runtime timeout storm detected; later request classes may be truncated or quarantined by the shared LSP runtime.';
+  }
+  return {
+    startupMode,
+    blockSourcekit,
+    reasonCode,
+    message,
+    requestedRequestClasses,
+    admittedRequestClasses: requestedRequestClasses.filter(
+      (requestClass) => !suppressedRequestClasses.includes(requestClass)
+    ),
+    suppressedRequestClasses,
+    degradedRequestClasses,
+    checks
+  };
+};
+
+const resolveSourcekitRuntimeIssueClasses = ({
+  preflight = null,
+  checks = [],
+  semanticTokenStartupPolicy = null,
+  packageWorkspaceSuppression = null,
+  runtime = null,
+  admissionPolicy = null
+} = {}) => {
+  const issueClasses = new Set();
+  const preflightState = String(preflight?.preflightState || '').trim().toLowerCase();
+  const preflightReasonCode = String(preflight?.reasonCode || '').trim().toLowerCase();
+  if (preflightReasonCode === 'sourcekit_preflight_lock_unavailable') {
+    issueClasses.add('package_preflight_lock_unavailable');
+  }
+  if (preflightReasonCode.startsWith('sourcekit_blocked_dependency')) {
+    issueClasses.add('package_resolution_blocked');
+  }
+  if (preflightReasonCode === 'sourcekit_blocked_network') {
+    issueClasses.add('package_resolution_network_blocked');
+  }
+  if (
+    preflightReasonCode === 'sourcekit_blocked_manifest'
+    || preflightReasonCode === 'sourcekit_blocked_manifest_unreadable'
+  ) {
+    issueClasses.add('package_manifest_blocked');
+  }
+  if (preflightState === 'blocked_dependency') {
+    issueClasses.add('dependency_resolution_required');
+  }
+  if (String(semanticTokenStartupPolicy?.reasonCode || '').trim() === 'sourcekit_semantic_tokens_suppressed_weak_startup') {
+    issueClasses.add('weak_startup_semantic_tokens_suppressed');
+  }
+  if (Array.isArray(admissionPolicy?.suppressedRequestClasses) && admissionPolicy.suppressedRequestClasses.length > 0) {
+    issueClasses.add('weak_startup_request_suppression');
+  }
+  if (packageWorkspaceSuppression?.active === true) {
+    issueClasses.add('package_workspace_high_cost_requests_suppressed');
+  }
+  if (Array.isArray(checks) && checks.some((check) => check?.name === 'sourcekit_host_lock_unavailable')) {
+    issueClasses.add('host_lock_unavailable');
+  }
+  if (Number(runtime?.requests?.byMethod?.['textDocument/semanticTokens/full']?.timedOut || 0) > 0) {
+    issueClasses.add('semantic_tokens_timeout');
+  }
+  if (Number(runtime?.requests?.byMethod?.['textDocument/hover']?.timedOut || 0) > 0) {
+    issueClasses.add('hover_timeout');
+  }
+  if (Number(runtime?.requests?.byMethod?.['textDocument/signatureHelp']?.timedOut || 0) > 0) {
+    issueClasses.add('signature_help_timeout');
+  }
+  if (Number(runtime?.guard?.tripCount || 0) > 0) {
+    issueClasses.add('circuit_breaker_tripped');
+    issueClasses.add('timeout_storm_truncated');
+  }
+  return Array.from(issueClasses).sort((left, right) => left.localeCompare(right));
+};
+
+const buildSourcekitPreflightDiagnosticDetails = (preflight) => ({
+  workspaceKind: preflight?.workspaceKind || null,
+  dependencyState: preflight?.dependencyState || null,
+  preflightState: preflight?.preflightState || null,
+  reasonCode: preflight?.reasonCode || null,
+  cached: preflight?.cached === true,
+  classificationDurationMs: Number(preflight?.classificationDurationMs) || 0,
+  resolveDurationMs: Number(preflight?.resolveDurationMs) || 0,
+  markerPath: preflight?.markerPath || null
+});
+
+const buildSourcekitFidelityPreflightDetails = (preflight, { state = null } = {}) => ({
+  state: state || preflight?.preflightState || preflight?.state || 'ready',
+  workspaceKind: preflight?.workspaceKind || null,
+  dependencyState: preflight?.dependencyState || null
+});
+
+const buildSourcekitDiagnostics = ({
+  diagnosticsCount = 0,
+  preflight = null,
+  admission = null,
+  fidelity = null,
+  checks = [],
+  resultChecks = [],
+  runtime = null
+} = {}) => {
+  const details = {};
+  if (diagnosticsCount) {
+    details.diagnosticsCount = diagnosticsCount;
+  }
+  if (preflight) {
+    details.preflight = buildSourcekitPreflightDiagnosticDetails(preflight);
+  }
+  if (admission) {
+    details.admission = admission;
+  }
+  if (fidelity) {
+    details.fidelity = fidelity;
+  }
+  const diagnostics = appendDiagnosticChecks(
+    Object.keys(details).length ? details : null,
+    [
+      ...(Array.isArray(checks) ? checks : []),
+      ...(Array.isArray(resultChecks) ? resultChecks : [])
+    ]
+  );
+  return runtime
+    ? { ...(diagnostics || {}), runtime }
+    : diagnostics;
+};
+
 export const createSourcekitProvider = () => ({
   id: 'sourcekit',
   preflightId: 'sourcekit.package-resolution',
   preflightClass: 'dependency',
-  version: '2.0.0',
+  version: '2.1.0',
   label: 'sourcekit-lsp',
   priority: 40,
   languages: ['swift'],
@@ -331,7 +641,7 @@ export const createSourcekitProvider = () => ({
     }
     return {
       ...preflight,
-      state: 'ready',
+      state: preflight?.state === 'degraded' ? 'degraded' : 'ready',
       requestedCommand: commandPreflight.requestedCommand,
       commandProfile: commandPreflight.commandProfile
     };
@@ -355,7 +665,7 @@ export const createSourcekitProvider = () => ({
     const checks = buildDuplicateChunkUidChecks(targets, { label: 'sourcekit' });
     if (!docs.length || !targets.length) {
       return {
-        provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'sourcekit', version: '2.1.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
@@ -439,10 +749,29 @@ export const createSourcekitProvider = () => ({
     }
     if (preflight?.blockSourcekit) {
       log('[tooling] sourcekit skipped because package preflight did not complete safely.');
+      const admissionPolicy = resolveSourcekitAdmissionPolicy({ preflight });
+      const fidelity = buildProviderFidelityContract({
+        providerId: 'sourcekit',
+        state: PROVIDER_FIDELITY_STATE.BLOCKED,
+        preflightState: 'blocked',
+        reasonCode: preflight?.reasonCode || null,
+        preflightDetails: buildSourcekitFidelityPreflightDetails(preflight, { state: 'blocked' }),
+        captureDiagnostics: false,
+        runtimeIssueClasses: resolveSourcekitRuntimeIssueClasses({
+          preflight,
+          checks,
+          admissionPolicy
+        })
+      });
       return {
-        provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'sourcekit', version: '2.1.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
-        diagnostics: appendDiagnosticChecks(null, checks)
+        diagnostics: buildSourcekitDiagnostics({
+          preflight,
+          admission: admissionPolicy,
+          fidelity,
+          checks
+        })
       };
     }
     const requestedCommand = preflight?.requestedCommand && typeof preflight.requestedCommand === 'object'
@@ -451,6 +780,9 @@ export const createSourcekitProvider = () => ({
     const runtimeCommand = resolveRuntimeCommandFromPreflight({
       preflight,
       fallbackRequestedCommand: requestedCommand,
+      providerId: 'sourcekit',
+      repoRoot: ctx?.repoRoot || process.cwd(),
+      toolingConfig: ctx?.toolingConfig || {},
       missingProfileCheck: {
         name: 'sourcekit_preflight_command_profile_missing',
         status: 'warn',
@@ -463,7 +795,7 @@ export const createSourcekitProvider = () => ({
     if (!resolvedCmd) {
       checks.push(...runtimeCommand.checks);
       return {
-        provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'sourcekit', version: '2.1.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
@@ -478,7 +810,7 @@ export const createSourcekitProvider = () => ({
       if (definitelyMissing) {
         log('[index] sourcekit-lsp not detected; skipping.');
         return {
-          provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+          provider: { id: 'sourcekit', version: '2.1.0', configHash: this.getConfigHash(ctx) },
           byChunkUid: {},
           diagnostics: appendDiagnosticChecks(null, checks)
         };
@@ -507,12 +839,83 @@ export const createSourcekitProvider = () => ({
           status: 'warn',
           message: `sourcekit host lock timed out after ${hostLockWaitMs}ms; skipping provider to avoid unlocked contention.`
         });
+        const admissionPolicy = resolveSourcekitAdmissionPolicy({
+          preflight,
+          hostLockUnavailable: true
+        });
+        const fidelity = buildProviderFidelityContract({
+          providerId: 'sourcekit',
+          state: PROVIDER_FIDELITY_STATE.BLOCKED,
+          reasonCode: 'sourcekit_host_lock_unavailable',
+          captureDiagnostics: false,
+          checks,
+          preflightDetails: buildSourcekitFidelityPreflightDetails(preflight, {
+            state: preflight?.state || 'ready'
+          }),
+          runtimeIssueClasses: resolveSourcekitRuntimeIssueClasses({
+            preflight,
+            checks,
+            admissionPolicy
+          })
+        });
         return {
-          provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+          provider: { id: 'sourcekit', version: '2.1.0', configHash: this.getConfigHash(ctx) },
           byChunkUid: {},
-          diagnostics: appendDiagnosticChecks(null, checks)
+          diagnostics: buildSourcekitDiagnostics({
+            admission: admissionPolicy,
+            fidelity,
+            checks
+          })
         };
       }
+    }
+
+    const semanticTokenStartupPolicy = shouldSuppressSourcekitSemanticTokensForStartup(
+      preflight,
+      sourcekitConfig,
+      runtimeConfig
+    );
+    const packageWorkspaceSuppression = resolveSourcekitPackageWorkspaceRequestSuppression({
+      preflight,
+      sourcekitConfig,
+      documents: docs,
+      targets
+    });
+    const admissionPolicy = resolveSourcekitAdmissionPolicy({ preflight });
+    const suppressedRequestClasses = new Set([
+      ...admissionPolicy.suppressedRequestClasses,
+      ...(Array.isArray(packageWorkspaceSuppression.suppressedRequestClasses)
+        ? packageWorkspaceSuppression.suppressedRequestClasses
+        : [])
+    ]);
+    const semanticTokensEnabled = semanticTokenStartupPolicy.suppress !== true
+      && !suppressedRequestClasses.has('semanticTokens');
+    const signatureHelpAdmissionEnabled = !admissionPolicy.suppressedRequestClasses.includes('signatureHelp');
+    const inlayHintsEnabled = runtimeConfig.inlayHintsEnabled !== false
+      && sourcekitConfig.inlayHintsEnabled !== false
+      && sourcekitConfig.inlayHints !== false
+      && !suppressedRequestClasses.has('inlayHints');
+    if (semanticTokenStartupPolicy.suppress && semanticTokenStartupPolicy.reasonCode === 'sourcekit_semantic_tokens_suppressed_weak_startup') {
+      checks.push({
+        name: 'sourcekit_semantic_tokens_suppressed_weak_startup',
+        status: 'warn',
+        message: semanticTokenStartupPolicy.message
+      });
+      log(`[tooling] ${semanticTokenStartupPolicy.message}`);
+    }
+    if (packageWorkspaceSuppression.active === true) {
+      checks.push({
+        name: 'sourcekit_package_workspace_high_cost_request_suppression',
+        status: 'warn',
+        message: packageWorkspaceSuppression.message
+      });
+      log(`[tooling] ${packageWorkspaceSuppression.message}`);
+    }
+    for (const check of admissionPolicy.checks) {
+      checks.push(check);
+    }
+    if (admissionPolicy.message) {
+      log(`[tooling] ${admissionPolicy.message}`);
     }
 
     try {
@@ -531,12 +934,14 @@ export const createSourcekitProvider = () => ({
         hoverTimeoutMs,
         signatureHelpTimeoutMs,
         hoverEnabled,
-        signatureHelpEnabled,
+        signatureHelpEnabled: signatureHelpEnabled && signatureHelpAdmissionEnabled,
         hoverRequireMissingReturn,
         hoverSymbolKinds,
         hoverMaxPerFile,
         hoverDisableAfterTimeouts,
         hoverConcurrency,
+        semanticTokensEnabled,
+        inlayHintsEnabled,
         parseSignature: (detail) => parseSwiftSignature(detail),
         strict: ctx?.strict !== false,
         vfsRoot: ctx?.buildRoot || ctx.repoRoot,
@@ -555,19 +960,52 @@ export const createSourcekitProvider = () => ({
       });
 
       logHoverMetrics(log, result.hoverMetrics);
-      const diagnostics = appendDiagnosticChecks(
-        result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null,
-        [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
-      );
-      return {
-        provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+      const runtimeAdmissionPolicy = resolveSourcekitAdmissionPolicy({
+        preflight,
+        runtime: result.runtime
+      });
+      const fidelity = buildProviderFidelityContract({
+        providerId: 'sourcekit',
+        preflightState: preflight?.state || 'ready',
+        reasonCode: preflight?.reasonCode || null,
+        preflightDetails: buildSourcekitFidelityPreflightDetails(preflight),
+        runtime: result.runtime,
+        checks: [...checks, ...(Array.isArray(result.checks) ? result.checks : [])],
+        captureDiagnostics: false,
         byChunkUid: result.byChunkUid,
-        diagnostics: result.runtime
-          ? { ...(diagnostics || {}), runtime: result.runtime }
-          : diagnostics
+        skippedRequestClasses: Array.from(new Set([
+          ...(Array.isArray(runtimeAdmissionPolicy.suppressedRequestClasses)
+            ? runtimeAdmissionPolicy.suppressedRequestClasses
+            : []),
+          ...(Array.isArray(packageWorkspaceSuppression.suppressedRequestClasses)
+            ? packageWorkspaceSuppression.suppressedRequestClasses
+            : [])
+        ])),
+        runtimeIssueClasses: resolveSourcekitRuntimeIssueClasses({
+          preflight,
+          checks: [...checks, ...(Array.isArray(result.checks) ? result.checks : [])],
+          semanticTokenStartupPolicy,
+          packageWorkspaceSuppression,
+          runtime: result.runtime,
+          admissionPolicy: runtimeAdmissionPolicy
+        })
+      });
+      return {
+        provider: { id: 'sourcekit', version: '2.1.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: result.byChunkUid,
+        diagnostics: buildSourcekitDiagnostics({
+          diagnosticsCount: result.diagnosticsCount,
+          preflight,
+          admission: runtimeAdmissionPolicy,
+          fidelity,
+          checks,
+          resultChecks: result.checks,
+          runtime: result.runtime
+        })
       };
     } finally {
       if (hostLock?.release) {
+        const { releaseFileLockOrThrow } = await loadFileLockModule();
         await releaseFileLockOrThrow(hostLock);
       }
     }

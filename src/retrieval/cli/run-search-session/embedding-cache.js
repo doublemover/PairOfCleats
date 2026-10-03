@@ -1,5 +1,5 @@
 import { getQueryEmbedding } from '../../embedding.js';
-import { incCacheEvent } from '../../../shared/metrics.js';
+import { incCacheEvent } from '../../../shared/metrics/core.js';
 import { resolveStubDims } from '../../../shared/embedding.js';
 import { buildLocalCacheKey } from '../../../shared/cache-key.js';
 

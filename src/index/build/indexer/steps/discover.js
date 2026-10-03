@@ -1,4 +1,4 @@
-import { log, logLine } from '../../../../shared/progress.js';
+import { log, logLine } from '../../../../shared/progress-runtime.js';
 import { compareStrings } from '../../../../shared/sort.js';
 import { sha1 } from '../../../../shared/hash.js';
 import { stableStringifyForSignature } from '../../../../shared/stable-json.js';

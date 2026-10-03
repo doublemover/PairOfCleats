@@ -2,8 +2,8 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { readJson } from '../utils.js';
-import { writeJsonObjectFile } from '../../../shared/json-stream.js';
-import { updateIndexStateManifest } from '../../../../tools/shared/index-state-utils.js';
+import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
+import { updateIndexStateManifest } from '../../../shared/index-state-utils.js';
 import { getIndexDir } from '../../../shared/dict-utils.js';
 
 export const updateSqliteState = async (indexDirOrOptions, patch = null) => {

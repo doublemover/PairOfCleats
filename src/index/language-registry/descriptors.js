@@ -213,21 +213,21 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
   Object.freeze({
     id: 'handlebars',
     adapterId: 'handlebars',
-    parserRoute: 'tree-sitter-handlebars',
+    parserRoute: 'handlebars-parser-or-heuristic',
     capsProfile: 'handlebars-default',
     extensions: Object.freeze(['.hbs', '.handlebars'])
   }),
   Object.freeze({
     id: 'mustache',
     adapterId: 'mustache',
-    parserRoute: 'tree-sitter-mustache',
+    parserRoute: 'mustache-parse-tokens',
     capsProfile: 'mustache-default',
     extensions: Object.freeze(['.mustache'])
   }),
   Object.freeze({
     id: 'jinja',
     adapterId: 'jinja',
-    parserRoute: 'tree-sitter-jinja',
+    parserRoute: 'jinja-django-lexical-heuristic',
     capsProfile: 'jinja-default',
     extensions: Object.freeze(['.jinja', '.jinja2', '.j2', '.django', '.djhtml'])
   }),
@@ -241,7 +241,7 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
   Object.freeze({
     id: 'proto',
     adapterId: 'proto',
-    parserRoute: 'tree-sitter-proto',
+    parserRoute: 'protobufjs-reflection+lexical-ranges',
     capsProfile: 'proto-default',
     extensions: Object.freeze(['.proto']),
     specialFilenames: Object.freeze(['buf.yaml', 'buf.gen.yaml'])
@@ -258,7 +258,7 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
   Object.freeze({
     id: 'dockerfile',
     adapterId: 'dockerfile',
-    parserRoute: 'line-parser-dockerfile',
+    parserRoute: 'dockerfile-ast-or-line-parser',
     capsProfile: 'dockerfile-default',
     extensions: Object.freeze(['.dockerfile']),
     specialFilenames: Object.freeze(['dockerfile', 'containerfile']),
@@ -267,7 +267,7 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
   Object.freeze({
     id: 'graphql',
     adapterId: 'graphql',
-    parserRoute: 'tree-sitter-graphql',
+    parserRoute: 'graphql-js-or-heuristic',
     capsProfile: 'graphql-default',
     extensions: Object.freeze(['.graphql', '.gql'])
   }),

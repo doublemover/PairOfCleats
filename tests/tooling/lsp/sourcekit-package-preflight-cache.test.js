@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
-import { getToolingProvider } from '../../../src/index/tooling/provider-registry.js';
 import { countNonEmptyLines } from '../../helpers/lsp-signature-fixtures.js';
-import { createSourcekitPreflightFixture } from '../../helpers/sourcekit-preflight-fixture.js';
-import { withTemporaryEnv } from '../../helpers/test-env.js';
+import {
+  createSourcekitPreflightFixture,
+  withSourcekitPreflightProvider
+} from '../../helpers/sourcekit-preflight-fixture.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const fixture = await createSourcekitPreflightFixture({
@@ -18,22 +18,21 @@ const fixture = await createSourcekitPreflightFixture({
   resolveExitCode: 0
 });
 const logs = [];
-const { ctx, document, target } = fixture.contextFor(logs);
 
 try {
-  await withTemporaryEnv({ POC_SWIFT_PREFLIGHT_COUNTER: fixture.counterPath }, async () => {
-    registerDefaultToolingProviders();
-    const provider = getToolingProvider('sourcekit');
-    assert.ok(provider, 'expected sourcekit provider');
-
+  await withSourcekitPreflightProvider({ fixture, logs }, async ({ provider, ctx, document, target }) => {
     const first = await provider.run(ctx, { documents: [document], targets: [target] });
     assert.ok(first && typeof first.byChunkUid === 'object', 'expected first sourcekit run output');
+    assert.equal(first?.diagnostics?.preflight?.workspaceKind, 'package_managed_workspace');
+    assert.equal(first?.diagnostics?.preflight?.dependencyState, 'required');
+    assert.equal(first?.diagnostics?.preflight?.cached, false);
 
     const firstCount = await countNonEmptyLines(fixture.counterPath);
     assert.equal(firstCount, 1, 'expected swift package preflight to run exactly once on first pass');
 
     const second = await provider.run(ctx, { documents: [document], targets: [target] });
     assert.ok(second && typeof second.byChunkUid === 'object', 'expected second sourcekit run output');
+    assert.equal(second?.diagnostics?.preflight?.cached, true, 'expected second run to reuse cached preflight outcome');
 
     const secondCount = await countNonEmptyLines(fixture.counterPath);
     assert.equal(secondCount, 1, 'expected sourcekit package preflight cache to skip repeated resolve');

@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 
 import {
   quoteWindowsCmdArg,
+  resolveWindowsCmdShimPath,
   resolveWindowsCmdInvocation
 } from '../../../src/shared/subprocess/windows-cmd.js';
 
@@ -24,6 +25,7 @@ const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-windows-cmd-'));
 try {
   const scriptPath = path.join(tempRoot, 'echo-arg.js');
   const wrapperPath = path.join(tempRoot, 'echo-arg.cmd');
+  const bareWrapperPath = path.join(tempRoot, 'npm.cmd');
   const badWrapperPath = path.join(tempRoot, 'opaque.cmd');
   const outputPath = path.join(tempRoot, 'arg.txt');
   const literalArg = '%TEMP%&literal!bang^caret';
@@ -34,6 +36,11 @@ try {
   );
   await fs.writeFile(
     wrapperPath,
+    `@echo off\r\nnode "%~dp0\\echo-arg.js" %*\r\n`,
+    'utf8'
+  );
+  await fs.writeFile(
+    bareWrapperPath,
     `@echo off\r\nnode "%~dp0\\echo-arg.js" %*\r\n`,
     'utf8'
   );
@@ -60,6 +67,26 @@ try {
     'expected parseable wrappers to bypass cmd.exe fallback'
   );
   assert.ok(runInvocation.args.includes(literalArg), 'expected resolved wrapper args to preserve literal argv');
+  const shimEnv = {
+    ...process.env,
+    PATH: tempRoot,
+    Path: tempRoot
+  };
+  assert.equal(
+    resolveWindowsCmdShimPath('npm', shimEnv),
+    bareWrapperPath,
+    'expected bare npm to resolve through PATH-backed npm.cmd shim'
+  );
+  const bareInvocation = resolveWindowsCmdInvocation('npm', [literalArg], shimEnv);
+  assert.notEqual(
+    path.basename(String(bareInvocation.command || '')).toLowerCase(),
+    'npm',
+    'expected bare npm shim resolution to avoid spawning the unresolved bare command token'
+  );
+  assert.ok(
+    bareInvocation.args.includes(literalArg),
+    'expected bare npm shim resolution to preserve literal argv'
+  );
   const opaqueInvocation = resolveWindowsCmdInvocation(badWrapperPath, [literalArg]);
   assert.equal(
     path.basename(String(opaqueInvocation.command || '')).toLowerCase(),
@@ -97,6 +124,17 @@ try {
     assert.equal(result.status, 0, `expected wrapper invocation to succeed: ${result.stderr || result.stdout}`);
     const captured = await fs.readFile(outputPath, 'utf8');
     assert.equal(captured, literalArg, 'expected wrapper invocation to preserve literal argument text');
+    const bareResult = spawnSync(bareInvocation.command, bareInvocation.args, {
+      shell: false,
+      windowsHide: true,
+      encoding: 'utf8',
+      env: shimEnv
+    });
+    assert.equal(
+      bareResult.status,
+      0,
+      `expected bare npm shim invocation to succeed: ${bareResult.stderr || bareResult.stdout}`
+    );
   }
 } finally {
   await fs.rm(tempRoot, { recursive: true, force: true });

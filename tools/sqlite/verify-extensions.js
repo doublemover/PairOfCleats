@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { resolveRepoConfig } from '../shared/dict-utils.js';
+import { assertTrustedExtension } from './extension-trust.js';
 import {
   encodeVector,
   ensureVectorTable,
@@ -14,7 +15,8 @@ const argv = createCli({
   scriptName: 'verify-extensions',
   options: {
     json: { type: 'boolean', default: false },
-    load: { type: 'boolean', default: true },
+    load: { type: 'boolean', default: false },
+    sha256: { type: 'string' },
     provider: { type: 'string' },
     dir: { type: 'string' },
     path: { type: 'string' },
@@ -54,6 +56,7 @@ const smoke = { attempted: false, ok: false, reason: null };
 if (argv.load && exists) {
   loadResult.attempted = true;
   try {
+    assertTrustedExtension(resolvedPath, config, argv.sha256 || config.trustedBinarySha256);
     const { default: Database } = await import('better-sqlite3');
     const db = new Database(':memory:');
     try {

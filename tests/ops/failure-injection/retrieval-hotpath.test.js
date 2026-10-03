@@ -7,7 +7,7 @@ import {
   classifyOperationalFailure,
   resetOperationalFailureInjectionState,
   runWithOperationalFailurePolicy
-} from '../../../src/shared/ops-failure-injection.js';
+} from '../../../src/shared/ops/failure-injection.js';
 
 const prevEnv = {
   PAIROFCLEATS_TESTING: process.env.PAIROFCLEATS_TESTING,

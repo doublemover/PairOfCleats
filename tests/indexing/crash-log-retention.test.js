@@ -84,6 +84,11 @@ try {
       reason: 'bench',
       code: 1
     },
+    failureContext: {
+      crashClass: 'windows_access_violation',
+      recentCleanupLabel: 'runtime.worker-pools.destroy',
+      activePhase: 'execute'
+    },
     runtime: {
       language: 'perl',
       repo: 'owner/repo',
@@ -113,6 +118,11 @@ try {
   const retainedBundle = JSON.parse(await fsPromises.readFile(retention.bundlePath, 'utf8'));
   const retainedMarker = JSON.parse(await fsPromises.readFile(retention.markerPath, 'utf8'));
   assert.equal(retainedBundle.failure.reason, 'bench', 'expected retained failure reason');
+  assert.equal(
+    retainedBundle.failureContext?.recentCleanupLabel,
+    'runtime.worker-pools.destroy',
+    'expected retained failure context'
+  );
   assert.equal(retainedBundle.runtime.repo, 'owner/repo', 'expected retained runtime metadata');
   assert.equal(
     retainedBundle.environment.selected.PAIROFCLEATS_TESTING,
@@ -124,6 +134,7 @@ try {
     true,
     'expected parser metadata in retained bundle'
   );
+  assert.equal(retainedBundle.crashState?.phase, 'error', 'expected retained crash state payload');
   assert.equal(
     retainedBundle.schedulerEvents.some((entry) => String(entry?.message || '').includes('[tree-sitter:schedule]')),
     true,

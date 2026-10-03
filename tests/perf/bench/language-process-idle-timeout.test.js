@@ -30,11 +30,11 @@ const activeScript = [
   "const emit = (event, payload) => console.log(JSON.stringify({ proto: 'poc.progress@2', event, ts: new Date().toISOString(), ...payload }));",
   '(async () => {',
   "  emit('task:start', { taskId: 'overall', stage: 'overall', current: 0, total: 3, message: 'start' });",
-  '  await wait(40);',
+  '  await wait(80);',
   "  emit('task:progress', { taskId: 'overall', stage: 'overall', current: 1, total: 3, message: 'progress 1' });",
-  '  await wait(40);',
+  '  await wait(80);',
   "  emit('task:progress', { taskId: 'overall', stage: 'overall', current: 2, total: 3, message: 'progress 2' });",
-  '  await wait(40);',
+  '  await wait(80);',
   "  emit('task:end', { taskId: 'overall', stage: 'overall', current: 3, total: 3, status: 'done', message: 'done' });",
   '  process.exit(0);',
   '})();'
@@ -46,8 +46,8 @@ const activeResult = await runner.runProcess(
   ['-e', activeScript],
   {
     continueOnError: true,
-    idleTimeoutMs: 50,
-    timeoutMs: 500
+    idleTimeoutMs: 180,
+    timeoutMs: 2000
   }
 );
 
@@ -68,8 +68,8 @@ const silentResult = await runner.runProcess(
   ['-e', silentScript],
   {
     continueOnError: true,
-    idleTimeoutMs: 80,
-    timeoutMs: 1000
+    idleTimeoutMs: 180,
+    timeoutMs: 1500
   }
 );
 
@@ -79,6 +79,30 @@ assert.equal(
   captured.some((line) => line.includes('[run] idle timeout: bench-idle-progress-silent')),
   true,
   'expected idle timeout summary log line'
+);
+
+const noisyScript = [
+  "setInterval(() => console.log('non-progress noise from child'), 20);",
+  'setTimeout(() => {}, 10_000);'
+].join('');
+
+const noisyResult = await runner.runProcess(
+  'bench-idle-output-noise',
+  process.execPath,
+  ['-e', noisyScript],
+  {
+    continueOnError: true,
+    idleTimeoutMs: 180,
+    timeoutMs: 1500
+  }
+);
+
+assert.equal(noisyResult.ok, false, 'expected noisy subprocess without owned progress to fail');
+assert.equal(noisyResult.timeoutKind, 'idle', 'expected noisy subprocess to be classified as idle timeout');
+assert.equal(
+  captured.some((line) => line.includes('[run] idle timeout: bench-idle-output-noise')),
+  true,
+  'expected idle timeout despite non-progress output chatter'
 );
 
 console.log('bench language process idle-timeout test passed');

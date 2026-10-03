@@ -1,5 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { resolveWorkspaceExecutionAuthority } from '../../shared/workspace-execution-authority.js';
 import semver from 'semver';
 import { getXxhashBackend } from '../../shared/hash.js';
 import { listToolingProviders } from './provider-registry.js';
@@ -13,10 +14,11 @@ import { resolveProviderCommandOverride } from './provider-command-override.js';
 import { loadTypeScript } from './typescript/load.js';
 import { getScmProviderAndRoot, resolveScmConfig } from '../scm/registry.js';
 import { setScmRuntimeConfig } from '../scm/runtime.js';
-import { isAbsolutePathNative } from '../../shared/files.js';
+import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { hasWorkspaceMarker, resolveWorkspaceModelCheckForCommand } from './workspace-model.js';
 import { listLspServerPresets } from './lsp-presets.js';
+import { getLspProviderDelta } from './lsp-provider-deltas.js';
 import { resolveCompileCommandsDir } from './compile-commands.js';
 import {
   normalizeCommandToken,
@@ -172,6 +174,17 @@ const writeReport = async (reportPath, report) => {
     newline: false
   });
 };
+
+const toStructuredFailureReasons = (checks) => (
+  (Array.isArray(checks) ? checks : [])
+    .filter((check) => check && (check.status === 'warn' || check.status === 'error'))
+    .map((check) => ({
+      code: String(check.name || 'unknown'),
+      status: String(check.status || 'warn'),
+      message: String(check.message || ''),
+      count: Number.isFinite(Number(check.count)) ? Number(check.count) : null
+    }))
+);
 
 export const runToolingDoctor = async (ctx, providerIds = null, options = {}) => {
   const repoRoot = ctx?.repoRoot || process.cwd();
@@ -347,6 +360,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
           ? Math.max(0, Math.floor(Number(provider.preflightTimeoutMs)))
           : null
       },
+      lspDelta: getLspProviderDelta(providerId),
       status: 'ok',
       checks: []
     };
@@ -394,12 +408,16 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       });
     }
 
+    const executionAuthority = resolveWorkspaceExecutionAuthority({ repoRoot, providerId, languages: provider.languages });
     if (!providerReport.enabled) {
       addCheck({
         name: 'enabled',
         status: 'warn',
         message: 'Provider disabled by tooling configuration.'
       });
+    } else if (executionAuthority) {
+      providerAvailable = false;
+      addCheck(executionAuthority.check);
     } else if (providerId === 'typescript') {
       const ts = await loadTypeScript(toolingConfig, repoRoot);
       if (!ts) {
@@ -474,7 +492,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       }
     }
 
-    if (providerReport.enabled && providerId !== 'typescript') {
+    if (providerReport.enabled && providerId !== 'typescript' && !executionAuthority) {
       let requestedCmd = provider?.requires?.cmd || null;
       let requestedArgs = Array.isArray(provider?.requires?.args)
         ? provider.requires.args.map((entry) => String(entry))
@@ -608,6 +626,16 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
           const workspaceModelCheck = resolveWorkspaceModelCheckForCommand(commandToken);
           if (workspaceModelCheck) {
             const markerFound = hasWorkspaceMarker(repoRoot, workspaceModelCheck.markers);
+            providerReport.workspaceModel = {
+              id: workspaceModelCheck.id,
+              label: workspaceModelCheck.label,
+              markers: workspaceModelCheck.markers,
+              detected: markerFound,
+              status: markerFound ? 'ok' : 'warn',
+              message: markerFound
+                ? `${workspaceModelCheck.label} markers detected.`
+                : `${workspaceModelCheck.label} markers not found near repo root; startup may fail or degrade.`
+            };
             if (!markerFound) {
               addCheck({
                 name: `${providerId}-${workspaceModelCheck.id}`,
@@ -650,6 +678,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
 
     providerReport.status = summarizeStatus(providerErrors, providerWarnings);
     providerReport.available = providerAvailable;
+    providerReport.failureReasons = toStructuredFailureReasons(providerReport.checks);
     report.providers.push(providerReport);
     const providerElapsedMs = Math.max(0, Date.now() - providerStartMs);
     log(

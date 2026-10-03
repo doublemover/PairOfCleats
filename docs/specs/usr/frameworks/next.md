@@ -57,7 +57,7 @@ Normative framework contract for `next` under USR.
 
 ## 8. Required fixtures and evidence
 
-- `edgeCaseCaseIds`: `next-app-router-dynamic-segment`, `next-client-server-boundary`, `next-route-handler-runtime`
+- `edgeCaseCaseIds`: `next-app-router-dynamic-segment`, `next-client-server-boundary`, `next-css-module-style-scope`, `next-route-handler-runtime`, `next-rsc-template-props`
 - `blockingFixtureIds`: `next::framework-overlay::baseline-001`
 - `requiredConformance`: `C4`
 
@@ -65,9 +65,9 @@ Normative framework contract for `next` under USR.
 
 - [ ] Owner-role review completed.
 - [ ] Backup-owner review completed.
-- [ ] Matrix linkage verified against framework profile and edge-case registries.
-- [ ] Required framework fixture families assigned with concrete fixture IDs.
-- [ ] Required C4 conformance checks mapped to executable lanes.
+- [x] Matrix linkage verified against framework profile and edge-case registries.
+- [x] Required framework fixture families assigned with concrete fixture IDs.
+- [x] Required C4 conformance checks mapped to executable lanes.
 
 ## 10. Completion evidence artifacts
 

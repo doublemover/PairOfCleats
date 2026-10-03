@@ -1,4 +1,5 @@
 import {
+  buildStableKeyCandidate,
   buildBaseRecord,
   ensureRecordId,
   normalizeExposure,
@@ -96,12 +97,21 @@ export function normalizeDependabot(raw, meta = {}, options = {}) {
   const exposure = normalizeExposure(raw, meta);
   if (exposure) record.exposure = exposure;
 
-  let stableKey = pickFirst(raw?.alert?.id, raw?.alertId, raw?.id, raw?.number);
+  let stableKey = buildStableKeyCandidate('alert.id', raw?.alert?.id)
+    || buildStableKeyCandidate('alertId', raw?.alertId)
+    || buildStableKeyCandidate('id', raw?.id)
+    || buildStableKeyCandidate('number', raw?.number);
   if (!stableKey && ghsa && packageName) {
-    stableKey = `${ghsa}:${packageName}:${manifestPath || ''}`;
+    stableKey = buildStableKeyCandidate(
+      'ghsa-package-manifest',
+      `${ghsa}:${packageName}:${manifestPath || ''}`
+    );
   }
   if (!stableKey && vulnId && packageName) {
-    stableKey = `${vulnId}:${packageName}:${manifestPath || ''}`;
+    stableKey = buildStableKeyCandidate(
+      'vulnId-package-manifest',
+      `${vulnId}:${packageName}:${manifestPath || ''}`
+    );
   }
 
   ensureRecordId(record, record.source, stableKey, raw, warnings);

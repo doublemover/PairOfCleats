@@ -1,16 +1,15 @@
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../shared/cli.js';
-import { toPosix } from '../../shared/files.js';
-import { normalizeOptionalNumber } from '../../shared/limits.js';
+import { isDirectExecution } from '../../shared/direct-execution.js';
+import { toPosix } from '../../shared/file-paths.js';
 import { parseSeedRef } from '../../shared/seed-ref.js';
 import {
+  buildGraphCliOptions,
   emitCliError,
   emitCliOutput,
-  mergeCaps,
   parseChangedInputs,
-  parseList,
-  resolveFormat
+  resolveFormat,
+  resolveGraphCliCapsAndFilters
 } from './cli-helpers.js';
 import { buildImpactAnalysis, IMPACT_EMPTY_CHANGED_SET_CODE } from '../../graph/impact.js';
 import { renderGraphImpact } from '../../retrieval/output/graph-impact.js';
@@ -18,7 +17,8 @@ import { validateGraphImpact } from '../../contracts/validators/analysis.js';
 import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
 import { prepareGraphIndex, prepareGraphInputs } from './graph-helpers.js';
-import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
+import { loadUserConfig } from '../../shared/dict-utils.js';
+import { getRepoRoot } from '../../shared/repo-paths.js';
 
 const createImpactInputError = (code, message) => {
   const err = new Error(message);
@@ -40,40 +40,24 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
   const cli = createCli({
     scriptName: 'impact',
     argv: ['node', 'impact', ...rawArgs],
-    options: {
-      repo: { type: 'string' },
+    options: buildGraphCliOptions({
       seed: { type: 'string' },
       changed: { type: 'array' },
-      changedFile: { type: 'string' },
-      depth: { type: 'number' },
-      direction: { type: 'string' },
-      format: { type: 'string' },
-      json: { type: 'boolean', default: false },
-      graphs: { type: 'string' },
-      edgeTypes: { type: 'string' },
-      minConfidence: { type: 'number' },
-      maxDepth: { type: 'number' },
-      maxFanoutPerNode: { type: 'number' },
-      maxNodes: { type: 'number' },
-      maxEdges: { type: 'number' },
-      maxPaths: { type: 'number' },
-      maxCandidates: { type: 'number' },
-      maxWorkUnits: { type: 'number' },
-      maxWallClockMs: { type: 'number' }
-    }
+      changedFile: { type: 'string' }
+    })
   });
   const argv = cli.parse();
 
-  const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
+  const repoRoot = getRepoRoot(argv.repo || null, process.cwd());
   const format = resolveFormat(argv);
 
   try {
     if (!Number.isFinite(argv.depth)) throw new Error('Missing --depth <n>.');
-    if (!argv.direction) throw new Error('Missing --direction <upstream|downstream>.');
+    if (!argv.direction) throw new Error('Missing --direction <upstream|downstream|both>.');
 
     const direction = String(argv.direction).trim().toLowerCase();
-    if (!['upstream', 'downstream'].includes(direction)) {
-      throw new Error('Invalid --direction value. Use upstream|downstream.');
+    if (!['upstream', 'downstream', 'both'].includes(direction)) {
+      throw new Error('Invalid --direction value. Use upstream|downstream|both.');
     }
 
     const seed = argv.seed ? parseSeedRef(argv.seed, repoRoot) : null;
@@ -91,34 +75,13 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
       throw new Error(`Code index not found at ${indexDir}.`);
     }
 
-    const baseCaps = userConfig?.retrieval?.graph?.caps || {};
-    const capOverrides = {
-      maxDepth: normalizeOptionalNumber(argv.maxDepth),
-      maxFanoutPerNode: normalizeOptionalNumber(argv.maxFanoutPerNode),
-      maxNodes: normalizeOptionalNumber(argv.maxNodes),
-      maxEdges: normalizeOptionalNumber(argv.maxEdges),
-      maxPaths: normalizeOptionalNumber(argv.maxPaths),
-      maxCandidates: normalizeOptionalNumber(argv.maxCandidates),
-      maxWorkUnits: normalizeOptionalNumber(argv.maxWorkUnits),
-      maxWallClockMs: normalizeOptionalNumber(argv.maxWallClockMs)
-    };
-    const caps = mergeCaps(baseCaps, capOverrides);
-
-    const graphs = parseList(argv.graphs);
-    const edgeTypes = parseList(argv.edgeTypes);
-    const minConfidence = normalizeOptionalNumber(argv.minConfidence);
-    const edgeFilters = {
-      graphs: graphs.length ? graphs : null,
-      edgeTypes: edgeTypes.length ? edgeTypes : null,
-      minConfidence
-    };
+    const { caps, edgeFilters, graphSelection } = resolveGraphCliCapsAndFilters(argv, userConfig);
 
     const graphInputs = await prepareGraphInputs({
       repoRoot,
       indexDir,
       strict: true
     });
-    const graphSelection = graphs.length ? graphs : null;
     const { graphIndex } = await prepareGraphIndex({
       repoRoot,
       indexDir,
@@ -171,7 +134,7 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runImpactCli()
     .then((result) => {
       if (result?.ok === false) process.exit(1);

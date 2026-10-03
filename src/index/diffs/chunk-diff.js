@@ -1,6 +1,7 @@
 import { sha1 } from '../../shared/hash.js';
 import { stableStringify } from '../../shared/stable-json.js';
-import { loadChunkMeta, loadJsonArrayArtifact, loadPiecesManifest } from '../../shared/artifact-io.js';
+import { loadPiecesManifest } from '../../shared/artifact-io/manifest.js';
+import { loadChunkMeta, loadJsonArrayArtifact } from '../../shared/artifact-io/loaders.js';
 import { summarizeMode } from './events.js';
 
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);

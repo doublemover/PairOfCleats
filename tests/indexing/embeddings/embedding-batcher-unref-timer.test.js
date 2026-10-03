@@ -3,11 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { spawnSync } from 'node:child_process';
 
-import { ensureTestingEnv } from '../../helpers/test-env.js';
-
-ensureTestingEnv(process.env);
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const tempDir = path.join(root, '.testLogs', 'embeddings');
@@ -40,11 +38,13 @@ await fs.writeFile(scriptPath, [
   'console.log("embedding batcher keepalive ok");'
 ].join('\n'), 'utf8');
 
-const result = spawnSync(process.execPath, [scriptPath], {
-  cwd: root,
-  encoding: 'utf8',
-  timeout: 5000
-});
+const result = runNode(
+  [scriptPath],
+  'embedding batcher unref timer',
+  root,
+  applyTestEnv({ syncProcess: false }),
+  { stdio: 'pipe', timeoutMs: 5000 }
+);
 
 assert.equal(result.status, 0, `expected child to exit cleanly, stderr=${result.stderr}`);
 assert.match(result.stdout, /embedding batcher keepalive ok/, 'expected attachEmbeddings to finish');

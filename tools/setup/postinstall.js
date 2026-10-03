@@ -58,7 +58,7 @@ function run() {
         console.error('[postinstall] Install with dev dependencies (or make patch-package available) so patches are applied.');
       } else {
         console.error('[postinstall] patch-package is required because patch files exist under patches/.');
-        console.error('[postinstall] Install dev dependencies or run npm run patch before continuing.');
+        console.error('[postinstall] Install dev dependencies or run npx patch-package --exclude "a^" before continuing.');
       }
       process.exit(1);
     }

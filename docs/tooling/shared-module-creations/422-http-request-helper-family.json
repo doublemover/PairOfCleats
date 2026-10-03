@@ -1,0 +1,91 @@
+{
+  "issueId": 422,
+  "title": "Shared HTTP/request helper family",
+  "createdAt": "2026-03-26",
+  "sharedDestination": [
+    "tools/api/router/request-helpers.js"
+  ],
+  "problemStatement": "API route modules were repeating small but correctness-critical request-handling logic: parseJsonBody error mapping, repo-resolution error mapping, and workspace invalid-request classification. That duplication had already caused real semantic drift where malformed client input returned 500 instead of 400/403/413/415.",
+  "duplicateClusters": [
+    {
+      "name": "Body parse classification drift",
+      "files": [
+        "tools/api/router.js",
+        "tools/api/router/analysis.js",
+        "tools/api/router/index-snapshots.js"
+      ],
+      "bestFix": "Create one bounded helper for parseJsonBody error classification and response emission."
+    },
+    {
+      "name": "Repo resolution error mapping drift",
+      "files": [
+        "tools/api/router.js",
+        "tools/api/router/analysis.js",
+        "tools/api/router/index-snapshots.js",
+        "tools/api/router/index-diffs.js"
+      ],
+      "bestFix": "Create one bounded helper for repo-resolution 400/403 mapping and reuse it across route modules."
+    },
+    {
+      "name": "Workspace invalid-request classification drift",
+      "files": [
+        "tools/api/router.js",
+        "tools/api/router/analysis.js"
+      ],
+      "bestFix": "Use one shared classifier for workspace allowlist and invalid-workspace request handling."
+    }
+  ],
+  "whyCurrentSharedModulesWereInsufficient": [
+    "tools/api/response.js owned JSON response emission, but not request-classification policy.",
+    "Route modules had local helpers, but they were duplicated and could drift independently.",
+    "MCP and editor bridges use different transport/error envelopes, so the right fix was not a cross-protocol abstraction."
+  ],
+  "migrationsCompleted": [
+    {
+      "path": "tools/api/router/request-helpers.js",
+      "action": "created",
+      "notes": "Now owns body-parse, repo-resolution, and workspace request classification helpers for HTTP routes."
+    },
+    {
+      "path": "tools/api/router/analysis.js",
+      "action": "migrated",
+      "notes": "Removed local parse/repo classification helpers."
+    },
+    {
+      "path": "tools/api/router/index-snapshots.js",
+      "action": "migrated",
+      "notes": "Removed local parse/repo classification helpers."
+    },
+    {
+      "path": "tools/api/router/index-diffs.js",
+      "action": "migrated",
+      "notes": "Removed local repo classification helper."
+    },
+    {
+      "path": "tools/api/router.js",
+      "action": "migrated",
+      "notes": "Federated and search routes now use the shared helper family."
+    }
+  ],
+  "parityPlan": {
+    "testsAdded": [
+      "tests/services/api/request-helpers.test.js",
+      "tests/services/api/index-route-client-error-classification.test.js"
+    ],
+    "testsToKeepGreen": [
+      "tests/services/api/analysis-body-error-classification.test.js",
+      "tests/services/api/analysis-repo-resolution-error-classification.test.js",
+      "tests/services/api/index-route-decode-validation.test.js",
+      "tests/services/api/context-pack-default-repo-resolution.test.js",
+      "tests/services/api/context-pack-workspace-without-repo.test.js"
+    ]
+  },
+  "nonGoals": [
+    "Create a generic router framework.",
+    "Unify HTTP, SSE, and MCP transport error envelopes in one abstraction.",
+    "Move validation or observability policy out of the route surfaces in this issue."
+  ],
+  "followOnDeletionTargets": [
+    "Any remaining duplicated API request-classification branches that emerge after later route work."
+  ]
+}

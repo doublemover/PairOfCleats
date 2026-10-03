@@ -133,7 +133,11 @@ function parseSearchPayload(stdout, options = {}) {
 function normalizeApiBaseUrl(value) {
   const text = String(value || '').trim();
   if (!text) return '';
-  return text.endsWith('/') ? text.slice(0, -1) : text;
+  try {
+    const url = new URL(text);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) return '';
+    return url.toString().replace(/\/$/, '');
+  } catch { return ''; }
 }
 
 function normalizeApiTimeoutMs(value) {
@@ -203,6 +207,7 @@ async function requestApiJson(baseUrl, requestPath, {
         ...(headers && typeof headers === 'object' ? headers : {})
       },
       body: payload == null ? undefined : JSON.stringify(payload),
+      redirect: 'error',
       signal: controller?.signal
     });
     const text = await response.text();
@@ -269,13 +274,17 @@ async function probeApiCapabilities(baseUrl, timeoutMs = DEFAULT_API_TIMEOUT_MS,
   const payload = response.payload && typeof response.payload === 'object'
     ? response.payload
     : {};
-  const capabilities = payload.capabilities && typeof payload.capabilities === 'object'
-    ? payload.capabilities
-    : {};
+  const manifest = payload.runtimeManifest && typeof payload.runtimeManifest === 'object'
+    ? payload.runtimeManifest
+    : null;
+  const capabilities = manifest?.surfaces?.api?.workflowCapabilities && typeof manifest.surfaces.api.workflowCapabilities === 'object'
+    ? manifest.surfaces.api.workflowCapabilities
+    : (payload.capabilities && typeof payload.capabilities === 'object' ? payload.capabilities : {});
   return {
     ok: true,
     payload,
-    capabilities
+    capabilities,
+    manifest
   };
 }
 
@@ -398,11 +407,24 @@ function resolveHitUri(vscodeApi, repoContext, hitFile) {
   if (path.isAbsolute(hitFile)) {
     if (repoContext.repoUri && repoContext.repoUri.scheme && repoContext.repoUri.scheme !== 'file') {
       const remotePath = String(hitFile || '').replace(/\\/g, '/');
-      return {
-        ...repoContext.repoUri,
-        path: remotePath,
-        fsPath: remotePath
-      };
+      if (typeof repoContext.repoUri.with === 'function') {
+        return repoContext.repoUri.with({ path: remotePath });
+      }
+      if (typeof vscodeApi.Uri?.from === 'function') {
+        return vscodeApi.Uri.from({
+          ...repoContext.repoUri,
+          path: remotePath
+        });
+      }
+      if (typeof vscodeApi.Uri?.parse === 'function') {
+        const authority = repoContext.repoUri.authority
+          ? `//${repoContext.repoUri.authority}`
+          : '';
+        const query = repoContext.repoUri.query ? `?${repoContext.repoUri.query}` : '';
+        const fragment = repoContext.repoUri.fragment ? `#${repoContext.repoUri.fragment}` : '';
+        return vscodeApi.Uri.parse(`${repoContext.repoUri.scheme}:${authority}${remotePath}${query}${fragment}`);
+      }
+      return repoContext.repoUri;
     }
     return vscodeApi.Uri.file(hitFile);
   }

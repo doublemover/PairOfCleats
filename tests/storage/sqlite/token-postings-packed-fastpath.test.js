@@ -3,53 +3,25 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { writeJsonLinesFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { encodePackedOffsets, packTfPostings } from '../../../src/shared/packed-postings.js';
-import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
 import { requireOrSkip } from '../../helpers/require-or-skip.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
-
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import {
+  buildStreamedTokenPostingsDatabase,
+  loadSqliteDatabase,
+  loadStreamedTokenPostingsIndexPieces,
+  readTokenPostingTableTotals,
+  setupStreamedTokenPostingsFixture
+} from './helpers/token-postings-streamed-fixture.js';
 
 ensureTestingEnv(process.env);
 requireOrSkip({ capability: 'sqlite', reason: 'sqlite packed token_postings test requires better-sqlite3' });
 
-let Database = null;
-({ default: Database } = await import('better-sqlite3'));
-
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'sqlite-token-postings-packed-fastpath');
-const indexDir = path.join(tempRoot, 'index-code');
-const outPath = path.join(tempRoot, 'index-code.db');
-
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(indexDir, { recursive: true });
-
-const chunks = [
-  {
-    id: 0,
-    file: 'src/a.js',
-    start: 0,
-    end: 8,
-    startLine: 1,
-    endLine: 1,
-    kind: 'code',
-    name: 'a',
-    tokens: ['alpha', 'beta', 'alpha']
-  },
-  {
-    id: 1,
-    file: 'src/b.js',
-    start: 0,
-    end: 6,
-    startLine: 1,
-    endLine: 1,
-    kind: 'code',
-    name: 'b',
-    tokens: ['beta']
-  }
-];
-await writeJsonLinesFile(path.join(indexDir, 'chunk_meta.jsonl'), chunks, { atomic: true });
+const Database = await loadSqliteDatabase();
+const { chunks, indexDir, outPath } = await setupStreamedTokenPostingsFixture({
+  tempLabel: 'sqlite-token-postings-packed-fastpath'
+});
 
 const vocab = ['alpha', 'beta'];
 const postings = [
@@ -75,27 +47,15 @@ await writeJsonObjectFile(path.join(indexDir, 'token_postings.packed.meta.json')
   atomic: true
 });
 
-const indexPieces = await loadIndexPieces(indexDir, null);
+const indexPieces = await loadStreamedTokenPostingsIndexPieces(indexDir);
 assert.ok(indexPieces, 'expected loadIndexPieces to detect streamed chunk meta');
 assert.equal(indexPieces.chunkMeta, null, 'expected chunkMeta to remain streamed');
 
-const warnings = [];
-const count = await buildDatabaseFromArtifacts({
+const { count, warnings } = await buildStreamedTokenPostingsDatabase({
   Database,
-  outPath,
-  index: indexPieces,
+  indexPieces,
   indexDir,
-  mode: 'code',
-  manifestFiles: null,
-  emitOutput: true,
-  validateMode: 'off',
-  vectorConfig: { enabled: false },
-  modelConfig: { id: null },
-  logger: {
-    warn: (message) => warnings.push(String(message || '')),
-    log: () => {},
-    error: () => {}
-  }
+  outPath
 });
 assert.equal(count, chunks.length, 'expected sqlite build to ingest all chunks');
 assert.equal(
@@ -104,17 +64,10 @@ assert.equal(
   'expected packed token_postings ingest to avoid chunk-based rebuild fallback'
 );
 
-const db = new Database(outPath);
-try {
-  const vocabTotal = db.prepare('SELECT COUNT(*) AS total FROM token_vocab WHERE mode = ?').get('code')?.total || 0;
-  const postingTotal = db.prepare('SELECT COUNT(*) AS total FROM token_postings WHERE mode = ?').get('code')?.total || 0;
-  const lengthsTotal = db.prepare('SELECT COUNT(*) AS total FROM doc_lengths WHERE mode = ?').get('code')?.total || 0;
-  assert.equal(vocabTotal, vocab.length, 'expected packed token vocab to ingest');
-  assert.equal(postingTotal, 3, 'expected packed token postings row count');
-  assert.equal(lengthsTotal, docLengths.length, 'expected packed doc lengths to ingest');
-} finally {
-  db.close();
-}
+const { vocabTotal, postingTotal, lengthsTotal } = readTokenPostingTableTotals({ Database, outPath });
+assert.equal(vocabTotal, vocab.length, 'expected packed token vocab to ingest');
+assert.equal(postingTotal, 3, 'expected packed token postings row count');
+assert.equal(lengthsTotal, docLengths.length, 'expected packed doc lengths to ingest');
 
 if (!fsSync.existsSync(outPath)) {
   console.error('Expected sqlite DB to be created.');

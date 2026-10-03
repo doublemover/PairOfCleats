@@ -2,20 +2,20 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createFileScanner } from '../../../src/index/build/file-scan.js';
-import { createFileProcessor } from '../../../src/index/build/file-processor.js';
 import { resolveBinarySkip, resolvePreReadSkip } from '../../../src/index/build/file-processor/skip.js';
 
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import {
+  createFileProcessorFixture,
+  createFileProcessorForTest,
+  createScannedFileEntry
+} from './file-processor-fixture.js';
 
 const fail = (message) => {
   console.error(message);
   process.exit(1);
 };
 
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'file-processor-skip');
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
+const { root, tempRoot } = await createFileProcessorFixture('file-processor-skip', { repoSubdir: null });
 
 const fileScanner = createFileScanner();
 const runIo = (fn) => fn();
@@ -25,7 +25,7 @@ await fs.writeFile(minifiedPath, 'const x=1;');
 const minifiedStat = await fs.stat(minifiedPath);
 const minifiedSkip = await resolvePreReadSkip({
   abs: minifiedPath,
-  fileEntry: { lines: 1, scan: { checkedBinary: true, checkedMinified: true } },
+  fileEntry: createScannedFileEntry({ lines: 1 }),
   fileStat: minifiedStat,
   ext: '.js',
   fileCaps: {},
@@ -41,14 +41,10 @@ await fs.writeFile(extractedDocPath, Buffer.from('%PDF-1.4\n%test\n'));
 const extractedDocStat = await fs.stat(extractedDocPath);
 const extractedDocSkip = await resolvePreReadSkip({
   abs: extractedDocPath,
-  fileEntry: {
+  fileEntry: createScannedFileEntry({
     lines: 1,
-    scan: {
-      checkedBinary: true,
-      checkedMinified: true,
-      skip: { reason: 'binary', method: 'file-type' }
-    }
-  },
+    scan: { skip: { reason: 'binary', method: 'file-type' } }
+  }),
   fileStat: extractedDocStat,
   ext: '.pdf',
   fileCaps: {},
@@ -65,7 +61,7 @@ await fs.writeFile(cappedPath, 'abcdef');
 const cappedStat = await fs.stat(cappedPath);
 const cappedSkip = await resolvePreReadSkip({
   abs: cappedPath,
-  fileEntry: { lines: 1, scan: { checkedBinary: true, checkedMinified: true } },
+  fileEntry: createScannedFileEntry({ lines: 1 }),
   fileStat: cappedStat,
   ext: '.txt',
   fileCaps: { default: { maxBytes: 1 } },
@@ -82,7 +78,7 @@ await fs.writeFile(firstPartyDocsetPath, '# guide', 'utf8');
 const firstPartyDocsetStat = await fs.stat(firstPartyDocsetPath);
 const firstPartyDocsetSkip = await resolvePreReadSkip({
   abs: firstPartyDocsetPath,
-  fileEntry: { lines: 1, scan: { checkedBinary: true, checkedMinified: true } },
+  fileEntry: createScannedFileEntry({ lines: 1 }),
   fileStat: firstPartyDocsetStat,
   ext: '.md',
   fileCaps: {},
@@ -107,7 +103,7 @@ await fs.writeFile(generatedDocsetPath, '<html></html>', 'utf8');
 const generatedDocsetStat = await fs.stat(generatedDocsetPath);
 const generatedDocsetSkip = await resolvePreReadSkip({
   abs: generatedDocsetPath,
-  fileEntry: { lines: 1, scan: { checkedBinary: true, checkedMinified: true } },
+  fileEntry: createScannedFileEntry({ lines: 1 }),
   fileStat: generatedDocsetStat,
   ext: '.html',
   fileCaps: {},
@@ -128,54 +124,20 @@ if (!binarySkip || binarySkip.reason !== 'binary') {
 }
 
 const skippedFiles = [];
-const { processFile } = createFileProcessor({
+const { processFile } = createFileProcessorForTest({
   root,
-  mode: 'code',
-  dictConfig: {},
-  dictWords: new Set(),
-  languageOptions: { astDataflowEnabled: false, controlFlowEnabled: false },
-  postingsConfig: {},
-  segmentsConfig: {},
-  commentsConfig: {},
-  contextWin: 0,
-  incrementalState: {
-    enabled: false,
-    manifest: { files: {} },
-    bundleDir: '',
-    bundleFormat: 'json'
-  },
-  getChunkEmbedding: async () => null,
-  getChunkEmbeddings: async () => null,
-  typeInferenceEnabled: false,
-  riskAnalysisEnabled: false,
-  riskConfig: {},
-  relationsEnabled: false,
-  seenFiles: new Set(),
-  gitBlameEnabled: false,
-  lintEnabled: false,
-  complexityEnabled: false,
-  structuralMatches: null,
-  cacheConfig: {},
-  cacheReporter: null,
-  queues: null,
-  workerPool: null,
-  crashLogger: null,
-  skippedFiles,
-  embeddingEnabled: false,
-  toolInfo: null,
-  tokenizationStats: null
+  skippedFiles
 });
 
 const unreadableDir = path.join(tempRoot, 'unreadable');
 await fs.mkdir(unreadableDir, { recursive: true });
 const unreadableStat = await fs.stat(unreadableDir);
-const unreadableEntry = {
+const unreadableEntry = createScannedFileEntry({
   abs: unreadableDir,
   rel: 'unreadable',
   stat: unreadableStat,
-  lines: 1,
-  scan: { checkedBinary: true, checkedMinified: true }
-};
+  lines: 1
+});
 const unreadableResult = await processFile(unreadableEntry, 0);
 if (unreadableResult !== null) {
   fail('Expected unreadable path to return null.');

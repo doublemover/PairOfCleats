@@ -9,6 +9,10 @@ import {
 } from './indexes.js';
 import { normalizeDepth } from '../shared/limits.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
+import {
+  buildProcessMemoryPeak,
+  snapshotProcessMemory
+} from '../shared/ops/resource-visibility.js';
 import { compareStrings } from '../shared/sort.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
 import {
@@ -516,7 +520,10 @@ export const buildGraphNeighborhood = ({
         if (!allowEdge({ graph: 'symbolEdges', edgeType, confidence })) continue;
         const fromRef = { type: 'chunk', chunkUid: entry.edge.from.chunkUid };
         const symbolId = entry.symbolId;
-        const nextRef = symbolId ? { type: 'symbol', symbolId } : null;
+        const symbolRef = symbolId ? { type: 'symbol', symbolId } : null;
+        // The edge retains its source orientation even when walking incoming
+        // references. The traversal target is the opposite endpoint.
+        const nextRef = currentRef.type === 'symbol' ? fromRef : symbolRef;
         const cappedToRef = applyCandidateCap(
           entry.toRef,
           normalizedCaps.maxCandidates,
@@ -531,7 +538,8 @@ export const buildGraphNeighborhood = ({
             confidence,
             evidence: entry.edge.reason ? { note: entry.edge.reason } : null
           },
-          nextRef
+          nextRef,
+          witnessEdge: symbolRef ? { from: fromRef, to: symbolRef, edgeType } : null
         });
       }
     }
@@ -586,9 +594,9 @@ export const buildGraphNeighborhood = ({
         if (addedNode) {
           parentMap.set(nextKey, {
             parentKey: nodeKey(currentRef),
-            edge: {
-              from: edge.from?.type ? edge.from : edge.from?.resolved,
-              to: edge.to?.type ? edge.to : edge.to?.resolved,
+            edge: candidate.witnessEdge || {
+              from: edge.from,
+              to: edge.to,
               edgeType: edge.edgeType
             }
           });
@@ -655,18 +663,7 @@ export const buildGraphNeighborhood = ({
   }
 
   const memoryEnd = process.memoryUsage();
-  const snapshotMemory = (value) => ({
-    heapUsed: value.heapUsed,
-    rss: value.rss,
-    external: value.external,
-    arrayBuffers: value.arrayBuffers
-  });
-  const peakMemory = {
-    heapUsed: Math.max(memoryStart.heapUsed, memoryEnd.heapUsed),
-    rss: Math.max(memoryStart.rss, memoryEnd.rss),
-    external: Math.max(memoryStart.external, memoryEnd.external),
-    arrayBuffers: Math.max(memoryStart.arrayBuffers, memoryEnd.arrayBuffers)
-  };
+  const peakMemory = buildProcessMemoryPeak(memoryStart, memoryEnd);
   const elapsedMs = Number((process.hrtime.bigint() - timingStart) / 1000000n);
 
   const truncationList = truncation.list.slice();
@@ -691,8 +688,8 @@ export const buildGraphNeighborhood = ({
       cache: cacheState,
       timing: { elapsedMs },
       memory: {
-        start: snapshotMemory(memoryStart),
-        end: snapshotMemory(memoryEnd),
+        start: snapshotProcessMemory(memoryStart),
+        end: snapshotProcessMemory(memoryEnd),
         peak: peakMemory
       },
       artifactsUsed: {

@@ -1,5 +1,10 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
-import { extractDocComment } from './shared.js';
+import {
+  buildDefaultDocMeta,
+  collectDottedCallsAndUsages,
+  extractDocComment,
+  normalizeDeclarationList
+} from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
 
@@ -70,44 +75,18 @@ function stripRubyComments(text) {
   return text.replace(/#.*$/gm, ' ');
 }
 
-function getLastRubySegment(raw) {
-  if (!raw) return '';
-  let end = raw.length;
-  while (end > 0 && (raw[end - 1] === '.' || raw[end - 1] === ':')) end -= 1;
-  if (!end) return '';
-  let idx = end - 1;
-  while (idx >= 0) {
-    const ch = raw[idx];
-    if (ch === '.' || ch === ':') break;
-    idx -= 1;
-  }
-  return raw.slice(idx + 1, end);
-}
+const RUBY_CALL_PATTERN = /\b([A-Za-z_][A-Za-z0-9_:.!?=]*)\s*\(/g;
+const RUBY_USAGE_PATTERN = /\b([A-Za-z_][A-Za-z0-9_?!]*)\b/g;
 
 function collectRubyCallsAndUsages(text) {
-  const calls = new Set();
-  const usages = new Set();
-  const normalized = stripRubyComments(text);
-  const callRe = /\b([A-Za-z_][A-Za-z0-9_:.!?=]*)\s*\(/g;
-  let match;
-  while ((match = callRe.exec(normalized)) !== null) {
-    const raw = match[1];
-    if (!raw) continue;
-    const base = getLastRubySegment(raw);
-    if (!base || RUBY_CALL_KEYWORDS.has(base)) continue;
-    calls.add(raw);
-    if (base !== raw) calls.add(base);
-    if (!match[0]) callRe.lastIndex += 1;
-  }
-  const usageRe = /\b([A-Za-z_][A-Za-z0-9_?!]*)\b/g;
-  while ((match = usageRe.exec(normalized)) !== null) {
-    const name = match[1];
-    if (!name || name.length < 2) continue;
-    if (RUBY_USAGE_SKIP.has(name)) continue;
-    usages.add(name);
-    if (!match[0]) usageRe.lastIndex += 1;
-  }
-  return { calls: Array.from(calls), usages: Array.from(usages) };
+  return collectDottedCallsAndUsages(text, {
+    callKeywords: RUBY_CALL_KEYWORDS,
+    usageSkip: RUBY_USAGE_SKIP,
+    stripComments: stripRubyComments,
+    callPattern: RUBY_CALL_PATTERN,
+    usagePattern: RUBY_USAGE_PATTERN,
+    segmentSeparators: '.:'
+  });
 }
 
 function parseRubyParams(signature) {
@@ -293,15 +272,7 @@ export function buildRubyChunks(text, options = {}) {
     blockStack.push({ kind: 'block', isDecl: false });
   }
 
-  if (!decls.length) return null;
-  decls.sort((a, b) => a.start - b.start);
-  return decls.map((decl) => ({
-    start: decl.start,
-    end: decl.end,
-    name: decl.name,
-    kind: decl.kind,
-    meta: decl.meta || {}
-  }));
+  return normalizeDeclarationList(decls);
 }
 
 /**
@@ -342,20 +313,7 @@ export function buildRubyRelations(text, rubyChunks) {
  * @returns {{doc:string,params:string[],returns:(string|null),signature:(string|null)}}
  */
 export function extractRubyDocMeta(chunk) {
-  const meta = chunk.meta || {};
-  const params = Array.isArray(meta.params) ? meta.params : [];
-  return {
-    doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
-    params,
-    returns: meta.returns || null,
-    signature: meta.signature || null,
-    dataflow: meta.dataflow || null,
-    throws: meta.throws || [],
-    awaits: meta.awaits || [],
-    yields: meta.yields || false,
-    returnsValue: meta.returnsValue || false,
-    controlFlow: meta.controlFlow || null
-  };
+  return buildDefaultDocMeta(chunk);
 }
 
 /**

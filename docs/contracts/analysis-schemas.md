@@ -87,7 +87,7 @@ Minimum fields:
 Schema: `GRAPH_IMPACT_SCHEMA`
 
 Purpose:
-- Bounded upstream/downstream impact sets with witness paths.
+- Bounded upstream/downstream/bidirectional impact sets with witness paths.
 
 Minimum fields:
 - `version`
@@ -183,4 +183,3 @@ Minimum fields:
 
 - Schemas allow `additionalProperties` so fields may be extended; only documented keys are relied upon by core logic.
 - Any schema change that affects `compatibilityKey` inputs is a hard break for mixing indexes.
-

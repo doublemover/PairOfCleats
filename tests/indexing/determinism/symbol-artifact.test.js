@@ -2,9 +2,9 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -47,8 +47,7 @@ const buildIndex = (cacheRoot) => {
     embeddings: 'stub',
     testConfig
   });
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     [
       path.join(root, 'build_index.js'),
       '--stub-embeddings',
@@ -59,7 +58,10 @@ const buildIndex = (cacheRoot) => {
       '--repo',
       repoRoot
     ],
-    { cwd: repoRoot, env, stdio: 'inherit' }
+    'symbol artifact determinism build index',
+    repoRoot,
+    env,
+    { stdio: 'inherit', allowFailure: true }
   );
   if (result.status !== 0) {
     if (result.error) {

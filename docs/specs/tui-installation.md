@@ -58,9 +58,15 @@ Installers and wrappers treat the manifest checksum file as required integrity i
 
 Default layout:
 
-- `.cache/tui/install-v1/<triple>/bin/<artifactName>`
-- `.cache/tui/install-v1/<triple>/install-manifest.json`
-- `.cache/tui/install-v1/<triple>/logs/`
+- `<cacheRoot>/tui/install-v1/<triple>/bin/<artifactName>`
+- `<cacheRoot>/tui/install-v1/<triple>/install-manifest.json`
+- `<cacheRoot>/tui/install-v1/<triple>/logs/`
+
+Default `cacheRoot` must follow the canonical PairOfCleats cache-root policy:
+
+- `PAIROFCLEATS_CACHE_ROOT` when set
+- otherwise `PAIROFCLEATS_HOME/cache` when `PAIROFCLEATS_HOME` is set
+- otherwise platform default cache roots (`%LOCALAPPDATA%/PairOfCleats/cache`, `$XDG_CACHE_HOME/pairofcleats/cache`, or `~/.cache/pairofcleats/cache`)
 
 Deterministic policy:
 
@@ -81,6 +87,7 @@ Deterministic policy:
 When valid, wrapper launches binary and injects:
 
 - `PAIROFCLEATS_TUI_RUN_ID`
+- `PAIROFCLEATS_TUI_INSTALL_ROOT`
 - `PAIROFCLEATS_TUI_EVENT_LOG_DIR`
 
 Wrapper hints must always include an actionable install/repair command.

@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode } from '../helpers/run-node.js';
+import { applyTestEnv } from '../helpers/test-env.js';
 
 const root = process.cwd();
 const cliPath = path.join(root, 'bin', 'pairofcleats.js');
+const env = applyTestEnv({ syncProcess: false });
 
-const result = spawnSync(process.execPath, [cliPath, 'workspace'], {
-  cwd: root,
-  encoding: 'utf8'
+const result = runNode([cliPath, 'workspace'], 'CLI workspace error contract', root, env, {
+  stdio: 'pipe',
+  allowFailure: true
 });
 
 if (result.status === 0) {

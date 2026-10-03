@@ -1,12 +1,18 @@
 import fs from 'node:fs';
+import { assertTrustedExtension, extensionDownloadPolicy } from './extension-trust.js';
 import { buildLocalCacheKey } from '../../src/shared/cache-key.js';
 import path from 'node:path';
 import { getExtensionsDir, loadUserConfig } from '../shared/dict-utils.js';
-import { incAnnCandidatePushdown, incFallback } from '../../src/shared/metrics.js';
-import { isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
+import { incAnnCandidatePushdown, incFallback } from '../../src/shared/metrics/core.js';
+import { isAbsolutePathNative, toPosix } from '../../src/shared/file-paths.js';
 import { joinPathSafe } from '../../src/shared/path-normalize.js';
 import { normalizePositiveInt } from '../../src/shared/limits.js';
 import { createWarnOnce } from '../../src/shared/logging/warn-once.js';
+import {
+  candidateSetHas,
+  getCandidateSetSize,
+  normalizeCandidateSetIds
+} from '../../src/retrieval/ann/candidate-set.js';
 import { normalizeEmbeddingDims } from '../../src/retrieval/ann/dims.js';
 
 const DEFAULT_PROVIDER = 'sqlite-vec';
@@ -214,6 +220,8 @@ export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides 
     path: pathOverride,
     url,
     downloads,
+    downloadPolicy: extensionDownloadPolicy(cfg),
+    trustedBinarySha256: merged.sha256 || null,
     platform,
     arch,
     platformKey
@@ -337,6 +345,7 @@ export function loadVectorExtension(db, config, label = 'sqlite') {
     return result;
   }
   try {
+    assertTrustedExtension(extPath, config, config.trustedBinarySha256);
     db.loadExtension(extPath);
     const result = { ok: true, path: extPath, label };
     cache.set(cacheKey, result);
@@ -462,23 +471,6 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
     );
   }
   const limit = normalizePositiveInt(topN, 1) || 1;
-  const getCandidateSize = (value) => {
-    if (!value) return 0;
-    if (Number.isFinite(Number(value.size))) return Number(value.size);
-    if (typeof value.size === 'function') {
-      const resolved = Number(value.size());
-      return Number.isFinite(resolved) ? resolved : 0;
-    }
-    if (typeof value.getSize === 'function') {
-      const resolved = Number(value.getSize());
-      return Number.isFinite(resolved) ? resolved : 0;
-    }
-    if (Array.isArray(value)) return value.length;
-    return 0;
-  };
-  const normalizeCandidateIds = (value) => candidateToArray(value)
-    .map((id) => Number(id))
-    .filter((id) => Number.isInteger(id));
   const createCandidateTempTable = (ids) => {
     if (!Array.isArray(ids) || !ids.length) return null;
     const suffix = (tempCandidateTableCounter += 1);
@@ -502,24 +494,9 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
       db.exec(`DROP TABLE IF EXISTS ${tempTable}`);
     } catch {}
   };
-  const candidateHas = (value, id) => {
-    if (!value) return false;
-    if (typeof value.has === 'function') return value.has(id);
-    if (typeof value.contains === 'function') return value.contains(id);
-    if (typeof value.includes === 'function') return value.includes(id);
-    return false;
-  };
-  const candidateToArray = (value) => {
-    if (!value) return [];
-    if (Array.isArray(value)) return value;
-    if (typeof value.toArray === 'function') return value.toArray();
-    if (typeof value.values === 'function') return Array.from(value.values());
-    if (typeof value[Symbol.iterator] === 'function') return Array.from(value);
-    return [];
-  };
-  const candidateSize = getCandidateSize(candidateSet);
+  const candidateSize = getCandidateSetSize(candidateSet);
   const canInlinePushdown = candidateSize > 0 && candidateSize <= SQLITE_IN_LIMIT;
-  const candidateIds = candidateSize > 0 ? normalizeCandidateIds(candidateSet) : [];
+  const candidateIds = candidateSize > 0 ? normalizeCandidateSetIds(candidateSet) : [];
   let tempTable = null;
   if (!canInlinePushdown && candidateIds.length) {
     try {
@@ -565,7 +542,7 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
       return { idx: rowId, sim };
     });
     if (candidateSize && !canInlinePushdown && !canTempPushdown) {
-      hits = hits.filter((hit) => candidateHas(candidateSet, hit.idx));
+      hits = hits.filter((hit) => candidateSetHas(candidateSet, hit.idx));
     }
     return hits
       .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))

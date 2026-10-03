@@ -2,36 +2,14 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { loadChunkMeta, MAX_JSON_BYTES, readJsonFile } from '../../../src/shared/artifact-io.js';
+import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
+import { readJsonFile } from '../../../src/shared/artifact-io/json.js';
+import { loadChunkMeta } from '../../../src/shared/artifact-io/loaders.js';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 import { mergeConfig } from '../../../src/shared/config.js';
 import { getRepoId } from '../../shared/dict-utils.js';
-import { spawnSubprocessSync } from '../../../src/shared/subprocess.js';
-
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
-
-const percentile = (values, pct) => {
-  if (!values.length) return 0;
-  const sorted = values.slice().sort((a, b) => a - b);
-  const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor(sorted.length * pct)));
-  return sorted[idx];
-};
+import { spawnSubprocessSync } from '../../../src/shared/subprocess/runner.js';
+import { parseSimpleBenchArgs, percentile } from '../shared.js';
 
 const average = (values) => (
   values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0
@@ -57,7 +35,7 @@ const parseMode = (value) => {
   return 'compare';
 };
 
-const args = parseArgs();
+const args = parseSimpleBenchArgs();
 const mode = parseMode(args.mode);
 const runs = Math.max(1, Number(args.runs) || 3);
 const repoRoot = args.repo

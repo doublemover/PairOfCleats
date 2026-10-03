@@ -4,35 +4,43 @@ import assert from 'node:assert/strict';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 import { buildSqliteIndex } from '../../src/integrations/core/index.js';
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
 import { loadUserConfig } from '../../tools/shared/dict-utils.js';
+import { runNode } from '../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'sqlite-build-snapshot-service');
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
-await fs.cp(fixtureRoot, repoRoot, { recursive: true });
+await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+await fs.mkdir(cacheRoot, { recursive: true });
 
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
   testConfig: {
     indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false,
       embeddings: {
         enabled: false,
         mode: 'off',
         lancedb: { enabled: false },
         hnsw: { enabled: false }
       }
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
   },
   extraEnv: { PAIROFCLEATS_WORKER_POOL: 'off' }
@@ -43,8 +51,7 @@ await fs.mkdir(path.dirname(markerPath), { recursive: true });
 await fs.writeFile(markerPath, 'export const phase14_sqlite_marker = "phase14alpha";\n', 'utf8');
 
 const runBuild = () => {
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     [
       path.join(root, 'build_index.js'),
       '--repo',
@@ -56,11 +63,10 @@ const runBuild = () => {
       '--progress',
       'off'
     ],
-    {
-      cwd: repoRoot,
-      env,
-      encoding: 'utf8'
-    }
+    'sqlite snapshot build index',
+    repoRoot,
+    env,
+    { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
   );
   if (result.status !== 0) {
     throw new Error(`build_index failed: ${result.stderr || result.stdout || 'unknown error'}`);

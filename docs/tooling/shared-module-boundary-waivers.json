@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-05-20",
+  "rules": [
+    {
+      "ruleId": "src-imports-tools-shared",
+      "description": "Runtime src/** surfaces must not depend on tools/shared/** unless the edge is explicitly waived while the owning shared-module migration remains incomplete.",
+      "waivers": []
+    }
+  ]
+}

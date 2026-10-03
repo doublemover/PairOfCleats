@@ -1,4 +1,5 @@
 import { normalizeCodeDictLanguage } from '../../../shared/code-dictionaries.js';
+import { getDictMaxTokenLength } from '../../../shared/tokenize-dictionary.js';
 
 export const normalizeRange = (value, fallback) => {
   const parsed = Number(value);
@@ -40,22 +41,6 @@ export const normalizeCodeDictByLanguage = (raw) => {
     if (dict.size) out.set(normalized, dict);
   }
   return out;
-};
-
-const getDictMaxTokenLength = (dict) => {
-  if (!dict) return 0;
-  const cached = dict.__maxTokenLength;
-  if (Number.isFinite(cached) && cached > 0) return cached;
-  const altMax = Number.isFinite(dict.maxLen) && dict.maxLen > 0 ? dict.maxLen : 0;
-  if (altMax) return altMax;
-  if (dict.__sharedDict) return 0;
-  if (typeof dict[Symbol.iterator] !== 'function') return 0;
-  let maxLen = 0;
-  for (const word of dict) {
-    if (typeof word === 'string' && word.length > maxLen) maxLen = word.length;
-  }
-  dict.__maxTokenLength = maxLen;
-  return maxLen;
 };
 
 const buildCompositeDict = (baseDict, commonDict, languageDict) => {

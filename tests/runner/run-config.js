@@ -1,6 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { isAbsolutePathNative } from '../../src/shared/files.js';
+import { isAbsolutePathNative } from '../../src/shared/file-paths.js';
 import { parse as parseJsonc } from 'jsonc-parser';
 
 const readJsonc = (filePath, fallback = {}) => {

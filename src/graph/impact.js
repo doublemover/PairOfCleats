@@ -10,7 +10,7 @@ export const IMPACT_EMPTY_CHANGED_SET_CODE = 'ERR_EMPTY_CHANGED_SET';
 
 const normalizeDirection = (value) => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  if (raw === 'upstream' || raw === 'downstream') return raw;
+  if (raw === 'upstream' || raw === 'downstream' || raw === 'both') return raw;
   return 'downstream';
 };
 
@@ -177,7 +177,9 @@ export const buildImpactAnalysis = ({
   const seedRef = resolvedSeeds.seedRef;
   const seeds = resolvedSeeds.seeds;
   const directionMode = normalizeDirection(direction);
-  const traversalDirection = directionMode === 'upstream' ? 'in' : 'out';
+  const traversalDirection = directionMode === 'upstream'
+    ? 'in'
+    : (directionMode === 'both' ? 'both' : 'out');
   const effectiveDepth = normalizeDepth(depth, 1);
 
   const neighborhood = buildGraphNeighborhood({

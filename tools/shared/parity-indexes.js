@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getIndexDir } from './dict-utils.js';
-import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
 
 const DEFAULT_PARITY_MODES = Object.freeze(['code', 'prose']);
 export const DEFAULT_PARITY_CHUNK_META_CANDIDATES = Object.freeze([
@@ -45,7 +45,7 @@ const hasChunkMetaArtifact = (dir, chunkMetaCandidates) => {
  * @param {{chunkMetaCandidates?:string[]}} [options]
  * @returns {string}
  */
-export function resolveParityIndexDir(root, mode, userConfig, options = {}) {
+function resolveParityIndexDir(root, mode, userConfig, options = {}) {
   const chunkMetaCandidates = normalizeList(
     options.chunkMetaCandidates,
     DEFAULT_PARITY_CHUNK_META_CANDIDATES
@@ -63,7 +63,7 @@ export function resolveParityIndexDir(root, mode, userConfig, options = {}) {
  * @param {{chunkMetaCandidates?:string[]}} [options]
  * @returns {string}
  */
-export function resolveParityChunkMetaPath(indexDir, options = {}) {
+function resolveParityChunkMetaPath(indexDir, options = {}) {
   const chunkMetaCandidates = normalizeList(
     options.chunkMetaCandidates,
     DEFAULT_PARITY_CHUNK_META_CANDIDATES

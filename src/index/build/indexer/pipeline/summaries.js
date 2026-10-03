@@ -143,9 +143,10 @@ export const summarizeGraphRelations = (graphRelations) => {
   };
 };
 
-export const summarizeDocumentExtractionForMode = (state) => {
+export const summarizeDocumentExtractionForMode = (state, documentExtractionConfig = null) => {
   const fileInfoByPath = state?.fileInfoByPath;
   if (!(fileInfoByPath && typeof fileInfoByPath.entries === 'function')) return null;
+  const policy = buildDocumentExtractionPolicySummary(documentExtractionConfig);
   const files = [];
   const extractorMap = new Map();
   const totals = {
@@ -153,6 +154,16 @@ export const summarizeDocumentExtractionForMode = (state) => {
     pages: 0,
     paragraphs: 0,
     units: 0
+  };
+  const counts = {
+    total: 0,
+    ok: 0,
+    skipped: 0,
+    byReason: {},
+    bySourceType: {
+      pdf: { total: 0, ok: 0, skipped: 0 },
+      docx: { total: 0, ok: 0, skipped: 0 }
+    }
   };
   for (const [file, info] of fileInfoByPath.entries()) {
     const extraction = info?.extraction;
@@ -177,8 +188,16 @@ export const summarizeDocumentExtractionForMode = (state) => {
     totals.pages += unitCounts.pages;
     totals.paragraphs += unitCounts.paragraphs;
     totals.units += unitCounts.totalUnits;
+    counts.total += 1;
+    counts.ok += 1;
+    if (extraction.sourceType === 'pdf' || extraction.sourceType === 'docx') {
+      counts.bySourceType[extraction.sourceType].total += 1;
+      counts.bySourceType[extraction.sourceType].ok += 1;
+    }
     files.push({
       file,
+      status: 'ok',
+      reason: null,
       sourceType: extraction.sourceType || null,
       extractor: {
         name: extractorName,
@@ -188,7 +207,46 @@ export const summarizeDocumentExtractionForMode = (state) => {
       sourceBytesHash: extraction.sourceBytesHash || null,
       sourceBytesHashAlgo: extraction.sourceBytesHashAlgo || 'sha256',
       unitCounts,
-      normalizationPolicy: extraction.normalizationPolicy || null
+      normalizationPolicy: extraction.normalizationPolicy || null,
+      policy: extraction.policy || policy,
+      fidelity: extraction.fidelity || buildDocumentExtractionFidelity({
+        sourceType: extraction.sourceType || null,
+        status: 'ok',
+        warnings: extraction.warnings || [],
+        policy
+      })
+    });
+  }
+  for (const skipped of state?.skippedFiles || []) {
+    const sourceType = skipped?.sourceType === 'docx' ? 'docx' : skipped?.sourceType === 'pdf' ? 'pdf' : null;
+    if (!sourceType) continue;
+    const file = skipped?.file;
+    if (!file || files.some((entry) => entry.file === file && entry.status === 'ok')) continue;
+    const reasonRaw = String(skipped?.reason || 'extract_failed');
+    const reason = DOCUMENT_EXTRACTION_REASON_SET.has(reasonRaw) ? reasonRaw : 'extract_failed';
+    counts.total += 1;
+    counts.skipped += 1;
+    counts.byReason[reason] = (counts.byReason[reason] || 0) + 1;
+    counts.bySourceType[sourceType].total += 1;
+    counts.bySourceType[sourceType].skipped += 1;
+    files.push({
+      file,
+      status: 'skipped',
+      reason,
+      sourceType,
+      extractor: null,
+      sourceBytesHash: null,
+      sourceBytesHashAlgo: null,
+      unitCounts: null,
+      normalizationPolicy: null,
+      policy,
+      fidelity: buildDocumentExtractionFidelity({
+        sourceType,
+        status: 'skipped',
+        reason,
+        warnings: skipped?.warnings || [],
+        policy
+      })
     });
   }
   files.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
@@ -201,7 +259,21 @@ export const summarizeDocumentExtractionForMode = (state) => {
     return 0;
   });
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    policy,
+    coverage: {
+      state: counts.total === 0
+        ? 'missing'
+        : counts.skipped === 0
+          ? 'complete'
+          : counts.ok > 0
+            ? 'partial'
+            : 'missing',
+      coverageLossCount: counts.skipped,
+      qualitySensitiveFailures: policy.qualitySensitive ? counts.skipped : 0,
+      bySourceType: counts.bySourceType
+    },
+    counts,
     files,
     extractors,
     totals
@@ -218,3 +290,10 @@ export const summarizePostingsQueue = (stats) => {
     memory: stats.memory || null
   };
 };
+import {
+  buildDocumentExtractionFidelity,
+  buildDocumentExtractionPolicySummary,
+  DOCUMENT_EXTRACTION_REASON_CODES
+} from '../../../extractors/common.js';
+
+const DOCUMENT_EXTRACTION_REASON_SET = new Set(DOCUMENT_EXTRACTION_REASON_CODES);

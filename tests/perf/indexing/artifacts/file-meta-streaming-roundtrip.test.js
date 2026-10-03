@@ -4,7 +4,7 @@ import {
   loadFileMetaRows,
   loadJsonArrayArtifact
 } from '../../../../src/shared/artifact-io.js';
-import { writeJsonLinesFile } from '../../../../src/shared/json-stream.js';
+import { writeJsonLinesFile } from '../../../../src/shared/json-stream/jsonl-write.js';
 import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';

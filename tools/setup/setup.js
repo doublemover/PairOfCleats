@@ -6,7 +6,7 @@ import { createCli } from '../../src/shared/cli.js';
 import readline from 'node:readline/promises';
 import { readJsoncFile } from '../../src/shared/jsonc.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
-import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
 import {
   getDictionaryPaths,
   getDictConfig,

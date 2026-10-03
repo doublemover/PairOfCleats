@@ -51,13 +51,30 @@ const lineContainsVarRange = (line, name, start = 0, end = null) => (
 
 const lineContainsVar = (line, name) => containsIdentifier(line, name);
 
-const findCallArgRange = (line, startIndex) => {
-  if (!line || !Number.isFinite(startIndex)) return null;
-  const openIndex = line.indexOf('(', Math.max(0, startIndex));
-  if (openIndex === -1) return null;
+const resolveSanitizerRange = (line, match) => {
+  if (!line || !Number.isFinite(match?.matchIndex)) return null;
+  const startIndex = Math.max(0, match.matchIndex);
+  const matchEnd = startIndex + (match.matchLength || 0);
+  // A rule may consume '(' itself. Do not skip it or scan into a later call.
+  const openIndex = line.indexOf('(', startIndex);
+  if (openIndex === -1 || (openIndex >= matchEnd && line.slice(matchEnd, openIndex).trim())) {
+    return { start: matchEnd, end: null };
+  }
   let depth = 0;
+  let quote = null;
+  let escaped = false;
   for (let i = openIndex; i < line.length; i += 1) {
     const ch = line[i];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      quote = ch;
+      continue;
+    }
     if (ch === '(') depth += 1;
     if (ch === ')') depth -= 1;
     if (depth === 0) {
@@ -154,16 +171,18 @@ const isAssignment = (line) => {
 
 const combineSourceEvidence = (sourceMatches, taintedSources) => {
   const sources = [];
+  const seen = new Set();
   const ruleIds = new Set();
-  for (const match of sourceMatches || []) {
-    sources.push(match);
-    ruleIds.add(match.rule.id);
-  }
-  for (const entry of taintedSources || []) {
-    if (!entry) continue;
-    sources.push(entry);
-    if (entry.ruleId) ruleIds.add(entry.ruleId);
-    if (entry.rule?.id) ruleIds.add(entry.rule.id);
+  for (const group of [sourceMatches, taintedSources]) {
+    for (const entry of group || []) {
+      // Aliases retain original evidence objects. Reconverging paths must not
+      // multiply that same evidence, but distinct original matches stay intact.
+      if (!entry || seen.has(entry)) continue;
+      seen.add(entry);
+      sources.push(entry);
+      if (entry.ruleId) ruleIds.add(entry.ruleId);
+      if (entry.rule?.id) ruleIds.add(entry.rule.id);
+    }
   }
   return { sources, ruleIds: Array.from(ruleIds) };
 };
@@ -183,7 +202,10 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
   const rules = riskConfig.rules || { sources: [], sinks: [], sanitizers: [], provenance: {} };
   const caps = riskConfig.caps || DEFAULT_CAPS;
   const bytes = Buffer.byteLength(text, 'utf8');
-  const lines = text.split(/\r?\n/);
+  let lineCount = 1;
+  for (let index = text.indexOf('\n'); index !== -1; index = text.indexOf('\n', index + 1)) {
+    lineCount += 1;
+  }
   const analysisStart = Date.now();
   const analysisStatus = {
     status: 'ok',
@@ -193,15 +215,16 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
       maxLines: caps.maxLines,
       maxNodes: caps.maxNodes,
       maxEdges: caps.maxEdges,
-      maxMs: caps.maxMs
+      maxMs: caps.maxMs,
+      maxFlows: caps.maxFlows
     },
     bytes,
-    lines: lines.length
+    lines: lineCount
   };
 
   const exceeded = [];
   if (caps.maxBytes && bytes > caps.maxBytes) exceeded.push('maxBytes');
-  if (caps.maxLines && lines.length > caps.maxLines) exceeded.push('maxLines');
+  if (caps.maxLines && lineCount > caps.maxLines) exceeded.push('maxLines');
   if (exceeded.length) {
     analysisStatus.status = 'capped';
     analysisStatus.reason = exceeded.join('|');
@@ -219,6 +242,8 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
     };
   }
 
+  // Allocate individual lines only after the whole-chunk safety limits pass.
+  const lines = text.split(/\r?\n/);
   const sourcesRaw = [];
   const sinksRaw = [];
   const sanitizersRaw = [];
@@ -229,7 +254,11 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
     if (!flow) return;
     const key = `${flow.source}:${flow.sink}:${flow.scope || 'local'}:${flow.via || ''}`;
     if (flowKeys.has(key)) return;
-    if (caps.maxFlows && flows.length >= caps.maxFlows) return;
+    if (caps.maxFlows && flows.length >= caps.maxFlows) {
+      analysisStatus.status = 'capped';
+      analysisStatus.reason = 'maxFlows';
+      return;
+    }
     flowKeys.add(key);
     flows.push(flow);
   };
@@ -258,23 +287,11 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
     const sanitizedVars = [];
     if (sanitizerMatches.length && taint.size) {
       const ranges = sanitizerMatches
-        .map((match) => {
-          const startIndex = Number.isFinite(match.matchIndex) ? match.matchIndex + (match.matchLength || 0) : null;
-          return findCallArgRange(line, startIndex);
-        })
+        .map((match) => resolveSanitizerRange(line, match))
         .filter(Boolean);
       for (const name of taint.keys()) {
         if (!lineContainsVar(line, name)) continue;
-        if (ranges.length) {
-          if (ranges.some((range) => lineContainsVarRange(line, name, range.start, range.end))) {
-            sanitizedVars.push(name);
-          }
-          continue;
-        }
-        if (sanitizerMatches.some((match) => {
-          const startIndex = Number.isFinite(match.matchIndex) ? match.matchIndex + (match.matchLength || 0) : 0;
-          return lineContainsVarRange(line, name, startIndex);
-        })) {
+        if (ranges.some((range) => lineContainsVarRange(line, name, range.start, range.end))) {
           sanitizedVars.push(name);
         }
       }
@@ -283,24 +300,24 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
     const assignment = isAssignment(line);
     if (assignment) {
       nodes += 1;
-      const rhsTainted = [];
+      const rhsTainted = new Set();
       for (const [name, info] of taint.entries()) {
         if (lineContainsVar(assignment.rhs, name)) {
-          rhsTainted.push(...toArray(info?.sources));
+          for (const source of toArray(info?.sources)) rhsTainted.add(source);
         }
       }
       const { sources: newSources, ruleIds } = combineSourceEvidence(sourceMatches, rhsTainted);
       if (newSources.length) {
-        const confidence = Math.max(
-          0,
-          ...newSources.map((entry) => (
+        let confidence = 0;
+        for (const entry of newSources) {
+          confidence = Math.max(confidence,
             Number.isFinite(entry?.confidence)
               ? entry.confidence
               : Number.isFinite(entry?.rule?.confidence)
                 ? entry.rule.confidence
                 : 0
-          ))
-        );
+          );
+        }
         taint.set(assignment.name, { sources: newSources, ruleIds, confidence });
         edges += newSources.length;
       }
@@ -308,10 +325,10 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
 
     if (sinkMatches.length) {
       nodes += 1;
-      const taintedSources = [];
+      const taintedSources = new Set();
       for (const [name, info] of taint.entries()) {
         if (lineContainsVar(line, name)) {
-          taintedSources.push(...toArray(info?.sources));
+          for (const source of toArray(info?.sources)) taintedSources.add(source);
         }
       }
       const { sources: lineSources } = combineSourceEvidence(sourceMatches, taintedSources);
@@ -324,16 +341,19 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
               category: sink.rule.category || null,
               severity: sink.rule.severity || null,
               scope: 'local',
-              confidence: Math.min(1, (source.rule.confidence || 0.5) * (sink.rule.confidence || 0.5) + 0.1),
+              confidence: Math.min(1, (source.rule.confidence ?? 0.5) * (sink.rule.confidence ?? 0.5) + 0.1),
               ruleIds: [source.rule.id, sink.rule.id],
               evidence: buildEvidence(line, lineNo, 1)
             });
+            if (analysisStatus.status !== 'ok') break;
           }
+          if (analysisStatus.status !== 'ok') break;
         }
       }
       edges += sinkMatches.length;
     }
 
+    if (analysisStatus.status !== 'ok') break;
     if (caps.maxNodes && nodes > caps.maxNodes) {
       analysisStatus.status = 'capped';
       analysisStatus.reason = 'maxNodes';

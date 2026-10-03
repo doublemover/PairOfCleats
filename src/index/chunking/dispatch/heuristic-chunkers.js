@@ -1,9 +1,14 @@
 import { parseDockerfileFromClause, parseDockerfileInstruction } from '../../../shared/dockerfile.js';
+import { parseDockerfileStructure } from '../../../shared/dockerfile-ast.js';
+import { parseHandlebarsStructure } from '../../../shared/handlebars-ast.js';
+import { parseMustacheStructure } from '../../../shared/mustache-structure.js';
+import { parseJinjaTemplateStructure } from '../../../shared/jinja-template-structure.js';
 import { buildChunksFromLineHeadings } from '../helpers.js';
 import {
   MAX_REGEX_LINE,
   applyFormatMeta,
   chunkByLineRegex,
+  collectHeadingRows,
   splitLinesWithIndex
 } from './shared.js';
 
@@ -28,18 +33,6 @@ const DART_SKIP_NAMES = new Set(['if', 'for', 'while', 'switch', 'catch', 'retur
 const NIX_SKIP_LINE = (line) => {
   const trimmed = line.trim();
   return !trimmed || trimmed.startsWith('#') || trimmed === 'in' || trimmed === 'let';
-};
-/**
- * Build a readable heading for a matched Jinja directive.
- * @param {RegExpMatchArray} match
- * @returns {string}
- */
-const JINJA_TITLE = (match) => {
-  const raw = String(match[2] || '').trim();
-  if (!raw) return match[1];
-  const boundary = raw.search(/\s/);
-  const name = boundary === -1 ? raw : raw.slice(0, boundary);
-  return name ? `${match[1]} ${name}` : match[1];
 };
 
 const CMAKE_OPTIONS = {
@@ -67,19 +60,6 @@ const HANDLEBARS_OPTIONS = {
   kind: 'Section',
   defaultName: 'handlebars',
   precheck: (line) => line.includes('{{')
-};
-const MUSTACHE_OPTIONS = {
-  format: 'mustache',
-  kind: 'Section',
-  defaultName: 'mustache',
-  precheck: (line) => line.includes('{{')
-};
-const JINJA_OPTIONS = {
-  format: 'jinja',
-  kind: 'Section',
-  defaultName: 'jinja',
-  precheck: (line) => line.includes('{%'),
-  title: JINJA_TITLE
 };
 
 /**
@@ -127,16 +107,27 @@ const buildFormattedChunksFromHeadings = ({
 };
 
 /**
- * Heuristic Dockerfile chunker using instruction boundaries, with `FROM`
- * clause specialization to preserve stage/image identity in chunk names.
+ * Bounded Dockerfile AST headings preserve logical instructions and stage/image
+ * identity. Missing/unsupported parsing retains an explicitly heuristic fallback.
  *
  * @param {string} text
  * @param {object|null} [context]
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
-export const chunkDockerfile = (text, context = null) => {
+export const createDockerfileChunker = ({ parseStructure = parseDockerfileStructure } = {}) => (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
+  const structure = parseStructure(text);
+  if (structure.parser === 'dockerfile-ast') {
+    const chunks = buildFormattedChunksFromHeadings({ text,
+      headings: structure.instructions.map((instruction) => ({ line: instruction.line, title: instruction.title })),
+      lineIndex, format: 'dockerfile', kind: 'ConfigSection', fallbackName: 'Dockerfile' });
+    return chunks.map((chunk, index) => ({ ...chunk, meta: { ...chunk.meta,
+      parser: structure.parser, parserCoverage: structure.coverage,
+      ...(structure.instructions[index] ? { astRange: {
+        start: structure.instructions[index].start, end: structure.instructions[index].end
+      } } : {}) } }));
+  }
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     if (line.length > MAX_REGEX_LINE) continue;
@@ -157,8 +148,11 @@ export const chunkDockerfile = (text, context = null) => {
     format: 'dockerfile',
     kind: 'ConfigSection',
     fallbackName: 'Dockerfile'
-  });
+  }).map((chunk) => ({ ...chunk, meta: { ...chunk.meta, parser: structure.parser,
+    parserCoverage: structure.coverage, parserFallbackReason: structure.reason } }));
 };
+
+export const chunkDockerfile = createDockerfileChunker();
 
 /**
  * Heuristic Makefile chunker by target declarations.
@@ -255,31 +249,27 @@ export const chunkNix = (text, context = null) => chunkByLineRegex(
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
 export const chunkDart = (text, context = null) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text, context);
-  const headings = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (line.length > MAX_REGEX_LINE) continue;
-    const trimmed = line.trim();
-    if (trimmed.startsWith('//')) continue;
-    if (!(line.includes('class')
+  const { headings, lineIndex } = collectHeadingRows(text, context, {
+    skipLine: (line, trimmed) => trimmed.startsWith('//'),
+    precheck: (line) => line.includes('class')
       || line.includes('mixin')
       || line.includes('enum')
       || line.includes('extension')
       || line.includes('typedef')
-      || line.includes('('))) {
-      continue;
+      || line.includes('('),
+    collect: (line, trimmed, i) => {
+      void trimmed;
+      const typeMatch = line.match(DART_TYPE_RX);
+      if (typeMatch) {
+        return { line: i, title: typeMatch[2] };
+      }
+      const funcMatch = line.match(DART_FUNC_RX);
+      if (funcMatch && !DART_SKIP_NAMES.has(funcMatch[1])) {
+        return { line: i, title: funcMatch[1] };
+      }
+      return null;
     }
-    const typeMatch = line.match(DART_TYPE_RX);
-    if (typeMatch) {
-      headings.push({ line: i, title: typeMatch[2] });
-      continue;
-    }
-    const funcMatch = line.match(DART_FUNC_RX);
-    if (funcMatch && !DART_SKIP_NAMES.has(funcMatch[1])) {
-      headings.push({ line: i, title: funcMatch[1] });
-    }
-  }
+  });
   return buildFormattedChunksFromHeadings({
     text,
     headings,
@@ -297,28 +287,23 @@ export const chunkDart = (text, context = null) => {
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
 export const chunkScala = (text, context = null) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text, context);
-  const headings = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (line.length > MAX_REGEX_LINE) continue;
-    const trimmed = line.trim();
-    if (trimmed.startsWith('//')) continue;
-    if (!(line.includes('class')
+  const { headings, lineIndex } = collectHeadingRows(text, context, {
+    skipLine: (line, trimmed) => trimmed.startsWith('//'),
+    precheck: (line) => line.includes('class')
       || line.includes('object')
       || line.includes('trait')
       || line.includes('enum')
-      || line.includes('def'))) {
-      continue;
+      || line.includes('def'),
+    collect: (line, trimmed, i) => {
+      void trimmed;
+      const typeMatch = line.match(SCALA_TYPE_RX);
+      if (typeMatch) {
+        return { line: i, title: typeMatch[1] };
+      }
+      const defMatch = line.match(SCALA_DEF_RX);
+      return defMatch ? { line: i, title: defMatch[1] } : null;
     }
-    const typeMatch = line.match(SCALA_TYPE_RX);
-    if (typeMatch) {
-      headings.push({ line: i, title: typeMatch[1] });
-      continue;
-    }
-    const defMatch = line.match(SCALA_DEF_RX);
-    if (defMatch) headings.push({ line: i, title: defMatch[1] });
-  }
+  });
   return buildFormattedChunksFromHeadings({
     text,
     headings,
@@ -336,28 +321,23 @@ export const chunkScala = (text, context = null) => {
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
 export const chunkGroovy = (text, context = null) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text, context);
-  const headings = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (line.length > MAX_REGEX_LINE) continue;
-    const trimmed = line.trim();
-    if (trimmed.startsWith('//')) continue;
-    if (!(line.includes('class')
+  const { headings, lineIndex } = collectHeadingRows(text, context, {
+    skipLine: (line, trimmed) => trimmed.startsWith('//'),
+    precheck: (line) => line.includes('class')
       || line.includes('interface')
       || line.includes('trait')
       || line.includes('enum')
-      || line.includes('def'))) {
-      continue;
+      || line.includes('def'),
+    collect: (line, trimmed, i) => {
+      void trimmed;
+      const typeMatch = line.match(GROOVY_TYPE_RX);
+      if (typeMatch) {
+        return { line: i, title: typeMatch[2] };
+      }
+      const defMatch = line.match(GROOVY_DEF_RX);
+      return defMatch ? { line: i, title: defMatch[1] } : null;
     }
-    const typeMatch = line.match(GROOVY_TYPE_RX);
-    if (typeMatch) {
-      headings.push({ line: i, title: typeMatch[2] });
-      continue;
-    }
-    const defMatch = line.match(GROOVY_DEF_RX);
-    if (defMatch) headings.push({ line: i, title: defMatch[1] });
-  }
+  });
   return buildFormattedChunksFromHeadings({
     text,
     headings,
@@ -388,17 +368,15 @@ export const chunkR = (text, context = null) => chunkByLineRegex(
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
 export const chunkJulia = (text, context = null) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text, context);
-  const headings = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (line.length > MAX_REGEX_LINE) continue;
-    const trimmed = line.trim();
-    if (trimmed.startsWith('#')) continue;
-    if (!(line.includes('module') || line.includes('function') || line.includes('macro'))) continue;
-    const match = line.match(JULIA_RX);
-    if (match) headings.push({ line: i, title: match[2] });
-  }
+  const { headings, lineIndex } = collectHeadingRows(text, context, {
+    skipLine: (line, trimmed) => trimmed.startsWith('#'),
+    precheck: (line) => line.includes('module') || line.includes('function') || line.includes('macro'),
+    collect: (line, trimmed, i) => {
+      void trimmed;
+      const match = line.match(JULIA_RX);
+      return match ? { line: i, title: match[2] } : null;
+    }
+  });
   return buildFormattedChunksFromHeadings({
     text,
     headings,
@@ -410,30 +388,59 @@ export const chunkJulia = (text, context = null) => {
 };
 
 /**
- * Heuristic Handlebars chunker by section/block tags.
+ * Handlebars syntax chunks by outermost real blocks, with honest heuristic fallback.
  * @param {string} text
  * @param {object|null} [context]
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
-export const chunkHandlebars = (text, context = null) => chunkByLineRegex(
-  text,
-  /{{[#^]\s*([A-Za-z0-9_.-]+)\b/,
-  HANDLEBARS_OPTIONS,
-  context
-);
+export const createHandlebarsChunker = ({ parseStructure = parseHandlebarsStructure } = {}) => (text, context = null) => {
+  const structure = parseStructure(text);
+  if (structure.parser === 'handlebars-parser') {
+    const blocks = structure.blocks.length ? structure.blocks : [{ start: 0, end: text.length, name: 'handlebars' }];
+    const dynamicPartials = structure.partials.filter((partial) => partial.kind === 'dynamic');
+    let cursor = 0;
+    return blocks.map((block, index) => {
+      const end = blocks[index + 1]?.start ?? text.length;
+      let unresolvedDynamicPartials = 0;
+      while (cursor < dynamicPartials.length && dynamicPartials[cursor].start < end) {
+        if (dynamicPartials[cursor].start >= block.start) unresolvedDynamicPartials += 1;
+        cursor += 1;
+      }
+      return { start: block.start, end, name: block.name, kind: 'Section', meta: { format: 'handlebars', title: block.name,
+        definitionType: block.definitionType || null, parser: structure.parser, parserCoverage: structure.coverage,
+        ...(block.definitionType ? { astRange: { start: block.start, end: block.end } } : {}),
+        unresolvedDynamicPartials } };
+    });
+  }
+  return chunkByLineRegex(text, /{{[#^]\s*([A-Za-z0-9_.-]+)\b/, HANDLEBARS_OPTIONS, context)
+    .map((chunk) => ({ ...chunk, meta: { ...chunk.meta, parser: structure.parser,
+      parserCoverage: structure.coverage, parserFallbackReason: structure.reason } }));
+};
+
+export const chunkHandlebars = createHandlebarsChunker();
 
 /**
- * Heuristic Mustache chunker by section/block tags.
+ * Mustache sections from verified vendor opening-tag ranges. Chunk extents
+ * partition the document; closeStart is a vendor offset, not a full AST range.
  * @param {string} text
  * @param {object|null} [context]
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
-export const chunkMustache = (text, context = null) => chunkByLineRegex(
-  text,
-  /{{[#^]\s*([A-Za-z0-9_.-]+)\b/,
-  MUSTACHE_OPTIONS,
-  context
-);
+export const createMustacheChunker = ({ parseStructure = parseMustacheStructure } = {}) => (text, context = null) => {
+  const source = String(text || '');
+  const configuredMs = context?.treeSitter?.byLanguage?.mustache?.maxParseMs ?? context?.treeSitter?.maxParseMs;
+  const structure = parseStructure(source, { maxMs: configuredMs });
+  const meta = { format: 'mustache', parser: structure.parser, parserCoverage: structure.coverage,
+    parserFallbackReason: structure.reason, parseMetrics: structure.metrics };
+  if (!structure.blocks.length) return [{ start: 0, end: source.length, name: 'mustache', kind: 'Section', meta }];
+  return structure.blocks.map((block, index) => ({ start: block.start,
+    end: structure.blocks[index + 1]?.start ?? source.length, name: block.name, kind: 'Section',
+    meta: { ...meta, title: block.name, definitionType: block.type === '^' ? 'inverted-section' : 'section',
+      rangeSource: structure.rangeSource, tokenRange: { start: block.start, end: block.end },
+      sectionCloseStart: block.closeStart } }));
+};
+
+export const chunkMustache = createMustacheChunker();
 
 /**
  * Heuristic Jinja chunker by directive blocks.
@@ -441,12 +448,20 @@ export const chunkMustache = (text, context = null) => chunkByLineRegex(
  * @param {object|null} [context]
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
-export const chunkJinja = (text, context = null) => chunkByLineRegex(
-  text,
-  /{%\s*(block|macro|for|if|set|include|extends)\s+([^%\n]+)%}/,
-  JINJA_OPTIONS,
-  context
-);
+export const createJinjaChunker = ({ parseStructure = parseJinjaTemplateStructure } = {}) => (text, context = null) => {
+  const source = String(text || '');
+  const structure = parseStructure(source, { ext: context?.ext, relPath: context?.relPath,
+    maxMs: context?.treeSitter?.byLanguage?.jinja?.maxParseMs ?? context?.treeSitter?.maxParseMs });
+  const meta = { format: 'jinja', templateDialect: structure.dialect, parser: structure.parser,
+    parserCoverage: structure.coverage, parserFallbackReason: structure.reason, parseMetrics: structure.metrics };
+  if (!structure.headings.length) return [{ start: 0, end: source.length, name: 'jinja', kind: 'Section', meta }];
+  return structure.headings.map((heading, index) => ({ start: heading.start,
+    end: structure.headings[index + 1]?.start ?? source.length, name: heading.name, kind: 'Section',
+    meta: { ...meta, title: heading.name, definitionType: heading.keyword,
+      rangeSource: structure.rangeSource, lexicalRange: { start: heading.start, end: heading.end } } }));
+};
+
+export const chunkJinja = createJinjaChunker();
 
 /**
  * Heuristic Razor chunker for common `@` directives.

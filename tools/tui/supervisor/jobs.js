@@ -1,8 +1,8 @@
 import path from 'node:path';
-import { spawnSubprocess } from '../../../src/shared/subprocess.js';
-import { applyProgressContextEnv } from '../../../src/shared/progress.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { clampInt } from '../../../src/shared/limits.js';
 import { collectJobArtifacts } from './artifacts.js';
+import { applyProgressContextEnv } from './progress-context.js';
 import { createJobStreamDecoder } from './progress-decoder.js';
 import {
   nowIso,
@@ -135,7 +135,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
 
     emit('job:start', {
       command: Array.isArray(request?.argv) ? request.argv : [],
-      cwd: request?.cwd ? path.resolve(String(request.cwd)) : process.cwd(),
+      cwd: request?.cwd ? path.resolve(String(request.cwd)) : (process.env.PAIROFCLEATS_TUI_WORKSPACE_ROOT || process.cwd()),
       title,
       requested: {
         progressMode: request?.progressMode || 'jsonl',
@@ -311,7 +311,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
         }
       });
       await emitArtifacts(job, request, {
-        cwd: request?.cwd ? path.resolve(String(request.cwd)) : process.cwd()
+        cwd: request?.cwd ? path.resolve(String(request.cwd)) : (process.env.PAIROFCLEATS_TUI_WORKSPACE_ROOT || process.cwd())
       });
     }).finally(() => {
       job.status = job.status === 'cancelled' ? 'cancelled' : (job.status || 'done');

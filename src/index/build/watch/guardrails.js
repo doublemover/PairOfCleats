@@ -5,7 +5,7 @@ import {
   isSpecialCodeFile,
   resolveSpecialCodeExt
 } from '../../constants.js';
-import { fileExt, isRelativePathEscape, toPosix } from '../../../shared/files.js';
+import { fileExt, isRelativePathEscape, toPosix } from '../../../shared/file-paths.js';
 import { pickMinLimit, resolveFileCaps } from '../file-processor/read.js';
 import { normalizeRoot } from './shared.js';
 import { isCodeEntryForPath, isProseEntryForPath } from '../mode-routing.js';

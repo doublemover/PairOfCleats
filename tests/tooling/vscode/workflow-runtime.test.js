@@ -3,66 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import Module from 'node:module';
-import { EventEmitter } from 'node:events';
-import { createRequire } from 'node:module';
 
-const require = createRequire(import.meta.url);
-const extensionPath = path.resolve('extensions/vscode/extension.js');
-
-function createFakeConfiguration(values) {
-  return {
-    get(key) {
-      return values[key];
-    }
-  };
-}
-
-function loadExtensionWithMocks({ fakeVscode, fakeChildProcess }) {
-  const originalLoad = Module._load;
-  delete require.cache[extensionPath];
-  Module._load = function patchedLoad(request, parent, isMain) {
-    if (request === 'vscode') return fakeVscode;
-    if (request === 'node:child_process') return fakeChildProcess;
-    return originalLoad.call(this, request, parent, isMain);
-  };
-  try {
-    return require(extensionPath);
-  } finally {
-    Module._load = originalLoad;
-  }
-}
-
-function createFakeSpawn(spawnCalls, queuedResults) {
-  return {
-    spawn(command, args, options) {
-      spawnCalls.push({ command, args, options });
-      const child = new EventEmitter();
-      child.stdout = new EventEmitter();
-      child.stderr = new EventEmitter();
-      child.kill = () => {};
-      const result = queuedResults.shift();
-      setImmediate(() => {
-        if (!result) {
-          child.emit('close', 0);
-          return;
-        }
-        if (result.stdout) {
-          child.stdout.emit('data', Buffer.from(result.stdout));
-        }
-        if (result.stderr) {
-          child.stderr.emit('data', Buffer.from(result.stderr));
-        }
-        if (result.error) {
-          child.emit('error', result.error);
-          return;
-        }
-        child.emit('close', result.code ?? 0);
-      });
-      return child;
-    }
-  };
-}
+import { createVsCodeRuntimeHarness } from '../../helpers/vscode/runtime-harness.js';
+import { assertRegisteredCommands } from './runtime-test-helpers.js';
 
 const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-vscode-workflow-'));
 const srcDir = path.join(repoRoot, 'src');
@@ -79,141 +22,17 @@ fs.writeFileSync(path.join(rulesDir, 'architecture.rules.json'), '{"version":1,"
 const workspacePath = path.join(repoRoot, '.pairofcleats-workspace.jsonc');
 fs.writeFileSync(workspacePath, '{"name":"Workspace","repos":[]}\n');
 
-const configValues = {
-  cliPath: '',
-  cliArgs: ['--trace'],
-  searchMode: 'code',
-  searchBackend: '',
-  searchAnn: true,
-  maxResults: 25,
-  searchContextLines: 0,
-  searchFile: '',
-  searchPath: '',
-  searchLang: '',
-  searchExt: '',
-  searchType: '',
-  searchCaseSensitive: false,
-  extraSearchArgs: [],
-  env: {}
-};
-
-const outputEvents = [];
-const errorMessages = [];
-const infoMessages = [];
-const openExternalCalls = [];
-const registeredCommands = [];
-const spawnCalls = [];
-const queuedResults = [];
-const inputQueue = [];
-const quickPickQueue = [];
-const fakeVscode = {
-  workspace: {
-    workspaceFolders: [{ name: 'repo', uri: { scheme: 'file', fsPath: repoRoot, path: repoRoot.replace(/\\/g, '/') } }],
-    getWorkspaceFolder(uri) {
-      return this.workspaceFolders.find((folder) => folder.uri.fsPath === uri?.fsPath) || null;
-    },
-    getConfiguration() {
-      return createFakeConfiguration(configValues);
-    },
-    async openTextDocument(uri) {
-      return { uri };
-    }
-  },
-  window: {
-    activeTextEditor: { document: { uri: { scheme: 'file', fsPath: path.join(srcDir, 'app.ts') } } },
-    async withProgress(_options, task) {
-      const token = {
-        isCancellationRequested: false,
-        onCancellationRequested() {
-          return { dispose() {} };
-        }
-      };
-      return task({}, token);
-    },
-    async showInputBox() {
-      return inputQueue.shift();
-    },
-    async showQuickPick(items) {
-      const next = quickPickQueue.shift();
-      if (typeof next === 'function') return next(items);
-      return next ?? null;
-    },
-    showErrorMessage(message) {
-      errorMessages.push(message);
-    },
-    showInformationMessage(message) {
-      infoMessages.push(message);
-    },
-    async showTextDocument(document) {
-      return {
-        document,
-        selection: null,
-        revealRange() {}
-      };
-    },
-    createOutputChannel(name) {
-      return {
-        name,
-        appendLine(line) {
-          outputEvents.push({ kind: 'append', line });
-        },
-        show(preserveFocus) {
-          outputEvents.push({ kind: 'show', preserveFocus });
-        }
-      };
-    }
-  },
-  commands: {
-    registerCommand(id, handler) {
-      registeredCommands.push(id);
-      return { id, handler, dispose() {} };
-    },
-    async executeCommand() {}
-  },
-  env: {
-    async openExternal(uri) {
-      openExternalCalls.push(uri);
-      return true;
-    }
-  },
-  Uri: {
-    file(fsPath) {
-      return { scheme: 'file', fsPath, path: fsPath.replace(/\\/g, '/') };
-    }
-  },
-  Position: class Position {
-    constructor(line, character) {
-      this.line = line;
-      this.character = character;
-    }
-  },
-  Range: class Range {
-    constructor(start, end) {
-      this.start = start;
-      this.end = end;
-    }
-  },
-  Selection: class Selection {
-    constructor(start, end) {
-      this.start = start;
-      this.end = end;
-    }
-  },
-  TextEditorRevealType: {
-    InCenter: 1
-  },
-  ProgressLocation: {
-    Notification: 1
+const harness = createVsCodeRuntimeHarness({
+  repoRoot,
+  activeFile: path.join(srcDir, 'app.ts'),
+  configValues: {
+    cliArgs: ['--trace'],
+    searchMode: 'code'
   }
-};
-
-const extension = loadExtensionWithMocks({
-  fakeVscode,
-  fakeChildProcess: createFakeSpawn(spawnCalls, queuedResults)
 });
 
-extension.activate({ subscriptions: [] });
-for (const commandId of [
+harness.activate();
+assertRegisteredCommands(harness.registeredCommands, [
   'pairofcleats.codeMap',
   'pairofcleats.architectureCheck',
   'pairofcleats.impact',
@@ -222,12 +41,10 @@ for (const commandId of [
   'pairofcleats.workspaceStatus',
   'pairofcleats.workspaceBuild',
   'pairofcleats.workspaceCatalog'
-]) {
-  assert.ok(registeredCommands.includes(commandId), `missing registered command ${commandId}`);
-}
+]);
 
-const codeMapSpec = extension._test.OPERATOR_COMMAND_SPECS.find((spec) => spec.id === 'pairofcleats.codeMap');
-queuedResults.push({
+const codeMapSpec = harness.extension._test.OPERATOR_COMMAND_SPECS.find((spec) => spec.id === 'pairofcleats.codeMap');
+harness.queuedResults.push({
   code: 0,
   stdout: JSON.stringify({
     ok: true,
@@ -237,10 +54,10 @@ queuedResults.push({
     warnings: []
   })
 });
-await extension._test.runOperatorCommand(codeMapSpec);
-assert.equal(infoMessages.pop(), 'PairOfCleats: Code Map completed.');
+await harness.extension._test.runOperatorCommand(codeMapSpec);
+assert.equal(harness.infoMessages.pop(), 'PairOfCleats: Code Map completed.');
 assert.deepEqual(
-  spawnCalls[0].args,
+  harness.spawnCalls[0].args,
   [
     path.join(repoRoot, 'bin', 'pairofcleats.js'),
     '--trace',
@@ -255,11 +72,11 @@ assert.deepEqual(
     path.join(repoRoot, '.pairofcleats', 'maps', 'vscode-map.iso.html')
   ]
 );
-assert.equal(openExternalCalls.length, 1, 'expected code map to open generated artifact');
+assert.equal(harness.openExternalCalls.length, 1, 'expected code map to open generated artifact');
 
-const architectureSpec = extension._test.OPERATOR_COMMAND_SPECS.find((spec) => spec.id === 'pairofcleats.architectureCheck');
-inputQueue.push(path.join('rules', 'architecture.rules.json'));
-queuedResults.push({
+const architectureSpec = harness.extension._test.OPERATOR_COMMAND_SPECS.find((spec) => spec.id === 'pairofcleats.architectureCheck');
+harness.inputQueue.push(path.join('rules', 'architecture.rules.json'));
+harness.queuedResults.push({
   code: 0,
   stdout: JSON.stringify({
     rules: [{ id: 'forbidden-import' }],
@@ -267,10 +84,10 @@ queuedResults.push({
     warnings: []
   })
 });
-await extension._test.runOperatorCommand(architectureSpec);
-assert.equal(infoMessages.pop(), 'PairOfCleats: Architecture Check completed.');
+await harness.extension._test.runOperatorCommand(architectureSpec);
+assert.equal(harness.infoMessages.pop(), 'PairOfCleats: Architecture Check completed.');
 assert.deepEqual(
-  spawnCalls[1].args,
+  harness.spawnCalls[1].args,
   [
     path.join(repoRoot, 'bin', 'pairofcleats.js'),
     '--trace',
@@ -283,13 +100,13 @@ assert.deepEqual(
   ]
 );
 
-const impactSpec = extension._test.OPERATOR_COMMAND_SPECS.find((spec) => spec.id === 'pairofcleats.impact');
-inputQueue.push('');
-inputQueue.push('src/app.ts');
-inputQueue.push('2');
-quickPickQueue.push((items) => items.find((item) => item.value === 'downstream'));
-quickPickQueue.push(null);
-queuedResults.push({
+const impactSpec = harness.extension._test.OPERATOR_COMMAND_SPECS.find((spec) => spec.id === 'pairofcleats.impact');
+harness.inputQueue.push('');
+harness.inputQueue.push('src/app.ts');
+harness.inputQueue.push('2');
+harness.quickPickQueue.push((items) => items.find((item) => item.value === 'downstream'));
+harness.quickPickQueue.push(null);
+harness.queuedResults.push({
   code: 0,
   stdout: JSON.stringify({
     direction: 'downstream',
@@ -299,10 +116,10 @@ queuedResults.push({
     truncation: []
   })
 });
-await extension._test.runOperatorCommand(impactSpec);
-assert.equal(infoMessages.pop(), 'PairOfCleats: Impact Analysis completed.');
+await harness.extension._test.runOperatorCommand(impactSpec);
+assert.equal(harness.infoMessages.pop(), 'PairOfCleats: Impact Analysis completed.');
 assert.deepEqual(
-  spawnCalls[2].args,
+  harness.spawnCalls[2].args,
   [
     path.join(repoRoot, 'bin', 'pairofcleats.js'),
     '--trace',
@@ -319,21 +136,21 @@ assert.deepEqual(
   ]
 );
 
-const suggestTestsSpec = extension._test.OPERATOR_COMMAND_SPECS.find((spec) => spec.id === 'pairofcleats.suggestTests');
-inputQueue.push('src/app.ts');
-inputQueue.push('7');
-quickPickQueue.push(null);
-queuedResults.push({
+const suggestTestsSpec = harness.extension._test.OPERATOR_COMMAND_SPECS.find((spec) => spec.id === 'pairofcleats.suggestTests');
+harness.inputQueue.push('src/app.ts');
+harness.inputQueue.push('7');
+harness.quickPickQueue.push(null);
+harness.queuedResults.push({
   code: 0,
   stdout: JSON.stringify({
     suggestions: [{ testPath: 'tests/app.test.ts', score: 0.9 }],
     warnings: []
   })
 });
-await extension._test.runOperatorCommand(suggestTestsSpec);
-assert.equal(infoMessages.pop(), 'PairOfCleats: Suggest Tests completed.');
+await harness.extension._test.runOperatorCommand(suggestTestsSpec);
+assert.equal(harness.infoMessages.pop(), 'PairOfCleats: Suggest Tests completed.');
 assert.deepEqual(
-  spawnCalls[3].args,
+  harness.spawnCalls[3].args,
   [
     path.join(repoRoot, 'bin', 'pairofcleats.js'),
     '--trace',
@@ -348,9 +165,9 @@ assert.deepEqual(
   ]
 );
 
-const workspaceStatusSpec = extension._test.OPERATOR_COMMAND_SPECS.find((spec) => spec.id === 'pairofcleats.workspaceStatus');
-inputQueue.push(workspacePath);
-queuedResults.push({
+const workspaceStatusSpec = harness.extension._test.OPERATOR_COMMAND_SPECS.find((spec) => spec.id === 'pairofcleats.workspaceStatus');
+harness.inputQueue.push(workspacePath);
+harness.queuedResults.push({
   code: 0,
   stdout: JSON.stringify({
     ok: true,
@@ -360,10 +177,10 @@ queuedResults.push({
     repos: []
   })
 });
-await extension._test.runOperatorCommand(workspaceStatusSpec);
-assert.equal(infoMessages.pop(), 'PairOfCleats: Workspace Status completed.');
+await harness.extension._test.runOperatorCommand(workspaceStatusSpec);
+assert.equal(harness.infoMessages.pop(), 'PairOfCleats: Workspace Status completed.');
 assert.deepEqual(
-  spawnCalls[4].args,
+  harness.spawnCalls[4].args,
   [
     path.join(repoRoot, 'bin', 'pairofcleats.js'),
     '--trace',
@@ -375,9 +192,11 @@ assert.deepEqual(
   ]
 );
 
-assert.equal(errorMessages.length, 0, `unexpected errors: ${errorMessages.join('; ')}`);
-assert.ok(outputEvents.some((event) => event.kind === 'append' && /files: 4/i.test(event.line)));
-assert.ok(outputEvents.some((event) => event.kind === 'append' && /suggestions: 1/i.test(event.line)));
-assert.ok(outputEvents.some((event) => event.kind === 'append' && /repoSetId: workspace-alpha/i.test(event.line)));
+assert.equal(harness.errorMessages.length, 0, `unexpected errors: ${harness.errorMessages.join('; ')}`);
+assert.ok(harness.outputEvents.some((event) => event.kind === 'append' && /files: 4/i.test(event.line)));
+assert.ok(harness.outputEvents.some((event) => event.kind === 'append' && /suggestions: 1/i.test(event.line)));
+assert.ok(harness.outputEvents.some((event) => event.kind === 'append' && /repoSetId: workspace-alpha/i.test(event.line)));
+
+harness.restoreGlobals();
 
 console.log('vscode workflow runtime test passed');

@@ -1,33 +1,10 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
-import path from 'node:path';
+import { runToolingInstallWithEmptyPath } from './tooling-install-test-helper.js';
 
-const root = process.cwd();
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'languages');
-const scriptPath = path.join(root, 'tools', 'tooling', 'install.js');
-
-const env = {
-  ...process.env,
-  PATH: '',
-  Path: ''
-};
-
-const result = spawnSync(
-  process.execPath,
-  [scriptPath, '--root', fixtureRoot, '--tools', 'pyright', '--json'],
-  { encoding: 'utf8', env }
-);
+const { result, payload } = runToolingInstallWithEmptyPath('pyright');
 
 if (result.status === 0) {
   console.error('tooling-install failure exit code test failed: expected non-zero status on failed install');
-  process.exit(1);
-}
-
-let payload = null;
-try {
-  payload = JSON.parse(String(result.stdout || '{}'));
-} catch {
-  console.error('tooling-install failure exit code test failed: stdout was not valid JSON');
   process.exit(1);
 }
 

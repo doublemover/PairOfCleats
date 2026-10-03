@@ -1,11 +1,9 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { loadChunkMeta, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
 import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
-import { applyTestEnv } from '../../helpers/test-env.js';
+import { createStage1CodeBuildEnv, runStage1CodeBuildOrExit } from '../../helpers/build-index-fixture.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -35,49 +33,9 @@ const content = [
 const sourcePath = path.join(repoRoot, 'unicode.js');
 await fsPromises.writeFile(sourcePath, content);
 
-const env = applyTestEnv({
-  cacheRoot,
-  embeddings: 'stub',
-  testConfig: {
-    indexing: {
-      scm: { provider: 'none' },
-      typeInference: false,
-      typeInferenceCrossFile: false
-    },
-    tooling: {
-      autoEnableOnDetect: false,
-      lsp: { enabled: false }
-    }
-  }
-});
+const env = createStage1CodeBuildEnv({ cacheRoot });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [
-    path.join(root, 'build_index.js'),
-    '--stub-embeddings',
-    '--stage',
-    'stage1',
-    '--mode',
-    'code',
-    '--repo',
-    repoRoot
-  ],
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
-if (buildResult.status !== 0) {
-  if (buildResult.error) {
-    console.error('build_index spawn error:', buildResult.error);
-  }
-  const crashLogPath = path.join(repoRoot, 'logs', 'index-crash.log');
-  if (fs.existsSync(crashLogPath)) {
-    const crashLog = await fsPromises.readFile(crashLogPath, 'utf8');
-    const tail = crashLog.length > 2000 ? crashLog.slice(-2000) : crashLog;
-    console.error('build_index crash log (tail):\n' + tail);
-  }
-  console.error('Failed: build_index');
-  process.exit(buildResult.status ?? 1);
-}
+await runStage1CodeBuildOrExit({ root, repoRoot, env, printCrashLog: true });
 
 const userConfig = loadUserConfig(repoRoot);
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);

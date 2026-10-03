@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import AdmZip from 'adm-zip';
-import { toPosix } from '../../src/shared/files.js';
+import { toPosix } from '../../src/shared/file-paths.js';
 import { listFilesRecursive } from '../shared/fs-utils.js';
 
 const FIXED_MTIME = new Date('2000-01-01T00:00:00.000Z');

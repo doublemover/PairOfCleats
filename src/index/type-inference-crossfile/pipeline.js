@@ -20,7 +20,8 @@ const EMPTY_CROSS_FILE_STATS = Object.freeze({
   toolingProvidersContributed: 0,
   toolingRequests: 0,
   toolingRequestFailures: 0,
-  toolingRequestTimeouts: 0
+  toolingRequestTimeouts: 0,
+  toolingReuse: null
 });
 
 /**

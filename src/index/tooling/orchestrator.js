@@ -3,6 +3,10 @@ import path from 'node:path';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { coerceFiniteNumber } from '../../shared/number-coerce.js';
+import {
+  resolveQualityImpactForCause,
+  summarizeReuseObservations
+} from '../../shared/reuse-diagnostics.js';
 import { selectToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
 import {
@@ -106,7 +110,19 @@ const computeTargetsKey = (targets) => {
   return parts.join(',');
 };
 
-const computeCacheKey = ({ providerId, providerVersion, configHash, documents, targets }) => {
+const normalizeIdentityString = (value) => {
+  const text = String(value || '').trim();
+  return text || null;
+};
+
+const resolveGenerationIdentity = (ctx) => ({
+  mode: normalizeIdentityString(ctx?.mode),
+  repoRoot: normalizeIdentityString(ctx?.repoRoot),
+  buildRoot: normalizeIdentityString(ctx?.buildRoot),
+  buildId: normalizeIdentityString(ctx?.buildId)
+});
+
+const computeCacheKey = ({ providerId, providerVersion, configHash, documents, targets, generation }) => {
   const docKey = computeDocumentsKey(documents || []);
   const targetKey = computeTargetsKey(targets || []);
   return buildLocalCacheKey({
@@ -118,7 +134,13 @@ const computeCacheKey = ({ providerId, providerVersion, configHash, documents, t
       providerVersion,
       configHash,
       documents: docKey,
-      targets: targetKey
+      targets: targetKey,
+      generation: {
+        mode: normalizeIdentityString(generation?.mode),
+        repoRoot: normalizeIdentityString(generation?.repoRoot),
+        buildRoot: normalizeIdentityString(generation?.buildRoot),
+        buildId: normalizeIdentityString(generation?.buildId)
+      }
     }
   }).key;
 };
@@ -146,12 +168,14 @@ const resolveProviderCachedExecution = async ({
   const planDocuments = Array.isArray(plan?.documents) ? plan.documents : [];
   const planTargets = Array.isArray(plan?.targets) ? plan.targets : [];
   const configHash = provider.getConfigHash(ctx);
+  const generation = resolveGenerationIdentity(ctx);
   const cacheKey = computeCacheKey({
     providerId,
     providerVersion: provider.version,
     configHash,
     documents: planDocuments,
-    targets: planTargets
+    targets: planTargets,
+    generation
   });
   const cachePath = cacheDir
     ? path.join(cacheDir, buildCacheFileName({ providerId, cacheKey }))
@@ -171,7 +195,8 @@ const resolveProviderCachedExecution = async ({
             providerId,
             cachePath,
             sizeBytes: stat.size,
-            maxBytes: TOOLING_PROVIDER_CACHE_READ_MAX_BYTES
+            maxBytes: TOOLING_PROVIDER_CACHE_READ_MAX_BYTES,
+            generation
           }
         });
       } else {
@@ -193,7 +218,8 @@ const resolveProviderCachedExecution = async ({
           context: {
             providerId,
             cachePath,
-            error: error?.message || String(error)
+            error: error?.message || String(error),
+            generation
           }
         });
       }
@@ -209,7 +235,8 @@ const resolveProviderCachedExecution = async ({
     cachePath,
     output,
     outputFromCache,
-    outputSource
+    outputSource,
+    generation
   };
 };
 
@@ -339,7 +366,8 @@ const buildDeterministicCachePayload = ({
   output,
   providerId,
   providerVersion,
-  configHash
+  configHash,
+  generation
 }) => {
   if (!output || typeof output !== 'object') return null;
   return {
@@ -347,6 +375,12 @@ const buildDeterministicCachePayload = ({
       id: providerId,
       version: providerVersion,
       configHash
+    },
+    generation: {
+      mode: normalizeIdentityString(generation?.mode),
+      repoRoot: normalizeIdentityString(generation?.repoRoot),
+      buildRoot: normalizeIdentityString(generation?.buildRoot),
+      buildId: normalizeIdentityString(generation?.buildId)
     },
     byChunkUid: output.byChunkUid || {},
     byChunkId: output.byChunkId || {},
@@ -451,6 +485,23 @@ const mergePayload = (target, incoming, { observations, chunkUid } = {}) => {
   return target;
 };
 
+const cloneProvenanceValue = (value) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => cloneProvenanceValue(entry))
+      .filter((entry) => entry !== undefined);
+  }
+  if (!value || typeof value !== 'object') {
+    return value === undefined ? undefined : value;
+  }
+  const cloned = {};
+  for (const [key, entry] of Object.entries(value)) {
+    const next = cloneProvenanceValue(entry);
+    if (next !== undefined) cloned[key] = next;
+  }
+  return cloned;
+};
+
 const normalizeProvenanceList = (value, { providerId, providerVersion }) => {
   const raw = Array.isArray(value)
     ? value
@@ -460,10 +511,15 @@ const normalizeProvenanceList = (value, { providerId, providerVersion }) => {
     if (!entry || typeof entry !== 'object') continue;
     const provider = entry.provider ? String(entry.provider) : '';
     const version = entry.version ? String(entry.version) : '';
+    const extras = cloneProvenanceValue(entry) || {};
+    delete extras.provider;
+    delete extras.version;
+    delete extras.collectedAt;
     normalized.push({
       provider: provider || providerId,
       version: version || providerVersion,
-      collectedAt: entry.collectedAt || new Date().toISOString()
+      collectedAt: entry.collectedAt || new Date().toISOString(),
+      ...extras
     });
   }
   if (normalized.length) return normalized;
@@ -488,24 +544,39 @@ const summarizeDegradedProviders = ({ providerDiagnostics, sourcesByChunkUid, ob
   for (const [providerIdRaw, diag] of Object.entries(providerDiagnostics || {})) {
     const providerId = normalizeProviderId(providerIdRaw);
     if (!providerId) continue;
+    const fidelity = diag?.fidelity && typeof diag.fidelity === 'object'
+      ? diag.fidelity
+      : null;
+    const fidelityState = String(fidelity?.state || '').trim().toLowerCase();
     const checks = Array.isArray(diag?.checks) ? diag.checks : [];
-    const failingChecks = checks.filter((check) => check?.status === 'warn' || check?.status === 'error');
-    if (!failingChecks.length) continue;
+    const failingChecks = checks.filter((check) => (
+      (check?.status === 'warn' || check?.status === 'error')
+      && check?.degradedEligible !== false
+    ));
     const contributedChunks = providerChunkContributions.get(providerId) || 0;
-    if (contributedChunks > 0) continue;
+    const degradedByContract = fidelityState === 'degraded'
+      || fidelityState === 'blocked'
+      || fidelityState === 'quarantined';
+    if (!degradedByContract && !failingChecks.length) continue;
+    if (!degradedByContract && contributedChunks > 0) continue;
     const warningCount = failingChecks.filter((check) => check?.status === 'warn').length;
     const errorCount = failingChecks.filter((check) => check?.status === 'error').length;
-    const reasonCodes = Array.from(new Set(
-      failingChecks
+    const reasonCodes = Array.from(new Set([
+      ...failingChecks
         .map((check) => String(check?.name || '').trim())
-        .filter(Boolean)
-    ));
+        .filter(Boolean),
+      ...(Array.isArray(fidelity?.runtimeIssues) ? fidelity.runtimeIssues : [])
+    ]));
     const entry = {
       providerId,
+      fidelityState: fidelityState || null,
+      partialSuccess: fidelity?.qualityDelta?.partialSuccess === true,
       warningCount,
       errorCount,
       reasonCodes,
-      contributedChunks
+      contributedChunks,
+      semanticCoverage: fidelity?.semanticCoverage || null,
+      requestSuppression: fidelity?.requestSuppression || null
     };
     degradedProviders.push(entry);
     observations.push({
@@ -574,6 +645,12 @@ const summarizeProviderRuntime = (runtime) => ({
     incompleteSymbols: coerceFiniteNumber(runtime?.hoverMetrics?.incompleteSymbols, 0) ?? 0,
     hoverTriggeredByIncomplete: coerceFiniteNumber(runtime?.hoverMetrics?.hoverTriggeredByIncomplete, 0) ?? 0,
     fallbackUsed: coerceFiniteNumber(runtime?.hoverMetrics?.fallbackUsed, 0) ?? 0,
+    semanticTokensRequested: coerceFiniteNumber(runtime?.hoverMetrics?.semanticTokensRequested, 0) ?? 0,
+    semanticTokensSucceeded: coerceFiniteNumber(runtime?.hoverMetrics?.semanticTokensSucceeded, 0) ?? 0,
+    semanticTokensTimedOut: coerceFiniteNumber(runtime?.hoverMetrics?.semanticTokensTimedOut, 0) ?? 0,
+    inlayHintsRequested: coerceFiniteNumber(runtime?.hoverMetrics?.inlayHintsRequested, 0) ?? 0,
+    inlayHintsSucceeded: coerceFiniteNumber(runtime?.hoverMetrics?.inlayHintsSucceeded, 0) ?? 0,
+    inlayHintsTimedOut: coerceFiniteNumber(runtime?.hoverMetrics?.inlayHintsTimedOut, 0) ?? 0,
     skippedByBudget: coerceFiniteNumber(runtime?.hoverMetrics?.skippedByBudget, 0) ?? 0,
     skippedByKind: coerceFiniteNumber(runtime?.hoverMetrics?.skippedByKind, 0) ?? 0,
     skippedByReturnSufficient: coerceFiniteNumber(runtime?.hoverMetrics?.skippedByReturnSufficient, 0) ?? 0,
@@ -639,7 +716,9 @@ const summarizeToolingMetrics = ({
   providerPlans,
   providerDiagnostics,
   sourcesByChunkUid,
-  degradedProviders
+  degradedProviders,
+  reuseObservations,
+  generation
 }) => {
   const uniquePlannedProviderIds = new Set();
   for (const plan of providerPlans || []) {
@@ -693,7 +772,9 @@ const summarizeToolingMetrics = ({
     providersWithCapabilitiesMask: 0,
     documentSymbol: 0,
     hover: 0,
+    semanticTokens: 0,
     signatureHelp: 0,
+    inlayHints: 0,
     definition: 0,
     typeDefinition: 0,
     references: 0
@@ -703,9 +784,15 @@ const summarizeToolingMetrics = ({
     succeeded: 0,
     timedOut: 0,
     hoverTimedOut: 0,
+    semanticTokensRequested: 0,
+    semanticTokensSucceeded: 0,
+    semanticTokensTimedOut: 0,
     signatureHelpRequested: 0,
     signatureHelpSucceeded: 0,
     signatureHelpTimedOut: 0,
+    inlayHintsRequested: 0,
+    inlayHintsSucceeded: 0,
+    inlayHintsTimedOut: 0,
     definitionRequested: 0,
     definitionSucceeded: 0,
     definitionTimedOut: 0,
@@ -762,9 +849,15 @@ const summarizeToolingMetrics = ({
     hoverTotals.succeeded += runtime.hover.succeeded;
     hoverTotals.timedOut += runtime.hover.timedOut;
     hoverTotals.hoverTimedOut += runtime.hover.hoverTimedOut;
+    hoverTotals.semanticTokensRequested += runtime.hover.semanticTokensRequested;
+    hoverTotals.semanticTokensSucceeded += runtime.hover.semanticTokensSucceeded;
+    hoverTotals.semanticTokensTimedOut += runtime.hover.semanticTokensTimedOut;
     hoverTotals.signatureHelpRequested += runtime.hover.signatureHelpRequested;
     hoverTotals.signatureHelpSucceeded += runtime.hover.signatureHelpSucceeded;
     hoverTotals.signatureHelpTimedOut += runtime.hover.signatureHelpTimedOut;
+    hoverTotals.inlayHintsRequested += runtime.hover.inlayHintsRequested;
+    hoverTotals.inlayHintsSucceeded += runtime.hover.inlayHintsSucceeded;
+    hoverTotals.inlayHintsTimedOut += runtime.hover.inlayHintsTimedOut;
     hoverTotals.definitionRequested += runtime.hover.definitionRequested;
     hoverTotals.definitionSucceeded += runtime.hover.definitionSucceeded;
     hoverTotals.definitionTimedOut += runtime.hover.definitionTimedOut;
@@ -786,7 +879,9 @@ const summarizeToolingMetrics = ({
       runtime.hover.requested > 0
       || runtime.hover.timedOut > 0
       || runtime.hover.fallbackUsed > 0
+      || runtime.hover.semanticTokensRequested > 0
       || runtime.hover.signatureHelpRequested > 0
+      || runtime.hover.inlayHintsRequested > 0
       || runtime.hover.definitionRequested > 0
       || runtime.hover.typeDefinitionRequested > 0
       || runtime.hover.referencesRequested > 0
@@ -797,7 +892,9 @@ const summarizeToolingMetrics = ({
       capabilityTotals.providersWithCapabilitiesMask += 1;
       if (runtime.capabilities.documentSymbol === true) capabilityTotals.documentSymbol += 1;
       if (runtime.capabilities.hover === true) capabilityTotals.hover += 1;
+      if (runtime.capabilities.semanticTokens === true) capabilityTotals.semanticTokens += 1;
       if (runtime.capabilities.signatureHelp === true) capabilityTotals.signatureHelp += 1;
+      if (runtime.capabilities.inlayHints === true) capabilityTotals.inlayHints += 1;
       if (runtime.capabilities.definition === true) capabilityTotals.definition += 1;
       if (runtime.capabilities.typeDefinition === true) capabilityTotals.typeDefinition += 1;
       if (runtime.capabilities.references === true) capabilityTotals.references += 1;
@@ -812,6 +909,10 @@ const summarizeToolingMetrics = ({
     degradedErrorChecks,
     degradedReasonCodeCount: degradedReasonCodes.size,
     requests: requestTotals,
+    reuse: {
+      ...summarizeReuseObservations(reuseObservations, { generation }),
+      observations: Array.isArray(reuseObservations) ? reuseObservations.slice() : []
+    },
     health: healthTotals,
     hover: hoverTotals,
     capabilities: capabilityTotals,
@@ -858,10 +959,30 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
   const sourcesByChunkUid = new Map();
   const providerDiagnostics = {};
   const observations = [];
+  const reuseObservations = [];
+  const generation = resolveGenerationIdentity(ctx);
   const providerCount = providerPlans.length;
   if (log && providerCount > 0) {
     log(
-      `[tooling] provider runtime start providers=${providerCount} docs=${documents.length} targets=${targets.length}.`
+      `[tooling] provider runtime start providers=${providerCount} docs=${documents.length} targets=${targets.length}.`,
+      {
+        stage: 'relations',
+        timeoutPolicy: {
+          ownerId: 'tooling-orchestrator',
+          ladderId: 'provider-bootstrap',
+          phase: 'provider_bootstrap',
+          queueExpected: false,
+          byteProgressExpected: false,
+          optionalPhase: true,
+          skippedWork: [
+            'provider-enrichment',
+            'provider-ladder',
+            'provider-requests',
+            'workspace-preflight'
+          ],
+          partialSuccess: true
+        }
+      }
     );
   }
   let preflightFinalized = false;
@@ -950,7 +1071,8 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
         planDocuments,
         planTargets,
         configHash,
-        cachePath
+        cachePath,
+        generation: executionGeneration
       } = execution;
       if (!providerId) continue;
       const providerStartedAtMs = Date.now();
@@ -1006,7 +1128,8 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
                   output,
                   providerId,
                   providerVersion: provider.version,
-                  configHash
+                  configHash,
+                  generation: execution.generation
                 });
                 if (deterministicPayload) {
                   await atomicWriteJson(cachePath, deterministicPayload, { spaces: 2 });
@@ -1019,7 +1142,8 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
                   context: {
                     providerId,
                     cachePath,
-                    error: error?.message || String(error)
+                    error: error?.message || String(error),
+                    generation: executionGeneration
                   }
                 });
               }
@@ -1048,45 +1172,62 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
         }
         if (!output) {
           providerOutcome = 'empty';
-          continue;
-        }
-        providerProgressPhase = 'merge';
-        providerDiagnostics[providerId] = withDiagnosticsSource(output.diagnostics || null, {
-          source: outputFromCache ? 'cache-suppressed' : 'live',
-          stripRuntime: outputFromCache
-        });
-        const normalized = normalizeProviderOutputs({
-          output,
-          targetByChunkUid,
-          chunkUidByChunkId,
-          strict,
-          observations,
-          providerId
-        });
-        providerChunksMerged = normalized.size;
-        for (const [chunkUid, entry] of normalized.entries()) {
-          const existing = merged.get(chunkUid) || {
-            chunk: entry?.chunk || targetByChunkUid.get(chunkUid)?.chunkRef || null,
-            payload: {},
-            provenance: []
-          };
-          mergePayload(existing, entry, { observations, chunkUid });
-          if (entry?.symbolRef && !existing.symbolRef) {
-            existing.symbolRef = entry.symbolRef;
-          }
-          const provenanceEntries = normalizeProvenanceList(entry?.provenance, {
-            providerId,
-            providerVersion: provider.version
+        } else {
+          providerProgressPhase = 'merge';
+          providerDiagnostics[providerId] = withDiagnosticsSource(output.diagnostics || null, {
+            source: outputFromCache ? 'cache-suppressed' : 'live',
+            stripRuntime: outputFromCache
           });
-          existing.provenance = Array.isArray(existing.provenance)
-            ? [...existing.provenance, ...provenanceEntries]
-            : provenanceEntries;
-          merged.set(chunkUid, existing);
-          const sources = sourcesByChunkUid.get(chunkUid) || new Set();
-          sources.add(providerId);
-          sourcesByChunkUid.set(chunkUid, sources);
+          const normalized = normalizeProviderOutputs({
+            output,
+            targetByChunkUid,
+            chunkUidByChunkId,
+            strict,
+            observations,
+            providerId
+          });
+          providerChunksMerged = normalized.size;
+          for (const [chunkUid, entry] of normalized.entries()) {
+            const existing = merged.get(chunkUid) || {
+              chunk: entry?.chunk || targetByChunkUid.get(chunkUid)?.chunkRef || null,
+              payload: {},
+              provenance: []
+            };
+            mergePayload(existing, entry, { observations, chunkUid });
+            if (entry?.symbolRef && !existing.symbolRef) {
+              existing.symbolRef = entry.symbolRef;
+            }
+            const provenanceEntries = normalizeProvenanceList(entry?.provenance, {
+              providerId,
+              providerVersion: provider.version
+            });
+            existing.provenance = Array.isArray(existing.provenance)
+              ? [...existing.provenance, ...provenanceEntries]
+              : provenanceEntries;
+            merged.set(chunkUid, existing);
+            const sources = sourcesByChunkUid.get(chunkUid) || new Set();
+            sources.add(providerId);
+            sourcesByChunkUid.set(chunkUid, sources);
+          }
         }
       } finally {
+        reuseObservations.push({
+          kind: providerOutcome === 'error' ? 'provider_cache' : 'provider_result',
+          providerId,
+          reuseSurface: 'provider-result',
+          reuseSource: providerOutcome === 'error' ? 'live' : providerOutputSource,
+          causeClass: providerOutcome === 'error'
+            ? 'provider_unhealthy'
+            : (providerOutputSource === 'cache' ? 'cache_hit' : 'cache_miss'),
+          qualityImpact: resolveQualityImpactForCause(
+            providerOutcome === 'error'
+              ? 'provider_unhealthy'
+              : (providerOutputSource === 'cache' ? 'cache_hit' : 'cache_miss')
+          ),
+          chunkCount: providerChunksMerged,
+          timeCostMs: toElapsedMs(providerStartedAtMs),
+          generation: executionGeneration
+        });
         if (providerProgressTimer) clearInterval(providerProgressTimer);
         if (log) {
           const elapsedMs = toElapsedMs(providerStartedAtMs);
@@ -1111,11 +1252,38 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       sourcesByChunkUid,
       observations
     });
+    for (const observation of observations) {
+      if (!observation || typeof observation !== 'object') continue;
+      if (observation.code === 'tooling_cache_oversized' || observation.code === 'tooling_cache_read_failed') {
+        reuseObservations.push({
+          kind: 'provider_cache',
+          providerId: normalizeProviderId(observation?.context?.providerId),
+          reuseSurface: 'provider-result',
+          reuseSource: 'live',
+          causeClass: 'cache_invalid',
+          qualityImpact: resolveQualityImpactForCause('cache_invalid'),
+          generation: observation?.context?.generation || generation
+        });
+      }
+      if (observation.code === 'tooling_cache_write_failed') {
+        reuseObservations.push({
+          kind: 'provider_cache',
+          providerId: normalizeProviderId(observation?.context?.providerId),
+          reuseSurface: 'provider-result',
+          reuseSource: 'write-failed',
+          causeClass: 'cache_write_failed',
+          qualityImpact: resolveQualityImpactForCause('cache_write_failed'),
+          generation: observation?.context?.generation || generation
+        });
+      }
+    }
     const metrics = summarizeToolingMetrics({
       providerPlans,
       providerDiagnostics,
       sourcesByChunkUid,
-      degradedProviders
+      degradedProviders,
+      reuseObservations,
+      generation
     });
     await finalizePreflights();
     mergeProviderPreflightDiagnostics(providerDiagnostics, preflights);
@@ -1125,9 +1293,22 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
     if (log && providerCount > 0) {
       log(
         `[tooling] provider runtime done providers=${providerCount} `
-        + `executed=${metrics.providersExecuted || 0} contributed=${metrics.providersContributed || 0} `
-        + `requests=${metrics.requests?.requests || 0} timedOut=${metrics.requests?.timedOut || 0} `
-        + `preflightTeardownTimedOut=${preflightTeardown.timedOut === true ? 1 : 0}.`
+          + `executed=${metrics.providersExecuted || 0} contributed=${metrics.providersContributed || 0} `
+          + `requests=${metrics.requests?.requests || 0} timedOut=${metrics.requests?.timedOut || 0} `
+          + `preflightTeardownTimedOut=${preflightTeardown.timedOut === true ? 1 : 0}.`,
+        {
+          stage: 'relations',
+          timeoutPolicy: {
+            ownerId: 'cross-file-runtime',
+            ladderId: 'cross-file-execute',
+            phase: 'execute',
+            queueExpected: false,
+            byteProgressExpected: true,
+            optionalPhase: false,
+            skippedWork: [],
+            partialSuccess: false
+          }
+        }
       );
     }
     if (log && metrics.preflights.total > 0) {

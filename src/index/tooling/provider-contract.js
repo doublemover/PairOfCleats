@@ -8,6 +8,26 @@ export const PREFLIGHT_POLICY = Object.freeze({
   OPTIONAL: 'optional'
 });
 
+export const PROVIDER_FIDELITY_STATE = Object.freeze({
+  HEALTHY: 'healthy',
+  DEGRADED: 'degraded',
+  BLOCKED: 'blocked',
+  QUARANTINED: 'quarantined'
+});
+
+export const PROVIDER_FIDELITY_CONTRACT_VERSION = 2;
+
+const PROVIDER_REQUEST_CLASS_METHODS = Object.freeze({
+  documentSymbol: 'textDocument/documentSymbol',
+  hover: 'textDocument/hover',
+  semanticTokens: 'textDocument/semanticTokens/full',
+  signatureHelp: 'textDocument/signatureHelp',
+  inlayHints: 'textDocument/inlayHint',
+  definition: 'textDocument/definition',
+  typeDefinition: 'textDocument/typeDefinition',
+  references: 'textDocument/references'
+});
+
 const normalizeRuntimeRequirement = (entry) => {
   if (!entry || typeof entry !== 'object') return null;
   const id = String(entry.id || '').trim().toLowerCase();
@@ -88,6 +108,296 @@ export const buildDuplicateChunkUidChecks = (targets, options = {}) => {
   }];
 };
 
+const hasNamedCheck = (checks, name) => (
+  Array.isArray(checks) && checks.some((check) => check?.name === name)
+);
+
+const uniqueStringList = (values) => {
+  const seen = new Set();
+  const output = [];
+  for (const value of Array.isArray(values) ? values : []) {
+    const normalized = String(value || '').trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    output.push(normalized);
+  }
+  return output;
+};
+
+const normalizeFidelityState = (value, fallback = PROVIDER_FIDELITY_STATE.HEALTHY) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (Object.values(PROVIDER_FIDELITY_STATE).includes(normalized)) return normalized;
+  return fallback;
+};
+
+const countByChunkUidEntries = (value) => {
+  if (value instanceof Map) return value.size;
+  if (Array.isArray(value)) return value.length;
+  if (value && typeof value === 'object') return Object.keys(value).length;
+  return 0;
+};
+
+const summarizeBlockedPartitions = ({
+  blockedWorkspaceKeys = [],
+  blockedWorkspaceRoots = []
+} = {}) => {
+  const keys = uniqueStringList(blockedWorkspaceKeys);
+  const roots = uniqueStringList(blockedWorkspaceRoots);
+  return {
+    count: Math.max(keys.length, roots.length),
+    workspaceKeys: keys,
+    workspaceRoots: roots
+  };
+};
+
+const summarizeCapabilityGateSkips = (runtime) => {
+  const requested = runtime?.capabilityGate?.requested && typeof runtime.capabilityGate.requested === 'object'
+    ? runtime.capabilityGate.requested
+    : null;
+  const effective = runtime?.capabilityGate?.effective && typeof runtime.capabilityGate.effective === 'object'
+    ? runtime.capabilityGate.effective
+    : null;
+  if (!requested || !effective) return [];
+  const skipped = [];
+  for (const requestClass of Object.keys(PROVIDER_REQUEST_CLASS_METHODS)) {
+    if (requested[requestClass] === true && effective[requestClass] === false) {
+      skipped.push(requestClass);
+    }
+  }
+  return skipped;
+};
+
+const summarizeRequestedRequestClasses = (runtime, requestClasses) => {
+  const requested = runtime?.capabilityGate?.requested && typeof runtime.capabilityGate.requested === 'object'
+    ? runtime.capabilityGate.requested
+    : null;
+  const out = [];
+  for (const requestClass of Object.keys(PROVIDER_REQUEST_CLASS_METHODS)) {
+    if (requested?.[requestClass] === true || Number(requestClasses?.[requestClass]?.requests || 0) > 0) {
+      out.push(requestClass);
+    }
+  }
+  return out;
+};
+
+const summarizeWorkspaceCoverage = ({ runtime = null, blockedPartitions = null } = {}) => {
+  const workspaceModel = runtime?.workspaceModel && typeof runtime.workspaceModel === 'object'
+    ? runtime.workspaceModel
+    : null;
+  const totalPartitions = Number.isFinite(Number(workspaceModel?.partitionCount))
+    ? Math.max(0, Math.floor(Number(workspaceModel.partitionCount)))
+    : 0;
+  const blockedPartitionCount = Number.isFinite(Number(blockedPartitions?.count))
+    ? Math.max(0, Math.floor(Number(blockedPartitions.count)))
+    : 0;
+  const readyPartitionCount = Math.max(0, totalPartitions - blockedPartitionCount);
+  return {
+    partitioned: workspaceModel?.partitioned === true,
+    strategy: String(workspaceModel?.strategy || '').trim() || null,
+    totalPartitions,
+    readyPartitionCount,
+    blockedPartitionCount,
+    matchedDocumentCount: Number.isFinite(Number(workspaceModel?.matchedDocumentCount))
+      ? Math.max(0, Math.floor(Number(workspaceModel.matchedDocumentCount)))
+      : 0,
+    unmatchedDocumentCount: Number.isFinite(Number(workspaceModel?.unmatchedDocumentCount))
+      ? Math.max(0, Math.floor(Number(workspaceModel.unmatchedDocumentCount)))
+      : 0,
+    unmatchedTargetCount: Number.isFinite(Number(workspaceModel?.unmatchedTargetCount))
+      ? Math.max(0, Math.floor(Number(workspaceModel.unmatchedTargetCount)))
+      : 0
+  };
+};
+
+export const summarizeProviderRequestClasses = (runtime) => {
+  const byMethod = runtime?.requests?.byMethod && typeof runtime.requests.byMethod === 'object'
+    ? runtime.requests.byMethod
+    : {};
+  const summary = Object.create(null);
+  for (const [requestClass, methodName] of Object.entries(PROVIDER_REQUEST_CLASS_METHODS)) {
+    const entry = byMethod?.[methodName] && typeof byMethod[methodName] === 'object'
+      ? byMethod[methodName]
+      : {};
+    summary[requestClass] = {
+      requests: Number(entry.requests || 0),
+      failed: Number(entry.failed || 0),
+      timedOut: Number(entry.timedOut || 0)
+    };
+  }
+  return summary;
+};
+
+export const buildProviderFidelityContract = ({
+  providerId,
+  state = null,
+  reasonCode = null,
+  preflightState = null,
+  preflightDetails = null,
+  workspaceRootRel = null,
+  workspaceKey = null,
+  fingerprint = null,
+  runtime = null,
+  checks = [],
+  captureDiagnostics = false,
+  collectTypes = true,
+  blockedWorkspaceKeys = [],
+  blockedWorkspaceRoots = [],
+  skippedRequestClasses = [],
+  runtimeIssueClasses = [],
+  byChunkUid = null,
+  contributes = null,
+  downstreamMergeInterpretation = null
+} = {}) => {
+  const requestClasses = summarizeProviderRequestClasses(runtime);
+  const blockedPartitions = summarizeBlockedPartitions({
+    blockedWorkspaceKeys,
+    blockedWorkspaceRoots
+  });
+  const normalizedPreflightDetails = preflightDetails && typeof preflightDetails === 'object'
+    ? {
+      state: String(preflightDetails.state || preflightState || '').trim() || null,
+      workspaceKind: String(preflightDetails.workspaceKind || '').trim() || null,
+      dependencyState: String(preflightDetails.dependencyState || '').trim() || null
+    }
+    : {
+      state: String(preflightState || '').trim() || null,
+      workspaceKind: null,
+      dependencyState: null
+    };
+  const workspaceCoverage = summarizeWorkspaceCoverage({
+    runtime,
+    blockedPartitions
+  });
+  const requestClassFailures = Object.entries(requestClasses)
+    .filter(([, metrics]) => Number(metrics?.timedOut || 0) > 0 || Number(metrics?.failed || 0) > 0)
+    .map(([requestClass]) => requestClass);
+  const derivedQuarantined = hasNamedCheck(checks, 'tooling_provider_quarantined')
+    || hasNamedCheck(checks, 'pyright_quarantined_for_run');
+  const derivedBlocked = String(preflightState || '').trim().toLowerCase() === 'blocked';
+  const derivedDegraded = String(preflightState || '').trim().toLowerCase() === 'degraded'
+    || blockedPartitions.count > 0
+    || workspaceCoverage.unmatchedDocumentCount > 0
+    || workspaceCoverage.unmatchedTargetCount > 0
+    || requestClassFailures.length > 0
+    || hasNamedCheck(checks, 'tooling_document_symbol_failed')
+    || hasNamedCheck(checks, 'pyright_timeout_storm_truncated');
+  const effectiveState = normalizeFidelityState(
+    state,
+    derivedBlocked
+      ? PROVIDER_FIDELITY_STATE.BLOCKED
+      : (derivedQuarantined
+        ? PROVIDER_FIDELITY_STATE.QUARANTINED
+        : (derivedDegraded ? PROVIDER_FIDELITY_STATE.DEGRADED : PROVIDER_FIDELITY_STATE.HEALTHY))
+  );
+  const normalizedSkipped = uniqueStringList([
+    ...skippedRequestClasses,
+    ...summarizeCapabilityGateSkips(runtime)
+  ]);
+  const normalizedRuntimeIssueClasses = uniqueStringList(runtimeIssueClasses);
+  const contributedChunkCount = countByChunkUidEntries(byChunkUid);
+  const resolvedContributes = contributes && typeof contributes === 'object'
+    ? {
+      typeEnrichment: collectTypes !== false && contributes.typeEnrichment === true,
+      diagnostics: contributes.diagnostics === true
+    }
+    : {
+      typeEnrichment: collectTypes !== false && effectiveState !== PROVIDER_FIDELITY_STATE.BLOCKED
+        && effectiveState !== PROVIDER_FIDELITY_STATE.QUARANTINED,
+      diagnostics: captureDiagnostics === true
+        && effectiveState !== PROVIDER_FIDELITY_STATE.BLOCKED
+    };
+  const partialSuccess = (
+    effectiveState === PROVIDER_FIDELITY_STATE.DEGRADED
+    && (
+      contributedChunkCount > 0
+      || workspaceCoverage.readyPartitionCount > 0
+      || blockedPartitions.count > 0
+      || requestClassFailures.length > 0
+      || normalizedSkipped.length > 0
+    )
+  );
+  const mergeInterpretation = String(downstreamMergeInterpretation || '').trim() || (
+    collectTypes === false
+      ? 'Diagnostics-only contribution; absent type/navigation output is not negative semantic evidence because those stages were not requested.'
+      : effectiveState === PROVIDER_FIDELITY_STATE.HEALTHY
+        ? 'Provider output is healthy and may participate in normal merge scoring.'
+        : (
+          effectiveState === PROVIDER_FIDELITY_STATE.DEGRADED
+            ? (
+              workspaceCoverage.blockedPartitionCount > 0 && workspaceCoverage.readyPartitionCount > 0
+                ? 'Treat present provider output as partition-local partial contribution; blocked partitions remain excluded and must not count as negative evidence.'
+                : 'Treat present provider output as partial contribution; do not treat blocked partitions or skipped request classes as negative evidence.'
+            )
+            : 'Treat missing provider output as explicit provider degradation or unavailability, not as negative evidence.'
+        )
+  );
+  const requestedRequestClasses = summarizeRequestedRequestClasses(runtime, requestClasses);
+  const capabilityGateSuppressed = summarizeCapabilityGateSkips(runtime);
+  const semanticCoverageState = (
+    collectTypes === false ? 'missing' : effectiveState === PROVIDER_FIDELITY_STATE.HEALTHY
+      ? 'full'
+      : (partialSuccess ? 'partial' : 'missing')
+  );
+  const requestSuppression = {
+    active: blockedPartitions.count > 0 || normalizedSkipped.length > 0 || requestClassFailures.length > 0,
+    requestedRequestClasses,
+    suppressedRequestClasses: normalizedSkipped,
+    degradedRequestClasses: requestClassFailures,
+    capabilityGateSuppressed,
+    blockedPartitionCount: blockedPartitions.count
+  };
+  const semanticCoverage = {
+    state: semanticCoverageState,
+    confidence: (
+      collectTypes === false ? 'none' : effectiveState === PROVIDER_FIDELITY_STATE.HEALTHY
+        ? 'high'
+        : (partialSuccess ? 'degraded' : 'none')
+    ),
+    contributedChunkCount,
+    requestedRequestClasses,
+    healthyRequestClasses: requestedRequestClasses.filter((requestClass) => (
+      !normalizedSkipped.includes(requestClass) && !requestClassFailures.includes(requestClass)
+    )),
+    degradedRequestClasses: requestClassFailures,
+    suppressedRequestClasses: normalizedSkipped,
+    blockedPartitionCount: blockedPartitions.count,
+    readyPartitionCount: workspaceCoverage.readyPartitionCount,
+    totalPartitionCount: workspaceCoverage.totalPartitions,
+    partialSuccess
+  };
+  return {
+    contractVersion: PROVIDER_FIDELITY_CONTRACT_VERSION,
+    providerId: normalizeProviderId(providerId) || String(providerId || '').trim(),
+    state: effectiveState,
+    reasonCode: String(reasonCode || '').trim() || null,
+    preflight: normalizedPreflightDetails,
+    workspaceRootRel: String(workspaceRootRel || '').trim() || null,
+    workspaceKey: String(workspaceKey || '').trim() || null,
+    fingerprint: String(fingerprint || '').trim() || null,
+    contributes: resolvedContributes,
+    requestClasses,
+    blockedPartitions,
+    workspaceCoverage,
+    skipped: normalizedSkipped,
+    runtimeIssues: normalizedRuntimeIssueClasses,
+    requestSuppression,
+    semanticCoverage,
+    qualityDelta: {
+      partialSuccess,
+      contributedChunkCount,
+      degradedRequestClasses: requestClassFailures,
+      skippedRequestClasses: normalizedSkipped,
+      blockedPartitionCount: blockedPartitions.count,
+      readyPartitionCount: workspaceCoverage.readyPartitionCount,
+      totalPartitionCount: workspaceCoverage.totalPartitions,
+      unmatchedDocumentCount: workspaceCoverage.unmatchedDocumentCount,
+      unmatchedTargetCount: workspaceCoverage.unmatchedTargetCount,
+      runtimeIssueClasses: normalizedRuntimeIssueClasses
+    },
+    downstreamMergeInterpretation: mergeInterpretation
+  };
+};
+
 export const appendDiagnosticChecks = (diagnostics, checks) => {
   if (!Array.isArray(checks) || !checks.length) return diagnostics || null;
   const next = diagnostics && typeof diagnostics === 'object' ? { ...diagnostics } : {};
@@ -99,6 +409,11 @@ export const appendDiagnosticChecks = (diagnostics, checks) => {
 export const shouldCaptureDiagnosticsForRequestedKinds = (requestedKinds) => {
   if (!Array.isArray(requestedKinds) || !requestedKinds.length) return true;
   return requestedKinds.some((entry) => String(entry || '').trim().toLowerCase() === 'diagnostics');
+};
+
+export const shouldCollectTypesForRequestedKinds = (requestedKinds) => {
+  if (!Array.isArray(requestedKinds) || !requestedKinds.length) return true;
+  return requestedKinds.some((entry) => String(entry || '').trim().toLowerCase() === 'types');
 };
 
 export const validateToolingProvider = (provider) => {

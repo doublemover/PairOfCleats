@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
+import { runRustAnalyzerWorkspaceFixture } from '../../helpers/lsp-provider-fixture.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `configured-lsp-rust-workspace-nested-${process.pid}-${Date.now()}`);
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'workspace', 'src'), { recursive: true });
+grantFixtureRepositoryExecution(tempRoot);
 await fs.writeFile(
   path.join(tempRoot, 'workspace', 'Cargo.toml'),
   '[package]\nname = "nested-workspace"\nversion = "0.1.0"\nedition = "2021"\n',
@@ -17,34 +19,13 @@ await fs.writeFile(
 const preflightScriptPath = path.join(tempRoot, 'rust-workspace-preflight-ok.js');
 await fs.writeFile(preflightScriptPath, 'process.exit(0);\n', 'utf8');
 
-const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 const docText = 'pub fn add(a: i32, b: i32) -> i32 { a + b }\n';
 const chunkUid = 'ck64:v1:test:workspace/src/lib.rs:rust-workspace-nested';
 const virtualPath = '.poc-vfs/workspace/src/lib.rs#seg:rust-workspace-nested.txt';
 
-const result = await runToolingProviders({
-  strict: true,
-  repoRoot: tempRoot,
-  buildRoot: tempRoot,
-  toolingConfig: {
-    enabledTools: ['lsp-rust-analyzer'],
-    lsp: {
-      enabled: true,
-      servers: [{
-        id: 'rust-analyzer',
-        preset: 'rust-analyzer',
-        cmd: process.execPath,
-        args: [serverPath, '--mode', 'rust'],
-        languages: ['rust'],
-        uriScheme: 'poc-vfs',
-        rustWorkspaceMetadataCmd: process.execPath,
-        rustWorkspaceMetadataArgs: [preflightScriptPath]
-      }]
-    }
-  },
-  cache: {
-    enabled: false
-  }
+const result = await runRustAnalyzerWorkspaceFixture({
+  tempRoot,
+  metadataArgs: [preflightScriptPath]
 }, {
   documents: [{
     virtualPath,

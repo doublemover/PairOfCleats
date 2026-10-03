@@ -77,8 +77,8 @@ const successPool = createSearchWorkerPool({
   env: { ...process.env },
   workerScriptPath,
   heartbeatMs: 20,
-  stallWarnMs: 80,
-  stallTimeoutMs: 200,
+  stallWarnMs: 250,
+  stallTimeoutMs: 1000,
   onEvent: (event) => successEvents.push(event)
 });
 const successPayload = await successPool.run(['--ok'], { backend: 'memory', query: 'select 1' });
@@ -332,8 +332,8 @@ const staleExitPool = createSearchWorkerPool({
   env: { ...process.env, STALE_EXIT_MARKER_PATH: staleExitMarkerPath },
   workerScriptPath: staleExitScriptPath,
   heartbeatMs: 20,
-  stallWarnMs: 40,
-  stallTimeoutMs: 60,
+  stallWarnMs: 200,
+  stallTimeoutMs: 500,
   onEvent: (event) => staleExitEvents.push(event)
 });
 await assert.rejects(

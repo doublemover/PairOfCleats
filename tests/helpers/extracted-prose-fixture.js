@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getCurrentBuildInfo, getIndexDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
+import { applyTestEnv } from './test-env.js';
 import { prepareTestCacheDir } from './test-cache.js';
+import { runNode } from './run-node.js';
 
 export const normalizeFixturePath = (value) => String(value || '').replace(/\\/g, '/').toLowerCase();
 
@@ -12,6 +13,53 @@ export const findFixtureEntryBySuffix = (entries, suffix) => {
   if (!Array.isArray(entries) || !normalizedSuffix) return null;
   return entries.find((entry) => normalizeFixturePath(entry?.file).endsWith(normalizedSuffix)) || null;
 };
+
+export const hasFixtureWarning = (entry, warning) => (
+  Array.isArray(entry?.warnings) && entry.warnings.includes(warning)
+);
+
+export const findFileByName = async (root, targetName) => {
+  const queue = [root];
+  while (queue.length) {
+    const current = queue.shift();
+    const entries = await fsPromises.readdir(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const abs = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        queue.push(abs);
+        continue;
+      }
+      if (entry.isFile() && entry.name === targetName) {
+        return abs;
+      }
+    }
+  }
+  return null;
+};
+
+export const createStubPdfExtractionEnv = ({
+  cacheRoot,
+  maxPages,
+  extraEnv = {}
+}) => applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      treeSitter: { enabled: false },
+      documentExtraction: {
+        enabled: true,
+        ...(maxPages == null ? {} : { maxPages })
+      }
+    }
+  },
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off',
+    PAIROFCLEATS_TEST_STUB_PDF_EXTRACT: '1',
+    ...extraEnv
+  }
+});
 
 export const setupExtractedProseFixture = async (name, { root = process.cwd() } = {}) => {
   const { dir: tempRoot } = await prepareTestCacheDir(name, { root });
@@ -52,16 +100,22 @@ export const inspectExtractedProseState = (repoRoot) => {
 /**
  * Run build_index in extracted-prose mode for a fixture repo.
  *
- * @param {{root:string,repoRoot:string,env:NodeJS.ProcessEnv,noSqlite?:boolean}} input
+ * @param {{root:string,repoRoot:string,env:NodeJS.ProcessEnv,noSqlite?:boolean,stage?:string|null}} input
  * @returns {void}
  */
-export const runExtractedProseBuild = ({ root, repoRoot, env, noSqlite = true }) => {
+export const runExtractedProseBuild = ({ root, repoRoot, env, noSqlite = true, stage = null }) => {
   const args = [path.join(root, 'build_index.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--stub-embeddings'];
+  if (stage) args.push('--stage', stage);
   if (noSqlite) args.push('--no-sqlite');
-  const buildResult = spawnSync(
-    process.execPath,
+  const buildResult = runNode(
     args,
-    { cwd: repoRoot, env, stdio: 'inherit' }
+    'extracted-prose build_index',
+    repoRoot,
+    env,
+    {
+      stdio: 'inherit',
+      allowFailure: true
+    }
   );
   if (buildResult.status !== 0) {
     throw new Error(`build_index failed (status=${buildResult.status ?? 'null'})`);

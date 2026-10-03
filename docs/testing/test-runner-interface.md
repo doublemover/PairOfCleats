@@ -227,12 +227,17 @@ Lanes are the main lever for "few comprehensive entrypoints." Lane membership is
 - `ci-long`
   - Long-running curated lane; auto-includes the `long` tag whenever requested. When run as the only lane, uses `tests/ci-long/ci-long.order.txt`.
 
+- `usr-full-conformance`
+  - Ordered USR all-language conformance surface lane. It runs the aggregate
+    conformance-surface guard, every language-shard validation selector, and the
+    USR contract checklist guard from `tests/usr-full-conformance/usr-full-conformance.order.txt`.
+
 Note: When `--lane ci` or `--lane ci-long` is combined with other lanes (or `--lane all`), they expand to
 `unit + integration + services` for filtering; order files are only required when the lane is the sole selection.
 
-## Lane ordering (ci/ci-lite/ci-long)
+## Lane ordering (ci/ci-lite/ci-long/usr-full-conformance)
 
-For `ci`, `ci-lite`, and `ci-long`, the runner requires an explicit order file:
+For `ci`, `ci-lite`, `ci-long`, and `usr-full-conformance`, the runner requires an explicit order file:
 `tests/<lane>/<lane>.order.txt`. Each line is a test id (relative to `tests/` without `.test.js`).
 
 Failure semantics:
@@ -260,6 +265,7 @@ Additional active lanes:
 - `diagnostics-summary`
 - `iq`
 - `decomposed-drift`
+- `usr-full-conformance`
 
 Refer to `tests/run.rules.jsonc` for the exact match rules.
 

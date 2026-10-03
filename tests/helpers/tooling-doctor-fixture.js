@@ -3,6 +3,7 @@ import path from 'node:path';
 import { registerDefaultToolingProviders } from '../../src/index/tooling/providers/index.js';
 import { runToolingDoctor } from '../../src/index/tooling/doctor.js';
 import { prepareIsolatedTestCacheDir } from './test-cache.js';
+import { grantFixtureRepositoryExecution } from './execution-authority.js';
 
 export const createToolingDoctorTempRoot = async (name, { root = process.cwd() } = {}) => {
   const fixtureName = String(name || 'tooling-doctor').trim() || 'tooling-doctor';
@@ -64,22 +65,28 @@ export const runToolingDoctorFixture = async ({
   toolingConfig = {},
   strict = false,
   resolveCommandProfile,
-  probeHandshake = false
+  probeHandshake = false,
+  authorizeFixtureExecution = false
 }) => {
   registerDefaultToolingProviders();
-  return runToolingDoctor({
-    repoRoot: tempRoot,
-    buildRoot: tempRoot,
-    toolingConfig: {
-      ...toolingConfig,
-      enabledTools: Array.isArray(enabledTools) ? enabledTools : []
-    },
-    strict
-  }, Array.isArray(providerIds) ? providerIds : [], {
-    log: () => {},
-    probeHandshake,
-    resolveCommandProfile
-  });
+  const restoreExecution = authorizeFixtureExecution ? grantFixtureRepositoryExecution(tempRoot) : null;
+  try {
+    return await runToolingDoctor({
+      repoRoot: tempRoot,
+      buildRoot: tempRoot,
+      toolingConfig: {
+        ...toolingConfig,
+        enabledTools: Array.isArray(enabledTools) ? enabledTools : []
+      },
+      strict
+    }, Array.isArray(providerIds) ? providerIds : [], {
+      log: () => {},
+      probeHandshake,
+      resolveCommandProfile
+    });
+  } finally {
+    restoreExecution?.();
+  }
 };
 
 /**

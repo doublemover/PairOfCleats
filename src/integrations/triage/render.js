@@ -24,10 +24,19 @@ export function renderRecordMarkdown(record) {
   lines.push('');
 
   lines.push('## Summary');
+  addLine(lines, 'Record ID', record?.recordId);
   addLine(lines, 'Title', record?.vuln?.title || record?.title);
   addLine(lines, 'Severity', severity);
   addLine(lines, 'Description', record?.vuln?.description || record?.description);
   lines.push('');
+
+  if (record?.idProvenance && typeof record.idProvenance === 'object') {
+    lines.push('## Record identity');
+    addLine(lines, 'Method', record.idProvenance.method);
+    addLine(lines, 'Stability', record.idProvenance.stability);
+    addLine(lines, 'Source', record.idProvenance.source);
+    lines.push('');
+  }
 
   lines.push('## Environment');
   addLine(lines, 'Service', service);

@@ -1,0 +1,2 @@
+[tooling] rust-analyzer stderr: cargo metadata failed for stdlib probe C:/Users/sneak/.rustup/toolchains/stable-x86_64-pc-windows-msvc/lib/rustlib/src/rust/library.
+[tooling] classification=toolchain_noise provider=rust-analyzer source=windows-stdlib-probe.

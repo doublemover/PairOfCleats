@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { getToolingConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 import { registerDefaultToolingProviders } from '../../src/index/tooling/providers/index.js';
 import { runToolingDoctor } from '../../src/index/tooling/doctor.js';
@@ -69,7 +69,7 @@ async function runCli() {
   process.exit(report.summary.status === 'error' ? 1 : 0);
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runCli().catch((err) => {
     console.error(err?.message || err);
     process.exit(1);

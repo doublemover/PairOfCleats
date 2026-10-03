@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { toPosix } from '../../../src/shared/files.js';
+import { toPosix } from '../../../src/shared/file-paths.js';
 import { normalizeEol } from '../../../src/shared/eol.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';

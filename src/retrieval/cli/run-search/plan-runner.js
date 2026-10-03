@@ -1,18 +1,18 @@
 import path from 'node:path';
+import { getRepoRoot } from '../../../shared/repo-paths.js';
 import {
   applyAdaptiveDictConfig,
   DEFAULT_MODEL_ID,
   getCacheRuntimeConfig,
   getDictConfig,
   getAutoPolicy,
-  getRepoRoot,
   getMetricsDir,
   getQueryCacheDir,
   getModelConfig,
   loadUserConfig,
   resolveLmdbPaths,
   resolveSqlitePaths
-} from '../../../../tools/shared/dict-utils.js';
+} from '../../../shared/dict-utils.js';
 import { queryVectorAnn } from '../../../../tools/sqlite/vector-extension.js';
 import { createError, ERROR_CODES, isErrorCode } from '../../../shared/error-codes.js';
 import { getSearchUsage } from '../../cli-args.js';
@@ -38,8 +38,8 @@ import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../../.
 import { compileFilterPredicates } from '../../output/filters.js';
 import { RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from '../../sparse/requirements.js';
 import { resolveSqliteFtsRoutingByMode } from '../../routing-policy.js';
-import { runWithOperationalFailurePolicy } from '../../../shared/ops-failure-injection.js';
-import { pathExists } from '../../../shared/files.js';
+import { runWithOperationalFailurePolicy } from '../../../shared/ops/failure-injection.js';
+import { pathExists } from '../../../shared/file-read.js';
 import {
   buildQueryPlanCacheKey,
   buildQueryPlanConfigSignature,
@@ -57,6 +57,7 @@ import {
   runFederatedIfRequested
 } from './options.js';
 import { createBackendContextWithTracking } from './backend-context.js';
+import { createBackendDisposer } from '../backend-disposal.js';
 
 import {
   INDEX_PROFILE_DEFAULT,
@@ -83,6 +84,7 @@ import {
  * @param {object|null} [options.sqliteCache]
  * @param {object|null} [options.queryPlanCache]
  * @param {string|null} [options.root]
+ * @param {object|null} [options.generationContext]
  * @returns {Promise<object>}
  */
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
@@ -91,10 +93,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const exitOnError = options.exitOnError !== false;
   const indexCache = options.indexCache || null;
   const sqliteCache = options.sqliteCache || null;
+  const generationContext = options.generationContext || null;
   const signal = options.signal || null;
   const scoreModeOverride = options.scoreMode ?? null;
   const t0 = Date.now();
   let queryPlanCache = options.queryPlanCache ?? null;
+  const backendDisposers = new Set();
+  const disposeBackends = createBackendDisposer(backendDisposers);
 
   if (signal?.aborted) {
     const err = createError(ERROR_CODES.INVALID_REQUEST, 'Search aborted.');
@@ -279,6 +284,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       sqliteReadPragmas,
       fieldWeightsConfig,
       explain,
+      explainTier,
       allowSparseFallback,
       allowUnsafeMix,
       denseVectorMode,
@@ -448,6 +454,29 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         onCompatibilityWarning: addProfileWarning
       })
       : null;
+    const sqliteStatesForCache = {
+      code: sqliteStateCode,
+      prose: sqliteStateProse,
+      'extracted-prose': sqliteStateExtractedProse
+    };
+    const resolveSqliteCachePath = (dbPath) => (
+      typeof dbPath === 'string' && dbPath ? path.resolve(dbPath) : null
+    );
+    const sqlitePathByMode = {
+      code: resolveSqliteCachePath(sqliteCodePath),
+      prose: resolveSqliteCachePath(sqliteProsePath),
+      'extracted-prose': resolveSqliteCachePath(sqliteExtractedProsePath)
+    };
+    const requestedSqlitePaths = new Set(dbModeSelection.map((mode) => sqlitePathByMode[mode]));
+    // Cache identities cover every mode stored in a requested physical file.
+    // Keep these extra states out of requested-mode preflight and diagnostics.
+    for (const [mode, dbPath] of Object.entries(sqlitePathByMode)) {
+      if (!dbPath || dbModeSelection.includes(mode) || !requestedSqlitePaths.has(dbPath)) continue;
+      sqliteStatesForCache[mode] = loadIndexState(rootDir, userConfig, mode, {
+        resolveOptions: indexResolveOptions,
+        onCompatibilityWarning: () => {}
+      });
+    }
     const indexStateByMode = {
       code: sqliteStateCode,
       prose: sqliteStateProse,
@@ -517,11 +546,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       annEnabledEffective = true;
     }
     syncAnnFlags();
-    if (emitOutput && profileWarnings.length) {
-      for (const warning of profileWarnings) {
-        console.warn(`[search] ${warning}`);
-      }
-    }
     const sqliteCodePathExists = !sqliteRootsMixed && await pathExists(sqliteCodePath);
     const sqliteProsePathExists = !sqliteRootsMixed && await pathExists(sqliteProsePath);
     const sqliteExtractedPathExists = !sqliteRootsMixed && await pathExists(sqliteExtractedProsePath);
@@ -678,11 +702,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       vectorExtension,
       vectorAnnEnabled,
       dbCache: sqliteCache,
-      sqliteStates: {
-        code: sqliteStateCode,
-        prose: sqliteStateProse,
-        'extracted-prose': sqliteStateExtractedProse
-      },
+      sqliteStates: sqliteStatesForCache,
       lmdbCodePath,
       lmdbProsePath,
       lmdbStates: {
@@ -700,16 +720,22 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       storageTier,
       sqliteReadPragmas,
       root: rootDir,
-      userConfig
+      userConfig,
+      indexResolveOptions,
+      generationContext
     });
     const backendInitResult = await runWithOperationalFailurePolicy({
       target: 'retrieval.hotpath',
       operation: 'backend-context',
-      execute: async () => createBackendContextWithTracking({
-        stageTracker,
-        contextInput: buildBackendContextInput(),
-        stageName: 'startup.backend'
-      }),
+      execute: async () => {
+        const context = await createBackendContextWithTracking({
+          stageTracker,
+          contextInput: buildBackendContextInput(),
+          stageName: 'startup.backend'
+        });
+        backendDisposers.add(() => context.dispose());
+        return context;
+      },
       log: (message) => {
         if (emitOutput) console.warn(message);
       }
@@ -839,7 +865,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
         indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
         explicitRef: asOfContext?.strict === true,
-        asOfContext
+        asOfContext,
+        generationContext
       })
       : null;
     const planIndexSignature = planConfigSignature
@@ -976,6 +1003,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         contextInput: buildBackendContextInput(),
         stageName: 'startup.backend.reinit'
       });
+      const reinitializedContext = backendContext;
+      backendDisposers.add(() => reinitializedContext.dispose());
       ({
         useSqlite,
         useLmdb,
@@ -1069,7 +1098,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       requiredArtifacts,
       indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
       indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
-      explicitRef: asOfContext?.strict === true
+      explicitRef: asOfContext?.strict === true,
+      generationContext
     });
     stageTracker.record('startup.indexes', indexesStart, { mode: 'all' });
     throwIfAborted();
@@ -1107,6 +1137,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       jsonOutput,
       jsonCompact,
       explain,
+      explainTier,
       rootDir,
       userConfig,
       metricsDir,
@@ -1203,6 +1234,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       verboseCache,
       stageTracker,
       asOfContext,
+      generationContext,
       signal
     });
 
@@ -1224,11 +1256,12 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     throw err;
   } finally {
+    // Release handles before telemetry or cache persistence can fail. Cleanup
+    // failures must not replace an existing search/cancellation failure.
+    try { await disposeBackends(); } catch {}
     if (telemetry?.emitResourceWarnings) {
       telemetry.emitResourceWarnings({
-        warn: (message) => {
-          if (emitOutput) console.warn(message);
-        }
+        warn: () => {}
       });
     }
     if (typeof queryPlanCache?.persist === 'function') {
@@ -1238,5 +1271,3 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
   }
 }
-
-

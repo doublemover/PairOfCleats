@@ -23,7 +23,7 @@ Logs (tests/run.js): `.testLogs/latest` points at the most recent run directory;
 ## storage/sqlite/sqlite-build-indexes
 - Status: flaky (non-gated); observed hang during stage2 build.
 - First seen: 2026-01-17T00:00:00Z (approx)
-- Symptom: `tests/storage/sqlite/sqlite-build-indexes.test.js` stalls with `build_state.json` showing `stage2` running and heartbeat advancing.
+- Symptom: `tests/storage/sqlite/build-indexes.test.js` stalls with `build_state.json` showing `stage2` running and heartbeat advancing.
 - Context: repro when running full `build_index.js` prior to SQLite build; stage1-only run completes quickly.
 - Logs: `.testCache/sqlite-build-indexes/cache/repos/.../build_state.json`
 - Next steps: keep stage1-only setup in the test; investigate stage2 stall separately if it recurs.

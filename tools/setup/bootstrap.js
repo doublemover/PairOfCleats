@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
-import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { exitLikeCommandResult, runCommand } from '../shared/cli-utils.js';
 import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getRuntimeConfig, getToolingConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
@@ -52,13 +52,8 @@ const recordStep = (name, data) => {
  * @returns {Promise<{ok:boolean,status:number|null,signal:string|null}>}
  */
 const streamChildOutputToStderr = async (cmd, args, { cwd = root, env = process.env } = {}) => {
-  // On Windows, run `npm` through the command shim so stdout/stderr can still
-  // be streamed without buffering the full child output in memory.
-  const isWindowsNpm = process.platform === 'win32' && String(cmd || '').trim().toLowerCase() === 'npm';
-  const command = isWindowsNpm ? (process.env.ComSpec || 'cmd.exe') : cmd;
-  const commandArgs = isWindowsNpm ? ['/d', '/s', '/c', 'npm', ...args] : args;
   try {
-    const result = await spawnSubprocess(command, commandArgs, {
+    const result = await spawnResolvedSubprocess(cmd, args, {
       cwd,
       env,
       stdio: ['inherit', 'pipe', 'pipe'],

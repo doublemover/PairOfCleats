@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getRepoCacheRoot } from '../shared/dict-utils.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
-import { isAbsolutePathAny } from '../shared/files.js';
+import { isAbsolutePathAny } from '../shared/file-paths.js';
 import { sha1 } from '../shared/hash.js';
 import { stableStringify } from '../shared/stable-json.js';
 import { isWithinRoot, toRealPathSync } from '../workspace/identity.js';
@@ -15,7 +15,18 @@ const TAG_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$/;
 const invalidRequest = (message, details = null) => createError(ERROR_CODES.INVALID_REQUEST, message, details);
 const notFound = (message, details = null) => createError(ERROR_CODES.NOT_FOUND, message, details);
 
-const readJsonFile = (filePath, label, { required = false } = {}) => {
+const assertCacheScopedPath = (repoCacheRoot, filePath, label) => {
+  const resolved = path.resolve(filePath);
+  if (!isWithinRoot(resolved, path.resolve(repoCacheRoot))
+    || (fs.existsSync(resolved)
+      && !isWithinRoot(toRealPathSync(resolved), toRealPathSync(repoCacheRoot)))) {
+    throw invalidRequest(`${label} escapes repo cache root.`);
+  }
+  return resolved;
+};
+
+const readJsonFile = (filePath, label, { required = false, repoCacheRoot = null } = {}) => {
+  if (repoCacheRoot) assertCacheScopedPath(repoCacheRoot, filePath, label);
   if (!fs.existsSync(filePath)) {
     if (!required) return null;
     throw notFound(`${label} not found: ${filePath}`);
@@ -103,6 +114,7 @@ const resolveCacheScopedPath = (repoCacheRoot, buildsRoot, value, label) => {
 };
 
 const collectBuildStateByMode = ({
+  repoCacheRoot,
   indexBaseRootByMode,
   modes,
   allowMissingModes,
@@ -124,7 +136,7 @@ const collectBuildStateByMode = ({
       cache.set(rootPath, null);
       return null;
     }
-    const state = readJsonFile(statePath, `build_state.json (${mode})`, { required: true });
+    const state = readJsonFile(statePath, `build_state.json (${mode})`, { required: true, repoCacheRoot });
     cache.set(rootPath, state);
     return state;
   };
@@ -192,7 +204,7 @@ const resolveLatest = ({
   warnings
 }) => {
   const currentPath = path.join(buildsRoot, 'current.json');
-  const current = readJsonFile(currentPath, 'builds/current.json', { required: true });
+  const current = readJsonFile(currentPath, 'builds/current.json', { required: true, repoCacheRoot });
   const buildRoots = (current.buildRoots && typeof current.buildRoots === 'object' && !Array.isArray(current.buildRoots))
     ? current.buildRoots
     : ((current.buildRootsByMode && typeof current.buildRootsByMode === 'object' && !Array.isArray(current.buildRootsByMode))
@@ -224,7 +236,7 @@ const resolveLatest = ({
     indexBaseRootByMode[mode] = rootPath;
   }
 
-  const metadata = collectBuildStateByMode({ indexBaseRootByMode, modes, allowMissingModes, warnings });
+  const metadata = collectBuildStateByMode({ repoCacheRoot, indexBaseRootByMode, modes, allowMissingModes, warnings });
   const identity = { type: 'latest' };
   if (Object.keys(metadata.buildIdByMode).length) identity.buildIdByMode = metadata.buildIdByMode;
   if (Object.keys(metadata.configHashByMode).length) identity.configHashByMode = metadata.configHashByMode;
@@ -240,7 +252,10 @@ const resolveBuild = ({
   allowMissingModes,
   warnings
 }) => {
-  const buildRoot = path.join(buildsRoot, buildId);
+  if (typeof buildId !== 'string' || !BUILD_ID_RE.test(buildId)) {
+    throw invalidRequest(`Invalid build id "${buildId}".`);
+  }
+  const buildRoot = assertCacheScopedPath(repoCacheRoot, path.join(buildsRoot, buildId), 'build root');
   const indexBaseRootByMode = {};
   for (const mode of modes) {
     if (fs.existsSync(buildRoot)) {
@@ -255,6 +270,7 @@ const resolveBuild = ({
   }
 
   const metadata = collectBuildStateByMode({
+    repoCacheRoot,
     indexBaseRootByMode,
     modes,
     allowMissingModes: true,
@@ -279,15 +295,18 @@ const resolveBuild = ({
 };
 
 const loadSnapshotSources = (repoCacheRoot, snapshotId) => {
+  if (typeof snapshotId !== 'string' || !SNAPSHOT_ID_RE.test(snapshotId)) {
+    throw invalidRequest(`Invalid snapshot id "${snapshotId}".`);
+  }
   const snapshotsRoot = path.join(repoCacheRoot, 'snapshots');
-  const manifest = readJsonFile(path.join(snapshotsRoot, 'manifest.json'), 'snapshots/manifest.json', { required: true });
+  const manifest = readJsonFile(path.join(snapshotsRoot, 'manifest.json'), 'snapshots/manifest.json', { required: true, repoCacheRoot });
   const entry = manifest?.snapshots?.[snapshotId] || null;
   if (!entry) {
     throw notFound(`Snapshot not found: ${snapshotId}`);
   }
-  const snapshotDir = path.join(snapshotsRoot, snapshotId);
-  const snapshotJson = readJsonFile(path.join(snapshotDir, 'snapshot.json'), `snapshot ${snapshotId}`, { required: true });
-  const frozenJson = readJsonFile(path.join(snapshotDir, 'frozen.json'), `frozen metadata for ${snapshotId}`);
+  const snapshotDir = assertCacheScopedPath(repoCacheRoot, path.join(snapshotsRoot, snapshotId), 'snapshot root');
+  const snapshotJson = readJsonFile(path.join(snapshotDir, 'snapshot.json'), `snapshot ${snapshotId}`, { required: true, repoCacheRoot });
+  const frozenJson = readJsonFile(path.join(snapshotDir, 'frozen.json'), `frozen metadata for ${snapshotId}`, { repoCacheRoot });
   return { manifest, entry, snapshotDir, snapshotJson, frozenJson };
 };
 
@@ -317,7 +336,9 @@ const resolveSnapshot = ({
     : {};
 
   if (preferFrozen && hasFrozen) {
-    const frozenRoot = path.join(snapshotDir, 'frozen');
+    const frozenRoot = assertCacheScopedPath(repoCacheRoot, path.join(snapshotDir, 'frozen'), 'frozen root');
+    // Read paths never consult `frozen.staging-*`; visibility flips only after
+    // committed frozen metadata/root publication is complete.
     if (!fs.existsSync(frozenRoot)) {
       if (!allowMissingModes) {
         throw notFound(`Frozen root missing for snapshot ${snapshotId}.`);
@@ -350,7 +371,7 @@ const resolveSnapshot = ({
     }
   }
 
-  const metadata = collectBuildStateByMode({ indexBaseRootByMode, modes, allowMissingModes: true, warnings });
+  const metadata = collectBuildStateByMode({ repoCacheRoot, indexBaseRootByMode, modes, allowMissingModes: true, warnings });
   const buildIdByMode = {};
   for (const mode of modes) {
     if (!indexBaseRootByMode[mode]) continue;
@@ -390,7 +411,10 @@ const resolveTag = ({
   allowMissingModes,
   warnings
 }) => {
-  const manifest = readJsonFile(path.join(repoCacheRoot, 'snapshots', 'manifest.json'), 'snapshots/manifest.json', { required: true });
+  if (typeof tag !== 'string' || !TAG_RE.test(tag)) {
+    throw invalidRequest(`Invalid tag "${tag}".`);
+  }
+  const manifest = readJsonFile(path.join(repoCacheRoot, 'snapshots', 'manifest.json'), 'snapshots/manifest.json', { required: true, repoCacheRoot });
   const ids = Array.isArray(manifest?.tags?.[tag]) ? manifest.tags[tag] : [];
   const snapshotId = ids.find((id) => typeof id === 'string' && id.trim());
   if (!snapshotId) {

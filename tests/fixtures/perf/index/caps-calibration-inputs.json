@@ -165,7 +165,7 @@
     },
     {
       "id": "dockerfile",
-      "parserRoute": "line-parser-dockerfile",
+      "parserRoute": "dockerfile-ast-or-line-parser",
       "capsProfile": "dockerfile-default",
       "telemetry": {
         "bytes": {
@@ -229,7 +229,7 @@
     },
     {
       "id": "graphql",
-      "parserRoute": "tree-sitter-graphql",
+      "parserRoute": "graphql-js-or-heuristic",
       "capsProfile": "graphql-default",
       "telemetry": {
         "bytes": {
@@ -293,7 +293,7 @@
     },
     {
       "id": "handlebars",
-      "parserRoute": "tree-sitter-handlebars",
+      "parserRoute": "handlebars-parser-or-heuristic",
       "capsProfile": "handlebars-default",
       "telemetry": {
         "bytes": {
@@ -453,7 +453,7 @@
     },
     {
       "id": "jinja",
-      "parserRoute": "tree-sitter-jinja",
+      "parserRoute": "jinja-django-lexical-heuristic",
       "capsProfile": "jinja-default",
       "telemetry": {
         "bytes": {
@@ -645,7 +645,7 @@
     },
     {
       "id": "mustache",
-      "parserRoute": "tree-sitter-mustache",
+      "parserRoute": "mustache-parse-tokens",
       "capsProfile": "mustache-default",
       "telemetry": {
         "bytes": {
@@ -773,7 +773,7 @@
     },
     {
       "id": "proto",
-      "parserRoute": "tree-sitter-proto",
+      "parserRoute": "protobufjs-reflection+lexical-ranges",
       "capsProfile": "proto-default",
       "telemetry": {
         "bytes": {

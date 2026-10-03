@@ -1,30 +1,32 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fsPromises from 'node:fs/promises';
-import path from 'node:path';
 import { MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { getCapabilities } from '../../../src/shared/capabilities.js';
+import { getApiWorkflowCapabilities, getRuntimeCapabilityManifest } from '../../../src/shared/runtime-capability-manifest.js';
 import { getToolVersion } from '../../../tools/shared/dict-utils.js';
-import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
-import { startApiServer } from '../../helpers/api-server.js';
+import { buildApiTrustBoundaryStatusView, evaluateApiTrustBoundary } from '../../../tools/api/trust-boundary.js';
+import { prepareFixtureApiServerCohort } from '../../helpers/api-server.js';
 
-const cacheName = 'api-capabilities';
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', cacheName);
-await fsPromises.rm(cacheRoot, { recursive: true, force: true });
-
-const { fixtureRoot, env } = await ensureFixtureIndex({
-  fixtureName: 'sample',
-  cacheName,
-  cacheScope: 'shared'
+const cohort = await prepareFixtureApiServerCohort({
+  cacheName: 'api-capabilities'
 });
+const { fixtureRoot } = cohort;
 
 const expectedToolVersion = getToolVersion() || '0.0.0';
 const expectedRuntimeCapabilities = getCapabilities({ refresh: true });
+const expectedManifest = getRuntimeCapabilityManifest({ runtimeCapabilities: expectedRuntimeCapabilities });
+const expectedTrustBoundary = evaluateApiTrustBoundary({
+  host: '127.0.0.1',
+  defaultRepo: fixtureRoot,
+  allowedRepoRoots: [],
+  allowUnauthenticated: false,
+  authToken: 'test-token',
+  corsAllowAny: false
+});
+const expectedTrustBoundaryView = buildApiTrustBoundaryStatusView(expectedTrustBoundary);
 
-const { serverInfo, requestJson, stop } = await startApiServer({
-  repoRoot: fixtureRoot,
-  allowedRoots: [],
-  env
+const { serverInfo, requestJson, stop } = await cohort.start({
+  allowedRoots: []
 });
 
 try {
@@ -41,15 +43,25 @@ try {
     name: 'PairOfCleats',
     version: expectedToolVersion
   }, 'api-server /capabilities serverInfo mismatch');
-  assert.deepEqual(capabilities.body?.capabilities, {
-    search: true,
-    'search-symbol': true,
-    'index-health': true
-  }, 'api-server /capabilities editor capability mask mismatch');
+  assert.deepEqual(
+    capabilities.body?.capabilities,
+    getApiWorkflowCapabilities({ runtimeCapabilities: expectedRuntimeCapabilities }),
+    'api-server /capabilities workflow capability mask mismatch'
+  );
   assert.deepEqual(
     capabilities.body?.runtimeCapabilities,
     expectedRuntimeCapabilities,
     'api-server /capabilities runtime capability payload mismatch'
+  );
+  assert.deepEqual(
+    capabilities.body?.runtimeManifest,
+    expectedManifest,
+    'api-server /capabilities runtime manifest mismatch'
+  );
+  assert.deepEqual(
+    capabilities.body?.trustBoundary,
+    expectedTrustBoundaryView,
+    'api-server /capabilities trust boundary mismatch'
   );
 } catch (err) {
   console.error(err?.message || err);

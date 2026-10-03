@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { collectLspTypes } from '../../../src/integrations/tooling/providers/lsp.js';
+import { parseJsonLinesFile } from '../../helpers/lsp-signature-fixtures.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -56,8 +57,7 @@ await withTemporaryEnv({ POC_LSP_TRACE: tracePath }, async () => {
   });
 });
 
-const traceRaw = await fs.readFile(tracePath, 'utf8');
-const events = traceRaw.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+const events = await parseJsonLinesFile(tracePath);
 const didOpenCount = events.filter((evt) => evt.kind === 'notification' && evt.method === 'textDocument/didOpen').length;
 const documentSymbolCount = events.filter((evt) => evt.kind === 'request' && evt.method === 'textDocument/documentSymbol').length;
 

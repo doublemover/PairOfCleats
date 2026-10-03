@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonObjectFile } from '../../../shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
 import { TOKEN_ID_META } from '../../../shared/token-id.js';
 import { atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { DEFAULT_PACKED_BLOCK_SIZE, encodePackedOffsets, packTfPostings } from '../../../shared/packed-postings.js';

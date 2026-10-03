@@ -2,9 +2,9 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
-import { createToolDisplay } from '../shared/cli-display.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
+import { createToolDisplayLogger } from '../shared/cli-display.js';
 import { ensureDiskSpace } from '../../src/shared/disk-space.js';
 import { getIndexDir, resolveRepoConfig, resolveSqlitePaths } from '../shared/dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from '../sqlite/vector-extension.js';
@@ -505,11 +505,10 @@ export async function compactDatabase(input) {
   return { skipped: false };
 }
 
-const argvEntry = typeof process.argv[1] === 'string' ? process.argv[1] : '';
-const isDirectRun = argvEntry ? import.meta.url === pathToFileURL(argvEntry).href : false;
+const isDirectRun = isDirectExecution(import.meta.url);
 if (isDirectRun) {
   const argv = createCli({
-    scriptName: 'compact-sqlite-index',
+    scriptName: 'pairofcleats sqlite compact',
     options: {
       mode: { type: 'string', default: 'all' },
       repo: { type: 'string' },
@@ -522,12 +521,7 @@ if (isDirectRun) {
     }
   }).parse();
 
-  const display = createToolDisplay({ argv, stream: process.stderr });
-  const logger = {
-    log: (message) => display.log(message),
-    warn: (message) => display.warn(message),
-    error: (message) => display.error(message)
-  };
+  const { display, logger } = createToolDisplayLogger({ argv, stream: process.stderr });
 
   const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
   const indexRoot = typeof argv['index-root'] === 'string' && argv['index-root']

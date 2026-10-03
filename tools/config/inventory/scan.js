@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fdir } from 'fdir';
-import { toPosix } from '../../../src/shared/files.js';
+import { toPosix } from '../../../src/shared/file-paths.js';
 
 export const listSourceFiles = async (scanRoot) => {
   const files = await new fdir().withFullPaths().crawl(scanRoot).withPromise();
@@ -15,6 +15,7 @@ export const listSourceFiles = async (scanRoot) => {
     if (normalized.includes('/.logs/')) return false;
     if (normalized.includes('/.venv/')) return false;
     if (normalized.includes('/.diagnostics/')) return false;
+    if (normalized.includes('/temp/')) return false;
     if (normalized.includes('/node_modules/')) return false;
     if (normalized.includes('/.git/')) return false;
     if (normalized.includes('/worktrees/')) return false;
@@ -26,52 +27,64 @@ export const listSourceFiles = async (scanRoot) => {
   });
 };
 
+const createJsLikeLexicalState = () => ({
+  inString: null,
+  escaped: false,
+  inLineComment: false,
+  inBlockComment: false
+});
+
+const advanceJsLikeLexicalState = (source, index, state) => {
+  const ch = source[index];
+  const next = source[index + 1];
+  if (state.inLineComment) {
+    if (ch === '\n') state.inLineComment = false;
+    return index;
+  }
+  if (state.inBlockComment) {
+    if (ch === '*' && next === '/') {
+      state.inBlockComment = false;
+      return index + 1;
+    }
+    return index;
+  }
+  if (state.inString) {
+    if (state.escaped) {
+      state.escaped = false;
+      return index;
+    }
+    if (ch === '\\') {
+      state.escaped = true;
+      return index;
+    }
+    if (ch === state.inString) {
+      state.inString = null;
+    }
+    return index;
+  }
+  if (ch === '/' && next === '/') {
+    state.inLineComment = true;
+    return index + 1;
+  }
+  if (ch === '/' && next === '*') {
+    state.inBlockComment = true;
+    return index + 1;
+  }
+  if (ch === '"' || ch === '\'' || ch === '`') {
+    state.inString = ch;
+    return index;
+  }
+  return null;
+};
+
 export const findMatchingBrace = (source, startIndex) => {
   let depth = 0;
-  let inString = null;
-  let escaped = false;
-  let inLineComment = false;
-  let inBlockComment = false;
+  const lexicalState = createJsLikeLexicalState();
   for (let i = startIndex; i < source.length; i += 1) {
     const ch = source[i];
-    const next = source[i + 1];
-    if (inLineComment) {
-      if (ch === '\n') inLineComment = false;
-      continue;
-    }
-    if (inBlockComment) {
-      if (ch === '*' && next === '/') {
-        inBlockComment = false;
-        i += 1;
-      }
-      continue;
-    }
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (ch === '\\') {
-        escaped = true;
-        continue;
-      }
-      if (ch === inString) {
-        inString = null;
-      }
-      continue;
-    }
-    if (ch === '/' && next === '/') {
-      inLineComment = true;
-      i += 1;
-      continue;
-    }
-    if (ch === '/' && next === '*') {
-      inBlockComment = true;
-      i += 1;
-      continue;
-    }
-    if (ch === '"' || ch === '\'' || ch === '`') {
-      inString = ch;
+    const lexicalIndex = advanceJsLikeLexicalState(source, i, lexicalState);
+    if (lexicalIndex !== null) {
+      i = lexicalIndex;
       continue;
     }
     if (ch === '{') {
@@ -173,50 +186,12 @@ export const extractTopLevelKeys = (objectText) => {
     let depthBrace = 0;
     let depthBracket = 0;
     let depthParen = 0;
-    let inString = null;
-    let escaped = false;
-    let inLineComment = false;
-    let inBlockComment = false;
+    const lexicalState = createJsLikeLexicalState();
     for (; i < len; i += 1) {
       const ch = objectText[i];
-      const next = objectText[i + 1];
-      if (inLineComment) {
-        if (ch === '\n') inLineComment = false;
-        continue;
-      }
-      if (inBlockComment) {
-        if (ch === '*' && next === '/') {
-          inBlockComment = false;
-          i += 1;
-        }
-        continue;
-      }
-      if (inString) {
-        if (escaped) {
-          escaped = false;
-          continue;
-        }
-        if (ch === '\\') {
-          escaped = true;
-          continue;
-        }
-        if (ch === inString) {
-          inString = null;
-        }
-        continue;
-      }
-      if (ch === '/' && next === '/') {
-        inLineComment = true;
-        i += 1;
-        continue;
-      }
-      if (ch === '/' && next === '*') {
-        inBlockComment = true;
-        i += 1;
-        continue;
-      }
-      if (ch === '"' || ch === '\'' || ch === '`') {
-        inString = ch;
+      const lexicalIndex = advanceJsLikeLexicalState(objectText, i, lexicalState);
+      if (lexicalIndex !== null) {
+        i = lexicalIndex;
         continue;
       }
       if (ch === '{') {

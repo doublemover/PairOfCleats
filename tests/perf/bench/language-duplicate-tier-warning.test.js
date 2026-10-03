@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -36,8 +36,7 @@ const config = {
 await fsPromises.writeFile(configPath, JSON.stringify(config, null, 2));
 
 const scriptPath = path.join(root, 'tools', 'bench', 'language-repos.js');
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     scriptPath,
     '--config',
@@ -54,7 +53,10 @@ const result = spawnSync(
     '--dry-run',
     '--json'
   ],
-  { encoding: 'utf8' }
+  'bench language duplicate-tier warning',
+  root,
+  process.env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 
 if (result.status !== 0) {

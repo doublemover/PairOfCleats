@@ -10,37 +10,11 @@ import {
   loadVfsManifestRowByPath,
   readVfsManifestRowsAtOffsets
 } from '../../../src/index/tooling/vfs.js';
-import { enqueueVfsManifestArtifacts } from '../../../src/index/build/artifacts/writers/vfs-manifest.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
+import { runVfsManifestWriter } from '../../helpers/vfs-streaming-fixture.js';
 
 applyTestEnv({ testing: '1' });
-
-const runWriter = async ({ outDir, mode, rows }) => {
-  const writes = [];
-  const enqueueWrite = (label, fn) => {
-    writes.push({ label, fn });
-  };
-  const addPieceFile = () => {};
-  const formatArtifactLabel = (value) => value;
-
-  await enqueueVfsManifestArtifacts({
-    outDir,
-    mode,
-    rows,
-    maxJsonBytes: 1000000,
-    compression: null,
-    gzipOptions: null,
-    hashRouting: false,
-    enqueueWrite,
-    addPieceFile,
-    formatArtifactLabel
-  });
-
-  for (const write of writes) {
-    await write.fn();
-  }
-};
 
 const tempRoot = await makeTempDir('pairofcleats-vfs-fastpath-telemetry-');
 const outDir = path.join(tempRoot, 'out');
@@ -85,7 +59,7 @@ try {
     containerLanguageId: 'typescript'
   });
 
-  await runWriter({ outDir, mode: 'code', rows });
+  await runVfsManifestWriter({ outDir, mode: 'code', rows });
 
   const manifestPath = path.join(outDir, 'vfs_manifest.jsonl');
   const indexPath = path.join(outDir, 'vfs_manifest.vfsidx');

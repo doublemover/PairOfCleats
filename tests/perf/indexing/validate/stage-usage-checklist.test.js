@@ -2,11 +2,12 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { runNode } from '../../../helpers/run-node.js';
 import { getIndexDir, resolveRepoConfig } from '../../../../tools/shared/dict-utils.js';
 import { MAX_JSON_BYTES, loadChunkMeta, loadPiecesManifest } from '../../../../src/shared/artifact-io.js';
+import { readJsonFile } from '../../../../src/shared/json-file.js';
 import { buildCodeMap } from '../../../../src/map/build-map.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
@@ -41,10 +42,12 @@ const env = applyTestEnv({
 });
 
 const buildIndexPath = path.join(root, 'build_index.js');
-const buildResult = spawnSync(
-  process.execPath,
+const buildResult = runNode(
   [buildIndexPath, '--stub-embeddings', '--sqlite', '--mode', 'code', '--repo', repoRoot],
-  { cwd: repoRoot, env, stdio: 'inherit' }
+  'stage usage checklist build index',
+  repoRoot,
+  env,
+  { stdio: 'inherit', allowFailure: true }
 );
 
 if (buildResult.status !== 0) {
@@ -57,7 +60,7 @@ const indexDir = getIndexDir(repoRoot, 'code', userConfig, {});
 assert.ok(indexDir, 'expected code indexDir');
 const buildRoot = path.dirname(indexDir);
 const repoCacheRoot = path.dirname(path.dirname(buildRoot));
-const readJson = async (filePath) => JSON.parse(await fsPromises.readFile(filePath, 'utf8'));
+const readJson = (filePath) => readJsonFile(filePath);
 
 const buildState = await readJson(path.join(buildRoot, 'build_state.json'));
 assert.equal(buildState.stage, 'stage4', 'expected Stage4 completion in build_state');
@@ -155,10 +158,12 @@ assert.ok(Array.isArray(mapModel?.nodes) && mapModel.nodes.length > 0, 'expected
 const searchPath = path.join(root, 'search.js');
 const searchArgs = ['alpha', '--mode', 'code', '--json', '--no-ann', '--repo', repoRoot];
 
-const memoryResult = spawnSync(
-  process.execPath,
+const memoryResult = runNode(
   [searchPath, ...searchArgs, '--backend', 'memory'],
-  { cwd: repoRoot, env, encoding: 'utf8' }
+  'stage usage checklist memory search',
+  repoRoot,
+  env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 if (memoryResult.status !== 0) {
   console.error(memoryResult.stdout || '');
@@ -169,10 +174,12 @@ const memoryEnvelope = JSON.parse(String(memoryResult.stdout || '{}'));
 assert.equal(memoryEnvelope.backend, 'memory');
 assert.ok(Array.isArray(memoryEnvelope.code) && memoryEnvelope.code.length > 0, 'expected memory code hits');
 
-const sqliteResult = spawnSync(
-  process.execPath,
+const sqliteResult = runNode(
   [searchPath, ...searchArgs, '--backend', 'sqlite'],
-  { cwd: repoRoot, env, encoding: 'utf8' }
+  'stage usage checklist sqlite search',
+  repoRoot,
+  env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 if (sqliteResult.status !== 0) {
   console.error(sqliteResult.stdout || '');

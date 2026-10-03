@@ -4,15 +4,14 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'embedding-bakeoff-resume-'));
 const checkpointPath = path.join(tempRoot, 'bakeoff.json');
 const cacheRoot = path.join(tempRoot, 'cache');
 
-const runBakeoff = () => spawnSync(
-  process.execPath,
+const runBakeoff = () => runNode(
   [
     path.join(root, 'tools', 'bench', 'embeddings', 'model-bakeoff.js'),
     '--repo',
@@ -28,7 +27,10 @@ const runBakeoff = () => spawnSync(
     checkpointPath,
     '--json'
   ],
-  { cwd: root, encoding: 'utf8' }
+  'embedding model bakeoff resume',
+  root,
+  process.env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 
 const firstRun = runBakeoff();

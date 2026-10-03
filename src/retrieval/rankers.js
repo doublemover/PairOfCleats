@@ -48,9 +48,7 @@ export function rankBM25Legacy(idx, tokens, topN, allowedIdx = null) {
 export function getTokenIndex(idx) {
   const tokenIndex = idx.tokenIndex;
   if (!tokenIndex || !tokenIndex.vocab || !tokenIndex.postings) return null;
-  if (!tokenIndex.vocabIndex) {
-    tokenIndex.vocabIndex = new Map(tokenIndex.vocab.map((t, i) => [t, i]));
-  }
+  ensureVocabIndex(tokenIndex);
   if (!Array.isArray(tokenIndex.docLengths)) tokenIndex.docLengths = [];
   if (!tokenIndex.totalDocs) tokenIndex.totalDocs = tokenIndex.docLengths.length;
   if (!tokenIndex.avgDocLen) {
@@ -59,6 +57,68 @@ export function getTokenIndex(idx) {
   }
   return tokenIndex;
 }
+
+const buildQueryTermFrequency = (tokens) => {
+  const qtf = new Map();
+  tokens.forEach((tok) => qtf.set(tok, (qtf.get(tok) || 0) + 1));
+  return qtf;
+};
+
+const ensureVocabIndex = (index) => {
+  if (!index.vocabIndex) {
+    index.vocabIndex = new Map(index.vocab.map((token, i) => [token, i]));
+  }
+  return index.vocabIndex;
+};
+
+const accumulateBm25Scores = ({
+  scores,
+  index,
+  qtf,
+  allowedIdx,
+  docLengths,
+  avgDocLen,
+  totalDocs,
+  k1,
+  b,
+  scoreMultiplier = 1
+}) => {
+  ensureVocabIndex(index);
+
+  for (const [tok, qCount] of qtf.entries()) {
+    const tokIdx = index.vocabIndex.get(tok);
+    if (tokIdx === undefined) continue;
+    const posting = index.postings[tokIdx] || [];
+    const df = posting.length;
+    if (!df) continue;
+    const idf = Math.log(1 + (totalDocs - df + 0.5) / (df + 0.5));
+
+    for (const [docId, tf] of posting) {
+      if (allowedIdx && !bitmapHas(allowedIdx, docId)) continue;
+      const dl = docLengths[docId] || 0;
+      const denom = tf + k1 * (1 - b + b * (dl / avgDocLen));
+      const score = idf * ((tf * (k1 + 1)) / denom) * qCount * scoreMultiplier;
+      scores.set(docId, (scores.get(docId) || 0) + score);
+    }
+  }
+};
+
+const finishWeightedScores = ({ idx, scores, topN }) => {
+  const reducer = createTopKReducer({
+    k: topN,
+    buildPayload: (entry) => ({ idx: entry.id, score: entry.score })
+  });
+  let order = 0;
+  for (const [docId, score] of scores.entries()) {
+    const weight = idx.chunkMeta[docId]?.weight || 1;
+    const weightedScore = score * weight;
+    if (weightedScore > 0) {
+      reducer.pushRaw(weightedScore, docId, order);
+      order += 1;
+    }
+  }
+  return reducer.finish({ limit: topN });
+};
 
 /**
  * Rank documents using BM25 over the token postings index.
@@ -93,40 +153,18 @@ export function rankBM25({
   const avgDocLen = tokenIndex.avgDocLen || 1;
   const totalDocs = tokenIndex.totalDocs || idx.chunkMeta.length || 1;
 
-  const qtf = new Map();
-  tokens.forEach((tok) => qtf.set(tok, (qtf.get(tok) || 0) + 1));
-
-  for (const [tok, qCount] of qtf.entries()) {
-    const tokIdx = tokenIndex.vocabIndex.get(tok);
-    if (tokIdx === undefined) continue;
-    const posting = tokenIndex.postings[tokIdx] || [];
-    const df = posting.length;
-    if (!df) continue;
-    const idf = Math.log(1 + (totalDocs - df + 0.5) / (df + 0.5));
-
-    for (const [docId, tf] of posting) {
-      if (allowedIdx && !bitmapHas(allowedIdx, docId)) continue;
-      const dl = docLengths[docId] || 0;
-      const denom = tf + k1 * (1 - b + b * (dl / avgDocLen));
-      const score = idf * ((tf * (k1 + 1)) / denom) * qCount;
-      scores.set(docId, (scores.get(docId) || 0) + score);
-    }
-  }
-
-  const reducer = createTopKReducer({
-    k: topN,
-    buildPayload: (entry) => ({ idx: entry.id, score: entry.score })
+  accumulateBm25Scores({
+    scores,
+    index: tokenIndex,
+    qtf: buildQueryTermFrequency(tokens),
+    allowedIdx,
+    docLengths,
+    avgDocLen,
+    totalDocs,
+    k1,
+    b
   });
-  let order = 0;
-  for (const [docId, score] of scores.entries()) {
-    const weight = idx.chunkMeta[docId]?.weight || 1;
-    const weightedScore = score * weight;
-    if (weightedScore > 0) {
-      reducer.pushRaw(weightedScore, docId, order);
-      order += 1;
-    }
-  }
-  return reducer.finish({ limit: topN });
+  return finishWeightedScores({ idx, scores, topN });
 }
 
 /**
@@ -163,8 +201,7 @@ export function rankBM25Fields({
   // unfielded token index at query time.
   const tokenIndex = getTokenIndex(idx);
 
-  const qtf = new Map();
-  tokens.forEach((tok) => qtf.set(tok, (qtf.get(tok) || 0) + 1));
+  const qtf = buildQueryTermFrequency(tokens);
 
   const scores = new Map();
   for (const [field, weight] of Object.entries(fieldWeights)) {
@@ -183,46 +220,26 @@ export function rankBM25Fields({
     }
 
     if (!index || !index.vocab || !index.postings) continue;
-    if (!index.vocabIndex) {
-      index.vocabIndex = new Map(index.vocab.map((t, i) => [t, i]));
-    }
     const docLengths = Array.isArray(index.docLengths) ? index.docLengths : [];
     const avgDocLen = Number.isFinite(index.avgDocLen) ? index.avgDocLen : 1;
     const totalDocs = Number.isFinite(index.totalDocs) ? index.totalDocs : docLengths.length;
     if (!totalDocs) continue;
 
-    for (const [tok, qCount] of qtf.entries()) {
-      const tokIdx = index.vocabIndex.get(tok);
-      if (tokIdx === undefined) continue;
-      const posting = index.postings[tokIdx] || [];
-      const df = posting.length;
-      if (!df) continue;
-      const idf = Math.log(1 + (totalDocs - df + 0.5) / (df + 0.5));
-
-      for (const [docId, tf] of posting) {
-        if (allowedIdx && !bitmapHas(allowedIdx, docId)) continue;
-        const dl = docLengths[docId] || 0;
-        const denom = tf + k1 * (1 - b + b * (dl / avgDocLen));
-        const score = idf * ((tf * (k1 + 1)) / denom) * qCount * fieldWeight;
-        scores.set(docId, (scores.get(docId) || 0) + score);
-      }
-    }
+    accumulateBm25Scores({
+      scores,
+      index,
+      qtf,
+      allowedIdx,
+      docLengths,
+      avgDocLen,
+      totalDocs,
+      k1,
+      b,
+      scoreMultiplier: fieldWeight
+    });
   }
 
-  const reducer = createTopKReducer({
-    k: topN,
-    buildPayload: (entry) => ({ idx: entry.id, score: entry.score })
-  });
-  let order = 0;
-  for (const [docId, score] of scores.entries()) {
-    const weight = idx.chunkMeta[docId]?.weight || 1;
-    const weightedScore = score * weight;
-    if (weightedScore > 0) {
-      reducer.pushRaw(weightedScore, docId, order);
-      order += 1;
-    }
-  }
-  return reducer.finish({ limit: topN });
+  return finishWeightedScores({ idx, scores, topN });
 }
 
 function minhashSigForTokens(tokens) {

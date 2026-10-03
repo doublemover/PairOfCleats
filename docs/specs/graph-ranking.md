@@ -1,14 +1,18 @@
-# Spec -- Graph-Aware Ranking Signals (Refined, Implementation-Ready)
+# Spec -- Graph-Aware Ranking Signals (Active Contract)
 
-**Status:** Draft / implementation-ready  
-**Phase:** GigaRoadmap Phase 11 -- Graph-powered product features  
+**Status:** Active implemented contract v1.0
+**Last audited:** 2026-05-21
+**Roadmap area:** Graph-powered product features; current status is tracked in `docs/roadmap.md`.
+**Implementation anchors:** `src/retrieval/pipeline/graph-ranking.js`,
+`src/retrieval/pipeline/rank-stage.js`, `src/retrieval/cli/normalize-options.js`,
+and `src/retrieval/output/explain.js`.
 **Primary goal:** Introduce bounded, explainable graph-based scoring signals that improve retrieval quality without destabilizing core lexical/vector relevance.
 
 ---
 
 ## 0. Non-negotiable properties
 
-1. **Bounded influence**: graph signals must contribute **≤ 20%** of final score by default.
+1. **Bounded traversal**: graph signals must use explicit depth, width, visited-node, work-unit, and wall-clock caps.
 2. **Explainable**: `--explain` must show:
    - which graph signals were used,
    - their values,
@@ -21,13 +25,13 @@
 
 ## 1. Terms and scope
 
-Graph-aware ranking is an augmentation layer applied after base provider scoring (sparse/fts/ann/hybrid). It does not replace:
+Graph-aware ranking is an optional augmentation layer applied after base provider scoring (sparse/fts/ann/hybrid). It does not replace:
 - FTS ranking (`bm25`)
 - sparse/postings scoring
 - vector ANN similarity
 - existing hybrid merge (RRF, blending)
 
-Instead it computes a **GraphBoost** multiplier/offset under strict constraints.
+Instead it computes an additive graph score from bounded degree/proximity signals.
 
 ---
 
@@ -50,14 +54,10 @@ type BaseHit = {
 
 Graph signals are derived from precomputed or on-demand cheap graph queries:
 
-- `exportedness`: whether a symbol is exported or a module boundary symbol
-- `fanIn`: number of inbound call edges (callers)
-- `fanOut`: number of outbound call edges (callees)
-- `centralityApprox`: bounded approximation, e.g., log-scaled fanIn/out
-- `distanceToSeed`: if using context packs / graph expansion, proximity to seed nodes
-- `testAffinity`: whether a result is in a test path (used only as a penalty/neutral, never a strong boost)
+- `degree`: combined call/usage graph in/out degree for the result chunk.
+- `proximity`: inverse distance from selected seed hits after deterministic bounded graph expansion.
 
-**Important:** For v1, avoid expensive global algorithms (PageRank). Use cheap local metrics.
+**Important:** For v1, avoid expensive global algorithms (PageRank). Use cheap local metrics only.
 
 ---
 
@@ -65,26 +65,27 @@ Graph signals are derived from precomputed or on-demand cheap graph queries:
 
 ```ts
 type GraphRankingConfig = {
-  enabled: boolean;                 // default false until stabilized; can be auto-enabled for certain intents
-  maxContribution: number;          // default 0.20 (20%) hard max 0.35
-  signals: {
-    exportednessWeight: number;     // default 0.08
-    fanInWeight: number;            // default 0.06
-    centralityWeight: number;       // default 0.04
-    distanceWeight: number;         // default 0.02
-    testPenaltyWeight: number;      // default 0.04
+  enabled: boolean;
+  weights: {
+    degree?: number;
+    proximity?: number;
   };
-  caps: {
-    maxFanIn: number;               // default 2000 (clamp)
-    maxFanOut: number;              // default 2000
+  maxGraphWorkUnits?: number;       // default 500
+  maxWallClockMs?: number;
+  seedSelection?: "top1" | "topK" | "none";
+  seedK?: number;
+  expansion: {
+    maxDepth?: number;              // default 2; hard max 4
+    maxWidthPerNode?: number;       // default 12; hard max 64
+    maxVisitedNodes?: number;       // default 192; hard max 2048
   };
-  strictness: "strict"|"warn"|"loose";
 };
 ```
 
 **Hard rules**
-- `maxContribution <= 0.35`
-- weights sum does not imply contribution; contribution is clamped separately
+- Graph ranking is a no-op unless `enabled=true`, graph relations are loaded, and at least one supported weight is non-zero.
+- The ranking stage must preserve result membership; it may reorder and adjust scores only for the existing candidate set.
+- Expansion caps are clamped in `src/retrieval/pipeline/graph-ranking.js`.
 
 ### 3.1 Track IQ bounded expansion policy (implemented)
 
@@ -116,29 +117,21 @@ Stop/truncation reason is explicit and stable:
 
 ### 4.2 Signal computations
 
-- exportedness: `1` if exported else `0`
-- fanInNorm: `log1p(min(fanIn,maxFanIn)) / log1p(maxFanIn)`
-- centralityApprox: `0.5*(fanInNorm + fanOutNorm)`
-- distanceToSeedNorm: `1/(1+distance)` else `0` if unknown
-- testPenalty: `1` if in tests else `0`
+- `degree`: combined in/out degree from call and usage relation indexes.
+- `seedDistance`: deterministic BFS distance from the selected seed hits.
+- `proximity`: `1` for selected seed chunks, `1 / (seedDistance + 1)` for reached neighbors, and `0` for unknown distance.
 
-### 4.3 Boost computation (bounded)
+### 4.3 Boost computation
 
 Compute raw boost:
 
-`raw = wE*exportedness + wF*fanInNorm + wC*centralityApprox + wD*distanceToSeedNorm - wT*testPenalty`
+`graphScore = (weights.degree * degree) + (weights.proximity * proximity)`
 
-Map to contribution:
+The current implementation adds `graphScore` to the existing score, then sorts by
+score descending with original index as the stable tie-breaker.
 
-`contrib = clamp(raw, -maxContribution, +maxContribution)`
-
-Final score:
-
-`finalScore = clamp01(baseScore + contrib)`
-
-**Why additive rather than multiplicative**
-- Keeps influence bounded and easy to explain
-- Avoids amplifying high baseScore too much
+Operators should keep configured weights small enough for the desired relevance
+profile; traversal and runtime remain bounded independently of score weights.
 
 ---
 
@@ -151,32 +144,27 @@ When `--explain` is enabled, each hit should contain:
   "score": {
     "base": 0.71,
     "graph": {
-      "enabled": true,
-      "signals": {
-        "exportedness": 1,
-        "fanIn": 120,
-        "fanInNorm": 0.64,
-        "centralityApprox": 0.51,
-        "distanceToSeed": 1,
-        "distanceToSeedNorm": 0.5,
-        "testPenalty": 0
+      "score": 0.11,
+      "degree": 2,
+      "proximity": 0.5,
+      "seedDistance": 1,
+      "weights": { "degree": 0.03, "proximity": 0.1 },
+      "seedSelection": "top1",
+      "seedK": null,
+      "expansion": {
+        "maxDepth": 2,
+        "maxWidthPerNode": 12,
+        "maxVisitedNodes": 192
       },
-      "weights": { "...": 0.08 },
-      "raw": 0.11,
-      "contribution": 0.11,
-      "clampedBy": null
+      "stopReason": null
     },
     "final": 0.82
   }
 }
 ```
 
-If graph ranking is disabled:
-- `graph.enabled=false`
-- include reason:
-  - missing artifacts
-  - strictness gating
-  - user disabled
+If graph ranking is disabled or cannot run, no `scoreBreakdown.graph` entry is
+added and the input entries are returned unchanged.
 
 ---
 
@@ -184,48 +172,30 @@ If graph ranking is disabled:
 
 Graph ranking requires:
 - Graph artifact availability (`graph_relations` or equivalent)
-- Symbol identity mapping (SymbolId or stable fallback)
-- (optional) export graph if exportedness is used
+- Stable chunk identities on ranked hits (`chunkUid` or `metaV2.chunkUid`)
+- At least one configured supported weight (`degree` or `proximity`)
 
-**Strictness rules**
-- strict: if graph signals requested but artifacts missing → error
-- warn: disable graph ranking and emit warning in explain
-- loose: silently disable (NOT recommended; only for internal tools)
+If those requirements are not met, graph ranking is a no-op and returns the input
+entries unchanged with no graph-ranking stats.
 
 ---
 
-## 7. Tests
+## 7. Contract Coverage
 
-### 7.1 Unit tests
-- normalization functions stable
-- clamp invariants (contribution never exceeds max)
-- explain payload correctness and stability
-
-### 7.2 Integration tests
-Fixture repo:
-- one exported API symbol
-- one internal helper
-- multiple callers to create fanIn
-- a test file under `tests/` calling helper
-
-Assertions:
-- exported API ranks above internal helper when baseScore close
-- testPenalty prevents tests dominating results
-- disabling graph ranking produces baseline ordering identical to pre-phase 11
-
-Golden snapshot:
-- `--explain` JSON for top 5 hits stable.
+- `tests/retrieval/ranking/graph-ranking-contract-matrix.test.js`
+- `tests/retrieval/expansion/multihop-bounded-policy.test.js`
+- `tests/retrieval/pipeline/artifact-gating.test.js`
+- `tests/retrieval/pipeline/retrieval-stage-checkpoints.test.js`
 
 ---
 
-## 8. Implementation checklist
+## 8. Implementation Touchpoints
 
-Minimum touchpoints:
-- `src/retrieval/ranking/*` (or wherever ranking is implemented today)
-- `src/retrieval/pipeline.js` options plumbing
-- `src/retrieval/output/*` explain rendering
-- `src/shared/capabilities.js` gating
-- `docs/contracts/retrieval-ranking.md` updated after implementation
+- `src/retrieval/pipeline/graph-ranking.js`: score adjustment, bounded expansion, and stats.
+- `src/retrieval/pipeline/rank-stage.js`: pipeline integration.
+- `src/retrieval/cli/normalize-options.js`: config and CLI option normalization.
+- `src/retrieval/cli/required-artifacts.js`: graph artifact dependency closure.
+- `src/retrieval/output/explain.js`: graph score explanation rendering.
 
 Non-goals (v1):
 - global centrality algorithms

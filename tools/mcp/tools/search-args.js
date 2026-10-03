@@ -1,7 +1,7 @@
 import { getToolDefs } from '../../../src/integrations/mcp/defs.js';
 import { createError, ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { DEFAULT_MODEL_ID } from '../../shared/dict-utils.js';
-import { buildSearchRequestArgs } from '../../shared/search-request.js';
+import { buildSearchRequestArgs } from '../../../src/shared/search-request.js';
 
 const SEARCH_DEF = getToolDefs(DEFAULT_MODEL_ID).find((tool) => tool.name === 'search');
 if (!SEARCH_DEF) {

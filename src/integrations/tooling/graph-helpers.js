@@ -1,11 +1,11 @@
 import { buildGraphIndexCacheKey, createGraphStore } from '../../graph/store.js';
 import { buildIndexSignature } from '../../retrieval/index-cache.js';
+import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
 import {
-  MAX_JSON_BYTES,
-  loadChunkMeta,
   loadPiecesManifest,
   readCompatibilityKey
-} from '../../shared/artifact-io.js';
+} from '../../shared/artifact-io/manifest.js';
+import { loadChunkMeta } from '../../shared/artifact-io/loaders.js';
 
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value || {}, key);
 

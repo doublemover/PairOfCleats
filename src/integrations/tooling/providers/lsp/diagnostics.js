@@ -2,6 +2,7 @@ import { pathToFileUri } from '../../lsp/client.js';
 import { rangeToOffsets } from '../../lsp/positions.js';
 import { buildVfsUri } from '../../lsp/uris.js';
 import { resolveVfsDiskPath } from '../../../../index/tooling/vfs.js';
+import { throwIfAborted } from '../../../../shared/abort.js';
 
 export const DEFAULT_MAX_DIAGNOSTIC_URIS = 1000;
 export const DEFAULT_MAX_DIAGNOSTICS_PER_URI = 200;
@@ -34,16 +35,29 @@ const diagnosticKey = (diag) => {
  * one-time warning checks recorded through `checks`/`checkFlags`.
  *
  * @param {object} input
- * @returns {{diagnosticsByUri:Map<string,Array<object>>,onNotification:(msg:object)=>void,setDiagnosticsForUri:(uri:string,diagnostics:Array<object>)=>void}}
+ * @returns {{diagnosticsByUri:Map<string,Array<object>>,onNotification:(msg:object)=>void,setDiagnosticsForUri:(uri:string,diagnostics:Array<object>)=>void,waitForDiagnostics:Function}}
  */
 export const createDiagnosticsCollector = ({
   captureDiagnostics,
   checks,
   checkFlags,
   maxDiagnosticUris,
-  maxDiagnosticsPerUri
+  maxDiagnosticsPerUri,
+  requireOwnedDocuments = false
 }) => {
   const diagnosticsByUri = new Map();
+  const drainListeners = new Set();
+  const documentVersions = new Map();
+  const ownershipLimit = Math.min(DEFAULT_MAX_DIAGNOSTIC_URIS, Number(maxDiagnosticUris) || DEFAULT_MAX_DIAGNOSTIC_URIS) * 2;
+  const registerDocument = (uri, version) => {
+    if (!captureDiagnostics || !uri || (!documentVersions.has(uri) && documentVersions.size >= ownershipLimit)) return;
+    documentVersions.set(uri, version);
+    diagnosticsByUri.delete(uri);
+  };
+  const unregisterDocument = (uri) => {
+    documentVersions.delete(uri);
+    diagnosticsByUri.delete(uri);
+  };
 
   const setDiagnosticsForUri = (uri, diagnostics) => {
     const source = Array.isArray(diagnostics) ? diagnostics : [];
@@ -77,6 +91,7 @@ export const createDiagnosticsCollector = ({
         });
       }
     }
+    for (const listener of drainListeners) listener();
   };
 
   const onNotification = (msg) => {
@@ -85,10 +100,64 @@ export const createDiagnosticsCollector = ({
     const uri = msg?.params?.uri;
     const diagnostics = msg?.params?.diagnostics;
     if (!uri || !Array.isArray(diagnostics)) return;
+    if (requireOwnedDocuments && !documentVersions.has(uri)) return;
+    if (documentVersions.has(uri) && msg.params.version != null
+      && msg.params.version !== documentVersions.get(uri)) return;
     setDiagnosticsForUri(uri, diagnostics);
   };
 
-  return { diagnosticsByUri, onNotification, setDiagnosticsForUri };
+  /** Wait once for the first diagnostic result per document/optional URI alias. */
+  const waitForDiagnostics = (uriGroups, { timeoutMs = 500, signal = null } = {}) => {
+    throwIfAborted(signal);
+    const groups = [];
+    const maxGroups = Math.max(0, Math.min(DEFAULT_MAX_DIAGNOSTIC_URIS, Math.floor(Number(maxDiagnosticUris) || DEFAULT_MAX_DIAGNOSTIC_URIS)));
+    for (const group of uriGroups || []) {
+      if (groups.length >= maxGroups) break;
+      const uris = (Array.isArray(group) ? group.slice(0, 2) : [group])
+        .filter((uri) => typeof uri === 'string' && uri);
+      if (uris.length) groups.push(uris);
+    }
+    const budgetMs = Math.max(0, Math.min(2000, Number(timeoutMs) || 0));
+    const summarize = (timedOut) => {
+      const observedUris = groups.filter((group) => group.some((uri) => diagnosticsByUri.has(uri))).length;
+      return { expectedUris: groups.length, observedUris, pendingUris: groups.length - observedUris, timedOut, timeoutMs: budgetMs };
+    };
+    if (!captureDiagnostics || !groups.length || summarize(false).pendingUris === 0 || !budgetMs) {
+      return Promise.resolve(summarize(false));
+    }
+    return new Promise((resolve, reject) => {
+      let timer = null;
+      const cleanup = () => {
+        clearTimeout(timer);
+        drainListeners.delete(onChange);
+        signal?.removeEventListener?.('abort', onAbort);
+      };
+      const onChange = () => {
+        const summary = summarize(false);
+        if (summary.pendingUris) return;
+        cleanup();
+        resolve(summary);
+      };
+      const onAbort = () => {
+        cleanup();
+        try {
+          throwIfAborted(signal);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      drainListeners.add(onChange);
+      signal?.addEventListener?.('abort', onAbort, { once: true });
+      timer = setTimeout(() => {
+        cleanup();
+        resolve(summarize(true));
+      }, budgetMs);
+      if (signal?.aborted) onAbort();
+      else onChange();
+    });
+  };
+
+  return { diagnosticsByUri, onNotification, setDiagnosticsForUri, waitForDiagnostics, registerDocument, unregisterDocument };
 };
 
 /**

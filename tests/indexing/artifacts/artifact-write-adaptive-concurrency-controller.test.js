@@ -70,6 +70,42 @@ assert.equal(
 nowMs += 1;
 assert.equal(
   controller.observe({
+    pendingWrites: 2,
+    activeWrites: 3,
+    activeWriteBytes: 900 * 1024 * 1024,
+    longestStallSec: 14,
+    schedulerWritePending: 0,
+    schedulerWriteOldestWaitMs: 0,
+    schedulerWriteWaitP95Ms: 0,
+    activeStallOwner: 'closeout:pieces-manifest'
+  }),
+  2,
+  'expected owner-attributed closeout stalls with huge active bytes to scale concurrency down like non-write tails'
+);
+
+nowMs += 1;
+assert.equal(
+  controller.observe({
+    pendingWrites: 3,
+    activeWrites: 2,
+    activeWriteBytes: 900 * 1024 * 1024,
+    longestStallSec: 14,
+    schedulerWritePending: 0,
+    schedulerWriteOldestWaitMs: 0,
+    schedulerWriteWaitP95Ms: 0,
+    activeStallOwner: 'materialize:chunk-meta-binary-columnar',
+    activeStallFamily: 'chunk-meta',
+    pendingFamilyCount: 3,
+    stalledFamilyPendingCount: 1,
+    alternatePendingFamilies: 2
+  }),
+  2,
+  'expected localized family stalls with alternate pending families to avoid additional global scale down'
+);
+
+nowMs += 1;
+assert.equal(
+  controller.observe({
     pendingWrites: 3,
     activeWrites: 3,
     longestStallSec: 14,

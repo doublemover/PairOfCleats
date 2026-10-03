@@ -1,4 +1,5 @@
 import { compareGraphNodes } from '../../graph/ordering.js';
+import { appendReportTruncation, appendReportWarnings } from './report-sections.js';
 
 const formatNodeRef = (ref) => {
   if (!ref || typeof ref !== 'object') return 'unknown';
@@ -25,15 +26,6 @@ const formatSeed = (seed) => {
 const formatWitnessPath = (path) => {
   if (!path || !Array.isArray(path.nodes)) return null;
   return path.nodes.map(formatNodeRef).join(' -> ');
-};
-
-const formatTruncation = (record) => {
-  if (!record) return '';
-  const pieces = [`${record.cap}`];
-  if (record.limit != null) pieces.push(`limit=${JSON.stringify(record.limit)}`);
-  if (record.observed != null) pieces.push(`observed=${JSON.stringify(record.observed)}`);
-  if (record.omitted != null) pieces.push(`omitted=${JSON.stringify(record.omitted)}`);
-  return pieces.join(' ');
 };
 
 export const renderGraphImpact = (payload) => {
@@ -66,20 +58,13 @@ export const renderGraphImpact = (payload) => {
   const truncation = Array.isArray(payload?.truncation) ? payload.truncation : [];
   if (truncation.length) {
     lines.push('');
-    lines.push('Truncation:');
-    for (const record of truncation) {
-      lines.push(`- ${formatTruncation(record)}`);
-    }
+    appendReportTruncation(lines, truncation);
   }
 
   const warnings = Array.isArray(payload?.warnings) ? payload.warnings : [];
   if (warnings.length) {
     lines.push('');
-    lines.push('Warnings:');
-    for (const warning of warnings) {
-      const key = warning?.code ? `${warning.code}: ` : '';
-      lines.push(`- ${key}${warning?.message || ''}`.trim());
-    }
+    appendReportWarnings(lines, warnings);
   }
   return lines.join('\n');
 };

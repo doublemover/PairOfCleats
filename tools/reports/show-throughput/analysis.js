@@ -8,7 +8,9 @@ import {
 import {
   MODE_METRICS,
   toFiniteOrNull,
+  isValidScanProfile,
   isValidIndexingSummary,
+  buildIndexingSummaryFromScanProfile,
   buildIndexingSummaryFromFeatureMetrics,
   buildIndexingSummaryFromThroughput
 } from './aggregate.js';
@@ -17,8 +19,22 @@ import {
   loadFeatureMetricsCached,
   loadFeatureMetricsForPayload
 } from './load.js';
+import { readFileStamp, toCachePathKey } from './cache-identity.js';
+import { resolveBuildRootFromArtifactReport } from './build-root.js';
+import {
+  createAstGraphTotals,
+  mergeAstGraphTotals,
+  sumKindsByPattern,
+  sumKindCounts
+} from './ast-summary.js';
+
+export {
+  createAstGraphTotals,
+  mergeAstGraphTotals
+} from './ast-summary.js';
 
 const ANALYSIS_SCHEMA_VERSION = 1;
+const MATERIALIZATION_SCHEMA_VERSION = 1;
 const REPO_MAP_KIND_PATTERN = /"kind":"([^"]+)"/g;
 const REPO_MAP_KIND_SCAN_TAIL_BYTES = 256;
 const REPO_MAP_KIND_CACHE = new Map();
@@ -40,24 +56,6 @@ const KIND_FUNCTION_PATTERNS = [
   'callabledeclaration'
 ];
 const KIND_IMPORT_PATTERNS = ['import', 'include', 'require'];
-
-const toCachePathKey = (value) => {
-  if (typeof value !== 'string' || !value.trim()) return '';
-  try {
-    return path.resolve(value).replace(/[\\/]+/g, '/');
-  } catch {
-    return value.replace(/[\\/]+/g, '/');
-  }
-};
-
-const readFileStamp = (filePath) => {
-  try {
-    const stat = fs.statSync(filePath);
-    return `${Math.floor(stat.mtimeMs)}:${Math.floor(stat.size)}`;
-  } catch {
-    return 'missing';
-  }
-};
 
 const appendRepoMapKindCounts = (counts, text) => {
   if (!text) return;
@@ -105,26 +103,6 @@ export const readRepoMapKindCountsSync = (repoMapPath) => {
   return counts;
 };
 
-const sumKindsByPattern = (kindCounts, patterns) => {
-  if (!kindCounts || !patterns?.length) return 0;
-  let total = 0;
-  for (const [kind, count] of Object.entries(kindCounts)) {
-    const lowerKind = kind.toLowerCase();
-    if (!patterns.some((pattern) => lowerKind.includes(pattern))) continue;
-    if (Number.isFinite(Number(count))) total += Number(count);
-  }
-  return total;
-};
-
-const sumKindCounts = (kindCounts) => {
-  if (!kindCounts) return 0;
-  let total = 0;
-  for (const value of Object.values(kindCounts)) {
-    if (Number.isFinite(Number(value))) total += Number(value);
-  }
-  return total;
-};
-
 const topKinds = (kindCounts, limit = 8) => {
   if (!kindCounts) return [];
   return Object.entries(kindCounts)
@@ -134,101 +112,6 @@ const topKinds = (kindCounts, limit = 8) => {
     .map(([kind, count]) => ({ kind, count: Number(count) }));
 };
 
-const resolveExistingDirectory = (value) => {
-  if (typeof value !== 'string' || !value.trim()) return null;
-  const candidate = path.resolve(value.trim());
-  try {
-    if (!fs.existsSync(candidate)) return null;
-    const stat = fs.statSync(candidate);
-    if (!stat.isDirectory()) return null;
-    return candidate;
-  } catch {
-    return null;
-  }
-};
-
-const resolveCurrentBuildRoot = (buildsRoot) => {
-  const currentPath = path.join(buildsRoot, 'current.json');
-  const current = loadJson(currentPath);
-  if (!current || typeof current !== 'object') return null;
-  const candidates = [
-    current?.buildRoot,
-    current?.activeRoot,
-    (typeof current?.buildId === 'string' && current.buildId.trim())
-      ? path.join(buildsRoot, current.buildId.trim())
-      : null
-  ];
-  for (const value of candidates) {
-    const resolved = resolveExistingDirectory(value);
-    if (resolved) return resolved;
-  }
-  return null;
-};
-
-const resolveBuildRootFromArtifactReport = (artifactReport) => {
-  const repo = artifactReport?.repo || {};
-
-  const explicitBuildCandidates = [
-    repo?.buildRoot,
-    repo?.build?.root,
-    repo?.build?.buildRoot,
-    repo?.build?.activeRoot
-  ];
-  for (const candidate of explicitBuildCandidates) {
-    const resolved = resolveExistingDirectory(candidate);
-    if (resolved) return resolved;
-  }
-
-  const sqlite = repo.sqlite || {};
-  const sqliteCandidates = [
-    sqlite?.code?.path,
-    sqlite?.prose?.path,
-    sqlite?.extractedProse?.path,
-    sqlite?.records?.path
-  ].filter((value) => typeof value === 'string' && value.trim());
-  for (const sqlitePath of sqliteCandidates) {
-    const sqliteDir = path.dirname(sqlitePath);
-    if (path.basename(sqliteDir).toLowerCase() === 'index-sqlite') {
-      const buildRoot = resolveExistingDirectory(path.dirname(sqliteDir));
-      if (buildRoot) return buildRoot;
-    }
-  }
-
-  const cacheRoot = typeof repo?.cacheRoot === 'string' ? repo.cacheRoot : '';
-  if (!cacheRoot) return null;
-  const buildsRoot = path.join(cacheRoot, 'builds');
-  const resolvedBuildsRoot = resolveExistingDirectory(buildsRoot);
-  if (!resolvedBuildsRoot) return null;
-
-  const currentBuildRoot = resolveCurrentBuildRoot(resolvedBuildsRoot);
-  if (currentBuildRoot) return currentBuildRoot;
-
-  const buildDirs = fs.readdirSync(resolvedBuildsRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => {
-      const buildRoot = path.join(resolvedBuildsRoot, entry.name);
-      let mtimeMs = -1;
-      try {
-        mtimeMs = fs.statSync(buildRoot).mtimeMs;
-      } catch {}
-      return { buildRoot, mtimeMs };
-    })
-    .sort((left, right) => (
-      right.mtimeMs - left.mtimeMs
-    ) || String(right.buildRoot).localeCompare(String(left.buildRoot)));
-
-  return buildDirs[0]?.buildRoot || null;
-};
-
-export const createAstGraphTotals = () => ({
-  symbols: 0,
-  classes: 0,
-  functions: 0,
-  imports: 0,
-  fileLinks: 0,
-  graphLinks: 0
-});
-
 export const createAstGraphObserved = () => ({
   symbols: 0,
   classes: 0,
@@ -237,15 +120,6 @@ export const createAstGraphObserved = () => ({
   fileLinks: 0,
   graphLinks: 0
 });
-
-export const mergeAstGraphTotals = (target, source) => {
-  if (!target || !source) return;
-  for (const key of Object.keys(target)) {
-    const value = Number(source[key]);
-    if (!Number.isFinite(value)) continue;
-    target[key] += value;
-  }
-};
 
 const hasObservedAstField = (analysis, key) => ANALYSIS_MODE_KEYS.some((modeKey) => (
   Number.isFinite(Number(analysis?.modes?.[modeKey]?.[key]))
@@ -371,27 +245,103 @@ export const loadOrComputeIndexingSummary = ({
   featureMetrics,
   refreshJson = false
 }) => {
-  const existing = payload?.artifacts?.indexing;
-  if (!refreshJson) {
-    if (isValidIndexingSummary(existing)) {
-      return { indexingSummary: existing, changed: false, featureMetrics };
-    }
-    return { indexingSummary: null, changed: false, featureMetrics };
-  }
+  return refreshJson
+    ? materializeIndexingSummary({ payload, featureMetrics })
+    : resolveIndexingSummary({ payload, featureMetrics });
+};
 
-  const metrics = featureMetrics || loadFeatureMetricsForPayload(payload);
-  const computed = buildIndexingSummaryFromFeatureMetrics(metrics)
-    || buildIndexingSummaryFromThroughput(payload?.artifacts?.throughput);
-  if (!computed) {
-    if (isValidIndexingSummary(existing)) {
-      return { indexingSummary: existing, changed: false, featureMetrics: metrics };
-    }
-    return { indexingSummary: null, changed: false, featureMetrics: metrics };
-  }
-  const changed = JSON.stringify(existing || null) !== JSON.stringify(computed);
+const createProvenance = (section, source, category) => ({
+  section,
+  source,
+  category
+});
+
+const ensureArtifactsObject = (payload) => {
   if (!payload.artifacts || typeof payload.artifacts !== 'object') payload.artifacts = {};
-  payload.artifacts.indexing = computed;
-  return { indexingSummary: computed, changed, featureMetrics: metrics };
+  return payload.artifacts;
+};
+
+const upsertMaterializationSection = (payload, section, provenance) => {
+  const artifacts = ensureArtifactsObject(payload);
+  const nextEntry = {
+    source: provenance?.source || 'unknown',
+    category: provenance?.category || 'unknown',
+    reason: 'backfill-missing-or-invalid-benchmark-artifact'
+  };
+  const previous = artifacts.materialization
+    && typeof artifacts.materialization === 'object'
+    && artifacts.materialization.schemaVersion === MATERIALIZATION_SCHEMA_VERSION
+    ? artifacts.materialization
+    : null;
+  const next = {
+    schemaVersion: MATERIALIZATION_SCHEMA_VERSION,
+    sections: {
+      ...(previous?.sections || {}),
+      [section]: nextEntry
+    }
+  };
+  const changed = JSON.stringify(previous || null) !== JSON.stringify(next);
+  artifacts.materialization = next;
+  return changed;
+};
+
+export const resolveIndexingSummary = ({
+  payload,
+  featureMetrics,
+  preferExisting = true
+}) => {
+  const existing = payload?.artifacts?.indexing;
+  const scanProfile = payload?.artifacts?.scanProfile;
+  if (preferExisting && isValidIndexingSummary(existing)) {
+    return {
+      indexingSummary: existing,
+      changed: false,
+      featureMetrics,
+      provenance: createProvenance('indexing', 'native-indexing-summary', 'native')
+    };
+  }
+  const metrics = featureMetrics || loadFeatureMetricsForPayload(payload);
+  const fromScanProfile = buildIndexingSummaryFromScanProfile(scanProfile);
+  if (fromScanProfile) {
+    return {
+      indexingSummary: fromScanProfile,
+      changed: false,
+      featureMetrics: metrics,
+      provenance: createProvenance('indexing', 'native-scan-profile', 'native-derived')
+    };
+  }
+  const fromFeatureMetrics = buildIndexingSummaryFromFeatureMetrics(metrics);
+  if (fromFeatureMetrics) {
+    return {
+      indexingSummary: fromFeatureMetrics,
+      changed: false,
+      featureMetrics: metrics,
+      provenance: createProvenance('indexing', 'fallback-feature-metrics', 'fallback')
+    };
+  }
+  const fromThroughput = buildIndexingSummaryFromThroughput(payload?.artifacts?.throughput);
+  if (fromThroughput) {
+    return {
+      indexingSummary: fromThroughput,
+      changed: false,
+      featureMetrics: metrics,
+      provenance: createProvenance('indexing', 'fallback-throughput', 'fallback')
+    };
+  }
+  if (!preferExisting && isValidIndexingSummary(existing)) {
+    return {
+      indexingSummary: existing,
+      changed: false,
+      featureMetrics: metrics,
+      provenance: createProvenance('indexing', 'native-indexing-summary', 'native')
+    };
+  }
+  return {
+    indexingSummary: null,
+    changed: false,
+    featureMetrics: metrics,
+    provenance: createProvenance('indexing', 'missing', 'missing')
+  };
 };
 
 export const loadOrComputeBenchAnalysis = ({
@@ -401,37 +351,69 @@ export const loadOrComputeBenchAnalysis = ({
   refreshJson = false,
   deepAnalysis = false
 }) => {
-  const existing = payload?.artifacts?.analysis;
-  if (!refreshJson) {
-    if (existing
-      && typeof existing === 'object'
-      && existing.schemaVersion === ANALYSIS_SCHEMA_VERSION
-      && hasAstGraphValues(existing.totals)
-      && (!deepAnalysis || hasKindBreakdown(existing))) {
-      return { analysis: existing, changed: false };
-    }
-    return { analysis: null, changed: false };
-  }
+  return refreshJson
+    ? materializeBenchAnalysis({
+      payload,
+      featureMetrics,
+      indexingSummary,
+      deepAnalysis
+    })
+    : resolveBenchAnalysis({
+      payload,
+      featureMetrics,
+      indexingSummary,
+      deepAnalysis
+    });
+};
 
+export const resolveBenchAnalysis = ({
+  payload,
+  featureMetrics,
+  indexingSummary,
+  deepAnalysis = false,
+  preferExisting = true
+}) => {
+  const existing = payload?.artifacts?.analysis;
+  if (preferExisting && existing
+    && typeof existing === 'object'
+    && existing.schemaVersion === ANALYSIS_SCHEMA_VERSION
+    && hasAstGraphValues(existing.totals)
+    && (!deepAnalysis || hasKindBreakdown(existing))) {
+    return {
+      analysis: existing,
+      changed: false,
+      provenance: createProvenance('analysis', 'native-analysis', 'native')
+    };
+  }
   const computed = computeBenchAnalysis(payload, {
     includeKindCounts: deepAnalysis,
     featureMetrics,
     indexingSummary
   });
-  if (!computed) {
-    if (existing
-      && typeof existing === 'object'
-      && existing.schemaVersion === ANALYSIS_SCHEMA_VERSION
-      && hasAstGraphValues(existing.totals)
-      && (!deepAnalysis || hasKindBreakdown(existing))) {
-      return { analysis: existing, changed: false };
-    }
-    return { analysis: null, changed: false };
+  if (computed) {
+    return {
+      analysis: computed,
+      changed: false,
+      provenance: createProvenance('analysis', 'fallback-build-state', 'fallback')
+    };
   }
-  const changed = JSON.stringify(existing || null) !== JSON.stringify(computed);
-  if (!payload.artifacts || typeof payload.artifacts !== 'object') payload.artifacts = {};
-  payload.artifacts.analysis = computed;
-  return { analysis: computed, changed };
+  if (!preferExisting
+    && existing
+    && typeof existing === 'object'
+    && existing.schemaVersion === ANALYSIS_SCHEMA_VERSION
+    && hasAstGraphValues(existing.totals)
+    && (!deepAnalysis || hasKindBreakdown(existing))) {
+    return {
+      analysis: existing,
+      changed: false,
+      provenance: createProvenance('analysis', 'native-analysis', 'native')
+    };
+  }
+  return {
+    analysis: null,
+    changed: false,
+    provenance: createProvenance('analysis', 'missing', 'missing')
+  };
 };
 
 const GENERIC_PATH_SEGMENTS = new Set([
@@ -525,9 +507,35 @@ export const resolveRepoHistoryKey = ({ payload, file }) => {
 };
 
 export const loadOrComputeThroughputLedger = ({ payload, indexingSummary }) => {
+  return materializeOrResolveThroughputLedger({
+    payload,
+    indexingSummary,
+    materialize: false
+  });
+};
+
+export const resolveThroughputLedger = ({ payload, indexingSummary }) => {
+  return materializeOrResolveThroughputLedger({
+    payload,
+    indexingSummary,
+    materialize: false,
+    preferExisting: true
+  });
+};
+
+const materializeOrResolveThroughputLedger = ({
+  payload,
+  indexingSummary,
+  materialize = false,
+  preferExisting = true
+}) => {
   const existing = payload?.artifacts?.throughputLedger;
-  if (isValidThroughputLedger(existing)) {
-    return { throughputLedger: existing, changed: false };
+  if (preferExisting && isValidThroughputLedger(existing)) {
+    return {
+      throughputLedger: existing,
+      changed: false,
+      provenance: createProvenance('throughput-ledger', 'native-throughput-ledger', 'native')
+    };
   }
   const computed = buildThroughputLedgerForTask({
     repoPath: payload?.repo?.root || payload?.artifacts?.repo?.root || null,
@@ -536,15 +544,96 @@ export const loadOrComputeThroughputLedger = ({ payload, indexingSummary }) => {
     indexingSummary: indexingSummary || payload?.artifacts?.indexing || null
   });
   if (!isValidThroughputLedger(computed)) {
-    return { throughputLedger: null, changed: false };
+    if (!preferExisting && isValidThroughputLedger(existing)) {
+      return {
+        throughputLedger: existing,
+        changed: false,
+        provenance: createProvenance('throughput-ledger', 'native-throughput-ledger', 'native')
+      };
+    }
+    return {
+      throughputLedger: null,
+      changed: false,
+      provenance: createProvenance('throughput-ledger', 'missing', 'missing')
+    };
   }
-  if (!payload.artifacts || typeof payload.artifacts !== 'object') payload.artifacts = {};
-  payload.artifacts.throughputLedger = computed;
-  return { throughputLedger: computed, changed: true };
+  if (!materialize) {
+    return {
+      throughputLedger: computed,
+      changed: false,
+      provenance: createProvenance('throughput-ledger', 'fallback-throughput-derived', 'fallback')
+    };
+  }
+  const artifacts = ensureArtifactsObject(payload);
+  const changed = JSON.stringify(artifacts.throughputLedger || null) !== JSON.stringify(computed);
+  artifacts.throughputLedger = computed;
+  const metadataChanged = upsertMaterializationSection(
+    payload,
+    'throughputLedger',
+    createProvenance('throughput-ledger', 'fallback-throughput-derived', 'fallback')
+  );
+  return {
+    throughputLedger: computed,
+    changed: changed || metadataChanged,
+    provenance: createProvenance('throughput-ledger', 'fallback-throughput-derived', 'fallback')
+  };
 };
+
+export const materializeIndexingSummary = ({
+  payload,
+  featureMetrics
+}) => {
+  const resolved = resolveIndexingSummary({ payload, featureMetrics, preferExisting: false });
+  if (!resolved.indexingSummary) return resolved;
+  if (resolved.provenance?.source === 'native-indexing-summary') return resolved;
+  const artifacts = ensureArtifactsObject(payload);
+  const changed = JSON.stringify(artifacts.indexing || null) !== JSON.stringify(resolved.indexingSummary);
+  artifacts.indexing = resolved.indexingSummary;
+  const metadataChanged = upsertMaterializationSection(payload, 'indexing', resolved.provenance);
+  return {
+    ...resolved,
+    changed: changed || metadataChanged
+  };
+};
+
+export const materializeBenchAnalysis = ({
+  payload,
+  featureMetrics,
+  indexingSummary,
+  deepAnalysis = false
+}) => {
+  const resolved = resolveBenchAnalysis({
+    payload,
+    featureMetrics,
+    indexingSummary,
+    deepAnalysis,
+    preferExisting: false
+  });
+  if (!resolved.analysis) return resolved;
+  if (resolved.provenance?.source === 'native-analysis') return resolved;
+  const artifacts = ensureArtifactsObject(payload);
+  const changed = JSON.stringify(artifacts.analysis || null) !== JSON.stringify(resolved.analysis);
+  artifacts.analysis = resolved.analysis;
+  const metadataChanged = upsertMaterializationSection(payload, 'analysis', resolved.provenance);
+  return {
+    ...resolved,
+    changed: changed || metadataChanged
+  };
+};
+
+export const materializeThroughputLedger = ({
+  payload,
+  indexingSummary
+}) => materializeOrResolveThroughputLedger({
+  payload,
+  indexingSummary,
+  materialize: true,
+  preferExisting: false
+});
 
 export const applyRunThroughputLedgerDiffs = (runs) => {
   const historyByRepo = new Map();
+  const historyWindow = 8;
   for (const run of runs) {
     if (!isValidThroughputLedger(run?.throughputLedger)) {
       run.throughputLedgerDiff = null;
@@ -554,7 +643,7 @@ export const applyRunThroughputLedgerDiffs = (runs) => {
     const history = historyByRepo.get(historyKey) || [];
     run.throughputLedgerDiff = computeThroughputLedgerRegression({
       currentLedger: run.throughputLedger,
-      baselineLedgers: history.slice(-3),
+      baselineLedgers: history.slice(-historyWindow),
       metric: 'chunksPerSec'
     });
     history.push(run.throughputLedger);
@@ -565,22 +654,32 @@ export const applyRunThroughputLedgerDiffs = (runs) => {
 export const collectRunLedgerRegressions = (runs) => {
   const rows = [];
   for (const run of runs) {
-    const regressions = run?.throughputLedgerDiff?.regressions || [];
-    for (const regression of regressions.slice(0, 3)) {
-      rows.push({
-        file: run.file,
-        repoIdentity: run.repoIdentity,
-        modality: regression.modality,
-        stage: regression.stage,
-        deltaPct: regression.deltaPct,
-        deltaRate: regression.deltaRate,
-        currentRate: regression.currentRate,
-        baselineRate: regression.baselineRate
-      });
+    const diffMetrics = run?.throughputLedgerDiff?.metrics || {};
+    for (const [metricKey, metricSummary] of Object.entries(diffMetrics)) {
+      const regressions = metricSummary?.regressions || [];
+      for (const regression of regressions.slice(0, 2)) {
+        rows.push({
+          file: run.file,
+          repoIdentity: run.repoIdentity,
+          modality: regression.modality,
+          stage: regression.stage,
+          metric: metricKey,
+          metricKind: regression.metricKind,
+          metricLabel: regression.metricLabel,
+          deltaPct: regression.deltaPct,
+          deltaRate: regression.deltaRate,
+          currentRate: regression.currentRate,
+          baselineRate: regression.baselineRate,
+          baselineSamples: regression.baselineSamples,
+          baselineConfidence: regression.baselineConfidence
+        });
+      }
     }
   }
   rows.sort((left, right) => (
-    Number(left.deltaPct) - Number(right.deltaPct)
+    left.metricKind === 'duration'
+      ? (Number(right.deltaPct) - Number(left.deltaPct))
+      : (Number(left.deltaPct) - Number(right.deltaPct))
   ) || String(left.repoIdentity || '').localeCompare(String(right.repoIdentity || '')));
   return rows;
 };

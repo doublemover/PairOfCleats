@@ -5,7 +5,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from runtime_harness import FakeWindow, install_fake_modules
+from runtime_harness import FakeRegion, FakeView, FakeWindow, install_fake_modules
 
 
 class SearchBehaviorTests(unittest.TestCase):
@@ -166,6 +166,28 @@ class SearchBehaviorTests(unittest.TestCase):
         self.assertIsNone(self.api_calls[0]['as_of'])
         self.assertIsNone(self.api_calls[0]['snapshot'])
 
+    def test_goto_definition_command_opens_single_symbol_hit(self):
+        self._configure_symbol_command()
+        view = self._symbol_view()
+
+        self.search.PairOfCleatsGotoDefinitionCommand(view).run(None)
+
+        self.assertEqual(self.api_calls[0]['limit'], 25)
+        self.assertEqual(self.api_calls[0]['query'], 'buildWidget')
+        self.assertEqual(len(self.window.opened_files), 1)
+        self.assertTrue(self.window.opened_files[0]['path'].replace('\\', '/').endswith('src/index.js:3'))
+
+    def test_find_references_command_shows_symbol_hit_picker(self):
+        self._configure_symbol_command()
+        view = self._symbol_view()
+
+        self.search.PairOfCleatsFindReferencesCommand(view).run(None)
+
+        self.assertEqual(self.api_calls[0]['limit'], 50)
+        self.assertEqual(self.api_calls[0]['query'], 'buildWidget')
+        self.assertEqual(self.window.opened_files, [])
+        self.assertIsNotNone(self.window.quick_panel_items)
+
     def test_require_api_blocks_unsupported_explain(self):
         self.search.config.get_settings = lambda _window: {
             'index_mode_default': 'both',
@@ -184,6 +206,34 @@ class SearchBehaviorTests(unittest.TestCase):
 
         self.assertIn('API mode is not supported for search explain.', self.sublime.last_error)
         self.assertEqual(len(self.runner_calls), 0)
+
+    def _configure_symbol_command(self):
+        self.search.config.get_settings = lambda _window: {
+            'index_mode_default': 'both',
+            'search_backend_default': '',
+            'search_limit': 25,
+            'search_ann_default': True,
+            'search_allow_sparse_fallback': False,
+            'search_as_of_default': '',
+            'search_snapshot_default': '',
+            'search_filter_default': '',
+            'search_advanced_defaults': {},
+            'open_results_in': 'quick_panel',
+            'results_buffer_threshold': 50,
+            'history_limit': 25,
+            'api_server_url': 'http://127.0.0.1:7464',
+            'api_timeout_ms': 5000,
+            'api_execution_mode': 'prefer',
+        }
+        self.search.api_client.search_json = self._search_json_success
+        self.search.api_client.run_async = self._run_api_immediate
+
+    def _symbol_view(self):
+        view = FakeView('C:/repo/src/index.js', 'const buildWidget = 1;')
+        view.sel().clear()
+        view.sel().append(FakeRegion(8, 8))
+        self.window.set_active_view(view)
+        return view
 
     def _search_json_success(
             self,

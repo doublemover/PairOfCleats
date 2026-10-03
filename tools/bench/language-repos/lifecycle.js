@@ -4,8 +4,13 @@ import path from 'node:path';
 import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';
 import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
 import { retainCrashArtifacts } from '../../../src/index/build/crash-log.js';
-import { isInside, isRootPath } from '../../shared/path-utils.js';
+import { isRootPath } from '../../../src/shared/file-paths.js';
+import { isPathUnderDir } from '../../../src/shared/path-normalize.js';
 import { ensureRepoBenchmarkReady, tryMirrorClone } from '../language/repos.js';
+import {
+  classifyRepoPreflightBlock,
+  resolveRepoPlatformCompatibility
+} from '../language/repo-preflight-contracts.js';
 
 /**
  * Ensure repository-local benchmark config exists so bench runs inherit the
@@ -25,8 +30,8 @@ export const ensureBenchConfig = async (repoPath, cacheRoot) => {
 /**
  * @typedef {object} RepoLifecycle
  * @property {(repoPath:string) => boolean} hasRepoPath
- * @property {(input:{task:object,repoPath:string,repoLabel:string}) => Promise<{ok:boolean,failureCode?:number|null,schedulerEvents?:object[]}>} ensureRepoPresent
- * @property {(input:{repoPath:string}) => Promise<{ok:boolean,failureReason?:string,failureCode?:number|null}>} prepareRepoWorkspace
+ * @property {(input:{task:object,repoPath:string,repoLabel:string}) => Promise<{ok:boolean,failureReason?:string,failureCode?:number|null,failureDetail?:string|null,schedulerEvents?:object[]}>} ensureRepoPresent
+ * @property {(input:{repoPath:string}) => Promise<{ok:boolean,failureReason?:string,failureCode?:number|null,failureDetail?:string|null}>} prepareRepoWorkspace
  * @property {(input:{repoCacheRoot:string,repoLabel:string}) => Promise<void>} cleanRepoCache
  * @property {(input:{
  *   task:object,
@@ -58,8 +63,7 @@ export const ensureBenchConfig = async (repoPath, cacheRoot) => {
  *   runDiagnosticsRoot:string,
  *   runSuffix:string,
  *   benchEnvironmentMetadata:object,
- *   logHistory:string[],
- *   exitWithDisplay:(code:number) => void
+ *   logHistory:string[]
  * }} input
  * @returns {RepoLifecycle}
  */
@@ -78,8 +82,7 @@ export const createRepoLifecycle = ({
   runDiagnosticsRoot,
   runSuffix,
   benchEnvironmentMetadata,
-  logHistory,
-  exitWithDisplay
+  logHistory
 }) => {
   const resolvedCacheRoot = path.resolve(cacheRoot);
   const repoPresenceCache = new Map();
@@ -96,6 +99,17 @@ export const createRepoLifecycle = ({
     repoPresenceCache.set(repoPath, Boolean(exists));
   };
 
+  const summarizeRecentCloneFailure = (logStartIndex) => {
+    const lines = Array.isArray(logHistory)
+      ? logHistory.slice(Math.max(0, Number(logStartIndex) || 0))
+      : [];
+    const recent = lines
+      .map((line) => String(line || '').trim())
+      .filter(Boolean)
+      .slice(-6);
+    return recent.join(' | ').trim() || null;
+  };
+
   /**
    * Ensure a repo exists on disk, optionally cloning when missing.
    *
@@ -105,11 +119,36 @@ export const createRepoLifecycle = ({
   const ensureRepoPresent = async ({ task, repoPath, repoLabel }) => {
     if (hasRepoPath(repoPath)) return { ok: true };
     if (!cloneEnabled && !dryRun) {
-      display.error(`Missing repo ${task.repo} at ${repoPath}. Re-run with --clone.`);
-      exitWithDisplay(1);
-      return { ok: false };
+      appendLog(`Missing repo ${task.repo} at ${repoPath}. Continuing without clone.`, 'error', {
+        forceOutput: true
+      });
+      return {
+        ok: false,
+        failureCode: null,
+        schedulerEvents: []
+      };
     }
     if (dryRun || !cloneEnabled || !cloneTool) return { ok: true };
+
+    const compatibility = resolveRepoPlatformCompatibility({
+      repo: task?.repo || null,
+      repoPath,
+      platform: process.platform
+    });
+    if (compatibility.state === 'blocked') {
+      appendLog(
+        `[clone] skipped ${repoLabel}: ${compatibility.detail || 'repo is not checkout-compatible on this platform.'}`,
+        'warn'
+      );
+      markRepoPath(repoPath, false);
+      return {
+        ok: false,
+        failureReason: compatibility.failureReason || 'platform_incompatible_checkout',
+        failureCode: null,
+        failureDetail: compatibility.detail || null,
+        schedulerEvents: []
+      };
+    }
 
     let clonedFromMirror = false;
     if (cloneTool.supportsMirrorClone) {
@@ -130,12 +169,27 @@ export const createRepoLifecycle = ({
           `[clone] mirror unavailable for ${repoLabel}; falling back to direct clone (${mirrorClone.reason || 'unknown'}).`,
           'warn'
         );
+        const mirrorBlocked = classifyRepoPreflightBlock({
+          detail: mirrorClone.reason || '',
+          timedOut: false
+        });
+        if (mirrorBlocked.state === 'platform_incompatible_checkout') {
+          markRepoPath(repoPath, false);
+          return {
+            ok: false,
+            failureReason: 'platform_incompatible_checkout',
+            failureCode: null,
+            failureDetail: mirrorClone.reason || null,
+            schedulerEvents: []
+          };
+        }
         try {
           await fsPromises.rm(repoPath, { recursive: true, force: true });
         } catch {}
       }
     }
     if (!clonedFromMirror) {
+      const logStartIndex = Array.isArray(logHistory) ? logHistory.length : 0;
       const args = cloneTool.buildArgs(task.repo, repoPath);
       const cloneResult = await processRunner.runProcess(`clone ${task.repo}`, cloneTool.label, args, {
         env: cloneCommandEnv,
@@ -143,9 +197,18 @@ export const createRepoLifecycle = ({
       });
       if (!cloneResult.ok) {
         markRepoPath(repoPath, false);
+        const failureDetail = summarizeRecentCloneFailure(logStartIndex);
+        const blocked = classifyRepoPreflightBlock({
+          detail: failureDetail || '',
+          timedOut: false
+        });
         return {
           ok: false,
+          failureReason: blocked.state === 'platform_incompatible_checkout'
+            ? 'platform_incompatible_checkout'
+            : 'clone',
           failureCode: cloneResult.code ?? null,
+          failureDetail,
           schedulerEvents: cloneResult.schedulerEvents || []
         };
       }
@@ -173,7 +236,8 @@ export const createRepoLifecycle = ({
         return {
           ok: false,
           failureReason: preflightSummary.failureReason || 'preflight',
-          failureCode: preflightSummary.failureCode ?? null
+          failureCode: preflightSummary.failureCode ?? null,
+          failureDetail: preflightSummary.failureDetail || null
         };
       }
     }
@@ -194,7 +258,7 @@ export const createRepoLifecycle = ({
     if (keepCache || dryRun || !repoCacheRoot) return;
     try {
       const resolvedRepoCacheRoot = path.resolve(repoCacheRoot);
-      if (!isInside(resolvedCacheRoot, resolvedRepoCacheRoot) || isRootPath(resolvedRepoCacheRoot)) {
+      if (!isPathUnderDir(resolvedCacheRoot, resolvedRepoCacheRoot) || isRootPath(resolvedRepoCacheRoot)) {
         appendLog('[cache] skip cleanup; repo cache path escaped cache root.', 'warn', {
           fileOnlyLine: `[cache] Skip cleanup; repo cache path not under cache root (${resolvedRepoCacheRoot}).`
         });
@@ -231,6 +295,7 @@ export const createRepoLifecycle = ({
    *   outFile:string|null,
    *   failureReason:string,
    *   failureCode?:number|null,
+   *   failureContext?:object|null,
    *   schedulerEvents?:object[]
    * }} input
    * @returns {Promise<object|null>}
@@ -243,6 +308,7 @@ export const createRepoLifecycle = ({
     outFile,
     failureReason,
     failureCode = null,
+    failureContext = null,
     schedulerEvents = []
   }) => {
     if (dryRun || !repoCacheRoot) return null;
@@ -257,6 +323,9 @@ export const createRepoLifecycle = ({
           reason: failureReason || 'unknown',
           code: Number.isFinite(Number(failureCode)) ? Number(failureCode) : null
         },
+        failureContext: failureContext && typeof failureContext === 'object'
+          ? { ...failureContext }
+          : null,
         runtime: {
           runSuffix,
           language: task?.language || null,

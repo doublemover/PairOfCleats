@@ -2,37 +2,10 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { createBenchLogger } from '../../../tools/bench/language-repos/logging.js';
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'bench-language-log-emergency-close');
-const reposRoot = path.join(tempRoot, 'repos');
-const cacheRoot = path.join(tempRoot, 'cache');
-const resultsRoot = path.join(tempRoot, 'results');
-const masterLogPath = path.join(resultsRoot, 'logs', 'bench-language', 'run-log-emergency-close.log');
-const display = {
-  log: () => {},
-  warn: () => {},
-  error: () => {},
-  logLine: () => {}
-};
+import { createBenchLanguageLogFixture } from './language-log-fixture.js';
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(reposRoot, { recursive: true });
-await fsPromises.mkdir(cacheRoot, { recursive: true });
-await fsPromises.mkdir(resultsRoot, { recursive: true });
-
-const logger = createBenchLogger({
-  display,
-  configPath: path.join(tempRoot, 'repos.json'),
-  reposRoot,
-  cacheRoot,
-  resultsRoot,
-  masterLogPath,
-  runSuffix: 'run-log-emergency-close',
-  repoLogsEnabled: true
-});
+const { logger, masterLogPath, reposRoot } = await createBenchLanguageLogFixture('run-log-emergency-close');
 
 logger.initMasterLog();
 const repoLogPath = await logger.initRepoLog({

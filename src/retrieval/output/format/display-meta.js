@@ -55,7 +55,36 @@ export const formatLastModified = (value) => {
   return `${month}/${day}/${year} ${hours}:${minutes}${period}`;
 };
 
-export const INDENT = '     ';
+export const INDENT = '  ';
+
+export const truncateVisibleText = (text, maxWidth, { ellipsis = '...' } = {}) => {
+  const raw = String(text ?? '');
+  const limit = Number.isFinite(maxWidth) ? Math.max(0, Math.floor(maxWidth)) : 0;
+  if (!limit) return '';
+  if (raw.length <= limit) return raw;
+  if (limit <= ellipsis.length) return ellipsis.slice(0, limit);
+  return `${raw.slice(0, Math.max(0, limit - ellipsis.length))}${ellipsis}`;
+};
+
+export const truncatePathMiddle = (value, maxWidth, { ellipsis = '.../' } = {}) => {
+  const raw = String(value ?? '');
+  const limit = Number.isFinite(maxWidth) ? Math.max(0, Math.floor(maxWidth)) : 0;
+  if (!limit) return '';
+  if (raw.length <= limit) return raw;
+  if (limit <= ellipsis.length + 8) {
+    return truncateVisibleText(raw, limit, { ellipsis: '...' });
+  }
+  const normalized = raw.replace(/\\/g, '/');
+  const parts = normalized.split('/').filter(Boolean);
+  if (parts.length <= 1) return truncateVisibleText(normalized, limit, { ellipsis: '...' });
+  let suffix = parts.pop() || '';
+  while (parts.length) {
+    const next = `${parts.pop()}/${suffix}`;
+    if (`${ellipsis}${next}`.length > limit) break;
+    suffix = next;
+  }
+  return `${ellipsis}${suffix}`;
+};
 
 /**
  * Locale-neutral comparator for deterministic ordering across environments.
@@ -126,7 +155,8 @@ export const buildFormatCacheKey = ({
   mode,
   queryHash,
   matched,
-  explain
+  explain,
+  layoutSignature = ''
 }) => buildLocalCacheKey({
   namespace: 'format',
   payload: {
@@ -138,6 +168,7 @@ export const buildFormatCacheKey = ({
     matched: Boolean(matched),
     explain: Boolean(explain),
     queryHash,
+    layoutSignature,
     chunkVersion: resolveFormatChunkVersion(chunk)
   }
 }).key;

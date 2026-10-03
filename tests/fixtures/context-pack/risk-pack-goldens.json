@@ -1,0 +1,102 @@
+[
+  {
+    "id": "javascript-basic",
+    "repoAlias": "javascript-basic",
+    "languageId": "javascript",
+    "seed": "chunk:chunk-risk",
+    "hops": 0,
+    "request": {
+      "includeRisk": true,
+      "includeGraph": false,
+      "includeImports": false,
+      "includeUsages": false,
+      "includeCallersCallees": false
+    },
+    "expected": {
+      "summary": {
+        "languageId": "javascript",
+        "symbol": {
+          "name": "javascriptBasic",
+          "signature": "javascriptBasic(input)"
+        }
+      },
+      "flowIds": [
+        "sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "capBehavior": {
+        "status": "ok",
+        "capsHit": [],
+        "flowCount": 1
+      }
+    }
+  },
+  {
+    "id": "python-basic",
+    "repoAlias": "python-basic",
+    "languageId": "python",
+    "seed": "chunk:chunk-risk",
+    "hops": 0,
+    "request": {
+      "includeRisk": true,
+      "includeGraph": false,
+      "includeImports": false,
+      "includeUsages": false,
+      "includeCallersCallees": false
+    },
+    "expected": {
+      "summary": {
+        "languageId": "python",
+        "symbol": {
+          "name": "pythonBasic",
+          "signature": "pythonBasic(input)"
+        }
+      },
+      "flowIds": [
+        "sha1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      ],
+      "capBehavior": {
+        "status": "ok",
+        "capsHit": [],
+        "flowCount": 1
+      }
+    }
+  },
+  {
+    "id": "javascript-capped",
+    "repoAlias": "javascript-capped",
+    "languageId": "javascript",
+    "seed": "chunk:chunk-risk",
+    "hops": 0,
+    "request": {
+      "includeRisk": true,
+      "includeGraph": false,
+      "includeImports": false,
+      "includeUsages": false,
+      "includeCallersCallees": false
+    },
+    "expected": {
+      "summary": {
+        "languageId": "javascript",
+        "symbol": {
+          "name": "javascriptCapped",
+          "signature": "javascriptCapped(input)"
+        }
+      },
+      "flowIds": [
+        "sha1:1111111111111111111111111111111111111111",
+        "sha1:2222222222222222222222222222222222222222",
+        "sha1:3333333333333333333333333333333333333333",
+        "sha1:4444444444444444444444444444444444444444",
+        "sha1:5555555555555555555555555555555555555555"
+      ],
+      "capBehavior": {
+        "status": "capped",
+        "capsHit": [
+          "maxFlows",
+          "maxCallSitesPerStep"
+        ],
+        "flowCount": 5
+      }
+    }
+  }
+]

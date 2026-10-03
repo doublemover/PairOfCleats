@@ -3,7 +3,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { parseJsoncText } from '../../src/shared/jsonc.js';
-import { DEFAULT_USER_CONFIG_TEMPLATE } from './default-config-template.js';
+import { DEFAULT_USER_CONFIG_TEMPLATE } from './default-template.js';
+import { writeTextIfChanged } from '../shared/generated-report.js';
 
 const argv = createCli({
   scriptName: 'generate-demo-config',
@@ -130,5 +131,5 @@ renderProperties(schema, lines, '  ', '', templateDefaults);
 lines.push('}');
 lines.push('');
 
-await fs.writeFile(outPath, `${lines.join('\n')}\n`, 'utf8');
+await writeTextIfChanged(outPath, `${lines.join('\n')}\n`, { encoding: 'utf8' });
 console.error(`Wrote ${outPath}`);

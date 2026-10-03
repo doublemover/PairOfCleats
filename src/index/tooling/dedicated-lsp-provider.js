@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { isWorkspaceBuildExecution, resolveWorkspaceExecutionAuthority } from '../../shared/workspace-execution-authority.js';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import {
   appendDiagnosticChecks,
@@ -21,6 +22,11 @@ import {
 } from './preflight/command-profile-preflight.js';
 import { resolveRuntimeRequirementsPreflight } from './preflight/runtime-requirements-preflight.js';
 import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
+import {
+  formatLspWorkspacePartitionLogLine,
+  mergeLspWorkspacePartitionResults,
+  resolveLspWorkspaceRouting
+} from './lsp-workspace-routing.js';
 
 const DEFAULT_RUNTIME_OPTIONS = {
   timeoutMs: 60000,
@@ -38,7 +44,11 @@ const toExtensionSet = (extensions) => new Set(
 
 const filterProviderDocuments = (documents, extensionSet) => {
   if (!Array.isArray(documents) || !documents.length || !extensionSet.size) return [];
-  return documents.filter((doc) => extensionSet.has(path.extname(String(doc?.virtualPath || '')).toLowerCase()));
+  return documents.filter((doc) => {
+    const effectiveExt = String(doc?.effectiveExt || '').trim().toLowerCase();
+    if (effectiveExt && extensionSet.has(effectiveExt)) return true;
+    return extensionSet.has(path.extname(String(doc?.virtualPath || '')).toLowerCase());
+  });
 };
 
 const buildProviderRef = (descriptor, configHash) => ({
@@ -58,18 +68,26 @@ const resolveProviderConfig = (ctx, configKey) => (
   || {}
 );
 
-const resolveProviderConfigHash = (ctx, configKey) => (
-  hashProviderConfig({ [configKey]: resolveProviderConfig(ctx, configKey) })
+const resolveProviderConfigHash = (ctx, descriptor) => (
+  hashProviderConfig({ [descriptor.configKey]: resolveProviderConfig(ctx, descriptor.configKey),
+    ...(isWorkspaceBuildExecution({ providerId: descriptor.id, languages: descriptor.languages })
+      ? { workspaceExecutionAuthorized: !resolveWorkspaceExecutionAuthority({
+        repoRoot: ctx?.repoRoot || process.cwd(), providerId: descriptor.id, languages: descriptor.languages
+      }) }
+      : {}) })
 );
 
-const appendRuntimeDiagnostics = (result, checks) => {
+const appendRuntimeDiagnostics = (result, checks, extras = null) => {
   const diagnostics = appendDiagnosticChecks(
-    result?.diagnosticsCount
-      ? {
-        diagnosticsCount: result.diagnosticsCount,
-        diagnosticsByChunkUid: result.diagnosticsByChunkUid
-      }
-      : null,
+    {
+      ...(result?.diagnosticsCount
+        ? {
+          diagnosticsCount: result.diagnosticsCount,
+          diagnosticsByChunkUid: result.diagnosticsByChunkUid
+        }
+        : {}),
+      ...(extras && typeof extras === 'object' ? extras : {})
+    },
     checks
   );
   return result?.runtime
@@ -204,6 +222,9 @@ const shouldBlockProviderFromPreflight = (preflight) => {
  * @returns {import('./provider-registry.js').ToolingProvider}
  */
 export const createDedicatedLspProvider = (descriptor) => {
+  const executionAuthorityFor = (ctx, workspaceRoot) => resolveWorkspaceExecutionAuthority({
+    repoRoot: ctx?.repoRoot || process.cwd(), workspaceRoot, providerId: descriptor.id, languages: descriptor.languages
+  });
   const runtimeRequirementDescriptors = normalizePreflightRuntimeRequirements(
     descriptor.preflightRuntimeRequirements
   );
@@ -225,10 +246,10 @@ export const createDedicatedLspProvider = (descriptor) => {
       supportsSymbolRef: false
     },
     getConfigHash(ctx) {
-      return resolveProviderConfigHash(ctx, descriptor.configKey);
+      return resolveProviderConfigHash(ctx, descriptor);
     },
     async run(ctx, inputs) {
-      const configHash = resolveProviderConfigHash(ctx, descriptor.configKey);
+      const configHash = resolveProviderConfigHash(ctx, descriptor);
       const providerRef = buildProviderRef(this, configHash);
       const config = resolveProviderConfig(ctx, descriptor.configKey);
       const docs = filterProviderDocuments(inputs?.documents, toExtensionSet(descriptor.docExtensions));
@@ -241,6 +262,8 @@ export const createDedicatedLspProvider = (descriptor) => {
       }
 
       const checks = [...duplicateChecks];
+      const initialAuthority = executionAuthorityFor(ctx);
+      if (initialAuthority) return buildBaseResult(providerRef, [...checks, initialAuthority.check]);
       let preflight = null;
       if (typeof this.preflight === 'function') {
         preflight = await awaitToolingProviderPreflight(ctx, {
@@ -253,6 +276,8 @@ export const createDedicatedLspProvider = (descriptor) => {
           },
           waveToken: resolveWaveToken(inputs)
         });
+        const currentAuthority = executionAuthorityFor(ctx);
+        if (currentAuthority) return buildBaseResult(providerRef, [...checks, currentAuthority.check]);
         appendPreflightChecks(checks, preflight);
         if (shouldBlockProviderFromPreflight(preflight)) {
           return buildBaseResult(providerRef, checks);
@@ -265,6 +290,9 @@ export const createDedicatedLspProvider = (descriptor) => {
       const runtimeCommand = resolveRuntimeCommandFromPreflight({
         preflight,
         fallbackRequestedCommand: requested,
+        providerId: descriptor.id,
+        repoRoot: ctx?.repoRoot || process.cwd(),
+        toolingConfig: ctx?.toolingConfig || {},
         missingProfileCheck: {
           name: `${descriptor.id}_preflight_command_profile_missing`,
           status: 'warn',
@@ -318,33 +346,62 @@ export const createDedicatedLspProvider = (descriptor) => {
       const initializationOptions = isPlainObject(config.initializationOptions)
         ? config.initializationOptions
         : null;
+      const workspaceRouting = resolveLspWorkspaceRouting({
+        repoRoot: ctx.repoRoot,
+        providerId: descriptor.id,
+        documents: docs,
+        targets,
+        workspaceMarkerOptions: descriptor.workspace?.markerOptions || null,
+        requireWorkspaceModel: config.requireWorkspaceModel !== false,
+        workspaceModelPolicy: 'block'
+      });
+      const workspaceLogLine = formatLspWorkspacePartitionLogLine({
+        providerId: descriptor.id,
+        workspaceRouting
+      });
+      if (workspaceLogLine) {
+        getLogger(ctx)(workspaceLogLine);
+      }
 
       let result;
       try {
-        result = await collectLspTypes({
-          ...runtimeConfig,
-          rootDir: ctx.repoRoot,
-          documents: docs,
-          targets,
-          abortSignal: ctx?.abortSignal || null,
-          log: getLogger(ctx),
-          providerId: descriptor.id,
-          cmd: resolvedCmd,
-          args: resolvedArgs,
-          parseSignature: descriptor.parseSignature,
-          strict: ctx?.strict !== false,
-          vfsRoot: ctx?.buildRoot || ctx.repoRoot,
-          vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
-          vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
-          vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
-          indexDir: ctx?.buildRoot || null,
-          cacheRoot: ctx?.cache?.dir || null,
-          initializationOptions,
-          captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
-          ...collectOptions
-        });
+        const currentAuthority = executionAuthorityFor(ctx);
+        if (currentAuthority) return buildBaseResult(providerRef, [...checks, currentAuthority.check]);
+        const partitionResults = [];
+        for (const partition of workspaceRouting.partitions) {
+          const partitionAuthority = executionAuthorityFor(ctx, partition.rootDir);
+          if (partitionAuthority) return buildBaseResult(providerRef, [...checks, partitionAuthority.check]);
+          partitionResults.push(await collectLspTypes({
+            ...runtimeConfig,
+            rootDir: ctx.repoRoot,
+            workspaceRootDir: partition.rootDir,
+            workspaceKey: partition.workspaceKey,
+            documents: partition.documents,
+            targets: partition.targets,
+            abortSignal: ctx?.abortSignal || null,
+            log: getLogger(ctx),
+            providerId: descriptor.id,
+            cmd: resolvedCmd,
+            args: resolvedArgs,
+            parseSignature: descriptor.parseSignature,
+            strict: ctx?.strict !== false,
+            vfsRoot: ctx?.buildRoot || ctx.repoRoot,
+            vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
+            vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
+            vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
+            indexDir: ctx?.buildRoot || null,
+            cacheRoot: ctx?.cache?.dir || null,
+            initializationOptions,
+            captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
+            ...collectOptions
+          }));
+        }
+        result = mergeLspWorkspacePartitionResults(partitionResults, workspaceRouting.workspaceModel);
         invalidateProbeCacheOnInitializeFailure({
-          checks: result?.checks,
+          checks: [
+            ...workspaceRouting.checks,
+            ...(Array.isArray(result?.checks) ? result.checks : [])
+          ],
           providerId: descriptor.id,
           command: resolvedCmd,
           args: resolvedArgs,
@@ -361,8 +418,11 @@ export const createDedicatedLspProvider = (descriptor) => {
         byChunkUid: result.byChunkUid,
         diagnostics: appendRuntimeDiagnostics(result, [
           ...checks,
+          ...workspaceRouting.checks,
           ...(Array.isArray(result.checks) ? result.checks : [])
-        ])
+        ], {
+          workspaceModel: workspaceRouting.workspaceModel
+        })
       };
     }
   };
@@ -404,11 +464,16 @@ export const createDedicatedLspProvider = (descriptor) => {
           check: null
         };
       }
+      const initialAuthority = executionAuthorityFor(ctx);
+      if (initialAuthority) return initialAuthority;
       if (hasWorkspacePreflight && config.requireWorkspaceModel !== false) {
         const missingCheck = resolveWorkspaceMissingCheck(descriptor);
         const workspacePreflight = resolveWorkspaceModelPreflight({
           repoRoot: ctx?.repoRoot || process.cwd(),
           markerOptions: descriptor.workspace.markerOptions || {},
+          candidatePaths: Array.isArray(inputs?.documents)
+            ? inputs.documents.map((doc) => doc?.virtualPath || doc?.path || '').filter(Boolean)
+            : [],
           missingCheck,
           fallbackName: missingCheck.name,
           fallbackMessage: missingCheck.message,
@@ -434,6 +499,8 @@ export const createDedicatedLspProvider = (descriptor) => {
           commandProfile: commandPreflight.commandProfile
         })
         : { state: 'ready', blockProvider: false, check: null };
+      const currentAuthority = executionAuthorityFor(ctx);
+      if (currentAuthority) return currentAuthority;
       if (shouldBlockProviderFromPreflight(customPreflight)) {
         return {
           ...customPreflight,

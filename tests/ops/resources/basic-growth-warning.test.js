@@ -10,7 +10,7 @@ import {
   evaluateResourceGrowth,
   formatResourceGrowthWarning,
   readIndexArtifactBytes
-} from '../../../src/shared/ops-resource-visibility.js';
+} from '../../../src/shared/ops/resource-visibility.js';
 
 const MiB = 1024 * 1024;
 

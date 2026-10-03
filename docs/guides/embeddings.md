@@ -7,6 +7,13 @@ Status: Contract notes for implementation and validation. This document compleme
 
 ## 1) Identity and compatibility
 
+The `xenova` provider uses `@huggingface/transformers` 4.x. Its public provider
+name and model IDs (including `Xenova/all-MiniLM-L12-v2`) remain unchanged.
+Model downloads and inference explicitly select `dtype: 'q8'`, preserving existing
+`onnx/model_quantized.onnx` caches rather than silently switching Node inference
+to full-precision weights. The `onnx` provider uses the same tokenizer package.
+See the upstream [dtype migration guide](https://huggingface.co/docs/transformers.js/guides/dtypes).
+
 Embeddings MUST be treated as build-scoped artifacts. A build may only consume embeddings produced with the same:
 
 - embedding model/provider identity
@@ -111,7 +118,7 @@ The worker MUST refuse to run if `buildRoot` does not exist and should treat `in
 
 ## 7) Strict manifest compliance
 
-Strict tooling must only discover artifacts via `pieces/manifest.json`. Non-strict fallback is allowed only when explicitly enabled and must emit a warning. See the Phase 7 strict manifest addendum in `GIGAROADMAP_2.md`.
+Strict tooling must only discover artifacts via `pieces/manifest.json`. Non-strict fallback is allowed only when explicitly enabled and must emit a warning. See `docs/contracts/public-artifact-surface.md` and `docs/specs/artifact-schemas.md` for the current manifest-first artifact contract.
 
 ## 8) Embeddings throughput KPI gate
 

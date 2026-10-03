@@ -82,6 +82,23 @@ class MapBehaviorTests(unittest.TestCase):
             elif key == 'run_process':
                 self.map_commands.runner.run_process = value
 
+    def _install_successful_map_runner(self, out_path='https://example.test/map'):
+        runner_calls = []
+
+        def _run_process(command, args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None):
+            runner_calls.append({'cwd': cwd, 'title': title})
+            on_done(_FakeResult({
+                'ok': True,
+                'source': 'cli',
+                'format': 'html-iso',
+                'outPath': out_path,
+                'summary': {'counts': {'files': 1, 'members': 1, 'edges': 0}},
+                'warnings': [],
+            }))
+
+        self.map_commands.runner.run_process = _run_process
+        return runner_calls
+
     def test_map_dispatch_records_report_and_reopens_url_output(self):
         payload = {
             'ok': True,
@@ -161,20 +178,7 @@ class MapBehaviorTests(unittest.TestCase):
             'map_index_mode': 'code',
             'map_collapse_default': 'none',
         }
-        runner_calls = []
-
-        def _run_process(command, args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None):
-            runner_calls.append({'cwd': cwd, 'title': title})
-            on_done(_FakeResult({
-                'ok': True,
-                'source': 'cli',
-                'format': 'html-iso',
-                'outPath': 'https://example.test/map',
-                'summary': {'counts': {'files': 1, 'members': 1, 'edges': 0}},
-                'warnings': [],
-            }))
-
-        self.map_commands.runner.run_process = _run_process
+        runner_calls = self._install_successful_map_runner()
 
         self.map_commands._dispatch_map(self.window, 'repo', '', 'C:/repo')
 
@@ -210,20 +214,7 @@ class MapBehaviorTests(unittest.TestCase):
             os.makedirs(os.path.join(repo_b, '.git'))
             self.window.set_folders([repo_a, repo_b])
             self.map_commands.paths.resolve_repo_root = self._originals['resolve_repo_root']
-            runner_calls = []
-
-            def _run_process(command, args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None):
-                runner_calls.append({'cwd': cwd, 'title': title})
-                on_done(_FakeResult({
-                    'ok': True,
-                    'source': 'cli',
-                    'format': 'html-iso',
-                    'outPath': 'https://example.test/map',
-                    'summary': {'counts': {'files': 1, 'members': 1, 'edges': 0}},
-                    'warnings': [],
-                }))
-
-            self.map_commands.runner.run_process = _run_process
+            runner_calls = self._install_successful_map_runner()
             self.map_commands.PairOfCleatsMapRepoCommand(self.window).run()
 
             self.assertEqual(runner_calls, [])

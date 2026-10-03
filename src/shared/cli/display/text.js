@@ -121,15 +121,19 @@ export const splitDurationParts = (seconds) => {
   return { days, hours, minutes, seconds: secs, ms: 0, totalSeconds: seconds };
 };
 
+const formatLongDurationPieces = (parts, separator) => {
+  const pieces = [];
+  if (parts.days > 0) pieces.push(`${parts.days}d`);
+  if (parts.hours > 0) pieces.push(`${parts.hours}h`);
+  if (parts.minutes > 0) pieces.push(`${parts.minutes}m`);
+  if (parts.seconds > 0) pieces.push(`${parts.seconds}s`);
+  return pieces.join(separator);
+};
+
 export const formatDurationCompact = (parts) => {
   if (parts.ms) return `${parts.ms}ms`;
   if (parts.days > 0 || parts.hours > 0) {
-    const pieces = [];
-    if (parts.days > 0) pieces.push(`${parts.days}d`);
-    if (parts.hours > 0) pieces.push(`${parts.hours}h`);
-    if (parts.minutes > 0) pieces.push(`${parts.minutes}m`);
-    if (parts.seconds > 0) pieces.push(`${parts.seconds}s`);
-    return pieces.join(' ');
+    return formatLongDurationPieces(parts, ' ');
   }
   if (parts.minutes > 0) {
     return parts.seconds > 0 ? `${parts.minutes}m${parts.seconds}s` : `${parts.minutes}m`;
@@ -141,12 +145,7 @@ export const formatDurationCompact = (parts) => {
 export const formatDurationEtaCompact = (parts) => {
   if (parts.ms) return `${parts.ms}ms`;
   if (parts.days > 0 || parts.hours > 0) {
-    const pieces = [];
-    if (parts.days > 0) pieces.push(`${parts.days}d`);
-    if (parts.hours > 0) pieces.push(`${parts.hours}h`);
-    if (parts.minutes > 0) pieces.push(`${parts.minutes}m`);
-    if (parts.seconds > 0) pieces.push(`${parts.seconds}s`);
-    return pieces.join('');
+    return formatLongDurationPieces(parts, '');
   }
   if (parts.minutes > 0) {
     if (parts.seconds > 0) {

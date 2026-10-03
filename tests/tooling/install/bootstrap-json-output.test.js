@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -41,8 +42,15 @@ if (process.platform === 'win32') {
   await fsPromises.chmod(npmPath, 0o755);
 }
 
-const result = spawnSync(
-  process.execPath,
+const env = applyTestEnv({
+  syncProcess: false,
+  cacheRoot,
+  extraEnv: {
+    PATH: `${fakeBin}${path.delimiter}${process.env.PATH || ''}`
+  }
+});
+
+const result = runNode(
   [
     path.join(root, 'tools', 'setup', 'bootstrap.js'),
     '--repo',
@@ -53,28 +61,14 @@ const result = spawnSync(
     '--skip-artifacts',
     '--json'
   ],
+  'bootstrap json output',
+  fixtureRoot,
+  env,
   {
-    cwd: fixtureRoot,
-    encoding: 'utf8',
-    maxBuffer: 8 * 1024 * 1024,
-    env: {
-      ...process.env,
-      PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-      PATH: `${fakeBin}${path.delimiter}${process.env.PATH || ''}`
-    }
+    stdio: 'pipe',
+    spawnOptions: { maxBuffer: 8 * 1024 * 1024 }
   }
 );
-
-if (result.status !== 0) {
-  console.error('bootstrap json-output test failed: bootstrap exited non-zero');
-  if (result.error) console.error(result.error.message || String(result.error));
-  if (result.stderr) {
-    const stderr = String(result.stderr);
-    const tail = stderr.slice(Math.max(0, stderr.length - 4000));
-    console.error(tail.trim());
-  }
-  process.exit(result.status ?? 1);
-}
 
 let payload;
 try {

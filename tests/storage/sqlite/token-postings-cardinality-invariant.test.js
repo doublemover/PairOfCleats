@@ -1,13 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { writeJsonLinesFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
-import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
-import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
+import { buildDatabaseFromArtifacts } from '../../../src/storage/sqlite/build/from-artifacts.js';
 import { requireOrSkip } from '../../helpers/require-or-skip.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { setupTokenPostingsArtifactFixture } from './helpers/token-postings-streamed-fixture.js';
 
 ensureTestingEnv(process.env);
 requireOrSkip({ capability: 'sqlite', reason: 'sqlite token_postings cardinality invariant test requires better-sqlite3' });
@@ -15,16 +11,9 @@ requireOrSkip({ capability: 'sqlite', reason: 'sqlite token_postings cardinality
 let Database = null;
 ({ default: Database } = await import('better-sqlite3'));
 
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'sqlite-token-postings-cardinality-invariant');
-const indexDir = path.join(tempRoot, 'index-code');
-const outPath = path.join(tempRoot, 'index-code.db');
-
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(indexDir, { recursive: true });
-
-await writeJsonLinesFile(path.join(indexDir, 'chunk_meta.jsonl'), [
-  {
+const { indexDir, outPath, indexPieces } = await setupTokenPostingsArtifactFixture({
+  tempLabel: 'sqlite-token-postings-cardinality-invariant',
+  chunks: [{
     id: 0,
     file: 'src/example.js',
     start: 0,
@@ -34,42 +23,39 @@ await writeJsonLinesFile(path.join(indexDir, 'chunk_meta.jsonl'), [
     kind: 'code',
     name: 'example',
     tokens: ['alpha', 'beta']
-  }
-], { atomic: true });
-
-const shardDir = path.join(indexDir, 'token_postings.shards');
-await fs.mkdir(shardDir, { recursive: true });
-await writeJsonObjectFile(path.join(shardDir, 'token_postings.part-00000.json'), {
-  arrays: {
-    vocab: ['alpha'],
-    postings: [
-      [[0, 1]],
-      [[0, 1]]
-    ]
+  }],
+  tokenPostings: {
+    sharded: {
+      part: {
+        arrays: {
+          vocab: ['alpha'],
+          postings: [
+            [[0, 1]],
+            [[0, 1]]
+          ]
+        }
+      },
+      meta: {
+        fields: {
+          avgDocLen: 2,
+          totalDocs: 1,
+          format: 'sharded',
+          shardSize: 1,
+          vocabCount: 1,
+          parts: ['token_postings.shards/token_postings.part-00000.json']
+        },
+        arrays: {
+          docLengths: [2]
+        }
+      }
+    }
   },
-  atomic: true
+  pieceEntries: [
+    { name: 'chunk_meta', path: 'chunk_meta.jsonl', format: 'jsonl' },
+    { name: 'token_postings', path: 'token_postings.shards/token_postings.part-00000.json', format: 'sharded' },
+    { name: 'token_postings_meta', path: 'token_postings.meta.json', format: 'json' }
+  ]
 });
-await writeJsonObjectFile(path.join(indexDir, 'token_postings.meta.json'), {
-  fields: {
-    avgDocLen: 2,
-    totalDocs: 1,
-    format: 'sharded',
-    shardSize: 1,
-    vocabCount: 1,
-    parts: ['token_postings.shards/token_postings.part-00000.json']
-  },
-  arrays: {
-    docLengths: [2]
-  },
-  atomic: true
-});
-await writePiecesManifest(indexDir, [
-  { name: 'chunk_meta', path: 'chunk_meta.jsonl', format: 'jsonl' },
-  { name: 'token_postings', path: 'token_postings.shards/token_postings.part-00000.json', format: 'sharded' },
-  { name: 'token_postings_meta', path: 'token_postings.meta.json', format: 'json' }
-]);
-
-const indexPieces = await loadIndexPieces(indexDir, null);
 assert.ok(indexPieces, 'expected loadIndexPieces to detect chunk_meta/token_postings artifacts');
 
 const warnings = [];

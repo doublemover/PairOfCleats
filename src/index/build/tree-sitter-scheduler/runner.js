@@ -1,48 +1,55 @@
-import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
-import { runWithConcurrency } from '../../../shared/concurrency.js';
-import { resolveRuntimeEnv } from '../../../shared/runtime-envelope.js';
-import { spawnSubprocess } from '../../../shared/subprocess.js';
+import { resolveRuntimeEnv } from '../../../shared/runtime-envelope/env-patch.js';
 import {
   resolveBuildCleanupTimeoutMs,
   runBuildCleanupWithTimeout
 } from '../cleanup-timeout.js';
 import { buildTreeSitterSchedulerPlan } from './plan.js';
 import { createTreeSitterSchedulerLookup } from './lookup.js';
-import {
-  loadTreeSitterSchedulerAdaptiveProfile,
-  mergeTreeSitterSchedulerAdaptiveProfile,
-  saveTreeSitterSchedulerAdaptiveProfile
-} from './adaptive-profile.js';
-import { parseSubprocessCrashEvents, isSubprocessCrashExit, inferFailedGrammarKeysFromSubprocessOutput } from './runner/crash-utils.js';
 import { createSchedulerCrashTracker } from './runner/crash-tracker.js';
-import { resolveExecConcurrency, resolveExecutionOrder, buildWarmPoolTasks, resolveSchedulerTaskTimeoutMs } from './runner/task-scheduler.js';
 import { loadIndexEntries } from './runner/index-loader.js';
 import {
-  loadSubprocessProfile,
-  createLineBuffer,
+  buildTreeSitterPlannerFailureSnapshot
+} from './contracts.js';
+import {
   buildPlannedSegmentsByContainer,
   buildScheduledLanguageSet
 } from './runner/execution-utils.js';
+import { persistTreeSitterSchedulerAdaptiveSamples } from './runner/adaptive-profile.js';
+import { prepareTreeSitterSchedulerTasks } from './runner/task-preparation.js';
+import { executeTreeSitterSchedulerTasks } from './runner/task-execution.js';
+import {
+  buildWarmPoolTasks,
+  resolveExecutionOrder,
+  resolveSchedulerTaskTimeoutMs
+} from './runner/task-scheduler.js';
+import {
+  inferFailedGrammarKeysFromSubprocessOutput,
+  isSubprocessCrashExit
+} from './runner/crash-utils.js';
 
 const SCHEDULER_EXEC_PATH = fileURLToPath(new URL('./subprocess-exec.js', import.meta.url));
 
-/**
- * Execute tree-sitter scheduling for a mode by planning per-grammar jobs,
- * running the scheduler subprocess(es), and loading the merged index rows.
- *
- * @param {object} input
- * @param {'code'|'prose'|'records'|'extracted-prose'} input.mode
- * @param {object} input.runtime
- * @param {Array<object>} input.entries
- * @param {string} input.outDir
- * @param {object|null} [input.fileTextCache]
- * @param {AbortSignal|null} [input.abortSignal]
- * @param {(line:string)=>void|null} [input.log]
- * @param {object|null} [input.crashLogger]
- * @returns {Promise<object|null>}
- */
+const writePlannerFailureSnapshot = async ({
+  paths,
+  plan,
+  groups,
+  tasks,
+  failureSummary
+}) => {
+  if (!paths?.plannerFailureSnapshotPath) return null;
+  const snapshot = buildTreeSitterPlannerFailureSnapshot({
+    plan,
+    groups,
+    tasks,
+    failureSummary
+  });
+  await atomicWriteJson(paths.plannerFailureSnapshotPath, snapshot, { spaces: 2 });
+  return paths.plannerFailureSnapshotPath;
+};
+
 export const runTreeSitterScheduler = async ({
   mode,
   runtime,
@@ -80,188 +87,67 @@ export const runTreeSitterScheduler = async ({
   });
   if (!planResult) return null;
 
-  // Execute the plan in a separate Node process to isolate parser memory churn
-  // from the main indexer process.
   const runtimeEnv = runtime?.envelope
     ? resolveRuntimeEnv(runtime.envelope, process.env)
     : process.env;
-  const executionOrder = resolveExecutionOrder(planResult.plan);
-  const grammarKeys = Array.from(new Set(executionOrder));
-  const groupMetaByGrammarKey = planResult.plan?.groupMeta && typeof planResult.plan.groupMeta === 'object'
-    ? planResult.plan.groupMeta
-    : {};
-  const groupByGrammarKey = new Map();
-  for (const group of planResult.groups || []) {
-    if (!group?.grammarKey) continue;
-    groupByGrammarKey.set(group.grammarKey, group);
-  }
   const crashTracker = createSchedulerCrashTracker({
     runtime,
     outDir,
     paths: planResult.paths,
-    groupByGrammarKey,
+    groupByGrammarKey: new Map((planResult.groups || []).map((group) => [group.grammarKey, group])),
     crashLogger,
     log
   });
-  const idleGapStats = {
-    samples: 0,
-    totalMs: 0,
-    maxMs: 0,
-    thresholdMs: 25
-  };
-  let lastTaskCompletedAt = 0;
-  if (executionOrder.length) {
-    const streamLogs = typeof log === 'function'
-      && (runtime?.argv?.verbose === true || runtime?.languageOptions?.treeSitter?.debugScheduler === true);
-    const execConcurrency = resolveExecConcurrency({
-      schedulerConfig,
-      grammarCount: executionOrder.length
+  let prepared = null;
+  try {
+    prepared = prepareTreeSitterSchedulerTasks({
+      planResult,
+      schedulerConfig
     });
-    const warmPoolTasks = buildWarmPoolTasks({
-      executionOrder,
-      groupMetaByGrammarKey,
-      schedulerConfig,
-      execConcurrency
-    });
-    const adaptiveSamples = [];
-    await runWithConcurrency(
-      warmPoolTasks,
-      execConcurrency,
-      async (task, ctx) => {
-        throwIfAborted(effectiveAbortSignal);
-        const now = Date.now();
-        if (lastTaskCompletedAt > 0) {
-          const idleGapMs = Math.max(0, now - lastTaskCompletedAt);
-          if (idleGapMs >= idleGapStats.thresholdMs) {
-            idleGapStats.samples += 1;
-            idleGapStats.totalMs += idleGapMs;
-            idleGapStats.maxMs = Math.max(idleGapStats.maxMs, idleGapMs);
-          }
-        }
-        const grammarKeysForTask = Array.isArray(task?.grammarKeys) ? task.grammarKeys : [];
-        if (!grammarKeysForTask.length) return;
-        const taskTimeoutMs = resolveSchedulerTaskTimeoutMs({
-          schedulerConfig,
-          task,
-          groupByGrammarKey
-        });
-        if (log) {
-          log(
-            `[tree-sitter:schedule] batch ${ctx.index + 1}/${warmPoolTasks.length}: ${task.taskId} `
-            + `(waves=${grammarKeysForTask.length}, lane=${task.laneIndex}/${task.laneCount}, timeout=${taskTimeoutMs}ms)`
-          );
-        }
-        const linePrefix = `[tree-sitter:schedule:${task.taskId}]`;
-        const stdoutBuffer = streamLogs
-          ? createLineBuffer((line) => log(`${linePrefix} ${line}`))
-          : null;
-        const stderrBuffer = streamLogs
-          ? createLineBuffer((line) => log(`${linePrefix} ${line}`))
-          : null;
-        const profileOut = path.join(
-          outDir,
-          `.tree-sitter-scheduler-profile-${process.pid}-${ctx.index + 1}.json`
-        );
-        try {
-          // Avoid stdio='inherit' when we have a logger. Direct child writes bypass
-          // the display/progress handlers and render underneath interactive bars.
-          // Piping and relaying lines keeps all output on the parent render path.
-          await spawnSubprocess(
-            process.execPath,
-            [
-              SCHEDULER_EXEC_PATH,
-              '--outDir', outDir,
-              '--grammarKeys', grammarKeysForTask.join(','),
-              '--profileOut', profileOut
-            ],
-            {
-              cwd: runtime?.root || undefined,
-              env: runtimeEnv,
-              stdio: ['ignore', 'pipe', 'pipe'],
-              shell: false,
-              signal: effectiveAbortSignal,
-              timeoutMs: taskTimeoutMs,
-              killTree: true,
-              rejectOnNonZeroExit: true,
-              onStdout: streamLogs ? (chunk) => stdoutBuffer.push(chunk) : null,
-              onStderr: streamLogs ? (chunk) => stderrBuffer.push(chunk) : null
-            }
-          );
-          const profileRows = await loadSubprocessProfile(profileOut);
-          for (const row of profileRows) {
-            adaptiveSamples.push(row);
-          }
-        } catch (err) {
-          if (effectiveAbortSignal?.aborted) throw err;
-          const subprocessCrashEvents = parseSubprocessCrashEvents(err);
-          const exitCode = Number(err?.result?.exitCode);
-          const signal = typeof err?.result?.signal === 'string' ? err.result.signal : null;
-          const hasInjectedCrashExit = exitCode === 86;
-          const hasNativeCrashExit = isSubprocessCrashExit({ exitCode, signal });
-          const isTimeoutExit = err?.code === 'SUBPROCESS_TIMEOUT';
-          const containsCrashEvent = subprocessCrashEvents.length > 0
-            || hasInjectedCrashExit
-            || hasNativeCrashExit
-            || isTimeoutExit;
-          if (!containsCrashEvent) throw err;
-          const inferredFailedGrammarKeys = inferFailedGrammarKeysFromSubprocessOutput({
-            grammarKeysForTask,
-            stdout: err?.result?.stdout,
-            stderr: err?.result?.stderr
-          });
-          const failureKeys = inferredFailedGrammarKeys.length
-            ? inferredFailedGrammarKeys
-            : grammarKeysForTask;
-          if (isTimeoutExit && typeof log === 'function') {
-            log(
-              `[tree-sitter:schedule] subprocess timeout in ${task.taskId} after ${taskTimeoutMs}ms; ` +
-              `degrading ${failureKeys.join(', ')}`
-            );
-          }
-          const crashStage = typeof subprocessCrashEvents[0]?.stage === 'string'
-            ? subprocessCrashEvents[0].stage
-            : (isTimeoutExit ? 'scheduler-subprocess-timeout' : 'scheduler-subprocess');
-          for (const grammarKey of failureKeys) {
-            await crashTracker.recordFailure({
-              grammarKey,
-              stage: crashStage,
-              error: err,
-              taskId: task.taskId,
-              markFailed: true,
-              taskGrammarKeys: grammarKeysForTask,
-              inferredFailedGrammarKeys
-            });
-          }
-          return;
-        } finally {
-          stdoutBuffer?.flush();
-          stderrBuffer?.flush();
-          lastTaskCompletedAt = Date.now();
-        }
-        throwIfAborted(effectiveAbortSignal);
-      },
-      {
-        collectResults: false,
-        signal: effectiveAbortSignal,
-        requireSignal: true,
-        signalLabel: 'build.tree-sitter.runner.runWithConcurrency'
+  } catch (err) {
+    await writePlannerFailureSnapshot({
+      paths: planResult.paths,
+      plan: planResult.plan,
+      groups: planResult.groups,
+      tasks: prepared?.plannedTasks || [],
+      failureSummary: {
+        parserCrashSignatures: 0,
+        failedGrammarKeys: [],
+        degradedVirtualPaths: [],
+        failureClasses: { scheduler_contract_violation: 1 }
       }
-    );
-    if (adaptiveSamples.length) {
-      const loaded = await loadTreeSitterSchedulerAdaptiveProfile({
-        runtime,
-        treeSitterConfig: runtime?.languageOptions?.treeSitter || null,
-        log
-      });
-      const merged = mergeTreeSitterSchedulerAdaptiveProfile(loaded.entriesByGrammarKey, adaptiveSamples);
-      await saveTreeSitterSchedulerAdaptiveProfile({
-        profilePath: loaded.profilePath,
-        entriesByGrammarKey: merged,
-        log
-      });
-    }
-    throwIfAborted(effectiveAbortSignal);
+    });
+    throw err;
   }
+
+  const { grammarKeys, plannedTasks, execConcurrency } = prepared;
+  const execution = await executeTreeSitterSchedulerTasks({
+    plannedTasks,
+    execConcurrency,
+    effectiveAbortSignal,
+    runtime,
+    outDir,
+    runtimeEnv,
+    schedulerExecPath: SCHEDULER_EXEC_PATH,
+    crashTracker,
+    planResult,
+    log,
+    onWritePlannerFailureSnapshot: ({ plan, groups, tasks, failureSummary }) => writePlannerFailureSnapshot({
+      paths: planResult.paths,
+      plan,
+      groups,
+      tasks,
+      failureSummary
+    })
+  });
+  await persistTreeSitterSchedulerAdaptiveSamples({
+    runtime,
+    treeSitterConfig: runtime?.languageOptions?.treeSitter || null,
+    adaptiveSamples: execution.adaptiveSamples,
+    log
+  });
+  throwIfAborted(effectiveAbortSignal);
+
   const crashPersistenceResult = await runBuildCleanupWithTimeout({
     label: `tree-sitter-scheduler.${mode}.crash-persistence`,
     cleanup: () => crashTracker.waitForPersistence(),
@@ -269,22 +155,34 @@ export const runTreeSitterScheduler = async ({
   });
   if (crashPersistenceResult?.timedOut && log) {
     log(
-      `[tree-sitter:schedule] crash persistence timed out after ${
-        crashPersistenceResult?.elapsedMs || 'unknown'
-      }ms; continuing with degraded crash telemetry.`
+      `[tree-sitter:schedule] crash persistence timed out after ${crashPersistenceResult?.elapsedMs || 'unknown'}ms; continuing with degraded crash telemetry.`
     );
   }
   const crashSummary = crashTracker.summarize();
   const failedGrammarKeySet = new Set(crashSummary.failedGrammarKeys);
   const successfulGrammarKeys = grammarKeys.filter((grammarKey) => !failedGrammarKeySet.has(grammarKey));
   const degradedVirtualPathSet = new Set(crashSummary.degradedVirtualPaths);
+  const quarantineDecisionCount = Array.isArray(crashSummary.quarantineDecisions)
+    ? crashSummary.quarantineDecisions.length
+    : 0;
   if (crashSummary.parserCrashSignatures > 0 && log) {
     log(
-      `[tree-sitter:schedule] degraded parser mode enabled: ` +
+      `[tree-sitter:schedule] parser quarantine active: ` +
       `signatures=${crashSummary.parserCrashSignatures} ` +
       `failedGrammarKeys=${crashSummary.failedGrammarKeys.length} ` +
-      `degradedVirtualPaths=${crashSummary.degradedVirtualPaths.length}`
+      `degradedVirtualPaths=${crashSummary.degradedVirtualPaths.length} ` +
+      `quarantineDecisions=${quarantineDecisionCount}`
     );
+  }
+  let plannerFailureSnapshotPath = null;
+  if (crashSummary.failedGrammarKeys.length > 0) {
+    plannerFailureSnapshotPath = await writePlannerFailureSnapshot({
+      paths: planResult.paths,
+      plan: planResult.plan,
+      groups: planResult.groups,
+      tasks: plannedTasks,
+      failureSummary: crashSummary
+    });
   }
 
   throwIfAborted(effectiveAbortSignal);
@@ -330,13 +228,17 @@ export const runTreeSitterScheduler = async ({
       failedGrammarKeys: crashSummary.failedGrammarKeys.length,
       jobs: planResult.plan.jobs || 0,
       parserQueueIdleGaps: {
-        samples: idleGapStats.samples,
-        totalMs: idleGapStats.totalMs,
-        maxMs: idleGapStats.maxMs,
-        avgMs: idleGapStats.samples > 0 ? Math.round(idleGapStats.totalMs / idleGapStats.samples) : 0
+        samples: execution.idleGapStats.samples,
+        totalMs: execution.idleGapStats.totalMs,
+        maxMs: execution.idleGapStats.maxMs,
+        avgMs: execution.idleGapStats.samples > 0
+          ? Math.round(execution.idleGapStats.totalMs / execution.idleGapStats.samples)
+          : 0
       },
       parserCrashSignatures: crashSummary.parserCrashSignatures,
-      degradedVirtualPaths: crashSummary.degradedVirtualPaths.length
+      quarantineDecisions: quarantineDecisionCount,
+      degradedVirtualPaths: crashSummary.degradedVirtualPaths.length,
+      failureClasses: crashSummary.failureClasses
     }
     : null;
 
@@ -348,13 +250,19 @@ export const runTreeSitterScheduler = async ({
     degradedVirtualPaths: crashSummary.degradedVirtualPaths,
     parserCrashEvents: crashSummary.parserCrashEvents,
     parserCrashSignatures: crashSummary.parserCrashSignatures,
+    quarantineDecisions: crashSummary.quarantineDecisions,
     crashForensicsBundlePath: crashTracker.getBundlePath(),
     durableCrashForensicsBundlePath: crashTracker.getDurableBundlePath(),
+    plannerFailureSnapshotPath,
     getCrashSummary: () => ({
       parserCrashSignatures: crashSummary.parserCrashSignatures,
       parserCrashEvents: crashSummary.parserCrashEvents.map((event) => ({ ...event })),
       failedGrammarKeys: crashSummary.failedGrammarKeys.slice(),
-      degradedVirtualPaths: crashSummary.degradedVirtualPaths.slice()
+      degradedVirtualPaths: crashSummary.degradedVirtualPaths.slice(),
+      quarantineDecisions: Array.isArray(crashSummary.quarantineDecisions)
+        ? crashSummary.quarantineDecisions.map((entry) => ({ ...entry }))
+        : [],
+      failureClasses: { ...(crashSummary.failureClasses || {}) }
     }),
     isDegradedVirtualPath: (virtualPath) => degradedVirtualPathSet.has(virtualPath),
     plannedSegmentsByContainer,
@@ -367,8 +275,10 @@ export const runTreeSitterScheduler = async ({
     stats: () => ({
       ...(baseLookupStats ? baseLookupStats() : {}),
       parserCrashSignatures: crashSummary.parserCrashSignatures,
+      quarantineDecisions: quarantineDecisionCount,
       failedGrammarKeys: crashSummary.failedGrammarKeys.length,
-      degradedVirtualPaths: crashSummary.degradedVirtualPaths.length
+      degradedVirtualPaths: crashSummary.degradedVirtualPaths.length,
+      failureClasses: { ...(crashSummary.failureClasses || {}) }
     })
   };
 };

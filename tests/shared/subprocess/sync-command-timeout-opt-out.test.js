@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { runSyncCommandWithTimeout } from '../../../src/shared/subprocess.js';
+import { runSyncCommandWithTimeout } from '../../../src/shared/subprocess/sync-command.js';
 
 const startedAt = Date.now();
 const result = runSyncCommandWithTimeout(

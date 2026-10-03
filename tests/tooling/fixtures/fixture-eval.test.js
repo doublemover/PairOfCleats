@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { createCli } from '../../../src/shared/cli.js';
+import { runNode } from '../../helpers/run-node.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -30,11 +30,9 @@ function resolveFixtures() {
 }
 
 function run(args, label, cwd, env, inherit = false) {
-  const result = spawnSync(process.execPath, args, {
-    cwd,
-    env,
-    encoding: 'utf8',
-    stdio: inherit ? 'inherit' : 'pipe'
+  const result = runNode(args, label, cwd, env, {
+    stdio: inherit ? 'inherit' : 'pipe',
+    allowFailure: true
   });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);

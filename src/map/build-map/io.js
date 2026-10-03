@@ -1,12 +1,13 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { loadGraphRelationsSync, loadJsonArrayArtifactSync, readJsonFile } from '../../shared/artifact-io.js';
+import { readJsonFile } from '../../shared/artifact-io/json.js';
+import { loadGraphRelationsSync, loadJsonArrayArtifactSync } from '../../shared/artifact-io/loaders.js';
 import { mergeSortedRuns } from '../../shared/merge.js';
 import { compareWithAntisymmetryInvariant } from '../../shared/invariants.js';
 import { createJsonWriteStream, writeChunk } from '../../shared/json-stream/streams.js';
 import { stringifyJsonValue, writeJsonValue } from '../../shared/json-stream/encode.js';
-import { writeJsonLinesFile } from '../../shared/json-stream.js';
+import { writeJsonLinesFile } from '../../shared/json-stream/jsonl-write.js';
 import { removePathWithRetry } from '../../shared/io/remove-path-with-retry.js';
 
 export const readJsonOptional = (filePath, warnings) => {

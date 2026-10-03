@@ -41,19 +41,60 @@ const formatFixed = (value, { digits = 1, width = 5 } = {}) => (
   Number.isFinite(value) ? value.toFixed(digits).padStart(width) : 'n/a'.padStart(width)
 );
 
+export function formatDistributionCell(summary, { digits = 1, width = 11 } = {}) {
+  const median = Number.isFinite(summary?.median) ? summary.median : null;
+  const p95 = Number.isFinite(summary?.p95) ? summary.p95 : null;
+  if (!Number.isFinite(median) && !Number.isFinite(p95)) return 'n/a'.padStart(width);
+  return `${formatNumber(median, digits)}/${formatNumber(p95, digits)}`.padStart(width);
+}
+
+export function formatDistributionSummary(summary, {
+  digits = 1,
+  formatter = null,
+  includeVariability = true
+} = {}) {
+  const formatValue = typeof formatter === 'function'
+    ? formatter
+    : (value) => formatNumber(value, digits);
+  if (!summary || !Number.isFinite(summary.count) || summary.count <= 0) return 'n/a';
+  const parts = [
+    `n ${formatCount(summary.count)}`,
+    `p50 ${formatValue(summary.median)}`,
+    `p95 ${formatValue(summary.p95)}`,
+    `p99 ${formatValue(summary.p99)}`,
+    `min/max ${formatValue(summary.min)}/${formatValue(summary.max)}`
+  ];
+  if (includeVariability) {
+    parts.push(`cv ${formatPct(summary.coefficientOfVariation)}`);
+  }
+  return parts.join(' | ');
+}
+
 export const formatModeThroughputLine = ({ label, entry }) => {
-  const chunks = formatFixed(entry?.chunksPerSec, { digits: 1, width: 5 });
-  const tokens = formatFixed(entry?.tokensPerSec, { digits: 1, width: 7 });
-  const mb = Number.isFinite(entry?.bytesPerSec) ? (entry.bytesPerSec / (1024 * 1024)) : null;
-  const bytes = formatFixed(mb, { digits: 1, width: 4 });
-  const files = formatFixed(entry?.filesPerSec, { digits: 1, width: 5 });
+  const chunks = formatDistributionCell(entry?.chunksPerSec, { digits: 1, width: 11 });
+  const tokens = formatDistributionCell(entry?.tokensPerSec, { digits: 1, width: 15 });
+  const bytesMedian = Number.isFinite(entry?.bytesPerSec?.median)
+    ? (entry.bytesPerSec.median / (1024 * 1024))
+    : null;
+  const bytesP95 = Number.isFinite(entry?.bytesPerSec?.p95)
+    ? (entry.bytesPerSec.p95 / (1024 * 1024))
+    : null;
+  const bytes = formatDistributionCell(
+    Number.isFinite(bytesMedian) || Number.isFinite(bytesP95)
+      ? { median: bytesMedian, p95: bytesP95 }
+      : null,
+    { digits: 1, width: 11 }
+  );
+  const files = formatDistributionCell(entry?.filesPerSec, { digits: 1, width: 11 });
   return (
     `${label.padStart(8)}: ${chunks} chunks/s  | ` +
-    `${tokens} tokens/s  | ${bytes} MB/s | ${files} files/s`
+    `${tokens} tokens/s  | ${bytes} MB/s      | ${files} files/s`
   );
 };
 
-export const formatModeChunkRate = (label, entry) => `${label} ${formatNumber(entry?.chunksPerSec)}`;
+export const formatModeChunkRate = (label, entry) => (
+  `${label} ${formatNumber(entry?.chunksPerSec?.median)}/${formatNumber(entry?.chunksPerSec?.p95)}`
+);
 const SECTION_META_LEFT_WIDTH = `${formatFixed(0, { digits: 1, width: 5 })} chunks/s  `.length;
 export const formatSectionMetaLine = ({ label, left, right }) => (
   `  ${label.padStart(8)}: ${String(left || '').padEnd(SECTION_META_LEFT_WIDTH)}| ${String(right || '')}`
@@ -87,7 +128,7 @@ export const formatThroughputTotalsCell = (value, unit, width) => (
 );
 
 export const printAlignedTotalLine = (label, value) => {
-  console.error(`  ${label.padStart(THROUGHPUT_TOTAL_LABEL_WIDTH)}: ${value}`);
+  console.log(`  ${label.padStart(THROUGHPUT_TOTAL_LABEL_WIDTH)}: ${value}`);
 };
 
 export const formatPct = (value) => (
@@ -97,3 +138,56 @@ export const formatPct = (value) => (
 export const formatAstField = ({ totals, observed }, key) => (
   (Number(observed?.[key]) || 0) > 0 ? formatCount(totals?.[key]) : 'n/a'
 );
+
+const repeatChar = (char, count) => char.repeat(Math.max(0, count));
+
+const normalizeCell = (value) => String(value ?? '');
+
+export const buildTextTable = (columns, rows, {
+  indent = '  ',
+  header = true
+} = {}) => {
+  const normalizedColumns = Array.isArray(columns) ? columns : [];
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+  if (!normalizedColumns.length) return [];
+
+  const widths = normalizedColumns.map((column) => {
+    const headerWidth = normalizeCell(column?.label || column?.key || '').length;
+    const rowWidth = normalizedRows.reduce((maxWidth, row) => {
+      const cell = normalizeCell(row?.[column.key]);
+      return Math.max(maxWidth, cell.length);
+    }, 0);
+    return Math.max(headerWidth, rowWidth);
+  });
+
+  const renderRow = (row, {
+    isHeader = false,
+    divider = false
+  } = {}) => (
+    indent + normalizedColumns.map((column, index) => {
+      if (divider) return repeatChar('-', widths[index]);
+      const text = isHeader
+        ? normalizeCell(column?.label || column?.key || '')
+        : normalizeCell(row?.[column.key]);
+      return column?.align === 'right'
+        ? text.padStart(widths[index])
+        : text.padEnd(widths[index]);
+    }).join('  ')
+  );
+
+  const lines = [];
+  if (header) {
+    lines.push(renderRow({}, { isHeader: true }));
+    lines.push(renderRow({}, { divider: true }));
+  }
+  for (const row of normalizedRows) {
+    lines.push(renderRow(row));
+  }
+  return lines;
+};
+
+export const printTextTable = (columns, rows, options = {}) => {
+  for (const line of buildTextTable(columns, rows, options)) {
+    console.log(line);
+  }
+};

@@ -3,8 +3,8 @@ import { applyTestEnv } from '../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { tryRequire } from '../../src/shared/optional-deps.js';
+import { runNode } from '../helpers/run-node.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 
 applyTestEnv();
@@ -47,11 +47,7 @@ const env = applyTestEnv({
 });
 
 const run = (args, label) => {
-  const result = spawnSync(process.execPath, args, {
-    cwd: repoRoot,
-    env,
-    stdio: 'inherit'
-  });
+  const result = runNode(args, label, repoRoot, env, { stdio: 'inherit', allowFailure: true });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     process.exit(result.status ?? 1);
@@ -61,10 +57,12 @@ const run = (args, label) => {
 run([path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage2', '--mode', 'code', '--repo', repoRoot], 'build index');
 run([path.join(root, 'tools', 'build/tantivy-index.js'), '--mode', 'code', '--repo', repoRoot], 'build tantivy index');
 
-const searchResult = spawnSync(
-  process.execPath,
+const searchResult = runNode(
   [path.join(root, 'search.js'), 'index', '--mode', 'code', '--json', '--backend', 'tantivy', '--no-ann', '--repo', repoRoot],
-  { cwd: repoRoot, env, encoding: 'utf8' }
+  'tantivy smoke search',
+  repoRoot,
+  env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 if (searchResult.status !== 0) {
   console.error('search.js failed for Tantivy smoke test.');

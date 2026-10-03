@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
-import { formatCommandFailure } from '../../helpers/command-failure.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const { root, fixtureRoot, env } = await ensureFixtureIndex({
   fixtureName: 'sample',
@@ -10,8 +9,7 @@ const { root, fixtureRoot, env } = await ensureFixtureIndex({
   cacheScope: 'shared'
 });
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     path.join(root, 'search.js'),
     'message',
@@ -23,18 +21,11 @@ const result = spawnSync(
     '--repo',
     fixtureRoot
   ],
-  { cwd: fixtureRoot, env, encoding: 'utf8' }
+  'Fixture compact JSON failed: search error.',
+  fixtureRoot,
+  env,
+  { stdio: 'pipe' }
 );
-
-if (result.status !== 0) {
-  console.error(formatCommandFailure({
-    label: 'Fixture compact JSON failed: search error.',
-    command: `${process.execPath} ${path.join(root, 'search.js')} message --json --compact --backend memory --no-ann --repo ${fixtureRoot}`,
-    cwd: fixtureRoot,
-    result
-  }));
-  process.exit(result.status ?? 1);
-}
 
 const payload = JSON.parse(result.stdout || '{}');
 const compactHits = [...(payload.code || []), ...(payload.prose || [])];

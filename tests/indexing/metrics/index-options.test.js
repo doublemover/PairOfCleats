@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getMetricsDir, toRealPathSync } from '../../../tools/shared/dict-utils.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -37,10 +37,12 @@ const env = applyTestEnv({
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
+const buildResult = runNode(
   [path.join(root, 'build_index.js'), '--mode', 'code', '--stage', 'stage1', '--stub-embeddings', '--repo', repoRoot],
-  { cwd: repoRoot, env, encoding: 'utf8' }
+  'index metrics options build index',
+  repoRoot,
+  env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 if (buildResult.status !== 0) {
   console.error('Failed: build index for metrics options test');

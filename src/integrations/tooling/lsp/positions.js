@@ -18,9 +18,12 @@ const resolveLineWindow = (lineIndex, text, line) => {
   const lineIdx = Math.max(0, Math.floor(Number(line) || 0));
   const start = lineIndex[lineIdx] ?? lineIndex[lineIndex.length - 1] ?? 0;
   const nextLineStart = lineIndex[lineIdx + 1];
-  const end = Number.isFinite(nextLineStart)
+  let end = Number.isFinite(nextLineStart)
     ? Math.max(start, Math.min(normalizedText.length, nextLineStart))
     : normalizedText.length;
+  // LSP characters are offsets within a line, excluding its terminator.
+  if (end > start && normalizedText[end - 1] === '\n') end -= 1;
+  if (end > start && normalizedText[end - 1] === '\r') end -= 1;
   return {
     text: normalizedText,
     start,
@@ -94,22 +97,24 @@ export function rangeToOffsets(lineIndex, range, options = {}) {
   };
 }
 
-export const resolveLspPositionEncoding = (value) => {
+const recognizePositionEncodings = (value) => {
   if (Array.isArray(value)) {
     for (const entry of value) {
       const normalized = recognizePositionEncoding(entry);
       if (normalized) return normalized;
     }
-    return 'utf-16';
+    return null;
   }
-  return normalizePositionEncoding(value);
+  return recognizePositionEncoding(value);
 };
+
+export const resolveLspPositionEncoding = (value) => recognizePositionEncodings(value) || 'utf-16';
 
 export const resolveInitializeResultPositionEncoding = (initializeResult) => {
   const capabilities = initializeResult?.capabilities;
   const capabilityPositionEncoding = recognizePositionEncoding(capabilities?.positionEncoding);
   if (capabilityPositionEncoding) return capabilityPositionEncoding;
-  const capabilityOffsetEncoding = resolveLspPositionEncoding(capabilities?.offsetEncoding);
+  const capabilityOffsetEncoding = recognizePositionEncodings(capabilities?.offsetEncoding);
   if (capabilityOffsetEncoding) return capabilityOffsetEncoding;
   const initializePositionEncoding = recognizePositionEncoding(initializeResult?.positionEncoding);
   if (initializePositionEncoding) return initializePositionEncoding;

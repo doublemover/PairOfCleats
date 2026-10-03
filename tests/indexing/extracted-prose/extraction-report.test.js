@@ -14,12 +14,14 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 const sha256 = (value) => crypto.createHash('sha256').update(String(value || ''), 'utf8').digest('hex');
 
 const { root, repoRoot, cacheRoot, docsDir } = await setupExtractedProseFixture('phase17-extraction-report');
+const generatedDir = path.join(repoRoot, 'generated');
 
 await fs.writeFile(path.join(docsDir, 'sample.pdf'), Buffer.from('phase17 extraction report pdf', 'utf8'));
 await fs.writeFile(path.join(docsDir, 'sample.docx'), Buffer.from('phase17 extraction report docx', 'utf8'));
+await fs.mkdir(generatedDir, { recursive: true });
 for (let i = 1; i <= 6; i += 1) {
   await fs.writeFile(
-    path.join(repoRoot, `a-low-yield-${i}.js`),
+    path.join(generatedDir, `a-low-yield-${i}.js`),
     `const v${i} = ${i};\nexport default v${i};\n`
   );
 }
@@ -51,43 +53,50 @@ const env = applyTestEnv({
   }
 });
 
-runExtractedProseBuild({ root, repoRoot, env });
+runExtractedProseBuild({ root, repoRoot, env, stage: 'stage2' });
 
 const { state, extractionReport: report } = await readExtractedProseArtifacts(repoRoot);
 assert.ok(state?.indexDir, 'expected extracted-prose index dir');
 assert.ok(report, 'expected extraction_report artifact');
-assert.equal(report?.schemaVersion, 1, 'expected extraction report schemaVersion=1');
+assert.equal(report?.schemaVersion, 2, 'expected extraction report schemaVersion=2');
 assert.equal(report?.mode, 'extracted-prose', 'expected extraction report mode');
 assert.ok(Array.isArray(report?.files) && report.files.length >= 2, 'expected report file entries');
 assert.ok(Array.isArray(report?.extractors) && report.extractors.length >= 1, 'expected report extractor entries');
+assert.equal(report?.policy?.fidelityMode, 'permissive', 'expected permissive extraction policy by default');
+assert.equal(report?.coverage?.state, 'complete', 'expected complete coverage for successful fixture');
+assert.equal(report?.coverage?.coverageLossCount, 0, 'expected zero coverage loss for successful fixture');
+assert.equal(report?.coverage?.bySourceType?.pdf?.ok, 1, 'expected one covered PDF');
+assert.equal(report?.coverage?.bySourceType?.docx?.ok, 1, 'expected one covered DOCX');
 const lowYieldMarker = report?.quality?.lowYieldBailout;
 assert.ok(lowYieldMarker && typeof lowYieldMarker === 'object', 'expected extracted-prose quality marker');
-assert.equal(lowYieldMarker?.enabled, true, 'expected low-yield bailout marker enabled');
-assert.equal(lowYieldMarker?.triggered, true, 'expected low-yield bailout trigger');
-assert.equal(
-  lowYieldMarker?.reason,
-  'extracted-prose-low-yield-bailout',
-  'expected low-yield bailout reason'
-);
-assert.equal(
-  lowYieldMarker?.qualityImpact,
-  'reduced-extracted-prose-recall',
-  'expected low-yield quality marker'
-);
+assert.equal(lowYieldMarker?.enabled, false, 'expected low-yield bailout to stay disabled for tiny document-only fixture');
+assert.equal(lowYieldMarker?.triggered, false, 'expected no low-yield bailout trigger for tiny document-only fixture');
+assert.equal(lowYieldMarker?.reason, null, 'expected no low-yield bailout reason when disabled');
+assert.equal(lowYieldMarker?.qualityImpact, null, 'expected no low-yield quality impact when disabled');
+assert.equal(lowYieldMarker?.repoYieldClass, 'disabled', 'expected disabled repo classification when low-yield control is inactive');
 assert.equal(lowYieldMarker?.seed, 'phase17-low-yield-seed', 'expected deterministic warmup seed');
-assert.ok(
-  Number(lowYieldMarker?.sampledFiles) >= 4,
-  'expected low-yield warmup sample accounting'
-);
-assert.equal(lowYieldMarker?.sampledYieldedFiles, 0, 'expected zero warmup yield for synthetic low-yield files');
+assert.equal(lowYieldMarker?.sampledFiles, 0, 'expected no warmup sampling when bailout is disabled');
+assert.equal(lowYieldMarker?.sampledYieldedFiles, 0, 'expected zero warmup yield accounting');
+assert.equal(lowYieldMarker?.suppressedCohortCount, 0, 'expected no suppressed cohorts when bailout is disabled');
+assert.equal(lowYieldMarker?.estimatedSuppressedFiles, 0, 'expected zero suppressed-file estimate when bailout is disabled');
+assert.equal(lowYieldMarker?.estimatedRecallLossRatio, 0, 'expected zero recall-loss ratio when bailout is disabled');
+assert.equal(lowYieldMarker?.estimatedRecallLossClass, null, 'expected no recall-loss class when bailout is disabled');
+assert.equal(lowYieldMarker?.estimatedRecallLossConfidence, null, 'expected no recall-loss confidence when bailout is disabled');
+assert.equal(lowYieldMarker?.opportunityCost?.class, null, 'expected no opportunity-cost class when bailout is disabled');
+assert.equal(lowYieldMarker?.recallCost?.downgradedRecall, false, 'expected no recall downgrade when bailout is disabled');
+assert.ok(lowYieldMarker?.repoFingerprint && typeof lowYieldMarker.repoFingerprint === 'object', 'expected repo fingerprint accounting');
+assert.ok(Array.isArray(lowYieldMarker?.suppressedCohorts), 'expected suppressed cohort detail');
+assert.ok(Array.isArray(lowYieldMarker?.protectedCohorts), 'expected protected cohort detail');
 assert.equal(lowYieldMarker?.deterministic, true, 'expected deterministic warmup marker');
-assert.equal(lowYieldMarker?.downgradedRecall, true, 'expected downgraded recall marker');
+assert.equal(lowYieldMarker?.downgradedRecall, false, 'expected no downgraded recall when bailout is disabled');
 
 const schemaCheck = validateArtifact('extraction_report', report);
 assert.equal(schemaCheck.ok, true, `expected extraction report schema validation: ${schemaCheck.errors.join('; ')}`);
 
 for (const file of report.files) {
   if (file?.status !== 'ok') continue;
+  assert.equal(file?.fidelity?.state, 'complete', `expected complete fidelity for ${file?.file}`);
+  assert.equal(file?.fidelity?.policyViolation, false, `expected no policy violation for ${file?.file}`);
   const expected = sha256([
     file?.sourceBytesHash || '',
     file?.extractor?.version || '',

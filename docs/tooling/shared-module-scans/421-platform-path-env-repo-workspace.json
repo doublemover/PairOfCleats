@@ -1,0 +1,285 @@
+{
+  "issueId": "421",
+  "title": "Scan the full codebase for bespoke platform, path, env, and repo/workspace handling that should use existing shared modules",
+  "scanDate": "2026-03-26",
+  "scope": "Cross-cutting H31 scan across src/**, tools/**, bin/**, tests/**, extensions/**, sublime/**, and benchmark query metadata for bespoke platform/path/env/repo-workspace handling that should converge on existing shared modules.",
+  "summary": {
+    "overallAssessment": "The codebase already has the right shared primitives for several cross-cutting concerns, but adoption is uneven. The strongest current shared anchors are src/shared/direct-execution.js, src/shared/subprocess/windows-cmd.js, src/shared/runtime-envelope.js, src/shared/dispatch/env.js, src/shared/indexing/build-pointer.js, src/shared/files.js, and the workspace config/manifest surfaces. The main remaining cleanup is not inventing new abstractions first; it is replacing bespoke call-site logic with those existing modules, especially in CLI entrypoint guards, Windows wrapper handling, runtime env propagation, and build-root/repo/workspace resolution seams.",
+    "highestPriorityHotspots": [
+      {
+        "category": "direct-execution",
+        "whyItMatters": "Symlink-unsafe direct execution guards can silently skip CLI behavior when entrypoints are launched through shims or symlinked wrappers.",
+        "bestExistingSharedModule": "src/shared/direct-execution.js"
+      },
+      {
+        "category": "windows-wrapper-and-runtime-env",
+        "whyItMatters": "Wrapper resolution, PATH probing, cmd.exe fallback, and runtime env shaping are correctness-sensitive on Windows and currently duplicated across tooling and editor surfaces.",
+        "bestExistingSharedModules": [
+          "src/shared/subprocess/windows-cmd.js",
+          "src/shared/runtime-envelope.js",
+          "src/shared/dispatch/env.js",
+          "tools/shared/dict-utils.js"
+        ]
+      },
+      {
+        "category": "repo-workspace-build-root-resolution",
+        "whyItMatters": "Local repo/workspace/build-root resolution logic risks drifting from the current generation/build pointer contract and from API allowlist behavior.",
+        "bestExistingSharedModules": [
+          "src/shared/indexing/build-pointer.js",
+          "src/workspace/config.js",
+          "src/workspace/manifest.js"
+        ]
+      }
+    ]
+  },
+  "hotspotMatrix": [
+    {
+      "name": "Symlink-unsafe direct-execution guards",
+      "sharedModule": "src/shared/direct-execution.js",
+      "localImplementations": [
+        "tools/workspace/status.js",
+        "tools/workspace/manifest.js",
+        "tools/workspace/build.js",
+        "tools/tooling/doctor.js",
+        "tools/index-snapshot.js",
+        "tools/index-diff.js",
+        "tools/index/validate.js",
+        "tools/index/reconcile-identity.js",
+        "tools/reports/diagnostics-report.js",
+        "tools/bench/graph-caps-harness.js",
+        "tools/bench/graph/neighborhood-index-dir.js",
+        "tools/bench/graph/context-pack-latency.js",
+        "tools/analysis/explain-risk.js",
+        "tools/analysis/delta-risk.js",
+        "src/retrieval/cli.js",
+        "src/integrations/tooling/architecture-check.js",
+        "src/integrations/tooling/api-contracts.js",
+        "src/integrations/tooling/context-pack.js",
+        "src/integrations/tooling/graph-context.js",
+        "src/integrations/tooling/impact.js",
+        "src/integrations/tooling/suggest-tests.js"
+      ],
+      "recommendedAction": "Migrate exact process.argv[1] versus fileURLToPath(import.meta.url) checks to src/shared/direct-execution.js unless the script intentionally wants basename-based detection for generated wrappers.",
+      "whyThisWayIsBest": "The direct-execution helper already handles symlinked launches safely. Reusing it removes a proven bug class instead of replicating path-comparison logic file by file.",
+      "exceptions": [
+        "tools/ci/run-suite.js already carries a realpath-aware implementation and should either stay as-is or converge carefully without regressing its normalize-for-compare semantics.",
+        "tools/bench/graph/store-lazy-load.js and similar basename-based benches should remain local only if they intentionally accept renamed fixture wrappers rather than exact module identity."
+      ]
+    },
+    {
+      "name": "Windows command wrapper and PATH probing duplication",
+      "sharedModule": "src/shared/subprocess/windows-cmd.js",
+      "localImplementations": [
+        "extensions/vscode/windows-cmd.js",
+        "extensions/vscode/windows-cmd-core.cjs",
+        "tools/package-vscode.js",
+        "tools/setup/bootstrap.js",
+        "tools/setup/rebuild-native.js"
+      ],
+      "recommendedAction": "Converge wrapper resolution and cmd.exe fallback on src/shared/subprocess/windows-cmd.js, and leave only packaging-specific adapter code local where the extension bundle genuinely requires vendored runtime files.",
+      "whyThisWayIsBest": "This surface already absorbed recent Windows wrapper bugs. Keeping one canonical wrapper policy reduces another class of ENOENT and shell-fallback drift.",
+      "exceptions": [
+        "extensions/vscode/windows-cmd.js and extensions/vscode/windows-cmd-core.cjs must remain physically bundled for the extension package, but they should be treated as a vendored mirror of the shared implementation rather than an independently evolving fork.",
+        "tools/package-vscode.js may keep a tiny packaging smoke probe, but not its own long-term wrapper policy."
+      ]
+    },
+    {
+      "name": "Runtime environment shaping and propagation drift",
+      "sharedModules": [
+        "src/shared/runtime-envelope.js",
+        "src/shared/dispatch/env.js",
+        "tools/shared/dict-utils.js"
+      ],
+      "localImplementations": [
+        "tools/analysis/map-iso-serve.js",
+        "tools/bench/language-repos/run-loop.js",
+        "tools/bench/language-matrix.js",
+        "tools/bench/embeddings/model-bakeoff.js",
+        "tools/ci/run-suite.js",
+        "tools/ci/run-lsp-embeddings-gates.js",
+        "tools/mcp/tools/helpers.js",
+        "tools/service/indexer-service.js",
+        "tools/setup/bootstrap.js",
+        "tools/setup/setup.js",
+        "tools/triage/context-pack.js",
+        "tools/triage/ingest.js",
+        "src/retrieval/cli/load-indexes/backend.js"
+      ],
+      "recommendedAction": "Use the shared runtime envelope/env surfaces for env shaping and reserve direct process.env merging for truly local child-process payload injection only.",
+      "whyThisWayIsBest": "Runtime envelope code already centralizes NODE_OPTIONS, UV threadpool, and override precedence. Reusing it prevents configuration drift between bench, service, setup, and CLI surfaces.",
+      "exceptions": [
+        "Extensions and TUI code may still need local env layering for editor/session-specific state, but should feed that through a shared base env rather than rebuilding runtime policy from scratch.",
+        "Tests that intentionally mutate process.env for isolation do not need to adopt runtime-envelope helpers unless they are asserting production env behavior."
+      ]
+    },
+    {
+      "name": "Build-root and generation-resolution duplication",
+      "sharedModule": "src/shared/indexing/build-pointer.js",
+      "localImplementations": [
+        "tools/reports/show-throughput/analysis.js",
+        "tools/dict-utils/paths/repo.js",
+        "tools/shared/repo-cache-config.js"
+      ],
+      "recommendedAction": "Eliminate bespoke current-build resolution and route generation/build-root lookups through the shared build-pointer module plus workspace manifest/config helpers.",
+      "whyThisWayIsBest": "The build-pointer surface already embodies the current generation contract. Duplicating resolution logic is exactly how stale or mismatched build-root behavior reappears.",
+      "exceptions": [
+        "Reporting code may keep presentation-specific fallback behavior, but the underlying current-build selection should come from shared build-pointer helpers."
+      ]
+    },
+    {
+      "name": "Repo/workspace allowlist and identity handling drift",
+      "sharedModules": [
+        "src/workspace/config.js",
+        "src/workspace/manifest.js"
+      ],
+      "localImplementations": [
+        "tools/api/router.js",
+        "tools/api/router/analysis.js",
+        "tools/api/router/index-diffs.js",
+        "tools/api/router/index-snapshots.js",
+        "extensions/vscode/extension.js"
+      ],
+      "recommendedAction": "Keep API and extension-specific UX or trust-boundary decisions local, but centralize repo/workspace identity normalization and manifest/build-root interpretation on shared workspace helpers.",
+      "whyThisWayIsBest": "The API and editor surfaces have legitimate policy differences, but they should not each reinterpret workspace identity, cache roots, or build-pointer payloads independently.",
+      "exceptions": [
+        "tools/api/trust-boundary.js should remain API-local because it owns HTTP trust and allowlist policy, not generic workspace normalization.",
+        "extensions/vscode/extension.js should keep workspace-folder selection and repo-walkup UX local, while reusing shared normalization where possible."
+      ]
+    },
+    {
+      "name": "Path normalization and containment helpers split across surfaces",
+      "sharedModules": [
+        "src/shared/files.js",
+        "src/shared/fs/find-upwards.js"
+      ],
+      "localImplementations": [
+        "tools/analysis/map-iso-safe-join.js",
+        "tools/shared/path-utils.js",
+        "src/index/build/import-resolution/path-utils.js",
+        "extensions/vscode/extension.js"
+      ],
+      "recommendedAction": "Use shared path normalization helpers for common operations and reserve local containment helpers for surface-specific policy boundaries.",
+      "whyThisWayIsBest": "toPosix and shared filesystem helpers are already common. Consolidating normalization reduces subtle casing/relative-path inconsistencies without forcing every boundary check into one over-generalized helper.",
+      "exceptions": [
+        "API and extension containment checks that encode product policy can remain local once they consume canonical normalized inputs."
+      ]
+    }
+  ],
+  "mappings": [
+    {
+      "problemSurface": "Direct CLI/module execution checks",
+      "adoptSharedModule": "src/shared/direct-execution.js",
+      "preferredMigrationTargets": [
+        "tools/workspace/status.js",
+        "tools/workspace/manifest.js",
+        "tools/workspace/build.js",
+        "tools/tooling/doctor.js",
+        "tools/index-snapshot.js",
+        "tools/index-diff.js",
+        "tools/index/validate.js",
+        "tools/index/reconcile-identity.js",
+        "tools/reports/diagnostics-report.js",
+        "src/retrieval/cli.js",
+        "src/integrations/tooling/architecture-check.js",
+        "src/integrations/tooling/api-contracts.js",
+        "src/integrations/tooling/context-pack.js",
+        "src/integrations/tooling/graph-context.js",
+        "src/integrations/tooling/impact.js",
+        "src/integrations/tooling/suggest-tests.js"
+      ]
+    },
+    {
+      "problemSurface": "Windows wrapper resolution and shell fallback",
+      "adoptSharedModule": "src/shared/subprocess/windows-cmd.js",
+      "preferredMigrationTargets": [
+        "extensions/vscode/windows-cmd.js",
+        "extensions/vscode/windows-cmd-core.cjs",
+        "tools/setup/bootstrap.js",
+        "tools/setup/rebuild-native.js",
+        "tools/package-vscode.js"
+      ]
+    },
+    {
+      "problemSurface": "Runtime env shaping",
+      "adoptSharedModules": [
+        "src/shared/runtime-envelope.js",
+        "src/shared/dispatch/env.js",
+        "tools/shared/dict-utils.js"
+      ],
+      "preferredMigrationTargets": [
+        "tools/analysis/map-iso-serve.js",
+        "tools/bench/language-repos/run-loop.js",
+        "tools/bench/language-matrix.js",
+        "tools/bench/embeddings/model-bakeoff.js",
+        "tools/mcp/tools/helpers.js",
+        "tools/service/indexer-service.js",
+        "tools/triage/context-pack.js",
+        "tools/triage/ingest.js",
+        "src/retrieval/cli/load-indexes/backend.js"
+      ]
+    },
+    {
+      "problemSurface": "Current generation/build-root lookup",
+      "adoptSharedModule": "src/shared/indexing/build-pointer.js",
+      "preferredMigrationTargets": [
+        "tools/reports/show-throughput/analysis.js",
+        "tools/dict-utils/paths/repo.js",
+        "tools/shared/repo-cache-config.js"
+      ]
+    },
+    {
+      "problemSurface": "Workspace identity and manifest/build-root interpretation",
+      "adoptSharedModules": [
+        "src/workspace/config.js",
+        "src/workspace/manifest.js"
+      ],
+      "preferredMigrationTargets": [
+        "tools/api/router.js",
+        "tools/api/router/analysis.js",
+        "tools/api/router/index-diffs.js",
+        "tools/api/router/index-snapshots.js",
+        "extensions/vscode/extension.js"
+      ]
+    }
+  ],
+  "localExceptions": [
+    {
+      "path": "tools/api/trust-boundary.js",
+      "reasonToRemainLocal": "Owns API-specific authz and filesystem-boundary policy; should consume normalized inputs from shared modules but keep HTTP trust semantics local."
+    },
+    {
+      "path": "extensions/vscode/extension.js",
+      "reasonToRemainPartlyLocal": "Needs editor-session UX, workspace folder selection, and VS Code-specific lifecycle hooks that do not belong in src/shared, even though normalization and wrapper helpers should converge."
+    },
+    {
+      "path": "tools/tui/targets.js",
+      "reasonToRemainPartlyLocal": "Cargo target/output conventions are TUI-packaging specific, but the env and wrapper baseline should still come from shared runtime/platform helpers."
+    },
+    {
+      "path": "tools/bench/graph/store-lazy-load.js",
+      "reasonToRemainPartlyLocal": "Bench harnesses may intentionally allow basename-style execution from generated wrappers or fixture paths; only exact module-identity checks should migrate wholesale."
+    }
+  ],
+  "recommendedFollowUps": [
+    {
+      "issueId": "416",
+      "why": "Apply the API/runtime/server-side adoption changes identified here."
+    },
+    {
+      "issueId": "418",
+      "why": "Apply the tooling/setup/bench-side adoption changes identified here."
+    },
+    {
+      "issueId": "420",
+      "why": "Apply the editor/extension/integration adoption changes identified here, especially the VS Code wrapper/env seams."
+    },
+    {
+      "issueId": "423",
+      "why": "If workspace/cache-root/build-pointer adoption still feels fragmented after H31, factor a more explicit shared repo/workspace/generation helper family."
+    },
+    {
+      "issueId": "424",
+      "why": "If wrapper/runtime envelope adoption still leaves awkward local seams, formalize a broader shared subprocess/toolchain helper family."
+    }
+  ]
+}

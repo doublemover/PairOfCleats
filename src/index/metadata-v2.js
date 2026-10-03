@@ -1,7 +1,7 @@
 import { buildChunkId } from './chunk-id.js';
 import { buildSymbolIdentity } from './identity/symbol.js';
-import { collectDeclaredReturnTypes, pickDeclaredReturnType } from '../shared/docmeta.js';
-import { META_V2_SCHEMA_VERSION, normalizeMetaV2ForWrite } from '../shared/meta-v2.js';
+import { collectDeclaredReturnTypes, pickDeclaredReturnType } from './metadata/docmeta.js';
+import { META_V2_SCHEMA_VERSION, normalizeMetaV2ForWrite } from './metadata/meta-v2.js';
 
 const normalizeString = (value) => {
   if (value === null || value === undefined) return null;
@@ -199,6 +199,9 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
     chunkId,
     chunkUid,
     chunkUidAlgoVersion: normalizeString(identity?.chunkUidAlgoVersion || (chunkUid ? 'v1' : null)),
+    canonicalEnvelopeVersion: normalizeString(identity?.canonicalEnvelopeVersion || null),
+    mintedByStage: normalizeString(identity?.mintedByStage || null),
+    disambiguation: normalizeString(identity?.disambiguation || null),
     spanHash: normalizeString(identity?.spanHash),
     preHash: normalizeString(identity?.preHash),
     postHash: normalizeString(identity?.postHash),
@@ -214,6 +217,7 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
         virtualPath: normalizeString(segment.virtualPath),
         type: normalizeString(segment.type),
         languageId: normalizeString(segment.languageId),
+        ext: normalizeString(segment.ext),
         parentSegmentId: normalizeString(segment.parentSegmentId),
         start: Number.isFinite(segment.start) ? segment.start : null,
         end: Number.isFinite(segment.end) ? segment.end : null,

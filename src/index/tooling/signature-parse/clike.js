@@ -1,4 +1,4 @@
-import { splitTopLevel } from './shared.js';
+import { splitTopLevel, stripTopLevelAssignment } from './shared.js';
 
 const splitClikeParams = (value) => splitTopLevel(value, ',');
 
@@ -14,9 +14,8 @@ const inferReturnType = (before, symbolName) => {
     const idx = candidate.lastIndexOf(symbolName);
     if (idx > 0) {
       candidate = candidate.slice(0, idx).trim();
-    } else {
-      const scoped = candidate.lastIndexOf(`::${symbolName}`);
-      if (scoped > 0) candidate = candidate.slice(0, scoped).trim();
+      // Clangd may supply a short symbol name for a qualified declaration.
+      candidate = candidate.replace(/(?:[A-Za-z_][\w]*::)+$/, '').trim();
     }
   }
   if (!candidate) return null;
@@ -32,7 +31,7 @@ const inferReturnType = (before, symbolName) => {
 const parseClikeParam = (value) => {
   const cleaned = value.trim();
   if (!cleaned || cleaned === 'void' || cleaned === '...') return null;
-  const noDefault = cleaned.split('=').shift().trim();
+  const noDefault = stripTopLevelAssignment(cleaned).trim();
   const funcPtrMatch = noDefault.match(/\(\s*\*\s*([A-Za-z_][\w]*)\s*\)/);
   if (funcPtrMatch) {
     const name = funcPtrMatch[1];

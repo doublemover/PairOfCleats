@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
@@ -11,6 +12,7 @@ const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'configured-lsp-generic-presets-matrix');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
+grantFixtureRepositoryExecution(tempRoot);
 
 const restorePath = prependLspTestPath({ repoRoot: root });
 
@@ -111,4 +113,3 @@ try {
 } finally {
   await restorePath();
 }
-

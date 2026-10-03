@@ -2,7 +2,6 @@
 import fsSync from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { parseBuildEmbeddingsArgs } from '../../../../tools/build/embeddings/cli.js';
 import { runBuildEmbeddingsWithConfig } from '../../../../tools/build/embeddings/runner.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../../src/index/build/runtime/scheduler.js';
@@ -12,8 +11,10 @@ import {
   loadUserConfig
 } from '../../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { runNode } from '../../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+import { createFastIndexingTestConfig } from '../../../helpers/fast-indexing-config.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'embeddings-scheduler-backpressure');
@@ -26,7 +27,7 @@ await fsPromises.writeFile(path.join(repoRoot, 'index.js'), 'export const answer
 const testEnv = applyTestEnv({
   cacheRoot: tempRoot,
   embeddings: 'stub',
-  testConfig: {
+  testConfig: createFastIndexingTestConfig({
     indexing: {
       scheduler: {
         enabled: true,
@@ -52,7 +53,7 @@ const testEnv = applyTestEnv({
       riskAnalysis: false,
       riskAnalysisCrossFile: false
     }
-  },
+  }),
   extraEnv: {
     PAIROFCLEATS_SCHEDULER: '1',
     PAIROFCLEATS_SCHEDULER_CPU: '1',
@@ -61,10 +62,12 @@ const testEnv = applyTestEnv({
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
+const buildResult = runNode(
   [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
-  { cwd: repoRoot, env: testEnv, stdio: 'inherit' }
+  'embeddings scheduler backpressure build',
+  repoRoot,
+  testEnv,
+  { stdio: 'inherit', allowFailure: true }
 );
 if (buildResult.status !== 0) {
   console.error('embeddings scheduler backpressure test failed: build_index failed');

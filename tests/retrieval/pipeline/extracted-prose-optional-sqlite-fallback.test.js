@@ -1,61 +1,22 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 
-import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
-import { loadSearchIndexes } from '../../../src/retrieval/cli/load-indexes.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import {
+  createOptionalExtractedProseRoot,
+  loadOptionalExtractedProseIndexes,
+  writeOptionalExtractedProseIndexPair
+} from './helpers/optional-extracted-prose-index-fixture.js';
 
 applyTestEnv();
 
-const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-extracted-sqlite-fallback-'));
+const rootDir = await createOptionalExtractedProseRoot('poc-extracted-sqlite-fallback-');
 const compatibilityKey = 'compat-extracted-sqlite-fallback';
-
-/**
- * Write a minimal index artifact bundle for one mode.
- *
- * This keeps fallback loading deterministic when sqlite read paths fail.
- *
- * @param {string} mode
- * @param {object[]} chunkMeta
- * @returns {Promise<void>}
- */
-const writeModeIndex = async (mode, chunkMeta) => {
-  const indexDir = path.join(rootDir, `index-${mode}`);
-  await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true });
-  const indexState = {
-    generatedAt: new Date().toISOString(),
-    mode,
-    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
-    compatibilityKey
-  };
-  const tokenPostings = {
-    vocab: ['alpha'],
-    postings: [[[0, 1]]],
-    docLengths: [1],
-    avgDocLen: 1,
-    totalDocs: 1
-  };
-  const manifest = {
-    version: 2,
-    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
-    compatibilityKey,
-    pieces: [
-      { type: 'chunks', name: 'chunk_meta', format: 'json', path: 'chunk_meta.json' },
-      { type: 'postings', name: 'token_postings', format: 'json', path: 'token_postings.json' },
-      { type: 'stats', name: 'index_state', format: 'json', path: 'index_state.json' }
-    ]
-  };
-  await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), JSON.stringify(chunkMeta, null, 2), 'utf8');
-  await fs.writeFile(path.join(indexDir, 'token_postings.json'), JSON.stringify(tokenPostings, null, 2), 'utf8');
-  await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify(indexState, null, 2), 'utf8');
-  await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
-};
-
-await writeModeIndex('code', [{ id: 11, file: 'src/code.js', start: 0, end: 4 }]);
-await writeModeIndex('extracted-prose', [{ id: 22, file: 'docs/notes.md', start: 0, end: 4 }]);
+await writeOptionalExtractedProseIndexPair(rootDir, {
+  codeCompatibilityKey: compatibilityKey,
+  codeChunkMeta: [{ id: 11, file: 'src/code.js', start: 0, end: 4 }],
+  extractedProseChunkMeta: [{ id: 22, file: 'docs/notes.md', start: 0, end: 4 }]
+});
 
 const sqliteCalls = [];
 /**
@@ -87,33 +48,10 @@ const loadIndexFromSqlite = (mode, options) => {
   throw new Error(`unexpected sqlite mode ${mode}`);
 };
 
-const loaded = await loadSearchIndexes({
-  rootDir,
-  userConfig: {},
-  searchMode: 'code',
-  runProse: false,
-  runExtractedProse: false,
-  loadExtractedProse: true,
-  runCode: true,
-  runRecords: false,
+const loaded = await loadOptionalExtractedProseIndexes(rootDir, {
   useSqlite: true,
-  useLmdb: false,
-  emitOutput: false,
-  exitOnError: false,
-  annActive: false,
-  filtersActive: false,
-  contextExpansionEnabled: false,
-  graphRankingEnabled: false,
   sqliteFtsRequested: true,
-  backendLabel: 'memory',
-  backendForcedTantivy: false,
-  indexCache: null,
-  modelIdDefault: null,
-  fileChargramN: null,
-  hnswConfig: { enabled: false },
   lancedbConfig: { enabled: false },
-  tantivyConfig: { enabled: false },
-  strict: true,
   requiredArtifacts: new Set(),
   loadIndexFromSqlite,
   loadIndexFromLmdb: () => {

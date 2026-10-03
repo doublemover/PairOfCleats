@@ -2,6 +2,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import { isRepoTrusted } from '../../../shared/config-authority.js';
 
 export const DEFAULT_TYPESCRIPT_RESOLVE_ORDER = Object.freeze(['repo', 'cache', 'global']);
 
@@ -30,6 +31,7 @@ export async function loadTypeScript(toolingConfig, repoRoot) {
   const lookup = resolveTypeScriptLookup(repoRoot, toolingRoot);
 
   for (const key of resolveOrder) {
+    if (key === 'repo' && !isRepoTrusted(repoRoot)) continue;
     if (key === 'global') {
       try {
         const mod = await import('typescript');
@@ -49,10 +51,11 @@ export async function loadTypeScript(toolingConfig, repoRoot) {
 }
 
 export function loadTypeScriptModule(rootDir) {
-  const key = rootDir || '__default__';
+  const trusted = rootDir && isRepoTrusted(rootDir);
+  const key = `${rootDir || '__default__'}:${Boolean(trusted)}`;
   if (syncTypeScriptCache.has(key)) return syncTypeScriptCache.get(key);
   let resolved = null;
-  if (rootDir) {
+  if (trusted) {
     try {
       const requireFromRoot = createRequire(path.join(rootDir, 'package.json'));
       const mod = requireFromRoot('typescript');
@@ -78,5 +81,6 @@ export function clearTypeScriptModuleCache(rootDir = null) {
     syncTypeScriptCache.clear();
     return;
   }
-  syncTypeScriptCache.delete(rootDir || '__default__');
+  syncTypeScriptCache.delete(`${rootDir}:true`);
+  syncTypeScriptCache.delete(`${rootDir}:false`);
 }

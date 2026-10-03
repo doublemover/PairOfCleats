@@ -5,8 +5,8 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { checksumFile } from '../../src/shared/hash.js';
 import { formatBytes } from '../../src/shared/disk-space.js';
-import { loadPiecesManifest } from '../../src/shared/artifact-io.js';
-import { fromPosix, isRelativePathEscape } from '../../src/shared/files.js';
+import { loadPiecesManifest } from '../../src/shared/artifact-io/manifest.js';
+import { fromPosix, isRelativePathEscape } from '../../src/shared/file-paths.js';
 import { getRepoId, loadUserConfig, resolveIndexRoot, resolveRepoRootArg } from '../shared/dict-utils.js';
 
 const MODE_ORDER = ['code', 'prose', 'extracted-prose', 'records'];
@@ -135,8 +135,8 @@ const buildFamilyStats = (pieces, {
   };
 };
 
-const buildChunkStats = (pieces) => {
-  const selected = pieces.filter((piece) => String(piece?.name || '').startsWith('chunk_meta'));
+const buildPrefixedPieceStats = (pieces, prefix) => {
+  const selected = pieces.filter((piece) => String(piece?.name || '').startsWith(prefix));
   const bytes = selected.reduce((sum, piece) => sum + (Number(piece?.bytes) || 0), 0);
   const rows = selected
     .map((piece) => normalizeCount(piece?.count))
@@ -149,19 +149,9 @@ const buildChunkStats = (pieces) => {
   };
 };
 
-const buildTokenStats = (pieces) => {
-  const selected = pieces.filter((piece) => String(piece?.name || '').startsWith('token_postings'));
-  const bytes = selected.reduce((sum, piece) => sum + (Number(piece?.bytes) || 0), 0);
-  const rows = selected
-    .map((piece) => normalizeCount(piece?.count))
-    .filter((value) => value != null);
-  const parts = selected.filter((piece) => String(piece?.path || '').includes('.part-')).length;
-  return {
-    rows: rows.length ? Math.max(...rows) : null,
-    parts,
-    bytes
-  };
-};
+const buildChunkStats = (pieces) => buildPrefixedPieceStats(pieces, 'chunk_meta');
+
+const buildTokenStats = (pieces) => buildPrefixedPieceStats(pieces, 'token_postings');
 
 const buildEmbeddingStats = (pieces) => {
   const densePieces = pieces.filter((piece) => (

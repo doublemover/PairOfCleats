@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createChunkMetaIterator, enqueueChunkMetaArtifacts } from '../../../../src/index/build/artifacts/writers/chunk-meta.js';
 import { writePiecesManifest } from '../../../../src/index/build/artifacts/checksums.js';
-import { toPosix } from '../../../../src/shared/files.js';
+import { toPosix } from '../../../../src/shared/file-paths.js';
 import { loadPiecesManifestPieces } from '../../../helpers/pieces-manifest.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';

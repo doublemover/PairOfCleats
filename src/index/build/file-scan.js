@@ -6,8 +6,10 @@ import { CSS_EXTS, HTML_EXTS, JS_EXTS } from '../constants.js';
 import { normalizePositiveNumber } from '../../shared/limits.js';
 import { MINIFIED_NAME_REGEX } from './watch/shared.js';
 import { runBuildCleanupWithTimeout } from './cleanup-timeout.js';
+import { openContainedFile } from '../../shared/contained-file.js';
 
 const MINIFIED_SAMPLE_EXTS = new Set([...JS_EXTS, ...CSS_EXTS, ...HTML_EXTS]);
+export const FILE_TYPE_PROBE_MAX_BYTES = 8192;
 const KNOWN_TEXT_EXTS = new Set([
   '.c',
   '.cc',
@@ -88,9 +90,9 @@ export const isMinifiedName = (baseName) => {
  * @param {number} sampleSizeBytes
  * @returns {Promise<Buffer|null>}
  */
-export const readFileSample = async (absPath, sampleSizeBytes) => {
+export const readFileSample = async (absPath, sampleSizeBytes, repoRoot = null) => {
   if (!sampleSizeBytes) return null;
-  const handle = await fs.open(absPath, 'r');
+  const handle = repoRoot ? await openContainedFile(repoRoot, absPath) : await fs.open(absPath, 'r');
   try {
     const buffer = Buffer.alloc(sampleSizeBytes);
     const { bytesRead } = await handle.read(buffer, 0, sampleSizeBytes, 0);
@@ -138,6 +140,20 @@ const resolveTextOrBinary = async (absPath, buffer) => {
 };
 
 /**
+ * Bound the sample passed into `file-type` so malformed container formats do
+ * not get an arbitrarily large probe buffer from the extended binary path.
+ *
+ * @param {Buffer|null|undefined} buffer
+ * @returns {Buffer|null}
+ */
+export const getFileTypeProbeBuffer = (buffer) => {
+  if (!buffer?.length) return null;
+  return buffer.length > FILE_TYPE_PROBE_MAX_BYTES
+    ? buffer.subarray(0, FILE_TYPE_PROBE_MAX_BYTES)
+    : buffer;
+};
+
+/**
  * Detect whether a sampled buffer should be treated as binary.
  *
  * Runs `file-type` first, then `istextorbinary`, then a minimal byte-level
@@ -149,7 +165,7 @@ const resolveTextOrBinary = async (absPath, buffer) => {
 export const detectBinary = async ({ absPath, buffer, maxNonTextRatio }) => {
   if (!buffer || !buffer.length) return null;
   try {
-    const type = await fileTypeFromBuffer(buffer);
+    const type = await fileTypeFromBuffer(getFileTypeProbeBuffer(buffer));
     if (type?.mime) {
       const mime = String(type.mime).toLowerCase();
       if (!mime.startsWith('text/')) {

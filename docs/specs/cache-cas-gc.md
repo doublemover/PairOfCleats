@@ -143,7 +143,12 @@ Required outputs:
 
 ## 8. Touchpoints
 
-- `src/shared/cache.js`
+- `src/shared/cache-cas/paths.js`
+- `src/shared/cache-cas/metadata.js`
+- `src/shared/cache-cas/objects.js`
+- `src/shared/cache-cas/gc.js`
+- `src/shared/cache-cas/leases.js`
+- `src/shared/cache/layers.js`
 - `tools/index/cache-gc.js`
 - `tools/shared/dict-utils.js`
 - `docs/guides/commands.md`
@@ -152,8 +157,5 @@ Required outputs:
 
 ## 9. Required tests
 
-- `tests/indexing/cache/workspace-global-cache-reuse.test.js`
-- `tests/indexing/cache/cas-reuse-across-repos.test.js`
-- `tests/tooling/cache/cache-gc-preserves-manifest-referenced.test.js`
-- `tests/tooling/cache/cache-gc-respects-active-leases.test.js`
-- `tests/indexing/cache/workspace-concurrency-limits.test.js`
+- `tests/shared/cache/contract-matrix.test.js`
+- `tests/tooling/cache/gc-contract-matrix.test.js`

@@ -2,15 +2,18 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { acquireIndexLock, attachIndexLockSignalCleanup } from '../build/lock.js';
 import { resolveIndexRef } from '../index-ref.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { isManifestPathSafe } from '../validate/paths.js';
-import { toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/file-paths.js';
 import { sha1 } from '../../shared/hash.js';
 import { getRepoCacheRoot, getRepoId } from '../../shared/dict-utils.js';
-import { releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
+import { withRegistryLock } from '../registry-support.js';
+import {
+  buildSnapshotLockConflict,
+  buildSnapshotRetention
+} from './support.js';
 import {
   loadSnapshot,
   loadSnapshotsManifest,
@@ -24,7 +27,6 @@ const DEFAULT_MAX_POINTER_SNAPSHOTS = 25;
 
 const invalidRequest = (message, details = null) => createError(ERROR_CODES.INVALID_REQUEST, message, details);
 const notFound = (message, details = null) => createError(ERROR_CODES.NOT_FOUND, message, details);
-const queueError = (message, details = null) => createError(ERROR_CODES.QUEUE_OVERLOADED, message, details);
 
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 
@@ -187,10 +189,26 @@ const prunePointerSnapshots = async ({
   }
 
   const removed = [];
+  const decisions = [];
   for (const entry of pointerEntries) {
     const snapshotId = entry.snapshotId;
-    if (!snapshotId || keepIds.has(snapshotId)) continue;
+    if (!snapshotId) continue;
+    if (keepIds.has(snapshotId)) {
+      decisions.push({
+        snapshotId,
+        retentionTier: entry?.retention?.tier || null,
+        action: 'keep',
+        reason: protectedByTag.has(snapshotId) ? 'tagged' : 'pointer_budget'
+      });
+      continue;
+    }
     removed.push(snapshotId);
+    decisions.push({
+      snapshotId,
+      retentionTier: entry?.retention?.tier || null,
+      action: 'remove',
+      reason: 'pointer_budget'
+    });
     if (!dryRun) {
       delete manifest.snapshots[snapshotId];
       await fsPromises.rm(path.join(repoCacheRoot, 'snapshots', snapshotId), {
@@ -202,27 +220,30 @@ const prunePointerSnapshots = async ({
   if (removed.length && !dryRun) {
     updateTagIndex(manifest);
   }
-  return removed;
+  return {
+    removed,
+    decisions: decisions.sort((left, right) => (
+      String(left.snapshotId).localeCompare(String(right.snapshotId))
+    ))
+  };
 };
 
 const withSnapshotLock = async (repoCacheRoot, options, worker) => {
-  const lock = await acquireIndexLock({
+  return withRegistryLock({
     repoCacheRoot,
-    waitMs: Number.isFinite(options?.waitMs) ? Number(options.waitMs) : 0,
-    pollMs: Number.isFinite(options?.pollMs) ? Number(options.pollMs) : 1000,
-    staleMs: Number.isFinite(options?.staleMs) ? Number(options.staleMs) : undefined,
-    log: typeof options?.log === 'function' ? options.log : () => {}
+    domain: 'snapshots',
+    options,
+    createLockError: () => buildSnapshotLockConflict(
+      repoCacheRoot,
+      typeof options?.action === 'string' && options.action.trim()
+        ? options.action.trim()
+        : 'mutate snapshots',
+      {
+        requestedSnapshotId: typeof options?.snapshotId === 'string' ? options.snapshotId : null
+      }
+    ),
+    worker
   });
-  if (!lock) {
-    throw queueError('Index lock held; unable to mutate snapshots.');
-  }
-  const detachSignalCleanup = attachIndexLockSignalCleanup(lock);
-  try {
-    return await worker(lock);
-  } finally {
-    detachSignalCleanup();
-    await releaseFileLockOrThrow(lock);
-  }
 };
 
 export const createPointerSnapshot = async ({
@@ -232,6 +253,7 @@ export const createPointerSnapshot = async ({
   tags = [],
   label = null,
   snapshotId = null,
+  retentionTier = null,
   waitMs = 0,
   maxPointerSnapshots = DEFAULT_MAX_POINTER_SNAPSHOTS
 } = {}) => {
@@ -247,7 +269,16 @@ export const createPointerSnapshot = async ({
   const selectedSnapshotId = snapshotId || generateSnapshotId(now);
   ensureSnapshotId(selectedSnapshotId);
 
-  return withSnapshotLock(repoCacheRoot, { waitMs }, async (lock) => {
+  return withSnapshotLock(repoCacheRoot, {
+    waitMs,
+    action: 'create snapshot',
+    snapshotId: selectedSnapshotId,
+    metadata: {
+      owner: 'snapshots',
+      operation: 'create',
+      snapshotId: selectedSnapshotId
+    }
+  }, async (lock) => {
     const resolved = resolveIndexRef({
       ref: 'latest',
       repoRoot: resolvedRepoRoot,
@@ -323,12 +354,17 @@ export const createPointerSnapshot = async ({
       kind: 'pointer',
       tags: normalizedTags,
       label: snapshotJson.label,
-      hasFrozen: false
+      hasFrozen: false,
+      retention: buildSnapshotRetention({
+        retentionTier,
+        tags: normalizedTags,
+        hasFrozen: false
+      })
     };
     updateTagIndex(manifest);
 
     await writeSnapshot(repoCacheRoot, selectedSnapshotId, snapshotJson, { lock });
-    const removed = await prunePointerSnapshots({
+    const retention = await prunePointerSnapshots({
       repoCacheRoot,
       manifest,
       maxPointerSnapshots: Number.isFinite(maxPointerSnapshots)
@@ -343,7 +379,9 @@ export const createPointerSnapshot = async ({
       modes: normalizedModes,
       tags: normalizedTags,
       buildIdByMode,
-      removedByRetention: removed
+      retention: manifest.snapshots[selectedSnapshotId].retention,
+      removedByRetention: retention.removed,
+      retentionDecisions: retention.decisions
     };
   });
 };
@@ -383,7 +421,16 @@ export const removeSnapshot = async ({
   ensureSnapshotId(snapshotId);
   const resolvedRepoRoot = path.resolve(repoRoot);
   const repoCacheRoot = getRepoCacheRoot(resolvedRepoRoot, userConfig);
-  return withSnapshotLock(repoCacheRoot, { waitMs }, async (lock) => {
+  return withSnapshotLock(repoCacheRoot, {
+    waitMs,
+    action: 'remove snapshot',
+    snapshotId,
+    metadata: {
+      owner: 'snapshots',
+      operation: 'remove',
+      snapshotId
+    }
+  }, async (lock) => {
     const manifest = loadSnapshotsManifest(repoCacheRoot);
     const entry = manifest.snapshots?.[snapshotId];
     if (!entry) {
@@ -416,9 +463,16 @@ export const pruneSnapshots = async ({
   }
   const resolvedRepoRoot = path.resolve(repoRoot);
   const repoCacheRoot = getRepoCacheRoot(resolvedRepoRoot, userConfig);
-  return withSnapshotLock(repoCacheRoot, { waitMs }, async (lock) => {
+  return withSnapshotLock(repoCacheRoot, {
+    waitMs,
+    action: 'prune snapshots',
+    metadata: {
+      owner: 'snapshots',
+      operation: 'prune'
+    }
+  }, async (lock) => {
     const manifest = loadSnapshotsManifest(repoCacheRoot);
-    const removed = await prunePointerSnapshots({
+    const retention = await prunePointerSnapshots({
       repoCacheRoot,
       manifest,
       maxPointerSnapshots: Number.isFinite(maxPointerSnapshots)
@@ -426,10 +480,14 @@ export const pruneSnapshots = async ({
         : DEFAULT_MAX_POINTER_SNAPSHOTS,
       dryRun: dryRun === true
     });
-    if (removed.length && dryRun !== true) {
+    if (retention.removed.length && dryRun !== true) {
       manifest.updatedAt = new Date().toISOString();
       await writeSnapshotsManifest(repoCacheRoot, manifest, { lock });
     }
-    return { removed, dryRun: dryRun === true };
+    return {
+      removed: retention.removed,
+      decisions: retention.decisions,
+      dryRun: dryRun === true
+    };
   });
 };

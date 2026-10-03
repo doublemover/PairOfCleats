@@ -1,6 +1,6 @@
 import os from 'node:os';
-import { createBuildScheduler } from '../../../src/shared/concurrency.js';
-import { resolveRuntimeEnvelope } from '../../../src/shared/runtime-envelope.js';
+import { createBuildScheduler } from '../../../src/shared/concurrency/scheduler-core.js';
+import { resolveRuntimeEnvelope } from '../../../src/shared/runtime-envelope/resolve.js';
 import { resolveSchedulerConfig, SCHEDULER_QUEUE_NAMES } from '../../../src/index/build/runtime/scheduler.js';
 
 const toPositiveIntOrNull = (value) => {

@@ -1,4 +1,12 @@
-# Phase 3 Signature Canonicalization Spec (Draft)
+# Phase 3 Signature Canonicalization Contract
+
+Status: Active implemented contract v1.0
+Last audited: 2026-05-21
+Implementation anchors: `src/index/build/indexer/signatures.js`,
+`src/shared/stable-json.js`, `src/index/build/incremental/planning.js`,
+`src/contracts/schemas/build-state.js`.
+Contract coverage: `tests/indexing/signatures/signature-canonicalization.test.js`
+and `tests/indexer/incremental/contract-matrix.test.js`.
 
 ## Goal
 Make incremental signatures deterministic, explainable, and safe by default.

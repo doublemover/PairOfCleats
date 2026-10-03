@@ -1,3 +1,5 @@
+import { normalizeIndexBuildStage } from '../../shared/indexing/stages.js';
+
 /**
  * Append a normalized CLI flag/value pair to an args array.
  *
@@ -146,21 +148,7 @@ export const buildSearchArgs = (params = {}) => {
   return args;
 };
 
-/**
- * Normalize stage aliases into canonical stage identifiers.
- *
- * @param {string} raw
- * @returns {'stage1'|'stage2'|'stage3'|'stage4'|null}
- */
-export const normalizeStage = (raw) => {
-  const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-  if (!value) return null;
-  if (value === '1' || value === 'stage1' || value === 'sparse') return 'stage1';
-  if (value === '2' || value === 'stage2' || value === 'enrich' || value === 'full') return 'stage2';
-  if (value === '3' || value === 'stage3' || value === 'embeddings' || value === 'embed') return 'stage3';
-  if (value === '4' || value === 'stage4' || value === 'sqlite' || value === 'ann') return 'stage4';
-  return null;
-};
+export const normalizeStage = normalizeIndexBuildStage;
 
 /**
  * Build canonical stage2 invocation args from parsed CLI/runtime options.

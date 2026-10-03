@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { runBatched } from '../../../tools/build/embeddings/embed.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const testEnv = applyTestEnv({ testing: '1' });
 
@@ -31,8 +31,7 @@ if (calls !== texts.length) {
 
 const root = process.cwd();
 const benchScript = path.join(root, 'tools', 'bench', 'embeddings', 'embedding-batch-throughput.js');
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     benchScript,
     '--providers', 'stub',
@@ -41,11 +40,10 @@ const result = spawnSync(
     '--dims', '8',
     '--stub-batch-ms', '5'
   ],
-  {
-    cwd: root,
-    env: testEnv,
-    encoding: 'utf8'
-  }
+  'embedding batch throughput bench',
+  root,
+  testEnv,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 
 if (result.status !== 0) {

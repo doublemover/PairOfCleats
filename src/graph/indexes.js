@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { isAbsolutePathNative, isRelativePathEscape, toPosix } from '../shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape, toPosix } from '../shared/file-paths.js';
 import { compareStrings } from '../shared/sort.js';
 import { compareCandidates } from './ordering.js';
 

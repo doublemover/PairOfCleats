@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { resolveAutoEmbeddingBatchSize } from '../../../src/shared/embedding-batch.js';
-import { getEnvConfig } from '../../../src/shared/env.js';
+import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig } from '../../../src/shared/onnx-embeddings.js';
 import { normalizeHnswConfig } from '../../../src/shared/hnsw.js';
 import { getModelConfig, getRepoCacheRoot, loadUserConfig, resolveIndexRoot, resolveRepoRootArg } from '../../shared/dict-utils.js';

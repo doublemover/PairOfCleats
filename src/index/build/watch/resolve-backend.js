@@ -1,5 +1,5 @@
 import { getCapabilities } from '../../../shared/capabilities.js';
-import { getEnvConfig } from '../../../shared/env.js';
+import { getEnvConfig } from '../../../shared/env/runtime.js';
 
 const normalizeBackend = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
 

@@ -67,8 +67,27 @@ Configure caps under `indexing.riskCaps`:
 }
 ```
 
-If caps are exceeded, the engine records `risk.analysisStatus = "capped"` and short-circuits
-analysis (no rule evaluation for that chunk).
+`risk.analysisStatus` is an object containing `status`, `reason`, `caps`, `bytes`,
+and `lines`. Exceeding `maxBytes` or `maxLines` produces `status: "capped"`
+before allocating the line array or evaluating rules. Exceeding `maxNodes`,
+`maxEdges`, `maxMs`, or the number of distinct `maxFlows` stops further analysis
+and retains the bounded partial evidence already collected. `reason` names the
+limit; whole-chunk byte/line reasons may be joined with `|`. A time cap can yield
+different partial prefixes on different machines, so consumers must inspect status
+before treating the result as complete.
+
+Rules are evaluated per line, with case-insensitive matching by default. Configure
+SafeRegex through `indexing.riskRules.regex` (`flags`, `engine`, `maxPatternLength`,
+`maxInputLength`, `maxProgramSize`, `timeoutMs`). Invalid patterns produce bounded
+diagnostics and are excluded. Regex input failures count as no-match. Sources,
+sinks, and sanitizers retain the first evidence location per rule; flows retain the
+first distinct source/sink/scope/via combination in source traversal order.
+Reconverging aliases deduplicate references to the same original source evidence,
+so repeated paths do not multiply stored evidence or prematurely exhaust the edge
+budget. Distinct source records and their traversal order are preserved. Explicit
+zero rule confidence is retained; only missing confidence uses the default.
+`scope`, `excludes`, `maxMatchesPerLine`, and `maxMatchesPerFile` are not supported
+rule fields and should not be used to configure this engine.
 
 ## Index state export
 
@@ -82,6 +101,4 @@ that fail SafeRegex compilation (code, message, ruleId, ruleName, field, pattern
 - Risk analysis now treats cap exceedance as an early-exit condition (no full-file scanning).
 - SafeRegex evaluation is guarded; regex errors are treated as no-match.
 - A lightweight prefilter is applied before regex evaluation to reduce scan overhead.
-- See `docs/specs/analysis-policy.md` for analysis policy defaults.
-
-
+- See `docs/specs/analysis-schemas.md` for analysis policy defaults.

@@ -1,18 +1,14 @@
 #!/usr/bin/env node
 import { createCli } from '../../src/shared/cli.js';
+import { TOOLING_DETECT_OPTIONS } from '../../src/shared/cli-options.js';
 import path from 'node:path';
 import { buildToolingReport, normalizeLanguageList } from './utils.js';
 import { resolveRepoRootArg } from '../shared/dict-utils.js';
 import { emitJson } from '../shared/cli-utils.js';
 
 const argv = createCli({
-  scriptName: 'tooling-detect',
-  options: {
-    json: { type: 'boolean', default: false },
-    root: { type: 'string' },
-    repo: { type: 'string' },
-    languages: { type: 'string' }
-  }
+  scriptName: 'pairofcleats tooling detect',
+  options: TOOLING_DETECT_OPTIONS
 }).parse();
 
 const explicitRoot = argv.root || argv.repo;
@@ -55,5 +51,5 @@ if (missing.length) {
     console.error(`- ${tool.id} (${tool.label})`);
     if (tool.docs) console.error(`  Docs: ${tool.docs}`);
   }
-  console.error('Run: node tools/tooling/install.js --scope cache');
+  console.error('Run: pairofcleats tooling install --scope cache');
 }

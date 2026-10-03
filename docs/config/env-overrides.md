@@ -10,6 +10,18 @@ Note: Several env vars are non-secret toggles used by dev tools, benchmarks, or
 tests. They are documented here for completeness but are not part of the
 public configuration contract unless explicitly called out.
 
+## Launch-owned authority controls
+
+See [execution authority](../guides/execution-authority.md) for source precedence
+and compatibility changes.
+
+- `PAIROFCLEATS_TRUSTED_CONFIG`: user-owned schema-validated config file outside the target repo
+- `PAIROFCLEATS_TRUSTED_REPOS`: JSON array of exact canonical roots explicitly granted repository execution authority
+- `PAIROFCLEATS_MCP_ALLOW_NATIVE_LOAD`: explicit `1` to permit approved native loading from MCP
+- `PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS`: explicit `1` for local-development HTTP/private download fixtures
+- `PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS`: JSON array of approved cross-origin redirect destinations
+- `PAIROFCLEATS_TUI_NODE`, `PAIROFCLEATS_TUI_SUPERVISOR`, `PAIROFCLEATS_TUI_WORKSPACE_ROOT`: pinned wrapper handoff, not repository settings
+
 ## Secrets
 - `PAIROFCLEATS_API_TOKEN` (bearer token for API/MCP auth when enabled)
 
@@ -55,6 +67,13 @@ public configuration contract unless explicitly called out.
 - `PAIROFCLEATS_UV_THREADPOOL_SIZE`
 - `PAIROFCLEATS_IO_OVERSUBSCRIBE`
 
+These apply to heavy dispatched commands as well as direct tool entrypoints when
+the dispatch layer preserves the runtime envelope. Treat them as operator-facing
+resource controls for:
+- index/build flows
+- search/report/bench flows
+- service and API launch paths
+
 ## Tooling/bench/CI overrides (non-secret, internal)
 - `PAIROFCLEATS_BENCH_RUN`
 - `PAIROFCLEATS_SKIP_BENCH`
@@ -89,3 +108,5 @@ public configuration contract unless explicitly called out.
 - For runtime envelope fields, precedence is generally: CLI > config > env >
   defaults/AutoPolicy.
 - Test overrides are ignored unless `PAIROFCLEATS_TESTING=1`.
+- Service config is validated before queue or worker actions run; invalid config
+  should fail fast with a path-aware error instead of silently defaulting.

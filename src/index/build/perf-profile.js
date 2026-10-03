@@ -125,10 +125,10 @@ export async function loadPerfProfile({ metricsDir, mode, configHash, log }) {
     const parsed = JSON.parse(raw);
     if (!parsed || parsed.version !== PERF_PROFILE_VERSION) return null;
     if (configHash && parsed.configHash && parsed.configHash !== configHash) {
-      if (log) log('[shards] Perf profile config hash mismatch; rebuilding.');
-      try {
-        await fs.unlink(filePath);
-      } catch {}
+      // This profile may still be useful to its original configuration. Only
+      // the successful metrics writer should replace it, not an incompatible
+      // reader whose new build may fail before publishing a fresh profile.
+      if (log) log('[shards] Perf profile config hash mismatch; ignoring.');
       return null;
     }
     return parsed;
@@ -165,4 +165,3 @@ export function estimateFileCost({
   }
   return baseCost * multiplier;
 }
-

@@ -1,42 +1,21 @@
 #!/usr/bin/env node
-import { normalizePostingsConfig } from '../../../src/shared/postings-config.js';
 import { quantizeVec } from '../../../src/index/embedding.js';
-import { createTokenizationContext, tokenizeChunkText } from '../../../src/index/build/tokenization.js';
-import { createIndexerWorkerPool, normalizeWorkerPoolConfig } from '../../../src/index/build/worker-pool.js';
+import {
+  createWorkerPoolTestResources,
+  WORKER_POOL_SAMPLE
+} from './worker-pool-fixture.js';
 
-const postingsConfig = normalizePostingsConfig({
-  enablePhraseNgrams: true,
-  phraseMinN: 2,
-  phraseMaxN: 3,
-  enableChargrams: true,
-  chargramMinN: 3,
-  chargramMaxN: 3
-});
-const dictWords = new Set(['hello', 'world', 'foo', 'bar']);
-const dictConfig = { segmentation: 'greedy' };
-const workerConfig = normalizeWorkerPoolConfig({
-  enabled: true,
-  maxWorkers: 1,
-  maxFileBytes: 4096,
-  quantizeBatchSize: 2,
-  taskTimeoutMs: 5000
-}, { cpuLimit: 1 });
-
-const workerPool = await createIndexerWorkerPool({
-  config: workerConfig,
-  dictWords,
-  dictConfig,
-  postingsConfig
-});
+const { syncTokens, workerPool } = await createWorkerPoolTestResources();
 if (!workerPool) {
   console.log('worker pool test skipped (worker pool unavailable).');
   process.exit(0);
 }
 
-const context = createTokenizationContext({ dictWords, dictConfig, postingsConfig });
-const sample = 'helloWorld fooBar';
-const syncTokens = tokenizeChunkText({ text: sample, mode: 'code', ext: '.js', context });
-const workerTokens = await workerPool.tokenizeChunk({ text: sample, mode: 'code', ext: '.js' });
+const workerTokens = await workerPool.tokenizeChunk({
+  text: WORKER_POOL_SAMPLE,
+  mode: 'code',
+  ext: '.js'
+});
 
 if (JSON.stringify(syncTokens.tokens) !== JSON.stringify(workerTokens.tokens)) {
   console.error('worker pool test failed: tokens mismatch.');

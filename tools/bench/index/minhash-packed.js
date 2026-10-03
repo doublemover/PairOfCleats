@@ -1,50 +1,25 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { loadMinhashSignatures } from '../../../src/shared/artifact-io/loaders.js';
+import {
+  createSeededRng,
+  parseSimpleBenchArgs,
+  resolveCompareMode
+} from '../shared.js';
 
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
-
-const createRng = (seed) => {
-  let t = seed >>> 0;
-  return () => {
-    t += 0x6d2b79f5;
-    let r = Math.imul(t ^ (t >>> 15), 1 | t);
-    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
-  };
-};
-
-const args = parseArgs();
+const args = parseSimpleBenchArgs();
 const count = Number(args.count) || 10000;
 const dims = Number(args.dims) || 64;
 const seed = Number(args.seed) || 2024;
-const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
-  ? String(args.mode).toLowerCase()
-  : 'compare';
+const mode = resolveCompareMode(args.mode);
 const benchRoot = args.root
   ? path.resolve(String(args.root))
   : path.join(process.cwd(), '.benchCache', 'minhash-packed');
 
 const buildSignatures = () => {
-  const rng = createRng(seed);
+  const rng = createSeededRng(seed);
   const signatures = new Array(count);
   for (let i = 0; i < count; i += 1) {
     const sig = new Array(dims);

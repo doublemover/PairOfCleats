@@ -13,7 +13,7 @@ Parse Handlebars templates into an AST via a stable parsing entrypoint suitable 
 - Chunk by top-level blocks/partials; tag template variables and helpers.
 
 ## Deep links (implementation-relevant)
-1. Compiler API: parseWithoutProcessing ’ Handlebars AST (stable parsing entrypoint)  https://github.com/handlebars-lang/handlebars.js/blob/master/docs/compiler-api.md
+1. Compiler API: parseWithoutProcessing ï¿½ Handlebars AST (stable parsing entrypoint)  https://github.com/handlebars-lang/handlebars.js
 
 ## Suggested extraction checklist
 - [x] Confirm you can obtain stable node/section ranges (`start/end` offsets or line/column). (Use node loc (line/column) from @handlebars/parser; compute byte offsets via a line table.)

@@ -3,7 +3,7 @@ import { getFieldWeight } from '../../field-weighting.js';
 import { buildMetaV2 } from '../../metadata-v2.js';
 import { buildTokenSequence } from '../tokenization.js';
 import { buildExternalDocs, normalizeDocMeta } from './meta.js';
-import { log } from '../../../shared/progress.js';
+import { log } from '../../../shared/progress-runtime.js';
 
 /**
  * Assemble the final persisted chunk payload shape from per-stage outputs.

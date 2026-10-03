@@ -18,6 +18,60 @@ export const normalizeCommandArgs = (value) => {
 };
 
 /**
+ * Normalize arbitrary list input into a deterministic string list.
+ *
+ * @param {unknown} value
+ * @returns {string[]}
+ */
+export const normalizeStringList = (value) => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry).trim()).filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value.split(',').map((entry) => entry.trim()).filter(Boolean);
+  }
+  return [];
+};
+
+/**
+ * Deep clone arrays and plain objects.
+ *
+ * @param {unknown} value
+ * @returns {unknown}
+ */
+export const deepCloneValue = (value) => {
+  if (Array.isArray(value)) return value.map((entry) => deepCloneValue(entry));
+  if (isPlainObject(value)) {
+    const out = {};
+    for (const [key, entry] of Object.entries(value)) {
+      out[key] = deepCloneValue(entry);
+    }
+    return out;
+  }
+  return value;
+};
+
+/**
+ * Deep merge plain-object overrides onto a plain-object base.
+ *
+ * @param {unknown} base
+ * @param {unknown} override
+ * @returns {Record<string, any>}
+ */
+export const deepMergeObjects = (base, override) => {
+  const output = isPlainObject(base) ? deepCloneValue(base) : {};
+  if (!isPlainObject(override)) return output;
+  for (const [key, entry] of Object.entries(override)) {
+    if (isPlainObject(entry) && isPlainObject(output[key])) {
+      output[key] = deepMergeObjects(output[key], entry);
+    } else {
+      output[key] = deepCloneValue(entry);
+    }
+  }
+  return output;
+};
+
+/**
  * Ensure a token exists exactly once in command args.
  *
  * @param {unknown} args
