@@ -8,6 +8,7 @@ import { getTestEnvConfig } from '../../src/shared/env/testing.js';
 import { getCacheRoot as getResolvedCacheRoot, getCacheRootBase } from '../../src/shared/cache-roots.js';
 import { readJsoncFile } from '../../src/shared/jsonc.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
+import { applyRepoConfigAuthority, resolveTrustedConfigPath } from '../../src/shared/config-authority.js';
 import { validateConfig } from '../../src/config/validate.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { assertKnownIndexProfileId } from '../../src/contracts/index-profile.js';
@@ -55,8 +56,7 @@ export function loadUserConfig(repoRoot) {
     if (!testEnv.testing || !testEnv.config) return baseConfig;
     return mergeConfig(baseConfig, testEnv.config);
   };
-  if (!fs.existsSync(configPath)) return applyTestOverrides(normalizeUserConfig({}, repoRoot));
-  const base = readJsoncFile(configPath);
+  const base = fs.existsSync(configPath) ? readJsoncFile(configPath) : {};
   if (!isPlainObject(base)) {
     throw new Error('Config root must be a JSON object.');
   }
@@ -68,7 +68,13 @@ export function loadUserConfig(repoRoot) {
     const details = result.errors.map((err) => `- ${err}`).join('\n');
     throw new Error(`Config errors in ${configPath}:\n${details}`);
   }
-  return applyTestOverrides(normalizeUserConfig(base, repoRoot));
+  const trustedPath = resolveTrustedConfigPath(repoRoot);
+  const trusted = trustedPath ? readJsoncFile(trustedPath) : {};
+  const trustedResult = validateConfig(schema, trusted);
+  if (!trustedResult.ok) throw new Error('Invalid user-owned trusted configuration.');
+  return applyTestOverrides(normalizeUserConfig(
+    mergeConfig(applyRepoConfigAuthority(base, repoRoot), trusted), repoRoot
+  ));
 }
 
 /**

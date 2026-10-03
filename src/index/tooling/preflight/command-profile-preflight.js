@@ -138,7 +138,8 @@ export const resolveCommandProfilePreflightResult = ({
       message
     };
   }
-  const blocked = invalidLayout || (blockWhenDefinitelyMissing === true && definitelyMissing);
+  const blocked = validationReasonCode === 'untrusted-repository-command'
+    || invalidLayout || (blockWhenDefinitelyMissing === true && definitelyMissing);
   return {
     state: blocked ? 'blocked' : 'degraded',
     reasonCode: invalidLayout ? 'preflight_command_invalid_layout' : 'preflight_command_unavailable',
@@ -201,7 +202,8 @@ export const resolveRuntimeCommandFromPreflight = ({
       toolingConfig: toolingConfig || {}
     });
   }
-  const cmd = String(commandProfile?.resolved?.cmd || requestedCommand.cmd || '').trim();
+  const cmd = commandProfile?.resolved?.mode === 'blocked' ? ''
+    : String(commandProfile?.resolved?.cmd || requestedCommand.cmd || '').trim();
   const args = Array.isArray(commandProfile?.resolved?.args)
     ? commandProfile.resolved.args
     : requestedCommand.args;

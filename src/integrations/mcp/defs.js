@@ -366,17 +366,11 @@ export function getToolDefs(defaultModelId) {
     },
     {
       name: 'download_extensions',
-      description: 'Download SQLite ANN extensions into the cache.',
+      description: 'Download the user-approved SQLite ANN artifact into managed storage.',
       inputSchema: {
         type: 'object',
         properties: {
           repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
-          provider: { type: 'string', description: 'Extension provider (ex: sqlite-vec).' },
-          dir: { type: 'string', description: 'Override extension directory.' },
-          url: { type: 'string', description: 'Override download URL(s) name=url (repeatable).' },
-          out: { type: 'string', description: 'Explicit output path.' },
-          platform: { type: 'string', description: 'Override platform.' },
-          arch: { type: 'string', description: 'Override architecture.' },
           update: { type: 'boolean', description: 'Check for updates (If-Modified-Since).' },
           force: { type: 'boolean', description: 'Force re-downloads.' }
         }
@@ -384,23 +378,18 @@ export function getToolDefs(defaultModelId) {
     },
     {
       name: 'verify_extensions',
-      description: 'Verify SQLite ANN extension availability.',
+      description: 'Verify the user-approved SQLite ANN artifact; non-loading by default.',
       inputSchema: {
         type: 'object',
         properties: {
           repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
-          provider: { type: 'string' },
-          dir: { type: 'string' },
-          path: { type: 'string' },
-          platform: { type: 'string' },
-          arch: { type: 'string' },
           module: { type: 'string' },
           table: { type: 'string' },
           column: { type: 'string' },
           encoding: { type: 'string' },
           options: { type: 'string' },
           annMode: { type: 'string' },
-          load: { type: 'boolean', description: 'Attempt to load extension (default true).' }
+          load: { type: 'boolean', description: 'Explicitly load the user-approved artifact (default false; requires server launch authorization).' }
         }
       }
     },
@@ -449,12 +438,11 @@ export function getToolDefs(defaultModelId) {
     },
     {
       name: 'clean_artifacts',
-      description: 'Remove repo cache artifacts (optional all repos).',
+      description: 'Remove only the selected repo cache artifacts from approved owned storage.',
       inputSchema: {
         type: 'object',
         properties: {
           repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
-          all: { type: 'boolean' },
           dryRun: { type: 'boolean' }
         }
       }

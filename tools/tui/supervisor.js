@@ -77,7 +77,7 @@ const {
 const buildSessionDescriptor = () => ({
   mode: 'supervised',
   source: 'local-supervisor',
-  scope: process.cwd(),
+  scope: process.env.PAIROFCLEATS_TUI_WORKSPACE_ROOT || process.cwd(),
   connection: 'connected',
   note: 'interactive supervisor session',
   controllable: true

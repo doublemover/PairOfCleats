@@ -12,6 +12,7 @@ export const resolveTuiWrapperEnv = async ({
   tuiEnvConfig = {},
   installRoot = '',
   eventLogDir = '',
+  supervisorPath = '',
   baseEnv = process.env,
   runId = '',
   scriptPath = 'bin/pairofcleats-tui.js'
@@ -27,6 +28,9 @@ export const resolveTuiWrapperEnv = async ({
   return {
     ...env,
     PAIROFCLEATS_TUI_RUN_ID: resolvedRunId,
+    PAIROFCLEATS_TUI_NODE: process.execPath,
+    PAIROFCLEATS_TUI_SUPERVISOR: supervisorPath,
+    PAIROFCLEATS_TUI_WORKSPACE_ROOT: process.cwd(),
     PAIROFCLEATS_TUI_INSTALL_ROOT: normalizeString(tuiEnvConfig.installRoot) || installRoot,
     PAIROFCLEATS_TUI_EVENT_LOG_DIR: normalizeString(tuiEnvConfig.eventLogDir) || eventLogDir
   };

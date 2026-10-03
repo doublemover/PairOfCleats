@@ -12,11 +12,11 @@ import { isAbsolutePathAny, toPosix } from '../../src/shared/file-paths.js';
 import { resolveRepoConfig } from '../shared/dict-utils.js';
 import {
   parseHashOverrides,
-  resolveDownloadPolicy,
   resolveExpectedHash,
   verifyDownloadHash
 } from '../shared/download-utils.js';
-import { parseNameUrlSources } from '../shared/input-parsers.js';
+import { assertDownloadFileName, parseNameUrlSources } from '../shared/input-parsers.js';
+import { extensionDownloadPolicy } from '../sqlite/extension-trust.js';
 import { readJsonFileSafe } from '../../src/shared/file-read.js';
 import { writeJsonFile } from '../../src/shared/json-file.js';
 import { getBinarySuffix, getPlatformKey, getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
@@ -81,9 +81,8 @@ const DEFAULT_ARCHIVE_LIMITS = {
 };
 
 const normalizeLimit = (value, fallback) => {
-  if (value === 0 || value === false) return null;
   const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+  if (Number.isFinite(parsed) && parsed > 0) return Math.min(fallback, Math.floor(parsed));
   return fallback;
 };
 
@@ -97,7 +96,7 @@ const resolveArchiveLimits = (cfg) => {
 };
 
 const hashOverrides = parseHashOverrides(argv.sha256);
-const downloadPolicy = resolveDownloadPolicy(userConfig);
+const downloadPolicy = extensionDownloadPolicy(userConfig);
 const archiveLimits = resolveArchiveLimits(userConfig);
 
 /**
@@ -125,6 +124,9 @@ function getArchiveTypeForSource(source) {
 
 function normalizeArchiveEntry(entryName) {
   const name = toPosix(String(entryName || '')).trim();
+  if (name.length > 4096 || name.split('/').length > 64) {
+    throw createError(ERROR_CODES.ARCHIVE_UNSAFE, 'Archive entry exceeds path length/depth limits.');
+  }
   let cleaned = name.replace(/^(\.\/)+/, '');
   cleaned = cleaned.replace(/^\/+/, '');
   // Handle Windows extended-length paths that can appear as //?/C:/...
@@ -309,6 +311,10 @@ async function extractTarNode(archivePath, destDir, gzip, limits) {
     const type = header?.type || 'file';
 
     (async () => {
+      // Count directories and special entries before any filesystem effect.
+      const declaredSize = Number(header?.size);
+      const counted = limiter.checkEntry(rawName,
+        Number.isFinite(declaredSize) ? declaredSize : 0);
       // Reject symlinks/hardlinks to avoid writing outside the destination or
       // creating unexpected filesystem references.
       if (type === 'symlink' || type === 'link') {
@@ -338,12 +344,6 @@ async function extractTarNode(archivePath, destDir, gzip, limits) {
         stream.resume();
         return;
       }
-
-      const declaredSize = Number(header?.size);
-      const counted = limiter.checkEntry(
-        normalized,
-        Number.isFinite(declaredSize) ? declaredSize : 0
-      );
 
       await fs.mkdir(path.dirname(targetPath), { recursive: true });
 
@@ -394,7 +394,12 @@ async function extractArchiveNode(archivePath, destDir, type, limits) {
  * @returns {boolean}
  */
 async function extractArchive(archivePath, destDir, type, limits) {
-  return extractArchiveNode(archivePath, destDir, type, limits);
+  try {
+    return await extractArchiveNode(archivePath, destDir, type, limits);
+  } catch (error) {
+    await fs.rm(destDir, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 /**
@@ -482,11 +487,12 @@ if (argv.out && sources.length > 1) {
 async function resolveOutputPath(source, index) {
   if (argv.out) return path.resolve(argv.out);
   if (config.path && index === 0) return config.path;
-  const targetDir = path.join(extensionDir, config.provider, config.platformKey);
+  const targetDir = path.join(extensionDir,
+    assertDownloadFileName(config.provider), assertDownloadFileName(config.platformKey));
   await fs.mkdir(targetDir, { recursive: true });
   const archiveType = getArchiveTypeForSource(source);
   const fileName = archiveType ? config.filename : (source.file || config.filename);
-  return path.join(targetDir, fileName);
+  return path.join(targetDir, assertDownloadFileName(fileName));
 }
 
 /**
@@ -496,9 +502,12 @@ async function resolveOutputPath(source, index) {
  * @returns {Promise<{name:string,skipped:boolean,outputPath:string}>}
  */
 async function downloadSource(source, index) {
+  assertDownloadFileName(source.name);
+  const expectedHash = resolveExpectedHash(source, downloadPolicy, hashOverrides);
+  if (!expectedHash) throw new Error('Native extension downloads require an approved SHA256 digest.');
   const outputPath = await resolveOutputPath(source, index);
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
-  const key = `${source.name}:${config.platformKey}`;
+  const key = `${config.provider}:${config.platformKey}`;
   const entry = manifest[key] || {};
   const archiveType = getArchiveTypeForSource(source);
   const archiveSuffix = archiveType === 'tar.gz'
@@ -507,103 +516,118 @@ async function downloadSource(source, index) {
       ? `.${archiveType}`
       : '';
   const tempRoot = path.join(extensionDir, '.tmp');
-  const downloadPath = archiveType
-    ? path.join(tempRoot, `${source.name}-${Date.now()}${archiveSuffix}`)
-    : outputPath;
+  await fs.mkdir(tempRoot, { recursive: true });
+  const transactionRoot = await fs.mkdtemp(path.join(tempRoot, 'download-'));
+  const downloadPath = path.join(transactionRoot, `source${archiveSuffix}`);
+  const stagedOutput = path.join(transactionRoot, 'extension');
+  try {
+    const existingHash = fsSync.existsSync(outputPath)
+      ? crypto.createHash('sha256').update(await fs.readFile(outputPath)).digest('hex') : null;
+    const existingVerified = entry.verified && entry.url === source.url
+    && entry.sha256 === expectedHash && entry.outputSha256 === existingHash;
 
-  if (!argv.force && !argv.update && fsSync.existsSync(outputPath)) {
-    return { name: source.name, skipped: true, outputPath };
-  }
-
-  const headers = {};
-  if (argv.update) {
-    if (entry.etag) headers['If-None-Match'] = entry.etag;
-    if (entry.lastModified) headers['If-Modified-Since'] = entry.lastModified;
-  }
-
-  const response = await fetchDownloadUrl(source.url, {
-    headers,
-    maxBytes: archiveLimits.maxBytes,
-    timeoutMs: downloadPolicy.timeoutMs,
-    maxRedirects: downloadPolicy.maxRedirects
-  });
-  if (response.statusCode === 304) {
-    return { name: source.name, skipped: true, outputPath };
-  }
-  if (response.statusCode !== 200) {
-    throw new Error(`Failed to download ${source.url}: ${response.statusCode}`);
-  }
-  const expectedHash = resolveExpectedHash(source, downloadPolicy, hashOverrides);
-  const actualHash = verifyDownloadHash({
-    source,
-    expectedHash,
-    actualHash: crypto.createHash('sha256').update(response.body).digest('hex'),
-    policy: downloadPolicy,
-    warn: (message) => logger.warn(message)
-  });
-
-  if (archiveType) {
-    await fs.mkdir(tempRoot, { recursive: true });
-  }
-  const writeMode = archiveType ? FILE_MODE : OUTPUT_MODE;
-  await fs.writeFile(downloadPath, response.body, { mode: writeMode });
-
-  let extractedFrom = null;
-  if (archiveType) {
-    const extractDir = path.join(tempRoot, `extract-${Date.now()}`);
-    await fs.mkdir(extractDir, { recursive: true });
-    const ok = await extractArchive(downloadPath, extractDir, archiveType, archiveLimits);
-    if (!ok) {
-      throw new Error(`Failed to extract ${downloadPath} (${archiveType})`);
+    if (!argv.force && !argv.update && fsSync.existsSync(outputPath)) {
+      if (existingVerified) return { name: source.name, skipped: true, outputPath };
     }
-    const extractedPath = await findFile(extractDir, config.filename, suffix);
-    if (!extractedPath) {
-      throw new Error(`No extension binary found in ${downloadPath}`);
+
+    const headers = {};
+    if (argv.update && existingVerified) {
+      if (entry.etag) headers['If-None-Match'] = entry.etag;
+      if (entry.lastModified) headers['If-Modified-Since'] = entry.lastModified;
     }
-    await fs.copyFile(extractedPath, outputPath);
-    if (process.platform !== 'win32') {
+
+    const response = await fetchDownloadUrl(source.url, {
+      headers,
+      maxBytes: archiveLimits.maxBytes,
+      timeoutMs: downloadPolicy.timeoutMs,
+      maxRedirects: downloadPolicy.maxRedirects
+    });
+    if (response.statusCode === 304) {
+      if (!existingVerified) throw new Error('Unverified native bytes cannot be accepted from a304 response.');
+      return { name: source.name, skipped: true, outputPath };
+    }
+    if (response.statusCode !== 200) {
+      throw new Error(`Failed to download ${source.url}: ${response.statusCode}`);
+    }
+    const actualHash = verifyDownloadHash({
+      source,
+      expectedHash,
+      actualHash: crypto.createHash('sha256').update(response.body).digest('hex'),
+      policy: downloadPolicy,
+      warn: (message) => logger.warn(message)
+    });
+
+    if (archiveType) {
+      await fs.mkdir(tempRoot, { recursive: true });
+    }
+    const writeMode = archiveType ? FILE_MODE : OUTPUT_MODE;
+    await fs.writeFile(downloadPath, response.body, { mode: writeMode });
+
+    let extractedFrom = null;
+    if (archiveType) {
+      const extractDir = path.join(transactionRoot, 'extracted');
+      await fs.mkdir(extractDir, { recursive: true });
+      const ok = await extractArchive(downloadPath, extractDir, archiveType, archiveLimits);
+      if (!ok) {
+        throw new Error(`Failed to extract ${downloadPath} (${archiveType})`);
+      }
+      const extractedPath = await findFile(extractDir, config.filename, suffix);
+      if (!extractedPath) {
+        throw new Error(`No extension binary found in ${downloadPath}`);
+      }
+      await fs.copyFile(extractedPath, stagedOutput);
+      if (process.platform !== 'win32') {
+        try {
+          await fs.chmod(stagedOutput, OUTPUT_MODE);
+        } catch {}
+      }
+      extractedFrom = path.relative(extensionDir, extractedPath);
+      await fs.rm(extractDir, { recursive: true, force: true });
+      await fs.rm(downloadPath, { force: true });
+    }
+    if (!archiveType) await fs.copyFile(downloadPath, stagedOutput);
+
+    if (!archiveType && process.platform !== 'win32') {
       try {
-        await fs.chmod(outputPath, OUTPUT_MODE);
+        await fs.chmod(stagedOutput, OUTPUT_MODE);
       } catch {}
     }
-    extractedFrom = path.relative(extensionDir, extractedPath);
-    await fs.rm(extractDir, { recursive: true, force: true });
-    await fs.rm(downloadPath, { force: true });
+    const outputSha256 = crypto.createHash('sha256').update(await fs.readFile(stagedOutput)).digest('hex');
+    await fs.rename(stagedOutput, outputPath);
+
+    manifest[key] = {
+      name: source.name,
+      url: source.url,
+      file: path.basename(outputPath),
+      outputPath: path.relative(extensionDir, outputPath),
+      archive: archiveType,
+      extractedFrom,
+      provider: config.provider,
+      platform: config.platform,
+      arch: config.arch,
+      sha256: actualHash || expectedHash || null,
+      outputSha256,
+      verified: Boolean(expectedHash),
+      etag: response.headers.etag || null,
+      lastModified: response.headers['last-modified'] || null,
+      downloadedAt: new Date().toISOString()
+    };
+
+    return { name: source.name, skipped: false, outputPath };
+  } finally {
+    await fs.rm(transactionRoot, { recursive: true, force: true });
   }
-
-  if (!archiveType && process.platform !== 'win32') {
-    try {
-      await fs.chmod(outputPath, OUTPUT_MODE);
-    } catch {}
-  }
-
-  manifest[key] = {
-    name: source.name,
-    url: source.url,
-    file: path.basename(outputPath),
-    outputPath: path.relative(extensionDir, outputPath),
-    archive: archiveType,
-    extractedFrom,
-    provider: config.provider,
-    platform: config.platform,
-    arch: config.arch,
-    sha256: actualHash || expectedHash || null,
-    verified: Boolean(expectedHash),
-    etag: response.headers.etag || null,
-    lastModified: response.headers['last-modified'] || null,
-    downloadedAt: new Date().toISOString()
-  };
-
-  return { name: source.name, skipped: false, outputPath };
 }
 
 const results = [];
+let failedDownloads = 0;
 for (let i = 0; i < sources.length; i++) {
   const source = sources[i];
   display.showProgress('Downloads', i, sources.length, { stage: 'extensions' });
   try {
     results.push(await downloadSource(source, i));
   } catch (err) {
+    failedDownloads += 1;
     logger.error(String(err));
   }
 }
@@ -619,3 +643,4 @@ if (resolvedPath && fsSync.existsSync(resolvedPath)) {
 }
 logger.log(`Done. downloaded=${downloaded} skipped=${skipped}`);
 display.close();
+if (failedDownloads) process.exitCode = 1;

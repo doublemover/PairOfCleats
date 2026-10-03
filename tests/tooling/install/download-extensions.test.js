@@ -11,6 +11,7 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
+process.env.PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS = '1';
 const fixturesRoot = path.join(root, 'tests', 'fixtures', 'extensions');
 const tempRoot = resolveTestCachePath(root, 'download-extensions');
 const verifyEnv = applyTestEnv({ syncProcess: false });
@@ -110,7 +111,7 @@ for (const entry of cases) {
     continue;
   }
   const manifest = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
-  const key = 'vec0:win32-x64';
+  const key = 'sqlite-vec:win32-x64';
   const record = manifest[key];
   if (!record) {
     failures.push(`${entry.label} manifest entry missing (${key})`);
@@ -195,4 +196,3 @@ if (failures.length) {
 }
 
 console.log('download-extensions archive test passed');
-

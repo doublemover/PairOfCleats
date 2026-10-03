@@ -26,6 +26,7 @@ head. None is a blanket release-readiness claim.
 
 | Initiative | Status | Done now | Remaining / next |
 | --- | --- | --- | --- |
+| Execution, storage and download authority | `implemented; focused validation` | Launch-owned configuration, editor execution/credential gates, pinned TUI companion paths, bounded worker pools, native-artifact provenance, download transactions and descriptor-backed reads are covered by synthetic regressions. | Preserve the explicit authority boundaries in the [guide](guides/execution-authority.md); native TUI and non-Linux platform acceptance remain separate. |
 | Stage1 ordered throughput cutover | `implemented` | Contiguous window planning, commit cursor ordering, no-gap-recovery assertions and targeted Stage1 tests are present. | Refresh perf and memory budget tests in the release gate before release. |
 | Phase 10 interprocedural risk flows | `implemented` | Risk summaries/flows/call-sites, validators and consumers are implemented; the completion pass fixes capped results, source deduplication and zero-confidence handling. | Run the affected risk and release acceptance lanes on the final release candidate. |
 | Phase 14 IndexRefs, snapshots, diffs, and as-of retrieval | `implemented` | IndexRefs, snapshot/diff tools and API routes are present; cache-boundary checks and historical LMDB/HNSW resolution are corrected. | Refresh cross-platform and end-to-end snapshot acceptance before release. |
@@ -39,9 +40,12 @@ head. None is a blanket release-readiness claim.
 
 ## Canonical Next Queue
 
-1. **Complete branch integration and review.** Open the completion PR against current
-   `main`, keep its summary current, and give every older PR an evidence-backed
-   disposition. See the [branch and capability review](branch-capability-review-2026-10-02.md).
+1. **Maintain the consolidated draft review.** The completion branch is published in
+   [draft PR519](https://github.com/doublemover/PairOfCleats/pull/519). The seven older
+   reviewed proposals were closed with specific approved supersession explanations;
+   original branches remain preserved. Keep the draft summary current without
+   treating publication or focused checks as merge/release acceptance. See the
+   [branch and capability review](branch-capability-review-2026-10-02.md).
 2. **Maintain concrete lifecycle fixes.** Full-build diagnostic callback failures
    were reproduced against the frozen branch with a real one-chunk SQLite bundle:
    a failed checkpoint plus a throwing warning callback left the database open.

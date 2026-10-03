@@ -6,6 +6,7 @@ import { normalizeOptionalNumber } from '../shared/limits.js';
 import { compareStrings } from '../shared/sort.js';
 import { isRelativePathEscape } from '../shared/file-paths.js';
 import { readFileRangeSync } from '../shared/file-read.js';
+import { assertNoSymlinkPath, openContainedFileSync } from '../shared/contained-file.js';
 
 const trimUtf8Buffer = (buffer) => {
   let end = buffer.length;
@@ -67,11 +68,11 @@ const getFileCacheFingerprint = (filePath) => {
   }
 };
 
-const readFilePrefix = (filePath, maxBytes) => {
+const readFilePrefix = (filePath, maxBytes, repoRoot) => {
   if (!Number.isFinite(maxBytes) || maxBytes <= 0) return '';
   let fd = null;
   try {
-    fd = fs.openSync(filePath, 'r');
+    fd = openContainedFileSync(repoRoot, filePath);
     const buffer = Buffer.allocUnsafe(maxBytes + UTF8_TRUNCATION_DETECTION_SLACK_BYTES);
     const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0);
     const slice = trimUtf8Buffer(buffer.subarray(0, bytesRead));
@@ -81,24 +82,24 @@ const readFilePrefix = (filePath, maxBytes) => {
   }
 };
 
-const readFileRangeCached = (filePath, start, end, cacheScope) => {
+const readFileRangeCached = (filePath, start, end, cacheScope, repoRoot) => {
   const key = `${filePath}|${cacheScope}|${start}|${end}`;
   const cached = getCachedValue(fileRangeCache, key);
   if (cached != null) return cached;
-  const buffer = readFileRangeSync(filePath, start, end);
+  const buffer = readFileRangeSync(filePath, start, end, repoRoot);
   const text = trimUtf8Buffer(buffer).toString('utf8');
   setCachedValue(fileRangeCache, key, text, FILE_RANGE_CACHE_MAX);
   return text;
 };
 
-export const prefetchFileRanges = (ranges, cacheScope) => {
+export const prefetchFileRanges = (ranges, cacheScope, repoRoot = null) => {
   if (!Array.isArray(ranges) || !ranges.length) return;
   for (const range of ranges) {
-    if (!range?.filePath) continue;
+    if (!range?.filePath || !repoRoot) continue;
     const key = `${range.filePath}|${cacheScope}|${range.start}|${range.end}`;
     if (fileRangeCache.has(key)) continue;
     try {
-      const buffer = readFileRangeSync(range.filePath, range.start, range.end);
+      const buffer = readFileRangeSync(range.filePath, range.start, range.end, repoRoot);
       const text = trimUtf8Buffer(buffer).toString('utf8');
       setCachedValue(fileRangeCache, key, text, FILE_RANGE_CACHE_MAX);
     } catch {
@@ -141,12 +142,14 @@ const sliceExcerpt = (text, maxBytes, maxTokens) => {
 
 export const resolveExcerpt = ({
   filePath,
+  repoRoot,
   start,
   end,
   maxBytes,
   maxTokens,
   indexSignature = null
 }) => {
+  assertNoSymlinkPath(repoRoot, filePath);
   const cacheScope = indexSignature || getFileCacheFingerprint(filePath);
   const cacheKeyInfo = buildLocalCacheKey({
     namespace: 'context-pack-excerpt',
@@ -167,10 +170,10 @@ export const resolveExcerpt = ({
     const readEnd = safeMaxBytes
       ? Math.min(end, start + safeMaxBytes + UTF8_TRUNCATION_DETECTION_SLACK_BYTES)
       : end;
-    prefetchFileRanges([{ filePath, start, end: readEnd }], cacheScope);
-    text = readFileRangeCached(filePath, start, readEnd, cacheScope);
+    prefetchFileRanges([{ filePath, start, end: readEnd }], cacheScope, repoRoot);
+    text = readFileRangeCached(filePath, start, readEnd, cacheScope, repoRoot);
   } else {
-    text = readFilePrefix(filePath, normalizeOptionalNumber(maxBytes));
+    text = readFilePrefix(filePath, normalizeOptionalNumber(maxBytes), repoRoot);
   }
   const { excerpt, truncated, truncatedBytes, truncatedTokens } = sliceExcerpt(text, maxBytes, maxTokens);
   const excerptHash = excerpt ? `sha1:${sha1(excerpt)}` : null;
@@ -230,14 +233,21 @@ export const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, inde
     } else if (fs.existsSync(filePath)) {
       const maxBytesNum = normalizeOptionalNumber(maxBytes);
       const maxTokensNum = normalizeOptionalNumber(maxTokens);
-      const resolvedExcerpt = resolveExcerpt({
-        filePath,
-        start: Number.isFinite(chunk.start) ? chunk.start : null,
-        end: Number.isFinite(chunk.end) ? chunk.end : null,
-        maxBytes: maxBytesNum,
-        maxTokens: maxTokensNum,
-        indexSignature
-      });
+      let resolvedExcerpt;
+      try {
+        resolvedExcerpt = resolveExcerpt({
+          filePath,
+          repoRoot,
+          start: Number.isFinite(chunk.start) ? chunk.start : null,
+          end: Number.isFinite(chunk.end) ? chunk.end : null,
+          maxBytes: maxBytesNum,
+          maxTokens: maxTokensNum,
+          indexSignature
+        });
+      } catch {
+        pushWarning('PRIMARY_PATH_UNAVAILABLE', 'Primary path failed current file identity or containment checks.');
+        resolvedExcerpt = { excerpt: '', excerptHash: null, truncated: false, truncatedBytes: false, truncatedTokens: false };
+      }
       excerpt = resolvedExcerpt.excerpt || '';
       truncated = resolvedExcerpt.truncated;
       truncatedBytes = resolvedExcerpt.truncatedBytes === true;

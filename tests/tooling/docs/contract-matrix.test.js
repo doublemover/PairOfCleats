@@ -537,6 +537,7 @@ const expandSimpleBraceAlternates = (value) => {
   const initiativesTable = readMarkdownTableAfterHeading(roadmapText, '## Current Initiatives');
   assert.deepEqual(initiativesTable.header, ['Initiative', 'Status', 'Done now', 'Remaining / next']);
   const expectedStatuses = new Map([
+    ['Execution, storage and download authority', 'implemented; focused validation'],
     ['Stage1 ordered throughput cutover', 'implemented'],
     ['Phase 10 interprocedural risk flows', 'implemented'],
     ['Phase 14 IndexRefs, snapshots, diffs, and as-of retrieval', 'implemented'],

@@ -71,6 +71,7 @@ export const downloadToBuffer = async ({
   createErrorMessage,
   headers,
   redirect = 'follow',
+  maxBytes = null,
   drainErrorBody = false
 }) => {
   const timeout = withTimeoutSignal(timeoutMs);
@@ -88,6 +89,8 @@ export const downloadToBuffer = async ({
         try {
           await response.arrayBuffer();
         } catch {}
+      } else {
+        try { await response.body?.cancel?.(); } catch {}
       }
       throw createInstallError(
         'download_http_error',
@@ -100,7 +103,24 @@ export const downloadToBuffer = async ({
         { retryable: isRetryableHttpStatus(response.status), statusCode: response.status }
       );
     }
-    const body = Buffer.from(await response.arrayBuffer());
+    const declaredBytes = Number(response.headers?.get?.('content-length'));
+    if (maxBytes && Number.isFinite(declaredBytes) && declaredBytes > maxBytes) {
+      throw createInstallError('download_too_large', `${label} exceeds the download byte limit.`, { retryable: false });
+    }
+    let body;
+    if (maxBytes && response.body?.[Symbol.asyncIterator]) {
+      const chunks = [];
+      let bytes = 0;
+      for await (const chunk of response.body) {
+        bytes += chunk.length;
+        if (bytes > maxBytes) throw createInstallError('download_too_large', `${label} exceeds the download byte limit.`, { retryable: false });
+        chunks.push(Buffer.from(chunk));
+      }
+      body = Buffer.concat(chunks, bytes);
+    } else {
+      body = Buffer.from(await response.arrayBuffer());
+      if (maxBytes && body.length > maxBytes) throw createInstallError('download_too_large', `${label} exceeds the download byte limit.`, { retryable: false });
+    }
     if (!body.length) {
       throw createInstallError(
         'download_empty_payload',

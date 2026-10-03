@@ -3,9 +3,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { canRunCommand, probeCommand } from '../shared/cli-utils.js';
 import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../../src/index/constants.js';
-import { findBinaryInDirs, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
+import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
+import { isRepoTrusted } from '../../src/shared/config-authority.js';
 import { validateResolvedToolingCommandLayout } from '../../src/index/tooling/command-resolver.js';
-import { toPosix } from '../../src/shared/file-paths.js';
+import { isPathWithinRoot, toPosix } from '../../src/shared/file-paths.js';
 import {
   resolveGlobalComposerBinDirs,
   resolveGlobalDotnetBinDirs,
@@ -18,7 +19,7 @@ import {
   resolveEnvPath as resolveSharedEnvPath,
   resolvePathEnvKey as resolveSharedPathEnvKey
 } from '../../src/shared/env-path.js';
-import { getToolingConfig } from '../shared/dict-utils.js';
+import { getToolingConfig, resolveToolRoot } from '../shared/dict-utils.js';
 
 const packageMetadata = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
@@ -338,6 +339,7 @@ export async function detectRepoLanguages(root) {
 }
 
 export function getToolingRegistry(toolingRoot, repoRoot) {
+  const implementationRoot = resolveToolRoot();
   // Newer TypeScript distributions may omit the tsserver/JavaScript compiler
   // API used by our provider. Match the project's supported dependency range.
   const typescriptPackage = `typescript@${packageMetadata.dependencies.typescript}`;
@@ -345,7 +347,8 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
   const localBinDirs = resolveLocalToolingBinDirs(absoluteToolingRoot);
   const [binDir, nodeBin, dotnetDir, composerBin] = localBinDirs;
   const nodeDir = path.join(absoluteToolingRoot, 'node');
-  const repoNodeBin = path.join(repoRoot, 'node_modules', '.bin');
+  const repoNodeBin = isRepoTrusted(repoRoot)
+    ? [path.join(repoRoot, 'node_modules', '.bin')] : [];
   const gemsDir = path.join(absoluteToolingRoot, 'gems');
   const globalDotnetBins = resolveGlobalDotnetBinDirs();
   const globalGemBins = resolveGlobalGemBinDirs();
@@ -357,7 +360,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'tsserver',
       label: 'TypeScript server',
       languages: ['typescript'],
-      detect: { cmd: 'tsserver', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      detect: { cmd: 'tsserver', args: ['--version'], binDirs: [...repoNodeBin, nodeBin] },
       install: {
         cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, typescriptPackage] },
         user: { cmd: 'npm', args: ['install', '-g', typescriptPackage] }
@@ -368,7 +371,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'typescript-language-server',
       label: 'TypeScript language server',
       languages: ['typescript'],
-      detect: { cmd: 'typescript-language-server', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      detect: { cmd: 'typescript-language-server', args: ['--version'], binDirs: [...repoNodeBin, nodeBin] },
       install: {
         cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'typescript-language-server'] },
         user: { cmd: 'npm', args: ['install', '-g', 'typescript-language-server'] }
@@ -399,7 +402,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'pyright',
       label: 'Pyright',
       languages: ['python'],
-      detect: { cmd: 'pyright-langserver', args: ['--help'], binDirs: [repoNodeBin, nodeBin] },
+      detect: { cmd: 'pyright-langserver', args: ['--help'], binDirs: [...repoNodeBin, nodeBin] },
       install: {
         cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'pyright'] },
         user: { cmd: 'npm', args: ['install', '-g', 'pyright'] }
@@ -537,14 +540,15 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       languages: ['php'],
       detect: { cmd: 'phpactor', args: ['--version'], binDirs: [binDir, composerBin, ...globalComposerBins, ...globalPhpactorBins] },
       install: {
+        manual: true,
         cache: {
           cmd: process.execPath,
-          args: [path.join(repoRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot],
+          args: [path.join(implementationRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot],
           requires: 'php'
         },
         user: {
           cmd: process.execPath,
-          args: [path.join(repoRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'user'],
+          args: [path.join(implementationRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'user'],
           requires: 'php'
         }
       },
@@ -554,7 +558,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'intelephense',
       label: 'Intelephense',
       languages: ['php'],
-      detect: { cmd: 'intelephense', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      detect: { cmd: 'intelephense', args: ['--version'], binDirs: [...repoNodeBin, nodeBin] },
       install: {
         cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'intelephense'] },
         user: { cmd: 'npm', args: ['install', '-g', 'intelephense'] }
@@ -569,7 +573,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       install: {
         cache: {
           cmd: process.execPath,
-          args: [path.join(repoRoot, 'tools', 'tooling', 'install-lua-language-server.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot]
+          args: [path.join(implementationRoot, 'tools', 'tooling', 'install-lua-language-server.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot]
         }
       },
       docs: TOOL_DOCS['lua-language-server']
@@ -578,7 +582,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'yaml-language-server',
       label: 'yaml-language-server',
       languages: ['yaml'],
-      detect: { cmd: 'yaml-language-server', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      detect: { cmd: 'yaml-language-server', args: ['--version'], binDirs: [...repoNodeBin, nodeBin] },
       install: {
         cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'yaml-language-server'] },
         user: { cmd: 'npm', args: ['install', '-g', 'yaml-language-server'] }
@@ -599,7 +603,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'bash-language-server',
       label: 'bash-language-server',
       languages: ['shell'],
-      detect: { cmd: 'bash-language-server', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      detect: { cmd: 'bash-language-server', args: ['--version'], binDirs: [...repoNodeBin, nodeBin] },
       install: {
         cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'bash-language-server'] },
         user: { cmd: 'npm', args: ['install', '-g', 'bash-language-server'] }
@@ -617,7 +621,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       },
       docs: TOOL_DOCS.sqls
     }
-  ];
+  ].map((tool) => ({ ...tool, authorityRepoRoot: repoRoot }));
 }
 
 function filterToolsByConfig(tools, toolingConfig) {
@@ -665,6 +669,17 @@ export function resolveToolsById(ids, toolingRoot, repoRoot, toolingConfig = nul
 }
 
 export function detectTool(tool) {
+  if (!tool?.detect?.cmd) return { found: false, path: null, source: null, probe: null };
+  const candidate = (path.isAbsolute(tool.detect.cmd) && fs.existsSync(tool.detect.cmd) ? tool.detect.cmd : null)
+    || findBinaryInDirs(tool.detect.cmd, tool.detect.binDirs || [])
+    || findBinaryOnPath(tool.detect.cmd);
+  if (candidate && tool.authorityRepoRoot && !isRepoTrusted(tool.authorityRepoRoot)) {
+    const canonical = fs.realpathSync(candidate);
+    if (isPathWithinRoot(canonical, fs.realpathSync(tool.authorityRepoRoot))
+      && !isPathWithinRoot(canonical, fs.realpathSync(resolveToolRoot()))) {
+      return { found: false, path: null, source: 'blocked', probe: { ok: false, attempted: [] } };
+    }
+  }
   const detectCmd = String(tool?.detect?.cmd || '');
   const detectArgCandidates = resolveDetectArgCandidates(tool);
   const binDirs = tool.detect?.binDirs || [];

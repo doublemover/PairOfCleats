@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 644,
+    "hero": 649,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4714,6 +4714,36 @@
     {
       "id": "tooling/install/package-source-compatibility",
       "order": 775,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "security/repository-authority",
+      "order": 776,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "security/contained-file-boundaries",
+      "order": 777,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "security/native-download-authority",
+      "order": 778,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "security/editor-tui-authority",
+      "order": 779,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "security/download-transactions",
+      "order": 780,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

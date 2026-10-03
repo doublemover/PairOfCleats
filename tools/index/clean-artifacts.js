@@ -6,6 +6,8 @@ import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { isRootPath } from '../../src/shared/file-paths.js';
 import { isPathUnderDir } from '../../src/shared/path-normalize.js';
+import { assertSafeCacheDeletion } from '../../src/shared/cache-deletion.js';
+import { getCacheRootBase } from '../../src/shared/cache-roots.js';
 import {
   getCacheRoot,
   getRepoCacheRoot,
@@ -20,6 +22,7 @@ const argv = createCli({
   options: {
     all: { type: 'boolean', default: false },
     'dry-run': { type: 'boolean', default: false },
+    'allow-unmarked-cache': { type: 'boolean', default: false },
     repo: { type: 'string' }
   }
 }).parse();
@@ -85,6 +88,13 @@ for (const dir of lmdbDirs) {
 }
 
 const uniqueTargets = Array.from(new Set(targets.map((target) => path.resolve(target))));
+const authorizedRoots = [getCacheRootBase(), getCacheRoot(), envConfig.cacheRoot, userConfig.cache?.root];
+const deletionPolicy = { allowUnmarked: argv['allow-unmarked-cache'] === true || argv['dry-run'] === true };
+// The fixed legacy directory is the only repository-local cleanup authority.
+authorizedRoots.push(legacyRepoSqliteDir);
+for (const target of uniqueTargets) {
+  if (fs.existsSync(target)) assertSafeCacheDeletion(target, authorizedRoots, deletionPolicy);
+}
 for (const target of uniqueTargets) {
   if (!fs.existsSync(target)) {
     console.error(`skip: ${target} (missing)`);
@@ -100,6 +110,7 @@ for (const target of uniqueTargets) {
     continue;
   }
 
+  assertSafeCacheDeletion(target, authorizedRoots, deletionPolicy);
   await fsPromises.rm(target, { recursive: true, force: true });
   console.error(`deleted: ${path.resolve(target)}`);
 }

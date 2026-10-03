@@ -61,7 +61,7 @@ export function runDownloadDicts(args, { logName }) {
     const child = spawn(process.execPath, [path.join(root, 'tools', 'download', 'dicts.js'), ...args], {
       cwd: root,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: process.env
+      env: { ...process.env, PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS: '1' }
     });
     attachSilentLogging(child, logName);
     let stdout = '';

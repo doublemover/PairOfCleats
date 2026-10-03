@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
+import { openContainedFileSync } from './contained-file.js';
 
 const normalizeJsonReadOptions = (options) => (
   options && typeof options === 'object' && !Array.isArray(options)
@@ -22,14 +23,14 @@ const createJsonFileTooLargeError = ({ size, maxBytes }) => {
   return error;
 };
 
-export function readFileRangeSync(filePath, start, end) {
+export function readFileRangeSync(filePath, start, end, repoRoot = null) {
   const safeStart = Number.isFinite(start) ? Math.max(0, Math.floor(start)) : 0;
   const safeEnd = Number.isFinite(end) ? Math.max(safeStart, Math.floor(end)) : safeStart;
   const length = Math.max(0, safeEnd - safeStart);
   if (!length) return Buffer.alloc(0);
   let fd = null;
   try {
-    fd = fs.openSync(filePath, 'r');
+    fd = repoRoot ? openContainedFileSync(repoRoot, filePath) : fs.openSync(filePath, 'r');
     const buffer = Buffer.allocUnsafe(length);
     const bytesRead = fs.readSync(fd, buffer, 0, length, safeStart);
     return buffer.subarray(0, bytesRead);

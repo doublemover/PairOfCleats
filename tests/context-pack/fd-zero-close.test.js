@@ -22,11 +22,17 @@ const chunkMeta = [
 const originalOpenSync = fs.openSync;
 const originalReadSync = fs.readSync;
 const originalCloseSync = fs.closeSync;
+const originalFstatSync = fs.fstatSync;
+const originalRealpathSync = fs.realpathSync;
 const sample = Buffer.from('0123456789', 'utf8');
 let closedFdZero = false;
 
 try {
   clearContextPackCaches();
+  fs.fstatSync = (fd, ...args) => fd === 0
+    ? fs.statSync(filePath) : originalFstatSync.call(fs, fd, ...args);
+  fs.realpathSync = (target, ...args) => String(target) === '/proc/self/fd/0'
+    ? filePath : originalRealpathSync.call(fs, target, ...args);
 
   fs.openSync = (targetPath, ...args) => {
     const resolved = path.resolve(String(targetPath));
@@ -76,6 +82,8 @@ try {
   fs.openSync = originalOpenSync;
   fs.readSync = originalReadSync;
   fs.closeSync = originalCloseSync;
+  fs.fstatSync = originalFstatSync;
+  fs.realpathSync = originalRealpathSync;
   clearContextPackCaches();
 }
 

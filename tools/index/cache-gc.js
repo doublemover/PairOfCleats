@@ -31,12 +31,14 @@ import { isPathWithinRoot, isRootPath } from '../../src/shared/file-paths.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { normalizeLegacyCacheRootPath } from '../../src/shared/cache-roots.js';
 import { getCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
+import { assertSafeCacheDeletion } from '../../src/shared/cache-deletion.js';
 
 const argv = createCli({
   scriptName: 'cache-gc',
   options: {
     apply: { type: 'boolean', default: false },
     'dry-run': { type: 'boolean', default: false },
+    'allow-unmarked-cache': { type: 'boolean', default: false },
     json: { type: 'boolean', default: false },
     'cache-root': { type: 'string' },
     'grace-days': { type: 'number' },
@@ -156,6 +158,7 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
 
   const failedRemovals = [];
   for (const repo of removals) {
+    assertSafeCacheDeletion(repo.path, [cacheRoot], { allowUnmarked: argv['allow-unmarked-cache'] || dryRun });
     if (isRootPath(repo.path)) {
       console.error(`refusing to delete root path: ${repo.path}`);
       process.exit(1);
@@ -383,6 +386,7 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
       if (isRootPath(objectPathResolved) || isRootPath(metadataPathResolved)) {
         throw new Error(`Refusing to delete root path during CAS GC: ${objectPathResolved}`);
       }
+      assertSafeCacheDeletion(objectPathResolved, [cacheRoot], { allowUnmarked: argv['allow-unmarked-cache'] || argv['dry-run'] });
       const objectDelete = await removePathWithRetry(objectPathResolved, {
         recursive: false,
         force: true,
@@ -400,6 +404,7 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
         });
         return;
       }
+      assertSafeCacheDeletion(metadataPathResolved, [cacheRoot], { allowUnmarked: argv['allow-unmarked-cache'] || argv['dry-run'] });
       const metadataDelete = await removePathWithRetry(metadataPathResolved, {
         recursive: false,
         force: true,

@@ -1,5 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { isRepoTrusted } from '../../shared/config-authority.js';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { resolveEnvPath } from '../../shared/env-path.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
@@ -384,7 +385,7 @@ const resolvePyrightCommand = (repoRoot, toolingConfig) => {
   const toolingBin = toolingConfig?.dir
     ? path.join(toolingConfig.dir, 'node', 'node_modules', '.bin')
     : null;
-  const found = findBinaryInDirs(cmd, [repoBin, toolBin, toolingBin].filter(Boolean));
+  const found = findBinaryInDirs(cmd, [isRepoTrusted(repoRoot) ? repoBin : null, toolBin, toolingBin].filter(Boolean));
   if (found) return found;
   return findBinaryOnPath(cmd) || cmd;
 };
@@ -393,7 +394,7 @@ const resolveRuntimeToolDirs = ({ repoRoot, toolingConfig, includeGlobal = true 
   const repoBin = path.join(repoRoot, 'node_modules', '.bin');
   const localToolingDirs = toolingConfig?.dir ? resolveLocalToolingBinDirs(toolingConfig.dir) : [];
   const globalToolingDirs = includeGlobal ? resolveGlobalToolingBinDirs() : [];
-  return [repoBin, ...localToolingDirs, ...globalToolingDirs].filter(Boolean);
+  return [isRepoTrusted(repoRoot) ? repoBin : null, ...localToolingDirs, ...globalToolingDirs].filter(Boolean);
 };
 
 const normalizeComparablePath = (value) => {
@@ -760,6 +761,23 @@ export const resolveToolingCommandProfile = (input) => {
     repoRoot,
     toolingConfig
   });
+  // Also reject PATH symlinks and explicit commands that resolve into an
+  // untrusted repo before even a --version probe can execute them.
+  const candidate = findBinaryOnPath(resolvedCmd) || resolvedCmd;
+  let canonicalCandidate = null;
+  let canonicalRepo = null;
+  try { canonicalCandidate = fsSync.realpathSync(candidate); } catch {}
+  try { canonicalRepo = fsSync.realpathSync(repoRoot); } catch {}
+  if (!isRepoTrusted(repoRoot) && canonicalCandidate && canonicalRepo
+    && isPathInside(canonicalCandidate, canonicalRepo)
+    && !isPathInside(canonicalCandidate, resolveToolRoot())) {
+    return {
+      providerId, requested: { cmd: requestedCmd, args: requestedArgs },
+      resolved: { cmd: '', args: [], mode: 'blocked', reason: 'untrusted-repository-command' },
+      probe: { ok: false, resolvedPath: null, attempted: [],
+        validationFailure: { reasonCode: 'untrusted-repository-command' } }
+    };
+  }
   const probeTimeoutMs = resolveProbeTimeoutMs({
     providerId,
     requestedCmd,

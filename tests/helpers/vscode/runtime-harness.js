@@ -11,10 +11,13 @@ import { copyFixtureToTemp } from '../fixtures.js';
 const require = createRequire(import.meta.url);
 const extensionPath = path.resolve('extensions/vscode/extension.js');
 
-function createFakeConfiguration(values) {
+function createFakeConfiguration(values, globalValues = {}) {
   return {
     get(key) {
       return values[key];
+    },
+    inspect(key) {
+      return { globalValue: globalValues[key], workspaceValue: values[key] };
     }
   };
 }
@@ -227,6 +230,8 @@ export function createVsCodeRuntimeHarness({
   activeFile = null,
   activeEditor = null,
   configValues = {},
+  globalConfigValues = {},
+  isTrusted = true,
   workspaceState = {},
   fetchImpl = null
 } = {}) {
@@ -321,6 +326,7 @@ export function createVsCodeRuntimeHarness({
 
   const fakeVscode = {
     workspace: {
+      isTrusted,
       workspaceFolders: buildWorkspaceFolders(workspaceFolders),
       getWorkspaceFolder(uri) {
         return this.workspaceFolders.find((folder) => {
@@ -335,7 +341,7 @@ export function createVsCodeRuntimeHarness({
         }) || null;
       },
       getConfiguration() {
-        return createFakeConfiguration(normalizedConfig);
+        return createFakeConfiguration(normalizedConfig, globalConfigValues);
       },
       async openTextDocument(uri) {
         const document = { uri };

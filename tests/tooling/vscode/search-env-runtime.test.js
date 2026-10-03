@@ -50,6 +50,10 @@ try {
 }
 
 const apiHarness = createVsCodeRuntimeHarness({
+  globalConfigValues: {
+    apiServerUrl: 'http://127.0.0.1:4311',
+    env: { PAIROFCLEATS_API_TOKEN: 'settings-token' }
+  },
   repoRoot: workspace.root,
   workspaceFolders: [{ name: 'repo', path: workspace.root }],
   configValues: {

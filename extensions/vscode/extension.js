@@ -24,14 +24,33 @@ const {
   parseSearchPayload,
   normalizeApiBaseUrl,
   normalizeApiTimeoutMs,
-  requestApiJson,
+  requestApiJson: requestApiJsonUnchecked,
   probeApiCapabilities: probeApiCapabilitiesRequest,
   summarizeProcessFailure,
   summarizeSpawnFailure,
-  spawnBufferedProcess,
+  spawnBufferedProcess: spawnBufferedProcessUnchecked,
   resolveValidatedHitTarget,
   openSearchHit
 } = require('./runtime.js');
+const { buildDestinationBoundApiHeaders, workspaceTrustError } = require('./security.js');
+
+// Check immediately at each sink, including after async prompts/probes and
+// saved/background workflows. Trust may change while a command is pending.
+function spawnBufferedProcess(...args) {
+  if (vscode.workspace.isTrusted !== true) return { ok: false, error: workspaceTrustError() };
+  return spawnBufferedProcessUnchecked(...args);
+}
+
+async function requestApiJson(baseUrl, requestPath, options = {}) {
+  if (vscode.workspace.isTrusted !== true) {
+    return { ok: false, kind: 'untrusted-workspace', message: workspaceTrustError().message };
+  }
+  const headers = { ...options.headers };
+  delete headers.Authorization;
+  delete headers.authorization;
+  Object.assign(headers, buildApiHeaders(getExtensionConfiguration(), baseUrl));
+  return requestApiJsonUnchecked(baseUrl, requestPath, { ...options, headers });
+}
 const EDITOR_CONFIG_CONTRACT = Object.freeze(require('./editor-config-contract.json'));
 const DEFAULT_EDITOR_CONFIG_CONTRACT = EDITOR_CONFIG_CONTRACT;
 const DEFAULT_VSCODE_SETTINGS = Object.freeze(DEFAULT_EDITOR_CONFIG_CONTRACT.settings.vscode);
@@ -260,13 +279,15 @@ function readInlineSettings(config) {
   };
 }
 
-function buildApiHeaders(config) {
-  const env = buildSpawnEnv(config);
-  const token = String(env?.PAIROFCLEATS_API_TOKEN || '').trim();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+function buildApiHeaders(config, destination = readApiSettings(config).baseUrl) {
+  return buildDestinationBoundApiHeaders(config, destination, {
+    endpointKey: VSCODE_SETTINGS.apiServerUrlKey, envKey: VSCODE_SETTINGS.envKey
+  });
 }
 
 async function getCachedApiCapabilities(baseUrl, timeoutMs, headers = null) {
+  if (vscode.workspace.isTrusted !== true) return { ok: false, message: workspaceTrustError().message };
+  headers = buildApiHeaders(getExtensionConfiguration(), baseUrl);
   const cacheKey = `${baseUrl}::${timeoutMs}::${headers?.Authorization || ''}`;
   const cached = apiCapabilityCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp) < API_CAPABILITY_CACHE_TTL_MS) {
@@ -716,13 +737,6 @@ function resolveCli(repoRoot, config) {
       command: CLI_DEFAULT_COMMAND,
       jsExtension: CLI_JS_EXTENSION
     });
-  }
-
-  if (repoRoot) {
-    const localCli = path.join(repoRoot, ...CLI_REPO_ENTRYPOINT_PARTS);
-    if (fs.existsSync(localCli)) {
-      return { ok: true, command: process.execPath, argsPrefix: [localCli, ...extraArgs] };
-    }
   }
 
   return { ok: true, command: CLI_DEFAULT_COMMAND, argsPrefix: extraArgs };
@@ -4487,7 +4501,7 @@ async function runSavedSearchInvocation(resultSet, repoContext) {
     const result = await requestApiJson(invocation.baseUrl, '/search', {
       method: 'POST',
       payload: invocation.payload,
-      headers: buildApiHeaders(getExtensionConfiguration()),
+      headers: buildApiHeaders(getExtensionConfiguration(), invocation.baseUrl),
       timeoutMs: invocation.timeoutMs || DEFAULT_API_TIMEOUT_MS,
       label: 'PairOfCleats search'
     });

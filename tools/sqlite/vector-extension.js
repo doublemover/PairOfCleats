@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { assertTrustedExtension, extensionDownloadPolicy } from './extension-trust.js';
 import { buildLocalCacheKey } from '../../src/shared/cache-key.js';
 import path from 'node:path';
 import { getExtensionsDir, loadUserConfig } from '../shared/dict-utils.js';
@@ -219,6 +220,8 @@ export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides 
     path: pathOverride,
     url,
     downloads,
+    downloadPolicy: extensionDownloadPolicy(cfg),
+    trustedBinarySha256: merged.sha256 || null,
     platform,
     arch,
     platformKey
@@ -342,6 +345,7 @@ export function loadVectorExtension(db, config, label = 'sqlite') {
     return result;
   }
   try {
+    assertTrustedExtension(extPath, config, config.trustedBinarySha256);
     db.loadExtension(extPath);
     const result = { ok: true, path: extPath, label };
     cache.set(cacheKey, result);

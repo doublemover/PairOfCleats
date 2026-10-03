@@ -133,7 +133,11 @@ function parseSearchPayload(stdout, options = {}) {
 function normalizeApiBaseUrl(value) {
   const text = String(value || '').trim();
   if (!text) return '';
-  return text.endsWith('/') ? text.slice(0, -1) : text;
+  try {
+    const url = new URL(text);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) return '';
+    return url.toString().replace(/\/$/, '');
+  } catch { return ''; }
 }
 
 function normalizeApiTimeoutMs(value) {
@@ -203,6 +207,7 @@ async function requestApiJson(baseUrl, requestPath, {
         ...(headers && typeof headers === 'object' ? headers : {})
       },
       body: payload == null ? undefined : JSON.stringify(payload),
+      redirect: 'error',
       signal: controller?.signal
     });
     const text = await response.text();

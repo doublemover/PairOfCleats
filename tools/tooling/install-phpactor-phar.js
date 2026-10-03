@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { validateDownloadUrl } from '../download/network-policy.js';
 import {
   createInstallError,
   downloadToBuffer,
@@ -37,11 +38,14 @@ const parseArgs = () => createCli({
   .parse();
 
 const downloadPhar = async ({ url, timeoutMs }) => {
+  validateDownloadUrl(url);
   return downloadToBuffer({
     url,
     timeoutMs,
+    redirect: 'manual',
+    maxBytes: 32 * 1024 * 1024,
     label: 'phpactor PHAR',
-    drainErrorBody: true,
+    drainErrorBody: false,
     createErrorMessage: (reason, details) => {
       if (reason === 'download_http_error') {
         return `Failed to download phpactor PHAR (${details.statusCode} ${details.statusText}).`;
@@ -113,6 +117,12 @@ const main = async (argv) => {
   const retryBaseMs = toInt(argv['retry-base-ms'], DEFAULT_RETRY_BASE_MS, 0);
   const retryJitterMs = toInt(argv['retry-jitter-ms'], DEFAULT_RETRY_JITTER_MS, 0);
   const expectedSha256 = normalizeChecksum(argv.sha256);
+  if (!/^[a-f0-9]{64}$/.test(expectedSha256)) {
+    throw createInstallError('checksum_required', 'phpactor PHAR installation requires an explicitly approved --sha256 digest.', { retryable: false });
+  }
+  if (url.includes('/releases/latest/')) {
+    throw createInstallError('immutable_url_required', 'Use an explicit immutable phpactor artifact URL with its approved digest; mutable latest URLs are not accepted.', { retryable: false });
+  }
   const attempts = [];
   const binDir = resolveBinDir(argv);
   const pharPath = path.join(binDir, 'phpactor.phar');

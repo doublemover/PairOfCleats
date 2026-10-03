@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { getTuiEnvConfig } from '../src/shared/env/tui.js';
 import { exitLikeChild } from '../src/tui/wrapper-exit.js';
 import { resolveTuiWrapperEnv } from './tui-wrapper-env.js';
+import { resolveTuiSupervisorPath } from './tui-supervisor-path.js';
 import {
   isExecutableForPlatform,
   readBuildManifestSync,
@@ -122,17 +123,19 @@ const resolveRuntime = () => {
     ? path.resolve(root, String(metadata.observability.eventLogDir))
     : layout.logsDir;
   fs.mkdirSync(eventLogDir, { recursive: true });
-  return { binaryPath, eventLogDir, installRoot: layout.baseInstallRoot };
+  const supervisorPath = resolveTuiSupervisorPath(root, metadata);
+  return { binaryPath, eventLogDir, installRoot: layout.baseInstallRoot, supervisorPath };
 };
 
-const { binaryPath, eventLogDir, installRoot } = resolveRuntime();
+const { binaryPath, eventLogDir, installRoot, supervisorPath } = resolveRuntime();
 const args = process.argv.slice(2);
 const env = await resolveTuiWrapperEnv({
   runtimeRoot: root,
   tuiEnvConfig,
   installRoot,
   eventLogDir,
+  supervisorPath,
   baseEnv: process.env
 });
-const result = spawnSync(binaryPath, args, { stdio: 'inherit', env });
+const result = spawnSync(binaryPath, args, { stdio: 'inherit', env, cwd: root });
 exitLikeChild(result);

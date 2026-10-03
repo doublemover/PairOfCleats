@@ -11,6 +11,8 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 applyTestEnv({ testConfig: null });
 const schema = await loadConfigSchema();
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-loader-schema-'));
+const priorTrustedRepos = process.env.PAIROFCLEATS_TRUSTED_REPOS;
+process.env.PAIROFCLEATS_TRUSTED_REPOS = JSON.stringify([root]);
 const configPath = path.join(root, '.pairofcleats.json');
 
 // Cover every declared key, including nested maps and all current union shapes.
@@ -96,6 +98,8 @@ try {
     assert.throws(() => loadUserConfig(root), /Config errors/);
   }
 } finally {
+  if (priorTrustedRepos === undefined) delete process.env.PAIROFCLEATS_TRUSTED_REPOS;
+  else process.env.PAIROFCLEATS_TRUSTED_REPOS = priorTrustedRepos;
   await fs.rm(root, { recursive: true, force: true });
 }
 

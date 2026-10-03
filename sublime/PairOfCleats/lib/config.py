@@ -245,7 +245,11 @@ def get_setting_groups():
 
 def get_settings(window=None):
     base = _load_base_settings()
-    overrides = extract_project_settings(window)
+    overrides = dict(extract_project_settings(window))
+    # Execution/credential settings come from user preferences, not project data.
+    for key in ('pairofcleats_path', 'node_path', 'env', 'cli_args',
+                'extra_search_args', 'api_server_url', 'api_execution_mode'):
+        overrides.pop(key, None)
     return merge_settings(base, overrides)
 
 

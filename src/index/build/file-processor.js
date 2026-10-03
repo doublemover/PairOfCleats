@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { readContainedFile } from '../../shared/contained-file.js';
 import { normalizeSegmentsConfig } from '../segments.js';
 import { normalizeCommentConfig } from '../comments.js';
 import { createLruCache } from '../../shared/cache/lru.js';
@@ -496,6 +497,7 @@ export function createFileProcessor(options) {
     updateCrashStage('pre-cpu:resolve-pre-read-skip:start');
     const preReadSkip = await resolvePreReadSkip({
       abs,
+      repoRoot: root,
       fileEntry,
       fileStat,
       ext,
@@ -587,7 +589,7 @@ export function createFileProcessor(options) {
         throwIfAborted();
         updateCrashStage('pre-cpu:extract:cache-read:start', { sourceType: documentSourceType });
         try {
-          artifacts.fileBuffer = await runIo(() => fs.readFile(abs));
+          artifacts.fileBuffer = await runIo(() => readContainedFile(root, abs, { expectedStat: fileStat }));
           updateCrashStage('pre-cpu:extract:cache-read:done', {
             bytes: Buffer.isBuffer(artifacts.fileBuffer) ? artifacts.fileBuffer.length : null,
             sourceType: documentSourceType
@@ -652,6 +654,7 @@ export function createFileProcessor(options) {
       ? { skip: null }
       : await resolvePreCpuFileContent({
         abs,
+        repoRoot: root,
         relKey,
         mode,
         ext,

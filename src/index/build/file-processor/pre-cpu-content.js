@@ -1,4 +1,4 @@
-import fs from 'node:fs/promises';
+import { readContainedFile } from '../../../shared/contained-file.js';
 import { readTextFileWithHash } from '../../../shared/encoding.js';
 import { sha1 } from '../../../shared/hash.js';
 import { extractPdf } from '../../extractors/pdf.js';
@@ -88,6 +88,7 @@ const buildDocumentExtractionInfo = ({
  */
 export async function resolvePreCpuFileContent({
   abs,
+  repoRoot,
   relKey,
   mode,
   ext,
@@ -106,7 +107,7 @@ export async function resolvePreCpuFileContent({
     throwIfAborted();
     updateCrashStage('pre-cpu:read-file:start');
     try {
-      artifacts.fileBuffer = await runIo(() => fs.readFile(abs));
+      artifacts.fileBuffer = await runIo(() => readContainedFile(repoRoot, abs, { expectedStat: fileStat }));
       updateCrashStage('pre-cpu:read-file:done', {
         bytes: Buffer.isBuffer(artifacts.fileBuffer) ? artifacts.fileBuffer.length : null
       });
@@ -177,7 +178,7 @@ export async function resolvePreCpuFileContent({
     if (!sourceHashBuffer) {
       try {
         updateCrashStage('pre-cpu:extract:source-read:start');
-        sourceHashBuffer = await runIo(() => fs.readFile(abs));
+        sourceHashBuffer = await runIo(() => readContainedFile(repoRoot, abs, { expectedStat: fileStat }));
         updateCrashStage('pre-cpu:extract:source-read:done', {
           bytes: Buffer.isBuffer(sourceHashBuffer) ? sourceHashBuffer.length : null
         });

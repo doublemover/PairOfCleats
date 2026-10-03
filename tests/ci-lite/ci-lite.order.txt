@@ -773,3 +773,8 @@ storage/sqlite/incremental/handle-lifecycle
 storage/sqlite/build/startup-lifecycle
 storage/sqlite/build/finalization-diagnostics
 tooling/install/package-source-compatibility
+security/repository-authority
+security/contained-file-boundaries
+security/native-download-authority
+security/editor-tui-authority
+security/download-transactions

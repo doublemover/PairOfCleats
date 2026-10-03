@@ -13,7 +13,7 @@ import {
   resolveExpectedHash,
   verifyDownloadHash
 } from '../shared/download-utils.js';
-import { parseNameUrlSources } from '../shared/input-parsers.js';
+import { assertDownloadFileName, parseNameUrlSources } from '../shared/input-parsers.js';
 import { readJsonFileSafe } from '../../src/shared/file-read.js';
 import { writeJsonFile } from '../../src/shared/json-file.js';
 
@@ -102,7 +102,7 @@ const streamToFile = (stream, outputPath, { maxBytes, expectedHash, policy }) =>
  * @returns {Promise<{name:string,skipped:boolean}>}
  */
 async function downloadSource(source) {
-  const outputPath = path.join(dictDir, source.file);
+  const outputPath = path.join(dictDir, assertDownloadFileName(source.file));
   const entry = manifest[source.name] || {};
 
   if (!argv.force && !argv.update && fsSync.existsSync(outputPath)) {

@@ -924,25 +924,23 @@ fn spawn_supervisor(
     run_id: &str,
     event_log_dir: &Path,
 ) -> anyhow::Result<(std::process::Child, Receiver<Value>)> {
-    let node_from_exe = std::env::current_exe()?.with_file_name("node");
-    let mut child = Command::new(&node_from_exe)
-        .arg("tools/tui/supervisor.js")
+    let node = std::env::var_os("PAIROFCLEATS_TUI_NODE")
+        .map(std::path::PathBuf::from)
+        .ok_or_else(|| anyhow::anyhow!("launch the TUI through its verified wrapper"))?;
+    let supervisor = std::env::var_os("PAIROFCLEATS_TUI_SUPERVISOR")
+        .map(std::path::PathBuf::from)
+        .ok_or_else(|| anyhow::anyhow!("missing verified supervisor path"))?;
+    if !node.is_absolute() || !supervisor.is_absolute() || !supervisor.is_file() {
+        anyhow::bail!("TUI implementation paths must be absolute verified files");
+    }
+    let mut child = Command::new(&node)
+        .arg(&supervisor)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .env("PAIROFCLEATS_TUI_RUN_ID", run_id)
         .env("PAIROFCLEATS_TUI_EVENT_LOG_DIR", event_log_dir)
-        .spawn()
-        .or_else(|_| {
-            Command::new("node")
-                .arg("tools/tui/supervisor.js")
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::null())
-                .env("PAIROFCLEATS_TUI_RUN_ID", run_id)
-                .env("PAIROFCLEATS_TUI_EVENT_LOG_DIR", event_log_dir)
-                .spawn()
-        })?;
+        .spawn()?;
 
     let stdout = child
         .stdout

@@ -380,6 +380,9 @@ export const collectConfiguredOutput = async ({
   blockedWorkspaceKeys = [],
   blockedWorkspaceRoots = []
 }) => {
+  if (commandProfile?.resolved?.mode === 'blocked') {
+    return { byChunkUid: {}, checks: [{ name: 'untrusted-repository-command', status: 'warn' }] };
+  }
   const resolvedCmd = String(commandProfile?.resolved?.cmd || requestedCommand?.cmd || '').trim();
   const resolvedArgs = Array.isArray(commandProfile?.resolved?.args)
     ? commandProfile.resolved.args

@@ -10,20 +10,22 @@ import {
 
 const CPU_COUNT = os.cpus().length;
 
-const normalizeTreeSitterWorkerConfig = (raw) => {
+export const normalizeTreeSitterWorkerConfig = (raw) => {
   if (raw === false) return { enabled: false };
-  if (raw === true) return { enabled: true };
+  if (raw === true) raw = { enabled: true };
   if (!raw || typeof raw !== 'object') return { enabled: false };
   const enabled = raw.enabled !== false;
   const maxWorkersRaw = Number(raw.maxWorkers);
-  const defaultMax = Math.max(1, Math.min(4, CPU_COUNT));
+  const launchThreads = Number(process.env.PAIROFCLEATS_THREADS);
+  const defaultMax = Math.max(1, Math.min(4, CPU_COUNT,
+    Number.isFinite(launchThreads) && launchThreads > 0 ? Math.floor(launchThreads) : 4));
   const maxWorkers = Number.isFinite(maxWorkersRaw) && maxWorkersRaw > 0
-    ? Math.max(1, Math.floor(maxWorkersRaw))
+    ? Math.min(defaultMax, Math.max(1, Math.floor(maxWorkersRaw)))
     : defaultMax;
   const maxQueueRaw = Number(raw.maxQueue);
   const defaultMaxQueue = Math.max(4, maxWorkers * 4);
   const maxQueue = Number.isFinite(maxQueueRaw) && maxQueueRaw > 0
-    ? Math.max(1, Math.floor(maxQueueRaw))
+    ? Math.min(256, Math.max(1, Math.floor(maxQueueRaw)))
     : defaultMaxQueue;
   const idleTimeoutMsRaw = Number(raw.idleTimeoutMs);
   const idleTimeoutMs = Number.isFinite(idleTimeoutMsRaw) && idleTimeoutMsRaw > 0

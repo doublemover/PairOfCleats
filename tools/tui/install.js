@@ -104,6 +104,10 @@ const main = async () => {
     triple,
     platform: target.platform,
     artifactName: target.artifactName,
+    supervisor: {
+      path: 'tools/tui/supervisor.js',
+      sha256: sha256FileSync(path.join(root, 'tools', 'tui', 'supervisor.js'))
+    },
     binary: {
       path: toPosixRelative(root, layout.binaryPath),
       sha256: actualSha256,

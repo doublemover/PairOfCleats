@@ -7,6 +7,8 @@ import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { isRootPath } from '../../src/shared/file-paths.js';
 import { isPathUnderDir } from '../../src/shared/path-normalize.js';
+import { assertSafeCacheDeletion } from '../../src/shared/cache-deletion.js';
+import { getCacheRootBase } from '../../src/shared/cache-roots.js';
 import { getCacheRoot, getDictConfig, getExtensionsDir, getModelsDir, resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({
@@ -14,6 +16,7 @@ const argv = createCli({
   options: {
     yes: { type: 'boolean', default: false },
     'dry-run': { type: 'boolean', default: false },
+    'allow-unmarked-cache': { type: 'boolean', default: false },
     repo: { type: 'string' }
   }
 }).parse();
@@ -46,6 +49,12 @@ if (extensionsDir && !Array.from(cacheRoots).some((rootPath) => isPathUnderDir(r
 }
 
 const uniqueTargets = Array.from(new Set(targets.map((target) => path.resolve(target))));
+const authorizedRoots = [getCacheRootBase(), ...cacheRoots,
+  envConfig.dictDir, envConfig.modelsDir, envConfig.extensionsDir];
+const deletionPolicy = { allowUnmarked: argv['allow-unmarked-cache'] === true || argv['dry-run'] === true };
+for (const target of uniqueTargets) {
+  if (fs.existsSync(target)) assertSafeCacheDeletion(target, authorizedRoots, deletionPolicy);
+}
 if (!uniqueTargets.length) {
   console.error('No uninstall targets found.');
   process.exit(0);
@@ -79,6 +88,7 @@ for (const target of uniqueTargets) {
     continue;
   }
 
+  assertSafeCacheDeletion(target, authorizedRoots, deletionPolicy);
   await fsPromises.rm(target, { recursive: true, force: true });
   console.error(`deleted: ${target}`);
 }

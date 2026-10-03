@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { status as coreStatus } from '../../../../src/integrations/core/index.js';
 import { runNodeSync, runToolWithProgress } from '../../runner.js';
 import { resolveMcpRepoContext, toolRoot } from '../helpers.js';
 
@@ -29,6 +28,7 @@ export function cacheGc(args = {}) {
  * @returns {Promise<object>}
  */
 export async function cleanArtifacts(args = {}, context = {}) {
+  if (args.all === true) throw new Error('Repository-scoped MCP cleanup cannot remove all repository caches. Use the user-owned maintenance CLI.');
   const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const scriptArgs = [path.join(toolRoot, 'tools', 'index', 'clean-artifacts.js'), '--repo', repoPath];
   if (args.all === true) scriptArgs.push('--all');
@@ -50,6 +50,7 @@ export async function cleanArtifacts(args = {}, context = {}) {
  * @returns {object}
  */
 export async function reportArtifacts(args = {}) {
+  const { status: coreStatus } = await import('../../../../src/integrations/core/index.js');
   const { repoPath } = resolveMcpRepoContext(args.repoPath, {
     includeRuntimeEnv: false,
     includeUserConfig: false
