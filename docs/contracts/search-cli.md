@@ -78,11 +78,26 @@ Tokens without a key are treated as file/path filters. Unknown keys are rejected
 Human readable results (ranked list). Exact formatting may evolve.
 
 ### JSON mode
-The JSON output is intended to be machine-readable and stable. At minimum:
-- `ok` (boolean)
-- `query` (string)
-- `results[]` (ranked hits)
-- optional `explain` sections if enabled
+For a successful single-repository search, the CLI emits:
+- `backend`: the selected retrieval backend
+- `code`, `prose`, `extractedProse`, `records`: ranked hit arrays (including empty arrays)
+- `bundles`: deterministic groups of related hits
+- `retrieval`: backend selection, index freshness and cache metadata
+- `stats`: added with `--stats` or `--explain`; explain data includes per-hit score breakdowns
+
+`--compact` selects a smaller hit projection; without it, JSON output still strips
+internal token arrays. Additional diagnostic or output-budget metadata can be
+present when relevant. Consumers should retain unknown additive fields.
+
+A successful single-repository response does not require an `ok`, `query` or
+flat `results` field. Search-runner error JSON uses `ok: false`, `code` and
+`message`; check the process exit status too, since wrapper/argument failures can
+occur before the JSON search runner starts.
+
+Workspace searches use a separate federated envelope with per-repository
+outcomes and partial-success metadata; see the
+[federated search contract](../specs/federated-search.md). Do not assume HTTP or
+MCP response envelopes are identical to the standalone CLI payload.
 
 > See `docs/contracts/search-contract.md` for semantic details. Phase 11 extends the explain payload with a graph ranking section when enabled.
 

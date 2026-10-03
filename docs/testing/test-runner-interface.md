@@ -24,17 +24,25 @@ This document specifies a **single, stable test entrypoint** and its interface, 
 
 ## Entrypoint names
 
-Canonical entrypoints:
+The current source-checkout entrypoint is `node tests/run.js ...`.
+The top-level `pairofcleats` command does not register a `test` subcommand.
+`npm test` invokes the curated `ci-lite` lane; the direct runner defaults to `ci`.
 
-- `pairofcleats test ...` (CLI subcommand)
-- `node tests/run.js ...` (repo-local runner)
+Preview a focused selection before running it:
 
-The docs below describe behavior independent of the concrete executable name.
+```sh
+node tests/run.js --lane unit --match lang/contracts/xml-lexical-boundaries --list --json
+```
+
+Then remove `--list` to execute that selection, choosing explicit `--jobs` and
+`--timeout-ms` limits for the task. Ordered lanes and lane rules have different
+selection behavior, so use the list metadata rather than assume every lane
+includes a new test.
 
 ## Command synopsis
 
 ```text
-pairofcleats test [selectors...] [options] [-- <pass-through args>]
+node tests/run.js [selectors...] [options] [-- <pass-through args>]
 ```
 
 - **selectors**: one or more match strings (same rules as `--match`) applied to test ids and paths. If omitted, the default lane is executed (`ci`).
@@ -298,22 +306,22 @@ Logs: <log-dir>
 
 ```bash
 # Default CI lane
-pairofcleats test
+node tests/run.js
 
 # Quick smoke lane
-pairofcleats test --lane smoke
+node tests/run.js --lane smoke
 
-# Run all SQLite-related tests
-pairofcleats test --match sqlite
+# Run SQLite-related tests selected by the current lane
+node tests/run.js --match sqlite
 
 # Run just the MCP server contract tests
-pairofcleats test --lane mcp
+node tests/run.js --lane mcp
 
 # List what would run
-pairofcleats test --lane integration --list
+node tests/run.js --lane integration --list
 
 # Pass through args to leaf tests (only if the leaf test supports them)
-pairofcleats test perf/bench/run -- --limit 10
+node tests/run.js perf/bench/run -- --limit 10
 ```
 
 ## Migration plan (runner adoption)
@@ -322,4 +330,3 @@ pairofcleats test perf/bench/run -- --limit 10
 2. **Define lanes:** start with a small explicit map for `smoke`, `services`, `storage`, `perf`; default everything else to `integration`.
 3. **Split monolith tests (see companion document):** convert the biggest multi-domain suites into multiple smaller tests.
 4. **Optional:** move to a manifest-based system to stabilize ids and lane membership.
-
