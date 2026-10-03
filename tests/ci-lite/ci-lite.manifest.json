@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 666,
+    "hero": 667,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4846,6 +4846,12 @@
     {
       "id": "lang/contracts/jinja-django-lexical-boundaries",
       "order": 797,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/jsonc-structure-boundaries",
+      "order": 798,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

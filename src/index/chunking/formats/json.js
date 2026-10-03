@@ -1,4 +1,5 @@
 import { buildConfigTreeSitterChunks } from './config-tree-sitter.js';
+import { isJsoncFile, parseJsoncStructure } from '../../../shared/jsonc-structure.js';
 
 const JSON_ESCAPE_MAP = {
   '"': '"',
@@ -185,7 +186,7 @@ const consumeJsonCommaOrEnd = (text, start, frame, stack, { nextState, endToken 
  * @param {Array<{name:string,index:number}>} topLevelKeys
  * @returns {{end:number,type:'primitive'|'array'|'object'}|null}
  */
-const parseJsonValue = (text, start, topLevelKeys) => {
+const parseJsonValue = (text, start, topLevelKeys, checkTime = null) => {
   let i = skipWhitespace(text, start);
   const rootChar = text[i];
   if (rootChar !== '{' && rootChar !== '[') {
@@ -202,6 +203,7 @@ const parseJsonValue = (text, start, topLevelKeys) => {
   i += 1;
 
   while (stack.length) {
+    checkTime?.();
     const frame = stack[stack.length - 1];
     i = skipWhitespace(text, i);
 
@@ -276,7 +278,50 @@ const parseJsonValue = (text, start, topLevelKeys) => {
   return { end: i, type: rootType };
 };
 
+export const createJsoncChunker = ({ parseStructure = parseJsoncStructure } = {}) => (text, context = {}) => {
+  const source = String(text || '');
+  const structure = parseStructure(source, { maxMs: context?.treeSitter?.byLanguage?.json?.maxParseMs ?? context?.treeSitter?.maxParseMs });
+  const meta = { format: 'json', jsonDialect: 'jsonc', parser: structure.parser,
+    parserCoverage: structure.coverage, parserFallbackReason: structure.reason, parseMetrics: structure.metrics };
+  if (structure.reason === 'depth-limit') {
+    const started = performance.now();
+    const captureCompatibilityCost = () => {
+      const compatibilityElapsedMs = Math.max(0, performance.now() - started);
+      const elapsedMs = structure.metrics.elapsedMs + compatibilityElapsedMs;
+      meta.parseMetrics = { ...structure.metrics, elapsedMs, compatibilityElapsedMs,
+        measuredOverrunMs: Math.max(0, elapsedMs - structure.metrics.localLimitMs) };
+    };
+    const checkTime = () => {
+      if (structure.metrics.elapsedMs + performance.now() - started >= structure.metrics.localLimitMs) {
+        throw new Error('compatibility-time-limit');
+      }
+    };
+    try {
+      checkTime();
+      const legacy = buildStrictJsonChunks(source, checkTime);
+      checkTime();
+      captureCompatibilityCost();
+      if (legacy) return legacy.map((chunk) => ({ ...chunk, meta: { ...chunk.meta, ...meta,
+        parser: 'legacy-strict-json', parserCoverage: 'heuristic', parserFallbackReason: 'jsonc-depth-limit',
+        strictCompatibilityFallback: true } }));
+    } catch (error) {
+      if (error.message !== 'compatibility-time-limit') throw error;
+      captureCompatibilityCost();
+      meta.parserFallbackReason = 'time-limit';
+    }
+  }
+  if (!structure.properties.length) return [{ start: 0, end: source.length, name: 'root', kind: 'ConfigSection', meta }];
+  return structure.properties.map((property, index) => ({ start: property.keyRange.start,
+    end: structure.properties[index + 1]?.keyRange.start ?? source.length, name: property.name || 'section', kind: 'ConfigSection',
+    meta: { ...meta, title: property.name || 'section', rangeSource: structure.rangeSource,
+      astRange: { start: property.start, end: property.end },
+      keyRange: { start: property.keyRange.start, end: property.keyRange.end }, effectiveProperty: true } }));
+};
+
+const chunkJsonc = createJsoncChunker();
+
 export function chunkJson(text, context) {
+  if (isJsoncFile(context || {})) return chunkJsonc(text, context);
   const treeChunks = buildConfigTreeSitterChunks({
     text,
     context,
@@ -286,10 +331,14 @@ export function chunkJson(text, context) {
     enabled: shouldBypassJsonTreeSitter(text) !== true
   });
   if (treeChunks) return treeChunks;
+  return buildStrictJsonChunks(text);
+}
+
+function buildStrictJsonChunks(text, checkTime = null) {
   const topLevelKeys = [];
   const start = findNextNonWhitespace(text, 0);
   if (start < 0) return null;
-  const parsed = parseJsonValue(text, start, topLevelKeys);
+  const parsed = parseJsonValue(text, start, topLevelKeys, checkTime);
   if (!parsed) return null;
   if (findNextNonWhitespace(text, parsed.end) >= 0) return null;
   if (parsed.type !== 'object') {

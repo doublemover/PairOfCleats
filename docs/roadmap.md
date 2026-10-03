@@ -72,8 +72,9 @@ head. None is a blanket release-readiness claim.
    The [individual acceptance record](guides/language-toolchain-acceptance.md)
    includes bounded syntax-owner corrections for Dockerfile, GraphQL, Handlebars,
    Protobuf and Mustache, distinct heuristic Jinja/Django boundaries, plus
-   exact-component registry setup evidence. Their focused
-   fixtures do not replace compiler/runtime, full-index or platform acceptance.
+   explicit JSONC syntax/strict-JSON compatibility and exact-component registry
+   setup evidence. Their focused fixtures do not replace compiler/runtime,
+   full-index or platform acceptance.
    It also covers the C# synchronous-loader update and Groovy's explicit partial
    coverage; these parser checks do not establish language-server acceptance.
    Verified installed Rust, ZLS/Zig or Java/JDT tooling does not grant workspace

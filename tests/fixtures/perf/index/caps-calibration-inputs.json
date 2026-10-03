@@ -485,7 +485,7 @@
     },
     {
       "id": "json",
-      "parserRoute": "structured-json",
+      "parserRoute": "strict-json-or-jsonc-ast",
       "capsProfile": "json-default",
       "telemetry": {
         "bytes": {

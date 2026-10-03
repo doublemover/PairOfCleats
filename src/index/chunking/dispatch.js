@@ -285,7 +285,8 @@ const CODE_CHUNKERS = [
  * chunks, preserving language chunker precedence.
  */
 const CODE_FORMAT_CHUNKERS = [
-  { id: 'json', match: (ext) => ext === '.json', chunk: ({ text, context }) => chunkJson(text, context) },
+  { id: 'json', match: (ext) => ['.json', '.jsonc', '.resolved'].includes(ext),
+    chunk: ({ text, ext, relPath, context }) => chunkJson(text, { ...context, ext, relPath }) },
   {
     id: 'ini',
     match: (ext) => INI_LIKE_EXTS.has(ext),

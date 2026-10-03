@@ -873,3 +873,68 @@ Primary references: [Jinja parse/lexer API](https://jinja.palletsprojects.com/en
 [verified grammar package source](https://github.com/cathaysia/tree-sitter-jinja/blob/c213d3745ccdcaaa858869181c7b1bf9557a025f/tree-sitter-jinja/package.json),
 [Jinja2 metadata](https://pypi.org/pypi/Jinja2/3.1.6/json), and
 [MarkupSafe metadata](https://pypi.org/pypi/MarkupSafe/3.0.4/json).
+
+## Explicit JSONC syntax ownership and strict JSON compatibility
+
+The advertised .jsonc route previously resolved to the JSON adapter but dropped
+real comment/trailing-comma extends/$ref references and produced only unnamed
+generic chunks. The already-declared Microsoft jsonc-parser 3.3.1 component now
+owns one immutable syntax model shared by JSONC chunks, imports and relations.
+Its zero-dependency 27,354-byte tarball independently matches project-lock and
+official-registry SHA-512 integrity. Scripts-off admission used isolated storage,
+took 0.4 seconds and stayed below 71 MiB RSS. No version or lockfile changed.
+
+Permissiveness is selected explicitly by .jsonc (or that path suffix for direct
+calls), not by comments found in arbitrary JSON. .json and .resolved stay strict,
+and anonymous calls remain strict. All three advertised extensions now reach the
+format dispatcher. Strict JSON's existing iterative chunk path, including valid
+15,000-level nesting and malformed 20,000-level controls, is preserved. Default
+config Tree-sitter parsing remains off; JSONC does not use the strict JSON grammar.
+The route label is now strict-json-or-jsonc-ast, with unchanged 256-KiB/4,000-line/
+1,000-ms calibration values and the old structured-json compatibility alias.
+
+JSONC uses only public scanner/parseTree APIs. Fault-tolerant trees with any parse
+errors are rejected. No AST-to-object evaluation, schema resolution, reference/file
+loading, formatting or mutation API is used. AST offsets and lengths are verified
+UTF-16 node/key ranges, including CRLF, emoji and escaped keys. Effective properties
+are selected by decoded, case-sensitive last-key identity without materializing
+JavaScript objects. Shadowed duplicate subtrees do not contribute references, and
+reported semantic-property ranges point to the actual final property. The existing
+case-insensitive reference-key whitelist and value-depth limit of three are shared
+with the strict collector; arbitrary string values do not acquire import authority.
+
+Admission/extraction is bounded to 262,144 UTF-16 code units, 4,000 LF-delimited
+lines, 65,536 scanner tokens, 32,768 code units per nontrivia token, AST depth 64,
+20,000 AST nodes and 20,000 reference-walk visits. Depth/token admission precedes
+the recursive vendor parser. Returned node/range checks and the actual caller's
+remaining deadline govern extraction. The local ceiling is 30 ms; one-time parser
+initialization is separately measured. Synchronous scanner/vendor calls cannot be
+timer-interrupted, and measured post-call overrun remains visible. Missing/malformed/
+expired parsing returns labelled generic content and empty structural output.
+
+There is one explicit deep-data compatibility path. The former JSONC adapter
+already accepted valid strict JSON, including references below the AST depth bound.
+A focused 80-level witness demonstrated that a blanket recursive-AST cutoff would
+regress that behavior. At the depth boundary, strict native JSON.parse and the
+existing iterative strict chunker preserve valid strict-JSON content under source,
+traversal and actual caller budgets. Compatibility chunk metadata says
+legacy-strict-json/heuristic and records its added document work; no vendor AST
+range is invented. Positionless compatibility references are omitted for partial
+line windows. Deep comments/trailing-comma JSONC still has an explicit bounded-AST
+limitation rather than a hidden depth increase or unsafe regex fallback.
+
+This is partial configuration-syntax/reference coverage, not schema validation,
+semantic configuration binding, full indexing or platform acceptance. Focused
+controls cover comments/trailing commas, fake refs in strings/comments, escaped
+keys, direct and ancestor duplicate keys, reference-value depth, inert prototype
+names, strict .json/.resolved dispatch, deep inputs, malformed trees, missing
+parsers, resource/caller budgets, cached expiry and excluded API tripwires:
+
+```sh
+node tests/lang/contracts/jsonc-structure-boundaries.test.js
+node tests/indexing/chunking/json.test.js
+```
+
+Primary references: [official parser APIs](https://github.com/microsoft/node-jsonc-parser),
+[exact component metadata](https://registry.npmjs.org/jsonc-parser/3.3.1), and
+[pinned public parser implementation](https://github.com/microsoft/node-jsonc-parser/blob/v3.3.1/src/impl/parser.ts).

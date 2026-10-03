@@ -795,3 +795,4 @@ lang/contracts/ast-parser-initialization-budget
 lang/contracts/proto-reflection-lexical-boundaries
 lang/contracts/mustache-parse-token-boundaries
 lang/contracts/jinja-django-lexical-boundaries
+lang/contracts/jsonc-structure-boundaries

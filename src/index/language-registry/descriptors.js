@@ -281,7 +281,7 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
   Object.freeze({
     id: 'json',
     adapterId: 'json',
-    parserRoute: 'structured-json',
+    parserRoute: 'strict-json-or-jsonc-ast',
     capsProfile: 'json-default',
     extensions: Object.freeze(['.json', '.jsonc', '.resolved'])
   }),
