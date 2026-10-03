@@ -331,6 +331,46 @@ and [Ruff's complementary server contract](https://docs.astral.sh/ruff/editors/)
 These tests are small Linux fixtures, not a comparative benchmark, broad Python
 index, full type-checker conformance, orchestrator or cross-platform acceptance.
 
+## C and C++ with current clangd
+
+Official clangd 23.1.0 accepts separate tiny C17 and C++20 files through the actual
+PoC client, common collector and existing dedicated clangd adapter: document
+symbols, hover, same-file definition and the expected int return type. The package
+is isolated in task storage, not added to system PATH or automatically installed.
+
+The official Linux archive is 117,949,007 bytes, with published SHA-256
+`e53b1a96196095faedb7642cf64964f7fb9ad4a0c1f00dd2c172a3d9dcbafdfd`.
+It matched before bounded staged ZIP extraction: 437 entries and about 235 MB
+unpacked. The install completed within 15 seconds below 23 MiB sampled RSS; tiny
+runtime fixtures completed around a second below 256 MiB sampled process-tree RSS.
+These observations are not a comparative benchmark or a footprint guarantee.
+
+The fixture supplies its own fixed compilation database outside the workspace,
+uses one clangd job, and disables background indexing, clang-tidy, project/global
+configuration and compiler-driver queries. Its credential-free home/environment
+has no ambient CLANGD_FLAGS. No C/C++ executable is built or run. Exact-version
+LLVM source clears frontend plugin lists; the official command documentation also
+describes the explicit query-driver allowlist. This is not blanket acceptance of
+arbitrary compile databases, plugins, cross-compilers or workspace builds.
+
+An initial common-call harness passed its language ID in the signature helper's
+symbol-name slot and obtained an incorrect return-type string. The corrected
+callback and actual dedicated adapter both pass; the dedicated adapter already
+supplies the correct callback. No production parser change was needed.
+
+```sh
+node tests/tooling/lsp/live-clangd-server-smoke.mjs c /absolute/verified/clangd
+node tests/tooling/lsp/live-clangd-server-smoke.mjs cpp /absolute/verified/clangd
+```
+
+The harness installs nothing and cleans its owned clients/pool/temporary files.
+Objective-C/C++ acceptance is separate: the dedicated adapter includes .m/.mm
+only on macOS, and these Linux fixtures do not establish Apple SDK coverage.
+Primary sources: [official release](https://github.com/clangd/clangd/releases/tag/23.1.0),
+[command/driver policy](https://clangd.llvm.org/design/compile-commands),
+[configuration](https://clangd.llvm.org/config), and
+[exact-version plugin handling](https://github.com/llvm/llvm-project/blob/llvmorg-23.1.0/clang-tools-extra/clangd/Compiler.cpp).
+
 Run the affected fixture with installed native dependencies:
 
 ```sh
