@@ -187,7 +187,8 @@ Primary provenance: [Rust stable manifest](https://static.rust-lang.org/dist/cha
 [Zig download metadata](https://ziglang.org/download/index.json),
 [ZLS release](https://github.com/zigtools/zls/releases/tag/0.16.0).
 The bounded Rust fixture completed in about 1.5 seconds with sampled process-tree
-RSS below 432 MiB; ZLS completed below a second and 80 MiB. ZLS's initial archive
+RSS below 448 MiB; ZLS completed below a second and 128 MiB, including the
+committed-head reruns. ZLS's initial archive
 connection timed out before download and its bounded ordinary retry succeeded.
 These remain small common-client/collector checks, not full configured-orchestrator,
 compiler conformance, arbitrary workspace/build execution, full-index or platform
