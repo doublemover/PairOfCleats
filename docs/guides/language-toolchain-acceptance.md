@@ -261,6 +261,64 @@ Primary references:
 SQLs' upstream still describes its interface as under development; a version tag
 does not establish a stable interface or complete PoC enrichment compatibility.
 
+## Python alternatives and current adapter comparison
+
+Current official metadata identifies Pyright 1.1.414, ty 0.0.84 and Ruff 0.16.10.
+The project still declares `pyright ^1.1.408` and locks 1.1.408; the newer server is
+an isolated comparison installation, not an unreviewed default replacement. ty
+and Ruff are optional candidates, not added declared dependencies or auto presets.
+
+| Tool | Tiny actual-client result | PoC integration boundary |
+| --- | --- | --- |
+| Pyright 1.1.414 | Symbols, hover, same-file definition, invalid-assignment and undefined-name diagnostics | Actual dedicated adapter and common collector with the Python signature callback return the expected int type and two diagnostics |
+| ty 0.0.84 | Symbols, hover, same-file definition, invalid-assignment and unresolved-reference diagnostics | Common collector with Python signature callback returns the expected int type and two diagnostics; explicit untrusted-workspace mode, uv off |
+| Ruff 0.16.10 | Undefined-name lint diagnostic and formatting | No documentSymbol/navigation advertised; the existing type-oriented collector gate skips its enrichment, including diagnostics |
+
+The first direct generic Pyright comparison omitted the language-specific signature
+callback and returned diagnostics but no type chunks. The actual dedicated adapter
+already supplies that callback. Its real-server pass confirms that the omission was
+in the comparison harness, not evidence of a broken default Pyright adapter.
+
+ty is a maintained Rust-based Python type/navigation candidate. Its documented
+`untrustedWorkspace: true` initialization option disables external commands;
+the fixture additionally uses `experimental.useUv: "off"`, open-files-only
+diagnostics and no auto imports. This is an explicit safe-mode trial, not proof that
+arbitrary ty configurations or Python projects are safe. The evolving 0.0.x line
+still needs broader type/library/diagnostic compatibility evaluation before any
+default replacement. No upstream speed claim is adopted from marketing or these
+unequal fixture modes.
+
+Ruff's maintained native `ruff server` replaces its archived Python `ruff-lsp`.
+Upstream positions it alongside a type/navigation server, not as its replacement.
+Its real advertised capability boundary is retained; no symbols, navigation or
+type semantics are invented to satisfy the current collector gate.
+
+Official Linux x64 wheels were installed separately, dependency-free, with pip's
+mandatory SHA-256 verification and no source build:
+
+- ty: `af17eb391ae3027fed9be1780bea555c2b8a25ba68e184c627b4981b2c9eaab7`
+- Ruff: `f33f43a864a8483eebd160e713336c8bab02c934feaff0a33cf5ccb41546d09a`
+
+Each mode uses one generated Python file, an isolated credential-free home/env,
+the actual PoC stdio client, explicit pool cleanup and the same 30-second outer
+deadline. The source file is parsed/analyzed, never executed. No project environment,
+dependency, embedding or model is installed by the harness, which installs nothing:
+
+```sh
+node tests/tooling/lsp/live-python-server-smoke.mjs pyright /absolute/install/node_modules
+node tests/tooling/lsp/live-python-server-smoke.mjs ty /absolute/verified/ty
+node tests/tooling/lsp/live-python-server-smoke.mjs ruff /absolute/verified/ruff
+```
+
+Primary sources: [Pyright metadata](https://registry.npmjs.org/pyright/1.1.414),
+[ty package metadata](https://pypi.org/pypi/ty/0.0.84/json),
+[Ruff package metadata](https://pypi.org/pypi/ruff/0.16.10/json),
+[ty language-server capabilities](https://docs.astral.sh/ty/features/language-server/),
+[ty trust and initialization controls](https://docs.astral.sh/ty/reference/editor-settings/),
+and [Ruff's complementary server contract](https://docs.astral.sh/ruff/editors/).
+These tests are small Linux fixtures, not a comparative benchmark, broad Python
+index, full type-checker conformance, orchestrator or cross-platform acceptance.
+
 Run the affected fixture with installed native dependencies:
 
 ```sh
