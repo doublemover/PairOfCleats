@@ -6,6 +6,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import tar from 'tar-stream';
+import { zipSync } from 'fflate';
 import { applyTestEnv } from '../helpers/test-env.js';
 
 const root = process.cwd();
@@ -21,11 +22,22 @@ for (let i = 0; i < 8; i += 1) pack.entry({ name: `directory-${i}/`, type: 'dire
 pack.finalize();
 await tarReady;
 const archive = Buffer.concat(chunks);
+const deepName = `${'segment/'.repeat(65)}fixture`;
+const deepPack = tar.pack();
+const deepChunks = [];
+deepPack.on('data', (chunk) => deepChunks.push(chunk));
+const deepReady = new Promise((resolve) => deepPack.on('end', resolve));
+deepPack.entry({ name: deepName, type: 'directory' });
+deepPack.finalize();
+await deepReady;
+const deepTar = Buffer.concat(deepChunks);
+const deepZip = Buffer.from(zipSync({ [deepName]: Buffer.from('inert fixture') }));
 const native = Buffer.from('inert native fixture bytes, never loaded');
 let requests = 0;
 const server = http.createServer((req, res) => {
   requests += 1;
-  res.end(req.url === '/directories.tar' ? archive : native);
+  const bodies = { '/directories.tar': archive, '/deep.tar': deepTar, '/deep.zip': deepZip };
+  res.end(bodies[req.url] || native);
 });
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -53,6 +65,12 @@ try {
   assert.equal(limited.code, 1);
   assert.match(limited.output, /entry limit/);
   assert.deepEqual(await fs.readdir(path.join(tmp, 'limited', '.tmp')), [], 'failed extraction must leave no transaction tree/archive');
+  for (const [kind, bytes] of [['tar', deepTar], ['zip', deepZip]]) {
+    const deep = await run(`deep-${kind}`, `${base}/deep.${kind}`, digest(bytes));
+    assert.equal(deep.code, 1);
+    assert.match(deep.output, /path length\/depth/);
+    assert.deepEqual(await fs.readdir(path.join(tmp, `deep-${kind}`, '.tmp')), [], 'depth rejection must retain promise-based cleanup');
+  }
   const installed = await run('verified', `${base}/native`, digest(native));
   assert.equal(installed.code, 0, installed.output);
   const manifest = JSON.parse(await fs.readFile(path.join(tmp, 'verified', 'extensions.json')));

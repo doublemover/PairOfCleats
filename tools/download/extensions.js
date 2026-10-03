@@ -226,7 +226,13 @@ async function extractZipNode(archivePath, destDir, limits) {
           fail(createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe zip entry (symlink): ${entry.fileName}`));
           return;
         }
-        const targetPath = resolveArchivePath(destDir, entry.fileName);
+        let targetPath;
+        try {
+          targetPath = resolveArchivePath(destDir, entry.fileName);
+        } catch (error) {
+          fail(error);
+          return;
+        }
         if (!targetPath) {
           fail(createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe zip entry: ${entry.fileName}`));
           return;
@@ -307,7 +313,6 @@ async function extractTarNode(archivePath, destDir, gzip, limits) {
   await fs.mkdir(destDir, { recursive: true });
   extract.on('entry', (header, stream, next) => {
     const rawName = header?.name || '';
-    const normalized = normalizeArchiveEntry(rawName);
     const type = header?.type || 'file';
 
     (async () => {
@@ -315,6 +320,7 @@ async function extractTarNode(archivePath, destDir, gzip, limits) {
       const declaredSize = Number(header?.size);
       const counted = limiter.checkEntry(rawName,
         Number.isFinite(declaredSize) ? declaredSize : 0);
+      const normalized = normalizeArchiveEntry(rawName);
       // Reject symlinks/hardlinks to avoid writing outside the destination or
       // creating unexpected filesystem references.
       if (type === 'symlink' || type === 'link') {
