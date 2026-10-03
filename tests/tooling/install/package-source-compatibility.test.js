@@ -19,6 +19,16 @@ for (const scope of ['cache', 'user']) {
 assert.ok(typescript.install.cache.args.includes('--prefix'));
 assert.ok(typescript.install.user.args.includes('-g'));
 
+const typescriptLsp = registry.find((tool) => tool.id === 'typescript-language-server');
+assert.ok(typescriptLsp);
+for (const scope of ['cache', 'user']) {
+  const plan = typescriptLsp.install[scope];
+  assert.equal(plan.cmd, 'npm');
+  assert.ok(plan.args.includes('typescript-language-server'));
+  assert.equal(plan.args.at(-1), `typescript@${metadata.dependencies.typescript}`,
+    `${scope}: install the wrapper with a compatible compiler/tsserver`);
+}
+
 const sqls = registry.find((tool) => tool.id === 'sqls');
 assert.ok(sqls);
 assert.equal(sqls.docs, 'https://github.com/sqls-server/sqls');

@@ -779,3 +779,7 @@ security/native-download-authority
 security/editor-tui-authority
 security/download-transactions
 indexing/tree-sitter/csharp-groovy-coverage
+tooling/lsp/fallback-language-ids-and-offline-presets
+tooling/lsp/configuration-request-boundary
+tooling/lsp/diagnostics-drain-boundary
+tooling/lsp/configuration-pull-and-delayed-diagnostics

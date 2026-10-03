@@ -61,6 +61,10 @@ const LANGUAGE_ID_BY_EXT = Object.freeze({
   '.kt': 'kotlin',
   '.kts': 'kotlin',
   '.zig': 'zig',
+  '.yaml': 'yaml',
+  '.yml': 'yaml',
+  '.sh': 'shellscript',
+  '.bash': 'shellscript',
   '.graphql': 'graphql',
   '.gql': 'graphql'
 });

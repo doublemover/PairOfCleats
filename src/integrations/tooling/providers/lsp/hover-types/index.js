@@ -180,6 +180,7 @@ export const processDocumentTypes = async ({
   definitionEnabled,
   typeDefinitionEnabled,
   referencesEnabled,
+  deferDocumentClose = false,
   docPathPolicy = null,
   hoverRequireMissingReturn,
   resolvedHoverKinds,
@@ -1159,7 +1160,7 @@ export const processDocumentTypes = async ({
 
     return { enrichedDelta };
   } finally {
-    if (openedHere) {
+    if (openedHere && !deferDocumentClose) {
       // Retain the URI/line-index mapping until diagnostics shaping completes.
       // For tokenized poc-vfs URIs, fallback URI reconstruction can differ from
       // the didOpen URI, so deleting this too early drops diagnostics.

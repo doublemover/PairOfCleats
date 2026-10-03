@@ -2,6 +2,7 @@ import path from 'node:path';
 import { buildLineIndex } from '../../../shared/lines.js';
 import { languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
 import { resolveInitializeResultPositionEncoding } from '../lsp/positions.js';
+import { createLspConfigurationHandler } from '../lsp/configuration.js';
 import { buildVfsUri } from '../lsp/uris.js';
 import { buildIndexSignature } from '../../../retrieval/index-cache.js';
 import {
@@ -442,13 +443,14 @@ export async function collectLspTypes({
     crashLoopQuarantined: false
   };
 
-  const { diagnosticsByUri, onNotification } = createDiagnosticsCollector({
+  const { diagnosticsByUri, onNotification, waitForDiagnostics } = createDiagnosticsCollector({
     captureDiagnostics,
     checks,
     checkFlags,
     maxDiagnosticUris: resolvedMaxDiagnosticUris,
     maxDiagnosticsPerUri: resolvedMaxDiagnosticsPerUri
   });
+  const onRequest = createLspConfigurationHandler(initializationOptions);
 
   const runWithPooledSession = () => withLspSession({
     enabled: sessionPoolingEnabled !== false,
@@ -462,6 +464,7 @@ export async function collectLspTypes({
     log,
     stderrFilter,
     onNotification,
+    onRequest,
     timeoutMs,
     retries,
     breakerThreshold,
@@ -587,7 +590,10 @@ export async function collectLspTypes({
         if (typeof lease.markInitializing === 'function') lease.markInitializing();
         const rawInitializeResult = await runWithHealthGuard(({ timeoutMs: guardTimeout }) => client.initialize({
           rootUri,
-          capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
+          capabilities: {
+            ...(onRequest ? { workspace: { configuration: true } } : {}),
+            textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } }
+          },
           initializationOptions,
           timeoutMs: guardTimeout
         }), { label: 'initialize' });
@@ -678,6 +684,7 @@ export async function collectLspTypes({
       return buildEmptyCollectResult(checks, runtime);
     }
 
+    const openDocs = new Map();
     try {
       if (skipSymbolCollection) {
         refreshRuntimeState({ includeRequests: true });
@@ -865,7 +872,6 @@ export async function collectLspTypes({
         });
       }
       throwIfAborted(toolingAbortSignal);
-      const openDocs = new Map();
       const diskPathMap = resolvedScheme === 'file'
         ? await ensureVirtualFilesBatch({
           rootDir: resolvedRoot,
@@ -912,6 +918,7 @@ export async function collectLspTypes({
           definitionEnabled: effectiveDefinitionEnabled,
           typeDefinitionEnabled: effectiveTypeDefinitionEnabled,
           referencesEnabled: effectiveReferencesEnabled,
+          deferDocumentClose: captureDiagnostics,
           docPathPolicy: docPathPolicyByPath.get(String(doc?.virtualPath || '')) || null,
           hoverRequireMissingReturn,
           resolvedHoverKinds,
@@ -982,9 +989,16 @@ export async function collectLspTypes({
       });
       throwIfAborted(toolingAbortSignal);
       if (captureDiagnostics) {
-        // PublishDiagnostics notifications can trail didOpen/documentSymbol by a few
-        // milliseconds; give the session a brief drain window before shaping.
-        await sleep(15);
+        // Real servers debounce validation beyond documentSymbol completion.
+        // Wait once for each opened document's first notification (including an
+        // empty result), with a shared budget rather than a delay per document.
+        runtime.diagnosticsDrain = await waitForDiagnostics(
+          Array.from(openDocs.values(), (doc) => [doc.uri, doc.legacyUri]),
+          {
+            timeoutMs: softDeadlineAt == null ? 500 : Math.min(500, Math.max(0, softDeadlineAt - Date.now())),
+            signal: toolingAbortSignal
+          }
+        );
         throwIfAborted(toolingAbortSignal);
       }
 
@@ -1087,6 +1101,13 @@ export async function collectLspTypes({
         hoverMetrics: summarizedHoverMetrics
       };
     } finally {
+      if (captureDiagnostics) {
+        // The collector owns retained documents through diagnostic shaping,
+        // including aborted/failed passes; cleanup never starts a new transport.
+        for (const doc of openDocs.values()) {
+          client.notify('textDocument/didClose', { textDocument: { uri: doc.uri } }, { startIfNeeded: false });
+        }
+      }
       if (detachAbortHandler) {
         try {
           detachAbortHandler();

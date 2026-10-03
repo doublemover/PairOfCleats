@@ -79,6 +79,9 @@ const PRESET_DEFINITIONS = Object.freeze({
         yaml: Object.freeze({
           schemaStore: Object.freeze({
             enable: false
+          }),
+          kubernetesCRDStore: Object.freeze({
+            enable: false
           })
         })
       })

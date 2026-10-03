@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 650,
+    "hero": 654,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4750,6 +4750,30 @@
     {
       "id": "indexing/tree-sitter/csharp-groovy-coverage",
       "order": 781,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/fallback-language-ids-and-offline-presets",
+      "order": 782,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/configuration-request-boundary",
+      "order": 783,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/diagnostics-drain-boundary",
+      "order": 784,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/configuration-pull-and-delayed-diagnostics",
+      "order": 785,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

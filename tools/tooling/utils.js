@@ -373,8 +373,8 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       languages: ['typescript'],
       detect: { cmd: 'typescript-language-server', args: ['--version'], binDirs: [...repoNodeBin, nodeBin] },
       install: {
-        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'typescript-language-server'] },
-        user: { cmd: 'npm', args: ['install', '-g', 'typescript-language-server'] }
+        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'typescript-language-server', typescriptPackage] },
+        user: { cmd: 'npm', args: ['install', '-g', 'typescript-language-server', typescriptPackage] }
       },
       docs: TOOL_DOCS['typescript-language-server']
     },
