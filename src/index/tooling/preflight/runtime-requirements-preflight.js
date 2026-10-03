@@ -2,7 +2,7 @@ import {
   isProbeCommandDefinitelyMissing,
   resolveToolingCommandProfile
 } from '../command-resolver.js';
-import { resolveRustWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
 
 /**
  * Resolve runtime prerequisite checks as a preflight classification.
@@ -15,7 +15,7 @@ export const resolveRuntimeRequirementsPreflight = ({
   providerId,
   requirements
 }) => {
-  const executionAuthority = resolveRustWorkspaceExecutionAuthority({
+  const executionAuthority = resolveWorkspaceExecutionAuthority({
     repoRoot: ctx?.repoRoot || process.cwd(), providerId
   });
   if (executionAuthority) return { ...executionAuthority, checks: [executionAuthority.check] };

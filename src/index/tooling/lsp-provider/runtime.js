@@ -1,5 +1,5 @@
 import { collectLspTypes } from '../../../integrations/tooling/providers/lsp.js';
-import { resolveRustWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
 import { invalidateProbeCacheOnInitializeFailure } from '../command-resolver.js';
 import { resolveLspRuntimeConfig } from '../lsp-runtime-config.js';
 import {
@@ -382,7 +382,7 @@ export const collectConfiguredOutput = async ({
   blockedWorkspaceKeys = [],
   blockedWorkspaceRoots = []
 }) => {
-  const executionAuthority = resolveRustWorkspaceExecutionAuthority({ repoRoot: ctx?.repoRoot || process.cwd(), providerId, server });
+  const executionAuthority = resolveWorkspaceExecutionAuthority({ repoRoot: ctx?.repoRoot || process.cwd(), providerId, server });
   if (executionAuthority) {
     return { byChunkUid: {}, checks: [executionAuthority.check] };
   }
@@ -442,7 +442,7 @@ export const collectConfiguredOutput = async ({
       : (workspaceRouting.reasonCode || preflightReasonCode || null)
   );
   for (const partition of workspaceRouting.partitions) {
-    const currentAuthority = resolveRustWorkspaceExecutionAuthority({ repoRoot: ctx.repoRoot, workspaceRoot: partition.rootDir, providerId, server });
+    const currentAuthority = resolveWorkspaceExecutionAuthority({ repoRoot: ctx.repoRoot, workspaceRoot: partition.rootDir, providerId, server });
     if (currentAuthority) {
       skippedBlockedPartitions.push(partition);
       preChecks.push(currentAuthority.check);
@@ -555,7 +555,7 @@ export const collectConfiguredOutput = async ({
       workspaceModel: workspaceRouting.workspaceModel,
       fidelity: buildProviderFidelityContract({
         providerId,
-        ...(partitionResults.length === 0 && preChecks.some((check) => check.name === 'rust_workspace_trust_required')
+        ...(partitionResults.length === 0 && preChecks.some((check) => ['rust_workspace_trust_required', 'zig_workspace_trust_required'].includes(check.name))
           ? { state: PROVIDER_FIDELITY_STATE.BLOCKED } : {}),
         preflightState: effectivePreflightState,
         reasonCode: effectivePreflightReasonCode,

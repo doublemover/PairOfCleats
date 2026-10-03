@@ -133,6 +133,66 @@ coverage and timeout-local cache classification. The same assertions fail agains
 the preceding published source with the same explicit benign-fixture grant; they
 are not relabeled as passing or attributed to this new execution gate.
 
+### Rust and Zig build-capable servers
+
+The next Linux x64 fixture uses official Rust stable-channel components dated
+2026-10-01. The actual binaries report rustc and rust-analyzer 1.99.0 (2026-09-28);
+the manifest's analyzer package version `0.0.0` is not substituted for that binary
+identity. Rustc, Cargo, std, source and analyzer archives each matched their official
+channel SHA-256 before bounded staged extraction. No global rustup/toolchain or
+system PATH change was made. The project's separate native-TUI compiler pin is
+unchanged by this isolated language-server trial.
+
+ZLS latest stable is 0.16.0. Zig's latest stable is 0.17.0, but the official
+[compatibility policy](https://zigtools.org/zls/install/) requires matching minor
+versions. The trial therefore uses official Zig 0.16.0 with ZLS 0.16.0, rather than
+pairing an incompatible latest compiler. Zig is a tooling-only preset in PoC's
+current registry; a successful explicitly supplied LSP document does not add a
+registered parser/native AST route.
+
+| Tool | Accepted through actual PoC client and common collector | Fixture boundary |
+| --- | --- | --- |
+| rust-analyzer 1.99.0 / Rust 1.99.0 | Initialization, document symbols, hover, same-file definition and chunk binding | Dependency-free crate; offline Cargo, build scripts/proc macros/check-on-save disabled; exact owned fixture grant |
+| ZLS 0.16.0 / Zig 0.16.0 | Initialization, document symbols, hover, same-file definition and chunk binding | Standalone Zig file without build.zig; launch-owned external config, build-on-save and child-process AST checking disabled; exact owned fixture grant |
+
+Both modes first verify denial without a repository grant, then explicitly grant
+only the generated canonical fixture root. They use an isolated environment/home
+without account credentials. A grant is still required for ZLS package/include
+resolution because its [build runner executes build.zig](https://github.com/zigtools/zls/blob/0.16.0/src/DocumentStore.zig);
+disabling only build-on-save is insufficient. The denial and pending-grant-change
+regressions use a benign protocol stub and never run a project build script.
+
+The reproducible opt-in harness installs nothing, runs one supplied verified tool,
+restores the launch environment, and shuts down/kills both owned clients before
+removing its own fixture. It accepts the protocol's single-Location and array
+definition shapes; the initial ZLS harness assertion was corrected for its valid
+single-Location response, not by weakening source containment.
+
+```sh
+node tests/tooling/lsp/live-build-server-smoke.mjs rust-analyzer /absolute/rust-sdk/bin/rust-analyzer /absolute/rust-sdk
+node tests/tooling/lsp/live-build-server-smoke.mjs zls /absolute/zls /absolute/zig-0.16.0-root
+```
+
+Source archive SHA-256 values:
+
+- Rustc: `77171ba2a0345fdf2abc4fedda55d6de078dae7a68527c28be8c77dcc9604bd5`
+- Cargo: `d7674918d28093097614cd9728b6ca60db9ea3038f640f0bd1e9a4188c7568ce`
+- Rust std: `3e58dff2d0b72196b5ea4e90536e174d400de88564a52694686b81e091169933`
+- Rust source: `3f1f9b7ed48f4596fc87889b7b3c61747336a55c9c22db1ab0c697e0aadb77aa`
+- Rust analyzer: `52dfae764797c3c7f32ba2ba82d49659741a867e7a3f45bc3291b822c955d6a8`
+- Zig 0.16.0: `70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00`
+- ZLS 0.16.0: `ded6d562a0b86ee878b1ddf70ffab2797ce3cdca3b02d6077548f9d56dff96b6`
+
+Primary provenance: [Rust stable manifest](https://static.rust-lang.org/dist/channel-rust-stable.toml),
+[Zig download metadata](https://ziglang.org/download/index.json),
+[ZLS release](https://github.com/zigtools/zls/releases/tag/0.16.0).
+The bounded Rust fixture completed in about 1.5 seconds with sampled process-tree
+RSS below 432 MiB; ZLS completed below a second and 80 MiB. ZLS's initial archive
+connection timed out before download and its bounded ordinary retry succeeded.
+These remain small common-client/collector checks, not full configured-orchestrator,
+compiler conformance, arbitrary workspace/build execution, full-index or platform
+acceptance. No dependencies, embeddings or models were downloaded by the fixtures.
+
 ### Native and Go-SDK servers
 
 The next isolated Linux x64 batch used official, checksum-verified portable

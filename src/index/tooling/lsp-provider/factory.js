@@ -1,5 +1,5 @@
 import { awaitToolingProviderPreflight } from '../preflight-manager.js';
-import { resolveRustWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
 import {
   mergePreflightChecks,
   resolveCommandProfilePreflightResult,
@@ -42,7 +42,7 @@ const buildCommandUnavailableCheck = (providerId, requestedCmd) => ({
 
 export const createConfiguredLspProvider = (server) => {
   const providerId = normalizeServerId(server.providerId, `lsp-${server.id}`);
-  const executionAuthorityFor = (ctx) => resolveRustWorkspaceExecutionAuthority({
+  const executionAuthorityFor = (ctx) => resolveWorkspaceExecutionAuthority({
     repoRoot: ctx?.repoRoot || process.cwd(), providerId, server
   });
   const blockedExecutionOutput = (ctx, inputs, authority, owner) => ({

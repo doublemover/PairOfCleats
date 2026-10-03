@@ -1,5 +1,5 @@
 import fsSync from 'node:fs';
-import { resolveRustWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
 import path from 'node:path';
 import {
   buildRustWorkspacePartitionKey,
@@ -126,7 +126,7 @@ export const resolveRustWorkspaceMetadataPreflight = async ({
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
   const repoRoot = String(ctx?.repoRoot || process.cwd());
-  const executionAuthority = resolveRustWorkspaceExecutionAuthority({ repoRoot, server });
+  const executionAuthority = resolveWorkspaceExecutionAuthority({ repoRoot, server });
   if (executionAuthority) return executionAuthority;
   const selectedDocuments = Array.isArray(documents) ? documents : (Array.isArray(ctx?.documents) ? ctx.documents : []);
   const rustPaths = selectRustDocumentPaths(selectedDocuments);
@@ -193,7 +193,7 @@ export const resolveRustWorkspaceMetadataPreflight = async ({
   let cachedPartitionCount = 0;
 
   for (const partition of partitions) {
-    const currentAuthority = resolveRustWorkspaceExecutionAuthority({ repoRoot, workspaceRoot: partition.rootDir, server });
+    const currentAuthority = resolveWorkspaceExecutionAuthority({ repoRoot, workspaceRoot: partition.rootDir, server });
     if (currentAuthority) return currentAuthority;
     if (partition.validSessionRoot !== true) {
       const invalidCheck = toPartitionScopedCheck({

@@ -53,7 +53,7 @@ const runSingleLanguageCase = async ({
   const configuredProviderId = `lsp-${configuredServerId}`;
   await fs.rm(caseRoot, { recursive: true, force: true });
   await fs.mkdir(path.join(caseRoot, 'src'), { recursive: true });
-  if (languageId === 'rust') grantFixtureRepositoryExecution(caseRoot);
+  if (['rust', 'zig'].includes(languageId)) grantFixtureRepositoryExecution(caseRoot);
   const serverConfig = {
     id: configuredServerId,
     cmd: process.execPath,

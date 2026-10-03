@@ -52,6 +52,16 @@ exact grant. Trust participates in preflight/cache identity and is rechecked aft
 awaited preflight and before workspace launch; changing trust is not a process
 sandbox or a guarantee that an already-running third-party process is terminated.
 
+The same exact grant is required for the ZLS/Zig workspace route, including
+version/runtime probes and direct Zig-document collection. Denied execution
+reports `zig_workspace_trust_required`. Official [ZLS source](https://github.com/zigtools/zls/blob/0.16.0/src/DocumentStore.zig)
+runs `build.zig` to resolve packages/include paths, while a repository-defined
+check step can automatically enable [build-on-save](https://zigtools.org/zls/guides/build-on-save/).
+Turning off only build-on-save does not disable the build-runner route. Installation
+remains a separate explicit action and the canonical nested-root checks still
+apply. Zig currently has a tooling-only preset, not a registered native parser
+route; this guard does not invent an AST fallback or remove any existing parser.
+
 Python and Tree-sitter worker counts are clamped before pool construction to the
 launch CPU/thread budget and a conservative maximum of four. Repository
 `allowOverCap` settings cannot remove that ceiling. A one-thread launch therefore

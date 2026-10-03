@@ -75,6 +75,8 @@ head. None is a blanket release-readiness claim.
    Verified installed Rust tooling does not grant workspace execution: use the
    exact launch-owned repository authority boundary before Rust LSP/preflight
    acceptance; native Rust AST analysis remains available without that grant.
+   ZLS/Zig workspace tooling has the same boundary because package/include
+   resolution can execute its build runner. Zig is currently tooling-only.
 
 ## Current Validation Boundary
 

@@ -1,7 +1,7 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { isRepoTrusted } from '../../shared/config-authority.js';
-import { resolveRustWorkspaceExecutionAuthority } from '../../shared/workspace-execution-authority.js';
+import { resolveWorkspaceExecutionAuthority } from '../../shared/workspace-execution-authority.js';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { resolveEnvPath } from '../../shared/env-path.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
@@ -756,7 +756,7 @@ export const resolveToolingCommandProfile = (input) => {
     : [];
   const repoRoot = input?.repoRoot || process.cwd();
   const toolingConfig = input?.toolingConfig || {};
-  const executionAuthority = resolveRustWorkspaceExecutionAuthority({ repoRoot, providerId, server: { cmd: requestedCmd } });
+  const executionAuthority = resolveWorkspaceExecutionAuthority({ repoRoot, providerId, server: { cmd: requestedCmd } });
   if (executionAuthority) {
     return {
       providerId, requested: { cmd: requestedCmd, args: requestedArgs },

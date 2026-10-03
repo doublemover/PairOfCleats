@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 655,
+    "hero": 656,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4780,6 +4780,12 @@
     {
       "id": "security/rust-workspace-execution-authority",
       "order": 786,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "security/zig-workspace-execution-authority",
+      "order": 787,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

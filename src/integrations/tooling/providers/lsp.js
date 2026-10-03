@@ -3,7 +3,7 @@ import { buildLineIndex } from '../../../shared/lines.js';
 import { languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
 import { resolveInitializeResultPositionEncoding } from '../lsp/positions.js';
 import { createLspConfigurationHandler } from '../lsp/configuration.js';
-import { resolveRustWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
 import { buildVfsUri } from '../lsp/uris.js';
 import { buildIndexSignature } from '../../../retrieval/index-cache.js';
 import {
@@ -342,7 +342,7 @@ export async function collectLspTypes({
     }))
     : [];
   const targetList = Array.isArray(targets) ? targets : [];
-  const workspaceExecutionAuthority = () => resolveRustWorkspaceExecutionAuthority({
+  const workspaceExecutionAuthority = () => resolveWorkspaceExecutionAuthority({
     repoRoot: rootDir, workspaceRoot: workspaceRootDir || rootDir, providerId,
     server: { cmd },
     languages: docs.flatMap((doc) => [doc.languageId,
