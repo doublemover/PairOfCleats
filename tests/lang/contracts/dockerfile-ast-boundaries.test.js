@@ -54,6 +54,34 @@ assert.equal(escaped.slice(escapedLabel.start, escapedLabel.end), 'LABEL name="ð
 assert.equal(chunkDockerfile(escaped)[0].name, 'FROM build');
 assert.deepEqual(collectDockerfileImports('FROM build AS final\nCOPY --from=build /a /b\n').sort(), ['build', 'final']);
 
+for (const flag of ['--platform=$TARGETPLATFORM', '--platform $TARGETPLATFORM',
+  '--platform= $TARGETPLATFORM', '--platform = $TARGETPLATFORM']) {
+  const source = `FROM ${flag} ghcr.io/acme/runtime:1 AS runtime\n`;
+  const from = parseDockerfileStructure(source).instructions[0];
+  assert.equal(from.image, 'ghcr.io/acme/runtime:1');
+  assert.equal(from.stage, 'runtime');
+  assert.deepEqual(collectDockerfileImports(source), ['ghcr.io/acme/runtime:1', 'runtime']);
+  assert.deepEqual(adapter.buildRelations({ text: source, options: {} }).exports, ['runtime']);
+  assert.equal(chunkDockerfile(source)[0].name, 'FROM runtime');
+}
+assert.equal(parseDockerfileStructure('FROM --platform $P ${BASE_IMAGE} AS runtime').instructions[0].image, '${BASE_IMAGE}');
+assert.equal(parseDockerfileStructure('FROM --platform=$P --platform $T node:22 AS base').instructions[0].stage, 'base');
+for (const source of ['FROM --platform', 'FROM --platform AS fake', 'FROM --platform= AS fake',
+  'FROM --platform =', 'FROM --platform $P AS fake', 'FROM --platform $P node:22 AS']) {
+  const from = parseDockerfileStructure(source).instructions[0];
+  assert.equal(from.fromParseReason, 'malformed-from-flags');
+  assert.equal(from.image, '');
+  assert.equal(from.stage, '');
+  assert.deepEqual(collectDockerfileImports(source), []);
+}
+const spacedHeredoc = ["RUN <<'EOF'", 'FROM --platform $P fake:1 AS phantom', 'EOF',
+  'FROM --platform \\', '  $P \\', '  node:22 AS real'].join('\n');
+assert.deepEqual(parseDockerfileStructure(spacedHeredoc).instructions.filter((node) => node.keyword === 'FROM')
+  .map((node) => [node.image, node.stage]), [['node:22', 'real']]);
+assert.deepEqual(collectDockerfileImports(spacedHeredoc), ['node:22', 'real']);
+assert.deepEqual(collectDockerfileImports('FROM AS invalid'), []);
+assert.equal(parseDockerfileStructure('FROM AS invalid').instructions[0].fromParseReason, 'malformed-from-arguments');
+
 const malformed = 'FROM\nRUN <<EOF\nFROM imaginary AS hidden\n';
 assert.doesNotThrow(() => chunkDockerfile(malformed));
 assert.ok(!collectDockerfileImports(malformed).includes('imaginary'));

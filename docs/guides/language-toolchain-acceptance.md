@@ -523,6 +523,16 @@ The proprietary Intelephense candidate remains research-only: its
 [vendor intended-use licence](https://intelephense.com/eula) was not established
 as covering PoC indexing, so it was not installed or accepted.
 
+An unchanged existing import fixture subsequently exposed a FROM compatibility
+gap: vendor convenience getters treated a legacy spaced --platform value as the
+image and lost the real image/AS stage. The shared model now reconciles bounded
+flag/argument tokens from the already parsed instruction, including equals/spaced
+forms, continuation and unresolved variables. No physical lines are reparsed;
+heredoc text cannot create an instruction. Malformed flag/argument shapes carry a
+reason and do not invent an image/stage. Legacy tolerant syntax is compatibility
+metadata, not proof Docker accepts or builds that source. The original failing
+fixture is preserved unchanged alongside the new focused controls.
+
 ## GraphQL descriptions and syntax-only AST ownership
 
 The declared/locked graphql-js 16.12.0 package is installed independently with
