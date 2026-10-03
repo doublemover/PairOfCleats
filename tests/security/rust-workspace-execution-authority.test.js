@@ -67,6 +67,8 @@ try {
     documents: inputs.documents, targets: inputs.targets, cmd: process.execPath, args: [stub],
     providerId: 'custom', sessionPoolingEnabled: false });
   assert.equal(direct.runtime.executionAuthority.state, 'blocked');
+  assert.equal((await collectLspTypes({ rootDir: repo, ...inputs, cmd: process.execPath, args: [stub],
+    collectTypes: false, captureDiagnostics: true })).runtime.executionAuthority.state, 'blocked');
   const bypass = await collectConfiguredOutput({ server, providerId: provider.id, ctx,
     provider, docs: inputs.documents, targets: inputs.targets });
   assert.ok(bypass.checks.some((check) => check.name === 'rust_workspace_trust_required'));

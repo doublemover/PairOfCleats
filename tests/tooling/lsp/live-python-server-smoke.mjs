@@ -11,6 +11,8 @@ import { collectLspTypes } from '../../../src/integrations/tooling/providers/lsp
 import { createPyrightProvider } from '../../../src/index/tooling/pyright-provider.js';
 import { __testLspSessionPool } from '../../../src/integrations/tooling/providers/lsp/session-pool.js';
 import { parsePythonSignature } from '../../../src/index/tooling/signature-parse/python.js';
+import { createConfiguredLspProvider } from '../../../src/index/tooling/lsp-provider/factory.js';
+import { normalizeServerConfig } from '../../../src/index/tooling/lsp-provider/normalize.js';
 
 const [server, suppliedInstallation] = process.argv.slice(2);
 assert.ok(suppliedInstallation && path.isAbsolute(suppliedInstallation), 'Supply an absolute verified binary or node_modules root');
@@ -95,6 +97,7 @@ try {
       file: 'sample.py', range: { start: 0, end: text.length } }, virtualPath: 'sample.py',
       virtualRange: { start: 0, end: text.length }, symbolHint: { name: 'double', kind: 'function' } }],
     initializationOptions, captureDiagnostics: true, uriScheme: 'file',
+    collectTypes: server !== 'ruff',
     parseSignature: parsePythonSignature,
     sessionPoolingEnabled: false, vfsColdStartCache: false, timeoutMs: 5000, retries: 0, strict: false });
   result.collectorChunks = Object.keys(collected.byChunkUid).length;
@@ -120,9 +123,30 @@ try {
     result.dedicatedAdapter = true;
     result.dedicatedAdapterChunks = Object.keys(accepted.byChunkUid).length;
     result.dedicatedAdapterDiagnosticsCount = accepted.diagnostics?.diagnosticsCount;
+  } else {
+    const provider = createConfiguredLspProvider(normalizeServerConfig({ id: server, languages: ['python'],
+      cmd: binary, args, initializationOptions, requireWorkspaceModel: false }, 0));
+    const accepted = await provider.run({ repoRoot: root, buildRoot: root, strict: false,
+      toolingConfig: { lsp: { enabled: true, timeoutMs: 5000, retries: 0 } } }, {
+      documents: [{ virtualPath: 'sample.py', text, languageId: 'python', effectiveExt: '.py' }],
+      targets: [{ chunkRef: { docId: 0, chunkUid: 'ck64:v1:test:python:configured', chunkId: 'python-configured',
+        file: 'sample.py', range: { start: 0, end: text.length } }, virtualPath: 'sample.py',
+        virtualRange: { start: 0, end: text.length }, symbolHint: { name: 'double', kind: 'function' } }],
+      kinds: server === 'ruff' ? ['diagnostics'] : ['types', 'diagnostics'] });
+    assert.equal(accepted.diagnostics.diagnosticsCount, server === 'ruff' ? 1 : 2);
+    assert.equal(accepted.diagnostics.fidelity.contributes.typeEnrichment, server !== 'ruff');
+    if (server === 'ruff') assert.deepEqual(accepted.byChunkUid, {});
+    else assert.equal(accepted.byChunkUid['ck64:v1:test:python:configured']?.payload?.returnType, 'int');
+    result.configuredProvider = true;
   }
   if (server !== 'ruff') assert.ok(result.collectorChunks > 0);
-  else assert.equal(result.collectorChunks, 0);
+  else {
+    assert.equal(result.collectorChunks, 0);
+    assert.equal(result.collectorDiagnosticsCount, 1);
+    assert.ok(!collected.runtime.capabilities.documentSymbol);
+    assert.ok(Object.values(collected.runtime.capabilityGate.requested).every((value) => value === false));
+    result.diagnosticsOnlyAccepted = true;
+  }
   console.log(JSON.stringify(result));
 } finally {
   await client.shutdownAndExit();

@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 657,
+    "hero": 658,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4792,6 +4792,12 @@
     {
       "id": "tooling/lsp/environment-preflight-precedence",
       "order": 788,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/diagnostics-only-capability-lifecycle",
+      "order": 789,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

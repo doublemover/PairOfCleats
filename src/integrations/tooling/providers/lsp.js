@@ -4,6 +4,7 @@ import { languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
 import { resolveInitializeResultPositionEncoding } from '../lsp/positions.js';
 import { createLspConfigurationHandler } from '../lsp/configuration.js';
 import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { openOwnedLspDocument, closeOwnedLspDocuments } from './lsp/document-lifecycle.js';
 import { buildVfsUri } from '../lsp/uris.js';
 import { buildIndexSignature } from '../../../retrieval/index-cache.js';
 import {
@@ -198,6 +199,7 @@ export async function collectLspTypes({
   vfsRoot = null,
   uriScheme = 'file',
   captureDiagnostics = false,
+  collectTypes = true,
   vfsTokenMode = 'docHash+virtualPath',
   vfsIoBatching = null,
   lineIndexFactory = buildLineIndex,
@@ -328,6 +330,8 @@ export async function collectLspTypes({
 
   const checks = [];
   const runtime = {
+    collectionMode: collectTypes === false ? (captureDiagnostics ? 'diagnostics-only' : 'none')
+      : (captureDiagnostics ? 'types-and-diagnostics' : 'types'),
     command: String(cmd || ''),
     capabilities: null,
     lifecycle: null,
@@ -352,7 +356,7 @@ export async function collectLspTypes({
   if (executionAuthority) {
     return buildEmptyCollectResult([executionAuthority.check], { ...runtime, executionAuthority: { state: 'blocked', reasonCode: executionAuthority.reasonCode } });
   }
-  if (!docs.length || !targetList.length) {
+  if (!docs.length || !targetList.length || (collectTypes === false && !captureDiagnostics)) {
     runtime.selection = {
       providerId: resolvedProviderId,
       totalDocs: docs.length,
@@ -454,8 +458,9 @@ export async function collectLspTypes({
     crashLoopQuarantined: false
   };
 
-  const { diagnosticsByUri, onNotification, waitForDiagnostics } = createDiagnosticsCollector({
+  const { diagnosticsByUri, onNotification, waitForDiagnostics, registerDocument, unregisterDocument } = createDiagnosticsCollector({
     captureDiagnostics,
+    requireOwnedDocuments: true,
     checks,
     checkFlags,
     maxDiagnosticUris: resolvedMaxDiagnosticUris,
@@ -607,7 +612,8 @@ export async function collectLspTypes({
           rootUri,
           capabilities: {
             ...(onRequest ? { workspace: { configuration: true } } : {}),
-            textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } }
+            textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true },
+              publishDiagnostics: { versionSupport: true } }
           },
           initializationOptions,
           timeoutMs: guardTimeout
@@ -638,6 +644,7 @@ export async function collectLspTypes({
       const capabilityGate = buildLspCapabilityGate({
         capabilityMask,
         cmd,
+        collectTypes,
         hoverEnabled,
         semanticTokensEnabled,
         signatureHelpEnabled,
@@ -908,6 +915,10 @@ export async function collectLspTypes({
           coldStartCache
         });
         const legacyUri = resolvedScheme === 'poc-vfs' ? buildVfsUri(doc.virtualPath) : null;
+        if (collectTypes === false) {
+          openOwnedLspDocument({ client, doc, uri, legacyUri, languageId, openDocs, registerDocument });
+          return;
+        }
 
         const { enrichedDelta } = await processDocumentTypes({
           doc,
@@ -923,6 +934,8 @@ export async function collectLspTypes({
           legacyUri,
           languageId,
           openDocs,
+          registerDocument,
+          unregisterDocument,
           targetIndexesByPath,
           byChunkUid,
           signatureParseCache,
@@ -1119,9 +1132,7 @@ export async function collectLspTypes({
       if (captureDiagnostics) {
         // The collector owns retained documents through diagnostic shaping,
         // including aborted/failed passes; cleanup never starts a new transport.
-        for (const doc of openDocs.values()) {
-          client.notify('textDocument/didClose', { textDocument: { uri: doc.uri } }, { startIfNeeded: false });
-        }
+        closeOwnedLspDocuments({ client, openDocs, unregisterDocument });
       }
       if (detachAbortHandler) {
         try {

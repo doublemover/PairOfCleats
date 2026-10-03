@@ -463,6 +463,8 @@ export const mergeLspWorkspacePartitionResults = (results, workspaceModel) => {
   }
   const mergedRuntime = runtimes.length
     ? {
+      collectionMode: runtimes.every((runtime) => runtime.collectionMode === runtimes[0].collectionMode)
+        ? runtimes[0].collectionMode : 'mixed',
       capabilities: runtimes.reduce((acc, runtime) => {
         for (const [key, value] of Object.entries(runtime?.capabilities || {})) {
           acc[key] = acc[key] === true || value === true;

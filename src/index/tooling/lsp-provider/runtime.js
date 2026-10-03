@@ -6,6 +6,7 @@ import {
   appendDiagnosticChecks,
   buildProviderFidelityContract,
   PROVIDER_FIDELITY_STATE,
+  shouldCollectTypesForRequestedKinds,
   shouldCaptureDiagnosticsForRequestedKinds
 } from '../provider-contract.js';
 import { mergeLspWorkspacePartitionResults } from '../lsp-workspace-routing.js';
@@ -468,6 +469,7 @@ export const collectConfiguredOutput = async ({
         log,
         providerId,
         cmd: resolvedCmd,
+        collectTypes: shouldCollectTypesForRequestedKinds(requestedKinds),
         args: resolvedArgs,
         parseSignature: parseGenericSignature,
         strict: ctx?.strict !== false,
@@ -555,6 +557,7 @@ export const collectConfiguredOutput = async ({
       workspaceModel: workspaceRouting.workspaceModel,
       fidelity: buildProviderFidelityContract({
         providerId,
+        collectTypes: shouldCollectTypesForRequestedKinds(requestedKinds),
         ...(partitionResults.length === 0 && preChecks.some((check) => ['rust_workspace_trust_required', 'zig_workspace_trust_required'].includes(check.name))
           ? { state: PROVIDER_FIDELITY_STATE.BLOCKED } : {}),
         preflightState: effectivePreflightState,

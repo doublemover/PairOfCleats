@@ -64,6 +64,24 @@ warnings without cache semantics do not erase metadata reuse, and cache reuse
 must not convert a degraded runtime into a healthy result. These rules are covered
 by the preflight-precedence and Rust negative/partial/timeout-local fixtures.
 
+### 2.4 Diagnostics-only collection
+
+Configured requests containing diagnostics but no types use the common collector's
+explicit `collectTypes: false` mode. The ordinary type mode keeps its documentSymbol
+requirement. Diagnostics-only mode does not request symbols, hover, navigation or
+other type stages, and it does not fabricate type payloads/capabilities. Existing
+target ranges still own diagnostic-to-chunk binding. Provider fidelity declares
+type enrichment false for this mode.
+
+Both modes share one document notification owner. Diagnostic capture accepts only
+currently opened URIs or their registered VFS aliases, rejects a provided version
+that differs from didOpen, retains legacy unversioned results for owned URIs, and
+shapes results before closing. Close unregisters diagnostic ownership and is sent
+at most once without restarting a failed transport. Abort retains the existing
+owned-process cleanup. The bounded diagnostic drain, scope/buffer limits and
+workspace execution authority apply unchanged; silence is still reported as a
+pending/timed-out observation, not a clean source result.
+
 ---
 
 ## 3. Virtual document support

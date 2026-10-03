@@ -46,6 +46,8 @@ try {
   const direct = await collectLspTypes({ rootDir: repo, ...inputs, cmd: process.execPath, args: [stub],
     providerId: 'custom-alias', sessionPoolingEnabled: false });
   assert.equal(direct.runtime.executionAuthority.reasonCode, 'zig_workspace_trust_required');
+  assert.equal((await collectLspTypes({ rootDir: repo, ...inputs, cmd: process.execPath, args: [stub],
+    collectTypes: false, captureDiagnostics: true })).runtime.executionAuthority.reasonCode, 'zig_workspace_trust_required');
   assert.ok((await collectConfiguredOutput({ server, providerId: provider.id, ctx, provider,
     docs: inputs.documents, targets: inputs.targets })).checks.some((check) => check.name === 'zig_workspace_trust_required'));
   assert.equal(fs.existsSync(counter), false, 'no denied probe or workspace launch');

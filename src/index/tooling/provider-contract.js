@@ -239,6 +239,7 @@ export const buildProviderFidelityContract = ({
   runtime = null,
   checks = [],
   captureDiagnostics = false,
+  collectTypes = true,
   blockedWorkspaceKeys = [],
   blockedWorkspaceRoots = [],
   skippedRequestClasses = [],
@@ -296,11 +297,11 @@ export const buildProviderFidelityContract = ({
   const contributedChunkCount = countByChunkUidEntries(byChunkUid);
   const resolvedContributes = contributes && typeof contributes === 'object'
     ? {
-      typeEnrichment: contributes.typeEnrichment === true,
+      typeEnrichment: collectTypes !== false && contributes.typeEnrichment === true,
       diagnostics: contributes.diagnostics === true
     }
     : {
-      typeEnrichment: effectiveState !== PROVIDER_FIDELITY_STATE.BLOCKED
+      typeEnrichment: collectTypes !== false && effectiveState !== PROVIDER_FIDELITY_STATE.BLOCKED
         && effectiveState !== PROVIDER_FIDELITY_STATE.QUARANTINED,
       diagnostics: captureDiagnostics === true
         && effectiveState !== PROVIDER_FIDELITY_STATE.BLOCKED
@@ -316,22 +317,24 @@ export const buildProviderFidelityContract = ({
     )
   );
   const mergeInterpretation = String(downstreamMergeInterpretation || '').trim() || (
-    effectiveState === PROVIDER_FIDELITY_STATE.HEALTHY
-      ? 'Provider output is healthy and may participate in normal merge scoring.'
-      : (
-        effectiveState === PROVIDER_FIDELITY_STATE.DEGRADED
-          ? (
-            workspaceCoverage.blockedPartitionCount > 0 && workspaceCoverage.readyPartitionCount > 0
-              ? 'Treat present provider output as partition-local partial contribution; blocked partitions remain excluded and must not count as negative evidence.'
-              : 'Treat present provider output as partial contribution; do not treat blocked partitions or skipped request classes as negative evidence.'
-          )
-          : 'Treat missing provider output as explicit provider degradation or unavailability, not as negative evidence.'
-      )
+    collectTypes === false
+      ? 'Diagnostics-only contribution; absent type/navigation output is not negative semantic evidence because those stages were not requested.'
+      : effectiveState === PROVIDER_FIDELITY_STATE.HEALTHY
+        ? 'Provider output is healthy and may participate in normal merge scoring.'
+        : (
+          effectiveState === PROVIDER_FIDELITY_STATE.DEGRADED
+            ? (
+              workspaceCoverage.blockedPartitionCount > 0 && workspaceCoverage.readyPartitionCount > 0
+                ? 'Treat present provider output as partition-local partial contribution; blocked partitions remain excluded and must not count as negative evidence.'
+                : 'Treat present provider output as partial contribution; do not treat blocked partitions or skipped request classes as negative evidence.'
+            )
+            : 'Treat missing provider output as explicit provider degradation or unavailability, not as negative evidence.'
+        )
   );
   const requestedRequestClasses = summarizeRequestedRequestClasses(runtime, requestClasses);
   const capabilityGateSuppressed = summarizeCapabilityGateSkips(runtime);
   const semanticCoverageState = (
-    effectiveState === PROVIDER_FIDELITY_STATE.HEALTHY
+    collectTypes === false ? 'missing' : effectiveState === PROVIDER_FIDELITY_STATE.HEALTHY
       ? 'full'
       : (partialSuccess ? 'partial' : 'missing')
   );
@@ -346,7 +349,7 @@ export const buildProviderFidelityContract = ({
   const semanticCoverage = {
     state: semanticCoverageState,
     confidence: (
-      effectiveState === PROVIDER_FIDELITY_STATE.HEALTHY
+      collectTypes === false ? 'none' : effectiveState === PROVIDER_FIDELITY_STATE.HEALTHY
         ? 'high'
         : (partialSuccess ? 'degraded' : 'none')
     ),
@@ -406,6 +409,11 @@ export const appendDiagnosticChecks = (diagnostics, checks) => {
 export const shouldCaptureDiagnosticsForRequestedKinds = (requestedKinds) => {
   if (!Array.isArray(requestedKinds) || !requestedKinds.length) return true;
   return requestedKinds.some((entry) => String(entry || '').trim().toLowerCase() === 'diagnostics');
+};
+
+export const shouldCollectTypesForRequestedKinds = (requestedKinds) => {
+  if (!Array.isArray(requestedKinds) || !requestedKinds.length) return true;
+  return requestedKinds.some((entry) => String(entry || '').trim().toLowerCase() === 'types');
 };
 
 export const validateToolingProvider = (provider) => {

@@ -42,10 +42,22 @@ export const createDiagnosticsCollector = ({
   checks,
   checkFlags,
   maxDiagnosticUris,
-  maxDiagnosticsPerUri
+  maxDiagnosticsPerUri,
+  requireOwnedDocuments = false
 }) => {
   const diagnosticsByUri = new Map();
   const drainListeners = new Set();
+  const documentVersions = new Map();
+  const ownershipLimit = Math.min(DEFAULT_MAX_DIAGNOSTIC_URIS, Number(maxDiagnosticUris) || DEFAULT_MAX_DIAGNOSTIC_URIS) * 2;
+  const registerDocument = (uri, version) => {
+    if (!captureDiagnostics || !uri || (!documentVersions.has(uri) && documentVersions.size >= ownershipLimit)) return;
+    documentVersions.set(uri, version);
+    diagnosticsByUri.delete(uri);
+  };
+  const unregisterDocument = (uri) => {
+    documentVersions.delete(uri);
+    diagnosticsByUri.delete(uri);
+  };
 
   const setDiagnosticsForUri = (uri, diagnostics) => {
     const source = Array.isArray(diagnostics) ? diagnostics : [];
@@ -88,6 +100,9 @@ export const createDiagnosticsCollector = ({
     const uri = msg?.params?.uri;
     const diagnostics = msg?.params?.diagnostics;
     if (!uri || !Array.isArray(diagnostics)) return;
+    if (requireOwnedDocuments && !documentVersions.has(uri)) return;
+    if (documentVersions.has(uri) && msg.params.version != null
+      && msg.params.version !== documentVersions.get(uri)) return;
     setDiagnosticsForUri(uri, diagnostics);
   };
 
@@ -142,7 +157,7 @@ export const createDiagnosticsCollector = ({
     });
   };
 
-  return { diagnosticsByUri, onNotification, setDiagnosticsForUri, waitForDiagnostics };
+  return { diagnosticsByUri, onNotification, setDiagnosticsForUri, waitForDiagnostics, registerDocument, unregisterDocument };
 };
 
 /**

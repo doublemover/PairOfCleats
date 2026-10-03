@@ -272,7 +272,7 @@ and Ruff are optional candidates, not added declared dependencies or auto preset
 | --- | --- | --- |
 | Pyright 1.1.414 | Symbols, hover, same-file definition, invalid-assignment and undefined-name diagnostics | Actual dedicated adapter and common collector with the Python signature callback return the expected int type and two diagnostics |
 | ty 0.0.84 | Symbols, hover, same-file definition, invalid-assignment and unresolved-reference diagnostics | Common collector with Python signature callback returns the expected int type and two diagnostics; explicit untrusted-workspace mode, uv off |
-| Ruff 0.16.10 | Undefined-name lint diagnostic and formatting | No documentSymbol/navigation advertised; the existing type-oriented collector gate skips its enrichment, including diagnostics |
+| Ruff 0.16.10 | Undefined-name lint diagnostic and formatting | No documentSymbol/navigation advertised; explicit diagnostics-only mode binds its diagnostic through common collection and configured-provider execution, without type chunks |
 
 The first direct generic Pyright comparison omitted the language-specific signature
 callback and returned diagnostics but no type chunks. The actual dedicated adapter
@@ -292,6 +292,18 @@ Ruff's maintained native `ruff server` replaces its archived Python `ruff-lsp`.
 Upstream positions it alongside a type/navigation server, not as its replacement.
 Its real advertised capability boundary is retained; no symbols, navigation or
 type semantics are invented to satisfy the current collector gate.
+
+The initial comparison reproduced that the type-oriented collector skipped even
+Ruff diagnostics. The connected correction adds explicit diagnostics-only mode:
+configured `kinds: ["diagnostics"]` turns type collection off, while direct common
+calls can set `collectTypes: false` with diagnostic capture. The ordinary type-mode
+capability gate remains unchanged. Both modes share owned URI/version/open/close
+handling; present-version mismatches and unowned URI notifications are rejected,
+while legacy unversioned diagnostics for opened files remain supported. The new
+deterministic fixture covers file/VFS binding, no type requests, single close,
+configured fidelity and abort cleanup. Actual Ruff now contributes one bound
+F821 diagnostic and no type/navigation payload; ty also passes its manually
+configured generic provider. Pyright remains the dedicated default.
 
 Official Linux x64 wheels were installed separately, dependency-free, with pip's
 mandatory SHA-256 verification and no source build:

@@ -1,4 +1,5 @@
 import { throwIfAborted } from '../../../../../shared/abort.js';
+import { openOwnedLspDocument, closeOwnedLspDocument } from '../document-lifecycle.js';
 import { rangeToOffsets } from '../../../lsp/positions.js';
 import { flattenSymbols } from '../../../lsp/symbols.js';
 import { findTargetForOffsets } from '../target-index.js';
@@ -170,6 +171,8 @@ export const processDocumentTypes = async ({
   legacyUri,
   languageId,
   openDocs,
+  registerDocument,
+  unregisterDocument,
   targetIndexesByPath,
   byChunkUid,
   signatureParseCache,
@@ -259,23 +262,7 @@ export const processDocumentTypes = async ({
     if (docPathPolicy?.skipDocumentSymbol === true) {
       return { enrichedDelta: 0 };
     }
-    if (!openDocs.has(doc.virtualPath)) {
-      client.notify('textDocument/didOpen', {
-        textDocument: {
-          uri,
-          languageId,
-          version: 1,
-          text: doc.text || ''
-        }
-      });
-      openDocs.set(doc.virtualPath, {
-        uri,
-        legacyUri,
-        lineIndex: null,
-        text: doc.text || ''
-      });
-      openedHere = true;
-    }
+    openedHere = openOwnedLspDocument({ client, doc, uri, legacyUri, languageId, openDocs, registerDocument });
     const documentSymbolBudget = requestBudgetControllers?.documentSymbol || null;
     if (
       documentSymbolBudget
@@ -1164,7 +1151,7 @@ export const processDocumentTypes = async ({
       // Retain the URI/line-index mapping until diagnostics shaping completes.
       // For tokenized poc-vfs URIs, fallback URI reconstruction can differ from
       // the didOpen URI, so deleting this too early drops diagnostics.
-      client.notify('textDocument/didClose', { textDocument: { uri } }, { startIfNeeded: false });
+      closeOwnedLspDocument({ client, virtualPath: doc.virtualPath, openDocs, unregisterDocument });
     }
   }
 };

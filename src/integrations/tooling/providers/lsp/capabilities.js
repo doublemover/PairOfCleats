@@ -66,6 +66,7 @@ export const probeLspCapabilities = (initializeResult) => {
 export const buildLspCapabilityGate = ({
   capabilityMask,
   cmd,
+  collectTypes = true,
   hoverEnabled = true,
   signatureHelpEnabled = true,
   definitionEnabled = true,
@@ -79,14 +80,14 @@ export const buildLspCapabilityGate = ({
     ? capabilityMask
     : createCapabilityRecord();
   const requested = createCapabilityRecord();
-  requested.documentSymbol = true;
-  requested.hover = hoverEnabled !== false;
-  requested.signatureHelp = signatureHelpEnabled !== false;
-  requested.definition = definitionEnabled !== false;
-  requested.typeDefinition = typeDefinitionEnabled !== false;
-  requested.references = referencesEnabled !== false;
-  requested.semanticTokens = semanticTokensEnabled !== false;
-  requested.inlayHints = inlayHintsEnabled !== false;
+  requested.documentSymbol = collectTypes !== false;
+  requested.hover = collectTypes !== false && hoverEnabled !== false;
+  requested.signatureHelp = collectTypes !== false && signatureHelpEnabled !== false;
+  requested.definition = collectTypes !== false && definitionEnabled !== false;
+  requested.typeDefinition = collectTypes !== false && typeDefinitionEnabled !== false;
+  requested.references = collectTypes !== false && referencesEnabled !== false;
+  requested.semanticTokens = collectTypes !== false && semanticTokensEnabled !== false;
+  requested.inlayHints = collectTypes !== false && inlayHintsEnabled !== false;
 
   const effective = createCapabilityRecord();
   const missing = [];
@@ -147,6 +148,6 @@ export const buildLspCapabilityGate = ({
     effective,
     missing: missing.sort((left, right) => left.localeCompare(right)),
     checks,
-    skipSymbolCollection: !effective.documentSymbol
+    skipSymbolCollection: requested.documentSymbol && !effective.documentSymbol
   };
 };
