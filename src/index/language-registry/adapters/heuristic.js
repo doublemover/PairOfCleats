@@ -25,7 +25,8 @@ import { parseGraphqlStructure } from '../../../shared/graphql-ast.js';
 import { collectGroovyImports } from '../import-collectors/groovy.js';
 import { createHandlebarsImportCollector } from '../import-collectors/handlebars.js';
 import { parseHandlebarsStructure } from '../../../shared/handlebars-ast.js';
-import { collectJinjaImports } from '../import-collectors/jinja.js';
+import { createJinjaImportCollector } from '../import-collectors/jinja.js';
+import { parseJinjaTemplateStructure } from '../../../shared/jinja-template-structure.js';
 import { collectJuliaImports } from '../import-collectors/julia.js';
 import { collectMakefileImports } from '../import-collectors/makefile.js';
 import { createMustacheImportCollector } from '../import-collectors/mustache.js';
@@ -143,9 +144,6 @@ const HANDLEBARS_SYMBOL_PATTERNS = Object.freeze([
 ]);
 
 
-const JINJA_SYMBOL_PATTERNS = Object.freeze([
-  /\{%\s*(?:block|macro)\s+([A-Za-z_][A-Za-z0-9_]*)/g
-]);
 
 const RAZOR_SYMBOL_PATTERNS = Object.freeze([
   /@section\s+([A-Za-z_][A-Za-z0-9_]*)/g,
@@ -785,6 +783,64 @@ export const createMustacheManagedAdapter = ({ parseStructure = parseMustacheStr
   return adapter;
 };
 
+export const createJinjaManagedAdapter = ({ parseStructure = parseJinjaTemplateStructure } = {}) => {
+  const collectJinjaImports = createJinjaImportCollector({ parseStructure });
+  const adapter = createHeuristicManagedAdapter({ id: 'jinja', match: matchByExtension.jinja,
+    collectImports: collectJinjaImports, symbolPatterns: [], usageCollector: () => [],
+    capabilityProfile: { state: 'partial', diagnostics: [{ code: 'USR-W-CAPABILITY-DOWNGRADED',
+      reasonCode: 'USR-R-HEURISTIC-ONLY', detail: 'jinja-django-lexical-heuristic-relations' }] } });
+  adapter.buildRelations = ({ text, ext, relPath, options }) => {
+    const context = createCollectorBudgetContext({ text, options,
+      collectorId: 'heuristic-adapter:jinja', defaults: HEURISTIC_RELATION_SCAN_BUDGET });
+    let lineLimited = false;
+    try {
+      const structure = parseStructure(context.source, { ext: ext ?? options?.ext, relPath: relPath ?? options?.relPath,
+        remainingMs: () => context.budget.maxMs > 0 ? Math.max(0, context.budget.maxMs - context.scanBudget.elapsedMs) : Infinity });
+      if (structure.reason) return buildSimpleRelations({ imports: [] });
+      lineLimited = context.budget.maxLines > 0 && structure.sourceLines > context.budget.maxLines;
+      const inWindow = (entry) => !context.budget.maxLines || entry.line < context.budget.maxLines;
+      const symbols = [];
+      const references = [];
+      const imports = new Set();
+      for (const entry of structure.definitions) {
+        if (!inWindow(entry)) continue;
+        if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch() || !context.scanBudget.consumeToken()) break;
+        symbols.push(entry.name);
+      }
+      for (const entry of structure.importEntries) {
+        if (!inWindow(entry)) continue;
+        if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch()) break;
+        addBudgetedCollectorImport(imports, entry.value, context.scanBudget,
+          { stripSurroundingQuotes: false, stripTrailingPunctuation: false });
+      }
+      for (const entry of structure.referenceEntries) {
+        if (!inWindow(entry)) continue;
+        if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch() || !context.scanBudget.consumeToken()) break;
+        references.push(entry.value);
+      }
+      const exports = sortUnique(symbols);
+      const usages = sortUnique(references);
+      const calls = [];
+      for (const caller of exports.length ? exports : ['<module>']) {
+        for (const callee of usages) {
+          if (callee !== caller) calls.push([caller, callee]);
+          if (calls.length >= 96) break;
+        }
+        if (calls.length >= 96) break;
+      }
+      return { imports: [...imports], exports, usages, calls };
+    } finally {
+      if (lineLimited) for (let line = 0; line < context.budget.maxLines; line += 1) {
+        if (!context.scanBudget.consumeLine()) break;
+      }
+      context.finalize();
+    }
+  };
+  adapter.extractDocMeta = ({ chunk }) => ({ ...extractHeuristicManagedDocMeta(chunk),
+    source: chunk?.meta?.parser === 'heuristic-template-lexical' ? 'managed-template-lexical-heuristic' : 'managed-template-unavailable' });
+  return adapter;
+};
+
 export const buildHeuristicAdapters = () => [
   createHeuristicManagedAdapter({
     id: 'cmake',
@@ -852,13 +908,7 @@ export const buildHeuristicAdapters = () => [
   }),
   createHandlebarsManagedAdapter(),
   createMustacheManagedAdapter(),
-  createHeuristicManagedAdapter({
-    id: 'jinja',
-    match: matchByExtension.jinja,
-    collectImports: collectJinjaImports,
-    symbolPatterns: JINJA_SYMBOL_PATTERNS,
-    usageCollector: collectTemplateUsages
-  }),
+  createJinjaManagedAdapter(),
   createHeuristicManagedAdapter({
     id: 'razor',
     match: matchByExtension.razor,

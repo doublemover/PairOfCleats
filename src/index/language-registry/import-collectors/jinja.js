@@ -1,11 +1,5 @@
-import {
-  addBudgetedCollectorImport,
-  createCollectorBudgetContext,
-  forEachBudgetedRegexMatch,
-  lineHasAny,
-  shouldScanLine,
-  stripTemplateCommentBlocks
-} from './utils.js';
+import { addBudgetedCollectorImport, createCollectorBudgetContext } from './utils.js';
+import { parseJinjaTemplateStructure } from '../../../shared/jinja-template-structure.js';
 
 const JINJA_SCAN_BUDGET = Object.freeze({
   maxChars: 786432,
@@ -15,7 +9,7 @@ const JINJA_SCAN_BUDGET = Object.freeze({
   maxMs: 30
 });
 
-export const collectJinjaImports = (text, options = {}) => {
+export const createJinjaImportCollector = ({ parseStructure = parseJinjaTemplateStructure } = {}) => (text, options = {}) => {
   const imports = new Set();
   const budgetContext = createCollectorBudgetContext({
     text,
@@ -24,38 +18,26 @@ export const collectJinjaImports = (text, options = {}) => {
     defaults: JINJA_SCAN_BUDGET
   });
   const { scanBudget } = budgetContext;
-  const source = stripTemplateCommentBlocks(budgetContext.source);
+  let lineLimited = false;
   try {
-    const lines = source.split('\n');
-    const precheck = (value) =>
-      value.includes('{%') && lineHasAny(value, ['extends', 'include', 'import']);
-    const addImport = (value) => addBudgetedCollectorImport(imports, value, scanBudget);
-    for (const line of lines) {
-      if (scanBudget.exhausted || !scanBudget.consumeTime()) break;
-      if (shouldScanLine(line, precheck)) {
-        const lineMatcher = /{%\s*(?:extends|include|import)\s+['"]([^'"]+)['"]/g;
-        forEachBudgetedRegexMatch({
-          text: line,
-          matcher: lineMatcher,
-          scanBudget,
-          onMatch: (match) => {
-            if (match?.[1]) addImport(match[1]);
-          }
-        });
-      }
-      if (!scanBudget.consumeLine()) break;
+    const structure = parseStructure(budgetContext.source, { ext: options.ext, relPath: options.relPath,
+      remainingMs: () => budgetContext.budget.maxMs > 0
+        ? Math.max(0, budgetContext.budget.maxMs - scanBudget.elapsedMs) : Infinity });
+    if (structure.reason) return [];
+    lineLimited = budgetContext.budget.maxLines > 0 && structure.sourceLines > budgetContext.budget.maxLines;
+    for (const entry of structure.importEntries) {
+      if (budgetContext.budget.maxLines > 0 && entry.line >= budgetContext.budget.maxLines) continue;
+      if (scanBudget.exhausted || !scanBudget.consumeMatch()) break;
+      addBudgetedCollectorImport(imports, entry.value, scanBudget,
+        { stripSurroundingQuotes: false, stripTrailingPunctuation: false });
     }
-    const multilineMatcher = /{%\s*(?:extends|include|import)\s+["']([^"']+)["'][\s\S]*?%}/g;
-    forEachBudgetedRegexMatch({
-      text: source,
-      matcher: multilineMatcher,
-      scanBudget,
-      onMatch: (match) => {
-        if (match?.[1]) addImport(match[1]);
-      }
-    });
     return Array.from(imports);
   } finally {
+    if (lineLimited) for (let line = 0; line < budgetContext.budget.maxLines; line += 1) {
+      if (!scanBudget.consumeLine()) break;
+    }
     budgetContext.finalize();
   }
 };
+
+export const collectJinjaImports = createJinjaImportCollector();

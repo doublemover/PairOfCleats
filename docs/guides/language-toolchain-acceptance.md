@@ -800,3 +800,76 @@ node tests/lang/contracts/mustache-parse-token-boundaries.test.js
 Primary references: [official public parser and custom delimiters](https://github.com/janl/mustache.js),
 [Mustache syntax](https://mustache.github.io/mustache.5.html), and
 [exact package metadata](https://registry.npmjs.org/mustache/4.2.0).
+
+## Distinct Jinja and Django lexical boundaries
+
+The existing Jinja owner emitted phantom chunks, imports and relations from raw
+block contents and template-expression string literals. The new shared owner is
+explicitly `jinja-django-lexical-heuristic`, with partial capability. It has no AST,
+Tree-sitter grammar, Python runtime, template compiler, renderer or loader dependency.
+Its immutable one-document model supplies application-owned UTF-16 tag/name ranges
+to chunk, import and relation owners; no range is attributed to an external AST.
+
+Dispatch is explicit: .jinja/.jinja2/.j2 use Jinja lexical rules; .django/.djhtml use
+Django rules. Direct collector calls without a path/extension retain Jinja as the
+default. Jinja raw sections and whitespace-control delimiters are supported. Django
+named verbatim sections match their exact named terminator, including internal
+whitespace; its comment blocks are separately opaque. Tags inside actual variable
+and comment token envelopes do not accidentally terminate Django opaque sections.
+Django's single-line, first-closing-delimiter rule is preserved; Jinja's quote-aware,
+balanced expression delimiters and multiline tags are not silently applied to it.
+Cross-dialect raw/verbatim markers or unsupported whitespace-control forms are
+explicitly unavailable. Ordinary quoted HTML/text is not treated as a template
+expression string: real template tags there remain active.
+
+The lexical model handles bounded inline comments, literal template imports, common
+block balancing, headings and ASCII identifier/dotted references. Dynamic include
+expressions and unsupported escape decoding remain unresolved. Unknown custom tags,
+extensions, full expression semantics, complete syntax validation, template runtime
+binding and Django/Jinja AST conformance are outside this model. Relation names and
+at most 96 call-shaped associations remain heuristic. Unsupported/truncated lexical
+boundaries produce labelled generic content and empty structural outputs instead of
+restoring the former phantom-producing regex scans.
+
+Bounds are 196,608 UTF-16 code units, 3,000 LF-delimited lines, 4,096 recognized tags,
+32,768 expression tokens, 8,192 code units per tag/token and depth 64. Line indexing,
+opaque-block scanning, tokenization and extraction share a 30-ms ceiling and the
+actual caller's stricter remaining deadline. Cooperative checks also guard cached
+admission. The existing 224-KiB/3,500-line/1,200-ms calibration baseline and old
+route alias are preserved; the lexical owner's tighter limits are explicit and
+those calibration values are not measured vendor acceptance.
+
+The full-parser gap remains open. Official PyPI metadata identifies Jinja2 3.1.6
+and MarkupSafe 3.0.4; their 134,899- and 22,985-byte wheels were independently checked
+against published SHA-256 hashes, downloaded serially and installed offline in
+isolated trial storage without source builds or bytecode compilation. Python -I
+with app-owned package paths, no extensions/loader/cache and compile/render/load
+tripwires parsed the original tiny fixture correctly: only Real and real.html
+remained. Total fixture time was 0.2 seconds at about 19 MiB; parsing itself took
+1.4 ms. Its public AST/lexer provide line-based information rather than verified
+absolute source offsets, and production use would require a separate integration.
+This is a Jinja reference comparison, not Django or production-runtime acceptance.
+
+The audited cathaysia grammar v0.13.0 is verified at c213d3745ccdcaaa858869181c7b1bf9557a025f;
+its package declares Tree-sitter ^0.21.1. The npm package with the same name reports
+0.3.3 and no repository field in the queried metadata. The name alone does not prove
+identity with that candidate, nor ABI compatibility with this project's 0.25 runtime.
+No grammar package, unverified artifact or broad SDK was installed for this batch.
+
+Focused regression coverage includes both explicit dialect dispatches, raw/verbatim
+and named endings, comment/variable-wrapped fake endings, whitespace controls,
+escaped expression strings, quoted HTML with active tags, CRLF/emoji ranges,
+malformed/truncated blocks, literal/dynamic imports, source/tag/token/depth bounds,
+line/match/token collector windows and actual caller deadlines. Run the narrow test:
+
+```sh
+node tests/lang/contracts/jinja-django-lexical-boundaries.test.js
+```
+
+Primary references: [Jinja parse/lexer API](https://jinja.palletsprojects.com/en/stable/api/#low-level-api),
+[Jinja raw/whitespace rules](https://jinja.palletsprojects.com/en/stable/templates/#escaping),
+[Django named verbatim](https://docs.djangoproject.com/en/6.0/ref/templates/builtins/#verbatim),
+[Django lexer implementation](https://github.com/django/django/blob/stable/6.0.x/django/template/base.py),
+[verified grammar package source](https://github.com/cathaysia/tree-sitter-jinja/blob/c213d3745ccdcaaa858869181c7b1bf9557a025f/tree-sitter-jinja/package.json),
+[Jinja2 metadata](https://pypi.org/pypi/Jinja2/3.1.6/json), and
+[MarkupSafe metadata](https://pypi.org/pypi/MarkupSafe/3.0.4/json).

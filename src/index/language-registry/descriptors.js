@@ -227,7 +227,7 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
   Object.freeze({
     id: 'jinja',
     adapterId: 'jinja',
-    parserRoute: 'tree-sitter-jinja',
+    parserRoute: 'jinja-django-lexical-heuristic',
     capsProfile: 'jinja-default',
     extensions: Object.freeze(['.jinja', '.jinja2', '.j2', '.django', '.djhtml'])
   }),

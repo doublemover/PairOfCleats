@@ -33,6 +33,7 @@ const CASES = [
   },
   {
     id: 'jinja',
+    expectedCapabilityState: 'partial',
     source: [
       '{% include "layout/header.html" %}',
       '{% macro render_card(user) %}',

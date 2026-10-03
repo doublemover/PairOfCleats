@@ -453,7 +453,7 @@
     },
     {
       "id": "jinja",
-      "parserRoute": "tree-sitter-jinja",
+      "parserRoute": "jinja-django-lexical-heuristic",
       "capsProfile": "jinja-default",
       "telemetry": {
         "bytes": {

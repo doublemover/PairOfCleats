@@ -2,6 +2,7 @@ import { parseDockerfileFromClause, parseDockerfileInstruction } from '../../../
 import { parseDockerfileStructure } from '../../../shared/dockerfile-ast.js';
 import { parseHandlebarsStructure } from '../../../shared/handlebars-ast.js';
 import { parseMustacheStructure } from '../../../shared/mustache-structure.js';
+import { parseJinjaTemplateStructure } from '../../../shared/jinja-template-structure.js';
 import { buildChunksFromLineHeadings } from '../helpers.js';
 import {
   MAX_REGEX_LINE,
@@ -33,18 +34,6 @@ const NIX_SKIP_LINE = (line) => {
   const trimmed = line.trim();
   return !trimmed || trimmed.startsWith('#') || trimmed === 'in' || trimmed === 'let';
 };
-/**
- * Build a readable heading for a matched Jinja directive.
- * @param {RegExpMatchArray} match
- * @returns {string}
- */
-const JINJA_TITLE = (match) => {
-  const raw = String(match[2] || '').trim();
-  if (!raw) return match[1];
-  const boundary = raw.search(/\s/);
-  const name = boundary === -1 ? raw : raw.slice(0, boundary);
-  return name ? `${match[1]} ${name}` : match[1];
-};
 
 const CMAKE_OPTIONS = {
   format: 'cmake',
@@ -71,13 +60,6 @@ const HANDLEBARS_OPTIONS = {
   kind: 'Section',
   defaultName: 'handlebars',
   precheck: (line) => line.includes('{{')
-};
-const JINJA_OPTIONS = {
-  format: 'jinja',
-  kind: 'Section',
-  defaultName: 'jinja',
-  precheck: (line) => line.includes('{%'),
-  title: JINJA_TITLE
 };
 
 /**
@@ -466,12 +448,20 @@ export const chunkMustache = createMustacheChunker();
  * @param {object|null} [context]
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
-export const chunkJinja = (text, context = null) => chunkByLineRegex(
-  text,
-  /{%\s*(block|macro|for|if|set|include|extends)\s+([^%\n]+)%}/,
-  JINJA_OPTIONS,
-  context
-);
+export const createJinjaChunker = ({ parseStructure = parseJinjaTemplateStructure } = {}) => (text, context = null) => {
+  const source = String(text || '');
+  const structure = parseStructure(source, { ext: context?.ext, relPath: context?.relPath,
+    maxMs: context?.treeSitter?.byLanguage?.jinja?.maxParseMs ?? context?.treeSitter?.maxParseMs });
+  const meta = { format: 'jinja', templateDialect: structure.dialect, parser: structure.parser,
+    parserCoverage: structure.coverage, parserFallbackReason: structure.reason, parseMetrics: structure.metrics };
+  if (!structure.headings.length) return [{ start: 0, end: source.length, name: 'jinja', kind: 'Section', meta }];
+  return structure.headings.map((heading, index) => ({ start: heading.start,
+    end: structure.headings[index + 1]?.start ?? source.length, name: heading.name, kind: 'Section',
+    meta: { ...meta, title: heading.name, definitionType: heading.keyword,
+      rangeSource: structure.rangeSource, lexicalRange: { start: heading.start, end: heading.end } } }));
+};
+
+export const chunkJinja = createJinjaChunker();
 
 /**
  * Heuristic Razor chunker for common `@` directives.

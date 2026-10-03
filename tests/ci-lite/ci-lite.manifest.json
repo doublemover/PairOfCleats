@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 665,
+    "hero": 666,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4840,6 +4840,12 @@
     {
       "id": "lang/contracts/mustache-parse-token-boundaries",
       "order": 796,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/jinja-django-lexical-boundaries",
+      "order": 797,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -268,7 +268,7 @@ const CODE_CHUNKERS = [
   {
     id: 'jinja',
     match: (ext) => JINJA_EXTS.has(ext),
-    chunk: ({ text, context }) => chunkJinja(text, context)
+    chunk: ({ text, ext, relPath, context }) => chunkJinja(text, { ...context, ext, relPath })
   },
   {
     id: 'razor',
