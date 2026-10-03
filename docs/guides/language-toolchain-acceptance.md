@@ -509,8 +509,9 @@ The registry route label and deterministic calibration fixture identity follow
 the new AST-or-fallback route. Existing conservative Dockerfile byte/line/time caps
 are unchanged; synthetic calibration values are not new AST benchmarks. Direct
 core-owner regression/comparison checks use less than a second and about 50 MiB
-RSS. Whole-dispatch/registry fixtures remain blocked by the isolated setup's
-missing optional Babel parser; this is not counted as full index acceptance.
+RSS. Whole-dispatch/registry fixtures were blocked at this checkpoint by isolated
+missing Babel setup; the bounded integration closure below supersedes that blocker,
+without establishing full index acceptance.
 
 ```sh
 node tests/lang/contracts/dockerfile-ast-boundaries.test.js
@@ -570,8 +571,8 @@ input, source/line/token/definition/node limits, collector budgets, missing pars
 and invalid source ranges. Line budgets count a declaration's location rather than
 its preceding description. Observed comparison and expanded-limit regression
 fixtures finish under a second with roughly 45–130 MiB RSS. Whole
-dispatch/registry acceptance remains separately blocked by the isolated setup's
-missing Babel dependency; no broader hydration, model work or CI run is claimed.
+dispatch/registry acceptance was separately setup-blocked at this checkpoint;
+the bounded integration closure below records its later focused acceptance.
 
 ```sh
 node tests/lang/contracts/graphql-ast-boundaries.test.js
@@ -616,8 +617,9 @@ The corrected route identity retains the previous conservative byte/line/time
 caps and synthetic calibration values; this is not a new benchmark. Direct-owner
 regression/comparison fixtures finish under a second at about 40–110 MiB observed
 RSS, using one CPU and no embeddings/models. The combined template/whole-registry
-fixture remains separately blocked by isolated missing Babel dependencies; no
-whole-index or runtime template acceptance is claimed.
+fixture was separately blocked by isolated missing Babel dependencies at this
+checkpoint; the focused closure below resolves it. No whole-index or runtime
+template acceptance is claimed.
 
 ```sh
 node tests/lang/contracts/handlebars-ast-boundaries.test.js
@@ -710,3 +712,28 @@ node tests/lang/contracts/proto-reflection-lexical-boundaries.test.js
 Primary references: [official project](https://github.com/protobufjs/protobuf.js),
 [public parse/reflection API](https://protobufjs.github.io/protobuf.js/global.html#parse),
 and [exact package](https://registry.npmjs.org/protobufjs/8.8.0).
+
+## Bounded registry/dispatcher setup closure
+
+The remaining shared import gap is now closed on source/test head 40be2053. Only
+the directly imported Babel parser stack was admitted: @babel/parser 7.29.0,
+@babel/types 7.29.0, helper-string-parser 7.27.1 and helper-validator-identifier
+7.28.5. The next static registry prerequisites were parse5 7.3.0 with entities
+6.0.1, and linguist-languages 9.3.1. All seven exact component tarballs independently
+match project-lock SHA-512 integrity; scripts are disabled and storage is isolated.
+Each serial install took about 9 seconds with observed RSS below 100 MiB. Project
+source, dependency versions, defaults and lockfile were not changed by admission.
+
+These are exact component-provenance claims, not a claim that the entire existing
+validation node_modules tree reproduces the lock. Existing Acorn 8.18.0 (versus
+locked 8.15.0, within the declared caret range) was preserved, as were unrelated
+installed dependencies. No project-wide dependency hydration was performed.
+
+Seven previously blocked focused fixtures now pass with their existing behavioral
+assertions preserved: data-interface adapters, template adapters, build-DSL
+adapters, SQL/GraphQL/Proto chunk boundaries, Dockerfile continuation, shared
+line-index/UID determinism, and the language registry contract matrix. Each takes
+under a second at roughly 60–80 MiB observed RSS. This closes the startup/integration
+gap for these small fixtures; it does not establish full indexing, compiler/runtime
+template acceptance, every LSP, non-Linux platforms, a broad suite or CI results.
+One CPU, Node 512 MiB, embeddings/models off remain the validation policy.
