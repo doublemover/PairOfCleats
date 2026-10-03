@@ -7,7 +7,10 @@ Canonical for: initiative status, execution order, and remaining work
 PairOfCleats' indexing, retrieval, tooling and integration surfaces are implemented.
 The current completion branch adds targeted correctness, dependency and resource-lifecycle
 fixes, and reconciles older branches by behavior. Release-wide acceptance remains open.
-Use this page for the next action, the linked contracts for behavior, and the archived
+The current source-merge candidate awaits the owner's local extended-suite result.
+Focused cloud checks establish their recorded scope; they do not establish a clean
+whole-lock install, a completed extended suite or release-wide readiness. Use this
+page for current status, the linked contracts for behavior, and the archived
 worklogs for historical evidence.
 
 ## Source-of-Truth Rules
@@ -60,15 +63,17 @@ head. None is a blanket release-readiness claim.
 4. **Maintain documentation from evidence.** Update the affected owner/spec and this
    queue when behavior changes. Keep completed command transcripts in historical
    records rather than appending them to active task lists.
-5. **Audit every supported language's tooling.** Compare all 39 registered routes,
-   their actual parser/relation owners, dependency declarations and lock versions
-   with current stable upstream tools. Keep framework/format and tooling-only
-   coverage explicit. Evaluate replacements against required compiler APIs,
-   grammar ABI, LSP capabilities, maintenance and resource cost before adoption.
-6. **Last: trial individual toolchains on small repositories.** Only after the
-   preceding implementation/review and version audit, install and test one
-   compatible toolchain at a time. Use the low-load profile, omit embeddings and
-   model downloads, and record the exact version, fixture and accepted capabilities.
+5. **Keep the completed language/tooling audit distinct from acceptance.**
+   The dated source/version audit covers all 39 registered routes, their parser/
+   relation owners and upstream choices. Individual component fixtures and later
+   bounded live-client/parser corrections are recorded. Framework overlays and
+   tooling-only languages remain separate; metadata, installed components and
+   tiny client fixtures do not establish complete SDK/project/platform acceptance.
+6. **Continue optional toolchain acceptance after the current handoff.** Remaining
+   SDK/server choices and richer project cases stay at the bottom of the queue.
+   Install/test one compatible toolchain at a time on small repositories, using
+   the low-load profile with embeddings and model downloads disabled. Record exact
+   versions, provenance, observed capabilities and unrun limits.
    The [individual acceptance record](guides/language-toolchain-acceptance.md)
    includes bounded syntax-owner corrections for Dockerfile, GraphQL, Handlebars,
    Protobuf and Mustache, distinct heuristic Jinja/Django boundaries, plus
