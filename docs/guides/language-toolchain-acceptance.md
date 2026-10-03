@@ -444,8 +444,8 @@ a complete Java declaration/annotation parser.
 Initial whole-class target ranges and unneeded semantic stages incurred hover/
 soft-deadline failures. The corrected harness uses the method's range/kind, and
 collects only the stages needed for this check. The standalone client still tests
-navigation directly. Passing method-scoped collection took roughly 9–15 seconds
-below 445 MiB sampled process-tree RSS, with a 256 MiB Java heap, 128 MiB metaspace,
+navigation directly. Representative method-scoped collection took roughly 9–15 seconds
+at about 290–470 MiB sampled process-tree RSS, with a 256 MiB Java heap, 128 MiB metaspace,
 64 MiB code cache and one active processor. Earlier failed attempts remain separate;
 these observations do not justify increasing project defaults or calling a timeout
 clean output.
