@@ -82,6 +82,22 @@ owned-process cleanup. The bounded diagnostic drain, scope/buffer limits and
 workspace execution authority apply unchanged; silence is still reported as a
 pending/timed-out observation, not a clean source result.
 
+### 2.5 Build-capable workspace execution authority
+
+Rust, ZLS/Zig and Java/JDT workspace tooling require an exact canonical repository
+grant in the launching user's `PAIROFCLEATS_TRUSTED_REPOS`. Native parser analysis
+and explicit server installation do not grant that authority. Dedicated/custom
+provider entry points, doctor/runtime/initialize probes and direct collection must
+reject before workspace-capable execution when the grant is absent. Repository
+configuration or a parent-directory grant cannot substitute for it.
+
+Trust participates in provider/preflight cache identity. Pending preflight and
+preparation must be rechecked before later launches, including each canonically
+contained partition. A revoked grant cannot reuse a ready cached preflight to
+start a client. Already-started external processes are not sandboxed or revoked by
+this check. See the [execution authority guide](../guides/execution-authority.md)
+for compatibility and official build/import behavior evidence.
+
 ---
 
 ## 3. Virtual document support

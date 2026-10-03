@@ -164,6 +164,7 @@ await withLspTestPath({ repoRoot: root }, async () => {
       const providerConfig = configResult?.config || configResult;
       cleanup = configResult?.cleanup || cleanup;
       const result = await runDedicatedProviderFixture({
+        authorizeFixtureExecution: testCase.providerId === 'jdtls',
         tempRoot,
         providerId: testCase.providerId,
         providerConfigKey: testCase.providerConfigKey,

@@ -863,6 +863,12 @@ export const resolveToolingCommandProfile = (input) => {
  */
 export const probeLspInitializeHandshake = async (input) => {
   const cmd = String(input?.cmd || '').trim();
+  const executionAuthority = resolveWorkspaceExecutionAuthority({
+    repoRoot: input?.cwd || process.cwd(), providerId: input?.providerId, server: { cmd }
+  });
+  if (executionAuthority) {
+    return { ok: false, latencyMs: 0, errorCode: executionAuthority.reasonCode, errorMessage: executionAuthority.message };
+  }
   if (!cmd) {
     return {
       ok: false,

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { runToolingProviders } from '../../src/index/tooling/orchestrator.js';
 import { registerDefaultToolingProviders } from '../../src/index/tooling/providers/index.js';
 import { prepareIsolatedTestCacheDir } from './test-cache.js';
+import { grantFixtureRepositoryExecution } from './execution-authority.js';
 
 const stringifySafePath = (value) => String(value || '').replace(/[\\/]/g, '_');
 
@@ -100,7 +101,8 @@ export const runDedicatedProviderFixture = async ({
   inputs,
   toolingConfig = {},
   strict = true,
-  ctxOverrides = null
+  ctxOverrides = null,
+  authorizeFixtureExecution = false
 }) => {
   registerDefaultToolingProviders();
   const resolvedCtxOverrides = ctxOverrides && typeof ctxOverrides === 'object'
@@ -110,24 +112,29 @@ export const runDedicatedProviderFixture = async ({
     enabled: true,
     ...((providerConfig && typeof providerConfig === 'object') ? providerConfig : {})
   };
-  return runToolingProviders({
-    ...resolvedCtxOverrides,
-    strict,
-    repoRoot: tempRoot,
-    buildRoot: tempRoot,
-    toolingConfig: {
-      ...toolingConfig,
-      enabledTools: [providerId],
-      [providerConfigKey]: mergedProviderConfig
-    },
-    cache: {
-      enabled: false
-    }
-  }, {
-    documents: inputs.documents,
-    targets: inputs.targets,
-    kinds: inputs.kinds
-  });
+  const restoreExecution = authorizeFixtureExecution ? grantFixtureRepositoryExecution(tempRoot) : null;
+  try {
+    return await runToolingProviders({
+      ...resolvedCtxOverrides,
+      strict,
+      repoRoot: tempRoot,
+      buildRoot: tempRoot,
+      toolingConfig: {
+        ...toolingConfig,
+        enabledTools: [providerId],
+        [providerConfigKey]: mergedProviderConfig
+      },
+      cache: {
+        enabled: false
+      }
+    }, {
+      documents: inputs.documents,
+      targets: inputs.targets,
+      kinds: inputs.kinds
+    });
+  } finally {
+    restoreExecution?.();
+  }
 };
 
 export const resolveLspStubServerPath = ({ repoRoot = process.cwd() } = {}) => path.join(

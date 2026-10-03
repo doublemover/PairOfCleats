@@ -10,6 +10,8 @@ const workspaceExecutionLanguage = ({ providerId, server, languages = [] } = {})
     ...(Array.isArray(languages) ? languages : [])].map((language) => String(language || '').trim().toLowerCase());
   if (id === 'rust' || id.includes('rust-analyzer') || command === 'rust-analyzer' || selectedLanguages.includes('rust')) return 'rust';
   if (id === 'zig' || id === 'zls' || id.endsWith('-zls') || command === 'zls' || selectedLanguages.includes('zig')) return 'zig';
+  if (id === 'java' || /(^|-)jdtls($|-)/u.test(id) || id.includes('eclipse.jdt.ls')
+    || command === 'jdtls' || selectedLanguages.includes('java')) return 'java';
   return null;
 };
 
@@ -34,7 +36,9 @@ export const resolveWorkspaceExecutionAuthority = ({ repoRoot, workspaceRoot = r
   const reasonCode = `${language}_workspace_trust_required`;
   const message = language === 'rust'
     ? 'Rust workspace tooling requires an exact launch-owned repository trust grant; native Rust AST analysis remains available.'
-    : 'Zig workspace tooling requires an exact launch-owned repository trust grant; Zig is currently a tooling-only route.';
+    : language === 'java'
+      ? 'Java workspace tooling requires an exact launch-owned repository trust grant; native Java AST analysis remains available.'
+      : 'Zig workspace tooling requires an exact launch-owned repository trust grant; Zig is currently a tooling-only route.';
   return { state: 'blocked', blockProvider: true, reasonCode, message,
     check: { name: reasonCode, status: 'warn', message } };
 };

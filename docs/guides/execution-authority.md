@@ -62,6 +62,18 @@ remains a separate explicit action and the canonical nested-root checks still
 apply. Zig currently has a tooling-only preset, not a registered native parser
 route; this guard does not invent an AST fallback or remove any existing parser.
 
+Java/JDT workspace execution requires the same exact grant and reports
+`java_workspace_trust_required` when denied. This includes dedicated and custom
+Java providers, command/runtime and initialize probes, bootstrap/cache identity,
+direct collection and rechecks after pending preflight/preparation. Native Java
+AST parsing and verified server installation remain separate. Disabling autobuild
+alone is insufficient: [JDT LS 1.61.0 preferences](https://github.com/eclipse-jdtls/eclipse.jdt.ls/blob/v1.61.0/org.eclipse.jdt.ls.core/src/org/eclipse/jdt/ls/core/internal/preferences/Preferences.java)
+enable Gradle/Maven import and Gradle annotation processing by default, and its
+[Gradle importer](https://github.com/eclipse-jdtls/eclipse.jdt.ls/blob/v1.61.0/org.eclipse.jdt.ls.core/src/org/eclipse/jdt/ls/core/internal/managers/GradleProjectImporter.java)
+synchronizes a Buildship build. Grant only a repository whose project machinery
+you intend to execute. Trust changes prevent subsequent launches; they do not
+sandbox or terminate a process that already started with an approved grant.
+
 Python and Tree-sitter worker counts are clamped before pool construction to the
 launch CPU/thread budget and a conservative maximum of four. Repository
 `allowOverCap` settings cannot remove that ceiling. A one-thread launch therefore

@@ -29,6 +29,7 @@ const inputs = buildSingleSymbolInputs({
 await withLspTestPath({ repoRoot: root }, async () => {
   const result = await runDedicatedProviderFixture({
     tempRoot,
+    authorizeFixtureExecution: true,
     providerId: 'jdtls',
     providerConfigKey: 'jdtls',
     providerConfig: {

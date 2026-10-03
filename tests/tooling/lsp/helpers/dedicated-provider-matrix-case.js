@@ -9,7 +9,8 @@ export const runDedicatedProviderMatrixCase = async ({
   root = process.cwd(),
   entry,
   providerConfig,
-  configOverride = null
+  configOverride = null,
+  authorizeFixtureExecution = false
 }) => {
   const tempRoot = await createLspProviderTempRepo({
     repoRoot: root,
@@ -30,6 +31,7 @@ export const runDedicatedProviderMatrixCase = async ({
   };
   const result = await runDedicatedProviderFixture({
     tempRoot,
+    authorizeFixtureExecution,
     providerId: entry.providerId,
     providerConfigKey: entry.providerConfigKey,
     providerConfig: {

@@ -1,5 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { resolveWorkspaceExecutionAuthority } from '../../shared/workspace-execution-authority.js';
 import semver from 'semver';
 import { getXxhashBackend } from '../../shared/hash.js';
 import { listToolingProviders } from './provider-registry.js';
@@ -407,12 +408,16 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       });
     }
 
+    const executionAuthority = resolveWorkspaceExecutionAuthority({ repoRoot, providerId, languages: provider.languages });
     if (!providerReport.enabled) {
       addCheck({
         name: 'enabled',
         status: 'warn',
         message: 'Provider disabled by tooling configuration.'
       });
+    } else if (executionAuthority) {
+      providerAvailable = false;
+      addCheck(executionAuthority.check);
     } else if (providerId === 'typescript') {
       const ts = await loadTypeScript(toolingConfig, repoRoot);
       if (!ts) {
@@ -487,7 +492,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       }
     }
 
-    if (providerReport.enabled && providerId !== 'typescript') {
+    if (providerReport.enabled && providerId !== 'typescript' && !executionAuthority) {
       let requestedCmd = provider?.requires?.cmd || null;
       let requestedArgs = Array.isArray(provider?.requires?.args)
         ? provider.requires.args.map((entry) => String(entry))

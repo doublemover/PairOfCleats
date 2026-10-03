@@ -14,6 +14,7 @@ import { registerDefaultToolingProviders } from '../../../src/index/tooling/prov
 import { runToolingDoctor } from '../../../src/index/tooling/doctor.js';
 import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
@@ -261,7 +262,7 @@ const runToolingDirPrecedenceCase = async () => {
         providerId: 'jdtls',
         cmd: 'jdtls',
         args: [],
-        repoRoot: root,
+        repoRoot: testRoot,
         toolingConfig: { dir: toolingDir }
       });
       assert.equal(profile.probe.ok, true, 'expected probe to succeed from tooling dir');
@@ -281,7 +282,7 @@ const runDirectProbeCases = async () => {
     providerId: 'jdtls',
     cmd: 'jdtls',
     args: [],
-    repoRoot: root,
+    repoRoot: testRoot,
     toolingConfig: {}
   });
   assert.equal(jdtlsProfile.probe.ok, true, 'expected jdtls probe to resolve command');
@@ -296,7 +297,7 @@ const runDirectProbeCases = async () => {
     providerId: 'zig',
     cmd: 'zig',
     args: ['version'],
-    repoRoot: root,
+    repoRoot: testRoot,
     toolingConfig: {}
   });
   assert.equal(zigProfile.probe.attempted?.[0]?.args?.[0], 'version', 'expected zig probe to prefer `zig version`');
@@ -464,6 +465,7 @@ const runProviderOverrideCase = async () => {
 
 await fs.rm(testRoot, { recursive: true, force: true });
 await fs.mkdir(testRoot, { recursive: true });
+const restoreExecution = grantFixtureRepositoryExecution(testRoot);
 
 try {
   runTimeoutTierCases();
@@ -477,6 +479,7 @@ try {
   await runProviderOverrideCase();
   console.log('tooling doctor command profile contract matrix test passed');
 } finally {
+  restoreExecution();
   __resetToolingCommandProbeCacheForTests();
   await restorePath();
   await fs.rm(testRoot, { recursive: true, force: true });

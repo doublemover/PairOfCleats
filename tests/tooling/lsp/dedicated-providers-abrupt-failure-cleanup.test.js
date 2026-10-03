@@ -104,6 +104,7 @@ const runTimeoutScenario = async (providerCase) => {
     symbolName: providerCase.symbolName
   });
   const result = await runDedicatedProviderFixture({
+    authorizeFixtureExecution: providerCase.providerId === 'jdtls',
     tempRoot,
     providerId: providerCase.providerId,
     providerConfigKey: providerCase.configKey,
@@ -153,6 +154,7 @@ const runAbortScenario = async (providerCase) => {
   const abortTimer = setTimeout(() => controller.abort(), 60);
   try {
     const result = await runDedicatedProviderFixture({
+      authorizeFixtureExecution: providerCase.providerId === 'jdtls',
       tempRoot,
       providerId: providerCase.providerId,
       providerConfigKey: providerCase.configKey,

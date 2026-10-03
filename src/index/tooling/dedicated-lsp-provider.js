@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { isWorkspaceBuildExecution, resolveWorkspaceExecutionAuthority } from '../../shared/workspace-execution-authority.js';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import {
   appendDiagnosticChecks,
@@ -67,8 +68,13 @@ const resolveProviderConfig = (ctx, configKey) => (
   || {}
 );
 
-const resolveProviderConfigHash = (ctx, configKey) => (
-  hashProviderConfig({ [configKey]: resolveProviderConfig(ctx, configKey) })
+const resolveProviderConfigHash = (ctx, descriptor) => (
+  hashProviderConfig({ [descriptor.configKey]: resolveProviderConfig(ctx, descriptor.configKey),
+    ...(isWorkspaceBuildExecution({ providerId: descriptor.id, languages: descriptor.languages })
+      ? { workspaceExecutionAuthorized: !resolveWorkspaceExecutionAuthority({
+        repoRoot: ctx?.repoRoot || process.cwd(), providerId: descriptor.id, languages: descriptor.languages
+      }) }
+      : {}) })
 );
 
 const appendRuntimeDiagnostics = (result, checks, extras = null) => {
@@ -216,6 +222,9 @@ const shouldBlockProviderFromPreflight = (preflight) => {
  * @returns {import('./provider-registry.js').ToolingProvider}
  */
 export const createDedicatedLspProvider = (descriptor) => {
+  const executionAuthorityFor = (ctx, workspaceRoot) => resolveWorkspaceExecutionAuthority({
+    repoRoot: ctx?.repoRoot || process.cwd(), workspaceRoot, providerId: descriptor.id, languages: descriptor.languages
+  });
   const runtimeRequirementDescriptors = normalizePreflightRuntimeRequirements(
     descriptor.preflightRuntimeRequirements
   );
@@ -237,10 +246,10 @@ export const createDedicatedLspProvider = (descriptor) => {
       supportsSymbolRef: false
     },
     getConfigHash(ctx) {
-      return resolveProviderConfigHash(ctx, descriptor.configKey);
+      return resolveProviderConfigHash(ctx, descriptor);
     },
     async run(ctx, inputs) {
-      const configHash = resolveProviderConfigHash(ctx, descriptor.configKey);
+      const configHash = resolveProviderConfigHash(ctx, descriptor);
       const providerRef = buildProviderRef(this, configHash);
       const config = resolveProviderConfig(ctx, descriptor.configKey);
       const docs = filterProviderDocuments(inputs?.documents, toExtensionSet(descriptor.docExtensions));
@@ -253,6 +262,8 @@ export const createDedicatedLspProvider = (descriptor) => {
       }
 
       const checks = [...duplicateChecks];
+      const initialAuthority = executionAuthorityFor(ctx);
+      if (initialAuthority) return buildBaseResult(providerRef, [...checks, initialAuthority.check]);
       let preflight = null;
       if (typeof this.preflight === 'function') {
         preflight = await awaitToolingProviderPreflight(ctx, {
@@ -265,6 +276,8 @@ export const createDedicatedLspProvider = (descriptor) => {
           },
           waveToken: resolveWaveToken(inputs)
         });
+        const currentAuthority = executionAuthorityFor(ctx);
+        if (currentAuthority) return buildBaseResult(providerRef, [...checks, currentAuthority.check]);
         appendPreflightChecks(checks, preflight);
         if (shouldBlockProviderFromPreflight(preflight)) {
           return buildBaseResult(providerRef, checks);
@@ -352,8 +365,12 @@ export const createDedicatedLspProvider = (descriptor) => {
 
       let result;
       try {
+        const currentAuthority = executionAuthorityFor(ctx);
+        if (currentAuthority) return buildBaseResult(providerRef, [...checks, currentAuthority.check]);
         const partitionResults = [];
         for (const partition of workspaceRouting.partitions) {
+          const partitionAuthority = executionAuthorityFor(ctx, partition.rootDir);
+          if (partitionAuthority) return buildBaseResult(providerRef, [...checks, partitionAuthority.check]);
           partitionResults.push(await collectLspTypes({
             ...runtimeConfig,
             rootDir: ctx.repoRoot,
@@ -447,6 +464,8 @@ export const createDedicatedLspProvider = (descriptor) => {
           check: null
         };
       }
+      const initialAuthority = executionAuthorityFor(ctx);
+      if (initialAuthority) return initialAuthority;
       if (hasWorkspacePreflight && config.requireWorkspaceModel !== false) {
         const missingCheck = resolveWorkspaceMissingCheck(descriptor);
         const workspacePreflight = resolveWorkspaceModelPreflight({
@@ -480,6 +499,8 @@ export const createDedicatedLspProvider = (descriptor) => {
           commandProfile: commandPreflight.commandProfile
         })
         : { state: 'ready', blockProvider: false, check: null };
+      const currentAuthority = executionAuthorityFor(ctx);
+      if (currentAuthority) return currentAuthority;
       if (shouldBlockProviderFromPreflight(customPreflight)) {
         return {
           ...customPreflight,

@@ -787,3 +787,4 @@ security/rust-workspace-execution-authority
 security/zig-workspace-execution-authority
 tooling/lsp/environment-preflight-precedence
 tooling/lsp/diagnostics-only-capability-lifecycle
+security/java-workspace-execution-authority

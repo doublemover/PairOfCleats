@@ -116,6 +116,7 @@ for (const entry of cases) {
     reject: entry.reject
   });
   const report = await runToolingDoctorFixture({
+    authorizeFixtureExecution: entry.providerId === 'jdtls' || entry.providerId === 'lsp-java-dedicated',
     tempRoot,
     enabledTools: entry.enabledTools,
     toolingConfig: entry.toolingConfig || {},

@@ -72,9 +72,10 @@ head. None is a blanket release-readiness claim.
    The [individual acceptance record](guides/language-toolchain-acceptance.md)
    covers the C# synchronous-loader update and Groovy's explicit partial coverage;
    these parser checks do not establish language-server or compiler acceptance.
-   Verified installed Rust tooling does not grant workspace execution: use the
-   exact launch-owned repository authority boundary before Rust LSP/preflight
-   acceptance; native Rust AST analysis remains available without that grant.
+   Verified installed Rust, ZLS/Zig or Java/JDT tooling does not grant workspace
+   execution: use the exact launch-owned repository authority boundary before
+   their LSP/probe/preflight acceptance. Native Rust/Java AST analysis remains
+   available without that grant; Zig currently has no native parser route.
    ZLS/Zig workspace tooling has the same boundary because package/include
    resolution can execute its build runner. Zig is currently tooling-only.
 

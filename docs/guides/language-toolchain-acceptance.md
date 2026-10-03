@@ -383,3 +383,32 @@ Primary sources: [official release](https://github.com/clangd/clangd/releases/ta
 [command/driver policy](https://clangd.llvm.org/design/compile-commands),
 [configuration](https://clangd.llvm.org/config), and
 [exact-version plugin handling](https://github.com/llvm/llvm-project/blob/llvmorg-23.1.0/clang-tools-extra/clangd/Compiler.cpp).
+
+## Java/JDT workspace authority prerequisite
+
+JDT LS 1.61.0 is the latest stable milestone listed by the
+[official Eclipse download area](https://download.eclipse.org/jdtls/milestones/).
+Its 51,037,522-byte archive matched the published SHA-256
+`338e7e73d61836651ba2453919a0d34fa763eb4e7c03342092309bffb8934c64`
+before bounded staging (141 entries, about 55 MB unpacked). This admission used
+about six seconds and below 21 MiB sampled RSS. Admission alone is not live-server
+or Java SDK acceptance.
+
+Before any workspace-capable Java launch, the existing exact launch-owned grant
+now covers JDT/custom Java providers, probes, dedicated bootstrap/cache identity,
+direct collection and pending trust changes. Native Java class/method AST parsing
+remains available without that grant. The synthetic authority fixture rejects
+before workspace/cache creation or client startup, preserves canonical nested-root
+checks, and verifies cleanup when trust is revoked during awaited preparation.
+Positive compatibility fixtures explicitly grant only their owned temporary root.
+The [authority guide](execution-authority.md) links the exact JDT defaults/import
+source, including Gradle synchronization and annotation-processing settings.
+
+Selected dedicated bootstrap, workspace/launch guards, fallback, multifile reuse,
+failure/abort cleanup and doctor runtime/handshake fixtures pass. The broader
+command-profile matrix still fails its unrelated default-Pyright probe assertion;
+the identical assertion fails against preceding head 102e61cc with the same narrow
+fixture grants. This boundary is preserved rather than weakening that assertion.
+The repository formatter reaches the 30-second cutoff in this setup; the changed
+JavaScript files pass focused formatting. No arbitrary project import/build,
+embedding, model or CI run is part of these checks.
