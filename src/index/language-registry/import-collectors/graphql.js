@@ -5,6 +5,7 @@ import {
   lineHasAnyInsensitive,
   shouldScanLine
 } from './utils.js';
+import { parseGraphqlStructure } from '../../../shared/graphql-ast.js';
 
 const GRAPHQL_SCAN_BUDGET = Object.freeze({
   maxChars: 786432,
@@ -14,7 +15,7 @@ const GRAPHQL_SCAN_BUDGET = Object.freeze({
   maxMs: 30
 });
 
-export const collectGraphqlImports = (text, options = {}) => {
+export const createGraphqlImportCollector = ({ parseStructure = parseGraphqlStructure } = {}) => (text, options = {}) => {
   const imports = new Set();
   const budgetContext = createCollectorBudgetContext({
     text,
@@ -24,7 +25,18 @@ export const collectGraphqlImports = (text, options = {}) => {
   });
   const { scanBudget } = budgetContext;
   const source = budgetContext.source;
+  let lineLimited = false;
   try {
+    const structure = parseStructure(source);
+    if (structure.parser === 'graphql-js') {
+      lineLimited = budgetContext.budget.maxLines > 0 && structure.sourceLines > budgetContext.budget.maxLines;
+      for (const entry of structure.importEntries) {
+        if (budgetContext.budget.maxLines > 0 && entry.line >= budgetContext.budget.maxLines) continue;
+        if (scanBudget.exhausted || !scanBudget.consumeMatch()) break;
+        addBudgetedCollectorImport(imports, entry.value, scanBudget);
+      }
+      return Array.from(imports);
+    }
     const lines = source.split('\n');
     const precheck = (value) => lineHasAnyInsensitive(value, ['#import', '@link', 'import']);
     const addImport = (value) => addBudgetedCollectorImport(imports, value, scanBudget);
@@ -54,6 +66,13 @@ export const collectGraphqlImports = (text, options = {}) => {
     });
     return Array.from(imports);
   } finally {
+    if (lineLimited) {
+      for (let line = 0; line < budgetContext.budget.maxLines; line += 1) {
+        if (!scanBudget.consumeLine()) break;
+      }
+    }
     budgetContext.finalize();
   }
 };
+
+export const collectGraphqlImports = createGraphqlImportCollector();

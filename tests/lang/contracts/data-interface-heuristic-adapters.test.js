@@ -7,6 +7,7 @@ applyTestEnv();
 const CASES = [
   {
     id: 'graphql',
+    expectedCapabilityState: 'partial',
     source: [
       '#import "shared.graphql"',
       'type Query {',

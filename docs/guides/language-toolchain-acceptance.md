@@ -522,3 +522,51 @@ Primary references: [parser project/API](https://github.com/rcjsuen/dockerfile-a
 The proprietary Intelephense candidate remains research-only: its
 [vendor intended-use licence](https://intelephense.com/eula) was not established
 as covering PoC indexing, so it was not installed or accepted.
+
+## GraphQL descriptions and syntax-only AST ownership
+
+The declared/locked graphql-js 16.12.0 package is installed independently with
+scripts disabled, and its 293,649-byte registry tarball matches the project's
+SHA-512 integrity. GraphQL 17 and dependency/default migrations remain separate.
+The old tree-sitter route label had no corresponding configured native grammar.
+Its actual regex owners reproduced phantom type/operation chunks and import/link
+URLs from description block strings; the real AST/lexer excludes those strings.
+
+The application-owned bounded helper now shares one immutable syntax model across
+chunk, import and relation owners. Descriptions stay with their definition; exact
+JavaScript/UTF-16 offsets also separate multiple definitions on one line. Unicode
+emoji offsets were checked against actual source slices rather than inferred from
+the documentation's offset-unit wording. Schema extensions, named/anonymous
+operations, fragments and directive metadata retain their source identity.
+
+Imports come from true lexer comment tokens for the existing nonstandard #import
+convention and real @link string arguments. Neither source is fetched. Relation
+exports and named-type/fragment references come from real AST nodes, while relation
+capability remains explicitly partial/syntax-only. No schema is constructed or
+validated and no operation/resolver is executed. Syntax parsing does not establish
+schema validity, type resolution or runtime semantics.
+
+Character/line/token/definition/node bounds and existing collector budgets remain
+in force. Token-limit classification recognizes the pinned vendor error wording.
+Unavailable, malformed, unsupported or budget-limited parsing carries explicit
+heuristic fallback metadata without inventing AST ranges; lower-fidelity fallback
+does not establish block-string correctness. Parser resolution stays in installed
+application dependencies. The corrected route label and deterministic fixture
+identity retain the previous conservative byte/line/time caps, not new benchmarks.
+
+The direct-owner regression covers block-string phantoms, actual comments/@link,
+emoji/ranges, same-line definitions, extensions, anonymous operations, malformed
+input, source/line/token/definition/node limits, collector budgets, missing parser
+and invalid source ranges. Line budgets count a declaration's location rather than
+its preceding description. Tiny comparison and regression fixtures finish under
+a second below 112 MiB RSS. Whole
+dispatch/registry acceptance remains separately blocked by the isolated setup's
+missing Babel dependency; no broader hydration, model work or CI run is claimed.
+
+```sh
+node tests/lang/contracts/graphql-ast-boundaries.test.js
+```
+
+Primary references: [graphql-js v16 language API](https://www.graphql-js.org/api-v16/language/),
+[exact package](https://registry.npmjs.org/graphql/16.12.0), and
+[pinned parser source](https://github.com/graphql/graphql-js/blob/v16.12.0/src/language/parser.ts).

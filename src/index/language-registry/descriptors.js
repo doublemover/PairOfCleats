@@ -267,7 +267,7 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
   Object.freeze({
     id: 'graphql',
     adapterId: 'graphql',
-    parserRoute: 'tree-sitter-graphql',
+    parserRoute: 'graphql-js-or-heuristic',
     capsProfile: 'graphql-default',
     extensions: Object.freeze(['.graphql', '.gql'])
   }),

@@ -20,7 +20,8 @@ import { collectCmakeImports } from '../import-collectors/cmake.js';
 import { collectDartImports } from '../import-collectors/dart.js';
 import { createDockerfileImportCollector } from '../import-collectors/dockerfile.js';
 import { parseDockerfileStructure } from '../../../shared/dockerfile-ast.js';
-import { collectGraphqlImports } from '../import-collectors/graphql.js';
+import { createGraphqlImportCollector } from '../import-collectors/graphql.js';
+import { parseGraphqlStructure } from '../../../shared/graphql-ast.js';
 import { collectGroovyImports } from '../import-collectors/groovy.js';
 import { collectHandlebarsImports } from '../import-collectors/handlebars.js';
 import { collectJinjaImports } from '../import-collectors/jinja.js';
@@ -599,6 +600,61 @@ export const createDockerfileManagedAdapter = ({ parseStructure = parseDockerfil
   return adapter;
 };
 
+export const createGraphqlManagedAdapter = ({ parseStructure = parseGraphqlStructure } = {}) => {
+  const collectGraphqlImports = createGraphqlImportCollector({ parseStructure });
+  const capabilityProfile = { state: 'partial', diagnostics: [{ code: 'USR-W-CAPABILITY-DOWNGRADED',
+    reasonCode: 'USR-R-HEURISTIC-ONLY', detail: 'graphql-syntax-only-relations' }] };
+  const adapter = createHeuristicManagedAdapter({ id: 'graphql', match: matchByExtension.graphql,
+    collectImports: collectGraphqlImports, symbolPatterns: GRAPHQL_SYMBOL_PATTERNS,
+    usageCollector: collectGraphqlUsages, capabilityProfile });
+  const fallbackRelations = adapter.buildRelations;
+  adapter.buildRelations = ({ text, options }) => {
+    const budgetContext = createCollectorBudgetContext({ text, options,
+      collectorId: 'heuristic-adapter:graphql', defaults: HEURISTIC_RELATION_SCAN_BUDGET });
+    let lineLimited = false;
+    try {
+      const structure = parseStructure(budgetContext.source);
+      if (structure.parser !== 'graphql-js') return fallbackRelations({ text, options });
+      lineLimited = budgetContext.budget.maxLines > 0 && structure.sourceLines > budgetContext.budget.maxLines;
+      const symbols = [];
+      const references = [];
+      for (const definition of structure.definitions) {
+        if (budgetContext.budget.maxLines > 0 && definition.line >= budgetContext.budget.maxLines) continue;
+        if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()) break;
+        if (definition.name && budgetContext.scanBudget.consumeToken()) symbols.push(definition.name);
+      }
+      for (const reference of structure.referenceEntries) {
+        if (budgetContext.budget.maxLines > 0 && reference.line >= budgetContext.budget.maxLines) continue;
+        if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()
+          || !budgetContext.scanBudget.consumeToken()) break;
+        references.push(reference.value);
+      }
+      const exports = sortUnique(symbols);
+      const usages = sortUnique(references);
+      const calls = [];
+      for (const caller of exports.length ? exports : ['<module>']) {
+        for (const callee of usages) {
+          if (callee !== caller) calls.push([caller, callee]);
+          if (calls.length >= 96) break;
+        }
+        if (calls.length >= 96) break;
+      }
+      return { ...buildSimpleRelations({ imports: collectGraphqlImports(budgetContext.source, options) }),
+        exports, usages, calls };
+    } finally {
+      if (lineLimited) {
+        for (let line = 0; line < budgetContext.budget.maxLines; line += 1) {
+          if (!budgetContext.scanBudget.consumeLine()) break;
+        }
+      }
+      budgetContext.finalize();
+    }
+  };
+  adapter.extractDocMeta = ({ chunk }) => ({ ...extractHeuristicManagedDocMeta(chunk),
+    source: chunk?.meta?.parser === 'graphql-js' ? 'managed-graphql-syntax' : 'managed-heuristic-adapter' });
+  return adapter;
+};
+
 export const buildHeuristicAdapters = () => [
   createHeuristicManagedAdapter({
     id: 'cmake',
@@ -708,11 +764,5 @@ export const buildHeuristicAdapters = () => [
     capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
   }),
   createDockerfileManagedAdapter(),
-  createHeuristicManagedAdapter({
-    id: 'graphql',
-    match: matchByExtension.graphql,
-    collectImports: collectGraphqlImports,
-    symbolPatterns: GRAPHQL_SYMBOL_PATTERNS,
-    usageCollector: collectGraphqlUsages
-  })
+  createGraphqlManagedAdapter()
 ];

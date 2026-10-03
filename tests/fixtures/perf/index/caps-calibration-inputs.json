@@ -229,7 +229,7 @@
     },
     {
       "id": "graphql",
-      "parserRoute": "tree-sitter-graphql",
+      "parserRoute": "graphql-js-or-heuristic",
       "capsProfile": "graphql-default",
       "telemetry": {
         "bytes": {

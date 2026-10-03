@@ -1,5 +1,6 @@
 import { buildChunksFromLineHeadings } from '../helpers.js';
 import { collectHeadingRows } from './shared.js';
+import { parseGraphqlStructure } from '../../../shared/graphql-ast.js';
 
 const PROTO_BLOCK_RX = /^\s*(message|enum|service|oneof)\s+([A-Za-z_][A-Za-z0-9_]*)/;
 // `extend` targets may be fully qualified (for example
@@ -177,16 +178,25 @@ export const chunkProto = (text, context = null) => {
 };
 
 /**
- * Heuristic GraphQL splitter for schema/type/operation boundaries.
- *
- * This fallback intentionally tracks `extend` and operation declarations to
- * preserve deterministic chunk identity when parser-backed chunking is absent.
+ * GraphQL syntax definitions own exact source offsets, including descriptions
+ * and multiple definitions on one line. Unsupported parsing is explicitly heuristic.
  *
  * @param {string} text
  * @param {object|null} [context]
  * @returns {Array<object>}
  */
-export const chunkGraphql = (text, context = null) => {
+export const createGraphqlChunker = ({ parseStructure = parseGraphqlStructure } = {}) => (text, context = null) => {
+  const structure = parseStructure(text);
+  if (structure.parser === 'graphql-js') {
+    if (!structure.definitions.length) return buildFallbackChunk(text, 'graphql', 'graphql')
+      .map((chunk) => ({ ...chunk, meta: { ...chunk.meta, parser: structure.parser, parserCoverage: structure.coverage } }));
+    return structure.definitions.map((definition, index) => ({ start: definition.start,
+      end: structure.definitions[index + 1]?.start ?? text.length, name: definition.title,
+      kind: GRAPHQL_KIND_BY_KEYWORD[definition.keyword] || 'Section', meta: { title: definition.title,
+        format: 'graphql', definitionType: definition.definitionType, definitionName: definition.name || null,
+        parser: structure.parser, parserCoverage: structure.coverage,
+        astRange: { start: definition.start, end: definition.end } } }));
+  }
   const { headings, lineIndex } = collectHeadingRows(text, context, {
     skipLine: (line, trimmed) => trimmed.startsWith('#'),
     precheck: (line) => hasGraphqlCandidate(line),
@@ -233,7 +243,11 @@ export const chunkGraphql = (text, context = null) => {
   });
   const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) {
-    return mapChunksWithSchemaMeta(chunks, headings, 'graphql');
+    return mapChunksWithSchemaMeta(chunks, headings, 'graphql').map((chunk) => ({ ...chunk,
+      meta: { ...chunk.meta, parser: structure.parser, parserCoverage: structure.coverage, parserFallbackReason: structure.reason } }));
   }
-  return buildFallbackChunk(text, 'graphql', 'graphql');
+  return buildFallbackChunk(text, 'graphql', 'graphql').map((chunk) => ({ ...chunk,
+    meta: { ...chunk.meta, parser: structure.parser, parserCoverage: structure.coverage, parserFallbackReason: structure.reason } }));
 };
+
+export const chunkGraphql = createGraphqlChunker();

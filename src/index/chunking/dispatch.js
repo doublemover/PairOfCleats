@@ -225,7 +225,7 @@ const CODE_CHUNKERS = [
   {
     id: 'graphql',
     match: (ext) => ext === '.graphql' || ext === '.gql' || ext === '.graphqls',
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'graphql', context) || chunkGraphql(text, context)
+    chunk: ({ text, context }) => chunkGraphql(text, context)
   },
   { id: 'cmake', match: (ext) => CMAKE_EXTS.has(ext), chunk: ({ text, context }) => chunkCmake(text, context) },
   { id: 'starlark', match: (ext) => STARLARK_EXTS.has(ext), chunk: ({ text, context }) => chunkStarlark(text, context) },
@@ -305,7 +305,7 @@ const CODE_FORMAT_CHUNKERS = [
   {
     id: 'graphql',
     match: (ext) => ext === '.graphql' || ext === '.gql',
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'graphql', context) || chunkGraphql(text, context)
+    chunk: ({ text, context }) => chunkGraphql(text, context)
   }
 ];
 
