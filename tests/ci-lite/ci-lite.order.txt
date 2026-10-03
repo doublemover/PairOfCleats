@@ -793,3 +793,4 @@ lang/contracts/graphql-ast-boundaries
 lang/contracts/handlebars-ast-boundaries
 lang/contracts/ast-parser-initialization-budget
 lang/contracts/proto-reflection-lexical-boundaries
+lang/contracts/mustache-parse-token-boundaries

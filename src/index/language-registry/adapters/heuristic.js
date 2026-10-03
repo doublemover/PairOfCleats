@@ -28,7 +28,8 @@ import { parseHandlebarsStructure } from '../../../shared/handlebars-ast.js';
 import { collectJinjaImports } from '../import-collectors/jinja.js';
 import { collectJuliaImports } from '../import-collectors/julia.js';
 import { collectMakefileImports } from '../import-collectors/makefile.js';
-import { collectMustacheImports } from '../import-collectors/mustache.js';
+import { createMustacheImportCollector } from '../import-collectors/mustache.js';
+import { parseMustacheStructure } from '../../../shared/mustache-structure.js';
 import { collectNixImportEntries, collectNixImports } from '../import-collectors/nix.js';
 import { createProtoImportCollector } from '../import-collectors/proto.js';
 import { parseProtoStructure } from '../../../shared/proto-structure.js';
@@ -38,7 +39,8 @@ import { collectScalaImports } from '../import-collectors/scala.js';
 import { collectStarlarkImportEntries, collectStarlarkImports } from '../import-collectors/starlark.js';
 import {
   collectorImportEntriesToSpecifiers,
-  createCollectorBudgetContext
+  createCollectorBudgetContext,
+  addBudgetedCollectorImport
 } from '../import-collectors/utils.js';
 import { flowOptions, normalizeRelPath } from './managed.js';
 
@@ -140,9 +142,6 @@ const HANDLEBARS_SYMBOL_PATTERNS = Object.freeze([
   /\{\{#\*inline\s+["']([^"']+)["']/g
 ]);
 
-const MUSTACHE_SYMBOL_PATTERNS = Object.freeze([
-  /\{\{#\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}/g
-]);
 
 const JINJA_SYMBOL_PATTERNS = Object.freeze([
   /\{%\s*(?:block|macro)\s+([A-Za-z_][A-Za-z0-9_]*)/g
@@ -725,6 +724,67 @@ export const createProtoManagedAdapter = ({ parseStructure = parseProtoStructure
   return adapter;
 };
 
+export const createMustacheManagedAdapter = ({ parseStructure = parseMustacheStructure } = {}) => {
+  const collectMustacheImports = createMustacheImportCollector({ parseStructure });
+  const adapter = createHeuristicManagedAdapter({ id: 'mustache', match: matchByExtension.mustache,
+    collectImports: collectMustacheImports, symbolPatterns: [], usageCollector: () => [],
+    capabilityProfile: { state: 'partial', diagnostics: [{ code: 'USR-W-CAPABILITY-DOWNGRADED',
+      reasonCode: 'USR-R-HEURISTIC-ONLY', detail: 'mustache-parse-token-syntax-only-relations' }] } });
+  adapter.buildRelations = ({ text, options }) => {
+    parseStructure.initialize?.();
+    const context = createCollectorBudgetContext({ text, options,
+      collectorId: 'heuristic-adapter:mustache', defaults: HEURISTIC_RELATION_SCAN_BUDGET });
+    let lineLimited = false;
+    try {
+      const structure = parseStructure(context.source, { remainingMs: () => context.budget.maxMs > 0
+        ? Math.max(0, context.budget.maxMs - context.scanBudget.elapsedMs) : Infinity });
+      if (structure.reason) return buildSimpleRelations({ imports: [] });
+      lineLimited = context.budget.maxLines > 0 && structure.sourceLines > context.budget.maxLines;
+      const inWindow = (entry) => !context.budget.maxLines || entry.line < context.budget.maxLines;
+      const symbols = [];
+      const references = [];
+      const imports = new Set();
+      for (const entry of structure.sections) {
+        if (!inWindow(entry)) continue;
+        if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch() || !context.scanBudget.consumeToken()) break;
+        symbols.push(entry.name);
+      }
+      for (const entry of structure.referenceEntries) {
+        if (!inWindow(entry)) continue;
+        if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch() || !context.scanBudget.consumeToken()) break;
+        references.push(entry.value);
+      }
+      for (const entry of structure.partials) {
+        if (!inWindow(entry)) continue;
+        if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch()) break;
+        addBudgetedCollectorImport(imports, entry.name, context.scanBudget,
+          { stripSurroundingQuotes: false, stripTrailingPunctuation: false });
+      }
+      const exports = sortUnique(symbols);
+      const usages = sortUnique(references);
+      const calls = [];
+      // Preserve the managed relation shape, but these are bounded lookup/section
+      // associations, not resolved template helpers or executable call edges.
+      for (const caller of exports.length ? exports : ['<module>']) {
+        for (const callee of usages) {
+          if (callee !== caller) calls.push([caller, callee]);
+          if (calls.length >= 96) break;
+        }
+        if (calls.length >= 96) break;
+      }
+      return { imports: [...imports], exports, usages, calls };
+    } finally {
+      if (lineLimited) for (let line = 0; line < context.budget.maxLines; line += 1) {
+        if (!context.scanBudget.consumeLine()) break;
+      }
+      context.finalize();
+    }
+  };
+  adapter.extractDocMeta = ({ chunk }) => ({ ...extractHeuristicManagedDocMeta(chunk),
+    source: chunk?.meta?.parser === 'mustache-parse-tokens' ? 'managed-mustache-syntax' : 'managed-mustache-unavailable' });
+  return adapter;
+};
+
 export const buildHeuristicAdapters = () => [
   createHeuristicManagedAdapter({
     id: 'cmake',
@@ -791,13 +851,7 @@ export const buildHeuristicAdapters = () => [
     symbolPatterns: JULIA_SYMBOL_PATTERNS
   }),
   createHandlebarsManagedAdapter(),
-  createHeuristicManagedAdapter({
-    id: 'mustache',
-    match: matchByExtension.mustache,
-    collectImports: collectMustacheImports,
-    symbolPatterns: MUSTACHE_SYMBOL_PATTERNS,
-    usageCollector: collectTemplateUsages
-  }),
+  createMustacheManagedAdapter(),
   createHeuristicManagedAdapter({
     id: 'jinja',
     match: matchByExtension.jinja,

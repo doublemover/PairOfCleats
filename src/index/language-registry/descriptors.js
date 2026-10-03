@@ -220,7 +220,7 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
   Object.freeze({
     id: 'mustache',
     adapterId: 'mustache',
-    parserRoute: 'tree-sitter-mustache',
+    parserRoute: 'mustache-parse-tokens',
     capsProfile: 'mustache-default',
     extensions: Object.freeze(['.mustache'])
   }),

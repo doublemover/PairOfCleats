@@ -20,10 +20,11 @@ const CASES = [
   },
   {
     id: 'mustache',
+    expectedCapabilityState: 'partial',
     source: [
       '{{> account.card}}',
       '{{#item}}',
-      '  {{format item}}',
+      '  {{format}}',
       '{{/item}}'
     ].join('\n'),
     expectedImport: 'account.card',

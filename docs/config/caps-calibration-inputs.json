@@ -645,7 +645,7 @@
     },
     {
       "id": "mustache",
-      "parserRoute": "tree-sitter-mustache",
+      "parserRoute": "mustache-parse-tokens",
       "capsProfile": "mustache-default",
       "telemetry": {
         "bytes": {

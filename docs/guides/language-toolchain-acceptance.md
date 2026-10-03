@@ -725,9 +725,15 @@ Each serial install took about 9 seconds with observed RSS below 100 MiB. Projec
 source, dependency versions, defaults and lockfile were not changed by admission.
 
 These are exact component-provenance claims, not a claim that the entire existing
-validation node_modules tree reproduces the lock. Existing Acorn 8.18.0 (versus
-locked 8.15.0, within the declared caret range) was preserved, as were unrelated
-installed dependencies. No project-wide dependency hydration was performed.
+validation node_modules tree reproduces the lock. The earlier results used existing
+Acorn 8.18.0, which differs from the project's exact declared and locked 8.15.0;
+that was a version mismatch, not an allowed caret update. The earlier component
+and receipts are preserved separately. Exact Acorn 8.15.0 was subsequently admitted
+in isolated storage with scripts disabled, and its 130,851-byte tarball matches
+the project-lock SHA-512 integrity. All seven affected fixtures actually load Acorn
+(verified by a resolution hook) and were rerun with 8.15.0 on ee55ea72, passing
+in 0.27–0.52 seconds at roughly 61–79 MiB RSS. Unrelated installed dependencies
+remain unchanged; no project-wide dependency hydration was performed.
 
 Seven previously blocked focused fixtures now pass with their existing behavioral
 assertions preserved: data-interface adapters, template adapters, build-DSL
@@ -737,3 +743,60 @@ under a second at roughly 60–80 MiB observed RSS. This closes the startup/inte
 gap for these small fixtures; it does not establish full indexing, compiler/runtime
 template acceptance, every LSP, non-Linux platforms, a broad suite or CI results.
 One CPU, Node 512 MiB, embeddings/models off remain the validation policy.
+
+## Mustache parse-token ownership
+
+Mustache 4.2.0 is now an exact application dependency. Its official, zero-dependency
+34,584-byte tarball was independently verified against npm SHA-512 integrity and
+admitted with installation scripts disabled (5.3 seconds, below 75 MiB RSS).
+The public Writer.parse API handles in-document delimiter changes, comments,
+sections/inverted sections, literal partial keys and escaped/unescaped lookups.
+An application-owned writer has its vendor template cache disabled. No rendering,
+view/lambda lookup, partial loading, repository module selection or execution occurs.
+
+The original fixture demonstrated that literal curly tags after a delimiter change
+created phantom section/import/relation records, while real custom-delimiter tags
+were missed. All three owners now consume one immutable parsed token model with
+one-document application caching. Token opening start/end and section closing-tag
+start are verified vendor UTF-16 offsets, including emoji and CRLF fixtures. A
+section's closing-tag start is not a closing end or a full AST range. Chunk extents
+partition the document at outer section starts; nested sections remain represented
+in the shared model. The misleading tree-sitter-mustache route is replaced with
+mustache-parse-tokens. Existing 192-KiB/3,000-line/1,100-ms calibration baselines and
+the old compatibility alias remain unchanged; they are not vendor measurements.
+
+Capability is explicitly partial and syntax-only. Relation exports group section
+names, usages record unresolved lookup keys, and the existing calls shape contains
+at most 96 heuristic associations. These do not establish executable helper calls,
+view binding, partial resolution, template runtime semantics or an AST/dataflow
+engine. In particular, Mustache's `{{format item}}` is one literal lookup key;
+the small compatibility fixture now uses the actual `{{format}}` lookup rather
+than treating it as a Handlebars-style helper invocation. Quoted or punctuated
+partial keys stay literal, and backslashes do not acquire Handlebars escape semantics.
+
+Admission/extraction is bounded to 196,608 UTF-16 code units, 3,000 LF-delimited
+lines, 16,384 returned tokens, 4,096 semantic nodes, nesting depth 128 and 4,096
+code units per semantic name. The isolated parse ceiling is 30 ms; an actual
+caller's stricter remaining deadline wins. One-time app-owned initialization is
+measured separately, while line indexing, vendor parsing and token extraction
+remain inside the document deadline. The synchronous parser cannot be interrupted:
+input admission bounds intermediate allocation, returned-token/node limits apply
+after parsing, and measured post-call overrun is reported instead of being hidden.
+An expired caller is rejected even for a cached model. Missing/unsupported parser,
+malformed syntax or exhausted bounds produce a labelled generic chunk and empty
+structural imports/relations, without restoring the phantom-producing regex path.
+
+Focused coverage includes delimiter changes in both directions, delimiter-looking
+comments, custom-delimiter comments containing fake curly tags, nested/inverted
+sections, literal partial names, emoji/CRLF offsets, malformed nesting, missing
+and unsupported loaders, source/line/token/node/name/depth limits, caller time
+expiry/overrun, cached expiry, line/match/token collector windows, disabled cache
+and render/lookup tripwires. Run only the narrow fixture:
+
+```sh
+node tests/lang/contracts/mustache-parse-token-boundaries.test.js
+```
+
+Primary references: [official public parser and custom delimiters](https://github.com/janl/mustache.js),
+[Mustache syntax](https://mustache.github.io/mustache.5.html), and
+[exact package metadata](https://registry.npmjs.org/mustache/4.2.0).

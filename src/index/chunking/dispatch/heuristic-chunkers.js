@@ -1,6 +1,7 @@
 import { parseDockerfileFromClause, parseDockerfileInstruction } from '../../../shared/dockerfile.js';
 import { parseDockerfileStructure } from '../../../shared/dockerfile-ast.js';
 import { parseHandlebarsStructure } from '../../../shared/handlebars-ast.js';
+import { parseMustacheStructure } from '../../../shared/mustache-structure.js';
 import { buildChunksFromLineHeadings } from '../helpers.js';
 import {
   MAX_REGEX_LINE,
@@ -69,12 +70,6 @@ const HANDLEBARS_OPTIONS = {
   format: 'handlebars',
   kind: 'Section',
   defaultName: 'handlebars',
-  precheck: (line) => line.includes('{{')
-};
-const MUSTACHE_OPTIONS = {
-  format: 'mustache',
-  kind: 'Section',
-  defaultName: 'mustache',
   precheck: (line) => line.includes('{{')
 };
 const JINJA_OPTIONS = {
@@ -443,17 +438,27 @@ export const createHandlebarsChunker = ({ parseStructure = parseHandlebarsStruct
 export const chunkHandlebars = createHandlebarsChunker();
 
 /**
- * Heuristic Mustache chunker by section/block tags.
+ * Mustache sections from verified vendor opening-tag ranges. Chunk extents
+ * partition the document; closeStart is a vendor offset, not a full AST range.
  * @param {string} text
  * @param {object|null} [context]
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
-export const chunkMustache = (text, context = null) => chunkByLineRegex(
-  text,
-  /{{[#^]\s*([A-Za-z0-9_.-]+)\b/,
-  MUSTACHE_OPTIONS,
-  context
-);
+export const createMustacheChunker = ({ parseStructure = parseMustacheStructure } = {}) => (text, context = null) => {
+  const source = String(text || '');
+  const configuredMs = context?.treeSitter?.byLanguage?.mustache?.maxParseMs ?? context?.treeSitter?.maxParseMs;
+  const structure = parseStructure(source, { maxMs: configuredMs });
+  const meta = { format: 'mustache', parser: structure.parser, parserCoverage: structure.coverage,
+    parserFallbackReason: structure.reason, parseMetrics: structure.metrics };
+  if (!structure.blocks.length) return [{ start: 0, end: source.length, name: 'mustache', kind: 'Section', meta }];
+  return structure.blocks.map((block, index) => ({ start: block.start,
+    end: structure.blocks[index + 1]?.start ?? source.length, name: block.name, kind: 'Section',
+    meta: { ...meta, title: block.name, definitionType: block.type === '^' ? 'inverted-section' : 'section',
+      rangeSource: structure.rangeSource, tokenRange: { start: block.start, end: block.end },
+      sectionCloseStart: block.closeStart } }));
+};
+
+export const chunkMustache = createMustacheChunker();
 
 /**
  * Heuristic Jinja chunker by directive blocks.

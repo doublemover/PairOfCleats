@@ -92,6 +92,7 @@
     "mammoth": "^1.11.0",
     "micromark": "^4.0.2",
     "msgpackr": "^1.11.8",
+    "mustache": "4.2.0",
     "node-sql-parser": "^5.3.13",
     "onnxruntime-node": "^1.30.0",
     "p-queue": "9.1.0",

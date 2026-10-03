@@ -70,8 +70,11 @@ head. None is a blanket release-readiness claim.
    compatible toolchain at a time. Use the low-load profile, omit embeddings and
    model downloads, and record the exact version, fixture and accepted capabilities.
    The [individual acceptance record](guides/language-toolchain-acceptance.md)
-   covers the C# synchronous-loader update and Groovy's explicit partial coverage;
-   these parser checks do not establish language-server or compiler acceptance.
+   includes bounded syntax-owner corrections for Dockerfile, GraphQL, Handlebars,
+   Protobuf and Mustache plus exact-component registry setup evidence. Their focused
+   fixtures do not replace compiler/runtime, full-index or platform acceptance.
+   It also covers the C# synchronous-loader update and Groovy's explicit partial
+   coverage; these parser checks do not establish language-server acceptance.
    Verified installed Rust, ZLS/Zig or Java/JDT tooling does not grant workspace
    execution: use the exact launch-owned repository authority boundary before
    their LSP/probe/preflight acceptance. Native Rust/Java AST analysis remains

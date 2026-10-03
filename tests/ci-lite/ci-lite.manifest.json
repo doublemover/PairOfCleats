@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 664,
+    "hero": 665,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4834,6 +4834,12 @@
     {
       "id": "lang/contracts/proto-reflection-lexical-boundaries",
       "order": 795,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/mustache-parse-token-boundaries",
+      "order": 796,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
