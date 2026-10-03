@@ -186,9 +186,13 @@ Source archive SHA-256 values:
 Primary provenance: [Rust stable manifest](https://static.rust-lang.org/dist/channel-rust-stable.toml),
 [Zig download metadata](https://ziglang.org/download/index.json),
 [ZLS release](https://github.com/zigtools/zls/releases/tag/0.16.0).
-The bounded Rust fixture completed in about 1.5 seconds with sampled process-tree
-RSS below 448 MiB; ZLS completed below a second and 128 MiB, including the
-committed-head reruns. ZLS's initial archive
+Representative Rust fixtures completed in about 1.5 seconds with sampled
+process-tree RSS around 430–530 MiB; ZLS completed below a second and 128 MiB.
+The 768 MiB sampled stopping rule remains the trial bound, not a promised fixed
+per-server footprint. One cold-readiness request exceeded the harness's original
+1.5-second request timeout; its bounded request allowance is now four seconds
+inside the unchanged 30-second outer fixture deadline. Project runtime budgets
+are unchanged. ZLS's initial archive
 connection timed out before download and its bounded ordinary retry succeeded.
 These remain small common-client/collector checks, not full configured-orchestrator,
 compiler conformance, arbitrary workspace/build execution, full-index or platform

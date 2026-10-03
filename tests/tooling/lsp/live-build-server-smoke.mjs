@@ -82,8 +82,8 @@ try {
   let hover, definition;
   const ready = Date.now() + 5000;
   do {
-    hover = await client.request('textDocument/hover', { textDocument: { uri }, position }, { timeoutMs: 1500 });
-    definition = await client.request('textDocument/definition', { textDocument: { uri }, position }, { timeoutMs: 1500 });
+    hover = await client.request('textDocument/hover', { textDocument: { uri }, position }, { timeoutMs: 4000 });
+    definition = await client.request('textDocument/definition', { textDocument: { uri }, position }, { timeoutMs: 4000 });
     if (hover && (Array.isArray(definition) ? definition.length : definition?.uri || definition?.targetUri)) break;
     await new Promise((resolve) => setTimeout(resolve, 100));
   } while (Date.now() < ready);
