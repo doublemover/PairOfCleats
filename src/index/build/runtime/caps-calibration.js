@@ -36,6 +36,7 @@ const ROUTE_BASELINES = Object.freeze({
   'tree-sitter-proto': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 }),
   'line-parser-makefile': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5500, maxParseMs: 1200 }),
   'line-parser-dockerfile': Object.freeze({ maxBytes: 288 * 1024, maxLines: 4500, maxParseMs: 1200 }),
+  'dockerfile-ast-or-line-parser': Object.freeze({ maxBytes: 288 * 1024, maxLines: 4500, maxParseMs: 1200 }),
   'tree-sitter-graphql': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 }),
   'structured-ini': Object.freeze({ maxBytes: 192 * 1024, maxLines: 3000, maxParseMs: 900 }),
   'structured-json': Object.freeze({ maxBytes: 256 * 1024, maxLines: 4000, maxParseMs: 1000 }),

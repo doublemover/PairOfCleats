@@ -1,4 +1,5 @@
 import { parseDockerfileFromClause, parseDockerfileInstruction } from '../../../shared/dockerfile.js';
+import { parseDockerfileStructure } from '../../../shared/dockerfile-ast.js';
 import { buildChunksFromLineHeadings } from '../helpers.js';
 import {
   MAX_REGEX_LINE,
@@ -128,16 +129,27 @@ const buildFormattedChunksFromHeadings = ({
 };
 
 /**
- * Heuristic Dockerfile chunker using instruction boundaries, with `FROM`
- * clause specialization to preserve stage/image identity in chunk names.
+ * Bounded Dockerfile AST headings preserve logical instructions and stage/image
+ * identity. Missing/unsupported parsing retains an explicitly heuristic fallback.
  *
  * @param {string} text
  * @param {object|null} [context]
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
  */
-export const chunkDockerfile = (text, context = null) => {
+export const createDockerfileChunker = ({ parseStructure = parseDockerfileStructure } = {}) => (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
+  const structure = parseStructure(text);
+  if (structure.parser === 'dockerfile-ast') {
+    const chunks = buildFormattedChunksFromHeadings({ text,
+      headings: structure.instructions.map((instruction) => ({ line: instruction.line, title: instruction.title })),
+      lineIndex, format: 'dockerfile', kind: 'ConfigSection', fallbackName: 'Dockerfile' });
+    return chunks.map((chunk, index) => ({ ...chunk, meta: { ...chunk.meta,
+      parser: structure.parser, parserCoverage: structure.coverage,
+      ...(structure.instructions[index] ? { astRange: {
+        start: structure.instructions[index].start, end: structure.instructions[index].end
+      } } : {}) } }));
+  }
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     if (line.length > MAX_REGEX_LINE) continue;
@@ -158,8 +170,11 @@ export const chunkDockerfile = (text, context = null) => {
     format: 'dockerfile',
     kind: 'ConfigSection',
     fallbackName: 'Dockerfile'
-  });
+  }).map((chunk) => ({ ...chunk, meta: { ...chunk.meta, parser: structure.parser,
+    parserCoverage: structure.coverage, parserFallbackReason: structure.reason } }));
 };
+
+export const chunkDockerfile = createDockerfileChunker();
 
 /**
  * Heuristic Makefile chunker by target declarations.

@@ -165,7 +165,7 @@
     },
     {
       "id": "dockerfile",
-      "parserRoute": "line-parser-dockerfile",
+      "parserRoute": "dockerfile-ast-or-line-parser",
       "capsProfile": "dockerfile-default",
       "telemetry": {
         "bytes": {

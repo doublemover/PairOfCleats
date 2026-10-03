@@ -18,7 +18,8 @@ import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from '..
 import { buildSimpleRelations } from '../simple-relations.js';
 import { collectCmakeImports } from '../import-collectors/cmake.js';
 import { collectDartImports } from '../import-collectors/dart.js';
-import { collectDockerfileImports } from '../import-collectors/dockerfile.js';
+import { createDockerfileImportCollector } from '../import-collectors/dockerfile.js';
+import { parseDockerfileStructure } from '../../../shared/dockerfile-ast.js';
 import { collectGraphqlImports } from '../import-collectors/graphql.js';
 import { collectGroovyImports } from '../import-collectors/groovy.js';
 import { collectHandlebarsImports } from '../import-collectors/handlebars.js';
@@ -545,6 +546,59 @@ const matchProto = (ext, relPath) => matchByExtension.proto(ext, relPath) || mat
 const matchMakefile = (_ext, relPath) => isMakefilePath(relPath);
 const matchDockerfile = (_ext, relPath) => isDockerfilePath(relPath);
 
+export const createDockerfileManagedAdapter = ({ parseStructure = parseDockerfileStructure } = {}) => {
+  const collectDockerfileImports = createDockerfileImportCollector({ parseStructure });
+  const adapter = createHeuristicManagedAdapter({ id: 'dockerfile', match: matchDockerfile,
+    collectImports: collectDockerfileImports, symbolPatterns: DOCKERFILE_SYMBOL_PATTERNS,
+    usageCollector: collectBuildDslUsages, capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE });
+  const fallbackRelations = adapter.buildRelations;
+  adapter.extractDocMeta = ({ chunk }) => ({ ...extractHeuristicManagedDocMeta(chunk),
+    source: chunk?.meta?.parser === 'dockerfile-ast' ? 'managed-dockerfile-ast' : 'managed-heuristic-adapter' });
+  adapter.buildRelations = ({ text, options }) => {
+    const budgetContext = createCollectorBudgetContext({ text, options,
+      collectorId: 'heuristic-adapter:dockerfile', defaults: HEURISTIC_RELATION_SCAN_BUDGET });
+    try {
+      const structure = parseStructure(budgetContext.source);
+      if (structure.parser !== 'dockerfile-ast') return fallbackRelations({ text, options });
+      const imports = new Set();
+      const exports = new Set();
+      const usages = new Set();
+      for (const instruction of structure.instructions) {
+        if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeTime()
+          || !budgetContext.scanBudget.consumeMatch()) break;
+        let lineBudgetAllowed = true;
+        for (let line = instruction.line; line <= instruction.endLine; line += 1) {
+          if (!budgetContext.scanBudget.consumeLine()) { lineBudgetAllowed = false; break; }
+        }
+        if (!lineBudgetAllowed) break;
+        if (instruction.stage && budgetContext.scanBudget.consumeToken()) {
+          exports.add(instruction.stage);
+          imports.add(instruction.stage);
+        }
+        for (const value of instruction.dependencies) {
+          if (!budgetContext.scanBudget.consumeToken()) break;
+          imports.add(value);
+          usages.add(value);
+        }
+      }
+      const symbols = sortUnique([...exports]);
+      const callees = sortUnique([...usages]);
+      const calls = [];
+      for (const caller of symbols.length ? symbols : ['<module>']) {
+        for (const callee of callees) {
+          if (callee !== caller) calls.push([caller, callee]);
+          if (calls.length >= 96) break;
+        }
+        if (calls.length >= 96) break;
+      }
+      return { ...buildSimpleRelations({ imports: [...imports] }), exports: symbols, usages: callees, calls };
+    } finally {
+      budgetContext.finalize();
+    }
+  };
+  return adapter;
+};
+
 export const buildHeuristicAdapters = () => [
   createHeuristicManagedAdapter({
     id: 'cmake',
@@ -653,14 +707,7 @@ export const buildHeuristicAdapters = () => [
     usageCollector: collectBuildDslUsages,
     capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
   }),
-  createHeuristicManagedAdapter({
-    id: 'dockerfile',
-    match: matchDockerfile,
-    collectImports: collectDockerfileImports,
-    symbolPatterns: DOCKERFILE_SYMBOL_PATTERNS,
-    usageCollector: collectBuildDslUsages,
-    capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
-  }),
+  createDockerfileManagedAdapter(),
   createHeuristicManagedAdapter({
     id: 'graphql',
     match: matchByExtension.graphql,

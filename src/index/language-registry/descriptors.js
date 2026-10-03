@@ -258,7 +258,7 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
   Object.freeze({
     id: 'dockerfile',
     adapterId: 'dockerfile',
-    parserRoute: 'line-parser-dockerfile',
+    parserRoute: 'dockerfile-ast-or-line-parser',
     capsProfile: 'dockerfile-default',
     extensions: Object.freeze(['.dockerfile']),
     specialFilenames: Object.freeze(['dockerfile', 'containerfile']),

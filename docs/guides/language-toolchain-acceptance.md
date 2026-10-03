@@ -468,3 +468,57 @@ Primary sources: [official JDT milestone](https://download.eclipse.org/jdtls/mil
 [published archive checksum](https://download.eclipse.org/jdtls/milestones/1.61.0/jdt-language-server-1.61.0-202609031315.tar.gz.sha256),
 [runtime/launch requirements](https://github.com/eclipse-jdtls/eclipse.jdt.ls/tree/v1.61.0),
 and [initialization settings application](https://github.com/eclipse-jdtls/eclipse.jdt.ls/blob/v1.61.0/org.eclipse.jdt.ls.core/src/org/eclipse/jdt/ls/core/internal/handlers/BaseInitHandler.java).
+
+## Exact-lock Pyright validation setup follow-through
+
+The earlier default-Pyright command-profile failure was caused by a missing
+application dependency in isolated validation, not the Java authority change.
+Only the separate 1.1.414 live-trial package existed. Installing exact-lock
+Pyright 1.1.408 into separate validation storage, with scripts and optional
+dependencies omitted, closes that setup gap. The cached 4,429,409-byte registry
+tarball independently matches the lock's SHA-512 integrity; the unchanged matrix
+passes in about 1.8 seconds below 192 MiB RSS. Project source, defaults and the
+lockfile are unchanged. Earlier failure receipts remain historical evidence.
+
+## Dockerfile logical-instruction AST route
+
+The already-declared/locked `dockerfile-ast` 0.7.1 package is admitted separately,
+with its registry tarball's SHA-512 checked against the project lock and install
+scripts disabled. A tiny owned Dockerfile reproduced missed continued FROM stage
+headings and false stages/dependencies from FROM/COPY strings inside a RUN heredoc.
+The candidate preserves the real logical instructions, stage names, heredoc
+extent, escape directives, CRLF and JavaScript/UTF-16 source ranges. No Docker
+daemon, image pull/build or instruction execution is involved.
+
+An application-owned bounded parser now feeds chunk headings, imports and relation
+exports/usages from the same actual instruction/stage model. Chunk sections retain
+their source extents and carry the exact instruction `astRange`. Parser coverage
+and relation capability stay partial; Docker/shell execution, complete BuildKit
+syntax validation, build graphs and container semantics are not inferred.
+The parser retains one immutable result, bounds input characters/lines/instructions
+and flags, and respects the existing collector match/line/token/time budgets.
+
+When the installed parser is unavailable, unsupported or fails, chunks explicitly
+report the existing line parser, heuristic coverage and fallback reason. No AST
+range is invented. This fallback is lower-fidelity and does not establish heredoc
+correctness. Tolerant malformed-source parsing is also partial, not proof that a
+Dockerfile would build. Parser selection is anchored to application dependencies,
+never to a repository-selected module or executable.
+
+The registry route label and deterministic calibration fixture identity follow
+the new AST-or-fallback route. Existing conservative Dockerfile byte/line/time caps
+are unchanged; synthetic calibration values are not new AST benchmarks. Direct
+core-owner regression/comparison checks use less than a second and about 50 MiB
+RSS. Whole-dispatch/registry fixtures remain blocked by the isolated setup's
+missing optional Babel parser; this is not counted as full index acceptance.
+
+```sh
+node tests/lang/contracts/dockerfile-ast-boundaries.test.js
+```
+
+Primary references: [parser project/API](https://github.com/rcjsuen/dockerfile-ast),
+[exact package](https://registry.npmjs.org/dockerfile-ast/0.7.1), and
+[Docker heredoc/escape syntax](https://docs.docker.com/reference/dockerfile/#here-documents).
+The proprietary Intelephense candidate remains research-only: its
+[vendor intended-use licence](https://intelephense.com/eula) was not established
+as covering PoC indexing, so it was not installed or accepted.

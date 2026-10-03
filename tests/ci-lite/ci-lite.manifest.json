@@ -11,7 +11,7 @@
     ".testLogs/ci-lite-testRunTimes.txt"
   ],
   "suiteCategorySummary": {
-    "hero": 659,
+    "hero": 660,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4804,6 +4804,12 @@
     {
       "id": "security/java-workspace-execution-authority",
       "order": 790,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/dockerfile-ast-boundaries",
+      "order": 791,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
