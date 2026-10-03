@@ -558,8 +558,8 @@ The direct-owner regression covers block-string phantoms, actual comments/@link,
 emoji/ranges, same-line definitions, extensions, anonymous operations, malformed
 input, source/line/token/definition/node limits, collector budgets, missing parser
 and invalid source ranges. Line budgets count a declaration's location rather than
-its preceding description. Tiny comparison and regression fixtures finish under
-a second below 112 MiB RSS. Whole
+its preceding description. Observed comparison and expanded-limit regression
+fixtures finish under a second with roughly 45–130 MiB RSS. Whole
 dispatch/registry acceptance remains separately blocked by the isolated setup's
 missing Babel dependency; no broader hydration, model work or CI run is claimed.
 
