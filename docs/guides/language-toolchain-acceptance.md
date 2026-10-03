@@ -1101,6 +1101,8 @@ acceptance and full indexing are separate evidence categories.
 
 | TOML | ba061f0f6f2a0b15b91b9c517c69def05d92ca1a | Ten exact-head focused checks passed, each below 0.62 seconds/<99 MiB; formatter 27.9 seconds. Public semantic values and app lexical ranges remove multiline-string phantoms and recover real arrays/quoted keys; INI and explicit native config parity remain covered. No vendor AST ranges or full configuration/index/platform acceptance. |
 
+| YAML | ec43c9f5c3e3adfabeb3751603630f58c3a85b3a | Eleven exact-head focused checks passed, each below 1.18 seconds/<160 MiB. Scalar phantom/import/workflow, inert alias/tag and source-range/caller-budget controls pass with root/native policies unchanged. Full formatter stopped at 30 seconds; changed-file ESLint passed in 0.57 seconds. No object/schema/workflow execution or full indexing. |
+
 Historical core/dependency records remain in the
 [branch/capability review](../branch-capability-review-2026-10-02.md),
 [dependency guide](dependency-security.md), dated
