@@ -62,6 +62,12 @@ const symbolsByMode = {
     detail: 'int add(int a, int b)',
     kind: 12
   },
+  'java-qualified': {
+    name: 'App.add(int, int)',
+    detail: ' : int',
+    hoverDetail: 'public static int App.add(int a, int b)',
+    kind: 6
+  },
   csharp: {
     name: 'Greet',
     detail: 'string Greet(string name)',

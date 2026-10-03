@@ -1,6 +1,6 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { parseClikeSignature } from './signature-parse/clike.js';
+import { parseJavaSignature } from './signature-parse/java.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { createDedicatedLspProvider } from './dedicated-lsp-provider.js';
 import { ensureCommandArgPair, normalizeCommandArgs } from './provider-utils.js';
@@ -99,7 +99,7 @@ export const createJdtlsProvider = () => createDedicatedLspProvider({
       message: (requestedCmd) => `${requestedCmd} command not available for jdtls.`
     }
   },
-  parseSignature: (detail, _lang, symbolName) => parseClikeSignature(detail, symbolName),
+  parseSignature: (detail, _lang, symbolName) => parseJavaSignature(detail, symbolName),
   getPreflightKey: ({ ctx, config }) => resolveWorkspaceDataDir(ctx, config),
   preflight: async ({ ctx, config, abortSignal, requestedCommand, commandProfile }) => {
     const repoRoot = ctx?.repoRoot || process.cwd();

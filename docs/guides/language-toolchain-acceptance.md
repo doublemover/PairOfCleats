@@ -409,6 +409,62 @@ failure/abort cleanup and doctor runtime/handshake fixtures pass. The broader
 command-profile matrix still fails its unrelated default-Pyright probe assertion;
 the identical assertion fails against preceding head 102e61cc with the same narrow
 fixture grants. This boundary is preserved rather than weakening that assertion.
-The repository formatter reaches the 30-second cutoff in this setup; the changed
-JavaScript files pass focused formatting. No arbitrary project import/build,
+An earlier repository formatter reached its 30-second cutoff; the changed
+JavaScript files passed focused formatting and the subsequent signature batch's
+full formatter passed. No arbitrary project import/build,
 embedding, model or CI run is part of these checks.
+
+### Bounded live JDT and signature follow-through
+
+The SHA-verified JDT LS 1.61.0 server runs with this cloud image's existing
+OpenJDK 21.0.12.1 Debian runtime. Its observed Java executable digest is
+`6698f6f10143ed8463b06062281c727152d2e0ae2a3569b1716fbb2c6cedf0ba`;
+this identifies the preinstalled executable, not a newly verified SDK archive.
+The image lacks the `javac` launcher, so the dedicated provider retains its
+`jdtls_runtime_javac_missing` degradation warning. Full JDK/compiler acceptance
+is not established.
+
+A plain owned App.java file with no build markers/dependencies accepts actual
+PoC-client initialization, hierarchical symbols, Java hover and same-file
+definition. The observed `int App.add(int a, int b)` hover parses to int with both
+named parameter types. Common and dedicated collection bind the correctly scoped
+method chunk and return the expected type, with explicit heuristic source-bootstrap
+provenance. Those collection modes do not claim that their type came from a server
+hover or a complete compiler project model. The raw-client hover check is separate.
+
+The live trial reproduced a real signature mismatch: JDT's symbol identity
+`App.add(int, int)` was included in the C-like return-type comparison, yielding
+`int add`. The Java-specific parser now normalizes the owner/parameter suffix and
+Java modifiers for dedicated and generic Java routes. Qualified return-type names
+remain intact, constructor returns are not invented, and return-type-only symbol
+detail does not fabricate a complete signature. Pure signature fixtures and a
+deterministic JDT-style dedicated-provider fixture cover these cases. This is not
+a complete Java declaration/annotation parser.
+
+Initial whole-class target ranges and unneeded semantic stages incurred hover/
+soft-deadline failures. The corrected harness uses the method's range/kind, and
+collects only the stages needed for this check. The standalone client still tests
+navigation directly. Passing method-scoped collection took roughly 9–15 seconds
+below 445 MiB sampled process-tree RSS, with a 256 MiB Java heap, 128 MiB metaspace,
+64 MiB code cache and one active processor. Earlier failed attempts remain separate;
+these observations do not justify increasing project defaults or calling a timeout
+clean output.
+
+The harness denies execution before creating server workspace data, then grants
+only its generated root. Gradle/Maven imports, wrappers, autobuild, Gradle annotation
+processing, source downloads, telemetry and extra collection stages are disabled.
+The disabled Maven importer cannot activate Maven annotation processing in this
+marker-free fixture; there are no processor dependencies.
+Configuration/data/home are owned temporary directories; no project script or
+program is run. Execute one opt-in mode at a time under the shared outer limits:
+
+```sh
+node tests/tooling/lsp/live-jdtls-server-smoke.mjs client /absolute/java /absolute/verified/jdtls
+node tests/tooling/lsp/live-jdtls-server-smoke.mjs common /absolute/java /absolute/verified/jdtls
+node tests/tooling/lsp/live-jdtls-server-smoke.mjs dedicated /absolute/java /absolute/verified/jdtls
+```
+
+Primary sources: [official JDT milestone](https://download.eclipse.org/jdtls/milestones/1.61.0/),
+[published archive checksum](https://download.eclipse.org/jdtls/milestones/1.61.0/jdt-language-server-1.61.0-202609031315.tar.gz.sha256),
+[runtime/launch requirements](https://github.com/eclipse-jdtls/eclipse.jdt.ls/tree/v1.61.0),
+and [initialization settings application](https://github.com/eclipse-jdtls/eclipse.jdt.ls/blob/v1.61.0/org.eclipse.jdt.ls.core/src/org/eclipse/jdt/ls/core/internal/handlers/BaseInitHandler.java).

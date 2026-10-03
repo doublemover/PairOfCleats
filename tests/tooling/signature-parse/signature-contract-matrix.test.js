@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 
 import { parseClikeSignature } from '../../../src/index/tooling/signature-parse/clike.js';
+import { parseJavaSignature } from '../../../src/index/tooling/signature-parse/java.js';
+import { parseGenericSignature } from '../../../src/index/tooling/lsp-provider/runtime.js';
 import { parseGoSignature } from '../../../src/index/tooling/signature-parse/go.js';
 import { parseLuaSignature } from '../../../src/index/tooling/signature-parse/lua.js';
 import { parsePythonSignature } from '../../../src/index/tooling/signature-parse/python.js';
@@ -22,6 +24,16 @@ assert.equal(findTopLevelIndex('param: Dictionary<String, [Int]> = [:]', '='), 3
 assert.equal(stripTopLevelAssignment('value: String = "a,b"'), 'value: String ');
 
 const clike = parseClikeSignature('const std::vector<int>& build(const std::string& name, int count)', 'build');
+const java = parseJavaSignature('static int add(int a, int b)', 'App.add(int, int)');
+assert.equal(java?.returnType, 'int');
+assert.deepEqual(java?.paramTypes, { a: 'int', b: 'int' });
+assert.equal(parseGenericSignature('int App.add(int a, int b)', 'java', 'App.add(int, int)')?.returnType, 'int');
+const qualifiedJava = parseJavaSignature('public static java.util.List<String> sample.App.names(final String name)',
+  'sample.App.names(String)');
+assert.equal(qualifiedJava?.returnType, 'java.util.List<String>');
+assert.deepEqual(qualifiedJava?.paramTypes, { name: 'String' });
+assert.equal(parseJavaSignature('App(java.lang.String name)', 'App(String)')?.returnType, null);
+assert.equal(parseJavaSignature(' : int', 'App.add(int, int)'), null, 'return-type-only detail does not invent a full signature');
 assert.equal(clike?.returnType, 'const std::vector<int>&');
 assert.deepEqual(clike?.paramNames, ['name', 'count']);
 
