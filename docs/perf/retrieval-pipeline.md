@@ -30,6 +30,15 @@ compose results (fusion + ranking). The `slack` is bounded to keep memory usage 
 
 ## Buffers and Pools
 
+Fusion owns one mutable accumulator for each distinct document across sparse and
+ANN contributions. Updates reuse that private record instead of constructing an
+update object and replacement record for every hit. Input hits remain immutable;
+first-seen document order, duplicate last-value behavior, plain/RRF/blended scores
+and explanation fields retain their existing output. Ten pre-change snapshots
+and pooled-result controls verify parity. A tiny 128-contribution overlap fixture
+observes 64 accumulator records instead of 128 replacements; end-to-end heap and
+latency have not been measured.
+
 Candidate sets and score buffers use small pools to avoid repeated allocations inside a single query.
 Pools are capped and drop oversized buffers to avoid unbounded growth.
 
