@@ -557,16 +557,19 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
             resolvedCmd: commandProfile.resolved?.cmd || ''
           });
           if (probeLsp && options?.probeHandshake !== false) {
+            const handshakeCwd = typeof options?.handshakeCwd === 'string' && options.handshakeCwd.trim()
+              ? path.resolve(options.handshakeCwd) : repoRoot;
             const handshake = await probeLspInitializeHandshake({
               providerId,
               cmd: commandProfile.resolved.cmd,
               args: commandProfile.resolved.args || [],
-              cwd: repoRoot,
+              cwd: handshakeCwd,
               timeoutMs: Number.isFinite(Number(options?.handshakeTimeoutMs))
                 ? Math.max(750, Math.floor(Number(options.handshakeTimeoutMs)))
                 : 4000
             });
-            providerReport.handshake = handshake;
+            providerReport.handshake = { ...handshake, contextRoot: handshakeCwd,
+              scope: handshakeCwd === path.resolve(repoRoot) ? 'selected-workspace' : 'installation-only' };
             if (!handshake.ok) {
               addCheck({
                 name: `${providerId}-initialize`,

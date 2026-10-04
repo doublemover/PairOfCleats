@@ -79,7 +79,9 @@ export const buildBenchmarkPrerequisiteReadiness = ({ assets = [], installation 
       && provider?.status === 'ok' && !failures.length;
     items.push({ id: `provider:${id}`, required: strict,
       state: ready ? 'available-and-verified' : provider ? 'unverified' : 'missing',
-      verificationLevel: ready ? provider.handshake?.ok === true ? 'initialize-and-workspace-checks' : 'runtime-and-workspace-checks' : null,
+      verificationLevel: ready ? provider.handshake?.ok === true
+        ? provider.handshake.scope === 'installation-only' ? 'installation-protocol-and-workspace-checks' : 'initialize-and-workspace-checks'
+        : 'runtime-and-workspace-checks' : null,
       reason: failures.map((check) => `${check.name}: ${check.message}`).join('; ') || (provider ? null : 'Provider was not checked.'),
       details: provider || null });
   }

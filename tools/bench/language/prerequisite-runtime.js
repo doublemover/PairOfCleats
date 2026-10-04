@@ -1,4 +1,6 @@
 import path from 'node:path';
+import fs from 'node:fs/promises';
+import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { getToolingConfig, loadUserConfig, getModelConfig, getDictConfig, getDictionaryPaths, getEffectiveConfigHash } from '../../shared/dict-utils.js';
@@ -10,6 +12,8 @@ import { buildBenchmarkPrerequisiteReadiness } from './prerequisites.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../../sqlite/vector-extension.js';
 import { getXxhashBackend } from '../../../src/shared/hash.js';
 import { loadTypeScript } from '../../../src/index/tooling/typescript/load.js';
+import { isRepoTrusted } from '../../../src/shared/config-authority.js';
+import { isPathWithinRoot } from '../../../src/shared/file-paths.js';
 
 /** Only app-owned command recipes are invoked, always outside the downloaded checkout. */
 export const runBenchmarkPrerequisiteCommand = async ({ scriptRoot, args, timeoutMs, json = false }) => {
@@ -129,9 +133,33 @@ export const checkBenchmarkPrerequisites = async ({ repoRoot, scriptRoot, buildR
       verificationLevel: verification?.verificationLevel || null, details: verification, reason: error });
   }
   const providerIds = selected.map((provider) => provider.id);
-  const doctor = providerIds.length ? await (dependencies.runDoctor || runToolingDoctor)({
-    repoRoot, buildRoot, toolingConfig, strict: false, indexingConfig: userConfig.indexing || {}, analysisPolicy: userConfig.analysisPolicy
-  }, providerIds, { log: (message) => process.stderr.write(`${message}\n`) }) : null;
+  let doctor = null;
+  let verificationRoot = null;
+  let verificationRootIdentity = null;
+  try {
+    if (providerIds.length) {
+      if (!(dependencies.isRepoTrusted || isRepoTrusted)(repoRoot)) {
+        verificationRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-installation-probe-'));
+        verificationRootIdentity = await fs.stat(verificationRoot);
+        const physicalProbeRoot = await fs.realpath(verificationRoot);
+        if (isPathWithinRoot(physicalProbeRoot, await fs.realpath(repoRoot))) {
+          throw new Error('Installation-only protocol verification must stay outside the selected checkout.');
+        }
+      }
+      doctor = await (dependencies.runDoctor || runToolingDoctor)({
+        repoRoot, buildRoot, toolingConfig, strict: false, indexingConfig: userConfig.indexing || {}, analysisPolicy: userConfig.analysisPolicy
+      }, providerIds, { handshakeCwd: verificationRoot || repoRoot,
+        log: (message) => process.stderr.write(`${message}\n`) });
+    }
+  } finally {
+    if (verificationRoot) {
+      const current = await fs.lstat(verificationRoot).catch(() => null);
+      if (!current || (current.isDirectory() && verificationRootIdentity
+        && current.dev === verificationRootIdentity.dev && current.ino === verificationRootIdentity.ino)) {
+        await fs.rm(verificationRoot, { recursive: true, force: true });
+      } else process.stderr.write('[prerequisites] owned protocol-probe root changed; cleanup deferred.\n');
+    }
+  }
   if (!providerIds.length) {
     const backend = await (dependencies.getHashBackend || getXxhashBackend)();
     assets.push({ id: 'chunk-identity', required: true, state: backend ? 'available-and-verified' : 'missing',

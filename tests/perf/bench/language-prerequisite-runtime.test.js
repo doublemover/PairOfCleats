@@ -28,9 +28,11 @@ try {
       return { ok: true, exitCode: 0, payload: { readiness: { items: ids.map((id) => ({ id,
         state: 'installed-and-verified', verificationLevel: 'executable-probe-and-layout' })) } } };
     },
-    async runDoctor(ctx, ids) {
+    async runDoctor(ctx, ids, options) {
       assert.equal(ctx.repoRoot, root);
       assert.equal(ctx.toolingConfig, toolingConfig);
+      assert.notEqual(options.handshakeCwd, root, 'untrusted checkout is not the initialization context');
+      assert.equal(fs.readdirSync(options.handshakeCwd).length, 0, 'protocol context contains no project files');
       return { identity: { chunkUid: { available: true } }, providers: ids.map((id) => ({
         id, enabled: true, available: id !== 'rust-analyzer', status: id === 'rust-analyzer' ? 'warn' : 'ok',
         handshake: id === 'typescript' || id === 'rust-analyzer' ? null : { ok: true, latencyMs: 1 },
@@ -94,8 +96,11 @@ try {
   assert.equal(provider.id, 'lsp-bench-fixture');
   assert.ok(provider.command.resolved.args.includes(fixturePath), 'verification must use the actual configured server arguments');
   assert.equal(provider.handshake.ok, true);
+  assert.equal(provider.handshake.scope, 'installation-only');
+  assert.notEqual(provider.handshake.contextRoot, root);
+  assert.equal(fs.existsSync(provider.handshake.contextRoot), false, 'owned context is removed after protocol shutdown');
   assert.equal(actual.readiness.state, 'ready');
-  assert.equal(actual.readiness.items[0].verificationLevel, 'initialize-and-workspace-checks');
+  assert.equal(actual.readiness.items[0].verificationLevel, 'installation-protocol-and-workspace-checks');
   const cliRoot = path.join(root, 'cli');
   fs.mkdirSync(cliRoot);
   fs.writeFileSync(path.join(cliRoot, '.pairofcleats.json'), JSON.stringify({ indexing: { embeddings: { enabled: true } } }));
