@@ -502,6 +502,10 @@ export const createGraphStore = ({
         wantsSymbolEdges && hasArtifact('symbol_edges') ? loadSymbolEdges() : null,
         wantsCallSites && hasArtifact('call_sites') ? loadCallSites() : null
       ]);
+      // Another compatible caller can finish its synchronous build while this
+      // caller awaits artifact admission. Reuse it before building a second copy.
+      const completed = getCachedGraphIndex(cacheKey, telemetry);
+      if (completed) return completed;
 
       let graphRelationsCsr = csrPayload;
       let csrSource = graphRelationsCsr ? 'artifact' : null;
@@ -618,4 +622,3 @@ export const createGraphStore = ({
     })
   };
 };
-

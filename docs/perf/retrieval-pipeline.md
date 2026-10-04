@@ -114,6 +114,15 @@ Cache keys include `indexSignature`, `repoRoot`, requested graph set, and the CS
 `graph_relations_csr` is loaded and validated (ordering/offsets/bounds); invalid CSR falls back to a legacy
 `graph_relations` representation (and may derive CSR from it).
 
+After required artifact loads complete, concurrent graph requests recheck the
+existing index cache before building another synchronous copy. Six same-key
+callers build once in a tiny fixture, including legacy/CSR traversal parity;
+separate request stores can share that completed index too. Keyless calls remain
+uncached, selected graphs and the existing three-entry limit remain unchanged,
+and a failed artifact load still fails its request. This avoids duplicate index
+construction without a new pending-promise cache. Separate stores still perform
+their own artifact loads; end-to-end timing and peak memory are unmeasured.
+
 Callers should pass either a prebuilt `graphIndex` (preferred) or raw `graphRelations` (baseline). When CSR is enabled,
 some graphIndex variants store a trimmed graph_relations representation (no adjacency lists); passing both `graphIndex` and
 raw `graphRelations` will trigger `GRAPH_INDEX_MISMATCH` and disable cache reuse.
