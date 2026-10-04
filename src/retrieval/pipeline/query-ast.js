@@ -1,5 +1,6 @@
 import { extractNgrams } from '../../shared/tokenize.js';
 import { postingIncludesDocId, resolvePhraseRange } from './candidates.js';
+import { createVocabIndex } from '../vocab-index.js';
 
 /**
  * Build helpers for navigating a parsed query AST.
@@ -83,7 +84,7 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange })
     const phraseIndex = idx.phraseNgrams;
     if (phraseIndex && phraseIndex.vocab && phraseIndex.postings) {
       const vocabIndex = phraseIndex.vocabIndex
-        || (phraseIndex.vocabIndex = new Map(phraseIndex.vocab.map((t, i) => [t, i])));
+        || (phraseIndex.vocabIndex = createVocabIndex(phraseIndex.vocab));
       let matches = 0;
       for (const ng of phraseSet) {
         const hit = vocabIndex.get(ng);

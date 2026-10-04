@@ -79,6 +79,12 @@ array constructors use the previous route. A tiny actual hydration fixture cover
 phrase, character and field postings indexes. It verifies the omitted pair-array
 input; whole-query peak memory and latency remain unmeasured.
 
+The same pure helper serves lazy BM25, candidate and phrase-constraint owners,
+so indexes entering without a prebuilt vocabulary Map avoid those temporary
+pairs too. Tiny actual-owner fixtures retain exact BM25 scores, ordered candidate
+IDs and authoritative phrase matches against prebuilt-Map controls. Cache reuse,
+mapping fallback and sparse rejection rules are shared rather than duplicated.
+
 Vector ANN backends are queried only when vectors are present and an embedding has been computed for
 the query. If no provider is available, the pipeline logs a single warning and continues with sparse
 ranking.
