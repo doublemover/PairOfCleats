@@ -3,6 +3,7 @@ import path from 'node:path';
 import { SCHEDULER_QUEUE_NAMES } from '../runtime/scheduler.js';
 import { resolveWriteStartTimestampMs, resolveArtifactWorkClassConcurrency } from './lane-policy.js';
 import { resolveDispatchWriteSchedulerTokens } from './write-scheduler-tokens.js';
+import { retireQueuedArtifactWrite } from './write-queue.js';
 import {
   resolveArtifactWriteLatencyClass,
   selectMicroWriteBatch,
@@ -376,10 +377,12 @@ export const dispatchArtifactWrites = async (input = {}) => {
   };
 
   const runSingleWrite = async (
-    { label, job, estimatedBytes, enqueuedAt, prefetched, prefetchStartedAt, family, progressUnit, estimatedItems, familyCapability, exclusivePublisherFamily },
+    entry,
     laneName,
     { rescueBoost = false, tailWorker = false, batchSize = 1, batchIndex = 0 } = {}
   ) => {
+    const { label, job, estimatedBytes, enqueuedAt, prefetched, prefetchStartedAt,
+      family, progressUnit, estimatedItems, familyCapability, exclusivePublisherFamily } = entry;
     const activeLabel = label || '(unnamed artifact)';
     const dispatchStartedAt = Date.now();
     const started = resolveWriteStartTimestampMs(prefetchStartedAt, dispatchStartedAt);
@@ -525,6 +528,7 @@ export const dispatchArtifactWrites = async (input = {}) => {
         checksumHash: typeof writeResult?.checksumHash === 'string' ? writeResult.checksumHash : null
       });
     } finally {
+      retireQueuedArtifactWrite(entry);
       const familyPhase = activeWriteMeta.get(activeLabel)?.phase || null;
       activeWrites.delete(activeLabel);
       activeWriteBytes.delete(activeLabel);

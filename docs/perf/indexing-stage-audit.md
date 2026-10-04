@@ -96,6 +96,15 @@ Use these reports to prioritize optimization work before implementing algorithmi
   grammar residency budget.
 
 ## Stage2 Memory Notes
+- After dispatch consumes an original, one-use artifact-planner entry, it drops
+  that entry's job closure and prefetch promise. Completed payloads can leave the
+  retained planning array while later writes continue. Pending entries, producer
+  callbacks and piece metadata remain live until their corresponding attempt
+  settles; direct dispatcher entries and caller-frozen entries keep their prior
+  callable behavior. A tiny delayed-write fixture verifies these references and
+  job/scheduler/metadata failure paths. Other payload owners, queued work and
+  scheduler/compression buffers remain unchanged; no whole-build RSS reduction
+  has been measured.
 - The import-resolution filesystem-existence accelerator computes its three
   seeded Bloom hashes in one UTF-16 character pass. Seeds, bit positions and the
   separate exact-membership hash are unchanged; the callbacks are shared for the
