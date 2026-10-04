@@ -4,7 +4,7 @@ import path from 'node:path';
 import { canRunCommand, probeCommand } from '../shared/cli-utils.js';
 import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../../src/index/constants.js';
 import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
-import { isRepoTrusted } from '../../src/shared/config-authority.js';
+import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
 import { validateResolvedToolingCommandLayout } from '../../src/index/tooling/command-resolver.js';
 import { isPathWithinRoot, toPosix } from '../../src/shared/file-paths.js';
 import {
@@ -675,8 +675,11 @@ export function detectTool(tool) {
     || findBinaryOnPath(tool.detect.cmd);
   if (candidate && tool.authorityRepoRoot && !isRepoTrusted(tool.authorityRepoRoot)) {
     const canonical = fs.realpathSync(candidate);
-    if (isPathWithinRoot(canonical, fs.realpathSync(tool.authorityRepoRoot))
-      && !isPathWithinRoot(canonical, fs.realpathSync(resolveToolRoot()))) {
+    const physicalRepo = fs.realpathSync(tool.authorityRepoRoot);
+    if ((isPathWithinRoot(canonical, physicalRepo)
+      || isPathWithinRoot(path.resolve(candidate), physicalRepo)
+      || isPathWithinRoot(path.resolve(candidate), path.resolve(tool.authorityRepoRoot)))
+      && !isApplicationOwnedCommand({ commandPath: candidate, repoRoot: tool.authorityRepoRoot, toolRoot: resolveToolRoot() })) {
       return { found: false, path: null, source: 'blocked', probe: { ok: false, attempted: [] } };
     }
   }

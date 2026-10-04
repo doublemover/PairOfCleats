@@ -17,6 +17,16 @@ export const isRepoTrusted = (repoRoot, env = process.env) => {
   ));
 };
 
+/** An indexed child repository cannot inherit its enclosing installation's authority. */
+export const isApplicationOwnedCommand = ({ commandPath, repoRoot, toolRoot }) => {
+  const application = canonicalPath(toolRoot);
+  const repository = canonicalPath(repoRoot);
+  if (!application || !repository || !commandPath) return false;
+  return isPathWithinRoot(application, repository)
+    && (isPathWithinRoot(path.resolve(commandPath), path.resolve(toolRoot))
+      || isPathWithinRoot(path.resolve(commandPath), application));
+};
+
 /** A launch-selected user policy must not be stored inside the target repo. */
 export const resolveTrustedConfigPath = (repoRoot, env = process.env) => {
   if (!env.PAIROFCLEATS_TRUSTED_CONFIG) return null;
