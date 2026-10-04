@@ -48,6 +48,8 @@ The default-enable policy and provider delta manifest are expected to stay align
 
 ## Operator Triage
 
+The configured `tooling.logDir/tooling.log` now retains timestamped `[tooling-diagnostic]` JSON records with concrete check messages, provider contract versions, preflight/fidelity summaries, and live request counters when available. Records identify live or cached evidence and declare truncation. Cached runtime counters are omitted, and cached check messages are retained without creating fresh request warnings. Operator output shows up to eight live warning/error checks per provider; a diagnostic-file write failure is reported once while valid provider output remains usable. These are bounded diagnostic excerpts, not complete stderr or per-chunk source dumps.
+
 When an LSP regression appears:
 
 1. Inspect the doctor gate payload and confirm whether the provider failure is availability, handshake, workspace, or bootstrap related.

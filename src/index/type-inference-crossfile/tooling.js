@@ -10,6 +10,7 @@ import { ensureParamTypeMap, getParamTypeList } from './extract.js';
 import { isAbsolutePathNative, isUncPath } from '../../shared/file-paths.js';
 import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
 import { normalizePathForPlatform } from '../../shared/path-normalize.js';
+import { buildToolingDiagnosticRecord, redactToolingDiagnosticText } from './tooling-diagnostic-record.js';
 const EMPTY_TOOLING_PASS_STATS = Object.freeze({
   inferredReturns: 0,
   toolingDegradedProviders: 0,
@@ -60,9 +61,14 @@ const createToolingLogger = (rootDir, logDir, provider, baseLog) => {
   if (!logDir || !provider) return baseLog;
   const absDir = isAbsolutePathNative(logDir) ? logDir : path.join(rootDir, logDir);
   const logFile = path.join(absDir, `${provider}.log`);
+  let writeFailureReported = false;
   const writer = createQueuedAppendWriter({
     filePath: logFile,
-    onError: () => {}
+    onError: (stage, error) => {
+      if (writeFailureReported) return;
+      writeFailureReported = true;
+      baseLog(`[tooling] diagnostic log ${stage} failed (${error?.code || 'unknown'}).`);
+    }
   });
   const logger = (message) => {
     baseLog(message);
@@ -70,6 +76,10 @@ const createToolingLogger = (rootDir, logDir, provider, baseLog) => {
   };
   logger.flush = () => writer.flush();
   logger.close = () => writer.close();
+  // File-only structured data avoids interpreting zero-valued timeout counters as operator warnings.
+  logger.writeDiagnostic = (record) => writer.enqueue(
+    `[${new Date().toISOString()}] [tooling-diagnostic] ${JSON.stringify(record)}\n`
+  );
   return logger;
 };
 
@@ -308,7 +318,16 @@ export const runToolingPass = async ({
     if (providerLog && result?.diagnostics) {
       for (const [providerId, diag] of Object.entries(result.diagnostics || {})) {
         if (!diag) continue;
-        providerLog(`[tooling] ${providerId} diagnostics captured.`);
+        const provider = providerPlans.find((plan) => plan.provider?.id === providerId)?.provider;
+        const record = buildToolingDiagnosticRecord({ providerId, providerContractVersion: provider?.version, diagnostics: diag });
+        if (providerLog.writeDiagnostic) await providerLog.writeDiagnostic(record);
+        if (record.cachedRuntimeOmitted) continue;
+        let reported = 0;
+        for (const check of record.checks) {
+          if (!['warn', 'error'].includes(check.status)) continue;
+          if (reported++ >= 8) break;
+          providerLog(`[tooling] ${record.providerId} ${check.status} ${check.name}: ${redactToolingDiagnosticText(check.message, 512).replace(/\s+/gu, ' ')}`);
+        }
       }
     }
     if (providerLog && Array.isArray(result?.observations)) {
