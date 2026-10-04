@@ -105,6 +105,15 @@ Use these reports to prioritize optimization work before implementing algorithmi
   grammar residency budget.
 
 ## Stage2 Memory Notes
+- Columnar file metadata allocates an optional column only when it first receives
+  a non-null value, filling earlier rows with the same null prefix. Required
+  columns, column/table order, false/zero/empty values and serialized output are
+  unchanged; unusual undefined values keep their original behavior. A 64-row
+  minimal fixture avoids 15 discarded arrays and 960 null appends, while a
+  pre-change mixed snapshot and existing roundtrip control preserve output.
+  The original file-meta rows and every retained column remain materialized;
+  this is a scoped temporary-allocation reduction rather than a new format or
+  whole-build heap measurement.
 - After dispatch consumes an original, one-use artifact-planner entry, it drops
   that entry's job closure and prefetch promise. Completed payloads can leave the
   retained planning array while later writes continue. Pending entries, producer

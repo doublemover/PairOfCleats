@@ -40,41 +40,51 @@ export const buildFileMetaColumnar = (fileMeta) => {
     id: [],
     file: [],
     ext: [],
-    size: [],
-    hash: [],
-    hashAlgo: [],
-    encoding: [],
-    encodingFallback: [],
-    encodingFallbackClass: [],
-    encodingFallbackRisk: [],
-    encodingConfidence: [],
-    externalDocs: [],
-    last_modified: [],
-    last_author: [],
-    churn: [],
-    churn_added: [],
-    churn_deleted: [],
-    churn_commits: []
+    size: null,
+    hash: null,
+    hashAlgo: null,
+    encoding: null,
+    encodingFallback: null,
+    encodingFallbackClass: null,
+    encodingFallbackRisk: null,
+    encodingConfidence: null,
+    externalDocs: null,
+    last_modified: null,
+    last_author: null,
+    churn: null,
+    churn_added: null,
+    churn_deleted: null,
+    churn_commits: null
+  };
+  let rowIndex = 0;
+  const pushOptionalColumn = (column, value) => {
+    let values = arrays[column];
+    if (!values && value !== null) {
+      values = new Array(rowIndex).fill(null);
+      arrays[column] = values;
+    }
+    if (values) values.push(value);
   };
   for (const row of rows) {
     arrays.id.push(row?.id ?? null);
     arrays.file.push(pushTable(row?.file || null, fileTable, fileIndex));
     arrays.ext.push(pushTable(row?.ext || null, extTable, extIndex));
-    arrays.size.push(row?.size ?? null);
-    arrays.hash.push(row?.hash ?? null);
-    arrays.hashAlgo.push(row?.hashAlgo ?? null);
-    arrays.encoding.push(row?.encoding ?? null);
-    arrays.encodingFallback.push(typeof row?.encodingFallback === 'boolean' ? row.encodingFallback : null);
-    arrays.encodingFallbackClass.push(typeof row?.encodingFallbackClass === 'string' ? row.encodingFallbackClass : null);
-    arrays.encodingFallbackRisk.push(typeof row?.encodingFallbackRisk === 'string' ? row.encodingFallbackRisk : null);
-    arrays.encodingConfidence.push(row?.encodingConfidence ?? null);
-    arrays.externalDocs.push(row?.externalDocs ?? null);
-    arrays.last_modified.push(row?.last_modified ?? null);
-    arrays.last_author.push(row?.last_author ?? null);
-    arrays.churn.push(row?.churn ?? null);
-    arrays.churn_added.push(row?.churn_added ?? null);
-    arrays.churn_deleted.push(row?.churn_deleted ?? null);
-    arrays.churn_commits.push(row?.churn_commits ?? null);
+    pushOptionalColumn('size', row?.size ?? null);
+    pushOptionalColumn('hash', row?.hash ?? null);
+    pushOptionalColumn('hashAlgo', row?.hashAlgo ?? null);
+    pushOptionalColumn('encoding', row?.encoding ?? null);
+    pushOptionalColumn('encodingFallback', typeof row?.encodingFallback === 'boolean' ? row.encodingFallback : null);
+    pushOptionalColumn('encodingFallbackClass', typeof row?.encodingFallbackClass === 'string' ? row.encodingFallbackClass : null);
+    pushOptionalColumn('encodingFallbackRisk', typeof row?.encodingFallbackRisk === 'string' ? row.encodingFallbackRisk : null);
+    pushOptionalColumn('encodingConfidence', row?.encodingConfidence ?? null);
+    pushOptionalColumn('externalDocs', row?.externalDocs ?? null);
+    pushOptionalColumn('last_modified', row?.last_modified ?? null);
+    pushOptionalColumn('last_author', row?.last_author ?? null);
+    pushOptionalColumn('churn', row?.churn ?? null);
+    pushOptionalColumn('churn_added', row?.churn_added ?? null);
+    pushOptionalColumn('churn_deleted', row?.churn_deleted ?? null);
+    pushOptionalColumn('churn_commits', row?.churn_commits ?? null);
+    rowIndex += 1;
   }
   const columns = [];
   const compactArrays = {};
