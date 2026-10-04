@@ -43,10 +43,10 @@ const convertLineCharacterToOffset = ({ text, start, end, character, encoding })
     const codePoint = text.codePointAt(current);
     if (codePoint == null) break;
     const codeUnitLength = codePoint > 0xFFFF ? 2 : 1;
-    const slice = text.slice(current, current + codeUnitLength);
+    // A lone UTF-16 surrogate follows Buffer's three-byte replacement encoding.
     const unitWidth = encoding === 'utf-32'
       ? 1
-      : Buffer.byteLength(slice, 'utf8');
+      : (codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2 : codePoint <= 0xffff ? 3 : 4);
     if ((consumed + unitWidth) > targetUnits) break;
     consumed += unitWidth;
     current += codeUnitLength;

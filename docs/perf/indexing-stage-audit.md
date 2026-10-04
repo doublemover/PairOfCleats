@@ -63,6 +63,12 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - Token IDs are canonicalized at tokenize time (64-bit hash); chunk meta can retain packed token IDs to reduce memory pressure.
 - Chargram postings use rolling 64-bit hashes (`h64:`) with a max token length guard to cap per-chunk growth.
 - Stable vocab ordering hashes are recorded in `vocab_order` and the ordering ledger for determinism audits.
+- LSP UTF-8/UTF-32 position conversion derives width directly from each code
+  point instead of creating a substring for every traversed character. UTF-16
+  offsets, CRLF line clamping, partial-byte boundaries and lone-surrogate
+  replacement widths retain their existing semantics. Tiny oracle fixtures cover
+  4,806 coordinate cases and count removed substring/encoding calls; this is not
+  an end-to-end LSP latency measurement or a new coordinate cache.
 - A bounded postings queue now applies backpressure between tokenization and postings apply; queue depth + wait time show up in checkpoint `extra.postingsQueue`.
 - Tree-sitter stats are recorded in checkpoint `extra.treeSitter` (WASM loads/evictions + load modes, parser activations, query cache hits/misses, chunk cache hits/misses, worker fallbacks, parse timeouts/disable counts, batch sizing/deferrals, and cache sizes).
 
