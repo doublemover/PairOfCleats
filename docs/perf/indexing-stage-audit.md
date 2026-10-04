@@ -69,6 +69,12 @@ Use these reports to prioritize optimization work before implementing algorithmi
   replacement widths retain their existing semantics. Tiny oracle fixtures cover
   4,806 coordinate cases and count removed substring/encoding calls; this is not
   an end-to-end LSP latency measurement or a new coordinate cache.
+- Successful explicit LSP pool drain retires unused, never-failed health records
+  after session disposal. Active callback leases and pending creation/disposal
+  protect their records; failure/recovery/quarantine history remains retained.
+  A no-server-start fixture proves eight healthy keys retire while those owners
+  survive. Historical failure metadata is still intentionally unbounded, so this
+  is a scoped lifetime improvement rather than a complete health-cache budget.
 - A bounded postings queue now applies backpressure between tokenization and postings apply; queue depth + wait time show up in checkpoint `extra.postingsQueue`.
 - Tree-sitter stats are recorded in checkpoint `extra.treeSitter` (WASM loads/evictions + load modes, parser activations, query cache hits/misses, chunk cache hits/misses, worker fallbacks, parse timeouts/disable counts, batch sizing/deferrals, and cache sizes).
 

@@ -76,6 +76,7 @@ const resolveExtendedQuarantineMs = () => (
 );
 
 const createSessionHealthRecord = () => ({
+  activeLeaseCount: 0,
   startupFailureCount: 0,
   handshakeFailureCount: 0,
   transportFailureCount: 0,
@@ -93,6 +94,22 @@ const createSessionHealthRecord = () => ({
   lastRecoveryResult: null,
   lastFailureReasonCode: null
 });
+
+const retireUnusedHealthySessionRecords = () => {
+  for (const [key, record] of sessionHealthRecords) {
+    if (sessions.has(key) || creationBarriers.has(key) || disposalBarriers.has(key)
+      || record.activeLeaseCount > 0) continue;
+    // Retain every failure/recovery/quarantine record, including expired history.
+    // Only a never-failed record with no remaining owner can be discarded.
+    if (record.startupFailureCount || record.handshakeFailureCount || record.transportFailureCount
+      || record.protocolParseFailureCount || record.timeoutFailureCount || record.quarantineLevel
+      || record.quarantineReasonCode || record.quarantineUntil || record.quarantineTransitions
+      || record.recoveryProbeActive || record.recoveryProbeAttempts || record.recoveryProbeSuccesses
+      || record.recoveryProbeFailures || record.lastRecoveryAt || record.lastRecoveryResult
+      || record.lastFailureReasonCode) continue;
+    sessionHealthRecords.delete(key);
+  }
+};
 
 const getOrCreateSessionHealthRecord = (key) => {
   const normalizedKey = String(key || '');
@@ -879,6 +896,7 @@ export const drainLspSessionPool = async (options = {}) => {
   const timeoutMs = toPositiveInt(options?.timeoutMs, DEFAULT_DRAIN_TIMEOUT_MS, 100);
   const killFirst = options?.killFirst !== false;
   const log = typeof options?.log === 'function' ? options.log : null;
+  const disposalFailuresBeforeDrain = sessionPoolMetrics.disposalFailures;
   drainSessionPoolPromise = (async () => {
     clearCleanupTimer();
     await cleanupPassQueue.catch(() => {});
@@ -910,6 +928,9 @@ export const drainLspSessionPool = async (options = {}) => {
       };
     }
     const rejected = waited.settled.filter((entry) => entry?.status === 'rejected').length;
+    if (!rejected && sessionPoolMetrics.disposalFailures === disposalFailuresBeforeDrain) {
+      retireUnusedHealthySessionRecords();
+    }
     disposalBarriers.clear();
     creationBarriers.clear();
     if (log) {
@@ -1029,6 +1050,7 @@ export const withLspSession = async (options, fn) => {
     throw new Error(`LSP session is poisoned (${session.poisonReason || 'unknown'}).`);
   }
   session.activeCount += 1;
+  session.healthRecord.activeLeaseCount += 1;
   session.lastUsedAt = Date.now();
   if (resolved.reused) session.reuseCount += 1;
   session.handlers.onNotification = typeof options?.onNotification === 'function'
@@ -1085,6 +1107,7 @@ export const withLspSession = async (options, fn) => {
     session.handlers.onStderrLine = null;
     let disposalPromise = null;
     session.activeCount = Math.max(0, session.activeCount - 1);
+    session.healthRecord.activeLeaseCount = Math.max(0, session.healthRecord.activeLeaseCount - 1);
     session.lastUsedAt = Date.now();
     if (fnSucceeded && session.healthRecord?.recoveryProbeActive === true && session.state !== SESSION_STATE.POISONED) {
       completeRecoveryProbe(session.healthRecord, true);
