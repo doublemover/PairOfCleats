@@ -152,6 +152,15 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - Incremental updates only load chunk rows for changed/deleted files instead of scanning the full chunks table.
 
 ## Scheduler Notes
+
+Build-state waiter removal mutates its private dense array in order. Settling
+an already-detached flush batch leaves the next batch's waiter array untouched,
+instead of copying it once per completed waiter. A tiny two-batch fixture observes
+four unrelated array copies and sixteen copied references become zero, while
+ordered outcomes, pending counts, explicit flush and lifecycle release agree.
+Existing required-write, retry, no-wait telemetry and timeout controls also pass.
+This avoids temporary array retention; it does not bound waiter count or change
+durability, debounce, retry or timeout policy.
 - When the build scheduler is enabled, queue depth, token usage, and starvation counters are exposed via scheduler stats.
 - Stage progress reporting includes scheduler stats in its metadata payload for each stage transition.
 - Stage wiring uses the scheduler queues (`stage1.cpu`, `stage1.io`, `stage1.proc`, `stage1.postings`, `stage2.relations`, `stage2.relations.io`, `stage4.sqlite`) to ensure global backpressure.

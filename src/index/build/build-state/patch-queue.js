@@ -74,7 +74,15 @@ export const createPatchQueue = ({
       waiter.timer = null;
     }
     if (pending?.waiters?.length) {
-      pending.waiters = pending.waiters.filter((candidate) => candidate !== waiter);
+      const index = pending.waiters.indexOf(waiter);
+      if (index >= 0) {
+        // This array is private and dense. Preserve waiter order without a
+        // replacement array, or copying next-flush waiters for a detached batch.
+        for (let i = index + 1; i < pending.waiters.length; i += 1) {
+          pending.waiters[i - 1] = pending.waiters[i];
+        }
+        pending.waiters.pop();
+      }
     }
     if (method === 'reject') {
       waiter.reject(value);
