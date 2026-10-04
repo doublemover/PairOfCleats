@@ -50,6 +50,15 @@ Stage summary fields:
 Use these reports to prioritize optimization work before implementing algorithmic changes.
 
 ## Stage1 Memory Notes
+
+Successful identical GraphQL and Handlebars inputs reuse their existing bounded,
+immutable syntax model before rebuilding a line-start array. Controlled warm
+fixtures reduce 64 and 96 line-start additions respectively to zero; the actual
+syntax-boundary controls still pass. Only successful models are cached, with one
+text/model per parser instance. Source/line/node limits, fallback precedence,
+one-time parser setup receipts and collector deadline checks remain unchanged.
+This removes repeated line scanning/array construction on model hits; no whole
+indexing speed or RSS improvement has been measured.
 - File-text byte sizing includes both the selected raw buffer and an owned
   decoded-text data property when the producer retains both. The UTF-8 text
   estimate extends the existing per-entry proxy; it is not exact JS heap size or

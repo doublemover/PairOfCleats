@@ -40,12 +40,14 @@ export const createHandlebarsStructureParser = ({ loadParser = () =>
     const fallback = (reason) => ({ parser: 'heuristic-handlebars', coverage: 'heuristic', reason,
       blocks: [], definitions: [], partials: [], imports: [], referenceEntries: [] });
     if (source.length > MAX_CHARS) return fallback('source-limit');
+    // Reuse only a previously successful immutable model. Its identical source
+    // already passed the fixed line/node limits and parser initialization.
+    if (source === previousText) return previousResult;
     const lines = buildSourceLines(source);
     if (lines.length > MAX_LINES) return fallback('line-limit');
     const initialization = loader.initialize();
     if (!initialization.available) return fallback(initialization.reason);
     const parser = loader.getParser();
-    if (source === previousText) return previousResult;
     try {
       const document = parser.parseWithoutProcessing(source);
       if (document?.type !== 'Program' || !Array.isArray(document.body)) return fallback('unsupported-ast');

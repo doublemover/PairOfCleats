@@ -22,12 +22,14 @@ export const createGraphqlStructureParser = ({ loadParser = () => require('graph
     const fallback = (reason) => ({ parser: 'heuristic-graphql', coverage: 'heuristic', reason,
       definitions: [], imports: [], references: [], importEntries: [], referenceEntries: [] });
     if (source.length > MAX_CHARS) return fallback('source-limit');
+    // A successful identical source already passed the fixed line/node limits
+    // and initialized the app-owned parser. Avoid rebuilding its line index.
+    if (source === previousText) return previousResult;
     const lineIndex = buildLineIndex(source);
     if (lineIndex.length > MAX_LINES) return fallback('line-limit');
     const initialization = loader.initialize();
     if (!initialization.available) return fallback(initialization.reason);
     const graphql = loader.getParser();
-    if (source === previousText) return previousResult;
     try {
       const document = graphql.parse(source, { maxTokens: MAX_TOKENS });
       if (!Array.isArray(document.definitions) || document.definitions.length > MAX_DEFINITIONS) return fallback('definition-limit');
