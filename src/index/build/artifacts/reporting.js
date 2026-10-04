@@ -47,6 +47,13 @@ const INDEX_STATE_NONDETERMINISTIC_FIELDS = Object.freeze([
     excludeFromStableHash: true
   },
   {
+    path: 'extensions.extractionQuality.lowYieldBailout.decisionAt',
+    category: 'time',
+    reason: 'Extraction admission decision time changes per run; its observed outcome and counts remain in the stable hash.',
+    source: 'src/index/build/indexer/steps/process-files/results.js',
+    excludeFromStableHash: true
+  },
+  {
     path: 'buildId',
     category: 'run_identity',
     reason: 'buildId includes timestamp and invocation identity.',
@@ -301,6 +308,22 @@ const buildExtractedProseLowYieldQualityMarker = (state) => {
     deterministic: typeof raw.seed === 'string' && raw.seed.length > 0,
     downgradedRecall: triggered
   };
+};
+
+/** Quality observation is persisted independently of optional document extraction reports. */
+export const buildExtractionQualityRecord = ({ state, mode } = {}) => {
+  if (mode !== 'extracted-prose') return null;
+  const raw = state?.extractedProseLowYieldBailout;
+  const observed = raw && typeof raw === 'object' && !Array.isArray(raw) && typeof raw.triggered === 'boolean';
+  return { schemaVersion: 1, stage: 'stage1-extraction', source: 'stage1-extraction',
+    observation: observed ? 'observed' : 'unknown',
+    lowYieldBailout: observed ? buildExtractedProseLowYieldQualityMarker(state) : null };
+};
+
+export const stampIndexStateExtractionQuality = ({ indexState, state, mode } = {}) => {
+  if (!indexState || typeof indexState !== 'object' || mode !== 'extracted-prose') return;
+  if (!indexState.extensions || typeof indexState.extensions !== 'object') indexState.extensions = {};
+  indexState.extensions.extractionQuality = buildExtractionQualityRecord({ state, mode });
 };
 
 /**

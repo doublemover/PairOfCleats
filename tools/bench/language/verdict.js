@@ -1,6 +1,7 @@
 import fsPromises from 'node:fs/promises';
 
 import { sumDiagnosticCounts } from './diagnostics.js';
+import { resolveTaskLowYieldBailout } from '../../../src/shared/extraction-quality.js';
 
 export const BENCH_VERDICT_SCHEMA_VERSION = 1;
 export const BENCH_POLICY_SCHEMA_VERSION = 1;
@@ -73,21 +74,6 @@ const listContributingClasses = (entry) => {
   return Array.from(classes).sort((left, right) => left.localeCompare(right));
 };
 
-const resolveTaskLowYieldBailout = (payload) => {
-  const candidates = [
-    payload?.artifacts?.scanProfile?.modes?.['extracted-prose']?.quality?.lowYieldBailout,
-    payload?.scanProfile?.modes?.['extracted-prose']?.quality?.lowYieldBailout,
-    payload?.artifacts?.extractionReport?.quality?.lowYieldBailout,
-    payload?.extractionReport?.quality?.lowYieldBailout,
-    payload?.artifacts?.state?.extractedProseLowYieldBailout,
-    payload?.state?.extractedProseLowYieldBailout
-  ];
-  for (const candidate of candidates) {
-    if (candidate && typeof candidate === 'object') return candidate;
-  }
-  return null;
-};
-
 const countTasksWithDiagnosticType = (tasks, diagnosticType) => (
   (Array.isArray(tasks) ? tasks : []).reduce((count, task) => {
     const diagnosticCounts = sumDiagnosticCounts(task);
@@ -132,6 +118,7 @@ const evaluateProductionCleanGate = ({
     maxPreflightBlockedRepos: 0,
     maxArtifactStallRepos: 0,
     maxQualityBudgetLossRepos: 0,
+    maxUnobservedQualityRepos: 0,
     maxPartialCheckoutRepos: 0,
     maxIncompletePrerequisiteRepos: 0,
     ...(methodology?.productionCleanGate?.thresholds || {})
@@ -151,6 +138,9 @@ const evaluateProductionCleanGate = ({
     preflightBlockedRepos: countTasksWithDiagnosticType(tasks, PRODUCTION_CLEAN_SIGNAL_TYPES.preflightBlockedRepos),
     artifactStallRepos: countTasksWithDiagnosticType(tasks, PRODUCTION_CLEAN_SIGNAL_TYPES.artifactStallRepos),
     qualityBudgetLossRepos: countQualityBudgetLossRepos(tasks),
+    unobservedQualityRepos: (Array.isArray(tasks) ? tasks : []).filter((task) =>
+      ['passed', 'passed_with_degradation'].includes(task.taskStatus?.resultClass)
+      && !resolveTaskLowYieldBailout(task?.payload)).length,
     partialCheckoutRepos: countTasksWithDiagnosticType(tasks, 'repo_partial_checkout'),
     incompletePrerequisiteRepos: countTasksWithDiagnosticType(tasks, 'prerequisite_incomplete')
   };
@@ -165,6 +155,7 @@ const evaluateProductionCleanGate = ({
     maxPreflightBlockedRepos: 'preflightBlockedRepos',
     maxArtifactStallRepos: 'artifactStallRepos',
     maxQualityBudgetLossRepos: 'qualityBudgetLossRepos',
+    maxUnobservedQualityRepos: 'unobservedQualityRepos',
     maxPartialCheckoutRepos: 'partialCheckoutRepos',
     maxIncompletePrerequisiteRepos: 'incompletePrerequisiteRepos'
   };

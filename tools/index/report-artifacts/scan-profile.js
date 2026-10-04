@@ -1,6 +1,8 @@
 import path from 'node:path';
 import { mergeReuseSummaries } from '../../../src/shared/reuse-diagnostics.js';
 import { readJsonFileSyncSafe } from '../../../src/shared/file-read.js';
+import { resolveExtractionQuality } from '../../../src/shared/extraction-quality.js';
+import { buildExtractionQualityRecord } from '../../../src/index/build/artifacts/reporting.js';
 
 export const SCAN_PROFILE_SCHEMA_VERSION = 1;
 
@@ -58,12 +60,16 @@ const computeRate = (count, elapsedMs) => {
   return total / (elapsed / 1000);
 };
 
-const readExtractionReportLowYieldBailout = (indexDir) => {
-  if (typeof indexDir !== 'string' || !indexDir.trim()) return null;
-  const report = readJsonFileSyncSafe(path.join(indexDir, 'extraction_report.json'), null);
-  return report?.quality?.lowYieldBailout && typeof report.quality.lowYieldBailout === 'object'
-    ? report.quality.lowYieldBailout
-    : null;
+const readExtractionQuality = (metrics) => {
+  const indexDir = metrics?.indexDir;
+  const state = typeof indexDir === 'string' && indexDir.trim()
+    ? readJsonFileSyncSafe(path.join(indexDir, 'index_state.json'), null) : null;
+  const extractionReport = typeof indexDir === 'string' && indexDir.trim()
+    ? readJsonFileSyncSafe(path.join(indexDir, 'extraction_report.json'), null) : null;
+  const resolved = resolveExtractionQuality({ state, extractionReport, timings: metrics?.timings });
+  const normalized = buildExtractionQualityRecord({ mode: 'extracted-prose',
+    state: { extractedProseLowYieldBailout: resolved.lowYieldBailout } });
+  return { observation: resolved.observation, source: resolved.source, lowYieldBailout: normalized.lowYieldBailout };
 };
 
 export const createEmptyModeProfile = (modeKey) => ({
@@ -114,6 +120,8 @@ export const createEmptyModeProfile = (modeKey) => ({
     postings: null
   },
   quality: {
+    observation: modeKey === 'extracted-prose' ? 'unknown' : 'not-applicable',
+    source: null,
     lowYieldBailout: null
   },
   reuse: null
@@ -191,11 +199,7 @@ const buildModeScanProfile = ({
     queues: {
       postings: metrics?.queues?.postings || null
     },
-    quality: {
-      lowYieldBailout: modeKey === 'extracted-prose'
-        ? readExtractionReportLowYieldBailout(metrics?.indexDir)
-        : null
-    },
+    quality: modeKey === 'extracted-prose' ? readExtractionQuality(metrics) : empty.quality,
     reuse: metrics?.reuse && typeof metrics.reuse === 'object'
       ? metrics.reuse
       : null

@@ -4096,6 +4096,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
         indexState.generatedAt = indexState.generatedAt || now;
         indexState.updatedAt = now;
         indexState.mode = indexState.mode || mode;
+        if (!indexState.extensions || typeof indexState.extensions !== 'object') indexState.extensions = {};
+        indexState.extensions.bundleEmbeddingSynchronization = {
+          schemaVersion: 1, stage: 'stage3-bundle-synchronization',
+          observation: refreshedBundles.coverage ? 'observed' : 'unknown',
+          coverage: refreshedBundles.coverage || null,
+          rewrittenFiles: refreshedBundles.rewritten || 0,
+          rewriteFailures: refreshedBundles.rewriteFailures || 0,
+          manifestWritten: refreshedBundles.manifestWritten === true
+        };
         indexState.embeddings = {
           ...(indexState.embeddings || {}),
           enabled: true,

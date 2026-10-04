@@ -2,6 +2,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { log } from '../../../src/shared/progress-runtime.js';
 import { mergeReuseSummaries, summarizeReuseObservations } from '../../../src/shared/reuse-diagnostics.js';
+import { buildBenchQualityBudgetSummary } from './quality-summary.js';
 import {
   STAGE_TIMING_SCHEMA_VERSION,
   THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
@@ -801,81 +802,6 @@ const buildBenchReuseDiagnosticsSummary = async (tasks, resultsRoot, options = {
     ...summarizeReuseObservations(observations),
     schemaVersion: 1,
     observations
-  };
-};
-
-const EXTRACTED_PROSE_QUALITY_BUDGET_SCHEMA_VERSION = 1;
-
-const resolveTaskLowYieldBailout = (payload) => {
-  const candidates = [
-    payload?.artifacts?.scanProfile?.modes?.['extracted-prose']?.quality?.lowYieldBailout,
-    payload?.scanProfile?.modes?.['extracted-prose']?.quality?.lowYieldBailout,
-    payload?.artifacts?.extractionReport?.quality?.lowYieldBailout,
-    payload?.extractionReport?.quality?.lowYieldBailout,
-    payload?.artifacts?.state?.extractedProseLowYieldBailout,
-    payload?.state?.extractedProseLowYieldBailout
-  ];
-  for (const candidate of candidates) {
-    if (candidate && typeof candidate === 'object') return candidate;
-  }
-  return null;
-};
-
-const buildBenchQualityBudgetSummary = (tasks) => {
-  const validTasks = Array.isArray(tasks) ? tasks : [];
-  const countsByRepoYieldClass = new Map();
-  const countsByOpportunityClass = new Map();
-  const countsByRecallClass = new Map();
-  const countsByRecallConfidence = new Map();
-  const countsByQualityImpact = new Map();
-  let observedTaskCount = 0;
-  let reducedRecallCount = 0;
-  let skippedFiles = 0;
-  let estimatedSuppressedFiles = 0;
-  let weightedRecallLossTotal = 0;
-  let weightedRecallLossWeight = 0;
-
-  for (const task of validTasks) {
-    const lowYield = resolveTaskLowYieldBailout(task?.payload || null);
-    if (!lowYield || typeof lowYield !== 'object') continue;
-    observedTaskCount += 1;
-    if (lowYield.repoYieldClass) bumpMapCount(countsByRepoYieldClass, lowYield.repoYieldClass);
-    if (lowYield.opportunityCost?.class) bumpMapCount(countsByOpportunityClass, lowYield.opportunityCost.class);
-    if (lowYield.recallCost?.class) bumpMapCount(countsByRecallClass, lowYield.recallCost.class);
-    if (lowYield.recallCost?.estimatedRecallLossConfidence) {
-      bumpMapCount(countsByRecallConfidence, lowYield.recallCost.estimatedRecallLossConfidence);
-    }
-    if (lowYield.recallCost?.qualityImpact) {
-      bumpMapCount(countsByQualityImpact, lowYield.recallCost.qualityImpact);
-    }
-    if (lowYield.triggered === true) reducedRecallCount += 1;
-    skippedFiles += Number(lowYield.opportunityCost?.skippedFiles ?? lowYield.skippedFiles) || 0;
-    estimatedSuppressedFiles += Number(
-      lowYield.opportunityCost?.estimatedSuppressedFiles ?? lowYield.estimatedSuppressedFiles
-    ) || 0;
-    const repoEntries = Number(lowYield?.repoFingerprint?.totalEntries);
-    const recallLossRatio = Number(
-      lowYield.recallCost?.estimatedRecallLossRatio ?? lowYield.estimatedRecallLossRatio
-    );
-    if (Number.isFinite(repoEntries) && repoEntries > 0 && Number.isFinite(recallLossRatio) && recallLossRatio > 0) {
-      weightedRecallLossTotal += recallLossRatio * repoEntries;
-      weightedRecallLossWeight += repoEntries;
-    }
-  }
-
-  return {
-    schemaVersion: EXTRACTED_PROSE_QUALITY_BUDGET_SCHEMA_VERSION,
-    taskCount: validTasks.length,
-    observedTaskCount,
-    reducedRecallCount,
-    skippedFiles,
-    estimatedSuppressedFiles,
-    weightedRecallLossRatio: weightedRecallLossWeight > 0 ? weightedRecallLossTotal / weightedRecallLossWeight : 0,
-    countsByRepoYieldClass: sortMapObject(countsByRepoYieldClass),
-    countsByOpportunityClass: sortMapObject(countsByOpportunityClass),
-    countsByRecallClass: sortMapObject(countsByRecallClass),
-    countsByRecallConfidence: sortMapObject(countsByRecallConfidence),
-    countsByQualityImpact: sortMapObject(countsByQualityImpact)
   };
 };
 
@@ -1762,6 +1688,10 @@ export const buildBenchRunDiagnosticsSummaryLines = (output) => {
     ? output.diagnostics.qualityBudget
     : null;
   const reducedRecallCount = Number(qualityBudget?.reducedRecallCount || 0);
+  if (Number(qualityBudget?.taskCount) > 0) {
+    lines.push(`[diagnostics] extracted-prose quality observation: observed=${qualityBudget.observedTaskCount || 0}/${qualityBudget.taskCount}`
+      + ` | unknown=${qualityBudget.unknownTaskCount || 0}`);
+  }
   const budgetSkippedFiles = Number(qualityBudget?.skippedFiles || 0);
   const budgetSuppressedFiles = Number(qualityBudget?.estimatedSuppressedFiles || 0);
   const weightedRecallLossRatio = Number(qualityBudget?.weightedRecallLossRatio || 0);

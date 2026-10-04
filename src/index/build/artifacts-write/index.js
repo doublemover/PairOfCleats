@@ -96,6 +96,7 @@ import {
 import {
   buildDeterminismReport,
   buildExtractionReport,
+  stampIndexStateExtractionQuality,
   buildLexiconRelationFilterReport,
   stripIndexStateNondeterministicFields
 } from '../artifacts/reporting.js';
@@ -469,6 +470,7 @@ export async function writeIndexArtifacts(input) {
     if (!indexState.extensions || typeof indexState.extensions !== 'object') {
       indexState.extensions = {};
     }
+    stampIndexStateExtractionQuality({ indexState, state, mode });
     if (state?.discoveryHash) {
       indexState.extensions.discoveryHash = state.discoveryHash;
     }
@@ -2518,5 +2520,3 @@ export async function writeIndexArtifacts(input) {
     };
   }
 }
-
-

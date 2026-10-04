@@ -29,6 +29,7 @@ import { enqueueChunkUidMapArtifacts } from '../artifacts/writers/chunk-uid-map.
 import { enqueueVfsManifestArtifacts } from '../artifacts/writers/vfs-manifest.js';
 import {
   buildExtractionReport,
+  stampIndexStateExtractionQuality,
   buildLexiconRelationFilterReport
 } from '../artifacts/reporting.js';
 import {
@@ -354,6 +355,7 @@ export const enqueueArtifactFamilyWrites = async (context = {}) => {
     log
   } = context;
 
+  stampIndexStateExtractionQuality({ indexState, state, mode });
   if (mode === 'extracted-prose' && documentExtractionEnabled && !tinyRepoMinimalArtifacts) {
     const extractionReportPath = path.join(outDir, 'extraction_report.json');
     const extractionReport = buildExtractionReport({

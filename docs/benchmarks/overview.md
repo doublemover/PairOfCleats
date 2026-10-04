@@ -7,6 +7,19 @@ This project has two layers of benchmarking:
 For bounded CPU sampling, timeline traces and CPU/I/O diagnosis, see the
 [performance profiling guide](profiling.md).
 
+Language reports distinguish observed extraction quality from missing evidence.
+Stage 1's quality record is retained in `index_state.json` even when PDF/DOCX
+reporting is disabled or a tiny-repository profile omits auxiliary reports. Older
+stage timing records remain readable. Source-extraction admission and stage 3
+bundle synchronization are recorded separately; skipped synchronization is not
+counted as source-content recall loss.
+
+The production-clean gate requires observed extraction-quality evidence for
+successful tasks. Unknown evidence fails its zero-default
+`maxUnobservedQualityRepos` threshold; it does not establish zero recall loss.
+Ordinary partial runs keep their existing exit policy. Reports retain actual
+skipped-file counts separately from estimated suppressed files and recall loss.
+
 ## Query generation
 
 Use `node tools/bench/query-generator.js` to generate a deterministic query suite from the

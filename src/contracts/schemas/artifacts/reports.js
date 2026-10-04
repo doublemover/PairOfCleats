@@ -797,6 +797,8 @@ const scanProfileModeSchema = {
       type: 'object',
       required: ['lowYieldBailout'],
       properties: {
+        observation: { type: 'string', enum: ['observed', 'unknown', 'not-applicable'] },
+        source: nullableString,
         lowYieldBailout: {
           anyOf: [
             { type: 'null' },

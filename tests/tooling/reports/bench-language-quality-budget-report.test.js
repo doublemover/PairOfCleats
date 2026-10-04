@@ -143,6 +143,8 @@ const output = await buildReportOutput({
 const qualityBudget = output?.diagnostics?.qualityBudget;
 assert.ok(qualityBudget && typeof qualityBudget === 'object', 'expected quality budget summary');
 assert.equal(qualityBudget.observedTaskCount, 1, 'expected one quality-budget-aware task');
+assert.equal(qualityBudget.unknownTaskCount, 0);
+assert.equal(qualityBudget.observation, 'complete');
 assert.equal(qualityBudget.reducedRecallCount, 1, 'expected reduced recall to be tracked');
 assert.equal(qualityBudget.skippedFiles, 6, 'expected skipped-file accounting');
 assert.equal(qualityBudget.estimatedSuppressedFiles, 3, 'expected suppressed-file estimate');
