@@ -128,12 +128,19 @@ export const createHandlebarsStructureParser = ({ loadParser = () =>
         if (node.type === 'PathExpression' && typeof node.original === 'string' && node.parts?.length) {
           append(referenceEntries, { value: node.original, ...rangeOf(node) });
         }
+        const nextDepth = depth + 1;
+        const nextBlockDepth = blockDepth + (isBlock ? 1 : 0);
         for (const [key, value] of Object.entries(node)) {
           if (key === 'loc') continue;
-          const next = { depth: depth + 1, blockDepth: blockDepth + (isBlock ? 1 : 0), scope };
           if (Array.isArray(value)) {
-            for (let index = value.length - 1; index >= 0; index -= 1) stack.push({ node: value[index], ...next });
-          } else if (value && typeof value === 'object') stack.push({ node: value, ...next });
+            for (let index = value.length - 1; index >= 0; index -= 1) {
+              const child = value[index];
+              if (!child || typeof child !== 'object') continue;
+              stack.push({ node: child, depth: nextDepth, blockDepth: nextBlockDepth, scope });
+            }
+          } else if (value && typeof value === 'object') {
+            stack.push({ node: value, depth: nextDepth, blockDepth: nextBlockDepth, scope });
+          }
         }
       }
       blocks.sort((left, right) => left.start - right.start);

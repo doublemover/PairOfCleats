@@ -59,6 +59,14 @@ text/model per parser instance. Source/line/node limits, fallback precedence,
 one-time parser setup receipts and collector deadline checks remain unchanged.
 This removes repeated line scanning/array construction on model hits; no whole
 indexing speed or RSS improvement has been measured.
+
+Handlebars traversal also queues only object children. Scalar path components,
+which were previously wrapped in frames and immediately discarded, stay outside
+the work stack; child depth and scope are carried directly instead of creating
+an unused record for every property. A 128-component path fixture queues two
+object frames and zero primitive frames, with the same actual parser ranges and
+immutable result. Node/depth limits, child ordering, local partial scopes and
+raw/comment/escape boundaries retain their existing behavior.
 - File-text byte sizing includes both the selected raw buffer and an owned
   decoded-text data property when the producer retains both. The UTF-8 text
   estimate extends the existing per-entry proxy; it is not exact JS heap size or
