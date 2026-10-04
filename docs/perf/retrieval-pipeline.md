@@ -112,6 +112,16 @@ raw `graphRelations` will trigger `GRAPH_INDEX_MISMATCH` and disable cache reuse
 When CSR is available, incoming traversal (`direction=in|both`) should use a reverse-edge CSR derived once per graphIndex,
 instead of materializing full `in`/`both` adjacency lists.
 
+Neighborhood traversal consumes raw call/usage CSR rows through iterators,
+including the sorted union of incoming and outgoing IDs. It avoids per-node
+neighbor arrays while retaining direction, duplicate removal and deterministic
+ordering. Import normalization and legacy adjacency retain their existing
+materialized sorting paths; the default direct resolver API still returns arrays.
+The synchronous traversal borrows the immutable graph index for the iterator's
+lifetime. Tiny fixtures verify output/path/cap parity and prefix-only CSR reads.
+The traversal still builds its capped edge batches and visited/witness state;
+total allocation, peak RSS and latency changes remain unmeasured.
+
 Some traversal results may be cached per graphIndex, keyed by the traversal query signature (seeds, filters, depth/direction, caps, includePaths)
 and `indexSignature`. Cache hits must preserve deterministic ordering.
 

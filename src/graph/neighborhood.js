@@ -378,7 +378,7 @@ export const buildGraphNeighborhood = ({
       message: 'Requested graphs were excluded by filters.'
     });
   }
-  const resolveGraphNeighbors = createGraphNeighborResolver({ graphIndex: graphIndexEffective });
+  const resolveGraphNeighbors = createGraphNeighborResolver({ graphIndex: graphIndexEffective, iterableCsr: true });
 
   const missingImportFiles = new Set();
   const resolveImportSourceId = (ref) => {

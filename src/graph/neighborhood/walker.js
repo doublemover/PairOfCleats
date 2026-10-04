@@ -1,8 +1,8 @@
 import { compareStrings } from '../../shared/sort.js';
 import { createCsrNeighborResolver } from './csr.js';
 
-export const createGraphNeighborResolver = ({ graphIndex }) => {
-  const resolveCsrNeighbors = createCsrNeighborResolver({ graphIndex });
+export const createGraphNeighborResolver = ({ graphIndex, iterableCsr = false }) => {
+  const resolveCsrNeighbors = createCsrNeighborResolver({ graphIndex, iterable: iterableCsr });
 
   return (
     graphNodes,

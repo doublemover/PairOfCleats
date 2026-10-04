@@ -1,40 +1,43 @@
 import { buildReverseAdjacencyCsr } from '../indexes.js';
 import { compareStrings } from '../../shared/sort.js';
 
-const mergeSortedUniqueStrings = (left, right) => {
-  const out = [];
-  let i = 0;
-  let j = 0;
+const mergeSortedUniqueStrings = function* (left, right) {
+  const leftIterator = left[Symbol.iterator]();
+  const rightIterator = right[Symbol.iterator]();
+  let leftEntry = leftIterator.next();
+  let rightEntry = rightIterator.next();
   let last = null;
-  while (i < left.length || j < right.length) {
-    const pickLeft = j >= right.length
-      || (i < left.length && compareStrings(left[i], right[j]) <= 0);
-    const value = pickLeft ? left[i++] : right[j++];
+  while (!leftEntry.done || !rightEntry.done) {
+    const pickLeft = rightEntry.done
+      || (!leftEntry.done && compareStrings(leftEntry.value, rightEntry.value) <= 0);
+    const value = pickLeft ? leftEntry.value : rightEntry.value;
+    if (pickLeft) leftEntry = leftIterator.next();
+    else rightEntry = rightIterator.next();
     if (!value || value === last) continue;
-    out.push(value);
+    yield value;
     last = value;
   }
-  return out;
 };
 
-export const collectCsrNeighborIds = ({ ids, offsets, edges, nodeIndex }) => {
-  if (!Array.isArray(ids)) return [];
-  if (!(offsets instanceof Uint32Array) || !(edges instanceof Uint32Array)) return [];
-  if (!Number.isFinite(nodeIndex) || nodeIndex < 0 || nodeIndex + 1 >= offsets.length) return [];
+/** Borrow a single immutable CSR row without retaining a neighbor-count-sized array. */
+export const iterateCsrNeighborIds = function* ({ ids, offsets, edges, nodeIndex }) {
+  if (!Array.isArray(ids)) return;
+  if (!(offsets instanceof Uint32Array) || !(edges instanceof Uint32Array)) return;
+  if (!Number.isFinite(nodeIndex) || nodeIndex < 0 || nodeIndex + 1 >= offsets.length) return;
   const start = offsets[nodeIndex];
   const end = offsets[nodeIndex + 1];
-  if (end <= start) return [];
-  const neighbors = [];
+  if (end <= start) return;
   let prev = null;
   for (let idx = start; idx < end; idx += 1) {
     const neighborIndex = edges[idx];
     if (prev != null && neighborIndex === prev) continue;
     prev = neighborIndex;
     const neighborId = ids[neighborIndex];
-    if (neighborId) neighbors.push(neighborId);
+    if (neighborId) yield neighborId;
   }
-  return neighbors;
 };
+
+export const collectCsrNeighborIds = (input) => Array.from(iterateCsrNeighborIds(input));
 
 export const normalizeNeighborList = (neighbors, normalizeNeighborId) => {
   if (!normalizeNeighborId) return neighbors;
@@ -48,7 +51,14 @@ export const normalizeNeighborList = (neighbors, normalizeNeighborId) => {
   return list;
 };
 
-export const createCsrNeighborResolver = ({ graphIndex }) => {
+export const createCsrNeighborResolver = ({ graphIndex, iterable = false }) => {
+  const resolveNeighborRows = (input, normalizeNeighborId) => {
+    const rows = iterateCsrNeighborIds(input);
+    // Import normalization can reorder/collapse IDs and must retain its existing
+    // eager normalization and sorting. Raw call/usage IDs can borrow the CSR span.
+    if (normalizeNeighborId) return normalizeNeighborList(Array.from(rows), normalizeNeighborId);
+    return iterable ? rows : Array.from(rows);
+  };
   const ensureReverseCsr = (graphName) => {
     if (!graphIndex?.graphRelationsCsr || !graphName) return null;
     const forward = graphIndex.graphRelationsCsr[graphName];
@@ -74,24 +84,25 @@ export const createCsrNeighborResolver = ({ graphIndex }) => {
     const nodeIndex = idTable?.idToIndex?.get(nodeId);
     if (nodeIndex == null) return [];
     if (dir === 'out') {
-      const out = collectCsrNeighborIds({ ...graph, nodeIndex });
-      return normalizeNeighborList(out, normalizeNeighborId);
+      return resolveNeighborRows({ ...graph, nodeIndex }, normalizeNeighborId);
     }
     if (dir === 'in') {
       const reverse = ensureReverseCsr(graphName);
       if (!reverse) return [];
-      const incoming = collectCsrNeighborIds({
+      return resolveNeighborRows({
         ids: graph.ids,
         offsets: reverse.offsets,
         edges: reverse.edges,
         nodeIndex
-      });
-      return normalizeNeighborList(incoming, normalizeNeighborId);
+      }, normalizeNeighborId);
     }
     const out = resolveCsrNeighbors(graphName, nodeId, 'out', normalizeNeighborId) || [];
     const incoming = resolveCsrNeighbors(graphName, nodeId, 'in', normalizeNeighborId) || [];
-    if (!out.length) return incoming;
-    if (!incoming.length) return out;
+    if (!iterable || normalizeNeighborId) {
+      if (!out.length) return incoming;
+      if (!incoming.length) return out;
+      return Array.from(mergeSortedUniqueStrings(out, incoming));
+    }
     return mergeSortedUniqueStrings(out, incoming);
   };
 
