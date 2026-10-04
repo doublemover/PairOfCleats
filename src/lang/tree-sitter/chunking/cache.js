@@ -7,6 +7,33 @@ import { treeSitterState } from '../state.js';
 const DEFAULT_CHUNK_CACHE_MAX_ENTRIES = 64;
 const CHUNK_CACHE_PERSISTENT_SCHEMA = '1.0.0';
 
+const trimCacheEntries = (cache, maxEntries) => {
+  while (cache?.size > maxEntries) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+};
+
+const trimPersistentMemo = (maxEntries = treeSitterState.chunkCacheMaxEntries || DEFAULT_CHUNK_CACHE_MAX_ENTRIES) => {
+  trimCacheEntries(treeSitterState.persistentChunkCacheMemo, maxEntries);
+  trimCacheEntries(treeSitterState.persistentChunkCacheMisses, maxEntries);
+};
+
+const rememberPersistentMiss = (key) => {
+  const misses = treeSitterState.persistentChunkCacheMisses;
+  misses?.delete?.(key);
+  misses?.add?.(key);
+  trimPersistentMemo();
+};
+
+const rememberPersistentChunks = (key, chunks) => {
+  const memo = treeSitterState.persistentChunkCacheMemo;
+  memo?.delete?.(key);
+  memo?.set?.(key, chunks);
+  trimPersistentMemo();
+};
+
 /**
  * Build stable cache signature from tree-sitter chunking controls.
  * @param {object} options
@@ -88,6 +115,7 @@ export const ensureChunkCache = (options) => {
   if (treeSitterState.chunkCacheMaxEntries !== maxEntries) {
     treeSitterState.chunkCache.clear();
     treeSitterState.chunkCacheMaxEntries = maxEntries;
+    trimPersistentMemo(maxEntries);
   }
   return { cache: treeSitterState.chunkCache, maxEntries };
 };
@@ -155,39 +183,42 @@ const readPersistentCachedChunks = (cacheRoot, key, bumpMetric = null) => {
   if (!cacheRoot || !key) return null;
   const memo = treeSitterState.persistentChunkCacheMemo;
   if (memo?.has(key)) {
+    const chunks = memo.get(key);
+    rememberPersistentChunks(key, chunks);
     if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentHits', 1);
-    return cloneChunkList(memo.get(key));
+    return cloneChunkList(chunks);
   }
   const misses = treeSitterState.persistentChunkCacheMisses;
   if (misses?.has(key)) {
+    rememberPersistentMiss(key);
     if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentMisses', 1);
     return null;
   }
   const filePath = resolvePersistentChunkCachePath(cacheRoot, key);
   if (!filePath || !fs.existsSync(filePath)) {
-    misses?.add?.(key);
+    rememberPersistentMiss(key);
     if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentMisses', 1);
     return null;
   }
   try {
     const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     if (!raw || raw.schemaVersion !== CHUNK_CACHE_PERSISTENT_SCHEMA || raw.cacheKey !== key) {
-      misses?.add?.(key);
+      rememberPersistentMiss(key);
       if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentMisses', 1);
       return null;
     }
     const chunks = Array.isArray(raw.chunks) ? raw.chunks : null;
     if (!chunks || !chunks.length) {
-      misses?.add?.(key);
+      rememberPersistentMiss(key);
       if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentMisses', 1);
       return null;
     }
-    memo?.set?.(key, chunks);
+    rememberPersistentChunks(key, chunks);
     misses?.delete?.(key);
     if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentHits', 1);
     return cloneChunkList(chunks);
   } catch {
-    misses?.add?.(key);
+    rememberPersistentMiss(key);
     if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentErrors', 1);
     return null;
   }
@@ -216,7 +247,7 @@ const writePersistentCachedChunks = (cacheRoot, key, chunks, bumpMetric = null) 
       newline: false,
       durable: false
     });
-    treeSitterState.persistentChunkCacheMemo?.set?.(key, payload.chunks);
+    rememberPersistentChunks(key, payload.chunks);
     treeSitterState.persistentChunkCacheMisses?.delete?.(key);
     if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentWrites', 1);
   } catch {

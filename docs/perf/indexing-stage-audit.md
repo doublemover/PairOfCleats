@@ -82,7 +82,18 @@ Use these reports to prioritize optimization work before implementing algorithmi
   and custom callback behavior remain compatible. A 48-diagnostic tiny fixture
   performs one target lookup instead of 48; whole-session speed is unmeasured.
 - A bounded postings queue now applies backpressure between tokenization and postings apply; queue depth + wait time show up in checkpoint `extra.postingsQueue`.
-- Tree-sitter stats are recorded in checkpoint `extra.treeSitter` (WASM loads/evictions + load modes, parser activations, query cache hits/misses, chunk cache hits/misses, worker fallbacks, parse timeouts/disable counts, batch sizing/deferrals, and cache sizes).
+- Tree-sitter stats are recorded in checkpoint `extra.treeSitter` (grammar
+  loads/failures/misses, parser activations, query and chunk cache hits/misses,
+  worker fallbacks, parse timeouts/disable counts, batch sizing/deferrals, and
+  cache sizes). Those cache counters do not establish native grammar unloading.
+- Optional persistent Tree-sitter caching bounds its positive memo rows and
+  negative lookup keys using the existing chunk-cache entry limit. Hits refresh
+  their LRU position, configuration shrink trims both auxiliary maps, and root
+  changes still reset them. Eviction retires memory entries while retaining disk
+  cache files; a later lookup may reread them. Defensive chunk/meta clones and
+  source/config cache identities remain unchanged. Tiny fixtures verify entry
+  bounds and disk/memo parity; this is an entry-count policy, not a byte or native
+  grammar residency budget.
 
 ## Stage2 Memory Notes
 - `graph_relations` is built from a streamed edge spill/merge pipeline and emitted as sharded JSONL to avoid materializing in-memory graph structures.
