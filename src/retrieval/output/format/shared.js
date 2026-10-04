@@ -10,12 +10,15 @@ import {
   buildQueryHash,
   formatLastModified,
   formatSignature,
-  truncatePathMiddle
+  truncatePathMiddle,
+  truncateVisibleText
 } from './display-meta.js';
 
 export const normalizeSnippet = (value, maxLength = 140) => {
   const raw = String(value || '').replace(/\s+/gu, ' ').trim();
   if (!raw) return '';
+  const limit = Number(maxLength);
+  if (Number.isSafeInteger(limit) && limit >= 0) return truncateVisibleText(raw, limit);
   return raw.length > maxLength ? `${raw.slice(0, Math.max(0, maxLength - 3))}...` : raw;
 };
 

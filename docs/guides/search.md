@@ -102,6 +102,8 @@ When structural matches are ingested (see `docs/guides/structural-search.md`), y
 ## Output formats
 
 - Default output is human-readable sections for code/prose/records.
+- Shortened human excerpts preserve complete Unicode characters and emoji
+  sequences; JSON retains the full stored headline.
 - `--json` emits a JSON payload with `backend`, `code`, `prose`, `extractedProse`, and `records`.
 - `--compact` trims JSON hits to a stable subset of fields (use `--json --compact`).
 - `--stats` adds a `stats` object to JSON output; `--explain` implies stats and adds score breakdowns.
