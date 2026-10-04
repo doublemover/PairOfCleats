@@ -484,6 +484,7 @@ export const runGitMetaBatchFetch = async ({
       for (let attemptIndex = 0; attemptIndex < timeoutPlan.length; attemptIndex += 1) {
         const attemptTimeoutMs = timeoutPlan[attemptIndex];
         const args = [
+          '-c', 'core.quotePath=false',
           '-C',
           repoRoot,
           'log',
@@ -528,6 +529,7 @@ export const runGitMetaBatchFetch = async ({
             for (let churnAttemptIndex = 0; churnAttemptIndex < timeoutPlan.length; churnAttemptIndex += 1) {
               const churnTimeoutMs = timeoutPlan[churnAttemptIndex];
               const churnArgs = [
+                '-c', 'core.quotePath=false',
                 '-C',
                 repoRoot,
                 'log',

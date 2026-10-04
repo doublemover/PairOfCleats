@@ -12,7 +12,7 @@ const root = resolveTestCachePath(process.cwd(), `git-prefetch-real-${process.pi
 const repoRoot = path.join(root, 'repo');
 const hookDir = path.join(root, 'empty-hooks');
 const priorConfig = getScmRuntimeConfig();
-const files = ['src/with space.js', 'src/plain.js'];
+const files = ['src/with space.js', 'src/plain.js', 'src/文字.js', 'src/emoji-🦀.js'];
 const git = (args) => execFileSync('git', ['-c', `core.hooksPath=${hookDir}`, ...args],
   { encoding: 'utf8', timeout: 5000, env: { ...process.env, GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z',
     GIT_COMMITTER_DATE: '2026-01-01T00:00:00Z' }, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -46,7 +46,7 @@ try {
   assert.equal(reused.stats.reused, files.length);
   assert.equal(reused.stats.fetched, 0);
   assert.equal(reused.stats.source, 'cache');
-  console.log('Real generated Git repository retains metadata through enabled prefetch and snapshot reuse.');
+  console.log('Real generated Git repository retains space/Unicode metadata through enabled prefetch and snapshot reuse.');
 } finally {
   setScmRuntimeConfig(priorConfig);
   await fs.rm(root, { recursive: true, force: true });
