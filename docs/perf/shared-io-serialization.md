@@ -49,6 +49,24 @@ Telemetry only fires when:
 - `pieces/manifest.json` and `*.meta.json` reads use a small stat-keyed in-memory cache to avoid repeated JSON parsing in tight loops.
 - Cache entries are keyed by file path + size + mtime; changes invalidate automatically.
 
+## Cache-Key Memo Retention
+The two active module-global cache-key memos each retain at most an 8 MiB
+string/reference proxy, for a 16 MiB aggregate per JavaScript isolate, alongside
+their existing 65,536-entry ceilings. The proxy counts UTF-16 code units at two
+bytes each and declared key/value reference slots at eight bytes; shared strings
+may be counted conservatively twice. Map/object headers, backing-string behavior
+and native/process memory are unmeasured. Worker isolates have independent module
+instances, so these limits do not establish a whole-process or whole-build RSS
+bound.
+
+Reads and replacements retain FIFO order. Oversized entries stay outside the
+memo; eviction falls back to the same serialization and SHA-1 computation without
+changing keys, namespaces or versions. Tiny weighted controls and actual memo
+fixtures verify replacement/eviction, exact digests and both aggregate limits.
+The private single-property builder policy remains unchanged: current source
+inventory finds it only in a benchmark and contract tests, with no production
+caller. No strong registry was added to retain arbitrary builder instances.
+
 ## JSONL Reader Fast Paths
 - JSONL parsing uses a buffer scanner (no readline) to avoid per-line interface overhead.
 - Reader highWaterMark adapts to file size for better throughput on large artifacts.
