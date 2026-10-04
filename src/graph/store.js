@@ -504,7 +504,7 @@ export const createGraphStore = ({
       ]);
       // Another compatible caller can finish its synchronous build while this
       // caller awaits artifact admission. Reuse it before building a second copy.
-      const completed = getCachedGraphIndex(cacheKey, telemetry);
+      const completed = getCachedGraphIndex(cacheKey);
       if (completed) return completed;
 
       let graphRelationsCsr = csrPayload;

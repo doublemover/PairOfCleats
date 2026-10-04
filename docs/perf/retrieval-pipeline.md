@@ -121,7 +121,9 @@ separate request stores can share that completed index too. Keyless calls remain
 uncached, selected graphs and the existing three-entry limit remain unchanged,
 and a failed artifact load still fails its request. This avoids duplicate index
 construction without a new pending-promise cache. Separate stores still perform
-their own artifact loads; end-to-end timing and peak memory are unmeasured.
+their own artifact loads. The internal recheck preserves LRU order without adding
+another public request hit/miss observation; end-to-end timing and peak memory
+are unmeasured.
 
 Callers should pass either a prebuilt `graphIndex` (preferred) or raw `graphRelations` (baseline). When CSR is enabled,
 some graphIndex variants store a trimmed graph_relations representation (no adjacency lists); passing both `graphIndex` and

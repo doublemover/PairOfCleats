@@ -25,10 +25,14 @@ try {
     const options = { repoRoot: tmpDir, indexSignature: tmpDir,
       graphs: ['callGraph', 'usageGraph', 'importGraph', 'symbolEdges'], includeCsr };
     const cacheKey = buildGraphIndexCacheKey(options);
-    const before = store.stats().cache.index.builds;
+    const beforeCache = store.stats().cache.index;
+    const before = beforeCache.builds;
     const indexes = await Promise.all(Array.from({ length: 6 }, () => store.loadGraphIndex({ ...options, cacheKey })));
     assert.equal(store.stats().cache.index.builds - before, 1,
       'concurrent compatible callers must reuse the completed synchronous graph build after awaiting artifact admission');
+    const afterCache = store.stats().cache.index;
+    assert.equal(afterCache.hits + afterCache.misses - beforeCache.hits - beforeCache.misses, 6,
+      'the internal post-load recheck must not double-count public request cache observations');
     assert.ok(indexes.every((index) => index === indexes[0]));
     const reference = await store.loadGraphIndex(options);
     assert.deepEqual(neighborhood(indexes[0]), neighborhood(reference), 'actual paths/caps/order preserve uncached output');
