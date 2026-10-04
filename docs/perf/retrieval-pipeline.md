@@ -85,6 +85,14 @@ pairs too. Tiny actual-owner fixtures retain exact BM25 scores, ordered candidat
 IDs and authoritative phrase matches against prebuilt-Map controls. Cache reuse,
 mapping fallback and sparse rejection rules are shared rather than duplicated.
 
+Hot query-cache overflow retains an independent sorted snapshot, caps that
+temporary snapshot, then consumes it synchronously into the replacement Map.
+It avoids another capped-prefix array while preserving timestamp normalization,
+stable ties, entry references, upserts and signature isolation. A tiny five-trim
+fixture reduces owner copy arrays10→5 and copied references45→25. The sorted
+array is not retained after Map construction; disk/prewarm policy and entry
+limits are unchanged. This is an operation count, not a heap or latency result.
+
 Vector ANN backends are queried only when vectors are present and an embedding has been computed for
 the query. If no provider is available, the pipeline logs a single warning and continues with sparse
 ranking.
