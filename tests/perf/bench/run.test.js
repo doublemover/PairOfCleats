@@ -54,11 +54,13 @@ if (testingDefaultsEnabled) {
     process.argv.push('--quiet');
   }
 }
-applyTestEnv({
-  cacheRoot: path.join(root, '.testCache', 'bench-run'),
-  embeddings: 'stub',
-  testConfig: createFastIndexingTestConfig()
-});
+if (testingDefaultsEnabled) {
+  applyTestEnv({
+    cacheRoot: path.join(root, '.testCache', 'bench-run'),
+    embeddings: 'stub',
+    testConfig: createFastIndexingTestConfig()
+  });
+}
 
 const rawArgs = process.argv.slice(2);
 const testHarnessSearchMode = testingDefaultsEnabled ? 'code' : null;

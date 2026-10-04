@@ -101,6 +101,10 @@ const {
   wantsSqlite
 } = parseBenchLanguageArgs();
 
+// The launch-selected storage root must reach config resolution and subprocesses;
+// repository-local config cannot authorize a storage location.
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+
 const mirrorCacheRoot = resolveMirrorCacheRoot({ reposRoot });
 const mirrorRefreshMs = resolveMirrorRefreshMs(getBenchMirrorRefreshMs());
 const baseEnv = applyToolchainDaemonPolicyEnv(process.env);
