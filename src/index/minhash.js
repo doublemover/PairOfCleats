@@ -34,14 +34,30 @@ export class SimpleMinHash {
    * @param {string} token
    */
   update(token) {
+    if (!this.seeds.length) return;
+    const factorToken = typeof token === 'string' && token.length > 0 && this.hash === DEFAULT_HASH;
+    let polynomial = 0;
+    let multiplier = 1;
+    if (factorToken) {
+      // h(seed, token) = seed * 31^length + h(0, token), modulo 2^32.
+      // Read UTF-16 units once rather than once per signature component.
+      for (let i = 0; i < token.length; i += 1) {
+        polynomial = (polynomial * 31 + token.charCodeAt(i)) >>> 0;
+        multiplier = Math.imul(multiplier, 31) >>> 0;
+      }
+    }
     this.seeds.forEach((seed, i) => {
-      const hv = this.hash(token, seed);
+      const hv = factorToken && Number.isInteger(seed) && seed >= 0 && seed <= 0xffffffff
+        ? (Math.imul(seed, multiplier) + polynomial) >>> 0
+        : this.hash(token, seed);
       if (hv < this.hashValues[i]) {
         this.hashValues[i] = hv;
       }
     });
   }
 }
+
+const DEFAULT_HASH = SimpleMinHash.prototype.hash;
 
 const clampPositiveInt = (value, fallback = 0) => {
   const parsed = Number(value);

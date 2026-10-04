@@ -35,6 +35,16 @@ returned results survive later reuse. Borrowed buffer entries are valid only unt
 reset or release. This is a reference-lifetime improvement; no throughput or RSS
 reduction has been measured.
 
+## MinHash Signature Work
+
+For ordinary string tokens and unsigned integer seeds, MinHash factors its
+existing polynomial recurrence into one UTF-16 scan and a short arithmetic update
+per signature component. It preserves the original 32-bit signature values, seed
+order, reset behavior and query ranking, including compatibility with existing
+indexes. Empty tokens, unusual seeds, nonstring token-like inputs and custom hash
+methods retain their prior hash behavior. The focused test compares the original
+recurrence and counts character reads; it does not measure end-to-end speed.
+
 ## ANN Fallbacks
 
 Vector ANN backends are queried only when vectors are present and an embedding has been computed for
