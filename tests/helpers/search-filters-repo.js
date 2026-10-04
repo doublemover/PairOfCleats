@@ -81,7 +81,7 @@ const buildIndex = (repoRoot, env) => {
     '--stage',
     'stage2',
     '--mode',
-    'prose',
+    'all',
     '--repo',
     repoRoot
   ];
